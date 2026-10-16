@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 65;
+pub const FC4_ABI_VERSION: u32 = 66;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -780,6 +780,7 @@ pub mod aura;
 pub mod aura_shadow;
 pub mod automata;
 pub mod budget;
+pub mod city_detail;
 pub mod city_situation;
 pub mod civic;
 pub mod clock24;
@@ -812,12 +813,15 @@ pub mod plumbing;
 pub mod plumbing_shadow;
 pub mod pollution;
 pub mod pollution_shadow;
+pub mod port_developer;
 pub mod power;
 pub mod power_shadow;
+pub mod prop_developer;
 pub mod props;
 pub mod protection;
 pub mod residential;
 pub mod residential_shadow;
+pub mod sinks;
 pub mod stream;
 pub mod terrain;
 pub mod traffic;
@@ -840,6 +844,7 @@ mod automata_tests;
 mod budget_tests;
 
 #[cfg(test)]
+mod city_detail_tests;
 mod city_situation_tests;
 
 #[cfg(test)]
@@ -909,10 +914,16 @@ mod plumbing_shadow_tests;
 mod pollution_tests;
 
 #[cfg(test)]
+mod port_developer_tests;
+
+#[cfg(test)]
 mod power_tests;
 
 #[cfg(test)]
 mod power_shadow_tests;
+
+#[cfg(test)]
+mod prop_developer_tests;
 
 #[cfg(test)]
 mod protection_tests;

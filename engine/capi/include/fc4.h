@@ -148,12 +148,15 @@ extern "C" {
  *      and growth hosts' seed callbacks (renamed session_seed) carry S, and the core derives
  *      every generator's seed from it (derive(S, K), fc4_seed_derive); adds fc4_seed_derive
  *      (seeding lane; taken as 73 on its lane, then 59-63; renumbered at merge);
- * 65 = adds the demolition utility (fc4_demolition, demolition.md), the dispatch manager
+ * 65 = adds the list sinks (fc4_u64s_sink / fc4_u32s_sink / fc4_lot_cfg_object), the city detail
+ *      manager (fc4_city_detail), the airport/seaport developers (fc4_port_developer) and the prop
+ *      developer (fc4_prop_developer) (taken as 61 on its lane; renumbered at merge);
+ * 66 = adds the demolition utility (fc4_demolition, demolition.md), the dispatch manager
  *      (fc4_dispatch, dispatch.md) and the city situation manager (fc4_citysit,
  *      city-situation.md), with the re-answers15 answers applied (dispatch host 39 callbacks:
  *      pylon_return_to_station takes the source and answers, vehicle_in_group appended; city
- *      situation host 79 callbacks) (taken as 60 on its lane, then 61, 63 and 64; renumbered at merge). */
-#define FC4_ABI_VERSION 65u
+ *      situation host 79 callbacks) (taken as 60 on its lane, then 61, 63, 64 and 65; renumbered at merge). */
+#define FC4_ABI_VERSION 66u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -7059,6 +7062,443 @@ bool fc4_park_get_state(const fc4_park* p, fc4_park_state* out);
 bool fc4_park_write(const fc4_park* p, const fc4_ostream* out);
 bool fc4_park_read(fc4_park* p, const fc4_istream* in);
 
+/* ---- list sinks (engine/capi/src/sinks.rs) -----------------------------------
+ * A host callback that returns a list calls the sink it is given one or more
+ * times with (ctx, items, len); each call appends. The items are copied during
+ * the call. Used by the city detail manager, the port developers and the prop
+ * developer. */
+typedef void (*fc4_u64s_sink)(void* ctx, const uint64_t* items, size_t len);
+/* fc4_u32s_sink is declared with the lot developer above. */
+
+/* One lot configuration object (SDK cSC4LotConfigurationObject, a 0x34-byte
+ * record of cfg slot 23): the fields the cores read. */
+typedef struct fc4_lot_cfg_object {
+    uint32_t object_type; /* 1 prop, 2 base texture, 4 flora, ... (the type byte) */
+    uint32_t tag;         /* the object ID (record +0x24), the lot tag of its occupant */
+    uint8_t flags;        /* the flag byte (bit 0: optional) */
+    uint8_t reserved[3];
+    uint32_t id_count;    /* the ID list (record +0x28: prop IDs or family IDs) */
+    const uint32_t* ids;
+} fc4_lot_cfg_object;
+typedef void (*fc4_lot_cfg_objects_sink)(void* ctx, const fc4_lot_cfg_object* items, size_t len);
+
+/* ---- city detail manager (docs/specs/city-detail.md) ---------------------------
+ * cSC4CityDetailManager. The plugin's object (with its serializable
+ * sub-object) forwards its slots here. Tokens are opaque host identities:
+ * lots, occupants and network lots. The increase pass's temporary generator
+ * is seeded per session (§3.5 [choice]): derive_seed(S, 0xEAD4BA36 XOR n), n
+ * counted per thread across every manager created with the same session
+ * seed. A missing callback reads as 0 / false / none / empty. */
+typedef struct fc4_city_detail fc4_city_detail;
+
+/* A position and orientation (lot developer slot 39). */
+typedef struct fc4_object_placement {
+    float x, y, z;
+    uint32_t orientation;
+} fc4_object_placement;
+
+/* One network lot of IterateAllNetworkLots. */
+typedef void (*fc4_network_lot_sink)(void* ctx, int32_t x, int32_t z, uint64_t network_lot);
+
+typedef struct fc4_city_detail_host {
+    uint32_t struct_size; /* sizeof(fc4_city_detail_host) */
+    void* user;
+    /* The city detail setting (0 low, 1 medium, 2 high). */
+    uint32_t (*detail_setting)(void* user);
+    /* Every lot of the lot manager. */
+    void (*lots)(void* user, fc4_u64s_sink sink, void* ctx);
+    /* The lot configuration's objects as the game built them (already filtered by the
+     * detail preference, §3.1 CD1); false without a configuration. */
+    bool (*lot_config_objects)(void* user, uint64_t lot, fc4_lot_cfg_objects_sink sink, void* ctx);
+    /* The lot's occupants / the occupants in the lot's cell rect. */
+    void (*lot_occupants)(void* user, uint64_t lot, fc4_u64s_sink sink, void* ctx);
+    void (*occupants_in_lot_rect)(void* user, uint64_t lot, fc4_u64s_sink sink, void* ctx);
+    uint32_t (*occupant_type)(void* user, uint64_t occupant);
+    /* The occupant's lot tag; false without one. */
+    bool (*occupant_lot_tag)(void* user, uint64_t occupant, uint32_t* tag);
+    void (*demolish_flora)(void* user, uint64_t occupant);
+    void (*remove_prop)(void* user, uint64_t occupant);
+    /* Lot developer slot 39 for configuration object `index` of the lot. */
+    void (*object_placement)(void* user, uint64_t lot, uint32_t index, fc4_object_placement* out);
+    /* Object `index`'s ID array. */
+    void (*object_id_array)(void* user, uint64_t lot, uint32_t index, fc4_u32s_sink sink, void* ctx);
+    /* Creates a lot prop / a flora occupant of `id` at the placement; its token (0 = none). */
+    uint64_t (*add_lot_prop)(void* user, uint32_t id, const fc4_object_placement* placement);
+    uint64_t (*add_flora)(void* user, uint32_t id, const fc4_object_placement* placement);
+    void (*set_lot_tag)(void* user, uint64_t occupant, uint32_t tag);
+    void (*network_lots)(void* user, fc4_network_lot_sink sink, void* ctx);
+    void (*redevelop_network_lot)(void* user, int32_t x, int32_t z, uint64_t network_lot);
+} fc4_city_detail_host;
+
+typedef struct fc4_city_detail_state {
+    uint32_t struct_size;
+    uint32_t level; /* the stored level (0xFFFFFFFF = none) */
+    uint32_t ref_count;
+    uint8_t destroyed;
+    uint8_t reserved[3];
+    /* The last Init: 0 nothing, 1 reduce, 2 increase; the occupants removed
+     * and created, the draws, the network lots redeveloped. */
+    uint32_t last_pass, last_removed, last_created, last_draws, last_network_lots;
+    uint32_t session_passes; /* increase passes so far in this session */
+} fc4_city_detail_state;
+
+/* Constructed (level none, reference count 0). The host table is copied (NULL
+ * for a NULL or short table). `session_seed` is S of §3.5; `token` is the
+ * manager's own host identity. */
+fc4_city_detail* fc4_city_detail_create(const fc4_city_detail_host* host, uint32_t session_seed, uint64_t token);
+void fc4_city_detail_destroy(fc4_city_detail* c);
+bool fc4_city_detail_query_interface(uint32_t iid);
+uint32_t fc4_city_detail_add_ref(fc4_city_detail* c);
+/* Release: 0 when the object was destroyed; the handle stays valid until fc4_city_detail_destroy. */
+uint32_t fc4_city_detail_release(fc4_city_detail* c);
+/* Init (§3.1): reduce or increase, then redevelop the network lots. Always true. */
+bool fc4_city_detail_init(fc4_city_detail* c);
+bool fc4_city_detail_shutdown(fc4_city_detail* c);
+/* Slot 5 ([inferred] GetCityDetail): the stored level. */
+uint32_t fc4_city_detail_get_level(const fc4_city_detail* c);
+bool fc4_city_detail_get_state(const fc4_city_detail* c, fc4_city_detail_state* out);
+/* Persistence (§7). */
+bool fc4_city_detail_write(const fc4_city_detail* c, const fc4_ostream* out);
+bool fc4_city_detail_read(fc4_city_detail* c, const fc4_istream* in);
+
+/* ---- airport and seaport developers (docs/specs/port-developers.md) ------------
+ * cSC4AirportDeveloper / cSC4SeaportDeveloper. `kind` 0 = airport, 1 =
+ * seaport. The plugin's object (with the port, message-target and
+ * serializable sub-objects) forwards its slots here. Tokens are opaque host
+ * identities: lots, occupants, lot configurations, the budget department. A
+ * missing callback reads as 0 / false / none / empty. */
+typedef struct fc4_port_developer fc4_port_developer;
+
+typedef struct fc4_port_host {
+    uint32_t struct_size; /* sizeof(fc4_port_host) */
+    void* user;
+    /* A NEW fc4_props with exemplar (0x6534284A, 0x67CD5FA1, instance); NULL if missing. */
+    fc4_props* (*exemplar)(void* user, uint32_t instance);
+    void (*add_agent)(void* user, uint32_t level, const char* name, uint32_t flags);
+    void (*remove_agent)(void* user, const char* name);
+    /* The budget department (0 = none) / CreateDepartment(id, group, name group, name instance, max funding, line). */
+    uint64_t (*department)(void* user, uint32_t id);
+    uint64_t (*create_department)(void* user, uint32_t id, uint32_t group, uint32_t name_group,
+                                  uint32_t name_instance, float max_funding, uint32_t line);
+    /* The line's full and current expenses; false without the line. */
+    bool (*line_expenses)(void* user, uint64_t department, uint32_t line, int64_t* full, int64_t* current);
+    void (*set_full_expenses)(void* user, uint64_t department, uint32_t line, int64_t amount);
+    bool (*withdraw_funds)(void* user, int64_t amount);
+    bool (*occupant_is_preview)(void* user, uint64_t occupant);
+    uint32_t (*occupant_type)(void* user, uint64_t occupant);
+    bool (*occupant_in_group)(void* user, uint64_t occupant, uint32_t group);
+    uint64_t (*occupant_lot)(void* user, uint64_t occupant);
+    /* The lot configuration's ID and growth stage; false without one. */
+    bool (*lot_config)(void* user, uint64_t lot, uint32_t* id, uint32_t* stage);
+    void (*lot_location)(void* user, uint64_t lot, int16_t* x, int16_t* z);
+    uint64_t (*lot_at)(void* user, int16_t x, int16_t z);
+    uint32_t (*lot_state)(void* user, uint64_t lot);
+    uint32_t (*lot_condition)(void* user, uint64_t lot);
+    void (*set_lot_condition)(void* user, uint64_t lot, uint32_t condition);
+    uint32_t (*lot_days_since_state_change)(void* user, uint64_t lot);
+    void (*lot_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    uint32_t (*lot_facing)(void* user, uint64_t lot);
+    bool (*lot_zone_compatible)(void* user, uint64_t lot, uint16_t zone);
+    /* The lot configuration with this ID (0 = none). */
+    uint64_t (*lot_configuration)(void* user, uint32_t id);
+    void (*start_demolish_lot)(void* user, uint64_t lot);
+    void (*end_demolish_lot)(void* user, uint64_t lot);
+    /* CreateLot(x, z, width, depth, facing); the lot (0 = none). */
+    uint64_t (*create_lot)(void* user, int32_t x, int32_t z, int32_t width, int32_t depth, uint32_t facing);
+    void (*set_lot_configuration)(void* user, uint64_t lot, uint64_t configuration);
+    bool (*construct_default_lot)(void* user, uint64_t lot, uint64_t configuration);
+    void (*dezone)(void* user, const fc4_cell_rect* rect);
+    void (*update_occupant_effects)(void* user, uint64_t lot, float old_efficiency, float new_efficiency);
+    void (*record_history)(void* user, uint32_t key, int32_t value);
+    void (*push_event)(void* user, uint32_t event);
+    /* The office counts of trip type `trip_type`, one per subnetwork. */
+    void (*office_counts)(void* user, uint32_t trip_type, fc4_u32s_sink sink, void* ctx);
+    void (*lot_subnetworks)(void* user, uint64_t lot, fc4_u32s_sink sink, void* ctx);
+    uint32_t (*traffic_arrived)(void* user, uint64_t lot, uint32_t trip_type);
+    void (*set_max_trip_capacity)(void* user, uint64_t lot, uint32_t trip_type, uint32_t capacity);
+    void (*terrain_size)(void* user, uint32_t* width, uint32_t* depth);
+    bool (*cell_has_water)(void* user, uint32_t x, uint32_t z);
+    uint32_t (*set_access_props_state)(void* user, uint64_t lot, uint32_t property, uint32_t state);
+    void (*set_altitude)(void* user, int32_t x, int32_t z, float altitude);
+} fc4_port_host;
+
+/* One port lot (fc4_port_developer_get_port). */
+typedef struct fc4_port_lot {
+    uint32_t struct_size;
+    uint32_t stage, type_index;
+    int16_t x, z;
+    float efficiency, usage;
+    uint32_t trips; /* airport only */
+    uint8_t needs_lookup, swapping, reserved[2];
+    uint64_t lot; /* 0 = none (or not looked up yet) */
+} fc4_port_lot;
+
+typedef struct fc4_port_state {
+    uint32_t struct_size;
+    uint32_t kind, tuning_instance, type_count, types_loaded, port_count, ref_count;
+    uint16_t zone_type;
+    uint8_t tuning_loaded, initialized, destroyed, recheck_access, city_has_sea, reserved;
+    /* The last month: ran (with ports), history value, advisor event, ports skipped. */
+    uint32_t month_ran;
+    int32_t month_history;
+    uint32_t month_event, month_skipped, reserved2;
+    uint64_t department;
+} fc4_port_state;
+
+/* `kind` 0 airport, 1 seaport (NULL for another value or a NULL / short host
+ * table, which is copied). `token` is the developer's own host identity. */
+fc4_port_developer* fc4_port_developer_create(const fc4_port_host* host, uint32_t kind, uint64_t token);
+void fc4_port_developer_destroy(fc4_port_developer* p);
+/* QueryInterface (§1): the sub-object offset (0, 4, 8 or 0xC); false for an IID the kind does not answer. */
+bool fc4_port_developer_query_interface(uint32_t kind, uint32_t iid, uint32_t* offset);
+uint32_t fc4_port_developer_add_ref(fc4_port_developer* p);
+/* Release: the last release calls Shutdown and returns 0; the handle stays valid until fc4_port_developer_destroy. */
+uint32_t fc4_port_developer_release(fc4_port_developer* p);
+/* Init: tuning, department, agent; the seaport's map. */
+bool fc4_port_developer_init(fc4_port_developer* p);
+bool fc4_port_developer_shutdown(fc4_port_developer* p);
+/* DoMessage (§3): `data` is the occupant (0x99EF1142) or the lot (0xE8BDA2E7,
+ * with the old and new states); the month 0x66956816, PostCityInit, the
+ * terrain message and the growth messages take no data. Always true. */
+bool fc4_port_developer_do_message(fc4_port_developer* p, uint32_t msg, uint64_t data, uint32_t old_state,
+                                   uint32_t new_state);
+/* GetAvgEfficiency (1.0 with no ports). */
+float fc4_port_developer_avg_efficiency(const fc4_port_developer* p);
+/* GetLeastEfficientPort: false with no ports. [choice] With two or more the minimum (first on ties). */
+bool fc4_port_developer_least_efficient(const fc4_port_developer* p, float* efficiency, int16_t* x, int16_t* z);
+/* GetAllPortLots: up to `capacity` lot tokens; returns the count (`out` may be NULL). */
+size_t fc4_port_developer_all_port_lots(const fc4_port_developer* p, uint64_t* out, size_t capacity);
+/* GetNumPorts(sizeFlags, stageFlags) (size bit 1 << sizeClass). */
+uint32_t fc4_port_developer_num_ports(const fc4_port_developer* p, uint32_t size_flags, uint32_t stage_flags);
+uint32_t fc4_port_developer_num_airports(const fc4_port_developer* p, uint32_t size);
+uint32_t fc4_port_developer_num_seaports(const fc4_port_developer* p);
+/* Get...UsageValues(lot): false (0, 0) if not a port. */
+bool fc4_port_developer_usage_values(const fc4_port_developer* p, uint64_t lot, uint32_t* usage, uint32_t* cap);
+uint32_t fc4_port_developer_num_trips(const fc4_port_developer* p);
+/* GetMaintenanceCost(lot) (0 if not a port). */
+int64_t fc4_port_developer_maintenance_cost(const fc4_port_developer* p, uint64_t lot);
+/* Seaport: CityHasSea / GetCellSeaAccess(x, z) (the map byte, 0 outside the map). */
+bool fc4_port_developer_city_has_sea(const fc4_port_developer* p);
+uint8_t fc4_port_developer_cell_sea_access(const fc4_port_developer* p, int32_t x, int32_t z);
+/* Port lot `index` (list order); false past the end. */
+bool fc4_port_developer_get_port(const fc4_port_developer* p, uint32_t index, fc4_port_lot* out);
+bool fc4_port_developer_get_state(const fc4_port_developer* p, fc4_port_state* out);
+/* Persistence (§7). Read: false for another version or a type index out of
+ * range (the port list is then unchanged); appends the ports. */
+bool fc4_port_developer_write(const fc4_port_developer* p, const fc4_ostream* out);
+bool fc4_port_developer_read(fc4_port_developer* p, const fc4_istream* in);
+
+/* ---- prop developer (docs/specs/prop-developer.md) -----------------------------
+ * cSC4PropDeveloper (0x89C48F47) and its wealth requester (0x89C49986). The
+ * plugin's developer (with the message-target and serializable sub-objects)
+ * forwards its slots here; its wealth requester objects answer share 10,
+ * satisfaction 0x49A1E995 and custom selector true themselves, and forward
+ * SelectProp to fc4_prop_developer_wealth_select. The crime and pollution
+ * requesters stay in the host (requester_* callbacks). Tokens are opaque host
+ * identities: lots, network lots, prop occupants, requesters, managers.
+ * Generators (§5): the member generator is seeded with
+ * derive_seed(S, 0x89C48F47) x 28; the wealth file generator
+ * (derive_seed(S, 0x4C09C51F)) is shared by every developer created on the
+ * thread with the same session seed. A missing callback reads as 0 / false /
+ * none / empty. */
+typedef struct fc4_prop_developer fc4_prop_developer;
+
+/* A held host object: token (0 = null) and class (for the record). */
+typedef struct fc4_prop_ref {
+    uint64_t token;
+    uint32_t class_id;
+    uint32_t reserved;
+} fc4_prop_ref;
+
+typedef struct fc4_prop_host {
+    uint32_t struct_size; /* sizeof(fc4_prop_host) */
+    void* user;
+    /* City, simulator, messages. */
+    void (*city_cells)(void* user, int32_t* x, int32_t* z);
+    void (*cell_width)(void* user, float* x, float* z);
+    /* Fills three refs: lot manager, prop manager, network lot manager. */
+    void (*managers)(void* user, fc4_prop_ref* out3);
+    /* Creates the host object of a new wealth requester; its token. */
+    uint64_t (*create_wealth_requester)(void* user);
+    void (*add_agent)(void* user, uint32_t level, const char* name, uint32_t flags);
+    /* Removes the agent from every level. */
+    void (*remove_agents)(void* user, const char* name);
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe_all)(void* user);
+    void (*register_animation_tick)(void* user, uint32_t priority);
+    void (*unregister_animation_tick)(void* user);
+    /* Posts 0xCA5E5027 (data1 x, data2 z, data3 = entered state 3). */
+    void (*post_lot_state_props)(void* user, int32_t x, int32_t z, bool entered_3);
+    /* AddRef / Release of a held requester or prop. */
+    void (*hold)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* Host requesters (crime, pollution): slots 3-6. */
+    int32_t (*requester_share)(void* user, uint64_t requester, const fc4_cell_rect* rect);
+    uint32_t (*requester_satisfaction)(void* user, uint64_t requester);
+    bool (*requester_custom)(void* user, uint64_t requester);
+    uint32_t (*requester_select)(void* user, uint64_t requester, const uint32_t* ids, size_t count, int32_t x,
+                                 int32_t z);
+    /* Lots and network lots. lot_at = lotManager.GetLot(x, z, originOnly) (0 = none). */
+    uint64_t (*lot_at)(void* user, int32_t x, int32_t z, bool origin_only);
+    bool (*lot_livable)(void* user, uint64_t lot);
+    uint32_t (*lot_building_type)(void* user, uint64_t lot);
+    float (*lot_occupancy)(void* user, uint64_t lot);
+    /* The configuration's objects; false without a configuration. */
+    bool (*lot_config_objects)(void* user, uint64_t lot, fc4_lot_cfg_objects_sink sink, void* ctx);
+    uint32_t (*lot_wealth)(void* user, uint64_t lot);
+    void (*lot_location)(void* user, uint64_t lot, int32_t* x, int32_t* z);
+    void (*lot_size)(void* user, uint64_t lot, int32_t* x, int32_t* z);
+    uint32_t (*lot_state)(void* user, uint64_t lot);
+    uint32_t (*zone_type)(void* user, int32_t x, int32_t z);
+    uint64_t (*network_lot_at)(void* user, int32_t x, int32_t z);
+    bool (*network_lot_objects)(void* user, uint64_t network_lot, fc4_lot_cfg_objects_sink sink, void* ctx);
+    uint32_t (*network_wealth)(void* user, int32_t x, int32_t z);
+    /* Prop manager. */
+    void (*lot_props)(void* user, uint64_t lot, fc4_u64s_sink sink, void* ctx);
+    void (*street_props)(void* user, int32_t x, int32_t z, fc4_u64s_sink sink, void* ctx);
+    void (*street_props_in_rect)(void* user, const fc4_cell_rect* rect, fc4_u64s_sink sink, void* ctx);
+    /* RemovePropA. */
+    void (*remove_prop)(void* user, uint64_t prop);
+    bool (*prop_type_valid)(void* user, uint32_t id);
+    void (*props_by_family)(void* user, uint32_t family, fc4_u32s_sink sink, void* ctx);
+    /* The prop profile's requester satisfaction (0x49A1E05A) and wealth byte (0xE9A316EB), default 0. */
+    uint32_t (*prop_satisfaction)(void* user, uint32_t id);
+    uint8_t (*prop_wealth)(void* user, uint32_t id);
+    /* Lot developer CreateLotProp(lot, index, id) / network lot manager
+     * CreateProp(netLot, index, id); the occupant (0 = none). */
+    uint64_t (*create_lot_prop)(void* user, uint64_t lot, uint32_t index, uint32_t id);
+    uint64_t (*create_network_prop)(void* user, uint64_t network_lot, uint32_t index, uint32_t id);
+    /* Prop occupants. */
+    uint32_t (*prop_class)(void* user, uint64_t prop);
+    /* A NEW fc4_props with the occupant's properties; NULL if none. */
+    fc4_props* (*prop_properties)(void* user, uint64_t prop);
+    /* The lot tag; false without one. */
+    bool (*prop_lot_tag)(void* user, uint64_t prop, uint32_t* tag);
+    /* Sets the u32 property 0x89A1C16C. */
+    void (*set_prop_requester)(void* user, uint64_t prop, uint32_t requester);
+    uint32_t (*prop_type)(void* user, uint64_t prop);
+    uint32_t (*prop_state)(void* user, uint64_t prop);
+    void (*set_prop_state)(void* user, uint64_t prop, uint32_t state);
+    /* SetPropTimerState(mask, on). */
+    void (*set_prop_timer)(void* user, uint64_t prop, uint32_t mask, bool on);
+    void (*set_random_chance)(void* user, uint64_t prop, uint8_t chance);
+    void (*set_time_of_day_range)(void* user, uint64_t prop, float start, float end);
+    void (*time_of_day_range)(void* user, uint64_t prop, float* start, float* end);
+    /* SetSimulatorDateRange(date, duration, flag, 0). */
+    void (*set_date_range)(void* user, uint64_t prop, uint32_t date, uint32_t duration, uint8_t flag);
+    void (*tick_date)(void* user, uint64_t prop, uint32_t date);
+    /* Three floats (x, y, z). set_prop_position also notifies the occupant manager (flag 1). */
+    void (*prop_position)(void* user, uint64_t prop, float* out3);
+    void (*set_prop_position)(void* user, uint64_t prop, const float* position3);
+    /* SetFlag / ClearFlag. */
+    void (*set_prop_flag)(void* user, uint64_t prop, uint32_t flag, bool on);
+    /* The first cell of a network occupant's bounding cells. */
+    void (*network_first_cell)(void* user, uint64_t occupant, int32_t* x, int32_t* z);
+    /* cISC4City::PositionToCell. */
+    void (*position_to_cell)(void* user, float x, float z, int32_t* cell_x, int32_t* cell_z);
+    /* Others: power simulator IsPowered, the 3D view (available, trigger state),
+     * the sim date, the 24-hour clock (false without it; visual time mode 0
+     * normal, 1 day, 2 night), the lighting manager's IsNight, and the terrain
+     * altitude and water level at a position. */
+    bool (*is_powered)(void* user, int32_t x, int32_t z);
+    bool (*view_available)(void* user);
+    bool (*view_trigger_state)(void* user, uint32_t trigger);
+    uint32_t (*sim_date)(void* user);
+    bool (*clock_time)(void* user, uint32_t* hour, uint32_t* minute);
+    uint32_t (*visual_time_mode)(void* user);
+    bool (*lighting_is_night)(void* user);
+    void (*terrain_heights)(void* user, float x, float z, float* altitude, float* water);
+} fc4_prop_host;
+
+typedef struct fc4_prop_message {
+    uint32_t msg_type;
+    uint32_t data1, data2, data3, data4;
+    uint32_t reserved;
+    uint64_t object; /* the message's occupant or lot (0 = none) */
+} fc4_prop_message;
+
+typedef struct fc4_prop_state {
+    uint32_t struct_size;
+    int32_t scan_flag;      /* 0 never set up, 1 set up, 2 scanning */
+    uint32_t scanner_state; /* 0 fresh, 1 running, 2 done */
+    int32_t scanner_x, scanner_z, scanner_step;
+    int32_t clip_x0, clip_z0, clip_x1, clip_z1;
+    uint32_t night_cursor, night_mode, night_batch, night_acc;
+    float tod_threshold, tod_last;
+    uint32_t ref_count;
+    uint32_t requester_count, night_count, trigger_count, time_of_day_count, dated_count, power_count, sign_count;
+    uint8_t wealth_added, is_night, signs_visible, initialized, destroyed, reserved[3];
+} fc4_prop_state;
+
+/* What the last block update did (§4.3). */
+typedef struct fc4_prop_block {
+    uint32_t struct_size;
+    int32_t bx, bz;
+    uint32_t lots;
+    float occ_sum;
+    int32_t slots, kept_all;
+    uint32_t target, removed, created, member_draws, requester_count;
+    uint8_t stopped; /* no lots (step 3) */
+    uint8_t reserved[3];
+} fc4_prop_block;
+
+/* The lists of fc4_prop_developer_list. */
+#define FC4_PROP_LIST_REQUESTERS  0u
+#define FC4_PROP_LIST_NIGHT       1u
+#define FC4_PROP_LIST_TIME_OF_DAY 2u
+#define FC4_PROP_LIST_DATED       3u
+#define FC4_PROP_LIST_POWER       4u
+#define FC4_PROP_LIST_SIGNS       5u
+
+/* Constructed (reference count 0). The host table is copied (NULL for a NULL
+ * or short table). `session_seed` is S of §5; `token` the developer's own
+ * host identity. */
+fc4_prop_developer* fc4_prop_developer_create(const fc4_prop_host* host, uint32_t session_seed, uint64_t token);
+void fc4_prop_developer_destroy(fc4_prop_developer* p);
+/* QueryInterface (§1): the developer's sub-object offset (0, 4 or 8), the
+ * wealth requester's (0 or 4); false for another IID. */
+bool fc4_prop_developer_query_interface(uint32_t iid, uint32_t* offset);
+bool fc4_wealth_requester_query_interface(uint32_t iid, uint32_t* offset);
+uint32_t fc4_prop_developer_add_ref(fc4_prop_developer* p);
+/* Release: 0 when the object was destroyed; the handle stays valid until fc4_prop_developer_destroy. */
+uint32_t fc4_prop_developer_release(fc4_prop_developer* p);
+/* Init (§3.1) / Shutdown (§3.2). Always true. */
+bool fc4_prop_developer_init(fc4_prop_developer* p);
+bool fc4_prop_developer_shutdown(fc4_prop_developer* p);
+/* DoMessage (§3.3): false only for an animation tick in night mode 0 (and a NULL message). */
+bool fc4_prop_developer_do_message(fc4_prop_developer* p, const fc4_prop_message* msg);
+/* AddPropRequester (slot 5, no duplicate check): class 0x89C49986 is a wealth
+ * requester (answered by the core); another class is a host requester (held). */
+void fc4_prop_developer_add_prop_requester(fc4_prop_developer* p, uint64_t token, uint32_t class_id);
+/* RemovePropRequester (slot 6): the first requester with this token; false if absent. */
+bool fc4_prop_developer_remove_prop_requester(fc4_prop_developer* p, uint64_t token);
+/* Slots 7-10: UpdateAllOptionalProps, ShowSignsAndLabels, ToggleSignsAndLabels, AreSignsAndLabelsVisible. */
+void fc4_prop_developer_update_all(fc4_prop_developer* p);
+void fc4_prop_developer_show_signs(fc4_prop_developer* p, bool show);
+void fc4_prop_developer_toggle_signs(fc4_prop_developer* p);
+bool fc4_prop_developer_signs_visible(const fc4_prop_developer* p);
+/* The wealth requester's SelectProp(ids, x, z) (§4.1), drawing from the
+ * session's wealth file generator; 0 when no ID matches. */
+uint32_t fc4_prop_developer_wealth_select(fc4_prop_developer* p, const uint32_t* ids, size_t count, int32_t x,
+                                          int32_t z);
+bool fc4_prop_developer_get_state(const fc4_prop_developer* p, fc4_prop_state* out);
+/* The last block update; `want` and `kept` (each `capacity` entries, may be
+ * NULL) receive the per-requester targets and kept counts. */
+bool fc4_prop_developer_last_block(const fc4_prop_developer* p, fc4_prop_block* out, uint32_t* want, uint32_t* kept,
+                                   size_t capacity);
+/* A list (FC4_PROP_LIST_*): returns the length (0 for an unknown list);
+ * copies at most `capacity` refs (`out` may be NULL). */
+size_t fc4_prop_developer_list(const fc4_prop_developer* p, uint32_t which, fc4_prop_ref* out, size_t capacity);
+/* Trigger map entry `index` (iteration order): the trigger and up to
+ * `capacity` props; returns the entry's length, SIZE_MAX past the end. */
+size_t fc4_prop_developer_trigger_entry(const fc4_prop_developer* p, uint32_t index, uint32_t* trigger,
+                                        fc4_prop_ref* out, size_t capacity);
+/* Persistence (§7): Write always writes version 5; Read is false below
+ * version 4 or for a short record (nothing changes). A requester reference
+ * of class 0x89C49986 becomes a wealth requester with that token. */
+bool fc4_prop_developer_write(const fc4_prop_developer* p, const fc4_ostream* out);
+bool fc4_prop_developer_read(fc4_prop_developer* p, const fc4_istream* in);
+
 /* ---- demolition utility (docs/specs/demolition.md) ----------------------------
  * cSC4DemolitionUtility (0x0990C38A). The shim owns the GZCOM objects and
  * forwards their slots here. Tokens are opaque host identities: occupants,
@@ -8946,6 +9386,18 @@ static_assert(sizeof(fc4_tract_host) == (sizeof(void*) == 4 ? 368 : 736), "fc4_t
 static_assert(sizeof(fc4_tract_grow_result) == 112, "fc4_tract_grow_result layout");
 static_assert(sizeof(fc4_tract_state) == 288, "fc4_tract_state layout");
 static_assert(sizeof(fc4_tract_tuning) == 120, "fc4_tract_tuning layout");
+static_assert(sizeof(fc4_lot_cfg_object) == (sizeof(void*) == 4 ? 20 : 24), "fc4_lot_cfg_object layout");
+static_assert(sizeof(fc4_object_placement) == 16, "fc4_object_placement layout");
+static_assert(sizeof(fc4_city_detail_state) == 40, "fc4_city_detail_state layout");
+static_assert(sizeof(fc4_city_detail_host) == (sizeof(void*) == 4 ? 72 : 144), "fc4_city_detail_host layout");
+static_assert(sizeof(fc4_port_lot) == 40, "fc4_port_lot layout");
+static_assert(sizeof(fc4_port_state) == 64, "fc4_port_state layout");
+static_assert(sizeof(fc4_port_host) == (sizeof(void*) == 4 ? 168 : 336), "fc4_port_host layout");
+static_assert(sizeof(fc4_prop_ref) == 16, "fc4_prop_ref layout");
+static_assert(sizeof(fc4_prop_message) == 32, "fc4_prop_message layout");
+static_assert(sizeof(fc4_prop_state) == 104, "fc4_prop_state layout");
+static_assert(sizeof(fc4_prop_block) == 52, "fc4_prop_block layout");
+static_assert(sizeof(fc4_prop_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_prop_host layout");
 static_assert(sizeof(fc4_occ_bbox) == 24, "fc4_occ_bbox layout");
 static_assert(sizeof(fc4_occ_cell_box) == 4, "fc4_occ_cell_box layout");
 static_assert(sizeof(fc4_occ_filter) == 16, "fc4_occ_filter layout");
@@ -8978,6 +9430,18 @@ _Static_assert(sizeof(fc4_clock24_state) == 56, "fc4_clock24_state layout");
 _Static_assert(sizeof(fc4_commercial_state) == 56, "fc4_commercial_state layout");
 _Static_assert(sizeof(fc4_civic_state) == 40, "fc4_civic_state layout");
 _Static_assert(sizeof(fc4_park_state) == 48, "fc4_park_state layout");
+_Static_assert(sizeof(fc4_lot_cfg_object) == (sizeof(void*) == 4 ? 20 : 24), "fc4_lot_cfg_object layout");
+_Static_assert(sizeof(fc4_object_placement) == 16, "fc4_object_placement layout");
+_Static_assert(sizeof(fc4_city_detail_state) == 40, "fc4_city_detail_state layout");
+_Static_assert(sizeof(fc4_city_detail_host) == (sizeof(void*) == 4 ? 72 : 144), "fc4_city_detail_host layout");
+_Static_assert(sizeof(fc4_port_lot) == 40, "fc4_port_lot layout");
+_Static_assert(sizeof(fc4_port_state) == 64, "fc4_port_state layout");
+_Static_assert(sizeof(fc4_port_host) == (sizeof(void*) == 4 ? 168 : 336), "fc4_port_host layout");
+_Static_assert(sizeof(fc4_prop_ref) == 16, "fc4_prop_ref layout");
+_Static_assert(sizeof(fc4_prop_message) == 32, "fc4_prop_message layout");
+_Static_assert(sizeof(fc4_prop_state) == 104, "fc4_prop_state layout");
+_Static_assert(sizeof(fc4_prop_block) == 52, "fc4_prop_block layout");
+_Static_assert(sizeof(fc4_prop_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_prop_host layout");
 _Static_assert(sizeof(fc4_demolition_state) == 44, "fc4_demolition_state layout");
 _Static_assert(sizeof(fc4_demolition_host) == (sizeof(void*) == 4 ? 344 : 688), "fc4_demolition_host layout");
 _Static_assert(sizeof(fc4_dispatch_info) == 56, "fc4_dispatch_info layout");

@@ -4032,9 +4032,16 @@ in-game harness with the FreeCity4 turbo clock and a message log.
 - ~~**DP2:** 409 template saves hold `toolType` 4, while the shipped tool's "none" is 8. [written by an earlier build;
   every value loads the same and is overwritten when the tool opens. Nothing more to settle unless a value other
   than 4–8 turns up]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (dispatch.md §7). This build writes `toolType` only with 8 (`0x0046A116`, `0x0046A4F6`, `0x0046A56B`) or with a handled type in `BeginDispatchTool` (`0x0046B0AA`), so 4 can only come from an earlier build. All values load the same.
-- **DP3:** dispatch states: 0 idle, 3 dispatched and 5 working are inferred names; who sets the others? [the automata
+- ~~**DP3:** dispatch states: 0 idle, 3 dispatched and 5 working are inferred names; who sets the others? [the automata
   controllers; only state 5 changes `active`. A trace of `UpdateDispatchState` while a fire engine answers a fire in
-  a turbo run would list the states in order]
+  a turbo run would list the states in order]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES (the automata set
+  them; only 5 changes `active`), with the names corrected (dispatch.md §4.3, table with every setter). 1 = route
+  blocked (`0x0052F2B2`), 2 = finished at the scene (fire truck `0x00533679`, patrol car `0x00543C46`, helicopter
+  `0x00535518`), 3 = on the way (`BeginDispatch`, re-path `0x0052FEDA`), 4 = airplane only (`0x00504621`), 5 = at
+  the scene (arrival `0x0052F2A9`), 6 = going home (slot 29 `0x0052F330`, slot 198 `0x0052F570`). State 0 is set
+  only by the helicopter and the airplane; a ground vehicle's record ends on event 3 when the vehicle is removed. The
+  fire engine's sequence is 3 → 5 → 2 → 6 → event 3, so the §4.7 worked example (which said "state 0") is
+  corrected. Setter: emergency vehicle `SetDispatchState` `0x0052FF60` (slot 25), getter `0x00505020` (slot 26).
 - ~~**DP4:** (cores12a) clearing the available pylons shuts down and releases every pylon. Is that right? [yes]~~ **ANSWERED 2026-10-15 (re-answers15):** MATCHES (dispatch.md §4.1, "Dropping pylons"). `0x00469E10` walks the vector from the back; each non-null pylon gets `Shutdown` (pylon slot 5, which also releases its source occupant when initialized), then `Release`, then the pop. A pylon that is also the active one is shut down too; the active pointer keeps its own reference.
 - ~~**DP5:** (cores12a) clearing the active pylon is `SetActivePylon(null)`: UI state 1, then release. Is that right?
   [yes]~~ **ANSWERED 2026-10-15 (re-answers15):** MATCHES for `SetActivePylon` (`0x00469630`: old pylon `SetUIState(1)` and `Release`, no `Shutdown`; new pylon AddRef and `SetUIState(2)`) and for `Init` when loaded. Two other paths do different things. The manager's `Shutdown` shuts the active pylon down and releases it, with no UI state. `EndDispatchTool` does not touch the active pylon at all. Station removal and `EndDispatch` clear it with `SetActivePylon(null)`.
@@ -4054,10 +4061,15 @@ in-game harness with the FreeCity4 turbo clock and a message log.
   top of the demand effects the building already has as an occupied building. Do both apply? [yes: the port call
   moves the effect by the ratio change only. Logging the demand caps (demand.md §8) before and after an airport's
   first month with known office jobs in a turbo run would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (port-developers.md §4.3). `UpdateOccupantEffects` removes the effects at the old ratio and adds them at the new one (demand.md §7.1), starting from 0, on top of the effects the occupied building already adds, so a port gives (1 + usage) × its effects *[inferred: port lots take the common occupancy path]*.
-- **PD3:** what does lot condition 2 mean on a port lot (set when the port is stressed for more than 90 days)?
+- ~~**PD3:** what does lot condition 2 mean on a port lot (set when the port is stressed for more than 90 days)?
   [what it means on any lot (lot-developer.md §5.5): the presentation of a distressed lot; the port developer resets
   it to 0 each month it is not stressed. A turbo run with an airport above 96 % usage for four months, logging
-  condition and state changes of its lot, would show whether anything else reacts]
+  condition and state changes of its lot, would show whether anything else reacts]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES (port-developers.md §4.3).
+  Nothing reads condition 2 as "port stressed"; the readers are the generic ones: the base-texture decay variant 1
+  (re-picked on every condition change, lot-developer.md §6.5), the crime lot bit `0x2` (crime.md §6.7) and the MySim
+  `home_condition`. The lot developer's civic branch touches only 0 ↔ 1 and 5, 6 → 0, so condition 2 stays until
+  the port month resets it. Consequence *[compat]*: a stressed port that loses power is not set to 1, so the port
+  month does not skip it and it keeps updating.
 - ~~**PD4:** the seaport type declares an 11 × 5 terrain grid but ships 72 values (12 × 6). Data error, or are the
   dimensions counted in cells while the values are vertices? [data error as far as the code goes: the grid is
   rejected, so seaports never re-level terrain. Plopping a seaport on an uneven coast and comparing vertex heights
@@ -4065,10 +4077,17 @@ in-game harness with the FreeCity4 turbo clock and a message log.
 - ~~**PV1:** the prop developer's night batch size (`+0xA34`) is not initialised; 225 shipped records hold
   `0xBAADF00D`. [never read while the night mode is 0; *[choice]* FreeCity4 writes 0 for a new city and writes a
   loaded value back unchanged. A new city saved by the original would show what the GOG build writes]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice confirmed; prop-developer.md §2). The constructor never writes `+0xA34`, so the original saves whatever the heap block held (`0xBAADF00D` is the debug heap's fill *[inferred]*); there is no fixed value to match, and the field is never read while the mode is 0.
-- **PV2:** a tagged prop whose tag names no object of its lot's configuration lowers the block's slot count by one.
+- ~~**PV2:** a tagged prop whose tag names no object of its lot's configuration lowers the block's slot count by one.
   Which props have such tags in practice? [props left over from a different configuration (a lot redeveloped with a
   new configuration, or a lower detail level before the city detail manager's reduce); reproduced. Counting, in a
-  corpus city, lot props whose tag matches no object of their lot's configuration would show how common it is]
+  corpus city, lot props whose tag matches no object of their lot's configuration would show how common it is]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES (prop-developer.md §10 quirk
+  1). The tag is the configuration object's ID (`+0x24`), saved with the prop. The one source the bracket lacks is a
+  configuration of version < 2: its objects get generated IDs from a per-process serial (`0x00B2166C`,
+  `ConvertPropertiesToObjectArray` `0x00479D10`), so its props' tags match nothing after the next load. That cannot
+  happen with shipped data: all 1908 lot configurations and all 543 network lot configurations are version 2 (a scan
+  of `SimCity_1.dat`…`SimCity_5.dat` and `EP1.dat`). So the bracket's sources are the shipped ones; the detail-level
+  case lasts only until the city detail manager's reduce at `Init`. The corpus count was not made (it needs the
+  saved prop records with their tags).
 - ~~**PV3:** `UpdateAllOptionalProps` (slot 7) has no caller. [none in the exe; FreeCity4 implements it as specified
   (every block, x outer). A plugin scan or a call trace in a long turbo run would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (prop-developer.md §4.2). No direct call targets `0x006F4DB0`; it is reachable only through vtable slot 7. Implementing it as specified is harmless.
 - ~~**PV4:** the block step runs on every Idle delivery, also while paused, so props develop at a frame-rate-dependent
@@ -4396,20 +4415,51 @@ Open points from network-manager.md §15. The current answer is in brackets; eac
 
 Open points from network-geometry.md §17. The current answer is in brackets; each entry says what would settle it.
 
-- **NG1:** the satisfier's tie-break between vertices with equally narrow ranges follows the hash-map iteration order
+- ~~**NG1:** the satisfier's tie-break between vertices with equally narrow ranges follows the hash-map iteration order
   of vertex ids. [reproduce the SGI `hash_map<int>` bucket order; comparing one hill crossing in both engines shows
-  whether ties occur]
-- **NG2:** the bridge internals: the step and edge tests, `AdjustBridgeSpan`, `FindBestBridgeType`,
-  `SelectBridgeElevation`, specialised and parametric bridge models. [not specified]
-- **NG3:** who fills the tool's extra-cell list (`+0xF0`), and whether `CheckForGoodTerrain`'s inverted extra-cell
-  test can be reached. [empty in an ordinary drag, inferred]
-- **NG4:** `IdentifyLandBridgeCells` and which types set `+0x354`. [not specified]
-- **NG5:** the rule-driven piece solver (`SolveUsingEvaluator`, `ApplyNetworkRules`, tile subsets) and
-  `IdentifyHighwayIntersections`. [a later spec]
-- **NG6:** the readers of type info `+0x110` and of the p+0xA0 id list, and the source of road's support info.
-  [only the flat-cell test is known]
-- **NG7:** `DestroyOccupantsAndResolve` builds one neighbour key as `(x << 16) + z` while the tool's sets use
-  `(z << 16) + x`. [unchecked; a destroy next to an off-diagonal neighbour would show it]
+  whether ties occur]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES, with a correction (network-geometry.md
+  §9.1). The pick (`0x0065ED80`) scans the unsolved hash map at `+0x28`; a width strictly below the best wins, so the
+  first of equal widths is kept; a negative width fails; the scan stops at a best width of 0. The "already pinned
+  vertex first" step of the spec does not exist in effect: the stack at `+0x50` it pops is never pushed. The order:
+  identity hash, bucket `id mod n`, 193 buckets at first (the constructor asks 100, `0x00660810`; prime list
+  `0x00A829B0`), head insertion after `resize(count + 1)` (`0x004A29B0`), the SGI resize (`0x004F0940`), erase on
+  pin (`0x00660130`), and `clear` keeps the bucket count (`0x008EBA60`), so it only grows over the tool's life.
+  Ties are common (every unnarrowed vertex has the same width).
+- ~~**NG2:** the bridge internals: the step and edge tests, `AdjustBridgeSpan`, `FindBestBridgeType`,
+  `SelectBridgeElevation`, specialised and parametric bridge models. [not specified]~~ **PARTLY ANSWERED 2026-10-16
+  (re-answers19):** MATCHES (still not specified; too large for a section). network-geometry.md §7 now gives the
+  bridge record (`+0xD8`, `0x28` bytes) and corrects the length map: bridge type `+0x16C`, keyed by the step count
+  `end − start + 1` (`0x00632A68`), not `+0x164`. §7.1 lists the entry points for a follow-up bridge spec (span
+  selection `0x00630570`, step test `0x0062FDB0`, edge test `0x0062EB80`, elevation `0x0062EA90`, specialised
+  `0x00632060`, parametric `0x00631300`, the piece inserters and the loaders).
+- ~~**NG3:** who fills the tool's extra-cell list (`+0xF0`), and whether `CheckForGoodTerrain`'s inverted extra-cell
+  test can be reached. [empty in an ordinary drag, inferred]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES
+  (network-geometry.md §4.5). Only `0x00629170` appends (20-byte entries: x, z, edge word, network type, two bytes),
+  called only by `cIntRule::DoAutoComplete` (`0x006097E0`), which only the intersection tool calls (`OnMouseDownL`
+  `0x00661078`, `OnMouseMove` `0x00661657`), between two tool resets around `InsertIsolatedHighwayIntersection`
+  (`0x0062CD50`). That function runs slot 68 but never slot 69, so the inverted test is unreachable in the shipped
+  game.
+- **NG4:** `IdentifyLandBridgeCells` and which types set `+0x354`. [not specified] *Partly answered 2026-10-16
+  (re-answers19): `Init` sets `+0x354` for every type with at least one bridge type, because it tests a field's
+  address (`0x00626B53`); network-geometry.md §4.4. The pass itself is still open.*
+- ~~**NG5:** the rule-driven piece solver (`SolveUsingEvaluator`, `ApplyNetworkRules`, tile subsets) and
+  `IdentifyHighwayIntersections`. [a later spec]~~ **PARTLY ANSWERED 2026-10-16 (re-answers19):** MATCHES for the
+  solver (network-geometry.md §8.2 outlines the follow-up spec: the three rule INI resources, type `0x0A5BCF4B`
+  group `0xAA5BCF57` instances `0x10000000`–`0x10000002`, loaded once by `ReloadRules` `0x006253D0`, and the entry
+  points). `IdentifyHighwayIntersections` (`0x0063B340`) is described there: it marks rule matches but returns its
+  `v` argument on every path, so **`0xF0000005` is never set** (quirk 7).
+- ~~**NG6:** the readers of type info `+0x110` and of the p+0xA0 id list, and the source of road's support info.
+  [only the flat-cell test is known]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES (network-geometry.md §2.3,
+  §10.2). `+0x110` is written only by `0x0063D460` and never read. The p+0xA0 list is read only at `0x00636763`, for
+  its emptiness (the flat-cell test); its ids and the tool's copy at `+0x330` are never read. The support info is the
+  type info's map at `+0x3C`, loaded by `LoadSupports` (`0x0063F780`) from the type `0x6534284A` exemplars of group
+  `0x8974F80F` (`0xE974EAA1` piece id, `0xE974EAA2` u32 list, `0xE974EAA3` four points, rotated for the four
+  rotations; `0x0063F400`), for road, one-way, dirt road, rail, light rail, monorail and street only.
+- ~~**NG7:** `DestroyOccupantsAndResolve` builds one neighbour key as `(x << 16) + z` while the tool's sets use
+  `(z << 16) + x`. [unchecked; a destroy next to an off-diagonal neighbour would show it]~~ **ANSWERED 2026-10-16
+  (re-answers19):** **DIFFERS** from the premise: there is no swapped key. Every key in the function is
+  `(z << 16) + x` (row loop `0x0062B4E1`; neighbour key `0x0062BA9A`–`0x0062BA9D`); the earlier reading came from
+  the decompiler's variable naming. network-geometry.md §13.
 ## From the traffic glue, phase 2: the traffic shadow (filed by the coordinator from the `traffic2` lane's report, 2026-10-15)
 
 About `docs/specs/traffic-simulator.md` and the same-process traffic shadow (`traffic_shadow = 1`; core
@@ -4658,12 +4708,21 @@ apply13 applied LD2-LD30 (lot-developer.md) and ZG26, ZG30-ZG34 (zones.md, tract
 as 71 on the lane. Not applied here: ZG22 (slot 19 always writes `*ok`) and ZG24 (the zone tool owns the highlight
 region), from re-answers11. The lane's choices are in brackets.
 
-- **LD31:** (lot-developer.md §6.6, LD17) UpdateLotObjectAltitudes: is the building's foundation redone only after the
-  object actually moved (beyond the 0.1 tolerance), or for every building visited? [only after a move (inferred)]
-- **LD32:** (lot-developer.md §6.5) AddNetworkConnectionNodes: when CreateConnectionNode (network manager slot 20)
+- ~~**LD31:** (lot-developer.md §6.6, LD17) UpdateLotObjectAltitudes: is the building's foundation redone only after the
+  object actually moved (beyond the 0.1 tolerance), or for every building visited? [only after a move (inferred)]~~
+  **ANSWERED 2026-10-16 (re-answers19):** MATCHES (lot-developer.md §6.5). When `|P.y − Q.y| ≤ 0.1` the jump at
+  `0x006C9326` skips the move **and** the foundation work; the building test (`0x278128A0`, `0x006C934B`) comes after
+  `SetPosition` and the occupant manager notify, inside the moved branch.
+- ~~**LD32:** (lot-developer.md §6.5) AddNetworkConnectionNodes: when CreateConnectionNode (network manager slot 20)
   fails and leaves its out-parameter null, the original appends whatever was returned to the list that
   AutoconnectLotNodes (slot 21) reads. Is a null entry appended and passed on? [a null result is not appended; it is
-  counted as `nodesFailed` (choice)]
+  counted as `nodesFailed` (choice)]~~ **ANSWERED 2026-10-16 (re-answers19):** **DIFFERS** in the letter; the
+  choice is accepted (lot-developer.md §6.5, quirk 17). The out-parameter is not nulled: it is one stack slot for
+  the whole loop, never cleared, and `CreateConnectionNode` writes it only on success (`0x006114DE`). The append
+  (`0x006C9EE4`) does not test the result, so after a failure the list gets the previous object's node again (or an
+  uninitialised value for the first network object). `AutoconnectLotNodes` QueryInterfaces every entry with no null
+  test (`0x006115F7`), and the final release (occupant manager slot 48) over-releases a repeated node. Nothing in the
+  original avoids this, so skipping the failed entry is the safe *[choice]*.
 
 ## From applying the traffic glue answers (filed by the coordinator from the `apply11traffic` lane's report, 2026-10-16; merged `85919d3`)
 
@@ -4726,3 +4785,19 @@ prefix the code comments use; automata.md's own Q1-Q6 keep their numbers. The cu
   partially, as in the original? [a short or cut record is a failed, atomic read, so round trips can be checked]
 - **AM12:** (§7.3 slot 31, TrackAutomataGroupInstances) what are the semantics? [adds delta, does not go below 0,
   appends a new group]
+
+## From the session seed (filed by the coordinator from the `seeding` lane's report, 2026-10-16; merged `77b7909`)
+
+seeding implemented foundations §6.3 across every merged core that owns a generator (`engine/core/src/seeding.rs`,
+`seeding::keys`, ABI 64) and the plugin's session seed (`session_seed = <u32>`, else the wall clock at game start). The
+current choice is in brackets.
+
+- **RN2:** foundations §6.3 and growth-developer.md §7: a decline key whose coordinate seed is `0xFFFFFFFF` makes `Seed`
+  read the clock (growth-developer.md §7), but §6.3 says coordinate-seeded temporaries are unchanged. Is that case a
+  clock-seeded temporary of the owning class, and is this the intended K? [derive(S, `0x0990C138` XOR n), n counting such
+  reads per developer object, not saved; `seeding::keys::growth_decline_clock`, `growth_developer/simulator.rs`]
+- **RN3:** foundations §6.2 / §6.3: the budget (RiskyMoney) and pollution-effects generators are file-local statics in the
+  original, seeded once per process. In our cores each simulator object owns one, so the stream restarts at every city
+  load in the same process (crime and the development cores already keep theirs process-wide). Should budget and
+  pollution keep their generator across city loads like the original, or is a restart at each load an acceptable
+  *[choice]*? [restart at each load]

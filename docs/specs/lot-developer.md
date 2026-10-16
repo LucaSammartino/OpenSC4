@@ -821,7 +821,13 @@ abandoned lot therefore re-picks its base texture.
    - `a := ids[0]`; `b := rotl32(ids[1], 8·orient)`, `c := rotl32(ids[2], 8·orient)` (no rotation for orient 0);
      `d := ids[3]` when there are at least 4 IDs, else 0;
    - `networkManager.CreateConnectionNode(&n, a, &cell, b, c, d, orient)` (`SL::NetworkManager()` `0x00602680`,
-     network manager slot 20, `0x00611300`, pop 28); `n` is appended to `L` whatever the call returned.
+     network manager slot 20, `0x00611300`, pop 28); `n` is appended to `L` whatever the call returned
+     (`0x006C9EE4`). `n` is one stack slot for the whole loop, never cleared, and `CreateConnectionNode` writes it
+     only on success (`0x006114DE`, followed by an AddRef). After a failure the original therefore appends the
+     **previous** object's node a second time, or, for the first network object, an uninitialised value
+     *[quirk]* (LD32). `AutoconnectLotNodes` QueryInterfaces every entry without a null test (`0x006115F7`), and
+     slot 48 releases every entry, so a repeated node is released once more than it was referenced.
+     *[choice]* FreeCity4 appends only the nodes that were created and counts the failures (`nodesFailed`).
 3. `networkManager.AutoconnectLotNodes(lot, &L)` (slot 21, `0x00611530`, pop 8); then occupant manager slot 48 on
    `L` (releases the entries) and the list is freed.
 The third argument is never read. The network manager's side (what a connection node is: flag `0x200000`, zones.md
@@ -844,7 +850,8 @@ go to `networkManager.DestroyNetworkOccupants(&L)` (slot 6), then occupant manag
        (`cISTETerrain` slot 13);
      - if `|P.y − Q.y| > 0.1` (float `0x00A8C950`; strict, NaN no): `P.y := Q.y` (**only y moves**; x and z stay
        the occupant's own); `o.SetPosition(P)` (occupant slot 9); `occupantManager` slot 24 `(o, 1)`;
-     - and, for a building only: `f := GetFoundationByOccupant(o)` (slot 48); if `f`: `ft := f.GetFoundationType()`
+     - then, still only when it moved (the `0.1` test at `0x006C9326` skips this too) and for a building only
+       (`0x006C934B`): `f := GetFoundationByOccupant(o)` (slot 48); if `f`: `ft := f.GetFoundationType()`
        (foundation slot 4) and `RemoveBuildingFoundation(o)` (slot 60). Then if `IsLotObjectFoundationRequired(o)`
        (slot 56): QueryInterface `o` for `0x87DDA3A9` and call `AddBuildingFoundation(b, ft)` (slot 59) when there
        was a foundation, else `AddBuildingFoundation(b, cfg)` (slot 58); release `b`.
@@ -1562,6 +1569,8 @@ in metres.
 14. `Release` returns 0, not the remaining count (§1.4).
 15. The message `0x278E6003` is subscribed but ignored.
 16. `Init` on a loaded city re-picks every lot's base texture, consuming file-RNG draws (§1.3).
+17. `AddNetworkConnectionNodes` appends a stale or uninitialised node after a failed `CreateConnectionNode`
+    (§6.5, LD32). *[choice]* FreeCity4 skips it and counts the failure.
 
 ### 12.2 Open questions
 

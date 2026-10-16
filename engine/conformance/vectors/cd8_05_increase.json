@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "name": "city_detail_increase",
+  "spec": ["city-detail 3.1", "city-detail 3.3", "city-detail 3.4", "city-detail 3.5", "city-detail 5.3", "city-detail 8.5", "city-detail 8.6"],
+  "description": "Saved 1, current 3 (cur > saved): increase with the stub generator. Lot 0x10 lists required props A (0xA) and B (0xB, IDs 0xB0-0xB3), an optional prop C (0xC: never created), a required flora D (0xD, IDs from the lot configuration manager 0xD0, 0xD1) and a second required object with ID B [quirk]. A prop tagged A exists (found in the lot's rectangle), so need = {B, D}. In array order: B gets the lot developer's position (object 1: x 24, z 8, orientation 1) first, then one draw U(4) -> 2 picks 0xB2, AddLotProp, SetLotTag(B); D: one draw U(2) -> 1, flora 0xD1, tag D; the second B object (index 4) is created too, since an ID stays in need after it is used: draw U(1) -> 0. One draw per created object. An empty ID list (lot 0x30's required prop) draws nothing; an ID of 0 (lot 0x40) draws but creates nothing; an object whose occupant creation fails (lot 0x50 with creation off) is not tagged. Then the network lots are redeveloped once.",
+  "steps": [
+    {"op": "cd_lot", "lot": "0x10", "objects": [
+      {"type": "prop", "tag": "0xA"},
+      {"type": "prop", "tag": "0xB", "ids": ["0xB0", "0xB1", "0xB2", "0xB3"]},
+      {"type": "prop", "flags": 1, "tag": "0xC"},
+      {"type": "flora", "tag": "0xD"},
+      {"type": "prop", "tag": "0xB", "ids": ["0xB9"]}
+    ]},
+    {"op": "cd_ids", "lot": "0x10", "index": 3, "ids": ["0xD0", "0xD1"]},
+    {"op": "cd_occupant", "occupant": "0x11", "lot": "0x10", "type": "prop", "tag": "0xA"},
+    {"op": "cd_lot", "lot": "0x30", "objects": [{"type": "prop", "tag": "0x31", "ids": []}]},
+    {"op": "cd_lot", "lot": "0x40", "objects": [{"type": "prop", "tag": "0x41", "ids": [0]}]},
+    {"op": "cd_env", "network": [[7, 8, "0x60"]], "setting": 3, "u32s": [2, 1, 0, 0]},
+    {"op": "cd_create"},
+    {"op": "cd_read", "hex": "00000000 01000000", "expect": true},
+    {"op": "cd_init", "expect": true},
+    {"op": "cd_expect_events", "events": [
+      {"event": "placement", "lot": "0x10", "index": 1},
+      {"event": "draw", "n": 4},
+      {"event": "add_prop", "id": "0xB2", "x": 24, "z": 8, "orientation": 1, "occupant": "0x9000"},
+      {"event": "set_tag", "occupant": "0x9000", "tag": "0xB"},
+      {"event": "placement", "lot": "0x10", "index": 3},
+      {"event": "draw", "n": 2},
+      {"event": "add_flora", "id": "0xD1", "x": 56, "z": 8, "occupant": "0x9001"},
+      {"event": "set_tag", "occupant": "0x9001", "tag": "0xD"},
+      {"event": "placement", "lot": "0x10", "index": 4},
+      {"event": "draw", "n": 1},
+      {"event": "add_prop", "id": "0xB9", "x": 72, "z": 8, "orientation": 0, "occupant": "0x9002"},
+      {"event": "set_tag", "occupant": "0x9002", "tag": "0xB"},
+      {"event": "placement", "lot": "0x30", "index": 0},
+      {"event": "placement", "lot": "0x40", "index": 0},
+      {"event": "draw", "n": 1},
+      {"event": "redevelop", "x": 7, "z": 8, "lot": "0x60"}
+    ]},
+    {"op": "cd_expect_occupants", "lot": "0x10", "occupants": [["0x11", "prop", "0xA"], ["0x9000", "prop", "0xB"], ["0x9001", "flora", "0xD"], ["0x9002", "prop", "0xB"]]},
+    {"op": "cd_expect", "state": {"level": 3, "last_pass": 2, "created": 3, "draws": 4, "network_lots": 1, "session_passes": 1}},
+
+    {"op": "cd_env", "create": false, "setting": 1},
+    {"op": "cd_init"},
+    {"op": "cd_clear_events"},
+    {"op": "cd_lot", "lot": "0x50", "objects": [{"type": "prop", "tag": "0x51"}]},
+    {"op": "cd_env", "setting": 2},
+    {"op": "cd_init"},
+    {"op": "cd_expect_events", "filter": {"event": "set_tag"}, "events": []},
+    {"op": "cd_expect", "state": {"level": 2, "last_pass": 2, "created": 0, "session_passes": 2}}
+  ]
+}

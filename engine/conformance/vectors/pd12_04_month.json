@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "port_developers_month",
+  "spec": ["port-developers 4.3", "port-developers 4.4", "port-developers 12"],
+  "description": "Section 12 test 4: one small airport (capacity 10000), fully funded (fr = 1), 4000 CO$$ and 1200 CO$$$ office jobs in its only subnetwork: trips 5200, efficiency 1 - 5200/10000 = 0.48 (the spare capacity), usage ratio 5200/10000 = 0.52 passed to UpdateOccupantEffects (old 0), condition 0 (lot younger than 90 days), no advisor event (5200 < 9600), history record 0x6A3E9032 = round(48.0) = 48. The usage values are (5200, 10000), the maintenance cost 700, GetNumAirportTrips 5200.",
+  "steps": [
+    {"op": "pd_create", "kind": "airport"},
+    {"op": "pd_init"},
+    {"op": "pd_lot", "lot": "0x10", "config": ["0xCA2436C0", 1], "x": 3, "z": 4, "rect": [3, 4, 7, 6]},
+    {"op": "pd_occupant", "occupant": "0x100", "lot": "0x10"},
+    {"op": "pd_message", "msg": "0x99EF1142", "data": "0x100"},
+    {"op": "pd_env", "offices": [[4000], [1200]]},
+    {"op": "pd_clear_events"},
+    {"op": "pd_message", "msg": "0x66956816", "expect": true},
+    {"op": "pd_expect_events", "events": [{"event": "effects", "lot": "0x10", "old": 0, "new": 0.52}, {"event": "condition", "lot": "0x10", "condition": 0}, {"event": "history", "key": "0x6A3E9032", "value": 48}]},
+    {"op": "pd_expect_port", "index": 0, "state": {"trips": 5200, "efficiency": 0.48, "usage": 0.52}},
+    {"op": "pd_expect", "state": {"month_ran": true, "history": 48, "event": 0, "skipped": 0}},
+    {"op": "pd_query", "query": "usage_values", "args": ["0x10"], "expect": [5200, 10000]},
+    {"op": "pd_query", "query": "usage_values", "args": ["0x11"], "expect": false},
+    {"op": "pd_query", "query": "maintenance_cost", "args": ["0x10"], "expect": 700},
+    {"op": "pd_query", "query": "num_trips", "expect": 5200},
+    {"op": "pd_query", "query": "avg_efficiency", "expect": 0.48}
+  ]
+}

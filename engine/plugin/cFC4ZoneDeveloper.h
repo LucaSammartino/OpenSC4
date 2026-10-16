@@ -315,6 +315,13 @@ public:
     // (the original's lot manager + 0x5C): the traffic simulator's lot walk
     // (traffic-simulator §4.1, §9.1 TG10) checks its blocks against it.
     const void* MasterListObject() const { return master_.Object(); }
+    // The list object the safe lot iterators of `lotManager`'s slot 15 point
+    // to, when a glue may walk them raw (the traffic simulator's lot walk,
+    // the budget's ComputeTax walk, the lot developer's daily pass): on the
+    // identified executable only, the original lot manager's (+0x5C) or
+    // FreeCity4's (MasterListObject()); null otherwise, with *why (if not
+    // null) saying why (safelots::ExpectedListObject).
+    static const void* SafeIteratorListObject(const void* lotManager, const char** why);
     void SetTestHooks(const fc4_zonedev_host* test);
     void TestState(FC4ZoneDevTestState& out);
 
