@@ -328,11 +328,13 @@ cannot start in water.
 ### 4.4 IdentifyLandBridgeCells
 
 Runs only for types whose `+0x354` byte is set. It marks bridge steps over land. It never lowers `v`. Its internals
-are not covered here (NG4).
+are in [network-bridges.md](network-bridges.md) §7 (NG4, answered).
 
 `Init` (`0x006269C0`) clears `+0x354` and then, for each bridge type of the network type (type info `+0x30`), tests
 the address of a field inside that bridge type record (`0x00626B53`). The address is never null, so **`+0x354` is
 set exactly when the type has at least one bridge type** *[quirk: the test was presumably meant to read the field]*.
+The field is bridge type `+0x98` (property `0x482CB44F`, a land bridge type); every shipped bridge type sets it, so the
+quirk has no shipped effect (network-bridges.md §2.5).
 
 ### 4.5 CheckForGoodTerrain (slot 69)
 
@@ -428,8 +430,9 @@ straight drag"). A non-straight drag simply gets no tunnel (step 2 needs i < the
 
 ## 7. Bridges
 
-`IdentifyBridgeCells` (`0x00632830`). Needs `AllowBridges` (slot 61), `v > 3`, a **wholly straight** drag (dragged
-count ≤ straight count) and at least one bridge type for the network type (type info `+0x30`).
+`IdentifyBridgeCells` (`0x00632830`). Needs `AllowBridges` (slot 61), `v > 3`, a **wholly straight** drag (`v` ≤
+straight count) and at least one bridge type for the network type (type info `+0x30`). The full behaviour is in
+[network-bridges.md](network-bridges.md); this section is the summary.
 
 For each step i ≥ 2 such that steps i, i−1 and i−2 are regular:
 
@@ -452,10 +455,10 @@ For each step i ≥ 2 such that steps i, i−1 and i−2 are regular:
 A crooked drag across water therefore never gets a bridge, and the later terrain pass (§4.5) cuts it at the first water
 cell with `0xF0000001` *[compat]*.
 
-### 7.1 The bridge internals: outline for a follow-up spec (NG2)
+### 7.1 The bridge internals (NG2)
 
-The span selection, the elevation and the two bridge models are too large for this spec. A follow-up spec ("network
-bridges") should cover, with these entry points:
+The span selection, the elevation and the two bridge models are specified in [network-bridges.md](network-bridges.md)
+(§4–§11). The entry points:
 
 | Part | Address | Notes |
 |---|---|---|
@@ -871,8 +874,9 @@ Any code refuses the whole run (`+0x78 := 0`), even when a pass only cut it (net
   "previous result".
 - **NT4**: §12.
 - **NT5**: this spec (§3–§9).
-- **NG1, NG3, NG6, NG7** (§17, answered 2026-10-16): §9.1, §4.5, §2.3 and §10.2, §13. **NG2** partly: §7, §7.1.
-  **NG5**: §8.2 and [network-rules.md](network-rules.md) (answered 2026-10-16, re-specs17b).
+- **NG1, NG3, NG6, NG7** (§17, answered 2026-10-16): §9.1, §4.5, §2.3 and §10.2, §13. **NG2, NG4**:
+  [network-bridges.md](network-bridges.md) (answered 2026-10-16, re-specs17a). **NG5**: §8.2 and
+  [network-rules.md](network-rules.md) (answered 2026-10-16, re-specs17b).
 - **NM3** (network-manager.md §15): §10.3. `0x40000` MATCHES (bridge); `0x80000` MATCHES (tunnel portal);
   `0x40000000` MATCHES (supports); `0x80000000` = draft occupant.
 
@@ -897,13 +901,14 @@ Any code refuses the whole run (`+0x78 := 0`), even when a pass only cut it (net
   **ANSWERED 2026-10-16 (re-answers19):** §9.1 gives the exact order (identity hash, `id mod n`, 193 initial
   buckets, head insertion, the SGI resize and prime list, buckets never shrink) and corrects the pick: there is no
   "already pinned first" step; the first of equal widths wins.
-- ~~**NG2.** The bridge internals (§7).~~ **PARTLY ANSWERED 2026-10-16 (re-answers19):** §7 corrects the length map
-  offset (`+0x16C`, keyed by the step count) and gives the bridge record; §7.1 is the outline and the entry points for
-  a follow-up bridge spec.
+- ~~**NG2.** The bridge internals (§7).~~ **ANSWERED 2026-10-16 (re-specs17a):** [network-bridges.md](network-bridges.md).
+  Earlier (re-answers19): §7 corrected the length map offset (`+0x16C`, keyed by the step count) and gave the bridge
+  record.
 - ~~**NG3.** Who fills the extra-cell list `+0xF0`, and whether quirk 2 can be reached in play.~~ **ANSWERED
   2026-10-16 (re-answers19):** only the intersection tool's rule auto-complete; quirk 2 is unreachable (§4.5).
-- **NG4.** `IdentifyLandBridgeCells` (§4.4). *Partly answered 2026-10-16 (re-answers19): `+0x354` is set for every
-  type with at least one bridge type (§4.4).*
+- ~~**NG4.** `IdentifyLandBridgeCells` (§4.4).~~ **ANSWERED 2026-10-16 (re-specs17a):** network-bridges.md §7 (the
+  scan and `CreateLandBridge`) and §2.5 (the `+0x354` address test reads bridge type `+0x98`, property `0x482CB44F`;
+  no shipped effect).
 - ~~**NG5.** The rule-driven piece solver and `IdentifyHighwayIntersections`.~~ **PARTLY ANSWERED 2026-10-16
   (re-answers19):** `IdentifyHighwayIntersections` is described and never fails (§8.2, quirk 7); the rule solver is
   left to a follow-up spec, outlined in §8.2. **ANSWERED 2026-10-16 (re-specs17b):** the follow-up spec is
