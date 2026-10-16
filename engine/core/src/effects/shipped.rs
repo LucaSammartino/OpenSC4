@@ -365,6 +365,10 @@ pub struct GameRecord {
     pub message_type: u32,
     /// `+0x4C`: the `-pauseSim` duration in effect-seconds; 0 = none.
     pub duration: f32,
+    /// `+0x38` is non-zero: the record applies an effect map (§9.3 step 6).
+    /// The map's shape is render data and out of scope; only the fact that one
+    /// is applied is recorded here.
+    pub has_map: bool,
 }
 
 /// A game record with no action at all.
@@ -378,6 +382,7 @@ const NO_ACTION: GameRecord = GameRecord {
     extinguish_amount: 0,
     message_type: 0,
     duration: 0.0,
+    has_map: false,
 };
 
 /// The 57 shipped game ("scrubber") records (§9.4), in table order.
@@ -623,10 +628,19 @@ pub const GAME_RECORDS: [GameRecord; 57] = [
         ..NO_ACTION
     },
     // 37-39, 43: runwaysmall/medium/large, whalefx_slave -- effect maps only
-    // (render), so no simulation action.
-    NO_ACTION,
-    NO_ACTION,
-    NO_ACTION,
+    // (render), so no simulation action beyond the map.
+    GameRecord {
+        has_map: true,
+        ..NO_ACTION
+    },
+    GameRecord {
+        has_map: true,
+        ..NO_ACTION
+    },
+    GameRecord {
+        has_map: true,
+        ..NO_ACTION
+    },
     // 40: rocket_explodefx_terrain -- burn 2.
     GameRecord {
         burn_radius: 2,
@@ -643,7 +657,10 @@ pub const GAME_RECORDS: [GameRecord; 57] = [
         ..NO_ACTION
     },
     // 43: whalefx_slave -- effect maps only.
-    NO_ACTION,
+    GameRecord {
+        has_map: true,
+        ..NO_ACTION
+    },
     // 44: no effect uses it -- demolish 1.
     GameRecord {
         demolish_radius: 1,
@@ -818,5 +835,10 @@ mod tests {
         assert_eq!(toxic, 1, "record 55");
         assert_eq!(extinguish, 4, "records 48, 49, 50, 56");
         assert_eq!(single, 1, "record 1");
+        assert_eq!(
+            GAME_RECORDS.iter().filter(|g| g.has_map).count(),
+            4,
+            "records 37, 38, 39, 43 apply an effect map only"
+        );
     }
 }
