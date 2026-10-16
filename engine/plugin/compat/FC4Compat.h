@@ -41,6 +41,9 @@ enum class Direct : unsigned {
                            //   caller pops (docs/abi/direct-calls.md; zones.md §8.5.1)
     LotConstruct,          // the cSC4Lot constructor: thiscall (x, z, w, h, facing), pop 20, EAX = this
                            //   (docs/abi/direct-calls.md; zones.md §8.5.1)
+    GenericConfirmationDialog,  // nSC4UI::GenericConfirmationDialog: cdecl bool (cIGZString* title,
+                                //   cIGZString* text, cIGZString* yes, cIGZString* no), the caller pops
+                                //   16, AL (neighbors.md §15.4 NG35; advisors.md §6.8)
     Count
 };
 

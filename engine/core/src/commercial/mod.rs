@@ -34,12 +34,10 @@
 //!   and the maps are 1 on that edge (0 under an office of that wealth) and 0
 //!   elsewhere on a fresh grid. FreeCity4 does not correct RG23 (CM2: a
 //!   correction would be a separate option, off by default; not offered).
-//! - **No building map** (BDS slot 41 returns null) *[compat]*: the shared
-//!   seed helper returns at once and writes nothing, not even the edge
-//!   (residential.md §5.3 step 1, QUESTIONS RG24). The passes of the
-//!   transform still run [question: the literal reading of helper
-//!   `0x005E5130`, seed then passes], so a fresh grid stays all 0 and a
-//!   loaded one is only lowered.
+//! - **No building map** (BDS slot 41 returns null) *[compat]*: helper
+//!   `0x005E5130` returns at once, with no seed and **no passes** (§4.4,
+//!   QUESTIONS CM5), so the grid is left exactly as it was: a fresh grid
+//!   stays all 0 and a loaded one keeps its values.
 //! - **A grid that is absent** at a rebuild (an `Init` that failed before
 //!   step 6, or a record whose reference did not resolve): [choice] that
 //!   rebuild does nothing; the state machine still advances.

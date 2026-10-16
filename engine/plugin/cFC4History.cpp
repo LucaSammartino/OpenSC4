@@ -145,9 +145,11 @@ bool cFC4HistoryWarehouse::QueryInterface(uint32_t riid, void** ppvObj) {
 uint32_t cFC4HistoryWarehouse::AddRef() { return ++refCount_; }
 
 // §1: at a count of 1 or less the object is destroyed (the count is not
-// decremented first) and 0 returned. [choice] (question) The spec does not
-// say whether the destructor unsubscribes: a warehouse still initialised is
-// shut down first, so no subscription or agent is left on a deleted object.
+// decremented first) and 0 returned. [choice] (HW13, re-answers11) The
+// original's Release does not call Shutdown (its destructor frees only the
+// series map and relies on the city's Shutdown); a warehouse still
+// initialised is shut down first here, so no subscription or agent is left
+// on a deleted object. The same in the normal order.
 uint32_t cFC4HistoryWarehouse::Release() {
     if (refCount_ > 1) return --refCount_;
     refCount_ = 0;
