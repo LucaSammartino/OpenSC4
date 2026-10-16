@@ -87,6 +87,7 @@ impl TutorialHost for World {
     }
     fn create_window(&self) -> u64 {
         self.events.push("create_window", vec![]);
+        self.bump(WINDOW, 1); // the creation count (§4.2, TU5)
         WINDOW
     }
     fn init_window(&self, _w: u64) {

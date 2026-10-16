@@ -30,13 +30,16 @@
 //! - **`Release`** (§1, "the shared ones of the advisor system"): the last
 //!   reference marks the object destroyed; it does not run `Shutdown` or
 //!   close the window [inferred]. Question TU3.
-//! - **`Shutdown`** (§4.3, "undoes both"): unsubscribes the three messages,
-//!   and, when the host reports a cheat manager, unregisters the cheat and
-//!   the handler [inferred]. Question TU4.
+//! - **`Shutdown`** (§4.3, TU5): the cheat (when a cheat manager exists —
+//!   the `cISC4App` slot 21 test `Init` applied is **not** repeated), then
+//!   the window (close, release, clear +0x40, release again), then the
+//!   messages in the order `0xAA3840E6`, `0xEA8AE29A`, `0x26C63343`.
+//!   Questions TU4, TU5.
 //! - **`startTutorial`** (§4.2): a new window comes from
-//!   [`TutorialHost::create_window`]; the core then takes the reference
-//!   ([`TutorialHost::add_ref`]) and initialises it. The result is the
-//!   registry call's (quirk 3).
+//!   [`TutorialHost::create_window`] with its creation reference; the core
+//!   then takes a second one ([`TutorialHost::add_ref`]) and initialises it,
+//!   so the system holds the two references `Shutdown` drops (TU5). The
+//!   result is the registry call's (quirk 3).
 //! - **Messages** carry their data as `u32` values; `FilterMessage`'s message
 //!   is [`FilterMsg`].
 //! - **Threading**: the state is a `RefCell`; main thread only.
@@ -91,6 +94,10 @@ pub mod msg {
     pub const PRE_SAVE: u32 = 0x26C6_3343;
     /// `Init`'s subscriptions, in the table's order [inferred].
     pub const SUBSCRIPTIONS: [u32; 3] = [CITY_INIT_COMPLETE, END_TUTORIAL, PRE_SAVE];
+    /// `Shutdown`'s unsubscriptions, in the spec's order (§4.3, TU5):
+    /// `0xAA3840E6`, `0xEA8AE29A`, `0x26C63343`. Not the reverse of
+    /// [`SUBSCRIPTIONS`]: PRE_SAVE stays last.
+    pub const UNSUBSCRIPTIONS: [u32; 3] = [END_TUTORIAL, CITY_INIT_COMPLETE, PRE_SAVE];
     /// The cheat message the handler answers (UI, not modelled).
     pub const CHEAT: u32 = 0x230E_27AC;
 }
@@ -138,11 +145,14 @@ pub trait TutorialHost {
     fn unsubscribe(&self, msg_type: u32);
     /// The cheat manager exists and `cISC4App` slot 21 is true (`Init`).
     fn cheats_available(&self) -> bool;
-    /// The cheat manager exists (`Shutdown`) [inferred].
+    /// The cheat manager exists (`Shutdown`). [TU5] The `cISC4App` slot 21
+    /// test that `Init` applied is **not** repeated on the way out.
     fn has_cheat_manager(&self) -> bool;
     /// Registers the cheat handler and the cheat `0x6A382BAF` "Tutorial".
     fn register_cheat(&self);
-    /// Undoes [`TutorialHost::register_cheat`].
+    /// Undoes [`TutorialHost::register_cheat`]: cheat manager slot 6 with
+    /// (the cheat handler +8, 0), which removes the handler's notification,
+    /// then slot 4 with `0x6A382BAF`, which unregisters the cheat (TU5).
     fn unregister_cheat(&self);
 
     // ---- references ----
@@ -150,7 +160,10 @@ pub trait TutorialHost {
     fn release(&self, token: u64);
 
     // ---- the window (§4.2, §4.4) ----
-    /// A new tutorial window (`cSC4TutorialUIWinProc`), no reference yet.
+    /// A new tutorial window (`cSC4TutorialUIWinProc`) with **one**
+    /// reference: the creation count of §4.2's "create one (100 bytes)".
+    /// `startTutorial` then takes a second one with
+    /// [`TutorialHost::add_ref`], so the system holds two (TU5).
     fn create_window(&self) -> u64;
     /// Initialises a new window.
     fn init_window(&self, window: u64);
