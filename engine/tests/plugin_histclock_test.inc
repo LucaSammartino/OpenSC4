@@ -261,6 +261,24 @@ void HcHistoryRecordAndQuery(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
     }
 }
 
+// The two-thread checks below interleave a reader thread with the main
+// thread's steps. On a busy machine a new thread may not run at all before
+// the main thread's loop ends, so the main thread does not assume it ran:
+// every `kHcThreadCheckpoint` steps it waits (yielding, with a generous
+// deadline shared by the whole loop) until the reader has answered again
+// since the last checkpoint. False if the deadline passed first.
+constexpr int kHcThreadCheckpoint = 500;
+constexpr ULONGLONG kHcThreadDeadlineMs = 60000;
+
+bool HcWaitForAnswer(const std::atomic<int>& answers, int& seen, ULONGLONG deadline) {
+    while (answers.load() <= seen) {
+        if (GetTickCount64() >= deadline) return false;
+        Sleep(1);
+    }
+    seen = answers.load();
+    return true;
+}
+
 // Queries from another thread while the main thread records (the lock).
 void HcHistoryThreads(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
     std::atomic<bool> stop{false};
@@ -271,12 +289,21 @@ void HcHistoryThreads(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
             if (h->GetCount(0x0A1100E8, HcDate(kHcDay0), HcDate(kHcDay0 + 100000), n)) ++answers;
         }
     });
+    const ULONGLONG deadline = GetTickCount64() + kHcThreadDeadlineMs;
+    int seen = 0, checkpoints = 0;
+    bool answering = true;
     for (int i = 0; i < 2000; ++i) {
         w.date = kHcDay0 + 200 + static_cast<uint32_t>(i);
         h->RecordHistoryData(0x0A1100E8, i);
+        // From the first record on the key exists, so every query answers.
+        if (answering && i % kHcThreadCheckpoint == 0) {
+            answering = HcWaitForAnswer(answers, seen, deadline);
+            if (answering) ++checkpoints;
+        }
     }
     stop = true;
     t.join();
+    CHECK(answering && checkpoints == 2000 / kHcThreadCheckpoint);  // answers between the records, throughout
     CHECK(answers.load() > 0);
 }
 
@@ -840,12 +867,23 @@ int Clock24EnableTest(const std::string& dll, const std::string& ini, const std:
                         c->GetVisualTimePercentage(&pf);
                     }
                 });
+                // Every kHcThreadCheckpoint steps, wait until the getters
+                // answered again (HcWaitForAnswer), so they run between the
+                // steps throughout however late the thread starts.
+                const ULONGLONG deadline = GetTickCount64() + kHcThreadDeadlineMs;
+                int seen = 0, checkpoints = 0;
+                bool answering = true;
                 for (int i = 0; i < 3000; ++i) {
                     w.now += 500000;
                     svc->OnIdle(0);
+                    if (answering && i % kHcThreadCheckpoint == 0) {
+                        answering = HcWaitForAnswer(answers, seen, deadline);
+                        if (answering) ++checkpoints;
+                    }
                 }
                 stop = true;
                 th.join();
+                CHECK(answering && checkpoints == 3000 / kHcThreadCheckpoint);
                 CHECK(answers.load() > 0);
             }
             // §7: version 2, 26 bytes; the §7 example at noon with the shipped values.
