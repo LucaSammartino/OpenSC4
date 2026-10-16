@@ -8,6 +8,9 @@ checked against the instruction bytes where the pseudocode was unclear (`0x00622
 headers and general knowledge only. They must **not** consult decompiled or disassembled code (see
 [CONTRIBUTING.md](../../CONTRIBUTING.md)).
 
+Amended 2026-10-16 (re-answers24): NR3–NR5 answered from the executable (§6.5, §8.3, §9.1, §10.8); the simulation
+parts of NR1 and NR2 answered (§10.9, §11.1); NR6 and NR7 filed (§14).
+
 Tags:
 
 - *[compat]*: observable; a replacement must match it.
@@ -20,21 +23,24 @@ Scope. The **piece choice** half of the network tool's solve (network-geometry.m
 - the rule resources: their instances, their file grammars, and when they are loaded (§2);
 - the **tile rule files** of the per-type tile evaluators, the `#Transmogrify` expansion into rotated and mirrored
   variants (§3, §4), and how a rule matches a cell (§5);
-- `SolveNetwork`'s rule stages: the padded sets, `SolveUsingEvaluator` and `ApplyNetworkRules` (§6);
+- `SolveNetwork`'s rule stages: the padded sets, `SolveUsingEvaluator` and `ApplyNetworkRules` (§6), and the
+  one-way directions that the one-way road tool fixes before the solve (`ResolveOneWayConflicts`, §6.5);
 - the **edge subtypes** (`AssignEdgeSubtypes`), which the rule files key on (§7);
-- **multi-type intersections** (a cell with two network types) and the override matrix (§8);
+- **multi-type intersections** (a cell with two network types) and the override matrix (§8), and the preview's
+  per-type piece lookup (`SolveMultiTypeSeparation`, §8.3);
 - the **tile subsets**: the `RuleOverrides` pair patches and the `TileVerifiers` pattern checks (§9);
 - the **highway intersection rules** (`cIntRule`): their file grammar, `Test`, `DoAutoComplete`,
-  `IdentifyHighwayIntersections` and `InsertIsolatedHighwayIntersection` (§10);
-- what a solved cell's piece id selects (§11).
+  `IdentifyHighwayIntersections`, `InsertIsolatedHighwayIntersection`, the ordering rings and the intersection pieces
+  placed at commit (§10);
+- what a solved cell's piece id selects, and how a network occupant gets its paths (§11).
 
-It answers network-geometry.md NG5 (§12).
+It answers network-geometry.md NG5 and this spec's NR3–NR5, and the simulation parts of NR1 and NR2 (§12).
 
 What is not here: the drag, the validation passes, the height solver and the commit (network-geometry.md,
-network-tools.md); bridge and tunnel pieces (the evaluator instances `0x1000` and up, network-geometry.md §7.1); one-way
-conflict resolution (`ResolveOneWayConflicts`); the preview's multi-type separation (`SolveMultiTypeSeparation`,
-`0x00633FA0`, which only draws). The shipped rule files are game data. This spec describes their **format** and uses
-synthetic rules in its examples; it never reproduces the shipped rules.
+network-tools.md); bridge and tunnel pieces (the evaluator instances `0x1000` and up, network-geometry.md §7.1); the
+texture a piece id selects and how it is drawn (the renderer specs, §11); the path resource's format and the path-info
+transforms (NR6); the consumer of the constraint layout (NR7). The shipped rule files are game data. This spec
+describes their **format** and uses synthetic rules in its examples; it never reproduces the shipped rules.
 
 Related specs (cited, not repeated):
 
@@ -392,6 +398,88 @@ Consequences *[compat]*:
 - Condition 2.3 compares the occupant's masked type bits with the cell's whole flags word, so a connection-node cell
   that carries a non-type flag (for example `0x40000`) never qualifies *[quirk]*.
 
+### 6.5 One-way directions (`ResolveOneWayConflicts(type)`, `0x0063A640`, pop 4)
+
+**The one-way byte.** A cell info's `+0x50` holds one **flow code** per side, in bits `2s` and `2s + 1` for side `s`:
+
+| Code | Meaning |
+|---|---|
+| 0 | no one-way flow on this side |
+| 1 | the traffic flows toward **+axis** along the side's axis (W and E sides: x; N and S sides: z) |
+| 2 | the traffic flows toward **−axis** |
+
+The byte describes the OneWayRoad network of the cell; the other types ignore it. For an existing occupant it starts
+as the occupant's slot 69 value (network-geometry.md §8.1). At commit, `CreateNetworkOccupant` hands it to the new
+occupant (network occupant slot 70 `SetOneWayDirections`, `0x0061B9F0`; the call is at `0x00624406`–`0x00624440`).
+
+**Where the new codes come from.**
+
+- `AssignEdgeMajorTypes` (`0x00638160`) writes them when the tool's type is OneWayRoad (the test is at
+  `0x00638194`). The code of a direction `d` (0–7, network-geometry.md §3.2: 0 = −x, 2 = −z, 4 = +x, 6 = +z, odd
+  values the diagonals in between) on a side of axis `a` is the table `0x00AA8BD8`, entry `d + 8a` (a = 0 for W/E,
+  1 for N/S):
+
+  | d | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+  |---|---|---|---|---|---|---|---|---|
+  | code on W/E sides | 2 | 2 | 0 | 1 | 1 | 1 | 0 | 2 |
+  | code on N/S sides | 0 | 2 | 2 | 2 | 0 | 1 | 1 | 1 |
+
+  For each step `i` below the valid count `+0x78`: a **straight** step (`i <` the straight count `+0x74`) sets, on its
+  front side (`pen direction / 2`) and its back side (the opposite side), the code of the **pen direction** `+0x7C`
+  for that side's axis. This happens on both sides whether or not the step writes an edge byte there (the front edge
+  is skipped on the last valid step, the back edge on step 0). A **diagonal** step (`i ≥ +0x74`) sets, on each side
+  that leads to a neighbour of the run, the code of the **end direction** `+0x80` for that side's axis.
+- `DoAdditionalDraws` (`0x006384E0`) applies the extra cells of `DoAutoComplete` (§10.5): for an extra-cell record
+  with a non-zero one-way mask, `+0x50 := (+0x50 & ~mask) + bits`.
+
+**ResolveOneWayConflicts** is called by `PlaceNetwork` for type 10 only, after `BuildSetOfCellsToBeSolved` and before
+`MarkNeighborConnections` (network-tools.md §5.1 step 5.7). The pass carries the dragged run's direction into the
+existing one-way roads it joins, then clears the codes that make a cell's flow contradict itself. Below, `code(c, s)`
+is cell `c`'s flow code on side `s`, and the neighbour offsets are the tables `0x00AA8B74` (dx) and `0x00AA8B84` (dz),
+which hold the same values as §1.1.
+
+1. **Seeds.** List `A` gets one entry `{x, z, from = −1}` for each cell of step 0 and for each cell of the last
+   dragged step (`+0x70 − 1`). The steps in between are not seeds *[compat]*.
+2. **Propagation.** Repeat while `A` is not empty; `B` starts empty. For each entry `{x, z, from}` of `A`, in order:
+   1. `c` := the world-cache cell info at `(x, z)` (there is no null test). Set its in-run byte `+0x10 := 1`. If its
+      `+0x57` is 0, set it to 1 and add the cell's key to the solve set `+0x84`. So **every cell the pass visits is
+      re-solved**, run cell or not *[compat]*.
+   2. `n` := the number of sides whose byte in `c`'s OneWayRoad edge word has a non-zero kind (`byte & 7 ≠ 0`). If
+      `n` is not 1 or 2, go to the next entry.
+   3. The **portal side**: when `c`'s flags have `0x80000` (a tunnel portal), its occupant's other portal (through
+      interface `0x8A4BD52B`, the paired portal at `+0x1D0`) gives a cell `(ox, oz)` (slot 59). The portal side is 0
+      if `ox < x`, else 1 if `oz < z`, else 2 if `ox > x`, else 3 if `oz > z`, else none.
+   4. `to := −1`. For each side `s` = 0 … 3 with `code(c, s) ≠ 0`: the neighbour `m` is the portal's cell when `s` is
+      the portal side, otherwise `(x + dx, z + dz)`. Skip `s` when `m` is outside the city (unsigned compare), has no
+      cell info, or is part of a highway intersection (`+0x52`). If `m`'s in-run byte is set and (`from < 0` or
+      `s = from`): `from := s`. Otherwise `to := s` and `t := m` (so the **last** such side wins).
+   5. If `from < 0` or `to < 0`, go to the next entry.
+   6. `a := code(c, from)`. A turn between W and N, or between E and S (`to = from ^ 1`), reverses the axis sense:
+      `a := a ^ 3`. (Flow entering from the west, moving +x, and leaving through the north moves −z.)
+   7. If `code(c, to) = a`, the cell already agrees: go to the next entry (the propagation stops here). Otherwise
+      `code(c, to) := a`, `code(t, (to − 2) & 3) := a`, and append `{t.x, t.z, from = (to − 2) & 3}` to `B`.
+
+   Then `A := B`.
+3. **Conflict sweep.** `W1` := a copy of the solve set `+0x84` (`0x0050DA70`); `W2` := an empty hash set (the first
+   bucket count of the STL prime list that is at least 100). While `W1` is not empty:
+   1. For each key `k` of `W1`, in its iteration order: `c` := the cell info of `k` (no null test); `seen[0..3] := 0`.
+      For each side `s` = 0 … 3:
+      1. `p := (byte_s + s) & 3`, where `byte_s` is byte `s` of `c`'s OneWayRoad edge word: the **partner side** that
+         the arm on side `s` pairs with (orthogonal: the opposite side; diagonal kind 1: `s + 1`; kind 3: `s − 1`).
+      2. `f := code(c, s)`. If `f = 0`, next side. If `(p ^ s) & 2 = 0`, `f := f ^ 3`.
+      3. If `seen[p] ≠ 0` and `seen[p] ≠ f` (a **conflict**): `code(c, p) := 0`. Then, when the neighbour `m` across
+         `p` is inside the city and has a cell info: `code(m, (p − 2) & 3) := 0`, and if `m.+0x57` is 0, set it to 1
+         and add **`k`** (not `m`'s key) to `W2` *[quirk]*.
+      4. `seen[p] := f`.
+   2. Insert the keys of `W2` into `+0x84` (`0x00638FA0`). Because they are keys of `W1`, which are already in `+0x84`,
+      this changes nothing. Then `W1 := W2` and `W2` is emptied.
+
+   So a neighbour whose code was cleared gets its `+0x57` mark but **never** joins the solve set, and the cell that
+   caused the conflict is swept again *[quirk]*. The sweep ends because each conflict clears a non-zero code.
+
+The pass returns nothing. The cleared and propagated codes reach the occupants at commit (above) and are used by
+`Test` and `DoAutoComplete` (§10.5) and by the multi-type stage (§8.2), which also clears them.
+
 ---
 
 ## 7. Edge subtypes (`AssignEdgeSubtypes(P, R, reset)`, `0x006359B0`)
@@ -517,7 +605,25 @@ For each key `c` of `S`, with `f` its flags word, `lo` the lowest set bit of `f`
       `(x, z, f)` to the tool's potential-intersection list `+0x08` (the list that
       `QueryUserForPotentialIntersections` walks, §10.7).
 
-`+0x50` is the cell's one-way direction byte (two bits per side).
+`+0x50` is the cell's one-way direction byte (two bits per side, §6.5).
+
+### 8.3 SolveMultiTypeSeparation(cell, t, &id, &rot, &flip) (`0x00633FA0`, pop 20, returns AL)
+
+The preview's per-type piece lookup. Its callers are `AddCellPreview` (`0x006246A0`) and the draft (not real) branch
+of `InsertOccupantsForSolvedCells`; both only draw, so this function never changes the solved list, the sets or the
+cell infos. `cell` points at an `(x, z)` pair.
+
+For each tile evaluator of type `t` (type record `+0x24`, §2.3), in order, stopping at the first null entry:
+
+1. Build the neighbourhood of `(x, z)` for type `t` (`0x00627080`, §5.1) with the override flag set to 1, so
+   `valid(m)` is always true: an output may land on a cell that carries another type *[compat]*.
+2. `Evaluate` (§5). No match: next evaluator.
+3. On a match, find the first output of the rule whose metaposition target (`0x00620DA0`) is the cell itself. If
+   there is none, next evaluator. Otherwise `*id :=` the output's piece id, `*rot :=` its orientation byte without bit 7
+   (`& 0x7F`), `*flip :=` bit 7 of it (0 or 1), and return **true**.
+
+Return **false** when no evaluator gives a piece for the cell. The rules' other outputs are ignored, and no
+claiming happens (§6.4 is not involved) *[compat]*.
 
 ---
 
@@ -529,7 +635,18 @@ For each key `c` of `S`, with `f` its flags word, `lo` the lowest set bit of `f`
 are both six numbers `idA, rotA, flipA, idB, rotB, flipB`, each parsed with the pattern
 `" %i , %i , %d , %i , %i , %d"`, which must yield 6 fields (`%i` accepts `0x` hex). The key is the **pattern**, the
 value the **replacement**; an orientation is `rot | (flip ≠ 0 ? 0x80 : 0)`. Entries go into an ordered map
-(`0x00B466D0`) keyed by `idA`, several per `idA` allowed, in file order *[inferred]*.
+(`0x00B466D0`) keyed by `idA`, several per `idA` allowed, in **file order** *[compat]* (NR5):
+
+- the INI reader's entry enumeration (`cRZIniFile::EnumEntries`, `0x0091D91C`) reads the section's lines in file order
+  up to the next `[`; it skips empty lines and `;` comments, splits each line at its first `=`, trims the key on the
+  right and the value on both sides, and skips a line whose key or value is then empty. It collects the entries in a
+  vector and calls the callback in vector order. **Repeated keys are kept**: two lines with the same pattern give two
+  entries;
+- the insertion (`0x0063C920`) walks the tree going left when the new `idA` is below the node's (unsigned) and right
+  otherwise, so an entry with an `idA` already present goes **after** the existing ones;
+- `PatchTilePair` walks the equal range of `idA` forward.
+
+So the first line (in the file) whose pattern matches wins.
 
 A pattern describes two pieces side by side, **B east of A** (B on A's side 2), in a normalised frame.
 
@@ -679,12 +796,26 @@ and each character one column `x` (from 0):
 
 The bounds start at `minX = minZ = 1000`, `maxX = maxZ = −1000` (`+0x18`, `+0x1C`, `+0x20`, `+0x24`). Afterwards every
 coordinate (bounds, occupied, new and tagged cells) is shifted by minus the centre (column, row). Without a `<` or
-`^` the centre stays −1, so the cells shift by +1 *[quirk]*. The parser then builds the tile grid (`+0xB8`, width
-`+0xC4`) and its map (`+0xD4`) that the preview uses.
+`^` the centre stays −1, so the cells shift by +1 *[quirk]*. The parser then builds the **tile grid** and its
+**tile map**, which give each occupied cell its own piece (§10.9):
+
+- the grid (`+0xB8`, a byte vector) has `(maxZ − minZ + 1) × (maxX − minX + 1)` entries, row by row, width `+0xC4`,
+  all 0 at first;
+- for each occupied cell, in list order, with `col = x − minX` and `row = z − minZ`: its **tile code** is the byte
+  `(row × 16 + col + 1) & 0xFF`, written into the grid at `row × width + col`;
+- the tile map (`+0xD0`, a hash map from the code byte; buckets at `+0xD4`) gets, for that code, the value
+  `{tile = col × 0x100 + row × 0x10 (u32), orientation byte 0, new-cell byte}`, where the new-cell byte is 1 unless
+  the cell is also a tagged cell (then 0). When the code is already in the map, its value is overwritten.
+
+Codes repeat when a layout is more than 16 columns wide (`col` 16 of row 0 gives the code of `col` 0 of row 1) or
+when `row × 16 + col + 1` passes 255; such cells share one map entry, so they all get the last one's tile and
+orientation *[quirk]*. Only the orientation of a map entry changes later (the transforms of §10.4).
 
 **Constraint layout** (`ParseConstraintsFromASCIIArt`, `0x0060A560`) maps characters to constraint codes:
 `-` 1, `|` 2, `/` 3, `\` 4, `F` 5, `R` 6, `#` 7, `X` 8; `<` and `^` set its centre (`+0xB0`, `+0xAC`). The grid is
-`+0x9C` (width `+0xA8`). Its consumer is outside this spec (§14).
+`+0x9C` (width `+0xA8`). Its consumer is `InsertIntersectionConstraints` (`0x00644710`), which the smoothing loop
+runs (network-geometry.md §9.4 step 4) to turn the codes into vertex-height equalities and slope limits. That is
+height geometry, not piece choice or simulation; its exact meaning is NR7 (§14).
 
 ### 10.4 Transforms
 
@@ -815,15 +946,90 @@ group `0x2A592FD1`, instance `ConvertQueryID`; the fallback text is `## Intersec
 
 ### 10.8 Ordering sections (the intersection tool's cycling)
 
-An `Ordering…` section (`ReadIntersectionOrderingEntries`, `0x006416B0`) reads one of two keys, each a comma list of
-hex rule ids:
+Every rule carries two circular lists, each as a pair of **rule ids** (not pointers): the **rotation ring**
+(`+0xEC` previous, `+0xF0` next), which the rotate command walks, and the **type ring** (`+0xF4` previous, `+0xF8`
+next), which cycles between intersection types. A new rule, and a rule after `CopyFrom`, has all four links set to its
+own id (a ring of one).
 
-- `RotationRing`: the listed rules form a **circular list** for the rotate command: each rule's `+0xEC` (previous)
-  and `+0xF0` (next) are linked in list order and the last closes on the first;
-- `AddTypes` (read only when there is no `RotationRing`): links the listed rules' rings into a second circular list
-  through `+0xF4` and `+0xF8`, for cycling between intersection types *[inferred]*.
+`ReadIntersectionOrderingEntries` (`0x006416B0`) is the per-entry callback of an `Ordering…` section (INI slot 13,
+the entry enumeration of §9.1, so lines are handled in file order). `ReadHighwayIntersectionRules` builds its context
+once per file; the context holds a **cursor** `K`, set to −1 once and kept across all the `Ordering` sections of the
+file. Each line's key is compared case-insensitively (`IsEqual` with the case flag off): first with `RotationRing`,
+then with `AddTypes`; other keys are ignored. The value is a comma list of hex ids (`RZAtoUint32HexA`, §1.6). Each line
+is handled on its own, so **one section may hold both keys, and several of each** *[compat]* (NR3).
 
-Unknown ids are skipped. These links only drive the tool's user interface; the solver never reads them.
+Linking `R` into a rotation ring with head `F` and previous member `P` (both rule records of the current line) means:
+`R.prev := P.id`, `R.next := F.id`, `P.next := R.id`, `F.prev := R.id`. The ring stays closed after every step.
+
+**`RotationRing`.** `K := −1`. `F := P := none`. For each token, in order, with `id` its value:
+
+1. If `K < 0` (signed): `K := id`. The first token sets `K` even when no rule has that id.
+2. Look `id` up in the rule map. Unknown: next token.
+3. If `P` exists, link `R` into the rotation ring as above. Then `P := R`, and `F := R` when `F` is none.
+
+So the listed rules form one rotation ring in list order, the unknown ids left out. Each rule keeps its own type
+ring. If the first id has bit 31 set, `K` stays "negative", so the next token overwrites it *[quirk]*.
+
+**`AddTypes`.** `cur := K` (the head of the previous `RotationRing` or `AddTypes` line of the file, or −1). `F := P :=
+none`. For each token, in order:
+
+1. If `F` is none: `K := id`. So `K` ends as the line's first **known** id, or as its last token when none is known.
+2. Look `id` up. Unknown: next token (`cur` does not move).
+3. Link `R` into this line's rotation ring exactly as `RotationRing` does; `P := R`; `F := R` when `F` is none.
+4. Look `cur` up. If it is a rule `C`: `N :=` the rule whose id is `C`'s type-ring next; then `R.typePrev := C.id`,
+   `R.typeNext := N.id`, `C.typeNext := R.id`, `N.typePrev := R.id` (`R` goes into `C`'s type ring right after
+   `C`); then `cur := C`'s rotation next. If `cur` is unknown, `R` joins no type ring and `cur` stays.
+
+So the k-th known rule of an `AddTypes` line forms a rotation ring with the line's other rules and enters the type ring
+of the k-th rule of the base ring (counted from the base line's head along its rotation ring). The next `AddTypes`
+line then uses this line as its base. For example, the lines `RotationRing = A1,A2`, `AddTypes = B1,B2` and
+`AddTypes = C1,C2` give the rotation rings `A1 → A2`, `B1 → B2`, `C1 → C2` and the type rings
+`A1 → B1 → C1 → A1` and `A2 → B2 → C2 → A2` (each new rule goes right after its base rule, and the base of the `C`
+line is the `B` line). `N` is fetched with the map's insert-or-find operator (`0x0062C2F0`); the links only ever
+hold ids of existing rules, so it always finds one.
+
+These links only drive the intersection tool's user interface; the solver never reads them.
+
+### 10.9 The intersection pieces at commit
+
+`InsertHighwayIntersectionPieces(list)` (`0x0062C4B0`) runs at commit (§10.7 step 9; network-tools.md §6.1). For each
+record of `+0xCC` (§10.6) whose start step is below `+0x78`, in order, it calls
+`InsertHighwayIntersection(x, z, rule id, list, real = +0x50, 0)` (`0x0062C3A0`). That function does nothing unless
+`real`. Otherwise, for each occupied cell `(dx, dz)` of the rule (§10.3), in list order, when the tool has a cell
+info at `(x + dx, z + dz)` and `GetTileInfo(dx, dz)` finds a tile:
+
+- `pieceId := AutoTileBase (+0xC8) + tile`;
+- `path := AutoPathBase (+0xCC) + tile` when `AutoPathBase` is not 0, else 0;
+- `InsertHighwayIntersectionPiece(info, list, usable = 0, pieceId, orientation, x, z, path)`.
+
+The tool's real byte is saved and restored around the loop.
+
+**GetTileInfo(dx, dz)** (`0x00624F00`): `col := dx − minX`, `row := dz − minZ`. If `col < width` and
+`row × width + col <` the grid size (both unsigned), the code is the grid byte there, and the result is that code's
+tile-map value (§10.3); otherwise, or when the code is not in the map, none. So the cell at `(col, row)` of a rule's
+bounds gets piece `AutoTileBase + col × 0x100 + row × 0x10` *[compat]*, turned by the map entry's orientation.
+
+**InsertHighwayIntersectionPiece(info, list, usable, pieceId, orientation, x, z, path)** (`0x006276D0`, pop 32):
+
+1. `occ :=` tool slot 54 `CreateNetworkOccupant(info, …)` with the prebuilt-model class `0x49C1A034` (§11).
+2. `SetExemplarForOccupant(occ, pieceId, …, orientation)` with group `0xA8434037` (§11).
+3. Network occupant slot 30 (`0x0061B490`) sets its piece id `+0xFC` and orientation `+0x104` and drops a cached path
+   info.
+4. Network flags: clear `0x2000000` and `0x4000000`, set `0x8000000`. Set `0x1000000` when the rounded sum of the
+   corner heights `+0x5C` and `+0x64` is below the rounded sum of `+0x58` and `+0x60` (`0x00627784`); this picks the
+   quad's split diagonal *[inferred]*. Then the shear transform is recomputed (`0x0061D230`, drawing only).
+5. If `path ≠ 0`: network occupant slot 51 (`0x006197D0`) stores it as the **path override** (`+0x164`, §11.1).
+6. Clear the cell's network occupants (`ClearNetworkOccsFromCell(info.x, info.z, +0x364)`).
+7. When the tool has an occupant manager (`+0x48`): `info.+0x54 :=` the result of its slot 20 called with the
+   occupant and the tool's `+0x208`.
+8. If `usable`: set `0x10000000` and clear `0x4000`. Always set `0x500000` (`0x100000` is the intersection flag that
+   `Test` reads, §10.5).
+9. Network occupant slot 72 (`0x0061BA90`): when the occupant has property `0x4835C6AB`, store the anchor cell key
+   `(z << 16) + x` in it (the anchor that `Test` compares through slot 71). An occupant without the property keeps no
+   anchor.
+10. If `list` is not null: `AddRef` the occupant and append it. Release the creation reference.
+
+Every piece of one intersection gets the same anchor, the rule's position `(x, z)`.
 
 ---
 
@@ -846,6 +1052,35 @@ byte `+0x104`; §9 reads it back).
 So a rule file names pieces by id only; what the id selects depends on the occupant class and, for prebuilt models,
 on the group *[compat]*.
 
+### 11.1 The paths of a piece (what the simulation reads; NR1)
+
+The simulation never reads a piece's texture. It reads the piece's **path info** (traffic-network.md §7.3), which the
+piece id also selects. `GetPathInfo` (network occupant slot 49, `0x0061B510`) builds it on the first call and caches
+it in the occupant (`+0x140`):
+
+1. `id :=` the piece id (slot 23), `group := 0x69668828`. If the occupant has a **path override** (`+0x164`, set by
+   slot 51, §10.9), `id :=` the override and `group := 0xA966883F`.
+2. `instance :=` network manager slot 15 `MapPath(id)` (network-manager.md §7.11: the left-hand-traffic remap).
+3. Load the resource `{type 0x296678F7, group, instance}` through the resource manager (slot 3, interface
+   `0xA9667793`). The result is a path info shared by every occupant with that key. When there is no such resource,
+   `GetPathInfo` returns null and caches nothing, so the next call tries again.
+4. With an override: when the loaded path info does not use elevation (path-info slot 16), it is cloned (slot 24) and
+   the clone's elevation flag is set (slot 17).
+5. The occupant's own copy: path-info slot 25 `CreateTransformedCopy(occupant)`, which places the paths at the
+   occupant's cell and orientation; the loaded copy is released.
+6. With an override: slot 29 `OffsetAndScissor(+0x168, 0, +0x16C, bounds)`, where the bounds are the occupant's
+   fields `+0x9C`, `+0xA4`, `+0xCC`, `+0xD4`; the copy it returns replaces the cached one, which is released. So an
+   intersection piece's override names the paths of the whole intersection, and each piece keeps the part inside its
+   own cell *[inferred]*.
+7. Slot 26 `RemoveWrongWayPaths(occupant)` (it reads the one-way byte that slot 69 returns, §6.5), then slot 40
+   `VerifyPathEdges(occupant)`.
+8. The occupant's connection bitmap (`+0x144`, 32 bytes) is cleared and rebuilt by slot 27
+   `InitializeNetworkConnectionBitmap(occupant)`.
+
+The orientation byte therefore turns the paths through step 5. The texture an ordinary piece id selects, and how the
+orientation turns it, is drawing only; it is left to the renderer specs. What the path resource holds and exactly what
+slots 25, 26, 27, 29 and 40 do is NR6. The path-info slots are listed in traffic-network.md §7.3.
+
 ---
 
 ## 12. Answers given here
@@ -856,6 +1091,25 @@ on the group *[compat]*.
   §10 (`cIntRule`, `IdentifyHighwayIntersections`, `InsertIsolatedHighwayIntersection`), §11 (piece ids). The
   network-geometry.md §8.2 outline MATCHES, with one addition: `SolveNetwork` runs the evaluators of **all 13 types**,
   not only the tool's (§6.1 step 5).
+
+Answered 2026-10-16 (re-answers24), from the executable:
+
+- **NR3** (§10.8): `+0xF4`/`+0xF8` are a second circular list of rule ids, the **type ring**: MATCHES the inferred
+  shape. But the premise that `AddTypes` is read only when there is no `RotationRing` **DIFFERS**: the callback tests
+  each line's key on its own, so both keys may share a section, and each `AddTypes` line also forms its own rotation
+  ring. A rule of an `AddTypes` line enters the type ring of the rule at the same position of the previous
+  `RotationRing`/`AddTypes` line of the file, right after it.
+- **NR4** (§6.5, §8.3): `ResolveOneWayConflicts` and `SolveMultiTypeSeparation` specified; the one-way codes that
+  `AssignEdgeMajorTypes` and `DoAdditionalDraws` write are in §6.5. `SolveMultiTypeSeparation` only draws and changes
+  no state.
+- **NR5** (§9.1): file order MATCHES. The INI enumeration keeps repeated keys in file order, and the multimap insertion
+  puts an equal `idA` after the existing entries.
+- **NR1**, simulation part (§11.1): the piece id (or the path override) also selects the occupant's path info through
+  `MapPath` and the path resource; the orientation turns the paths when the occupant makes its transformed copy. The
+  texture lookup is drawing only and is left to the renderer specs. The path-info internals are NR6.
+- **NR2** (§10.3, §10.9): the tile grid and map, `AutoTileBase`, `AutoPathBase`, `InsertHighwayIntersection(s)` and
+  `InsertHighwayIntersectionPiece` specified. The constraint layout's consumer is named
+  (`InsertIntersectionConstraints`, `0x00644710`, height geometry); its codes' meaning is NR7.
 
 ---
 
@@ -875,20 +1129,30 @@ on the group *[compat]*.
 9. `IdentifyHighwayIntersections` tags its last run's potential-intersection entry with 4 instead of the type, and
    returns its `v` argument on every path (§10.6; network-geometry.md quirk 7).
 10. The keys `PieceType` and `ResetPieces` are built by the reader and never matched (§10.1).
+11. The one-way conflict sweep marks a neighbour whose code it cleared (`+0x57`) but queues the current cell's key
+    instead of the neighbour's, so that neighbour is never added to the solve set (§6.5, test 26).
+12. A `RotationRing` whose first id has bit 31 set leaves the ordering cursor "negative", so the next token becomes
+    the cursor (§10.8).
+13. Tile codes are one byte (`row × 16 + col + 1`), so cells of a layout wider than 16 columns, or past code 255,
+    share one tile-map entry (§10.3).
 
 ---
 
 ## 14. Open questions
 
-- **NR1.** The texture an ordinary piece id selects, and how the orientation byte turns it (§11). Needs the network
-  occupant's model/texture setup (`cSC4NetworkOccupant`, the render side).
-- **NR2.** The placement of intersection models: `InsertHighwayIntersectionPiece(s)` (`0x006276D0`, `0x0062C4B0`), the
-  tile grid `+0xB8` and map `+0xD4`, `AutoTileBase` (`+0xC8`), `AutoPathBase` (`+0xCC`) and the constraint layout's
-  consumer (§10.3).
-- **NR3.** The `AddTypes` ring links exactly (§10.8), and whether `RotationRing` and `AddTypes` may share a section.
-- **NR4.** `ResolveOneWayConflicts` (one-way road only) and the preview's `SolveMultiTypeSeparation` (`0x00633FA0`).
-- **NR5.** The `[RuleOverrides]` table's container: several patterns per `idA` are evidenced by the lookup (an equal
-  range); their relative order is inferred to be file order (§9.1).
+- ~~**NR1.**~~ Simulation part answered (§11.1, §12). The texture an ordinary piece id selects, and how the
+  orientation byte turns it, belongs to the renderer specs.
+- ~~**NR2.**~~ Answered (§10.3, §10.9), except the constraint codes (NR7).
+- ~~**NR3.**~~ Answered (§10.8, §12).
+- ~~**NR4.**~~ Answered (§6.5, §8.3).
+- ~~**NR5.**~~ Answered: file order (§9.1).
+- **NR6.** The path resource (`{0x296678F7, 0x69668828 or 0xA966883F, MapPath(id)}`, interface `0xA9667793`): its
+  file format, and what path-info slots 25 `CreateTransformedCopy`, 26 `RemoveWrongWayPaths`, 27
+  `InitializeNetworkConnectionBitmap`, 29 `OffsetAndScissor` and 40 `VerifyPathEdges` do (§11.1). Also who writes the
+  override offset `+0x168`/`+0x16C` that slot 29 receives. Needed by the traffic rebuild when it builds paths itself
+  instead of borrowing the original's.
+- **NR7.** The constraint layout's codes 1–8 as `InsertIntersectionConstraints` (`0x00644710`) applies them: which
+  vertex heights each code makes equal and which slope limits it sets (§10.3; network-geometry.md §9.4 step 4).
 
 ---
 
@@ -964,3 +1228,24 @@ and the evaluator; the others drive the named function directly.
 24. **TileVerifiers** (§9.2). A verifier for piece `0x100` with one requirement `5,0x101,0,0` (the east neighbour is
     piece `0x101`, same orientation). A record `{0x100, 0x01}` at (10, 10) looks at (10, 11) (metaposition 5 turned
     once); it is kept when (10, 11) holds `{0x101, 0x01}` and removed (back into `S`, result false) otherwise.
+25. **RuleOverrides order** (§9.1, NR5). The section holds, in this order, `0x10,1,0,0x20,1,0=0x11,1,0,0x21,1,0` and
+    `0x10,1,0,0x20,1,0=0x12,1,0,0x22,1,0` (the same key twice). Both entries are kept. With the pair of test 17, A
+    becomes `0x11` and B `0x21`: the first line wins. With the two lines swapped, A becomes `0x12`.
+26. **One-way propagation and sweep** (§6.5, quirk 11). OneWayRoad cells; the dragged run is D (9, 10) as step 0 and
+    X (10, 10) as step 1 (`+0x70 = 2`), both with the in-run byte set and in the solve set (`+0x57 = 1`). Edge words
+    and one-way bytes: D `0x00020000`, `0x11`; X `0x00000202`, `0x15`; Y (10, 9) `0x02000200`, `0x44`; Z (10, 8)
+    `0x02000000`, `0x40`. (8, 10) has a cell info that is not in the run and not in the solve set, with one-way byte
+    `0x10`. (11, 10) has no cell info. After `ResolveOneWayConflicts(10)`: X `0x09`, Y `0x88`, Z `0x80` (the flow of
+    the existing road is reversed to leave X northward); D `0x10`; (8, 10) `0x00`. Y and Z have joined the solve set.
+    (8, 10) has `+0x57 = 1` but is **not** in the solve set.
+27. **Ordering rings** (§10.8, NR3). Rules A1, A2, B1, B2, C1, C2 exist. One section `Ordering1` holds
+    `RotationRing=A1,A2`, `AddTypes=B1,B2`, `AddTypes=C1,C2`. Rotation next: A1 → A2 → A1, B1 → B2 → B1,
+    C1 → C2 → C1. Type next: A1 → B1 → C1 → A1 and A2 → B2 → C2 → A2. With `AddTypes=B1,0x999,B2` (0x999 unknown)
+    instead of the B line, the result is the same.
+28. **Intersection tiles** (§10.3, §10.9). A rule with `AutoTileBase=0x5000`, `AutoPathBase=0` and the occupied cells
+    at (col, row) (0, 0), (1, 0), (2, 0) and (0, 1) of its bounds. At commit the four pieces are `0x5000`, `0x5100`,
+    `0x5200` and `0x5010`, each with orientation 0 (no transform) and no path override; when the occupants carry
+    property `0x4835C6AB`, each one's anchor is the rule's position. With `AutoPathBase=0x7000`, the overrides are `0x7000`, `0x7100`, `0x7200` and `0x7010`.
+29. **Preview piece** (§8.3). With the evaluator of test 11 and Road `0x02000200` at (5, 5) and (5, 6),
+    `SolveMultiTypeSeparation((5, 5), Road)` returns true with id `0x100`, rot 0, flip 0, and the solved list stays
+    empty. A Road cell `0x00000002` (no rule) returns false.
