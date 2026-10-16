@@ -597,7 +597,8 @@ Flags 1 and 2 are the cause byte of demolition.md §4.9. `0x1301` and `0x1302` a
    - otherwise it goes to state 8.
 
    So the volcano's end is triggered by the effect **finishing** (§7). The deformation stroke is at least `length`
-   effect-seconds (2–4 s × dilation), and the particles and decals may hold the effect longer (EF1).
+   effect-seconds (2–4 s × dilation); the decals may hold the effect longer, but **particles do not** (§7, EF1).
+   The parent also waits one full extra draw-pass sweep for its meta child to finish.
 4. **Shutdown.** The volcano's `Shutdown` (`0x0057F920`) stops the effect with `Stop(1)` and releases it.
 5. **A random start.** The volcano manager's argument-less `AttemptDisasterStart` (`0x0057F5A0`; Ghidra names it as
    a function of the effect-disaster manager) does the following:
@@ -814,8 +815,10 @@ saves nothing).
 ## 15. Quirks
 
 1. **Effects finish only when the city is drawn** (§7). The volcano's state 7 and the effect disasters' end both
-   depend on it. *[inferred]* A harness that ticks the simulation but never runs the 3D view's draw pass keeps the
-   disaster, and therefore the emergency pause, forever. This needs a runtime check (EF2).
+   depend on it. A harness that ticks the simulation but never runs the 3D view's draw pass keeps the disaster,
+   and therefore the emergency pause, forever. **Proven 2026-10-16 (re-answers29, EF2):** the finish test is
+   unreachable by any other route, so this needs no runtime check. A replacement that must work without a 3D
+   view has to run the sweep elsewhere or synthesise the end message.
 2. An effect whose name exists but whose priorities are all above the detail setting is created with index −1. It
    does nothing and never ends (§4.1).
 3. Effects keep running while the game is paused, with dilation 1 (§6).
