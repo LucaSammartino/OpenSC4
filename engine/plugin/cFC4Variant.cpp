@@ -13,6 +13,10 @@
 
 #include "cFC4Variant.h"
 
+#include <cstdint>
+#include <cstring>
+#include <vector>
+
 bool cFC4Variant::QueryInterface(uint32_t riid, void** ppvObj) {
     if (ppvObj == nullptr) return false;
     if (riid == GZIID_cIGZVariant || riid == GZIID_cIGZUnknown) {
@@ -49,6 +53,37 @@ bool cFC4Variant::CreateCopy(cFC4IGZVariant** value) const {
 
 // foundations §17.1: slot 8 takes the type and always answers true.
 bool cFC4Variant::CanGetVal(uint16_t) const { return true; }
+
+// Slot 58, the raw-bytes setter (neighbors.md §15.4 NG37, the original
+// 0x00915743): the value becomes raw bytes, type 0x8000, count = `length`. A
+// value that is already raw bytes of that count keeps its buffer; otherwise a
+// new one of `length` bytes. The bytes are copied unless `value` is null.
+// [choice] A new buffer with nothing copied holds zeros (the original's holds
+// whatever its allocator gave).
+void cFC4Variant::SetValVoid(void* value, uint32_t length) {
+    if (v_.GetType() == cIGZVariant::VoidArray && v_.GetCount() == length) {
+        if (value != nullptr && length != 0 && v_.RefVoid() != nullptr) v_.RefVoid(value, length);  // copies in place
+        return;
+    }
+    if (value != nullptr || length == 0) {
+        v_.RefVoid(value, length);  // SetType(0x8000, length) and a copy of the bytes
+        return;
+    }
+    std::vector<uint8_t> zeros(length);
+    v_.RefVoid(zeros.data(), length);
+}
+
+// Slot 57, GetValVoid (data-formats §5.2, EX17): only raw bytes answer; a
+// `length` larger than the count is lowered to it, then `length` bytes are
+// copied. Any other type: false, both unchanged. [choice] A null `value`
+// copies nothing.
+bool cFC4Variant::GetValVoid(void* value, uint32_t& length) const {
+    if (v_.GetType() != cIGZVariant::VoidArray) return false;
+    if (length > v_.GetCount()) length = v_.GetCount();
+    const void* src = v_.RefVoid();
+    if (value != nullptr && src != nullptr && length != 0) std::memcpy(value, src, length);
+    return true;
+}
 
 // foundations §17.1: slot 60 is GetValUnknown(riid, void**).
 // [choice] The stored object queried for `riid`.

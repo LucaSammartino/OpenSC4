@@ -29,7 +29,8 @@ the harness's scripted actions use it:
 It also gives the prop occupant slots that other specs use (§13). The NM5 answer is in §13.2.
 
 What is not here: the network solver's geometry (`SolveNetwork`, `SmoothenNetwork`, bridges, tunnels, highway
-intersections, one-way resolution). It is named by its passes and failure codes only. The player's UI (cursor, preview
+intersections, one-way resolution). It is named by its passes and failure codes only; the geometry is
+[network-geometry.md](network-geometry.md). The player's UI (cursor, preview
 and sounds) is covered only where it charges the budget (§8).
 
 Related specs (cited, not repeated):
@@ -229,14 +230,14 @@ reaches it through §3.
 
    | Pass | Code |
    |---|---|
-   | slot 66 (`0x00638710`), terrain type | `0xF0000001` |
-   | `0x00639490`, tunnels | `0xF0000004` |
+   | slot 66 `IdentifyStartingConditions` (`0x00638710`): the first cell is not in water | `0xF0000001` |
+   | `0x00639490`, tunnels (never cuts, so this code is never set; network-geometry.md §6.3) | `0xF0000004` |
    | slot 68 (`0x00639170`), reserved tiles | `0xF0000002` |
    | slot 59 `UpdateOccupantHighlights` (`0x006299A0`), what would be demolished | `0xF0000002` |
    | `0x00632830`, bridges | `0xF0000003` |
-   | slot 69 (`0x00638990`) | `0xF0000001` |
+   | slot 69 `CheckForGoodTerrain` (`0x00638990`): no regular step crosses water | `0xF0000001` |
 
-   Then, if `+0x354`, the land-bridge pass (`0x00632AD0`).
+   Then, if `+0x354`, the land-bridge pass (`0x00632AD0`). The passes are network-geometry.md §4–§7.
 5. If `+0x78 > 0`, **solve**. In order:
    1. cell infos (`0x00626130`, `0x00647B40`, `0x00639040`, slot 71 `CreateCellInfos`);
    2. `AssignEdgeMajorTypes` (`0x00638160`);
@@ -320,7 +321,7 @@ reason" text. The meanings below paraphrase the shipped English strings.
 3. **Otherwise**: `InsertNetworkOccupant(cell, request, &out)` (slot 72):
    1. Create and configure the occupant (slot 54 `CreateNetworkOccupant`, models).
    2. If the piece needs supports (`AddSupportStructures`, `0x00643FB0`): set flags `0x40000000` and `0x8000000`.
-      This is a lead for NM3: `0x40000000` means "has supports / elevated" *[inferred]*.
+      `0x40000000` means "elevated, with supports" (NM3; the support level rule is network-geometry.md §10.2).
    3. Clear `0x400000` (`0x006279F2`).
    4. **Clear the cell** (`ClearNetworkOccsFromCell`, `0x006272F0`, §6.4).
    5. `occupantManager.InsertOccupant(n, +0x208)` (`0x00627A16`, `0x00627A38`). The listeners see `0x99EF1142` with
@@ -400,7 +401,8 @@ The tool only **prices**. It never touches the budget. The price of the current 
 | tunnels | per tunnel: `(end − start) × +0x324` |
 | intersections | per highway intersection: its rule's cost (rule `+0xB4`) |
 
-The power-line tool has its own `GetCostOfSolution` (`0x0064F0F0`, not described here).
+The power-line tool has its own `GetCostOfSolution` (`0x0064F0F0`, network-geometry.md §11). The per-type values
+are the placement exemplars' (network-geometry.md §2.4, NT2).
 
 ### 8.2 Who pays: cSC4NetworkToolUI::DoPlacement (`0x00645370`)
 
@@ -452,7 +454,7 @@ The power-line tool uses the base `PlaceNetworkOccupants` and `PlaceNetwork`. It
 | 0 | the cell is clear | none | the walk continues |
 | 1 | the cell is zoned | `0xF0000011` | the walk continues: zoned cells do not stop a line |
 | 2 | the cell has a building | `0xF0000012` | the run is cut before this cell |
-| 3 | the cell has a road | `0xF0000013` | cuts the run only on the last cell when the previous result was 0 *[inferred]* |
+| 3 | the cell has a road | `0xF0000013` | stops the walk only on the last cell when the previous result was 0; on the first cell the previous result is uninitialised *[quirk]* (network-geometry.md §11) |
 
 ---
 
@@ -475,19 +477,22 @@ The network manager calls `Init` before and `Shutdown` after.
      (`0x400000`) that is not an intersection piece joins the list.
    - An **intersection** piece (`0x100000`) brings its whole structure (network manager slot 12,
      `GetAllIntersectionPieces`).
-   - A listed occupant with flag `0x80000` is a tunnel portal *[inferred]*: QI `0x8A4BD52B` (the tunnel occupant)
-     brings in the portal at the other end. This is a lead for NM3.
+   - A listed occupant with flag `0x80000` is a tunnel portal (network-geometry.md §10.3): QI `0x8A4BD52B` (the
+     tunnel occupant) brings in the portal at the other end.
 4. Clear the world cache (`0x0062B121`).
 5. **Remove** each occupant, in pointer order (`std::set` order):
    1. Send `0xAA7A014D` **synchronously** (message server slot 3), IGZUnknown = the occupant. Its neighbours answer
       by dropping their connection to it (demolition.md §3).
    2. Get its cell (network occupant slot 59).
-   3. If the cell key is in the set of cells that will be re-solved: `occupantManager.RemoveOccupant(o, false, 0)`.
-      Otherwise `networkManager.RemoveOrReplaceOccupant(tool, o, &replaced)` (network-manager.md §7.4), which may put
-      a plain piece back *[inferred: which set is tested]*.
-   4. Record or erase the cell; `AsOccupant().Shutdown()` (occupant slot 4); Release.
+   3. If the cell key is in the set of **destroyed cells** (the cells of the caller's occupants, plus those added
+      while closing the set): `occupantManager.RemoveOccupant(o, false, 0)`. Otherwise (a piece pulled in by the
+      closure) `networkManager.RemoveOrReplaceOccupant(tool, o, &replaced)` (network-manager.md §7.4), which may put
+      a plain piece back. Corrected 2026-10-15 (re-specs15b, NT1): this was "the set of cells that will be
+      re-solved".
+   4. If a piece was put back, insert the cell into the re-solve set, else erase it from that set;
+      `AsOccupant().Shutdown()` (occupant slot 4); Release.
 6. **Rebuild the neighbours:**
-   1. `SolveNetwork` over the affected cells.
+   1. `SolveNetwork(−1, true)` over the re-solve set.
    2. `InsertOccupantsForSolvedCells` (§6.2). The re-inserted neighbours carry `data4 = +0x208 = 1`.
    3. `MarkOccupantsUsable(list, true)` (§6.3).
 7. Restore the real byte.
@@ -699,7 +704,7 @@ So network-manager.md §8.8's pothole calls are:
 | 9 | +0x24 | `0x006248D0` | `OccupantExists(x, z, mask, &id)` (zones.md §8.8) | 16 | AL |
 | 13 | +0x34 | `0x0062C8E0` | `ClearFailureReason` | 0 | — |
 | 14 | +0x38 | `0x0062C8F0` | `GetFailureState` (`+0x20C`) | 0 | EAX |
-| 18 | +0x48 | `0x0063AF40` | `DrawNetworkLine(&start, &end, useCache, type)` | 16 | AL |
+| 18 | +0x48 | `0x0063AF40` | `DrawNetworkLine(&start, &end, snap, type)` (network-geometry.md §3) | 16 | AL |
 | 19 | +0x4C | `0x0063BDC0` | `PlaceAllSegments(commit, preview, neighbour, type)` | 16 | — |
 | 20 | +0x50 | `0x00625640` | `GetCostOfSolution` | 0 | EAX |
 | 21 | +0x54 | `0x0062C8D0` | `EnablePreviewUpdate(bool)` (`+0x234`) | 4 | — |
@@ -748,17 +753,20 @@ original's layout *[choice]*. The pops agree with docs/abi/interfaces.tsv.
 
 ## 17. Open questions
 
-- **NT1.** In `DestroyOccupantsAndResolve` step 5.3, which cell set decides between a plain `RemoveOccupant` and
-  `RemoveOrReplaceOccupant`? It is marked inferred. Demolishing one cell of a four-way intersection and logging which
-  call ran would settle it.
-- **NT2.** The source of the per-type cell cost table `0x00B453A4` and of `+0x320`, `+0x324` and `+0x328`. They come
-  from the network exemplars *[inferred]*. Reading a type's exemplar and comparing it with `GetCostOfSolution` for a
-  flat one-cell run would settle it.
-- **NT3.** The power-line tool's `GetCostOfSolution` (`0x0064F0F0`) and the exact rule for result 3 (road) in
-  `CheckForReservedTiles`.
-- **NT4.** What slots 86 and 50 of the underground occupant rebuild (§11.1 step 6).
-- **NT5.** The internals of the validation passes (§5.1 step 4) and of `SolveNetwork`. These are the geometry spec's
-  job.
+- ~~**NT1.** In `DestroyOccupantsAndResolve` step 5.3, which cell set decides between a plain `RemoveOccupant` and
+  `RemoveOrReplaceOccupant`?~~ **ANSWERED 2026-10-15 (re-specs15b):** the set of destroyed cells, not the re-solve
+  set (network-geometry.md §13). DIFFERS; §10 step 5.3 is corrected.
+- ~~**NT2.** The source of the per-type cell cost table `0x00B453A4` and of `+0x320`, `+0x324` and `+0x328`.~~
+  **ANSWERED 2026-10-15 (re-specs15b):** the placement exemplars (type `0x6534284A`, group `0x084344E0`), properties
+  `0x4A2D49B9`, `0x8A2D49EA`, `0x8A2D49F0` and `0x6A2D49F4` (network-geometry.md §2.4, §11). MATCHES.
+- ~~**NT3.** The power-line tool's `GetCostOfSolution` (`0x0064F0F0`) and the exact rule for result 3 (road) in
+  `CheckForReservedTiles`.~~ **ANSWERED 2026-10-15 (re-specs15b):** network-geometry.md §11. The result-3 rule
+  MATCHES, with an uninitialised first "previous result" *[quirk]*.
+- ~~**NT4.** What slots 86 and 50 of the underground occupant rebuild (§11.1 step 6).~~ **ANSWERED 2026-10-15
+  (re-specs15b):** slot 50 releases the cached path info; slot 86 is `CreateGeometry(bool)`, which rebuilds the model
+  at the new heights (network-geometry.md §12).
+- ~~**NT5.** The internals of the validation passes (§5.1 step 4) and of `SolveNetwork`.~~ **ANSWERED 2026-10-15
+  (re-specs15b):** network-geometry.md. The piece rules and the bridge internals stay open there (NG2, NG5).
 
 ---
 
@@ -776,7 +784,7 @@ A "city" is a fresh flat 64 × 64 city with funds 100 000 §, unless stated. Roa
 4. **Diagonal quirk** (§3.3). `PlaceNetworkOccupants(5, 5, 8, 9, 0xC49, null, true, 3)` → true, nothing placed, no
    message.
 5. **Diagonal without a mask** (§3.2). The same call with `mask = 0` is **not** short-circuited. It goes through
-   `DrawNetworkLine` and `PlaceNetwork`, and the result is theirs. The drag's layout is the geometry spec's (NT5).
+   `DrawNetworkLine` and `PlaceNetwork`, and the result is theirs. The drag's layout is network-geometry.md §3.
 6. **Extension** (§3.3). A street exists at (10, 10). `PlaceNetworkOccupants(11, 10, 14, 10, 0xC49, null, true, 3)`
    → the run is drawn from (10, 10) to (14, 10), and the piece at (10, 10) is re-solved with an east edge.
 7. **Join callback** (§3.3). A road (type 0, bit `0x1` in `0xC49`) at (10, 10); the street tool draws (11, 10)–(14,
