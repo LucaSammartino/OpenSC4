@@ -1599,21 +1599,26 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      r = 0) plus a sample of GetAltitude and GetFaceNormal. On every `0x278E6003` / `0x678E6E3A` (§8.1) the
      message's rectangle is re-read (the moved vertices replayed through our SetAltitudeAtVertex and the depth rule
      classified), our RedisplayTerrain must post the same four data words, the cached heights must match with the
-     terrain flag, and the queries are compared on the rectangle grown by one. At each `SimNewMonth` every vertex is
-     re-read (a vertex changed without a message counts as `unfollowed` and is copied), and the cache, the sea level
-     and a date-seeded sample of all the queries (IsNavigable r = 0..2, half on wet cells) are compared. The script
+     terrain flag, and the queries are compared on the rectangle grown by one (cells touching a vertex changed
+     elsewhere, whose own message is still queued, are left out and counted). The messages are queued posts,
+     delivered after the change (under turbo, weeks of game time later; a change line's date is its delivery's). At
+     each `SimNewMonth` every vertex is re-read: one that differs from ours is copied and kept pending (`ahead`); the
+     change message that covers it later puts ours back first and follows it (`late`); one that no message covered
+     by the next month counts as `unfollowed`. Then the cache, the sea level and a date-seeded sample of all the
+     queries (IsNavigable r = 0..2, half on wet cells) are compared. The script
      action `terrain` is mirrored exactly. Floats are compared bit for bit; the navigability host (bridges, power
      poles) reads the game only (TR18; the refused count is in every line). Lines (always written):
 
      ```
      terrain shadow: ON (…) | requested but INACTIVE (…)                         (game start)
-     terrain shadow load yyyy-mm-dd: cells=XxZ sea=…; depths rebuilt from the sea level e/t; cache …; allowed
-       heights e/t; queries <name> e/t …; refused=R; mismatches=N[; first: …]
+     terrain shadow load yyyy-mm-dd|-: cells=XxZ sea=…; depths rebuilt from the sea level e/t; cache …; allowed
+       heights e/t; queries <name> e/t …; refused=R; mismatches=N[; first: …]        (- : before the first day)
      terrain shadow change yyyy-mm-dd terrain|water kind=K rect=x0,z0..x1,z1: vertices=V moved=M wet=W depth rules
-       slot50/raiselower/reset/none=a/b/c/d; message e/t; cache …; queries …; refused=R; mismatches=N
+       slot50/raiselower/reset/none=a/b/c/d; message e/t; [late L (…); ]changed elsewhere E[ (rect=…; cells
+       touching them skipped S)]; [cache …; ]queries …; refused=R; mismatches=N
      terrain shadow script yyyy-mm-dd SetAltitude rect=… h=… kind=K: vertices e/t; cache …; refused=R; mismatches=N
-     terrain shadow month yyyy-mm-dd: unfollowed=U; cache …; sea e/t; queries …; changes terrain=T water=W …;
-       refused=R; mismatches=N[; first: …]
+     terrain shadow month yyyy-mm-dd: unfollowed=U[ (altitudes, depths only, rect, first)]; ahead=A; cache …;
+       sea e/t; queries …; changes terrain=T water=W …; refused=R; mismatches=N[; first: …]
      terrain shadow: city shutdown: N lines, M with mismatches=0; totals <name> e/t …
      ```
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog

@@ -62,10 +62,17 @@ int TerrainShadowIniTest(const std::string& dll, const std::string& ini, const s
         CHECK(in.changesSeen == 5);   // the block (terrain, water), slot 50 (terrain), the script (terrain, water)
         CHECK(in.vertexChecks == 6);  // the scripted rectangle 0,0..2,1
         CHECK(in.lines == 10 && in.cleanLines == 10);  // load, 3 months, 5 changes, the script
-        // Its messages lost: every change is found by the next month's re-read.
+        CHECK(in.late == 0);
+        // Its messages lost: every change is found by a month's re-read, and
+        // counted unfollowed at the next month.
         CHECK(TerrainShadowRun(seam, &in, 0, 1, alts) == 0);
-        CHECK(in.changesSeen == 0 && in.unfollowed > 0);
+        CHECK(in.changesSeen == 0 && in.unfollowed > 0 && in.late == 0);
         CHECK(in.vertexChecks == 6);
+        // The block's messages held past the next month (the game's queued
+        // posts under turbo): found ahead by the month, then followed late.
+        CHECK(TerrainShadowRun(seam, &in, 0, 2, alts) == 0);
+        CHECK(in.changesSeen == 5 && in.unfollowed == 0 && in.late == 6);
+        CHECK(in.lines == 10 && in.cleanLines == 10);
         // An original that differs: found.
         CHECK(TerrainShadowRun(seam, &in, 1, 0, alts) > 0);
         CHECK(in.loadMismatches > 0 && in.monthMismatches > 0);
@@ -81,13 +88,21 @@ int TerrainShadowIniTest(const std::string& dll, const std::string& ini, const s
     const auto npos = std::string::npos;
     CHECK(text.find("terrain shadow: ON (terrain_shadow from FreeCity4.ini)") != npos);
     CHECK(text.find("sample compared (points 64;") != npos);
-    CHECK(CountOf(text, "terrain shadow load 2026-01-27: cells=16x16 sea=250") == 4);
+    CHECK(CountOf(text, "terrain shadow load 2026-01-27: cells=16x16 sea=250") == 5);
     CHECK(text.find("terrain shadow change 2026-02-06 terrain kind=4 rect=1,1..3,2: vertices=6 moved=6") != npos);
     CHECK(text.find("terrain shadow change 2026-02-07 terrain kind=4 rect=2,3..2,3: vertices=1 moved=1 wet=0 depth "
                     "rules slot50/raiselower/reset/none=1/0/0/0; message 1/1;") != npos);
     CHECK(text.find("terrain shadow script 2026-03-08 SetAltitude rect=0,0..2,1 h=262.25 kind=1: vertices 6/6;") !=
           npos);
-    CHECK(text.find("terrain shadow month 2026-02-01: unfollowed=0;") != npos);
+    CHECK(text.find("terrain shadow month 2026-02-01: unfollowed=0; ahead=0;") != npos);
+    CHECK(text.find("terrain shadow month 2026-03-04: unfollowed=0; ahead=6;") != npos);  // the held block
+    CHECK(text.find("terrain shadow change 2026-03-05 terrain kind=4 rect=1,1..3,2: vertices=6 moved=6 wet=0 depth "
+                    "rules slot50/raiselower/reset/none=6/0/0/0; message 1/1; late 6 (found ahead by a month "
+                    "re-read);") != npos);
+    CHECK(text.find("terrain shadow month 2026-03-04: unfollowed=7 (altitudes 7, depths only 0; rect=1,1..3,3;") ==
+          npos);                                                                     // pending first: not yet
+    CHECK(text.find("terrain shadow month 2026-04-01: unfollowed=7 (altitudes 7, depths only 0; rect=1,1..3,3;") !=
+          npos);                                                                     // lost: the next month
     CHECK(text.find("refused=0; mismatches=0") != npos);
     CHECK(text.find("terrain shadow: city shutdown: 10 lines, 10 with mismatches=0") != npos);
     CHECK(text.find("first: altitude(") != npos);  // perturb 1 names its differences

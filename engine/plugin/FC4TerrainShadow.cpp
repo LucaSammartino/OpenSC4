@@ -47,6 +47,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -283,6 +284,16 @@ struct Shadow {
     Tally totals;
     uint32_t otherTotal = 0, otherChecks = 0;
     uint32_t unfollowedTotal = 0;
+    // Vertices a month re-read found changed ahead of their message (the
+    // terrain messages are queued posts, delivered after the change, and late
+    // under turbo): copied, with ours before and the original's then. A
+    // change message covering one restores ours first and follows it; one no
+    // message covered by the next month is unfollowed.
+    struct Pending {
+        float alt0, depth0, alt1, depth1;
+    };
+    std::map<uint32_t, Pending> pending;
+    uint32_t lateTotal = 0;
     uint32_t rules[8][4] = {};  // per kind (7 = other): slot50, raise/lower, reset, none
     // Test seam counters.
     uint32_t loadMismatches = 0, changeMismatches = 0, scriptMismatches = 0, monthMismatches = 0;
@@ -579,18 +590,40 @@ void CopyVertex(int32_t x, int32_t z, float alt, float depth) {
     fc4_terrain_set_water_depth(g_s.ours, x, z, depth);
 }
 
-// Every vertex re-read: the ones that differ from ours changed without a
-// message the shadow followed. They are copied; what moved is summarised
-// (how many altitudes, how many depths only, their bounding rectangle and the
-// first one) for the month line.
+// The month re-read. First the vertices left pending since the last month
+// (no message covered them: unfollowed; summarised for the month line). Then
+// every vertex is re-read: the ones that differ from ours changed ahead of
+// their message (or without one); they are copied and become pending.
 struct Unfollowed {
     uint32_t n = 0, alt = 0;
     int32_t x0 = 0, z0 = 0, x1 = -1, z1 = -1;
     int32_t fx = 0, fz = 0;
     float fa0 = 0.0f, fa1 = 0.0f, fd0 = 0.0f, fd1 = 0.0f;
+    void Add(int32_t x, int32_t z, const Shadow::Pending& p) {
+        if (n == 0) {
+            x0 = x1 = fx = x;
+            z0 = z1 = fz = z;
+            fa0 = p.alt0;
+            fa1 = p.alt1;
+            fd0 = p.depth0;
+            fd1 = p.depth1;
+        } else {
+            x0 = std::min(x0, x);
+            x1 = std::max(x1, x);
+            z0 = std::min(z0, z);
+            z1 = std::max(z1, z);
+        }
+        ++n;
+        if (!SameBits(p.alt0, p.alt1)) ++alt;
+    }
 };
-Unfollowed Resync() {
+Unfollowed Resync(uint32_t* ahead) {
     Unfollowed u;
+    for (const auto& e : g_s.pending) {
+        u.Add(static_cast<int32_t>(e.first % g_s.vertsX), static_cast<int32_t>(e.first / g_s.vertsX), e.second);
+    }
+    g_s.pending.clear();
+    uint32_t n = 0;
     for (uint32_t z = 0; z < g_s.vertsZ; ++z) {
         for (uint32_t x = 0; x < g_s.vertsX; ++x) {
             const int32_t ix = static_cast<int32_t>(x), iz = static_cast<int32_t>(z);
@@ -599,34 +632,22 @@ Unfollowed Resync() {
             const float ma = fc4_terrain_altitude_at_vertex(g_s.ours, ix, iz);
             const float md = fc4_terrain_water_depth_at_vertex(g_s.ours, ix, iz);
             if (SameBits(a, ma) && SameBits(d, md)) continue;
-            if (u.n == 0) {
-                u.x0 = u.x1 = ix;
-                u.z0 = u.z1 = iz;
-                u.fx = ix;
-                u.fz = iz;
-                u.fa0 = ma;
-                u.fa1 = a;
-                u.fd0 = md;
-                u.fd1 = d;
-            } else {
-                u.x0 = std::min(u.x0, ix);
-                u.x1 = std::max(u.x1, ix);
-                u.z0 = std::min(u.z0, iz);
-                u.z1 = std::max(u.z1, iz);
-            }
-            ++u.n;
-            if (!SameBits(a, ma)) ++u.alt;
+            ++n;
+            g_s.pending[x + z * g_s.vertsX] = Shadow::Pending{ma, md, a, d};
             CopyVertex(ix, iz, a, d);
         }
     }
+    if (ahead != nullptr) *ahead = n;
     return u;
 }
 
 int32_t ClampI(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
-// Vertices outside the rectangle x0..x1 x z0..z1 whose altitude differs from
-// ours (not copied): changes this message does not cover (yet). Diagnostic.
-Unfollowed Elsewhere(int32_t x0, int32_t z0, int32_t x1, int32_t z1) {
+// Vertices outside the rectangle x0..x1 x z0..z1 whose altitude or depth
+// differs from ours (not copied): changes this message does not cover (their
+// own message is still queued, or there is none). Marked in `mask` (by vertex
+// index) so the cells they touch are left out of this message's comparisons.
+Unfollowed Elsewhere(int32_t x0, int32_t z0, int32_t x1, int32_t z1, std::vector<uint8_t>* mask) {
     Unfollowed u;
     for (uint32_t z = 0; z < g_s.vertsZ; ++z) {
         for (uint32_t x = 0; x < g_s.vertsX; ++x) {
@@ -634,7 +655,13 @@ Unfollowed Elsewhere(int32_t x0, int32_t z0, int32_t x1, int32_t z1) {
             if (ix >= x0 && ix <= x1 && iz >= z0 && iz <= z1) continue;
             const float a = g_s.src.altitudeAtVertex(g_s.src.u, ix, iz);
             const float ma = fc4_terrain_altitude_at_vertex(g_s.ours, ix, iz);
-            if (SameBits(a, ma)) continue;
+            const float d = g_s.src.depthAtVertex(g_s.src.u, ix, iz);
+            const float md = fc4_terrain_water_depth_at_vertex(g_s.ours, ix, iz);
+            if (SameBits(a, ma) && SameBits(d, md)) continue;
+            if (mask != nullptr) {
+                mask->resize(static_cast<size_t>(g_s.vertsX) * g_s.vertsZ);
+                (*mask)[x + z * g_s.vertsX] = 1;
+            }
             if (u.n == 0) {
                 u.x0 = u.x1 = ix;
                 u.z0 = u.z1 = iz;
@@ -749,7 +776,26 @@ void Change(uint32_t type, uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, i
     const int32_t vx = static_cast<int32_t>(g_s.vertsX) - 1, vz = static_cast<int32_t>(g_s.vertsZ) - 1;
     const int32_t x0 = ClampI(std::min(rx0, rx1), 0, vx), x1 = ClampI(std::max(rx0, rx1), 0, vx);
     const int32_t z0 = ClampI(std::min(rz0, rz1), 0, vz), z1 = ClampI(std::max(rz0, rz1), 0, vz);
-    const Unfollowed away = terrain ? Elsewhere(x0, z0, x1, z1) : Unfollowed{};
+    // Vertices a month re-read already copied ahead of this message: ours
+    // goes back to its state before, so the change is followed here.
+    uint32_t late = 0;
+    if (!g_s.pending.empty()) {
+        for (int32_t z = z0; z <= z1; ++z) {
+            for (int32_t x = x0; x <= x1; ++x) {
+                const uint32_t i = static_cast<uint32_t>(x) + static_cast<uint32_t>(z) * g_s.vertsX;
+                auto it = g_s.pending.find(i);
+                if (it == g_s.pending.end()) continue;
+                fc4_terrain_set_altitude_at_vertex(g_s.ours, i, it->second.alt0);
+                fc4_terrain_set_water_depth(g_s.ours, x, z, it->second.depth0);
+                g_s.pending.erase(it);
+                ++late;
+            }
+        }
+        Drain(g_s.ours);
+        g_s.lateTotal += late;
+    }
+    std::vector<uint8_t> aheadMask;
+    const Unfollowed away = Elsewhere(x0, z0, x1, z1, &aheadMask);
     // Re-read: replay moved vertices through slot 50 and classify the depth.
     const float sea = fc4_terrain_sea_level(g_s.ours);
     uint32_t vertices = 0, moved = 0, wet = 0;
@@ -825,10 +871,18 @@ void Change(uint32_t type, uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, i
     const int32_t cz1 = ClampI(z1, 0, static_cast<int32_t>(g_s.src.cellsZ) - 1);
     const uint32_t cells = static_cast<uint32_t>(cx1 - cx0 + 1) * static_cast<uint32_t>(cz1 - cz0 + 1);
     const uint32_t stride = cells > kMaxRectCells ? (cells + kMaxRectCells - 1) / kMaxRectCells : 1;
-    uint32_t n = 0;
+    uint32_t n = 0, skipped = 0;
+    auto ahead = [&](int32_t x, int32_t z) {
+        return !aheadMask.empty() && aheadMask[static_cast<uint32_t>(x) + static_cast<uint32_t>(z) * g_s.vertsX] != 0;
+    };
     for (int32_t z = cz0; z <= cz1; ++z) {
         for (int32_t x = cx0; x <= cx1; ++x) {
-            if ((n++ % stride) == 0) CompareCell(L, x, z, true);
+            if ((n++ % stride) != 0) continue;
+            if (ahead(x, z) || ahead(x + 1, z) || ahead(x, z + 1) || ahead(x + 1, z + 1)) {
+                ++skipped;  // a corner changed ahead of its message: compared when that message comes
+                continue;
+            }
+            CompareCell(L, x, z, true);
         }
     }
     if (moved > 0 || wet > 0) RefreshWaterCells();
@@ -837,10 +891,15 @@ void Change(uint32_t type, uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, i
               "slot50/raiselower/reset/none=%u/%u/%u/%u; message %u/1; ",
            DateText(julian).c_str(), terrain ? "terrain" : "water", d4, rx0, rz0, rx1, rz1, vertices, moved, wet,
            rules[0], rules[1], rules[2], rules[3], packed ? 1u : 0u);
+    if (late > 0) Append(s, "late %u (found ahead by a month re-read); ", late);
+    Append(s, "changed elsewhere %u", away.n);
+    if (away.n > 0) {
+        Append(s, " (rect=%d,%d..%d,%d; cells touching them skipped %u)", away.x0, away.z0, away.x1, away.z1,
+               skipped);
+    }
+    Append(s, "; ");
     if (terrain) {
-        Append(s, "moved elsewhere %u", away.n);
-        if (away.n > 0) Append(s, " (rect=%d,%d..%d,%d)", away.x0, away.z0, away.x1, away.z1);
-        Append(s, "; cache %.9g/%.9g; ", fc4_terrain_cached_height(g_s.ours, 0), fc4_terrain_cached_height(g_s.ours, 1));
+        Append(s, "cache %.9g/%.9g; ", fc4_terrain_cached_height(g_s.ours, 0), fc4_terrain_cached_height(g_s.ours, 1));
     }
     if (stride > 1) Append(s, "cells %u (every %u-th) ", cells, stride);
     AppendQueries(s, L.q);
@@ -859,10 +918,11 @@ void Change(uint32_t type, uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, i
 
 void Month(int32_t julian) {
     Line L;
-    const Unfollowed uf = Resync();
+    uint32_t ahead = 0;
+    const Unfollowed uf = Resync(&ahead);
     const uint32_t unfollowed = uf.n;
     g_s.unfollowedTotal += unfollowed;
-    if (unfollowed > 0) RefreshWaterCells();
+    if (ahead > 0) RefreshWaterCells();
     CompareCache(L, "month");
     const float os = g_s.src.seaLevel(g_s.src.u), ms = fc4_terrain_sea_level(g_s.ours);
     ++g_s.otherChecks;
@@ -878,6 +938,7 @@ void Month(int32_t julian) {
         Append(s, " (altitudes %u, depths only %u; rect=%d,%d..%d,%d; first (%d,%d) alt %.9g->%.9g depth %.9g->%.9g)",
                uf.alt, uf.n - uf.alt, uf.x0, uf.z0, uf.x1, uf.z1, uf.fx, uf.fz, uf.fa0, uf.fa1, uf.fd0, uf.fd1);
     }
+    Append(s, "; ahead=%u", ahead);
     Append(s, "; cache %.9g/%.9g; sea %u/1; ", fc4_terrain_cached_height(g_s.ours, 0),
            fc4_terrain_cached_height(g_s.ours, 1), seaSame ? 1u : 0u);
     AppendQueries(s, L.q);
@@ -966,9 +1027,10 @@ void ShutdownLine() {
     std::string s;
     Append(s, "terrain shadow: city shutdown: %u lines, %u with mismatches=0; totals ", g_s.lines, g_s.cleanLines);
     AppendQueries(s, g_s.totals);
-    Append(s, "; other checks %u, mismatched %u; unfollowed vertices %u; depth rules by kind (slot50/raiselower/"
-              "reset/none)",
-           g_s.otherChecks, g_s.otherTotal, g_s.unfollowedTotal);
+    Append(s, "; other checks %u, mismatched %u; unfollowed vertices %u, followed late %u, pending at shutdown %u; "
+              "depth rules by kind (slot50/raiselower/reset/none)",
+           g_s.otherChecks, g_s.otherTotal, g_s.unfollowedTotal, g_s.lateTotal,
+           static_cast<unsigned>(g_s.pending.size()));
     for (int k = 0; k < 8; ++k) {
         const uint32_t* r = g_s.rules[k];
         if (r[0] + r[1] + r[2] + r[3] == 0) continue;
@@ -1151,17 +1213,24 @@ Original StandInOriginal(StandIn* si) {
 }
 
 // The stand-in's queued messages, followed as the game would deliver them.
-void DeliverStandInPosts(StandIn* si, int32_t julian, bool deliver) {
+std::vector<fc4_terrain_post> TakeStandInPosts(StandIn* si) {
     fc4_terrain_post posts[16] = {};
     const size_t n = fc4_terrain_take_posts(si->t, posts, 16);
     Drain(si->t);
-    if (!deliver) return;
-    for (size_t i = 0; i < n && i < 16; ++i) {
-        const fc4_terrain_post& p = posts[i];
+    return std::vector<fc4_terrain_post>(posts, posts + std::min<size_t>(n, 16));
+}
+
+void DeliverPosts(const std::vector<fc4_terrain_post>& posts, int32_t julian) {
+    for (const fc4_terrain_post& p : posts) {
         if (p.msg_type == kMsgTerrainChanged || p.msg_type == kMsgWaterChanged) {
             Change(p.msg_type, p.data1, p.data2, p.data3, p.data4, julian);
         }
     }
+}
+
+void DeliverStandInPosts(StandIn* si, int32_t julian, bool deliver) {
+    const std::vector<fc4_terrain_post> posts = TakeStandInPosts(si);
+    if (deliver) DeliverPosts(posts, julian);
 }
 
 }  // namespace
@@ -1284,19 +1353,22 @@ intptr_t TerrainShadowTest(FC4TerrainShadowTestInput* in) {
     // A change of the original: a raised block, its messages followed (or not).
     fc4_terrain_rect r{1, 1, 3, 2};
     fc4_terrain_set_altitude_rect(si.t, r, fc4_terrain_altitude_at_vertex(si.t, 1, 1) + 7.5f, true, 4);
-    DeliverStandInPosts(&si, j0 + 10, in->withoutMessage == 0);
+    // 2: its messages held past the next month (queued posts delivered late).
+    const std::vector<fc4_terrain_post> held = TakeStandInPosts(&si);
+    if (in->withoutMessage == 0) DeliverPosts(held, j0 + 10);
     // A lowered vertex through slot 50 (the network grading's setter, §8.2 kind 4).
     const uint32_t vi = fc4_terrain_vert_index(si.t, 2, 3);
     fc4_terrain_set_altitude_at_vertex(si.t, vi, fc4_terrain_sea_level(si.t) - 3.0f);
     fc4_terrain_redisplay(si.t, true, false, fc4_terrain_rect{2, 3, 2, 3}, 4);
-    DeliverStandInPosts(&si, j0 + 11, in->withoutMessage == 0);
+    DeliverStandInPosts(&si, j0 + 11, in->withoutMessage != 1);
     Month(j0 + 36);
+    if (in->withoutMessage == 2) DeliverPosts(held, j0 + 37);
     // The script action's call, mirrored.
     fc4_terrain_rect sr{0, 0, 2, 1};
     const float sh = fc4_terrain_sea_level(si.t) + 12.25f;
     fc4_terrain_set_altitude_rect(si.t, sr, sh, true, 1);
     Scripted(sr.x0, sr.z0, sr.x1, sr.z1, sh, 1, j0 + 40);
-    DeliverStandInPosts(&si, j0 + 40, in->withoutMessage == 0);
+    DeliverStandInPosts(&si, j0 + 40, in->withoutMessage != 1);
     Month(j0 + 64);
     ShutdownLine();
     in->loadMismatches = g_s.loadMismatches;
@@ -1304,6 +1376,7 @@ intptr_t TerrainShadowTest(FC4TerrainShadowTestInput* in) {
     in->scriptMismatches = g_s.scriptMismatches;
     in->monthMismatches = g_s.monthMismatches;
     in->unfollowed = g_s.unfollowedTotal;
+    in->late = g_s.lateTotal;
     in->compared = g_s.totals.Total();
     in->changesSeen = g_s.changesSeen;
     in->vertexChecks = g_s.vertexChecks;

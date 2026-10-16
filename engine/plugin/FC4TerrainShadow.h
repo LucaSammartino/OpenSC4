@@ -55,10 +55,14 @@
 //     SetAltitude(rect, h, true, kind) (slot 49): the shadow mirrors that
 //     exact call with fc4_terrain_set_altitude_rect and compares every vertex
 //     of the rectangle (altitude and depth) and the cached heights at once.
-//   - At each SimNewMonth: every vertex is re-read; a vertex that differs
-//     from ours was changed without a message the shadow saw ("unfollowed",
-//     not a core difference; it is copied); the cached heights, the sea level
-//     and a deterministic sample (seeded by the date) of the queries are
+//   - At each SimNewMonth: every vertex is re-read. The terrain messages are
+//     queued posts, delivered after the change (under turbo, weeks of game
+//     time later), so a vertex that differs from ours is usually ahead of its
+//     message: it is copied and kept pending ("ahead"); the change message
+//     that covers it puts ours back first and follows it ("late"). A pending
+//     vertex no message covered by the next month was changed without one
+//     ("unfollowed", not a core difference). Then the cached heights, the sea
+//     level and a deterministic sample (seeded by the date) of the queries are
 //     compared: GetAltitude and GetFaceNormal at points inside, on cell edges
 //     and diagonals, on and just outside the city edge; CellHasWater,
 //     CellHasLand on cells including one ring outside; GetWaterDepthForCell
@@ -77,10 +81,12 @@
 //   terrain shadow: ON (...) | requested but INACTIVE (...)                       game start
 //   terrain shadow load yyyy-mm-dd: cells=XxZ sea=..; depths rebuilt from the sea level e/t; cache orig a/b,
 //     fresh c/d (kept: orig); allowed heights e/t; queries <name> e/t ...; mismatches=N[; first: ...]
-//   terrain shadow change yyyy-mm-dd terrain|water kind=K rect=x0,z0..x1,z1: vertices=V moved=M depth
-//     rules slot50/raiselower/reset/none=a/b/c/d; message e/t; cache e/t; queries ...; mismatches=N
+//   terrain shadow change yyyy-mm-dd terrain|water kind=K rect=x0,z0..x1,z1: vertices=V moved=M wet=W depth
+//     rules slot50/raiselower/reset/none=a/b/c/d; message e/t; [late L (...); ][moved elsewhere E; cache ..; ]
+//     queries ...; mismatches=N        (the date is the delivery's, not the change's)
 //   terrain shadow script yyyy-mm-dd SetAltitude rect=..: h=.. kind=K: vertices e/t; cache e/t; mismatches=N
-//   terrain shadow month yyyy-mm-dd: unfollowed=U; cache e/t; sea e/t; queries ...; changes terrain=T
+//   terrain shadow month yyyy-mm-dd: unfollowed=U[ (altitudes, depths only, rect, first)]; ahead=A; cache e/t;
+//     sea e/t; queries ...; changes terrain=T
 //     water=W kinds=k0/../k6 (lines logged L); refused=R; mismatches=N[; first: ...]
 //   terrain shadow: city shutdown: N lines, M with mismatches=0; totals <name> e/t ...
 #pragma once
@@ -116,10 +122,11 @@ void TerrainShadowScriptedSetAltitude(int32_t x0, int32_t z0, int32_t x1, int32_
 // Test seam op 58 (FC4TestSeam.h): the shadow on a stand-in original built
 // inside the DLL from `altitudes` (a second fc4_terrain), through the same
 // code as in game: load, a month, a change of the original (followed by its
-// messages unless `withoutMessage`), a month, a scripted SetAltitude, a
-// month, shutdown. `perturb` makes the stand-in differ from the spec on
-// purpose (1: its GetAltitude adds 1 m on the east half; 2: its
-// GetWaterDepthForCell returns 0 on every cell).
+// messages: `withoutMessage` 0; lost: 1; the first change's held past the
+// next month, as the game's queued posts under turbo: 2), a month, a
+// scripted SetAltitude, a month, shutdown. `perturb` makes the stand-in
+// differ from the spec on purpose (1: its GetAltitude adds 1 m on the east
+// half; 2: its GetWaterDepthForCell returns 0 on every cell).
 struct FC4TerrainShadowTestInput {
     uint32_t cellsX, cellsZ;
     const float* altitudes;  // (cellsX + 1) x (cellsZ + 1), index order
@@ -138,6 +145,7 @@ struct FC4TerrainShadowTestInput {
     uint32_t vertexChecks;   // the scripted mirror's vertex comparisons
     uint32_t lines;          // lines written
     uint32_t cleanLines;     // lines with mismatches=0
+    uint32_t late;           // vertices a month re-read found ahead of their message, then followed
 };
 // Returns the scenario's total mismatch count, -1 for a bad input.
 intptr_t TerrainShadowTest(FC4TerrainShadowTestInput* in);
