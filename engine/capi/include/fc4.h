@@ -127,10 +127,10 @@ extern "C" {
  * 58 = adds the demolition utility (fc4_demolition, demolition.md), the dispatch manager
  *      (fc4_dispatch, dispatch.md) and the city situation manager (fc4_citysit,
  *      city-situation.md) (taken as 60 on its lane; renumbered at merge);
- * 65 = adds the automata layer (fc4_automata_*, automata.md short form): the referenced objects
+ * 59 = adds the automata layer (fc4_automata_*, automata.md short form): the referenced objects
  *      (controllers and automata), the script system, the controller manager, the four automata
  *      managers, and the riot and fire hooks (reserved 65 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 65u
+#define FC4_ABI_VERSION 59u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
