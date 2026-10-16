@@ -624,7 +624,10 @@ void Listen() {
             Log("propdev shadow: no animation-tick manager; ours runs no night batches");
             return;
         }
-        g_tickRegistered = t->AddTickableObject(static_cast<cIGZMessageTarget2*>(&Events()), kTickPriority);
+        // [abi-ret] lot-developer.md 6.7.8 gives AddTickableObject no result (the target always goes in a
+        // bucket) and the table row is eax-or-void: the value is not read, as FC4LotDevHost does.
+        t->AddTickableObject(static_cast<cIGZMessageTarget2*>(&Events()), kTickPriority);  // slot 5
+        g_tickRegistered = true;
         FC4_RELEASE(static_cast<cIGZUnknown*>(t));
     }
 }

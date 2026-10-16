@@ -257,6 +257,7 @@ SPEC_FACTS = {
     ("cISC4OrdinanceSimulator", 8): (B, "ordinance.md"),
     **{("cISC4Ordinance", s): (B, "ordinance.md 3 table")
        for s in (3, 4, 17, 18, 19, 21, 22, 23, 24, 25, 26, 27, 28, 29)},
+    ("cISC4PropRequester", 5): (B, "prop-developer.md 8.3, pollution.md slot table, crime.md: UsesCustomPropSelector, AL"),
     ("cISC4PlumbingSimulator", 11): (B, "plumbing.md: AL only"),
     ("cISC4PlumbingSimulator", 24): (B, "plumbing.md: AL only"),
     ("cISC4PollutionSimulator", 49): (B, "pollution.md slot table"),
