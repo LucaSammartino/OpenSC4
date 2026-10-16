@@ -48,6 +48,7 @@ pub mod landvalue;
 pub mod lot_developer;
 pub mod mysims;
 pub mod neighbors;
+pub mod network_manager;
 pub mod occupant_manager;
 pub mod ordinance;
 pub mod parks;

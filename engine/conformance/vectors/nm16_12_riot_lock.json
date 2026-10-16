@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "net_riot_lock",
+  "spec": ["network-manager 10", "network-manager 16.12"],
+  "description": "A road at (10, 10); a riot at (12, 12) marks x 9..15, z 9..15: the road is held and UnsetRemovalFlags(2) wraps the player's counter to 255, so CanRemove(2) is false and CanRemove(1) true. A second riot at (11, 11) marks nothing new (the set). Ending the first riot keeps the lock; ending the second runs ClearRiotNetworkOccupants: SetRemovalFlags(2), Release, CanRemove(2) true again. The riot manager's Shutdown also clears the set.",
+  "steps": [
+    {"op": "net_occupant", "occupant": "0x70", "flags": ["road"], "cell": [10, 10]},
+    {"op": "net_riot", "action": "add_instance"},
+    {"op": "net_riot", "action": "mark", "cell": [12, 12], "can_remove": {"0x70": [2, false]}},
+    {"op": "net_riot", "can_remove": {"0x70": [1, true]}},
+    {"op": "net_expect_events", "events": [{"event": "unset_removal", "occupant": "0x70", "mask": 2}]},
+    {"op": "net_expect_refs", "refs": {"0x70": 1}},
+    {"op": "net_riot", "action": "add_instance"},
+    {"op": "net_riot", "action": "mark", "cell": [11, 11]},
+    {"op": "net_expect_events", "events": []},
+    {"op": "net_create"},
+    {"op": "net_expect", "state": {"riot_locked": ["0x70"], "riot_instances": 2}},
+    {"op": "net_riot", "action": "remove_instance", "can_remove": {"0x70": [2, false]}},
+    {"op": "net_expect_events", "events": []},
+    {"op": "net_riot", "action": "remove_instance", "can_remove": {"0x70": [2, true]}},
+    {"op": "net_expect_events", "events": [{"event": "set_removal", "occupant": "0x70", "mask": 2}]},
+    {"op": "net_expect_refs", "refs": {"0x70": 0}},
+    {"op": "net_expect", "state": {"riot_locked": [], "riot_instances": 0}},
+
+    {"op": "net_riot", "action": "add_instance"},
+    {"op": "net_riot", "action": "mark", "cell": [10, 10], "can_remove": {"0x70": [2, false]}},
+    {"op": "net_riot", "action": "shutdown", "can_remove": {"0x70": [2, true]}},
+    {"op": "net_expect", "state": {"riot_locked": [], "riot_instances": 0}},
+    {"op": "net_expect_refs", "refs": {"0x70": 0}}
+  ]
+}

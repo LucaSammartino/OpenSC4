@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "name": "net_pothole",
+  "spec": ["network-manager 8.8", "network-manager 16.21"],
+  "description": "0x69247DC8 (10, 10, 1) on a road dead end whose only open side is W (active edges e = 1: offset (-1, 0)) creates a held \"pothole\" effect prop at the cell centre (168, 168) moved 4 m in -x, at the road's altitude, inserts and starts it. Repeating it does nothing. A rail-only cell gives \"pothole_rail\"; a cell with no network uses the cell centre and the terrain altitude. (10, 10, 0x100) has data3 low byte 0: the effect is stopped, removed and released. (11, 11, 0) with no pothole does nothing.",
+  "steps": [
+    {"op": "net_env", "terrain": 50.0},
+    {"op": "net_occupant", "occupant": "0x40", "flags": ["road"], "cell": [10, 10], "active_edges": 1, "height": 10.0},
+    {"op": "net_create"},
+    {"op": "net_message", "of": "lots", "type": "RoadDamageChanged", "data1": 10, "data2": 10, "data3": 1, "expect": true},
+    {"op": "net_expect_events", "events": [
+      {"event": "effect", "token": "0x5000"},
+      {"event": "effect_name", "prop": "0x5000", "name": "pothole"},
+      {"event": "position", "prop": "0x5000", "pos": [164, 60, 168]},
+      {"event": "insert", "occupant": "0x5000"},
+      {"event": "effect_start", "prop": "0x5000"}
+    ]},
+    {"op": "net_expect", "of": "lots", "state": {"potholes": [{"cell": [10, 10], "prop": "0x5000"}]}},
+    {"op": "net_message", "of": "lots", "type": "RoadDamageChanged", "data1": 10, "data2": 10, "data3": "0x101"},
+    {"op": "net_expect_events", "events": []},
+    {"op": "net_occupant", "occupant": "0x41", "flags": ["rail"], "cell": [20, 20]},
+    {"op": "net_message", "of": "lots", "type": "RoadDamageChanged", "data1": 20, "data2": 20, "data3": 1},
+    {"op": "net_expect_events", "events": [
+      {"event": "effect", "token": "0x5001"},
+      {"event": "effect_name", "prop": "0x5001", "name": "pothole_rail"},
+      {"event": "position", "prop": "0x5001", "pos": [328, 50, 328]},
+      {"event": "insert", "occupant": "0x5001"},
+      {"event": "effect_start", "prop": "0x5001"}
+    ]},
+    {"op": "net_message", "of": "lots", "type": "RoadDamageChanged", "data1": 30, "data2": 30, "data3": 1},
+    {"op": "net_expect_events", "filter": {"event": "position"}, "events": [{"prop": "0x5002", "pos": [488, 50, 488]}]},
+    {"op": "net_message", "of": "lots", "type": "RoadDamageChanged", "data1": 10, "data2": 10, "data3": "0x100"},
+    {"op": "net_expect_events", "events": [
+      {"event": "effect_stop", "prop": "0x5000"},
+      {"event": "remove", "occupant": "0x5000"}
+    ]},
+    {"op": "net_expect_refs", "refs": {"0x5000": 0, "0x5001": 1}},
+    {"op": "net_message", "of": "lots", "type": "RoadDamageChanged", "data1": 11, "data2": 11, "data3": 0},
+    {"op": "net_expect_events", "events": []},
+    {"op": "net_call", "method": "pothole_offset", "args": [1], "expect": [-1, 0]},
+    {"op": "net_call", "method": "pothole_offset", "args": [12], "expect": [1, 1]},
+    {"op": "net_call", "method": "pothole_offset", "args": [5], "expect": [0, 0]}
+  ]
+}

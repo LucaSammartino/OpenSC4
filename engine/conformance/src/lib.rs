@@ -34,6 +34,7 @@ pub(crate) mod landvalue;
 pub(crate) mod lot_developer;
 pub(crate) mod mysims;
 pub(crate) mod neighbors;
+pub(crate) mod network_manager;
 pub(crate) mod occupant_manager;
 pub(crate) mod ordinance;
 pub(crate) mod parks;

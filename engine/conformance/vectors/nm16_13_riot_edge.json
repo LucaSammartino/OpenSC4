@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "net_riot_edge",
+  "spec": ["network-manager 10", "network-manager 16.13"],
+  "description": "The loop bounds are compared unsigned: a riot at (2, 10) has x - 3 wrapping past x + 3, so no row runs and no road is locked, not even the one at (2, 10). A riot at (10, 2) has every row empty. A riot at (3, 3) (bounds 0..6) locks the road at (3, 3).",
+  "steps": [
+    {"op": "net_occupant", "occupant": "0x71", "flags": ["road"], "cell": [2, 10]},
+    {"op": "net_occupant", "occupant": "0x72", "flags": ["road"], "cell": [10, 1]},
+    {"op": "net_occupant", "occupant": "0x73", "flags": ["road"], "cell": [3, 3]},
+    {"op": "net_create"},
+    {"op": "net_riot", "action": "add_instance"},
+    {"op": "net_riot", "action": "mark", "cell": [2, 10], "can_remove": {"0x71": [2, true]}},
+    {"op": "net_expect", "state": {"riot_locked": []}},
+    {"op": "net_riot", "action": "mark", "cell": [10, 2], "can_remove": {"0x72": [2, true]}},
+    {"op": "net_expect", "state": {"riot_locked": []}},
+    {"op": "net_expect_events", "events": []},
+    {"op": "net_riot", "action": "mark", "cell": [3, 3], "can_remove": {"0x73": [2, false]}},
+    {"op": "net_expect", "state": {"riot_locked": ["0x73"]}}
+  ]
+}
