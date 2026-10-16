@@ -315,7 +315,11 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4ZoneDevHost.cpp
         plugin/FC4ZoneDevShadow.cpp
         plugin/FC4ZoneDevShadow.h
-        # The automata layer shadow (automata.md; the glue19 lane): automata_shadow.
+        # The automata layer's host tables (automata.md 8, 9; the glue19 lane) and
+        # its shadow: automata_shadow.
+        plugin/FC4AutomataHost.cpp
+        plugin/FC4AutomataHost.h
+        plugin/FC4AutomataInterfaces.h
         plugin/FC4AutomataShadow.cpp
         plugin/FC4AutomataShadow.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
