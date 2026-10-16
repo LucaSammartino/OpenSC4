@@ -1969,3 +1969,21 @@ fn a_radius_toast_needs_a_flammable_occupant() {
     assert!(s.toast.contains(&b), "{:?}", s.toast);
     assert!(!s.toast.contains(&a), "flammability 0 is not queued (§18 test 20)");
 }
+
+/// §18 test 15 in the shadow's shape: an `Ignite` registers (0, 0) and
+/// `DisasterHasBegun` runs inside the same call, so slot 17 already reads the
+/// target's cell when `Ignite` returns (DS35).
+#[test]
+fn an_ignite_resolves_its_location_before_it_returns() {
+    let w = world();
+    let o = w.host.add(occupant::BUILDING, 58, 81);
+    assert!(w.sys.ignite(o, false, 0x10, true));
+    let l = w.sys.location_by_index(0).unwrap();
+    assert_eq!((l.x, l.z), (58, 81), "DisasterHasBegun resolved it in the same Ignite");
+    assert_eq!(l.occupant, o);
+    assert_eq!(
+        w.sys.location_by_index(0).unwrap().x,
+        58,
+        "slot 17 reads the stored cell"
+    );
+}

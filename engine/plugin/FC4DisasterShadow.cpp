@@ -61,6 +61,10 @@
 #include <vector>
 
 namespace fc4 {
+
+// Defined below (outside the anonymous namespace): drives the mirror's own
+// fire tick when the original refused an ignition (the resync).
+void ResyncTick();
 namespace {
 
 using compat::DisasterHook;
@@ -426,8 +430,11 @@ void CompareLayer(Diffs& d, char* out, size_t cap, const char* countQ) {
             // the occupant's cell of now (Q37).
             const bool occupantEntry = mapped == loc.instance && loc.occupant != 0;
             if (occupantEntry) {
-                d.AddQ("Q37", "location %d orig (inst %u, %d,%d) ours (inst %u, %d,%d)", i, mapped, x, z,
-                       loc.instance, loc.x, loc.z);
+                d.AddQ("Q37",
+                       "location %d orig (inst %u, %d,%d) ours (inst %u, %d,%d occ %016llX in-manager %d)", i,
+                       mapped, x, z, loc.instance, loc.x, loc.z,
+                       (unsigned long long)loc.occupant,
+                       loc.occupant != 0 && AsOcc(loc.occupant) != nullptr && AsOcc(loc.occupant)->IsFlagSet(1) ? 1 : 0);
                 continue;
             }
             d.Add("location %d orig (inst %u, %d,%d) ours (inst %u, %d,%d)", i, mapped, x, z, loc.instance, loc.x,
@@ -671,6 +678,15 @@ void MirrorIgnite(uint64_t o, bool force, uint32_t id, bool focus, bool origResu
         g.resyncTargets.insert(o);
         ++g.resyncs;
         g.resyncInEpisode = true;
+        // Close the mirror's phantom episode here, not at the next framework
+        // tick: a call that follows inside the same tick (two script actions
+        // in one catch-up batch) must see the original's state, and must run
+        // its own DisasterHasBegun so §2.7 resolves its location (DS35).
+        for (int i = 0; i < 32 && CoreState().fire_phase == 1; ++i) {
+            const uint64_t before = g.coreSteps;
+            ResyncTick();
+            if (g.coreSteps == before) break;
+        }
     }
     if (!compare && origResult && ours) g.spreadTargets.insert(o);
     TrackFirePhase();
