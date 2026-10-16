@@ -2,7 +2,7 @@
 
 | Lane | Worktree | State at stop | Next steps |
 |---|---|---|---|
-| apply15d | `.claude/worktrees/apply15d` (branch `apply15d`) | **ready** — the traffic answers the traffic glue still needed are applied: TG23 (`update_network_costs`, `SetFullExpenses` at five call sites), TG24 (path-info slots 14/3/7, so lane continuity runs) and TG25 (the counted tunnel pair, borrowed), plus the re-answers13 TS64 model (state 13 resets the saved scanning iterator). TG26 verified as already matching, untouched. Gate green: cargo test 2595 passed / 0 failed (equal to the baseline), clippy `-D warnings` clean, rustfmt clean on every touched file, plugin builds, ctest **58/58** including `ret_channel_check` (0 flagged, 7 reviewed) and the new `traffic_cost_logic_test`. Three game runs on Konradshohe to 2032, all `clean` with `ref_warnings=0`; the traffic shadow is 89 lines, 55 exact, with the 34 differences all the known pacing one. `docs/abi/` untouched by me (rows staged in `build-runs/pending-abi/apply15d-rows.tsv`); `FC4_ABI_VERSION` not bumped; no C ABI export added, so `"abi": false`. No merge lock taken. | Merge `apply15d` into main with `--no-ff` (`build-runs/merge-queue/apply15d.json`). Then, for the coordinator: (1) `build-runs/pending-abi/apply15d-rows.tsv` holds four `cISC4PathInfo` rows for `interfaces.tsv`; (2) the six numbered questions below, of which question 1 is the one the task itself set up. |
+| apply15d | `.claude/worktrees/apply15d` (branch `apply15d`) | **ready** — the traffic answers the traffic glue still needed are applied: TG23 (`update_network_costs`, `SetFullExpenses` at five call sites), TG24 (path-info slots 14/3/7, so lane continuity runs) and TG25 (the counted tunnel pair, borrowed), plus the re-answers13 TS64 model (state 13 resets the saved scanning iterator). TG26 verified as already matching, untouched. Gate green: cargo test 2596 passed / 0 failed (baseline 2595, plus the new TS64 test), clippy `-D warnings` clean, rustfmt clean on every touched file, plugin builds, ctest **58/58** including `ret_channel_check` (0 flagged, 7 reviewed) and the new `traffic_cost_logic_test`. Three game runs on Konradshohe to 2032, all `clean` with `ref_warnings=0`; the traffic shadow is 89 lines, 55 exact, with the 34 differences all the known pacing one. `docs/abi/` untouched by me (rows staged in `build-runs/pending-abi/apply15d-rows.tsv`); `FC4_ABI_VERSION` not bumped; no C ABI export added, so `"abi": false`. No merge lock taken. | Merge `apply15d` into main with `--no-ff` (`build-runs/merge-queue/apply15d.json`). Then, for the coordinator: (1) `build-runs/pending-abi/apply15d-rows.tsv` holds four `cISC4PathInfo` rows for `interfaces.tsv`; (2) the six numbered questions below, of which question 1 is the one the task itself set up. |
 
 ## What changed
 
@@ -31,8 +31,10 @@
 `build exit=0`, `100% tests passed, 0 tests failed out of 58`, `ctest exit=0`
 (`build-runs/gate-apply15d.out`).
 
-- `cargo test --workspace --target i686-pc-windows-msvc`: **2595 passed / 0 failed**, the same
-  total as the pre-change baseline (`build-runs/ts64-cargo.txt`).
+- `cargo test --workspace --target i686-pc-windows-msvc`: **2596 passed / 0 failed**. The
+  pre-change baseline was 2595 (`build-runs/base-cargo.txt`); the one test this lane added is
+  `ts64_state_13_scanning_iterator`. Recorded at
+  `build-runs/final-results.txt`.
 - `cargo clippy --workspace --all-targets -- -D warnings`: clean (`build-runs/clippy.txt`).
 - `rustfmt --check --edition 2021` on the five touched `.rs` files: clean.
 - `tests/check_ret_channels.py`: `0 flagged use(s) not reviewed, 7 reviewed`. `SetFullExpenses`'s
