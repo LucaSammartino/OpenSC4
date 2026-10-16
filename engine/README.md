@@ -1650,6 +1650,18 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      vehicle view and the pylons are not wired (the tool's presentation). Lines: `dispatch Init: …`,
      `dispatch Read|Write -> …`, `dispatch Shutdown: …`. **Off by default**; the `dispatch_shadow` differential
      above is the in-game check while it is.
+   - **City situation manager** (`enable = citysit`; `plugin/cFC4CitySituation.*`, over the `fc4_citysit` core):
+     the city's `cSC4CitySituationManager` (class `0x0BB14381`, city component 52, the slot 49 getter). It answers
+     `cISC4CitySituationManager` (city-situation.md §8, 40 slots), `cIGZMessageTarget2`, the legacy
+     `cIGZMessageTarget` and `cIGZSerializable`; `Read` runs before `Init` and sizes nothing from the city. This is
+     the spec's §8 **minimal replacement** [choice]: the record byte for byte and the interface answered with "no
+     situation" — the mission gameplay (targets, pursuit, coverage, the player-drive camera, the popup) is
+     deliberately out of scope (§0 calls a full one "several thousand lines"), and unattended play never starts a
+     mission (§0: "its popup never opens by itself"). The host wires the message server and the ten subscriptions
+     of §3, the preferences' reward list, the advice and automaton queries the interface needs, the aura's
+     `AddTransientEffect` and the budget's `DepositFunds` (the §4.5 outcome) and the messages of §3; the mission
+     pieces are not wired. Lines: `citysit Init: …`, `citysit Read|Write -> …`, `citysit Shutdown: …`. **Off by
+     default**; the `citysit_shadow` differential above is the in-game check while it is.
    - **History warehouse and 24-hour clock** (`enable = history`, `enable = clock24`; `plugin/cFC4History.*`,
      `plugin/cFC4Clock24.*`, over the `fc4_history` and `fc4_clock24` cores). The warehouse is the city's
      `cSC4HistoryWarehouse` (class `0x89EFA536`): it hears the record and queue-length messages, adds itself as a
