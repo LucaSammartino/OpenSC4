@@ -254,14 +254,16 @@ const ClassEntry kClock24Classes[] = {
     {kFC4_CLSID_cSC424HourClock, "cSC424HourClock", &CreateFC4Clock24},
 };
 
-// docs/specs/terrain.md §1 (the glue18 lane). The terrain is city component 49;
-// it owns the surface water (CLSID 0x0B8DA7DB), which the city takes from it,
-// so only the terrain CLSID is registered - a second registration would give
-// the city a second, unrelated water object. Off by default:
+// docs/specs/terrain.md §1 (the glue18 lane). The terrain is city component 49
+// and the surface water (CLSID 0x0B8DA7DB) is the object the city keeps next to
+// it (city slot 83). Both are registered so the city never builds the original
+// of either; both are stateless views over the one fc4_terrain handle, so which
+// of the two the city constructs does not matter. Off by default:
 // `enable = terrain`. With it on the city builds ours from the start and the
 // original cSTETerrain never runs (registry CLSID precedence).
 const ClassEntry kTerrainClasses[] = {
     {fc4::kFC4_CLSID_cSTETerrain, "cSTETerrain", &CreateFC4Terrain},
+    {fc4::kFC4_CLSID_cSTESurfaceWater, "cSTESurfaceWater", &CreateFC4SurfaceWater},
 };
 
 // docs/specs/tract-developer.md §1. Off by default (M4 glue trial):

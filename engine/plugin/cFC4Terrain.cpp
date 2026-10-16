@@ -42,6 +42,7 @@
 #include "cISC4NetworkOccupant.h"
 #include "cISC4Occupant.h"
 #include "cISC4OccupantManager.h"
+#include "cIGZCOM.h"
 #include "cRZCOMDllDirector.h"
 #include "SC4List.h"
 
@@ -109,6 +110,7 @@ std::atomic<uint32_t> g_cellsZ{0};
 // touched under the object's critical section.
 struct HostContext {
     cISC4City* city = nullptr;  // borrowed for one call
+    cIGZUnknown* self = nullptr;  // the terrain, for the messages' void1/IGZUnknown
     int inside = 0;
     std::atomic<uint32_t> guardRefused{0};
     std::atomic<uint32_t> posts{0};
@@ -242,6 +244,14 @@ void HostPost(void* u, const fc4_terrain_post* p) {
                        static_cast<intptr_t>(p->data3));
     if (m == nullptr) return;
     m->SetData4(static_cast<intptr_t>(p->data4));
+    // foundations §5: a message carries void1 = IGZUnknown = the sender. The
+    // four data words are the payload of §8.1; the sender is what a consumer
+    // reads back through GetVoid1()/GetIGZUnknown(), and a null one is what a
+    // consumer dereferences when it does not check.
+    if (c->self != nullptr) {
+        m->SetVoid1(c->self);
+        m->SetIGZUnknown(c->self);
+    }
     ms->MessagePost(m, false);
     m->Release();
 }
@@ -294,6 +304,23 @@ void SetFlagBit(uint32_t x, uint32_t z, uint16_t bit, bool on) {
 
 }  // namespace
 
+
+// foundations §2.7: a `ref` is `uint32 objectID` and, only when that is non-zero,
+// `uint32 classID`. The referenced object's own data is NOT here. Read consumes
+// exactly those bytes and leaves the pointer null: §13.2's terrain class record
+// is "u16 version 2 and a reference to the terrain view", and §13.3's water
+// record is "u16 1 and a reference (the terrain)". Under-reading either one
+// desynchronises the component stream and every later Read gets garbage.
+bool ReadRef(cIGZIStream& in) {
+    uint32_t objectId = 0;
+    if (!in.GetUint32(objectId)) return false;
+    if (objectId == 0) return true;
+    uint32_t classId = 0;
+    return in.GetUint32(classId);
+}
+
+bool WriteNullRef(cIGZOStream& out) { return out.SetUint32(0); }
+
 // ---- cFC4STESurfaceWater (§10) --------------------------------------------------------------------
 
 class cFC4STESurfaceWater final : public cFC4ISTESurfaceWater, public cIGZSerializable {
@@ -302,7 +329,12 @@ public:
 
     bool QueryInterface(uint32_t riid, void** ppvObj) override {
         if (ppvObj == nullptr) return false;
-        if (riid == GZIID_cIGZUnknown) {
+        // The surface water's own IID is 0xAB8DA759 (observed: the city QIs
+        // for it when it builds the object; not named in terrain.md or the SDK
+        // header). terrain.md §1 also lists the generic 0x00000001 among the
+        // terrain's IIDs, so it is answered here too.
+        if (riid == GZIID_cIGZUnknown || riid == kFC4_IID_cISTESurfaceWater || riid == 0x00000001u ||
+            riid == 0xAB953253u) {
             *ppvObj = Primary();
         } else if (riid == GZIID_cIGZSerializable) {
             *ppvObj = static_cast<cIGZSerializable*>(this);
@@ -338,10 +370,16 @@ public:
     // §13.3: u16 1 and a reference to the terrain. The water array is rebuilt
     // from the sea level on every load (§10.1) and lakes are never saved
     // (quirk 9), so there is nothing else to write.
-    bool Write(cIGZOStream& out) override { return out.SetUint16(1); }
+    // §13.3: u16 1 and a reference (read with IID 0xC70BD37E, the terrain).
+    bool Write(cIGZOStream& out) override {
+        Log("terrain: water Write (§13.3)");
+        return out.SetUint16(1) && WriteNullRef(out);
+    }
     bool Read(cIGZIStream& in) override {
         uint16_t version = 0;
-        return in.GetUint16(version);
+        const bool ok = in.GetUint16(version) && ReadRef(in);
+        Log("terrain: water Read (version + ref, §13.3) -> ok=%d version=%u", ok ? 1 : 0, version);
+        return ok;
     }
     uint32_t GetGZCLSID() override { return kFC4_CLSID_cSTESurfaceWater; }
 
@@ -421,6 +459,10 @@ bool cFC4STESurfaceWater::HasDraftClearance(int32_t x, int32_t z) {
 
 class cFC4STETerrain final : public cFC4ISTETerrain, public cIGZMessageTarget2, public cIGZSerializable {
 public:
+    // MUST be the first data member: the game reads the original's fields at
+    // the offsets of terrain.md §2.3 (FC4TerrainInterfaces.h TerrainFields).
+    TerrainFields f_{};
+
     cFC4STETerrain();
     ~cFC4STETerrain();
 
@@ -431,7 +473,7 @@ public:
     bool Init() override;      // 3
     bool Shutdown() override;  // 4
 
-    bool IsInitialized() override { return core_ != nullptr; }                 // 5
+    bool IsInitialized() override { return f_.initialized != 0; }               // 5
     float CellWidth() override { return 16.0f; }                               // 6
     uint32_t CellCountX() override;                                            // 7
     uint32_t CellCountZ() override;                                            // 8
@@ -482,7 +524,9 @@ public:
     void SetAltitudeXZ(int32_t x, int32_t z, float h) override;                // 51
     void LockAltitude(SC4Rect<int32_t> const& r, bool lock) override;          // 52
     uint32_t NumberOfWaterVerticesIn(SC4Rect<int32_t> const& r) override;      // 53
-    cISTETerrainView* GetRenderObject() override { return nullptr; }           // 54
+    cISTETerrainView* GetRenderObject() override {
+        return static_cast<cISTETerrainView*>(f_.renderObject);
+    }                                                                           // 54
     float GetSedimentValue(float x, float z) override;                         // 55
     void StartFlood() override;                                                // 56
     bool ApplyBrush(uint32_t brushId, TBrushParameters& p) override;           // 57
@@ -494,7 +538,7 @@ public:
     bool GetUIElementsForBrush(uint32_t, uint32_t*) const override { return false; }  // 63
     void UpdateWaveProducers() override {}                                     // 64  render
     bool IsGoodWaveProducerLocation(float, float, float) const override { return false; }  // 65  render
-    cISTETerrainView* GetView() override { return nullptr; }                   // 66
+    cISTETerrainView* GetView() override { return static_cast<cISTETerrainView*>(f_.view); }  // 66
     void DoLighting(SC4Rect<int32_t> const&) override {}                       // 67  render
     void RedisplayTerrainRect(bool terrain, bool water, SC4Rect<int32_t> const& r,
                               uint32_t data4) override;                        // 68
@@ -508,9 +552,9 @@ public:
     bool IsOddTriangleHidden(uint32_t x, uint32_t z) const override;           // 75
     bool IsWholeCellHidden(uint32_t x, uint32_t z) const override;             // 76
     bool IsPointHidden(float x, float z) const override;                       // 77
-    void StartAccumulatingTextureUpdates() override { accumulate_ = true; }     // 78
+    void StartAccumulatingTextureUpdates() override { f_.accumulateTexture = 1; }     // 78
     void StopAccumulatingTextureUpdates() override;                            // 79
-    bool IsAccumulatingTextureUpdates() override { return accumulate_; }       // 80
+    bool IsAccumulatingTextureUpdates() override { return f_.accumulateTexture != 0; }       // 80
     bool SetTerrainCellFlags(uint32_t x, uint32_t z, uint32_t flags) override; // 81
     uint32_t GetTerrainCellFlags(uint32_t x, uint32_t z) override;             // 82
     bool GetWaterSurfaceDisplayState() override;                               // 83
@@ -531,10 +575,17 @@ public:
 
     bool DoMessage(cIGZMessage2* msg) override;  // cIGZMessageTarget2 (§12.1)
 
-    bool Write(cIGZOStream& out) override { return out.SetUint16(2); }  // §13.2
+    // §13.2: u16 version 2 and a reference to the terrain view (class
+    // 0xC9B84E10). We hold no view, so the reference is read and dropped.
+    bool Write(cIGZOStream& out) override {
+        Log("terrain: Write (class record, §13.2)");
+        return out.SetUint16(2) && WriteNullRef(out);
+    }
     bool Read(cIGZIStream& in) override {
         uint16_t version = 0;
-        return in.GetUint16(version);
+        const bool ok = in.GetUint16(version) && ReadRef(in);
+        Log("terrain: Read (class record = version + ref, §13.2) -> ok=%d version=%u", ok ? 1 : 0, version);
+        return ok;
     }
     uint32_t GetGZCLSID() override { return kFC4_CLSID_cSTETerrain; }
 
@@ -554,17 +605,14 @@ private:
     void Unsubscribe();
     void OnViewUpdate(cIGZMessage2Standard* s);
 
+    cFC4STESurfaceWater* water_ = nullptr;  // the terrain's own (§1, +0x24)
     HostContext host_{};
     fc4_terrain_host hostTable_{};
     fc4_terrain* core_ = nullptr;
-    cISC4City* city_ = nullptr;  // borrowed, valid between Init and Shutdown
     uint32_t refCount_ = 0;
     bool destroying_ = false;
     bool subscribed_ = false;
-    bool initialized_ = false;
-    bool accumulate_ = false;
-    bool plumbingDisplay_ = false;
-    int32_t defaultBrushLevel_ = 0;  // TR9, §2.3 (+0xBC)
+    bool plumbingDisplay_ = false;  // §15.1: a global byte, not a field
     int32_t scrubbing_ = 0;
 
     mutable CRITICAL_SECTION lock_;
@@ -572,15 +620,47 @@ private:
     mutable int depth_ = 0;
 };
 
+// The three base sub-objects are three vptrs (§1: QueryInterface returns this,
+// this + 4, this + 8), so the fields begin at +0x0C as terrain.md §2.3 says.
+// offsetof on a polymorphic class is conditionally supported; MSVC accepts it,
+// and this is exactly the property that has to hold.
+static_assert(offsetof(cFC4STETerrain, f_) == 0x0C, "terrain fields start at +0x0C (§2.3)");
+
 cFC4STETerrain::cFC4STETerrain() {
     InitializeCriticalSection(&lock_);
     // host_ default-constructs (its atomics make it non-assignable); only the
     // table has to be filled.
     hostTable_ = MakeHost(&host_);
+    host_.self = Primary();
+    // §1: the terrain owns the surface water at +0x24. The city may also build
+    // one through the class factory; both are views over the same core.
+    water_ = new cFC4STESurfaceWater();
+    water_->AddRef();  // ours
+    f_.surfaceWater = water_->Primary();
+    f_.saved78 = 308.0f;  // §2.4: tuning 0x48CD7B20, shipped 308
+    f_.neighbourOffset[0] = -1;              // §11.3: W, NW, N, NE, E, SE, S, SW
+    f_.neighbourOffset[1] = -1;              // filled with vertsX once known
+    f_.neighbourOffset[2] = 0;
+    f_.neighbourOffset[3] = 1;
+    f_.neighbourOffset[4] = 1;
+    f_.neighbourOffset[5] = 1;
+    f_.neighbourOffset[6] = 0;
+    f_.neighbourOffset[7] = -1;
 }
 
 cFC4STETerrain::~cFC4STETerrain() {
     DestroyCore();
+    if (f_.view != nullptr) {
+        // The view came from GZCOM()->GetClassObject: its QI took one reference.
+        static_cast<cIGZUnknown*>(f_.view)->Release();
+        f_.view = nullptr;
+        f_.renderObject = nullptr;
+    }
+    if (water_ != nullptr) {
+        f_.surfaceWater = nullptr;
+        water_->Release();
+        water_ = nullptr;
+    }
     DeleteCriticalSection(&lock_);
 }
 
@@ -617,7 +697,7 @@ uint32_t cFC4STETerrain::Release() {
     refCount_ = 0;
     if (destroying_) return 0;
     destroying_ = true;
-    if (initialized_) Shutdown();
+    if (f_.initialized != 0) Shutdown();
     delete this;
     return 0;
 }
@@ -635,7 +715,35 @@ bool cFC4STETerrain::CreateCore(uint32_t cellsX, uint32_t cellsZ) {
         Log("terrain: could not create the terrain core (%u x %u cells)", cellsX, cellsZ);
         return false;
     }
-    fc4_terrain_set_default_brush_level(core_, defaultBrushLevel_);
+    fc4_terrain_set_default_brush_level(core_, f_.defaultBrushLevel);
+    // §2.3: the grid fields the game reads directly.
+    const uint32_t vx = cellsX + 1, vz = cellsZ + 1;
+    f_.cellsX = cellsX;
+    f_.cellsZ = cellsZ;
+    f_.cellsXm1 = cellsX - 1;
+    f_.cellsZm1 = cellsZ - 1;
+    f_.vertsX = vx;
+    f_.vertsZ = vz;
+    f_.cityRect[0] = 0;
+    f_.cityRect[1] = 0;
+    f_.cityRect[2] = static_cast<int32_t>(cellsX);
+    f_.cityRect[3] = static_cast<int32_t>(cellsZ);
+    f_.sizeX = 16.0f * static_cast<float>(cellsX);
+    f_.sizeZ = 16.0f * static_cast<float>(cellsZ);
+    f_.vertexCount = vx * vz;
+    f_.seaLevel = fc4_terrain_sea_level(core_);
+    f_.cachedMin = fc4_terrain_cached_height(core_, 0);
+    f_.cachedMax = fc4_terrain_cached_height(core_, 1);
+    // §11.3: the 8 neighbour index offsets, W NW N NE E SE S SW.
+    const int32_t vsx = static_cast<int32_t>(vx);
+    f_.neighbourOffset[0] = -1;
+    f_.neighbourOffset[1] = -1 - vsx;
+    f_.neighbourOffset[2] = -vsx;
+    f_.neighbourOffset[3] = 1 - vsx;
+    f_.neighbourOffset[4] = 1;
+    f_.neighbourOffset[5] = vsx + 1;
+    f_.neighbourOffset[6] = vsx;
+    f_.neighbourOffset[7] = vsx - 1;
     g_activeCore.store(core_, std::memory_order_release);
     g_cellsX.store(cellsX, std::memory_order_release);
     g_cellsZ.store(cellsZ, std::memory_order_release);
@@ -655,28 +763,34 @@ bool cFC4STETerrain::Init() {
     Enter();
     bool ok = false;
     do {
-        if (initialized_) {
+        if (f_.initialized != 0) {
             ok = true;
             break;
         }
-        city_ = CurrentCity();  // borrowed
+        f_.city = CurrentCity();  // borrowed (§2.3 +0x1C)
+        cISC4City* city = static_cast<cISC4City*>(f_.city);
+        // Slot 54 (§15.1: `+0xE4`, exported as the folded GetSelectedCity)
+        // is read as the city by the game: cSC4City::Init calls a method on
+        // what it returns and faults when it is null. terrain.md calls it a
+        // render object; the in-game evidence says city. [choice]
+        f_.renderObject = city;
         uint32_t cx = 64, cz = 64;
-        if (city_ != nullptr) {
+        if (city != nullptr) {
             // [abi-ret] city slots 93/94 CellCountX / CellCountZ (terrain.md
             // §2.1: "the city has cellsX x cellsZ cells ... read in Init"; the
             // export folds those two names). A count in EAX, never a bool.
-            cx = city_->CellCountX();
-            cz = city_->CellCountZ();
+            cx = city->CellCountX();
+            cz = city->CellCountZ();
             if (cx == 0 || cz == 0 || cx > 4096 || cz > 4096) {
                 Log("terrain: implausible city cell counts %u x %u; using 64 x 64", cx, cz);
                 cx = cz = 64;
             }
         }
         if (!CreateCore(cx, cz)) break;
-        initialized_ = true;
+        f_.initialized = 1;
         Subscribe();
         Log("terrain: replacement ON (enable = terrain): %u x %u cells, sea=%.9g, default brush level=%d", cx,
-            cz, fc4_terrain_sea_level(core_), defaultBrushLevel_);
+            cz, fc4_terrain_sea_level(core_), f_.defaultBrushLevel);
         ok = true;
     } while (false);
     Leave();
@@ -697,8 +811,8 @@ bool cFC4STETerrain::Shutdown() {
     }
     Unsubscribe();
     DestroyCore();
-    initialized_ = false;
-    city_ = nullptr;
+    f_.initialized = 0;
+    f_.city = nullptr;
     Leave();
     return true;
 }
@@ -729,8 +843,30 @@ void cFC4STETerrain::DoPostCityInit() {
         // interface, so the level keeps its constructor value 0 until the
         // first view-update message 0xA6B79602 arrives - which is also what a
         // harness with no view sees (conformance test 20).
-        fc4_terrain_set_default_brush_level(core_, defaultBrushLevel_);
+        fc4_terrain_set_default_brush_level(core_, f_.defaultBrushLevel);
         fc4_terrain_post_city_init(core_);
+        f_.viewReady = 1;  // §8.1 gate
+        // §2.3 (+0xE8) / §15.1 slot 66: the 3D terrain view (class 0xC9B84E10),
+        // which the original's DoPostCityInit creates. zones.md §5.2: the zone
+        // developer's PostCityInit handler takes the terrain view from slot 66
+        // and dereferences it, so a null one faults there. Drawing is out of the
+        // terrain spec's scope, but the object itself is not optional: it is
+        // created through the game's own class factory, never hand-built.
+        if (f_.view == nullptr) {
+            cIGZCOM* com = GZCOM();
+            void* view = nullptr;
+            if (com != nullptr && com->GetClassObject(kFC4_CLSID_cSTETerrainView, GZIID_cIGZUnknown, &view) &&
+                view != nullptr) {
+                f_.view = view;
+                f_.renderObject = view;
+                Log("terrain: created the terrain 3D view (class 0x%08X) at DoPostCityInit",
+                    kFC4_CLSID_cSTETerrainView);
+            } else {
+                Log("terrain: WARNING the terrain 3D view (class 0x%08X) could not be created; the zone "
+                    "developer's PostCityInit path reads it (zones.md §5.2)",
+                    kFC4_CLSID_cSTETerrainView);
+            }
+        }
     }
     Leave();
 }
@@ -752,12 +888,12 @@ void cFC4STETerrain::OnViewUpdate(cIGZMessage2Standard* s) {
     const int32_t want = (d1 <= 4) ? static_cast<int32_t>(d1) : 0;
     if (havePtr && viaPtr != d1) {
         Log("terrain: TR9 view update 0xA6B79602 data1=%u *void2=%u -> brush level %d (was %d)", d1, viaPtr,
-            want, defaultBrushLevel_);
+            want, f_.defaultBrushLevel);
     }
-    if (want != defaultBrushLevel_) {
-        defaultBrushLevel_ = want;
-        fc4_terrain_set_default_brush_level(core_, defaultBrushLevel_);
-        Log("terrain: TR9 default brush level -> %d (view update)", defaultBrushLevel_);
+    if (want != f_.defaultBrushLevel) {
+        f_.defaultBrushLevel = want;
+        fc4_terrain_set_default_brush_level(core_, f_.defaultBrushLevel);
+        Log("terrain: TR9 default brush level -> %d (view update)", f_.defaultBrushLevel);
     }
 }
 
@@ -1180,7 +1316,7 @@ void cFC4STETerrain::EndLongTerrainOperation() {
 }
 
 void cFC4STETerrain::StopAccumulatingTextureUpdates() {
-    accumulate_ = false;
+    f_.accumulateTexture = 0;
     Enter();
     if (core_ != nullptr) {
         // §8.2: a texture-only redisplay (data4 0). Drawing is out of scope,
@@ -1313,6 +1449,7 @@ cIGZUnknown* CreateFC4Terrain() {
 cIGZUnknown* CreateFC4SurfaceWater() {
     // The water is a stateless view over the one fc4_terrain, so it does not
     // matter which of the two the city constructs. A second object is fine.
+    fc4::Log("terrain: creating cSTESurfaceWater (enable = terrain): a view over the shared fc4_terrain handle");
     auto* w = new fc4::cFC4STESurfaceWater();
     return w->Primary();
 }

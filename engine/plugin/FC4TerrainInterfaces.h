@@ -67,11 +67,19 @@ namespace fc4 {
 // it owns (terrain +0x24; city slot 83 returns it).
 static const uint32_t kFC4_CLSID_cSTETerrain = 0xE98F9525;
 static const uint32_t kFC4_CLSID_cSTESurfaceWater = 0x0B8DA7DB;
+// The terrain 3D view (terrain.md §1, §2.3 +0xE8). Render only, but the game
+// hands the pointer around (zones.md §5.2 takes it at PostCityInit from
+// terrain slot 66), so the replacement creates it through the class factory.
+static const uint32_t kFC4_CLSID_cSTETerrainView = 0xC9B84E10;
 
 // The terrain's IIDs (§1): 0x00000001, 0xAB953253 and 0xC70BD37E (cISTETerrain,
 // the component IID) reach the terrain; 0x452294AA (cIGZMessageTarget2) and
 // 0xE4FDA3D4 (cIGZSerializable) reach its other two sub-objects.
 static const uint32_t kFC4_IID_cISTETerrain = 0xC70BD37E;
+// The surface water's own interface IID. terrain.md §1 does not name it and
+// the SDK header has no constant; 0xAB8DA759 is what the city QIs for when
+// it builds cSTESurfaceWater (observed in game, glue18).
+static const uint32_t kFC4_IID_cISTESurfaceWater = 0xAB8DA759;
 static const uint32_t kFC4_IID_cIGZMessageTarget2 = 0x452294AA;
 static const uint32_t kFC4_IID_cIGZSerializable = 0xE4FDA3D4;
 
@@ -220,5 +228,73 @@ public:
     virtual bool Load(cIGZPersistDBSegment* seg) = 0;         // 96  §13.1
     virtual bool Save(cIGZPersistDBSegment* seg) = 0;         // 97  §13.1
 };
+
+// ---- the object's own fields (§2.3) ---------------------------------------------------------------
+//
+// The game reads these directly, not only through the slots: §1 says
+// QueryInterface returns `this`, `this + 4` and `this + 8`, which is three
+// vptrs followed by the fields at +0x0C - exactly what MSVC lays out for
+// `class X : public cFC4ISTETerrain, public cIGZMessageTarget2,
+// public cIGZSerializable`. cFC4STETerrain keeps its members in THIS order so
+// the offsets match the original's. In-game evidence that they matter:
+// cSC4City::Init dereferences the pointer at terrain +0x24 (the surface water).
+//
+// Every offset below is the struct-relative one; the object offset is +0x0C.
+struct TerrainFields {
+    uint8_t initialized;                 // 0x00  (object +0x0C)  slot 5
+    uint8_t _p01[0x0B];                  // 0x01..0x0B
+    int32_t terrainType;                 // 0x0C  (+0x18)  slots 41/42
+    void* city;                          // 0x10  (+0x1C)
+    uint32_t _p14;                       // 0x14  (+0x20)
+    void* surfaceWater;                  // 0x18  (+0x24)  the surface water object
+    uint32_t cellsX;                     // 0x1C  (+0x28)  slot 7
+    uint32_t cellsZ;                     // 0x20  (+0x2C)  slot 8
+    uint32_t cellsXm1;                   // 0x24  (+0x30)
+    uint32_t cellsZm1;                   // 0x28  (+0x34)
+    uint32_t vertsX;                     // 0x2C  (+0x38)
+    uint32_t vertsZ;                     // 0x30  (+0x3C)
+    int32_t cityRect[4];                 // 0x34  (+0x40..+0x4C)  (0, 0, cellsX, cellsZ)
+    float sizeX;                         // 0x44  (+0x50)
+    float sizeZ;                         // 0x48  (+0x54)
+    int32_t citySizeType;                // 0x4C  (+0x58)
+    uint32_t vertexCount;                // 0x50  (+0x5C)
+    uint32_t _p54[3];                    // 0x54  (+0x60..+0x68)
+    void* vertices;                      // 0x60  (+0x6C)  the vertex array
+    float cachedMin;                     // 0x64  (+0x70)  slot 21, §4.6
+    float cachedMax;                     // 0x68  (+0x74)  slot 22
+    float saved78;                       // 0x6C  (+0x78)  tuning 0x48CD7B20 (308)
+    float seaLevel;                      // 0x70  (+0x7C)  slot 29
+    uint32_t _p74;                       // 0x74  (+0x80)
+    int32_t neighbourOffset[8];          // 0x78  (+0x84..+0xA3)
+    uint32_t _p98[6];                    // 0x98  (+0xA4..+0xBB)
+    int32_t defaultBrushLevel;           // 0xB0  (+0xBC)  §2.3, TR9
+    uint8_t accumulateTexture;           // 0xB4  (+0xC0)
+    uint8_t _pB5[0x17];                  // 0xB5..0xCB
+    uint32_t reconcileTick;              // 0xCC  (+0xD8)
+    uint8_t _pD0;                        // 0xD0  (+0xDC)
+    uint8_t waterDisplayState;           // 0xD1  (+0xDD)  slot 83
+    uint8_t _pD2[0x06];                  // 0xD2..0xD7
+    void* renderObject;                  // 0xD8  (+0xE4)  slot 54 returns it
+    void* view;                          // 0xDC  (+0xE8)  the terrain 3D view
+    uint8_t viewReady;                   // 0xE0  (+0xEC)  §8.1 gate
+    uint8_t _pE1[3];
+};
+static_assert(offsetof(TerrainFields, initialized) == 0x00, "+0x0C");
+static_assert(offsetof(TerrainFields, terrainType) == 0x0C, "+0x18");
+static_assert(offsetof(TerrainFields, city) == 0x10, "+0x1C");
+static_assert(offsetof(TerrainFields, surfaceWater) == 0x18, "+0x24");
+static_assert(offsetof(TerrainFields, cellsX) == 0x1C, "+0x28");
+static_assert(offsetof(TerrainFields, cellsZ) == 0x20, "+0x2C");
+static_assert(offsetof(TerrainFields, vertsX) == 0x2C, "+0x38");
+static_assert(offsetof(TerrainFields, sizeX) == 0x44, "+0x50");
+static_assert(offsetof(TerrainFields, vertexCount) == 0x50, "+0x5C");
+static_assert(offsetof(TerrainFields, cachedMin) == 0x64, "+0x70");
+static_assert(offsetof(TerrainFields, seaLevel) == 0x70, "+0x7C");
+static_assert(offsetof(TerrainFields, defaultBrushLevel) == 0xB0, "+0xBC");
+static_assert(offsetof(TerrainFields, reconcileTick) == 0xCC, "+0xD8");
+static_assert(offsetof(TerrainFields, waterDisplayState) == 0xD1, "+0xDD");
+static_assert(offsetof(TerrainFields, renderObject) == 0xD8, "+0xE4");
+static_assert(offsetof(TerrainFields, viewReady) == 0xE0, "+0xEC");
+static_assert(sizeof(TerrainFields) == 0xE4, "TerrainFields covers +0x0C..+0xEF");
 
 }  // namespace fc4
