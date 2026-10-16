@@ -26,7 +26,7 @@ Scope. The **piece choice** half of the network tool's solve (network-geometry.m
 - the **tile subsets**: the `RuleOverrides` pair patches and the `TileVerifiers` pattern checks (§9);
 - the **highway intersection rules** (`cIntRule`): their file grammar, `Test`, `DoAutoComplete`,
   `IdentifyHighwayIntersections` and `InsertIsolatedHighwayIntersection` (§10);
-- how a solved cell's piece id becomes an occupant exemplar (§11).
+- what a solved cell's piece id selects (§11).
 
 It answers network-geometry.md NG5 (§12).
 
@@ -156,11 +156,11 @@ Type `t`'s record is at `0x00B452C8 + t × 0x114` (network-geometry.md §2.3). T
 | Offset | Meaning |
 |---|---|
 | `+0x00` | the **edge-subtype scheme** (§7): 1 for Road, Street, Pipe, Subway, OneWayRoad, DirtRoad; 2 for Rail, LightRail, Monorail; 0 for the others |
-| `+0x0C` | the **piece exemplar group** (§11) |
+| `+0x0C` | the exemplar group of the type's **prebuilt-model pieces** (§11) |
 | `+0x24` | the vector of tile evaluators, in load order, ended by a null entry or the vector's end |
 | `+0xFC` | the **override matrix row**: bit `u` set when this type may override type `u` (§8.1) |
 
-Piece exemplar groups (`+0x0C`, written by `ReloadNetworkTypeInfo`, e.g. Road at `0x0062333B`):
+Prebuilt-piece exemplar groups (`+0x0C`, written by `ReloadNetworkTypeInfo`, e.g. Road at `0x0062333B`):
 
 | Type | Group | Type | Group |
 |---|---|---|---|
@@ -584,3 +584,256 @@ entries for one piece id give several verifiers, any one of which may pass.
    A from the list (the next record moves into its index) and note a failure.
 
 Return true when nothing was removed.
+
+---
+
+## 10. Highway intersection rules (`nSC4Networks::cIntRule`)
+
+These rules describe the **prebuilt intersection pieces** (interchanges, highway–road crossings and the like): a
+pattern of existing network cells that the piece replaces, the cells it newly occupies and the models it places.
+
+### 10.1 The file (instance `0x10000000`)
+
+`ReadHighwayIntersectionRules` (`0x00641B60`) enumerates every section of the INI (INI slot 14) and hands each to
+`ReadIntersectionRule` (`0x00641A50`):
+
+- a section whose name starts with `Ordering` is an **ordering** section (§10.8);
+- a section named `HighwayIntersectionInfo_<hex id>` is a **rule** with that id (read with `RZAtoUint32HexA`). The
+  rule is created in the global rule map `0x00B452B0` (a hash map keyed by id; entry = `{next, id, rule}`, the rule at
+  entry `+8`). Its id is stored, its ring links (§10.8) are set to its own id, its `CellLayout` and `ConsLayout` line
+  lists are cleared, its keys are read (`ReadIntersectionEntries`, `0x00640320`), and then the two ASCII layouts are
+  parsed (§10.3) when their line lists are not empty;
+- other sections are ignored.
+
+**Keys** (compared case-insensitively, `cRZString::IsEqual`), in the order the reader tests them; every key may
+repeat, and a later one overwrites (lists append):
+
+| Key | Value | Effect (rule field) |
+|---|---|---|
+| `Piece` | `x, z, rot, flip, 0xid` (two floats, then `" , %i , %i , 0x%x"`) | append a **model** `{id, rot byte, flip byte, x (f32), z (f32)}` (`+0x04`, 16-byte entries) |
+| `StepOffsets` | `a,b` (`%d,%d`, must give 2) | `+0x10 := a`, `+0x14 := b` |
+| `CellLayout` | one text line | append to the cell layout lines |
+| `ConsLayout` | one text line | append to the constraint layout lines |
+| `AutoTileBase` | number | `+0xC8` |
+| `AutoPathBase` | number | `+0xCC` |
+| `CheckType` | a check-type definition (§10.2) | add to the tag map `+0x64` |
+| `CopyFrom` | hex id | if that rule exists: copy it whole into this one (`0x0063E060`), then restore this rule's id and reset its ring links to its own id; otherwise nothing |
+| `Transpose` | (any) | transpose the rule (§10.4) |
+| `Rotate` | `n` | rotate the rule by `n` quarter turns (§10.4) |
+| `Translate` | `a,b` (`%d,%d`) | translate the rule by (a, b) (§10.4) |
+| `ReplacementIntersection` | `a,b` (`%d,%d`, the count is not checked) | `+0x48 := 1`; `+0x40 := a`, `+0x44 := b` |
+| `ConvertQueryID` | number | `+0x78`: the string id of the conversion question (§10.7) |
+| `PlaceQueryID` | number | `+0x7C` |
+| `HandleOffset` | `a,b` (`%d,%d`, must give 2) | `+0x94 := a`, `+0x98 := b` |
+| `PreviewEffect` | text | `+0x80` (a string) |
+| `Costs` | `" %d "` | `+0xB4` |
+| `AutoPlace` | (any) | `+0xE9 := 1`, whatever the value |
+| `OneWayDir` | number | `+0xE8 := atol(value)` |
+
+The reader also builds the strings `PieceType` and `ResetPieces` but never compares a key with them; such keys are
+ignored *[compat]*. Keys are applied in file order, so `CopyFrom` must come before the keys that adjust the copy, and
+`Rotate`/`Transpose`/`Translate` act on everything read or copied before them.
+
+Other rule fields: `+0xE4` the **type mask** (the OR of the type bits named by the check types), the tag lists and
+bounds of §10.3.
+
+### 10.2 Check types (`CheckType`)
+
+The value is parsed by a small tokenizer (`cParser`, `0x0063DDF0`, `0x0063F1F0`); `#` starts a comment that runs to
+the end of the value and `;` ends it. The grammar:
+
+```
+<tag> - <Network>:<edges>[,<mask>] [<Network>:<edges>[,<mask>]] [check] [multiok] [optional]
+```
+
+- `<tag>` is one character; longer tags fail with "Bad map tag".
+- At most two network checks; a third fails with "Too many network checks in one rule".
+- `<Network>` is a network name (§1.2); `<edges>` and `<mask>` are hex edge words; the mask defaults to `0xFFFFFFFF`.
+- `check` clears the tag's **occupies** flag; `optional` sets **optional** and clears **occupies**; `multiok` sets
+  **multi-ok**. By default a tag occupies its cell, is not optional and is not multi-ok.
+
+A check-type record (24 bytes): `+0` type 1, `+1` type 2 (−1 when absent), `+4` edges 1, `+8` mask 1, `+0xC`
+edges 2, `+0x10` mask 2, `+0x14` multi-ok, `+0x15` occupies, `+0x16` optional. Each named type's bit is ORed into the
+rule's `+0xE4`.
+
+### 10.3 The ASCII layouts
+
+**Cell layout** (`ParseCellsFromASCIIArt`, `0x00609FC0`). Each `CellLayout` line is one row `z` (from 0, in order)
+and each character one column `x` (from 0):
+
+| Character | Meaning |
+|---|---|
+| space, `.` | nothing |
+| a letter or digit with a check type | a **tagged cell** `(x, z, tag)` (list `+0x58`, 12-byte entries); if its type occupies, it also extends the **bounds** and joins the **occupied cells** (`+0x4C`) |
+| a letter or digit without a check type | nothing |
+| `+` | a **new cell** (list `+0x28`): a cell the piece takes that holds no network yet; it also joins the occupied cells and extends the bounds |
+| `<` | marks this row as the centre row |
+| `^` | marks this column as the centre column |
+
+The bounds start at `minX = minZ = 1000`, `maxX = maxZ = −1000` (`+0x18`, `+0x1C`, `+0x20`, `+0x24`). Afterwards every
+coordinate (bounds, occupied, new and tagged cells) is shifted by minus the centre (column, row). Without a `<` or
+`^` the centre stays −1, so the cells shift by +1 *[quirk]*. The parser then builds the tile grid (`+0xB8`, width
+`+0xC4`) and its map (`+0xD4`) that the preview uses.
+
+**Constraint layout** (`ParseConstraintsFromASCIIArt`, `0x0060A560`) maps characters to constraint codes:
+`-` 1, `|` 2, `/` 3, `\` 4, `F` 5, `R` 6, `#` 7, `X` 8; `<` and `^` set its centre (`+0xB0`, `+0xAC`). The grid is
+`+0x9C` (width `+0xA8`). Its consumer is outside this spec (§14).
+
+### 10.4 Transforms
+
+All three keep the rule internally consistent; the cell lists hold integer offsets from the anchor.
+
+**Translate(a, b)** (`0x00608D20`): add (a, b) to every new, occupied and tagged cell, to every model position, to the
+handle offset (`+0x94`, `+0x98`) and to the bounds; subtract (a, b) from the constraint centre (`+0xAC`, `+0xB0`).
+
+**Transpose** (`0x006091F0`), the mirror across the line x = z:
+
+- swap x and z in every cell list, model position, the handle offset and the bounds (min with min, max with max);
+- each check type's edges: swap bytes W ↔ N and E ↔ S, and map each byte whose **whole value** is 1, 2 or 3 to
+  `4 − value` (1 ↔ 3); a byte with subtype bits is left as it is (`0x00608C50`) *[quirk]*. Masks: the same byte swap
+  only;
+- each model: flip toggled; rotation `+1` when it becomes flipped, `−1` when it becomes unflipped (mod 4); the tile
+  map entries likewise;
+- the constraint and tile grids are transposed (`0x00608F20`);
+- `OneWayDir := (−d − 2) & 7`.
+
+**Rotate(n)** (`0x006094B0`), `n & 3` quarter turns; 0 does nothing. One turn maps (x, z) to (−z, x):
+
+- every cell list and the handle offset are turned;
+- each check type's edges and masks are rotated left by `8n` bits (byte `i` moves to side `i + n`);
+- each model: rotation `+n` (unflipped) or `−n` (flipped), mod 4; its position turned;
+- the tile map entries: rotation `+n` or `−n` likewise, the flip kept;
+- the constraint and tile grids are turned (`0x00609040`);
+- the bounds: for a half turn (bit 1 of `n`), min and max swap and all four are negated; then for an odd turn (bit 0),
+  `minZ := minX`, `minX := −maxZ`, `maxZ := maxX` and **`maxX := −(old minX)`**. The correct value would be
+  `−(old minZ)`, so after an odd turn `maxX` is wrong whenever `minX ≠ minZ` *[quirk]* (`0x006097A3`–`0x006097B9`). It
+  only affects `IsWithinBounds`;
+- `OneWayDir := (d + 2n) & 7`.
+
+### 10.5 Matching an intersection rule
+
+**IsWithinBounds(x, z, width, height)** (`0x00608CD0`): `x + minX ≥ 0`, `z + minZ ≥ 0`, `x + maxX < width` and
+`z + maxZ < height` (the last two compared unsigned).
+
+**Test(x, z, tool)** (`0x00609A00`) returns 0 (match), 1 (no match) or 2 (hard failure). `ow` := the one-way pattern
+for `OneWayDir`, table `0x00AA752C` = `0x22, 0xAA, 0x88, 0x99, 0x11, 0x55, 0x44, 0x66` (index 0–7).
+
+For each tagged cell `(rx, rz, tag)` with its check type `ct`:
+
+1. `ct` optional: next cell.
+2. `info` := the tool's cell info at `(x + rx, z + rz)`. None: return **2**.
+3. If `ct` occupies:
+   1. The cell is an **intersection** when its occupant has all of the flags `0x100000` (network occupant slot 8) or
+      `info.+0x52` is set. If so: without `ReplacementIntersection` (`+0x48 = 0`), return **1**. If the flag came from
+      the occupant, its anchor (network occupant slot 71, `+0x11C`, two out-values) must equal
+      `(x + +0x40, z + +0x44)`, else return **1**.
+   2. If `info` is fixed (`+0x53`) and `+0x52` is not set: return **1**.
+4. `acc := 0`. For each network check `k` (type `t ≥ 0`): if the cell's flags lack `t`'s bit, return **1**;
+   `acc |= bit`; if `(mask_k & (info.edges[t] ^ edges_k)) ≠ 0`, return **2**.
+5. If not multi-ok and the cell's flags carry a type bit outside `acc` (`flags & ~acc & 0x1FFF ≠ 0`): return **1**.
+6. If `acc` has the OneWayRoad bit and `ct` does **not** occupy: if `((info.+0x50 ^ ow) & D(e)) ≠ 0`, where `e` is the
+   one-way check's edges, return **2**.
+
+Then, if the rule has no new cells (`+`), return **0**. Otherwise, for each new cell `(x + rx, z + rz)`: if the
+terrain says it holds water (terrain slot 34), return **1**; if the occupant manager has a network occupant there
+(slot 32 with the network-type filter `0x1F4F`), return **1**. Finally build the demolition region of the new cells
+(`ComputeDemolitionRegionForPlacementCells`, `0x0061F7C0`, with the tool's occupant filter `+0x364`): it fails when a
+lot on those cells has a zone type from 10 to 15 (the zone-type mask `0xFC00`, zones.md) or the demolition utility
+(query slot 6, flags `0x2001`) refuses; a failure returns **1**, success **0**.
+
+**DoAutoComplete(x, z, tool)** (`0x006097E0`, returns 1). It adds the **extra cells** that complete the
+intersection's arms (the tool's list `+0xF0`, network-geometry.md NG3). For each tagged cell (optional ones included)
+and each network check `k` with type `t ≥ 0`:
+
+1. `info` := the cell info at `(x + rx, z + rz)`; `mismatch := info` absent, or `(mask_k & (info.edges[t] ^
+   edges_k)) ≠ 0`.
+2. For `t` = OneWayRoad: `cow := info ? info.+0x50 : 0`, `d := D(edges_k)`, `owbad := (d & (cow ^ ow)) ≠ 0`. If the
+   tag does not occupy, `G` := `cow` with each two-bit pair set to `11` when it is non-zero; if
+   `(d & G & (cow ^ ow)) ≠ 0`, skip this check (an existing one-way arm points the other way).
+3. If `info` exists and neither `mismatch` nor `owbad`: skip. Otherwise add an extra cell (`0x00629170`) at
+   `(x + rx, z + rz)` with edges `edges_k`, type `t`, one-way bits `ow & d` and mask `d` (both 0 for other types).
+
+**GetPrimaryType()** (`0x006099A0`): the first type of the tagged cell at (0, 0), else 2 (Highway).
+
+### 10.6 IdentifyHighwayIntersections(v, type) (`0x0063B340`, pop 8)
+
+Called by `PlaceNetwork` after the edge major types (network-geometry.md §8.2). It finds the intersections that a drag
+across existing networks forms automatically:
+
+1. Clear the tool's intersection list `+0xCC`. `inRun := false`.
+2. For each step `s` < `v`, for each cell `(x, z)` of the step whose cell info has an existing occupant:
+   1. Call the occupant's slot 38 (`GetEdgeMaskForType(type)`); the result is not used.
+   2. For each rule of the global map, in its hash order (buckets `0x00B452B4`, ids by identity modulo the bucket
+      count): the rule matches when `AutoPlace` (`+0xE9`), `+0xE4` meets the cell's flags, `IsWithinBounds(x, z,
+      city width, city height)` and `Test(x, z, tool) = 0`.
+   3. On a match: the step matched. If not `inRun`: start a run with this rule's id, `(x, z)` and `s`;
+      `MarkIntersection(run, true)` (`0x0063B130`) sets `+0x52` on the cell infos of the rule's occupied cells. Later
+      matches during a run are ignored.
+3. After a step without a match, if `inRun`: **record** the run and append `(x, z, type)` to the tool's
+   potential-intersection list `+0x08`; `inRun := false`.
+4. After the last step, if `inRun`: record the run and append `(x, z, 4)` to `+0x08`. The 4 is a constant, not the
+   type *[quirk]*.
+5. Return `v`, on every path. So the caller's failure code `0xF0000005` is never set (network-geometry.md quirk 7).
+
+A **record** (`+0xCC`, 40 bytes): `{rule id, x, z, start step s, s + StepOffsets.a, s + StepOffsets.b, an empty
+vector}` *[inferred: the vector]*. `MarkHighwayIntersectionPieces` (`0x0063B7F0`) and
+`RemoveHighwayIntersectionPiecesFromSetOfCellsToBeSolved` (`0x0063B1A0`) use the records whose start step is below
+`+0x78`; `InsertHighwayIntersectionPieces` (`0x0062C4B0`) places their models at commit (network-tools.md §6.1).
+
+### 10.7 Placing one intersection
+
+**InsertIsolatedHighwayIntersection(x, z, id, real)** (`0x0062CD50`, the intersection tool) places rule `id` at
+`(x, z)`:
+
+1. Reset the run state; `+0x50 := real`; `type := GetPrimaryType()`; record the intersection in `+0xCC`; one step of
+   one cell `(x, z)`; the dragged and valid counts `+0x74 = +0x78 = 1`.
+2. The cells: the rule's new cells plus the extra cells (`DoAutoComplete`), without connection nodes.
+3. The demolition region of those cells (`+0x210`, `+0x220`) must succeed, else return 0.
+4. Slot 68 (reserved tiles, `(&v, type, 1)`): if it cuts `v` below `+0x78`, fail with `0xF0000002`.
+5. Cell infos (slot 71), `DoAdditionalDraws`; `Test` must return 0, else `0xF0000007`.
+6. `MarkHighwayIntersectionPieces(true)`; `BuildSetOfCellsToBeSolved`; `SolveNetwork(type, false)` must return a
+   positive count, else `0xF0000007`.
+7. The smoothing levels 0–2 (slot 56); a failure at level 3 gives `0xF0000006` or `0xF0000008` (network-geometry.md
+   §9.4).
+8. If `real`: slots 70, 60, 57 and the position-changed marks (network-tools.md §6.1).
+9. Slot 55 (`InsertOccupantsForSolvedCells`), `InsertHighwayIntersectionPieces`, `MarkOccupantsUsable`; return 1.
+
+**QueryUserForPotentialIntersections** (`0x0062D450`). For each `(x, z, ·)` entry of the tool's `+0x08` list (only x
+and z are read): get the highway tool (`GetNetworkTool(2, true)`); take the first rule, in map order, that has a
+`ConvertQueryID` and whose `Test(x, z)` is 0; do a dry `InsertIsolatedHighwayIntersection(x, z, id, false)`; if it
+succeeds and the city's funds (city slot 52, budget slot 6) cover its cost, show the confirmation text (string table
+group `0x2A592FD1`, instance `ConvertQueryID`; the fallback text is `## Intersection query string missing ##`). On
+"yes": place it for real, spend the cost (budget slot 8) and post message `0xEA5EC59F`.
+
+### 10.8 Ordering sections (the intersection tool's cycling)
+
+An `Ordering…` section (`ReadIntersectionOrderingEntries`, `0x006416B0`) reads one of two keys, each a comma list of
+hex rule ids:
+
+- `RotationRing`: the listed rules form a **circular list** for the rotate command: each rule's `+0xEC` (previous)
+  and `+0xF0` (next) are linked in list order and the last closes on the first;
+- `AddTypes` (read only when there is no `RotationRing`): links the listed rules' rings into a second circular list
+  through `+0xF4` and `+0xF8`, for cycling between intersection types *[inferred]*.
+
+Unknown ids are skipped. These links only drive the tool's user interface; the solver never reads them.
+
+---
+
+## 11. From a solved cell to an occupant
+
+A solved record `{piece id, orientation, key}` becomes an occupant at commit (`InsertOccupantsForSolvedCells`, slot
+55, `0x006258C0`; network-tools.md §6.2). The record's piece id becomes the occupant's **piece id** (network occupant
+slot 23) and its orientation byte the occupant's rotation and flip (read back through slot 26 by §9) *[inferred: the
+slot 26 meaning]*.
+
+- An **ordinary** network occupant (`CreateNetworkOccupant`, slot 54, `0x00624210`, with no class id) is a textured
+  cell: its piece id names the cell's texture. The multi-type solutions file calls the field `textureId`. The texture
+  lookup belongs to the network rendering, outside this spec (§14).
+- A **prebuilt-model** occupant (class `0x49C1A034`) takes its model from an exemplar: `GetOccupantExemplar(piece,
+  group)` (`0x006244B0`) fetches the resource with key `{type 0x6534284A, group, instance = piece id}` through the
+  resource manager (slot 3, interface `0xA52160F5`), and `SetExemplarForOccupant` (`0x00624860`) adds the model when
+  it is found. `group` defaults to the tool's type record `+0x0C` (§2.2); `InsertHighwayIntersectionPiece`
+  (`0x006276D0`) passes `0xA8434037` (the Highway group) for the intersection models of §10.
+
+So a rule file names pieces by id only; what the id selects depends on the occupant class and, for prebuilt models,
+on the group *[compat]*.
