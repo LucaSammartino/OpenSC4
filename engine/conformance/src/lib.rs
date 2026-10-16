@@ -12,6 +12,7 @@
 pub(crate) mod aura;
 pub(crate) mod automata;
 pub(crate) mod budget;
+pub(crate) mod city_detail;
 pub(crate) mod civic;
 pub(crate) mod clock24;
 pub(crate) mod commercial;
@@ -38,7 +39,9 @@ pub(crate) mod parks;
 pub(crate) mod pathfinder;
 pub(crate) mod plumbing;
 pub(crate) mod pollution;
+pub(crate) mod port_developer;
 pub(crate) mod power;
+pub(crate) mod prop_developer;
 pub(crate) mod protection;
 pub(crate) mod residential;
 pub mod runner;

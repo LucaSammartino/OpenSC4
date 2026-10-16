@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "port_developers_two_airports",
+  "spec": ["port-developers 4.4", "port-developers 12"],
+  "description": "Section 12 test 5: a small (10000) and a medium (53600) airport in one subnetwork share 31800 office jobs in proportion to their funded capacities: trunc(10000/63600 x 31800) = 5000 and trunc(53600/63600 x 31800) = 26800. A lot in several subnetworks is counted in each (the small airport then also gets all 100 jobs of subnetwork 1); a subnetwork beyond the office count lists is ignored.",
+  "steps": [
+    {"op": "pd_create", "kind": "airport"},
+    {"op": "pd_init"},
+    {"op": "pd_lot", "lot": "0x10", "config": ["0xCA2436C0", 1], "x": 3, "z": 4, "rect": [3, 4, 7, 6]},
+    {"op": "pd_occupant", "occupant": "0x100", "lot": "0x10"},
+    {"op": "pd_message", "msg": "0x99EF1142", "data": "0x100"},
+    {"op": "pd_lot", "lot": "0x11", "config": ["0x6A5126D0", 1], "x": 30, "z": 4, "rect": [30, 4, 34, 6]},
+    {"op": "pd_occupant", "occupant": "0x101", "lot": "0x11"},
+    {"op": "pd_message", "msg": "0x99EF1142", "data": "0x101"},
+    {"op": "pd_env", "offices": [[31800], [0]]},
+    {"op": "pd_month"},
+    {"op": "pd_expect_port", "index": 0, "state": {"trips": 5000}},
+    {"op": "pd_expect_port", "index": 1, "state": {"trips": 26800}},
+    {"op": "pd_query", "query": "num_trips", "expect": 31800},
+    {"op": "pd_lot", "lot": "0x10", "subnetworks": [0, 1, 5]},
+    {"op": "pd_env", "offices": [[31800, 60], [0, 40]]},
+    {"op": "pd_month"},
+    {"op": "pd_expect_port", "index": 0, "state": {"trips": 5100}},
+    {"op": "pd_expect_port", "index": 1, "state": {"trips": 26800}}
+  ]
+}

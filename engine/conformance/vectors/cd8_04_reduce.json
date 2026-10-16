@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "city_detail_reduce",
+  "spec": ["city-detail 3.1", "city-detail 3.2", "city-detail 3.4", "city-detail 5.2", "city-detail 8.4", "city-detail 8.6"],
+  "description": "Saved 3, current 1 (cur < saved): reduce. Lot 0x10's configuration lists prop object 0xA (optional: still kept, the flags do not matter), flora object 0xF and a base texture 0xC (type 2: not kept). Its occupants: a prop tagged 0xA and a prop tagged 0xF (both listed: stay), a prop and a flora tagged T = 0x7 (removed with RemovePropA, demolished with DemolishFloraOccupant), an untagged prop (stays), a building tagged 0x7 (other occupants are untouched) and a prop tagged 0xC (removed). Lot 0x20 has no configuration: skipped. Lots are visited in the lot manager's order, occupants in the lot's list order. Then every network lot is redeveloped once, in the manager's order. The level becomes 1.",
+  "steps": [
+    {"op": "cd_lot", "lot": "0x20", "objects": null},
+    {"op": "cd_occupant", "occupant": "0x21", "lot": "0x20", "type": "prop", "tag": "0x7"},
+    {"op": "cd_lot", "lot": "0x10", "objects": [{"type": "prop", "flags": 1, "tag": "0xA"}, {"type": "flora", "tag": "0xF"}, {"type": "texture", "tag": "0xC"}]},
+    {"op": "cd_occupant", "occupant": "0x11", "lot": "0x10", "type": "prop", "tag": "0xA"},
+    {"op": "cd_occupant", "occupant": "0x12", "lot": "0x10", "type": "prop", "tag": "0xF"},
+    {"op": "cd_occupant", "occupant": "0x13", "lot": "0x10", "type": "prop", "tag": "0x7"},
+    {"op": "cd_occupant", "occupant": "0x14", "lot": "0x10", "type": "flora", "tag": "0x7"},
+    {"op": "cd_occupant", "occupant": "0x15", "lot": "0x10", "type": "prop"},
+    {"op": "cd_occupant", "occupant": "0x16", "lot": "0x10", "type": "building", "tag": "0x7"},
+    {"op": "cd_occupant", "occupant": "0x17", "lot": "0x10", "type": "prop", "tag": "0xC"},
+    {"op": "cd_env", "network": [[3, 4, "0x50"], [5, 6, "0x51"]], "setting": 1},
+    {"op": "cd_create"},
+    {"op": "cd_read", "hex": "00000000 03000000", "expect": true},
+    {"op": "cd_init", "expect": true},
+    {"op": "cd_expect_events", "events": [
+      {"event": "remove_prop", "occupant": "0x13"},
+      {"event": "demolish_flora", "occupant": "0x14"},
+      {"event": "remove_prop", "occupant": "0x17"},
+      {"event": "redevelop", "x": 3, "z": 4, "lot": "0x50"},
+      {"event": "redevelop", "x": 5, "z": 6, "lot": "0x51"}
+    ]},
+    {"op": "cd_expect_occupants", "lot": "0x10", "occupants": [["0x11", "prop", "0xA"], ["0x12", "prop", "0xF"], ["0x15", "prop", null], ["0x16", "0x278128A0", "0x7"]]},
+    {"op": "cd_expect_occupants", "lot": "0x20", "occupants": [["0x21", "prop", "0x7"]]},
+    {"op": "cd_expect", "state": {"level": 1, "last_pass": 1, "removed": 3, "created": 0, "draws": 0, "network_lots": 2, "session_passes": 0}},
+    {"op": "cd_write", "hex": "00000000 01000000"}
+  ]
+}
