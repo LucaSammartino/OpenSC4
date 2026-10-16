@@ -44,6 +44,13 @@ enum class Direct : unsigned {
     GenericConfirmationDialog,  // nSC4UI::GenericConfirmationDialog: cdecl bool (cIGZString* title,
                                 //   cIGZString* text, cIGZString* yes, cIGZString* no), the caller pops
                                 //   16, AL (neighbors.md §15.4 NG35; advisors.md §6.8)
+    // The retaining-wall helpers (docs/abi/direct-calls.md; lot-developer.md §7.2, LD3): cdecl statics of
+    // cSC4LotRetainingWallOccupant on the cISC4Lot*, the caller pops.
+    RetainingWallAdd,                 // AddRetainingWallOccupant: bool (cISC4Lot*, bool add as 4 bytes), pops 8
+    RetainingWallsUpdate,             // UpdateRetainingWalls: bool (cISC4Lot*), pops 4, AL undefined
+    RetainingWallsUpdateSurrounding,  // UpdateSurroundingRetainingWalls: void (cISC4Lot*), pops 4
+    BurntBuildingSetBounds,           // cSC4PropOccupantBurntBuilding::SetBoundsFromOccupant: thiscall on the
+                                      //   base (cISC4Occupant* source), pop 4, void (direct-calls.md; LD14)
     Count
 };
 

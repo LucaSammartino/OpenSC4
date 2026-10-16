@@ -1104,6 +1104,8 @@ session seed (§6.3), and `rand()` starts at state 1. Draws are traced by kind R
 | `ldev_start_construction` / `ldev_construct_default` | `lot`, `cfg?`, `type`, `animate?`, `expect?` | `StartConstruction` (§6.1) / `ConstructDefaultLot` (§6.4) |
 | `ldev_abandon` / `ldev_reoccupy` / `ldev_change_building` | `lot`, `reason` / `lot`, `dev` / `lot`, `type`, `expect?` | slots 8 / 9 / 10 (§6.4) |
 | `ldev_update_lot_elements` | `lot`, `kind` (the **whole 32-bit** terrain-change kind; only `kind != 5` is tested, §6.4), `expect?` | slot 37 |
+| `ldev_area_flat` | `rect` (cells) or `lot`, `water?` (default true), `expect` | slot 25 `IsAreaFlat` / slot 26 `IsLotFlat` (§17.2, LD29: every vertex against the first, read with water) |
+| `ldev_area_range` | `rect`, `water?` (default true), `expect?`, `expect_bits?` | slot 27 `GetAreaAltitudeRange` (§17.2) |
 | `ldev_start_demolish` / `ldev_end_demolish` / `ldev_clear_lot` | `lot`, `expect?` | slots 12 / 13 and `ClearLot` (§7) |
 | `ldev_explode_lot` | `lot`, `burnt?`, `expect?` | slot 14 (§7.2) |
 | `ldev_add_rubble` | `lot`, `min` (`[x,y,z]`), `max`, `burnt?` | `AddLotRubbleProps` (§7.3, draws R9–R14) |
@@ -1148,14 +1150,16 @@ Lot developer events: `acquire_services`, `release_services`, `add_agent` (`leve
 `occ`, `orientation`, `pos`), `prop_remove`, `remove_lot_props`, `remove_building_props`, `flora_add`,
 `flora_demolish`, `demolish_occupant`, `demolish_lot`, `add_building` (`occ`, `type`), `claim` (`amount`, `ok`),
 `add_lot_foundation` (`lot`, `type`), `add_building_foundation`, `remove_building_foundation`,
-`update_lot_foundation`, `update_retaining_walls`, `update_object_altitudes`, `update_base_texture_occupant`
+`update_lot_foundation`, `update_retaining_walls`, `lot_occupants` (`lot`; lot slot 49 of `UpdateLotObjectAlitudes`,
+§6.5, LD17), `occupant_moved` (`occ`, `y`: occupant manager slot 24 with 1 after the new y), `update_base_texture_occupant`
 (`lot`, `had_foundation`), `set_empty_texture`, `remove_retaining_walls`, `remove_lot_foundation`,
 `update_surrounding_foundations`, `update_surrounding_walls` (`lot`), the §17 terrain writer `modify_terrain`
 (`per_vertex`, `rect`, `h`, `exempt`) with `set_altitude` (`x`, `z`, `h`), `set_altitude_rect` (`rect`, `h`, `reason`) and
 `redisplay` (`rect`, `reason`), BDS slot 23 `add_foundation` (`type`, `kind`, `pos`, `dx`, `dz`, `orient`, `bottom`,
 `occ`, `top`, `size`, `cells`), `retaining_wall` (`lot`, `flag`), `set_textures` (`occ`, `n`) followed by one
 `set_texture` per record (`texture`, `x`, `z`, `orientation`, `byte3`, `extra` (five bytes), `frame`),
-`remove_occupant` (`occ`, `a`, `flags`), `shutdown_occupant` (`occ`), `add_network_nodes`, `remove_network_nodes`,
+`remove_occupant` (`occ`, `a`, `flags`), `shutdown_occupant` (`occ`), `add_network_nodes` (`lot`, `nodes`: one
+`[type, x, z, b, c, d, orientation]` per connection node, §6.5, LD17), `remove_network_nodes`,
 `construction_occupant` (`lot`), `level_internal`, `attempt_levelling`, `rubble_decal` (`instance`, `size`),
 `unit_create`, `unit_add` (`unit`, `lot`).
 
@@ -2392,6 +2396,8 @@ Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_bu
 | 20–25 construction occupant (§6.7) | out of scope: a separate subsystem (`cSC4ConstructionOccupant`), not the lot developer core |
 | 26 StateChanged data4 (§3.2) | out of scope: `cSC4Lot::SetState`, owned by the lot core |
 | 27 UpdateLotElements kind (full 32-bit `kind != 5`) | `ld16_27_update_lot_elements_kind` |
+| 42 IsAreaFlat against the first vertex, with water (LD29) | `ld16_42_is_area_flat` |
+| extra: AddNetworkConnectionNodes and UpdateLotObjectAlitudes (§6.5, LD17) | `ld6_5_network_nodes_object_altitudes` |
 | 28 slot 16 float rectangle (sample order, clamp, interior vertices) | `ld16_28_float_rect_altitude` |
 | 29 slot 21 worked example 2 (int32 slot 18, per-vertex and area mode, slope cut-off) | `ld16_29_30_levelling` |
 | 30 slot 19 worked example 1 (negative target, force, narrow rectangles; LD-Q1) | `ld16_29_30_levelling` |
@@ -2461,6 +2467,7 @@ Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_bu
 | extra: a failed size check is an ABORT (§6, ZG17): the type-14 landfill cost of the whole region, skipFunds, error 1 replacing 3 or 4 | `zn15_43_size_abort_landfill_cost` |
 | extra: `Init` copies the alpha to the default alpha whenever the exemplar is found, also without Zone Display Alpha (§10.1, ZG18); no exemplar leaves both | `zn15_44_default_alpha_without_property` |
 | extra: the dezone under a network clips a rectangle that crosses the city edge and dezones the inside cells (§5.1, ZG21) | `zn15_45_dezone_across_city_edge` |
+| extra: `Shutdown` deletes every lot through its own `DeleteLot`, x outer, z inner, before the network tools (§1.2, ZG32); with `trace_calls` the world also logs `remove_building_zot_prop`, `lot_shutdown` and `release_lot` (`lot`, `refs`) | `zn1_2_shutdown_deletes_lots` |
 
 The two extras took the numbers 30 and 31 before §15 gained tests 30–32, so tests 30, 31 and 32 are the vectors
 numbered 32, 33 and 34.

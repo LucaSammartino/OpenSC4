@@ -33,7 +33,7 @@
         "bottom": 100, "size": [16, 2, 16], "cells": [0, 0, 0, 0]},
       {"event": "retaining_wall", "lot": 1, "flag": 1},
       {"event": "update_surrounding_walls", "lot": 1},
-      {"event": "update_object_altitudes", "lot": 1},
+      {"event": "lot_occupants", "lot": 1},
       {"event": "update_base_texture_occupant", "lot": 1, "had_foundation": true},
       {"event": "update_slope", "lot": 1}]},
     {"op": "ldev_expect_draws", "draws": [["R8", 1, 0]]},

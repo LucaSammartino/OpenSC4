@@ -8777,10 +8777,19 @@ void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         const FC4ZoneDevTestState st = ZdState(seam, zd);
         CHECK(st.newLotRefusals == 5 && st.masterSize == 0 && st.heldConfigs == 0 && st.lotsBuilt == 0);
         CHECK(lm->GetLotCount() == 0 && stub.defers == 2);
+        // ZG34 (tract-developer.md §4.15.3): while no lot can be built, slot
+        // 20 answers 0 for every rectangle, so the original Grow never deletes
+        // lots for an aggregation whose CreateLot would fail.
+        CHECK(lm->CanCreateLot(1, 1, 1, 1, false, false, nullptr) == 0);
+        CHECK(lm->CanCreateLot(1, 1, 1, 1, true, true, nullptr) == 0);
+        CHECK(ZdState(seam, zd).canCreateRefusals == 2);
     }
 
     // With the stub's lots.
     host.new_lot = &ZdNewLot;
+    // ZG34: with lots constructible slot 20 is the core's answer again.
+    CHECK(lm->CanCreateLot(1, 1, 1, 1, true, true, nullptr) != 0);
+    CHECK(ZdState(seam, zd).canCreateRefusals == 2);
     ZdLot* made = nullptr;
     {
         cISC4Lot* lot = nullptr;
