@@ -294,6 +294,15 @@ no longer started, rule 1 applies to it from then on, so the end message is post
 - `0x00593120` has **no direct callers**: it is dispatched as a vtable slot at `0x00A9F25C`, the draw-pass
   override next to the `cISC4EffectsManager` vtable `0x00A9F264`.
 
+**Corrects / refines (re-specs21, [view3d.md](view3d.md) §8):** the chain above is right at function granularity;
+the *call sites* are `0x00593985` (`DeactivateUnusedVisualEffects`), `0x0059395B` (`DrawScreenFlashes`) and
+`0x0059397D` (`0x0058EC40`), all inside `Update`. `vftable_1` is installed at **`manager + 0x04`** (destructor
+`0x0058FA60`: `mov [esi+4], 0xA9F250`), so `Update`'s `this` is `manager + 4` and it recovers the manager with
+`lea ecx, [esi - 4]` (`0x00593958`, `0x0059397A`, `0x00593982`). **DIFFERS** on the return channel: `Update` ends
+`mov al, 1` (`0x00593997`) then `ret 4` (`0x0059399D`), so it returns **`al` = true**, not `eax-or-void`. Its one
+argument is an `SC4DrawContext*`. Whether the view's paint reaches it through `cSC43DRender`'s dynamic pass is
+still *[inferred]* (view3d.md §8, open item V3D-1).
+
 So a session that never draws the city never runs the finish test, never finishes an effect and never posts an
 end message. **Quirk 1 of §15 is proven, not inferred.** Consequence for the disasters: a volcano instance that
 never sees a draw-pass sweep stays in state 5 or 7 and its effect-disaster emergency pause never lifts. A

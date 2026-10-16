@@ -1854,6 +1854,28 @@ New terrain fields (§2.3): `+0xD4` flood-running flag, `+0xE0` float scratch ar
 **§7 addendum:** the low flag bits `0x0001`, `0x0002`, `0x0004` are **transient work marks** — `CreateFlatAreas`
 clears `0xFC` when it changed something, `CreateShoreCliffs` clears `0xF8` **always**. They are never saved (the
 corpus never shows them), so a replacement may use them as scratch and must not persist them.
+### 15.5 The terrain 3D view (`cSTETerrainView3D`) — specified in [view3d.md](view3d.md) §6
+
+Rendering only; the view has no simulation state. It is class `0xC9B84E10`, held at **terrain `+0xE8`**, and its own
+save record is u16 `1` + one byte (§13.2). Four facts this spec's callers rely on, all measured by re-specs21 and
+given with their addresses in [view3d.md](view3d.md) §6:
+
+- **`cISTETerrain` slot 66 `GetView` (`0x00741810`) returns `*(terrain + 0xE8) + 0x0C`**, or null when the field is
+  null. Five instructions. Same `+0x0C` trick as `cSC4View3DWin::AsIGZWin` (ui-windows.md §3.2).
+- **`cSTETerrainView3D::Init` (`0x0075C420`) is `__thiscall` with one dword argument — the terrain — and `ret 4`.**
+  It returns `AL = 0` when `+0x18` says it is already initialised, and stores into `+0x1C` (city), `+0x20` (the
+  terrain argument) and `+0x24`, `AddRef`ing each only when the field is null.
+- **Two globals are dereferenced with no null test:** `0x00B43CD8` (the **preferences** object, read as `*(byte*)(obj+1)`
+  and cached into `0x00B4C741`) and `0x00B43CF0`. `0x00B43CEC` (the city) *is* null-tested at `0x0075C473`.
+- **Corrects the identity of `0x00B43CF0`.** It is **`cISTESurfaceWater`** — city slot 83 `GetSurfaceWater` — not
+  the terrain. The `SL::` cache setter `0x00601C20` stores city slot 84 `GetTerrain` into **`0x00B43CF4` and
+  `0x00B43CF8`**, and city slot 83 `GetSurfaceWater` into `0x00B43CF0`; the teardown at `0x00601FF0` clears all
+  three together. This is consistent with §15.4's note that a brush writes "the surface water's array directly
+  through the terrain's `+0x24` pointer". The view holds city, terrain and surface water because it draws
+  `DrawWaterSurface` (`0x00752240`) and `DrawWaterBox` (`0x007551C0`).
+
+The view's two vtables (`0x00AB4410`, 22 slots; `0x00AB4480`, 5 slots) are tabulated in
+[view3d.md](view3d.md) §6.4.
 
 ## 16. Quirks (summary)
 
