@@ -707,7 +707,7 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      script: line 7 2000-02-01 save -> ok=1 (SaveCity(full) in 412 ms)
      script: line 5 2000-01-06 network 4 4 14 4 0 -> ok=1 (PlaceNetworkOccupants type 0, real, free)
      script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, network, speed, pause, resume, turbo,
-       digest, mark, save, terrain, disaster)
+       hour, digest, mark, save, terrain, disaster)
      script: REFUSED '…\script.txt' (script setting): 1 parse error(s); no action of it runs
      ```
 
