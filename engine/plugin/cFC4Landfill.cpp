@@ -870,7 +870,7 @@ void SetEmptyCellTexture(void* u, int32_t x, int32_t z) {
     FC4_ACQUIRED(static_cast<cIGZUnknown*>(tex), "GetClassObject");
     if (cISC4Occupant* o = tex->AsOccupant()) o->Init();  // slot 3, occupant slot 3
     tex->SetUsage(kLandfillTextureUsage);                 // slot 5
-    tex->SetTextureSpecification(;
+    tex->SetTextureSpecification(
         reinterpret_cast<const cISC4LotBaseTextureOccupant::LotBaseTextureSpecification*>(&rec), 1, nullptr);  // 8
     if (cISC4Occupant* occ = tex->AsOccupant()) {
         if (occ->IsFlagSet(kOccupantFlagInserted)) {

@@ -228,7 +228,6 @@ void TestOccupantManager() {
     const int32_t lo[3] = {64, 0, 64}, hi[3] = {64, 0, 64};
     CHECK(fc4_occmgr_iterate(
         m, [](void* ctx, uint64_t) { ++static_cast<OccWorld*>(ctx)->seen; return true; }, &w, lo, hi, nullptr));
-        lo, hi));
     CHECK(w.seen == 1);
     CHECK(fc4_occmgr_lock_depth(m) == 0);
     CHECK(fc4_occmgr_remove(m, 1, false, 0));

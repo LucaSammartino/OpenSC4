@@ -1530,7 +1530,7 @@ void BaseTextureSet(void* u, uint64_t occ, const fc4_lotdev_texture* records, si
         std::memcpy(r.extra, records[i].extra, sizeof(r.extra));
         r.frame = records[i].frame;
     }
-    tex->SetTextureSpecification(;
+    tex->SetTextureSpecification(
         reinterpret_cast<const cISC4LotBaseTextureOccupant::LotBaseTextureSpecification*>(recs.empty() ? nullptr
                                                                                                          : recs.data()),
         static_cast<uint32_t>(n), nullptr);  // slot 8

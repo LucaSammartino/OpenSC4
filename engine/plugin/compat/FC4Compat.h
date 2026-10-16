@@ -51,7 +51,7 @@ enum class Direct : unsigned {
     RetainingWallsUpdateSurrounding,  // UpdateSurroundingRetainingWalls: void (cISC4Lot*), pops 4
     BurntBuildingSetBounds,           // cSC4PropOccupantBurntBuilding::SetBoundsFromOccupant: thiscall on the
                                       //   base (cISC4Occupant* source), pop 4, void (direct-calls.md; LD14)
-    Count;
+    Count
 };
 
 // The disaster shadow's forwarders (the plugin's disasters_shadow, tooling;
@@ -79,7 +79,7 @@ enum class DisasterHook : unsigned {
     RiotMessage,            // riot instance cIGZMessageTarget2 slot 3 DoMessage(msg), pop 4
     RiotLock,               // riot manager's riot interface slot 9 LockNetworkOccupant(n), pop 4
     TutorialIsTutorial,     // cSC4TutorialSystem slot 8 IsTutorial(), pop 0
-    Count;
+    Count
 };
 
 struct DisasterHookSite {

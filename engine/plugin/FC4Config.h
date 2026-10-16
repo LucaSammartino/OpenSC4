@@ -544,7 +544,7 @@ enum class Sw : unsigned {
     LotdevNight,         // lotdev_night: building SetLit and the night-light prop messages (off: not sent)
     LotdevUnits,         // lotdev_units: the business units (off: none made, joined or left)
     LotdevAgents,        // lotdev_agents: AddAgent / RemoveAgent and the animation tick (off: not registered)
-    Count;
+    Count
 };
 
 // True if the switch is on (default) - cheap, any thread.

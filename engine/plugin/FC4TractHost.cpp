@@ -713,7 +713,7 @@ void LotsSurroundingLot(void* u, uint64_t lot, uint32_t flags, fc4_token_callbac
     cFC4ISC4LotManager* lm = LotManager(u, "tract GetLotsSurroundingLot (none)");
     LotList* list = lm ? FarmList(u, false) : nullptr;
     if (list == nullptr) return;
-    AppendAndReport(;
+    AppendAndReport(
         u, list,
         [&](fc4::GameList<cISC4Lot*>& l) { lm->GetLotsSurroundingLot(SdkLotOf(lot), l, static_cast<int32_t>(flags)); },
         cb, cbCtx);
@@ -728,7 +728,7 @@ void LotsSurroundingRect(void* u, const fc4_cell_rect* rect, uint32_t flags, fc4
     LotList* list = lm ? FarmList(u, flags == 1) : nullptr;
     if (list == nullptr) return;
     const SC4Rect<long> r(rect->x1, rect->z1, rect->x2, rect->z2);
-    AppendAndReport(;
+    AppendAndReport(
         u, list, [&](fc4::GameList<cISC4Lot*>& l) { lm->GetLotsSurroundingRect(r, l, static_cast<int32_t>(flags)); },
         cb, cbCtx);
 }

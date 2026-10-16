@@ -57,7 +57,7 @@ enum Section : uint32_t {
     kGridBulk,          // count only: whole-grid reads (fc4_grid_set_bulk_reader)
     kBdsPeek,           // count only: BDS getters answered from the published copies (no call in progress)
     kGrowthPeek,        // count only: growth getters answered from the published copies
-    kSectionCount;
+    kSectionCount
 };
 
 // perf_profile, read once (the ini is written before the game starts).
