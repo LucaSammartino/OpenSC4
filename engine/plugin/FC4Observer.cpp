@@ -41,6 +41,9 @@
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
+#include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
+#include "FC4DemolitionShadow.h"  // the glue17 lane: demolition_shadow
+#include "FC4DispatchShadow.h"    // the glue17 lane: dispatch_shadow
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "cFC4LotDeveloper.h"
@@ -567,6 +570,9 @@ public:
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
+                CitySitShadowCityLoaded(CurrentCity());  // the glue17 lane: citysit_shadow = 1 only
+                DemolitionShadowCityLoaded(CurrentCity());  // demolition_shadow = 1 only
+                DispatchShadowCityLoaded(CurrentCity());  // dispatch_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -589,6 +595,9 @@ public:
                 ParksShadowCityShutdown();  // parks_shadow: the same
                 TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
+                CitySitShadowCityShutdown();  // the glue17 lane: citysit_shadow's summary, then the core goes
+                DemolitionShadowCityShutdown();
+                DispatchShadowCityShutdown();
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:
@@ -623,6 +632,9 @@ public:
                 LotDevShadowMonth(CurrentCity(), julian);       // lotdev_shadow = 1 only
                 fc4::ZoneDevMonthLine(julian);                  // enable = zonedev only (the month status line)
                 ZoneDevShadowMonth(CurrentCity(), julian);      // zonedev_shadow = 1 only
+                CitySitShadowMonth(CurrentCity(), julian);  // the glue17 lane: citysit_shadow = 1 only
+                DemolitionShadowMonth(CurrentCity(), julian);  // demolition_shadow = 1 only
+                DispatchShadowMonth(CurrentCity(), julian);    // dispatch_shadow = 1 only
                 ++monthsSinceLoad_;
                 if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the

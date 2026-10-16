@@ -48,6 +48,9 @@
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
+#include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
+#include "FC4DemolitionShadow.h"  // the glue17 lane: demolition_shadow
+#include "FC4DispatchShadow.h"    // the glue17 lane: dispatch_shadow
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -471,6 +474,11 @@ void Resolve() {
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
     // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
     TerrainShadowStartup();
+    // The glue17 lane's three shadows (they compare the original city situation
+    // manager, demolition utility and dispatch manager).
+    CitySitShadowStartup(enabledKey("citysit"));
+    DemolitionShadowStartup(enabledKey("demolition"));
+    DispatchShadowStartup(enabledKey("dispatch"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

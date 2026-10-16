@@ -306,6 +306,19 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4DisasterHost.h
         plugin/FC4DisasterShadow.cpp
         plugin/FC4DisasterShadow.h
+        # The glue17 lane: the city situation manager, the demolition utility
+        # and the dispatch manager (city-situation.md, demolition.md,
+        # dispatch.md) and their shadows: citysit_shadow, demolition_shadow,
+        # dispatch_shadow. FC4CoreShadow is the record round trip the three
+        # shadows share.
+        plugin/FC4CoreShadow.cpp
+        plugin/FC4CoreShadow.h
+        plugin/FC4CitySitShadow.cpp
+        plugin/FC4CitySitShadow.h
+        plugin/FC4DemolitionShadow.cpp
+        plugin/FC4DemolitionShadow.h
+        plugin/FC4DispatchShadow.cpp
+        plugin/FC4DispatchShadow.h
         # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp

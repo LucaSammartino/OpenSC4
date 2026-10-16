@@ -146,6 +146,12 @@
 //   disasters_shadow = 0 / 1     the disaster layer shadow (default 0; needs the ORIGINAL
 //                                 disaster layer: do not enable disasters; fire and riot;
 //                                 FC4DisasterShadow.h)
+//   citysit_shadow = 0 / 1        the city situation manager shadow (default 0; needs the
+//                                 ORIGINAL manager: do not enable citysit; FC4CitySitShadow.h)
+//   demolition_shadow = 0 / 1     the demolition utility shadow (default 0; needs the ORIGINAL
+//                                 utility: do not enable demolition; FC4DemolitionShadow.h)
+//   dispatch_shadow = 0 / 1       the dispatch manager shadow (default 0; needs the ORIGINAL
+//                                 manager: do not enable dispatch; FC4DispatchShadow.h)
 //   parks_seed = N                the park member generator's session seed (default:
 //                                 the cRZTime clock; cFC4Parks.cpp)
 //   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
