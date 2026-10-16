@@ -51,9 +51,12 @@
 #include "FC4NetMgrShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
+#include "FC4DemolitionPriceShadow.h"  // the glue23 lane: demolition_price_shadow
 #include "FC4DemolitionShadow.h"  // the glue17 lane: demolition_shadow
 #include "FC4DispatchShadow.h"    // the glue17 lane: dispatch_shadow
 #include "cFC4Dispatch.h"        // the glue17 lane: enable = dispatch
+#include "cFC4CitySituation.h"    // the glue17 lane: enable = citysit
+#include "cFC4Demolition.h"       // the glue23 lane: enable = demolition
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -308,6 +311,22 @@ const ClassEntry kDispatchClasses[] = {
     {kFC4_CLSID_cSC4DispatchManager, "cSC4DispatchManager", &CreateFC4DispatchManager},
 };
 
+// docs/specs/city-situation.md §1, and the §8 "minimal replacement" [choice]:
+// the record byte for byte and the interface answered with "no situation".
+// Off by default (glue17): `enable = citysit`. The mission gameplay (targets,
+// pursuit, coverage, the player-drive camera, the popup) is deliberately out
+// of scope (§0).
+const ClassEntry kCitySitClasses[] = {
+    {kFC4_CLSID_cSC4CitySituationManager, "cSC4CitySituationManager", &CreateFC4CitySituationManager},
+};
+
+// docs/specs/demolition.md §1. Off by default (glue23): `enable = demolition`.
+// Its host is the full 86-callback table of FC4DemolitionHost.h; a half-wired
+// one would price utility demolition at 0 and demolish nothing.
+const ClassEntry kDemolitionClasses[] = {
+    {kFC4_CLSID_cSC4Demolition, "cSC4Demolition", &CreateFC4Demolition},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -343,6 +362,9 @@ const Subsystem kSubsystems[] = {
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
     {"dispatch", nullptr, kDispatchClasses, sizeof(kDispatchClasses) / sizeof(kDispatchClasses[0]), false},
+    {"citysit", nullptr, kCitySitClasses, sizeof(kCitySitClasses) / sizeof(kCitySitClasses[0]), false},
+    {"demolition", nullptr, kDemolitionClasses, sizeof(kDemolitionClasses) / sizeof(kDemolitionClasses[0]),
+     false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -494,6 +516,7 @@ void Resolve() {
     // manager, demolition utility and dispatch manager).
     CitySitShadowStartup(enabledKey("citysit"));
     DemolitionShadowStartup(enabledKey("demolition"));
+    DemolitionPriceShadowStartup(enabledKey("demolition"));  // the glue23 lane
     DispatchShadowStartup(enabledKey("dispatch"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);

@@ -156,6 +156,10 @@
 //                                 ORIGINAL manager: do not enable citysit; FC4CitySitShadow.h)
 //   demolition_shadow = 0 / 1     the demolition utility shadow (default 0; needs the ORIGINAL
 //                                 utility: do not enable demolition; FC4DemolitionShadow.h)
+//   demolition_price_shadow = 0 / 1  the demolition PRICING differential: our DemolishOccupant
+//                                 and DemolishRegion prices against the original's, side by
+//                                 side (default 0; needs the ORIGINAL utility: do not enable
+//                                 demolition; FC4DemolitionPriceShadow.h)
 //   dispatch_shadow = 0 / 1       the dispatch manager shadow (default 0; needs the ORIGINAL
 //                                 manager: do not enable dispatch; FC4DispatchShadow.h)
 //   parks_seed = N                the park member generator's session seed (default:

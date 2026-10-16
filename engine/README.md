@@ -194,7 +194,7 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
    - `disable = budget` means the same as `FC4_DISABLE`. It is read once, when the game enumerates the classes,
      so a change needs a game restart.
    - Some subsystems are **off by default** and only registered with `enable = …` (or `FC4_ENABLE`); `disable`
-     still wins (`enable = landvalue, weather` takes a list). Without it the log says
+     still wins (`enable = landvalue, weather` takes a list). The demolition utility is one of them: `enable = demolition` registers `cSC4Demolition` (class `0x0990C38A`) over `plugin/FC4DemolitionHost.h`, the full 84-callback `fc4_demolition_host`. Without it the log says
      `subsystem '…': off by default` and the game's class runs, so budget bisection runs are unaffected:
      - `landvalue`: the land value simulator (`cSC4LandValueSimulator`, landvalue spec; its grids are the game's
        own `cSC4SimGrid` objects, created through GZCOM, simgrid spec §6.3);
@@ -1749,6 +1749,18 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      `ModifyTerrainHeight` counts (a dry run needs the demolition host's occupant-query callbacks, which this lane
      did not wire — the core is covered by its conformance vectors `dm00`-`dm12`), the effects and the §6 tuning
      (module globals, no getter).
+   - **Demolition pricing differential** (`demolition_price_shadow = 1`; env
+     `FC4_DEMOLITION_PRICE_SHADOW`; off by default; `plugin/FC4DemolitionPriceShadow.h`): needs the
+     **original** utility (do not `enable = demolition`). It prices every `DemolishOccupant` of every occupant
+     the occupant manager lists over the city on **both** sides - FreeCity4's core over the full host table and
+     the original's - and compares every price (the int64 cost and the bool the call returns) at PostCityInit and
+     every SimNewMonth. Success is `mismatches=0` on every line; the shutdown line totals them:
+     `demolition price shadow: city shutdown: L lines, C with mismatches=0; compared K prices, M mismatched;`
+     `differences: ...`. Our own whole-city `DemolishRegion` dry run is logged each month as well. The
+     **original's** region dry run is not attempted: demolition.md §4.4 step 2 fetches the 3D view's filter with
+     no null test in the original, and that dereference faults in a headless run (lane question DQ7).
+     `ModifyTerrainHeight`'s vertex counts and the two effect methods are not priced here either.
+
    - **Dispatch manager** (`enable = dispatch`; `plugin/cFC4Dispatch.*`, over the `fc4_dispatch` core): the
      city's `cSC4DispatchManager` (class `0x4990BD93`, city component 3, the slot 39 getter). It answers
      `cISC4DispatchManager` (dispatch.md §8, 24 slots), `cIGZMessageTarget2` and `cIGZSerializable`; `Read` runs
@@ -1800,6 +1812,18 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      line had `mismatches=0`, `resyncs=0`, `refused=0` and every probed call on the main thread. OM1 was answered
      statically (re-answers18): the background model loader's thread calls slot 40, one standard cell at a time,
      when its filter flag is set; slot 40 is probed for that reason.
+   - **City situation manager** (`enable = citysit`; `plugin/cFC4CitySituation.*`, over the `fc4_citysit` core):
+     the city's `cSC4CitySituationManager` (class `0x0BB14381`, city component 52, the slot 49 getter). It answers
+     `cISC4CitySituationManager` (city-situation.md §8, 40 slots), `cIGZMessageTarget2`, the legacy
+     `cIGZMessageTarget` and `cIGZSerializable`; `Read` runs before `Init` and sizes nothing from the city. This is
+     the spec's §8 **minimal replacement** [choice]: the record byte for byte and the interface answered with "no
+     situation" — the mission gameplay (targets, pursuit, coverage, the player-drive camera, the popup) is
+     deliberately out of scope (§0 calls a full one "several thousand lines"), and unattended play never starts a
+     mission (§0: "its popup never opens by itself"). The host wires the message server and the ten subscriptions
+     of §3, the preferences' reward list, the advice and automaton queries the interface needs, the aura's
+     `AddTransientEffect` and the budget's `DepositFunds` (the §4.5 outcome) and the messages of §3; the mission
+     pieces are not wired. Lines: `citysit Init: …`, `citysit Read|Write -> …`, `citysit Shutdown: …`. **Off by
+     default**; the `citysit_shadow` differential above is the in-game check while it is.
    - **History warehouse and 24-hour clock** (`enable = history`, `enable = clock24`; `plugin/cFC4History.*`,
      `plugin/cFC4Clock24.*`, over the `fc4_history` and `fc4_clock24` cores). The warehouse is the city's
      `cSC4HistoryWarehouse` (class `0x89EFA536`): it hears the record and queue-length messages, adds itself as a

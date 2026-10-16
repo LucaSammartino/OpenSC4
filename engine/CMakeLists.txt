@@ -324,6 +324,16 @@ if(FC4_IS_WIN32_X86)
         # The dispatch manager's GZCOM class (enable = dispatch).
         plugin/cFC4Dispatch.cpp
         plugin/cFC4Dispatch.h
+        # The city situation manager's GZCOM class (enable = citysit): the
+        # city-situation.md §8 minimal replacement.
+        plugin/cFC4CitySituation.cpp
+        plugin/cFC4CitySituation.h
+        plugin/FC4DemolitionHost.cpp
+        plugin/FC4DemolitionHost.h
+        plugin/cFC4Demolition.cpp
+        plugin/cFC4Demolition.h
+        plugin/FC4DemolitionPriceShadow.cpp
+        plugin/FC4DemolitionPriceShadow.h
         # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp
