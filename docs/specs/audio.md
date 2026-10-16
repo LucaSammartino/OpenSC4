@@ -484,105 +484,266 @@ started or stopped *[compat]*.
 
 ## 7. The audio event handler
 
-`cSC4AudioEventHandler`, CLSID `0xBDB6171E`, factory `0x004EB0A0`. `DoMessage` `0x004EF810`,
-`Init` `0x004EFE80`, `Shutdown` `0x004EE000`, destructor `0x004EFC60`.
+`cSC4AudioEventHandler`, CLSID `0xBDB6171E`, factory `0x004EB0A0`, **object size `0x50`** (ctor `0x004EF6F0`).
+`DoMessage` `0x004EF810`, `HandleAutomataMessages` `0x004EE560`, `Init` `0x004EFE80`, `Shutdown` `0x004EE000`,
+destructor `0x004EFC60`, `DoEvent` `0x004EF490`.
 
-### 7.1 Message dispatch (`DoMessage` `0x004EF810`)
+### 7.1 Object layout
 
-A binary search on `msg->slot4()` (the type getter). The complete set of types it accepts:
+| Off | Type | Meaning | Evidence |
+|---|---|---|---|
+| `+0x00` | vtable | `0x00A94164` | ctor `0x004EF70A` |
+| `+0x04` | vtable | `0x00A94154` — **modal** message target | `0x004EF710` |
+| `+0x08` | vtable | `0x00A94144` — **main** message target | `0x004EF717` |
+| `+0x0C` | vtable | `0x00A94130` — service (`Init` / `Shutdown`) | `0x004EF71E` |
+| `+0x10` | `*` | `GetService(0x1D07B39F, 0xE0510260)` — **`kRZRadioDefaultServiceId`** | `0x004EF737` |
+| `+0x14` | `cIGZSndSys*` | `GetService(0x23CECBA0, 0x106077D2)` — the sound system | `0x004EF757` |
+| `+0x18` | refcounted `*` | a required non-null capability; released and nulled in `Shutdown` | `0x004EF767`, `0x004EE059` |
+| `+0x1C` | `u8` | **initialized flag** | `0x004EF76A` |
+| `+0x20` | `u32` | refcount | `0x004EDE60`, AddRef `0x008AE800` |
+| `+0x2C` | list node `*` | `std::list` sentinel (12 bytes) | `0x004EF776` |
+| `+0x30` | `cRZTimer` | the rate limiter of section 7.3 | `0x004EF78A` |
+| `+0x48` | `u32` | rate-limit window (ms) | `0x004EF796` |
+
+Four sub-object vtables; each is QueryInterface / AddRef / Release plus one or two real slots:
+
+| Vtable | At | Slot 3 | Slot 4 |
+|---|---|---|---|
+| `0x00A94164` | `+0x00` | `DoEvent` `0x004EF490` | deleting dtor `0x004EFC60` |
+| `0x00A94154` | `+0x04` | `DoMessage` (modal) `0x004EFE50` | — |
+| `0x00A94144` | `+0x08` | `DoMessage` (main) `0x004EF810` | — |
+| `0x00A94130` | `+0x0C` | `Init` `0x004EFE80` | `Shutdown` `0x004EE000` |
+
+**Corrects (re-specs20):** an earlier reading of `DoMessage` treated the object it reaches as "a sound manager
+at `this+0x08`". That is a Ghidra `this`-base mistranslation: `DoMessage` runs with `this = base+8` (it is
+slot 3 of the vtable at `[base+8]`), so the loads Ghidra names `field2_0x8` are object **`+0x10`**, which is
+the **`kRZRadioDefaultServiceId` service** (`0x1D07B39F`), not a sound manager. The sound system is at
+object `+0x14` (`cIGZSndSys`). **DIFFERS** from that reading.
+
+### 7.2 Message dispatch (`DoMessage` `0x004EF810`)
+
+A binary search on the message type. It returns 0 only for a null message; every other type returns 1.
 
 | Type | Name | Handler |
 |---|---|---|
 | `0x89F10866` | | `HandleConstructionMessages` `0x004EEC10` |
 | `0xA9F10E45` | | `HandleConstructionMessages` `0x004EEC10` |
-| `0x2A611B51` | | `field2_0x8->slot31` (`+0x7C`) |
-| `0x26D31EC4` | PreCityInit (city life cycle) | builds and posts a message |
-| `0x26D31EC5` | PostCityInit | builds a message of type `0x2A3AD653` with data1 = 1 and posts it |
+| `0x2A611B51` | | `+0x10` service slot 31 (`+0x7C`) |
+| `0x26D31EC1` | `kSC4MessagePostCityInit` | `HandleCityInitShutdownMessages` `0x004EE970` (**Add**) |
+| `0x26D31EC2` | `kSC4MessagePreCityShutdown` | `HandleCityInitShutdownMessages` (**Remove**) |
+| `0x26D31EC4` | | builds and posts a message |
+| `0x26D31EC5` | | builds a message of type `0x2A3AD653` with data1 = 1 and posts it |
 | `0x2A3AD653` | `kMessageSetRadioStation` | `HandleRadioMessages` `0x004EF010` |
 | `0x8A385DD8` | AutomataPlaySFX | `HandleAutomataMessages` `0x004EE560` |
 | `0xA9E3B6E3` | | `HandleAutomataMessages` `0x004EE560` |
 | `0xAA396960` | AutomataStopSFX | `HandleAutomataMessages` `0x004EE560` |
 | `0xEA3ADA33` | | `HandleAutomataMessages` `0x004EE560` |
-| `0xAA611B6E` | | `msg->slot10()` → `field2_0x8->slot7` (`+0x1C`), then `msg->slot2()` |
-| `0xAA650861` | | `msg->slot9()` → `field2_0x8->slot30` (`+0x78`) as a bool |
-| `0xC9F1011A` | | `LAB_004EFA91` |
-| `0xE94671EB` | | `LAB_004EFA91` |
+| `0xAA611B6E` | | `msg->slot10()` then the `+0x10` service slot 7 (`+0x1C`), then `msg->slot2()` |
+| `0xAA650861` | | `msg->slot9()` then the `+0x10` service slot 30 (`+0x78`) as a bool |
+| `0xC9F1011A`, `0xE94671EB` | | `LAB_004EFA91` |
 | `0xFA0C6390` | `kMouseMessageType` | `HandleMouseMessagesForModalWindow` `0x004EF5D0` |
 
-Every other type returns 1 without doing anything. `DoMessage` returns 0 only for a null message.
+**Subscriptions.** `Init` (`0x004EFE80`) fetches four services — `0x23CECBA0`/`0x106077D2` (`cIGZSndSys`),
+`0x49E50BA1`/`0x29E39DB4`, `0x2073215D`/`0xE0203660`, `0x4FA845B`/`0x652294C7` (`cIGZMessageServer2`) —
+registers itself with the sound system (`SndSys->vt[0x3C]` at `0x004EFEC8`; the matching `vt[0x40]`
+unregister is at `0x004EE056`), and subscribes:
 
-`this+0x08` (Ghidra's `field2_0x8`) is the **sound manager**; the handler drives it purely through its
-vtable. `this+0x14` and `this+0x18` are used by `HandleAutomataMessages` (§7.2).
+- target `base+0x04` (modal `DoMessage`) to `0x62BA7B42` and `0x62BA7B43` (the modal begin/end notices),
+  through the global `DAT_00B43CC8`;
+- target `base+0x08` (main `DoMessage`) to `0x26D31EC1`, `0x26D31EC2`, `0xC53D10AA`, `0x26D31EC4`,
+  `0x26D31EC5`, `0x4A7FB7E9`, `0x2A3AD653`, `0x0A611B34`, `0x2A611B51`, `0xAA611B6E`, `0xAA650860`,
+  `0xAA650861`, `0x4348B111`.
 
-### 7.2 `HandleAutomataMessages` (`0x004EE560`)
+A **second** set of 11 types is subscribed only while a city is loaded, by `HandleCityInitShutdownMessages`
+(`0x004EE970`): `0x26D31EC1` **adds** and `0x26D31EC2` **removes** `0xE94671EB`, `0xE94671ED`, `0x894671F6`,
+`0xA9E3B6E3`, **`0x8A385DD8`**, **`0xAA396960`**, `0x49F10111`, `0xC9F1011A`, `0xEA3ADA33`, `0x89F10866`,
+`0xA9F10E45` on target `base+0x08`. **So the automata SFX messages are only heard while a city is loaded**
+*[compat]*.
 
-Entry conditions: `this+0x18` must be non-null (else return 0), and the message must answer QI `0x65297976`.
+`Shutdown` (`0x004EE000`) reverses this: unregister from the sound system, release `+0x18`, stop the `+0x10`
+service, unsubscribe the `Init` list from `base+0x08`, unsubscribe `0x62BA7B42`/`0x62BA7B43` from `base+0x04`,
+clear `+0x1C`. The city-init set is **not** torn down here — it is removed by the `0x26D31EC2` path.
 
-For type **`0x8A385DD8` (play)**:
+### 7.3 `HandleAutomataMessages` (`0x004EE560`)
 
-1. `payload->slot9()` is compared against **`0xA9F14C47`** (`-0x560EB3B9`). When it matches, a **rate limiter**
-   runs: if the timer at `this+0x30` (`cRZTimer`) is running and `cRZTimer::GetElapsedTime` is less than the
-   threshold at **`this+0x48`**, the play is dropped entirely (`goto` the exit). Otherwise the timer is
-   restarted and the threshold is set to `lib::_rand() * 3000 / 0x7FFF + 1000` — a uniform random
-   **1000…3999 ms** *[compat]*.
-2. Otherwise (or after the limiter passes) the position is obtained: `payload->slot32()`, then QI
-   **`0xA9B40F05`** into a `cS3DVector3`.
-3. `this->field8_0x14->slot11(0xEA451903, …)` is called, and a parallel path calls
-   `this->field8_0x14->slot11(0x6A451908, …)` for the stop case.
+Entry: `+0x18` must be non-null, and the message must answer QI `0x65297976`; if `+0x14` (`cIGZSndSys`) is
+null the handler releases and returns 0.
 
-For type **`0xAA396960` (stop)**: `payload->slot14(0,0,0)` is taken and passed as
-`this->field8_0x14->slot11(0x6A451908, value)`.
+For type **`0x8A385DD8` (play)** — `0x004EE707`:
 
-`0x6A451908` and `0xEA451903` are therefore **the command identifiers the event handler sends to
-`field8_0x14`** for stop and play respectively *[inferred]*; `field8_0x14` is *[inferred]* the Lua script
-server (the function also calls `_lua_gettop` on this path). What would settle it: the `Init` body
-(`0x004EFE80`) showing which service is stored at `+0x14`, and the `re/class_id_table.tsv` entry for those two
-constants (neither is present today).
+1. `payload->slot9()` is compared against **`0xA9F14C47`**. When it matches, a **rate limiter** on the
+   handler runs (timer at `+0x30`): if the timer is running and `GetElapsedTime` is **< `+0x48`**, the play
+   is **dropped** and the handler returns 1. Otherwise the timer restarts and `+0x48` is set to
+   `1000 + rand()*3000/0x7FFF` — a uniform random **1000…4000 ms** (`0x004EE73C`–`0x004EE75F`) *[compat]*.
+2. The position is obtained: `payload->slot32()`, then QI **`0xA9B40F05`** into a `cS3DVector3` seeded from
+   global `DAT_00B21A04`.
+3. Two events are posted to the sound system (`+0x14`) through its `vt[0x2C]`:
+   - **`0xEA451903`** with `(payload->slot9(), payload->slot14(1,0))` — the **start-sound** event;
+   - **`0xCA45190F`** with the packed vector — the **set-sound-position** event.
 
-### 7.3 Object layout (partial)
+For type **`0xAA396960` (stop)** — `0x004EE83E`: `payload->slot14(0,0,0)` is taken and **`0x6A451908`** is
+posted to the sound system with it.
 
-| Offset | Meaning | Evidence |
-|---|---|---|
-| `+0x08` | the sound manager | driven by slots `+0x1C`, `+0x20`, `+0x5C`, `+0x60`, `+0x78`, `+0x7C` in `DoMessage` `0x004EF810` |
-| `+0x14` | a service used by `HandleAutomataMessages` | `0x004EE560` |
-| `+0x18` | a required non-null capability pointer | checked at the top of `0x004EE560` |
-| `+0x30` | `cRZTimer` | `cRZTimer::IsTimerRunning` / `GetElapsedTime` / `Restart` at `0x004EE560` |
-| `+0x48` | `u32` rate threshold (ms) | written with `rand()*3000/0x7FFF + 1000` at `0x004EE560` |
+`0xEA451903`, `0x6A451908` and `0xCA45190F` are therefore **sound-system event ids, not message types**.
+They are dispatched by `cSC4AudioSoundManager::DoEvent` (section 8.3). **Corrects:** an earlier reading
+called these "command identifiers sent to `field8_0x14`" and guessed that field was the Lua script server; it
+is `cIGZSndSys` and they are events. **DIFFERS** on the target; the ids themselves **MATCH**.
 
-### 7.4 `Init` / `Shutdown`
+For `0xA9E3B6E3` the handler posts `0x49DE8A94` and `0xA9DE8B59` to `+0x18`, or QIs `0x26BB767E` and posts a
+derived id. For `0xEA3ADA33` it calls `SFX::SoundManager` (`0x004BB9E0`) and
+`cSC4AudioSoundManager::GenerateNewInstanceId` (`0x004F7BB0`) directly.
 
-`Init` `0x004EFE80` and `Shutdown` `0x004EE000` set up and tear down the objects above. *[unsettled]*: the
-complete subscription list from `Init` and the teardown order are not yet transcribed (§15, **AU3**); the
-dispatch table of §7.1 is complete and is the part an implementer needs for message compatibility.
+### 7.4 `cSC4AudioEventHandlerDisasterFire`
+
+CLSID `0x69E500BC`, factory `0x004EB100`, object size **`0x34`**. Registered alongside the handler under
+service IID `0xBB523BB2` by `cSC4AudioCOMDirector::PostAppInit` (`0x004EBF40`); `HandleTorchControlMessages`
+(`0x004EF170`), `_StartTorchSound` (`0x004EF0C0`) and `_StopTorchSound` (`0x004EF100`) are its sound entry
+points.
 
 ---
 
 ## 8. The SC4 sound manager
 
-`cSC4AudioSoundManager`, CLSID `0x4A47DC0D`, factory `0x004EB080`. It owns sound **instances** and is the
-target of the AutomataPlaySFX / AutomataStopSFX flow.
+`cSC4AudioSoundManager`, CLSID **`0x4A47DC0D`**, factory `0x004EB080`, **object size `0x80`**
+(`operator new(0x80)` then ctor `0x004F9830`). It owns the running sound instances.
 
-### 8.1 `GenerateNewInstanceId` (`0x004F7BB0`)
+**The manager never sees `0x8A385DD8` or `0xAA396960`.** Its `DoMessage` (`0x004F9430`) has neither in its
+switch and neither in its subscribe list, and a text-section scan finds those immediates only in the
+automaton's posters and the event handler. The manager is reached **indirectly**, through sound-system events
+(section 8.3) *[compat]*.
 
-Called by `cSC4Automaton::StartSFX` (`0x0050998D`) and returns the value stored at `automaton+0x8C`. That
-value is then the `data2` of both the play and the stop message, so it is the key by which a running sound is
-later stopped *[compat]*.
+### 8.1 Object layout
 
-*[unsettled]*: whether the id is a per-manager counter or a global one, whether 0 is skipped (it must be,
-because `StopSFX` treats `automaton+0x8C == 0` as "nothing playing"), and whether it wraps. §15, **AU2**.
+| Off | Type | Meaning |
+|---|---|---|
+| `+0x00` | vtable | `0x00A94428` |
+| `+0x04` | vtable | `0x00A94418` |
+| `+0x08` | vtable | `0x00A94408` |
+| `+0x0C` | vtable | `0x00A943F8` — the `cIGZMessageTarget` given to the message server |
+| `+0x10` | `u32` | **refcount** (AddRef `0x004F7BA0`) |
+| `+0x14` | `u32` | master volume, default `0x400`; `_HandleSetMasterVolume` `0x004FA550` |
+| `+0x18` | `u32` | cumulative elapsed time (`Update` adds dt) |
+| `+0x1C` | `u32` | update counter |
+| `+0x2C` | `u8` | flag |
+| `+0x30` | `u32` | focus-restore countdown, set to 50 |
+| `+0x34`/`+0x38`/`+0x3C` | hashtable | **instance id to `tSound*`**; buckets begin/end at `+0x38`/`+0x3C` |
+| `+0x48` | list node `*` | `std::list` of `tSound*`, sentinel (12-byte node) |
+| `+0x4C` | `u32` | list size |
+| `+0x54` | `u32` | one-shot counter, compared against `+0x68` |
+| `+0x5C` | `cIGZSndSys*` | `GetService(0x23CECBA0, 0x106077D2)` |
+| `+0x60` | `cIGZSndMgr*` | `GetService(0x1AF85BFB, 0x3AF85BB7)` |
+| `+0x64` | `u32` | tuning `0xAABAA0D3`, default **3** |
+| `+0x68` | `u32` | tuning `0x0A946A57`, default **10** |
+| `+0x6C` | `u32` | tuning `0x4A946A5D`, default **30** |
+| `+0x70` | `cSC4ResponseCurve` | tuning `0x6A946A50` (section 10.8) |
 
-### 8.2 Interface shape
+Hashtable node is `{next, u32 key (instance id), tSound*}`; list node is `{next, prev, tSound*}`.
 
-`cGZSndMgr::QueryInterface` (`0x00968A9D`) answers IID **`0x3AF85BB7`** by returning `this+0x1C` and calling
-`AddRef`; every other IID falls through to `cRZSystemService::QueryInterface`. `cGZSndMgr` therefore derives
-from `cRZSystemService` and exposes `cIGZSndMgr` at `+0x1C` *[compat]*.
+### 8.2 Vtables
 
-### 8.3 `cGZSndMgr` — the framework sound manager
+`0x00A94428` (primary, `this` = base): 0 `QueryInterface` `0x004F7B70`, 1 `AddRef` `0x004F7BA0`, 2 `Release`
+`0x004F8DA0`, 3 `DoEvent` `0x004FA590`.
+
+`0x00A94418` (at `+0x04`, thunks `sub ecx,4`): 3 **`Update(dt)`** `0x004F9CA0` (`ret 4`; adds dt to `+0x18`,
+ticks the countdown at `+0x30`, calls `SndSys->vt[0x80](0x004F7FD0, 0, this)` and per-sound `0x004F9690` over
+the `+0x48` list).
+
+`0x00A94408` (at `+0x08`, thunks `sub ecx,8`): 3 hashtable lookup by id, reached through QI `0xFD584467`
+(`0x004F98F0`).
+
+`0x00A943F8` (at `+0x0C`, thunks `sub ecx,0xC`): 3 **`DoMessage`** `0x004F9430` (`ret 4`, returns `al`).
+
+`QueryInterface` (`0x004F7B70`) answers **`1` and `0x4A47DC0D`** only — the CLSID doubles as the primary IID
+(`CreateObject(0x4A47DC0D, 0x4A47DC0D, ...)` at `0x004EC15D`) — and returns the **object base**. `Release`
+(`0x004F8DA0`) decrements while > 1, else destroys and returns 0.
+
+**Corrects:** `docs/abi/vtables.tsv` labels slot 1 of `0x00A94428` as `icf::cSC43DRender::AddRef` and slot 1
+of the event handler's `0x00A94164` as `icf::cGZLuaScriptServer::AddRef`. Both are **shared-thunk
+mis-attributions**: `0x004F7BA0` is `inc [ecx+0x10]` (this class's own refcount) and `0x008AE800` is
+`inc [ecx+0x20]`. **DIFFERS.** ABI rows are in `build-runs/pending-abi/re-specs20-rows.tsv`.
+
+### 8.3 Message and event contract
+
+`DoMessage` (`0x004F9430`) handles exactly these, and subscribes to all but one in `Init` (`0x004FA2F0`):
+
+| Type | Name | Action |
+|---|---|---|
+| `0x28E9397B` | `kSC4MessagePostAppInit` | return 1, no-op |
+| `0x28E9397C` | `kSC4MessagePreAppShutdown` | `StopAllSounds(0)` |
+| `0x26D31EC2` | `kSC4MessagePreCityShutdown` | `StopAllSounds(0)` |
+| `0x4348B111` | `kMessageTypeAppGainLoseFocus` | `_HandleFocusChangeMessage` `0x004F7F00` |
+| `0x4A7FB7E9` | `kSC4MessageSimSpeedChange` | `UpdateAllSounds` `0x004F7E20` |
+| `0x8A4A69C7` | `kMessageListenerPosChanged` | `UpdateAllSounds` |
+| `0xAA7FB7E0` | `kSC4MessageSimPauseChange` | `UpdateAllSounds` |
+| `0xC53D10AA` | exemplar changed | `_ReadTuningValues` `0x004F9250` |
+
+`0xC53D10AA` is **handled but never subscribed**; it must arrive by direct post *[inferred]*.
+
+`DoEvent` (`0x004FA590`) is the sound-system event dispatcher:
+
+| Event | Handler | Then |
+|---|---|---|
+| `0xEA451903` / `1` | `_HandleStartSound` `0x004FA1F0` | `_StartSound` `0x004F9D70` |
+| `0x6A451908` / `2` | `FUN_004F9990` | `_StopSound` `0x004F94C0` |
+| `0xCA45190F` | `FUN_004FA4C0` | `tSound::SetPosition` |
+| `0x4A8C52C8` | `_UpdateAllSounds` `0x004F7E20` | |
+| `0x4A4D35E0` | `_HandleResetSound` `0x004F9000` | |
+| `0x4A4FE6F6` | `_HandleEnumerateSounds` `0x004F83E0` | |
+| `0x4A451915` | `FUN_004F9D20` | |
+| `0x6A95CBA2` | `_HandleFocusChangeEvent` `0x004F99F0` | |
+| `0xCAA44CA7` | `FUN_004F9610` | used by `StopAllSounds` `0x004F7E90` |
+
+**`_StartSound` (`0x004F9D70`, `ret 0xC` — three stack args).** If the instance id is already live it is
+stopped first (`_StopSound(this, id, 1)`); if the caller passed id 0 a fresh one is taken from
+`GenerateNewInstanceId`; the sample is resolved through `cIGZSndMgr` (`+0x60`) slot `0x48` with
+`kGZIID_cIGZSndDataSourceHolder` `0x206077D2`; a `tSound` is allocated with `+0x08` = instance id, `+0x04` =
+sound id, `+0x34 = (param & 0xFF) * 0.01 * 100.0`, `+0x38 = x 4`; it is stored in the `+0x38` hashtable and
+the `+0x48` list.
+
+**`_StopSound` (`0x004F94C0`, `ret 8`).** On an **unknown instance id it returns false and does nothing**
+(`xor al,al; ret 8` at `0x004F94FF`) — no side effects. The caller `FUN_004F9990` ignores that and still
+returns 1. Otherwise it unregisters, turns off completion notification, and takes the soft (`+0x20`) or hard
+(`+0x24`) path on the event's second argument; the effect component always sends 0 (soft) *[compat]*.
+
+### 8.4 `GenerateNewInstanceId` (`0x004F7BB0`) — answered
+
+```
+mov  ecx, dword ptr [0x00B098C0]
+test ecx, ecx
+jne  have
+mov  ecx, 1
+have:
+mov  eax, ecx          ; return value = pre-increment
+inc  ecx
+mov  dword ptr [0x00B098C0], ecx
+ret
+```
+
+- A single **process-global** counter at **`0x00B098C0`** — **not** per-manager (no `this` is read).
+- Returns the **pre-increment** value, so ids are issued 1, 2, 3, ...
+- **Skips 0**: a zero counter is forced to 1 first, so 0 is never issued, including after a 32-bit wrap.
+- No saturation. `ret` with no stack args.
+- The same sequence is **inlined** in `_StartSound` (`0x004F9F0F`-`0x004F9F22`), taken only when the caller
+  passed id 0. Those four sites are the only references to `0x00B098C0` in the image.
+
+**Corrects:** the open item **AU2** is now answered. A replacement must keep a single global counter, must
+never return 0, and must use the pre-increment value *[compat]*.
+
+### 8.5 Save behaviour
+
+**Nothing.** All four vtables have only four slots and none is `Read`, `Write` or `GetGZCLSID`.
+`QueryInterface` answers only `1` and `0x4A47DC0D`, so there is no `cIGZSerializable` interface. A scan of
+`.text` for the `mov eax, imm32; ret` form finds **no** `GetGZCLSID` thunk returning `0x4A47DC0D`; all five
+occurrences of that constant are the factory registration, the factory table, the QI compare and the ID
+table. Sound instances exist only in the `+0x38` hashtable and the `+0x48` list and are destroyed by
+`_StopSound` / `StopAllSounds`. The only persistence-adjacent code is the **read-only** tuning of section
+10.8 *[compat]*.
+
+### 8.6 `cGZSndMgr` — the framework sound manager
 
 CLSID `0x7AF85B98`, service IID `0x287FB697` (created in `cGZSoundCOMDirector::OnStart` `0x0096655A`). Its
 decompilation **fails** in the export (`Low-level Error: Field field5_0x18 does not fit in structure
-cGZSndMgr`) for every method except `QueryInterface`; the method names and entry addresses are still exact
-because they come from the export's function table.
+cGZSndMgr`) for every method except `QueryInterface`; the names and entry addresses are still exact.
 
 | Method | Address | Method | Address |
 |---|---|---|---|
@@ -602,24 +763,148 @@ because they come from the export's function table.
 | `RemoveSndCreator` | `0x00968D08` | `cGZSndMgr` | `0x00969AF1` |
 | `RemoveSndDataSourceCreator` | `0x00968F4F`, `0x00968FB0` | | |
 
+`QueryInterface` (`0x00968A9D`) answers IID **`0x3AF85BB7`** by returning `this+0x1C` and calling `AddRef`;
+every other IID falls through to `cRZSystemService::QueryInterface`. `cGZSndMgr` therefore derives from
+`cRZSystemService` and exposes `cIGZSndMgr` at `+0x1C` *[compat]*.
+
 `GetSound` at `0x00968AE7` is the one whose bytes were read. `__stdcall`, **`ret 0x14`** (five `u32`
 arguments). It calls `arg1->slot5(0)`, passes the result through `FUN_00932F76` (`0x00932F76`), ORs the
 result with **`0xFF000000`**, then calls `this->slot18` (`+0x48`) with the transformed value and the
 remaining four arguments. The `0xFF000000` OR is a **sound-id tag** *[inferred]*; what would settle it:
 whether every sound id the game uses has its top byte clear.
 
+### 8.7 The full play/stop chain
+
+```
+cSC4Automaton::HandleEnterState  0x00511450   reads state+0x18 (the SFX id)
+  -> cSC4Automaton::StartSFX     0x00509950   GenerateNewInstanceId -> automaton+0x8C
+       posts 0x8A385DD8 {data1=SFX id, data2=instance id, void1=occupant}
+  -> message server MessagePost  (*DAT_00B43CCC)->slot4(msg, 0)
+  -> cSC4AudioEventHandler::DoMessage          0x004EF810
+  -> cSC4AudioEventHandler::HandleAutomataMessages  0x004EE560
+       rate-limit gate, position QI 0xA9B40F05
+  -> cIGZSndSys->vt[0x2C](0xEA451903, ...)     the start-sound event
+  -> cSC4AudioSoundManager::DoEvent            0x004FA590
+  -> _HandleStartSound                         0x004FA1F0
+  -> _StartSound                               0x004F9D70
+       resolve the sample via cIGZSndMgr slot 0x48 (IID 0x206077D2), allocate tSound
+```
+
+and the stop chain is identical with `0xAA396960` and `0x6A451908` into `_StopSound` (`0x004F94C0`).
+
 ---
 
 ## 9. The effects system's sound component
 
-*(reserved; see §15 — this section is completed from the effects-side investigation in this lane's run)*
+The effect component type is **7** ([effects.md](effects.md) section 2). Its description class is
+**`cSC4SoundDescription`** (section 10.9); `GetType` is vtable slot 0 = `0x00505070` =
+`MOV EAX, 7; RET`, which is what makes it type 7.
 
-The effects record type for a sound component is **7** ([effects.md](effects.md) §2: `+0x0C` type `u8`).
-effects.md measures **303 sound components of 3373**, of which **299 carry the ignore bit** and **4 count in
-the finish test**. effects.md §2's claim that "attractors, game records, cameras and almost all sounds never
-[finish]" stands unless corrected here.
+### 9.1 The runtime component
 
----
+Vtable **`0x00AA1118`**, object size **`0x30`** (constructed by `0x005BE370`, allocated by the description
+factory `0x005BE6D0`, destroyed by `0x005BE740`).
+
+| Slot | Off | Target | Method | pop |
+|---|---|---|---|---|
+| 0 | `+0x00` | `0x005BE430` | `Start(mode)` | 4 — **mode is never read** |
+| 1 | `+0x04` | `0x005BE4A0` | `Stop(mode)` | 4 — **mode is never read** |
+| 2 | `+0x08` | `0x00580B50` | `IsActive` = `mov al,[ecx+0x1C]; ret` | 0 |
+| 3 | `+0x0C` | `0x005BE4E0` | `SetTransform(local, parent)` | 8 |
+| 4 | `+0x10` | `0x005BE620` | `Update(dt seconds)` | 4 |
+| 5 | `+0x14` | `0x005BE2E0` | `SetParameter` | 12 — `xor al,al; ret 0xC`, a no-op |
+| 6 | `+0x18` | `0x005BE2E0` | `SetVoidParams` | 12 — the same no-op |
+| 7 | `+0x1C` | `0x005BE3E0` | AddRef (`add ecx,4` then `0x00968B60`) | 0 |
+| 8 | `+0x20` | `0x005BE3F0` | Release (`add ecx,4` then `0x0090D96B`) | 0 |
+
+| Off | Type | Meaning |
+|---|---|---|
+| `+0x00` | vtable | `0x00AA1118` |
+| `+0x04`/`+0x08` | | `cRZRefCount` sub-object, vtable `0x00AA1104` |
+| `+0x0C` | `cSC4SoundDescription*` | the description (AddRef'd; Released in the dtor) |
+| `+0x10`, `+0x14`, `+0x18` | `f32` | world position x, y, z |
+| `+0x1C` | `u8` | **started** — the `IsActive` byte |
+| `+0x20` | `u32` | **instance handle**, set to `this` at `Start` |
+| `+0x24` | `f32` | elapsed seconds |
+| `+0x28` | `f32` | next position-update time |
+| `+0x2C` | `cIGZSndSys*` | cached at `Start`, Released at `Stop` and in the dtor |
+
+**Corrects:** effects.md section 11.2 lists three implementations of the effect-component interface. This is
+a **fourth**, with the identical nine-slot shape (slots 5 and 6 share the no-op `0x005BE2E0` with the brush
+and game components), and `cSC4CameraEffect` is a **fifth** with a *different* layout (description at `+0x10`,
+started byte at `+0x20`). **PARTLY** — the list is incomplete.
+
+### 9.2 Attach, loop, stop
+
+**Attach.** `cSC4EffectsManager::CreateComponentFromDescription` (`0x00591730`) looks the description up in
+the type-7 vector — `base = *(manager+0x158) + (7-3)*0x20`, vector at `base+0x14` — and calls the
+description's factory (vtable slot 1) to build the component, storing it with `cRZAutoRefCount::operator=`
+(`0x0058D8D0`) and setting runtime flag bit 1 (`|= 2`). The effect's per-component tick (`0x005BEA10`) walks
+its runtime records and, for each whose `IsActive` is true, calls `Update(dt)`.
+
+**Start (`0x005BE430`).** No-op if `+0x1C != 0`. Caches `*(0x00B43CB8)` (the `cIGZSndSys` service) into
+`+0x2C`; zeroes `+0x24` and `+0x28`; sets `+0x20 = this`; then posts
+**`0xEA451903` (the description's `+0x10` sound id, `this` as instance, 0, 0)** through the sound system's
+slot `0x2C`; finally sets `+0x1C = 1`.
+
+**Update (`0x005BE620`).** Adds dt to `+0x24`. If the description's `+0x14` (location-update period) is > 0
+and `+0x24` has passed `+0x28`, it sets `+0x28 = +0x24 + period` and posts
+**`0xCA45190F` (`+0x20`, ftol(x), ftol(y), ftol(z))**. If the description's `+0x18` (max length) is > 0 and
+`+0x24` has passed it, it calls `Stop(1)`.
+
+**Stop (`0x005BE4A0`).** No-op if `+0x1C == 0`. Sets `+0x1C = 0` **before** the null check on `+0x2C`; posts
+**`0x6A451908` (`+0x20`, 0, 0, 0)**; then clears and Releases `+0x2C`. The `mode` argument is unread, so a
+hard and a soft stop of a sound component are identical.
+
+**The instance handle is the component's own `this` pointer** — `Start` sets `+0x20 = this` and every later
+event carries that value as the key.
+
+### 9.3 The ignore bit
+
+**Where.** The component record (`cSC4EffectDescription::cDescriptionRec`, `0x6C`) at **`+0x10`**, a `u32`
+masked `& 3`. The binary reader `operator>>` (`0x005AB690`) does `ReadU8 -> +0x0C` (the type) and
+`ReadU32 & 3 -> +0x10`; the text writer `AddAnonDescription` (`0x005A2960`) ORs and ANDs bit 0 there.
+
+**Meaning.** In `CreateComponentFromDescription` (`0x00591730`):
+`if (rec+0x10 & 1) runtime+0x40 |= 4; else runtime+0x40 &= ~4;` and `CheckFinished` (`0x005BFD70`) skips any
+component whose runtime flag bit 2 is set. So bit 0 means **"this component is not considered when deciding
+whether the effect has finished"**. effects.md's claim **MATCHES**.
+
+**The four exceptions** (measured from `SimCity_1.dat`, effect directory `0xEA5118B0/0xEA5118B1/1`, sound
+section at offset 633,375 count 305): of 303 type-7 components, 299 have bit 0 set and **4 do not**:
+
+| Effect | Sound id | Period | Length | Why it does not pin the effect |
+|---|---|---|---|---|
+| `researchsparksfx_slave` | `0x6A92274B` | 0.5 | **50.0** | the only one that counts: `Update` self-stops at t > 50 s |
+| `tornado_active` | `0x4A890A7C` | 0.5 | 0 | effect flag bit 1 = "no auto stop", so it never finishes anyway |
+| `volcano_active` | `0x4A890A7C` | 0.5 | 0 | same |
+| `earthquake_active` | `0x4A890A7C` | 0.5 | 0 | same |
+
+**Corrects:** the "3373 total components" figure that circulated in lane notes is **not in effects.md** and is
+not reproducible. effects.md section 7's own `Records` column sums to **3,420**
+(1921+406+591+25+64+56+10+303+41+3), which matches the shipped effect directory. The per-type counts and the
+299/303 sound split **MATCH**. Also: effects.md section 7's `IsActive` table has no sound row — see the
+`**Corrects:**` note there. **A sound with `length == 0` that is *not* ignored pins the effect forever.**
+
+**Quirk.** The text parser derives the bit as `bit0 = (length == 0)` (`cGroupSoundCommand::Parse`
+`0x005A2A50` computes it from `+0x18` and passes it to `AddAnonDescription`). That rule **does not hold in
+the shipped binary** for three of the four above, all of which have `length == 0` yet the bit clear. Either
+those were authored by a path that sets the bit independently of `-length`, or the binary predates the rule
+*[unsettled]*.
+
+### 9.4 A distinct field, easy to confuse
+
+The sound **description** has its own 1-bit field at **`+0x0C`** (`Read` `0x005BE790` masks `& 1`). All 305
+shipped records have it 0 and nothing in the component's Start/Stop/SetTransform/Update reads it
+*[inferred]* unused by the effect path.
+
+### 9.5 The bus
+
+The effect component speaks to **`cIGZSndSys`** (global `0x00B43CB8`, obtained by `SL::OnAppInit1`
+`0x0060245B` from `GetService(0x23CECBA0, 0x106077D2)`), **not** to the message server. The same
+five-argument event shape appears in `cSC4AutomataController`, `cSC4EmergencyVehicle`,
+`cSC4ViewInputControl` and `cSC4AudioEventHandler::_StartTorchSound` / `_StopTorchSound`. **AEMS is not on
+this path** (`cSC4AudioAEMSEventSystem::DoEvent` `0x004E14B0` handles only `0x2A5B69C0`, the master volume).
 
 ## 10. Sound data
 
@@ -1158,7 +1443,7 @@ implementation `0x004AB778`) unless a site is listed otherwise.
 4. **Message type 0 does not set the presence bit.** `SetType` (`0x009132DB`) stores 0 but clears bit 0 of
    `+0x08`, so a message with type 0 is indistinguishable from one whose type was never set.
 5. **The rate limiter only fires for one magic payload.** `HandleAutomataMessages` (`0x004EE560`) applies the
-   1000–3999 ms limiter only when `payload->slot9()` equals `0xA9F14C47`; every other payload value plays
+   1000–4000 ms limiter only when `payload->slot9()` equals `0xA9F14C47`; every other payload value plays
    immediately. The limiter state is on the **handler**, not on the automaton, so it throttles all matching
    sounds game-wide.
 6. **Dead code in `StartSFX`.** The block at `0x00509987` (`mov eax,[ecx]; call [eax+8]`) is unreachable: the
@@ -1177,6 +1462,27 @@ implementation `0x004AB778`) unless a site is listed otherwise.
 10. **`cGZSndMgr` almost entirely fails to decompile** (`Field field5_0x18 does not fit in structure
     cGZSndMgr`). The method names and entry points are still exact; only the bodies are unavailable in the
     export. A replacement must work from the names and the interface shape, not from a body-level reading.
+11. **The manager never sees the automata SFX messages.** `cSC4AudioSoundManager::DoMessage` (`0x004F9430`)
+    has no case for `0x8A385DD8` or `0xAA396960`. The play/stop request is converted into a sound-system
+    event by the audio event handler first (§8.7). A replacement that routes the messages straight to the
+    sound manager will not match.
+12. **A stop for an unknown instance id fails silently but reports success.** `_StopSound` (`0x004F94C0`)
+    returns false and does nothing on a miss; its caller `FUN_004F9990` discards that and returns 1.
+13. **The rate-limit window can be exactly 4000 ms.** `1000 + rand()*3000/0x7FFF` with `rand()` in
+    `[0, 0x7FFF]` gives `[1000, 4000]`, not `[1000, 3999]`.
+14. **A sound component ignores its stop mode.** `cSC4SoundComponent::Stop` (`0x005BE4A0`) never reads its
+    argument, so a hard and a soft stop are identical; it also clears `+0x1C` *before* checking whether the
+    sound system is present.
+15. **An effect sound's position is quantised to whole units.** `Update` (`0x005BE620`) converts x, y, z with
+    `ftol` before posting `0xCA45190F`, and the receiver (`FUN_004FA4C0`) converts back with `(float)`, so an
+    effect sound's position is rounded to integers.
+16. **A non-ignored sound with `length == 0` pins its effect forever.** `IsActive` is the started byte
+    (`0x00580B50`) and only `Stop` clears it; a description with `+0x18 == 0` never self-stops (§9.2).
+17. **The text parser's ignore-bit rule does not hold in the shipped data.** `cGroupSoundCommand::Parse`
+    (`0x005A2A50`) derives bit 0 as `(length == 0)`, yet three of the four shipped components that have the
+    bit clear also have `length == 0` (§9.3).
+18. **`0xC53D10AA` is handled but never subscribed** by the sound manager (§8.3), so the tuning refresh can
+    only arrive by a direct post.
 
 ---
 
@@ -1185,9 +1491,9 @@ implementation `0x004AB778`) unless a site is listed otherwise.
 | # | Question | What would settle it |
 |---|---|---|
 | **AU1** | Where exactly is the `"AB"` magic of an AEMS bank checked? It is **not** checked in `cSC4AudioAEMSSoundBank::LoadFromFile` (`0x004E2490`) nor in `SNDAEMSI_addmodulebank` (`0x00867800`). The header *is* structurally validated by the version byte at `+0x02` (§10.7). | decompile `FUN_0086B340` (`0x0086B340`) / `_SNDbankadd` (`0x0086B35B`), which handle the SNDBANK blob at `bank+0x1C` |
-| **AU2** | Is `cSC4AudioSoundManager::GenerateNewInstanceId` (`0x004F7BB0`) a per-manager or global counter, does it skip 0, and does it wrap? | the function body |
-| **AU3** | What does `cSC4AudioEventHandler::Init` (`0x004EFE80`) subscribe to and create, and in what order does `Shutdown` (`0x004EE000`) tear down? | those two bodies |
-| **AU4** | What do the message constants `0x6A451908` and `0xEA451903` mean, and what object is `cSC4AudioEventHandler`'s `field8_0x14`? | the `Init` body plus the ID table |
+| ~~AU2~~ | **ANSWERED** (§8.4): a single process-global counter at `0x00B098C0`, pre-increment, never returns 0, wraps through 0 back to 1. | — |
+| ~~AU3~~ | **ANSWERED** (§7.2): `Init` fetches four services, registers with `cIGZSndSys` and subscribes 15 types (2 modal + 13 main); a further 11 are held only while a city is loaded. `Shutdown` undoes all but the city set. | — |
+| ~~AU4~~ | **ANSWERED** (§7.3): `0xEA451903`, `0x6A451908` and `0xCA45190F` are **sound-system event ids**, not message types; they are dispatched by `cSC4AudioSoundManager::DoEvent` (§8.3). `field8_0x14` is `cIGZSndSys` at object `+0x14`, not a Lua server. | — |
 | **AU5** | What is the role of the 83 leaf classes of §11? They are now measured in shape, size and IIDs; what they *do* is not. | a lookup of their 83 CLSIDs in the tuning data |
 | **AU6** | What does the pool's `0x40000045` threshold mean? | the pool vtable slot 2 implementation (the initial value written to `page+0x0C`) |
 | ~~AU7~~ | **ANSWERED** (§10.11): `0x9D796DB4` has no hard-coded reader; it is bound to the `tlo` extension at runtime by `cHitIniFile::ProcessDBSegmentDirectoryFilesEntry` `0x00936707`. | — |
@@ -1249,7 +1555,7 @@ every *[compat]* assertion holds.
     (`0x004EF810`)
 20. **Rate limiting.** On a play whose payload slot 9 is `0xA9F14C47`, if the handler's timer at `+0x30` is
     running and the elapsed time is below the threshold at `+0x48`, the play must be dropped. Otherwise the
-    timer restarts and the threshold becomes `rand()*3000/0x7FFF + 1000`, i.e. 1000–3999 ms. (`0x004EE560`)
+    timer restarts and the threshold becomes `1000 + rand()*3000/0x7FFF`, i.e. 1000–4000 ms. (`0x004EE560`)
 21. **Rate limiting is per handler, not per automaton.** Two different automata sharing the handler share one
     timer and one threshold. (`0x004EE560`)
 22. **The 83 leaf classes' capability slots.** Slots 3 and 4 of every one of the 83 leaf vtables must return
@@ -1281,3 +1587,27 @@ every *[compat]* assertion holds.
     read keys `0x6A946A50`, `0xAABAA0D3`, `0x0A946A57` and `0x4A946A5D` from exemplar
     `0x6534284A/0xCA25875D/0x6A359C5C` and apply no clamping, defaulting to 3, 10 and 30 when the read fails
     (and logging the failure). (`0x004F9250`)
+31. **The instance-id counter is global and never issues 0.** `GenerateNewInstanceId` must return 1, 2, 3, …
+    from a single process-wide counter, must return the pre-increment value, and must skip 0 even after a
+    32-bit wrap. (`0x004F7BB0`, counter at `0x00B098C0`)
+32. **The sound manager does not see the automata messages.** Delivering `0x8A385DD8` or `0xAA396960`
+    directly to `cSC4AudioSoundManager::DoMessage` must do nothing. Those types are handled by
+    `cSC4AudioEventHandler::HandleAutomataMessages` and arrive at the manager only as sound-system events
+    `0xEA451903` / `0x6A451908`. (`0x004F9430`, `0x004FA590`)
+33. **A stop for an unknown instance id is a silent no-op.** `_StopSound` must return false and leave the
+    instance table and the list unchanged when the id is not present. (`0x004F94C0`)
+34. **`_StartSound` restarts rather than duplicates.** Starting a sound with an instance id that is already
+    live must first stop the old one, then start the new one under the same id. (`0x004F9D70`)
+35. **The automata SFX messages are only heard while a city is loaded.** `0x26D31EC1` must subscribe
+    `0x8A385DD8` and `0xAA396960` (with nine other types) to the handler's main target and `0x26D31EC2` must
+    unsubscribe exactly that set. (`0x004EE970`)
+36. **An effect sound component attaches, loops and stops.** `Start` must post `0xEA451903` with the
+    description's `+0x10` sound id and `this` as the instance key; `Update` must post `0xCA45190F` with
+    **integer** coordinates once per `desc+0x14` seconds and call `Stop(1)` once `elapsed > desc+0x18` when
+    that length is non-zero; `Stop` must post `0x6A451908` and must ignore its `mode` argument.
+    (`0x005BE430`, `0x005BE620`, `0x005BE4A0`)
+37. **A non-ignored sound component with `length == 0` keeps its effect alive.** `IsActive` must stay true
+    until `Stop` is called from outside, so `CheckFinished` never sees the effect as finished.
+    (`0x00580B50`, `0x005BFD70`)
+38. **The ignore bit reaches the finish test.** Component record `+0x10` bit 0 must become runtime flag bit 2
+    (`+0x40 |= 4`) and `CheckFinished` must skip components with that bit set. (`0x00591730`, `0x005BFD70`)
