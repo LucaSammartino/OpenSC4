@@ -791,6 +791,7 @@ pub mod landfill;
 pub mod landfill_shadow;
 pub mod landvalue;
 pub mod landvalue_shadow;
+pub mod lot_config;
 pub mod lotdev;
 pub mod neighbors;
 pub mod neighbors_shadow;
@@ -861,6 +862,9 @@ mod landvalue_tests;
 
 #[cfg(test)]
 mod landvalue_shadow_tests;
+
+#[cfg(test)]
+mod lot_config_tests;
 
 #[cfg(test)]
 mod lotdev_tests;
