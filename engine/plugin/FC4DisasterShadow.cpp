@@ -124,7 +124,7 @@ struct Riot {
 };
 
 struct Counts {
-    uint64_t lines = 0, clean = 0;
+    uint64_t lines = 0, clean = 0, questioned = 0;  // questioned: every difference has a question number
 };
 
 struct Shadow {
@@ -325,30 +325,62 @@ uint32_t CoreInstanceOf(cISC4DisasterInstance* inst) {
     return it != g.riots.end() ? it->second.id : 0xFFFFFFFFu;
 }
 
+// Each difference, tallied per kind (the format up to its first number)
+// and per question for the city shutdown line.
+std::map<std::string, uint64_t>& DiffKinds() {
+    static std::map<std::string, uint64_t> m;
+    return m;
+}
+
 struct Diffs {
-    uint32_t n = 0;
+    const char* scope = "";
+    uint32_t n = 0, unexplained = 0;
     std::string text;
     void Add(const char* fmt, ...) {
-        ++n;
-        if (n > kMaxDiffs) return;
-        char b[256];
         va_list ap;
         va_start(ap, fmt);
-        std::vsnprintf(b, sizeof(b), fmt, ap);
+        Put(nullptr, fmt, ap);
         va_end(ap);
+    }
+    // A difference a numbered question of the lane report explains.
+    void AddQ(const char* q, const char* fmt, ...) {
+        va_list ap;
+        va_start(ap, fmt);
+        Put(q, fmt, ap);
+        va_end(ap);
+    }
+
+private:
+    void Put(const char* q, const char* fmt, va_list ap) {
+        ++n;
+        if (q == nullptr) ++unexplained;
+        std::string kind = std::string(scope) + " " + std::string(fmt).substr(0, std::string(fmt).find('%'));
+        while (!kind.empty() && (kind.back() == ' ' || kind.back() == '(')) kind.pop_back();
+        if (q != nullptr) kind += std::string(" [") + q + "]";
+        ++DiffKinds()[kind];
+        if (n > kMaxDiffs) return;
+        char b[256];
+        std::vsnprintf(b, sizeof(b), fmt, ap);
         if (!text.empty()) text += "; ";
         text += b;
+        if (q != nullptr) text += std::string(" [") + q + "]";
     }
 };
 
 // The layer: ongoing count and the location list (instance, x, z).
-void CompareLayer(Diffs& d, char* out, size_t cap) {
+void CompareLayer(Diffs& d, char* out, size_t cap, bool riot = false) {
     const fc4_disasters_state s = CoreState();
     const int64_t ongoing = g.origBegun - g.origEnded;
     if (ongoing != static_cast<int64_t>(s.ongoing)) d.Add("ongoing orig %lld ours %u", (long long)ongoing, s.ongoing);
     cISC4DisasterLayer* l = Layer();
     const int32_t n = l ? l->GetDisasterLocationCount() : 0;  // slot 16
-    if (n != static_cast<int32_t>(s.location_count)) d.Add("locations orig %d ours %u", n, s.location_count);
+    if (n != static_cast<int32_t>(s.location_count)) {
+        if (riot) {
+            d.AddQ("Q39", "locations orig %d ours %u", n, s.location_count);  // a leader a second apart
+        } else {
+            d.Add("locations orig %d ours %u", n, s.location_count);
+        }
+    }
     for (int32_t i = 0; l != nullptr && i < n && i < static_cast<int32_t>(s.location_count); ++i) {
         cISC4DisasterInstance* inst = nullptr;
         int x = 0, z = 0;
@@ -357,6 +389,13 @@ void CompareLayer(Diffs& d, char* out, size_t cap) {
         fc4_disasters_get_location(g.core, static_cast<size_t>(i), &loc);
         const uint32_t mapped = CoreInstanceOf(inst);
         if (mapped != loc.instance || x != loc.x || z != loc.z) {
+            // A riot leader's entry: the original's never follows the automaton (Q37).
+            const bool leader = riot && mapped == loc.instance && loc.occupant != 0;
+            if (leader) {
+                d.AddQ("Q37", "location %d orig (inst %u, %d,%d) ours (inst %u, %d,%d)", i, mapped, x, z,
+                       loc.instance, loc.x, loc.z);
+                continue;
+            }
             d.Add("location %d orig (inst %u, %d,%d) ours (inst %u, %d,%d)", i, mapped, x, z, loc.instance, loc.x,
                   loc.z);
         }
@@ -368,6 +407,7 @@ void CompareLayer(Diffs& d, char* out, size_t cap) {
 
 void FireLine(const char* what) {
     Diffs d;
+    d.scope = "fire";
     const fc4_disasters_state s = CoreState();
     const int32_t origCount = OrigFireCount();
     if (origCount != static_cast<int32_t>(s.fire_count)) d.Add("fires orig %d ours %u", origCount, s.fire_count);
@@ -411,6 +451,7 @@ void FireLine(const char* what) {
     CompareLayer(d, layer, sizeof(layer));
     ++g.fire.lines;
     if (d.n == 0) ++g.fire.clean;
+    if (d.n != 0 && d.unexplained == 0) ++g.fire.questioned;
     Log("disasters shadow fire %s: orig steps=%llu fires orig=%d ours=%u burning orig=%u ours=%u phase %d/%u %s "
         "lots=%u mismatches=%u%s%s",
         what, (unsigned long long)g.origSteps, origCount, s.fire_count, origBurning, oursBurning, origPhase,
@@ -430,6 +471,7 @@ std::set<uint64_t> LiveLocked() {
 
 void RiotLine(Riot& r, const char* what) {
     Diffs d;
+    d.scope = "riot";
     fc4_disaster_instance info{};
     const bool have = fc4_disasters_get_instance(g.core, r.id, &info);
     const int32_t origPhase = r.inst ? r.inst->GetPhase() : -1;
@@ -440,7 +482,7 @@ void RiotLine(Riot& r, const char* what) {
     std::set<uint64_t> ours;
     for (const auto& l : ls) ours.insert(l.automaton);
     if (ours != r.leaders) {
-        d.Add("leaders orig %u ours %u", static_cast<unsigned>(r.leaders.size()), static_cast<unsigned>(ours.size()));
+        d.AddQ("Q39", "leaders orig %u ours %u", static_cast<unsigned>(r.leaders.size()), static_cast<unsigned>(ours.size()));
     }
     cISC4DisasterManager* m = Manager(kRiot);
     const int32_t origActive = m ? m->GetActiveInstanceCount() : -1;  // slot 10
@@ -456,7 +498,7 @@ void RiotLine(Riot& r, const char* what) {
         uint32_t onlyOrig = 0, onlyOurs = 0;
         for (uint64_t t : live) onlyOrig += ourLocked.count(t) == 0;
         for (uint64_t t : ourLocked) onlyOurs += live.count(t) == 0;
-        d.Add("locked orig %u ours %u (orig only %u, ours only %u)", static_cast<unsigned>(live.size()),
+        d.AddQ("Q38", "locked orig %u ours %u (orig only %u, ours only %u)", static_cast<unsigned>(live.size()),
               static_cast<unsigned>(ourLocked.size()), onlyOrig, onlyOurs);
     }
     std::string cells;
@@ -466,9 +508,10 @@ void RiotLine(Riot& r, const char* what) {
         if (cells.size() < 160) cells += b;
     }
     char layer[96];
-    CompareLayer(d, layer, sizeof(layer));
+    CompareLayer(d, layer, sizeof(layer), true);
     ++g.riot.lines;
     if (d.n == 0) ++g.riot.clean;
+    if (d.n != 0 && d.unexplained == 0) ++g.riot.questioned;
     Log("disasters shadow riot %u %s: phase %d/%u leaders %u/%u [%s] active %d/%u locked %u/%u %s mismatches=%u%s%s",
         r.id, what, origPhase, ourPhase, static_cast<unsigned>(r.leaders.size()), static_cast<unsigned>(ours.size()),
         cells.c_str(), origActive, ourActive, static_cast<unsigned>(live.size()),
@@ -1107,6 +1150,7 @@ void Listen() {
 
 void QuietLine() {
     Diffs d;
+    d.scope = "quiet";
     std::string text;
     std::set<uint32_t> types;
     for (const auto& [t, n] : g.origPosts) types.insert(t);
@@ -1132,16 +1176,20 @@ void QuietLine() {
     }
     if (g.ctx.pauses != 0 || g.ctx.saveOff != 0) d.Add("ours left pause %d save-off %d", g.ctx.pauses, g.ctx.saveOff);
     cISC4DisasterLayer* l = Layer();
-    const int32_t origCost = l ? l->GetDisasterCost() : 0;  // slot 18
+    // Slot 18 (pop 0): the int64 total cost in edx:eax (§2.6; the SDK
+    // declares int32).
+    using CostFn = int64_t(__fastcall*)(void*, void*);
+    const int64_t origCost = l ? reinterpret_cast<CostFn>((*reinterpret_cast<void***>(l))[18])(l, nullptr) : 0;
     const int64_t ourCost = fc4_disasters_cost(g.core);
     char layer[96];
     CompareLayer(d, layer, sizeof(layer));
     ++g.quietLines.lines;
     if (d.n == 0) ++g.quietLines.clean;
-    Log("disasters shadow quiet: posts orig/ours %s; cost orig %d ours %lld (not compared: DS23, Q31); %s "
+    if (d.n != 0 && d.unexplained == 0) ++g.quietLines.questioned;
+    Log("disasters shadow quiet: posts orig/ours %s; cost orig %lld ours %lld (not compared: Q41); %s "
         "unfollowable=%llu id-guesses=%llu leaders-missing=%llu cell-fallbacks=%llu radius=%llu extinguish=%llu "
         "mismatches=%u%s%s",
-        text.c_str(), origCost, (long long)ourCost, layer, (unsigned long long)g.unfollowable,
+        text.c_str(), (long long)origCost, (long long)ourCost, layer, (unsigned long long)g.unfollowable,
         (unsigned long long)g.idGuesses, (unsigned long long)g.ctx.leadersMissing, (unsigned long long)g.cellFallbacks,
         (unsigned long long)g.radiusCalls, (unsigned long long)g.extinguishCalls, d.n, d.text.empty() ? "" : "; differences: ",
         d.text.c_str());
@@ -1311,12 +1359,21 @@ void DisastersShadowCityShutdown() {
     if (g.core == nullptr) return;
     const uint64_t lines = g.fire.lines + g.riot.lines + g.quietLines.lines;
     const uint64_t clean = g.fire.clean + g.riot.clean + g.quietLines.clean;
+    std::string kinds;
+    for (const auto& [k, n] : DiffKinds()) {
+        if (!kinds.empty()) kinds += ", ";
+        kinds += k + " " + std::to_string(n);
+    }
     Log("disasters shadow: city shutdown: %llu lines, %llu with mismatches=0 (fire %llu/%llu, riot %llu/%llu, quiet "
-        "%llu/%llu); original steps %llu, ours %llu",
+        "%llu/%llu); lines whose every difference is a numbered question: fire %llu, riot %llu, quiet %llu; original "
+        "steps %llu, ours %llu; differences by kind: %s",
         (unsigned long long)lines, (unsigned long long)clean, (unsigned long long)g.fire.clean,
         (unsigned long long)g.fire.lines, (unsigned long long)g.riot.clean, (unsigned long long)g.riot.lines,
         (unsigned long long)g.quietLines.clean, (unsigned long long)g.quietLines.lines,
-        (unsigned long long)g.origSteps, (unsigned long long)g.coreSteps);
+        (unsigned long long)g.fire.questioned, (unsigned long long)g.riot.questioned,
+        (unsigned long long)g.quietLines.questioned, (unsigned long long)g.origSteps,
+        (unsigned long long)g.coreSteps, kinds.empty() ? "none" : kinds.c_str());
+    DiffKinds().clear();
     EndCity();
 }
 
