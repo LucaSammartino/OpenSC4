@@ -166,6 +166,12 @@
 //   traffic_shadow_lines = N      its delivery lines per month (default 8)
 //   traffic_shadow_hypotheses = N retired (ABI 68): accepted and ignored, logged once;
 //                                 its readings (TS55-TS57) are the core's behaviour
+//   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's
+//                                 terrain core with the ORIGINAL terrain, which is
+//                                 never replaced; FC4TerrainShadow.h)
+//   terrain_shadow_points = N     its sample points per month (default 256, 16..4096)
+//   terrain_shadow_diffs = N      its differences named per line (default 8, 1..64)
+//   terrain_shadow_lines = N      its change lines per month (default 8, 0..1000)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

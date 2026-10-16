@@ -2276,12 +2276,58 @@ cISC4EffectsManager	cSC4EffectsManager	00a9f264	7	+0x1C	005939b0	cSC4EffectsMana
 cISC4EffectsManager	cSC4EffectsManager	00a9f264	8	+0x20	0058da90	cSC4EffectsManager::GetStatsString	4	1	via-call	low	
 cISC4EffectsManager	cSC4EffectsManager	00a9f264	9	+0x24	0058fd40	cSC4EffectsManager::GetEffectMaps	0	0	eax-or-void	medium	
 cISC4EffectsManager	cSC4EffectsManager	00a9f264	10	+0x28	0058fd50	cSC4EffectsManager::GetTallestBuildingAltitude	0	0	x87	high	
+cISC4VisualEffect	(unnamed)	00aa1170	0	+0x00	005be7f0	QueryInterface	8	2	eax-or-void	high	re-specs16 effects.md §11.1
+cISC4VisualEffect	(unnamed)	00aa1170	1	+0x04	004bdf00	AddRef	0	0	eax-or-void	high	re-specs16; shared body
 cISC4VisualEffect	(unnamed)	00aa1170	2	+0x08	005be840	Release	0	0	eax-or-void	high	re-answers2 PG4 (vtable has no RTTI)
 cISC4VisualEffect	(unnamed)	00aa1170	3	+0x0C	005be920	Start(bool)	4	1	eax-or-void	high	re-answers2 PG4
 cISC4VisualEffect	(unnamed)	00aa1170	4	+0x10	005beba0	Stop(bool)	4	1	eax-or-void	high	re-answers2 PG4
 cISC4VisualEffect	(unnamed)	00aa1170	5	+0x14	007d6680	IsStarted (AL; folded with cSC4LightingManager::IsNight)	0	0	eax-or-void	high	re-answers2 PG4
+cISC4VisualEffect	(unnamed)	00aa1170	6	+0x18	00644fc0	IsStopping (AL; soft stop in progress, +0x25)	0	0	eax-or-void	high	re-specs16; folded body
+cISC4VisualEffect	(unnamed)	00aa1170	7	+0x1C	005be860	SetSecondaryTransform(cS3DTransform const&) (+0x6C)	4	1	eax-or-void	medium	re-specs16
 cISC4VisualEffect	(unnamed)	00aa1170	8	+0x20	005be880	SetTransform(cS3DTransform const&)	4	1	eax-or-void	high	re-answers2 PG4; cS3DTransform is 0x38 bytes
+cISC4VisualEffect	(unnamed)	00aa1170	9	+0x24	005bfac0	AttachTo(model/occupant)	4	1	eax-or-void	medium	re-specs16; render
+cISC4VisualEffect	(unnamed)	00aa1170	10	+0x28	006ce090	SetEndMessage(uint32 type, uint32 data1)	8	2	eax-or-void	high	re-specs16 effects.md §7
+cISC4VisualEffect	(unnamed)	00aa1170	11	+0x2C	005bea50	SetParameter3(uint32 index, float const*, uint32 count) (count*3, tail-jumps slot 12)	12	3	eax-or-void	high	re-specs16
 cISC4VisualEffect	(unnamed)	00aa1170	12	+0x30	005c05e0	SetParameter(uint32 index, float const*, uint32 count)	12	3	eax-or-void	high	re-answers2 PG4
+cISC4VisualEffect	(unnamed)	00aa1170	13	+0x34	005bfc20	ForwardParameter(uint32 index, void const*, uint32 count) (components' slot 6 only)	12	3	eax-or-void	high	re-specs16 effects.md §10.2
+cISC4VisualEffect	(unnamed)	00aa1170	14	+0x38	005bea60	GetTransform(cS3DTransform&)	4	1	eax-or-void	medium	re-specs16
+cISC4VisualEffect	(unnamed)	00aa1170	15	+0x3C	005beac0	GetSecondaryTransform(cS3DTransform&)	4	1	eax-or-void	medium	re-specs16
+cISC4VisualEffect	(unnamed)	00aa1170	16	+0x40	005c0740	AddComponent(desc rec, component)	8	2	eax-or-void	medium	re-specs16; internal
+cISC4VisualEffect	(unnamed)	00aa1170	17	+0x44	005bfc90	TestFlag(uint32 bit) (AL; bit <= 8)	4	1	eax-or-void	high	re-specs16
+cISC4VisualEffect	(unnamed)	00aa1170	18	+0x48	005c05c0	scalar deleting destructor	4	1	eax-or-void	high	re-specs16
+cSC4EffectComponent	visual effect (+4)	00aa1148	0	+0x00	005c0520	Start(uint32 mode)	4	1	eax-or-void	high	re-specs16 effects.md §11.2; thunk -> 005be920
+cSC4EffectComponent	visual effect (+4)	00aa1148	1	+0x04	005c0530	Stop(uint32 mode)	4	1	eax-or-void	high	thunk -> 005beba0
+cSC4EffectComponent	visual effect (+4)	00aa1148	2	+0x08	005c04f0	IsActive (AL)	0	0	eax-or-void	high	thunk -> 007d6680
+cSC4EffectComponent	visual effect (+4)	00aa1148	3	+0x0C	005bec20	SetTransform(cS3DTransform const& local, cS3DTransform const& parent)	8	2	eax-or-void	high	re-specs16
+cSC4EffectComponent	visual effect (+4)	00aa1148	4	+0x10	005bea10	Update(float dtSeconds)	4	1	eax-or-void	high	updates components whose IsActive is true
+cSC4EffectComponent	visual effect (+4)	00aa1148	5	+0x14	005c0bc0	SetParameter(uint32, float const*, uint32)	12	3	eax-or-void	high	thunk -> 005c05e0
+cSC4EffectComponent	visual effect (+4)	00aa1148	6	+0x18	005c0540	SetParameter2(uint32, void const*, uint32)	12	3	eax-or-void	high	thunk -> 005bfc20
+cSC4EffectComponent	visual effect (+4)	00aa1148	7	+0x1C	005c0500	AddRef	0	0	eax-or-void	high	thunk
+cSC4EffectComponent	visual effect (+4)	00aa1148	8	+0x20	005c0510	Release	0	0	eax-or-void	high	thunk
+cSC4EffectComponent	cSC4BrushEffect	00a9edd0	0	+0x00	005812c0	Start(uint32 mode)	4	1	eax-or-void	high	re-specs16 effects.md §8.3
+cSC4EffectComponent	cSC4BrushEffect	00a9edd0	1	+0x04	00581530	Stop(uint32 mode)	4	1	eax-or-void	high	ends the long terrain op
+cSC4EffectComponent	cSC4BrushEffect	00a9edd0	2	+0x08	007d6680	IsActive (AL, +0x24)	0	0	eax-or-void	high	folded body
+cSC4EffectComponent	cSC4BrushEffect	00a9edd0	3	+0x0C	00581560	SetTransform(local, parent)	8	2	eax-or-void	high	
+cSC4EffectComponent	cSC4BrushEffect	00a9edd0	4	+0x10	005817f0	Update(float dtSeconds)	4	1	eax-or-void	high	
+cSC4EffectComponent	cSC4BrushEffect	00a9edd0	5	+0x14	005be2e0	SetParameter (no-op)	12	3	eax-or-void	high	shared no-op
+cSC4EffectComponent	cSC4BrushEffect	00a9edd0	6	+0x18	005be2e0	SetParameter2 (no-op)	12	3	eax-or-void	high	shared no-op
+cSC4EffectComponent	cSC4BrushEffect	00a9edd0	7	+0x1C	005be3e0	AddRef	0	0	eax-or-void	medium	tail-jump 00968b60
+cSC4EffectComponent	cSC4BrushEffect	00a9edd0	8	+0x20	005be3f0	Release	0	0	eax-or-void	medium	tail-jump 0090d96b
+cSC4EffectComponent	cSC4GameEffect	00aa0ff8	0	+0x00	005bd070	Start(uint32 mode)	4	1	eax-or-void	high	re-specs16 effects.md §9.2; pauses
+cSC4EffectComponent	cSC4GameEffect	00aa0ff8	1	+0x04	005bd340	Stop(uint32 mode)	4	1	eax-or-void	high	resumes
+cSC4EffectComponent	cSC4GameEffect	00aa0ff8	2	+0x08	00644fc0	IsActive (AL, +0x25)	0	0	eax-or-void	high	folded body
+cSC4EffectComponent	cSC4GameEffect	00aa0ff8	3	+0x0C	005bc3b0	SetTransform(local, parent)	8	2	eax-or-void	high	cell change sets pending
+cSC4EffectComponent	cSC4GameEffect	00aa0ff8	4	+0x10	005bd4d0	Update(float dtSeconds)	4	1	eax-or-void	high	Apply 005bd3c0
+cSC4EffectComponent	cSC4GameEffect	00aa0ff8	5	+0x14	005be2e0	SetParameter (no-op)	12	3	eax-or-void	high	shared no-op
+cSC4EffectComponent	cSC4GameEffect	00aa0ff8	6	+0x18	005bc2b0	SetParameter2(uint32 index, void const*, uint32) (index 13 -> message data1)	12	3	eax-or-void	high	AL
+cSC4EffectComponent	cSC4GameEffect	00aa0ff8	7	+0x1C	005be3e0	AddRef	0	0	eax-or-void	medium	
+cSC4EffectComponent	cSC4GameEffect	00aa0ff8	8	+0x20	005be3f0	Release	0	0	eax-or-void	medium	
+cISC4DisasterManagerEffect	cSC4DisasterManagerEffect	00a9e190	0	+0x00	00576fa0	QueryInterface (thunk this-0x24)	8	2	eax-or-void	high	re-specs16 effects.md §11.3; IID 0xCA7B3F3C
+cISC4DisasterManagerEffect	cSC4DisasterManagerEffect	00a9e190	1	+0x04	00576fb0	AddRef (thunk)	0	0	eax-or-void	high	
+cISC4DisasterManagerEffect	cSC4DisasterManagerEffect	00a9e190	2	+0x08	00576fc0	Release (thunk)	0	0	eax-or-void	high	
+cISC4DisasterManagerEffect	cSC4DisasterManagerEffect	00a9e190	3	+0x0C	00577360	StartDisasterEffect(cISC4VisualEffect*, cS3DVector3 const*, uint32 type) -> instance	12	3	eax-or-void	high	EAX instance pointer
+cISC4DisasterManagerEffect	cSC4DisasterManagerEffect	00a9e190	4	+0x10	00577250	AttractDisasterEffect(arg)	4	1	eax-or-void	medium	
+cISC4DisasterManagerEffect	cSC4DisasterManagerEffect	00a9e190	5	+0x14	00577280	CancelAttract()	0	0	eax-or-void	medium	
 cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	0	+0x0	006afc90	cSC4FloraSimulator::QueryInterface	8	2	eax-or-void	medium	
 cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
 cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	2	+0x8	006b0480	cSC4FloraSimulator::Release	0	0	eax-or-void	medium	
