@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "net_not_managed",
+  "spec": ["network-manager 6.1", "network-manager 16.5"],
+  "description": "A plain road piece (not globally managed) is queried and released: managed is unchanged and no reference is kept. Its removal changes nothing. An occupant that is not a network occupant is ignored, as is a message without an occupant.",
+  "steps": [
+    {"op": "net_occupant", "occupant": "0x20", "flags": ["road", "usable"], "cell": [3, 3]},
+    {"op": "net_occupant", "occupant": "0x21"},
+    {"op": "net_create"},
+    {"op": "net_init"},
+    {"op": "net_message", "type": "OccupantInserted", "occupant": "0x20", "expect": true},
+    {"op": "net_expect", "state": {"managed": []}},
+    {"op": "net_expect_refs", "refs": {"0x20": 0}},
+    {"op": "net_message", "type": "OccupantRemoved", "occupant": "0x20", "expect": true},
+    {"op": "net_expect_refs", "refs": {"0x20": 0}},
+    {"op": "net_message", "type": "OccupantInserted", "occupant": "0x21", "expect": true},
+    {"op": "net_message", "type": "OccupantInserted", "expect": true},
+    {"op": "net_expect", "state": {"managed": []}},
+    {"op": "net_expect_refs", "refs": {"0x21": 0}}
+  ]
+}

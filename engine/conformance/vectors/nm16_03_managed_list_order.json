@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "net_managed_list_order",
+  "spec": ["network-manager 4.1", "network-manager 6.1", "network-manager 16.3"],
+  "description": "Bridges A, B, C (globally managed) are inserted (0x99EF1142), then A is removed (0x99EF1143): swap-and-pop leaves C, B. A is released twice (the entry and the query), B and C keep the entry's reference. The record is count 2 then refs C (object 1) then B (object 2). Read into a new manager gives C, B and the same bytes; Read appends, so a second read gives C, B, C, B.",
+  "steps": [
+    {"op": "net_occupant", "occupant": "0x0A", "flags": ["road"], "managed": true, "lit": true, "cell": [1, 1]},
+    {"op": "net_occupant", "occupant": "0x0B", "flags": ["road"], "managed": true, "lit": true, "cell": [1, 2]},
+    {"op": "net_occupant", "occupant": "0x0C", "flags": ["road"], "managed": true, "lit": true, "cell": [1, 3]},
+    {"op": "net_create"},
+    {"op": "net_init", "expect": true},
+    {"op": "net_message", "type": "OccupantInserted", "occupant": "0x0A", "expect": true},
+    {"op": "net_message", "type": "OccupantInserted", "occupant": "0x0B", "expect": true},
+    {"op": "net_message", "type": "OccupantInserted", "occupant": "0x0C", "expect": true},
+    {"op": "net_expect", "state": {"managed": ["0x0A", "0x0B", "0x0C"]}},
+    {"op": "net_message", "type": "OccupantRemoved", "occupant": "0x0A", "expect": true},
+    {"op": "net_expect", "state": {"managed": ["0x0C", "0x0B"]}},
+    {"op": "net_expect_refs", "refs": {"0x0A": 0, "0x0B": 1, "0x0C": 1}},
+    {"op": "net_write", "slot": "a", "expect": true, "length": 22,
+      "hex": "0100 02000000 01000000 94EF21A8 02000000 94EF21A8", "registered": ["0x0C", "0x0B"]},
+    {"op": "net_read", "slot": "a", "expect": true},
+    {"op": "net_expect", "state": {"managed": ["0x0C", "0x0B"], "initialized": false}},
+    {"op": "net_expect_refs", "refs": {"0x0B": 2, "0x0C": 2}},
+    {"op": "net_write", "slot": "b", "expect": true},
+    {"op": "net_expect_record", "slot": "b", "same_as": "a"},
+    {"op": "net_read", "slot": "a", "reuse": true, "expect": true},
+    {"op": "net_expect", "state": {"managed": ["0x0C", "0x0B", "0x0C", "0x0B"]}}
+  ]
+}

@@ -244,7 +244,7 @@ CaptureStream g_lotStream(true);
 bool g_enabled = false;
 long g_diffs = kDefaultDiffs;
 long g_lines = kDefaultLines;
-// traffic_shadow_hypotheses is retired (ABI 66: TS55-TS57 confirmed, the
+// traffic_shadow_hypotheses is retired (ABI 67: TS55-TS57 confirmed, the
 // core's only behaviour); the key is accepted, ignored and logged once.
 bool g_loggedRetiredHypotheses = false;
 int32_t g_settingsJulian = INT_MIN;
