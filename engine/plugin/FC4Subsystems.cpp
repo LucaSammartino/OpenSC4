@@ -54,6 +54,7 @@
 #include "FC4DemolitionShadow.h"  // the glue17 lane: demolition_shadow
 #include "FC4DispatchShadow.h"    // the glue17 lane: dispatch_shadow
 #include "cFC4Dispatch.h"        // the glue17 lane: enable = dispatch
+#include "cFC4OccMgr.h"          // the glue25 lane: enable = occmgr
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -308,6 +309,13 @@ const ClassEntry kDispatchClasses[] = {
     {kFC4_CLSID_cSC4DispatchManager, "cSC4DispatchManager", &CreateFC4DispatchManager},
 };
 
+// docs/specs/occupant-manager.md §1, CLSID 0x098F964D. Off by default
+// (glue25): `enable = occmgr`. The city component table's #4 (foundations
+// §3.6); every manager query and the v1 save record go through it.
+const ClassEntry kOccMgrClasses[] = {
+    {kFC4_CLSID_cSC4OccupantManager, "cSC4OccupantManager", &CreateFC4OccupantManager},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -343,6 +351,7 @@ const Subsystem kSubsystems[] = {
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
     {"dispatch", nullptr, kDispatchClasses, sizeof(kDispatchClasses) / sizeof(kDispatchClasses[0]), false},
+    {"occmgr", nullptr, kOccMgrClasses, sizeof(kOccMgrClasses) / sizeof(kOccMgrClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

@@ -336,7 +336,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4NetMgrHost.h
         plugin/FC4NetMgrShadow.cpp
         plugin/FC4NetMgrShadow.h
-        # The occupant manager shadow (occupant-manager.md): occmgr_shadow (no replacement).
+        # The occupant manager (occupant-manager.md): enable = occmgr; its shadow
+        # is occmgr_shadow and follows whichever manager is active.
+        plugin/cFC4OccMgr.cpp
+        plugin/cFC4OccMgr.h
         plugin/FC4OccMgrShadow.cpp
         plugin/FC4OccMgrShadow.h        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
