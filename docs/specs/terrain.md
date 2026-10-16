@@ -499,23 +499,57 @@ centre (160, 160), corners (152, 152), (152, 168), (168, 168), (168, 152). Rows 
 crossing, empty. Row 10 (`Z = 160`): the edges p0→p1 (x 152, column 9) and p2→p3 (x 168, column 10) cross; the span
 is 9..11. The bitmap test keeps only vertex (10, 10) (`U = W/2`); vertices 9 and 11 give `U = −W/2` and `3W/2`.
 
-### 9.4 Component kinds *[compat for 0, 2, 5, 7; others summarised]*
+### 9.4 Component kinds *[compat]*
 
-| Kind | Operation |
-|---|---|
-| 0 | raise or lower (`0x00745C60`): `b > neutral` → `RaiseVertex(i, f32((b − neutral) × strength))`; `b < neutral` → `LowerVertex(i, f32((neutral − b) × strength))`; equal → no change. Every `b ≠ neutral` **reports a change**, even when the vertex is locked or already at the clamp (TR15) |
-| 1 | flora painting |
-| 2 | talus smoothing (`0x00745DE0`; strength capped at 1.0 by the caller; the out rectangle grows by 1): §9.4.1 |
-| 3 | (`0x00749130`) |
-| 4 | animals (render) |
-| 5 | level toward the target height `+0x34` (`0x00745BA0`): §9.4.1 |
-| 6 | water erosion |
-| 7 | mark: sets flag `0x0400` (`0x00740820`) |
-| 8 | lake (adds water) |
-| 9 | rain (surface water) |
-| 10 | spring (surface water) |
+The dispatcher (`ApplyBrushComponents` `0x0074D730`) selects the operation by the component kind with a jump table
+at `0x0074DB64`, kinds 0–10 (a kind > 11 is rejected at load, §9.1). Each kind's entry point is given below.
 
-Kinds 1, 3, 4, 6, 8–11 are used only by the terraforming tool's god-mode brushes, which a harness does not drive.
+| Kind | Operation | Entry |
+|---|---|---|
+| 0 | raise or lower: §9.4.1 | `0x00745C60` |
+| 1 | flora painting: §9.4.2 | `0x00745A40` |
+| 2 | talus smoothing: §9.4.1 | `0x00745DE0` |
+| 3 | (no shipped brush; not yet traced) *[inferred: a height edit]* | `0x00749130` |
+| 4 | animals (render): §9.4.2 | `0x00749310` |
+| 5 | level toward the target height: §9.4.1 | `0x00745BA0` |
+| 6 | hydrological erosion (no bitmap footprint): §9.4.4 | `0x007479B0` |
+| 7 | mark: sets vertex flag `0x0400`: §9.4.2 | `0x00740820` |
+| 8 | lake (grey-modulated levelling): §9.4.5 | `0x00745CD0` |
+| 9 | rain (surface water): §9.4.5 | `0x0073EAB0` |
+| 10 | spring (surface water): §9.4.5 | `0x0073D4D0` |
+
+**What each kind returns** (§9.4.6). Kinds 0–5, 7 and 8 return a **per-vertex callback** pointer; the bitmap
+footprint (`FUN_00742180`, §9.3) or the solid footprint (`FUN_00742440`, §9.4.6) then runs it once per vertex and keeps
+the vertices where it reports a change. Kinds 6, 9 and 10 do **not** use the footprint at all: they run once per
+component and write the out rectangle themselves.
+
+**Per-kind pre-steps** (`0x0074D91D`–`0x0074D94C`), before the kind is selected:
+- kind 1: nothing (the kind-1 branch below decides);
+- kind 2: if the scaled strength `> 1.0` it is **capped to 1.0** (`fcomp` against `0x00A81228` = 1.0f at `0x0074D92E`).
+  The cap uses the raw compare, so a NaN strength is not capped.
+- every other kind: no pre-step.
+
+**After the operation**, per kind:
+- kind 2: the out rectangle grows by **1** vertex on every side, clamped to `0 … cellsX` / `0 … cellsZ` (`0x0074D977`
+  region, signed compares) *[quirk: clamped to the cell counts, not the vertex counts]*
+- kind 7: the out rectangle is grown again by `FUN_00748040`;
+- all others: unchanged.
+
+**Random draws.** The walk-angle draw of §9.3 step 2 (one `RandomUint32Uniform(5)` of the terrain generator at
+`0x00B4BC78` per in-bounds application, and only when the description's walk flag is set — true for every shipped
+brush, §9.1) is the only draw in a **height** brush. Kinds 0, 2, 5, 6, 8, 9 and 10 draw nothing themselves, so the
+count "one terrain RNG draw per in-bounds `ApplyBrush`" is **confirmed** for those, including kind 8. **Kinds 1 and
+3 draw from the same generator per vertex** (§9.4.2, §9.4.3), so an application of `FloraBrush` or of a kind-3 brush
+consumes `1 + (draws per vertex that passes its gate)`, not 1. Kind 4 is render-only and draws nothing.
+
+**The change message.** No kind posts the terrain's own change message. The only post is step 4 of `ApplyBrush`
+(§9.2): `RedisplayTerrain(1, 1, out, data4)` with the **caller's** `data4` (`tBrushParameters +0x20`), and only when
+the caller set the redisplay byte and the out rectangle is non-empty. So every kind posts `0x278E6003` with the
+`data4` its caller chose: 3 for the disasters and the effects manager, 2 for the mayor-mode tool and
+`ApplyTerrainBrush`, 1 for the god-mode tool (§9.5, §9.6). Kinds 6, 9 and 10 also post nothing extra; their water and
+height edits reach the view through that same single message. **Kinds 1 and 3 are different**: each posts a message of
+its own through the global message service at `0x00B43CB8` (§9.4.2, §9.4.3) when a scatter actually happens — those
+are occupant-side messages, not `0x278E6003`.
 
 #### 9.4.1 Kinds 2 and 5 *[compat; checked in the bytes, TR1]*
 
@@ -529,11 +563,16 @@ Both read the grey value `b` and the scaled strength, and compute `step := r24(r
 
 Every other branch reports a change, also for a locked vertex.
 
-**Kind 2, talus smoothing** (`0x00745DE0`). Two thresholds come from the terrain ini (`ReadTerrainIniFile`
-`0x0074DC30`, section `WindErosion`, key `TalusAngle` in degrees, × π/180; code default 0.79 rad):
-`Tedge := f32(tan(angle) × 16)`, `Tdiag := r24(Tedge × √2)` *[decomp only for the ini]*. With the neighbour mask of
-§11.3 (the `GetNeighbors` rules, computed inline from `x = i mod vertsX`, `z = i div vertsX`), for each neighbour `n`
-in the offset order W, NW, N, NE, E, SE, S, SW (`+0x84`…`+0xA0`) that the mask allows:
+**Kind 2, talus smoothing** (`0x00745DE0`). Two thresholds come from the terrain ini (§9.7; `ReadTerrainIniFile`
+`0x0074DC30`, section `WindErosion`, key `TalusAngle`, an **integer** number of degrees, × π/180 at `0x0074E1C2`;
+code default 0.79 rad at `0x00B0D59C`, **shipped 5** — §9.7): the load path precomputes
+`Tedge := f32(tan(angle) × 16)` (`fptan` at `0x0074E1DA`, × the 16.0 at `0x00AB3B5C`) into the global `0x00B4BCF4`, and
+`Tdiag := r24(Tedge × √2)` into `0x00B4BCF0` (`0x0074E1F6`–`0x0074E204`). Nothing else reads the TalusAngle global
+(`0x00B0D59C` has exactly two references, both inside the load path), so a replacement keeps the two thresholds, not
+the angle. With the shipped value: `Tedge ≈ 1.39982 m`, `Tdiag ≈ 1.97964 m`; with the code default they would be
+16.1479 and 22.8366 m. With the neighbour mask of §11.3 (the `GetNeighbors` rules, computed inline from
+`x = i mod vertsX`, `z = i div vertsX`), for each neighbour `n` in the offset order W, NW, N, NE, E, SE, S, SW
+(`+0x84`…`+0xA0`) that the mask allows:
 1. `excess := r24(r24(alt_i − alt_n) − T)` with `T = Tedge` for W, N, E, S and `Tdiag` for the diagonals.
 2. If `excess > 0`: `move := r24(excess × step)`. If `i` is not locked: `alt_i := r24(alt_i − move)`, clamped to the
    minimum allowed height, `depth_i := sea − alt_i`. If `n` is not locked: `alt_n := r24(alt_n + move)`, clamped to
@@ -541,6 +580,244 @@ in the offset order W, NW, N, NE, E, SE, S, SW (`+0x84`…`+0xA0`) that the mask
 
 `alt_i` is re-read for each neighbour, so a vertex can shed material to several lower neighbours in one call.
 Material only moves downhill from `i`.
+
+#### 9.4.2 Kinds 1, 4 and 7 (the flora, animal and mark brushes) *[compat where stated]*
+
+**Kind 1, flora painting** (`0x00745A40`-`0x00745B97`; `ret 8`). The dispatcher sets the callback only when the
+terrain's count at `+0x108` is non-zero (`0x0074D973`-`0x0074D97B`: `test eax, eax; jbe` skips the whole kind
+otherwise). `+0x108` is the count of flora types; the placer itself is `+0x104` (section 15.4). Per vertex:
+
+1. `b < 10` (unsigned) to no change (`0x00745A4A`: `cmp byte [ctx+0x14], 0xa; jb`). **The neutral grey is not
+   consulted**; the gate is a fixed 10.
+2. One draw of `RandomUint32Uniform(100)` on the terrain generator (`0x00B4BC78`); if the result is `> 30` the
+   vertex is skipped (`0x00745A54`-`0x00745A63`). So the placement chance is **31/100** per vertex.
+3. Read the water depth of the vertex from the surface water array (`terrain +0x24` then `+0x18`, 36-byte records,
+   `+0x00`). If `depth > 0.0` (strict; a NaN takes the flora path) the placement is refused and a message is posted
+   through the global message service at `0x00B43CB8`: vtable `+0x2C` with `(1, 0xAA62C9D5, 0, 0, 0)`
+   (`0x00745A86`-`0x00745AA3`), skipped when the global is null. No flora is placed on water.
+4. Otherwise `x := i mod vertsX`, `z := i div vertsX`; if `x >= cellsX` or `z >= cellsZ` (unsigned) nothing happens.
+5. Three more draws on the same generator: `rx := RandomFloatUniform(x*16, x*16 + 16)`,
+   `rz := RandomFloatUniform(z*16, z*16 + 16)` (no clamp to the city), and `k := RandomUint32Uniform(count_108)` -
+   a flora-type index. So a kind-1 vertex that reaches the scatter costs **four** generator draws.
+6. `h := terrain.GetAltitude(rx, rz)` (vtable `+0x34`, slot 13), then the flora placer (`terrain +0x104`, vtable
+   `+0x44`) is called as `(0, &(rx, h, rz), 0)`. Then `(*(void**)0x00B43CEC)->vtable+0x58` is consulted and, if it is
+   non-zero, `(*(void**)0x00B43D60)->vtable+0x18` is called with `(rx, rz, 1)`.
+7. The call **always returns 0**: a kind-1 vertex never joins the out rectangle, so a flora-only brush posts no
+   `0x278E6003`.
+
+It writes no altitude, no water and no vertex flag; it creates flora occupants (objects) through the placer.
+
+**Kind 4, animals** (`0x00749310`). Render-only: it paints the animal layer and never writes the vertex array, the
+water array or any flag. It is not gated by `+0x108`.
+
+**Kind 7, mark** (`0x00740820`). Sets vertex flag `0x0400` (section 7) on every vertex it is run on and reports a
+change there. After the whole component, `FUN_00748040(&out)` grows the out rectangle once more.
+
+#### 9.4.3 Kind 3, the object scatter *[partly compat; checked in the bytes, TR1]*
+
+`0x00749130`-`0x00749309` (`ret 8`). It is **not** a height edit: it is a scatter of objects or creatures, in the
+same family as kind 1. **No shipped brush uses kind 3** (section 9.7.1), so nothing observable in the shipped data
+depends on it.
+
+1. `mgr := terrain +0xF8`; if null, no change. `c := ctx->component` (`ctx +0x20`); if null, no change.
+2. `b == 0` to no change (`0x0074915A`). As with kind 1, the **neutral grey is not consulted**.
+3. `x := i mod vertsX`, `z := i div vertsX`; `x >= cellsX` or `z >= cellsZ` (unsigned) to no change.
+
+The remainder of the operation (how many objects per vertex, which type table is used, and the message it posts) was
+not finished in this pass *[inferred: a per-vertex scatter through the `+0xF8` manager with its own draws]*. A trace
+of `0x00749130` from `0x00749170` settles it; conformance test 29 reserves a slot for it. The dispatcher gives it no
+pre- or post-step, and it never writes altitude or water.
+
+#### 9.4.4 Kind 6, hydrological erosion *[compat; checked in the bytes, TR1]*
+
+Entry `0x007479B0`, a terrain method (`this` in ECX, `ret 0xC`), called **instead of** the footprint with the whole
+component: the bitmap, if any, is ignored (the ErosionBrush's kind-6 component has none, §9.7.1). It reads the
+argument block of §9.4.6: `to.x`, `to.z` (`+0x00`, `+0x04`), the brush level (`+0x10`) and the scaled strength
+(`+0x18`).
+
+1. The centre vertex is `vx := ftol(to.x × 0.0625)`, `vz := ftol(to.z × 0.0625)` (`0x007479BA`–`0x007479D2`; the
+   constant `0x00B0D688` is 0.0625). Same rule as §9.3 step 1, but without the `r24` rounding.
+2. The out rectangle is set to the single vertex `(vx, vz)` and then grown by `count / 2` on every side
+   (`FUN_00741E30`, `0x00741E30`), where `count := fistp(0.0625 × radius)` and `radius` is the scaled radius
+   (`0x0074D9BD`–`0x0074D9D3`). `FUN_00741E30` clamps `x0, z0 ≥ 0` and `x1 ≤ cellsX`, `z1 ≤ cellsZ` (signed; the
+   **cell** counts, so on a 256-cell city the last vertex column 256 is reachable only as `x1 = 256`).
+   *[quirk: the erosion rectangle is therefore about `radius / 16` vertices wide, centred on the vertex, and is not
+   the bitmap footprint.]*
+3. Then `n := fistp(strength)` iterations run (`0x007479F8`–`0x00747A26`), and each iteration is the erosion pass
+   `Terrain::ErodeRect(rect, k)` (`FUN_00746AD0`, `0x00746AD0`) with `k := table[level]`, the level-indexed value at
+   `*(uint32*)0x00B4BD4C + level·4` (the table pointer is filled at init).
+
+`ErodeRect` works on the vertex rectangle in **z outer, x inner** order, with `i = vertsX·z + x`, and touches only the
+**water array** (`terrain +0x24` → `water +0x18`, 36-byte records): the depth at `+0x00` and the sediment at `+0x1C`.
+It never writes the altitude. Its constants are the terrain ini's `Hydrology` section (§9.7); the values below are
+the **shipped** ones, with the compiled-in fallbacks in brackets:
+
+- `T := seaLevel (terrain +0x7C) − 15.0` (the `15.0` at `0x00AB3CC8` is a hard constant, not the ini's
+  `SurfaceWaterThreshold`).
+- **Pass 1 (once, before the loop).** For every vertex of the rectangle: `alt < T` → `depth := T − alt`; otherwise
+  (`alt ≥ T`, and NaN) → `depth := 0`. Then `sediment := 0`. So the rectangle is filled with water up to 15 m below
+  the sea, or dried. (`0x00746B41`–`0x00746BAD`; the compare is `fcomp` with the `test ah, 5; jp` sense: jump taken =
+  `alt ≥ T` or unordered.)
+- **Passes 2 and 3, `n` times each.** Each iteration first **rains**, then **flows**:
+  - *Rain.* For every vertex with `alt > T` (strict): `depth += RainFallFactor × alt` (shipped 0.0001 at
+    `0x00B0D5A8`; fallback 0.01). (`0x00746BF0`–`0x00746C21`, `test ah, 0x41; jne` skips `alt ≤ T` and NaN.)
+  - *Flow and erosion.* For every vertex with `depth > 0` (NaN falls into the body):
+    1. `alt < T` → `depth := T − alt` and on to the next vertex (re-fill).
+    2. Otherwise pick a flow neighbour `k` with `FUN_00744760` (`0x00744760`): the §11.3 `GetNeighbors` mask from
+       `x = i mod vertsX`, `z = i div vertsX` and the cells bounds, then the largest `drop := (alt_i + depth_i) −
+       (alt_n + depth_n)` among the four edge neighbours (offsets `+0x84`, `+0x88`, `+0x8C`, `+0x90`, scanned with
+       `k += 2`), then the four diagonals (`+0x88` onward, `k` odd) against `√2 × best` — the same shape as the lava's
+       rule (§11.3). On a rectangle border vertex (`z == z0` or `z1`, `x == x0` or `x1`) no neighbour is picked and
+       `k := −1`. The lazy constant `0x00B4BD74` is `√2`, `0x00B4BD84` is `1/√2`.
+    3. `amount := 0.5 × drop` (`0x5` `0x00A84D2C`), clamped down to `depth_i` when it would exceed it; on a border
+       vertex `amount := depth_i` (the whole depth).
+    4. Sediment exchange: `cap := MaxSedimentPerUnitWater × amount` (shipped 8.0 at `0x00B0D5AC`; fallback 5.0).
+       If `cap < sediment_i`: `sediment_i −= cap` and `cap` is carried to the neighbour. Otherwise the carried
+       amount is 0 and the rest is deposited: `alt_i −= rate × (cap − sediment_i)`, `sediment_i := 0`, where `rate`
+       is the erosion rate below.
+    5. The erosion rate from the slope `s := alt_i − alt_n` (× `1/√2` when `k` is a diagonal; 0 when `k < 0`):
+       `s ≤ HydrErosionRateRampBegin` → `MinErosionRate`; `s ≥ HydrErosionRateRampEnd` → `MaxErosionRate`; else
+       `MinErosionRate + (s − RampBegin) × (RampEnd − RampBegin) / (MaxErosionRate − MinErosionRate)` (the ratio is
+       computed once per call into `esp+0x2c`, `0x00746B14`–`0x00746B3B`). Shipped: 0.05, 0.4, 5° and 40° (the two
+       ramp endpoints are × π/180 on load, `0x0074E847`, `0x0074E8D2`).
+       *[quirk: the ini documents the ramp endpoints as a **slope in degrees**, and the load path converts them to
+       radians, but the pass compares them with a raw height difference in **metres**. With the shipped values the
+       rate therefore saturates at `MaxErosionRate` as soon as the drop exceeds 0.698 m. The degrees-of-slope intent
+       is *[inferred]*; what would settle it is a controlled in-game stroke on a known slope.]*
+    6. If vertex `i`'s flags at `+0x23` have bit `0x40` set the sediment step is skipped (`0x00746DC7`);
+       `depth_i := depth_i − amount`, and, when a neighbour was picked and `alt_n > T`, `depth_n += amount` and
+       `sediment_n += carried` (`0x00746DF1`–`0x00746E34`).
+    7. Finally, if `depth_i ≤ 0` the sediment is zeroed; otherwise if `depth_i > 0` and the flags do **not** have
+       `0x40`, `alt_i += DepositRate × sediment_i` and `sediment_i −= ` the same amount (`DepositRate` shipped 0.65 at
+       `0x00B0D5B0`; fallback 0.2; `0x00B4` `0x00B0D5B0` is the constant `0.20000000298023224` only as the compiled
+       fallback). (`0x00746E38`–`0x00746E83`.)
+
+**What it does not do.** It writes no altitude and no vertex flags, so it does not move objects and does not change
+navigability by itself — but it changes water depths, and `IsNavigable` and the bodies of water (§10.3, §10.4) read
+those, so navigability changes once the surface water rebuilds. It posts no message of its own (see the §9.4
+change-message note): the caller's single `RedisplayTerrain` covers the out rectangle.
+
+Shipped brush: `ErosionBrush 0x6A4BAAFA` comp0 (radius 900, 700, 350, 250, 200; strength 10, 8, 6, 5, 4 — the
+strength is the **iteration count**), used by the effects manager's `erodefx_terrain` and `stream_cut_fx_terrain`
+records (effects.md §8.4). So kind 6 is **not** exclusive to the god-mode tool: it is reachable through a brush
+effect. Which caller starts those two effect names is not yet traced *[inferred: a network/stream or disaster
+effect]*.
+
+#### 9.4.5 Kinds 8, 9 and 10 (the god-mode water brushes) *[compat; checked in the bytes, TR1]*
+
+These are the `GodValleyLake`, `GodValleyRain` and `GodValleySpring` brushes (§9.7.1).
+
+**Kind 8, lake** (`0x00745CD0`), a per-vertex callback (`this` = the terrain, `ret 8`). With `b` the grey byte and
+`neutral` the component's neutral grey (`component +0x28`):
+
+```
+amount := f32((int)(b − neutral)) × component.strength[level]   // the RAW per-level strength
+if amount == 0: return false                                     // also when b == neutral
+target := amount + params.targetHeight                           // the +0x1C of §9.4.6 = tBrushParameters +0x34
+tol    := |amount × 0.0625|                                      // 0x00A8E174
+```
+
+*[quirk: `amount` uses the component's raw `strength[level]`, **not** the scaled strength the other kinds take from
+the argument block, so `tBrushParameters.strength` has no effect on kind 8.]*
+
+Then (`0x00745D2C`–`0x00745DD4`):
+
+- `target > alt_i` (strict): a **wet** vertex (`depth_i > 0`, NaN counts as wet) is left **unchanged** and the call
+  reports false. A dry vertex (`depth_i ≤ 0`) is changed: `target − alt_i < tol` → `SetAltitudeAtVertex(i, target)`
+  (terrain vtable slot 50, `+0xC8`); else `RaiseVertex(i, tol)` (`0x00744CA0`). Either way it reports true.
+- `target < alt_i` (strict), wet or dry: `alt_i − target < tol` → `SetAltitudeAtVertex(i, target)`; else
+  `LowerVertex(i, tol)` (`0x00744AF0`). Reports true.
+- `target == alt_i`, or NaN: no change, reports false.
+
+So the lake brush is **grey-modulated levelling**: with neutral 255 (GodValleyLake) `b − neutral ≤ 0`, so it only ever
+carves **down** toward `target_height − |amount|`. Water appears only as a side effect: the height setters recompute
+`depth := sea − alt` (§6), so ground carved below the sea becomes water. It never writes the water array directly,
+and `RaiseVertex` / `LowerVertex` erase any lake water they cross (§16.5). Objects and navigability follow the
+altitude change through the usual setters.
+
+Shipped: `GodValleyLake 0xEB70C719` comp0, neutral 255, radius 800/500/300/200/100, strength 0.6/0.3/0.15/0.08/0.04.
+
+**Kind 9, rain** — entry `FUN_0073EAB0` (`0x0073EAB0`), a **surface-water** method (the surface water is the terrain's
+`+0x24`; `ret 0x10`). It is called with `(vertexIndex, &argumentBlock, &outRect, scaledStrength)` where the vertex
+index is `GetVertIndex(vx, vz)` of the §9.3 centre vertex (terrain slot 9). It has two forms selected by the surface
+water's mode byte at `+0x34` (`0x0073EAB0`–`0x0073EABE`):
+
+- `+0x34` **non-zero** → the component is applied per vertex with the callback `0x0073D490`, which adds
+  `strength × 0.1` (`0x00A8C950`) to the water record's field at `+0x08` and reports false always (so no vertex joins
+  the out rectangle). `b == neutral` makes it a no-op.
+- `+0x34` **zero** (the default) → `FUN_0073E350` runs a whole-region rain and no per-vertex callback is used.
+
+*[In this build the byte is only ever stored at `0x0073DF25` and `0x0073FF24`, both writing 0, so the per-vertex form
+is unreachable and the region form always runs. A replacement may implement the region form only.]*
+
+The region form (`FUN_0073E350`, `0x0073E350`) is a surface-water method with `(vertexIndex, &argumentBlock,
+&outRect, scaledStrength)`:
+
+1. The out rectangle is reset to empty (`x0, z0 := INT32_MAX`, `x1, z1 := INT32_MIN`).
+2. `FUN_0073D2B0(vertexIndex)` then the terrain's `GetVertex` (slot 10, `+0x28`) give the vertex's `(x, z)`; the point
+   is rejected unless `FUN_00743A10(terrain, x, z, block)` accepts it and `b ≠ neutral`.
+3. `newLevel := waterSurface(i) + strength`, where `waterSurface(i) := alt_i + (depth_i > 0 ? depth_i : 0)`.
+4. `FUN_0073DFF0` builds the set of vertices the water reaches from `i`.
+5. For each reached vertex `j` with `waterSurface(j) < newLevel` (strict; NaN is skipped):
+   `depth_j := newLevel − alt_j`, clamped to at most **200.0** (`0x00B0D5DC`). Each such vertex joins the out
+   rectangle through `GetVertex` and a signed min/max, so the rectangle ends as the bounding box of the vertices
+   actually raised (or empty).
+
+It writes only water depths; no altitude, no flags, no objects. Navigability and the bodies of water follow through
+§10.3/§10.4 after `EndBrushScrub`. Shipped: `GodValleyRain 0xCB8D4CA7` comp0 and `GodValleyLake 0xEB70C719` comp1,
+neutral 255, strength 6/4/2/1/0.5.
+
+**Kind 10, spring** — entry `FUN_0073D4D0` (`0x0073D4D0`), a **surface-water** method, `ret 4`, one argument:
+`water[GetVertIndex(vx, vz)].field_4 += 1.0` (`0x0073D4D0`–`0x0073D4EA`; the 1.0 is `0x00A81228`). That is the whole
+operation: no bitmap, no per-vertex loop, no out-rectangle entry (the call is made with the callback slot left 0, so
+nothing is added to the out rectangle and, unless another component of the same brush touched something, no message
+is posted). Only the **centre** vertex is affected, whatever the radius.
+
+The water record's fields at `+0x04` and `+0x08` (the spring and rain accumulators) are not in the §2.2 table; they
+are `f32` and are read by the surface water's own tick *[inferred: consumed as a water source]*. A trace of the
+surface water's tick settles what each becomes.
+
+Shipped: `GodValleySpring 0x4B9539D1` comp0, no bitmap and no neutral grey, radius 5/4/3/2/1, strength 5/4/3/2/1.
+
+#### 9.4.6 The callback contract *[compat]*
+
+Kinds 0, 1, 2, 4, 5, 7 and 8 are per-vertex callbacks. The footprint walkers pass three things:
+
+```
+bool __stdcall Op(Terrain* this /* ECX */, int vertexIndex /* stack arg 1 */, ArgBlock* p /* stack arg 2 */);
+```
+
+`Op` returns non-zero when it changed the vertex; the walker then adds that vertex to the out rectangle. Both walkers
+pop 8 bytes (`ret 8`).
+
+The **argument block** is built once per component by the dispatcher and reused for every vertex (a block on the
+dispatcher's stack):
+
+| Offset | Field |
+|---|---|
+| `+0x00`, `+0x04` | `to.x`, `to.z` (metres) — also what kind 6 uses for the centre |
+| `+0x08`, `+0x0C` | `from.x`, `from.z` |
+| `+0x10` | the brush level index (int) |
+| `+0x14` | the grey byte `b` — **written by the walker before each call** |
+| `+0x18` | the scaled strength `component.strength[level] × tBrushParameters.strength` |
+| `+0x1C` | the target height (`tBrushParameters +0x34`) |
+| `+0x20` | the component (`cSC4BrushComponent*`) |
+
+and the component (76 bytes, the stride of §9.1's list at `0x0074D7A7`) carries, as the callbacks read them:
+`+0x04` kind, `+0x08` bitmap object, `+0x0C` oriented byte, `+0x10` the radius array, `+0x1C` the strength array,
+`+0x28` the neutral grey byte.
+
+- **With a bitmap** (`FUN_00742180`, `0x00742180`) the walker is the §9.3 footprint and `b` is the bitmap pixel.
+- **Without one** (`FUN_00742440`, `0x00742440`) the walker covers a solid rectangle and passes a constant grey; the
+  component's neutral then decides the direction. The exact grey value is *[inferred: 255]*; what would settle it is
+  the body of `FUN_00742440`. Only `GodValleySpring` and `ErosionBrush`'s kind-6 component ship without a bitmap, and
+  neither uses the callback path, so nothing observable in the shipped data depends on it.
+
+**Kind 0** (`0x00745C60`) reads `p +0x14` (b), `p +0x18` (scaled strength) and `p +0x20 → +0x28` (neutral):
+`b == neutral` → false; `b > neutral` → `RaiseVertex(i, f32((b − neutral) × strength))` (`0x00744CA0`); `b < neutral`
+→ `LowerVertex(i, f32((neutral − b) × strength))` (`0x00744AF0`). Every `b ≠ neutral` reports a change, even when the
+vertex is locked or already at the clamp (TR15).
+
 
 ### 9.5 Who applies brushes
 
@@ -572,6 +849,84 @@ The tool (`cSC4ViewInputControlTerrainScrubber`) wraps strokes in `BeginBrushScr
 and calls `ApplyBrush` per application. In god mode it sets `data4 = 1`; in mayor mode `data4 = 2` and each
 application is charged `GetCostPerBrushApplication` (slot 62) against the budget. `EndBrushScrub` makes the surface
 water rebuild its bodies of water (§10.3).
+
+---
+
+### 9.7 The terrain ini and the shipped tunables *[compat; checked in the bytes and in the shipped data, TR1]*
+
+The terrain tunables are **not** in `SimCity 4.ini` (that file only holds `[Directories]`) and not in a file on disk.
+`ReadTerrainIniFile` (`0x0074DC30`) fetches them as a single DBPF resource:
+
+| | |
+|---|---|
+| Type | `0x00000000` |
+| Group | `0x8A5971C5` |
+| Instance | `0xAA597172` |
+| Package | `SimCity_1.dat` |
+| Format | plain-text ini, 17 056 bytes decompressed (3 979 compressed) |
+
+The TGI is loaded at `0x0074DC4C`–`0x0074DC54` and looked up at `0x0074DC5C`. The sections are `MiscTerrainTunables`
+(`0x00AB4124`), `WindErosion` (`0x00AB40E8`) and `Hydrology` (`0x00AB407C`); the key strings are `0x00AB3F00`–
+`0x00AB4110`. Each present key is parsed — `atoi` for the integer ones, `atof` for the rest — and stored in a global;
+when a key is absent the global keeps its compiled-in fallback (the `.data` initial value). The load is once per
+process.
+
+| Section | Key | Global | Fallback | **Shipped** | Notes |
+|---|---|---|---|---|---|
+| MiscTerrainTunables | `EnableSimulation` | `0x00B0D568` (byte) | 0 | **0** | terrain simulation off |
+| MiscTerrainTunables | `RaiseLowerAmount` | `0x00B0D578` | — | **80.5** | **write-only**: nothing reads this global (two references, both in the load path). Slot 47 returns the constant 20.0 (§2.4) |
+| WindErosion | `NumIterationsPerUserClick` | `0x00B0D594` | — | **1** | |
+| WindErosion | `NumIterationsPerSimMonth` | `0x00B0D598` | — | **5** | |
+| WindErosion | `TalusAngle` | `0x00B0D59C` | 0.79 rad | **5** (degrees) | `atoi`, then × π/180 (`0x00B0D694`) at `0x0074E1C2`. Only the load path reads it: it is turned into the two kind-2 thresholds (§9.4.1). `Tedge = tan(5°)·16 ≈ 1.39982` at `0x00B4BCF4`, `Tdiag ≈ 1.97964` at `0x00B4BCF0` |
+| WindErosion | `ErosionFactor` | `0x00B4B40C` | — | **0.05** | the wind-erosion rate; nothing in the brush path reads it (kind 2 uses only the two thresholds) |
+| Hydrology | `NumWaterErosionIterationsPerPlayerClick` | `0x00B0D5A0` | — | **1** | |
+| Hydrology | `NumFlowStepsForGlobalWaterErosion` | `0x00B0D5A4` | — | **20** | |
+| Hydrology | `SurfaceWaterThreshold` | `0x00B0D574` | — | **2.0** | not the `15.0` kind 6 subtracts (§9.4.4) |
+| Hydrology | `RainFallFactor` | `0x00B0D5A8` | 0.01 | **0.0001** | kind 6's rain term |
+| Hydrology | `WaterSourceCapacity` | `0x00B0D56C` | — | **10.8** | |
+| Hydrology | `WaterSinkCapacity` | `0x00B0D570` | — | **10.8** | |
+| Hydrology | `MaxSedimentPerUnitWater` | `0x00B0D5AC` | 5.0 | **8.0** | kind 6 |
+| Hydrology | `MinErosionRate` | `0x00B0D5B8` | 0.02 | **0.05** | kind 6 |
+| Hydrology | `MaxErosionRate` | `0x00B0D5BC` | 0.06 | **0.4** | kind 6 |
+| Hydrology | `HydrErosionRateRampBegin` | `0x00B0D5C0` | 5.128 | **5** (degrees) | × π/180 at `0x0074E847`; kind 6. *[quirk: the fallback is not pre-converted, so with no ini the ramp is nonsense]* |
+| Hydrology | `HydrErosionRateRampEnd` | `0x00B0D5C4` | 38.14 | **40** (degrees) | × π/180 at `0x0074E8D2`; kind 6 |
+| Hydrology | `DepositRate` | `0x00B0D5B0` | 0.2 | **0.65** | kind 6 |
+| Hydrology | `SedimentSpreadRateUnderSea` | `0x00B4B408` | — | **0.5** | clamped to ≤ 1.0 at `0x0074E9F4` |
+| Hydrology | `DepositRateUnderSea` | `0x00B0D5B4` | — | **0.4** | |
+| Hydrology | `SedimentInfluenceOnWaterColor` | `0x00B0D5C8` | — | **0.2** | render |
+| Hydrology | `MaxSedimentAlpha` | `0x00B0D5CC` | — | **1.0** | clamped to ≤ 1.0 at `0x0074EB82`; render |
+| Hydrology | `SedimentColorRed` / `Green` / `Blue` | `0x00B0D5D0` / `D1` / `D2` (bytes) | — | **116 / 108 / 85** | render |
+
+The ini also carries the `TerrainMiscTextures` / `*TextureMapTable` sections (render texture ids) and, commented out,
+the `Desert`/`Temperate`/`Arctic` tables.
+
+**What this means for a replacement.** The shipped values are the ones the game actually runs with, and several of
+them differ a lot from the compiled fallbacks (in particular `TalusAngle` 5° vs 0.79 rad, and the whole erosion-rate
+ramp). A replacement that wants to match the original must read this resource, not rely on the fallbacks. Conformance
+test 30 covers the load and the two kind-2 thresholds.
+
+#### 9.7.1 The shipped brushes and which kinds they use
+
+30 brush exemplars (type `0x6534284A`, group `0x6A01FC2A`) ship in `SimCity_1.dat`. Their component kinds:
+
+| Kind | Brushes |
+|---|---|
+| 0 | CanyonBrush `0xCA33E1CC`, CanyonSoftBrush `0xEA312F77`, CliffRidge `0xEA33E145`, CraterBrush `0x8A33E17A`, EarthquakeFault `0x11`, EarthquakeFaultFlipped `0x12`, GodMountainDefault `0x6A33E1BA`, GodMountainHill `0xAA33E18F`, GodMountainMesa `0xEA312EF9`, GodMountainSteepHills `0x6A33E1DB`, GodValleyDefault `0x2A33E1A3`, GodValleySoft `0x8A33E159`, GodValleySteep `0x6A33E168`, MayorMountainHill `0xEA33E2FD`, MayorValleyDefault `0x0A33E37B`, PipeSinkHole `0x14`, VolcanoBrush `0xCA313035` |
+| 1 | FloraBrush `0x2A31304E` |
+| 2 | CanyonBrush, CanyonSoftBrush, ErosionBrush `0x6A4BAAFA`, GodMountainHill, GodValleySoft, MayorMountainHill, PlainsBrush `0xEA393C05`, SmoothingBrush `0xEA313BB9` |
+| 3 | **none** |
+| 4 | Animals `0xEA353064`, AnimalsTemperate `0x0A6F81D8` / `0x8A6F2E83`, GodValleyRain |
+| 5 | GodMountainMesa, LevelBrush `0x2A312F97`, MayorLevelBrush, PlainsBrush, SuperLevelBrush `0xCA835E0E` |
+| 6 | ErosionBrush (comp0) |
+| 7 | **none** |
+| 8 | GodValleyLake `0xEB70C719` (comp0) |
+| 9 | GodValleyLake (comp1), GodValleyRain `0xCB8D4CA7` (comp0) |
+| 10 | GodValleySpring `0x4B9539D1` |
+
+So **kind 3 and kind 7 have no shipped brush at all**, and every kind except 3 and 7 is reachable from data. The
+god-mode water brushes are `GodValleyLake`, `GodValleyRain` and `GodValleySpring`; `ErosionBrush` and
+`SmoothingBrush` are ordinary effect brushes (effects.md §8.4).
+
 
 ---
 
@@ -944,15 +1299,23 @@ they call, as traced in the bytes:
 |---|---|---|
 | lava flow and burning (§11.3–§11.5) | flammability `IsCellFlammable` (a grid read); fire manager `IgniteCell`, `QuickBurnCell`, `SetCause`; the terrain's own `RaiseVertex` and `RedisplayTerrain` | No. `QuickBurnCell` only appends to the toast list. `IgniteCell` creates fire occupants and inserts them in the occupant manager, whose Insert message is **queued** (occupant-manager.md). The fire manager, fire occupant and flammability code hold no reference to the terrain globals (`0x00B43CF4`, `0x00B43CF0`) or city slot 84. Deeper effect and audio paths of a new fire occupant were not traced *[inferred]* |
 | brush kinds 0, 2, 5, 7 (all the simulation uses) | none outside the terrain: the vertex setters, the terrain generator's draw, and the queued posts of `RedisplayTerrain` | No |
-| brush kind 1 (god-mode flora painting, `0x00745A40`) | the terrain's own `GetAltitude`, then the flora placer (terrain `+0x104`, slot 17) and a simulator (`0x00B43D60`, slot 6) | Possibly, read-only *[inferred]* |
-| brush kinds 8–10 (god-mode water) | the surface water (the terrain's own `+0x24`) | Yes, by design: the same component pair |
+| brush kind 6 (hydrological erosion, §9.4.4; reachable through `ErosionBrush`) | terrain-internal only: `FUN_00741E30` (grow rect), `FUN_00746AD0` (the pass, which calls `FUN_00744760` for the flow neighbour). It reads and writes the surface water's **array** through the terrain's `+0x24` pointer and never calls the surface water object | No: a field access, not a call |
+| brush kind 1 (god-mode flora painting, `0x00745A40`) | the terrain's own `GetAltitude`, then the flora placer (terrain `+0x104`, slot 17) and a simulator (`0x00B43D60`, slot 6); only when the terrain's count at `+0x108` is non-zero | Possibly, read-only *[inferred]* |
+| brush kind 8 (lake, §9.4.5) | only the terrain's own `SetAltitudeAtVertex` (vtable `+0xC8`, slot 50), `RaiseVertex` (`0x00744CA0`) and `LowerVertex` (`0x00744AF0`) | No |
+| brush kind 9 (rain, §9.4.5) | the surface water's own `FUN_0073EAB0` → `FUN_0073E350` → `FUN_0073DFF0`, which then calls the **terrain** back: `GetVertex` (slot 10, `+0x28`) and `FUN_00743A10` | **Yes, read-only**: the surface water calls the terrain's `GetVertex` while the brush is in progress. It writes only the water array |
+| brush kind 10 (spring, §9.4.5) | the surface water's `FUN_0073D4D0`, which writes one float of the water array | No |
 | every `RedisplayTerrain`, `SetSeaLevel`, `SetTerrainType`, slot 84, long-operation messages | `MessagePost` (queued) | No: receivers run on the next pump |
 
 So on the simulation's paths the original never re-enters the terrain from a lava or brush callback. The cores16
 contract (a re-entrant call on the same handle is refused and counted) is therefore compatible: the count should
 stay 0, and queueing is not needed. A non-zero count in a run points at an untraced path and is worth a report. If
 the glue ever drives kinds 1 or 8–10, it must run the flora and water calls as part of the core's own operation (or
-outside the borrow), not refuse them.
+outside the borrow), not refuse them. **The one real re-entrancy in the brush code is kind 9**, where the surface
+water's rain walks back into the terrain for `GetVertex` (slot 10) and `FUN_00743A10` while `ApplyBrush` is still on
+the stack. Both read the terrain's own grid, so a replacement that performs the rain *inside* the terrain borrow must
+make those two queries internal rather than going out through the slot table — or run the rain outside the borrow.
+Kind 6 is the other case worth noting: it writes the surface water's array directly through the terrain's `+0x24`
+pointer without calling the object, which a replacement should treat as the same component pair, not as a host call.
 
 ## 16. Quirks (summary)
 
@@ -973,20 +1336,41 @@ outside the borrow), not refuse them.
 13. The default brush level follows the view's zoom (§2.3).
 14. `SetWaterSurfaceDisplayState` posts only on a change (§8.4).
 15. The sea level is not saved; a load always restores the tuning value (§13.1).
+16. Kind 8 takes its step from the component's **raw** `strength[level]`, ignoring `tBrushParameters.strength`
+    (§9.4.5).
+17. Kind 6's erosion rectangle is `radius / 16` vertices wide and clamped to the **cell** counts, and it never
+    touches the altitude (§9.4.4).
+18. The erosion-rate ramp endpoints are read as degrees, converted to radians, then compared with a height
+    difference in metres (§9.4.4).
+19. The ini's `RaiseLowerAmount` is parsed and thrown away; slot 47 returns the constant 20.0 (§9.7).
+20. Kinds 1 and 3 scatter objects and draw from the terrain generator per vertex, so their RNG cost is not the
+    one draw per application of §9.3 (§9.4.2).
 16. Flat indices are not checked in the §10.5 slots, and coordinates past the last column wrap to the next row.
 
 ---
 
 ## 17. Open questions
 
-- **TR1.** Kinds 2 and 5 are settled (§9.4.1). Still open: the exact operations of kinds 3, 6 and 8–10 (§9.4), and
-  the shipped `TalusAngle` value in the terrain ini. Only the god-mode tool uses them; the harness does not.
-- ~~**TR2.** The `volcano_control` effect's brush values (level, strength and radius ranges, repetition count). They
-  live in the effects resource; the effects manager spec (INVENTORY rank 7) settles them.~~ **ANSWERED 2026-10-15
-  (re-specs16):** effects.md §8.4 and §9.5 above: level 1, strength 1.0 (range 1–1), radius scale 0.5, 0.5, 0.6,
-  0.6, 0.8, 0.8, 1.0, 1.0 or 1.3 (one of nine creators, ranges degenerate), rate 30–130 per effect-second for
-  2–4 effect-seconds; `count` per update = `floor` of the accumulated `rate × dt`.
+- ~~**TR1.** The exact operations of brush component kinds 2, 3, 5, 6 and 8–10, and the shipped `TalusAngle`
+  value.~~ **ANSWERED 2026-10-16 (re-answers17 for kinds 2 and 5; re-answers28 for the rest):** kinds 0, 2, 5, 6, 8,
+  9 and 10 are checked in the bytes (§9.4), and the whole terrain ini with its shipped values is in §9.7. Shipped
+  `TalusAngle` is **5 degrees** (group `0x8A5971C5`, instance `0xAA597172` in `SimCity_1.dat`), which gives
+  `Tedge ≈ 1.39982 m`, `Tdiag ≈ 1.97964 m` — very different from the compiled fallback of 0.79 rad. **Still open
+  within TR1:** kind 3 (`0x00749130`) is not traced; the solid-footprint grey value of `FUN_00742440` is
+  *[inferred: 255]*; the surface-water tick's use of the water fields at `+0x04` (spring) and `+0x08` (rain) is
+  *[inferred]*. None of these is reachable from the harness: kind 3 has no shipped brush, and only `GodValleySpring`
+  and the `ErosionBrush` ship without a bitmap (neither uses the callback path).
+- ~~**TR2.** The `volcano_control` effect's brush values.~~ **ANSWERED 2026-10-15 (re-specs16), re-checked
+  2026-10-16 (re-answers28):** effects.md §8.4 matches §9.5 exactly — level 1, strength 1.0 (range 1–1), radius scale
+  0.5, 0.5, 0.6, 0.6, 0.8, 0.8, 1.0, 1.0 or 1.3 (one of nine creators, degenerate ranges, but both
+  `RandomDoubleRangeUniform` draws on `0x00B22BE8` still happen), target 100, rate 30–130 applications per
+  effect-second for 2–4 effect-seconds, `count = floor(acc)` with `acc += rate × dt`. **One correction:** §9.4 used
+  to say kinds 1, 3, 4, 6, 8–11 are used only by the god-mode terraforming tool. That is wrong for kind 6:
+  `ErosionBrush 0x6A4BAAFA` carries a kind-6 component and is driven by the effects manager through `erodefx_terrain`
+  and `stream_cut_fx_terrain` (effects.md §8.4 records 22–24). Which caller starts those two effect names is still
+  untraced.
 - TR3 to TR18 are answered in place (QUESTIONS.md has the list).
+
 
 ---
 
@@ -1051,3 +1435,28 @@ outside the borrow), not refuse them.
     → 300 − 280 = 20 → true; depth 30.5 → false; a bridge tile with no ceiling property → false.
 25. **Pole cell** (§10.4 step 5, TR20): a pole whose own cell is (5, 5) but whose bounds reach (6, 5) blocks
     `IsNavigable(5, 5, 0, 0)` and not `IsNavigable(6, 5, 0, 0)`.
+26. **Callback contract** (§9.4.6): a kind-0 component with a 1 x 1 bitmap whose single pixel is 255,
+    neutral 128 and strength 1 reports one change and raises the vertex by 127; with the pixel equal to the neutral
+    it reports none; with no bitmap the walker still calls the operation once per vertex of its rectangle.
+27. **Kind 6, the fill pass** (§9.4.4): sea 250, a flat terrain at 300 with a dip to 230, radius 64 (so
+    the rectangle is the centre vertex grown by 2), strength 1. `T = 250 - 15 = 235`; the vertex at 300 is left
+    `depth = 0`, the one at 230 becomes `depth = 235 - 230 = 5`, and every sediment is zeroed. With strength 0 no
+    iteration runs at all.
+28. **Kind 8, lake** (§9.4.5): `target_height = 100`, `b = 0`, neutral 255, `strength[0] = 0.6` gives
+    `amount = -153`, `target = -53`, `tol = 9.5625`. A dry vertex at 300 is lowered toward -53 in steps of at most
+    `tol`, so one application takes it to `300 - 9.5625`; a wet vertex (`depth > 0`) with `target > alt` is
+    **unchanged** and reports false; a vertex already at the target reports false.
+29. **Kind 3 reserved** (§9.4.3): a kind-3 component on a terrain whose `+0xF8` is null changes nothing
+    and reports no change; the rest of the operation is open.
+30. **Terrain ini** (§9.7): reading `WindErosion` / `TalusAngle = 5` from the shipped resource leaves
+    `Tedge = tan(5 degrees) * 16` at `0x00B4BCF4` and `Tdiag = Tedge * sqrt(2)` at `0x00B4BCF0`; a missing key keeps
+    the 0.79 rad fallback and its much larger thresholds. `RaiseLowerAmount` is stored and never read.
+31. **Kind 9, rain** (§9.4.5): a single wet vertex at alt 240 with depth 1 (surface 241) and
+    `strength = 6` raises the surface to 247, so `depth` becomes 7, capped at 200; a vertex whose surface is already
+    above 247 is untouched. The out rectangle is the bounding box of the vertices actually raised.
+32. **Kind 10, spring** (§9.4.5): `GodValleySpring` at a centre vertex adds exactly 1.0 to that vertex's
+    water field `+0x04` and nothing else; the out rectangle stays empty, so no `0x278E6003` is posted.
+33. **Kind 1, flora** (§9.4.2): with `b = 10` and the generator's first draw of
+    `RandomUint32Uniform(100)` in 0..30, one flora occupant is created at a random point of the vertex's 16 m cell
+    and no vertex joins the out rectangle; with `b = 9` nothing happens and no draw is made; with `depth > 0` nothing
+    is placed.
