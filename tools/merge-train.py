@@ -419,61 +419,97 @@ def _resolve_abi_version(wt, rel):
     return True
 
 
-HISTORY_ENTRY = re.compile(r"^ \* (\d+) = (.*)$", re.S | re.M)
+def parse_history(text):
+    """Split fc4.h's version history comment into whole entries.
+
+    An entry starts at ` * <n> = ` and continues over the ` *`-prefixed lines that follow it. Returns
+    (start, end, [(number, lines), ...]) over the region that holds the entries, or (None, None, []).
+    """
+    lines = text.splitlines()
+    first = None
+    for i, ln in enumerate(lines):
+        if re.match(r"^ \* \d+ = ", ln):
+            first = i
+            break
+    if first is None:
+        return None, None, []
+    last = first
+    entries, cur = [], None
+    for i in range(first, len(lines)):
+        ln = lines[i]
+        m = re.match(r"^ \* (\d+) = (.*)$", ln)
+        if m:
+            if cur is not None:
+                entries.append(cur)
+            cur = (int(m.group(1)), [ln])
+            last = i
+            continue
+        if ln.startswith(" *"):
+            if cur is not None:
+                cur[1].append(ln)
+                last = i
+            continue
+        break
+    if cur is not None:
+        entries.append(cur)
+    return first, last + 1, entries
 
 
 def consolidate_abi_history(wt, main_header, lanes, batch_id):
     """Turn the batch's ABI history entries into the single per-batch line the plan calls for.
 
-    Each lane appends its own ` * <n> = ...` entry and bumps the constant. After the merges the file can hold
-    several entries at the same number. Entries already in main's copy are prior history and stay; the rest are
-    this batch's, and they collapse into one entry numbered `NEW`, with the constant set to `NEW`.
-    Returns the new number, or None if the file held no batch entry (then bump_abi runs instead).
+    Each lane appends its own ` * <n> = ...` entry and bumps the constant, so after the merges the file can
+    hold several entries at the same number. Entries already in main's copy are prior history and stay whole;
+    the rest are this batch's, and they collapse into one entry numbered NEW, with the constant set to NEW.
+    Returns the new number, or None when the file holds no batch entry (then bump_abi runs instead).
     """
     path = Path(wt) / ABI_HEADER
     if not path.exists():
         return None
     text = path.read_text(encoding="utf-8", errors="replace")
-    m_main = list(HISTORY_ENTRY.finditer(main_header or ""))
-    main_texts = {re.sub(r"\s+", " ", x.group(2)).strip() for x in m_main}
+    _s, _e, entries = parse_history(text)
+    if not entries:
+        return None
+    _ms, _me, main_entries = parse_history(main_header or "")
+    main_texts = {" ".join(" ".join(ls).split()) for _n, ls in main_entries}
+
+    def norm(ls):
+        return " ".join(" ".join(ls).split())
+
+    keep, batch, numbers = [], [], []
+    for num, ls in entries:
+        numbers.append(num)
+        if norm(ls) in main_texts:
+            keep.append((num, ls))
+        else:
+            batch.append((num, norm(ls)))
+    if not batch:
+        return None
     main_ver = 0
     mm = VERSION_RE_C.search(main_header or "")
     if mm:
         main_ver = int(mm.group(2))
-    entries = list(HISTORY_ENTRY.finditer(text))
-    batch, keep, numbers = [], [], [main_ver]
-    for e in entries:
-        desc = re.sub(r"\s+", " ", e.group(2)).strip()
-        numbers.append(int(e.group(1)))
-        if desc in main_texts:
-            keep.append(e)
-        else:
-            batch.append((int(e.group(1)), desc))
-    if not batch:
-        return None
-    new = max([main_ver + 1] + [n for n, _ in batch])
-    lanes_s = ", ".join(lanes)
-    descs = " | ".join(d for _, d in batch)
-    line = f" * {new} = merge-train batch {batch_id} ({lanes_s}): {descs}"
-    # rebuild the history block: kept entries, then the one batch entry
-    if entries:
-        first, last = entries[0].start(), entries[-1].end()
-        body = "\n".join(e.group(0).rstrip() for e in keep)
-        if body:
-            body += "\n"
-        body += line
-        text = text[:first] + body + text[last:]
-    text = VERSION_RE_C.sub(lambda x: f"{x.group(1)}{new}{x.group(3)}", text, count=1)
+    new = max([main_ver + 1] + [num for num, _ in batch])
+    body = []
+    for _num, ls in keep:
+        body.extend(ls)
+    body.append(" * %d = merge-train batch %s (%s): %s"
+                % (new, batch_id, ", ".join(lanes), " | ".join(d for _n, d in batch)))
+    lines = text.splitlines()
+    out = lines[:_s] + body + lines[_e:]
+    text = "\n".join(out) + ("\n" if text.endswith("\n") else "")
+    text = VERSION_RE_C.sub(lambda x: "%s%d%s" % (x.group(1), new, x.group(3)), text, count=1)
     path.write_text(text, encoding="utf-8")
     git(["-C", str(wt), "add", ABI_HEADER], check=False)
     rs = Path(wt) / ABI_RS
     if rs.exists():
         rt = rs.read_text(encoding="utf-8", errors="replace")
         if VERSION_RE_RS.search(rt):
-            rs.write_text(VERSION_RE_RS.sub(lambda x: f"{x.group(1)}{new}{x.group(3)}", rt, count=1),
+            rs.write_text(VERSION_RE_RS.sub(lambda x: "%s%d%s" % (x.group(1), new, x.group(3)), rt, count=1),
                           encoding="utf-8")
             git(["-C", str(wt), "add", ABI_RS], check=False)
-    log(f"ABI consolidated: {len(batch)} lane entri(es) -> one line at {new}")
+    log("ABI consolidated: %d lane entri(es) -> one line at %d (kept %d prior entries)"
+        % (len(batch), new, len(keep)))
     return new
 
 
