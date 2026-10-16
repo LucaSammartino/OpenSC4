@@ -928,6 +928,30 @@ def batch_touches_engine(wt):
     return False
 
 
+def leftover_markers(root):
+    """Conflict markers still in the tree. A gate on these only wastes twenty minutes."""
+    skip = {".git", "node_modules", "target", "build-x86", "__pycache__", "build-runs"}
+    exts = {".rs", ".cpp", ".h", ".hpp", ".c", ".py", ".md", ".json", ".txt", ".inc",
+            ".toml", ".tsv", ".cmake", ".yml"}
+    bad = []
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix not in exts:
+            continue
+        parts = set(path.parts)
+        if parts & skip:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        # tools/merge-train.py itself carries these as string literals
+        if path.name == "merge-train.py":
+            continue
+        if "<<<<<<<" in text or ">>>>>>>" in text:
+            bad.append(str(path.relative_to(root)))
+    return bad
+
+
 def run_gate(wt, tag):
     """cargo + clippy + ctest for the integration worktree. Returns (ok, tail).
 
@@ -938,6 +962,9 @@ def run_gate(wt, tag):
     engine = Path(wt) / "engine"
     if not engine.is_dir():
         return True, "no engine/ in this batch"
+    bad = leftover_markers(Path(wt))
+    if bad:
+        return False, "leftover conflict markers in " + ", ".join(bad[:12])
     log(f"gate {tag}: cargo test (this takes a while)")
     results = []
     for name, argv in (
