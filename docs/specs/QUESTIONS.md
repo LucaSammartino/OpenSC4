@@ -4945,19 +4945,39 @@ cores14c implemented network-manager.md as a Rust core (`engine/core/src/network
 `fc4_netlot`, ABI 66) and conformance vectors (`nm16_*`, `nm00_*`). There is no plugin glue yet, so none of these
 readings has been checked in game. The current choice is in brackets.
 
-- **NM6:** §4.1, Read of component 53: "any failed ref read returns false at once". Does a null reference in the
+- ~~**NM6:** §4.1, Read of component 53: "any failed ref read returns false at once". Does a null reference in the
   saved list count as a failed read, or is it appended as a null entry? [a null reference is appended as a null entry
   and counts as read; a reference that does not resolve fails the read at once, and the entries appended so far stay.
-  Core `manager.rs` read_record, vector `nm16_01`]
-- **NM7:** §7.10, the retrofit at PostCityInit: when the list is emptied (`0x00611A20`), is each entry released? Is
+  Core `manager.rs` read_record, vector `nm16_01`]~~ **ANSWERED 2026-10-16 (re-answers24):** MATCHES
+  (network-manager.md §4.1). The ref helper (`0x005D96C0`) returns true with a null pointer for object ID 0
+  (`0x005D96F2`–`0x005D9713`), and Read appends it (`0x0061252D`–`0x00612544`). An unresolved reference, or one that
+  fails the QI to `0xA821EF94`, makes the helper return false and Read returns false at once (`0x0061252B`), with
+  nothing released or removed.
+- ~~**NM7:** §7.10, the retrofit at PostCityInit: when the list is emptied (`0x00611A20`), is each entry released? Is
   the list emptied even when no entry still asks for a retrofit? [every entry still asking goes to the host's retrofit
-  callback, then the list is always emptied and every entry released once (the reference taken at slot 23)]
-- **NM8:** §8.2, §8.4, §8.7: zone and wealth values outside the tables (zone outside 0..15, wealth outside 0..3, for
+  callback, then the list is always emptied and every entry released once (the reference taken at slot 23)]~~
+  **ANSWERED 2026-10-16 (re-answers24):** MATCHES (network-manager.md §7.10). The release is in the walk, not in
+  `0x00611A20`: each entry is released once right after its `CheckForRetrofit` test (`0x00612DB3`, also on the false
+  branch from `0x006128E0`), and `0x00611A20` then frees the nodes without releasing. An empty list returns at once
+  (`0x0061283A`). The net effect is the bracket's.
+- ~~**NM8:** §8.2, §8.4, §8.7: zone and wealth values outside the tables (zone outside 0..15, wealth outside 0..3, for
   example from a corrupt zone grid). [a neighbour zone outside 0..15 never wins in GetZoneTypeForNetwork;
-  IsLotCompatible fails for such a zone or wealth; the road style tables give such a zone the "every other zone" rows]
-- **NM9:** §7.6, the underground refit: step 2 has no "if any" test, unlike §7.2. When dirty is not empty but holds no
+  IsLotCompatible fails for such a zone or wealth; the road style tables give such a zone the "every other zone" rows]~~
+  **ANSWERED 2026-10-16 (re-answers24):** no defined original behaviour; the choices are **confirmed** as *[choice]*
+  (network-manager.md §8.2, §8.4, §8.7). None of the three has a range check. GetZoneTypeForNetwork indexes the
+  priority table with the signed neighbour value (`0x0060D0E7`–`0x0060D0F9`) and reads the neighbouring read-only
+  tables: most such values never win, but some do (28 reads 0, 92 reads −1, −4 reads 2); an out-of-range own-cell
+  value is returned as it is. IsLotCompatible reads bit vectors whose unused bits the constructor never initialises
+  (`0x00477E70` grows them bit by bit), and beyond 31 or below 0 reads heap memory. Road style reads past `T` and `V`
+  (`0x0060F5AE`, `0x0060F5DA`). Only a corrupt zone grid reaches any of this (wealth comes from §8.3, which clamps).
+  For `V`, the "every other zone" row is taken to be the zones 10–13 row, `1 1 1`.
+- ~~**NM9:** §7.6, the underground refit: step 2 has no "if any" test, unlike §7.2. When dirty is not empty but holds no
   pipe (or no subway), are tool 4 (or 7) Init, UpdateUndergroundOccupantTerrainHeights and Shutdown still called with
-  an empty list? [yes: both kinds always run when dirty is not empty (vector `nm16_10`)]
+  an empty list? [yes: both kinds always run when dirty is not empty (vector `nm16_10`)]~~ **ANSWERED 2026-10-16
+  (re-answers24):** **DIFFERS** (network-manager.md §7.6). Each kind runs only when its occupant list is not empty:
+  pipes at `0x00613E53`–`0x00613E59`, subways at `0x00613E9B`–`0x00613EA1`. A kind with no occupant in `dirty` gets no
+  `GetNetworkTool`, `Init`, `UpdateUndergroundOccupantTerrainHeights` or `Shutdown`. Also: a failed query (occupant
+  manager slot 40 returning false) skips the split and both kinds. Vector `nm16_10` needs updating.
 
 ## From the disaster layer glue (filed by the coordinator from the `glue13` lane's report, 2026-10-16; merged `e7386b0`)
 
