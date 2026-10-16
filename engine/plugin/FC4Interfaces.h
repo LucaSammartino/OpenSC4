@@ -1720,6 +1720,29 @@ public:
     virtual void EnableDayNightTransitionNotifications(bool on) = 0;              // 29
 };
 
+// ---- tutorial system (docs/specs/tutorial.md §4.4, §6) ----------------------------------------------
+
+#include "cISC4TutorialSystem.h"
+
+// cISC4TutorialSystem (vtable 0x00A861B8, 21 slots; §6). Slots 0-17 are the
+// SDK's (the flammability glue calls slot 8 IsTutorial through them); the
+// game's vtable has three more interface methods that the SDK header lacks
+// (§4.4; the names are the spec's). Call slots 18-20 only through this
+// declaration. Spec-silent argument types (the literal reading of §6, one
+// dword each): `e` and `n` are uint32_t; slots 19 and 20 have no defined
+// return value [TU3].
+class cFC4ISC4TutorialSystem : public cISC4TutorialSystem {
+public:
+    virtual bool OnTutorialEvent(uint32_t e) = 0;        // 18 AL = 1
+    virtual void SetTutorialTaskNumber(uint32_t n) = 0;  // 19
+    virtual void IncrementTutorialTaskNumber() = 0;      // 20
+};
+
+namespace fc4 {
+// The tutorial system travels as the SDK's pointer (cISC4City slot 82).
+inline cFC4ISC4TutorialSystem* AsGame(cISC4TutorialSystem* p) { return static_cast<cFC4ISC4TutorialSystem*>(p); }
+}  // namespace fc4
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
