@@ -981,10 +981,118 @@ fn geometry_and_altitude_helpers() {
         let mut ok = true;
         assert_eq!(fc4_zonedev_lot_savvy_terrain_altitude(d.p, 40.0, 40.0, &mut ok), 100.0);
         assert!(!ok);
+        // Slot 19 (§8.7, ZG22): `*ok` is written on the terrain path too (the
+        // fake game never has flag bit 0 set, so every cell takes it). A NULL
+        // `ok` is accepted and nothing is written.
+        let mut ok19 = true;
+        assert_eq!(fc4_zonedev_lot_savvy_cell_altitude(d.p, 10, 10, &mut ok19), 100.0);
+        assert!(!ok19);
+        let mut ok19b = true;
+        assert_eq!(fc4_zonedev_lot_savvy_cell_altitude(d.p, -5, -5, &mut ok19b), 100.0);
+        assert!(!ok19b);
+        assert_eq!(
+            fc4_zonedev_lot_savvy_cell_altitude(d.p, 10, 10, std::ptr::null_mut()),
+            100.0
+        );
         let (mut a, mut b) = (0.0f32, 0.0f32);
         fc4_zonedev_lot_vertex_altitude_adjustment_range(d.p, 3, 3, &mut a, &mut b);
         assert_eq!((a, b), (f32::MAX, f32::MAX));
     }
+}
+
+/// Slot 5 `HighlightParcels`' `*out` (ZG24, zones.md §7.2 step 6, §13.2): the
+/// caller owns the region, so the bits have to leave the core. With no
+/// highlight point `*out` is the input region (every cell of it set here).
+#[test]
+fn highlight_parcels_hands_the_region_out() {
+    let g = Game::new(64, 64);
+    let d = init(&g);
+    let mut mask = vec![0u8; 16];
+    let mut out_region = fc4_zone_region {
+        x0: 0,
+        z0: 0,
+        x1: -1,
+        z1: -1,
+        mask: mask.as_mut_ptr(),
+        len: mask.len(),
+    };
+    let mut written = false;
+    let mut out_rect = fc4_cell_rect {
+        x1: 0,
+        z1: 0,
+        x2: -1,
+        z2: -1,
+    };
+    let mut res = fc4_zonedev_parcel_result {
+        struct_size: std::mem::size_of::<fc4_zonedev_parcel_result>() as u32,
+        ..Default::default()
+    };
+    unsafe {
+        fc4_zonedev_highlight_parcels(
+            d.p,
+            &region(10, 10, 13, 13),
+            7,
+            std::ptr::null(),
+            true,
+            &mut written,
+            &mut out_rect,
+            &mut out_region,
+            &mut res,
+        );
+    }
+    assert!(written);
+    assert_eq!(
+        (out_region.x0, out_region.z0, out_region.x1, out_region.z1),
+        (10, 10, 13, 13)
+    );
+    assert_eq!(out_region.len, 16);
+    assert!(mask.iter().all(|&b| b == 1));
+    assert_eq!((out_rect.x1, out_rect.z1, out_rect.x2, out_rect.z2), (10, 10, 13, 13));
+
+    // A buffer that cannot hold the region writes nothing and tells the
+    // caller not to hand one out (it then stores null, which §13.2 allows).
+    let mut small = vec![0u8; 4];
+    let mut short_out = fc4_zone_region {
+        x0: 0,
+        z0: 0,
+        x1: -1,
+        z1: -1,
+        mask: small.as_mut_ptr(),
+        len: small.len(),
+    };
+    written = true;
+    unsafe {
+        fc4_zonedev_highlight_parcels(
+            d.p,
+            &region(10, 10, 13, 13),
+            7,
+            std::ptr::null(),
+            true,
+            &mut written,
+            &mut out_rect,
+            &mut short_out,
+            &mut res,
+        );
+    }
+    assert!(!written);
+    assert!(small.iter().all(|&b| b == 0));
+
+    // With no out pointer the core is not asked for a region at all.
+    written = true;
+    unsafe {
+        fc4_zonedev_highlight_parcels(
+            d.p,
+            &region(10, 10, 13, 13),
+            7,
+            std::ptr::null(),
+            false,
+            &mut written,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            &mut res,
+        );
+    }
+    assert!(!written);
 }
 
 // ---- the save record (§10.2) ------------------------------------------------------------------------

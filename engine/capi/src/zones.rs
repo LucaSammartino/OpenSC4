@@ -338,8 +338,10 @@ pub(crate) unsafe fn region_in(r: &fc4_zone_region) -> Option<CellRegion> {
 }
 
 /// Writes a region's bits back into the host's mask (nothing for a NULL
-/// mask).
-unsafe fn region_out(region: &CellRegion, r: &mut fc4_zone_region) {
+/// mask). `r.x0..r.x1` is the host rectangle and `r.len` the mask capacity;
+/// at most `r.len` bytes are written. Callers that need the whole rectangle
+/// check the capacity first (see `fc4_zonedev_highlight_parcels`).
+pub(crate) unsafe fn region_out(region: &CellRegion, r: &mut fc4_zone_region) {
     if r.mask.is_null() {
         return;
     }

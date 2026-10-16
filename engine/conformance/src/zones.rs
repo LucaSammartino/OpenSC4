@@ -2273,6 +2273,13 @@ fn call(w: &World, op: &Json) -> R<()> {
             let (alt, ok) = w.dev()?.lot_savvy_terrain_altitude(x, z);
             Json::Object(vec![("alt".into(), scalar::jf(alt)), ("ok".into(), Json::Bool(ok))])
         }
+        // Slot 19 (§8.7, ZG22): the altitude and the `*ok` the C ABI writes.
+        ("developer", "lot_savvy_cell_altitude") => {
+            let x = i64_of(a(0)?, "cx")? as i32;
+            let z = i64_of(a(1)?, "cz")? as i32;
+            let (alt, ok) = w.dev()?.lot_savvy_cell_altitude(x, z);
+            Json::Object(vec![("alt".into(), scalar::jf(alt)), ("ok".into(), Json::Bool(ok))])
+        }
         ("developer", "neighbor_cells_at_edge_of_lot") => {
             let r = rect_of(a(0)?)?;
             let f = u32_of(a(1)?, "flags")?;

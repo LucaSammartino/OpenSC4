@@ -2864,16 +2864,20 @@ impl ZoneDeveloper {
         (self.host.terrain_altitude(x, z), false)
     }
 
-    /// Slot 19 `GetLotSavvyCellAltitude(cx, cz)` (§8.7): no bounds check.
-    pub fn lot_savvy_cell_altitude(&self, cx: i32, cz: i32) -> f32 {
+    /// Slot 19 `GetLotSavvyCellAltitude(cx, cz)` (§8.7) → (altitude, ok): no
+    /// bounds check. The flag follows the altitude on both paths, so a caller
+    /// that passes `ok` always gets it written: 1 for a lot with flag bit 0
+    /// (`0x0072AAEF`), 0 for the terrain path (`0x0072AB06`) (ZG22). Only a
+    /// non-null `ok` is written; this method reports the value either way.
+    pub fn lot_savvy_cell_altitude(&self, cx: i32, cz: i32) -> (f32, bool) {
         if let Some(lot) = self.lot_at(cx, cz) {
             if self.host.lot_flags(lot) & 1 != 0 {
-                return self.host.lot_altitude(lot);
+                return (self.host.lot_altitude(lot), true);
             }
         }
         let wx = r24(r24(f64::from(cx) + 0.5) * 16.0) as f32;
         let wz = r24(r24(f64::from(cz) + 0.5) * 16.0) as f32;
-        self.host.terrain_altitude(wx, wz)
+        (self.host.terrain_altitude(wx, wz), false)
     }
 
     /// Slot 26 `GetLotVertexAltitudeAdjustmentRange(vx, vz)` (§8.7) → (a, b).

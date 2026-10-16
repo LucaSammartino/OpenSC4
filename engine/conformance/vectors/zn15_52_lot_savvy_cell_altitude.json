@@ -1,0 +1,109 @@
+{
+  "format": 1,
+  "name": "zn15_52_lot_savvy_cell_altitude",
+  "spec": [
+    "zones 8.7",
+    "zones 15 test 46"
+  ],
+  "description": "Test 46 (ZG22): GetLotSavvyCellAltitude(cx, cz, ok) always writes *ok when ok is non-null. A lot with flag bit 0 at (10, 10), altitude 12.5, gives 12.5 and ok = true. A lot at (12, 12) whose flags have bit 0 clear, altitude 99, does not: the terrain path runs at (r24(r24(cx + 0.5) * 16), r24(r24(cz + 0.5) * 16)) and ok = false, so a lot without flag bit 0 is not 'on a lot'. A cell with no lot (20, 30) takes the terrain path (world (328, 488)) with ok = false. There is no bounds check: (-5, -5) takes the same path, its terrain look-up at (-72, -72) finding nothing, and ok is still written as false. Slots 17 and 18 write *ok the same way; the earlier reading that left *ok untouched is superseded.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_lot",
+      "rect": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "facing": 0,
+      "flags": 1,
+      "altitude": 12.5
+    },
+    {
+      "op": "zone_lot",
+      "rect": [
+        12,
+        12,
+        12,
+        12
+      ],
+      "facing": 0,
+      "flags": 0,
+      "altitude": 99
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_savvy_cell_altitude",
+      "args": [
+        10,
+        10
+      ],
+      "expect": {
+        "alt": 12.5,
+        "ok": true
+      }
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_savvy_cell_altitude",
+      "args": [
+        12,
+        12
+      ],
+      "expect": {
+        "alt": 0,
+        "ok": false
+      }
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_savvy_cell_altitude",
+      "args": [
+        20,
+        30
+      ],
+      "expect": {
+        "alt": 0,
+        "ok": false
+      }
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_savvy_cell_altitude",
+      "args": [
+        -5,
+        -5
+      ],
+      "expect": {
+        "alt": 0,
+        "ok": false
+      }
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_savvy_terrain_altitude",
+      "args": [
+        160.5,
+        160.5
+      ],
+      "expect": {
+        "alt": 12.5,
+        "ok": true
+      }
+    }
+  ]
+}

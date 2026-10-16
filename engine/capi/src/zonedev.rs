@@ -66,7 +66,7 @@ use crate::development::{fc4_growth_item, fc4_growth_items_sink};
 use crate::guard;
 use crate::hostgrid::{collect_tokens, create_grid, fc4_cell_rect, fc4_grid_api, grid_token};
 use crate::stream::{fc4_istream, fc4_ostream, fc4_ref, istream_ok, ostream_ok, CIn, COut};
-use crate::zones::{fc4_zone_region, region_in};
+use crate::zones::{fc4_zone_region, region_in, region_out};
 
 type U = *mut c_void;
 
@@ -1417,8 +1417,12 @@ pub unsafe extern "C" fn fc4_zonedev_do_parcellization(
 /// Slot 5 `HighlightParcels(region, type, point, out)` (§7.1, ZQ4). `point`
 /// is NULL or two ints (x, z). `want_out`: the caller passed an out pointer;
 /// then `*out_written` tells whether the core wrote a region and
-/// `*out_rect` its rectangle (the region itself is not handed over). `res`
-/// (may be NULL) tells what the call did.
+/// `*out_rect` its rectangle. `out_region` (may be NULL) receives that
+/// region's rect and bits so the caller can build the game's
+/// `SC4CellRegion<long>` (ZG24): on entry `mask` is the caller's buffer and
+/// `len` its capacity in bytes, on success `len` is the cell count. A buffer
+/// that is too small writes nothing and clears `*out_written`, so the caller
+/// hands out null. `res` (may be NULL) tells what the call did.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
 pub unsafe extern "C" fn fc4_zonedev_highlight_parcels(
@@ -1429,6 +1433,7 @@ pub unsafe extern "C" fn fc4_zonedev_highlight_parcels(
     want_out: bool,
     out_written: *mut bool,
     out_rect: *mut fc4_cell_rect,
+    out_region: *mut fc4_zone_region,
     res: *mut fc4_zonedev_parcel_result,
 ) {
     let pt = (!point.is_null()).then(|| (*point, *point.add(1)));
@@ -1448,6 +1453,28 @@ pub unsafe extern "C" fn fc4_zonedev_highlight_parcels(
     }
     if let (Some(r), Some(o)) = (written.as_ref(), out_rect.as_mut()) {
         *o = fc4_cell_rect::from(r.rect);
+    }
+    // ZG24: the caller owns the region and frees rows, row array and object
+    // with C (zones.md §13.2), so the bits have to leave this module. The
+    // bit grid is `CellRegion`'s (at most MAX_REGION_SIDE per side), which is
+    // the rectangle handed out.
+    if let (Some(r), Some(or)) = (written.as_ref(), out_region.as_mut()) {
+        let (w, h) = (i64::from(r.width()), i64::from(r.height()));
+        let cells = (w.max(0) * h.max(0)) as usize;
+        if or.mask.is_null() || or.len < cells {
+            // Too small to hold the region: hand out nothing rather than a
+            // truncated one (the caller then stores null, which §13.2 allows).
+            if let Some(ow) = out_written.as_mut() {
+                *ow = false;
+            }
+        } else {
+            or.x0 = r.rect.x1;
+            or.z0 = r.rect.z1;
+            or.x1 = r.rect.x1.wrapping_add((w - 1).max(0) as i32);
+            or.z1 = r.rect.z1.wrapping_add((h - 1).max(0) as i32);
+            or.len = cells;
+            region_out(r, or);
+        }
     }
     write_result(res, &t);
 }
@@ -1680,11 +1707,22 @@ pub unsafe extern "C" fn fc4_zonedev_lot_savvy_terrain_altitude(
     a
 }
 
-/// Slot 19 `GetLotSavvyCellAltitude(cx, cz, ok)` (ST0). [choice] §8.7 does
-/// not say that slot 19 writes `*ok`: it is left untouched.
+/// Slot 19 `GetLotSavvyCellAltitude(cx, cz, ok)` (ST0); `ok` may be NULL.
+/// §8.7 writes `*ok` on both paths when `ok` is non-null (ZG22): 1 for a lot
+/// with flag bit 0, 0 for the terrain path. Slots 17 and 18 follow the same
+/// rule; the earlier "[choice] left untouched" reading is superseded.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_zonedev_lot_savvy_cell_altitude(p: *const fc4_zonedev, cx: i32, cz: i32) -> f32 {
-    dev(p, 0.0, |d| d.lot_savvy_cell_altitude(cx, cz))
+pub unsafe extern "C" fn fc4_zonedev_lot_savvy_cell_altitude(
+    p: *const fc4_zonedev,
+    cx: i32,
+    cz: i32,
+    ok: *mut bool,
+) -> f32 {
+    let (a, o) = dev(p, (0.0, false), |d| d.lot_savvy_cell_altitude(cx, cz));
+    if let Some(w) = ok.as_mut() {
+        *w = o;
+    }
+    a
 }
 
 /// Slot 20 `CanCreateLot(x, z, w, h, zoneNotNeeded, waterAllowed, cfg)`

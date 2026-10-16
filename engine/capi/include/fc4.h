@@ -5063,10 +5063,14 @@ bool fc4_zonedev_do_message(fc4_zonedev* d, uint32_t msg_type, uint64_t occupant
 /* Slot 6. A NULL or oversized region does nothing. out may be NULL. */
 void fc4_zonedev_do_parcellization(fc4_zonedev* d, const fc4_zone_region* region, int32_t zone_type, bool flag,
                                    fc4_zonedev_parcel_result* out);
-/* Slot 5. point: NULL or (x, z). With want_out, *out_written / *out_rect tell the region the core wrote. */
+/* Slot 5. point: NULL or (x, z). With want_out, *out_written / *out_rect tell the region the core wrote.
+ * out_region (may be NULL) receives that region's rect and bits so the caller can build the game's
+ * SC4CellRegion<long>: on entry `mask` is the caller's buffer and `len` its capacity in bytes; on success
+ * `len` becomes the cell count (w*h, row-major z inner). A buffer that is too small writes nothing and
+ * clears *out_written, so the caller hands out null (ZG24). */
 void fc4_zonedev_highlight_parcels(fc4_zonedev* d, const fc4_zone_region* region, int32_t zone_type,
                                    const int32_t* point, bool want_out, bool* out_written, fc4_cell_rect* out_rect,
-                                   fc4_zonedev_parcel_result* res);
+                                   fc4_zone_region* out_region, fc4_zonedev_parcel_result* res);
 void fc4_zonedev_set_options(fc4_zonedev* d, bool alternate, bool streets, bool custom);             /* slot 7 */
 bool fc4_zonedev_exists_network_of_type(const fc4_zonedev* d, int32_t x, int32_t z, uint32_t flags); /* slot 8 */
 bool fc4_zonedev_is_cell_water(const fc4_zonedev* d, int32_t x, int32_t z);                         /* slot 9 */
@@ -5096,7 +5100,9 @@ uint32_t fc4_zonedev_master_lots(const fc4_zonedev* d, fc4_token_callback cb, vo
 float fc4_zonedev_lot_savvy_terrain_vertex_altitude(const fc4_zonedev* d, int32_t vx, int32_t vz, uint64_t exclude,
                                                     bool* ok);                                 /* slot 17 */
 float fc4_zonedev_lot_savvy_terrain_altitude(const fc4_zonedev* d, float x, float z, bool* ok); /* slot 18 */
-float fc4_zonedev_lot_savvy_cell_altitude(const fc4_zonedev* d, int32_t cx, int32_t cz);        /* slot 19 */
+/* Slot 19 (§8.7, ZG22): like 17 and 18, `*ok` is written on both paths when `ok` is non-null: 1 for a
+ * lot with flag bit 0, 0 for the terrain path. */
+float fc4_zonedev_lot_savvy_cell_altitude(const fc4_zonedev* d, int32_t cx, int32_t cz, bool* ok); /* slot 19 */
 int32_t fc4_zonedev_can_create_lot(const fc4_zonedev* d, int32_t x, int32_t z, int32_t w, int32_t h,
                                    bool zone_not_needed, bool water_allowed, uint64_t cfg); /* slot 20 */
 /* Slot 21 (§8.4.1): 0 outside, 1 water, 3 network, 4 too steep, 5 / 6 constraint tile, 7 special zone, 8 free.
