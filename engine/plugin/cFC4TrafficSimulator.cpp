@@ -29,6 +29,7 @@
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
 #include "cFC4Neighbors.h"
+#include "cFC4ZoneDeveloper.h"
 #include "cFC4ZoneManager.h"
 #include "compat/FC4Compat.h"
 
@@ -684,9 +685,10 @@ bool MasterRefused(const char* why) {
 
 // §4.1: every lot of the original lot manager's master list, in list order,
 // through its safe lot iterator (slot 15), as the budget glue walks it
-// (FC4BudgetHost.cpp WalkMasterList): only on the identified executable and
-// for the original lot manager; the block is unregistered and freed with C.
-// Borrowed: the master list holds the manager's reference.
+// (FC4BudgetHost.cpp WalkMasterList): only on the identified executable, for
+// the original lot manager or FreeCity4's (zonedev); the block is
+// unregistered and freed with C. Borrowed: the master list holds the
+// manager's reference.
 bool MasterLots(cFC4ISC4LotManager* lm, std::vector<uint64_t>& out) {
     const compat::ExecutableVersion* v = compat::IdentifiedVersion();
     compat::StlNodeFreeFn freeNode = nullptr;
@@ -694,9 +696,17 @@ bool MasterLots(cFC4ISC4LotManager* lm, std::vector<uint64_t>& out) {
     if (v == nullptr || freeBlockVa == 0 || !compat::StlNodeAllocator(nullptr, &freeNode)) {
         return MasterRefused("executable not identified, or allocator B / C unavailable");
     }
+    // §9.1 TG10: the master list is the only order, also with FreeCity4's
+    // lot manager (enable = zonedev), which mirrors it in the original's raw
+    // layout and hands out the same safe lot iterators (slot 15).
+    const void* expectedList = reinterpret_cast<const char*>(lm) + kLotListObjectOffset;
     const uintptr_t vtable = *reinterpret_cast<const uintptr_t*>(lm);
     if (vtable < v->imageBase || vtable - v->imageBase >= v->sizeOfImage) {
-        return MasterRefused("the lot manager is not the original");
+        const cFC4ZoneDeveloper* ours = cFC4ZoneDeveloper::FromAny(lm);
+        if (ours == nullptr || ours->MasterListObject() == nullptr) {
+            return MasterRefused("the lot manager is neither the original nor FreeCity4's");
+        }
+        expectedList = ours->MasterListObject();
     }
     const int32_t lotCount = lm->GetLotCount();  // slot 16
     if (lotCount < 0) return MasterRefused("negative GetLotCount");
@@ -704,7 +714,7 @@ bool MasterLots(cFC4ISC4LotManager* lm, std::vector<uint64_t>& out) {
     if (block == nullptr) return MasterRefused("GetSafeLotIterator returned null");
     std::vector<void*> lots(static_cast<size_t>(lotCount) + 1);
     MasterCopy copy{block,
-                    reinterpret_cast<const char*>(lm) + kLotListObjectOffset,
+                    expectedList,
                     lots.data(),
                     static_cast<uint32_t>(lotCount),
                     0,
