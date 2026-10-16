@@ -92,6 +92,31 @@ Result on the GOG install, 2026-10-15: 417 saves (417 distinct), each with one h
 CRCs correct. History: 14 version 2, byte-identical; 403 version 1, converted, stable; 26,552 series, 127,182
 points. Clock: 407 version 1 and 10 version 2, all 417 identical after the version normalisation. No failures.
 
+`tests/network_rules.rs` sweeps the shipped network rule resources with `fc4_core::network_rules`
+(`docs/specs/network-rules.md` §2): every resource of type `0x0A5BCF4B`, group `0xAA5BCF57` in the install's
+top-folder `.dat` files and the network INI (instance `0x8A5993B9`), read at run time and never stored in the
+repository (the first package in file-name order wins a key held twice; later copies are reported). Each tile file
+must read to its end; it reports the `#Transmogrify` counts (source rules, rules kept, variants dropped as repeats).
+Each INI resource reports its sections and entries used and ignored; in RUL0 a `CopyFrom` whose rule is not in the
+map yet does nothing (§10.1) and is reported, any other failure fails the test. Then the §2.1 load order
+(`NetworkRules::reload`) runs over the same bytes. The bridge and tunnel evaluators (instances `0x1000` and up) are
+outside the spec and only reported.
+
+```sh
+cargo test -p fc4-formats --release --test network_rules -- --nocapture
+```
+
+Result on the GOG install, 2026-10-16: 33 resources, all in `SimCity_1.dat`, no duplicates. The 24 tile files all
+read to the end (`Complete`): 5,578 source rules, 6,295 after `#Transmogrify`, 186 variants dropped; four files use
+`#Transmogrify` (Avenue 41 → 276 and 6 → 44, LightRail and Monorail 41 → 263 each). Per type (evaluator 1, 2):
+Road, Street, Pipe and Subway 326 / 412, Rail 312 / 247, Highway and GroundHighway 36 / 38, Avenue 44 / 276,
+LightRail and Monorail 150 / 263, OneWayRoad 334 / 410, DirtRoad 334 / 412, PowerLine none. RUL1: 30 sections, 1,330
+entries used (1,324 distinct solutions over 29 type pairs; a repeated key overwrites, §8.1). RUL2: 844 rule
+overrides. Network INI (key `00000000-8A5971C5-8A5993B9`): 15 sections, 22 `[TileVerifiers]` entries for 14
+pieces, none ignored. RUL0: 251 sections, 249 intersection rules, no parse failures; five `CopyFrom` entries name a rule not in the map at that point (four a rule
+that never appears, one the rule itself) and do nothing. The five bridge and tunnel resources (`0x1000`, `0x1001`,
+`0x1002`, `0x1006`, `0x100C`) are not tile rule files (they stop at the first line as a bad centre).
+
 The commercial, industrial, civic and park records have the same mode in `fc4-capi`
 (`capi/src/save_sweep_tests.rs`, through the C ABI and its test hosts; same `FC4_SAVES_DIR`):
 `cargo test -p fc4-capi --release save_sweep -- --nocapture` (see `engine/README.md`, "Save sweep").

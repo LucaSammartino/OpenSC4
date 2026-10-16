@@ -794,7 +794,7 @@ impl IntRuleMap {
                         r.cons_lines = cons;
                         (r.ring_prev, r.ring_next, r.add_prev, r.add_next) = (id, id, id, id);
                     } else {
-                        fail("CopyFrom: no such rule", &mut self.failures);
+                        fail(&format!("CopyFrom: no rule {from:#x} (yet)"), &mut self.failures);
                     }
                 }
                 "transpose" => r.transpose(),
