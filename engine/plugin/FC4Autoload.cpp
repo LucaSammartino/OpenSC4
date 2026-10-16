@@ -114,6 +114,8 @@ void Attempt(cISC4App* sc4, cISC4Region* region, const Locations& locations) {
     // reads it, which allocators.md (Strings) says is safe.
     SC4String path(g_path.c_str(), static_cast<uint32_t>(g_path.size()));
     g_busy = true;
+    // [abi-ret] Slot 13 (interfaces.tsv eax-or-void): no spec gives its result (question HG2); the value is
+    // only logged, the load is judged by the city that appears.
     const bool ok = sc4->LoadCity(path, entry);  // slot 13
     g_busy = false;
     Log("autoload: LoadCity(%s) -> %s", g_path.c_str(), ok ? "true" : "false");

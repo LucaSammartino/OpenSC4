@@ -1040,10 +1040,12 @@ bool DeleteLot(void* u, uint64_t lot) {
     cISC4Lot* l = SdkLotOf(lot);
     FC4_ADDREF(l);
     fc4::LotDevHold(Ctx(u), reinterpret_cast<cIGZUnknown*>(l), true);
-    const bool ok = lm->DeleteLot(l);
+    // [abi-ret] Slot 24 leaves EAX undefined (interfaces.tsv eax-or-void; zones.md §8.6 and the §11.3 row:
+    // "no bool result"): the SDK's bool is garbage, so the call is the result.
+    lm->DeleteLot(l);
     FC4_X87_CHECK("lotdev DeleteLot");
-    if (ok) ++Ctx(u)->lotsDeleted;
-    return ok;
+    ++Ctx(u)->lotsDeleted;
+    return true;
 }
 
 // ---- lots (FC4Interfaces.h cFC4ISC4Lot) ----------------------------------------------------------------
@@ -1129,6 +1131,9 @@ uint32_t LotState(void* u, uint64_t lot) {
 bool LotSetState(void* u, uint64_t lot, uint32_t state, uint32_t wealth, uint32_t reason) {
     LOTDEV_TEST(lot_set_state, lot, state, wealth, reason);
     if (!LotWrites(u, lot, "lotdev lot SetState")) return false;
+    // [abi-ret] Lot slot 34 returns nothing defined (lot-records.md §13.2; interfaces.tsv eax-or-void). The value
+    // is only passed through as our slot 8 AbandonBuilding's result, which lot-developer.md §11.1 gives as "AL of
+    // SetState" (the original leaks the same register); no core decision reads it (question LD34).
     const bool ok = LotOf(lot)->SetState(static_cast<cFC4ISC4Lot::HabitationState>(state),
                                          static_cast<cFC4ISC4Lot::WealthType>(wealth),
                                          static_cast<cFC4ISC4Lot::VacateReason>(reason));  // slot 34
@@ -1481,6 +1486,8 @@ bool UpdateLotBaseTextureOccupant(void* u, uint64_t lot, bool force) {
     }
     cISC4LotBaseTextureOccupant* tex = FoundBaseTexture(u, FindBaseTexture(u, SdkLotOf(lot)));
     if (tex == nullptr) return false;
+    // [abi-ret] Base-texture slot 9 (vtables.tsv eax-or-void) has no spec'd result (question LD33); it is passed
+    // through as slot 45's AL, which lot-developer.md §6.6 leaves undefined and the core does not read.
     const bool ok = tex->UpdateVertexAltitudes(true, force, nullptr);  // slot 9
     FC4_X87_CHECK("lotdev UpdateVertexAltitudes");
     return ok;
