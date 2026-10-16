@@ -5458,11 +5458,21 @@ entry is recorded with the lane it came from. Every answer is written into the s
   covered, so `round(D9(average coverage)) > 0` refuses it unless forced. The earlier guess that it was the
   burning test (exit 5) is ruled out by `burning=0`. Written into [disasters.md](disasters.md) §5.4.
 
+- ~~**NR12** (cores22): `fc4_network_rules_cell` carries neither `+0x57` (the one-way pass's re-solve mark) nor
+  the occupant's paired portal (interface `0x8A4BD52B` slot 59), so a cell that crosses the C boundary loses
+  both. Should the cell struct grow those fields, or should a glue lane pass them another way?~~
+  **ANSWERED 2026-10-16 (re-answers31): neither belongs in the cell struct.** `+0x57` is per-pass scratch on the
+  world-cache cell info (set in §6.5 step 2.1 and again in the sweep at `decomp/cSC4NetworkTool.c:11360`, never
+  saved, read by nothing outside `ResolveOneWayConflicts`); the paired portal is a property of the *occupant*,
+  reached only when the cell flags carry `0x80000`, through `0x8A4BD52B` slot 59 on the occupant's `+0x1D0`.
+  Use a marks side-channel for the former and resolve the latter on demand. Written into
+  [network-rules.md](network-rules.md) §14.
+
 ### Not settled by this lane
 
-- **NR9 - NR13** (cores22: the tile grid width field, the mark/remove cell set, stale `AddTypes` links,
-  `+0x57` / paired-portal in `fc4_network_rules_cell`, bridge/rule-solver coupling). Not answered here; each
-  needs its own pass over `network-rules.md` §10 and `network-bridges.md` §7-§8.
+- **NR9, NR10, NR11, NR13** (cores22: the tile grid width field `+0xC4` and `GetTileInfo`, the mark/remove cell
+  set, stale `AddTypes` links, bridge/rule-solver coupling). Not answered here; each needs its own pass over
+  `network-rules.md` §10 and `network-bridges.md` §7-§8.
 - **TR24 - TR27** (glue18: the §15.1 terrain slots, the surface-water `IsNavigableAtPosition` argument dwords,
   the water's message target and animation tick). Not answered here.
 - **PO2, PO3, PO5, PO6, PO1b** (cores21 / `prop-occupant.md` §10: the sixth sub-object at `+0x24`, the

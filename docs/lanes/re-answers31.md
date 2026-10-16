@@ -70,11 +70,17 @@ test (occupant slot 11 rect, intersect with the city, `GetAverageValueInCellRect
 instance `+0xA4`, the 12582912 rounding at `0x00A9E434`) and refuse when it is `> 0` and the call is not
 forced. That also removes the one-step lot-condition lag the same run logged.
 
-### C. Not settled
+### C. Partly settled
 
-**NR9-NR13** (cores22), **TR24-TR27** (glue18) and **PO2/PO3/PO5/PO6/PO1b** (cores21) are **not** answered —
-each needs its own pass over `network-rules.md` §10, `network-bridges.md` §7-§8, `terrain.md` §15.1/§10.2 and
-`prop-occupant.md` §10. Probes named in `QUESTIONS.md` under "Not settled by this lane".
+**NR12 — answered: neither field belongs in `fc4_network_rules_cell`.** `+0x57` is per-pass scratch on the
+world-cache cell info (set in §6.5 step 2.1 and again at `decomp/cSC4NetworkTool.c:11360`; never saved); the
+paired portal is the *occupant's*, reached only when the cell flags carry `0x80000`, through `0x8A4BD52B`
+slot 59 on the occupant's `+0x1D0`. **Change:** use a marks side-channel for `+0x57` and resolve the portal on
+demand; do not grow the shared struct. Written into `network-rules.md` §14.
+
+**Not settled:** NR9, NR10, NR11, NR13 (cores22), **TR24-TR27** (glue18) and **PO2/PO3/PO5/PO6/PO1b** (cores21).
+Each needs its own pass over `network-rules.md` §10, `network-bridges.md` §7-§8, `terrain.md` §15.1/§10.2 and
+`prop-occupant.md` §10. Probes are named in `QUESTIONS.md` under "Not settled by this lane".
 
 Two further questions could not be answered at all because their text was never committed: **glue19 A2/A3** and
 **cores21 "Questions 1-12"**. Those lanes' `docs/lanes/*.md` were trimmed to their merge-train rows and the

@@ -1172,6 +1172,26 @@ Answered 2026-10-16 (re-answers24), from the executable:
   instead of borrowing the original's.
 - **NR7.** The constraint layout's codes 1–8 as `InsertIntersectionConstraints` (`0x00644710`) applies them: which
   vertex heights each code makes equal and which slope limits it sets (§10.3; network-geometry.md §9.4 step 4).
+- **NR12** (cores22: should `fc4_network_rules_cell` grow `+0x57` and the occupant's paired portal, or should a
+  glue lane pass them another way?) — **ANSWERED 2026-10-16 (re-answers31): neither belongs in the cell struct
+  as a carried field.** Both are *runtime* state of the one-way pass, not properties a cell keeps:
+
+  - **`+0x57` is per-pass scratch on the world-cache cell info, not a cell fact.** §6.5 step 2.1 sets it to 1 and
+    adds the cell's key to the solve set `+0x84` the first time the pass visits the cell, and step 3.1 does the
+    same when the sweep reaches a neighbour (`decomp/cSC4NetworkTool.c:11360`). Nothing outside
+    `ResolveOneWayConflicts` reads it, and it is not saved. Model it as a mark on whatever object stands for the
+    game's cell info — the one `GetCellInfo` returns — scoped to one pass, **not** as a field of an ABI-stable or
+    persisted `fc4_network_rules_cell`. If the C boundary needs it, pass a scratch/marks table alongside the
+    pass rather than growing the shared struct.
+  - **The paired portal is a property of the *occupant*, not the cell.** It is reached only when the cell's flags
+    carry `0x80000` (a tunnel portal), through interface **`0x8A4BD52B` slot 59**, on the occupant's
+    `+0x1D0` (§6.5 step 2.3). Copying it into the cell struct would duplicate a live pointer the cell does not
+    own and would go stale. Resolve it on demand from the occupant when the portal flag is set.
+
+  So: do **not** grow `fc4_network_rules_cell` with either. The one-way pass needs a marks side-channel for
+  `+0x57`, and portal resolution goes through `0x8A4BD52B` slot 59 when `0x80000` is set. Whether the C entry
+  points `resolve_one_way_conflicts`, `solve_multi_type_separation`, `get_tile_info` and `intersection_pieces`
+  are exposed at all is a separate decision — the specs do not require them to be, only their behaviour.
 
 ---
 
