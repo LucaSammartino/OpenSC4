@@ -1679,8 +1679,14 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      ```
 
      Success is `mismatches=0` on every line (each component's record reads into the shadow core and writes back
-     byte for byte). A run to 2032 on Konradshohe gives 73 lines, all clean: 438 components compared, 778,963
-     bytes, 0 mismatches (glue19-shadow-2).
+     byte for byte). A run to 2032 on Konradshohe gives 73 lines, all clean: 438 components compared, 774,664 to
+     780,487 bytes, 0 mismatches (glue19-shadow-2 to -4).
+
+     The same lane's GZCOM classes for the six components (`plugin/cFC4Automata.h`, over `fc4_automata_*`, the
+     interfaces of `plugin/FC4AutomataInterfaces.h`) are **not registered**: with them in the subsystem table the
+     city's Init phase faults at `SimCity 4.exe+0x0045BF1B` after all six records have read back, so `enable =
+     automata` is inert until that is fixed (the lane report, question A4). The riot and fire host tables
+     (`plugin/FC4AutomataHost.h`) and the U-Drive-It pause / resume are wired either way.
    - **Zone developer shadow** (`zonedev_shadow = 1`, env `FC4_ZONEDEV_SHADOW`; off by default;
      `plugin/FC4ZoneDevShadow.h`): a same-process differential of the lot manager. It needs the **original** zone
      developer (do not enable `zonedev`); otherwise it logs `zonedev shadow: requested … but INACTIVE`. At

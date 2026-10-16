@@ -48,6 +48,7 @@
 #include "FC4FlammabilityShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4AutomataShadow.h"  // the glue19 lane
+#include "cFC4Automata.h"  // the glue19 lane
 #include "FC4HistoryShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4ResidentialShadow.h"
@@ -245,6 +246,25 @@ const ClassEntry kTrafficClasses[] = {
 
 // docs/specs/history.md §1: the history warehouse (city component 1). Off by
 // default (glue trial): `enable = history`.
+// docs/specs/automata.md 0: the script system (40), the controller manager
+// (41) and the four automata managers (43-46). Records and call contracts
+// only (0: animation stubbed).
+//
+// NOT REGISTERED (glue19): with these in kSubsystems the city's Init phase
+// faults at SimCity 4.exe+0x0045BF1B (a null dereference, ecx=0) after all six
+// components have Read their records successfully (runs glue19-enable-1 to
+// -4). The shadow is exact first and stays the gate; registering them is the
+// next lane's work (glue19 question A4).
+static const ClassEntry kAutomataClasses[] = {
+    {kFC4_CLSID_cSC4AutomataScriptSystem, "cSC4AutomataScriptSystem", &CreateFC4AutomataScriptSystem},
+    {kFC4_CLSID_cSC4AutomataControllerManager, "cSC4AutomataControllerManager",
+     &CreateFC4AutomataControllerManager},
+    {kFC4_CLSID_cSC4VehicleManager, "cSC4VehicleManager", &CreateFC4AutomataVehicleManager},
+    {kFC4_CLSID_cSC4PedestrianManager, "cSC4PedestrianManager", &CreateFC4AutomataPedestrianManager},
+    {kFC4_CLSID_cSC4AircraftManager, "cSC4AircraftManager", &CreateFC4AutomataAircraftManager},
+    {kFC4_CLSID_cSC4WatercraftManager, "cSC4WatercraftManager", &CreateFC4AutomataWatercraftManager},
+};
+
 const ClassEntry kHistoryClasses[] = {
     {kFC4_CLSID_cSC4HistoryWarehouse, "cSC4HistoryWarehouse", &CreateFC4HistoryWarehouse},
 };
