@@ -3620,9 +3620,9 @@ answer is in brackets; each entry says what would settle it.
   stop being constant and offices start to affect growth. Should the correction be offered? [no: compatibility
   keeps the defect. A correction would be a separate *[choice]* behind an option, off by default. This is a
   coordinator decision, not an RE question]~~ **ANSWERED 2026-10-15 (re-answers11):** Not an RE question: the original's behaviour is the defect, and RE has nothing more to add. The bracket stands as the coordinator's policy (compatibility keeps it; any correction is an off-by-default *[choice]*).
-- **CM3:** The demand nodes `0x3000` and `0x3800` are held but never read, yet `Init` fails without them. Can the
+- ~~**CM3:** The demand nodes `0x3000` and `0x3800` are held but never read, yet `Init` fails without them. Can the
   shipped game reach `Init` without them? [no case found: the demand simulator creates them first, and FreeCity4
-  keeps the failure path. A load test with a city whose demand record is missing would settle it]
+  keeps the failure path. A load test with a city whose demand record is missing would settle it]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (commercial-industrial.md §2.1). The shipped game cannot reach the failure: `GetDemand` (`0x006A2960`) runs the demand simulator's `Init` first when it has not run, and `Init` builds the nodes from the demand exemplars (demand.md §4.1), not from the save. `SimCity_1.dat` holds `0x6534284A / 0xC7BB4816 / 0x3000` ("Commercial") and `/ 0x3800` ("Commercial Connections"), so both nodes exist in every city, whatever its demand record holds. Only a plugin that removes or retypes those exemplars makes `Init` fail; keeping the failure path is right.
 - ~~**IN1:** Does anything call the industrial simulator beyond the city's lifecycle calls? [no other reference to its
   interface or class ID was found, so the implementation is a stub with a version record. A runtime call trace on
   its vtable would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES as far as static analysis reaches. The interface IID `0x477A9E7D` and class ID `0xA990C022` occur only in `cSC4City::CreateCityComponents` (`0x0045AE5E`), `cSC4City::Read` (`0x0045CF15`), the class's own `QueryInterface`/`GetGZCLSID` (`0x006B8975`, `0x006B8961`) and the class table (`0x00B08E78`); the vtable `0x00AB1530` is referenced only by its constructor and destructor (`0x006B8A4A`, `0x006B8AF0`). A caller through the city getter (slot 60) cannot be ruled out statically; a runtime trace would.
@@ -3660,9 +3660,9 @@ answer is in brackets; each entry says what would settle it.
 - ~~**HW1:** The yearly thinning keeps the last point of every `Dispose` range and leaves the last group of every
   `Coalesce` range open. Is that an off-by-one in the original, or intended? [reproduced as is; Konradshohe's 296
   points match this model exactly]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES. The intent cannot be recovered from the code; the behaviour is as reproduced, and the 296-point corpus match confirms it. Keep it as *[compat]*.
-- **HW2:** `GetPoint` at an interior point returns the regression value through three points (a smoothing), and
+- ~~**HW2:** `GetPoint` at an interior point returns the regression value through three points (a smoothing), and
   `GetCount` counts the widened range. Do the graph windows depend on this? [reproduced; the graph and Lua callers
-  are not traced yet. A trace of the graph window's calls would settle it]
+  are not traced yet. A trace of the graph window's calls would settle it]~~ **ANSWERED 2026-10-16 (re-answers22):** Answered (history.md §9, §10). The graph window (`cSC4GraphsViewWinProc`) reads history only through slot 8: one `GetPoint` per series at one date (`0x0076BF69`), and for the line graph one or two `GetPoint` calls per series per sample date (`0x0076C510`, `0x0076C53A`; two keys combined by sum, difference, product or ratio, then scaled). It never calls `GetCount` (slot 5). So the graphs **do** depend on the smoothing: a sample date on an interior point is drawn at the three-point regression value. Reproduce it as is.
 - **HW3:** The regression sums are `double` variables, but they follow the caller's x87 precision: 24-bit from the
   simulators, 53-bit inside Lua calls (foundations §18). [FreeCity4 evaluates them per caller. A differential test
   through a Lua advisor call would confirm the 53-bit path]
