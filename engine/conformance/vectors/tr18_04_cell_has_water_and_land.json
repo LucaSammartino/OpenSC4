@@ -1,0 +1,161 @@
+{
+  "format": 1,
+  "name": "tr18_04_cell_has_water_and_land",
+  "spec": [
+    "terrain 5",
+    "terrain 18.4"
+  ],
+  "description": "CellHasWater: any corner with depth > 0; CellHasLand: any corner with depth <= 0; a NaN depth is neither. Depths (-1, -1, -1, 0.5): both true (a shore cell). (0, 0, 0, 0): water false, land true. NaN with the rest -1: water false, land true. All NaN: both false. A cell out of bounds: both false.",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        2,
+        2
+      ],
+      "flat": 300
+    },
+    {
+      "op": "ter_set",
+      "cell": [
+        0,
+        0
+      ],
+      "depths": [
+        -1,
+        -1,
+        -1,
+        0.5
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "cell_has_water",
+      "args": [
+        0,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ter_call",
+      "method": "cell_has_land",
+      "args": [
+        0,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ter_set",
+      "cell": [
+        0,
+        0
+      ],
+      "depths": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "cell_has_water",
+      "args": [
+        0,
+        0
+      ],
+      "expect": false
+    },
+    {
+      "op": "ter_call",
+      "method": "cell_has_land",
+      "args": [
+        0,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ter_set",
+      "cell": [
+        0,
+        0
+      ],
+      "depths": [
+        "nan",
+        -1,
+        -1,
+        -1
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "cell_has_water",
+      "args": [
+        0,
+        0
+      ],
+      "expect": false
+    },
+    {
+      "op": "ter_call",
+      "method": "cell_has_land",
+      "args": [
+        0,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ter_set",
+      "cell": [
+        0,
+        0
+      ],
+      "depths": [
+        "nan",
+        "nan",
+        "nan",
+        "nan"
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "cell_has_water",
+      "args": [
+        0,
+        0
+      ],
+      "expect": false
+    },
+    {
+      "op": "ter_call",
+      "method": "cell_has_land",
+      "args": [
+        0,
+        0
+      ],
+      "expect": false
+    },
+    {
+      "op": "ter_call",
+      "method": "cell_has_water",
+      "args": [
+        2,
+        0
+      ],
+      "expect": false
+    },
+    {
+      "op": "ter_call",
+      "method": "cell_has_land",
+      "args": [
+        -1,
+        0
+      ],
+      "expect": false
+    }
+  ]
+}

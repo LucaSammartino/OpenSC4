@@ -1,0 +1,189 @@
+{
+  "format": 1,
+  "name": "tr18_13_lava_flow_rule",
+  "spec": [
+    "terrain 11.3",
+    "terrain 11.5",
+    "terrain 18.13"
+  ],
+  "description": "Flat ground at 300, dt = 33333 us. A vertex with lava 10 whose eight neighbours hold 1.4: every drop is 8.6, the first edge neighbour in the offset order wins ([choice] the order west, east, north, south: (4, 5)); h = 4.3, rate = (4e-6 / 12) * 4.3, amount = dt * h * rate = 0.20544 (each step rounded to float). The neighbour goes from 1.4 to 1.60544, crossing 1.5: the four flammable cells (3..4) x (4..5) are ignited, each followed by SetCause(3) ([choice] per cell). With the neighbours at 0: h = 5, amount = 0.277775, nothing ignited. A vertex on the city edge with lava 10 loses dt * 1e-7 * 10 = 0.033333 and goes nowhere.",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        10,
+        10
+      ],
+      "flat": 300
+    },
+    {
+      "op": "ter_lava_start",
+      "at": [
+        80,
+        80
+      ],
+      "radius": 20,
+      "expect": {
+        "source": [
+          4,
+          4,
+          6,
+          6
+        ],
+        "active": [
+          4,
+          4,
+          6,
+          6
+        ],
+        "burn": [
+          0,
+          0,
+          9,
+          9
+        ]
+      }
+    },
+    {
+      "op": "ter_lava_set",
+      "around": [
+        5,
+        5
+      ],
+      "level": 1.4
+    },
+    {
+      "op": "ter_lava_set",
+      "vertex": [
+        5,
+        5
+      ],
+      "level": 10
+    },
+    {
+      "op": "ter_lava_call",
+      "method": "transfer",
+      "args": [
+        5,
+        5,
+        33333
+      ],
+      "expect": {
+        "amount": 0.20544268190860748,
+        "to": [
+          4,
+          5
+        ],
+        "mode": "ignite"
+      }
+    },
+    {
+      "op": "ter_expect_events",
+      "events": [
+        {
+          "event": "ignite",
+          "x": 3,
+          "z": 4
+        },
+        {
+          "event": "cause",
+          "cause": 3
+        },
+        {
+          "event": "ignite",
+          "x": 4,
+          "z": 4
+        },
+        {
+          "event": "cause",
+          "cause": 3
+        },
+        {
+          "event": "ignite",
+          "x": 3,
+          "z": 5
+        },
+        {
+          "event": "cause",
+          "cause": 3
+        },
+        {
+          "event": "ignite",
+          "x": 4,
+          "z": 5
+        },
+        {
+          "event": "cause",
+          "cause": 3
+        }
+      ]
+    },
+    {
+      "op": "ter_lava_call",
+      "method": "level",
+      "args": [
+        4,
+        5
+      ],
+      "expect": 1.6054426431655884
+    },
+    {
+      "op": "ter_lava_set",
+      "around": [
+        5,
+        5
+      ],
+      "level": 0
+    },
+    {
+      "op": "ter_lava_set",
+      "vertex": [
+        5,
+        5
+      ],
+      "level": 10
+    },
+    {
+      "op": "ter_lava_call",
+      "method": "transfer",
+      "args": [
+        5,
+        5,
+        33333
+      ],
+      "expect": {
+        "amount": 0.27777498960494995,
+        "to": [
+          4,
+          5
+        ],
+        "mode": "none"
+      }
+    },
+    {
+      "op": "ter_expect_events",
+      "events": []
+    },
+    {
+      "op": "ter_lava_set",
+      "vertex": [
+        0,
+        5
+      ],
+      "level": 10
+    },
+    {
+      "op": "ter_lava_call",
+      "method": "flow_amount",
+      "args": [
+        0,
+        5,
+        33333
+      ],
+      "expect": {
+        "amount": 0.03333299979567528,
+        "to": null
+      }
+    }
+  ]
+}

@@ -1808,141 +1808,6 @@ events: `texture` (`occupant`, `texture`), `variation` (`occupant`, `variation`)
 `pos`), `insert` / `remove` (`occupant`), and the stub's `draw` (`n`). Riot events: `unset_removal` /
 `set_removal` (`occupant`, `mask`).
 
-## Demolition ops
-
-The demolition vectors (`dm12_…`, `dm00_…`) drive `fc4_core::demolition::DemolitionUtility`
-(`docs/specs/demolition.md`) over one scripted city implementing `DemolitionHost`. Every op name starts with
-`demolition_`. The default world: a 64 × 64 city, the building development simulator, the flora simulator and the
-prop manager present, no view filter, view level 1, the shipped thresholds and building development exemplars, no
-occupants, no lots, zone 0 and altitude 0 everywhere, no water. Cells are 16 m; an occupant placed with `cell` is
-centred in that cell with an 8 m box. `CanRemove(level)` answers false for level bit 1 with the system lock and
-for level bit 2 with the player lock. Removing an occupant clears its flag 1 (in the occupant manager); a second
-removal fails. `EndDemolishLot` leaves the lot in state 1 without a building; `CreateLotIfPossible` creates a 1 × 1
-lot with the zone of its cell (tokens from `0x9000`). The utility's own token is `0xD0`.
-
-### Setup
-
-| op | Arguments | Effect |
-|---|---|---|
-| `demolition_env` | any of `cells` (`[x, z]`), `building_development_simulator`, `flora_simulator`, `prop_manager` (bools), `view_filter` (token or null), `view_level` (int or null), `rejects` (`{"filter": [occupants]}`), `rejects_buildings` (filters refusing the building type), `thresholds` / `building_development` (`"shipped"`, null or `{props}`), `water` (`[[x, z]]` vertices), `altitudes` (`[[x, z, h]]`), `zones` (`[[x1, z1, x2, z2, zone]]`) | the world |
-| `demolition_occupant` | `occupant`, `type` (`foundation`, `building`, `pole`, `construction`, `prop`, `network`, `flora` or an ID), `cell?`, `bounds?` (`[x0, z0, x1, z1]` m), `flags?` (1), `system_lock?`, `player_lock?`, `foundation?` (slot 9's answer; absent: no foundation interface), `network_flags?` (absent: no network interface), `network_types?`, `pole?` / `network?` (the interfaces; default by type), `cost?`, `connections?`, `default_ok?` / `realistic_ok?` (true), `props?` (`{"0xID": bool}`), `groups?`, `extent?` (screen extent, 10; null: below the cutoff) | creates an occupant, or updates the given fields |
-| `demolition_lot` | `lot`, `rect` (`[x1, z1, x2, z2]`, inclusive), `state?` (1), `building?`, `occupants?`, `demolishable?` (true), `zone?` (also written to the zone map), `water?` (false; null: no configuration), `locked?`, `initialized?` (true), `facing?`, `condition?` | creates a lot, or updates the given fields |
-| `demolition_create` | | a new constructed utility, which replaces the current one |
-
-### Calls and checks
-
-| op | Arguments | Effect / check |
-|---|---|---|
-| `demolition_init` / `demolition_shutdown` / `demolition_add_ref` / `demolition_release` | `expect?` | the lifecycle slots |
-| `demolition_identity` | `iids` (`{"0xIID": offset or null}`), `class` | `QueryInterface` and `GetGZCLSID` |
-| `demolition_message` | `type` (`ExemplarChanged`, `PostCityInit`, `DeferredLotDemolition` or an ID), `data1?`, `data2?`, `lot?`, `dezone?`, `expect?` | `DoMessage` |
-| `demolition_lots` | `do_it`, `lots` (tokens or null), `privilege?` (1), `flags?` (1), `dezone?`, `caller_filter?`, `demolished?`, `expect?` (`{ok, cost}`; cost null: left unchanged) | `DemolishLots` |
-| `demolition_region` | `do_it`, `rect` (a full region), `privilege?`, `flags?`, `dezone?`, `caller_filter?`, `demolished?`, `clicked?`, `sx?`, `sy?`, `expect?` | `DemolishRegion` |
-| `demolition_demolish_occupant` | `do_it`, `occupant`, `privilege?`, `flags?`, `skip_network_update?`, `orphans?` (a list token), `expect?` | `DemolishOccupant` |
-| `demolition_terrain` | `do_it`, `per_vertex`, `rect`, `altitude`, `exempt?`, `reason?` (5), `expect?` (the count) | `ModifyTerrainHeight` |
-| `demolition_expect` | `state` (partial: `initialized`, `destroyed`, `ref_count`, `tuning` (`[small/medium model, medium/large model, small/medium group, medium/large group, destroyed tile cost]`), `cells`) | the utility state |
-| `demolition_expect_lot` | `lot`, `state` (partial: `state`, `building`, `zone`, `rect`) or `absent: true` | a lot |
-| `demolition_expect_zones` | `cells?` (`[[x, z, zone]]`), `lot_count?` | the zone map and the lot count |
-| `demolition_write` / `demolition_read` | `expect?`, `hex?` | the record (read into the current utility; without `hex`, the last written record) |
-| `demolition_expect_events` / `demolition_expect_event_count` / `demolition_clear_events` | see the shared conventions | host calls |
-
-Demolition events: `subscribe` / `unsubscribe` (`type`), `acquire` / `release_service` (`service`: `city`,
-`occupant_manager`, `lot_developer`, `terrain`), `release` (`token`), `shutdown` / `pre_demolish` / `remove_prop` /
-`delete_connection` / `sound` (`occupant`), `remove` (`occupant`, `flag`), `break` (`pole`), `append` (`list`,
-`occupant`), `insert` (`set`, `occupant`), `queue` (`on`), `destroy` (`occupants`), `explode` (`lot`, `flag`),
-`start` / `end` / `delete` (`lot`), `create` (`x`, `z`, `facing`), `dezone` (`rect`), `set_rect` (`rect`, `height`,
-`reason`), `set_vertex` (`x`, `z`, `height`), `redisplay` (`rect`, `reason`), `effect` (`occupant`, `keys`, `ray`
-(`[x, y]` or null), `grey`), `group` (`instance`, `x`, `z`).
-
-## Dispatch ops
-
-The dispatch vectors (`dp12_…`, `dp00_…`) drive `fc4_core::dispatch::DispatchManager` (`docs/specs/dispatch.md`)
-over scripted dispatch sources implementing `DispatchHost`. Every op name starts with `dispatch_`. A source has
-dispatch types, `CanDispatch` / all-busy answers and stations with a unit mask (bit `i` = unit `base + i` free);
-`DispatchFromNearestStation` takes the first free unit of the first station that has one. New host objects
-(vehicles, pylons) get tokens from `0x1000` up, in creation order, each with one reference. The terrain altitude
-at (x, z) is (x + z) / 100. The vehicle view is `0x7E`; the manager's token is `0xD15`. References read from a
-record resolve to their object IDs (the manager takes one reference each).
-
-### Setup
-
-| op | Arguments | Effect |
-|---|---|---|
-| `dispatch_env` | `vehicles_fail?` (BeginVehicle fails) | the world |
-| `dispatch_source` | `source`, `types?`, `can?` (true), `all_busy?` (false), `nearest?` (true), `stations?` (`[{station, base? (1), count, mask? (all free)}]`), `register?` (true: `RegisterDispatchSource` on creation) | creates a source, or updates the given fields |
-| `dispatch_create` | | a new constructed manager |
-
-### Calls and checks
-
-| op | Arguments | Effect / check |
-|---|---|---|
-| `dispatch_init` / `dispatch_shutdown` / `dispatch_add_ref` / `dispatch_release` | `expect?` | the lifecycle slots |
-| `dispatch_identity` | `iids`, `class` | `QueryInterface` and `GetGZCLSID` |
-| `dispatch_message` | `type` (`RemoveOccupant`, `DisasterPeriodEnded`, `ViewChanged`, `AutomatonEvent` or an ID), `code?` (data2), `state?` (data3), `object?` or `automaton_of?` (a dispatch ID: its record's automaton), `expect?` | `DoMessage` |
-| `dispatch_call` | `method`, `args`, `expect?` (a record is compared on the fields given) | `dispatch (type, x, z)`, `can_dispatch (type, x, z)`, `get_dispatch_source (type)`, `get_dispatch_info (id)`, `get_dispatch_count (type)`, `get_dispatch_id_array (type, n)`, `get_active_pylon`, `get_automaton_from_pylon (pylon)`, `get_available_pylon_count (type)`, `get_dispatch_vehicle_view`, `update_dispatch_state (id, state)`, `revoke_dispatch_by_id (id)`, `revoke_dispatch_by_pylon (pylon)`, `revoke_all_dispatches (type)`, `begin_dispatch_tool (type)`, `end_dispatch_tool (type)`, `set_active_pylon (pylon or null)`, `register_dispatch_source` / `unregister_dispatch_source (source)` |
-| `dispatch_expect` | `state` (partial: `initialized`, `destroyed`, `ref_count`, `loaded`, `next_id`, `tool_type`, `record_count`, `records` (`[{type, id, call, view_handle, active, target, station, automaton, pylon}]`), `active_pylon`, `available_pylons`, `available_calls` (their call numbers), `sources`, `vehicle_view`) | the manager state |
-| `dispatch_expect_units` | `source`, `masks` (one per station) | the unit masks |
-| `dispatch_expect_refs` | `{"token": references}` | references held |
-| `dispatch_write` | `expect?`, `hex?`, `length?` | the record |
-| `dispatch_read` | `hex?` (or the last written record), `reuse?`, `expect?` | `Read` into a new constructed manager (or the current one) |
-| `dispatch_expect_events` / `dispatch_expect_event_count` / `dispatch_clear_events` | see the shared conventions | host calls |
-
-Dispatch events: `acquire` / `release_service` (`service`: `message_server`, `city`), `subscribe` / `unsubscribe`
-(`type`), `post` (`type`, `dispatch_type`, `id`), `create_view`, `destroy_view` / `refresh_view` (`view`), `track`
-(`automaton`, `kind`, `handle`), `untrack` (`handle`), `nearest` (`station`, `call`), `from_station` /
-`revoke_from_station` (`station`, `call`), `vehicle` (`automaton`, `id`, `call`), `vehicle_failed` (`id`),
-`despawn` / `go_home` (`automaton`), `create_pylon` / `pylon_shutdown` (`pylon`), `move` (`pylon`, `x`, `y`, `z`),
-`place` (`pylon`, `station`, `index`, `count`), `park` (`pylon`, `station`).
-
-## City situation ops
-
-The city situation vectors (`cs12_…`, `cs00_…`) drive `fc4_core::city_situation::CitySituationManager`
-(`docs/specs/city-situation.md`) over a scripted game implementing `CitySituationHost`. Every op name starts with
-`citysit_`. The default world: the debug flag clear, every service present, the four automata managers `0x43`,
-`0x45`, `0x44`, `0x46`, an empty (all-zero) reward list, `CheckForSuccess` answering 3, the popup closing with
-button 0, funds 100,000 (a withdrawal that would leave them below zero is refused, budget.md §6), no advices, no
-automata. The manager's token is `0xC5`; its generator is seeded with `derive_seed(0x12345678, 0x0BB14381)`.
-
-### Setup
-
-| op | Arguments | Effect |
-|---|---|---|
-| `citysit_env` | any of `debug`, `rewards` (the reward list from its start), `status` (`CheckForSuccess`'s answer), `button`, `funds`, `candidates` (`{"advice": [automata]}`) | the world |
-| `citysit_advice` | `advice`, `guid?`, `flags?`, `mission_type?` (2), `end_delay?`, `success_money?`, `failure_money?`, `success_aura?` / `failure_aura?` (`[radius, magnitude]`), `target?` (the first target; absent: none), `target_count?`, `time_limit?`, `accepts?` (the automata advice slot 53 accepts; logs an `advice_accepts` event per question) | a city-situation advice of advisor 29 |
-| `citysit_automaton` | `automaton`, `flags?` (2), `type?` (1), `position?` (`[x, z]`), `preview?`; or `remove: true` | an automaton |
-| `citysit_create` | `session_seed?` | a new constructed manager |
-| `citysit_set` | `success_counts?` (`{"0xGUID": count}`), `loaded_from_save?` | pokes the state (test setup) |
-| `citysit_mark` | | remembers the state and the generator's next word |
-
-### Calls and checks
-
-| op | Arguments | Effect / check |
-|---|---|---|
-| `citysit_init` / `citysit_shutdown` / `citysit_add_ref` / `citysit_release` | `expect?` | the lifecycle slots |
-| `citysit_identity` | `iids` (`{"0xIID": offset or null}`), `class` | `QueryInterface` and `GetGZCLSID` |
-| `citysit_message` | `type` (`OccupantInserted`, `OccupantRemoved`, `AdviceAdded`, `AdviceRemoved`, `AdviceRemovedAll`, `PopupClosed`, `ShowPopup`, `Window`, `InitiateByGuid`, `PostCityInit`, `AnimationTick`, `AutomatonNotify`, `PlayerLeftVehicle`, `Cheat`, `PopupNoAdvice` or an ID), `data1?`, `data2?`, `data3?` or `ms?` (the tick's float bits), `object?`, `void1?`, `text?`, `expect?` | `DoMessage` |
-| `citysit_ticks` | `count`, `ms` | that many animation ticks |
-| `citysit_call` | `method`, `args`, `expect?` | `initiate_situation (advice, vehicle, briefing)`, `initiate_situation_by_guid (guid, briefing, data3)`, `initiate_situation_for_occupant (occupant, advice?)`, `activate_situation`, `deactivate_situation`, `end_situation`, `handle_status_changed (s)`, `get_mission_success_count (guid)`, `lua_activate_situation (guid, briefing)`, the getters of §8 (`get_active_situation`, `get_current_status`, `get_active_auto`, `get_current_target`, `get_current_target_index`, `get_num_targets`, `get_num_targets_remaining`, `get_current_time_limit_seconds`, `get_current_situation_time`, `get_current_time_remaining_seconds`, `get_current_target_name`, `get_situation_aura`, `get_situation_money`, `is_situation_available`, `get_max_csi`, `get_tracked_automata_count`, `get_csi_visible`, `countdown_is_in_progress`), `set_max_csi`, `set_csi_visible`, `handle_tuning_parameters_changed`, `reset_tutorials`, `initiate_player_drive_mode`, `random_uniform_u32 (n)` |
-| `citysit_expect` | `state` (partial: `initialized`, `destroyed`, `ref_count`, `indicators_visible`, `loaded_from_save`, `active_situation`, `automata_managers`, `track_list` (`[{advice, automaton, handle}]`), `tracked`, `success_counts` (`{"0xGUID": count}`), `status`, `active_automaton`, `current_target`, `num_targets`, `target_index`, `end_delay`, `elapsed`, `countdown`, `time_limit`, `just_activated`, `warning_given`, `max_csi`, `window`) | the manager state |
-| `citysit_expect_unchanged` | | the state and the generator are as at `citysit_mark` |
-| `citysit_expect_world` | `state` (partial: `funds`, `rewards` (up to the last non-zero entry), `retired`) | the game |
-| `citysit_expect_refs` | `{"token": references}` | references held |
-| `citysit_write` | `expect?`, `hex?` | the record |
-| `citysit_read` | `hex?` (or the last written record), `reuse?`, `expect?`, `consumed?` | `Read` into a new constructed manager (or the current one) |
-| `citysit_expect_events` / `citysit_expect_event_count` / `citysit_clear_events` | see the shared conventions | host calls |
-
-City situation events: `register_cheat`, `unregister_cheat`, `subscribe` / `unsubscribe` (`type`), `acquire` /
-`release_service` (`service`: `indicator_view`, `lot_manager`, `mysim`, `lua`), `register_tick`,
-`unregister_tick`, `acquire_automata_managers` (`managers`), `create_lua_table`, `remove_lua_table`,
-`release_mission_resources`, `show_all_indicators` (`kind`, `visible`), `save_preferences`, `retire` (`advice`),
-`script` (`advice`, `script`: `start`, `success`, `failure`), `bind` (`advice`, `vehicle`), `coverage` (`advice`),
-`track` (`automaton`, `handle`), `untrack` (`handle`), `listen` / `unlisten` (`automaton`), `freeze` (`manager`,
-`on`), `sound` (`automaton`, `sound`), `countdown_start`, `countdown_end`, `outcome_effect` (`advice`, `success`),
-`drive` (`vehicle`, `on`), `joyride` (`vehicle`), `aura` (`x`, `z`, `radius`, `magnitude`), `deposit` (`amount`,
-`accepted`), `send` (`type`, `advice`, `data1`), `post` (`type` and `advice`, `vehicle`, `data1`, `data2` as the
-message has them), `hide_mission_status_panel`, `end_mysim_dialog`, `popup` (`popup`: `briefing`, `success`,
-`failure`; `advice`, `vehicle`).
-
 ## Disaster ops
 
 The disaster vectors (`ds18_…` for the §18 tests, `ds00_…` for the rest) drive `fc4_core::disasters::Disasters`
@@ -2001,6 +1866,48 @@ Disaster events: `emergency_pause`, `emergency_resume`, `disable_save`, `enable_
 `volcano_end_deformation`, `lava` (`instance`, `radius`), `lava_end`, and the stub's `raw`, `u32` (`n`),
 `double`, `range` and `gaussian` (`a`, `b`), each with its `generator`.
 
+## Terrain ops
+
+The terrain vectors (`tr18_…` for the §18 tests, `tr00_…` for the rest) drive `fc4_core::terrain`
+(`docs/specs/terrain.md`): the height field `Terrain`, the brushes, the surface-water queries and bodies of water
+(`BodiesOfWater`, `NavigationHost`) and the volcano lava (`Lava`, `LavaHost`). Every op name starts with `ter_`.
+The terrain's posts are drained into the event log after each op. The default terrain: 2 × 2 cells of 16 m, flat at
+300 m, sea level 250 m (each vertex's depth starts at sea − altitude), the shipped tuning, view-ready (as if
+`DoPostCityInit` had run). The default world: no lots, bridges or power poles, every cell flammable, and the
+random draw returns 0 unless queued.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `ter_create` | `cells?` [x, z], `altitudes?` (row-major, z outer, `(x+1)(z+1)` values; `"nan"` allowed) or `flat?`, `sea?`, `tuning?` (`"shipped"` or a partial `TerrainTuning`: `max_height`, `min_height`, `new_sea_level`, `new_flat_height`, `image_height_scale`, `sea_level_min`, `sea_level_max`, `cliff_slope`, `saved_78`), `view_ready?` (true), `new?` (false; true: `Create` from the tuning instead of the altitude array) | a new terrain, replacing the current one |
+| `ter_env` | any of `lots` ([[x, z, lot]]), `bridges` ([[x, z, deck or null]]: null is a bridge whose deck is unknown), `poles` ([[x, z]]), `not_flammable` ([[x, z]]), `burn_cells` (the queue `next_burn_cell` returns), `random` (queued draws) | the world |
+| `ter_set` | `vertex` [x, z] or `vertices` [x0, z0, x1, z1] (inclusive) with any of `altitude`, `depth`, `flags`; or `cell` [x, z] with `depths` (the corners (x, z), (x+1, z), (x, z+1), (x+1, z+1)); or `cached` [min, max] | raw state, no messages, no depth bookkeeping |
+| `ter_add_brush` | `brush` (ID), `bitmap` (`{width, height, fill}` or `{width, height, pixels}`), `angle?`, `expect?` | registers a kind-0 description over the bitmap |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `ter_call` | `method`, `args?`, `expect?`, `expect_bits?` (the f32's bits) | the queries `altitude`, `altitude_at_index`, `altitude_at_vertex`, `altitude_at_nearest_grid`, `altitude_checksum`, `cell_corner_altitudes`, `location_is_in_bounds`, `face_normal` ([x, y, z] or null when untouched), `min_height`, `max_height`, `min_allowed_height`, `max_allowed_height`, `vert_index`, `sea_level`, `water_level`, `water_depth_at_vertex`, `water_depth_at_index`, `max_surface_level`, `cell_has_water`, `cell_has_land`, `is_land_vertex`, `is_water_vertex`, `is_sea_vertex`, `water_depth_for_cell`, `has_draft_clearance`, `water_type`, `is_navigable` ([x, z, r, lot]), `is_triangulation_flipped`, `cell_flags`, `terrain_type`; the setters `raise_vertex`, `lower_vertex`, `set_altitude_at_vertex`, `set_altitude`, `set_altitude_rect`, `lock_altitude` ([x0, z0, x1, z1, lock]), `set_sea_level`, `set_terrain_type`; the messages `redisplay` ([terrain, water, x0, z0, x1, z1, data4]), `redisplay_cells` (slot 69, the same arguments as cell corners), `begin_long_terrain_operation`, `end_long_terrain_operation`, `post_city_init`; the bodies of water `update_bodies`, `body` ([x, z] → the ID, 0 for none), `bodies_map` |
+| `ter_apply_brush` | `brush`, `from` [x, z], `to?`, `level?`, `redisplay?`, `strength?` (1), `radius?` (1), `data4?`, `target?`, `expect?`, `out?` ([x0, z0, x1, z1] or null: empty) | `ApplyBrush` with a `BrushParams` |
+| `ter_expect` | `state` (partial: `cells`, `sea_level`, `min_height`, `max_height` (the cache), `view_ready`, `terrain_type`, `saved_78`, `posts_pending`) | the terrain object |
+| `ter_expect_vertices` | `vertex` [x, z] with any of `altitude`, `depth`, `flags`; or `rect?` (the whole terrain) with any of `min`, `max`, `baseline` + `changed_within` (the only vertices that differ from `baseline`) and `changed` (how many) | the height field |
+| `ter_lava_start` | `at` [x, z] (metres), `radius?` (20), `expect?` (`{source, active, burn}` rectangles) | a `Lava` over the terrain |
+| `ter_lava_set` | `vertex` [x, z] or `around` [x, z] (the eight neighbours) with any of `level`, `production`, `solidification` | lava state |
+| `ter_lava_call` | `method`, `args?`, `expect?` | `flow_amount` and `transfer` ([x, z, dt] → `{amount, to, mode}`; `mode` is `none`, `ignite` or `quick_burn`), `level` ([x, z]), `flow` ([dt], one `DoLavaFlow`), `burn`, `rects` |
+| `ter_record` | `sizes?` (`{misc, altitudes, properties, edges: [4]}`), `round_trip?` (write, load into a fresh terrain, compare every field), `edge?` (`{side, count, values?}`) | the §13.1 records |
+| `ter_expect_events` / `ter_expect_event_count` / `ter_clear_events` | see the shared conventions | host calls |
+
+Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_burn` (`x`, `z`), `cause`
+(`cause`) and `random` (`n`). Floats are numbers or `"nan"`.
+
+### Nation
+
+| op | Arguments | Check |
+|---|---|---|
+| `nat_economy` | `difficulty?` (three modifiers), `curves` (`{"id": [x0, y0, x1, y1, …]}`), `checks` ([[demand ID, months, city difficulty or null (no city), expected]]) | `GetEconomyModifier` (`fc4_core::demand::NationEconomy`, nation §5) |
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -2013,9 +1920,8 @@ Disaster events: `emergency_pause`, `emergency_resume`, `disable_save`, `enable_
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
    (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `nm16_…` (network manager §16;
-   `nm00_…` for other network manager behaviour), `dm12_…` / `dm00_…` (demolition §12 / other demolition
-   behaviour), `dp12_…` / `dp00_…` (dispatch), `cs12_…` / `cs00_…` (city situation), `ds18_…` and `ds00_…`
-   (disasters §18 and the rest of disasters).
+   `nm00_…` for other network manager behaviour), `ds18_…` and `ds00_…` (disasters §18 and the rest of
+   disasters), `tr18_…` and `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -3037,65 +2943,6 @@ Not covered by a vector: the presentation slots 13–15, `CreateConnectionNode`,
 `GetAllIntersectionPieces`, which are not in the core; the default generator's values (`random: "default"` is
 available, but no vector pins its draws).
 
-## Coverage (demolition §12)
-
-| §12 item | Vector |
-|---|---|
-| 1 record (`01 00`; version 2 and a cut record rejected) | `dm12_01_record` |
-| 2 empty list (and a list of null lots): true, cost untouched | `dm12_02_empty_list` |
-| 3 building price 1234, nothing removed; no building development simulator | `dm12_03_building_price` |
-| 4 destroyed 3 × 2 lot: 12, dry run and committed | `dm12_04_destroyed_lot` |
-| 5 not demolishable: true, 0, untouched | `dm12_05_not_demolishable` |
-| 6 blocked lot (player lock, privilege 1), the other lot still demolished; the system privilege; a system-locked prop | `dm12_06_blocked_lot` |
-| 7 re-parcel into four 1 × 1 lots; `0x801` keeps the lot in state 1; §4.10 example 4 | `dm12_07_reparcel` |
-| 8 dezone, and zones 11, 12, 15 | `dm12_08_dezone` |
-| 9 explode `0x303` / `0x1303`; no water configuration; water-compatible | `dm12_09_explode` |
-| 10 power pole: `0xAA7A014D` once before the removal, the orphan in the same call; dry run; a caller list; no pole interface | `dm12_10_power_pole` |
-| 11 three networks in one `DestroyNetworkOccupants` inside the `QueueRemovals` bracket; directly | `dm12_11_networks` |
-| 12 per-vertex terrain (building box, locked lot, water, tolerance, exempt lot, movable building, the redisplay rectangle); area mode | `dm12_12_terrain` |
-| 13 effects: none with cause 0, none in a dry run; the occupant and group effects | `dm12_13_effects` |
-| extra: identity, Init / Shutdown, Release, the tuning and ExemplarChanged | `dm00_lifecycle` |
-| extra: the deferred lot demolition message | `dm00_deferred` |
-
-## Coverage (dispatch §12)
-
-| §12 item | Vector |
-|---|---|
-| 1 empty record (22 bytes) | `dp12_01_empty_record` |
-| 2 the corpus forms round-trip (toolType 4, 5, 7, 8); Init sets toolType 8 | `dp12_02_corpus_round_trip` |
-| 3 versions 1 and 3 fail with `loaded` set; a cut record | `dp12_03_wrong_versions` |
-| 4 Dispatch: no source, a free unit (the record, begin once), CanDispatch false, all busy, a failed vehicle | `dp12_04_dispatch` |
-| 5 a failed InitDispatch advances nextID | `dp12_05_failed_init_dispatch` |
-| 6 automaton events 7 (5, 5, 3, 0) and 3 | `dp12_06_state_events` |
-| 7 RevokeDispatchByID of an active record: end only, the unit back; no source | `dp12_07_revoke_active` |
-| 8 RevokeAllDispatches(1) removes type-0 records | `dp12_08_revoke_all` |
-| 9 RemoveOccupant of a station with two records | `dp12_09_station_removed` |
-| 10 the tool with mask `0b101` | `dp12_10_tool` |
-| extra: identity, lifecycle, sources | `dp00_lifecycle` |
-| extra: the §4.7 walk-through and its record | `dp00_worked_example` |
-| extra: DisasterPeriodEnded, ViewChanged, re-targeting a dragged pylon, dropping it on its station | `dp00_messages` |
-
-## Coverage (city situation §12)
-
-| §12 item | Vector |
-|---|---|
-| 1 record round trip (the three corpus payloads; version 3; version 1) | `cs12_01_record` |
-| 2 duplicate GUID keeps the first count | `cs12_02_duplicate_guid` |
-| 3 profile rewards overwrite a loaded count with 1 | `cs12_03_profile_rewards` |
-| 4 idle tick: 10,000 ticks, nothing posted, drawn or changed | `cs12_04_idle_tick` |
-| 5 success payout (deposit, aura, count, one popup post) | `cs12_05_success_payout` |
-| 6 failure penalty refused by the budget, the popup still posted | `cs12_06_failure_no_money` |
-| 7 no city end | `cs12_07_no_city_end` |
-| extra: identity, Init / Shutdown, Release | `cs00_lifecycle` |
-| extra: initiate, activate, the countdown, the 30-second warning, the time limit, deactivate | `cs00_mission_clock` |
-| extra: triggered / untriggered situations, max CSI, removed and disabled vehicles, PostCityInit | `cs00_tracking` |
-| extra: the popup and its buttons, could-not-start, by GUID, the cheat, Lua, ResetTutorials | `cs00_popup` |
-| extra: the reward list, saturation, the §8 getters | `cs00_reward_and_getters` |
-| extra: slot 22 `InitiateSituationForOccupant(occupant, advice)` (§8, CS2) | `cs00_slot22` |
-
-Not covered by a vector: item 8 (slots 13–15 return in ST0) is an ABI property of the C++ shim; the C ABI's
-`fc4_citysit_*` float getters return `float` and are checked by the capi tests.
-
 ## Coverage (disasters §18)
 
 | §18 item | Vector |
@@ -3114,3 +2961,26 @@ Not covered by a vector: item 8 (slots 13–15 return in ST0) is an ABI property
 
 The core's unit tests (`fc4_core::disasters`) also cover the lot conditions, the spread, the toast list, the damage
 assessment, re-entrant occupant removal and the default generators.
+
+## Coverage (terrain §18)
+
+| §18 item | Vector |
+|---|---|
+| 1 `GetAltitude` on the worked cell (both triangles, the corners, out of bounds, the ignored flip flag) | `tr18_01_get_altitude` |
+| 2 the floor at cell boundaries and the last row and column | `tr18_02_floor_at_cell_boundaries` |
+| 3 `GetFaceNormal` (both triangles; the untouched output at the upper ends and below 0) | `tr18_03_face_normal` |
+| 4 `CellHasWater` and `CellHasLand` (shore, dry, NaN, out of bounds) | `tr18_04_cell_has_water_and_land` |
+| 5 `GetWaterDepthForCell` and the draft clearance | `tr18_05_water_depth_for_cell` |
+| 6 `GetWaterType` (land, sea, fresh) | `tr18_06_water_type` |
+| 7 `SetAltitudeAtVertex` depth bookkeeping (quirk 4), no clamp, the lock | `tr18_07_set_altitude_at_vertex` |
+| 8 `SetAltitude(x, z, h)` clamps, the lock, the unchecked index | `tr18_08_set_altitude_xz` |
+| 9 `SetSeaLevel` range and message order | `tr18_09_set_sea_level` |
+| 10 `RedisplayTerrain` packing, the view-ready gate, slot 69, the long-operation messages | `tr18_10_redisplay_packing` |
+| 11 the pipe-burst sinkhole (kind 0 lower; a neutral bitmap) | `tr18_11_pipe_burst_sinkhole` |
+| 12 an unknown brush | `tr18_12_unknown_brush` |
+| 13 the lava flow rule and `SetThingsOnFire` | `tr18_13_lava_flow_rule` |
+| 14 the record sizes and round trip | `tr18_14_records` |
+| other sections | `tr00_cached_min_max_stale` (§4.6), `tr00_navigability_and_bodies` (§10.3, §10.4), `nt05_economy_modifier` (nation §5) |
+
+The core's unit tests (`fc4_core::terrain`) also cover the other brush kinds, the lava start and burn rectangles,
+the record versions and truncation, the tuning exemplar and the bodies-of-water flood fill; `fc4_capi`'s `terrain_tests` cover the C ABI.
