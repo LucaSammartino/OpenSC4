@@ -4508,7 +4508,14 @@ above. The spec's tentative answer is in brackets.
   gets this plane, bridge or not. Side corrections: `ComputeInitialSmoothingSet` is `0x00636AB0` (`0x00637720` is a
   vector resize); tool `+0x2B0` = p+0x20.
 - **NB2 (bridges):** the suspension profile (`0x0062E690`), the cable plotting (`0x00630F70`) and
-  `AddSuspendedBridgeStructures` (`0x0062DF30`) in detail. [drawing only *[inferred]*]
+  `AddSuspendedBridgeStructures` (`0x0062DF30`) in detail. [drawing only *[inferred]*] **PARTLY ANSWERED 2026-10-16
+  (re-answers26):** MATCHES, with one side effect (network-bridges.md §11.4). The profile is a leaf that writes only
+  the piece records' weights; the cable plotting fills each record's cable vector; only `InsertBridgePiece` reads
+  them, turning them into textured triangles on the occupant (network occupant slot 31, `0x0061C800`: append to the
+  triangle list `+0x118`, recompute the bounding box, which includes the triangles). The occupant is inserted into the
+  occupant manager after that (`0x0062F5A8`), so the triangles can widen the cells it is filed under. Still open:
+  whether any shipped suspension or cable triangle reaches past its piece's own cell (an in-game occupant query beside
+  a suspension bridge would settle it), and the formulas (visual only).
 - ~~**NB3 (bridges):** the occupant position height used as the column top in `InsertBridgePiece` (network-bridges.md
   §11.3). [the piece's model height Y *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers26):** **DIFFERS**
   (network-bridges.md §11.2 step 2, §11.3 step 2). The position is the network occupant's (`0x006193D0`, reached

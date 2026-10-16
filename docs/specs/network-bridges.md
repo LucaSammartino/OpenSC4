@@ -807,8 +807,26 @@ types (`+0xD4` = −15.5) measure the column top from a point 15.5 m above the m
 
 After the columns, `InsertBridgePiece` calls `AddSuspendedBridgeStructures` (`0x0062DF30`) when the piece's support
 flags (`+0x40`) are not 0, then adds the piece's cable pieces (`+0x44`, filled by the cable plotting `0x00630F70`). The suspension profile (`0x0062E690`) turns the piece positions between two supports into the
-per-corner weights `+0x2C`–`+0x38`, with the parameter given (`+0x9C` or `+0xA0`) and an end mode (0, 1 or 2). These
-are drawing data: nothing in the simulation reads them *[inferred]*. Their exact formulas are left open (NB2).
+per-corner weights `+0x2C`–`+0x38`, with the parameter given (`+0x9C` or `+0xA0`) and an end mode (0, 1 or 2).
+
+**Where the data goes** (NB2, partly answered). The suspension profile (`0x0062E690`) is a leaf: it calls nothing and
+writes only the piece records' weights. The cable plotting (`0x00630F70`) appends cable pieces to each piece record's
+vector `+0x44` (through `0x006307A0`). The piece records' readers are `RemoveBridgePiecesFromSetOfCellsToBeSolved`
+(the cell, §8.3), `CopyBridgeElevationConstraintsIntoCellInfo` (the corners, §8.3) and `InsertBridgePiece`; only the
+last reads the weights, `+0x3C`, the flags `+0x40` and the cables. It turns them into **triangles** on the bridge
+occupant: `AddSuspendedBridgeStructures` (through `0x0062DCB0`) and the cable loop (four triangles per cable piece,
+`0x0062F4E6`–`0x0062F546`) call network occupant slot 31 (`0x0061C800`), which appends one `0x4C`-byte textured
+triangle (three points with texture coordinates, colour `0xFFFFFFFF`) to the occupant's triangle list `+0x118`, then
+recomputes the occupant's bounding box (slot 80, `0x0061DB50`; both its paths include the triangle list) and calls
+slot 46.
+
+So these data are drawing data with one side effect: `InsertBridgePiece` inserts the occupant into the occupant
+manager **after** adding the triangles (occupant manager slot 20, `0x0062F5A8`), and the insert files the occupant
+under every cell its x/z bounding box covers (occupant-manager.md §5.1). A replacement that draws its own suspension
+and cable geometry *[choice]* keeps the original's behaviour as long as the piece's x/z box, shrunk by 0.1 m per side,
+stays inside the same cells. Whether any shipped bridge's triangles reach past the piece's own cell, and so file it
+under a neighbouring cell, was not measured; the formulas of the profile and the cable plotting are not specified
+(they are visual).
 
 ---
 
@@ -846,6 +864,9 @@ its steps regular, and the height solver then treats them as ordinary terrain.
   `0x482CB44F`, land); every shipped type sets the property, so there is no shipped effect. The pass itself: §7.
 - **NB1** (§16, answered 2026-10-16, re-answers26): §8.3, with the solver side in network-geometry.md §9.8. There was
   no implemented answer to compare.
+- **NB2** (§16, partly answered 2026-10-16, re-answers26): §11.4. MATCHES the inference that nothing in the
+  simulation reads the suspension and cable data, with one side effect: the triangles they become enlarge the bridge
+  occupant's bounding box, which the occupant manager indexes by cell.
 - **NB3** (§16, answered 2026-10-16, re-answers26): §11.2 step 2 and §11.3 step 2. **DIFFERS** from the inference:
   the position height is the highest of the piece's four corners, not `Y`.
 
@@ -875,7 +896,12 @@ its steps regular, and the height solver then treats them as ordinary terrain.
   `{start, end, deck − +0x60[0], same}` that anchors the plane constraint of the regular cells
   (network-geometry.md §9.8, new), which runs in step 2 of each `SmoothenNetwork` level.
 - **NB2.** The suspension profile (`0x0062E690`), the cable plotting (`0x00630F70`) and `AddSuspendedBridgeStructures`
-  in detail. Drawing only *[inferred]*.
+  in detail. Drawing only *[inferred]*. **PARTLY ANSWERED 2026-10-16 (re-answers26):** §11.4. Nothing but
+  `InsertBridgePiece` reads the weights, the flags and the cable pieces; it turns them into triangles on the occupant
+  (slot 31), which also enlarge its bounding box before the occupant manager files it by cell. Still open: do the
+  shipped suspension or cable triangles reach past a piece's own cell (an occupant-manager query over the cells next
+  to a suspension bridge's tower or cable pieces in the original would settle it), and the formulas themselves, which
+  matter only for drawing.
 - ~~**NB3.** The occupant position height used for the column top (§11.3): inferred to be the piece's model height Y
   set in §11.2, not checked.~~ **ANSWERED 2026-10-16 (re-answers26):** **DIFFERS.** It is the network occupant's
   position height (`0x006193D0`), the highest of the four corner heights that `CreateNetworkOccupant` gave the
@@ -976,3 +1002,8 @@ surface level (slot 18) is the water level. Unless stated, the banks are flat an
     below the ground, so no column. With depth 200: top 70, a column from 0 up to 70 (not 85). A road key 2 ramp
     piece `u` = 0 (corners `elev − 36.652` outside and `elev − 34.905` inside): position height `elev − 34.905`; with
     depth 100 the column top is `elev − 134.905`.
+29. **Suspension data stay on the occupant** (§11.4). A road key 5 bridge (medium suspension, cable models set): after
+    the run, the bridge occupants of the cable spans carry triangles in their own triangle lists. Compared with the same
+    bridge with both cable model ids cleared (which turns the support flags, the profile and the cables off, §10.4),
+    only the piece records' weights, flags and cable vectors and the occupants' triangles and boxes differ: no cell
+    info corner or range, cost or failure code does.
