@@ -71,8 +71,8 @@ pub use intrule::{
     INTERSECTION_FLAG, ONE_WAY_PATTERNS,
 };
 pub use rules::{
-    LoadReport, NetworkRules, OverridePair, Requirement, ResourceId, MULTI_TYPE_INSTANCE, NETWORK_INI_GROUP,
-    NETWORK_INI_INSTANCE, OVERRIDES_INSTANCE, INTERSECTION_INSTANCE, RULE_GROUP, RULE_TYPE,
+    LoadReport, NetworkRules, OverridePair, Requirement, ResourceId, INTERSECTION_INSTANCE, MULTI_TYPE_INSTANCE,
+    NETWORK_INI_GROUP, NETWORK_INI_INSTANCE, OVERRIDES_INSTANCE, RULE_GROUP, RULE_TYPE,
 };
 pub use solve::{
     adjust_tile_subsets, apply_network_rules, assign_edge_subtypes, build_padded_network_set, neighbourhood,
@@ -81,8 +81,8 @@ pub use solve::{
 };
 pub use text::{atol, find_section, ini_sections, rz_atou32_hex, rz_convert_u32, scan, IniSection, ScanValue};
 pub use tile::{
-    edge_token, mirror_edge_byte, mirror_edges, mirror_meta, rotate_edges, rotate_meta, rotate_orientation, Condition, Evaluator,
-    LoadStatus, Neighbourhood, Output, TileRule,
+    edge_token, mirror_edge_byte, mirror_edges, mirror_meta, rotate_edges, rotate_meta, rotate_orientation, Condition,
+    Evaluator, LoadStatus, Neighbourhood, Output, TileRule,
 };
 
 // ---- §1.1 cells and sides ---------------------------------------------------------------------------
@@ -243,7 +243,13 @@ pub fn with_edge_byte(e: u32, side: usize, b: u8) -> u32 {
 
 /// `connmask(e)`: `0x03` in each byte with bit 0 or bit 1 set.
 pub fn connmask(e: u32) -> u32 {
-    (0..4).fold(0, |m, i| if edge_byte(e, i) & 3 != 0 { m | (3 << (8 * i)) } else { m })
+    (0..4).fold(0, |m, i| {
+        if edge_byte(e, i) & 3 != 0 {
+            m | (3 << (8 * i))
+        } else {
+            m
+        }
+    })
 }
 
 /// `covers(eW, eL)`: on every side where `eL` has a connection, `eW` has the
@@ -280,8 +286,12 @@ pub fn orientation(rot: i32, flip: i32) -> u8 {
 // ---- §1.5 metapositions -------------------------------------------------------------------------------
 
 /// The metaposition offsets (`0x00B0B3D8` dx, `0x00B0B3F4` dz).
-pub const META_DX: [i32; 25] = [0, -1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -2, -1, 0, 1, 2, 2, 2, 2, 2, 1, 0, -1, -2, -2];
-pub const META_DZ: [i32; 25] = [0, 0, -1, -1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -2, -2, -2, -1, 0, 1, 2, 2, 2, 2, 2, 1];
+pub const META_DX: [i32; 25] = [
+    0, -1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -2, -1, 0, 1, 2, 2, 2, 2, 2, 1, 0, -1, -2, -2,
+];
+pub const META_DZ: [i32; 25] = [
+    0, 0, -1, -1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -2, -2, -2, -1, 0, 1, 2, 2, 2, 2, 2, 1,
+];
 
 /// The offset of metaposition `m`. A metaposition outside 0-24 (the tables
 /// have 25 entries) reads as the centre (0, 0) *[choice]*.
@@ -296,5 +306,7 @@ pub fn meta_offset(m: i32) -> (i32, i32) {
 /// The metaposition of an offset in the 5 x 5 square (the inverse grid
 /// `0x00B0B3BC`).
 pub fn meta_of(dx: i32, dz: i32) -> Option<i32> {
-    (0..25).find(|&m| META_DX[m] == dx && META_DZ[m] == dz).map(|m| m as i32)
+    (0..25)
+        .find(|&m| META_DX[m] == dx && META_DZ[m] == dz)
+        .map(|m| m as i32)
 }

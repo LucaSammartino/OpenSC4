@@ -62,10 +62,13 @@ impl Default for CheckType {
 impl CheckType {
     /// The network checks `(type, edges, mask)` with a type.
     pub fn checks(&self) -> impl Iterator<Item = (u8, u32, u32)> {
-        [(self.type1, self.edges1, self.mask1), (self.type2, self.edges2, self.mask2)]
-            .into_iter()
-            .filter(|c| c.0 >= 0)
-            .map(|(t, e, m)| (t as u8, e, m))
+        [
+            (self.type1, self.edges1, self.mask1),
+            (self.type2, self.edges2, self.mask2),
+        ]
+        .into_iter()
+        .filter(|c| c.0 >= 0)
+        .map(|(t, e, m)| (t as u8, e, m))
     }
 
     /// The OR of the type bits named.
@@ -419,7 +422,11 @@ impl IntRule {
         for m in &mut self.models {
             (m.x, m.z) = (m.z, m.x);
             m.flip = u8::from(m.flip == 0);
-            m.rot = if m.flip != 0 { m.rot.wrapping_add(1) & 3 } else { m.rot.wrapping_sub(1) & 3 };
+            m.rot = if m.flip != 0 {
+                m.rot.wrapping_add(1) & 3
+            } else {
+                m.rot.wrapping_sub(1) & 3
+            };
         }
         sw(&mut self.handle_offset);
         let b = self.bounds;
@@ -465,7 +472,11 @@ impl IntRule {
             }
         }
         for m in &mut self.models {
-            m.rot = if m.flip == 0 { m.rot.wrapping_add(n) & 3 } else { m.rot.wrapping_sub(n) & 3 };
+            m.rot = if m.flip == 0 {
+                m.rot.wrapping_add(n) & 3
+            } else {
+                m.rot.wrapping_sub(n) & 3
+            };
         }
         for ct in self.check_types.values_mut() {
             let r = 8 * u32::from(n);
@@ -511,11 +522,15 @@ impl IntRule {
     pub fn test(&self, x: i32, z: i32, grid: &CellGrid, host: &dyn IntRuleHost) -> u8 {
         let ow = self.one_way_pattern();
         for tc in &self.tagged {
-            let Some(ct) = self.check_types.get(&tc.tag) else { continue };
+            let Some(ct) = self.check_types.get(&tc.tag) else {
+                continue;
+            };
             if ct.optional {
                 continue;
             }
-            let Some(info) = grid.at(x + tc.x, z + tc.z) else { return 2 };
+            let Some(info) = grid.at(x + tc.x, z + tc.z) else {
+                return 2;
+            };
             if ct.occupies {
                 let occ_flag = info
                     .occupant
@@ -579,7 +594,9 @@ impl IntRule {
     pub fn do_auto_complete(&self, x: i32, z: i32, grid: &CellGrid, state: &mut SolveState) -> i32 {
         let ow = self.one_way_pattern();
         for tc in &self.tagged {
-            let Some(ct) = self.check_types.get(&tc.tag) else { continue };
+            let Some(ct) = self.check_types.get(&tc.tag) else {
+                continue;
+            };
             let (cx, cz) = (x + tc.x, z + tc.z);
             let info = grid.at(cx, cz);
             for (t, edges, mask) in ct.checks() {
@@ -590,7 +607,13 @@ impl IntRule {
                     d = d_mask(edges);
                     owbad = d & (cow ^ ow) != 0;
                     if !ct.occupies {
-                        let g = (0..4).fold(0u8, |g, i| if (cow >> (2 * i)) & 3 != 0 { g | (3 << (2 * i)) } else { g });
+                        let g = (0..4).fold(0u8, |g, i| {
+                            if (cow >> (2 * i)) & 3 != 0 {
+                                g | (3 << (2 * i))
+                            } else {
+                                g
+                            }
+                        });
                         if d & g & (cow ^ ow) != 0 {
                             continue;
                         }
@@ -644,7 +667,11 @@ fn swap_sides(e: u32) -> u32 {
 /// each byte whose whole value is 1, 2 or 3 becomes `4 - value` (a byte with
 /// subtype bits is left as it is *[quirk 7]*).
 fn transpose_edges(e: u32) -> u32 {
-    u32::from_le_bytes(swap_sides(e).to_le_bytes().map(|b| if (1..=3).contains(&b) { 4 - b } else { b }))
+    u32::from_le_bytes(
+        swap_sides(e)
+            .to_le_bytes()
+            .map(|b| if (1..=3).contains(&b) { 4 - b } else { b }),
+    )
 }
 
 /// The global rule map (`0x00B452B0`): a hash map keyed by id. Its bucket
@@ -782,10 +809,7 @@ impl IntRuleMap {
                     // *[choice]*.
                     let s = scan("%d,%d", value);
                     r.replacement = true;
-                    r.replacement_offset = (
-                        s.first().map_or(0, |v| v.as_i32()),
-                        s.get(1).map_or(0, |v| v.as_i32()),
-                    );
+                    r.replacement_offset = (s.first().map_or(0, |v| v.as_i32()), s.get(1).map_or(0, |v| v.as_i32()));
                 }
                 "convertqueryid" => r.convert_query_id = rz_convert_u32(value),
                 "placequeryid" => r.place_query_id = rz_convert_u32(value),

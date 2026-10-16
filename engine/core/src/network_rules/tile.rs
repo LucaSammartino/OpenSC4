@@ -331,10 +331,7 @@ pub fn rotate_orientation(o: u8, r: u8) -> u8 {
     } else {
         let rot = o & 0x7F;
         let idx = usize::from(rot) * 4 + usize::from(r);
-        let v = FLIPPED_ROTATION
-            .get(idx)
-            .copied()
-            .unwrap_or(rot.wrapping_sub(r) & 3);
+        let v = FLIPPED_ROTATION.get(idx).copied().unwrap_or(rot.wrapping_sub(r) & 3);
         0x80 | v
     }
 }

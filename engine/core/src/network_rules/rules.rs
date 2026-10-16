@@ -121,7 +121,9 @@ impl NetworkRules {
     /// `ReloadRules` (`0x006253D0`, §2.1): every resource in the original's
     /// order, `fetch` answering the bytes of a resource or `None` when it is
     /// missing. Returns one report per resource asked for, in that order.
-    pub fn reload(fetch: &mut dyn FnMut(ResourceId) -> Option<Vec<u8>>) -> (NetworkRules, Vec<(ResourceId, LoadReport)>) {
+    pub fn reload(
+        fetch: &mut dyn FnMut(ResourceId) -> Option<Vec<u8>>,
+    ) -> (NetworkRules, Vec<(ResourceId, LoadReport)>) {
         let mut r = NetworkRules::new();
         let mut reports = Vec::new();
         for t in 0..TYPE_COUNT as u8 {
@@ -194,7 +196,10 @@ impl NetworkRules {
         self.solutions.clear();
         for a in 0..TYPE_COUNT as u8 {
             for b in a + 1..TYPE_COUNT as u8 {
-                let name = format!("{}{}IntersectionSolutions", TYPE_NAMES[a as usize], TYPE_NAMES[b as usize]);
+                let name = format!(
+                    "{}{}IntersectionSolutions",
+                    TYPE_NAMES[a as usize], TYPE_NAMES[b as usize]
+                );
                 for (_, value) in find_section(&secs, &name) {
                     // RZParseDelimitedText; each field trimmed *[choice]*.
                     let f: Vec<&str> = value.split(',').map(str::trim).collect();
@@ -242,7 +247,10 @@ impl NetworkRules {
             let v = scan(PATTERN, s);
             (v.len() == 6).then(|| {
                 let i: Vec<i32> = v.iter().map(|x| x.as_i32()).collect();
-                [(i[0] as u32, orientation(i[1], i[2])), (i[3] as u32, orientation(i[4], i[5]))]
+                [
+                    (i[0] as u32, orientation(i[1], i[2])),
+                    (i[3] as u32, orientation(i[4], i[5])),
+                ]
             })
         };
         for (key, value) in find_section(&secs, "RuleOverrides") {
@@ -304,7 +312,10 @@ impl NetworkRules {
 
     /// The multi-type solution of the pair `(lo, hi)` for its two edge words.
     pub fn solution(&self, lo: u8, hi: u8, e_lo: u32, e_hi: u32) -> Option<(u32, u8)> {
-        self.solutions.get(&(lo, hi)).and_then(|t| t.get(&(e_lo, e_hi))).copied()
+        self.solutions
+            .get(&(lo, hi))
+            .and_then(|t| t.get(&(e_lo, e_hi)))
+            .copied()
     }
 
     /// The evaluator count of each type.

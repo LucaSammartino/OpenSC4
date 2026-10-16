@@ -13,8 +13,8 @@ use super::grid::{CellGrid, SolveState, SolvedRecord};
 use super::rules::NetworkRules;
 use super::tile::{Evaluator, Neighbourhood, Output};
 use super::{
-    cell_key, covers, d_mask, edge_byte, elevated, key_cell, meta_offset, reset_minor_types, type_bit, type_of, within,
-    with_edge_byte, ALL_TYPES, AVENUE, DIRT_ROAD, ONE_WAY_ROAD, PRIORITY, ROAD, SIDE_DX, SIDE_DZ, STREET,
+    cell_key, covers, d_mask, edge_byte, elevated, key_cell, meta_offset, reset_minor_types, type_bit, type_of,
+    with_edge_byte, within, ALL_TYPES, AVENUE, DIRT_ROAD, ONE_WAY_ROAD, PRIORITY, ROAD, SIDE_DX, SIDE_DZ, STREET,
     SUBTYPE_SCHEME, TYPE_COUNT,
 };
 
@@ -310,7 +310,8 @@ fn scheme_2(grid: &mut CellGrid, p: &StlHashSet, c: u32, t: u8, in_p: bool) -> b
         }
         let (opp, left, right) = ((i + 2) & 3, (i + 3) & 3, (i + 1) & 3);
         let subtype: u8 = if k == 2 {
-            let f = u8::from(kind(opp) != 0) | if kind(left) == 1 { 2 } else { 0 } | if kind(right) == 3 { 4 } else { 0 };
+            let f =
+                u8::from(kind(opp) != 0) | if kind(left) == 1 { 2 } else { 0 } | if kind(right) == 3 { 4 } else { 0 };
             if f <= 1 {
                 continue;
             }
@@ -473,7 +474,10 @@ pub fn solve_multi_type_intersections(
                     ci.one_way &= d_mask(e_l);
                 }
             }
-            let u = ci.edges[ROAD as usize] | ci.edges[STREET as usize] | ci.edges[AVENUE as usize] | ci.edges[DIRT_ROAD as usize];
+            let u = ci.edges[ROAD as usize]
+                | ci.edges[STREET as usize]
+                | ci.edges[AVENUE as usize]
+                | ci.edges[DIRT_ROAD as usize];
             ci.one_way &= !d_mask(u);
             let (lo_t, hi_t) = (w.min(l), w.max(l));
             let word = |t: u8| if t == l { e_l } else { e_w };
@@ -527,7 +531,9 @@ fn denormalise(o: u8, s: usize) -> u8 {
 /// `PatchTilePair(A, B, s)` (`0x006337E0`, §9.1): 0 no match, 1 patched (A
 /// and B changed), 2 a conflict that cannot be patched.
 pub fn patch_tile_pair(rules: &NetworkRules, a: &mut TilePiece, b: &mut TilePiece, s: usize) -> u8 {
-    let Some(patterns) = rules.rule_overrides.get(&a.id) else { return 0 };
+    let Some(patterns) = rules.rule_overrides.get(&a.id) else {
+        return 0;
+    };
     let (na, nb) = (normalise(a.orientation, s), normalise(b.orientation, s));
     for pat in patterns.iter().filter(|p| p.pattern[1].0 == b.id) {
         let mirrored = (pat.pattern[0].1 ^ na) & 0x80 != 0;
@@ -705,7 +711,9 @@ pub fn verify_tile_subsets(rules: &NetworkRules, grid: &mut CellGrid, state: &mu
                 if !grid.inside(x, z) {
                     return false;
                 }
-                let Some(p) = piece_at(grid, state, x, z) else { return false };
+                let Some(p) = piece_at(grid, state, x, z) else {
+                    return false;
+                };
                 let rel = if (p.orientation ^ a.orientation) & 0x80 != 0 {
                     p.orientation.wrapping_add(a.orientation) & 0x83
                 } else {
@@ -749,7 +757,13 @@ pub fn unsolved_cell_result(grid: &CellGrid, state: &SolveState) -> i32 {
 /// `SolveNetwork(type, resolve)`'s rule stages (`0x00635CB0`, §6.1) over an
 /// explicit cell grid: returns the result count (a value below
 /// `state.valid_count` fails the run with `0xF0000007`).
-pub fn solve_network(rules: &NetworkRules, grid: &mut CellGrid, state: &mut SolveState, tool_type: u8, resolve: bool) -> i32 {
+pub fn solve_network(
+    rules: &NetworkRules,
+    grid: &mut CellGrid,
+    state: &mut SolveState,
+    tool_type: u8,
+    resolve: bool,
+) -> i32 {
     let mut p = build_padded_network_set(grid, &state.s, 2);
     let mut r = StlHashSet::with_hint(SET_HINT);
     assign_edge_subtypes(grid, &mut p, &mut r, true);
