@@ -30,12 +30,38 @@ and stops; the coordinator is the only writer of `main`. Four batches landed thi
    **refused rather than mangled** (see the guards below) — resolve by hand and verify
    `git diff main -- engine/capi/include/fc4.h` shows no line of main's header disappearing.
 
-**What landed on `main` this session: 38 lanes** in four batches (`train1` 4 docs, `train2` 12, `train3` 14,
-`train4` 7). Highlights: network-geometry, network-rules, network-bridges, effects, demolition/dispatch/city-situation,
-prop-occupant and audio cores; terrain, ports, prop-dev/city-detail, occupant, network-manager and disaster glue;
-`apply15b`/`c`/`d`/`e`; `flakyfix`; `abi-hygiene`; and 8 RE spec lanes (`ui-windows.md`, `audio.md`, `view3d.md`,
-`prop-occupant.md`, plus automata/effects/terrain/disasters answers). Game runs prove it: batch 2/3/4 regresses all
-**PASS**.
+**What landed on `main` this session: 29 lanes** (`train1` 4 docs, `train2` 12, `train3` partly, `train4` 7).
+**CORRECTION found after the halt:** eight lanes the merge train reported as landed in `train3` are **NOT on
+`main`**. Their work is safe and committed on their own branches (worktrees clean), but
+`git merge-base --is-ancestor <lane> main` is false for each:
+
+| not on main | what it carries |
+|---|---|
+| `cores17` | the **network geometry** core (`fc4_netgeom`) |
+| `cores19` | the **effects** core |
+| `glue12b1` | prop developer + city detail glue |
+| `glue12b2` | ports glue (airport/seaport developers) |
+| `glue15` | `enable = tutorial`, the three exact prop/lotcfg/tutorial shadows |
+| `glue17` | citysit/demolition/dispatch shadows + `enable = citysit`/`dispatch` (+829/-1) |
+| `apply15b` | PD4-PD10, PV8/12/13, CD4/5, RN3, HW2 |
+| `apply15terrain` | the terrain DIFFERS answers (TR4/TR7/TR11/TR14/TR3) |
+
+**Actually on `main`:** `re-answers20/23/26/28/29`, `re-specs19/20`, `re-answers30`, `re-integrate1`,
+`mergetrain-docs`, `coverage2`, `cores12a`, `cores12c`, `cores21`, `cores22`, `detpacing`, `cores18`,
+`apply14dis`, `apply14traffic`, `apply15c`, `apply15d`, `apply15e`, `glue14b`, `glue14c`, `flakyfix`,
+`abi-hygiene`, `glue20`.
+**Always verify with `git merge-base --is-ancestor <lane> main`. Never trust the train's own lane list.**
+
+**Why:** `train3` was re-run from scratch several times while the resolver was being fixed, and
+`reset_integration` (`checkout --force -B integration/<n> main`) discards a previous attempt's merges. A lane was
+recorded as merged even where its merge had not survived, and `land` writes its list from its own state file,
+which is not a proof of ancestry. **Do this before anything else:** merge those eight branches (gate + regress +
+land), then re-run the ancestry check for every lane listed as landed.
+
+Landed work worth noting: network-rules and network-bridges cores, demolition/dispatch/city-situation,
+prop-occupant and audio cores, the disaster glue (fire 256/256, riot 352/352 exact in its lane run), `flakyfix`,
+`abi-hygiene`, and 8 RE spec lanes (`ui-windows.md`, `audio.md`, `view3d.md`, `prop-occupant.md`, plus
+automata/effects/terrain/disasters answers). Batch 2/3/4 regressions **PASS**.
 
 **Coverage (measured, `python tools/coverage.py`):** game code 29,481 functions / 5,586,418 bytes;
 **32.9% specified / 21.3% implemented / 9.5% verified / 12.1% replaced**; shared 206,377 B, unattributed 95,483 B.
