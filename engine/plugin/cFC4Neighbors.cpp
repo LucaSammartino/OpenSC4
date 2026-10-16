@@ -26,15 +26,20 @@
 #include "FC4Streams.h"
 #include "cFC4Date.h"
 #include "cFC4Message2Standard.h"
+#include "compat/FC4Compat.h"
 
 #include "GZServPtrs.h"
 #include "SC4List.h"
 #include "SC4Point.h"
 #include "SC4Rect.h"
+#include "cGZPersistResourceKey.h"
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
+#include "cIGZLanguageManager.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
+#include "cIGZPersistResourceManager.h"
+#include "cIGZString.h"
 #include "cISC4App.h"
 #include "cISC4BudgetSimulator.h"
 #include "cISC4City.h"
@@ -303,6 +308,7 @@ void Hold(cIGZUnknown* u) {
 }
 
 bool g_noteDropped = false;
+bool g_noteDealNotListed = false;  // NG43
 void NoteDropped(const char* what) {
     if (g_noteDropped) return;
     g_noteDropped = true;
@@ -2066,26 +2072,84 @@ bool cFC4NeighborsSimulator::Shutdown() {
 namespace {
 bool g_noteNoDialog = false;
 bool g_noteDeclined = false;
+bool g_noteAsked = false;
 cISC4App* g_testApp = nullptr;  // FC4TestSeam op 48 (borrowed)
+fc4::NeighborsConfirmFn g_testConfirm = nullptr;  // FC4TestSeam op 66
 
-// cISC4App::GetPopupDialogsEnabled (slot 23, advisors.md §6.8.1). The test's
-// app is borrowed and called directly; the framework's is queried and
-// released. [choice] Without an app: true, the flag's value from the app's
-// constructor.
+// SC4GetPopupModalDialogsEnabled (neighbors.md §15.4 NG36, the original
+// 0x005F9090): cISC4App::GetPopupDialogsEnabled (slot 23, advisors.md
+// §6.8.1), or false with no app (NG36: the original treats a missing app as
+// popups off, so the request is refused). The test's app is borrowed and
+// called directly; the framework's is queried and released.
 bool PopupDialogsEnabled() {
     if (g_testApp != nullptr) return g_testApp->GetPopupDialogsEnabled();
     cIGZFrameWork* fw = RZGetFrameWork();
     cIGZApp* app = fw ? fw->Application() : nullptr;
     cISC4App* sc4 = Query<cISC4App>(app, GZIID_cISC4App);
-    if (sc4 == nullptr) return true;
+    if (sc4 == nullptr) return false;
     const bool on = sc4->GetPopupDialogsEnabled();  // slot 23
     Drop(sc4);
     return on;
+}
+
+// One LTEXT through SC4LoadString's lookup (data-formats §6.2): (0x2026960B,
+// group + current language ID, instance), then, when that is missing and the
+// language ID is not 0, (0x2026960B, group, instance); U+2022 becomes U+200B
+// (§6.1). [spec question NG45] neighbors.md §6.2 names the keys but not the
+// loader; SC4LoadString's rule is the literal reading. The resource manager's
+// GetPrivateResource (slot 4) asked for cIGZString, as the crime glue does.
+// False (`out` untouched) when neither key loads.
+bool LoadLtext(uint32_t group, uint32_t instance, std::string& out) {
+    cIGZPersistResourceManagerPtr rm;
+    if (!rm) return false;
+    cIGZLanguageManagerPtr lm;
+    const uint32_t language = lm ? lm->GetCurrentLanguage() : 0;
+    auto load = [&](uint32_t g) -> bool {
+        const cGZPersistResourceKey key(0x2026960B, g, instance);
+        cIGZString* s = nullptr;
+        const bool ok = rm->GetPrivateResource(key, GZIID_cIGZString, reinterpret_cast<void**>(&s), 0, nullptr);
+        if (s == nullptr) return false;
+        FC4_ACQUIRED(s, "GetPrivateResource");
+        if (ok) out.assign(s->ToChar() != nullptr ? s->ToChar() : "", s->ToChar() != nullptr ? s->Strlen() : 0);
+        FC4_RELEASE_CREATED(s);
+        return ok;
+    };
+    if (!load(group + language) && !(language != 0 && load(group))) return false;
+    for (size_t at = out.find("\xE2\x80\xA2"); at != std::string::npos; at = out.find("\xE2\x80\xA2", at + 3))
+        out[at + 2] = '\x8B';  // U+2022 -> U+200B
+    return true;
 }
 }  // namespace
 
 namespace fc4 {
 void NeighborsTestSetApp(cISC4App* app) { g_testApp = app; }
+void NeighborsTestSetConfirm(NeighborsConfirmFn fn) { g_testConfirm = fn; }
+
+// The confirmation text (neighbors.md §6.2): `sprintf(text, name)`.
+// [choice] Only the first `%s` takes the name and `%%` gives `%`; any other
+// `%` sequence is copied as it is (the shipped template is not specified
+// beyond its one string argument; spec question NG45).
+std::string NeighborsFormatConfirmText(const std::string& format, const std::string& name) {
+    std::string r;
+    bool used = false;
+    for (size_t i = 0; i < format.size(); ++i) {
+        if (format[i] == '%' && i + 1 < format.size()) {
+            if (format[i + 1] == '%') {
+                r += '%';
+                ++i;
+                continue;
+            }
+            if (format[i + 1] == 's' && !used) {
+                r += name;
+                used = true;
+                ++i;
+                continue;
+            }
+        }
+        r += format[i];
+    }
+    return r;
+}
 
 bool NeighborsTestCopyDeal(cISC4NeighborDeal* src, cISC4NeighborDeal** out) {
     if (out == nullptr) return false;
@@ -2104,34 +2168,76 @@ bool NeighborsTestCopyDeal(cISC4NeighborDeal* src, cISC4NeighborDeal** out) {
 }
 }  // namespace fc4
 
-// Slot 5 (§6.2; NG14, §15.4): the core answers 0 (exists: false) or 1 (ask
-// the player). The original then shows nSC4UI::GenericConfirmationDialog and
-// returns its answer; with popups disabled that dialog returns false without
-// asking, so the request is refused. [choice, spec question] The spec gives
-// no interface for the dialog (only its address), so with popups enabled the
-// request is still confirmed without asking (a temporary deviation, NG14).
+// Slot 5 (§6.2; NG14, NG35, NG36, §15.4): the core answers 0 (exists: false)
+// or 1 (ask the player). The original then calls
+// nSC4UI::GenericConfirmationDialog (0x0078DFF0, cdecl (title, text,
+// yesLabel, noLabel), labels null for Yes / No) and returns its answer: true
+// only for Yes. With popups disabled, or no app (NG36), that dialog returns
+// false without asking, so the request is refused. NG35: with popups on, the
+// dialog is called at its build-gated address (compat::Direct) with the §6.2
+// title and text. [choice] An executable the compat table does not identify
+// has no dialog: the request is then confirmed without asking (logged once;
+// the temporary deviation NG14 allows). The core's lock is not held across
+// the modal dialog (the game's second thread calls our getters meanwhile).
 bool cFC4NeighborsSimulator::RequestCreateConnection(ConnectionType type, int32_t x, int32_t z, bool) {
-    Section sec;
-    if (!sec.ok()) return false;
     uint64_t neighbour = 0;
-    const int32_t r = fc4_neighbors_request_create_connection(core_, static_cast<uint32_t>(type), x, z, &neighbour);
-    if (r == 0) return false;
+    {
+        Section sec;
+        if (!sec.ok()) return false;
+        const int32_t r =
+            fc4_neighbors_request_create_connection(core_, static_cast<uint32_t>(type), x, z, &neighbour);
+        if (r == 0) return false;
+    }
     if (!PopupDialogsEnabled()) {
         if (!g_noteDeclined) {
             g_noteDeclined = true;
-            fc4::Log("neighbours: RequestCreateConnection refused: popup dialogs are disabled, so the confirmation "
-                     "dialog answers no (NG14; first: %s at (%d, %d))",
+            fc4::Log("neighbours: RequestCreateConnection refused: popup dialogs are disabled (or no app), so the "
+                     "confirmation dialog answers no (NG14, NG36; first: %s at (%d, %d))",
                      TypeName(static_cast<uint32_t>(type)), x, z);
         }
         return false;
     }
-    if (!g_noteNoDialog) {
-        g_noteNoDialog = true;
-        fc4::Log("neighbours: RequestCreateConnection confirms without the yes/no dialog (first: %s at (%d, %d), "
-                 "neighbour %p)",
-                 TypeName(static_cast<uint32_t>(type)), x, z, static_cast<void*>(FromToken(neighbour)));
+    fc4::NeighborsConfirmFn confirm = g_testConfirm;
+    if (confirm == nullptr) {
+        confirm = reinterpret_cast<fc4::NeighborsConfirmFn>(
+            fc4::compat::DirectCall(fc4::compat::Direct::GenericConfirmationDialog));
     }
-    return true;
+    if (confirm == nullptr) {
+        if (!g_noteNoDialog) {
+            g_noteNoDialog = true;
+            fc4::Log("neighbours: RequestCreateConnection confirms without the yes/no dialog: "
+                     "GenericConfirmationDialog is not available (first: %s at (%d, %d), neighbour %p)",
+                     TypeName(static_cast<uint32_t>(type)), x, z, static_cast<void*>(FromToken(neighbour)));
+        }
+        return true;
+    }
+    // §6.2: title LTEXT 0x6A231EAA/0xAA8E151B; text sprintf(LTEXT 0x0A8E152D,
+    // name), the name the established neighbour's (regional city slot 33) or
+    // LTEXT 0x0A8E15F9. [spec question NG45] The two instance-only keys are
+    // taken in the title's group 0x6A231EAA (literal reading). A missing
+    // LTEXT gives the empty text [choice].
+    constexpr uint32_t kGroup = 0x6A231EAA;
+    std::string title, format, name;
+    LoadLtext(kGroup, 0xAA8E151B, title);
+    LoadLtext(kGroup, 0x0A8E152D, format);
+    cFC4ISC4RegionalCity* rc = RcOf(neighbour);
+    if (rc != nullptr) {
+        cRZBaseString n;
+        rc->GetCityName(n);  // slot 33
+        if (n.ToChar() != nullptr) name.assign(n.ToChar(), n.Strlen());
+    } else {
+        LoadLtext(kGroup, 0x0A8E15F9, name);
+    }
+    cRZBaseString titleStr(title.c_str(), static_cast<uint32_t>(title.size()));
+    const std::string text = fc4::NeighborsFormatConfirmText(format, name);
+    cRZBaseString textStr(text.c_str(), static_cast<uint32_t>(text.size()));
+    const bool yes = confirm(&titleStr, &textStr, nullptr, nullptr);
+    if (!g_noteAsked) {
+        g_noteAsked = true;
+        fc4::Log("neighbours: RequestCreateConnection asked the player (NG35; first: %s at (%d, %d), answer %s)",
+                 TypeName(static_cast<uint32_t>(type)), x, z, yes ? "yes" : "no");
+    }
+    return yes;
 }
 
 // Slot 6 [choice]: the new connection (borrowed; the list holds it) or null.
@@ -2328,7 +2434,15 @@ bool cFC4NeighborsSimulator::AddDeal(cISC4NeighborDeal* deal) {
     FC4_ADDREF(deal);  // the core's reference (NG4)
     if (!fc4_neighbors_add_foreign_deal(core_, TokenOf(deal))) {
         // Not listed (no core): the reference is still ours to give back.
+        // NG43 (neighbors.md §15.4): the original always lists the deal and
+        // returns true; not listing it is an accepted, logged deviation
+        // (mod-only: only another plugin's deal reaches this).
         FC4_RELEASE(deal);
+        if (!g_noteDealNotListed) {
+            g_noteDealNotListed = true;
+            fc4::Log("neighbours: AddDeal could not list a deal that is not ours (no simulator core); it returns "
+                     "true and keeps no reference (NG43; logged once)");
+        }
     }
     return true;
 }
