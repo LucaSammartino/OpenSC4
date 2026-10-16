@@ -85,7 +85,7 @@ Each pointer field holds one reference. **Usage** values (prop occupant slots 22
 | `0x00B2179C` | profile map: prop type ID → prop profile (§A3.2) |
 | (unnamed) | name map: prop type ID → string, never filled (§A5 slot 12) |
 | `0x00B21758` | "catalogue built" flag (u8) |
-| `0x00B21770` | value sent as data2 with the catalogue message (§A3.4) *[inferred: never written; 0]* |
+| `0x00B21770` | the type map's element count (`0x00B21760` + 0x10), sent as data2 with the catalogue message (§A3.4; PL2) |
 
 The three maps are STLport hash tables keyed by the ID; their iteration order is bucket order (foundations).
 
@@ -134,7 +134,12 @@ taken]*.
 
 Posted (message server slot 4, `Post`) once, at the end of `StaticInit`, when the message server exists: a
 standard message with void1 = the prop manager, the `cIGZUnknown` field = the prop manager, data2 = the value at
-`0x00B21770`.
+`0x00B21770` (read at `0x004A2780`, set with message slot `+0x40` `SetData2`). That address is not a variable of
+its own. It is the element count of the type map, an STLport hash table at `0x00B21760` with its bucket vector at
+`+4` and its count at `+0x10`. The static constructor `0x00A71EA0` zeroes the count (`0x00829C1E`), and every insert
+(`find_or_insert` `0x004A2930`, `+0x10` incremented at `0x004A2997`) and erase updates it. So **data2 = the number of distinct prop type IDs in the catalogue**, that is, the number of
+distinct instances among the `ExemplarType` 0x1E exemplars, counted once even when a later exemplar replaces an
+earlier key (PL2).
 
 ## A4. Lifetime, messages and cadence
 
@@ -158,9 +163,20 @@ catalogue stays.
 | Message | Handling |
 |---|---|
 | `0x06CDB65B` `kSC4MessagePostViewFilterChange` | void2 points to the new view filter pointer; when it differs from +0x24, take a reference to the new one, release the old one and store it |
-| `0x0BEAF1A2` `kCommandID_CreateTextDecal` (a debug command) | needs more than 2 arguments: text (argument 0), x (1), z (2), optional argument 3 (default 1.0) and, only with more than 7 arguments, arguments 4–7 (default 1.0 each). Creates a text decal occupant (`0x005F8300`, 0xBC bytes), adds it with this manager's slot 19 (usage 1), places it at (x, terrain altitude at (x, z) from `cISTETerrain` slot 13, z), sets the text (decal slot 4), arguments 4–6 (slot 8, three floats), argument 7 (slot 10) and argument 3 (slot 6). The handler's own reference is never released *[quirk]* |
+| `0x0BEAF1A2` `kCommandID_CreateTextDecal` (a debug command) | needs more than 2 arguments: text (argument 0), x (1), z (2), optional argument 3 (default 1.0) and, only with more than 7 arguments, arguments 4–7 (default 1.0 each). Creates a text decal occupant (`0x005F8300`, 0xBC bytes), adds it with this manager's slot 19 (usage 1), places it at (x, terrain altitude at (x, z) from `cISTETerrain` slot 13, z), sets the text (decal slot 4 `SetText`), then the colour from arguments 4–6 (slot 8 `SetTextColor(r, g, b)`), the alpha from argument 7 (slot 10 `SetAlpha`) and the text height from argument 3 (slot 6 `SetTextHeight`). See the setters below (PL1). The handler's own reference is never released *[quirk]* |
 | `0xA6B79602` `kSC4MessageViewZRChange3` | reads the message data and does nothing |
 | `0x26D31EC1` `kSC4MessagePostCityInit` | subscribed, ignored |
+
+The text decal setters used above (primary vtable `0x00AA5680`; PL1). They are debug-only here; the label tool
+uses the same occupant.
+
+| Slot | Setter | Behaviour |
+|---|---|---|
+| 6 `+0x18` | `SetTextHeight(float h)` (`0x005F7B10`) | accepted only when 0 < h < 8.0 (`0x00A81054`, `0x00A8E178`); stores `+0x80` and rebuilds the decal (`UpdateDecal` `0x005F7810`); otherwise ignored |
+| 8 `+0x20` | `SetTextColor(float r, float g, float b)` (`0x005F7B50`, three floats by value) | ignored when every component is within 1e-4 (`0x00AA54A0`) of the stored colour (`+0x9C`); otherwise stores it and, when the decal is shown (`+0x8C`), passes it to each of its two overlay decals (`+0x84`/`+0xB4`, `+0x88`/`+0xB8`; overlay slot `+0x48`) |
+| 10 `+0x28` | `SetAlpha(float a)` (`0x005F7C00`) | ignored when equal to `+0xA8`; otherwise stores it and passes it to both overlay decals (overlay slot `+0x44`), or rebuilds the decal when it is not shown |
+
+So the command's defaults give a white, opaque decal one unit high.
 
 No agents, no simulation cadence, no random numbers.
 
@@ -674,10 +690,18 @@ chooser (slots 5, 7, 22, 23) and the lot configuration filters.
 
 ## O. Open questions
 
-- **PL1:** prop manager `DoMessage` for `CreateTextDecal`: what text decal slots 6, 8 and 10 mean (size, colour,
-  …). Debug-only; an in-game run of the command would settle it.
-- **PL2:** the value at `0x00B21770` sent as data2 of `kSC4MessagePropExemplarDataUpdated`: no writer was found,
-  so it is 0 *[inferred]*. A memory read after the first city load would settle it.
+- ~~**PL1:** prop manager `DoMessage` for `CreateTextDecal`: what text decal slots 6, 8 and 10 mean (size, colour,
+  …). Debug-only; an in-game run of the command would settle it.~~ **ANSWERED 2026-10-16 (re-answers18):**
+  - slot 6 is `SetTextHeight` (`0x005F7B10`, 0 < h < 8);
+  - slot 8 is `SetTextColor(r, g, b)` (`0x005F7B50`);
+  - slot 10 is `SetAlpha` (`0x005F7C00`).
+
+  Argument 3 is the height, arguments 4–6 the colour and argument 7 the alpha. §A4.3.
+- ~~**PL2:** the value at `0x00B21770` sent as data2 of `kSC4MessagePropExemplarDataUpdated`: no writer was found,
+  so it is 0 *[inferred]*. A memory read after the first city load would settle it.~~ **ANSWERED 2026-10-16
+  (re-answers18):** **DIFFERS**. `0x00B21770` is the element count (`+0x10`) of the type map, the hash table at
+  `0x00B21760`, zeroed by its constructor at `0x00829C1E`. Inserts write it through the table's own member
+  functions (`find_or_insert` `0x004A2930` increments it at `0x004A2997`), so no direct writer shows up. data2 is the number of prop types in the catalogue, not 0. §A2, §A3.4.
 - ~~**PL3:** configuration +0x8C (the monopoly flag) and the SDK's `IsCompatibleWithMonopolyPieceUse`
   (configuration slot 19): whether the slot returns the flag or its negation belongs to a lot configuration spec.~~
   **ANSWERED 2026-10-16 (re-specs15a):** neither (lot-configuration.md §5.4). Slot 19 is the shared "return true,
