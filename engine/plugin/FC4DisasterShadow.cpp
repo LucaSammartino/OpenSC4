@@ -570,7 +570,9 @@ void RiotLine(Riot& r, const char* what) {
     fc4_disaster_instance info{};
     const bool have = fc4_disasters_get_instance(g.core, r.id, &info);
     const int32_t origPhase = r.inst ? r.inst->GetPhase() : -1;
-    const uint32_t ourPhase = have ? info.phase : 3;  // an instance that left our manager has ended (Q19)
+    // A riot stays in our manager after phase 3 (§6.7); one that has left it
+    // (its Shutdown, §3.1) reads as ended.
+    const uint32_t ourPhase = have ? info.phase : 3;
     if (static_cast<uint32_t>(origPhase) != ourPhase) d.Add("phase orig %d ours %u", origPhase, ourPhase);
     std::vector<fc4_riot_leader> ls(fc4_disasters_riot_leaders(g.core, r.id, nullptr, 0));
     if (!ls.empty()) fc4_disasters_riot_leaders(g.core, r.id, ls.data(), ls.size());
@@ -816,8 +818,11 @@ uint32_t __fastcall SetCauseFwd(void* self, void* edx, uintptr_t c) {
     const Fn1 orig = Orig<Fn1>(DisasterHook::FireSetCause);
     const uint32_t r = orig(self, edx, c);
     if (!Ready()) return r;
+    // SetCause sets the cause only while it is 0 and returns it (§5.7).
+    uint32_t ours = 0;
     CoreCall("disasters shadow SetCause (ours)", true,
-             [&] { fc4_disasters_set_cause(g.core, static_cast<uint32_t>(c)); });
+             [&] { ours = fc4_disasters_set_cause(g.core, static_cast<uint32_t>(c)); });
+    if (ours != r) Log("disasters shadow SetCause(%u): orig returned %u ours %u", static_cast<unsigned>(c), r, ours);
     return r;
 }
 
@@ -1004,21 +1009,30 @@ uint32_t __fastcall RiotStartFwd(void* self, void* edx, uintptr_t x, uintptr_t z
     g.riotStartInst = nullptr;
     const uint32_t r = orig(self, edx, x, z);
     --g.riotStartDepth;
-    // [question] The original returns null for a riot it started (§6.2 says
-    // the new instance): the instance is the one its first leader registered.
+    // AttemptDisasterStart returns null (§6.2): the original's instance is the
+    // one its first leader registered.
     cISC4DisasterInstance* inst = r != 0 ? reinterpret_cast<cISC4DisasterInstance*>(static_cast<uintptr_t>(r))
                                          : g.riotStartInst;
-    if (r == 0 && inst != nullptr) {
-        Log("disasters shadow riot start: the original returned null (eax 0) though it started instance %p (Q36)",
-            static_cast<void*>(inst));
-    }
+    if (r != 0) Log("disasters shadow riot start: the original returned %p, not null (§6.2)", static_cast<void*>(inst));
     const uintptr_t canon = inst ? Canon(inst) : 0;
     uint32_t id = 0;
     const uint64_t missingBefore = g.ctx.leadersMissing;
     const std::deque<uint64_t> registered = g.pendingLeaders[canon];
     HandLeaders(canon);
+    // Ours returns null as well; a new riot is the new last entry of the
+    // manager's list.
     CoreCall("disasters shadow riot start (ours)", false, [&] {
-        id = fc4_disasters_attempt_start(g.core, kRiot, static_cast<int32_t>(x), static_cast<int32_t>(z));
+        const size_t before = fc4_disasters_manager_instances(g.core, kRiot, nullptr, 0);
+        const uint32_t r0 =
+            fc4_disasters_attempt_start(g.core, kRiot, static_cast<int32_t>(x), static_cast<int32_t>(z));
+        const size_t n = fc4_disasters_manager_instances(g.core, kRiot, nullptr, 0);
+        if (r0 != 0) {
+            id = r0;
+        } else if (n > before) {
+            std::vector<uint32_t> ids(n);
+            fc4_disasters_manager_instances(g.core, kRiot, ids.data(), ids.size());
+            id = ids.back();
+        }
     });
     TakeBackLeaders(canon);
     g.dirty = true;

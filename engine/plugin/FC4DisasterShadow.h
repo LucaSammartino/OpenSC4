@@ -75,7 +75,8 @@
 // A difference the lane report explains carries its question number ([Q37] a riot leader's location entry,
 // [Q38] the network the original locks as a leader walks, [Q39] the original's riot second one ahead); the
 // riot instance the original started is the one its first leader registered (its AttemptDisasterStart
-// returns null, Q36). An ignition inside the original's fire step (a spread) is mirrored after the
+// returns null, §6.2; so does ours, whose new riot is the new last entry of
+// fc4_disasters_manager_instances). An ignition inside the original's fire step (a spread) is mirrored after the
 // mirror's own step of that tick (a fire lit during the pass is not stepped in it). An ignition the
 // original refuses and the mirror takes (Q40) is put out in the mirror at once (its extinguish delay
 // is 0; when the original has no fire tick the mirror's runs from the framework tick until its episode
