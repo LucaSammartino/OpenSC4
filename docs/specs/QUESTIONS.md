@@ -4918,3 +4918,42 @@ readings has been checked in game. The current choice is in brackets.
 - **NM9:** §7.6, the underground refit: step 2 has no "if any" test, unlike §7.2. When dirty is not empty but holds no
   pipe (or no subway), are tool 4 (or 7) Init, UpdateUndergroundOccupantTerrainHeights and Shutdown still called with
   an empty list? [yes: both kinds always run when dirty is not empty (vector `nm16_10`)]
+
+## From the disaster layer glue (filed by the coordinator from the `glue13` lane's report, 2026-10-16; merged `e7386b0`)
+
+glue13 wired `fc4_disasters_host` to the game (`FC4DisasterHost`) and added `disasters_shadow = 1` (`FC4DisasterShadow`):
+the original layer runs and a mirror core follows it (ABI 67, taken as 61 on the lane). The lane's final run
+dis-final-11 was clean: fire 211/263 lines exact, riot 2/354, quiet 0/1, and every other difference is tagged with one
+of the questions below in the log. The lane's Q36 (the riot's AttemptDisasterStart) is answered by disasters.md §6.2
+(it always returns null; the shadow takes the instance from the first riot RegisterDisasterLocation). The lane's own
+numbers (its Q26-Q42) are given in parentheses; the current choice is in brackets.
+
+- **DS25:** (Q26) fire ID mapping: IgniteCell passes a drawn nonzero ID to Ignite, although §5.5 says 0. [the shadow maps
+  the original's IDs to the mirror's by a heuristic]
+- **DS26:** (Q27) the fire occupant class `0x69D25C5F`: its interface and visuals are not specified. [not wired in live
+  mode]
+- **DS27:** (Q28) how riot leader automata are created is not specified. [not wired in live mode]
+- **DS28:** (Q29) toxic spill, terrain, pipe burst and volcano are not mirrored: no start path was exercised. [fire and
+  riot only]
+- **DS29:** (Q30) the data1 token of the posts.
+- **DS30:** (Q31) the follow-disasters preference, the BDS type flags, and the dispatch effectiveness slots 25 and 26.
+- **DS31:** (Q32) the road cell test.
+- **DS32:** (Q33) SafeGetTileInfoAtCell. [a fallback; it matched 4/4 at the start]
+- **DS33:** (Q34) the extinguish delay Random(4000) and a covered fire's counter draw cannot be followed: the mirror's
+  draw is 0.
+- **DS34:** (Q35) does IgniteCellRadius take its radii as float or int?
+- **DS35:** (Q37) occupant location entries read (0,0), or the cell at registration when focus = 1, and never follow
+  the occupant, although §2.7 says they resolve while the occupant is in the manager. Do they resolve only on focus or
+  GoToNextDisaster? [tagged in the log: fire location 43 lines, riot location 2339 in dis-final-11]
+- **DS36:** (Q38) the original calls LockNetworkOccupant whenever a riot leader enters a new cell, not only at
+  AddRiotLeader. When exactly? [the core locks at AddRiotLeader; 316 riot lines tagged]
+- **DS37:** (Q39) the original's riot counter is one second ahead: its stage-1 leader spawns at 29 s, while the core's
+  *[choice]* puts the first update 1 s after Init. What is the riot's second offset?
+- **DS38:** (Q40) the original refuses some Ignites the spec admits: an edge building at (0,36) with flammability 75,
+  coverage 0, not paused; interior buildings; spread targets with coverage 0-4 during the emergency pause. Which
+  Ignites does it refuse? [the mirror puts its fire out at once]
+- **DS39:** (Q41) layer slot 18 (GetDisasterCost) returns a pointer-like value (about 332 million) against ours
+  (140-1630), although §2.6 says totalCost. Is the slot or the return type wrong? [cost not compared]
+- **DS40:** (Q42) does UpdateAllFires step a fire lit during the same pass? The original sometimes does (spread
+  `150215A4` burned down one step earlier than in the mirror); the mirror never does, and §5.4 / §5.8 do not say which
+  container the fire list is or how it is iterated. [never]
