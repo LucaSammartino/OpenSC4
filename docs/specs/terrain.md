@@ -1469,16 +1469,15 @@ terrain's `DoMessage` (`0x0074A470`) when it sees `kSC4MessagePostCityInit` `0x2
 | 3 | if terrain `+0xE8` (the view) is null, create it: **try the GZCOM class factory first** — `CreateInstance(CLSID 0xC9B84E10, IID 0x6771477D, &out)`, then store `out - 0x0C` | `0x00749565`–`0x0074959F` |
 | 4 | on factory failure, fall back to `operator new(0xE8)` + `cSTETerrainView3D::cSTETerrainView3D` (`0x007567C0`), store the result, then `AddRef` (slot 1) | `0x007495AB`–`0x007495D1` |
 | 5 | `view->Init(terrain)` — `0x0075C420`, `__thiscall`, `ecx` = the **view base**, one stack argument = the terrain | `0x007495D4`–`0x007495DC` |
-| 6 | call slot 5 on the object at terrain `+0x100` | `0x007495E1`–`0x007495F0` |
-| 7 | set the **view-ready** flag terrain `+0xEC` = 1 | `0x007495E7` |
-| 8 | `0x00743B60` and `0x007490B0` with `&terrain+0x40` (the whole-city vertex rect) | `0x007495F3`–`0x00749601` |
-| 9 | `terrain+0xF0 := view+0x70`, `terrain+0xF4 := view+0x74`, each `AddRef`'d | `0x00749606`–`0x00749634` |
-| 10 | `terrain+0xF8 := (view+0x0C)->GetOverlayManager(0)` (`view+0x78`), `AddRef`'d | `0x00749637`–`0x00749655` |
+| 6 | load the object at terrain `+0x100` into `ecx`, **then** set the **view-ready** flag terrain `+0xEC` = 1, **then** call that object's slot 5 (`+0x14`) | `0x007495E1`, `0x007495E7`, `0x007495EE`–`0x007495F0` |
+| 7 | `0x00743B60` and `0x007490B0` with `&terrain+0x40` (the whole-city vertex rect) | `0x007495F3`–`0x00749601` |
+| 8 | `terrain+0xF0 := view+0x70`, `terrain+0xF4 := view+0x74`, each `AddRef`'d | `0x00749606`–`0x00749634` |
+| 9 | `terrain+0xF8 := (view+0x0C)->GetOverlayManager(0)` (`view+0x78`), `AddRef`'d | `0x00749637`–`0x00749655` |
 
 **Order relative to `PostCityInit`:** the view exists *because of* `PostCityInit`, not before it. `RedisplayTerrain`
-(slot 68) posts nothing until `+0xEC` is set (§8.1 quirk 3), and that flag is written in step 7 — **after**
-`view->Init` returns. So the correct ordering is: construct the view → `Init(terrain)` → set `+0xEC` → then the
-view is usable.
+(slot 68) posts nothing until `+0xEC` is set (§8.1 quirk 3), and that flag is written in step 6 — **after**
+`view->Init` returns but **before** the `+0x100` slot-5 call, so anything that call does is already allowed to
+redisplay. The correct ordering is: construct the view → `Init(terrain)` → set `+0xEC` → then the view is usable.
 
 **It must run before the zone developer's `PostCityInit` handler.** Both are subscribers of the same queued message
 `0x26D31EC1`. The zone developer's handler (`0x007328D0`) does `SL::TerrainView` (`0x00602160`, a tail-call to
