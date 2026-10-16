@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "effects_priority_filter",
+  "spec": ["effects 3", "effects 4", "effects 17"],
+  "description": "Two descriptions under one name (case-insensitive), priorities 1 and 3: maximum 2 picks the first, 5 the second; an unknown name creates nothing; maximum 0 gives index -1, a no-op that, once started, never finishes and never posts its end message.",
+  "steps": [
+    {"op": "ef_create", "max_priority": 2, "directory": {"effects": [{"name": "x", "priority": 1, "components": [{"type": "brush", "index": 0}]}, {"name": "X", "priority": 3, "components": [{"type": "brush", "index": 1}]}]}},
+    {"op": "ef_effect", "name": "x", "as": "A", "expect_index": 0},
+    {"op": "ef_call", "method": "set_max_priority", "args": [5]},
+    {"op": "ef_effect", "name": "X", "as": "B", "expect_index": 1},
+    {"op": "ef_effect", "name": "y", "expect": false},
+    {"op": "ef_call", "method": "set_max_priority", "args": [0]},
+    {"op": "ef_effect", "name": "x", "as": "N", "expect_index": -1},
+    {"op": "ef_expect", "effect": "N", "state": {"components": 0}},
+    {"op": "ef_call", "method": "set_end_message", "effect": "N", "args": [4660, 7]},
+    {"op": "ef_call", "method": "start", "effect": "N"},
+    {"op": "ef_clear_events"},
+    {"op": "ef_call", "method": "frame", "args": [100000], "repeat": 5},
+    {"op": "ef_expect_event_count", "filter": {"event": "post"}, "count": 0},
+    {"op": "ef_expect", "effect": "N", "state": {"exists": true, "started": true}}
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "effects_move_to_new_cell",
+  "spec": ["effects 9.2", "effects 17"],
+  "description": "Game record 18 applies once per cell: a move within cell (6, 6) applies nothing, a move to (7, 6) applies again.",
+  "steps": [
+    {"op": "ef_create", "directory": {"effects": [{"name": "walk", "components": [{"type": "game", "index": 18}]}]}},
+    {"op": "ef_effect", "name": "walk", "as": "W", "expect": true},
+    {"op": "ef_call", "method": "set_position", "effect": "W", "args": [100, 0, 100], "expect": true},
+    {"op": "ef_call", "method": "start", "effect": "W", "expect": true},
+    {"op": "ef_call", "method": "tick", "args": [1000]},
+    {"op": "ef_expect_game", "effect": "W", "state": {"count": 1, "cell": [6, 6]}},
+    {"op": "ef_call", "method": "set_position", "effect": "W", "args": [110, 0, 105]},
+    {"op": "ef_call", "method": "tick", "args": [1000]},
+    {"op": "ef_expect_game", "effect": "W", "state": {"count": 1}},
+    {"op": "ef_call", "method": "set_position", "effect": "W", "args": [113, 0, 100]},
+    {"op": "ef_call", "method": "tick", "args": [1000]},
+    {"op": "ef_expect_game", "effect": "W", "state": {"count": 2, "cell": [7, 6]}},
+    {"op": "ef_expect_event_count", "filter": {"event": "demolish"}, "count": 2}
+  ]
+}
