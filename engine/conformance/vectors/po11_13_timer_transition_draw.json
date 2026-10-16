@@ -1,0 +1,175 @@
+{
+  "format": 1,
+  "name": "po11_13_timer_transition_draw",
+  "spec": [
+    "prop-occupant 4.1",
+    "prop-occupant 9",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 13. With chance 100 and the low nibble going to 0xF, SetState(0) is called after exactly one draw from the prop's own generator 0x00B231B0. With chance 0 it is not: r < chance is never true. Setting bits that leave the nibble below 0xF never draws (quirk 7). Becoming not-all-set calls SetState(1) with no draw.",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_game",
+      "in_city": true,
+      "clear": true,
+      "draws": [
+        50
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "restore_state",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "po_game",
+      "clear": true,
+      "draws": [
+        50
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_timer_state",
+      "args": [
+        "0x3",
+        true
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_timer_state",
+      "args": [
+        "0xC",
+        true
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "draws": 1,
+        "state": 0,
+        "timer_bits": 15
+      }
+    },
+    {
+      "op": "po_game",
+      "in_city": true,
+      "clear": true,
+      "draws": [
+        0
+      ]
+    },
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "set_random_chance",
+      "args": [
+        0
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "restore_state",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_timer_state",
+      "args": [
+        "0x1",
+        true
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_timer_state",
+      "args": [
+        "0xE",
+        true
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "draws": 1,
+        "state": 2
+      }
+    },
+    {
+      "op": "po_game",
+      "in_city": true,
+      "clear": true
+    },
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_timer_state",
+      "args": [
+        "0x4",
+        true
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_timer_state",
+      "args": [
+        "0x2",
+        true
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "draws": 0,
+        "timer_bits": 6
+      }
+    },
+    {
+      "op": "po_game",
+      "in_city": true,
+      "clear": true
+    },
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_timer_state",
+      "args": [
+        "0xF",
+        true
+      ]
+    },
+    {
+      "op": "po_game",
+      "clear": true
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_timer_state",
+      "args": [
+        "0x8",
+        false
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "draws": 0,
+        "state": 1
+      }
+    }
+  ]
+}

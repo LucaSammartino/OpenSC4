@@ -1,0 +1,159 @@
+{
+  "format": 1,
+  "name": "nr15_26_one_way_propagation_and_sweep",
+  "spec": [
+    "network-rules 6.5"
+  ],
+  "description": "The dragged run D (9,10) step 0 and X (10,10) step 1 carries its flow into the existing road Y (10,9) and Z (10,8): X leaves northward, the road is reversed to follow (X 0x09, Y 0x88, Z 0x80), D's dangling west code and (8,10)'s east code are cleared by the conflict sweep, and (8,10) is marked without joining the solve set (quirk 11).",
+  "steps": [
+    {
+      "op": "nr_reset"
+    },
+    {
+      "op": "nr_cell",
+      "x": 9,
+      "z": 10,
+      "edges": {
+        "OneWayRoad": "0x00020000"
+      },
+      "one_way": "0x11",
+      "in_run": true,
+      "marked": true
+    },
+    {
+      "op": "nr_cell",
+      "x": 10,
+      "z": 10,
+      "edges": {
+        "OneWayRoad": "0x00000202"
+      },
+      "one_way": "0x15",
+      "in_run": true,
+      "marked": true
+    },
+    {
+      "op": "nr_cell",
+      "x": 10,
+      "z": 9,
+      "edges": {
+        "OneWayRoad": "0x02000200"
+      },
+      "one_way": "0x44"
+    },
+    {
+      "op": "nr_cell",
+      "x": 10,
+      "z": 8,
+      "edges": {
+        "OneWayRoad": "0x02000000"
+      },
+      "one_way": "0x40"
+    },
+    {
+      "op": "nr_cell",
+      "x": 8,
+      "z": 10,
+      "edges": {
+        "OneWayRoad": "0x00000002"
+      },
+      "one_way": "0x10"
+    },
+    {
+      "op": "nr_set_s",
+      "cells": [
+        [
+          9,
+          10
+        ],
+        [
+          10,
+          10
+        ]
+      ]
+    },
+    {
+      "op": "nr_one_way",
+      "steps": [
+        [
+          [
+            9,
+            10
+          ]
+        ],
+        [
+          [
+            10,
+            10
+          ]
+        ]
+      ]
+    },
+    {
+      "op": "nr_expect_cell",
+      "x": 10,
+      "z": 10,
+      "state": {
+        "one_way": "0x09"
+      }
+    },
+    {
+      "op": "nr_expect_cell",
+      "x": 10,
+      "z": 9,
+      "state": {
+        "one_way": "0x88",
+        "marked": true,
+        "in_run": true
+      }
+    },
+    {
+      "op": "nr_expect_cell",
+      "x": 10,
+      "z": 8,
+      "state": {
+        "one_way": "0x80",
+        "marked": true,
+        "in_run": true
+      }
+    },
+    {
+      "op": "nr_expect_cell",
+      "x": 9,
+      "z": 10,
+      "state": {
+        "one_way": "0x10"
+      }
+    },
+    {
+      "op": "nr_expect_cell",
+      "x": 8,
+      "z": 10,
+      "state": {
+        "one_way": "0x00",
+        "marked": true,
+        "in_run": false
+      }
+    },
+    {
+      "op": "nr_expect_s",
+      "cells": [
+        [
+          10,
+          9
+        ],
+        [
+          10,
+          8
+        ],
+        [
+          9,
+          10
+        ],
+        [
+          10,
+          10
+        ]
+      ]
+    }
+  ]
+}

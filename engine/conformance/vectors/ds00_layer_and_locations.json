@@ -17,7 +17,7 @@
     {"op": "dis_call", "method": "most_recent_location", "args": [0], "expect": [30, 31]},
     {"op": "dis_call", "method": "most_recent_location", "args": [9], "expect": [7, 8]},
     {"op": "dis_occupant", "occupant": "0x10", "in_manager": false},
-    {"op": "dis_call", "method": "most_recent_location", "args": [9], "expect": [0, 0], "note": "the stored cell once the occupant has gone"},
+    {"op": "dis_call", "method": "most_recent_location", "args": [9], "expect": [7, 8], "note": "the cell of the entry's last resolution (§2.7, DS35): step 10 wrote it back; a gone occupant changes nothing"},
     {"op": "dis_call", "method": "most_recent_location", "args": [5], "expect": null},
     {"op": "dis_expect_refs", "refs": {"0x10": 1}},
     {"op": "dis_clear_events"},
@@ -26,8 +26,8 @@
     {"op": "dis_call", "method": "go_to_next_disaster"},
     {"op": "dis_expect_events", "filter": {"event": "go_to"}, "events": [
       {"event": "go_to", "x": 30, "z": 31, "zoom": 2},
-      {"event": "go_to", "x": 0, "z": 0, "zoom": 3}
-    ]},
+      {"event": "go_to", "x": 7, "z": 8, "zoom": 3}
+    ], "note": "the second entry keeps the cell of its last resolution (§2.7, DS35)"},
     {"op": "dis_call", "method": "unregister_location_by_occupant", "args": [9, "0x10"]},
     {"op": "dis_expect_refs", "refs": {"0x10": 0}},
     {"op": "dis_call", "method": "location_count", "expect": 2},

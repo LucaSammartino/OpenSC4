@@ -439,6 +439,25 @@ Five layers, 138 KB of classes plus the 74 KB sound library:
   library's codec set, `SND::CODASetNew`; *[inferred]*). *[choice]* A standalone can start with WAV/XA sound
   effects and the radio (MP3 through a crate) and leave AEMS and Hit for later.
 
+**Corrects (re-specs20):** written up as [audio.md](audio.md). Four corrections to the table above.
+
+- **IN6-3 ANSWERED.** The reader of the 12 records of type `0x9D796DB4` **does not exist as code**: the
+  constant has zero byte occurrences in `SimCity4.exe`. The type is bound at runtime by
+  `cHitIniFile::ProcessDBSegmentDirectoryFilesEntry` (`0x00936707`) from the audio configuration record's
+  `[DBSegmentDirectoryFiles]` line `0xca4d19e3=0x9d796db4:tlo,0x2026960b:hit`, i.e. extension **`tlo`** in the
+  TLO segment. **DIFFERS** from "no direct reader found".
+- The sound-effects row's "1,512 of the records surveyed are EA XA ADPCM" is only the `XA\0\0` subset.
+  **PARTLY**: `Sound.dat` holds **1680** records of type `0x2026960B`, with magics `XA\0\0` ×1512, `vers` ×71,
+  `XAJ\0` ×43, `XAI\0` ×32, `RIFF` ×21, `HIT!` ×1 (measured). The ~120 MB figure **MATCHES**.
+- The SC4 audio managers row omits two class IDs. **PARTLY**: the scape manager is `0x29E2797F` and the sem
+  manager is `0xAA355871` (audio.md §1.2).
+- **IN6-2 ANSWERED.** The "about 80 further classes … *[unsettled: per-event handlers or emanation models]*"
+  are **neither**. Measured: the director's constructor (`0x004EC710`) makes 92 `AddCls` calls in total — 9
+  named managers plus **83** leaf classes, and the factories run `0x004EB080`–`0x004EC6F0`, wider than the
+  `0x004EB260`–`0x004EC6F0` range given. The 83 are small tagged objects in three fixed sizes (16 × 8 bytes,
+  31 × 16 bytes, 36 × 20 bytes), each with QI/AddRef/Release, two always-true predicates and one unique
+  method (audio.md §11). The emanation models and event handlers are separate named classes.
+
 ---
 
 ## 6. Region view and region save/load (G1)

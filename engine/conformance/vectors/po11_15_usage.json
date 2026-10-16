@@ -1,0 +1,117 @@
+{
+  "format": 1,
+  "name": "po11_15_usage",
+  "spec": [
+    "prop-occupant 2.2",
+    "prop-occupant 3",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 15. AddLotProp writes usage 2, AddCityProp 1, AddStreetProp 4 and AddBuildingProp 3; GetPropUsage / SetPropUsage round-trip each. GetPropUsage (slot 22) is al and identical-code-folded with the flora and landfill occupants (quirk 13).",
+  "steps": [
+    {
+      "op": "po_call",
+      "method": "add_usage",
+      "args": [
+        "city"
+      ],
+      "expect": 1
+    },
+    {
+      "op": "po_call",
+      "method": "add_usage",
+      "args": [
+        "lot"
+      ],
+      "expect": 2
+    },
+    {
+      "op": "po_call",
+      "method": "add_usage",
+      "args": [
+        "building"
+      ],
+      "expect": 3
+    },
+    {
+      "op": "po_call",
+      "method": "add_usage",
+      "args": [
+        "street"
+      ],
+      "expect": 4
+    },
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_usage",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_usage",
+      "expect": 1
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_usage",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_usage",
+      "expect": 2
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_usage",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_usage",
+      "expect": 3
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_usage",
+      "args": [
+        4
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_usage",
+      "expect": 4
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        22
+      ],
+      "expect": "al"
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        23
+      ],
+      "expect": "void"
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "usage": 4
+      }
+    }
+  ]
+}

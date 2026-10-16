@@ -66,6 +66,7 @@ pub mod port_developer;
 pub mod power;
 pub mod prop_developer;
 pub mod prop_manager;
+pub mod prop_occupant;
 pub mod property;
 pub mod props;
 pub mod protection;

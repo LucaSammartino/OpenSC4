@@ -321,6 +321,12 @@ Table component types 3–15 additionally set runtime bit 1 (value 2). An implem
 | decal | the byte at `+0x08` | `Stop` `0x00581FF0`, **or self-stop** when its fade timer passes 1.0 and its mode byte `+0x15 == 2` (`Update` `0x00582920`) |
 | meta (nested effect) | the **child effect's `started`** byte at `+0x24` | when the draw pass finishes the child |
 
+**Corrects (re-specs20, audio.md §9.2):** this table has no **sound** row. A sound component's `IsActive` is
+the started byte at `+0x1C`, returned by the shared `0x00580B50`; it becomes false only when `Stop`
+(`0x005BE4A0`) is called, which is either the effect's `Stop` or the component's own `Update` self-stop at
+`elapsed > desc+0x18` when that length is non-zero. So **a sound component with `length == 0` that is not
+ignored pins its effect forever**. Add the row. **PARTLY** — the five rows present are correct.
+
 **Component type numbers and which of them count (from the shipped effect directory, 2026-10-16).** The
 description's `component_type` `u8` selects a description table, and `description_index` indexes it. Bit 0 of the
 component's `flags` word is the ignore bit (§7 above). Across all 1154 shipped effect descriptions:
@@ -906,8 +912,14 @@ The known flag bits:
 
 ### 11.2 The effect component interface
 
-Three implementations:
+**Corrects (re-specs20, audio.md §9.1):** this list is incomplete. There are **five** implementations of
+this interface. The **sound component** (vtable `0x00AA1118`) is a fourth with the identical nine-slot shape
+— its slots 5 and 6 share the no-op `0x005BE2E0` with brush and game — and `cSC4CameraEffect` is a fifth
+with a *different* layout (description at `+0x10`, started byte at `+0x20` rather than the sound component's
+`+0x0C` / `+0x1C`). Full sound-component table in [audio.md](audio.md) §9.1. **PARTLY** — the three rows
+below are correct.
 
+Three implementations:
 | Implementation | Vtable |
 |---|---|
 | the visual effect itself, at `+4` | `0x00AA1148` |

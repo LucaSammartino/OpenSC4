@@ -1831,7 +1831,7 @@ that accepts every demolition region.
 | `nr_tiles` | `text`, `type?` (append the file to that type's evaluator list), `append?` (add to the scratch evaluator instead of replacing it), `expect?` (partial: `status` (`missing`, `complete`, `rejected`, `bad_centre`, `truncated`), `transmogrify`, `source_rules`, `rules`, `dropped`) | reads a tile rule file |
 | `nr_expect_rules` | `rules` (`[{key, transform, conditions: [[m, value, mask]], outputs: [[id, m, orientation]]}]`; fields left out are not compared) | the scratch evaluator's rules in map order |
 | `nr_load` | `resource` (`multi` (RUL1), `overrides` (RUL2), `intersections` (RUL0), `network` (the network INI) or a tile instance), `text`, `expect?` (partial: `entries`, `ignored`, `sections`, `rules`, …) | `LoadResource` into the database |
-| `nr_cell` | `x`, `z`, `edges` (`{name: word}`, each setting its type bit), `flags?` (ORed), `in_run?`, `step?`, `fixed?`, `node?`, `intersection?`, `occupant?` (`{piece, orientation, network_flags, node_edges: [a, b], anchor: [x, z]}`) | puts a cell info |
+| `nr_cell` | `x`, `z`, `edges` (`{name: word}`, each setting its type bit), `flags?` (ORed), `in_run?`, `step?`, `fixed?`, `node?`, `intersection?`, `one_way?`, `marked?`, `occupant?` (`{piece, orientation, network_flags, node_edges: [a, b], anchor: [x, z], paired_portal: [x, z]}`) | puts a cell info |
 | `nr_evaluate` | `x`, `z`, `type`, `expect` (null or `[[id, m, orientation]]`) | `Evaluate` with the scratch evaluator |
 | `nr_set_s` / `nr_set_valid_count` | `cells` / `count` | the solve state |
 | `nr_append_solved` | `id`, `orientation`, `x`, `z` | appends a solved record (sets the cell's `+0xB8`) |
@@ -1844,8 +1844,14 @@ that accepts every demolition region.
 | `nr_int_rule` | `id`, `rotate?`, `transpose?` (applied to a copy), `state` (`occupied`, `new_cells`, `tagged` (`[[x, z, tag]]`), `bounds` (`[minX, maxX, minZ, maxZ]`), `one_way_dir`, `type_mask`, `ring`, `add` (`[prev, next]`), `edges` (`{tag: [edges1, mask1, edges2, mask2]}`)) | an intersection rule |
 | `nr_int_test` | `id`, `rotate?`, `transpose?`, `x`, `z`, `expect` (0, 1 or 2) | `cIntRule::Test` |
 | `nr_identify` | `steps` (`[[[x, z], …], …]`), `v`, `type`, `expect`, `expect_intersections?` (`[[rule, x, z, start, a, b]]`) | `IdentifyHighwayIntersections` |
+| `nr_one_way` | `steps` (`[[[x, z], …], …]`) | `ResolveOneWayConflicts` (§6.5) over the dragged run |
+| `nr_separation` | `x`, `z`, `type`, `expect` (null or `[id, rot, flip]`) | `SolveMultiTypeSeparation` (§8.3) over the database's evaluators |
+| `nr_tile_info` | `id`, `rotate?`, `transpose?`, `offset` (`[dx, dz]`), `expect` (null or `[tile, orientation, new_cell]`) | `GetTileInfo` (§10.9) |
+| `nr_pieces` | `id`, `rotate?`, `transpose?`, `x`, `z`, `expect` (`[[ox, oz, piece_id, orientation, path, ax, az, new_cell]]`) | the pieces an intersection places (§10.9) |
+| `nr_mark_pieces` | `on`, `valid_count` | `MarkHighwayIntersectionPieces` (§10.6) over the recorded intersections |
+| `nr_remove_pieces` | `valid_count`, `bridge?`, `bridge_cells?` (`[[end_step, [key, …]], …]`) | the §10.6 remove, or the bridge one of network-bridges.md §8.3.1 when `bridge` |
 | `nr_expect_solved` / `nr_expect_s` / `nr_expect_potential` | `records` (`[[id, orientation, x, z]]`) / `cells` / `entries` (`[[x, z, t]]`) | the solve state |
-| `nr_expect_cell` | `x`, `z`, `state` (`flags`, `union`, `solved`, `intersection`, `edges` (every non-zero word)) | a cell info |
+| `nr_expect_cell` | `x`, `z`, `state` (`flags`, `union`, `solved`, `intersection`, `one_way`, `marked`, `in_run`, `edges` (every non-zero word)) | a cell info |
 
 ## City detail ops
 
@@ -3850,3 +3856,100 @@ Item 3: the `delta_eq` field is written by `UpdateVariables` (§4.3 step 3) befo
 field after step k shows the delta of step k − 1; the vector checks both. Item 20 in its full-game form (every
 simulator record byte-identical over 24 months with and without MySims) needs the whole simulator stack; the vector
 checks that the MySims make no simulator-facing host call.
+
+## Prop occupant ops
+
+The prop occupant vectors (`po11_…`, `po00_…`) drive `fc4_core::prop_occupant::PropOccupant` and
+`VisualEffectProp` (`docs/specs/prop-occupant.md`) behind a fake game implementing `PropOccupantHost` and
+`EffectHost`. Every op name starts with `po_`. The default world: no prop, an empty process-wide prop type table, a
+fake game that is not in the city and has no model-state property. `po_game` configures the fake game; `po_expect`
+reads the prop, the effect prop and the game together. The record ops take and emit hex, so a corpus record is pinned
+byte for byte.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `po_create` | `loaded?` | a fresh prop with the constructor's defaults (§2.2) |
+| `po_effect_create` | `no_effect?` | a fresh `0x2977AA49` prop (§6.2) |
+| `po_call` | `method`, `args?`, `expect?` | one method of the prop (below) |
+| `po_expect` | `state` (partial) | the prop, the effect prop and the game |
+| `po_game` | any of `in_city`, `model_state_property` (bool or null = no exemplar), `draws` (`[r, …]`, scripted `RandomUint32Uniform(100)`), `flag2`, `clear` (reset the logs) | the fake game |
+| `po_const` | `name`, `expect` | a constant of §1 and §2.2 |
+| `po_record_create` | | a fresh default record, replacing whatever was there |
+| `po_record_from_prop` | | the record a save would write for the live prop (§7) |
+| `po_read` | `hex`, `apply?`, `expect` (`"ok"`, `"base-failed"`, `"truncated"`) | `Read` (§7, `lr` §10.1) |
+| `po_write` | `hex?`, `expect` (the hex) | `Write` (§7) |
+| `po_record_field` | `name`, `expect` | one field of the current record |
+| `po_effect_call` | `method`, `args?`, `expect?` | one method of the visual-effect prop |
+| `po_effect_read` | `hex`, `expect` (`["ok", nameHex, trailer, byte0, byte1]` or `"failed"`) | `lr` §10.2 |
+| `po_effect_write` | `hex?`, `expect` (the hex) | `lr` §10.2, with the record quirk applied when the effect is live |
+| `po_config` | `ids` (array or null), `unknown?` | a lot's configuration object IDs, for the PV2 ops |
+| `po_tag` | `args` (`[tag]`), `expect` (`["matched", index]`, `"config-lacks-tag"`, `"no-configuration"`, `"unknown-configuration"`, or null) | classify one tag (§5.3) |
+| `po_block` | `method` (`reset`, `keep`, `kept`, `unmatched`, `slots_with`) | the `pd` §4.3 step 2.3.2 slot accounting |
+| `po_tally` | `method` (`tagged`, `matched`, `config_lacks_tag`, `no_configuration`, `unknown_configuration`, `unmatched`, `unmatched_percent`) | the PV2 corpus categories |
+| `po_store` | `method` (`write`), `args` (`[count]`), `expect` (`[written, entries, crcs_ok, read, index_ok]`) | the class-object store framing (§7) |
+
+### Prop occupant methods (`po_call`)
+
+`query_interface` / `query_interface_base`, `as_occupant_offset` / `as_occupant_offset_null`, `add_ref`, `release`,
+`refcount`, `set_bounding_box`, `bounding_box`, `set_bounding_box_from_size`, `slot5_stub`, `slot6_noop`,
+`get_prop_type`, `set_prop_type`, `prop_type_index`, `type_table_len`, `get_orientation`, `set_orientation`,
+`get_state`, `set_state`, `restore_state`, `set_time_of_day_range`, `get_time_of_day_range`, `time_of_day_bytes`,
+`set_simulator_date_range`, `simulator_date_range`, `tick_simulator_date`, `set_random_chance`,
+`get_random_chance`, `get_prop_timer_bitfield`, `get_prop_timer_state`, `set_prop_timer_state`, `get_prop_usage`,
+`set_prop_usage`, `add_usage`, `lot_tag`, `has_lot_tag`, `set_lot_tag`, `init_after_load`, `shutdown`, `set_loaded`,
+and the slot table `vtable_len`, `slot_channel`, `slot_method`, `slot_address`, `slot_offset`, `slot_args`,
+`vtable_addr`, `vtable_next_addr`.
+
+### Visual-effect methods (`po_effect_call`)
+
+`query_interface`, `as_occupant_offset`, `as_prop_occupant_offset`, `object_size`, `class_id`,
+`set_effect_type_id`, `set_effect_type_name`, `start_effect`, `stop_effect`, `effect_handle`, `effect_id`,
+`effect_name`, `is_started`, `is_live`, `should_drop_name_on_write`.
+
+### `po_expect` state fields
+
+`state`, `chance`, `tod`, `tod_bytes`, `timer_bits`, `lot_tag`, `has_lot_tag`, `prop_type`, `type_index`,
+`orientation`, `usage`, `bbox`, `refcount`, `loaded`, `has_date_range`, `date_range`, `occupant_type`,
+`object_size`, `effect_id`, `effect_name`, `effect_started`, `effect_live`, `effect_ctor_flag`, `effect_scratch`,
+`messages`, `clock`, `draws`, `removed`, `model_states`, `effect_calls`.
+
+## Coverage (prop-occupant §11)
+
+The 25 conformance tests of `docs/specs/prop-occupant.md` §11, plus one cross-section vector for the slot table.
+`po00_01_vtable_channels` pins the measured return channels of §4.1 that `docs/abi/interfaces.tsv` labels
+`eax-or-void`.
+
+| §11 item | Vector |
+|---|---|
+| 1 identity (§1) | `po11_01_identity` |
+| 2 constructor defaults (§2.2) | `po11_02_constructor_defaults` |
+| 3 object size (§1) | `po11_03_object_size` |
+| 4 AsOccupant, the vtable extent and the refcount (§2.2, §2.3, §4.2, quirk 10) | `po11_04_as_occupant_vtable_refcount` |
+| 5 GetPropType round trip (§5.1) | `po11_05_prop_type_round_trip` |
+| 6 unknown type is interned (§5.1) | `po11_06_unknown_type_interned` |
+| 7 GetState is a clean EAX return (§4.1) | `po11_07_get_state_eax` |
+| 8 GetRandomChance is an AL return (§4.1, quirk 3) | `po11_08_get_random_chance_al` |
+| 9 bounded box (§5.2) | `po11_09_bounding_box` |
+| 10 orientation (§5.2) | `po11_10_orientation` |
+| 11 time of day (§4.1, §8 item 3) | `po11_11_time_of_day` |
+| 12 timer bits (§4.1) | `po11_12_timer_bits` |
+| 13 timer transition draw (quirk 7) | `po11_13_timer_transition_draw` |
+| 14 lot tag default (§5.3) | `po11_14_lot_tag` |
+| 15 usage (§3) | `po11_15_usage` |
+| 16 save / load round trip (§7) | `po11_16_save_load_round_trip` |
+| 17 version ≤ 5 read (quirk 5) | `po11_17_version_five_read` |
+| 18 unknown type survives a round trip (§5.1, quirk 2) | `po11_18_unknown_type_round_trip` |
+| 19 class-object store framing (§7) | `po11_19_store_framing` |
+| 20 loaded props do not announce themselves (§3) | `po11_20_loaded_no_announce` |
+| 21 visual-effect attach (§6.2) | `po11_21_effect_attach` |
+| 22 visual-effect record quirk (§6.2) | `po11_22_effect_record_quirk` |
+| 23 state and the model (quirk 6) | `po11_23_state_and_model` |
+| 24 PV2 tag matching (§5.3) | `po11_24_pv2_tag_matching` |
+| 25 removal (§3) | `po11_25_removal` |
+| — the 24-slot table and its return channels (§4.1, §4.2, §8 item 2) | `po00_01_vtable_channels` |
+
+Item 24 reproduces the PV2 rule literally: a tagged prop whose tag names no configuration object lowers the block's
+`k` by one (`pd` §4.3 step 2.3.2 step 2), which is what leaves the block's slot count one lower. The vector also
+pins the corpus split of §5.3 (40,830 of 147,162 tagged lot props unmatched, 27.7 %: 40,794 + 36 + 0). Item 13 sets
+the prop to state 2 first so the `SetState(0)` call is observable — `SetState` is a no-op when the value already
+equals `+0x63` (`nt` §13.1 step 1).

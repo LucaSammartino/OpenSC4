@@ -85,6 +85,12 @@ pub const FC4_AUTOMATA_ATTRACTOR: u32 = 1;
 /// No state (`fc4_automata_automaton_state::current_state`).
 pub const FC4_AUTOMATA_NO_STATE: u32 = 0xFFFF_FFFF;
 
+/// State types of §6.2 that this ABI names (`fc4.h`). `DISAPPEAR` is what
+/// `SetState(1, …)` sets at a riot's end and what `PopState` pushes in place of
+/// a `final` state (§12 quirk 11). [AT3]
+pub const FC4_AUTOMATA_STATE_DEFAULT: u32 = 0;
+pub const FC4_AUTOMATA_STATE_DISAPPEAR: u32 = 1;
+
 /// A controller time (§1 `time`).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -749,30 +755,68 @@ pub unsafe extern "C" fn fc4_automata_controller_get_state(
     })
 }
 
-/// Automaton slot 51 `SetState(type, a, b, c, d, e, f)`: the state stack
-/// becomes one new state of that type (§6.2; the arguments are kept).
+/// Automaton slot 51 `SetState(type, controller, timeout_ms, final, animId,
+/// sfxId, template)` (§6.2). Returns false and changes nothing while the top
+/// state has `final` (§12 quirk 11); the call itself is still recorded. [AT3]
 #[allow(clippy::too_many_arguments)]
 #[no_mangle]
 pub unsafe extern "C" fn fc4_automata_automaton_set_state(
     o: *const fc4_automata_object,
     state_type: u32,
-    a: u32,
-    b: f32,
-    c: u32,
-    d: u32,
-    e: u32,
-    f: u32,
-) {
-    with_automaton(o, (), |x| x.set_state(state_type, SetStateArgs { a, b, c, d, e, f }))
+    controller: u32,
+    timeout_ms: f32,
+    is_final: u32,
+    anim_id: u32,
+    sfx_id: u32,
+    behaviour_template: u32,
+) -> bool {
+    with_automaton(o, false, |x| {
+        x.set_state(
+            state_type,
+            SetStateArgs {
+                controller,
+                timeout_ms,
+                is_final,
+                anim_id,
+                sfx_id,
+                behaviour_template,
+            },
+        )
+    })
 }
 
-/// Slot 52 `PushState`.
+/// Slot 52 `PushState(type, controller, timeout_ms, final, animId, sfxId,
+/// template)` (§6.2, §12 quirks 10 and 11). The new state's `+0x0C` is
+/// `stack.size()-1`. Type 0 delegates to `SetState`. [AT7]
+#[allow(clippy::too_many_arguments)]
 #[no_mangle]
-pub unsafe extern "C" fn fc4_automata_automaton_push_state(o: *const fc4_automata_object, state_type: u32) {
-    with_automaton(o, (), |x| x.push_state(state_type))
+pub unsafe extern "C" fn fc4_automata_automaton_push_state(
+    o: *const fc4_automata_object,
+    state_type: u32,
+    controller: u32,
+    timeout_ms: f32,
+    is_final: u32,
+    anim_id: u32,
+    sfx_id: u32,
+    behaviour_template: u32,
+) -> bool {
+    with_automaton(o, false, |x| {
+        x.push_state(
+            state_type,
+            SetStateArgs {
+                controller,
+                timeout_ms,
+                is_final,
+                anim_id,
+                sfx_id,
+                behaviour_template,
+            },
+        )
+    })
 }
 
-/// Slot 53 `PopState`: false when the stack is empty.
+/// Slot 53 `PopState`: false when the stack is empty. A `final` top pushes
+/// DISAPPEAR instead of revealing the state below (§12 quirk 11). [AT3]
 #[no_mangle]
 pub unsafe extern "C" fn fc4_automata_automaton_pop_state(o: *const fc4_automata_object) -> bool {
     with_automaton(o, false, |x| x.pop_state())
@@ -1705,7 +1749,19 @@ impl RiotHost for RiotCHost {
         cb!(self, add_ref, (), automaton)
     }
     fn set_state(&mut self, automaton: u64, state_type: u32, a: SetStateArgs) {
-        cb!(self, set_state, (), automaton, state_type, a.a, a.b, a.c, a.d, a.e, a.f)
+        cb!(
+            self,
+            set_state,
+            (),
+            automaton,
+            state_type,
+            a.controller,
+            a.timeout_ms,
+            a.is_final,
+            a.anim_id,
+            a.sfx_id,
+            a.behaviour_template
+        )
     }
     fn set_visible(&mut self, automaton: u64, visible: bool) {
         cb!(self, set_visible, (), automaton, visible)

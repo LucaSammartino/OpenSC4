@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "name": "po11_12_timer_bits",
+  "spec": [
+    "prop-occupant 4.1",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 12. GetPropTimerState(0x2) is false; SetPropTimerState(0x2, true) makes it true and leaves the other bits alone; GetPropTimerBitfield() reports the mask. Slot 19 is movzx eax of the byte at +0x60; slot 20 is a real 0/1 in EAX produced with sbb/neg.",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_game",
+      "clear": true
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_timer_state",
+      "args": [
+        "0x2",
+        false
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_timer_state",
+      "args": [
+        "0x2"
+      ],
+      "expect": false
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_timer_state",
+      "args": [
+        "0x2",
+        true
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_timer_state",
+      "args": [
+        "0x2"
+      ],
+      "expect": true
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_timer_bitfield",
+      "expect": 2
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_timer_state",
+      "args": [
+        "0x4",
+        true
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_timer_bitfield",
+      "expect": 6
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_timer_state",
+      "args": [
+        "0x2"
+      ],
+      "expect": true
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        19
+      ],
+      "expect": "eax"
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        20
+      ],
+      "expect": "eax"
+    }
+  ]
+}

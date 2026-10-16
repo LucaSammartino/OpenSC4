@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "name": "po11_22_effect_record_quirk",
+  "spec": [
+    "prop-occupant 6.2",
+    "prop-occupant 7",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 22. A live effect prop saves an empty name and 0 in place of the effect name and the trailing u32 (lot-records 10.2): 'Write writes an empty name and 0 whenever the effect is live'. After reload the name comes back from the exemplar [inferred]. The effect record's version is 3 and anything else is refused.",
+  "steps": [
+    {
+      "op": "po_effect_create"
+    },
+    {
+      "op": "po_effect_call",
+      "method": "set_effect_type_name",
+      "args": [
+        "welding_sparks"
+      ],
+      "expect": true
+    },
+    {
+      "op": "po_effect_call",
+      "method": "is_live",
+      "expect": true
+    },
+    {
+      "op": "po_effect_call",
+      "method": "should_drop_name_on_write",
+      "expect": true
+    },
+    {
+      "op": "po_effect_write",
+      "hex": "030006000400000000041e8223a80000000002000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006400ffffffff0001000000000000000000",
+      "expect": "030006000400000000041e8223a80000000002000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006400ffffffff0001000000000000000000"
+    },
+    {
+      "op": "po_effect_read",
+      "hex": "030006000400000000041e8223a80000000002000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006400ffffffff0001000000000000000000",
+      "expect": [
+        "ok",
+        "",
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "op": "po_effect_read",
+      "hex": "030006000400000000041e8223a80000000002000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006400ffffffff0001000e00000077656c64696e675f737061726b7300000000",
+      "expect": [
+        "ok",
+        "77656c64696e675f737061726b73",
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "op": "po_const",
+      "name": "effect_record_version",
+      "expect": 3
+    }
+  ]
+}

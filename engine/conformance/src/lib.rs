@@ -50,6 +50,7 @@ pub(crate) mod port_developer;
 pub(crate) mod power;
 pub(crate) mod prop_developer;
 pub(crate) mod prop_lotconfig;
+pub(crate) mod prop_occupant;
 pub(crate) mod protection;
 pub(crate) mod residential;
 pub mod runner;

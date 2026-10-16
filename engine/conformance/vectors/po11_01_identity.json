@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "name": "po11_01_identity",
+  "spec": [
+    "prop-occupant 1",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 1. QueryInterface answers 0xE9793A65 (cISC4PropOccupant) and the class ID 0x2977AA47 with the object base, 0x452294AA (cIGZMessageTarget2) with base +4, and anything else with the occupant base at +8; the base itself answers only cIGZUnknown (0x00000001). Every successful branch calls AddRef before returning 1.",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "query_interface",
+      "args": [
+        "0xE9793A65"
+      ],
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "query_interface",
+      "args": [
+        "0x2977AA47"
+      ],
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "query_interface",
+      "args": [
+        "0x452294AA"
+      ],
+      "expect": 4
+    },
+    {
+      "op": "po_call",
+      "method": "query_interface",
+      "args": [
+        "0xDEADBEEF"
+      ],
+      "expect": 8
+    },
+    {
+      "op": "po_call",
+      "method": "query_interface_base",
+      "args": [
+        "0x00000001"
+      ],
+      "expect": 8
+    },
+    {
+      "op": "po_call",
+      "method": "query_interface_base",
+      "args": [
+        "0xDEADBEEF"
+      ],
+      "expect": null
+    },
+    {
+      "op": "po_call",
+      "method": "refcount",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "add_ref",
+      "expect": 1
+    }
+  ]
+}

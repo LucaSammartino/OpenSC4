@@ -505,7 +505,12 @@ impl Core {
             let (px, pz) = host.occupant_position(o);
             let d = ((px - cx) * (px - cx) + (pz - cz) * (pz - cz)).sqrt();
             if d < near {
-                self.toast_push(o);
+                // §5.6 step 4 [compat, DS34]: the toast branch queues only a
+                // flammable one (an occupant inside `r0` with flammability 0
+                // is not queued; conformance test 20).
+                if flammable(host.as_ref(), o) {
+                    self.toast_push(o);
+                }
             } else if d < far {
                 self.fire_ignite(o, false, id, false);
             }
@@ -711,18 +716,41 @@ impl Core {
         }
     }
 
+    /// `UpdateAllFires` (§5.8): the list walked from the front, the **next**
+    /// node remembered before each step. A fire the step appends (a spread's
+    /// `IgniteCell`) is therefore stepped in the same pass when its spawner
+    /// was not the last node when that step began, and is not when it was
+    /// (its remembered next was the end) [compat, DS40]. A null target runs
+    /// `KillAllFires` and stops; the fires before it have already been
+    /// stepped in this pass [compat, DS40].
     fn update_all_fires(&mut self) {
         let no_burn_down = self.host.tutorial_no_burn_down();
-        let Some(f) = self.fs() else { return };
-        f.no_burn_down = no_burn_down;
-        if f.fires.iter().any(|e| e.target == 0) {
-            self.kill_all_fires();
-            return;
+        if let Some(f) = self.fs() {
+            f.no_burn_down = no_burn_down;
         }
-        let list: Vec<u64> = f.fires.iter().map(|e| e.occupant).collect();
-        for fo in list {
-            if self.fs_ref().is_some_and(|f| f.fires.iter().any(|e| e.occupant == fo)) {
-                self.update_fire(fo);
+        let mut at = 0usize;
+        while let Some(cur) = self.fs_ref().and_then(|f| f.fires.get(at).copied()) {
+            // 0 = the end of the list, taken before the step.
+            let next = self
+                .fs_ref()
+                .and_then(|f| f.fires.get(at + 1).map(|e| e.occupant))
+                .unwrap_or(0);
+            if cur.target == 0 {
+                self.kill_all_fires();
+                break;
+            }
+            self.update_fire(cur.occupant);
+            if next == 0 {
+                break;
+            }
+            // `KillFire` removes the fire being stepped, which shifts the
+            // entries after it; the remembered node is found by its token.
+            match self
+                .fs_ref()
+                .and_then(|f| f.fires.iter().position(|e| e.occupant == next))
+            {
+                Some(j) => at = j,
+                None => break,
             }
         }
     }
@@ -985,7 +1013,11 @@ impl Core {
     }
 }
 
-/// The flammability property `0x29244DB5` is non-zero (absent = 0).
+/// The flammability property `0x29244DB5` is above 0 (§5.4 step 3, DS38).
+/// It is read **as an unsigned integer** through the occupant's own property
+/// holder (variant slot 25, converting); a missing property reads 0. A
+/// stored `Float32` is therefore truncated to a whole number first: 0.5 is 0
+/// and refuses, while 75.9 is 75 and does not *[compat]`.
 fn flammable(host: &dyn super::DisasterHost, o: u64) -> bool {
-    host.occupant_prop_f32(o, prop::FLAMMABILITY).is_some_and(|v| v != 0.0)
+    host.occupant_prop_u32(o, prop::FLAMMABILITY).is_some_and(|v| v != 0)
 }

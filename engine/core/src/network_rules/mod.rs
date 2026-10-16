@@ -53,7 +53,9 @@
 //! rotation table past row 3, the padded set's scan order and the bucket
 //! hints of the sets the spec does not size, the through-mark walk's step
 //! cap, the field trimming of `RZParseDelimitedText`, the intersection-rule
-//! map's bucket hint, and what `CopyFrom` copies of the layout lines.
+//! map's bucket hint, what `CopyFrom` copies of the layout lines, and the
+//! one-way pass dropping the flow code of a side it cannot follow (§6.5 step
+//! 2.4, which says only "skip"; §15 test 26 needs the drop).
 
 mod grid;
 mod intrule;
@@ -67,17 +69,19 @@ mod tests;
 
 pub use grid::{CellGrid, CellInfo, ExtraCell, IntersectionRecord, OccupantView, SolveState, SolvedRecord};
 pub use intrule::{
-    identify_highway_intersections, Bounds, CheckType, DryHost, IntRule, IntRuleHost, IntRuleMap, Model, TaggedCell,
-    INTERSECTION_FLAG, ONE_WAY_PATTERNS,
+    identify_highway_intersections, Bounds, CheckType, DryHost, IntRule, IntRuleHost, IntRuleMap, IntersectionPiece,
+    Model, TaggedCell, TileMapValue, INTERSECTION_FLAG, ONE_WAY_PATTERNS,
 };
 pub use rules::{
     LoadReport, NetworkRules, OverridePair, Requirement, ResourceId, SolutionTable, INTERSECTION_INSTANCE,
     MULTI_TYPE_INSTANCE, NETWORK_INI_GROUP, NETWORK_INI_INSTANCE, OVERRIDES_INSTANCE, RULE_GROUP, RULE_TYPE,
 };
 pub use solve::{
-    adjust_tile_subsets, apply_network_rules, assign_edge_subtypes, build_padded_network_set, neighbourhood,
-    patch_tile_pair, solve_multi_type_intersections, solve_network, solve_using_evaluator, unsolved_cell_result,
-    verify_tile_subsets, GridNeighbourhood, TilePiece,
+    adjust_tile_subsets, apply_network_rules, assign_edge_subtypes, build_padded_network_set,
+    mark_highway_intersection_pieces, neighbourhood, neighbourhood_overriding, patch_tile_pair,
+    remove_bridge_pieces_from_solve_set, remove_highway_intersection_pieces_from_solve_set, resolve_one_way_conflicts,
+    solve_multi_type_intersections, solve_multi_type_separation, solve_network, solve_using_evaluator,
+    unsolved_cell_result, verify_tile_subsets, GridNeighbourhood, TilePiece,
 };
 pub use text::{atol, find_section, ini_sections, rz_atou32_hex, rz_convert_u32, scan, IniSection, ScanValue};
 pub use tile::{

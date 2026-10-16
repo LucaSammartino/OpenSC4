@@ -1,5 +1,5 @@
 # Lane re-answers28
 
-| Lane | Worktree | State at stop | Next steps |
+| Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
 | re-answers28 (RE, terrain TR1 / TR2 / TR18) | `C:\Users\tlori\FreeCity4\.claude\worktrees\re-answers28` (branch `re-answers28`) | **ready** — docs only. terrain.md §9.4 rewritten (kinds 0–10 with entry points, the callback contract §9.4.6, kind 6 §9.4.4, kinds 8/9/10 §9.4.5, kinds 1/4/7 §9.4.2, kind 3 §9.4.3), new §9.7 with the whole shipped terrain ini and the 30 shipped brushes, §15.4 re-entrancy updated, §17 TR1/TR2 struck, §16 quirks 16–20 and §18 tests 26–33 added. QUESTIONS.md TR1 struck. `build-runs/pending-abi/re-answers28-rows.tsv` has 5 rows. No engine changes, no game runs. | Merge into main (docs + pending ABI rows; `abi: true` in the merge-queue file). An apply lane can then implement kinds 1, 3, 4, 6, 7, 8, 9 and 10 in `engine/core/src/terrain/brush.rs`, which today stubs every kind but 0. Three open points are listed in terrain.md §17: the surface-water tick's use of the `+0x04` / `+0x08` water fields, what the `+0xF8` / `+0xFC` placement managers do with a kind-3 / kind-4 placement, and which caller starts the `erodefx_terrain` / `stream_cut_fx_terrain` effects. The no-bitmap grey is a replacement *[choice]* (terrain.md §9.4.6). |
