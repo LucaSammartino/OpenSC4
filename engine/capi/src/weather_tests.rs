@@ -106,7 +106,7 @@ fn state(w: *const fc4_weather) -> fc4_weather_state {
 #[test]
 fn null_safety() {
     unsafe {
-        assert!(fc4_weather_create(std::ptr::null(), 0, 0).is_null());
+        assert!(fc4_weather_create(std::ptr::null(), 0).is_null());
         let w = std::ptr::null_mut();
         assert!(!fc4_weather_init(w, std::ptr::null()));
         assert!(fc4_weather_handle_message(w, 0x6695_6815, 0, 0));
@@ -125,7 +125,7 @@ fn init_pass_accessors_and_save() {
     let g = Game::default();
     let h = host(&g);
     unsafe {
-        let w = fc4_weather_create(&h, 0x1234_5678, 99);
+        let w = fc4_weather_create(&h, 0x1234_5678);
         assert!(!w.is_null());
         let t = shipped();
         assert_eq!(fc4_props_count(t), 18);
@@ -180,7 +180,7 @@ fn init_pass_accessors_and_save() {
         // Save, load into a fresh object, save again: byte-identical.
         let mut o = Out::default();
         assert!(fc4_weather_write(w, &ostream(&mut o)));
-        let w2 = fc4_weather_create(&h, 1, 1);
+        let w2 = fc4_weather_create(&h, 1);
         let mut i = In::new(&o.bytes);
         assert!(fc4_weather_read(w2, &istream(&mut i)));
         assert_eq!(i.pos, o.bytes.len());

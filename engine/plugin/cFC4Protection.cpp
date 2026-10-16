@@ -19,6 +19,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -876,11 +877,10 @@ void cFC4ProtectionBase::Construct(cIGZUnknown* primary) {
     ctx_.source = static_cast<cFC4ISC4DispatchSource*>(this);
     ctx_.selfToken = TokenOf(primary);
     host_ = fc4::MakeProtectionHost(&ctx_, &gridCtx_);
-    // The object's own cRZRandom is seeded from the clock at construction
-    // (§10): the wall-clock and process-clock values.
-    core_ = fc4_protection_create(&host_, kind_, ctx_.selfToken,
-                                  static_cast<uint32_t>(GetTickCount64() ^ GetCurrentProcessId()),
-                                  static_cast<uint32_t>(GetTickCount()));
+    // The object's own cRZRandom is seeded from the clock at construction in
+    // the original (§10); ours takes derive(S, GZCLSID) of the session seed
+    // (foundations §6.3, FC4Seed.h).
+    core_ = fc4_protection_create(&host_, kind_, ctx_.selfToken, fc4::SessionSeed());
     if (core_ == nullptr) fc4::Log("cFC4ProtectionBase (%s): core creation failed", ctx_.tag);
     fc4::Log("cFC4%sSimulator(%p) created, core %p", kind_ == 0 ? "FireProtection" : "Police",
              static_cast<void*>(primary), static_cast<void*>(core_));

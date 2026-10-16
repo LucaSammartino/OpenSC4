@@ -1573,9 +1573,9 @@ cISTETerrain	cSTETerrain	00ab3d18	26	+0x68	00742b10	cSTETerrain::GetFaceNormal	1
 cISTETerrain	cSTETerrain	00ab3d18	27	+0x6C	00742cf0	cSTETerrain::GetLerpedNormal	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	28	+0x70	007417d0	cSTETerrain::GetVertexNormal	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	29	+0x74	00741760	cSTETerrain::GetSeaLevel	0	0	x87	high	
-cISTETerrain	cSTETerrain	00ab3d18	30	+0x78	007449b0	cSTETerrain::GetWaterLevel	8	2	x87	high	
-cISTETerrain	cSTETerrain	00ab3d18	31	+0x7C	00744980	cSTETerrain::GetWaterLevel	4	1	x87	high	
-cISTETerrain	cSTETerrain	00ab3d18	32	+0x80	007444e0	cSTETerrain::GetLerpedWaterLevel	8	2	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	30	+0x78	007449b0	cSTETerrain::GetWaterLevel(float x, float z)	8	2	x87	high	0.0 unless LocationIsInBounds; vertex (floor(x/16), floor(z/16)); terrain.md §5 (re-answers17)
+cISTETerrain	cSTETerrain	00ab3d18	31	+0x7C	00744980	cSTETerrain::GetWaterLevel(uint32 index)	4	1	x87	high	0.0 when index >= vertexCount; terrain.md §5 (re-answers17)
+cISTETerrain	cSTETerrain	00ab3d18	32	+0x80	007444e0	cSTETerrain::GetLerpedWaterLevel(float x, float z)	8	2	x87	high	bilinear depth+alt, no clamp at x = sizeX; terrain.md §5.1 (re-answers17)
 cISTETerrain	cSTETerrain	00ab3d18	33	+0x84	00744ab0	cSTETerrain::GetWaterDepthAtVertex	8	2	x87	high	
 cISTETerrain	cSTETerrain	00ab3d18	34	+0x88	00743fa0	cSTETerrain::CellHasWater	8	2	al	high	bool in AL only; upper EAX not cleared on the out-of-bounds path
 cISTETerrain	cSTETerrain	00ab3d18	35	+0x8C	00744030	cSTETerrain::CellHasLand	8	2	al	high	bool in AL only
@@ -1627,7 +1627,7 @@ cISTETerrain	cSTETerrain	00ab3d18	80	+0x140	0074c6f0	cSTETerrain::IsAccumulating
 cISTETerrain	cSTETerrain	00ab3d18	81	+0x144	00742000	cSTETerrain::SetTerrainCellFlags	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	82	+0x148	00741770	cSTETerrain::GetTerrainCellFlags	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	83	+0x14C	00741740	cSTETerrain::GetWaterSurfaceDisplayState (folded getter, byte +0xDD)	0	0	al	high	replaces folded name icf::cGZGraphicSystem::IsPageFlippingEnabled
-cISTETerrain	cSTETerrain	00ab3d18	84	+0x150	007434e0	cSTETerrain::SetWaterSurfaceDisplayState	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	84	+0x150	007434e0	cSTETerrain::SetWaterSurfaceDisplayState(bool)	4	1	eax-or-void	high	posts 0x6AB97795 only when the byte +0xDD changes; terrain.md §8.4 (re-answers17)
 cISTETerrain	cSTETerrain	00ab3d18	85	+0x154	00741750	cSTETerrain::GetPlumbingInfoDisplayState	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	86	+0x158	00741ff0	cSTETerrain::SetPlumbingInfoDisplayState	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	87	+0x15C	00743b40	cSTETerrain::BeginLongTerrainOperation	0	0	void	high	posts 0xEA3B0AF1 (queued); no nesting counter
@@ -4058,8 +4058,8 @@ cISTESurfaceWater	cSTESurfaceWater	00ab3b00	6	+0x18	0073d210	cSTESurfaceWater::G
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	7	+0x1C	0073cef0	cSTESurfaceWater::IsNavigable	20	5	via-call	low	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	8	+0x20	0073ebf0	cSTESurfaceWater::IsNavigable	16	4	eax-or-void	medium	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	9	+0x24	0068d1c0	cSTESurfaceWater::GetBodyOfWaterMap (folded getter, +0x4C)	0	0	eax	high	uint16 SimGrid; replaces folded name cSC4AuraSimulator::GetTransientAuraGrid; terrain.md §10.2
-cISTESurfaceWater	cSTESurfaceWater	00ab3b00	10	+0x28	0073d4f0	cSTESurfaceWater::AltitudeAtWhichFloodingWillOccur	8	2	x87	high	
-cISTESurfaceWater	cSTESurfaceWater	00ab3b00	11	+0x2C	0073d7c0	cSTESurfaceWater::GetWaterVelocity	8	2	eax-or-void	medium	
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	10	+0x28	0073d4f0	cSTESurfaceWater::AltitudeAtWhichFloodingWillOccur(int x, int z)	8	2	x87	high	vertex (x, z), unchecked; max of sea level, own level if wet, wet neighbours' levels; terrain.md §10.2 (re-answers17)
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	11	+0x2C	0073d7c0	cSTESurfaceWater::GetWaterVelocity(int x, int z)	8	2	eax	high	pointer to the vertex's velocity (record +0x10), unchecked index; terrain.md §10.2, §10.5 (re-answers17)
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	12	+0x30	0073d7f0	cSTESurfaceWater::GetWaterType(x,z)	8	2	eax	high	0 dry, 2 above sea, 3 at or below sea
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	13	+0x34	0073cdb0	cSTESurfaceWater::HasDraftClearance(x,z)	8	2	al	medium	GetWaterDepthForCell > 5.0
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	14	+0x38	0073e970	cSTESurfaceWater::~cSTESurfaceWater	4	1	eax-or-void	medium	

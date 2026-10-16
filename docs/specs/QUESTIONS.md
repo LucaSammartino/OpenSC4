@@ -4482,13 +4482,13 @@ Open points from terrain.md §17. The current answer is in brackets; each entry 
 
 - **TR1:** the exact operations of brush component kinds 2, 3, 5, 6 and 8–10 (smoothing, levelling, erosion, lake,
   rain, spring). [summarised only; only the god-mode terraforming tool uses them. A trace of `0x00745DE0` and
-  `0x00745BA0` settles 2 and 5]
+  `0x00745BA0` settles 2 and 5] **PARTLY ANSWERED 2026-10-16 (re-answers17):** kinds 2 and 5 are traced in the bytes and specified in terrain §9.4.1. Kind 5 levels toward the target by `step = b × strength / 256` (sets the target when within a step, else raises or lowers by a step; `b = 0` or `alt = target` is no change). Kind 2 is talus smoothing: for each neighbour in the offset order, the excess drop over a threshold (`tan(TalusAngle) × 16`, × √2 on diagonals) times the step moves from the vertex to the neighbour. Kinds 3, 6 and 8–10 and the shipped `TalusAngle` stay open (god-mode only).
 - **TR2:** the brush values of the `volcano_control` effect (level, strength and radius ranges, repetitions per
   update). [effect brushes use `data4 = 3` and redisplay on the last repetition; the effects manager spec, INVENTORY
   rank 7, settles the values]
-- **TR3:** `GetLerpedWaterLevel` (terrain slot 32) and `AltitudeAtWhichFloodingWillOccur` (surface water slot 10)
+- ~~**TR3:** `GetLerpedWaterLevel` (terrain slot 32) and `AltitudeAtWhichFloodingWillOccur` (surface water slot 10)
   are from pseudocode only. [bilinear over the four corners; maximum over wet neighbours. Check the bytes if a
-  simulation consumer appears]
+  simulation consumer appears]~~ **ANSWERED 2026-10-16 (re-answers17):** both checked in the bytes. `GetLerpedWaterLevel` MATCHES (bilinear over `depth + alt`), with no clamp at `x = sizeX` (the `ix + 1` corner wraps to the next row) (terrain §5.1). `AltitudeAtWhichFloodingWillOccur` **DIFFERS** from the round-1 text: it takes `(x, z)`, starts at the sea level, counts the vertex's own level when it is wet, then the wet neighbours in the offset order, strict maximum (terrain §10.2).
 
 ## From the disaster layer core (filed by the coordinator from the `cores13` lane's report, 2026-10-15; merged `333ecde`)
 
@@ -4533,33 +4533,33 @@ conformance vectors (`tr18_*`, `tr00_*`, `nt05_economy_modifier`), and nation.md
 plugin glue yet, so none of these readings has been checked in game. Each choice is marked `[choice]` in the code
 and the vectors. The current choice is in brackets.
 
-- **TR4:** (terrain §11.3/§11.5) in what order are the lava neighbour offsets scanned? When several neighbours tie
-  for the largest drop, the first one wins. [west, east, north, south, then the diagonals]
-- **TR5:** (terrain §11.5) does SetThingsOnFire call SetCause(3) after each ignited cell, or once per call? [per cell]
-- **TR6:** (terrain §10.2) what does GetWaterType return for a vertex with a NaN depth? [the comparisons fail, so it
-  falls through to fresh water (2)]
-- **TR7:** (terrain §9.3) ComputeSpansForRectangle's footprint spans are not fully specified. [an inclusive vertex
-  rectangle clamped to the terrain]
-- **TR8:** (terrain §9.1/§9.4) what is a brush description's starting angle, and is it stored per terrain or per
-  description? [0, per description]
-- **TR9:** (terrain §2.3) what is the starting value of the default brush level at `+0xBC`? [0]
-- **TR10:** (terrain §13.1) no record holds the sea level, so what is it after a load? [the tuning's `new_sea_level`]
-- **TR11:** (terrain §8.1) how are the data words of texture message `0x870BC918` packed? [no data, all zero]
-- **TR12:** (terrain §3/§15) what do the slots with unchecked indices (GetAltitudeAtIndex, SetAltitude(x, z) and
-  others) do out of range? [a read returns 0 or NaN, a write does nothing]
-- **TR13:** (terrain §10.4) does a power pole block navigation only on a cell with depth > 0? [yes: depth > 0 means
-  GetWaterDepthForCell > 0]
-- **TR14:** (terrain §8.4) does SetWaterSurfaceDisplayState post on every call or only when the state changes?
-  [every call]
-- **TR15:** (terrain §9.3) is a kind-0 brush reported as a change even when every touched vertex was locked or
-  clamped? [yes: the out rectangle and the redisplay still happen]
-- **TR16:** (terrain §9.4) with an angle of exactly pi, sin(pi) in f32 is not 0, which gives a one-pixel fringe on the
-  earthquake stroke. Is that intended? [kept as computed]
-- **TR17:** (terrain §10.4, plumbing §7.2) for IsNavigable, are the city bounds behind slot 99 the terrain's cells,
-  and does the search follow the plumbing §7.2 spiral? [yes to both]
-- **TR18:** (glue contract) the lava and brush host callbacks run while the core holds the terrain mutably, so a
+- ~~**TR4:** (terrain §11.3/§11.5) in what order are the lava neighbour offsets scanned? When several neighbours tie
+  for the largest drop, the first one wins. [west, east, north, south, then the diagonals]~~ **ANSWERED 2026-10-16 (re-answers17):** **DIFFERS.** The offsets at terrain `+0x84`…`+0xA0` are W, NW, N, NE, E, SE, S, SW (`Init` `0x007500E0`–`0x00750129`; north is z − 1). The edges are scanned k = 0, 2, 4, 6, so **W, N, E, S**, then the diagonals NW, NE, SE, SW (`0x0075DB09`–`0x0075DBD6`). The first wins ties (strict `>`), as in the bracket; only the N/E order changes. terrain §11.3, test 15.
+- ~~**TR5:** (terrain §11.5) does SetThingsOnFire call SetCause(3) after each ignited cell, or once per call? [per cell]~~ **ANSWERED 2026-10-16 (re-answers17):** MATCHES: `SetCause(3)` follows each ignited or burned cell, and only flammable cells (`0x0075DF3D`–`0x0075DF47`); the cells go x outer, z inner. terrain §11.5, test 16.
+- ~~**TR6:** (terrain §10.2) what does GetWaterType return for a vertex with a NaN depth? [the comparisons fail, so it
+  falls through to fresh water (2)]~~ **ANSWERED 2026-10-16 (re-answers17):** MATCHES: the first test (`depth ≤ 0`) is false for NaN, the level is NaN, and the second test returns 2 (`0x0073D811`–`0x0073D83E`). terrain §10.2.
+- ~~**TR7:** (terrain §9.3) ComputeSpansForRectangle's footprint spans are not fully specified. [an inclusive vertex
+  rectangle clamped to the terrain]~~ **ANSWERED 2026-10-16 (re-answers17):** **DIFFERS.** `ComputeSpansForRectangle` (`0x00740BB0`) scan-converts the rotated rectangle: rows `trunc(z / 16)` of the corners (unsigned clamp to `cellsZ`), half-open edge crossings per row `Z = 16z`, each span from the leftmost crossing column to one past the rightmost (unsigned clamp to `cellsX`), visited inclusive. The full rule, the corner order and a worked example are in terrain §9.3.
+- ~~**TR8:** (terrain §9.1/§9.4) what is a brush description's starting angle, and is it stored per terrain or per
+  description? [0, per description]~~ **ANSWERED 2026-10-16 (re-answers17):** MATCHES for what the brushes use. Each description has two angles: the stroke angle (`+0x6C`, used by oriented components) starts at 0; the walk angle (`+0x68`) starts at `RandomRange(0, 2π)` of the terrain generator when the walk step is non-zero. The step property `0x8A020102` defaults to 0.5° when missing, which is the case for every shipped brush, so each in-bounds application draws `RandomUint32Uniform(5)` (`0x00747EC0`, `0x0074D7BD`–`0x0074D855`). Stored per description in the static map, so shared by every terrain. terrain §9.1, §9.3.
+- ~~**TR9:** (terrain §2.3) what is the starting value of the default brush level at `+0xBC`? [0]~~ **ANSWERED 2026-10-16 (re-answers17):** MATCHES at start, **DIFFERS** in game: 0 from the constructor (`0x0074C408`), then `DoPostCityInit` copies the 3D camera's zoom (`0x0074955F`) and every view-update message `0xA6B79602` with a new zoom updates it (`0x0074AAE2`). A harness with no view keeps 0; the glue should feed the zoom. terrain §2.3.
+- ~~**TR10:** (terrain §13.1) no record holds the sea level, so what is it after a load? [the tuning's `new_sea_level`]~~ **ANSWERED 2026-10-16 (re-answers17):** MATCHES: `Init` sets `+0x7C` from the tuning value (`0x007500D5`) and `Load` never writes it. terrain §13.1, test 23.
+- ~~**TR11:** (terrain §8.1) how are the data words of texture message `0x870BC918` packed? [no data, all zero]~~ **ANSWERED 2026-10-16 (re-answers17):** **DIFFERS.** data1 and data2 pack the render rectangle like the other two messages (the rect padded by 1 and clamped when the terrain flag is set), data3 is `(trunc(lo) << 16) + trunc(hi)` of the 3D view's altitude band, and data4 is the caller's (`0x00749894`–`0x007499EE`). Render-only; a view-less replacement may use the plain minimum and maximum. terrain §8.1.
+- ~~**TR12:** (terrain §3/§15) what do the slots with unchecked indices (GetAltitudeAtIndex, SetAltitude(x, z) and
+  others) do out of range? [a read returns 0 or NaN, a write does nothing]~~ **ANSWERED 2026-10-16 (re-answers17):** there is no defined original value: the listed slots form a flat index with no check and read or write past the array when it is out of range. The bracket is accepted as a *[choice]*, refined: reads return 0.0 (never NaN, matching the checked siblings), `GetWaterType` 0, `GetWaterVelocity` a shared zero vector, writes are ignored; and while the flat index is inside the array the access must happen (coordinates past the last column wrap to the next row). Also corrected: slots 30, 31, 33, 55 and 92 are bounds-checked. terrain §5, §10.5.
+- ~~**TR13:** (terrain §10.4) does a power pole block navigation only on a cell with depth > 0? [yes: depth > 0 means
+  GetWaterDepthForCell > 0]~~ **ANSWERED 2026-10-16 (re-answers17):** MATCHES: the pole handler sets the dirty flag when `GetWaterDepthForCell(x, z) > 0`, strict (`0x00740294`–`0x007402A4`). The flag lives at object `+0x50`, not `+0x48`. terrain §10.3.
+- ~~**TR14:** (terrain §8.4) does SetWaterSurfaceDisplayState post on every call or only when the state changes?
+  [every call]~~ **ANSWERED 2026-10-16 (re-answers17):** **DIFFERS**: only on a change. Slot 84 (`0x007434E0`) compares with `+0xDD` and returns when equal; otherwise it stores and posts. terrain §8.4, test 21.
+- ~~**TR15:** (terrain §9.3) is a kind-0 brush reported as a change even when every touched vertex was locked or
+  clamped? [yes: the out rectangle and the redisplay still happen]~~ **ANSWERED 2026-10-16 (re-answers17):** MATCHES: kind 0 returns true for every `b ≠ neutral` after calling `RaiseVertex` or `LowerVertex`, which skip a locked vertex silently (`0x00745C60`). terrain §9.4.
+- ~~**TR16:** (terrain §9.4) with an angle of exactly pi, sin(pi) in f32 is not 0, which gives a one-pixel fringe on the
+  earthquake stroke. Is that intended? [kept as computed]~~ **ANSWERED 2026-10-16 (re-answers17):** MATCHES: the original computes `fcos` / `fsin` of the f32 angle and stores f32 (`0x00742216`–`0x0074221E`), with no snapping, so it has the same fringe. The stroke angle itself is `f32(atan2 + f32(π/2))`. terrain §9.3.
+- ~~**TR17:** (terrain §10.4, plumbing §7.2) for IsNavigable, are the city bounds behind slot 99 the terrain's cells,
+  and does the search follow the plumbing §7.2 spiral? [yes to both]~~ **ANSWERED 2026-10-16 (re-answers17):** MATCHES: city slot 99 (`CellIsInBounds` `0x004594D0`) is `0 ≤ x < cellsX`, `0 ≤ z < cellsZ` with the same counts the terrain takes, and the walk is the plumbing `SpiralIterator` (`0x0043FE10` / `0x00440850`) over the unclipped square. terrain §10.4.
+- ~~**TR18:** (glue contract) the lava and brush host callbacks run while the core holds the terrain mutably, so a
   callback that calls back into the same `fc4_terrain` handle is refused (and counted). Should the glue lane queue
-  such work instead? [refused and counted; for the glue lane to decide]
+  such work instead? [refused and counted; for the glue lane to decide]~~ **ANSWERED 2026-10-16 (re-answers17):** on the simulation's paths the original never calls back into the terrain from a lava or brush callee: the flammability and fire calls do not touch the terrain, and every terrain message is queued. Refuse-and-count is compatible (the count should stay 0); no queue is needed. Only the god-mode kinds 1 and 8–10 reach other objects that may read the terrain or are the surface water. terrain §15.4.
 
 ## From applying the re-answers10/11 DIFFERS entries (filed by the coordinator from the `apply12` lane's report, 2026-10-16; merged `463cca7`)
 
@@ -4688,3 +4688,41 @@ Three TG2 callbacks stay NULL because the specs leave them open. The current cho
 - **TG26:** traffic-simulator §4.1, §9.1 TG19: when does the original release its source iterator's connection snapshot
   on a city close: at Shutdown, or only when the simulator is destroyed? And does a Read that replaces the state release
   it? [released at Shutdown and when Read replaces the state; otherwise at the next Reset]
+
+## From the automata layer core (filed by the coordinator from the `cores14a` lane's report, 2026-10-16; merged `44cf925`)
+
+cores14a implemented automata.md (short form) as a Rust core (`engine/core/src/automata/`), a C ABI (`fc4_automata_*`;
+ABI 62, reserved 65 on the lane) and conformance vectors (`am14_01`-`am14_14`); §14 test 12 is the formats save sweep
+(`cargo test -p fc4-formats --release --test automata_records -- --nocapture`: 417 saves, every record of components
+40, 41 and 43-46 and every referenced record re-encodes byte-identically). There is no plugin glue yet, so none of these
+readings has been checked in game. The core predates re-answers16 (AT2-AT5 above), which a later lane applies. AM is the
+prefix the code comments use; automata.md's own Q1-Q6 keep their numbers. The current choice is in brackets.
+
+- **AM1:** (versions on re-save) the original's writers always write the current version (traffic manager 3 / base 6,
+  automaton base 8, state 3, aircraft 5, watercraft 6), but §14 test 4 expects a version-2 record to round-trip byte
+  for byte. Must a re-save upgrade old versions, or keep them? [writes the version it read; raises it only when the data
+  needs the newer layout]
+- **AM2:** §6.4 gives no read check for the pedestrian (5), vehicle, emergency vehicle, patrol car and trailer (2)
+  versions, nor for the incident list's `u16` 1. Do the original readers reject other versions? [any value accepted
+  and kept]
+- **AM3:** §5.1 field 4 (the ID at the traffic manager's list cursor): what are the IDs of the list nodes, and what
+  should a new manager write? [the value read is kept; 0 for a new manager]
+- **AM4:** §7.3 SetMaxCount removes the automata "beyond" the new maximum: which ones? Does CreateAutomaton refuse at
+  the hard limit? [the newest first; CreateAutomaton returns null at the limit]
+- **AM5:** (§3.1) how exactly do the controller manager's two times A and B advance with HourChanged, and when can A
+  differ from B?
+- **AM6:** (§7.1 slots 5, 6, 9, 10) what does the `extra` argument mean? [ignored]
+- **AM7:** (§7.1 slots 11 and 12) does the original track the controllers that an occupant group itself created?
+  ["remove the controllers that the group added" is the occupant's controllers whose template is one of the group's
+  templates, which also works after a load]
+- **AM8:** §6.4 gives the emergency vehicle record as `u16 2, vehicle record, …`, but §12 quirk 3 says the vehicle
+  loader "reads the vehicle part and leaves the rest unread". With the §6.4 layout a vehicle reader meets the
+  emergency's own `u16` first and misaligns, failing at the occupant base version. Which layout is correct?
+- **AM9:** §5.3 gives no upper version check for the watercraft manager. [fails above 6, as §5.2 does for the aircraft
+  manager above 5]
+- **AM10:** §6.4 names no IID for the trailer's list of vehicle references. [read with the automaton IID
+  `0xA9B40F05`]
+- **AM11:** (§4, §12 item 4) the original base Read ignores stream errors. Should a truncated manager record load
+  partially, as in the original? [a short or cut record is a failed, atomic read, so round trips can be checked]
+- **AM12:** (§7.3 slot 31, TrackAutomataGroupInstances) what are the semantics? [adds delta, does not go below 0,
+  appends a new group]
