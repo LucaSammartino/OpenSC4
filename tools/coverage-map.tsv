@@ -317,6 +317,14 @@ cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	-	-
 cGZGraphicSystem*	2D drawing and fonts	renderer	-	-	-	-
 cGZGraphicCOMDirector	2D drawing and fonts	renderer	-	-	-	-
 cGZDraw*	2D drawing and fonts	renderer	-	-	-	-
+# the software span renderers of cGZDrawContextRenderToBuffer, one class per buffer color type (Init 00830710).
+# The five rows come before the nGZDrawSoftRender* catch-all so that the 793 template instantiations of
+# tools/coverage-ranges.tsv land on the class whose colour format they convert. No spec has them as its subject.
+nGZDrawSoftRender::cSpanRender1555	2D drawing (span render 1555)	renderer	-	-	-	-
+nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	-	-	-	-
+nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	-	-	-	-
+nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	-	-	-	-
+nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	-	-	-	-
 nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
 cGZAlphaBlt	2D drawing and fonts	renderer	-	-	-	-
 cGZCanvas*	2D drawing and fonts	renderer	-	-	-	-
