@@ -632,15 +632,28 @@ clipped to the city first (`0x0073EBF0`–`0x0073EC80`, TR17). For each cell:
 2. Not `HasDraftClearance`: return false.
 3. If `lot ≠ 0`: the lot at the cell centre (city slot 97, y = sea level; lot manager slot 5) must be null or `lot`.
 4. If the traffic network map has a tile at the cell (`FindNetworkTile(x, z, 0x1F4F, 1)`) with network flag
-   `0x40000` (**bridge**): if the tile's deck height (tile slot 67) is known and
-   `deckHeight − (alt + depth at the cell's north-west vertex) ≥ 20.0`, return **true at once**; otherwise return
-   false.
-5. Otherwise, if the occupant manager has a power pole (type `0x2890D4DE`) whose cell is `(x, z)`: return false.
+   `0x40000` (**bridge**; tile slot 8, `0x0073ED36`–`0x0073ED4D`): read the tile's **passage ceiling** (network
+   occupant slot 67 `GetPassageCeiling(float&)`, `0x00619900`, `0x0073EE95`). It returns false when the occupant has
+   no property `0x4835C6A8`; then return false. Otherwise the float is an absolute world height, the underside of
+   the bridge: the only writer, slot 68 `SetPassageCeiling` (`0x0061B9A0`), is called by the bridge builder
+   (`0x0062F005`) for each piece whose exemplar lacks `0xABE1B5A3`, with the lowest of the cell's four corner
+   heights minus the bridge rule's model offset (network-bridges.md §11.2). If
+   `ceiling − (alt + depth at vertex (x, z))` (terrain slot 9 index; `0x0073EE9F`–`0x0073EEBE`) is **not below
+   20.0** (`0x00AA0F1C`; equal passes, NaN fails), return **true at once**; otherwise return false (TR19).
+5. Otherwise ask the occupant manager (slot 41, `0x0073EDD4`) for the occupants of type `0x2890D4DE` (any
+   flags, -1) touching the single cell min = max = `(x, z)`, the **visited** spiral cell. For each one returned,
+   query `cISC4PowerPoleOccupant` (`0xA8C86142`) and read its own cell (pole slot 8, `GetCell`); the cell is
+   blocked only when that cell **equals** `(x, z)` (`0x0073EDF1`–`0x0073EE2F`). An occupant that fails the query, or
+   a pole whose own cell is another one (its bounds merely overlapping), does not block. Blocked: free the list and
+   return false (`0x0073EEEA`) (TR20). All occupants are visited even after a match; each is released.
 
 If every cell passes: true.
 
 *[quirk]* Step 4 returns true without checking the cells still to be visited, so a high bridge anywhere in the square
 makes the whole square navigable from that point of the spiral.
+
+*[compat]* A bridge piece built from an exemplar with `0xABE1B5A3` has no passage ceiling, so step 4 returns false
+on it however high it is.
 
 Consumers: traffic-network.md §4.10 (ferries and watercraft), zones.md (seaport and waterfront tests), the city
 situation manager (`IsNavigable(r = 2)`, `GetWaterDepthForCell`), the watercraft automata.
@@ -1034,3 +1047,7 @@ outside the borrow), not refuse them.
 22. **Kind 5** (§9.4.1): target 100, `b = 255`, strength 1 → step ≈ 0.996: alt 105 → 104.004; alt 100.5 → 100;
     alt 100 → no change, reported false.
 23. **Sea level after load** (§13.1): `SetSeaLevel(100)`, save, load → `GetSeaLevel() = 250`.
+24. **Bridge clearance** (§10.4 step 4, TR19): a bridge tile with passage ceiling 300, vertex alt 250 and depth 30
+    → 300 − 280 = 20 → true; depth 30.5 → false; a bridge tile with no ceiling property → false.
+25. **Pole cell** (§10.4 step 5, TR20): a pole whose own cell is (5, 5) but whose bounds reach (6, 5) blocks
+    `IsNavigable(5, 5, 0, 0)` and not `IsNavigable(6, 5, 0, 0)`.
