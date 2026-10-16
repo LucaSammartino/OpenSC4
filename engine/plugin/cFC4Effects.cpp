@@ -306,6 +306,7 @@ cFC4EffectsManager::~cFC4EffectsManager() {
 }
 
 bool cFC4EffectsManager::QueryInterface(uint32_t riid, void** ppvObj) {
+
     if (ppvObj == nullptr) return false;
     if (riid == GZIID_cIGZUnknown || riid == kFC4_IID_cISC4EffectsManager) {
         *ppvObj = static_cast<cIGZUnknown*>(static_cast<cFC4ISC4EffectsManager*>(this));
@@ -319,6 +320,7 @@ bool cFC4EffectsManager::QueryInterface(uint32_t riid, void** ppvObj) {
 uint32_t cFC4EffectsManager::AddRef() { return ++refs_; }
 
 uint32_t cFC4EffectsManager::Release() {
+
     if (refs_ == 0) return 0;
     const uint32_t n = --refs_;
     if (n == 0) delete this;
@@ -342,6 +344,7 @@ bool cFC4EffectsManager::LoadDirectory() {
 }
 
 bool cFC4EffectsManager::Init() {
+
     if (inited_) return true;
     const uint32_t sessionSeed = static_cast<uint32_t>(fc4::SettingInt("session_seed", "FC4_SESSION_SEED", 0));
     if (core_ == nullptr) {
@@ -360,7 +363,9 @@ bool cFC4EffectsManager::Init() {
     // §6: the animation tick drives the tick and the finish hook.
     cIGZMessageServer2Ptr ms;
     if (ms) {
+
         ms->AddNotification(static_cast<cIGZMessageTarget2*>(this), kMsgAnimationTick);
+
     } else {
         fc4::Log("effects: WARNING no message server; the animation tick will not arrive");
     }
@@ -371,6 +376,7 @@ bool cFC4EffectsManager::Init() {
 }
 
 bool cFC4EffectsManager::Shutdown() {
+
     cIGZMessageServer2Ptr ms;
     if (ms) ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(this), kMsgAnimationTick);
     if (core_ != nullptr) fc4_effects_shutdown(core_);
@@ -383,6 +389,7 @@ bool cFC4EffectsManager::Shutdown() {
 }
 
 bool cFC4EffectsManager::HasVisualEffect(char const* name) {
+
     if (core_ == nullptr || name == nullptr) return false;
     return fc4_effects_has(core_, name);
 }
@@ -432,6 +439,7 @@ bool cFC4EffectsManager::CreateVisualEffect(char const* name, cISC4VisualEffect*
 }
 
 void cFC4EffectsManager::GetStatsString(cIGZString& stats) {
+
     fc4_effects_state st = {};
     char buf[256] = {};
     if (core_ != nullptr && fc4_effects_get_state(core_, &st)) {
@@ -449,15 +457,29 @@ void cFC4EffectsManager::GetStatsString(cIGZString& stats) {
 }
 
 cISC4EffectMaps* cFC4EffectsManager::GetEffectMaps() {
+
     // Render (§2); out of scope.
     return nullptr;
 }
 
 // [abi-ret] effects.md §11.1 / docs/abi: GetTallestBuildingAltitude returns in
 // st(0) (x87), not EAX. A replacement answers 0.0 without a render layer.
-float cFC4EffectsManager::GetTallestBuildingAltitude() { return 0.0f; }
+float cFC4EffectsManager::GetTallestBuildingAltitude() {
+ return 0.0f; }
+
+// The draw-pass override (§7, EF2). The original finishes effects here and nowhere else.
+// Our sweep runs after each animation tick instead, so this does nothing in the hook mode;
+// in the compat mode it is the finishing pass.
+void cFC4EffectsManager::Update(void* drawContext) {
+    (void)drawContext;
+
+    if (core_ == nullptr) return;
+    const long finish = fc4::SettingInt("effects_finish", "FC4_EFFECTS_FINISH", 0);
+    if (finish != 0) fc4_effects_draw_pass(core_);
+}
 
 bool cFC4EffectsManager::DoMessage(cIGZMessage2* pMessage) {
+
     if (pMessage == nullptr || core_ == nullptr) return true;
     FC4_X87_SCOPE("effects DoMessage", pMessage->GetType());
     const uint32_t type = pMessage->GetType();

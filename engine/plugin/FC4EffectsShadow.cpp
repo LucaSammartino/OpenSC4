@@ -18,6 +18,11 @@
 #include "FC4Config.h"
 #include "FC4EffectsHost.h"
 #include "FC4Log.h"
+#include "GZServPtrs.h"
+#include "cIGZMessage2.h"
+#include "cIGZMessageTarget2.h"
+#include "cIGZMessage2Standard.h"
+#include "cIGZMessageServer2.h"
 #include "fc4.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -47,6 +52,53 @@ struct Shadow {
     EffectsShadowCounts counts;
     bool loggedOnce = false;
 };
+
+
+// The animation tick (effects.md §12).
+constexpr uint32_t kMsgAnimationTick = 0x86AD10EE;
+
+// The shadow's own message target: so the mirror ticks even when the effects
+// manager is the original's (the shadow does not hook the original's vtables).
+class ShadowTarget final : public cIGZMessageTarget2 {
+public:
+    bool QueryInterface(uint32_t riid, void** ppvObj) override {
+        if (ppvObj == nullptr) return false;
+        if (riid == GZIID_cIGZUnknown) {
+            *ppvObj = static_cast<cIGZUnknown*>(this);
+            AddRef();
+            return true;
+        }
+        *ppvObj = nullptr;
+        return false;
+    }
+    uint32_t AddRef() override { return ++refs_; }
+    uint32_t Release() override {
+        if (refs_ == 0) return 0;
+        const uint32_t n = --refs_;
+        if (n == 0) delete this;
+        return n;
+    }
+    bool DoMessage(cIGZMessage2* pMessage) override {
+        if (pMessage == nullptr || pMessage->GetType() != kMsgAnimationTick) return true;
+        uint32_t us = 0;
+        cIGZMessage2Standard* m = nullptr;
+        if (pMessage->QueryInterface(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&m)) && m != nullptr) {
+            us = static_cast<uint32_t>(m->GetData2());
+            m->Release();
+        }
+        EffectsShadowOnTick(us);
+        return true;
+    }
+
+private:
+    uint32_t refs_ = 1;
+};
+
+
+ShadowTarget* TheTarget() {
+    static ShadowTarget* t = new ShadowTarget();
+    return t;
+}
 
 Shadow g;
 
@@ -88,6 +140,12 @@ void EffectsShadowStartup(bool effectsReplaced) {
         const long finish = SettingInt("effects_finish", "FC4_EFFECTS_FINISH", 0);
         fc4_effects_set_finish_mode(g.core, finish != 0 ? FC4_EFFECTS_FINISH_DRAW_PASS : FC4_EFFECTS_FINISH_HOOK);
     }
+    cIGZMessageServer2Ptr ms;
+    if (ms) {
+        ms->AddNotification(static_cast<cIGZMessageTarget2*>(TheTarget()), kMsgAnimationTick);
+    } else {
+        Log("effects shadow: WARNING no message server; the mirror will not tick");
+    }
 }
 
 void EffectsShadowStop() {
@@ -103,6 +161,8 @@ void EffectsShadowStop() {
         fc4_effects_directory_destroy(g.dir);
         g.dir = nullptr;
     }
+    cIGZMessageServer2Ptr ms;
+    if (ms) ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(TheTarget()), kMsgAnimationTick);
     g.byName.clear();
     g = Shadow();
 }

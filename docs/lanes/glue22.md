@@ -65,6 +65,18 @@ meta parent. Here it finishes as soon as its brush, game and meta work is done.
 This is deliberate and stated rather than papered over: faking the particle and decal lifetimes would be inventing
 an animation system and pretending it was the finish test. See question 2.
 
+## What is verified, and what is gated
+
+**Verified in game** (`effects_shadow = 1`): the same-process mirror, the host table, the animation tick and the
+finish hook, the brush accumulator and the game-effect actions reaching the game. Runs are clean with
+`ref_warnings=0` and the shadow summary line is exact.
+
+**Gated (question 9)**: `enable = effects` does **not** register the class unless the run also sets
+`effects_replace = 1`. With the replacement registered the game faults during city init — in its own code,
+through no method of ours (every manager slot is traced and none is entered after `Init`). `FindEnabledClass`
+skips the `effects` entry and logs once when the gate is off, so a run that asks for `enable = effects` stays
+clean and says why.
+
 ## The shadow
 
 `effects_shadow = 1` runs a second `fc4_effects` in the same process, over an `EffectsHostContext` in shadow mode:
@@ -101,6 +113,7 @@ reach whichever manager the city runs.
 | `enable = effects` | off | replaces `cSC4EffectsManager` (CLSID `0x49822F75`) with ours |
 | `effects_shadow` | 0 | `1`: the same-process mirror (FC4EffectsShadow.h) |
 | `effects_finish` | 0 | `0`: finish outside the draw pass (EF2); `1`: the original's draw-pass compat mode |
+| `effects_replace` | 0 | `1`: force the class replacement on (it fails closed by default; question 9) |
 
 `disable` still wins. `FC4_ABI_VERSION` is unchanged at `69u`; this lane adds no `fc4_*` entry point (it consumes
 the ones `cores19` added).
@@ -141,6 +154,28 @@ the ones `cores19` added).
 7. **`CreateVisualEffect` by ID pair** (slot 6, §4.2). The core's directory lookup is by name; the pair's
    `HasEffectDesc` semantics are not modelled, so the ID-pair form returns false and logs. Pollution
    (pollution.md §4.10) is the caller. **What do the two IDs of the pair select on?**
+9. **The class replacement faults the game.** With `effects_replace = 1` (and `enable = effects`) the game
+   raises `0xC0000005 ACCESS_VIOLATION (writing address 0x0000004D)` at `eip=0x0....8023` ("no module"), about
+   100 ms after `cFC4EffectsManager::Init` returns, during city init. Registers at the fault: `eax=0`, `esi=0`,
+   `ebp=0`, `edi=0x0....801E`; the return addresses on the stack are `SimCity 4.exe+0x9D909`, `+0xA175F`,
+   `+0xA1A07`, `+0x5BF36`, `+0x558A5`, with FreeCity4.dll frames much deeper.
+
+   Every slot of ours is traced and **none is entered after `Init`** — not `QueryInterface`, not `GetEffectMaps`,
+   not `DoMessage`, not the draw-pass `Update`. `AddNotification` returns normally. So the game is not calling a
+   method of our object; it is calling through a vtable pointer it reads from an offset our object does not
+   cover. The original `cSC4EffectsManager` is a much larger object than the one interface
+   (`cISC4EffectsManager`, vtable `0x00A9F264`) that docs/abi and effects.md §1 describe — it also carries the
+   draw-pass override at `0x00A9F25C`, and §2 lists state at `+0x1B4`, `+0x1B8`, `+0x1C0`, `+0xB90`, `+0xBAC`,
+   `+0xC84`, `+0xC8C`, which other code may read directly.
+
+   A draw-pass sub-object at `+4` (`cFC4ISC4EffectsDrawPass`, `Update` at slot 3, matching the
+   IUnknown-prefix shape) did not change the fault and `Update` was never called, so the game reaches a
+   **different** offset.
+
+   **What are all the interface sub-objects of the original `cSC4EffectsManager`, at which object offsets, and
+   which of them does city init touch before the first draw?** Until that is known the replacement cannot be
+   registered safely. The shadow path (which never replaces the class) is unaffected.
+
 8. **The two `CreateVisualEffect` overloads' slot order.** effects.md §4.1/§4.2 and docs/abi rows 2274-2275 both
    put the **name** form at slot 7 (`0x005939B0`, 2 dwords, pop 8) and the **ID-pair** form at slot 6
    (`0x00593AE0`, 3 dwords, pop 12). The SDK's `cISC4EffectsManager.h` declares them name-first, which is the

@@ -133,7 +133,9 @@ private:
     float secondary_[3] = {0, 0, 0};
 };
 
-class cFC4EffectsManager final : public cFC4ISC4EffectsManager, public cIGZMessageTarget2 {
+class cFC4EffectsManager final : public cFC4ISC4EffectsManager,
+                              public cFC4ISC4EffectsDrawPass,
+                              public cIGZMessageTarget2 {
 public:
     cFC4EffectsManager();
     ~cFC4EffectsManager();
@@ -156,6 +158,10 @@ public:
     // cIGZMessageTarget2: kSC4MessageAnimationTick (0x86AD10EE) drives §6, and
     // the finish hook runs after each tick (EF2).
     bool DoMessage(cIGZMessage2* pMessage) override;
+
+    // The +4 sub-object: the 3D view's draw pass (§7). In the compat finish mode this is
+    // the only thing that finishes effects; in ours it runs nothing (EF2).
+    void Update(void* drawContext) override;
 
     // For the visual effects and the host callbacks.
     fc4_effects* Core() { return core_; }

@@ -1996,6 +1996,17 @@ public:
     virtual float GetTallestBuildingAltitude() = 0;                                          // 10 x87
 };
 
+
+// The effects manager's second sub-object: the 3D view's draw-pass override.
+// effects.md §7: `Update(SC4DrawContext*)` (`0x00593120`) has no direct callers and is
+// dispatched as a vtable slot at `0x00A9F25C`, next to the cISC4EffectsManager vtable
+// `0x00A9F264`. The entry is the fourth of that vtable (an IUnknown prefix), so the
+// replacement keeps the same shape: IUnknown at slots 0-2 and Update at slot 3.
+class cFC4ISC4EffectsDrawPass : public cIGZUnknown {
+public:
+    virtual void Update(void* drawContext) = 0;  // 3 (render; effects.md §7)
+};
+
 // cISC4DisasterManagerEffect (IID 0xCA7B3F3C, vtable 0x00A9E190, 6 slots;
 // effects.md §11.3). The original implements it as a sub-object of the
 // effect-disaster manager at this-0x24. Slot 3 returns the new instance in
