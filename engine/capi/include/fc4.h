@@ -127,11 +127,11 @@ extern "C" {
  * 58 = adds the demolition utility (fc4_demolition, demolition.md), the dispatch manager
  *      (fc4_dispatch, dispatch.md) and the city situation manager (fc4_citysit,
  *      city-situation.md) (taken as 60 on its lane; renumbered at merge);
- * 71 = lot developer re-answers12 (apply13 lane; renumber at merge): fc4_lotdev_host 178 callbacks:
- *      update_lot_object_altitudes removed (the core moves the objects, LD17), add_network_connection_nodes
- *      takes the nodes (fc4_lotdev_conn_node), lot_occupants, lot_configuration_object and occupant_moved
- *      appended. */
-#define FC4_ABI_VERSION 71u
+ * 59 = lot developer re-answers12 (apply13 lane): fc4_lotdev_host 178 callbacks: update_lot_object_altitudes
+ *      removed (the core moves the objects, LD17), add_network_connection_nodes takes the nodes
+ *      (fc4_lotdev_conn_node), lot_occupants, lot_configuration_object and occupant_moved appended (taken as
+ *      71 on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 59u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -6062,7 +6062,7 @@ typedef struct fc4_lotdev_host {
     uint64_t (*unit_create)(void* user);
     bool (*unit_add)(void* user, uint64_t unit, uint64_t lot);
     bool (*unit_remove)(void* user, uint64_t unit, uint64_t lot);
-    /* UpdateLotObjectAlitudes (§6.5, LD17; ABI 71) */
+    /* UpdateLotObjectAlitudes (§6.5, LD17; ABI 59) */
     void (*lot_occupants)(void* user, uint64_t lot, fc4_token_callback cb, void* ctx); /* lot slot 49, list order */
     /* lot slot 11 GetLotConfigurationObject(occ) to cb (once); false = none */
     bool (*lot_configuration_object)(void* user, uint64_t lot, uint64_t occ, fc4_lotdev_cfg_object_callback cb,
