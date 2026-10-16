@@ -1,0 +1,247 @@
+{
+  "format": 1,
+  "name": "tr18_18_spans",
+  "spec": [
+    "terrain 9.3",
+    "terrain 18.18"
+  ],
+  "description": "ComputeSpansForRectangle as a scan conversion (TR7). The corners are p0 = (a, e), p1 = (a, -e), p2 = (-a, -e), p3 = (-a, e) rotated by (cos, sin) about the centre, a = -w/2, e = -h/2. Each row z in zMin..zMax (truncated corner rows, zMin >= 0, zMax clamped unsigned to cellsZ) takes the edges that cross 16z half-open, the crossing column trunc(trunc(x) / 16); start = the minimum (>= 0), end = the maximum + 1 (clamped unsigned to cellsX); a row no edge crosses has start = INT_MAX and is empty. The worked example (sinkhole, angle 0, 16 x 16 m at (160, 160)): rows 9 (empty) and 10 (9..11), so the sinkhole touches only vertex (10, 10). A 64 m square turned by 45 degrees: the spans follow the crossing columns (8: 9..11, 9: 8..12, 10: 7..13, 11: 8..12, 12: 9..11), not the bounding box 7..13. Clamps at the low corner (start 0) and past the high side (end 20, rows to 20).",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        20,
+        20
+      ],
+      "flat": 300
+    },
+    {
+      "op": "ter_call",
+      "method": "brush_corners",
+      "args": [
+        160,
+        160,
+        16,
+        16,
+        1,
+        0
+      ],
+      "expect": [
+        [
+          152,
+          152
+        ],
+        [
+          152,
+          168
+        ],
+        [
+          168,
+          168
+        ],
+        [
+          168,
+          152
+        ]
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "spans",
+      "args": [
+        152,
+        152,
+        152,
+        168,
+        168,
+        168,
+        168,
+        152
+      ],
+      "expect": [
+        [
+          9,
+          2147483647,
+          20
+        ],
+        [
+          10,
+          9,
+          11
+        ]
+      ]
+    },
+    {
+      "op": "ter_add_brush",
+      "brush": "0x14",
+      "bitmap": {
+        "width": 16,
+        "height": 16,
+        "fill": 0
+      }
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": "0x14",
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0,
+      "out": [
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "baseline": 300,
+      "changed_within": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "changed": 1
+    },
+    {
+      "op": "ter_call",
+      "method": "brush_corners",
+      "args": [
+        160,
+        160,
+        64,
+        64,
+        0.7071067690849304,
+        0.7071067690849304
+      ],
+      "expect": [
+        [
+          160.0,
+          114.74516296386719
+        ],
+        [
+          114.74516296386719,
+          160.0
+        ],
+        [
+          160.0,
+          205.2548370361328
+        ],
+        [
+          205.2548370361328,
+          160.0
+        ]
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "spans",
+      "args": [
+        160.0,
+        114.74516296386719,
+        114.74516296386719,
+        160.0,
+        160.0,
+        205.2548370361328,
+        205.2548370361328,
+        160.0
+      ],
+      "expect": [
+        [
+          7,
+          2147483647,
+          20
+        ],
+        [
+          8,
+          9,
+          11
+        ],
+        [
+          9,
+          8,
+          12
+        ],
+        [
+          10,
+          7,
+          13
+        ],
+        [
+          11,
+          8,
+          12
+        ],
+        [
+          12,
+          9,
+          11
+        ]
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "spans",
+      "args": [
+        -20.0,
+        -20.0,
+        -20.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        -20.0
+      ],
+      "expect": [
+        [
+          0,
+          0,
+          2
+        ],
+        [
+          1,
+          0,
+          2
+        ]
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "spans",
+      "args": [
+        300.0,
+        300.0,
+        300.0,
+        340.0,
+        340.0,
+        340.0,
+        340.0,
+        300.0
+      ],
+      "expect": [
+        [
+          18,
+          2147483647,
+          20
+        ],
+        [
+          19,
+          18,
+          20
+        ],
+        [
+          20,
+          18,
+          20
+        ]
+      ]
+    }
+  ]
+}

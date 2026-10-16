@@ -723,9 +723,9 @@ fn quirk12_shipped_brushes_draw_once_per_application() {
     // One RandomUint32Uniform(5); 6.28 + 0.0087 ≥ 2π wraps once.
     assert_eq!(draws, [5]);
     let w = t.brush(brush_id::PIPE_SINK_HOLE).unwrap().walk_angle;
-    let want = crate::x87::r24(
-        crate::x87::r24(f64::from(DEFAULT_WALK_STEP) + f64::from(6.28f32)) - f64::from(TWO_PI_F32),
-    ) as f32;
+    let want =
+        crate::x87::r24(crate::x87::r24(f64::from(DEFAULT_WALK_STEP) + f64::from(6.28f32)) - f64::from(TWO_PI_F32))
+            as f32;
     assert_eq!(w, want);
     // The oriented component still drew with the stroke angle 0: only the
     // centre vertex.
@@ -1268,16 +1268,10 @@ fn t18_spans_scan_conversion() {
     // The worked example: centre (160, 160), 16 × 16, angle 0.
     let c = Terrain::brush_rectangle_corners(160.0, 160.0, 16.0, 16.0, 1.0, 0.0);
     assert_eq!(c, [(152.0, 152.0), (152.0, 168.0), (168.0, 168.0), (168.0, 152.0)]);
-    assert_eq!(
-        t.compute_spans_for_rectangle(&c),
-        [(9, i32::MAX, 20), (10, 9, 11)]
-    );
+    assert_eq!(t.compute_spans_for_rectangle(&c), [(9, i32::MAX, 20), (10, 9, 11)]);
     // A 64 m square turned by 45°: the spans follow the crossings, not the
     // bounding box (x 114.7..205.3 → columns 7..13 on every row).
-    let (cs, sn) = (
-        std::f32::consts::FRAC_PI_4.cos(),
-        std::f32::consts::FRAC_PI_4.sin(),
-    );
+    let (cs, sn) = (std::f32::consts::FRAC_PI_4.cos(), std::f32::consts::FRAC_PI_4.sin());
     let d = Terrain::brush_rectangle_corners(160.0, 160.0, 64.0, 64.0, cs, sn);
     let spans = t.compute_spans_for_rectangle(&d);
     assert_eq!(
@@ -1436,7 +1430,10 @@ fn kind2_talus_smoothing() {
     t.set_raw_altitude(10, 10, 340.0);
     t.add_brush(9, kind_brush(2, 255));
     let (edge, diag) = t.talus_thresholds();
-    assert_eq!(edge, crate::x87::r24(crate::x87::r24(0.79f32.tan().into()) * 16.0) as f32);
+    assert_eq!(
+        edge,
+        crate::x87::r24(crate::x87::r24(0.79f32.tan().into()) * 16.0) as f32
+    );
     assert!((f64::from(diag) - f64::from(edge) * std::f64::consts::SQRT_2).abs() < 1e-4);
     let mut p = BrushParams {
         strength_scale: 5.0, // capped at 1.0
@@ -1560,7 +1557,10 @@ fn tr11_texture_message_words() {
     // Water only: the rectangle itself.
     t.redisplay_terrain(false, true, VertRect::new(3, 5, 10, 12), 3);
     let p = t.take_posts();
-    assert_eq!((p[1].data1, p[1].data2, p[1].data3, p[1].data4), (0x0003_000A, 0x0005_000C, (300 << 16) + 300, 3));
+    assert_eq!(
+        (p[1].data1, p[1].data2, p[1].data3, p[1].data4),
+        (0x0003_000A, 0x0005_000C, (300 << 16) + 300, 3)
+    );
     // Padded and clamped at the city edge; the whole city uses the cache.
     t.redisplay_terrain(true, false, VertRect::new(0, 0, 16, 15), 1);
     let p = t.take_posts();

@@ -1942,20 +1942,20 @@ random draw returns 0 unless queued.
 | `ter_create` | `cells?` [x, z], `altitudes?` (row-major, z outer, `(x+1)(z+1)` values; `"nan"` allowed) or `flat?`, `sea?`, `tuning?` (`"shipped"` or a partial `TerrainTuning`: `max_height`, `min_height`, `new_sea_level`, `new_flat_height`, `image_height_scale`, `sea_level_min`, `sea_level_max`, `cliff_slope`, `saved_78`), `view_ready?` (true), `new?` (false; true: `Create` from the tuning instead of the altitude array) | a new terrain, replacing the current one |
 | `ter_env` | any of `lots` ([[x, z, lot]]), `bridges` ([[x, z, deck or null]]: null is a bridge whose deck is unknown), `poles` ([[x, z]]), `not_flammable` ([[x, z]]), `burn_cells` (the queue `next_burn_cell` returns), `random` (queued draws) | the world |
 | `ter_set` | `vertex` [x, z] or `vertices` [x0, z0, x1, z1] (inclusive) with any of `altitude`, `depth`, `flags`; or `cell` [x, z] with `depths` (the corners (x, z), (x+1, z), (x, z+1), (x+1, z+1)); or `cached` [min, max] | raw state, no messages, no depth bookkeeping |
-| `ter_add_brush` | `brush` (ID), `bitmap` (`{width, height, fill}` or `{width, height, pixels}`), `angle?`, `expect?` | registers a kind-0 description over the bitmap |
+| `ter_add_brush` | `brush` (ID) and either `bitmap` (`{width, height, fill}` or `{width, height, pixels}`; `brush` one of the shipped `0x11`, `0x12`, `0x14`) or `components` (`[{kind, radius, strength, oriented?, neutral?, bitmap?}]`, `radius` / `strength` one number or five per-level values, `oriented` false, `neutral` 0) with `step?` (the random-walk step in radians, 0); `walk_angle?` (`angle?` is the same), `stroke_angle?`, `expect?` | registers a description: a shipped one (one oriented kind-0 component, the 0.5° default walk step, so every in-bounds `ApplyBrush` logs one `random` n = 5) or a custom one |
 
 ### Calls and checks
 
 | op | Arguments | Effect / check |
 |---|---|---|
-| `ter_call` | `method`, `args?`, `expect?`, `expect_bits?` (the f32's bits) | the queries `altitude`, `altitude_at_index`, `altitude_at_vertex`, `altitude_at_nearest_grid`, `altitude_checksum`, `cell_corner_altitudes`, `location_is_in_bounds`, `face_normal` ([x, y, z] or null when untouched), `min_height`, `max_height`, `min_allowed_height`, `max_allowed_height`, `vert_index`, `sea_level`, `water_level`, `water_depth_at_vertex`, `water_depth_at_index`, `max_surface_level`, `cell_has_water`, `cell_has_land`, `is_land_vertex`, `is_water_vertex`, `is_sea_vertex`, `water_depth_for_cell`, `has_draft_clearance`, `water_type`, `is_navigable` ([x, z, r, lot]), `is_triangulation_flipped`, `cell_flags`, `terrain_type`; the setters `raise_vertex`, `lower_vertex`, `set_altitude_at_vertex`, `set_altitude`, `set_altitude_rect`, `lock_altitude` ([x0, z0, x1, z1, lock]), `set_sea_level`, `set_terrain_type`; the messages `redisplay` ([terrain, water, x0, z0, x1, z1, data4]), `redisplay_cells` (slot 69, the same arguments as cell corners), `begin_long_terrain_operation`, `end_long_terrain_operation`, `post_city_init`; the bodies of water `update_bodies`, `body` ([x, z] → the ID, 0 for none), `bodies_map` |
+| `ter_call` | `method`, `args?`, `expect?`, `expect_bits?` (the f32's bits) | the queries `altitude`, `altitude_at_index`, `altitude_at_vertex`, `altitude_at_nearest_grid`, `altitude_checksum`, `cell_corner_altitudes`, `location_is_in_bounds`, `face_normal` ([x, y, z] or null when untouched), `min_height`, `max_height`, `min_allowed_height`, `max_allowed_height`, `vert_index`, `sea_level`, `water_level`, `water_depth_at_vertex`, `water_depth_at_index`, `max_surface_level`, `cell_has_water`, `cell_has_land`, `is_land_vertex`, `is_water_vertex`, `is_sea_vertex`, `water_depth_for_cell`, `has_draft_clearance`, `water_type`, `is_navigable` ([x, z, r, lot]), `is_triangulation_flipped`, `cell_flags`, `terrain_type`; the setters `raise_vertex`, `lower_vertex`, `set_altitude_at_vertex`, `set_altitude`, `set_altitude_rect`, `lock_altitude` ([x0, z0, x1, z1, lock]), `set_sea_level`, `set_terrain_type`; the messages `redisplay` ([terrain, water, x0, z0, x1, z1, data4]), `redisplay_cells` (slot 69, the same arguments as cell corners), `begin_long_terrain_operation`, `end_long_terrain_operation`, `post_city_init`; the bodies of water `update_bodies`, `body` ([x, z] → the ID, 0 for none), `bodies_map`; round 2: `lerped_water_level` ([x, z] metres), `flooding_altitude` ([x, z]), `water_velocity` ([x, z] → [3]), `sediment_at` ([x, z] metres), `water_display_state`, `set_water_display_state` ([state] → whether it posted), `default_brush_level`, `neighbor_mask` ([x, z]), `talus_angle`, `set_talus_angle` ([radians]), `brush_angles` ([id] → [walk, stroke] or null), `set_brush_angles` ([id, walk, stroke]), `brush_corners` ([cx, cz, w, h, cos, sin] → four [x, z]), `spans` (the four corners as [x0, z0, … x3, z3] → `ComputeSpansForRectangle`'s [[z, start, end]]) |
 | `ter_apply_brush` | `brush`, `from` [x, z], `to?`, `level?`, `redisplay?`, `strength?` (1), `radius?` (1), `data4?`, `target?`, `expect?`, `out?` ([x0, z0, x1, z1] or null: empty) | `ApplyBrush` with a `BrushParams` |
 | `ter_expect` | `state` (partial: `cells`, `sea_level`, `min_height`, `max_height` (the cache), `view_ready`, `terrain_type`, `saved_78`, `posts_pending`) | the terrain object |
 | `ter_expect_vertices` | `vertex` [x, z] with any of `altitude`, `depth`, `flags`; or `rect?` (the whole terrain) with any of `min`, `max`, `baseline` + `changed_within` (the only vertices that differ from `baseline`) and `changed` (how many) | the height field |
 | `ter_lava_start` | `at` [x, z] (metres), `radius?` (20), `expect?` (`{source, active, burn}` rectangles) | a `Lava` over the terrain |
 | `ter_lava_set` | `vertex` [x, z] or `around` [x, z] (the eight neighbours) with any of `level`, `production`, `solidification` | lava state |
-| `ter_lava_call` | `method`, `args?`, `expect?` | `flow_amount` and `transfer` ([x, z, dt] → `{amount, to, mode}`; `mode` is `none`, `ignite` or `quick_burn`), `level` ([x, z]), `flow` ([dt], one `DoLavaFlow`), `burn`, `rects` |
-| `ter_record` | `sizes?` (`{misc, altitudes, properties, edges: [4]}`), `round_trip?` (write, load into a fresh terrain, compare every field), `edge?` (`{side, count, values?}`) | the §13.1 records |
+| `ter_lava_call` | `method`, `args?`, `expect?` | `flow_amount` and `transfer` ([x, z, dt] → `{amount, to, mode}`; `mode` is `none`, `ignite` or `burn`), `level` ([x, z]), `flow` ([dt], one `DoLavaFlow`), `burn`, `rects`, `lowest_neighbour` ([x, z] → [x, z] or null), `set_things_on_fire` ([x, z, old, amount] → the mode) |
+| `ter_record` | `sizes?` (`{misc, altitudes, properties, edges: [4]}`), `round_trip?` (write, load into a fresh terrain, compare every field), `sea_after_load?` (write, load, the loaded sea level), `edge?` (`{side, count, values?}`) | the §13.1 records |
 | `ter_expect_events` / `ter_expect_event_count` / `ter_clear_events` | see the shared conventions | host calls |
 
 Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_burn` (`x`, `z`), `cause`
@@ -3033,13 +3033,22 @@ assessment, re-entrant occupant removal and the default generators.
 | 8 `SetAltitude(x, z, h)` clamps, the lock, the unchecked index | `tr18_08_set_altitude_xz` |
 | 9 `SetSeaLevel` range and message order | `tr18_09_set_sea_level` |
 | 10 `RedisplayTerrain` packing, the view-ready gate, slot 69, the long-operation messages | `tr18_10_redisplay_packing` |
-| 11 the pipe-burst sinkhole (kind 0 lower; a neutral bitmap) | `tr18_11_pipe_burst_sinkhole` |
+| 11 the pipe-burst sinkhole (kind 0 lower; a neutral bitmap; the walk draw; the texture message's words) | `tr18_11_pipe_burst_sinkhole` |
 | 12 an unknown brush | `tr18_12_unknown_brush` |
 | 13 the lava flow rule and `SetThingsOnFire` | `tr18_13_lava_flow_rule` |
 | 14 the record sizes and round trip | `tr18_14_records` |
+| 15 the lava neighbour order and the `GetNeighbors` mask | `tr18_15_lava_neighbour_order` |
+| 16 `SetThingsOnFire` (x outer, z inner; one flammable cell) | `tr18_16_set_things_on_fire` |
+| 17 `GetWaterType` with a NaN depth, `AltitudeAtWhichFloodingWillOccur`, `GetLerpedWaterLevel`, `GetWaterVelocity`, `GetSedimentValue(x, z)` | `tr18_17_water_type_nan_and_flooding` |
+| 18 `ComputeSpansForRectangle` (the worked example, 45°, the clamps) | `tr18_18_spans` |
+| 19 the walk and stroke angles | `tr18_19_brush_angles` |
+| 20 the default brush level | `tr18_20_default_brush_level` |
+| 21 `SetWaterSurfaceDisplayState` posts only on a change | `tr18_21_water_display_state` |
+| 22 kind 5 (level toward the target) | `tr18_22_kind5_level` |
+| 23 the sea level after a load | `tr18_23_sea_level_after_load` |
 | other sections | `tr00_cached_min_max_stale` (§4.6), `tr00_navigability_and_bodies` (§10.3, §10.4), `nt05_economy_modifier` (nation §5) |
 
-The core's unit tests (`fc4_core::terrain`) also cover the other brush kinds, the lava start and burn rectangles,
+The core's unit tests (`fc4_core::terrain`) also cover the other brush kinds (2 talus smoothing, 7 the mark), the lava start and burn rectangles,
 the record versions and truncation, the tuning exemplar and the bodies-of-water flood fill; `fc4_capi`'s `terrain_tests` cover the C ABI.
 
 ## Coverage (automata §14)

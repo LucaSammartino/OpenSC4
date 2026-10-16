@@ -68,7 +68,11 @@ impl Terrain {
         let i = self.vert_index(x, z);
         let vx = self.verts_x;
         let mut m = self.depth_raw(i);
-        for j in [i.wrapping_add(1), i.wrapping_add(1).wrapping_add(vx), i.wrapping_add(vx)] {
+        for j in [
+            i.wrapping_add(1),
+            i.wrapping_add(1).wrapping_add(vx),
+            i.wrapping_add(vx),
+        ] {
             let c = self.depth_raw(j);
             if c < m {
                 m = c;
