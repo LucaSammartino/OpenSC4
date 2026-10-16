@@ -28,8 +28,8 @@ use std::ffi::c_void;
 use std::rc::Rc;
 
 use fc4_core::lot_config_manager::{
-    lot_object_array, query_interface, BuildingInfo, LcmService, LotConfigCatalogue, LotConfigHost,
-    LotConfigManager, LotConfigObject, SharedLotConfigCatalogue,
+    lot_object_array, query_interface, BuildingInfo, LcmService, LotConfigCatalogue, LotConfigHost, LotConfigManager,
+    LotConfigObject, SharedLotConfigCatalogue,
 };
 use fc4_core::property::PropertyHolder;
 use fc4_core::stl::StlHashSet;
@@ -207,7 +207,11 @@ fn object_out(o: &LotConfigObject) -> fc4_lotdev_cfg_object {
         foundation: o.foundation,
         tag: o.tag,
         n_ids: o.ids.len() as u32,
-        ids: if o.ids.is_empty() { std::ptr::null() } else { o.ids.as_ptr() },
+        ids: if o.ids.is_empty() {
+            std::ptr::null()
+        } else {
+            o.ids.as_ptr()
+        },
     }
 }
 
@@ -299,7 +303,16 @@ impl LotConfigHost for CHost {
         cb!(self, create_configuration, 0)
     }
     fn load_configuration(&self, cfg: u64, key: ResKey, detail: u32) -> bool {
-        cb!(self, load_configuration, false, cfg, key.type_id, key.group, key.instance, detail)
+        cb!(
+            self,
+            load_configuration,
+            false,
+            cfg,
+            key.type_id,
+            key.group,
+            key.instance,
+            detail
+        )
     }
     fn config_id(&self, cfg: u64) -> u32 {
         cb!(self, config_id, 0, cfg)
@@ -338,12 +351,18 @@ impl LotConfigHost for CHost {
             non_monopoly: info.non_monopoly.into(),
             reserved: [0; 3],
             n_groups: info.groups.len() as u32,
-            groups: if info.groups.is_empty() { std::ptr::null() } else { info.groups.as_ptr() },
+            groups: if info.groups.is_empty() {
+                std::ptr::null()
+            } else {
+                info.groups.as_ptr()
+            },
         };
         cb!(self, set_config_building_info, (), cfg, &c)
     }
     fn config_retaining_walls(&self, cfg: u64) -> Vec<u32> {
-        collect(|f, ctx| cb!(self, config_retaining_walls, (), cfg, f, ctx)).1.values
+        collect(|f, ctx| cb!(self, config_retaining_walls, (), cfg, f, ctx))
+            .1
+            .values
     }
     fn set_config_retaining_walls(&self, cfg: u64, ids: Vec<u32>) {
         cb!(self, set_config_retaining_walls, (), cfg, ids.as_ptr(), ids.len())
@@ -353,7 +372,16 @@ impl LotConfigHost for CHost {
     }
     fn create_generic_configuration(&self, ty: u32, size: (u32, u32), objects: Vec<LotConfigObject>) -> Option<u64> {
         let c: Vec<fc4_lotdev_cfg_object> = objects.iter().map(object_out).collect();
-        opt(cb!(self, create_generic_configuration, 0, ty, size.0, size.1, c.as_ptr(), c.len()))
+        opt(cb!(
+            self,
+            create_generic_configuration,
+            0,
+            ty,
+            size.0,
+            size.1,
+            c.as_ptr(),
+            c.len()
+        ))
     }
     fn acquire_service(&self, service: LcmService) -> Option<u64> {
         let s = match service {
@@ -702,7 +730,11 @@ pub unsafe extern "C" fn fc4_lot_config_configuration_map(
 
 /// Slot 21: the family set in bucket order. As the map.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_family_id_set(m: *const fc4_lot_config, out: *mut u32, capacity: usize) -> usize {
+pub unsafe extern "C" fn fc4_lot_config_family_id_set(
+    m: *const fc4_lot_config,
+    out: *mut u32,
+    capacity: usize,
+) -> usize {
     with_m(m, 0, |h| copy_out(&h.m.family_id_set(), out, capacity))
 }
 

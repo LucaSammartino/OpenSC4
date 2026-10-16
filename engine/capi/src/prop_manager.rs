@@ -252,7 +252,14 @@ impl PropHost for CHost {
         cb!(self, for_each_exemplar_key, false, Some(collect_key), ctx).then_some(keys)
     }
     fn load_exemplar(&self, key: ResKey) -> Option<Rc<PropertyHolder>> {
-        let p = cb!(self, load_exemplar, std::ptr::null_mut(), key.type_id, key.group, key.instance);
+        let p = cb!(
+            self,
+            load_exemplar,
+            std::ptr::null_mut(),
+            key.type_id,
+            key.group,
+            key.instance
+        );
         // SAFETY: the host hands over a NEW fc4_props (or NULL).
         unsafe { take_props(p) }
     }
@@ -356,7 +363,8 @@ impl PropHost for CHost {
     }
     fn occupants_in_box(&self, min: [f32; 3], max: [f32; 3], usage: u32) -> Option<Vec<u64>> {
         let mut ok = false;
-        let v = collect_tokens(|f, ctx| ok = cb!(self, occupants_in_box, false, min.as_ptr(), max.as_ptr(), usage, f, ctx));
+        let v =
+            collect_tokens(|f, ctx| ok = cb!(self, occupants_in_box, false, min.as_ptr(), max.as_ptr(), usage, f, ctx));
         ok.then_some(v)
     }
     fn occupants_in_cell_rect(&self, rect: (i32, i32, i32, i32), usage: u32) -> Option<Vec<u64>> {
@@ -399,7 +407,14 @@ impl PropHost for CHost {
         cb!(self, set_building_props, (), building, props.as_ptr(), props.len())
     }
     fn add_building_props_property(&self, building: u64, props: &[u64]) {
-        cb!(self, add_building_props_property, (), building, props.as_ptr(), props.len())
+        cb!(
+            self,
+            add_building_props_property,
+            (),
+            building,
+            props.as_ptr(),
+            props.len()
+        )
     }
     fn remove_building_props_property(&self, building: u64) {
         cb!(self, remove_building_props_property, (), building)
@@ -411,7 +426,14 @@ impl PropHost for CHost {
         cb!(self, terrain_altitude, 0.0, x, z)
     }
     fn decal_set_text(&self, decal: u64, text: &str) {
-        cb!(self, decal_set_text, (), decal, text.as_ptr() as *const c_char, text.len())
+        cb!(
+            self,
+            decal_set_text,
+            (),
+            decal,
+            text.as_ptr() as *const c_char,
+            text.len()
+        )
     }
     fn decal_slot8(&self, decal: u64, values: [f32; 3]) {
         cb!(self, decal_slot8, (), decal, values.as_ptr())
@@ -832,7 +854,11 @@ pub unsafe extern "C" fn fc4_prop_manager_add_prop_new(
 
 /// Slot 36 `AddBuildingProp(building, prop)`.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_prop_manager_add_building_prop(m: *mut fc4_prop_manager, building: u64, prop: u64) -> bool {
+pub unsafe extern "C" fn fc4_prop_manager_add_building_prop(
+    m: *mut fc4_prop_manager,
+    building: u64,
+    prop: u64,
+) -> bool {
     with_m(m, false, |h| h.m.add_building_prop(building, prop))
 }
 
@@ -872,7 +898,9 @@ pub unsafe extern "C" fn fc4_prop_manager_get_city_props_world(
     out: fc4_token_callback,
     ctx: *mut c_void,
 ) -> bool {
-    query(m, in_, n_in, out, ctx, |p, l| p.get_city_props_world(l, (x1, z1, x2, z2)))
+    query(m, in_, n_in, out, ctx, |p, l| {
+        p.get_city_props_world(l, (x1, z1, x2, z2))
+    })
 }
 
 /// Slots 18 / 30 `GetCityProps` / `GetStreetProps(list, SC4Rect<int32>)`
@@ -964,7 +992,12 @@ pub unsafe extern "C" fn fc4_prop_manager_remove_city_props_cells(
 /// `RemoveBuildingProps(x, z)` (`usage` 2, 4 or 3). Slot 33 returns nothing
 /// (true here).
 #[no_mangle]
-pub unsafe extern "C" fn fc4_prop_manager_remove_props_at(m: *mut fc4_prop_manager, usage: u32, x: i32, z: i32) -> bool {
+pub unsafe extern "C" fn fc4_prop_manager_remove_props_at(
+    m: *mut fc4_prop_manager,
+    usage: u32,
+    x: i32,
+    z: i32,
+) -> bool {
     with_m(m, false, |h| match usage {
         2 => h.m.remove_lot_props_at(x, z),
         3 => h.m.remove_building_props_at(x, z),

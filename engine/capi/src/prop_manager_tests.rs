@@ -185,7 +185,14 @@ unsafe extern "C" fn create_builtin_prop(u: *mut c_void, kind: u32) -> u64 {
 unsafe extern "C" fn set_prop_type(u: *mut c_void, p: u64, id: u32) {
     game(u).occs.borrow_mut().get_mut(&p).unwrap().prop_type = id;
 }
-unsafe extern "C" fn attach_exemplar(u: *mut c_void, _p: u64, _t: u32, _g: u32, i: u32, _global: bool) -> *mut fc4_props {
+unsafe extern "C" fn attach_exemplar(
+    u: *mut c_void,
+    _p: u64,
+    _t: u32,
+    _g: u32,
+    i: u32,
+    _global: bool,
+) -> *mut fc4_props {
     game(u).props_of(i)
 }
 unsafe extern "C" fn set_bounding_box(u: *mut c_void, p: u64, min: *const f32, max: *const f32) {
@@ -308,7 +315,11 @@ unsafe extern "C" fn building_props(u: *mut c_void, b: u64, f: fc4_token_callbac
     }
 }
 unsafe extern "C" fn set_building_props(u: *mut c_void, b: u64, p: *const u64, n: usize) {
-    let v = if n == 0 { Vec::new() } else { std::slice::from_raw_parts(p, n).to_vec() };
+    let v = if n == 0 {
+        Vec::new()
+    } else {
+        std::slice::from_raw_parts(p, n).to_vec()
+    };
     game(u).building_props.borrow_mut().insert(b, Some(Some(v)));
 }
 unsafe extern "C" fn add_building_props_property(u: *mut c_void, b: u64, p: *const u64, n: usize) {
@@ -452,7 +463,11 @@ unsafe extern "C" fn push_token(ctx: *mut c_void, t: u64) {
     (*(ctx as *mut Vec<u64>)).push(t);
 }
 unsafe extern "C" fn take_u32s(ctx: *mut c_void, v: *const u32, n: usize) {
-    *(ctx as *mut Vec<u32>) = if n == 0 { Vec::new() } else { std::slice::from_raw_parts(v, n).to_vec() };
+    *(ctx as *mut Vec<u32>) = if n == 0 {
+        Vec::new()
+    } else {
+        std::slice::from_raw_parts(v, n).to_vec()
+    };
 }
 
 fn list_of(f: impl FnOnce(fc4_token_callback, *mut c_void) -> bool) -> (bool, Vec<u64>) {
@@ -483,7 +498,10 @@ fn create_rejects_a_short_table() {
         assert!(fc4_prop_manager_create(std::ptr::null(), std::ptr::null(), 0).is_null());
         assert!(fc4_prop_manager_query_interface(0x2832_6F3E));
         assert!(!fc4_prop_manager_query_interface(0x1234_5678));
-        assert_eq!(fc4_prop_manager_all_prop_types(std::ptr::null(), std::ptr::null_mut(), 0), 0);
+        assert_eq!(
+            fc4_prop_manager_all_prop_types(std::ptr::null(), std::ptr::null_mut(), 0),
+            0
+        );
         fc4_prop_manager_destroy(std::ptr::null_mut());
         fc4_prop_catalogue_destroy(std::ptr::null_mut());
     }
@@ -508,9 +526,15 @@ fn the_catalogue_is_built_once_per_process() {
         ]
     );
     let c = cat_state(cat);
-    assert_eq!((c.built, c.callback_registered, c.types, c.families, c.profiles), (1, 1, 2, 2, 2));
+    assert_eq!(
+        (c.built, c.callback_registered, c.types, c.families, c.profiles),
+        (1, 1, 2, 2, 2)
+    );
     let s = state(m);
-    assert_eq!((s.initialized, s.occupant_manager, s.resource_manager, s.lot_manager), (1, OM, RM, LM));
+    assert_eq!(
+        (s.initialized, s.occupant_manager, s.resource_manager, s.lot_manager),
+        (1, OM, RM, LM)
+    );
     assert_eq!(s.view_filter, VIEW);
     unsafe {
         let types = u32s(|o, n| fc4_prop_manager_all_prop_types(m, o, n));
@@ -521,11 +545,20 @@ fn the_catalogue_is_built_once_per_process() {
         let mut v: Vec<u32> = Vec::new();
         let ctx = &mut v as *mut Vec<u32> as *mut c_void;
         let seed = [7u32, 8];
-        assert_eq!(fc4_prop_manager_prop_types_by_family(m, 0xF1, seed.as_ptr(), 2, Some(take_u32s), ctx), 2);
+        assert_eq!(
+            fc4_prop_manager_prop_types_by_family(m, 0xF1, seed.as_ptr(), 2, Some(take_u32s), ctx),
+            2
+        );
         assert_eq!(v, [0x100, 0x101]);
-        assert_eq!(fc4_prop_manager_prop_types_by_family(m, 0x100, seed.as_ptr(), 2, Some(take_u32s), ctx), 0);
+        assert_eq!(
+            fc4_prop_manager_prop_types_by_family(m, 0x100, seed.as_ptr(), 2, Some(take_u32s), ctx),
+            0
+        );
         assert_eq!(v, [0x100]);
-        assert_eq!(fc4_prop_manager_prop_types_by_family(m, 0x999, seed.as_ptr(), 2, Some(take_u32s), ctx), 0);
+        assert_eq!(
+            fc4_prop_manager_prop_types_by_family(m, 0x999, seed.as_ptr(), 2, Some(take_u32s), ctx),
+            0
+        );
         assert_eq!(v, [7, 8]);
         assert!(fc4_prop_manager_is_prop_type_valid(m, 0x101));
         assert!(!fc4_prop_manager_is_prop_type_valid(m, 0x102));
@@ -556,7 +589,10 @@ fn the_catalogue_is_built_once_per_process() {
 
         // A second manager of the process does not rebuild or post.
         let m2 = ready(&g, cat);
-        assert!(!g.take().iter().any(|l| l.starts_with("post") || l.starts_with("shutdown callback")));
+        assert!(!g
+            .take()
+            .iter()
+            .any(|l| l.starts_with("post") || l.starts_with("shutdown callback")));
         assert!(fc4_prop_manager_is_prop_type_valid(m2, 0x100));
         // The application shutdown callback tears the catalogue down.
         fc4_prop_catalogue_app_shutdown(cat);
@@ -617,7 +653,8 @@ fn insertion_by_usage_and_the_lot_query_boundary() {
         assert_eq!((g.refs(city), g.refs(inside)), (0, 0));
         assert_eq!(fc4_prop_manager_add_prop_new(m, 3, 0x100, [0.0; 3].as_ptr(), 0), 0);
 
-        let (ok, v) = list_of(|f, c| fc4_prop_manager_get_city_props_world(m, 32.0, 32.0, 48.0, 48.0, std::ptr::null(), 0, f, c));
+        let (ok, v) =
+            list_of(|f, c| fc4_prop_manager_get_city_props_world(m, 32.0, 32.0, 48.0, 48.0, std::ptr::null(), 0, f, c));
         assert!(ok);
         assert_eq!(v, [city]);
         assert_eq!(g.refs(city), 1);
@@ -636,7 +673,14 @@ fn insertion_by_usage_and_the_lot_query_boundary() {
         // Removing: hide, remove, shut down.
         g.take();
         assert!(fc4_prop_manager_remove_prop(m, edge));
-        assert_eq!(g.take(), [format!("hide {edge:X}"), format!("remove {edge:X}"), format!("shutdown {edge:X}")]);
+        assert_eq!(
+            g.take(),
+            [
+                format!("hide {edge:X}"),
+                format!("remove {edge:X}"),
+                format!("shutdown {edge:X}")
+            ]
+        );
         fc4_prop_manager_destroy(m);
     }
 }
@@ -666,7 +710,14 @@ fn building_props_vector() {
         assert_eq!(g.building_props.borrow()[&b], Some(Some(vec![p2])));
         g.take();
         assert!(fc4_prop_manager_remove_building_prop(m, b, p2));
-        assert_eq!(g.take(), [format!("remove {p2:X}"), format!("shutdown {p2:X}"), format!("remove property {b:X}")]);
+        assert_eq!(
+            g.take(),
+            [
+                format!("remove {p2:X}"),
+                format!("shutdown {p2:X}"),
+                format!("remove property {b:X}")
+            ]
+        );
         // No property: GetBuildingProps is false.
         let (ok, v) = list_of(|f, c| fc4_prop_manager_get_props_of(m, 3, b, std::ptr::null(), 0, f, c));
         assert!(!ok && v.is_empty());
@@ -681,7 +732,13 @@ fn messages_view_filter_and_text_decal() {
     let m = ready(&g, std::ptr::null());
     g.take();
     unsafe {
-        assert!(fc4_prop_manager_do_message(m, POST_VIEW_FILTER_CHANGE, 0x99, std::ptr::null(), 0));
+        assert!(fc4_prop_manager_do_message(
+            m,
+            POST_VIEW_FILTER_CHANGE,
+            0x99,
+            std::ptr::null(),
+            0
+        ));
         assert_eq!(state(m).view_filter, 0x99);
         assert_eq!((g.refs(0x99), g.refs(VIEW)), (1, 0));
         let text = b"Hi";
@@ -691,10 +748,19 @@ fn messages_view_filter_and_text_decal() {
             value: v,
         };
         let args = [arg(0.0), arg(32.0), arg(48.0), arg(0.5)];
-        assert!(fc4_prop_manager_do_message(m, CREATE_TEXT_DECAL, 0, args.as_ptr(), args.len()));
+        assert!(fc4_prop_manager_do_message(
+            m,
+            CREATE_TEXT_DECAL,
+            0,
+            args.as_ptr(),
+            args.len()
+        ));
         let log = g.take();
         assert_eq!(log[0], "decal");
-        assert_eq!(&log[log.len() - 4..], ["text Hi", "slot8 1 1 1", "slot10 1", "slot6 0.5"]);
+        assert_eq!(
+            &log[log.len() - 4..],
+            ["text Hi", "slot8 1 1 1", "slot10 1", "slot6 0.5"]
+        );
         // Two arguments: nothing.
         assert!(fc4_prop_manager_do_message(m, CREATE_TEXT_DECAL, 0, args.as_ptr(), 2));
         assert!(g.take().is_empty());

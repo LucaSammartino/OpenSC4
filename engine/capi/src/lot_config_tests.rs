@@ -54,7 +54,11 @@ impl Obj {
             max: o.footprint_max,
             min: o.footprint_min,
             tag: o.tag,
-            ids: if o.n_ids == 0 { Vec::new() } else { std::slice::from_raw_parts(o.ids, o.n_ids as usize).to_vec() },
+            ids: if o.n_ids == 0 {
+                Vec::new()
+            } else {
+                std::slice::from_raw_parts(o.ids, o.n_ids as usize).to_vec()
+            },
         }
     }
     fn to_c(&self) -> fc4_lotdev_cfg_object {
@@ -256,7 +260,11 @@ unsafe extern "C" fn config_primary_building(
 }
 unsafe extern "C" fn set_config_building_info(u: *mut c_void, c: u64, i: *const fc4_lot_config_building_info) {
     let i = &*i;
-    let groups = if i.n_groups == 0 { Vec::new() } else { std::slice::from_raw_parts(i.groups, i.n_groups as usize).to_vec() };
+    let groups = if i.n_groups == 0 {
+        Vec::new()
+    } else {
+        std::slice::from_raw_parts(i.groups, i.n_groups as usize).to_vec()
+    };
     game(u).configs.borrow_mut().get_mut(&c).unwrap().info =
         Some((i.min_capacity, i.max_capacity, groups, i.non_monopoly != 0));
 }
@@ -264,7 +272,11 @@ unsafe extern "C" fn config_retaining_walls(u: *mut c_void, c: u64, f: fc4_u32s_
     send(f, ctx, &game(u).cfg(c).walls);
 }
 unsafe extern "C" fn set_config_retaining_walls(u: *mut c_void, c: u64, ids: *const u32, n: usize) {
-    let v = if n == 0 { Vec::new() } else { std::slice::from_raw_parts(ids, n).to_vec() };
+    let v = if n == 0 {
+        Vec::new()
+    } else {
+        std::slice::from_raw_parts(ids, n).to_vec()
+    };
     game(u).configs.borrow_mut().get_mut(&c).unwrap().walls = v;
 }
 unsafe extern "C" fn is_retaining_wall_valid(u: *mut c_void, id: u32) -> bool {
@@ -509,7 +521,12 @@ fn city() -> Box<Game> {
         LotEx {
             families: vec![0xF1],
             size: (2, 2),
-            objects: vec![obj(0, 3, &[0xB0]), obj(1, 0, &[0xC0]), obj(1, 3, &[0x600]), obj(4, 2, &[0x700])],
+            objects: vec![
+                obj(0, 3, &[0xB0]),
+                obj(1, 0, &[0xC0]),
+                obj(1, 3, &[0x600]),
+                obj(4, 2, &[0x700]),
+            ],
         },
     );
     g.lot_exemplar(
@@ -601,7 +618,10 @@ fn create_rejects_a_short_table() {
         assert_eq!(fc4_lot_config_fix(std::ptr::null_mut(), 1), 0);
         fc4_lot_config_destroy(std::ptr::null_mut());
         fc4_lot_config_catalogue_destroy(std::ptr::null_mut());
-        assert_eq!(fc4_lot_config_object_array(std::ptr::null(), 3, std::ptr::null_mut(), None, std::ptr::null_mut()), 0);
+        assert_eq!(
+            fc4_lot_config_object_array(std::ptr::null(), 3, std::ptr::null_mut(), None, std::ptr::null_mut()),
+            0
+        );
     }
 }
 
@@ -627,7 +647,10 @@ fn the_catalogue_and_its_rebuild_on_a_detail_change() {
         let kinds: Vec<u32> = g.cfg(c10).objects.iter().map(|o| o.kind).collect();
         assert_eq!(kinds, [0, 1, 4]);
         let o = &g.cfg(c10).objects[0];
-        assert_eq!((o.min, o.max, o.offset, o.tag), ([4.0, 4.0], [12.0, 12.0], [8.0, 0.0, 8.0], 7));
+        assert_eq!(
+            (o.min, o.max, o.offset, o.tag),
+            ([4.0, 4.0], [12.0, 12.0], [8.0, 0.0, 8.0], 7)
+        );
         // A second manager at the same detail keeps the catalogue.
         let m2 = ready(&g, cat);
         assert_eq!(configuration(m2, 0x10), c10);
@@ -692,20 +715,48 @@ fn the_add_remove_table_and_set_queries() {
         fc4_lot_config_register_filter(m, 0x77);
         assert_eq!(state(m).filters, 1);
         let (mut cached, mut n) = (true, 0usize);
-        assert!(fc4_lot_config_filter_cache(m, 0x77, &mut cached, std::ptr::null_mut(), 0, &mut n));
+        assert!(fc4_lot_config_filter_cache(
+            m,
+            0x77,
+            &mut cached,
+            std::ptr::null_mut(),
+            0,
+            &mut n
+        ));
         assert!(!cached);
         let v = tokens(|f, c| fc4_lot_config_configurations(m, 0, 0x77, 0, f, c));
         assert_eq!(v.len(), 2);
         let calls = g.filter_calls.get();
         let again = tokens(|f, c| fc4_lot_config_configurations(m, 0, 0x77, 0, f, c));
         assert_eq!((again, g.filter_calls.get()), (v.clone(), calls));
-        assert!(fc4_lot_config_filter_cache(m, 0x77, &mut cached, std::ptr::null_mut(), 0, &mut n));
+        assert!(fc4_lot_config_filter_cache(
+            m,
+            0x77,
+            &mut cached,
+            std::ptr::null_mut(),
+            0,
+            &mut n
+        ));
         assert_eq!((cached, n), (true, 2));
         fc4_lot_config_flush(m);
-        assert!(fc4_lot_config_filter_cache(m, 0x77, &mut cached, std::ptr::null_mut(), 0, &mut n));
+        assert!(fc4_lot_config_filter_cache(
+            m,
+            0x77,
+            &mut cached,
+            std::ptr::null_mut(),
+            0,
+            &mut n
+        ));
         assert!(!cached);
         fc4_lot_config_unregister_filter(m, 0x77);
-        assert!(!fc4_lot_config_filter_cache(m, 0x77, &mut cached, std::ptr::null_mut(), 0, &mut n));
+        assert!(!fc4_lot_config_filter_cache(
+            m,
+            0x77,
+            &mut cached,
+            std::ptr::null_mut(),
+            0,
+            &mut n
+        ));
         fc4_lot_config_destroy(m);
     }
 }
@@ -725,11 +776,29 @@ fn building_tests_footprints_and_object_ids() {
         assert!(!fc4_lot_config_has_building(m, 0, 0xB0, false, &mut i));
 
         let mut r = [0.0f32; 4];
-        assert!(fc4_lot_config_max_footprint(m, 0, [0xB0u32].as_ptr(), 1, r.as_mut_ptr()));
+        assert!(fc4_lot_config_max_footprint(
+            m,
+            0,
+            [0xB0u32].as_ptr(),
+            1,
+            r.as_mut_ptr()
+        ));
         assert_eq!(r, [20.0, 30.0, 0.0, 0.0]);
-        assert!(fc4_lot_config_max_footprint(m, 1, [0xC0u32].as_ptr(), 1, r.as_mut_ptr()));
+        assert!(fc4_lot_config_max_footprint(
+            m,
+            1,
+            [0xC0u32].as_ptr(),
+            1,
+            r.as_mut_ptr()
+        ));
         assert_eq!(r, [3.0, 2.0, 0.0, 0.0]);
-        assert!(fc4_lot_config_max_footprint(m, 4, [0x700u32].as_ptr(), 1, r.as_mut_ptr()));
+        assert!(fc4_lot_config_max_footprint(
+            m,
+            4,
+            [0x700u32].as_ptr(),
+            1,
+            r.as_mut_ptr()
+        ));
         assert_eq!(r, [5.0, 5.0, 0.0, 0.0]);
         assert!(!fc4_lot_config_max_footprint(m, 2, std::ptr::null(), 0, r.as_mut_ptr()));
 
@@ -750,7 +819,10 @@ fn building_tests_footprints_and_object_ids() {
         let pc = p.to_c();
         let ids = u32s(|o, n| fc4_lot_config_object_id_array(m, &pc, o, n));
         assert_eq!(ids, [0x600, 0x600]);
-        assert_eq!(fc4_lot_config_object_id_array(m, std::ptr::null(), std::ptr::null_mut(), 0), 0);
+        assert_eq!(
+            fc4_lot_config_object_id_array(m, std::ptr::null(), std::ptr::null_mut(), 0),
+            0
+        );
         fc4_lot_config_destroy(m);
     }
 }
@@ -833,9 +905,15 @@ fn the_component_9_record() {
         let mut i = In::new(&o.bytes);
         let is = istream(&mut i);
         assert!(fc4_lot_config_read(m, &is));
-        assert_eq!(g.take(), ["resolve 50 07813EAE", "resolve 51 06C66177", "resolve 52 28326F3E"]);
+        assert_eq!(
+            g.take(),
+            ["resolve 50 07813EAE", "resolve 51 06C66177", "resolve 52 28326F3E"]
+        );
         let s = state(m);
-        assert_eq!((s.building_development, s.flora, s.prop_manager, s.initialized), (BDS, FLORA, PM, 0));
+        assert_eq!(
+            (s.building_development, s.flora, s.prop_manager, s.initialized),
+            (BDS, FLORA, PM, 0)
+        );
         let mut v0 = o.bytes.clone();
         v0[0] = 0;
         let m2 = fc4_lot_config_create(&host(&g), std::ptr::null(), 0x902);

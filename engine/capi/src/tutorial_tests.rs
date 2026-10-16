@@ -200,7 +200,10 @@ fn create_rejects_a_short_table_and_starts_constructed() {
     let t = create(&g);
     let s = state(t);
     assert_eq!(s.struct_size as usize, std::mem::size_of::<fc4_tutorial_state>());
-    assert_eq!((s.is_tutorial, s.task_number, s.guid, s.field_28), (0, 0, 0xFFFF_FFFF, 3));
+    assert_eq!(
+        (s.is_tutorial, s.task_number, s.guid, s.field_28),
+        (0, 0, 0xFFFF_FFFF, 3)
+    );
     assert_eq!((s.window, s.lua_context, s.ref_count, s.destroyed), (0, 0, 0, 0));
     assert!(fc4_tutorial_query_interface(0xAA38_36F6));
     assert!(fc4_tutorial_query_interface(1));
