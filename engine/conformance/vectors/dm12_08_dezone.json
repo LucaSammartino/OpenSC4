@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "demolition_dezone",
+  "spec": ["demolition 4.6", "demolition 12.8"],
+  "description": "dezone = true leaves zone 0 on the lot's cells; so does a lot of zone 11 (airport), 12 (seaport) or 15 (plopped) without dezone; another zone stays.",
+  "steps": [
+    {"op": "demolition_create"},
+    {"op": "demolition_init", "expect": true},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_lot", "lot": "0x50", "rect": [1, 1, 2, 2], "zone": 1},
+    {"op": "demolition_region", "do_it": true, "rect": [1, 1, 2, 2], "privilege": 1, "flags": 1, "dezone": true},
+    {"op": "demolition_expect_event_count", "filter": {"event": "dezone", "rect": [1, 1, 2, 2]}, "count": 1},
+    {"op": "demolition_expect_zones", "cells": [[1, 1, 0], [2, 2, 0]]},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_lot", "lot": "0x60", "rect": [5, 5, 5, 5], "zone": 11},
+    {"op": "demolition_region", "do_it": true, "rect": [5, 5, 5, 5], "privilege": 1, "flags": 1},
+    {"op": "demolition_expect_event_count", "filter": {"event": "dezone", "rect": [5, 5, 5, 5]}, "count": 1},
+    {"op": "demolition_expect_zones", "cells": [[5, 5, 0]]},
+    {"op": "demolition_lot", "lot": "0x61", "rect": [6, 6, 6, 6], "zone": 12},
+    {"op": "demolition_region", "do_it": true, "rect": [6, 6, 6, 6], "privilege": 1, "flags": 1},
+    {"op": "demolition_expect_zones", "cells": [[6, 6, 0]]},
+    {"op": "demolition_lot", "lot": "0x62", "rect": [7, 7, 7, 7], "zone": 15},
+    {"op": "demolition_region", "do_it": true, "rect": [7, 7, 7, 7], "privilege": 1, "flags": 1},
+    {"op": "demolition_expect_zones", "cells": [[7, 7, 0]]},
+    {"op": "demolition_lot", "lot": "0x63", "rect": [9, 9, 9, 9], "zone": 2},
+    {"op": "demolition_region", "do_it": true, "rect": [9, 9, 9, 9], "privilege": 1, "flags": 1},
+    {"op": "demolition_expect_zones", "cells": [[9, 9, 2]]}
+  ]
+}

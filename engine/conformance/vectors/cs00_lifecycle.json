@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "citysit_lifecycle",
+  "spec": ["city-situation 1", "city-situation 3", "city-situation 4.1"],
+  "description": "Identity and lifecycle: QueryInterface answers 0x6BB1437A at +0, 1 and 0xE4FDA3D4 at +0xC [quirk], 0x452294AA at +4 and 0xE98B2F57 at +8, nothing else. The constructor leaves the indicators visible and the status 4. Init (with the debug flag) registers the cheat, subscribes the ten messages in table order, holds the indicator view, registers the animation tick, holds the four automata managers (slots 43, 45, 44, 46), the lot manager, MySim and Lua, creates the sitmgr table and shows the indicators; a second Init does nothing. Release at 1 shuts down: everything is released and unregistered, the counts and the visible flag are kept.",
+  "steps": [
+    {"op": "citysit_identity", "iids": {"0x6BB1437A": 0, "0x1": "0xC", "0xE4FDA3D4": "0xC", "0x452294AA": 4, "0xE98B2F57": 8, "0x12345678": null}, "class": "0x0BB14381"},
+    {"op": "citysit_env", "debug": true},
+    {"op": "citysit_create"},
+    {"op": "citysit_add_ref", "expect": 1},
+    {"op": "citysit_expect", "state": {"status": 4, "indicators_visible": true, "max_csi": 0, "initialized": false}},
+    {"op": "citysit_init", "expect": true},
+    {"op": "citysit_expect_events", "events": [{"event": "register_cheat"}, {"event": "subscribe", "type": "0x99EF1142"}, {"event": "subscribe", "type": "0x99EF1143"}, {"event": "subscribe", "type": "0x8A09FA64"}, {"event": "subscribe", "type": "0x8A09FA65"}, {"event": "subscribe", "type": "0x8A09FA67"}, {"event": "subscribe", "type": "0x6BB350E4"}, {"event": "subscribe", "type": "0xEBB67EF7"}, {"event": "subscribe", "type": "0xCC0D905F"}, {"event": "subscribe", "type": "0xAC1045EF"}, {"event": "subscribe", "type": "0x26D31EC1"}, {"event": "acquire", "service": "indicator_view"}, {"event": "register_tick"}, {"event": "acquire_automata_managers", "managers": ["0x43", "0x45", "0x44", "0x46"]}, {"event": "acquire", "service": "lot_manager"}, {"event": "acquire", "service": "mysim"}, {"event": "acquire", "service": "lua"}, {"event": "create_lua_table"}, {"event": "show_all_indicators", "kind": 4, "visible": true}]},
+    {"op": "citysit_expect", "state": {"initialized": true, "automata_managers": ["0x43", "0x45", "0x44", "0x46"]}},
+    {"op": "citysit_init", "expect": true},
+    {"op": "citysit_expect_events", "events": []},
+    {"op": "citysit_set", "success_counts": {"0x10": 3}},
+    {"op": "citysit_add_ref", "expect": 2},
+    {"op": "citysit_release", "expect": 1},
+    {"op": "citysit_release", "expect": 0},
+    {"op": "citysit_expect_event_count", "filter": {"event": "unsubscribe"}, "count": 10},
+    {"op": "citysit_expect_event_count", "filter": {"event": "unregister_cheat"}, "count": 1},
+    {"op": "citysit_expect_event_count", "filter": {"event": "unregister_tick"}, "count": 1},
+    {"op": "citysit_expect_event_count", "filter": {"event": "remove_lua_table"}, "count": 1},
+    {"op": "citysit_expect_event_count", "filter": {"event": "release_service", "service": "indicator_view"}, "count": 1},
+    {"op": "citysit_expect_refs", "refs": {"0x43": 0, "0x44": 0, "0x45": 0, "0x46": 0}},
+    {"op": "citysit_expect", "state": {"destroyed": true, "initialized": false, "success_counts": {"0x10": 3}, "indicators_visible": true}}
+  ]
+}
