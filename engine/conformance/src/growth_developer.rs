@@ -766,8 +766,8 @@ impl GrowthDeveloperHost for World {
         self.timer_left.set(left - 1);
         false
     }
-    fn wall_clock_seed(&self) -> u32 {
-        self.events.push("wall_clock_seed", vec![]);
+    fn session_seed(&self) -> u32 {
+        self.events.push("session_seed", vec![]);
         self.wall_seed.get()
     }
 }

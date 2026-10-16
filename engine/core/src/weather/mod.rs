@@ -211,6 +211,17 @@ impl WeatherRng {
             last_cached: 0.0,
         }
     }
+
+    /// Seeded from the session seed (foundations §6.3 *[choice]*: a member
+    /// seeded from the clock takes `derive(GZCLSID)`, `0x2990C1BC`). A
+    /// loaded record's saved generator state replaces it as before (§10).
+    pub fn from_session(session: u32) -> WeatherRng {
+        let key = crate::seeding::keys::WEATHER;
+        WeatherRng::with_seed(
+            crate::seeding::seed(session, key),
+            &crate::seeding::clocks(session, key),
+        )
+    }
 }
 
 impl WeatherRandom for WeatherRng {

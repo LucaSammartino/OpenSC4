@@ -450,6 +450,16 @@ impl AuraRng {
     pub fn with_seed(seed: u32, seeds: &dyn SeedSource) -> AuraRng {
         AuraRng(RzRandom::new(seed, seeds))
     }
+
+    /// Seeded from the session seed (foundations §6.3 *[choice]*: a member
+    /// seeded from the clock takes `derive(GZCLSID)`, `0x0990BDD8`).
+    pub fn from_session(session: u32) -> AuraRng {
+        let key = crate::seeding::keys::AURA;
+        AuraRng::with_seed(
+            crate::seeding::seed(session, key),
+            &crate::seeding::clocks(session, key),
+        )
+    }
 }
 
 impl AuraRandom for AuraRng {

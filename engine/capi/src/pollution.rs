@@ -39,7 +39,6 @@ use fc4_core::pollution::{
     BudgetItem, Deal, PollutionHost, PollutionSim, PollutionState, GRID_INSTANCES, L_INC, L_REC, L_WTE, L_WTP,
 };
 use fc4_core::property::PropertyHolder;
-use fc4_core::rng::FixedSeeds;
 use fc4_core::stream::{RefValue, SaveObject};
 use fc4_core::variant::Variant;
 use fc4_core::x87::ftol;
@@ -564,23 +563,20 @@ fn peek<R>(p: *const fc4_pollution, fallback: R, f: impl FnOnce(&PollutionSim) -
 }
 
 /// Creates the core object (constructor values, §3). The host table is
-/// copied. `token` is the host identity of the simulator itself; `fx_seed`
-/// seeds the visual-effect generator (foundations §6.2: the original seeds it
-/// from the wall clock).
+/// copied. `token` is the host identity of the simulator itself;
+/// `session_seed` is foundations §6.3's `S`: the visual-effect generator (the
+/// original's file-local one, wall clock XOR `0x4C09C4D3`) takes
+/// `derive(S, 0x4C09C4D3)`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_pollution_create(
     host: *const fc4_pollution_host,
     token: u64,
-    fx_seed: u32,
+    session_seed: u32,
 ) -> *mut fc4_pollution {
     guard(std::ptr::null_mut(), || match host.as_ref() {
         Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_pollution_host>() && h.grids.complete() => {
             let host = Rc::new(CHost(*h));
-            let seeds = FixedSeeds {
-                wall_clock: fx_seed,
-                process_clock: fx_seed,
-            };
-            let sim = PollutionSim::new(host.clone(), token, fx_seed, &seeds);
+            let sim = PollutionSim::from_session(host.clone(), token, session_seed);
             Box::into_raw(Box::new(Handle {
                 host,
                 sim,
