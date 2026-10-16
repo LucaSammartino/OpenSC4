@@ -114,27 +114,62 @@ the two unused maps and the highest-stage map; release the building map; `Shutdo
 node; release the cached services; clear the process-wide **tried-tract marks** (§4.4). The static catalogue is
 **not** cleared (it lives until process exit).
 
-**Who frees the special buildings at city teardown** (DG28, from the exe). The city's `Shutdown` (`0x0045B1D0`)
-calls `Shutdown` and then `Release` on each of its services in a fixed order. The BDS (`+0x164`, `0x0045B6E6`) comes
-**before** the lot manager (`+0x144`), the zone manager (`+0x134`) and the occupant manager (`+0x12C`,
-`0x0045B826`). Within the BDS `Shutdown` above, each developer is shut down and released before the BDS releases its
-own special-building list. A developer's only reference is the map's: one from `CreateDeveloper` in a new city, or
-the read reference after a load. So that `Release` destroys it, and its destructor releases its private copy of the
-special buildings (growth-developer §1.3, §4.4).
+**Who frees the developers and the special buildings at city teardown** (DG28, DG39, from the exe). The city's
+`Shutdown` (`0x0045B1D0`) calls `Shutdown` and then `Release` on each of its services in a fixed order. The BDS
+(`+0x164`, `0x0045B6E6`) comes **before** the lot manager (`+0x144`, `0x0045B7E6`), the zone manager (`+0x134`), the
+occupant manager (`+0x12C`, `0x0045B826`) and the simulator (`+0x158`, `0x0045B912`; city slot `GetSimulator`
+`0x00459740` reads `+0x158`). Within the BDS `Shutdown` above, each developer is shut down and released before the BDS
+releases its own special-building list.
 
-At that moment the occupant manager still lists, and holds, every building in the city. So in the original the
-developer's copy is **not** the last reference to a special building that is still in the city. Neither is the
-BDS's list. The last one goes later, with the occupant manager. The copy holds the last reference only for a
-special building that left the city after the developer's last state-14 copy (§4.12; growth-developer §4.4). Such a
-building is freed by the destructor, or earlier, at the next state 14.
+Who else holds a developer depends on how the city was opened (foundations §2.7, "References the load keeps"):
 
-So the bracket ("yes": the copy's release in the destructor is the last one) differs from the original for buildings
-still in the city. A FreeCity4 release that drops the last reference there means one of two things: our developer
-outlives the original's order (it is destroyed after the occupant manager has let go), or a reference that the
-original holds is missing. The lead from DG5 points the other way. An extra `AddRef` after
-`CreateInstance(0xA9BD882D)` would leave a reference that is never released, not an early last release. *[choice]*
-Destroy each developer inside the BDS `Shutdown`, before the occupant manager shuts down, as the original does. Then
-keep `FC4_RELEASE_AT_DESTRUCTION` only for the left-the-city case, where a last release is expected.
+| City | References on a developer when the BDS `Shutdown` runs | The BDS's `Release` |
+|---|---|---|
+| new city, never saved | the map's one (`CreateDeveloper` `0x00699030`: constructor + `AddRef`) | the last: the developer is destroyed inside the BDS `Shutdown` |
+| loaded, then saved at least once | the map's one (the save closed the loaded segment, `0x00456449`, and the saved segment's table is empty) | the last, as above |
+| **loaded, not saved since** | the map's one **and** one held by the object table of the city segment's COM serializer | **not** the last |
+
+In the loaded case, the BDS `Read` (`0x0069AD53`–`0x0069AD79`) reads each developer by reference through the typed
+helper (`0x005D9730`, IID `0xE7CDD662`). The class store creates the developer through the factory `0x006B7870` and
+its table entry keeps one reference (resolver `0x005D2DD0`), while the map keeps the helper's one. Nothing else in
+the load takes or drops one: `CreateDeveloper` finds the loaded object and only calls `Init`. The developer's `Init`
+and `Shutdown` take and drop their own services, notifications and agent registrations symmetrically (growth-developer
+§1.2, §1.3).
+
+The table's reference goes when the segment that loaded the city is closed. On city close that is
+`PartialCloseCity` (`0x00454A60`): it posts `0x26D31EC2`, calls the city's `Shutdown` (`0x00454AC9`), posts
+`0x26D31EC3`, releases the city (`0x00454AE7`), and only then unregisters the segment (`0x00454AF3` →
+`UnregisterCityDBSegment` `0x00454A10`). The segment releases the serializer, and the serializer's reset
+(`0x005D3250`) walks its class map and each object map from the right subtree down (`0x005D2FE0`), so the entries go
+in **descending class ID**, and within a class in descending saved object ID. So in a loaded, unsaved city the
+original destroys the growth developers **after the whole city `Shutdown`**, after the simulator's, and after the city's
+own release. The developer's last `Release` calls its `Shutdown` (a no-op by then) and the destructor, which
+releases its private special-building copy.
+
+The class IDs fix what that copy release means:
+- lots `0xC9BD5D4A`;
+- building occupants `0xA9BD882D`;
+- growth developers `0x0990C138`.
+
+So the reset drops the table's references on every loaded lot and building **before** it reaches the developers.
+By then the occupant manager has released every occupant (its `Shutdown` removes them all, occupant-manager §2.3).
+The lot manager has deleted every lot (zones §1.2), and the BDS has released its list. So the developer's
+copy is the **last reference** to each special building in it. A loaded building is freed in the developer's
+destructor, and so is a new one *[inferred: no holder outside the table was found for a building after the city's
+`Shutdown`; an object of a table class below `0x0990C138` that still held a building would release it later]*.
+
+In a new city, or after a save, the developer is destroyed inside the BDS `Shutdown`, while the occupant manager
+still holds every building in the city. Its copy is then the last reference only for a special building that left
+the city after the developer's last state-14 copy (§4.12; growth-developer §4.4). Such a building is freed by the
+destructor, or earlier, at the next state 14.
+
+*[compat]* FreeCity4 reproduces the reference counts, not the destruction point. A replacement BDS releases each
+developer inside its `Shutdown`, as the original does. Whether that release destroys the developer depends on the
+table's reference, which the game's class store holds for a developer read from a save (when the replacement
+registers class `0x0990C138`). So a FreeCity4 developer that outlives the BDS `Shutdown` in a loaded, unsaved city,
+and is destroyed later at the segment's close, behaves like the original. Its destructor's release of the copy is
+then an expected last release (`FC4_RELEASE_AT_DESTRUCTION` stays). In a new city, or after a save, the developer
+must be destroyed inside the BDS `Shutdown`.
 
 ### 1.5 Developer map *[compat]*
 

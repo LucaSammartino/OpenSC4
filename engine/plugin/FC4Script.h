@@ -42,6 +42,13 @@
 //                              cSC4App::vftable_3 slot 16, pop 4): the city
 //                              saved in place, a full save unless `fast`;
 //                              logs `-> ok=<0|1> (SaveCity(full|fast) in N ms)`
+//   terrain x0 z0 x1 z1 h [kind]  cISTETerrain::SetAltitude(rect, h, true, kind)
+//                              (city slot 84, terrain slot 49, terrain.md §6): the
+//                              inclusive VERTEX rectangle set to h metres, its
+//                              water reset, RedisplayTerrain(1, 1, rect, kind)
+//                              (kind default 1); a rectangle outside the vertices
+//                              is skipped; with terrain_shadow the shadow mirrors
+//                              the call (FC4TerrainShadow.h)
 // Log: `script: line N <date> <action> <args> -> <result>`. Off (no key),
 // nothing is read and nothing runs. Not available: `save_as <name>` (saving
 // under another path; engine/README.md says why).

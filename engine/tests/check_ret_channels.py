@@ -252,6 +252,7 @@ SPEC_FACTS = {
     ("cISC4NeighborConnection", 13): (B, "neighbors.md slot table"),
     ("cISC4NeighborDeal", 35): (B, "neighbors.md: returns true / otherwise false"),
     **{("cISC4NetworkOccupant", s): (B, "traffic-network.md network occupant table") for s in (8, 9, 22, 47)},
+    ("cISC4NetworkOccupant", 67): (S, "spec-silent GetPassageCeiling (TR19; terrain.md 10.4 step 4, deck height 'known')"),
     **{("cISC4Occupant", s): (B, "occupant slot table") for s in (5, 11, 14, 22, 27, 32)},
     ("cISC4OrdinanceSimulator", 8): (B, "ordinance.md"),
     **{("cISC4Ordinance", s): (B, "ordinance.md 3 table")
@@ -265,6 +266,7 @@ SPEC_FACTS = {
     **{("cISC4PowerSimulator", s): (B, "power.md slot table") for s in (19, 31, 37)},
     ("cISC4RegionalCity", 43): (B, "traffic-network.md: GetEstablished"),
     **{("cISC4Simulator", s): (B, "simulator.md slot table") for s in (9, 12, 15, 16, 17, 19, 28)},
+    ("cISTESurfaceWater", 8): (B, "traffic-network.md surface water table (4.10.1): IsNavigable, AL"),
     ("cISC4TractDeveloper", 11): (B, "tract-developer.md slot table"),
     ("cISC4TutorialSystem", 8): (B, "tutorial system slot: EAX 0/1"),
     ("cISC4ZoneManager", 11): (B, "zones.md 11.1"),

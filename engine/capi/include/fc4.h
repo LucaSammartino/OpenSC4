@@ -150,8 +150,17 @@ extern "C" {
  *      (seeding lane; taken as 73 on its lane, then 59-63; renumbered at merge);
  * 65 = adds the list sinks (fc4_u64s_sink / fc4_u32s_sink / fc4_lot_cfg_object), the city detail
  *      manager (fc4_city_detail), the airport/seaport developers (fc4_port_developer) and the prop
- *      developer (fc4_prop_developer) (taken as 61 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 65u
+ *      developer (fc4_prop_developer) (taken as 61 on its lane; renumbered at merge);
+ * 66 = adds the network manager and network lot manager (fc4_netmgr, fc4_netlot, network-manager.md)
+ *      (taken as 68 on its lane; renumbered at merge);
+ * 67 = adds the disaster layer's mirror tooling (fc4_disasters_set_mirror_random,
+ *      fc4_disasters_get_location, fc4_disasters_riot_locked, fc4_disasters_fire_ids): the plugin's
+ *      disasters_shadow (a same-process differential of the original layer) (taken as 61, then 62
+ *      to 66, on its lane; renumbered at merge);
+ * 68 = adds the prop manager, lot configuration manager and tutorial system (fc4_prop_manager,
+ *      fc4_lot_config, fc4_tutorial; prop-lotconfig.md, tutorial.md) (taken as 70 on its lane;
+ *      renumbered at merge). */
+#define FC4_ABI_VERSION 68u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -7747,6 +7756,886 @@ bool fc4_disasters_get_fire(const fc4_disasters* d, size_t index, fc4_disaster_f
 bool fc4_disasters_get_instance(const fc4_disasters* d, uint32_t instance, fc4_disaster_instance* out);
 /* Returns the number of leaders (0 for no such riot); copies at most `capacity`. */
 size_t fc4_disasters_riot_leaders(const fc4_disasters* d, uint32_t instance, fc4_riot_leader* out, size_t capacity);
+/* Mirror tooling (67; the plugin's disasters_shadow, not spec behaviour). set_mirror_random: the
+ * fire, riot, earthquake and pipe-burst generators become deterministic (new fire IDs count from
+ * 0x80000001; uniform_u32 0; uniform 1.0, so a fire never spreads by itself; range(a, b) b;
+ * gaussian(a, b) a): a core that mirrors the original makes no random decision of its own. */
+bool fc4_disasters_set_mirror_random(fc4_disasters* d);
+typedef struct fc4_disaster_location {
+    uint32_t instance, zoom;
+    int32_t x, z;      /* an occupant entry's resolved as GetDisasterLocationByIndex reads it */
+    uint64_t occupant; /* 0 = a cell entry */
+} fc4_disaster_location;
+bool fc4_disasters_get_location(const fc4_disasters* d, size_t index, fc4_disaster_location* out);
+/* The riots' locked network occupants (locking order) / the fire-ID set (ascending, the fire
+ * instance not created). Return the count; copy at most `capacity` (`out` may be NULL). */
+size_t fc4_disasters_riot_locked(const fc4_disasters* d, uint64_t* out, size_t capacity);
+size_t fc4_disasters_fire_ids(const fc4_disasters* d, uint32_t* out, size_t capacity);
+
+/* ---- prop manager (docs/specs/prop-lotconfig.md Part A) ----------------------
+ * cSC4PropManager (0xA990BD10, city component 5). The shim owns the GZCOM
+ * objects and forwards their slots here. Props, buildings, lots, the occupant
+ * manager, the lot manager, the resource manager, the view filter and text
+ * decals are host objects named by tokens (0 = none). The catalogue (§A2) is
+ * process-wide: the host creates one fc4_prop_catalogue per process and hands
+ * it to every manager it creates; the first Init that finds it unbuilt builds
+ * it (StaticInit). Lists (§A7.2): the query calls take the caller's list
+ * (in, n_in), may filter what was there before (quirk 7), and hand the
+ * resulting list to a token callback element by element; a token handed back
+ * that was not in `in` carries one reference for the caller, a token of `in`
+ * that was dropped was released. A missing callback reads as 0 / false /
+ * none. */
+typedef struct fc4_prop_catalogue fc4_prop_catalogue;
+typedef struct fc4_prop_manager fc4_prop_manager;
+
+/* fc4_prop_manager_host.acquire_service services. */
+#define FC4_PROP_SERVICE_OCCUPANT_MANAGER 0u
+#define FC4_PROP_SERVICE_RESOURCE_MANAGER 1u
+#define FC4_PROP_SERVICE_LOT_MANAGER      2u
+/* fc4_prop_manager_host.create_builtin_prop kinds (§A6.1 step 3). */
+#define FC4_PROP_BUILTIN_PLAIN         0u /* 0x68 bytes, any class but the two below */
+#define FC4_PROP_BUILTIN_TERRAIN_DECAL 1u /* 0x2977AA48, 0xA0 bytes */
+#define FC4_PROP_BUILTIN_VISUAL_EFFECT 2u /* 0x2977AA49, 0x94 bytes */
+/* fc4_prop_manager_host.building_props results (§A7.1 step 3). */
+#define FC4_PROP_BUILDING_NO_HOLDER 0u /* the building has no property holder */
+#define FC4_PROP_BUILDING_ABSENT    1u /* no property 0xA8322B7F */
+#define FC4_PROP_BUILDING_PRESENT   2u /* the vector went to the callback */
+
+typedef struct fc4_prop_manager_host {
+    uint32_t struct_size; /* sizeof(fc4_prop_manager_host) */
+    void* user;
+    /* ---- the catalogue (§A3) ----
+     * The resource manager's keys of type 0x6534284A (slot 18) in its order;
+     * false when there is no resource manager. */
+    bool (*for_each_exemplar_key)(void* user, fc4_key_visitor visit, void* ctx);
+    /* An exemplar through the global resource manager (slot 3, IID 0xA52160F5):
+     * a NEW fc4_props the core destroys, NULL when it does not load. */
+    fc4_props* (*load_exemplar)(void* user, uint32_t type_id, uint32_t group, uint32_t instance);
+    /* Application slot 69: the catalogue's shutdown callback (call
+     * fc4_prop_catalogue_app_shutdown from it). */
+    void (*register_shutdown_callback)(void* user);
+    /* Posts kSC4MessagePropExemplarDataUpdated (0x896FDC70) when the message
+     * server exists: void1 and the IGZUnknown = the manager, data2 = data2. */
+    void (*post_exemplar_data_updated)(void* user, uint64_t manager, uint32_t data2);
+    /* ---- lifecycle (§A4) ---- 0x00B43CB0 slots 6 / 9; message server. */
+    void (*register_command)(void* user, uint32_t id);
+    void (*unregister_command)(void* user, uint32_t id);
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    /* The service's global (FC4_PROP_SERVICE_*) with a new reference; 0 = null. */
+    uint64_t (*acquire_service)(void* user, uint32_t service);
+    /* The 3D view's view filter (slot 18) with a reference; 0 = null. */
+    uint64_t (*view_filter)(void* user);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* ---- creating props (§A6) ----
+     * GZCOM: an instance of class_id with IID 0xE9793A65, one reference; 0 when
+     * no such class exists. */
+    uint64_t (*create_prop_instance)(void* user, uint32_t class_id);
+    /* One of the built-in classes (FC4_PROP_BUILTIN_*), one reference. */
+    uint64_t (*create_builtin_prop)(void* user, uint32_t kind);
+    /* Prop slot 8 SetPropType. */
+    void (*set_prop_type)(void* user, uint64_t prop, uint32_t id);
+    /* §A6.1 step 5: through the prop's property holder ask for 0x0AC2B5F7,
+     * load the exemplar at the key (the manager's resource manager, or the
+     * global one when `global`) and hand it over (slot 3). Returns the
+     * exemplar's properties as a NEW fc4_props (the core destroys it), NULL
+     * when a piece is missing. */
+    fc4_props* (*attach_exemplar)(void* user, uint64_t prop, uint32_t type_id, uint32_t group, uint32_t instance,
+                                  bool global);
+    /* Prop slot 4 SetBoundingBox(min3, max3). */
+    void (*set_bounding_box)(void* user, uint64_t prop, const float* min3, const float* max3);
+    /* ---- occupants (§A7) ---- IsFlagSet, slot 3 Init, slot 4 Shutdown,
+     * QueryInterface(0xE9793A65) + SetPropUsage, slot 9 SetPosition, prop slot
+     * 10 SetOrientation, slot 8 GetPosition, and the flag-2 part of removing a
+     * prop (placeable object slot 11, clear flag 2). */
+    bool (*occupant_flag)(void* user, uint64_t occ, uint32_t flag);
+    bool (*occupant_init)(void* user, uint64_t occ);
+    void (*occupant_shutdown)(void* user, uint64_t occ);
+    void (*set_prop_usage)(void* user, uint64_t occ, uint32_t usage);
+    void (*set_position)(void* user, uint64_t occ, const float* pos3);
+    void (*set_orientation)(void* user, uint64_t occ, int32_t orientation);
+    void (*position)(void* user, uint64_t occ, float* pos3);
+    void (*hide)(void* user, uint64_t occ);
+    /* ---- the occupant manager ---- slot 20 InsertOccupant(occ, false) (false
+     * without an occupant manager); slot 21 RemoveOccupant(occ, 0, 0). */
+    bool (*insert_occupant)(void* user, uint64_t occ);
+    void (*remove_occupant)(void* user, uint64_t occ);
+    /* Slot 36 (box) / slot 40 (cell rectangle) with the filter at `usage`, mask
+     * 0xFFFFFFFF: each prop found to `found`, one reference each for the core;
+     * false when the call returns false. */
+    bool (*occupants_in_box)(void* user, const float* min3, const float* max3, uint32_t usage,
+                             fc4_token_callback found, void* ctx);
+    bool (*occupants_in_cell_rect)(void* user, const fc4_cell_rect* rect, uint32_t usage,
+                                   fc4_token_callback found, void* ctx);
+    /* Slot 33 with type 0x278128A0: the building at the cell, with a reference; 0 = none. */
+    uint64_t (*building_at_cell)(void* user, int32_t x, int32_t z);
+    /* ---- lots and the city ---- lot manager slot 6 GetLot(x, z, false) (no
+     * reference; 0 = none); lot slot 14; city slots 96 (cell corner to world)
+     * and 95 (world to cell). */
+    uint64_t (*lot_at_cell)(void* user, int32_t x, int32_t z);
+    void (*lot_cell_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    void (*cell_to_world)(void* user, int32_t x, int32_t z, float* wx, float* wz);
+    void (*world_to_cell)(void* user, float x, float z, int32_t* cx, int32_t* cz);
+    /* ---- the building-prop property 0xA8322B7F (§A7.1 step 3) ----
+     * FC4_PROP_BUILDING_*; with PRESENT the vector's props go to `visit` in order. */
+    uint32_t (*building_props)(void* user, uint64_t building, fc4_token_callback visit, void* ctx);
+    /* Replaces the vector of the existing property object. */
+    void (*set_building_props)(void* user, uint64_t building, const uint64_t* props, size_t n);
+    /* Creates the property object (0x14 bytes) holding `props` and adds it
+     * (holder slot 11 AddProperty(0xA8322B7F, obj, false)). */
+    void (*add_building_props_property)(void* user, uint64_t building, const uint64_t* props, size_t n);
+    /* Holder slot 17 RemoveProperty(0xA8322B7F, false). */
+    void (*remove_building_props_property)(void* user, uint64_t building);
+    /* ---- the CreateTextDecal command (§A4.3) ---- a text decal occupant (one
+     * reference; 0 = none); cISTETerrain slot 13; decal slots 4 (the text, not
+     * NUL-terminated), 8 (three floats), 10 and 6 (PL1). */
+    uint64_t (*create_text_decal)(void* user);
+    float (*terrain_altitude)(void* user, float x, float z);
+    void (*decal_set_text)(void* user, uint64_t decal, const char* text, size_t len);
+    void (*decal_slot8)(void* user, uint64_t decal, const float* values3);
+    void (*decal_slot10)(void* user, uint64_t decal, float value);
+    void (*decal_slot6)(void* user, uint64_t decal, float value);
+    /* ---- save references (§A8) ---- the token of a save reference read with
+     * `iid` (0xC6BB8334, 0x681905BD); the reference is transferred to the core.
+     * 0 = none. */
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+} fc4_prop_manager_host;
+
+/* The 0x1C-byte prop profile (§A3.2) in the original's layout, copied byte for
+ * byte (OccupantSize values past the third land in the following fields,
+ * quirk 8). */
+typedef struct fc4_prop_profile {
+    uint32_t class_id;      /* +0x00 */
+    float size[3];          /* +0x04 .. +0x0C */
+    uint32_t satisfaction;  /* +0x10 */
+    uint8_t wealth;         /* +0x14 */
+    uint8_t wealth_pad[3];  /* +0x15 .. +0x17: not written by the profile reader */
+    uint32_t crime_effect;  /* +0x18 */
+} fc4_prop_profile;
+
+/* One argument of the CreateTextDecal command: its text (not NUL-terminated)
+ * and its value as a float. */
+typedef struct fc4_prop_command_arg {
+    const char* text;
+    uint32_t text_len;
+    float value;
+} fc4_prop_command_arg;
+
+/* Diagnostics: every instance field of §A2 (tokens 0 = none). */
+typedef struct fc4_prop_manager_state {
+    uint32_t struct_size;
+    uint8_t initialized, destroyed;
+    uint8_t filter; /* the filter object exists */
+    uint8_t reserved0;
+    uint32_t ref_count;
+    uint32_t filter_usage;
+    uint64_t occupant_manager, resource_manager, lot_manager, view_filter;
+} fc4_prop_manager_state;
+
+typedef struct fc4_prop_catalogue_state {
+    uint32_t struct_size;
+    uint8_t built, callback_registered;
+    uint16_t reserved0;
+    uint32_t data2; /* data2 of the catalogue message */
+    uint32_t types, families, profiles; /* map sizes */
+} fc4_prop_catalogue_state;
+
+/* The process catalogue: create one per process. Destroying the handle leaves
+ * the managers created with it their catalogue. app_shutdown is the
+ * application shutdown callback (0x004A2A30): the catalogue is torn down and
+ * the next Init rebuilds it. */
+fc4_prop_catalogue* fc4_prop_catalogue_create(void);
+void fc4_prop_catalogue_destroy(fc4_prop_catalogue* c);
+void fc4_prop_catalogue_app_shutdown(fc4_prop_catalogue* c);
+bool fc4_prop_catalogue_get_state(const fc4_prop_catalogue* c, fc4_prop_catalogue_state* out);
+
+/* Constructed, reference count 0, sharing `catalogue` (NULL: a private one).
+ * The host table is copied (NULL for a NULL or short table). `token` is the
+ * manager's own host identity (void1 of the catalogue message). */
+fc4_prop_manager* fc4_prop_manager_create(const fc4_prop_manager_host* host, const fc4_prop_catalogue* catalogue,
+                                          uint64_t token);
+void fc4_prop_manager_destroy(fc4_prop_manager* m);
+bool fc4_prop_manager_query_interface(uint32_t iid);
+uint32_t fc4_prop_manager_add_ref(fc4_prop_manager* m);
+/* The last one runs Shutdown and returns 0; the handle stays valid until destroy. */
+uint32_t fc4_prop_manager_release(fc4_prop_manager* m);
+bool fc4_prop_manager_init(fc4_prop_manager* m);
+bool fc4_prop_manager_shutdown(fc4_prop_manager* m);
+/* DoMessage (§A4.3): `view_filter` is *void2 of PostViewFilterChange (0 =
+ * null), `args` the CreateTextDecal command's arguments. Always true. */
+bool fc4_prop_manager_do_message(fc4_prop_manager* m, uint32_t msg_type, uint64_t view_filter,
+                                 const fc4_prop_command_arg* args, size_t n_args);
+/* Slots 5 / 6: every type / family in bucket order. Return the count; copy at
+ * most `capacity` (`out` may be NULL). */
+size_t fc4_prop_manager_all_prop_types(const fc4_prop_manager* m, uint32_t* out, size_t capacity);
+size_t fc4_prop_manager_all_prop_family_types(const fc4_prop_manager* m, uint32_t* out, size_t capacity);
+/* Slot 7: false for an unknown type. */
+bool fc4_prop_manager_prop_key_from_type(const fc4_prop_manager* m, uint32_t id, fc4_res_key* out);
+bool fc4_prop_manager_is_prop_type_valid(const fc4_prop_manager* m, uint32_t id);
+/* Slot 9 (quirk 1): the caller's vector (in, n_in) after the call goes to
+ * `out` once. A family assigns its members and returns their count, a type
+ * assigns [id] and returns 0, anything else leaves the vector and returns 0. */
+uint32_t fc4_prop_manager_prop_types_by_family(const fc4_prop_manager* m, uint32_t id, const uint32_t* in,
+                                               size_t n_in, fc4_u32s_sink out, void* ctx);
+bool fc4_prop_manager_is_prop_in_family(const fc4_prop_manager* m, uint32_t type, uint32_t family);
+bool fc4_prop_manager_is_prop_family_type_valid(const fc4_prop_manager* m, uint32_t id);
+/* Slot 12 (quirk 3): inserts an empty name and returns it, copied
+ * NUL-terminated (truncated to capacity - 1); returns its byte length. */
+size_t fc4_prop_manager_prop_name(fc4_prop_manager* m, uint32_t id, char* out, size_t capacity);
+/* Slot 13 (quirk 2): inserts an all-zero profile for an unknown ID. */
+bool fc4_prop_manager_prop_profile(fc4_prop_manager* m, uint32_t id, fc4_prop_profile* out);
+/* Slot 14: false (nothing written) for an unknown ID. */
+bool fc4_prop_manager_prop_profile_ptr(const fc4_prop_manager* m, uint32_t id, fc4_prop_profile* out);
+/* Slot 15 CreateProp(id): one reference (the caller's); 0 when id is not a prop type. */
+uint64_t fc4_prop_manager_create_prop(fc4_prop_manager* m, uint32_t id);
+/* Slot 16 CreateGenericProp(key): 0 when the exemplar does not load. */
+uint64_t fc4_prop_manager_create_generic_prop(fc4_prop_manager* m, uint32_t type_id, uint32_t group,
+                                              uint32_t instance);
+/* Slots 19 AddCityProp(occ) / 25 AddLotProp(lot, occ) (the lot is ignored, quirk 6). */
+bool fc4_prop_manager_add_city_prop(fc4_prop_manager* m, uint64_t occ);
+bool fc4_prop_manager_add_lot_prop(fc4_prop_manager* m, uint64_t lot, uint64_t occ);
+/* Slots 20 / 26 / 32 Add{City,Lot,Street}Prop(id, pos, orientation) (`usage` 1,
+ * 2 or 4): the occupant (no reference for the caller), 0 when not added. */
+uint64_t fc4_prop_manager_add_prop_new(fc4_prop_manager* m, uint32_t usage, uint32_t id, const float* pos3,
+                                       int32_t orientation);
+/* Slot 36 AddBuildingProp(building, prop). */
+bool fc4_prop_manager_add_building_prop(fc4_prop_manager* m, uint64_t building, uint64_t prop);
+/* Slot 17 GetCityProps(list, SC4Rect<float>). */
+bool fc4_prop_manager_get_city_props_world(fc4_prop_manager* m, float x1, float z1, float x2, float z2,
+                                           const uint64_t* in, size_t n_in, fc4_token_callback out, void* ctx);
+/* Slots 18 / 30 Get{City,Street}Props(list, SC4Rect<int32>) (`usage` 1 or 4). */
+bool fc4_prop_manager_get_props_in_cells(fc4_prop_manager* m, uint32_t usage, const fc4_cell_rect* rect,
+                                         const uint64_t* in, size_t n_in, fc4_token_callback out, void* ctx);
+/* Slots 23 / 34 / 31 Get{Lot,Building,Street}Props(list, x, z) (`usage` 2, 3 or
+ * 4; the street query is always false, quirk 4). */
+bool fc4_prop_manager_get_props_at(fc4_prop_manager* m, uint32_t usage, int32_t x, int32_t z, const uint64_t* in,
+                                   size_t n_in, fc4_token_callback out, void* ctx);
+/* Slots 24 GetLotProps(list, lot) / 35 GetBuildingProps(list, building)
+ * (`usage` 2 or 3; `object` 0 = null). */
+bool fc4_prop_manager_get_props_of(fc4_prop_manager* m, uint32_t usage, uint64_t object, const uint64_t* in,
+                                   size_t n_in, fc4_token_callback out, void* ctx);
+/* Slots 21 / 22 RemoveCityProps (world / cell rectangle). True. */
+bool fc4_prop_manager_remove_city_props_world(fc4_prop_manager* m, float x1, float z1, float x2, float z2);
+bool fc4_prop_manager_remove_city_props_cells(fc4_prop_manager* m, const fc4_cell_rect* rect);
+/* Slots 27 / 37 / 33 Remove{Lot,Building}Props(x, z) and
+ * RemoveStreetPropsFromTile (`usage` 2, 3 or 4). */
+bool fc4_prop_manager_remove_props_at(fc4_prop_manager* m, uint32_t usage, int32_t x, int32_t z);
+/* Slots 28 RemoveLotProps(lot) / 38 RemoveBuildingProps(building) (`usage` 2 or 3). */
+bool fc4_prop_manager_remove_props_of(fc4_prop_manager* m, uint32_t usage, uint64_t object);
+/* Slot 29 RemoveProp(occ). True. */
+bool fc4_prop_manager_remove_prop(fc4_prop_manager* m, uint64_t occ);
+/* Slot 39 RemoveBuildingProp(building, prop): whether it was found. */
+bool fc4_prop_manager_remove_building_prop(fc4_prop_manager* m, uint64_t building, uint64_t prop);
+bool fc4_prop_manager_get_state(const fc4_prop_manager* m, fc4_prop_manager_state* out);
+/* The record (§A8): version 1, the occupant manager and the lot manager. Read
+ * is false for another version and then changes nothing. */
+bool fc4_prop_manager_write(const fc4_prop_manager* m, const fc4_ostream* out);
+bool fc4_prop_manager_read(fc4_prop_manager* m, const fc4_istream* in);
+
+/* ---- lot configuration manager (docs/specs/prop-lotconfig.md Part B) ---------
+ * cSC4LotConfigurationManager (0x299062C0, city component 9). Lot
+ * configurations, filters, the building development simulator, the flora
+ * simulator and the prop manager are host objects named by tokens (0 = none).
+ * Configuration objects cross as fc4_lotdev_cfg_object: object_type is the
+ * type byte, byte3 the mirror flag, footprint_max / footprint_min the (x, z)
+ * corners. The catalogue (§B2) is process-wide as the prop manager's.
+ * fc4_lot_config_object_array is the configuration class's object reader
+ * (§B3.3), in the core so that every host builds the same arrays. A missing
+ * callback reads as 0 / false / none. */
+typedef struct fc4_lot_config_catalogue fc4_lot_config_catalogue;
+typedef struct fc4_lot_config fc4_lot_config;
+
+/* fc4_lot_config_host.acquire_service services. */
+#define FC4_LCM_SERVICE_BUILDING_DEVELOPMENT 0u
+#define FC4_LCM_SERVICE_FLORA                1u
+#define FC4_LCM_SERVICE_PROP_MANAGER         2u
+
+/* What 0x0048AD40 stores in a configuration (§B4.3). */
+typedef struct fc4_lot_config_building_info {
+    uint16_t min_capacity; /* +0x3E: 0 when no type was found */
+    uint16_t max_capacity; /* +0x40 */
+    uint8_t non_monopoly;  /* +0x8C */
+    uint8_t reserved[3];
+    uint32_t n_groups;     /* +0x80: the occupant groups, ascending */
+    const uint32_t* groups;
+} fc4_lot_config_building_info;
+
+typedef struct fc4_lot_config_host {
+    uint32_t struct_size; /* sizeof(fc4_lot_config_host) */
+    void* user;
+    /* ---- the catalogue (§B3) ----
+     * The city detail preference (1 low, 2 medium, 3 high). */
+    uint32_t (*detail_level)(void* user);
+    /* The resource manager's keys of type 0x6534284A; false without one. */
+    bool (*for_each_exemplar_key)(void* user, fc4_key_visitor visit, void* ctx);
+    /* Application slot 69: the unload callback (call fc4_lot_config_unload). */
+    void (*register_shutdown_callback)(void* user);
+    void (*unregister_shutdown_callback)(void* user);
+    /* A new lot configuration (0xC0 bytes), one reference. */
+    uint64_t (*create_configuration)(void* user);
+    /* Configuration slot 31 Load(key, detail) (fc4_lot_config_object_array
+     * builds its object array). */
+    bool (*load_configuration)(void* user, uint64_t cfg, uint32_t type_id, uint32_t group, uint32_t instance,
+                               uint32_t detail);
+    /* ---- configuration slots ---- 3 GetID, 5 BelongsToFamily, 6 the families,
+     * 7 GetSize, 23 the object array (each object to `visit`, its ids valid
+     * during the call) and its replacement (FixLotConfiguration), 24 the
+     * primary building (false = none), the building information, 28 the
+     * retaining walls and their replacement. */
+    uint32_t (*config_id)(void* user, uint64_t cfg);
+    bool (*config_belongs_to_family)(void* user, uint64_t cfg, uint32_t family);
+    void (*config_families)(void* user, uint64_t cfg, fc4_u32s_sink out, void* ctx);
+    void (*config_size)(void* user, uint64_t cfg, uint32_t* x, uint32_t* z);
+    void (*config_objects)(void* user, uint64_t cfg, fc4_lotdev_cfg_object_callback visit, void* ctx);
+    void (*set_config_objects)(void* user, uint64_t cfg, const fc4_lotdev_cfg_object* objects, size_t n);
+    bool (*config_primary_building)(void* user, uint64_t cfg, fc4_lotdev_cfg_object_callback visit, void* ctx);
+    void (*set_config_building_info)(void* user, uint64_t cfg, const fc4_lot_config_building_info* info);
+    void (*config_retaining_walls)(void* user, uint64_t cfg, fc4_u32s_sink out, void* ctx);
+    void (*set_config_retaining_walls)(void* user, uint64_t cfg, const uint32_t* ids, size_t n);
+    /* Whether a retaining wall ID is valid (FixLotConfiguration, PL10). */
+    bool (*is_retaining_wall_valid)(void* user, uint32_t id);
+    /* A configuration not in the map, of size_x x size_z cells with `objects`,
+     * for building type `type` (CreateGenericLotConfiguration); one reference
+     * for the caller, 0 = none. */
+    uint64_t (*create_generic_configuration)(void* user, uint32_t type, uint32_t size_x, uint32_t size_z,
+                                             const fc4_lotdev_cfg_object* objects, size_t n);
+    /* ---- lifecycle and references ---- the service's global
+     * (FC4_LCM_SERVICE_*) with a new reference (0 = null). */
+    uint64_t (*acquire_service)(void* user, uint32_t service);
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* Filter slot 3 on a configuration. */
+    bool (*filter_matches)(void* user, uint64_t filter, uint64_t cfg);
+    /* ---- the building development simulator ----
+     * Slot 14 + the load: the type's exemplar as a NEW fc4_props (the core
+     * destroys it), NULL when it does not load. */
+    fc4_props* (*building_exemplar)(void* user, uint32_t type);
+    /* Slots 15 IsBuildingTypeValid, 16 IsBuildingFamilyTypeValid. */
+    bool (*is_building_type_valid)(void* user, uint32_t id);
+    bool (*is_building_family_type_valid)(void* user, uint32_t id);
+    /* Slot 18 GetBuildingTypesByFamily(vector&, id): call `out` once with the
+     * assigned vector (a family's members, or [id] for a type); do not call it
+     * to leave the vector untouched. Returns the slot's result. */
+    uint32_t (*building_types_by_family)(void* user, uint32_t id, fc4_u32s_sink out, void* ctx);
+    /* Slot 19 GetBuildingTypesByFamily(hash_set&, id): the types it inserts. */
+    uint32_t (*building_types_into_set)(void* user, uint32_t id, fc4_u32s_sink out, void* ctx);
+    /* Slot 20 IsBuildingInFamily(type, family). */
+    bool (*is_building_in_family)(void* user, uint32_t type, uint32_t family);
+    /* Slot 39: the profile's u16 at +8; slot 40: +0x20 and +0x28 (false = no profile). */
+    uint16_t (*building_capacity)(void* user, uint32_t type);
+    bool (*building_footprint)(void* user, uint32_t type, float* w, float* d);
+    /* ---- the flora simulator (global) ---- slot 7 (+0x3C; false = unknown),
+     * slot 11, slot 14 (the types it inserts). */
+    bool (*flora_radius)(void* user, uint32_t id, float* radius);
+    bool (*is_flora_type_valid)(void* user, uint32_t id);
+    uint32_t (*flora_types_into_set)(void* user, uint32_t id, fc4_u32s_sink out, void* ctx);
+    /* ---- the prop manager (global) ---- slots 8, 9 (as building_types_by_family),
+     * 11 and 14 (size x +0x04 and z +0x0C; false = no profile). */
+    bool (*is_prop_type_valid)(void* user, uint32_t id);
+    uint32_t (*prop_types_by_family)(void* user, uint32_t id, fc4_u32s_sink out, void* ctx);
+    bool (*is_prop_family_type_valid)(void* user, uint32_t id);
+    bool (*prop_size)(void* user, uint32_t id, float* x, float* z);
+    /* ---- save references (§B6) ---- IIDs 0x07813EAE, 0x06C66177, 0x28326F3E;
+     * the reference is transferred to the core. 0 = none. */
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+} fc4_lot_config_host;
+
+/* Diagnostics: the instance fields of §B2 (tokens 0 = none). */
+typedef struct fc4_lot_config_state {
+    uint32_t struct_size;
+    uint8_t initialized, destroyed;
+    uint16_t reserved0;
+    uint32_t ref_count;
+    uint32_t filters; /* registered filters */
+    uint64_t building_development, flora, prop_manager;
+} fc4_lot_config_state;
+
+typedef struct fc4_lot_config_catalogue_state {
+    uint32_t struct_size;
+    uint8_t loaded, callback_registered;
+    uint16_t reserved0;
+    uint32_t detail; /* the detail level it was built for */
+    uint32_t configurations, families;
+} fc4_lot_config_catalogue_state;
+
+/* ConvertPropertiesToObjectArray (§B3.3): the object array of a lot
+ * configuration exemplar at `detail`, each object to `visit` in order.
+ * `next_serial` (may be NULL) is the generated tag of a configuration below
+ * version 2, advanced once per kept object (the process-wide serial of
+ * lot-configuration.md §3.5; seed it when 0). Returns the count. */
+size_t fc4_lot_config_object_array(const fc4_props* exemplar, uint32_t detail, uint32_t* next_serial,
+                                   fc4_lotdev_cfg_object_callback visit, void* ctx);
+
+fc4_lot_config_catalogue* fc4_lot_config_catalogue_create(void);
+void fc4_lot_config_catalogue_destroy(fc4_lot_config_catalogue* c);
+bool fc4_lot_config_catalogue_get_state(const fc4_lot_config_catalogue* c, fc4_lot_config_catalogue_state* out);
+
+/* Constructed, reference count 0, sharing `catalogue` (NULL: a private one).
+ * The host table is copied (NULL for a NULL or short table). */
+fc4_lot_config* fc4_lot_config_create(const fc4_lot_config_host* host, const fc4_lot_config_catalogue* catalogue,
+                                      uint64_t token);
+void fc4_lot_config_destroy(fc4_lot_config* m);
+bool fc4_lot_config_query_interface(uint32_t iid);
+uint32_t fc4_lot_config_add_ref(fc4_lot_config* m);
+/* The last one runs Shutdown and returns 0; the handle stays valid until destroy. */
+uint32_t fc4_lot_config_release(fc4_lot_config* m);
+/* Init builds the catalogue, or rebuilds it when the detail changed. */
+bool fc4_lot_config_init(fc4_lot_config* m);
+bool fc4_lot_config_shutdown(fc4_lot_config* m);
+/* The process unload callback (0x0048A240); the family set stays (quirk 10). */
+void fc4_lot_config_unload(fc4_lot_config* m);
+/* DoMessage (§B4.3): PostCityInit fills every configuration's building
+ * information. Always true. */
+bool fc4_lot_config_do_message(fc4_lot_config* m, uint32_t msg_type);
+void fc4_lot_config_fill_building_information(fc4_lot_config* m, uint64_t cfg);
+/* Slots 5 AddLotConfiguration(key), 6 AddLotConfiguration(cfg, add) (always
+ * true), 7 RemoveLotConfiguration(id), 8 GetLotConfiguration(id) (no
+ * reference; 0 = none). */
+bool fc4_lot_config_add_by_key(fc4_lot_config* m, uint32_t type_id, uint32_t group, uint32_t instance);
+bool fc4_lot_config_add_configuration(fc4_lot_config* m, uint64_t cfg, bool add);
+bool fc4_lot_config_remove_configuration(fc4_lot_config* m, uint32_t id);
+uint64_t fc4_lot_config_configuration(const fc4_lot_config* m, uint32_t id);
+/* Slots 20 (the map) and 21 (the family set) in bucket order. Return the
+ * count; copy at most `capacity` (pointers may be NULL). */
+size_t fc4_lot_config_configuration_map(const fc4_lot_config* m, uint32_t* ids, uint64_t* configurations,
+                                        size_t capacity);
+size_t fc4_lot_config_family_id_set(const fc4_lot_config* m, uint32_t* out, size_t capacity);
+/* Slots 9-11 GetLotConfigurationsBy{Filter,Family,Size}: `which` 0 = by filter
+ * (`a` = the filter, 0 = null; registered filters cache their result), 1 = by
+ * family (`a`), 2 = by size (`a` = x, `b` = z). The matches go to `out` in
+ * bucket order, each with a new reference for the caller; returns the count. */
+uint32_t fc4_lot_config_configurations(fc4_lot_config* m, uint32_t which, uint64_t a, uint32_t b,
+                                       fc4_token_callback out, void* ctx);
+/* Slot 12 ClearLotConfigurationSet: releases every element once. */
+void fc4_lot_config_clear_set(fc4_lot_config* m, const uint64_t* set, size_t n);
+/* Slots 13-15 GetLotConfigurationIDsBy{Filter,Family,Size}, as above (no
+ * cache). Return the count; copy at most `capacity`. */
+size_t fc4_lot_config_ids(const fc4_lot_config* m, uint32_t which, uint64_t a, uint32_t b, uint32_t* out,
+                          size_t capacity);
+/* Slots 16 / 17 LotConfigurationHasBuilding{Family,Type}(cfg, id, obj)
+ * (`by_type` false / true): the matching object's index in the array to
+ * `index` (may be NULL). */
+bool fc4_lot_config_has_building(const fc4_lot_config* m, uint64_t cfg, uint32_t id, bool by_type,
+                                 uint32_t* index);
+/* Slots 18 / 19 and the flush (0x0048A080). */
+void fc4_lot_config_register_filter(fc4_lot_config* m, uint64_t filter);
+void fc4_lot_config_unregister_filter(fc4_lot_config* m, uint64_t filter);
+void fc4_lot_config_flush(fc4_lot_config* m);
+/* Diagnostics: a registered filter's cached result (false when not
+ * registered; *cached false when nothing is cached). Configurations (no
+ * references) copied, at most `capacity`; *count = their number. */
+bool fc4_lot_config_filter_cache(const fc4_lot_config* m, uint64_t filter, bool* cached, uint64_t* out,
+                                 size_t capacity, size_t* count);
+/* Slots 24-26 GetMaxFootprintFor{Building,Prop,Flora}Families(ids) (`kind` 0,
+ * 1 or 4: the object types): (w, d, 0, 0) into out4. */
+bool fc4_lot_config_max_footprint(const fc4_lot_config* m, uint32_t kind, const uint32_t* ids, size_t n,
+                                  float* out4);
+/* Slot 27 GetObjectIDArray(obj, vec): families expanded (quirk 13). Returns the
+ * count; copies at most `capacity`. */
+size_t fc4_lot_config_object_id_array(const fc4_lot_config* m, const fc4_lotdev_cfg_object* obj, uint32_t* out,
+                                      size_t capacity);
+/* Slot 22 CreateGenericLotConfiguration(type): one reference for the caller,
+ * 0 when BDS rejects the type (PL8). */
+uint64_t fc4_lot_config_create_generic(fc4_lot_config* m, uint32_t building_type);
+/* Slot 23 FixLotConfiguration(cfg): the first problem's code (0 none, 1 an ID
+ * removed, 2 a record removed, 3 a footprint changed, 4 outside the lot, 5 a
+ * centre moved, 6 a retaining wall removed; PL9, PL10). */
+uint32_t fc4_lot_config_fix(fc4_lot_config* m, uint64_t cfg);
+bool fc4_lot_config_get_state(const fc4_lot_config* m, fc4_lot_config_state* out);
+/* The record (§B6): version 1 and the three held services. Read is false for
+ * another version and then changes nothing. */
+bool fc4_lot_config_write(const fc4_lot_config* m, const fc4_ostream* out);
+bool fc4_lot_config_read(fc4_lot_config* m, const fc4_istream* in);
+
+/* ---- tutorial system (docs/specs/tutorial.md) -------------------------------
+ * cSC4TutorialSystem (0xAA3836FB, city component 48). The tutorial window, its
+ * tasks, the registry, the 3D view, the cheat manager and the Lua context are
+ * host objects named by tokens (0 = none). The simulation reads one thing,
+ * fc4_tutorial_is_tutorial (the fire simulator's no-burn-down flag and the
+ * flammability fire roll take it from there). A missing callback reads as
+ * 0 / false / none. */
+typedef struct fc4_tutorial fc4_tutorial;
+
+typedef struct fc4_tutorial_host {
+    uint32_t struct_size; /* sizeof(fc4_tutorial_host) */
+    void* user;
+    /* ---- lifecycle (§4.3) ---- message server; the cheat manager exists and
+     * cISC4App slot 21 is true (Init); the cheat manager exists (Shutdown,
+     * TU4); register / unregister the handler and the cheat 0x6A382BAF
+     * "Tutorial". */
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    bool (*cheats_available)(void* user);
+    bool (*has_cheat_manager)(void* user);
+    void (*register_cheat)(void* user);
+    void (*unregister_cheat)(void* user);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* ---- the window (§4.2, §4.4) ---- a new cSC4TutorialUIWinProc (no
+     * reference yet; the core takes one), its init and close; window slot 9
+     * the current task (no reference; 0 = none); task slot 25; window slots 6
+     * (a message's data field), 7, 8, 10, 11 (the new task number) and the
+     * tutorial event. */
+    uint64_t (*create_window)(void* user);
+    void (*init_window)(void* user, uint64_t window);
+    void (*close_window)(void* user, uint64_t window);
+    uint64_t (*window_current_task)(void* user, uint64_t window);
+    bool (*task_edge_scrolling_allowed)(void* user, uint64_t task);
+    void (*window_filter_value)(void* user, uint64_t window, uint32_t value);
+    void (*window_show_hints)(void* user, uint64_t window);
+    void (*window_catalog_menu)(void* user, uint64_t window, uint64_t menu);
+    bool (*window_left_click)(void* user, uint64_t window, int32_t* x, int32_t* z, int32_t n);
+    int32_t (*window_reset)(void* user, uint64_t window, int32_t a, int32_t b);
+    void (*window_event)(void* user, uint64_t window, uint32_t event);
+    /* ---- the registry ---- SetActive(guid, active): what the call left in AL;
+     * the entry of `guid` (0x004B5D10): false when absent, else *enabled = its
+     * byte +0x10. */
+    bool (*registry_set_active)(void* user, uint32_t guid, bool active);
+    bool (*registry_entry_enabled)(void* user, uint32_t guid, bool* enabled);
+    /* ---- the rest ---- the 3D view's slots 60 and 59 (when there is one);
+     * the city's Lua context (cISC4City slot 81, then slot 10) with a
+     * reference, 0 = unavailable. */
+    void (*view_restore_controls)(void* user);
+    uint64_t (*fetch_lua_context)(void* user);
+} fc4_tutorial_host;
+
+/* Every field of §2 (tokens 0 = none). */
+typedef struct fc4_tutorial_state {
+    uint32_t struct_size;
+    uint8_t is_tutorial; /* +0x1F (saved): the byte as read */
+    uint8_t destroyed;
+    uint8_t end_pending; /* +0x2C */
+    uint8_t start_tried; /* +0x2D */
+    uint32_t ref_count;
+    int32_t task_number; /* +0x20 (saved) */
+    uint32_t guid;       /* +0x24 (saved; 0xFFFFFFFF = none) */
+    uint32_t field_28;   /* +0x28 (3) */
+    uint64_t lua_context; /* +0x30 (one reference held) */
+    uint64_t window;      /* +0x40 (one reference held) */
+} fc4_tutorial_state;
+
+/* Constructed (§2: GUID none, reference count 0). The host table is copied
+ * (NULL for a NULL or short table). */
+fc4_tutorial* fc4_tutorial_create(const fc4_tutorial_host* host, uint64_t token);
+void fc4_tutorial_destroy(fc4_tutorial* t);
+bool fc4_tutorial_query_interface(uint32_t iid);
+uint32_t fc4_tutorial_add_ref(fc4_tutorial* t);
+/* The last one marks the object destroyed (TU3) and returns 0; the handle
+ * stays valid until destroy. */
+uint32_t fc4_tutorial_release(fc4_tutorial* t);
+bool fc4_tutorial_init(fc4_tutorial* t);
+bool fc4_tutorial_shutdown(fc4_tutorial* t);
+/* DoMessage (§4.3): city init complete, Tutorial_EndTutorial (`data` = the
+ * message's data field; 0 also ends the registry entry) and pre-save. Always
+ * true. */
+bool fc4_tutorial_do_message(fc4_tutorial* t, uint32_t msg_type, uint32_t data);
+/* Slots 5 startTutorial (the registry call's result) and 6
+ * endTutorial(end_registry) (returns end_registry). */
+bool fc4_tutorial_start(fc4_tutorial* t);
+bool fc4_tutorial_end(fc4_tutorial* t, bool end_registry);
+/* Slot 7: the Lua context (fetched once, kept with a reference), 0 = none. */
+uint64_t fc4_tutorial_scripting_context(fc4_tutorial* t);
+/* Slot 8 IsTutorial (§4.1): 1 or 0. */
+uint32_t fc4_tutorial_is_tutorial(const fc4_tutorial* t);
+/* Slots 9 IsEdgeScrollingAllowed, 10 GetCurrentTask (0 = none), 11
+ * GetTutorialTaskNumber, 12 GetTutorialGUID. */
+bool fc4_tutorial_is_edge_scrolling_allowed(const fc4_tutorial* t);
+uint64_t fc4_tutorial_current_task(const fc4_tutorial* t);
+int32_t fc4_tutorial_task_number(const fc4_tutorial* t);
+uint32_t fc4_tutorial_guid(const fc4_tutorial* t);
+/* Slot 13 FilterMessage: the message's kind, ID and data fields 2 and 3. Always true. */
+bool fc4_tutorial_filter_message(fc4_tutorial* t, uint32_t kind, uint32_t id, uint32_t field2, uint32_t field3);
+/* Slots 14 ShowUIHintsForUsers, 15 HandleCatalogMenu (true), 16
+ * FilterLeftMouseClick (x, z in/out; true without a window), 17
+ * ResetTutorialNumAndIndex (false without a window), 18 OnTutorialEvent
+ * (true), 19 SetTutorialTaskNumber, 20 IncrementTutorialTaskNumber. */
+void fc4_tutorial_show_ui_hints(fc4_tutorial* t);
+bool fc4_tutorial_handle_catalog_menu(fc4_tutorial* t, uint64_t menu);
+bool fc4_tutorial_filter_left_mouse_click(fc4_tutorial* t, int32_t* x, int32_t* z, int32_t n);
+bool fc4_tutorial_reset_num_and_index(fc4_tutorial* t, int32_t a, int32_t b);
+bool fc4_tutorial_on_event(fc4_tutorial* t, uint32_t event);
+void fc4_tutorial_set_task_number(fc4_tutorial* t, int32_t n);
+void fc4_tutorial_increment_task_number(fc4_tutorial* t);
+bool fc4_tutorial_get_state(const fc4_tutorial* t, fc4_tutorial_state* out);
+/* The 11-byte record (§3): version 2, is-tutorial, the task number, the GUID.
+ * Write is false (nothing written) on a stream with an error; Read is false
+ * unless the version is 2 and maps the GUID (0 -> 0x8A5B7A6C, 1 -> 0xEA5D6DC8). */
+bool fc4_tutorial_write(const fc4_tutorial* t, const fc4_ostream* out);
+bool fc4_tutorial_read(fc4_tutorial* t, const fc4_istream* in);
+
+/* ---- network manager (docs/specs/network-manager.md; engine/capi/src/network_manager.rs) ----
+ * cSC4NetworkManager (component 53) and cSC4NetworkLotManager (component 11).
+ * The shim owns the GZCOM objects and forwards their slots here. Tokens are
+ * opaque host identities (0 = none): network occupants, tools, construction
+ * crews, lots, street props, flora and effect props. Occupants, the terrain
+ * and the network lot configurations are host inputs; the traffic graph is
+ * traffic-network.md's (fc4_traffic), the riot's removal lock (§10) the
+ * disaster layer's (fc4_disasters). A missing callback reads as 0 / false /
+ * none. One object's calls must be serialised; a callback must not call back
+ * into its object, except that crew_shutdown may call
+ * fc4_netmgr_unregister_construction_crew. */
+typedef struct fc4_netmgr fc4_netmgr;
+typedef struct fc4_netlot fc4_netlot;
+
+/* The network manager's host. */
+typedef struct fc4_netmgr_host {
+    uint32_t struct_size; /* sizeof(fc4_netmgr_host) */
+    void* user;
+    /* messages and the city */
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    bool (*uk_paths)(void* user);
+    void (*city_size)(void* user, int32_t* x_cells, int32_t* z_cells);
+    bool (*is_night)(void* user);
+    void (*view_rotation_changed)(void* user);
+    /* references */
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* a saved reference (fc4_ref token) as the interface `iid`, one reference held; 0 = none */
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+    /* tools (§7.1): created with one reference for the core */
+    uint64_t (*create_tool)(void* user, uint32_t network_type);
+    void (*tool_init)(void* user, uint64_t tool);
+    void (*tool_shutdown)(void* user, uint64_t tool);
+    void (*tool_destroy_occupants)(void* user, uint64_t tool, const uint64_t* occupants, size_t count);
+    /* UpdateUndergroundOccupantTerrainHeights: `cells` holds `count` (x, z) pairs */
+    void (*tool_update_underground_heights)(void* user, uint64_t tool, const int32_t* cells,
+                                            const uint64_t* occupants, size_t count, uint32_t network_type);
+    uint64_t (*tool_cell_info)(void* user, uint64_t tool, uint32_t packed_cell); /* (z << 16) + x */
+    void (*tool_reinsert_piece)(void* user, uint64_t tool, uint64_t info);
+    /* network occupants */
+    uint64_t (*query_network_occupant)(void* user, uint64_t occupant); /* borrowed; 0 = not one */
+    bool (*is_network_occupant)(void* user, uint64_t occupant);
+    uint32_t (*network_flags)(void* user, uint64_t n);
+    bool (*is_of_type)(void* user, uint64_t n, uint32_t network_type);
+    uint32_t (*occupant_flags)(void* user, uint64_t occupant);
+    bool (*occupant_flag_set)(void* user, uint64_t occupant, uint32_t flag);
+    void (*occupied_cell)(void* user, uint64_t n, int32_t* x, int32_t* z);
+    float (*occupant_altitude)(void* user, uint64_t n, float x, float z);
+    bool (*is_managed_globally)(void* user, uint64_t n);
+    bool (*can_be_lit)(void* user, uint64_t n);
+    void (*set_lit)(void* user, uint64_t n, bool lit);
+    bool (*check_for_retrofit)(void* user, uint64_t n);
+    void (*retrofit)(void* user, uint64_t n);
+    uint64_t (*creation_number)(void* user, uint64_t occupant); /* missing: the token */
+    /* the occupant manager and the terrain */
+    bool (*remove_occupant)(void* user, uint64_t occupant);
+    void (*occupants_in_rect)(void* user, const fc4_cell_rect* rect, uint32_t network_mask, fc4_token_callback cb,
+                              void* ctx);
+    void (*network_occupants)(void* user, fc4_token_callback cb, void* ctx);
+    void (*post_refresh)(void* user, uint64_t n); /* posts 0x99EF1145 */
+    float (*terrain_altitude)(void* user, float x, float z);
+    /* construction crews: slot 5 */
+    void (*crew_shutdown)(void* user, uint64_t crew);
+} fc4_netmgr_host;
+
+typedef struct fc4_netmgr_state {
+    uint32_t struct_size;
+    uint8_t initialized, destroyed, uk_paths, long_terrain_op;
+    uint8_t queueing, reserved[3];
+    uint32_t ref_count;
+    uint32_t managed, pending, retrofit, crews;
+    uint32_t tools;      /* cached tools that are not null */
+    fc4_cell_rect dirty; /* (0x7FFFFFFF, 0x7FFFFFFF, -1, -1) when empty */
+} fc4_netmgr_state;
+
+/* A network flag change (§5). */
+typedef struct fc4_network_flag_change {
+    uint32_t flags;       /* the new flags */
+    int32_t usable_post;  /* data1 of the 0x89D3E9F3 to post, or -1 for none */
+    uint8_t translucency; /* the translucency changes */
+    uint8_t reserved[3];
+} fc4_network_flag_change;
+
+/* Pure rules. */
+bool fc4_network_set_flag(uint32_t flags, uint32_t bits, bool in_city, fc4_network_flag_change* out);
+bool fc4_network_clear_flag(uint32_t flags, uint32_t bits, fc4_network_flag_change* out);
+uint32_t fc4_network_pipe_model(uint32_t flags); /* 0 normal, 1 distressed, 2 burst */
+/* §7.6 step 1: the rectangle of 0x278E6003, clamped to the city. */
+bool fc4_network_terrain_rect(uint32_t data1, uint32_t data2, int32_t x_size, int32_t z_size, fc4_cell_rect* out);
+/* The §7.6 corner rule for one corner's height difference (NaN: false). */
+bool fc4_network_corner_mismatch(float d);
+
+/* Lifecycle. fc4_netmgr_release returns 0 once the object is destroyed; the
+ * handle stays valid until fc4_netmgr_destroy. */
+fc4_netmgr* fc4_netmgr_create(const fc4_netmgr_host* host, uint64_t token);
+void fc4_netmgr_destroy(fc4_netmgr* m);
+bool fc4_netmgr_query_interface(uint32_t iid);
+uint32_t fc4_netmgr_add_ref(fc4_netmgr* m);
+uint32_t fc4_netmgr_release(fc4_netmgr* m);
+bool fc4_netmgr_init(fc4_netmgr* m); /* §3.1: 11 subscriptions, 13 tools */
+bool fc4_netmgr_shutdown(fc4_netmgr* m);
+/* DoMessage (§6.1). void1: the occupant of 0x99EF1142 / 0x99EF1143 (0 =
+ * none); view_old / view_new: the two values of 0xA6B79602. */
+bool fc4_netmgr_do_message(fc4_netmgr* m, uint32_t msg_type, uint32_t data1, uint32_t data2, uint32_t data3,
+                           uint32_t data4, uint64_t void1, uint32_t view_old, uint32_t view_new);
+/* Slot 5 (§7.1): the cached tool (borrowed) or, with `unique`, a new one carrying the caller's reference. */
+uint64_t fc4_netmgr_get_network_tool(fc4_netmgr* m, uint32_t network_type, bool unique);
+void fc4_netmgr_destroy_network_occupants(fc4_netmgr* m, const uint64_t* list, size_t count); /* slot 6 */
+void fc4_netmgr_queue_removals(fc4_netmgr* m, bool on);                                     /* slot 7 */
+/* Slot 8 (§7.4): `*replaced` is written (true) only when an intersection was replaced. */
+bool fc4_netmgr_remove_or_replace_occupant(fc4_netmgr* m, uint64_t tool, uint64_t occupant, bool* replaced);
+void fc4_netmgr_register_construction_crew(fc4_netmgr* m, uint64_t crew);   /* slot 16 */
+void fc4_netmgr_unregister_construction_crew(fc4_netmgr* m, uint64_t crew); /* slot 17 */
+void fc4_netmgr_add_to_retrofit_list(fc4_netmgr* m, uint64_t n);            /* slot 23 */
+/* The globally managed list (0 = a null entry read from a save). Returns the length; copies at most `capacity`. */
+size_t fc4_netmgr_managed(const fc4_netmgr* m, uint64_t* out, size_t capacity);
+bool fc4_netmgr_get_state(const fc4_netmgr* m, fc4_netmgr_state* out);
+/* The record (§4.1). Read appends to the managed list (resolve_ref, IID 0xA821EF94). */
+bool fc4_netmgr_write(const fc4_netmgr* m, const fc4_ostream* out);
+bool fc4_netmgr_read(fc4_netmgr* m, const fc4_istream* in);
+
+/* The network lot manager's host. */
+typedef struct fc4_netlot_host {
+    uint32_t struct_size; /* sizeof(fc4_netlot_host) */
+    void* user;
+    /* messages and references */
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid); /* one reference held; 0 = none */
+    /* network occupants */
+    uint64_t (*query_network_occupant)(void* user, uint64_t unknown); /* borrowed; 0 = not one */
+    uint32_t (*network_flags)(void* user, uint64_t n);
+    uint32_t (*piece_id)(void* user, uint64_t n);
+    int32_t (*rotation)(void* user, uint64_t n);
+    int32_t (*flip)(void* user, uint64_t n);
+    void (*position_cell)(void* user, uint64_t n, int32_t* x, int32_t* z);
+    void (*occupied_cell)(void* user, uint64_t n, int32_t* x, int32_t* z);
+    float (*occupant_altitude)(void* user, uint64_t n, float x, float z);
+    bool (*is_intersection)(void* user, uint64_t n);
+    uint32_t (*edge_types_flag)(void* user, uint64_t n, uint32_t kind);
+    uint32_t (*active_edges)(void* user, uint64_t n);
+    void (*set_network_flag)(void* user, uint64_t n, uint32_t bits);
+    void (*set_under_texture)(void* user, uint64_t n, uint32_t texture);
+    void (*set_variation)(void* user, uint64_t n, uint32_t variation);
+    /* the traffic network map (traffic-network.md) */
+    bool (*traffic_map_exists)(void* user);
+    uint64_t (*find_network_tile)(void* user, int32_t x, int32_t z, uint32_t mask); /* borrowed; 0 = none */
+    void (*update_intersection)(void* user, uint64_t n);
+    /* the city, the terrain, zones and lots */
+    void (*city_size)(void* user, int32_t* x_cells, int32_t* z_cells);
+    void (*cell_center)(void* user, int32_t x, int32_t z, float* wx, float* wz);
+    float (*terrain_altitude)(void* user, float x, float z);
+    int32_t (*zone_type)(void* user, int32_t x, int32_t z);
+    uint64_t (*lot_at)(void* user, int32_t x, int32_t z); /* borrowed; 0 = none */
+    int32_t (*lot_wealth)(void* user, uint64_t lot);
+    bool (*lot_is_livable)(void* user, uint64_t lot);
+    uint32_t (*lot_building_type)(void* user, uint64_t lot);
+    bool (*building_profile_wealth)(void* user, uint32_t building_type, int32_t* wealth);
+    uint64_t (*query_lot)(void* user, uint64_t unknown); /* borrowed; 0 = not a lot */
+    void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    float (*area_slope)(void* user, int32_t x, int32_t z);
+    /* street props and flora (§8.6); a position is float[3] (x, y, z) */
+    void (*remove_street_props)(void* user, int32_t x, int32_t z);
+    uint64_t (*add_street_prop)(void* user, uint32_t id, const float* pos, uint32_t orientation); /* borrowed */
+    void (*street_prop_slot28)(void* user, uint64_t prop, uint32_t value);
+    void (*street_prop_slot29)(void* user, uint64_t prop, uint32_t value);
+    void (*demolish_flora)(void* user, int32_t x, int32_t z);
+    uint64_t (*add_flora)(void* user, uint32_t id, const float* pos); /* borrowed */
+    void (*flora_slot28)(void* user, uint64_t flora, uint32_t index);
+    /* the candidate IDs of object `index` of configuration `config` (its token) */
+    void (*object_ids)(void* user, uint64_t config, uint32_t index, fc4_u32_callback cb, void* ctx);
+    /* potholes (§8.8): the effect prop is created with one reference for the core */
+    uint64_t (*create_effect_prop)(void* user);
+    void (*effect_set_name)(void* user, uint64_t prop, const char* name);
+    void (*effect_start)(void* user, uint64_t prop);
+    void (*effect_stop)(void* user, uint64_t prop);
+    void (*set_position)(void* user, uint64_t prop, const float* pos);
+    void (*insert_occupant)(void* user, uint64_t occupant);
+    void (*remove_occupant)(void* user, uint64_t occupant);
+    uint64_t (*first_network_occupant_at)(void* user, int32_t x, int32_t z, uint32_t mask); /* borrowed */
+} fc4_netlot_host;
+
+/* One configuration object (§8.6). */
+typedef struct fc4_netlot_object {
+    uint8_t kind;  /* 1 prop, 4 flora */
+    uint8_t flags; /* bit 0: no prop is created */
+    uint8_t orientation;
+    uint8_t reserved;
+    float offset[3];
+    uint32_t field_24; /* passed to a created prop's slot 28 */
+} fc4_netlot_object;
+
+/* A network lot configuration (§2.4). */
+typedef struct fc4_netlot_config {
+    uint32_t struct_size; /* sizeof(fc4_netlot_config) */
+    uint32_t piece_id;
+    uint64_t token; /* the host's identity of the configuration (object_ids) */
+    uint32_t id;
+    uint16_t zones;  /* bit z: zone type z allowed */
+    uint8_t wealths; /* bit w: wealth w allowed */
+    uint8_t period;
+    uint8_t mask[4];
+    uint8_t rotations;
+    uint8_t flip_rule;
+    uint16_t reserved;
+    float min_slope, max_slope;
+    uint32_t object_count;
+    const fc4_netlot_object* objects;
+} fc4_netlot_config;
+
+typedef struct fc4_netlot_lot {
+    uint64_t occupant;  /* 0 = a reference that did not resolve on load */
+    uint32_t config_id; /* the live configuration's, or the one read */
+    uint8_t has_config; /* false only between Read and Init */
+    uint8_t locked;
+    uint16_t reserved;
+} fc4_netlot_lot;
+
+typedef struct fc4_netlot_state {
+    uint32_t struct_size;
+    uint8_t initialized, destroyed, has_forced, reserved;
+    uint32_t ref_count;
+    uint32_t lots, potholes, pending, configs;
+    uint32_t forced_id;
+} fc4_netlot_state;
+
+typedef bool (*fc4_netlot_visitor)(void* ctx, int32_t x, int32_t z, const fc4_netlot_lot* lot);
+
+/* Lifecycle. `session_seed` seeds the generator (§17). */
+fc4_netlot* fc4_netlot_create(const fc4_netlot_host* host, uint64_t token, uint32_t session_seed);
+void fc4_netlot_destroy(fc4_netlot* l);
+bool fc4_netlot_query_interface(uint32_t iid);
+uint32_t fc4_netlot_add_ref(fc4_netlot* l);
+uint32_t fc4_netlot_release(fc4_netlot* l);
+/* Configurations for the next Init (load order = call order); objects are copied. The props
+ * form is ReadLotConfiguration (§2.4): false unless property 0x10 is 0x21 and the piece ID is present. */
+bool fc4_netlot_add_configuration(fc4_netlot* l, const fc4_netlot_config* cfg);
+bool fc4_netlot_add_configuration_props(fc4_netlot* l, uint64_t token, const fc4_props* props,
+                                        const fc4_netlot_object* objects, uint32_t object_count);
+void fc4_netlot_clear_configurations(fc4_netlot* l);
+bool fc4_netlot_init(fc4_netlot* l); /* §3.2 */
+bool fc4_netlot_shutdown(fc4_netlot* l);
+/* DoMessage (§6.2). rect: *data2 of 0x07699455 (NULL otherwise). */
+bool fc4_netlot_do_message(fc4_netlot* l, uint32_t msg_type, uint32_t data1, uint32_t data2, uint32_t data3,
+                           uint64_t void1, uint64_t unknown, const fc4_cell_rect* rect);
+bool fc4_netlot_get_lot(const fc4_netlot* l, int32_t x, int32_t z, fc4_netlot_lot* out); /* slot 5; out may be NULL */
+int32_t fc4_netlot_zone_type_for_network(const fc4_netlot* l, int32_t x, int32_t z);    /* slot 9, §8.2 */
+int32_t fc4_netlot_wealth_for_network(const fc4_netlot* l, int32_t x, int32_t z);       /* slot 10, §8.3 */
+/* IsLotCompatible (§8.4) for the loaded configuration `config_id` (false when none is loaded). */
+bool fc4_netlot_is_lot_compatible(const fc4_netlot* l, uint32_t config_id, int32_t x, int32_t z, int32_t zone,
+                                  int32_t wealth, int32_t rotation, int32_t flip);
+bool fc4_netlot_configuration_by_id(const fc4_netlot* l, uint32_t id);     /* slot 7: loaded */
+bool fc4_netlot_set_next_configuration(fc4_netlot* l, uint32_t config_id); /* slot 13 */
+void fc4_netlot_clear_next_configuration(fc4_netlot* l);                  /* slot 13 with null */
+bool fc4_netlot_iterate_lots(const fc4_netlot* l, fc4_netlot_visitor cb, void* ctx); /* slot 11 */
+void fc4_netlot_update_roads_in_cell(fc4_netlot* l, int32_t x, int32_t z);          /* §8.5 */
+void fc4_netlot_add_pending(fc4_netlot* l, int32_t x, int32_t z);
+void fc4_netlot_process_update_list(fc4_netlot* l);
+bool fc4_netlot_redevelop_lot(fc4_netlot* l, int32_t x, int32_t z); /* slot 12; false: no lot */
+/* Slot 8 CreateProp for the cell's lot: the street prop (borrowed) or 0. */
+uint64_t fc4_netlot_create_prop(fc4_netlot* l, int32_t x, int32_t z, uint32_t index, uint32_t id);
+void fc4_netlot_road_damage_change(fc4_netlot* l, int32_t x, int32_t z, bool damaged); /* §8.8 */
+bool fc4_netlot_get_state(const fc4_netlot* l, fc4_netlot_state* out);
+/* The record (§4.2). Read: false unless the version is 2; occupants (IID 0xA821EF94) and
+ * effect props (IID 0x09820792) come back through resolve_ref. */
+bool fc4_netlot_write(const fc4_netlot* l, const fc4_ostream* out);
+bool fc4_netlot_read(fc4_netlot* l, const fc4_istream* in);
 
 /* ---- occupant manager (docs/specs/occupant-manager.md) ---------------------
  * cSC4OccupantManager (0x098F964D): the city's spatial index of occupants, a
@@ -8785,6 +9674,17 @@ static_assert(sizeof(fc4_tract_host) == (sizeof(void*) == 4 ? 368 : 736), "fc4_t
 static_assert(sizeof(fc4_tract_grow_result) == 112, "fc4_tract_grow_result layout");
 static_assert(sizeof(fc4_tract_state) == 288, "fc4_tract_state layout");
 static_assert(sizeof(fc4_tract_tuning) == 120, "fc4_tract_tuning layout");
+static_assert(sizeof(fc4_prop_manager_host) == (sizeof(void*) == 4 ? 188 : 376), "fc4_prop_manager_host layout");
+static_assert(sizeof(fc4_prop_profile) == 28, "fc4_prop_profile layout");
+static_assert(sizeof(fc4_prop_command_arg) == (sizeof(void*) == 4 ? 12 : 16), "fc4_prop_command_arg layout");
+static_assert(sizeof(fc4_prop_manager_state) == 48, "fc4_prop_manager_state layout");
+static_assert(sizeof(fc4_prop_catalogue_state) == 24, "fc4_prop_catalogue_state layout");
+static_assert(sizeof(fc4_lot_config_host) == (sizeof(void*) == 4 ? 168 : 336), "fc4_lot_config_host layout");
+static_assert(sizeof(fc4_lot_config_building_info) == (sizeof(void*) == 4 ? 16 : 24), "fc4_lot_config_building_info layout");
+static_assert(sizeof(fc4_lot_config_state) == 40, "fc4_lot_config_state layout");
+static_assert(sizeof(fc4_lot_config_catalogue_state) == 20, "fc4_lot_config_catalogue_state layout");
+static_assert(sizeof(fc4_tutorial_host) == (sizeof(void*) == 4 ? 100 : 200), "fc4_tutorial_host layout");
+static_assert(sizeof(fc4_tutorial_state) == 40, "fc4_tutorial_state layout");
 static_assert(sizeof(fc4_lot_cfg_object) == (sizeof(void*) == 4 ? 20 : 24), "fc4_lot_cfg_object layout");
 static_assert(sizeof(fc4_object_placement) == 16, "fc4_object_placement layout");
 static_assert(sizeof(fc4_city_detail_state) == 40, "fc4_city_detail_state layout");
@@ -8846,6 +9746,17 @@ _Static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout"
 _Static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 336 : 672), "fc4_disasters_host layout");
 _Static_assert(sizeof(fc4_disasters_state) == 80, "fc4_disasters_state layout");
 _Static_assert(sizeof(fc4_disaster_fire) == 56, "fc4_disaster_fire layout");
+_Static_assert(sizeof(fc4_prop_manager_host) == (sizeof(void*) == 4 ? 188 : 376), "fc4_prop_manager_host layout");
+_Static_assert(sizeof(fc4_prop_profile) == 28, "fc4_prop_profile layout");
+_Static_assert(sizeof(fc4_prop_command_arg) == (sizeof(void*) == 4 ? 12 : 16), "fc4_prop_command_arg layout");
+_Static_assert(sizeof(fc4_prop_manager_state) == 48, "fc4_prop_manager_state layout");
+_Static_assert(sizeof(fc4_prop_catalogue_state) == 24, "fc4_prop_catalogue_state layout");
+_Static_assert(sizeof(fc4_lot_config_host) == (sizeof(void*) == 4 ? 168 : 336), "fc4_lot_config_host layout");
+_Static_assert(sizeof(fc4_lot_config_building_info) == (sizeof(void*) == 4 ? 16 : 24), "fc4_lot_config_building_info layout");
+_Static_assert(sizeof(fc4_lot_config_state) == 40, "fc4_lot_config_state layout");
+_Static_assert(sizeof(fc4_lot_config_catalogue_state) == 20, "fc4_lot_config_catalogue_state layout");
+_Static_assert(sizeof(fc4_tutorial_host) == (sizeof(void*) == 4 ? 100 : 200), "fc4_tutorial_host layout");
+_Static_assert(sizeof(fc4_tutorial_state) == 40, "fc4_tutorial_state layout");
 _Static_assert(sizeof(fc4_occ_bbox) == 24, "fc4_occ_bbox layout");
 _Static_assert(sizeof(fc4_occ_cell_box) == 4, "fc4_occ_cell_box layout");
 _Static_assert(sizeof(fc4_occ_filter) == 16, "fc4_occ_filter layout");

@@ -60,7 +60,10 @@ and return 0.
 - The COM director registers a factory for `0x0990C138` (`0x006B7870`, registered at `0x00460448`): the class
   store uses it when a save holds developer references (the BDS writes its developers by reference, IID
   `0xE7CDD662`, BDS `Read` `0x0069AD53`). After loading, the BDS's `CreateDeveloper` finds the loaded object and
-  calls `Init` on it.
+  calls `Init` on it. A loaded developer has **two** references: the BDS map's and the load's object table's
+  (foundations §2.7). Until the city is saved, the BDS `Shutdown`'s `Release` is therefore not its last one: the
+  developer is destroyed when the loaded segment closes, after the whole city `Shutdown` (building-development §1.4,
+  DG39).
 - Consequence (§9): registering `0x0990C138` in a plugin replaces only the developers created from saves; a new
   city still gets original objects.
 

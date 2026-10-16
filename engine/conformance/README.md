@@ -1757,6 +1757,62 @@ Park events: `tuning` (the exemplar was asked for), `acquire` (`service`, `ok`),
 `void1`, `unknown`: the posted ZooEscape), `controllers` (`name`, `occupant`; only with an automata controller
 manager), and the stub's `double`, `u32` (`n`).
 
+## Network manager ops
+
+The network manager vectors (`nm16_…`, `nm00_…`) drive `fc4_core::network_manager` (`docs/specs/network-manager.md`):
+the network manager (`NetworkManager`, component 53), the network lot manager (`NetworkLotManager`, component 11) and
+the riot's removal lock (`RiotLock`), over one scripted 64 × 64 city implementing `NetworkManagerHost`,
+`NetworkLotHost` and `RiotHost`. Every op name starts with `net_`. Ops that address one manager take `of`:
+`"manager"` (the default) or `"lots"`. The default world: day, no UK paths, flat terrain at altitude 0, area slope
+0, a traffic network map, crews that unregister themselves at their slot 5, no occupants, zones, lots or
+configurations, and the stub generator (queued `u32s`, then 0; every draw is a `draw` event with `n`). The managers'
+own tokens are `0xA000` and `0xB000`. Tool tokens are `0x7000 + n` in creation order (`Init` creates types 0..12,
+so the cached tool of type `t` is `0x7000 + t`); street props, flora and effect props get `0x5000`, `0x5001`, … in
+creation order. Cell (x, z) has its corner at `(16x, 16z)` and its centre at `(16x + 8, 16z + 8)`; an occupant's
+altitude is the terrain's plus its `height`. A save reference to an occupant or an effect prop resolves with one
+reference; any other token does not resolve. References held are counted per token (`net_expect_refs`); `add_ref` /
+`release` are not events.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `net_env` | any of `night`, `uk_paths`, `terrain` (the flat altitude), `slope` (the lot developer's area slope; `"nan"` allowed), `traffic_map`, `crews_unregister`, `random` (`"stub"` or `"default"`), `session_seed`, `u32s` | the world |
+| `net_occupant` | `occupant`, `flags?` (an integer or a list of names: `road`, `rail`, `highway`, `street`, `pipe`, `power_line`, `avenue`, `subway`, `light_rail`, `monorail`, `one_way_road`, `dirt_road`, `ground_highway`, `translucent`, `pipe_distressed`, `pipe_burst`, `flag_40000`, `flag_80000`, `intersection`, `connection_node`, `usable`, `flag_80000000`, or integers), `cell?`, `in_city?` (true: occupant flag 1), `managed?` (globally managed), `lit?` (CanBeLit), `height?` (`"nan"` allowed), `creation?` (the token), `retrofit?` (CheckForRetrofit), `flag4?` (occupant flag 4), `removable?` (true), `piece?`, `rotation?`, `flip?`, `intersection?`, `edges6?` (GetEdgeTypesFlag(6)), `active_edges?`; or `remove: true` | creates or updates an occupant (fields left out keep their value); a network occupant is one with a type flag (`0x1FFF`) |
+| `net_zone` | `cells` (`[[x, z, zone]]`), `clear?` | the zone grid |
+| `net_lot` | `lot`, `rect` (`[x1, z1, x2, z2]`) or `cell`, `wealth?` (0), `livable?`, `building_type?`; `profiles?` (`{"0xTYPE": wealth}`); `clear?` | a lot over its cells, building profiles |
+| `net_config` | `id`, `piece`, `token?` (the ID), `zones?` / `wealths?` (allowed values; absent: all), `mask?` (4 bytes), `period?`, `min_slope?`, `max_slope?`, `rotations?`, `flip_rule?`, `objects?` (`[{kind: "prop" \| "flora" \| n, flags?, orientation?, offset?: [x, y, z], field_24?, ids?: [...]}]`, `ids` being the object's candidate list); `clear?` | a network lot configuration, loaded at the lot manager's `Init` |
+| `net_create` | `of?` (`"manager"`, `"lots"` or `"both"`, the default) | new constructed managers |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `net_init` / `net_shutdown` / `net_add_ref` / `net_release` | `of?`, `expect?` | the lifecycle slots |
+| `net_identity` | `of?`, `iids` (`{"0xIID": bool}`), `class` | `QueryInterface` and `GetGZCLSID` |
+| `net_message` | `of?`, `type` (`ViewChanged`, `TerrainChanged`, `LongTerrainBegin`, `LongTerrainEnd`, `WaterDisplayChanged`, `PreCityShutdown`, `PostCityInit`, `OccupantInserted`, `OccupantRemoved`, `Dawn`, `Dusk`, `UsableChanged`, `CreateLotObjects`, `ZoningChanged`, `LotStateChanged`, `RoadDamageChanged` or an ID), `data1`..`data4`, `occupant` (void1), `unknown` (the IGZUnknown), `view` (`[old, new]`), `rect` (the zoning rectangle), `expect?` | `DoMessage` |
+| `net_call` | `method`, `args`, `expect?` | manager: `get_network_tool [type, unique]` (`{tool, type}` or null), `destroy_network_occupants [[occ…]]`, `queue_removals [on]`, `remove_or_replace_occupant [tool, occ \| null]` (`[result, replaced]`), `register_construction_crew [c]`, `unregister_construction_crew [c]`, `add_to_retrofit_list [n]`, `terrain_rect [data1, data2]` (`[x1, z1, x2, z2]`), `corner_mismatch [d]`, `set_network_flag [flags, bits, in_city]` / `clear_network_flag [flags, bits]` (`{flags, usable_post, translucency}`); lot manager: `zone_type_for_network [x, z]`, `wealth_for_network [x, z]`, `is_lot_compatible [config, x, z, zone, wealth, rotation, flip]`, `object_position [[x, z], rotation, flipped, o, [ox, oy, oz]]` (`{pos, orientation}`, the altitude being the flat terrain's), `update_roads_in_cell [x, z]`, `update_road_style [x, z, n]`, `add_pending [x, z]`, `add_border_to_pending [[x1, z1, x2, z2]]`, `process_update_list`, `set_lot_configuration_for_next_piece [config \| null]`, `redevelop_lot [x, z]`, `do_road_damage_change [x, z, damaged]`, `get_network_lot [x, z]`, `configuration_by_id [id]`, `pothole_offset [e]`, `road_texture [zone, wealth]`, `road_variation [zone, wealth]` |
+| `net_riot` | `action?` (`add_instance`, `remove_instance`, `shutdown`, or `mark` with `cell`), `can_remove?` (`{"0xOCC": [level, bool]}`, checked after the action) | the riot lock over the world's removal counters |
+| `net_expect` | `of?`, `state`: manager (partial: `initialized`, `destroyed`, `ref_count`, `uk_paths`, `long_terrain_op`, `dirty` (`[x1, z1, x2, z2]`, null when empty), `managed`, `pending`, `queueing`, `retrofit`, `crews`, `tools` (each cached tool's type or null), `riot_locked`, `riot_instances`); lots (partial: `initialized`, `destroyed`, `ref_count`, `lots` (`[{cell, occupant, config, config_id, locked}]` in map order), `lot_count`, `potholes` (`[{cell, prop}]`), `pending` (cells in key order), `pending_count`, `forced`, `configs` (IDs, sorted)) | the state |
+| `net_expect_lot` | `cell`, `state` (partial: `occupant`, `config`, `config_id`, `locked`) or `absent: true` | a network lot |
+| `net_expect_refs` | `refs` (`{"token": count}`) | references held |
+| `net_write` | `of?`, `slot?`, `expect?`, `length?`, `hex?`, `registered?` (the tokens in save-registry order) | the record |
+| `net_read` | `of?`, `slot` or `hex` (object IDs resolve to themselves), `length?` (cut), `reuse?` (the current manager, else a new one), `error?` (the stream starts in error), `position?` (bytes consumed), `expect?` | the record |
+| `net_expect_record` | `slot`, `same_as?`, `length?` | a saved record |
+| `net_expect_events` / `net_expect_event_count` / `net_clear_events` | see the shared conventions | host calls |
+
+Network manager events: `subscribe` / `unsubscribe` (`type`), `create_tool` (`type`, `tool`), `tool_init` /
+`tool_shutdown` (`type`), `destroy` (`type`, `occupants`), `underground` (`type`, `network_type`, `cells`,
+`occupants`), `cell_info` (`type`, `packed`), `reinsert` (`type`, `info`), `set_lit` (`occupant`, `lit`), `retrofit`
+(`occupant`), `remove_occupant` (`occupant`), `query` (`rect`, `mask`: the occupant manager's rectangle query),
+`refresh` (`occupant`: the posted `0x99EF1145`), `view_rotation`, `crew_shutdown` (`crew`). Network lot manager
+events: `texture` (`occupant`, `texture`), `variation` (`occupant`, `variation`), `set_flag` (`occupant`, `bits`),
+`intersection` (`occupant`), `remove_props` / `demolish_flora` (`cell`), `prop` (`id`, `pos`, `orientation`,
+`token`), `prop28` / `prop29` (`prop`, `value`), `flora` (`id`, `pos`, `token`), `flora28` (`flora`, `index`),
+`effect` (`token`), `effect_name` (`prop`, `name`), `effect_start` / `effect_stop` (`prop`), `position` (`prop`,
+`pos`), `insert` / `remove` (`occupant`), and the stub's `draw` (`n`). Riot events: `unset_removal` /
+`set_removal` (`occupant`, `mask`).
+
 ## City detail ops
 
 The city detail vectors (`cd8_…`) drive `fc4_core::city_detail::CityDetailManager` (`docs/specs/city-detail.md`)
@@ -1963,6 +2019,76 @@ Disaster events: `emergency_pause`, `emergency_resume`, `disable_save`, `enable_
 `volcano_end_deformation`, `lava` (`instance`, `radius`), `lava_end`, and the stub's `raw`, `u32` (`n`),
 `double`, `range` and `gaussian` (`a`, `b`), each with its `generator`.
 
+## Prop and lot configuration manager ops
+
+The `plt_…` vectors (prop-lotconfig.md §T) drive `fc4_core::prop_manager::PropManager` (Part A, ops `pm_…`) and
+`fc4_core::lot_config_manager::LotConfigManager` (Part B, ops `lcm_…`), each over its own scripted city that
+outlives `*_create`. Tokens are integers (`"0x301"`); props, configurations and decals the core has the world
+create get tokens from `0x1000` in creation order. The prop world: the occupant manager `0x50`, the lot manager
+`0x51`, the resource manager `0x52`, the view filter `0x53`, 16 m cells, exemplars in group `0x1234`; the occupant
+manager's box query returns the inserted occupants of the filter's usage inside the box (bounds included), its
+cell-rectangle query those within one cell of the rectangle, each with a reference for the caller. The lot world:
+detail 3, the building development simulator `0x50`, the flora simulator `0x51`, the prop manager `0x52`;
+configurations load from `lcm_lot_exemplar` with the core's object reader (`lot_object_array`).
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `pm_env` | any of `no_resource_manager`, `no_sink` (props have no exemplar interface), `no_services`, `gzcom_classes` (classes GZCOM can create) | the world |
+| `pm_exemplar` | `instance`, `families?`, `size?` (OccupantSize floats), `class?`, `exemplar_type?` (`0x1E`), `group?`, `properties?` (`{props}`) | a prop exemplar |
+| `pm_occupant` | `occupant`, `pos?` [x, y, z], `usage?`, `inserted?`, `shown?`, `refs?` (its starting count) | an occupant |
+| `pm_lot` | `lot`, `rect` [x1, z1, x2, z2] (cells, inclusive) | a lot |
+| `pm_building` | `building`, `cell` [x, z], `props` (null: no property holder; `"absent"`; or the property's prop list) | a building |
+| `pm_create` | `same_catalogue?` (keep the process catalogue; else a new one) | a new prop manager |
+| `pm_init` / `pm_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `pm_call` | `method`, `args?`, `list?` (the caller's list before the call), `vec?` (slot 9's vector), `expect?` | `is_prop_type_valid`, `is_prop_family_type_valid`, `is_prop_in_family [type, family]`, `prop_types_by_family` (`{result, vec}`), `all_prop_types` and `all_prop_family_types` (sorted), `prop_key_from_type` ([type, group, instance] or null), `prop_name`, `prop_profile` and `prop_profile_ptr` (`{class, size, satisfaction, wealth, crime}` or null), `create_prop` (the token or null), `add_city_prop`, `add_lot_prop [lot, occupant]`, `add_building_prop [building, prop]`, `get_lot_props [lot]`, `get_lot_props_at [x, z]`, `get_street_props_at [x, z]`, `get_building_props [building]`, `get_building_props_at [x, z]` (each `{result, list}`), `remove_building_prop [building, prop]`, `remove_building_props`, `remove_lot_props`, `remove_prop`, `remove_street_props_from_tile [x, z]` |
+| `pm_expect` | `state` (partial: `initialized`, `occupant_manager`, `resource_manager`, `lot_manager`, `view_filter`, `filter`, `types`, `families`, `profiles` (the catalogue's map sizes)) | the manager |
+| `pm_expect_occupant` | `occupant`, `state` (partial: `prop_type`, `bbox` ([min, max] or null), `builtin` (`plain`, `terrain_decal`, `visual_effect` or null), `class`, `usage`, `inserted`, `shown`, `inits`, `shutdowns`, `pos`) | an occupant |
+| `pm_expect_building` | `building`, `props` | the building-prop property |
+| `pm_expect_refs` | `refs` (`{"token": count}`) | reference counts |
+| `pm_record` / `pm_read` | `hex`; `pm_read` also `objects?` (`{"n": token}`, default `0x4F + n`) and `expect?` | the component 5 record |
+| `lcm_env` | any of `detail`, `no_resource_manager`, `valid_walls` | the world |
+| `lcm_lot_exemplar` | `id`, `families?`, `size?` [x, z] (1 × 1), `version?` (2; null: absent), `objects` (each the lot object's u32 values) | a lot configuration exemplar of group `0xA8FBD372` |
+| `lcm_remove_exemplar` | `id` | removes it |
+| `lcm_config` | `label`, `id`, `families?`, `size?`, `walls?`, `objects?` (`[{kind, ids, rect? [min_x, min_z, max_x, max_z], centre? [x, z], orientation?}]`) | a configuration not from an exemplar (one reference) |
+| `lcm_set_objects` | `configuration`, `objects` | replaces its objects |
+| `lcm_building_type` | `type`, `capacity?`, `footprint?` [w, d], `exemplar?` (`{props}`) | a building type |
+| `lcm_prop_type` / `lcm_flora_type` | `type`, `size` [x, z] / `radius` | a prop or flora type |
+| `lcm_building_family` / `lcm_prop_family` / `lcm_flora_family` | `type` (the family), `types` | a family |
+| `lcm_filter` | `filter`, `ids` (the configuration IDs it accepts) | a lot configuration filter |
+| `lcm_objects` | `objects`, `version?`, `detail`, `expect` ([[type, v1], …]) | the object reader alone |
+| `lcm_lod` | `v1`, `expect` | `LOD = (v1 >> 4) & 3` |
+| `lcm_create` | `same_catalogue?` | a new manager |
+| `lcm_init` / `lcm_shutdown` / `lcm_unload` | `expect?` | `Init`, `Shutdown`, the process unload callback |
+| `lcm_remember` / `lcm_expect_same` | `id`, `as` (a label); `lcm_expect_same` also `same` | slot 8's object kept under a label / compared |
+| `lcm_call` | `method`, `args?`, `as?`, `expect?` | `configuration_count`, `object_count` (summed over the map), `configuration_ids` (sorted), `family_id_set` (sorted), `configuration [id]` (its ID or null), `add_configuration [configuration, add]`, `remove_configuration [id]`, `configurations_by_family`, `configurations_by_size [x, z]`, `configurations_by_filter [filter or null]` (IDs in the core's order), `ids_by_family`, `ids_by_size`, `ids_by_filter`, `register_filter`, `unregister_filter`, `flush`, `has_building_family` and `has_building_type [configuration, id]` (booleans), `object_id_array [type, ids]`, `footprint_props`, `footprint_buildings`, `footprint_flora [ids]` ([w, d, 0, 0]), `post_city_init`, `fix [configuration]` (the code), `create_generic [type]` (`{size, objects}` or null; `as` labels it) |
+| `lcm_expect` | `state` (partial: `initialized`, `building_development`, `flora`, `prop_manager`, `filters`, `loaded`, `detail`) | the manager and its catalogue |
+| `lcm_expect_config` | `configuration`, `state` (partial: `id`, `size`, `objects`, `object_count`, `info` (`{min_capacity, max_capacity, groups, non_monopoly}` or null), `walls`, `generic_for`) | a configuration |
+| `lcm_expect_refs` | `refs` (tokens or labels) | reference counts |
+| `lcm_record` / `lcm_read` | as `pm_record` / `pm_read` | the component 9 record |
+
+Configuration arguments are labels, tokens or null. Events (`*_expect_events`, `*_expect_event_count`,
+`*_clear_events`): the prop world's `shutdown_callback`, `post` (`manager`, `data2`), `command` / `uncommand` (`id`),
+`subscribe` / `unsubscribe` (`type`), `hide`, `remove` (`occupant`), `add_property` / `remove_property`
+(`building`); the lot world's `register_callback`, `unregister_callback`, `subscribe`, `unsubscribe`.
+
+## Tutorial ops
+
+The `tu8_…` vectors (tutorial.md §8) and `tu00_…` drive `fc4_core::tutorial::TutorialSystem` over a scripted
+registry, window (token `0x40`, task none) and 3D view. Every op name starts with `tut_`.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `tut_env` | any of `cheats` (the cheat manager exists and the app allows cheats), `registry` (`{"guid": entry byte +0x10}`), `registry_result` (what `SetActive` leaves in AL), `task` (the window's current task or null), `task_edge` | the world |
+| `tut_create` | | a new system (constructed state) |
+| `tut_read` / `tut_record` | `hex`, `expect?` | `Read` / `Write` of the component 48 record |
+| `tut_message` | `type` (`CityInitComplete`, `EndTutorial`, `PreSave` or an ID), `data?`, `expect?` | `DoMessage` |
+| `tut_call` | `method`, `args?`, `expect?` | `init`, `shutdown`, `start_tutorial`, `end_tutorial [bool]`, `is_tutorial`, `task_number`, `guid`, `set_task_number`, `increment_task_number`, `is_edge_scrolling_allowed`, `current_task`, `scripting_context`, `filter_message [kind, id, field2, field3]`, `show_ui_hints`, `handle_catalog_menu`, `filter_left_mouse_click [x, z, n]`, `reset_num_and_index [a, b]` (the window answers `b`), `on_tutorial_event` |
+| `tut_expect` | `state` (partial: `is_tutorial` (the byte), `task_number`, `guid`, `field_28`, `end_pending`, `start_tried`, `window`, `window_refs`, `registry_active` (`{"0xGUID": bool}`)) | the system |
+
+Tutorial events: `subscribe` / `unsubscribe` (`type`), `register_cheat`, `unregister_cheat`, `create_window`,
+`init_window`, `close_window`, `window_filter` (`value`), `window_hints`, `window_menu` (`menu`), `window_reset`
+(`a`, `b`), `window_event` (`event`), `set_active` (`guid`, `active`), `view_restore`.
+
 ## Occupant manager ops
 
 The occupant manager vectors (`om18_…`, `om14_…`) drive `fc4_core::occupant_manager::OccupantManager`
@@ -2073,9 +2199,11 @@ Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_bu
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
-   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `cd8_…` (city detail §8),
-   `pd12_…` (port developers §12), `pv12_…` (prop developer §12), `ds18_…` and `ds00_…` (disasters §18 and the
-   rest of disasters), `tr18_…` and `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
+   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `nm16_…` (network manager §16;
+   `nm00_…` for other network manager behaviour), `cd8_…` (city detail §8), `pd12_…` (port developers §12),
+   `pv12_…` (prop developer §12), `ds18_…` and `ds00_…` (disasters §18 and the rest of disasters), `plt_…`
+   (prop-lotconfig §T), `tu8_…` and `tu00_…` (tutorial §8 and the rest), `tr18_…` and
+   `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
    (automata §14) and `om18_…` / `om14_…` (occupant manager §18 / §14).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
@@ -3070,6 +3198,39 @@ shapes of the §7.1 table.
 Not covered by a vector: the 421-save corpus itself (part of item 8) is not available to this suite; `pk12_08`
 replays the record shapes §7 reports.
 
+## Coverage (network manager §16)
+
+| §16 item | Vector |
+|---|---|
+| 1 component 53 empty (version 2 rejected after 2 bytes, a stream in error, a null reference (NM6), an unresolvable one) | `nm16_01_component_53_empty` |
+| 2 component 11 empty (version 1 rejected, nothing else read) | `nm16_02_component_11_empty` |
+| 3 managed list order (swap-and-pop, the record C then B, byte-identical round trip, Read appends) | `nm16_03_managed_list_order` |
+| 4 duplicate insert | `nm16_04_duplicate_insert` |
+| 5 not managed (a plain road, a non-network occupant, no occupant) | `nm16_05_not_managed` |
+| 6 lighting (dusk, dawn, PostCityInit by day and at night) | `nm16_06_lighting` |
+| 7 GetNetworkTool (Init's subscriptions and tools, type 13, cached, unique, PreCityShutdown) | `nm16_07_get_network_tool` |
+| 8 QueueRemovals dedupe (creation order, the references kept) | `nm16_08_queue_removals_dedupe` |
+| 9 groups (road, pipe, subway in that order; power lines ignored; null tools skipped) | `nm16_09_groups` |
+| 10 terrain rect (clamping, the long-operation merge, LongTerrainEnd's refit) | `nm16_10_terrain_rect` |
+| 11 corner rule (0.005, 0.02, −0.001, kind 4, NaN, a pipe with kinds 1 and 3, kind 5, kind 6) | `nm16_11_corner_rule` |
+| 12 riot lock (the set, two riots, the riot manager's Shutdown) | `nm16_12_riot_lock` |
+| 13 riot edge (x < 3, z < 3, the (3, 3) boundary) | `nm16_13_riot_edge` |
+| 14 zone for network (priorities, the diagonals, a zoned cell, ties, the city edge) | `nm16_14_zone_for_network` |
+| 15 wealth for network (tie up; 1, 1, 2; a diagonal; none; out of range; the building profile) | `nm16_15_wealth_for_network` |
+| 16 compatibility pattern (rows and columns, no zone list, slope, rotation, flip rule, wealth) | `nm16_16_compatibility_pattern` |
+| 17 object position (rotations 0–3 and 4, flipped) | `nm16_17_object_position` |
+| 18 choose and keep (one lot draw, the object draws, keeping, rezoning, usable off) | `nm16_18_choose_and_keep` |
+| 19 forced configuration (locked, never replaced; connection nodes and underground pieces) | `nm16_19_forced_configuration` |
+| 20 road style (street, rail, agriculture, skipped pieces, the tables) | `nm16_20_road_style` |
+| 21 pothole (the W dead end, repeat, rail, no network, repair, nothing to repair) | `nm16_21_pothole` |
+| 22 usable message (in and out of the city; translucency) | `nm16_22_usable_message` |
+| 23 lot state ring (the 14 border cells, processed in key order, the city edge) | `nm16_23_lot_state_ring` |
+| (§3.2, §4.2, §8.6, §17) the component 11 record with a lot and a pothole, Init resolving and dropping lots, RedevelopLot's draws, Shutdown | `nm00_01_lot_record_and_lifecycle` |
+
+Not covered by a vector: the presentation slots 13–15, `CreateConnectionNode`, `AutoconnectLotNodes` and
+`GetAllIntersectionPieces`, which are not in the core; the default generator's values (`random: "default"` is
+available, but no vector pins its draws).
+
 ## Coverage (city detail §8)
 
 | §8 item | Vector |
@@ -3137,6 +3298,39 @@ replay the records §7 quotes.
 
 The core's unit tests (`fc4_core::disasters`) also cover the lot conditions, the spread, the toast list, the damage
 assessment, re-entrant occupant removal and the default generators.
+
+## Coverage (prop-lotconfig §T)
+
+| §T item | Vector |
+|---|---|
+| 1 profile defaults (the default box, OccupantSize) | `plt_01_profile_defaults` |
+| 2 unknown profile (slot 13 inserts, quirk 2) | `plt_02_unknown_profile` |
+| 3 families (load order, no duplicates, quirk 1) | `plt_03_families` |
+| 4 GetLotProps boundary (quirk 7) | `plt_04_get_lot_props_boundary` |
+| 5 street props (quirk 4) | `plt_05_street_props` |
+| 6 building props (the property vector) | `plt_06_building_props` |
+| 7 detail filter (CD1) | `plt_07_detail_filter` |
+| 8 rebuild on a detail change (a small catalogue in place of the shipped 1908) | `plt_08_rebuild_on_detail_change` |
+| 9 GetObjectIDArray (quirk 13) | `plt_09_object_id_array` |
+| 10 has building family / type | `plt_10_has_building_type` |
+| 11 prop footprint | `plt_11_prop_footprint` |
+| 12 records (components 5 and 9) | `plt_12_records` |
+
+The cores' unit tests (`fc4_core::prop_manager`, `fc4_core::lot_config_manager`) also cover `Init` / `Shutdown`,
+the catalogue message, CreateProp's classes, insertion by usage, the view filter and CreateTextDecal messages, the
+add/remove table, set queries, filter caches, building information, CreateGeneric and FixLotConfiguration.
+
+## Coverage (tutorial §8)
+
+| §8 item | Vector |
+|---|---|
+| 1 plain record | `tu8_01_plain_record` |
+| 2 tutorial record (the consumers through their own vectors) | `tu8_02_tutorial_record` |
+| 3 GUID mapping (quirk 1) | `tu8_03_guid_mapping` |
+| 4 version | `tu8_04_version` |
+| 5 end without registry, then save | `tu8_05_end_without_registry_then_save` |
+| 6 task counter | `tu8_06_task_counter` |
+| other sections (§4.3 messages, quirks 2 and 4) | `tu00_messages` |
 
 ## Coverage (occupant manager §18)
 

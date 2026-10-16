@@ -1720,6 +1720,36 @@ public:
     virtual void EnableDayNightTransitionNotifications(bool on) = 0;              // 29
 };
 
+// ---- surface water (docs/specs/terrain.md §10) ------------------------------------------------------
+
+class cISTESurfaceWater;
+class cISC4Lot;
+
+// cISTESurfaceWater (vtable 0x00AB3B00, 14 interface slots; terrain §10). The
+// SDK declares the two IsNavigable overloads position-first; MSVC groups the
+// overloads in reverse, so the SDK's compiled slot 7 is the cell form (16
+// bytes) and slot 8 the position form: the opposite of the game (slot 7: the
+// position form, 5 argument dwords; slot 8: the cell form, §10.4). Slot 11
+// returns a pointer to the vertex's velocity in EAX (SDK: float). Call it
+// only through this declaration (the terrain shadow, glue16).
+class cFC4ISTESurfaceWater : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                       // 3
+    virtual bool Shutdown() = 0;                                                   // 4
+    virtual float GetWaterDepthAtVertex(int32_t index) const = 0;                  // 5
+    virtual float GetWaterDepthForCell(int32_t x, int32_t z) const = 0;            // 6
+    // 7: the position form; converts the position to a cell and calls slot 8.
+    // Not called by the plugin.
+    virtual bool IsNavigableAtPosition(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3,
+                                       uint32_t a4) const = 0;                     // 7
+    virtual bool IsNavigable(int32_t cellX, int32_t cellZ, int32_t radius, cISC4Lot* lot) const = 0;  // 8
+    virtual void* GetBodyOfWaterMap() const = 0;                                   // 9
+    virtual float AltitudeAtWhichFloodingWillOccur(int32_t x, int32_t z) = 0;      // 10
+    virtual void* GetWaterVelocity(int32_t x, int32_t z) = 0;                      // 11 a pointer
+    virtual int32_t GetWaterType(int32_t x, int32_t z) = 0;                        // 12
+    virtual bool HasDraftClearance(int32_t x, int32_t z) = 0;                      // 13
+};
+
 // ---- tutorial system (docs/specs/tutorial.md §4.4, §6) ----------------------------------------------
 
 #include "cISC4TutorialSystem.h"
@@ -1862,4 +1892,8 @@ inline cFC4ISC4HistoryWarehouse* AsGame(cISC4HistoryWarehouse* p) {
 // The 24-hour clock travels as the SDK's pointer (cISC4City slot 86); slots
 // 7, 9, 19 and 20 only ever through the compiled declaration (clock24.md §8).
 inline cFC4ISC424HourClock* AsGame(cISC424HourClock* p) { return reinterpret_cast<cFC4ISC424HourClock*>(p); }
+
+// The surface water travels as the SDK's pointer (cISC4City slot 83); call it
+// only through the compiled declaration (terrain §10).
+inline cFC4ISTESurfaceWater* AsGame(cISTESurfaceWater* p) { return reinterpret_cast<cFC4ISTESurfaceWater*>(p); }
 }  // namespace fc4
