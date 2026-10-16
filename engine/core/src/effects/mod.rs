@@ -38,6 +38,15 @@ pub mod brush;
 /// The game effect (§9).
 pub mod game;
 
+/// The effect directory and `FindEffectDesc` (§3, §4.1, §5.2).
+pub mod directory;
+
+/// The effects manager (§1, §2, §4-§7).
+pub mod manager;
+
+#[cfg(test)]
+mod manager_tests;
+
 /// The effect flags of §7, and the runtime component flags of `comp + 0x40`.
 pub mod flags {
     /// Effect flag bit 1 ("no auto stop"): the effect never finishes on its
