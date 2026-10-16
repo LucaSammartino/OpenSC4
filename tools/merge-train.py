@@ -357,6 +357,45 @@ def dedupe_version(path, regex):
     return True
 
 
+def hunk_bodies(text):
+    """Yield (ours_lines, theirs_lines) for every conflict hunk in a file."""
+    i, n = 0, len(text)
+    while i < n:
+        s = text.find("<<<<<<<", i)
+        if s < 0:
+            return
+        m = text.find("=======", s)
+        e = text.find(">>>>>>>", m) if m >= 0 else -1
+        if m < 0 or e < 0:
+            return
+        body_o = text[s + 7:m]
+        body_t = text[m + 7:e]
+        body_o = body_o.split(NL, 1)[1] if NL in body_o else ""
+        body_t = body_t.split(NL, 1)[1] if NL in body_t else ""
+        yield body_o.splitlines(), body_t.splitlines()
+        i = e + 1
+
+
+def can_union(path):
+    """True when every hunk is two sides adding different lines at one anchor.
+
+    That is the shape of nearly every shared-file conflict here: one lane adds `#include "FC4Seed.h"` and
+    another `#include "FC4Perf.h"` where the same blank line was, or two lanes append rows to the same table.
+    A hunk whose sides share a line is a real edit of shared text, and that goes to the operator.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if "<<<<<<<" not in text:
+        return False
+    saw = False
+    for ours, theirs in hunk_bodies(text):
+        saw = True
+        so = {x.strip() for x in ours if x.strip()}
+        st = {x.strip() for x in theirs if x.strip()}
+        if so & st:
+            return False
+    return saw
+
+
 def resolve_conflicts(wt, lanes):
     """Return (resolved, still_conflicted)."""
     paths = conflicted_paths(wt)
@@ -393,6 +432,12 @@ def resolve_conflicts(wt, lanes):
             if union_merge(wt, p):
                 resolved.append(p + " (union)")
                 continue
+        # Generic: two sides adding different lines at the same anchor in any file (includes, registration
+        # rows, test cases). Anything that edits shared text goes to the operator.
+        fp = Path(wt) / p
+        if fp.exists() and can_union(fp) and union_merge(wt, p):
+            resolved.append(p + " (union, disjoint)")
+            continue
         left.append(p)
     return resolved, left
 
