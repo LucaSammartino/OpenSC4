@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "nr15_13_covered_with_override",
+  "spec": ["network-rules 8.1", "network-rules 8.2"],
+  "description": "Road covers Street; with AllowedOverrides Road,Street the Street edges are cleared and the Road evaluators solve the cell. Without the override nothing changes.",
+  "steps": [
+    {"op": "nr_load", "resource": "multi", "text": ["[AllowedOverrides]", "k=Road,Street"]},
+    {"op": "nr_tiles", "type": "Road", "text": ["#T#", "1,2,0,2,0", "3,0,0x500,0,0"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x00020002", "Street": "0x00020002"}, "in_run": true},
+    {"op": "nr_set_s", "cells": [[10, 10]]},
+    {"op": "nr_multi", "type": "Road", "expect": []},
+    {"op": "nr_expect_cell", "x": 10, "z": 10, "state": {"flags": 1, "union": "0x00020002", "edges": {"Road": "0x00020002"}}},
+    {"op": "nr_expect_s", "cells": [[10, 10]]},
+    {"op": "nr_set_valid_count", "count": 1},
+    {"op": "nr_solve", "type": "Road", "expect": 1},
+    {"op": "nr_expect_solved", "records": [["0x500", 0, 10, 10]]},
+    {"op": "nr_reset"},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x00020002", "Street": "0x00020002"}, "in_run": true},
+    {"op": "nr_set_s", "cells": [[10, 10]]},
+    {"op": "nr_multi", "type": "Road", "expect": []},
+    {"op": "nr_expect_cell", "x": 10, "z": 10, "state": {"flags": "0x9", "edges": {"Road": "0x00020002", "Street": "0x00020002"}}}
+  ]
+}

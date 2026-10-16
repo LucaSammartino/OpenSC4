@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "nr15_05_transmogrify_straight",
+  "spec": ["network-rules 4"],
+  "description": "#Transmogrify on a straight piece gives two rules (turns 0 and 1); turns 2, 3 and the four mirrors repeat a pattern and are dropped.",
+  "steps": [
+    {"op": "nr_tiles", "text": ["#Transmogrify", "1,0,2,0,2", "3,0,0x100,0,0"], "expect": {"status": "complete", "transmogrify": true, "source_rules": 1, "rules": 2, "dropped": 6}},
+    {"op": "nr_expect_rules", "rules": [{"key": "0x00020002", "outputs": [["0x100", 0, 1]]}, {"key": "0x02000200", "outputs": [["0x100", 0, 0]]}]}
+  ]
+}

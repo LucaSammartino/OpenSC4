@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "name": "nr15_19_layout_and_centre",
+  "spec": ["network-rules 10.3"],
+  "description": "Layout .a+< / ..^: the centre is column 2, row 0; a at (-1, 0), + at (0, 0); bounds x in [-1, 0], z in [0, 0]. Without < or ^ cells shift by +1.",
+  "steps": [
+    {"op": "nr_load", "resource": "intersections", "text": ["[HighwayIntersectionInfo_0x5000]", "CheckType=a - Road:0x00020002", "CellLayout=.a+<", "CellLayout=..^"]},
+    {"op": "nr_int_rule", "id": "0x5000", "state": {"tagged": [[-1, 0, "a"]], "new_cells": [[0, 0]], "bounds": [-1, 0, 0, 0], "type_mask": 1}},
+    {"op": "nr_load", "resource": "intersections", "text": ["[HighwayIntersectionInfo_0x5001]", "CheckType=a - Road:0x00020002", "CellLayout=a"]},
+    {"op": "nr_int_rule", "id": "0x5001", "state": {"tagged": [[1, 1, "a"]]}}
+  ]
+}

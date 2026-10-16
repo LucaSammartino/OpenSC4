@@ -1813,6 +1813,40 @@ events: `texture` (`occupant`, `texture`), `variation` (`occupant`, `variation`)
 `pos`), `insert` / `remove` (`occupant`), and the stub's `draw` (`n`). Riot events: `unset_removal` /
 `set_removal` (`occupant`, `mask`).
 
+## Network rules ops
+
+The network rules vectors (`nr15_…`) drive `fc4_core::network_rules` (`docs/specs/network-rules.md`): a rule
+database (`NetworkRules`) loaded from vector text, a scratch tile evaluator, a 64 × 64 cell grid of cell infos and
+the solve state (the set `S`, the solved list, the potential-intersection list `+0x08`, the valid count). Every op
+name starts with `nr_`. Rule text (`text`) is a string or a list of lines joined with `\n`. Cells are `[x, z]`;
+sets given as cell lists are built in the given order (193 buckets) and reported in iteration order. Network types
+are names (`Road`, `Rail`, …, `GroundHighway`) or numbers 0-12. The intersection rules' `Test` runs on a dry city
+that accepts every demolition region.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `nr_reset` | `width?`, `height?` (64) | a new database, scratch evaluator, grid and solve state |
+| `nr_edge_token` / `nr_mirror_byte` / `nr_mirror_edges` | `value` / `byte` / `edges`, `expect` | §3.3 edge token; §4.2 mirror of a byte or an edge word |
+| `nr_rotate_meta` / `nr_rotate_orientation` / `nr_rotate_edges` | `m` / `orientation` / `edges`, `turns`, `expect` | the §4.1 rotation tables |
+| `nr_tiles` | `text`, `type?` (append the file to that type's evaluator list), `append?` (add to the scratch evaluator instead of replacing it), `expect?` (partial: `status` (`missing`, `complete`, `rejected`, `bad_centre`, `truncated`), `transmogrify`, `source_rules`, `rules`, `dropped`) | reads a tile rule file |
+| `nr_expect_rules` | `rules` (`[{key, transform, conditions: [[m, value, mask]], outputs: [[id, m, orientation]]}]`; fields left out are not compared) | the scratch evaluator's rules in map order |
+| `nr_load` | `resource` (`multi` (RUL1), `overrides` (RUL2), `intersections` (RUL0), `network` (the network INI) or a tile instance), `text`, `expect?` (partial: `entries`, `ignored`, `sections`, `rules`, …) | `LoadResource` into the database |
+| `nr_cell` | `x`, `z`, `edges` (`{name: word}`, each setting its type bit), `flags?` (ORed), `in_run?`, `step?`, `fixed?`, `node?`, `intersection?`, `occupant?` (`{piece, orientation, network_flags, node_edges: [a, b], anchor: [x, z]}`) | puts a cell info |
+| `nr_evaluate` | `x`, `z`, `type`, `expect` (null or `[[id, m, orientation]]`) | `Evaluate` with the scratch evaluator |
+| `nr_set_s` / `nr_set_valid_count` | `cells` / `count` | the solve state |
+| `nr_append_solved` | `id`, `orientation`, `x`, `z` | appends a solved record (sets the cell's `+0xB8`) |
+| `nr_apply` | `p`, `type`, `expect_p?`, `expect_w?` | `ApplyNetworkRules` with the scratch evaluator and an empty `W` |
+| `nr_multi` | `type` (the tool's), `expect` (the output cells) | `SolveMultiTypeIntersections` |
+| `nr_subtypes` | `p`, `reset?` (true), `expect` (`R`), `expect_p?` | `AssignEdgeSubtypes` |
+| `nr_patch` | `a`, `b` (`[id, orientation]`), `side`, `expect`, `expect_a?`, `expect_b?` | `PatchTilePair` |
+| `nr_adjust` / `nr_verify` | `resolve?` (false) / -, `expect` | `AdjustTileSubsets` / `VerifyTileSubsets` |
+| `nr_solve` | `type`, `resolve?`, `expect` | the rule stages of `SolveNetwork` |
+| `nr_int_rule` | `id`, `rotate?`, `transpose?` (applied to a copy), `state` (`occupied`, `new_cells`, `tagged` (`[[x, z, tag]]`), `bounds` (`[minX, maxX, minZ, maxZ]`), `one_way_dir`, `type_mask`, `ring`, `add` (`[prev, next]`), `edges` (`{tag: [edges1, mask1, edges2, mask2]}`)) | an intersection rule |
+| `nr_int_test` | `id`, `rotate?`, `transpose?`, `x`, `z`, `expect` (0, 1 or 2) | `cIntRule::Test` |
+| `nr_identify` | `steps` (`[[[x, z], …], …]`), `v`, `type`, `expect`, `expect_intersections?` (`[[rule, x, z, start, a, b]]`) | `IdentifyHighwayIntersections` |
+| `nr_expect_solved` / `nr_expect_s` / `nr_expect_potential` | `records` (`[[id, orientation, x, z]]`) / `cells` / `entries` (`[[x, z, t]]`) | the solve state |
+| `nr_expect_cell` | `x`, `z`, `state` (`flags`, `union`, `solved`, `intersection`, `edges` (every non-zero word)) | a cell info |
+
 ## City detail ops
 
 The city detail vectors (`cd8_…`) drive `fc4_core::city_detail::CityDetailManager` (`docs/specs/city-detail.md`)
@@ -2133,7 +2167,7 @@ Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_bu
    `nm00_…` for other network manager behaviour), `cd8_…` (city detail §8), `pd12_…` (port developers §12),
    `pv12_…` (prop developer §12), `ds18_…` and `ds00_…` (disasters §18 and the rest of disasters), `tr18_…` and
    `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
-   (automata §14) and `om18_…` / `om14_…` (occupant manager §18 / §14).
+   (automata §14), `om18_…` / `om14_…` (occupant manager §18 / §14) and `nr15_…` (network rules §15).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -3159,6 +3193,41 @@ replays the record shapes §7 reports.
 Not covered by a vector: the presentation slots 13–15, `CreateConnectionNode`, `AutoconnectLotNodes` and
 `GetAllIntersectionPieces`, which are not in the core; the default generator's values (`random: "default"` is
 available, but no vector pins its draws).
+
+## Coverage (network rules §15)
+
+| §15 item | Vector |
+|---|---|
+| 1 edge tokens | `nr15_01_edge_tokens` |
+| 2 one rule | `nr15_02_one_rule` |
+| 3 rejected header (the evaluator still joins the type's list) | `nr15_03_rejected_header` |
+| 4 bad centre (rules read before it stay) | `nr15_04_bad_centre` |
+| 5 Transmogrify, straight (6 variants dropped) | `nr15_05_transmogrify_straight` |
+| 6 Transmogrify, diagonal (`noflip`, `notrans`) | `nr15_06_transmogrify_diagonal` |
+| 7 mirror of a subtype | `nr15_07_mirror_of_a_subtype` |
+| 8 rotation tables | `nr15_08_rotation_tables` |
+| 9 conditions and wildcards | `nr15_09_conditions_and_wildcards` |
+| 10 valid positions | `nr15_10_valid_positions` |
+| 11 claims (bucket order, skipped outputs) | `nr15_11_claims` |
+| 12 two types crossing (with and without the RUL1 entry, through `SolveNetwork`) | `nr15_12_two_types_crossing` |
+| 13 covered, with override | `nr15_13_covered_with_override` |
+| 14 three types | `nr15_14_three_types` |
+| 15 scheme 2 (a fixed cell fails) | `nr15_15_scheme_2` |
+| 16 scheme 1 | `nr15_16_scheme_1` |
+| 17 PatchTilePair (hard conflict, resolve mode, quirk 5) | `nr15_17_patch_tile_pair` |
+| 18 rotate bounds (quirk 8) | `nr15_18_rotate_bounds` |
+| 19 layout and centre (the +1 shift) | `nr15_19_layout_and_centre` |
+| 20 Test | `nr15_20_test` |
+| 21 bridge cell as two types (quirk 4) | `nr15_21_bridge_cell_as_two_types` |
+| 22 OneWayDir | `nr15_22_one_way_dir` |
+| 23 IdentifyHighwayIntersections (returns `v`) | `nr15_23_identify_highway_intersections` |
+| 24 TileVerifiers | `nr15_24_tile_verifiers` |
+| the shipped rule files | not a vector: `cargo test -p fc4-formats --release --test network_rules -- --nocapture` |
+
+The core's unit tests (`fc4_core::network_rules`) repeat the 24 items and also cover the INI reader, the `sscanf`
+subset, Transmogrify moving conditions and outputs, connection-node qualification (quirk 3), the padded set, the
+unsolved-cell result, the check-type grammar, CopyFrom / Transpose / Translate, the ordering rings, DoAutoComplete
+and the reload order; `fc4_capi`'s `network_rules_tests` cover the C ABI.
 
 ## Coverage (city detail §8)
 

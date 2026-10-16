@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "name": "nr15_03_rejected_header",
+  "spec": ["network-rules 3.2", "network-rules 2.3"],
+  "description": "A first line without '#' gives no rules; the evaluator exists (it is appended to the type's list) and never matches.",
+  "steps": [
+    {"op": "nr_tiles", "text": ["TestRules", "1,0,2,0,2", "3,0,0x100,0,0"], "expect": {"status": "rejected", "rules": 0}},
+    {"op": "nr_expect_rules", "rules": []},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x02000200"}},
+    {"op": "nr_evaluate", "x": 10, "z": 10, "type": "Road", "expect": null},
+    {"op": "nr_tiles", "type": "Road", "text": ["TestRules", "1,0,2,0,2", "3,0,0x100,0,0"], "expect": {"status": "rejected", "rules": 0}}
+  ]
+}

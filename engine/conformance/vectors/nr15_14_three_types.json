@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "nr15_14_three_types",
+  "spec": ["network-rules 8.2"],
+  "description": "Road, Rail and Street: the only qualifying pair is (Street, Road), so Street is removed; then Road and Rail are solved by the RUL1 entry.",
+  "steps": [
+    {"op": "nr_load", "resource": "multi", "text": ["[RoadRailIntersectionSolutions]", "k=0x00020002,0x02000200,0x777,0,1"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x00020002", "Rail": "0x02000200", "Street": "0x00020002"}},
+    {"op": "nr_set_s", "cells": [[10, 10]]},
+    {"op": "nr_multi", "type": "Road", "expect": [[10, 10]]},
+    {"op": "nr_expect_cell", "x": 10, "z": 10, "state": {"flags": 3, "edges": {"Road": "0x00020002", "Rail": "0x02000200"}}},
+    {"op": "nr_expect_solved", "records": [["0x777", "0x80", 10, 10]]},
+    {"op": "nr_expect_potential", "entries": [[10, 10, 3]]}
+  ]
+}

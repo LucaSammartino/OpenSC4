@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "nr15_12_two_types_crossing",
+  "spec": ["network-rules 8.2", "network-rules 6.1"],
+  "description": "Road and Rail crossing: Rail wins and does not cover; the RUL1 solution gives the record {0x1234, 0x01} and (10, 10, 3) in the potential list. Without the entry the cell stays unsolved.",
+  "steps": [
+    {"op": "nr_load", "resource": "multi", "text": ["[RoadRailIntersectionSolutions]", "k=0x02000200,0x00020002,0x1234,1,0"], "expect": {"entries": 1}},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x02000200", "Rail": "0x00020002"}, "in_run": true, "step": 0},
+    {"op": "nr_set_s", "cells": [[10, 10]]},
+    {"op": "nr_multi", "type": "Road", "expect": [[10, 10]]},
+    {"op": "nr_expect_solved", "records": [["0x1234", 1, 10, 10]]},
+    {"op": "nr_expect_potential", "entries": [[10, 10, 3]]},
+    {"op": "nr_expect_cell", "x": 10, "z": 10, "state": {"flags": 3, "edges": {"Road": "0x02000200", "Rail": "0x00020002"}}},
+    {"op": "nr_reset"},
+    {"op": "nr_load", "resource": "multi", "text": ["[RoadRailIntersectionSolutions]", "k=0x02000200,0x00020002,0x1234,1,0"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x02000200", "Rail": "0x00020002"}, "in_run": true, "step": 0},
+    {"op": "nr_set_s", "cells": [[10, 10]]},
+    {"op": "nr_set_valid_count", "count": 1},
+    {"op": "nr_solve", "type": "Road", "expect": 1},
+    {"op": "nr_expect_s", "cells": []},
+    {"op": "nr_reset"},
+    {"op": "nr_tiles", "type": "Road", "text": ["#T#", "1,0,2,0,2", "3,0,0x100,0,0"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x02000200", "Rail": "0x00020002"}, "in_run": true, "step": 0},
+    {"op": "nr_set_s", "cells": [[10, 10]]},
+    {"op": "nr_set_valid_count", "count": 1},
+    {"op": "nr_solve", "type": "Road", "expect": 0},
+    {"op": "nr_expect_s", "cells": [[10, 10]]},
+    {"op": "nr_expect_solved", "records": []}
+  ]
+}

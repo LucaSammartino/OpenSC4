@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "nr15_23_identify_highway_intersections",
+  "spec": ["network-rules 10.6"],
+  "description": "IdentifyHighwayIntersections returns v on every path; a run lasting to the last step appends (x, z, 4) whatever the type.",
+  "steps": [
+    {"op": "nr_load", "resource": "intersections", "text": ["[HighwayIntersectionInfo_0x77]", "CheckType=a - Road:0x00020002", "CellLayout=a<", "CellLayout=^", "AutoPlace=1", "StepOffsets=1,2"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x00020002"}, "occupant": {}},
+    {"op": "nr_cell", "x": 11, "z": 10, "edges": {"Road": "0x00020002"}, "occupant": {}},
+    {"op": "nr_cell", "x": 12, "z": 10, "edges": {"Road": "0x00020002"}, "occupant": {}},
+    {"op": "nr_identify", "steps": [[[10, 10]], [[11, 10]], [[12, 10]]], "v": 3, "type": 0, "expect": 3, "expect_intersections": [["0x77", 10, 10, 0, 1, 2]]},
+    {"op": "nr_expect_potential", "entries": [[10, 10, 4]]},
+    {"op": "nr_expect_cell", "x": 10, "z": 10, "state": {"intersection": true}},
+    {"op": "nr_identify", "steps": [[[10, 10]], [[11, 10]], [[12, 10]]], "v": 7, "type": 6, "expect": 7},
+    {"op": "nr_identify", "steps": [[[10, 10]], [[11, 10]], [[12, 10]]], "v": 0, "type": 6, "expect": 0}
+  ]
+}

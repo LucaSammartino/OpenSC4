@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "nr15_01_edge_tokens",
+  "spec": ["network-rules 3.3"],
+  "description": "Edge tokens: w = v mod 256, then ((w / 10) << 3) | (w mod 10). 2 -> 0x02, 13 -> 0x0B, 27 -> 0x17, 260 -> 0x04, 0 -> 0.",
+  "steps": [
+    {"op": "nr_edge_token", "value": 2, "expect": "0x02"},
+    {"op": "nr_edge_token", "value": 13, "expect": "0x0B"},
+    {"op": "nr_edge_token", "value": 27, "expect": "0x17"},
+    {"op": "nr_edge_token", "value": 260, "expect": "0x04"},
+    {"op": "nr_edge_token", "value": 0, "expect": 0},
+    {"op": "nr_edge_token", "value": 22, "expect": "0x12"},
+    {"op": "nr_edge_token", "value": 232, "expect": "0xBA"}
+  ]
+}

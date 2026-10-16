@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "nr15_08_rotation_tables",
+  "spec": ["network-rules 4.1"],
+  "description": "Metaposition 1 turned once -> 3; 9 once -> 13; 12 three times -> 24. Orientation 0x03 turned twice -> 0x01; 0x81 once -> 0x80.",
+  "steps": [
+    {"op": "nr_rotate_meta", "m": 1, "turns": 1, "expect": 3},
+    {"op": "nr_rotate_meta", "m": 9, "turns": 1, "expect": 13},
+    {"op": "nr_rotate_meta", "m": 12, "turns": 3, "expect": 24},
+    {"op": "nr_rotate_meta", "m": 0, "turns": 2, "expect": 0},
+    {"op": "nr_rotate_orientation", "orientation": "0x03", "turns": 2, "expect": "0x01"},
+    {"op": "nr_rotate_orientation", "orientation": "0x81", "turns": 1, "expect": "0x80"},
+    {"op": "nr_rotate_edges", "edges": "0x02000200", "turns": 1, "expect": "0x00020002"}
+  ]
+}
