@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "name": "net_road_style",
+  "spec": ["network-manager 8.7", "network-manager 16.20"],
+  "description": "A street with zone R$ (1) and a wealth-2 lot beside it: texture T[1][2] = 0x08200000, flags 0x6000000 set, variation V[1][1] = 2. A rail piece only next to zone 0: texture 0, flags unchanged, variation 0; next to an R$$$ zone: the rail texture 0x08400000 and variation V[3][0] = 4. A street next to agriculture: texture 0x08400000, variation 7. Highways (flag in 0x40280304) and unusable pieces are skipped.",
+  "steps": [
+    {"op": "net_create"},
+    {"op": "net_occupant", "occupant": "0x40", "flags": ["street", "usable"], "cell": [10, 10]},
+    {"op": "net_zone", "cells": [[10, 10, 1]]},
+    {"op": "net_lot", "lot": "0x9001", "cell": [9, 10], "wealth": 2},
+    {"op": "net_call", "method": "update_road_style", "args": [10, 10, "0x40"]},
+    {"op": "net_expect_events", "events": [
+      {"event": "texture", "occupant": "0x40", "texture": "0x08200000"},
+      {"event": "set_flag", "occupant": "0x40", "bits": "0x6000000"},
+      {"event": "variation", "occupant": "0x40", "variation": 2}
+    ]},
+    {"op": "net_occupant", "occupant": "0x41", "flags": ["rail", "usable"], "cell": [30, 30]},
+    {"op": "net_call", "method": "update_road_style", "args": [30, 30, "0x41"]},
+    {"op": "net_expect_events", "events": [
+      {"event": "texture", "occupant": "0x41", "texture": 0},
+      {"event": "variation", "occupant": "0x41", "variation": 0}
+    ]},
+    {"op": "net_zone", "cells": [[31, 30, 3]]},
+    {"op": "net_call", "method": "update_road_style", "args": [30, 30, "0x41"]},
+    {"op": "net_expect_events", "events": [
+      {"event": "texture", "occupant": "0x41", "texture": "0x08400000"},
+      {"event": "set_flag", "occupant": "0x41", "bits": "0x6000000"},
+      {"event": "variation", "occupant": "0x41", "variation": 4}
+    ]},
+    {"op": "net_occupant", "occupant": "0x42", "flags": ["street", "usable"], "cell": [40, 40]},
+    {"op": "net_zone", "cells": [[41, 40, 7]]},
+    {"op": "net_call", "method": "update_road_style", "args": [40, 40, "0x42"]},
+    {"op": "net_expect_events", "events": [
+      {"event": "texture", "occupant": "0x42", "texture": "0x08400000"},
+      {"event": "set_flag", "occupant": "0x42", "bits": "0x6000000"},
+      {"event": "variation", "occupant": "0x42", "variation": 7}
+    ]},
+    {"op": "net_occupant", "occupant": "0x42", "flags": ["highway", "usable"]},
+    {"op": "net_call", "method": "update_road_style", "args": [40, 40, "0x42"]},
+    {"op": "net_occupant", "occupant": "0x42", "flags": ["street"]},
+    {"op": "net_call", "method": "update_road_style", "args": [40, 40, "0x42"]},
+    {"op": "net_expect_events", "events": []},
+    {"op": "net_call", "method": "road_texture", "args": [0, 0], "expect": 0},
+    {"op": "net_call", "method": "road_texture", "args": [0, 3], "expect": "0x08300000"},
+    {"op": "net_call", "method": "road_texture", "args": [8, 0], "expect": "0x08200000"},
+    {"op": "net_call", "method": "road_texture", "args": [14, 2], "expect": "0x08400000"},
+    {"op": "net_call", "method": "road_variation", "args": [6, 3], "expect": 6},
+    {"op": "net_call", "method": "road_variation", "args": [14, 3], "expect": 7}
+  ]
+}
