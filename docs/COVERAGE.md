@@ -79,9 +79,12 @@ The regress `.out` read is `--regress`, else the PASS run of the newest lane mer
 python tools/coverage.py                               # writes docs/coverage-report.md
 python tools/coverage.py --regress build-runs/regress-<tag>.out
 python tools/coverage.py --owners build-runs/coverage-owners.tsv   # per-function audit TSV (address, bytes, owner, rule, subsystem); do not commit
+python tools/coverage_treemap.py                       # writes docs/coverage-map.svg from the same attribution
 ```
 
-About 15 seconds. The report contains counts, class names, address ranges and statuses only, never code.
+About 15 seconds, deterministic. The report contains counts, class names, address ranges and statuses only, never
+code. `coverage_treemap.py` reads `coverage.py` as a module, so the two cannot drift: it colours the same owners by
+the furthest status their map row has reached.
 
 ## Moving the numbers honestly
 
@@ -91,6 +94,13 @@ About 15 seconds. The report contains counts, class names, address ranges and st
   `docs/abi`, a library range with its evidence to `coverage-libs.tsv`, or a game-code owner range with its evidence
   to `coverage-ranges.tsv`. Never add rows or ranges just to move a number; every range needs evidence in its row.
   Example: `0x008310B0-0x00864B60` (793 functions, 203,440 bytes, unattributed until 2026-10-16) is the software span
-  renderer of `cGZDrawContextRenderToBuffer` (`nGZDrawSoftRender`): its vtables and the five span renderer classes are
-  named in `re/symbols/gzdraw-softrender.tsv`, and the 768 template blit functions their `RenderBlt` dispatch tables
-  reach (each `RenderBlt` refers to 168 functions, so it is a hub) are one owner range.
+  renderer of `cGZDrawContextRenderToBuffer`. Its vtables and the five span renderer classes are named in
+  `re/symbols/gzdraw-softrender.tsv`, and each class's `RenderBlt` indexes a 14 x 12 dispatch table of template blit
+  and texel-conversion instantiations (each `RenderBlt` refers to 168 functions, so it is a hub and reaches nothing by
+  the reach rule). Rather than one owner range for the whole block, it is five ranges, cut at the link-order anchor of
+  each class's `RenderSolid` (`cSpanRender1555` 008310B0, `565` 0083DE50, `4444` 00847CE0, `8888` 00854E10, `8`
+  0085E640, the last ending where the EA sound library begins), so each instantiation is owned by the class whose
+  colour format it converts: 172 / 145 / 172 / 174 / 130 functions and 50,817 / 39,051 / 51,809 / 37,218 / 24,545
+  bytes. The five map rows sit *before* the `nGZDrawSoftRender*` catch-all (first match wins) and each gets its own
+  subsystem line, so the report shows the split instead of one blob. The 25 vtable methods already carry a name and
+  reach their class by rule 2; the 768 unnamed instantiations take `owner-range`.

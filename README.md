@@ -59,13 +59,16 @@ is left out.
 
 | Share of the game's code | Whole game | Simulation | Renderer | UI | Audio |
 |---|---:|---:|---:|---:|---:|
-| **Specified** (a clean-room spec covers it) | 32.6% | 78.2% | 18.3% | 0% | 0% |
-| **Implemented** (an OpenSC4 module exists) | 21.0% | 56.5% | 0.7% | 0% | 0% |
-| **Verified** (its shadow matches the original exactly) | 9.5% | 27.6% | 0% | 0% | 0% |
-| **Replaced** (runs instead of the original in game) | 12.1% | 35.3% | 0% | 0% | 0% |
+| **Specified** (a clean-room spec covers it) | 32.8% | 77.9% | 15.2% | 0% | 0% |
+| **Implemented** (an OpenSC4 module exists) | 21.2% | 56.3% | 0.6% | 0% | 0% |
+| **Verified** (its shadow matches the original exactly) | 9.5% | 27.4% | 0% | 0% | 0% |
+| **Replaced** (runs instead of the original in game) | 12.1% | 35.1% | 0% | 0% | 0% |
 
-These figures are counted per owning class, not per function. A class counts as verified when its shadow matches the
-original exactly in the latest regression run. The full breakdown is in
+These figures are weighted by the bytes of the original machine code, summed over the functions each owner (a class
+or a free function) owns — not by function count. An owner counts as verified when its same-process shadow matches
+the original exactly in the latest regression run, and replaced when our class runs in its place in the replace run.
+Of the game code, 3.7% is shared helpers reached from several owners and 1.7% is still unattributed; both stay in the
+denominator and never count as done. The full breakdown is in
 [docs/coverage-report.md](docs/coverage-report.md) and the rules are in [docs/COVERAGE.md](docs/COVERAGE.md).
 `python tools/coverage.py` and `python tools/coverage_treemap.py` regenerate both from the RE workspace.
 

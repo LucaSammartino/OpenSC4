@@ -555,9 +555,11 @@ def read_regress(path):
 
 
 def newest_regress():
-    """The regress run of the newest lane merged into HEAD (first-parent "Merge <tag>: ..." subjects), so the default
-    depends on the checked-out commit, not on file times; runs of lanes not yet merged are ignored. Falls back to the
-    newest PASS file by modification time when no merged lane has one."""
+    """The regress run of the newest lane merged into HEAD ("Merge <tag>: ..." subjects of every merge reachable from
+    HEAD, in topological order), so the default depends on the checked-out commit, not on file times; runs of lanes
+    not yet merged are ignored. Every reachable merge is walked, not only first-parent ones: a lane branch that merged
+    main carries main's later merges only on its second parent, so a first-parent walk falls back to a run older than
+    the code checked out. Falls back to the newest PASS file by modification time when no merged lane has one."""
     files = {}
     for root in (main_checkout(REPO), REPO):
         for p in (root / "build-runs").glob("regress-*.out"):
@@ -573,7 +575,7 @@ def newest_regress():
     if not usable:
         sys.exit("coverage: no PASS regress-*.out found; pass --regress")
     try:
-        log = subprocess.run(["git", "-C", str(REPO), "log", "--merges", "--first-parent", "--format=%s"],
+        log = subprocess.run(["git", "-C", str(REPO), "log", "--merges", "--topo-order", "--format=%s"],
                              capture_output=True, text=True, encoding="utf-8", check=True).stdout
     except (OSError, subprocess.CalledProcessError):
         log = ""
