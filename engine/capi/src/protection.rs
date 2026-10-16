@@ -613,8 +613,7 @@ struct Handle {
 }
 
 impl Handle {
-    fn new(host: Rc<CHost>, kind: ProtectionKind, token: u64, seeds: FixedSeeds, shadow: bool) -> Handle {
-        let rng = ProtectionRng::new(&seeds);
+    fn new(host: Rc<CHost>, kind: ProtectionKind, token: u64, rng: ProtectionRng, shadow: bool) -> Handle {
         let sim = ProtectionSim::new(host.clone(), kind, token, Box::new(rng));
         Handle {
             host,
@@ -700,15 +699,15 @@ pub extern "C" fn fc4_protection_query_interface(kind: u32, iid: u32) -> u32 {
 
 /// Creates the core object (constructor values, §3). The host table is
 /// copied. `kind` 0 = fire, 1 = police; `token` is the host identity of the
-/// simulator itself. The object's own `cRZRandom` is seeded from the clock
-/// (§10): `wall_clock_seed` and `process_clock` are those clock values.
+/// simulator itself. The object's own `cRZRandom` (seeded from the clock in
+/// the original, §10) takes `derive(S, GZCLSID)` of `session_seed`
+/// (foundations §6.3: fire `0x2990C05A`, police `0x6990C04F`).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_protection_create(
     host: *const fc4_protection_host,
     kind: u32,
     token: u64,
-    wall_clock_seed: u32,
-    process_clock: u32,
+    session_seed: u32,
 ) -> *mut fc4_protection {
     guard(std::ptr::null_mut(), || {
         let (Some(h), Some(k)) = (host_ok(host), kind_of(kind)) else {
@@ -717,11 +716,8 @@ pub unsafe extern "C" fn fc4_protection_create(
         if !h.grids.complete() {
             return std::ptr::null_mut();
         }
-        let seeds = FixedSeeds {
-            wall_clock: wall_clock_seed,
-            process_clock,
-        };
-        Box::into_raw(Box::new(Handle::new(Rc::new(CHost(h)), k, token, seeds, false))) as *mut fc4_protection
+        let rng = ProtectionRng::from_session(k, session_seed);
+        Box::into_raw(Box::new(Handle::new(Rc::new(CHost(h)), k, token, rng, false))) as *mut fc4_protection
     })
 }
 
@@ -1359,11 +1355,11 @@ pub unsafe extern "C" fn fc4_protection_shadow_create(
         let (Some(h), Some(k)) = (host_ok(host), kind_of(kind)) else {
             return std::ptr::null_mut();
         };
-        let seeds = FixedSeeds {
+        let rng = ProtectionRng::new(&FixedSeeds {
             wall_clock: 0,
             process_clock: 0,
-        };
-        Box::into_raw(Box::new(Handle::new(Rc::new(CHost(h)), k, 0, seeds, true))) as *mut fc4_protection
+        });
+        Box::into_raw(Box::new(Handle::new(Rc::new(CHost(h)), k, 0, rng, true))) as *mut fc4_protection
     })
 }
 

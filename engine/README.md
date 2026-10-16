@@ -257,9 +257,9 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        game's own `cSC4SimGrid<uint8>`, created through GZCOM; police coverage comes through whatever police
        simulator the city has). The getters are answered from any thread (they read a snapshot); the prop
        requester's calls run on the main thread only (a call from another thread is answered 0 and logged once).
-       The random generator is seeded with `derive_seed(S, 0x6C09C3F6)`, `S` the session seed: the original's
-       `cRZTime` clock (seconds since 1901-01-01 UTC, `time() + 2177452800`, crime spec §9) at the first crime
-       simulator of the process, or `crime_seed = N` (env `FC4_CRIME_SEED`, decimal or `0x…`) for a repeatable
+       The random generator is seeded with `derive_seed(S, 0x6C09C3F6)`, `S` the session seed (`session_seed`,
+       else the original's `cRZTime` clock, seconds since 1901-01-01 UTC, `time() + 2177452800`, crime spec §9, at
+       game start; "Session seed" below), or `crime_seed = N` (env `FC4_CRIME_SEED`, decimal or `0x…`) for a repeatable
        run. Crime type names follow crime spec §7: the LTEXT (`0x2026960B`, group + language ID, instance), then
        (group, instance), detokenized by the game's string detokenizer, U+2022 → U+200B; `0xAA12FCB0` if that
        fails, else an empty name (a failed load never keeps the text, crime spec §7 / CQ16). The log has a
@@ -742,6 +742,41 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      calls; `lots` = lot manager slot 16; `population` = the residential simulator's. `-` = not readable. At each
      city load a line says whether the city's tract developer and BDS are the original classes. With
      `FC4_LOG_LEVEL=2` the x87 leftover guard also runs at the forwarder's exit.
+   - **Session seed** (`session_seed = N`, env `FC4_SESSION_SEED`, decimal or `0x…`; *tooling*; `plugin/FC4Seed.h`,
+     `core/src/seeding.rs`; foundations.md §6.3 *[choice]*): the plugin picks one 32-bit session seed `S` per
+     process and every core of ours seeds each of its generators with `derive(S, K) = S XOR K` (0 and `0xFFFFFFFF`
+     moved by XOR 1), `K` by the generator's kind: a file-local generator the original's constant (budget
+     `0x6C09C3D7`, crime `0x6C09C3F6`, pollution effects `0x4C09C4D3`, building development `0x0C09C0B8`, growth
+     `0xAC09C0E8`, tract `0x4C09C113`, lot `0x6C09C0F4`, zone developer `0x8C09C68A`), a member generator seeded
+     from the clock the owning class's GZCLSID (residential, weather, flora, aura, fire, police, plumbing,
+     traffic, parks), a temporary seeded from the clock the GZCLSID XOR its creation count (civic monthly,
+     neighbours' proposals, a growth decline key whose coordinate seed is `0xFFFFFFFF`); flammability keeps its
+     constant 0 and its zero-state reseed takes `derive(GZCLSID)`; coordinate-seeded temporaries are unchanged
+     (tract (0, 0) uses 1); `rand()` stays unseeded. Without the key `S` is the `cRZTime` wall clock at game start
+     (seconds since 1901-01-01, `time() + 2177452800`), like the clock the original seeds from. A subsystem's own
+     `<key>_seed` (`crime_seed`, `development_seed`, `tract_seed`, `lotdev_seed`, `zonedev_seed`, `civic_seed`,
+     `parks_seed`, `residential_seed`, `neighbors_seed`, `traffic_seed`) still overrides `S` for that subsystem.
+     `fc4_seed_derive(S, K)` (fc4.h) returns `derive(S, K)`. One line at game start:
+
+     ```
+     session seed: S = 0x12345678 (session_seed = 0x12345678, FreeCity4.ini; tooling: every generator of ours is
+       seeded with derive(S, K), foundations section 6.3, so runs with the same S and inputs draw the same)
+     session seed: S = 0xEDC0FFEE (the cRZTime wall clock at game start, like the original; session_seed = N in
+       FreeCity4.ini fixes it); every generator of ours is seeded with derive(S, K), foundations section 6.3
+     session seed: WARNING session_seed = 'abc' (FreeCity4.ini) is not a 32-bit number; using the clock
+     ```
+
+     Two runs with the same `session_seed` give our generators the same seeds, but not yet the same city: in
+     two runs of the 26 regress replacements of run 118 (all but `traffic`) on Konradshohe with `session_seed = 0x5EED1234` (turbo to
+     2032-01-01, and speed 2 to 2028-01-01) the `DIGEST` lines differ from the first month (2026-02-01). The
+     first differences are pacing counters (simulator.md §5.7): the lot developer's day re-deliveries
+     (`days=5` / `7`, its 5 ms cycle budget), the aura and plumbing states reached, the commercial idle
+     deliveries, crime's requested props, the BDS's construction resources and draws, and the dates on which
+     posted month messages reach civic, parks, residential and flora. Our cores still slice their work by real
+     time (§5.5 helpers, idle deliveries per frame), which §5.7's *[choice]* says they should not; the original
+     subsystems still in the city (traffic simulator and network map, prop developer, occupants, network lot
+     manager and construction crew, automata, disasters, advisors, MySims) seed from the clock, and `rand()`
+     (state 1 at process start) is drawn in a pacing-dependent order.
    - **Monthly digest** (also at `FC4_LOG_LEVEL=1`; `digest = 0` turns it off): at every `SimNewMonth`, one line
      for diffing the original against FreeCity4 on the same save, read only through public interfaces:
 

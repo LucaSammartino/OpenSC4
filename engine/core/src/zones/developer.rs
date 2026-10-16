@@ -38,7 +38,7 @@ use super::{
 };
 use crate::development::{dev_type, BuildingProfile};
 use crate::grid::{CellRect, GridProvider, TractGrid};
-use crate::rng::{derive_seed, file_seed, FixedSeeds, RzRandom, SeedSource};
+use crate::rng::{file_seed, FixedSeeds, RzRandom, SeedSource};
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 use crate::x87::{ftol32, r24, rhe};
 use std::any::Any;
@@ -113,7 +113,10 @@ impl ZoneDeveloperStatics {
     /// [`RNG_SEED_XOR`] with the session seed in place of the clock. Session 0
     /// gives seed `0x8C09C68A`.
     pub fn from_session(session: u32, seeds: &dyn SeedSource) -> SharedZoneStatics {
-        ZoneDeveloperStatics::new(derive_seed(session, RNG_SEED_XOR), seeds)
+        ZoneDeveloperStatics::new(
+            crate::seeding::seed(session, crate::seeding::keys::ZONE_DEVELOPER),
+            seeds,
+        )
     }
 
     /// Appends a draw to the trace (when tracing is on).

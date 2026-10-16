@@ -18,6 +18,7 @@
 #include "FC4Diag.h"
 #include "FC4Fpu.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -209,9 +210,9 @@ cIGZUnknown* CreateFC4WeatherSimulator() {
 
 cFC4WeatherSimulator::cFC4WeatherSimulator() {
     host_ = MakeHost(this);
-    // Seed(0xFFFFFFFF): wall-clock and process-clock values (§3, foundations §6.1).
-    core_ = fc4_weather_create(&host_, static_cast<uint32_t>(GetTickCount64() ^ GetCurrentProcessId()),
-                               static_cast<uint32_t>(GetTickCount()));
+    // Seed(0xFFFFFFFF) in the original (§3); ours takes derive(S, GZCLSID) of
+    // the session seed (foundations §6.3, FC4Seed.h).
+    core_ = fc4_weather_create(&host_, fc4::SessionSeed());
     if (core_ == nullptr) fc4::Log("cFC4WeatherSimulator: core creation failed");
     fc4::Log("cFC4WeatherSimulator(%p) created, core %p", static_cast<void*>(this), static_cast<void*>(core_));
 }

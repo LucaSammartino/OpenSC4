@@ -16,7 +16,7 @@ use std::rc::Rc;
 use crate::curve::ResponseCurve;
 use crate::grid::{Bitmap, ScanIterator, ScanState, MAX_TRACTS};
 use crate::props::{self, round_half_even_f32};
-use crate::rng::{CrtRand, FixedSeeds, RzRandom, CLOCK_SEED};
+use crate::rng::{CrtRand, RzRandom};
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 use crate::variant::{Elem, Variant};
 use crate::x87;
@@ -541,13 +541,16 @@ impl PlumbingSim {
     pub fn init(&self) -> bool {
         let h = self.host.clone();
         self.with(|s| {
-            let seeds = FixedSeeds {
-                wall_clock: h.wall_clock_seed(),
-                process_clock: 0,
-            };
-            // Step 2: only what is not already held (PL2).
+            // Step 2: only what is not already held (PL2). The clock seed of
+            // the original is derive(GZCLSID) of the session seed
+            // (foundations §6.3 *[choice]*).
             if s.rng.is_none() {
-                s.rng = Some(RzRandom::new(CLOCK_SEED, &seeds));
+                let session = h.session_seed();
+                let key = crate::seeding::keys::PLUMBING;
+                s.rng = Some(RzRandom::new(
+                    crate::seeding::seed(session, key),
+                    &crate::seeding::clocks(session, key),
+                ));
             }
             if !s.initialized {
                 s.initialized = true;

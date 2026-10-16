@@ -299,7 +299,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "traffic_shadow_hypotheses",
                                   // the glue16 lane (FC4TerrainShadow.h)
                                   "terrain_shadow", "terrain_shadow_points", "terrain_shadow_diffs",
-                                  "terrain_shadow_lines"};
+                                  "terrain_shadow_lines",
+                                  // the seeding lane (FC4Seed.h)
+                                  "session_seed"};
 
 
 // The switches that are off, for lock-free readers (autotest verdict).

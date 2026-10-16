@@ -22,6 +22,7 @@
 #include "FC4Log.h"
 #include "FC4Observer.h"
 #include "FC4Dialogs.h"  // the harness lane: close_dialogs
+#include "FC4Seed.h"     // the seeding lane: session_seed
 #include "FC4Popups.h"
 #include "FC4RefAudit.h"
 #include "cFC4Demand.h"
@@ -367,6 +368,7 @@ void Resolve() {
     g_resolved = true;
     // First call outside DllMain: configuration, audit settings, checked-build self-tests.
     ConfigReload("game start");
+    SessionSeedStartup();  // session_seed (FC4Seed.h): one line with S
     RefAuditReload();
     CheckedStartup();
     AutotestReload();
