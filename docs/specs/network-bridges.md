@@ -162,7 +162,7 @@ Every shipped bridge exemplar is type `0x6534284A`, group `0xA82CA30F`; there ar
 | `+0x0C` | `0x482CB45F` | 1 | W, pieces per step (lanes) |
 | `+0x10` | `0x482CB442` | 0 | N, **ramp** steps at each end |
 | `+0x14` | `0x482CB443`, `0x482CB444` | | N × W ramp pieces `{u32 instance, u8 rotation}`. The rotation count is truncated to a byte (`0x00642567`) *[quirk]* |
-| `+0x20` | `0x482CB44D` | | N floats: ramp **pillar depths** (−1 = none) |
+| `+0x20` | `0x482CB44D` | | N floats: ramp **model depths** (−1 = never a column, §11.3) |
 | `+0x2C` | `0x482CB445` | | the **deck** piece instance |
 | `+0x30` | `0x482CB446` | | u8, the deck piece rotation |
 | `+0x34` | `0x482CB447` | 0 | **pier spacing** in steps |
@@ -170,12 +170,12 @@ Every shipped bridge exemplar is type `0x6534284A`, group `0xA82CA30F`; there ar
 | `+0x3C` | `0x482CD465` | 0 | float, the end-pier fraction (§10.2) |
 | `+0x40` | `0x482CB448` | | M, steps per **pier** group |
 | `+0x44` | `0x482CB449`, `0x482CB44A` | | M × W pier pieces `{instance, rotation}` |
-| `+0x50` | `0x482CB44C` | | M floats: pier pillar depths |
+| `+0x50` | `0x482CB44C` | | M floats: pier model depths |
 | `+0x5C` | `0x482CB441` | | float, the deck height above **water** |
 | `+0x60` | from `0x482CB44B` | | N + 1 floats: the cumulative ramp drops (§2.4) |
 | `+0x6C` | from `0x482CB44B` | | N floats: the ramp model offsets (§2.4) |
 | `+0x78` | | 0 | float, `+0x60[0]`: the total ramp rise, the deck height above **land** |
-| `+0x7C` | | 0 | the last ramp index i ≥ 1 whose pillar depth is ≥ 0, else 0 |
+| `+0x7C` | | 0 | the last ramp index i ≥ 1 whose model depth is ≥ 0, else 0 |
 | `+0x80` | `0x482CB44E` | | the pillar **footprint** for ramp and deck pieces: 4 (x, z) points, then the same rotated by 90°, 180° and 270° (π/2 = `0x00AA8D30`) |
 | `+0x8C` | `0x482CB45E` | `+0x80`'s points | the same for **pier** pieces |
 | `+0x98` | `0x482CB44F` | | bool: a **land** bridge type |
@@ -280,7 +280,7 @@ A body (`ParseBridgeSpecialization`, `0x0063EA50`) is a list of lines:
 
 - `height H` (integer or float): added at the end to every piece height and every step height of this body;
 - `piece ITEM ITEM …` to the end of the line, where each ITEM may be prefixed by `COUNT *` to repeat it. An ITEM is:
-  - `<INSTANCE, ROTATION[, HTDELTA[, YOFFSET]]>` optionally followed by `:OPT{,OPT}`, where OPT is a number (the pillar
+  - `<INSTANCE, ROTATION[, HTDELTA[, YOFFSET]]>` optionally followed by `:OPT{,OPT}`, where OPT is a number (the model
     depth), `pylon` (support kind 1) or `end` (support kind 2) (`ParseBridgeInstance`, `0x00641310`);
   - a section name, or `rev(NAME)`;
   - inside a bridge only: `length(L)` or `rev(length(L))`, naming a length already defined.
@@ -296,6 +296,20 @@ A body (`ParseBridgeSpecialization`, `0x0063EA50`) is a list of lines:
 
 The resulting map entry holds the pieces and the heights (piece vector at entry `+0x00`, heights at `+0x0C`; the
 entry is passed as `map node + 0x14`).
+
+### 3.3 Shipped coverage
+
+Lengths with a specialisation (keys as in §2.6); every other length of every type is parametric:
+
+| Network | Key: lengths |
+|---|---|
+| road (`0x1000`) | 3: 4–16; 6, 9: 4–255; 7: 10–255; 8: 12–255 |
+| rail (`0x1001`) | 3: 10–255; 4: 12–255; 5: 4–255 |
+| highway (`0x1002`) and ground highway (`0x100C`) | 3: 43–111; 6: 32–255; 8, 11: 4–255; 9: 10–255; 10: 30–255 |
+| avenue (`0x1006`) | 1: 30–255; 2: 43–111; 3, 9: 4–255; 6: 10–255; 7: 32–255 |
+
+The water pass never builds a span shorter than 5 steps (§4.4), so a length-4 specialisation is reached only by a
+land bridge (§7.3).
 
 ---
 
@@ -401,7 +415,7 @@ It finds the banks' heights, chooses the reference elevation, then widens the sp
 
 Two thresholds come from the placement parameter p+0x00 (the maximum slope, **in radians**, network-geometry.md
 §2.4): `c14 := r24(p0 × 14.0)` (`0x00A98F48`) and `c4 := r24(p0 × 4.0)` (`0x00A8E17C`). Road: p0 = 35° ≈ 0.61087, so
-c14 ≈ 8.5522 and c4 ≈ 2.4435. Multiplying an angle by a plain constant suggests that a rise per cell was meant
+c14 ≈ 8.5521 and c4 ≈ 2.4435. Multiplying an angle by a plain constant suggests that a rise per cell was meant
 *[quirk; inferred intent]*.
 
 Two step measures:
@@ -553,3 +567,313 @@ So the deck is the highest of the override and, per step, the last cell's surfac
 one-cell-wide network the quirk changes nothing. For two-wide networks the first cell of each step is ignored.
 
 ---
+
+## 9. The specialised model: ConstructSpecializedBridge(&record, &entry) (`0x00632060`, pop 8)
+
+### 9.1 Orientation
+
+Both models orient pieces the same way. From the pen direction (`+0x7C`):
+
+- `R := (pen / 2 + 3) & 3`: pen 0 (−x) → 3, pen 2 (−z) → 0, pen 4 (+x) → 1, pen 6 (+z) → 2;
+- the cells of a step are taken first to last when `R` is 0 or 1, else last to first; the first cell taken is
+  **lane** 0;
+- the **corner base** `t := [1, 0, 3, 2][R]` (the tables at `0x00AA8960` and `0x00AA8970` are equal).
+
+A piece record's four corner heights are indexed 0–3 (piece `+0x14 + 4 × corner`, the terrain corner order of
+terrain.md slot 17). Corners `t` and `(t + 1) & 3` are one edge across the drag, `(t − 1) & 3` and `(t − 2) & 3` the
+other.
+
+### 9.2 The piece record (`0x50` bytes, record vector `+0x1C`)
+
+| Offset | Meaning |
+|---|---|
+| `+0x00` | kind: 0 ramp, 1 pier, 2 deck (the specialised model writes 0 for every piece) |
+| `+0x04`, `+0x08` | the cell x, z |
+| `+0x0C` | the piece (exemplar instance) |
+| `+0x10` | u8 rotation, 0–3 |
+| `+0x14`–`+0x20` | the four corner heights |
+| `+0x24` | the model height Y |
+| `+0x28` | the model depth below the origin (−1.0 = never a column, §11.3) |
+| `+0x2C`–`+0x38` | four suspension weights (1.0 when supported, §11.4) |
+| `+0x3C` | bridge type `+0xA4` when supported |
+| `+0x40` | byte: support flags (§9.3) |
+| `+0x44`–`+0x4C` | vector of cable pieces (§11.4) |
+
+### 9.3 The walk
+
+The entry holds the piece list and the step heights `h[]` (§3.2). For each step `s` from `start` to `end`, with
+`k := s − start`, and each cell of the step in lane order, take the **next** piece `P` of the list (one counter over
+the whole bridge; the list's length is not checked against the cell count) and append a record:
+
+- kind 0, the cell, `P`'s instance and depth;
+- rotation `(P.rotation + R) & 3`;
+- `Y := r24(r24(elev + P.Y) + +0xD4)`, `elev` = record `+0x10`;
+- corners `t` and `t + 1`: `r24(h[k] + elev)`; corners `t − 1` and `t − 2`: `r24(h[k + 1] + elev)`.
+
+**Support.** A piece is supported when its support kind is not 0 or a suspended section is open (below). A
+supported piece gets the weights 1.0, `+0x3C := +0xA4`, and the flags:
+
+- 2 if `R` is 1 or 3, else 1 (the drag axis);
+- `| 4` if its support kind is 1 (`pylon`);
+- only when W > 1: `| 8` or `| 0x10` by lane. Lane 0 gets 8 when `R` is 0 or 3, else 0x10; the other lane gets the
+  other value.
+
+**Sections.** After each step, let `m` be the last non-zero support kind among its pieces (0 if none). If `m ≠ 0`:
+
+- if a section is open (it started at step `k0` with kind `m0`): the suspension profile (§11.4) runs over the records
+  of steps `k0 … k`: pylon to pylon with `+0x9C` (mode 1), pylon to end with `+0xA0` (mode 2), end to pylon with
+  `+0xA0` (mode 0); nothing runs from an end to an end. Then, if `m` is an end, the section closes; otherwise a new one
+  opens at `k` with kind `m`;
+- if no section is open: one opens at `k` with kind `m`.
+
+---
+
+## 10. The parametric model: ConstructParametricBridge(&record) (`0x00631300`, pop 4)
+
+### 10.1 The layout
+
+A parametric bridge has **ramps** at both ends (N steps each), **piers** in groups of M steps, and **deck** pieces
+between them. A pier group is a centre step (pier piece 0) with the pier pieces 1 … M − 1 on the following steps and,
+mirrored, on the preceding steps.
+
+### 10.2 Pier positions
+
+With `u34 := +0x34` (spacing), `u38 := +0x38` (first-pier offset), `x := +0x7C`:
+
+1. `first := start + u38 + x`, `last := end − u38 − x`. `next := −1`, `placed := −1`, `spacing := 100000`.
+2. If M = 0: no piers. Go to §10.3.
+3. If `first > last`: if the minimum pier count `+0xA8` is not 0, `first := last := (start + end) / 2` (truncated),
+   but `next` stays −1, so **no pier** is placed *[quirk]*. Go to §10.3.
+4. `span := last − first`. Loop (at most two passes):
+   1. `count := span / u34` (unsigned). `count` is the number of gaps between piers.
+   2. If `count > +0xAC` and `+0xAC ≠ 1`: `count := +0xAC − 1` (0 if `+0xAC` is 0).
+   3. If `count < +0xA8` and `+0xA8 ≠ 1`: `count := +0xA8 − 1`.
+   4. `count := min(count, span / 2)`.
+   5. If `count < 1`: `spacing := 100000`, stop.
+   6. `spacing := span / count`. On the second pass, stop.
+   7. First pass only: `f := r24(r24((end − start + 1) / r24(2 × +0x3C + count)) × +0x3C)` and
+      `kk := floor(f) − (x + u38)` (the floor is done with the 12582912 rounding trick, `0x00631448`–`0x0063147A`;
+      it is exact for these magnitudes). If `kk ≥ 1`: `first += kk`, `last −= kk`, `span −= 2 × kk`, next pass.
+      Otherwise stop.
+5. `next := first`.
+
+`+0x3C` (0.6 on the suspension types) moves the outer piers to about `0.6 / (1.2 + count)` of the length from each
+end: the towers of a suspension bridge.
+
+### 10.3 The walk
+
+For each step `s` from `start` to `end`, each lane `l` (cells in lane order, §9.1), in this order:
+
+1. `s < start + N`: **ramp** piece `i := (s − start) × W + l`; depth `+0x20[i / W]`.
+2. `s > end − N`: mirrored ramp `i := (end − s + 1) × W − l − 1`; rotation `+ 2`; depth `+0x20[i / W]`.
+3. `placed ≥ 0` and `s − placed < M`: **pier** piece `(s − placed) × W + l`; depth `+0x50[s − placed]`.
+4. `next < 1`: **deck**.
+5. `d := next − s`:
+   - `d ≤ 0`: pier piece `l` (the centre); depth `+0x50[0]`; `placed := next`; `next := next + spacing`, and
+     `next := −1` if it is then past `last`;
+   - `0 < d < M`: mirrored pier piece `d × W + l`, rotation `+ 2`, depth `+0x50[d]`;
+   - `d ≥ M`: **deck**.
+
+A deck piece is `+0x2C` with rotation `(+0x30 + 2l) & 3`, depth −1. Finally every rotation becomes
+`(rotation + R) & 3`.
+
+Heights (`elev` = record `+0x10`):
+
+- deck: `Y := r24(elev + +0xD4)`; pier: `Y := r24(r24(elev + +0xD4) + +0xC4)`; all four corners `elev`;
+- ramp `i`, `u := i / W`: `Y := r24(r24(elev − +0x6C[u]) + +0xD4)`. With `t` from §9.1 (for a mirrored ramp, `t` is
+  taken with `(R − 2) & 3` instead of `R`): corners `t` and `t + 1` get `r24(elev − +0x60[u])`, corners `t − 1` and
+  `t − 2` get `r24(elev − +0x60[u + 1])`.
+
+### 10.4 Support flags and cables
+
+A piece is supported when a pier has been placed or is pending (`placed ≠ −1` or `next ≠ −1`) **and** both cable
+models (`+0xB0`, `+0xB4`) are set. Then it gets the weights 1.0, `+0x3C := +0xA4`, and the flags: 2 if `R` is 1 or 3,
+else 1; `| 4` on the step `s = placed`; with W > 1, `| 8` or `| 0x10` by lane (lane 0 gets 8 when `R` is 0 or 3, else
+0x10). Otherwise the flags are 0. Then, for cable bridges, the suspension profile (§11.4) runs between the end and
+the first pier, between piers and from the last pier to the end, and the cables are plotted (`0x00630F70`).
+
+---
+
+## 11. Pieces and pillars
+
+### 11.1 InsertBridgePieces(arg) (`0x0062F610`, pop 4)
+
+For each bridge record in order, stopping at the first one whose `end ≥ +0x78`: for each piece record, look up the
+cell's info (key `(z << 16) + x`; it must exist), set its byte `+0x51 := 1` (a bridge cell), and call
+`InsertBridgePiece(piece, cellInfo, bridgeType, arg)`.
+
+### 11.2 InsertBridgePiece (`0x0062EEB0`)
+
+1. Create the occupant with `CreateNetworkOccupant` (slot 54, network-geometry.md §10.1), class `0x49CC1BCD` (the
+   bridge occupant).
+2. Set its exemplar with the piece and rotation (`0x00624860`), with the model offset `dy := Y − ` the occupant's
+   height, then occupant slot 30.
+3. Flags: clear `0x2000000` and `0x4000000`, set `0x8000000`. If the occupant is usable (`0x10000000`), clear
+   `0x4000`, else set it (network-manager.md §5).
+4. If the piece's exemplar lacks property `0xABE1B5A3`: occupant slot 68 `:=` the lowest corner of the cell
+   (`0x0062DB90`) `− +0xD0`.
+
+### 11.3 Pillars
+
+A piece's depth is how far its own model reaches below the occupant's origin. A support column is added only to fill
+the gap between the bottom of the model and the ground (`0x0062F012`–`0x0062F378`):
+
+1. Nothing when the depth is < 0.
+2. `top :=` the occupant's position height (occupant query `0x0062F02C`–`0x0062F03B`) `− depth` *[inferred: the
+   position height is the piece's model height Y]*.
+3. `bottom :=` the lowest of the terrain altitudes (slot 12) at the cell info's four vertex ids.
+4. If `top < bottom`, the model already reaches the ground: no column.
+5. The column's four corners are the footprint `+0x8C` for a pier piece (kind 1), else `+0x80`, in the variant for the
+   piece's rotation, around the occupant's position, from `bottom` up to `top`.
+6. If the mean of the four bottom heights (× 0.25, `0x00A8821C`) is below the water level (terrain slot 30), the
+   column is split at `water − 0.01` into an underwater part and the part above, each added with
+   `AddSupportColumnToOccupant` (`0x00643B70`); otherwise one column is added.
+
+So the road level bridge's pier centre (depth 498) and first ramp (depth 256) get a column only where the ground is
+more than 498 m or 256 m below them; the pieces with depth −1 never get one.
+
+### 11.4 Suspension and cables
+
+After the columns, `InsertBridgePiece` calls `AddSuspendedBridgeStructures` (`0x0062DF30`) when the piece's support
+flags (`+0x40`) are not 0, then adds the piece's cable pieces (`+0x44`, filled by the cable plotting `0x00630F70`). The suspension profile (`0x0062E690`) turns the piece positions between two supports into the
+per-corner weights `+0x2C`–`+0x38`, with the parameter given (`+0x9C` or `+0xA0`) and an end mode (0, 1 or 2). These
+are drawing data: nothing in the simulation reads them *[inferred]*. Their exact formulas are left open (NB2).
+
+---
+
+## 12. Cost
+
+`GetCostOfSolution` (slot 20, network-tools.md §8.1) adds, per bridge record, in integers (`0x00625740`–`0x0062577F`):
+
+`(end − start) × (bridgeType+0x154 + tool+0x320) + bridgeType+0x150`
+
+The bridge type is found from the record's own network type (`+0x00`) and index (`+0x0C`). `end − start` is one less
+than the step count. Land and water bridges cost the same way. Every shipped bridge type has `+0x150` = `+0x154` = 0
+(§2.3), so a bridge costs `(end − start) × +0x320`: 100 per step for road, rail and their kin, 1000 for highway and
+avenue (network-geometry.md §2.4). network-tools.md §8.1 calls these "bridge record `+0x154`, `+0x150`"; they are
+**bridge type** fields.
+
+## 13. Failure codes
+
+| Code | Set by | When |
+|---|---|---|
+| `0xF0000003` | `PlaceNetwork` after §4 | `IdentifyBridgeCells` lowered `v`: a wet step had no acceptable span (far bank not found before `v − 1` or the straight count, an occupied or crooked step on the way) or no bridge type fit |
+| `0xF0000001` | `CheckForGoodTerrain` (network-geometry.md §4.5) | a wet step that the water pass skipped (a span shorter than 5 steps or than the type's minimum, a wet step blocked by a neighbouring bridge, or a run that is not straight) |
+
+The land pass sets no code. A land bridge that cannot be built (no bridge type, an occupant in the way) just leaves
+its steps regular, and the height solver then treats them as ordinary terrain.
+
+---
+
+## 14. Answers given here
+
+- **NG2** (network-geometry.md §17): this spec. MATCHES the outline of network-geometry.md §7.1, with these
+  corrections: the water pass's straight test reads `v`, not the dragged count (§4.1); the step test is an occupant
+  query through the OR filter (§4.2); the minimum-span test is `end − start ≥ 4` and `n ≥` the minimum (§4.4); the
+  parametric model reads `+0x34`–`+0x7C` and `+0xA8`–`+0xD4`, not `+0xF8`–`+0x120` (those are suspension tower data).
+- **NG4**: §7 and §2.5. `+0x354` is set by an address test (`0x00626B53`) of bridge type `+0x98` (property
+  `0x482CB44F`, land); every shipped type sets the property, so there is no shipped effect. The pass itself: §7.
+
+## 15. Quirks (summary)
+
+1. A malformed INI entry leaves a default bridge type in the vector (§2.2).
+2. The ramp rotation count is truncated to a byte (§2.3).
+3. `Init` tests the address of `+0x98`, not its value (§2.5).
+4. `AdjustBridgeSpan` multiplies the slope angle in radians by 14 and 4 (§5.2).
+5. `SelectBridgeElevation` keeps only the last cell of each step (§8.2).
+6. The land scan reads the +x or +z edge whatever the drag direction (§7.2).
+7. With the piers squeezed out (`first > last`) and a minimum pier count, the centre is computed but no pier is
+   placed (§10.2).
+8. `InsertBridgePieces` stops at the first record past `v` instead of skipping it (§11.1).
+9. The specialised walk does not check the piece list's length against the cells (§9.3); the shipped files were not
+   checked for a mismatch.
+
+## 16. Open questions
+
+- **NB1.** The rule that the network solver applies to bridge cells (`RemoveBridgePiecesFromSetOfCellsToBeSolved`,
+  `0x00638B40`, and `CopyBridgeElevationConstraintsIntoCellInfo`): how the corner heights of §9 and §10 constrain the
+  height solver (network-geometry.md §9). Not read.
+- **NB2.** The suspension profile (`0x0062E690`), the cable plotting (`0x00630F70`) and `AddSuspendedBridgeStructures`
+  in detail. Drawing only *[inferred]*.
+- **NB3.** The occupant position height used for the column top (§11.3): inferred to be the piece's model height Y
+  set in §11.2, not checked.
+
+## 17. Conformance tests
+
+A "city" is a fresh 64 × 64 city. Road = type 0. Cells are (x, z). "River" means wet cells (terrain slot 34 true) whose
+surface level (slot 18) is the water level. Unless stated, the banks are flat and dry at the water level's height
+(every `d ≤ c4` in §5.2), nothing is built, no preferred bridge and no override.
+
+1. **Loading** (§2.1, §2.6). Road has 9 bridge types with keys 1–9 in INI order; key 4 is exemplar `0x5`. Street,
+   pipe, subway, one-way road and dirt road have 0; power line has none. Every shipped type: max span 100000,
+   clearance [0, 10000], cost (0, 0).
+2. **Default minimum span** (§2.3). An exemplar with N = 3 ramp steps and no `0x482CB458`: minimum span 8.
+3. **Malformed entry** (§2.2). Adding `10 = 0x6534284a, 0xa82ca30f` (2 tokens) to the road section gives a tenth
+   road bridge type: key 10 and every field at its default.
+4. **Ramp heights** (§2.4). Road key 2: `+0x78` ≈ 36.652 (the sum of the seven `b − a`), `+0x60[7]` = 0, `+0x7C` = 4.
+5. **Specialisation grammar** (§3.1). A file `bridge 99 length 10 end end` where no bridge type has key 99: the parse
+   fails and nothing after it is read. `bridge 1 length 9 … end` for road key 1 (minimum span 10): the whole parse
+   fails.
+6. **Land flag** (§2.5). Road: `+0x354` = 1. Street (no bridge types): 0. A test bridge type with `0x482CB44F` false
+   as the only road type: still 1 (the address test).
+7. **Edge mask** (§4.3). Pen 4, a one-cell step whose cell has a road piece with edge word `0x00020002`: passes. The
+   same with `0x00000200` (a z-direction road): fails. A cell with a rail piece (type mask bit 1) on a road drag:
+   fails.
+8. **Water pass, simple** (§4.4, §5.1). Road, straight drag (0, 10) → (30, 10), pen 4, a river at x = 10 … 19:
+   `i = 10` is the first wet step; start 9, end 20 (first dry step after the river); flat banks, so the reference
+   elevation is the bank's surface and the span is not widened; `n = 12`. The winner is key 8 (cantilever truss,
+   index 7, `d = 0`). One record, steps 9 … 20 kind 1, `+0x18` = 0, `v` unchanged. Road key 8 has specialisations
+   for lengths 12 … 255, so the specialised model builds it.
+9. **Tie break** (§6.1). As test 8 but `n = 11` (river x = 10 … 18): keys 1 and 7 both have `d = 1`; key 1 (index 0)
+   wins, and the parametric model builds it (key 1 has no specialisation).
+10. **Preferred bridge** (§6.1). As test 8 with `SetPreferredBridge(4)` (key 5, minimum 22): padding needs 10 more
+    steps; with room on both sides it pads alternately back and forward to start 4, end 25 (22 steps). With the drag
+    (7, 10) → (30, 10) instead (start 2, end 13, `v` = 24), the back side is blocked at once (`start` must stay > 1)
+    and the forward side takes all ten: start 2, end 23.
+11. **Short river** (§4.4). Road, a river at x = 10 … 11 (2 wet steps): start 9, end 12, `end − start = 3 < 4`: no
+    record, `v` unchanged; then `CheckForGoodTerrain` refuses the run with `0xF0000001`.
+12. **No far bank** (§5.1). Road, (0, 10) → (15, 10) with a river from x = 10 to past the end: the end reaches
+    `+0x78 − 1`; `v := 10`; code `0xF0000003`.
+13. **Crooked drag** (§4.1). The drag of network-geometry.md test 11 (not straight): the water pass does nothing;
+    `0xF0000001`.
+14. **Deck elevation** (§5.2, §8.2). As test 9 (road key 1: `+0x5C` = 20, `+0x78` = 0), water level 250 m, flat banks
+    at 250 m: reference elevation `+0x14` = 250, deck `+0x10` = 270. With `SetBridgeAltitudeOverride(300)`: the
+    reference is 300; the flat banks never reach it, so the span widens to start 1 and end `v − 2`; the deck is 300.
+15. **Wide step quirk** (§8.2). Avenue, a two-cell step whose first cell is wet with surface 250 and last cell dry at
+    terrain 255, `+0x5C` = 30, `+0x78` = 0: the step gives 255, not 280.
+16. **Steep banks** (§5.2). Road (c14 ≈ 8.5521, c4 ≈ 2.4435), water level 250. The step `start` (the last dry step)
+    slopes from 250 at the river to 262; the land behind it is flat at 262. At `k = start`: `d` = 262 − 250 = 12 > c14,
+    so A = B = 262; further back `d` = 0. The far bank is the mirror image: A2 = B2 = 262. `elev` = 262, no widening,
+    clearance 12. With a rise of 5 m instead (`d` = 5, between c4 and c14): B = B2 = 255, A = A2 = 0, `elev` =
+    min(255, 255, 0) = 0, so the floor rule gives the surface of step `start`'s first cell, 255; clearance 5.
+17. **Cost** (§12). Road, the bridge of test 8 (start 9, end 20) on flat land: the bridge term is 11 × 100 = 1100;
+    highway with the same steps: 11 × 1000 = 11000.
+18. **Parametric layout** (§10). A record for road key 1 (N = 3, M = 3, W = 1, `+0x34` = `+0x38` = 6, `+0x7C` = 0, `+0x3C` = 0,
+    pier depths [498, −1, −1], ramp depths [256, −1, −1]), start 5, end 24, pen 4 (R = 1): first 11, last 18,
+    count 1, spacing 7, kk = −6. Pieces by step: 5, 6, 7 ramp 0, 1, 2; 8 deck; 9, 10 mirrored pier 2, 1; 11 pier 0;
+    12, 13 pier 1, 2; 14, 15 deck; 16, 17 mirrored pier 2, 1; 18 pier 0; 19, 20 pier 1, 2; 21 deck; 22, 23, 24
+    mirrored ramp 2, 1, 0. Depth ≥ 0 only at steps 5 and 24 (256) and 11 and 18 (498); every other piece has −1. No support flags
+    (no cable models).
+19. **Pier fraction** (§10.2). Road key 5 (medium suspension: `+0x34` = 16, `+0x38` = 6, `+0x7C` = 0, `+0x3C` = 0.6,
+    `+0xA8` = 2, `+0xAC` = 47, M = 1), start 10, end 49 (40 steps): first 16, last 43, span 27; count 27 / 16 = 1
+    (the minimum rule gives 2 − 1 = 1); spacing 27. First pass: f = r24(r24(40 / 2.2) × 0.6) ≈ 10.909091, kk =
+    10 − 6 = 4: first 20, last 39, span 19. Second pass: count 1, spacing 19. Piers (the towers) at steps 20 and 39;
+    every other step between the ramps (steps 10 and 49) is deck.
+20. **Squeezed piers** (§10.2). A bridge type with M = 1, `+0x38` = 6, `+0x7C` = 0, `+0xA8` = 2, start 0, end 9:
+    first 6 > last 3, so both become 4, and no pier piece is placed (quirk 7).
+21. **Orientation** (§9.1). Pen 0 → R 3, cells last to first, t = 2; pen 6 → R 2, t = 3; a deck piece with `+0x30` =
+    1 on pen 4 has rotation 2.
+22. **Land bridge** (§7). Road, straight drag (0, 10) → (20, 10), pen 4, no occupants. The two +x edge altitudes of
+    each step's cell are equal: 100 for steps 0 … 4, then 60, 40, 30, 30, 30 for steps 5 … 9, then 100 for steps
+    10 … 20. Step 5 has `hi` 60 < A = 100: spanStart 4, D = 100, E = 60. Steps 6 … 9 have `hi < E`, so they only lower
+    C to 30. Step 10 has `hi` 100 ≥ D: length 10 − 4 + 1 = 7 ≥ 4, D − C = 70 > 55, |D − hi| = 0 ≤ 20:
+    `CreateLandBridge(4, 10, 100, 0)`. `FindBestBridgeType` (land list, n = 7, h = 0) picks key 3 (index 2, `d` = 3,
+    first of the four types with minimum 4). With steps 6 … 9 at 50 instead (D − C = 50 ≤ 55): no bridge. With any
+    occupant inside the rectangle (cells (3, 9) to (11, 11)): no bridge, `+0x1F4` cleared.
+23. **Flat valley floor** (§7.2). As test 22, but steps 5 … 9 all at 30. Step 6 has `hi` = E, so it takes the
+    second branch: spanStart 5, D := 30, length 2: the span ends. Steps 7 and 9 start new spans (A and B were not
+    updated inside the span, so A is still 100); steps 8 and 10 end them with length 2 and 3. No land bridge.
+24. **Land record** (§7.3). The bridge of test 22: `+0x18` = 1, `+0x10` = `+0x14` = 100 (no `+0x5C` or `+0x78`
+    added); `IsMajorBridgeLandBridge` is true and `GetMajorBridgeAltitude` gives 100.
+25. **Getters** (§1.1). With no bridge: `GetMajorBridge` = −1, `GetMajorBridgeAltitude` false.
+    `GetBridgeBitmapKey(0, …)` for road: true, (`0x6A386D26`, 1).
