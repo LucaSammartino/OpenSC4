@@ -1545,10 +1545,12 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      disasters shadow riot R start|update N|removed …: phase o/o leaders o/o [cells] active o/o locked o/o
        ongoing o/o locations o/o mismatches=N[; differences: …]
      disasters shadow quiet: posts orig/ours …; cost …; … mismatches=N[; differences: …]
-     disasters shadow: city shutdown: N lines, M with mismatches=0 (fire a/b, riot c/d, quiet e/f); …
+     disasters shadow: city shutdown: N lines, M with mismatches=0 (fire a/b, riot c/d, quiet e/f); lines whose
+       every difference is a numbered question: …; differences by kind: <kind> [Qnn] count, …
      ```
 
-     Success is `mismatches=0` on every line.
+     Success is `mismatches=0` on every line. A difference with a question number (`[Q37]` and so on, the glue13
+     lane report) is a known gap of the spec, not a defect of the core.
    - **Zone developer shadow** (`zonedev_shadow = 1`, env `FC4_ZONEDEV_SHADOW`; off by default;
      `plugin/FC4ZoneDevShadow.h`): a same-process differential of the lot manager. It needs the **original** zone
      developer (do not enable `zonedev`); otherwise it logs `zonedev shadow: requested … but INACTIVE`. At

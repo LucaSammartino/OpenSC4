@@ -231,8 +231,10 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01 save fast now", "save takes 0 or 1 argument(s) (fast), not 2"));
     CHECK(ErrorIs("2000-01-01 disaster", "disaster '' is not fire, riot or survey"));
     CHECK(ErrorIs("2000-01-01 disaster flood 1 2", "disaster 'flood' is not fire, riot or survey"));
-    CHECK(ErrorIs("2000-01-01 disaster fire 1", "disaster takes 3 argument(s) (fire|riot x z, or fire|riot auto), not 2"));
-    CHECK(ErrorIs("2000-01-01 disaster riot 1 2 3", "disaster takes 3 argument(s) (fire|riot x z, or fire|riot auto), not 4"));
+    CHECK(ErrorIs("2000-01-01 disaster fire 1",
+                  "disaster takes 3 argument(s) (fire|riot x z, or fire|riot auto), not 2"));
+    CHECK(ErrorIs("2000-01-01 disaster riot 1 2 3",
+                  "disaster takes 3 argument(s) (fire|riot x z, or fire|riot auto), not 4"));
     CHECK(ErrorIs("2000-01-01 disaster riot x 2", "x 'x' is not a cell coordinate 0..4095"));
     CHECK(ErrorIs("2000-01-01 disaster fire 1 4096", "z '4096' is not a cell coordinate 0..4095"));
     CHECK(ErrorIs("2000-01-01 disaster survey now", "disaster takes 1 argument(s) (survey), not 2"));

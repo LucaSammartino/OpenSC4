@@ -77,7 +77,8 @@ constexpr uint32_t kPropFlammability = 0x29244DB5;
 // The original's posts (§12) the subscription counts.
 constexpr uint32_t kCountedPosts[] = {0x49E3DB1D, 0x49D15B73, 0x49D15B72, 0xA9C7CAB6, 0xCA1B1E64, 0xAA1B2002};
 // The messages the mirror core subscribes to (§2.5, §5.3), routed to it.
-constexpr uint32_t kRoutedTypes[] = {0x99EF1143, 0xE94671EC, 0xE94671EB, 0x894671F6, 0xE94671ED, 0x06CDB65B, 0xA6B79602};
+constexpr uint32_t kRoutedTypes[] = {0x99EF1143, 0xE94671EC, 0xE94671EB, 0x894671F6,
+                                     0xE94671ED, 0x06CDB65B, 0xA6B79602};
 constexpr int kQuietFrames = 30;
 constexpr size_t kMaxDiffs = 6;
 
@@ -438,7 +439,9 @@ void FireLine(const char* what) {
             if (lot != nullptr && it != g.ctx.lotConditions.end()) {
                 ++lots;
                 const uint32_t live = AsGame(lot)->GetCondition();
-                if (live != it->second) d.Add("lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
+                if (live != it->second) {
+                    d.Add("lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
+                }
             }
         }
     }
@@ -482,7 +485,8 @@ void RiotLine(Riot& r, const char* what) {
     std::set<uint64_t> ours;
     for (const auto& l : ls) ours.insert(l.automaton);
     if (ours != r.leaders) {
-        d.AddQ("Q39", "leaders orig %u ours %u", static_cast<unsigned>(r.leaders.size()), static_cast<unsigned>(ours.size()));
+        d.AddQ("Q39", "leaders orig %u ours %u", static_cast<unsigned>(r.leaders.size()),
+               static_cast<unsigned>(ours.size()));
     }
     cISC4DisasterManager* m = Manager(kRiot);
     const int32_t origActive = m ? m->GetActiveInstanceCount() : -1;  // slot 10
@@ -1191,7 +1195,8 @@ void QuietLine() {
         "mismatches=%u%s%s",
         text.c_str(), (long long)origCost, (long long)ourCost, layer, (unsigned long long)g.unfollowable,
         (unsigned long long)g.idGuesses, (unsigned long long)g.ctx.leadersMissing, (unsigned long long)g.cellFallbacks,
-        (unsigned long long)g.radiusCalls, (unsigned long long)g.extinguishCalls, d.n, d.text.empty() ? "" : "; differences: ",
+        (unsigned long long)g.radiusCalls, (unsigned long long)g.extinguishCalls, d.n,
+        d.text.empty() ? "" : "; differences: ",
         d.text.c_str());
 }
 
@@ -1447,7 +1452,8 @@ std::string DisasterScriptAction(cISC4City* city, int32_t kind, int32_t x, int32
         // overloads compile in reverse order, so the SDK's (x, z) is slot 6).
         cISC4DisasterInstance* inst = m->AttemptDisasterStart(c.x, c.z);
         const int32_t after = fireInst ? fireInst->GetFireCount() : -1;
-        std::snprintf(b, sizeof(b), "%s%s%s AttemptDisasterStart(%d, %d) -> instance %p; fires %d->%d active=%d ongoing=%d",
+        std::snprintf(b, sizeof(b),
+                      "%s%s%s AttemptDisasterStart(%d, %d) -> instance %p; fires %d->%d active=%d ongoing=%d",
                       text.empty() ? "" : "; ", autoPick ? "auto " : "", fire ? "fire" : "riot", c.x, c.z,
                       static_cast<void*>(inst), before, after, m->GetActiveInstanceCount(),
                       layer->IsADisasterOngoing());

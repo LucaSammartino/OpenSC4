@@ -1197,7 +1197,12 @@ pub unsafe extern "C" fn fc4_disasters_riot_leaders(
 #[no_mangle]
 pub unsafe extern "C" fn fc4_disasters_set_mirror_random(d: *mut fc4_disasters) -> bool {
     with_d(d, false, |h| {
-        for g in [Generator::Fire, Generator::Riot, Generator::Earthquake, Generator::PipeBurst] {
+        for g in [
+            Generator::Fire,
+            Generator::Riot,
+            Generator::Earthquake,
+            Generator::PipeBurst,
+        ] {
             h.sys.set_random(g, Box::new(MirrorRandom::default()));
         }
         true

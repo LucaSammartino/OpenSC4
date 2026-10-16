@@ -69,7 +69,13 @@
 //   disasters shadow riot R update N: phase o/o leaders o/o active o/o locked o/o locations o/o mismatches=K[...]
 //   disasters shadow ignite|start|...: what was mirrored and both results
 //   disasters shadow quiet: posts per type orig/ours ... mismatches=K
-//   disasters shadow: city shutdown: N lines, M with mismatches=0 (fire a/b, riot c/d, quiet e/f)
+//   disasters shadow: city shutdown: N lines, M with mismatches=0 (fire a/b, riot c/d, quiet e/f); lines whose
+//     every difference is a numbered question: ...; differences by kind: <kind> [Qnn] count, ...
+//
+// A difference the lane report explains carries its question number ([Q37] a riot leader's location entry,
+// [Q38] the network the original locks as a leader walks, [Q39] the original's riot second one ahead); the
+// riot instance the original started is the one its first leader registered (its AttemptDisasterStart
+// returns null, Q36).
 #pragma once
 
 #include <cstdint>
