@@ -7,6 +7,73 @@ operating knowledge that is still true.
 
 ## 0. Current state
 
+### Stop 2026-10-16 ~21:05 (user halted): how to resume
+
+**The merge train is built and working** — `tools/merge-train.py`, contract in [docs/merge-train.md](merge-train.md).
+`build-runs/main-merge.lock` is gone. A finished lane writes `build-runs/merge-queue/<lane>.json` in its own worktree
+and stops; the coordinator is the only writer of `main`. Four batches landed this session.
+
+**Resume in this order:**
+
+1. **Land batch `train5`.** It is merged on `integration/5` in `.claude/worktrees/train-integration`, its **gate is
+   PASS** (`build exit=0`, ctest 58/58) but its **regress was never run**. From the main checkout:
+   `python tools/merge-train.py regress` then `python tools/merge-train.py land`. Lanes in it: `re-answers31`,
+   `re-specs21`, `cores24` (audio core), `coverage3` (the coverage map), `glue23` (demolition host).
+   **`coverage3` is the one that moves the coverage number** — its map rows take `implemented` 21.3% → 23.1% and
+   `verified` 9.5% → 10.5%; those figures are on its branch, not on `main` yet.
+2. **Then the queue.** `python tools/merge-train.py status` / `plan` / `merge-batch --size 12` → `gate` → `regress` →
+   `land`. Ready now: `cores20` (bridges), `cores23` (UI windows), `cores25` (effects manager), `re-answers27`,
+   `glue18`, `glue22`. On hold with uncommitted edits: `glue19`, `glue21`, `glue24`, `re-answers27` — check
+   `git -C .claude/worktrees/<lane> status` before resuming each.
+3. **Four lanes could not be merged by the train** and need an operator pass: `glue22`, `glue23`, `glue18`, `cores20`
+   conflicted on `engine/capi/include/fc4.h` / `lib.rs` / `FC4Subsystems.cpp` / `terrain/water.rs`. Their unions were
+   **refused rather than mangled** (see the guards below) — resolve by hand and verify
+   `git diff main -- engine/capi/include/fc4.h` shows no line of main's header disappearing.
+
+**What landed on `main` this session: 38 lanes** in four batches (`train1` 4 docs, `train2` 12, `train3` 14,
+`train4` 7). Highlights: network-geometry, network-rules, network-bridges, effects, demolition/dispatch/city-situation,
+prop-occupant and audio cores; terrain, ports, prop-dev/city-detail, occupant, network-manager and disaster glue;
+`apply15b`/`c`/`d`/`e`; `flakyfix`; `abi-hygiene`; and 8 RE spec lanes (`ui-windows.md`, `audio.md`, `view3d.md`,
+`prop-occupant.md`, plus automata/effects/terrain/disasters answers). Game runs prove it: batch 2/3/4 regresses all
+**PASS**.
+
+**Coverage (measured, `python tools/coverage.py`):** game code 29,481 functions / 5,586,418 bytes;
+**32.9% specified / 21.3% implemented / 9.5% verified / 12.1% replaced**; shared 206,377 B, unattributed 95,483 B.
+Flat this session because the new subsystems had no `tools/coverage-map.tsv` rows — `coverage3` fixes that and is
+queued. **Never let this number go down**; regenerate `docs/coverage-report.md` and `docs/coverage-map.svg` after
+every merge and check the delta.
+
+**Merge-train operator notes (learned the hard way this session):**
+- `build-runs/coord-verify-lane.ps1` **exits 0 even when cmake fails**. Never take a gate from the wrapper's exit
+  code — `merge-train.py`'s `gate` parses `build exit=`, `ctest exit=` and the ctest summary.
+- Lanes append to shared files (`fc4.h`'s ABI history, `FC4Config.*`'s key table, `FC4Subsystems.cpp`'s registry),
+  and **each side's addition ends with the file's own closing `}`/`*/`**. The resolver now splits that close off the
+  last line, commas list entries only, checks the three-way brace balance, and rejects glued `fn` signatures. It also
+  refuses to change anything outside `fc4.h`'s history block and collapses a duplicated `FC4_ABI_VERSION` — a bug
+  there once deleted all 126 `FC4_ADV_SRC_*` defines and 308 declarations.
+- `git checkout --theirs -- fc4.h` during a manual resolve is dangerous: the lane's copy is **stale** (cut from an
+  older main) and drops everything merged since. Restore from the consolidate commit instead.
+- PowerShell `*>` output in `build-runs/` is UTF-16; `tr -d '\0'` before grepping.
+- A git worktree's `engine/third_party/gzcom-dll/.git` holds a relative `gitdir:` that does not resolve — repoint it
+  at `<main>/.git/modules/engine/third_party/gzcom-dll` or every git command in that worktree fails.
+- Disk: build caches are ~10-19 GB per worktree. `C:` hit ENOSPC twice mid-gate. Free
+  `engine/target` and `engine/build-x86` of **merged, clean, 0-commits-ahead** worktrees only.
+
+**Open items the next session should pick up (ranked):**
+1. `enable = automata` — **re-answers31 found the root cause**: `QueryInterface` answers the CLSID but never the IID,
+   so `cSC4City+0x1E4` (the automata script system, IID `0x8A1B6647`) stays null and the city's Init faults at
+   `0x45BF1B`. Fix is to accept the IID and return the interface sub-object.
+2. `enable = effects` — the manager is **six** sub-objects (vptrs at `+0x00 +0x04 +0x08 +0x0C +0x10 +0x94`); the
+   fault is a dispatch on `+0x08` past a one-interface object.
+3. `enable = lotcfg` — the configuration class is not GZCOM-creatable, but `FUN_00489910` **is** the named
+   allocate-and-construct pair and the *manager* is GZCOM-creatable (CLSID `0x299062C0`). Drive the manager.
+4. `enable = netmgr`/`netlot` (glue24, `wip`) — crashes at PostCityInit with `tools=0, configs=0`; wire `create_tool`
+   and feed the 543 type-0x21 exemplars before `Init`.
+5. `enable = terrain` — needs TR21's terrain 3D view contract (now in `terrain.md` §15.5); watch the two globals
+   `view->Init` dereferences with no null check (`0x00B43CF0`, `0x00B43CD8`).
+6. Performance: the development glue is ~3x slower per game day and the tract developer's `Grow` is 1.5-2.5x the
+   original (glue27 is on it — measure, do not estimate).
+
 ### Stop 2026-10-16 ~09:10 (user shut down): how to resume
 
 All lanes were stopped at once, without asking them to commit first. Main is clean at the last merge (re-answers24,
@@ -34,7 +101,7 @@ merge: merge main, gate, regress for engine lanes, then `--no-ff` into main.
 Progress is measured with `python tools/coverage.py` and drawn with `python tools/coverage_treemap.py`
 (`docs/coverage-report.md`, `docs/coverage-map.svg`). Quote those numbers, not estimates.
 
-#### First task next session: replace the merge lock with a merge train (before spawning any lane)
+#### ~~First task: replace the merge lock with a merge train~~ — DONE 2026-10-16 (see the stop note above)
 
 The merge of each lane is slow, not git. Measured on 2026-10-16:
 
