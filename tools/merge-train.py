@@ -264,11 +264,29 @@ def cmd_plan(args):
     return 0
 
 
+def fix_sdk_gitlink(wt):
+    """Point the gzcom-dll submodule at the main checkout's module store.
+
+    A git worktree's `.git` is a file, so the submodule's relative `gitdir: ../../../.git/modules/...` does
+    not resolve from `.claude/worktrees/<name>/engine/third_party/gzcom-dll` and every git command in the
+    worktree then fails with "not a git repository". Lanes hit this too (flakyfix, 2026-10-16).
+    """
+    dot = Path(wt) / "engine" / "third_party" / "gzcom-dll" / ".git"
+    if not dot.is_file():
+        return
+    want = (REPO / ".git" / "modules" / "engine" / "third_party" / "gzcom-dll").as_posix()
+    text = dot.read_text(encoding="utf-8", errors="replace").strip()
+    if text.startswith("gitdir:") and not Path(text.split(":", 1)[1].strip()).exists():
+        dot.write_text(f"gitdir: {want}\n", encoding="utf-8")
+        log(f"repointed the gzcom-dll gitlink in {Path(wt).name}")
+
+
 def ensure_train_worktree():
     if not TRAIN_WT.is_dir():
         TRAIN_WT.parent.mkdir(parents=True, exist_ok=True)
         log(f"creating integration worktree {TRAIN_WT}")
         git(["worktree", "add", str(TRAIN_WT), "-b", TRAIN_BRANCH, "main"])
+    fix_sdk_gitlink(TRAIN_WT)
     return TRAIN_WT
 
 
