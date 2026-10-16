@@ -795,6 +795,13 @@ argument types given above for script slots 11 and 12 are checked, the others ar
   - watercraft `0x096E75F5`: `u16` 2 + base.
 
   §6.4.
+  **Note (re-answers29).** The record *layouts* above come from the executable alone and stand without a sample.
+  What a save containing planes or boats would still add is **corpus validation**: a real aircraft/watercraft
+  automaton record to parse to its exact end, and a real manager record with a non-empty pair list to pin the
+  write order of §5.2's pointer-ordered map. The 421-save corpus has none, and no such save was found under
+  `Documents\SimCity 4\` in this session. To produce one: build an airport (or a marina and a ferry) in a city,
+  let it spawn aircraft/watercraft, and save. Until then, treat §6.4 and §5.2 as executable-only
+  *[compat]* facts and keep the round-trip tests of §14 item 15 driven by synthetic records.
 - ~~**Q5.** The meaning of the generator's two trailing `u32`s, the automaton base's unnamed fields, and
   `CreateAutomaton`'s mode and last three arguments.~~ **ANSWERED 2026-10-16 (re-answers16; AT5).**
   - The generator's `u32`s are the current automata group ID and the number spawned from it (§3.5).
