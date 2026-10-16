@@ -35,6 +35,7 @@
 #include "cIGZMessageTarget2.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
+#include "cISC4Simulator.h"
 #include "cISC4NetworkOccupant.h"
 #include "cISC4Occupant.h"
 #include "cISC4OccupantManager.h"
@@ -1082,6 +1083,7 @@ void ScriptStep(void* p) {
 }
 
 cISC4City* CurrentCity();  // below
+int32_t SimJulian(cISC4City* city);  // below
 
 void OnMessage(cIGZMessage2* msg) {
     const uint32_t type = msg->GetType();
@@ -1101,9 +1103,9 @@ void OnMessage(cIGZMessage2* msg) {
         e.d[3] = static_cast<uint32_t>(sm->GetData4());
         FC4_RELEASE(sm);
     }
-    e.julian = type == kMsgSimNewMonth && e.d[0] != 0 ? static_cast<int32_t>(e.d[0])
-                                                       : static_cast<int32_t>(PublishedJulian());
-    if (!BindGame(CurrentCity())) return;
+    cISC4City* const city = CurrentCity();
+    e.julian = type == kMsgSimNewMonth && e.d[0] != 0 ? static_cast<int32_t>(e.d[0]) : SimJulian(city);
+    if (!BindGame(city)) return;
     if (!SehGuard("terrain shadow (event)", &EventStep, &e)) {
         Log("terrain shadow: a fault while following message %08X; the shadow stops for this city (its terrain "
             "leaks)",
@@ -1141,6 +1143,14 @@ private:
 Target& TheTarget() {
     static Target t;
     return t;
+}
+
+// The city simulator's date now (slot 8; the published one without it): the
+// terrain messages arrive late, so this is the delivery's date.
+int32_t SimJulian(cISC4City* city) {
+    cFC4ISC4Simulator* sim = city ? fc4::AsGame(city->GetSimulator()) : nullptr;  // borrowed
+    const int32_t j = sim ? static_cast<int32_t>(sim->GetSimDateNumber()) : 0;
+    return j > 0 ? j : static_cast<int32_t>(PublishedJulian());
 }
 
 cISC4City* CurrentCity() {
@@ -1244,7 +1254,7 @@ void TerrainShadowStartup() {
         "cSTETerrain's altitudes and sea level (read-only), its rebuilt water compared with the original's depths "
         "(then copied) and every cell compared; each terrain / water-changed message (0x278E6003 / 0x678E6E3A) "
         "re-reads its rectangle (moved vertices replayed through slot 50), checks the packing and the cache and "
-        "compares the rectangle's cells; each month every vertex is re-read (unfollowed changes counted) and a "
+        "compares the rectangle's cells; each month every vertex is re-read (changes ahead of their queued message kept pending, unfollowed ones counted) and a "
         "sample compared (points %ld; differences named %ld; change lines %ld): GetAltitude, GetFaceNormal, "
         "CellHasWater, CellHasLand, GetWaterDepthForCell, GetWaterType, IsNavigable(r = 0..2, no lot)",
         src, g_points, g_diffs, g_lines);
@@ -1284,7 +1294,7 @@ void TerrainShadowCityLoaded(cISC4City* city) {
         return;
     }
     Event e;
-    e.julian = static_cast<int32_t>(PublishedJulian());
+    e.julian = SimJulian(city);
     if (!SehGuard("terrain shadow (load)", &LoadStep, &e)) {
         Log("terrain shadow: a fault while reading the original at load; not compared for this city");
         g_s.ours = nullptr;

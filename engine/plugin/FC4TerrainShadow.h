@@ -83,7 +83,7 @@
 //     fresh c/d (kept: orig); allowed heights e/t; queries <name> e/t ...; mismatches=N[; first: ...]
 //   terrain shadow change yyyy-mm-dd terrain|water kind=K rect=x0,z0..x1,z1: vertices=V moved=M wet=W depth
 //     rules slot50/raiselower/reset/none=a/b/c/d; message e/t; [late L (...); ][moved elsewhere E; cache ..; ]
-//     queries ...; mismatches=N        (the date is the delivery's, not the change's)
+//     queries ...; mismatches=N        (the date: the simulator's at delivery, not the change's)
 //   terrain shadow script yyyy-mm-dd SetAltitude rect=..: h=.. kind=K: vertices e/t; cache e/t; mismatches=N
 //   terrain shadow month yyyy-mm-dd: unfollowed=U[ (altitudes, depths only, rect, first)]; ahead=A; cache e/t;
 //     sea e/t; queries ...; changes terrain=T
