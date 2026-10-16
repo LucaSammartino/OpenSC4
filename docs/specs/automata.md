@@ -500,7 +500,7 @@ compatibility surface.
 | `+0x0C` | `u32` | |
 | `+0x10` | `f32` | |
 | `+0x14` | `bool` (one byte) | |
-| `+0x18` | `u32` | |
+| `+0x18` | `u32` | **the SFX id** *[named by audio.md §6.1]* |
 | `+0x1C` | `u32` | |
 | `+0x20` | `u32` | written only at version ≥ 3 |
 | `+0x24` | **not in the record** | Read zeroes it; the default-state constructor also zeroes it |
@@ -508,6 +508,12 @@ compatibility surface.
 **Version behaviour.** Write **always emits version 3 and all seven fields**, whatever version was read; Read
 accepts ≤ 3 and reads `+0x20` only at version ≥ 3. So a re-save of an older state record upgrades it (see
 QUESTIONS.md AM1). The default state's constructor (`0x0050B7F0`'s default branch) zeroes `+0x08` … `+0x24`.
+
+**Corrects (re-specs20, audio.md §6.1):** `+0x18` is the **SFX id**, and it is the argument of both SFX slots.
+`cSC4Automaton::HandleEnterState` (`0x00511450`) calls slot 61 = `+0xF4` `StartSFX` with `*(u32*)(state+0x18)`
+when that field is non-zero, and `HandleExitState` (`0x0050E3F0`) calls slot 62 = `+0xF8` `StopSFX` with the
+same field under the same guard. The §11 slot names `61–62 Start/StopSFX` **MATCH**; this adds the field's
+meaning and the call sites. Full contract in [audio.md](audio.md) §6.
 
 | Type | Name | After the base | Write / Read |
 |---|---|---|---|
