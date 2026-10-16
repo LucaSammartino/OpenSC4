@@ -536,6 +536,36 @@ moves), city-situation popups and saves (clock24.md, advisors.md §6.8.1). The h
 harness must not read it as "how many advisor popups are open". `cISC4Simulator` slot 16 `IsHiddenPaused`
 (`0x00703D60`) is shared with the clock and answers "count at `+0x34` > 0".
 
+### 6.5 Message and `DoMessage` contracts for the window layer *[compat]*
+
+Every message a window or a dialog sees goes through one of two entry points, in this order (modal-dialogs.md §2.6):
+
+| Entry | Interface / slot | Signature | Returns |
+|---|---|---|---|
+| `DoMessage` | `cIGZWin` slot 3 (`+0xC`), `0x0099A276` on `cGZWinGen` | `(cGZMessage& msg)` thiscall, pops 4 | **bool, `AL` only** |
+| `DoWinProcMessage` | `cIGZWinProc` (the object a window's `SetWinProc` attached) | `(cIGZWin* win, cGZMessage& msg)` — **arg1 is the window**, not the message: `0x00762D32` loads `arg1` and uses it as `this` for `GetParam` (§6.2) | bool |
+| `GZOnCommand` | `cIGZWin` slot 143 (`+0x23C`), `0x00999896` | `(uint32 command, uint32 data)` thiscall, pops 8 | none useful |
+| `SendMsg` / `PostMsg` | `cIGZWin` slots 144–147 (`+0x240`…`+0x24C`) | `(cIGZWin* target, type, d1, d2, d3)` or `(cIGZWin* target, cGZMessage const&)` | `PostMsg` (slot 147) returns the manager's slot 15 result, not a status |
+
+For a scripted window the order is: the window procedure first (`DoWinProcMessage`, then `DoWinMsg`), then the window's
+own `DoMessage`, and a type-3 message reaches `GZOnCommand` (modal-dialogs.md §2.6).
+
+The message vocabulary this layer switches on:
+
+| Message | Kind | data1 | data2 | data3 | Who handles it | Action |
+|---|---|---|---|---|---|---|
+| `0x287259F6` | command (type 3) | `0x287259F6` | **button ID** | toggle state | every dialog's handler | end the dialog; for the advisor popup **any** button ID ends it |
+| `0xE4A85D91` | link | — | — | — | advisor tracker `0x00762D30` | follow the link (`cSC4HTMLLinkHandler::DoURL`), then end |
+| `0xA2BF8AD5` / `0xA2BF8AD6` | attach / detach notices | — | — | — | advisor tracker `0x00762D30` | **swallowed**. Not key down/up (modal-dialogs.md §6) |
+| `0x62BA7B42` | legacy, sent | window ID | the window | nest count **before** | subscribers of the legacy message server | modal begin notice (modal-dialogs.md §2.5) |
+| `0x62BA7B43` | legacy, sent | window ID | the window | nest count **after** | same | modal end notice |
+| GZ type `0xF` → Win32 `0x700` | posted | — | the window (`wParam`) | the result (`lParam`) | `ModalMessageLoop` | end the modal loop (modal-dialogs.md §2.3) |
+
+`cGZMessage` is passed by reference. `PostMessageToTarget` (manager slot 14/15) queues under the manager's lock and the
+manager delivers from its own tick (slot 16), skipping windows that are no longer valid; `SendMessageToTarget` (slots
+12/13) delivers synchronously. Neither returns a status in EAX. **There is no keyboard message in the advisor popup's
+procedure at all** — that is why Esc and Enter do nothing (§6.2).
+
 ---
 
 ## 7. The draw pass from the window side
@@ -688,18 +718,20 @@ An implementer should be able to make all of these pass without asking a questio
     not call `AddMessageFilter`, and must still leave the previous menu closed.
 19. **Generator flags.** On a successful create, the new window answers `QueryInterface(0x5386D516)` and flags 4 and 1
     are set to 0 on the resulting `cIGZWinGen`; the interface is released afterwards.
-20. **Alignment call.** `nSC4UI::AlignWindowToWindow` (`0x0078DB20`) is called once per create, as
-    `AlignWindowToWindow(win->GetID(), 0xAAAA, <caller arg4>, 0)`, before `PullToFront` and `ShowWindow`. Its third
-    argument is a target window id (observed `1` and `0xAB9537B7`), not a coordinate.
-21. **Show and store order.** `PullToFront` (slot 23) then `ShowWindow` (slot 69), and only then are the fields
-    written: `+0x1F8`/`+0x1FC` = the window and `+0x200`/`+0x204` = arg2. A test that reads the fields must see the
-    window already shown.
+20. **Alignment and show order.** `nSC4UI::AlignWindowToWindow` (`0x0078DB20`) is called once per create, as
+    `AlignWindowToWindow(win->GetID(), 0xAAAA, <caller arg4>, 0)` — its third argument a target window id (observed `1`
+    and `0xAB9537B7`), not a coordinate — then `PullToFront` (slot 23) then `ShowWindow` (slot 69), and only then are
+    the fields written: `+0x1F8`/`+0x1FC` = the window and `+0x200`/`+0x204` = arg2. A test that reads the fields must
+    see the window already shown.
 22. **Advisor popup closes on a button command** (any ID) and on the advice going inactive; **Esc and Enter must not
     close it.** *(This is the `docs/manual-checks.md` run 48 observation, expressed as a test.)* **[game]**
-23. **Advisor popup takes a hidden pause, not a pause.** While one is open, `IsHiddenPaused()` is true and
-    `IsPaused()` is false, and the count returns to its previous value when the dialog ends. **[game]**
-24. **The hidden count is not a popup count.** A camera move (`0x007E5B40`) raises it with no dialog open; a harness
-    must not equate the two.
+23. **`DoWinProcMessage` gets the window as arg1.** A win proc must be able to `GetParam` on its first argument and
+    reach the dialog's properties (`0xEA9F13C0` for the advice). A shim that passes the message instead will fail.
+24. **Message delivery order on a scripted window.** The window procedure (`DoWinProcMessage`) runs before the
+    window's own `DoMessage`, and a type-3 command reaches `GZOnCommand` (slot 143) after both.
+24. **The hidden pause is a nesting count, not a popup count.** While an advisor popup is open `IsHiddenPaused()` is
+    true and `IsPaused()` is false, and the count returns to its previous value when the dialog ends. A camera move
+    (`0x007E5B40`) raises the same count with no dialog open, so a harness must not equate the two. **[game]**
 25. **Effects end messages need a paint.** With the city view never painted, `0x005BFD70` is never reached and no
     effect end message is posted; with a paint pass it is. **[game]** *(effects.md EF2; this test is the window-side
     consequence.)*
@@ -843,3 +875,106 @@ windows, `cSC4WinAnimationRecorder`, `cSC4WinProcSpy`, the Game of Life easter e
 9. **UIW-9:** The vtable and full slot set of `cSC4View3DWin`'s message-filter sub-object at `+0x08` (§3.2).
 10. **UIW-10:** The MXF font format (INVENTORY-M6 §4.2) and the UI script grammar (§4.1) — both still unspecified, and
     both are on the critical path for S4.
+
+---
+
+## 16. The x87 precision trigger (foundations §18–§19)
+
+The task brief asked whether the unknown "what raises the main thread to 53-bit during app init" lands here. It does,
+and the answer is worth stating plainly: **nothing in the shipped exe raises it after `PreFrameWorkInit`.** The
+trigger is not in this binary.
+
+### 16.1 What the exe does, measured
+
+The complete chain that writes the precision on the way into the game, every step read from the bytes:
+
+```
+__start 0x009F15DC (PE AddressOfEntryPoint)
+  -> 0x009F171A  call __cinit(1)
+  -> 0x009F1E04  __cinit: call [0x00B18B88]     ; = __fpmath, first, before the C++ static-init tables
+  -> 0x009EEEE5  __fpmath: P5 fdiv test, then call __setdefaultprecision
+  -> 0x009F6C30  __setdefaultprecision: push 0x30000 (_MCW_PC); push 0x10000 (_PC_53)
+  -> 0x00A02F9B  __controlfp
+  -> 0x00A02F69  __control87:  fldcw [ebp+0xc]  at 0x00A02F93   <-- the write
+```
+
+So the CRT raises the thread to 53-bit **before `WinMain`**. Then:
+
+```
+0x009F175B  call WinMain (0x0044C2B0; ret 0x10)
+  -> cSC4App::PreFrameWorkInit 0x00452360
+     -> 0x0045236C  call 0x005F85E0     ; the FIRST call after the prologue
+        -> 0x005F85E0: push 0; call 0x008929E0; pop ecx; ret   ; helper(0) = 24-bit
+```
+
+`0x005F85E0` has **exactly one xref in the whole image**, `0x0045236C`, and it *lowers* precision. The CRT is
+statically linked (MSVC 7.1 / VS .NET 2003 Release: PE linker version 7.10, string `Microsoft Visual C++ Runtime
+Library` at `0x00AEADA0`), so there is no `_controlfp` import; the 13 imported DLLs are all system libraries with no
+CRT surface at all.
+
+### 16.2 Every control-word writer in the image
+
+A function-granularity sweep finds **137 `fldcw`, 84 `fnstcw`, 2 `fnclex`, 1 `fldenv`**, and **no `fninit`, `finit`,
+`frstor`, `fxsave`/`fxrstor`**. (That absence matters: `fninit` would give `0x037F` — 64-bit — not the measured
+`0x027F`.) The writers that change **precision** are exactly these:
+
+| Writer | Address (`fldcw`) | Modes written | Notes |
+|---|---|---|---|
+| `__control87` | `0x00A02F69` (`0x00A02F93`) | whatever `_controlfp` computes | 1 caller, `__controlfp` |
+| `__controlfp` | `0x00A02F9B` | — | 1 caller, `__setdefaultprecision` |
+| `__setdefaultprecision` | `0x009F6C30` | `_PC_53` | 1 caller, `__fpmath` |
+| RZ helper | `0x008929E0` (`0x00892A05`) | 0 = 24-bit, 1 = 53-bit, 2 = 64-bit | 246 call sites; below |
+| `__CIcos` / `__CIsin` / `__CItan` | `0x009F58F0` / `0x009F59A0` / `0x009F5A50` (`0x009F591C` / `0x009F59CC` / `0x009F5A7C`) | **forces `0x027F` = 53-bit** | §16.3 |
+| `__ctrlfp` | `0x009FF2E3` (`0x009FF2FE`) | 64-bit (`0x133F`/`0x173F`/`0x1B3F`) or a restore | 22 callers |
+
+The RZ helper's 246 call sites decode as: **1** `push 0` (the `PreFrameWorkInit` assert), **120** `push 1` (each
+paired with a getter call to `0x00892A0A`), **124** register restores, 1 unresolved (`0x008B76CE`). That matches
+foundations §18.2's "24→53→24 around every Lua call, and if already 53 the guard skips both".
+
+The one **unguarded** 53-bit raise that never restores is the additive text parser `0x0067BA40` (`nSCRes` family):
+its only setter call is `push 1` at `0x0067BA65`, at entry, with no restore on the way out. That is foundations §18.1
+row 4's leak, confirmed. But `nSCRes::ParseFloat` (`0x0067BBA0`) has 185 call sites in 58 owner functions and
+**every one is an effect/particle/camera `*::Parse` or `nSCRes::ParseColor`/`ParseColorAlpha`/`ParseVector3`/
+`cSetCommand::Parse`** — text resource parsing, not application init.
+
+**So: the shipped exe has no path that raises precision between `PreAppInit` and `PostAppInit`.** The open item in
+foundations §18.2 / §19.4 is therefore correctly framed as a question about **FreeCity4.dll**, and static reading of
+`SimCity4.exe` cannot close it. What would settle it is the minimal-DLL test foundations §19.4 already names,
+instrumented: breakpoints on **every** writer in the table above **and the same breakpoints in `FreeCity4.dll` and
+every module it loads**, taken between `PreAppInit` and `PostAppInit`, logging module, EIP and the value loaded. If
+none fires and the control word still becomes `0x027F`, the writer is inside a newly loaded DLL's own CRT, which a
+`LoadLibrary`/`LdrLoadDll` breakpoint plus `GetThreadContext` polling at framework-service boundaries would then
+pinpoint. *[inferred]* the most likely cause is a DLL that `FreeCity4.dll`'s presence causes to load, whose CRT runs
+`_fpmath(1)` on attach; `engine/plugin/FC4Checked.cpp:75` (`LoadLibraryExW(L"dbghelp.dll", …)`) is the one
+plugin-side `LoadLibrary` visible in a quick scan. Nothing in this subsection is a runtime measurement; `CW = 0x027F`
+is the project's own run measurement (foundations §18.2), not this lane's.
+
+### 16.3 **Corrects:** foundations §18.1 on `sin`/`cos`/`tan`
+
+**DIFFERS.** `docs/specs/foundations.md:2016-2018` says the C library's x87 math helpers "keep the caller's precision
+(they only force round-to-nearest and masked exceptions while they run)". `__CIcos` (`0x009F58F0`), `__CIsin`
+(`0x009F59A0`) and `__CItan` (`0x009F5A50`) do **not**:
+
+```
+fnstcw [esp]
+cmp    word ptr [esp], 0x27f
+je     skip
+fldcw  word ptr [0x00AEA388]      ; .rdata word = 0x027F = _PC_53
+```
+
+They force **53-bit** whenever the caller is not already at 53-bit, then restore through `__math_exit` (`0x009FABBB`)
+or the restore stub `0x009FABAE` (`cmp [esp],0x27f / je / fldcw [esp]`). So precision is *not* preserved across them,
+though it is not permanently raised either. The functions that **do** preserve the caller's precision are
+`lib::__load_CW` `0x009FAB25` (`(arg & 0x300) | 0x7f`) and its four callers `0x009EFCCC`, `0x009F00BC`,
+`0x009F03DC`, `0x009F1D20` — which is what foundations' `fsqrt` note is describing.
+
+**This is the one place the trigger question does touch the UI layer.** The only callers of `__CIcos`/`__CIsin`/
+`__CItan` in the whole image are `cGZPieGraph::GetLineFromCenterOfDiskToEdge` (`0x009B2E3B`, `0x009B2E5B`,
+`0x009B2EA3`, `0x009B2EC3`) and `FUN_009b27bd` (`0x009B2851`) — **pie-graph drawing**, a UI widget (INVENTORY-M6 §4.1
+lists `cGZPieGraph` under U3 "graphs"). A pie graph drawn while the thread is at 24-bit will see `sin`/`cos` computed
+at 53-bit and then truncated back to 24-bit on restore, so the drawing itself is safe, but a test that compares
+intermediate values across those calls is not. Neither path is on the init route, so neither can be the app-init
+trigger.
+
+Two tooling notes for whoever picks this up: `decomp/_global.c` mislabels `0x009EEF04` as `_lua_gettop` — the bytes
+there are the classic `_ftol`; and there is no `_fpreset`/`fninit` equivalent anywhere in the image.
