@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "name": "om18_17_bounding_cells",
+  "spec": ["occupant-manager 6.2", "occupant-manager 18.17"],
+  "description": "Slot 26 writes the 8 neighbours in the order (x-1, z-1), (x-1, z), (x-1, z+1), (x, z-1), (x, z+1), (x+1, z-1), (x+1, z), (x+1, z+1), skipping cells outside 0..191: (5, 5) gives 8, (0, 0) gives 3, (191, 5) gives 5.",
+  "steps": [
+    {"op": "om_call", "method": "bounding_cells", "args": [5, 5], "expect": [[4, 4], [4, 5], [4, 6], [5, 4], [5, 6], [6, 4], [6, 5], [6, 6]]},
+    {"op": "om_call", "method": "bounding_cells", "args": [0, 0], "expect": [[0, 1], [1, 0], [1, 1]]},
+    {"op": "om_call", "method": "bounding_cells", "args": [191, 5], "expect": [[190, 4], [190, 5], [190, 6], [191, 4], [191, 6]]},
+    {"op": "om_call", "method": "bounding_cells", "args": [191, 191], "expect": [[190, 190], [190, 191], [191, 190]]},
+    {"op": "om_call", "method": "bounding_cells", "args": [-5, 7], "expect": []}
+  ]
+}

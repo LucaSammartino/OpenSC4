@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "om18_09_dedup_and_order",
+  "spec": ["occupant-manager 8.1", "occupant-manager 8.3", "occupant-manager 18.9"],
+  "description": "D spans (65, 64)..(66, 64); E is inserted after it in (66, 64). Slot 38 over (65, 64)..(66, 64): [D, E] (D once, at its first cell). maxCount 1: [D], true. maxCount 0: false, the list untouched. A filter excluding D: [E], true. An empty area: true, nothing. The list is not cleared (a preset element stays first).",
+  "steps": [
+    {"op": "om_create"},
+    {"op": "om_call", "method": "set_city_size", "args": [1024, 1024], "expect": true},
+    {"op": "om_call", "method": "init", "expect": true},
+    {"op": "om_occupant", "occupant": "0x4", "min": [100, 0, 0], "max": [164, 10, 64]},
+    {"op": "om_call", "method": "insert", "occupant": "0x4", "data4": 0, "expect": true},
+    {"op": "om_occupant", "occupant": "0x5", "min": [130, 0, 10], "max": [140, 10, 20]},
+    {"op": "om_call", "method": "insert", "occupant": "0x5", "data4": 0, "expect": true},
+    {"op": "om_call", "method": "by_cells", "min": [65, 64], "max": [66, 64], "expect": true, "expect_list": ["0x4", "0x5"]},
+    {"op": "om_call", "method": "by_cells", "min": [65, 64], "max": [66, 64], "max_count": 1, "expect": true, "expect_list": ["0x4"]},
+    {"op": "om_call", "method": "by_cells", "min": [65, 64], "max": [66, 64], "max_count": 0, "list": ["0x99"], "expect": false, "expect_list": ["0x99"]},
+    {"op": "om_filter", "filter": "0xF1", "exclude": ["0x4"]},
+    {"op": "om_call", "method": "by_cells", "min": [65, 64], "max": [66, 64], "filter": "0xF1", "expect": true, "expect_list": ["0x5"]},
+    {"op": "om_call", "method": "by_cells", "min": [100, 100], "max": [101, 101], "expect": true, "expect_list": []},
+    {"op": "om_call", "method": "by_cells", "min": [66, 64], "max": [65, 64], "expect": true, "expect_list": [], "note": "min > max: no cell"},
+    {"op": "om_call", "method": "by_cells", "min": [65, 64], "max": [66, 64], "list": ["0x99"], "expect": true, "expect_list": ["0x99", "0x4", "0x5"]},
+    {"op": "om_call", "method": "by_cells", "expect": true, "expect_list": ["0x4", "0x5"], "note": "null corners: the city's cells 64..79"},
+    {"op": "om_expect_refs", "refs": {"0x4": 1, "0x5": 1}}
+  ]
+}
