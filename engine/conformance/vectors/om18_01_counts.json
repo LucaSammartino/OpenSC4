@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "om18_01_counts",
+  "spec": ["occupant-manager 2.1", "occupant-manager 3.2", "occupant-manager 18.1"],
+  "description": "SetCitySize(1024, 2048): manager counts trunc(f / 64) = 16, 32, standard counts trunc(f / 16) = 64, 128; slot 9 = (64, 64, 16 + 63, 32 + 63); slots 6-8. After Init a second SetCitySize returns false and changes nothing. The 4096 m city: 64 and 256.",
+  "steps": [
+    {"op": "om_create"},
+    {"op": "om_call", "method": "set_city_size", "args": [1024, 2048], "expect": true},
+    {"op": "om_expect", "state": {"counts": [16, 32, 64, 128], "size": [1024, 2048], "initialized": false}},
+    {"op": "om_call", "method": "cell_bounds", "expect": [64, 64, 79, 95]},
+    {"op": "om_call", "method": "cell_count", "expect": [16, 32]},
+    {"op": "om_call", "method": "cell_sizes", "expect": [64, 64]},
+    {"op": "om_call", "method": "world_cell_count", "expect": [192, 192]},
+    {"op": "om_call", "method": "init", "expect": true},
+    {"op": "om_expect", "state": {"initialized": true, "filter_type": 0, "rows": 192, "holders": 0}},
+    {"op": "om_call", "method": "set_city_size", "args": [4096, 4096], "expect": false},
+    {"op": "om_expect", "state": {"counts": [16, 32, 64, 128], "size": [1024, 2048]}},
+    {"op": "om_call", "method": "init", "expect": true, "note": "a second Init is a no-op"},
+    {"op": "om_create"},
+    {"op": "om_call", "method": "set_city_size", "args": [4096, 4096], "expect": true},
+    {"op": "om_expect", "state": {"counts": [64, 64, 256, 256]}},
+    {"op": "om_call", "method": "set_city_size", "args": [2048, 2048], "expect": true, "note": "not initialised: accepted again"},
+    {"op": "om_expect", "state": {"counts": [32, 32, 128, 128]}}
+  ]
+}
