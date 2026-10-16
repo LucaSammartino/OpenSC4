@@ -4456,7 +4456,14 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
   solver (network-geometry.md §8.2 outlines the follow-up spec: the three rule INI resources, type `0x0A5BCF4B`
   group `0xAA5BCF57` instances `0x10000000`–`0x10000002`, loaded once by `ReloadRules` `0x006253D0`, and the entry
   points). `IdentifyHighwayIntersections` (`0x0063B340`) is described there: it marks rule matches but returns its
-  `v` argument on every path, so **`0xF0000005` is never set** (quirk 7).
+  `v` argument on every path, so **`0xF0000005` is never set** (quirk 7). **ANSWERED 2026-10-16 (re-specs17b):**
+  MATCHES; the new spec [network-rules.md](network-rules.md) covers the rule resources and their grammars (§2–§3,
+  §8.1, §9, §10.1–§10.3), the `#Transmogrify` expansion (§4), matching (§5), `SolveUsingEvaluator` and
+  `ApplyNetworkRules` (§6), the edge subtypes (§7), multi-type intersections (§8.2), `AdjustTileSubsets` and
+  `VerifyTileSubsets` (§9), `cIntRule` `Test`, `DoAutoComplete`, `IdentifyHighwayIntersections` and
+  `InsertIsolatedHighwayIntersection` (§10), and what a piece id selects (§11). One addition to the outline:
+  `SolveNetwork` runs the evaluators of all 13 types, not only the tool's. New open questions NR1–NR5 (network-rules.md
+  §14).
 - ~~**NG6:** the readers of type info `+0x110` and of the p+0xA0 id list, and the source of road's support info.
   [only the flat-cell test is known]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES (network-geometry.md §2.3,
   §10.2). `+0x110` is written only by `0x0063D460` and never read. The p+0xA0 list is read only at `0x00636763`, for
@@ -4469,6 +4476,19 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
   (re-answers19):** **DIFFERS** from the premise: there is no swapped key. Every key in the function is
   `(z << 16) + x` (row loop `0x0062B4E1`; neighbour key `0x0062BA9A`–`0x0062BA9D`); the earlier reading came from
   the decompiler's variable naming. network-geometry.md §13.
+## From the network rules spec (re-specs17b lane, 2026-10-16)
+
+Spec: [network-rules.md](network-rules.md) §14. RE-side follow-ups; nothing here blocks an implementer of §2–§10.
+
+- **NR1:** the texture an ordinary piece id selects, and how the orientation byte turns it (network-rules.md §11).
+  [not specified]
+- **NR2:** the placement of intersection models (`InsertHighwayIntersectionPiece(s)`, `0x006276D0`, `0x0062C4B0`),
+  the rule's tile grid and map, `AutoTileBase`, `AutoPathBase` and the constraint layout's consumer (§10.3).
+  [not specified]
+- **NR3:** the exact `AddTypes` ring links (§10.8). [inferred: a second circular list through `+0xF4`/`+0xF8`]
+- **NR4:** `ResolveOneWayConflicts` and the preview's `SolveMultiTypeSeparation` (`0x00633FA0`). [not specified]
+- **NR5:** the order of several `[RuleOverrides]` patterns with the same first id (§9.1). [file order, inferred]
+
 ## From the traffic glue, phase 2: the traffic shadow (filed by the coordinator from the `traffic2` lane's report, 2026-10-15)
 
 About `docs/specs/traffic-simulator.md` and the same-process traffic shadow (`traffic_shadow = 1`; core
