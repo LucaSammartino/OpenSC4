@@ -1508,106 +1508,104 @@ implementation `0x004AB778`) unless a site is listed otherwise.
 ## 16. Conformance tests
 
 Each test names the behaviour, the address that produces it, and the observable. A replacement passes when
-every *[compat]* assertion holds.
+every *[compat]* assertion holds. 25 tests.
 
-1. **Event object size.** Allocate a `cGZSndEventStd`. The allocation must come from the pool when and only
-   when the requested size is `0x38`; any other size goes to the ordinary heap. (`0x0096BAD1`)
-2. **Event message type.** Construct a five-argument `cGZSndEventStd`. Its message type must be `0xDB53383B`
-   and the presence flags must have bit 0 set. (`0x0096BA6D`)
-3. **Event default constructor.** The default constructor must leave `+0x30` and `+0x34` at 0 and still stamp
-   type `0xDB53383B`. (`0x0096BB0E`)
-4. **Event secondary interface.** `QueryInterface(0x5B523BA4)` must return `this+0x2C` and bump the refcount;
-   any other IID must fall through to `cRZMessage2Standard::QueryInterface`. (`0x0096BA2B`)
-5. **Message presence flags.** After `SetType(t)` with `t != 0`, `SetData1`, `SetData2` and `SetVoid1(p)` with
-   `p != 0`, the byte at `+0x08` must be `0x01|0x02|0x04|0x80` = `0x87`, and the four values must sit at
-   `+0x0C`, `+0x10`, `+0x14` and `+0x24`. (`0x009132DB`, `0x00913322`, `0x00913330`, `0x0091346B`)
-6. **Type 0 is "no type".** `SetType(0)` must store 0 at `+0x0C` and **clear** bit 0 of `+0x08`. (`0x009132DB`)
-7. **Pool LIFO order.** Free two sound events A then B; the next allocation must return B, then A. The free
-   list is a LIFO stack whose links live in the objects' first dword. (`0x005E1780`, `0x005E16E0`)
-8. **Pool page recovery.** Freeing a pointer must find its page as `p & 0xFFFFC000`, so two pointers in the
-   same 16 KB window share a free list. (`0x005E1780`)
-9. **Pool null free.** `operator delete(0)` on a sound event must be a no-op, not a crash. (`0x005E1780`)
-10. **Pool page state word.** Taking a page into service must add `0x40000000` to `page+0x0C`; allocating must
-    increment it; releasing must decrement it. (`0x0090CF9A`, `0x005E16E0`, `0x005E1780`)
-11. **Pool release thresholds.** A release whose post-`dec` state word is 0 must hand the page back through
-    pool vtable slot 3; one whose state word is exactly `0x40000045` must clear the `0x40000000` marker and
-    unlink the page from the active ring instead. (`0x005E1780`, `0x0090D031`, `0x0090CFF9`)
-12. **`StartSFX` with id 0.** Must return 0, allocate no message, allocate no instance id and leave
-    `automaton+0x8C` unchanged. (`0x00509950`)
-13. **`StartSFX` message shape.** With a non-zero id it must allocate a fresh instance id into `+0x8C`, post
-    one message with type `0x8A385DD8`, data1 = the id, data2 = the new instance id and void1 = the
-    automaton's occupant (automaton slot 5), at **normal priority** (the second argument of the post is 0).
-    (`0x00509950`)
-14. **`StopSFX` guards on the instance id.** With `automaton+0x8C == 0` it must post nothing and still return
-    1. (`0x00505B50`)
-15. **`StopSFX` message shape.** Otherwise it must post one message with type `0xAA396960`, data1 = the
-    argument it was called with, data2 = `automaton+0x8C` and void1 = the occupant, and must **not** clear
-    `automaton+0x8C`. (`0x00505B50`)
-16. **Both posts are queued.** `StartSFX` and `StopSFX` must return before the sound starts or stops; the
-    message server call is `MessagePost`, not `MessageSend`. (`0x005099EE`, `0x00505BB9`)
-17. **State entry and exit drive the slots.** `HandleEnterState` must call slot 61 (`+0xF4`) with `state+0x18`
-    only when that field is non-zero; `HandleExitState` must call slot 62 (`+0xF8`) with the same field under
-    the same guard. (`0x00511450`, `0x0050E3F0`)
-18. **SFX id 0 makes no sound.** A state whose `+0x18` is 0 must never reach `StartSFX` or `StopSFX`.
+1. **Sound-event object size and allocation.** Allocate a `cGZSndEventStd`. The allocation must come from
+   the pool when and only when the requested size is `0x38`; any other size goes to the ordinary heap.
+   (`0x0096BAD1`)
+2. **Sound-event message type and both constructors.** The five-argument constructor must stamp type
+   `0xDB53383B` with presence bit 0 set and store its payload at `+0x30`/`+0x34`; the default constructor
+   must leave `+0x30` and `+0x34` at 0 and still stamp the same type. (`0x0096BA6D`, `0x0096BB0E`)
+3. **The sound-event payload interface.** `QueryInterface(0x5B523BA4)` must return `this+0x2C` and bump the
+   refcount, and any other IID must fall through to `cRZMessage2Standard::QueryInterface`. On that interface
+   `SetValue(v)` must write `v` to the outer `+0x30` and set the outer `+0x34` byte to 1; `GetValue` must
+   return `+0x30`; `GetFlag` must return `+0x34`; `GetOuter` must return `this - 0x2C`.
+   (`0x0096BA2B`, `0x0096BA02`, `0x009D7E63`, `0x00891D96`, `0x0096BA27`)
+4. **Message presence flags, and type 0 is "no type".** After `SetType(t)` with `t != 0`, `SetData1`,
+   `SetData2` and `SetVoid1(p)` with `p != 0`, the byte at `+0x08` must be `0x87` and the four values must
+   sit at `+0x0C`, `+0x10`, `+0x14` and `+0x24`. `SetType(0)` must store 0 at `+0x0C` and **clear** bit 0.
+   (`0x009132DB`, `0x00913322`, `0x00913330`, `0x0091346B`)
+5. **The pool free-list shape.** Freeing two sound events A then B must make the next two allocations return
+   B then A (LIFO, links in the objects first dword); a free must recover its page as `p & 0xFFFFC000`, so
+   two pointers in the same 16 KB window share a free list; and `operator delete(0)` must be a no-op, not a
+   crash. (`0x005E1780`, `0x005E16E0`)
+6. **The pool page state word and its two thresholds.** Taking a page into service must add `0x40000000` to
+   `page+0x0C`; allocating must increment it and releasing must decrement it. A release whose post-`dec`
+   value is 0 must hand the page back through pool vtable slot 3; one whose value is exactly `0x40000045`
+   must clear the `0x40000000` marker and unlink the page from the active ring instead.
+   (`0x0090CF9A`, `0x005E16E0`, `0x005E1780`, `0x0090D031`, `0x0090CFF9`)
+7. **`StartSFX` with id 0.** Must return 0, allocate no message, allocate no instance id and leave
+   `automaton+0x8C` unchanged. (`0x00509950`)
+8. **`StartSFX` message shape.** With a non-zero id it must allocate a fresh instance id into `+0x8C`, post
+   one message with type `0x8A385DD8`, data1 = the id, data2 = the new instance id and void1 = the
+   automaton occupant (automaton slot 5), at **normal priority** (the second argument of the post is 0).
+   (`0x00509950`)
+9. **`StopSFX` guard and shape.** With `automaton+0x8C == 0` it must post nothing and still return 1.
+   Otherwise it must post one message with type `0xAA396960`, data1 = the argument it was called with,
+   data2 = `automaton+0x8C` and void1 = the occupant, and must **not** clear `automaton+0x8C`.
+   (`0x00505B50`)
+10. **Both posts are queued.** `StartSFX` and `StopSFX` must return before the sound starts or stops; the
+    message-server call is `MessagePost`, not `MessageSend`. (`0x005099EE`, `0x00505BB9`)
+11. **State entry and exit drive the slots, and id 0 makes no sound.** `HandleEnterState` must call slot 61
+    (`+0xF4`) with `state+0x18` only when that field is non-zero; `HandleExitState` must call slot 62
+    (`+0xF8`) with the same field under the same guard. A state whose `+0x18` is 0 must never reach either.
     (`0x00511450`, `0x0050E3F0`)
-19. **Play/stop are routed to the handler.** `cSC4AudioEventHandler::DoMessage` must route `0x8A385DD8`,
-    `0xA9E3B6E3`, `0xAA396960` and `0xEA3ADA33` to `HandleAutomataMessages` and no other type there.
-    (`0x004EF810`)
-20. **Rate limiting.** On a play whose payload slot 9 is `0xA9F14C47`, if the handler's timer at `+0x30` is
+12. **Handler routing, and only while a city is loaded.** `cSC4AudioEventHandler::DoMessage` must route
+    `0x8A385DD8`, `0xA9E3B6E3`, `0xAA396960` and `0xEA3ADA33` to `HandleAutomataMessages` and no other type
+    there. `0x26D31EC1` must subscribe those four (with seven more) to the handler main target and
+    `0x26D31EC2` must unsubscribe exactly that set, so outside a city the messages are not heard.
+    (`0x004EF810`, `0x004EE970`)
+13. **Rate limiting.** On a play whose payload slot 9 is `0xA9F14C47`, if the handler timer at `+0x30` is
     running and the elapsed time is below the threshold at `+0x48`, the play must be dropped. Otherwise the
-    timer restarts and the threshold becomes `1000 + rand()*3000/0x7FFF`, i.e. 1000–4000 ms. (`0x004EE560`)
-21. **Rate limiting is per handler, not per automaton.** Two different automata sharing the handler share one
-    timer and one threshold. (`0x004EE560`)
-22. **The 83 leaf classes' capability slots.** Slots 3 and 4 of every one of the 83 leaf vtables must return
-    1. (`0x00648F00`)
-23. **The 83 leaf objects have three exact sizes.** 16 of them allocate **8 bytes**, 31 allocate **16
-    bytes** and 36 allocate **20 bytes**; each factory must write the vtable and leave the remaining fields
-    zeroed. (`0x004EC3D0`, `0x004EB260`, `0x004EB800` and their siblings; §11.1)
-24. **Leaf `QueryInterface` returns `this`.** For both IIDs of the family (`0x4A40074C` plus
-    `0xCA400753` / `0xEA40074F` / `0xCA400757`), `QueryInterface` must write the object's own pointer —
+    timer restarts and the threshold becomes `1000 + rand()*3000/0x7FFF`, i.e. 1000-4000 ms. Two different
+    automata sharing one handler share one timer and one threshold. (`0x004EE560`)
+14. **The 83 leaf classes: shapes, sizes and capability slots.** 16 of their factories must allocate **8
+    bytes**, 31 must allocate **16 bytes** and 36 must allocate **20 bytes**, writing the vtable and leaving
+    the remaining fields zeroed. Slots 3 and 4 of every one of the 83 leaf vtables must return 1.
+    (`0x004EC3D0`, `0x004EB260`, `0x004EB800`, `0x00648F00`; section 11.1)
+15. **The 83 leaf classes: `QueryInterface` and `Release`.** For both IIDs of the family (`0x4A40074C` plus
+    `0xCA400753` / `0xEA40074F` / `0xCA400757`), `QueryInterface` must write the object own pointer —
     **no sub-object offset** — call `AddRef` and return 1; every other IID must return 0 without touching the
-    out-parameter. (`0x004EC5D0`, `0x004EC6C0`, `0x004EBA70`)
-25. **Leaf `Release` destroys at the last reference.** With a refcount of 2 it must decrement to 1 and return
-    1; with a refcount of 1 it must free the object and return 0. The refcount lives at `+0x0C` (16-byte
-    family), `+0x04` (8-byte) or `+0x10` (20-byte). (`0x004EC5B0`, `0x004EC6A0`, `0x004EC630`)
-26. **Director registration order.** `cSC4AudioCOMDirector::OnStart` must add `cGZSoundCOMDirector`,
+    out-parameter. `Release` must decrement while the count is > 1 and, at 1, free the object and return 0.
+    The refcount lives at `+0x0C` (16-byte family), `+0x04` (8-byte) or `+0x10` (20-byte).
+    (`0x004EC5D0`, `0x004EC6C0`, `0x004EBA70`, `0x004EC5B0`, `0x004EC6A0`, `0x004EC630`)
+16. **Director registration order.** `cSC4AudioCOMDirector::OnStart` must add `cGZSoundCOMDirector`,
     `cGZSndSysMacCOMDirector`, `cGZToolsCOMDirector`, `cHitManCOMDirector`, `cFreshnessCOMDirector`, calling
-    each one's `OnStart` immediately after adding it. (`0x004EB1B0`)
-27. **Nothing audio is saved.** A save/load must not restore any sound instance: after the load every
-    automaton's `+0x8C` is 0 and no sound is playing, including for an automaton that was mid-state.
-    (§12)
-28. **The sound-event payload interface.** `SetValue(v)` on the `+0x2C` interface must write `v` to the
-    outer `+0x30` and set the outer `+0x34` byte to 1; `GetValue` must return `+0x30`; `GetFlag` must return
-    `+0x34`; `GetOuter` must return `this - 0x2C`. (`0x0096BA02`, `0x009D7E63`, `0x00891D96`, `0x0096BA27`)
-29. **Sound data is looked up by type and extension, not by a constant.** A `0x2026960B` record must resolve
+    each one `OnStart` immediately after adding it. (`0x004EB1B0`)
+17. **Nothing audio is saved.** A save/load must not restore any sound instance: after the load every
+    automaton `+0x8C` is 0 and no sound is playing, including for an automaton that was mid-state.
+    (section 12)
+18. **Sound data is looked up by type and extension, not by a constant.** A `0x2026960B` record must resolve
     to `.str` in the HitLists segment, `.hit` in the TLO segment and raw sample data in the
-    `[SampleDataSegments]` groups, exactly as the configuration record's `[DBSegmentDirectoryFiles]` says;
+    `[SampleDataSegments]` groups, exactly as the configuration record `[DBSegmentDirectoryFiles]` says;
     `0x9D796DB4` must resolve to `.tlo`. (`0x00936707`)
-30. **Tuning is read from one exemplar and is unclamped.** `cSC4AudioSoundManager::_ReadTuningValues` must
+19. **Tuning is read from one exemplar and is unclamped.** `cSC4AudioSoundManager::_ReadTuningValues` must
     read keys `0x6A946A50`, `0xAABAA0D3`, `0x0A946A57` and `0x4A946A5D` from exemplar
     `0x6534284A/0xCA25875D/0x6A359C5C` and apply no clamping, defaulting to 3, 10 and 30 when the read fails
     (and logging the failure). (`0x004F9250`)
-31. **The instance-id counter is global and never issues 0.** `GenerateNewInstanceId` must return 1, 2, 3, …
-    from a single process-wide counter, must return the pre-increment value, and must skip 0 even after a
-    32-bit wrap. (`0x004F7BB0`, counter at `0x00B098C0`)
-32. **The sound manager does not see the automata messages.** Delivering `0x8A385DD8` or `0xAA396960`
+20. **The instance-id counter is global and never issues 0.** `GenerateNewInstanceId` must return 1, 2, 3
+    and so on from a single process-wide counter, must return the pre-increment value, and must skip 0 even
+    after a 32-bit wrap. (`0x004F7BB0`, counter at `0x00B098C0`)
+21. **The sound manager does not see the automata messages.** Delivering `0x8A385DD8` or `0xAA396960`
     directly to `cSC4AudioSoundManager::DoMessage` must do nothing. Those types are handled by
-    `cSC4AudioEventHandler::HandleAutomataMessages` and arrive at the manager only as sound-system events
-    `0xEA451903` / `0x6A451908`. (`0x004F9430`, `0x004FA590`)
-33. **A stop for an unknown instance id is a silent no-op.** `_StopSound` must return false and leave the
-    instance table and the list unchanged when the id is not present. (`0x004F94C0`)
-34. **`_StartSound` restarts rather than duplicates.** Starting a sound with an instance id that is already
-    live must first stop the old one, then start the new one under the same id. (`0x004F9D70`)
-35. **The automata SFX messages are only heard while a city is loaded.** `0x26D31EC1` must subscribe
-    `0x8A385DD8` and `0xAA396960` (with nine other types) to the handler's main target and `0x26D31EC2` must
-    unsubscribe exactly that set. (`0x004EE970`)
-36. **An effect sound component attaches, loops and stops.** `Start` must post `0xEA451903` with the
-    description's `+0x10` sound id and `this` as the instance key; `Update` must post `0xCA45190F` with
+    `cSC4AudioEventHandler::HandleAutomataMessages` and reach the manager only as sound-system events
+    `0xEA451903` / `0x6A451908`. Its `DoMessage` must handle exactly the eight types of section 8.3.
+    (`0x004F9430`, `0x004FA590`)
+22. **The manager instance table.** `_StartSound` with an instance id that is already live must first stop
+    the old one and then start the new one under the same id. `_StopSound` with an id that is not present
+    must return false and leave the hashtable and the list unchanged. (`0x004F9D70`, `0x004F94C0`)
+23. **An effect sound component attaches, loops and stops.** `Start` must post `0xEA451903` with the
+    description `+0x10` sound id and `this` as the instance key; `Update` must post `0xCA45190F` with
     **integer** coordinates once per `desc+0x14` seconds and call `Stop(1)` once `elapsed > desc+0x18` when
-    that length is non-zero; `Stop` must post `0x6A451908` and must ignore its `mode` argument.
+    that length is non-zero; `Stop` must post `0x6A451908`, must ignore its `mode` argument, and must clear
+    `+0x1C` before checking whether the sound system is present.
     (`0x005BE430`, `0x005BE620`, `0x005BE4A0`)
-37. **A non-ignored sound component with `length == 0` keeps its effect alive.** `IsActive` must stay true
-    until `Stop` is called from outside, so `CheckFinished` never sees the effect as finished.
-    (`0x00580B50`, `0x005BFD70`)
-38. **The ignore bit reaches the finish test.** Component record `+0x10` bit 0 must become runtime flag bit 2
-    (`+0x40 |= 4`) and `CheckFinished` must skip components with that bit set. (`0x00591730`, `0x005BFD70`)
+24. **A sound `IsActive` and the ignore bit.** `IsActive` must return the `+0x1C` started byte and must stay
+    true until `Stop`, so a non-ignored sound with `length == 0` pins its effect forever. Component record
+    `+0x10` bit 0 must become runtime flag bit 2 (`+0x40 |= 4`) and `CheckFinished` must skip components
+    with that bit set. (`0x00580B50`, `0x00591730`, `0x005BFD70`)
+25. **The full play/stop chain.** From `HandleEnterState` to `_StartSound`, one request must produce: a fresh
+    instance id in `automaton+0x8C`, one queued `0x8A385DD8`, one `0xEA451903` sound event after the handler
+    rate-limit gate and position lookup, and one `tSound` in the manager hashtable keyed by that id. The
+    stop chain must be identical with `0xAA396960` and `0x6A451908` into `_StopSound`. Nothing in the chain
+    may touch the city save. (section 8.7)
