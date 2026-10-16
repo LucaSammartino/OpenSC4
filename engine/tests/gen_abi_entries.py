@@ -224,6 +224,9 @@ INTERFACES = [
     ("cISC4AdvisorSystem", "cISC4AdvisorSystem", "cISC4AdvisorSystem.h", True),
     ("cISC4Advisor", "cISC4Advisor", "cISC4Advisor.h", True),
     ("cIGZCommandParameterSet", "cIGZCommandParameterSet", "cIGZCommandParameterSet.h", True),
+    # The parameter set as compiled (slots 3-10; slot 10 takes a variant): the
+    # SDK row above stays for the building development and flora glue's calls.
+    ("cIGZCommandParameterSet", "cFC4IGZCommandParameterSet", FC4, True),
     ("cIGZMessageServer2", "cIGZMessageServer2", "cIGZMessageServer2.h", True),
     ("cISC4DemandSimulator", "cISC4DemandSimulator", "cISC4DemandSimulator.h", True),
     # Zones (docs/specs/zones.md section 11): the zone manager, implemented through
