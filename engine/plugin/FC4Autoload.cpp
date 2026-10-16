@@ -13,6 +13,7 @@
 
 #include "FC4Autoload.h"
 
+#include "FC4AutoloadLogic.h"
 #include "FC4Config.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -28,6 +29,8 @@
 #include "cRZBaseString.h"
 #include "cRZCOMDllDirector.h"
 
+#include <windows.h>
+
 #include <cctype>
 #include <new>
 #include <string>
@@ -41,7 +44,7 @@ State g_state = State::Unread;
 std::string g_path;
 long g_delayTicks = 60;
 long g_readyTicks = 0;  // consecutive ticks with a region
-int g_emptyChecks = 0;  // region checks that listed no city
+AutoloadEmptyWait g_empty;  // region checks that listed no city (wall clock)
 bool g_busy = false;    // LoadCity is running (it may tick the framework)
 
 std::string Normal(std::string s) {
@@ -147,19 +150,30 @@ void AutoloadOnTick() {
     cISC4Region* region = sc4->GetRegion();  // borrowed
     g_readyTicks = region != nullptr ? g_readyTicks + 1 : 0;
     if (g_readyTicks == 1) Log("autoload: the app has a region; loading in %ld ticks", g_delayTicks);
-    if (region != nullptr && g_readyTicks >= g_delayTicks) {
+    // An empty city list is checked again on the wall clock (about once a
+    // second, for up to two minutes; FC4AutoloadLogic.h), not in ticks: the
+    // start-up ticks come about once a millisecond.
+    const uint32_t now = GetTickCount();
+    if (region != nullptr && g_readyTicks >= g_delayTicks && AutoloadCheckDue(g_empty, now)) {
         static Locations* locations = NewLocations();
         // Trivial elements: clear() only moves the end pointer.
         locations->clear();
+        // [abi] Slot 23's return channel is eax-or-void in docs/abi/interfaces.tsv:
+        // its bool is not used. The queue runs of 2026-10-15/16 that ended "no
+        // city load" had it false with the region's 85 locations filled in.
         const bool listed = region->GetCityLocations(*locations);  // slot 23
-        if (listed && !locations->empty()) {
+        if (!locations->empty()) {
+            Log("autoload: the region lists %u cities (GetCityLocations -> %s; %u ms and %d empty checks before)",
+                static_cast<unsigned>(locations->size()), listed ? "true" : "false", AutoloadWaitedMs(g_empty, now),
+                g_empty.checks);
             Attempt(sc4, region, *locations);
-        } else if (++g_emptyChecks <= 10) {
-            Log("autoload: the region lists no cities yet (%d); retrying in %ld ticks", g_emptyChecks, g_delayTicks);
-            g_readyTicks = 0;
+        } else if (AutoloadRecordEmpty(g_empty, now)) {
+            Log("autoload: the region lists no cities yet (%d); retrying in %u ms (%u ms since the first check)",
+                g_empty.checks, kAutoloadRetryMs, AutoloadWaitedMs(g_empty, now));
         } else {
             g_state = State::Done;
-            Log("autoload: the region lists no cities; giving up");
+            Log("autoload: the region lists no cities; giving up after %u ms (%d checks)",
+                AutoloadWaitedMs(g_empty, now), g_empty.checks);
         }
     }
     sc4->Release();
