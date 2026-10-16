@@ -426,6 +426,14 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_fpu_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME fpu_logic_test COMMAND fc4_fpu_logic_test)
 
+    # The network cost pricing of traffic-simulator.md §4.9.1 (TG23): the
+    # count x tile cost rounding (nearest, ties to even), the two-type sum and
+    # the out-of-range quirks.
+    add_executable(fc4_traffic_cost_logic_test tests/traffic_cost_logic_test.cpp)
+    target_include_directories(fc4_traffic_cost_logic_test PRIVATE plugin)
+    target_compile_options(fc4_traffic_cost_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME traffic_cost_logic_test COMMAND fc4_traffic_cost_logic_test)
+
     # The growth probe (building-development.md §12): the counting hook on a
     # fake vtable in this process (forwarding, count, result, callee-pop,
     # registers and x87 state, restore) and its day and summary lines.

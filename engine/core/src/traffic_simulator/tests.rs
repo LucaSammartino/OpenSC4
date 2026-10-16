@@ -663,6 +663,74 @@ fn t01_cycle_order() {
     assert_eq!(ends, vec![17, 18, 2, 11, 17]);
 }
 
+/// TS64 (traffic-network.md §4.12, traffic-simulator.md §3.2): entering state
+/// 13 resets the scanning iterator (the member `+0x818`, the one saved in §6.1
+/// row 14) to state 0 at (0, 0) with its rectangle and step kept; entering 12
+/// does not touch it; `UpdateSubnetworkInfo` tests the deadline **before each
+/// cell**, so a stopped call leaves the iterator running at the last cell
+/// visited; a finished pass rests in state 2 at `(x0, z1 + 1)`.
+#[test]
+fn ts64_state_13_scanning_iterator() {
+    use crate::grid::ScanState;
+
+    let w = World::new();
+    let s = sim(&w);
+    let (x0, z0, x1, z1) = s.read_state(|st| (st.scan.x0, st.scan.z0, st.scan.x1, st.scan.z1));
+    assert_eq!((x0, z0, x1, z1), (0, 0, 7, 7), "an 8x8 city scans its whole rect");
+
+    // Mid-scan, as a save taken mid-scan would leave it.
+    s.update_state(|st| {
+        st.scan.x = 3;
+        st.scan.z = 5;
+        st.scan.state = ScanState::Running;
+    });
+    // TS64: entering 12 does not touch the iterator (12 does not use it).
+    s.run(|r| r.enter_state(cycle_state::UPDATE_SUBNETWORKS));
+    assert_eq!(
+        s.read_state(|st| (st.scan.x, st.scan.z, st.scan.state)),
+        (3, 5, ScanState::Running),
+        "TS64: entering 12 leaves the scanning iterator alone"
+    );
+    // TS64: entering 13 resets it to state 0 at (0, 0), rectangle and step
+    // kept.
+    s.run(|r| r.enter_state(cycle_state::SUBNETWORK_INFO));
+    assert_eq!(
+        s.read_state(|st| (st.scan.x, st.scan.z, st.scan.state, st.scan.x1, st.scan.z1)),
+        (0, 0, ScanState::Fresh, x1, z1),
+        "TS64: entering 13 resets the iterator to (0, 0)"
+    );
+    // A whole pass: the iterator ends in state 2 at (x0, z1 + 1).
+    s.update_state(|st| st.cycle_state = cycle_state::SUBNETWORK_INFO);
+    assert!(s.work_on_sim_cycle(), "an empty city's state 13 finishes in one call");
+    assert_eq!(
+        s.read_state(|st| (st.scan.x, st.scan.z, st.scan.state)),
+        (x0, z1 + 1, ScanState::Done),
+        "TS64: a finished pass rests at (x0, z1 + 1)"
+    );
+
+    // TS64: the deadline test is before each step, so a call stops between two
+    // cells and the iterator reads state 1 at the last cell visited.
+    s.run(|r| r.enter_state(cycle_state::SUBNETWORK_INFO));
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::SUBNETWORK_INFO;
+        st.shadow_scan_stop = Some((cycle_state::SUBNETWORK_INFO, 3, 5));
+    });
+    assert!(!s.work_on_sim_cycle(), "the deadline stop ends the call unfinished");
+    assert_eq!(
+        s.read_state(|st| (st.scan.x, st.scan.z, st.scan.state)),
+        (3, 5, ScanState::Running),
+        "TS64: a stopped call leaves the iterator running at the last cell visited"
+    );
+    // The next call continues from it.
+    s.update_state(|st| st.shadow_scan_stop = None);
+    assert!(s.work_on_sim_cycle(), "the next call finishes the pass");
+    assert_eq!(
+        s.read_state(|st| (st.scan.x, st.scan.z, st.scan.state)),
+        (x0, z1 + 1, ScanState::Done),
+        "TS64: the next call continues from the iterator and rests at (x0, z1 + 1)"
+    );
+}
+
 /// Ten zone-0 lots (no trip generation) with four status-0 trips each.
 fn ten_sources(w: &World) {
     for i in 0..10u64 {
