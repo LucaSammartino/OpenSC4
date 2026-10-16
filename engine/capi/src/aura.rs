@@ -40,7 +40,6 @@ use std::sync::Mutex;
 use fc4_core::aura::{AuraHost, AuraMessage, AuraRandom, AuraRng, AuraSim, IteratedLot, LotInfo, LotIterator, Strike};
 use fc4_core::grid::{GridElem, GridProvider, TractGeometry, TractGrid};
 use fc4_core::property::PropertyHolder;
-use fc4_core::rng::FixedSeeds;
 use fc4_core::stream::{RefValue, SaveObject};
 use fc4_core::variant::{mem, Variant};
 
@@ -674,24 +673,16 @@ fn sim<R>(p: *const fc4_aura, fallback: R, f: impl FnOnce(&AuraSim) -> R) -> R {
 }
 
 /// Creates the core object (constructor values, §3). The host table is
-/// copied. `token` is the host identity of the simulator itself; the two
-/// clock values seed its `cRZRandom` (§9: seeded from the wall clock at
-/// construction).
+/// copied. `token` is the host identity of the simulator itself;
+/// `session_seed` is foundations §6.3's `S`: its `cRZRandom` (§9: the
+/// original seeds it from the wall clock at construction) takes
+/// `derive(S, 0x0990BDD8)`.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_aura_create(
-    host: *const fc4_aura_host,
-    token: u64,
-    wall_clock_seed: u32,
-    process_clock: u32,
-) -> *mut fc4_aura {
+pub unsafe extern "C" fn fc4_aura_create(host: *const fc4_aura_host, token: u64, session_seed: u32) -> *mut fc4_aura {
     guard(std::ptr::null_mut(), || match host.as_ref() {
         Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_aura_host>() && h.grids.complete() => {
             let host = Rc::new(CHost(*h));
-            let seeds = FixedSeeds {
-                wall_clock: wall_clock_seed,
-                process_clock,
-            };
-            let rng: Box<dyn AuraRandom> = Box::new(AuraRng::new(&seeds));
+            let rng: Box<dyn AuraRandom> = Box::new(AuraRng::from_session(session_seed));
             let sim = AuraSim::new(host, token, rng);
             let snap = Mutex::new(ratings_of(&sim));
             Box::into_raw(Box::new(Handle {

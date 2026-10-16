@@ -19,6 +19,7 @@
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -496,8 +497,8 @@ uint32_t fc4::CivicSessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 // ---- the simulator ------------------------------------------------------------------------------
@@ -543,7 +544,7 @@ cFC4CivicBuildingSimulator::cFC4CivicBuildingSimulator() {
     core_ = fc4_civic_create(&host_, seed_);
     if (core_ == nullptr) fc4::Log("cFC4CivicBuildingSimulator: core creation failed");
     fc4::Log("cFC4CivicBuildingSimulator(%p) created, core %p, session seed %u (%s)", static_cast<void*>(this),
-             static_cast<void*>(core_), seed_, seedFixed_ ? "civic_seed" : "cRZTime");
+             static_cast<void*>(core_), seed_, seedFixed_ ? "civic_seed" : "session seed");
 }
 
 cFC4CivicBuildingSimulator::~cFC4CivicBuildingSimulator() {
