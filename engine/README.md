@@ -1826,6 +1826,25 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
        pauses=…; posts original=… matched=… unmatched=0 pending=…; values=… differing=0; mismatches=0;
        comparisons=C clean=C
      ```
+   - **Network manager and network lot manager** (`enable = netmgr`, `enable = netlot`;
+     `plugin/cFC4NetworkManager.*`, `plugin/cFC4NetworkLotManager.*`, over the `fc4_netmgr` / `fc4_netlot` cores):
+     the city's `cSC4NetworkManager` (class `0xC990BD46`, component 53, the slot 38 getter) and
+     `cSC4NetworkLotManager` (`0xE9A6CD3B`, component 11, slot 42). Each answers its `cISC4*` interface in the
+     compiled slot order (`plugin/FC4LotDevInterfaces.h`), `cIGZMessageTarget2` and `cIGZSerializable`; `Read`
+     runs before `Init` and sizes nothing from the city. The managed list, the flags table, the terrain rule,
+     the removal queue, the crews, the retrofit, the lot choice, the road and avenue styles (§8.7), the lot
+     objects, the potholes and the riot lock are the core's; the host tables are the shadow's read side
+     (`plugin/FC4NetMgrHost.h`) plus the writes §13 needs (subscriptions, occupant remove / insert / refresh,
+     the retrofit and crews, the lit and flag writes, the style writes, the pothole effect props).
+     **Not wired** (a NULL callback the core counts at Init): the 13 tools and their five callbacks, the
+     underground refit's tool callbacks, the street props and flora of §8.6, the lot-configuration object
+     bridge (so `GetNetworkLotConfigurationSet` inserts nothing and a lot's object array is empty) and
+     `view_rotation_changed`. The three presentation slots (13-15) are identity mappings (§13 [choice]).
+     Lines: `cFC4NetworkManager(%p) created, core %p`, `netmgr Init: …`, `netmgr Read|Write -> … (N bytes,
+     record53 round trip same|DIFFERENT)`, `netmgr Shutdown: …`, and the matching `netlot …` /
+     `record11 round trip` lines. The round trip is on every save: the record is written, read back by a
+     scratch core and written again, and the bytes must match. **Off by default**; the `netmgr_shadow`
+     differential below needs the **original** managers, so it is not run together with either replacement.
    - **Network manager shadow** (`netmgr_shadow = 1`, env `FC4_NETMGR_SHADOW`; off by default;
      `netmgr_shadow_order = late|early`, env `FC4_NETMGR_SHADOW_ORDER`, default `late`;
      `plugin/FC4NetMgrShadow.h`): a same-process differential of `cSC4NetworkManager` (component 53) and

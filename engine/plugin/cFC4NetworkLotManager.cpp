@@ -33,6 +33,8 @@
 #include "cISC4NetworkOccupant.h"
 #include "cISC4Occupant.h"
 #include "cISC4OccupantManager.h"
+#include "SC4Vector.h"
+#include "cSC4LotConfigurationObject.h"
 #include "cRZCOMDllDirector.h"
 
 #include <vector>
@@ -200,14 +202,20 @@ uint32_t cFC4NetworkLot::Release() {
 cISC4NetworkOccupant* cFC4NetworkLot::GetNetworkOccupant() const { return occ_; }
 
 uint32_t cFC4NetworkLot::GetLotConfigurationObjectCount() {
-    // §2.3: the configuration's objects. The object array needs the lot
-    // configuration manager's `cSC4LotConfigurationObject` (lot-configuration.md
-    // §3.5); the core's copy is its own struct, so the count is 0 until that
-    // bridge is built [choice].
+    // §2.3: the configuration's objects. The core's copy is its own struct
+    // (fc4_netlot_object); the bridge to the lot configuration manager's
+    // cSC4LotConfigurationObject (lot-configuration.md 3.5) is not built, so
+    // the count is 0 and the array below is empty [choice].
     return 0;
 }
 
-SC4Vector<cSC4LotConfigurationObject>* cFC4NetworkLot::GetLotConfigurationObjectArray() { return nullptr; }
+// A stable empty array, never null: a caller that takes `GetLotConfiguration-
+// ObjectArray()` and calls size() on it would dereference null (this lane's
+// run glue24-rep-2).
+SC4Vector<cSC4LotConfigurationObject>* cFC4NetworkLot::GetLotConfigurationObjectArray() {
+    static SC4Vector<cSC4LotConfigurationObject> kEmpty;
+    return &kEmpty;
+}
 
 // ---- cFC4NetworkLotManager ----------------------------------------------------------------------------
 
@@ -322,10 +330,12 @@ bool cFC4NetworkLotManager::Shutdown() {
     return true;
 }
 
-// Slot 5 (§8.1): the cell's lot, borrowed.
+// Slot 5 (§8.1): the cell's lot, borrowed. A lot whose occupant did not
+// resolve is not handed out: GetNetworkOccupant() would answer null and the
+// caller dereferences it (this lane's run glue24-rep-1).
 cISC4NetworkLot* cFC4NetworkLotManager::GetNetworkLot(int32_t x, int32_t z) {
     fc4_netlot_lot l{};
-    if (!fc4_netlot_get_lot(core_, x, z, &l)) return nullptr;
+    if (!fc4_netlot_get_lot(core_, x, z, &l) || l.occupant == 0) return nullptr;
     return KeepLot(x, z, reinterpret_cast<cISC4NetworkOccupant*>(static_cast<uintptr_t>(l.occupant)),
                    l.config_id);
 }
@@ -371,6 +381,7 @@ struct IterateCtx {
 };
 bool IterateOne(void* p, int32_t x, int32_t z, const fc4_netlot_lot* lot) {
     IterateCtx* c = static_cast<IterateCtx*>(p);
+    if (lot->occupant == 0) return true;  // as GetNetworkLot: never a null occupant
     cISC4NetworkLot* l = c->self->KeepLot(
         x, z, reinterpret_cast<cISC4NetworkOccupant*>(static_cast<uintptr_t>(lot->occupant)), lot->config_id);
     const bool go = c->cb(static_cast<uint32_t>(x), static_cast<uint32_t>(z), l, c->ctx);
