@@ -831,7 +831,8 @@ def consolidate_abi_history(wt, lanes, batch_id, force=False):
     lines = text.split(NL)
     # The rewrite must touch nothing outside the history block. A bug here deleted every
     # FC4_ADV_SRC_* define and 300 declarations from the header once; refuse rather than repeat it.
-    outside_before = [l for k, l in enumerate(text.split(NL)) if not (_as <= k < _ae)]
+    outside_before = [l for k, l in enumerate(text.split(NL))
+                      if not (_as <= k < _ae) and not l.lstrip().startswith("*")]
     body.append("#define FC4_ABI_VERSION %du" % new)
     rest = lines[_ae:]
     # A union can leave one lane's history entries *after* the macro. They start with ` *` and belong to the
@@ -843,7 +844,7 @@ def consolidate_abi_history(wt, lanes, batch_id, force=False):
     while rest and rest[0].strip() == "":
         rest.pop(0)
     rebuilt = lines[:_as] + body + rest
-    outside_after = lines[:_as] + rest
+    outside_after = [l for l in (lines[:_as] + rest) if not l.lstrip().startswith("*")]
     if len(outside_after) != len(outside_before):
         raise RuntimeError(
             f"consolidate_abi_history would change {abs(len(outside_after) - len(outside_before))} "
