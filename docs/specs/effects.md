@@ -290,22 +290,55 @@ Table component types 3–15 additionally set runtime bit 1 (value 2). An implem
 | decal | the byte at `+0x08` | `Stop` `0x00581FF0`, **or self-stop** when its fade timer passes 1.0 and its mode byte `+0x15 == 2` (`Update` `0x00582920`) |
 | meta (nested effect) | the **child effect's `started`** byte at `+0x24` | when the draw pass finishes the child |
 
-**Particles cannot terminate themselves.** The `started` byte is written only by Start (`0x005B9CF0`) and Stop
-(`0x005B9E70`); nothing else ever clears it. A continuous emitter stays `IsActive` until someone stops it. So a
-particle component that counted towards the finish would pin its effect forever — and since the game's volcanoes
-do end, the shipped particle components must carry the ignore bit. That last step is **`[inferred]`**: the data
-file is not in this workspace. Parsing `SimCity_1.dat`'s effect directory and reading the component flag word
-would settle it.
+**Component type numbers and which of them count (from the shipped effect directory, 2026-10-16).** The
+description's `component_type` `u8` selects a description table, and `description_index` indexes it. Bit 0 of the
+component's `flags` word is the ignore bit (§7 above). Across all 1154 shipped effect descriptions:
 
-Corrected consequence (the earlier wording was wrong):
+| Type | Description table | Records | Named | Ignore bit set |
+|---|---|---|---|---|
+| 0 | particles (1192) | 1921 | yes | **never** — always counts |
+| 1 | decals (310) | 406 | yes | **never** — always counts |
+| 2 | meta: a nested effect by name | 591 | yes | **never** — always counts |
+| 3 | brushes (25) | 25 | no | **never** — always counts |
+| 4 | attractors (64) | 64 | no | **always** |
+| 5 | scrubbers / game records (57) | 56 | no | **always** |
+| 6 | sequences (15) | 10 | yes | **never** — always counts |
+| 7 | sounds (305) | 303 | no | 299 of 303 (four exceptions) |
+| 8 | cameras (48) | 41 | no | **always** |
+| 16 | (unnamed; seen as `p_vehicle`, `p_train`, `p_train_toxic`) | 3 | yes | never |
 
-- **Brush** components (runtime `flags & 4` clear) keep an effect alive until their stroke ends (§8.3).
-  **Game** components (all shipped ones carry the ignore bit) never do. **Meta** components keep the parent
-  alive until the child has been finished by an earlier sweep — so a parent waits a **full extra draw-pass
-  sweep** after its last child.
-- **Decals** can hold an effect (they self-stop only when their mode byte is 2). **Particles cannot**, and with
-  the shipped data they are ignored. The exact end time of a shipped effect is bounded by the brush length and
-  the decal lifetimes; see EF1 below.
+So the rule the shipped data follows is simple: **brushes, particles, decals, meta and sequences decide when an
+effect finishes; attractors, game records, cameras and almost all sounds never do.** The earlier reading that
+"all shipped game components carry flag 1" is confirmed, but the guess that the particle components must be
+ignored is **wrong** — see below.
+
+**Particles do not need to be ignored, because they are finite.** Each particle description carries `life`, an
+`emit_loop_count` and an `emit_loop_interval`; every shipped volcano particle has **`emit_loop_count = 1`**, so
+the emitter runs one loop and the particles die on their `life` timer. The `started` byte is only cleared by
+`Start` and `Stop`, but a finite emitter still reaches "no particles left" and its `CheckForStop` path.
+
+**Consequences for `volcano_control` (EF1, now fully bounded from the data).** Each of the nine
+`volcanocreator*` children holds, and finishes when the **last** of these is inactive:
+
+| Component | Count? | Lifetime in the shipped data |
+|---|---|---|
+| one brush stroke (table index 2–10) | yes | `t > length`, 2–4 effect-seconds |
+| four sounds | no (ignore bit) | — |
+| `volcano_smoke_small/medium/large` particles | **yes** | `life` 3–9 s, `emit_loop_count` 1 |
+| `volcano_fallout`, `volcano_fallout_up`, `volcano_fallout_wide` particles | **yes** | `life` 10–20 s, `emit_loop_count` 1 |
+| `glowing_lava_*` and `glowing_lava_*_water` decals | **yes** | `life` **45 s** |
+| `craterdecal_small/medium/large` | **yes** | `life` **50 s** |
+| one game record (table index 9–17) | no (ignore bit) | — |
+
+The binding constraint is therefore the **crater decal's 50 s**, not the brush stroke. The parent
+`volcano_control` has nine meta components (all counting) plus one attractor (ignored), and a meta reports its
+child's `started` byte — so the parent finishes one **full extra draw-pass sweep** after the child. In short:
+
+> `volcano_control` finishes at the first draw-pass sweep at least **50 effect-seconds** after the chosen
+> `volcanocreator*` child started (the crater decal's `life`), plus one further sweep for the meta parent.
+> The brush stroke (2–4 s) and the particles (≤ 20 s) all end well before that.
+
+The units are the effect-seconds of §6 (the tick's `dt`), so they are dilated like everything else.
 
 **The rule an implementer needs.** Effect `E` finishes at the first draw-pass sweep (`0x005922A0`) at which all
 of these hold:
@@ -596,9 +629,11 @@ Flags 1 and 2 are the cause byte of demolition.md §4.9. `0x1301` and `0x1302` a
    - if the lava is enabled and running, it returns to state 5 and the lava finishes first;
    - otherwise it goes to state 8.
 
-   So the volcano's end is triggered by the effect **finishing** (§7). The deformation stroke is at least `length`
-   effect-seconds (2–4 s × dilation); the decals may hold the effect longer, but **particles do not** (§7, EF1).
-   The parent also waits one full extra draw-pass sweep for its meta child to finish.
+   So the volcano's end is triggered by the effect **finishing** (§7). The deformation stroke is only 2–4
+   effect-seconds, but the **decals hold the effect much longer**: the lava decals live 45 s and the crater
+   decal **50 s**, and those (with the 3–20 s particles) are what the finish test waits for. The parent then
+   needs one further draw-pass sweep for its meta child. So `volcano_control` ends about **50 effect-seconds**
+   after its creator starts (§7, EF1).
 4. **Shutdown.** The volcano's `Shutdown` (`0x0057F920`) stops the effect with `Stop(1)` and releases it.
 5. **A random start.** The volcano manager's argument-less `AttemptDisasterStart` (`0x0057F5A0`; Ghidra names it as
    a function of the effect-disaster manager) does the following:
@@ -837,15 +872,19 @@ saves nothing).
   inactive, and either bit 7 is clear or a soft stop is in progress; it then `Stop(1)` and posts the end message.
   Each component kind's `IsActive` is tabled in §7. For `volcano_control` (§10.1) the end time is:
   - **not before** the chosen `volcanocreator*` child has itself been finished on an *earlier* sweep (its meta
-    component reports the child's `started` byte, so the parent waits one full extra draw-pass sweep), **and**
-    that child's brush stroke has passed `t > length` (2–4 dilated effect-seconds) and its decals have expired;
-  - **not extended by particles**, which cannot terminate themselves and so must be ignored in the shipped data
-    (§7);
-  - **not extended by the game records** (9–17): they carry the ignore bit and never self-terminate.
+    component reports the child's `started` byte, so the parent waits one full extra draw-pass sweep);
+  - and, for that child, not before its **crater decal** expires at `life = 50` effect-seconds — see the
+    lifetime table in §7.
 
-  Still open: the exact wall-clock second, and the one data fact of whether the shipped particle components
-  really carry the ignore bit. `SimCity_1.dat`'s effect directory or a runtime trace of `0x005BFD70` settles
-  both.
+  **Settled from the shipped effect directory (2026-10-16), so this is no longer open.** Particles and decals
+  are **not** ignored: the ignore bit is clear on every particle, decal, meta, brush and sequence component in
+  the data. They do not pin the effect because they are finite — every shipped volcano particle has
+  `emit_loop_count = 1` and a `life` of 3–20 s, and the decals live 45 s (lava) or 50 s (crater). The real end
+  time is therefore **~50 effect-seconds plus one draw-pass sweep**, not the 2–4 s brush stroke. §7 has the
+  component-type table and the per-component lifetimes.
+
+  What remains open is only the exact wall-clock second in a live session (the effect-seconds are dilated by
+  §6), which a runtime trace of `0x005BFD70` would give.
 - ~~**EF2.** Confirm at runtime that a volcano never reaches state 7 when the city view does not draw (quirk 1).~~
   **ANSWERED 2026-10-16 (re-answers29): settled statically; no runtime run needed.** The finish test has exactly
   one caller (`0x005922A0`), which has exactly one caller (`0x00593120`), which has none — it is a draw-pass
