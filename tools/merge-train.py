@@ -293,16 +293,20 @@ HANDOFF = "docs/HANDOFF.md"
 MANUAL = "docs/manual-checks.md"
 QUESTIONS = "docs/specs/QUESTIONS.md"
 PROGRESS = "docs/PROGRESS.md"
-# Append-style files: both sides only ever add rows/sections/registrations, so a union of the two sides
-# keeps everything. A union that produces invalid code is caught by the batch gate, never silently dropped.
+# Append-only docs: both sides only ever add rows or sections, so a union always keeps everything.
+APPEND_ONLY = (HANDOFF, MANUAL, QUESTIONS, PROGRESS)
+# Shared source files where every lane only appends its own registration. These union ONLY when the hunks
+# are disjoint additions (see can_union) — blindly unioning FC4Config.cpp once produced a function body with
+# `Log` and `kCount` out of scope, which the batch gate then rejected.
 UNION_PATHS = (
-    HANDOFF, MANUAL, QUESTIONS, PROGRESS,
     "engine/conformance/README.md",
     "engine/conformance/src/runner.rs",
     "engine/plugin/FC4Config.h",
     "engine/plugin/FC4Config.cpp",
     "engine/plugin/FC4Subsystems.cpp",
     "engine/CMakeLists.txt",
+    ABI_HEADER,
+    ABI_RS,
 )
 
 
@@ -398,6 +402,31 @@ def can_union(path):
     return saw
 
 
+def commentish_line(x):
+    """Blank, a ` * ` continuation, a complete `/* ... */` line, or the ABI version macro."""
+    s = x.strip()
+    return ((not s) or x.lstrip().startswith("*")
+            or (s.startswith("/*") and s.endswith("*/")) or s == "*/"
+            or bool(VERSION_RE_C.search(x)) or bool(VERSION_RE_RS.search(x)))
+
+
+def comments_only(path):
+    """True when every conflicted hunk is history comment and/or the version macro — fc4.h's usual shape.
+
+    Two lanes' history entries plus the macro collide here, and the macro line is shared, so can_union
+    rejects it; this is the case that must always union.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if "<<<<<<<" not in text:
+        return False
+    saw = False
+    for ours, theirs in hunk_bodies(text):
+        saw = True
+        if [x for x in ours + theirs if not commentish_line(x)]:
+            return False
+    return saw
+
+
 def resolve_conflicts(wt, lanes):
     """Return (resolved, still_conflicted)."""
     paths = conflicted_paths(wt)
@@ -424,18 +453,21 @@ def resolve_conflicts(wt, lanes):
             # Union both sides (git's own union never drops or glues lines), then collapse the version
             # constant to a single line. consolidate_abi_history rewrites the history block afterwards, so
             # the unioned block does not have to be pretty.
-            if union_merge(wt, p) and dedupe_version(Path(wt) / p, VERSION_RE_C if p.endswith(".h") else VERSION_RE_RS):
+            fp = Path(wt) / p
+            if fp.exists() and (can_union(fp) or comments_only(fp)) and union_merge(wt, p) and \
+                    dedupe_version(fp, VERSION_RE_C if p.endswith(".h") else VERSION_RE_RS):
                 resolved.append(p + " (union + version)")
                 continue
-        if p in UNION_PATHS:
-            # Append-style: union both sides so no lane's rows or sections are dropped. Once
-            # tools/gen_handoff_tables.py exists, HANDOFF/manual-checks are regenerated from docs/lanes and
-            # docs/runs instead and this becomes a no-op for them.
+            left.append(p)
+            continue
+        if p in APPEND_ONLY:
             if union_merge(wt, p):
                 resolved.append(p + " (union)")
                 continue
-        # Generic: two sides adding different lines at the same anchor in any file (includes, registration
-        # rows, test cases). Anything that edits shared text goes to the operator.
+            left.append(p)
+            continue
+        # Additive shared source, or any other file whose hunks are two sides adding different lines at one
+        # anchor. A hunk that edits shared text goes to the operator.
         fp = Path(wt) / p
         if fp.exists() and can_union(fp) and union_merge(wt, p):
             resolved.append(p + " (union, disjoint)")
@@ -511,6 +543,32 @@ def _resolve_abi_version(wt, rel):
     path.write_text(text, encoding="utf-8")
     git(["-C", str(wt), "add", rel], check=False)
     return True
+
+
+def history_span(text, regex):
+    """Line range of the ABI history block: from the first ` * <n> = ` through the `#define FC4_ABI_VERSION`.
+
+    `parse_history` stops at the first non-comment line, which is wrong for a unioned file where the macro
+    can sit in the middle of the entry list. Anchoring the end on the macro itself makes the span robust to
+    whatever a union leaves behind.
+    """
+    lines = text.split(NL)
+    start = None
+    for i, ln in enumerate(lines):
+        if re.match(r"^ \* \d+ = ", ln):
+            start = i
+            break
+    if start is None:
+        return None, None
+    end = None
+    for i in range(start, len(lines)):
+        if regex.match(lines[i]):
+            end = i
+            break
+    if end is None:
+        _s, e, _en = parse_history(text)
+        end = (e - 1) if e else start
+    return start, end + 1
 
 
 def close_comment(lines):
@@ -600,7 +658,14 @@ def consolidate_abi_history(wt, lanes, batch_id):
         mine = []
         for num, ls in entries:
             if num > main_ver and key(ls) not in main_keys:
-                mine.append(re.sub(r"^ \* \d+ = ", "", " ".join(ls).split(" */")[0]).strip())
+                parts = []
+                for ln in ls:
+                    s = ln.strip()
+                    s = s[1:].strip() if s.startswith("*") else s
+                    parts.append(s)
+                desc = " ".join(parts)
+                desc = re.sub(r"^\d+ = ", "", desc).split(" */")[0].strip()
+                mine.append(desc)
                 numbers.append(num)
         if mine:
             descs.append("%s: %s" % (lane, " ".join(mine)))
@@ -615,10 +680,11 @@ def consolidate_abi_history(wt, lanes, batch_id):
     body = close_comment(body)
     path = Path(wt) / ABI_HEADER
     text = path.read_text(encoding="utf-8", errors="replace")
-    _as, _ae, _cur = parse_history(text)
+    _as, _ae = history_span(text, VERSION_RE_C)
     if _as is None:
         return None
-    lines = text.splitlines()
+    lines = text.split(NL)
+    body.append("#define FC4_ABI_VERSION %du" % new)
     text = NL.join(lines[:_as] + body + lines[_ae:])
     text = VERSION_RE_C.sub(lambda x: "%s%d%s" % (x.group(1), new, x.group(3)), text, count=1)
     path.write_text(text, encoding="utf-8")
@@ -715,7 +781,12 @@ def batch_touches_engine(wt):
 
 
 def run_gate(wt, tag):
-    """cargo + clippy + ctest for the integration worktree. Returns (ok, tail)."""
+    """cargo + clippy + ctest for the integration worktree. Returns (ok, tail).
+
+    A gate passes only when cargo, clippy and the cmake build all exit 0 AND ctest reports every test run.
+    An earlier version accepted any script that exited 0, which happily reported PASS over a build failure
+    that left every ctest "Not Run".
+    """
     engine = Path(wt) / "engine"
     if not engine.is_dir():
         return True, "no engine/ in this batch"
@@ -732,23 +803,41 @@ def run_gate(wt, tag):
             _write_gate_log(tag, results)
             return False, tail
     verify = REPO / "build-runs" / "coord-verify-lane.ps1"
-    if verify.exists():
-        log(f"gate {tag}: cmake + ctest")
-        p = sh(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(verify),
-             "-Engine", str(engine), "-Tag", tag],
-            check=False, timeout=7200,
-        )
-        tail = ((p.stdout or "") + (p.stderr or ""))[-4000:]
-        results.append(f"=== coord-verify-lane: exit {p.returncode}\n{tail}")
-        ok = p.returncode == 0 and re.search(r"ctest\s*:", tail) is not None and "tests passed" in tail.lower()
-        if not ok:
-            # coord-verify-lane prints a verdict line; accept it if it says success
-            ok = p.returncode == 0 and re.search(r"verdict:\s*(ok|pass|clean|success)", tail, re.I) is not None
+    if not verify.exists():
         _write_gate_log(tag, results)
-        return ok, tail
+        return True, "\n".join(results)[-2500:]
+    log(f"gate {tag}: cmake + ctest")
+    p = sh(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(verify),
+         "-Engine", str(engine), "-Tag", tag],
+        check=False, timeout=7200,
+    )
+    tail = ((p.stdout or "") + (p.stderr or ""))[-6000:]
+    results.append(f"=== coord-verify-lane: exit {p.returncode}\n{tail}")
+    ok, why = _gate_verdict(tail, p.returncode)
+    results.append(f"=== gate verdict: {'PASS' if ok else 'FAIL'} ({why})")
     _write_gate_log(tag, results)
-    return True, "\n".join(results)[-2500:]
+    return ok, tail if not ok else tail[-800:]
+
+
+def _gate_verdict(tail, script_exit):
+    """Parse the gate's own verdict, not just the wrapper's exit code."""
+    mb = re.search(r"build exit=(\d+)", tail)
+    mc = re.search(r"ctest exit=(\d+)", tail)
+    if script_exit != 0:
+        return False, f"wrapper exit {script_exit}"
+    if mb and mb.group(1) != "0":
+        return False, f"build exit {mb.group(1)}"
+    if mc and mc.group(1) != "0":
+        return False, f"ctest exit {mc.group(1)}"
+    if "Not Run" in tail and not re.search(r"100% tests passed", tail):
+        return False, "ctest left tests Not Run"
+    m = re.search(r"(\d+)% tests passed, (\d+) tests failed out of (\d+)", tail)
+    if m:
+        return (m.group(2) == "0"), f"{m.group(1)}% passed, {m.group(2)} failed of {m.group(3)}"
+    if re.search(r"tests passed", tail, re.I) and not re.search(r"tests failed", tail, re.I):
+        return True, "tests passed"
+    return False, "no ctest summary in the output"
 
 
 def _write_gate_log(tag, results):
