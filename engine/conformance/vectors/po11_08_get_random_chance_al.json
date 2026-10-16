@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "name": "po11_08_get_random_chance_al",
+  "spec": [
+    "prop-occupant 4.1",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 8. SetRandomChance(37) then GetRandomChance() returns 37 in AL. The measured channel is al ('mov al, byte [ecx+0x62]'), so the upper 24 bits of EAX are undefined and a caller reading EAX as a 32-bit value must mask to 0xFF (quirk 3). FreeCity4 zero-extends [choice]. GetState and GetPropTimerBitfield are clean eax while GetRandomChance and GetPropUsage are al (quirk 11).",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "set_random_chance",
+      "args": [
+        37
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_random_chance",
+      "expect": 37
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        18
+      ],
+      "expect": "al"
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        12
+      ],
+      "expect": "eax"
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        19
+      ],
+      "expect": "eax"
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        22
+      ],
+      "expect": "al"
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        14
+      ],
+      "expect": "void"
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        5
+      ],
+      "expect": "eax"
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        6
+      ],
+      "expect": "void"
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "chance": 37
+      }
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "format": 1,
+  "name": "po11_02_constructor_defaults",
+  "spec": [
+    "prop-occupant 2.2",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 2. A fresh prop has state 0, chance 100, time-of-day (0, 0), timer bits 0, lot tag 0xFFFFFFFF, prop type index 0 and occupant type 0xA823821E. The chance of 100 and the tag of 0xFFFFFFFF are the two constructor values an implementer is most likely to get wrong (quirk 1).",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "get_state",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "get_random_chance",
+      "expect": 100
+    },
+    {
+      "op": "po_call",
+      "method": "get_time_of_day_range",
+      "expect": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_timer_bitfield",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "lot_tag",
+      "expect": "0xFFFFFFFF"
+    },
+    {
+      "op": "po_call",
+      "method": "has_lot_tag",
+      "expect": false
+    },
+    {
+      "op": "po_call",
+      "method": "prop_type_index",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "get_orientation",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_usage",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "refcount",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "simulator_date_range",
+      "expect": null
+    },
+    {
+      "op": "po_const",
+      "name": "occupant_type",
+      "expect": "0xA823821E"
+    },
+    {
+      "op": "po_const",
+      "name": "no_lot_tag",
+      "expect": "0xFFFFFFFF"
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "chance": 100,
+        "lot_tag": "0xFFFFFFFF",
+        "has_lot_tag": false,
+        "state": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "format": 1,
+  "name": "po11_09_bounding_box",
+  "spec": [
+    "prop-occupant 5.2",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 9. CreateProp on a prop whose OccupantSize is (2, 3, 4) gives a box (0,0,0)-(2,3,4); a prop with no size gives (0,0,0)-(1,1,1). SetBoundingBox (slot 4) is void and writes the AABB at +0x3C.",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "set_bounding_box_from_size",
+      "size": [
+        2.0,
+        3.0,
+        4.0
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "bounding_box",
+      "expect": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          2.0,
+          3.0,
+          4.0
+        ]
+      ]
+    },
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "set_bounding_box_from_size",
+      "size": []
+    },
+    {
+      "op": "po_call",
+      "method": "bounding_box",
+      "expect": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "set_bounding_box",
+      "args": [
+        [
+          1.0,
+          2.0,
+          3.0
+        ],
+        [
+          4.0,
+          5.0,
+          6.0
+        ]
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "bounding_box",
+      "expect": [
+        [
+          1.0,
+          2.0,
+          3.0
+        ],
+        [
+          4.0,
+          5.0,
+          6.0
+        ]
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        4
+      ],
+      "expect": "void"
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "bbox": [
+          [
+            1.0,
+            2.0,
+            3.0
+          ],
+          [
+            4.0,
+            5.0,
+            6.0
+          ]
+        ]
+      }
+    }
+  ]
+}

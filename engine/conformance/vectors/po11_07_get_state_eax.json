@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "name": "po11_07_get_state_eax",
+  "spec": [
+    "prop-occupant 4.1",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 7. SetState(2) then GetState() returns 2 in EAX with the upper bytes zero ('movzx eax, byte [ecx+0x63]'), not merely AL. Slot 12's measured channel is eax; the SDK row in docs/abi/interfaces.tsv says eax-or-void.",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_game",
+      "in_city": true,
+      "clear": true
+    },
+    {
+      "op": "po_call",
+      "method": "set_state",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_state",
+      "expect": 2
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        12
+      ],
+      "expect": "eax"
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "state": 2
+      }
+    }
+  ]
+}
