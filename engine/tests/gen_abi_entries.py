@@ -90,6 +90,9 @@ INTERFACES = [
     ("cISC4SimGrid<int16>", "cISC4SimGrid<int16_t>", "cISC4SimGrid.h", True),
     ("cISC4SimGrid<float>", "cISC4SimGrid<float>", "cISC4SimGrid.h", True),
     ("cISTETerrain", "cISTETerrain", "cISTETerrain.h", True),
+    # The terrain shadow (the glue16 lane): surface water slots 6, 8 and 12
+    # (the compiled declaration: the SDK's IsNavigable overloads land swapped).
+    ("cISTESurfaceWater", "cFC4ISTESurfaceWater", FC4, True),
     ("cISC4ZoneManager", "cISC4ZoneManager", "cISC4ZoneManager.h", True),
     ("cISC4LotDeveloper", "cISC4LotDeveloper", "cISC4LotDeveloper.h", True),
     ("cISC4GrowthDeveloper", "cISC4GrowthDeveloper", "cISC4GrowthDeveloper.h", True),

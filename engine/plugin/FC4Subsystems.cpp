@@ -47,6 +47,7 @@
 #include "FC4FlammabilityShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
+#include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -479,6 +480,8 @@ void Resolve() {
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
     // The ports shadow (FC4PortsShadow.h; it compares the original airport and seaport developers).
     PortsShadowStartup(g_enabled[0], enabledKey("ports"));
+    // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
+    TerrainShadowStartup();
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
