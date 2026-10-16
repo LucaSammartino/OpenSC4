@@ -920,6 +920,9 @@ mod power_shadow_tests;
 mod prop_developer_tests;
 
 #[cfg(test)]
+mod prop_city_sweep_tests;
+
+#[cfg(test)]
 mod protection_tests;
 
 #[cfg(test)]
