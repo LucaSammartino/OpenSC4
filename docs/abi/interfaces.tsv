@@ -2636,7 +2636,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	9	+0x24	00604d30	HasAnyNetwork
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	10	+0x28	00619ec0	cSC4NetworkOccupant::SetNetworkFlag(uint32)	4	1	void	high	NAME. posts 0x89D3E9F3 data1=1 when 0x10000000 becomes set on a placed occupant; 0x4000 -> slot 58(1, 0x80); network-manager.md 5; re-specs13c
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	11	+0x2C	00619f70	cSC4NetworkOccupant::ClearNetworkFlag(uint32)	4	1	void	high	NAME. posts 0x89D3E9F3 data1=0 when 0x10000000 was set; network-manager.md 5; re-specs13c
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	12	+0x30	006e3000	cSC4NetworkOccupant::GetNetworkFlag	0	0	eax	high	NAME. ICF body returning +0x13C; re-specs13c
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	13	+0x34	00619110		8	2	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	13	+0x34	00619110	cSC4NetworkOccupant::GetConnectionNodeEdgeTypes(uint32* a, uint32* b)	8	2	al	high	re-specs17b: QI 0x4835C6A7 on the +0xC holder; true and two edge words when present, false otherwise; network-rules.md 6.4
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	14	+0x38	0061a020		8	2	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	15	+0x3C	00619150		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	16	+0x40	0061a090		4	1	via-call	low	
@@ -2649,7 +2649,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	22	+0x58	00619520				forward	m
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	23	+0x5C	00459960	cSC4NetworkOccupant::PieceId	0	0	eax	high	NAME. ICF body; re-specs13c
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	24	+0x60	00604dc0		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	25	+0x64	00604dd0		0	0	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	26	+0x68	00604de0		0	0	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	26	+0x68	00604de0	cSC4NetworkOccupant::GetOrientation	0	0	al	high	re-specs17b: returns byte +0x104 (rotation bits 0-1, flip bit 7); network-rules.md 9.1, 11
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	27	+0x6C	0061b7f0		4	1	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	28	+0x70	00619880		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	29	+0x74	0061b880		4	1	eax-or-void	medium	
@@ -2694,7 +2694,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	67	+0x10C	00619900		4	1	eax-or
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	68	+0x110	0061b9a0	cSC4NetworkOccupant::SetPassageCeiling	4	1	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	69	+0x114	00619940		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	70	+0x118	0061b9f0	cSC4NetworkOccupant::SetOneWayDirections	4	1	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	71	+0x11C	00619970		8	2	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	71	+0x11C	00619970	cSC4NetworkOccupant::GetIntersectionAnchorCell(uint32* x, uint32* z)	8	2	al	high	re-specs17b: QI 0x4835C6AB; splits a cell key (x low 16, z high 16); false when absent; name inferred; network-rules.md 10.5
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	72	+0x120	0061ba90		8	2	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	73	+0x124	006199c0		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	74	+0x128	00604df0		4	1	eax-or-void	medium	

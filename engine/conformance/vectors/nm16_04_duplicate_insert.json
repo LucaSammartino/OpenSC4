@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "net_duplicate_insert",
+  "spec": ["network-manager 6.1", "network-manager 16.4"],
+  "description": "Inserting A twice appends it twice (no duplicate check), each entry holding the query's reference. Removing A once erases the first entry only.",
+  "steps": [
+    {"op": "net_occupant", "occupant": "0x0A", "flags": ["road"], "managed": true},
+    {"op": "net_create"},
+    {"op": "net_init"},
+    {"op": "net_message", "type": "OccupantInserted", "occupant": "0x0A"},
+    {"op": "net_message", "type": "OccupantInserted", "occupant": "0x0A"},
+    {"op": "net_expect", "state": {"managed": ["0x0A", "0x0A"]}},
+    {"op": "net_expect_refs", "refs": {"0x0A": 2}},
+    {"op": "net_message", "type": "OccupantRemoved", "occupant": "0x0A"},
+    {"op": "net_expect", "state": {"managed": ["0x0A"]}},
+    {"op": "net_expect_refs", "refs": {"0x0A": 1}}
+  ]
+}
