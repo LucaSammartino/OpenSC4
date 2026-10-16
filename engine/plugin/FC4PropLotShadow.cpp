@@ -1100,7 +1100,9 @@ struct Binding {
     uint32_t type = 0, group = 0, instance = 0;
     bool loaded = false;
 };
-std::vector<Binding> g_bindings;  // process lifetime (the catalogue is)
+// Process lifetime: the catalogue caches configurations by these stand-in
+// tokens, so they must outlive every run (cleared only at app shutdown).
+std::vector<Binding> g_bindings;
 
 struct LcmCtx {
     cISC4City* city = nullptr;
@@ -1590,9 +1592,11 @@ void LcmRunStep(void* p) {
     g_lctx.city = r.city;
     g_lctx.orig = AsView(raw);
     g_lctx.detail = DetailPreference();
-    // Bindings name stand-ins of this run only (their odd tokens are not
-    // objects), so they do not accumulate across months and saves.
-    g_bindings.clear();
+    // g_bindings is NOT cleared here: the process catalogue caches
+    // configurations by the odd stand-in tokens LcmCreateConfiguration handed
+    // out, so the bindings must live as long as the catalogue does. Clearing
+    // them made every later run's family and HasBuilding queries answer 0
+    // (glue15-sh-6) because the cached tokens no longer resolved.
     if (g_lcmCat == nullptr) g_lcmCat = fc4_lot_config_catalogue_create();
     bool answered = false;
     if (!g_capOrig.Capture(reinterpret_cast<cIGZUnknown*>(raw), &answered)) {
