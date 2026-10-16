@@ -60,8 +60,14 @@
 //!   controller as saved.
 //! - **`RemoveControllersFromOccupantGroup`** removes the occupant's
 //!   controllers whose template is one of the group's (AM7).
-//! - **`SetState`** makes the state stack one new state of that type; its
-//!   six arguments are kept, not interpreted (Q5).
+//! - **`SetState` / `PushState`** take the full `PushState(type, controller,
+//!   timeout_ms, final, animId, sfxId, template)` signature (§6.2; Q5 is
+//!   answered) and build the state from it. `SetState` returns 0 and leaves the
+//!   stack alone while the top state has `final`, and `PopState` pushes
+//!   DISAPPEAR rather than reveal the state below a `final` one (§12 quirk 11).
+//! - **`+0x0C` is a stack index**, recomputed from the entry's position on
+//!   every stack mutation and on read; the stream's value is never trusted
+//!   (§12 quirk 10).
 //! - **`CreateAutomaton`** is a stub (pedestrian or vehicle record at the
 //!   position, listed, null at the hard limit).
 //!
@@ -81,10 +87,12 @@ mod script;
 mod tests;
 
 pub use automaton::{
-    state_type, Automaton, AutomatonBase, AutomatonRecord, EmergencyRecord, PatrolCarRecord, PedestrianRecord,
-    SetStateArgs, State, StateBase, StateExtra, TrafficRecord, TrailerRecord, VehicleRecord, AUTOMATON_BASE_VERSION,
-    AUTOMATON_OCCUPANT_TYPE, EMERGENCY_VERSION, PATROL_CAR_VERSION, PEDESTRIAN_VERSION, STATE_BASE_VERSION,
-    TRAFFIC_VERSION, TRAILER_VERSION, VEHICLE_CONSTANT, VEHICLE_VERSION,
+    is_record_only, reindex_states, state_type, Automaton, AutomatonBase, AutomatonRecord, BehaviorTemplate,
+    EmergencyRecord, PatrolCarRecord, PedestrianRecord, PullOverPhase, SetStateArgs, State, StateBase, StateExtra,
+    TrafficRecord, TrailerRecord, VehicleRecord, ATTACH_ANIM_OFF_ANIM_SELECTOR, ATTACH_ANIM_OFF_ATTACHED,
+    ATTACH_ANIM_OFF_MODEL, AUTOMATON_BASE_VERSION, AUTOMATON_OCCUPANT_TYPE, DISAPPEAR_STATE_ARGS, EMERGENCY_VERSION,
+    PATROL_CAR_VERSION, PEDESTRIAN_VERSION, STATE_BASE_VERSION, TRAFFIC_VERSION, TRAILER_VERSION, VEHICLE_CONSTANT,
+    VEHICLE_VERSION,
 };
 pub use codec::{
     get_ref_checked, ref_answers, ref_id, refs_equal, same_ref, ControllerTime, KeepParentKeys, OccupantBase, RefId,
