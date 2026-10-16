@@ -239,7 +239,8 @@ impl ComponentRecord {
 /// to build records; the core does not read the placement (EF7).
 pub const IDENTITY_PLACEMENT: [u8; PLACEMENT_BYTES] = {
     let mut p = [0u8; PLACEMENT_BYTES];
-    let one = 1.0f32.to_le_bytes();
+    // 1.0f32 little-endian (`to_le_bytes` is not const under the MSRV).
+    let one = [0x00u8, 0x00, 0x80, 0x3F];
     let mut k = 0;
     while k < 4 {
         p[k] = one[k];

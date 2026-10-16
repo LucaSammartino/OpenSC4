@@ -715,12 +715,12 @@ impl EffectsManager {
             let Some(e) = self.effects.get(&id) else { continue };
             let done = if !e.started || e.index < 0 {
                 true
-            } else if e.flags & effect_flag::NO_AUTO_STOP != 0 || self.held(id, host) {
-                false
-            } else if self
-                .effects
-                .get(&id)
-                .is_some_and(|e| e.flags & effect_flag::FINISH_AFTER_SOFT_STOP != 0 && !e.stopping)
+            } else if e.flags & effect_flag::NO_AUTO_STOP != 0
+                || self.held(id, host)
+                || self
+                    .effects
+                    .get(&id)
+                    .is_some_and(|e| e.flags & effect_flag::FINISH_AFTER_SOFT_STOP != 0 && !e.stopping)
             {
                 false
             } else {

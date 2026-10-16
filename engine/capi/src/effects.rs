@@ -291,7 +291,7 @@ impl EffectsHost for CHost {
         cb!(self, location_in_bounds, false, x, z)
     }
     fn apply_brush(&mut self, brush_id: u32, params: &mut BrushParams) -> bool {
-        let mut p: fc4_brush_params = params.clone().into();
+        let mut p: fc4_brush_params = (*params).into();
         let ok = cb!(self, apply_brush, false, brush_id, &mut p);
         *params = BrushParams::from(&p);
         ok
