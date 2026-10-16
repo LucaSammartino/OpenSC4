@@ -130,7 +130,8 @@ building simulator `0x0A413481`; automata script system `0x4A1B664E`, controller
 managers; tutorial system `0xAA3836FB`; terrain `0xE98F9525`; 24-hour clock `0xA7E7F929`; city detail manager
 `0xEAD4BA36`; city situation manager `0x0BB14381`; network manager `0xC990BD46`; wealth requester `0x89C49986`
 (empty payload); business unit `0x4A232DA8`; camera control `0xC9C628EC`; 3D renderer `0xE9C622D8`; the
-unnamed `0xA9C741B3` (110 bytes, View3D), `0xC9B84E10` (3 bytes), `0xCA15ED6B` (1 save), `0xEA0A5ACF` (4 saves);
+model maker `0xA9C741B3` (110 bytes, View3D), terrain view `0xC9B84E10` (3 bytes), subway connection occupant
+`0xCA15ED6B` (1 save), pipe connection occupant `0xEA0A5ACF` (4 saves) (named in Q5);
 vehicles, pedestrians, patrol cars, trailers; and every lot and occupant class (out of scope, §8).
 
 ---
@@ -657,6 +658,10 @@ All of these have been applied to the specs named (M6 integration); the list sta
   would close this.
 - Q4: The `0x89D9B9EE` record written by the city and the View3D record are not specified; FreeCity4 does not
   replace their writers, but standalone mode needs both.
-- Q5: The unnamed classes `0xA9C741B3`, `0xC9B84E10`, `0xCA15ED6B` and `0xEA0A5ACF` (§3.2). *Partly answered*
-  (re-specs14a): `0xC9B84E10` is the terrain's 3D view, saved through a reference in the terrain's class record
-  (u16 1 and one byte, render only; terrain.md §13.2).
+- ~~Q5: The unnamed classes `0xA9C741B3`, `0xC9B84E10`, `0xCA15ED6B` and `0xEA0A5ACF` (§3.2).~~ **ANSWERED
+  2026-10-15 (re-specs14a, re-inventory6):** `0xC9B84E10` is the terrain's 3D view (`cSTETerrainView3D`), saved
+  through a reference in the terrain's class record (u16 1 and one byte, render only; terrain.md §13.2).
+  `0xA9C741B3` is `cSC4ModelMaker` (`GetGZCLSID` `0x0048EA60`; the View3D record's model-maker reference is
+  resolved with this ID at `0x007EC01C`). `0xEA0A5ACF` is `cSC4PipeConnectionOccupant` (`GetGZCLSID`
+  `0x00648040`) and `0xCA15ED6B` is `cSC4SubwayConnectionOccupant` (`GetGZCLSID` `0x00652A70`), both
+  underground connection occupants. All four are render-side; [INVENTORY-M6.md](INVENTORY-M6.md) §7.
