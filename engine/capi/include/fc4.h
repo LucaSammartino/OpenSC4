@@ -124,9 +124,9 @@ extern "C" {
  * 57 = adds the disaster layer (fc4_disasters, disasters.md): the layer, its managers (fire, riot,
  *      toxic spill, earthquake, pipe burst, volcano, effect) and their instances (taken as 64 on its
  *      lane; renumbered at merge);
- * 68 = adds the network manager and network lot manager (fc4_netmgr, fc4_netlot, network-manager.md)
- *      (reserved for the cores14c lane; renumbered at merge). */
-#define FC4_ABI_VERSION 68u
+ * 58 = adds the network manager and network lot manager (fc4_netmgr, fc4_netlot, network-manager.md)
+ *      (taken as 68 on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 58u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
