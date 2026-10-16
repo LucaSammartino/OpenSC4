@@ -682,7 +682,7 @@ impl TrafficSimulator {
             pools: pools.clone(),
         });
         let net = NetworkModel::new(adapter);
-        let seed = crate::rng::derive_seed(session_seed, RNG_K);
+        let seed = crate::seeding::seed(session_seed, crate::seeding::keys::TRAFFIC_SIMULATOR);
         Rc::new(TrafficSimulator {
             host,
             net,

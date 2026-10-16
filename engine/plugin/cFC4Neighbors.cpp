@@ -20,6 +20,7 @@
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -399,8 +400,8 @@ uint32_t SessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 // A bool property that reads true (a non-zero first element).
@@ -1867,7 +1868,7 @@ cFC4NeighborsSimulator::cFC4NeighborsSimulator() {
     if (core_ != nullptr && twoCurves_) fc4_neighbors_set_two_curves(core_, true);
     Register(g_sims, this);
     fc4::Log("cFC4NeighborsSimulator(%p) created, core %p, session seed 0x%08X (%s)%s", static_cast<void*>(Primary()),
-             static_cast<void*>(core_), seed, fixed ? "neighbors_seed" : "cRZTime",
+             static_cast<void*>(core_), seed, fixed ? "neighbors_seed" : "session seed",
              twoCurves_ ? ", two price curves (neighbors_two_curves)" : "");
 }
 
