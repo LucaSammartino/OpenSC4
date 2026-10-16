@@ -153,8 +153,9 @@ the queue holds blocks it after 60 s).
 default, in both modes: each run goes to `-EndDate` (default 2032-01-01) with `sim_turbo = 1`, so every run gives the
 same month and shadow lines. `-NormalSpeed [-Seconds 150]` runs the old timed profile; `-Turbo` is still accepted.
 The shadows run includes `development_shadow = 1` and the replace run `development` (our development unit runs about
-3x slower per game day than the original, 23-29 game days/s under turbo against 80-90, so the replace run is the
-long one).
+3x slower per game day than the original, 23-29 game days/s under turbo against 80-90). Since run 121 the shadows run
+also has `traffic_shadow = 1`, which makes it the long one (2.5-3.5 game days/s, 10-15 minutes to 2032; the turbo
+timeout is 1800 s), and the replace run `traffic`.
 
 **Pacing.** With the original simulators a city run at about 85 game days per real second ends with other income and
 funds than at 8-20 days/s (some original work is bound to frames or real time). Shadow lines are unaffected (both
