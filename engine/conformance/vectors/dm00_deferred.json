@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "demolition_deferred_lot",
+  "spec": ["demolition 3", "demolition 4.8"],
+  "description": "The deferred lot demolition message (0xA9DED179): an initialised lot is finished (EndDemolishLot), dezoned when the record asks, and released; an uninitialised lot is only released (the spec's choice, DM10).",
+  "steps": [
+    {"op": "demolition_create"},
+    {"op": "demolition_init", "expect": true},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_lot", "lot": "0x50", "rect": [3, 4, 4, 4], "zone": 15, "state": 2},
+    {"op": "demolition_message", "type": "DeferredLotDemolition", "lot": "0x50", "dezone": true, "expect": true},
+    {"op": "demolition_expect_events", "events": [{"event": "end", "lot": "0x50"}, {"event": "dezone", "rect": [3, 4, 4, 4]}, {"event": "release", "token": "0x50"}]},
+    {"op": "demolition_lot", "lot": "0x50", "initialized": false},
+    {"op": "demolition_message", "type": "DeferredLotDemolition", "lot": "0x50", "dezone": true, "expect": true},
+    {"op": "demolition_expect_events", "events": [{"event": "release", "token": "0x50"}]},
+    {"op": "demolition_message", "type": "DeferredLotDemolition", "expect": true},
+    {"op": "demolition_expect_events", "events": []}
+  ]
+}

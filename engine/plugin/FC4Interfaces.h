@@ -1448,6 +1448,102 @@ public:
     virtual void* GetDispatchVehicleView() = 0;                                             // 22
 };
 
+// ---- demolition utility (docs/specs/demolition.md §8) --------------------------------------------------
+
+class cISC4Demolition;        // the SDK's travel type (cISC4City slot 31 returns it)
+class cISC4OccupantFilter;
+template <typename T> class SC4CellRegion;
+template <typename T> class SC4List;
+
+// cISC4Demolition (IID 0x26DDE2EA, cSC4Demolition vtable 0x00A88004, 13 slots).
+// docs/specs/demolition.md §8. SDK errors fixed: slot 9 returns the count of
+// differing vertices in EAX (SDK: void) and its `cost` out pointer is never
+// written (DM2); slots 10 and 11 are swapped against the decomp's names (slot
+// 10 is the occupant effect, slot 11 the group effect). Slot 5 does nothing.
+// Container arguments are B-side STLport containers (allocators.md): the `set`
+// arguments are std::set<cRZAutoRefCount<cISC4Occupant>> and DemolishLots'
+// list is std::list<cRZAutoRefCount<cISC4Lot>>.
+class cFC4ISC4Demolition : public cIGZUnknown {
+public:
+    virtual void SetDefaultOccupantFilter(cISC4OccupantFilter* filter) = 0;  // 5  does nothing
+    // `demolished` is the caller's std::set<cRZAutoRefCount<cISC4Occupant>>*
+    // (demolition.md §8 "Container arguments"); the SDK types it intptr_t.
+    virtual bool DemolishRegion(bool doIt, SC4CellRegion<int32_t> const& region, int32_t privilege, uint32_t flags,
+                                bool dezone, cISC4OccupantFilter* filter, int64_t* cost, intptr_t demolished,
+                                cISC4Occupant* clicked, long x, long y) = 0;                          // 6
+    // `lots` is std::list<cRZAutoRefCount<cISC4Lot>> const&.
+    virtual bool DemolishLots(bool doIt, SC4List<cISC4Lot*> const& lots, int32_t privilege, uint32_t flags,
+                              bool dezone, cISC4OccupantFilter* filter, int64_t* cost,
+                              intptr_t demolished) = 0;                                               // 7
+    // `orphans` is the allocator-service list<cISC4Occupant*>*; the sixth
+    // argument is the effects flag of demolition.md §8 (SDK: `excludeNetworks`).
+    virtual bool DemolishOccupant(bool doIt, cISC4Occupant* occ, int32_t privilege, uint32_t flags, int64_t* cost,
+                                  bool effects, SC4List<cISC4Occupant*>* orphans) = 0;                // 8
+    // Returns the number of differing vertices (EAX); `cost` is never written
+    // (demolition.md §4.7, DM2).
+    virtual int32_t ModifyTerrainHeight(bool doIt, bool perVertex, int32_t x0, int32_t z0, int32_t x1, int32_t z1,
+                                        float h, cISC4Lot* exempt, uint32_t reason, int64_t* cost) = 0;  // 9
+    virtual void DoDemolishOccupantEffect(cISC4Occupant* occ, uint32_t flags, cISC4Lot* lot, bool clicked,
+                                          long x, long y) = 0;                                        // 10
+    virtual void DoDemolishGroupEffect(uint32_t cause, int32_t x, int32_t z,
+                                       SC4Rect<int32_t> const& r) = 0;                                 // 11
+};
+
+// ---- city situation manager (docs/specs/city-situation.md §8) ----------------------------------------
+
+class cISC4CitySituationManager;  // the SDK's travel type (cISC4City slot 49 returns it)
+class cISC4CitySituationAdvice;
+class cISC4Automaton;
+class cIGZString;
+
+// cISC4CitySituationManager (IID 0x6BB1437A, cSC4CitySituationManager vtable
+// 0x00A97E58, 40 slots; slot 34 is the deleting destructor). docs/specs/
+// city-situation.md §8. Slots 13-15 return `float` in ST0 (the §8 note: a
+// single `fld` of a member or a difference of two); declaring them void or
+// int leaves a value on the x87 stack (docs/abi/README.md). Slot 5 returns
+// only AX. Slot 24's result is whatever the call leaves (EAX).
+class cFC4ISC4CitySituationManager : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                                       // 3
+    virtual bool Shutdown() = 0;                                                                   // 4
+    virtual uint16_t GetMissionSuccessCount(uint32_t guid) = 0;                                    // 5  AX
+    virtual cISC4CitySituationAdvice* GetActiveSituation() = 0;                                    // 6
+    virtual uint32_t GetCurrentStatus() = 0;                                                       // 7
+    virtual cISC4Automaton* GetActiveAuto() = 0;                                                   // 8
+    virtual cISC4Occupant* GetCurrentTarget() = 0;                                                 // 9
+    virtual uint32_t GetCurrentTargetIndex() = 0;                                                  // 10
+    virtual uint32_t GetNumTargets() = 0;                                                          // 11
+    virtual uint32_t GetNumTargetsRemaining() = 0;                                                 // 12
+    virtual float GetCurrentTimeLimitSeconds() = 0;                                                // 13 ST0
+    virtual float GetCurrentSituationTime() = 0;                                                   // 14 ST0
+    virtual float GetCurrentTimeRemainingSeconds() = 0;                                            // 15 ST0
+    virtual void GetCurrentTargetName(cIGZString& out) = 0;                                        // 16 EAX = &out
+    virtual bool GetSituationAura(float& radius, float& magnitude) = 0;                            // 17
+    virtual bool GetSituationMoney(int64_t& money) = 0;                                            // 18
+    virtual bool IsSituationAvailable(cISC4Automaton* automaton) = 0;                              // 19
+    virtual bool IsSituationAvailable(cISC4Occupant* occupant) = 0;                                // 20 overload
+    virtual bool InitiateSituationByGuid(uint32_t guid, bool showBriefing, uint32_t group) = 0;     // 21
+    virtual bool InitiateSituationForOccupant(cISC4Occupant* occ, cISC4CitySituationAdvice* a) = 0;  // 22
+    virtual bool InitiateSituationByAutomataGroup(uint32_t group, bool showBriefing, bool search) = 0;  // 23
+    virtual void StartJoyride(cISC4Automaton* automaton, bool b, cIGZMessageTarget2* target) = 0;   // 24
+    virtual void TreatAutomatonAsGroup(cISC4Automaton* automaton, uint32_t group) = 0;              // 25
+    virtual void SetMaxCSI(uint8_t n) = 0;                                                         // 26
+    virtual uint8_t GetMaxCSI() = 0;                                                               // 27
+    virtual int32_t GetTrackedAutomataCount() = 0;                                                 // 28
+    virtual void SetCSIVisible(bool visible) = 0;                                                  // 29
+    virtual bool GetCSIVisible() = 0;                                                              // 30
+    virtual bool HandleTuningParametersChanged() = 0;                                              // 31
+    virtual uint32_t CountdownIsInProgress() = 0;  // 32 EAX 0 or 1 (city-situation.md §8)
+    virtual void ResetTutorials() = 0;                                                             // 33
+    // 34: the deleting destructor (not in the SDK)
+    virtual void InitiatePlayerDriveMode(bool on) = 0;                                             // 35
+    virtual bool InitiateSituation(cISC4CitySituationAdvice* advice, cISC4Automaton* automaton,
+                                  bool showBriefing) = 0;                                          // 36
+    virtual void ActivateSituation() = 0;                                                          // 37
+    virtual void DeactivateSituation() = 0;                                                        // 38
+    virtual void EndSituation() = 0;                                                               // 39
+};
+
 // ---- landfill (docs/specs/landfill.md §7.1, §8) -------------------------------------------------------
 
 class cISC4LandfillDeveloper;
@@ -1923,6 +2019,18 @@ inline cFC4ISC4HistoryWarehouse* AsGame(cISC4HistoryWarehouse* p) {
 // The 24-hour clock travels as the SDK's pointer (cISC4City slot 86); slots
 // 7, 9, 19 and 20 only ever through the compiled declaration (clock24.md §8).
 inline cFC4ISC424HourClock* AsGame(cISC424HourClock* p) { return reinterpret_cast<cFC4ISC424HourClock*>(p); }
+
+// The demolition utility (cISC4City slot 31), the city situation manager
+// (slot 49) and the dispatch manager (slot 39) travel as the SDK's pointers
+// (the city getters' types); single inheritance, vtable at offset 0. Call them
+// only through the compiled declarations (demolition.md §8, city-situation.md
+// §8, dispatch.md §8).
+inline cFC4ISC4Demolition* AsGame(cISC4Demolition* p) {
+    return reinterpret_cast<cFC4ISC4Demolition*>(p);
+}
+inline cFC4ISC4CitySituationManager* AsGame(cISC4CitySituationManager* p) {
+    return reinterpret_cast<cFC4ISC4CitySituationManager*>(p);
+}
 
 // The surface water travels as the SDK's pointer (cISC4City slot 83); call it
 // only through the compiled declaration (terrain §10).
