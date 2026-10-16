@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "prop_developer_lot_state",
+  "spec": ["prop-developer 4.12", "prop-developer 12"],
+  "description": "Section 12 test 14 and section 4.12. A lot going from state 2 to 3 posts 0xCA5E5027 with its location and data3 1. The lot-state props message switches every prop of the lot at (x, z) with 0x6A5E0727: state 0 while the lot's state equals the value, 1 otherwise. A lot state change on a lot that is not livable removes its optional props (a prop whose tag's object has the optional flag) before posting with data3 0. A message lot whose origin holds a lot of another size does nothing.",
+  "steps": [
+    {"op": "pv_requester", "token": "0x13B42BB8", "share": 0, "satisfaction": "0x49A1E996", "custom": true},
+    {"op": "pv_requester", "token": "0x11347690", "share": 0, "satisfaction": "0xE9A4300B", "custom": false},
+    {"op": "pv_create"},
+    {"op": "pv_init", "expect": true},
+    {"op": "pv_add_requester", "token": "0x13B42BB8", "class": "0x8990C09A"},
+    {"op": "pv_add_requester", "token": "0x11347690", "class": "0x8990C065"},
+    {"op": "pv_clear_events"},
+    {"op": "pv_lot", "lot": "0x10", "x": 0, "z": 0, "objects": [{"tag": "0xA0"}, {"tag": "0xA1", "flags": 0}]},
+    {"op": "pv_prop", "prop": "0x600", "lot": "0x10", "properties": {"0x6A5E0727": {"u8": 3}}},
+    {"op": "pv_message", "msg": "0xE8BDA2E7", "object": "0x10", "data1": 2, "data2": 3, "expect": true},
+    {"op": "pv_expect_events", "events": [{"event": "post_lot_state_props", "x": 0, "z": 0, "entered": true}]},
+    {"op": "pv_message", "msg": "0xCA5E5027", "data1": 0, "data2": 0, "expect": true},
+    {"op": "pv_expect_prop", "prop": "0x600", "state": {"state": 0}},
+    {"op": "pv_lot", "lot": "0x10", "state": 4},
+    {"op": "pv_message", "msg": "0xCA5E5027", "data1": 0, "data2": 0},
+    {"op": "pv_expect_prop", "prop": "0x600", "state": {"state": 1}},
+    {"op": "pv_message", "msg": "0xCA5E5027", "data1": 9, "data2": 9},
+
+    {"op": "pv_prop", "prop": "0x601", "lot": "0x10", "tag": "0xA0"},
+    {"op": "pv_prop", "prop": "0x602", "lot": "0x10", "tag": "0xA1"},
+    {"op": "pv_lot", "lot": "0x10", "livable": false},
+    {"op": "pv_clear_events"},
+    {"op": "pv_message", "msg": "0xE8BDA2E7", "object": "0x10", "data1": 3, "data2": 4},
+    {"op": "pv_expect_events", "events": [{"event": "remove_prop", "prop": "0x601"}, {"event": "post_lot_state_props", "x": 0, "z": 0, "entered": false}]},
+    {"op": "pv_expect_prop", "prop": "0x602", "state": {"exists": true}},
+    {"op": "pv_lot", "lot": "0x11", "x": 0, "z": 0, "size": [2, 2]},
+    {"op": "pv_message", "msg": "0xE8BDA2E7", "object": "0x11", "data1": 2, "data2": 3},
+    {"op": "pv_expect_events", "events": []}
+  ]
+}

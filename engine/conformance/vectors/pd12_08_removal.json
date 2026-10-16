@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "port_developers_removal",
+  "spec": ["port-developers 4.6", "port-developers 12"],
+  "description": "Section 12 test 8: a port lot destroyed (state change to 5, not swapping) is forgotten: the demand effect at its usage ratio (0.5) is removed (UpdateOccupantEffects 0.5 -> 0), its rectangle is dezoned for free, the port is erased and line 1's full expenses drop to the medium airport's 1200. A state change to anything but 5, or a lot whose configuration is not compatible with zone type 11, does nothing. The match is by location: a different lot token at the same location removes the port.",
+  "steps": [
+    {"op": "pd_create", "kind": "airport"},
+    {"op": "pd_init"},
+    {"op": "pd_lot", "lot": "0x10", "config": ["0xCA2436C0", 1], "x": 3, "z": 4, "rect": [3, 4, 7, 6]},
+    {"op": "pd_occupant", "occupant": "0x100", "lot": "0x10"},
+    {"op": "pd_message", "msg": "0x99EF1142", "data": "0x100"},
+    {"op": "pd_lot", "lot": "0x11", "config": ["0x6A5126D0", 1], "x": 30, "z": 4, "rect": [30, 4, 34, 6]},
+    {"op": "pd_occupant", "occupant": "0x101", "lot": "0x11"},
+    {"op": "pd_message", "msg": "0x99EF1142", "data": "0x101"},
+    {"op": "pd_set_port", "index": 0, "usage": 0.5},
+    {"op": "pd_clear_events"},
+    {"op": "pd_message", "msg": "0xE8BDA2E7", "data": "0x10", "old": 3, "new": 4},
+    {"op": "pd_lot", "lot": "0x10", "compatible": false},
+    {"op": "pd_message", "msg": "0xE8BDA2E7", "data": "0x10", "old": 3, "new": 5},
+    {"op": "pd_expect_events", "events": []},
+    {"op": "pd_expect", "state": {"ports": 2}},
+    {"op": "pd_lot", "lot": "0x10", "compatible": true},
+    {"op": "pd_message", "msg": "0xE8BDA2E7", "data": "0x10", "old": 3, "new": 5},
+    {"op": "pd_expect_events", "events": [{"event": "effects", "lot": "0x10", "old": 0.5, "new": 0}, {"event": "dezone", "rect": [3, 4, 7, 6]}, {"event": "full_expenses", "value": 1200}]},
+    {"op": "pd_expect", "state": {"ports": 1, "full": 1200}},
+    {"op": "pd_expect_port", "index": 0, "state": {"lot": "0x11"}},
+    {"op": "pd_lot", "lot": "0x77", "x": 30, "z": 4, "rect": [30, 4, 34, 6]},
+    {"op": "pd_message", "msg": "0xE8BDA2E7", "data": "0x77", "old": 3, "new": 5},
+    {"op": "pd_expect", "state": {"ports": 0, "full": 0}}
+  ]
+}
