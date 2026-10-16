@@ -137,7 +137,8 @@ pub struct fc4_citysit_host {
     pub run_script: Option<unsafe extern "C" fn(U, u64, u32)>,
     pub time_limit: Option<unsafe extern "C" fn(U, u64) -> f32>,
     pub bind_mission_script: Option<unsafe extern "C" fn(U, u64, u64)>,
-    pub build_coverage_cells: Option<unsafe extern "C" fn(U, u64)>,
+    /// False when building the coverage cells failed (§4.3 step 5).
+    pub build_coverage_cells: Option<unsafe extern "C" fn(U, u64) -> bool>,
     pub first_target: Option<unsafe extern "C" fn(U, u64) -> u64>,
     pub target_count: Option<unsafe extern "C" fn(U, u64) -> u32>,
     /// The name (UTF-8) through the sink.
@@ -158,17 +159,21 @@ pub struct fc4_citysit_host {
     pub play_sound: Option<unsafe extern "C" fn(U, u64, u32)>,
     pub position: Option<unsafe extern "C" fn(U, u64, *mut f32, *mut f32)>,
     // the mission (out of the spec's scope)
-    pub check_for_success: Option<unsafe extern "C" fn(U, u64, f32) -> u32>,
+    /// Steps 2–4 of `CheckForSuccess(t)` (§4.4) from the current status
+    /// (the third argument): the new status. The core does the clock.
+    pub check_for_success: Option<unsafe extern "C" fn(U, u64, f32, u32) -> u32>,
     pub run_pursuit: Option<unsafe extern "C" fn(U, u64, f32)>,
     pub start_countdown_effect: Option<unsafe extern "C" fn(U)>,
     pub end_countdown_effect: Option<unsafe extern "C" fn(U)>,
-    pub outcome_effect: Option<unsafe extern "C" fn(U, u64, bool)>,
+    /// The success / failure effect at (x, z) (§4.5).
+    pub outcome_effect: Option<unsafe extern "C" fn(U, u64, bool, f32, f32)>,
     pub player_drive_mode: Option<unsafe extern "C" fn(U, u64, bool)>,
     pub start_joyride: Option<unsafe extern "C" fn(U, u64)>,
     // other components
     pub add_transient_effect: Option<unsafe extern "C" fn(U, f32, f32, f32, f32)>,
     pub deposit_funds: Option<unsafe extern "C" fn(U, i64)>,
     // messages
+    /// `0xABBBCA64` (advice 0 = none: a joyride, §8 slot 24).
     pub send_activation: Option<unsafe extern "C" fn(U, u64, bool)>,
     pub post_show_popup: Option<unsafe extern "C" fn(U, u64, u64)>,
     pub post_popup_closed: Option<unsafe extern "C" fn(U, u64)>,
@@ -179,6 +184,37 @@ pub struct fc4_citysit_host {
     /// `FC4_CITYSIT_POPUP_*`, the advice and the vehicle (0 = none): the
     /// button that closed it (0 = none).
     pub show_popup: Option<unsafe extern "C" fn(U, u32, u64, u64) -> u32>,
+    // appended with re-answers15 (CS4-CS11)
+    /// A disabled target of mission type 1 or 3 (§4.7): the next target (0
+    /// = none left).
+    pub next_target: Option<unsafe extern "C" fn(U, u64) -> u64>,
+    /// Advice slot 54 (`+0xD8`): the advice accepts the group (§8 slot 23).
+    pub advice_accepts_group: Option<unsafe extern "C" fn(U, u64, u32) -> bool>,
+    /// Advice slot 12: the automata groups; returns the count, copies at
+    /// most `capacity` (`out` may be NULL).
+    pub advice_groups: Option<unsafe extern "C" fn(U, u64, *mut u32, usize) -> usize>,
+    /// `cISC4Advice` slot 7: the track-list priority (§4.2).
+    pub advice_priority: Option<unsafe extern "C" fn(U, u64) -> u32>,
+    /// The automata of one group (borrowed).
+    pub group_automata: Option<unsafe extern "C" fn(U, u32, Tokens, *mut c_void)>,
+    /// `CreateAutomatonForPlayerDrive(advice (0 = none), group)`: held for
+    /// the core, 0 = none.
+    pub create_automaton_for_player_drive: Option<unsafe extern "C" fn(U, u64, u32) -> u64>,
+    /// Automaton slot 13 `Remove(0)`.
+    pub remove_automaton: Option<unsafe extern "C" fn(U, u64)>,
+    /// Automaton slot 30 `SetFlag(flag, 1)`.
+    pub set_automaton_flag: Option<unsafe extern "C" fn(U, u64, u32)>,
+    /// The group on the automaton's slot-5 object (§8 slot 25).
+    pub set_automaton_group: Option<unsafe extern "C" fn(U, u64, u32)>,
+    /// `EnterPlayerDriveView(automaton, target (0 = none))` (§8 slot 24).
+    pub enter_player_drive_view: Option<unsafe extern "C" fn(U, u64, u64)>,
+    /// `DeactivateSituation` steps 1–2 (§4.3.1).
+    pub clear_mission_state: Option<unsafe extern "C" fn(U, u64)>,
+    /// `EndSituation` step 1: the effect at `+0xA9C`.
+    pub release_situation_effect: Option<unsafe extern "C" fn(U)>,
+    /// Advice flag `0x20` (§4.3 step 4): a MySim window, held for the
+    /// core, 0 = none.
+    pub acquire_mysim_window: Option<unsafe extern "C" fn(U) -> u64>,
 }
 
 /// One track-list entry (`fc4_citysit_track_list`).
@@ -238,7 +274,7 @@ pub struct fc4_citysit_state {
 }
 
 /// Number of callbacks in [`fc4_citysit_host`].
-const HOST_CALLBACKS: usize = 66;
+const HOST_CALLBACKS: usize = 79;
 
 const _: () = {
     assert!(std::mem::size_of::<fc4_citysit_advice_info>() == 40);
@@ -408,8 +444,28 @@ impl CitySituationHost for CHost {
     fn bind_mission_script(&self, advice: u64, vehicle: Option<u64>) {
         cb!(self, bind_mission_script, (), advice, vehicle.unwrap_or(0))
     }
-    fn build_coverage_cells(&self, advice: u64) {
-        cb!(self, build_coverage_cells, (), advice)
+    fn build_coverage_cells(&self, advice: u64) -> bool {
+        // [choice] Without the callback the cells are built.
+        cb!(self, build_coverage_cells, true, advice)
+    }
+    fn next_target(&self, advice: u64) -> Option<u64> {
+        opt(cb!(self, next_target, 0, advice))
+    }
+    fn advice_accepts_group(&self, advice: u64, group: u32) -> bool {
+        cb!(self, advice_accepts_group, false, advice, group)
+    }
+    fn advice_groups(&self, advice: u64) -> Vec<u32> {
+        let n = cb!(self, advice_groups, 0, advice, std::ptr::null_mut(), 0);
+        if n == 0 {
+            return Vec::new();
+        }
+        let mut v = vec![0u32; n];
+        let m = cb!(self, advice_groups, 0, advice, v.as_mut_ptr(), n);
+        v.truncate(m.min(n));
+        v
+    }
+    fn advice_priority(&self, advice: u64) -> u32 {
+        cb!(self, advice_priority, 0, advice)
     }
     fn first_target(&self, advice: u64) -> Option<u64> {
         opt(cb!(self, first_target, 0, advice))
@@ -446,6 +502,31 @@ impl CitySituationHost for CHost {
             None => Vec::new(),
         }
     }
+    fn group_automata(&self, group: u32) -> Vec<u64> {
+        match self.h.group_automata {
+            // SAFETY: as cb!.
+            Some(f) => self.tokens(|u, cb, ctx| unsafe { f(u, group, cb, ctx) }),
+            None => Vec::new(),
+        }
+    }
+    fn create_automaton_for_player_drive(&self, advice: Option<u64>, group: u32) -> Option<u64> {
+        opt(cb!(
+            self,
+            create_automaton_for_player_drive,
+            0,
+            advice.unwrap_or(0),
+            group
+        ))
+    }
+    fn remove_automaton(&self, automaton: u64) {
+        cb!(self, remove_automaton, (), automaton)
+    }
+    fn set_automaton_flag(&self, automaton: u64, flag: u32) {
+        cb!(self, set_automaton_flag, (), automaton, flag)
+    }
+    fn set_automaton_group(&self, automaton: u64, group: u32) {
+        cb!(self, set_automaton_group, (), automaton, group)
+    }
     fn automaton_flags(&self, automaton: u64) -> u32 {
         cb!(self, automaton_flags, 0, automaton)
     }
@@ -475,9 +556,9 @@ impl CitySituationHost for CHost {
         cb!(self, position, (), object, &mut x, &mut z);
         (x, z)
     }
-    fn check_for_success(&self, advice: u64, t_ms: f32) -> u32 {
-        // [choice] Without the callback a mission keeps running (3).
-        cb!(self, check_for_success, 3, advice, t_ms)
+    fn check_for_success(&self, advice: u64, t_ms: f32, status: u32) -> u32 {
+        // [choice] Without the callback the status stays.
+        cb!(self, check_for_success, status, advice, t_ms, status)
     }
     fn run_pursuit(&self, advice: u64, t_ms: f32) {
         cb!(self, run_pursuit, (), advice, t_ms)
@@ -488,8 +569,8 @@ impl CitySituationHost for CHost {
     fn end_countdown_effect(&self) {
         cb!(self, end_countdown_effect, ())
     }
-    fn outcome_effect(&self, advice: u64, success: bool) {
-        cb!(self, outcome_effect, (), advice, success)
+    fn outcome_effect(&self, advice: u64, success: bool, x: f32, z: f32) {
+        cb!(self, outcome_effect, (), advice, success, x, z)
     }
     fn player_drive_mode(&self, vehicle: Option<u64>, on: bool) {
         cb!(self, player_drive_mode, (), vehicle.unwrap_or(0), on)
@@ -497,14 +578,26 @@ impl CitySituationHost for CHost {
     fn start_joyride(&self, vehicle: Option<u64>) {
         cb!(self, start_joyride, (), vehicle.unwrap_or(0))
     }
+    fn enter_player_drive_view(&self, automaton: u64, target: Option<u64>) {
+        cb!(self, enter_player_drive_view, (), automaton, target.unwrap_or(0))
+    }
+    fn clear_mission_state(&self, advice: u64) {
+        cb!(self, clear_mission_state, (), advice)
+    }
+    fn release_situation_effect(&self) {
+        cb!(self, release_situation_effect, ())
+    }
+    fn acquire_mysim_window(&self) -> Option<u64> {
+        opt(cb!(self, acquire_mysim_window, 0))
+    }
     fn add_transient_effect(&self, x: f32, z: f32, radius: f32, magnitude: f32) {
         cb!(self, add_transient_effect, (), x, z, radius, magnitude)
     }
     fn deposit_funds(&self, amount: i64) {
         cb!(self, deposit_funds, (), amount)
     }
-    fn send_activation(&self, advice: u64, active: bool) {
-        cb!(self, send_activation, (), advice, active)
+    fn send_activation(&self, advice: Option<u64>, active: bool) {
+        cb!(self, send_activation, (), advice.unwrap_or(0), active)
     }
     fn post_show_popup(&self, advice: Option<u64>, vehicle: Option<u64>) {
         cb!(self, post_show_popup, (), advice.unwrap_or(0), vehicle.unwrap_or(0))
@@ -673,8 +766,8 @@ pub unsafe extern "C" fn fc4_citysit_situation_untriggered(p: *mut fc4_citysit, 
     }
 }
 
-/// Slot 36 `InitiateSituation(advice, automaton, showBriefing)` (`vehicle`
-/// 0 = none).
+/// Slot 36 `InitiateSituation(advice, automaton, showBriefing)` (§4.3, CS5;
+/// `advice` and `vehicle` 0 = none): false when nothing started.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_citysit_initiate_situation(
     p: *mut fc4_citysit,
@@ -682,25 +775,60 @@ pub unsafe extern "C" fn fc4_citysit_initiate_situation(
     vehicle: u64,
     show_briefing: bool,
 ) -> bool {
-    if advice == 0 {
-        return false;
-    }
     with_p(p, false, |h| {
-        h.sim.initiate_situation(advice, opt(vehicle), show_briefing)
+        h.sim.initiate_situation(opt(advice), opt(vehicle), show_briefing)
     })
 }
 
-/// Slot 21 `InitiateSituationByGuid(guid, showBriefing, data3)`.
+/// Slot 21 `InitiateSituationByGuid(guid, showBriefing, group)` (§8, CS11;
+/// `group` 0 = the advice's own groups).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_citysit_initiate_situation_by_guid(
     p: *mut fc4_citysit,
     guid: u32,
     show_briefing: bool,
-    data3: u32,
+    group: u32,
 ) -> bool {
     with_p(p, false, |h| {
-        h.sim.initiate_situation_by_guid(guid, show_briefing, data3)
+        h.sim.initiate_situation_by_guid(guid, show_briefing, group)
     })
+}
+
+/// Slot 23 `InitiateSituationByAutomataGroup(group, showBriefing, search)`
+/// (§8, CS11).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_citysit_initiate_situation_by_automata_group(
+    p: *mut fc4_citysit,
+    group: u32,
+    show_briefing: bool,
+    search: bool,
+) -> bool {
+    with_p(p, false, |h| {
+        h.sim.initiate_situation_by_automata_group(group, show_briefing, search)
+    })
+}
+
+/// Slot 24 `StartJoyride(automaton, b, target)` (§8, CS11; `target` 0 =
+/// none).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_citysit_start_joyride(p: *mut fc4_citysit, automaton: u64, b: bool, target: u64) {
+    if automaton != 0 {
+        with_p(p, (), |h| h.sim.start_joyride(automaton, b, opt(target)))
+    }
+}
+
+/// Slot 25 `TreatAutomatonAsGroup(automaton, group)` (§8, CS11; 0 does
+/// nothing).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_citysit_treat_automaton_as_group(p: *mut fc4_citysit, automaton: u64, group: u32) {
+    with_p(p, (), |h| h.sim.treat_automaton_as_group(opt(automaton), group))
+}
+
+/// `CheckForSuccess(t)` (§4.4, CS4): the new status (4 without a mission
+/// or an active automaton). The tick calls it itself.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_citysit_check_for_success(p: *mut fc4_citysit, t_ms: f32) -> u32 {
+    with_p(p, 0, |h| h.sim.check_for_success(t_ms))
 }
 
 /// Slot 22 `InitiateSituationForOccupant(occupant, advice)` (§8; `advice`

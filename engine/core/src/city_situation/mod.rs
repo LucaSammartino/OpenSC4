@@ -39,56 +39,68 @@
 //! - **Max CSI** (§2) is process-wide in the original; here it is a field of
 //!   the manager (constructor value 0) [choice]. The glue keeps one manager
 //!   per city, and the automata manager sets it through `SetMaxCSI`.
-//! - **Step 4 of the tick** (§4.4) runs only while the status is 3
-//!   (running), and the elapsed time advances there by `t × 0.001` s; the
-//!   time limit (when > 0) gives status 2 once the elapsed time reaches it
-//!   and the host's `CheckForSuccess` still answers 3; the 30-second warning
-//!   fires once when the remaining time is ≤ 30 s [question CS4].
-//! - **`InitiateSituation`** returns false when the mission could not start
-//!   (status 5) and true otherwise [question CS5].
-//! - **`DeactivateSituation` and `EndSituation`** (slots 38, 39) are not
-//!   described: deactivate (when a mission is active) sends `0xABBBCA64`
-//!   (data1 = 0), releases the advice and resets the mission fields
-//!   (status 4; a running countdown is ended and the automata unfrozen);
-//!   `EndSituation` is the same call (its callers leave the player-drive
-//!   mode first) [question CS6].
-//! - **Taking over another entry's vehicle** when max CSI is reached (§4.2
-//!   "may take over") is not done [question CS7].
-//! - **The failure payout** deposits `failure_money` only when it is not 0,
-//!   like the success [question CS8]; the reward list is saved only when a
-//!   GUID was added.
-//! - **The outcome position** (§4.5 step 4) is the active vehicle's, else
-//!   the current target's; without either no aura is added [question CS9].
+//! - **The tick** (§4.4, CS4): step 4 runs on every tick with a mission
+//!   held, at any status, unless steps 1–3 ended the tick (a countdown that
+//!   stays > 0, or a positive `endDelay`); it does run in the tick in which
+//!   the countdown expires. `CheckForSuccess` is split: the host does its
+//!   steps 2–4 (the evade list, the built-in checks, the Lua check), the
+//!   core steps 1, 5 and 6 (the mission clock at status 3, in `f32`; a
+//!   time limit ≥ 1.0 that the clock reached gives status 2). The 30 s
+//!   warning compares the elapsed time before this tick's clock step; with
+//!   no active automaton (the original has no null test) it plays nothing
+//!   [choice].
+//! - **`InitiateSituation`** (§4.3, CS5) follows the spec's eight steps:
+//!   false for the advice already active (null included) or a null advice,
+//!   and for "could not start" (status 5); without a briefing a started
+//!   mission also gets status 5 and the post, but answers true *[quirk]*.
+//! - **`DeactivateSituation` and `EndSituation`** (§4.3.1, CS6) are two
+//!   calls. Deactivate leaves the time limit, the clock, the countdown,
+//!   `endDelay` and the indicators alone; End releases the `+0xA9C` effect,
+//!   zeroes the time limit, stops the countdown effect (the countdown value
+//!   runs on and unfreezes the automata later), untracks the active vehicle
+//!   through the entry that holds it and clears the advice's entry, then
+//!   deactivates, and re-shows the indicators (when the view is held).
+//! - **The track list** (§4.2, CS7) is re-sorted ascending by advice
+//!   priority (stable) on each insert [question CS15: the priority compares
+//!   unsigned]. The take-over at max CSI scans the entries after the new
+//!   one for a strictly lower priority, which the sort rules out: not done.
+//! - **The payouts** deposit only non-zero amounts (CS8); the reward list
+//!   is saved only when a GUID was added.
+//! - **The outcome position** (§4.5, CS9): success at the active
+//!   automaton's position, else (0, 0) *[quirk]*; failure (only for the
+//!   active advice) at the active automaton's, else the target's, and with
+//!   neither it skips the effect, the aura and the money.
 //! - **Slots 17, 18** answer the success aura and the success money of the
 //!   active advice; **slots 19, 20** answer whether the automaton is tracked.
-//!   **Slot 22** `(occupant, advice)` follows §8 (CS2, answered): the
-//!   occupant must be an automaton; with an advice it starts that one,
-//!   else the first track-list entry whose vehicle is this automaton or
-//!   whose advice accepts it (advice slot 53), always with a briefing.
-//!   **Slots 23 to 25** do nothing and slot 23 answers false: §8 now names
-//!   their arguments, but slot 23's search is not traced, slot 24's post has
-//!   no named IGZUnknown and slot 25's "tracks" is not said to be the
-//!   indicator tracking of §4.2 [question CS11].
-//! - **Automaton notifications** (`0x09D92FC3`, §3): 9 re-checks success of
-//!   a running mission's vehicle, 2 fails it; 0xB, and 0xC with data3 =
-//!   0x14, drop the automaton from tracking like a removed occupant
-//!   [question CS10]. A removed occupant is dropped from tracking whether
-//!   or not a mission is active [choice]. A removed active vehicle or
-//!   target is forgotten (the tokens are borrowed) after the failure.
-//! - **Occupant inserted** (§3 "note it as a candidate"): entries without
-//!   a vehicle look for one again (the host lists the candidates)
-//!   [choice].
+//!   **Slot 22** `(occupant, advice)` follows §8 (CS2). **Slots 21, 23–25**
+//!   follow §8 (CS11): slot 21 tries the drivable automata of the group (or
+//!   the advice's groups) in set (token) order, then a created one; slot 23
+//!   starts the first entry accepting the group through slot 21, or a
+//!   joyride (the automaton is held for the call and released after
+//!   `StartJoyride` [choice]); slot 24 sends `0xABBBCA64` with no advice;
+//!   slot 25 sets the group and runs `HandleInsertAutomaton`.
+//! - **Automaton notifications** (§4.7, CS10): 2 fails a running mission of
+//!   the active automaton; 9 calls `CheckForSuccess(0)` for the active
+//!   automaton or the target and does not apply its result [question CS12];
+//!   0xB, and 0xC with data3 = 0x14, mark the automaton disabled, end or
+//!   advance the mission (the host picks the next target; the index and
+//!   count stay [question CS14]) and drop it from tracking. A removed
+//!   occupant is dropped from tracking whether or not a mission is active
+//!   [choice]; a removed active vehicle or target is forgotten (the tokens
+//!   are borrowed) after the failure.
+//! - **Occupant inserted** (`0x99EF1142`) and slot 25 run
+//!   `HandleInsertAutomaton`: the first entry without a vehicle whose advice
+//!   accepts the automaton (advice slot 53), while fewer than max CSI
+//!   entries hold one [question CS13].
 //! - **The popup buttons** (§4.3): close on a finished mission (status 1
 //!   or 2) posts `0x6BB350E4`; otherwise it cancels with
 //!   `DeactivateSituation` [choice]. The popup kind follows the status
-//!   (1 success; 2 failure; 5 "could not start"; else the briefing).
-//! - **`InitiateSituationByGuid`** (slot 21): the advisor's advice with
-//!   that GUID, the vehicle its entry tracks (if any); without a briefing
-//!   it activates the mission at once; data3 is ignored.
+//!   (1 and 5 success; 2 failure; else the briefing); a null advice counts
+//!   as 5.
 //! - **`SetCSIVisible`** (slot 29) also re-shows the indicators when the
 //!   view is held [choice].
-//! - **Float arithmetic** (§4.4): `t × 0.001` is computed in double and
-//!   stored to the float fields (x87 [choice]).
+//! - **Float arithmetic** (§4.4, CS4): `t × 0.001f` and the sums are `f32`
+//!   operations (the 24-bit x87 rounds each one to `float`).
 //! - **The generator** (§5): `RzRandomSuper` seeded with
 //!   `derive_seed(S, 0x0BB14381)` (the spec's *[choice]*); the core never
 //!   draws by itself; the host's mission code draws through
@@ -198,9 +210,19 @@ pub mod status {
 pub const MISSION_TYPE_NO_TARGET: u32 = 2;
 pub const MISSION_TYPE_COVERAGE: u32 = 5;
 
-/// Advice situation flags (§3, §4.5).
+/// Advice situation flags (§3, §4.3, §4.5).
 pub const SITUATION_FLAG_WINDOW: u32 = 0x8;
+pub const SITUATION_FLAG_MYSIM_WINDOW: u32 = 0x20;
 pub const SITUATION_FLAG_REWARD: u32 = 0x40;
+
+/// Advice types whose disabled target moves on to the next one (§4.7).
+pub const MISSION_TYPES_NEXT_TARGET: [u32; 2] = [1, 3];
+/// The automaton flag a disabled automaton gets (§4.7).
+pub const AUTO_FLAG_DISABLED: u32 = 0x1000_0000;
+/// The smallest time limit that fires (§4.4, `CheckForSuccess` step 5).
+pub const MIN_TIME_LIMIT: f32 = 1.0;
+/// `t × 0.001f` (the `float` constant at `0x00A867A4`).
+pub const MS_TO_SECONDS: f32 = 0.001;
 
 /// Automaton flags and types of `CanPlayerDrive` (§4.2).
 pub const AUTO_FLAG_DRIVABLE: u32 = 0x2;
@@ -347,16 +369,29 @@ pub trait CitySituationHost {
     fn time_limit(&self, advice: u64) -> f32;
     /// Binds the mission script to the vehicle (§4.3).
     fn bind_mission_script(&self, advice: u64, vehicle: Option<u64>);
-    /// A coverage mission builds its coverage cells.
-    fn build_coverage_cells(&self, advice: u64);
-    /// A target mission finds or creates its first target.
+    /// A coverage mission builds its coverage cells (`0x0052C4E0`): false
+    /// when that fails (§4.3 step 5).
+    fn build_coverage_cells(&self, advice: u64) -> bool;
+    /// A target mission finds its first target, or creates one (advice flag
+    /// `0x100`; or flag 1 when none is found) (§4.3 step 5).
     fn first_target(&self, advice: u64) -> Option<u64>;
-    /// The number of targets of a target mission (slot 11).
+    /// The number of targets of a target mission: 1, or the size of the
+    /// advice's target list when it has one (advice slots 17 and 16).
     fn target_count(&self, advice: u64) -> u32;
+    /// Chooses the next target of a target mission (§4.7, a disabled target
+    /// of advice type 1 or 3): the new target, or `None` when none is left.
+    fn next_target(&self, advice: u64) -> Option<u64>;
     /// Slot 16: the current target's name.
     fn target_name(&self, advice: Option<u64>, target: Option<u64>) -> String;
     /// Advice slot 53 (`+0xD4`): the advice accepts the automaton (§8 slot 22).
     fn advice_accepts_automaton(&self, advice: u64, automaton: u64) -> bool;
+    /// Advice slot 54 (`+0xD8`): the advice accepts the one-group list
+    /// (§8 slot 23).
+    fn advice_accepts_group(&self, advice: u64, group: u32) -> bool;
+    /// Advice slot 12: the advice's automata groups (§8 slot 21).
+    fn advice_groups(&self, advice: u64) -> Vec<u32>;
+    /// `cISC4Advice` slot 7: the priority `trackList` is sorted by (§4.2).
+    fn advice_priority(&self, advice: u64) -> u32;
 
     // ---- automata ----
     /// `QueryInterface(0xA9B40F05)` succeeds.
@@ -365,6 +400,20 @@ pub trait CitySituationHost {
     fn occupant_has_property(&self, object: u64, id: u32) -> bool;
     /// The automata of the advice's automata groups.
     fn candidate_vehicles(&self, advice: u64) -> Vec<u64>;
+    /// The automata of one group (`0x00525640`: each of the four automata
+    /// managers whose slot 30 accepts the group, slot 32), borrowed.
+    fn group_automata(&self, group: u32) -> Vec<u64>;
+    /// `CreateAutomatonForPlayerDrive` (`0x005292F0`) for the advice (if
+    /// any) and the group (0 = the advice's own): one reference for the
+    /// core, or `None`.
+    fn create_automaton_for_player_drive(&self, advice: Option<u64>, group: u32) -> Option<u64>;
+    /// Automaton slot 13 `Remove(0)`.
+    fn remove_automaton(&self, automaton: u64);
+    /// Automaton slot 30 `SetFlag(flag, 1)`.
+    fn set_automaton_flag(&self, automaton: u64, flag: u32);
+    /// Sets the group on the automaton's slot-5 object (its slot 23, §8
+    /// slot 25).
+    fn set_automaton_group(&self, automaton: u64, group: u32);
     fn automaton_flags(&self, automaton: u64) -> u32;
     fn automaton_type(&self, automaton: u64) -> u32;
     /// `TrackOccupant(a, 4, …)` on the indicator view: the handle.
@@ -380,18 +429,33 @@ pub trait CitySituationHost {
     fn position(&self, object: u64) -> (f32, f32);
 
     // ---- the mission (out of the spec's scope) ----
-    /// `CheckForSuccess(t)`: the new status.
-    fn check_for_success(&self, advice: u64, t_ms: f32) -> u32;
+    /// Steps 2–4 of `CheckForSuccess(t)` (§4.4): from the current status,
+    /// the evade-list check (advice flag 2), the built-in checks (only at
+    /// status 3, without a Lua check) and the Lua check (any status). The
+    /// core does steps 1, 5 (the mission clock and the time limit) and 6.
+    fn check_for_success(&self, advice: u64, t_ms: f32, status: u32) -> u32;
     /// The pursuit logic.
     fn run_pursuit(&self, advice: u64, t_ms: f32);
     fn start_countdown_effect(&self);
     fn end_countdown_effect(&self);
-    /// The success / failure effect at the vehicle's position.
-    fn outcome_effect(&self, advice: u64, success: bool);
-    /// Slot 35 `InitiatePlayerDriveMode(on)`.
+    /// The success / failure effect (advice slot 47 / 50) at (x, z) (§4.5).
+    fn outcome_effect(&self, advice: u64, success: bool, x: f32, z: f32);
+    /// Slot 35 `InitiatePlayerDriveMode(on)`: on, `EnterPlayerDriveView`
+    /// with the active automaton; off, leave the drive control.
     fn player_drive_mode(&self, vehicle: Option<u64>, on: bool);
-    /// Slot 24 `StartJoyride`.
+    /// The popup's joyride button (§4.3).
     fn start_joyride(&self, vehicle: Option<u64>);
+    /// `cSC4AutomataManager::EnterPlayerDriveView(automaton, target)` (§8
+    /// slot 24).
+    fn enter_player_drive_view(&self, automaton: u64, target: Option<u64>);
+    /// `DeactivateSituation`'s mission part (§4.3.1 steps 1–2): free the
+    /// coverage cells, clear the occupant set and the script references.
+    fn clear_mission_state(&self, advice: u64);
+    /// `EndSituation` step 1: release the effect at `+0xA9C`.
+    fn release_situation_effect(&self);
+    /// With advice flag `0x20` (§4.3 step 4): a window from the MySim
+    /// simulator (slot 12), held for the core, or `None`.
+    fn acquire_mysim_window(&self) -> Option<u64>;
 
     // ---- other components ----
     /// `aura.AddTransientEffect(x, z, radius, magnitude)` (aura.md §8.2).
@@ -400,8 +464,9 @@ pub trait CitySituationHost {
     fn deposit_funds(&self, amount: i64);
 
     // ---- messages ----
-    /// `MessageSend` of `0xABBBCA64` (data1 = 1 / 0, IGZUnknown = advice).
-    fn send_activation(&self, advice: u64, active: bool);
+    /// `MessageSend` of `0xABBBCA64` (data1 = 1 / 0, IGZUnknown = advice;
+    /// `None` for a joyride, §8 slot 24).
+    fn send_activation(&self, advice: Option<u64>, active: bool);
     /// `MessagePost` of `0xEBB67EF7` to itself (IGZUnknown = advice,
     /// void1 = vehicle or 0).
     fn post_show_popup(&self, advice: Option<u64>, vehicle: Option<u64>);

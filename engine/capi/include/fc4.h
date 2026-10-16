@@ -137,7 +137,9 @@ extern "C" {
  *      71 on its lane; renumbered at merge);
  * 61 = adds the demolition utility (fc4_demolition, demolition.md), the dispatch manager
  *      (fc4_dispatch, dispatch.md) and the city situation manager (fc4_citysit,
- *      city-situation.md) (taken as 60 on its lane; renumbered at merge). */
+ *      city-situation.md) (taken as 60 on its lane; renumbered at merge), with the
+ *      re-answers15 answers applied (dispatch host 39 callbacks: pylon_return_to_station takes
+ *      the source and answers, vehicle_in_group appended; city situation host 79 callbacks). */
 #define FC4_ABI_VERSION 61u
 
 /* Return codes of fc4_sim_load. */
@@ -7397,8 +7399,9 @@ typedef struct fc4_citysit_host {
     /* Advices: QueryInterface(0x6BEB1E8A), advisor 29's advices, by GUID (0 =
      * none), the info (the core zeroes *out first), RetireAdvice, a script
      * (FC4_CITYSIT_SCRIPT_*), the time limit (seconds, 0 = none), binding the
-     * mission script to the vehicle (0 = none), coverage cells, the first
-     * target (0 = none), the target count, a target's name (UTF-8, through the sink). */
+     * mission script to the vehicle (0 = none), coverage cells (false = they
+     * could not be built), the first target (0 = none), the target count, a
+     * target's name (UTF-8, through the sink). */
     bool (*is_situation_advice)(void* user, uint64_t object);
     void (*advisor_advices)(void* user, fc4_token_callback cb, void* ctx);
     uint64_t (*find_advice)(void* user, uint32_t guid);
@@ -7407,7 +7410,7 @@ typedef struct fc4_citysit_host {
     void (*run_script)(void* user, uint64_t advice, uint32_t script);
     float (*time_limit)(void* user, uint64_t advice);
     void (*bind_mission_script)(void* user, uint64_t advice, uint64_t vehicle);
-    void (*build_coverage_cells)(void* user, uint64_t advice);
+    bool (*build_coverage_cells)(void* user, uint64_t advice);
     uint64_t (*first_target)(void* user, uint64_t advice);
     uint32_t (*target_count)(void* user, uint64_t advice);
     void (*target_name)(void* user, uint64_t advice, uint64_t target, fc4_bytes_sink sink, void* ctx);
@@ -7429,21 +7432,23 @@ typedef struct fc4_citysit_host {
     void (*freeze_automata)(void* user, uint64_t manager, bool on);
     void (*play_sound)(void* user, uint64_t automaton, uint32_t sound);
     void (*position)(void* user, uint64_t object, float* x, float* z);
-    /* The mission (out of the spec's scope): CheckForSuccess(t) (the new
-     * status), pursuit, the countdown effect, the outcome effect, the
-     * player-drive mode (vehicle 0 = none), the joyride. */
-    uint32_t (*check_for_success)(void* user, uint64_t advice, float t_ms);
+    /* The mission (out of the spec's scope): steps 2-4 of CheckForSuccess(t)
+     * (§4.4) from the current status (the new status; the core runs the
+     * mission clock), pursuit, the countdown effect, the outcome effect at
+     * (x, z), the player-drive mode (vehicle 0 = none), the joyride. */
+    uint32_t (*check_for_success)(void* user, uint64_t advice, float t_ms, uint32_t status);
     void (*run_pursuit)(void* user, uint64_t advice, float t_ms);
     void (*start_countdown_effect)(void* user);
     void (*end_countdown_effect)(void* user);
-    void (*outcome_effect)(void* user, uint64_t advice, bool success);
+    void (*outcome_effect)(void* user, uint64_t advice, bool success, float x, float z);
     void (*player_drive_mode)(void* user, uint64_t vehicle, bool on);
     void (*start_joyride)(void* user, uint64_t vehicle);
     /* aura.AddTransientEffect (aura.md §8.2); budget.DepositFunds (budget.md §6). */
     void (*add_transient_effect)(void* user, float x, float z, float radius, float magnitude);
     void (*deposit_funds)(void* user, int64_t amount);
-    /* Messages: MessageSend 0xABBBCA64 (data1 = active); MessagePost of
-     * 0xEBB67EF7 to itself (advice, vehicle; 0 = none), 0x6BB350E4, 0xAC1045EF. */
+    /* Messages: MessageSend 0xABBBCA64 (data1 = active; advice 0 = none, a
+     * joyride); MessagePost of 0xEBB67EF7 to itself (advice, vehicle; 0 =
+     * none), 0x6BB350E4, 0xAC1045EF. */
     void (*send_activation)(void* user, uint64_t advice, bool active);
     void (*post_show_popup)(void* user, uint64_t advice, uint64_t vehicle);
     void (*post_popup_closed)(void* user, uint64_t advice);
@@ -7453,6 +7458,29 @@ typedef struct fc4_citysit_host {
     void (*hide_mission_status_panel)(void* user);
     void (*end_mysim_dialog)(void* user);
     uint32_t (*show_popup)(void* user, uint32_t popup, uint64_t advice, uint64_t vehicle);
+    /* Appended with re-answers15 (CS4-CS11): the next target of a disabled
+     * target (§4.7; 0 = none left), advice slot 54 (accepts the group, §8
+     * slot 23), advice slot 12 (the groups: returns the count, copies at most
+     * `capacity`, `out` may be NULL), the track-list priority (cISC4Advice
+     * slot 7, §4.2), a group's automata (borrowed),
+     * CreateAutomatonForPlayerDrive (advice 0 = none; held for the core, 0 =
+     * none), automaton Remove(0), SetFlag(flag, 1), the group of slot 25,
+     * EnterPlayerDriveView (target 0 = none, §8 slot 24), DeactivateSituation
+     * steps 1-2 (§4.3.1), EndSituation step 1 (the +0xA9C effect), a MySim
+     * window for advice flag 0x20 (held for the core, 0 = none). */
+    uint64_t (*next_target)(void* user, uint64_t advice);
+    bool (*advice_accepts_group)(void* user, uint64_t advice, uint32_t group);
+    size_t (*advice_groups)(void* user, uint64_t advice, uint32_t* out, size_t capacity);
+    uint32_t (*advice_priority)(void* user, uint64_t advice);
+    void (*group_automata)(void* user, uint32_t group, fc4_token_callback cb, void* ctx);
+    uint64_t (*create_automaton_for_player_drive)(void* user, uint64_t advice, uint32_t group);
+    void (*remove_automaton)(void* user, uint64_t automaton);
+    void (*set_automaton_flag)(void* user, uint64_t automaton, uint32_t flag);
+    void (*set_automaton_group)(void* user, uint64_t automaton, uint32_t group);
+    void (*enter_player_drive_view)(void* user, uint64_t automaton, uint64_t target);
+    void (*clear_mission_state)(void* user, uint64_t advice);
+    void (*release_situation_effect)(void* user);
+    uint64_t (*acquire_mysim_window)(void* user);
 } fc4_citysit_host;
 
 typedef struct fc4_citysit_track_entry {
@@ -7502,13 +7530,20 @@ void fc4_citysit_tick(fc4_citysit* m, float t_ms);
 /* Situations triggered / untriggered (§4.2). */
 void fc4_citysit_situation_triggered(fc4_citysit* m, uint64_t advice);
 void fc4_citysit_situation_untriggered(fc4_citysit* m, uint64_t advice);
-/* Slots 36, 21, 22, 37-39 (§4.3, §8): initiate (vehicle 0 = none; false when
- * it could not start), by GUID, for an occupant (false unless an automaton;
- * `advice` 0 = the first track-list entry whose vehicle it is or whose advice
- * accepts it), activate, deactivate, end. */
+/* Slots 36, 21-25, 37-39 (§4.3, §8): initiate (advice / vehicle 0 = none;
+ * false when nothing started), by GUID (group 0 = the advice's groups), for
+ * an occupant (false unless an automaton; `advice` 0 = the first track-list
+ * entry whose vehicle it is or whose advice accepts it), by automata group,
+ * StartJoyride (target 0 = none), TreatAutomatonAsGroup (automaton 0 does
+ * nothing), activate, deactivate, end. check_for_success: CheckForSuccess(t)
+ * (§4.4; 4 without a mission or an active automaton). */
 bool fc4_citysit_initiate_situation(fc4_citysit* m, uint64_t advice, uint64_t vehicle, bool show_briefing);
-bool fc4_citysit_initiate_situation_by_guid(fc4_citysit* m, uint32_t guid, bool show_briefing, uint32_t data3);
+bool fc4_citysit_initiate_situation_by_guid(fc4_citysit* m, uint32_t guid, bool show_briefing, uint32_t group);
 bool fc4_citysit_initiate_situation_for_occupant(fc4_citysit* m, uint64_t occupant, uint64_t advice);
+bool fc4_citysit_initiate_situation_by_automata_group(fc4_citysit* m, uint32_t group, bool show_briefing, bool search);
+void fc4_citysit_start_joyride(fc4_citysit* m, uint64_t automaton, bool b, uint64_t target);
+void fc4_citysit_treat_automaton_as_group(fc4_citysit* m, uint64_t automaton, uint32_t group);
+uint32_t fc4_citysit_check_for_success(fc4_citysit* m, float t_ms);
 void fc4_citysit_activate_situation(fc4_citysit* m);
 void fc4_citysit_deactivate_situation(fc4_citysit* m);
 void fc4_citysit_end_situation(fc4_citysit* m);
@@ -8304,7 +8339,7 @@ static_assert(sizeof(fc4_citysit_advice_info) == 40, "fc4_citysit_advice_info la
 static_assert(sizeof(fc4_citysit_track_entry) == 24, "fc4_citysit_track_entry layout");
 static_assert(sizeof(fc4_citysit_success_count) == 8, "fc4_citysit_success_count layout");
 static_assert(sizeof(fc4_citysit_state) == 96, "fc4_citysit_state layout");
-static_assert(sizeof(fc4_citysit_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_citysit_host layout");
+static_assert(sizeof(fc4_citysit_host) == (sizeof(void*) == 4 ? 324 : 648), "fc4_citysit_host layout");
 static_assert(sizeof(fc4_disaster_post) == 32, "fc4_disaster_post layout");
 static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout");
 static_assert(sizeof(fc4_world_box) == 16, "fc4_world_box layout");
@@ -8365,7 +8400,7 @@ _Static_assert(sizeof(fc4_citysit_advice_info) == 40, "fc4_citysit_advice_info l
 _Static_assert(sizeof(fc4_citysit_track_entry) == 24, "fc4_citysit_track_entry layout");
 _Static_assert(sizeof(fc4_citysit_success_count) == 8, "fc4_citysit_success_count layout");
 _Static_assert(sizeof(fc4_citysit_state) == 96, "fc4_citysit_state layout");
-_Static_assert(sizeof(fc4_citysit_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_citysit_host layout");
+_Static_assert(sizeof(fc4_citysit_host) == (sizeof(void*) == 4 ? 324 : 648), "fc4_citysit_host layout");
 _Static_assert(sizeof(fc4_disaster_post) == 32, "fc4_disaster_post layout");
 _Static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout");
 _Static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 336 : 672), "fc4_disasters_host layout");

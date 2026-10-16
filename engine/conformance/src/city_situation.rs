@@ -44,6 +44,7 @@ struct Advice {
     target: Option<u64>,
     target_count: u32,
     time_limit: f32,
+    priority: u32,
 }
 
 pub(crate) struct World {
@@ -59,6 +60,19 @@ pub(crate) struct World {
     candidates: RefCell<BTreeMap<u64, Vec<u64>>>,
     /// (advice, automaton) pairs advice slot 53 accepts.
     accepts: RefCell<BTreeSet<(u64, u64)>>,
+    /// (advice, group) pairs advice slot 54 accepts.
+    accepts_groups: RefCell<BTreeSet<(u64, u32)>>,
+    /// Advice slot 12: each advice's automata groups.
+    advice_groups: RefCell<BTreeMap<u64, Vec<u32>>>,
+    /// The automata of each group.
+    group_automata: RefCell<BTreeMap<u32, Vec<u64>>>,
+    /// The targets choosing the next one hands out, per advice, in order.
+    next_targets: RefCell<BTreeMap<u64, Vec<u64>>>,
+    /// What `CreateAutomatonForPlayerDrive` hands over (held).
+    created: Cell<Option<u64>>,
+    coverage_ok: Cell<bool>,
+    /// The MySim window of advice flag 0x20 (held).
+    mysim_window: Cell<Option<u64>>,
     rewards: RefCell<Vec<u32>>,
     status_answer: Cell<u32>,
     button: Cell<u32>,
@@ -82,6 +96,13 @@ impl World {
             autos: RefCell::new(BTreeMap::new()),
             candidates: RefCell::new(BTreeMap::new()),
             accepts: RefCell::new(BTreeSet::new()),
+            accepts_groups: RefCell::new(BTreeSet::new()),
+            advice_groups: RefCell::new(BTreeMap::new()),
+            group_automata: RefCell::new(BTreeMap::new()),
+            next_targets: RefCell::new(BTreeMap::new()),
+            created: Cell::new(None),
+            coverage_ok: Cell::new(true),
+            mysim_window: Cell::new(None),
             rewards: RefCell::new(vec![0; REWARD_SLOTS]),
             status_answer: Cell::new(3),
             button: Cell::new(0),
@@ -266,8 +287,27 @@ impl CitySituationHost for World {
     fn bind_mission_script(&self, a: u64, v: Option<u64>) {
         self.ev("bind", vec![("advice", tok(a)), ("vehicle", opt_tok(v))]);
     }
-    fn build_coverage_cells(&self, a: u64) {
-        self.ev("coverage", vec![("advice", tok(a))]);
+    fn build_coverage_cells(&self, a: u64) -> bool {
+        let ok = self.coverage_ok.get();
+        self.ev("coverage", vec![("advice", tok(a)), ("built", Json::Bool(ok))]);
+        ok
+    }
+    fn next_target(&self, a: u64) -> Option<u64> {
+        let t = {
+            let mut n = self.next_targets.borrow_mut();
+            n.get_mut(&a).and_then(|l| (!l.is_empty()).then(|| l.remove(0)))
+        };
+        self.ev("next_target", vec![("advice", tok(a)), ("target", opt_tok(t))]);
+        t
+    }
+    fn advice_accepts_group(&self, a: u64, g: u32) -> bool {
+        self.accepts_groups.borrow().contains(&(a, g))
+    }
+    fn advice_groups(&self, a: u64) -> Vec<u32> {
+        self.advice_groups.borrow().get(&a).cloned().unwrap_or_default()
+    }
+    fn advice_priority(&self, a: u64) -> u32 {
+        self.advice(a).priority
     }
     fn first_target(&self, a: u64) -> Option<u64> {
         self.advice(a).target
@@ -294,6 +334,32 @@ impl CitySituationHost for World {
     }
     fn candidate_vehicles(&self, a: u64) -> Vec<u64> {
         self.candidates.borrow().get(&a).cloned().unwrap_or_default()
+    }
+    fn group_automata(&self, g: u32) -> Vec<u64> {
+        self.group_automata.borrow().get(&g).cloned().unwrap_or_default()
+    }
+    fn create_automaton_for_player_drive(&self, a: Option<u64>, g: u32) -> Option<u64> {
+        let c = self.created.get();
+        self.ev(
+            "create_automaton",
+            vec![("advice", opt_tok(a)), ("group", ji(g)), ("automaton", opt_tok(c))],
+        );
+        if let Some(c) = c {
+            self.add_ref(c);
+        }
+        c
+    }
+    fn remove_automaton(&self, a: u64) {
+        self.ev("remove_automaton", vec![("automaton", tok(a))]);
+    }
+    fn set_automaton_flag(&self, a: u64, f: u32) {
+        if let Some(x) = self.autos.borrow_mut().get_mut(&a) {
+            x.flags |= f;
+        }
+        self.ev("set_flag", vec![("automaton", tok(a)), ("flag", ji(f))]);
+    }
+    fn set_automaton_group(&self, a: u64, g: u32) {
+        self.ev("set_group", vec![("automaton", tok(a)), ("group", ji(g))]);
     }
     fn automaton_flags(&self, a: u64) -> u32 {
         self.autos.borrow().get(&a).map_or(0, |x| x.flags)
@@ -325,7 +391,8 @@ impl CitySituationHost for World {
     fn position(&self, o: u64) -> (f32, f32) {
         self.autos.borrow().get(&o).map_or((0.0, 0.0), |x| x.pos)
     }
-    fn check_for_success(&self, _a: u64, _t: f32) -> u32 {
+    /// Steps 2–4 of `CheckForSuccess`: the scripted answer.
+    fn check_for_success(&self, _a: u64, _t: f32, _status: u32) -> u32 {
         self.status_answer.get()
     }
     fn run_pursuit(&self, _a: u64, _t: f32) {}
@@ -335,10 +402,15 @@ impl CitySituationHost for World {
     fn end_countdown_effect(&self) {
         self.ev("countdown_end", vec![]);
     }
-    fn outcome_effect(&self, a: u64, success: bool) {
+    fn outcome_effect(&self, a: u64, success: bool, x: f32, z: f32) {
         self.ev(
             "outcome_effect",
-            vec![("advice", tok(a)), ("success", Json::Bool(success))],
+            vec![
+                ("advice", tok(a)),
+                ("success", Json::Bool(success)),
+                ("x", jf(x)),
+                ("z", jf(z)),
+            ],
         );
     }
     fn player_drive_mode(&self, v: Option<u64>, on: bool) {
@@ -346,6 +418,22 @@ impl CitySituationHost for World {
     }
     fn start_joyride(&self, v: Option<u64>) {
         self.ev("joyride", vec![("vehicle", opt_tok(v))]);
+    }
+    fn enter_player_drive_view(&self, a: u64, t: Option<u64>) {
+        self.ev("drive_view", vec![("automaton", tok(a)), ("target", opt_tok(t))]);
+    }
+    fn clear_mission_state(&self, a: u64) {
+        self.ev("clear_mission_state", vec![("advice", tok(a))]);
+    }
+    fn release_situation_effect(&self) {
+        self.ev("release_situation_effect", vec![]);
+    }
+    fn acquire_mysim_window(&self) -> Option<u64> {
+        let w = self.mysim_window.get();
+        if let Some(w) = w {
+            self.add_ref(w);
+        }
+        w
     }
     fn add_transient_effect(&self, x: f32, z: f32, r: f32, m: f32) {
         self.ev(
@@ -363,12 +451,12 @@ impl CitySituationHost for World {
         }
         self.ev("deposit", vec![("amount", ji(amount)), ("accepted", Json::Bool(ok))]);
     }
-    fn send_activation(&self, a: u64, on: bool) {
+    fn send_activation(&self, a: Option<u64>, on: bool) {
         self.ev(
             "send",
             vec![
                 ("type", ji(msg::ACTIVATION)),
-                ("advice", tok(a)),
+                ("advice", opt_tok(a)),
                 ("data1", ji(u32::from(on))),
             ],
         );
@@ -482,10 +570,39 @@ fn pair_of(j: &Json, what: &str) -> R<(f32, f32)> {
 }
 
 /// `citysit_env`: `debug` (the debug functionality flag), `rewards` (the preferences'
-/// reward list from its start; the rest is zero), `status` (what `CheckForSuccess`
-/// answers, default 3), `button` (the button that closes the popup, default 0), `funds`
-/// (default 100,000), `candidates` (`{"advice": [automata]}`).
+/// reward list from its start; the rest is zero), `status` (what the host's steps 2–4 of
+/// `CheckForSuccess` answer, default 3), `button` (the button that closes the popup,
+/// default 0), `funds` (default 100,000), `candidates` (`{"advice": [automata]}`),
+/// `groups` (`{"group": [automata]}`), `created` (the automaton
+/// `CreateAutomatonForPlayerDrive` hands over; null = none), `coverage_ok` (building the
+/// coverage cells succeeds, default true), `mysim_window` (the window of advice flag 0x20;
+/// null = none).
 fn env(w: &World, op: &Json) -> R<()> {
+    if let Some(v) = opt(op, "groups") {
+        for (k, list) in v.as_object().ok_or("groups must be an object")? {
+            let g = u32_of(&Json::Str(k.clone()), "group")?;
+            let l = arr(list, "groups")?
+                .iter()
+                .map(|e| token_of(e, "groups"))
+                .collect::<R<Vec<_>>>()?;
+            w.group_automata.borrow_mut().insert(g, l);
+        }
+    }
+    if let Some(v) = op.get("created") {
+        w.created.set(match v {
+            Json::Null => None,
+            v => Some(token_of(v, "created")?),
+        });
+    }
+    if let Some(v) = opt(op, "coverage_ok") {
+        w.coverage_ok.set(bool_of(v, "coverage_ok")?);
+    }
+    if let Some(v) = op.get("mysim_window") {
+        w.mysim_window.set(match v {
+            Json::Null => None,
+            v => Some(token_of(v, "mysim_window")?),
+        });
+    }
     if let Some(v) = opt(op, "debug") {
         w.debug.set(bool_of(v, "debug")?);
     }
@@ -521,7 +638,10 @@ fn env(w: &World, op: &Json) -> R<()> {
 /// `citysit_advice`: a city-situation advice `advice` with `guid`, `flags`,
 /// `mission_type` (default 2, no target), `end_delay`, `success_money`, `failure_money`,
 /// `success_aura` / `failure_aura` ([radius, magnitude]), `target` (the first target a
-/// target mission finds; absent = none), `target_count`, `time_limit` (seconds).
+/// target mission finds; absent = none), `target_count`, `time_limit` (seconds), `accepts`
+/// (automata advice slot 53 accepts), `accepts_groups` (groups advice slot 54 accepts),
+/// `groups` (advice slot 12), `priority` (`cISC4Advice` slot 7, default 0), `next_targets`
+/// (what choosing the next target hands out, in order; then none).
 fn advice(w: &World, op: &Json) -> R<()> {
     let t = token_of(field(op, "advice")?, "advice")?;
     let mut a = w.advices.borrow().get(&t).copied().unwrap_or(Advice {
@@ -570,6 +690,30 @@ fn advice(w: &World, op: &Json) -> R<()> {
         for e in arr(v, "accepts")? {
             acc.insert((t, token_of(e, "accepts")?));
         }
+    }
+    if let Some(v) = opt(op, "accepts_groups") {
+        let mut acc = w.accepts_groups.borrow_mut();
+        acc.retain(|&(x, _)| x != t);
+        for e in arr(v, "accepts_groups")? {
+            acc.insert((t, u32_of(e, "accepts_groups")?));
+        }
+    }
+    if let Some(v) = opt(op, "groups") {
+        let l = arr(v, "groups")?
+            .iter()
+            .map(|e| u32_of(e, "groups"))
+            .collect::<R<Vec<_>>>()?;
+        w.advice_groups.borrow_mut().insert(t, l);
+    }
+    if let Some(v) = opt(op, "priority") {
+        a.priority = u32_of(v, "priority")?;
+    }
+    if let Some(v) = opt(op, "next_targets") {
+        let l = arr(v, "next_targets")?
+            .iter()
+            .map(|e| token_of(e, "next_targets"))
+            .collect::<R<Vec<_>>>()?;
+        w.next_targets.borrow_mut().insert(t, l);
     }
     w.advices.borrow_mut().insert(t, a);
     Ok(())
@@ -705,11 +849,23 @@ fn a_tok(op: &Json, i: usize) -> R<Option<u64>> {
 fn call(w: &World, op: &Json) -> R<()> {
     let m = w.mgr()?;
     let got = match str_of(field(op, "method")?, "method")? {
-        "initiate_situation" => Json::Bool(m.initiate_situation(
-            a_tok(op, 0)?.ok_or("advice must not be null")?,
-            a_tok(op, 1)?,
-            a_bool(op, 2)?,
-        )),
+        "initiate_situation" => Json::Bool(m.initiate_situation(a_tok(op, 0)?, a_tok(op, 1)?, a_bool(op, 2)?)),
+        "initiate_situation_by_automata_group" => {
+            Json::Bool(m.initiate_situation_by_automata_group(a_u32(op, 0)?, a_bool(op, 1)?, a_bool(op, 2)?))
+        }
+        "start_joyride" => {
+            m.start_joyride(
+                a_tok(op, 0)?.ok_or("automaton must not be null")?,
+                a_bool(op, 1)?,
+                a_tok(op, 2)?,
+            );
+            Json::Null
+        }
+        "treat_automaton_as_group" => {
+            m.treat_automaton_as_group(a_tok(op, 0)?, a_u32(op, 1)?);
+            Json::Null
+        }
+        "check_for_success" => ji(m.check_for_success(f32_of(arg(op, 0)?, "argument")?)),
         "initiate_situation_by_guid" => {
             Json::Bool(m.initiate_situation_by_guid(a_u32(op, 0)?, a_bool(op, 1)?, a_u32(op, 2)?))
         }

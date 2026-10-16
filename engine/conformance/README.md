@@ -1848,16 +1848,18 @@ Dispatch events: `acquire` / `release_service` (`service`: `message_server`, `ci
 The city situation vectors (`cs12_…`, `cs00_…`) drive `fc4_core::city_situation::CitySituationManager`
 (`docs/specs/city-situation.md`) over a scripted game implementing `CitySituationHost`. Every op name starts with
 `citysit_`. The default world: the debug flag clear, every service present, the four automata managers `0x43`,
-`0x45`, `0x44`, `0x46`, an empty (all-zero) reward list, `CheckForSuccess` answering 3, the popup closing with
-button 0, funds 100,000 (a withdrawal that would leave them below zero is refused, budget.md §6), no advices, no
-automata. The manager's token is `0xC5`; its generator is seeded with `derive_seed(0x12345678, 0x0BB14381)`.
+`0x45`, `0x44`, `0x46`, an empty (all-zero) reward list, the host's steps 2–4 of `CheckForSuccess` answering 3 (the
+core runs the mission clock, CS4), the popup closing with button 0, funds 100,000 (a withdrawal that would leave them
+below zero is refused, budget.md §6), coverage cells that build, no advices, no automata, no groups, no created
+automaton, no MySim window. The manager's token is `0xC5`; its generator is seeded with
+`derive_seed(0x12345678, 0x0BB14381)`.
 
 ### Setup
 
 | op | Arguments | Effect |
 |---|---|---|
-| `citysit_env` | any of `debug`, `rewards` (the reward list from its start), `status` (`CheckForSuccess`'s answer), `button`, `funds`, `candidates` (`{"advice": [automata]}`) | the world |
-| `citysit_advice` | `advice`, `guid?`, `flags?`, `mission_type?` (2), `end_delay?`, `success_money?`, `failure_money?`, `success_aura?` / `failure_aura?` (`[radius, magnitude]`), `target?` (the first target; absent: none), `target_count?`, `time_limit?`, `accepts?` (the automata advice slot 53 accepts; logs an `advice_accepts` event per question) | a city-situation advice of advisor 29 |
+| `citysit_env` | any of `debug`, `rewards` (the reward list from its start), `status` (the answer of the host's steps 2–4 of `CheckForSuccess`), `button`, `funds`, `candidates` (`{"advice": [automata]}`), `groups` (`{"group": [automata]}`), `created` (the automaton `CreateAutomatonForPlayerDrive` hands over, held; null: none), `coverage_ok` (default true), `mysim_window` (the window of advice flag `0x20`, held; null: none) | the world |
+| `citysit_advice` | `advice`, `guid?`, `flags?`, `mission_type?` (2), `end_delay?`, `success_money?`, `failure_money?`, `success_aura?` / `failure_aura?` (`[radius, magnitude]`), `target?` (the first target; absent: none), `target_count?`, `time_limit?`, `accepts?` (the automata advice slot 53 accepts; logs an `advice_accepts` event per question), `accepts_groups?` (the groups advice slot 54 accepts), `groups?` (advice slot 12), `priority?` (`cISC4Advice` slot 7, default 0), `next_targets?` (what choosing the next target hands out, in order; then none) | a city-situation advice of advisor 29 |
 | `citysit_automaton` | `automaton`, `flags?` (2), `type?` (1), `position?` (`[x, z]`), `preview?`; or `remove: true` | an automaton |
 | `citysit_create` | `session_seed?` | a new constructed manager |
 | `citysit_set` | `success_counts?` (`{"0xGUID": count}`), `loaded_from_save?` | pokes the state (test setup) |
@@ -1871,7 +1873,7 @@ automata. The manager's token is `0xC5`; its generator is seeded with `derive_se
 | `citysit_identity` | `iids` (`{"0xIID": offset or null}`), `class` | `QueryInterface` and `GetGZCLSID` |
 | `citysit_message` | `type` (`OccupantInserted`, `OccupantRemoved`, `AdviceAdded`, `AdviceRemoved`, `AdviceRemovedAll`, `PopupClosed`, `ShowPopup`, `Window`, `InitiateByGuid`, `PostCityInit`, `AnimationTick`, `AutomatonNotify`, `PlayerLeftVehicle`, `Cheat`, `PopupNoAdvice` or an ID), `data1?`, `data2?`, `data3?` or `ms?` (the tick's float bits), `object?`, `void1?`, `text?`, `expect?` | `DoMessage` |
 | `citysit_ticks` | `count`, `ms` | that many animation ticks |
-| `citysit_call` | `method`, `args`, `expect?` | `initiate_situation (advice, vehicle, briefing)`, `initiate_situation_by_guid (guid, briefing, data3)`, `initiate_situation_for_occupant (occupant, advice?)`, `activate_situation`, `deactivate_situation`, `end_situation`, `handle_status_changed (s)`, `get_mission_success_count (guid)`, `lua_activate_situation (guid, briefing)`, the getters of §8 (`get_active_situation`, `get_current_status`, `get_active_auto`, `get_current_target`, `get_current_target_index`, `get_num_targets`, `get_num_targets_remaining`, `get_current_time_limit_seconds`, `get_current_situation_time`, `get_current_time_remaining_seconds`, `get_current_target_name`, `get_situation_aura`, `get_situation_money`, `is_situation_available`, `get_max_csi`, `get_tracked_automata_count`, `get_csi_visible`, `countdown_is_in_progress`), `set_max_csi`, `set_csi_visible`, `handle_tuning_parameters_changed`, `reset_tutorials`, `initiate_player_drive_mode`, `random_uniform_u32 (n)` |
+| `citysit_call` | `method`, `args`, `expect?` | `initiate_situation (advice (null allowed), vehicle, briefing)`, `initiate_situation_by_guid (guid, briefing, group)`, `initiate_situation_for_occupant (occupant, advice?)`, `initiate_situation_by_automata_group (group, briefing, search)`, `start_joyride (automaton, b, target)`, `treat_automaton_as_group (automaton (null allowed), group)`, `check_for_success (t_ms)`, `activate_situation`, `deactivate_situation`, `end_situation`, `handle_status_changed (s)`, `get_mission_success_count (guid)`, `lua_activate_situation (guid, briefing)`, the getters of §8 (`get_active_situation`, `get_current_status`, `get_active_auto`, `get_current_target`, `get_current_target_index`, `get_num_targets`, `get_num_targets_remaining`, `get_current_time_limit_seconds`, `get_current_situation_time`, `get_current_time_remaining_seconds`, `get_current_target_name`, `get_situation_aura`, `get_situation_money`, `is_situation_available`, `get_max_csi`, `get_tracked_automata_count`, `get_csi_visible`, `countdown_is_in_progress`), `set_max_csi`, `set_csi_visible`, `handle_tuning_parameters_changed`, `reset_tutorials`, `initiate_player_drive_mode`, `random_uniform_u32 (n)` |
 | `citysit_expect` | `state` (partial: `initialized`, `destroyed`, `ref_count`, `indicators_visible`, `loaded_from_save`, `active_situation`, `automata_managers`, `track_list` (`[{advice, automaton, handle}]`), `tracked`, `success_counts` (`{"0xGUID": count}`), `status`, `active_automaton`, `current_target`, `num_targets`, `target_index`, `end_delay`, `elapsed`, `countdown`, `time_limit`, `just_activated`, `warning_given`, `max_csi`, `window`) | the manager state |
 | `citysit_expect_unchanged` | | the state and the generator are as at `citysit_mark` |
 | `citysit_expect_world` | `state` (partial: `funds`, `rewards` (up to the last non-zero entry), `retired`) | the game |
@@ -1884,13 +1886,16 @@ City situation events: `register_cheat`, `unregister_cheat`, `subscribe` / `unsu
 `release_service` (`service`: `indicator_view`, `lot_manager`, `mysim`, `lua`), `register_tick`,
 `unregister_tick`, `acquire_automata_managers` (`managers`), `create_lua_table`, `remove_lua_table`,
 `release_mission_resources`, `show_all_indicators` (`kind`, `visible`), `save_preferences`, `retire` (`advice`),
-`script` (`advice`, `script`: `start`, `success`, `failure`), `bind` (`advice`, `vehicle`), `coverage` (`advice`),
+`script` (`advice`, `script`: `start`, `success`, `failure`), `bind` (`advice`, `vehicle`), `coverage` (`advice`,
+`built`), `next_target` (`advice`, `target`), `create_automaton` (`advice`, `group`, `automaton`),
+`remove_automaton` (`automaton`), `set_flag` (`automaton`, `flag`), `set_group` (`automaton`, `group`),
 `track` (`automaton`, `handle`), `untrack` (`handle`), `listen` / `unlisten` (`automaton`), `freeze` (`manager`,
-`on`), `sound` (`automaton`, `sound`), `countdown_start`, `countdown_end`, `outcome_effect` (`advice`, `success`),
-`drive` (`vehicle`, `on`), `joyride` (`vehicle`), `aura` (`x`, `z`, `radius`, `magnitude`), `deposit` (`amount`,
-`accepted`), `send` (`type`, `advice`, `data1`), `post` (`type` and `advice`, `vehicle`, `data1`, `data2` as the
-message has them), `hide_mission_status_panel`, `end_mysim_dialog`, `popup` (`popup`: `briefing`, `success`,
-`failure`; `advice`, `vehicle`).
+`on`), `sound` (`automaton`, `sound`), `countdown_start`, `countdown_end`, `outcome_effect` (`advice`, `success`,
+`x`, `z`), `drive` (`vehicle`, `on`), `joyride` (`vehicle`), `drive_view` (`automaton`, `target`),
+`clear_mission_state` (`advice`), `release_situation_effect`, `aura` (`x`, `z`, `radius`, `magnitude`), `deposit`
+(`amount`, `accepted`), `send` (`type`, `advice` (null: a joyride), `data1`), `post` (`type` and `advice`,
+`vehicle`, `data1`, `data2` as the message has them), `hide_mission_status_panel`, `end_mysim_dialog`, `popup`
+(`popup`: `briefing`, `success`, `failure`; `advice`, `vehicle`).
 
 ## Disaster ops
 
@@ -3050,12 +3055,15 @@ replays the record shapes §7 reports.
 | 5 success payout (deposit, aura, count, one popup post) | `cs12_05_success_payout` |
 | 6 failure penalty refused by the budget, the popup still posted | `cs12_06_failure_no_money` |
 | 7 no city end | `cs12_07_no_city_end` |
+| 9 time limit: 0.5 s never fails by time; 40 s: the warning on the first tick whose pre-increment `elapsed` is ≥ 10.0f, status 2 when `elapsed` reaches 40.0f (CS4) | `cs12_09_time_limit` |
+| 10 `DeactivateSituation` vs `EndSituation` during the countdown (CS6) | `cs12_10_deactivate_vs_end` |
 | extra: identity, Init / Shutdown, Release | `cs00_lifecycle` |
 | extra: initiate, activate, the countdown, the 30-second warning, the time limit, deactivate | `cs00_mission_clock` |
-| extra: triggered / untriggered situations, max CSI, removed and disabled vehicles, PostCityInit | `cs00_tracking` |
-| extra: the popup and its buttons, could-not-start, by GUID, the cheat, Lua, ResetTutorials | `cs00_popup` |
+| extra: triggered / untriggered situations, max CSI, `HandleInsertAutomaton` (CS13), removed and disabled vehicles, PostCityInit | `cs00_tracking` |
+| extra: the popup and its buttons, could-not-start, by GUID, the cheat, Lua, ResetTutorials, `EndSituation` | `cs00_popup` |
 | extra: the reward list, saturation, the §8 getters | `cs00_reward_and_getters` |
 | extra: slot 22 `InitiateSituationForOccupant(occupant, advice)` (§8, CS2) | `cs00_slot22` |
+| extra: `InitiateSituation`'s results (CS5); the outcome positions (CS9); disabled automata and targets (CS10); the track list by priority (CS7); slots 21, 23–25 (CS11) | `cs00_answers15` |
 
 Not covered by a vector: item 8 (slots 13–15 return in ST0) is an ABI property of the C++ shim; the C ABI's
 `fc4_citysit_*` float getters return `float` and are checked by the capi tests.

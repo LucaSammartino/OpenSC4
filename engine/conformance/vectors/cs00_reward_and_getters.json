@@ -2,7 +2,7 @@
   "format": 1,
   "name": "citysit_reward_and_getters",
   "spec": ["city-situation 4.5", "city-situation 8"],
-  "description": "A success with situation flag 0x40 adds its GUID to the first free reward entry and saves the preferences; a count of 0xFFFF stays; without money or aura nothing is deposited and no aura added. The getters of section 8 answer the active advice's aura and money, the targets of a target mission and the visible flag (SetCSIVisible re-shows the indicators).",
+  "description": "A success with situation flag 0x40 adds its GUID to the first free reward entry and saves the preferences; a count of 0xFFFF stays; without money or aura nothing is deposited and no aura added. The getters of section 8 answer the active advice's aura and money, the targets of a target mission and the visible flag (SetCSIVisible re-shows the indicators). A target mission started without a briefing answers true with status 5 (CS5 quirk).",
   "steps": [
     {"op": "citysit_create"},
     {"op": "citysit_add_ref", "expect": 1},
@@ -28,7 +28,8 @@
     {"op": "citysit_call", "method": "get_situation_aura", "args": [], "expect": null},
     {"op": "citysit_call", "method": "get_situation_money", "args": [], "expect": null},
     {"op": "citysit_advice", "advice": "0x502", "guid": 3, "mission_type": 1, "target": "0x900", "target_count": 3, "success_money": 5000, "success_aura": [32, 10]},
-    {"op": "citysit_call", "method": "initiate_situation", "args": ["0x502", null, false], "expect": true},
+    {"op": "citysit_call", "method": "initiate_situation", "args": ["0x502", "0x700", false], "expect": true},
+    {"op": "citysit_call", "method": "get_current_status", "args": [], "expect": 5},
     {"op": "citysit_call", "method": "get_situation_aura", "args": [], "expect": [32, 10]},
     {"op": "citysit_call", "method": "get_situation_money", "args": [], "expect": 5000},
     {"op": "citysit_call", "method": "get_current_target", "args": [], "expect": "0x900"},

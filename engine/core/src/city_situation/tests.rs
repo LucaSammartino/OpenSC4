@@ -40,6 +40,18 @@ struct World {
     next_handle: Cell<u32>,
     /// (advice, automaton) pairs advice slot 53 accepts.
     accepts: RefCell<Vec<(u64, u64)>>,
+    /// (advice, group) pairs advice slot 54 accepts.
+    accepts_group: RefCell<Vec<(u64, u32)>>,
+    /// The automata of each group.
+    groups: RefCell<BTreeMap<u32, Vec<u64>>>,
+    /// Advice priorities (default 0).
+    priorities: RefCell<BTreeMap<u64, u32>>,
+    /// What `CreateAutomatonForPlayerDrive` returns.
+    created: Cell<Option<u64>>,
+    /// What choosing the next target returns.
+    next: Cell<Option<u64>>,
+    coverage_ok: Cell<bool>,
+    mysim_window: Cell<Option<u64>>,
 }
 
 impl World {
@@ -59,6 +71,13 @@ impl World {
             funds: Cell::new(100_000),
             next_handle: Cell::new(1),
             accepts: RefCell::new(Vec::new()),
+            accepts_group: RefCell::new(Vec::new()),
+            groups: RefCell::new(BTreeMap::new()),
+            priorities: RefCell::new(BTreeMap::new()),
+            created: Cell::new(None),
+            next: Cell::new(None),
+            coverage_ok: Cell::new(true),
+            mysim_window: Cell::new(None),
         })
     }
     fn ev(&self, s: impl Into<String>) {
@@ -196,8 +215,57 @@ impl CitySituationHost for World {
     fn bind_mission_script(&self, a: u64, v: Option<u64>) {
         self.ev(format!("bind {a} {v:?}"));
     }
-    fn build_coverage_cells(&self, a: u64) {
+    fn build_coverage_cells(&self, a: u64) -> bool {
         self.ev(format!("coverage {a}"));
+        self.coverage_ok.get()
+    }
+    fn next_target(&self, a: u64) -> Option<u64> {
+        self.ev(format!("next_target {a}"));
+        self.next.get()
+    }
+    fn advice_accepts_group(&self, a: u64, g: u32) -> bool {
+        self.accepts_group.borrow().contains(&(a, g))
+    }
+    fn advice_groups(&self, _a: u64) -> Vec<u32> {
+        self.groups.borrow().keys().copied().collect()
+    }
+    fn advice_priority(&self, a: u64) -> u32 {
+        self.priorities.borrow().get(&a).copied().unwrap_or(0)
+    }
+    fn group_automata(&self, g: u32) -> Vec<u64> {
+        self.groups.borrow().get(&g).cloned().unwrap_or_default()
+    }
+    fn create_automaton_for_player_drive(&self, a: Option<u64>, g: u32) -> Option<u64> {
+        self.ev(format!("create_auto {a:?} {g:#x}"));
+        let c = self.created.get()?;
+        self.add_ref(c);
+        Some(c)
+    }
+    fn remove_automaton(&self, a: u64) {
+        self.ev(format!("remove_auto {a}"));
+    }
+    fn set_automaton_flag(&self, a: u64, f: u32) {
+        self.ev(format!("set_flag {a} {f:#x}"));
+        if let Some(x) = self.autos.borrow_mut().get_mut(&a) {
+            x.flags |= f;
+        }
+    }
+    fn set_automaton_group(&self, a: u64, g: u32) {
+        self.ev(format!("set_group {a} {g:#x}"));
+    }
+    fn enter_player_drive_view(&self, a: u64, t: Option<u64>) {
+        self.ev(format!("drive_view {a} {t:?}"));
+    }
+    fn clear_mission_state(&self, a: u64) {
+        self.ev(format!("clear_mission {a}"));
+    }
+    fn release_situation_effect(&self) {
+        self.ev("release_effect");
+    }
+    fn acquire_mysim_window(&self) -> Option<u64> {
+        let w = self.mysim_window.get()?;
+        self.add_ref(w);
+        Some(w)
     }
     fn first_target(&self, a: u64) -> Option<u64> {
         self.targets.borrow().get(&a).copied()
@@ -251,7 +319,7 @@ impl CitySituationHost for World {
     fn position(&self, o: u64) -> (f32, f32) {
         self.autos.borrow().get(&o).map_or((0.0, 0.0), |x| x.pos)
     }
-    fn check_for_success(&self, _a: u64, _t: f32) -> u32 {
+    fn check_for_success(&self, _a: u64, _t: f32, _st: u32) -> u32 {
         self.status_answer.get()
     }
     fn run_pursuit(&self, _a: u64, _t: f32) {}
@@ -261,8 +329,8 @@ impl CitySituationHost for World {
     fn end_countdown_effect(&self) {
         self.ev("countdown_end");
     }
-    fn outcome_effect(&self, a: u64, success: bool) {
-        self.ev(format!("effect {a} {success}"));
+    fn outcome_effect(&self, a: u64, success: bool, x: f32, z: f32) {
+        self.ev(format!("effect {a} {success} {x} {z}"));
     }
     fn player_drive_mode(&self, v: Option<u64>, on: bool) {
         self.ev(format!("drive {v:?} {on}"));
@@ -281,8 +349,11 @@ impl CitySituationHost for World {
             self.funds.set(f + amount);
         }
     }
-    fn send_activation(&self, a: u64, on: bool) {
-        self.ev(format!("activation {a} {on}"));
+    fn send_activation(&self, a: Option<u64>, on: bool) {
+        match a {
+            Some(a) => self.ev(format!("activation {a} {on}")),
+            None => self.ev(format!("activation none {on}")),
+        }
     }
     fn post_show_popup(&self, a: Option<u64>, v: Option<u64>) {
         self.ev(format!("post_popup {a:?} {v:?}"));
@@ -320,7 +391,7 @@ fn running(w: &Rc<World>, m: &Rc<CitySituationManager>, info: AdviceInfo) {
     w.advice(ADV, info);
     w.auto(CAR, AUTO_FLAG_DRIVABLE, (100.0, 200.0));
     m.init();
-    assert!(m.initiate_situation(ADV, Some(CAR), false));
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), false));
     m.activate_situation();
     // The countdown: freeze, 4000 ms, unfreeze.
     m.tick(16.0);
@@ -496,12 +567,12 @@ fn cs12_05_success_payout() {
     assert_eq!(
         log,
         vec![
-            format!("effect {ADV} true"),
+            format!("effect {ADV} true 100 200"),
             "aura 100 200 256 50".to_string(),
             "deposit 10000".to_string(),
             format!("script {ADV} Success"),
             format!("retire {ADV}"),
-            format!("post_popup Some({ADV}) Some({CAR})"),
+            format!("post_popup Some({ADV}) None"),
         ]
     );
     assert_eq!(m.success_count(G), 1);
@@ -533,7 +604,7 @@ fn cs12_06_failure_penalty_with_no_money() {
     let log = w.take();
     assert!(log.contains(&"deposit -3000".to_string()));
     assert_eq!(w.funds.get(), 1_000);
-    assert_eq!(log.last().unwrap(), &format!("post_popup Some({ADV}) Some({CAR})"));
+    assert_eq!(log.last().unwrap(), &format!("post_popup Some({ADV}) None"));
     assert_eq!(m.success_count(G), 0);
 }
 
@@ -636,8 +707,8 @@ fn activation_and_countdown() {
     w.time_limit.set(60.0);
     m.init();
     w.take();
-    assert!(m.initiate_situation(ADV, Some(CAR), true));
-    assert!(!m.initiate_situation(ADV, Some(CAR), true));
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), true));
+    assert!(!m.initiate_situation(Some(ADV), Some(CAR), true));
     assert_eq!(w.refs(ADV), 1);
     assert_eq!(
         w.take(),
@@ -671,20 +742,24 @@ fn activation_and_countdown() {
     assert!(!m.countdown_in_progress());
     // The mission clock ran 1 s in that tick.
     assert_eq!(m.situation_time(), 1.0);
-    // 30-second warning, once (at 30 s elapsed of 60).
+    // 30-second warning, once: on the first tick whose elapsed time before
+    // the clock step is 30 s (of 60).
     w.auto(CAR, AUTO_FLAG_DRIVABLE, (0.0, 0.0));
-    for _ in 0..28 {
+    for _ in 0..29 {
         m.tick(1000.0);
     }
     assert!(w.take().is_empty());
+    assert_eq!(m.situation_time(), 30.0);
     m.tick(1000.0);
     assert_eq!(w.take(), vec![format!("sound {CAR} {WARNING_SOUND:#x}")]);
     m.tick(1000.0);
     assert!(w.take().is_empty());
-    // The time limit fails the mission.
-    for _ in 0..29 {
+    // The time limit fails the mission on the tick the clock reaches it.
+    for _ in 0..27 {
         m.tick(1000.0);
     }
+    assert_eq!(m.current_status(), status::RUNNING);
+    m.tick(1000.0);
     assert_eq!(m.current_status(), status::FAILURE);
     assert!((m.time_remaining_seconds()).abs() < 1e-3);
     // Deactivate releases the advice.
@@ -707,7 +782,7 @@ fn could_not_start_and_targets() {
     );
     m.init();
     w.take();
-    assert!(!m.initiate_situation(ADV, Some(CAR), true));
+    assert!(!m.initiate_situation(Some(ADV), Some(CAR), true));
     assert_eq!(m.current_status(), status::COULD_NOT_START);
     assert!(w.has(&format!("post_popup Some({ADV}) None")));
     // Close on "could not start" cancels.
@@ -719,7 +794,11 @@ fn could_not_start_and_targets() {
 
     w.targets.borrow_mut().insert(ADV, 0x900);
     w.take();
-    assert!(m.initiate_situation(ADV, None, false));
+    // CS5 [quirk]: without a briefing a start answers true, yet status 5 and
+    // the post.
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), false));
+    assert_eq!(m.current_status(), status::COULD_NOT_START);
+    assert!(w.has(&format!("post_popup Some({ADV}) None")));
     assert_eq!(m.current_target(), Some(0x900));
     assert_eq!(m.num_targets(), 3);
     assert_eq!(m.num_targets_remaining(), 3);
@@ -734,7 +813,7 @@ fn could_not_start_and_targets() {
             ..Default::default()
         },
     );
-    assert!(m.initiate_situation(0x501, None, false));
+    assert!(m.initiate_situation(Some(0x501), Some(CAR), false));
     assert!(w.has("coverage 1281"));
     assert_eq!(w.refs(ADV), 0);
     assert_eq!(w.refs(0x501), 1);
@@ -781,13 +860,29 @@ fn tracking_and_max_csi() {
     assert!(w.take().is_empty());
     assert_eq!(m.snapshot().track_list.len(), 2);
     m.set_max_csi(5);
-    // An inserted automaton lets free entries look again.
+    // An inserted automaton goes to the first free entry whose advice
+    // accepts it (HandleInsertAutomaton, CS13).
     m.do_message(&SituationMessage {
         msg_type: msg::OCCUPANT_INSERTED,
         object: Some(0x702),
         ..Default::default()
     });
-    assert_eq!(w.take(), vec!["track 1794 -> 2".to_string(), "listen 1794".to_string()]);
+    assert_eq!(w.take(), vec!["accepts? 1281 1794".to_string()]);
+    assert_eq!(m.tracked_automata_count(), 1);
+    w.accepts.borrow_mut().push((0x501, 0x702));
+    m.do_message(&SituationMessage {
+        msg_type: msg::OCCUPANT_INSERTED,
+        object: Some(0x702),
+        ..Default::default()
+    });
+    assert_eq!(
+        w.take(),
+        vec![
+            "accepts? 1281 1794".to_string(),
+            "track 1794 -> 2".to_string(),
+            "listen 1794".to_string()
+        ]
+    );
     assert_eq!(m.tracked_automata_count(), 2);
     // Removing the first advice untracks its vehicle.
     m.do_message(&SituationMessage {
@@ -861,6 +956,7 @@ fn post_city_init_and_guid_initiation() {
     );
     w.auto(CAR, AUTO_FLAG_DRIVABLE, (0.0, 0.0));
     w.candidates.borrow_mut().insert(ADV, vec![CAR]);
+    w.groups.borrow_mut().insert(0x10, vec![CAR]);
     m.init();
     m.set_max_csi(5);
     // Not loaded: nothing.
@@ -876,7 +972,8 @@ fn post_city_init_and_guid_initiation() {
     });
     assert_eq!(m.tracked_automata_count(), 1);
     w.take();
-    // Without a briefing the mission is activated at once, with the entry's vehicle.
+    // Without a briefing the mission is activated at once, with a drivable
+    // automaton of the advice's groups.
     m.do_message(&SituationMessage {
         msg_type: msg::INITIATE_BY_GUID,
         data1: G,
@@ -893,6 +990,10 @@ fn post_city_init_and_guid_initiation() {
     });
     assert_eq!(m.active_situation(), None);
     assert_eq!(w.refs(ADV), 0);
+    // EndSituation untracked the vehicle (CS6); the entry finds it again.
+    assert_eq!(m.tracked_automata_count(), 0);
+    m.situation_triggered(ADV);
+    assert_eq!(m.tracked_automata_count(), 1);
     // Occupant slot 22 (§8, CS2): the entry whose vehicle it is, without asking slot 53.
     w.take();
     assert!(m.initiate_situation_for_occupant(CAR, None));
@@ -938,7 +1039,7 @@ fn popup_messages_and_buttons() {
         },
     );
     m.init();
-    assert!(m.initiate_situation(ADV, Some(CAR), true));
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), true));
     w.take();
     w.button.set(button::START);
     m.do_message(&SituationMessage {
@@ -982,7 +1083,8 @@ fn popup_messages_and_buttons() {
         msg_type: msg::POPUP_NO_ADVICE,
         ..Default::default()
     });
-    assert!(w.has("popup Briefing None None"));
+    // A null advice counts as status 5 (§4.3).
+    assert!(w.has("popup Success None None"));
 }
 
 #[test]
@@ -998,7 +1100,7 @@ fn window_cheat_and_lua() {
         },
     );
     m.init();
-    assert!(m.initiate_situation(ADV, None, false));
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), false));
     m.do_message(&SituationMessage {
         msg_type: msg::WINDOW,
         object: Some(0x800),
@@ -1041,7 +1143,8 @@ fn moved_and_removed_vehicle() {
         data2: notify::MOVED,
         ..Default::default()
     });
-    assert_eq!(m.current_status(), status::SUCCESS);
+    // [question CS12] CheckForSuccess(0) is called; its result is not applied.
+    assert_eq!(m.current_status(), status::RUNNING);
 
     let (w, m) = setup();
     running(
@@ -1094,7 +1197,7 @@ fn getters_and_reset() {
         },
     );
     m.init();
-    m.initiate_situation(ADV, None, false);
+    m.initiate_situation(Some(ADV), None, false);
     assert_eq!(m.situation_aura(), Some((32.0, 10.0)));
     assert_eq!(m.situation_money(), Some(5000));
     m.set_csi_visible(false);
@@ -1115,4 +1218,431 @@ fn getters_and_reset() {
     assert_ne!(m.peek_random(), a);
     let r = m.random_range_i32(-5, 5);
     assert!((-5..5).contains(&r));
+}
+
+// ---- re-answers15 (CS4-CS11) ----
+
+#[test]
+fn cs4_step4_runs_at_any_status_and_the_clock_only_at_3() {
+    let (w, m) = setup();
+    w.advice(
+        ADV,
+        AdviceInfo {
+            guid: G,
+            ..Default::default()
+        },
+    );
+    m.init();
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), true));
+    assert_eq!(m.current_status(), status::IDLE);
+    m.with_state(|s| {
+        s.time_limit = 40.0;
+        s.elapsed = 10.0;
+    });
+    w.status_answer.set(status::IDLE);
+    w.take();
+    // Status 4 (the briefing): the warning plays, the clock does not run.
+    m.tick(16.0);
+    assert_eq!(w.take(), vec![format!("sound {CAR} {WARNING_SOUND:#x}")]);
+    assert_eq!(m.situation_time(), 10.0);
+    m.tick(16.0);
+    assert!(w.take().is_empty());
+}
+
+#[test]
+fn cs4_time_limit_below_one_second_never_fires() {
+    let (w, m) = setup();
+    running(
+        &w,
+        &m,
+        AdviceInfo {
+            guid: G,
+            ..Default::default()
+        },
+    );
+    m.with_state(|s| s.time_limit = 0.5);
+    for _ in 0..100 {
+        m.tick(1000.0);
+    }
+    assert_eq!(m.current_status(), status::RUNNING);
+}
+
+#[test]
+fn cs4_float_clock_and_the_40_second_limit() {
+    // §12 test 9: elapsed accumulates in f32 as elapsed + t × 0.001f; the
+    // warning on the first tick whose pre-increment elapsed is ≥ 10.0f; the
+    // failure on the tick where elapsed reaches 40.0f.
+    let (w, m) = setup();
+    w.time_limit.set(40.0);
+    running(
+        &w,
+        &m,
+        AdviceInfo {
+            guid: G,
+            ..Default::default()
+        },
+    );
+    let t = 16.7f32;
+    let mut e = m.situation_time();
+    let mut warned = false;
+    let mut failed = false;
+    for _ in 0..5000 {
+        let pre = e;
+        m.tick(t);
+        let log = w.take();
+        if log.iter().any(|l| l.starts_with("sound")) {
+            assert!(!warned);
+            assert!(pre >= 10.0);
+            warned = true;
+        } else if !warned {
+            assert!(pre < 10.0);
+        }
+        e += t * 0.001f32;
+        assert_eq!(m.situation_time(), e);
+        if m.current_status() == status::FAILURE {
+            assert!(e >= 40.0 && pre < 40.0);
+            failed = true;
+            break;
+        }
+    }
+    assert!(warned && failed);
+}
+
+#[test]
+fn cs5_initiate_situation_results() {
+    let (w, m) = setup();
+    w.advice(
+        ADV,
+        AdviceInfo {
+            guid: G,
+            ..Default::default()
+        },
+    );
+    m.init();
+    w.take();
+    // A null advice with none active: equal, nothing.
+    assert!(!m.initiate_situation(None, Some(CAR), true));
+    assert!(w.take().is_empty());
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), true));
+    // The same advice: false, nothing changes.
+    w.take();
+    assert!(!m.initiate_situation(Some(ADV), Some(CAR), true));
+    assert!(w.take().is_empty());
+    // A null advice deactivates the current mission, no popup.
+    assert!(!m.initiate_situation(None, Some(CAR), true));
+    let log = w.take();
+    assert!(log.contains(&format!("activation {ADV} false")));
+    assert!(!log.iter().any(|l| l.starts_with("post_popup")));
+    assert_eq!(m.active_situation(), None);
+    // No vehicle: could not start, the advice stays active.
+    assert!(!m.initiate_situation(Some(ADV), None, true));
+    assert_eq!(m.current_status(), status::COULD_NOT_START);
+    assert_eq!(m.active_situation(), Some(ADV));
+    // A coverage mission whose cells fail.
+    w.coverage_ok.set(false);
+    w.advice(
+        0x501,
+        AdviceInfo {
+            guid: 2,
+            mission_type: MISSION_TYPE_COVERAGE,
+            ..Default::default()
+        },
+    );
+    w.take();
+    assert!(!m.initiate_situation(Some(0x501), Some(CAR), true));
+    assert_eq!(w.take().last().unwrap(), "post_popup Some(1281) None");
+}
+
+#[test]
+fn cs6_deactivate_keeps_the_countdown_and_end_stops_it() {
+    let (w, m) = setup();
+    w.advice(
+        ADV,
+        AdviceInfo {
+            guid: G,
+            ..Default::default()
+        },
+    );
+    w.time_limit.set(60.0);
+    m.init();
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), true));
+    m.activate_situation();
+    m.tick(16.0);
+    assert!(m.countdown_in_progress());
+    w.take();
+    m.deactivate_situation();
+    assert_eq!(
+        w.take(),
+        vec![format!("clear_mission {ADV}"), format!("activation {ADV} false")]
+    );
+    assert!(m.countdown_in_progress());
+    assert_eq!(m.time_limit_seconds(), 60.0);
+    // The countdown runs out on a later tick and unfreezes the automata.
+    m.tick(4000.0);
+    let log = w.take();
+    assert_eq!(log[0], "countdown_end");
+    assert_eq!(log[1], "freeze 43 false");
+    // EndSituation: effect released, limit 0, countdown effect stopped (the
+    // value stays), indicators re-shown.
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), true));
+    m.activate_situation();
+    m.tick(16.0);
+    w.take();
+    m.end_situation();
+    let log = w.take();
+    assert_eq!(log[0], "release_effect");
+    assert_eq!(log[1], "countdown_end");
+    assert!(log.contains(&format!("activation {ADV} false")));
+    assert_eq!(log.last().unwrap(), "show_all 4 true");
+    assert_eq!(m.time_limit_seconds(), 0.0);
+    assert!(m.countdown_in_progress());
+    m.tick(4000.0);
+    assert_eq!(
+        w.take(),
+        vec![
+            "freeze 43 false",
+            "freeze 45 false",
+            "freeze 44 false",
+            "freeze 46 false"
+        ]
+    );
+    // Without a mission End still re-shows the indicators.
+    m.end_situation();
+    assert_eq!(w.take(), vec!["release_effect", "show_all 4 true"]);
+}
+
+#[test]
+fn cs9_outcome_positions() {
+    // Success without an active automaton: at (0, 0), effect, aura, money.
+    let (w, m) = setup();
+    running(
+        &w,
+        &m,
+        AdviceInfo {
+            guid: G,
+            success_money: 5000,
+            success_aura: (64.0, 1.0),
+            ..Default::default()
+        },
+    );
+    m.with_state(|s| s.active_automaton = None);
+    m.success(ADV);
+    let log = w.take();
+    assert_eq!(log[0], format!("effect {ADV} true 0 0"));
+    assert_eq!(log[1], "aura 0 0 64 1");
+    assert_eq!(log[2], "deposit 5000");
+    // Failure with neither an automaton nor a target: only the script.
+    let (w, m) = setup();
+    running(
+        &w,
+        &m,
+        AdviceInfo {
+            guid: G,
+            failure_money: -2000,
+            failure_aura: (64.0, -1.0),
+            ..Default::default()
+        },
+    );
+    m.with_state(|s| s.active_automaton = None);
+    m.failure(ADV);
+    assert_eq!(w.take(), vec![format!("script {ADV} Failure")]);
+    // Failure of an advice that is not the active one: nothing.
+    m.failure(0x501);
+    assert!(w.take().is_empty());
+}
+
+#[test]
+fn cs10_disabled_automata() {
+    let disabled = |a: u64| SituationMessage {
+        msg_type: msg::AUTOMATON_NOTIFY,
+        object: Some(a),
+        data2: notify::DISABLED_B,
+        ..Default::default()
+    };
+    // The active automaton: status 2 whatever the status (here 4).
+    let (w, m) = setup();
+    w.advice(
+        ADV,
+        AdviceInfo {
+            guid: G,
+            ..Default::default()
+        },
+    );
+    w.auto(CAR, AUTO_FLAG_DRIVABLE, (0.0, 0.0));
+    m.init();
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), true));
+    w.take();
+    m.do_message(&disabled(CAR));
+    assert_eq!(w.take()[0], format!("set_flag {CAR} {AUTO_FLAG_DISABLED:#x}"));
+    assert_eq!(m.current_status(), status::FAILURE);
+    assert!(!can_player_drive(w.automaton_flags(CAR), 1));
+    // The target of a type-1 mission: the next target, then success.
+    let (w, m) = setup();
+    w.advice(
+        ADV,
+        AdviceInfo {
+            guid: G,
+            mission_type: 1,
+            ..Default::default()
+        },
+    );
+    w.targets.borrow_mut().insert(ADV, 0x900);
+    w.next.set(Some(0x901));
+    m.init();
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), true));
+    m.activate_situation();
+    m.do_message(&disabled(0x900));
+    assert_eq!(m.current_target(), Some(0x901));
+    assert_eq!(m.current_status(), status::RUNNING);
+    w.next.set(None);
+    m.do_message(&disabled(0x901));
+    assert_eq!(m.current_status(), status::SUCCESS);
+    // The target of a type-4 mission: failure.
+    let (w, m) = setup();
+    w.advice(
+        ADV,
+        AdviceInfo {
+            guid: G,
+            mission_type: 4,
+            ..Default::default()
+        },
+    );
+    w.targets.borrow_mut().insert(ADV, 0x900);
+    m.init();
+    assert!(m.initiate_situation(Some(ADV), Some(CAR), true));
+    m.activate_situation();
+    // 0xC with another data3: nothing.
+    m.do_message(&SituationMessage {
+        msg_type: msg::AUTOMATON_NOTIFY,
+        object: Some(0x900),
+        data2: notify::DISABLED_C,
+        data3: 0x13,
+        ..Default::default()
+    });
+    assert_eq!(m.current_status(), status::RUNNING);
+    m.do_message(&SituationMessage {
+        msg_type: msg::AUTOMATON_NOTIFY,
+        object: Some(0x900),
+        data2: notify::DISABLED_C,
+        data3: notify::DISABLED_C_DATA3,
+        ..Default::default()
+    });
+    assert_eq!(m.current_status(), status::FAILURE);
+    drop(w);
+}
+
+#[test]
+fn cs11_slots_23_to_25() {
+    let (w, m) = setup();
+    w.advice(
+        ADV,
+        AdviceInfo {
+            guid: G,
+            ..Default::default()
+        },
+    );
+    w.auto(CAR, AUTO_FLAG_DRIVABLE, (0.0, 0.0));
+    w.auto(0x701, 0, (0.0, 0.0)); // not drivable
+    w.groups.borrow_mut().insert(0x20, vec![0x701, CAR]);
+    m.init();
+    m.set_max_csi(5);
+    m.situation_triggered(ADV);
+    // Slot 23: no entry accepts the group, no search: false.
+    w.take();
+    assert!(!m.initiate_situation_by_automata_group(0x20, true, false));
+    assert!(w.take().is_empty());
+    // With search: a joyride in the first drivable automaton (held for the
+    // call), with no advice.
+    assert!(m.initiate_situation_by_automata_group(0x20, true, true));
+    assert_eq!(
+        w.take(),
+        vec!["activation none true".to_string(), format!("drive_view {CAR} None")]
+    );
+    assert_eq!(w.refs(CAR), 0);
+    assert!(m.snapshot().just_activated);
+    assert_eq!(m.active_situation(), None);
+    m.with_state(|s| s.just_activated = false);
+    // None drivable: a created one; none created: false.
+    w.created.set(Some(0x7FF));
+    assert!(m.initiate_situation_by_automata_group(0x21, true, true));
+    assert_eq!(w.take()[0], "create_auto None 0x21");
+    assert_eq!(w.refs(0x7FF), 0);
+    w.created.set(None);
+    assert!(!m.initiate_situation_by_automata_group(0x21, true, true));
+    // An entry whose advice accepts the group: through slot 21 (with a
+    // briefing: slot 22 on the group's drivable automaton).
+    w.accepts_group.borrow_mut().push((ADV, 0x20));
+    w.take();
+    assert!(m.initiate_situation_by_automata_group(0x20, true, false));
+    assert_eq!(m.active_situation(), Some(ADV));
+    assert_eq!(m.active_auto(), Some(CAR));
+    assert!(w.take().contains(&format!("post_popup Some({ADV}) Some({CAR})")));
+    // Slot 25: the group, then HandleInsertAutomaton.
+    m.end_situation();
+    w.take();
+    m.treat_automaton_as_group(None, 0x30);
+    assert!(w.take().is_empty());
+    w.accepts.borrow_mut().push((ADV, CAR));
+    m.treat_automaton_as_group(Some(CAR), 0x30);
+    let log = w.take();
+    assert_eq!(log[0], format!("set_group {CAR} 0x30"));
+    assert!(log.contains(&format!("listen {CAR}")));
+    assert!(m.is_situation_available(CAR));
+}
+
+#[test]
+fn slot_21_created_automaton_and_window() {
+    let (w, m) = setup();
+    w.advice(
+        ADV,
+        AdviceInfo {
+            guid: G,
+            flags: SITUATION_FLAG_MYSIM_WINDOW,
+            mission_type: 1,
+            ..Default::default()
+        },
+    );
+    w.mysim_window.set(Some(0x880));
+    w.auto(0x7FF, AUTO_FLAG_DRIVABLE, (0.0, 0.0));
+    m.init();
+    // No group automata; a created one that cannot start (no target): it is
+    // removed and released; the answer is false.
+    w.created.set(Some(0x7FF));
+    w.take();
+    assert!(!m.initiate_situation_by_guid(G, true, 0));
+    let log = w.take();
+    assert!(log.contains(&"create_auto Some(1280) 0x0".to_string()));
+    assert!(log.contains(&"remove_auto 2047".to_string()));
+    assert_eq!(w.refs(0x7FF), 0);
+    // Flag 0x20: the MySim window is held, and released by Deactivate.
+    assert_eq!(m.snapshot().window, Some(0x880));
+    assert_eq!(w.refs(0x880), 1);
+    m.deactivate_situation();
+    assert_eq!(w.refs(0x880), 0);
+    // No automaton at all: slot 36 without a vehicle (could not start).
+    w.created.set(None);
+    assert!(!m.initiate_situation_by_guid(G, false, 0));
+    assert_eq!(m.current_status(), status::COULD_NOT_START);
+    assert_eq!(m.active_auto(), None);
+    // An unknown GUID: false.
+    assert!(!m.initiate_situation_by_guid(0x1234, true, 0));
+}
+
+#[test]
+fn track_list_sorted_by_priority() {
+    let (w, m) = setup();
+    m.init();
+    for (a, p) in [(0x500u64, 5u32), (0x501, 1), (0x502, 5), (0x503, 0)] {
+        w.advice(
+            a,
+            AdviceInfo {
+                guid: a as u32,
+                ..Default::default()
+            },
+        );
+        w.priorities.borrow_mut().insert(a, p);
+        m.situation_triggered(a);
+    }
+    let order: Vec<u64> = m.snapshot().track_list.iter().map(|e| e.advice).collect();
+    assert_eq!(order, [0x503, 0x501, 0x500, 0x502]);
 }

@@ -46,6 +46,12 @@ struct Game {
     button: Cell<u32>,
     time_limit: Cell<f32>,
     next_handle: Cell<u32>,
+    /// The automata of each group.
+    groups: RefCell<BTreeMap<u32, Vec<u64>>>,
+    /// (advice, group) pairs advice slot 54 accepts.
+    accepts_group: RefCell<Vec<(u32, u64)>>,
+    /// What `CreateAutomatonForPlayerDrive` returns (0 = none).
+    created: Cell<u64>,
 }
 
 impl Game {
@@ -235,7 +241,7 @@ unsafe extern "C" fn position(u: *mut c_void, o: u64, x: *mut f32, z: *mut f32) 
         *z = pz;
     }
 }
-unsafe extern "C" fn check_for_success(u: *mut c_void, _a: u64, _t: f32) -> u32 {
+unsafe extern "C" fn check_for_success(u: *mut c_void, _a: u64, _t: f32, _st: u32) -> u32 {
     game(u).status_answer.get()
 }
 unsafe extern "C" fn countdown_start(u: *mut c_void) {
@@ -244,8 +250,8 @@ unsafe extern "C" fn countdown_start(u: *mut c_void) {
 unsafe extern "C" fn countdown_end(u: *mut c_void) {
     game(u).log("countdown_end");
 }
-unsafe extern "C" fn outcome_effect(u: *mut c_void, a: u64, success: bool) {
-    game(u).log(format!("effect {a:#x} {success}"));
+unsafe extern "C" fn outcome_effect(u: *mut c_void, a: u64, success: bool, x: f32, z: f32) {
+    game(u).log(format!("effect {a:#x} {success} {x} {z}"));
 }
 unsafe extern "C" fn player_drive_mode(u: *mut c_void, v: u64, on: bool) {
     game(u).log(format!("drive {v:#x} {on}"));
@@ -280,6 +286,42 @@ unsafe extern "C" fn end_mysim(u: *mut c_void) {
 unsafe extern "C" fn show_popup(u: *mut c_void, p: u32, a: u64, v: u64) -> u32 {
     game(u).log(format!("popup {p} {a:#x} {v:#x}"));
     game(u).button.get()
+}
+unsafe extern "C" fn advice_accepts_group(u: *mut c_void, a: u64, g: u32) -> bool {
+    game(u).accepts_group.borrow().contains(&(g, a))
+}
+unsafe extern "C" fn advice_groups(u: *mut c_void, _a: u64, out: *mut u32, cap: usize) -> usize {
+    let v: Vec<u32> = game(u).groups.borrow().keys().copied().collect();
+    if !out.is_null() {
+        for (i, x) in v.iter().take(cap).enumerate() {
+            *out.add(i) = *x;
+        }
+    }
+    v.len()
+}
+unsafe extern "C" fn group_automata(u: *mut c_void, g: u32, cb: fc4_token_callback, ctx: *mut c_void) {
+    let v = game(u).groups.borrow().get(&g).cloned().unwrap_or_default();
+    emit(&v, cb, ctx);
+}
+unsafe extern "C" fn create_auto(u: *mut c_void, a: u64, g: u32) -> u64 {
+    let c = game(u).created.get();
+    game(u).log(format!("create_auto {a:#x} {g:#x}"));
+    if c != 0 {
+        add_ref(u, c);
+    }
+    c
+}
+unsafe extern "C" fn set_automaton_group(u: *mut c_void, a: u64, g: u32) {
+    game(u).log(format!("set_group {a:#x} {g:#x}"));
+}
+unsafe extern "C" fn enter_view(u: *mut c_void, a: u64, t: u64) {
+    game(u).log(format!("drive_view {a:#x} {t:#x}"));
+}
+unsafe extern "C" fn clear_mission(u: *mut c_void, a: u64) {
+    game(u).log(format!("clear_mission {a:#x}"));
+}
+unsafe extern "C" fn release_effect(u: *mut c_void) {
+    game(u).log("release_effect");
 }
 
 fn host(g: &Game) -> fc4_citysit_host {
@@ -352,6 +394,19 @@ fn host(g: &Game) -> fc4_citysit_host {
         hide_mission_status_panel: Some(hide_panel),
         end_mysim_dialog: Some(end_mysim),
         show_popup: Some(show_popup),
+        next_target: None,
+        advice_accepts_group: Some(advice_accepts_group),
+        advice_groups: Some(advice_groups),
+        advice_priority: None,
+        group_automata: Some(group_automata),
+        create_automaton_for_player_drive: Some(create_auto),
+        remove_automaton: None,
+        set_automaton_flag: None,
+        set_automaton_group: Some(set_automaton_group),
+        enter_player_drive_view: Some(enter_view),
+        clear_mission_state: Some(clear_mission),
+        release_situation_effect: Some(release_effect),
+        acquire_mysim_window: None,
     }
 }
 
@@ -528,12 +583,12 @@ fn cs12_05_success_payout() {
     assert_eq!(
         g.take(),
         [
-            "effect 0x500 true",
+            "effect 0x500 true 100 200",
             "aura 100 200 256 50",
             "deposit 10000",
             "script 0x500 1",
             "retire 0x500",
-            "post_popup 0x500 0x700"
+            "post_popup 0x500 0x0"
         ]
     );
     assert_eq!(unsafe { fc4_citysit_get_success_count(m, G) }, 1);
@@ -572,9 +627,11 @@ fn cs12_08_float_getters_and_the_mission_clock() {
         assert_eq!(elapsed, 1.0);
         let left: f32 = fc4_citysit_time_remaining_seconds(m);
         assert_eq!(left, 59.0);
-        // The 30-second warning, once.
+        // The 30-second warning, once: it compares the elapsed time before
+        // the tick's clock step (CS4), so it comes with the tick that starts
+        // at 30 s.
         g.auto(CAR, DRIVABLE, 0.0, 0.0);
-        for _ in 0..28 {
+        for _ in 0..29 {
             tick(m, 1000.0);
         }
         g.take();
@@ -678,6 +735,53 @@ fn tracking_popup_and_cheat() {
         fc4_citysit_set_csi_visible(m, false);
         assert!(!fc4_citysit_csi_visible(m));
         assert!(g.take().contains(&"show_all 4 false".to_string()));
+        fc4_citysit_destroy(m);
+    }
+}
+
+/// §8 slots 23 to 25 (CS11) and `CheckForSuccess` (CS4) over the C ABI.
+#[test]
+fn cs11_slots_23_to_25_and_check_for_success() {
+    let g = Game::new();
+    let m = create(&g);
+    g.auto(CAR, DRIVABLE, 1.0, 2.0);
+    g.groups.borrow_mut().insert(0x4242, vec![CAR]);
+    unsafe {
+        assert!(fc4_citysit_init(m));
+        g.take();
+        // No mission: 4.
+        assert_eq!(fc4_citysit_check_for_success(m, 16.0), IDLE);
+        // Slot 23: no entry accepts the group; without `search` nothing.
+        assert!(!fc4_citysit_initiate_situation_by_automata_group(
+            m, 0x4242, true, false
+        ));
+        assert!(g.take().is_empty());
+        // With `search`: a joyride in the group's drivable automaton, held
+        // for the call only.
+        assert!(fc4_citysit_initiate_situation_by_automata_group(m, 0x4242, true, true));
+        assert_eq!(g.take(), ["activation 0x0 true", "drive_view 0x700 0x0"]);
+        assert_eq!(g.refs(CAR), 0);
+        assert_eq!(state(m).just_activated, 1);
+        // A group without automata: a created one.
+        g.created.set(0x7FF);
+        assert!(fc4_citysit_initiate_situation_by_automata_group(m, 0x99, false, true));
+        assert_eq!(
+            g.take(),
+            ["create_auto 0x0 0x99", "activation 0x0 true", "drive_view 0x7ff 0x0"]
+        );
+        assert_eq!(g.refs(0x7FF), 0);
+        // Slot 24 stores `b`; the status and the advice stay.
+        fc4_citysit_start_joyride(m, CAR, false, 0x900);
+        assert_eq!(g.take(), ["activation 0x0 true", "drive_view 0x700 0x900"]);
+        assert_eq!(state(m).just_activated, 0);
+        assert_eq!(fc4_citysit_current_status(m), IDLE);
+        fc4_citysit_start_joyride(m, 0, true, 0);
+        assert!(g.take().is_empty());
+        // Slot 25: 0 does nothing; else the group, then HandleInsertAutomaton.
+        fc4_citysit_treat_automaton_as_group(m, 0, 0x77);
+        assert!(g.take().is_empty());
+        fc4_citysit_treat_automaton_as_group(m, CAR, 0x77);
+        assert_eq!(g.take()[0], "set_group 0x700 0x77");
         fc4_citysit_destroy(m);
     }
 }

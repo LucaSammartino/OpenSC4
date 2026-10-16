@@ -2,7 +2,7 @@
   "format": 1,
   "name": "citysit_failure_penalty_no_money",
   "spec": ["city-situation 4.5", "city-situation 12.6"],
-  "description": "Funds 1,000 and failure_money -3000: DepositFunds(-3000) is called and the budget refuses the withdrawal (funds stay 1,000); the failure script runs and the result popup is still posted. No success is counted.",
+  "description": "Funds 1,000 and failure_money -3000: DepositFunds(-3000) is called and the budget refuses the withdrawal (funds stay 1,000); the failure effect is at the active vehicle (CS9), the failure script runs and the result popup is still posted (without a vehicle, §4.4 step 3). No success is counted.",
   "steps": [
     {"op": "citysit_env", "funds": 1000},
     {"op": "citysit_create"},
@@ -19,7 +19,7 @@
     {"op": "citysit_env", "status": 2},
     {"op": "citysit_ticks", "count": 1, "ms": 16},
     {"op": "citysit_ticks", "count": 4, "ms": 250},
-    {"op": "citysit_expect_events", "events": [{"event": "outcome_effect", "advice": "0x500", "success": false}, {"event": "deposit", "amount": -3000, "accepted": false}, {"event": "script", "advice": "0x500", "script": "failure"}, {"event": "post", "type": "0xEBB67EF7", "advice": "0x500", "vehicle": "0x700"}]},
+    {"op": "citysit_expect_events", "events": [{"event": "outcome_effect", "advice": "0x500", "success": false, "x": 100, "z": 200}, {"event": "deposit", "amount": -3000, "accepted": false}, {"event": "script", "advice": "0x500", "script": "failure"}, {"event": "post", "type": "0xEBB67EF7", "advice": "0x500", "vehicle": null}]},
     {"op": "citysit_expect_world", "state": {"funds": 1000, "retired": []}},
     {"op": "citysit_expect", "state": {"success_counts": {}}}
   ]
