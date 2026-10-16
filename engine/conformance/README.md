@@ -1829,7 +1829,7 @@ over one scripted city implementing `CityDetailHost`. Every op name starts with 
 | `cd_init` / `cd_shutdown` / `cd_add_ref` / `cd_release` / `cd_get_level` | `expect?` | the slots |
 | `cd_set` | `level` | the stored level (test setup) |
 | `cd_identity` | `iids` (`{"0xIID": bool}`), `class?` | `QueryInterface`, `GetGZCLSID` |
-| `cd_expect` | `state` (partial: `level`, `ref_count`, `destroyed`, `last_pass`, `removed`, `created`, `draws`, `network_lots`, `session_passes`) | the manager |
+| `cd_expect` | `state` (partial: `level`, `ref_count`, `destroyed`, `last_pass`, `removed`, `created`, `draws`, `network_lots`, `session_passes`: the increase passes by this manager object, n of §3.5, CD5) | the manager |
 | `cd_expect_occupants` | `lot`, `occupants` (`[[occupant, kind or type, tag or null]]`, token order) | a lot's occupants |
 | `cd_write` / `cd_read` | `hex?`, `slot?`, `fresh?`, `expect?` | the record |
 | `cd_expect_events` / `cd_expect_event_count` / `cd_clear_events` | see the shared conventions | host calls |
@@ -3242,6 +3242,8 @@ available, but no vector pins its draws).
 | 4 reduce (unlisted tags removed, untagged and listed stay) | `cd8_04_reduce` |
 | 5 increase (one prop per missing required object, at the developer's placement; optional skipped; one draw each) | `cd8_05_increase`, `cd8_06_session_generator` |
 | 6 network lots redeveloped once in both directions, none in a new city | `cd8_01_new_city`, `cd8_04_reduce`, `cd8_05_increase` |
+| CD4: the presence test counts flora and prop occupants by tag alone; step 4 draws for any object type | `cd8_08_presence_and_object_types` |
+| CD5: the pass count n is per manager object and starts at 0 | `cd8_06_session_generator`, `cd8_07_pass_count_per_manager` |
 
 ## Coverage (port developers §12)
 

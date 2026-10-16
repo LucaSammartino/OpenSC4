@@ -7143,12 +7143,14 @@ typedef struct fc4_city_detail_state {
     /* The last Init: 0 nothing, 1 reduce, 2 increase; the occupants removed
      * and created, the draws, the network lots redeveloped. */
     uint32_t last_pass, last_removed, last_created, last_draws, last_network_lots;
-    uint32_t session_passes; /* increase passes so far in this session */
+    uint32_t session_passes; /* increase passes by this manager object so far (n of §3.5,
+                              * 0 at creation; CD5) */
 } fc4_city_detail_state;
 
 /* Constructed (level none, reference count 0). The host table is copied (NULL
  * for a NULL or short table). `session_seed` is S of §3.5; `token` is the
- * manager's own host identity. */
+ * manager's own host identity. The increase-pass count n of §3.5 belongs to
+ * the object and starts at 0 (CD5): the game makes one per city load. */
 fc4_city_detail* fc4_city_detail_create(const fc4_city_detail_host* host, uint32_t session_seed, uint64_t token);
 void fc4_city_detail_destroy(fc4_city_detail* c);
 bool fc4_city_detail_query_interface(uint32_t iid);
