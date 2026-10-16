@@ -611,9 +611,10 @@ impl Disasters {
     pub fn unregister_location_by_occupant(&self, instance: u32, occ: u64) {
         self.with((), |c| c.unregister_location_by_occupant(instance, occ))
     }
-    /// `GetMostRecentDisasterLocation` (slot 12); `instance` 0 = any.
+    /// `GetMostRecentDisasterLocation` (slot 12); `instance` 0 = any. The
+    /// entry is **resolved**, so this is a write (§2.7, DS35).
     pub fn most_recent_location(&self, instance: u32) -> Option<(i32, i32)> {
-        self.read(None, |c| c.most_recent_location((instance != 0).then_some(instance)))
+        self.with(None, |c| c.most_recent_location((instance != 0).then_some(instance)))
     }
     pub fn location_count(&self) -> usize {
         self.read(0, |c| c.layer.locations.len())

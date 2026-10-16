@@ -23,7 +23,8 @@
       {"event": "raw"}
     ]},
     {"op": "dis_expect", "state": {"fire_count": 2, "fire_ids": ["0xABCD"],
-      "locations": [{"instance": 1, "occupant": "0x40", "x": 0, "z": 0, "zoom": 3}]}},
+      "locations": [{"instance": 1, "occupant": "0x40", "x": 4, "z": 4, "zoom": 3}]},
+      "note": "resolved in the same call (§2.7, §18 test 15, DS35): DisasterHasBegun's GetMostRecentDisasterLocation writes the cell back"},
     {"op": "dis_expect_fire", "index": 0, "state": {"target": "0x40", "fire_id": "0xABCD"}},
     {"op": "dis_expect_fire", "index": 1, "state": {"target": "0x41", "fire_id": "0xABCD"}},
     {"op": "dis_clear_events"},

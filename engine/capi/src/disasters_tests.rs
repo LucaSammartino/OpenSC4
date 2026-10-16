@@ -167,6 +167,16 @@ unsafe extern "C" fn occupant_cell_rect(u: *mut c_void, o: u64, out: *mut fc4_ce
         };
     }
 }
+unsafe extern "C" fn occupant_prop_u32(u: *mut c_void, o: u64, id: u32, out: *mut u32) -> bool {
+    // §5.4 step 3 (DS38) reads the flammability property as an unsigned
+    // integer (variant slot 25, converting): a stored Float32 is truncated,
+    // so 100.0 reads as 100.
+    if id == FLAMMABILITY && game(u).occs.borrow().contains_key(&o) {
+        *out = 100;
+        return true;
+    }
+    false
+}
 unsafe extern "C" fn occupant_prop_f32(u: *mut c_void, o: u64, id: u32, out: *mut f32) -> bool {
     if id == FLAMMABILITY && game(u).occs.borrow().contains_key(&o) {
         *out = 100.0;
@@ -338,6 +348,7 @@ fn host(g: &Game) -> fc4_disasters_host {
     h.occupant_in_manager = Some(occupant_in_manager);
     h.occupant_cell = Some(occupant_cell);
     h.occupant_cell_rect = Some(occupant_cell_rect);
+    h.occupant_prop_u32 = Some(occupant_prop_u32);
     h.occupant_prop_f32 = Some(occupant_prop_f32);
     h.occupant_prop_bool = Some(occupant_prop_bool);
     h.occupants_in_rect = Some(occupants_in_rect);

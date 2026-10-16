@@ -1490,12 +1490,20 @@ fn locations_and_go_to_next() {
     assert_eq!(w.sys.most_recent_location(0), Some((30, 31)));
     assert_eq!(w.sys.most_recent_location(9), Some((7, 8)));
     w.host.occs.borrow_mut().get_mut(&o).unwrap().in_manager = false;
-    assert_eq!(w.sys.most_recent_location(9), Some((0, 0)), "stored x, z once gone");
+    // §2.7 (DS35): the previous call resolved the entry and wrote (7, 8)
+    // back into it; a gone occupant changes nothing, so the entry keeps the
+    // cell of its last resolution rather than the (0, 0) it was registered
+    // with (§18 test 15: slot 12 writes it, slot 17 then reads it).
+    assert_eq!(
+        w.sys.most_recent_location(9),
+        Some((7, 8)),
+        "the last resolved cell once gone"
+    );
     assert_eq!(w.sys.most_recent_location(5), None);
     assert_eq!(w.host.refs.borrow().get(&o).copied(), Some(1));
     w.sys.go_to_next_disaster();
     w.sys.go_to_next_disaster();
-    assert_eq!(w.host.take(), vec!["go_to 30 31 2", "go_to 0 0 3"], "newest first");
+    assert_eq!(w.host.take(), vec!["go_to 30 31 2", "go_to 7 8 3"], "newest first");
     w.sys.unregister_location_by_occupant(9, o);
     assert_eq!(w.host.refs.borrow().get(&o).copied(), Some(0));
     assert_eq!(w.sys.location_count(), 2);
@@ -1869,4 +1877,95 @@ fn mirror_random_numbers_ids_and_never_spreads() {
     assert_eq!(m.uniform_f64(), 1.0);
     assert_eq!(m.range_f64(0.0, 100.0), 100.0);
     assert_eq!(m.range_gaussian_fast(-3.0, 4.0), -3.0);
+}
+
+// ---- §18 tests 15, 17 and 20 (DS35, DS34, DS40) ----
+
+/// §5.8 (DS40): `UpdateAllFires` remembers the next node before each step, so
+/// a fire a spread lights is stepped in the same pass when its spawner was not
+/// the last node when that step began. Fires [A, B]; A's step lights C:
+/// C is stepped after B (§18 test 17).
+#[test]
+fn a_fire_lit_by_a_spread_is_stepped_in_the_same_pass_when_it_was_not_last() {
+    let w = world();
+    let a = w.host.add(occupant::BUILDING, 5, 5);
+    let b = w.host.add(occupant::BUILDING, 8, 8);
+    let c = w.host.add(occupant::BUILDING, 6, 5);
+    w.host.flammability.borrow_mut().insert((6, 5), 255);
+    w.sys.ignite(a, false, 0x10, false);
+    w.sys.ignite(b, false, 0x10, false);
+    // A's step: spread draw 0.1 < 1/4, the Gaussians toward (6, 5), then the
+    // IgniteCell probability draw. B's and C's steps draw 0.9 (no spread).
+    w.f64s.borrow_mut().extend([0.1, 0.65, 0.5, 0.0, 0.9, 0.9]);
+    w.sys.fire_update();
+    let s = w.sys.fire_snapshot().unwrap();
+    let targets: Vec<u64> = s.fires.iter().map(|f| f.target).collect();
+    assert_eq!(targets, vec![a, b, c], "{:?}", s.fires);
+    assert_eq!(s.fires[0].counter, 1);
+    assert_eq!(s.fires[1].counter, 1);
+    assert_eq!(s.fires[2].counter, 1, "C stepped in the pass that lit it, after B");
+}
+
+/// The other half of §18 test 17: a fire lit by the **last** node is not
+/// stepped in that pass (its remembered next was the end).
+#[test]
+fn a_fire_lit_by_the_last_node_waits_for_the_next_pass() {
+    let w = world();
+    let a = w.host.add(occupant::BUILDING, 5, 5);
+    let c = w.host.add(occupant::BUILDING, 6, 5);
+    w.host.flammability.borrow_mut().insert((6, 5), 255);
+    w.sys.ignite(a, false, 0x10, false);
+    w.f64s.borrow_mut().extend([0.1, 0.65, 0.5, 0.0, 0.9, 0.9]);
+    w.sys.fire_update();
+    let s = w.sys.fire_snapshot().unwrap();
+    assert_eq!(s.fires.len(), 2, "{:?}", s.fires);
+    assert_eq!(s.fires[1].target, c);
+    assert_eq!(s.fires[1].counter, 0, "not stepped in the pass that lit it");
+    w.second();
+    let s = w.sys.fire_snapshot().unwrap();
+    assert_eq!(s.fires[0].counter, 2);
+    assert_eq!(s.fires[1].counter, 1, "stepped in the next pass");
+}
+
+/// §2.7 (DS35): only `GetMostRecentDisasterLocation` (slot 12) and
+/// `GetNextDisasterLocation` resolve, and a resolution writes the cell back
+/// into the entry. `GetDisasterLocationByIndex` (slot 17) reads the stored
+/// values (§18 test 15).
+#[test]
+fn only_the_resolving_reads_change_a_location_entry() {
+    let w = world();
+    let o = w.host.add(occupant::BUILDING, 7, 8);
+    w.sys.register_location(9, 0, 0, o, 3, false);
+    let l = w.sys.location_by_index(0).unwrap();
+    assert_eq!((l.x, l.z), (0, 0), "slot 17 does not resolve");
+    assert_eq!(w.sys.most_recent_location(9), Some((7, 8)));
+    let l = w.sys.location_by_index(0).unwrap();
+    assert_eq!((l.x, l.z), (7, 8), "slot 12 wrote the cell back (§18 test 15)");
+}
+
+/// §5.4 step 3 (DS38): the flammability property is read as an unsigned
+/// integer (variant slot 25, converting), so a fractional value truncates.
+#[test]
+fn flammability_is_read_as_an_unsigned_integer() {
+    let w = world();
+    let a = w.host.add(occupant::BUILDING, 5, 5);
+    w.host.set_prop(a, prop::FLAMMABILITY, 0.5);
+    assert!(!w.sys.ignite(a, true, 0, false), "0.5 truncates to 0 and refuses");
+    w.host.set_prop(a, prop::FLAMMABILITY, 75.9);
+    assert!(w.sys.ignite(a, true, 0, false), "75.9 truncates to 75");
+}
+
+/// §5.6 step 4 (DS34): only a flammable occupant inside `r0` is queued for
+/// the toast list (§18 test 20).
+#[test]
+fn a_radius_toast_needs_a_flammable_occupant() {
+    let w = world();
+    let a = w.host.add(occupant::BUILDING, 4, 4);
+    let b = w.host.add(occupant::BUILDING, 4, 4);
+    w.host.set_prop(a, prop::FLAMMABILITY, 0.0);
+    w.host.set_prop(b, prop::FLAMMABILITY, 100.0);
+    w.sys.ignite_cell_radius(4, 4, 1, 1);
+    let s = w.sys.fire_snapshot().unwrap();
+    assert!(s.toast.contains(&b), "{:?}", s.toast);
+    assert!(!s.toast.contains(&a), "flammability 0 is not queued (§18 test 20)");
 }

@@ -1327,20 +1327,52 @@ void QuietLine() {
     }
     if (g.ctx.pauses != 0 || g.ctx.saveOff != 0) d.Add("ours left pause %d save-off %d", g.ctx.pauses, g.ctx.saveOff);
     cISC4DisasterLayer* l = Layer();
-    // Slot 18 (pop 0): the int64 total cost in edx:eax (§2.6; the SDK
-    // declares int32).
-    using CostFn = int64_t(__fastcall*)(void*, void*);
-    const int64_t origCost = l ? reinterpret_cast<CostFn>((*reinterpret_cast<void***>(l))[18])(l, nullptr) : 0;
-    const int64_t ourCost = fc4_disasters_cost(g.core);
+    // Slot 18 (pop 0) returns a **pointer to the statistics record**, not a
+    // cost (§2.6, DS39): in the original the interface pointer + 0x48. The
+    // four fields the safety advisor reads (§2.6) are compared here.
+    using CostFn = void*(__fastcall*)(void*, void*);
+    const uint8_t* rec =
+        l ? static_cast<const uint8_t*>(reinterpret_cast<CostFn>((*reinterpret_cast<void***>(l))[18])(l, nullptr))
+          : nullptr;
+    const fc4_disasters_state st = CoreState();
+    uint32_t origBuildings = 0;
+    int64_t origTotal = 0;
+    float origFire = 0.0f, origPolice = 0.0f;
+    if (rec != nullptr) {
+        std::memcpy(&origBuildings, rec + 0x00, sizeof(origBuildings));
+        std::memcpy(&origTotal, rec + 0x08, sizeof(origTotal));
+        std::memcpy(&origFire, rec + 0x5C, sizeof(origFire));
+        std::memcpy(&origPolice, rec + 0x60, sizeof(origPolice));
+    }
+    if (rec == nullptr) {
+        d.Add("cost record: the original returned null");
+    } else {
+        if (origBuildings != st.damaged_buildings) {
+            d.Add("cost record buildings orig %u ours %u", origBuildings, st.damaged_buildings);
+        }
+        if (origTotal != st.disaster_cost) {
+            d.Add("cost record total orig %lld ours %lld", (long long)origTotal, (long long)st.disaster_cost);
+        }
+        if (origFire != st.fire_effectiveness) {
+            d.Add("cost record fire effectiveness orig %g ours %g", static_cast<double>(origFire),
+                  static_cast<double>(st.fire_effectiveness));
+        }
+        if (origPolice != st.police_effectiveness) {
+            d.Add("cost record police effectiveness orig %g ours %g", static_cast<double>(origPolice),
+                  static_cast<double>(st.police_effectiveness));
+        }
+    }
     char layer[96];
     CompareLayer(d, layer, sizeof(layer), nullptr);
     ++g.quietLines.lines;
     if (d.n == 0) ++g.quietLines.clean;
     if (d.n != 0 && d.unexplained == 0) ++g.quietLines.questioned;
-    Log("disasters shadow quiet: posts orig/ours %s; cost orig %lld ours %lld (not compared: Q41); %s "
-        "deferred=%llu refused-by-the-original=%llu unfollowable=%llu id-guesses=%llu leaders-missing=%llu "
-        "cell-fallbacks=%llu radius=%llu extinguish=%llu mismatches=%u%s%s",
-        text.c_str(), (long long)origCost, (long long)ourCost, layer, (unsigned long long)g.deferredIgnites,
+    Log("disasters shadow quiet: posts orig/ours %s; cost record buildings %u/%u total %lld/%lld fire %g/%g "
+        "police %g/%g; %s deferred=%llu refused-by-the-original=%llu unfollowable=%llu id-guesses=%llu "
+        "leaders-missing=%llu cell-fallbacks=%llu radius=%llu extinguish=%llu mismatches=%u%s%s",
+        text.c_str(), origBuildings, st.damaged_buildings, (long long)origTotal, (long long)st.disaster_cost,
+        static_cast<double>(origFire), static_cast<double>(st.fire_effectiveness), static_cast<double>(origPolice),
+        static_cast<double>(st.police_effectiveness), layer, (unsigned long long)g.deferredIgnites,
         (unsigned long long)g.resyncs, (unsigned long long)g.unfollowable,
         (unsigned long long)g.idGuesses, (unsigned long long)g.ctx.leadersMissing, (unsigned long long)g.cellFallbacks,
         (unsigned long long)g.radiusCalls, (unsigned long long)g.extinguishCalls, d.n,
