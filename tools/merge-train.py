@@ -336,20 +336,28 @@ def conflicted_paths(wt):
     return [p for p in out if p]
 
 
-def is_terminator(x):
-    """A line that only closes a block or list: `}`, `};`, `},`, `*/` (with an optional trailing comment)."""
-    s = re.sub(r"//.*$", "", x).strip()
-    s = re.sub(r"/\*.*?\*/\s*$", "", s).strip()
-    return s in ("}", "};", "},", "};,", "*/") or s.endswith("*/") and len(s) <= 3
+def split_terminator(x):
+    """Split a trailing block close off a line: `  "pacing"};` -> (`  "pacing"`, `};`).
+
+    A lane's last table entry carries the array's own close on the same line, so a line-level union keeps
+    one close per lane. Only the last line of each side is split — a close mid-side is real structure.
+    """
+    s = x.rstrip()
+    m = re.search(r"(\}\;?,?|\*/)\s*$", s)
+    if not m:
+        return x, None
+    head = s[:m.start()].rstrip()
+    return (head, m.group(1)) if head else ("", m.group(1))
 
 
 def union_hunks(wt, rel):
     """Union every conflict hunk, keeping each structural terminator exactly once.
 
-    Each lane's addition to a shared table ends with the table's own `};`, so a plain union leaves one `};`
-    per lane and the rest of the file falls apart (`kCount` / `kSwitches` undeclared in FC4Config.cpp). Same
-    for fc4.h, where every history entry ends with `*/`. Lines are never deduplicated otherwise — initialiser
-    runs like `1, 1, 1,` are legitimately repeated.
+    Each lane's addition to a shared table ends with that table's own `};`, glued to its last entry
+    (`"pacing"};`), so a plain union leaves one `};` per lane and the declarations after the array fall
+    apart (`kCount` / `kSwitches` undeclared in FC4Config.cpp). Same for fc4.h, where every history entry
+    ends with `*/`. Lines are never deduplicated otherwise — initialiser runs like `1, 1, 1,` are
+    legitimately repeated.
     """
     path = Path(wt) / rel
     text = path.read_text(encoding="utf-8", errors="replace")
@@ -370,12 +378,15 @@ def union_hunks(wt, rel):
         body_t = text[m + 7:e]
         body_o = body_o.split(NL, 1)[1] if NL in body_o else ""
         body_t = body_t.split(NL, 1)[1] if NL in body_t else ""
-        lo, lt = body_o.splitlines(), body_t.splitlines()
-        merged = [x for x in lo + lt if not is_terminator(x)]
-        terms = []
-        for x in lo + lt:
-            if is_terminator(x) and x.rstrip() not in [t.rstrip() for t in terms]:
-                terms.append(x)
+        sides = (body_o, body_t)
+        merged, terms = [], []
+        for side in (body_o.splitlines(), body_t.splitlines()):
+            for k, x in enumerate(side):
+                head, term = split_terminator(x) if k == len(side) - 1 else (x, None)
+                if head.strip():
+                    merged.append(head)
+                if term and term.rstrip() not in [t.rstrip() for t in terms]:
+                    terms.append(term)
         if any(t.rstrip().endswith("*/") for t in terms):
             merged = close_comment(merged)
         else:
@@ -386,9 +397,21 @@ def union_hunks(wt, rel):
     text = "".join(out)
     if "<<<<<<<" in text or ">>>>>>>" in text:
         return False
+    # Structural check: for an additive union the merged brace balance must equal ours + theirs - base.
+    # A duplicated (or dropped) `};` breaks that arithmetic, which is exactly the failure mode that
+    # otherwise only surfaces as `kCount undeclared` twenty minutes later in the batch gate.
+    base = git(["-C", str(wt), "show", f":1:{rel}"], check=False)
+    if base.returncode == 0:
+        want = _brace_balance(sides[0]) + _brace_balance(sides[1]) - _brace_balance(base.stdout)
+        if _brace_balance(text) != want:
+            return False
     path.write_text(text, encoding="utf-8")
     git(["-C", str(wt), "add", rel], check=False)
     return True
+
+
+def _brace_balance(s):
+    return s.count("{") - s.count("}")
 
 
 def union_merge(wt, rel):
