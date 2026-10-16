@@ -200,6 +200,7 @@ struct ZoneDevContext {
     uint32_t freshAdds = 0;
     // Observability (the status lines): since construction.
     uint32_t newLotRefusals = 0;  // new_lot calls that built no lot (switch off, executable not identified)
+    uint32_t canCreateRefusals = 0;  // slot 20 answers of 0 because lots cannot be built (ZG34)
     uint32_t lotsBuilt = 0;       // lots built from the game's lot pool (§8.5.1)
     uint32_t joins = 0;           // street joins (§5.2.1, §5.2.2)
     uint32_t dezoneCalls = 0;     // UpdateZoneType's PlaceZone dezones (§7.2.2)
@@ -228,6 +229,10 @@ void ZoneDevReleaseHeld(ZoneDevContext* ctx);
 void ZoneDevReleaseServices(ZoneDevContext* ctx);
 // Test seam op 53: the raw structures' allocators (null: the game's).
 void ZoneDevSetTestAllocators(void* (*allocate)(uint32_t), void (*free)(void*));
+// Whether `ctx`'s host can build new lots (ZG34): the test table's new_lot
+// when one is installed, else zonedev_lot_changes on and the lot pool and
+// constructor available (the executable identified). No side effects.
+bool ZoneDevLotsConstructible(const ZoneDevContext* ctx);
 
 // The zone developer the city runs, if it is FreeCity4's (null otherwise);
 // main thread. The observer's month hook writes its month line.
@@ -306,6 +311,17 @@ public:
     // The instance any of whose four interfaces is `p`, or null (the shadow,
     // test seam op 53).
     static cFC4ZoneDeveloper* FromAny(const void* p);
+    // The raw master list object the safe lot iterators of slot 15 point to
+    // (the original's lot manager + 0x5C): the traffic simulator's lot walk
+    // (traffic-simulator §4.1, §9.1 TG10) checks its blocks against it.
+    const void* MasterListObject() const { return master_.Object(); }
+    // The list object the safe lot iterators of `lotManager`'s slot 15 point
+    // to, when a glue may walk them raw (the traffic simulator's lot walk,
+    // the budget's ComputeTax walk, the lot developer's daily pass): on the
+    // identified executable only, the original lot manager's (+0x5C) or
+    // FreeCity4's (MasterListObject()); null otherwise, with *why (if not
+    // null) saying why (safelots::ExpectedListObject).
+    static const void* SafeIteratorListObject(const void* lotManager, const char** why);
     void SetTestHooks(const fc4_zonedev_host* test);
     void TestState(FC4ZoneDevTestState& out);
 
@@ -380,6 +396,7 @@ struct FC4ZoneDevTestState {
     uint32_t newLotRefusals;  // new_lot calls that built no lot
     uint32_t heldConfigs;    // configuration references not given back yet (0 between calls)
     uint32_t lotsBuilt;      // lots built from the game's lot pool
+    uint32_t canCreateRefusals;  // slot 20 answers of 0 because lots cannot be built (ZG34)
 };
 // Op 53's body: kFC4ZoneDevTestHooks returns 1 (installed), 0 (allocators
 // only) or -1 (not a FreeCity4 zone developer); kFC4ZoneDevTestShadow returns

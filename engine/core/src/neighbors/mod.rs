@@ -81,7 +81,7 @@ pub const IID_NEIGHBOR_DEAL: u32 = 0x0773_FEF1;
 
 /// The proposal generator's constant `K` (foundations §6.3: the owner's
 /// GZCLSID XOR the creation count 0).
-pub const PROPOSAL_SEED_KEY: u32 = CLSID_NEIGHBORS_SIMULATOR;
+pub const PROPOSAL_SEED_KEY: u32 = crate::seeding::keys::neighbors_proposals(0).k();
 
 /// Agent registration (§14.1 step 2): month, day and idle levels, flags 2.
 pub const AGENT_NAME: &str = "cSC4NeighborsSimulator";

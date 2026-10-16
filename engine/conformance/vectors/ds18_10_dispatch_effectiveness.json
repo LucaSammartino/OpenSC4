@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "disaster_dispatch_effectiveness",
+  "spec": ["disasters 2.4", "disasters 18.10"],
+  "description": "During an episode the layer keeps one timer per dispatch source: types 1 and 5 are fire, 0 and 6 police, keyed by data2; Active starts a timer, Inactive and End stop it, other types are ignored. Two fire timers of 30 s and 50 s over an overall time of 100 s give (30 + 50) / (2 x 100) = 0.4, passed to fire protection when the episode ends; with no police timers the police effectiveness is not set.",
+  "steps": [
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_occupant", "occupant": "0x10", "cell": [5, 5]},
+    {"op": "dis_call", "method": "ignite", "args": ["0x10", false, 0, false], "expect": true},
+    {"op": "dis_message", "target": "layer", "type": "DispatchBegin", "data1": 1, "data2": 1},
+    {"op": "dis_message", "target": "layer", "type": "DispatchActive", "data1": 1, "data2": 1},
+    {"op": "dis_message", "target": "layer", "type": "DispatchBegin", "data1": 5, "data2": 2},
+    {"op": "dis_message", "target": "layer", "type": "DispatchActive", "data1": 5, "data2": 2},
+    {"op": "dis_clock", "advance": 30000},
+    {"op": "dis_message", "target": "layer", "type": "DispatchInactive", "data1": 1, "data2": 1},
+    {"op": "dis_clock", "advance": 20000},
+    {"op": "dis_message", "target": "layer", "type": "DispatchEnd", "data1": 5, "data2": 2},
+    {"op": "dis_message", "target": "layer", "type": "DispatchActive", "data1": 3, "data2": 9, "note": "another type: ignored"},
+    {"op": "dis_clock", "advance": 50000},
+    {"op": "dis_call", "method": "extinguish", "args": ["0x10"]},
+    {"op": "dis_clock", "advance": 5000},
+    {"op": "dis_call", "method": "fire_update"},
+    {"op": "dis_call", "method": "fire_count", "expect": 0},
+    {"op": "dis_clock", "set": 100000},
+    {"op": "dis_expect", "state": {"fire_timers": [[1, 30], [2, 50]], "police_timers": []}},
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "fire_update"},
+    {"op": "dis_expect_events", "filter": {"event": "fire_effectiveness"}, "events": [
+      {"event": "fire_effectiveness", "value": 0.4}
+    ]},
+    {"op": "dis_expect_event_count", "filter": {"event": "police_effectiveness"}, "count": 0},
+    {"op": "dis_expect", "state": {"fire_effectiveness": 0.4, "overall_s": 100}}
+  ]
+}

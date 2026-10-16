@@ -183,6 +183,10 @@
 //         cISC4NeighborDeal** receiving a new deal of ours with a's state
 //         (one reference for the caller; NeighborsTestCopyDeal, NG4).
 //         Returns 1, 0 if none was made.
+//   op 51 kFC4SeamTrafficShadow   a = const FC4TrafficShadowTestInput*
+//         (FC4TrafficShadow.h): one delivery through the traffic shadow to a
+//         fake original; returns the delivery's difference count, -1 (not
+//         taken, nothing delivered), -2 (delivered, nothing compared).
 //   op 52 kFC4SeamLotDev          a = const FC4LotDevTestInput*
 //         (cFC4LotDeveloper.h): the lot developer's test hooks (a host table
 //         answering instead of the game, test allocators), one shadow
@@ -206,6 +210,12 @@
 //         a's message server, with void1 = a's manager and IGZUnknown = a's
 //         zoo; returns the number of posts the server accepted, -1 for a null
 //         input.
+//   op 66 kFC4SeamNeighborsConfirm a = fc4::NeighborsConfirmFn (cdecl bool
+//         (cIGZString* title, cIGZString* text, cIGZString* yes,
+//         cIGZString* no); null: the game's again) (the apply12 lane,
+//         neighbors.md §15.4 NG35): the confirmation dialog the neighbours
+//         simulator's RequestCreateConnection calls when popups are on.
+//         Returns 1.
 #pragma once
 
 #include <cstdint>
@@ -266,10 +276,12 @@ enum : uint32_t {
     kFC4SeamScript = 46,  // the harness lane
     kFC4SeamDialogs = 47,  // the harness lane
     kFC4SeamNeighborsApp = 48,  // the neighbours apply lane (NG14)
+    kFC4SeamTrafficShadow = 51,  // the traffic shadow (FC4TrafficShadow.h FC4TrafficShadowTestInput)
     kFC4SeamLotDev = 52,  // the lot developer (cFC4LotDeveloper.h FC4LotDevTestInput)
     kFC4SeamZoneDev = 53,  // the zone developer (cFC4ZoneDeveloper.h FC4ZoneDevTestInput)
     kFC4SeamHistClock = 54,  // the history and clock lane
     kFC4SeamParks = 57,         // the cmglue lane (cFC4Parks.h FC4ParksTestInput)
+    kFC4SeamNeighborsConfirm = 66,  // the apply12 lane (NG35, cFC4Neighbors.h NeighborsTestSetConfirm)
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

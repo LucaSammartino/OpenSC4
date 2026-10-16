@@ -60,3 +60,31 @@ is for engine authors.
 > (`cIGZWinMgr`, `cIGZWin`, `cIGZMessageServer`, `cIGZMessageTarget(AudioEventHandler)`, see
 > `docs/specs/modal-dialogs.md`) are in the curated input, but their `re-modal:` notes are hand-written and a
 > regeneration drops them.
+
+## Slot counts: vtables longer than the declaration
+
+The ABI conformance test (`engine/tests/abi_conformance_test.cpp`) checks every declaration the plugin implements or
+calls against this table, slot by slot, and also checks that the declaration has as many slots as the table. A
+game vtable is often longer than the SDK interface. The extra slots fall into three cases:
+
+1. **Interface methods the SDK header lacks** (for example `cISC4TutorialSystem` slots 18-20, tutorial.md §6): a
+   caller may reach them through the interface, so declare them. Write a class in our own interface header that
+   derives from the SDK interface and declares only the missing slots (`cFC4ISC4TutorialSystem` in
+   `engine/plugin/FC4Interfaces.h`). Then list that class in `engine/tests/gen_abi_entries.py` in place of the SDK
+   class. The derived class checks the SDK's own declarations of the earlier slots, so code that calls them through
+   the SDK pointer stays covered. Call the new slots only through the derived class (`fc4::AsGame`).
+2. **A trailing deleting destructor** (the trailing destructor rule). This covers a table with exactly one slot more
+   than the declaration, where that slot is the implementing class's scalar deleting destructor: its method is
+   named `~…` or `…deleting…`, and it pops 4 (the flags dword). The test accepts this without a review entry and
+   prints a `dtor` line. The reason: the SDK interfaces declare no virtual destructor, so MSVC places the class's
+   destructor after the interface's last method. Only the class's own `Release` calls it, on its own object. No
+   caller reaches it through the interface, and an object FreeCity4 implements is never destroyed through it. This
+   rule covers `cISC4OccupantManager` 49, `cISC4PropManager` 40 and `cISC4LotConfigurationManager` 28. The rule's
+   own cases run first in the test (`rule self-test` line).
+3. **Anything else** needs a reviewed entry in `kReviewedSlotCounts` with the reason. Examples: two or more extra
+   slots, a gap, an unnamed slot, a destructor that pops nothing (an ICF'd tail call), or class-private virtuals.
+   The entry is keyed on both counts, so a regenerated table with different counts fails again. Reviewed entries are
+   checked before the rule; some older ones (traffic simulator 43, pathfinder 33, demolition 12, aura 16, flora 25)
+   now also satisfy the rule and could be dropped.
+
+A declaration that is longer than the table is always reported.

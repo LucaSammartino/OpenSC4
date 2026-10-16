@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "disaster_episode_pause",
+  "spec": ["disasters 2.3", "disasters 5.4", "disasters 5.9", "disasters 18.5"],
+  "description": "The first fire in an idle city begins an episode: EmergencyPause, DisableSave and 0xCA1B1E64 with data1 1 (one ongoing), data2 and data3 the fire's cell, data4 0x621CDA33 and void1 the fire instance. A second fire while the first burns begins nothing. When both are gone the next update ends the fire instance's episode: EnableSave, EmergencyResume, 0xAA1B2002 and history 0x49D15B74 + 1, each once; the instance goes to phase 3 and leaves the tick.",
+  "steps": [
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_occupant", "occupant": "0x10", "cell": [5, 5]},
+    {"op": "dis_occupant", "occupant": "0x11", "cell": [8, 8]},
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "ignite", "args": ["0x10", false, 0, false], "expect": true},
+    {"op": "dis_expect_event_count", "filter": {"event": "emergency_pause"}, "count": 1},
+    {"op": "dis_expect_event_count", "filter": {"event": "disable_save"}, "count": 1},
+    {"op": "dis_expect_events", "filter": {"event": "post", "type": "0xCA1B1E64"}, "events": [
+      {"event": "post", "type": "0xCA1B1E64", "data1": 1, "data2": 5, "data3": 5, "data4": "0x621CDA33", "void1": 1}
+    ]},
+    {"op": "dis_call", "method": "fire_instance", "expect": 1},
+    {"op": "dis_expect", "state": {"ongoing": 1, "emergency": 1, "save_disabled": 1, "fire_phase": 1}},
+    {"op": "dis_call", "method": "ignite", "args": ["0x11", false, 0, false], "expect": true},
+    {"op": "dis_expect_event_count", "filter": {"event": "post", "type": "0xCA1B1E64"}, "count": 0},
+    {"op": "dis_expect_event_count", "filter": {"event": "emergency_pause"}, "count": 0},
+    {"op": "dis_call", "method": "is_disaster_ongoing", "expect": true},
+    {"op": "dis_call", "method": "fire_update"},
+    {"op": "dis_seconds", "count": 54},
+    {"op": "dis_call", "method": "fire_count", "expect": 0},
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "fire_update"},
+    {"op": "dis_expect_event_count", "filter": {"event": "enable_save"}, "count": 1},
+    {"op": "dis_expect_event_count", "filter": {"event": "emergency_resume"}, "count": 1},
+    {"op": "dis_expect_event_count", "filter": {"event": "post", "type": "0xAA1B2002"}, "count": 1},
+    {"op": "dis_expect_event_count", "filter": {"event": "history", "series": "0x49D15B74", "value": 1}, "count": 1},
+    {"op": "dis_expect_event_count", "filter": {"event": "unregister_tick", "instance": 1}, "count": 1},
+    {"op": "dis_call", "method": "is_disaster_ongoing", "expect": false},
+    {"op": "dis_expect", "state": {"ongoing": 0, "emergency": 0, "save_disabled": 0, "fire_phase": 3}}
+  ]
+}

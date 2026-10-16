@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "port_developers_no_ports",
+  "spec": ["port-developers 4.3", "port-developers 4.7", "port-developers 12"],
+  "description": "Section 12 test 10: with no ports the month does nothing (no history record), GetAvgEfficiency is 1.0, GetLeastEfficientPort is false, the trips and the maintenance cost are 0.",
+  "steps": [
+    {"op": "pd_create", "kind": "airport"},
+    {"op": "pd_init"},
+    {"op": "pd_clear_events"},
+    {"op": "pd_month", "expect": true},
+    {"op": "pd_expect_events", "events": []},
+    {"op": "pd_expect", "state": {"month_ran": false}},
+    {"op": "pd_query", "query": "avg_efficiency", "expect": 1.0},
+    {"op": "pd_query", "query": "least_efficient", "expect": false},
+    {"op": "pd_query", "query": "all_port_lots", "expect": []},
+    {"op": "pd_query", "query": "num_trips", "expect": 0},
+    {"op": "pd_query", "query": "maintenance_cost", "args": ["0x10"], "expect": 0}
+  ]
+}

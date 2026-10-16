@@ -20,6 +20,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "FC4TractInterfaces.h"
@@ -83,8 +84,8 @@ uint32_t SessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 struct StaticsHolder {
@@ -205,7 +206,7 @@ cFC4LotDeveloper::cFC4LotDeveloper() {
         g_instances.push_back(this);
     }
     fc4::Log("cFC4LotDeveloper(%p) created, core %p, session seed 0x%08X (%s)%s", static_cast<void*>(Primary()),
-             static_cast<void*>(core_), seed_, seedFixed_ ? "lotdev_seed" : "cRZTime",
+             static_cast<void*>(core_), seed_, seedFixed_ ? "lotdev_seed" : "session seed",
              ctx_.lotLog ? ", lotdev_lot_log on" : "");
 }
 
@@ -338,7 +339,8 @@ void cFC4LotDeveloper::LogState(const char* what) {
              "agents=%u tick=%u buildings=%u/%u props=%u flora=%u textures=%u/%u removed=%u lights=%u units=%u "
              "posts=%u iterators=%u fallbacks=%u faults=%u listsRefused=%u content: idArrays=%u/%u empty "
              "floraTypes=%u valid/%u not families=%u/%u empty floraAdds=%u/%u null propAdds=%u/%u null "
-             "completions=%u cfgObjects props=%u+%u optional flora=%u+%u without IDs",
+             "completions=%u cfgObjects props=%u+%u optional flora=%u+%u without IDs nodes=%u/%u failed "
+             "autoconnects=%u nodesDestroyed=%u moved=%u wallCalls=%u burnt=%u decals=%u",
              what, st.initialized, st.daily_state, st.visited, st.verts_x, static_cast<double>(st.extent_x),
              static_cast<double>(st.extent_z), st.cell_count_x, st.cell_count_z, st.night_cursor, st.night_len,
              st.night_mode, st.lit_flag, st.night_acc, st.night_batch, st.force_empty, st.no_zot_until_day,
@@ -351,7 +353,8 @@ void cFC4LotDeveloper::LogState(const char* what) {
              ctx_.listsRefused, ctx_.idArrays, ctx_.idArraysEmpty, ctx_.floraValid, ctx_.floraInvalid,
              ctx_.floraFamilies, ctx_.floraFamiliesEmpty, ctx_.floraAdds, ctx_.floraAddsNull, ctx_.propAdds,
              ctx_.propAddsNull, ctx_.completions, ctx_.cfgProps, ctx_.cfgPropsOptional, ctx_.cfgFlora,
-             ctx_.cfgFloraNoIds);
+             ctx_.cfgFloraNoIds, ctx_.nodesMade, ctx_.nodesFailed, ctx_.autoconnects, ctx_.nodesDestroyed,
+             ctx_.objectsMoved, ctx_.wallCalls, ctx_.burntMade, ctx_.decalsAdded);
 }
 
 // One line per month: the daily pass's work since the previous line.
@@ -527,12 +530,14 @@ int32_t cFC4LotDeveloper::AttemptLevelling(SC4Rect<int32_t> const& rect, float, 
 bool cFC4LotDeveloper::GetOccupantCellCoverage(cISC4Occupant* occupant, SC4Rect<int32_t>& rect) {
     Section sec(this);
     fc4_cell_rect r{rect.topLeftX, rect.topLeftY, rect.bottomRightX, rect.bottomRightY};
-    const bool ok = fc4_lotdev_occupant_cell_coverage(core_, TokenOf(occupant), &r);
+    fc4_lotdev_occupant_cell_coverage(core_, TokenOf(occupant), &r);
     rect.topLeftX = r.x1;
     rect.topLeftY = r.z1;
     rect.bottomRightX = r.x2;
     rect.bottomRightY = r.z2;
-    return ok;
+    // [choice] The original's AL is the x87 status flags PositionToCell
+    // leaves (section 17.2, LD18 / LD27); no caller reads it. True.
+    return true;
 }
 
 // Slots 23 and 24: AL 0 (§11.1: the original's stubs).

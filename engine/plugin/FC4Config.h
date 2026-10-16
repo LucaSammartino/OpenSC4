@@ -44,6 +44,10 @@
 //   crime_shadow = 0 / 1          the crime grid shadow (default 0; needs the
 //                                 original crime simulator; FC4CrimeShadow.h)
 //   crime_shadow_cells = N        its differing cells listed per month (default 8)
+//   session_seed = N              the process's session seed S (default: the cRZTime
+//                                 wall clock at game start; env FC4_SESSION_SEED;
+//                                 foundations §6.3, FC4Seed.h); a subsystem's own
+//                                 <key>_seed below overrides it for that subsystem
 //   crime_seed = N                the crime generator's session seed (default:
 //                                 the cRZTime clock, crime.md §9; cFC4Crime.cpp)
 //   popup_dialogs = 0 / 1         unattended runs: 0 = cISC4App::SetPopupDialogsEnabled(false)
@@ -152,6 +156,14 @@
 //                                 cFC4TrafficSimulator.cpp)
 //   traffic_seed = N              the traffic generator's session seed (default: the
 //                                 cRZTime clock; env FC4_TRAFFIC_SEED)
+//   traffic_shadow = 0 / 1        the traffic shadow (default 0; needs FreeCity4's
+//                                 simulator and the ORIGINAL traffic simulator: do not
+//                                 enable traffic; FC4TrafficShadow.h)
+//   traffic_shadow_diffs = N      its differences named per line (default 8, 1..64)
+//   traffic_shadow_lines = N      its delivery lines per month (default 8)
+//   traffic_shadow_hypotheses = N its alternative readings of unclear spec points
+//                                 (a bit mask, default 0 = the spec as written; fc4.h
+//                                 FC4_TRAFFIC_SHADOW_HYP_*)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

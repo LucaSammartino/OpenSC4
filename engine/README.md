@@ -257,9 +257,9 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        game's own `cSC4SimGrid<uint8>`, created through GZCOM; police coverage comes through whatever police
        simulator the city has). The getters are answered from any thread (they read a snapshot); the prop
        requester's calls run on the main thread only (a call from another thread is answered 0 and logged once).
-       The random generator is seeded with `derive_seed(S, 0x6C09C3F6)`, `S` the session seed: the original's
-       `cRZTime` clock (seconds since 1901-01-01 UTC, `time() + 2177452800`, crime spec §9) at the first crime
-       simulator of the process, or `crime_seed = N` (env `FC4_CRIME_SEED`, decimal or `0x…`) for a repeatable
+       The random generator is seeded with `derive_seed(S, 0x6C09C3F6)`, `S` the session seed (`session_seed`,
+       else the original's `cRZTime` clock, seconds since 1901-01-01 UTC, `time() + 2177452800`, crime spec §9, at
+       game start; "Session seed" below), or `crime_seed = N` (env `FC4_CRIME_SEED`, decimal or `0x…`) for a repeatable
        run. Crime type names follow crime spec §7: the LTEXT (`0x2026960B`, group + language ID, instance), then
        (group, instance), detokenized by the game's string detokenizer, U+2022 → U+200B; `0xAA12FCB0` if that
        fails, else an empty name (a failed load never keeps the text, crime spec §7 / CQ16). The log has a
@@ -741,6 +741,41 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      calls; `lots` = lot manager slot 16; `population` = the residential simulator's. `-` = not readable. At each
      city load a line says whether the city's tract developer and BDS are the original classes. With
      `FC4_LOG_LEVEL=2` the x87 leftover guard also runs at the forwarder's exit.
+   - **Session seed** (`session_seed = N`, env `FC4_SESSION_SEED`, decimal or `0x…`; *tooling*; `plugin/FC4Seed.h`,
+     `core/src/seeding.rs`; foundations.md §6.3 *[choice]*): the plugin picks one 32-bit session seed `S` per
+     process and every core of ours seeds each of its generators with `derive(S, K) = S XOR K` (0 and `0xFFFFFFFF`
+     moved by XOR 1), `K` by the generator's kind: a file-local generator the original's constant (budget
+     `0x6C09C3D7`, crime `0x6C09C3F6`, pollution effects `0x4C09C4D3`, building development `0x0C09C0B8`, growth
+     `0xAC09C0E8`, tract `0x4C09C113`, lot `0x6C09C0F4`, zone developer `0x8C09C68A`), a member generator seeded
+     from the clock the owning class's GZCLSID (residential, weather, flora, aura, fire, police, plumbing,
+     traffic, parks), a temporary seeded from the clock the GZCLSID XOR its creation count (civic monthly,
+     neighbours' proposals, a growth decline key whose coordinate seed is `0xFFFFFFFF`); flammability keeps its
+     constant 0 and its zero-state reseed takes `derive(GZCLSID)`; coordinate-seeded temporaries are unchanged
+     (tract (0, 0) uses 1); `rand()` stays unseeded. Without the key `S` is the `cRZTime` wall clock at game start
+     (seconds since 1901-01-01, `time() + 2177452800`), like the clock the original seeds from. A subsystem's own
+     `<key>_seed` (`crime_seed`, `development_seed`, `tract_seed`, `lotdev_seed`, `zonedev_seed`, `civic_seed`,
+     `parks_seed`, `residential_seed`, `neighbors_seed`, `traffic_seed`) still overrides `S` for that subsystem.
+     `fc4_seed_derive(S, K)` (fc4.h) returns `derive(S, K)`. One line at game start:
+
+     ```
+     session seed: S = 0x12345678 (session_seed = 0x12345678, FreeCity4.ini; tooling: every generator of ours is
+       seeded with derive(S, K), foundations section 6.3, so runs with the same S and inputs draw the same)
+     session seed: S = 0xEDC0FFEE (the cRZTime wall clock at game start, like the original; session_seed = N in
+       FreeCity4.ini fixes it); every generator of ours is seeded with derive(S, K), foundations section 6.3
+     session seed: WARNING session_seed = 'abc' (FreeCity4.ini) is not a 32-bit number; using the clock
+     ```
+
+     Two runs with the same `session_seed` give our generators the same seeds, but not yet the same city: in
+     two runs of the 26 regress replacements of run 118 (all but `traffic`) on Konradshohe with `session_seed = 0x5EED1234` (turbo to
+     2032-01-01, and speed 2 to 2028-01-01) the `DIGEST` lines differ from the first month (2026-02-01). The
+     first differences are pacing counters (simulator.md §5.7): the lot developer's day re-deliveries
+     (`days=5` / `7`, its 5 ms cycle budget), the aura and plumbing states reached, the commercial idle
+     deliveries, crime's requested props, the BDS's construction resources and draws, and the dates on which
+     posted month messages reach civic, parks, residential and flora. Our cores still slice their work by real
+     time (§5.5 helpers, idle deliveries per frame), which §5.7's *[choice]* says they should not; the original
+     subsystems still in the city (traffic simulator and network map, prop developer, occupants, network lot
+     manager and construction crew, automata, disasters, advisors, MySims) seed from the clock, and `rand()`
+     (state 1 at process start) is drawn in a pacing-dependent order.
    - **Monthly digest** (also at `FC4_LOG_LEVEL=1`; `digest = 0` turns it off): at every `SimNewMonth`, one line
      for diffing the original against FreeCity4 on the same save, read only through public interfaces:
 
@@ -1379,6 +1414,55 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      ```
 
      Success is `roundtrip=same`, `mismatches=0` and `failures=0` on every line.
+   - **Traffic shadow** (`traffic_shadow = 1`, env `FC4_TRAFFIC_SHADOW`; off by default;
+     `traffic_shadow_diffs = N`, env `FC4_TRAFFIC_SHADOW_DIFFS`, default 8, 1..64; `traffic_shadow_lines = N`,
+     env `FC4_TRAFFIC_SHADOW_LINES`, default 8; `traffic_shadow_hypotheses = N`, env
+     `FC4_TRAFFIC_SHADOW_HYPOTHESES`, default 0; `plugin/FC4TrafficShadow.h`): a same-process differential of the
+     traffic simulator. It needs **our simulator and the original traffic simulator** (do not enable `traffic`);
+     otherwise it logs `traffic shadow: requested … but INACTIVE` at game start. It wraps every delivery of our
+     simulator to the original's agents (`cSC4TrafficSimulator`: the one-shot, the day and the month). The
+     original's day ends on a 4 ms wall-clock deadline (traffic-simulator.md §3.3), so FreeCity4's simulator (a
+     private copy, started on the original's record at its first delivery) runs **after** it, on the inputs as
+     they stood before: just before the delivery the original's own `Write` goes into a memory stream; when it
+     differs from the copy's record the copy reads it (a resync, counted); the trip lists and the lot and
+     connection holder arrays the delivery may change are snapshotted. Just after, the record again gives the
+     cycle state and phase progress the original stopped at; the copy steps one unit at a time to the same point
+     (a cell-scanning phase stopped mid-scan stops at the original's iterator cell, FinishTripMap after the lot at
+     the original's saved cell; in ReRouteTrips and FullTrips the copy then runs on, examining no trip, to the
+     original's saved source cell: a "run-on"; that source's list end is taken when the original's record or trip
+     list shows it was: "list ends") and takes the original's day step on its share, then its record (fields
+     named), every trip list, the holder arrays and its grids are compared bitwise with the original's. The copy
+     reads the city through the traffic glue's read callbacks (every write callback NULL: its writes, posts,
+     budget calls and references stay inside it) and the original's grids through `GetTractValue`; the messages
+     the original subscribes to are forwarded to it. The lot strategy byte (no getter) is read as the last byte of the lot's own record
+     (§6.3). **Not compared** (said in the start line): the strategy draws (property `0x4A611773`) and the
+     pothole and accident draws' choices (the original's generator is not readable), posted messages, history,
+     incomes, network costs, budget items and accidents. **Known differences** are counted apart on the month
+     line, not as mismatches, and cause no resync: a new trip's undefined destination and travel types (§4.1.1),
+     a reversible trip's return route the original keeps, a status-0 trip's destination (written by a search the
+     original's deadline suspended; ours never suspend), a statistics set's unnamed last byte, pass counters 0
+     and 4-8 (§10 Q4) and the unnamed fields of rows 14-15. `traffic_shadow_hypotheses` is a bit mask of
+     alternative readings of unclear spec points the copy runs instead of the spec as written (fc4.h
+     `FC4_TRAFFIC_SHADOW_HYP_*`: 1 the ConfirmTrips merge sets status 0 only on a trip that absorbed one, 2 row
+     19's pairs are (published, building) and FullTrips' end swaps them, 4 the ReRouteTrips merge absorbs routed
+     trips too); the month line names the mask. With 7, Konradshohe 2026-01-27 to 2026-08-01 is clean but for a
+     few deliveries (lane traffic2 questions); with 0 most trip-phase days differ. Lines (always written; longer
+     ones continue on `traffic shadow (cont.)` lines):
+
+     ```
+     traffic shadow: ON (traffic_shadow from …): …                                          (game start)
+     traffic shadow: comparing with the original traffic simulator … (city …); …            (first delivery)
+     traffic shadow yyyy-mm-dd day|month|begin (state A -> B, progress P, units U): mismatches=N; record FIELD:
+       orig … ours …; trips of lot (x, z): …; holder … property 0x…: …; grid NAME: K of T tracts differ: …
+     traffic shadow yyyy-mm-dd day: INCOMPLETE (why); not compared
+     traffic shadow month to yyyy-mm-dd [(hypotheses 0x…)]: clean|mismatches=N; deliveries=D (day d, month m,
+       other o) compared=C clean=K incomplete=I; record fields compared=… mismatched=… (FIELD xN, …); trip lists compared=…
+       mismatched=…; holder properties compared=… mismatched=…; grid tracts compared=… mismatched=…; known
+       differences (not counted): … xN, …; between deliveries: resyncs=R; ours: units=… run-ons=… (list ends …)
+       day steps=…, kept posts=… …; first differences: …
+     ```
+
+     Success is `clean` on every month line, `resyncs=0` and no `INCOMPLETE` line.
    - **Lot developer shadow** (`lotdev_shadow = 1`, env `FC4_LOTDEV_SHADOW`; off by default;
      `plugin/FC4LotDevShadow.h`): a same-process differential of the lot developer. It needs the **original** lot
      developer (do not enable `lotdev`); otherwise it logs `lotdev shadow: requested … but INACTIVE` at game start.
@@ -1398,9 +1482,10 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        sampled=S compared=C mismatches=N rawAL=R first=…
      ```
 
-     Slot 22's truth value is compared (the original's AL is that of its second `PositionToCell`, which need not
-     be 0 / 1); `rawAL` counts the lots where it was neither. A slot 25 difference adds a `s25r@x,z` entry with the
-     rectangle and both sides' slot 27 range.
+     Slot 22 is compared by its rectangle only: its AL is the x87 status flags `PositionToCell` leaves, not a result
+     (LD18, LD27); `rawAL` counts the lots where the original's byte was neither 0 nor 1 (information only). A slot
+     25 difference adds a `s25r@x,z` entry with the rectangle and both sides' slot 27 range (slot 25 compares each
+     vertex with the first vertex read with water, LD29).
      Success is `roundtrip=same` and `mismatches=0` on every line, and no `INCOMPLETE` line.
    - **Commercial shadow** (`commercial_shadow = 1`, env `FC4_COMMERCIAL_SHADOW`; `commercial_shadow_cells = N`
      differing cells listed per grid, default 4; off by default; `plugin/FC4CommercialShadow.h`): a same-process

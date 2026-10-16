@@ -12,7 +12,7 @@ use std::cell::RefCell;
 
 use crate::grid::{CellRect, GridProvider, ScanIterator};
 use crate::pathfinder::{PathCx, Pathfinder};
-use crate::traffic_network::{inverse_max_speed, Cx, NetworkState};
+use crate::traffic_network::{inverse_max_speed, Cx, NetworkHost, NetworkState};
 use crate::variant::{Elem, Variant};
 use crate::x87::{ftol, r24};
 
@@ -123,7 +123,19 @@ impl Run<'_, '_> {
 
     /// `DoDailySimulation` (§3.3) with the work budget of §3.4.
     pub(crate) fn do_daily_simulation(&mut self) -> bool {
-        // Step 2: a new day of month.
+        self.day_start();
+        // Step 3.
+        loop {
+            let finished = self.work_on_sim_cycle();
+            if let Some(r) = self.after_slice(finished, true) {
+                return r;
+            }
+        }
+    }
+
+    /// Step 2 of §3.3: on a new day of month, day 1's incomes and the
+    /// strategy re-draw.
+    pub(crate) fn day_start(&mut self) {
         let day = self.h.sim_day_of_month() as i32;
         if day != self.st.last_day {
             self.st.last_day = day;
@@ -132,61 +144,63 @@ impl Run<'_, '_> {
             }
             self.strategy_redraw();
         }
-        // Step 3.
-        loop {
-            let finished = self.work_on_sim_cycle();
-            let s = self.st.cycle_state;
-            if finished {
-                match s {
-                    cs::CONFIRM_TRIPS => {
-                        // `toReRoute` and `toSearch` are zeroed here and only
-                        // here (`0x0072184B`, TS21), with every pass counter
-                        // except 1 (the re-route counter) and 2
-                        // (`rerouteBucket`): the source counter (3) restarts
-                        // at 0 every cycle (TS1).
-                        self.start_pacing(self.st.pass_total, 20);
-                        self.st.to_reroute = 0;
-                        self.st.to_search = 0;
-                        for i in 0..PASS_COUNTERS {
-                            if i != PC_REROUTE_COUNTER && i != PC_REROUTE_BUCKET {
-                                self.st.pass_counters[i] = 0;
-                            }
+    }
+
+    /// Step 3 of §3.3 after one `WorkOnSimCycle` that `finished` or not:
+    /// `None` runs another slice within the same call, `Some(r)` ends the
+    /// call with `r`. Without `share` (the traffic shadow's stepping) the
+    /// share test is skipped: an unfinished slice ends the call with false.
+    pub(crate) fn after_slice(&mut self, finished: bool, share: bool) -> Option<bool> {
+        let s = self.st.cycle_state;
+        if finished {
+            return match s {
+                cs::CONFIRM_TRIPS => {
+                    // `toReRoute` and `toSearch` are zeroed here and only
+                    // here (`0x0072184B`, TS21), with every pass counter
+                    // except 1 (the re-route counter) and 2
+                    // (`rerouteBucket`): the source counter (3) restarts
+                    // at 0 every cycle (TS1).
+                    self.start_pacing(self.st.pass_total, 20);
+                    self.st.to_reroute = 0;
+                    self.st.to_search = 0;
+                    for i in 0..PASS_COUNTERS {
+                        if i != PC_REROUTE_COUNTER && i != PC_REROUTE_BUCKET {
+                            self.st.pass_counters[i] = 0;
                         }
-                        continue;
                     }
-                    cs::REROUTE_TRIPS => {
-                        self.start_pacing(self.st.to_reroute, 18);
-                        // Counter 1 is zeroed on entering 17 (`0x007218F2`).
-                        self.st.pass_counters[PC_REROUTE_COUNTER] = 0;
-                        return true;
-                    }
-                    cs::FULL_TRIPS => {
-                        // "reset" as for 17, so counter 1 too *[question:
-                        // §3.3 says "reset" for 18 after spelling out 17's
-                        // reset; TS1 names only the 17 site]*.
-                        self.start_pacing(self.st.to_search, 18);
-                        self.st.pass_counters[PC_REROUTE_COUNTER] = 0;
-                        self.st.pass_total = 0;
-                        return true;
-                    }
-                    cs::CREATE_MAPS | cs::UPDATE_NEIGHBOURS => return true,
-                    _ => continue,
+                    None
                 }
-            }
-            // The share test (`0x0072191E`, all unsigned), with the
-            // `dayIndex < days` guard: once the day index has reached `days`
-            // (more trips than the last cycle, or `days = 0` after a load,
-            // §3.5 step 13) no share ends the day.
-            if (cs::CONFIRM_TRIPS..=cs::FULL_TRIPS).contains(&s) && self.st.day_index < self.st.days {
-                let share = (self.st.total as u32).wrapping_mul(self.st.day_index.wrapping_add(1)) / self.st.days;
-                if self.st.processed as u32 >= share {
-                    self.st.day_index = self.st.day_index.wrapping_add(1);
-                    return true;
+                cs::REROUTE_TRIPS => {
+                    self.start_pacing(self.st.to_reroute, 18);
+                    // Counter 1 is zeroed on entering 17 (`0x007218F2`).
+                    self.st.pass_counters[PC_REROUTE_COUNTER] = 0;
+                    Some(true)
                 }
-            }
-            // Not done for today: the simulator calls again within the day.
-            return false;
+                cs::FULL_TRIPS => {
+                    // `0x007217BF`–`0x007217FD`: day index, processed
+                    // and `passTotal`, **not** pass counter 1 (TS35): it
+                    // keeps state 17's re-route count through state 18.
+                    self.start_pacing(self.st.to_search, 18);
+                    self.st.pass_total = 0;
+                    Some(true)
+                }
+                cs::CREATE_MAPS | cs::UPDATE_NEIGHBOURS => Some(true),
+                _ => None,
+            };
         }
+        // The share test (`0x0072191E`, all unsigned), with the
+        // `dayIndex < days` guard: once the day index has reached `days`
+        // (more trips than the last cycle, or `days = 0` after a load,
+        // §3.5 step 13) no share ends the day.
+        if share && (cs::CONFIRM_TRIPS..=cs::FULL_TRIPS).contains(&s) && self.st.day_index < self.st.days {
+            let share = (self.st.total as u32).wrapping_mul(self.st.day_index.wrapping_add(1)) / self.st.days;
+            if self.st.processed as u32 >= share {
+                self.st.day_index = self.st.day_index.wrapping_add(1);
+                return Some(true);
+            }
+        }
+        // Not done for today: the simulator calls again within the day.
+        Some(false)
     }
 
     /// The pacing reset of §3.3: `total`, `days := max(1, total div k)`, day
@@ -261,26 +275,18 @@ impl Run<'_, '_> {
                 if done {
                     // End of FullTrips: the counts built in this pass are
                     // published (§4.4).
-                    self.st.type_count_published = self.st.type_count_building;
+                    if self.st.shadow_hypotheses & super::state::HYP_TYPE_COUNTS_SWAP != 0 {
+                        std::mem::swap(&mut self.st.type_count_published, &mut self.st.type_count_building);
+                    } else {
+                        self.st.type_count_published = self.st.type_count_building;
+                    }
                 }
                 done
             }
-            cs::FINISH_TRIP_MAP => {
-                self.finish_trip_map();
-                true
-            }
-            cs::CREATE_MAPS => {
-                self.create_maps();
-                true
-            }
-            cs::CREATE_FINAL_MAP => {
-                self.create_final_map();
-                true
-            }
-            cs::CLEAR_DESTINATIONS => {
-                self.clear_trip_destinations();
-                true
-            }
+            cs::FINISH_TRIP_MAP => self.finish_trip_map(),
+            cs::CREATE_MAPS => self.create_maps(),
+            cs::CREATE_FINAL_MAP => self.create_final_map(),
+            cs::CLEAR_DESTINATIONS => self.clear_trip_destinations(),
             cs::UPDATE_NEIGHBOURS => {
                 self.update_neighbor_connections();
                 true
@@ -293,14 +299,8 @@ impl Run<'_, '_> {
                 self.dump_edge_densities();
                 true
             }
-            cs::REDUCE_EDGES => {
-                self.reduce_edge_densities();
-                true
-            }
-            cs::REFRESH_COMMUTE => {
-                self.refresh_commute_map();
-                true
-            }
+            cs::REDUCE_EDGES => self.reduce_edge_densities(),
+            cs::REFRESH_COMMUTE => self.refresh_commute_map(),
             cs::UPDATE_SUBNETWORKS => {
                 // traffic-network.md §4.11, in one call; the stale flag is
                 // consumed here *[choice]*.
@@ -343,6 +343,10 @@ impl Run<'_, '_> {
                 self.st.source_pos = 0;
                 self.st.trip_pos = 0;
                 self.st.continue_search = false;
+                // The saved source cell, the two s16 phase positions of row
+                // 14, := (0, 0) (§3.2, TS44: the table's "pass counters
+                // reset" was these two).
+                self.st.extras.phase_positions = [0, 0];
                 // The pass counters, `toReRoute` and `toSearch` are reset by
                 // the day agent's pacing (§3.3, TS1, TS21), not here.
                 if s == cs::FULL_TRIPS {
@@ -351,14 +355,16 @@ impl Run<'_, '_> {
             }
             cs::CREATE_MAPS => {
                 self.reset_scan();
-                // The statistics reset (§4.9): max −1.0, the copied fields
-                // and the record counts 0.
+                // The statistics reset (§4.9, TS40): the five fields of
+                // every working row and the record counts 0, the separate
+                // per-slot comparison value −1.0.
                 let w = &mut self.st.stats_work;
                 w.rows = [StatRow::RESET; 13];
                 w.bridge = StatRow::RESET;
                 w.records = [0; 13];
                 w.bridge_records = 0;
                 self.st.stat_counts = [0; 14];
+                self.st.stat_max_cmp = [-1.0; 14];
                 if let Some(g) = &self.st.commercial_work {
                     g.fill(0);
                 }
@@ -390,6 +396,24 @@ impl Run<'_, '_> {
         }
     }
 
+    /// The scanning iterator's next cell; `None` at the end of the scan, or
+    /// at the traffic shadow's stop ([`State::shadow_scan_stop`], tooling),
+    /// which [`Self::scan_stopped`] tells apart.
+    pub(crate) fn next_scan_cell(&mut self) -> Option<(i32, i32)> {
+        if self.scan_stopped() {
+            return None;
+        }
+        self.st.scan.next_cell()
+    }
+
+    /// The scan rests at the traffic shadow's stop (never without the
+    /// shadow).
+    pub(crate) fn scan_stopped(&self) -> bool {
+        let it = &self.st.scan;
+        it.state == crate::grid::ScanState::Running
+            && self.st.shadow_scan_stop == Some((self.st.cycle_state, it.x, it.z))
+    }
+
     /// Resets the scanning iterator to the first cell of the city.
     pub(crate) fn reset_scan(&mut self) {
         let (x0, z0) = (self.st.scan.x0, self.st.scan.z0);
@@ -417,15 +441,18 @@ impl Run<'_, '_> {
     /// terminal's arrival cell, in list order (the departure cell has
     /// network info from the ferry phase of every rebuild). Missing records
     /// are not created.
-    fn reduce_edge_densities(&mut self) {
+    fn reduce_edge_densities(&mut self) -> bool {
         let mut cells = Vec::new();
-        while let Some((x, z)) = self.st.scan.next_cell() {
+        while let Some((x, z)) = self.next_scan_cell() {
             if !self.cx.s.info_at(x, z).is_empty() || self.cx.s.switch_id_at(x, z) != 0 {
                 cells.push((x, z));
             }
         }
-        for t in &self.cx.s.ferries {
-            cells.push((i32::from(t.arr_x), i32::from(t.arr_z)));
+        let stopped = self.scan_stopped();
+        if !stopped {
+            for t in &self.cx.s.ferries {
+                cells.push((i32::from(t.arr_x), i32::from(t.arr_z)));
+            }
         }
         for (x, z) in cells {
             for evening in [false, true] {
@@ -436,6 +463,7 @@ impl Run<'_, '_> {
                 }
             }
         }
+        !stopped
     }
 
     /// `ReduceTransitSwitches` (state 3, `0x00713750`, §4.8, TS3): for every
@@ -583,16 +611,18 @@ impl Run<'_, '_> {
                     pf.reset();
                 }
                 self.st.continue_search = false;
-                // The iterator advanced to the source at the saved cell,
-                // which becomes the held current source; none: reset again.
-                let [px, pz] = self.st.extras.phase_positions;
-                let want = (i32::from(px), i32::from(pz));
+                // The iterator advanced to the source at the saved cell (the
+                // two s16 phase positions, TS44), which becomes the held
+                // current source; none: reset again. x and z are compared
+                // as 16-bit values (`0x00720C17`–`0x00720C25`).
+                let want = self.st.extras.phase_positions;
                 self.reset_sources();
                 let mut taken = 0;
                 let mut held = None;
                 while let Some(src) = self.next_source() {
                     taken += 1;
-                    if self.source_cell(src) == want {
+                    let (x, z) = self.source_cell(src);
+                    if [x as i16, z as i16] == want {
                         held = Some(src);
                         break;
                     }
@@ -611,9 +641,10 @@ impl Run<'_, '_> {
             }
             cs::FINISH_TRIP_MAP => {
                 // The lot iterator reset, then past the lot at the saved
-                // cell when there is one (*[question: the same row-14 pair
-                // as the trip phases']*); a lot the walk never meets
-                // restarts it from the first lot.
+                // cell when there is one: the same two phase positions,
+                // which FinishTripMap sets to each lot's location as it
+                // takes it (TS45, `0x00720B2C`–`0x00720B46`); a lot the walk
+                // never meets restarts it from the first lot.
                 let [px, pz] = self.st.extras.phase_positions;
                 self.st.finish_resume = self
                     .h
@@ -851,9 +882,25 @@ impl TrafficSimulator {
                 s.mass_transit,
             )
         });
-        // A department a `Read` resolved is kept *[choice]* (as the grids).
-        let roads = loaded_roads.or_else(|| h.create_department(dept::ROADS, roads_max));
-        let transit = loaded_transit.or_else(|| h.create_department(dept::MASS_TRANSIT, transit_max));
+        // A department a `Read` resolved is kept, with its saved maximum
+        // funding; only a null member is created, with its name and line
+        // items 1-3 (§9.1 TG7).
+        let create = |id: u32, max: f32, lines: &[dept::LineItem; 3]| {
+            let d = h.create_department(id, max)?;
+            for &item in lines {
+                h.create_line_item(d, item, false);
+            }
+            Some(d)
+        };
+        let roads = loaded_roads.or_else(|| create(dept::ROADS, roads_max, &dept::ROADS_LINES));
+        let transit = loaded_transit.or_else(|| create(dept::MASS_TRANSIT, transit_max, &dept::MASS_TRANSIT_LINES));
+        // Then, on every Init, lines 4-6 of both when missing, in the
+        // original's order (§9.1 TG7).
+        for (mass_transit, item) in dept::INIT_LINES {
+            if let Some(d) = if mass_transit { transit } else { roads } {
+                h.create_line_item(d, item, true);
+            }
+        }
         self.update_state(|s| {
             s.roads = roads;
             s.mass_transit = transit;
@@ -895,8 +942,14 @@ impl TrafficSimulator {
             s.peak_ratio = None;
             s.initialised = false;
             s.loaded = false;
-            vec![s.roads.take(), s.mass_transit.take()]
+            (vec![s.roads.take(), s.mass_transit.take()], std::mem::take(&mut s.iter))
         });
+        let (depts, iter) = depts;
+        // The source iterator's connection references (§9.1 TG19) *[choice]*:
+        // given back here, before the connections go with the city.
+        for c in iter.conns {
+            NetworkHost::release(&*self.host, c);
+        }
         // The network's two switch grids go with the others *[choice]*.
         self.net.update_state(|n| {
             n.switch_mode = None;

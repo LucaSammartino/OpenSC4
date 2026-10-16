@@ -76,6 +76,7 @@ mod monthly;
 mod pools;
 mod record;
 mod route;
+pub mod shadow;
 mod state;
 mod trips;
 pub mod tuning;
@@ -88,7 +89,10 @@ pub use adapters::{
 };
 pub use maps::{air_polluting_byte, background_value, congestion_byte};
 pub use monthly::{damage_target, kind as damage_kind, STRIKE_KEEP, STRIKE_MAX_MONTHS, STRIKE_SCALE, STRIKE_START};
-pub use pools::{pool_of_token, pool_token, Pools, POOL_CITY_X, POOL_CITY_Z, POOL_TOKEN_BASE};
+pub use pools::{
+    is_pool_token, map_pool_token, pool_of_token, pool_token, Pools, POOL_CITY_X, POOL_CITY_Z, POOL_KEY0_TOKEN,
+    POOL_TOKEN_BASE,
+};
 pub use record::{legacy_density, read_mask_and_flags, read_trip, write_trip, TRIP_RECORD_VERSION};
 pub use route::{decode_route, read_route, RouteCell, RouteStep};
 pub use state::{
@@ -200,6 +204,51 @@ pub mod dept {
     /// The line items the day-1 income goes to (§3.3).
     pub const TRANSIT_INCOME_ITEM: u32 = 2;
     pub const TOLL_INCOME_ITEM: u32 = 5;
+    /// The budget group `CreateDepartmentBudget` is given (§9.1 TG7).
+    pub const GROUP: u32 = 0xAA36_9059;
+    /// The LTEXT group of the department and line-item names (§9.1 TG7).
+    pub const NAME_GROUP: u32 = 0x6A3F_F01C;
+    /// The departments' names (`SetDepartmentName(NAME_GROUP, name)`).
+    pub const ROADS_NAME: u32 = 0x4A49_3B73;
+    pub const MASS_TRANSIT_NAME: u32 = 0xEA49_3B83;
+
+    /// A line item of a traffic department: `CreateLineItem(line, false)`,
+    /// `SetName(NAME_GROUP, name)`, and `SetType(Income)` when `income`.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct LineItem {
+        pub line: u32,
+        pub name: u32,
+        pub income: bool,
+    }
+
+    const fn item(line: u32, name: u32, income: bool) -> LineItem {
+        LineItem { line, name, income }
+    }
+
+    /// Created with the roads department, when the member is still null
+    /// after `Read` (§9.1 TG7).
+    pub const ROADS_LINES: [LineItem; 3] = [
+        item(1, 0xEA84_46BE, false),
+        item(2, 0x2A84_46DA, false),
+        item(3, 0x2A84_46DF, false),
+    ];
+    /// Created with the mass-transit department; line 2 is Income.
+    pub const MASS_TRANSIT_LINES: [LineItem; 3] = [
+        item(1, 0xEA5F_96E7, false),
+        item(2, 0x8A5F_978C, true),
+        item(3, 0x6A8B_0CFB, false),
+    ];
+    /// On every `Init`, loaded departments included, each created only when
+    /// `GetLineItem(line)` is null, in this order (`true` = mass transit;
+    /// §9.1 TG7). Roads line 5 (tolls) is Income.
+    pub const INIT_LINES: [(bool, LineItem); 6] = [
+        (true, item(4, 0x2AB7_EA93, false)),
+        (true, item(5, 0x8BCE_33E0, false)),
+        (false, item(4, 0xCBCE_33D5, false)),
+        (true, item(6, 0x8BCE_33E1, false)),
+        (false, item(5, 0x0C3B_F3C4, true)),
+        (false, item(6, 0xEA5F_96E7, false)),
+    ];
 }
 
 /// Interface IDs used when reading references (save-records.md §7.1.1).
@@ -448,9 +497,18 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     fn sim_clock_ms(&self) -> u64;
 
     // ---- departments (budget.md §7–§8) ----
-    /// Creates a department budget with line items 1…6 (§1 Init step 5);
-    /// `max_funding` is the tuning value (1.2 = 120 %).
+    /// `CreateDepartmentBudget(id, dept::GROUP)` (an existing department is
+    /// returned unchanged), one reference for the core,
+    /// `SetDepartmentName(dept::NAME_GROUP, name of id)` and
+    /// `SetMaxAllowedFundingPercentage(max_funding)` (§1 Init step 5, §9.1
+    /// TG7); `max_funding` is the tuning value (1.2 = 120 %). The line items
+    /// come through `create_line_item`.
     fn create_department(&self, id: u32, max_funding: f32) -> Option<u64>;
+    /// `CreateLineItem(item.line, false)` (replacing any line of that ID),
+    /// `SetName(dept::NAME_GROUP, item.name)` and, for an income line,
+    /// `SetType(Income)` (§9.1 TG7). With `only_if_missing`, nothing when
+    /// `GetLineItem(item.line)` is not null.
+    fn create_line_item(&self, department: u64, item: dept::LineItem, only_if_missing: bool);
     /// Releases a department (Shutdown).
     fn release_department(&self, department: u64);
     /// The department's funding fraction (department slot 10).
@@ -486,6 +544,14 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     // ---- lots (§4.1, §4.7) ----
     /// All lots in the lot manager's list order (slot 15).
     fn lots(&self) -> Vec<u64>;
+    /// [`lots`](Self::lots), shared. A host that knows its list unchanged
+    /// may hand out the same list again (FreeCity4's host does within one
+    /// outermost call, where the plugin keeps one lot walk), which lets the
+    /// source iterator's step cost O(1) instead of O(lots); the walk is
+    /// the same either way. Default: a fresh copy each time.
+    fn lots_shared(&self) -> Rc<[u64]> {
+        self.lots().into()
+    }
     /// `QueryInterface(0xE818FCED)` on a message object: the lot copy.
     fn as_lot(&self, object: u64) -> Option<u64>;
     /// Lot slot 31: the zone type.
@@ -530,8 +596,11 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     /// The connection's neighbour-connection type (the type DoPostCityInit
     /// passes to Add, traffic-network.md §2.7.2).
     fn connection_type(&self, connection: u64) -> u32;
-    /// Neighbour simulator slot 13 `FindConnectionOnOtherSide(conn)`: the
-    /// neighbouring city's end of the connection (§2.7.2 step 3).
+    /// Neighbour simulator slot 13 `FindConnectionOnOtherSide(conn)`
+    /// (`0x006CDFA0`, pop 4; TS38: §4.1.4 and traffic-network.md §2.7.2 name
+    /// it right): the neighbouring city's end of the connection, from the
+    /// neighbour's regional record (slot 14), whose properties the caller
+    /// reads (§2.7.2 step 3).
     fn connection_on_other_side(&self, connection: u64) -> Option<u64>;
     /// §2.7.2 step 5: the city on the other side (connection slot 9) when
     /// there is one and it is established (regional-city slot 43), as its
@@ -613,7 +682,7 @@ impl TrafficSimulator {
             pools: pools.clone(),
         });
         let net = NetworkModel::new(adapter);
-        let seed = crate::rng::derive_seed(session_seed, RNG_K);
+        let seed = crate::seeding::seed(session_seed, crate::seeding::keys::TRAFFIC_SIMULATOR);
         Rc::new(TrafficSimulator {
             host,
             net,
@@ -1121,6 +1190,104 @@ impl TrafficSimulator {
     /// `ApplyTrafficToDestination(count, x, z, lastTravelType, type)` (§4.2).
     pub fn apply_traffic_to_destination(&self, count: u32, x: i32, z: i32, last_travel_type: u8, trip_type: u8) {
         self.run(|r| r.apply_traffic_to_destination(count, x, z, last_travel_type, trip_type));
+    }
+
+    // ---- the traffic shadow's steps (tooling, [`shadow`]) ----
+
+    /// Step 2 of `DoDailySimulation` (§3.3) on its own: on a new day of
+    /// month, day 1's incomes and the strategy re-draw.
+    pub fn shadow_day_start(&self) {
+        self.run(|r| r.day_start());
+    }
+
+    /// One `WorkOnSimCycle` (§3.2) with the phase transitions of §3.3 step 3
+    /// (the pacing resets on entering 16, 17 and 18), without the share
+    /// test: the caller decides where a day ends. With
+    /// `trafficUnitsPerSlice` 1 a call in states 16–18 is one unit (§3.4).
+    pub fn shadow_slice(&self) {
+        self.run(|r| {
+            let finished = r.work_on_sim_cycle();
+            let _ = r.after_slice(finished, false);
+        });
+    }
+
+    /// In ReRouteTrips or FullTrips: runs on, examining no trip, to where
+    /// the original stopped after its last unit: the source at `target` (the
+    /// original's saved source cell) held, or the next trip to examine,
+    /// whichever comes first (`trip_run_on`). True when the phase finished
+    /// on the way (the state is left as it is); false in any other state.
+    pub fn shadow_advance(&self, target: [i16; 2]) -> bool {
+        self.run(|r| match r.st.cycle_state {
+            cycle_state::REROUTE_TRIPS => r.trip_run_on(false, target),
+            cycle_state::FULL_TRIPS => r.trip_run_on(true, target),
+            _ => false,
+        })
+    }
+
+    /// In ReRouteTrips or FullTrips: the held source with no trip left to
+    /// examine whose list end (merge or `CompleteTripSourceCalculations`) is
+    /// not taken yet (tooling: the traffic shadow decides it from the
+    /// original's record and trip list).
+    pub fn shadow_pending_list_end(&self) -> Option<Source> {
+        self.run(|r| match r.st.cycle_state {
+            cycle_state::REROUTE_TRIPS => r.pending_list_end(false),
+            cycle_state::FULL_TRIPS => r.pending_list_end(true),
+            _ => None,
+        })
+    }
+
+    /// Takes [`Self::shadow_pending_list_end`]'s list end (the next source is
+    /// not taken). False when there is none.
+    pub fn shadow_end_list(&self) -> bool {
+        self.run(|r| match r.st.cycle_state {
+            cycle_state::REROUTE_TRIPS => r.end_pending_list(false),
+            cycle_state::FULL_TRIPS => r.end_pending_list(true),
+            _ => false,
+        })
+    }
+
+    /// The load resume of §3.5 step 11 for the trip phases, after a `Read`
+    /// of a record taken from a running simulator: a phase that has taken no
+    /// unit yet (its progress counter 0) restarts its source iterator with no
+    /// source held; otherwise the resume of a load (the source at the saved
+    /// cell held). Other states are left as the record has them.
+    pub fn shadow_resume(&self) {
+        self.run(|r| {
+            use cycle_state as cs;
+            if !matches!(r.st.cycle_state, cs::CONFIRM_TRIPS | cs::REROUTE_TRIPS | cs::FULL_TRIPS) {
+                return;
+            }
+            if shadow::progress(r.st) == 0 {
+                r.reset_sources();
+                r.st.current = None;
+                r.st.source_pos = 0;
+                r.st.trip_pos = 0;
+                r.st.continue_search = false;
+            } else {
+                r.resume_loaded_phase();
+            }
+        });
+    }
+
+    /// The damage sets' extra step costs on the network info, as
+    /// `ApplyPotholeChanges` leaves them (§4.12): `damagedRoadExtraCost` on
+    /// every damaged road (transit network 1) and rail (2) cell with network
+    /// info, 0 on every intact one. After a `Read` that replaced the sets.
+    pub fn shadow_apply_damage_costs(&self) {
+        let d = self.damage.borrow().clone();
+        self.net.update_state(|n| {
+            let cost = n.tuning.damaged_road_cost;
+            for (kind, block) in [(damage_kind::ROAD, &d.road), (damage_kind::RAIL, &d.rail)] {
+                for (keys, extra) in [(&block.intact, 0.0), (&block.damaged, cost)] {
+                    for key in keys.iter_order() {
+                        let (x, z) = ((key >> 8) as i32 & 0xFF, (key & 0xFF) as i32);
+                        if let Some(info) = n.network_info_mut(kind, x, z) {
+                            info.extra_cost = extra;
+                        }
+                    }
+                }
+            }
+        });
     }
 }
 

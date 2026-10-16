@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "disaster_ignite_cell",
+  "spec": ["disasters 5.5", "disasters 5.9", "flammability 13.1"],
+  "description": "IgniteCell with the probability test: DA(flammability 60) is 14, the draw is RandomDoubleRange(0, 100) and the cell is refused when the draw exceeds it (14.5), accepted otherwise (13). One fire ID is drawn per call (after the test) and shared by every occupant lit in the cell; one location is registered for it, at the first occupant. The next update posts the ignition counts 0x49D15B73 (buildings 1, flora 1). The manager's IgniteCell slot returns true whatever happens. IgniteOccupant returns true even when the fire is refused; a manual pause blocks an ordinary ignition but the emergency pause does not.",
+  "steps": [
+    {"op": "dis_flame_tuning", "tuning": "shipped", "da": [[60, 14.0]]},
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_occupant", "occupant": "0x40", "cell": [4, 4]},
+    {"op": "dis_occupant", "occupant": "0x41", "type": "flora", "cell": [4, 4]},
+    {"op": "dis_cell", "cell": [4, 4], "flammability": 60},
+    {"op": "dis_env", "doubles": [0.145]},
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "ignite_cell", "args": [4, 4, true, false, 0], "expect": false},
+    {"op": "dis_expect_events", "filter": {"generator": "fire"}, "events": [
+      {"event": "range", "a": 0, "b": 100}
+    ]},
+    {"op": "dis_env", "doubles": [0.13], "u32s": ["0xABCD"]},
+    {"op": "dis_call", "method": "ignite_cell", "args": [4, 4, true, false, 0], "expect": true},
+    {"op": "dis_expect_events", "filter": {"generator": "fire"}, "events": [
+      {"event": "range", "a": 0, "b": 100},
+      {"event": "raw"}
+    ]},
+    {"op": "dis_expect", "state": {"fire_count": 2, "fire_ids": ["0xABCD"],
+      "locations": [{"instance": 1, "occupant": "0x40", "x": 0, "z": 0, "zoom": 3}]}},
+    {"op": "dis_expect_fire", "index": 0, "state": {"target": "0x40", "fire_id": "0xABCD"}},
+    {"op": "dis_expect_fire", "index": 1, "state": {"target": "0x41", "fire_id": "0xABCD"}},
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "fire_update"},
+    {"op": "dis_expect_events", "filter": {"event": "post", "type": "0x49D15B73"}, "events": [
+      {"event": "post", "type": "0x49D15B73", "data1": 1, "data2": 1}
+    ]},
+    {"op": "dis_call", "method": "manager_ignite_cell", "args": [9, 9, false, false, 0], "expect": true},
+
+    {"op": "dis_occupant", "occupant": "0x50", "cell": [20, 20], "coverage": 200},
+    {"op": "dis_call", "method": "ignite_occupant", "args": ["0x50"], "expect": true, "note": "true although refused"},
+    {"op": "dis_call", "method": "fire_count", "expect": 2},
+    {"op": "dis_call", "method": "ignite_occupant", "args": [0], "expect": false},
+    {"op": "dis_occupant", "occupant": "0x50", "coverage": 0},
+    {"op": "dis_env", "paused": true, "emergency": 0},
+    {"op": "dis_call", "method": "ignite", "args": ["0x50", false, 0, false], "expect": false},
+    {"op": "dis_env", "emergency": 1},
+    {"op": "dis_call", "method": "ignite", "args": ["0x50", false, 0, false], "expect": true}
+  ]
+}

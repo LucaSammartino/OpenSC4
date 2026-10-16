@@ -22,6 +22,7 @@
 #include "FC4Log.h"
 #include "FC4Observer.h"
 #include "FC4Dialogs.h"  // the harness lane: close_dialogs
+#include "FC4Seed.h"     // the seeding lane: session_seed
 #include "FC4Popups.h"
 #include "FC4RefAudit.h"
 #include "cFC4Demand.h"
@@ -64,6 +65,7 @@
 #include "FC4CommercialShadow.h"  // the cmglue lane
 #include "FC4CivicShadow.h"       // the cmglue lane
 #include "FC4ParksShadow.h"       // the cmglue lane
+#include "FC4TrafficShadow.h"
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "cFC4LotDeveloper.h"
@@ -365,6 +367,7 @@ void Resolve() {
     g_resolved = true;
     // First call outside DllMain: configuration, audit settings, checked-build self-tests.
     ConfigReload("game start");
+    SessionSeedStartup();  // session_seed (FC4Seed.h): one line with S
     RefAuditReload();
     CheckedStartup();
     AutotestReload();
@@ -460,6 +463,8 @@ void Resolve() {
     HistoryShadowStartup(enabledKey("history"));
     // The 24-hour clock shadow (FC4Clock24Shadow.h; it follows the original clock).
     Clock24ShadowStartup(enabledKey("clock24"));
+    // The traffic shadow (FC4TrafficShadow.h; it compares the original traffic simulator).
+    TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

@@ -34,6 +34,7 @@
 #include "FC4ProtectionShadow.h"
 #include "FC4ResidentialShadow.h"
 #include "FC4Script.h"
+#include "FC4TrafficShadow.h"
 #include "FC4Popups.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
@@ -112,6 +113,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return FloraShadowTestDeliver(static_cast<const FC4FloraShadowTestInput*>(a), static_cast<intptr_t*>(b));
         case kFC4SeamLandfillShadow:
             return LandfillShadowTestDeliver(static_cast<const FC4LandfillShadowTestInput*>(a));
+        case kFC4SeamTrafficShadow:
+            return TrafficShadowTestDeliver(static_cast<const FC4TrafficShadowTestInput*>(a));
         case kFC4SeamPowerShadow:
             return PowerShadowTestDeliver(static_cast<const FC4PowerShadowTestInput*>(a));
         case kFC4SeamPlumbingShadow:
@@ -197,6 +200,9 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return HistClockTestSeam(static_cast<const FC4HistClockTestInput*>(a));
         case kFC4SeamParks:  // the cmglue lane (cFC4Parks.h)
             return a == nullptr ? -1 : fc4::ParksTestZooEscape(static_cast<const FC4ParksTestInput*>(a));
+        case kFC4SeamNeighborsConfirm:  // the apply12 lane (NG35)
+            fc4::NeighborsTestSetConfirm(reinterpret_cast<fc4::NeighborsConfirmFn>(a));
+            return 1;
         case kFC4SeamNeighborsApp:  // the neighbours apply lane (NG14, NG4)
             if (b != nullptr) {
                 return fc4::NeighborsTestCopyDeal(static_cast<cISC4NeighborDeal*>(a),

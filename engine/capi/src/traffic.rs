@@ -433,6 +433,11 @@ pub struct fc4_traffic_host {
     pub drives_on_right: Option<unsafe extern "C" fn(U) -> bool>,
     pub view_cell_rect: Option<unsafe extern "C" fn(U, *mut fc4_cell_rect) -> bool>,
     pub create_accident: Option<unsafe extern "C" fn(U, i32, i32, i64)>,
+    // ---- ABI 61 ----
+    /// `CreateLineItem(line, false)`, `SetName(0x6A3FF01C, name)`, Income
+    /// when `income`; with `only_if_missing` nothing when the line exists
+    /// (traffic-simulator §9.1 TG7).
+    pub create_line_item: Option<unsafe extern "C" fn(U, u64, u32, u32, bool, bool)>,
 }
 
 const _: () = {
@@ -443,7 +448,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_traffic_switch_query>() == 20);
     assert!(std::mem::size_of::<fc4_traffic_ferry_route>() == 40);
     assert!(std::mem::size_of::<fc4_traffic_state>() == 360);
-    assert!(std::mem::size_of::<fc4_traffic_host>() == if p { 404 } else { 808 });
+    assert!(std::mem::size_of::<fc4_traffic_host>() == if p { 408 } else { 816 });
 };
 
 // ---- host adapter -----------------------------------------------------------------------------------
@@ -564,14 +569,27 @@ pub(crate) struct Counters {
 pub(crate) struct CHost {
     c: fc4_traffic_host,
     counters: Cell<Counters>,
+    /// Inside an outermost call ([`Handle::call`]): the lot list read
+    /// first in it is handed out again (`lots_shared`). The plugin keeps
+    /// one lot walk per outermost call, so the list cannot differ.
+    in_call: Cell<bool>,
+    lots_cache: RefCell<Option<Rc<[u64]>>>,
 }
 
 impl CHost {
-    fn new(c: fc4_traffic_host) -> CHost {
+    pub(crate) fn new(c: fc4_traffic_host) -> CHost {
         CHost {
             c,
             counters: Cell::new(Counters::default()),
+            in_call: Cell::new(false),
+            lots_cache: RefCell::new(None),
         }
+    }
+
+    /// The outermost call starts or ends: the lot list is read afresh.
+    fn set_in_call(&self, on: bool) {
+        self.in_call.set(on);
+        self.lots_cache.borrow_mut().take();
     }
 
     fn note(&self, f: impl FnOnce(&mut Counters)) {
@@ -918,6 +936,20 @@ impl TrafficSimHost for CHost {
             cb!(self, release_department, (), department)
         }
     }
+    fn create_line_item(&self, department: u64, item: ts::dept::LineItem, only_if_missing: bool) {
+        if department != 0 {
+            cb!(
+                self,
+                create_line_item,
+                (),
+                department,
+                item.line,
+                item.name,
+                item.income,
+                only_if_missing
+            )
+        }
+    }
     fn department_funding(&self, department: u64) -> f32 {
         cb!(self, department_funding, 0.0, department)
     }
@@ -967,6 +999,17 @@ impl TrafficSimHost for CHost {
             .into_iter()
             .filter(|&t| t != 0)
             .collect()
+    }
+    fn lots_shared(&self) -> Rc<[u64]> {
+        if !self.in_call.get() {
+            return self.lots().into();
+        }
+        if let Some(l) = self.lots_cache.borrow().as_ref() {
+            return l.clone();
+        }
+        let l: Rc<[u64]> = self.lots().into();
+        *self.lots_cache.borrow_mut() = Some(l.clone());
+        l
     }
     fn as_lot(&self, object: u64) -> Option<u64> {
         if object == 0 {
@@ -1257,6 +1300,7 @@ impl Handle {
     fn call<R>(&self, f: impl FnOnce(&Handle) -> R) -> R {
         let outer = self.depth.get() == 0;
         if outer {
+            self.host.set_in_call(true);
             self.refresh();
         } else {
             self.reentrant.set(self.reentrant.get().wrapping_add(1));
@@ -1281,6 +1325,7 @@ impl Handle {
         }
         self.depth.set(self.depth.get() - 1);
         if outer {
+            self.host.set_in_call(false);
             self.refresh();
         }
         r

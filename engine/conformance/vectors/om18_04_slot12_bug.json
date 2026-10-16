@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "om18_04_slot12_bug",
+  "spec": ["occupant-manager 3.2", "occupant-manager 15", "occupant-manager 18.4"],
+  "description": "Slot 12 is reproduced with its bug [quirk]: outX = 4 * z - 256 (the z input), outZ = (the value already in outZ) * 4. (70, 66) with outZ preset to 5 gives (8, 20). Slot 13 divides toward zero: (-1, 5) -> (64, 65). Slots 10, 11, 14, 16.",
+  "steps": [
+    {"op": "om_call", "method": "world_to_standard_cell", "args": [70, 66, 5], "expect": [8, 20]},
+    {"op": "om_call", "method": "world_to_standard_cell", "args": [0, 64, 0], "expect": [0, 0]},
+    {"op": "om_call", "method": "standard_to_world_cell", "args": [-1, 5], "expect": [64, 65]},
+    {"op": "om_call", "method": "standard_to_world_cell", "args": [-4, 255], "expect": [63, 127]},
+    {"op": "om_call", "method": "world_to_manager_cell", "args": [70, 64], "expect": [6, 0]},
+    {"op": "om_call", "method": "manager_to_world_cell", "args": [6, -1], "expect": [70, 63]},
+    {"op": "om_call", "method": "world_cell_to_position", "args": [65, 63], "expect": [64, -64]},
+    {"op": "om_call", "method": "manager_cell_to_position", "args": [2, 3], "expect": [128, 192]}
+  ]
+}

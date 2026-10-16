@@ -27,7 +27,7 @@ use fc4_core::traffic_network::{
 };
 use fc4_core::traffic_simulator::{
     air_polluting_byte, background_value, capacity_element, cell_key16, congestion_byte, damage_target, decode_route,
-    find_highway_return_tile, industrial_trips, invert_congestion_curve, legacy_density, pool_of_token, pool_token,
+    find_highway_return_tile, industrial_trips, invert_congestion_curve, is_pool_token, legacy_density, pool_token,
     read_route, read_trip, reconcile_connection, reconcile_lot, residential_commuters, residential_split,
     trip_length_byte, write_trip, AccidentEntry, DamageBlock, HolderStore, Message, NeighbourCity, SimMessage,
     SimTuning, Source, TrafficSimHost, TrafficSimulator, TripData, CARPOOL_ORDINANCE,
@@ -205,14 +205,14 @@ impl World {
     /// A property of a holder token: a pool token (`{"pool": id}`) reads
     /// the simulator's pool, any other the stub's holder.
     fn any_prop(&self, holder: u64, id: u32) -> R<Option<Variant>> {
-        if pool_of_token(holder).is_some() {
+        if is_pool_token(holder) {
             return Ok(self.sim()?.holders().get_property(holder, id));
         }
         Ok(self.prop(holder, id))
     }
 
     fn set_any_prop(&self, holder: u64, id: u32, v: Variant) -> R<()> {
-        if pool_of_token(holder).is_some() {
+        if is_pool_token(holder) {
             self.sim()?.holders().put_property(holder, id, v);
         } else {
             self.set_prop(holder, id, v);
@@ -455,6 +455,7 @@ impl TrafficSimHost for World {
     fn release_department(&self, department: u64) {
         self.released_departments.borrow_mut().push(department);
     }
+    fn create_line_item(&self, _department: u64, _item: fc4_core::traffic_simulator::dept::LineItem, _only: bool) {}
     /// Fixture stand-in (TS34): an unset department is at 100 % funding, as
     /// a department `CreateDepartmentBudget` makes (budget.md §6).
     fn department_funding(&self, department: u64) -> f32 {
@@ -1267,6 +1268,15 @@ fn state(w: &World, op: &Json) -> R<()> {
                             .collect::<R<_>>()?;
                     }
                     "rng_seed" => st.rng = seed_rng(u32_of(v, &k)?),
+                    "pass_counters" => {
+                        let v = u32s(v, &k)?;
+                        if v.len() != st.pass_counters.len() {
+                            return Err(format!("'pass_counters' needs {} counts", st.pass_counters.len()));
+                        }
+                        st.pass_counters.copy_from_slice(&v);
+                    }
+                    "processed" => st.processed = i64_of(v, &k)? as i32,
+                    "day_index" => st.day_index = u32_of(v, &k)?,
                     "phase_positions" => {
                         let (x, z) = pair(v, &k)?;
                         st.extras.phase_positions = [x as i16, z as i16];
@@ -2174,6 +2184,11 @@ fn expect_state(w: &World, op: &Json) -> R<()> {
                 ("cells_per_type", jlist(&st.cells_per_type)),
                 ("stats_records", jlist(&st.stats_last.records)),
                 ("stats_rows", rows(&st.stats_last)),
+                ("stats_work_rows", rows(&st.stats_work)),
+                (
+                    "stat_max_cmp",
+                    Json::Array(st.stat_max_cmp.iter().map(|&f| fb(f)).collect()),
+                ),
                 ("potholes", ji(st.stats_last.potholes)),
                 ("next_accident_check", ji(st.next_accident_check as i64)),
                 (

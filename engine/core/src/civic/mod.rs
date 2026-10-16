@@ -76,7 +76,7 @@ pub use simulator::{query_interface, CivicSim, CivicState};
 use std::rc::Rc;
 
 use crate::budget::BudgetItem;
-use crate::rng::{derive_seed, FixedSeeds, RzRandom};
+use crate::rng::{FixedSeeds, RzRandom};
 use crate::stream::RefValue;
 
 pub use crate::stl::{StlHashMap, StlHashSet};
@@ -254,7 +254,7 @@ pub fn default_random_factory() -> CivicRandomFactory {
 /// The seed of the `n`-th temporary generator (§5 *[choice]*):
 /// `derive(0x0A413481 XOR n)`.
 pub fn temporary_seed(session: u32, n: u32) -> u32 {
-    derive_seed(session, CLSID_CIVIC_BUILDING_SIMULATOR ^ n)
+    crate::seeding::seed(session, crate::seeding::keys::civic_monthly(n))
 }
 
 /// Everything the civic building simulator reads from, or does to, the

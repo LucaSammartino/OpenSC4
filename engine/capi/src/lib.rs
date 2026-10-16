@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 62;
+pub const FC4_ABI_VERSION: u32 = 66;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -303,6 +303,12 @@ unsafe fn slice_arg<'a, T>(ptr: *const T, len: usize) -> Option<&'a [T]> {
 #[no_mangle]
 pub extern "C" fn fc4_abi_version() -> u32 {
     FC4_ABI_VERSION
+}
+
+/// `derive(S, K)` of foundations §6.3 (fc4.h: the session seed).
+#[no_mangle]
+pub extern "C" fn fc4_seed_derive(session_seed: u32, k: u32) -> u32 {
+    fc4_core::rng::derive_seed(session_seed, k)
 }
 
 // ---- lifetime -------------------------------------------------------------------
@@ -773,13 +779,16 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
 pub mod advisors;
 pub mod aura;
 pub mod aura_shadow;
+pub mod automata;
 pub mod budget;
+pub mod city_detail;
 pub mod civic;
 pub mod clock24;
 pub mod commercial;
 pub mod crime;
 pub mod demand;
 pub mod development;
+pub mod disasters;
 pub mod flammability;
 pub mod flammability_shadow;
 pub mod flora;
@@ -794,6 +803,7 @@ pub mod landvalue_shadow;
 pub mod lotdev;
 pub mod neighbors;
 pub mod neighbors_shadow;
+pub mod occupant_manager;
 pub mod ordinance;
 pub mod panic_log;
 pub mod parks;
@@ -801,14 +811,19 @@ pub mod plumbing;
 pub mod plumbing_shadow;
 pub mod pollution;
 pub mod pollution_shadow;
+pub mod port_developer;
 pub mod power;
 pub mod power_shadow;
+pub mod prop_developer;
 pub mod props;
 pub mod protection;
 pub mod residential;
 pub mod residential_shadow;
+pub mod sinks;
 pub mod stream;
+pub mod terrain;
 pub mod traffic;
+pub mod traffic_shadow;
 pub mod tract_developer;
 pub mod weather;
 pub mod zonedev;
@@ -824,7 +839,13 @@ mod aura_tests;
 mod advisors_tests;
 
 #[cfg(test)]
+mod automata_tests;
+
+#[cfg(test)]
 mod budget_tests;
+
+#[cfg(test)]
+mod city_detail_tests;
 
 #[cfg(test)]
 mod civic_tests;
@@ -843,6 +864,9 @@ mod demand_tests;
 
 #[cfg(test)]
 mod development_tests;
+
+#[cfg(test)]
+mod disasters_tests;
 
 #[cfg(test)]
 mod flora_tests;
@@ -866,6 +890,9 @@ mod lotdev_tests;
 mod neighbors_tests;
 
 #[cfg(test)]
+mod occupant_manager_tests;
+
+#[cfg(test)]
 mod flammability_shadow_tests;
 
 #[cfg(test)]
@@ -881,10 +908,16 @@ mod plumbing_shadow_tests;
 mod pollution_tests;
 
 #[cfg(test)]
+mod port_developer_tests;
+
+#[cfg(test)]
 mod power_tests;
 
 #[cfg(test)]
 mod power_shadow_tests;
+
+#[cfg(test)]
+mod prop_developer_tests;
 
 #[cfg(test)]
 mod protection_tests;
@@ -894,6 +927,9 @@ mod residential_tests;
 
 #[cfg(test)]
 mod save_sweep_tests;
+
+#[cfg(test)]
+mod terrain_tests;
 
 #[cfg(test)]
 mod test_streams;

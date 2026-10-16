@@ -76,11 +76,13 @@ namespace fc4 {
 
 // One safe lot iterator handed to the core (fc4.h safe_lot_iterator): the
 // game's block (lot manager slot 15, walked raw as the original does, §15.1)
-// on the identified executable with the original lot manager, otherwise a
+// on the identified executable with the original lot manager or FreeCity4's
+// (enable = zonedev, the same raw layout; FC4LotDevHost.cpp RawListObject), otherwise a
 // list of the lots (GetLotsInCellRect over the city, one reference each)
 // taken at creation and at every rewind.
 struct LotDevIterator {
     void* block = nullptr;            // the game's {current node, list object}, or null
+    const void* listObject = nullptr;  // the list object `block` must point to (the original's or FreeCity4's)
     std::vector<cIGZUnknown*> lots;   // the fallback's lots (one reference each)
     size_t next = 0;                  // the fallback's cursor
     bool faulted = false;             // a raw step faulted: the iterator answers "end" from then on
@@ -146,6 +148,15 @@ struct LotDevContext {
     // Lot completions seen (AddNetworkConnectionNodes calls, §6.5 b), and the objects their configurations
     // listed: props mandatory / optional, flora with / without IDs.
     uint32_t completions = 0, cfgProps = 0, cfgPropsOptional = 0, cfgFlora = 0, cfgFloraNoIds = 0;
+    // re-answers12 (LD3, LD14, LD17): connection nodes created / failed (network manager slot 20), lots
+    // autoconnected (slot 21), connection nodes destroyed (slot 6), objects moved by UpdateLotObjectAlitudes,
+    // retaining-wall helper calls made, burnt-building props and rubble decals made.
+    uint32_t nodesMade = 0, nodesFailed = 0, autoconnects = 0, nodesDestroyed = 0, objectsMoved = 0;
+    uint32_t wallCalls = 0, burntMade = 0, decalsAdded = 0;
+    // ExplodeLot (§7.2, LD14): the burnt-building prop's occupant made last and the position of the building it
+    // was made from (occupant slot 8, read before ClearLotBuildings removes it), for the rubble decal.
+    uint64_t burntOccupant = 0;
+    float burntPos[3] = {0.0f, 0.0f, 0.0f};
 };
 
 // The host table over `ctx` (the lot developer's).

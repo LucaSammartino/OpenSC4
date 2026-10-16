@@ -132,6 +132,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Watchdog.h
         plugin/FC4Config.cpp
         plugin/FC4Config.h
+        plugin/FC4Seed.cpp
+        plugin/FC4Seed.h
         plugin/FC4RefAudit.cpp
         plugin/FC4RefAudit.h
         plugin/FC4Checked.cpp
@@ -217,6 +219,8 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Landfill.h
         plugin/FC4LandfillShadow.cpp
         plugin/FC4LandfillShadow.h
+        plugin/FC4TrafficShadow.cpp
+        plugin/FC4TrafficShadow.h
         plugin/FC4WriteCapture.cpp
         plugin/FC4WriteCapture.h
         plugin/FC4LandValueShadow.cpp

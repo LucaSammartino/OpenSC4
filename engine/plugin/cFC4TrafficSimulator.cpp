@@ -22,12 +22,15 @@
 #include "FC4GameMap.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
+#include "FC4RouteDeque.h"
 #include "FC4SafeLotIterator.h"
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
 #include "cFC4Neighbors.h"
+#include "cFC4ZoneDeveloper.h"
 #include "cFC4ZoneManager.h"
 #include "compat/FC4Compat.h"
 
@@ -127,7 +130,6 @@ constexpr uint32_t kTripCapacityProperty = 0x8A0B4100;
 constexpr uint32_t kMaxTrips = 1u << 16;          // one source's trip list
 constexpr size_t kMaxRouteBytes = 1u << 20;       // one compressed route
 constexpr uint32_t kMaxListNodes = 1u << 16;      // the ferry lists of slots 30 and 31
-constexpr uintptr_t kLotListObjectOffset = 0x5C;  // the original lot manager's list object (FC4BudgetHost.cpp)
 constexpr uint32_t kMaxRegisteredIterators = 4096;
 
 fc4::TrafficContext* Ctx(void* u) { return static_cast<fc4::TrafficContext*>(u); }
@@ -138,6 +140,14 @@ bool Gate(Sw s, const char* what) {
     fc4::NoteSkipped(s, what);
     return false;
 }
+
+// The departments (traffic-simulator.md §1 step 5, §9.1 TG7).
+constexpr uint32_t kRoadsDepartment = 0xC921CEEA;
+constexpr uint32_t kMassTransitDepartment = 0xC921CEEB;
+constexpr uint32_t kTrafficDepartmentGroup = 0xAA369059;
+constexpr uint32_t kTrafficNameGroup = 0x6A3FF01C;
+constexpr uint32_t kRoadsDepartmentName = 0x4A493B73;
+constexpr uint32_t kMassTransitDepartmentName = 0xEA493B83;
 
 // Test seam op 42: a callback of the test table answers instead of the game.
 #define TRAFFIC_TEST(name, ...)                                                             \
@@ -277,8 +287,8 @@ uint32_t SessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 // ---- framework (§1, §5) ------------------------------------------------------------------------------
@@ -351,6 +361,11 @@ void PostMessage(void* u, const fc4_traffic_post* m) {
     msg->Release();
 }
 
+bool IsCityConnection(void* u, uint64_t conn);
+
+// The references the core keeps: the switch buildings (§4.7.1) and the
+// source iterator's connection snapshot (§4.1, §9.1 TG19). A connection the
+// core holds stays usable after it leaves the city, until the core lets go.
 void AddRefToken(void* u, uint64_t t) {
     TRAFFIC_TEST(add_ref, t);
     cIGZUnknown* o = FromToken(t);
@@ -360,14 +375,30 @@ void AddRefToken(void* u, uint64_t t) {
     } else {
         FC4_ADDREF(o);
     }
+    fc4::TrafficContext* c = Ctx(u);
+    if (++c->coreRefs[t] == 1 && IsCityConnection(u, t)) c->heldConns.insert(t);
 }
 
 void ReleaseToken(void* u, uint64_t t) {
     TRAFFIC_TEST(release, t);
     cIGZUnknown* o = FromToken(t);
     if (o == nullptr) return;
+    fc4::TrafficContext* c = Ctx(u);
+    bool leftCity = false;
+    auto it = c->coreRefs.find(t);
+    if (it != c->coreRefs.end() && --it->second == 0) {
+        c->coreRefs.erase(it);
+        if (c->heldConns.erase(t) != 0 && !IsCityConnection(u, t)) {
+            // §9.1 TG19: the snapshot was the connection's last holder once
+            // the neighbour simulator let it go; the original frees it here.
+            leftCity = true;
+            ++c->connsLeftHeld;
+        }
+    }
     if (fc4::IsOurObject(o)) {
         o->Release();
+    } else if (leftCity) {
+        FC4_RELEASE_LAST_HOLDER(o);
     } else {
         FC4_RELEASE(o);
     }
@@ -444,34 +475,54 @@ cFC4ISC4DepartmentBudget* DeptOf(uint64_t t) {
     return fc4::AsGame(reinterpret_cast<cISC4DepartmentBudget*>(FromToken(t)));
 }
 
-// §1 step 5: the department `id` (budget slot 28, else 25 with group 0),
-// its maximum funding (slot 13) and line items 1-6 (department slots 20 and
-// 17). [question] The spec does not name the group or the department name:
-// group 0 and no SetDepartmentName. One reference for the core.
+// §1 step 5 and §9.1 TG7, only for a member still null after Read:
+// CreateDepartmentBudget(id, 0xAA369059) (budget slot 25; an existing
+// department comes back unchanged), one reference for the core,
+// SetDepartmentName(0x6A3FF01C, name) (slot 5) and its maximum funding
+// (slot 13). The line items come through CreateLineItemCb.
 uint64_t CreateDepartment(void* u, uint32_t id, float maxFunding) {
     TRAFFIC_TEST(create_department, id, maxFunding);
     cFC4ISC4BudgetSimulator* b = Budget(u, "traffic department (none)");
     if (b == nullptr) return 0;
-    cISC4DepartmentBudget* d = b->GetDepartmentBudget(id);
-    if (d == nullptr) d = b->CreateDepartmentBudget(id, 0);  // borrowed
+    cISC4DepartmentBudget* d = b->CreateDepartmentBudget(id, kTrafficDepartmentGroup);  // borrowed
     if (d == nullptr) {
-        fc4::Log("traffic: WARNING department 0x%08X neither found nor created", id);
+        fc4::Log("traffic: WARNING department 0x%08X not created", id);
         return 0;
-    }
-    cFC4ISC4DepartmentBudget* g = fc4::AsGame(d);
-    SC4Percentage max{};
-    max.percentage = maxFunding;
-    g->SetMaxAllowedFundingPercentage(max);
-    for (uint32_t line = 1; line <= 6; ++line) {
-        if (g->GetLineItem(line) == nullptr) g->CreateLineItem(line, false);
     }
     if (fc4::IsOurObject(d)) {
         d->AddRef();
     } else {
         FC4_ADDREF(d);
     }
+    cFC4ISC4DepartmentBudget* g = fc4::AsGame(d);
+    const uint32_t name = id == kRoadsDepartment ? kRoadsDepartmentName
+                          : id == kMassTransitDepartment ? kMassTransitDepartmentName
+                                                         : 0;
+    if (name != 0) g->SetDepartmentName(kTrafficNameGroup, name);
+    SC4Percentage max{};
+    max.percentage = maxFunding;
+    g->SetMaxAllowedFundingPercentage(max);
     ++Ctx(u)->departments;
     return TokenOf(d);
+}
+
+// §9.1 TG7: CreateLineItem(line, false) (department slot 17, replacing any
+// line of that number), SetName(0x6A3FF01C, name) (line item slot 7) and,
+// for an income line, SetType(Income) (slot 5). With onlyIfMissing nothing
+// when GetLineItem(line) (slot 20) is not null.
+void CreateLineItemCb(void* u, uint64_t dept, uint32_t line, uint32_t name, bool income, bool onlyIfMissing) {
+    TRAFFIC_TEST(create_line_item, dept, line, name, income, onlyIfMissing);
+    if (dept == 0 || !Gate(Sw::TrafficBudget, "traffic CreateLineItem (none)")) return;
+    cFC4ISC4DepartmentBudget* g = DeptOf(dept);
+    if (onlyIfMissing && g->GetLineItem(line) != nullptr) return;
+    cISC4LineItem* item = g->CreateLineItem(line, false);  // borrowed
+    if (item == nullptr) {
+        fc4::Log("traffic: WARNING line item %u of department %p not created", line, static_cast<void*>(g));
+        return;
+    }
+    item->SetName(kTrafficNameGroup, name);
+    if (income) item->SetType(cISC4LineItem::Type::Income);
+    ++Ctx(u)->lineItems;
 }
 
 void ReleaseDepartment(void* u, uint64_t dept) {
@@ -634,9 +685,10 @@ bool MasterRefused(const char* why) {
 
 // §4.1: every lot of the original lot manager's master list, in list order,
 // through its safe lot iterator (slot 15), as the budget glue walks it
-// (FC4BudgetHost.cpp WalkMasterList): only on the identified executable and
-// for the original lot manager; the block is unregistered and freed with C.
-// Borrowed: the master list holds the manager's reference.
+// (FC4BudgetHost.cpp WalkMasterList): only on the identified executable, for
+// the original lot manager or FreeCity4's (zonedev); the block is
+// unregistered and freed with C. Borrowed: the master list holds the
+// manager's reference.
 bool MasterLots(cFC4ISC4LotManager* lm, std::vector<uint64_t>& out) {
     const compat::ExecutableVersion* v = compat::IdentifiedVersion();
     compat::StlNodeFreeFn freeNode = nullptr;
@@ -644,17 +696,20 @@ bool MasterLots(cFC4ISC4LotManager* lm, std::vector<uint64_t>& out) {
     if (v == nullptr || freeBlockVa == 0 || !compat::StlNodeAllocator(nullptr, &freeNode)) {
         return MasterRefused("executable not identified, or allocator B / C unavailable");
     }
-    const uintptr_t vtable = *reinterpret_cast<const uintptr_t*>(lm);
-    if (vtable < v->imageBase || vtable - v->imageBase >= v->sizeOfImage) {
-        return MasterRefused("the lot manager is not the original");
-    }
+    // §9.1 TG10: the master list is the only order, also with FreeCity4's
+    // lot manager (enable = zonedev), which mirrors it in the original's raw
+    // layout and hands out the same safe lot iterators (slot 15); the list
+    // object is the original's (+0x5C) or ours (SafeIteratorListObject).
+    const char* why = nullptr;
+    const void* expectedList = cFC4ZoneDeveloper::SafeIteratorListObject(lm, &why);
+    if (expectedList == nullptr) return MasterRefused(why);
     const int32_t lotCount = lm->GetLotCount();  // slot 16
     if (lotCount < 0) return MasterRefused("negative GetLotCount");
     auto* block = reinterpret_cast<fc4::safelots::Block*>(lm->GetSafeLotIterator());  // slot 15
     if (block == nullptr) return MasterRefused("GetSafeLotIterator returned null");
     std::vector<void*> lots(static_cast<size_t>(lotCount) + 1);
     MasterCopy copy{block,
-                    reinterpret_cast<const char*>(lm) + kLotListObjectOffset,
+                    expectedList,
                     lots.data(),
                     static_cast<uint32_t>(lotCount),
                     0,
@@ -915,12 +970,22 @@ void BuildLiveConns(void* u) {
     c->heldLists.push_back(std::move(list));
 }
 
-bool LiveConn(void* u, uint64_t conn) {
+// Whether the neighbour simulator still lists the connection (no count).
+bool IsCityConnection(void* u, uint64_t conn) {
     fc4::TrafficContext* c = Ctx(u);
     if (conn == 0) return false;
     if (c->seenConns.count(conn) != 0) return true;
     BuildLiveConns(u);
-    if (c->liveConns.count(conn) != 0) return true;
+    return c->liveConns.count(conn) != 0;
+}
+
+bool LiveConn(void* u, uint64_t conn) {
+    fc4::TrafficContext* c = Ctx(u);
+    if (conn == 0) return false;
+    // §9.1 TG19: a connection of the core's snapshot is still visited after
+    // it left the city (the snapshot's reference keeps it alive).
+    if (c->heldConns.count(conn) != 0) return true;
+    if (IsCityConnection(u, conn)) return true;
     ++c->staleTokens;
     static volatile LONG notes = 0;
     if (InterlockedIncrement(&notes) <= 3) {
@@ -1551,6 +1616,35 @@ bool PathConnection(void* u, uint64_t occ, uint32_t pathType, uint32_t entry, ui
     return r;
 }
 
+// traffic-network.md §4.2 step 3, §7.2: network occupant slot 49
+// GetPathInfo (pop 0, EAX), through the vtable (the SDK declares no path
+// info). [choice] Borrowed: the spec does not say the result carries a
+// reference, and the occupant keeps its path info while it is in the city
+// (TG24); the token is used only within the call that asked for it.
+uint64_t PathInfo(void* u, uint64_t occ) {
+    TRAFFIC_TEST(path_info, occ);
+    if (occ == 0 || !Gate(Sw::TrafficOccupants, "traffic GetPathInfo (none)")) return 0;
+    cISC4NetworkOccupant* n = NetOf(occ);
+    if (n == nullptr) return 0;
+    using Fn = void*(__fastcall*)(void* self, void* edx);
+    void* pi = reinterpret_cast<Fn>((*reinterpret_cast<void***>(n))[49])(n, nullptr);
+    Drop(n);
+    return TokenOf(pi);
+}
+
+// traffic-network.md §4.2 step 3: the turn-around test, path info slot 4
+// (`cSC4PathInfo::GetPath`, pop 20, EAX) with (pathType, entry, 0xFF, 0, 0)
+// as the original passes them; a non-zero result allows a turn-around at
+// that entry. [choice] The whole EAX is tested (the spec: "non-zero"; TG24).
+bool PathInfoTurnAround(void* u, uint64_t pi, uint32_t pathType, uint32_t entry) {
+    TRAFFIC_TEST(path_info_turn_around, pi, pathType, entry);
+    if (pi == 0 || !Gate(Sw::TrafficOccupants, "traffic path info turn-around (false)")) return false;
+    void* p = reinterpret_cast<void*>(static_cast<uintptr_t>(pi));
+    using Fn = uintptr_t(__fastcall*)(void* self, void* edx, uint32_t pathType, uint32_t entry, uint32_t exit,
+                                      uint32_t a4, uint32_t a5);
+    return reinterpret_cast<Fn>((*reinterpret_cast<void***>(p))[4])(p, nullptr, pathType, entry, 0xFF, 0, 0) != 0;
+}
+
 bool IsTunnel(void* u, uint64_t occ) {
     TRAFFIC_TEST(is_tunnel, occ);
     if (occ == 0 || !Gate(Sw::TrafficOccupants, "traffic tunnel test (false)")) return false;
@@ -1632,16 +1726,25 @@ bool DrivesOnRight(void* u) {
 
 namespace fc4 {
 
-// Callbacks left NULL answer the core's neutral value (traffic-simulator.md
-// and the final report's questions): sim_clock_ms (no accident timer),
-// update_network_costs, lot_strategy_byte, take_connection_volume_dirty
-// (private fields of the original's classes: the sources' own
-// UpdateTrafficVolume runs instead), occupants_in_cells and
-// occupant_filter_includes (cISC4OccupantFilter is not in docs/abi: filter 2
-// never matches), cell_has_network_occupant, path_info and its three
-// helpers (the path-info vtable is not curated), tunnel_paired_portal (a
-// member of the original's class), view_cell_rect and create_accident (no
-// accidents).
+// Callbacks left NULL answer the core's neutral value. By traffic-simulator
+// §9.1 (TG2, re-answers10):
+// - not needed for the simulation: sim_clock_ms (the 4 ms deadline is the
+//   unit budget), view_cell_rect, cell_has_network_occupant and
+//   create_accident (the accident check: wall-clock gated, visible cells
+//   only; it costs only the visible crashes), occupants_in_cells and
+//   occupant_filter_includes (pathfinder filter 2 is unreachable);
+// - matched another way: lot_strategy_byte and take_connection_volume_dirty
+//   (update_traffic_volume runs the source's own UpdateTrafficVolume, which
+//   reads its strategy byte and tests and clears its own volume-dirty flag);
+//   the occupant query over a rectangle is network_occupants_in_rect (slot
+//   41, wired);
+// - needed but not specified, so still NULL [question]: update_network_costs
+//   (which line items UpdateRoadsBudget / UpdateMassTransitBudget set, with
+//   which method and rounding: spec Q1, TG23), path_info_exits_from_entry
+//   and path_info_entries_near (path info slots 14, 3 and 7: their arguments,
+//   result containers and the path objects' layout; TG24) and
+//   tunnel_paired_portal (the member's offset in cSC4NetworkTunnelOccupant;
+//   TG25).
 fc4_traffic_host MakeTrafficHost(TrafficContext* ctx) {
     fc4_traffic_host h{};
     h.struct_size = sizeof(h);
@@ -1659,6 +1762,7 @@ fc4_traffic_host MakeTrafficHost(TrafficContext* ctx) {
     h.sim_day_of_month = &SimDayOfMonth;
     h.sim_date_number = &SimDateNumber;
     h.create_department = &CreateDepartment;
+    h.create_line_item = &CreateLineItemCb;
     h.release_department = &ReleaseDepartment;
     h.department_funding = &DepartmentFunding;
     h.set_line_item_income = &SetLineItemIncome;
@@ -1716,6 +1820,8 @@ fc4_traffic_host MakeTrafficHost(TrafficContext* ctx) {
     h.has_any_network_flag = &HasAnyNetworkFlag;
     h.is_of_type = &IsOfType;
     h.path_connection = &PathConnection;
+    h.path_info = &PathInfo;
+    h.path_info_turn_around = &PathInfoTurnAround;
     h.is_tunnel = &IsTunnel;
     h.cell_under_water = &CellUnderWater;
     h.is_navigable = &IsNavigable;
@@ -1748,7 +1854,7 @@ cFC4TrafficSimulator::cFC4TrafficSimulator() {
     }
     RefreshSnapshot();
     fc4::Log("cFC4TrafficSimulator(%p) created, core %p, session seed %u (%s)", static_cast<void*>(Primary()),
-             static_cast<void*>(core_), seed_, seedFixed_ ? "traffic_seed" : "the clock");
+             static_cast<void*>(core_), seed_, seedFixed_ ? "traffic_seed" : "session seed");
 }
 
 cFC4TrafficSimulator::~cFC4TrafficSimulator() {
@@ -1978,8 +2084,9 @@ void cFC4TrafficSimulator::LogState(const char* what) {
              "reroute=%d search=%d units=%u scale=%.4f/%.4f income=%.0f freight=%.4f attempted=%u,%u,%u "
              "routed=%u,%u,%u free=%u,%u,%u,%u switches=%u ferries=%u potholes=%u damaged=%u/%u edges=%u "
              "maps=%p,%p,%p,%p depts=%p,%p posts=%u/%u native=%u trips r%u/w%u (failed %u) holders=%u in place, %u "
-             "added budget=%u depts=%u lots master=%u rect=%u stale=%u reentrant=%u queued=%u pathfinders=%u "
-             "(refused deques %u) fallbacks=%u",
+             "added budget=%u depts=%u lines=%u lots master=%u rect=%u stale=%u "
+             "held conns=%u (left %u) reentrant=%u queued=%u pathfinders=%u (deques filled %u failed %u) "
+             "fallbacks=%u (messages dropped %u, slot 19 direct %u)",
              what, st.initialized, st.loaded, st.cycle_state, StateName(st.cycle_state), st.strike_state,
              st.day_index, st.days, st.total, st.processed, st.pass_total, st.to_reroute, st.to_search,
              st.units_per_slice, st.trip_scale, st.trip_scale_for_display, st.last_monthly_income, st.freight_scaling,
@@ -1990,8 +2097,10 @@ void cFC4TrafficSimulator::LogState(const char* what) {
              static_cast<void*>(FromToken(st.trip_length)), static_cast<void*>(FromToken(st.roads)),
              static_cast<void*>(FromToken(st.mass_transit)), st.posted, ctx_.posts, ctx_.sourceUpdates,
              ctx_.tripReads, ctx_.tripWrites, ctx_.tripWriteFailures, ctx_.holderWritesInPlace, ctx_.holderWrites,
-             ctx_.budgetActivations, ctx_.departments, ctx_.lotWalksMaster, ctx_.lotWalksRect, ctx_.staleTokens,
-             st.reentrant_calls, st.queued_messages, externalPathFinders_, dequeRefusals_, fallbacks_.load());
+             ctx_.budgetActivations, ctx_.departments, ctx_.lineItems, ctx_.lotWalksMaster, ctx_.lotWalksRect,
+             ctx_.staleTokens, static_cast<unsigned>(ctx_.heldConns.size()), ctx_.connsLeftHeld,
+             st.reentrant_calls, st.queued_messages, externalPathFinders_, dequeFills_, dequeFailures_,
+             fallbacks_.load(), droppedMessages_.load(), directCapacityWrites_.load());
 }
 
 // After every message (inside its section): the work-cycle line when the
@@ -2108,7 +2217,18 @@ bool cFC4TrafficSimulator::DoMessage(cIGZMessage2* pMessage) {
     FC4_X87_SCOPE("traffic DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     if (core_ == nullptr) return true;
     Section sec(this);
-    if (!sec.ok()) return true;  // [choice] a message from another thread that cannot get the lock is dropped
+    if (!sec.ok()) {
+        // §9.1 TG21: the original handles every message on the delivering
+        // thread and drops none. A message from another thread that cannot
+        // get the lock is dropped, counted and logged: it must not happen in
+        // normal play.
+        const uint32_t n = ++droppedMessages_;
+        if (n <= 3) {
+            fc4::Log("traffic: WARNING message 0x%08X from another thread dropped (the lock is busy; %u so far)",
+                     pMessage->GetType(), n);
+        }
+        return true;
+    }
     const uint32_t type = pMessage->GetType();
     uint32_t d1 = 0, d2 = 0, d3 = 0;
     uint64_t object = 0;
@@ -2272,11 +2392,23 @@ bool cFC4TrafficSimulator::CheckRailAccident(int32_t x, int32_t z) {
     return sec.ok() && core_ != nullptr && fc4_traffic_check_rail_accident(core_, x, z);
 }
 
-// Slot 19 (void). [choice] Another thread that cannot get the lock: dropped
-// (counted as a fallback).
+namespace {
+uint32_t TripCapacityElement(cISCPropertyHolder* holder, uint32_t i);
+bool WriteTripCapacityElement(cISCPropertyHolder* holder, uint32_t i, uint32_t value);
+}  // namespace
+
+// Slot 19 (void). §9.1 TG15 / TG21: the original uses no simulator state and
+// no lock, only the holder's property 0x8A0B4100, so another thread that
+// cannot get the lock writes the holder directly (the same rule as the core:
+// a u16 array unless a value needs u32).
 void cFC4TrafficSimulator::SetMaxTripCapacity(cISCPropertyHolder* holder, uint32_t k, uint32_t value) {
     Section sec(this);
-    if (!sec.ok() || core_ == nullptr || holder == nullptr) return;
+    if (holder == nullptr) return;
+    if (!sec.ok()) {
+        if (WriteTripCapacityElement(holder, k, value)) ++directCapacityWrites_;
+        return;
+    }
+    if (core_ == nullptr) return;
     fc4_traffic_set_max_trip_capacity(core_, TokenOf(holder), k, value);
 }
 
@@ -2308,6 +2440,37 @@ uint32_t TripCapacityElement(cISCPropertyHolder* holder, uint32_t i) {
         }
         default: return 0;
     }
+}
+
+// Slot 19 without the lock (TG15): element `i` of the holder's 0x8A0B4100
+// set, the others kept; a u32 array when the property is one or `value` is
+// 0xFFFF or more, else a u16 array (traffic-simulator §4.2, as the core's
+// set_capacity_element).
+bool WriteTripCapacityElement(cISCPropertyHolder* holder, uint32_t i, uint32_t value) {
+    if (holder == nullptr || i >= 12) return false;
+    uint32_t vals[12] = {};
+    bool wide = false;
+    if (cISCProperty* p = fc4::AsGame(holder)->GetProperty(kTripCapacityProperty)) {
+        cIGZVariant* raw = p->GetPropertyValue();
+        cFC4IGZVariant* v = raw ? fc4::AsGame(raw) : nullptr;
+        if (v != nullptr && v->GetCount() == 12) {
+            const uint16_t t = v->GetType();
+            if (t == cIGZVariant::Uint32Array) wide = true;
+            if (t == cIGZVariant::Uint16Array || t == cIGZVariant::Uint32Array) {
+                for (uint32_t j = 0; j < 12; ++j) vals[j] = TripCapacityElement(holder, j);
+            }
+        }
+    }
+    if (value >= 0xFFFF) wide = true;
+    vals[i] = value;
+    if (wide) {
+        if (WriteInPlace(holder, kTripCapacityProperty, cIGZVariant::Uint32, vals, 12)) return true;
+        return fc4::props::SetTyped(holder, kTripCapacityProperty, cIGZVariant::Uint32, true, vals, 12);
+    }
+    uint16_t narrow[12];
+    for (uint32_t j = 0; j < 12; ++j) narrow[j] = static_cast<uint16_t>(vals[j]);
+    if (WriteInPlace(holder, kTripCapacityProperty, cIGZVariant::Uint16, narrow, 12)) return true;
+    return fc4::props::SetTyped(holder, kTripCapacityProperty, cIGZVariant::Uint16, true, narrow, 12);
 }
 
 }  // namespace
@@ -2816,20 +2979,58 @@ void cFC4PathFinder::SetEndRect(SC4Rect<int32_t> rect) {
 void cFC4PathFinder::SetMaxWorkTime(uint32_t ms) { Set(21, ms, 0); }
 void cFC4PathFinder::Reset() { Set(22, 0, 0); }
 
-// Slot 23. [question] The route deque's object layout is not in docs/abi
-// (only its 0x7E-byte node buffers and allocator B): a search with a deque
-// set is refused (0, the deque untouched), counted and logged once. Without
-// a deque the search runs.
+// Slot 23. After a recorded trip (1, also the flag-2 fallback of §4.12) the
+// caller's route deque is cleared and filled root -> result in place
+// (pathfinder.md §4.13 step 5 and §7; TG1), with allocator B.
+namespace {
+
+struct RouteBytes {
+    std::vector<uint8_t> bytes;
+};
+
+void CollectRoute(void* ctx, const uint8_t* b, size_t n) {
+    auto* r = static_cast<RouteBytes*>(ctx);
+    r->bytes.insert(r->bytes.end(), b, b + n);
+}
+
+struct RouteFill {
+    fc4::RouteDeque* deque;
+    const uint8_t* route;
+    size_t count;
+    fc4::RouteFillStatus status;
+};
+
+void RouteFillFn(void* c) {
+    auto* f = static_cast<RouteFill*>(c);
+    f->status = fc4::RouteDequeFill<TrafficAlloc>(*f->deque, f->route, f->count);
+}
+
+}  // namespace
+
 uint32_t cFC4PathFinder::FindPath() {
     PF_ENTER(0u);
-    if (routeDeque_ != nullptr) {
-        ++owner_->dequeRefusals_;
-        static volatile LONG notes = 0;
-        NoteFew(&notes, "traffic: WARNING FindPath with a route deque refused (the deque layout is not specified; "
-                        "see the lane report, question 1)");
-        return 0;
+    const uint32_t r = fc4_traffic_pf_find_path(owner_->Core(), pf_);
+    if (r == 1 && routeDeque_ != nullptr) FillRouteDeque();
+    return r;
+}
+
+void cFC4PathFinder::FillRouteDeque() {
+    if (!AllocatorOk("FindPath route deque")) return;
+    RouteBytes rb;
+    const size_t n = fc4_traffic_pf_route(pf_, &CollectRoute, &rb);
+    if (rb.bytes.size() != n * fc4::kRouteDataBytes) return;
+    RouteFill f{static_cast<fc4::RouteDeque*>(routeDeque_), rb.bytes.data(), n, fc4::RouteFillStatus::Ok};
+    const bool clean = fc4::SehGuard("traffic route deque fill", &RouteFillFn, &f);
+    if (clean && f.status == fc4::RouteFillStatus::Ok) {
+        ++owner_->dequeFills_;
+        return;
     }
-    return fc4_traffic_pf_find_path(owner_->Core(), pf_);
+    ++owner_->dequeFailures_;
+    static volatile LONG notes = 0;
+    NoteFew(&notes, !clean ? "traffic: WARNING FindPath route deque fill faulted (deque left as written so far)"
+                    : f.status == fc4::RouteFillStatus::NoMap
+                        ? "traffic: WARNING FindPath route deque has no map; left untouched"
+                        : "traffic: WARNING FindPath route deque fill out of memory (partial route)");
 }
 
 uint32_t cFC4PathFinder::GetTrafficArrived() {

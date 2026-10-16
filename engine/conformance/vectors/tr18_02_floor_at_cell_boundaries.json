@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "name": "tr18_02_floor_at_cell_boundaries",
+  "spec": [
+    "terrain 4.1",
+    "terrain 4.5",
+    "terrain 18.2"
+  ],
+  "description": "The worked terrain with vertex (0, 0) = NaN, so a query that reads cell (0, 0) returns NaN. x = 16 uses ix = 1 (cell (1, 0): 104 + (120 - 104)*4/16 = 108 at z = 4); x = 15.999 uses ix = 0 (NaN); x = sizeX = 32 uses the last cell with fx = 16: 104 + (100 - 104)*16/16 = 100 at z = 4, and the corner vertex (2, 2) at z = 32.",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        2,
+        2
+      ],
+      "altitudes": [
+        "nan",
+        104,
+        100,
+        108,
+        120,
+        100,
+        100,
+        100,
+        140
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        16,
+        4
+      ],
+      "expect": 108
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        15.999,
+        4
+      ],
+      "expect": "nan"
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        32,
+        4
+      ],
+      "expect": 100
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        32,
+        32
+      ],
+      "expect": 140
+    }
+  ]
+}

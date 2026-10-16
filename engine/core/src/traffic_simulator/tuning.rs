@@ -213,8 +213,9 @@ const PERCENT: f32 = 0.01;
 /// numeric property type (u8, s8, u16, s16, u32 as unsigned, s32, 64-bit,
 /// f32, f64) is **multiplied** by `0.01f` and rounded once to f32,
 /// `r24(v × 0.01f)`. `None` for a missing property or one of another type
-/// (bool, string), which leave the target unchanged *[choice: "leaves the
-/// code default" read as "does not write"]*.
+/// (bool, string), which leave the target unchanged: the getter returns
+/// without a store, so the code default 1.2 stays (TS37; missing
+/// `0x005FDAD6` → `0x005FDCBE`, other types `0x005FDAF3` → `0x005FDCBD`).
 fn percent_fraction(h: &PropertyHolder, id: u32) -> Option<f32> {
     let e = match h.get(id)? {
         Variant::Scalar(e) => *e,

@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "tr18_12_unknown_brush",
+  "spec": [
+    "terrain 9.2",
+    "terrain 18.12"
+  ],
+  "description": "ApplyBrush(0x12345678, p) returns false, leaves the out rectangle empty and posts nothing.",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        20,
+        20
+      ],
+      "flat": 300
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": "0x12345678",
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "expect": false,
+      "out": null
+    },
+    {
+      "op": "ter_expect_events",
+      "events": []
+    },
+    {
+      "op": "ter_expect_vertices",
+      "baseline": 300,
+      "changed": 0
+    }
+  ]
+}

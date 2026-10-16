@@ -25,10 +25,14 @@
 //     the given B free; a broken iterator ring is refused untouched;
 //   - the release (budget.md §5.2, BQ4) frees the block with C whether a node
 //     matched or not and with a null list object, and never after a refused
-//     ring.
+//     ring;
+//   - the list object a lot manager's blocks must point to: the original's
+//     at +0x5C, FreeCity4's mirror (enable = zonedev), or none.
 
 #include "FC4SafeLotIterator.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <vector>
 
@@ -248,6 +252,77 @@ void TestReleaseFreesTheBlock() {
     CHECK(g_blocksFreed.empty());
 }
 
+// Which list object a lot manager's blocks must point to (ExpectedListObject):
+// the original lot manager's at +0x5C when its vtable is inside the
+// executable's image; FreeCity4's mirror (cFC4ZoneDeveloper::
+// MasterListObject, enable = zonedev) otherwise; nothing for any other
+// replacement or an unidentified executable. The walk and the release then
+// run over FreeCity4's list object exactly as over the original's.
+struct FakeLotManager {
+    uintptr_t vtable;
+    unsigned char body[0x5C - sizeof(uintptr_t)];
+    ListObject list;  // +0x5C: the original's lot list object
+};
+static_assert(offsetof(FakeLotManager, list) == fc4::safelots::kOriginalListObjectOffset, "list object at +0x5C");
+
+void TestExpectedListObject() {
+    constexpr uintptr_t kBase = 0x00400000;
+    constexpr uint32_t kSize = 0x00800000;
+    FakeLotManager original{};
+    original.vtable = kBase + 0x6A8000;  // inside the image
+    Ring master({Lot(1), Lot(2)});
+    Ring none({});
+    ListObject ours{&master.head, &none.head};
+    // The original: lm + 0x5C, whatever the replacement list says.
+    CHECK(fc4::safelots::ExpectedListObject(&original, kBase, kSize, nullptr) == &original.list);
+    CHECK(fc4::safelots::ExpectedListObject(&original, kBase, kSize, &ours) == &original.list);
+    // The image's bounds: [base, base + size).
+    original.vtable = kBase;
+    CHECK(fc4::safelots::ExpectedListObject(&original, kBase, kSize, nullptr) == &original.list);
+    original.vtable = kBase + kSize - 4;
+    CHECK(fc4::safelots::ExpectedListObject(&original, kBase, kSize, nullptr) == &original.list);
+    original.vtable = kBase + kSize;
+    CHECK(fc4::safelots::ExpectedListObject(&original, kBase, kSize, nullptr) == nullptr);
+    original.vtable = kBase - 4;
+    CHECK(fc4::safelots::ExpectedListObject(&original, kBase, kSize, nullptr) == nullptr);
+    // FreeCity4's (vtable in our DLL): its mirror's list object; another
+    // replacement (no mirror): none.
+    FakeLotManager replacement{};
+    replacement.vtable = 0x10001000;
+    CHECK(fc4::safelots::ExpectedListObject(&replacement, kBase, kSize, &ours) == &ours);
+    CHECK(fc4::safelots::ExpectedListObject(&replacement, kBase, kSize, nullptr) == nullptr);
+    // Unidentified executable (size 0): only the mirror.
+    original.vtable = kBase + 0x6A8000;
+    CHECK(fc4::safelots::ExpectedListObject(&original, 0, 0, nullptr) == nullptr);
+    CHECK(fc4::safelots::ExpectedListObject(nullptr, kBase, kSize, &ours) == nullptr);
+
+    // The walk and the release over FreeCity4's list object: the block points
+    // at the mirror (not lm + 0x5C), registered in the mirror's iterator list.
+    Block block{};
+    Ring iters({&block});
+    ListObject mirror{&master.head, &iters.head};
+    block.current = master.head.next;
+    block.listObject = &mirror;
+    const void* expected = fc4::safelots::ExpectedListObject(&replacement, kBase, kSize, &mirror);
+    CHECK(expected == &mirror && block.listObject == expected);
+    void* out[2] = {};
+    uint32_t n = 0;
+    CHECK(fc4::safelots::CopyLots(&block, out, 2, &n) == Status::Ok && n == 2 && out[0] == Lot(1) && out[1] == Lot(2));
+    // A block of the original's list is not one of the mirror's (the glue
+    // compares before the walk and refuses it).
+    CHECK(fc4::safelots::ExpectedListObject(&original, kBase, kSize, &mirror) != static_cast<const void*>(&mirror));
+    g_freed.clear();
+    g_blocksFreed.clear();
+    CHECK(fc4::safelots::Release(&block, &FakeFree, &FakeFreeBlock, 16) == 1);
+    CHECK(g_freed.size() == 1 && iters.Length() == 0 && g_blocksFreed.size() == 1 && g_blocksFreed[0] == &block);
+    // Orphaned at the mirror's Shutdown (list object null): freed with C, nothing unlinked.
+    Block orphan{nullptr, nullptr};
+    g_freed.clear();
+    g_blocksFreed.clear();
+    CHECK(fc4::safelots::Release(&orphan, &FakeFree, &FakeFreeBlock, 16) == 0);
+    CHECK(g_freed.empty() && g_blocksFreed.size() == 1);
+}
+
 }  // namespace
 
 int main() {
@@ -256,6 +331,7 @@ int main() {
     TestRefusals();
     TestUnregisterRefusesBrokenRing();
     TestReleaseFreesTheBlock();
+    TestExpectedListObject();
     if (g_failures != 0) {
         std::printf("safe_lot_iterator_test: %d failure(s)\n", g_failures);
         return 1;

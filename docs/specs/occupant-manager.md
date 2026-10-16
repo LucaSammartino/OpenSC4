@@ -1,6 +1,6 @@
 # Occupant manager (`cSC4OccupantManager`): behaviour spec
 
-Status: round 1 (re-specs13b, 2026-10-15). Written from the Windows 1.1.641 executable (code `0x0049D8B0`–`0x004A1C00`).
+Status: round 1 (re-specs13b, 2026-10-15); OM4–OM8 answered by re-answers16 (2026-10-16). Written from the Windows 1.1.641 executable (code `0x0049D8B0`–`0x004A1C00`).
 Every rule below was checked against the instruction bytes. The Mac symbol list was used only for names
 (`InternalOccupantHashSet`, `ClipCellRectToWorldBoundaries`, `GetOccupantList`, `RemoveAllOccupants`).
 
@@ -84,8 +84,10 @@ The city's Init calls it at `0x0045BF2B`. It runs under the lock, and only once:
 A loaded occupant whose cells all lie in the border ring of the grid is not initialised here. Shipped content keeps
 occupants inside the city, so this does not happen in practice *[inferred]*.
 
-Each loaded occupant that was not initialised posts Create `0x99EF1140` from its own `Init` (§5.6). Loading posts
-**no** Insert messages.
+A loaded occupant posts **no** Create `0x99EF1140` from its `Init`: the base occupant `Read` (`0x005E8D60`) sets
+bit 1 of `+0x2E`, and with that bit set the base `Init` calls slot 17 instead of posting (§5.6, §13; corrected by
+re-specs14b). Loading posts **no** Insert messages either. An occupant class whose own `Init` posts something is
+outside this rule.
 
 ### 2.3 Shutdown (slot 4, `0x0049E000`)
 
@@ -269,8 +271,15 @@ The typed overloads write their type into this one object and pass it on (§10).
 4. If `occ.AsPropertyHolder()` (slot 6) is null: unlock, `occ.Release()`, return false.
 5. `occ.GetBoundingBox(min, max)` (slot 10). For each of x and z separately: if `max − min > 1.0` (strict), then
    `min += 0.1` and `max −= 0.1`. A box 1 m wide or less is not shrunk.
+   - *[compat]* Both constants are `float` (OM4): 0.1 is `0x3DCCCCCD` at `0x00A8F768`, 1.0 is `0x3F800000` at
+     `0x00A81228`, each read as a 4-byte operand (`0x0049EFEA`–`0x0049F040`).
+   - Each shrunk bound is stored back as a `float`, so the shrink is a single-precision add or subtract.
+   - The width `max − min` is compared without being stored. Under the 24-bit precision control (foundations §18)
+     it is a single-precision subtraction; compute it in `f32`.
+   - Move (`0x0049F43A`–`0x0049F490`) and the FindOccupant helper (`0x0049F821`–`0x0049F846`, x only) use the same
+     two constants.
 6. Cells: (x0, z0) = slot 15(min.x, min.z), (x1, z1) = slot 15(max.x, max.z), each stored as a byte, **with no
-   clamp** (§15 quirk 4).
+   clamp** (§15 quirk 4). Out-of-grid boxes are §5.7.
 7. `occ.SetOccupantManagerBBox(x0, z0, x1, z1)` (slot 26).
 8. value = occ | (1 if x1 ≤ x0 and z1 ≤ z0).
 9. For x from x0 to x1, then z from z0 to z1 (x outer):
@@ -368,11 +377,46 @@ Call it after an occupant's geometry has changed. It takes no reference.
 *[compat]* A moved occupant goes to the front of its **new** cells only. In cells it already occupied, it keeps its
 place. Callers that need a Change message post `0x99EF1145` themselves (landfill §4, prop developer).
 
+Step 6 indexes the grid with the old box's raw bytes: no clamp, and no null check on the cell (`0x0049F561`–
+`0x0049F56E`). Step 8 uses the clamping lookup with create = 1, so it can create an empty holder in a common cell
+that has none.
+
+### 5.7 Uninitialised manager and out-of-grid boxes (OM6) *[compat where defined]*
+
+The original checks none of these cases. Where it has no defined result (a crash or a wild memory access), the
+replacement's behaviour is a *[choice]*; the choices below are the ones accepted for OM6.
+
+**Before `Init`.** The constructor (`0x004A0540`) leaves the grid vector null (`+0x38`–`+0x40` = 0).
+- Insert has no init check. It still runs steps 1–7, so the occupant is AddRef'd, an uninitialised occupant posts
+  Create, and the box is stored. The first cell lookup then reads through the null row array (`0x0049F0F7`) and
+  crashes, with the lock held.
+- *[choice]* The replacement inserts no nodes.
+- **After `Shutdown`** the rows still exist (§2.3), so Insert, Remove and Move work normally on the original even
+  though the initialised flag is clear.
+
+**Out-of-grid boxes.** The stored box holds bytes (§4.3), so a cell below 0 wraps to cell + 256 (−1 → 255), and a
+cell from 192 to 255 stays as it is. Insert (`0x0049F0BC`–`0x0049F145`), Remove (`0x0049F2A4`–`0x0049F2D6`) and Move step 6
+index the grid with these bytes unchecked.
+- **Wrapped box.** When x0 > x1 or z0 > z1 as bytes, the loops run zero times (`0x0049F0C8`, `0x0049F0EA`).
+  - Example: a low corner below position −4096 gives byte 255, while the high corner gives 0 or 1.
+  - Insert then succeeds with no nodes: flag 1 is set and Insert is posted.
+  - Remove visits no cells, returns true and posts Remove.
+- **Overrun.** A byte from 192 to 255 inside a running loop reads past the 192-entry row array (or a row's
+  192 cells) into heap memory. It may write a new holder there. The result is undefined.
+  - *[choice]* The replacement skips such cells. Insert still sets flag 1 and posts Insert.
+
+**Slot 23 before `Init` or after `Shutdown`.** The shared filter is null. The type write goes to address `0xC`
+(`0x0049DB87`) and crashes. *[choice]* The replacement returns true and does nothing.
+
+**Slot 28 outside the grid.** The world cell from slot 15 is used unclamped (`0x0049E511`–`0x0049E522`), so the
+read lands outside the row arrays and the result is undefined. The same holds for slot 32, through the cell of its
+low corner (§7). *[choice]* The replacement finds nothing and returns false.
+
 ### 5.5 Message summary *[compat]*
 
 | Message | ID | Posted by | data4 | When |
 |---|---|---|---|---|
-| Create | `0x99EF1140` | occupant `Init` (base `0x005E8C90`) | 0 | the first `Init` of the occupant: from Insert step 3, or from the manager's `Init` after a load |
+| Create | `0x99EF1140` | occupant `Init` (base `0x005E8C90`) | 0 | the first `Init` of a new occupant, from Insert step 3. Not after a load: a loaded occupant has bit 1 of `+0x2E` set (§13) |
 | Insert | `0x99EF1142` | Insert, step 12 | the caller's | after the lock is dropped and flag 1 is set |
 | Remove | `0x99EF1143` | Remove step 7.1; RemoveOccupants step 4.1 | the caller's | after the cells are updated and the lock is dropped |
 | Destroy | `0x99EF1141` | occupant `Shutdown` (base `0x005E8980`) | 0 | only when Remove or RemoveOccupants is called with `shutdown`, after Remove |
@@ -433,13 +477,22 @@ It stores n through the reference and also returns n in EAX.
 2. The helper `0x0049F7C0` picks a guess cell:
    - the stored box's corner (x0, z0) when `GetOccupantManagerBBox` succeeds;
    - otherwise a cell from `GetBoundingBox`, with the X shrink only;
-   - with no property holder the guess is uninitialised stack data *[quirk]*.
+   - with no property holder the guess is uninitialised stack data *[quirk]*: FindOccupant passes two of its own
+     locals, which it never sets (`0x0049FB51`–`0x0049FB5E`).
 
-   The guess is clamped to 0…191, and the helper reports whether that cell's list holds the occupant.
+   The guess is clamped to 0…191, and the helper returns that cell's holder. FindOccupant then looks for the
+   occupant in that cell's list.
+
+   Insert (step 4) and Move (step 3) never place an occupant without a property holder; only `Read` can. So for
+   such an occupant the fast path practically never hits. The replacement skips the guess and goes to step 4
+   (OM6, accepted).
+
+   Neither `occ` nor the init flag is checked: a null occupant crashes in the helper, and a full scan before
+   `Init` reads through the null grid.
 3. If it does, return true **without writing x and z** *[quirk]*. The caller must already know the position, or
    pre-set x and z to the box corner.
 4. Otherwise, if `searchAll`: scan the whole grid, x-major from (0, 0). At the first cell holding the occupant,
-   write x and z (world cells) and return true.
+   write x and z (world cells; each only when its pointer is non-null, `0x0049FBFB`/`0x0049FC05`) and return true.
 5. Otherwise return false. Unlock on every path.
 
 ---
@@ -453,10 +506,15 @@ locking). Pop 16.
 
 | Slot | Address | Overload | Cells walked | Test |
 |---|---|---|---|---|
-| 28 | `0x0049E4D0` | `GetFirstOccupantByPosition(out, fx, fz, filter)` | the one world cell slot 15(fx, fz), **not clamped** *[quirk]* | filter, then the point is inside the occupant's box: min.x ≤ fx < max.x and min.z ≤ fz < max.z |
+| 28 | `0x0049E4D0` | `GetFirstOccupantByPosition(out, fx, fz, filter)` | the one world cell slot 15(fx, fz), **not clamped** *[quirk]*; outside the grid see §5.7 | filter, then the point is inside the occupant's box: min.x ≤ fx < max.x and min.z ≤ fz < max.z |
 | 30 | `0x0049E5E0` | `GetFirstOccupant(out, x, z, filter)` | world cell (x, z); outside 0…191 → false | filter only |
-| 32 | `0x0049E690` | `GetFirstOccupantByStandardCityCell(out, x, z, filter)` | the world cells of the box x·16 + 0.1 … (x+1)·16 − 0.1 (same for z) | filter, then strict box overlap (§8.2) with that box, on x and z |
-| 34 | `0x0049E800` | `GetFirstOccupantByStandardCityCells(out, min*, max*, filter)` | min and max are standard cells, clamped to the standard counts; null min = (0, 0); null max = (count, count). The box is min·16 + 0.1 … (max+1)·16 − 0.1, and its world cells are walked x outer, z inner | filter, then strict box overlap on x and z |
+| 32 | `0x0049E690` | `GetFirstOccupantByStandardCityCell(out, x, z, filter)` | the one world cell slot 15(x·16 + 0.1, z·16 + 0.1), **not clamped** (`0x0049E736`). The box x·16 + 0.1 … x·16 + 16 − 0.1 (same for z) always lies in that cell, so this equals walking the box's cells | filter, then strict box overlap (§8.2) with that box, on x and z |
+| 34 | `0x0049E800` | `GetFirstOccupantByStandardCityCells(out, min*, max*, filter)` | min and max are standard cells. A non-null corner is clamped to **0…count − 1** on each axis (min `0x0049E827`–`0x0049E868`, max `0x0049E876`–`0x0049E8B7`; OM5). Null min = (0, 0); null max = **(count X, count Z)**, unclamped, one cell past the city edge as in slot 40. The box is min·16 + 0.1 … (max+1)·16 − 0.1, and its world cells (slot 15 of the two corners, not clamped) are walked x outer, z inner | filter, then strict box overlap on x and z |
+
+The 0.1 of slots 32, 34, 40 and 47 is the same `float` constant as Insert's (`0x00A8F768`, OM4; slot 32
+`0x0049E6FA`–`0x0049E72C`, slot 34 `0x0049E90B`–`0x0049E93D`, slot 40 `0x0049E2F8`–`0x0049E34D`, slot 47
+`0x0049E418`–`0x0049E46D`). The cell corners are converted to `float` exactly (an integer times 16). Each bound is
+stored as a `float` after one add or subtract, so these are single-precision operations.
 
 The **typed** thunks 29, 31, 33 and 35 (`0x0049DC80`, `0x0049DCB0`, `0x0049DCE0`, `0x0049DD10`):
 - return false if not initialised;
@@ -565,15 +623,40 @@ the walk; an occupant removed after it was collected is still called, because it
 
 ### 9.2 IterateOccupants(fn, data, int3* min, int3* max, filter) (slot 44, `0x004A1360`, pop 20)
 
-1. min and max are **three-int vectors**: x = element 0, z = element 2, and element 1 is ignored. Null min →
+1. Take the **outer lock**. It is held for the whole walk, callbacks included. Not initialised → go to step 5.
+2. min and max are **three-int vectors**: x = element 0, z = element 2, and element 1 is ignored. Null min →
    (64, 64); null max → (count + 63). Values are clamped to 0…191, inclusive. They are world cells.
-2. The walk applies the filter and the duplicate check, with no geometry test.
-3. The **outer lock is held for the whole walk, callbacks included**. Each cell also takes an inner lock; the
-   critical section is recursive.
-4. Return true, initialised or not; uninitialised walks find no cells.
+3. **Single-cell walk** (min cell == max cell, `0x004A1438`–`0x004A1442`):
+   1. take the inner lock;
+   2. collect every node that passes the filter, in list order. There is **no duplicate check**. Each collected
+      occupant is AddRef'd into a temporary list (allocator A);
+   3. drop the inner lock;
+   4. call `fn` for each collected occupant while the continue flag is set, and `Release` each one.
+4. **Multi-cell walk**, x outer, z inner (`0x004A1640`–`0x004A17BB`). Per cell:
+   1. take the inner lock;
+   2. for each node, in list order:
+      - run the duplicate check against a **local** hash set, unless the node has bit 0 set (`0x004A1689`–
+        `0x004A1695`; OM7);
+      - then the filter;
+      - each match is AddRef'd into the batch list;
+   3. drop the inner lock;
+   4. call `fn` for each match while the continue flag is set. After a false return, the rest of the batch is only
+      released;
+   5. free the batch, and stop when the flag is clear.
 
-A callback that changes the grid runs under the lock, on the same thread, so it does not deadlock. If it unlinks the
-node being visited, it invalidates the walk *[inferred]*. The manager's own use (§2.2) only calls `Init`.
+   No geometry test is made.
+5. Drop the outer lock and return true, initialised or not; uninitialised walks find no cells.
+
+So slot 44 has slot 42's batch structure. The only difference is that slot 44 keeps the outer lock across the
+callbacks.
+- A callback runs under that lock, on the same thread, so it does not deadlock.
+- It may insert, remove or move occupants, including the one it was given, because the batch holds references.
+  Earlier text said that unlinking the visited node invalidates the walk; that was wrong.
+- Changes to cells not yet visited are seen by the walk.
+- The manager's own use (§2.2) only calls `Init`.
+
+*[compat]* OM7: skipping the duplicate check for bit-0 nodes never changes the result, because a single-cell
+occupant has nodes in one cell only. A replacement that checks every node returns the same sequence.
 
 ### 9.3 IterateOccupantsByStandardCityCell(fn, data, int2* min, int2* max, filter) (slot 47, `0x0049E370`)
 
@@ -728,6 +811,7 @@ These rows are written in the style of allocators.md. "Crosses" means the memory
 - The record is 2 + 8 + 16 + 4 + 192 · (4 + 192 · 4) = 148 254 bytes, plus 8 bytes per reference (object ID and
   class ID, foundations §2.7).
 - Returns `GetError() == 0`.
+- Neither `Write` nor `Read` takes the manager's lock (OM8): no lock call in `0x0049ECF0` or `0x004A1A20`.
 
 `Read` (`0x004A1A20`):
 1. Set `+0xD`. The version must be 1; otherwise return false.
@@ -746,8 +830,19 @@ At load time bit 0 is usually 0. Occupant classes are read after the manager (as
 so their box is not loaded yet and `GetOccupantManagerBBox` fails. Queries still return correct results (§4.2).
 
 `Read` posts no message and sets no occupant flag. Flag 1 and the stored box come from the occupants' own records
-*[inferred: the occupant records are out of scope here; save-records §8]*. `Init` (§2.2) then initialises every
-occupant, which posts Create.
+(answers OM2, re-specs14b). The base occupant record (`Write` `0x005E8CD0` / `Read` `0x005E8D60`, version u16 4) holds,
+in order:
+
+1. the u16 at occupant `+0x2C`;
+2. the highlight byte;
+3. the flags byte (occupant `+0x2F`) masked with `0xDD`, so flag 1 (in the manager) **is** saved;
+4. the u32 at `+0x24`;
+5. the 4-byte stored box at `+0x28`–`+0x2B`;
+6. the property holder.
+
+`Read` sets the state byte `+0x2E := (highlight << 4) | 2`. This clears bit 0 (not initialised) and sets bit 1.
+`Init` (§2.2) then initialises every occupant. With bit 1 set, the base `Init` calls slot 17 (0, 0) and posts **no**
+Create. 16 occupant classes call this base `Read`.
 
 ---
 
@@ -763,7 +858,7 @@ identified *[inferred: the renderer or the model loader reading occupants]*.
 | 42 | per cell, released around the callbacks |
 | 44 | the whole walk, callbacks included |
 | 40, 47, typed thunks | no lock of their own; they reach a locking slot |
-| 6–19, 25, 26, 48 | none |
+| 6–19, 25, 26, 48, `Write`, `Read` | none (OM8: slot 25 `0x0049E490`, `Write` `0x0049ECF0` and `Read` `0x004A1A20` were checked) |
 
 Hazards a replacement must keep in mind:
 - **The shared filter is not re-entrant.** A typed call made from inside a slot-42 or slot-44 callback rewrites
@@ -805,6 +900,9 @@ deviation, because no shipped callback nests a typed call *[inferred]*.
 15. Strict overlap with NaN passes (§8.2).
 16. After a load, single-cell nodes carry bit 0 = 0 (§13). They are harmless but differ in memory from a fresh
     insert.
+17. Slot 32 does not clamp its world cell either (§7), and slot 34 clamps a given max to count − 1 but turns a null
+    max into count (OM5).
+18. A box whose low corner wraps below byte 0 is inserted with no nodes and still counts as inserted (§5.7).
 
 ---
 
@@ -812,12 +910,39 @@ deviation, because no shipped callback nests a typed call *[inferred]*.
 
 - **OM1:** which thread contends for the lock? [*inferred*: the renderer or the model loader; settled by a
   breakpoint on `0x0049DF80`/`0x004A0670` filtered by thread ID in a turbo run]
-- **OM2:** the loaded occupants' flag 1 and stored box: are they read from the occupant records, or restored some
-  other way? [*inferred*: from the occupant base class record; save-records §8 owns the occupant records. Settled by
-  checking, after a load, that `IsFlagSet(1)` is true and `GetOccupantManagerBBox` succeeds for a sample of
-  occupants before `Init`]
+- ~~**OM2:** the loaded occupants' flag 1 and stored box: are they read from the occupant records, or restored some
+  other way?~~ **Answered (re-specs14b):** from the occupant base record (§13): flag 1 is saved in the flags byte
+  (mask `0xDD`) and the box in the 4 bytes at `+0x28`. The bracket MATCHES. A loaded occupant does not post Create
+  (§2.2 corrected).
 - **OM3:** is slot 12 ever called? [not searched exhaustively: virtual calls through `+0x30` are common. A turbo run
   with a breakpoint on `0x0049DA30` would settle it; until then reproduce the bug]
+- ~~**OM4:** is the 0.1 m shrink constant (§5.1 step 5 and the standard-cell boxes of slots 32/34/40) `float` or
+  `double`, and where is it? [float]~~ **ANSWERED 2026-10-16 (re-answers16):** MATCHES. It is `float`
+  `0x3DCCCCCD` at `0x00A8F768`, read as a 4-byte operand everywhere; the 1.0 width limit is `float` at `0x00A81228`.
+  Every shrunk bound is stored as a `float` (§5.1 step 5, §7).
+- ~~**OM5:** slot 34 clamps its corners to the standard counts: 0..=count or 0..=count−1? [0..=count]~~
+  **ANSWERED 2026-10-16 (re-answers16):** **DIFFERS**. A non-null corner is clamped to 0…count − 1
+  (`0x0049E827`–`0x0049E8B7`). Only a **null** max becomes (count X, count Z), one cell past the edge, as in slot 40
+  (§7).
+- ~~**OM6:** out-of-grid and crash paths: Insert before Init, boxes with bytes past 191 or negative cells, slot 23
+  with a null filter, slot 28 outside the grid, FindOccupant on an occupant without a property holder. [no nodes /
+  flag 1 set and Insert posted / true and no-op / none / no guess]~~ **ANSWERED 2026-10-16 (re-answers16):** see
+  §5.7 and §6.3. The wrapped box (low byte > high byte) **MATCHES**: no nodes, flag 1 set, Insert posted. The no-guess
+  FindOccupant MATCHES in effect, because such an occupant is never inserted. The other three cases crash or read
+  wild memory in the original, so the brackets are accepted as choices:
+  - Insert before `Init` crashes on the null row array (`0x0049F0F7`) after Create and the stored box; after
+    `Shutdown` Insert works;
+  - a byte overrun reads and writes past the grid;
+  - slot 23 writes to address `0xC`;
+  - slot 28 (and slot 32) read outside the grid.
+- ~~**OM7:** does slot 44 skip the duplicate check for single-cell nodes like slots 36/38? [checks every node]~~
+  **ANSWERED 2026-10-16 (re-answers16):** **DIFFERS** in mechanism, same results. It skips the check for bit-0 nodes
+  (`0x004A1689`–`0x004A1695`), and a single-cell walk has no check at all. §9.2 is rewritten: slot 44 collects an
+  AddRef'd batch per cell under an inner lock and calls back after dropping it, as slot 42 does, but inside the
+  outer lock.
+- ~~**OM8:** do `Write`/`Read` and slot 25 take the manager's lock? [yes]~~ **ANSWERED 2026-10-16
+  (re-answers16):** **DIFFERS**: none of the three does (`0x0049ECF0`, `0x004A1A20`, `0x0049E490`). Taking the
+  recursive lock there is harmless (same thread, no callbacks inside). The choice may stay; it is not observable.
 - **ZQ14** is answered in zones.md §5.2 (re-answers11). The trace in this lane agrees: the calls at `0x006277FA`,
   `0x00627A16` and `0x00627A38` pass the network tool's `+0x208`, which is set to 3 at `0x0062924A` and to 1 at
   `0x00629980` and `0x0062C782`.
@@ -918,3 +1043,16 @@ Unless a test says otherwise, use a 1024 m city: manager counts 16, standard cou
     - Read with version 2 returns false.
 20. **Shutdown.** `Shutdown` posts Remove and Destroy for every occupant, returns true, clears the initialised flag
     and nulls the filter. A second `Shutdown` is a no-op.
+21. **Slot 34 clamp (OM5).** Occupant M with box x 1000…1020, z 0…16 on a 1024 m city (standard count 64).
+    - Slot 34 with min = (63, 0) and max = (70, 0): max is clamped to (63, 0), so the box is x 1008.1…1023.9, and M
+      is found.
+    - An occupant N at x 1030…1035, z 0…16, is **not** found by that call.
+    - After M is removed, slot 34 with min = (63, 0) and a null max finds N: the box reaches 65 · 16 − 0.1 = 1039.9.
+22. **Wrapped box (OM6).** An occupant whose bounding box spans x −4100…−4000, z 100…120 (shrunk to −4099.9…−4000.1):
+    - its low x cell is −1, stored as byte 255; its high x cell is 1;
+    - Insert returns true, sets flag 1 and posts Insert, but no cell holds it;
+    - Remove returns true and posts Remove.
+23. **Slot 44 batches (OM7).** A slot-44 callback that removes the occupant it was given (slot 21), in a cell with
+    three occupants, is called three times. The walk then continues with the next cell.
+24. **Shrink precision (OM4).** A box x 100.0…164.0 stores min.x = `float`(100.0 + 0.1f) = 100.09999847… and max.x
+    = `float`(164.0 − 0.1f) = 163.89999389….

@@ -23,6 +23,7 @@
 #include "FC4GameMapBuild.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -108,6 +109,7 @@ constexpr uint32_t kIID_cISCExemplarPropertyHolder = 0x0AC2B5F7;
 constexpr uint32_t kIID_cIGZCheatCodeManager = 0xA1085722;  // as used by the SDK examples
 constexpr uint32_t kCLSID_cSC4BuildingOccupant = 0xA9BD882D;
 constexpr uint32_t kIID_cISC4FoundationOccupant = 0xC8FCE101;   // §4.9.2
+constexpr uint32_t kIID_cISC4LotRetainingWallOccupant = 0x295D1162;  // §4.9.2 (DG35)
 constexpr uint32_t kCLSID_cSC4FoundationOccupant = 0x49C05C8F;  // §4.9.2 [choice: through GZCOM]
 constexpr uint32_t kCLSID_cSC4Demand = 0x8990C12D;
 
@@ -1418,15 +1420,19 @@ void SetFoundationOrientation(void* u, uint64_t occ, int32_t orientation) {
                    [&](cISC4FoundationOccupant* fo) { fo->SetOrientation(orientation); });  // slot 12
 }
 
-// The wall's slot 11 GetRetainingWallType(). [spec question, choice] No IID
-// of cISC4LotRetainingWallOccupant is known, so the wall cannot be reached
-// from its occupant token: slot 29 keeps the wall it was called with
-// (currentWall) and this answers for that wall only (0 otherwise).
+// The wall's slot 11 GetRetainingWallType() (§4.9.2, DG35): the occupant
+// token's QueryInterface for cISC4LotRetainingWallOccupant (IID 0x295D1162,
+// answered by the wall with its primary interface, as the game reaches walls
+// from occupants); the reference is dropped after the call (the token holds
+// one). 0 when the occupant is not a wall.
 uint32_t RetainingWallType(void* u, uint64_t occ) {
-    fc4::DevelopmentContext* c = Ctx(u);
-    cISC4LotRetainingWallOccupant* w = static_cast<cISC4LotRetainingWallOccupant*>(c->currentWall);
-    if (w == nullptr || occ == 0 || occ != c->currentWallToken) return 0;
-    return w->GetRetainingWallType();
+    if (occ == 0 || !Gate(u, fc4::Sw::DevelopmentOccupants, "development GetRetainingWallType (0)")) return 0;
+    cISC4LotRetainingWallOccupant* w =
+        Query<cISC4LotRetainingWallOccupant>(FromToken(occ), kIID_cISC4LotRetainingWallOccupant);
+    if (w == nullptr) return 0;
+    const uint32_t t = w->GetRetainingWallType();  // slot 11
+    Drop(w);
+    return t;
 }
 
 // Lot developer slot 17, the int32 overload of GetLowestOrHighestAreaAltitude
@@ -1805,8 +1811,8 @@ uint32_t SessionSeedValue(bool* fixed) {
         }
     }
     if (fixed != nullptr) *fixed = false;
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01 (cRZTime)
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 }  // namespace
@@ -1864,7 +1870,7 @@ fc4_development_process* DevelopmentProcess() {
         const uint32_t seed = DevelopmentSessionSeed(&fixed);
         pp = fc4_development_process_create(seed);
         fc4::Log("development: process statics %p, session seed 0x%08X (%s)", static_cast<void*>(pp), seed,
-                 fixed ? "development_seed" : "wall clock");
+                 fixed ? "development_seed" : "session seed");
     }
     return pp;
 }
@@ -1876,7 +1882,7 @@ fc4_growth_statics* GrowthStatics() {
         const uint32_t seed = DevelopmentSessionSeed(&fixed);
         gs = fc4_growth_statics_create(seed);
         fc4::Log("development: growth statics %p, session seed 0x%08X (%s)", static_cast<void*>(gs), seed,
-                 fixed ? "development_seed" : "wall clock");
+                 fixed ? "development_seed" : "session seed");
     }
     return gs;
 }
@@ -2620,7 +2626,7 @@ bool cFC4BuildingDevelopmentSimulator::GetLotRetainingWallKeyFromType(uint32_t t
 
 // Slot 29 (§4.9.2, DG6; the wall factory gives up when it fails): the
 // retaining-wall key map's exemplar becomes the occupant's default exemplar.
-// The wall is kept for the call so retaining_wall_type can answer slot 11.
+// The type-0 fallback reaches the wall from its occupant token (DG35).
 bool cFC4BuildingDevelopmentSimulator::LoadLotRetainingWallProperties(cISC4LotRetainingWallOccupant* occupant,
                                                                       uint32_t type) {
     Call call(this);
@@ -2632,14 +2638,8 @@ bool cFC4BuildingDevelopmentSimulator::LoadLotRetainingWallProperties(cISC4LotRe
         return false;
     }
     ++ctx_.wallLoads;
-    const uint64_t token = occupant ? TokenOf(occupant->AsOccupant()) : 0;
-    cIGZUnknown* const savedWall = ctx_.currentWall;
-    const uint64_t savedToken = ctx_.currentWallToken;
-    ctx_.currentWall = occupant;
-    ctx_.currentWallToken = token;
+    const uint64_t token = occupant ? TokenOf(occupant->AsOccupant()) : 0;  // slot 3
     const bool ok = fc4_development_load_retaining_wall(core_, token, type);
-    ctx_.currentWall = savedWall;
-    ctx_.currentWallToken = savedToken;
     if (ok) ++ctx_.wallLoadsOk;
     return ok;
 }

@@ -50,9 +50,9 @@ is at +0xC; the last `Release` calls the deleting destructor (slot 6).
 
 The current setting is the preferences byte at `+0xF16` of the preferences object (global `0x00B43CD8`): 1 low,
 2 medium, 3 high; default 3 (`cSC4Preferences` constructor). The video options page writes it. The lot
-configuration manager builds lot configurations for the current setting and rebuilds them when it changes
-(`StaticInit`, `0x0048A540`), so a configuration's object array depends on it *[inferred: which objects are
-dropped at which level is a lot configuration matter]*.
+configuration manager builds lot configurations for the current setting and rebuilds them at the next city `Init`
+after it changes (`StaticInit`, `0x0048A540`), so a configuration's object array depends on it: an object is kept
+when it is the building or when its LOD is below the setting (§3.1, prop-lotconfig.md §B3.3).
 
 No agents, no messages, no tuning.
 
@@ -79,8 +79,8 @@ with a detail value d, and an object is kept when its type byte (value 0) is 0 (
 of its value 1 satisfy `(v1 & 0x30) < 16 × d` (`0x00479D22`, `0x00479EB1`–`0x00479EC6`). So level bits `0x00` are
 kept at every detail d ≥ 1, `0x10` at d ≥ 2, `0x20` at d = 3, and `0x30` never (except a building). `Load` passes
 its own argument through (`0x0047A521`–`0x0047A536`); network lot configurations always use d = 3
-(`0x0060F80E`). d is the city detail preference, 1 low to 3 high *[inferred: the stored level is 3 in every
-template]*. The configuration's `keep` and `need` sets below are therefore already filtered.
+(`0x0060F80E`). d is the city detail preference, 1 low to 3 high, read by the lot configuration manager when it
+builds its catalogue (`0x00489910`; prop-lotconfig.md §B3.2–§B3.3, which also counts the shipped objects per level). The configuration's `keep` and `need` sets below are therefore already filtered.
 
 ### 3.2 Reduce (`0x0045D690`)
 

@@ -209,6 +209,7 @@ Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vec
 | `exemplar_holder` | `exemplars?` (a stub resource manager: `[{key, props}]`), `preset_parent?` (key), `hex`, `ok?`, `own?`, `parent?` (key or `null`), `lookup?` (`[{id, value or null}]`), `rewrite?`, `position?` | reading the exemplar holder (§10.3); keys are `{group, type, instance}` |
 | `crt_rand` | `seed?` (default 1), `srand?`, `expect?` (outputs), `shuffle?` (`{input, expect, calls?}`) | the C runtime `rand()` and `random_shuffle` (§12) |
 | `variant_convert` | `variant` (a scalar), `cases`: `[{to, expect}]` with `to` one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `u64`, `i64`, `bool`, `f32`, `f64` | a scalar element converted as a property reader does (`docs/specs/data-formats.md` §5.1): integer targets keep the low bits of the element's int64, Bool is int64 ≠ 0, float targets go through its double (a Float32 read as Float32 as is); integer expectations may be `"0x…"` bit patterns |
+| `variant_get_u32` | `variant` (any variant), `expect`: a number or `false` | holder slot 8, `GetProperty(id, uint32&)` (`docs/specs/data-formats.md` §5.1, `docs/specs/neighbors.md` §15.4 NG44): scalars by number, arrays, strings, the void array and Empty through the text round trip (`fc4-formats`); pointers and objects fail *[choice]* |
 
 Floats in `stream_write`, `stream_read` and `curve` may be numbers or `"0x…"` bit patterns (for NaN and −0.0).
 
@@ -1103,6 +1104,8 @@ session seed (§6.3), and `rand()` starts at state 1. Draws are traced by kind R
 | `ldev_start_construction` / `ldev_construct_default` | `lot`, `cfg?`, `type`, `animate?`, `expect?` | `StartConstruction` (§6.1) / `ConstructDefaultLot` (§6.4) |
 | `ldev_abandon` / `ldev_reoccupy` / `ldev_change_building` | `lot`, `reason` / `lot`, `dev` / `lot`, `type`, `expect?` | slots 8 / 9 / 10 (§6.4) |
 | `ldev_update_lot_elements` | `lot`, `kind` (the **whole 32-bit** terrain-change kind; only `kind != 5` is tested, §6.4), `expect?` | slot 37 |
+| `ldev_area_flat` | `rect` (cells) or `lot`, `water?` (default true), `expect` | slot 25 `IsAreaFlat` / slot 26 `IsLotFlat` (§17.2, LD29: every vertex against the first, read with water) |
+| `ldev_area_range` | `rect`, `water?` (default true), `expect?`, `expect_bits?` | slot 27 `GetAreaAltitudeRange` (§17.2) |
 | `ldev_start_demolish` / `ldev_end_demolish` / `ldev_clear_lot` | `lot`, `expect?` | slots 12 / 13 and `ClearLot` (§7) |
 | `ldev_explode_lot` | `lot`, `burnt?`, `expect?` | slot 14 (§7.2) |
 | `ldev_add_rubble` | `lot`, `min` (`[x,y,z]`), `max`, `burnt?` | `AddLotRubbleProps` (§7.3, draws R9–R14) |
@@ -1147,14 +1150,16 @@ Lot developer events: `acquire_services`, `release_services`, `add_agent` (`leve
 `occ`, `orientation`, `pos`), `prop_remove`, `remove_lot_props`, `remove_building_props`, `flora_add`,
 `flora_demolish`, `demolish_occupant`, `demolish_lot`, `add_building` (`occ`, `type`), `claim` (`amount`, `ok`),
 `add_lot_foundation` (`lot`, `type`), `add_building_foundation`, `remove_building_foundation`,
-`update_lot_foundation`, `update_retaining_walls`, `update_object_altitudes`, `update_base_texture_occupant`
+`update_lot_foundation`, `update_retaining_walls`, `lot_occupants` (`lot`; lot slot 49 of `UpdateLotObjectAlitudes`,
+§6.5, LD17), `occupant_moved` (`occ`, `y`: occupant manager slot 24 with 1 after the new y), `update_base_texture_occupant`
 (`lot`, `had_foundation`), `set_empty_texture`, `remove_retaining_walls`, `remove_lot_foundation`,
 `update_surrounding_foundations`, `update_surrounding_walls` (`lot`), the §17 terrain writer `modify_terrain`
 (`per_vertex`, `rect`, `h`, `exempt`) with `set_altitude` (`x`, `z`, `h`), `set_altitude_rect` (`rect`, `h`, `reason`) and
 `redisplay` (`rect`, `reason`), BDS slot 23 `add_foundation` (`type`, `kind`, `pos`, `dx`, `dz`, `orient`, `bottom`,
 `occ`, `top`, `size`, `cells`), `retaining_wall` (`lot`, `flag`), `set_textures` (`occ`, `n`) followed by one
 `set_texture` per record (`texture`, `x`, `z`, `orientation`, `byte3`, `extra` (five bytes), `frame`),
-`remove_occupant` (`occ`, `a`, `flags`), `shutdown_occupant` (`occ`), `add_network_nodes`, `remove_network_nodes`,
+`remove_occupant` (`occ`, `a`, `flags`), `shutdown_occupant` (`occ`), `add_network_nodes` (`lot`, `nodes`: one
+`[type, x, z, b, c, d, orientation]` per connection node, §6.5, LD17), `remove_network_nodes`,
 `construction_occupant` (`lot`), `level_internal`, `attempt_levelling`, `rubble_decal` (`instance`, `size`),
 `unit_create`, `unit_add` (`unit`, `lot`).
 
@@ -1531,7 +1536,7 @@ neighbour pool (0: the default pool).
 | `ts_init` | `session_seed?` (0), `expect?` | a new simulator and its Init |
 | `ts_street` | `cell`, `cells` or `rect` | §11 test 10's road info (network 1, `invCapacity 0.0625`, Street, 3 connections) |
 | `ts_info` | `cell`, `cells` or `rect`; `info` (`[[network, type, inv_cap, conn_count, flags?]]`) | network-info records |
-| `ts_state` | `state`: any of `cycle_state` (set without the entry action), `pass_total`, `to_reroute`, `to_search`, `units_per_slice`, `pct` (`[[wealth, [3 percentages]]]`), `budget_total`, `strike_state`, `strike_months`, `transit_income`, `toll_income`, `rail_damage_accident_factor`, `commute_max_time`, `strategy_bucket`, `buckets` (`[[bucket, [[x, z]]]]`), `dest` (`[[x, z, bits]]`), `free` (the free-destination counts), `accident_check` (`[[x, z, p]]`), `rng_seed` (the generator reseeded, wall and process clocks = the value), `income_acc` and `fee_acc` (doubles), `ferry_fare`, `income_per_tile` (9 floats), `cells_per_type` (13 counts), `potholes` (the published pothole count), `phase_positions` (`[x, z]`: the saved source cell, §3.5 step 11), `subnetworks_stale`, `network_changed` | the state |
+| `ts_state` | `state`: any of `cycle_state` (set without the entry action), `pass_total`, `to_reroute`, `to_search`, `units_per_slice`, `pct` (`[[wealth, [3 percentages]]]`), `budget_total`, `strike_state`, `strike_months`, `transit_income`, `toll_income`, `rail_damage_accident_factor`, `commute_max_time`, `strategy_bucket`, `buckets` (`[[bucket, [[x, z]]]]`), `dest` (`[[x, z, bits]]`), `free` (the free-destination counts), `accident_check` (`[[x, z, p]]`), `rng_seed` (the generator reseeded, wall and process clocks = the value), `pass_counters` (the 10 counts), `processed`, `day_index`, `income_acc` and `fee_acc` (doubles), `ferry_fare`, `income_per_tile` (9 floats), `cells_per_type` (13 counts), `potholes` (the published pothole count), `phase_positions` (`[x, z]`: the saved source cell, §3.5 step 11), `subnetworks_stale`, `network_changed` | the state |
 | `ts_damage` | `kind` (`road`, `rail`), `intact?`, `damaged?` (`[[x, z]]`), `rate?`, `cell_count?`, `damaged_count?` (set as given, after the cells) | damage cells |
 | `ts_occupant` | `id`, `flags` (bit `1 << t` per network type, bit 31 the subway skip), `cell` (the position: the middle of the cell), `own?` (the network occupant's own cell, slot 59; default `cell`) | a network occupant; `ts_call do_message` with data3 `0xC772BF98` and object `id` sends it (§3.6) |
 | `ts_edge` | `usage` (`[[x, z, t, evening, value]]`) | edge-density usages (§4.8) |
@@ -1550,7 +1555,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | `ts_save` | `slot`, `prefix?` (hex), `length?` | `Write` into a slot, with its reference registry |
 | `ts_load` | `slot`, `version?` (the leading u16 patched), `truncate?` (bytes dropped from the end), `expect?` | `Read` |
 | `ts_expect_same_save` | `a`, `b` | the two records are byte-identical |
-| `ts_expect_state` | `state` (partial: `initialised`, `cycle_state`, `total`, `days`, `day_index`, `processed`, `pass_total`, `to_reroute`, `to_search`, `source_pos`, `source_count` (the connections of the iterator's snapshot), `phase_positions` (`[x, z]`), `held_source` (a source or null), `finish_resume` (a lot or null), `pass_counters`, `strategy_bucket`, `strategy_bucket_counter`, `buckets`, `budget_total`, `strike_state`, `strike_months`, `strike_flag`, `strike_probability`, `attempted`, `routed`, `job_capacity`, `car_len_sum`, `car_len_count`, `freight_len_sum`, `freight_count`, `freight_byte`, `avg_car_commute`, `transit_income`, `toll_income`, `last_monthly_income`, `income_acc`, `fee_acc`, `free`, `type_count_building`, `type_count_published`, `ferry_total`, `cells_per_type`, `stats_records` (the published u16 × 13), `stats_rows` (14 rows `{sum, congested, max, max_cell}`, slot 13 the bridge), `potholes`, `next_accident_check`, `accident_check`, `roads`, `mass_transit`, `commute_max_time`, `congestion_scale`, `congestion_points`, `units_per_slice`, `last_day`, `cycle_start_date`, `subnetworks_stale`, `network_changed`, `transit_multiplier`) | the simulator state |
+| `ts_expect_state` | `state` (partial: `initialised`, `cycle_state`, `total`, `days`, `day_index`, `processed`, `pass_total`, `to_reroute`, `to_search`, `source_pos`, `source_count` (the connections of the iterator's snapshot), `phase_positions` (`[x, z]`), `held_source` (a source or null), `finish_resume` (a lot or null), `pass_counters`, `strategy_bucket`, `strategy_bucket_counter`, `buckets`, `budget_total`, `strike_state`, `strike_months`, `strike_flag`, `strike_probability`, `attempted`, `routed`, `job_capacity`, `car_len_sum`, `car_len_count`, `freight_len_sum`, `freight_count`, `freight_byte`, `avg_car_commute`, `transit_income`, `toll_income`, `last_monthly_income`, `income_acc`, `fee_acc`, `free`, `type_count_building`, `type_count_published`, `ferry_total`, `cells_per_type`, `stats_records` (the published u16 × 13), `stats_rows` (14 rows `{sum, congested, max, max_cell}`, slot 13 the bridge), `stats_work_rows` (the working set's 14 rows, same form), `stat_max_cmp` (the 14 comparison values of §4.9 step 3, f32 bits), `potholes`, `next_accident_check`, `accident_check`, `roads`, `mass_transit`, `commute_max_time`, `congestion_scale`, `congestion_points`, `units_per_slice`, `last_day`, `cycle_start_date`, `subnetworks_stale`, `network_changed`, `transit_multiplier`) | the simulator state |
 | `ts_expect_grid` | `grid`, `n?`, `values` (`[[x, z, v]]`) | grid values |
 | `ts_expect_edge` | `cell`, `t?` (1), `evening?` (false: key bit 24), `counts?` and `last?` (`[[entry, exit, value]]`, every other counter 0), `usage?` | `GetTrafficEdgeDensity` |
 | `ts_expect_world` | `state?` (partial: `posted` (`[[type, data1, data2, data3]]`), `posted_types`, `history` (`[[series, value]]`), `incomes` (`[[department, item, amount]]`), `accidents` (`[[x, z, ms]]`), `agents` (levels), `subscriptions`, `departments` (`[[id, max funding]]`), `released_departments`, `refs` (non-zero reference counts), `network_costs` (`[[mass transit, [13 cell counts]]]`, one per budget update)); `posted_includes?` (`[[type]]` or `[[type, data1, data2, data3]]`); `history_includes?` (`[[series, value]]`) | the host's log |
@@ -1752,6 +1757,311 @@ Park events: `tuning` (the exemplar was asked for), `acquire` (`service`, `ok`),
 `void1`, `unknown`: the posted ZooEscape), `controllers` (`name`, `occupant`; only with an automata controller
 manager), and the stub's `double`, `u32` (`n`).
 
+## City detail ops
+
+The city detail vectors (`cd8_…`) drive `fc4_core::city_detail::CityDetailManager` (`docs/specs/city-detail.md`)
+over one scripted city implementing `CityDetailHost`. Every op name starts with `cd_`. The default world: preference
+3, no lots, no network lots, creation succeeds, the stub generator.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `cd_env` | any of `setting` (the preference), `session_seed` (a new session), `random` (`"stub"` or `"session"`), `u32s` (the stub's queue), `network` (`[[x, z, lot]]`), `create` (whether AddLotProp / AddNewFloraOccupant answer an occupant) | the world |
+| `cd_lot` | `lot`, `objects` (`[{type: "prop" \| "flora" \| n, flags?, tag, ids?}]`, `ids` defaulting to `[tag]`; null: no configuration) | appends a lot |
+| `cd_occupant` | `occupant`, `lot`, `type` (`"prop"`, `"flora"`, `"building"` or an ID), `tag?` | an occupant |
+| `cd_ids` | `lot`, `index`, `ids` | the configuration manager's ID array of an object (families expanded) |
+| `cd_create` | | a new manager |
+| `cd_init` / `cd_shutdown` / `cd_add_ref` / `cd_release` / `cd_get_level` | `expect?` | the slots |
+| `cd_set` | `level` | the stored level (test setup) |
+| `cd_identity` | `iids` (`{"0xIID": bool}`), `class?` | `QueryInterface`, `GetGZCLSID` |
+| `cd_expect` | `state` (partial: `level`, `ref_count`, `destroyed`, `last_pass`, `removed`, `created`, `draws`, `network_lots`, `session_passes`) | the manager |
+| `cd_expect_occupants` | `lot`, `occupants` (`[[occupant, kind or type, tag or null]]`, token order) | a lot's occupants |
+| `cd_write` / `cd_read` | `hex?`, `slot?`, `fresh?`, `expect?` | the record |
+| `cd_expect_events` / `cd_expect_event_count` / `cd_clear_events` | see the shared conventions | host calls |
+
+City detail events: `demolish_flora` / `remove_prop` (`occupant`), `placement` (`lot`, `index`), `add_prop` /
+`add_flora` (`id`, the placement, `occupant`), `set_tag` (`occupant`, `tag`), `redevelop` (`x`, `z`, `lot`), `draw`.
+
+## Port developer ops
+
+The port developer vectors (`pd12_…`) drive `fc4_core::port_developer::PortDeveloper`
+(`docs/specs/port-developers.md`) over one scripted city implementing `PortHost`: the shipped airport and seaport
+exemplars, lots and building occupants, the budget line, office counts per subnetwork, freight arrivals and the
+terrain's water. Every op name starts with `pd_`. A lot configuration's token is its ID.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `pd_env` | any of `kind`, `line` (`[full, current]` or null), `follow` (current expenses follow SetFullExpenses), `department` (a token or null), `offices` (`[[CO$$ per subnetwork], [CO$$$ per subnetwork]]`), `terrain` (`[width, depth]`), `water` (`[[x, z]]`, replacing the set), `create_lot`, `construct` (whether CreateLot and ConstructDefaultLot succeed), `exemplars` (`{"0xINSTANCE": {properties} \| null}`) | the world |
+| `pd_lot` | `lot`, any of `config` (`[id, growth stage]` or null), `x`, `z`, `state`, `condition`, `days`, `rect` (`[x0, z0, x1, z1]`), `facing`, `compatible`, `subnetworks`, `arrived` | creates or updates a lot |
+| `pd_occupant` | `occupant`, `lot`, `type?` (`"building"` or an ID), `group?`, `preview?` | a building occupant |
+| `pd_create` | `kind?` (`"airport"` or `"seaport"`) | a new developer |
+| `pd_init` / `pd_shutdown` / `pd_add_ref` / `pd_release` / `pd_month` | `expect?` | the slots; the month tick |
+| `pd_message` | `msg`, `data?`, `old?`, `new?`, `expect?` | `DoMessage` |
+| `pd_set_port` | `index`, any of `stage`, `trips`, `efficiency`, `usage` | pokes a port (test setup) |
+| `pd_identity` | `kind`, `iids` (`{"0xIID": offset \| false}`) | `QueryInterface` |
+| `pd_query` | `query` (`num_ports`, `num_airports`, `num_seaports`, `num_trips`, `avg_efficiency`, `least_efficient`, `all_port_lots`, `usage_values`, `maintenance_cost`, `city_has_sea`, `cell_sea_access`, `funding_ratio`, `required_budget`), `args?`, `expect` | the queries |
+| `pd_expect` | `state` (partial: `tuning_loaded`, `initialized`, `tuning_instance`, `type_count`, `types`, `zone_type`, `ports`, `ref_count`, `destroyed`, `recheck_access`, `city_has_sea`, `department`, `full`, `current`, `month_ran`, `history`, `event`, `skipped`) | the developer |
+| `pd_expect_port` | `index`, `state` (partial: `stage`, `type`, `x`, `z`, `efficiency`, `usage`, `trips`, `lot`, `needs_lookup`, `swapping`, `access`) | a port |
+| `pd_expect_map` | `cells` (row-major), `size?` | the sea-access map |
+| `pd_write` / `pd_read` | `hex?`, `slot?`, `fresh?`, `expect?` | the record |
+| `pd_expect_events` / `pd_expect_event_count` / `pd_clear_events` | see the shared conventions | host calls |
+
+Port developer events: `create_department`, `add_agent`, `remove_agent`, `full_expenses`, `withdraw`, `condition`,
+`start_demolish`, `end_demolish`, `create_lot`, `set_configuration`, `construct`, `dezone`, `effects`, `history`,
+`advisor`, `trip_capacity`, `props_state`, `altitude`.
+
+## Prop developer ops
+
+The prop developer vectors (`pv12_…`) drive `fc4_core::prop_developer::PropDeveloper`
+(`docs/specs/prop-developer.md`) over one scripted city implementing `PropHost`. Every op name starts with `pv_`.
+The default world: a 64 × 64 city, cell width 16, no lots, no props, every cell powered, no 24-hour clock, visual
+mode 0, day, a 3D view with every trigger off, the managers and wealth requester token of the corpus. A network
+occupant's token names its first cell (`0xXXXXZZZZ`). Records are written and read with each reference as
+`u32 token, u32 class`, so the spec's corpus records round-trip byte for byte. Every generator draw is logged as a
+`draw` event (`gen` `"member"` or `"wealth"`; `call` `"RS"` with `lo`, `hi`, or `"U"` with `n`; `value`).
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `pv_env` | any of `cells`, `clock` (`[hour, minute]` or null), `visual_mode`, `night` (the lighting manager), `view`, `triggers_on`, `date`, `heights` (`[terrain, water]`), `unpowered` (`[[x, z]]`, replacing the set), `zones` (`[[x, z, type]]`), `profiles` (`[[id, satisfaction, wealth]]`), `families` (`{"0xFAMILY": [ids]}`), `exemplars` (`{"0xID": {properties}}`, the properties of a created prop of that type), `wealth_token` | the world |
+| `pv_lot` | `lot`, any of `x`, `z`, `size`, `livable`, `building`, `occupancy`, `wealth`, `state`, `objects` (`[{tag, ids?, type? (1), flags? (1)}]`; null: no configuration) | creates or updates a lot |
+| `pv_network_lot` | `token`, `cell`, `objects?`, `wealth?` | a network lot |
+| `pv_prop` | `prop`, any of `lot` (null: a street prop), `cell`, `tag`, `type`, `class`, `properties`, `state`, `pos` | creates or updates a prop |
+| `pv_requester` | `token`, any of `share`, `satisfaction`, `custom`, `select` (what SelectProp answers; null: the first ID) | a host requester |
+| `pv_script` | `member?`, `wealth?` (results to append) | the scripted generators |
+| `pv_create` | `seed?` (the session seed: real generators, the wealth one shared per seed; none: scripted) | a new developer |
+| `pv_init` / `pv_shutdown` / `pv_add_ref` / `pv_release` | `expect?` | the slots |
+| `pv_add_requester` | `token`, `class` (`0x89C49986` is a wealth requester) | `AddPropRequester` |
+| `pv_remove_requester` | `token`, `expect?` | `RemovePropRequester` |
+| `pv_message` | `msg`, `object?`, `data1`…`data4?`, `expect?` | `DoMessage` |
+| `pv_step` | `expect` (`[bx, bz]` or null) | one block step |
+| `pv_update_block` | `block` (`[bx, bz]`) | one block update |
+| `pv_update_all` | | `UpdateAllOptionalProps` |
+| `pv_signs` | `show?`, `toggle?`, `expect?` (visible afterwards) | slots 8–10 |
+| `pv_wealth_select` | `ids`, `x`, `z`, `expect` | the wealth requester's `SelectProp` |
+| `pv_identity` | `iids?`, `wealth_iids?` (`{"0xIID": offset \| false}`), `member_seed?` (`[S, seed]`) | `QueryInterface`, the member seed |
+| `pv_expect` | `state` (partial: `initialized`, `scan_flag`, `scanner` (`"fresh"`, `"running"`, `"done"`), `scan_at`, `clip`, `wealth_added`, `night_cursor`, `night_mode`, `night_batch`, `night_acc`, `is_night`, `tod_last`, `signs_visible`, `ref_count`, `destroyed`, `crt_state`, and the list lengths `requesters`, `night`, `triggers`, `time_of_day`, `dated`, `power`, `signs`) | the developer |
+| `pv_expect_block` | `state` (partial: `block`, `lots`, `occ_sum`, `slots`, `kept_all`, `target`, `want`, `kept`, `removed`, `created`, `member_draws`, `stopped`) | the last block update |
+| `pv_expect_lists` | any of `requesters` (`[[token, class]]`), `night`, `time_of_day`, `dated`, `power`, `signs` (tokens), `triggers` (`[[trigger, [tokens]]]`), `classes` (`{"0xTOKEN": class}`) | the lists |
+| `pv_expect_prop` | `prop`, `state` (partial: `exists`, `state`, `type`, `lot`, `tag`, `requester`, `pos`) | a prop in the world |
+| `pv_write` / `pv_read` | `hex?`, `length?`, `slot?`, `fresh?`, `seed?`, `expect?` | the record |
+| `pv_expect_events` / `pv_expect_event_count` / `pv_clear_events` | see the shared conventions | host calls |
+
+Prop developer events: `create_wealth_requester`, `add_agent` (`level`, `name`, `flags`), `remove_agents`,
+`subscribe` (`msg`), `unsubscribe_all`, `animation_tick` (`priority`), `unregister_animation_tick`,
+`post_lot_state_props` (`x`, `z`, `entered`), `hold` / `release` (`token`), `share` (`requester`, `rect`), `select`
+(`requester`, `ids`, `x`, `z`), `remove_prop`, `create_prop` (`lot`, `index`, `id`, `prop`), `create_network_prop`,
+`prop_state`, `timer` (`prop`, `mask`, `on`), `chance`, `time_of_day_range`, `date_range`, `tick_date`, `position`,
+`flag`, `draw`.
+
+## Automata ops
+
+The automata vectors (`am14_…`) drive `fc4_core::automata` (`docs/specs/automata.md`). Every op name starts with
+`automata_`. One world per vector holds a script set (empty), a controller manager whose host logs `log <text>`,
+`add_ref 0x…` and `release 0x…` (the low 32 bits of the token), an automata manager, a scripted city for the riot
+and fire hooks, and the riot leaders and fire hook. Records are read with references resolved to host tokens
+`class << 32 | id` and written back as ID and class. An occupant given by number is a building of class
+`0xA9BD882D`. Controllers the manager creates get tokens from `0x1000` upward; controllers read by `cm_read` are core
+controllers whose token is their object ID.
+
+### Records
+
+| op | Arguments | Check |
+|---|---|---|
+| `automata_record` | `class` (any class of the layer: components 40, 41, 43–46 or a referenced object), `hex`, `expect?` (false: Read fails), `left?` (bytes left after the read; default 0), `fields?` (partial: `version`, `base_version`, `clock`, `time_a`, `time_b` (`[hour, day]`), `entries`, `sets`, `loaded`, `max_count`, `active`, `time_scaling`, `automata`, `group_counts` (`[[group, count]]`), `tag`, `cursor`, `incidents`, `old_version`, `pairs`, `spots`, `lots`, `occupants`, `ferries`, `occupant` (`[id, class]`), `template`, `position`, `flags`, `curve`, `period`, `second_period`, `day_stamp`, `counter`), `written?` (the expected re-encoding; default the input) | Read, the fields, Write |
+
+### Controller manager
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `automata_scripts` | `templates?` (`[{name, kind? ("generator" or "attractor"), flags?}]`), `groups?` (`[{id, name, templates}]`) | replaces the script set |
+| `automata_cm_new` | | a new controller manager (not loaded) |
+| `automata_cm_read` | `hex`, `templates?` (`{"<controller id>": name}`: the template name each read controller holds), `expect?` | Read |
+| `automata_cm_add` | `occupant`, `template`, `expect?` (whether a controller was made) | slot 5 `AddControllerFromTemplateName` |
+| `automata_cm_add_group` | `occupant`, `id` or `name`, `no_scripts?`, `expect?` | slots 9 and 10 |
+| `automata_cm_remove` | `occupant`, `expect?` (the count removed) | slot 14 `RemoveControllers` |
+| `automata_cm_remove_group` | `occupant`, `id` or `name`, `expect?` | slots 12 and 13 |
+| `automata_cm_post_city_init` | `expect?` (the dropped template names, in order) | `PostCityInit` |
+| `automata_cm_expect` | partial: `occupants` (`{"<occupant>": [template names]}`, every occupant), `loaded`, `bound` (per controller in order: template bound), `shut_down` (the read controller IDs shut down) | the manager state |
+| `automata_cm_write` | `hex` | Write |
+| `automata_expect_log` / `automata_clear_log` | `log` | the host log |
+
+### Managers and hooks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `automata_mgr_new` | `kind` (`vehicle`, `pedestrian`, `aircraft`, `watercraft`), `automata?` (a count of placeholder automata) | a new manager |
+| `automata_mgr_max_count` | `n`, `state?` (partial: `max`, `hard_limit`, `removed`, `count`) | `SetMaxCount` |
+| `automata_mgr_driving_mode` | `view`, `expect` | `IsDrivingMode` |
+| `automata_automaton_controller` | `flags`, `null` | an automaton whose controller has `flags` writes a null controller reference or not |
+| `automata_city` | any of `road`, `cap` (the leader cap is reached), `create_null`, `buildings` (occupants whose type is a building) | the scripted city |
+| `automata_riot_add` | `x`, `z`, `expect` (the leader index or null) | `AddRiotLeader` |
+| `automata_riot_stage` | `leader?`, `stage`, `expect` | the stage update |
+| `automata_riot_end` | `leader?`, `expect` | the end |
+| `automata_fire_target` / `automata_fire_shutdown` | `target` / none, `expect` | the fire occupant's hooks |
+| `automata_expect_calls` / `automata_clear_calls` | `calls` | the city calls, as text |
+
+City calls: `FindRoad x z`, `LeaderCap n`, `CreateAutomaton group (x, y, z) mode (dx, dy, dz) a b c`, `AddRef`,
+`SetState automaton type a b c d e f`, `SetVisible automaton bool`, `RegisterLocation`, `AddControllerFromTemplateName
+occupant name extra`, `RemoveControllers`, `UnregisterLocation`, `Release`, `AddControllersFromOccupantGroup name
+occupant extra`. A road tile at `(x, z)` is at `(16x + 8, 0, 16z + 8)`; the created automaton is `0x500`, `0x501`, …;
+its occupant is the automaton `| 0x10000`.
+
+## Disaster ops
+
+The disaster vectors (`ds18_…` for the §18 tests, `ds00_…` for the rest) drive `fc4_core::disasters::Disasters`
+(`docs/specs/disasters.md`) over one scripted city implementing `DisasterHost`. Every op name starts with `dis_`.
+The world outlives `dis_create`, so a vector can build a new layer over the same city. The default world: a 64 × 64
+city of 16 m cells, established, not paused, wall clock at 0 ms, follow-disasters off, view level 1, the shipped
+"Flame" and "Riot" exemplars (no others: the short-form disasters use their defaults), no occupants, cells or
+automata, session seed `0x12345678` and the stub generator for all five generators (fire, riot, earthquake,
+pipe burst and the pipe burst's start). The stub returns queued `u32s` (else 1 for a raw draw and n − 1 for
+`RandomUint32Uniform(n)`) and `doubles` (else 0.99; a uniform range maps a queued `u` to `a + u (b − a)`, default
+0; a Gaussian range the same, default 0.5); every draw is an event. Tokens: fire occupants `0xF000 + n`, riot
+leaders `0xA000 + n`, toxic occupants `0xC000 + n`, in creation order over the world's life. The world's emergency
+pause and save-disable counters follow the layer's calls; the simulation counts as paused while either the manual
+pause or the emergency pause is on.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `dis_env` | any of `cells` [x, z], `cell_width`, `paused`, `emergency` (the counter), `established`, `follow`, `no_burn_down` (the tutorial flag), `demolish_removes` (a demolition removes the occupant and sends `OccupantRemoved` to the layer inside the call), `wind`, `view_level`, `tuning` (`{flame, riot, earthquake, pipe_burst, volcano: "shipped" (flame and riot), null or {props}}`), `random` (`"stub"` or `"default"`, read by `dis_create`), `u32s`, `doubles` | the world |
+| `dis_occupant` | `occupant`, `type?` (`building`, `flora`, `prop`, `network` or an ID; building), `cell` [x, z], `rect?` [x0, z0, x1, z1], `position?`, `in_manager?` (true), `lot?` (occupant + `0x100000`; null: none), `flags?`, `props?` (`{"0xID": number, bool or null}`; the flammability `0x29244DB5` defaults to 100), `coverage?` (fire coverage, 0), `areas?` [top, side] | adds or updates an occupant |
+| `dis_cell` | `cell`, `cells` or `rect` (inclusive), with any of `flammability`, `police`, `road`, `network` (the network occupant's token or null), `network_base` (each cell its own network occupant: base + the cell's index), `pipe` (a token or null), `pipe_neighbours` (the connected cells of that pipe) | cell data |
+| `dis_automaton` | `automaton`, `cell` (null: gone) | an automaton's cell |
+| `dis_create` | `session_seed?` | a new layer (not initialised), which replaces the current one |
+| `dis_clock` | `set?`, `advance?` (ms) | the wall clock |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `dis_init` / `dis_shutdown` | `expect?` | the layer's `Init` and `Shutdown` |
+| `dis_call` | `method`, `args?`, `expect?` | `enable_disasters`, `disasters_enabled`, `has_manager`, `disaster_has_begun`, `disaster_has_ended`, `is_disaster_ongoing`, `register_location [instance, x, z, occupant, zoom, focus]`, `unregister_locations`, `unregister_location_by_occupant`, `most_recent_location` ([x, z] or null), `location_count`, `go_to_next_disaster`, `disaster_cost`, `reset_disaster_cost`, `attempt_start [manager, x, z]` and `attempt_start_any [manager]` (the instance or null), `active_count`, `instance_shutdown`, `fire_instance`, `ignite_occupant`, `ignite [occupant, force, fire_id, focus]`, `ignite_cell` and `manager_ignite_cell [x, z, use_probability, teleport, fire_id]`, `extinguish_cell [x, z, amount]`, `quick_burn_cell`, `ignite_cell_radius [x, z, r0, r1]`, `extinguish`, `burn_down`, `set_cause`, `cause`, `fire_count`, `fire_count_in_rect [x0, z0, x1, z1]`, `fire_update` (the fire's tick), `fire_set_hosed [fire occupant, delta]`, `spill_toxic_waste [x, z, amount]`, `toxic_set_hosed`, `volcano_request_end`, `start_disaster_effect [effect, x, z]`. Managers by name (`volcano`, `fire`, `earthquake`, `pipe_burst`, `riot`, `effect`, `toxic`) or ID |
+| `dis_message` | `target` (`"layer"`, `{"manager": …}` or `{"instance": id}`), `type` (`OccupantRemoved`, `OccupantInserted`, `DispatchBegin`, `DispatchActive`, `DispatchInactive`, `DispatchEnd`, `ToxicSpill`, `PreViewLevelChange`, `EffectFinished`, `EffectMoved` or an ID), `data1..3?`, `void1?`, `x?`, `z?`, `expect?` | `DoMessage` |
+| `dis_tick` | `instance` (an ID or `"fire"`), `us?` (16000), `count?` (1), `advance_ms?` (added to the clock before each tick) | animation ticks |
+| `dis_seconds` | `count`, `instance?` (`"fire"`) | `count` times: one second of wall clock, then the fire's update (or a tick of the instance) |
+| `dis_flame_tuning` | `tuning` (`"shipped"`, null or `{props}`), `state?` (partial: `d3`, `d3cum`, `d4`, `d5`, `d6`, `zoom`, `d9_empty`), lookups `stages`, `d9`, `resistance`, `da` (`[[input, output]]`) | `FireTuning` |
+| `dis_riot_tuning` | `tuning`, `state?` (partial: `max_riots`, `max_leaders`, `stages`, `seconds_per_stage`, `leaders_spawned`, `zoom`), lookups `police`, `stage_of` | `RiotTuning` |
+| `dis_expect` | `state` (partial: `initialised`, `enabled`, `disable_counter`, `ongoing`, `assessing`, `building_count`, `total_cost`, `kinds`, `special_count`, `fire_timers` / `police_timers` ([[key, seconds]]), `overall_s`, `fire_effectiveness`, `police_effectiveness`, `locations` ([{instance, x, z, zoom, occupant}]), `managers`, `emergency`, `save_disabled`, `fire_count`, `reentrant_refused`, `riot_locked` (the network occupants the riots hold locked); with a fire instance `fire_phase`, `fires`, `fire_ids`, `toast`, `cause`, `elapsed_ms`, `next_ms`, `toasted`, `fire_tick`, `d3cum`, `zoom`; `toxic_instance` (null without one) and `toxic_amounts`) | the layer and the world |
+| `dis_expect_fire` | `index?` (0), `state` (partial: `occupant`, `target`, `counter`, `stage`, `max_stage`, `fire_id`, `hosed`, `extinguish_at`, `top_flames`, `side_flames`) or `absent: true` | one fire of the list |
+| `dis_expect_riot` | `instance`, `state` (partial: `phase`, `leader_count`, `leaders` ([{automaton, counter, stage, max_stage, cell}])) or `absent: true` | a riot |
+| `dis_expect_instance` | `instance`, `state` (partial: `type`, `class`, `phase`, `location`, `tick`) or `absent: true` | any instance |
+| `dis_expect_refs` | `refs` (`{"token": count}`) | references the core holds |
+| `dis_expect_events` / `dis_expect_event_count` / `dis_clear_events` | see the shared conventions | host calls |
+
+Disaster events: `emergency_pause`, `emergency_resume`, `disable_save`, `enable_save`, `post` (`type`, `data1`,
+`data2`, `data3`, `data4`, `void1`), `subscribe` / `unsubscribe` (`target`, `type`), `register_tick` (`instance`,
+`priority`), `unregister_tick` (`instance`), `history` (`series`, `value`), `tuning` (`instance`), `go_to` (`x`,
+`z`, `zoom`), `fire_effectiveness` / `police_effectiveness` (`value`), `remove_occupant`, `condition` (`lot`,
+`condition`), `create_fire` (`instance`, `fire`, `target`, `fire_id`, `top`, `side`), `remove_fire` (`fire`,
+`target`), `aura`, `effect` (`name`, `occupant`), `effect_at` (`name`, `x`, `z`), `burn_flora`, `demolish`
+(`occupant`, `lot`, `flags`), `radiation` (`occupant`, `amount`, `radius`), `leader` (`automaton`, `x`, `z`),
+`unset_removal` / `set_removal` (`occupant`, `flags`: the riot's removal lock), `riot_effect` / `riot_message` (`automaton`, `stage`), `end_leader`, `leader_tick`, `toxic`
+(`instance`, `occupant`, `x`, `z`, `amount`), `toxic_amount`, `remove_toxic`, `brush` (`brush`, `x`, `z`,
+`strength`, `width`), `redraw` (the rect), `end_long_terrain`, `stop_textures`, `repulsor` (`x`, `z`),
+`leak_effect` (`pipe`, `level`, `shown`), `demolish_pipe` (`pipe`, `flags`), `volcano_deformation`,
+`volcano_end_deformation`, `lava` (`instance`, `radius`), `lava_end`, and the stub's `raw`, `u32` (`n`),
+`double`, `range` and `gaussian` (`a`, `b`), each with its `generator`.
+
+## Occupant manager ops
+
+The occupant manager vectors (`om18_…`, `om14_…`) drive `fc4_core::occupant_manager::OccupantManager`
+(`docs/specs/occupant-manager.md`) over one scripted world implementing `OccupantHost`. Every op name starts with
+`om_`. Occupants are tokens with a bounding box, a type, flags, a stored manager box and the base occupant behaviour
+of §5.6: the first `Init` posts Create (unless `quiet`, bit 1 of `+0x2E` as a loaded occupant's own `Read` sets it: then an `occupant_slot17` event), `Shutdown` of an
+initialised occupant posts Destroy, and `PostOccupantMessage` records a `post` event (a Move of a `sync` occupant is
+marked `sync: true`). References are counted per token (net). Query results are released by the runner after the
+checks (unless `keep: true`), so reference counts show only the manager's own references.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `om_create` | | a new constructed manager (not initialised, no rows), which replaces the current one |
+| `om_occupant` | `occupant`, any of `type` (default `0x100`), `min`, `max` (`[x, y, z]`), `holder` (default true), `flags`, `om_box` (`[x0, z0, x1, z1]` or null = the "no box" mark), `initialized`, `quiet`, `sync` | creates or updates an occupant |
+| `om_filter` | `filter` (a token), `exclude` (tokens) | a caller filter that includes everything else |
+| `om_trace` | `locks?`, `refs?` | also record `lock` / `unlock` (`depth`) and `add_ref` / `release` (`occupant`) events |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `om_call` | `method`, its arguments, `expect?` | one slot (below) |
+| `om_expect` | `state` (partial: `initialized`, `was_read`, `ref_count`, `destroyed`, `size`, `counts` (the four), `filter_type` (null: no shared filter), `rows`, `holders`, `nodes`) | the manager |
+| `om_expect_cell` | `cell` (`[x, z]`, world cells), `occupants` (front first) and / or `single` (bit 0 per node), or `null: true` (no holder) | a cell list |
+| `om_expect_occupant` | `occupant`, `state` (partial: `flags`, `om_box`, `initialized`) | an occupant |
+| `om_expect_refs` | `{"token": references}` | net references taken |
+| `om_write` / `om_read` / `om_expect_record` | as for the park ops; `om_expect_record` also takes `u32s` (`[{offset, values}]`, little-endian) | the record (§13) |
+| `om_expect_events` / `om_expect_event_count` / `om_clear_events` | see the shared conventions | host calls |
+
+`om_call` methods (filters: `filter` null = all, a token = a caller filter, `{"type": n}` = the shared one-type
+filter; the typed overloads take `type`):
+
+- conversions (`args`): `position_to_world_cell`, `position_to_manager_cell`, `position_to_standard_cell` (two
+  floats); `world_to_manager_cell`, `manager_to_world_cell`, `standard_to_world_cell`, `world_cell_to_position`,
+  `manager_cell_to_position`, `standard_cell_to_position`, `bounding_cells` (two ints); `world_to_standard_cell`
+  (x, z, the old z output); `query_interface` (IID → view offset 0 / 4 / 8 or null);
+- lifecycle: `set_city_size` (`args`), `init`, `shutdown`, `add_ref`, `release`, `class_id`, `cell_sizes`,
+  `world_cell_count`, `cell_count`, `cell_bounds`;
+- `insert` (`occupant`, `data4`), `remove` (`occupant`, `shutdown`, `data4`), `remove_occupants` (`filter`,
+  `shutdown`, `data4`), `remove_occupants_typed` (`type`, …), `move` (`occupant`, `post`, default true);
+- `is_cell_empty` (`args`), `find_occupant` (`occupant`, `search_all`, `xz` (the outputs' values before the call),
+  `expect_xz`);
+- first-occupant queries (result: token or null): `first_by_position` (`args` floats), `first_in_cell`,
+  `first_by_standard_cell` (`args` ints), `first_by_standard_cells` (`min?`, `max?`), each with `_typed`;
+- list queries (`expect_list`, `list` = elements already in the list, `max_count` default −1): `by_bbox` (`min?`,
+  `max?` 3-vectors), `by_cells`, `by_standard_cells` (`min?`, `max?` pairs), each with `_typed`;
+- iteration (each call records `callback` (`occupant`, `depth`); `stop_at` = occupants for which the callback
+  returns false; `actions` = `{"occupant": [om_call bodies]}` run inside that callback, failures recorded as
+  `action_error`): `iterate_by_bbox` (`min`, `max`), `iterate` (`min?`, `max?` 3-int vectors),
+  `iterate_by_standard_cells` (`min?`, `max?`), each with `_typed`.
+
+Occupant manager events: `post` (`type`, `occupant`, `data2` (flag 4), `data3` (the type), `data4`, `sync`,
+`inserted` (flag 1 when posted)), `occupant_slot17`, `callback`, `action_error`, and with `om_trace`: `lock` /
+`unlock` (`depth`), `add_ref` / `release` (`occupant`).
+
+## Terrain ops
+
+The terrain vectors (`tr18_…` for the §18 tests, `tr00_…` for the rest) drive `fc4_core::terrain`
+(`docs/specs/terrain.md`): the height field `Terrain`, the brushes, the surface-water queries and bodies of water
+(`BodiesOfWater`, `NavigationHost`) and the volcano lava (`Lava`, `LavaHost`). Every op name starts with `ter_`.
+The terrain's posts are drained into the event log after each op. The default terrain: 2 × 2 cells of 16 m, flat at
+300 m, sea level 250 m (each vertex's depth starts at sea − altitude), the shipped tuning, view-ready (as if
+`DoPostCityInit` had run). The default world: no lots, bridges or power poles, every cell flammable, and the
+random draw returns 0 unless queued.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `ter_create` | `cells?` [x, z], `altitudes?` (row-major, z outer, `(x+1)(z+1)` values; `"nan"` allowed) or `flat?`, `sea?`, `tuning?` (`"shipped"` or a partial `TerrainTuning`: `max_height`, `min_height`, `new_sea_level`, `new_flat_height`, `image_height_scale`, `sea_level_min`, `sea_level_max`, `cliff_slope`, `saved_78`), `view_ready?` (true), `new?` (false; true: `Create` from the tuning instead of the altitude array) | a new terrain, replacing the current one |
+| `ter_env` | any of `lots` ([[x, z, lot]]), `bridges` ([[x, z, deck or null]]: null is a bridge whose deck is unknown), `poles` ([[x, z]]), `not_flammable` ([[x, z]]), `burn_cells` (the queue `next_burn_cell` returns), `random` (queued draws) | the world |
+| `ter_set` | `vertex` [x, z] or `vertices` [x0, z0, x1, z1] (inclusive) with any of `altitude`, `depth`, `flags`; or `cell` [x, z] with `depths` (the corners (x, z), (x+1, z), (x, z+1), (x+1, z+1)); or `cached` [min, max] | raw state, no messages, no depth bookkeeping |
+| `ter_add_brush` | `brush` (ID), `bitmap` (`{width, height, fill}` or `{width, height, pixels}`), `angle?`, `expect?` | registers a kind-0 description over the bitmap |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `ter_call` | `method`, `args?`, `expect?`, `expect_bits?` (the f32's bits) | the queries `altitude`, `altitude_at_index`, `altitude_at_vertex`, `altitude_at_nearest_grid`, `altitude_checksum`, `cell_corner_altitudes`, `location_is_in_bounds`, `face_normal` ([x, y, z] or null when untouched), `min_height`, `max_height`, `min_allowed_height`, `max_allowed_height`, `vert_index`, `sea_level`, `water_level`, `water_depth_at_vertex`, `water_depth_at_index`, `max_surface_level`, `cell_has_water`, `cell_has_land`, `is_land_vertex`, `is_water_vertex`, `is_sea_vertex`, `water_depth_for_cell`, `has_draft_clearance`, `water_type`, `is_navigable` ([x, z, r, lot]), `is_triangulation_flipped`, `cell_flags`, `terrain_type`; the setters `raise_vertex`, `lower_vertex`, `set_altitude_at_vertex`, `set_altitude`, `set_altitude_rect`, `lock_altitude` ([x0, z0, x1, z1, lock]), `set_sea_level`, `set_terrain_type`; the messages `redisplay` ([terrain, water, x0, z0, x1, z1, data4]), `redisplay_cells` (slot 69, the same arguments as cell corners), `begin_long_terrain_operation`, `end_long_terrain_operation`, `post_city_init`; the bodies of water `update_bodies`, `body` ([x, z] → the ID, 0 for none), `bodies_map` |
+| `ter_apply_brush` | `brush`, `from` [x, z], `to?`, `level?`, `redisplay?`, `strength?` (1), `radius?` (1), `data4?`, `target?`, `expect?`, `out?` ([x0, z0, x1, z1] or null: empty) | `ApplyBrush` with a `BrushParams` |
+| `ter_expect` | `state` (partial: `cells`, `sea_level`, `min_height`, `max_height` (the cache), `view_ready`, `terrain_type`, `saved_78`, `posts_pending`) | the terrain object |
+| `ter_expect_vertices` | `vertex` [x, z] with any of `altitude`, `depth`, `flags`; or `rect?` (the whole terrain) with any of `min`, `max`, `baseline` + `changed_within` (the only vertices that differ from `baseline`) and `changed` (how many) | the height field |
+| `ter_lava_start` | `at` [x, z] (metres), `radius?` (20), `expect?` (`{source, active, burn}` rectangles) | a `Lava` over the terrain |
+| `ter_lava_set` | `vertex` [x, z] or `around` [x, z] (the eight neighbours) with any of `level`, `production`, `solidification` | lava state |
+| `ter_lava_call` | `method`, `args?`, `expect?` | `flow_amount` and `transfer` ([x, z, dt] → `{amount, to, mode}`; `mode` is `none`, `ignite` or `quick_burn`), `level` ([x, z]), `flow` ([dt], one `DoLavaFlow`), `burn`, `rects` |
+| `ter_record` | `sizes?` (`{misc, altitudes, properties, edges: [4]}`), `round_trip?` (write, load into a fresh terrain, compare every field), `edge?` (`{side, count, values?}`) | the §13.1 records |
+| `ter_expect_events` / `ter_expect_event_count` / `ter_clear_events` | see the shared conventions | host calls |
+
+Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_burn` (`x`, `z`), `cause`
+(`cause`) and `random` (`n`). Floats are numbers or `"nan"`.
+
+### Nation
+
+| op | Arguments | Check |
+|---|---|---|
+| `nat_economy` | `difficulty?` (three modifiers), `curves` (`{"id": [x0, y0, x1, y1, …]}`), `checks` ([[demand ID, months, city difficulty or null (no city), expected]]) | `GetEconomyModifier` (`fc4_core::demand::NationEconomy`, nation §5) |
+
 ## Advisor ops
 
 The advisor vectors (`ad17_…`, `ad04_…`, `ad06_…`) drive `fc4_core::advisors::AdvisorSystem` (`docs/specs/advisors.md`)
@@ -1866,7 +2176,10 @@ MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_pos
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
-   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `ad17_…` (advisors §17; `ad04_…` and
+   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `cd8_…` (city detail §8),
+   `pd12_…` (port developers §12), `pv12_…` (prop developer §12), `ds18_…` and `ds00_…` (disasters §18 and the
+   rest of disasters), `tr18_…` and `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
+   (automata §14), `om18_…` / `om14_…` (occupant manager §18 / §14), `ad17_…` (advisors §17; `ad04_…` and
    `ad06_…` for other advisor behaviour) and `ms12_…` (MySims §12).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
@@ -1904,7 +2217,7 @@ MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_pos
 | §6.3 seed derivation (session seed → each generator's seed) | `f6_03_seed_derivation` |
 | §14 16–17 variants | `f14_16_17_variants` |
 | §14 18–19 property holders | `f14_18_19_property_holders` |
-| data-formats §5.1 scalar conversions (EX2–EX4) | `df5_01_scalar_conversions`; the text round trip, the exemplar reader and data-formats §10.4–§10.7 are `fc4-formats` unit tests |
+| data-formats §5.1 scalar conversions (EX2–EX4) | `df5_01_scalar_conversions`; holder slot 8 `GetProperty(id, uint32&)` on every kind of value (NG44) in `df5_02_get_property_u32`; the text round trip, the exemplar reader and data-formats §10.4–§10.7 are `fc4-formats` unit tests |
 | §14 20–22 regional-city record, deal claiming, import/export | not yet (neighbours milestone) |
 | §14 23 `rand()` | `f14_23_crt_rand`; the prime-step iterator that uses it: `w14_05_iterator` and the `fc4-core` unit tests (`weather::iterator`) |
 | §14 24 month order | `s4_month_registration_order` (registration order within a level), `o13_10_month_order` (the ordinance-lag scenario with the real ordinance simulator and a stub budget, in both orders) |
@@ -2394,6 +2707,8 @@ MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_pos
 | 20–25 construction occupant (§6.7) | out of scope: a separate subsystem (`cSC4ConstructionOccupant`), not the lot developer core |
 | 26 StateChanged data4 (§3.2) | out of scope: `cSC4Lot::SetState`, owned by the lot core |
 | 27 UpdateLotElements kind (full 32-bit `kind != 5`) | `ld16_27_update_lot_elements_kind` |
+| 42 IsAreaFlat against the first vertex, with water (LD29) | `ld16_42_is_area_flat` |
+| extra: AddNetworkConnectionNodes and UpdateLotObjectAlitudes (§6.5, LD17) | `ld6_5_network_nodes_object_altitudes` |
 | 28 slot 16 float rectangle (sample order, clamp, interior vertices) | `ld16_28_float_rect_altitude` |
 | 29 slot 21 worked example 2 (int32 slot 18, per-vertex and area mode, slope cut-off) | `ld16_29_30_levelling` |
 | 30 slot 19 worked example 1 (negative target, force, narrow rectangles; LD-Q1) | `ld16_29_30_levelling` |
@@ -2461,6 +2776,9 @@ MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_pos
 | extra: `DetermineLotSize`'s int32 score (ZQ9), `sx = 0` (ZQ10), missing candidates (ZQ7) | `zn15_41_determine_lot_size_int32_score` |
 | extra: `LayInJogStreets`' parallel test has a draft branch (§7.12, ZQ4) | `zn15_42_jog_parallel_draft` |
 | extra: a failed size check is an ABORT (§6, ZG17): the type-14 landfill cost of the whole region, skipFunds, error 1 replacing 3 or 4 | `zn15_43_size_abort_landfill_cost` |
+| extra: `Init` copies the alpha to the default alpha whenever the exemplar is found, also without Zone Display Alpha (§10.1, ZG18); no exemplar leaves both | `zn15_44_default_alpha_without_property` |
+| extra: the dezone under a network clips a rectangle that crosses the city edge and dezones the inside cells (§5.1, ZG21) | `zn15_45_dezone_across_city_edge` |
+| extra: `Shutdown` deletes every lot through its own `DeleteLot`, x outer, z inner, before the network tools (§1.2, ZG32); with `trace_calls` the world also logs `remove_building_zot_prop`, `lot_shutdown` and `release_lot` (`lot`, `refs`) | `zn1_2_shutdown_deletes_lots` |
 
 The two extras took the numbers 30 and 31 before §15 gained tests 30–32, so tests 30, 31 and 32 are the vectors
 numbered 32, 33 and 34.
@@ -2745,6 +3063,10 @@ Not covered by a vector, and why:
 | extra: Init (agents, subscriptions, departments), identity slots, Shutdown (§1, §7) | `ts11_25_init_and_identity` |
 | extra: DumpEdgeDensities, ReduceEdgeDensities, `GetTravelTimeRatio` (§4.8) | `ts11_26_edge_dump_and_reduce` |
 | extra: short and missing tuning arrays (TS28), the funding percents (TS29), the strategy bytes (§4.14, §4.1.2) | `ts11_27_tuning_reads` |
+| extra: entering 18 keeps pass counter 1 (TS35, §3.3) | `ts11_47_pass_counter_1` |
+| extra: the s16 phase positions: zeroed on entering 16–18, the taken source's cell, the 16-bit resume, FinishTripMap's lot location (TS44, TS45) | `ts11_48_phase_positions` |
+| extra: the state-2 statistics reset, the −1.0 comparison values, a NaN record (TS40, §4.9) | `ts11_49_statistics_reset` |
+| extra: the station cost rounded once above 2^24 (TS46, §4.16) | `ts11_50_station_cost_rounds_once` |
 
 Not covered by a vector, and why:
 
@@ -2851,6 +3173,145 @@ shapes of the §7.1 table.
 
 Not covered by a vector: the 421-save corpus itself (part of item 8) is not available to this suite; `pk12_08`
 replays the record shapes §7 reports.
+
+## Coverage (city detail §8)
+
+| §8 item | Vector |
+|---|---|
+| 1 new city record (default preference, preference 1) | `cd8_01_new_city` |
+| 2 version 1 rejected | `cd8_02_record` |
+| 3 same level: nothing changes | `cd8_03_same_level` |
+| 4 reduce (unlisted tags removed, untagged and listed stay) | `cd8_04_reduce` |
+| 5 increase (one prop per missing required object, at the developer's placement; optional skipped; one draw each) | `cd8_05_increase`, `cd8_06_session_generator` |
+| 6 network lots redeveloped once in both directions, none in a new city | `cd8_01_new_city`, `cd8_04_reduce`, `cd8_05_increase` |
+
+## Coverage (port developers §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 empty records, versions 1 and 3 rejected | `pd12_01_empty_records` |
+| 2 round trip of the §7 example, the counts | `pd12_02_round_trip` |
+| 3 adoption (phase-2 lot and preview ignored) | `pd12_03_adoption` |
+| 4 month with one small airport | `pd12_04_month` |
+| 5 two airports in one subnetwork | `pd12_05_two_airports` |
+| 6 the advisor event and condition 2 | `pd12_06_advice` |
+| 7 growth to the next stage | `pd12_07_growth`, `pd12_07b_growth_failures` |
+| 8 a destroyed port lot | `pd12_08_removal` |
+| 9 the seaport map | `pd12_09_seaport_map`, `pd12_11_seaport_tick` |
+| 10 no ports | `pd12_10_no_ports` |
+| other sections | `pd12_12_funding`, `pd12_13_queries`, `pd12_14_tuning`, `pd12_15_reference_count` |
+
+## Coverage (prop developer §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 empty record (127 bytes), Init, identity | `pv12_01_empty_record` |
+| 2 template read (batch `0xBAADF00D` kept, written as version 5; version 3 rejected) | `pv12_02_template_read` |
+| 3 round trip (the §7 example; every list filled) | `pv12_03_round_trip` |
+| 4 block order | `pv12_04_block_order` |
+| 5, 6 worked examples A, B, C (and E) | `pv12_05_example_a_b_c`, `pv12_06_example_e` |
+| 7 split (example D) | `pv12_07_split` |
+| 8 no lots | `pv12_08_no_lots` |
+| 9 wealth selection | `pv12_09_wealth_selection` |
+| 10 night sweep (and switch all) | `pv12_10_night_sweep`, `pv12_11_switch_all` |
+| 11 time of day | `pv12_12_time_of_day` |
+| 12 registration (and triggers, power, unregistering) | `pv12_13_registration` |
+| 13 signs | `pv12_14_signs` |
+| 14 lot state | `pv12_15_lot_state` |
+| other sections | `pv12_16_cell_walk_quirks`, `pv12_17_requesters` |
+
+Not covered by a vector: the 421-save corpus itself (item 3) is not available to this suite; `pv12_02` and `pv12_03`
+replay the records §7 quotes.
+
+## Coverage (disasters §18)
+
+| §18 item | Vector |
+|---|---|
+| 1 coverage threshold (D9 50, 51, 0; a forced ignition skips the test) | `ds18_01_coverage_threshold` |
+| 2 stage lookup (the shipped thresholds, the defaults, a short D3) | `ds18_02_stage_lookup` |
+| 3 unattended burn-down (29, 30, 55 updates, the demolition, a forced ignition at the 25th, maxStage below 2) | `ds18_03_unattended_burn_down` |
+| 4 hosed fire (the draws, the extinguish delay, no demolition) | `ds18_04_hosed_fire` |
+| 5 episode pause (begin once, end once with the history) | `ds18_05_episode_pause` |
+| 6 nested enable counter | `ds18_06_nested_enable_counter` |
+| 7 riot timing (30, 90 and 180 s; coverage 255) | `ds18_07_riot_timing` |
+| 8 riot leader limit (112 and 113; three riots; the road search) | `ds18_08_riot_leader_limit` |
+| 9 toxic spill (unattended 120 updates, one hose 30) | `ds18_09_toxic_spill` |
+| 10 dispatch effectiveness | `ds18_10_dispatch_effectiveness` |
+| other sections | `ds00_layer_and_locations`, `ds00_ignite_cell`, `ds00_short_form`, `ds00_riot_lock` (network-manager §10) |
+
+The core's unit tests (`fc4_core::disasters`) also cover the lot conditions, the spread, the toast list, the damage
+assessment, re-entrant occupant removal and the default generators.
+
+## Coverage (occupant manager §18)
+
+| §18 item | Vectors |
+|---|---|
+| 1 counts | `om18_01_counts` |
+| 2 position to world cell | `om18_02_position_to_world_cell` |
+| 3 standard cell floor | `om18_03_standard_cell_floor` |
+| 4 slot 12 bug | `om18_04_slot12_bug` |
+| 5 insert cells | `om18_05_insert_cells` |
+| 6 insert and its messages | `om18_06_insert_messages` |
+| 7 insert failure | `om18_07_insert_failure` |
+| 8 newest first | `om18_08_newest_first` |
+| 9 dedup and order across cells | `om18_09_dedup_and_order` |
+| 10 strict box test | `om18_10_strict_box` |
+| 11 null max quirk | `om18_11_null_max_quirk` |
+| 12 typed type 0 | `om18_12_typed_type_zero` |
+| 13 remove order | `om18_13_remove_order` |
+| 14 RemoveOccupants order | `om18_14_remove_occupants_order` |
+| 15 move | `om18_15_move` |
+| 16 FindOccupant | `om18_16_find_occupant` |
+| 17 GetBoundingCells | `om18_17_bounding_cells` |
+| 18 iteration | `om18_18_iteration` |
+| 19 save round-trip | `om18_19_save_round_trip` |
+| 20 shutdown | `om18_20_shutdown` |
+| §14 lock regions and re-entrant callbacks | `om14_lock_regions`, `om14_reentrant_callbacks` |
+
+## Coverage (terrain §18)
+
+| §18 item | Vector |
+|---|---|
+| 1 `GetAltitude` on the worked cell (both triangles, the corners, out of bounds, the ignored flip flag) | `tr18_01_get_altitude` |
+| 2 the floor at cell boundaries and the last row and column | `tr18_02_floor_at_cell_boundaries` |
+| 3 `GetFaceNormal` (both triangles; the untouched output at the upper ends and below 0) | `tr18_03_face_normal` |
+| 4 `CellHasWater` and `CellHasLand` (shore, dry, NaN, out of bounds) | `tr18_04_cell_has_water_and_land` |
+| 5 `GetWaterDepthForCell` and the draft clearance | `tr18_05_water_depth_for_cell` |
+| 6 `GetWaterType` (land, sea, fresh) | `tr18_06_water_type` |
+| 7 `SetAltitudeAtVertex` depth bookkeeping (quirk 4), no clamp, the lock | `tr18_07_set_altitude_at_vertex` |
+| 8 `SetAltitude(x, z, h)` clamps, the lock, the unchecked index | `tr18_08_set_altitude_xz` |
+| 9 `SetSeaLevel` range and message order | `tr18_09_set_sea_level` |
+| 10 `RedisplayTerrain` packing, the view-ready gate, slot 69, the long-operation messages | `tr18_10_redisplay_packing` |
+| 11 the pipe-burst sinkhole (kind 0 lower; a neutral bitmap) | `tr18_11_pipe_burst_sinkhole` |
+| 12 an unknown brush | `tr18_12_unknown_brush` |
+| 13 the lava flow rule and `SetThingsOnFire` | `tr18_13_lava_flow_rule` |
+| 14 the record sizes and round trip | `tr18_14_records` |
+| other sections | `tr00_cached_min_max_stale` (§4.6), `tr00_navigability_and_bodies` (§10.3, §10.4), `nt05_economy_modifier` (nation §5) |
+
+The core's unit tests (`fc4_core::terrain`) also cover the other brush kinds, the lava start and burn rectangles,
+the record versions and truncation, the tuning exemplar and the bodies-of-water flood fill; `fc4_capi`'s `terrain_tests` cover the C ABI.
+
+## Coverage (automata §14)
+
+| §14 item | Vector |
+|---|---|
+| 1 script system (`01 00`; `02 00` fails) | `am14_01_script_system` |
+| 2 controller manager, empty (30 bytes; a cut record) | `am14_02_controller_manager_empty` |
+| 3 controller manager times | `am14_03_controller_times` |
+| 4 vehicle and pedestrian managers, empty (versions 1 and 4, base 7, a cut record) | `am14_04_traffic_managers_empty` |
+| 5 attractor | `am14_05_attractor` |
+| 6 generator (version 3 fails; the base version is kept) | `am14_06_generator` |
+| 7 watercraft, version 6 (version 5 bare, version 7 fails) | `am14_07_watercraft_v6` |
+| 8 riot order (plus the stage rule and the road, cap and null-automaton stops) | `am14_08_riot_order` |
+| 9 fire | `am14_09_fire` |
+| 10 flag 8 | `am14_10_flag_8` |
+| 11 unknown template (and the skipped pass when not loaded) | `am14_11_unknown_template` |
+| 12 corpus round trip | not a vector: `cargo test -p fc4-formats --release --test automata_records -- --nocapture` |
+| other: version 3 traffic managers with an incident, the aircraft lists and versions, a ferry entry, an automaton set | `am14_12_versions_and_lists` |
+| other: `SetMaxCount`, `IsDrivingMode` | `am14_13_manager_slots` |
+| other: the template and occupant-group slots | `am14_14_controller_groups` |
+
+The automaton and state records (§6) are covered by the core unit tests and the corpus sweep, not by a vector.
 
 ## Coverage (advisors §17)
 

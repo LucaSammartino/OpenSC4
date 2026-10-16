@@ -356,9 +356,9 @@ u32
 4 × s32
 3 × D u32      a 3 × D table, row-major; Read zero-fills each row to 9
 u8, u8
-s32 processed, s32
+s32 processed, s32 dayIndex                  (corrected: dayIndex is this s32; traffic-simulator §6.1, TS60)
 s32 total                                    only if v ≥ 25
-u32 days, u32 dayIndex, u32, u32
+u32 days, u32, u32, u32                      (the three u32 are never used, only saved and loaded)
 3 × s32 (passTotal, toReRoute, toSearch)     only if v ≥ 25
 4 × u32        pass counters 0…3             only if v ≥ 25
 6 × u32        pass counters 4…9             only if v ≥ 40, else 0
@@ -373,7 +373,8 @@ A × u32        cells per network type        Read zero-fills to 13
 u32   n (4)    then n × u32 freeDest[k]      Read fills missing entries with 0xFFFFFFFF up to 4
 u32   n        property-holder map
 n × { u16 key; plain property holder record (foundations §10.2) }
-D × { u32 a[i]; u32 b[i] }                   only if v ≥ 27; the two per-travel-type vectors, interleaved
+D × { u32 a[i]; u32 b[i] }                   only if v ≥ 27; the two per-travel-type vectors, interleaved:
+                                             a = published, b = building (traffic-simulator §6.1, TS56)
 u32            ferry total                   only if v ≥ 39
 u32   n        ferry terminals               only if v ≥ 30
 n × ferry terminal (below)
@@ -656,4 +657,6 @@ All of these have been applied to the specs named (M6 integration); the list sta
   would close this.
 - Q4: The `0x89D9B9EE` record written by the city and the View3D record are not specified; FreeCity4 does not
   replace their writers, but standalone mode needs both.
-- Q5: The unnamed classes `0xA9C741B3`, `0xC9B84E10`, `0xCA15ED6B` and `0xEA0A5ACF` (§3.2).
+- Q5: The unnamed classes `0xA9C741B3`, `0xC9B84E10`, `0xCA15ED6B` and `0xEA0A5ACF` (§3.2). *Partly answered*
+  (re-specs14a): `0xC9B84E10` is the terrain's 3D view, saved through a reference in the terrain's class record
+  (u16 1 and one byte, render only; terrain.md §13.2).

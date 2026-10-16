@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "city_detail_new_city",
+  "spec": ["city-detail 1", "city-detail 2", "city-detail 3.1", "city-detail 4", "city-detail 8.1", "city-detail 8.6"],
+  "description": "Identity: QueryInterface answers 1 and 0x6AD4B9F1 (+0) and 0xE4FDA3D4 (+4), class 0xEAD4BA36. A constructed manager stores 0xFFFFFFFF (none). Init with the default preference (3, high) touches nothing (a new city: no reduce, no increase, no network lot redeveloped even though one exists), returns true, and stores 3: the record is 00 00 00 00 03 00 00 00. With preference 1 the record ends in 01. Shutdown returns true and does nothing; slot 5 returns the stored level.",
+  "steps": [
+    {"op": "cd_create"},
+    {"op": "cd_identity", "iids": {"0x1": true, "0x6AD4B9F1": true, "0xE4FDA3D4": true, "0x452294AA": false}, "class": "0xEAD4BA36"},
+    {"op": "cd_expect", "state": {"level": "0xFFFFFFFF", "ref_count": 0, "destroyed": false}},
+    {"op": "cd_env", "network": [[1, 2, "0x50"]]},
+    {"op": "cd_lot", "lot": "0x10", "objects": [{"type": "prop", "tag": "0xA"}]},
+    {"op": "cd_init", "expect": true},
+    {"op": "cd_expect_events", "events": []},
+    {"op": "cd_expect", "state": {"level": 3, "last_pass": 0, "network_lots": 0, "session_passes": 0}},
+    {"op": "cd_write", "hex": "00000000 03000000"},
+    {"op": "cd_get_level", "expect": 3},
+    {"op": "cd_shutdown", "expect": true},
+    {"op": "cd_expect_events", "events": []},
+
+    {"op": "cd_env", "setting": 1},
+    {"op": "cd_create"},
+    {"op": "cd_init", "expect": true},
+    {"op": "cd_write", "hex": "00000000 01000000"},
+    {"op": "cd_add_ref", "expect": 1},
+    {"op": "cd_add_ref", "expect": 2},
+    {"op": "cd_release", "expect": 1},
+    {"op": "cd_release", "expect": 0},
+    {"op": "cd_expect", "state": {"destroyed": true, "ref_count": 0}}
+  ]
+}

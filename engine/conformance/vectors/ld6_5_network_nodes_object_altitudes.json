@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "name": "lot_developer_network_nodes_object_altitudes",
+  "spec": ["lot-developer 6.5", "lot-developer 6.4", "lot-developer 17.6"],
+  "description": "LD17 (§6.5). AddNetworkConnectionNodes on the 2 -> 3 message: for each configuration object of type 7 with at least 3 IDs, in array order, one connection node at the cell of slot 39's position (floor(p / 16)) with ids[0], rotl32(ids[1], 8*orient), rotl32(ids[2], 8*orient), ids[3] or 0, and the orientation (object byte + facing) mod 4; a type-7 object with 2 IDs and objects of other types are skipped; the host gets every node in one call, then autoconnects the lot. UpdateLotObjectAlitudes from slot 37 (|slope| 4.0 > 0.25, the maximum slope before foundation 10.0 is not exceeded, so no foundation): the lot's building, prop and flora occupants in list order; the target is slot 39's y for the occupant's configuration object (lot slot 11), else the terrain at its own x, z; only when |P.y - Q.y| > 0.1 (strict) is y alone moved and the occupant manager told (slot 24 with 1). A network occupant and an occupant of another type are left.",
+  "steps": [
+    {"op": "ldev_world", "terrain_cells": [64, 64]},
+    {"op": "ldev_cfg", "id": 9, "cfg_id": "0x60000009", "w": 1, "h": 1, "stage": 1, "objects": [
+        {"type": 7, "ids": ["0x0000000A", "0x11223344", "0x55667788", "0x00000099"], "orientation": 1,
+          "offset": [8, 0, 4]},
+        {"type": 7, "ids": ["0x0000000B", "0x00000001"], "orientation": 0, "offset": [8, 0, 8]},
+        {"type": 7, "ids": ["0x0000000D", "0xAABBCCDD", "0x01020304"], "orientation": 0, "offset": [15, 0, 1]},
+        {"type": 7, "ids": ["0x0000000E", "0x80000001", "0x00000001", "0x00000002", "0x00000003"], "orientation": 3,
+          "offset": [1, 0, 15]}]},
+    {"op": "ldev_lot", "id": 2, "x": 2, "z": 3, "w": 1, "h": 1, "state": 3, "cfg": 9, "building_type": "0x3001",
+      "note": "facing 0: pos = c1 - offset with c1 = (48, 64), every object in cell (2, 3)"},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_message", "msg": "0xE8BDA2E7", "data1": 2, "data2": 3, "lot": 2, "expect": true},
+    {"op": "ldev_expect_events", "filter": {"event": "add_network_nodes"}, "events": [
+      {"event": "add_network_nodes", "lot": 2, "nodes": [
+        [10, 2, 3, 573785105, 1719109717, 153, 1],
+        [13, 2, 3, 2864434397, 16909060, 0, 0],
+        [14, 2, 3, 25165824, 16777216, 2, 3]]}]},
+
+    {"op": "ldev_clear_lots"},
+    {"op": "ldev_terrain", "alt": [[1, 104]], "pos": [[3, 4, 100], [5, 6, 100], [7, 8, 100]],
+      "note": "vertex index 1 = (x=1, z=0): the lot slope is 4.0; the terrain is 100 at the occupants' positions"},
+    {"op": "ldev_cfg", "id": 10, "cfg_id": "0x6000000A", "w": 1, "h": 1, "max_slope": 10.0},
+    {"op": "ldev_lot", "id": 5, "x": 0, "z": 0, "state": 3, "cfg": 10, "flags": 0},
+    {"op": "ldev_occ", "id": 101, "lot": 5, "is_building": true, "type": "0x278128A0", "position": [3, 105, 4],
+      "note": "|105 - 100| > 0.1: moved to 100"},
+    {"op": "ldev_occ", "id": 102, "lot": 5, "type": "0xA823821E", "position": [5, 100.05, 6],
+      "note": "a prop 0.05 away: left"},
+    {"op": "ldev_occ", "id": 103, "lot": 5, "type": "0x74758926", "position": [7, 99.8, 8],
+      "note": "flora 0.2 away: moved"},
+    {"op": "ldev_occ", "id": 104, "lot": 5, "type": "0xA823821E", "position": [1, 100, 2],
+      "cfg_object": {"type": 1, "offset": [8, 2, 8]},
+      "note": "a prop with a configuration object: slot 39 puts it 2.0 above the terrain at (8, 8)"},
+    {"op": "ldev_occ", "id": 105, "lot": 5, "type": "0xC772BF98", "position": [9, 50, 9], "note": "network: left"},
+    {"op": "ldev_occ", "id": 106, "lot": 5, "type": "0x12345678", "position": [9, 50, 9], "note": "other: left"},
+    {"op": "ldev_terrain", "pos": [[8, 8, 100]]},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_init", "expect": true},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_update_lot_elements", "lot": 5, "kind": 0, "expect": true},
+    {"op": "ldev_expect_events", "filter": {"event": "occupant_moved"}, "events": [
+      {"event": "occupant_moved", "occ": 101, "y": 100},
+      {"event": "occupant_moved", "occ": 103, "y": 100},
+      {"event": "occupant_moved", "occ": 104, "y": 102}]}
+  ]
+}

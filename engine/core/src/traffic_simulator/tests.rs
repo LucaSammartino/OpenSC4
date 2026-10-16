@@ -112,6 +112,8 @@ struct World {
     accidents: RefCell<Vec<(i32, i32, i64)>>,
     refs: RefCell<HashMap<u64, i32>>,
     released_departments: RefCell<Vec<u64>>,
+    /// `create_line_item` calls (department, item, only if missing) (TG7).
+    line_items: RefCell<Vec<(u64, dept::LineItem, bool)>>,
     occs: RefCell<HashMap<u64, Occ>>,
     /// `UpdateRoadsBudget` (false) / `UpdateMassTransitBudget` (true) calls
     /// with the cell counts they priced.
@@ -409,6 +411,9 @@ impl TrafficSimHost for World {
     }
     fn release_department(&self, department: u64) {
         self.released_departments.borrow_mut().push(department);
+    }
+    fn create_line_item(&self, department: u64, item: dept::LineItem, only_if_missing: bool) {
+        self.line_items.borrow_mut().push((department, item, only_if_missing));
     }
     /// Fixture stand-in (TS34): an unset department is at 100 % funding,
     /// as a department `CreateDepartmentBudget` makes (budget.md §6).
@@ -1441,6 +1446,61 @@ fn r24f(v: f64) -> f32 {
     crate::x87::r24(f64::from(v as f32)) as f32
 }
 
+/// §9.1 TG7: a department made at Init gets its line items 1-3 (mass-transit
+/// line 2 Income); then, on every Init, lines 4-6 of both when missing, in
+/// the original's order (roads 5, the tolls, Income). A department a `Read`
+/// resolved is not created again: only the conditional lines are asked for.
+#[test]
+fn tg7_department_line_items() {
+    let w = World::new();
+    let s = sim(&w);
+    let (r, m) = (DEPT_BASE, DEPT_BASE + 1);
+    let mut want: Vec<(u64, dept::LineItem, bool)> = dept::ROADS_LINES.iter().map(|&i| (r, i, false)).collect();
+    want.extend(dept::MASS_TRANSIT_LINES.iter().map(|&i| (m, i, false)));
+    want.extend(
+        dept::INIT_LINES
+            .iter()
+            .map(|&(mt, i)| (if mt { m } else { r }, i, true)),
+    );
+    assert_eq!(*w.line_items.borrow(), want);
+    let order: Vec<(u64, u32, u32, bool)> = w.line_items.borrow()[6..]
+        .iter()
+        .map(|&(d, i, _)| (d, i.line, i.name, i.income))
+        .collect();
+    assert_eq!(
+        order,
+        vec![
+            (m, 4, 0x2AB7_EA93, false),
+            (m, 5, 0x8BCE_33E0, false),
+            (r, 4, 0xCBCE_33D5, false),
+            (m, 6, 0x8BCE_33E1, false),
+            (r, 5, 0x0C3B_F3C4, true),
+            (r, 6, 0xEA5F_96E7, false),
+        ]
+    );
+    let income: Vec<(u64, u32)> = w.line_items.borrow()[..6]
+        .iter()
+        .filter(|e| e.1.income)
+        .map(|e| (e.0, e.1.line))
+        .collect();
+    assert_eq!(income, vec![(m, 2)]);
+    assert_eq!((dept::GROUP, dept::NAME_GROUP), (0xAA36_9059, 0x6A3F_F01C));
+    // A load: Read before Init keeps the saved departments.
+    let (bytes, entries) = record(&s);
+    let w2 = World::new();
+    w2.dept_base.set(0xE000);
+    let s2 = TrafficSimulator::new(w2.clone(), 0);
+    let mut res = Resolver(entries, w2.clone());
+    assert!(s2.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+    assert!(s2.init());
+    assert!(w2.departments.borrow().is_empty());
+    let loaded: Vec<(u64, dept::LineItem, bool)> = dept::INIT_LINES
+        .iter()
+        .map(|&(mt, i)| (if mt { m } else { r }, i, true))
+        .collect();
+    assert_eq!(*w2.line_items.borrow(), loaded);
+}
+
 /// §1: Init registers the agents and the subscriptions in order, and
 /// creates the grids.
 #[test]
@@ -1784,7 +1844,7 @@ fn statistics_slots() {
     assert_eq!(last.rows[3], row(0.5, 0, (3, 1), 0.5));
     // r = 0 still beats the starting −1.0.
     assert_eq!(last.rows[10], row(0.0, 0, (4, 1), 0.0));
-    // A slot with no record publishes zeros *[question]*.
+    // A slot with no record publishes zeros (TS40: the reset zeroes the rows).
     assert_eq!(last.rows[1], StatRow::default());
     // The bridge: r = 2.0, not in the type's count.
     assert_eq!(last.bridge, row(2.0, 1, (2, 1), 2.0));
@@ -2275,6 +2335,44 @@ fn ts20_confirm_trips_live_lots() {
     assert_eq!(s.cycle_state(), cycle_state::REROUTE_TRIPS);
 }
 
+/// §9.1 TG19: the connection snapshot of `Reset` holds a counted reference
+/// on each connection; one removed during the phase is still visited, and
+/// the next `Reset` (and Shutdown) gives the references back.
+#[test]
+fn tg19_connection_snapshot_references() {
+    let w = World::new();
+    for (id, cell, holder) in [(77u64, (-1, 5), 70u64), (78, (8, 2), 71)] {
+        w.conns.borrow_mut().push((
+            id,
+            Conn {
+                cell,
+                holder,
+                ..Conn::default()
+            },
+        ));
+    }
+    let refs = |t: u64| w.refs.borrow().get(&t).copied().unwrap_or(0);
+    let s = sim(&w);
+    s.set_traffic_units_per_slice(1);
+    s.enter_cycle_state(cycle_state::CONFIRM_TRIPS);
+    assert_eq!((refs(77), refs(78)), (1, 1));
+    // 78 leaves the city after the snapshot: still visited.
+    w.conns.borrow_mut().retain(|(id, _)| *id != 78);
+    let step = |s: &TrafficSimulator| {
+        let done = s.work_on_sim_cycle();
+        (done, s.read_state(|st| st.extras.phase_positions))
+    };
+    assert_eq!(step(&s), (false, [-1, 5]));
+    // 78 is taken (the fixture no longer knows its cell: (0, 0)).
+    assert_eq!(step(&s), (false, [0, 0]));
+    assert!(step(&s).0);
+    // The next Reset (entering 17): 78's reference given back.
+    assert_eq!(s.cycle_state(), cycle_state::REROUTE_TRIPS);
+    assert_eq!((refs(77), refs(78)), (1, 0));
+    assert!(s.shutdown());
+    assert_eq!((refs(77), refs(78)), (0, 0));
+}
+
 /// §3.5 (TS7): DoPostCityInit registers the connections, sweeps the pools,
 /// runs the boundary pass, maps state 12/13 to 8, rebuilds the buckets,
 /// sets `days` and prices both budgets.
@@ -2598,10 +2696,11 @@ fn income(s: &TrafficSimulator) -> f64 {
 /// `r24(30 × 0.01f)` = 0.29999998 (§4.5 step 4 example).
 const FARE_30: u32 = 0x3E99_9999;
 
-/// §4.3 (TS14): the route reader's records over runs and jumps. A jump to
-/// an x-neighbour has no exit and clears the cell's entry, which is what
-/// carries over [question]; a same-cell jump and `dz = −1` give `+z`;
-/// equal magnitudes zero `dx`; the `0x80` flag marks the cell before.
+/// §4.3 (TS14, TS36): the route reader's records over runs and jumps. A
+/// jump to an x-neighbour has no exit and blanks the cell's entry in its
+/// own record; the landing cell carries the entry the cell before the jump
+/// had on arrival (TS36); a same-cell jump and `dz = −1` give `+z`; equal
+/// magnitudes zero `dx`; the `0x80` flag marks the cell before (TS39).
 #[test]
 fn ts14_route_reader_records() {
     use super::route::{read_route, RouteStep};
@@ -2631,7 +2730,7 @@ fn ts14_route_reader_records() {
         vec![
             r(5, 5, 1, 1, None, Some(2), false),
             r(6, 5, 1, 1, None, None, false),
-            r(7, 5, 1, 1, None, Some(3), false),
+            r(7, 5, 1, 1, Some(0), Some(3), false),
             r(7, 6, 1, 2, Some(1), Some(3), false),
             r(7, 6, 2, 2, Some(1), Some(1), false),
             r(7, 4, 2, 2, Some(3), Some(0), true),
@@ -2641,6 +2740,37 @@ fn ts14_route_reader_records() {
         ]
     );
     assert!(read_route(&[]).is_empty());
+    // TS36: the entry is none only when the cell before the jump is the
+    // first cell: (5, 5) jumps to (6, 5) at once.
+    assert_eq!(
+        read_route(&[0x01, 5, 5, 0x01, 6, 5, 0x41, 1, 0x02]),
+        vec![
+            r(5, 5, 1, 1, None, None, false),
+            r(6, 5, 1, 1, None, Some(2), false),
+            r(7, 5, 1, 1, Some(0), None, false),
+        ]
+    );
+    // The spec example: a step +x into (5, 3), entry −x, then a jump to
+    // (6, 3): (5, 3) has entry and exit none, (6, 3) entry −x.
+    assert_eq!(
+        read_route(&[0x01, 4, 3, 0x41, 1, 0x02, 0x01, 6, 3]),
+        vec![
+            r(4, 3, 1, 1, None, Some(2), false),
+            r(5, 3, 1, 1, None, None, false),
+            r(6, 3, 1, 1, Some(0), None, false),
+        ]
+    );
+    // Two x-neighbour jumps in a row carry the same arrival side on.
+    assert_eq!(
+        read_route(&[0x01, 4, 3, 0x41, 1, 0x02, 0x01, 6, 3, 0x01, 7, 3, 0x41, 1, 0x03]),
+        vec![
+            r(4, 3, 1, 1, None, Some(2), false),
+            r(5, 3, 1, 1, None, None, false),
+            r(6, 3, 1, 1, None, None, false),
+            r(7, 3, 1, 1, Some(0), Some(3), false),
+            r(7, 4, 1, 1, Some(1), None, false),
+        ]
+    );
 }
 
 /// §4.3 worked example (TS14): ConfirmRoute over test 10's route, the
@@ -3138,3 +3268,275 @@ fn ts19_get_lot_origin_only_in_state_5_and_10() {
     }
     assert_eq!(s.free_destinations()[0], 1);
 }
+
+// ---- re-answers8 (TS35-TS49) ----
+
+/// §3.3 (TS35): entering 17 zeroes pass counter 1; entering 18 zeroes the
+/// day index, processed and `passTotal`, not counter 1, which keeps the
+/// re-route count of state 17 through state 18.
+#[test]
+fn ts35_entering_18_keeps_pass_counter_1() {
+    use super::state::PC_REROUTE_COUNTER;
+    let w = World::new();
+    let s = sim(&w);
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::CONFIRM_TRIPS;
+        st.pass_counters[PC_REROUTE_COUNTER] = 7;
+    });
+    // 16 with no source finishes and enters 17.
+    assert!(s.do_daily_simulation());
+    assert_eq!(s.cycle_state(), cycle_state::REROUTE_TRIPS);
+    assert_eq!(s.read_state(|st| st.pass_counters[PC_REROUTE_COUNTER]), 0);
+    // 17 with no trip finishes and enters 18: counter 1 is kept.
+    s.update_state(|st| {
+        st.pass_counters[PC_REROUTE_COUNTER] = 7;
+        st.pass_total = 33;
+        st.to_search = 40;
+        st.processed = 5;
+        st.day_index = 2;
+    });
+    assert!(s.do_daily_simulation());
+    assert_eq!(s.cycle_state(), cycle_state::FULL_TRIPS);
+    assert_eq!(
+        s.read_state(|st| (
+            st.pass_counters[PC_REROUTE_COUNTER],
+            st.pass_total,
+            st.total,
+            st.days,
+            st.processed,
+            st.day_index
+        )),
+        (7, 0, 40, 2, 0, 0)
+    );
+}
+
+/// §3.2, §3.5 step 11 (TS44, TS45): the two s16 phase positions. The 16–18
+/// entry action zeroes them; a trip phase stores the cell of the source it
+/// takes; the resume compares them as 16-bit values; FinishTripMap stores
+/// each lot's location as it takes it.
+#[test]
+fn ts44_ts45_phase_positions() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(1, 1, 1, 1), 11));
+    // x = 65 538 is 2 as an s16.
+    w.add_lot(2, Lot::new(CellRect::new(65_538, 2, 65_538, 2), 12));
+    let s = sim(&w);
+    for state in [
+        cycle_state::CONFIRM_TRIPS,
+        cycle_state::REROUTE_TRIPS,
+        cycle_state::FULL_TRIPS,
+    ] {
+        s.update_state(|st| st.extras.phase_positions = [5, 6]);
+        s.enter_cycle_state(state);
+        assert_eq!(s.read_state(|st| st.extras.phase_positions), [0, 0], "state {state}");
+    }
+    // One ConfirmTrips slice of one unit takes lot 1.
+    s.set_traffic_units_per_slice(1);
+    s.enter_cycle_state(cycle_state::CONFIRM_TRIPS);
+    assert!(!s.work_on_sim_cycle());
+    assert_eq!(s.read_state(|st| st.extras.phase_positions), [1, 1]);
+    // The resume finds lot 2 at (2, 2) by its 16-bit x.
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::FULL_TRIPS;
+        st.extras.phase_positions = [2, 2];
+    });
+    s.do_post_city_init();
+    assert_eq!(s.read_state(|st| st.current), Some(Source::Lot(2)));
+    // FinishTripMap: the last lot's location, as an s16 pair.
+    s.update_state(|st| st.extras.phase_positions = [9, 9]);
+    s.enter_cycle_state(cycle_state::FINISH_TRIP_MAP);
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(s.cycle_state(), cycle_state::CREATE_MAPS);
+    assert_eq!(s.read_state(|st| st.extras.phase_positions), [2, 2]);
+}
+
+/// §4.9 step 1 (TS40): the state-2 reset zeroes the working rows; a
+/// separate comparison value starts at −1.0. A slot whose only record has
+/// a NaN ratio never beats it, so its max fields stay 0 (not −1.0), and
+/// its average is NaN.
+#[test]
+fn ts40_statistics_reset_and_nan_record() {
+    let w = World::new();
+    let s = sim(&w);
+    s.network().update_state(|n| {
+        let r = n.append_info(1, 5, 1).unwrap();
+        r.inv_cap = 1.0;
+        r.net_type = net_type::AVENUE as u8;
+    });
+    s.volume_grid(1).unwrap().set(5, 1, f32::NAN);
+    s.update_state(|st| st.stats_work.rows[0].max = 9.0);
+    s.enter_cycle_state(cycle_state::CREATE_MAPS);
+    assert_eq!(s.read_state(|st| st.stats_work.rows[0]), StatRow::default());
+    assert_eq!(s.read_state(|st| st.stat_max_cmp), [-1.0; 14]);
+    assert!(s.work_on_sim_cycle());
+    let row = s.read_state(|st| st.stats_last.rows[net_type::AVENUE as usize]);
+    assert!(row.sum.is_nan());
+    assert_eq!((row.congested, row.max_x, row.max_z, row.max.to_bits()), (0, 0, 0, 0));
+    assert_eq!(s.read_state(|st| st.stats_last.records[net_type::AVENUE as usize]), 1);
+    // The working rows of empty slots are saved as zeros.
+    assert_eq!(s.read_state(|st| st.stats_work.rows[0]), StatRow::default());
+}
+
+/// traffic-network.md §2.7.2 step 5 (TS42): with IDs 1…65535 in use the
+/// search wraps to key 0. The new holder is the map's own key-0 pool: the
+/// record's pool is 0 (the default pool), but StartRecalc's search by city
+/// position sets that holder's capacities, not the default pool's.
+#[test]
+fn ts42_pool_id_search_wraps_to_key_0() {
+    let w = World::new();
+    let road = 2u32;
+    w.conns.borrow_mut().push((
+        77,
+        Conn {
+            cell: (-1, 5),
+            holder: 70,
+            conn_type: Some(road),
+            city: Some((10, 20)),
+            ..Conn::default()
+        },
+    ));
+    *w.cities.borrow_mut() = vec![NeighbourCity {
+        position: (10, 20),
+        population: [300, 1, 0],
+    }];
+    *w.demand.borrow_mut() = [Some(800.0), Some(10.0), Some(0.0)];
+    let s = sim(&w);
+    s.update_pools(|p| {
+        for id in 1..=u16::MAX {
+            p.map.insert(id, PropertyHolder::new());
+        }
+    });
+    s.network().set_connection(0, 5, side::EAST, side::WEST, travel::CAR);
+    neighbour_message(&s, true, road, -1, 5);
+    assert!(s.pools().map.contains_key(&0));
+    assert_eq!(s.pools().find(10, 20), Some(0));
+    assert_eq!(s.network().traffic_neighbor_connection(-1, 5).pool, 0);
+    s.enter_cycle_state(cycle_state::START_RECALC);
+    assert!(s.work_on_sim_cycle());
+    let caps = |t: u64| capacity_values(&s.holders(), t).unwrap();
+    assert_eq!(
+        caps(POOL_KEY0_TOKEN),
+        vec![800, 10, 0, u32::MAX, 0, 0, 0, 0, 0, 0, 0, 0]
+    );
+    assert_eq!(caps(pool_token(0)), vec![0, 0, 0, u32::MAX, 0, 0, 0, 0, 0, 0, 0, 0]);
+    // The edge pass reads the default pool for record pool 0: bit 3 only.
+    assert_eq!(s.destination_byte(-1, 5), 0b1000);
+    // With key 0 taken too the original never ends; nothing is created.
+    assert_eq!(s.update_pools(|p| p.create(1, 1)), None);
+    // The sweep keeps key 0 while a swept record has pool 0.
+    assert!(s.network().pool_ids_in_use().contains(&0));
+}
+
+/// §4.16 (TS46): the int64 cost is loaded exactly and the product with the
+/// f32 fraction rounded once: 16,777,217 at 0.75 is 12,582,913 (12,582,912
+/// when the cost is converted to f32 first).
+#[test]
+fn ts46_station_cost_rounds_once() {
+    let w = World::new();
+    let s = sim(&w);
+    let dept = w.department_budget(dept::MASS_TRANSIT).expect("mass transit");
+    w.funding.borrow_mut().insert(dept, 0.75);
+    w.query_items.borrow_mut().insert(900, (dept::MASS_TRANSIT, 16_777_217));
+    set_switches(&s, &[(3, 3, 5)], &[(5, 0.0)]);
+    s.network()
+        .update_state(|n| n.switches.get_mut(5).unwrap().building = 900);
+    assert_eq!(s.transit_switch_query_data(3, 3).map(|q| q.cost), Some(12_582_913));
+    // Below 2^24 both readings agree: 150 at 0.75 = 112.5 → 112.
+    w.query_items.borrow_mut().insert(900, (dept::MASS_TRANSIT, 150));
+    assert_eq!(s.transit_switch_query_data(3, 3).map(|q| q.cost), Some(112));
+}
+
+/// §4.1 (TS20): the O(1) step of an unchanged list gives the same walk as
+/// the general rule. A reference walk (the rule as written, every step)
+/// against the iterator over random lists: unchanged (shared or copied),
+/// a lot appended, a lot removed, a lot listed twice.
+#[test]
+fn ts20_source_iterator_fast_path_is_the_rule() {
+    use std::collections::HashSet;
+    use std::rc::Rc;
+    struct Reference {
+        seen: Vec<u64>,
+        last: Option<u64>,
+        done: bool,
+    }
+    impl Reference {
+        fn next(&mut self, lots: &[u64]) -> Option<u64> {
+            if self.done {
+                return None;
+            }
+            let next = match self.last {
+                None => lots.first().copied(),
+                Some(last) => {
+                    let now: HashSet<u64> = lots.iter().copied().collect();
+                    let seen: HashSet<u64> = self.seen.iter().copied().collect();
+                    let after = match self.seen.iter().position(|&l| l == last) {
+                        Some(i) => &self.seen[i + 1..],
+                        None => &[][..],
+                    };
+                    after
+                        .iter()
+                        .copied()
+                        .find(|l| now.contains(l))
+                        .or_else(|| lots.iter().copied().find(|l| !seen.contains(l)))
+                }
+            };
+            self.seen = lots.to_vec();
+            match next {
+                Some(l) => self.last = Some(l),
+                None => self.done = true,
+            }
+            next
+        }
+    }
+    let mut seed = 0x1234_5678u32;
+    let mut rand = |n: u32| {
+        seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+        (seed >> 8) % n
+    };
+    for round in 0..300 {
+        let mut it = SourceIter::default();
+        it.reset(Vec::new());
+        let mut r = Reference {
+            seen: Vec::new(),
+            last: None,
+            done: false,
+        };
+        let mut list: Vec<u64> = (1..=rand(12) as u64).collect();
+        let mut fresh = 100u64;
+        let mut shared: Rc<[u64]> = list.clone().into();
+        for step in 0..60 {
+            match rand(10) {
+                0 => {
+                    fresh += 1;
+                    list.push(fresh);
+                }
+                1 if !list.is_empty() => {
+                    let i = rand(list.len() as u32) as usize;
+                    list.remove(i);
+                }
+                2 if !list.is_empty() && round % 3 == 0 => {
+                    let i = rand(list.len() as u32) as usize;
+                    list.push(list[i]);
+                }
+                _ => {}
+            }
+            // Mostly the same shared list, as the host hands it out.
+            if *shared != *list || rand(4) == 0 {
+                shared = list.clone().into();
+            }
+            let want = r.next(&list);
+            assert_eq!(it.next_lot(shared.clone()), want, "round {round} step {step}");
+            assert_eq!(
+                (it.last_lot, it.lots_done),
+                (r.last, r.done),
+                "round {round} step {step}"
+            );
+            if r.done {
+                break;
+            }
+        }
+    }
+}
+
+#[path = "shadow_tests.rs"]
+mod shadow_tests;

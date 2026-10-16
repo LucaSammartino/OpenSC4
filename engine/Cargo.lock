@@ -15,6 +15,7 @@ name = "fc4-conformance"
 version = "0.1.0"
 dependencies = [
  "fc4-core",
+ "fc4-formats",
 ]
 
 [[package]]

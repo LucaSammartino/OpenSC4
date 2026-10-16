@@ -70,6 +70,13 @@ Both hash containers are STLport hash tables with the identity hash, created wit
 buckets**, new entries at the head of their chain, and iteration bucket by bucket (building-development.md
 §4.7.1.2). The iteration order is visible in the save (§7).
 
+`statuses` in memory (CB19; nothing outside the class reads it except through slots 6 and 7): the table object at
+`+0x2C`, its bucket vector (begin, end) at `+0x30` / `+0x34` and its element count at `+0x3C`. Each entry is a
+0x20-byte node from allocator B (`0x0090CF54`, insert `0x0069E5F0`): `+0` next, `+4` key, `+8` the
+`ConditionalBuildingStatus` value (`+8` status, `+0xA` count, `+0xC` the `cRZString`). Slot 6 returns the node's
+`+8` (`0x0069D90C`), so a value's address is fixed for the node's life; the table grows with `resize(count + 1)`
+before each insert (`0x004F0940`), which relinks nodes without moving them.
+
 ## 3. Agents, messages and cadence
 
 `Init` registers **one** agent: `AddAgent(+4, level 6 (month), "cSC4CivicBuildingSimulator" (string `0x00A89938`),
@@ -101,7 +108,21 @@ If `initialized`, return true. Otherwise set `initialized := true` first, then:
 4. Subscribe (§3).
 5. `AddAgent` (§3).
 6. Register the Lua table `civic` with one function, `get_landmark_count()`, which returns `GetLandmarkCount()` as a
-   number.
+   number. This is a node of the game-data registry (budget.md §4.4; service `0xEBE0E860`, IID `0xE898ED03`,
+   slots in foundations §17.7), built with two shared helpers (CB15):
+   - node (helper `0x0068C180`): `AddChildEntry(cIGZUnknown* key = the simulator, "civic", parent = root
+     (registry slot 21), flags 0, context null)` (slot 5);
+   - call entry (helper `0x0058DE80`, which ORs flag 1 into the flags it is given): `AddChildEntry(void* key =
+     0x0069D740, "get_landmark_count", callback 0x0069D740, parent = GetEntryID(simulator) (slot 9), flags 1,
+     context = the simulator)` (slot 3). The key is the callback's own address, as for the budget's commands.
+   - The callback `(key, input, output, registry)`: `sim := registry.GetEntryContext(registry.GetEntryID(key))`
+     (slots 8 and 18); `n := sim ? sim.GetLandmarkCount() : 0` (civic slot 8); `output.SetParameter(1,
+     Uint32 variant n)` (`cIGZCommandParameterSet` slot 7, pop 8; variant type 6); return true. The result goes
+     to parameter ID **1**, not appended: the parameter set keeps a status value under its own ID
+     (`SetStatusParameterValue`, slot 10, ID `0x2B999D2B`), and `AppendParameter` (slot 8) would number from the
+     last ID + 1 (`0x00929E19`). The input set is not read.
+   - `Shutdown` removes the node with `RemoveChildEntry(cIGZUnknown* simulator)` (slot 7, helper `0x0058DF10`).
+   - If the registry service is missing, both helpers return without doing anything.
 7. Return true.
 
 A department that cannot be created *[choice]* (QUESTIONS CB10): the original sets the Landmarks name and maximum on
@@ -213,7 +234,7 @@ is visited twice; the second visit changes nothing.
 |---|---|
 | `IsBuildingExcluded(id)` | true if `id` is in `exclusions` |
 | `GetConditionalBuildingStatus(key)` | pointer to the stored status, or null. Not a copy: callers modify it in place (the advisors set bits through it) |
-| `UpdateConditionalBuildingStatus(key, const ConditionalBuildingStatus&)` | find or insert `key` (a new entry starts as `{0, 0, ""}`), then copy status, count and text into it. The return value is not meaningful (callers ignore it); *[choice]* FreeCity4 returns true |
+| `UpdateConditionalBuildingStatus(key, const ConditionalBuildingStatus&)` | find or insert `key` (a new entry starts as `{0, 0, ""}`), then copy status, count and text into it. The return value is not meaningful (callers ignore it); *[choice]* FreeCity4 returns true. The source is read as the in-memory struct (CB17): byte `+0` status, u16 `+2` count, and the text as the `cRZString` at `+4`, whose STLport string begins at `+8`: the characters `[*(+8), *(+0xC))` are assigned (`0x00408A70`) unless source and destination are the same string (`0x0069EA1D`). Nothing is written back to the source |
 | `GetLandmarkCount()` | the number of entries of `maintained` (every maintained civic building, not only landmarks) *[quirk: the name]* |
 
 ### 4.8 Worked example

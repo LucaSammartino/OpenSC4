@@ -1,0 +1,205 @@
+{
+  "format": 1,
+  "name": "ts11_48_phase_positions",
+  "spec": [
+    "traffic-simulator 3.2",
+    "traffic-simulator 3.5",
+    "traffic-simulator 4.3"
+  ],
+  "description": "§3.2, §3.5 step 11 (TS44, TS45): the two s16 phase positions of record row 14. Entering 16, 17 or 18 zeroes them; a trip phase stores the cell of the source it takes (one unit per slice: lot 1 at (1, 1)); the resume compares them as 16-bit values (lot 2's x 65538 is 2 as an s16, so the saved (2, 2) finds lot 2); FinishTripMap stores each lot's location as it takes it, so after the walk they hold the last lot's location as an s16 pair, (2, 2).",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "holder": 11
+    },
+    {
+      "op": "ts_lot",
+      "id": 2,
+      "rect": [
+        65538,
+        2,
+        65538,
+        2
+      ],
+      "holder": 12
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "phase_positions": [
+          5,
+          6
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        16
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 16,
+        "phase_positions": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "phase_positions": [
+          5,
+          6
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        17
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 17,
+        "phase_positions": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "phase_positions": [
+          5,
+          6
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        18
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 18,
+        "phase_positions": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "units_per_slice": 1
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        16
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": false
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 16,
+        "phase_positions": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cycle_state": 18,
+        "phase_positions": [
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "held_source": [
+          "lot",
+          2
+        ]
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "phase_positions": [
+          9,
+          9
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        15
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 2,
+        "phase_positions": [
+          2,
+          2
+        ]
+      }
+    }
+  ]
+}
