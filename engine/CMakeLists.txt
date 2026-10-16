@@ -573,6 +573,11 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_parks_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-parks)
     set_tests_properties(plugin_ini_enable_parks_test PROPERTIES RUN_SERIAL TRUE)
+    # `enable = ports`: the airport and seaport developers (port-developers.md): the QI
+    # tables (1 gives +4), the slots with no ports, the empty records, Init without a city.
+    add_test(NAME plugin_ini_enable_ports_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-ports)
+    set_tests_properties(plugin_ini_enable_ports_test PROPERTIES RUN_SERIAL TRUE)
     # `enable = neighbors`: the neighbours simulator, its connections (an
     # original's accepted on load) and deals, through a fake city and region.
     add_test(NAME plugin_ini_enable_neighbors_test

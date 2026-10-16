@@ -47,6 +47,7 @@
 #include "FC4TractInterfaces.h"
 #include "FC4LotDevInterfaces.h"
 #include "FC4WinInterfaces.h"
+#include "FC4PortInterfaces.h"
 
 #include "SC4Vector.h"
 #include "cIGZPersistResourceKeyList.h"
