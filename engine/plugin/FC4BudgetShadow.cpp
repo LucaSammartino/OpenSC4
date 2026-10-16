@@ -146,11 +146,13 @@ bool SumDepartments(cFC4ISC4BudgetSimulator* budget, int64_t* income, int64_t* e
     *expense = 0;
     if (budget == nullptr || !StlNodeAllocator::Available()) return false;
     GameVector<GameBudgetGroupInfo> groups;
-    if (!budget->GetAllGroups(groups)) return false;
+    // [abi-ret] Slots 29 and 31 (interfaces.tsv eax-or-void) return no meaningful value (budget.md §6, the
+    // closing rule): the SDK's bool is a leftover AL. Judge by the vectors only.
+    budget->GetAllGroups(groups);
     std::vector<uint32_t> seen;
     for (GameBudgetGroupInfo& g : groups) {
         GameVector<cISC4DepartmentBudget*> depts;
-        if (!budget->GetDepartmentBudgetsInGroup(g.groupID, depts)) continue;
+        budget->GetDepartmentBudgetsInGroup(g.groupID, depts);  // [abi-ret] slot 31: no result (above)
         for (cISC4DepartmentBudget* raw : depts) {
             if (raw == nullptr) continue;
             cFC4ISC4DepartmentBudget* d = AsGame(raw);

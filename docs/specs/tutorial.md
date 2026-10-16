@@ -29,7 +29,17 @@ cities), [lua-host.md](lua-host.md).
 
 `QueryInterface` (`0x0043EFE0`): `0xAA3836F6` → +0, `cIGZMessageTarget2` `0x452294AA` → +4, `0xE98B2F57` → +8,
 `cIGZSerializable` `0xE4FDA3D4` → +0x10; anything else goes to the base `cRZUnknown` lookup. `AddRef` and `Release`
-are the shared ones of the advisor system (identical code, reference count at +0x14).
+are the shared ones of the advisor system (identical code): they work on a reference-count sub-object at +0x14
+(vtable `0x00A86160`) whose count is at **+0x18**. The constructor also stores `this` in the global `0x00B20E88`.
+
+**The last `Release`** (TU4; `0x00449310` → `0x0090D997`): a count above 1 is decremented. At 1 the sub-object's
+slot 3 is called with 1 (`0x0043F6C0` → `0x0043F780`), the scalar deleting destructor, and the object is
+**destroyed and freed** (0x44 bytes), not just marked. The destructor (`0x0043F6E0`): releases the tutorial window
+(+0x40) **once**, without closing it (`0x0043F70F`); frees the buffer of the vector at +0x34; releases the Lua
+context (+0x30); runs the base destructor of the +0x14 sub-object; and clears the global `0x00B20E88`. It does not
+run `Shutdown`: no unsubscription, no cheat unregistration, no registry or is-tutorial change. A running tutorial
+holds two references to its window (§4.2), so a window still open at this point is leaked with one reference
+*[quirk]*. In the shipped game the city calls `Shutdown` before the last release, which closes the window first.
 
 ## 2. State
 
@@ -107,6 +117,20 @@ Is-tutorial is set by `startTutorial` and by `Read`, and cleared by `endTutorial
 (`0x00B43CAC`) exists and `cISC4App` slot 21 (`+0x54`) is true, registers the cheat handler and the cheat
 `0x6A382BAF` "Tutorial" (debug subcommands reset, save, step, next, quit, handled by `0x0043F870` on message
 `0x230E27AC`). `Shutdown` (slot 4, `0x0043F330`) undoes both. Both return true; there is no initialised flag.
+
+**`Shutdown` in detail** (TU5), in this order:
+
+1. When the cheat manager (`0x00B43CAC`) exists, **whether or not `Init` registered anything** (the `cISC4App`
+   slot 21 test is not repeated): cheat manager slot 6 with (the cheat handler +8, 0), which removes the handler's
+   notification, then slot 4 with `0x6A382BAF`, which unregisters the cheat.
+2. When a tutorial window exists (+0x40): close it (`0x00442C80`), release it, then clear +0x40 and release it
+   again (the two references `startTutorial` took, §4.2). This is the same teardown as `endTutorial`, without its
+   registry, 3D view and flag steps.
+3. When the message server (`0x00B43CCC`) exists: unsubscribe (server slot 6) `0xAA3840E6`, `0xEA8AE29A` and
+   `0x26C63343`, in that order.
+
+Is-tutorial, end-pending, the task number, the GUID and the registry are not touched, so a later save of the same
+object would still write is-tutorial.
 
 ### 4.4 Other slots (UI)
 
@@ -195,3 +219,6 @@ the shared-getter names of 11, 12): `build-runs/re-specs13d-abi-rows.tsv`.
 5. **End without registry, then save.** Tutorial running: `endTutorial(false)` → `IsTutorial` = 0, end-pending set,
    registry still active; pre-save message → `endTutorial(true)`: registry inactive, end-pending clear.
 6. **Task counter.** Slot 19(4), slot 20, slot 20 → slot 11 = 6; the next record stores task 6.
+7. **Shutdown** (TU5). Tutorial running with a window, cheat manager present: `Shutdown` closes the window, drops
+   both references and clears +0x40, unregisters the cheat and its handler, unsubscribes the three messages, and
+   leaves `IsTutorial` = 1. A message `0x26C63343` posted afterwards does nothing.
