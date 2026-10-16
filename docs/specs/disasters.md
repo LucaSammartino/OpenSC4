@@ -1212,8 +1212,9 @@ The effect-disaster manager and its instances read no tuning.
 2. `0x2A7B582E` for this instance updates its location.
 3. `0x2A7B582D` for this instance shuts it down, which ends the disaster.
 
-The damage comes from the effect's actions in the effects manager (INVENTORY rank 7): fires in a radius with cause
-4, and toxic spills.
+The damage comes from the effect's actions in the effects manager ([effects.md](effects.md) §9, §10): fires in a
+radius with cause 4, demolition, toxic spills and terrain brushes. The effect that the instance holds is the menu
+name plus `_control`, and it ends only when the city view's draw pass finishes it (effects.md §7, §15).
 
 ## 12. Messages
 

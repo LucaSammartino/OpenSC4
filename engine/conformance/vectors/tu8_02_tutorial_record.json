@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "tutorial_tutorial_record",
+  "spec": ["tutorial 3", "tutorial 4.1", "tutorial 8.2"],
+  "description": "A shipped tutorial city's record: is-tutorial 1, task 0, GUID 0xCC02D3A3. IsTutorial is 1 from the read on (Read runs before Init), with no window. The consumers (the fire's no-burn-down flag, disasters.md 5.8; the flammability end-of-cycle roll, flammability.md 6.8) take this value through their hosts and are covered by their own vectors (the disaster world's no_burn_down switch; the tutorial steps of fl16_10_11_fire_roll).",
+  "steps": [
+    {"op": "tut_create"},
+    {"op": "tut_read", "hex": "02000100000000a3d302cc", "expect": true},
+    {"op": "tut_call", "method": "is_tutorial", "expect": 1},
+    {"op": "tut_call", "method": "guid", "expect": "0xCC02D3A3"},
+    {"op": "tut_expect", "state": {"is_tutorial": 1, "task_number": 0, "window": false}},
+    {"op": "tut_record", "hex": "02000100000000a3d302cc"}
+  ]
+}

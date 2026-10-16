@@ -4562,9 +4562,23 @@ Open points from terrain.md §17. The current answer is in brackets; each entry 
 - **TR1:** the exact operations of brush component kinds 2, 3, 5, 6 and 8–10 (smoothing, levelling, erosion, lake,
   rain, spring). [summarised only; only the god-mode terraforming tool uses them. A trace of `0x00745DE0` and
   `0x00745BA0` settles 2 and 5] **PARTLY ANSWERED 2026-10-16 (re-answers17):** kinds 2 and 5 are traced in the bytes and specified in terrain §9.4.1. Kind 5 levels toward the target by `step = b × strength / 256` (sets the target when within a step, else raises or lowers by a step; `b = 0` or `alt = target` is no change). Kind 2 is talus smoothing: for each neighbour in the offset order, the excess drop over a threshold (`tan(TalusAngle) × 16`, × √2 on diagonals) times the step moves from the vertex to the neighbour. Kinds 3, 6 and 8–10 and the shipped `TalusAngle` stay open (god-mode only).
-- **TR2:** the brush values of the `volcano_control` effect (level, strength and radius ranges, repetitions per
+- ~~**TR2:** the brush values of the `volcano_control` effect (level, strength and radius ranges, repetitions per
   update). [effect brushes use `data4 = 3` and redisplay on the last repetition; the effects manager spec, INVENTORY
-  rank 7, settles the values]
+  rank 7, settles the values]~~ **ANSWERED 2026-10-15 (re-specs16):** **MATCHES** the bracket and adds the values
+  (effects.md §8, §10.1; shipped effect directory, brush records 2–10). `volcano_control` (description 367) chooses
+  one of nine `volcanocreator*` effects through a select group (weights 7281 × 8 and 7287, one draw from the
+  manager's `cRZRandomSuper` seeded `0x1105`, effects.md §5.3). Each creator holds one VolcanoBrush `0xCA313035`
+  stroke:
+  - level 1;
+  - strength 1.0 (range 1–1);
+  - radius scale 0.5, 0.5, 0.6, 0.6, 0.8, 0.8, 1.0, 1.0 or 1.3 (degenerate ranges, but both `RandomDoubleRangeUniform`
+    draws on `0x00B22BE8` still happen);
+  - target 100;
+  - rate 30, 40, 45, 50, 55, 65, 65, 80 or 130 applications per effect-second;
+  - length 3, 4, 3.5, 3.5, 3, 3, 3, 3.5 or 2 effect-seconds.
+
+  Repetitions per update: `n = floor(acc)` with `acc += rate × dt` (dilated seconds), `acc −= n` (`0x005817F0`).
+  Each creator also carries a one-time game record at the vent: demolish 5–10 cells, burn 10–14.
 - ~~**TR3:** `GetLerpedWaterLevel` (terrain slot 32) and `AltitudeAtWhichFloodingWillOccur` (surface water slot 10)
   are from pseudocode only. [bilinear over the four corners; maximum over wet neighbours. Check the bytes if a
   simulation consumer appears]~~ **ANSWERED 2026-10-16 (re-answers17):** both checked in the bytes. `GetLerpedWaterLevel` MATCHES (bilinear over `depth + alt`), with no clamp at `x = sizeX` (the `ix + 1` corner wraps to the next row) (terrain §5.1). `AltitudeAtWhichFloodingWillOccur` **DIFFERS** from the round-1 text: it takes `(x, z)`, starts at the sea level, counts the vertex's own level when it is wet, then the wet neighbours in the offset order, strict maximum (terrain §10.2).
@@ -4596,9 +4610,9 @@ numbers (its Q6-Q25, continuing disasters.md §17) are given in parentheses; the
 - ~~**DS15:** (Q20) the tuning defaults of the short forms (earthquake, pipe burst, volcano, effect).~~ **ANSWERED 2026-10-15 (re-answers14):** Earthquake: read once per process, only if the exemplar exists; static defaults spacing 40, curviness 30, slope 0, speed 25, shaker 10000 µs, repulsor spacing 100, curves empty; the slope (× π/180) and speed (× 1e-6) conversions run whenever the exemplar exists, so a missing speed means 25 m/s, and with no exemplar the speed stays 25 m/µs *[quirk]*. Pipe burst: 5 s and 10 s, zoom 0. Volcano (read at every `Init`): T 20 s, scale 1, radius 100, curves empty, lava disabled. Effect disasters: no tuning. disasters.md §7, §8, §10, §11.
 - ~~**DS16:** (Q21) the earthquake's fault line geometry.~~ **ANSWERED 2026-10-15 (re-answers14):** `ComputeFaultLine` (`0x00576640`), all on the earthquake generator `0x00B22AE8`: a base angle in [0, π] drawn once per process; angle = base + uniform(±slope); L = SizeX/3; two four-point polylines from the epicentre in opposite directions, each step L along ±dir plus a perpendicular uniform(±curviness) offset (first step one shared draw, +d and −d; second and third steps one draw each, A first). disasters.md §7.
 - ~~**DS17:** (Q22) the earthquake's transition from rumble to deformation.~~ **ANSWERED 2026-10-15 (re-answers14):** The manager's `AttemptDisasterStart` (`0x00576D80`) sets state 2 and calls `StartDeformation` in the same call as `Init`, so the rumble state never ticks; nothing else drives state 1 in this build. The intensity keeps its constructor value 0.1 (strength 0.19, width 0.55) and "QuakerShaker" never plays. Deformation, settle (3 s) and end as in disasters.md §7, which also corrects the redraw to terrain slot 78 then slot 68 per side.
-- ~~**DS18:** (Q23) the sinkhole brush parameters.~~ **ANSWERED 2026-10-15 (re-answers14):** `0x0057C1A0`: terrain brush `0x14` (terrain slot 57) with start = end = (x × w, z × w), w = terrain slot 6, strength 1.0, width 1.0, and fields `+0x10` = 0, `+0x14` (byte) = 1, `+0x20` = 3, `+0x34` = 100.0 whose meaning is not established. It is dug only when the cell's pipe was found, and even without a demolition utility. disasters.md §8.
+- ~~**DS18:** (Q23) the sinkhole brush parameters.~~ **ANSWERED 2026-10-15 (re-answers14):** `0x0057C1A0`: terrain brush `0x14` (terrain slot 57) with start = end = (x × w, z × w), w = terrain slot 6, strength 1.0, width 1.0, and fields `+0x10` = 0, `+0x14` (byte) = 1, `+0x20` = 3, `+0x34` = 100.0 whose meaning is not established. It is dug only when the cell's pipe was found, and even without a demolition utility. disasters.md §8. **Confirmed 2026-10-15 (re-specs16):** terrain.md §9.5 (re-specs14a) gives the same values, checked again in the bytes `0x0057C1A0`–`0x0057C20D`: `ApplyBrush(0x14)` with from = to = (x·s, z·s), `s` from slot 6 of the object at `+0x18` (the 16 m cell size); level 0, redisplay on, strength 1, radius 1, `data4 = 3`, target 100. The brush itself (PipeSinkHole) is in terrain.md §9.1.
 - ~~**DS19:** (Q24) when is the pipe-burst occupant inserted and removed?~~ **ANSWERED 2026-10-15 (re-answers14):** The pipe burst inserts **no occupant** of its own. Leaks are records keyed by cell (`StartLeakAtPipe` `0x0057C7C0`), removed when they burst, when a pipe occupant on their cell is inserted (non-preview) or removed (`0x99EF1142`/`0x99EF1143`), or at `Shutdown`. The only occupant handled is the existing pipe: the layer location holds it from `Init`, and `BurstPipe` demolishes it. disasters.md §8.
-- ~~**DS20:** (Q25) the volcano: the timing of states 3 to 5, its end request, and state 7.~~ **ANSWERED 2026-10-15 (re-answers14):** States 1 → 3 → 5 all happen inside the start call. State 3 starts the "volcano_control" effect, whose completion posts `0xCA493C1D` (the end request) for this instance. State 5 flows for T seconds (clock > T, strictly), then `EndVolcanoLava` (which calls `DisasterHasEnded` and unregisters the locations) and state 3, or state 8 if the end was already requested. State 7 is the end request: it marks it, keeps a flowing lava going, else goes to 8. State 8 ends the lava, removes the instance from the manager and shuts it down. `GetPhase` maps states 1 and 5–8 to phase 2. disasters.md §3.2, §10, test 14.
+- ~~**DS20:** (Q25) the volcano: the timing of states 3 to 5, its end request, and state 7.~~ **ANSWERED 2026-10-15 (re-answers14):** States 1 → 3 → 5 all happen inside the start call. State 3 starts the "volcano_control" effect, whose completion posts `0xCA493C1D` (the end request) for this instance. State 5 flows for T seconds (clock > T, strictly), then `EndVolcanoLava` (which calls `DisasterHasEnded` and unregisters the locations) and state 3, or state 8 if the end was already requested. State 7 is the end request: it marks it, keeps a flowing lava going, else goes to 8. State 8 ends the lava, removes the instance from the manager and shuts it down. `GetPhase` maps states 1 and 5–8 to phase 2. disasters.md §3.2, §10, test 14. **Added 2026-10-15 (re-specs16):** effects.md §10.1. The end request `0xCA493C1D` (data1 = the instance) is the end message of the instance's `volcano_control` effect, posted only when the effect **finishes** in the city view's draw pass (effects.md §7). The finish comes once the chosen creator's brush stroke (2–4 dilated seconds) and its particles and decals are inactive. State 7 sets the end-requested flag (`+0x3E`), returns to state 5 if the lava is enabled and running (the lava then ends in state 8), otherwise goes straight to state 8. Still open: the exact finish time, which depends on render components (effects.md EF1), and, *[inferred]*, that the volcano never ends in a session that does not draw the city (EF2).
 - ~~**DS21:** is the toast list processed only when Update runs? [yes]~~ **ANSWERED 2026-10-15 (re-answers14):** MATCHES, with a consequence: `ProcessToastList` (at most 5 per call, from the front) runs only inside `Update`, which runs only while an episode keeps the instance on the animation tick (plus once at `Init`). Toasts queued while no fire burns wait for the next episode. disasters.md §5.7.
 - ~~**DS22:** the contents of the special-building record.~~ **ANSWERED 2026-10-15 (re-answers14):** {name, cost}: the name is the BDS `GetBuildingName` (BDS slot 38) of the building's type (building occupant slot 12), and the cost is the occupant's int64 `0x8A1C3E72` (0 if absent). A record is pushed when the BDS profile flags (`GetBuildingProfile`, slot 39, `+0x1C`) have any bit of `0x1800400`. disasters.md §2.5.
 - ~~**DS23:** the network default cost. [taken from the host]~~ **ANSWERED 2026-10-15 (re-answers14):** **DIFFERS.** It is one int64 constant, **10** (`0x00B0A1C0`, read only at `0x00578D41`), used for any network occupant whose `0x8A1C3E72` lookup failed. It is not per network type and comes from no host data. disasters.md §2.5.
@@ -4784,23 +4798,49 @@ apply11traffic applied the re-answers10 TG DIFFERS entries to the traffic glue (
 partly; ABI 61). `enable = traffic` with the 26 other regress replacements is clean to 2032 (run 128, ref_warnings=0).
 Three TG2 callbacks stay NULL because the specs leave them open. The current choice is in brackets.
 
-- **TG23:** traffic-simulator §4.9 step 3, §9.1 TG2, spec Q1: what exactly do UpdateRoadsBudget (`0x0070D8A0`) and
+- ~~**TG23:** traffic-simulator §4.9 step 3, §9.1 TG2, spec Q1: what exactly do UpdateRoadsBudget (`0x0070D8A0`) and
   UpdateMassTransitBudget (`0x0070DA40`) call? Which line item numbers get which network-type cell counts (roads:
   Road+OneWayRoad, Street, Highway+GroundHighway, Avenue; mass transit not given), with which method (SetFullExpenses?
   AddToFullExpenses?), what count x tile-cost formula and rounding, and are they also called when the count did not
-  change? [`update_network_costs` stays NULL: the transport line items keep the expenses they were loaded with]
-- **TG24:** traffic-network §4.4, §7.2, §9.1 TG2: what are the arguments, return values and result containers of path
+  change? [`update_network_costs` stays NULL: the transport line items keep the expenses they were loaded with]~~
+  **ANSWERED 2026-10-16 (re-answers21):** traffic-simulator §4.9.1. Both use `GetLineItem(i)` (department slot 20)
+  then `SetFullExpenses(int64)` (line item slot 12; never AddToFullExpenses). Roads, in order: item 2 = Road +
+  OneWayRoad, item 1 = Street, item 3 = Highway + GroundHighway, item 4 = Avenue. Mass transit: item 3 = Rail
+  (created and named `0x6A8B0CFB` if missing), 4 = Subway, 5 = LightRail, 6 = Monorail. Per type: `r24(count ×
+  tileCost[t])` rounded to nearest, ties to even (the `+12582912.0f` bit trick, exact below 2²²), as u32; two-type
+  items add the two u32 as an unsigned 64-bit sum. No change test: called on every road/rail/subway insert and
+  remove, every CreateMaps pass (roads then transit) and at PostCityInit (transit then roads). The bracket
+  **DIFFERS**: the original's maintenance lines follow the network the same day and are re-priced at load.
+- ~~**TG24:** traffic-network §4.4, §7.2, §9.1 TG2: what are the arguments, return values and result containers of path
   info slots 14 (GetPathsFromEntryEdge, 3 args), 3 (GetPath, 2 args) and 7 (GetPathsNearEndPoint, 6 args)? Which field of
   a path object is the exit byte, and which is its first vertex? Also: does GetPathInfo (occupant slot 49) hand over a
   reference, and does the slot-4 turn-around test use all of EAX or only AL? [`path_info_exits_from_entry` and
   `path_info_entries_near` stay NULL, so lane continuity changes nothing; GetPathInfo is treated as borrowed; the whole
-  EAX is tested]
-- **TG25:** traffic-network §4.8 step 1, §9.1 TG2: at what offset in cSC4NetworkTunnelOccupant is the paired-portal
+  EAX is tested]~~ **ANSWERED 2026-10-16 (re-answers21):** traffic-network §7.3 and §4.4. Slot 14 `u32
+  GetPathsFromEntryEdge(pathType, entry, vector<u32>& keys)` empties `keys`, appends the matching path keys in hash
+  order, returns the count. Slot 3 `Path* GetPath(key, float* lengthOut)` returns the path record or null. Slot 7
+  returns a `vector<u32>` **by value** (hidden first argument, so 6 dwords): `(pathType, point*, entry, exit,
+  radius)`, paths whose **last** point is within the radius (`≤`), nearest first. The exit is bits 0–7 of the path
+  key (entry bits 8–15), not a record field; the first vertex is the first 12-byte point of the record's point array
+  (record `+0`). GetPathInfo is borrowed (cached member, no AddRef): MATCHES. Slot 4 returns a pointer, all of EAX
+  tested: MATCHES. Leaving lane continuity out **DIFFERS** next to occupants with network flags in `0x1F4F`.
+- ~~**TG25:** traffic-network §4.8 step 1, §9.1 TG2: at what offset in cSC4NetworkTunnelOccupant is the paired-portal
   member, what type is it, and is it a counted reference? [`tunnel_paired_portal` stays NULL, so no tunnel record is
-  made and tunnels carry no trips]
-- **TG26:** traffic-simulator §4.1, §9.1 TG19: when does the original release its source iterator's connection snapshot
+  made and tunnels carry no trips]~~ **ANSWERED 2026-10-16 (re-answers21):** traffic-network §4.8 step 1. `+0x1D0`
+  from the primary base (the pointer QI `0x8A4BD52B`/`0xA821EF94` return; `+0x1C8` inside Write/Read, which run on
+  the `+8` sub-object): a pointer to the other portal's `cSC4NetworkTunnelOccupant`, usable as `cISC4NetworkOccupant*`.
+  Counted: the setter `0x00647530` (called only by `InsertTunnelPieces`) AddRefs the new and releases the old;
+  Shutdown releases and nulls it; it is saved as an object reference. DoTunnelChanged reads it through `0x00647570`
+  and holds a temporary reference while it reads the position. The bracket **DIFFERS** (tunnels carry no trips).
+- ~~**TG26:** traffic-simulator §4.1, §9.1 TG19: when does the original release its source iterator's connection snapshot
   on a city close: at Shutdown, or only when the simulator is destroyed? And does a Read that replaces the state release
-  it? [released at Shutdown and when Read replaces the state; otherwise at the next Reset]
+  it? [released at Shutdown and when Read replaces the state; otherwise at the next Reset]~~ **ANSWERED 2026-10-16
+  (re-answers21):** traffic-simulator §1 (Shutdown) and §4.1. At Shutdown (`0x007196F8`–`0x00719765`: list cleared
+  with a Release per connection, iterator freed, member nulled), which the city runs at close; the destructor does
+  not touch it. Otherwise only the next `Reset`. `Read` never touches it, and in the original a Read always precedes
+  the Init that creates the iterator. Shutdown: MATCHES. Release at Read: **DIFFERS** only for a Read into a live
+  simulator, which the original never does; accepted. Side fact: the lot safe iterator inside it is never
+  unregistered (quirk).
 
 ## From the automata layer core (filed by the coordinator from the `cores14a` lane's report, 2026-10-16; merged `44cf925`)
 
@@ -5031,3 +5071,19 @@ numbers (its Q26-Q42) are given in parentheses; the current choice is in bracket
   is stepped in it unless the spreading fire was the last node. A null target triggers `KillAllFires` after the
   earlier fires were stepped. Also: the extinguish-time test is strict (`0x0057BBE0`), and `KillFire` (`0x0057B640`)
   re-registers or erases the ID only when the unregister removed an entry. disasters.md §5.8, §5.10, tests 17-18.
+
+## From the terrain shadow (filed by the coordinator from the `glue16` lane's report, 2026-10-16; merged `4cc88cf`)
+
+glue16 added the read-only terrain shadow (`terrain_shadow = 1`, `FC4TerrainShadow`) and the script action `terrain`. Its
+final run glue16-final-2 on Konradshohe had every terrain line exact, but Konradshohe has no high bridge over water
+and no power pole on water, so the bridge and power-pole steps of IsNavigable ran only through their "nothing here"
+answers (23002/23002). The current choice is in brackets.
+
+- **TR19:** (terrain §10.4 step 4) for "the tile's deck height (tile slot 67) is known", the glue reads slot 67 as the
+  SDK's `cISC4NetworkOccupant::GetPassageCeiling(float&)`: "known" means it returns true, and the float is compared as
+  a world height with alt + depth at the cell's north-west vertex (>= 20 m clearance). Is that the slot's meaning and
+  unit? [inferred; not exercised in game: a city with a ferry under a high bridge would test it]
+- **TR20:** (terrain §10.4 step 5) for "a power pole (type 0x2890D4DE) whose cell is (x, z)", the glue asks occupant
+  manager slot 41 (the typed GetOccupantsByStandardCityCells) for the single cell min = max = (x, z), so any pole whose
+  bounding cells include (x, z) blocks it. Does the original test the pole's own position cell instead? And is (x, z)
+  the visited spiral cell, not the query's centre? [the visited cell, bounding-cell overlap]

@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "tutorial_guid_mapping",
+  "spec": ["tutorial 3", "tutorial 5.1", "tutorial 8.3"],
+  "description": "Read replaces the saved GUID through the tutorial registry's ID mapping: 1 reads as 0xEA5D6DC8, 0 as 0x8A5B7A6C, anything else (2) unchanged. Saving again writes the mapped GUID (quirk 1).",
+  "steps": [
+    {"op": "tut_create"},
+    {"op": "tut_read", "hex": "0200010000000001000000", "expect": true},
+    {"op": "tut_call", "method": "guid", "expect": "0xEA5D6DC8"},
+    {"op": "tut_record", "hex": "02000100000000c86d5dea"},
+    {"op": "tut_create"},
+    {"op": "tut_read", "hex": "0200010000000000000000", "expect": true},
+    {"op": "tut_call", "method": "guid", "expect": "0x8A5B7A6C"},
+    {"op": "tut_create"},
+    {"op": "tut_read", "hex": "0200010000000002000000", "expect": true},
+    {"op": "tut_call", "method": "guid", "expect": 2}
+  ]
+}

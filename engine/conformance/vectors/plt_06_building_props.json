@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "prop_building_props",
+  "spec": ["prop-lotconfig A7.1", "prop-lotconfig A7.2", "prop-lotconfig A7.3", "prop-lotconfig T6"],
+  "description": "Slot 36 (B, P1) twice and (B, P2): the building's property 0xA8322B7F is created once and holds [P1, P2] (no duplicate); each prop gets usage 3 and is initialised and inserted once. Slot 35 returns both with a reference each. Slot 39 (B, P1) leaves [P2]; slot 39 (B, P2) removes the property; slot 35 is then false.",
+  "steps": [
+    {"op": "pm_create"},
+    {"op": "pm_init", "expect": true},
+    {"op": "pm_building", "building": "0x400", "cell": [3, 4], "props": "absent"},
+    {"op": "pm_occupant", "occupant": "0x401"},
+    {"op": "pm_occupant", "occupant": "0x402"},
+    {"op": "pm_clear_events"},
+    {"op": "pm_call", "method": "add_building_prop", "args": ["0x400", "0x401"], "expect": true},
+    {"op": "pm_call", "method": "add_building_prop", "args": ["0x400", "0x401"], "expect": true},
+    {"op": "pm_call", "method": "add_building_prop", "args": ["0x400", "0x402"], "expect": true},
+    {"op": "pm_expect_events", "filter": {"event": "add_property"}, "events": [{"event": "add_property", "building": "0x400"}]},
+    {"op": "pm_expect_building", "building": "0x400", "props": ["0x401", "0x402"]},
+    {"op": "pm_expect_occupant", "occupant": "0x401", "state": {"usage": 3, "inits": 1, "inserted": true}},
+    {"op": "pm_call", "method": "get_building_props", "args": ["0x400"], "expect": {"result": true, "list": ["0x401", "0x402"]}},
+    {"op": "pm_expect_refs", "refs": {"0x401": 2, "0x402": 2, "0x400": 0}},
+    {"op": "pm_call", "method": "remove_building_prop", "args": ["0x400", "0x401"], "expect": true},
+    {"op": "pm_expect_building", "building": "0x400", "props": ["0x402"]},
+    {"op": "pm_expect_occupant", "occupant": "0x401", "state": {"inserted": false, "shutdowns": 1}},
+    {"op": "pm_call", "method": "remove_building_prop", "args": ["0x400", "0x402"], "expect": true},
+    {"op": "pm_expect_building", "building": "0x400", "props": "absent"},
+    {"op": "pm_call", "method": "get_building_props", "args": ["0x400"], "expect": {"result": false, "list": []}}
+  ]
+}
