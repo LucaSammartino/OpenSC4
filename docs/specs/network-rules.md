@@ -732,7 +732,8 @@ For each tagged cell `(rx, rz, tag)` with its check type `ct`:
 3. If `ct` occupies:
    1. The cell is an **intersection** when its occupant has all of the flags `0x100000` (network occupant slot 8) or
       `info.+0x52` is set. If so: without `ReplacementIntersection` (`+0x48 = 0`), return **1**. If the flag came from
-      the occupant, its anchor (network occupant slot 71, `+0x11C`, two out-values) must equal
+      the occupant, its anchor cell (network occupant slot 71, `+0x11C`: a cell key split into x and z, false when the occupant has
+      none) must equal
       `(x + +0x40, z + +0x44)`, else return **1**.
    2. If `info` is fixed (`+0x53`) and `+0x52` is not set: return **1**.
 4. `acc := 0`. For each network check `k` (type `t ≥ 0`): if the cell's flags lack `t`'s bit, return **1**;
@@ -830,8 +831,8 @@ Unknown ids are skipped. These links only drive the tool's user interface; the s
 
 A solved record `{piece id, orientation, key}` becomes an occupant at commit (`InsertOccupantsForSolvedCells`, slot
 55, `0x006258C0`; network-tools.md §6.2). The record's piece id becomes the occupant's **piece id** (network occupant
-slot 23) and its orientation byte the occupant's rotation and flip (read back through slot 26 by §9) *[inferred: the
-slot 26 meaning]*.
+slot 23, occupant `+0xFC`) and its orientation byte the occupant's rotation and flip (slot 26 returns it, occupant
+byte `+0x104`; §9 reads it back).
 
 - An **ordinary** network occupant (`CreateNetworkOccupant`, slot 54, `0x00624210`, with no class id) is a textured
   cell: its piece id names the cell's texture. The multi-type solutions file calls the field `textureId`. The texture
