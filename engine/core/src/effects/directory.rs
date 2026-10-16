@@ -15,14 +15,18 @@
 //! known section [choice, EF6]:
 //!
 //! - the brush section is the first offset from which the brush, attractor
-//!   and game sections all read cleanly (a brush count of at least 1, brush
-//!   version 0, attractor version 0, game version 0 or 1), tried first at
+//!   and game sections all read plausibly (at least one brush; brush
+//!   version 0, a non-zero brush ID, a one-shot byte of 0 or 1, a level of
+//!   0-4; attractor version 0, a printable name and a value of 0 or 1; game
+//!   version 0 or 1, flags within 7 bits, at least one game record; floats
+//!   zero or normal), tried first at
 //!   the shipped offset of §3 (records at `0x98CA6`, so the count at
 //!   `0x98CA2`);
 //! - the visual effect section is the first offset after the game section
-//!   from which the section and the name map behind it read cleanly, the
-//!   map ending with the name `"end"` and every other index naming a
-//!   description.
+//!   from which the section (version 1 or 2, flags within 9 bits,
+//!   priorities up to 255, printable strings, floats zero or normal) and the name
+//!   map behind it read plausibly, the map ending with the name `"end"` and
+//!   every other index naming a description.
 //!
 //! [`EffectDirectory::parse_at`] takes both offsets when a host knows them.
 //! Everything after the name map's `"end"` entry is ignored (it is not in
@@ -327,13 +331,42 @@ pub struct EffectDirectory {
 struct Cursor<'a> {
     d: &'a [u8],
     p: usize,
+    /// The locator's plausibility tests (EF6): printable non-empty
+    /// strings where names are expected, finite floats, small enums.
+    strict: bool,
 }
 
 type R<T> = Result<T, ParseError>;
 
 impl<'a> Cursor<'a> {
     fn new(d: &'a [u8], p: usize) -> Self {
-        Cursor { d, p }
+        Cursor { d, p, strict: false }
+    }
+    fn strict(d: &'a [u8], p: usize, strict: bool) -> Self {
+        Cursor { d, p, strict }
+    }
+    /// In strict mode, fails unless `ok`.
+    fn check(&self, ok: bool, what: &str) -> R<()> {
+        if self.strict && !ok {
+            return self.err(&format!("implausible {what}"));
+        }
+        Ok(())
+    }
+    /// A float, zero or normal (finite, not subnormal) in strict mode.
+    fn real(&mut self, what: &str) -> R<f32> {
+        let v = self.f32(what)?;
+        self.check(v == 0.0 || v.is_normal(), what)?;
+        Ok(v)
+    }
+    /// A string that must be printable ASCII in strict mode (empty allowed
+    /// unless `name`).
+    fn text(&mut self, what: &str, name: bool) -> R<String> {
+        let s = self.string(what)?;
+        self.check(
+            (!name || !s.is_empty()) && s.bytes().all(|b| (0x20..0x7F).contains(&b)),
+            what,
+        )?;
+        Ok(s)
     }
     fn err<T>(&self, what: &str) -> R<T> {
         Err(ParseError {
@@ -387,36 +420,49 @@ impl<'a> Cursor<'a> {
 }
 
 fn read_brush(c: &mut Cursor) -> R<BrushRecord> {
+    let version = c.u16("brush version")?;
+    c.check(version == 0, "brush version")?;
+    let brush_id = c.u32("brush ID")?;
+    c.check(brush_id != 0, "brush ID")?;
+    let rate = c.real("brush rate")?;
+    let length = c.real("brush length")?;
+    let one_shot = c.u8("brush one-shot")?;
+    c.check(one_shot <= 1, "brush one-shot")?;
+    let level = c.u32("brush level")?;
+    c.check(level <= 4, "brush level")?;
     Ok(BrushRecord {
-        version: c.u16("brush version")?,
-        brush_id: c.u32("brush ID")?,
-        rate: c.f32("brush rate")?,
-        length: c.f32("brush length")?,
-        one_shot: c.u8("brush one-shot")? != 0,
-        level: c.u32("brush level")?,
-        strength: (c.f32("brush strength")?, c.f32("brush strength")?),
-        radius: (c.f32("brush radius")?, c.f32("brush radius")?),
-        target_height: c.f32("brush target")?,
+        version,
+        brush_id,
+        rate,
+        length,
+        one_shot: one_shot != 0,
+        level,
+        strength: (c.real("brush strength")?, c.real("brush strength")?),
+        radius: (c.real("brush radius")?, c.real("brush radius")?),
+        target_height: c.real("brush target")?,
     })
 }
 
 fn read_game(c: &mut Cursor) -> R<GameRecord> {
     let version = c.u16("game version")?;
-    let flags = c.u32("game flags")? & game_flag::MASK;
+    c.check(version <= 1, "game version")?;
+    let raw_flags = c.u32("game flags")?;
+    c.check(raw_flags <= game_flag::MASK, "game flags")?;
+    let flags = raw_flags & game_flag::MASK;
     let field_10 = c.u32("game +0x10")?;
     let demolish_radius = c.i32("game demolish radius")?;
     let demolish_flags = c.u32("game demolish flags")?;
-    let min_demolish_size = c.f32("game min size")?;
-    let max_demolish_size = c.f32("game max size")?;
+    let min_demolish_size = c.real("game min size")?;
+    let max_demolish_size = c.real("game max size")?;
     let burn_radius = c.i32("game burn")?;
     let message_type = c.u32("game message")?;
     let message_data = c.u32("game message data")?;
     let map_kind = c.u32("game map")?;
-    let map_3c = c.f32("game map +0x3C")?;
+    let map_3c = c.real("game map +0x3C")?;
     let mut map_40 = [0u8; 8];
     map_40.copy_from_slice(c.take(8, "game map +0x40")?);
-    let map_48 = c.f32("game map +0x48")?;
-    let duration = c.f32("game duration")?;
+    let map_48 = c.real("game map +0x48")?;
+    let duration = c.real("game duration")?;
     let (toxic, extinguish) = if version > 0 {
         (c.i32("game toxic")?, c.i32("game extinguish")?)
     } else {
@@ -444,7 +490,7 @@ fn read_game(c: &mut Cursor) -> R<GameRecord> {
 }
 
 fn read_component(c: &mut Cursor) -> R<ComponentRecord> {
-    let name = c.string("component name")?;
+    let name = c.text("component name", false)?;
     let at = c.p;
     let kind = c.u8("component type")?;
     if kind > MAX_COMPONENT_TYPE {
@@ -461,10 +507,10 @@ fn read_component(c: &mut Cursor) -> R<ComponentRecord> {
     let copies = c.u16("component copies")?;
     let spacing = c.u16("component spacing")?;
     let render = [
-        c.f32("component render")?,
-        c.f32("component render")?,
-        c.f32("component render")?,
-        c.f32("component render")?,
+        c.real("component render")?,
+        c.real("component render")?,
+        c.real("component render")?,
+        c.real("component render")?,
     ];
     Ok(ComponentRecord {
         name,
@@ -486,8 +532,11 @@ fn read_component(c: &mut Cursor) -> R<ComponentRecord> {
 /// priority, components, bindings, the string, then the three `u32` above
 /// version 1).
 fn read_effect(c: &mut Cursor, section_version: u16) -> R<EffectDescription> {
-    let flags = c.u32("effect flags")? & 0x1FF;
+    let raw_flags = c.u32("effect flags")?;
+    c.check(raw_flags <= 0x1FF, "effect flags")?;
+    let flags = raw_flags & 0x1FF;
     let priority = c.u32("effect priority")?;
+    c.check(priority <= 0xFF, "effect priority")?;
     let n = c.count("component count", MAX_COMPONENTS)?;
     let mut components = Vec::with_capacity(n.min(256) as usize);
     for _ in 0..n {
@@ -498,12 +547,12 @@ fn read_effect(c: &mut Cursor, section_version: u16) -> R<EffectDescription> {
     for _ in 0..nb {
         bindings.push(ParamBinding {
             index: c.u32("binding index")? & 0xF,
-            name: c.string("binding name")?,
-            value: c.f32("binding value")?,
+            name: c.text("binding name", false)?,
+            value: c.real("binding value")?,
             extra: c.u32("binding extra")?,
         });
     }
-    let text = c.string("effect string")?;
+    let text = c.text("effect string", false)?;
     let extra = if section_version > 1 {
         [c.u32("effect extra")?, c.u32("effect extra")?, c.u32("effect extra")?]
     } else {
@@ -529,7 +578,7 @@ struct TableSections {
 /// The brush, attractor and game sections from `at` (§3 items 3–5).
 /// `strict` adds the locator's plausibility tests.
 fn read_tables(d: &[u8], at: usize, strict: bool) -> R<TableSections> {
-    let mut c = Cursor::new(d, at);
+    let mut c = Cursor::strict(d, at, strict);
     let mut offsets = SectionOffsets {
         brushes: at,
         ..SectionOffsets::default()
@@ -540,35 +589,25 @@ fn read_tables(d: &[u8], at: usize, strict: bool) -> R<TableSections> {
     }
     let mut brushes = Vec::with_capacity(n.min(256) as usize);
     for _ in 0..n {
-        let b = read_brush(&mut c)?;
-        if strict && b.version != 0 {
-            return c.err("brush version");
-        }
-        brushes.push(b);
+        brushes.push(read_brush(&mut c)?);
     }
     offsets.attractors = c.p;
     let n = c.count("attractor count", MAX_COUNT)?;
     let mut attractors = Vec::with_capacity(n.min(256) as usize);
     for _ in 0..n {
         let version = c.u16("attractor version")?;
-        if strict && version != 0 {
-            return c.err("attractor version");
-        }
-        attractors.push(AttractorRecord {
-            version,
-            name: c.string("attractor name")?,
-            value: c.u8("attractor value")?,
-        });
+        c.check(version == 0, "attractor version")?;
+        let name = c.text("attractor name", true)?;
+        let value = c.u8("attractor value")?;
+        c.check(value <= 1, "attractor value")?;
+        attractors.push(AttractorRecord { version, name, value });
     }
     offsets.games = c.p;
     let n = c.count("game count", MAX_COUNT)?;
+    c.check(n > 0, "game count")?;
     let mut games = Vec::with_capacity(n.min(256) as usize);
     for _ in 0..n {
-        let g = read_game(&mut c)?;
-        if strict && g.version > 1 {
-            return c.err("game version");
-        }
-        games.push(g);
+        games.push(read_game(&mut c)?);
     }
     offsets.games_end = c.p;
     Ok(TableSections {
@@ -589,9 +628,10 @@ struct EffectSections {
 }
 
 /// The visual effect section and the name map from `at` (§3 items 7, 8).
-fn read_effects(d: &[u8], at: usize) -> R<EffectSections> {
-    let mut c = Cursor::new(d, at);
+fn read_effects(d: &[u8], at: usize, strict: bool) -> R<EffectSections> {
+    let mut c = Cursor::strict(d, at, strict);
     let version = c.u16("effect section version")?;
+    c.check((1..=2).contains(&version), "effect section version")?;
     let n = c.count("effect count", MAX_COUNT)?;
     let mut effects = Vec::with_capacity(n.min(256) as usize);
     for _ in 0..n {
@@ -612,6 +652,10 @@ fn read_effects(d: &[u8], at: usize) -> R<EffectSections> {
             });
         }
         let name = String::from_utf8_lossy(c.take(len as usize, "name")?).into_owned();
+        c.check(
+            !name.is_empty() && name.bytes().all(|b| (0x20..0x7F).contains(&b)),
+            "name",
+        )?;
         let index = c.u32("name index")?;
         if name == "end" {
             break Some(index);
@@ -641,7 +685,7 @@ impl EffectDirectory {
         let root_version = Cursor::new(data, 0).u16("root version")?;
         let tables = Self::locate_tables(data)?;
         let effects_at = Self::locate_effects(data, tables.offsets.games_end)?;
-        let eff = read_effects(data, effects_at)?;
+        let eff = read_effects(data, effects_at, false)?;
         Ok(Self::assemble(root_version, tables, effects_at, eff))
     }
 
@@ -650,7 +694,7 @@ impl EffectDirectory {
     pub fn parse_at(data: &[u8], brushes: usize, effects: usize) -> R<EffectDirectory> {
         let root_version = Cursor::new(data, 0).u16("root version")?;
         let tables = read_tables(data, brushes, false)?;
-        let eff = read_effects(data, effects)?;
+        let eff = read_effects(data, effects, false)?;
         Ok(Self::assemble(root_version, tables, effects, eff))
     }
 
@@ -670,7 +714,7 @@ impl EffectDirectory {
         (from..data.len().saturating_sub(5))
             .find(|&p| {
                 // Cheap pre-test: a section version of 0-2 (§3: shipped 2).
-                u16::from_le_bytes([data[p], data[p + 1]]) <= 2 && read_effects(data, p).is_ok()
+                (1..=2).contains(&u16::from_le_bytes([data[p], data[p + 1]])) && read_effects(data, p, true).is_ok()
             })
             .ok_or(ParseError {
                 what: "no visual effect section".into(),
