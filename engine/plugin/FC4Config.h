@@ -164,6 +164,16 @@
 //   traffic_shadow_hypotheses = N its alternative readings of unclear spec points
 //                                 (a bit mask, default 0 = the spec as written; fc4.h
 //                                 FC4_TRAFFIC_SHADOW_HYP_*)
+//   propdev_shadow = 0 / 1        the prop developer shadow (default 0; needs FreeCity4's
+//                                 simulator and the ORIGINAL prop developer: do not
+//                                 enable propdev; FC4PropDevShadow.h)
+//   propdev_seed = N              the prop developer's session seed (member and wealth
+//                                 generators; default: the session seed; cFC4PropDeveloper.cpp)
+//   citydetail_shadow = 0 / 1     the city detail shadow (default 0; needs the ORIGINAL
+//                                 city detail manager: do not enable citydetail;
+//                                 FC4CityDetailShadow.h)
+//   citydetail_seed = N           the city detail pass generator's session seed
+//                                 (default: the session seed; cFC4CityDetail.cpp)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

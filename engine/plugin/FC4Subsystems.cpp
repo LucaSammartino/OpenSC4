@@ -74,6 +74,10 @@
 #include "cFC4Parks.h"       // the cmglue lane: parks
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
+#include "FC4PropDevShadow.h"     // the glue12b1 lane: propdev_shadow
+#include "FC4CityDetailShadow.h"  // the glue12b1 lane: citydetail_shadow
+#include "cFC4PropDeveloper.h"    // the glue12b1 lane: propdev
+#include "cFC4CityDetail.h"       // the glue12b1 lane: citydetail
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -292,6 +296,19 @@ const ClassEntry kZoneDevClasses[] = {
     {kFC4_CLSID_cSC4ZoneDeveloper, "cSC4ZoneDeveloper", &CreateFC4ZoneDeveloper},
 };
 
+// docs/specs/prop-developer.md §1: the prop developer (city component 10)
+// and its wealth requester (class 0x89C49986, resolved from saved records).
+// Off by default: `enable = propdev`.
+const ClassEntry kPropDevClasses[] = {
+    {kFC4_CLSID_cSC4PropDeveloper, "cSC4PropDeveloper", &CreateFC4PropDeveloper},
+    {kFC4_CLSID_cSC4WealthRequester, "cSC4WealthRequester", &CreateFC4WealthRequester},
+};
+// docs/specs/city-detail.md §1: the city detail manager. Off by default:
+// `enable = citydetail`.
+const ClassEntry kCityDetailClasses[] = {
+    {kFC4_CLSID_cSC4CityDetailManager, "cSC4CityDetailManager", &CreateFC4CityDetailManager},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -326,6 +343,8 @@ const Subsystem kSubsystems[] = {
     {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
+    {"propdev", nullptr, kPropDevClasses, sizeof(kPropDevClasses) / sizeof(kPropDevClasses[0]), false},
+    {"citydetail", nullptr, kCityDetailClasses, sizeof(kCityDetailClasses) / sizeof(kCityDetailClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -465,6 +484,10 @@ void Resolve() {
     Clock24ShadowStartup(enabledKey("clock24"));
     // The traffic shadow (FC4TrafficShadow.h; it compares the original traffic simulator).
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
+    // The prop developer shadow (FC4PropDevShadow.h; it compares the original prop developer).
+    PropDevShadowStartup(g_enabled[0], enabledKey("propdev"));
+    // The city detail shadow (FC4CityDetailShadow.h; it compares the original city detail manager).
+    CityDetailShadowStartup(enabledKey("citydetail"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

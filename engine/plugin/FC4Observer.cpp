@@ -37,6 +37,9 @@
 #include "FC4CommercialShadow.h"
 #include "FC4CivicShadow.h"
 #include "FC4ParksShadow.h"
+#include "FC4PropDevShadow.h"     // the glue12b1 lane
+#include "FC4CityDetailShadow.h"  // the glue12b1 lane
+#include "cFC4PropDeveloper.h"    // the glue12b1 lane: the propdev month line
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "cFC4TractDeveloper.h"
@@ -558,6 +561,7 @@ public:
                 ZoneDevShadowCityLoaded(CurrentCity());  // zonedev_shadow = 1 only
                 HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
+                CityDetailShadowCityLoaded(CurrentCity());  // citydetail_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -578,6 +582,7 @@ public:
                 CommercialShadowCityShutdown();  // commercial_shadow: the shadow core goes with the city
                 CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
                 ParksShadowCityShutdown();  // parks_shadow: the same
+                PropDevShadowCityShutdown();  // propdev_shadow: the shadow cores and their references go with the city
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:
@@ -612,6 +617,8 @@ public:
                 LotDevShadowMonth(CurrentCity(), julian);       // lotdev_shadow = 1 only
                 fc4::ZoneDevMonthLine(julian);                  // enable = zonedev only (the month status line)
                 ZoneDevShadowMonth(CurrentCity(), julian);      // zonedev_shadow = 1 only
+                cFC4PropDeveloper::MonthLine(julian);           // enable = propdev only (the month status line)
+                PropDevShadowMonth(CurrentCity(), julian);      // propdev_shadow = 1 only
                 ++monthsSinceLoad_;
                 if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
