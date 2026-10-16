@@ -1552,7 +1552,7 @@ mod pacing_tests {
     struct Hooks(Rc<Log>);
     impl PacingHooks for Hooks {
         fn is_paced(&self, agent: AgentHandle) -> bool {
-            agent < 200 || agent >= 300
+            !(200..300).contains(&agent)
         }
         fn idle_steps(&self, agent: AgentHandle) -> u32 {
             if agent >= 300 {
