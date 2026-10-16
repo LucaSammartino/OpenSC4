@@ -4937,6 +4937,16 @@ prefix the code comments use; automata.md's own Q1-Q6 keep their numbers. The cu
   for byte. Must a re-save upgrade old versions, or keep them? [writes the version it read; raises it only when the data
   needs the newer layout]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §4.1). Every writer writes a constant, its current version: base 6 `0x0050CB80`, traffic manager 3 `0x00553570`, aircraft manager 5, watercraft manager 6, automaton base 8 `0x0050AC0D`, state 3 `0x00509D0A`, pedestrian 5, vehicle, emergency and trailer 2. It never writes the version it read, and the missing fields come from the live object: a version-2 traffic manager re-saves as 3 with its incident list, and a version-4 base as 6 with the source building counts that `PostCityInit` recounted. A live save must write the current versions. A record codec may keep the read version for byte round-trip tests *[choice]*; §14 test 4 is such a codec test, and test 18 is the re-save.
 - ~~**AM2:** §6.4 gives no read check for the pedestrian (5), vehicle, emergency vehicle, patrol car and trailer (2)
+  needs the newer layout]
+  *Evidence added 2026-10-16 (re-answers29), answering the state record's half.* The **state base Write
+  (`0x00509D00`) always emits version 3 and all seven fields**, whatever version was read, and the Read
+  (`0x00505E50`) accepts ≤ 3 and reads the seventh field only at version ≥ 3. So for states the original
+  **does upgrade on re-save**: a version-2 state comes back as version 3. That **DIFFERS** from the bracket.
+  automata.md §6.2. **What the implementer must change:** a state record of version < 3 must not be expected to
+  round-trip byte for byte — it comes back as version 3 with the extra field written (zeroed for a v2 read).
+  This does **not** settle §14 test 4, which is the *vehicle manager's* version-2 record and is a different
+  writer; the managers, automaton base, aircraft and watercraft versions are still open here.
+- **AM2:** §6.4 gives no read check for the pedestrian (5), vehicle, emergency vehicle, patrol car and trailer (2)
   versions, nor for the incident list's `u16` 1. Do the original readers reject other versions? [any value accepted
   and kept]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §4.1 table, §6.4). The original requires exact values: pedestrian 5 (`0x005446D5`), vehicle 2 (`0x0055BCF0`), emergency 2 (`0x0052FAE0`), patrol car 2 (`0x00543E05`), trailer 2 (`0x00556C47`), and the incident list's `u16` 1 (`0x00553E90`). A mismatch makes that Read return false. The incident's ref is checked against the occupant IID `0x26BB767E`.
 - ~~**AM3:** §5.1 field 4 (the ID at the traffic manager's list cursor): what are the IDs of the list nodes, and what
