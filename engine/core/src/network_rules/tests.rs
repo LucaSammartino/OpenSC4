@@ -4,7 +4,7 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! network-rules.md Ã‚Â§15 (tests 1-24, named `t15_NN_Ã¢â‚¬Â¦`) and further checks.
+//! network-rules.md Â§15 (tests 1-24, named `t15_NN_â€¦`) and further checks.
 //! Every rule file is synthetic.
 
 use super::*;
@@ -37,7 +37,7 @@ fn rules_of(ev: &Evaluator) -> Vec<(u32, Vec<(u32, u8)>)> {
         .collect()
 }
 
-// ---- Ã‚Â§15 tests 1-9: the reader and the evaluator ---------------------------------------------------------
+// ---- Â§15 tests 1-9: the reader and the evaluator ---------------------------------------------------------
 
 #[test]
 fn t15_01_edge_tokens() {
@@ -75,7 +75,7 @@ fn t15_03_rejected_header() {
     let mut g = grid();
     g.insert(road(10, 10, 0x0200_0200));
     assert!(eval_at(&ev, &g, 10, 10, ROAD).is_none());
-    // The evaluator still exists in the database (Ã‚Â§2.3).
+    // The evaluator still exists in the database (Â§2.3).
     let mut r = NetworkRules::new();
     r.add_tile_file(ROAD, Some(b"TestRules\n1,0,2,0,2\n3,0,0x100,0,0"));
     r.add_tile_file(ROAD, None);
@@ -87,7 +87,7 @@ fn t15_04_bad_centre() {
     let ev = Evaluator::from_bytes(b"#T#\n2,0,0,0,0\n3,0,0x100,0,0");
     assert_eq!(ev.status, LoadStatus::BadCentre);
     assert_eq!(ev.rule_count(), 0);
-    // Rules read before a bad centre stay (Ã‚Â§3.3 [inferred]).
+    // Rules read before a bad centre stay (Â§3.3 [inferred]).
     let ev = Evaluator::from_bytes(b"#T#\n1,0,2,0,2\n3,0,0x100,0,0\n1,2,0,2,0\n3,0,0x101,0,0\n7,0,0,0,0\n1,1,1,1,1");
     assert_eq!(ev.status, LoadStatus::BadCentre);
     assert_eq!(ev.rule_count(), 2);
@@ -1197,7 +1197,7 @@ fn reload_follows_the_load_order() {
 #[test]
 fn solve_runs_every_type_and_keeps_claimed_padding() {
     // A Rail evaluator solves a Rail cell even when the tool type is Road
-    // (Ã‚Â§6.1 step 5: all 13 types).
+    // (Â§6.1 step 5: all 13 types).
     let mut rules = NetworkRules::new();
     rules.add_tile_file(RAIL, Some(b"#R#\n1,0,2,0,2\n3,0,0x40,0,0\n3,7,0x41,0,0"));
     let mut g = grid();
