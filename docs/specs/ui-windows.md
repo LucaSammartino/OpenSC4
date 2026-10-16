@@ -524,20 +524,37 @@ harness must not read it as "how many advisor popups are open". `cISC4Simulator`
 
 ## 7. The draw pass from the window side
 
-**Matches** effects.md §7 and EF2, settled 2026-10-16 by re-answers29: the effect finish test
-(`0x005BFD70`) is reachable only from `cSC4EffectsManager::DeactivateUnusedVisualEffects` (`0x005922A0`), which is
-called only from `cSC4EffectsManager::Update(SC4DrawContext*)` (`0x00593120`), which has no direct callers and is
-dispatched as the draw-pass override at `0x00A9F25C` beside the effects manager vtable `0x00A9F264`.
+**Matches** effects.md §7 and EF2, settled 2026-10-16 by re-answers29, and **re-confirmed here**: `xrefs` to
+`cSC4EffectsManager::Update(SC4DrawContext*)` (`0x00593120`) returns **exactly one** address, `0x00A9F25C`. That is
+slot 3 of `cSC4EffectsManager::vftable_1` (vtable `0x00A9F250`, 5 slots — `re/labels_windows.tsv:268`), the manager's
+**draw interface**, beside the main `cISC4EffectsManager` vtable `0x00A9F264`. The chain effects.md gives is therefore
+complete and has no second route.
+
+**Corrects the task's framing.** `0x005922A0` is **not** a 3D-view slot. It is
+`cSC4EffectsManager::DeactivateUnusedVisualEffects` (`re/names_windows.tsv:3578`), called only from `0x00593120`,
+which is only dispatched through `cSC4EffectsManager::vftable_1` slot 3. The 3D view's own draw-related slots are
+nothing like it; the view's connection is that its paint is what causes the renderer to run the pass (below).
+
+The draw interface, measured from `docs/abi/vtables.tsv`:
+
+| Slot | Offset | Target | Method | pops | args | ret |
+|---|---|---|---|---|---|---|
+| 0 | `+0x0` | `0058fe20` | `QueryInterface(uint32, void**)` | 8 | 2 | `al` (bool) |
+| 1 | `+0x4` | `0058fd60` | `AddRef()` | 0 | 0 | `eax` (count) |
+| 2 | `+0x8` | `0058fd70` | `Release()` | 0 | 0 | `eax` (count) |
+| 3 | `+0xC` | `00593120` | `Update(SC4DrawContext*)` | 4 | 1 | `eax-or-void` |
+| 4 | `+0x10` | `00735290` | `Pick(...)` | 16 | 4 | `eax-or-void` |
 
 What the **window layer** owes that chain: the draw pass runs because the city view paints. `cGZWinGen::GZPaint` is
 slot 88 (`+0x158`, `0x009995E7`); `cGZWin::Plot` is slot 89, `PlotComposite` slot 123, `PlotPresent` slot 124
-(`0x0099C498`); `GetDrawContext` is slot 93 (`0x0099BEF9`) and `GetBufferToDrawTo` slot 94. A city view that is never
+(`0x0099C498`); `GetDrawContext` is slot 93 (`0x0099BEF9`) and `GetBufferToDrawTo` slot 94. The renderer's own passes
+are `cSC43DRender::DrawStaticView` (`0x007C7370`) and `DrawDynamicView` (`0x007C7830`). A city view that is never
 painted never reaches `0x005922A0`, so a headless run has to synthesise the sweep exactly as effects.md EF2 says.
 
-*[inferred]* that the view's paint path reaches the effects manager through the 3D renderer's draw pass rather than
-directly; the window-layer slots above are measured, the connection between `Plot` and `0x00593120` is not. What would
-settle it: the caller list of `0x00593120` at runtime (it is a vtable override, so the caller is a loop over draw
-targets), or the body of `cSC4View3DWin::GZPaint` if it has one.
+*[inferred]* that the view's paint path reaches the effects draw interface through the 3D renderer's `DrawDynamicView`
+rather than by calling it directly; the window-layer slots and the effects-side chain are measured, the link between
+`Plot`/`DrawDynamicView` and `vftable_1` slot 3 is not. What would settle it: the caller list of
+`cSC43DRender::DrawDynamicView`'s draw-target loop, or a runtime breakpoint on `0x00593120`.
 
 ---
 
