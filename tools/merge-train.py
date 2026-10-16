@@ -401,13 +401,17 @@ def _resolve_abi_version(wt, rel):
         body_t = body_t.split(nl, 1)[1] if nl in body_t else ""
         lines_o, lines_t = body_o.splitlines(), body_t.splitlines()
         vo, vt = regex.search(body_o), regex.search(body_t)
-        stray = [x for x in lines_o + lines_t
-                 if x.strip() and not (is_h and x.lstrip().startswith("*")) and not regex.search(x)]
-        if stray:
+
+        def commentish(x):
+            s = x.strip()
+            return (not s) or x.lstrip().startswith("*") or (s.startswith("/*") and s.endswith("*/")) \
+                or s == "*/" or bool(regex.search(x))
+
+        if [x for x in lines_o + lines_t if not commentish(x)]:
             return False
         hist, seen = [], set()
         for x in lines_o + lines_t:
-            if is_h and x.lstrip().startswith("*") and x not in seen:
+            if x not in seen and not regex.search(x):
                 seen.add(x)
                 hist.append(x)
         hist = close_comment(hist)
