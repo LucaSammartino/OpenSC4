@@ -214,6 +214,12 @@
 //         lane, FC4TerrainShadow.h): the terrain shadow's scenario on a
 //         stand-in original made inside the DLL; returns its mismatch count
 //         (the counters in a), -1 for a bad input.
+//   op 66 kFC4SeamNeighborsConfirm a = fc4::NeighborsConfirmFn (cdecl bool
+//         (cIGZString* title, cIGZString* text, cIGZString* yes,
+//         cIGZString* no); null: the game's again) (the apply12 lane,
+//         neighbors.md §15.4 NG35): the confirmation dialog the neighbours
+//         simulator's RequestCreateConnection calls when popups are on.
+//         Returns 1.
 #pragma once
 
 #include <cstdint>
@@ -280,6 +286,7 @@ enum : uint32_t {
     kFC4SeamHistClock = 54,  // the history and clock lane
     kFC4SeamParks = 57,         // the cmglue lane (cFC4Parks.h FC4ParksTestInput)
     kFC4SeamTerrainShadow = 58,  // the glue16 lane (FC4TerrainShadow.h FC4TerrainShadowTestInput)
+    kFC4SeamNeighborsConfirm = 66,  // the apply12 lane (NG35, cFC4Neighbors.h NeighborsTestSetConfirm)
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

@@ -203,6 +203,9 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return TerrainShadowTest(static_cast<FC4TerrainShadowTestInput*>(a));
         case kFC4SeamParks:  // the cmglue lane (cFC4Parks.h)
             return a == nullptr ? -1 : fc4::ParksTestZooEscape(static_cast<const FC4ParksTestInput*>(a));
+        case kFC4SeamNeighborsConfirm:  // the apply12 lane (NG35)
+            fc4::NeighborsTestSetConfirm(reinterpret_cast<fc4::NeighborsConfirmFn>(a));
+            return 1;
         case kFC4SeamNeighborsApp:  // the neighbours apply lane (NG14, NG4)
             if (b != nullptr) {
                 return fc4::NeighborsTestCopyDeal(static_cast<cISC4NeighborDeal*>(a),
