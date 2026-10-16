@@ -2147,17 +2147,18 @@ cISC4PropOccupant	cSC4PropOccupant	00aa4900	20	+0x50	005ed590	cSC4PropOccupant::
 cISC4PropOccupant	cSC4PropOccupant	00aa4900	21	+0x54	005eca50	cSC4PropOccupant::SetPropTimerState	8	2	eax-or-void	medium	
 cISC4PropOccupant	cSC4PropOccupant	00aa4900	22	+0x58	00477120	cSC4PropOccupant::GetPropUsage	0	0	eax-or-void	medium	
 cISC4PropOccupant	cSC4PropOccupant	00aa4900	23	+0x5C	005ecae0	cSC4PropOccupant::SetPropUsage	4	1	eax-or-void	medium	
-cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	0	+0x0	006f0d80	cSC4PropDeveloper::QueryInterface	8	2	eax-or-void	medium	
-cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
-cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	2	+0x8	006f0ea0	cSC4PropDeveloper::Release	0	0	eax-or-void	medium	
-cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	3	+0xC	006f1f30	cSC4PropDeveloper::Init	0	0	eax-or-void	medium	
-cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	4	+0x10	006f2c60	cSC4PropDeveloper::Shutdown	0	0	eax-or-void	medium	
-cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	5	+0x14	006f21c0	cSC4PropDeveloper::AddPropRequester	4	1	eax-or-void	medium	
-cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	6	+0x18	006f1080	cSC4PropDeveloper::RemovePropRequester	4	1	eax-or-void	medium	
-cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	7	+0x1C	006f4db0	cSC4PropDeveloper::UpdateAllOptionalProps	0	0	eax-or-void	medium	
-cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	8	+0x20	006f1210	cSC4PropDeveloper::ShowSignsAndLabels	4	1	eax-or-void	medium	
-cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	9	+0x24	006f2bf0	cSC4PropDeveloper::ToggleSignsAndLabels	0	0	via-call	low	
-cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	10	+0x28	006f2c10	cSC4PropDeveloper::AreSignsAndLabelsVisible	0	0	eax-or-void	medium	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	0	+0x0	006f0d80	cSC4PropDeveloper::QueryInterface	8	2	eax-or-void	high	ret AL; prop-developer.md §8.1; re-specs10
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	1	+0x4	004f7ba0	cSC4PropDeveloper::AddRef	0	0	eax-or-void	high	ret EAX; prop-developer.md §8.1; re-specs10
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	2	+0x8	006f0ea0	cSC4PropDeveloper::Release	0	0	eax-or-void	high	ret EAX; prop-developer.md §8.1; re-specs10
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	3	+0xC	006f1f30	cSC4PropDeveloper::Init	0	0	eax-or-void	high	ret AL (true); prop-developer.md §8.1; re-specs10
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	4	+0x10	006f2c60	cSC4PropDeveloper::Shutdown	0	0	eax-or-void	high	ret AL (true); prop-developer.md §8.1; re-specs10
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	5	+0x14	006f21c0	cSC4PropDeveloper::AddPropRequester	4	1	eax-or-void	high	AddPropRequester(r); ret void; prop-developer.md §8.1; re-specs10
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	6	+0x18	006f1080	cSC4PropDeveloper::RemovePropRequester	4	1	eax-or-void	high	RemovePropRequester(r); ret void; prop-developer.md §8.1; re-specs10
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	7	+0x1C	006f4db0	cSC4PropDeveloper::UpdateAllOptionalProps	0	0	eax-or-void	high	UpdateAllOptionalProps(); ret void; prop-developer.md §8.1; re-specs10
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	8	+0x20	006f1210	cSC4PropDeveloper::ShowSignsAndLabels	4	1	eax-or-void	high	ShowSignsAndLabels(bool); ret void; prop-developer.md §8.1; re-specs10
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	9	+0x24	006f2bf0	cSC4PropDeveloper::ToggleSignsAndLabels	0	0	eax-or-void	high	ToggleSignsAndLabels(); ret void; prop-developer.md §8.1; re-specs10
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	10	+0x28	006f2c10	cSC4PropDeveloper::AreSignsAndLabelsVisible	0	0	eax-or-void	high	AreSignsAndLabelsVisible(); ret AL; prop-developer.md §8.1; re-specs10
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	11	+0x2C	006f35b0	cSC4PropDeveloper::`scalar deleting destructor`	4	1	eax-or-void	high	flags argument (pop 4); ret EAX; prop-developer.md §8.1; re-specs10
 cISC4PropManager	cSC4PropManager	00a8f928	0	+0x0	004a1d30	cSC4PropManager::QueryInterface(iid, void**)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): 0x28326F3E -> this; 1/0x452294AA -> this+4; 0xE4FDA3D4 -> this+8; A1
 cISC4PropManager	cSC4PropManager	00a8f928	1	+0x4	004f7ba0	cSC4PropManager::AddRef	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): shared; refcount +0x10
 cISC4PropManager	cSC4PropManager	00a8f928	2	+0x8	004a2340	cSC4PropManager::Release	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): at 0: Shutdown then slot 40(1); A1
@@ -2495,30 +2496,30 @@ cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	8	+0x20	006f5b40	cSC4Pr
 cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	9	+0x24	006f5570	cSC4ProtectionSimulator::DispatchFromStation	8	2	eax-or-void	medium	
 cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	10	+0x28	006f56e0	__ZThn4_N23cSC4ProtectionSimulator25RevokeDispatchFromStationEP13cISC4Occupantm	8	2	eax-or-void	medium	tail->006f5620
 cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	11	+0x2C	006e0c00	cSC4PoliceSimulator::GetDispatchAutomataProperties	20	5	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	0	+0x0	004695b0	cSC4DispatchManager::QueryInterface	8	2	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	2	+0x8	00469760	cSC4DispatchManager::Release	0	0	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	3	+0xC	0046a050	cSC4DispatchManager::Init	0	0	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x46a188]
-cISC4DispatchManager	cSC4DispatchManager	00a88108	4	+0x10	0046a1a0	cSC4DispatchManager::Shutdown	0	0	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	5	+0x14	00469680	cSC4DispatchManager::CanDispatch	12	3	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	6	+0x18	0046a630	cSC4DispatchManager::Dispatch	12	3	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	7	+0x1C	0046aec0	cSC4DispatchManager::RevokeDispatchByID	4	1	edx:eax?	low	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	8	+0x20	0046ae70	cSC4DispatchManager::RevokeDispatchByPylon	4	1	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	9	+0x24	00469d10	cSC4DispatchManager::RevokeAllDispatches	4	1	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	10	+0x28	00469d40	cSC4DispatchManager::GetDispatchInfo	8	2	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	11	+0x2C	00469d80	cSC4DispatchManager::GetDispatchCount	4	1	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	12	+0x30	00469da0	cSC4DispatchManager::GetDispatchIDArray	12	3	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	13	+0x34	0046ae00	cSC4DispatchManager::RegisterDispatchSource	4	1	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	14	+0x38	0046a5d0	cSC4DispatchManager::UnregisterDispatchSource	4	1	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	15	+0x3C	004698b0	cSC4DispatchManager::GetDispatchSource	4	1	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	16	+0x40	0046b060	cSC4DispatchManager::BeginDispatchTool	4	1	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	17	+0x44	0046a4e0	cSC4DispatchManager::EndDispatchTool	4	1	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	18	+0x48	004abad0	icf::cSC4CatalogItem::GetCost	0	0	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	19	+0x4C	00469630	cSC4DispatchManager::SetActivePylon	4	1	via-call	low	indirect-jump dword ptr [edx + 0x18]
-cISC4DispatchManager	cSC4DispatchManager	00a88108	20	+0x50	00469de0	cSC4DispatchManager::GetAutomatonFromPylon	4	1	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	21	+0x54	0046af10	cSC4DispatchManager::GetAvailablePylonCount	4	1	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	22	+0x58	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
-cISC4DispatchManager	cSC4DispatchManager	00a88108	23	+0x5C	0046a7d0	cSC4DispatchManager::~cSC4DispatchManager	4	1	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	0	+0x0	004695b0	cSC4DispatchManager::QueryInterface	8	2	eax-or-void	high	ret AL; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	1	+0x4	004f7ba0	cSC4DispatchManager::AddRef	0	0	eax-or-void	high	ret EAX; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	2	+0x8	00469760	cSC4DispatchManager::Release	0	0	eax-or-void	high	ret EAX; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	3	+0xC	0046a050	cSC4DispatchManager::Init	0	0	eax-or-void	high	ret AL (1); dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	4	+0x10	0046a1a0	cSC4DispatchManager::Shutdown	0	0	eax-or-void	high	ret AL (1); dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	5	+0x14	00469680	cSC4DispatchManager::CanDispatch	12	3	eax-or-void	high	CanDispatch(type, float x, float z); ret AL; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	6	+0x18	0046a630	cSC4DispatchManager::Dispatch	12	3	eax-or-void	high	Dispatch(type, float x, float z) → ID; ret EAX (0 = failed); dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	7	+0x1C	0046aec0	cSC4DispatchManager::RevokeDispatchByID	4	1	eax-or-void	high	RevokeDispatchByID(id); ret AL; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	8	+0x20	0046ae70	cSC4DispatchManager::RevokeDispatchByPylon	4	1	eax-or-void	high	RevokeDispatchByPylon(pylon); ret AL; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	9	+0x24	00469d10	cSC4DispatchManager::RevokeAllDispatches	4	1	eax-or-void	high	RevokeAllDispatches(type) — SDK error: the SDK declares no argument; ret AL (1); dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	10	+0x28	00469d40	cSC4DispatchManager::GetDispatchInfo	8	2	eax-or-void	high	GetDispatchInfo(id, DispatchInfo&); ret AL; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	11	+0x2C	00469d80	cSC4DispatchManager::GetDispatchCount	4	1	eax-or-void	high	GetDispatchCount(type); ret EAX; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	12	+0x30	00469da0	cSC4DispatchManager::GetDispatchIDArray	12	3	eax-or-void	high	GetDispatchIDArray(type, u32* buf, u32& n); ret EAX (number written); dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	13	+0x34	0046ae00	cSC4DispatchManager::RegisterDispatchSource	4	1	eax-or-void	high	RegisterDispatchSource(src) (holds a reference; no duplicate check); ret void; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	14	+0x38	0046a5d0	cSC4DispatchManager::UnregisterDispatchSource	4	1	eax-or-void	high	UnregisterDispatchSource(src) (first match; releases); ret void; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	15	+0x3C	004698b0	cSC4DispatchManager::GetDispatchSource	4	1	eax-or-void	high	GetDispatchSource(type); ret EAX (borrowed); dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	16	+0x40	0046b060	cSC4DispatchManager::BeginDispatchTool	4	1	eax-or-void	high	BeginDispatchTool(type); ret AL; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	17	+0x44	0046a4e0	cSC4DispatchManager::EndDispatchTool	4	1	eax-or-void	high	EndDispatchTool(type); ret AL; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	18	+0x48	004abad0	cSC4DispatchManager::GetActivePylon	0	0	eax-or-void	high	GetActivePylon(); ret EAX (borrowed); dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	19	+0x4C	00469630	cSC4DispatchManager::SetActivePylon	4	1	eax-or-void	high	SetActivePylon(pylon); ret void; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	20	+0x50	00469de0	cSC4DispatchManager::GetAutomatonFromPylon	4	1	eax-or-void	high	GetAutomatonFromPylon(pylon); ret EAX (borrowed, 0 if none); dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	21	+0x54	0046af10	cSC4DispatchManager::GetAvailablePylonCount	4	1	eax-or-void	high	GetAvailablePylonCount(type); ret EAX; dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	22	+0x58	0060fb80	cSC4DispatchManager::GetDispatchVehicleView	0	0	eax-or-void	high	GetDispatchVehicleView(); ret EAX (borrowed); dispatch.md §8; re-specs10
+cISC4DispatchManager	cSC4DispatchManager	00a88108	23	+0x5C	0046a7d0	cSC4DispatchManager::`scalar deleting destructor`	4	1	eax-or-void	high	flags argument (pop 4); ret EAX; dispatch.md §8; re-specs10
 cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	0	+0x0	00514d10	cSC4AutomataControllerManager::QueryInterface	8	2	eax-or-void	medium	
 cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
 cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	2	+0x8	0051b1c0	cSC4AutomataControllerManager::Release	0	0	eax-or-void	medium	
@@ -2635,7 +2636,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	9	+0x24	00604d30	HasAnyNetwork
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	10	+0x28	00619ec0	cSC4NetworkOccupant::SetNetworkFlag(uint32)	4	1	void	high	NAME. posts 0x89D3E9F3 data1=1 when 0x10000000 becomes set on a placed occupant; 0x4000 -> slot 58(1, 0x80); network-manager.md 5; re-specs13c
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	11	+0x2C	00619f70	cSC4NetworkOccupant::ClearNetworkFlag(uint32)	4	1	void	high	NAME. posts 0x89D3E9F3 data1=0 when 0x10000000 was set; network-manager.md 5; re-specs13c
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	12	+0x30	006e3000	cSC4NetworkOccupant::GetNetworkFlag	0	0	eax	high	NAME. ICF body returning +0x13C; re-specs13c
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	13	+0x34	00619110		8	2	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	13	+0x34	00619110	cSC4NetworkOccupant::GetConnectionNodeEdgeTypes(uint32* a, uint32* b)	8	2	al	high	re-specs17b: QI 0x4835C6A7 on the +0xC holder; true and two edge words when present, false otherwise; network-rules.md 6.4
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	14	+0x38	0061a020		8	2	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	15	+0x3C	00619150		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	16	+0x40	0061a090		4	1	via-call	low	
@@ -2648,7 +2649,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	22	+0x58	00619520				forward	m
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	23	+0x5C	00459960	cSC4NetworkOccupant::PieceId	0	0	eax	high	NAME. ICF body; re-specs13c
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	24	+0x60	00604dc0		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	25	+0x64	00604dd0		0	0	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	26	+0x68	00604de0		0	0	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	26	+0x68	00604de0	cSC4NetworkOccupant::GetOrientation	0	0	al	high	re-specs17b: returns byte +0x104 (rotation bits 0-1, flip bit 7); network-rules.md 9.1, 11
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	27	+0x6C	0061b7f0		4	1	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	28	+0x70	00619880		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	29	+0x74	0061b880		4	1	eax-or-void	medium	
@@ -2693,7 +2694,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	67	+0x10C	00619900		4	1	eax-or
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	68	+0x110	0061b9a0	cSC4NetworkOccupant::SetPassageCeiling	4	1	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	69	+0x114	00619940		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	70	+0x118	0061b9f0	cSC4NetworkOccupant::SetOneWayDirections	4	1	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	71	+0x11C	00619970		8	2	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	71	+0x11C	00619970	cSC4NetworkOccupant::GetIntersectionAnchorCell(uint32* x, uint32* z)	8	2	al	high	re-specs17b: QI 0x4835C6AB; splits a cell key (x low 16, z high 16); false when absent; name inferred; network-rules.md 10.5
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	72	+0x120	0061ba90		8	2	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	73	+0x124	006199c0		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	74	+0x128	00604df0		4	1	eax-or-void	medium	
@@ -3035,19 +3036,19 @@ cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	78	+0x138	00657860	cSC4Undergro
 cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	79	+0x13C	00657980	cSC4UndergroundNetworkTool::ReloadNetworkSpecificInfo	4	1	unknown	low	re-specs15b (new): reads the depth properties
 cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	80	+0x140	00657a30	cSC4UndergroundNetworkTool::SetQuadTrianglesToDraw	8	2	unknown	low	re-specs15b (new)
 cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	81	+0x144	00653d90	cSC4SubwayTool::GetOccupantClass	0	0	eax	high	re-specs14b: name is ours; returns 0xCA16374F
-cISC4Demolition	cSC4Demolition	00a88004	0	+0x0	004664b0	cSC4Demolition::QueryInterface	8	2	eax-or-void	medium	
-cISC4Demolition	cSC4Demolition	00a88004	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
-cISC4Demolition	cSC4Demolition	00a88004	2	+0x8	00466950	cSC4Demolition::Release	0	0	eax-or-void	medium	
-cISC4Demolition	cSC4Demolition	00a88004	3	+0xC	00466ef0	cSC4Demolition::Init	0	0	eax-or-void	medium	
-cISC4Demolition	cSC4Demolition	00a88004	4	+0x10	00466980	cSC4Demolition::Shutdown	0	0	eax-or-void	medium	
-cISC4Demolition	cSC4Demolition	00a88004	5	+0x14	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
-cISC4Demolition	cSC4Demolition	00a88004	6	+0x18	00468410	cSC4Demolition::DemolishRegion	44	11	eax-or-void	medium	
-cISC4Demolition	cSC4Demolition	00a88004	7	+0x1C	004670c0	cSC4Demolition::DemolishLots	32	8	eax-or-void	medium	
-cISC4Demolition	cSC4Demolition	00a88004	8	+0x20	004691f0	cSC4Demolition::DemolishOccupant	28	7	eax-or-void	medium	
-cISC4Demolition	cSC4Demolition	00a88004	9	+0x24	00467bb0	cSC4Demolition::ModifyTerrainHeight	40	10	eax-or-void	medium	
-cISC4Demolition	cSC4Demolition	00a88004	10	+0x28	004673b0	cSC4Demolition::DoDemolishGroupEffect	24	6	eax-or-void	medium	
-cISC4Demolition	cSC4Demolition	00a88004	11	+0x2C	00467530		16	4	via-call	low	
-cISC4Demolition	cSC4Demolition	00a88004	12	+0x30	00466920	cSC4Demolition::~cSC4Demolition	4	1	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	0	+0x0	004664b0	cSC4Demolition::QueryInterface	8	2	eax-or-void	high	QueryInterface(iid, void); ret AL; demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	1	+0x4	004664a0	cSC4Demolition::AddRef	0	0	eax-or-void	high	AddRef(); ret EAX (new count); demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	2	+0x8	00466950	cSC4Demolition::Release	0	0	eax-or-void	high	Release(); ret EAX; demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	3	+0xC	00466ef0	cSC4Demolition::Init	0	0	eax-or-void	high	Init(); ret AL (1); demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	4	+0x10	00466980	cSC4Demolition::Shutdown	0	0	eax-or-void	high	Shutdown(); ret AL (1); demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	5	+0x14	00648f10	cSC4Demolition::SetDefaultOccupantFilter	4	1	eax-or-void	high	SetDefaultOccupantFilter(filter) — does nothing; ret void (EAX undefined); demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	6	+0x18	00468410	cSC4Demolition::DemolishRegion	44	11	eax-or-void	high	DemolishRegion(bool, const SC4CellRegion<long>&, PrivilegeType, uint32, bool, cISC4OccupantFilter*, int64*, set<occupant>*, cISC4Occupant*, long, long); ret AL; demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	7	+0x1C	004670c0	cSC4Demolition::DemolishLots	32	8	eax-or-void	high	DemolishLots(bool, const list<lot>&, PrivilegeType, uint32, bool, cISC4OccupantFilter*, int64*, set<occupant>*); ret AL; demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	8	+0x20	004691f0	cSC4Demolition::DemolishOccupant	28	7	eax-or-void	high	DemolishOccupant(bool, cISC4Occupant*, PrivilegeType, uint32, int64*, bool, list<occupant>*); ret AL; demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	9	+0x24	00467bb0	cSC4Demolition::ModifyTerrainHeight	40	10	eax-or-void	high	ModifyTerrainHeight(bool, bool, int, int, int, int, float, cISC4Lot*, uint32, int64*); ret EAX (count); demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	10	+0x28	004673b0	cSC4Demolition::DoDemolishOccupantEffect	24	6	eax-or-void	high	DoDemolishOccupantEffect(cISC4Occupant*, uint32, cISC4Lot*, bool, long, long); ret void; demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	11	+0x2C	00467530	cSC4Demolition::DoDemolishGroupEffect	16	4	eax-or-void	high	DoDemolishGroupEffect(uint32, int, int, const SC4Rect<long>&); ret void; demolition.md §8; re-specs10
+cISC4Demolition	cSC4Demolition	00a88004	12	+0x30	00466920	cSC4Demolition::`scalar deleting destructor`	4	1	eax-or-void	high	flags argument (pop 4); ret EAX (this); demolition.md §8; re-specs10
 cISC4View3DWin	cSC4View3DWin	00abce40	0	+0x0	007e5630	cSC4View3DWin::QueryInterface	8	2	eax-or-void	medium	
 cISC4View3DWin	cSC4View3DWin	00abce40	1	+0x4	007e56d0	cSC4View3DWin::AddRef	0	0	eax-or-void	medium	tail->0094c47c
 cISC4View3DWin	cSC4View3DWin	00abce40	2	+0x8	007e56e0	cSC4View3DWin::Release	0	0	eax-or-void	medium	tail->0099b7a3
@@ -4602,6 +4603,172 @@ cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	11	+0x2C	00445820	cSC424
 cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	12	+0x30	009d4714	cRZSystemService::GetServiceTickPriority	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; -2,000,000
 cISC43DRender	cSC43DRender	00abab60	8	+0x20	007c9fb0	cSC43DRender::GetViewUtilities	0	0	eax	high	re-answers9 LG21: borrowed, not a GZCOM object; view rotation int32 at +0x10
 cISC4App	cSC4App	00a86af0	37	+0x94	0081f910	cSC4App::GetCity	0	0	eax	high	re-answers9 NB19: borrowed app+0x5C; same pointer as global 0x00B43CEC until the city's Shutdown
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	0	+0x0	005246b0	cSC4CitySituationManager::QueryInterface	8	2	eax-or-void	high	QueryInterface(iid, void); ret AL; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	1	+0x4	00524750	cSC4CitySituationManager::AddRef	0	0	eax-or-void	high	AddRef(); ret EAX; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	2	+0x8	00525520	cSC4CitySituationManager::Release	0	0	eax-or-void	high	Release(); ret EAX; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	3	+0xC	0052dc40	cSC4CitySituationManager::Init	0	0	eax-or-void	high	Init(); ret AL (1); city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	4	+0x10	00527ac0	cSC4CitySituationManager::Shutdown	0	0	eax-or-void	high	Shutdown(); ret AL (1); city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	5	+0x14	00526320	cSC4CitySituationManager::GetMissionSuccessCount	4	1	eax-or-void	high	GetMissionSuccessCount(guid) → u16; ret AX (upper half of EAX undefined); city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	6	+0x18	00527620	cSC4CitySituationManager::GetActiveSituation	0	0	eax-or-void	high	GetActiveSituation() → advice; ret EAX; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	7	+0x1C	005274f0	cSC4CitySituationManager::GetCurrentStatus	0	0	eax-or-void	high	GetCurrentStatus() → int (1–5); ret EAX; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	8	+0x20	00527630	cSC4CitySituationManager::GetActiveAuto	0	0	eax-or-void	high	GetActiveAuto(); ret EAX; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	9	+0x24	00527640	cSC4CitySituationManager::GetCurrentTarget	0	0	eax-or-void	high	GetCurrentTarget(); ret EAX; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	10	+0x28	00527510	cSC4CitySituationManager::GetCurrentTargetIndex	0	0	eax-or-void	high	GetCurrentTargetIndex(); ret EAX; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	11	+0x2C	00527520	cSC4CitySituationManager::GetNumTargets	0	0	eax-or-void	high	GetNumTargets(); ret EAX; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	12	+0x30	00527530	cSC4CitySituationManager::GetNumTargetsRemaining	0	0	eax-or-void	high	GetNumTargetsRemaining() = slot 11 − slot 10; ret EAX; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	13	+0x34	00527550	cSC4CitySituationManager::GetCurrentTimeLimitSeconds	0	0	x87	high	GetCurrentTimeLimitSeconds() → float; ret x87; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	14	+0x38	00527560	cSC4CitySituationManager::GetCurrentSituationTime	0	0	x87	high	GetCurrentSituationTime() → float; ret x87; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	15	+0x3C	00527570	cSC4CitySituationManager::GetCurrentTimeRemainingSeconds	0	0	x87	high	GetCurrentTimeRemainingSeconds() → float (= 13 − 14); ret x87; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	16	+0x40	005290f0	cSC4CitySituationManager::GetCurrentTargetName	4	1	eax-or-void	high	GetCurrentTargetName(cIGZString&); ret EAX (the argument); city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	17	+0x44	00524b70	cSC4CitySituationManager::GetSituationAura	8	2	eax-or-void	high	GetSituationAura(float& radius, float& magnitude); ret AL (false when no mission); city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	18	+0x48	00524bb0	cSC4CitySituationManager::GetSituationMoney	4	1	eax-or-void	high	GetSituationMoney(int64&); ret AL; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	19	+0x4C	00525cb0	cSC4CitySituationManager::IsSituationAvailable	4	1	eax-or-void	high	IsSituationAvailable(automaton); ret AL; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	20	+0x50	00525bc0	cSC4CitySituationManager::IsSituationAvailable	4	1	eax-or-void	high	IsSituationAvailable(occupant) (overload); ret AL; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	21	+0x54	0052a8b0	cSC4CitySituationManager::InitiateSituationByGuid	12	3	eax-or-void	high	InitiateSituationByGuid(guid, bool showBriefing, data3); ret AL; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	22	+0x58	00525dc0	cSC4CitySituationManager::InitiateSituationForOccupant	8	2	eax-or-void	high	InitiateSituationForOccupant(occupant, …); ret AL; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	23	+0x5C	0052ab00	cSC4CitySituationManager::InitiateSituationByAutomataGroup	12	3	eax-or-void	high	InitiateSituationByAutomataGroup(group, …); ret AL; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	24	+0x60	00524e20	cSC4CitySituationManager::StartJoyride	12	3	via-call	high	StartJoyride(…); ret via call (0x00506850); city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	25	+0x64	0052a7a0	cSC4CitySituationManager::TreatAutomatonAsGroup	8	2	eax-or-void	high	TreatAutomatonAsGroup(…); ret void; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	26	+0x68	00524bf0	cSC4CitySituationManager::SetMaxCSI	4	1	eax-or-void	high	SetMaxCSI(u8) (process-wide); ret void; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	27	+0x6C	005245c0	cSC4CitySituationManager::GetMaxCSI	0	0	eax-or-void	high	GetMaxCSI() → u8; ret AL; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	28	+0x70	00527690	cSC4CitySituationManager::GetTrackedAutomataCount	0	0	eax-or-void	high	GetTrackedAutomataCount(); ret EAX; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	29	+0x74	00524c20	cSC4CitySituationManager::SetCSIVisible	4	1	eax-or-void	high	SetCSIVisible(bool); ret void; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	30	+0x78	00527500	cSC4CitySituationManager::GetCSIVisible	0	0	eax-or-void	high	GetCSIVisible(); ret AL; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	31	+0x7C	005245d0	cSC4CitySituationManager::HandleTuningParametersChanged	0	0	eax-or-void	high	HandleTuningParametersChanged(); ret AL (1); city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	32	+0x80	00527580	cSC4CitySituationManager::CountdownIsInProgress	0	0	eax-or-void	high	CountdownIsInProgress() (countdown > 0); ret EAX (0 or 1); city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	33	+0x84	005266e0	cSC4CitySituationManager::ResetTutorials	0	0	eax-or-void	high	resets mission progress; ported name; ret void (tail call to cISC4App slot 17); city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	34	+0x88	00527aa0	cSC4CitySituationManager::`scalar deleting destructor`	4	1	eax-or-void	high	flags argument (pop 4); ret EAX; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	35	+0x8C	005252d0	cSC4CitySituationManager::InitiatePlayerDriveMode	4	1	eax-or-void	high	InitiatePlayerDriveMode(bool); ret void; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	36	+0x90	0052e750	cSC4CitySituationManager::InitiateSituation	12	3	eax-or-void	high	InitiateSituation(advice, automaton, bool showBriefing); ret AL; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	37	+0x94	005276a0	cSC4CitySituationManager::ActivateSituation	0	0	eax-or-void	high	ActivateSituation(); ret void; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	38	+0x98	005294c0	cSC4CitySituationManager::DeactivateSituation	0	0	eax-or-void	high	DeactivateSituation(); ret void; city-situation.md §8; re-specs10
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	39	+0x9C	00529ed0	cSC4CitySituationManager::EndSituation	0	0	eax-or-void	high	EndSituation(); ret void; city-situation.md §8; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	0	+0x0	0068b1a0	cSC4AirportDeveloper::QueryInterface	8	2	eax-or-void	high	ret AL; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	1	+0x4	0068b1d0	cSC4AirportDeveloper::AddRef	0	0	eax-or-void	high	ret EAX; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	2	+0x8	0068b1e0	cSC4AirportDeveloper::Release	0	0	eax-or-void	high	ret EAX; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	3	+0xC	0068b010	cSC4AirportDeveloper::Init	0	0	eax-or-void	high	ret AL; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	4	+0x10	0068b110	cSC4AirportDeveloper::Shutdown	0	0	eax-or-void	high	ret AL; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	5	+0x14	00700f40	cSC4AirportDeveloper::GetAvgEfficiency	4	1	eax-or-void	high	GetAvgEfficiency(SC4Percentage* out); ret EAX = out; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	6	+0x18	0068afe0	cSC4AirportDeveloper::GetSimulatorType	0	0	eax-or-void	high	ret EAX; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	7	+0x1C	0068b260	cSC4AirportDeveloper::GetLeastEfficientPort	8	2	eax-or-void	high	GetLeastEfficientPort(pct&, point&); ret AL; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	8	+0x20	0068b000	cSC4AirportDeveloper::GetAllPortLots	4	1	eax-or-void	high	GetAllPortLots(vector&); ret void; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	9	+0x24	0068aff0	cSC4AirportDeveloper::GetNumPorts	8	2	eax-or-void	high	GetNumPorts(sizeFlags, stageFlags); ret EAX; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	10	+0x28	005fd7e0	cSC4AirportDeveloper::AsISC4PortDeveloper	0	0	eax-or-void	high	ret EAX (+4); port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	11	+0x2C	0068b540	cSC4AirportDeveloper::GetNumAirports	4	1	eax-or-void	high	GetNumAirports(size); ret EAX; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	12	+0x30	00700fe0	cSC4AirportDeveloper::GetAirportUsageValues	12	3	eax-or-void	high	GetAirportUsageValues(lot, &usage, &cap); ret AL; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	13	+0x34	00701800	cSC4AirportDeveloper::GetNumAirportTrips	0	0	eax-or-void	high	ret EAX; port-developers.md §8.1; re-specs10
+cISC4AirportDeveloper	cSC4AirportDeveloper	00ab0714	14	+0x38	00701830	cSC4AirportDeveloper::GetMaintenanceCost	4	1	edx:eax	high	GetMaintenanceCost(lot); ret EDX:EAX; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	0	+0x0	00700ee0	cSC4SeaportDeveloper::QueryInterface	8	2	eax-or-void	high	ret AL; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	1	+0x4	0068b1d0	cSC4SeaportDeveloper::AddRef	0	0	eax-or-void	high	ret EAX; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	2	+0x8	0068b1e0	cSC4SeaportDeveloper::Release	0	0	eax-or-void	high	ret EAX; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	3	+0xC	00701e60	cSC4SeaportDeveloper::Init	0	0	eax-or-void	high	ret AL; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	4	+0x10	00700e90	cSC4SeaportDeveloper::Shutdown	0	0	eax-or-void	high	ret AL; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	5	+0x14	00700f40	cSC4SeaportDeveloper::GetAvgEfficiency	4	1	eax-or-void	high	GetAvgEfficiency(SC4Percentage* out); ret EAX = out; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	6	+0x18	00701970	cSC4SeaportDeveloper::GetSimulatorType	0	0	eax-or-void	high	ret EAX; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	7	+0x1C	0068b260	cSC4SeaportDeveloper::GetLeastEfficientPort	8	2	eax-or-void	high	GetLeastEfficientPort(pct&, point&); ret AL; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	8	+0x20	0068b000	cSC4SeaportDeveloper::GetAllPortLots	4	1	eax-or-void	high	GetAllPortLots(vector&); ret void; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	9	+0x24	0068aff0	cSC4SeaportDeveloper::GetNumPorts	8	2	eax-or-void	high	GetNumPorts(sizeFlags, stageFlags); ret EAX; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	10	+0x28	005fd7e0	cSC4SeaportDeveloper::AsISC4PortDeveloper	0	0	eax-or-void	high	ret EAX (+4); port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	11	+0x2C	007019e0	cSC4SeaportDeveloper::GetNumSeaports	0	0	eax-or-void	high	GetNumSeaports(); ret EAX; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	12	+0x30	00700fe0	cSC4SeaportDeveloper::GetSeaportUsageValues	12	3	eax-or-void	high	GetSeaportUsageValues(lot, &usage, &cap); ret AL; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	13	+0x34	00701800	cSC4SeaportDeveloper::GetNumSeaportTrips	0	0	eax-or-void	high	ret EAX; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	14	+0x38	00701830	cSC4SeaportDeveloper::GetMaintenanceCost	4	1	edx:eax	high	GetMaintenanceCost(lot); ret EDX:EAX; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	15	+0x3C	00701090	cSC4SeaportDeveloper::CityHasSea	0	0	eax-or-void	high	ret AL; port-developers.md §8.1; re-specs10
+cISC4SeaportDeveloper	cSC4SeaportDeveloper	00ab2e10	16	+0x40	00701780	cSC4SeaportDeveloper::GetCellSeaAccess	8	2	eax-or-void	high	GetCellSeaAccess(x, z); ret AL; port-developers.md §8.1; re-specs10
+cISC4PropRequester(Wealth)	cSC4WealthRequester	00ab29b0	0	+0x0	006f0e30	cSC4WealthRequester::QueryInterface	8	2	eax-or-void	high	ret AL; prop-developer.md §8.3; re-specs10
+cISC4PropRequester(Wealth)	cSC4WealthRequester	00ab29b0	1	+0x4	004bdf00	cSC4WealthRequester::AddRef	0	0	eax-or-void	high	ret EAX; prop-developer.md §8.3; re-specs10
+cISC4PropRequester(Wealth)	cSC4WealthRequester	00ab29b0	2	+0x8	006f1040	cSC4WealthRequester::Release	0	0	eax-or-void	high	ret EAX; prop-developer.md §8.3; re-specs10
+cISC4PropRequester(Wealth)	cSC4WealthRequester	00ab29b0	3	+0xC	006f0e10	cSC4WealthRequester::GetRequestedShare	4	1	eax-or-void	high	GetRequestedShare(rect const&); ret EAX = 10; prop-developer.md §8.3; re-specs10
+cISC4PropRequester(Wealth)	cSC4WealthRequester	00ab29b0	4	+0x10	006f0e20	cSC4WealthRequester::GetRequesterSatisfactionId	0	0	eax-or-void	high	GetRequesterSatisfactionId(); ret EAX = 0x49A1E995; prop-developer.md §8.3; re-specs10
+cISC4PropRequester(Wealth)	cSC4WealthRequester	00ab29b0	5	+0x14	00648f00	cSC4WealthRequester::UsesCustomPropSelector	0	0	eax-or-void	high	UsesCustomPropSelector(); ret AL = 1; prop-developer.md §8.3; re-specs10
+cISC4PropRequester(Wealth)	cSC4WealthRequester	00ab29b0	6	+0x18	006f1cb0	cSC4WealthRequester::SelectProp	12	3	eax-or-void	high	SelectProp(vector<u32> const&, int32 x, int32 z); ret EAX; prop-developer.md §8.3; re-specs10
+cISC4CityDetailManager	cSC4CityDetailManager	00a87888	0	+0x0	0045d280	cSC4CityDetailManager::QueryInterface	8	2	eax-or-void	high	ret AL; city-detail.md §6; re-specs10
+cISC4CityDetailManager	cSC4CityDetailManager	00a87888	1	+0x4	004664a0	cSC4CityDetailManager::AddRef	0	0	eax-or-void	high	ret EAX; city-detail.md §6; re-specs10
+cISC4CityDetailManager	cSC4CityDetailManager	00a87888	2	+0x8	0045d2e0	cSC4CityDetailManager::Release	0	0	eax-or-void	high	ret EAX; city-detail.md §6; re-specs10
+cISC4CityDetailManager	cSC4CityDetailManager	00a87888	3	+0xC	0045dd10	cSC4CityDetailManager::Init	0	0	eax-or-void	high	ret AL (true); city-detail.md §6; re-specs10
+cISC4CityDetailManager	cSC4CityDetailManager	00a87888	4	+0x10	00648f00	cSC4CityDetailManager::Shutdown	0	0	eax-or-void	high	ret AL; city-detail.md §6; re-specs10
+cISC4CityDetailManager	cSC4CityDetailManager	00a87888	5	+0x14	004777e0	cSC4CityDetailManager::GetCityDetail	0	0	eax-or-void	high	inferred name; ret EAX; city-detail.md §6; re-specs10
+cISC4CityDetailManager	cSC4CityDetailManager	00a87888	6	+0x18	0045d350	cSC4CityDetailManager::`scalar deleting destructor`	4	1	eax-or-void	high	flags argument (pop 4); ret EAX; city-detail.md §6; re-specs10
+cIGZMessageTarget2(PropDeveloper)	cSC4PropDeveloper	00ab29e8	0	+0x0	006f2c20	cSC4PropDeveloper::QueryInterface	8	2	eax-or-void	high	thunk, this-4; ret AL; prop-developer.md §8.2; re-specs10
+cIGZMessageTarget2(PropDeveloper)	cSC4PropDeveloper	00ab29e8	1	+0x4	0068d230	cSC4PropDeveloper::AddRef	0	0	eax-or-void	high	thunk; ret EAX; prop-developer.md §8.2; re-specs10
+cIGZMessageTarget2(PropDeveloper)	cSC4PropDeveloper	00ab29e8	2	+0x8	006f2c40	cSC4PropDeveloper::Release	0	0	eax-or-void	high	thunk; ret EAX; prop-developer.md §8.2; re-specs10
+cIGZMessageTarget2(PropDeveloper)	cSC4PropDeveloper	00ab29e8	3	+0xC	006f4e90	cSC4PropDeveloper::DoMessage	4	1	eax-or-void	high	ret AL; prop-developer.md §8.2; re-specs10
+cIGZSerializable(PropDeveloper)	cSC4PropDeveloper	00ab29d0	0	+0x0	006f2c30	cSC4PropDeveloper::QueryInterface	8	2	eax-or-void	high	thunk, this-8; ret AL; prop-developer.md §8.2; re-specs10
+cIGZSerializable(PropDeveloper)	cSC4PropDeveloper	00ab29d0	1	+0x4	0068d250	cSC4PropDeveloper::AddRef	0	0	eax-or-void	high	thunk; ret EAX; prop-developer.md §8.2; re-specs10
+cIGZSerializable(PropDeveloper)	cSC4PropDeveloper	00ab29d0	2	+0x8	006f2c50	cSC4PropDeveloper::Release	0	0	eax-or-void	high	thunk; ret EAX; prop-developer.md §8.2; re-specs10
+cIGZSerializable(PropDeveloper)	cSC4PropDeveloper	00ab29d0	3	+0xC	006f1930	cSC4PropDeveloper::Write	4	1	eax-or-void	high	ret AL; prop-developer.md §8.2; re-specs10
+cIGZSerializable(PropDeveloper)	cSC4PropDeveloper	00ab29d0	4	+0x10	006f3620	cSC4PropDeveloper::Read	4	1	eax-or-void	high	ret AL; prop-developer.md §8.2; re-specs10
+cIGZSerializable(PropDeveloper)	cSC4PropDeveloper	00ab29d0	5	+0x14	006f0d70	cSC4PropDeveloper::GetGZCLSID	0	0	eax-or-void	high	0x89C48F47; ret EAX; prop-developer.md §8.2; re-specs10
+cIGZSerializable(WealthRequester)	cSC4WealthRequester	00ab2998	0	+0x0	006f0e90	cSC4WealthRequester::QueryInterface	8	2	eax-or-void	high	thunk, this-4; ret AL; prop-developer.md §8.3; re-specs10
+cIGZSerializable(WealthRequester)	cSC4WealthRequester	00ab2998	1	+0x4	005c0500	cSC4WealthRequester::AddRef	0	0	eax-or-void	high	thunk; ret EAX; prop-developer.md §8.3; re-specs10
+cIGZSerializable(WealthRequester)	cSC4WealthRequester	00ab2998	2	+0x8	006f1070	cSC4WealthRequester::Release	0	0	eax-or-void	high	thunk; ret EAX; prop-developer.md §8.3; re-specs10
+cIGZSerializable(WealthRequester)	cSC4WealthRequester	00ab2998	3	+0xC	004fc900	cSC4WealthRequester::Write	4	1	eax-or-void	high	nothing written, true; ret AL; prop-developer.md §8.3; re-specs10
+cIGZSerializable(WealthRequester)	cSC4WealthRequester	00ab2998	4	+0x10	004fc900	cSC4WealthRequester::Read	4	1	eax-or-void	high	nothing read, true; ret AL; prop-developer.md §8.3; re-specs10
+cIGZSerializable(WealthRequester)	cSC4WealthRequester	00ab2998	5	+0x14	006f0e00	cSC4WealthRequester::GetGZCLSID	0	0	eax-or-void	high	0x89C49986; ret EAX; prop-developer.md §8.3; re-specs10
+cIGZSerializable(CityDetailManager)	cSC4CityDetailManager	00a87870	0	+0x0	0045d330	cSC4CityDetailManager::QueryInterface	8	2	eax-or-void	high	thunk, this-4; ret AL; city-detail.md §6; re-specs10
+cIGZSerializable(CityDetailManager)	cSC4CityDetailManager	00a87870	1	+0x4	006c2270	cSC4CityDetailManager::AddRef	0	0	eax-or-void	high	thunk; ret EAX; city-detail.md §6; re-specs10
+cIGZSerializable(CityDetailManager)	cSC4CityDetailManager	00a87870	2	+0x8	0045d340	cSC4CityDetailManager::Release	0	0	eax-or-void	high	thunk; ret EAX; city-detail.md §6; re-specs10
+cIGZSerializable(CityDetailManager)	cSC4CityDetailManager	00a87870	3	+0xC	0045d380	cSC4CityDetailManager::Write	4	1	eax-or-void	high	ret AL; city-detail.md §6; re-specs10
+cIGZSerializable(CityDetailManager)	cSC4CityDetailManager	00a87870	4	+0x10	0045d3b0	cSC4CityDetailManager::Read	4	1	eax-or-void	high	ret AL; city-detail.md §6; re-specs10
+cIGZSerializable(CityDetailManager)	cSC4CityDetailManager	00a87870	5	+0x14	0045d300	cSC4CityDetailManager::GetGZCLSID	0	0	eax-or-void	high	0xEAD4BA36; ret EAX; city-detail.md §6; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	0	+0x0	68b290	cSC4AirportDeveloper::QueryInterface	8	2	eax-or-void	high	thunk to +0; ret AL; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	1	+0x4	68b2a0	cSC4AirportDeveloper::AddRef	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	2	+0x8	68b2b0	cSC4AirportDeveloper::Release	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	3	+0xC	68b2c0	cSC4AirportDeveloper::Init	0	0	eax-or-void	high	thunk; ret AL; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	4	+0x10	68b2d0	cSC4AirportDeveloper::Shutdown	0	0	eax-or-void	high	thunk; ret AL; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	5	+0x14	68b2e0	cSC4AirportDeveloper::GetAvgEfficiency	4	1	eax-or-void	high	thunk; ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	6	+0x18	68b2f0	cSC4AirportDeveloper::GetSimulatorType	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	7	+0x1C	68b300	cSC4AirportDeveloper::GetLeastEfficientPort	8	2	eax-or-void	high	thunk; ret AL; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	8	+0x20	68b310	cSC4AirportDeveloper::GetAllPortLots	4	1	eax-or-void	high	thunk; ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	9	+0x24	68b320	cSC4AirportDeveloper::GetNumPorts	8	2	eax-or-void	high	thunk; ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	10	+0x28	68b330	cSC4AirportDeveloper::`scalar deleting destructor`	4	1	eax-or-void	high	flags argument (pop 4); ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	11	+0x2C	700f10		0	0	eax-or-void	high	final release: jmp 0x006E8FB0; ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	12	+0x30	68b250	cSC4AirportDeveloper::GetTripsForPort	4	1	eax-or-void	high	GetTripsForPort(port); ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	13	+0x34	648f10	cSC4AirportDeveloper::OnStageChange	4	1	eax-or-void	high	OnStageChange(port); ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	14	+0x38	648f10	cSC4AirportDeveloper::OnNewLotCreated	4	1	eax-or-void	high	OnNewLotCreated(port); ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	15	+0x3C	68b400	cSC4AirportDeveloper::SendAdvisorUpgradeMessage	4	1	eax-or-void	high	SendAdvisorUpgradeMessage(port); ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	16	+0x40	68b630	cSC4AirportDeveloper::DoMonthlyTick	0	0	eax-or-void	high	ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	17	+0x44	700fa0	cSC4AirportDeveloper::UpdateBudget	0	0	eax-or-void	high	ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Airport)	cSC4AirportDeveloper	00ab06c8	18	+0x48	68b270	cSC4AirportDeveloper::AllocatedFunding	0	0	edx:eax	high	tail call to the department; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	0	+0x0	701980	cSC4SeaportDeveloper::QueryInterface	8	2	eax-or-void	high	thunk to +0; ret AL; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	1	+0x4	68b2a0	cSC4SeaportDeveloper::AddRef	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	2	+0x8	68b2b0	cSC4SeaportDeveloper::Release	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	3	+0xC	702020	cSC4SeaportDeveloper::Init	0	0	eax-or-void	high	thunk; ret AL; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	4	+0x10	701990	cSC4SeaportDeveloper::Shutdown	0	0	eax-or-void	high	thunk; ret AL; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	5	+0x14	68b2e0	cSC4SeaportDeveloper::GetAvgEfficiency	4	1	eax-or-void	high	thunk; ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	6	+0x18	7019a0	cSC4SeaportDeveloper::GetSimulatorType	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	7	+0x1C	68b300	cSC4SeaportDeveloper::GetLeastEfficientPort	8	2	eax-or-void	high	thunk; ret AL; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	8	+0x20	68b310	cSC4SeaportDeveloper::GetAllPortLots	4	1	eax-or-void	high	thunk; ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	9	+0x24	68b320	cSC4SeaportDeveloper::GetNumPorts	8	2	eax-or-void	high	thunk; ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	10	+0x28	7019b0	cSC4SeaportDeveloper::`scalar deleting destructor`	4	1	eax-or-void	high	flags argument (pop 4); ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	11	+0x2C	700f10		0	0	eax-or-void	high	final release: jmp 0x006E8FB0; ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	12	+0x30	700f60	cSC4SeaportDeveloper::GetTripsForPort	4	1	eax-or-void	high	GetTripsForPort(port); ret EAX; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	13	+0x34	701360	cSC4SeaportDeveloper::OnStageChange	4	1	eax-or-void	high	OnStageChange(port); ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	14	+0x38	701370	cSC4SeaportDeveloper::OnNewLotCreated	4	1	eax-or-void	high	OnNewLotCreated(port); ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	15	+0x3C	700f20	cSC4SeaportDeveloper::SendAdvisorUpgradeMessage	4	1	eax-or-void	high	SendAdvisorUpgradeMessage(port); ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	16	+0x40	701f70	cSC4SeaportDeveloper::DoMonthlyTick	0	0	eax-or-void	high	ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	17	+0x44	700fa0	cSC4SeaportDeveloper::UpdateBudget	0	0	eax-or-void	high	ret void; port-developers.md §8.3; re-specs10
+cISC4PortDeveloper(internal, Seaport)	cSC4SeaportDeveloper	00ab2dc0	18	+0x48	68b270	cSC4SeaportDeveloper::AllocatedFunding	0	0	edx:eax	high	tail call to the department; port-developers.md §8.3; re-specs10
+cIGZMessageTarget2(AirportDeveloper)	cSC4AirportDeveloper	00ab06b4	0	+0x0	68b340	cSC4AirportDeveloper::QueryInterface	8	2	eax-or-void	high	thunk, this-8; ret AL; port-developers.md §8.2; re-specs10
+cIGZMessageTarget2(AirportDeveloper)	cSC4AirportDeveloper	00ab06b4	1	+0x4	68b350	cSC4AirportDeveloper::AddRef	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.2; re-specs10
+cIGZMessageTarget2(AirportDeveloper)	cSC4AirportDeveloper	00ab06b4	2	+0x8	68b360	cSC4AirportDeveloper::Release	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.2; re-specs10
+cIGZMessageTarget2(AirportDeveloper)	cSC4AirportDeveloper	00ab06b4	3	+0xC	68b1f0	cSC4AirportDeveloper::DoMessage	4	1	eax-or-void	high	ret AL; port-developers.md §8.2; re-specs10
+cIGZMessageTarget2(SeaportDeveloper)	cSC4SeaportDeveloper	00ab2dac	0	+0x0	7019c0	cSC4SeaportDeveloper::QueryInterface	8	2	eax-or-void	high	thunk, this-8; ret AL; port-developers.md §8.2; re-specs10
+cIGZMessageTarget2(SeaportDeveloper)	cSC4SeaportDeveloper	00ab2dac	1	+0x4	68b350	cSC4SeaportDeveloper::AddRef	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.2; re-specs10
+cIGZMessageTarget2(SeaportDeveloper)	cSC4SeaportDeveloper	00ab2dac	2	+0x8	68b360	cSC4SeaportDeveloper::Release	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.2; re-specs10
+cIGZMessageTarget2(SeaportDeveloper)	cSC4SeaportDeveloper	00ab2dac	3	+0xC	701f20	cSC4SeaportDeveloper::DoMessage	4	1	eax-or-void	high	ret AL; port-developers.md §8.2; re-specs10
+cIGZSerializable(AirportDeveloper)	cSC4AirportDeveloper	00ab069c	0	+0x0	68b370	cSC4AirportDeveloper::QueryInterface	8	2	eax-or-void	high	thunk, this-0xC; ret AL; port-developers.md §8.2; re-specs10
+cIGZSerializable(AirportDeveloper)	cSC4AirportDeveloper	00ab069c	1	+0x4	68b380	cSC4AirportDeveloper::AddRef	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.2; re-specs10
+cIGZSerializable(AirportDeveloper)	cSC4AirportDeveloper	00ab069c	2	+0x8	68b390	cSC4AirportDeveloper::Release	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.2; re-specs10
+cIGZSerializable(AirportDeveloper)	cSC4AirportDeveloper	00ab069c	3	+0xC	68b3e0	cSC4AirportDeveloper::Write	4	1	eax-or-void	high	ret AL; port-developers.md §8.2; re-specs10
+cIGZSerializable(AirportDeveloper)	cSC4AirportDeveloper	00ab069c	4	+0x10	7010b0	cSC4AirportDeveloper::Read	4	1	eax-or-void	high	ret AL; port-developers.md §8.2; re-specs10
+cIGZSerializable(AirportDeveloper)	cSC4AirportDeveloper	00ab069c	5	+0x14	68afd0	cSC4AirportDeveloper::GetGZCLSID	0	0	eax-or-void	high	0xAA2049A1; ret EAX; port-developers.md §8.2; re-specs10
+cIGZSerializable(SeaportDeveloper)	cSC4SeaportDeveloper	00ab2d94	0	+0x0	7019d0	cSC4SeaportDeveloper::QueryInterface	8	2	eax-or-void	high	thunk, this-0xC; ret AL; port-developers.md §8.2; re-specs10
+cIGZSerializable(SeaportDeveloper)	cSC4SeaportDeveloper	00ab2d94	1	+0x4	68b380	cSC4SeaportDeveloper::AddRef	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.2; re-specs10
+cIGZSerializable(SeaportDeveloper)	cSC4SeaportDeveloper	00ab2d94	2	+0x8	68b390	cSC4SeaportDeveloper::Release	0	0	eax-or-void	high	thunk; ret EAX; port-developers.md §8.2; re-specs10
+cIGZSerializable(SeaportDeveloper)	cSC4SeaportDeveloper	00ab2d94	3	+0xC	68b3e0	cSC4SeaportDeveloper::Write	4	1	eax-or-void	high	ret AL; port-developers.md §8.2; re-specs10
+cIGZSerializable(SeaportDeveloper)	cSC4SeaportDeveloper	00ab2d94	4	+0x10	7010b0	cSC4SeaportDeveloper::Read	4	1	eax-or-void	high	ret AL; port-developers.md §8.2; re-specs10
+cIGZSerializable(SeaportDeveloper)	cSC4SeaportDeveloper	00ab2d94	5	+0x14	700e80	cSC4SeaportDeveloper::GetGZCLSID	0	0	eax-or-void	high	0xEA230A28; ret EAX; port-developers.md §8.2; re-specs10
 cS3DResModel	cS3DResModel	00abd608	3	+0xC	00520080	cS3DResModel::GetAnimHeader	0	0	eax	high	ICF body (returns this+0x4C); graphics-formats 3.9: +0 frame count, +2 rate; re-specs11
 cS3DResModel	cS3DResModel	00abd608	4	+0x10	00804150	cS3DResModel::CreateAnimatedInstance(uint32 frame, instance** out)	8	2	al	high	0xD0-byte instance, ctor 0x007FD870; builds the frame with slot 8; graphics-formats 3.9; re-specs11
 cS3DResModel	cS3DResModel	00abd608	5	+0x14	008040e0	cS3DResModel::CreateInstance(uint32 frame, instance** out)	8	2	al	medium	static cS3DModelInstance (0xA4 bytes); graphics-formats 3.12; re-specs11

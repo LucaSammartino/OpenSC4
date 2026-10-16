@@ -548,9 +548,9 @@ city object and the presentation.
   packages in the original order (data-formats §3.1), opens the save (foundations §3, save-records, lot-records),
   builds every city component from FreeCity4's cores (the 53 references of foundations §3.6; the classes still
   original in plug-in mode, save-records §3.2, get cores or exact opaque round trips), runs the simulator clock
-  with deterministic pacing (no animation tick, no view: §8), and writes the save. *Needs:* specs 1–2; cores for
-  the remaining original-only classes (prop manager, lot configuration manager, network manager and lot manager,
-  city detail and situation managers, already specified). *Tests:* load → save is byte-identical on the 417-save
+  with deterministic pacing (the animation tick driven by the pacing, not the wall clock; no view: §8), and writes
+  the save. *Needs:* specs 1–2; cores, or exact opaque round trips, for every class still original in plug-in mode
+  (save-records §3.2 less the cores listed in PROGRESS; most are already specified). *Tests:* load → save is byte-identical on the 417-save
   sweep where nothing ran; a saved city loads in the original game; month-end budget and population against a
   same-process shadow run of the original.
 - **S1: static render to an image.** `fc4-render <install> <city.sc4> --zoom Z --rotation R out.png`: terrain,

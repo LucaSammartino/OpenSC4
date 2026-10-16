@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "city_detail_record",
+  "spec": ["city-detail 4", "city-detail 8.2"],
+  "description": "The 8-byte record: u32 version 0, u32 level. The corpus form 00 00 00 00 03 00 00 00 reads and writes back unchanged. A version other than 0 (1, 2) is rejected and [choice] leaves the stored level unchanged; so does a record cut short. A stored 0xFFFFFFFF round-trips.",
+  "steps": [
+    {"op": "cd_create"},
+    {"op": "cd_read", "hex": "00000000 03000000", "expect": true},
+    {"op": "cd_expect", "state": {"level": 3}},
+    {"op": "cd_write", "hex": "00000000 03000000"},
+    {"op": "cd_read", "hex": "01000000 01000000", "expect": false},
+    {"op": "cd_read", "hex": "02000000 01000000", "expect": false},
+    {"op": "cd_read", "hex": "00000000 0100", "expect": false},
+    {"op": "cd_expect", "state": {"level": 3}},
+    {"op": "cd_read", "hex": "00000000 01000000", "expect": true},
+    {"op": "cd_get_level", "expect": 1},
+    {"op": "cd_read", "hex": "00000000 FFFFFFFF", "expect": true, "fresh": true},
+    {"op": "cd_write", "hex": "00000000 FFFFFFFF"}
+  ]
+}

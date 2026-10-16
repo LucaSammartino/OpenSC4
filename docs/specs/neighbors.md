@@ -332,6 +332,30 @@ u32  suspensionDate                 (present when version ≥ 5)
 The core's internal types (a three-way `ConnectionRequest`, and the new connection or null) are the
 implementer's choice; no original behaviour constrains them beyond the `bool` above.
 
+**The dialog's strings** (NG45, `0x006D1610`–`0x006D16DA`). All three LTEXT keys are in group **`0x6A231EAA`**:
+
+| Instance | Use |
+|---|---|
+| `0xAA8E151B` | the title |
+| `0x0A8E152D` | the text: a `printf` template |
+| `0x0A8E15F9` | the fallback neighbour name |
+
+Each is loaded by the game's localized-string object (`cSLString`, constructor `0x00603580`, vtable `0x00A85478`), with
+the detokenize flag set. Its `Load` (`0x00603300`) follows `SC4LoadString`'s rule (crime.md §7):
+1. Look up (`0x2026960B`, group + language ID, instance). When the language ID is not 0 and that fails, look up
+   (`0x2026960B`, group, instance).
+2. Copy the text, then detokenize it in place with the global token service (context 0, restored afterwards).
+3. Replace every U+2022 with U+200B.
+
+A missing LTEXT leaves the string **empty** (`0x006034E4`). Unlike `SC4LoadString`, a failed detokenize keeps the
+copied text.
+
+The other-side city comes from `FindCityOnOtherSideOfConnection` (slot `+0x30`). When it exists and is established
+(regional city `+0xAC`), its name (regional city `+0x84`) replaces the fallback. The text is then
+`cRZString::Sprintf(text, name)` (`0x0090F574`). This is the game's own formatter with the C `printf` conversions:
+the name fills the first `%s`, and `%%` gives `%`. The title and the formatted text go to
+`GenericConfirmationDialog(title, text, null, null)` (`0x0078DFF0`, NG35).
+
 ### 6.3 `CreateConnection(type, x, z, flag)` *[compat]*
 
 1. If `HasConnection(type, x, z)`, do nothing.

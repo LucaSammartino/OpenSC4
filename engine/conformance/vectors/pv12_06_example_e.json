@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "prop_developer_example_e",
+  "spec": ["prop-developer 4.3", "prop-developer 4.5"],
+  "description": "Worked example E: a lot whose wealth changes from 2 to 3. On the next visit each wealth prop's check returns 0 (no candidate of wealth 3 among its type, so no draw), so every one is removed at once and its slot reopened; creations then fill two slots with the wealth-3 prop 0x501.",
+  "steps": [
+    {"op": "pv_requester", "token": "0x13B42BB8", "share": 0, "satisfaction": "0x49A1E996", "custom": true},
+    {"op": "pv_requester", "token": "0x11347690", "share": 0, "satisfaction": "0xE9A4300B", "custom": false},
+    {"op": "pv_create"},
+    {"op": "pv_init", "expect": true},
+    {"op": "pv_add_requester", "token": "0x13B42BB8", "class": "0x8990C09A"},
+    {"op": "pv_add_requester", "token": "0x11347690", "class": "0x8990C065"},
+    {"op": "pv_clear_events"},
+    {"op": "pv_env", "profiles": [["0x500", "0x49A1E995", 2], ["0x501", "0x49A1E995", 3]]},
+    {"op": "pv_lot", "lot": "0x10", "x": 0, "z": 0, "occupancy": 0.5, "wealth": 2, "objects": [{"tag": "0xA0", "ids": ["0x500", "0x501"]}, {"tag": "0xA1", "ids": ["0x500", "0x501"]}, {"tag": "0xA2", "ids": ["0x500", "0x501"]}, {"tag": "0xA3", "ids": ["0x500", "0x501"]}]},
+    {"op": "pv_script", "member": [0, 0], "wealth": [0, 0]},
+    {"op": "pv_update_block", "block": [0, 0]},
+    {"op": "pv_expect_block", "state": {"created": 2}},
+    {"op": "pv_lot", "lot": "0x10", "wealth": 3},
+    {"op": "pv_clear_events"},
+    {"op": "pv_script", "member": [0, 0], "wealth": [0, 0]},
+    {"op": "pv_update_block", "block": [0, 0]},
+    {"op": "pv_expect_event_count", "filter": {"event": "remove_prop", "prop": "0x9000"}, "count": 1},
+    {"op": "pv_expect_event_count", "filter": {"event": "remove_prop", "prop": "0x9001"}, "count": 1},
+    {"op": "pv_expect_event_count", "filter": {"event": "draw", "gen": "wealth"}, "count": 2},
+    {"op": "pv_expect_block", "state": {"slots": 4, "kept_all": 0, "kept": [0, 0, 0], "want": [2, 0, 0], "removed": 0, "created": 2}},
+    {"op": "pv_expect_events", "filter": {"event": "create_prop"}, "events": [{"id": "0x501"}, {"id": "0x501"}]}
+  ]
+}
