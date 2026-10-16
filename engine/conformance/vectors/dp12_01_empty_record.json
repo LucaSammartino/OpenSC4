@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "dispatch_empty_record",
+  "spec": ["dispatch 7", "dispatch 12.1"],
+  "description": "A fresh manager writes the 22-byte empty record: version 2, no records, nextID 0, no active pylon, no available pylons, toolType 8.",
+  "steps": [
+    {"op": "dispatch_create"},
+    {"op": "dispatch_write", "expect": true, "length": 22, "hex": "0200 00000000 00000000 00000000 00000000 08000000"}
+  ]
+}
