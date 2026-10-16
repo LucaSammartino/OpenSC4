@@ -4798,23 +4798,49 @@ apply11traffic applied the re-answers10 TG DIFFERS entries to the traffic glue (
 partly; ABI 61). `enable = traffic` with the 26 other regress replacements is clean to 2032 (run 128, ref_warnings=0).
 Three TG2 callbacks stay NULL because the specs leave them open. The current choice is in brackets.
 
-- **TG23:** traffic-simulator §4.9 step 3, §9.1 TG2, spec Q1: what exactly do UpdateRoadsBudget (`0x0070D8A0`) and
+- ~~**TG23:** traffic-simulator §4.9 step 3, §9.1 TG2, spec Q1: what exactly do UpdateRoadsBudget (`0x0070D8A0`) and
   UpdateMassTransitBudget (`0x0070DA40`) call? Which line item numbers get which network-type cell counts (roads:
   Road+OneWayRoad, Street, Highway+GroundHighway, Avenue; mass transit not given), with which method (SetFullExpenses?
   AddToFullExpenses?), what count x tile-cost formula and rounding, and are they also called when the count did not
-  change? [`update_network_costs` stays NULL: the transport line items keep the expenses they were loaded with]
-- **TG24:** traffic-network §4.4, §7.2, §9.1 TG2: what are the arguments, return values and result containers of path
+  change? [`update_network_costs` stays NULL: the transport line items keep the expenses they were loaded with]~~
+  **ANSWERED 2026-10-16 (re-answers21):** traffic-simulator §4.9.1. Both use `GetLineItem(i)` (department slot 20)
+  then `SetFullExpenses(int64)` (line item slot 12; never AddToFullExpenses). Roads, in order: item 2 = Road +
+  OneWayRoad, item 1 = Street, item 3 = Highway + GroundHighway, item 4 = Avenue. Mass transit: item 3 = Rail
+  (created and named `0x6A8B0CFB` if missing), 4 = Subway, 5 = LightRail, 6 = Monorail. Per type: `r24(count ×
+  tileCost[t])` rounded to nearest, ties to even (the `+12582912.0f` bit trick, exact below 2²²), as u32; two-type
+  items add the two u32 as an unsigned 64-bit sum. No change test: called on every road/rail/subway insert and
+  remove, every CreateMaps pass (roads then transit) and at PostCityInit (transit then roads). The bracket
+  **DIFFERS**: the original's maintenance lines follow the network the same day and are re-priced at load.
+- ~~**TG24:** traffic-network §4.4, §7.2, §9.1 TG2: what are the arguments, return values and result containers of path
   info slots 14 (GetPathsFromEntryEdge, 3 args), 3 (GetPath, 2 args) and 7 (GetPathsNearEndPoint, 6 args)? Which field of
   a path object is the exit byte, and which is its first vertex? Also: does GetPathInfo (occupant slot 49) hand over a
   reference, and does the slot-4 turn-around test use all of EAX or only AL? [`path_info_exits_from_entry` and
   `path_info_entries_near` stay NULL, so lane continuity changes nothing; GetPathInfo is treated as borrowed; the whole
-  EAX is tested]
-- **TG25:** traffic-network §4.8 step 1, §9.1 TG2: at what offset in cSC4NetworkTunnelOccupant is the paired-portal
+  EAX is tested]~~ **ANSWERED 2026-10-16 (re-answers21):** traffic-network §7.3 and §4.4. Slot 14 `u32
+  GetPathsFromEntryEdge(pathType, entry, vector<u32>& keys)` empties `keys`, appends the matching path keys in hash
+  order, returns the count. Slot 3 `Path* GetPath(key, float* lengthOut)` returns the path record or null. Slot 7
+  returns a `vector<u32>` **by value** (hidden first argument, so 6 dwords): `(pathType, point*, entry, exit,
+  radius)`, paths whose **last** point is within the radius (`≤`), nearest first. The exit is bits 0–7 of the path
+  key (entry bits 8–15), not a record field; the first vertex is the first 12-byte point of the record's point array
+  (record `+0`). GetPathInfo is borrowed (cached member, no AddRef): MATCHES. Slot 4 returns a pointer, all of EAX
+  tested: MATCHES. Leaving lane continuity out **DIFFERS** next to occupants with network flags in `0x1F4F`.
+- ~~**TG25:** traffic-network §4.8 step 1, §9.1 TG2: at what offset in cSC4NetworkTunnelOccupant is the paired-portal
   member, what type is it, and is it a counted reference? [`tunnel_paired_portal` stays NULL, so no tunnel record is
-  made and tunnels carry no trips]
-- **TG26:** traffic-simulator §4.1, §9.1 TG19: when does the original release its source iterator's connection snapshot
+  made and tunnels carry no trips]~~ **ANSWERED 2026-10-16 (re-answers21):** traffic-network §4.8 step 1. `+0x1D0`
+  from the primary base (the pointer QI `0x8A4BD52B`/`0xA821EF94` return; `+0x1C8` inside Write/Read, which run on
+  the `+8` sub-object): a pointer to the other portal's `cSC4NetworkTunnelOccupant`, usable as `cISC4NetworkOccupant*`.
+  Counted: the setter `0x00647530` (called only by `InsertTunnelPieces`) AddRefs the new and releases the old;
+  Shutdown releases and nulls it; it is saved as an object reference. DoTunnelChanged reads it through `0x00647570`
+  and holds a temporary reference while it reads the position. The bracket **DIFFERS** (tunnels carry no trips).
+- ~~**TG26:** traffic-simulator §4.1, §9.1 TG19: when does the original release its source iterator's connection snapshot
   on a city close: at Shutdown, or only when the simulator is destroyed? And does a Read that replaces the state release
-  it? [released at Shutdown and when Read replaces the state; otherwise at the next Reset]
+  it? [released at Shutdown and when Read replaces the state; otherwise at the next Reset]~~ **ANSWERED 2026-10-16
+  (re-answers21):** traffic-simulator §1 (Shutdown) and §4.1. At Shutdown (`0x007196F8`–`0x00719765`: list cleared
+  with a Release per connection, iterator freed, member nulled), which the city runs at close; the destructor does
+  not touch it. Otherwise only the next `Reset`. `Read` never touches it, and in the original a Read always precedes
+  the Init that creates the iterator. Shutdown: MATCHES. Release at Read: **DIFFERS** only for a Read into a live
+  simulator, which the original never does; accepted. Side fact: the lot safe iterator inside it is never
+  unregistered (quirk).
 
 ## From the automata layer core (filed by the coordinator from the `cores14a` lane's report, 2026-10-16; merged `44cf925`)
 
