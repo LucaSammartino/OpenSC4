@@ -199,6 +199,36 @@ Two controller classes occur in saves. Both start with the controller base recor
 | 7 | `u32` flags | mostly 7; `0x87` seen on `dog_make`; never contains 8 (§3.2) |
 | 8 | `u32` n, then n × `ref` automaton | `0xA9B40F05`; the automata it currently controls |
 
+**Object offsets and names (Q5, completed 2026-10-16, re-answers29).** The record fields map onto the object
+like this. The stream order above is the compatibility surface; the names below are for a replacement's own
+struct and come from the accessors that use them.
+
+| Record field | Object offsets | Stream | Name from use |
+|---|---|---|---|
+| 2 | `+0x08` | `ref` (Write `0x005D99A0`, Read `0x005D9730`, IID `0x26BB767E`) | the **source occupant** the controller is attached to |
+| 3 | name object `+0x24`, its characters `+0x28` | `str` (stream slot 15) | the **template name**. `GetTemplateName` (`0x00517DF0`, slot 7) returns the *template's* name (`template + 4`) when the controller has a template, and otherwise the local characters at `+0x28` |
+| 4 | `+0x10`, `+0x14`, `+0x18` | `vec3` (`operator<<` `0x005DA580` / `operator>>` `0x005DA550`, three `f32` in x, y, z order) | the **position**; `GetPosition` (`0x00515A40`, slot 11) returns `+0x14`, `+0x18`, `+0x1C` when there is no template, so the live position is `+0x14`…`+0x1C` and the saved `vec3` starts one `f32` earlier *[see the note below]* |
+| 5a | `+0x4C` | `f32` | **unnamed**; 0 in the whole corpus. Not the radius: `GetRadius` (`0x00517E00`, slot 9) returns `template + 0x20`, never a field of the controller |
+| 5b | `+0x50` | `f32` | the controller's **age / tick counter**. It is incremented by 1 on every animation tick (`0x00514D90`); `IsExpired` (`0x00517EA0`) is true when the limit is > 0 and has been reached |
+| — | `+0x54` | *not saved* | the **lifetime limit**. `SetLifetime` (`0x00517EF0`) writes it, and `Init` copies it from the template (`template + 0x4C`). `IsExpired` = `limit > 0 && counter ≥ limit` |
+| 6 | `+0x38` | `u32` | **unnamed**; 0 in the whole corpus |
+| 7 | `+0x3C` | `u32` | the **flag dword** in the record (mostly 7, `0x87` on `dog_make`) |
+| 8 | `+0x44` | `u32` | the **count** of automata in the list (an `std::list`'s size) |
+
+The automata list itself is an `std::list` whose head pointer lives at `+0x40` and whose size is `+0x44`: Read
+allocates 12-byte nodes and splices them in at `+0x40`, and Write walks `*+0x40` until it returns to the
+sentinel.
+
+**The flag offset is not fully settled *[quirk]***. `CheckFlag` (`0x00517E60`) and `SetFlag` (`0x00517E70`)
+— controller interface **slots 12 and 13** — read and modify a `u32` at **`+0x40`**, and the Mac signature names
+the parameter type `cISC4AutomataController::tControllerFlag`. But `+0x40` is also the automata list's head
+pointer, and the record's flag dword is `+0x3C`. So either the original's flag accessors test the list head
+rather than the saved flags (which would make the state record's flag-8 test, `CheckFlag(8)` from the state
+Write at `0x00509D1E`, effectively a test of bit 3 of a heap pointer), or one of the two offsets is wrong.
+A breakpoint on `0x00517E60` while a controller is created would settle it. **What is certain:** the record
+carries one flag dword at `+0x3C`, mostly 7, never with bit 8 set; the flag-8 rule of §3.2 and §6.1 is
+"write a null ref when `CheckFlag(8)` is true".
+
 **Generator** (class `0x4A1628C5`, Write `0x005183D0`, Read `0x00518450`): `u16` 4 (Read requires 4), the base
 record, `time` (period), `time` (second period), `u32`, `u32`. Corpus: 291,346 records; names `wildlife_generator`
 (291,095), `construction_vehicle_generator`, `dog_make`, `crowd_sm`, `transit_strike_gen_1`/`_2`/`_3` and others.
@@ -517,6 +547,72 @@ look at water, the flags or the priority itself; those are handled by the shared
 slot 5 `AsOccupant`; slot 9 `SetVisible(bool)`; slot 13 `Remove` (dispatch despawn); slot 29
 `ReturnToSourceOccupant` (dispatch "go home"); slot 51 `SetState(type, …6 more)`; slot 2 `Release`.
 
+### 7.5 The three `vec3` fields and their setters (Q2, completed) *[compat]*
+
+An automaton carries **three** `vec3` fields, stored consecutively and set one field at a time from a `const
+vec3*` (a pointer to three `f32` in x, y, z order). All three are **city coordinates in metres**; there is no
+unit conversion anywhere in the setters. The copy order is always x, then y, then z (three separate `f32`
+stores).
+
+| Field | Object offsets (x, y, z) | Slot | Setter | Getter |
+|---|---|---|---|---|
+| position | `+0x40`, `+0x44`, `+0x48` | 8 | `SetPosition` `0x00507D90` | slot 7 `GetPosition` `0x00505520` |
+| destination | `+0x4C`, `+0x50`, `+0x54` | 10 | `SetDestination` `0x0054E5B0` | slot 11 `GetDestination` `0x004ADB30` |
+| orientation | `+0x58`, `+0x5C`, `+0x60` | 14 | `SetOrientation` `0x0050AF10` | slot 15 `GetOrientation` `0x00505540` |
+
+Write (`0x0050AC00`) serialises them in that order (§6.1 field 2). The meanings are the Mac accessors'
+(`GetPosition`, `GetDestination`, `GetOrientation`); every value must round-trip unchanged *[compat]*.
+
+**`SetPosition` (`0x00507D90`)**, `__thiscall`, one stack argument, `ret 4`:
+
+1. Read the byte at **`+0x33`**. If **both** bit 0 and bit 1 are set, do not store anything: call **slot 16
+   `MoveTo(position, 0)`** — i.e. `MoveTo` with the new position and a null orientation — and return.
+2. Otherwise copy the three floats into `+0x40`, `+0x44`, `+0x48`.
+3. Then walk the array of model-instance pointers from `+0x110` to `+0x114` and call each element's **slot 1**
+   with `&this->position`. This is how a moved automaton repositions its render models; a replacement may
+   animate differently, but the position store is the observable part.
+
+**`SetOrientation` (`0x0050AF10`)**, same guard and same signature:
+
+1. The same `+0x33` test; when both bits are set, call **slot 16 `MoveTo(0, orientation)`** and return.
+2. Otherwise copy the three floats into `+0x58`, `+0x5C`, `+0x60`.
+3. **Normalise in place**: replace the vector by `v × (1.0 / |v|)` (constant `1.0` at `0x00B09978`). The stored
+   orientation is therefore always a **unit vector**, and a zero input stays zero (the divide is not guarded).
+4. Then call `PositionModelInstance` (`0x005094A0`) for every entry of the same `+0x110`…`+0x114` array.
+
+**`SetDestination` (`0x0054E5B0`)** — note this is a *traffic* automaton override, so it is the pedestrian and
+vehicle behaviour; `GetDestination` is the shared `0x004ADB30`. It also changes two other things:
+
+1. `SetAutomataFlag(4, 0)` (slot 30): **clears the "reached destination" flag** (§6.1 field 4, bit 4).
+2. Copy the three floats into `+0x4C`, `+0x50`, `+0x54`.
+3. Let `d = |destination − position|` (the Euclidean length of the per-axis differences).
+4. If `d > 0.0` (compare against `0.0` at `0x00A81054`): write the **unit vector** `(destination − position) /
+   d` into the *orientation* fields `+0x58`…`+0x60` (constant `1.0` at `0x00B0A07C`), then call
+   **`MoveTo(0, &orientation)`**. So setting a destination also turns the automaton to face it.
+5. If `d ≤ 0.0` (the destination is on top of the automaton): `SetAutomataFlag(4, 1)` — mark it as having
+   reached the destination instead, and do not touch the orientation.
+
+**`MoveTo` (slot 16, `0x00544530`; helper `0x005080C0`)** takes two optional `const vec3*`: a position and an
+orientation. When the orientation is given it is copied into a local with **y forced to 0** — only x and z are
+kept, so the facing is always horizontal *[quirk]*. When the position is null the local is not built and the
+helper is called with a null orientation. The helper (`0x005080C0`) rejects non-finite coordinates (it tests the
+exponent field of y and the magnitude of x and z against a tolerance) before doing the move.
+
+**What the setters do *not* do:** none of them writes the destination, none of them sets or clears automata
+flags except `SetDestination`'s flag 4, and none of them touches the state stack.
+
+**The `+0x33` guard.** Both `SetPosition` and `SetOrientation` short-circuit into `MoveTo` when the byte at
+`+0x33` has bits 0 **and** 1 set. Which two flags those are is **not settled** here *[inferred]*: it is a pair of
+automaton state bits that mean "do not accept a direct position/orientation write; go through the movement
+system instead". A breakpoint on `0x00507D93` while an automaton walks would name them. Until then a
+replacement may treat the guard as "if both bits are set, delegate to `MoveTo`", which is exactly what the
+original does either way.
+
+**The controller-manager automaton set's two `vec3`s** (§3.3) are not set through these setters. They are the
+queue point and the queue direction, written by the point search (`0x00516070`) and by the record reader
+(`0x0051B520`), and they are already specified in §3.3: both are metres, the point is 1 m outside a lot edge,
+the direction is a unit axis vector, and the entry's `vec3`s are written point-then-direction.
+
 ## 8. Riot and fire hooks *[compat]*
 
 ### 8.1 Riot leaders (disasters.md §6)
@@ -643,6 +739,12 @@ argument types given above for script slots 11 and 12 are checked, the others ar
 
   State 4 (`QUEUE`) drives it (`0x0051BB60`–`0x0051BD50`, point search `0x00516070`). The leader field of §6.1 links
   each automaton to the one ahead. §3.3.
+  **Completed 2026-10-16 (re-answers29):** the automaton's **own** three `vec3` fields and what their setters do
+  are now specified in **§7.5** — which offsets each setter writes (position `+0x40`, destination `+0x4C`,
+  orientation `+0x58`, always x then y then z, always metres), that `SetOrientation` normalises to a unit vector,
+  that `SetDestination` clears automata flag 4, turns the automaton to face the destination and calls `MoveTo`,
+  and that both `SetPosition` and `SetOrientation` short-circuit into `MoveTo` when the byte at `+0x33` has bits 0
+  and 1 set. The one thing still open there is which two flags `+0x33` holds.
 - ~~**Q3.** The type numbers of the RandomWalk, PlopJump, Plummet, PullOver, Bumped and Collide states, and the
   meaning of corpus state types 0, 2, 3, 7 and `0x0D` (all use the default record).~~ **ANSWERED 2026-10-16
   (re-answers16; AT3).**
@@ -668,6 +770,19 @@ argument types given above for script slots 11 and 12 are checked, the others ar
     tweens, priority and group.
   - `CreateAutomaton`'s arguments 3–7 are automata flags, model key, callback target, priority and orientation
     (§7.2).
+  **Completed 2026-10-16 (re-answers29):** the **controller** and **state** records' remaining unnamed fields are
+  now named from use.
+  - The controller base's object offsets and names are in **§3.5**: the template name object (`+0x24`, characters
+    `+0x28`), the position, the age counter at `+0x50` (incremented by 1 per animation tick), the unsaved lifetime
+    limit at `+0x54` (`SetLifetime`, copied from the template at `Init`; `IsExpired` = limit > 0 and reached), the
+    automata `std::list` (head `+0x40`, size `+0x44`) and the flag dword at `+0x3C`. Two record `u32`s (`+0x38`
+    and the saved float at `+0x4C`) stay unnamed: both are 0 in the whole corpus.
+  - The state base record's offsets and stream types are exact (**§6.2**): `+0x0C` `u32`, `+0x10` `f32`, `+0x14`
+    `bool`, `+0x18` `u32`, `+0x1C` `u32`, `+0x20` `u32` (version 3 only), and `+0x24` is **not** in the record —
+    Read zeroes it. Write always emits version 3 and all seven fields.
+  **Still open:** what the state base fields and the two leftover controller fields *mean* (the state fields are
+  named from use by re-answers29's state-behaviour pass, below), and the flag-offset contradiction of §3.5
+  (`CheckFlag`/`SetFlag` test `+0x40`, the list head, while the record's flag dword is `+0x3C`).
 - ~~**Q6.** Messages `0x89D3E9F3`, `0x06CDB65A`, `0xCAD61E00`, `0xEA298D50`, `0xEAD61E16`, `0xEBFF18A3`,
   `0xA6B79611`, `0xC9DA96E7` are handled but not named in other specs.~~ **Answered (re-answers12).** The names
   come from the executable's own message-name table (pairs of ID and name around `0x00B08360`–`0x00B086F8`):
