@@ -10472,7 +10472,7 @@ static_assert(sizeof(fc4_terrain_state) == 60, "fc4_terrain_state layout");
 static_assert(sizeof(fc4_brush_component) == (sizeof(void*) == 4 ? 60 : 64), "fc4_brush_component layout");
 static_assert(sizeof(fc4_terrain_host) == (sizeof(void*) == 4 ? 48 : 96), "fc4_terrain_host layout");
 static_assert(sizeof(fc4_automata_time) == 8, "fc4_automata_time layout");
-static_assert(sizeof(fc4_automata_create_args) == 44, "fc4_automata_create_args layout");
+static_assert(sizeof(fc4_automata_create_args) == 56, "fc4_automata_create_args layout");
 static_assert(sizeof(fc4_automata_ref_host) == (sizeof(void*) == 4 ? 16 : 32), "fc4_automata_ref_host layout");
 static_assert(sizeof(fc4_automata_cm_host) == (sizeof(void*) == 4 ? 24 : 48), "fc4_automata_cm_host layout");
 static_assert(sizeof(fc4_automata_riot_host) == (sizeof(void*) == 4 ? 56 : 112), "fc4_automata_riot_host layout");

@@ -37,6 +37,7 @@
 #include "FC4CommercialShadow.h"
 #include "FC4CivicShadow.h"
 #include "FC4ParksShadow.h"
+#include "FC4AutomataShadow.h"  // the glue19 lane
 #include "FC4DisasterShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
@@ -567,6 +568,7 @@ public:
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
+                AutomataShadowCityLoaded(CurrentCity());  // automata_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -589,6 +591,7 @@ public:
                 ParksShadowCityShutdown();  // parks_shadow: the same
                 TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
+                AutomataShadowCityShutdown();  // automata_shadow: the shadow cores and their references
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:
@@ -615,6 +618,7 @@ public:
                     FpuLog("observe month");
                 }
                 ProtectionShadowMonth(CurrentCity(), julian);  // protection_shadow = 1 only
+                AutomataShadowMonth(julian);                    // automata_shadow = 1 only
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)

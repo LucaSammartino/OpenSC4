@@ -47,6 +47,7 @@
 #include "FC4LandValueShadow.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4Clock24Shadow.h"
+#include "FC4AutomataShadow.h"  // the glue19 lane
 #include "FC4HistoryShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4ResidentialShadow.h"
@@ -473,6 +474,8 @@ void Resolve() {
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
     // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
     TerrainShadowStartup();
+    // The automata shadow (FC4AutomataShadow.h; it compares the original automata components).
+    AutomataShadowStartup(enabledKey("automata"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
