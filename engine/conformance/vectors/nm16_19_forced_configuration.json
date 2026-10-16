@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "net_forced_configuration",
+  "spec": ["network-manager 8.5", "network-manager 16.19"],
+  "description": "SetLotConfigurationForNextPiece(F) with F = configuration 9 (another piece ID, no zone allowed, no objects). Placing a usable street makes its lot use F without a lot draw; the lot is locked and forced is cleared. Rezoning around it never replaces it. A connection node or an underground piece gets no lot at all.",
+  "steps": [
+    {"op": "net_config", "id": 1, "piece": "0x100"},
+    {"op": "net_config", "id": 9, "piece": "0x777", "zones": []},
+    {"op": "net_occupant", "occupant": "0x40", "flags": ["street", "usable"], "piece": "0x100", "cell": [10, 10]},
+    {"op": "net_create"},
+    {"op": "net_init", "of": "lots"},
+    {"op": "net_call", "method": "set_lot_configuration_for_next_piece", "args": [9]},
+    {"op": "net_expect", "of": "lots", "state": {"forced": 9}},
+    {"op": "net_clear_events"},
+    {"op": "net_message", "of": "lots", "type": "UsableChanged", "data1": 1, "unknown": "0x40"},
+    {"op": "net_expect_event_count", "filter": {"event": "draw"}, "count": 0},
+    {"op": "net_expect_lot", "cell": [10, 10], "state": {"config": 9, "locked": true, "occupant": "0x40"}},
+    {"op": "net_expect", "of": "lots", "state": {"forced": null}},
+    {"op": "net_zone", "cells": [[9, 10, 1], [11, 10, 9]]},
+    {"op": "net_message", "of": "lots", "type": "ZoningChanged", "rect": [9, 9, 11, 11]},
+    {"op": "net_expect_lot", "cell": [10, 10], "state": {"config": 9, "locked": true}},
+    {"op": "net_expect_event_count", "filter": {"event": "remove_props"}, "count": 0},
+
+    {"op": "net_occupant", "occupant": "0x41", "flags": ["street", "usable", "connection_node"], "piece": "0x100", "cell": [20, 20]},
+    {"op": "net_occupant", "occupant": "0x42", "flags": ["pipe", "usable"], "piece": "0x100", "cell": [21, 20]},
+    {"op": "net_message", "of": "lots", "type": "UsableChanged", "data1": 1, "unknown": "0x41"},
+    {"op": "net_message", "of": "lots", "type": "UsableChanged", "data1": 1, "unknown": "0x42"},
+    {"op": "net_expect_lot", "cell": [20, 20], "absent": true},
+    {"op": "net_expect_lot", "cell": [21, 20], "absent": true},
+    {"op": "net_expect_refs", "refs": {"0x41": 0, "0x42": 0}}
+  ]
+}
