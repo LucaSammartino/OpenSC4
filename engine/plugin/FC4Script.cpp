@@ -15,16 +15,20 @@
 
 #include "FC4Config.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4HarnessLogic.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4NetMgrShadow.h"
 #include "FC4Observer.h"
+#include "FC4RefAudit.h"
 #include "FC4Turbo.h"
 #include "FC4Watchdog.h"
 #include "cFC4ZoneManager.h"
 
 #include "cISC4City.h"
+#include "cISC4NetworkManager.h"
+#include "cISC4NetworkTool.h"
 
 #include <cctype>
 #include <cstdio>
@@ -43,6 +47,10 @@
 //   cISC4ZoneManager 11 PlaceZone (pop 40, AL);
 //   cISC4Simulator 9 Pause, 12 Resume, 15 IsPaused, 27 GetSimSpeed,
 //   28 SetSimSpeed (pop 4) - all eax-or-void;
+//   network: cISC4City 38 GetNetworkManager (borrowed); cISC4NetworkManager
+//   5 GetNetworkTool(type, true) (network-manager.md §7.1); cISC4NetworkTool
+//   3 Init, 7 PlaceNetworkOccupants (pop 32, AL), 4 Shutdown
+//   (network-tools.md §3, §14; FC4Interfaces.h cFC4ISC4NetworkTool);
 //   save: cISC4App 16 SaveCity(bool) (docs/abi/vtables.tsv cSC4App::vftable_3,
 //   pop 4, eax-or-void), called by the observer (ObserverSaveCity).
 
@@ -157,6 +165,49 @@ std::string RunZone(const harness::ScriptAction& a, cISC4City* city) {
     return b;
 }
 
+// ---- network: a straight run by code (network-manager.md §9) ---------------------------------------
+
+struct NetworkCall {
+    cFC4ISC4NetworkTool* tool;
+    const harness::ScriptAction* a;
+    bool ok;
+};
+
+// §9: Init; PlaceNetworkOccupants(a, b, mask 0, callback null, real 1,
+// type -1) (the tool's own type); Shutdown. Tool slot 7 returns AL only.
+void NetworkStep(void* p) {
+    auto* c = static_cast<NetworkCall*>(p);
+    const harness::ScriptAction& a = *c->a;
+    c->tool->Init();  // slot 3
+    const uint32_t r = c->tool->ToolSlot07(static_cast<uint32_t>(a.x0), static_cast<uint32_t>(a.z0),
+                                           static_cast<uint32_t>(a.x1), static_cast<uint32_t>(a.z1), 0u, 0u, 1u,
+                                           0xFFFFFFFFu);
+    c->ok = (r & 0xFFu) != 0;
+    c->tool->Shutdown();  // slot 4
+}
+
+// [choice] A private tool (GetNetworkTool(type, true)), as the zone developer
+// takes its street tools (zones.md §5.2): AddRef'd, and released after its
+// Shutdown with the reference audit's release of a tool made for us
+// (FC4ZoneDevHost.cpp ReleaseNetworkTools: the game runs showed the count
+// reaching 0 there).
+std::string RunNetwork(const harness::ScriptAction& a, cISC4City* city) {
+    if (city == nullptr) return "skipped: no city";
+    cISC4NetworkManager* nm = city->GetNetworkManager();  // city slot 38, borrowed
+    if (nm == nullptr) return "skipped: the city has no network manager";
+    cISC4NetworkTool* t = nm->GetNetworkTool(a.type, true);  // slot 5
+    if (t == nullptr) return "skipped: no network tool for the type";
+    FC4_ADDREF(t);
+    NetworkCall c{reinterpret_cast<cFC4ISC4NetworkTool*>(t), &a, false};
+    const bool clean = SehGuard("script PlaceNetworkOccupants", &NetworkStep, &c);
+    FC4_X87_CHECK("script PlaceNetworkOccupants");
+    FC4_RELEASE_CREATED(t);
+    char b[160];
+    std::snprintf(b, sizeof(b), "ok=%d (PlaceNetworkOccupants type %d, real, free)%s", c.ok ? 1 : 0, a.type,
+                  clean ? "" : " [structured exception in PlaceNetworkOccupants]");
+    return b;
+}
+
 // ---- speed, pause, resume: the city's simulator ------------------------------------------------------
 
 std::string RunSimulator(const harness::ScriptAction& a, cISC4City* city) {
@@ -199,6 +250,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
         case ScriptOp::Zone:
         case ScriptOp::PriceZone:
         case ScriptOp::Dezone: result = RunZone(a, city); break;
+        case ScriptOp::Network: result = RunNetwork(a, city); break;
         case ScriptOp::Speed:
         case ScriptOp::Pause:
         case ScriptOp::Resume: result = RunSimulator(a, city); break;

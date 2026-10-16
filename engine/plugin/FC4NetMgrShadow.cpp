@@ -94,6 +94,13 @@ constexpr size_t kMaxListed = 12;
 bool g_enabled = false;
 bool g_settingsRead = false;
 bool g_listening = false;
+// netmgr_shadow_order: where the lot core hears its 6 messages. late (the
+// default): a second target subscribed at PostCityInit, after the original
+// network lot manager (which subscribes at its Init, §3.2), so the core reads
+// the game as the original did, after every listener before it; early: the
+// PostAppInit listener, before every city listener.
+bool g_late = true;
+bool g_lateListening = false;
 bool g_loggedOurs = false;
 
 // The cores and their host (main thread).
@@ -133,6 +140,25 @@ struct StyleWrite {
     bool texture = false;
 };
 std::map<uint64_t, StyleWrite> g_style;
+// Per message (order late only): the variations of the message's cells
+// before the original handled it (taken by the early target), and the
+// variations the lot core wrote in it; compared when the late target has run
+// the core, so the original's and our road style writes are compared message
+// by message (diagnostics: `per message`).
+struct SnapCell {
+    int32_t x = 0, z = 0;
+    uint32_t before = 0;
+};
+std::map<uint64_t, SnapCell> g_snap;
+bool g_snapValid = false;
+uint32_t g_snapType = 0;
+std::map<uint64_t, uint32_t> g_msgWrites;
+struct PerMessage {
+    uint32_t messages = 0, agree = 0, oursOnly = 0, origOnly = 0, differ = 0;
+};
+PerMessage g_pm;
+std::string g_pmFirst;
+size_t g_pmListed = 0;
 // The terrain rule: the candidates of each 0x278E6003 query (held) and the
 // occupants the core destroyed, with their cells.
 std::set<uint64_t> g_candidates;
@@ -159,6 +185,9 @@ void ReadSettings() {
     if (g_settingsRead) return;
     g_settingsRead = true;
     g_enabled = SettingInt("netmgr_shadow", "FC4_NETMGR_SHADOW", 0) != 0;
+    std::string order = Setting("netmgr_shadow_order", "FC4_NETMGR_SHADOW_ORDER");
+    for (char& c : order) c = static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c);
+    g_late = order != "early";
 }
 
 cISC4NetworkOccupant* NetOf(uint64_t t) { return reinterpret_cast<cISC4NetworkOccupant*>(FromToken(t)); }
@@ -355,6 +384,7 @@ void SetVariation(void*, uint64_t n, uint32_t v) {
     if (n == 0) return;
     ++g_n.styleWrites;
     StyleOf(n).variation = static_cast<int32_t>(v & 0xFF);
+    g_msgWrites[n] = v & 0xFF;
 }
 
 uint64_t CreateEffectProp(void*) {
@@ -363,6 +393,27 @@ uint64_t CreateEffectProp(void*) {
 }
 
 // ---- the checks of the recorded writes (the next tick) --------------------------------------------------
+
+// §8.7 table V, V[zone][max(wealth - 1, 0)] (diagnostics only); -1 for a
+// zone or wealth out of range.
+int32_t Variation(int32_t zone, int32_t wealth) {
+    if (zone < 0 || zone > 15 || wealth < 0 || wealth > 3) return -1;
+    const int32_t w = wealth > 0 ? wealth - 1 : 0;
+    switch (zone) {
+        case 0: return 0;
+        case 1:
+        case 4: return 1 + w;
+        case 2:
+        case 3:
+        case 5:
+        case 6: return 4 + w;
+        case 7:
+        case 14: return 7;
+        case 8:
+        case 9: return w < 2 ? 1 : 2;
+        default: return 1;
+    }
+}
 
 bool NearDecided(int32_t x, int32_t z) {
     for (const auto& c : g_decidedCells) {
@@ -429,8 +480,24 @@ void SettleStep(void*) {
             ++g_n.styleMismatches;
             uint32_t cx = 0, cz = 0;
             o->GetOccupiedCell(cx, cz);
-            PendingDiff("style at %u,%u: variation %u/%d flags 0x6000000 %d/%d (orig/ours)", cx, cz, got,
-                        w.second.variation, flags ? 1 : 0, w.second.flags ? 1 : 0);
+            // Now (after both): the original's and our zone / wealth for the
+            // cell (slots 9, 10) and the variation they give (§8.7 step 7).
+            int32_t zo = -1, wo = -1, zu = -1, wu = -1;
+            if (g_city != nullptr) {
+                if (cISC4NetworkLotManager* nlm = g_city->GetNetworkLotManager()) {
+                    zo = static_cast<int32_t>(nlm->GetZoneTypeForNetwork(cx, cz));  // slot 9
+                    wo = static_cast<int32_t>(nlm->GetWealthForNetwork(cx, cz));    // slot 10
+                }
+            }
+            if (g_lot != nullptr) {
+                zu = fc4_netlot_zone_type_for_network(g_lot, static_cast<int32_t>(cx), static_cast<int32_t>(cz));
+                wu = fc4_netlot_wealth_for_network(g_lot, static_cast<int32_t>(cx), static_cast<int32_t>(cz));
+                NetMgrReleaseHeld(&g_ctx);
+            }
+            PendingDiff("style at %u,%u%s: variation %u/%d flags 0x6000000 %d/%d (orig/ours); now zone/wealth %d/%d "
+                        "(orig) %d/%d (ours) -> variation %d",
+                        cx, cz, o->HasNetworkFlag(0x40) ? " (avenue)" : "", got, w.second.variation, flags ? 1 : 0,
+                        w.second.flags ? 1 : 0, zo, wo, zu, wu, Variation(zo, wo));
         }
         NetDrop(n);
     }
@@ -816,9 +883,17 @@ void RunStep(void* p) {
                "orig-only=%u rebuilt=%u candidates=%u refits=%u",
             g_n.messages, g_n.mgrMessages, g_n.lotMessages, g_n.terrainMessages, g_n.toolCalls, g_n.decided,
             g_n.confirmed, g_n.keptByOrig, g_n.origOnly, g_n.rebuilt, g_n.candidatesChecked, g_n.refits);
-    AppendF(s, "; style writes=%u checked=%u gone=%u mismatches=%u; potholes created=%u; order probe before=%u/%u",
+    AppendF(s, "; style writes=%u checked=%u gone=%u mismatches=%u; potholes created=%u; order %s: probe before=%u/%u",
             g_n.styleWrites, g_n.styleChecked, g_n.styleGone, g_n.styleMismatches, g_n.potholesCreated,
-            g_n.orderBefore, g_n.orderProbes);
+            g_late ? "late" : "early", g_n.orderBefore, g_n.orderProbes);
+    if (g_late) {
+        AppendF(s, "; per message: %u compared, variations agree=%u ours-only=%u orig-only=%u differ=%u", g_pm.messages,
+                g_pm.agree, g_pm.oursOnly, g_pm.origOnly, g_pm.differ);
+        if (!g_pmFirst.empty()) AppendF(s, " (%s)", g_pmFirst.c_str());
+        g_pm = PerMessage{};
+        g_pmFirst.clear();
+        g_pmListed = 0;
+    }
     if (!resync.empty()) AppendF(s, "; resynced:%s", resync.c_str());
     if (!d.listed.empty()) s += "; differences: " + d.listed;
     r.mismatches = d.mismatches;
@@ -898,9 +973,103 @@ void OrderProbe(const Msg& m) {
     NetDrop(n);
 }
 
+// The cells a lot message updates (§6.2), for the per-message comparison:
+// the occupant's cell (usable), the zoning rect grown by one, the lot's
+// bounding rect grown by one (its border; the whole rect is taken).
+bool MessageCells(const Msg& m, fc4_cell_rect* r) {
+    if (m.type == kMsgUsableChanged && m.unknown != 0) {
+        const uint64_t n = g_lhost.query_network_occupant(g_lhost.user, m.unknown);
+        if (n == 0) return false;
+        int32_t x = 0, z = 0;
+        g_lhost.position_cell(g_lhost.user, n, &x, &z);
+        NetDrop(n);
+        *r = fc4_cell_rect{x, z, x, z};
+        return true;
+    }
+    if (m.type == kMsgZoningChanged && m.hasRect) {
+        *r = fc4_cell_rect{m.rect.x1 - 1, m.rect.z1 - 1, m.rect.x2 + 1, m.rect.z2 + 1};
+        return true;
+    }
+    if (m.type == kMsgLotStateChanged && m.unknown != 0) {
+        const uint64_t lot = g_lhost.query_lot(g_lhost.user, m.unknown);
+        if (lot == 0) return false;
+        fc4_cell_rect b{};
+        g_lhost.lot_bounding_rect(g_lhost.user, lot, &b);
+        NetDrop(lot);
+        *r = fc4_cell_rect{b.x1 - 1, b.z1 - 1, b.x2 + 1, b.z2 + 1};
+        return true;
+    }
+    return false;
+}
+
+constexpr int32_t kMaxSnapCells = 4096;
+
+void TakeSnapshot(void* p) {
+    const Msg& m = *static_cast<const Msg*>(p);
+    g_snap.clear();
+    g_snapValid = false;
+    fc4_cell_rect r{};
+    if (!MessageCells(m, &r)) return;
+    if ((r.x2 - r.x1 + 1) * (r.z2 - r.z1 + 1) > kMaxSnapCells) return;
+    int32_t cx = 0, cz = 0;
+    g_lhost.city_size(g_lhost.user, &cx, &cz);
+    for (int32_t z = r.z1; z <= r.z2; ++z) {
+        for (int32_t x = r.x1; x <= r.x2; ++x) {
+            if (x < 0 || z < 0 || x >= cx || z >= cz) continue;
+            const uint64_t n = g_lhost.find_network_tile(g_lhost.user, x, z, 0x1F4F);  // borrowed
+            if (n == 0) continue;
+            g_snap[n] = SnapCell{x, z, NetOf(n)->GetVariation() & 0xFFu};
+        }
+    }
+    g_snapValid = true;
+    g_snapType = m.type;
+}
+
+void PmNote(const char* fmt, ...) {
+    if (g_pmListed >= 6) return;
+    ++g_pmListed;
+    char b[200];
+    va_list ap;
+    va_start(ap, fmt);
+    std::vsnprintf(b, sizeof(b), fmt, ap);
+    va_end(ap);
+    if (!g_pmFirst.empty()) g_pmFirst += ", ";
+    g_pmFirst += b;
+}
+
+// After the original (snapshot -> now) and ours (g_msgWrites) handled the
+// same message: whose style writes changed what.
+void CompareMessageStyle(const Msg& m, const std::map<uint64_t, uint32_t>& afterOrig) {
+    ++g_pm.messages;
+    for (const auto& c : g_snap) {
+        const uint32_t orig = afterOrig.count(c.first) != 0 ? afterOrig.at(c.first) : c.second.before;
+        auto w = g_msgWrites.find(c.first);
+        const bool origChanged = orig != c.second.before;
+        if (w == g_msgWrites.end()) {
+            if (origChanged) {
+                ++g_pm.origOnly;
+                PmNote("0x%08X d1=%u at %d,%d: the original %u->%u, ours no write", m.type, m.d[0], c.second.x,
+                       c.second.z, c.second.before, orig);
+            }
+            continue;
+        }
+        if (w->second == orig) {
+            ++g_pm.agree;
+        } else if (!origChanged) {
+            ++g_pm.oursOnly;
+            PmNote("0x%08X d1=%u at %d,%d: ours %u->%u, the original kept %u", m.type, m.d[0], c.second.x, c.second.z,
+                   c.second.before, w->second, orig);
+        } else {
+            ++g_pm.differ;
+            PmNote("0x%08X d1=%u at %d,%d: the original %u->%u, ours ->%u", m.type, m.d[0], c.second.x, c.second.z,
+                   c.second.before, orig, w->second);
+        }
+    }
+}
+
 void CallMessage(void* p) {
     const Msg& m = *static_cast<const Msg*>(p);
-    if (m.type == kMsgOccupantRemoved) OrderProbe(m);
+    if (m.type == kMsgOccupantRemoved && m.lot) OrderProbe(m);
     if (m.mgr && g_mgr != nullptr) {
         ++g_n.mgrMessages;
         if (m.type == 0x278E6003) ++g_n.terrainMessages;
@@ -909,18 +1078,31 @@ void CallMessage(void* p) {
     }
     if (m.lot && g_lot != nullptr) {
         ++g_n.lotMessages;
+        // The original has handled it (order late): its variations now.
+        const bool compare = g_late && g_snapValid && g_snapType == m.type;
+        std::map<uint64_t, uint32_t> afterOrig;
+        if (compare) {
+            for (const auto& c : g_snap) afterOrig[c.first] = NetOf(c.first)->GetVariation() & 0xFFu;
+        }
+        g_msgWrites.clear();
         fc4_netlot_do_message(g_lot, m.type, m.d[0], m.d[1], m.d[2], m.void1, m.unknown, m.hasRect ? &m.rect : nullptr);
         NetMgrReleaseHeld(&g_ctx);
+        if (compare) CompareMessageStyle(m, afterOrig);
+        g_snapValid = false;
+        g_snap.clear();
     }
 }
 
-void OnMessage(cIGZMessage2* msg) {
+// `late`: the call comes from the target subscribed after the original
+// network lot manager (netmgr_shadow_order = late).
+void OnMessage(cIGZMessage2* msg, bool late) {
     if (msg == nullptr || (g_mgr == nullptr && g_lot == nullptr) || g_inMessage) return;
     Msg m;
     m.type = msg->GetType();
-    m.mgr = IsMgrMessage(m.type);
-    m.lot = IsLotMessage(m.type);
-    if (!m.mgr && !m.lot) return;
+    m.mgr = !late && IsMgrMessage(m.type);
+    m.lot = late == g_late && IsLotMessage(m.type);
+    const bool snapshot = !late && g_late && IsLotMessage(m.type);
+    if (!m.mgr && !m.lot && !snapshot) return;
     if (m.type == kMsgViewChanged) return;  // presentation only (§6.1)
     void* p = nullptr;
     if (!msg->QueryInterface(GZIID_cIGZMessage2Standard, &p) || p == nullptr) return;
@@ -941,6 +1123,20 @@ void OnMessage(cIGZMessage2* msg) {
             m.hasRect = true;
         }
     }
+    // Order late: the early target sees the lot messages first (subscribed
+    // for them only to take the snapshot).
+    if (snapshot && g_lot != nullptr) {
+        g_inMessage = true;
+        if (!SehGuard("netmgr shadow (style snapshot)", &TakeSnapshot, &m)) {
+            g_snap.clear();
+            g_snapValid = false;
+        }
+        g_inMessage = false;
+    }
+    if (!m.mgr && !m.lot) {
+        FC4_RELEASE(s);
+        return;
+    }
     ++g_n.messages;
     g_inMessage = true;
     if (!SehGuard("netmgr shadow (followed message)", &CallMessage, &m)) {
@@ -957,6 +1153,7 @@ void OnMessage(cIGZMessage2* msg) {
 
 class EventTarget final : public cIGZMessageTarget2 {
 public:
+    explicit EventTarget(bool late) : late_(late) {}
     bool QueryInterface(uint32_t riid, void** ppvObj) override {
         if (ppvObj == nullptr) return false;
         if (riid != kIID_cIGZMessageTarget2 && riid != GZIID_cIGZUnknown) return false;
@@ -969,17 +1166,47 @@ public:
     bool DoMessage(cIGZMessage2* msg) override {
         if (msg == nullptr) return true;
         FC4_X87_SCOPE("netmgr shadow DoMessage", msg->GetType());  // x87 leftover guard (FC4Fpu.h)
-        OnMessage(msg);
+        OnMessage(msg, late_);
         return true;
     }
 
 private:
+    bool late_;
     uint32_t refs_ = 0;
 };
 
 EventTarget& Events() {
-    static EventTarget t;
+    static EventTarget t(false);
     return t;
+}
+
+EventTarget& LateEvents() {
+    static EventTarget t(true);
+    return t;
+}
+
+// The late target: subscribed at PostCityInit (after the city's managers
+// subscribed at their Init), removed at PreCityShutdown.
+void LateSubscribe(bool on) {
+    if (!g_late || on == g_lateListening) return;
+    cIGZMessageServer2Ptr ms;
+    if (!ms) return;
+    g_lateListening = on;
+    if (on) LateEvents().AddRef();  // our own reference (static object)
+    bool ok = true;
+    for (uint32_t id : kLotMessages) {
+        if (on) {
+            ok = ms->AddNotification(static_cast<cIGZMessageTarget2*>(&LateEvents()), id) && ok;
+        } else {
+            ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(&LateEvents()), id);
+        }
+    }
+    if (on) {
+        Log("netmgr shadow: the lot core's listener (late: after the original network lot manager) registered for %u "
+            "message types%s",
+            static_cast<unsigned>(sizeof(kLotMessages) / sizeof(kLotMessages[0])),
+            ok ? "" : " (a notification was refused; the lot core can miss messages)");
+    }
 }
 
 }  // namespace
@@ -1019,10 +1246,14 @@ void NetMgrShadowStart() {
     }
     for (uint32_t id : kLotMessages) {
         if (id == kMsgOccupantRemoved) continue;  // already subscribed
+        // late: only for the per-message style snapshot (the lot core hears
+        // them through its own target)
         ok = ms->AddNotification(static_cast<cIGZMessageTarget2*>(&Events()), id) && ok;
         ++n;
     }
-    Log("netmgr shadow: listener registered for %u message types%s", n,
+    Log("netmgr shadow: listener registered for %u message types (order %s: the lot core's messages %s)%s", n,
+        g_late ? "late" : "early",
+        g_late ? "come through a second target subscribed at PostCityInit" : "come through this one",
         ok ? "" : " (a notification was refused; the cores can miss messages)");
 }
 
@@ -1035,6 +1266,7 @@ void NetMgrShadowStop() {
     for (uint32_t id : kLotMessages) {
         if (id != kMsgOccupantRemoved) ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(&Events()), id);
     }
+    LateSubscribe(false);
 }
 
 void NetMgrShadowCityLoaded(cISC4City* city) {
@@ -1042,6 +1274,7 @@ void NetMgrShadowCityLoaded(cISC4City* city) {
     int32_t julian = 0;
     if (cFC4ISC4Simulator* sim = AsGame(city->GetSimulator())) julian = sim->GetSimDateNumber();
     RunOnce(city, julian, "load", true);
+    if (g_listening) LateSubscribe(true);
 }
 
 void NetMgrShadowMonth(cISC4City* city, int32_t julian) {
@@ -1061,6 +1294,7 @@ void NetMgrShadowTick() {
 
 void NetMgrShadowCityShutdown() {
     if (!g_enabled) return;
+    LateSubscribe(false);
     Settle();
     if (g_city != nullptr || g_mgr != nullptr || g_lot != nullptr) {
         Log("netmgr shadow: city shutdown: %u lines, %u with mismatches=0 (exact %u/%u); %u configuration draws not "

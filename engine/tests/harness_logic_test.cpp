@@ -179,6 +179,14 @@ void ScriptParseTests() {
         CHECK(p.errors.empty() && p.actions.size() == 1 && p.actions[0].op == ScriptOp::Save && p.actions[0].fast);
         CHECK(p.actions[0].text == "Fast");
     }
+    {
+        const ParsedScript p = One("2000-01-10 network 30 12 20 12 0  # a road, ends in either order");
+        CHECK(p.errors.empty() && p.actions.size() == 1 && p.actions[0].op == ScriptOp::Network);
+        const ScriptAction& a = p.actions[0];
+        CHECK(a.x0 == 30 && a.z0 == 12 && a.x1 == 20 && a.z1 == 12 && a.type == 0 && a.text == "30 12 20 12 0");
+    }
+    CHECK(One("2000-01-10 NETWORK 0 0 4095 0 12").actions.at(0).type == 12);
+    CHECK(ScriptOpName(ScriptOp::Network) == std::string("network"));
     CHECK(ScriptOpName(ScriptOp::PriceZone) == std::string("pricezone"));
     CHECK(ScriptOpName(ScriptOp::Save) == std::string("save"));
 
@@ -189,7 +197,8 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01", "a date with no action"));
     CHECK(ErrorIs("2000-01-01   # just a date", "a date with no action"));
     CHECK(ErrorIs("2000-01-01 plop 1 2",
-                  "unknown action 'plop' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark, save)"));
+                  "unknown action 'plop' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, "
+                  "save)"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 4"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4 1 9", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 6"));
     CHECK(ErrorIs("2000-01-01 pricezone 1 2 3", "pricezone takes 5 argument(s) (x0 z0 x1 z1 type), not 3"));
@@ -203,6 +212,9 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01 pricezone 1 2 3 4 R", "zone type 'R' is not 0..15"));
     CHECK(ErrorIs("2000-01-01 dezone 1 2 3", "dezone takes 4 argument(s) (x0 z0 x1 z1), not 3"));
     CHECK(ErrorIs("2000-01-01 dezone 1 2 3 4 0", "dezone takes 4 argument(s) (x0 z0 x1 z1), not 5"));
+    CHECK(ErrorIs("2000-01-01 network 1 2 3 4", "network takes 5 argument(s) (ax az bx bz type), not 4"));
+    CHECK(ErrorIs("2000-01-01 network 1 2 x 4 0", "bx 'x' is not a cell coordinate 0..4095"));
+    CHECK(ErrorIs("2000-01-01 network 1 2 3 4 13", "network type '13' is not 0..12"));
     CHECK(ErrorIs("2000-01-01 speed", "speed takes 1 argument(s) (0, 1 or 2), not 0"));
     CHECK(ErrorIs("2000-01-01 speed 3", "speed '3' is not 0, 1 or 2"));
     CHECK(ErrorIs("2000-01-01 pause now", "pause takes 0 argument(s) (none), not 1"));

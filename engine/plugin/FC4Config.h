@@ -122,6 +122,12 @@
 //   clock24_shadow = 0 / 1        the 24-hour clock shadow (default 0; needs the
 //                                 ORIGINAL clock: do not enable clock24;
 //                                 FC4Clock24Shadow.h)
+//   netmgr_shadow = 0 / 1         the network manager / network lot manager shadow
+//                                 (default 0; needs the ORIGINAL managers;
+//                                 FC4NetMgrShadow.h)
+//   netmgr_shadow_order = late / early  where the shadow's network lot core hears
+//                                 its messages: after the original (late, default) or
+//                                 before every city listener (early)
 //   tract_seed = N                the tract developer generator's session seed
 //                                 (default: the cRZTime clock; cFC4TractDeveloper.cpp)
 //   tract_grow_log = 0 / 1        one line per Grow call (default 0; enable = tract)
