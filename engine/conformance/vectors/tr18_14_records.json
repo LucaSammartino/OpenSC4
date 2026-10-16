@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "name": "tr18_14_records",
+  "spec": [
+    "terrain 13.1",
+    "terrain 4.6",
+    "terrain 18.14"
+  ],
+  "description": "A 64-cell city: the misc record is 26 bytes, the altitudes 2 + 65*65*4, the vertex properties 2 + 65*65*2, each edge 2 + 4 + 65*4. The records round-trip, the stale cached minimum and maximum included (quirk 2); a loaded terrain is not view-ready.",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        64,
+        64
+      ],
+      "flat": 300
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        3,
+        4
+      ],
+      "altitude": 321.5,
+      "flags": 6152
+    },
+    {
+      "op": "ter_set",
+      "cached": [
+        1,
+        2
+      ]
+    },
+    {
+      "op": "ter_record",
+      "sizes": {
+        "misc": 26,
+        "altitudes": 16902,
+        "properties": 8452,
+        "edges": [
+          266,
+          266,
+          266,
+          266
+        ]
+      },
+      "round_trip": true
+    },
+    {
+      "op": "ter_record",
+      "edge": {
+        "side": 2,
+        "count": 65
+      }
+    }
+  ]
+}
