@@ -853,6 +853,8 @@ mod development_tests;
 
 #[cfg(test)]
 mod disasters_tests;
+
+#[cfg(test)]
 mod dispatch_tests;
 
 #[cfg(test)]
