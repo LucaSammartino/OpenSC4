@@ -1,0 +1,85 @@
+# Coverage metric
+
+`python tools/coverage.py` answers "how much of SimCity 4 have we reimplemented?" with one reproducible number per
+status, weighted by the bytes of the original machine code. It writes [coverage-report.md](coverage-report.md);
+rerun it after every merge and commit the report. Same inputs, same report, byte for byte.
+
+This is an RE-side tool: it reads the exe's analysis (function sizes, names, call graph). Engine lanes never read it
+or the report's owner lists; they work from docs/specs only.
+
+## What is counted
+
+- **Function list.** Every function of Ghidra 12.1.4's auto-analysis of `SimCity 4.exe` (GOG 1.1.641, SHA-256
+  `3bc5c7fe...1a4b`), from `ghidra/export/windows/functions.tsv` (`tools/setup_ghidra.ps1 -Windows`; gitignored, so
+  the tool also looks in the main checkout). The weight of a function is its body size in bytes. The tool checks the
+  exe hash, the export's recorded hash and the `.text` bounds before it counts anything.
+- **Denominator.** Game code: every function in `.text` except the library and compiler buckets of
+  `tools/coverage-libs.tsv` (C runtime and STLport, Lua 5.0, FreeType, libpng, libjpeg, zlib, EA sound, GIMEX, EH
+  funclets and static-initialisation stubs, DLL import thunks). Those are reported on their own lines, never in a
+  percentage: we link or replace libraries, we do not reimplement them.
+- **Matching decompilation projects** count a function as done when their compiled C matches its bytes. FreeCity4 is
+  clean-room, so nothing is matched byte for byte; instead every function is attributed to an *owner* (a class, or a
+  free function) and the owner gets the statuses of its subsystem. The percentages are therefore exact sums under
+  stated rules, at class granularity.
+
+## Attribution rules (in this order; the first that applies wins)
+
+1. **library-range.** The entry lies inside a library range of `coverage-libs.tsv`. Ranges come from link order (a
+   static library's object files are contiguous) and override any game-looking name inside them.
+2. **Names.** `re/names_windows.tsv`, else Ghidra's own non-default name: a library name rule of `coverage-libs.tsv`
+   (`library-name`); a folded (identical-code) entry whose names all share one owner, else shared (`name-folded`); the
+   class part of the qualified name, or `fn:<name>` for a free function (`name-high`, `name-medium`, `name-low`,
+   `name-ghidra` by the name's confidence).
+3. **vtable.** A slot target of a class vtable in `docs/abi/vtables.tsv` or `docs/abi/interfaces.tsv` takes that
+   class; a target in vtables of several classes is shared (`vtable-shared`).
+4. **reach.** An unowned function reached only from functions of one owner takes that owner. Edges are direct calls,
+   code references (an instruction operand equal to a function entry), function-pointer tables in data (slots walked
+   back to a head that code refers to) and vtables installed by code. A *hub*, a function referring to more than 64
+   functions (COM directors, Lua and command registration), passes its owner on through calls and vtables only.
+   A function reached from library-range code and from no game owner joins that library (`reach-library`).
+5. **neighbour.** An unowned run of functions between two functions of the same owner takes it (one object file).
+   Rules 4 and 5 repeat to a fixpoint; only then are functions reached from several owners marked shared
+   (`reach-shared`), and the loop repeats.
+6. **free-neighbour.** A free function lying between two functions of one class joins that class.
+7. **thunk / funclet.** A thunk takes its target's owner; a `Catch@` or `switchD_` funclet its parent's.
+8. **unattributed.** Everything else. Reported as its own line, with its largest address ranges, so the size of the
+   unknown is never hidden.
+
+Shared and unattributed code stays in the denominator and never counts as done.
+
+## Owners to subsystems: `tools/coverage-map.tsv`
+
+Each owner matches the first row whose glob matches (classes, `ns::*`, `fn:<name>`; catch-all rows at the end). A row
+gives the subsystem, its area (simulation, framework, renderer, ui, audio, region, other) and four things the
+statuses are computed from: spec files, core module paths, shadow ini key, replace ini key. The report warns about
+missing spec or core files, unknown keys and rows that match nothing; it also lists the biggest owners only a
+catch-all row matches, the candidates for a new row.
+
+## Statuses (per map row; a function has its owner's row's statuses)
+
+| Status | Rule |
+|---|---|
+| specified | the row names at least one spec and every named `docs/specs/<file>` exists; a spec counts only for the classes that are its subject |
+| implemented | the row names at least one core path and every `engine/<path>` exists |
+| verified | the shadow key is in the shadows list of `tools/regress.ps1` and every line of that shadow in the regress `.out` read has all mismatch counts 0 |
+| replaced | the replace key is in `$Replace` of `tools/regress.ps1` (or is on by default in `FC4Subsystems.cpp`) and the regress replace run was clean |
+
+The regress `.out` read is `--regress`, else the PASS run of the newest lane merged into HEAD (first-parent
+`Merge <tag>:` subjects), so the default depends on the commit, not on file times.
+
+## Running it
+
+```
+python tools/coverage.py                               # writes docs/coverage-report.md
+python tools/coverage.py --regress build-runs/regress-<tag>.out
+python tools/coverage.py --owners build-runs/coverage-owners.tsv   # per-function audit TSV (address, bytes, owner, rule, subsystem); do not commit
+```
+
+About 15 seconds. The report contains counts, class names, address ranges and statuses only, never code.
+
+## Moving the numbers honestly
+
+- A new spec, core, shadow or replace key: edit the subsystem's row in `coverage-map.tsv`.
+- Unattributed or shared bytes: name functions in `re/names_windows.tsv`, add vtables to `docs/abi`, or a library
+  range with its evidence to `coverage-libs.tsv`. Never add rows or ranges just to move a number; every range needs
+  evidence in its row.
