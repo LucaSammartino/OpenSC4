@@ -183,8 +183,8 @@ pub fn create_cell_infos(
             ci.vertices = vertices;
             ci.tunnel_interior = step.kind == StepKind::TunnelInterior;
             // A network never sinks below the water surface.
-            for k in 0..4 {
-                let w = t.surface_water_level(vertices[k]);
+            for (k, &v) in vertices.iter().enumerate() {
+                let w = t.surface_water_level(v);
                 if w.is_nan() {
                     continue;
                 }

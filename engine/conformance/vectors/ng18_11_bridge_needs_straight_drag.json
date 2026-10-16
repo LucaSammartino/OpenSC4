@@ -1,0 +1,111 @@
+{
+ "format": 1,
+ "name": "ng18_11_bridge_needs_straight_drag",
+ "spec": [
+  "network-geometry 4.5",
+  "7",
+  "14",
+  "18.11"
+ ],
+ "description": "A river: vertex columns 9..12 at 200 m under a 250 m sea, so cells x = 8..12 have water. One bridge type with a minimum span of 2 (the bridge internals are the host's, NG2). Road (0, 10) -> (20, 16), snap off: dragged count 21 > straight count 14, so no bridge; CheckForGoodTerrain cuts at the first wet regular step (8) with 0xF0000001 and the run is refused. Snapped straight, (0, 10) -> (20, 10): at step 8 (wet), start 7, end 13 (the first dry step), 13 < v - 1 and < the straight count 21; span 6 > 3 and the minimum span 2 <= 7: steps 7..13 become kind 1 and no pass cuts.",
+ "steps": [
+  {
+   "op": "ng_city",
+   "columns": [
+    [
+     9,
+     12,
+     200
+    ]
+   ]
+  },
+  {
+   "op": "ng_host",
+   "bridge_types": 1,
+   "bridge_min_span": 2
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    0,
+    10
+   ],
+   "end": [
+    20,
+    16
+   ],
+   "snap": false,
+   "expect": true
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "dragged_count": 21,
+    "straight_count": 14
+   }
+  },
+  {
+   "op": "ng_validate",
+   "expect": 0
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "failure": 4026531841,
+    "bridges": []
+   }
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    0,
+    10
+   ],
+   "end": [
+    20,
+    10
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_validate",
+   "expect": 21
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "failure": 0,
+    "bridges": [
+     [
+      7,
+      13
+     ]
+    ],
+    "kinds": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   }
+  }
+ ]
+}

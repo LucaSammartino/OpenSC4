@@ -1,0 +1,108 @@
+{
+ "format": 1,
+ "name": "ng18_13_reserved_landfill",
+ "spec": [
+  "network-geometry 5.1",
+  "5.2",
+  "18.13"
+ ],
+ "description": "A landfill occupant at (12, 10); road (10, 10) -> (15, 10): the reserved-tile pass cuts at step 2 with 0xF0000002 and the run is refused. An immovable connection node of the same type is not reserved; one of another type is.",
+ "steps": [
+  {
+   "op": "ng_host",
+   "landfill": [
+    [
+     12,
+     10
+    ]
+   ]
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    10,
+    10
+   ],
+   "end": [
+    15,
+    10
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_place",
+   "expect": 0
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "failure": 4026531842,
+    "valid": 0
+   }
+  },
+  {
+   "op": "ng_host",
+   "landfill": [],
+   "immovable": [
+    [
+     13,
+     10,
+     true,
+     0
+    ]
+   ]
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    10,
+    10
+   ],
+   "end": [
+    15,
+    10
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_validate",
+   "expect": 6
+  },
+  {
+   "op": "ng_host",
+   "immovable": [
+    [
+     13,
+     10,
+     true,
+     1
+    ]
+   ]
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    10,
+    10
+   ],
+   "end": [
+    15,
+    10
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_validate",
+   "expect": 0
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "failure": 4026531842
+   }
+  }
+ ]
+}

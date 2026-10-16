@@ -1,0 +1,134 @@
+{
+ "format": 1,
+ "name": "ng18_20_grading_threshold",
+ "spec": [
+  "network-geometry 9.7",
+  "terrain 8.1",
+  "terrain 8.2",
+  "18.20"
+ ],
+ "description": "On a flat 300 m city: the terrain satisfier solves vertex (10, 10) at 300.0005 and (30, 20) at 300.002. Only the second is more than 0.001 from its altitude: it is written and makes the rectangle (30, 20), grown by 1 to (29, 19, 31, 21); then BeginLongTerrainOperation, RedisplayTerrain(1, 1, rect, 4) (0x278E6003 and 0x678E6E3A with data1 = (29 << 16) + 31, data2 = (19 << 16) + 21, data4 4, then the render message) and EndLongTerrainOperation. With nothing to write there are no messages.",
+ "steps": [
+  {
+   "op": "ng_sat",
+   "call": "init",
+   "args": [
+    "-max",
+    "max"
+   ],
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    660,
+    300.0005
+   ],
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    1330,
+    300.002
+   ],
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_sat",
+   "call": "solve",
+   "expect": true,
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_clear_events"
+  },
+  {
+   "op": "ng_grade",
+   "expect": {
+    "changed": [
+     1330
+    ],
+    "rect": [
+     29,
+     19,
+     31,
+     21
+    ]
+   }
+  },
+  {
+   "op": "ng_expect_events",
+   "events": [
+    {
+     "event": "post",
+     "msg": 3929737969
+    },
+    {
+     "event": "post",
+     "msg": 663642115,
+     "data1": 1900575,
+     "data2": 1245205,
+     "data4": 4
+    },
+    {
+     "event": "post",
+     "msg": 1737387578,
+     "data1": 1900575,
+     "data2": 1245205,
+     "data4": 4
+    },
+    {
+     "event": "post",
+     "msg": 2265696536
+    },
+    {
+     "event": "post",
+     "msg": 1782254333
+    }
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "shutdown",
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_sat",
+   "call": "init",
+   "args": [
+    "-max",
+    "max"
+   ],
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    660,
+    300.0005
+   ],
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_sat",
+   "call": "solve",
+   "expect": true,
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_grade",
+   "expect": {
+    "changed": [],
+    "rect": null
+   }
+  },
+  {
+   "op": "ng_expect_events",
+   "events": []
+  }
+ ]
+}

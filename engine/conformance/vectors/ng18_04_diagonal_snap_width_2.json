@@ -1,0 +1,113 @@
+{
+ "format": 1,
+ "name": "ng18_04_diagonal_snap_width_2",
+ "spec": [
+  "network-geometry 3.2",
+  "18.4"
+ ],
+ "description": "Avenue (widths 2, 2), snap on, (0, 0) -> (5, 4): dx := dz = 4; end (4, 4); dragged count 5; straight count 0. [choice] Each step's second cell is on the + side across the pen axis (pen direction 6, so +x).",
+ "steps": [
+  {
+   "op": "ng_segments",
+   "start": [
+    0,
+    0
+   ],
+   "end": [
+    5,
+    4
+   ],
+   "snap": true,
+   "widths": [
+    2,
+    2
+   ],
+   "state": {
+    "end": [
+     4,
+     4
+    ],
+    "dragged_count": 5,
+    "straight_count": 0,
+    "axis": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "op": "ng_draw",
+   "type": 6,
+   "start": [
+    0,
+    0
+   ],
+   "end": [
+    5,
+    4
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "end": [
+     4,
+     4
+    ],
+    "dragged_count": 5,
+    "straight_count": 0,
+    "kinds": [
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "cells": [
+     [
+      0,
+      0
+     ],
+     [
+      1,
+      0
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      2,
+      1
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      3,
+      2
+     ],
+     [
+      3,
+      3
+     ],
+     [
+      4,
+      3
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      5,
+      4
+     ]
+    ]
+   }
+  }
+ ]
+}

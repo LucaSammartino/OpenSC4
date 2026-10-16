@@ -1,0 +1,37 @@
+{
+ "format": 1,
+ "name": "ng18_18_power_line_cost",
+ "spec": [
+  "network-geometry 11",
+  "18.18"
+ ],
+ "description": "3 poles and +0x384 = 20: trunc(20 x 2.0) + 15 x 3 = 85. One pole (or none): 0. 2 poles, 3 wire cells at 2.5: trunc(7.5) + 30 = 37.",
+ "steps": [
+  {
+   "op": "ng_power_line_cost",
+   "poles": 3,
+   "wire": 20,
+   "expect": 85
+  },
+  {
+   "op": "ng_power_line_cost",
+   "poles": 1,
+   "wire": 20,
+   "expect": 0
+  },
+  {
+   "op": "ng_power_line_cost",
+   "poles": 0,
+   "wire": 0,
+   "expect": 0
+  },
+  {
+   "op": "ng_power_line_cost",
+   "poles": 2,
+   "wire": 3,
+   "per_pole": 15,
+   "per_wire": 2.5,
+   "expect": 37
+  }
+ ]
+}

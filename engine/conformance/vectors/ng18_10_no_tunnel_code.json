@@ -1,0 +1,153 @@
+{
+ "format": 1,
+ "name": "ng18_10_no_tunnel_code",
+ "spec": [
+  "network-geometry 6.2",
+  "6.3",
+  "14",
+  "18.10"
+ ],
+ "description": "The tunnel pass never writes v, so 0xF0000004 is never set. A road (0, 10) -> (30, 10) under a hill (vertex columns 6..20 at 340 m, 300 m elsewhere): mean(6) - mean(5) = 40 > 11.2033, FindTunnelEnd from step 5 (start height 300) walks while the leading-edge mean (340) is above 300 + 13.8 and stops at step 20 (leading edge 300, lower than 340, closest to 300); length 15 > 2, |0| within tan(40 deg) x 16 x 15: steps 5 and 20 become portals (2), 6..19 interior (3). The placement then fails in the smoothing (the portals are fixed at their terrain corners, 40 m apart across one cell, more than the 11.2033 slope: 0xF0000006 at every level), never 0xF0000004. A crooked drag and flat drags never report it either.",
+ "steps": [
+  {
+   "op": "ng_city",
+   "columns": [
+    [
+     6,
+     20,
+     340
+    ]
+   ]
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    0,
+    10
+   ],
+   "end": [
+    30,
+    10
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_place",
+   "expect": 0
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "tunnel_searches": [
+     5
+    ],
+    "tunnels": [
+     [
+      5,
+      20
+     ]
+    ],
+    "kinds": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     2,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "failure": 4026531846
+   }
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    0,
+    10
+   ],
+   "end": [
+    30,
+    16
+   ],
+   "snap": false,
+   "expect": true
+  },
+  {
+   "op": "ng_place"
+  },
+  {
+   "op": "ng_city"
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    0,
+    0
+   ],
+   "end": [
+    10,
+    0
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_place",
+   "expect": 11
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "failure": 0,
+    "tunnels": []
+   }
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    3,
+    3
+   ],
+   "end": [
+    9,
+    8
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_place"
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "tunnels": []
+   }
+  }
+ ]
+}

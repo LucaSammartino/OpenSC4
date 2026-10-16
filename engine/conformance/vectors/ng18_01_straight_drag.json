@@ -1,0 +1,99 @@
+{
+ "format": 1,
+ "name": "ng18_01_straight_drag",
+ "spec": [
+  "network-geometry 3.1",
+  "3.2",
+  "3.3",
+  "18.1"
+ ],
+ "description": "Road, snap on, (10, 10) -> (20, 10): dragged count 11, straight count 11, pen direction 4 (+x), end direction 3 (x2 > x1, z1 = z2), one cell per step.",
+ "steps": [
+  {
+   "op": "ng_draw",
+   "type": 0,
+   "start": [
+    10,
+    10
+   ],
+   "end": [
+    20,
+    10
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "end": [
+     20,
+     10
+    ],
+    "dragged_count": 11,
+    "straight_count": 11,
+    "pen_direction": 4,
+    "end_direction": 3,
+    "cells": [
+     [
+      10,
+      10
+     ],
+     [
+      11,
+      10
+     ],
+     [
+      12,
+      10
+     ],
+     [
+      13,
+      10
+     ],
+     [
+      14,
+      10
+     ],
+     [
+      15,
+      10
+     ],
+     [
+      16,
+      10
+     ],
+     [
+      17,
+      10
+     ],
+     [
+      18,
+      10
+     ],
+     [
+      19,
+      10
+     ],
+     [
+      20,
+      10
+     ]
+    ],
+    "kinds": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,67 @@
+{
+ "format": 1,
+ "name": "ng18_19_destroy_test_set",
+ "spec": [
+  "network-geometry 13",
+  "network-tools 10",
+  "18.19"
+ ],
+ "description": "A four-way intersection structure at (20..21, 20..21); destroying the piece at (20, 20) alone: it is a destroyed cell, removed with RemoveOccupant; the other three, pulled in by the closure, go through RemoveOrReplaceOccupant. Here it puts plain pieces back at (21, 20) and (20, 21), whose cells join the re-solve set; (21, 21) is erased from it. Keys are (x << 16) + z (NG7).",
+ "steps": [
+  {
+   "op": "ng_destroy",
+   "destroyed": [
+    [
+     20,
+     20
+    ]
+   ],
+   "pieces": [
+    [
+     20,
+     20
+    ],
+    [
+     21,
+     20
+    ],
+    [
+     20,
+     21
+    ],
+    [
+     21,
+     21
+    ]
+   ],
+   "replaced": [
+    [
+     21,
+     20
+    ],
+    [
+     20,
+     21
+    ]
+   ],
+   "expect": {
+    "removals": [
+     "remove",
+     "replace",
+     "replace",
+     "replace"
+    ],
+    "resolve": [
+     [
+      20,
+      21
+     ],
+     [
+      21,
+      20
+     ]
+    ]
+   }
+  }
+ ]
+}

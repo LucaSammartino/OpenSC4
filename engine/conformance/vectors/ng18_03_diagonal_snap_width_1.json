@@ -1,0 +1,83 @@
+{
+ "format": 1,
+ "name": "ng18_03_diagonal_snap_width_1",
+ "spec": [
+  "network-geometry 3.2",
+  "3.3",
+  "18.3"
+ ],
+ "description": "Road, snap on, (0, 0) -> (6, 4): pre-adjust rule 1.3 makes dx = 5; the snap keeps dx = dz + 1 = 5; end (5, 4); dragged count 6; straight count 0 (|5 - 4| = 1 with w2 = 1); pen direction 4; end direction 5; axis (0, 1). ComputeDraggedCells walks the larger remaining delta first, then diagonally.",
+ "steps": [
+  {
+   "op": "ng_segments",
+   "start": [
+    0,
+    0
+   ],
+   "end": [
+    6,
+    4
+   ],
+   "snap": true,
+   "state": {
+    "end": [
+     5,
+     4
+    ],
+    "dragged_count": 6,
+    "straight_count": 0,
+    "axis": [
+     0,
+     1
+    ],
+    "pen_direction": 4,
+    "end_direction": 5
+   }
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    0,
+    0
+   ],
+   "end": [
+    6,
+    4
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "cells": [
+     [
+      0,
+      0
+     ],
+     [
+      1,
+      0
+     ],
+     [
+      2,
+      1
+     ],
+     [
+      3,
+      2
+     ],
+     [
+      4,
+      3
+     ],
+     [
+      5,
+      4
+     ]
+    ],
+    "dragged_count": 6
+   }
+  }
+ ]
+}

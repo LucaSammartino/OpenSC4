@@ -1,0 +1,99 @@
+{
+ "format": 1,
+ "name": "ng18_15_terrain_support",
+ "spec": [
+  "network-geometry 9.6",
+  "18.15"
+ ],
+ "description": "Road (p0C = 25, p10 = 10000, p3C = 55), terrain t = 0. With supports, n = 100: hi = min(100, 25) = 25, lo = max(-10000, 45) = 45 -> unsupported (0xF0000008). n = 70: range [15, 25] with preferred 70, which is out of range, so the solve clamps the initial t = 0 to 15. Without supports, n = 20: lo := hi := 20, fixed at 20; n = 26 is more than p0C above the terrain: unsupported.",
+ "steps": [
+  {
+   "op": "ng_terrain_vertex",
+   "n": 100,
+   "t": 0,
+   "supports": true,
+   "expect": "unsupported"
+  },
+  {
+   "op": "ng_terrain_vertex",
+   "n": 70,
+   "t": 0,
+   "supports": true,
+   "expect": {
+    "range": [
+     15,
+     25
+    ],
+    "preferred": 70
+   }
+  },
+  {
+   "op": "ng_terrain_vertex",
+   "n": 20,
+   "t": 0,
+   "supports": false,
+   "expect": {
+    "fix": 20
+   }
+  },
+  {
+   "op": "ng_terrain_vertex",
+   "n": 26,
+   "t": 0,
+   "supports": false,
+   "expect": "unsupported"
+  },
+  {
+   "op": "ng_sat",
+   "call": "init",
+   "args": [
+    "-max",
+    "max"
+   ],
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_sat",
+   "call": "add",
+   "args": [
+    5,
+    0
+   ],
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_sat",
+   "call": "range",
+   "args": [
+    5,
+    15,
+    25
+   ],
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_sat",
+   "call": "preferred",
+   "args": [
+    5,
+    70
+   ],
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_sat",
+   "call": "solve",
+   "expect": true,
+   "sat": "terrain"
+  },
+  {
+   "op": "ng_sat",
+   "call": "height",
+   "args": [
+    5
+   ],
+   "expect": 15.0,
+   "sat": "terrain"
+  }
+ ]
+}
