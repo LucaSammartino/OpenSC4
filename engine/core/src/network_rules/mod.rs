@@ -71,8 +71,8 @@ pub use intrule::{
     INTERSECTION_FLAG, ONE_WAY_PATTERNS,
 };
 pub use rules::{
-    LoadReport, NetworkRules, OverridePair, Requirement, ResourceId, INTERSECTION_INSTANCE, MULTI_TYPE_INSTANCE,
-    NETWORK_INI_GROUP, NETWORK_INI_INSTANCE, OVERRIDES_INSTANCE, RULE_GROUP, RULE_TYPE,
+    LoadReport, NetworkRules, OverridePair, Requirement, ResourceId, SolutionTable, INTERSECTION_INSTANCE,
+    MULTI_TYPE_INSTANCE, NETWORK_INI_GROUP, NETWORK_INI_INSTANCE, OVERRIDES_INSTANCE, RULE_GROUP, RULE_TYPE,
 };
 pub use solve::{
     adjust_tile_subsets, apply_network_rules, assign_edge_subtypes, build_padded_network_set, neighbourhood,

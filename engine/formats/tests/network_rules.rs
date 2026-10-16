@@ -15,12 +15,13 @@
 //!
 //! `cargo test -p fc4-formats --release --test network_rules -- --nocapture`
 
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use fc4_core::network_rules::{
     tile_instance_owner, Evaluator, LoadStatus, NetworkRules, ResourceId, INTERSECTION_INSTANCE, MULTI_TYPE_INSTANCE,
-    NETWORK_INI_INSTANCE, OVERRIDES_INSTANCE, RULE_GROUP, RULE_TYPE, TYPE_COUNT, TYPE_NAMES,
+    NETWORK_INI_INSTANCE, OVERRIDES_INSTANCE, RULE_GROUP, RULE_TYPE, TYPE_NAMES,
 };
 use fc4_formats::tgi::Tgi;
 use fc4_formats::Package;
@@ -96,10 +97,11 @@ fn sweep_network_rules() {
                 continue;
             }
             let data = pkg.read(e).unwrap_or_else(|err| panic!("{file} {}: {err:?}", e.tgi));
-            if found.contains_key(&e.tgi.instance) {
-                duplicates.push(format!("{file} {}", e.tgi));
-            } else {
-                found.insert(e.tgi.instance, (file.clone(), e.tgi, data));
+            match found.entry(e.tgi.instance) {
+                Entry::Occupied(_) => duplicates.push(format!("{file} {}", e.tgi)),
+                Entry::Vacant(v) => {
+                    v.insert((file.clone(), e.tgi, data));
+                }
             }
         }
     }
@@ -218,9 +220,9 @@ fn sweep_network_rules() {
         got
     });
     eprintln!("reload: {} resources asked for, missing: {missing:?}", reports.len());
-    for t in 0..TYPE_COUNT {
-        let counts: Vec<usize> = rules.evaluators[t].iter().map(|e| e.rule_count()).collect();
-        eprintln!("  {:<14} evaluators {} rules {counts:?}", TYPE_NAMES[t], counts.len());
+    for (name, evs) in TYPE_NAMES.iter().zip(&rules.evaluators) {
+        let counts: Vec<usize> = evs.iter().map(|e| e.rule_count()).collect();
+        eprintln!("  {name:<14} evaluators {} rules {counts:?}", counts.len());
     }
     let solutions: usize = rules.solutions.values().map(|m| m.len()).sum();
     let overrides: usize = rules.rule_overrides.values().map(Vec::len).sum();

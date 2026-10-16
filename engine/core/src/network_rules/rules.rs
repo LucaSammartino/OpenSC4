@@ -77,6 +77,10 @@ pub struct LoadReport {
     pub sections: usize,
 }
 
+/// One type pair's multi-type solutions: `(edgesA, edgesB) -> (piece id,
+/// orientation)` (§8.1).
+pub type SolutionTable = HashMap<(u32, u32), (u32, u8)>;
+
 /// Every loaded rule (the process-wide tables of `ReloadRules`).
 #[derive(Clone, Debug)]
 pub struct NetworkRules {
@@ -87,7 +91,7 @@ pub struct NetworkRules {
     pub override_rows: [u16; TYPE_COUNT],
     /// The multi-type solutions of each pair `(a, b)`, `a < b`:
     /// `(edgesA, edgesB) -> (piece id, orientation)`.
-    pub solutions: BTreeMap<(u8, u8), HashMap<(u32, u32), (u32, u8)>>,
+    pub solutions: BTreeMap<(u8, u8), SolutionTable>,
     /// `[RuleOverrides]` keyed by the pattern's first id, several per id in
     /// file order (`0x00B466D0`; NR5).
     pub rule_overrides: BTreeMap<u32, Vec<OverridePair>>,

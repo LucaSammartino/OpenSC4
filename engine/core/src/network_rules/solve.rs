@@ -409,8 +409,7 @@ pub fn solve_multi_type_intersections(
         let Some(start) = grid.get(c).copied() else { continue };
         // The edge words read when the cell's analysis started.
         let e = start.edges;
-        loop {
-            let Some(info) = grid.get(c).copied() else { break };
+        while let Some(info) = grid.get(c).copied() {
             let f = info.flags;
             let lo = f & f.wrapping_neg();
             let rest = f - lo;

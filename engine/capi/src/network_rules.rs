@@ -453,21 +453,19 @@ pub unsafe extern "C" fn fc4_network_rules_grid_get_cell(
 /// Removes the cell info at (x, z); whether there was one.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_network_rules_grid_remove_cell(g: *mut fc4_network_rules_grid, x: i32, z: i32) -> bool {
-    grid_mut(g).map_or(false, |grid| {
-        guard(false, || grid.grid.remove(cell_key(x, z)).is_some())
-    })
+    grid_mut(g).is_some_and(|grid| guard(false, || grid.grid.remove(cell_key(x, z)).is_some()))
 }
 
 /// Adds (x, z) to the set `S` of cells to solve; whether it was new.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_network_rules_grid_add_to_solve(g: *mut fc4_network_rules_grid, x: i32, z: i32) -> bool {
-    grid_mut(g).map_or(false, |grid| guard(false, || grid.state.s.insert(cell_key(x, z))))
+    grid_mut(g).is_some_and(|grid| guard(false, || grid.state.s.insert(cell_key(x, z))))
 }
 
 /// Sets the valid count (the step count of the drag, §6.3).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_network_rules_grid_set_valid_count(g: *mut fc4_network_rules_grid, count: i32) -> bool {
-    grid_mut(g).map_or(false, |grid| {
+    grid_mut(g).is_some_and(|grid| {
         guard(false, || {
             grid.state.valid_count = count;
             true
@@ -479,7 +477,7 @@ pub unsafe extern "C" fn fc4_network_rules_grid_set_valid_count(g: *mut fc4_netw
 /// intersection records, the extra cells, the valid count); the cells stay.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_network_rules_grid_reset_solve(g: *mut fc4_network_rules_grid) -> bool {
-    grid_mut(g).map_or(false, |grid| {
+    grid_mut(g).is_some_and(|grid| {
         guard(false, || {
             grid.state = SolveState::new();
             true
