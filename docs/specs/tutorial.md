@@ -103,10 +103,26 @@ Is-tutorial is set by `startTutorial` and by `Read`, and cleared by `endTutorial
   2. Then is-tutorial := 1, end-pending := 0, and tell the registry that the GUID is active
   (`SetActive(GUID, true)`, `0x004B5D80`, through `cISC4App` slot 49 on the global `0x00B43C94`). AL is whatever
   the registry call left *[quirk]*.
-- **`endTutorial(endRegistry)`** (slot 6, `0x0043F110`): when a window exists, close it, release it and clear
-  +0x40. When `endRegistry`, tell the registry the GUID is inactive. Call the 3D view (global `0x00B43DC4`, when
-  present) slots 60 and 59 (restore the camera controls *[inferred]*). Then is-tutorial := 0 and end-pending :=
-  `!endRegistry`. AL = `endRegistry`.
+- **`endTutorial(endRegistry)`** (slot 6, `0x0043F110`): when a window exists, close it (`0x00442C80`), release
+  it, clear `+0x40` and release it **again** — the same two-reference teardown as `Shutdown` (§4.3), because
+  `startTutorial` took two references (§4.2 above). When `endRegistry`, tell the registry the GUID is inactive
+  (`SetActive(GUID, 0)`, `0x004B5D80`). Call the 3D view (global `0x00B43DC4`, when present) **slot 60 then
+  slot 59**, which close any open secondary and tertiary **catalog menu** (TU2). Then is-tutorial := 0 and
+  end-pending := `!endRegistry`. AL = `endRegistry`.
+
+  The 3D view calls are not about the camera. The class is `cSC4View3DWin` (interface `cISC4View3DWin`, vtable
+  `0x00ABCE40`):
+  - **slot 60 `CloseTertiaryMenu` (`0x007E5E90`)** — if the tertiary-menu window (`view + 0x1FC`) is present,
+    write its two-dword catalog state back through `view + 0x208` when that pointer is set, then close and
+    destroy it, and clear `+0x1FC` and `+0x204`.
+  - **slot 59 `CloseSecondaryMenu` (`0x007E5D20`)** — if the secondary-menu window (`view + 0x1F8`) is present,
+    **calls slot 60 first**, then closes and destroys it, and clears `+0x1F8` and `+0x200`.
+
+  So a tutorial that ends mid-tool does not leave a detached catalog popup open after its window is gone. The
+  counterparts that *open* those menus are `InvokeSecondaryMenu` (`0x007E5C10`) and `InvokeTertiaryMenu`
+  (`0x007E5D80`), called from the 3D view's own catalog/tool-button handling. `endTutorial` does **not** restore
+  the zoom (a task sets it through slot 8 `SetZoom`), does not re-add view input controls (a task removes the
+  current one through slot 26), and does not clear the window callback the tutorial registered.
 
 ### 4.3 Messages (`DoMessage`, sub-object +4; every case returns true)
 
@@ -133,7 +149,8 @@ Is-tutorial is set by `startTutorial` and by `Read`, and cleared by `endTutorial
    `0x26C63343`, in that order.
 
 Is-tutorial, end-pending, the task number, the GUID and the registry are not touched, so a later save of the same
-object would still write is-tutorial.
+object would still write is-tutorial. Neither are `+0x2D`, the Lua context at `+0x30`, the vector at `+0x34` or
+the global `0x00B20E88`.
 
 **Verified complete (re-answers29, 2026-10-16).** The three steps above match `0x0043F330` exactly, in that order,
 with the two details an implementer must not "tidy up":
@@ -209,9 +226,87 @@ the shared-getter names of 11, 12): `build-runs/re-specs13d-abi-rows.tsv`.
 
 ## 7. Open questions
 
-- **TU1:** what the registry entry's byte +0x10 means (enabled, unlocked, completed?) and what `SetActive` changes.
-  This belongs to a spec of the tutorial registry (`cISC4App` slot 49) with the advisors' Lua host.
-- **TU2:** the 3D view slots 60 and 59 called by `endTutorial`.
+- ~~**TU1:** what the registry entry's byte +0x10 means (enabled, unlocked, completed?) and what `SetActive` changes.
+  This belongs to a spec of the tutorial registry (`cISC4App` slot 49) with the advisors' Lua host.~~
+  **ANSWERED 2026-10-16 (re-answers29). PARTLY against the three guesses: `+0x10` is `active`, meaning "this
+  tutorial is still due to run", so it is closest to *not completed* rather than "enabled" or "unlocked".**
+
+  **The registry** is `cSC4TutorialRegistry`, a **plain C++ object** (no vtable; every method is a direct call),
+  **embedded by value in `cSC4App` at `+0x1C0`** and reached through `cISC4App` slot 49 (`0x0044B510`, which is
+  just `lea eax,[ecx+0x1C0]; ret`). Note: `decomp/index.tsv` mislabels `0x0044B670` as `GetTutorialRegistry`;
+  that address is `cSC4App::GetLuaInterpreter` (slot 47, `app+0x658`). Use `0x0044B510`.
+
+  **A registry entry** is `cItem`, 0x28 bytes, held in a 0x30-byte circular doubly-linked list node
+  (`_Next`, `_Prev`, then the `cItem`) inside a `std::map` keyed by region directory name. The lookup key is the
+  GUID and is **global** — `GetItem` walks every region's list and ignores the region.
+
+  | Offset | Name | Meaning |
+  |---|---|---|
+  | `+0x00` | `guid` | the tutorial GUID; the `long` of `GetItem` / `SetActive` |
+  | `+0x04` | `order` | sort key; the list is kept ascending by it (Lua key `order`) |
+  | `+0x08` | `task_first` | 1-based index of this tutorial's first task in the window's task vector (Lua `task_first`) |
+  | `+0x0C` | `task_count` | how many tasks it owns (Lua `task_count`) |
+  | `+0x10` | `active` | **the byte in question** (see below) |
+  | `+0x14` | `region_dir` | a `cRZString` (0x14 bytes), the region directory name, lowercased and prefixed (Lua `region_dir`) |
+  | `+0x24` | — | string internal, zeroed by the copy constructor, never read |
+
+  **`+0x10` is `active`.** Set (1) = still due to run; clear (0) = completed / dismissed / not to be
+  auto-started. It is initialised to 1 for every entry built from Lua, and read in four places: `SetActive`,
+  the city-init message handler (which auto-`startTutorial`s only when it is non-zero), `GetNextActive` (which
+  only returns entries with it set), and the region view's `filter_tutorial_mayor_name` / `RenderTile` (which
+  clear a tutorial city's mayor name while it is set).
+
+  **What `SetActive(guid, active)` (`0x004B5D80`) changes — two things, not one:**
+  1. the entry's `active` byte, written only when it differs (returns 0 if the GUID is unknown or already in
+     the requested state);
+  2. a **persisted 256-entry `uint32` GUID array in the application preferences block** (`prefs+0xF34`, reached
+     through `cISC4App` slot 38 `GetPreferences`): `active = false` **adds** the GUID to the first free slot,
+     `active = true` **removes** it (zeroes the matching slot). Then `cISC4App` slot 17 `SavePreferences`
+     (`0x0044BDB0`) is called.
+
+  The prefs array is the durable record; the in-memory byte is **re-derived from it at every registry `Init`**
+  (`0x004B7720`), which forces `active = 0` for each listed GUID. The array is exactly adjacent to a 64-entry
+  one at `prefs+0x1334` that `cSC4CitySituationManager::ResetTutorials` (`0x005266E0`) manages the same way.
+
+  `SetActive` has exactly three callers: `startTutorial` (`(guid, 1)`), `endTutorial` (`(guid, 0)`, only when
+  `endRegistry`), and `cSC4Region::ResetTutorialCity` (`(guid, 1)`, re-enabling a tutorial when its city is
+  rebuilt). The last is outside this class.
+
+  **Registration and task lookup.** The registry is populated from Lua: `cSC4AdvisorSystem::reload_data`
+  (`0x0041A4F0`) calls `SetLua` (`0x004B7D70`) with the shared context, which runs `Init`. `Init` loads the
+  resource script **`tutorial_registry.lua`** and requires a global table `tutorial_registry`, then reads the
+  tables `tutorials`, `default_regions` and `regions` and the keys `order`, `task_first`, `task_count` and
+  `region_dir`. The tutorial GUID is the **integer key of the `tutorials` table** *[inferred]*. Tasks are **not**
+  in the registry: it stores only the `task_first` / `task_count` slice. The window builds the actual
+  `cSC4TutorialTask` objects (0xFC bytes each) from a Lua task script into its own vector, and the index formula
+  used everywhere is
+
+  > window vector index = `taskNumber + (task_first − 1)`, valid while
+  > `index < task_first − 1 + task_count`.
+
+  `ResetTutorialNumAndIndex` (slot 17) returns `index − (task_first − 1)` — the relative task number — and the
+  tutorial system stores that in `+0x20`. `moveToNext` increments `+0x20` (slot 20) and recomputes.
+
+  **Who sets is-tutorial (`+0x1F`) — confirmed, with the constructor added.** Four writers, all inside
+  `cSC4TutorialSystem`, and nothing outside the class writes it (`cISC4TutorialSystem` exposes no setter):
+
+  | Writer | Value | Address |
+  |---|---|---|
+  | constructor | 0 | `0x0043F5E2` |
+  | `startTutorial` | 1 (only when currently 0) | `0x0043F0D9` |
+  | `endTutorial` | 0 (unconditional) | `0x0043F186` |
+  | `Read` | the saved byte | `0x0043F2E0` (through the `cIGZSerializable` sub-object at `+0x10`) |
+
+  Still open: the literal Lua shape of `tutorial_registry.lua` (extract it from `SimCity_1.dat` group
+  `0x4A5E8EF6`), `cItem+0x24`, and `GetNextActive`'s "next" semantics when tutorials are completed out of
+  order.
+
+- ~~**TU2:** the 3D view slots 60 and 59 called by `endTutorial`.~~ **ANSWERED 2026-10-16 (re-answers29).
+  DIFFERS from the spec's guess: they are not "restore the camera controls".** They close the 3D view's
+  **secondary and tertiary catalog menus**. Full behaviour is in §4.2; in short, `cSC4View3DWin` (vtable
+  `0x00ABCE40`) slot 60 `CloseTertiaryMenu` (`0x007E5E90`) and slot 59 `CloseSecondaryMenu` (`0x007E5D20`), the
+  latter calling the former first. What a tutorial changes on the 3D view is the zoom (slot 8 `SetZoom`, set per
+  task) and the current view input control (slot 26, removed per task); `endTutorial` undoes neither.
 - ~~**TU3:** (abitidy) slots 18 and 19 have one dword each. What is `OnTutorialEvent`'s `e` (an event ID, a message
   ID or a pointer)? Is `SetTutorialTaskNumber`'s `n` signed? [both declared `uint32_t`]~~ **ANSWERED 2026-10-15
   (re-answers15):** MATCHES for `e` and for the ABI of `n`. Slot 18 (`0x0043F4E0`) passes the dword to the window's

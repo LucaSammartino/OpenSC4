@@ -4903,9 +4903,11 @@ prefix the code comments use; automata.md's own Q1-Q6 keep their numbers. The cu
   *Evidence added 2026-10-16 (re-answers29), answering the state record's half.* The **state base Write
   (`0x00509D00`) always emits version 3 and all seven fields**, whatever version was read, and the Read
   (`0x00505E50`) accepts ≤ 3 and reads the seventh field only at version ≥ 3. So for states the original
-  **does upgrade on re-save**: a version-2 state comes back as version 3, and §14 test 4's "round-trips byte for
-  byte" is wrong for state records. That **DIFFERS** from the bracket. automata.md §6.2. The other records
-  (managers, automaton base, aircraft, watercraft) are still open here.
+  **does upgrade on re-save**: a version-2 state comes back as version 3. That **DIFFERS** from the bracket.
+  automata.md §6.2. **What the implementer must change:** a state record of version < 3 must not be expected to
+  round-trip byte for byte — it comes back as version 3 with the extra field written (zeroed for a v2 read).
+  This does **not** settle §14 test 4, which is the *vehicle manager's* version-2 record and is a different
+  writer; the managers, automaton base, aircraft and watercraft versions are still open here.
 - **AM2:** §6.4 gives no read check for the pedestrian (5), vehicle, emergency vehicle, patrol car and trailer (2)
   versions, nor for the incident list's `u16` 1. Do the original readers reject other versions? [any value accepted
   and kept]
