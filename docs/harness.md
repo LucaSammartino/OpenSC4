@@ -85,10 +85,28 @@ Verdict words:
 | `ended` | the game ended the city itself |
 | `failed-start` | the game did not start properly (e.g. a graphics driver error, or the plugin never attached); usually not your DLL; send it again |
 | `exited` | the game process ended without a verdict (a crash: `0xC0000409` is a Rust panic; see the log's last lines) |
-| `no-load` | the city never loaded |
+| `no-load` | the city never loaded (see "City load" below) |
 | `timeout` | no verdict before `timeout` |
 | `rejected` | the request was not run; `line:` says which line and why (bad label, unknown key, DLL outside your worktree, no such city or file, a control character in a value, UTF-16 without a byte order mark); `the line:` repeats it and the request text follows, control characters shown as `<0xNN>` |
 | `harness-error` | the harness could not run it (a slot was busy, a file was locked); send it again |
+
+## City load
+
+The plugin's autoload (`engine/plugin/FC4Autoload.h`) opens the city once the region view is up and 60 framework
+ticks have passed: `autoload: the region lists K cities (GetCityLocations -> true/false; M ms and N empty checks
+before)`, then `autoload: LoadCity(<save>) -> true`. While the region's list is empty it reads it again about once a
+second on the wall clock and gives up only 120 s after the first empty read (`autoload: the region lists no cities yet
+(N); retrying in 1000 ms (M ms since the first check)`, last `autoload: the region lists no cities; giving up after M
+ms (N checks)`).
+
+Before the `autoloadfix` merge the autoload also required `GetCityLocations` to return true, but that return value is
+not meaningful (`eax-or-void` in `docs/abi/interfaces.tsv`): in some builds it read as false with all 85 locations of
+FC4 Test filled in, the autoload logged "the region lists no cities yet" ten times within ~130 ms (the retry counted
+ticks, which come about once a millisecond at start-up), gave up, and the run ended `no-load` ("no city load within N
+s (region view? needs a click)") with the region view showing the cities (three queue runs of 2026-10-15). The
+value is whatever the game's code leaves in the register: in the failing run it stayed false for 120 reads in one
+process, so a run that ends this way says nothing about the DLL under test; with an older DLL, rebuild on a main with
+the fix.
 
 ## How long to wait
 
