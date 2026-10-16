@@ -1705,9 +1705,13 @@ bool PathConnection(void* u, uint64_t occ, uint32_t pathType, uint32_t entry, ui
 
 // traffic-network.md §4.2 step 3, §7.2: network occupant slot 49
 // GetPathInfo (pop 0, EAX), through the vtable (the SDK declares no path
-// info). [choice] Borrowed: the spec does not say the result carries a
-// reference, and the occupant keeps its path info while it is in the city
-// (TG24); the token is used only within the call that asked for it.
+// info). [TG24 MATCH] Borrowed: slot 49 builds the path info on the first
+// call and caches it in the occupant (`+0x140`), and returns the cached
+// pointer **without** AddRef, so the caller borrows it and must not release
+// it (traffic-network.md §7.2). It may be null: the pre-built-model override
+// returns null when it has no model. The occupant keeps its cached path info
+// while it is in the city, so the token stays usable for the rest of the
+// rebuild pass; nothing releases it.
 uint64_t PathInfo(void* u, uint64_t occ) {
     TRAFFIC_TEST(path_info, occ);
     if (occ == 0 || !Gate(Sw::TrafficOccupants, "traffic GetPathInfo (none)")) return 0;
@@ -1722,7 +1726,8 @@ uint64_t PathInfo(void* u, uint64_t occ) {
 // traffic-network.md §4.2 step 3: the turn-around test, path info slot 4
 // (`cSC4PathInfo::GetPath`, pop 20, EAX) with (pathType, entry, 0xFF, 0, 0)
 // as the original passes them; a non-zero result allows a turn-around at
-// that entry. [choice] The whole EAX is tested (the spec: "non-zero"; TG24).
+// that entry. [TG24 MATCH] The whole EAX is tested: slot 4 returns a path
+// pointer or null, not a bool (`0x0071ABF9`).
 bool PathInfoTurnAround(void* u, uint64_t pi, uint32_t pathType, uint32_t entry) {
     TRAFFIC_TEST(path_info_turn_around, pi, pathType, entry);
     if (pi == 0 || !Gate(Sw::TrafficOccupants, "traffic path info turn-around (false)")) return false;
@@ -1732,6 +1737,100 @@ bool PathInfoTurnAround(void* u, uint64_t pi, uint32_t pathType, uint32_t entry)
     return reinterpret_cast<Fn>((*reinterpret_cast<void***>(p))[4])(p, nullptr, pathType, entry, 0xFF, 0, 0) != 0;
 }
 
+// ---- path info: lane continuity (TG24) -------------------------------------------------------------------
+
+// [TG24] The path key of traffic-network.md §7.3: the exit side in bits 0–7
+// (0–3; `0xFF` names the turn-around path of an entry), the entry side in
+// bits 8–15, a lane index in bits 16–23 and the path type in bits 24–27.
+// Bits 28–31 are 0 for the paths these queries return. The "exit byte" of a
+// path is not a field of the record: it is bits 0–7 of its key.
+uint8_t KeyExit(uint32_t key) { return static_cast<uint8_t>(key & 0xFFu); }
+uint8_t KeyEntry(uint32_t key) { return static_cast<uint8_t>((key >> 8) & 0xFFu); }
+
+// [TG24] A path record (what slots 3 and 4 point at, §7.3): `+0` the start and
+// `+4` the end pointer of its point array (12-byte points, three f32 world
+// coordinates x, y, z), `+0xC` its length (f32). The **first vertex** is the
+// point at `+0`'s address; the end point used by slot 7 is the last point
+// (`end − 12`). Only the two pointers are read here.
+void* PathPointAt(void* record, size_t index) {
+    if (record == nullptr) return nullptr;
+    char* base = static_cast<char*>(record);
+    void* begin = nullptr;
+    void* end = nullptr;
+    std::memcpy(&begin, base, sizeof(begin));              // +0
+    std::memcpy(&end, base + sizeof(void*), sizeof(end));  // +4
+    if (begin == nullptr || end == nullptr || end < begin) return nullptr;
+    const size_t bytes = static_cast<size_t>(static_cast<char*>(end) - static_cast<char*>(begin));
+    if (bytes < 12 || index >= bytes / 12) return nullptr;
+    return static_cast<char*>(begin) + 12 * index;
+}
+
+// [TG24] §4.4 step 1 (`LaneContinuity`, `RemoveBadElevatedPaths` at
+// `0x00715940`): `keys := GetPathsFromEntryEdge(1, e)` (path info slot 14:
+// every car path whose entry is e, in the path table's hash order). For each
+// key in that order, `path := GetPath(key, null)` (slot 3); when it is not
+// null the path's **first vertex** goes to the caller with the key's exit
+// byte, and the core keeps the ones whose exit byte is the connection's exit.
+// The vertex is a borrowed token into the path info (valid while the path info
+// is unchanged); neither the path record nor the path info is released.
+void PathInfoExitsFromEntry(void* u, uint64_t pi, uint32_t pathType, uint32_t entry,
+                            fc4_traffic_exit_callback cb, void* ctx) {
+    TRAFFIC_TEST(path_info_exits_from_entry, pi, pathType, entry, cb, ctx);
+    if (pi == 0 || cb == nullptr) return;
+    if (!Gate(Sw::TrafficOccupants, "traffic path info exits (none)")) return;
+    void* p = reinterpret_cast<void*>(static_cast<uintptr_t>(pi));
+    if (!AllocatorOk("traffic path-info key list")) return;
+    // Slot 14 empties `keys` first (keeps the capacity) and appends; the
+    // vector is the caller's and goes back to allocator B.
+    Vec<uint32_t> keys;
+    using FillFn = uint32_t(__fastcall*)(void* self, void* edx, uint32_t pathType, uint32_t entry, void* out);
+    const FillFn fill = reinterpret_cast<FillFn>((*reinterpret_cast<void***>(p))[14]);
+    fill(p, nullptr, pathType, entry, &keys);  // pop 12; EAX = the count appended
+    using GetFn = void*(__fastcall*)(void* self, void* edx, uint32_t key, void* lengthOut);
+    const GetFn get = reinterpret_cast<GetFn>((*reinterpret_cast<void***>(p))[3]);
+    for (size_t i = 0; i < keys.size(); ++i) {
+        const uint32_t key = keys[i];
+        void* rec = get(p, nullptr, key, nullptr);  // pop 8; borrowed, null when absent
+        void* first = PathPointAt(rec, 0);
+        if (first == nullptr) continue;
+        cb(ctx, KeyExit(key), TokenOf(first));
+    }
+}
+
+// [TG24] §4.4 step 2:
+// `near := GetPathsNearEndPoint(1, &v, 0xFF, (e + 2) mod 4, 4.0)` (path info
+// slot 7): the keys of the car paths through the given exit whose **last**
+// vertex lies within `radius` of the vertex, nearest first. For each key the
+// caller ORs `1 << entry(k)` into its mask, so the entry sides come back here.
+// The result is a `vector<u32>` returned **by value** through a hidden first
+// argument: the callee constructs it and the caller frees it (allocator B).
+void PathInfoEntriesNear(void* u, uint64_t pi, uint32_t pathType, uint64_t vertex, uint32_t exit, float radius,
+                         fc4_traffic_u32_callback cb, void* ctx) {
+    TRAFFIC_TEST(path_info_entries_near, pi, pathType, vertex, exit, radius, cb, ctx);
+    if (pi == 0 || cb == nullptr) return;
+    if (!Gate(Sw::TrafficOccupants, "traffic path info entries (none)")) return;
+    void* p = reinterpret_cast<void*>(static_cast<uintptr_t>(pi));
+    const float* point = reinterpret_cast<const float*>(static_cast<uintptr_t>(vertex));
+    if (point == nullptr) return;
+    if (!AllocatorOk("traffic path-info near list")) return;
+    // Uninitialised storage: slot 7 constructs the vector in it.
+    using U32Vec = Vec<uint32_t>;
+    alignas(U32Vec) unsigned char storage[sizeof(U32Vec)];
+    U32Vec* keys = reinterpret_cast<U32Vec*>(storage);
+    using NearFn = void*(__fastcall*)(void* self, void* edx, void* hidden, uint32_t pathType, const float* point,
+                                      uint32_t entry, uint32_t side, float radius);
+    const NearFn nearFn = reinterpret_cast<NearFn>((*reinterpret_cast<void***>(p))[7]);
+    // pop 24 (the hidden pointer included: 6 dwords); EAX = the hidden pointer.
+    // `entry = 0xFF` is the wildcard here (the "any entry" of §4.4 step 2);
+    // it is not a wildcard in slot 14 (§7.3).
+    nearFn(p, nullptr, keys, pathType, point, 0xFF, exit, radius);
+    for (size_t i = 0; i < keys->size(); ++i) {
+        cb(ctx, KeyEntry((*keys)[i]));
+    }
+    // The caller frees what the callee built (allocator B).
+    keys->~U32Vec();
+}
+
 bool IsTunnel(void* u, uint64_t occ) {
     TRAFFIC_TEST(is_tunnel, occ);
     if (occ == 0 || !Gate(Sw::TrafficOccupants, "traffic tunnel test (false)")) return false;
@@ -1739,6 +1838,45 @@ bool IsTunnel(void* u, uint64_t occ) {
     if (t == nullptr) return false;
     Drop(t);
     return true;
+}
+
+// ---- the paired portal (TG25) ----------------------------------------------------------------------------
+
+// [TG25] traffic-network.md §4.8 step 1: the paired portal is the pointer
+// member at **`+0x1D0`** of the concrete `cSC4NetworkTunnelOccupant`, read by
+// a one-instruction getter (`0x00647570`) at `0x0071414B`. The offset is from
+// the class's primary base, which is what QueryInterface(0x8A4BD52B) and
+// QueryInterface(0xA821EF94) both return. (In `Write` and `Read` the same
+// member is at `+0x1C8`, because those run on the `+8` serializable
+// sub-object.)
+//
+// [TG25] The member is a **counted** reference to the other portal: the only
+// setter (`0x00647530`) AddRefs the new pointer and Releases the old one, and
+// the occupant's `Shutdown` (`0x00647500`) releases it and nulls it, so this
+// portal owns a reference on the other (a reference cycle `Shutdown` breaks).
+// Reading it is therefore a **borrow**: this returns the member with no AddRef
+// and no Release, so neither portal's reference count moves (§11 test 16).
+// Never Release a pointer you did not AddRef. The original wraps its own use
+// in a temporary AddRef / Release (`0x0071415E` / `0x0071419A`), which is
+// balanced and leaves the counts the same.
+//
+// [TG25] The returned token is this host's usual occupant identity, a
+// `cISC4Occupant*`: the original takes the pair's `AsOccupant` (network
+// occupant slot 48, `this + 4`) before its position (occupant slot 8), and
+// the core reads the position of what comes back here.
+uint64_t TunnelPairedPortal(void* u, uint64_t occ) {
+    TRAFFIC_TEST(tunnel_paired_portal, occ);
+    if (occ == 0 || !Gate(Sw::TrafficOccupants, "traffic tunnel pair (none)")) return 0;
+    cIGZUnknown* t = Query<cIGZUnknown>(FromToken(occ), kIID_cISC4NetworkTunnelOccupant);
+    if (t == nullptr) return 0;
+    void* pair = nullptr;
+    std::memcpy(&pair, static_cast<char*>(static_cast<void*>(t)) + 0x1D0, sizeof(pair));  // the counted member
+    Drop(t);  // the one reference QueryInterface gave us, balanced
+    if (pair == nullptr) return 0;  // never paired, or after its Shutdown (TN11)
+    using AsFn = void*(__fastcall*)(void* self, void* edx);
+    cISC4NetworkOccupant* np = reinterpret_cast<cISC4NetworkOccupant*>(pair);
+    void* o = reinterpret_cast<AsFn>((*reinterpret_cast<void***>(np))[48])(np, nullptr);  // pop 0, EAX
+    return TokenOf(o);
 }
 
 // ---- terrain and water ----------------------------------------------------------------------------------
@@ -1827,12 +1965,12 @@ namespace fc4 {
 //   41, wired);
 // - wired since re-answers21: update_network_costs (TG23, §4.9.1: the roads
 //   items 2, 1, 3, 4 and the mass transit items 3, 4, 5, 6, priced with the
-//   §4.9.1 rounding and set with SetFullExpenses from the five call sites);
-// - needed but not specified, so still NULL [question]:
-//   path_info_exits_from_entry and path_info_entries_near (path info slots
-//   14, 3 and 7: their arguments, result containers and the path objects'
-//   layout; TG24) and tunnel_paired_portal (the member's offset in
-//   cSC4NetworkTunnelOccupant; TG25).
+//   §4.9.1 rounding and set with SetFullExpenses from the five call sites),
+//   path_info_exits_from_entry and path_info_entries_near (TG24, path info
+//   slots 14 then 3, and slot 7: the keys, the borrowed first vertex and the
+//   result containers of §7.3; these feed lane continuity, §4.4) and
+//   tunnel_paired_portal (TG25, the counted pointer at +0x1D0 of
+//   cSC4NetworkTunnelOccupant, borrowed). Nothing is left NULL [question].
 fc4_traffic_host MakeTrafficHost(TrafficContext* ctx) {
     fc4_traffic_host h{};
     h.struct_size = sizeof(h);
@@ -1911,7 +2049,10 @@ fc4_traffic_host MakeTrafficHost(TrafficContext* ctx) {
     h.path_connection = &PathConnection;
     h.path_info = &PathInfo;
     h.path_info_turn_around = &PathInfoTurnAround;
+    h.path_info_exits_from_entry = &PathInfoExitsFromEntry;  // [TG24]
+    h.path_info_entries_near = &PathInfoEntriesNear;        // [TG24]
     h.is_tunnel = &IsTunnel;
+    h.tunnel_paired_portal = &TunnelPairedPortal;  // [TG25]
     h.cell_under_water = &CellUnderWater;
     h.is_navigable = &IsNavigable;
     h.water_depth = &WaterDepth;
