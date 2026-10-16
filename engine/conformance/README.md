@@ -2324,6 +2324,38 @@ until set. `sim` is a vector index (0–5) or a name from `mysim_read`.
 
 MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_post` (`type`, `data1`, `data2`,
 `void1`, `sim`), `dispatch` (`sim`, `what`), `trigger` (`name`, `position`), `mysim_subscribe` (`type`, `on`).
+## Network geometry ops
+
+The network geometry vectors (`ng18_…`, the §18 tests of `docs/specs/network-geometry.md`) drive
+`fc4_core::network_geometry`: a `NetworkGeometry` (the run, the passes, the cell infos, the two satisfiers) over a
+`fc4_core::terrain::Terrain` and a scripted host. Every op name starts with `ng_`. The terrain's posts are drained into
+the event log after each op. The default city: 64 × 64 cells, flat at 300 m, sea level 250 m, view-ready, the shipped
+placement parameters (§2.4). The default host: no occupants, no existing pieces, no connection nodes, no bridge
+types.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `ng_city` | `cells?` [x, z] (64, 64), `altitude?` (300), `sea?` (250), `columns?` [[x0, x1, alt]] (vertex columns), `slope_x?` (altitude := `altitude` + `slope_x` × x), `vertices?` [[x, z, alt]], `view_ready?` (true) | a new terrain |
+| `ng_types` | `type`, `params` (partial: `max_slope`, `max_slope_change`, `max_raise`, `max_cut`, `resolve_tolerance`, `tunnel_trigger_slope`, `tunnel_end_slope`, `new_cell_tolerance`, `support_threshold`, `max_support_height`, `tunnel_clearance`) | one type's placement parameters over the shipped ones |
+| `ng_host` | any of `landfill` [[x, z]], `immovable` [[x, z, node, type]] (immovable network occupants), `nodes` [[x, z]] (connection-node cell infos), `existing` [{`cell`, `corners` [4], `immovable?`, `flags?` (1), `supports?`}], `extend` [[x, z]] (§3.3 step 3), `bridge_types` (count), `bridge_min_span`, `highlight_cut` (slot 59's new count) | the host |
+| `ng_segments` | `start`, `end`, `snap?`, `straight_only?`, `widths?` [w1, w2]; `state` (partial: `end`, `dragged_count`, `straight_count`, `axis`, `pen_direction`, `end_direction`) | `BreakIntoStraightAndDiagSegments` |
+| `ng_draw` | `type?` (0), `start`, `end`, `snap?`, `expect?` | `Reset` then `DrawNetworkLine` |
+| `ng_validate` | `expect?` (the valid count) | the passes of §4 |
+| `ng_cell_infos` | | the cell infos of the valid steps |
+| `ng_smoothen` | `level`, `expect?` | `SmoothenNetwork(level)` |
+| `ng_support` | `expect?` | slot 56 on the last smoothing |
+| `ng_place` | `expect?` (the valid count) | the passes, the cell infos and the smoothing loop |
+| `ng_expect` | `state` (partial: `valid`, `failure`, `level` (null = none), `end`, `dragged_count`, `straight_count`, `pen_direction`, `end_direction`, `cells`, `kinds`, `tunnels` [[start, end]], `bridges` [[start, end]], `tunnel_searches`, `heights` / `terrain_heights` (`{"vertex": h}`, null = unsolved), `smoothing_cells`, `boundary`) | the geometry |
+| `ng_type_info` | `type`; `state` (partial: `slope_rise`, `diagonal_slope_rise`, `smoothness`, `diagonal_smoothness`, `tunnel_trigger_rise`, `widths`, `straight_only`) | the shipped type info (§2.3) |
+| `ng_sat` | `sat?` (`network` or `terrain`), `call`, `args?`, `expect?` | the satisfier: `init` [lo, hi] (`"max"` / `"-max"` for ±FLT_MAX), `shutdown`, `add` [v, h] (→ new), `fixed` [v, h], `range` [v, a, b], `equality` [a, b], `slope` [a, b, s], `smoothness` [a, b, c, s], `preferred` [v, h], `preferred_range` [v, a, b], `solve` (→ bool), `height` [v], `range_of` [v], `solution` (→ [[v, h]] in solution order) |
+| `ng_terrain_vertex` | `n`, `t`, `supports`, `fixed?`, `type?`; `expect` `{fix}`, `{range, preferred}` or `"unsupported"` | §9.6 step 3 |
+| `ng_support_level` | `corners`, `terrain`, `threshold`; `expect` `{level, flags}` | §10.2 |
+| `ng_occupant_flags` | `flags`, `real`, `tunnel?`; `expect` | §10.1 |
+| `ng_cost` | `demolition?`; `expect` | `GetCostOfSolution` of the placed run |
+| `ng_power_line_cost` | `poles`, `wire`, `per_pole?` (15), `per_wire?` (2.0); `expect` | §11 |
+| `ng_destroy` | `destroyed`, `pieces`, `replaced` ([[x, z]] each); `expect` `{removals, resolve}` | §13 |
+| `ng_grade` | `expect?` `{changed, rect}` | slot 57 on the terrain satisfier |
+| `ng_expect_events`, `ng_clear_events` | as elsewhere | the terrain's posts |
 
 ## Adding a vector
 
@@ -3637,3 +3669,33 @@ Item 3: the `delta_eq` field is written by `UpdateVariables` (§4.3 step 3) befo
 field after step k shows the delta of step k − 1; the vector checks both. Item 20 in its full-game form (every
 simulator record byte-identical over 24 months with and without MySims) needs the whole simulator stack; the vector
 checks that the MySims make no simulator-facing host call.
+## Coverage (network geometry §18)
+
+| §18 item | Vector |
+|---|---|
+| 1 straight drag | `ng18_01_straight_drag` |
+| 2 near-straight drag (pre-adjust 1.2) | `ng18_02_near_straight_drag` |
+| 3 diagonal snap, width 1 | `ng18_03_diagonal_snap_width_1` |
+| 4 diagonal snap, width 2 | `ng18_04_diagonal_snap_width_2` |
+| 5 street is straight only | `ng18_05_street_straight_only` |
+| 6 slope limits | `ng18_06_slope_limits` |
+| 7 satisfier, slope | `ng18_07_satisfier_slope` |
+| 8 satisfier, smoothness and preference | `ng18_08_satisfier_smoothness_preference` |
+| 9 tunnel trigger | `ng18_09_tunnel_trigger` |
+| 10 no tunnel code | `ng18_10_no_tunnel_code` |
+| 11 a bridge needs a straight drag | `ng18_11_bridge_needs_straight_drag` |
+| 12 starting in water | `ng18_12_starting_in_water` |
+| 13 reserved landfill | `ng18_13_reserved_landfill` |
+| 14 support level | `ng18_14_support_level` |
+| 15 terrain support | `ng18_15_terrain_support` |
+| 16 draft flag | `ng18_16_draft_flag` |
+| 17 cell cost | `ng18_17_cell_cost` |
+| 18 power-line cost | `ng18_18_power_line_cost` |
+| 19 destroy test set | `ng18_19_destroy_test_set` |
+| 20 grading threshold | `ng18_20_grading_threshold` |
+| 21 smoothing codes | `ng18_21_smoothing_codes` |
+
+The core's unit tests (`fc4_core::network_geometry`) also cover the pre-adjust rules, the city-edge refusal of wide
+types, the satisfier's collapse rule, slope merging, preferred ranges and pinned propagation, the smoothing and
+boundary sets, the water-surface floor of the cell infos, the flat-cell and cross-section rules, the offset tables and
+the diagonal-end extension; `fc4_capi`'s `network_geometry_tests` cover the C ABI.

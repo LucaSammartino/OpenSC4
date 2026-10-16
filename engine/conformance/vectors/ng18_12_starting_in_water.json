@@ -1,0 +1,71 @@
+{
+ "format": 1,
+ "name": "ng18_12_starting_in_water",
+ "spec": [
+  "network-geometry 4.1",
+  "4.2",
+  "1.2",
+  "18.12"
+ ],
+ "description": "The river of test 11. A road whose first cell (10, 10) has water: IdentifyStartingConditions sets v := 0, 0xF0000001, nothing placed. A pipe from the same cell: the underground tool is not stopped by water (slot 63 returns 0) and has no reserved-tile or terrain pass, so the passes do not refuse it.",
+ "steps": [
+  {
+   "op": "ng_city",
+   "columns": [
+    [
+     9,
+     12,
+     200
+    ]
+   ]
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    10,
+    10
+   ],
+   "end": [
+    20,
+    10
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_place",
+   "expect": 0
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "failure": 4026531841,
+    "valid": 0
+   }
+  },
+  {
+   "op": "ng_draw",
+   "type": 4,
+   "start": [
+    10,
+    10
+   ],
+   "end": [
+    20,
+    10
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_validate",
+   "expect": 11
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "failure": 0
+   }
+  }
+ ]
+}

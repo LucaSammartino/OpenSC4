@@ -637,6 +637,25 @@ pub unsafe extern "C" fn fc4_terrain_destroy(t: *mut fc4_terrain) {
 
 /// `DoPostCityInit` (slot 40): sets the view-ready flag; `RedisplayTerrain`
 /// posts nothing before it (Â§8.1).
+/// Reads the core terrain under the lock for another capi module (the
+/// network geometry); false, without calling `f`, when NULL or refused.
+pub(crate) fn read_terrain(t: *const fc4_terrain, f: impl FnOnce(&Terrain)) -> bool {
+    read(t, false, |i, _| {
+        f(&i.terrain);
+        true
+    })
+}
+
+/// Changes the core terrain under the lock for another capi module (the
+/// network geometry's grading), then hands the posts over as every setter
+/// does; false, without calling `f`, when NULL or refused.
+pub(crate) fn write_terrain(t: *mut fc4_terrain, f: impl FnOnce(&mut Terrain)) -> bool {
+    write(t, false, |i, _| {
+        f(&mut i.terrain);
+        true
+    })
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn fc4_terrain_post_city_init(t: *mut fc4_terrain) -> bool {
     write(t, false, |i, _| {

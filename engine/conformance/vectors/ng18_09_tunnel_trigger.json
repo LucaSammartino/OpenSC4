@@ -1,0 +1,84 @@
+{
+ "format": 1,
+ "name": "ng18_09_tunnel_trigger",
+ "spec": [
+  "network-geometry 6.1",
+  "6.2",
+  "18.9"
+ ],
+ "description": "Road, straight drag of 12 steps (10, 10) -> (21, 10), pen +x: a step's trailing-edge mean is the altitude of its west vertex column. Vertex columns x >= 13 raised by 11.0 m: mean(3) - mean(2) = 11.0 < 11.2033 (tan 35 deg x 16), no FindTunnelEnd. Raised by 12.0 m: FindTunnelEnd runs from step 2. [inferred] mean(i) in 6.2 step 2 is the trailing-edge mean.",
+ "steps": [
+  {
+   "op": "ng_city",
+   "columns": [
+    [
+     13,
+     64,
+     311
+    ]
+   ]
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    10,
+    10
+   ],
+   "end": [
+    21,
+    10
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_validate",
+   "expect": 12
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "tunnel_searches": [],
+    "tunnels": [],
+    "dragged_count": 12,
+    "straight_count": 12
+   }
+  },
+  {
+   "op": "ng_city",
+   "columns": [
+    [
+     13,
+     64,
+     312
+    ]
+   ]
+  },
+  {
+   "op": "ng_draw",
+   "start": [
+    10,
+    10
+   ],
+   "end": [
+    21,
+    10
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_validate",
+   "expect": 12
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "tunnel_searches": [
+     2
+    ],
+    "tunnels": []
+   }
+  }
+ ]
+}

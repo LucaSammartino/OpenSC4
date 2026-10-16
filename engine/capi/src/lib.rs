@@ -898,6 +898,7 @@ pub mod lot_config;
 pub mod lotdev;
 pub mod neighbors;
 pub mod neighbors_shadow;
+pub mod network_geometry;
 pub mod network_manager;
 pub mod network_rules;
 pub mod occupant_manager;
@@ -990,6 +991,9 @@ mod lotdev_tests;
 
 #[cfg(test)]
 mod neighbors_tests;
+
+#[cfg(test)]
+mod network_geometry_tests;
 
 #[cfg(test)]
 mod network_manager_tests;
