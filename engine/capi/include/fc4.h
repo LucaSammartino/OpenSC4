@@ -9280,13 +9280,20 @@ typedef struct fc4_automata_time {
     uint16_t reserved;
 } fc4_automata_time;
 
-/* CreateAutomaton's seven arguments (§7.2). */
+/* CreateAutomaton's seven arguments (§7.2): group, position, flags, the
+ * model key (a `key3`, all zero = chosen for the group), the callback target
+ * (a host token, 0 = null), the priority (0xFF forces the creation) and the
+ * orientation (`const vec3*`, present when `has_orientation` is 1). */
 typedef struct fc4_automata_create_args {
     uint32_t group;
     float position[3];
-    uint32_t mode;
-    float direction[3];
-    uint32_t a, b, c;
+    uint32_t flags;
+    uint32_t model_key[3]; /* type, group, instance */
+    uint64_t callback;
+    uint8_t priority;
+    uint8_t has_orientation;
+    uint16_t reserved;
+    float orientation[3];
 } fc4_automata_create_args;
 
 /* AddRef / Release on host objects (managers, failed object reads). */
@@ -9424,10 +9431,19 @@ size_t fc4_automata_controller_template(const fc4_automata_object* o, char* out,
 bool fc4_automata_controller_get_state(const fc4_automata_object* o, fc4_automata_controller_state* out);
 /* Automata (no-ops on controllers): slots 51 SetState (the stack becomes one
  * state of that type), 52 PushState, 53 PopState, 9 SetVisible, 8
- * SetPosition (3 floats), 13 Remove, 29 ReturnToSourceOccupant. */
-void fc4_automata_automaton_set_state(const fc4_automata_object* o, uint32_t state_type, uint32_t a, float b,
+ * SetPosition (3 floats), 13 Remove, 29 ReturnToSourceOccupant.
+ *
+ * SetState's and PushState's seven arguments are §6.2's: (type, controller,
+ * timeout_ms, final, animId, sfxId, template). Both return false and change
+ * nothing while the top state has `final` (§12 quirk 11) - that is why the
+ * riot end's SetState(1, ...) is a no-op against its leader (§8.1).
+ * PushState(0, 0, ...) delegates to SetState. PopState on a `final` state
+ * that is not already type 1 pushes DISAPPEAR (type 1) instead of revealing
+ * the state below. */
+bool fc4_automata_automaton_set_state(const fc4_automata_object* o, uint32_t state_type, uint32_t a, float b,
                                       uint32_t c, uint32_t d, uint32_t e, uint32_t f);
-void fc4_automata_automaton_push_state(const fc4_automata_object* o, uint32_t state_type);
+bool fc4_automata_automaton_push_state(const fc4_automata_object* o, uint32_t state_type, uint32_t a, float b,
+                                       uint32_t c, uint32_t d, uint32_t e, uint32_t f);
 bool fc4_automata_automaton_pop_state(const fc4_automata_object* o);
 void fc4_automata_automaton_set_visible(const fc4_automata_object* o, bool visible);
 void fc4_automata_automaton_set_position(const fc4_automata_object* o, const float* position);
