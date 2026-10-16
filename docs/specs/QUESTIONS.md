@@ -5149,12 +5149,25 @@ Filed from [prop-occupant.md](prop-occupant.md) §10. The spec answers the class
 record and the save record. It also corrects network-tools.md §13.1's offset base (§2.1) and three
 `docs/abi/interfaces.tsv` return channels (§8).
 
-- **PO1:** the behaviour, argument lists and return channels of `cISC4PropOccupant` **slots 24 and above**
+- ~~**PO1:** the behaviour, argument lists and return channels of `cISC4PropOccupant` **slots 24 and above**
   (prop-occupant.md §4.2). The vtable `0x00AA4900` continues well past the 24 rows `docs/abi/interfaces.tsv`
   holds; slots 24, 28, 32, 36 and 40 share one implementation (`0x005E16E0`) and 31, 35, 39, 43 share another
   (`0x005DEB90`), so from 28 onward there is a repeating four-slot group. Nothing in `docs/` names them.
   [the bodies of `0x005E16E0`, `0x00477660`, `0x004771D0`, `0x005E5770`, `0x005EEE50`, `0x005ECD10`, `0x005F9FD0`
-  would settle it]
+  would settle it]~~ **ANSWERED 2026-10-16 (re-answers27): DIFFERS from its premise.** There are no such slots —
+  the interface is exactly **24**. `re/labels_windows.tsv` line 322 pairs `00aa4900` with the Mac
+  `__ZTV16cSC4PropOccupant#0` at 24 slots, and `re/abi_interfaces.tsv` agrees; the burnt-building subclass's
+  primary vtable `0x00AA4B30` is also 24 with slots 1–23 byte-identical and only slot 0 overridden (a derived
+  class cannot truncate a vtable); nothing stores `0x00AA4960` as a vptr (the constructor stores `0x00AA47D0`,
+  `0x00AA47E8`, `0x00AA484C`, `0x00AA4868`, `0x00AA48F0`, `0x00AA4900`, the derived one from `0x00AA49B0`,
+  while `0x00AA4960` goes into the global `0x00B0A8E4` at `0x00A7370C`); and the target of the supposed
+  "slot 24" (`0x005E16E0`) reads `[this+4]` as a pool pointer and writes through it, which would clobber the
+  `cIGZMessageTarget2` vptr. The repeating four-slot pattern belongs to a **pool/factory method table** at
+  `0x00AA4960` — five groups of `[AllocNode, FreeNode, CreatePool, FreePool]` whose strides (`0x68`, `0xA0`,
+  `0x94`, `0xD8`, `0x88`) independently confirm the prop class sizes. prop-occupant.md §4.2.
+- **PO1b:** which class the fifth allocator group at `0x00AA4960` serves (stride `0x88`). None of the four prop
+  classes is `0x88` bytes (plain `0x68`, terrain decal `0xA0`, visual effect `0x94`, burnt building `0xD8`).
+  [naming the class whose factory calls that group]
 - **PO2:** the identity of the sixth sub-object at prop `+0x24` (vtable `0x00AA47D0`; observed slots `0`
   `0x005EE140`, `1` `0x0064DE00`, `2` `0x0064DE10`, `3` `0x00458E60`, `4` `0x0060CE80`, `5` null). It is not
   referenced anywhere in `docs/`. [reading `0x005EE140`'s IID table, or the SDK header for the class]
@@ -5162,8 +5175,15 @@ record and the save record. It also corrects network-tools.md §13.1's offset ba
   `GetOrCreatePlaceableObject` `0x005E91C0` / `SetPlaceableObject` `0x0078DAF0` appear only in
   `docs/abi/vtables.tsv`; no spec describes how a prop becomes something the 3D view draws. An implementer who
   must render needs this.
-- **PO4:** the unnamed prop fields `+0x61`, `+0x64` and the seven zeroed dwords at `+0x3C`…`+0x54`
-  (prop-occupant.md §2.2). The constructor zeroes them and nothing else is known.
+- ~~**PO4:** the unnamed prop fields `+0x61`, `+0x64` and the seven zeroed dwords at `+0x3C`…`+0x54`
+  (prop-occupant.md §2.2). The constructor zeroes them and nothing else is known.~~ **ANSWERED 2026-10-16
+  (re-answers27), in the main.** `+0x61` is the **orientation** (slots 9/10, clamped 0…3), `+0x64` is the
+  **prop usage** (slots 22/23; 1 city, 2 lot, 3 building, 4 street), `+0x3C`…`+0x53` is the **bounding box**
+  (six floats, written by slot 4 `SetBoundingBox`), `+0x54` is an **owned sub-object pointer** driven by slots
+  15/16, and `+0x14` is the **reference count** (slots 1/2 are `add ecx,8` thunks). The constructor's seven
+  zeroed dwords are exactly the AABB plus that pointer — a check that the layout is right. prop-occupant.md
+  §2.2. What still has no meaning: the 0x28-byte sub-record at `+0x54` (slots 15/16, driven through a manager
+  at `0x00B43D5C`).
 - **PO5:** is a prop's bounding-box y ever re-solved against the terrain after placement? *[inferred]* no —
   the box is written once by `SetBoundingBox` during `CreateProp`. [a terraforming brush over a prop, then a
   check that its box did not move]

@@ -50,10 +50,12 @@ It implements `cISC4PropOccupant` (vtable `0x00AA4900`), `cIGZMessageTarget2` (`
 Three things in this spec correct or complete other documents and matter to implementers:
 
 1. **The field offsets are from the object base, not from `+4`** (§2.1; network-tools.md §13.1 said `+4`).
-2. **The return channels differ across the getters.** `GetPropType` and `GetState` return a clean value in
-   **EAX**; `GetRandomChance` returns **AL only** (the upper bits of EAX are undefined). A blanket
-   `eax-or-void` is wrong for all three (§4.1).
-3. **The vtable has more than the 24 slots the ABI table records.** Slots 24 and up are undocumented (§4.2).
+2. **The return channels differ across the getters.** `docs/abi/interfaces.tsv` labels all 24 slots
+   `eax-or-void`; 15 are unambiguous, and the two that look alike — `GetState` and `GetRandomChance` — are
+   `eax` and **`al`** respectively (§4.1). `GetTimeOfDayRange` is `void`, not `st0` (§8 item 3).
+3. **The interface is exactly 24 slots.** A first draft of this spec claimed the vtable ran on past 23; it does
+   not (§4.2). What follows in the image is a pool/factory method table and then the burnt-building subclass's
+   vtables.
 
 Implementation size: about 400 lines for the class, its record read/write and the slot bodies, plus whatever the
 drawing side needs.
@@ -138,24 +140,31 @@ vtables and zeroes the data. Measured writes, in decompiler order:
 | `+0x08` | 4 | `0x00AA4868` | `cISC4Occupant` vtable |
 | `+0x0C` | 4 | `0x00AA484C` | `cIGZSerializable` vtable |
 | `+0x10` | 4 | `0x00AA47E8` | `cSCExemplarPropertyHolder` vtable |
+| `+0x14` | 4 | (base init) | **reference count** |
 | `+0x24` | 4 | `0x00AA47D0` | sixth sub-object (§2.4) |
 | `+0x2C` | 4 | `0xA823821E` | occupant type |
-| `+0x3C`…`+0x54` | 7 × 4 | 0 | unnamed |
+| `+0x3C`…`+0x53` | 6 × f32 | 0 | **bounding box** (min x,y,z, max x,y,z), written by `SetBoundingBox` (slot 4) |
+| `+0x54` | 4 | 0 | **owned sub-object pointer** (the date-range record; slots 15/16) |
 | `+0x58` | 4 | `0xFFFFFFFF` | **lot tag** (none) |
 | `+0x5C` | 2 | 0 | **prop type index** (u16) |
 | `+0x5E` | 1 | 0 | time-of-day start (tenths of an hour) |
 | `+0x5F` | 1 | 0 | time-of-day end |
-| `+0x60` | 1 | 0 | **timer bits** |
-| `+0x61` | 1 | 0 | unnamed |
+| `+0x60` | 1 | 0 | **timer bits** (low nibble = a 4-flag set) |
+| `+0x61` | 1 | 0 | **orientation** (slots 9/10; `SetOrientation` clamps it to 0…3) |
 | `+0x62` | 1 | **100** | **random chance** (percent) |
 | `+0x63` | 1 | 0 | **state** |
-| `+0x64` | 1 | 0 | unnamed |
+| `+0x64` | 1 | 0 | **prop usage** (1 city, 2 lot, 3 building, 4 street) |
 
 The default chance of **100** and the default lot tag of **`0xFFFFFFFF`** are the two constructor values an
 implementer is most likely to get wrong; both are observable in a freshly created prop.
 
-The bounding box and the position are **not** constructor fields here: they live in the occupant sub-object and
-are set by `SetBoundingBox` (slot 4, `0x00458C60`) during `CreateProp` (prop-lotconfig.md §A6.1 step 5).
+The bounding box is **not** a constructor field — it is zeroed there and written by `SetBoundingBox` (slot 4,
+`0x00458C60`) during `CreateProp` (prop-lotconfig.md §A6.1 step 5). The **reference count lives at `+0x14`**,
+not at `+0x04`: `AddRef`/`Release` (slots 1/2) are this-adjusting thunks that do `add ecx, 8` before jumping to
+the shared `0x005E89B0` / `0x005E8DF0`, so an implementer who refcounts `this` directly hits the wrong object.
+
+The seven dwords the constructor zeroes at `+0x3C`…`+0x54` are therefore exactly the AABB (6 floats) plus the
+sub-object pointer — a useful check that the layout is right.
 
 ### 2.3 Sub-object map
 
@@ -218,75 +227,87 @@ for occupants **not** loaded from a save (lot-records.md §2.4), so a loaded pro
 Compiled slots; the SDK's own index is the compiled slot minus 3 (network-tools.md §13.1). `pop` is what the
 **callee** pops after `this`; `args` is the number of stack dwords beyond `this`.
 
-**Return channel** is the part implementers get wrong:
+**Return channel** is the part implementers get wrong. `docs/abi/interfaces.tsv` currently labels every one of
+these 24 rows `eax-or-void`; **15 of the 24 are unambiguous** and two of them are `al`, not `eax`:
 
 - `eax` — a genuine value in EAX (a pointer, a u32, or a byte the code **zero-extends** with `movzx eax`).
 - `al` — only AL is defined; the upper 24 bits of EAX are **undefined**. Do not widen to a bool.
-- `void` — no defined return value.
+- `void` — no defined return value. `void` does **not** mean "x87 empty by accident": check both.
 - `via-call` — a tail call; the value is whatever the callee returns.
-- `st0` — x87.
+- `st0` — x87 (used by **neither** of the two time-of-day slots; see slot 14).
 
 | Slot | Off | Address | Method | pop | args | Return | Notes |
 |---|---|---|---|---|---|---|---|
-| 0 | `+0x0` | `0x005EC960` | `QueryInterface` | 8 | 2 | `al` | §1.1 |
-| 1 | `+0x4` | `0x006491C0` | `AddRef` | 0 | 0 | `via-call` | tail `0x005E89B0` |
-| 2 | `+0x8` | `0x006491D0` | `Release` | 0 | 0 | `via-call` | tail `0x005E8DF0` |
-| 3 | `+0xC` | `0x006C2040` | `AsOccupant` | 0 | 0 | `eax` | `this + 8`, null stays null |
-| 4 | `+0x10` | `0x00458C60` | `SetBoundingBox` | 8 | 2 | — | |
-| 5 | `+0x14` | `0x004E13E0` | (unnamed) | 0 | 0 | — | see §8 |
-| 6 | `+0x18` | `0x00648F10` | (unnamed) | 4 | 1 | — | see §8 |
+| 0 | `+0x0` | `0x005EC960` | `QueryInterface` | 8 | 2 | **`al`** | §1.1 |
+| 1 | `+0x4` | `0x006491C0` | `AddRef` | 0 | 0 | `via-call` | thunk `add ecx,8` → `0x005E89B0` (EAX = refcount) |
+| 2 | `+0x8` | `0x006491D0` | `Release` | 0 | 0 | `via-call` | thunk `add ecx,8` → `0x005E8DF0` (EAX = refcount) |
+| 3 | `+0xC` | `0x006C2040` | `AsOccupant` | 0 | 0 | **`eax`** | `this + 8`, null stays null |
+| 4 | `+0x10` | `0x00458C60` | `SetBoundingBox` | 8 | 2 | **`void`** | 2 args are `const float[3]*` min and max; writes the AABB at `+0x3C` |
+| 5 | `+0x14` | `0x004E13E0` | (stub) | 0 | 0 | **`eax`** | `xor eax,eax; ret` — always returns 0 |
+| 6 | `+0x18` | `0x00648F10` | (no-op stub) | 4 | 1 | **`void`** | `ret 4` alone; the argument is ignored |
 | 7 | `+0x1C` | `0x005ED280` | `GetPropType` | 0 | 0 | **`eax`** | §5.1; `movzx eax, word [ecx+0x5C]` then `*[0x00B231A4 + idx*4]` |
-| 8 | `+0x20` | `0x005EF4C0` | `SetPropType` | 4 | 1 | — | |
-| 9 | `+0x24` | `0x005EC9D0` | `GetOrientation` | 0 | 0 | — | |
-| 10 | `+0x28` | `0x005EC9E0` | `SetOrientation` | 4 | 1 | — | |
-| 11 | `+0x2C` | `0x005ED290` | `SetState(s)` | 4 | 1 | — | network-tools.md §13.1 |
+| 8 | `+0x20` | `0x005EF4C0` | `SetPropType` | 4 | 1 | `eax-or-void` | calls `GetPropTypeIndex` `0x005EF2E0` (returns the interned index in AX) then `mov [esi+0x5C], ax`. EAX holds that index at return but nothing constructs it as a return value — implement as `void` unless a caller proves otherwise |
+| 9 | `+0x24` | `0x005EC9D0` | `GetOrientation` | 0 | 0 | **`eax`** | `movsx` of the byte `+0x61` |
+| 10 | `+0x28` | `0x005EC9E0` | `SetOrientation` | 4 | 1 | **`al`** | clamps the argument to 0…3 into `+0x61`; always returns 1 |
+| 11 | `+0x2C` | `0x005ED290` | `SetState(s)` | 4 | 1 | **`void`** | network-tools.md §13.1 |
 | 12 | `+0x30` | `0x005ED560` | `GetState` | 0 | 0 | **`eax`** | `movzx eax, byte [ecx+0x63]` |
-| 13 | `+0x34` | `0x005ED400` | `SetTimeOfDayRange(a, b)` | 8 | 2 | — | clock24.md §9 |
-| 14 | `+0x38` | `0x005ECA10` | `GetTimeOfDayRange(&a, &b)` | 8 | 2 | `void` | x87 noted in sdk-errata-draft.md |
-| 15 | `+0x3C` | `0x005EEFF0` | `SetSimulatorDateRange` | 16 | 4 | — | prop-developer.md §4.6 |
-| 16 | `+0x40` | `0x005EE230` | `TickSimulatorDate` | 4 | 1 | — | prop-developer.md §3.3 |
-| 17 | `+0x44` | `0x007C2740` | `SetRandomChance(c)` | 4 | 1 | — | stores the byte at `+0x62` |
+| 13 | `+0x34` | `0x005ED400` | `SetTimeOfDayRange(a, b)` | 8 | 2 | **`void`** | the two args are **by-value floats**; `fld` each, `fmul 10.0`, store a byte to `+0x5E`/`+0x5F`. **x87 empty at return** |
+| 14 | `+0x38` | `0x005ECA10` | `GetTimeOfDayRange(&a, &b)` | 8 | 2 | **`void`** | two `float*` out-params: `movzx` the byte, `fild`, `fmul 0.1`, `fstp` through the pointer. **ST(0) is EMPTY at return** — see §8 |
+| 15 | `+0x3C` | `0x005EEFF0` | `SetSimulatorDateRange` | 16 | 4 | **`void`** | prop-developer.md §4.6; drives the 0x28-byte sub-record at `+0x54` |
+| 16 | `+0x40` | `0x005EE230` | `TickSimulatorDate` | 4 | 1 | **`void`** | prop-developer.md §3.3 |
+| 17 | `+0x44` | `0x007C2740` | `SetRandomChance(c)` | 4 | 1 | **`void`** | stores the byte at `+0x62` |
 | 18 | `+0x48` | `0x005ED570` | `GetRandomChance` | 0 | 0 | **`al`** | `mov al, byte [ecx+0x62]` — upper EAX **undefined** |
-| 19 | `+0x4C` | `0x005ED580` | `GetPropTimerBitfield` | 0 | 0 | — | |
-| 20 | `+0x50` | `0x005ED590` | `GetPropTimerState(mask)` | 4 | 1 | — | `(+0x60 & mask) != 0` |
-| 21 | `+0x54` | `0x005ECA50` | `SetPropTimerState(mask, on)` | 8 | 2 | — | network-tools.md §13.1 |
-| 22 | `+0x58` | `0x00477120` | `GetPropUsage` | 0 | 0 | — | identical-code-folded with flora / landfill |
-| 23 | `+0x5C` | `0x005ECAE0` | `SetPropUsage` | 4 | 1 | — | |
+| 19 | `+0x4C` | `0x005ED580` | `GetPropTimerBitfield` | 0 | 0 | **`eax`** | `movzx eax, byte [ecx+0x60]` |
+| 20 | `+0x50` | `0x005ED590` | `GetPropTimerState(mask)` | 4 | 1 | **`eax`** | `(+0x60 & mask) != 0`, produced as a real 0/1 (`sbb`/`neg`) |
+| 21 | `+0x54` | `0x005ECA50` | `SetPropTimerState(mask, on)` | 8 | 2 | **`void`** | network-tools.md §13.1 |
+| 22 | `+0x58` | `0x00477120` | `GetPropUsage` | 0 | 0 | **`al`** | the byte `+0x64`; identical-code-folded with flora / landfill |
+| 23 | `+0x5C` | `0x005ECAE0` | `SetPropUsage` | 4 | 1 | **`void`** | stores the byte `+0x64` |
 
-Slots 0–23 are the rows already in `docs/abi/interfaces.tsv`. Three of those rows carry `eax-or-void` / `medium`
-where the code is unambiguous: **7, 12 and 18**, corrected above and listed in §8.
+**This is the whole interface: 24 slots, `+0x00`…`+0x5F`.** Slots 0–23 are exactly the rows in
+`docs/abi/interfaces.tsv`; there are no further slots. The methods pair up over the fields: `+0x5C` (7/8),
+`+0x61` (9/10), `+0x63` (11/12), `+0x5E`/`+0x5F` (13/14), the `+0x54` sub-record (15/16), `+0x62` (17/18),
+`+0x60` (19/20/21), `+0x64` (22/23).
 
-### 4.2 Slots past 23 *[new]*
+### 4.2 What is *not* part of this interface *[correction]*
 
-The vtable continues well past the 24 rows the ABI table holds. Measured from the image at `0x00AA4900`:
+An earlier draft of this spec said the vtable continued past slot 23 and called slots 24–47 "undocumented
+`cISC4PropOccupant` slots". **That was wrong** and would mis-size the interface. The truth, from four
+independent lines of evidence:
 
-| Slot | Off | Address | Slot | Off | Address |
+1. `re/labels_windows.tsv` line 322 records `00aa4900 cSC4PropOccupant::vftable 24`, paired with the Mac symbol
+   `__ZTV16cSC4PropOccupant#0`. `re/abi_interfaces.tsv` agrees (`cISC4PropOccupant … 00aa4900 24`).
+2. The derived class `cSC4PropOccupantBurntBuilding` has its primary vtable at `0x00AA4B30`, also **24** slots
+   (`re/labels_windows.tsv` line 326), with slots 1–23 byte-identical to this one and only slot 0 overridden.
+   A derived class cannot truncate a vtable.
+3. Nothing stores `0x00AA4960` as a vptr. The constructor stores `0x00AA47D0`, `0x00AA47E8`, `0x00AA484C`,
+   `0x00AA4868`, `0x00AA48F0`, `0x00AA4900`; the derived constructor stores from `0x00AA49B0`. `0x00AA4960` is
+   written into a **global** (`mov [0x00B0A8E4], 0x00AA4960` at `0x00A7370C`).
+4. The target of what an earlier draft called "slot 24" (`0x005E16E0`) reads `[this+4]` as a pool pointer and
+   **writes through it**. With `this` = the `+0x00` interface that would clobber the `cIGZMessageTarget2` vptr.
+
+So the words after `0x00AA4900` + 24 dwords are:
+
+| Address | What it is |
+|---|---|
+| `0x00AA4960` (20 dwords) | a **pool / factory method table**, five groups of `[AllocNode, FreeNode, CreatePool, FreePool]`, one per node type |
+| `0x00AA49B0`, `0x00AA49FC`, `0x00AA4A00`, `0x00AA4A18`, `0x00AA4A7C`, `0x00AA4A98`, `0x00AA4B20`, `0x00AA4B30` | the extra vtables of `cSC4PropOccupantBurntBuilding` |
+| `0x00AA4B90` | the burnt-building vbtable `[0xFFFFFFFC, 0x68]` |
+
+The five allocator groups are worth recording even though they are not interface slots, because they explain the
+"repeating four-slot" pattern and they encode the **object sizes** of §1.2:
+
+| Group | AllocNode | FreeNode | CreatePool (stride) | FreePool | stride = the class size |
 |---|---|---|---|---|---|
-| 24 | `+0x60` | `0x005E16E0` | 36 | `+0x90` | `0x005E16E0` |
-| 25 | `+0x64` | `0x00477660` | 37 | `+0x94` | `0x005EEED0` |
-| 26 | `+0x68` | `0x004771D0` | 38 | `+0x98` | `0x005ECD90` |
-| 27 | `+0x6C` | `0x005E5770` | 39 | `+0x9C` | `0x005DEB90` |
-| 28 | `+0x70` | `0x005E16E0` | 40 | `+0xA0` | `0x005E16E0` |
-| 29 | `+0x74` | `0x005EEE50` | 41 | `+0xA4` | `0x005EEF10` |
-| 30 | `+0x78` | `0x005ECD10` | 42 | `+0xA8` | `0x005ECDD0` |
-| 31 | `+0x7C` | `0x005DEB90` | 43 | `+0xAC` | `0x005DEB90` |
-| 32 | `+0x80` | `0x005E16E0` | 44 | `+0xB0` | `0x005F9FD0` |
-| 33 | `+0x84` | `0x005EEE90` | 45 | `+0xB4` | `0x005F9FE0` |
-| 34 | `+0x88` | `0x005ECD50` | 46 | `+0xB8` | `0x005F9FF0` |
-| 35 | `+0x8C` | `0x005DEB90` | 47 | `+0xBC` | `0x005EFA00` |
+| 0 | `0x005E16E0` | `0x00477660` | `0x004771D0` | `0x005E5770` | `0x68` plain prop |
+| 1 | `0x005E16E0` | `0x005EEE50` | `0x005ECD10` | `0x005DEB90` | `0xA0` terrain decal |
+| 2 | `0x005E16E0` | `0x005EEE90` | `0x005ECD50` | `0x005DEB90` | `0x94` visual effect |
+| 3 | `0x005E16E0` | `0x005EEED0` | `0x005ECD90` | `0x005DEB90` | `0xD8` burnt building |
+| 4 | `0x005E16E0` | `0x005EEF10` | `0x005ECDD0` | `0x005DEB90` | `0x88` |
 
-Two structural facts are already visible without naming the methods:
-
-- **Slot 28 is the same code as slot 24** (`0x005E16E0`), and so are 32, 36 and 40. Likewise slot 31, 35, 39 and 43
-  all point at `0x005DEB90`. From slot 28 onward the table is a **repeating 4-slot group**
-  (`0x005E16E0`, *x*, *y*, `0x005DEB90`) — three such groups, then four unique slots (44–47).
-- The behaviour and the return channels of 24–47 are **not** established here. *[inferred]* the repeating groups
-  are per-instance accessors of the kind the model/instance layer uses (graphics-formats.md §4.2), but that is a
-  guess. What would settle it: the method bodies of `0x005E16E0`, `0x00477660`, `0x005E5770` and `0x005F9FD0`.
-
-**An implementer who needs only what other specs call can stop at slot 23** — every call site named in
-prop-lotconfig.md, prop-developer.md, lot-developer.md, network-manager.md, crime.md and city-detail.md is in
-0–23 plus the occupant sub-object. Slots 24+ are needed only for feature parity with plugins that call them.
+`AllocNode` pops the pool's free list (`[this+4]+8`) and returns the node in **EAX**; `FreeNode` pushes it back
+masked and is **void**; `CreatePool` builds a free list of N nodes of the given stride and returns the pool in
+**EAX**; `FreePool` frees it and is **void**. The strides independently confirm the object sizes of §1.2 for
+three of the four prop classes (the fifth, `0x88`, is not a prop class this spec covers).
 
 ### 4.3 `cIGZMessageTarget2` (vtable `0x00AA48F0`, sub-object `+0x04`)
 
@@ -361,7 +382,8 @@ Consequences an implementer must reproduce:
   centre of the bounding box written by `SetBoundingBox` (slot 4).
 - **Bounding box** is set by `CreateProp` from the origin to the exemplar's `OccupantSize`, or to `(1, 1, 1)`
   when the prop has no size — including the PL9 raw-data-pointer size quirk (prop-lotconfig.md §A6.1 step 5).
-- **Orientation** is a byte 0…3 (slot 9/10; save record field 5).
+- **Orientation** is the byte at `+0x61`, 0…3 (slots 9 `GetOrientation` / 10 `SetOrientation`; save record
+  field 5). `SetOrientation` clamps its argument into 0…3, so a caller cannot store 4 or a negative value.
 - **Height / terrain coupling.** A prop does not carry its own altitude in the record beyond the box. The box's
   `min.y` / `max.y` are the height extents. The terrain coupling that matters is on the **lot**: lot flags lock
   the terrain flat at the lot's altitude (lot-records.md §3.2 field 3), and the network manager's terrain rule
@@ -454,22 +476,44 @@ what this `Write` produced. The CRC is CRC-32/MPEG-2 over `min(entrySize − 8, 
 1. **network-tools.md §13.1** — *"The interface pointer is the prop object +4. Field offsets below are from that
    pointer."* Wrong base. The offsets in that table are from the **object base** (§2.1, three measured
    instructions). `this + 4` is `cIGZMessageTarget2`. The offsets themselves are right; only the sentence is.
-2. **`docs/abi/interfaces.tsv` return channels** for `cISC4PropOccupant` — three rows are `eax-or-void` /
-   `medium` where the code is unambiguous:
+2. **`docs/abi/interfaces.tsv` return channels** for `cISC4PropOccupant` — **every one of the 24 rows is
+   labelled `eax-or-void` / `medium`**, which is the known failure mode exactly. 15 of the 24 are unambiguous.
+   The rows proposed for `build-runs/pending-abi/re-answers27-rows.tsv` carry the measured channels for the
+   slots other specs actually call; the full set is §4.1. The load-bearing ones:
 
    | Slot | Address | Row says | Correct | Evidence |
    |---|---|---|---|---|
-   | 7 | `0x005ED280` | `eax-or-void` medium | `eax` high | `movzx eax, word [ecx+0x5C]; … mov eax, [ecx+eax*4]; ret` |
-   | 12 | `0x005ED560` | `eax-or-void` medium | `eax` high | `movzx eax, byte [ecx+0x63]; ret` |
-   | 18 | `0x005ED570` | `eax-or-void` medium | **`al`** high | `mov al, byte [ecx+0x62]; ret` — upper EAX undefined |
+   | 0 | `0x005EC960` | `eax-or-void` | `al` | `mov al, 1; ret` on each success path |
+   | 3 | `0x006C2040` | `eax-or-void` | `eax` | returns `this + 8` |
+   | 5 | `0x004E13E0` | `eax-or-void` | `eax` | `33 C0 C3` = `xor eax, eax; ret` — a real 0 |
+   | 6 | `0x00648F10` | `eax-or-void` | `void` | `ret 4` alone; a true no-op |
+   | 7 | `0x005ED280` | `eax-or-void` | `eax` | `movzx eax, word [ecx+0x5C]; … mov eax, [ecx+eax*4]; ret` |
+   | 9 | `0x005EC9D0` | `eax-or-void` | `eax` | `movsx` of `byte [ecx+0x61]` |
+   | 10 | `0x005EC9E0` | `eax-or-void` | `al` | always `mov al, 1` |
+   | 12 | `0x005ED560` | `eax-or-void` | `eax` | `movzx eax, byte [ecx+0x63]; ret` |
+   | 14 | `0x005ECA10` | `eax-or-void` | `void` | see item 5 |
+   | 18 | `0x005ED570` | `eax-or-void` | **`al`** | `8A 41 62 C3` = `mov al, byte [ecx+0x62]; ret` — upper EAX undefined |
+   | 19 | `0x005ED580` | `eax-or-void` | `eax` | `movzx eax, byte [ecx+0x60]` |
+   | 20 | `0x005ED590` | `eax-or-void` | `eax` | a real 0/1 via `sbb`/`neg` |
+   | 22 | `0x00477120` | `eax-or-void` | **`al`** | `mov al, …` of `byte [ecx+0x64]` |
 
-   The rows proposed for `build-runs/pending-abi/re-answers27-rows.tsv` carry these.
-3. **`docs/abi/interfaces.tsv` names** — several `cISC4PropOccupant` rows carry identical-code-folded names from
-   unrelated classes (slot 2 `icf::cSC4ConstructionOccupant::Release`, slot 3 `icf::cSC4DBSegment::AsIGZPersistDBSegment`,
-   slot 5 `icf::cSC43DRender::GetProjectionMatrixEntries`, slot 6 `cSC4NetworkTool::DebugDumpEdgeTypes`, slot 17
-   `icf::cSC43DRender::EnableTransparentBackground`). These are decompiler name guesses. Behaviourally slot 3 is
-   `AsOccupant` and slot 17 is `SetRandomChance`. The proposed rows give the behaviour names.
-4. **`docs/abi/interfaces.tsv` coverage** — the table stops at slot 23; the vtable continues (§4.2).
+   Slots 5 and 6 sit next to each other and have **opposite** channels (a value return and a no-op); slots 12
+   and 19 use `movzx eax` while 18 and 22 use `mov al`. Same-looking getters, different channels.
+3. **`docs/sdk-errata-draft.md`** lists `cISC4PropOccupant` slot 14 `GetTimeOfDayRange` as *"x87 (high)"*, noted
+   as "not checked by a spec". It **has now been checked and the claim is wrong**: the body is
+   `movzx` the byte → `fild` → `fmul 0.1` → `fstp dword ptr [out]`, twice, then `pop ecx; ret`. Both `fstp`s
+   pop, so **ST(0) is empty at return and the channel is `void`**. Slot 13 `SetTimeOfDayRange` is the same:
+   x87 is used internally and the stack is empty at return. A "uses x87 ⇒ returns in ST(0)" rule is wrong here.
+   Its two arguments are also **by-value floats**, not `float&`.
+4. **`docs/abi/interfaces.tsv` names** — several `cISC4PropOccupant` rows carry identical-code-folded names from
+   unrelated classes (slot 2 `icf::cSC4ConstructionOccupant::Release`, slot 3
+   `icf::cSC4DBSegment::AsIGZPersistDBSegment`, slot 5 `icf::cSC43DRender::GetProjectionMatrixEntries`, slot 6
+   `cSC4NetworkTool::DebugDumpEdgeTypes`, slot 10 `icf::cSC4PropOccupant::SetOrientation` as a folded body,
+   slot 17 `icf::cSC43DRender::EnableTransparentBackground`). These are decompiler name guesses. Behaviourally
+   slot 3 is `AsOccupant`, slot 5 is a constant-0 stub, slot 6 is a no-op, slot 10 is `SetOrientation`, and
+   slot 17 is `SetRandomChance`.
+5. **`docs/abi/interfaces.tsv` coverage is complete** — the table stops at slot 23 because the interface stops
+   at slot 23. An earlier draft of *this* spec claimed otherwise; see §4.2.
 
 ---
 
@@ -490,23 +534,43 @@ what this `Write` produced. The CRC is CRC-32/MPEG-2 over `min(entrySize − 8, 
    generator `0x00B231B0` (network-tools.md §13.1; foundations §6).
 8. The visual-effect prop's `Write` drops the effect name and the trailing u32 while the effect is live
    (lot-records.md §10.2).
-9. Slots 24, 28, 32, 36 and 40 of `cISC4PropOccupant` share one implementation (`0x005E16E0`), and 31, 35, 39, 43
-   share another (`0x005DEB90`) (§4.2).
-10. `GetPropUsage` `0x00477120` and `SetLotTag` `0x004302C0` are identical-code-folded across the prop, flora and
+9. **Adjacent slots, opposite return channels**: slot 5 (`0x004E13E0`) is `xor eax,eax; ret` — a genuine 0 in
+   EAX — while slot 6 (`0x00648F10`) is `ret 4` alone, a true no-op returning nothing (§4.1).
+10. **`AddRef` / `Release` are this-adjusting thunks**: slots 1 and 2 do `add ecx, 8` before jumping to the
+    shared `0x005E89B0` / `0x005E8DF0`. The reference count lives at `this + 0x14`, so a naive `AddRef` on `this`
+    touches the wrong object (§2.2).
+11. `GetRandomChance` returns **AL only** (quirk 3) while `GetState` and `GetPropTimerBitfield` return clean
+    zero-extended **EAX** — three getters that look identical in the header, three different channels.
+12. `GetTimeOfDayRange` and `SetTimeOfDayRange` use x87 internally but leave **ST(0) empty**; neither returns
+    in `st0` (§8 item 3).
+13. `GetPropUsage` `0x00477120` and `SetLotTag` `0x004302C0` are identical-code-folded across the prop, flora and
     landfill occupants — one body, three vtables.
 
 ---
 
 ## 10. Open questions
 
-- **PO1.** The behaviour, arguments and return channels of `cISC4PropOccupant` **slots 24–47** (§4.2). Nothing in
-  `docs/` names them. Settling it means reading `0x005E16E0`, `0x00477660`, `0x004771D0`, `0x005E5770`,
-  `0x005EEE50`, `0x005ECD10`, `0x005F9FD0`–`0x005FA000` and `0x005EFA00`.
+- **PO1.** ~~The behaviour, arguments and return channels of `cISC4PropOccupant` **slots 24 and above** (§4.2).~~
+  **ANSWERED 2026-10-16 (re-answers27): DIFFERS from its premise.** There are no such slots. The interface is
+  exactly 24 slots (`re/labels_windows.tsv` line 322 pairs `00aa4900` with the Mac `__ZTV16cSC4PropOccupant#0`
+  at 24; the burnt-building subclass's primary vtable `0x00AA4B30` is also 24 with slots 1–23 identical; and
+  nothing stores `0x00AA4960` as a vptr). What follows in the image is documented in §4.2. **A follow-up that
+  survives:** what the pool/factory method table at `0x00AA4960` is used for, and which class owns the fifth
+  allocator group (stride `0x88`).
+- **PO1b.** Which class the fifth allocator group at `0x00AA4960` serves (stride `0x88`, §4.2). None of the four
+  prop classes is `0x88` bytes.
 - **PO2.** The identity of the sixth sub-object at `+0x24` (vtable `0x00AA47D0`, §2.4).
 - **PO3.** The occupant → placeable → 3D object seam (§6.1): occupant slots 20/21 and `CreateGeometry`.
-- **PO4.** The remaining unnamed fields: `+0x61`, `+0x64`, and the seven zeroed dwords at `+0x3C`…`+0x54` (§2.2).
+- **PO4.** ~~The remaining unnamed fields: `+0x61`, `+0x64`, and the seven zeroed dwords at `+0x3C`…`+0x54` (§2.2).~~
+  **ANSWERED 2026-10-16 (re-answers27), in the main.** `+0x61` = orientation, `+0x64` = prop usage,
+  `+0x3C`…`+0x53` = the bounding box, `+0x54` = an owned sub-object pointer, `+0x14` = the reference count.
+  **What still has no meaning:** the 0x28-byte sub-record at `+0x54` that slots 15/16 drive (through a manager
+  at `0x00B43D5C`).
 - **PO5.** Whether a prop's box y is ever re-solved against terrain after placement (§5.2) *[inferred]*.
-- **PO6.** The names of `cISC4PropOccupant` slots 5 and 6 (§4.1) — the ABI rows carry unrelated folded names.
+- **PO6.** The SDK names of `cISC4PropOccupant` slots 5 and 6 (§4.1). Their **behaviour is settled** — slot 5
+  is a stub returning 0 in EAX (`xor eax,eax; ret`), slot 6 a true no-op (`ret 4`) — but the ABI rows carry
+  identical-code-folded names from unrelated classes and nothing indicates the SDK's names. A plugin that calls
+  them, or an SDK header, would settle the names.
 
 ---
 
