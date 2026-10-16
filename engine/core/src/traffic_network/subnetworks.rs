@@ -230,7 +230,8 @@ impl Cx<'_> {
     /// form keeps its own cell cursor: DoPostCityInit's local iterator
     /// (§4.12, TS64). The work cycle's state 13 steps the simulator's
     /// scanning iterator instead ([`Self::reset_subnetwork_working`],
-    /// [`Self::subnetwork_info_cell`], [`Self::finish_subnetwork_info`]).    pub(crate) fn begin_subnetwork_info(&mut self) {
+    /// [`Self::subnetwork_info_cell`], [`Self::finish_subnetwork_info`]).
+    pub(crate) fn begin_subnetwork_info(&mut self) {
         self.reset_subnetwork_working();
         self.s.subnet_info_cursor = Some(0);
     }
@@ -245,7 +246,8 @@ impl Cx<'_> {
     }
 
     /// §4.12 for the cell (x, z) of the scan: the lot anchored there, if
-    /// any.    pub(crate) fn subnetwork_info_cell(&mut self, x: i32, z: i32) {
+    /// any.
+    pub(crate) fn subnetwork_info_cell(&mut self, x: i32, z: i32) {
         if let Some(lot) = self.h.lot_at(x, z, true) {
             self.accumulate_lot(lot);
         }
