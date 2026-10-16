@@ -168,6 +168,75 @@ void TestReentrancyAndNames() {
     CHECK(h.refs == 0);
 }
 
+
+// The occupant manager (occupant-manager.md) over the C ABI: one occupant
+// in one cell, inserted, found, iterated and removed.
+struct OccWorld {
+    int refs = 0;
+    uint32_t flags = 0;
+    fc4_occ_cell_box box{};
+    bool has_box = false;
+    int posts = 0;
+    int seen = 0;
+};
+
+void TestOccupantManager() {
+    int32_t x = 0, z = 5;
+    fc4_occ_world_cell_to_standard_city_cell(70, 66, &x, &z);  // slot 12 quirk
+    CHECK(x == 8 && z == 20);
+    fc4_occ_position_to_world_cell(-1.0f, 63.0f, &x, &z);
+    CHECK(x == 63 && z == 64);
+    CHECK(fc4_occmgr_query_interface(0xE4FDA3D4u) == 4);
+    CHECK(fc4_occmgr_query_interface(0x12345678u) == -1);
+    CHECK(fc4_occmgr_create(nullptr) == nullptr);
+
+    OccWorld w;
+    fc4_occmgr_host h{};
+    h.struct_size = sizeof h;
+    h.user = &w;
+    h.add_ref = [](void* u, uint64_t) { ++static_cast<OccWorld*>(u)->refs; };
+    h.release = [](void* u, uint64_t) { --static_cast<OccWorld*>(u)->refs; };
+    h.has_property_holder = [](void*, uint64_t) { return true; };
+    h.bounding_box = [](void*, uint64_t, fc4_occ_bbox* b) {
+        b->min[0] = 0.0f; b->min[1] = 0.0f; b->min[2] = 0.0f;
+        b->max[0] = 32.0f; b->max[1] = 10.0f; b->max[2] = 32.0f;
+    };
+    h.post_message = [](void* u, uint64_t, uint32_t, uint32_t) { ++static_cast<OccWorld*>(u)->posts; };
+    h.manager_bbox = [](void* u, uint64_t, fc4_occ_cell_box* out) {
+        auto* ww = static_cast<OccWorld*>(u);
+        if (ww->has_box) *out = ww->box;
+        return ww->has_box;
+    };
+    h.set_manager_bbox = [](void* u, uint64_t, const fc4_occ_cell_box* b) {
+        auto* ww = static_cast<OccWorld*>(u);
+        ww->box = *b;
+        ww->has_box = true;
+    };
+    h.set_flag = [](void* u, uint64_t, uint32_t f) { static_cast<OccWorld*>(u)->flags |= f; };
+    h.clear_flag = [](void* u, uint64_t, uint32_t f) { static_cast<OccWorld*>(u)->flags &= ~f; };
+    h.is_flag_set = [](void* u, uint64_t, uint32_t f) { return (static_cast<OccWorld*>(u)->flags & f) != 0; };
+
+    fc4_occmgr* m = fc4_occmgr_create(&h);
+    CHECK(m != nullptr);
+    CHECK(fc4_occmgr_set_city_size(m, 1024.0f, 1024.0f));
+    CHECK(fc4_occmgr_init(m));
+    CHECK(fc4_occmgr_insert(m, 1, 0));
+    CHECK(w.has_box && w.box.x0 == 64 && w.box.z1 == 64 && w.refs == 1 && w.posts == 1);
+    uint64_t first = 0;
+    CHECK(fc4_occmgr_first_in_cell(m, 64, 64, nullptr, &first) && first == 1);
+    fc4_occmgr_release_list(m, &first, 1);
+    const int32_t lo[3] = {64, 0, 64}, hi[3] = {64, 0, 64};
+    CHECK(fc4_occmgr_iterate(
+        m, [](void* ctx, uint64_t) { ++static_cast<OccWorld*>(ctx)->seen; return true; }, &w, lo, hi, nullptr));
+    CHECK(w.seen == 1);
+    CHECK(fc4_occmgr_lock_depth(m) == 0);
+    CHECK(fc4_occmgr_remove(m, 1, false, 0));
+    CHECK(w.refs == 0 && w.flags == 0 && fc4_occmgr_is_cell_empty(m, 64, 64));
+    fc4_occmgr_state st{};
+    CHECK(fc4_occmgr_get_state(m, &st) && st.initialized == 1 && st.counts[2] == 64);
+    fc4_occmgr_destroy(m);
+}
+
 }  // namespace
 
 int main() {
@@ -176,6 +245,7 @@ int main() {
     CHECK(!fc4_sim_pause(nullptr));
     TestDays();
     TestReentrancyAndNames();
+    TestOccupantManager();
     if (g_failures == 0) std::printf("fc4 C ABI smoke test: all checks passed (%zu-bit)\n", sizeof(void*) * 8);
     return g_failures == 0 ? 0 : 1;
 }
