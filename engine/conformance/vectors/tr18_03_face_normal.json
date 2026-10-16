@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "name": "tr18_03_face_normal",
+  "spec": [
+    "terrain 4.3",
+    "terrain 4.4",
+    "terrain 18.3"
+  ],
+  "description": "GetFaceNormal on the 4.4 cell: at (12, 4) (fz < fx) n = (-16*(104-100), 256, -16*(120-104)) / sqrt(64^2 + 256^2 + 256^2); at (4, 12) n = (-16*(120-108), 256, -16*(108-100)) / sqrt(192^2 + 256^2 + 128^2). x = sizeX or z = sizeZ (upper ends exclusive) and x < 0 leave the output untouched (null).",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        2,
+        2
+      ],
+      "altitudes": [
+        100,
+        104,
+        100,
+        108,
+        120,
+        100,
+        100,
+        100,
+        140
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "face_normal",
+      "args": [
+        12,
+        4
+      ],
+      "expect": [
+        -0.17407765595569785,
+        0.6963106238227914,
+        -0.6963106238227914
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "face_normal",
+      "args": [
+        4,
+        12
+      ],
+      "expect": [
+        -0.5570860145311556,
+        0.7427813527082074,
+        -0.3713906763541037
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "face_normal",
+      "args": [
+        32,
+        4
+      ],
+      "expect": null
+    },
+    {
+      "op": "ter_call",
+      "method": "face_normal",
+      "args": [
+        4,
+        32
+      ],
+      "expect": null
+    },
+    {
+      "op": "ter_call",
+      "method": "face_normal",
+      "args": [
+        -0.5,
+        4
+      ],
+      "expect": null
+    }
+  ]
+}
