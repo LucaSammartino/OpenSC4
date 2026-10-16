@@ -248,7 +248,11 @@ void RegisterDispatchSource(void* u) {
     if (!Gate(fc4::Sw::ProtectionDispatch, "protection RegisterDispatchSource")) return;
     cFC4ISC4DispatchManager* dm = DispatchManager(u);
     if (dm == nullptr || c->source == nullptr) return;
-    c->dispatchRegistered = dm->RegisterDispatchSource(fc4::AsSdk(c->source));  // slot 13
+    // [abi-ret] Slot 13 returns nothing (dispatch.md §8 row "none"; interfaces.tsv eax-or-void): the SDK's bool
+    // is a leftover AL, and a false one would skip the unregister at shutdown while the manager still holds
+    // the source. The call always registers (no duplicate check), so it is the result.
+    dm->RegisterDispatchSource(fc4::AsSdk(c->source));  // slot 13
+    c->dispatchRegistered = true;
 }
 
 void UnregisterDispatchSource(void* u) {
