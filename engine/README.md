@@ -1442,7 +1442,7 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      suspended, TS65; ours never suspend) and the record fields still unmodelled (labels starting `~`, named
      one by one). The pass counters (TS59), the day index and re-route context cell (TS60), the statistics
      byte (TS61) and the return routes (TS58) are modelled and compared exactly. `traffic_shadow_hypotheses`
-     (env `FC4_TRAFFIC_SHADOW_HYPOTHESES`) is retired (ABI 65): its three readings were confirmed
+     (env `FC4_TRAFFIC_SHADOW_HYPOTHESES`) is retired (ABI 66): its three readings were confirmed
      (traffic-simulator TS55-TS57: the ConfirmTrips merge sets status 0 only on a trip that absorbed one, row
      19's pairs are (published, building) and FullTrips' end swaps them, the ReRouteTrips merge absorbs routed
      trips too) and are the core's only behaviour; the key is still accepted, ignored and logged once at game
