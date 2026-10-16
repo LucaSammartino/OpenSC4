@@ -850,6 +850,17 @@ def consolidate_abi_history(wt, lanes, batch_id, force=False):
             f"consolidate_abi_history would change {abs(len(outside_after) - len(outside_before))} "
             f"line(s) outside the ABI history block of {ABI_HEADER}; refusing")
     text = NL.join(rebuilt)
+    # A union can leave the version macro twice (one per side); the C macro would then be the
+    # second value while the Rust constant is the first, and capi_smoke fails on the mismatch.
+    defs = [i for i, l in enumerate(text.split(NL)) if VERSION_RE_C.match(l)]
+    if len(defs) > 1:
+        tl = text.split(NL)
+        for i in reversed(defs[1:]):
+            if "/*" in tl[i]:
+                tl[i] = tl[i][tl[i].index("/*"):]
+            else:
+                del tl[i]
+        text = NL.join(tl)
     text = VERSION_RE_C.sub(lambda x: "%s%d%s" % (x.group(1), new, x.group(3)), text, count=1)
     path.write_text(text, encoding="utf-8")
     git(["-C", str(wt), "add", ABI_HEADER], check=False)
