@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "name": "05_attractor",
+  "spec": ["automata 3.5", "automata 14.5"],
+  "description": "An 82-byte attractor of Konradshohe: base version 5, building 0x1789212C, template police_attract, flags 7, no automata; the u16 1; curve ((0, 60), (50, 60)).",
+  "steps": [
+    {"op": "automata_record", "class": "0x6A1628BA", "hex": "0500 2C218917 2D88BDA9 0E000000 706F6C6963655F61747472616374 000000000000000000000000 0000000000000000 00000000 07000000 00000000 0100 02000000 00000000 00007042 00004842 00007042", "fields": {"base_version": 5, "occupant": ["0x1789212C", "0xA9BD882D"], "template": "police_attract", "position": [0, 0, 0], "flags": 7, "automata": 0, "tag": 1, "curve": [[0, 60], [50, 60]]}}
+  ]
+}

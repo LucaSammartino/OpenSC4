@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "10_flag_8",
+  "spec": ["automata 3.2", "automata 6.1", "automata 12.1", "automata 14.10"],
+  "description": "A controller manager holding one controller with flag 8 and one without writes n1 = 1, m = 1; an occupant whose controllers all have flag 8 is not written; an automaton whose controller has flag 8 writes a null controller reference (and one without flag 8 does not).",
+  "steps": [
+    {"op": "automata_scripts", "templates": [{"name": "keep", "kind": "generator"}, {"name": "transient", "kind": "attractor", "flags": 15}]},
+    {"op": "automata_cm_add", "occupant": "0x40", "template": "keep", "expect": true},
+    {"op": "automata_cm_add", "occupant": "0x40", "template": "transient", "expect": true},
+    {"op": "automata_cm_add", "occupant": "0x41", "template": "transient", "expect": true},
+    {"op": "automata_cm_expect", "occupants": {"0x40": ["keep", "transient"], "0x41": ["transient"]}},
+    {"op": "automata_cm_write", "hex": "0100 00000000 000000000000 000000000000 01000000 40000000 2D88BDA9 01000000 00100000 C528164A 00000000"},
+    {"op": "automata_automaton_controller", "flags": 15, "null": true},
+    {"op": "automata_automaton_controller", "flags": 7, "null": false}
+  ]
+}
