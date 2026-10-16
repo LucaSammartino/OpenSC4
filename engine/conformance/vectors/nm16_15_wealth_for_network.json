@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "net_wealth_for_network",
+  "spec": ["network-manager 8.3", "network-manager 16.15"],
+  "description": "Orthogonal lots of wealth 1, 2, 2, 1 count (0, 2, 2, 0): the tie goes up, 2. Lots 1, 1, 2: 1. No orthogonal lot and one diagonal lot of wealth 3: 3. No lot: 0. A wealth outside 0..3 counts as 0; a livable lot of wealth 0 takes its building profile's wealth (none without a profile).",
+  "steps": [
+    {"op": "net_create"},
+    {"op": "net_lot", "lot": "0x9001", "cell": [4, 5], "wealth": 1},
+    {"op": "net_lot", "lot": "0x9002", "cell": [5, 4], "wealth": 2},
+    {"op": "net_lot", "lot": "0x9003", "cell": [6, 5], "wealth": 2},
+    {"op": "net_lot", "lot": "0x9004", "cell": [5, 6], "wealth": 1},
+    {"op": "net_call", "method": "wealth_for_network", "args": [5, 5], "expect": 2},
+    {"op": "net_lot", "clear": true, "lot": "0x9001", "cell": [4, 5], "wealth": 1},
+    {"op": "net_lot", "lot": "0x9002", "cell": [5, 4], "wealth": 1},
+    {"op": "net_lot", "lot": "0x9003", "cell": [6, 5], "wealth": 2},
+    {"op": "net_call", "method": "wealth_for_network", "args": [5, 5], "expect": 1},
+    {"op": "net_lot", "clear": true, "lot": "0x9005", "cell": [6, 6], "wealth": 3},
+    {"op": "net_call", "method": "wealth_for_network", "args": [5, 5], "expect": 3},
+    {"op": "net_lot", "clear": true},
+    {"op": "net_call", "method": "wealth_for_network", "args": [5, 5], "expect": 0},
+    {"op": "net_lot", "lot": "0x9006", "cell": [4, 5], "wealth": 7},
+    {"op": "net_call", "method": "wealth_for_network", "args": [5, 5], "expect": 0},
+    {"op": "net_lot", "lot": "0x9006", "cell": [4, 5], "wealth": 0, "livable": true, "building_type": "0x44"},
+    {"op": "net_call", "method": "wealth_for_network", "args": [5, 5], "expect": 0},
+    {"op": "net_lot", "profiles": {"0x44": 2}},
+    {"op": "net_call", "method": "wealth_for_network", "args": [5, 5], "expect": 2}
+  ]
+}
