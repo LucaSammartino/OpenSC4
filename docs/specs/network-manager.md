@@ -690,17 +690,41 @@ zones 7 and 14 → 7 7 7; zones 8 and 9 → 1 1 2; zones 10–13 and 15 → 1 1 
 **UpdateAvenueStyle(x, z)** (`0x0060EF40`): an avenue is styled as one block.
 
 1. `s := FindNetworkTile(x, z, 0x40, true)`; none → done. `c := s.IsIntersection()` (slot 55).
-2. Flood from `(x, z)`. For each cell taken from the work set:
-   - If it has no avenue tile, or the tile's `IsIntersection() ≠ c`, it is rejected.
-   - Otherwise it is accepted: `zoneCount[GetZoneTypeForNetwork(cell)] += 1`,
-     `wealthCount[GetWealthForNetwork(cell)] += 1`. For each side `d` (W, N, E, S) whose byte `d` of
-     `GetEdgeTypesFlag(6)` (slot 38) has any of its low 3 bits set, the neighbour inside the city is added to the
-     work set unless it was already accepted or rejected *[inferred: the exact set tests]*.
+2. Flood from `(x, z)` (NM4, from the exe). The flood uses three hash sets of `u16` cell keys, `key = (x << 8) | z`:
+   the work set W, the accepted set A and the rejected set R (`0x0060EF7A`–`0x0060EFB0`). All inserts are
+   insert-unique (`0x0060D270`). Start with W = {key(x, z)}. While W is not empty:
+   - Take W's **first** element in bucket order (`begin`, `0x004B0390`) and erase it from W.
+   - If the cell has no avenue tile, or the tile's `IsIntersection() ≠ c`: insert it into R (`0x0060F285`).
+   - Otherwise insert it into A, then `zoneCount[GetZoneTypeForNetwork(cell)] += 1` and
+     `wealthCount[GetWealthForNetwork(cell)] += 1`. Let `e := GetEdgeTypesFlag(6)` (slot 38). For each side `d` in
+     the order W (−1, 0), N (0, −1), E (+1, 0), S (0, +1) (tables `0x00AA7858` / `0x00AA7878`), when byte `d` of
+     `e` has any of its low 3 bits set, take the neighbour (nx, nz) and test it:
+     1. **Bounds:** skip it unless 0 ≤ nx ≤ countX and 0 ≤ nz ≤ countZ (city slots 93 and 94). The far bound is
+        inclusive *[quirk]*: one cell past the east and south edges passes.
+     2. **Key:** `k := ((nx & 0xFF) << 8) | nz`, kept as `u16` (`0x0060F204`–`0x0060F217`).
+     3. **Accepted:** skip it if `k` is in A (an inline bucket search, `0x0060F228`–`0x0060F242`).
+     4. **Rejected:** skip it if `k` is in R (`0x0060D1B0`).
+     5. **Queue:** otherwise insert `k` into W (`0x0060E210`; a key already queued is not added twice).
+
+   Each cell is therefore examined at most once: it is accepted or rejected in the same step that takes it from W.
+   The accepted set is everything reachable from the start through accepted cells along the start cells' own edge
+   bits, whatever the order. The order matters only for step 5's order.
+
+   *[quirk]* The past-the-edge cells and the 8-bit packing:
+   - In a 64- or 128-cell city, a past-the-edge cell decodes to a cell outside the city. It has no tile, so it
+     goes to R.
+   - In a 256-cell city the key wraps. nx = 256 decodes as x = 0. nz = 256 sets bit 8, so it decodes as
+     (nx | 1, 0).
+   - So an avenue whose edge bits point off the far edge of a large city can pull in an avenue cell on the opposite
+     edge, when that cell's tile has the same intersection flag. Reproduce the packing.
 3. `zt :=` the zone 1–15 with the largest count, ties to the lower zone, 0 if all are 0. `w :=` the wealth 1–3 with
    the largest non-zero count, ties to the lower wealth, else 0. *[quirk]* The ties go the other way from §8.3.
 4. `tex := T[zt][w]`, `var := V[zt][max(w − 1, 0)]`.
-5. For each accepted cell: if its avenue tile `IsUsable()`: `SetUnderTexture(tex)`, `SetVariation(var)`,
-   `UpdateLot(tile, x, z, zt, w)`. In every case erase the cell's key from `pending`.
+5. For each accepted cell, in A's bucket order (`key mod bucket count`, buckets ascending, the newest key first
+   within a bucket; the sets start at 193 buckets and grow through the STL prime list): look up its avenue tile
+   again. If it exists and `IsUsable()` (slot 19): `SetUnderTexture(tex)` (slot 29), `SetVariation(var)` (slot 27),
+   `UpdateLot(tile, x, z, zt, w)` (`0x0060E2D0`). In every case erase the cell's key from `pending` (`+0x74`,
+   `0x00710910`).
 
 Avenues get no rail branch and no `0x6000000` flags.
 
@@ -964,8 +988,13 @@ The tools, models, remap tables and retrofit are presentation or legacy. A FreeC
   - `0x40000000` is set with `0x8000000` when the tool adds support structures (elevated pieces) *[inferred]*;
   - `0x80000` marks a tunnel portal: `DestroyOccupantsAndResolve` QIs such a piece to the tunnel occupant
     (`0x8A4BD52B`) to bring in the other portal *[inferred]*.
-- **NM4.** The exact visited and rejected set tests of the avenue flood (§8.7, marked inferred). Styling an avenue
-  loop that crosses an intersection, then logging the styled cells, would settle them.
+- ~~**NM4.** The exact visited and rejected set tests of the avenue flood (§8.7, marked inferred). Styling an avenue
+  loop that crosses an intersection, then logging the styled cells, would settle them.~~ **ANSWERED 2026-10-16
+  (re-answers18):** from `0x0060EF40`, written into §8.7 step 2.
+  - Neighbours are tested at queue time: skipped when in the accepted set, then when in the rejected set, else
+    inserted unique into the work set. So each cell is examined once, and the bracket MATCHES.
+  - Two quirks are added. The far bounds are inclusive (nx ≤ countX, nz ≤ countZ). The `u16` key packs x into 8
+    bits, so in a 256-cell city a neighbour one past the east or south edge aliases a cell on the opposite edge.
 - ~~**NM5.** The effect-prop slots 6, 7 and 8 used for potholes (§8.8) are named from their use (set the effect name,
   start, stop).~~ **Answered (re-specs14b):** confirmed. They are `SetEffectType(char const*)`, `StartEffect(bool)` and
   `StopEffect(bool)` of cISC4PropOccupantVisualEffect (vtable `0x00AA4ED8`; the two `SetEffectType` overloads compile

@@ -4341,8 +4341,17 @@ Open points from network-manager.md §15. The current answer is in brackets; eac
   water, and its `0x89D3E9F3` handler tests it with "no adjacent piece" (terrain.md §10.3–§10.4). Still open: `0x80000`,
   `0x40000000`, `0x80000000` (a network-tool spec settles them; `0x80000` is the piece kept by a tunnel cut,
   *[inferred]* a tunnel portal).
-- **NM4:** the exact visited and rejected set tests of the avenue flood in `UpdateAvenueStyle`. [a cell is visited
-  once; styling an avenue loop through an intersection and logging the styled cells settles it]
+- ~~**NM4:** the exact visited and rejected set tests of the avenue flood in `UpdateAvenueStyle`. [a cell is visited
+  once; styling an avenue loop through an intersection and logging the styled cells settles it]~~ **ANSWERED
+  2026-10-16 (re-answers18):** **MATCHES**.
+  - `0x0060EF40` keeps three `u16` hash sets (work, accepted, rejected; key `(x << 8) | z`).
+  - A neighbour is skipped when it is accepted (`0x0060F228`) or rejected (`0x0060D1B0`), else inserted unique
+    into the work set (`0x0060E210`). Each cell is accepted or rejected in the step that takes it, so it is examined
+    once.
+  - New quirks: the far bounds are inclusive (nx ≤ countX, nz ≤ countZ). The 8-bit x in the key makes a neighbour
+    one past the edge of a 256-cell city alias a cell on the opposite edge.
+
+  network-manager §8.7.
 - ~~**NM5:** the effect-prop slots 6, 7 and 8 used for potholes. [set the effect name, start, stop; the prop occupant
   spec should confirm]~~ **ANSWERED 2026-10-15 (re-specs14b):** confirmed: `SetEffectType(char const*)`,
   `StartEffect(bool)`, `StopEffect(bool)` (vtable `0x00AA4ED8`, overloads in reverse SDK order). MATCHES.
