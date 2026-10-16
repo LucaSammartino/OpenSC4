@@ -5320,3 +5320,48 @@ lane numbered these TR21-TR27.
   otherwise a raw global that many components read directly (`cSC4ModelMaker::DoPostCityInit` `0x00495050`,
   `cSC4MissingPluginDataReporter::DoPostCityInit`, `cSC4AnimationCoordinator::Init`, …). A host with neither route
   leaves `+0xBC` at 0, which is what a headless harness sees and is harmless until the first view message.
+- ~~**TR24:** rules for the §15.1 slots §4-§10 do not define: 25 `GetTerrainGridIndex`, 39 `AreSeaVertices`,
+  58 `GetBrushExemplarID`, 61 `BrushRadius`, 62 `GetCostPerBrushApplication`. [undefined]~~ **ANSWERED 2026-10-16
+  (re-answers30):** rules in terrain.md §15.6.1. **PARTLY** — the names are broadly right; every rule was missing,
+  and slot 39 **DIFFERS** from the natural reading. `AreSeaVertices(rect*)` (`0x00740750`, pop 4, **AL only**) is
+  an **"all sea"** test: false if any coordinate is out of bounds (unsigned), true for an empty rect, else true iff
+  **every** vertex has `altitude < sea(+0x7C)` — ground altitude, not depth, so it is not a presence test. Slot 25
+  (`0x0074C6B0`, pop 8, EAX) is `trunc(r24(x·0.0625)) + trunc(r24(z·0.0625))·vertsX`, no bounds check, and uses
+  `_ftol2` (truncate) where `GetAltitude` uses floor, so they disagree for negative coordinates. Slot 58
+  (`0x007415D0`, pop 8, AL only, `this` unused) returns `*(u32*)(0x00AB3C88 + 4·index)` with no bounds check (8
+  entries). Slots 61 (`0x00747AE0`, ST0) and 62 (`0x00747C90`, EDX:EAX) index a per-level array by the **default
+  brush level** `+0xBC` with no clamp; an unknown brushID gives 32.0 and 32.
+- ~~**TR25:** rules for 43 `CreateFlatAreas`, 44 `CreateShoreCliffs`, 46 `ChangeSeaLevel`, 48 `ChangeTerrainLevel`,
+  56 `StartFlood`. [data4 0 / 0 / — / 1 / "+500 m on vertices 20..39 x 20..39"]~~ **ANSWERED 2026-10-16
+  (re-answers30):** rules in terrain.md §15.6.2. **DIFFERS** in four places. (a) **Quirk 19 is wrong**: slot 47
+  (`0x0074C660`) returns `fld [0x00B0D588]`, filled from tuning `0x48CD7B73` — shipped **40.0**, fallback 20.0 —
+  so the ini value is used, not thrown away, and it is not "the constant 20.0". (b) `0x48CD7B72`/`73` are
+  `ChangeSeaLevel`'s step (5.0) and the default raise/lower amount (40.0), not "two editor values". (c) The height
+  clamps are the globals `0x00B0D5E0` (`MinAllowedHeight`, fallback **5.0**) and `0x00B0D5DC` (`MaxAllowedHeight`,
+  fallback **200.0**); terrain.md §6 and §4.2 quote the shipped 20/2500 as if absolute. (d) Slot 56
+  (`0x00747720`, no args) does far more than the documented dump: it snapshots depths to the scratch at `+0xE0`,
+  arms a `(20,20,40,40)` flood rectangle at `+0x19C` with counter `+0x1AC`, adds 500.0 to vertices 20..39 × 20..39,
+  sets `+0xD4`, and **tail-calls one `DoFloodFlowStep` immediately**. Slots 43/44/46/48 themselves MATCH the
+  spec's one-liners once expanded (data4 0 / 0 / — / 1 confirmed). New fields `+0xD4`, `+0xE0`, `+0x19C`..`+0x1A8`,
+  `+0x1AC`; flag bits `0x0001`/`0x0002`/`0x0004` are transient work marks, never saved.
+- ~~**TR26:** the five argument dwords of surface water slot 7 `IsNavigableAtPosition`. ["converts the position to a
+  cell with city slot 95 and calls slot 8"]~~ **ANSWERED 2026-10-16 (re-answers30):** **PARTLY** — the outline
+  MATCHES, the signature did not. It is `bool IsNavigableAtPosition(float x, float y, float z, int32 r, void* lot)`
+  (`0x0073CEF0`), thiscall, **callee pops 20 bytes, returns in AL only** (quirk 10). **`y` is never read.** `r` is
+  a cell radius and `lot` an opaque handle, both forwarded untouched to slot 8. City slot 95 `LocationToCell`
+  (`0x004599E0`) is `floor(coord × 0.0625)` per horizontal axis — plain world→cell, no origin offset, not
+  `GetVertIndex`. *[quirk]* it passes **`&arg1`** as the cell-z out-parameter, so the incoming `x` is overwritten;
+  invisible to a caller (callee-pop) but a reimplementation must not reuse `x`.
+- ~~**TR27:** does the surface water need its own message target (§10.1 subscriptions, §10.3's triggers) and its
+  animation-tick registration at priority `0xC0`? [both yes]~~ **ANSWERED 2026-10-16 (re-answers30):** **MATCHES**
+  §10.1 on both — a `cIGZMessageTarget2` at water `+0x08` (vtable `0x00AB3AD8`, `DoMessage` `0x00740160`)
+  subscribing to exactly those six messages (`0x0073FF7F`–`0x0073FFC3`), and `AddTickableObject` at **priority
+  `0xC0`** (`0x0074001E`); the guessed value is correct. **DIFFERS on reachability, and this is what glue18
+  needs:** the tick body is gated on the water's byte **`+0x34`** (`0x007401E9`–`0x007401EE`) and **nothing ever
+  sets it non-zero** — the only writes are the two `= 0` of the constructor and `Init`, and no slot exposes it. So
+  `AnimateWater` (`0x0073FDD0`) and `UpdateFloodWaters` (`0x0073EF00`) are **dead** in the shipped binary (each has
+  exactly one caller, the gated handler). **A surface water that does not animate is behaviour-compatible with the
+  original**; animating would change water depths over time and would be a *divergence*, not a fix. Also
+  **DIFFERS** on §10.3: the SimNewDay `0x66956814` trigger is **unreachable** — the handler exists (`0x0074019A`)
+  but `Init` never subscribes to it and there is no wildcard — so the dirty flag `+0x50` is set by the power-pole
+  handlers (`0x007402A4`) and never read. `0x26D31EC5` is subscribed and its handler does nothing.
