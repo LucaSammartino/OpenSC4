@@ -14,7 +14,7 @@
     {"op": "gdev_clear_events"},
     {"op": "gdev_update"},
     {"op": "gdev_expect", "state": {"decline": [[0, 0, 1], [3, 5, 1], [10, 2, 1], [4, 5, 1]], "growth": [], "last_salt": "0xC63D3DC", "draws": 1, "rng_lcg": "0xD3DC167E"}},
-    {"op": "gdev_expect_event_count", "filter": {"event": "wall_clock_seed"}, "count": 0},
+    {"op": "gdev_expect_event_count", "filter": {"event": "session_seed"}, "count": 0},
     {"op": "gdev_expect_events", "filter": {"event": "get_demand"}, "events": [{"event": "get_demand", "id": "0x00004001", "index": "0x00020000", "node": null}]},
     {"op": "gdev_call", "method": "decline_key_seed", "args": [3, 5, "0xC63D3DC"], "expect": "0xC53D38C"},
     {"op": "gdev_call", "method": "decline_key_seed", "args": [4, 5, "0xC63D3DC"], "expect": "0xC23D38C"},

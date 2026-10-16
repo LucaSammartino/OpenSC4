@@ -19,6 +19,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -533,8 +534,8 @@ uint32_t fc4::ParkSessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 fc4_props* fc4::ParkTuning() {
@@ -556,7 +557,7 @@ cFC4ParkManager::cFC4ParkManager() {
     core_ = fc4_park_create(&host_, seed_, TokenOf(static_cast<cISC4ParkManager*>(this)));
     if (core_ == nullptr) fc4::Log("cFC4ParkManager: core creation failed");
     fc4::Log("cFC4ParkManager(%p) created, core %p, session seed %u (%s)", static_cast<void*>(this),
-             static_cast<void*>(core_), seed_, seedFixed_ ? "parks_seed" : "cRZTime");
+             static_cast<void*>(core_), seed_, seedFixed_ ? "parks_seed" : "session seed");
 }
 
 cFC4ParkManager::~cFC4ParkManager() {

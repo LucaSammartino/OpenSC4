@@ -175,7 +175,7 @@ pub struct fc4_growth_host {
     // time slicing and seeds
     pub limit_timer_start: Option<unsafe extern "C" fn(U, u32)>,
     pub limit_timer_expired: Option<unsafe extern "C" fn(U) -> bool>,
-    pub wall_clock_seed: Option<unsafe extern "C" fn(U) -> u32>,
+    pub session_seed: Option<unsafe extern "C" fn(U) -> u32>,
 }
 
 const _: () = {
@@ -462,8 +462,8 @@ impl GrowthDeveloperHost for GHost {
     fn limit_timer_expired(&self) -> bool {
         cb!(self, limit_timer_expired, true)
     }
-    fn wall_clock_seed(&self) -> u32 {
-        cb!(self, wall_clock_seed, 0)
+    fn session_seed(&self) -> u32 {
+        cb!(self, session_seed, 0)
     }
 }
 

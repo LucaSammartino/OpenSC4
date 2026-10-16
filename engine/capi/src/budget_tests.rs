@@ -75,7 +75,7 @@ impl Game {
             record_history: Some(record_history),
             set_history_queue_length: None,
             try_start_disaster: None,
-            rng_seed: None,
+            session_seed: None,
             ltext: Some(ltext),
             building_type_name: None,
             get_u32s: Some(get_u32s),

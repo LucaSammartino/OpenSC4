@@ -415,9 +415,11 @@ pub trait PlumbingHost: GridProvider<u8> {
     fn position_to_cell(&self, x: f32, z: f32) -> (i32, i32);
     /// The "Utilities" exemplar ([`TUNING_KEY`]), if it loads.
     fn tuning(&self) -> Option<Rc<PropertyHolder>>;
-    /// The wall-clock seed `cRZRandom::Seed(0xFFFFFFFF)` derives at `Init`
-    /// (foundations §6.1).
-    fn wall_clock_seed(&self) -> u32;
+    /// The session seed `S` (foundations §6.3 *[choice]*). The original
+    /// seeds its generator at `Init` from the wall clock
+    /// (`cRZRandom::Seed(0xFFFFFFFF)`, §6.1); ours takes `derive(GZCLSID)`
+    /// of `S` ([`crate::seeding::keys::PLUMBING`]).
+    fn session_seed(&self) -> u32;
 
     // ---- simulator, messages, history ----
     /// `cISC4Simulator::AddAgent(self, level, name, flags)` (slot 19).

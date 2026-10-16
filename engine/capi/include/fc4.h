@@ -142,11 +142,17 @@ extern "C" {
  *      managers, and the riot and fire hooks (reserved 65 on its lane; renumbered at merge);
  * 63 = adds the occupant manager (fc4_occmgr, occupant-manager.md) (taken as 67 on its lane;
  *      renumbered at merge);
- * 64 = traffic re-answers13 (apply14traffic lane): fc4_traffic_shadow_set_hypotheses and the
+ * 64 = the session seed (foundations §6.3): fc4_aura_create, fc4_flammability_create,
+ *      fc4_flora_create, fc4_protection_create and fc4_weather_create take one session seed S
+ *      instead of the two clock values; fc4_pollution_create's seed and the budget, plumbing
+ *      and growth hosts' seed callbacks (renamed session_seed) carry S, and the core derives
+ *      every generator's seed from it (derive(S, K), fc4_seed_derive); adds fc4_seed_derive
+ *      (seeding lane; taken as 73 on its lane, then 59-63; renumbered at merge);
+ * 65 = traffic re-answers13 (apply14traffic lane): fc4_traffic_shadow_set_hypotheses and the
  *      FC4_TRAFFIC_SHADOW_HYP_* bits removed (TS55-TS57 confirmed: the core's only behaviour);
  *      fc4_traffic_stats.freight_byte reads the published statistics set's last byte (TS61)
- *      (taken as 62 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 64u
+ *      (taken as 62 on its lane, then 64; renumbered at merge). */
+#define FC4_ABI_VERSION 65u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -290,6 +296,18 @@ typedef void (*fc4_name_callback)(void* ctx, const char* name, size_t name_len);
 
 /* ---- library ---------------------------------------------------------- */
 uint32_t fc4_abi_version(void);
+
+/* The session seed (foundations §6.3 [choice]). The host picks one 32-bit
+ * session seed S per process (the plugin: the cRZTime wall clock at game
+ * start, like the original, or `session_seed = N` in FreeCity4.ini) and passes
+ * it to every create function and host callback that seeds a generator; the
+ * core seeds each generator with derive(S, K) = S XOR K, 0 and 0xFFFFFFFF
+ * moved by XOR 1, K by the generator's kind (a file-local generator: the
+ * original's constant; a member seeded from the clock: the class's GZCLSID;
+ * a temporary seeded from the clock: GZCLSID XOR its creation count). The C
+ * runtime rand() of every core stays unseeded (state 1, §12.6). This returns
+ * derive(S, K) (tooling: logs and tests). */
+uint32_t fc4_seed_derive(uint32_t session_seed, uint32_t k);
 
 /* Tooling: where a Rust panic is reported (message, location, thread and a
  * backtrace, as one UTF-8 block with lines separated by '\n') before the panic
@@ -583,7 +601,10 @@ typedef struct fc4_budget_host {
     void (*record_history)(void* user, uint32_t series, int32_t value);
     void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
     bool (*try_start_disaster)(void* user, uint32_t id, float x, float z); /* false if it does not exist */
-    uint32_t (*rng_seed)(void* user);
+    /* The session seed S (foundations §6.3): the RiskyMoney generator is seeded
+     * with derive(S, 0x6C09C3D7) (ABI 64; before, this callback returned the
+     * generator's seed itself). */
+    uint32_t (*session_seed)(void* user);
     bool (*ltext)(void* user, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
     bool (*building_type_name)(void* user, uint32_t building_type, fc4_bytes_sink sink, void* ctx);
     /* Array properties of a property holder: return the number of values the
@@ -956,9 +977,11 @@ typedef struct fc4_weather_state {
     float ambient_temp, ambient_moisture, wind_speed, wind_dir_x, wind_dir_z, target_wind_speed;
 } fc4_weather_state;
 
-/* The host table is copied. The generator is seeded as Seed(0xFFFFFFFF) with
- * these clock values (§3). NULL if the table is missing or too small. */
-fc4_weather* fc4_weather_create(const fc4_weather_host* host, uint32_t wall_clock_seed, uint32_t process_clock);
+/* The host table is copied. `session_seed` is the session seed S (foundations
+ * §6.3, FC4_ABI_VERSION 64): the generator (Seed(0xFFFFFFFF) in the original,
+ * §3) is seeded with derive(S, 0x2990C1BC). NULL if the table is missing or too
+ * small. */
+fc4_weather* fc4_weather_create(const fc4_weather_host* host, uint32_t session_seed);
 void fc4_weather_destroy(fc4_weather* w);
 /* Init (§8.1, core part); tuning = the tuning exemplar's properties (copied),
  * NULL = no exemplar. Shutdown (§8.2, core part). */
@@ -1834,7 +1857,10 @@ typedef struct fc4_plumbing_host {
     void (*cell_counts)(void* user, int32_t* x, int32_t* z);
     void (*position_to_cell)(void* user, float x, float z, int32_t* cx, int32_t* cz);
     fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it), NULL if missing */
-    uint32_t (*wall_clock_seed)(void* user);
+    /* The session seed S (foundations §6.3): the generator made at Init is
+     * seeded with derive(S, 0x0990C075), the class's GZCLSID (ABI 64; before,
+     * this was the wall-clock value itself). */
+    uint32_t (*session_seed)(void* user);
     /* simulator, messages, history */
     void (*add_agent)(void* user, uint32_t level, const char* name, size_t name_len, uint32_t flags);
     void (*remove_agent)(void* user);
@@ -2153,8 +2179,10 @@ typedef struct fc4_flammability_host {
     uint64_t (*watered_grid)(void* user);
 } fc4_flammability_host;
 
-fc4_flammability* fc4_flammability_create(const fc4_flammability_host* host, uint64_t token, uint32_t wall_clock_seed,
-                                          uint32_t process_clock);
+/* `session_seed` is the session seed S (foundations §6.3, ABI 64): the
+ * generator is seeded with 0 (§7) and its double path's clock reseed takes
+ * derive(S, 0xE990C045). */
+fc4_flammability* fc4_flammability_create(const fc4_flammability_host* host, uint64_t token, uint32_t session_seed);
 void fc4_flammability_destroy(fc4_flammability* p);
 bool fc4_flammability_init(fc4_flammability* p);      /* §4.1 */
 bool fc4_flammability_shutdown(fc4_flammability* p);  /* §4.2 */
@@ -2300,9 +2328,10 @@ typedef struct fc4_pollution_host {
     bool (*is_effect_started)(void* user, uint64_t effect);
 } fc4_pollution_host;
 
-/* `token`: the simulator's own host identity; `fx_seed` seeds the
- * visual-effect generator. */
-fc4_pollution* fc4_pollution_create(const fc4_pollution_host* host, uint64_t token, uint32_t fx_seed);
+/* `token`: the simulator's own host identity; `session_seed` is the session
+ * seed S (foundations §6.3): the visual-effect generator is seeded with
+ * derive(S, 0x4C09C4D3) (ABI 64; before, the argument was its seed). */
+fc4_pollution* fc4_pollution_create(const fc4_pollution_host* host, uint64_t token, uint32_t session_seed);
 /* A loaded, never-initialised object gives its list and department references back. */
 void fc4_pollution_destroy(fc4_pollution* p);
 bool fc4_pollution_init(fc4_pollution* p);     /* §4.1 */
@@ -2553,8 +2582,11 @@ typedef struct fc4_protection_host {
  * primary interface (also cIGZUnknown), 2 = cIGZMessageTarget2, 3 = the
  * dispatch source (0xC9C00435), 4 = cIGZSerializable. */
 uint32_t fc4_protection_query_interface(uint32_t kind, uint32_t iid);
+/* `session_seed` is the session seed S (foundations §6.3, ABI 64): the
+ * generator is seeded with derive(S, GZCLSID), fire 0x2990C05A, police
+ * 0x6990C04F. */
 fc4_protection* fc4_protection_create(const fc4_protection_host* host, uint32_t kind, uint64_t token,
-                                      uint32_t wall_clock_seed, uint32_t process_clock);
+                                      uint32_t session_seed);
 void fc4_protection_destroy(fc4_protection* p);
 bool fc4_protection_init(fc4_protection* p);     /* §4.1 */
 bool fc4_protection_shutdown(fc4_protection* p); /* §4.2 */
@@ -3013,10 +3045,11 @@ typedef struct fc4_aura_host {
     void (*registry_remove)(void* user);
 } fc4_aura_host;
 
-/* The host table is copied; `token` is the simulator's own identity; the two
- * clock values seed its cRZRandom (§9). NULL for a short table. */
-fc4_aura* fc4_aura_create(const fc4_aura_host* host, uint64_t token, uint32_t wall_clock_seed,
-                          uint32_t process_clock);
+/* The host table is copied; `token` is the simulator's own identity;
+ * `session_seed` is the session seed S (foundations §6.3, ABI 64): its
+ * cRZRandom (§9) is seeded with derive(S, 0x0990BDD8). NULL for a short
+ * table. */
+fc4_aura* fc4_aura_create(const fc4_aura_host* host, uint64_t token, uint32_t session_seed);
 void fc4_aura_destroy(fc4_aura* p); /* releases the grids and a held lot iterator */
 bool fc4_aura_init(fc4_aura* p);     /* §4.1 */
 bool fc4_aura_shutdown(fc4_aura* p); /* §4.2 */
@@ -3324,10 +3357,11 @@ uint32_t fc4_flora_registry_family(const fc4_flora_registry* r, uint32_t family,
 bool fc4_flora_registry_sizes(const fc4_flora_registry* r, uint32_t* map_len, uint32_t* types, uint32_t* families,
                               uint32_t* blocks);
 
-/* The simulator. `token` is its own host identity; the two clock values seed
- * its cRZRandom (§3.1, §8). */
+/* The simulator. `token` is its own host identity; `session_seed` is the
+ * session seed S (foundations §6.3, ABI 64): its cRZRandom (§3.1, §8) is
+ * seeded with derive(S, 0xC990C034). */
 fc4_flora* fc4_flora_create(const fc4_flora_host* host, const fc4_flora_registry* registry, uint64_t token,
-                            uint32_t wall_clock_seed, uint32_t process_clock);
+                            uint32_t session_seed);
 void fc4_flora_destroy(fc4_flora* f); /* never-initialised: releases the loaded burnt list */
 bool fc4_flora_init(fc4_flora* f);
 bool fc4_flora_shutdown(fc4_flora* f);
@@ -4564,7 +4598,11 @@ typedef struct fc4_growth_host {
     /* time slicing and seeds */
     void (*limit_timer_start)(void* user, uint32_t ms);
     bool (*limit_timer_expired)(void* user);
-    uint32_t (*wall_clock_seed)(void* user);
+    /* The session seed S (foundations §6.3), read only when a decline key's
+     * coordinate seed is 0xFFFFFFFF (growth-developer.md §7 quirk): that key's
+     * generator takes derive(S, 0x0990C138 XOR n), n counting such reads by the
+     * developer (ABI 64; before, this was the wall-clock value itself). */
+    uint32_t (*session_seed)(void* user);
 } fc4_growth_host;
 
 fc4_growth_statics* fc4_growth_statics_create(uint32_t session_seed);
@@ -5765,7 +5803,7 @@ typedef struct fc4_traffic_shadow_stats {
  * 0xCA550301 budget item without removing anything (NULL reads 0). */
 fc4_traffic_shadow* fc4_traffic_shadow_create(const fc4_traffic_host* host, uint32_t session_seed,
                                               uint32_t max_diffs, uint32_t detail_lines);
-/* (ABI 64: fc4_traffic_shadow_set_hypotheses and FC4_TRAFFIC_SHADOW_HYP_* are
+/* (ABI 65: fc4_traffic_shadow_set_hypotheses and FC4_TRAFFIC_SHADOW_HYP_* are
  * gone: their three readings were confirmed (traffic-simulator TS55-TS57) and
  * are the core's only behaviour.) */
 void fc4_traffic_shadow_destroy(fc4_traffic_shadow* s);

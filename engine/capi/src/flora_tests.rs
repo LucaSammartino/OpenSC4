@@ -627,7 +627,7 @@ impl Fixture {
         unsafe {
             let reg = fc4_flora_registry_create(&rh);
             assert!(!reg.is_null());
-            let f = fc4_flora_create(&h, reg, 7, 1, 2);
+            let f = fc4_flora_create(&h, reg, 7, 1);
             assert!(!f.is_null());
             assert!(fc4_flora_init(f));
             Fixture { world, reg, f }
@@ -660,11 +660,11 @@ fn null_handles_and_short_tables_are_tolerated() {
         assert!(fc4_flora_registry_create(&short).is_null());
         let rh = empty_registry_host();
         let reg = fc4_flora_registry_create(&rh);
-        assert!(fc4_flora_create(std::ptr::null(), reg, 1, 1, 1).is_null());
+        assert!(fc4_flora_create(std::ptr::null(), reg, 1, 1).is_null());
         let mut h = empty_host();
         h.struct_size = 8;
-        assert!(fc4_flora_create(&h, reg, 1, 1, 1).is_null());
-        assert!(fc4_flora_create(&empty_host(), std::ptr::null(), 1, 1, 1).is_null());
+        assert!(fc4_flora_create(&h, reg, 1, 1).is_null());
+        assert!(fc4_flora_create(&empty_host(), std::ptr::null(), 1, 1).is_null());
         let n = std::ptr::null_mut::<fc4_flora>();
         assert!(!fc4_flora_init(n));
         assert!(!fc4_flora_shutdown(n));
@@ -706,7 +706,7 @@ fn null_handles_and_short_tables_are_tolerated() {
         ));
         fc4_flora_registry_destroy(std::ptr::null_mut());
         // An empty host: every call answers neutrally.
-        let f = fc4_flora_create(&empty_host(), reg, 1, 1, 1);
+        let f = fc4_flora_create(&empty_host(), reg, 1, 1);
         assert!(fc4_flora_init(f));
         assert!(fc4_flora_do_message(f, &message(msg::SIM_NEW_MONTH, 30)));
         assert!(fc4_flora_do_message(f, &message(msg::SIM_NEW_DAY, 31)));
@@ -789,7 +789,7 @@ fn a_second_simulator_shares_the_registry() {
     unsafe {
         let blocks = w.blocks.borrow().len();
         let h = world_host(w);
-        let f2 = fc4_flora_create(&h, fx.reg, 8, 3, 4);
+        let f2 = fc4_flora_create(&h, fx.reg, 8, 3);
         assert!(fc4_flora_init(f2));
         // Loaded once per process: no new types; key 0 is already present.
         assert_eq!(w.blocks.borrow().len(), blocks);
@@ -1046,7 +1046,7 @@ fn write_and_read_round_trip_with_the_burnt_list() {
         assert_eq!(o2.refs, vec![(1, 0)]);
         // Read into a fresh object (before its Init): one reference resolved.
         let h = world_host(w);
-        let f2 = fc4_flora_create(&h, fx.reg, 9, 5, 6);
+        let f2 = fc4_flora_create(&h, fx.reg, 9, 5);
         let mut i = In::new(&o2.bytes);
         assert!(fc4_flora_read(f2, &istream(&mut i)));
         assert_eq!(state(f2).burnt_list, 1);
@@ -1254,7 +1254,7 @@ fn obliteration_records_go_through_the_host_streams() {
     let mut h = world_host(w);
     segment_host(&mut h);
     unsafe {
-        let f = fc4_flora_create(&h, fx.reg, 8, 1, 2);
+        let f = fc4_flora_create(&h, fx.reg, 8, 1);
         assert!(fc4_flora_init(f));
         w.log.borrow_mut().clear();
         assert!(fc4_flora_save_obliterated(f, 77));
@@ -1284,7 +1284,7 @@ fn obliteration_records_go_through_the_host_streams() {
         }));
         w.log.borrow_mut().clear();
         let first = w.next.get();
-        let g = fc4_flora_create(&h, fx.reg, 9, 1, 2);
+        let g = fc4_flora_create(&h, fx.reg, 9, 1);
         assert!(fc4_flora_init(g));
         *w.on_insert.borrow_mut() = None;
         let made: Vec<(u32, bool, i64)> = (first..w.next.get())
@@ -1317,7 +1317,7 @@ fn obliteration_records_go_through_the_host_streams() {
         // A segment without the count record restores nothing.
         w.obliterated.set(78);
         let first = w.next.get();
-        let g = fc4_flora_create(&h, fx.reg, 10, 1, 2);
+        let g = fc4_flora_create(&h, fx.reg, 10, 1);
         assert!(fc4_flora_init(g));
         assert_eq!(w.next.get(), first);
         fc4_flora_shutdown(g);
@@ -1339,7 +1339,7 @@ fn a_reload_drops_key_0_until_the_next_init() {
         assert!(!fc4_flora_registry_is_type_valid(fx.reg, 0));
         assert_eq!(fc4_flora_registry_record(fx.reg, 0), 0);
         let h = world_host(&fx.world);
-        let g = fc4_flora_create(&h, fx.reg, 11, 1, 2);
+        let g = fc4_flora_create(&h, fx.reg, 11, 1);
         assert!(fc4_flora_init(g));
         assert!(fc4_flora_registry_is_type_valid(fx.reg, 0));
         fc4_flora_shutdown(g);

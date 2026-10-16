@@ -162,6 +162,9 @@ pub struct GrowthDeveloper {
     token: Cell<u64>,
     d: RefCell<GrowthData>,
     g: RefCell<Grids>,
+    /// Decline-key temporaries whose coordinate seed read the clock since
+    /// construction: the `n` of their `K` (foundations §6.3, RN2).
+    decline_clock_reads: Cell<u32>,
 }
 
 impl GrowthDeveloper {
@@ -175,6 +178,7 @@ impl GrowthDeveloper {
             token: Cell::new(token),
             d: RefCell::new(GrowthData::new()),
             g: RefCell::new(Grids::default()),
+            decline_clock_reads: Cell::new(0),
         })
     }
 
@@ -944,8 +948,13 @@ impl GrowthDeveloper {
             let salt = self.statics.draw_salt();
             self.d.borrow_mut().last_salt = Some(salt);
             let key = |it: &GrowthItem| {
+                // A key seed of 0xFFFFFFFF reads the clock (§7 quirk); ours is
+                // derive(GZCLSID XOR n) of the session seed, n counting those
+                // reads (foundations §6.3 [choice], RN2).
                 let wall = if decline_key_seed(it.x, it.z, salt) == CLOCK_SEED {
-                    self.host.wall_clock_seed()
+                    let n = self.decline_clock_reads.get();
+                    self.decline_clock_reads.set(n.wrapping_add(1));
+                    crate::seeding::seed(self.host.session_seed(), crate::seeding::keys::growth_decline_clock(n))
                 } else {
                     0
                 };

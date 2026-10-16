@@ -12,7 +12,6 @@ use std::ffi::c_void;
 use std::rc::Rc;
 
 use fc4_core::property::PropertyHolder;
-use fc4_core::rng::FixedSeeds;
 use fc4_core::stream::SaveObject;
 use fc4_core::weather::{WeatherHost, WeatherRng, WeatherSim};
 
@@ -154,25 +153,18 @@ fn with_w<R>(w: *const fc4_weather, fallback: R, f: impl FnOnce(&Handle) -> R) -
     }
 }
 
-/// Creates the core object. The host table is copied. The generator is
-/// seeded as `Seed(0xFFFFFFFF)` with these clock values (§3, foundations §6.1).
+/// Creates the core object. The host table is copied. The generator
+/// (`Seed(0xFFFFFFFF)` in the original, §3) takes `derive(S, 0x2990C1BC)` of
+/// `session_seed` (foundations §6.3).
 #[no_mangle]
-pub unsafe extern "C" fn fc4_weather_create(
-    host: *const fc4_weather_host,
-    wall_clock_seed: u32,
-    process_clock: u32,
-) -> *mut fc4_weather {
+pub unsafe extern "C" fn fc4_weather_create(host: *const fc4_weather_host, session_seed: u32) -> *mut fc4_weather {
     guard(std::ptr::null_mut(), || match host.as_ref() {
         Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_weather_host>() => {
             let c = Rc::new(CHost {
                 h: *h,
                 tuning: RefCell::new(None),
             });
-            let seeds = FixedSeeds {
-                wall_clock: wall_clock_seed,
-                process_clock,
-            };
-            let sim = WeatherSim::new(c.clone(), 0, Box::new(WeatherRng::new(&seeds)));
+            let sim = WeatherSim::new(c.clone(), 0, Box::new(WeatherRng::from_session(session_seed)));
             Box::into_raw(Box::new(Handle { sim, host: c })) as *mut fc4_weather
         }
         _ => std::ptr::null_mut(),
