@@ -66,6 +66,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <memory>
 #include <string>
 #include <vector>
@@ -212,6 +213,47 @@ uint64_t HostResolveRef(void*, uint64_t t, uint32_t) {
     return t;
 }
 
+// ---- tearing a shadow core down on every exit path --------------------------------------------------------
+//
+// SEH does not unwind C++ frames: if SehGuard catches a structured exception
+// inside a run step, that step's own destructor never runs and its core would
+// leak. Each step registers the core it is using here and clears it when it
+// finishes; RunAll clears whatever is left after every step, so the teardown
+// happens however the step ended.
+
+struct LiveCore {
+    void* p = nullptr;
+    void (*teardown)(void*) = nullptr;
+    void Reset() {
+        if (p == nullptr) return;
+        void* q = p;
+        void (*fn)(void*) = teardown;
+        p = nullptr;
+        teardown = nullptr;
+        if (fn != nullptr) fn(q);
+    }
+};
+LiveCore g_liveCore;
+
+// The process-wide generated-tag serial of lot-configuration.md §3.5 (the
+// original's global 0x00B2166C): fc4_lot_config_object_array takes the
+// counter, not a fresh one, and advances it once per kept object of a
+// configuration below version 2. One counter for the process, as the
+// original's is. It is seeded when 0 from the same wall clock the plugin uses
+// for the session seed (FC4Seed.h), standing in for the GZCOM clock; so the
+// absolute tags of version-<2 objects are generated independently on the two
+// sides and are not byte-comparable (question GLUE15-1). Every shipped
+// configuration is version 2 and carries its own tags, which compare exactly.
+uint32_t g_lcmSerial = 0;
+
+uint32_t* NextLotSerial() {
+    if (g_lcmSerial == 0) {
+        g_lcmSerial = static_cast<uint32_t>(std::time(nullptr));
+        if (g_lcmSerial == 0) g_lcmSerial = 1;
+    }
+    return &g_lcmSerial;
+}
+
 // ---- the exemplar keys (§A3.1 step 1, §B3.1 step 3) -------------------------------------------------------
 
 class ExemplarKeyFilter final : public cIGZPersistResourceKeyFilter {
@@ -244,7 +286,7 @@ bool ExemplarKeys(std::vector<cGZPersistResourceKey>& keys) {
     rm->GetAvailableResourceList(&l, &filter);
     if (l == nullptr) return false;
     FC4_ACQUIRED(l, "GetAvailableResourceList");
-    const uint32_t n = l->Size();
+    const uint32_t n = l->Size();  // cIGZPersistResourceKeyList slot 9
     keys.reserve(n);
     for (uint32_t i = 0; i < n; ++i) keys.push_back(l->GetKey(i));
     FC4_RELEASE_CREATED(l);
@@ -331,7 +373,9 @@ intptr_t CompareRecords(bool oursOk, std::string& body) {
     if (!oursOk) ++m;
     if (a.size() != b.size() || firstDiff != SIZE_MAX) ++m;
     // References: the objects written in the same places (the bytes number
-    // them in order of first appearance, so equal bytes pair them up).
+    // them in order of first appearance, so equal bytes pair them up). The
+    // capture numbers references 1..63 (FC4WriteCapture.h), so a record with
+    // more than 63 written references pairs only the first 63.
     uint32_t refs = 0, refsDiff = 0;
     for (uint32_t id = 1; id < 64; ++id) {
         const void* x = g_capOrig.Object(id);
@@ -450,7 +494,6 @@ struct PropCtx {
     uint32_t builtinKind = 0xFFFFFFFFu;
     uint32_t propType = 0;
     bool typeSet = false;
-    bool attached = false;
     bool boxSet = false;
     float boxMin[3] = {0, 0, 0}, boxMax[3] = {0, 0, 0};
     // The catalogue message.
@@ -514,9 +557,7 @@ void PropSetType(void* u, uint64_t, uint32_t id) {
 
 fc4_props* PropAttach(void* u, uint64_t, uint32_t t, uint32_t g, uint32_t i, bool) {
     if (!PC(u)->recording) return nullptr;
-    fc4_props* p = LoadProps(t, g, i);
-    PC(u)->attached = p != nullptr;
-    return p;
+    return LoadProps(t, g, i);
 }
 
 void PropSetBox(void* u, uint64_t, const float* mn, const float* mx) {
@@ -889,18 +930,20 @@ intptr_t PropCreate(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, std
             if (op->QueryInterface(GZIID_cIGZSerializable, &q) && q != nullptr) {
                 cIGZSerializable* ser = static_cast<cIGZSerializable*>(q);
                 FC4_ACQUIRED(ser, "QueryInterface");
-                oc = ser->GetGZCLSID();
+                oc = ser->GetGZCLSID();  // cIGZSerializable GetGZCLSID
                 FC4_RELEASE(ser);
             }
             ot = op->GetPropType();                              // slot 7
-            if (cISC4Occupant* occ = op->AsOccupant()) occ->GetBoundingBox(&omn, &omx);
+            // AsOccupant is prop slot 3; [abi-ret] eax-or-void (interfaces.tsv
+            // cISC4PropOccupant 3): read as the pointer the original's callers use.
+            if (cISC4Occupant* occ = op->AsOccupant()) occ->GetBoundingBox(&omn, &omx);  // occupant slot 10
             FC4_RELEASE_CREATED(op);
         }
         // Ours on the recording host.
         g_pctx.recording = true;
         g_pctx.gzClass = 0;
         g_pctx.builtinKind = 0xFFFFFFFFu;
-        g_pctx.typeSet = g_pctx.attached = g_pctx.boxSet = false;
+        g_pctx.typeSet = g_pctx.boxSet = false;
         const uint64_t tok = fc4_prop_manager_create_prop(s, id);
         g_pctx.recording = false;
         const bool rs = tok != 0;
@@ -960,6 +1003,13 @@ void PropRunStep(void* p) {
         Line("propmgr", g_propTotals, r, "record", -1, "the shadow core was not created");
         return;
     }
+    // Registered at once so a structured exception still tears it down.
+    g_liveCore.p = s;
+    g_liveCore.teardown = [](void* p) {
+        auto* m = static_cast<fc4_prop_manager*>(p);
+        fc4_prop_manager_shutdown(m);
+        fc4_prop_manager_destroy(m);
+    };
     CaptureIStream in(g_capOrig);
     const bool read = fc4_prop_manager_read(s, in.Get());
     const bool wasBuilt = [] {
@@ -999,8 +1049,7 @@ void PropRunStep(void* p) {
         const intptr_t m = PropCreate(r, pm, s, body);
         Line("propmgr", g_propTotals, r, "CreateProp", m, body);
     }
-    fc4_prop_manager_shutdown(s);
-    fc4_prop_manager_destroy(s);
+    g_liveCore.Reset();
     g_pctx.city = nullptr;
 }
 
@@ -1169,14 +1218,24 @@ cISC4PropManager* Pm(void* u) { return LC(u)->city ? LC(u)->city->GetPropManager
 
 cISC4FloraSimulator* Flora(void* u) { return LC(u)->city ? LC(u)->city->GetFloraSimulator() : nullptr; }
 
+// The building development and flora lookups below read the callee's return
+// value. docs/abi/interfaces.tsv gives these slots `eax-or-void` (medium
+// confidence): the game does not promise a value. They are read anyway,
+// exactly as the original's callers read them, so that the shadow sees the
+// same answer the original would have used; a wrong answer then shows up as a
+// lotcfg shadow mismatch rather than as a silent difference. Each call site
+// carries [abi-ret] naming the slot and the channel.
+
 bool LcmIsBuildingTypeValid(void* u, uint32_t id) {
     auto* b = Bds(u);
-    return b != nullptr && b->IsBuildingTypeValid(id);  // slot 15
+    // slot 15; [abi-ret] eax-or-void (interfaces.tsv cISC4BuildingDevelopmentSimulator 15)
+    return b != nullptr && b->IsBuildingTypeValid(id);
 }
 
 bool LcmIsBuildingFamilyValid(void* u, uint32_t id) {
     auto* b = Bds(u);
-    return b != nullptr && b->IsBuildingFamilyTypeValid(id);  // slot 16
+    // slot 16; [abi-ret] eax-or-void (interfaces.tsv cISC4BuildingDevelopmentSimulator 16)
+    return b != nullptr && b->IsBuildingFamilyTypeValid(id);
 }
 
 // A vector the callee assigns or leaves alone: a sentinel element tells the
@@ -1188,7 +1247,8 @@ uint32_t LcmBuildingTypesByFamily(void* u, uint32_t id, fc4_u32s_sink out, void*
     if (b == nullptr) return 0;
     GameU32s v;
     v.push_back(kSentinel);
-    const uint32_t n = b->GetBuildingTypesByFamily(v, id);  // slot 18
+    // slot 18; [abi-ret] eax-or-void (interfaces.tsv cISC4BuildingDevelopmentSimulator 18): the count
+    const uint32_t n = b->GetBuildingTypesByFamily(v, id);
     const std::vector<uint32_t> s = ToStd(v);
     if (!(s.size() == 1 && s[0] == kSentinel) && out != nullptr) out(ctx, s.empty() ? nullptr : s.data(), s.size());
     return n;
@@ -1196,19 +1256,23 @@ uint32_t LcmBuildingTypesByFamily(void* u, uint32_t id, fc4_u32s_sink out, void*
 
 bool LcmIsBuildingInFamily(void* u, uint32_t type, uint32_t family) {
     auto* b = Bds(u);
-    return b != nullptr && b->IsBuildingInFamily(type, family);  // slot 20
+    // slot 20; [abi-ret] eax-or-void (interfaces.tsv cISC4BuildingDevelopmentSimulator 20)
+    return b != nullptr && b->IsBuildingInFamily(type, family);
 }
 
 bool LcmIsFloraTypeValid(void* u, uint32_t id) {
     cISC4FloraSimulator* f = Flora(u);
-    return f != nullptr && f->IsFloraTypeValid(id);  // slot 11
+    // slot 11; [abi-ret] eax-or-void (interfaces.tsv cISC4FloraSimulator 11)
+    return f != nullptr && f->IsFloraTypeValid(id);
 }
 
-// Slot 14 into a set of hint 100 (§B5.6), its types in bucket order.
+// Slot 14 into a set of hint 100 (§B5.6), its types in bucket order. The
+// intptr_t& argument mirrors cISC4FloraSimulator.h's own declaration.
 uint32_t LcmFloraTypesIntoSet(void* u, uint32_t id, fc4_u32s_sink out, void* ctx) {
     cISC4FloraSimulator* f = Flora(u);
     if (f == nullptr) return 0;
     GameHashSetU32<> set(100);
+    // slot 14; [abi-ret] eax-or-void (interfaces.tsv cISC4FloraSimulator 14): the count
     const uint32_t n = f->GetFloraTypesByFamily(reinterpret_cast<intptr_t&>(set), id);
     std::vector<uint32_t> v;
     for (size_t b = 0; b < set.bucket_count(); ++b) {
@@ -1398,7 +1462,8 @@ intptr_t LcmArrays(const std::vector<uint32_t>& ids, std::string& body) {
         std::vector<ObjectCopy> ours;
         fc4_props* ex = LoadProps(b->type, b->group, b->instance);
         if (ex != nullptr) {
-            fc4_lot_config_object_array(ex, g_lctx.detail, nullptr, &CopyObject, &ours);
+            // The process-wide serial, not a fresh one per call (§3.5).
+            fc4_lot_config_object_array(ex, g_lctx.detail, NextLotSerial(), &CopyObject, &ours);
             fc4_props_destroy(ex);
         }
         objects += static_cast<uint32_t>(orig.size());
@@ -1525,6 +1590,9 @@ void LcmRunStep(void* p) {
     g_lctx.city = r.city;
     g_lctx.orig = AsView(raw);
     g_lctx.detail = DetailPreference();
+    // Bindings name stand-ins of this run only (their odd tokens are not
+    // objects), so they do not accumulate across months and saves.
+    g_bindings.clear();
     if (g_lcmCat == nullptr) g_lcmCat = fc4_lot_config_catalogue_create();
     bool answered = false;
     if (!g_capOrig.Capture(reinterpret_cast<cIGZUnknown*>(raw), &answered)) {
@@ -1538,6 +1606,17 @@ void LcmRunStep(void* p) {
         Line("lotcfg", g_lcmTotals, r, "record", -1, "the shadow core was not created");
         return;
     }
+    // Registered at once so a structured exception still tears it down.
+    g_liveCore.p = s;
+    g_liveCore.teardown = [](void* p) {
+        auto* m = static_cast<fc4_lot_config_manager*>(p);
+        // The process unload callback (0x0048A240) runs here: the shadow's
+        // manager is per run, so the unload is its teardown path (a live glue
+        // manager gets it at app shutdown instead; FC4PropLotShadow.h).
+        fc4_lot_config_unload(m);
+        fc4_lot_config_shutdown(m);
+        fc4_lot_config_destroy(m);
+    };
     CaptureIStream in(g_capOrig);
     const bool read = fc4_lot_config_read(s, in.Get());
     const bool inited = fc4_lot_config_init(s);
@@ -1607,8 +1686,7 @@ void LcmRunStep(void* p) {
         const intptr_t m = LcmQueries(r, s, origIds, origFams, body);
         Line("lotcfg", g_lcmTotals, r, "queries", m, body);
     }
-    fc4_lot_config_shutdown(s);
-    fc4_lot_config_destroy(s);
+    g_liveCore.Reset();
     g_lctx.city = nullptr;
     g_lctx.orig = nullptr;
 }
@@ -1640,6 +1718,13 @@ void TutRunStep(void* p) {
         Line("tutorial", g_tutTotals, r, "record", -1, "the shadow core was not created");
         return;
     }
+    // Registered at once so a structured exception still tears it down.
+    g_liveCore.p = s;
+    g_liveCore.teardown = [](void* p) {
+        auto* t = static_cast<fc4_tutorial*>(p);
+        fc4_tutorial_shutdown(t);
+        fc4_tutorial_destroy(t);
+    };
     CaptureIStream in(g_capOrig);
     const bool read = fc4_tutorial_read(s, in.Get());
     {
@@ -1666,7 +1751,7 @@ void TutRunStep(void* p) {
         AppendF(body, "isTutorial=%u/%u task=%d/%d guid=%08X/%08X (orig/ours)", oIs, uIs, oTask, uTask, oGuid, uGuid);
         Line("tutorial", g_tutTotals, r, "state", m, body);
     }
-    fc4_tutorial_destroy(s);
+    g_liveCore.Reset();
 }
 
 // ---- runs ---------------------------------------------------------------------------------------------------
@@ -1686,16 +1771,20 @@ void RunAll(cISC4City* city, int32_t julian, const char* event) {
     if (g_prop && !SehGuard("propmgr shadow", &PropRunStep, &r)) {
         Line("propmgr", g_propTotals, r, "run", -1, "structured exception; comparison abandoned");
     }
+    g_liveCore.Reset();  // also when the step was abandoned mid-way
     if (g_lcm && !SehGuard("lotcfg shadow", &LcmRunStep, &r)) {
         Line("lotcfg", g_lcmTotals, r, "run", -1, "structured exception; comparison abandoned");
     }
+    g_liveCore.Reset();
     if (g_tut && !SehGuard("tutorial shadow", &TutRunStep, &r)) {
         Line("tutorial", g_tutTotals, r, "run", -1, "structured exception; comparison abandoned");
     }
+    g_liveCore.Reset();
 }
 
 int32_t CityJulian(cISC4City* city) {
     cFC4ISC4Simulator* sim = city ? AsGame(city->GetSimulator()) : nullptr;
+    // cISC4Simulator slot 8 GetSimDateNumber (interfaces.tsv: forward, medium).
     return sim != nullptr ? sim->GetSimDateNumber() : 0;
 }
 
@@ -1764,6 +1853,7 @@ void PropLotShadowCityShutdown() {
 }
 
 void PropLotShadowAppShutdown() {
+    g_liveCore.Reset();  // nothing should be live here; never leak one
     if (g_propCat != nullptr) {
         fc4_prop_catalogue_app_shutdown(g_propCat);
         fc4_prop_catalogue_destroy(g_propCat);
@@ -1774,6 +1864,7 @@ void PropLotShadowAppShutdown() {
         g_lcmCat = nullptr;
     }
     g_bindings.clear();
+    g_lcmSerial = 0;
 }
 
 }  // namespace fc4
