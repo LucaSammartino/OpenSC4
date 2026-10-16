@@ -5120,6 +5120,16 @@ cISC4Automaton	cSC4Pedestrian	00a9a718	66	+0x108	00505a40	cSC4Automaton::GetColl
 cISC4Automaton	cSC4Pedestrian	00a9a718	67	+0x10C	00505d40	cSC4Automaton::GetAutomataGroup	0	0	eax-or-void	medium	
 cISC4Automaton	cSC4Pedestrian	00a9a718	68	+0x110	0050ec10	cSC4Automaton::RegisterInGameDataRegistry	0	0	eax-or-void	medium	
 cISC4Automaton	cSC4Pedestrian	00a9a718	69	+0x114	0050b5e0	cSC4Automaton::UnregisterInGameDataRegistry	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4EmergencyVehicle	00a981e0	25	+0x64	0052ff60	cSC4EmergencyVehicle::SetDispatchState	4	1	void	high	re-answers19; dispatch.md §4.3; class name from slot reading (no RTTI); state at +0x2CC; ignored when unchanged or slot 57(0x10) != 0; sends event 7 (dispatch.md 4.3)
+cISC4Automaton	cSC4EmergencyVehicle	00a981e0	26	+0x68	00505020	cSC4Automaton::GetDispatchState	0	0	eax	high	re-answers19; dispatch.md §4.3; class name from slot reading (no RTTI); returns +0x2CC
+cISC4Automaton	cSC4EmergencyVehicle	00a981e0	29	+0x74	0052f330	cSC4EmergencyVehicle::GoHome	0	0	void	medium	re-answers19; dispatch.md §4.3; class name from slot reading (no RTTI); name inferred; sets dispatch state 6 (dispatch.md 4.3)
+cISC4Automaton	cSC4FireTruck	00a986f8	25	+0x64	005336c0	cSC4FireTruck::SetDispatchState	4	1	void	high	re-answers19; dispatch.md §4.3; class name from slot reading (no RTTI); calls 0x0052FF60 first
+cISC4Automaton	cSC4FireTruck	00a986f8	26	+0x68	00505020	cSC4Automaton::GetDispatchState	0	0	eax	high	re-answers19; dispatch.md §4.3; class name from slot reading (no RTTI)
+cISC4Automaton	cSC4PatrolCar	00a9a0c0	25	+0x64	00543f60	cSC4PatrolCar::SetDispatchState	4	1	void	high	re-answers19; dispatch.md §4.3; class name from slot reading (no RTTI); calls 0x0052FF60 first
+cISC4Automaton	cSC4PatrolCar	00a9a0c0	26	+0x68	00505020	cSC4Automaton::GetDispatchState	0	0	eax	high	re-answers19; dispatch.md §4.3; class name from slot reading (no RTTI)
+cISC4Automaton	cSC4Helicopter	00a991e0	25	+0x64	0053a360	cSC4Helicopter::SetDispatchState	4	1	void	high	re-answers19; dispatch.md §4.3; class name from slot reading (no RTTI); state at +0x274; gate slot 57(0x36)
+cISC4Automaton	cSC4Helicopter	00a991e0	26	+0x68	0053c860	cSC4Helicopter::GetDispatchState	0	0	eax	high	re-answers19; dispatch.md §4.3; class name from slot reading (no RTTI); returns +0x274
+cISC4Automaton	(unnamed emergency vehicle class)	00a94fb0	25	+0x64	0052ff60	cSC4EmergencyVehicle::SetDispatchState	4	1	void	high	re-answers19; dispatch.md §4.3; class name from slot reading (no RTTI); same slots 25/26/29 as 00a981e0
 cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	0	+0x0	0060c760	cSC4NetworkLotManager::QueryInterface	8	2	al	high	NEW. IID 0x89A5BA3F; 0x452294AA -> +4; 0xE4FDA3D4 -> +8; network-manager.md 1; re-specs13c
 cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	1	+0x4	0060c730	cSC4NetworkLotManager::AddRef	0	0	eax	medium	NEW; re-specs13c
 cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	2	+0x8	0060c740	cSC4NetworkLotManager::Release	0	0	eax	medium	NEW. deletes at count <= 1; re-specs13c
