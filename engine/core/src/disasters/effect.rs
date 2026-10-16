@@ -56,10 +56,29 @@ impl Core {
 
     /// `0x2A7B582E` (moved: x, z) and `0x2A7B582D` (finished: shut down,
     /// which ends the disaster) for this instance's effect (void1).
+    ///
+    /// **Corrects (re-integrate1, effects.md §10.2): "data1 = the instance"
+    /// holds only for slaves reached as *meta* children.** There is no single
+    /// spawn API: each particle class builds a child effect name from its own
+    /// base name plus a fixed suffix (`_slave`, `_death`, `_collide`,
+    /// `_terrain`, `_water`) and calls `CreateVisualEffect`. Parameter 13
+    /// reaches **game components only**, so a slave spawned through the
+    /// particle path gets the particle's own `+0x26C` value and **not** the
+    /// disaster instance. Only a slave reachable as a **meta component** of a
+    /// control effect this instance started can post `data1 = the instance`.
+    ///
+    /// So the match below is on `data1 == the instance`, which is the message
+    /// contract of §12, and which a particle-spawned slave's location message
+    /// does not meet. Whether the location update matches on something other
+    /// than `data1 == instance` is open (effects.md §16 EF6). [EF5]
     pub(crate) fn effect_message(&mut self, id: u32, m: &DisasterMessage) -> bool {
         let cell = self.world_to_cell(m.x, m.z);
         let Some(e) = self.es(id) else { return false };
         if m.void1 != e.effect {
+            return false;
+        }
+        // [EF5] `data1` is the instance only for a meta-reached slave.
+        if m.data1 != i64::from(id) {
             return false;
         }
         match m.msg_type {

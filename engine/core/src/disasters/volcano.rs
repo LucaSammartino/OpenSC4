@@ -332,6 +332,23 @@ impl Core {
 
     /// `0xCA493C1D` (§10): the "volcano_control" effect of this instance
     /// finished (data1 = the instance): the end request, state 7.
+    ///
+    /// **Corrects (re-integrate1, effects.md §10.1): the finish condition is
+    /// now measured.** `volcano_control` finishes at the first draw-pass sweep
+    /// after (i) the chosen `volcanocreator*` child has itself been finished
+    /// on a previous sweep, and (ii) at that sweep that child's **brush**
+    /// (`t > length`, 2.0-4.0 dilated effect-seconds), its **2-4 particle**
+    /// components and its **3 decal** components are all inactive. The
+    /// attractor and the game record never hold it (both `flags = 1`), and the
+    /// meta component's `IsActive` is the *child's* `started` byte, so
+    /// `volcano_control` cannot finish before the child has been finished by a
+    /// previous sweep — it waits for a full extra sweep.
+    ///
+    /// So this message is **late** by at least one sweep past the deformation
+    /// stroke, and by any decal lifetime after that. Particles are the sole
+    /// unknown (effects.md §16 EF1). The rule itself is
+    /// [`crate::effects::VolcanoCreatorChild::control_finishes`]; this handler
+    /// just records the end request when the message arrives. [EF4]
     pub(crate) fn volcano_message(&mut self, id: u32, data1: i64) -> bool {
         if data1 != i64::from(id) {
             return false;

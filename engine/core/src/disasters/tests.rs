@@ -1764,21 +1764,39 @@ fn effect_disaster_lifecycle() {
     let id = w.sys.start_disaster_effect(0xE1, 160.0, 320.0).unwrap();
     assert_eq!(w.sys.instance_info(id).unwrap().location, Some((10, 20)));
     assert!(w.sys.is_disaster_ongoing());
+    // [EF5] `data1 = the instance`, which only a slave reached as a meta child
+    // can post (effects.md §10.2).
     let moved = DisasterMessage {
         void1: 0xE1,
+        data1: i64::from(id),
         x: 32.0,
         z: 48.0,
         ..DisasterMessage::of_type(msg::EFFECT_MOVED)
     };
     assert!(w.sys.do_message(Target::Instance(id), &moved));
     assert_eq!(w.sys.instance_info(id).unwrap().location, Some((2, 3)));
+
+    // [EF5] A particle-spawned slave carries the particle's own `+0x26C` in
+    // `data1`, not the instance, so it does not move this instance.
+    let spawned = DisasterMessage {
+        void1: 0xE1,
+        data1: 0x26C,
+        x: 100.0,
+        z: 100.0,
+        ..DisasterMessage::of_type(msg::EFFECT_MOVED)
+    };
+    assert!(!w.sys.do_message(Target::Instance(id), &spawned));
+    assert_eq!(w.sys.instance_info(id).unwrap().location, Some((2, 3)));
+
     let other = DisasterMessage {
         void1: 0xE2,
+        data1: i64::from(id),
         ..DisasterMessage::of_type(msg::EFFECT_FINISHED)
     };
     assert!(!w.sys.do_message(Target::Instance(id), &other));
     let done = DisasterMessage {
         void1: 0xE1,
+        data1: i64::from(id),
         ..DisasterMessage::of_type(msg::EFFECT_FINISHED)
     };
     assert!(w.sys.do_message(Target::Instance(id), &done));
