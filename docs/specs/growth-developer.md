@@ -658,7 +658,9 @@ discards the result (dead debug code); a replacement need not call them.
   which salt, because the original's agent order follows object addresses; FreeCity4 uses agent registration order
   (simulator.md §4).
 - A key seed equal to `0xFFFFFFFF` would make `Seed` use the clock (foundations §6.1) *[quirk]*; it needs
-  `salt = (((x << 16) + z) << 4) XOR 0xFFFFFFFF`, probability 2⁻³² per tract and update.
+  `salt = (((x << 16) + z) << 4) XOR 0xFFFFFFFF`, probability 2⁻³² per tract and update. *[choice]* FreeCity4 treats it as a
+  clock-seeded temporary of the growth developer: seed `derive(0x0990C138 XOR n)`, `n` the number of such clock
+  reads by this developer object so far (not saved), foundations §6.3 (RN2).
 - No other draws: no C `rand()`, no random iterators, no shuffles (the population pass uses the scanning
   iterator).
 

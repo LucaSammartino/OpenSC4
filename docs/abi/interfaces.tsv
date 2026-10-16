@@ -2893,18 +2893,18 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	26	+0x68	00407ac0	icf::cSC424HourClock
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	27	+0x6C	00809240	icf::cS3DTextureBindingFactory::GetResGroup	0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	28	+0x70	0062c9c0		4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	29	+0x74	0062c9e0		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	30	+0x78	00626e80		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	31	+0x7C	00623b70	cSC4City::GetNetworkManager	0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	32	+0x80	00623b80		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	33	+0x84	00623b90		0	0	x87	high	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	34	+0x88	00623ba0		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	35	+0x8C	00624af0		8	2	via-call	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	36	+0x90	00624130		0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	37	+0x94	00624180		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	38	+0x98	00624150		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	39	+0x9C	006241b0		0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	40	+0xA0	00624b20		12	3	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	41	+0xA4	006241d0		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	30	+0x78	00626e80	cSC4NetworkTool::GetPossibleBridges	4	1	eax-or-void	medium	re-specs17a (replace): AL bool; copies candidate list +0x1F4; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	31	+0x7C	00623b70	cSC4NetworkTool::GetPreferredBridge	0	0	eax-or-void	high	re-specs17a (replace): returns +0x200 (body folded with cSC4City::GetNetworkManager); network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	32	+0x80	00623b80	cSC4NetworkTool::SetPreferredBridge	4	1	eax-or-void	high	re-specs17a (replace): +0x200 := arg; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	33	+0x84	00623b90	cSC4NetworkTool::GetBridgeAltitudeOverride	0	0	x87	high	re-specs17a (replace): returns +0x204; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	34	+0x88	00623ba0	cSC4NetworkTool::SetBridgeAltitudeOverride	4	1	eax-or-void	high	re-specs17a (replace): +0x204 := float arg; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	35	+0x8C	00624af0	cSC4NetworkTool::GetBridgeName	8	2	via-call	low	re-specs17a (replace): (index, cRZString&): bridge type +0x15C; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	36	+0x90	00624130	cSC4NetworkTool::GetMajorBridge	0	0	eax-or-void	high	re-specs17a (replace): last record +0x0C or -1; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	37	+0x94	00624180	cSC4NetworkTool::GetMajorBridgeAltitude	4	1	eax-or-void	high	re-specs17a (replace): AL bool; out := last record +0x10; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	38	+0x98	00624150	cSC4NetworkTool::GetMajorBridgeReferenceAltitude	4	1	eax-or-void	high	re-specs17a (replace): AL bool; out := last record +0x14; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	39	+0x9C	006241b0	cSC4NetworkTool::IsMajorBridgeLandBridge	0	0	eax-or-void	high	re-specs17a (replace): AL: last record byte +0x18, 0 if none; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	40	+0xA0	00624b20	cSC4NetworkTool::GetBridgeBitmapKey	12	3	eax-or-void	high	re-specs17a (replace): AL bool; (index, &a, &b) from bridge type +0x148/+0x14C; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	41	+0xA4	006241d0	cSC4NetworkTool::GetPossibleNeighborConnection	4	1	eax-or-void	medium	re-specs17a (replace): Mac name only; behaviour not specified here
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	42	+0xA8	0062c910		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	43	+0xAC	0062c930		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	44	+0xB0	0062c940		0	0	eax-or-void	medium	
