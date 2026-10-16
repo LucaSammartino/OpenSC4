@@ -453,6 +453,25 @@ which hold the same values as §1.1.
       the portal side, otherwise `(x + dx, z + dz)`. Skip `s` when `m` is outside the city (unsigned compare), has no
       cell info, or is part of a highway intersection (`+0x52`). If `m`'s in-run byte is set and (`from < 0` or
       `s = from`): `from := s`. Otherwise `to := s` and `t := m` (so the **last** such side wins).
+
+      **A skipped side keeps its flow code (NR8 — DIFFERS, corrected 2026-10-16 by re-answers31).** "Skip `s`"
+      excludes the side from `from`/`to` selection **only**. It does **not** clear `code(c, s)`, for any of the
+      three reasons (outside the city, no cell info, highway intersection) — the three are the same skip and the
+      same outcome. In `FUN_0063a640` the propagation loop **reads** the code field (`c + 0x50`, two bits per
+      side) and never writes it; after the loop there are exactly two stores, `code(c, to) := a` and
+      `code(t, (to − 2) & 3) := a`. The **only** place the whole function zeroes a code is the conflict sweep of
+      step 3 (`decomp/cSC4NetworkTool.c:11343` for `c`, `:11353` for the partner cell), which stores
+      `'\0' << (p·2)` when `seen[p]` already holds a different flow.
+
+      Test 26's east drop on X is that sweep, not a skip. X's OneWayRoad edge word is `0x00000202`, so the
+      partner of side 0 is `(2 + 0) & 3 = 2` and the partner of side 2 is `(0 + 2) & 3 = 2` — both arms map to
+      partner side 2. Side 0 contributes `f = code(c,0) = 1` (no axis flip, since `(p ^ s) & 2 ≠ 0`), so
+      `seen[2] = 1`. Side 2 contributes `f = code(c,2) = 1` flipped to `1 ^ 3 = 2` (since `(2 ^ 2) & 2 = 0`).
+      `seen[2] = 1 ≠ 2` is a conflict, so `code(c, 2) := 0` — X's east code goes `1 → 0`, giving `0x09` once the
+      propagation has also set the north code to 2. **The change to make:** drop the `[choice]` that clears a
+      skipped side's flow code in `resolve_one_way_conflicts`; leave skipped codes alone and let step 3's sweep
+      do the clearing. If test 26 then fails on X's east byte, the sweep — not the propagation — is what to
+      check.
    5. If `from < 0` or `to < 0`, go to the next entry.
    6. `a := code(c, from)`. A turn between W and N, or between E and S (`to = from ^ 1`), reverses the axis sense:
       `a := a ^ 3`. (Flow entering from the west, moving +x, and leaving through the north moves −z.)

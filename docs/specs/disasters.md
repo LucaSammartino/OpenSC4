@@ -493,6 +493,36 @@ Returns true if the occupant burns afterwards.
 | step 4 | not `force` and `round(D9(coverage)) > 0` | the rectangle is the occupant's `GetBoundingCityCells` (occupant slot 11) intersected with the city (`0x0048ED90`; no overlap gives an empty rectangle); the average is `GetAverageValueInCellRect(x, z, w, h)` (`0x0045DE50`: sum / (w × h), truncated by `_ftol`, as a byte); D9 is the curve at instance `+0xA4`; the rounding uses the 12582912 constant at `0x00A9E434` |
 | step 5 | target's `0x69DBEBE1` true and not `force` | |
 
+**Why a *spread* target is refused (DS38 leftover — ANSWERED 2026-10-16 by re-answers31: it is always exit 4).**
+The logged case is `rect=56,86..56,87 coverage=1 flammability=40 burning=0 paused=1 emergency=1` with
+`exits=none-of-1,2,3,5`. Four of the five exits are ruled out by that log alone:
+
+| Exit | Logged input | Fires? |
+|---|---|---|
+| 1 | `paused=1` but `emergency=1` — the test is "not force, **not** emergency-paused, paused", so an emergency pause defeats it | no |
+| 2 | `type=278128A0` is a building | no |
+| 3 | `flammability=40 ≠ 0` | no |
+| **4** | **`coverage=1`, so `round(D9(1)) > 0`** | **yes** |
+| 5 | `burning=0` | no |
+
+So the original refuses the spread target at **step 4**, the average-coverage test. The `coverage=1` in the log
+is not incidental colour: it is the input to that test. A *spread* target is by definition a cell the fire has
+already reached with its coverage, so its bounding rectangle's average fire coverage is already non-zero and the
+test refuses unless the call is forced. That is a de-duplication guard — "do not ignite something the fire has
+already covered" — not a "burning" check. re-answers23's guess that the likeliest exit was the burning test
+(step 5) is ruled out by `burning=0` and by `exits=none-of-1,2,3,5` being logged at all.
+
+**The change to make.** The mirror must not ignite these. Reproduce step 4 exactly: take the occupant's
+`GetBoundingCityCells` (occupant slot 11), intersect it with the city (`0x0048ED90`; no overlap ⇒ an empty
+rectangle), average the coverage over it with `GetAverageValueInCellRect(x, z, w, h)` (`0x0045DE50`:
+`sum / (w × h)`, truncated by `_ftol`, as a byte), push that through the **D9 curve at instance `+0xA4`**, round
+with the 12582912 constant at `0x00A9E434`, and refuse when the result is `> 0` and the call is not forced. The
+logged `rect=56,86..56,87` is a 1×2 cell rectangle, so the average is the mean of the two coverage bytes.
+
+The related one-step `lot 152BC7B8 condition orig 6 ours 5` lag the same run logged is separate (tagged `[Q42]`):
+a fire a spread lights is mirrored after the mirror's own step of the tick, so its stage — and the lot condition
+that follows it — can be one step behind. Fixing the refusal removes the bogus fire and with it that lag.
+
 The "burning" property `0x69DBEBE1` is set only by the fire occupant's `SetTarget` (`0x004719DF`) and cleared only
 by the fire occupant's `Shutdown` (`0x00470E5D`), which runs when `KillFire` removes the fire occupant (§5.10). A
 target therefore reads "burning" for exactly as long as a fire occupant on it exists.
