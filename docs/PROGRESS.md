@@ -109,7 +109,7 @@ budget is off by default (enable = <key>).
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**
-- [x] Interface/ABI reference for implementers: allocators, layouts, direct calls ([docs/abi/](abi/)); the conformance test accepts a single trailing deleting destructor past the declared slot count (abitidy, merged b435187, regress run 122 PASS)
+- [x] Interface/ABI reference for implementers: allocators, layouts, direct calls ([docs/abi/](abi/)); the conformance test accepts a single trailing deleting destructor past the declared slot count (abitidy, merged b435187, regress run 122 PASS); the held ABI rows (lot configuration slot 33, command parameter set slots 7, 8, 10) applied and cIGZCommandParameterSet checked as compiled (abitidy2, merged 6da51f0, regress run 140 PASS)
 - [x] Test harness switches in the plugin (6147be6, tooling, off by default): `sim_turbo` (our clock without the msPerDay wait), `autotest_end_date`, `script = <file>` (dated zone / dezone / speed / save / digest actions through the game's interfaces); turbo runs about 100 game days/s in game and waits for ConnectionsReady (0786064)
 - [x] Parallel game slots and a per-lane run queue (9e0fa74): up to 3 games at once, each lane tests its own DLL in game ([docs/harness.md](harness.md)); `regress -Parallel` in about 164 s
 - [x] Game dialogs ended from inside the plugin (dba09eb, tooling, off by default): `close_dialogs = 1` presses each modal dialog's default button through the window manager ([docs/specs/modal-dialogs.md](specs/modal-dialogs.md))
