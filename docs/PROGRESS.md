@@ -98,7 +98,8 @@ budget is off by default (enable = <key>).
 - [ ] Automata glue: GZCOM classes for components 40/41/43-46 over `fc4_automata_*`, riot leaders and the fire occupant through its host tables, U-Drive-It pause/resume, an in-game shadow; apply AT2-AT5; answer AM1-AM12
 - [x] Occupant manager core and C ABI (occupant-manager.md; cores14b, merged 2aa7698, ABI 63, regress run 130 PASS): the 192 x 192 grid of 64 m cells and its conversions (slot 12 bug reproduced), newest-first cell lists, Insert / Remove / RemoveOccupants / Move message order, the query slots and the shared type filter, the v1 record, the threading model; every §18 test as a unit test and 22 `om18_*` / `om14_*` vectors
 - [ ] Occupant manager glue: a `cISC4OccupantManager` replacement over `fc4_occmgr` with a same-process shadow (message order exact) before any replacement mode; apply OM5, OM7 and OM8 (re-answers16); settle OM1 and OM3 in game
-- [ ] Rendering, UI, audio, region; a standalone executable
+- [x] M6+ scoping inventory ([INVENTORY-M6.md](specs/INVENTORY-M6.md); re-inventory6): every non-simulation subsystem (framework, renderer, UI, audio, region, launcher and video layer) with classes, class IDs, code size, simulation hooks and shipped data; a ranked spec order with four parallel lanes (re-m6a host and city, re-m6b camera and models, re-m6c terrain view and lighting, re-m6d UI data formats); the minimal standalone path S0 (headless runner) to S6 (no SimCity 4.exe); save-records Q5 answered
+- [ ] Rendering, UI, audio, region; a standalone executable (milestones S0-S6 of INVENTORY-M6.md §10)
 
 **Cross-cutting**
 - [x] Interface/ABI reference for implementers: allocators, layouts, direct calls ([docs/abi/](abi/)); the conformance test accepts a single trailing deleting destructor past the declared slot count (abitidy, merged b435187, regress run 122 PASS)
