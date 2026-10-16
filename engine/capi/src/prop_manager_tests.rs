@@ -517,7 +517,7 @@ fn the_catalogue_is_built_once_per_process() {
         g.take(),
         [
             "shutdown callback",
-            "post 900 0",
+            "post 900 2", // PL2: data2 = the type count
             "command 0BEAF1A2",
             "subscribe A6B79602",
             "subscribe 06CDB65B",

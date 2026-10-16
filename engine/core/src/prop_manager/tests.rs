@@ -428,7 +428,7 @@ fn init_builds_once_and_shutdown_keeps_catalogue() {
         g.take(),
         vec![
             "callback",
-            "post AAAA 0",
+            "post AAAA 1",
             "command 0BEAF1A2",
             "subscribe A6B79602",
             "subscribe 06CDB65B",
@@ -487,6 +487,30 @@ fn catalogue_message_without_resource_manager() {
     m.init();
     assert!(g.take().contains(&"post AAAA 0".to_string()));
     assert!(!m.is_prop_type_valid(0x10));
+}
+
+/// PL2 (re-answers18): data2 of the catalogue message is the type map's
+/// count, each instance once even when a later exemplar replaces its key.
+#[test]
+fn catalogue_message_data2_is_the_type_count() {
+    let g = Game::new();
+    g.exemplar(0x10, prop_exemplar(&[], None));
+    g.exemplar(0x11, prop_exemplar(&[], None));
+    g.exemplars.borrow_mut().push((
+        ResKey {
+            type_id: crate::props::EXEMPLAR_TYPE,
+            group: 0x5678,
+            instance: 0x10,
+        },
+        Rc::new(prop_exemplar(&[], None)),
+    ));
+    let mut other = prop_exemplar(&[], None);
+    other.add(crate::props::PROP_EXEMPLAR_TYPE, Variant::Scalar(Elem::U32(0x02)));
+    g.exemplar(0x12, other);
+    let m = manager(&g);
+    m.init();
+    assert!(g.take().contains(&"post AAAA 2".to_string()));
+    assert_eq!(m.catalogue().borrow().data2(), 2);
 }
 
 /// §T 1: profile defaults.
