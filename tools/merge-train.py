@@ -338,6 +338,23 @@ def union_merge(wt, rel):
     return True
 
 
+def dedupe_version(path, regex):
+    """After a union merge the version constant can appear twice (both sides bumped it). Keep one, at the max."""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    lines = text.split(NL)
+    hits = [i for i, ln in enumerate(lines) if regex.match(ln)]
+    if len(hits) <= 1:
+        return True
+    best = max(int(regex.match(lines[i]).group(2)) for i in hits)
+    keep = hits[0]
+    for i in reversed(hits):
+        if i != keep:
+            del lines[i]
+    lines[keep] = regex.sub(lambda m: f"{m.group(1)}{best}{m.group(3)}", lines[keep])
+    path.write_text(NL.join(lines), encoding="utf-8")
+    return True
+
+
 def resolve_conflicts(wt, lanes):
     """Return (resolved, still_conflicted)."""
     paths = conflicted_paths(wt)
@@ -346,7 +363,13 @@ def resolve_conflicts(wt, lanes):
     resolved, left = [], []
     for p in paths:
         if p == ABI_INC:
-            # Generated at build time (abi-hygiene) or by tests/gen_abi_entries.py: take ours and regenerate.
+            if not (Path(wt) / p).exists():
+                # modify/delete: abi-hygiene generates it at build time and removed it from git. Keep the
+                # deletion — never restore, regenerate or commit the file.
+                git(["-C", str(wt), "rm", "--cached", "-f", "--", p], check=False)
+                resolved.append(p + " (kept deleted: generated at build time)")
+                continue
+            # Pre-abi-hygiene lanes still track it: take ours and regenerate.
             git(["-C", str(wt), "checkout", "--ours", "--", p], check=False)
             git(["-C", str(wt), "add", p], check=False)
             regen = Path(wt) / "engine" / "tests" / "gen_abi_entries.py"
@@ -355,8 +378,11 @@ def resolve_conflicts(wt, lanes):
             resolved.append(p)
             continue
         if p in (ABI_HEADER, ABI_RS):
-            if _resolve_abi_version(wt, p):
-                resolved.append(p)
+            # Union both sides (git's own union never drops or glues lines), then collapse the version
+            # constant to a single line. consolidate_abi_history rewrites the history block afterwards, so
+            # the unioned block does not have to be pretty.
+            if union_merge(wt, p) and dedupe_version(Path(wt) / p, VERSION_RE_C if p.endswith(".h") else VERSION_RE_RS):
+                resolved.append(p + " (union + version)")
                 continue
         if p in UNION_PATHS:
             # Append-style: union both sides so no lane's rows or sections are dropped. Once
@@ -511,7 +537,9 @@ def consolidate_abi_history(wt, lanes, batch_id):
         main_ver = int(mm.group(2))
 
     def key(lines):
-        return " ".join(" ".join(lines).split())
+        s = " ".join(" ".join(lines).split())
+        # main's last entry carries the comment close; a lane's copy of the same entry does not
+        return s[:-2].rstrip() if s.endswith("*/") else s
 
     main_keys = {key(ls) for _n, ls in main_entries}
     descs, numbers = [], [main_ver]
@@ -522,7 +550,7 @@ def consolidate_abi_history(wt, lanes, batch_id):
         _a, _b, entries = parse_history(src.stdout)
         mine = []
         for num, ls in entries:
-            if key(ls) not in main_keys:
+            if num > main_ver and key(ls) not in main_keys:
                 mine.append(re.sub(r"^ \* \d+ = ", "", " ".join(ls).split(" */")[0]).strip())
                 numbers.append(num)
         if mine:
@@ -596,7 +624,8 @@ def regenerate(wt):
     """Rebuild every derived file after the merges, so no lane has to hand-merge them."""
     out = []
     gen = Path(wt) / "engine" / "tests" / "gen_abi_entries.py"
-    if gen.exists():
+    tracked = git(["-C", str(wt), "ls-files", "--error-unmatch", ABI_INC], check=False).returncode == 0
+    if gen.exists() and tracked:
         p = sh([sys.executable, str(gen)], cwd=Path(wt) / "engine", check=False)
         out.append(f"gen_abi_entries: exit {p.returncode}")
     tables = Path(wt) / "tools" / "gen_handoff_tables.py"
