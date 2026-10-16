@@ -601,34 +601,35 @@ impl ZoneDeveloper {
             super::Component::ZoneDeveloper,
             &[MSG_INSERT_OCCUPANT, MSG_POST_CITY_INIT, MSG_VIEW],
         );
-        self.host.release_network_tools();
-        // Release each lot of the map once (first sighting, x outer, z inner)
-        // [inferred], and empty the map and the master list. Collect the lots
-        // first and drop the borrow before any host call (foundations §19.3
-        // rule 4).
-        let lots: Vec<u64> = {
+        // ZG32 (§1.2 Shutdown, `0x0072B8D0`): walk the cell map x outer, z
+        // inner, and run the manager's own `DeleteLot` (slot 24, §8.6: zot
+        // prop, base texture, cells, master list, business unit,
+        // `lot.Shutdown()`, the manager's release) on every non-null cell.
+        // `DeleteLot` nulls the lot's cells, so each lot is deleted once, at
+        // its first cell. The cell is read afresh at each step (no borrow is
+        // held across the host calls, foundations §19.3 rule 4).
+        let (map_x, map_z) = {
             let s = self.st.borrow();
-            let mut seen = BTreeSet::new();
-            let mut v = Vec::new();
-            for x in 0..s.map_x {
-                for z in 0..s.map_z {
+            (s.map_x, s.map_z)
+        };
+        for x in 0..map_x {
+            for z in 0..map_z {
+                let lot = {
+                    let s = self.st.borrow();
                     let i = x as usize * s.map_z as usize + z as usize;
-                    if let Some(lot) = s.cell_map[i] {
-                        if seen.insert(lot) {
-                            v.push(lot);
-                        }
-                    }
+                    s.cell_map.get(i).copied().flatten()
+                };
+                if let Some(lot) = lot {
+                    self.delete_lot(lot);
                 }
             }
-            v
-        };
-        // The host's mirror of the master list goes first, so no registered
-        // safe iterator is left at a node of a released lot.
-        self.host.master_reset(&[]);
-        for lot in lots {
-            self.host.lot_shutdown(lot);
-            self.host.release(lot);
         }
+        // Then free the map; whatever the master list still holds (a lot
+        // outside the map) is dropped with it. The host's mirror is emptied
+        // so no registered safe iterator is left at a freed node.
+        self.host.master_reset(&[]);
+        // The network tools after the lots (§1.2 order).
+        self.host.release_network_tools();
         {
             let mut s = self.st.borrow_mut();
             s.cell_map.clear();

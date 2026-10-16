@@ -94,8 +94,9 @@ impl Tuning {
     /// the first `min(16, count)` and leaving the rest at their previous
     /// value [choice: the original reinterprets 16 elements through `Ref*`
     /// with no count or type check]. A missing exemplar or property leaves the
-    /// array unchanged. Returns whether the Zone Display Alpha was read (ZG3:
-    /// only then is it copied to the default alpha).
+    /// array unchanged. Returns whether the exemplar was found (ZG18, §10.1:
+    /// the copy to the default alpha runs whenever it was, whether or not the
+    /// Zone Display Alpha was in it).
     pub fn read(&mut self, h: Option<&PropertyHolder>) -> bool {
         self.create_cost = [0; 16];
         self.destroy_cost = [0; 16];
@@ -123,9 +124,8 @@ impl Tuning {
         take16(&mut self.max_slope, props::f32s(h, prop::MAX_SLOPE));
         if let Some(a) = props::u32_of(h, prop::DISPLAY_ALPHA) {
             self.display_alpha = a as u8;
-            return true;
         }
-        false
+        true
     }
 }
 
@@ -327,10 +327,11 @@ impl ZoneManager {
         {
             let mut s = self.st.borrow_mut();
             // ZG3 (§10.1): the exemplar's Zone Display Alpha overwrites the
-            // alpha a Read set and is copied to the default alpha. [question]
-            // Literal reading: with no exemplar or no such property the saved
-            // alpha survives and the default alpha is left as it was (the
-            // copy is of the exemplar's value, so there is nothing to copy).
+            // alpha a Read set. ZG18 (§10.1 table): the copy to the default
+            // alpha runs whenever the exemplar is found, also when the
+            // property is missing (then it copies the alpha as it was: the
+            // saved byte after a load, else 0xFF); with no exemplar both
+            // alphas are left as they were.
             if s.tuning.read(tuning.as_deref()) {
                 s.default_alpha = s.tuning.display_alpha;
             }
@@ -523,6 +524,21 @@ impl ZoneManager {
                 if self.host.network_has_any_flag(occ, NO_DEZONE_FLAGS) == Some(false) {
                     let rect = self.host.occupant_bounding_cells(occ);
                     let mut region = super::CellRegion::new(rect, true);
+                    // ZG21 [choice] (§5.1 "A rectangle that crosses the city
+                    // edge"): neither the handler nor GetBoundingCityCells
+                    // clamps the rect, and the original dezones every in-city
+                    // cell while touching zone-grid memory outside the grid.
+                    // Clip: the outside cells become clear bits (the rect
+                    // stays), so PlaceZone's ZG2 test passes and the inside
+                    // cells are dezoned, as in the original.
+                    let (cx, cz) = self.host.city_cell_counts();
+                    if rect.x1 < 0 || rect.z1 < 0 || rect.x2 >= cx || rect.z2 >= cz {
+                        for (x, z) in region.cells() {
+                            if x < 0 || z < 0 || x >= cx || z >= cz {
+                                region.set(x, z, false);
+                            }
+                        }
+                    }
                     // PlaceZone(region, 0, commit, skipFunds, !checkSlope,
                     // skipSizeCheck, checkLotInside).
                     self.place_zone(&mut region, 0, true, true, false, true, true);

@@ -4325,7 +4325,9 @@ Open points from network-manager.md §15. The current answer is in brackets; eac
   the component 53 counts would settle it]~~ **ANSWERED 2026-10-15 (re-specs14b):** no. Loading posts no Insert. Since
   the base occupant `Read` (`0x005E8D60`) sets bit 1 of the state byte, the base `Init` (`0x005E8C90`) posts no
   Create either. The network occupant `Init`s never insert. MATCHES. network-manager.md §15.
-- **NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`, ~~and of the terrain kinds 3,
+- ~~**NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`~~ **ANSWERED 2026-10-15
+  (re-specs15b):** `0x40000` bridge-step piece (MATCHES), `0x80000` tunnel portal (MATCHES), `0x40000000` elevated
+  with supports (MATCHES), `0x80000000` draft (preview) occupant. network-geometry.md §10.3. History: ~~and of the terrain kinds 3,
   4 and 6 in the network manager's terrain handler. [unknown; logging `data4` of `0x278E6003` for each terraforming
   brush settles the kinds]~~ **PARTLY ANSWERED 2026-10-15 (re-specs14a):** the kinds are settled from every call
   site of `RedisplayTerrain` (terrain.md §8.2): 0 internal (sea level, flat areas, shore cliffs, texture-only),
@@ -4346,6 +4348,25 @@ Open points from network-manager.md §15. The current answer is in brackets; eac
   `StartEffect(bool)`, `StopEffect(bool)` (vtable `0x00AA4ED8`, overloads in reverse SDK order). MATCHES.
   network-tools.md §13.2.
 
+
+## From the network geometry spec (re-specs15b lane, 2026-10-15)
+
+Open points from network-geometry.md §17. The current answer is in brackets; each entry says what would settle it.
+
+- **NG1:** the satisfier's tie-break between vertices with equally narrow ranges follows the hash-map iteration order
+  of vertex ids. [reproduce the SGI `hash_map<int>` bucket order; comparing one hill crossing in both engines shows
+  whether ties occur]
+- **NG2:** the bridge internals: the step and edge tests, `AdjustBridgeSpan`, `FindBestBridgeType`,
+  `SelectBridgeElevation`, specialised and parametric bridge models. [not specified]
+- **NG3:** who fills the tool's extra-cell list (`+0xF0`), and whether `CheckForGoodTerrain`'s inverted extra-cell
+  test can be reached. [empty in an ordinary drag, inferred]
+- **NG4:** `IdentifyLandBridgeCells` and which types set `+0x354`. [not specified]
+- **NG5:** the rule-driven piece solver (`SolveUsingEvaluator`, `ApplyNetworkRules`, tile subsets) and
+  `IdentifyHighwayIntersections`. [a later spec]
+- **NG6:** the readers of type info `+0x110` and of the p+0xA0 id list, and the source of road's support info.
+  [only the flat-cell test is known]
+- **NG7:** `DestroyOccupantsAndResolve` builds one neighbour key as `(x << 16) + z` while the tool's sets use
+  `(z << 16) + x`. [unchecked; a destroy next to an off-diagonal neighbour would show it]
 ## From the traffic glue, phase 2: the traffic shadow (filed by the coordinator from the `traffic2` lane's report, 2026-10-15)
 
 About `docs/specs/traffic-simulator.md` and the same-process traffic shadow (`traffic_shadow = 1`; core
@@ -4461,3 +4482,142 @@ numbers (its Q6-Q25, continuing disasters.md §17) are given in parentheses; the
 - **DS23:** the network default cost. [taken from the host]
 - **DS24:** the order in which the riot releases its removal locks. [insertion order, a choice the spec does not
   make]
+
+## From the terrain core (filed by the coordinator from the `cores16` lane's report, 2026-10-16; merged `d651d74`)
+
+cores16 implemented terrain.md as a Rust core (`engine/core/src/terrain/`), a C ABI (`fc4_terrain`, ABI 58) and
+conformance vectors (`tr18_*`, `tr00_*`, `nt05_economy_modifier`), and nation.md GetEconomyModifier. There is no
+plugin glue yet, so none of these readings has been checked in game. Each choice is marked `[choice]` in the code
+and the vectors. The current choice is in brackets.
+
+- **TR4:** (terrain §11.3/§11.5) in what order are the lava neighbour offsets scanned? When several neighbours tie
+  for the largest drop, the first one wins. [west, east, north, south, then the diagonals]
+- **TR5:** (terrain §11.5) does SetThingsOnFire call SetCause(3) after each ignited cell, or once per call? [per cell]
+- **TR6:** (terrain §10.2) what does GetWaterType return for a vertex with a NaN depth? [the comparisons fail, so it
+  falls through to fresh water (2)]
+- **TR7:** (terrain §9.3) ComputeSpansForRectangle's footprint spans are not fully specified. [an inclusive vertex
+  rectangle clamped to the terrain]
+- **TR8:** (terrain §9.1/§9.4) what is a brush description's starting angle, and is it stored per terrain or per
+  description? [0, per description]
+- **TR9:** (terrain §2.3) what is the starting value of the default brush level at `+0xBC`? [0]
+- **TR10:** (terrain §13.1) no record holds the sea level, so what is it after a load? [the tuning's `new_sea_level`]
+- **TR11:** (terrain §8.1) how are the data words of texture message `0x870BC918` packed? [no data, all zero]
+- **TR12:** (terrain §3/§15) what do the slots with unchecked indices (GetAltitudeAtIndex, SetAltitude(x, z) and
+  others) do out of range? [a read returns 0 or NaN, a write does nothing]
+- **TR13:** (terrain §10.4) does a power pole block navigation only on a cell with depth > 0? [yes: depth > 0 means
+  GetWaterDepthForCell > 0]
+- **TR14:** (terrain §8.4) does SetWaterSurfaceDisplayState post on every call or only when the state changes?
+  [every call]
+- **TR15:** (terrain §9.3) is a kind-0 brush reported as a change even when every touched vertex was locked or
+  clamped? [yes: the out rectangle and the redisplay still happen]
+- **TR16:** (terrain §9.4) with an angle of exactly pi, sin(pi) in f32 is not 0, which gives a one-pixel fringe on the
+  earthquake stroke. Is that intended? [kept as computed]
+- **TR17:** (terrain §10.4, plumbing §7.2) for IsNavigable, are the city bounds behind slot 99 the terrain's cells,
+  and does the search follow the plumbing §7.2 spiral? [yes to both]
+- **TR18:** (glue contract) the lava and brush host callbacks run while the core holds the terrain mutably, so a
+  callback that calls back into the same `fc4_terrain` handle is refused (and counted). Should the glue lane queue
+  such work instead? [refused and counted; for the glue lane to decide]
+
+## From applying the re-answers10/11 DIFFERS entries (filed by the coordinator from the `apply12` lane's report, 2026-10-16; merged `463cca7`)
+
+apply12 applied ZG18, ZG21, CM5, NG35-NG37, NG43, NG44 and DG35 (ABI 59, taken as 66 on the lane; FC4TestSeam op
+66 installs a fake confirmation dialog). DG28 is not applied: the audited release in the growth developer's
+destructor (`FC4_RELEASE_AT_DESTRUCTION`) stays. The lane's choices are in brackets.
+
+- **NG45:** (neighbors.md §6.2, NG35) RequestCreateConnection's title and text are LTEXT keys, but the spec does not
+  say which loader reads them or which group the two instance-only keys (`0x0A8E152D` text, `0x0A8E15F9` fallback
+  name) belong to. [SC4LoadString's rule (group + language ID, then the group alone, U+2022 becomes U+200B), with
+  both keys in the title's group `0x6A231EAA`; the sprintf template takes the name at the first `%s` and `%%` gives
+  `%`; a missing LTEXT gives empty text (choice)]
+- **DG39:** (building-development §1.4, DG28) after loading a saved city (Konradshohe, run `apply12-dev-1`), our
+  growth developers are destroyed only after the simulator's Shutdown, not inside the BDS Shutdown, although the
+  core shuts each one down and releases it there. Does the original's load-time object table (or anything else)
+  hold a reference to a growth developer it resolved for the BDS record, and when is that reference released?
+  [the destructor's audited release stays until this is answered]
+
+## From the occupant manager and automata cores (filed by re-answers16 from the coordinator's task, 2026-10-16)
+
+The occupant manager questions OM4–OM8 continue occupant-manager.md §16. AT2–AT5 are automata.md §13 Q2–Q5,
+filed here under their own prefix. The implementers' choices are in brackets.
+
+- ~~**OM4:** is the 0.1 m shrink constant (occupant-manager §5.1 step 5 and the standard-cell boxes of slots
+  32/34/40) `float` or `double`, and at which address? [float]~~ **ANSWERED 2026-10-16 (re-answers16):** MATCHES.
+  It is `float` `0x3DCCCCCD` at `0x00A8F768`, read as a 4-byte operand in Insert, Move, the FindOccupant helper and
+  slots 32/34/40/47. The 1.0 width limit is `float` at `0x00A81228`. Every shrunk bound is stored as a `float`.
+  occupant-manager §5.1, §7.
+- ~~**OM5:** slot 34's clamp to the standard counts: 0..=count or 0..=count−1? [0..=count]~~ **ANSWERED 2026-10-16
+  (re-answers16):** **DIFFERS**. A non-null min or max is clamped to 0…count − 1 (`0x0049E827`–`0x0049E8B7`). A null
+  max becomes (count X, count Z), one standard cell past the edge, as in slot 40. occupant-manager §7, test 21.
+- ~~**OM6:** out-of-grid and crash paths: Insert before Init; manager boxes with bytes past 191 or negative cells;
+  slot 23 with a null filter; slot 28 outside the grid; FindOccupant on an occupant without a property holder. [no
+  nodes / flag 1 set and Insert posted / true and no-op / none / no guess]~~ **ANSWERED 2026-10-16 (re-answers16):**
+  occupant-manager §5.7 and §6.3. Where the original is defined, the brackets MATCH:
+  - a **wrapped** box (low corner byte > high, e.g. a cell below 0 stored as 255) gets no nodes, while flag 1 is set
+    and Insert is posted (loops `0x0049F0C8`/`0x0049F0EA`);
+  - FindOccupant without a property holder guesses from two uninitialised locals; Insert and Move never place such
+    an occupant, so skipping the guess gives the same results.
+
+  The remaining cases crash or touch wild memory in the original, so the brackets are accepted as choices:
+  - Insert before `Init` reads through the null grid at `0x0049F0F7`, after Create and the stored box. Insert after
+    `Shutdown` works, because the rows survive.
+  - Bytes 192–255 inside a running loop read past the grid in Insert, Remove and Move.
+  - Slot 23 writes the type to address `0xC` (`0x0049DB87`).
+  - Slot 28 (and slot 32) index the grid unclamped.
+- ~~**OM7:** does slot 44 `IterateOccupants` skip the duplicate check for single-cell nodes like slots 36/38? [checks
+  every node]~~ **ANSWERED 2026-10-16 (re-answers16):** **DIFFERS** in mechanism, with identical results:
+  - it skips the check for bit-0 nodes (`0x004A1689`–`0x004A1695`);
+  - a single-cell walk has no check at all;
+  - the spec's §9.2 was also wrong about callbacks: slot 44 collects an AddRef'd batch per cell under an inner lock
+    and calls back after dropping it, all inside the outer lock. So a callback may remove the occupant it was given.
+    occupant-manager §9.2, test 23.
+- ~~**OM8:** do `Write`/`Read` and slot 25 take the manager's lock? [yes]~~ **ANSWERED 2026-10-16 (re-answers16):**
+  **DIFFERS**: none of them does (`0x0049ECF0`, `0x004A1A20`, `0x0049E490`). The extra recursive lock is not
+  observable and may stay. occupant-manager §13, §14.
+- ~~**AT2 (automata.md §13 Q2):** the meaning of the two `vec3`s and the `bool` of a controller-manager automaton
+  set.~~ **ANSWERED 2026-10-16 (re-answers16):** it is an occupant's **queue**:
+  - the line of automata, front first;
+  - the queue point, 1 m outside the middle of the lot edge that touches a network (traffic network map slot 14);
+    the lot's facing picks the first side;
+  - the unit direction in which the line grows;
+  - "point found".
+
+  State 4 (`QUEUE`) appends, steers each automaton behind its leader, and removes (`0x0051BB60`–`0x0051BD50`; point
+  search `0x00516070`). automata §3.3.
+- ~~**AT3 (Q3):** the type numbers of RandomWalk, PlopJump, Plummet, PullOver, Bumped and Collide, and the meaning
+  of corpus state types 0, 2, 3, 7, `0x0D`.~~ **ANSWERED 2026-10-16 (re-answers16):**
+  - `0x0B` RandomWalk, `0x0E` Plummet, `0x0F` PlopJump, `0x11` Bumped, `0x14` Collide, `0x15` PullOver: the Windows
+    factory `0x0050B7F0` sizes match the Mac classes, and the game's Lua `automata_states` table agrees;
+  - 0 DEFAULT, 2 BEE_LINE, 3 CROWD, 7 IDLE;
+  - 13 is the traffic automaton's blocked wait, pushed at `0x0054E322` for (tuning `0x00B21C74`) × 1000 ms.
+
+  automata §6.2.
+- ~~**AT4 (Q4):** the records of aircraft and watercraft automata.~~ **ANSWERED 2026-10-16 (re-answers16):**
+  - aircraft base `0xC96E75DC`: `u16` 1 + automaton base (`0x004FB060`/`0x004FB080`);
+  - airplane `0xCBEB4F62` and helicopter `0x8BA98EDA`: `u16` 1 + aircraft record + `vec3` home position
+    (`0x004FD380`/`0x004FD3C0`, `0x005343C0`/`0x00534400`);
+  - watercraft `0x096E75F5`: `u16` 2 + automaton base (`0x00566EE0`/`0x00566F00`).
+
+  automata §6.4.
+- ~~**AT5 (Q5):** the generator's two trailing `u32`s, the automaton base's unnamed fields, `CreateAutomaton`'s mode
+  and last three arguments.~~ **ANSWERED 2026-10-16 (re-answers16):**
+  - the generator `u32`s are the current automata group ID (corpus `0x4122`–`0x4139`) and the count spawned from it;
+  - the base fields are named in automata §6.1 (attractor, distance, strength and attraction vector; model
+    instance; speed and opacity tweens; priority; group ID);
+  - `CreateAutomaton` is (group, const vec3& position, u32 automata flags, const key3& model key,
+    cIGZMessageTarget2* callback, u8 priority, const vec3* orientation). It returns a pointer without a reference
+    for the caller.
+
+  automata §3.5, §6.1, §7.2.
+
+## From applying the re-answers12 lot developer and zone developer answers (filed by the coordinator from the `apply13` lane's report, 2026-10-16; merged `adf64f4`)
+
+apply13 applied LD2-LD30 (lot-developer.md) and ZG26, ZG30-ZG34 (zones.md, tract-developer.md §4.15.3); ABI 60, taken
+as 71 on the lane. Not applied here: ZG22 (slot 19 always writes `*ok`) and ZG24 (the zone tool owns the highlight
+region), from re-answers11. The lane's choices are in brackets.
+
+- **LD31:** (lot-developer.md §6.6, LD17) UpdateLotObjectAltitudes: is the building's foundation redone only after the
+  object actually moved (beyond the 0.1 tolerance), or for every building visited? [only after a move (inferred)]
+- **LD32:** (lot-developer.md §6.5) AddNetworkConnectionNodes: when CreateConnectionNode (network manager slot 20)
+  fails and leaves its out-parameter null, the original appends whatever was returned to the list that
+  AutoconnectLotNodes (slot 21) reads. Is a null entry appended and passed on? [a null result is not appended; it is
+  counted as `nodesFailed` (choice)]
