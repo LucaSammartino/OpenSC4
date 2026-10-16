@@ -4608,3 +4608,16 @@ filed here under their own prefix. The implementers' choices are in brackets.
     for the caller.
 
   automata §3.5, §6.1, §7.2.
+
+## From applying the re-answers12 lot developer and zone developer answers (filed by the coordinator from the `apply13` lane's report, 2026-10-16; merged `adf64f4`)
+
+apply13 applied LD2-LD30 (lot-developer.md) and ZG26, ZG30-ZG34 (zones.md, tract-developer.md §4.15.3); ABI 60, taken
+as 71 on the lane. Not applied here: ZG22 (slot 19 always writes `*ok`) and ZG24 (the zone tool owns the highlight
+region), from re-answers11. The lane's choices are in brackets.
+
+- **LD31:** (lot-developer.md §6.6, LD17) UpdateLotObjectAltitudes: is the building's foundation redone only after the
+  object actually moved (beyond the 0.1 tolerance), or for every building visited? [only after a move (inferred)]
+- **LD32:** (lot-developer.md §6.5) AddNetworkConnectionNodes: when CreateConnectionNode (network manager slot 20)
+  fails and leaves its out-parameter null, the original appends whatever was returned to the list that
+  AutoconnectLotNodes (slot 21) reads. Is a null entry appended and passed on? [a null result is not appended; it is
+  counted as `nodesFailed` (choice)]
