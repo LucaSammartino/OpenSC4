@@ -4208,17 +4208,17 @@ repeat ZG22-ZG34. Stage B did not apply two re-answers11 answers: ZG22 (slot 19 
 untouched) and ZG24 (the zone tool owns the highlight region; ours returns null with the zone tool present). The current
 answer is in brackets.
 
-- **ZG35:** §8.5.1: the lot constructor does not write the vacate reason at `+0x83`, and the pool block is not zeroed, so a
-  new lot carries a stale byte there. [choice: FreeCity4 writes 0 after construction]
-- **ZG36:** §8.4.1 `RotateLotRect` with a facing outside 0..3. [choice: the rect is left unrotated]
-- **ZG37:** §8.4.2 / §8.4.3: a constraint or network configuration object whose data vector has fewer values than the
-  check reads. [choice: missing values read as 0]
-- **ZG38:** §8.7 `PositionToCell`: the core computes `floor(p / 16)`; does the original round differently at negative
-  positions or at the map edge? [floor]
-- **ZG39:** §1.2 Shutdown and §5.2 PostCityInit: `GetNetworkTool(type, 1)` returns a tool whose only reference is the zone
+- ~~**ZG35:** §8.5.1: the lot constructor does not write the vacate reason at `+0x83`, and the pool block is not zeroed, so a
+  new lot carries a stale byte there. [choice: FreeCity4 writes 0 after construction]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES the spec's *[choice]* (zones.md §8.5.1). Re-checked: the constructor `0x006C1E50` writes `+0x80`, `+0x81`, `+0x82`, `+0x84` and `+0x88` but never `+0x83` (`0x006C1F19`–`0x006C1F5B`), so the original's byte is whatever the pool block held; writing 0 for lots FreeCity4 creates is the documented *[choice]*, and a loaded lot keeps its byte.
+- ~~**ZG36:** §8.4.1 `RotateLotRect` with a facing outside 0..3. [choice: the rect is left unrotated]~~ **ANSWERED 2026-10-16 (re-answers22):** *[choice]* confirmed (zones.md §8.4.3). For a facing above 3 (unsigned, `0x004BDFDE`) `RotateLotRect` writes nothing, and both callers then use a stack rect that the original leaves as it was (never set before the call in `GetNetworkObjectPlacement`, `0x0072AD70`): undefined, not "unrotated". The only caller chain (the plop tool) passes the lot's facing 0…3, so leaving the rect unrotated is a safe *[choice]*.
+- ~~**ZG37:** §8.4.2 / §8.4.3: a constraint or network configuration object whose data vector has fewer values than the
+  check reads. [choice: missing values read as 0]~~ **ANSWERED 2026-10-16 (re-answers22):** *[choice]* confirmed (zones.md §8.4.3). `GetNetworkObjectPlacement` reads v[0], v[1], v[2] with no size check (`0x0072ADB7`–`0x0072ADD0`); a shorter vector reads past its end in the original. Shipped data never does: all 41 type-7 records carry 3 or 4 extra values; the 43 type-5 records carry 0 or 1 (the `p0` rule handles 0) and the 17 type-6 records none. Missing values as 0 is a safe *[choice]*.
+- ~~**ZG38:** §8.7 `PositionToCell`: the core computes `floor(p / 16)`; does the original round differently at negative
+  positions or at the map edge? [floor]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (zones.md §8.7). City slot 95 (`0x004599E0`) is an exact floor per axis: `t := x × 0.0625`, `c := round-half-even(t − 0.5)` by the 1.5·2²³ idiom, plus 1 when `t = c + 1` exactly. That is ⌊t⌋ for every finite |t| < 2²², negative positions included (−0.1 → −1, −16 → −1, −16.1 → −2), with no clamp at the map edge. Only a NaN differs (a meaningless large value).
+- ~~**ZG39:** §1.2 Shutdown and §5.2 PostCityInit: `GetNetworkTool(type, 1)` returns a tool whose only reference is the zone
   developer's AddRef, so Shutdown's Release frees it (the lane's game runs show this). The spec does not state the
-  ownership. [`FC4_RELEASE_CREATED`]
-- **ZG40:** `UpdateHighlightTextures` (§7.1.1), which the spec allows to be omitted, is not implemented. [omitted]
+  ownership. [`FC4_RELEASE_CREATED`]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES `FC4_RELEASE_CREATED` (network-manager.md §7.1, zones.md §1.2). `GetNetworkTool(type, true)` returns a freshly constructed tool with reference count 0 (base constructor `0x0062C5F0` clears `+0x14` at `0x0062C617`; no AddRef in the factory, `0x00610907`–`0x00610910`); the zone developer's AddRef at PostCityInit is the only reference, and tool `Release` (`0x00623270`) destroys it at count ≤ 1, so the developer's `Shutdown` Release frees it.
+- ~~**ZG40:** `UpdateHighlightTextures` (§7.1.1), which the spec allows to be omitted, is not implemented. [omitted]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (zones.md §7.1.1). The function changes no simulation state and draws nothing; omitting it only removes the zoning preview textures while the zone tool drags, a visible UI difference in game and nothing else.
 
 ## From the history warehouse and 24-hour clock glue (filed by the coordinator from the `histclock` lane's report, 2026-10-15)
 
@@ -4826,15 +4826,15 @@ seeding implemented foundations §6.3 across every merged core that owns a gener
 `seeding::keys`, ABI 64) and the plugin's session seed (`session_seed = <u32>`, else the wall clock at game start). The
 current choice is in brackets.
 
-- **RN2:** foundations §6.3 and growth-developer.md §7: a decline key whose coordinate seed is `0xFFFFFFFF` makes `Seed`
+- ~~**RN2:** foundations §6.3 and growth-developer.md §7: a decline key whose coordinate seed is `0xFFFFFFFF` makes `Seed`
   read the clock (growth-developer.md §7), but §6.3 says coordinate-seeded temporaries are unchanged. Is that case a
   clock-seeded temporary of the owning class, and is this the intended K? [derive(S, `0x0990C138` XOR n), n counting such
-  reads per developer object, not saved; `seeding::keys::growth_decline_clock`, `growth_developer/simulator.rs`]
-- **RN3:** foundations §6.2 / §6.3: the budget (RiskyMoney) and pollution-effects generators are file-local statics in the
+  reads per developer object, not saved; `seeding::keys::growth_decline_clock`, `growth_developer/simulator.rs`]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (foundations §6.3, growth-developer.md §7). `cRZRandom::Seed` (`0x00913667`) reads the clock for a seed of `0xFFFFFFFF` whatever the caller meant, so the decline key in that case is a clock-seeded temporary of the growth developer, and `derive(S, 0x0990C138 XOR n)` with `n` counting such reads per developer object (not saved) is the §6.3 form. §6.3 now says so.
+- ~~**RN3:** foundations §6.2 / §6.3: the budget (RiskyMoney) and pollution-effects generators are file-local statics in the
   original, seeded once per process. In our cores each simulator object owns one, so the stream restarts at every city
   load in the same process (crime and the development cores already keep theirs process-wide). Should budget and
   pollution keep their generator across city loads like the original, or is a restart at each load an acceptable
-  *[choice]*? [restart at each load]
+  *[choice]*? [restart at each load]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** (foundations §6.3). The original seeds both file-local generators once per process and never again: the budget's `0x00B47B78` is referenced only by its static initialiser (`0x00A749D2`) and its draws (`0x00693544`–`0x006935C6`), the pollution effects' `0x00B49BD0` only by `0x00A74E42` and its draws (`0x006E668D`, `0x006E66DC`). The stream therefore continues across city loads in one process, as crime and the development cores already do in FreeCity4; §6.3 now states that file-local generators are process-wide. Restarting at each load is not what §6.3 specifies.
 
 ## From the city detail, port developer and prop developer cores (filed by the coordinator from the `cores12b` lane's report, 2026-10-16; merged `3eb6d22`)
 
