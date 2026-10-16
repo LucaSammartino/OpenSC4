@@ -65,10 +65,11 @@ impl Terrain {
         let i = i64::from(x) + i64::from(z) * i64::from(self.verts_x);
         let vx = i64::from(self.verts_x);
         let d = |j: i64| {
-            (0..self.water.len() as i64)
-                .contains(&j)
-                .then(|| self.water[j as usize].depth)
-                .unwrap_or(f32::NAN)
+            if (0..self.water.len() as i64).contains(&j) {
+                self.water[j as usize].depth
+            } else {
+                f32::NAN
+            }
         };
         let mut m = d(i);
         for j in [i + 1, i + 1 + vx, i + vx] {
