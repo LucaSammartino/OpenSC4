@@ -122,6 +122,12 @@
 //   clock24_shadow = 0 / 1        the 24-hour clock shadow (default 0; needs the
 //                                 ORIGINAL clock: do not enable clock24;
 //                                 FC4Clock24Shadow.h)
+//   netmgr_shadow = 0 / 1         the network manager / network lot manager shadow
+//                                 (default 0; needs the ORIGINAL managers;
+//                                 FC4NetMgrShadow.h)
+//   netmgr_shadow_order = late / early  where the shadow's network lot core hears
+//                                 its messages: after the original (late, default) or
+//                                 before every city listener (early)
 //   tract_seed = N                the tract developer generator's session seed
 //                                 (default: the cRZTime clock; cFC4TractDeveloper.cpp)
 //   tract_grow_log = 0 / 1        one line per Grow call (default 0; enable = tract)
@@ -146,6 +152,12 @@
 //   disasters_shadow = 0 / 1     the disaster layer shadow (default 0; needs the ORIGINAL
 //                                 disaster layer: do not enable disasters; fire and riot;
 //                                 FC4DisasterShadow.h)
+//   citysit_shadow = 0 / 1        the city situation manager shadow (default 0; needs the
+//                                 ORIGINAL manager: do not enable citysit; FC4CitySitShadow.h)
+//   demolition_shadow = 0 / 1     the demolition utility shadow (default 0; needs the ORIGINAL
+//                                 utility: do not enable demolition; FC4DemolitionShadow.h)
+//   dispatch_shadow = 0 / 1       the dispatch manager shadow (default 0; needs the ORIGINAL
+//                                 manager: do not enable dispatch; FC4DispatchShadow.h)
 //   parks_seed = N                the park member generator's session seed (default:
 //                                 the cRZTime clock; cFC4Parks.cpp)
 //   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
@@ -176,8 +188,16 @@
 //                                 settle point; `original` keeps the clock-bound pacing
 //                                 (conformance shadows). Read once at game start;
 //                                 FC4Pacing.h
-//   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's
-//                                 terrain core with the ORIGINAL terrain, which is
+//   occmgr_shadow = 0 / 1         the occupant manager shadow (default 0; follows the
+//                                 ORIGINAL occupant manager, which FreeCity4 never
+//                                 replaces; FC4OccMgrShadow.h)
+//   occmgr_shadow_samples = N     its sampled calls per query slot and month (default 4,
+//                                 1..64)
+//   occmgr_shadow_probe = 0 / 1   its thread probe on the original's vtable (default 1;
+//                                 calls per thread, OM1 / OM3)//   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's
+//   traffic_shadow_hypotheses = N retired (ABI 69): accepted and ignored, logged once;
+//                                 its readings (TS55-TS57) are the core's behaviour
+//   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's//                                 terrain core with the ORIGINAL terrain, which is
 //                                 never replaced; FC4TerrainShadow.h)
 //   terrain_shadow_points = N     its sample points per month (default 256, 16..4096)
 //   terrain_shadow_diffs = N      its differences named per line (default 8, 1..64)

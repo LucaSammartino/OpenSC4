@@ -9,7 +9,7 @@
 //! two-grid visit (`ProcessTwoGridsWithCallback`).
 
 use super::elem::{GridElem, RadiusElem};
-use super::simgrid::{TractGrid, MAX_TRACTS};
+use super::simgrid::{GridSnapshot, TractGrid, MAX_TRACTS};
 use crate::props::{round_half_even_f32, round_half_even_f64};
 
 /// The largest |dx|, |dz| of the distance table (§7.1).
@@ -168,14 +168,43 @@ pub fn add_distance_effect(
 /// - A finer by d: each B tract's value for every A tract it covers.
 ///
 /// Out-of-range reads give 0 and writes are ignored ([choice]; the original
-/// requires both grids to cover the same city).
+/// requires both grids to cover the same city). `a` and `b` are two
+/// different grids (each may be read in one call before the walk).
 pub fn process_two_grids<A: GridElem, B: GridElem>(
     a: &dyn TractGrid<A>,
     b: &dyn TractGrid<B>,
+    f: impl FnMut(i32, i32, &mut A, B),
+) {
+    two_grids(a, b, f, false)
+}
+
+/// [`process_two_grids`] with A's writes batched ([`GridSnapshot::batched`]):
+/// they reach A when the walk ends, in visit order. For callers whose `f`
+/// reaches no game object (nothing reads A during the walk).
+pub fn process_two_grids_batched<A: GridElem, B: GridElem>(
+    a: &dyn TractGrid<A>,
+    b: &dyn TractGrid<B>,
+    f: impl FnMut(i32, i32, &mut A, B),
+) {
+    two_grids(a, b, f, true)
+}
+
+fn two_grids<A: GridElem, B: GridElem>(
+    a: &dyn TractGrid<A>,
+    b: &dyn TractGrid<B>,
     mut f: impl FnMut(i32, i32, &mut A, B),
+    batched: bool,
 ) {
     let (ga, gb) = (a.geometry(), b.geometry());
     let (sa, sb) = (ga.shift.clamp(0, 31), gb.shift.clamp(0, 31));
+    // Both grids read in one call each when they offer it (game grids: one
+    // host call instead of one per tract); the same values either way.
+    let mut a = if batched {
+        GridSnapshot::batched(a)
+    } else {
+        GridSnapshot::new(a)
+    };
+    let b = GridSnapshot::new(b);
     let mut visit = |x: i32, z: i32, bv: B| {
         let old = a.get(x, z);
         let mut v = old;

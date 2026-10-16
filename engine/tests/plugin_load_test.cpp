@@ -101,7 +101,9 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -109,6 +111,7 @@
 #include <fstream>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -9464,8 +9467,8 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     CHECK(linesBefore == 13);
     // the 13, the late script's one, the save script's 5 and its "waits" line
     CHECK(CountOf(text, "script: line ") == 20);
-    CHECK(text.find("script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, "
-                    "turbo, digest, mark, save, terrain, disaster)") != std::string::npos);
+    CHECK(text.find("script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, network, speed, pause, "
+                    "resume, turbo, digest, mark, save, terrain, disaster)") != std::string::npos);
     CHECK(text.find("script: ERROR line 3: zone type '16' is not 0..15") != std::string::npos);
     CHECK(text.find("script: REFUSED '" + winDir + "fc4_script_bad.txt' (test seam): 2 parse error(s); no action of "
                     "it runs") != std::string::npos);
@@ -9638,6 +9641,11 @@ struct TrafficStub {
     std::vector<void*> blocks;  // the test allocator's blocks alive
     // create_line_item calls: department, line, name, income, only if missing (TG7).
     std::vector<std::tuple<uint64_t, uint32_t, uint32_t, bool, bool>> lineItems;
+    // [TG23] update_network_costs calls (UpdateRoadsBudget /
+    // UpdateMassTransitBudget): the count, which kind, and the 13 counts.
+    int costUpdates = 0;
+    std::vector<bool> costMassTransit;
+    std::vector<std::vector<uint32_t>> costCells;
 };
 
 TrafficStub* g_tr = nullptr;
@@ -9721,6 +9729,18 @@ void TrReleaseDepartment(void*, uint64_t t) {
 }
 float TrDepartmentFunding(void*, uint64_t) { return 1.0f; }
 void TrSetLineItemIncome(void*, uint64_t, uint32_t, int64_t) {}
+// [TG23] UpdateRoadsBudget / UpdateMassTransitBudget (traffic-simulator.md
+// §4.9.1): counted here. The stub's departments are fake tokens, so this
+// must answer rather than let the plugin reach the game's SetFullExpenses.
+void TrUpdateNetworkCosts(void*, uint64_t dept, bool massTransit, const uint32_t* cells13, const float*) {
+    CHECK(g_tr->deptRefs.count(dept) == 1);
+    ++g_tr->costUpdates;
+    g_tr->costMassTransit.push_back(massTransit);
+    // The 13 counts the core priced, for the §4.9.1 worked example shape.
+    std::vector<uint32_t> c;
+    if (cells13 != nullptr) c.assign(cells13, cells13 + 13);
+    g_tr->costCells.push_back(std::move(c));
+}
 void TrNetworkOccupantsInRect(void*, const fc4_cell_rect* r, fc4_token_callback cb, void* ctx) {
     ++g_tr->rectQueries;
     for (int i = 0; i < 5; ++i) {
@@ -9755,6 +9775,12 @@ uint32_t TrPropType(void*, uint64_t) { return 0; }
 bool TrIsTunnel(void*, uint64_t) { return false; }
 // The street pieces have no path info: no turn-around (traffic-network.md §4.2 step 3).
 uint64_t TrNoPathInfo(void*, uint64_t) { return 0; }
+// [TG24] With no path info the core never reaches these; answering empty
+// keeps the plugin out of the game's path-info vectors and key lists.
+void TrPathInfoExitsFromEntry(void*, uint64_t, uint32_t, uint32_t, fc4_traffic_exit_callback, void*) {}
+void TrPathInfoEntriesNear(void*, uint64_t, uint32_t, uint64_t, uint32_t, float, fc4_traffic_u32_callback, void*) {}
+// [TG25] No tunnel pair in the stub (TrIsTunnel is false), so no record.
+uint64_t TrTunnelPairedPortal(void*, uint64_t) { return 0; }
 void TrPostSink(void*, cIGZMessage2Standard*) { ++g_tr->posts; }
 void* TrAllocate(uint32_t size) {
     void* p = std::calloc(1, size);
@@ -9792,6 +9818,7 @@ fc4_traffic_host TrafficStubHost(TrafficStub& s) {
     h.release_department = &TrReleaseDepartment;
     h.department_funding = &TrDepartmentFunding;
     h.set_line_item_income = &TrSetLineItemIncome;
+    h.update_network_costs = &TrUpdateNetworkCosts;  // [TG23]
     h.network_occupants_in_rect = &TrNetworkOccupantsInRect;
     h.subway_occupants_in_rect = &TrNoOccupants;
     h.prop_occupants_in_rect = &TrNoOccupants;
@@ -9806,6 +9833,9 @@ fc4_traffic_host TrafficStubHost(TrafficStub& s) {
     h.prop_type = &TrPropType;
     h.is_tunnel = &TrIsTunnel;
     h.path_info = &TrNoPathInfo;
+    h.path_info_exits_from_entry = &TrPathInfoExitsFromEntry;  // [TG24]
+    h.path_info_entries_near = &TrPathInfoEntriesNear;        // [TG24]
+    h.tunnel_paired_portal = &TrTunnelPairedPortal;           // [TG25]
     return h;
 }
 
@@ -9927,6 +9957,13 @@ void TrafficPathFinderTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         CHECK(mt->DoMessage(&init));
     }
     CHECK(stub.rectQueries > 0 && stub.pathQueries > 0);
+    // [TG23] §3.5 step 14 calls UpdateMassTransitBudget then UpdateRoadsBudget,
+    // so the two line-item rewrites happen in that order from PostCityInit.
+    CHECK(stub.costUpdates == 2);
+    if (stub.costUpdates == 2) {
+        CHECK(stub.costMassTransit[0] && !stub.costMassTransit[1]);
+        CHECK(stub.costCells[0].size() == 13 && stub.costCells[1].size() == 13);
+    }
     // Slot 6.
     CHECK(!ts->CreatePathFinder(nullptr));
     cFC4ISC4PathFinder* pf = nullptr;
@@ -12752,8 +12789,8 @@ int main(int argc, char** argv) {
             // the site this game month, counted every time); nothing is popped.
             CHECK(seam(kFC4SeamX87Check, nullptr, nullptr) == 0);
             __asm {
-                fld1
-                fldz
+                fld1;
+                fldz;
             }
             const intptr_t found = seam(kFC4SeamX87Check, nullptr, nullptr);
             const intptr_t again = seam(kFC4SeamX87Check, nullptr, nullptr);

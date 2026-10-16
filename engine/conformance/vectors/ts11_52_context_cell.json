@@ -1,0 +1,78 @@
+{
+  "format": 1,
+  "name": "ts11_52_context_cell",
+  "spec": [
+    "traffic-simulator 3.5",
+    "traffic-simulator 6.1"
+  ],
+  "description": "§6.1 row 14 (TS60): taking a source in a trip phase writes its cell to the re-route context cell (+0x83C, +0x840) as well as to the two s16 phase positions. One ConfirmTrips slice of one unit takes lot 1 at (3, 4): context cell (3, 4).",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        3,
+        4,
+        3,
+        4
+      ],
+      "holder": 11
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "units_per_slice": 1
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        16
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "context_cell": [
+          0,
+          0
+        ],
+        "phase_positions": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": false
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 16,
+        "context_cell": [
+          3,
+          4
+        ],
+        "phase_positions": [
+          3,
+          4
+        ]
+      }
+    }
+  ]
+}

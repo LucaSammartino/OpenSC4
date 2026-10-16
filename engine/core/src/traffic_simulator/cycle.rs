@@ -273,13 +273,10 @@ impl Run<'_, '_> {
             cs::FULL_TRIPS => {
                 let done = self.trip_slice(true);
                 if done {
-                    // End of FullTrips: the counts built in this pass are
-                    // published (§4.4).
-                    if self.st.shadow_hypotheses & super::state::HYP_TYPE_COUNTS_SWAP != 0 {
-                        std::mem::swap(&mut self.st.type_count_published, &mut self.st.type_count_building);
-                    } else {
-                        self.st.type_count_published = self.st.type_count_building;
-                    }
+                    // End of FullTrips: the published and building sets are
+                    // swapped (TS56, confirmed; the traffic_shadow_hypotheses
+                    // bits were retired once it was).
+                    std::mem::swap(&mut self.st.type_count_published, &mut self.st.type_count_building);
                 }
                 done
             }
@@ -309,7 +306,7 @@ impl Run<'_, '_> {
                 self.cx.s.subnetworks_stale = false;
                 true
             }
-            cs::SUBNETWORK_INFO => self.cx.work_on_subnetwork_info(usize::MAX),
+            cs::SUBNETWORK_INFO => self.update_subnetwork_info(),
             cs::FERRY_ROUTES => {
                 while !self.cx.ferry_pass_step() {}
                 true
@@ -354,6 +351,7 @@ impl Run<'_, '_> {
                 }
             }
             cs::CREATE_MAPS => {
+                self.cx.reset_subnetwork_working();
                 self.reset_scan();
                 // The statistics reset (§4.9, TS40): the five fields of
                 // every working row and the record counts 0, the separate
@@ -387,7 +385,15 @@ impl Run<'_, '_> {
                 }
                 self.reset_scan();
             }
-            cs::SUBNETWORK_INFO => self.cx.begin_subnetwork_info(),
+            cs::SUBNETWORK_INFO => {
+                // [TS64] Entering 13 resets the scanning iterator (the member
+                // `+0x818`, the one saved in §6.1 row 14) to state 0 at
+                // (0, 0) with its rectangle and step kept (state 2 at once if
+                // (0, 0) is outside the rectangle). Entering 12 does not touch
+                // it, and UpdateSubnetworks (state 12) does not use it.
+                self.reset_scan();
+                self.cx.begin_subnetwork_info();
+            }
             cs::FERRY_ROUTES => {
                 let riders = self.cx.begin_ferry_pass();
                 self.st.ferry_total = self.st.ferry_total.wrapping_add(riders);
@@ -414,11 +420,37 @@ impl Run<'_, '_> {
             && self.st.shadow_scan_stop == Some((self.st.cycle_state, it.x, it.z))
     }
 
-    /// Resets the scanning iterator to the first cell of the city.
+    /// Resets the scanning iterator to (0, 0), keeping its rectangle and step
+    /// (§6.1 "The scanning iterator in row 14", TS31: every scanning state
+    /// resets the iterator to (0, 0) on entry; TS64 gives the same for
+    /// entering 13). The state is fresh at (0, 0), or done at once when
+    /// (0, 0) is outside the rectangle (§7.4).
     pub(crate) fn reset_scan(&mut self) {
-        let (x0, z0) = (self.st.scan.x0, self.st.scan.z0);
-        self.st.scan.reset(x0, z0);
+        self.st.scan.reset(0, 0);
         self.st.extras.scan_state_byte = None;
+    }
+
+    /// `UpdateSubnetworkInfo` (state 13, `0x00716180`; work cycle
+    /// `WorkOnUpdateSubnetworkInfo` `0x0071DC50`, §4.12). [TS64] The deadline
+    /// test is **before each step** of the scanning iterator
+    /// (`0x00716212`), so a call can stop between two cells: the iterator then
+    /// reads state 1 (running) at the last cell visited and the next call
+    /// continues from it. After the last cell the neighbour connections are
+    /// added and the result published in the same call, with no further
+    /// deadline test, and the iterator reads state 2 at `(x0, z1 + 1)` (for a
+    /// 128-cell city, (0, 128)), where it stays until the next scanning state
+    /// resets it. DoPostCityInit (§1 step 7) runs the same work on a **local**
+    /// iterator instead, so the member keeps its loaded value there
+    /// ([`NetworkModel::update_subnetwork_info`]).
+    fn update_subnetwork_info(&mut self) -> bool {
+        while let Some((x, z)) = self.next_scan_cell() {
+            self.cx.subnetwork_info_cell(x, z);
+        }
+        if self.scan_stopped() {
+            return false;
+        }
+        self.cx.finish_subnetwork_info();
+        true
     }
 
     // ---- §4.8 the small edge and switch phases ----

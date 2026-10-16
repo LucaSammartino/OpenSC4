@@ -108,12 +108,11 @@ pub fn coordinate_seed(seed: u32) -> u32 {
 /// Cores still in flight that own generators (§6.2, §6.3 table) adopt the
 /// helper when their glue lands: prop developer (member, × 28), advisors
 /// and MySims (members, MySims per instance), the `cSC4Lot`, wealth
-/// requester, network lot manager, network construction crew, construction
+/// requester, network construction crew (no core yet), construction
 /// / base-texture / retaining-wall / prop / fire occupants, automata, region
 /// creation and advice file-local generators (keys below where the spec
-/// gives `K`). The disaster layer's core is merged (its glue is not): its
-/// generators are listed here. The city situation manager's core was merged
-/// and then reverted on main (cores12a); its key stays here, ready.
+/// gives `K`). The disaster layer's and the city situation manager's cores
+/// are merged (their glue is not): their generators are listed here.
 pub mod keys {
     use super::{file_seed, SeedKey};
 
@@ -169,9 +168,8 @@ pub mod keys {
     /// K = the fire instance class `0x69C1718F`, disasters lane choice, QUESTIONS DS1).
     pub const DISASTER_FIRE: SeedKey = SeedKey::member(crate::disasters::instance_class::FIRE);
     /// City situation manager (`cRZRandomSuper`, wall clock at construction,
-    /// drawn only during a mission; city-situation.md §5). GZCLSID
-    /// `0x0BB14381`, written out while the city situation core is not on main.
-    pub const CITY_SITUATION: SeedKey = SeedKey::member(0x0BB1_4381);
+    /// drawn only during a mission; city-situation.md §5).
+    pub const CITY_SITUATION: SeedKey = SeedKey::member(crate::city_situation::CLSID_CITY_SITUATION);
 
     // ---- members seeded with a constant -----------------------------------
 
@@ -188,7 +186,7 @@ pub mod keys {
     pub const LOT: SeedKey = SeedKey::FileLocal(file_seed::LOT);
     /// Wealth requester prop selection (`0x00B4A5C0`, `cRZRandomSuper`).
     pub const WEALTH_REQUESTER: SeedKey = SeedKey::FileLocal(file_seed::WEALTH_REQUESTER);
-    /// Network lot manager (`0x00B44870`, `cRZRandomSuper`).
+    /// Network lot manager (`0x00B44870`, `cRZRandomSuper`); adopted by the network lot core (network_manager).
     pub const NETWORK_LOT_MANAGER: SeedKey = SeedKey::FileLocal(file_seed::NETWORK_LOT_MANAGER);
     /// Network construction crew (`0x00B43E88`, `cRZRandomSuper`).
     pub const NETWORK_CONSTRUCTION_CREW: SeedKey = SeedKey::FileLocal(file_seed::NETWORK_CONSTRUCTION_CREW);

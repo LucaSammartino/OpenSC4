@@ -2,7 +2,7 @@
   "format": 1,
   "name": "om14_lock_regions",
   "spec": ["occupant-manager 9.1", "occupant-manager 9.2", "occupant-manager 14"],
-  "description": "Where the lock is held (host lock / unlock hooks, depth after lock and before unlock): Insert takes it after the flag check (Create from Init inside, Insert after); Remove only around the cells (Remove posted after); slot 42 per cell with the callbacks unlocked (depth 0); slot 44 for the whole walk plus the cell (callbacks at depth 2); slot 40 has no lock of its own (one, from slot 36).",
+  "description": "Where the lock is held (host lock / unlock hooks, depth after lock and before unlock): Insert takes it after the flag check (Create from Init inside, Insert after); Remove only around the cells (Remove posted after); slot 42 per cell with the callbacks unlocked (depth 0); slot 44 for the whole walk, plus an inner hold per cell while its batch is collected, dropped before the callbacks (OM7: callbacks at depth 1); slot 40 has no lock of its own (one, from slot 36).",
   "steps": [
     {"op": "om_create"},
     {"op": "om_call", "method": "set_city_size", "args": [1024, 1024], "expect": true},
@@ -15,7 +15,7 @@
     {"op": "om_call", "method": "iterate_by_bbox", "min": [0, -1, 0], "max": [30, 11, 30], "expect": true},
     {"op": "om_expect_events", "events": [{"event": "lock", "depth": 1}, {"event": "unlock", "depth": 1}, {"event": "callback", "occupant": "0x1", "depth": 0}]},
     {"op": "om_call", "method": "iterate", "min": [64, 0, 64], "max": [64, 0, 64], "expect": true},
-    {"op": "om_expect_events", "events": [{"event": "lock", "depth": 1}, {"event": "lock", "depth": 2}, {"event": "callback", "occupant": "0x1", "depth": 2}, {"event": "unlock", "depth": 2}, {"event": "unlock", "depth": 1}]},
+    {"op": "om_expect_events", "events": [{"event": "lock", "depth": 1}, {"event": "lock", "depth": 2}, {"event": "unlock", "depth": 2}, {"event": "callback", "occupant": "0x1", "depth": 1}, {"event": "unlock", "depth": 1}]},
     {"op": "om_call", "method": "by_standard_cells", "min": [0, 0], "max": [0, 0], "expect": true, "expect_list": ["0x1"]},
     {"op": "om_expect_events", "events": [{"event": "lock", "depth": 1}, {"event": "unlock", "depth": 1}]},
     {"op": "om_call", "method": "remove", "occupant": "0x1", "shutdown": true, "expect": true},

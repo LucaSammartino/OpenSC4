@@ -1420,7 +1420,7 @@ impl Handle {
         out.job_capacity = s.job_capacity;
         out.free_dest = std::array::from_fn(|k| s.free_dest[k].get());
         out.type_counts = s.type_count_published;
-        out.freight_byte = s.freight_byte;
+        out.freight_byte = s.stats_last.byte;
         out.accident_cells = s.accident_check.len() as u32;
         out.potholes = u32::from(s.stats_last.potholes);
         out.air = grid_token(&s.air);

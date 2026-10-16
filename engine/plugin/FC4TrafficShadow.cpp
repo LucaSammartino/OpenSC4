@@ -244,7 +244,9 @@ CaptureStream g_lotStream(true);
 bool g_enabled = false;
 long g_diffs = kDefaultDiffs;
 long g_lines = kDefaultLines;
-long g_hypotheses = 0;  // fc4_traffic_shadow_set_hypotheses
+// traffic_shadow_hypotheses is retired (ABI 69: TS55-TS57 confirmed, the
+// core's only behaviour); the key is accepted, ignored and logged once.
+bool g_loggedRetiredHypotheses = false;
 int32_t g_settingsJulian = INT_MIN;
 int32_t g_julian = 0;  // the last day delivered (the one-shot's date)
 
@@ -269,7 +271,6 @@ const void* g_shadowCity = nullptr;
 const void* g_shadowSim = nullptr;
 long g_shadowDiffs = 0;
 long g_shadowLines = 0;
-long g_shadowHypotheses = 0;
 const void* g_shadowFailedFor = nullptr;
 
 // The lot strategy bytes read in this call (lot token -> byte; the lot's own
@@ -317,7 +318,20 @@ void ReadSettings() {
     long l = SettingInt("traffic_shadow_lines", "FC4_TRAFFIC_SHADOW_LINES", kDefaultLines);
     if (l <= 0) l = kDefaultLines;
     g_lines = l;
-    g_hypotheses = SettingInt("traffic_shadow_hypotheses", "FC4_TRAFFIC_SHADOW_HYPOTHESES", 0);
+}
+
+// The retired traffic_shadow_hypotheses key: accepted (old regress lists set
+// it), ignored, logged once per process when set.
+void LogRetiredHypotheses() {
+    if (g_loggedRetiredHypotheses) return;
+    const char* src = "";
+    const std::string v = Setting("traffic_shadow_hypotheses", "FC4_TRAFFIC_SHADOW_HYPOTHESES", &src);
+    if (v.empty()) return;
+    g_loggedRetiredHypotheses = true;
+    Log("traffic shadow: traffic_shadow_hypotheses = %s (from %s) is retired and ignored: its three readings "
+        "(the ConfirmTrips merge, the FullTrips count swap with row 19's (published, building) pairs, the "
+        "ReRouteTrips merge) are confirmed (traffic-simulator TS55-TS57) and are the core's only behaviour",
+        v.c_str(), src);
 }
 
 cISC4City* CurrentCity() {
@@ -475,7 +489,7 @@ void DropShadow() {
 
 bool EnsureShadow(const void* city, const void* sim) {
     if (g_shadow != nullptr && !g_faulted && g_shadowCity == city && g_shadowSim == sim && g_shadowDiffs == g_diffs &&
-        g_shadowLines == g_lines && g_shadowHypotheses == g_hypotheses) {
+        g_shadowLines == g_lines) {
         return true;
     }
     DropShadow();
@@ -500,12 +514,9 @@ bool EnsureShadow(const void* city, const void* sim) {
     g_shadowSim = sim;
     g_shadowDiffs = g_diffs;
     g_shadowLines = g_lines;
-    g_shadowHypotheses = g_hypotheses;
-    fc4_traffic_shadow_set_hypotheses(g_shadow, static_cast<uint32_t>(g_hypotheses));
     Log("traffic shadow: comparing with the original traffic simulator %p (city %p); differences named per line: "
-        "%ld, delivery lines per month: %ld, hypotheses 0x%lX%s",
-        sim, city, g_diffs, g_lines, static_cast<unsigned long>(g_hypotheses),
-        g_hypotheses == 0 ? " (the spec as written)" : " (alternative readings, fc4.h FC4_TRAFFIC_SHADOW_HYP_*)");
+        "%ld, delivery lines per month: %ld",
+        sim, city, g_diffs, g_lines);
     return true;
 }
 
@@ -669,6 +680,7 @@ void TrafficShadowStartup(bool simulatorReplaced, bool trafficReplaced) {
             "draws' choices (the original's generator is not readable), posted messages, history, incomes, "
             "network costs, budget items, accidents",
             src, g_lines, g_diffs);
+        LogRetiredHypotheses();
     } else {
         Log("traffic shadow: requested (traffic_shadow from %s) but INACTIVE: it needs FreeCity4's simulator and "
             "the original traffic simulator (do not enable traffic); here the simulator is %s and traffic is %s",

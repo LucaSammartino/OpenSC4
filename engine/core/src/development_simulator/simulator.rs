@@ -948,6 +948,17 @@ impl DevelopmentSim {
         self.d.borrow().developers.clone()
     }
 
+    /// The developers as [DevelopmentSim::developers] lists them (ascending
+    /// type), without a copy: 
+/// (type, developer) for each.
+ /// must not call
+    /// back into this object (the state is borrowed meanwhile).
+    pub fn for_each_developer(&self, mut f: impl FnMut(u32, DeveloperId)) {
+        for (&t, &dev) in &self.d.borrow().developers {
+            f(t, dev);
+        }
+    }
+
     /// `GetBuildingMap()` (41).
     pub fn building_map(&self) -> Option<Grid> {
         self.grid.borrow().clone()
@@ -966,6 +977,15 @@ impl DevelopmentSim {
     /// `GetSpecialBuildings()` (44).
     pub fn special_buildings(&self) -> Vec<OccupantId> {
         self.d.borrow().special_buildings.clone()
+    }
+
+    /// The special buildings as [DevelopmentSim::special_buildings] lists
+    /// them, without a copy. 
+ /// must not call back into this object.
+    pub fn for_each_special_building(&self, mut f: impl FnMut(OccupantId)) {
+        for &o in &self.d.borrow().special_buildings {
+            f(o);
+        }
     }
 
     /// `GetMaxCapacity(zone, p, w)` (45).

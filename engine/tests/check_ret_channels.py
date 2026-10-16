@@ -254,6 +254,8 @@ SPEC_FACTS = {
     **{("cISC4NetworkOccupant", s): (B, "traffic-network.md network occupant table") for s in (8, 9, 22, 47)},
     ("cISC4NetworkOccupant", 67): (B, "QUESTIONS.md TR19 (re-answers25): GetPassageCeiling returns true with the float, false otherwise"),
     **{("cISC4Occupant", s): (B, "occupant slot table") for s in (5, 11, 14, 22, 27, 32)},
+    ("cISC4Occupant", 25): (B, "occupant-manager.md 4.3: the base GetOccupantManagerBBox (0x005E8BF0) fails on the"
+                               " 0xFF no-box mark; the manager tests it (5.2, 5.4)"),
     ("cISC4OrdinanceSimulator", 8): (B, "ordinance.md"),
     **{("cISC4Ordinance", s): (B, "ordinance.md 3 table")
        for s in (3, 4, 17, 18, 19, 21, 22, 23, 24, 25, 26, 27, 28, 29)},

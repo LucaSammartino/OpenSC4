@@ -308,6 +308,22 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4DisasterHost.h
         plugin/FC4DisasterShadow.cpp
         plugin/FC4DisasterShadow.h
+        # The glue17 lane: the city situation manager, the demolition utility
+        # and the dispatch manager (city-situation.md, demolition.md,
+        # dispatch.md) and their shadows: citysit_shadow, demolition_shadow,
+        # dispatch_shadow. FC4CoreShadow is the record round trip the three
+        # shadows share.
+        plugin/FC4CoreShadow.cpp
+        plugin/FC4CoreShadow.h
+        plugin/FC4CitySitShadow.cpp
+        plugin/FC4CitySitShadow.h
+        plugin/FC4DemolitionShadow.cpp
+        plugin/FC4DemolitionShadow.h
+        plugin/FC4DispatchShadow.cpp
+        plugin/FC4DispatchShadow.h
+        # The dispatch manager's GZCOM class (enable = dispatch).
+        plugin/cFC4Dispatch.cpp
+        plugin/cFC4Dispatch.h
         # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp
@@ -315,7 +331,14 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4ZoneDevHost.cpp
         plugin/FC4ZoneDevShadow.cpp
         plugin/FC4ZoneDevShadow.h
-        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
+        # The network manager and network lot manager (network-manager.md): netmgr_shadow.
+        plugin/FC4NetMgrHost.cpp
+        plugin/FC4NetMgrHost.h
+        plugin/FC4NetMgrShadow.cpp
+        plugin/FC4NetMgrShadow.h
+        # The occupant manager shadow (occupant-manager.md): occmgr_shadow (no replacement).
+        plugin/FC4OccMgrShadow.cpp
+        plugin/FC4OccMgrShadow.h        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp
         plugin/FC4Turbo.h
@@ -324,6 +347,9 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Dialogs.cpp
         plugin/FC4Dialogs.h
         plugin/FC4WinInterfaces.h
+        # The devperf lane's tooling: perf_profile (where a month's real time goes).
+        plugin/FC4Perf.cpp
+        plugin/FC4Perf.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -410,6 +436,14 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_fpu_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME fpu_logic_test COMMAND fc4_fpu_logic_test)
 
+    # The network cost pricing of traffic-simulator.md §4.9.1 (TG23): the
+    # count x tile cost rounding (nearest, ties to even), the two-type sum and
+    # the out-of-range quirks.
+    add_executable(fc4_traffic_cost_logic_test tests/traffic_cost_logic_test.cpp)
+    target_include_directories(fc4_traffic_cost_logic_test PRIVATE plugin)
+    target_compile_options(fc4_traffic_cost_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME traffic_cost_logic_test COMMAND fc4_traffic_cost_logic_test)
+
     # The growth probe (building-development.md §12): the counting hook on a
     # fake vtable in this process (forwarding, count, result, callee-pop,
     # registers and x87 state, restore) and its day and summary lines.
@@ -422,18 +456,44 @@ if(FC4_IS_WIN32_X86)
     # Every interface we implement or call against docs/abi/interfaces.tsv
     # (callee-pop bytes, return channel, slot count), read at run time.
     set(FC4_ABI_TSV "${CMAKE_CURRENT_SOURCE_DIR}/../docs/abi/interfaces.tsv")
-    add_executable(fc4_abi_conformance_test tests/abi_conformance_test.cpp tests/abi_entries.inc)
-    target_include_directories(fc4_abi_conformance_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
-    target_compile_definitions(fc4_abi_conformance_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX
-        FC4_ABI_TSV="${FC4_ABI_TSV}" FC4_PLUGIN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/plugin")
-    target_compile_options(fc4_abi_conformance_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
-    add_test(NAME abi_conformance_test COMMAND fc4_abi_conformance_test
-        --plugin-dir "${CMAKE_CURRENT_SOURCE_DIR}/plugin" "${FC4_ABI_TSV}")
+    # tests/abi_entries.inc is a BUILD PRODUCT: tests/gen_abi_entries.py writes
+    # it from the plugin's and the SDK's interface declarations. It is not
+    # checked in (gitignored) and is regenerated on every build, so a stale copy
+    # can never be compiled into the conformance test. A generation failure is a
+    # build failure (the generator exits non-zero before writing), never a
+    # silent compile of whatever was lying around.
+    set(FC4_ABI_ENTRIES "${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_entries.inc")
+    # Needed here as well as below: the conformance test needs the generator.
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        # ALL, and the command is the target's own action: it runs on every
+        # build rather than only when a dependency is newer than the output.
+        add_custom_target(fc4_abi_entries ALL
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/gen_abi_entries.py"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+            BYPRODUCTS "${FC4_ABI_ENTRIES}"
+            COMMENT "gen_abi_entries.py -> tests/abi_entries.inc"
+            VERBATIM)
+        add_executable(fc4_abi_conformance_test tests/abi_conformance_test.cpp)
+        target_include_directories(fc4_abi_conformance_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
+        target_compile_definitions(fc4_abi_conformance_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX
+            FC4_ABI_TSV="${FC4_ABI_TSV}" FC4_PLUGIN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/plugin")
+        target_compile_options(fc4_abi_conformance_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+        # Compiles only after the generator has run.
+        add_dependencies(fc4_abi_conformance_test fc4_abi_entries)
+        add_test(NAME abi_conformance_test COMMAND fc4_abi_conformance_test
+            --plugin-dir "${CMAKE_CURRENT_SOURCE_DIR}/plugin" "${FC4_ABI_TSV}")
+    else()
+        # Same pattern as ret_channel_check below: with no Python 3 there is no
+        # way to generate the listing, so the test is skipped rather than
+        # compiled against a stale or missing abi_entries.inc.
+        message(STATUS "Python 3 not found: skipping abi_conformance_test "
+            "(tests/abi_entries.inc is generated and cannot be built without it)")
+    endif()
 
     # Every use the plugin makes of a game method's return value, against the
     # slot's `ret` channel in docs/abi and what the specs say it returns
     # (tests/check_ret_channels.py). Skipped when no Python 3 is found.
-    find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
         add_test(NAME ret_channel_check
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_ret_channels.py")

@@ -72,7 +72,11 @@ impl Run<'_, '_> {
         st.toll_income = st.fee_acc as f32;
         // No zero check *[quirk]*: 0/0 = NaN.
         st.avg_car_commute = r24(f64::from(st.car_len_sum) / r24(f64::from(st.car_len_count))) as f32;
-        st.freight_byte = if st.freight_count != 0 {
+        // `freightByte`: the last byte of the PUBLISHED statistics set
+        // (`+0x41C`, block offset 0x238; `0x0070E84A` / `0x0070E862`),
+        // recomputed once per cycle (§4.12, TS61). The working set's byte is
+        // never written after Read.
+        st.stats_last.byte = if st.freight_count != 0 {
             let a = r24(f64::from(st.freight_len_sum) / r24(f64::from(st.freight_count)));
             let b = r24(a / f64::from(st.tuning.commute_max_time));
             let c = r24(b * 255.0);

@@ -5274,3 +5274,107 @@ then flags. The current reading is in brackets.
   partially, as in the original? [a short or cut record is a failed, atomic read, so round trips can be checked]~~ **ANSWERED 2026-10-16 (re-answers20):** Atomic failure accepted as *[choice]* (automata.md §4.1). The original stores fields as it reads and never rolls back. The current-version wrappers return `GetError() == 0`: controller manager `0x0051B9B8`, traffic v3 through the incident reader, aircraft v5 `0x004FBFC3`, watercraft v6 `0x00575153`. A cut record of a current version therefore returns false, as in the core. Only a cut base-only old version (traffic 2, aircraft < 5, watercraft < 6) returns true in the original. That is a **DIFFERS** case that no save contains.
 - ~~**AM12:** (§7.3 slot 31, TrackAutomataGroupInstances) what are the semantics? [adds delta, does not go below 0,
   appends a new group]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §7.3, §4). Slot 31 `TrackAutomataGroupInstances(group, bool track)` (`0x00513C40`) is not a counter. When slot 30 says the group is known, `track` = true creates an unsaved **set of the group's automata**, with a reference each, filled from the list; an existing set is kept. `track` = false releases the set and erases it. Later adds and removals keep the sets current, and slot 32 reads them. §4 field 6 was mislabelled: it holds the **source building counts**, occupant group ID → number of complete buildings, which slots 36 and 37 read. They are seeded at `Init` from script slot 18 (`0x0050F930`) and recounted at `PostCityInit` for base versions below 6 (`0x0050F341`). The record bytes are unchanged; only the meaning changes.
+
+## From the automata state behaviours and the effect-directory measurements (re-integrate1 lane, 2026-10-16)
+
+Four RE reports, kept verbatim in `build-runs/re-integrate1-automata.md`, `re-integrate1-effects.md`,
+`re-integrate1-vehicle-ticks.md` and `re-integrate1-air-water-ticks.md`. Their findings went into automata.md
+§6.2, §6.5, §6.6, §8.1, §12-§14 and effects.md §3, §5.2, §7, §10.1, §10.2, §15-§17.
+
+**Nothing needed striking here for the automata state questions**: automata.md's Q3-Q5 (filed above as AT3-AT5)
+and AM1-AM12 were already answered by re-answers16 and re-answers20, and the effects questions EF1-EF5 lived in
+effects.md §16 rather than in this file. Two of those are now closed or answered and are struck below so a
+reader does not re-open them. AT6-AT19 continue automata.md §13's new Q7-Q20; EF1-EF10 continue effects.md §16.
+The probe named is the one the report gives.
+
+- ~~**EF2:** confirm at runtime that a volcano never reaches state 7 when the city view does not draw (effects.md
+  §15 quirk 1). [needs a runtime check]~~ **CLOSED 2026-10-16 (re-integrate1), statically.** `0x005BFD70` has
+  exactly one reference in the whole decomp, in `cSC4EffectsManager::DeactivateUnusedVisualEffects` `0x005922A0`
+  (`cSC4EffectsManager.c:1987`), which in turn is referenced only from
+  `cSC4EffectsManager::Update(SC4DrawContext*)` `0x00593120` (`:2993`) - no direct call sites, dispatched from
+  the vtable slot at `0x00A9F25C`. The end-message post exists in exactly one place. So no draw pass means no
+  finish test, no effect ever finishes and no end message is ever posted. The volcano stuck in state 5/7 and the
+  effect-disaster emergency pause never lift.
+- ~~**EF3:** the path by which particle systems spawn the "slave" effects, and whether the parameter 13 forwarded
+  by the effect-disaster instance reaches them. [untraced]~~ **ANSWERED 2026-10-16 (re-integrate1).** There is no
+  spawn API: each particle class concatenates its base name with a fixed suffix (`FUN_0041E270` `0x0041E270`) and
+  calls `CreateVisualEffect` (slot 7). Suffixes and callers: `_slave` (`0x005AEF20` per particle, `0x00585190`
+  once at Start), `_death` (`0x005AF390`), `_collide` (`0x00584890`), `_terrain`/`_water` (`FUN_005B8290` on
+  impact). Parameter 13 reaches **game components only** - particle `SetVoidParams` `0x005B2200` accepts only
+  index 7, decals only index 6, meta recurses (`0x005C0540`). Shipped census (1148 names): `_slave` 143,
+  `_terrain` 33, `_water` 20, `_death` 21, `_collide` 3, `_control` 6. effects.md §10.2. The one sub-question
+  that survives is EF6 below.
+- **EF1 (narrowed):** the exact finish time of `volcano_control`. It is now known that only **particle**
+  components can hold it: brush ends at `t > length` (2.0-4.0 dilated effect-seconds), decals self-stop when
+  their fade product passes 1.0 and mode byte `+0x15 == 2` (`0x00582920`), and game/attractor/camera all carry
+  the ignore bit. The open part is sharp: *do `cSC4ParticlesEffect` components ever report inactive, and by what
+  path?* The bytes show no self-stop (`started` `+0x05` is written only by `Start` `0x005B9CF0` and `Stop`
+  `0x005B9E70`; `CheckForStop` `0x005B9D40` fires only when a stop was already requested and the live count
+  `+0x14` hits 0), yet all 1921 shipped particle components have `flags = 0`, so the finish test waits on them.
+  **Probe:** one runtime trace of `0x005BFD70` on a live `volcanocreator*` logging per component `comp+0x40` and
+  each `IsActive()` return - this also gives the wall-clock end. Static alternative: the emission path around
+  `cSC4ParticlesEffect::CreateParticle` `0x005B7C20`, looking for a terminal `Stop(0)`. Static bound: at least
+  the child's brush length plus one draw-pass sweep.
+- **EF4:** the meaning of visual effect flag bits 0, 3, 6 and 8, and when an effect created during a draw-pass
+  sweep (`+0x1B4`, effects.md §5.1) is activated in a session that only ticks. **Probe:** untested at runtime.
+- **EF5:** whether a hidden pause counts as "paused" for the time dilation, which would make the 5 s and 15 s
+  pauses of effects.md §9.4 real-time seconds. **Probe:** compare `GetAnimationTimeDilation` across a hidden pause.
+- **EF6:** what `data1` is on a `kSC4MessageEffectLocation` (`0x2A7B582E`) posted from a game record inside a
+  **particle-spawned** slave. Statically it is the game component's `data` field (`+0x58`), which for such a
+  slave is the particle's `+0x26C` value and **not** the disaster instance, so effects.md §10.2's earlier
+  "data1 = the instance" is wrong for that case. **Probe:** break on `0x005BD3C0` when `+0x30 == 0x2A7B582E` and
+  compare `data1` with the instance pointer; if they match there is a parameter-13 path not yet found, or
+  `0x00576E70` matches on something else.
+- **EF7:** the exact semantics of `cSC4ModelBasedParticlesEffect +0x26B / +0x26C` and `+0x26F / +0x270`. Ghidra
+  splits them into five byte fields and that class has no `SetVoidParams` to populate them from a parent's
+  parameter 13. **Probe:** the class layout from `0x005AEC90` in full, or a runtime watch.
+- **EF8:** who posts and who consumes `kSC4MessageTornadoDead` `0x0A36F1E8` and
+  `kSC4MessageMissionEffectStarted` `0x5F900DCC`, both present in the message name table
+  `0x00B08360`-`0x00B086F8` and neither traced. **Probe:** xref on each constant.
+- **EF9:** where the message names for `0x86AD10EE` and `0x697D01ED` live - they are not in the `0x00B08360`
+  table (115 `{u32 id, const char* name}` pairs). **Probe:** scan for another name table.
+- **EF10:** whether "every component that reaches a brush or game record, directly or through meta, is `[1, 6)`"
+  holds per effect - the narrower claim that survives the measurement that 840 of 3373 components are not
+  `[1, 6)`. **Probe:** the assertion already made by `engine/formats/tests/effects_directory.rs`.
+- **AT6:** what is PlayerDrive's saved `f32` at `+0x28`? Set to 0 on enter and never touched by
+  `cSC4Automaton::DoPlayerDriveTick`. [a drive-channel / throttle accumulator, inferred] **Probe:**
+  `cSC4Vehicle::TranslatePlayerDriveCommands` (Mac `0x000a577c` family) and `DoPlayerDriveOffRoadTick`.
+- **AT7:** what reads Bumped's 4 x `vec3`? Base `DoBumpedTick` is `return !CheckAutomataFlag(1)`
+  (Mac `0x000bb14e`) and `cSC4Vehicle::DoBumpedTick` is `return 0` (Mac `0x000a083e`); `HandleCollision`
+  (Mac `0x000a091e`) writes them then pushes COLLIDE. [a leftover bump-response record, inferred] **Probe:**
+  xrefs to `tAutomataStateBumped::Read`'s output and `cSC4Train::HandleCollision` (Mac `0x00393a4a`).
+- **AT8:** PlopJump's units. `U(30,50) x 1/3600` and `kfGravityAccel = -5.5555563e-05` only make sense
+  together if `dt` is ms and the result is m/ms. [inferred] **Probe:** one scripted plop and a position trace.
+- **AT9:** what pops the `final` RiotLeader after the riot end's `SetState(1, ...)` fails (automata.md §8.1)?
+  The call is a no-op because the state was pushed `final=1`, and the leader is then `Release`d and
+  unregistered. **Probe:** trace `cSC4DisasterInstanceRiot::Update`'s removal path.
+- **AT10:** `random_walk.turn`'s exact template offsets. `ImportBehaviorTable` writes the array/scalar into
+  `+0x54`/`+0x58` and zeroes `+0x5C`, while `DoRandomWalkTick` reads amplitude at `+0x58` and bias at `+0x5C` -
+  one is off by 4. **Probe:** a Lua table that sets `turn = {a, b}` and a breakpoint on `0x0050CF90`.
+- **AT11:** the mapping of emergency-vehicle states 100-103 to their ticks.
+  `cSC4EmergencyVehicle::DoStateTick` `0x0052F490` switches into slots `0xC3`-`0xC6`; the names are by
+  elimination, not from a name table. **Probe:** the emergency vehicle's vtable at slots 195-198.
+- **AT12:** the exact contract of `FUN_005096B0` (the per-tick behaviour refresh) on `state+0x24` vs
+  `state+0x08`. **Probe:** `cSC4AutomataController::GetBehaviorTemplate` (`0x0051BAB0` / Mac `0x000b8ce0`).
+- **AT13:** the fate of an aircraft or watercraft that finishes `CRASH_RUNAGROUND` / `CRASH_SINK` - neither
+  transitions when its duration expires. [the manager later reaps it, inferred] **Probe:** trace
+  `cSC4WatercraftManager` occupancy/cleanup.
+- **AT14:** whether `field259_0x2BC`'s idle budget never being re-zeroed is intentional lifetime-based
+  despawning of idle boats or a missed reset (a boat that has spent 60 s total in IDLE is slow-removed).
+  **Probe:** every writer of that field.
+- **AT15:** whether `Crash_SetStateInternal`'s slot-59 read is a "don't re-crash" guard - Ghidra dropped the
+  comparison (Mac `0x003804a6`). [inferred] **Probe:** `x86dis` on the Windows inlined copy at `0x00568570`, or
+  `0x00570270`'s callers.
+- **AT16:** whether the helicopter `AI_PursueGoal` `default:` really falls through into the `0x32` body.
+  [a safety net, inferred] **Probe:** `x86dis` on the jump table at `0x0053BBA0`.
+- **AT17:** the semantics of automaton vtable slot 102 (Windows) / 109 (Mac), the `(0xB, 0)` crash effect/anim
+  kill, and the names of slots 77 (`EnableMotion(bool)`) and 82 (`SetTransform`) - all absent from
+  `docs/abi/interfaces.tsv`. [inferred names] **Probe:** dump those vtable entries.
+- **AT18:** what the city query in the blocked-wait exit path means (`DoStopSignTick` step 5:
+  `spCity->vtable+0xA0` -> `vtable+0x84(netOccupant, automaton, routeInfo, &out)`; returning 0 pops the wait).
+  Whether 0 means "intersection still blocked" or "release failed" is not determinable from the bytes.
+  [inferred] **Probe:** name that interface method (likely `cISC4TrafficNetworkMap` / `cISC4TrafficSimulator`).
+- **AT19:** whether `this+0x94` is the measured current speed (written as `distance/dt` in both `DoPathTick`s,
+  zeroed at the end of the pull-over move tick), and whether Windows slot `0xA0` in `DoStopSignTick` step 3 is
+  `ReturnToDefaultSpeed`. [inferred] **Probe:** `cSC4Automaton::GetSpeed`'s body (slot 34); dump the Windows
+  vtable entry at `+0x280`.

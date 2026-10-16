@@ -19,7 +19,8 @@ use std::rc::Rc;
 use crate::curve::ResponseCurve;
 use crate::development::{building_fits_in_zone, ConstructionProfile, GrowthItem, GrowthProfile};
 use crate::grid::{
-    add_radius_effect, process_two_grids, GridElem, GridProvider, ScanIterator, TractGrid, IID_SIM_GRID,
+    add_radius_effect, process_two_grids_batched, GridElem, GridProvider, GridSnapshot, ScanIterator, TractGrid,
+    IID_SIM_GRID,
 };
 use crate::pacing::{self, Pacing};
 use crate::property::PropertyHolder;
@@ -668,21 +669,21 @@ impl GrowthDeveloper {
         let Some(curve) = self.curve(c) else { return };
         let Some(w) = self.working_map() else { return };
         let Some(src) = self.host.source_u8(map) else { return };
-        process_two_grids(&*w, &*src, |_, _, v, b| *v = add_curve(*v, curve.eval(f32::from(b))));
+        process_two_grids_batched(&*w, &*src, |_, _, v, b| *v = add_curve(*v, curve.eval(f32::from(b))));
     }
 
     fn layer_i8(&self, c: Curve, map: SourceMap) {
         let Some(curve) = self.curve(c) else { return };
         let Some(w) = self.working_map() else { return };
         let Some(src) = self.host.source_i8(map) else { return };
-        process_two_grids(&*w, &*src, |_, _, v, b| *v = add_curve(*v, curve.eval(f32::from(b))));
+        process_two_grids_batched(&*w, &*src, |_, _, v, b| *v = add_curve(*v, curve.eval(f32::from(b))));
     }
 
     fn layer_i16(&self, c: Curve, map: SourceMap) {
         let Some(curve) = self.curve(c) else { return };
         let Some(w) = self.working_map() else { return };
         let Some(src) = self.host.source_i16(map) else { return };
-        process_two_grids(&*w, &*src, |_, _, v, b| *v = add_curve(*v, curve.eval(f32::from(b))));
+        process_two_grids_batched(&*w, &*src, |_, _, v, b| *v = add_curve(*v, curve.eval(f32::from(b))));
     }
 
     /// A float source (§4.3): equal sizes pass the value unchanged; W
@@ -696,7 +697,11 @@ impl GrowthDeveloper {
         let (sa, sb) = (ga.safe_shift(), gb.safe_shift());
         let (ax, az) = counts(&*w);
         let (bx, bz) = counts(&*src);
-        let add = |x: i32, z: i32, input: f32| {
+        // Each grid read in one host call when it offers it (devperf); the
+        // same values as tract by tract.
+        let src = GridSnapshot::new(&*src);
+        let mut w = GridSnapshot::batched(&*w);
+        let mut add = |x: i32, z: i32, input: f32| {
             let old = w.get(x, z);
             let new = add_curve(old, curve.eval(input));
             if new != old {
@@ -755,6 +760,10 @@ impl GrowthDeveloper {
         };
         let s = i64::from(w.geometry().tract_size.clamp(0, 1 << MAX_LOOP_SHIFT));
         let (cx, cz) = counts(&*w);
+        // Each grid read in one host call when it offers it, W's writes in
+        // one more (devperf).
+        let trip = GridSnapshot::new(&*trip);
+        let mut w = GridSnapshot::batched(&*w);
         for x in 0..cx {
             for z in 0..cz {
                 let cells = (0..s).flat_map(|i| (0..s).map(move |j| (i, j)));
@@ -855,7 +864,11 @@ impl GrowthDeveloper {
         growth.clear();
         if let Some(w) = &g.working {
             let (cx, cz) = counts(&**w);
+            // W read in one host call when it offers it (devperf).
+            let w = GridSnapshot::new(&**w);
             if let Some(dm) = &g.desirability {
+                // D's writes in one host call when it offers it (devperf).
+                let mut dm = GridSnapshot::batched(&**dm);
                 for x in 0..cx {
                     for z in 0..cz {
                         dm.set(x, z, w.get(x, z));
@@ -863,6 +876,7 @@ impl GrowthDeveloper {
                 }
             }
             if let Some(zoned) = &g.zoned {
+                let zoned = GridSnapshot::new(&**zoned);
                 for x in 0..cx {
                     for z in 0..cz {
                         if zoned.get(x, z) > 0 {

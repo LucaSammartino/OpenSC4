@@ -48,7 +48,12 @@
 #include "FC4FlammabilityShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
+#include "FC4NetMgrShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
+#include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
+#include "FC4DemolitionShadow.h"  // the glue17 lane: demolition_shadow
+#include "FC4DispatchShadow.h"    // the glue17 lane: dispatch_shadow
+#include "cFC4Dispatch.h"        // the glue17 lane: enable = dispatch
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -69,6 +74,7 @@
 #include "FC4ParksShadow.h"       // the cmglue lane
 #include "FC4DisasterShadow.h"    // the glue13 lane
 #include "FC4TrafficShadow.h"
+#include "FC4OccMgrShadow.h"  // the glue14b lane
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "cFC4LotDeveloper.h"
@@ -295,6 +301,13 @@ const ClassEntry kZoneDevClasses[] = {
     {kFC4_CLSID_cSC4ZoneDeveloper, "cSC4ZoneDeveloper", &CreateFC4ZoneDeveloper},
 };
 
+// docs/specs/dispatch.md §1. Off by default (glue17): `enable = dispatch`.
+// The protection simulators and the air sources register with it (§8), and the
+// dispatch tool drives it (§4.5).
+const ClassEntry kDispatchClasses[] = {
+    {kFC4_CLSID_cSC4DispatchManager, "cSC4DispatchManager", &CreateFC4DispatchManager},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -329,6 +342,7 @@ const Subsystem kSubsystems[] = {
     {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
+    {"dispatch", nullptr, kDispatchClasses, sizeof(kDispatchClasses) / sizeof(kDispatchClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -471,8 +485,16 @@ void Resolve() {
     Clock24ShadowStartup(enabledKey("clock24"));
     // The traffic shadow (FC4TrafficShadow.h; it compares the original traffic simulator).
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
-    // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
+    // The network manager shadow (FC4NetMgrShadow.h; it follows the original network managers).
+    NetMgrShadowStartup();
+    // The occupant manager shadow (FC4OccMgrShadow.h; it follows the original occupant manager).
+    OccMgrShadowStartup();    // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
     TerrainShadowStartup();
+    // The glue17 lane's three shadows (they compare the original city situation
+    // manager, demolition utility and dispatch manager).
+    CitySitShadowStartup(enabledKey("citysit"));
+    DemolitionShadowStartup(enabledKey("demolition"));
+    DispatchShadowStartup(enabledKey("dispatch"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

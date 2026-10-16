@@ -863,6 +863,152 @@ fn om18_20_shutdown() {
     assert!(s.destroyed && !s.initialized);
 }
 
+// ================================================================ §18.21
+
+#[test]
+fn om18_21_slot34_clamp() {
+    let (w, m) = city();
+    w.flat(1, 1000.0, 0.0, 1020.0, 16.0); // M
+    w.flat(2, 1030.0, 0.0, 1035.0, 16.0); // N, one cell past the city edge
+    assert!(m.insert(1, 0) && m.insert(2, 0));
+    // max (70, 0) is clamped to (63, 0): x 1008.1…1023.9 finds M, not N.
+    assert_eq!(
+        m.first_by_standard_cells(Some((63, 0)), Some((70, 0)), Filter::All),
+        Some(1)
+    );
+    w.release(1);
+    assert!(m.remove(1, false, 0));
+    assert_eq!(
+        m.first_by_standard_cells(Some((63, 0)), Some((70, 0)), Filter::All),
+        None
+    );
+    // A null max is (count, count) = (64, 64): x up to 65·16 − 0.1 = 1039.9.
+    assert_eq!(m.first_by_standard_cells(Some((63, 0)), None, Filter::All), Some(2));
+    w.release(2);
+    // A given min is clamped too: (−5, −5) is (0, 0), (99, 0) is (63, 0).
+    assert_eq!(
+        m.first_by_standard_cells(Some((99, 0)), Some((99, 0)), Filter::All),
+        None
+    );
+    w.flat(3, 1010.0, 0.0, 1012.0, 16.0);
+    assert!(m.insert(3, 0));
+    assert_eq!(
+        m.first_by_standard_cells(Some((99, -5)), Some((99, -5)), Filter::All),
+        Some(3)
+    );
+    w.release(3);
+    assert_eq!(m.first_by_standard_cells_typed(Some((99, 0)), None, 0x100), Some(3));
+    w.release(3);
+    assert_eq!([w.refs(2), w.refs(3)], [1, 1]);
+}
+
+// ================================================================ §18.22
+
+#[test]
+fn om18_22_wrapped_box() {
+    let (w, m) = city();
+    w.flat(1, -4100.0, 100.0, -4000.0, 120.0);
+    w.take();
+    assert!(m.insert(1, 0));
+    // −4099.9 → cell −1, stored as 255; −4000.1 → cell 1.
+    assert_eq!(w.get(1).om, Some(CellBox::new(255, 65, 1, 65)));
+    assert_eq!(m.snapshot().nodes, 0, "no cell holds it");
+    assert!(w.get(1).flags & FLAG_INSERTED != 0);
+    assert_eq!(
+        w.take(),
+        vec![posted(msg::CREATE, 1, 0x100, 0), posted(msg::INSERT, 1, 0x100, 0)]
+    );
+    assert!(m.remove(1, false, 4));
+    assert_eq!(w.take(), vec![posted(msg::REMOVE, 1, 0x100, 4)]);
+    assert_eq!(w.refs(1), 0);
+    assert!(w.get(1).flags & FLAG_INSERTED == 0);
+}
+
+// ================================================================ §18.23
+
+#[test]
+fn om18_23_slot44_batches() {
+    let (w, m) = city();
+    for o in [1, 2, 3] {
+        w.flat(o, 10.0, 10.0, 20.0, 20.0); // (64, 64)
+        assert!(m.insert(o, 0));
+    }
+    w.flat(4, 10.0, 70.0, 20.0, 80.0); // (64, 65)
+    assert!(m.insert(4, 0));
+    let mut seen = Vec::new();
+    let mr = &m;
+    assert!(m.iterate(
+        &mut |o| {
+            seen.push(o);
+            if o != 4 {
+                assert!(mr.remove(o, false, 0), "a callback removes the occupant it was given");
+            }
+            true
+        },
+        None,
+        None,
+        Filter::All
+    ));
+    assert_eq!(seen, vec![3, 2, 1, 4], "called three times, then the next cell");
+    assert_eq!(m.cell(64, 64), None);
+    assert_eq!([w.refs(1), w.refs(2), w.refs(3), w.refs(4)], [0, 0, 0, 1]);
+    // A single-cell walk has no duplicate check; a multi-cell one skips it
+    // only for bit-0 nodes: an occupant spanning two cells is called once.
+    w.flat(5, 10.0, 10.0, 20.0, 80.0); // (64, 64)…(64, 65)
+    assert!(m.insert(5, 0));
+    let mut seen = Vec::new();
+    assert!(m.iterate(
+        &mut |o| {
+            seen.push(o);
+            true
+        },
+        Some([64, 0, 64]),
+        Some([64, 0, 65]),
+        Filter::All
+    ));
+    assert_eq!(seen, vec![5, 4]);
+    let mut seen = Vec::new();
+    assert!(m.iterate(
+        &mut |o| {
+            seen.push(o);
+            true
+        },
+        Some([64, 0, 65]),
+        Some([64, 0, 65]),
+        Filter::All
+    ));
+    assert_eq!(seen, vec![5, 4], "single-cell walk: the cell's list in order");
+    // Before Init: true, no cell walked.
+    let m2 = OccupantManager::new(w.clone());
+    let mut n = 0;
+    assert!(m2.iterate(
+        &mut |_| {
+            n += 1;
+            true
+        },
+        None,
+        None,
+        Filter::All
+    ));
+    assert_eq!(n, 0);
+}
+
+// ================================================================ §18.24
+
+#[test]
+fn om18_24_shrink_precision() {
+    let (min, max) = shrink(100.0, 164.0);
+    assert_eq!(min.to_bits(), 0x42C8_3333, "float(100.0 + 0.1f) = 100.09999847…");
+    assert_eq!(max.to_bits(), 0x4323_E666, "float(164.0 − 0.1f) = 163.89999389…");
+    assert_eq!(f64::from(min), 100.099_998_474_121_1);
+    assert_eq!(f64::from(max), 163.899_993_896_484_38);
+    assert_eq!(super::cells::SHRINK.to_bits(), 0x3DCC_CCCD);
+    assert_eq!(super::cells::SHRINK_MIN_WIDTH.to_bits(), 0x3F80_0000);
+    // The width is compared in float: 1.0 exactly is not shrunk.
+    assert_eq!(shrink(10.0, 11.0), (10.0, 11.0));
+    assert_eq!(shrink(10.0, 12.0), (10.1, 11.9));
+}
+
 // ================================================================ §14
 
 #[test]
@@ -893,7 +1039,11 @@ fn om14_lock_regions() {
         None,
         Filter::All,
     );
-    assert_eq!(depth, vec![2], "slot 44: the walk's lock and the cell's");
+    assert_eq!(
+        depth,
+        vec![1],
+        "slot 44: the walk's lock; the cell's inner hold is dropped before the callbacks (OM7)"
+    );
     assert_eq!(w.depth.get(), 0);
     // Insert: the flag check and the messages are outside the lock.
     w.tracing.set(true);
@@ -914,7 +1064,9 @@ fn om14_callbacks_may_change_the_grid() {
         w.flat(o, 10.0, 10.0, 20.0, 20.0);
         assert!(m.insert(o, 0));
     }
-    // Slot 44: a callback removing the visited node and a later one.
+    // Slot 44: a callback removing the visited node and a later one. The
+    // cell's batch holds references, so the removed later one is still
+    // called (OM7), then released.
     let mut seen = Vec::new();
     let mr = &m;
     assert!(m.iterate(
@@ -930,8 +1082,9 @@ fn om14_callbacks_may_change_the_grid() {
         None,
         Filter::All
     ));
-    assert_eq!(seen, vec![3, 2]);
+    assert_eq!(seen, vec![3, 2, 1]);
     assert_eq!(occupants(&m, 64, 64), vec![2]);
+    assert_eq!([w.refs(1), w.refs(3)], [0, 0]);
     // Slot 42: an occupant removed after it was collected is still called.
     w.flat(4, 10.0, 10.0, 20.0, 20.0);
     assert!(m.insert(4, 0));

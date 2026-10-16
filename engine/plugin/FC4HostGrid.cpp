@@ -14,6 +14,7 @@
 #include "FC4HostGrid.h"
 
 #include "FC4Log.h"
+#include "FC4Perf.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 
@@ -86,6 +87,7 @@ void Geometry(void*, uint64_t t, fc4_grid_geometry* out) {
 
 double Get(void*, uint64_t t, uint32_t kind, int32_t x, int32_t z) {
     if (t == 0) return 0.0;
+    if (perf::On()) perf::Count(perf::kGridGet);  // tooling: perf_profile (FC4Perf.h)
     switch (kind) {
         case kClsI16: return As<int16_t>(t)->GetTractValue(x, z);
         case kClsI8: return As<int8_t>(t)->GetTractValue(x, z);
@@ -95,6 +97,36 @@ double Get(void*, uint64_t t, uint32_t kind, int32_t x, int32_t z) {
         case kClsU8:
         case kClsBool: return As<uint8_t>(t)->GetTractValue(x, z);
         default: return 0.0;
+    }
+}
+
+// The bulk reader (fc4_grid_set_bulk_reader, a performance hook): the same
+// GetTractValue calls as Get, in one host call per grid, x outer.
+template <class T>
+uint32_t ReadAll(uint64_t t, void* out, uint32_t count) {
+    const cISC4SimGrid<T>* g = As<T>(t);
+    const int32_t nx = g->GetTractCountX();
+    const int32_t nz = g->GetTractCountZ();
+    if (nx <= 0 || nz <= 0 || static_cast<uint64_t>(nx) * static_cast<uint64_t>(nz) != count) return 0;
+    T* o = static_cast<T*>(out);
+    for (int32_t x = 0; x < nx; ++x) {
+        for (int32_t z = 0; z < nz; ++z) *o++ = g->GetTractValue(x, z);
+    }
+    return count;
+}
+
+uint32_t BulkRead(uint64_t t, uint32_t kind, void* out, uint32_t count) {
+    if (t == 0 || out == nullptr || count == 0) return 0;
+    if (perf::On()) perf::Count(perf::kGridBulk);  // tooling: perf_profile (FC4Perf.h)
+    switch (kind) {
+        case kClsI16: return ReadAll<int16_t>(t, out, count);
+        case kClsI8: return ReadAll<int8_t>(t, out, count);
+        case kClsU16: return ReadAll<uint16_t>(t, out, count);
+        case kClsU32: return ReadAll<uint32_t>(t, out, count);
+        case kClsF32: return ReadAll<float>(t, out, count);
+        case kClsU8:
+        case kClsBool: return ReadAll<uint8_t>(t, out, count);
+        default: return 0;
     }
 }
 
@@ -110,8 +142,40 @@ bool WritesOn(void* u, const char* what) {
     return false;
 }
 
+// The bulk writer (fc4_grid_set_bulk_writer, a performance hook): the same
+// SetTractValue calls as Set, in order, in one host call.
+template <class T>
+uint32_t WriteAll(uint64_t t, const uint32_t* index, const void* values, uint32_t n) {
+    cISC4SimGrid<T>* g = As<T>(t);
+    const int32_t nz = g->GetTractCountZ();
+    if (nz <= 0) return 0;
+    const T* v = static_cast<const T*>(values);
+    for (uint32_t i = 0; i < n; ++i) {
+        g->SetTractValue(static_cast<int32_t>(index[i] / static_cast<uint32_t>(nz)),
+                         static_cast<int32_t>(index[i] % static_cast<uint32_t>(nz)), v[i]);
+    }
+    return n;
+}
+
+uint32_t BulkWrite(void* u, uint64_t t, uint32_t kind, const uint32_t* index, const void* values, uint32_t n) {
+    // Writes switched off: none here (the core then sets tract by tract, and Set notes each skip).
+    if (t == 0 || index == nullptr || values == nullptr || n == 0 || !On(Ctx(u)->writes)) return 0;
+    if (perf::On()) perf::Count(perf::kGridBulk);  // tooling: perf_profile (FC4Perf.h)
+    switch (kind) {
+        case kClsI16: return WriteAll<int16_t>(t, index, values, n);
+        case kClsI8: return WriteAll<int8_t>(t, index, values, n);
+        case kClsU16: return WriteAll<uint16_t>(t, index, values, n);
+        case kClsU32: return WriteAll<uint32_t>(t, index, values, n);
+        case kClsF32: return WriteAll<float>(t, index, values, n);
+        case kClsU8:
+        case kClsBool: return WriteAll<uint8_t>(t, index, values, n);
+        default: return 0;
+    }
+}
+
 void Set(void* u, uint64_t t, uint32_t kind, int32_t x, int32_t z, double v) {
     if (t == 0 || !WritesOn(u, "grid SetTractValue")) return;
+    if (perf::On()) perf::Count(perf::kGridSet);  // tooling: perf_profile (FC4Perf.h)
     switch (kind) {
         case kClsI16: As<int16_t>(t)->SetTractValue(x, z, Narrow<int16_t>(v)); break;
         case kClsI8: As<int8_t>(t)->SetTractValue(x, z, Narrow<int8_t>(v)); break;
@@ -204,6 +268,8 @@ fc4_grid_api MakeGridApi(const HostGridContext* ctx) {
     a.fill = &Fill;
     a.shutdown = &Shutdown;
     a.release = &Release;
+    fc4_grid_set_bulk_reader(&Get, &BulkRead);    // devperf: one host call per grid read
+    fc4_grid_set_bulk_writer(&Set, &BulkWrite);  // devperf: one host call per walk's writes
     return a;
 }
 
