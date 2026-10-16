@@ -896,6 +896,7 @@ unsafe extern "C" fn collect_prop(
 ) {
     let got = &mut *(ctx as *mut GotProps);
     let size = match mem_type {
+        0 => 1,
         4 => 2,
         6 => 4,
         _ => 0,
@@ -934,14 +935,33 @@ fn neighbors_connection_props_deliver_arrays() {
             &seven as *const u32 as *const c_void,
             1
         ));
+        // NG37: raw bytes (what AddPropertyData stores), the void array.
+        let raw: [u8; 3] = [1, 2, 3];
+        assert!(crate::props::fc4_props_set_typed(
+            p,
+            0x5AFE_0300,
+            0,
+            true,
+            raw.as_ptr() as *const c_void,
+            3
+        ));
+        assert!(!crate::props::fc4_props_set_typed(
+            p,
+            0x5AFE_0301,
+            0,
+            false,
+            raw.as_ptr() as *const c_void,
+            1
+        ));
         fc4_neighbor_connection_set_props(c, p);
         crate::props::fc4_props_destroy(p);
         let mut got: GotProps = Vec::new();
         let n = fc4_neighbor_connection_props(c, Some(collect_prop), &mut got as *mut GotProps as *mut c_void);
-        assert_eq!(n, 2);
+        assert_eq!(n, 3);
         assert_eq!(
             got,
             vec![
+                (0x5AFE_0300, 0, true, 3, vec![1, 2, 3]),
                 (0x8A0B_4100, 4, true, 3, vec![5, 0, 0xE1, 0x10, 0, 0]),
                 (0xAA9E_A81D, 6, false, 1, vec![7, 0, 0, 0]),
             ]

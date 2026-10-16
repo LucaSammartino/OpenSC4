@@ -52,6 +52,7 @@ const ExecutableVersion kVersions[] = {
             0x005E55E0,  // global heap (allocator C) allocate (docs/abi/allocators.md)
             0x006BF430,  // the cSC4Lot pool's allocate (docs/abi/direct-calls.md; zones.md §8.5.1)
             0x006C1E50,  // the cSC4Lot constructor (x, z, w, h, facing)
+            0x0078DFF0,  // nSC4UI::GenericConfirmationDialog (neighbors.md §15.4 NG35)
             0x005E3070,  // cSC4LotRetainingWallOccupant::AddRetainingWallOccupant (direct-calls.md; LD3)
             0x005E37F0,  // cSC4LotRetainingWallOccupant::UpdateRetainingWalls
             0x005E3960,  // cSC4LotRetainingWallOccupant::UpdateSurroundingRetainingWalls
@@ -460,6 +461,7 @@ uintptr_t DirectCall(Direct which) {
                                          "air dispatch Shutdown", "map operator[]",  "map subtree free",
                                          "global heap free",      "global heap allocate",
                                          "lot pool allocate",     "lot constructor",
+                                         "GenericConfirmationDialog",
                                          "AddRetainingWallOccupant", "UpdateRetainingWalls",
                                          "UpdateSurroundingRetainingWalls", "burnt building SetBoundsFromOccupant"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");

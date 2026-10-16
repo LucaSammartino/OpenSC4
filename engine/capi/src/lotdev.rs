@@ -500,7 +500,7 @@ pub struct fc4_lotdev_host {
     pub unit_create: Option<unsafe extern "C" fn(U) -> u64>,
     pub unit_add: Option<unsafe extern "C" fn(U, u64, u64) -> bool>,
     pub unit_remove: Option<unsafe extern "C" fn(U, u64, u64) -> bool>,
-    // UpdateLotObjectAlitudes (§6.5, LD17; ABI 59)
+    // UpdateLotObjectAlitudes (§6.5, LD17; ABI 60)
     /// Lot slot 49 `GetLotOccupants`: the occupants in list order
     /// (references kept for the call).
     pub lot_occupants: Option<unsafe extern "C" fn(U, u64, fc4_token_callback, *mut c_void)>,

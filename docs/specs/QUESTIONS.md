@@ -4325,7 +4325,9 @@ Open points from network-manager.md §15. The current answer is in brackets; eac
   the component 53 counts would settle it]~~ **ANSWERED 2026-10-15 (re-specs14b):** no. Loading posts no Insert. Since
   the base occupant `Read` (`0x005E8D60`) sets bit 1 of the state byte, the base `Init` (`0x005E8C90`) posts no
   Create either. The network occupant `Init`s never insert. MATCHES. network-manager.md §15.
-- **NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`, ~~and of the terrain kinds 3,
+- ~~**NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`~~ **ANSWERED 2026-10-15
+  (re-specs15b):** `0x40000` bridge-step piece (MATCHES), `0x80000` tunnel portal (MATCHES), `0x40000000` elevated
+  with supports (MATCHES), `0x80000000` draft (preview) occupant. network-geometry.md §10.3. History: ~~and of the terrain kinds 3,
   4 and 6 in the network manager's terrain handler. [unknown; logging `data4` of `0x278E6003` for each terraforming
   brush settles the kinds]~~ **PARTLY ANSWERED 2026-10-15 (re-specs14a):** the kinds are settled from every call
   site of `RedisplayTerrain` (terrain.md §8.2): 0 internal (sea level, flat areas, shore cliffs, texture-only),
@@ -4346,6 +4348,25 @@ Open points from network-manager.md §15. The current answer is in brackets; eac
   `StartEffect(bool)`, `StopEffect(bool)` (vtable `0x00AA4ED8`, overloads in reverse SDK order). MATCHES.
   network-tools.md §13.2.
 
+
+## From the network geometry spec (re-specs15b lane, 2026-10-15)
+
+Open points from network-geometry.md §17. The current answer is in brackets; each entry says what would settle it.
+
+- **NG1:** the satisfier's tie-break between vertices with equally narrow ranges follows the hash-map iteration order
+  of vertex ids. [reproduce the SGI `hash_map<int>` bucket order; comparing one hill crossing in both engines shows
+  whether ties occur]
+- **NG2:** the bridge internals: the step and edge tests, `AdjustBridgeSpan`, `FindBestBridgeType`,
+  `SelectBridgeElevation`, specialised and parametric bridge models. [not specified]
+- **NG3:** who fills the tool's extra-cell list (`+0xF0`), and whether `CheckForGoodTerrain`'s inverted extra-cell
+  test can be reached. [empty in an ordinary drag, inferred]
+- **NG4:** `IdentifyLandBridgeCells` and which types set `+0x354`. [not specified]
+- **NG5:** the rule-driven piece solver (`SolveUsingEvaluator`, `ApplyNetworkRules`, tile subsets) and
+  `IdentifyHighwayIntersections`. [a later spec]
+- **NG6:** the readers of type info `+0x110` and of the p+0xA0 id list, and the source of road's support info.
+  [only the flat-cell test is known]
+- **NG7:** `DestroyOccupantsAndResolve` builds one neighbour key as `(x << 16) + z` while the tool's sets use
+  `(z << 16) + x`. [unchecked; a destroy next to an off-diagonal neighbour would show it]
 ## From the traffic glue, phase 2: the traffic shadow (filed by the coordinator from the `traffic2` lane's report, 2026-10-15)
 
 About `docs/specs/traffic-simulator.md` and the same-process traffic shadow (`traffic_shadow = 1`; core
@@ -4461,3 +4482,38 @@ numbers (its Q6-Q25, continuing disasters.md §17) are given in parentheses; the
 - **DS23:** the network default cost. [taken from the host]
 - **DS24:** the order in which the riot releases its removal locks. [insertion order, a choice the spec does not
   make]
+
+## From the terrain core (filed by the coordinator from the `cores16` lane's report, 2026-10-16; merged `d651d74`)
+
+cores16 implemented terrain.md as a Rust core (`engine/core/src/terrain/`), a C ABI (`fc4_terrain`, ABI 58) and
+conformance vectors (`tr18_*`, `tr00_*`, `nt05_economy_modifier`), and nation.md GetEconomyModifier. There is no
+plugin glue yet, so none of these readings has been checked in game. Each choice is marked `[choice]` in the code
+and the vectors. The current choice is in brackets.
+
+- **TR4:** (terrain §11.3/§11.5) in what order are the lava neighbour offsets scanned? When several neighbours tie
+  for the largest drop, the first one wins. [west, east, north, south, then the diagonals]
+- **TR5:** (terrain §11.5) does SetThingsOnFire call SetCause(3) after each ignited cell, or once per call? [per cell]
+- **TR6:** (terrain §10.2) what does GetWaterType return for a vertex with a NaN depth? [the comparisons fail, so it
+  falls through to fresh water (2)]
+- **TR7:** (terrain §9.3) ComputeSpansForRectangle's footprint spans are not fully specified. [an inclusive vertex
+  rectangle clamped to the terrain]
+- **TR8:** (terrain §9.1/§9.4) what is a brush description's starting angle, and is it stored per terrain or per
+  description? [0, per description]
+- **TR9:** (terrain §2.3) what is the starting value of the default brush level at `+0xBC`? [0]
+- **TR10:** (terrain §13.1) no record holds the sea level, so what is it after a load? [the tuning's `new_sea_level`]
+- **TR11:** (terrain §8.1) how are the data words of texture message `0x870BC918` packed? [no data, all zero]
+- **TR12:** (terrain §3/§15) what do the slots with unchecked indices (GetAltitudeAtIndex, SetAltitude(x, z) and
+  others) do out of range? [a read returns 0 or NaN, a write does nothing]
+- **TR13:** (terrain §10.4) does a power pole block navigation only on a cell with depth > 0? [yes: depth > 0 means
+  GetWaterDepthForCell > 0]
+- **TR14:** (terrain §8.4) does SetWaterSurfaceDisplayState post on every call or only when the state changes?
+  [every call]
+- **TR15:** (terrain §9.3) is a kind-0 brush reported as a change even when every touched vertex was locked or
+  clamped? [yes: the out rectangle and the redisplay still happen]
+- **TR16:** (terrain §9.4) with an angle of exactly pi, sin(pi) in f32 is not 0, which gives a one-pixel fringe on the
+  earthquake stroke. Is that intended? [kept as computed]
+- **TR17:** (terrain §10.4, plumbing §7.2) for IsNavigable, are the city bounds behind slot 99 the terrain's cells,
+  and does the search follow the plumbing §7.2 spiral? [yes to both]
+- **TR18:** (glue contract) the lava and brush host callbacks run while the core holds the terrain mutably, so a
+  callback that calls back into the same `fc4_terrain` handle is refused (and counted). Should the glue lane queue
+  such work instead? [refused and counted; for the glue lane to decide]

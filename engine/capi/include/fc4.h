@@ -127,11 +127,15 @@ extern "C" {
  * 58 = adds the terrain (fc4_terrain, terrain.md): the height field, the surface water's depths and
  *      queries, the setters, RedisplayTerrain, kind-0 brushes, navigability, the bodies of water,
  *      the volcano lava and the records;
- * 59 = lot developer re-answers12 (apply13 lane): fc4_lotdev_host 178 callbacks: update_lot_object_altitudes
+ * 59 = adds fc4_variant_get_u32 (holder slot 8's converting getter, neighbors.md §15.4 NG44,
+ *      data-formats §5.1); fc4_props_set_typed and the neighbour connection property callback carry
+ *      the void array (raw bytes, mem_type 0 with is_array; NG37) (taken as 66 on the apply12
+ *      lane; renumbered at merge);
+ * 60 = lot developer re-answers12 (apply13 lane): fc4_lotdev_host 178 callbacks: update_lot_object_altitudes
  *      removed (the core moves the objects, LD17), add_network_connection_nodes takes the nodes
  *      (fc4_lotdev_conn_node), lot_occupants, lot_configuration_object and occupant_moved appended (taken as
  *      71 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 59u
+#define FC4_ABI_VERSION 60u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -883,7 +887,9 @@ size_t fc4_props_count(const fc4_props* p);
 /* Set property `id` exactly as a game variant holds it: mem_type = the
  * cIGZVariant type without the array bit (0x01 bool .. 0x0E RZChar); data =
  * `count` elements in that type's layout (bool: 1 byte). A scalar
- * (is_array false) needs count 1. False for other types or a bad count. */
+ * (is_array false) needs count 1. ABI 59 (neighbors.md §15.4 NG37):
+ * mem_type 0 with is_array = the void array (raw bytes, type 0x8000), `count`
+ * bytes. False for other types or a bad count. */
 bool fc4_props_set_typed(fc4_props* p, uint32_t id, uint16_t mem_type, bool is_array, const void* data,
                          size_t count);
 /* WriteVariant of property `id` (foundations 9.2: u32 0, u32 type tag, the
@@ -891,6 +897,17 @@ bool fc4_props_set_typed(fc4_props* p, uint32_t id, uint16_t mem_type, bool is_a
  * false when absent or not writable (ABI 56; tooling: the traffic shadow's
  * capture stream). */
 bool fc4_props_write_variant(const fc4_props* p, uint32_t id, fc4_bytes_sink sink, void* ctx);
+/* ABI 59 (neighbors.md §15.4 NG44, data-formats §5.1): GetProperty(id, uint32&)
+ * (holder slot 8) on one value held as a game variant: var_type = the
+ * cIGZVariant type WITH the array bit; data = `count` elements of an array, or
+ * the scalar's one value (count 1), in that type's layout (bool: 1 byte). A
+ * Uint32 scalar as is; other scalars by number (signed sign-extended, Char and
+ * RZChar signed bytes, 64-bit low bits, floats truncated, NaN / inf / >= 2^63
+ * give 0); arrays, strings, the void array (0x8000) and Empty (0) through the
+ * text round trip (first element's text; an empty string gives true and 0).
+ * True with *out set; false (out unchanged) for pointers, objects or a bad
+ * layout. */
+bool fc4_variant_get_u32(uint16_t var_type, const void* data, size_t count, uint32_t* out);
 
 /* ---- weather (docs/specs/weather.md) ------------------------------------------
  * The weather simulator's core. The shim owns the GZCOM object (agents,
@@ -6062,7 +6079,7 @@ typedef struct fc4_lotdev_host {
     uint64_t (*unit_create)(void* user);
     bool (*unit_add)(void* user, uint64_t unit, uint64_t lot);
     bool (*unit_remove)(void* user, uint64_t unit, uint64_t lot);
-    /* UpdateLotObjectAlitudes (§6.5, LD17; ABI 59) */
+    /* UpdateLotObjectAlitudes (§6.5, LD17; ABI 60) */
     void (*lot_occupants)(void* user, uint64_t lot, fc4_token_callback cb, void* ctx); /* lot slot 49, list order */
     /* lot slot 11 GetLotConfigurationObject(occ) to cb (once); false = none */
     bool (*lot_configuration_object)(void* user, uint64_t lot, uint64_t occ, fc4_lotdev_cfg_object_callback cb,
