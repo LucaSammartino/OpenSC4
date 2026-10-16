@@ -118,9 +118,27 @@ The catalogue is torn down by the shutdown callback `0x004A2A30`, registered wit
 | +0x18 | crime effect (u32) | `0x8AA864D5` | 0 |
 
 The values are copied in one piece into profile map[ID] (inserting it when absent). The size property is copied
-value by value for **as many values as it has**, without a bound *[quirk]*: an OccupantSize with more than three
-values overwrites +0x10 onwards. Every shipped prop exemplar has three. The exemplar name (property `0x20`) is read
-and thrown away. Prop developer §4.4 reads +0x10, +0x14 and +0x18 through slot 13.
+value by value for **as many values as it has**, without a bound *[quirk]*. Every shipped prop exemplar has three.
+The exemplar name (property `0x20`) is read and thrown away. Prop developer §4.4 reads +0x10, +0x14 and +0x18
+through slot 13.
+
+**Order of the reads** (PL8; `0x004A3DB0`–`0x004A3E74`). The profile is built in a local copy, in this order:
+
+1. **Size.** OccupantSize present: its element count (property value slot 4) and raw data pointer (slot 111) are
+   read, and the `count` dwords are copied to +0x04, +0x08, … with no bound and no type check. Absent: +0x04,
+   +0x08 and +0x0C are set to 0. A present size with fewer than three values leaves the remaining size dwords
+   **unwritten** (whatever the stack held) *[quirk]*; a scalar value has count 0, so all three stay unwritten.
+2. **Class**: +0x00 := `0x2977AA47`, then the `0xA977A86B` read over it.
+3. **Satisfaction**: +0x10 := 0, then the `0x49A1E05A` read.
+4. **Wealth**: the low byte of +0x14 := 0, then the `0xE9A316EB` read (one byte).
+5. **Crime**: +0x18 := 0, then the `0x8AA864D5` read.
+
+Because steps 3–5 come after the size copy, extra OccupantSize values are mostly overwritten again: value 4 (into
++0x10) and value 6 (into +0x18) have no effect; value 5 survives only in the **upper three bytes** of +0x14. The
+local copy is the last 0x1C bytes of the reader's frame, so a seventh value overwrites the reader's **return
+address** and an eighth and ninth its arguments (exemplar, ID): the original crashes on return *[quirk]*.
+*[choice]* FreeCity4 copies at most three values, sets the size dwords the property does not give to 0, and keeps
+the upper bytes of +0x14 at 0. Unreachable with shipped data.
 
 ### A3.3 Families
 
@@ -212,6 +230,22 @@ After slot 13 on an unknown ID, slot 14 finds the zero profile while slot 8 is s
    slot 3) and hand it to that interface (slot 3) so that the prop reads its properties from it. Then
    `SetBoundingBox` (prop slot 4) from the origin to the OccupantSize vector, or to (1, 1, 1) when the prop has no
    size. Any missing piece (no interface, unknown type, failed load) skips the rest. This step always succeeds.
+   The ID looked up is the helper's second argument, or the prop's own type (prop slot 7) when that is 0.
+   **The size read** (PL9, `0x004A2B41`–`0x004A2BBE`): when the prop's property holder (now backed by the
+   exemplar, so an inherited value counts) has OccupantSize, the box's far corner is the property value's **raw
+   data pointer** (variant slot 111), passed as the address of three floats, with no count or type check; the near
+   corner is (0, 0, 0). So, as for buildings (building-development §4.9.1, DG32):
+
+   | OccupantSize | Original's box |
+   |---|---|
+   | absent | (0,0,0)–(1,1,1) |
+   | Float32 array of 3 or more | the first three values |
+   | Float32 array of 1 or 2 | the missing values are read **past the property's heap block** (garbage) |
+   | array of 0 values, or a scalar | a null or tiny block, or the scalar's own bits used as an address: garbage or a fault |
+   | an integer array | its bit patterns read as floats (no conversion) |
+
+   *[choice]* FreeCity4 uses 0 for each missing value and (1, 1, 1) for an empty array or a scalar; integer values
+   are converted. Every shipped prop exemplar has a Float32 array of three, so only plugins can tell.
 6. True; the caller owns one reference.
 
 ### A6.2 `CreateGenericProp(key, prop&)` (slot 16, `0x004A24D0`, pop 8, AL)
@@ -252,6 +286,11 @@ succeed; then set the usage (query `0xE9793A65`, prop slot 23) and return true. 
 4. Set usage 3 (again).
 
 The vector stores plain pointers; it takes no reference *[compat]*.
+
+**A building without a property holder** (PL10, `0x004A3BEB`–`0x004A3BF6`): when occupant slot 6 returns null,
+the slot returns **true** at once, skipping step 3 **and step 4**. So the prop's usage is 3 only if step 2 ran
+(the prop was not yet inserted); a prop that was already inserted keeps whatever usage it had *[quirk]*. Game
+buildings always have a holder, so this is reachable only with a foreign occupant.
 
 ### A7.2 Queries
 
@@ -512,6 +551,19 @@ For every configuration in the map (bucket order), fill its building information
    (configuration slots 12 and 13) report the two u16 values (confirmed: lot-configuration.md §4, §5.1). Nothing
    reads +0x8C (lot-configuration.md §5.4).
 
+**A type whose exemplar does not load** (PL11). The three per-type reads are independent:
+
+- **Groups**: the occupant-group collector (`0x005E9500`) loads the exemplar itself through the global resource
+  manager; when the load fails it returns an empty list, so the type adds no group.
+- **Monopoly**: the monopoly flag is cleared before the load (`0x0048AE95`) and the property is read only when the
+  load succeeds (`0x0048AEAA`), so a failed load counts as "lacks the property": +0x8C becomes 1.
+- **Capacity**: the profile comes from the building development simulator (slot 39), not from the exemplar, so the
+  type **still counts** towards the smallest and largest capacity (`0x0048AEE8`–`0x0048AF04`).
+
+The type's key (building development slot 14) is read first; a type the simulator does not know gives a zero key and
+then the same failed-load path. The types come from the simulator's own family list (slot 19), so in the shipped
+game every one of them has a loadable exemplar.
+
 ## B5. Behaviour of the queries
 
 ### B5.1 Lookups
@@ -598,14 +650,62 @@ holds only for flora.
 - **22 `CreateGenericLotConfiguration(cfg&, buildingType)`** (`0x0048BCF0`, pop 8, AL): `cfg := null`; false
   when building development slot 16 rejects the type. Otherwise it builds a configuration (not added to the map)
   whose only object is the building, sized from the building's footprint (slot 24 on that type) and centred on a
-  lot of the building's size, and returns true *[inferred: the lot editor's "new configuration"]*.
+  lot of the building's size, and returns true *[inferred: the lot editor's "new configuration"]*. In detail
+  (PL12):
+  1. `ids := [buildingType]`; `(w, d) :=` slot 24 on `ids` (§B5.5: at least 4 × 4).
+  2. **Lot size** (`0x0048BD66`–`0x0048BD9B`): `sizeX := 1 − trunc(w × −0.0625)` and
+     `sizeZ := 1 − trunc(d × −0.0625)` (float multiply, `_ftol` truncation toward zero, foundations §18.1). For
+     `w ≥ 0` that is **`1 + floor(w / 16)`**, not `ceil(w / 16)`: it equals the ceiling only when `w` is not a
+     multiple of 16, and gives one cell more when it is *[quirk]*. Examples: w = 4 → 1, 15.9 → 1, 16 → 2, 24 → 2,
+     32 → 3, 40 → 3. Stored as the low bytes at +0x20 (x) and +0x21 (z).
+  3. A new configuration (constructor `0x004797A0`), one reference for the caller in `cfg`. ID (+0x08) := a fresh
+     GUID (`cIGZCOM` slot 7 `CreateGuid`). The other fields are written to the constructor's values or emptied:
+     family list empty, maximum slope (+0x30) 90.0, minimum slope (+0x34) 0, maximum slope before foundation
+     (+0x38) **5.0**, growth stage 1, water-compatible 0, the three bit vectors cleared, object, wall, fence and
+     fence-position vectors emptied. The name, the do-construction flag (0) and road sides (8) keep the
+     constructor's values.
+  4. **The building object** (one 0x34-byte record, lot-developer §17.1), appended to the object array: type 0,
+     `v1` 0, orientation 0, mirror 0; offset `(cx, 0, cz)` with `cx := (16 · sizeX) × 0.5` and
+     `cz := (16 · sizeZ) × 0.5` (the lot's centre); footprint max `(cx + w × 0.5, cz + d × 0.5)` at +0x10/+0x14 and
+     min `(cx − w × 0.5, cz − d × 0.5)` at +0x18/+0x1C; +0x20 := 0; ID list := `[buildingType]`. The lot tag at
+     **+0x24 is never written**: it is whatever the stack held *[quirk]*. *[choice]* FreeCity4 writes 0 there.
 - **23 `FixLotConfiguration(cfg)`** (`0x0048B3B0`, pop 4, EAX): the lot editor's checker. For each building,
   prop and flora record it removes IDs that are not valid types or families, removes records left with no IDs,
   recomputes the footprint from slots 24–26 (x and z swapped for orientations 1 and 3), checks that the footprint
   lies inside the lot with a 0.049 m margin and that the record's centre is inside its footprint, and finally
   removes the first invalid ID of the configuration's slot 28 list. It returns the code of the **first** problem
   found: 0 none, 1 an ID removed, 2 a record removed, 3 a footprint changed, 4 outside the lot, 5 a centre moved,
-  6 an ID of the slot 28 list removed. No caller was found outside the editor.
+  6 an ID of the slot 28 list removed. No caller was found outside the editor. In detail (PL13, PL14):
+  1. `lotW := 16 · sizeX`, `lotD := 16 · sizeZ` (configuration slot 7, as unsigned, converted to float).
+  2. For each record of the object array (slot 23, edited in place), by index, whose type is **0, 1 or 4** (every
+     other type is left alone):
+     - **IDs.** For each ID of the record's list, in order, the validity test of its type, using the manager's
+       **held** components (+0x14, +0x18, +0x1C), not the globals: building → building development slot 16
+       `IsBuildingFamilyTypeValid` (a family or a type); prop → prop manager slot 11 `IsPropFamilyTypeValid`
+       (§A5: a family or a type); flora → flora simulator slot 12 `IsFloraFamilyTypeValid` (a family or a
+       registered type, flora.md). An invalid ID is erased (the next ID moves into its place and is tested next);
+       code 1.
+     - **Empty record.** When the list is now empty, the record is erased from the array and the next record is
+       examined next; code 2. Nothing else is done for it.
+     - **Footprint.** `(oldW, oldD) := (maxX − minX, maxZ − minZ)`. `(w, d) :=` slot 24 (building), 26 (prop) or
+       25 (flora) on the record's list; swapped when the orientation byte (+0x02) is 1 or 3. When
+       `|oldW − w| > 0` or `|oldD − d| > 0` (strict; NaN false), the footprint is rebuilt **around the record's
+       offset** `(x, z)` (+0x04, +0x0C), **not** around the old footprint's centre: `min := (x − w × 0.5,
+       z − d × 0.5)`, `max := (x + w × 0.5, z + d × 0.5)`; code 3.
+     - **Inside the lot** (`0x0048B6B3`–`0x0048B71F`). With `ex := f32(lotW − 0.05)` and `ez := f32(lotD − 0.05)`:
+       when `minX < 0.049` or `minZ < 0.049` or `ex + 0.001 < maxX` or `ez + 0.001 < maxZ` (floats as stored:
+       0.049 is `0x3D48B43A`, 0.05 `0x3D4CCCCD`, 0.001 `0x3A83126F`; strict; NaN never), code 4. **Nothing is
+       moved**: the record stays outside the lot.
+     - **Centre.** When `x < minX` or `x > maxX` or `z < minZ` or `z > maxZ` (strict; NaN never), the offset is
+       moved to the footprint's centre: `x := (maxX + minX) × 0.5`, `z := (minZ + maxZ) × 0.5`; code 5. A rebuilt
+       footprint is centred on the offset, so this fires only for an unchanged footprint.
+  3. **Retaining walls** (slot 28's vector, edited in place; none when slot 28 returns null). For each ID in order:
+     valid when building development slot 28 `GetLotRetainingWallKeyFromType(id, key&)` (the held simulator)
+     returns true, that is when `id` is the instance of an `ExemplarType 0x15` exemplar the simulator catalogued
+     (building-development §1.3). The **first** invalid ID is erased and the slot returns at once: the earlier
+     code if there was one, else 6. Later IDs are not examined.
+
+  Each "code k" above means "the result becomes k if it is still 0", so the result is the first problem's code.
 
 ## B6. Persistence *[compat]*
 
@@ -687,6 +787,14 @@ chooser (slots 5, 7, 22, 23) and the lot configuration filters.
 12. Lot configuration manager set queries take a reference even when the set already holds the configuration.
 13. Lot configuration manager slot 27 loses earlier entries when a building family follows other IDs.
 14. Lot configuration manager slots 12, 18, 19 and 24–27 leave AL undefined.
+15. The prop profile reader leaves size dwords unwritten for a short OccupantSize, and more than six values
+    overwrite its return address (§A3.2, PL8).
+16. `CreateProp` sizes the box through the OccupantSize data pointer without a count check (§A6.1, PL9).
+17. Prop manager slot 36 skips its final usage write when the building has no property holder (§A7.1, PL10).
+18. `CreateGenericLotConfiguration` makes a lot of `1 + floor(w / 16)` cells (one too many for a multiple of 16)
+    and leaves the object's lot tag unwritten (§B5.7, PL12).
+19. `FixLotConfiguration` reports a footprint outside the lot (code 4) without moving it, and rebuilds a footprint
+    around the record's offset (§B5.7, PL13).
 
 ## O. Open questions
 
@@ -747,3 +855,16 @@ chooser (slots 5, 7, 22, 23) and the lot configuration filters.
 12. **Records.** Prop manager: `01 00`, then (id₁, `4D 96 8F 09`), (id₂, `01 9B 8F 49`): 18 bytes. Lot
     configuration manager: `01 00` and three references, classes `0x8990BE7A`, `0xC990C034`, `0xA990BD10`:
     26 bytes. A record with version 2 → `Read` false.
+13. **Profile read order** (PL8). An exemplar with a six-value OccupantSize (2, 6, 3, 7, a value whose bit
+    pattern is `0x01020305`, 9), no satisfaction, wealth 2, no crime: profile +0x04..+0x0C = 2, 6, 3; +0x10 = 0 (the satisfaction default
+    overwrote value 4); +0x14 = `0x01020302` in the original (low byte the wealth, upper bytes from value 5),
+    0x00000002 under FreeCity4's *[choice]*; +0x18 = 0.
+14. **Generic lot configuration** (PL12). A building type whose slot 24 footprint is (16, 30): lot 2 × 2 cells,
+    building object at (16, 0, 16), footprint min (8, 1), max (24, 31). Footprint (4, 4): lot 1 × 1, object at
+    (8, 0, 8), footprint (6, 6)–(10, 10). Footprint (33, 47.5): lot 3 × 3.
+15. **FixLotConfiguration** (PL13, PL14). A 2 × 2 lot (32 × 32 m) with one prop record, orientation 1, offset
+    (10, 0, 12), footprint (9, 11)–(11, 13), ID list [P] where P has size (4, 1, 2): slot 26 gives (4, 2), swapped
+    to (2, 4); old (2, 2) differs → footprint (9, 10)–(11, 14); inside the lot; offset inside → result 3. The same
+    record with offset (31.5, 0, 12) and footprint (30.5, 11)–(32.5, 13), ID list [P'] with P' size (2, 1, 2): no
+    rebuild; 32.5 > 31.95 + 0.001 → code 4; offset inside → result 4, record unchanged. Walls [W1, X, Y] where W1
+    is a catalogued wall type and X, Y are not: X is erased, Y stays; with no earlier problem the result is 6.
