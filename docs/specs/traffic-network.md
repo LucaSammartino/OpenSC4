@@ -546,9 +546,12 @@ This rebuilds the graph over a rectangle. In this order:
          - `count += 1`;
          - for every travel type t with `net(t) = n`: `conn[t] |= 1 << (x + 4e)`;
          - when t = 1 (Car): **LaneContinuity**(c, occupant, e, x) (§4.4).
-       - If no exit was found for e: ask the occupant's path info (cISC4NetworkOccupant slot 49 → path info slot 4,
-         `(p, e, 0xFF, 0, 0)`). If that is non-zero (the piece allows a turn-around): `count += 1` and
-         `SetConnection(c, e, e, t)` for every t on n (§4.3).
+       - If no exit was found for e: ask the occupant's path info (cISC4NetworkOccupant slot 49, borrowed; fetched
+         at the first such entry of the occupant and kept for the rest of it, `0x0071ABC1`–`0x0071ABDB`; a null
+         path info skips the test) for `GetPath(p, e, 0xFF, 0, null)` (path info slot 4, §7.3): the path with key
+         `p << 24 | e << 8 | 0xFF`, exit `0xFF` being the turn-around path, lane 0. Slot 4 returns a path pointer
+         or null, and the whole of EAX is tested (`0x0071ABF9`). If it is not null (the piece allows a
+         turn-around): `count += 1` and `SetConnection(c, e, e, t)` for every t on n (§4.3).
      - If `count ≠ 0` (as u16):
        - get or create the record of network n in c;
        - `connCount = count` (u8);
@@ -584,22 +587,41 @@ Step 2 allows every exit of the neighbour for cars arriving from this side. Plug
 
 ### 4.4 Lane continuity (RemoveBadElevatedPaths, `0x00715940`)
 
-Called for each car connection (e → x) of an occupant at cell c:
+Called for each car connection (e → x) of an occupant at cell c, from DoConnectionsChanged step 3 with the
+occupant's path info (cISC4NetworkOccupant slot 49, borrowed, §7.2; not null-checked, but slot 53 has just
+created it). Arguments as compiled: `(cellX, cellZ, pathInfo, entry e, exit x)`, pop 20, no return value. The path
+info slots are in §7.3. A path is named by its **key** (§7.3): exit in bits 0–7, entry in bits 8–15, a lane index in
+bits 16–23, the path type in bits 24–27.
 
-1. From the occupant's path info, get the car paths (path type 1) that start at entry e (path info slot 14). Keep
-   those whose exit byte equals x. Collect the first vertex of each kept path (path info slot 3). If none is
-   collected, stop: **nothing changes**.
-2. Let P = the neighbour through side e (no bounds check is done; the occupant query returns nothing off-map).
-   For each network occupant in P, in list order, that has any of the network flags `0x1F4F` (slot 9) and a path
-   info:
+1. **Collect the start vertices.** `keys := GetPathsFromEntryEdge(1, e)` (path info slot 14: every car path whose
+   entry is e, in the path table's hash order). For each key in that order whose **exit byte** (bits 0–7 of the key)
+   equals x: `path := GetPath(key, null)` (slot 3); if `path` is not null, append a copy of its **first vertex**
+   (the first 12-byte point `(x, y, z)`, three f32 world coordinates, of the path's point array) to the list V. If
+   V is empty, stop: **nothing changes**.
+2. Let P = the neighbour of c through side e, `(cellX + dx[e], cellZ + dz[e])` from the side tables `0x00AB325C`
+   and `0x00AB326C` (no bounds check; the occupant query returns nothing off-map). Get the network occupants of
+   the one cell P (occupant manager slot 41, `(list, &P, &P, 0xC772BF98, −1)`). For each, in list order: QI
+   `0xA821EF94`; skip it unless it has any of the network flags `0x1F4F` (slot 9) and its path info (slot 49) is not
+   null. Then:
    - `M = 0`;
-   - for each collected vertex v: query path info slot 7 `(path type 1, v, any entry 0xFF, exit (e+2) mod 4,
-     radius 4.0)`. This returns the car paths of P that end within 4 m of v. `M |= 1 << entry` for each one;
-   - write nibble x of `priorCar[e]` at c: `:= M`.
+   - for each vertex v of V, in order: `near := GetPathsNearEndPoint(1, &v, 0xFF, (e + 2) mod 4, 4.0)` (slot 7):
+     the keys of the car paths of P, any entry, exit `(e + 2) mod 4`, whose **last** vertex lies within 4.0 world
+     units of v (3-D distance, `≤`). For each key k of `near`: `M |= 1 << entry(k)`, with `entry(k)` = bits 8–15
+     of k;
+   - write nibble x of `priorCar[e]` at c: `priorCar[e] := (priorCar[e] AND NOT (0xF << 4x)) OR (M << 4x)`, as
+     u16 (`0x00715BBE`–`0x00715C05`). *[quirk]* `M` is not masked to 4 bits; it only holds bits 0–3 because path
+     entries are sides 0–3.
 
 The **last** qualifying occupant in P decides *[quirk]*. With no flagged occupant in P, the word keeps `0xFFFF`
 from the reset. So the bits are only restricted next to occupants with those flags: elevated and highway pieces
-*[inferred]*.
+*[inferred]*. The neighbour occupants' path infos are borrowed, not released; each QI result and each listed
+occupant is released before the next.
+
+Worked example. Occupant at c = (10, 10) with one car path entry 2 → exit 0, key `0x01000200`, whose first vertex
+is (168.0, 270.0, 160.0). The connection (e = 2, x = 0) collects V = [(168, 270, 160)]. P = the neighbour through
+side 2. P holds one occupant with network flag `0x0008` and car paths `0x01000000` (entry 0 → exit 0, last vertex
+2.0 units away) and `0x01000100` (entry 1 → exit 0, last vertex 6.0 units away). Exit `(2 + 2) mod 4 = 0`:
+`near = [0x01000000]` (6.0 > 4.0), so `M = 0x1` and nibble 0 of `priorCar[2]` at c becomes 1: `0xFFFF → 0xFFF1`.
 
 ### 4.5 Capacity tuning (read by ReadSimulatorTunableValues `0x00716AE0`, exemplar in traffic-simulator.md)
 
@@ -919,8 +941,30 @@ wormhole bit 2.
 **Insert**:
 
 1. The other portal is the tunnel object's paired portal. The original reads it from the concrete
-   `cSC4NetworkTunnelOccupant`, not through an interface (§9). Its occupant position gives cell (ox, oz). With no
-   paired portal (null), return: **no record** is created or changed (`0x00714154`, TN11).
+   `cSC4NetworkTunnelOccupant`, not through an interface (§9): the pointer member at **`+0x1D0`** of the object
+   (offsets from the pointer that QI `0x8A4BD52B` and QI `0xA821EF94` return, the class's primary base), read by a
+   one-instruction getter (`0x00647570`, COMDAT-folded with `cSC4City::GetVehicleManager`, so it has no symbol of
+   its own) at `0x0071414B`. Its occupant position gives cell (ox, oz). With no paired portal (null), return:
+   **no record** is created or changed (`0x00714154`, TN11). The paired portal is used under a temporary reference:
+   `AddRef` (`0x0071415E`), its `AsOccupant` (network occupant slot 48: the `+4` sub-object) and that occupant's
+   position (occupant slot 8), the city's `PositionToCell`, then `Release` (`0x0071419A`).
+
+   **The member** (TG25). Type: a pointer to the other portal's `cSC4NetworkTunnelOccupant`, at its primary base
+   (usable as a `cISC4NetworkOccupant*`). It is a **counted** reference:
+   - set only by a non-virtual setter (`0x00647530`): if the new pointer differs, `AddRef` the new one, store it,
+     `Release` the old one. Its only callers are the network tool's `InsertTunnelPieces` (`0x00628AFE`,
+     `0x00628B08`), which pairs the two portals it has just made, each with the other;
+   - released and set to null by the occupant's `Shutdown` (`0x00647500`–`0x00647516`), released, not nulled, by the
+     function at `0x00647260` that restores the class's vtables before chaining to the base (`0x006472AA`; the
+     destructor body *[inferred]*);
+   - saved: `Write` (`0x00647580`) writes u16 version 2, the network occupant base record, then a bool "has pair"
+     and, when true, the pair as a saved-object reference (QI `0xE4FDA3D4` of the pair, `0x005D99A0`); `Read`
+     (`0x00647610`, version must be 2) releases any old pair and reads the reference back into the member, to be
+     resolved as type `0x8A4BD52B` (`0x005D9730`), or nulls it when the bool is false. (In `Write` and `Read` the
+     member appears at `+0x1C8` because those methods run on the `+8` serializable sub-object.)
+
+   So both portals point at each other, each holding a reference on the other (a reference cycle that `Shutdown`
+   breaks).
 2. Network type = the first of 2, 6, 0, 1, 10, 12, 9 that the tunnel `IsOfType`. None → no record.
 3. Travel mask = `0x1FE` (every type but Walk) *[quirk]*. The test that was meant to use the type's transit networks
    always passes.
@@ -1468,11 +1512,56 @@ A replacement returns true wherever the original returns garbage *[choice]*.
 
 | Slot | Offset | Address | Behaviour | Pop | Return |
 |---|---|---|---|---|---|
+| 48 | +0xC0 | `0x005FD7E0` | `AsOccupant()`: `this + 4` (the cISC4Occupant sub-object), null for a null `this`. COMDAT-folded, so the symbol at that address is unrelated. | 0 | EAX |
+| 49 | +0xC4 | `0x0061B510` (`0x0061D380` in `cSC4NetworkOccupantWithPreBuiltModel`) | `GetPathInfo()`: builds the path info on the first call and caches it in the occupant (`+0x140`); returns the cached pointer **without** `AddRef`, so the caller borrows it and must not release it (TG24). May return null (the pre-built-model override returns null when it has no model). | 0 | EAX |
 | 53 | +0xD4 | `0x006196A0` | `PathConnection(pathType, entry, exit)`: makes sure path info exists (calls GetPathInfo unless network flag `0x2000` is set), then tests the connection table. With `0xFF` wildcards it returns the number of matches; otherwise a bool. | 12 | AL (u8) |
 | 54 | +0xD8 | `0x00619790` | `AddPathConnection(pathType, entry, exit)`: sets the bit for `pathType` and also for path type 0, then sets network flag `0x2000`. | 12 | none |
 
 **SDK error**: the SDK declares slot 53 as `AddPathConnection` (void) and slot 54 as `PathConnectionExists`. The
 compiled order is the reverse (checked at `0x006196A0` and `0x00619790`).
+
+### 7.3 cISC4PathInfo (`cSC4PathInfo`, vtable `0x00A99E70`), slots used by the rebuild (TG24, re-answers21)
+
+A path info holds the occupant's paths in a hash map from a u32 **path key** to a path record (SGI `hash_map`,
+identity hash). Key layout:
+
+| Bits | Field |
+|---|---|
+| 0–7 | exit side (0–3; `0xFF` names the turn-around path of an entry) |
+| 8–15 | entry side (0–3) |
+| 16–23 | lane index (0, 1, …; distinct paths with the same type, entry and exit) |
+| 24–27 | path type (1 = car, `pt(n)` of §2.1) |
+| 28–31 | 0 for the paths these queries return |
+
+A **path record** (what slots 3 and 4 point at): `+0` the start and `+4` the end pointer of its point array (12-byte
+points, three f32 world coordinates x, y, z), `+0xC` its length (f32). The **first vertex** is the point at `+0`'s
+address; the **end point** used by slot 7 is the last point (`end − 12`). The "exit byte" is not a field of the
+record: it is bits 0–7 of the key.
+
+| Slot | Offset | Address | Signature as compiled | Pop | Return |
+|---|---|---|---|---|---|
+| 3 | +0x0C | `0x0053DD30` | `Path* GetPath(u32 key, float* lengthOut)`: hash lookup; null when absent. When found and `lengthOut` is not null, `*lengthOut := ` the record's length. | 8 | EAX pointer into the path info (borrowed; valid while the path info is unchanged) |
+| 4 | +0x10 | `0x0053CFF0` | `Path* GetPath(u32 pathType, u8 entry, u8 exit, u8 lane, float* lengthOut)`: slot 3 with key `pathType << 24 \| lane << 16 \| entry << 8 \| exit` (only the low byte of `pathType` survives the shift). | 20 | EAX pointer or null (not a bool: a caller tests all 32 bits) |
+| 7 | +0x1C | `0x0053E350` | `vector<u32> GetPathsNearEndPoint(u32 pathType, const float point[3], u8 entry, u8 exit, float radius)`, returned **by value** through a hidden first argument (the caller's uninitialised `vector<u32>`, which the callee constructs and the caller frees). | 24 (hidden pointer included: 6 dwords) | EAX = the hidden pointer |
+| 14 | +0x38 | `0x0053E870` | `u32 GetPathsFromEntryEdge(u32 pathType, u8 entry, vector<u32>& keys)`. | 12 | EAX = the number of keys appended |
+
+**Slot 14.** Empties `keys` first (keeps the capacity). Then walks the whole hash map in bucket order (bucket 0
+upward, each chain front to back) and appends every key whose bits 28–31 are 0, whose bits 24–27 equal `pathType`
+(compared as a full u32, so a `pathType` above 15 matches nothing) and whose entry byte equals `entry`. Returns how
+many it appended. `entry = 0xFF` is not a wildcard here.
+
+**Slot 7.** Match rule: the key, masked, equals `pathType << 24 | entry << 8 | exit`, where the mask starts as
+`0xFF00FFFF` (lane ignored), drops the entry byte (`0xFF0000FF`) when `entry = 0xFF`, and drops the exit byte when
+`exit = 0xFF`. The whole type byte is compared, so keys with bits 28–31 set never match. For each matching path, in
+bucket order: with `(dx, dy, dz)` = the path's last point minus the given point (each `r24`),
+`d := r24(√ r24(r24(r24(dz²) + r24(dy²)) + r24(dx²)))` (the same order as the tunnel distance of §4.8). A path with `d ≤ radius`
+(`d` above the radius, or a NaN, is skipped) is kept: if `d` is **below** the smallest distance kept so far (initially
+`FLT_MAX`), its key is inserted at the **front** of the result and the smallest distance becomes `d`; otherwise
+(`d` equal to or above it) the key is appended at the back. So the first key is the nearest path; the rest keep no
+distance order. The radius test and the "nearer" test are the x87 compares at `0x0053E41E` and `0x0053E431`.
+
+Both vectors use the STLport allocator B (`0x0090CF63` frees them). Result containers are the caller's: slot 14
+fills a vector the caller owns; slot 7 constructs one in the caller's storage.
 
 ---
 
@@ -1497,7 +1586,7 @@ compiled order is the reverse (checked at `0x006196A0` and `0x00619790`).
 | | 22 +0x58 | IsOfType | 4 | AL | §3, §4.2, §4.8 |
 | | 49 +0xC4 | GetPathInfo | 0 | EAX | §4.2, §4.4 |
 | | 53 +0xD4 | PathConnection | 12 | AL | §4.2 |
-| path info (no SDK; vtable not curated) | 3 +0x0C, 4 +0x10, 7 +0x1C, 14 +0x38 | get path, turn-around test, paths near a point, paths by entry | — | — | §4.2, §4.4 |
+| path info (`cSC4PathInfo`, vtable `0x00A99E70`; signatures §7.3) | 3 +0x0C, 4 +0x10, 7 +0x1C, 14 +0x38 | get path, turn-around test, paths near a point, paths by entry | 8, 20, 24, 12 | EAX (pointer, pointer, hidden vector pointer, count) | §4.2, §4.4 |
 | `cISC4PropOccupant` (`0x00AA4900`) | 7 +0x1C | GetPropType | 0 | EAX | §4.9.1 |
 | `cISC4Occupant` (`0x00AA41D8`) | 8 +0x20 | GetPosition | 4 | — | §3, §4.8, §4.9.1 |
 | `cISCPropertyHolder` (`0x00AA6CD8`) | 17 +0x44 | RemoveProperty | 8 | AL | §4.12 |
@@ -1541,8 +1630,9 @@ Non-virtual helpers that also serve pathfinder.md:
 - **What a replacement must read from the game** for this model (occupant queries, path connections and path info,
   tunnel pairs): traffic-simulator.md §9.1 (TG2).
 - **Memory reached into by this class**:
-  - the paired portal of `cSC4NetworkTunnelOccupant` (a member of the concrete class, not an interface method), so
-    a replacement tunnel occupant breaks the original simulator;
+  - the paired portal of `cSC4NetworkTunnelOccupant` (the counted pointer at `+0x1D0` of the concrete class, read
+    by a non-virtual getter, §4.8, TG25), so a replacement tunnel occupant breaks the original simulator, and a
+    replacement simulator must read that member (or the network tool's pairing) to build tunnel records;
   - the lot manager's safe-iterator object, returned by slot 22 and used by the lot manager.
 - **Containers crossing the interface**: slots 28–31, 33 and 39–42, listed in the final report's allocator rows.
   `GetFerryRouteBetweenTiles` returns a pointer into internal storage (section (3)).
@@ -1696,6 +1786,25 @@ Unless stated otherwise:
 
     For comparison, DoLotActivated on a switch lot makes exactly one draw on the simulator's own generator (§12),
     after the rebuild.
+
+13. **Path keys and the turn-around test** (§7.3, §4.2). A path info holding car paths with keys `0x01000200`,
+    `0x01010200`, `0x01000203` and `0x010002FF`: `GetPathsFromEntryEdge(1, 2, v)` returns 4 and fills `v` with those
+    four keys (in the map's bucket order); with `v` holding 7 old entries beforehand it still returns 4 and `v` has 4
+    entries. `GetPathsFromEntryEdge(1, 0xFF, v)` returns 0. `GetPath(1, 2, 0xFF, 0, null)` looks up key `0x010002FF`
+    and returns non-null (a turn-around for entry 2 when PathConnection finds no exit there); `GetPath(1, 2, 0xFF, 1,
+    null)` (key `0x010102FF`) returns null. In the lane continuity of connection (2 → 0) only `0x01000200` and
+    `0x01010200` are kept (exit byte 0); `0x010002FF` is listed by slot 14 but never matches an exit 0–3.
+14. **Lane continuity** (§4.4). The worked example of §4.4: `priorCar[2]` at (10, 10) goes from `0xFFFF` to
+    `0xFFF1`. Moving the second path's last point to exactly 4.0 units away puts both keys in `near` (the radius
+    test is `≤`) and gives `0xFFF3`. Clearing the neighbour's network flags (none of `0x1F4F`) leaves `0xFFFF`.
+    Removing the occupant's own path `0x01000200` (so V is empty) leaves `0xFFFF` whatever the neighbour holds.
+15. **GetPathsNearEndPoint order** (§7.3). Paths visited in bucket order with end distances 3.0, 1.0, 3.5, 0.5 and
+    radius 4.0: result = [0.5-path, 1.0-path, 3.0-path, 3.5-path]; with distances 1.0, 3.0, 2.0: [1.0, 3.0, 2.0]
+    (2.0 is not below the smallest kept distance, so it is appended).
+16. **Tunnel pair** (§4.8, TG25). Two portals paired by the network tool: each holds one reference on the other
+    (`+0x1D0`). Inserting portal A makes a record keyed by A's cell pointing at B's cell, and A's and B's reference
+    counts are the same before and after the insert. A portal whose member is null (never paired, or after its
+    `Shutdown`) makes no record. A save and reload restores both members.
 
 Test 8's route bytes:
 
