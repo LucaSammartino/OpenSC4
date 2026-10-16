@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "prop_developer_no_lots",
+  "spec": ["prop-developer 4.3", "prop-developer 12"],
+  "description": "Section 12 test 8: a block of street cells only (a network lot with an optional prop object) counts its slot but has no lots, so the update stops after the cell walk: nothing is drawn, created or removed. A lot that is not livable, or has building type 0, is skipped and not counted; a lot without a configuration is counted (lots 1) but contributes no slot.",
+  "steps": [
+    {"op": "pv_requester", "token": "0x13B42BB8", "share": 0, "satisfaction": "0x49A1E996", "custom": true},
+    {"op": "pv_requester", "token": "0x11347690", "share": 0, "satisfaction": "0xE9A4300B", "custom": false},
+    {"op": "pv_create"},
+    {"op": "pv_init", "expect": true},
+    {"op": "pv_add_requester", "token": "0x13B42BB8", "class": "0x8990C09A"},
+    {"op": "pv_add_requester", "token": "0x11347690", "class": "0x8990C065"},
+    {"op": "pv_clear_events"},
+    {"op": "pv_env", "profiles": [["0x500", "0x49A1E995", 1]]},
+    {"op": "pv_network_lot", "token": "0x50", "cell": [1, 1], "wealth": 1, "objects": [{"tag": "0xB0", "ids": ["0x500"]}]},
+    {"op": "pv_update_block", "block": [0, 0]},
+    {"op": "pv_expect_block", "state": {"lots": 0, "slots": 1, "stopped": true, "created": 0, "removed": 0, "member_draws": 0, "target": 0}},
+    {"op": "pv_expect_events", "filter": {"event": "draw"}, "events": []},
+    {"op": "pv_lot", "lot": "0x10", "x": 2, "z": 2, "occupancy": 1.0, "livable": false, "objects": [{"tag": "0xA0", "ids": ["0x500"]}]},
+    {"op": "pv_lot", "lot": "0x11", "x": 3, "z": 2, "occupancy": 1.0, "building": 0, "objects": [{"tag": "0xA0", "ids": ["0x500"]}]},
+    {"op": "pv_update_block", "block": [0, 0]},
+    {"op": "pv_expect_block", "state": {"lots": 0, "slots": 1, "stopped": true}},
+    {"op": "pv_lot", "lot": "0x12", "x": 4, "z": 2, "occupancy": 0.0, "objects": null},
+    {"op": "pv_update_block", "block": [0, 0]},
+    {"op": "pv_expect_block", "state": {"lots": 1, "slots": 1, "stopped": false, "target": 0}},
+    {"op": "pv_expect_events", "filter": {"event": "draw"}, "events": []}
+  ]
+}
