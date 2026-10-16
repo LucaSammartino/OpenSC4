@@ -1289,7 +1289,14 @@ bool SetDefaultExemplar(void* u, uint64_t occ, const fc4_res_key* k) {
     FC4_ACQUIRED(ex, "GetResource");
     cISCExemplarPropertyHolder* h =
         Query<cISCExemplarPropertyHolder>(FromToken(occ), kIID_cISCExemplarPropertyHolder);
-    const bool ok = h != nullptr && h->SetDefaultExemplar(ex);
+    // [abi-ret] Slot 3 (0x00458E60, interfaces.tsv eax-or-void) sets no result (landfill.md slot table and the
+    // cISCExemplarPropertyHolder row: "none"): the SDK's bool is a leftover AL. Judge by slot 4, which reads the
+    // stored exemplar back without an AddRef (as cFC4Landfill.cpp's tile attach does).
+    bool ok = false;
+    if (h != nullptr) {
+        h->SetDefaultExemplar(ex);
+        ok = h->GetDefaultExemplar() == ex;
+    }
     Drop(h);
     FC4_RELEASE(ex);
     if (!ok) ++Ctx(u)->loadsFailed;
