@@ -166,7 +166,8 @@ struct Shadow {
     // Ignitions the original refused and the mirror took (Q40): the mirror's
     // fire is put out at once (it dies at the mirror's next step).
     std::set<uint64_t> resyncTargets;
-    uint64_t resyncs = 0, resyncSteps = 0;  // resyncSteps: mirror steps with no original fire tick
+    uint64_t resyncs = 0, resyncSteps = 0;
+    bool resyncInEpisode = false;  // a refused fire was put out in the mirror's current episode  // resyncSteps: mirror steps with no original fire tick
     // The original's fire instance.
     void* fireInternal = nullptr;            // cISC4DisasterInstanceFire* (borrowed)
     cISC4DisasterInstance* fireInst = nullptr;  // one reference ours
@@ -292,6 +293,7 @@ void TrackFirePhase() {
         g.fireNextValid = true;
     } else if (phase != 1) {
         g.fireNextValid = false;
+        g.resyncInEpisode = false;
     }
     g.corePhase = phase;
 }
@@ -506,7 +508,9 @@ void FireLine(const char* what) {
               (unsigned long long)g.coreSteps, (unsigned long long)g.resyncSteps);
     }
     char layer[96];
-    CompareLayer(d, layer, sizeof(layer), resync ? "Q40" : nullptr);
+    // Putting a refused fire out runs the mirror's KillFire, which can
+    // register another fire's target as the ID's location again (§5.10).
+    CompareLayer(d, layer, sizeof(layer), resync || g.resyncInEpisode ? "Q40" : nullptr);
     ++g.fire.lines;
     if (d.n == 0) ++g.fire.clean;
     if (d.n != 0 && d.unexplained == 0) ++g.fire.questioned;
@@ -631,6 +635,7 @@ void MirrorIgnite(uint64_t o, bool force, uint32_t id, bool focus, bool origResu
         CoreCall("disasters shadow Extinguish (resync, ours)", true, [&] { fc4_disasters_extinguish(g.core, o); });
         g.resyncTargets.insert(o);
         ++g.resyncs;
+        g.resyncInEpisode = true;
     }
     TrackFirePhase();
     g.dirty = true;
@@ -1431,6 +1436,7 @@ void DisastersShadowCityLoaded(cISC4City* city) {
     g.deferredIgnites = 0;
     g.resyncTargets.clear();
     g.resyncs = g.resyncSteps = 0;
+    g.resyncInEpisode = false;
     g.origBegun = g.origEnded = 0;
     g.origPosts.clear();
     g.origD1.clear();
