@@ -173,7 +173,7 @@ impl ManagerBase {
     /// Read (§4): `None` on a version above 6 or a short stream. (The
     /// original returns true without checking the stream error; the managers
     /// here report a short read, so the round trip can be checked
-    /// *[choice]*.)
+    /// *[choice]*, AM11.)
     pub fn read(inp: &mut dyn InStream) -> Option<ManagerBase> {
         let version = inp.get_u16()?;
         ManagerBase::read_after_version(version, inp)
@@ -613,7 +613,7 @@ impl ManagerRecord {
         };
         if version > current {
             // §5.2: a version above 5 fails; §5.3 is read the same way
-            // *[choice]* (the spec gives no upper check for the watercraft).
+            // *[choice]* (the spec gives no upper check for the watercraft, AM9).
             return None;
         }
         if version < current {
@@ -798,7 +798,7 @@ impl AutomataManager {
     }
 
     /// Slot 23 `SetMaxCount(n)` (§7.3): clamp to 0–5000, remove the automata
-    /// beyond it (the newest first *[choice]*), set the hard limit to
+    /// beyond it (the newest first *[choice]*, AM4), set the hard limit to
     /// `trunc(n × 1.25)` (a `double` multiply). Returns the removed automata.
     pub fn set_max_count(&mut self, n: i32) -> Vec<RefValue> {
         let n = n.clamp(0, MAX_COUNT_LIMIT);
@@ -823,7 +823,7 @@ impl AutomataManager {
     /// Slot 15 `CreateAutomaton` (§7.2), stubbed: the pedestrian manager
     /// makes a pedestrian and the vehicle manager a vehicle at `position`,
     /// tagged with the group, and lists it; null when the manager is at its
-    /// hard limit *[choice]*, and always for the aircraft and watercraft
+    /// hard limit *[choice]* (AM4), and always for the aircraft and watercraft
     /// managers (their automata are Q4). How automata are chosen and spawned
     /// is outside this spec (§0).
     pub fn create_automaton(&mut self, args: CreateArgs) -> Option<Rc<Automaton>> {
@@ -843,7 +843,7 @@ impl AutomataManager {
     }
 
     /// Slot 31 `TrackAutomataGroupInstances(group, delta)`: the count moves by
-    /// `delta` (not below 0 *[choice]*); a new group is appended.
+    /// `delta` (not below 0 *[choice]*, AM12); a new group is appended.
     pub fn track_group_instances(&mut self, group: u32, delta: i32) {
         let counts = &mut self.rec.base.group_counts;
         match counts.iter_mut().find(|(g, _)| *g == group) {

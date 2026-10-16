@@ -721,7 +721,7 @@ pub struct TrailerRecord {
     pub version: u16,
     pub vehicle: VehicleRecord,
     /// Read with the automaton interface `0xA9B40F05` *[choice]* (§6.4 names
-    /// no IID).
+    /// no IID, AM10).
     pub trailers: Vec<RefValue>,
     pub values: Vec<u32>,
     pub v: Vec3,
