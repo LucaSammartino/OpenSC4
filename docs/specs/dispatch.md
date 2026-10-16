@@ -175,8 +175,33 @@ only the available pylons and leaves the active pylon alone.
 ### 4.3 `UpdateDispatchState(record, state)`
 
 If `(state = 5) ≠ record.active`: `record.active := (state = 5)` and post **active** or **inactive**. Then, if the
-record has a pylon, set the pylon's dispatch state. States used: 0 idle (back home), 3 dispatched, 5 working at the
-scene *[inferred names]*.
+record has a pylon, set the pylon's dispatch state.
+
+**The dispatch states** (answers DP3). The vehicle automata set their own state through `SetDispatchState`
+(automaton slot 25; `GetDispatchState` is slot 26, `0x00505020`, the field `+0x2CC`). The emergency vehicle's
+`SetDispatchState` (`0x0052FF60`; the fire truck `0x005336C0` and patrol car `0x00543F60` call it first, the
+helicopter has its own, `0x0053A360`) ignores a call that does not change the state, or while automaton slot 57
+with `0x10` is non-zero; otherwise it stores the state and sends the manager event 7 with it (§3). Who sets what:
+
+| State | Meaning | Set at |
+|---|---|---|
+| 0 | done, nothing more to report: the manager revokes the record at once (§3) | helicopter `0x0053C454` (instead of 6 when it has nowhere to return to *[inferred]*); airplane `0x005047B3`. **Ground vehicles never set 0** |
+| 1 | the route is blocked: the vehicle reached the end of its path but not the target | arrival handler (emergency vehicle slot 79, `0x0052F210`) at `0x0052F2B2`; `SetDispatchState(1)` also sends the path-blocked message |
+| 2 | finished at the scene | fire truck `0x00533679` (handling tick, the fire is out) and `0x0053307D` (slot 199); patrol car `0x00543C46` (slot 197) and `0x00543F5A` (slot 199); helicopter `HandleExitState` `0x00535518` |
+| 3 | dispatched, on the way | `BeginDispatch` (`0x00469A30`, `0x00469AF2`); a successful re-path (`DoRepathingTick` `0x0052FEDA`); helicopter `0x0053C3A2`; airplane `0x005045D9`, `0x00504654` |
+| 4 | (airplane only) | airplane `0x00504621` |
+| 5 | working at the scene: the only state with `active` set | arrival handler at `0x0052F2A9` (the vehicle is at the target, slot 146); fire truck handling tick `0x00533644`; helicopter `0x0053C321`; airplane `0x00504729` |
+| 6 | going home | "go home" (slot 29, `0x0052F330`, at `0x0052F353`; the DisasterPeriodEnded handler calls it, §3); the after-work step (slot 198, `0x0052F570`, at `0x0052F66A`); helicopter `0x0053C465`; airplane `0x00504796` |
+
+The after-work step (slot 198) does nothing while the vehicle's tween value is above 0.6 or automaton slot 85 is
+true; then a vehicle without a home station (`+0x2C4`), or nearer to it than a tuning distance (the byte `0x00B21CB8` × 16, compared with the 3D distance, `0x0052F60E`), is
+removed at once (automaton slot 13); otherwise it gets state 6 and a path home (automata manager slot 17, mode 2),
+and is removed when that path cannot be made. A removed vehicle sends event 3, and **event
+3 is what ends a ground vehicle's dispatch**: the record is revoked then (unit returned, pylon back, **end**).
+
+A fire engine therefore reports 3 (begin) → 5 (at the fire, **active**) → 2 (fire out, **inactive**) → 6 (driving
+home, or nothing when the station is near) → event 3 (removed: revoke, **end**). A blocked route gives 3 → 1 and the
+record stays until the vehicle is removed or re-targeted. Only the change into and out of 5 posts anything.
 
 ### 4.4 Ending and revoking
 
@@ -245,7 +270,8 @@ Nothing dispatched, a fire station with 3 units (base 1). The player opens the f
 numbers 1–3. They drop pylon 2 on a burning building: `CanDispatch(1, x, z)` is true; `Dispatch(1, x, z)` → ID 1
 (`nextID` 0 → 1); the record takes pylon 2, `DispatchFromStation(station, 2)` clears unit 2's bit, a fire engine
 automaton is created; **begin** (1, 1) is posted. On arrival the automaton reports state 5: **active** (1, 1);
-the protection simulator adds the dispatch cone. When the fire is out it reports state 0: **inactive** (1, 1), then
+the protection simulator adds the dispatch cone. When the fire is out it reports state 2: **inactive** (1, 1); then
+state 6 while it drives home (nothing posted). When it is removed at the station it sends event 3:
 `RevokeDispatchByID(1)`: unit 2 returns, pylon 2 goes back to the station (the tool is still open), **end**
 (1, 1). Saved now, the record is `02 00 | 00000000 | 01000000 | 00000000 | 03000000 + three pylon refs | 01000000`
 (tool still open, type 1).
@@ -347,7 +373,7 @@ first requires a source for that type (0, 1, 5 or 6).
 ## 11. Open questions
 
 See QUESTIONS.md, section "From the re-specs10 specs" (DP1–DP3), and the cores12a questions DP4–DP9 filed in the
-same section; all but DP3 answered.
+same section; all answered (DP3 by re-answers19, §4.3).
 
 ## 12. Conformance tests
 
@@ -359,6 +385,8 @@ same section; all but DP3 answered.
 5. A failed `InitDispatch` (no station found) still advances `nextID`.
 6. Automaton event 7 with state 5 posts active once; a second state 5 posts nothing; state 0 posts inactive, then
    end, and removes the record.
+6a. Event 7 with state 2 after state 5 posts inactive only; the record stays. A later event 3 posts end and removes
+   it. States 1, 3, 4 and 6 post nothing unless the record was active.
 7. `RevokeDispatchByID` of an active record posts end only (no inactive) and returns the unit
    (`RevokeDispatchFromStation` called once).
 8. `RevokeAllDispatches(1)` also removes type-0 records.
