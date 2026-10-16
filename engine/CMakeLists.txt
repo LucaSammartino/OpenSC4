@@ -313,6 +313,11 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4ZoneDevHost.cpp
         plugin/FC4ZoneDevShadow.cpp
         plugin/FC4ZoneDevShadow.h
+        # The prop manager, the lot configuration manager and the tutorial system
+        # (prop-lotconfig.md, tutorial.md; the glue15 lane): enable = propmgr, lotcfg,
+        # tutorial; propmgr_shadow, lotcfg_shadow, tutorial_shadow.
+        plugin/cFC4Tutorial.cpp
+        plugin/cFC4Tutorial.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp

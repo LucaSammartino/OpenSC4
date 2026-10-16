@@ -74,6 +74,7 @@
 #include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
 #include "cFC4Civic.h"       // the cmglue lane: civic
 #include "cFC4Parks.h"       // the cmglue lane: parks
+#include "cFC4Tutorial.h"    // the glue15 lane: tutorial
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -293,6 +294,12 @@ const ClassEntry kParkClasses[] = {
 const ClassEntry kZoneDevClasses[] = {
     {kFC4_CLSID_cSC4ZoneDeveloper, "cSC4ZoneDeveloper", &CreateFC4ZoneDeveloper},
 };
+// docs/specs/tutorial.md §1: the tutorial system (city component 48). Off by
+// default (glue trial): `enable = tutorial`. The fire and flammability
+// IsTutorial readers then read fc4_tutorial_is_tutorial (cFC4Tutorial.h).
+const ClassEntry kTutorialClasses[] = {
+    {kFC4_CLSID_cSC4TutorialSystem, "cSC4TutorialSystem", &CreateFC4TutorialSystem},
+};
 
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
@@ -328,6 +335,8 @@ const Subsystem kSubsystems[] = {
     {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
+    // the glue15 lane
+    {"tutorial", nullptr, kTutorialClasses, sizeof(kTutorialClasses) / sizeof(kTutorialClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

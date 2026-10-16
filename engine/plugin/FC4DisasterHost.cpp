@@ -37,6 +37,7 @@
 #include "cISC4PoliceSimulator.h"
 #include "cISC4SimGrid.h"
 #include "cISC4TutorialSystem.h"
+#include "cFC4Tutorial.h"  // the glue15 lane: fc4::TutorialIsTutorial
 #include "cISC4WeatherSimulator.h"
 #include "cISCPropertyHolder.h"
 #include "cS3DVector2.h"
@@ -355,7 +356,8 @@ void AddFireAura(void* u, uint64_t) { Wrote(u, "add_fire_aura"); }
 bool TutorialNoBurnDown(void* u) {
     cISC4City* c = C(u)->city;
     cISC4TutorialSystem* t = c ? c->GetTutorialSystem() : nullptr;  // city slot 82
-    return t != nullptr && t->IsTutorial();                          // slot 8
+    // Slot 8, or fc4_tutorial_is_tutorial when the system is ours (enable = tutorial).
+    return fc4::TutorialIsTutorial(t);
 }
 float Wind(void* u) {
     cISC4City* c = C(u)->city;
