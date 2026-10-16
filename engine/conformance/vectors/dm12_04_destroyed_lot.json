@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "demolition_destroyed_lot",
+  "spec": ["demolition 4.5", "demolition 6", "demolition 12.4"],
+  "description": "A 3x2 lot in state 6 (destroyed) with no occupants costs 6 cells x 2 (the shipped kCostToDemolishDestroyedLotTile) = 12, in a dry run (nothing called) and committed (StartDemolishLot / EndDemolishLot inside one QueueRemovals bracket).",
+  "steps": [
+    {"op": "demolition_create"},
+    {"op": "demolition_init", "expect": true},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_lot", "lot": "0x50", "rect": [10, 10, 12, 11], "zone": 1, "state": 6},
+    {"op": "demolition_lots", "do_it": false, "lots": ["0x50"], "privilege": 0, "flags": 1, "expect": {"ok": true, "cost": 12}},
+    {"op": "demolition_expect_events", "events": []},
+    {"op": "demolition_lots", "do_it": true, "lots": ["0x50"], "privilege": 1, "flags": 1, "expect": {"ok": true, "cost": 12}},
+    {"op": "demolition_expect_events", "events": [{"event": "queue", "on": true}, {"event": "start", "lot": "0x50"}, {"event": "end", "lot": "0x50"}, {"event": "queue", "on": false}]}
+  ]
+}

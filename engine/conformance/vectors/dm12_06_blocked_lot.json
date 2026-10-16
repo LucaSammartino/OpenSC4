@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "demolition_blocked_lot",
+  "spec": ["demolition 4.2", "demolition 4.4", "demolition 12.6"],
+  "description": "A lot whose building has the player lock blocks a player (privilege 1) DemolishRegion: false; the other lot of the region is still demolished. With the system privilege (0) the player lock does not count. A prop with the system lock blocks its lot for the system too.",
+  "steps": [
+    {"op": "demolition_create"},
+    {"op": "demolition_init", "expect": true},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_occupant", "occupant": "0x10", "type": "building", "cell": [5, 5], "player_lock": true},
+    {"op": "demolition_lot", "lot": "0x50", "rect": [5, 5, 5, 5], "zone": 1, "state": 3, "building": "0x10", "occupants": ["0x10"]},
+    {"op": "demolition_lot", "lot": "0x51", "rect": [6, 5, 6, 5], "zone": 1},
+    {"op": "demolition_region", "do_it": true, "rect": [5, 5, 6, 5], "privilege": 1, "flags": 1, "expect": {"ok": false, "cost": 0}},
+    {"op": "demolition_expect_event_count", "filter": {"event": "start", "lot": "0x51"}, "count": 1},
+    {"op": "demolition_expect_event_count", "filter": {"event": "start", "lot": "0x50"}, "count": 0},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_region", "do_it": false, "rect": [5, 5, 5, 5], "privilege": 0, "flags": 1, "expect": {"ok": true, "cost": 0}},
+    {"op": "demolition_occupant", "occupant": "0x11", "type": "prop", "cell": [6, 5], "system_lock": true},
+    {"op": "demolition_lot", "lot": "0x51", "occupants": ["0x11"]},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_region", "do_it": true, "rect": [6, 5, 6, 5], "privilege": 0, "flags": 1, "expect": {"ok": false, "cost": 0}},
+    {"op": "demolition_expect_events", "events": [{"event": "queue", "on": true}, {"event": "queue", "on": false}]}
+  ]
+}
