@@ -7,6 +7,33 @@ operating knowledge that is still true.
 
 ## 0. Current state
 
+### Stop 2026-10-16 ~09:10 (user shut down): how to resume
+
+All lanes were stopped at once, without asking them to commit first. Main is clean at the last merge (re-answers24,
+`7d06e75`); the stale `build-runs/main-merge.lock` was removed. Each stopped lane's committed work is on its branch,
+and its worktree under `.claude/worktrees/` is kept. Uncommitted edits in a worktree may be partial: check
+`git -C .claude/worktrees/<lane> status` before resuming. Every lane below had finished its own work and was waiting in
+its merge step, except glue15, flakyfix and apply15b, which were stopped mid-lane. Resuming a lane means re-running its
+merge: merge main, gate, regress for engine lanes, then `--no-ff` into main.
+
+- Engine, with game runs: cores12a (revert the revert `dff8e4e`; re-apply seeding's `e451878` city-situation change),
+  cores12c, devperf, cores17 (network geometry), apply14traffic, glue14b (occupant manager shadow), apply15terrain,
+  detpacing (deterministic pacing default), glue12b1 (prop developer, city detail), glue12b2 (ports), glue14c (network
+  manager shadow), apply14dis (disaster DIFFERS).
+- Engine, core only: cores18 (network rules), cores19 (effects).
+- RE, docs only: re-answers20 (AM1-AM12), re-answers23 (disasters DS25-DS40), re-answers26 (NB1-NB3), re-inventory6
+  (INVENTORY-M6.md, the renderer/UI/audio scoping).
+- Tools: coverage2 (attribute the 203 KB draw range, split catch-all owners, map the new cores).
+- Stopped mid-lane: glue15 (prop manager, lot configuration, tutorial glue), flakyfix (the history/clock24 thread tests
+  fail gates under load; fix these first), apply15b (re-answers22 DIFFERS: ports PD4-PD10, prop developer PV8/12/13,
+  city detail CD4/5, seeding RN3).
+- Not started: apply TG23-TG25 after apply14traffic; terrain replacement after apply15terrain (TR9 zoom, message
+  latency); bridges core after cores17 and NB1; engine follow-ups PL12, PL13, TR20, TU5; held ABI rows in
+  `build-runs/pending-abi/re-answers25-rows.tsv` (rebuild build-x86 at main's tip first).
+
+Progress is measured with `python tools/coverage.py` and drawn with `python tools/coverage_treemap.py`
+(`docs/coverage-report.md`, `docs/coverage-map.svg`). Quote those numbers, not estimates.
+
 ### Wind-down 2026-10-14 ~16:20 (usage limit): how to resume
 
 Every lane was asked to stop at a clean point, commit everything on its branch (`WIP:` commits where tests did not pass)
