@@ -1615,7 +1615,7 @@ bool PathConnection(void* u, uint64_t occ, uint32_t pathType, uint32_t entry, ui
 // GetPathInfo (pop 0, EAX), through the vtable (the SDK declares no path
 // info). [choice] Borrowed: the spec does not say the result carries a
 // reference, and the occupant keeps its path info while it is in the city
-// (TG25); the token is used only within the call that asked for it.
+// (TG24); the token is used only within the call that asked for it.
 uint64_t PathInfo(void* u, uint64_t occ) {
     TRAFFIC_TEST(path_info, occ);
     if (occ == 0 || !Gate(Sw::TrafficOccupants, "traffic GetPathInfo (none)")) return 0;
@@ -1630,7 +1630,7 @@ uint64_t PathInfo(void* u, uint64_t occ) {
 // traffic-network.md §4.2 step 3: the turn-around test, path info slot 4
 // (`cSC4PathInfo::GetPath`, pop 20, EAX) with (pathType, entry, 0xFF, 0, 0)
 // as the original passes them; a non-zero result allows a turn-around at
-// that entry. [choice] The whole EAX is tested (the spec: "non-zero"; TG25).
+// that entry. [choice] The whole EAX is tested (the spec: "non-zero"; TG24).
 bool PathInfoTurnAround(void* u, uint64_t pi, uint32_t pathType, uint32_t entry) {
     TRAFFIC_TEST(path_info_turn_around, pi, pathType, entry);
     if (pi == 0 || !Gate(Sw::TrafficOccupants, "traffic path info turn-around (false)")) return false;
@@ -1721,21 +1721,25 @@ bool DrivesOnRight(void* u) {
 
 namespace fc4 {
 
-// Callbacks left NULL answer the core's neutral value (traffic-simulator.md
-// and the final report's questions TG23-TG31): sim_clock_ms (no game
-// interface gives a clock in game milliseconds; the accident check needs
-// the view anyway), update_network_costs (which line items and methods
-// UpdateRoadsBudget / UpdateMassTransitBudget call is not specified),
-// lot_strategy_byte (a cSC4Lot member with no interface accessor),
-// take_connection_volume_dirty (a private field: the sources' own
-// UpdateTrafficVolume runs instead), occupants_in_cells and
-// occupant_filter_includes (filter 2 is unreachable: the occupant filter has
-// no setter, pathfinder.md §4.10.3), cell_has_network_occupant (the query
-// is not specified; reached only with a view), path_info_exits_from_entry
-// and path_info_entries_near (the path objects' layout is not specified:
-// lane continuity changes nothing), tunnel_paired_portal (a member of the
-// original's class), view_cell_rect (the view) and create_accident (the
-// automata's visual accident; the core posts the accident message itself).
+// Callbacks left NULL answer the core's neutral value. By traffic-simulator
+// §9.1 (TG2, re-answers10):
+// - not needed for the simulation: sim_clock_ms (the 4 ms deadline is the
+//   unit budget), view_cell_rect, cell_has_network_occupant and
+//   create_accident (the accident check: wall-clock gated, visible cells
+//   only; it costs only the visible crashes), occupants_in_cells and
+//   occupant_filter_includes (pathfinder filter 2 is unreachable);
+// - matched another way: lot_strategy_byte and take_connection_volume_dirty
+//   (update_traffic_volume runs the source's own UpdateTrafficVolume, which
+//   reads its strategy byte and tests and clears its own volume-dirty flag);
+//   the occupant query over a rectangle is network_occupants_in_rect (slot
+//   41, wired);
+// - needed but not specified, so still NULL [question]: update_network_costs
+//   (which line items UpdateRoadsBudget / UpdateMassTransitBudget set, with
+//   which method and rounding: spec Q1, TG23), path_info_exits_from_entry
+//   and path_info_entries_near (path info slots 14, 3 and 7: their arguments,
+//   result containers and the path objects' layout; TG24) and
+//   tunnel_paired_portal (the member's offset in cSC4NetworkTunnelOccupant;
+//   TG25).
 fc4_traffic_host MakeTrafficHost(TrafficContext* ctx) {
     fc4_traffic_host h{};
     h.struct_size = sizeof(h);
