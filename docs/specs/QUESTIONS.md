@@ -5141,3 +5141,32 @@ then flags. The current reading is in brackets.
 - **ZG42:** (tract-developer.md, the lane's "Q8") the tract-developer.md interface table gives lot configuration manager
   slots 18/19 (Register/UnregisterLotConfigurationFilter) as AL, but prop-lotconfig.md §B7 gives "—" (no defined
   return). Which is right? [no defined return; the result is not tested (F6)]
+
+## From the prop occupant spec (re-answers27 lane, 2026-10-16)
+
+Filed from [prop-occupant.md](prop-occupant.md) §10. The spec answers the class identity, the object layout
+(from the constructor `0x005EE050`), the `cISC4PropOccupant` slots 0–23 with their return channels, the spatial
+record and the save record. It also corrects network-tools.md §13.1's offset base (§2.1) and three
+`docs/abi/interfaces.tsv` return channels (§8).
+
+- **PO1:** the behaviour, argument lists and return channels of `cISC4PropOccupant` **slots 24 and above**
+  (prop-occupant.md §4.2). The vtable `0x00AA4900` continues well past the 24 rows `docs/abi/interfaces.tsv`
+  holds; slots 24, 28, 32, 36 and 40 share one implementation (`0x005E16E0`) and 31, 35, 39, 43 share another
+  (`0x005DEB90`), so from 28 onward there is a repeating four-slot group. Nothing in `docs/` names them.
+  [the bodies of `0x005E16E0`, `0x00477660`, `0x004771D0`, `0x005E5770`, `0x005EEE50`, `0x005ECD10`, `0x005F9FD0`
+  would settle it]
+- **PO2:** the identity of the sixth sub-object at prop `+0x24` (vtable `0x00AA47D0`; observed slots `0`
+  `0x005EE140`, `1` `0x0064DE00`, `2` `0x0064DE10`, `3` `0x00458E60`, `4` `0x0060CE80`, `5` null). It is not
+  referenced anywhere in `docs/`. [reading `0x005EE140`'s IID table, or the SDK header for the class]
+- **PO3:** the occupant → **placeable** → 3D object seam (prop-occupant.md §6.1). Occupant slots 20/21
+  `GetOrCreatePlaceableObject` `0x005E91C0` / `SetPlaceableObject` `0x0078DAF0` appear only in
+  `docs/abi/vtables.tsv`; no spec describes how a prop becomes something the 3D view draws. An implementer who
+  must render needs this.
+- **PO4:** the unnamed prop fields `+0x61`, `+0x64` and the seven zeroed dwords at `+0x3C`…`+0x54`
+  (prop-occupant.md §2.2). The constructor zeroes them and nothing else is known.
+- **PO5:** is a prop's bounding-box y ever re-solved against the terrain after placement? *[inferred]* no —
+  the box is written once by `SetBoundingBox` during `CreateProp`. [a terraforming brush over a prop, then a
+  check that its box did not move]
+- **PO6:** the true names of `cISC4PropOccupant` slots 5 and 6 (prop-occupant.md §4.1). The ABI rows carry
+  identical-code-folded names from unrelated classes (`icf::cSC43DRender::GetProjectionMatrixEntries`,
+  `cSC4NetworkTool::DebugDumpEdgeTypes`).
