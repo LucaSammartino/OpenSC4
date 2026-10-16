@@ -551,11 +551,16 @@ Material only moves downhill from `i`.
 - **Pipe-burst sinkhole** (`0x0057C1A0`): from = to = the cell's north-west corner `(16x, 16z)`, level 0, redisplay
   on, strength 1, radius 1, `data4 = 3`, target 100 → `ApplyBrush(0x14)`: a 16 m footprint lowered by up to
   `(255 − b) × 0.01` m.
-- **Effect brushes** (the effects manager's brush effect, `0x00581640`; INVENTORY rank 7): the volcano's
+- **Effect brushes** (the effects manager's brush effect, `0x00581640`; [effects.md](effects.md) §8): the volcano's
   deformation is the effect `"volcano_control"` started by the volcano instance (`StartDeformation` `0x0057F4F0`).
   Each update applies the effect's brush `count` times from the previous to the current position, both inside the
   city (city slot 98), with the level from the effect, strength and radius drawn once from the effect's ranges,
-  `data4 = 3`, the effect's target height, and **redisplay only on the last repetition**.
+  `data4 = 3`, the effect's target height, and **redisplay only on the last repetition**. The shipped values
+  (effects.md §8.4, TR2): `volcano_control` picks one of nine creators (a select group, effects.md §5.3); each uses
+  VolcanoBrush `0xCA313035` at level 1, strength 1.0, a fixed radius scale of 0.5–1.3 and target 100, as a stroke of
+  30–130 applications per effect-second for 2–4 effect-seconds (`count` = the whole part of the accumulated rate,
+  effects.md §8.3). Meteor craters are one-shot: CraterBrush `0x8A33E17A` applied twice in a single update (level 3,
+  strength 2–6, radius 0.5–1.0).
 - **Terraforming tool** (§9.6) and the cheat / Lua command `ApplyTerrainBrush` (`0x0C4A6AF6`): level −1, redisplay
   on, arguments (brushID, x0, z0, x1, z1[, strength, radius]) with both points required inside the city (slot 11),
   from = (x0, z0), to = (x1, z1), strength and radius default 1.0, `data4 = 2`, target height = `GetAltitude(x1,
@@ -963,8 +968,11 @@ outside the borrow), not refuse them.
 
 - **TR1.** Kinds 2 and 5 are settled (§9.4.1). Still open: the exact operations of kinds 3, 6 and 8–10 (§9.4), and
   the shipped `TalusAngle` value in the terrain ini. Only the god-mode tool uses them; the harness does not.
-- **TR2.** The `volcano_control` effect's brush values (level, strength and radius ranges, repetition count). They
-  live in the effects resource; the effects manager spec (INVENTORY rank 7) settles them.
+- ~~**TR2.** The `volcano_control` effect's brush values (level, strength and radius ranges, repetition count). They
+  live in the effects resource; the effects manager spec (INVENTORY rank 7) settles them.~~ **ANSWERED 2026-10-15
+  (re-specs16):** effects.md §8.4 and §9.5 above: level 1, strength 1.0 (range 1–1), radius scale 0.5, 0.5, 0.6,
+  0.6, 0.8, 0.8, 1.0, 1.0 or 1.3 (one of nine creators, ranges degenerate), rate 30–130 per effect-second for
+  2–4 effect-seconds; `count` per update = `floor` of the accumulated `rate × dt`.
 - TR3 to TR18 are answered in place (QUESTIONS.md has the list).
 
 ---
