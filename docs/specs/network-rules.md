@@ -130,6 +130,13 @@ square around the centre (tables `0x00B0B3D8` dx and `0x00B0B3F4` dz; the invers
 
 Positions 1–8 are the inner ring and 9–24 the outer ring, each clockwise from the west.
 
+### 1.6 Number readers
+
+- `atol`: optional leading blanks and sign, then decimal digits; anything else ends the number (empty gives 0).
+- `RZConvertToUint32A`: hex when the text starts with `0x`, else decimal.
+- `RZAtoUint32HexA` (`0x0090FCEF`): leading blanks skipped, an optional `0x`/`0X`, then **at most 8** hex digits
+  (either case); the first non-hex character ends it.
+
 ---
 
 ## 2. Resources and loading
@@ -837,3 +844,122 @@ slot 26 meaning]*.
 
 So a rule file names pieces by id only; what the id selects depends on the occupant class and, for prebuilt models,
 on the group *[compat]*.
+
+---
+
+## 12. Answers given here
+
+- **NG5** (network-geometry.md §17, QUESTIONS.md): the rule-driven piece solver. §2 (the resources and their load
+  order), §3–§5 (the tile rule files, `#Transmogrify`, matching), §6 (`SolveNetwork`'s rule stages,
+  `SolveUsingEvaluator`, `ApplyNetworkRules`), §7 (edge subtypes), §8 (multi-type intersections), §9 (tile subsets),
+  §10 (`cIntRule`, `IdentifyHighwayIntersections`, `InsertIsolatedHighwayIntersection`), §11 (piece ids). The
+  network-geometry.md §8.2 outline MATCHES, with one addition: `SolveNetwork` runs the evaluators of **all 13 types**,
+  not only the tool's (§6.1 step 5).
+
+---
+
+## 13. Quirks (summary)
+
+1. A flipped rule output written with `rot` 4 or more reads past the rotation table `0x00AA8328` when a
+   `#Transmogrify` file rotates it (§4.1).
+2. The mirror drops bits 6–7 of an orthogonal edge byte's subtype (§4.2).
+3. A connection-node cell qualifies for the rules only when its occupant's masked type bits equal the cell's **whole**
+   flags word, so a node cell with a non-type flag never qualifies (§6.4).
+4. `typeOf` reads the GroundHighway bit and every non-type flag bit (`0x40000`, `0x80000`) as type 12, so a
+   bridge-step cell of one type is handled as a two-type cell in §8.2 (§8.2, test 21).
+5. After a hard conflict in `AdjustTileSubsets` (resolve mode), the removed cell's `+0xB8` keeps its old index (§9.1).
+6. A cell layout without `<` or `^` shifts its cells by +1 (§10.3).
+7. `Transpose` does not mirror an edge byte that carries subtype bits (§10.4).
+8. `Rotate` by an odd number of turns sets `maxX := −(old minX)` instead of `−(old minZ)` (§10.4, test 18).
+9. `IdentifyHighwayIntersections` tags its last run's potential-intersection entry with 4 instead of the type, and
+   returns its `v` argument on every path (§10.6; network-geometry.md quirk 7).
+10. The keys `PieceType` and `ResetPieces` are built by the reader and never matched (§10.1).
+
+---
+
+## 14. Open questions
+
+- **NR1.** The texture an ordinary piece id selects, and how the orientation byte turns it (§11). Needs the network
+  occupant's model/texture setup (`cSC4NetworkOccupant`, the render side).
+- **NR2.** The placement of intersection models: `InsertHighwayIntersectionPiece(s)` (`0x006276D0`, `0x0062C4B0`), the
+  tile grid `+0xB8` and map `+0xD4`, `AutoTileBase` (`+0xC8`), `AutoPathBase` (`+0xCC`) and the constraint layout's
+  consumer (§10.3).
+- **NR3.** The `AddTypes` ring links exactly (§10.8), and whether `RotationRing` and `AddTypes` may share a section.
+- **NR4.** `ResolveOneWayConflicts` (one-way road only) and the preview's `SolveMultiTypeSeparation` (`0x00633FA0`).
+- **NR5.** The `[RuleOverrides]` table's container: several patterns per `idA` are evidenced by the lookup (an equal
+  range); their relative order is inferred to be file order (§9.1).
+
+---
+
+## 15. Conformance tests
+
+Unless stated, a test runs on a flat dry 64 × 64 city with the given cell infos; "Road `e`" means a cell info whose
+flags are the Road bit and whose Road edge word is `e`. Rule files are synthetic. Tests 1–9 need only the file reader
+and the evaluator; the others drive the named function directly.
+
+1. **Edge tokens** (§3.3). `2` → `0x02`; `13` → `0x0B`; `27` → `0x17`; `260` → `0x04` (260 mod 256 = 4); `0` → 0.
+2. **One rule** (§3). The file `#TestRules#` / `1,0,2,0,2` / `3,0,0x100,0,0` gives one rule: key `0x02000200`,
+   no conditions, one output `{id 0x100, m 0, orientation 0x00}`, transform mask `0xFF`.
+3. **Rejected header** (§3.2). The same file with the first line `TestRules` gives no rules; the evaluator exists and
+   never matches.
+4. **Bad centre** (§3.3). `#T#` / `2,0,0,0,0` / `3,0,0x100,0,0`: the first rule's centre token is not 1, so loading
+   stops with no rules.
+5. **Transmogrify, straight** (§4). `#Transmogrify` / `1,0,2,0,2` / `3,0,0x100,0,0` expands to exactly two rules:
+   `0x02000200` → `{0x100, orientation 0x00}` and `0x00020002` → `{0x100, orientation 0x01}`. Turns 2 and 3 and all
+   four mirrored variants repeat a pattern and are dropped.
+6. **Transmogrify, diagonal** (§4). `#Transmogrify` / `1,1,3,0,0` / `3,0,0x200,0,0` (the north-west diagonal
+   `0x00000301`) gives four rules: `0x00000301` rot 0, `0x00030100` rot 1, `0x03010000` rot 2, `0x01000003` rot 3,
+   all unflipped. The mirror of `0x00000301` is `0x00030100`, the same pattern as turn 1, so it is dropped even though
+   its output is flipped. With `noflip` before the centre line the result is the same.
+7. **Mirror of a subtype** (§4.2). The edge byte `0x12` (token `22`) mirrors to `0x22` (token `42`); `0xBA` (token
+   `232`) mirrors to `0x3A`; `0x0B` (token `13`) mirrors to `0x09` (token `11`).
+8. **Rotation tables** (§4.1). Metaposition 1 turned once → 3; 9 turned once → 13; 12 turned three times → 24.
+   Orientation `0x03` turned twice → `0x01`; `0x81` turned once → `0x80`.
+9. **Conditions and wildcards** (§5). Rule `#T#` / `1,0,2,0,0` / `2,3,0,0,0,2` / `3,0,0x200,0,0`. Road `0x00000200`
+   at (10, 10). With Road `0x02000000` at (10, 9): match, output 0x200. With Road `0x02000200` at (10, 9): no match
+   (the N byte differs under mask `0xFF`). With the condition `2,3,?,?,?,2` instead: match in both cases.
+10. **Valid positions** (§5.1). Rule key `0x00020000` with outputs `(m 0, 0x300)` and `(m 5, 0x301)`; Road
+    `0x00020000` at (10, 10). If (11, 10) has a cell info carrying the Rail bit, the rule fails; if (11, 10) has no
+    cell info or only the Road bit, it matches.
+11. **Claims** (§6.4). One evaluator with rule key `0x02000200`, outputs `(m 0, 0x100)` and `(m 7, 0x101)`. `S = P`
+    = {(5, 5), (5, 6)}, both Road `0x02000200`, no other cell infos. With 193 buckets, (5, 6) (key `0x00060005`,
+    bucket 80) comes before (5, 5) (key `0x00050005`, bucket 164). Result: records `{0x100, 0, (5, 6)}` then
+    `{0x100, 0, (5, 5)}`; both `m 7` outputs are skipped ((5, 7) is in neither set; (5, 6) is already claimed); `S`
+    ends empty.
+12. **Two types crossing** (§8.2). A cell with the Road and Rail bits, Road `0x02000200`, Rail `0x00020002`, tool type
+    Road. Rail wins (prio 5 > 3); not covered; no arm is cleared. With `[RoadRailIntersectionSolutions]` holding
+    `k=0x02000200,0x00020002,0x1234,1,0`, the cell gets the record `{0x1234, 0x01}`, leaves `S` and `P`, and
+    `(x, z, 0x3)` is appended to `+0x08`. Without the entry the cell stays in `S` and no evaluator takes it (two type
+    bits), so it is unsolved.
+13. **Covered, with override** (§8.2). Road and Street bits, both `0x00020002`. Road wins (prio 3 > 2) and covers
+    Street. With `[AllowedOverrides]` `k=Road,Street`: the Street edges become 0 and the flags become the Road bit
+    alone; the cell stays in `S` and the Road evaluators solve it. Without the override: nothing changes.
+14. **Three types** (§8.2). Road `0x00020002`, Rail `0x02000200`, Street `0x00020002`: A = Road, B = Rail, C = Street.
+    The only qualifying pair is (Street, Road), so Street is removed, then the cell is handled as test 12.
+15. **Scheme 2** (§7.2). Rail `0x00000201` (W kind 1, N kind 2) in `P`, not fixed: the N byte becomes `0x12`
+    (f = 2: the west diagonal leans into N), giving `0x00001201`. The W byte is unchanged (its opposite side is empty).
+    If the north neighbour is in `P`, its S byte becomes `0x12`.
+16. **Scheme 1** (§7.1). Road `0x00020001` (W kind 1, E kind 2) at (10, 10), in `P`. If (9, 10) is Road `0x00030100`
+    (purely diagonal), (10, 10) becomes `0x00020009`, and if (9, 10) is in `P` its E byte becomes `0x0B`
+    (`0x000B0100`). If (9, 10) is Road `0x00020000`, (10, 10) becomes `0x00020002`.
+17. **PatchTilePair** (§9.1). Pattern `0x10,1,0,0x20,1,0` → replacement `0x11,1,0,0x21,1,0`. A = (0x10, `0x00`) with
+    B = (0x20, `0x00`) on A's north side (s = 1): both normalise to rotation 1, the pattern matches, and A becomes
+    (0x11, `0x00`), B (0x21, `0x00`); the result is 1. With the replacement `0,0,0,0,0,0` the result is 2, and
+    `AdjustTileSubsets(resolve = false)` returns false.
+18. **Rotate bounds** (§10.4). A rule whose occupied cells are (−1, 0) … (2, 0) has bounds x ∈ [−1, 2], z ∈ [0, 0].
+    After `Rotate 1` the cells are (0, −1) … (0, 2) and the bounds are minX 0, **maxX 1**, minZ −1, maxZ 2.
+19. **Layout and centre** (§10.3). `CheckType=a - Road:0x00020002` and the layout lines `.a+<`, `..^`: the centre is
+    (column 2, row 0); the tagged cell `a` is at (−1, 0), the new cell `+` at (0, 0); bounds x ∈ [−1, 0], z ∈ [0, 0].
+20. **Test** (§10.5). One tagged cell `a - Road:0x00020002` at (0, 0), no new cells. At (10, 10): Road `0x00020002`
+    → 0; Road `0x02000200` → 2; Rail only → 1; Road and Street bits with Road `0x00020002` → 1 (not multi-ok), 0 when
+    the tag has `multiok`; no cell info → 2.
+21. **Bridge cell as two types** (§8.2, quirk 4). A cell with flags `0x1 | 0x40000` and Road `0x00020002`, tool type
+    Road: it is read as Road and type 12; type 12 wins (prio 5 > 3) and does not cover. With
+    `[RoadGroundHighwayIntersectionSolutions]` holding `k=0x00020002,0x00000000,0x4321,0,0`, the cell is solved by
+    that entry; without it, the Road evaluators solve it as usual.
+22. **OneWayDir** (§10.4). `OneWayDir = 1`: after `Rotate 1` it is 3; after `Transpose` it is 5.
+23. **IdentifyHighwayIntersections** (§10.6). Any input returns `v` (for example `v = 7` → 7). A run that lasts to the
+    last step appends `(x, z, 4)` to `+0x08`, whatever the type.
+24. **TileVerifiers** (§9.2). A verifier for piece `0x100` with one requirement `5,0x101,0,0` (the east neighbour is
+    piece `0x101`, same orientation). A record `{0x100, 0x01}` at (10, 10) looks at (10, 11) (metaposition 5 turned
+    once); it is kept when (10, 11) holds `{0x101, 0x01}` and removed (back into `S`, result false) otherwise.
