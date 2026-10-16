@@ -1,0 +1,98 @@
+{
+  "format": 1,
+  "name": "tr00_cached_min_max_stale",
+  "spec": [
+    "terrain 4.6",
+    "terrain 8.1"
+  ],
+  "description": "The cached minimum and maximum are recomputed only by RedisplayTerrain with the terrain flag (after DoPostCityInit): a setter leaves them stale, and the water flag alone does not refresh them.",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        2,
+        2
+      ],
+      "flat": 300,
+      "view_ready": false
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude",
+      "args": [
+        1,
+        1,
+        500
+      ]
+    },
+    {
+      "op": "ter_expect",
+      "state": {
+        "min_height": 300,
+        "max_height": 300
+      }
+    },
+    {
+      "op": "ter_call",
+      "method": "redisplay",
+      "args": [
+        true,
+        true,
+        0,
+        0,
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "op": "ter_expect",
+      "state": {
+        "max_height": 300
+      }
+    },
+    {
+      "op": "ter_call",
+      "method": "post_city_init"
+    },
+    {
+      "op": "ter_call",
+      "method": "redisplay",
+      "args": [
+        false,
+        true,
+        0,
+        0,
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "op": "ter_expect",
+      "state": {
+        "max_height": 300
+      }
+    },
+    {
+      "op": "ter_call",
+      "method": "redisplay",
+      "args": [
+        true,
+        false,
+        0,
+        0,
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "op": "ter_expect",
+      "state": {
+        "min_height": 300,
+        "max_height": 500
+      }
+    }
+  ]
+}
