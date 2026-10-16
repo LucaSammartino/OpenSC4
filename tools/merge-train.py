@@ -46,6 +46,7 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+NL = chr(10)
 MAIN = REPO
 QUEUE_DIRS = [REPO / "build-runs" / "merge-queue"]
 TRAIN_DIR = REPO / "build-runs" / "merge-train"
@@ -488,50 +489,56 @@ def parse_history(text):
     return first, last + 1, entries
 
 
-def consolidate_abi_history(wt, main_header, lanes, batch_id):
-    """Turn the batch's ABI history entries into the single per-batch line the plan calls for.
+def consolidate_abi_history(wt, lanes, batch_id):
+    """Write ONE fc4.h history line for the batch and set the constant.
 
-    Each lane appends its own ` * <n> = ...` entry and bumps the constant, so after the merges the file can
-    hold several entries at the same number. Entries already in main's copy are prior history and stay whole;
-    the rest are this batch's, and they collapse into one entry numbered NEW, with the constant set to NEW.
-    Returns the new number, or None when the file holds no batch entry (then bump_abi runs instead).
+    Each lane appends its own ` * <n> = ...` entry and bumps FC4_ABI_VERSION. Rather than parse the merged
+    block (a union of lanes with different line wrapping is not reconstructible), this rebuilds the block
+    from main's copy verbatim, then appends one entry describing the batch, with each lane's own entry text
+    taken from that lane's original fc4.h. Returns the new number.
     """
-    path = Path(wt) / ABI_HEADER
-    if not path.exists():
-        return None
-    text = path.read_text(encoding="utf-8", errors="replace")
-    _s, _e, entries = parse_history(text)
-    if not entries:
-        return None
-    _ms, _me, main_entries = parse_history(main_header or "")
-    main_texts = {" ".join(" ".join(ls).split()) for _n, ls in main_entries}
-
-    def norm(ls):
-        return " ".join(" ".join(ls).split())
-
-    keep, batch, numbers = [], [], []
-    for num, ls in entries:
-        numbers.append(num)
-        if norm(ls) in main_texts:
-            keep.append((num, ls))
-        else:
-            batch.append((num, norm(ls)))
-    if not batch:
+    main_header = git(["show", f"main:{ABI_HEADER}"], check=False).stdout
+    _s, _e, main_entries = parse_history(main_header or "")
+    if not main_entries:
         return None
     main_ver = 0
     mm = VERSION_RE_C.search(main_header or "")
     if mm:
         main_ver = int(mm.group(2))
-    new = max([main_ver + 1] + [num for num, _ in batch])
+
+    def key(lines):
+        return " ".join(" ".join(lines).split())
+
+    main_keys = {key(ls) for _n, ls in main_entries}
+    descs, numbers = [], [main_ver]
+    for lane, branch in lanes:
+        src = git(["show", f"{branch}:{ABI_HEADER}"], check=False)
+        if src.returncode != 0:
+            continue
+        _a, _b, entries = parse_history(src.stdout)
+        mine = []
+        for num, ls in entries:
+            if key(ls) not in main_keys:
+                mine.append(re.sub(r"^ \* \d+ = ", "", " ".join(ls).split(" */")[0]).strip())
+                numbers.append(num)
+        if mine:
+            descs.append("%s: %s" % (lane, " ".join(mine)))
+    if not descs and all(key(ls) in main_keys for _n, ls in main_entries):
+        return None
+    new = max([main_ver + 1] + numbers)
     body = []
-    for _num, ls in keep:
+    for _n, ls in main_entries:
         body.extend(ls)
     body.append(" * %d = merge-train batch %s (%s): %s"
-                % (new, batch_id, ", ".join(lanes), " | ".join(d for _n, d in batch)))
+                % (new, batch_id, ", ".join(l for l, _b in lanes), " | ".join(descs) or "no C ABI change"))
     body = close_comment(body)
+    path = Path(wt) / ABI_HEADER
+    text = path.read_text(encoding="utf-8", errors="replace")
+    _as, _ae, _cur = parse_history(text)
+    if _as is None:
+        return None
     lines = text.splitlines()
-    out = lines[:_s] + body + lines[_e:]
-    text = "\n".join(out) + ("\n" if text.endswith("\n") else "")
+    text = NL.join(lines[:_as] + body + lines[_ae:])
     text = VERSION_RE_C.sub(lambda x: "%s%d%s" % (x.group(1), new, x.group(3)), text, count=1)
     path.write_text(text, encoding="utf-8")
     git(["-C", str(wt), "add", ABI_HEADER], check=False)
@@ -542,8 +549,8 @@ def consolidate_abi_history(wt, main_header, lanes, batch_id):
             rs.write_text(VERSION_RE_RS.sub(lambda x: "%s%d%s" % (x.group(1), new, x.group(3)), rt, count=1),
                           encoding="utf-8")
             git(["-C", str(wt), "add", ABI_RS], check=False)
-    log("ABI consolidated: %d lane entri(es) -> one line at %d (kept %d prior entries)"
-        % (len(batch), new, len(keep)))
+    log("ABI: one history line for %s at %d (%d lane entries folded in)"
+        % (batch_id, new, len(descs)))
     return new
 
 
@@ -738,9 +745,10 @@ def cmd_merge_batch(args):
         die("no lane merged; aborting the batch")
     need_abi = any(r["abi"] for r in batch if r["lane"] in merged)
     note = []
-    abi_n = consolidate_abi_history(wt, main_header, merged, batch_id)
+    lane_pairs = [(r["lane"], r["branch"]) for r in batch if r["lane"] in merged]
+    abi_n = consolidate_abi_history(wt, lane_pairs, batch_id)
     if abi_n is not None:
-        note.append(f"ABI history consolidated to one batch line at {abi_n}")
+        note.append(f"ABI: one history line for the batch at {abi_n}")
     elif need_abi:
         bump_abi(wt, merged, batch_id)
         note.append("ABI bumped once for the batch")
