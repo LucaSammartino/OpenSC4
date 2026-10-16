@@ -5274,3 +5274,49 @@ then flags. The current reading is in brackets.
   partially, as in the original? [a short or cut record is a failed, atomic read, so round trips can be checked]~~ **ANSWERED 2026-10-16 (re-answers20):** Atomic failure accepted as *[choice]* (automata.md §4.1). The original stores fields as it reads and never rolls back. The current-version wrappers return `GetError() == 0`: controller manager `0x0051B9B8`, traffic v3 through the incident reader, aircraft v5 `0x004FBFC3`, watercraft v6 `0x00575153`. A cut record of a current version therefore returns false, as in the core. Only a cut base-only old version (traffic 2, aircraft < 5, watercraft < 6) returns true in the original. That is a **DIFFERS** case that no save contains.
 - ~~**AM12:** (§7.3 slot 31, TrackAutomataGroupInstances) what are the semantics? [adds delta, does not go below 0,
   appends a new group]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §7.3, §4). Slot 31 `TrackAutomataGroupInstances(group, bool track)` (`0x00513C40`) is not a counter. When slot 30 says the group is known, `track` = true creates an unsaved **set of the group's automata**, with a reference each, filled from the list; an existing set is kept. `track` = false releases the set and erases it. Later adds and removals keep the sets current, and slot 32 reads them. §4 field 6 was mislabelled: it holds the **source building counts**, occupant group ID → number of complete buildings, which slots 36 and 37 read. They are seeded at `Init` from script slot 18 (`0x0050F930`) and recounted at `PostCityInit` for base versions below 6 (`0x0050F341`). The record bytes are unchanged; only the meaning changes.
+
+## From the terrain 3D view and the remaining `cISTETerrain` slots (filed by the `re-answers30` lane, 2026-10-16)
+
+glue18 wired `cISTETerrain` / `cISTESurfaceWater` to `fc4_terrain` behind `enable = terrain`. The shadow is exact
+(98/98 and 100/100 lines, 0 unfollowed, 0 pending) but the replacement does not reach `clean`: it builds both
+classes, reads the class record (`ok=1 version=2`), creates the core and gets through `PostCityInit`, then **faults
+in the terrain 3D view**. `terrain.md` had deliberately left the view out of scope; that gap is the blocker. The
+lane numbered these TR21-TR27.
+
+- ~~**TR21:** the terrain 3D view (class `0xC9B84E10`, terrain `+0xE8`, slot 66) — who creates it, from what, what
+  it needs from `cISTETerrain` before it can exist, and in what order relative to `PostCityInit`? What does
+  zones.md §5.2's slot-66 call actually do? [unknown; the view is "render only"]~~ **ANSWERED 2026-10-16
+  (re-answers30):** written up as terrain.md §15.5. **DIFFERS** from the old scope note only in that the view is
+  now in scope; every mechanism MATCHES the bytes. The terrain's own `PostCityInit` handler creates it —
+  `DoPostCityInit`, slot 40, `0x00749540`, dispatched from the terrain's `DoMessage` (`0x0074A569`,
+  `call [edx+0xA0]`) on `0x26D31EC1`. It runs once (guard byte terrain `+0x14`) and: copies the camera zoom into
+  `+0xBC`, creates the view through the GZCOM factory (CLSID `0xC9B84E10`, IID `0x6771477D`, slot 3
+  `CreateInstance`) or `operator new(0xE8)` + ctor `0x007567C0`, calls `view->Init(terrain)` (`0x0075C420`,
+  `__thiscall`, `ret 4`, one stack argument = the terrain), then sets the view-ready flag `+0xEC`. **Slot 66 is
+  `GetView` (`0x00741810`) and returns `view + 0x0C`** — the same IID `0x6771477D` interface the factory hands out,
+  which is why `DoPostCityInit` does `add eax,-0x0C`. zones.md §5.2's call is exactly that accessor, cached and
+  `AddRef`'d into the zone developer's `+0x38`, and it **`AddRef`s with no null check** (`0x0073291D`), so the
+  terrain's `DoPostCityInit` must run first — it does, because the terrain subscribes to `PostCityInit` first
+  (`0x007502E5` vs `0x00733611`; foundations §3.6). `Init` needs only terrain slots 1, 7, 8 and 42; the vertex
+  array at `+0x6C` is needed at draw time. Object layout (size `0xE8`), all five vtables with return channels and
+  the full sequence are in §15.5. **Two globals `Init` dereferences with no null check are the likely fault:**
+  `0x00B43CF0` (the surface water, from city slot 83) at `0x0075C4A3` and `0x00B43CD8` at `0x0075C458`.
+- ~~**TR22:** does the game read the terrain object's fields directly, beyond the interface slots? [§2.3 marks them
+  internal]~~ **ANSWERED 2026-10-16 (re-answers30):** **DIFFERS** — §2.3's "otherwise internal" is wrong. Three
+  classes hold a `cISTETerrain*` and read fields directly: `cSTESurfaceWater` (water `+0x14`; reads `+0x28`,
+  `+0x2C`, `+0x38`, `+0x3C`, `+0x40`..`+0x4C` by address-of, `+0x5C`, `+0x6C`, `+0x7C`, `+0x84`..`+0xA0`),
+  `cSTEVolcanoLava` (lava `+0x14`; `+0x6C` cached into lava `+0x8C`, `+0x84`..`+0xA0`) and `cSTETerrainView3D`
+  (view `+0x20`; `+0x6C` only). Full lists in terrain.md §2.3's `**Corrects (TR22)**` block. The view also
+  **writes** the vertex records: `LevelCell` `0x00759873` does `or ...,0x60` and `RemoveCellLevelling`
+  `0x007586DA` does `and ...,0x9F` on `+0x22` — the §7 hide bits used as levelling marks — so the vertex array
+  must be writable and those bits must survive. Nothing external reads `+0x24`.
+- ~~**TR23:** for `0xA6B79602`, is the camera zoom in `data1` or in `*void2`? And is the camera reachable from the
+  terrain object? [§2.3's "first data word"]~~ **ANSWERED 2026-10-16 (re-answers30):** **DIFFERS**. The zoom is at
+  **`*GetVoid2()`** — message slot 15 (`0x0074AADD`), dereferenced at `0x0074AAE0`, compared with terrain `+0xBC`
+  and stored only when it differs (`0x0074AAF4`). Not `data1`; §2.3 has been corrected. It is the same source
+  zones.md §5.2 reads. The camera is **not** reachable from the terrain object (there is no camera interface on it),
+  but it is reachable at all: `SL::OnView3DInit` (`0x006025D7`) stores `0x00B43DD0` slot 8 into the camera global
+  `0x00B43DD8`, and `0x00B43DD0` is the same draw-callback registry the view's `Init` already needs. The camera is
+  otherwise a raw global that many components read directly (`cSC4ModelMaker::DoPostCityInit` `0x00495050`,
+  `cSC4MissingPluginDataReporter::DoPostCityInit`, `cSC4AnimationCoordinator::Init`, …). A host with neither route
+  leaves `+0xBC` at 0, which is what a headless harness sees and is harmless until the first view message.
