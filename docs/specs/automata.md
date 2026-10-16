@@ -522,7 +522,7 @@ keys are read by `cSC4AutomataScriptSystem::ImportBehaviorTable` (Windows `0x005
 | `0x11` Bumped | `+0x28/+0x34/+0x40/+0x4C` 4 × `vec3` | `vec3` × 4 | no reader found (§12 quirk 13) |
 | `0x13` AttachAnim | `+0x28` `ref` model (`0xA818EDD8`), `+0x30` `u16` anim selector, `+0x2C` `bool` | `ref`, `u16`, `bool` (Mac `0x000c3bba` / `0x000c453a`) | **the `bool` sits before the `u16` in memory** (§12 quirk 14) |
 | `0x14` Collide | none | none | pushed `final=1` with a 5000 ms timeout |
-| `0x15` PullOver | `+0x28` one `f32` | `f32` | |
+| `0x15` PullOver | `+0x28` one `f32` | `f32` | **the two reports read this field differently** — see the conflict note in §6.5 |
 | `0x34` Chase | `+0x28` `ref` automaton (`0xA9B40F05`) | `ref` | **a pure record**: no `0x34` case in any `DoStateTick` (§12 quirk 15) |
 | 8 RiotLeader | `+0x28` `s32` last cell X, `+0x2C` `s32` last cell Z, `+0x30` `u8` heading 0–3 | `s32`, `s32`, `u8` | |
 
@@ -726,6 +726,169 @@ light · `0x20` stopped · `0x40` special route · `0x80` Emergency! · `0x200` 
   not "nothing" but the generic seek-to-destination (quirk 16); and for types 50–58 / 70–78 the spec's "base
   only, except 52" is true of the *record*, but 50, 51, 53, 54, 55, 56, 57 and 70–75, 77, 78 all have real
   per-tick logic — only **58 `CROP_DUST`** and **76 `MARINA_PARKED`** are name-only (§6.5, §6.6).
+
+**Where the two reports disagree** (re-integrate1 — both readings given with their addresses, neither picked):
+
+1. **Plummet's `+0x28` at enter.** The automata report gives `+0x28 = −0.004166667` (−1/240) in
+   `HandleEnterState` case `0x0E` (Windows `0x005114A1`), and describes `+0x28` as a descent velocity that
+   `DoPlummetTick` advances by a gravity term from `_DAT_00B22980`. The vehicle report gives the same field's
+   enter value as `0xBB88888A` = **−0.0080729163** (Win `0x0055E1F0` / Mac `0x000a2e16`, enter at Win
+   `0x00511450` / Mac `0x000c0c8e` case `0x0E`), and names the gravity `kfGravityAccel = −0.00083333347`, a
+   lazy-init function-local static at `0x00B22980`. **Both agree** on the gravity's address and on the impact
+   value `0x3991A2B5` = 0.0002777778 (1/3600); only the enter constant differs, and they differ by roughly 2×.
+   Settle by reading the constant in `HandleEnterState` case `0x0E` on both builds.
+2. **PullOver's `+0x28`.** The automata report reads `if (+0x28 == 0.0)` as an **"already initialised" latch**
+   (Win `0x0055E550` / Mac `0x000a2978`): 0 seeds `+0x2C..+0x34` from the orientation and `+0x38..+0x40` as
+   its −90° Y-rotation. The vehicle report reads it as an **elapsed-milliseconds counter** — 0 = init,
+   `0 < +0x28 < 1000` = driving off, `+0x28 ≥ 1000` = finish — because the tick ends with
+   `+0x28 += dt` and the finish branch restores the saved heading and pops. These are compatible only if the
+   field is an elapsed counter that happens to be 0 on the first tick; the "latch" reading misses the 1000 ms
+   finish threshold and the increment. Settle by watching `+0x28` across a pull-over.
+
+**Per-frame detail for the vehicle and traffic states** (re-integrate1). Offsets are Windows; the platform note
+at the top of this section applies.
+
+- **Plummet (`0x0E`)** — `cSC4Vehicle::DoPlummetTick`, Win `0x0055E1F0` / Mac `0x000a2e16`, record `0x40`.
+  Fields: `+0x28` vertical velocity, `+0x2C` Y-spin rate (enter 0.5), `+0x30` Y-orientation centre (copy of
+  `this+0x5C`), `+0x34` tumble countdown ms (enter `U(1.0, 2.5)·1000`), `+0x38` post-splash countdown ms
+  (enter 0), `+0x3C` water-splash effect pointer (unsaved). Per frame:
+  1. flag 1 set → `MoveTo(&newPos, 0)` and return 1;
+  2. **tumble while `+0x34 > 0`:** `+0x34 -= dt`; build orientation `(this+0x58, this+0x5C + dt·0.01·(+0x2C),
+     this+0x60)`; if the new Y leaves `[+0x30 − 0.05, +0x30 + 0.05]` flip the sign of `+0x2C` (XOR `0x80000000`)
+     and clamp Y to the band edge; `Normalize`, `MoveTo(0, &orient)`, return 1. **No translation in this phase.**
+  3. **fall:** new position = `(this+0x40, this+0x44 + dt·(+0x28), this+0x48)`;
+  4. if `+0x38 > 0`: `+0x38 -= dt`; on `≤ 0` destroy the effect at `+0x3C` (`vtable+0x10(0)`, `vtable+0x08()`,
+     then `+0x3C = 0`) and `Remove(0)` (slot 13);
+  5. `+0x28 += dt · kfGravityAccel` (`0x00B22980`);
+  6. `SL::spCity->vtable+0x188(x, z)` in-city test — outside → `Remove(0)`;
+  7. inside: `hi = max(terrain height `spTerrain->vtable+0x30`, water height `spTerrain->vtable+0x7C`)`. If
+     `hi < newY` or `+0x38 > 0` nothing happens; otherwise the surface is reached and `+0x28 = 0x3991A2B5`
+     (1/3600). **Water** (`h1 < newY`) starts the splash: `spEffectsManager->vtable+0x18(_kWaterSplashEffectName,
+     &state+0x3C)`, an identity transform translated to the new position, `vtable+0x0C(0)`, `TweenOpacity(0, r)`
+     (slot 33) and `+0x38 = r·1000.0` — **no `Remove` here**. **Land** sets `+0x38 = 0` and falls through to
+     `Remove(0)`;
+  8. `MoveTo(&newPos, 0)` (slot 16), return 1.
+
+  It ends via `Remove(0)` — either on terrain impact or leaving the city, or `+0x38` ms after the water splash
+  expires. **No `PopState`/`SetState`**: the state is never popped, the automaton is destroyed.
+
+- **PullOver (`0x15`)** — `cSC4Vehicle::DoPullOverTick`, Win `0x0055E550` / Mac `0x000a2978`, record `0x44`.
+  Ctor (Mac `0x0063817a`) sets `+0x28 = 0`, `+0x2C = 1.0`, `+0x30..+0x38 = 0`, `+0x40 = 1.0` — the unit pair
+  `(1,0,0)` and its −90° Y-rotation `(0,0,1)`. `+0x2C..+0x34` is the pull-off heading (unit `vec3`), `+0x38..+0x40`
+  the sideways drift direction (the heading rotated `−1.5707964` about Y). Per frame:
+  1. flag 1 set → return 1 immediately (no timer advance);
+  2. branch on `+0x28` (see the conflict note above): **0 (init)** → `TweenSpeed(0x3B88888A = 0.0040364582, 1.0)`
+     (slot 36) to creep off the road for 1 s; seed the two vectors from `this+0x58/5C/60`; then ask
+     `controller->vtable+0x18` → `->vtable+0x20` for a point, and if `dot(position − point, +0x38..+0x40) < 0`
+     negate all three components of `+0x38..+0x40` so the vehicle drifts to the correct side. **`0 < +0x28 < 1000`**
+     (moving off) → only if `GetSpeed()·dt > 0` (slot 34): a sideways step of length `this+0x7C (radius) · 1.5 ·
+     dt/1000.0` plus a heading step of length `speed·dt`; `spTrafficNetworkMap->vtable+0x48(x, z)` snaps the new Y
+     to the terrain; the normalised delta becomes the orientation (written only when its Y is finite — an explicit
+     NaN/Inf test); `this+0x94 = 0`; `MoveTo(&newPos, &newOrient)`. **`+0x28 ≥ 1000`** (finish) → restore the saved
+     heading into `this+0x58/5C/60`, `MoveTo(0, &orient)`, then `spCity->vtable+0x17c(x, z, &a, &b)` and
+     `spTrafficSim->vtable+0x64(1, a, b)`; **if that returns > 3 → `PopState()`** (slot 53); then
+     `controller->vtable+0x5C(controller, &this+0x40, 0)` and **if it returns false → `PopState()`** again;
+  3. always (flag 1 clear): `+0x28 += dt`.
+
+  It ends by `PopState()` only — the automaton is not removed.
+
+- **Blocked wait (13, `0x0D`)** — `cSC4TrafficAutomaton::DoStopSignTick`, **Windows `0x005500D0`** (Ghidra
+  leaves it as `FUN_005500D0`) / Mac `0x000cbe5e`, Windows slot `0xA3` / Mac `+0x2A8`. Record is base only
+  (`0x28`), so it uses the base `+0x10` countdown. Per frame: if `state+0x10 > 0`, `CheckAutomataFlag(0x20)` —
+  **clear → return 0** (no-op); set → `state+0x10 -= GetSpeedModifier() · dt` (`FUN_00505AB0` / Mac `0x000bb5e6`,
+  which returns `cSC4AutomataManager::sfSimSpeedModifier`, clamped to 0/1 when flag `0x80` is set) and return 1
+  while still > 0. On expiry: slot `0xA0` (`+0x280` Win / `+0x29C` Mac) *[inferred `ReturnToDefaultSpeed`]*, then
+  `SetAutomataFlag(0x20, 0)` and `SetAutomataFlag(0x10, 0)`, then `obj = spCity->vtable+0xA0` and
+  `obj->vtable+0x84(obj, this+0x1EC /* network occupant, Mac +0x1FC */, this, routeInfo, &out)` where
+  `routeInfo = this->vtable+0x88(this)` (Win `+0x220` / Mac `+0x23C`) — **if it returns 0 → `PopState()`**.
+  Return **0**. No position, destination, orientation or model changes.
+
+- **STOP_AT_STATION (30)** — `cSC4TrafficAutomaton::DoStopAtStationTick`, Win `0x0054E3D0` / Mac `0x000ca8bc`,
+  Windows slot `0xA4` / Mac `+0x2AC`. It is a **speed-tween wrapper**, not station logic: read
+  `TweenStruct::GetCurrent(this+0x1B0)` (Win `+0x1A0`); if `t > 0` call slot `0x81` = `DoPathTick(this, dt)` to
+  keep driving while the tweened speed has not reached 0; then `cSC4Automaton::DoStateTick(this, dt)`; return 1.
+  Entry (Mac `0x000cf390` case `0x1E`) is `TweenSpeed(0, 0.5)`. The **bus** variant
+  `cSC4Bus::DoStopAtStationTick` (Win `0x00524180` / Mac `0x0039155e`) does the real dwell: requires flag `0x20`
+  or 4; if `state+0x10 ≤ dt` run the base tick and return (dwell expired) else `state+0x10 -= dt`; then
+  `RandomUint32Uniform` skips roughly half the frames; query `spOccupantManager->vtable+0x90` for occupants in an
+  AABB of `kfNearbyPedRadius` around `this+0x40`/`+0x48`, filter `0x496E5783`, and for each hit `QueryInterface
+  (0xA9B40F05)` then `GetTopStateType()` (slot 59) — **if it is `4` QUEUE, `Remove(0)` that pedestrian** (slot 13)
+  and stop scanning. If no queued pedestrian was boarded → `PopState()`; if one was, keep dwelling.
+
+- **Emergency vehicles 100–103, and 104 for patrol cars** — `cSC4EmergencyVehicle::DoStateTick` Win `0x0052F490` /
+  Mac `0x00235632`. Empty stack or `GetState() == 0` → return false. Then switch on `state+4`:
+
+  | Type | Name | Win slot | Mac `vtable+` | Method |
+  |---|---|---|---|---|
+  | 100 `0x64` | `EN_ROUTE` | `0xC3` | `0x328` | `DoEnRouteTick` Win `0x0052FD50` / Mac `0x0023571c` |
+  | 101 `0x65` | `REPATHING` | `0xC4` | `0x32C` | `DoRepathingTick` Win `0x0052FE50` / Mac `0x00235abe` |
+  | 102 `0x66` | `HANDLING_EVENT` | `0xC5` | `0x330` | `DoHandlingEventTick` (base stub Mac `0x00234a28`) |
+  | 103 `0x67` | `TELEPORT` | `0xC6` | `0x334` | `DoTeleportTick` Win `0x0052F570` / Mac `0x00235d84` |
+  | 104 `0x68` | `ARREST` (patrol car only) | `0xC8` | `0x33C` | `cSC4PatrolCar::DoArrestTick` Win `0x00544060` / Mac `0x00397b62` |
+
+  Any other type falls through to `cSC4Vehicle::DoStateTick`; if that returns false, the result is
+  `GetState() !=` the pointer captured at entry (i.e. "the state stack changed"). Naming evidence:
+  `cSC4EmergencyVehicle::SetDispatchState` (Win `0x0052FF60` / Mac `0x00234e62`) case 3 does
+  `SetState(100, 0, −1.0, 0, 0, 0, 0)`; `GetDebugExtraText` (Win `0x00532290`) names the dispatch states
+  `0 "[at station]"`, `1 "[route blocked]"`, `2 "[done]"`, `3 "[en route]"`, `4 "[no resources]"`,
+  `5 "[handling event]"`, `6 "[returning home]"`; `FUN_0052F210` does `SetDispatchState(5)` + `SetState(0x66)`
+  on arrival at an event, or `SetDispatchState(1)` + `PushState(0x65)` + `PushState(7, …)` on a blocked route;
+  `FUN_0052F330` does `SetDispatchState(6)` + `PushState(0x67)`. `HandleEnterState` case `0x67` fades opacity
+  out, which only the teleport tick fades back in. Slots 25/26 are `SetDispatchState(int)` / `GetDispatchState()`
+  (offsets `0x64`/`0x68`).
+
+  - **`DoEnRouteTick`** — while the route is unfinished and the network occupant (`+0x1FC`) is set: flag
+    `0x2000` clear → `cSC4Vehicle::DoPathTick`, else `cSC4TrafficAutomaton::DoStraightLineTick`. When finished:
+    `Remove(0)` or `HandleReachedRouteDestination`. `ValidateNetworkOccupant` failing → `Remove(0)`. Otherwise,
+    if the route deque is non-empty, flag `0x20` is set on both this automaton and its leader `+0xB0`, slot `0x94`
+    (Mac `+0x26C`) supplies a replacement leader. Returns 1.
+  - **`DoRepathingTick`** — `spCity->vtable+0xAC` is the path-finder. On success: `SetDispatchState(3)`,
+    `PopState()`, retry counter `this+0x2D8 = 0`. Otherwise increment `this+0x2D8`; while `≤ sTuningParams[0xF1]`
+    send the path-blocked message (Win `0x0052F910`) and `PushState(7, 0, sTuningParams[0xEC] · 1000.0, 0, 0, 0, 0)`
+    (IDLE for that many ms); past that, `Remove(0)`. Fields: the incident `vec3` at `+0x2C8/0x2CC/0x2D0`, the retry
+    counter `u8` at `+0x2D8` (Windows ≈ `0x2B8/0x2BC/0x2C0`, `0x2C8`).
+  - **`DoTeleportTick`** — read the **opacity** tween at `this+0x1C0`; while `t > 0.6` (or NaN) return 1 (still
+    fading out). Then `TweenOpacity(1.0, sTuningParams[0xBC])` to fade back in. If `this+0x2D4 == 0` (the
+    `ref` occupant `0x26BB767E`, the incident) → `Remove(0)`. If `|cur − target| < (u8)sTuningParams[0xF0] · 16`
+    (cells → metres) → `Remove(0)`. Otherwise `SetDispatchState(6)` and request `{0, this+0x2D4, 1, position}` from
+    `spCity->vtable+0xAC`: on success `this+0x2D8 = 0` and **`SetState(0, 0, −1.0, 0, 0, 0, 0)`** (snap to
+    DEFAULT and drive the new route); on failure `Remove(0)`.
+  - **`cSC4FireTruck::DoHandlingEventTick`** Win `0x005335F0` / Mac `0x003988ae` (the Windows decomp fails; the
+    Mac is authoritative) — from `GetFireCount` / `GetToxicSpillCount`: dispatch 2 with work outstanding →
+    `SetDispatchState(5)`; no fire left while dispatch 5 and not player-driven → `SetDispatchState(2)`;
+    dispatch 2 with nothing left → `ReturnToSourceOccupant()` (slot 29). No movement, no model changes.
+    `cSC4PatrolCar::DoHandlingEventTick` (Mac `0x00397afa`) is thinner and checks the riot manager
+    (`spCity->vtable+0x120` → `vtable+0x28`).
+  - **`DoArrestTick`** — dwell on the base `+0x10`, then swap model 0 to the arrest animation and wait for that
+    animation to finish, then `PopState()`. While `state+0x10 ≤ 0`: if the model's current frame
+    (`vtable+0x78`) is `≥ frames − 1` (`vtable+0x7C`) → `PopState()`. Otherwise `state+0x10 -= dt`, and on
+    reaching `≤ 0` this tick query `spCrimeSim` (`vtable+0x24` / `vtable+0x28` at 20.0 units) and either push
+    `SetState(7, 0, 5000.0, 1, 0, 0, 0)` on a suspect or loop up to 5 times on `vtable+0x2C(1)`; then build the
+    key `(this+0x11C, +0x120, +0x124)`, pick `_kArrestAnimationInstance[index]` with
+    `index = (int)((pol->vtable+0x64(…) · 100.0) / 40.0)` when `this+0x2D4` is set and the police sim agrees,
+    `ReplaceModelInstance` (Mac `0x000c11fc`) and play it (`model[0]->vtable+0x8C(1)`).
+  - **BUMPED (`0x11`) and COLLIDE (`0x14`)** — `cSC4Vehicle::DoBumpedTick` is a 7-byte `return 0` (Mac
+    `0x000a083e`); `cSC4Automaton::DoBumpedTick` is `return !CheckAutomataFlag(1)` (Mac `0x000bb14e`). There is
+    no `0x11` case anywhere, so a vehicle's Bumped state expires only through the base countdown's `PopState`.
+    `cSC4Vehicle::DoCollideTick` (Mac `0x000a0846`, 29 bytes) tail-calls `cSC4Automaton::DoCollideTick`
+    (Win `0x00508D70` / Mac `0x000bdbc8`, Windows slot 120 / Mac `+0x1FC`). That tick: flag 1 set → return 0;
+    `*(byte*)(this+0x33) & 2` → `SetVisible(false)` (slot 9); apply the saved crash transform at `this+0x170` to
+    the front model (`this+0x110`) through `->vtable+0x20`; `*(byte*)(this+0x33) & 1` → notify
+    `spOccupantManager->vtable+0x60(&this+4, 0)`; every time `*(f32*)(this+0x1D0) > 100.0` emit event id 9 and
+    reset it. Return 1. No position, destination or speed changes.
+
+- **`DoPathTick` / `DoStraightLineTick`** (movement, driven every frame from `DoAnimationTick` — see above):
+  `cSC4Vehicle::DoPathTick` Win `0x0055CAF0` / Mac `0x000a4450` and `cSC4TrafficAutomaton::DoPathTick`
+  **Win `0x0054FDC0`** / Mac `0x000d12fe` both advance along the path with
+  `step = GetSpeed() · speedScale · dt`, matching the leader's speed (`TweenSpeed(leaderSpeed, 0.5)`, slot 36)
+  when the distance remaining is under 16.0, flagging `0x20` ("stopped") and `4` ("reached dest") at the ends,
+  `Remove(0)`ing when the step goes below `−GetMaxSpeed()` and flag `0x40` is clear, and writing
+  `this+0x94 = |newPos − oldPos| / dt` as the measured current speed *[inferred]*. The vehicle version writes a
+  back-anchored destination `out − radius·0.5·facing` and keeps the path vector; the traffic version writes the
+  path-advance output straight into the destination field and passes nulls for the path vector.
+  `cSC4TrafficAutomaton::DoStraightLineTick` Win `0x00550190` / Mac `0x000d2c62` forces destination Y to 0,
+  flags arrival without snapping to the destination on the last frame, and `Remove(0)`s when the collision query
+  `obj->vtable+0xB0(obj, &position, &newPos, flags)` fails.
 
 **The behaviour table.** "Returns 1" means the state moved itself (so `DoAnimationTick` does not seek);
 "returns 0" means it did not.
