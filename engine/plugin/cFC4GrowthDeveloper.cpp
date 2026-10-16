@@ -284,6 +284,14 @@ void AddRefToken(void*, uint64_t t) { AddRefAny(FromToken(t)); }
 // DG5), and without this workaround run a10a-after-dev (2026-10-15) still
 // gave the five warnings on class 0xA9BD882D, all from this release in the
 // destructor at shutdown. The workaround stays.
+// DG28 answer (re-answers10, building-development §1.4): in the original the
+// BDS Shutdown destroys each developer (the map's reference is its only one)
+// while the occupant manager still holds every building, so the copy's
+// release is the last only for a building that left the city. Our core
+// already shuts down and releases each developer in the BDS Shutdown, yet in
+// run apply12-dev-1 (2026-10-16, a saved city) our 12 developers were
+// destroyed only after the simulator's Shutdown: something still holds a
+// reference (spec question DG39), so the destructor case stays audited.
 void ReleaseToken(void* u, uint64_t t) {
     cIGZUnknown* o = FromToken(t);
     if (o != nullptr && G(u)->destroying && !fc4::IsOurObject(o)) {
