@@ -4088,6 +4088,26 @@ in-game harness with the FreeCity4 turbo clock and a message log.
   of `SimCity_1.dat`…`SimCity_5.dat` and `EP1.dat`). So the bracket's sources are the shipped ones; the detail-level
   case lasts only until the city detail manager's reduce at `Init`. The corpus count was not made (it needs the
   saved prop records with their tags).
+  **Corpus count made 2026-10-16 (re-answers27):** over the 421 distinct saves under `Regions\`, by
+  `re/prop_tag_corpus.py` (the parser contract is prop-occupant.md §7 and foundations §3.3/§9.2/§10.2–§10.3):
+  **40,830 of 147,162 tagged lot props are unmatched — 27.7 %.** So the quirk is not an edge case: more than a
+  quarter of tagged lot props in the corpus lower their block's slot count by one. The reasons: 40,794 are on a
+  lot that **has** a configuration but the tag names no object of it, and 36 are on a lot with no configuration
+  at all (ID 0). Matching against prop objects only gives the same 40,830, as expected since a lot tag is a
+  prop object's ID. Of the unmatched tags, **38,933 name no object in any shipped configuration at all** and
+  1,897 name an object of some *other* configuration; `Documents\SimCity 4\Plugins` holds no plugin `.dat`
+  content (only `FreeCity4.dll` variants), so nothing outside the six shipped dats could have supplied them.
+  *[inferred]* those are the "props of an earlier configuration" the bracket predicted, plus anything a
+  FreeCity4 run left behind — the measurement does not separate the two. Per region: Berlin 5,716/29,783,
+  FC4 Test 4,410/21,670, London 7,467/22,741, Timbuktu 23,237/73,812; 10 saves of 421 hold tagged props and all
+  10 have at least one unmatched. Effect props (`0x2977AA49`) are clean: 844 tagged, **0 unmatched**.
+  Parser validation: 157,311 plain prop records and 1,076 effect-prop records parse with **0** overruns,
+  underruns or failures and every record ends exactly; 176,095 entry CRCs verify; 0 index-count mismatches; and
+  the catalog object-type counts reproduce lot-configuration.md §3.5 exactly (1908 / 45012 / 25452 / 1359 / 43 /
+  17 / 41, and 1908 lot + 543 network lot configurations, all version 2). **One DIFFERS to note:** the record
+  totals here (157,311 props, 1,076 effect props, 17,708 lots) are higher than lot-records.md §10.1/§1's observed
+  figures (134,420 + 948, 12,986 lots), which were taken over a different save set; the *layout* is confirmed by
+  the exact record ends and the CRCs, but the two corpora are not the same and the counts should not be equated.
 - ~~**PV3:** `UpdateAllOptionalProps` (slot 7) has no caller. [none in the exe; FreeCity4 implements it as specified
   (every block, x outer). A plugin scan or a call trace in a long turbo run would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (prop-developer.md §4.2). No direct call targets `0x006F4DB0`; it is reachable only through vtable slot 7. Implementing it as specified is harmless.
 - ~~**PV4:** the block step runs on every Idle delivery, also while paused, so props develop at a frame-rate-dependent

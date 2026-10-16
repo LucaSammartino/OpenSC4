@@ -399,8 +399,11 @@ network-manager.md §8.6 `CreateProp`, both call `SetLotTag` right after creatin
 prop (§7) and it is what the city detail manager's reduce (`0x0045D690`) and the prop developer's block update
 (prop-developer.md §4.3 step 2.3.2) match against.
 
-**PV2** (the unmatched-tag rule) is specified in prop-developer.md §10 quirk 1; the corpus count is in
-QUESTIONS.md. This spec only fixes *where the tag lives*.
+**PV2** (the unmatched-tag rule) is specified in prop-developer.md §10 quirk 1. The corpus count is now made:
+**40,830 of 147,162 tagged lot props over the 421 distinct saves under `Regions\` are unmatched (27.7 %)**, so
+the rule fires on more than a quarter of the tagged lot props in the corpus. The tool is `re/prop_tag_corpus.py`;
+the full figures and its validation are in QUESTIONS.md under PV2. This spec only fixes *where the tag lives*
+(`+0x58`, default `0xFFFFFFFF`) and how it is saved (§7).
 
 ---
 
