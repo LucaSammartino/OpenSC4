@@ -1686,13 +1686,28 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        diffs=0 wealth diffs=0 configs same=… draws=… incompatible=0; configs loaded=543; messages=… (mgr …, lot
        …); terrain msgs=… tool calls=… destroyed=… confirmed=… kept-by-orig=0 orig-only=0 rebuilt=…
        candidates=… refits=…; style writes=… checked=… gone=… mismatches=0; potholes created=…; order late:
-       probe before=…/…[; resynced: mgr lot][; differences: …]
+       probe before=…/…; per message: N compared, variations agree=… ours-only=… orig-only=… differ=…;
+       0x…: N msgs N cells, the original changed …, ours changed …[ (first notes)][; cells before/orig/ours
+       [0x… rect …: x,z:b/o/u …]]; NM10 (lot state border's first row, open)=K[; resynced: mgr lot]
+       [; differences: …][; NM10 differences: …]
      netmgr shadow: city shutdown: N lines, M with mismatches=0 (exact M/N); D configuration draws not
-       compared; R resyncs
+       compared; R resyncs; NM10 (…) differences K on L lines
+     netmgr shadow: lot state changed (0xE8BDA2E7) border cells with a network tile, by place in the grown
+       rect (cells / the original changed the variation / ours changed it where the original kept it): …
      ```
 
      Success is `mismatches=0` on every line. A style difference names the cell, both variations and the
-     zone / wealth both managers give the cell now, with the variation they imply.
+     zone / wealth both managers give the cell now, with the variation they imply. With `late`, every lot
+     message's cells are also compared message by message: the early target reads their variations before
+     the original handles the message, the late one after it and after the lot core, so the line counts, per
+     message type, the cells the original changed and those ours changed where the original kept the value.
+
+     **NM10 (open question).** In game the original never restyles the inner cells of the first row
+     (x0 < x < x1, z = z0) of a lot state message's grown rect (§6.2 `0xE8BDA2E7`), which the spec walks with
+     the rest of the border; Konradshohe to 2032: 0 of 589 such cells changed by the original, 80 changed by
+     ours, while every other place of the border agrees. Until NM10 is answered, a style or lot difference at
+     a cell our lot core updated there since the last line is counted and listed under `NM10`, not as a
+     mismatch.
    - **Terrain shadow** (`terrain_shadow = 1`, env `FC4_TERRAIN_SHADOW`; off by default; `terrain_shadow_points = N`
      sample points a month, default 256, 16..4096; `terrain_shadow_diffs = N` differences named per line, default 8,
      1..64; `terrain_shadow_lines = N` change lines a month, default 8, 0..1000; `plugin/FC4TerrainShadow.h`): a

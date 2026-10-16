@@ -129,6 +129,16 @@ struct Counters {
 };
 Counters g_n;
 uint32_t g_lines = 0, g_exactLines = 0, g_draws = 0, g_resyncs = 0;
+// NM10 (open question, network-manager.md §6.2 0xE8BDA2E7): in game the
+// original never changes the road style of the first row's inner cells of a
+// lot state message's grown rect (x0 < x < x1, z = z0), where the spec walks
+// the whole border. The cells our lot core updated there since the last line;
+// a style or lot difference at one of them is counted under NM10, not as a
+// mismatch, until the question is answered.
+std::set<std::pair<int32_t, int32_t>> g_nm10Cells;
+uint32_t g_nm10Lines = 0, g_nm10Total = 0;
+uint32_t g_nm10Pending = 0;  // tick-time NM10 differences since the last line
+std::string g_nm10PendingDiffs;
 std::string g_pendingDiffs;  // tick-time differences, reported on the next line
 uint32_t g_pendingMismatches = 0;
 size_t g_pendingListed = 0;
@@ -154,7 +164,7 @@ std::map<uint64_t, SnapCell> g_snap;
 bool g_snapValid = false;
 uint32_t g_snapType = 0;
 fc4_cell_rect g_snapRect{};  // the message's cells (grown rect)
-std::string g_geom;          // up to 4 messages per line where ours changed a cell the original kept
+std::string g_geom;          // the first message per line where ours changed a cell the original kept
 size_t g_geomListed = 0;
 // 0xE8BDA2E7 border cells by place in the grown rect (first row: its first
 // cell, the inner cells, its last cell; the middle rows at x0, at x1; the
@@ -247,6 +257,20 @@ struct Diff {
         listed += b;
     }
 };
+
+bool Nm10Cell(int32_t x, int32_t z) { return g_nm10Cells.count(std::make_pair(x, z)) != 0; }
+
+// A tick-time difference at an NM10 cell (counted, listed, not a mismatch).
+void PendingNm10(const char* fmt, ...) {
+    if (g_nm10Pending++ >= kMaxListed) return;
+    char b[200];
+    va_list ap;
+    va_start(ap, fmt);
+    _vsnprintf_s(b, sizeof(b), _TRUNCATE, fmt, ap);
+    va_end(ap);
+    if (!g_nm10PendingDiffs.empty()) g_nm10PendingDiffs += ", ";
+    g_nm10PendingDiffs += b;
+}
 
 void PendingDiff(const char* fmt, ...) {
     ++g_pendingMismatches;
@@ -500,10 +524,12 @@ void SettleStep(void*) {
         }
         const bool flags = o->HasNetworkFlag(kUnderTextureFlags);  // slot 8
         if (w.second.flags && !flags) bad = true;
-        if (bad) {
+        uint32_t cx = 0, cz = 0;
+        if (bad) o->GetOccupiedCell(cx, cz);
+        if (bad && Nm10Cell(static_cast<int32_t>(cx), static_cast<int32_t>(cz))) {
+            PendingNm10("style at %u,%u: variation %u/%d (orig/ours)", cx, cz, got, w.second.variation);
+        } else if (bad) {
             ++g_n.styleMismatches;
-            uint32_t cx = 0, cz = 0;
-            o->GetOccupiedCell(cx, cz);
             // Now (after both): the original's and our zone / wealth for the
             // cell (slots 9, 10) and the variation they give (§8.7 step 7).
             int32_t zo = -1, wo = -1, zu = -1, wu = -1;
@@ -725,6 +751,7 @@ void RunStep(void* p) {
         return;
     }
     Diff d;
+    Diff nm10;  // differences at NM10 cells
     bool answered = false;
     const bool origMgrOk = g_origMgr.Capture(reinterpret_cast<cIGZUnknown*>(nm), &answered);
     const bool origLotOk = g_origLot.Capture(reinterpret_cast<cIGZUnknown*>(nlm), &answered);
@@ -816,12 +843,13 @@ void RunStep(void* p) {
                 ++wealthDiffs;
                 d.Add("wealth for network at %d,%d: %d/%d", x, z, wo, wu);
             }
+            Diff& dl = Nm10Cell(x, z) ? nm10 : d;
             if (o == ol.lots.end()) {
-                d.Add("lot at %d,%d: ours only (config 0x%08X)", x, z, u->second.second);
+                dl.Add("lot at %d,%d: ours only (config 0x%08X)", x, z, u->second.second);
                 continue;
             }
             if (u == ul.lots.end()) {
-                d.Add("lot at %d,%d: the original's only (config 0x%08X)", x, z, o->second.second);
+                dl.Add("lot at %d,%d: the original's only (config 0x%08X)", x, z, o->second.second);
                 continue;
             }
             if (o->second.first != u->second.first) {
@@ -842,8 +870,8 @@ void RunStep(void* p) {
                 ++draws;  // two compatible configurations: the clock-seeded draw
             } else {
                 ++cfgBad;
-                d.Add("lot at %d,%d: config 0x%08X/0x%08X compatible now %d/%d", x, z, o->second.second,
-                      u->second.second, co ? 1 : 0, cu ? 1 : 0);
+                dl.Add("lot at %d,%d: config 0x%08X/0x%08X compatible now %d/%d", x, z, o->second.second,
+                       u->second.second, co ? 1 : 0, cu ? 1 : 0);
             }
         }
         std::set<uint16_t> pk;
@@ -926,8 +954,21 @@ void RunStep(void* p) {
         g_pmFirst.clear();
         g_pmListed = 0;
     }
+    const uint32_t nm10Count = nm10.mismatches + g_nm10Pending;
+    AppendF(s, "; NM10 (lot state border's first row, open)=%u", nm10Count);
     if (!resync.empty()) AppendF(s, "; resynced:%s", resync.c_str());
     if (!d.listed.empty()) s += "; differences: " + d.listed;
+    if (nm10Count != 0) {
+        std::string l = nm10.listed;
+        if (!l.empty() && !g_nm10PendingDiffs.empty()) l += ", ";
+        l += g_nm10PendingDiffs;
+        s += "; NM10 differences: " + l;
+        ++g_nm10Lines;
+        g_nm10Total += nm10Count;
+    }
+    g_nm10Pending = 0;
+    g_nm10PendingDiffs.clear();
+    g_nm10Cells.clear();
     r.mismatches = d.mismatches;
     r.done = true;
     g_n = Counters{};
@@ -1086,7 +1127,7 @@ void CompareMessageStyle(const Msg& m, const std::map<uint64_t, uint32_t>& after
         const uint32_t orig = afterOrig.count(c.first) != 0 ? afterOrig.at(c.first) : c.second.before;
         if (w != g_msgWrites.end() && w->second != orig && orig == c.second.before) oursOnly = true;
     }
-    if (oursOnly && g_geomListed < 4) {
+    if (oursOnly && g_geomListed < 1) {
         ++g_geomListed;
         char b[96];
         std::snprintf(b, sizeof(b), "%s[0x%08X %u->%u rect %d,%d..%d,%d:", g_geom.empty() ? "" : " ", m.type, m.d[0],
@@ -1165,6 +1206,10 @@ void CallMessage(void* p) {
             for (const auto& c : g_snap) afterOrig[c.first] = NetOf(c.first)->GetVariation() & 0xFFu;
         }
         g_msgWrites.clear();
+        fc4_cell_rect nr{};
+        if (m.type == kMsgLotStateChanged && MessageCells(m, &nr)) {
+            for (int32_t x = nr.x1 + 1; x < nr.x2; ++x) g_nm10Cells.insert(std::make_pair(x, nr.z1));
+        }
         fc4_netlot_do_message(g_lot, m.type, m.d[0], m.d[1], m.d[2], m.void1, m.unknown, m.hasRect ? &m.rect : nullptr);
         NetMgrReleaseHeld(&g_ctx);
         if (compare) CompareMessageStyle(m, afterOrig);
@@ -1378,8 +1423,9 @@ void NetMgrShadowCityShutdown() {
     Settle();
     if (g_city != nullptr || g_mgr != nullptr || g_lot != nullptr) {
         Log("netmgr shadow: city shutdown: %u lines, %u with mismatches=0 (exact %u/%u); %u configuration draws not "
-            "compared; %u resyncs",
-            g_lines, g_exactLines, g_exactLines, g_lines, g_draws, g_resyncs);
+            "compared; %u resyncs; NM10 (open question: the lot state message's border, first row) differences %u on %u "
+            "lines",
+            g_lines, g_exactLines, g_exactLines, g_lines, g_draws, g_resyncs, g_nm10Total, g_nm10Lines);
         if (g_late) {
             std::string t;
             for (int i = 0; i < kPlaces; ++i) {
@@ -1396,6 +1442,9 @@ void NetMgrShadowCityShutdown() {
     g_city = nullptr;
     g_ctx.city = nullptr;
     g_lines = g_exactLines = g_draws = g_resyncs = 0;
+    g_nm10Lines = g_nm10Total = g_nm10Pending = 0;
+    g_nm10PendingDiffs.clear();
+    g_nm10Cells.clear();
     g_n = Counters{};
     g_pendingDiffs.clear();
     g_pendingMismatches = 0;
