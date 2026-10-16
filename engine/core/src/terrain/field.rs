@@ -674,6 +674,18 @@ impl Terrain {
         }
     }
 
+    /// Sets a vertex's altitude directly, with no setter rule, water or cache
+    /// change (load from another source, tests). False out of bounds.
+    pub fn set_raw_altitude(&mut self, x: i32, z: i32, a: f32) -> bool {
+        match self.vi(x, z) {
+            Some(i) => {
+                self.alt[i] = a;
+                true
+            }
+            None => false,
+        }
+    }
+
     /// `ResetWaterToSeaLevel` (§10.1): every vertex's `depth := sea − alt`,
     /// the other water fields 0.
     pub fn reset_water_to_sea_level(&mut self) {
