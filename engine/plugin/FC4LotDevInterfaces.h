@@ -24,6 +24,12 @@
 //       or nothing defined (13, 14, 34, 35, 44). Every method has its own
 //       name here (FC4Interfaces.h rule: no overloads, slot N is the N-th
 //       virtual function).
+//   cFC4ISC4NetworkManager  cISC4NetworkManager as compiled (vtable
+//       0x00AA7AD0), slots 3-23: the lot developer calls slot 6
+//       (DestroyNetworkOccupants), 20 (CreateConnectionNode) and 21
+//       (AutoconnectLotNodes) (lot-developer.md §6.5, LD17). The SDK header
+//       has an extra GetAllIntersectionPieces overload at slot 13 and so puts
+//       every later method one slot late.
 //   cFC4ISC4AnimationTickManager  cSC4AnimationTickManager's primary vtable
 //       (service 0x86AD10EC, IID 0x86AD10ED; §6.7.8, vtables.tsv): the lot
 //       developer registers its message target with slots 5 / 6.
@@ -33,6 +39,8 @@
 // found; Release 0.
 #pragma once
 
+#include "SC4List.h"
+#include "SC4Point.h"
 #include "SC4Rect.h"
 #include "cIGZUnknown.h"
 
@@ -153,6 +161,36 @@ public:
     virtual bool EnableAutoStep(bool enable, uint32_t stepUs) = 0;                   // 14
     virtual bool SetStepTickTimeDelta(uint32_t stepUs) = 0;                          // 15
     virtual bool StepAnimationSystem() = 0;                                          // 16
+};
+
+// cISC4NetworkManager as compiled (interfaces.tsv cISC4NetworkManager, 25
+// slots; slot 24 is the class's deleting destructor). The slot in the comment,
+// then the callee pop.
+class cFC4ISC4NetworkManager : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                                   // 3
+    virtual bool Shutdown() = 0;                                                               // 4
+    virtual void* GetNetworkTool(int32_t type, bool unique) = 0;                               // 5
+    virtual void DestroyNetworkOccupants(SC4List<cISC4Occupant*> const& list) = 0;             // 6, pop 4
+    virtual void QueueRemovals(bool queue) = 0;                                                // 7
+    virtual bool RemoveOrReplaceOccupant(void* tool, cISC4Occupant* occ, bool& replaced) = 0;  // 8
+    virtual bool IsOccupantSubwayStation(cISC4Occupant* occ) = 0;                              // 9
+    virtual intptr_t FindPipeOccupant(intptr_t a, int32_t b, intptr_t c) = 0;                  // 10
+    virtual intptr_t FindPipeConnectionOccupant(intptr_t a, int32_t b, intptr_t c) = 0;        // 11
+    virtual intptr_t GetAllIntersectionPieces(intptr_t a, intptr_t b, intptr_t c, intptr_t d) = 0;  // 12
+    virtual uint32_t MapPreviewTexture(uint32_t a, uint8_t& b) = 0;                            // 13
+    virtual uint32_t MapShadowTexture(uint32_t a, uint8_t& b, uint32_t c, uint32_t d) = 0;     // 14
+    virtual uint32_t MapPath(uint32_t a) = 0;                                                  // 15
+    virtual void RegisterConstructionCrew(intptr_t crew) = 0;                                  // 16
+    virtual intptr_t UnregisterConstructionCrew(intptr_t crew) = 0;                            // 17
+    virtual void* GetWaterOccupantFilter() = 0;                                                // 18
+    virtual void* GetSubwayOccupantFilter() = 0;                                               // 19
+    // 20, pop 28, AL; `out` gets the node's occupant with one reference for the caller
+    virtual bool CreateConnectionNode(cISC4Occupant*& out, int32_t type, SC4Point<int> const& cell, uint32_t edgesA,
+                                      uint32_t edgesB, uint32_t pathOverride, uint8_t c) = 0;
+    virtual void AutoconnectLotNodes(cISC4Lot* lot, SC4List<cISC4Occupant*> const& nodes) = 0;  // 21, pop 8
+    virtual const char* GetEnglishNetworkName(int32_t type) = 0;                               // 22
+    virtual void AddToRetrofitList(intptr_t networkOccupant) = 0;                              // 23
 };
 
 namespace fc4 {

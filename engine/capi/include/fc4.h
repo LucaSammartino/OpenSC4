@@ -131,13 +131,17 @@ extern "C" {
  *      data-formats §5.1); fc4_props_set_typed and the neighbour connection property callback carry
  *      the void array (raw bytes, mem_type 0 with is_array; NG37) (taken as 66 on the apply12
  *      lane; renumbered at merge);
- * 60 = the session seed (foundations §6.3): fc4_aura_create, fc4_flammability_create,
+ * 60 = lot developer re-answers12 (apply13 lane): fc4_lotdev_host 178 callbacks: update_lot_object_altitudes
+ *      removed (the core moves the objects, LD17), add_network_connection_nodes takes the nodes
+ *      (fc4_lotdev_conn_node), lot_occupants, lot_configuration_object and occupant_moved appended (taken as
+ *      71 on its lane; renumbered at merge);
+ * 61 = the session seed (foundations §6.3): fc4_aura_create, fc4_flammability_create,
  *      fc4_flora_create, fc4_protection_create and fc4_weather_create take one session seed S
  *      instead of the two clock values; fc4_pollution_create's seed and the budget, plumbing
  *      and growth hosts' seed callbacks (renamed session_seed) carry S, and the core derives
  *      every generator's seed from it (derive(S, K), fc4_seed_derive); adds fc4_seed_derive
- *      (seeding lane; taken as 73 on its lane, then 59; renumbered at merge). */
-#define FC4_ABI_VERSION 60u
+ *      (seeding lane; taken as 73 on its lane, then 59 and 60; renumbered at merge). */
+#define FC4_ABI_VERSION 61u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -587,7 +591,7 @@ typedef struct fc4_budget_host {
     void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
     bool (*try_start_disaster)(void* user, uint32_t id, float x, float z); /* false if it does not exist */
     /* The session seed S (foundations §6.3): the RiskyMoney generator is seeded
-     * with derive(S, 0x6C09C3D7) (ABI 60; before, this callback returned the
+     * with derive(S, 0x6C09C3D7) (ABI 61; before, this callback returned the
      * generator's seed itself). */
     uint32_t (*session_seed)(void* user);
     bool (*ltext)(void* user, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
@@ -963,7 +967,7 @@ typedef struct fc4_weather_state {
 } fc4_weather_state;
 
 /* The host table is copied. `session_seed` is the session seed S (foundations
- * §6.3, FC4_ABI_VERSION 60): the generator (Seed(0xFFFFFFFF) in the original,
+ * §6.3, FC4_ABI_VERSION 61): the generator (Seed(0xFFFFFFFF) in the original,
  * §3) is seeded with derive(S, 0x2990C1BC). NULL if the table is missing or too
  * small. */
 fc4_weather* fc4_weather_create(const fc4_weather_host* host, uint32_t session_seed);
@@ -1843,7 +1847,7 @@ typedef struct fc4_plumbing_host {
     void (*position_to_cell)(void* user, float x, float z, int32_t* cx, int32_t* cz);
     fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it), NULL if missing */
     /* The session seed S (foundations §6.3): the generator made at Init is
-     * seeded with derive(S, 0x0990C075), the class's GZCLSID (ABI 60; before,
+     * seeded with derive(S, 0x0990C075), the class's GZCLSID (ABI 61; before,
      * this was the wall-clock value itself). */
     uint32_t (*session_seed)(void* user);
     /* simulator, messages, history */
@@ -2164,7 +2168,7 @@ typedef struct fc4_flammability_host {
     uint64_t (*watered_grid)(void* user);
 } fc4_flammability_host;
 
-/* `session_seed` is the session seed S (foundations §6.3, ABI 60): the
+/* `session_seed` is the session seed S (foundations §6.3, ABI 61): the
  * generator is seeded with 0 (§7) and its double path's clock reseed takes
  * derive(S, 0xE990C045). */
 fc4_flammability* fc4_flammability_create(const fc4_flammability_host* host, uint64_t token, uint32_t session_seed);
@@ -2315,7 +2319,7 @@ typedef struct fc4_pollution_host {
 
 /* `token`: the simulator's own host identity; `session_seed` is the session
  * seed S (foundations §6.3): the visual-effect generator is seeded with
- * derive(S, 0x4C09C4D3) (ABI 60; before, the argument was its seed). */
+ * derive(S, 0x4C09C4D3) (ABI 61; before, the argument was its seed). */
 fc4_pollution* fc4_pollution_create(const fc4_pollution_host* host, uint64_t token, uint32_t session_seed);
 /* A loaded, never-initialised object gives its list and department references back. */
 void fc4_pollution_destroy(fc4_pollution* p);
@@ -2567,7 +2571,7 @@ typedef struct fc4_protection_host {
  * primary interface (also cIGZUnknown), 2 = cIGZMessageTarget2, 3 = the
  * dispatch source (0xC9C00435), 4 = cIGZSerializable. */
 uint32_t fc4_protection_query_interface(uint32_t kind, uint32_t iid);
-/* `session_seed` is the session seed S (foundations §6.3, ABI 60): the
+/* `session_seed` is the session seed S (foundations §6.3, ABI 61): the
  * generator is seeded with derive(S, GZCLSID), fire 0x2990C05A, police
  * 0x6990C04F. */
 fc4_protection* fc4_protection_create(const fc4_protection_host* host, uint32_t kind, uint64_t token,
@@ -3031,7 +3035,7 @@ typedef struct fc4_aura_host {
 } fc4_aura_host;
 
 /* The host table is copied; `token` is the simulator's own identity;
- * `session_seed` is the session seed S (foundations §6.3, ABI 60): its
+ * `session_seed` is the session seed S (foundations §6.3, ABI 61): its
  * cRZRandom (§9) is seeded with derive(S, 0x0990BDD8). NULL for a short
  * table. */
 fc4_aura* fc4_aura_create(const fc4_aura_host* host, uint64_t token, uint32_t session_seed);
@@ -3343,7 +3347,7 @@ bool fc4_flora_registry_sizes(const fc4_flora_registry* r, uint32_t* map_len, ui
                               uint32_t* blocks);
 
 /* The simulator. `token` is its own host identity; `session_seed` is the
- * session seed S (foundations §6.3, ABI 60): its cRZRandom (§3.1, §8) is
+ * session seed S (foundations §6.3, ABI 61): its cRZRandom (§3.1, §8) is
  * seeded with derive(S, 0xC990C034). */
 fc4_flora* fc4_flora_create(const fc4_flora_host* host, const fc4_flora_registry* registry, uint64_t token,
                             uint32_t session_seed);
@@ -4586,7 +4590,7 @@ typedef struct fc4_growth_host {
     /* The session seed S (foundations §6.3), read only when a decline key's
      * coordinate seed is 0xFFFFFFFF (growth-developer.md §7 quirk): that key's
      * generator takes derive(S, 0x0990C138 XOR n), n counting such reads by the
-     * developer (ABI 60; before, this was the wall-clock value itself). */
+     * developer (ABI 61; before, this was the wall-clock value itself). */
     uint32_t (*session_seed)(void* user);
 } fc4_growth_host;
 
@@ -5857,6 +5861,17 @@ typedef struct fc4_lotdev_burnt {
     float min[3], max[3];
 } fc4_lotdev_burnt;
 
+/* One network connection node of AddNetworkConnectionNodes (§6.5, LD17): the arguments of network manager slot 20
+ * CreateConnectionNode(&n, node_type, &cell, b, c, d, orientation). b and c are rotl32(ids[1 / 2], 8 * orientation),
+ * d is ids[3] or 0. */
+typedef struct fc4_lotdev_conn_node {
+    uint32_t node_type; /* ids[0] */
+    int32_t x, z;       /* the object's cell */
+    uint32_t b, c, d;
+    uint8_t orientation;
+    uint8_t reserved[3];
+} fc4_lotdev_conn_node;
+
 typedef struct fc4_lotdev_profile {
     uint32_t purpose, wealth;
     uint16_t capacity; /* for GetDeveloperType(purpose, wealth) */
@@ -5917,7 +5932,7 @@ typedef struct fc4_lotdev_host {
     /* city, simulator, terrain */
     void (*city_cell_counts)(void* user, int32_t* out2);
     void (*city_cell_widths)(void* user, float* out2);
-    bool (*position_to_cell)(void* user, float x, float z, int32_t* out2);
+    void (*position_to_cell)(void* user, float x, float z, int32_t* out2); /* city slot 95, no result (LD18) */
     void (*cell_corner_to_position)(void* user, int32_t x, int32_t z, float* out2); /* city slot 96 */
     void (*cell_center_to_position)(void* user, int32_t x, int32_t z, float* out2); /* city slot 97 */
     uint32_t (*sim_date)(void* user);
@@ -6008,13 +6023,15 @@ typedef struct fc4_lotdev_host {
     /* slots and helpers §17 does not cover */
     uint64_t (*first_building)(void* user, uint64_t lot); /* slot 38, borrowed */
     bool (*update_lot_retaining_walls)(void* user, uint64_t lot); /* slot 62 */
-    void (*update_lot_object_altitudes)(void* user, uint64_t lot);
     bool (*update_lot_base_texture_occupant)(void* user, uint64_t lot, bool had_foundation); /* slot 45 */
     uint64_t (*base_texture_occupant)(void* user, uint64_t lot, bool create); /* slot 41; 0 = false */
     void (*base_texture_set)(void* user, uint64_t occ, const fc4_lotdev_texture* records, size_t n);
     void (*add_retaining_wall_occupant)(void* user, uint64_t lot, uint32_t flag); /* 0x005E3070 */
     void (*update_surrounding_retaining_walls)(void* user, uint64_t lot);     /* 0x005E3960 */
-    void (*add_network_connection_nodes)(void* user, uint64_t lot, uint64_t cfg);
+    /* AddNetworkConnectionNodes steps 2-3 (§6.5, LD17): network manager slot 20 for each of the n nodes, every
+     * result in one list, then slot 21 AutoconnectLotNodes(lot, &list) (also with n = 0) */
+    void (*add_network_connection_nodes)(void* user, uint64_t lot, const fc4_lotdev_conn_node* nodes, size_t n);
+    /* RemoveNetworkConnectionNodes(lot) (§6.5, LD17): flag-0x200000 network occupants to network manager slot 6 */
     void (*remove_network_connection_nodes)(void* user, uint64_t lot);
     void (*start_construction_occupant)(void* user, uint64_t lot); /* §6.3 hand-off */
     /* buildings and other occupants */
@@ -6100,6 +6117,12 @@ typedef struct fc4_lotdev_host {
     uint64_t (*unit_create)(void* user);
     bool (*unit_add)(void* user, uint64_t unit, uint64_t lot);
     bool (*unit_remove)(void* user, uint64_t unit, uint64_t lot);
+    /* UpdateLotObjectAlitudes (§6.5, LD17; ABI 60) */
+    void (*lot_occupants)(void* user, uint64_t lot, fc4_token_callback cb, void* ctx); /* lot slot 49, list order */
+    /* lot slot 11 GetLotConfigurationObject(occ) to cb (once); false = none */
+    bool (*lot_configuration_object)(void* user, uint64_t lot, uint64_t occ, fc4_lotdev_cfg_object_callback cb,
+                                     void* ctx);
+    void (*occupant_moved)(void* user, uint64_t occ); /* occupant manager slot 24 (occ, 1) */
 } fc4_lotdev_host;
 
 /* The class statics (§10.1): one per process; the generator is seeded with
@@ -6140,7 +6163,7 @@ int32_t fc4_lotdev_level_area_internal_vertices(fc4_lotdev* p, const fc4_cell_re
 int32_t fc4_lotdev_level_bordering_vertices(fc4_lotdev* p, const fc4_cell_rect* rect, float h, uint64_t lot);
 int32_t fc4_lotdev_attempt_area_levelling(fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water,
                                           bool per_vertex, float max_area_slope, uint64_t lot);
-bool fc4_lotdev_occupant_cell_coverage(const fc4_lotdev* p, uint64_t occ, fc4_cell_rect* out);
+void fc4_lotdev_occupant_cell_coverage(const fc4_lotdev* p, uint64_t occ, fc4_cell_rect* out); /* no result (LD18, LD27) */
 bool fc4_lotdev_is_area_flat(const fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water);
 bool fc4_lotdev_is_lot_flat(const fc4_lotdev* p, uint64_t lot, bool with_water);
 float fc4_lotdev_area_altitude_range(const fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water);
@@ -7742,7 +7765,7 @@ static_assert(sizeof(fc4_lotdev_profile) == 12, "fc4_lotdev_profile layout");
 static_assert(sizeof(fc4_lotdev_message) == 40, "fc4_lotdev_message layout");
 static_assert(sizeof(fc4_lotdev_tuning) == 172, "fc4_lotdev_tuning layout");
 static_assert(sizeof(fc4_lotdev_state) == 112, "fc4_lotdev_state layout");
-static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 176 * 4 : 16 + 176 * 8), "fc4_lotdev_host layout");
+static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 178 * 4 : 16 + 178 * 8), "fc4_lotdev_host layout");
 static_assert(sizeof(fc4_history_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_history_host layout");
 static_assert(sizeof(fc4_history_point) == 8, "fc4_history_point layout");
 static_assert(sizeof(fc4_history_state) == 28, "fc4_history_state layout");
@@ -7795,7 +7818,7 @@ _Static_assert(sizeof(fc4_lotdev_profile) == 12, "fc4_lotdev_profile layout");
 _Static_assert(sizeof(fc4_lotdev_message) == 40, "fc4_lotdev_message layout");
 _Static_assert(sizeof(fc4_lotdev_tuning) == 172, "fc4_lotdev_tuning layout");
 _Static_assert(sizeof(fc4_lotdev_state) == 112, "fc4_lotdev_state layout");
-_Static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 176 * 4 : 16 + 176 * 8), "fc4_lotdev_host layout");
+_Static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 178 * 4 : 16 + 178 * 8), "fc4_lotdev_host layout");
 _Static_assert(sizeof(fc4_history_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_history_host layout");
 _Static_assert(sizeof(fc4_history_point) == 8, "fc4_history_point layout");
 _Static_assert(sizeof(fc4_history_state) == 28, "fc4_history_state layout");
