@@ -4456,7 +4456,14 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
   solver (network-geometry.md §8.2 outlines the follow-up spec: the three rule INI resources, type `0x0A5BCF4B`
   group `0xAA5BCF57` instances `0x10000000`–`0x10000002`, loaded once by `ReloadRules` `0x006253D0`, and the entry
   points). `IdentifyHighwayIntersections` (`0x0063B340`) is described there: it marks rule matches but returns its
-  `v` argument on every path, so **`0xF0000005` is never set** (quirk 7).
+  `v` argument on every path, so **`0xF0000005` is never set** (quirk 7). **ANSWERED 2026-10-16 (re-specs17b):**
+  MATCHES; the new spec [network-rules.md](network-rules.md) covers the rule resources and their grammars (§2–§3,
+  §8.1, §9, §10.1–§10.3), the `#Transmogrify` expansion (§4), matching (§5), `SolveUsingEvaluator` and
+  `ApplyNetworkRules` (§6), the edge subtypes (§7), multi-type intersections (§8.2), `AdjustTileSubsets` and
+  `VerifyTileSubsets` (§9), `cIntRule` `Test`, `DoAutoComplete`, `IdentifyHighwayIntersections` and
+  `InsertIsolatedHighwayIntersection` (§10), and what a piece id selects (§11). One addition to the outline:
+  `SolveNetwork` runs the evaluators of all 13 types, not only the tool's. New open questions NR1–NR5 (network-rules.md
+  §14).
 - ~~**NG6:** the readers of type info `+0x110` and of the p+0xA0 id list, and the source of road's support info.
   [only the flat-cell test is known]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES (network-geometry.md §2.3,
   §10.2). `+0x110` is written only by `0x0063D460` and never read. The p+0xA0 list is read only at `0x00636763`, for
@@ -4469,6 +4476,19 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
   (re-answers19):** **DIFFERS** from the premise: there is no swapped key. Every key in the function is
   `(z << 16) + x` (row loop `0x0062B4E1`; neighbour key `0x0062BA9A`–`0x0062BA9D`); the earlier reading came from
   the decompiler's variable naming. network-geometry.md §13.
+## From the network rules spec (re-specs17b lane, 2026-10-16)
+
+Spec: [network-rules.md](network-rules.md) §14. RE-side follow-ups; nothing here blocks an implementer of §2–§10.
+
+- **NR1:** the texture an ordinary piece id selects, and how the orientation byte turns it (network-rules.md §11).
+  [not specified]
+- **NR2:** the placement of intersection models (`InsertHighwayIntersectionPiece(s)`, `0x006276D0`, `0x0062C4B0`),
+  the rule's tile grid and map, `AutoTileBase`, `AutoPathBase` and the constraint layout's consumer (§10.3).
+  [not specified]
+- **NR3:** the exact `AddTypes` ring links (§10.8). [inferred: a second circular list through `+0xF4`/`+0xF8`]
+- **NR4:** `ResolveOneWayConflicts` and the preview's `SolveMultiTypeSeparation` (`0x00633FA0`). [not specified]
+- **NR5:** the order of several `[RuleOverrides]` patterns with the same first id (§9.1). [file order, inferred]
+
 ## From the traffic glue, phase 2: the traffic shadow (filed by the coordinator from the `traffic2` lane's report, 2026-10-15)
 
 About `docs/specs/traffic-simulator.md` and the same-process traffic shadow (`traffic_shadow = 1`; core
@@ -4878,3 +4898,23 @@ none of these readings has been checked in game. The current choice is in bracke
   power list ([choice] per §3.2). Does the original test each list's join condition instead of looking everywhere?
 - **PV13:** a scanner state byte above 2 in the record: what does the original do? No corpus record has one. [Read
   returns false and nothing changes]
+
+## From the network manager and network lot manager cores (filed by the coordinator from the `cores14c` lane's report, 2026-10-16; merged `9dad25e`)
+
+cores14c implemented network-manager.md as a Rust core (`engine/core/src/network_manager/`), a C ABI (`fc4_netmgr`,
+`fc4_netlot`, ABI 66) and conformance vectors (`nm16_*`, `nm00_*`). There is no plugin glue yet, so none of these
+readings has been checked in game. The current choice is in brackets.
+
+- **NM6:** §4.1, Read of component 53: "any failed ref read returns false at once". Does a null reference in the
+  saved list count as a failed read, or is it appended as a null entry? [a null reference is appended as a null entry
+  and counts as read; a reference that does not resolve fails the read at once, and the entries appended so far stay.
+  Core `manager.rs` read_record, vector `nm16_01`]
+- **NM7:** §7.10, the retrofit at PostCityInit: when the list is emptied (`0x00611A20`), is each entry released? Is
+  the list emptied even when no entry still asks for a retrofit? [every entry still asking goes to the host's retrofit
+  callback, then the list is always emptied and every entry released once (the reference taken at slot 23)]
+- **NM8:** §8.2, §8.4, §8.7: zone and wealth values outside the tables (zone outside 0..15, wealth outside 0..3, for
+  example from a corrupt zone grid). [a neighbour zone outside 0..15 never wins in GetZoneTypeForNetwork;
+  IsLotCompatible fails for such a zone or wealth; the road style tables give such a zone the "every other zone" rows]
+- **NM9:** §7.6, the underground refit: step 2 has no "if any" test, unlike §7.2. When dirty is not empty but holds no
+  pipe (or no subway), are tool 4 (or 7) Init, UpdateUndergroundOccupantTerrainHeights and Shutdown still called with
+  an empty list? [yes: both kinds always run when dirty is not empty (vector `nm16_10`)]

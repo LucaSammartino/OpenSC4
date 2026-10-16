@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "name": "net_choose_and_keep",
+  "spec": ["network-manager 6.2", "network-manager 8.5", "network-manager 8.6", "network-manager 8.7", "network-manager 17", "network-manager 16.18"],
+  "description": "A usable street (piece 0x100, rotation 0) at (10, 10) and two compatible configurations (1: every zone; 2: zone 0 only), each with a prop object (offset (3, 0, 5), field 9, candidates 0xA1, 0xA2) and a flora object (offset (8, 0, 8), candidate 0xF1). The usable message (0x89D3E9F3, data1 = 1) styles the road (zone 0, wealth 0: texture 0, variation 0), makes one lot draw (n = 2, answer 1: configuration 2), holds the piece and creates the objects with one draw each (prop 0xA1 at (173, 0, 171) orientation 0, slot 28 = 9; flora 0xF1 at (168, 0, 168), slot 28 = object index 1), then UpdateIntersection. UpdateRoadsInCell again: no draw, the same lot. Rezoning the west neighbour to R$ (0x07699455 over (9, 10)): the style becomes texture 0x08200000 (flags 0x6000000) variation 1, configuration 2 no longer fits, so the props and flora of the cell are removed and a new lot is chosen (n = 1: configuration 1). The usable-off message removes the lot and releases the piece.",
+  "steps": [
+    {"op": "net_config", "id": 1, "piece": "0x100", "objects": [
+      {"kind": "prop", "offset": [3, 0, 5], "field_24": 9, "ids": ["0xA1", "0xA2"]},
+      {"kind": "flora", "offset": [8, 0, 8], "ids": ["0xF1"]}]},
+    {"op": "net_config", "id": 2, "piece": "0x100", "zones": [0], "objects": [
+      {"kind": "prop", "offset": [3, 0, 5], "field_24": 9, "ids": ["0xA1", "0xA2"]},
+      {"kind": "flora", "offset": [8, 0, 8], "ids": ["0xF1"]}]},
+    {"op": "net_occupant", "occupant": "0x40", "flags": ["street", "usable"], "piece": "0x100", "cell": [10, 10]},
+    {"op": "net_create"},
+    {"op": "net_init", "of": "lots", "expect": true},
+    {"op": "net_expect_events", "filter": {"event": "subscribe"}, "events": [
+      {"type": "0x89D3E9F3"}, {"type": "0x99EF1143"}, {"type": "0xA9B6C2D6"}, {"type": "0x07699455"},
+      {"type": "0xE8BDA2E7"}, {"type": "0x69247DC8"}
+    ]},
+    {"op": "net_expect", "of": "lots", "state": {"initialized": true, "configs": [1, 2]}},
+    {"op": "net_env", "u32s": [1]},
+    {"op": "net_message", "of": "lots", "type": "UsableChanged", "data1": 1, "unknown": "0x40", "expect": true},
+    {"op": "net_expect_events", "events": [
+      {"event": "texture", "occupant": "0x40", "texture": 0},
+      {"event": "variation", "occupant": "0x40", "variation": 0},
+      {"event": "draw", "n": 2},
+      {"event": "draw", "n": 2},
+      {"event": "prop", "id": "0xA1", "pos": [173, 0, 171], "orientation": 0, "token": "0x5000"},
+      {"event": "prop28", "prop": "0x5000", "value": 9},
+      {"event": "draw", "n": 1},
+      {"event": "flora", "id": "0xF1", "pos": [168, 0, 168], "token": "0x5001"},
+      {"event": "flora28", "flora": "0x5001", "index": 1},
+      {"event": "intersection", "occupant": "0x40"}
+    ]},
+    {"op": "net_expect_lot", "cell": [10, 10], "state": {"occupant": "0x40", "config": 2, "locked": false}},
+    {"op": "net_expect_refs", "refs": {"0x40": 1}},
+
+    {"op": "net_call", "method": "update_roads_in_cell", "args": [10, 10]},
+    {"op": "net_expect_event_count", "filter": {"event": "draw"}, "count": 0},
+    {"op": "net_clear_events"},
+    {"op": "net_expect_lot", "cell": [10, 10], "state": {"occupant": "0x40", "config": 2}},
+
+    {"op": "net_zone", "cells": [[9, 10, 1]]},
+    {"op": "net_message", "of": "lots", "type": "ZoningChanged", "rect": [9, 10, 9, 10], "expect": true},
+    {"op": "net_expect_events", "events": [
+      {"event": "texture", "occupant": "0x40", "texture": "0x08200000"},
+      {"event": "set_flag", "occupant": "0x40", "bits": "0x6000000"},
+      {"event": "variation", "occupant": "0x40", "variation": 1},
+      {"event": "remove_props", "cell": [10, 10]},
+      {"event": "demolish_flora", "cell": [10, 10]},
+      {"event": "draw", "n": 1},
+      {"event": "draw", "n": 2},
+      {"event": "prop", "id": "0xA1", "pos": [173, 0, 171], "orientation": 0, "token": "0x5002"},
+      {"event": "prop28", "prop": "0x5002", "value": 9},
+      {"event": "draw", "n": 1},
+      {"event": "flora", "id": "0xF1", "pos": [168, 0, 168], "token": "0x5003"},
+      {"event": "flora28", "flora": "0x5003", "index": 1},
+      {"event": "intersection", "occupant": "0x40"}
+    ]},
+    {"op": "net_expect_lot", "cell": [10, 10], "state": {"occupant": "0x40", "config": 1}},
+    {"op": "net_expect", "of": "lots", "state": {"pending": [], "lot_count": 1}},
+    {"op": "net_expect_refs", "refs": {"0x40": 1}},
+
+    {"op": "net_message", "of": "lots", "type": "UsableChanged", "data1": 0, "unknown": "0x40", "expect": true},
+    {"op": "net_expect_events", "events": [
+      {"event": "remove_props", "cell": [10, 10]},
+      {"event": "demolish_flora", "cell": [10, 10]}
+    ]},
+    {"op": "net_expect_lot", "cell": [10, 10], "absent": true},
+    {"op": "net_expect_refs", "refs": {"0x40": 0}}
+  ]
+}

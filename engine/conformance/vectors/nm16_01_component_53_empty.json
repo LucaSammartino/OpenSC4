@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "net_component_53_empty",
+  "spec": ["network-manager 1", "network-manager 4.1", "network-manager 16.1"],
+  "description": "The network manager (class 0xC990BD46; QueryInterface 1, 0xA9764C8C, 0x452294AA, 0xE4FDA3D4) writes an empty managed list as u16 1 + u32 0. A record of version 2 reads false after the version (2 bytes); a stream already in error reads nothing. A null reference reads as a null entry (question NM6); a reference that does not resolve fails the read at once, keeping the entries appended so far.",
+  "steps": [
+    {"op": "net_create"},
+    {"op": "net_identity", "class": "0xC990BD46",
+      "iids": {"0x1": true, "0xA9764C8C": true, "0x452294AA": true, "0xE4FDA3D4": true, "0x89A5BA3F": false, "0x0": false}},
+    {"op": "net_write", "expect": true, "length": 6, "hex": "0100 00000000"},
+    {"op": "net_read", "hex": "0200 00000000", "expect": false, "position": 2},
+    {"op": "net_read", "hex": "0100 00000000", "error": true, "expect": false, "position": 0},
+    {"op": "net_read", "hex": "0100 00000000", "expect": true, "position": 6},
+    {"op": "net_expect", "state": {"managed": [], "initialized": false}},
+
+    {"op": "net_occupant", "occupant": "0x0A", "flags": ["road"], "managed": true},
+    {"op": "net_read", "hex": "0100 03000000 00000000 0A000000 94EF21A8 63000000 94EF21A8", "expect": false,
+      "note": "null, then 0x0A, then 0x63 which is no occupant"},
+    {"op": "net_expect", "state": {"managed": [null, "0x0A"]}},
+    {"op": "net_expect_refs", "refs": {"0x0A": 1, "0x63": 0}}
+  ]
+}
