@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "om18_05_insert_cells",
+  "spec": ["occupant-manager 4.2", "occupant-manager 5.1", "occupant-manager 18.5"],
+  "description": "A box x 100..164, z 0..64 is shrunk to 100.1..163.9 and 0.1..63.9: cells x 65..66, z 64; stored box (65, 64, 66, 64), not single (bit 0 = 0). A box 128..128.5 (width <= 1, not shrunk) is the single cell (66, 66), bit 0 = 1. A box x 63.9..64.5 (width 0.6, not shrunk) spans 64..65.",
+  "steps": [
+    {"op": "om_create"},
+    {"op": "om_call", "method": "set_city_size", "args": [1024, 1024], "expect": true},
+    {"op": "om_call", "method": "init", "expect": true},
+    {"op": "om_occupant", "occupant": "0x1", "min": [100, 0, 0], "max": [164, 10, 64]},
+    {"op": "om_call", "method": "insert", "occupant": "0x1", "data4": 0, "expect": true},
+    {"op": "om_expect_occupant", "occupant": "0x1", "state": {"om_box": [65, 64, 66, 64], "flags": 1}},
+    {"op": "om_expect_cell", "cell": [65, 64], "occupants": ["0x1"], "single": [false]},
+    {"op": "om_expect_cell", "cell": [66, 64], "occupants": ["0x1"], "single": [false]},
+    {"op": "om_expect_cell", "cell": [64, 64], "null": true},
+    {"op": "om_expect_cell", "cell": [67, 64], "null": true},
+    {"op": "om_occupant", "occupant": "0x2", "min": [128, 0, 128], "max": [128.5, 10, 128.5]},
+    {"op": "om_call", "method": "insert", "occupant": "0x2", "data4": 0, "expect": true},
+    {"op": "om_expect_occupant", "occupant": "0x2", "state": {"om_box": [66, 66, 66, 66]}},
+    {"op": "om_expect_cell", "cell": [66, 66], "occupants": ["0x2"], "single": [true]},
+    {"op": "om_occupant", "occupant": "0x3", "min": [63.9, 0, 10], "max": [64.5, 10, 10.5]},
+    {"op": "om_call", "method": "insert", "occupant": "0x3", "data4": 0, "expect": true},
+    {"op": "om_expect_occupant", "occupant": "0x3", "state": {"om_box": [64, 64, 65, 64]}},
+    {"op": "om_expect_cell", "cell": [64, 64], "occupants": ["0x3"], "single": [false]},
+    {"op": "om_expect_cell", "cell": [65, 64], "occupants": ["0x3", "0x1"], "single": [false, false]},
+    {"op": "om_expect", "state": {"holders": 4, "nodes": 5}}
+  ]
+}
