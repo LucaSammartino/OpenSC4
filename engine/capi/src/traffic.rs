@@ -433,6 +433,11 @@ pub struct fc4_traffic_host {
     pub drives_on_right: Option<unsafe extern "C" fn(U) -> bool>,
     pub view_cell_rect: Option<unsafe extern "C" fn(U, *mut fc4_cell_rect) -> bool>,
     pub create_accident: Option<unsafe extern "C" fn(U, i32, i32, i64)>,
+    // ---- ABI 61 ----
+    /// `CreateLineItem(line, false)`, `SetName(0x6A3FF01C, name)`, Income
+    /// when `income`; with `only_if_missing` nothing when the line exists
+    /// (traffic-simulator §9.1 TG7).
+    pub create_line_item: Option<unsafe extern "C" fn(U, u64, u32, u32, bool, bool)>,
 }
 
 const _: () = {
@@ -443,7 +448,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_traffic_switch_query>() == 20);
     assert!(std::mem::size_of::<fc4_traffic_ferry_route>() == 40);
     assert!(std::mem::size_of::<fc4_traffic_state>() == 360);
-    assert!(std::mem::size_of::<fc4_traffic_host>() == if p { 404 } else { 808 });
+    assert!(std::mem::size_of::<fc4_traffic_host>() == if p { 408 } else { 816 });
 };
 
 // ---- host adapter -----------------------------------------------------------------------------------
@@ -929,6 +934,20 @@ impl TrafficSimHost for CHost {
     fn release_department(&self, department: u64) {
         if department != 0 {
             cb!(self, release_department, (), department)
+        }
+    }
+    fn create_line_item(&self, department: u64, item: ts::dept::LineItem, only_if_missing: bool) {
+        if department != 0 {
+            cb!(
+                self,
+                create_line_item,
+                (),
+                department,
+                item.line,
+                item.name,
+                item.income,
+                only_if_missing
+            )
         }
     }
     fn department_funding(&self, department: u64) -> f32 {
