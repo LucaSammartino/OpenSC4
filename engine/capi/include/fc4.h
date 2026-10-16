@@ -135,10 +135,13 @@ extern "C" {
  *      removed (the core moves the objects, LD17), add_network_connection_nodes takes the nodes
  *      (fc4_lotdev_conn_node), lot_occupants, lot_configuration_object and occupant_moved appended (taken as
  *      71 on its lane; renumbered at merge);
- * 61 = adds the disaster layer's mirror tooling (fc4_disasters_set_mirror_random,
+ * 61 = traffic re-answers10 (traffic-simulator §9.1 TG7): fc4_traffic_host grows create_line_item at
+ *      its end (404 -> 408 bytes on 32-bit) (taken as 72 on its lane; renumbered at merge);
+ * 62 = adds the disaster layer's mirror tooling (fc4_disasters_set_mirror_random,
  *      fc4_disasters_get_location, fc4_disasters_riot_locked, fc4_disasters_fire_ids): the plugin's
- *      disasters_shadow (a same-process differential of the original layer). */
-#define FC4_ABI_VERSION 61u
+ *      disasters_shadow (a same-process differential of the original layer) (taken as 61 on its lane;
+ *      renumbered at merge). */
+#define FC4_ABI_VERSION 62u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -5589,6 +5592,13 @@ typedef struct fc4_traffic_host {
     bool (*drives_on_right)(void* user);
     bool (*view_cell_rect)(void* user, fc4_cell_rect* out);
     void (*create_accident)(void* user, int32_t x, int32_t z, int64_t duration_ms);
+    /* ABI 61 (traffic-simulator §9.1 TG7): CreateLineItem(line, false), SetName(0x6A3FF01C, name)
+     * and, when income, SetType(Income); with only_if_missing nothing when GetLineItem(line) is
+     * not null. create_department makes the department only (CreateDepartmentBudget(id,
+     * 0xAA369059), SetDepartmentName, SetMaxAllowedFundingPercentage); the core asks for its
+     * line items through this. */
+    void (*create_line_item)(void* user, uint64_t department, uint32_t line, uint32_t name, bool income,
+                             bool only_if_missing);
 } fc4_traffic_host;
 
 /* QueryInterface(iid) (§1): 1, 0x68027F37, 0x452294AA, 0xE4FDA3D4. */
@@ -7259,7 +7269,7 @@ bool fc4_disasters_get_fire(const fc4_disasters* d, size_t index, fc4_disaster_f
 bool fc4_disasters_get_instance(const fc4_disasters* d, uint32_t instance, fc4_disaster_instance* out);
 /* Returns the number of leaders (0 for no such riot); copies at most `capacity`. */
 size_t fc4_disasters_riot_leaders(const fc4_disasters* d, uint32_t instance, fc4_riot_leader* out, size_t capacity);
-/* Mirror tooling (61; the plugin's disasters_shadow, not spec behaviour). set_mirror_random: the
+/* Mirror tooling (62; the plugin's disasters_shadow, not spec behaviour). set_mirror_random: the
  * fire, riot, earthquake and pipe-burst generators become deterministic (new fire IDs count from
  * 0x80000001; uniform_u32 0; uniform 1.0, so a fire never spreads by itself; range(a, b) b;
  * gaussian(a, b) a): a core that mirrors the original makes no random decision of its own. */

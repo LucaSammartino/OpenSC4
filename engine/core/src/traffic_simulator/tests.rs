@@ -112,6 +112,8 @@ struct World {
     accidents: RefCell<Vec<(i32, i32, i64)>>,
     refs: RefCell<HashMap<u64, i32>>,
     released_departments: RefCell<Vec<u64>>,
+    /// `create_line_item` calls (department, item, only if missing) (TG7).
+    line_items: RefCell<Vec<(u64, dept::LineItem, bool)>>,
     occs: RefCell<HashMap<u64, Occ>>,
     /// `UpdateRoadsBudget` (false) / `UpdateMassTransitBudget` (true) calls
     /// with the cell counts they priced.
@@ -409,6 +411,9 @@ impl TrafficSimHost for World {
     }
     fn release_department(&self, department: u64) {
         self.released_departments.borrow_mut().push(department);
+    }
+    fn create_line_item(&self, department: u64, item: dept::LineItem, only_if_missing: bool) {
+        self.line_items.borrow_mut().push((department, item, only_if_missing));
     }
     /// Fixture stand-in (TS34): an unset department is at 100 % funding,
     /// as a department `CreateDepartmentBudget` makes (budget.md §6).
@@ -1441,6 +1446,61 @@ fn r24f(v: f64) -> f32 {
     crate::x87::r24(f64::from(v as f32)) as f32
 }
 
+/// §9.1 TG7: a department made at Init gets its line items 1-3 (mass-transit
+/// line 2 Income); then, on every Init, lines 4-6 of both when missing, in
+/// the original's order (roads 5, the tolls, Income). A department a `Read`
+/// resolved is not created again: only the conditional lines are asked for.
+#[test]
+fn tg7_department_line_items() {
+    let w = World::new();
+    let s = sim(&w);
+    let (r, m) = (DEPT_BASE, DEPT_BASE + 1);
+    let mut want: Vec<(u64, dept::LineItem, bool)> = dept::ROADS_LINES.iter().map(|&i| (r, i, false)).collect();
+    want.extend(dept::MASS_TRANSIT_LINES.iter().map(|&i| (m, i, false)));
+    want.extend(
+        dept::INIT_LINES
+            .iter()
+            .map(|&(mt, i)| (if mt { m } else { r }, i, true)),
+    );
+    assert_eq!(*w.line_items.borrow(), want);
+    let order: Vec<(u64, u32, u32, bool)> = w.line_items.borrow()[6..]
+        .iter()
+        .map(|&(d, i, _)| (d, i.line, i.name, i.income))
+        .collect();
+    assert_eq!(
+        order,
+        vec![
+            (m, 4, 0x2AB7_EA93, false),
+            (m, 5, 0x8BCE_33E0, false),
+            (r, 4, 0xCBCE_33D5, false),
+            (m, 6, 0x8BCE_33E1, false),
+            (r, 5, 0x0C3B_F3C4, true),
+            (r, 6, 0xEA5F_96E7, false),
+        ]
+    );
+    let income: Vec<(u64, u32)> = w.line_items.borrow()[..6]
+        .iter()
+        .filter(|e| e.1.income)
+        .map(|e| (e.0, e.1.line))
+        .collect();
+    assert_eq!(income, vec![(m, 2)]);
+    assert_eq!((dept::GROUP, dept::NAME_GROUP), (0xAA36_9059, 0x6A3F_F01C));
+    // A load: Read before Init keeps the saved departments.
+    let (bytes, entries) = record(&s);
+    let w2 = World::new();
+    w2.dept_base.set(0xE000);
+    let s2 = TrafficSimulator::new(w2.clone(), 0);
+    let mut res = Resolver(entries, w2.clone());
+    assert!(s2.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+    assert!(s2.init());
+    assert!(w2.departments.borrow().is_empty());
+    let loaded: Vec<(u64, dept::LineItem, bool)> = dept::INIT_LINES
+        .iter()
+        .map(|&(mt, i)| (if mt { m } else { r }, i, true))
+        .collect();
+    assert_eq!(*w2.line_items.borrow(), loaded);
+}
+
 /// §1: Init registers the agents and the subscriptions in order, and
 /// creates the grids.
 #[test]
@@ -2273,6 +2333,44 @@ fn ts20_confirm_trips_live_lots() {
     // 78 came after the snapshot: the phase is done.
     assert!(step(&s).0);
     assert_eq!(s.cycle_state(), cycle_state::REROUTE_TRIPS);
+}
+
+/// §9.1 TG19: the connection snapshot of `Reset` holds a counted reference
+/// on each connection; one removed during the phase is still visited, and
+/// the next `Reset` (and Shutdown) gives the references back.
+#[test]
+fn tg19_connection_snapshot_references() {
+    let w = World::new();
+    for (id, cell, holder) in [(77u64, (-1, 5), 70u64), (78, (8, 2), 71)] {
+        w.conns.borrow_mut().push((
+            id,
+            Conn {
+                cell,
+                holder,
+                ..Conn::default()
+            },
+        ));
+    }
+    let refs = |t: u64| w.refs.borrow().get(&t).copied().unwrap_or(0);
+    let s = sim(&w);
+    s.set_traffic_units_per_slice(1);
+    s.enter_cycle_state(cycle_state::CONFIRM_TRIPS);
+    assert_eq!((refs(77), refs(78)), (1, 1));
+    // 78 leaves the city after the snapshot: still visited.
+    w.conns.borrow_mut().retain(|(id, _)| *id != 78);
+    let step = |s: &TrafficSimulator| {
+        let done = s.work_on_sim_cycle();
+        (done, s.read_state(|st| st.extras.phase_positions))
+    };
+    assert_eq!(step(&s), (false, [-1, 5]));
+    // 78 is taken (the fixture no longer knows its cell: (0, 0)).
+    assert_eq!(step(&s), (false, [0, 0]));
+    assert!(step(&s).0);
+    // The next Reset (entering 17): 78's reference given back.
+    assert_eq!(s.cycle_state(), cycle_state::REROUTE_TRIPS);
+    assert_eq!((refs(77), refs(78)), (1, 0));
+    assert!(s.shutdown());
+    assert_eq!((refs(77), refs(78)), (0, 0));
 }
 
 /// §3.5 (TS7): DoPostCityInit registers the connections, sweeps the pools,
