@@ -102,10 +102,7 @@ pub enum ComponentState {
     /// sequences, sounds, cameras, attractors and models. §7 still counts
     /// those whose ignore bit is clear, so the active flag is modelled and
     /// driven by `Start`/`Stop`. Animations stay stubbed.
-    Stub {
-        kind: u8,
-        active: bool,
-    },
+    Stub { kind: u8, active: bool },
 }
 
 /// One runtime component record (§7: `0x44` bytes, `+0x40` the flags).
@@ -126,10 +123,7 @@ impl RuntimeComponent {
         RuntimeComponent {
             desc,
             flags,
-            state: ComponentState::Stub {
-                kind: 0,
-                active: false,
-            },
+            state: ComponentState::Stub { kind: 0, active: false },
         }
     }
 
@@ -143,9 +137,7 @@ impl RuntimeComponent {
         match &self.state {
             ComponentState::Brush(b) => b.is_active(),
             ComponentState::Game(g) => g.is_active(),
-            ComponentState::Meta {
-                child_started, ..
-            } => *child_started,
+            ComponentState::Meta { child_started, .. } => *child_started,
             ComponentState::Stub { active, .. } => *active,
         }
     }
@@ -226,8 +218,13 @@ impl VisualEffect {
 
     /// One draw-pass sweep of this effect (§7).
     pub fn sweep(&self) -> SweepResult {
-        self.as_rule()
-            .sweep(&self.components.iter().map(RuntimeComponent::as_rule).collect::<Vec<_>>())
+        self.as_rule().sweep(
+            &self
+                .components
+                .iter()
+                .map(RuntimeComponent::as_rule)
+                .collect::<Vec<_>>(),
+        )
     }
 }
 
@@ -393,11 +390,7 @@ impl EffectsManager {
                     // §4.1 step 3.3: the call still succeeds with index −1.
                     Found::BelowPriority | Found::NoSuchName => -1,
                 };
-                let flags = self
-                    .directory
-                    .description(index)
-                    .map(|d| d.flags)
-                    .unwrap_or(0);
+                let flags = self.directory.description(index).map(|d| d.flags).unwrap_or(0);
                 let id = self.alloc(VisualEffect::new(lower, index, flags));
                 self.activate_new(host, random);
                 Some(id)
@@ -455,7 +448,7 @@ impl EffectsManager {
             if self.pending.is_empty() {
                 return;
             }
-            let batch: Vec<EffectId> = self.pending.drain(..).collect();
+            let batch: Vec<EffectId> = std::mem::take(&mut self.pending);
             for id in batch {
                 self.active.push(id);
                 self.build_components(id, StartMode::Normal, host, random);
@@ -611,10 +604,7 @@ impl EffectsManager {
                 child: EffectId::MAX,
                 child_started: false,
             },
-            kind => ComponentState::Stub {
-                kind,
-                active: false,
-            },
+            kind => ComponentState::Stub { kind, active: false },
         }
     }
 
@@ -653,9 +643,7 @@ impl EffectsManager {
 
     fn start_component_static(c: &mut RuntimeComponent, _mode: StartMode, host: &dyn EffectsHost) {
         match &mut c.state {
-            ComponentState::Meta {
-                child_started, ..
-            } => {
+            ComponentState::Meta { child_started, .. } => {
                 // §11.2: a meta component's slot 0 is the child visual
                 // effect's `Start`. The child is started by
                 // [`EffectsManager::start`], which owns the arena.
@@ -675,9 +663,6 @@ impl EffectsManager {
                 }
             }
             ComponentState::Stub { active, .. } => *active = true,
-            ComponentState::Meta {
-                child_started, ..
-            } => *child_started = true,
         }
     }
 
@@ -709,9 +694,7 @@ impl EffectsManager {
                     }
                 }
                 ComponentState::Stub { active, .. } => *active = false,
-                ComponentState::Meta {
-                    child_started, ..
-                } => *child_started = false,
+                ComponentState::Meta { child_started, .. } => *child_started = false,
             }
         }
         if mode != 0 {
@@ -766,13 +749,7 @@ impl EffectsManager {
     /// §6 step 3.3: update the effect's components, in component order, whose
     /// `IsActive` is true. A brush or game component therefore acts only inside
     /// this tick, and only while both it and its effect are active.
-    fn update_effect(
-        &mut self,
-        id: EffectId,
-        dt: f32,
-        host: &mut dyn EffectsHost,
-        random: &mut dyn EffectsRandom,
-    ) {
+    fn update_effect(&mut self, id: EffectId, dt: f32, host: &mut dyn EffectsHost, random: &mut dyn EffectsRandom) {
         let Some(e) = self.effects[id as usize].as_mut() else {
             return;
         };
@@ -913,8 +890,7 @@ impl EffectsManager {
 
     /// Slot 17 `TestFlag(n)`, n ≤ 8 (§11.1).
     pub fn test_flag(&self, id: EffectId, bit: u32) -> bool {
-        self.effect(id)
-            .is_some_and(|e| bit < 8 && e.flags & (1u32 << bit) != 0)
+        self.effect(id).is_some_and(|e| bit < 8 && e.flags & (1u32 << bit) != 0)
     }
 
     /// Slot 5 `IsStarted` / slot 6 `IsStopping` (§11.1).
@@ -929,11 +905,7 @@ impl EffectsManager {
 
     /// `UpdateActiveVisualEffects` (§5.2), on a zoom change or
     /// `kSC4MessagePostAppServicesInitComplete`.
-    pub fn update_active(
-        &mut self,
-        _host: &mut dyn EffectsHost,
-        _random: &mut dyn EffectsRandom,
-    ) {
+    pub fn update_active(&mut self, _host: &mut dyn EffectsHost, _random: &mut dyn EffectsRandom) {
         // Component membership is recomputed on the next build. The shipped
         // data still exercises this path through the LOD window (§5.2).
     }

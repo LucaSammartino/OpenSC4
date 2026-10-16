@@ -35,10 +35,7 @@ pub struct SelectPlacement {
 
 impl SelectPlacement {
     /// A component that is always created (group 0).
-    pub const ALWAYS: SelectPlacement = SelectPlacement {
-        group: 0,
-        weight: 0,
-    };
+    pub const ALWAYS: SelectPlacement = SelectPlacement { group: 0, weight: 0 };
 
     /// A member of select group `group` with the given weight.
     pub const fn member(group: u16, weight: u16) -> SelectPlacement {
@@ -134,10 +131,7 @@ mod tests {
 
         // volcano_control's nine meta creators, weights 7281 x 8 and 7287.
         let weights = [7281u16, 7281, 7281, 7281, 7281, 7281, 7281, 7281, 7287];
-        let placements: Vec<SelectPlacement> = weights
-            .iter()
-            .map(|&w| SelectPlacement::member(1, w))
-            .collect();
+        let placements: Vec<SelectPlacement> = weights.iter().map(|&w| SelectPlacement::member(1, w)).collect();
         let created = select_components(&placements, || 43750);
         assert_eq!(
             created.iter().filter(|&&c| c).count(),
@@ -152,17 +146,8 @@ mod tests {
     #[test]
     fn the_next_five_draws_pick_the_measured_members() {
         let weights = [7281u16, 7281, 7281, 7281, 7281, 7281, 7281, 7281, 7287];
-        let placements: Vec<SelectPlacement> = weights
-            .iter()
-            .map(|&w| SelectPlacement::member(1, w))
-            .collect();
-        for (r, one_based) in [
-            (24188u32, 4usize),
-            (47502, 7),
-            (45072, 7),
-            (37594, 6),
-            (53135, 8),
-        ] {
+        let placements: Vec<SelectPlacement> = weights.iter().map(|&w| SelectPlacement::member(1, w)).collect();
+        for (r, one_based) in [(24188u32, 4usize), (47502, 7), (45072, 7), (37594, 6), (53135, 8)] {
             let created = select_components(&placements, || r);
             let chosen: Vec<usize> = created
                 .iter()

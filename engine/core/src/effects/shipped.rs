@@ -826,7 +826,10 @@ mod tests {
         let message = GAME_RECORDS.iter().filter(|g| g.message_type != 0).count();
         let toxic = GAME_RECORDS.iter().filter(|g| g.toxic_amount > 0).count();
         let extinguish = GAME_RECORDS.iter().filter(|g| g.extinguish_amount > 0).count();
-        let single = GAME_RECORDS.iter().filter(|g| g.flags & game_flags::SINGLE != 0).count();
+        let single = GAME_RECORDS
+            .iter()
+            .filter(|g| g.flags & game_flags::SINGLE != 0)
+            .count();
 
         assert_eq!(demolish, 30, "records that demolish");
         assert_eq!(burn, 28, "records that burn");

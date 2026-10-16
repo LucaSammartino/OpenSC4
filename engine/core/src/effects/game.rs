@@ -335,7 +335,10 @@ mod tests {
 
         let a = g.update(0.1, CITY);
         assert_eq!(g.count, 1, "applies on its first update");
-        assert!(a.actions.iter().any(|x| matches!(x, GameAction::Burn { radius: 2, .. })));
+        assert!(a
+            .actions
+            .iter()
+            .any(|x| matches!(x, GameAction::Burn { radius: 2, .. })));
 
         // Still in the same cell: nothing.
         g.set_position(17.0, 17.0);
@@ -410,7 +413,11 @@ mod tests {
         let u = g.update(1.0, CITY);
         assert_eq!(g.timer, 6.0);
         assert!(!g.is_active(), "at timer = 6 > 5 it stops");
-        assert_eq!(u.undo_pauses, vec![PauseAction::HiddenResume], "Stop(0) undoes the pause");
+        assert_eq!(
+            u.undo_pauses,
+            vec![PauseAction::HiddenResume],
+            "Stop(0) undoes the pause"
+        );
 
         assert!(!g.stop(), "a second Stop does nothing");
     }
@@ -425,8 +432,23 @@ mod tests {
         assert!(g.start());
 
         let a = g.update(0.1, CITY);
-        assert!(a.actions.iter().any(|x| matches!(x, GameAction::Demolish { x0: 0, z0: 0, x1: 10, z1: 10, .. })), "the rect is clipped to the city");
-        assert!(a.undo_pauses.is_empty(), "quirk 5: the single path never undoes its pauses");
+        assert!(
+            a.actions.iter().any(|x| matches!(
+                x,
+                GameAction::Demolish {
+                    x0: 0,
+                    z0: 0,
+                    x1: 10,
+                    z1: 10,
+                    ..
+                }
+            )),
+            "the rect is clipped to the city"
+        );
+        assert!(
+            a.undo_pauses.is_empty(),
+            "quirk 5: the single path never undoes its pauses"
+        );
         assert!(!g.is_active(), "started := 0 inside Update");
         assert_eq!(g.count, 0, "the single path does not count its apply");
         assert!(g.update(0.1, CITY).actions.is_empty(), "it never applies again");

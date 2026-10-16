@@ -486,11 +486,7 @@ pub(crate) fn read_game_description(r: &mut Reader) -> Result<GameDescription> {
     let map_params = [r.f32()?, r.f32()?, r.f32()?, r.f32()?];
     let duration = r.f32()?;
     // Only when the version is above 0: `+0x28` and `+0x2C` close the record.
-    let (toxic_amount, extinguish_amount) = if version > 0 {
-        (r.u32()?, r.u32()?)
-    } else {
-        (0, 0)
-    };
+    let (toxic_amount, extinguish_amount) = if version > 0 { (r.u32()?, r.u32()?) } else { (0, 0) };
     Ok(GameDescription {
         version,
         flags,

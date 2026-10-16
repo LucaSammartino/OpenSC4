@@ -7,11 +7,11 @@
 //! The effects manager's tests (`docs/specs/effects.md` §17).
 
 use super::brush::{BrushParams, EffectsRandom};
+use super::component_type;
 use super::directory::{ComponentDesc, EffectDesc, EffectDirectory, NameEntry};
 use super::game::{GameAction, GameEffect, PauseAction};
 use super::manager::{EffectsHost, EffectsManager, StartMode};
 use super::shipped::{self, GameRecord};
-use super::component_type;
 
 /// `EffectsHost` needs `&self` for `post`, so the log is behind a cell.
 use std::cell::RefCell;
@@ -464,7 +464,7 @@ fn components_follow_the_level_of_detail() {
     assert_eq!(m.effect(id).unwrap().components[0].desc.kind, component_type::BRUSH);
 
     m.set_zoom(3, &mut host, &mut random); // LOD 4
-    // set_zoom rebuilds through UpdateActiveVisualEffects; rebuild explicitly.
+                                           // set_zoom rebuilds through UpdateActiveVisualEffects; rebuild explicitly.
     m.build_components_for_test(id, &mut host, &mut random);
     assert_eq!(m.effect(id).unwrap().components.len(), 1);
     assert_eq!(m.effect(id).unwrap().components[0].desc.kind, component_type::GAME);

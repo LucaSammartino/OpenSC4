@@ -182,7 +182,7 @@ impl EffectDirectory {
                 continue;
             }
             // Strictly greater, so the first met in the name map wins a tie.
-            if best.is_none_or(|(bp, _)| p > bp) {
+            if best.map_or(true, |(bp, _)| p > bp) {
                 best = Some((p, index));
             }
         }
@@ -322,7 +322,10 @@ mod tests {
         for (min, max, count) in not_full {
             let c = component(component_type::PARTICLES, min, max);
             assert!(!c.reaches_table(), "{count} components have [{min}, {max})");
-            assert!(!c.exists_at(1) || !c.exists_at(5) || min == 5, "[{min}, {max}) varies with zoom");
+            assert!(
+                !c.exists_at(1) || !c.exists_at(5) || min == 5,
+                "[{min}, {max}) varies with zoom"
+            );
         }
         // The claim the simulation depends on.
         for kind in [component_type::BRUSH, component_type::GAME] {

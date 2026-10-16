@@ -58,11 +58,7 @@ pub fn floor_count(acc: f32) -> u32 {
     if rounded <= 0 {
         return 0;
     }
-    let stepped = if (rounded as f32) > acc {
-        rounded - 1
-    } else {
-        rounded
-    };
+    let stepped = if (rounded as f32) > acc { rounded - 1 } else { rounded };
     if stepped <= 0 {
         0
     } else {
@@ -116,10 +112,8 @@ impl BrushEffect {
     /// generator** (§14 quirk 7).
     pub fn new(record: BrushRecord, random: &mut dyn EffectsRandom) -> BrushEffect {
         let strength = random.range_f64(f64::from(record.strength[0]), f64::from(record.strength[1])) as f32;
-        let radius_scale = random.range_f64(
-            f64::from(record.radius_scale[0]),
-            f64::from(record.radius_scale[1]),
-        ) as f32;
+        let radius_scale =
+            random.range_f64(f64::from(record.radius_scale[0]), f64::from(record.radius_scale[1])) as f32;
         BrushEffect {
             record,
             strength,
@@ -202,7 +196,7 @@ impl BrushEffect {
     ///
     /// Returns the number of `ApplyBrush` calls to make.
     pub fn update_stroke(&mut self, dt: f32) -> u32 {
-        self.acc = r24(f64::from(r24(f64::from(dt) * f64::from(self.record.rate))) + f64::from(self.acc)) as f32;
+        self.acc = r24(r24(f64::from(dt) * f64::from(self.record.rate)) + f64::from(self.acc)) as f32;
         self.t = r24(f64::from(dt) + f64::from(self.t)) as f32;
         let n = floor_count(self.acc);
         self.acc = r24(f64::from(self.acc) - f64::from(n)) as f32;
@@ -327,7 +321,11 @@ mod tests {
         assert_eq!(ticks, 91, "the stroke ends after 91 ticks");
         assert_eq!(total, 90, "90 applications");
         assert!((b.t - 3.0333).abs() < 1e-3, "t = {}, expected 3.0333", b.t);
-        assert!((b.acc - 0.99909).abs() < 1e-4, "leftover acc = {}, expected 0.99909", b.acc);
+        assert!(
+            (b.acc - 0.99909).abs() < 1e-4,
+            "leftover acc = {}, expected 0.99909",
+            b.acc
+        );
     }
 
     /// §17 test 2: the same at dilation 1.5. `dt' = trunc(49999.5) = 49999`,
