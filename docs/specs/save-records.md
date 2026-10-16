@@ -356,9 +356,9 @@ u32
 4 × s32
 3 × D u32      a 3 × D table, row-major; Read zero-fills each row to 9
 u8, u8
-s32 processed, s32
+s32 processed, s32 dayIndex                  (corrected: dayIndex is this s32; traffic-simulator §6.1, TS60)
 s32 total                                    only if v ≥ 25
-u32 days, u32 dayIndex, u32, u32
+u32 days, u32, u32, u32                      (the three u32 are never used, only saved and loaded)
 3 × s32 (passTotal, toReRoute, toSearch)     only if v ≥ 25
 4 × u32        pass counters 0…3             only if v ≥ 25
 6 × u32        pass counters 4…9             only if v ≥ 40, else 0
@@ -373,7 +373,8 @@ A × u32        cells per network type        Read zero-fills to 13
 u32   n (4)    then n × u32 freeDest[k]      Read fills missing entries with 0xFFFFFFFF up to 4
 u32   n        property-holder map
 n × { u16 key; plain property holder record (foundations §10.2) }
-D × { u32 a[i]; u32 b[i] }                   only if v ≥ 27; the two per-travel-type vectors, interleaved
+D × { u32 a[i]; u32 b[i] }                   only if v ≥ 27; the two per-travel-type vectors, interleaved:
+                                             a = published, b = building (traffic-simulator §6.1, TS56)
 u32            ferry total                   only if v ≥ 39
 u32   n        ferry terminals               only if v ≥ 30
 n × ferry terminal (below)
