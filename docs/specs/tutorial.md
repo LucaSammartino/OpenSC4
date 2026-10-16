@@ -97,9 +97,12 @@ Is-tutorial is set by `startTutorial` and by `Read`, and cleared by `endTutorial
 
 ### 4.2 Starting and ending
 
-- **`startTutorial`** (slot 5, `0x0043F080`): when there is no tutorial window, create one (100 bytes), take a
-  reference and initialise it. Then is-tutorial := 1, end-pending := 0, and tell the registry that the GUID is
-  active (`SetActive(GUID, true)`, `0x004B5D80`). AL is whatever the registry call left *[quirk]*.
+- **`startTutorial`** (slot 5, `0x0043F080`): when there is no tutorial window, create one (100 bytes,
+  constructor `0x00442920`), take **two** references and initialise it. The two `AddRef`s are the one in the
+  "replace the old window" step and the one just before `Init`; with no old window to release, the count ends at
+  2. Then is-tutorial := 1, end-pending := 0, and tell the registry that the GUID is active
+  (`SetActive(GUID, true)`, `0x004B5D80`, through `cISC4App` slot 49 on the global `0x00B43C94`). AL is whatever
+  the registry call left *[quirk]*.
 - **`endTutorial(endRegistry)`** (slot 6, `0x0043F110`): when a window exists, close it, release it and clear
   +0x40. When `endRegistry`, tell the registry the GUID is inactive. Call the 3D view (global `0x00B43DC4`, when
   present) slots 60 and 59 (restore the camera controls *[inferred]*). Then is-tutorial := 0 and end-pending :=
@@ -131,6 +134,17 @@ Is-tutorial is set by `startTutorial` and by `Read`, and cleared by `endTutorial
 
 Is-tutorial, end-pending, the task number, the GUID and the registry are not touched, so a later save of the same
 object would still write is-tutorial.
+
+**Verified complete (re-answers29, 2026-10-16).** The three steps above match `0x0043F330` exactly, in that order,
+with the two details an implementer must not "tidy up":
+- the window teardown is **close, release, clear `+0x40`, release again** — the two releases are the two
+  references `startTutorial` took (§4.2), so a replacement that releases once leaks one reference;
+- the cheat unregistration runs whenever the cheat manager exists, **without** repeating the `cISC4App` slot 21
+  test that `Init` uses to decide whether to register. So `Shutdown` can unregister a cheat that was never
+  registered.
+
+`Shutdown` returns true and has no initialised flag, so calling it twice repeats all three steps. Test 7 covers
+the happy path; an apply lane can implement §4.3 as written.
 
 ### 4.4 Other slots (UI)
 
