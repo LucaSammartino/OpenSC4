@@ -126,16 +126,21 @@ def current_branch():
 
 
 def queue_files():
-    """Every merge-queue file: the coordinator's own build-runs/ plus each lane worktree's."""
+    """Every merge-queue file: the coordinator's own build-runs/ plus each lane worktree's.
+
+    Files renamed to `<lane>.merged.json` when a batch lands are done and must never be picked up again.
+    """
     files = []
-    for d in QUEUE_DIRS:
+
+    def collect(d):
         if d.is_dir():
-            files.extend(sorted(d.glob("*.json")))
+            files.extend(sorted(f for f in d.glob("*.json") if not f.name.endswith(".merged.json")))
+
+    for d in QUEUE_DIRS:
+        collect(d)
     if WT_ROOT.is_dir():
         for wt in sorted(WT_ROOT.iterdir()):
-            d = wt / "build-runs" / "merge-queue"
-            if d.is_dir():
-                files.extend(sorted(d.glob("*.json")))
+            collect(wt / "build-runs" / "merge-queue")
     return files
 
 
