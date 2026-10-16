@@ -28,6 +28,7 @@
 #include "FC4RouteDeque.h"
 #include "FC4SafeLotIterator.h"
 #include "FC4Streams.h"
+#include "FC4TrafficCostLogic.h"
 #include "cFC4Message2Standard.h"
 #include "cFC4Neighbors.h"
 #include "cFC4ZoneDeveloper.h"
@@ -88,6 +89,9 @@
 #include <vector>
 
 using fc4::FromToken;
+using fc4::NetworkPrice;
+using fc4::NetworkPriceOne;
+using fc4::NetworkPriceSum;
 using fc4::TokenOf;
 using fc4::Sw;
 namespace compat = fc4::compat;
@@ -148,6 +152,9 @@ constexpr uint32_t kTrafficDepartmentGroup = 0xAA369059;
 constexpr uint32_t kTrafficNameGroup = 0x6A3FF01C;
 constexpr uint32_t kRoadsDepartmentName = 0x4A493B73;
 constexpr uint32_t kMassTransitDepartmentName = 0xEA493B83;
+// [TG23] the name of the mass transit line item 3 (`0x6A8B0CFB`, §4.9.1),
+// SetName'd when UpdateMassTransitBudget creates the item itself.
+constexpr uint32_t kMassTransitRailLineName = 0x6A8B0CFB;
 
 // Test seam op 42: a callback of the test table answers instead of the game.
 #define TRAFFIC_TEST(name, ...)                                                             \
@@ -551,6 +558,86 @@ void SetLineItemIncome(void* u, uint64_t dept, uint32_t item, int64_t income) {
     if (dept == 0 || !Gate(Sw::TrafficBudget, "traffic line item SetIncome")) return;
     cISC4LineItem* li = DeptOf(dept)->GetLineItem(item);
     if (li != nullptr) li->SetIncome(income);
+}
+
+// ---- network costs (TG23) ---------------------------------------------------------------------------------
+
+// [TG23] traffic-simulator.md §4.9.1 (re-answers21): `UpdateRoadsBudget`
+// (`0x0070D8A0`) and `UpdateMassTransitBudget` (`0x0070DA40`) price the
+// per-network-type counts with the per-tile costs and **set** (never add to)
+// the full expenses of fixed line items of the simulator's own departments,
+// through `SetFullExpenses` (cISC4LineItem slot 12, `+0x30`, `0x006A9A00`;
+// the int64 is pushed as two dwords). `AddToFullExpenses` (slot 13) is not
+// used. Every call rewrites every line item below: the functions keep no
+// "previous value" and have no early return. The pricing itself is
+// FC4TrafficCostLogic.h (shared with the unit test).
+//
+// Writing: `department.GetLineItem(i)` (cISC4DepartmentBudget slot 20,
+// `+0x50`, `0x006AA500`, borrowed pointer or null), then
+// `lineItem.SetFullExpenses(v)` (cISC4LineItem slot 12, `+0x30`,
+// `0x006A9A00`; the int64 `v` is pushed as two dwords). SetFullExpenses'
+// own return channel is `unknown` in interfaces.tsv, so its result is not
+// read.
+void UpdateNetworkCosts(void* u, uint64_t department, bool massTransit, const uint32_t* cells13,
+                        const float* tileCosts13) {
+    TRAFFIC_TEST(update_network_costs, department, massTransit, cells13, tileCosts13);
+    if (department == 0 || cells13 == nullptr || tileCosts13 == nullptr) return;
+    if (!Gate(Sw::TrafficBudget, "traffic network costs (none)")) return;
+    cFC4ISC4DepartmentBudget* g = DeptOf(department);
+    if (g == nullptr) return;
+
+    // [TG23] The type indices: Road 0, Rail 1, Highway 2, Street 3, Avenue 6,
+    // Subway 7, LightRail 8, Monorail 9, OneWayRoad 10, GroundHighway 12.
+    // Types 4, 5 and 11 (DirtRoad) are priced by neither function.
+    struct Line {
+        uint32_t item;
+        uint64_t v;
+    };
+    if (!massTransit) {
+        // [TG23] UpdateRoadsBudget, roads department 0xC921CEEA, in table
+        // order. Items 5 (tolls, Income) and 6 are not touched. No line item
+        // is null-checked: Init creates items 1–4 (§9.1 TG7), and the original
+        // would fault on a missing one.
+        const Line lines[4] = {
+            {2, NetworkPriceSum(0, 10, cells13, tileCosts13)},  // Road + OneWayRoad
+            {1, NetworkPriceOne(3, cells13, tileCosts13)},      // Street
+            {3, NetworkPriceSum(2, 12, cells13, tileCosts13)},  // Highway + GroundHighway
+            {4, NetworkPriceOne(6, cells13, tileCosts13)},      // Avenue
+        };
+        for (const Line& l : lines) {
+            cISC4LineItem* li = g->GetLineItem(l.item);  // borrowed
+            if (li != nullptr) li->SetFullExpenses(static_cast<int64_t>(l.v));
+        }
+        return;
+    }
+
+    // [TG23] UpdateMassTransitBudget, mass transit department 0xC921CEEB, in
+    // table order. Item 3 alone is null-checked: when GetLineItem(3) returns
+    // null it is created on the spot with CreateLineItem(3, false) (slot 17,
+    // `+0x44`) and named SetName(0x6A3FF01C, 0x6A8B0CFB)
+    // (`0x0070DA8A`–`0x0070DAAA`), then priced. Items 4–6 are not checked.
+    // Items 1 (`0xEA5F96E7`) and 2 (the Income line `0x8A5F978C`) are not
+    // touched.
+    cISC4LineItem* li3 = g->GetLineItem(3);  // borrowed
+    if (li3 == nullptr) {
+        li3 = g->CreateLineItem(3, false);  // borrowed
+        if (li3 != nullptr) {
+            li3->SetName(kTrafficNameGroup, kMassTransitRailLineName);
+            ++Ctx(u)->lineItems;
+        }
+    }
+    // Rail (type 1) prices item 3, whether or not this call made it.
+    const uint64_t rail = NetworkPriceOne(1, cells13, tileCosts13);
+    if (li3 != nullptr) li3->SetFullExpenses(static_cast<int64_t>(rail));
+    const Line lines[3] = {
+        {4, NetworkPriceOne(7, cells13, tileCosts13)},  // Subway
+        {5, NetworkPriceOne(8, cells13, tileCosts13)},  // LightRail
+        {6, NetworkPriceOne(9, cells13, tileCosts13)},  // Monorail
+    };
+    for (const Line& l : lines) {
+        cISC4LineItem* li = g->GetLineItem(l.item);  // borrowed
+        if (li != nullptr) li->SetFullExpenses(static_cast<int64_t>(l.v));
+    }
 }
 
 cISCPropertyHolder* HolderOf(uint64_t t) { return reinterpret_cast<cISCPropertyHolder*>(FromToken(t)); }
@@ -1738,13 +1825,14 @@ namespace fc4 {
 //   reads its strategy byte and tests and clears its own volume-dirty flag);
 //   the occupant query over a rectangle is network_occupants_in_rect (slot
 //   41, wired);
-// - needed but not specified, so still NULL [question]: update_network_costs
-//   (which line items UpdateRoadsBudget / UpdateMassTransitBudget set, with
-//   which method and rounding: spec Q1, TG23), path_info_exits_from_entry
-//   and path_info_entries_near (path info slots 14, 3 and 7: their arguments,
-//   result containers and the path objects' layout; TG24) and
-//   tunnel_paired_portal (the member's offset in cSC4NetworkTunnelOccupant;
-//   TG25).
+// - wired since re-answers21: update_network_costs (TG23, §4.9.1: the roads
+//   items 2, 1, 3, 4 and the mass transit items 3, 4, 5, 6, priced with the
+//   §4.9.1 rounding and set with SetFullExpenses from the five call sites);
+// - needed but not specified, so still NULL [question]:
+//   path_info_exits_from_entry and path_info_entries_near (path info slots
+//   14, 3 and 7: their arguments, result containers and the path objects'
+//   layout; TG24) and tunnel_paired_portal (the member's offset in
+//   cSC4NetworkTunnelOccupant; TG25).
 fc4_traffic_host MakeTrafficHost(TrafficContext* ctx) {
     fc4_traffic_host h{};
     h.struct_size = sizeof(h);
@@ -1766,6 +1854,7 @@ fc4_traffic_host MakeTrafficHost(TrafficContext* ctx) {
     h.release_department = &ReleaseDepartment;
     h.department_funding = &DepartmentFunding;
     h.set_line_item_income = &SetLineItemIncome;
+    h.update_network_costs = &UpdateNetworkCosts;  // [TG23]
     h.activate_budget_items = &ActivateBudgetItems;
     h.deactivate_budget_items = &DeactivateBudgetItems;
     h.budget_item_for_purpose = &BudgetItemForPurpose;
