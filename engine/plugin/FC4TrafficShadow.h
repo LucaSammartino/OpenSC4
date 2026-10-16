@@ -19,11 +19,11 @@
 //                                (env FC4_TRAFFIC_SHADOW_DIFFS, default 8, 1..64)
 //   traffic_shadow_lines = N     delivery lines per month
 //                                (env FC4_TRAFFIC_SHADOW_LINES, default 8)
-//   traffic_shadow_hypotheses = N  the copy's alternative readings of unclear
-//                                spec points, to test them against the original
-//                                (a bit mask, fc4.h FC4_TRAFFIC_SHADOW_HYP_*;
-//                                env FC4_TRAFFIC_SHADOW_HYPOTHESES; default 0, the
-//                                spec as written)
+//   traffic_shadow_hypotheses = N  retired (ABI 69; env
+//                                FC4_TRAFFIC_SHADOW_HYPOTHESES): accepted, ignored
+//                                and logged once; its three readings were
+//                                confirmed (traffic-simulator TS55-TS57) and are
+//                                the core's only behaviour
 //
 // It needs FreeCity4's simulator and the ORIGINAL traffic simulator (the
 // default: `traffic` is not enabled). Our simulator delivers the clock to the

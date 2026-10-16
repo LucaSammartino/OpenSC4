@@ -287,18 +287,6 @@ pub unsafe extern "C" fn fc4_traffic_shadow_message(
     })
 }
 
-/// The copy's hypotheses (fc4.h `FC4_TRAFFIC_SHADOW_HYP_*`): alternative
-/// readings of unclear spec points, to test them against the original; 0
-/// (the default) is the spec as written. Set before the first delivery.
-/// False for a NULL shadow.
-#[no_mangle]
-pub unsafe extern "C" fn fc4_traffic_shadow_set_hypotheses(s: *mut fc4_traffic_shadow, mask: u32) -> bool {
-    with_shadow(s, false, |sh| {
-        sh.core.set_hypotheses(mask);
-        true
-    })
-}
-
 /// Totals since creation.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_traffic_shadow_get_stats(

@@ -16,7 +16,8 @@ use super::*;
 use crate::grid::{SimGrid, TractGeometry};
 use crate::stream::{OutStream, RefValue, SaveObject};
 use crate::traffic_simulator::shadow::{
-    compare_record, grid_class, CanonicalWriter, Capture, CapturedRef, Delivery, LiveGrids, TrafficShadow,
+    compare_record, compare_record_split, grid_class, CanonicalWriter, Capture, CapturedRef, Delivery, LiveGrids,
+    TrafficShadow,
 };
 
 /// The capture stream of the plugin, for the stand-in original: an object
@@ -301,6 +302,36 @@ fn compare_record_names_fields() {
     let short = &ours.bytes[..ours.bytes.len() - 1];
     let d = compare_record(short, &ours);
     assert!(d.iter().any(|(f, _)| *f == "(record length)"));
+}
+
+/// TS59-TS61: the pass counters, the re-route context cell, the day index
+/// and the statistics byte are compared exactly (a difference is a
+/// mismatch); a field still unmodelled (`~`) is a known kind, by its name.
+#[test]
+fn record_split_knows_only_unmodelled_fields() {
+    let w = World::new();
+    let s = sim(&w);
+    let mut ours = CanonicalWriter::new();
+    assert!(s.write(&mut ours));
+    let start = |name: &str| ours.fields().into_iter().find(|f| f.0 == name).unwrap().1;
+    for name in [
+        "pass counters",
+        "re-route context cell",
+        "day index",
+        "statistics (published)",
+    ] {
+        let mut orig = ours.bytes.clone();
+        orig[start(name)] ^= 1;
+        let (rest, known) = compare_record_split(&orig, &ours);
+        assert_eq!(rest.len(), 1, "{name}");
+        assert_eq!(rest[0].0, name);
+        assert!(known.is_empty(), "{name}");
+    }
+    let mut orig = ours.bytes.clone();
+    orig[start("~lot iterator")] ^= 1;
+    let (rest, known) = compare_record_split(&orig, &ours);
+    assert!(rest.is_empty());
+    assert_eq!(known, vec!["~lot iterator"]);
 }
 
 /// The grid class IDs are simgrid's.

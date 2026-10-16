@@ -27,9 +27,25 @@ pub const PC_REROUTE_COUNTER: usize = 1;
 pub const PC_REROUTE_BUCKET: usize = 2;
 /// The pass counter that holds the source counter (§4.3).
 pub const PC_SOURCE_COUNTER: usize = 3;
-/// ReRouteTrips' capacity send-backs (`0x0071D20D`, §4.4, TS21).
+/// Routes confirmed without a search: ConfirmTrips, each status := 3 after
+/// `ConfirmRoute` (`0x0071DBF5`, §10 Q4, TS59).
+pub const PC_CONFIRMED: usize = 0;
+/// Destination full: ConfirmTrips' status 3 → 0 (`0x0071DC01`) and
+/// ReRouteTrips' capacity send-backs, status 1 → 0 (`0x0071D221`; §4.4,
+/// TS21, TS59).
 pub const PC_CAPACITY_SEND_BACKS: usize = 4;
-/// FullTrips' splits (`0x0071D75A`, §4.4, TS21).
+/// The ConfirmTrips merges: per routed trip that absorbed at least one
+/// trip (`0x0071DA0D`, §4.3, TS55, TS59).
+pub const PC_MERGES: usize = 5;
+/// Return legs not confirmed: ConfirmTrips, the outbound route confirmed
+/// but `ConfirmRoute(returnRoute)` false (`0x0071DBA0`, TS59).
+pub const PC_RETURN_NOT_CONFIRMED: usize = 6;
+/// The status-0 trips a ConfirmTrips source lists before its merge
+/// (`0x0071D95D`, every source, TS59).
+pub const PC_SEARCH_TRIPS_MET: usize = 7;
+/// Failures retried: ConfirmTrips, status 5 → 0 (`0x0071DC11`, TS59).
+pub const PC_FAILURES_RETRIED: usize = 8;
+/// FullTrips' splits (`0x0071D75A`/`0x0071D77F`, §4.4, TS21, TS59).
 pub const PC_SPLITS: usize = 9;
 /// The number of pass counters saved (§6.1 row 15).
 pub const PASS_COUNTERS: usize = 10;
@@ -317,7 +333,10 @@ pub struct SaveExtras {
     pub context_bools: [bool; 2],
     /// The f32 of the re-route context.
     pub context_f32: f32,
-    /// The re-route context cell.
+    /// The re-route context cell (`+0x83C`, `+0x840`; §6.1 row 14, TS60):
+    /// the cell of the traffic source being worked, the s16 phase positions
+    /// widened, written as each source is taken in 16, 17 and 18
+    /// (`0x0071E26D`, `0x0071D104`, `0x0071D523`); not reset on phase entry.
     pub context_x: i32,
     pub context_z: i32,
     /// The u32 after the context cell (not a count).
@@ -330,10 +349,9 @@ pub struct SaveExtras {
     pub table: [[u32; 9]; 3],
     /// The two context flag bytes.
     pub context_flags: [u8; 2],
-    /// The s32 after `processed`.
-    pub pacing_i32: i32,
-    /// The two u32 after `dayIndex`.
-    pub pacing_u32: [u32; 2],
+    /// The three u32 after `days` (`+0x930`, `+0x934`, `+0x938`; §6.1 row
+    /// 15, TS60): no code reads or writes them besides Write and Read.
+    pub pacing_unused: [u32; 3],
 }
 
 impl Default for SaveExtras {
@@ -354,8 +372,7 @@ impl Default for SaveExtras {
             context_i32x4: [0; 4],
             table: [[0; 9]; 3],
             context_flags: [0; 2],
-            pacing_i32: 0,
-            pacing_u32: [0; 2],
+            pacing_unused: [0; 3],
         }
     }
 }
@@ -442,9 +459,10 @@ pub struct State {
     pub car_len_count: u32,
     pub freight_len_sum: f32,
     pub freight_count: u32,
-    pub freight_byte: u8,
-    /// The per-travel-type trip counts being built (FullTrips) and
-    /// published.
+    /// The per-travel-type trip counts being built (FullTrips, `+0x430`) and
+    /// published (`+0x424`): the end of FullTrips swaps the two (§4.4,
+    /// TS56). `freightByte` is the published statistics set's last byte
+    /// ([`StatsSet::byte`] of `stats_last`, §4.12, TS61).
     pub type_count_building: [u32; 9],
     pub type_count_published: [u32; 9],
     /// The ferry riders total (§4.12 history).
@@ -459,10 +477,15 @@ pub struct State {
     pub last_day: i32,
 
     // ---- pacing (§3.3) ----
+<<<<<<< HEAD
     /// `dayIndex`, the s32 right after `processed` (§6.1 row 15, **`+0x918`**;
     /// TS60). It counts the days of the running trip phase, so with `days` 1
     /// or 2 it toggles 0/1 (§3.3). `processed` is `+0x914` and `total` is
     /// `+0x91C`.
+=======
+    /// `dayIndex` (`+0x918`): saved as the s32 right after `processed`
+    /// (§6.1 row 15, TS60).
+>>>>>>> apply14traffic
     pub day_index: u32,
     pub days: u32,
     pub total: i32,
@@ -532,7 +555,7 @@ pub struct State {
     /// running on to the next trip to examine (see [`super::shadow`]).
     pub shadow_lazy: bool,
     /// The traffic shadow's scan stop (tooling, not saved): in the cycle
-    /// state given, a cell-scanning phase (2, 4, 5, 6, 10) stops, not
+    /// state given, a cell-scanning phase (2, 4, 5, 6, 10, 13) stops, not
     /// finished, once its scanning iterator rests running at the cell given
     /// (where the original's deadline stopped it).
     pub shadow_scan_stop: Option<(u8, i32, i32)>,
@@ -540,24 +563,7 @@ pub struct State {
     /// lot walk of state 15 stops, not finished, after the lot at this cell
     /// (the original's saved cell when its deadline stopped the walk).
     pub shadow_finish_stop: Option<[i16; 2]>,
-    /// The traffic shadow's hypotheses (tooling, not saved; 0 = the spec as
-    /// written): each bit an alternative reading of a point the spec leaves
-    /// unclear, which the shadow can run to test it against the original
-    /// (the TS questions of the traffic shadow's lane report).
-    /// [`HYP_MERGE_ABSORBED`], [`HYP_TYPE_COUNTS_SWAP`],
-    /// [`HYP_REROUTE_MERGE_ALL`].
-    pub shadow_hypotheses: u32,
 }
-
-/// Hypothesis: the ConfirmTrips merge (§4.3) sets a routed trip to status 0
-/// only when it absorbed a later trip; one that absorbed none stays routed.
-pub const HYP_MERGE_ABSORBED: u32 = 1;
-/// Hypothesis: §6.1 row 19's pairs are (published, building), and the end
-/// of FullTrips (§4.4) swaps the two vectors instead of copying.
-pub const HYP_TYPE_COUNTS_SWAP: u32 = 2;
-/// Hypothesis: the ReRouteTrips merge (§4.4) absorbs every later trip of
-/// the same type and strategy, routed ones (status 3) included.
-pub const HYP_REROUTE_MERGE_ALL: u32 = 4;
 
 impl State {
     /// The constructor values (§1): cycle state 0, last day −1, strike
@@ -607,7 +613,6 @@ impl State {
             car_len_count: 0,
             freight_len_sum: 0.0,
             freight_count: 0,
-            freight_byte: 0,
             type_count_building: [0; 9],
             type_count_published: [0; 9],
             ferry_total: 0,
@@ -648,7 +653,6 @@ impl State {
             shadow_lazy: false,
             shadow_scan_stop: None,
             shadow_finish_stop: None,
-            shadow_hypotheses: 0,
         }
     }
 

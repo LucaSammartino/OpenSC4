@@ -367,8 +367,10 @@ fn write_record(
     out.put_bool(e.context_bools[0]);
     out.put_bool(e.context_bools[1]);
     out.put_f32(e.context_f32);
+    out.mark("re-route context cell");
     out.put_i32(e.context_x);
     out.put_i32(e.context_z);
+    out.mark("~re-route context (after the cell)");
     out.put_u32(e.context_u32);
     for &v in &e.context_u32x4 {
         out.put_u32(v);
@@ -389,17 +391,18 @@ fn write_record(
     out.put_u8(e.context_flags[1]);
     out.mark("processed");
     out.put_i32(s.processed);
-    out.mark("~pacing i32");
-    out.put_i32(e.pacing_i32);
+    // `dayIndex` is the s32 right after `processed` (`+0x918`, TS60).
+    out.mark("day index");
+    out.put_i32(s.day_index as i32);
     out.mark("total");
     out.put_i32(s.total);
     out.mark("days");
     out.put_u32(s.days);
-    out.mark("day index");
-    out.put_u32(s.day_index);
-    out.mark("~pacing u32 pair");
-    out.put_u32(e.pacing_u32[0]);
-    out.put_u32(e.pacing_u32[1]);
+    // Three u32 that only Write and Read touch (TS60).
+    out.mark("~pacing unused u32 x3");
+    for &v in &e.pacing_unused {
+        out.put_u32(v);
+    }
     out.mark("passTotal");
     out.put_i32(s.pass_total);
     out.mark("toReRoute");
@@ -452,13 +455,12 @@ fn write_record(
         out.put_u16(*id);
         holder.write(out);
     }
+    // The pairs are (published `+0x424`, building `+0x430`)
+    // (`0x00713370`–`0x00713398`, TS56).
     out.mark("travel type counts");
-    let swap = s.shadow_hypotheses & super::state::HYP_TYPE_COUNTS_SWAP != 0;
     for i in 0..9 {
-        let (a, b) = (s.type_count_building[i], s.type_count_published[i]);
-        let (a, b) = if swap { (b, a) } else { (a, b) };
-        out.put_u32(a);
-        out.put_u32(b);
+        out.put_u32(s.type_count_published[i]);
+        out.put_u32(s.type_count_building[i]);
     }
     out.mark("ferry total");
     out.put_u32(s.ferry_total);
@@ -669,6 +671,11 @@ impl Parse<'_> {
         Some(s)
     }
 
+    /// A damage block. The keys go, in file order, into fresh containers of
+    /// 193 buckets (hint 100, `0x00829BC0`): each insert first grows the
+    /// table to the listed prime ≥ count + 1 when that exceeds the bucket
+    /// count, then puts the key at the head of its chain (`0x0060D270`,
+    /// §6.2, TS54); so does the edge-density map of row 7 (`0x006D6FD0`).
     fn damage(inp: &mut dyn InStream) -> Option<DamageBlock> {
         let mut b = DamageBlock {
             cell_count: inp.get_u32()?,
@@ -937,11 +944,11 @@ impl Parse<'_> {
         }
         e.context_flags = [inp.get_u8()?, inp.get_u8()?];
         self.s.processed = inp.get_i32()?;
-        self.s.extras.pacing_i32 = inp.get_i32()?;
+        // `dayIndex`, the s32 after `processed` (TS60).
+        self.s.day_index = inp.get_i32()? as u32;
         self.s.total = if v >= 25 { inp.get_i32()? } else { 0 };
         self.s.days = inp.get_u32()?;
-        self.s.day_index = inp.get_u32()?;
-        self.s.extras.pacing_u32 = [inp.get_u32()?, inp.get_u32()?];
+        self.s.extras.pacing_unused = [inp.get_u32()?, inp.get_u32()?, inp.get_u32()?];
         if v >= 25 {
             self.s.pass_total = inp.get_i32()?;
             self.s.to_reroute = inp.get_i32()?;
@@ -1027,14 +1034,13 @@ impl Parse<'_> {
         }
         self.pools = map;
         if v >= 27 {
+            // (published, building) pairs (`0x00722FD0`, TS56).
             for i in 0..self.d {
-                let a = inp.get_u32()?;
-                let b = inp.get_u32()?;
-                let swap = self.s.shadow_hypotheses & super::state::HYP_TYPE_COUNTS_SWAP != 0;
-                let (a, b) = if swap { (b, a) } else { (a, b) };
+                let published = inp.get_u32()?;
+                let building = inp.get_u32()?;
                 if i < 9 {
-                    self.s.type_count_building[i] = a;
-                    self.s.type_count_published[i] = b;
+                    self.s.type_count_published[i] = published;
+                    self.s.type_count_building[i] = building;
                 }
             }
         }

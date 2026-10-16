@@ -354,6 +354,7 @@ impl Run<'_, '_> {
                 }
             }
             cs::CREATE_MAPS => {
+                self.cx.reset_subnetwork_working();
                 self.reset_scan();
                 // The statistics reset (§4.9, TS40): the five fields of
                 // every working row and the record counts 0, the separate

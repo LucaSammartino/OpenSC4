@@ -1508,8 +1508,7 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      Success is `roundtrip=same`, `mismatches=0` and `failures=0` on every line.
    - **Traffic shadow** (`traffic_shadow = 1`, env `FC4_TRAFFIC_SHADOW`; off by default;
      `traffic_shadow_diffs = N`, env `FC4_TRAFFIC_SHADOW_DIFFS`, default 8, 1..64; `traffic_shadow_lines = N`,
-     env `FC4_TRAFFIC_SHADOW_LINES`, default 8; `traffic_shadow_hypotheses = N`, env
-     `FC4_TRAFFIC_SHADOW_HYPOTHESES`, default 0; `plugin/FC4TrafficShadow.h`): a same-process differential of the
+     env `FC4_TRAFFIC_SHADOW_LINES`, default 8; `plugin/FC4TrafficShadow.h`): a same-process differential of the
      traffic simulator. It needs **our simulator and the original traffic simulator** (do not enable `traffic`);
      otherwise it logs `traffic shadow: requested … but INACTIVE` at game start. It wraps every delivery of our
      simulator to the original's agents (`cSC4TrafficSimulator`: the one-shot, the day and the month). The
@@ -1531,15 +1530,15 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      pothole and accident draws' choices (the original's generator is not readable), posted messages, history,
      incomes, network costs, budget items and accidents. **Known differences** are counted apart on the month
      line, not as mismatches, and cause no resync: a new trip's undefined destination and travel types (§4.1.1),
-     a reversible trip's return route the original keeps, a status-0 trip's destination (written by a search the
-     original's deadline suspended; ours never suspend), a statistics set's unnamed last byte, pass counters 0
-     and 4-8 (§10 Q4) and the unnamed fields of rows 14-15. `traffic_shadow_hypotheses` is a bit mask of
-     alternative readings of unclear spec points the copy runs instead of the spec as written (fc4.h
-     `FC4_TRAFFIC_SHADOW_HYP_*`: 1 the ConfirmTrips merge sets status 0 only on a trip that absorbed one, 2 row
-     19's pairs are (published, building) and FullTrips' end swaps them, 4 the ReRouteTrips merge absorbs routed
-     trips too); the month line names the mask. With 7, Konradshohe 2026-01-27 to 2026-08-01 is clean but for a
-     few deliveries (lane traffic2 questions); with 0 most trip-phase days differ. Lines (always written; longer
-     ones continue on `traffic shadow (cont.)` lines):
+     a status-0 or status-1 trip's destination and cleared flags bit 0 (written by a search the original's deadline
+     suspended, TS65; ours never suspend) and the record fields still unmodelled (labels starting `~`, named
+     one by one). The pass counters (TS59), the day index and re-route context cell (TS60), the statistics
+     byte (TS61) and the return routes (TS58) are modelled and compared exactly. `traffic_shadow_hypotheses`
+     (env `FC4_TRAFFIC_SHADOW_HYPOTHESES`) is retired (ABI 69): its three readings were confirmed
+     (traffic-simulator TS55-TS57: the ConfirmTrips merge sets status 0 only on a trip that absorbed one, row
+     19's pairs are (published, building) and FullTrips' end swaps them, the ReRouteTrips merge absorbs routed
+     trips too) and are the core's only behaviour; the key is still accepted, ignored and logged once at game
+     start. Lines (always written; longer ones continue on `traffic shadow (cont.)` lines):
 
      ```
      traffic shadow: ON (traffic_shadow from …): …                                          (game start)
@@ -1547,7 +1546,7 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      traffic shadow yyyy-mm-dd day|month|begin (state A -> B, progress P, units U): mismatches=N; record FIELD:
        orig … ours …; trips of lot (x, z): …; holder … property 0x…: …; grid NAME: K of T tracts differ: …
      traffic shadow yyyy-mm-dd day: INCOMPLETE (why); not compared
-     traffic shadow month to yyyy-mm-dd [(hypotheses 0x…)]: clean|mismatches=N; deliveries=D (day d, month m,
+     traffic shadow month to yyyy-mm-dd: clean|mismatches=N; deliveries=D (day d, month m,
        other o) compared=C clean=K incomplete=I; record fields compared=… mismatched=… (FIELD xN, …); trip lists compared=…
        mismatched=…; holder properties compared=… mismatched=…; grid tracts compared=… mismatched=…; known
        differences (not counted): … xN, …; between deliveries: resyncs=R; ours: units=… run-ons=… (list ends …)

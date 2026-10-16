@@ -1247,36 +1247,17 @@ pub fn compare_record(orig: &[u8], ours: &CanonicalWriter) -> Vec<(&'static str,
     out
 }
 
-/// A record-field difference of a known kind (not counted):
-/// - the pass counters whose increments the spec does not give (§6.1 row
-///   15, §10 Q4: counters 0, 5, 6, 7 and 8; and counter 4, which the
-///   original also advances in ConfirmTrips, where §4.4 names only
-///   ReRouteTrips' send-backs);
-/// - the unnamed fields of rows 14 and 15 (labels with `~`), which the copy
-///   keeps as read and the original changes;
-/// - the unnamed trailing byte of a statistics set (row 16), likewise.
+/// A record-field difference of a known kind (not counted): a field of rows
+/// 14 and 15 the spec leaves unnamed (labels with `~`: the lot iterator
+/// position, the re-route context but its cell, the context table and
+/// flags, the three unused pacing words), which the copy keeps as read. The
+/// kind is the field's own label, so the month line names it.
 ///
-/// Each is a TS question in the lane report.
-fn known_record_difference(name: &str, orig: &[u8], ours: &[u8]) -> Option<&'static str> {
-    if orig.len() != ours.len() {
-        return None;
-    }
-    if name.starts_with('~') {
-        return Some("unnamed fields of rows 14-15 (kept as read)");
-    }
-    if name.starts_with("statistics (") {
-        let n = orig.len();
-        return (n > 0 && orig[..n - 1] == ours[..n - 1]).then_some("a statistics set's unnamed last byte");
-    }
-    if name != "pass counters" || orig.len() % 4 != 0 {
-        return None;
-    }
-    let unknown_only = orig
-        .chunks_exact(4)
-        .zip(ours.chunks_exact(4))
-        .enumerate()
-        .all(|(i, (o, b))| o == b || matches!(i, 0 | 4 | 5 | 6 | 7 | 8));
-    unknown_only.then_some("pass counters 0, 4-8 (§10 Q4)")
+/// The pass counters (TS59), the re-route context cell and `dayIndex`
+/// (TS60) and a statistics set's last byte (`freightByte`, TS61) are
+/// modelled and compared exactly.
+fn known_record_difference(name: &'static str, orig: &[u8], ours: &[u8]) -> Option<&'static str> {
+    (orig.len() == ours.len() && name.starts_with('~')).then_some(name)
 }
 
 /// [`compare_record`] with the differences of a known kind
@@ -1314,18 +1295,21 @@ fn trip_bytes(t: &[TripData]) -> Vec<u8> {
 
 /// A trip-list difference of a known kind (not counted). The lists agree but
 /// for, on each differing trip, either
-/// - the return route the original keeps on a trip our search found
-///   reversible (theirs non-empty, ours empty): §2's table says a
-///   reversible trip's return route is empty, the original's
-///   PerformPathSearch (§4.4) does not say it clears it (TS question in the
-///   lane report); or
+/// - what a search the original's deadline suspended leaves in a status-0
+///   trip: the destination, written as soon as the outbound leg is found
+///   (`0x0071C752`), and on the two-leg path flags bit 0 cleared
+///   (`0x0071C858`), nothing else (§4.4, TS65); the copy's searches never
+///   suspend (§3.4 *[choice]*, accepted in TS65); or
 /// - the destination and travel-type fields of a trip appended by the
 ///   reconcile (§4.1.1, §4.1.4), undefined in the original *[quirk]*, 0 in
 ///   ours *[choice]*: ours unrouted with (0, 0) and mask 0.
+///
+/// A reversible trip's return route is no longer a known kind: both sides
+/// keep it (TS58).
 fn known_trip_difference(orig: &[TripData], ours: &[TripData]) -> Option<&'static str> {
-    const RETURN: &str = "a reversible trip's return route kept by the original";
     const UNDEFINED: &str = "a new trip's undefined destination and travel types (§4.1.1 quirk)";
-    const SUSPENDED: &str = "a status-0 trip's destination (the original's suspended search, §3.4 [choice])";
+    const SUSPENDED: &str =
+        "a status-0 or status-1 trip's destination and flags bit 0 (the original's suspended search, TS65, §3.4 [choice])";
     if orig.len() != ours.len() {
         return None;
     }
@@ -1334,18 +1318,18 @@ fn known_trip_difference(orig: &[TripData], ours: &[TripData]) -> Option<&'stati
         if o == b {
             continue;
         }
-        let mut o2 = o.clone();
-        o2.return_route.clear();
         let mut o4 = o.clone();
         o4.dest_x = b.dest_x;
         o4.dest_z = b.dest_z;
-        let k = if o2 == *b && b.flags & 1 != 0 {
-            RETURN
-        } else if o.status == super::status::SEARCH && o4 == *b {
-            // A search the original's deadline suspended (pathfinder max
-            // work time, §4.4 step 3) has written the trip's destination;
-            // the copy's searches never suspend (§3.4). Read by nothing
-            // before the trip's search.
+        // Bit 0 cleared by the original's suspended two-leg search.
+        if o4.flags & 1 == 0 && b.flags & 1 != 0 {
+            o4.flags |= 1;
+        }
+        // A trip FullTrips (status 0) or ReRouteTrips (status 1) searches
+        // (TS65: a suspended return leg leaves the new destination).
+        let searched = matches!(o.status, super::status::SEARCH | super::status::REROUTE);
+        let k = if searched && o.status == b.status && o4 == *b {
+            // Read by nothing before the trip's search.
             SUSPENDED
         } else {
             let fresh = b.route.is_empty() && b.dest_x == 0 && b.dest_z == 0 && b.travel_types_used == 0;
@@ -1400,10 +1384,15 @@ fn date(julian: i32) -> String {
 }
 
 /// The cell-scanning phases (§3.2), which the original's deadline can stop
+<<<<<<< HEAD
 /// mid-scan. [TS64] State 13 is one of them: its deadline test is before each
 /// step of the scanning iterator, so a stopped call leaves the iterator at the
 /// last cell visited and the copy must stop there too. State 12 is not: it
 /// does not use the scanning iterator.
+=======
+/// mid-scan; UpdateSubnetworkInfo (13) among them, on the same scanning
+/// iterator (traffic-network.md §4.12, TS64).
+>>>>>>> apply14traffic
 fn is_scan_phase(s: u8) -> bool {
     matches!(
         s,
@@ -1541,7 +1530,6 @@ pub struct TrafficShadow {
     /// The copy's grids hold the original's values (as of the last
     /// comparison).
     grids_synced: bool,
-    hypotheses: u32,
     /// The previous delivery's target (cycle state, progress), for the
     /// original's advance within a phase.
     last_target: Option<(u8, u64)>,
@@ -1567,7 +1555,6 @@ impl TrafficShadow {
             copy,
             started: false,
             grids_synced: false,
-            hypotheses: 0,
             last_target: None,
             max_diffs: max_diffs.max(1),
             detail_lines_per_month: detail_lines,
@@ -1588,15 +1575,6 @@ impl TrafficShadow {
     /// The copy's host.
     pub fn host(&self) -> &Rc<ShadowHost> {
         &self.host
-    }
-
-    /// The copy's hypotheses ([`State::shadow_hypotheses`]): alternative
-    /// readings of unclear spec points, for testing them against the
-    /// original (0, the default, is the spec as written). Named in every
-    /// month line.
-    pub fn set_hypotheses(&mut self, mask: u32) {
-        self.hypotheses = mask;
-        self.copy.update_state(|st| st.shadow_hypotheses = mask);
     }
 
     /// Whether the copy has started (the first delivery read the original's
@@ -1643,12 +1621,14 @@ impl TrafficShadow {
 
     /// After a Read: gives the copy's SGI hash containers (the damage key
     /// sets, row 13, and the edge densities, row 7) the iteration order of
-    /// the record they were read from. Our Read inserts the keys one by one,
-    /// which reverses each bucket's chain, so a record written after it would
-    /// list the keys of a shared bucket in the other order (and the pothole
-    /// picks, §4.12, would take other cells); how the original's Read
-    /// rebuilds them is not stated (TS question in the lane report). The
-    /// tooling *[choice]* rebuilds each container with the smallest listed
+    /// the record they were read from. Our Read, like the original's (§6.2,
+    /// TS54), inserts the keys one by one at the head of their chains, so it
+    /// reverses each bucket's chain: right for a load, but the shadow reads
+    /// the record the original WROTE from its live containers, whose order
+    /// a Read does not give back (a record written after it would list the
+    /// keys of a shared bucket in the other order, and the pothole picks,
+    /// §4.12, would take other cells). The tooling *[choice]* rebuilds each
+    /// container with the smallest listed
     /// bucket count (at least the default 193 and the key count) under which
     /// the record's order is bucket-ascending, inserting the keys last first;
     /// a container whose order no such count explains is left as read.
@@ -1789,14 +1769,14 @@ impl TrafficShadow {
         // The original's progress in the target phase, as the copy counts:
         // - in the phase it was in before (the previous target, when no
         //   resync came between): the copy's own progress plus the
-        //   original's advance (the counters a known difference leaves
-        //   apart, e.g. pass counter 4, do not matter);
-        // - entering 17 or 18 ends the original's day (§3.3): none;
+        //   original's advance;
+        // - entering 17 or 18 ends the original's day (§3.3): the copy
+        //   stops on entry (`entering`);
         // - otherwise the target's own count (zeroed on the phase's entry).
         let p0 = self.copy.read_state(progress);
+        let entering = s0 != to && matches!(to, cs::REROUTE_TRIPS | cs::FULL_TRIPS);
         let want = match self.last_target {
             Some((ls, lp)) if ls == to && s0 == to => p0.saturating_add(progress(t).saturating_sub(lp)),
-            _ if s0 != to && matches!(to, cs::REROUTE_TRIPS | cs::FULL_TRIPS) => 0,
             _ => progress(t),
         };
         let allowed = chain(s0, to);
@@ -1808,6 +1788,12 @@ impl TrafficShadow {
         // copy's lot walk stops after the lot at the original's saved cell.
         let finish_stop = (to == cs::FINISH_TRIP_MAP).then_some(t.extras.phase_positions);
         self.copy.update_state(|st| st.shadow_finish_stop = finish_stop);
+        // The original entered 15 in this delivery and its saved cell reads
+        // (0, 0): it stopped at the test point before the first lot (TS63),
+        // having taken none. The copy stops on entry. (What leaves the
+        // positions at (0, 0) there, not at the last FullTrips source's
+        // cell, is open: lane question TS67; the record shows it.)
+        let finish_on_entry = s0 != cs::FINISH_TRIP_MAP && finish_stop == Some([0, 0]);
         let mut steps = 0u32;
         let mut note = None;
         loop {
@@ -1816,14 +1802,17 @@ impl TrafficShadow {
                 (st.cycle_state, progress(st), at, st.extras.phase_positions)
             });
             let reached = if is_trip_phase(s) {
-                p >= want
+                // Entering 17 or 18 ends the original's day (§3.3): the copy
+                // stops on entry. Its progress there is pass counter 4 as
+                // state 16 left it (17) or 0 (18), compared with the record.
+                entering || p >= want
             } else if s == cs::FINISH_TRIP_MAP {
-                finish_stop.map_or(true, |f| f == pos)
+                finish_on_entry || finish_stop.map_or(true, |f| f == pos)
             } else {
                 stop.is_none() || at_stop
             };
             if s == to && reached {
-                if is_trip_phase(s) && p > want {
+                if is_trip_phase(s) && !entering && p > want {
                     note = Some(format!(
                         "ours passed the original's progress in state {s}: {p} > {want}"
                     ));
@@ -1849,6 +1838,29 @@ impl TrafficShadow {
         });
         let s = self.copy.cycle_state();
         let target = t.extras.phase_positions;
+        // The share step (§3.3): the original ended its day on its share.
+        // Taken before the run-on's record check below, which compares the
+        // day index exactly (TS60): a run-on examines no trip and ending a
+        // list leaves `processed` alone, so the share test reads the same.
+        let (di, days, total, processed) = self
+            .copy
+            .read_state(|st| (st.day_index, st.days, st.total, st.processed));
+        if is_trip_phase(s) && s == to && t.day_index == di.wrapping_add(1) {
+            let share = (total as u32)
+                .wrapping_mul(di.wrapping_add(1))
+                .checked_div(days)
+                .unwrap_or(u32::MAX);
+            if di < days && processed as u32 >= share {
+                self.copy.update_state(|st| st.day_index = st.day_index.wrapping_add(1));
+                self.month.day_steps += 1;
+            } else if note.is_none() {
+                note = Some(format!(
+                    "the original took day step {di} -> {} that our share test refuses \
+                     (processed {processed}, share {share}, days {days})",
+                    di.wrapping_add(1)
+                ));
+            }
+        }
         let moved = want > p0 || self.copy.read_state(|st| st.extras.phase_positions) != target;
         if note.is_none() && s == to && s0 == to && matches!(s, cs::REROUTE_TRIPS | cs::FULL_TRIPS) && moved {
             // The original's deadline stopped it after its last unit at a
@@ -1874,26 +1886,6 @@ impl TrafficShadow {
                     self.copy.shadow_end_list();
                     self.month.list_ends += 1;
                 }
-            }
-        }
-        // The share step (§3.3): the original ended its day on its share.
-        let (di, days, total, processed) = self
-            .copy
-            .read_state(|st| (st.day_index, st.days, st.total, st.processed));
-        if is_trip_phase(s) && s == to && t.day_index == di.wrapping_add(1) {
-            let share = (total as u32)
-                .wrapping_mul(di.wrapping_add(1))
-                .checked_div(days)
-                .unwrap_or(u32::MAX);
-            if di < days && processed as u32 >= share {
-                self.copy.update_state(|st| st.day_index = st.day_index.wrapping_add(1));
-                self.month.day_steps += 1;
-            } else if note.is_none() {
-                note = Some(format!(
-                    "the original took day step {di} -> {} that our share test refuses \
-                     (processed {processed}, share {share}, days {days})",
-                    di.wrapping_add(1)
-                ));
             }
         }
         (steps, note)
@@ -2270,13 +2262,8 @@ impl TrafficShadow {
             let k: Vec<String> = m.known.iter().map(|(k, v)| format!("{k} x{v}")).collect();
             format!("; known differences (not counted): {}", k.join(", "))
         };
-        let hyp = if self.hypotheses == 0 {
-            String::new()
-        } else {
-            format!(" (hypotheses 0x{:X})", self.hypotheses)
-        };
         lines.push(format!(
-            "traffic shadow month to {}{hyp}: {head}; deliveries={} (day {}, month {}, other {}) compared={} clean={} \
+            "traffic shadow month to {}: {head}; deliveries={} (day {}, month {}, other {}) compared={} clean={} \
              incomplete={}{reasons}; record fields compared={} mismatched={}{field_list}; trip lists compared={} \
              mismatched={}; holder properties compared={} mismatched={}; grid tracts compared={} mismatched={}{known}; \
              between deliveries: resyncs={}; ours: units={} run-ons={} (list ends {}) day steps={}, kept posts={} history={} \
@@ -2342,5 +2329,42 @@ mod known_difference_tests {
         let mut routed_orig = routed.clone();
         routed_orig.dest_x = 28;
         assert_eq!(known_trip_difference(&[routed_orig], &[routed]), None);
+    }
+
+    /// TS65: the original's suspended return leg leaves the new destination
+    /// and flags bit 0 cleared on a status-0 trip (known); bit 0 set on the
+    /// original's side only, or any other flag, is a mismatch.
+    #[test]
+    fn a_suspended_return_leg_clears_bit_0() {
+        let ours = TripData {
+            count: 15,
+            status: super::super::status::SEARCH,
+            flags: 1,
+            dest_x: 18,
+            dest_z: 40,
+            ..TripData::default()
+        };
+        let mut orig = ours.clone();
+        orig.flags = 0;
+        orig.dest_x = 28;
+        orig.dest_z = 37;
+        let k = known_trip_difference(std::slice::from_ref(&orig), std::slice::from_ref(&ours));
+        assert!(k.is_some_and(|k| k.contains("TS65")));
+        assert_eq!(
+            known_trip_difference(std::slice::from_ref(&ours), std::slice::from_ref(&orig)),
+            None
+        );
+        let mut other = orig.clone();
+        other.flags = 4;
+        assert_eq!(known_trip_difference(&[other], std::slice::from_ref(&ours)), None);
+        // ReRouteTrips' trips (status 1) too; a status change is a mismatch.
+        let (mut o1, mut b1) = (orig.clone(), ours.clone());
+        o1.status = super::super::status::REROUTE;
+        b1.status = super::super::status::REROUTE;
+        assert!(known_trip_difference(std::slice::from_ref(&o1), std::slice::from_ref(&b1)).is_some());
+        assert_eq!(
+            known_trip_difference(std::slice::from_ref(&o1), std::slice::from_ref(&ours)),
+            None
+        );
     }
 }

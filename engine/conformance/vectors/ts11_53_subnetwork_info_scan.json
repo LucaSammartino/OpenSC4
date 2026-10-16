@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "ts11_53_subnetwork_info_scan",
+  "spec": [
+    "traffic-simulator 3.2",
+    "traffic-network 4.12"
+  ],
+  "description": "traffic-network.md §4.12 and traffic-simulator §3.2 (TS64): entering 13 resets the simulator's scanning iterator to state 0 (fresh) at (0, 0), rectangle and step kept; UpdateSubnetworkInfo steps it one cell at a time and, when it ends, it reads state 2 (done) at (x0, z1 + 1), (0, 8) for the 8 x 8 city; the next state, 19, does not touch it.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        13
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 13,
+        "scan": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 19,
+        "scan": [
+          2,
+          0,
+          8
+        ]
+      }
+    }
+  ]
+}
