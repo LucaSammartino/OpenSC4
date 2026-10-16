@@ -127,10 +127,10 @@ extern "C" {
  * 58 = adds the demolition utility (fc4_demolition, demolition.md), the dispatch manager
  *      (fc4_dispatch, dispatch.md) and the city situation manager (fc4_citysit,
  *      city-situation.md) (taken as 60 on its lane; renumbered at merge);
- * 70 = adds the prop manager, lot configuration manager and tutorial system (fc4_prop_manager,
- *      fc4_lot_config, fc4_tutorial; prop-lotconfig.md, tutorial.md) (reserved as 70 on its lane;
+ * 59 = adds the prop manager, lot configuration manager and tutorial system (fc4_prop_manager,
+ *      fc4_lot_config, fc4_tutorial; prop-lotconfig.md, tutorial.md) (taken as 70 on its lane;
  *      renumbered at merge). */
-#define FC4_ABI_VERSION 70u
+#define FC4_ABI_VERSION 59u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
