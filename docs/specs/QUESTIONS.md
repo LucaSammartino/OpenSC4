@@ -4419,9 +4419,23 @@ Open points from terrain.md §17. The current answer is in brackets; each entry 
 - **TR1:** the exact operations of brush component kinds 2, 3, 5, 6 and 8–10 (smoothing, levelling, erosion, lake,
   rain, spring). [summarised only; only the god-mode terraforming tool uses them. A trace of `0x00745DE0` and
   `0x00745BA0` settles 2 and 5]
-- **TR2:** the brush values of the `volcano_control` effect (level, strength and radius ranges, repetitions per
+- ~~**TR2:** the brush values of the `volcano_control` effect (level, strength and radius ranges, repetitions per
   update). [effect brushes use `data4 = 3` and redisplay on the last repetition; the effects manager spec, INVENTORY
-  rank 7, settles the values]
+  rank 7, settles the values]~~ **ANSWERED 2026-10-15 (re-specs16):** **MATCHES** the bracket and adds the values
+  (effects.md §8, §10.1; shipped effect directory, brush records 2–10). `volcano_control` (description 367) chooses
+  one of nine `volcanocreator*` effects through a select group (weights 7281 × 8 and 7287, one draw from the
+  manager's `cRZRandomSuper` seeded `0x1105`, effects.md §5.3). Each creator holds one VolcanoBrush `0xCA313035`
+  stroke:
+  - level 1;
+  - strength 1.0 (range 1–1);
+  - radius scale 0.5, 0.5, 0.6, 0.6, 0.8, 0.8, 1.0, 1.0 or 1.3 (degenerate ranges, but both `RandomDoubleRangeUniform`
+    draws on `0x00B22BE8` still happen);
+  - target 100;
+  - rate 30, 40, 45, 50, 55, 65, 65, 80 or 130 applications per effect-second;
+  - length 3, 4, 3.5, 3.5, 3, 3, 3, 3.5 or 2 effect-seconds.
+
+  Repetitions per update: `n = floor(acc)` with `acc += rate × dt` (dilated seconds), `acc −= n` (`0x005817F0`).
+  Each creator also carries a one-time game record at the vent: demolish 5–10 cells, burn 10–14.
 - **TR3:** `GetLerpedWaterLevel` (terrain slot 32) and `AltitudeAtWhichFloodingWillOccur` (surface water slot 10)
   are from pseudocode only. [bilinear over the four corners; maximum over wet neighbours. Check the bytes if a
   simulation consumer appears]
@@ -4453,9 +4467,26 @@ numbers (its Q6-Q25, continuing disasters.md §17) are given in parentheses; the
 - **DS15:** (Q20) the tuning defaults of the short forms (earthquake, pipe burst, volcano, effect).
 - **DS16:** (Q21) the earthquake's fault line geometry.
 - **DS17:** (Q22) the earthquake's transition from rumble to deformation.
-- **DS18:** (Q23) the sinkhole brush parameters.
+- ~~**DS18:** (Q23) the sinkhole brush parameters.~~ **ANSWERED 2026-10-15 (re-specs16):** terrain.md §9.5
+  (re-specs14a) already gives them; checked again in the bytes `0x0057C1A0`–`0x0057C20D`:
+  - `ApplyBrush(0x14)` with from = to = (x·s, z·s), with `s` from slot 6 of the object at `+0x18` (the 16 m cell size per terrain.md);
+  - level 0, redisplay on, strength 1, radius 1, `data4 = 3`, target 100.
+
+  The brush itself (PipeSinkHole) is in terrain.md §9.1.
 - **DS19:** (Q24) when is the pipe-burst occupant inserted and removed?
-- **DS20:** (Q25) the volcano: the timing of states 3 to 5, its end request, and state 7.
+- **DS20:** (Q25) the volcano: the timing of states 3 to 5, its end request, and state 7. **PARTLY ANSWERED
+  2026-10-15 (re-specs16):** effects.md §10.1. State 7 is entered only on `0xCA493C1D` with data1 = the instance. That
+  is the end message of the instance's `volcano_control` effect, posted when the effect **finishes** in the city
+  view's draw pass (effects.md §7). The finish comes once the chosen creator's brush stroke (2–4 dilated seconds) and
+  its particles and decals are inactive. State 7 then:
+  1. sets the end-requested flag (`+0x3E`);
+  2. returns to state 5 if the lava is enabled and running (the lava then ends in state 8);
+  3. otherwise goes straight to state 8.
+
+  State 3 runs `StartDeformation` (once), then `InitializeVolcanoLava` and state 5 when the lava is enabled. Still
+  open:
+  - the exact finish time, which depends on render components (effects.md EF1);
+  - *[inferred]* the volcano never ends in a session that does not draw the city (EF2).
 - **DS21:** is the toast list processed only when Update runs? [yes]
 - **DS22:** the contents of the special-building record.
 - **DS23:** the network default cost. [taken from the host]
