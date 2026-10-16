@@ -98,6 +98,20 @@ Related specs:
 
 Strings are a `u32` length followed by the characters, with no terminator.
 
+**Corrects (re-integrate1): the two record tables below give the *in-memory* sizes, not the on-disk ones.**
+Measured against the shipped resource — type `0xEA5118B0`, group `0xEA5118B1`, instance 1, **1,094,484 bytes**,
+root version **4**, brush section at `0x98CA2` (count `0x19` = 25; the records themselves begin at `0x98CA6`),
+visual-effect section at **`0x9C274`** (section version 2, **1154** descriptions, **3373** components in total),
+name map at `0x103065` with **1148** names. On disk:
+
+| Record | On disk |
+|---|---|
+| visual-effect description | `u32 flags & 0x1FF`, `u32 priority`, `u32` component count, then that many **variable-length** component records, `u32` binding count, then that many 24-byte bindings (`u32 & 0xF`, string, `f32`, `u32`), then a string, then (section version > 1) 3 × `u32` |
+| component record | **variable**: string (`u32 len` + chars), `u8` type, `u32 flags & 3`, 56-byte transform, `u8`,`u8` LOD, `u16`,`u16` copies/spacing, 4 × `f32`, `u16`,`u16` select group/weight, `u32` index |
+
+So a parser must read the component records as a variable-length sequence inside the effect record; there is no
+fixed `0x6C`-byte stride on disk (readers `0x005ABF50` effect, `0x005AB690` component, `0x005ABEC0` binding).
+
 **Visual effect description** (`0x38` bytes in memory, reader `0x005ABF50`):
 
 | Field | File | Meaning |
@@ -191,6 +205,23 @@ A component exists only while the current level of detail `L` (§2) is in its ra
 appear or disappear with the zoom. The damage done by brush and game components therefore does **not** depend on
 the zoom or on the detail options, apart from the priority filter of §4.1.
 
+**Corrects (re-integrate1): the `[1, 6)` claim above is false as written.** Measured over all **3373** shipped
+components, only **2533** have `[1, 6)`. The other **840** do not:
+
+| Range | Count | Range | Count | Range | Count |
+|---|---|---|---|---|---|
+| `(5, 6)` | 182 | `(1, 3)` | 30 | `(3, 5)` | 8 |
+| `(4, 5)` | 156 | `(3, 6)` | 27 | `(1, 5)` | 5 |
+| `(3, 4)` | 141 | `(1, 4)` | 23 | | |
+| `(2, 3)` | 106 | `(2, 6)` | 10 | | |
+| `(1, 2)` | 101 | | | | |
+| `(4, 6)` | 98 | | | | |
+
+So components **do** appear and disappear with the zoom. The narrower claim worth keeping — and the one the
+implementer's test asserts — is that **every component that reaches a brush or game record, directly or through
+meta, is `[1, 6)`**; that still has to be checked per effect, but it is the property the simulation depends on.
+Quirk 8 is amended accordingly.
+
 Creating a component of a table type calls that description's factory:
 
 | Type | Factory |
@@ -262,6 +293,43 @@ Consequences:
   shipped ones carry flag 1) never do. **Meta** components keep the parent alive while the child effect is started.
 - An effect's lifetime also depends on its particles and decals (flag 0), which are rendering objects outside this
   spec. The exact end time of a shipped effect is therefore an open question (EF1).
+
+**Corrects (re-integrate1): the flags are now measured, and the "ignore" bit is not where one might expect.**
+Over all **3373** shipped component records (`desc+0x10 & 3`: bit 0 = ignored by the finish test, bit 1 = render):
+
+| Kind | | `flags=0` | `flags=1` | `flags=2` | Counts in the finish test? |
+|---|---|---|---|---|---|
+| 0 | particles | 1821 | 0 | 100 | **yes** — all 1921 |
+| 1 | decal | 406 | 0 | 0 | **yes** |
+| 2 | meta (nested effect) | 591 | 0 | 0 | **yes** |
+| 3 | brush | 25 | 0 | 0 | **yes** |
+| 4 | attractor | 0 | 64 | 0 | no |
+| 5 | game | 0 | 56 | 0 | no |
+| 6 | sequence | 10 | 0 | 0 | **yes** |
+| 7 | sound | 4 | 299 | 0 | 4 count, 299 no (98.7% ignored) |
+| 8 | camera | 0 | 41 | 0 | no |
+| 16 | model | 3 | 0 | 0 | **yes** |
+
+So:
+
+- **Particles and decals are *not* ignored.** They carry `flags = 0` and are exactly the components that hold an
+  effect. The second bullet above is correct and is now *measured fact*, not a hedge.
+- **The ignore bit is set uniformly on game, attractor and camera components, and on 98.7% of sound.** "Game
+  components never keep an effect alive" is confirmed by measurement (56 of 56).
+- Bit 1 (render) is used on exactly the 100 particle components of `robot_attack_control`'s family.
+- The description field is `desc+0x10 & 1`; `0x00591730` copies it to **runtime `comp+0x40` bit 2 (value 4)**,
+  which is what `0x005BFD70` tests. Table types 3–15 additionally set runtime bit 1 (value 2). An implementer
+  must test the **runtime** bit, not the description bit.
+
+**Where the two passes of the effects report disagree** (marked, not silently resolved): the first pass reasoned
+that particle components *must* carry the ignore bit, because `cSCParticleSimulatorBase::started` is written
+only by `Start` `0x005B9CF0` and `Stop` `0x005B9E70` and so particles can never self-terminate — which would pin
+every effect forever. The second pass measured the shipped directory and found `flags = 0` on all 1921 particle
+components. **The measurement stands**, and the tension is now the open question: how does a `cSC4ParticlesEffect`
+component ever report inactive? Two facts narrow it — its component `Update` (slot 4, `0x00648F10`) is an empty
+stub while slot 9 `0x005B8540` is the draw-time update, so particles advance and `CheckForStop` `0x005B9D40` is
+evaluated **only in the draw pass**; and `cSC4DynamicParticleEffect::ApplyEffect` `0x00584890` *does* self-stop,
+so the pattern exists and simply is absent here. See §16 EF1.
 
 ## 8. The brush effect *[compat]*
 
@@ -528,6 +596,28 @@ Flags 1 and 2 are the cause byte of demolition.md §4.9. `0x1301` and `0x1302` a
      - one game record (records 9–17, §9.4): demolish 5–10 cells, burn 10–14, both applied **once**, at the vent
        cell, on the first tick;
      - four sounds, smoke and fallout particles, and lava and crater decals.
+
+   **Measured component tree** (re-integrate1, from the shipped directory):
+
+   | Effect | Component | Kind | `flags` | Ignored? |
+   |---|---|---|---|---|
+   | `volcano_control` (367) | `volcanocreator1a`…`4b` (×8) | 2 meta | **0** | no |
+   | | `volcanocreator5` | 2 meta | **0** | no |
+   | | attractor idx 18 | 4 | **1** | **yes** |
+   | `volcanocreator1a` (358), 11 components | brush idx 2 | 3 | 0 | counts |
+   | | 4 × sound | 7 | 1 | ignored |
+   | | particles `volcano_smoke_small` (423), `volcano_fallout_up` (428) | 0 | **0** | **count** |
+   | | decals `glowing_lava_small` (128), `glowing_lava_small_water` (129), `craterdecal_small` (134) | 1 | **0** | **count** |
+   | | game idx 9 | 5 | 1 | ignored |
+   | `volcanocreator5` (366), 13 components | brush idx 10 | 3 | 0 | counts |
+   | | 4 × sound | 7 | 1 | ignored |
+   | | 4 particles (`volcano_smoke_large`, `volcano_fallout`, `volcano_fallout_up`, `volcano_fallout_wide`) | 0 | **0** | **count** |
+   | | 3 decals (`glowing_lava_large`, `glowing_lava_large_water`, `craterdecal_large`) | 1 | **0** | **count** |
+   | | game idx 17 | 5 | 1 | ignored |
+
+   Exactly one creator is built. Its meta component's `IsActive` is **the child effect's `started` byte** (the
+   `+0x08`-thunk at `0x005C04F0`), not the child's components' `IsActive`, so `volcano_control` cannot finish
+   before the child has been finished by a previous sweep — it waits for a **full extra sweep**.
 3. **Ending.** The volcano's `DoMessage` (`0x0057F6C0`) maps `0xCA493C1D` whose data1 is this instance to
    `SetState(7)`:
    - state 7 sets the end-requested flag (`+0x3E`);
@@ -536,6 +626,14 @@ Flags 1 and 2 are the cause byte of demolition.md §4.9. `0x1301` and `0x1302` a
 
    So the volcano's end is triggered by the effect **finishing** (§7). The deformation stroke is at least `length`
    effect-seconds (2–4 s × dilation), and the particles and decals may hold the effect longer (EF1).
+
+   **Corrects (re-integrate1): the finish condition is now measured.** `volcano_control` finishes at the first
+   draw-pass sweep (`0x005922A0`) after (i) the chosen `volcanocreator*` child has itself been finished on a
+   previous sweep, and (ii) at that sweep that child's **brush** (`t > length`, 2.0–4.0 dilated effect-seconds),
+   its **2–4 particle components** and its **3 decal components** are all inactive. The attractor and the game
+   record never hold it (both `flags = 1`). Brush and decals have known end times; **particles are the sole
+   unknown** (§16 EF1). A static bound: the end is ≥ the child's brush length plus one extra draw-pass sweep,
+   and ≤ that plus any decal lifetime.
 4. **Shutdown.** The volcano's `Shutdown` (`0x0057F920`) stops the effect with `Stop(1)` and releases it.
 5. **A random start.** The volcano manager's argument-less `AttemptDisasterStart` (`0x0057F5A0`; Ghidra names it as
    a function of the effect-disaster manager) does the following:
@@ -584,6 +682,47 @@ instead.
 
 The game records with message `0x2A7B582E` (19, 23, 36) then report the cell (data2, data3) with data1 = the
 instance, which updates the instance's location (`0x00576E70`).
+
+**Corrects (re-integrate1): "data1 = the instance" holds only for slaves reached as *meta* children.** There is
+no single spawn API: each particle class builds a child effect name by concatenating its own base name with a
+fixed suffix (`FUN_0041E270` `0x0041E270`) and calls `CreateVisualEffect` (slot 7). The suffixes and their
+callers are `_slave` (`cSC4ModelBasedParticlesEffect::CreateParticle` `0x005AEF20`, per particle, and
+`cSC4DynamicParticleEffect::Start` `0x00585190`, once), `_death` (`DestroyParticle` `0x005AF390`), `_collide`
+(`cSC4DynamicParticleEffect::ApplyEffect` `0x00584890`), and `_terrain` / `_water` (`FUN_005B8290`, on impact).
+Parameter 13 reaches **game components only** (`cSC4Scrubber` slot 6 `0x005BC2B0` accepts index 13 and copies
+`*value` into `this+0x58`; particle `SetVoidParams` `0x005B2200` accepts only index 7; decals only index 6;
+meta recurses via `0x005C0540`). Slaves spawned through the **particle** path get the particle's own `+0x26C`
+value (flag `+0x26B`), **not** the disaster instance. Only a slave reachable as a **meta component** of a
+control effect the instance started can post `data1 = the instance`. Whether the location update matches on
+something other than `data1 == instance` is open (§16 EF6).
+
+**The shipped slave family** (measured: 1148 names in the name map):
+
+| Suffix | Count | Role | Examples (index) |
+|---|---|---|---|
+| `_slave` | **143** | per-particle / per-emitter companion | `robot_walkfx_slave`(368), `meteor_stuff_slave`(384), `tornadofx_slave`(399), `tsaurus_walkfx_slave`(455), `default_dynparticle_slave`(**1116**), `car_slave`(586), `helifire_slave`(993), `debriscorefx_slave`(197), `blimpycreatorfx_slave`(528), `fireworks_slave`(464) |
+| `_terrain` | **33** | impact on terrain | `meteor_stuff_terrain`(390), `earthquakefire_terrain`(402), `tankfire_terrain`(952), `rocket_explodefx_terrain`(590), `erodefx_terrain`(1076), `whalefire_terrain`(1034) |
+| `_water` | **20** | impact on water | `meteor_stuff_water`(396), `lava_meets_water`(353), `heliwake_water`(668), `whalefire_water`(1035) |
+| `_death` | **21** | on particle death | `robot_walkfx_death`(380), `robot_landfx_death`(381), `tsaurus_walkfx_death`(461), `bolt*fx_death`(409–415), `skydiverdeath_death`(1043) |
+| `_collide` | **3** | on collision | `p_train_collide`(1117), `p_train_toxic_collide`(1120), `p_vehicle_collide`(1114) |
+| `_control` | **6** | disaster control | `volcano_control`(367), `robot_attack_control`(382), `meteorstrike_control`(383), `tornado_control`(400), `ufo_control`(453), `tsaurus_attack_control`(463) |
+
+`default_dynparticle_slave` being a real shipped effect **confirms** the literal lookup string in
+`cSC4DynamicParticleEffect::AttachSlaveEffect` `0x005840E0`. Lightning has no `_control`, as the table above
+says. So `meteor_stuff_terrain` / `_water` / `_slave` share the base `meteor_stuff`, and `robot_walkfx_slave`
+has base `robot_walkfx` — the §10.2 guess below is now proven and generalised to five suffixes.
+
+Three named effects, measured:
+
+- **`meteor_stuff_terrain` (390)** — 8 components: particles `meteorhit` (450, `flags=0`), sound (144, ignored),
+  game idx 24 (`flags=1`, ignored), and 5 meta `meteorcrater_a`…`_e` in select group 1 weight 13107.
+- **`meteor_stuff_water` (396)** — decal `meteor_hit_water`, particles `meteor_splash_water`, game **idx 25**,
+  5 meta `meteorcraterwater_a`…`_e`.
+- **`meteor_stuff_slave` (384)** — 2 particles (`meteortrailburn`, `meteortrailsmoke`), 2 decals
+  (`meteor_shadow_terrain`, `meteor_shadow_water`), sound 143, game idx 23, camera 4.
+
+The game components in all three are `flags = 1` → ignored, so they never hold those effects alive; the meta
+craters do.
 
 **The shipped control effects** (all priority 1, all components `[1, 6)`):
 
@@ -741,8 +880,16 @@ saves nothing).
 ## 15. Quirks
 
 1. **Effects finish only when the city is drawn** (§7). The volcano's state 7 and the effect disasters' end both
-   depend on it. *[inferred]* A harness that ticks the simulation but never runs the 3D view's draw pass keeps the
-   disaster, and therefore the emergency pause, forever. This needs a runtime check (EF2).
+   depend on it. A harness that ticks the simulation but never runs the 3D view's draw pass keeps the
+   disaster, and therefore the emergency pause, forever. **This is now proven, not inferred** (re-integrate1;
+   EF2 can be closed): `0x005BFD70` has exactly one reference in the whole decomp, in
+   `cSC4EffectsManager::DeactivateUnusedVisualEffects` `0x005922A0` (`cSC4EffectsManager.c:1987`); that in turn
+   is referenced only from `cSC4EffectsManager::Update(SC4DrawContext*)` `0x00593120` (`:2993`), which has no
+   direct call sites and lives in a vtable slot at `0x00A9F25C`. The end-message post exists in exactly one
+   place, `0x005BFD70`. So a session that never runs the draw pass never runs the finish test, never finishes an
+   effect and never posts an end message. One residual *[inferred]*: that `0x00593120` is reached only from the
+   3D view's draw pass — a caller-side fact outside the effects manager — but it does not change the conclusion,
+   because the finish test is unreachable by any other route regardless. Test 10 asserts this.
 2. An effect whose name exists but whose priorities are all above the detail setting is created with index −1. It
    does nothing and never ends (§4.1).
 3. Effects keep running while the game is paused, with dilation 1 (§6).
@@ -750,22 +897,85 @@ saves nothing).
 5. A `single` game record with a pause flag would leave the simulator paused (§9.2). No shipped record does this.
 6. The toxic amount of a game record is ignored (§9.3).
 7. Creating an effect consumes random draws even when it is never started (§14).
-8. Damage could depend on the zoom through the level-of-detail ranges (§5.2). With the shipped data it does not.
+8. Damage could depend on the zoom through the level-of-detail ranges (§5.2). **Amended (re-integrate1):** 840
+   of 3373 shipped components are *not* `[1, 6)`, so components do come and go with the zoom. What the shipped
+   data still supports is the narrower claim that everything reaching a brush or game record is `[1, 6)` — that
+   is the invariant worth asserting in tests.
+9. **Particle components are advanced only in the draw pass** (§7, re-integrate1). `cSC4ParticlesEffect`'s
+   component vtable is `0x00AA0B88`; slot 4 `+0x10` is `0x00648F10`, an **empty stub**, while slot 9 `+0x24` is
+   `0x005B8540` `Update(float, SC4DrawContext*)`, the draw-time update. So particles never advance, never die
+   and never clear `started` outside the draw pass — which is why quirk 1 bites twice over. Note also that
+   `FUN_005BEA10` is the **`+4`-subobject** component driver (`this` = `object+4`), so its `+0x110`/`+0x114`
+   reads are the effect's `+0x114`/`+0x118` component array — there are not two arrays.
+
+### 15.1 MATCHES / DIFFERS / PARTLY (re-integrate1)
+
+- **MATCHES** — the finish test's rules 1–3 of §7 (`0x005BFD70` returns 1 = done: `started == 0` or `index < 0`
+  at once with no message; `flags & 2` means never auto-stop; any non-ignored component still `IsActive` blocks
+  the finish; `flags & 0x80` without a soft stop blocks it; otherwise `Stop(1)` then a **queued** end message
+  through `0x00B43CCC`); §7's "Game components never do [keep an effect alive]" (measured 56 of 56);
+  §10.1's `volcano_control` composition (nine meta creators in one select group plus one attractor); §10.2's
+  guess at the slave naming rule, now proven and generalised to five suffixes; §3's `flags & 3` meaning.
+- **DIFFERS** — three, each corrected in place above: (1) **§3** — the record tables give *in-memory* sizes
+  (`0x38`, `0x6C`); on disk the component record is **variable-length** and nested inside the effect record;
+  (2) **§5.2** — "every component has the range `[1, 6)`" is false for **840 of 3373**; (3) **§10.2** — "data1 =
+  the instance" holds only for slaves reached as meta children, not for particle-spawned ones (§16 EF6).
+- **PARTLY** — §7's "An effect's lifetime also depends on its particles and decals (flag 0)" is now *measured
+  fact* (both carry `flags = 0` and both count), but the mechanism is asymmetric: decals self-stop, particles
+  have no self-stop path at all (§16 EF1). And the earlier reasoning that particles *must* be ignored is
+  superseded by the measurement — both readings are recorded in §7 rather than one being dropped.
 
 ## 16. Open questions
 
 - **EF1.** The exact finish time of `volcano_control` and of the disaster control effects. It depends on the
   particle and decal components' `IsActive`, which are render objects. A runtime trace of `0x005BFD70` on a
   volcano would settle it.
-- **EF2.** Confirm at runtime that a volcano never reaches state 7 when the city view does not draw (quirk 1).
-- **EF3.** The path by which particle systems spawn the "slave" effects (`meteor_stuff_terrain`,
-  `robot_walkfx_slave`, …), and whether the parameter 13 forwarded by the effect-disaster instance reaches them. The
-  effect-location messages depend on it. The particle descriptions were not parsed.
+
+  **Narrowed (re-integrate1).** Brush and decal end times are known; decals self-stop when their fade product
+  passes 1.0 and their mode byte `+0x15 == 2` (`Update` `0x00582920`). **Particles are the sole unknown**, and
+  the question is now sharp: *do `cSC4ParticlesEffect` components ever report inactive, and by what path?* The
+  bytes show no self-stop — `cSCParticleSimulatorBase::started` (`+0x05`) is written only by `Start` `0x005B9CF0`
+  and `Stop` `0x005B9E70`, and `CheckForStop` `0x005B9D40` fires only when a stop was already requested
+  (`delayedStop`) and the live-particle count `+0x14` hits 0 — yet the shipped data gives all 1921 particle
+  components `flags = 0`, so the finish test waits on them. **Probe:** one runtime trace of `0x005BFD70` on a
+  live `volcanocreator*`, logging per component `comp+0x40` and each `IsActive()` return. That also gives the
+  real wall-clock end of `volcano_control`. Static alternative: disassemble the emission path around
+  `cSC4ParticlesEffect::CreateParticle` `0x005B7C20` and look for a terminal `Stop(0)` when the emitter is
+  exhausted. Static bound on the end time: ≥ the child's brush length (2–4 dilated effect-seconds) plus one
+  draw-pass sweep.
+- ~~**EF2.** Confirm at runtime that a volcano never reaches state 7 when the city view does not draw (quirk 1).~~
+  **CLOSED (re-integrate1), statically.** `0x005BFD70` is reachable only from `DeactivateUnusedVisualEffects`
+  `0x005922A0`, which is reachable only from the draw-pass override `0x00593120` (vtable `0x00A9F25C`); the end
+  message is posted in exactly one place. Quirk 1 is proven. Consequence: the volcano instance stuck in state
+  5/7 and the effect-disaster emergency pause **never lift** in a session that only ticks.
+- ~~**EF3.** The path by which particle systems spawn the "slave" effects, and whether the parameter 13
+  forwarded by the effect-disaster instance reaches them.~~ **ANSWERED (re-integrate1)** — §10.2 has the suffix
+  table, the callers and the measured census (143 / 33 / 20 / 21 / 3 / 6). Parameter 13 reaches **game
+  components only**; particle `SetVoidParams` `0x005B2200` accepts only index 7 and decals only index 6. The
+  shipped inventory is enumerated. **One sub-question is now open in its own right — EF6 below.**
 - **EF4.** The meaning of visual effect flag bits 0, 3, 6 and 8. An effect created while the draw pass sweeps
   (`+0x1B4`, §5.1) stays on the new list until the next activation. When that next activation happens in a session
   that only ticks is untested.
 - **EF5.** Whether a hidden pause counts as "paused" for the time dilation, which would make the 5 s and 15 s pauses
   of §9.4 real-time seconds.
+- **EF6.** What `data1` is on a `kSC4MessageEffectLocation` (`0x2A7B582E`) posted from a game record inside a
+  **particle-spawned** slave (§10.2). Statically it is the game component's `data` field (`+0x58`), which for
+  such a slave is the particle's `+0x26C` value and **not** the disaster instance — so **§10.2's earlier
+  "data1 = the instance" is wrong for that case**. Either the location update matches on something other than
+  `data1 == instance`, or those slaves are reached as meta children in some effects. **Probe:** break on
+  `0x005BD3C0` when `+0x30 == 0x2A7B582E` and compare `data1` with the instance pointer; if they match, there
+  is a parameter-13 path not yet found, or `cSC4DisasterInstanceEffect::DoMessage` `0x00576E70` matches on
+  something else.
+- **EF7.** The exact semantics of `cSC4ModelBasedParticlesEffect +0x26B / +0x26C` and `+0x26F / +0x270` (§10.2).
+  Ghidra splits them into five byte fields, and there is no `SetVoidParams` on that class to populate them from a
+  parent's parameter 13. **Probe:** the class layout from `0x005AEC90` in full, or a runtime watch.
+- **EF8.** Who posts and who consumes `kSC4MessageTornadoDead` `0x0A36F1E8` and
+  `kSC4MessageMissionEffectStarted` `0x5F900DCC` — both are in the message name table `0x00B08360`–`0x00B086F8`
+  and neither is traced. **Probe:** xref on each constant.
+- **EF9.** Where the message names for `0x86AD10EE` and `0x697D01ED` live — they are **not** in the `0x00B08360`
+  table (that table holds 115 `{u32 id, const char* name}` pairs). **Probe:** scan for another name table.
+- **EF10.** Whether "every component that reaches a brush or game record is `[1, 6)`" holds per effect (§5.2).
+  **Probe:** the assertion already made by `engine/formats/tests/effects_directory.rs`.
 
 ## 17. Conformance tests (must exist in `engine/conformance` if the manager or the brush effect is replaced)
 
@@ -811,3 +1021,23 @@ saves nothing).
    posts its end message.
 10. **No end without the draw pass.** Start `volcano_control` with an end message, then tick past its brush length
     without calling the draw pass. No end message may be posted.
+11. **The finish rule** (§7, re-integrate1). Effect E finishes at the first draw-pass sweep at which `E.started`
+    is true and `E.index ≥ 0`, `E.flags & 2` is clear, every runtime component `c` with `(c.flags & 4) == 0` has
+    `c.IsActive()` false, and `E.flags & 0x80` is clear or `E.stopping` is true. At that moment `Stop(1)` is
+    called and, if `endMessageType != 0`, one **queued** `cRZMessage2Standard` is posted with
+    `type = endMessageType`, `data1 = endMessageData1`. `E.started` then becomes 0, so it never posts twice. A
+    done effect with refcount 1 is recycled (`name`/IDs reset, `index = −1`); one still referenced stays on the
+    active list.
+12. **The description bit is not the tested bit** (§7, re-integrate1). A component with `desc+0x10 & 1` set is
+    built with runtime `comp+0x40` bit 2 (value 4) set and is skipped by the finish test; one with it clear is
+    built with bit 2 clear and blocks the finish while it is active. Table types 3–15 additionally get runtime
+    bit 1 (value 2).
+13. **Shipped flag census** (§7, re-integrate1). Parsing the shipped effect directory gives `flags = 0` on all
+    1821 + 100 particle, 406 decal, 591 meta, 25 brush, 10 sequence and 3 model components, and `flags = 1` on
+    all 64 attractor, 56 game, 41 camera and 299 sound components (4 sound components have `flags = 0`).
+14. **LOD ranges are not uniform** (§5.2, re-integrate1). The shipped directory has 3373 components of which
+    2533 are `[1, 6)` and 840 are not. Every component that reaches a brush or game record, directly or through
+    meta, must still be `[1, 6)`.
+15. **`volcano_control` end condition** (§10.1, re-integrate1). The effect finishes only after the chosen
+    `volcanocreator*` child has finished on a previous sweep **and** that child's brush, particle and decal
+    components are all inactive on this one. The attractor and the game record never hold it.
