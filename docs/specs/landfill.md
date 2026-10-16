@@ -1584,8 +1584,9 @@ and need not be reproduced beyond that.
 3. *Partly answered* (2026-10-13): `0x278E6003` has a single send site, `cSTETerrain::RedisplayTerrain`, and
    `data4` is that function's fourth argument — verified (§3.2). The lot developer's levelling does use reason
    **5**, verified: `AttemptAreaLevelling` → `cSC4Demolition::ModifyTerrainHeight(…, 5, …)` →
-   `RedisplayTerrain(1, 1, rect, 5)`. **Still unresolved**: whether 1–3 are the terraforming brushes. That needs
-   `tBrushParameters::terrainMessageData4` to be traced back through the terraforming tool UI, which sets it.
+   `RedisplayTerrain(1, 1, rect, 5)`. *Answered* (re-specs14a, 2026-10-15): 1 = god-mode terraforming, the edge
+   reconciliation and `ChangeTerrainLevel`; 2 = mayor-mode terraforming and the `ApplyTerrainBrush` command; 3 =
+   disasters (earthquake, sinkhole, volcano) and water. Every sender is listed in terrain.md §8.2.
 4. *Answered* (2026-10-13, verified): **no**. `PlaceZone` `MessagePost`s `0x07699455`, so §4.4.8 does not
    re-enter `DoZoneChange`. See §4.4.8.
 5. The meaning of occupant manager slot 24 and occupant slot 15 with `0x99EF1145` after a tile move (§4.5.2).

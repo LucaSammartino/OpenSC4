@@ -1253,7 +1253,10 @@ CityPlanning advisor is to fire. The static catalogue can be rebuilt by the repl
 1. Q1. *Answered*: the tract developer claims (see §4 construction resources and `tract-developer.md` §4.15).
 2. Q2. Complete list of raw consumers of slots 34, 41 and 44 (most callers cache the BDS pointer; a vtable-offset
    scan with data flow is needed).
-3. Q3. Meaning of the terrain-change kinds 1–3 in `0x278E6003` data4, and the exact packing of data1/data2.
+3. Q3. *Answered* (re-specs14a, 2026-10-15): data1 = `(x0 << 16) + x1`, data2 = `(z0 << 16) + z1` of the inclusive
+   **vertex** rectangle passed to `RedisplayTerrain`, so the `− 1` of §4.11 gives the cells that touch it; data4 is
+   the kind: 1 god-mode terraforming and edge reconciliation, 2 mayor-mode terraforming, 3 disasters and water. See
+   terrain.md §8.1–§8.2.
 4. Q4. *Partly answered*: `0x150A` is the landmark group (SDK `BuildingCategoryFlagLandmark`; the game's own scripts
    call it "landmark") and `0x150B` the reward group (SDK `BuildingCategoryFlagReward`), §4.7.1.1. Still open: the
    name of property `0x029244DB` (preview flag *[inferred]*).

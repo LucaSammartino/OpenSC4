@@ -6,12 +6,22 @@ Runs (each through tools\ingame_run.ps1 with popup_dialogs = 0 and autotest_end 
 is part of every verdict):
   shadows  every same-process shadow at once, on the original subsystems: budget (needs disable = budget), demand,
            pollution, protection, crime, aura, flora, landfill, power, plumbing, land value, flammability,
-           residential, neighbours, zones, development, tract, zone developer (zonedev), history warehouse (history)
-           and 24-hour clock (clock; under turbo the clock steps rarely, CK22). A shadow line is clean when every
-           mismatch count on it is 0.
-  replace  every merged replacement at once (-Replace overrides the list). With development (our development unit
-           runs about 3x slower per game day than the original: 23-29 game days/s under turbo against 80-90) the
-           replace run takes longest.
+           residential, neighbours, zones, development, tract, zone developer (zonedev), history warehouse (history),
+           24-hour clock (clock; under turbo the clock steps rarely, CK22), commercial (CO$$/CO$$$ map rebuilds),
+           civic buildings (civic), parks and traffic (traffic_shadow_hypotheses = 7, the alternative readings of
+           TS55-TS57; traffic_shadow_lines = 1 keeps one day line per month next to the month line). A shadow line is
+           clean when every mismatch count on it is 0. Known difference: the traffic shadow is not exact to 2032 (run
+           121: 43 of 72 month lines clean, 3066 of 3165 deliveries, 0 incomplete; 49 of 72 alone at 4.5 days/s; the
+           scanning iterator after state 13 (TS64), the original's stop part-way through state 15 (TS63) and rare
+           trip-list differences (a reversible trip's return route, TS58)), and its count moves with the pacing, so
+           read its column against the baseline, not as 72/72. Shadow mismatches never fail the verdict (only
+           INCOMPLETE lines count as problems; a shadow with more mismatching lines than the baseline is a "worse"
+           line of the delta). The traffic shadow makes this run the long one (2.5-3.5 game days/s, 10-15 minutes).
+           Not in it: the lot developer shadow (lotdev_shadow; slots 25/26 differ until LD29).
+  replace  every merged replacement at once (-Replace overrides the list; 27 keys: the 20 of run 114
+           plus commercial, industrial, civic, parks, lotdev and zonedev (run 118) and traffic (run 121). With development (our development unit runs about 3x
+           slower per game day than the original: 23-29 game days/s under turbo against 80-90) the replace run takes
+           longest.
 
 Usage:
   powershell -File tools\regress.ps1 -Tag r1 [-EndDate 2032-01-01] [-Only shadows|replace] [-Replace "landvalue, weather"]
@@ -35,7 +45,8 @@ Profiles. The default (since main c367684 made the power shadow exact under turb
 goes to the game date -EndDate (default 2032-01-01, six game years on Konradshohe) with our simulator's turbo clock
 (sim_turbo = 1; a plugin from 0786064 on starts it after the city's first ConnectionsReady, so popups are already
 off), so every run gives the same month and shadow lines. -TurboFrom <date> starts it with a script action at that
-game date instead (for older DLLs). -TurboTimeout (default 900 s) is the timeout. -Turbo is accepted and changes
+game date instead (for older DLLs). -TurboTimeout (default 1800 s since the traffic shadow joined the shadows run:
+that run took 618 s and 874 s to 2032 in run 121's two attempts, the traffic shadow alone 479 s) is the timeout. -Turbo is accepted and changes
 nothing. -NormalSpeed: the old timed profile, -Seconds (default 150) of real time after the load at normal speed
 (an explicit -Seconds without -Turbo selects it too).
 
@@ -61,7 +72,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Tag,
     [int]$Seconds = 150,
     [ValidateSet("", "shadows", "replace")][string]$Only = "",
-    [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill, residential, neighbors, zones, development, tract, history, clock24",
+    [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill, residential, neighbors, zones, development, tract, history, clock24, commercial, industrial, civic, parks, lotdev, zonedev, traffic",
     [string]$City = "C:\Users\tlori\Documents\SimCity 4\Regions\FC4 Test\City - Konradshohe.sc4",
     [string]$Dll = "",
     [switch]$Parallel,
@@ -71,7 +82,7 @@ param(
     [switch]$NormalSpeed,
     [string]$EndDate = "2032-01-01",
     [string]$TurboFrom = "",
-    [int]$TurboTimeout = 900,
+    [int]$TurboTimeout = 1800,
     [string]$Baseline = "",
     [switch]$AnyPacing
 )
@@ -143,7 +154,7 @@ $Out = Join-Path $PSScriptRoot "..\build-runs"
 New-Item -ItemType Directory -Force $Out | Out-Null
 
 $runs = [ordered]@{
-    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1"
+    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1`ncommercial_shadow = 1`ncivic_shadow = 1`nparks_shadow = 1`ntraffic_shadow = 1`ntraffic_shadow_hypotheses = 7`ntraffic_shadow_lines = 1"
     replace = "enable = $Replace"
 }
 $after = if ($Turbo) { $TurboTimeout } else { $Seconds }

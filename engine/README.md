@@ -509,20 +509,25 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        reference per cell) are the Rust core's. The master lot list is kept in the game's raw layout, so the
        safe lot iterators of slot 15 (8-byte C blocks) work as the original's for the budget and traffic code;
        an iterator still registered at Shutdown is orphaned (its list object cleared) and its owner frees it.
-       **STAGE A: lot creation is not wired yet** (the game's lot constructor has no ABI row; re-specs11): every
-       CreateLot fails cleanly and logs `zonedev: CreateLot(x, z, w, h, facing f) refused: no lot constructor
-       [waiting for re-specs11]` (three times, then silence), so a parcellization creates no lot. Lots loaded
-       from a save are kept, queried, deleted and saved. `zonedev_seed = N` (env `FC4_ZONEDEV_SEED`) fixes the
+       Lots are built from the game's lot pool by the game's lot constructor (`0x006BF430` / `0x006C1E50`,
+       docs/abi/direct-calls.md; §8.5.1), then laid on their cells, given their insertion point and their empty
+       base texture (§8.5). UpdateZoneType (§7.2.2) dezones the cells a parcellization left without a lot
+       through the zone manager's PlaceZone; an inserted network piece joins dead-end streets and crosses rail
+       with the street / road tools (§5.2.1, §5.2.2); CanCreatePloppedLot (slot 21, §8.4.1) checks the plop
+       footprint, the slope and the configuration's constraint and network objects. Without the two addresses
+       (the executable not identified) or with `zonedev_lot_changes = 0` every CreateLot fails cleanly and logs
+       `zonedev: CreateLot(x, z, w, h, facing f) refused: …` (three times, then silence). Lots loaded from a
+       save are kept, queried, deleted and saved. `zonedev_seed = N` (env `FC4_ZONEDEV_SEED`) fixes the
        session seed (default: the cRZTime clock). Every call into the core holds the object's lock; another
        thread waits at most 20 ms and then gets the lot count / grid snapshot or the neutral answer (a fallback).
        The log has `zonedev Init|Read|Write|Shutdown: version=1 init=… loaded=… real=… lots=… map=XxZ created=…
-       deleted=… iterators=… issued=… parcellizations=… dezones=… reentrant=… refused=… streets=… demolitions=…
-       levellings=… removed=… posts=… options=0x… grid=… view=0x… fallbacks=…` and the same line once a month
+       deleted=… iterators=… issued=… parcellizations=… dezones=… reentrant=… refused=… built=… streets=… joins=…
+       demolitions=… levellings=… removed=… posts=… options=0x… grid=… view=0x… fallbacks=…` and the same line once a month
        (`zonedev month yyyy-mm-dd: …`), one line per parcellization or dezone (`zonedev parcellize|dezone:
        type=… rect=… cells=… flag=… lots=… failed=… deleted=… streets=placed/failed demolish=…`, with
-       `[lot creation waiting for re-specs11]` when a lot was refused) and `zonedev InsertOccupant: …` when an
-       inserted network deleted or re-created lots. Unspecified slots answer neutrally and say so once:
-       CanCreatePloppedLot (slot 21) returns 0; HighlightParcels hands out no region (`*out = null`).
+       `[lots refused, see CreateLot]` when a lot was refused) and `zonedev InsertOccupant: …` when an
+       inserted network deleted or re-created lots. HighlightParcels hands out no region (`*out = null`); the
+       first few CanCreatePloppedLot answers are logged (`zonedev: CanCreatePloppedLot(…) = code`).
        Its game calls have their own switches (default `1`, environment `FC4_ZONEDEV_<KEY>`):
        `zonedev_grid_writes`, `zonedev_messages`, `zonedev_network_tools`, `zonedev_posts`, `zonedev_demolition`,
        `zonedev_streets`, `zonedev_occupants`, `zonedev_terrain`, `zonedev_lot_changes`, `zonedev_growth`,
@@ -1374,6 +1379,55 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      ```
 
      Success is `roundtrip=same`, `mismatches=0` and `failures=0` on every line.
+   - **Traffic shadow** (`traffic_shadow = 1`, env `FC4_TRAFFIC_SHADOW`; off by default;
+     `traffic_shadow_diffs = N`, env `FC4_TRAFFIC_SHADOW_DIFFS`, default 8, 1..64; `traffic_shadow_lines = N`,
+     env `FC4_TRAFFIC_SHADOW_LINES`, default 8; `traffic_shadow_hypotheses = N`, env
+     `FC4_TRAFFIC_SHADOW_HYPOTHESES`, default 0; `plugin/FC4TrafficShadow.h`): a same-process differential of the
+     traffic simulator. It needs **our simulator and the original traffic simulator** (do not enable `traffic`);
+     otherwise it logs `traffic shadow: requested … but INACTIVE` at game start. It wraps every delivery of our
+     simulator to the original's agents (`cSC4TrafficSimulator`: the one-shot, the day and the month). The
+     original's day ends on a 4 ms wall-clock deadline (traffic-simulator.md §3.3), so FreeCity4's simulator (a
+     private copy, started on the original's record at its first delivery) runs **after** it, on the inputs as
+     they stood before: just before the delivery the original's own `Write` goes into a memory stream; when it
+     differs from the copy's record the copy reads it (a resync, counted); the trip lists and the lot and
+     connection holder arrays the delivery may change are snapshotted. Just after, the record again gives the
+     cycle state and phase progress the original stopped at; the copy steps one unit at a time to the same point
+     (a cell-scanning phase stopped mid-scan stops at the original's iterator cell, FinishTripMap after the lot at
+     the original's saved cell; in ReRouteTrips and FullTrips the copy then runs on, examining no trip, to the
+     original's saved source cell: a "run-on"; that source's list end is taken when the original's record or trip
+     list shows it was: "list ends") and takes the original's day step on its share, then its record (fields
+     named), every trip list, the holder arrays and its grids are compared bitwise with the original's. The copy
+     reads the city through the traffic glue's read callbacks (every write callback NULL: its writes, posts,
+     budget calls and references stay inside it) and the original's grids through `GetTractValue`; the messages
+     the original subscribes to are forwarded to it. The lot strategy byte (no getter) is read as the last byte of the lot's own record
+     (§6.3). **Not compared** (said in the start line): the strategy draws (property `0x4A611773`) and the
+     pothole and accident draws' choices (the original's generator is not readable), posted messages, history,
+     incomes, network costs, budget items and accidents. **Known differences** are counted apart on the month
+     line, not as mismatches, and cause no resync: a new trip's undefined destination and travel types (§4.1.1),
+     a reversible trip's return route the original keeps, a status-0 trip's destination (written by a search the
+     original's deadline suspended; ours never suspend), a statistics set's unnamed last byte, pass counters 0
+     and 4-8 (§10 Q4) and the unnamed fields of rows 14-15. `traffic_shadow_hypotheses` is a bit mask of
+     alternative readings of unclear spec points the copy runs instead of the spec as written (fc4.h
+     `FC4_TRAFFIC_SHADOW_HYP_*`: 1 the ConfirmTrips merge sets status 0 only on a trip that absorbed one, 2 row
+     19's pairs are (published, building) and FullTrips' end swaps them, 4 the ReRouteTrips merge absorbs routed
+     trips too); the month line names the mask. With 7, Konradshohe 2026-01-27 to 2026-08-01 is clean but for a
+     few deliveries (lane traffic2 questions); with 0 most trip-phase days differ. Lines (always written; longer
+     ones continue on `traffic shadow (cont.)` lines):
+
+     ```
+     traffic shadow: ON (traffic_shadow from …): …                                          (game start)
+     traffic shadow: comparing with the original traffic simulator … (city …); …            (first delivery)
+     traffic shadow yyyy-mm-dd day|month|begin (state A -> B, progress P, units U): mismatches=N; record FIELD:
+       orig … ours …; trips of lot (x, z): …; holder … property 0x…: …; grid NAME: K of T tracts differ: …
+     traffic shadow yyyy-mm-dd day: INCOMPLETE (why); not compared
+     traffic shadow month to yyyy-mm-dd [(hypotheses 0x…)]: clean|mismatches=N; deliveries=D (day d, month m,
+       other o) compared=C clean=K incomplete=I; record fields compared=… mismatched=… (FIELD xN, …); trip lists compared=…
+       mismatched=…; holder properties compared=… mismatched=…; grid tracts compared=… mismatched=…; known
+       differences (not counted): … xN, …; between deliveries: resyncs=R; ours: units=… run-ons=… (list ends …)
+       day steps=…, kept posts=… …; first differences: …
+     ```
+
+     Success is `clean` on every month line, `resyncs=0` and no `INCOMPLETE` line.
    - **Lot developer shadow** (`lotdev_shadow = 1`, env `FC4_LOTDEV_SHADOW`; off by default;
      `plugin/FC4LotDevShadow.h`): a same-process differential of the lot developer. It needs the **original** lot
      developer (do not enable `lotdev`); otherwise it logs `lotdev shadow: requested … but INACTIVE` at game start.

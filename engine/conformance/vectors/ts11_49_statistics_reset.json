@@ -1,0 +1,531 @@
+{
+  "format": 1,
+  "name": "ts11_49_statistics_reset",
+  "spec": [
+    "traffic-simulator 4.9"
+  ],
+  "description": "§4.9 (TS40): the state-2 entry reset zeroes the five fields of every working row and sets the separate per-slot comparison value to -1.0. First pass: an Avenue (6) car record at (5, 1) with inv_cap 1.0 and volume 0.5 publishes (0.5, 0, 5, 1, 0.5). Entering 2 again: the working rows are zeros, the 14 comparison values -1.0. Second pass with volume NaN: the ratio NaN never beats -1.0 (ordered compare) and is not > 1.0, so the Avenue row publishes (NaN, 0, 0, 0, 0.0): sum NaN / 1 = NaN, max fields 0, not -1.0; its record count is 1. Empty slots publish zeros.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_info",
+      "cell": [
+        5,
+        1
+      ],
+      "info": [
+        [
+          1,
+          6,
+          1.0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "ts_grid",
+      "grid": "volume",
+      "n": 1,
+      "values": [
+        [
+          5,
+          1,
+          0.5
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        2
+      ],
+      "note": "CreateMaps"
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "stats_records": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "stats_rows": [
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": "0x3F000000",
+            "congested": 0,
+            "max": "0x3F000000",
+            "max_cell": [
+              5,
+              1
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "op": "ts_grid",
+      "grid": "volume",
+      "n": 1,
+      "values": [
+        [
+          5,
+          1,
+          "0x7FC00000"
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        2
+      ],
+      "note": "CreateMaps"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "stats_work_rows": [
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          }
+        ],
+        "stat_max_cmp": [
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000",
+          "0xBF800000"
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "stats_records": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "stats_rows": [
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": "0x7FC00000",
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

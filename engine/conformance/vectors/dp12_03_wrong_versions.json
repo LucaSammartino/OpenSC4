@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "dispatch_wrong_versions",
+  "spec": ["dispatch 7", "dispatch 12.3"],
+  "description": "Read of version 1 or 3 fails and 'loaded' is still set (it is set before the version check). A cut record fails, appends nothing and gives back the references it took.",
+  "steps": [
+    {"op": "dispatch_read", "hex": "0100 00000000 00000000 00000000 00000000 08000000", "expect": false},
+    {"op": "dispatch_expect", "state": {"loaded": true}},
+    {"op": "dispatch_read", "hex": "0300 00000000 00000000 00000000 00000000 08000000", "expect": false},
+    {"op": "dispatch_expect", "state": {"loaded": true}},
+    {"op": "dispatch_read", "hex": "0200 00000000 05000000 00000000 01000000 07000000 11223344", "expect": false},
+    {"op": "dispatch_expect", "state": {"loaded": true, "available_pylons": [], "next_id": 0}},
+    {"op": "dispatch_expect_refs", "refs": {"7": 0}}
+  ]
+}

@@ -71,6 +71,7 @@
 #include "FC4FlammabilityShadow.h"
 #include "FC4LandValueShadow.h"
 #include "FC4LandfillShadow.h"
+#include "FC4TrafficShadow.h"
 #include "FC4PlumbingShadow.h"
 #include "FC4PowerShadow.h"
 #include "FC4ResidentialShadow.h"
@@ -8237,6 +8238,7 @@ struct ZdStub {
     int8_t zone[8][8] = {};
     int newLots = 0, defers = 0, services = 0, levellings = 0, streets = 0, demolitions = 0;
     int gridCreates = 0, gridReleases = 0, foreignRefs = 0;
+    int dezones = 0, joins = 0, zoneUpdates = 0;  // ABI 55
     std::vector<uint32_t> subscribed, unsubscribed;
 };
 ZdStub* g_zd = nullptr;
@@ -8391,6 +8393,29 @@ void ZdGridShutdown(void*, uint64_t) {}
 void ZdGridRelease(void*, uint64_t) { ++g_zd->gridReleases; }
 
 // The master_* mirror callbacks stay NULL: the plugin's raw list runs.
+// ABI 55 (re-specs11): flat land, no slope, no configuration objects, no
+// networks; the dezone and the joins only counted (the stub's zones stay).
+float ZdAreaSlope(void*, const fc4_cell_rect*, bool) { return 0.0f; }
+float ZdCfgMaxSlope(void*, uint64_t) { return 100.0f; }
+void ZdCfgObjects(void*, uint64_t, fc4_zonedev_cfg_object_callback, void*) {}
+uint32_t ZdNetU32(void*, uint64_t) { return 0; }
+bool ZdNetAll(void*, uint64_t, uint32_t) { return false; }
+uint32_t ZdNetEdges(void*, uint64_t, uint32_t) { return 0; }
+int32_t ZdNetIsOfType(void*, uint64_t, uint32_t) { return -1; }
+bool ZdNetBool(void*, uint64_t) { return false; }
+void ZdOccCells(void*, uint64_t, fc4_cell_rect* out) { *out = fc4_cell_rect{0, 0, -1, -1}; }
+bool ZdToolPresent(void*, uint32_t) { return false; }
+void ZdJoin(void*, uint32_t, int32_t, int32_t, int32_t, int32_t) { ++g_zd->joins; }
+bool ZdLand(void*, int32_t, int32_t) { return true; }
+bool ZdCellInBounds(void*, int32_t x, int32_t z) { return x >= 0 && x < 8 && z >= 0 && z < 8; }
+bool ZdNavigable(void*, int32_t, int32_t) { return false; }
+void ZdLotUpdateZone(void*, uint64_t t) {
+    ++g_zd->zoneUpdates;
+    if (ZdIsLot(t)) ZdLotOf(t)->zone = ZdZoneType(nullptr, ZdLotOf(t)->x, ZdLotOf(t)->z);
+}
+bool ZdForceEmpty(void*) { return false; }
+void ZdDezone(void*, const fc4_zone_region*) { ++g_zd->dezones; }
+
 fc4_zonedev_host ZdStubHost() {
     fc4_zonedev_host h{};
     h.struct_size = sizeof(h);
@@ -8471,6 +8496,23 @@ fc4_zonedev_host ZdStubHost() {
     h.dev_desirability_shift = &ZdDevU32;
     h.dev_purpose = &ZdDevU32;
     h.dev_wealth = &ZdDevU32;
+    h.area_slope = &ZdAreaSlope;
+    h.cfg_max_slope = &ZdCfgMaxSlope;
+    h.cfg_objects = &ZdCfgObjects;
+    h.network_flags = &ZdNetU32;
+    h.network_has_all_flags = &ZdNetAll;
+    h.network_edge_mask = &ZdNetEdges;
+    h.network_is_of_type = &ZdNetIsOfType;
+    h.network_is_flag_0x400000 = &ZdNetBool;
+    h.occupant_bounding_cells = &ZdOccCells;
+    h.network_tool_present = &ZdToolPresent;
+    h.network_tool_join = &ZdJoin;
+    h.cell_has_land = &ZdLand;
+    h.cell_is_in_bounds = &ZdCellInBounds;
+    h.is_navigable = &ZdNavigable;
+    h.lot_update_zone_type = &ZdLotUpdateZone;
+    h.force_empty_lot_base_textures = &ZdForceEmpty;
+    h.zone_manager_dezone = &ZdDezone;
     return h;
 }
 
@@ -8679,7 +8721,7 @@ void CheckZoneDevNeutral(cFC4ISC4LotManager* lm) {
     CHECK(lm->GetMaximumCapacityGrid() == nullptr);
     CHECK(lm->GetRandomLot() == nullptr);
     CHECK(lm->GetOccupantLot(nullptr) == nullptr);
-    // Slot 21 is not specified: 0, logged.
+    // Slot 21 (§8.4.1): no map yet, 0 (logged).
     CHECK(lm->CanCreatePloppedLot(SC4Rect<long>(1, 1, 2, 2), 1, nullptr) == 0);
 }
 
@@ -8689,7 +8731,7 @@ void ZdParcellize(cISC4ZoneDeveloper* zd, int32_t x1, int32_t z1, int32_t x2, in
                          static_cast<cISC4ZoneManager::ZoneType>(type), false);
 }
 
-// The live object through the stub: Init, STAGE A refusals, lots from the
+// The live object through the stub: Init, refused lots, lots from the
 // stub, the lists, the iterator, the shadow, DeleteLot, Shutdown.
 void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
     static ZdStub stub;
@@ -8723,7 +8765,8 @@ void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         for (int z = 1; z <= 2; ++z) stub.zone[x][z] = 7;  // agriculture: 1 x 1 lots (§7.5)
     }
 
-    // STAGE A: no lot constructor (the plugin's own new_lot): CreateLot and a
+    // The plugin's own new_lot outside the game (the lot pool and constructor
+    // not available, the executable not identified): CreateLot and a
     // parcellization fail cleanly, logged.
     host.new_lot = nullptr;
     {
@@ -8732,7 +8775,7 @@ void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         CHECK(ZdState(seam, zd).newLotRefusals == 1);
         ZdParcellize(zd, 1, 1, 2, 2, 7);
         const FC4ZoneDevTestState st = ZdState(seam, zd);
-        CHECK(st.newLotRefusals == 5 && st.masterSize == 0 && st.heldConfigs == 0);
+        CHECK(st.newLotRefusals == 5 && st.masterSize == 0 && st.heldConfigs == 0 && st.lotsBuilt == 0);
         CHECK(lm->GetLotCount() == 0 && stub.defers == 2);
     }
 
@@ -8942,14 +8985,15 @@ int ZoneDevEnableTest(const std::string& dll, const std::string& ini, const std:
     CHECK(text.find("zonedev: no city; services not acquired") != npos);
     CHECK(text.find("zonedev Init FAILED: version=1 init=0") != npos);
     CHECK(text.find("zonedev month 2000-02-01: version=1") != npos);
-    CHECK(text.find("is not specified (zones.md \xC2\xA7" "14.3 Q2): 0") != npos);
+    CHECK(text.find("zonedev: CanCreatePloppedLot(1,1..2,2, facing 1) = 0") != npos);
     CHECK(text.find("zonedev Read -> 1") != npos);
     CHECK(text.find("zonedev Read -> 0") != npos);
     CHECK(text.find("zonedev: test hooks installed") != npos);
     CHECK(text.find("zonedev Init: version=1 init=1 loaded=0 real=") != npos);
-    CHECK(text.find("refused: no lot constructor [waiting for re-specs11]") != npos);
+    CHECK(text.find("zonedev: CreateLot(1, 1, 1, 1, facing 0) refused: the lot pool / constructor is not available") !=
+          npos);
     CHECK(text.find("zonedev parcellize: type=7 rect=1,1..2,2 cells=4 flag=0 lots=0 failed=4 deleted=0 streets=0/0 "
-                    "demolish=0 [lot creation waiting for re-specs11]") != npos);
+                    "demolish=0 [lots refused, see CreateLot]") != npos);
     CHECK(text.find("zonedev parcellize: type=7 rect=1,1..2,2 cells=4 flag=0 lots=4 failed=0 deleted=0") != npos);
     CHECK(text.find("zonedev shadow (lots) 2000-02-01 load: mismatches=0 count=5/5") != npos);
     CHECK(text.find("zonedev shadow (lots) 2000-02-01 month: mismatches=1 count=6/5") != npos);
@@ -9694,6 +9738,8 @@ void TrOccupantBounds(void*, uint64_t occ, fc4_cell_rect* out) {
 bool TrOccupantProperty(void*, uint64_t, uint32_t, fc4_props*) { return false; }
 uint32_t TrPropType(void*, uint64_t) { return 0; }
 bool TrIsTunnel(void*, uint64_t) { return false; }
+// The street pieces have no path info: no turn-around (traffic-network.md §4.2 step 3).
+uint64_t TrNoPathInfo(void*, uint64_t) { return 0; }
 void TrPostSink(void*, cIGZMessage2Standard*) { ++g_tr->posts; }
 void* TrAllocate(uint32_t size) {
     void* p = std::calloc(1, size);
@@ -9743,6 +9789,7 @@ fc4_traffic_host TrafficStubHost(TrafficStub& s) {
     h.occupant_property = &TrOccupantProperty;
     h.prop_type = &TrPropType;
     h.is_tunnel = &TrIsTunnel;
+    h.path_info = &TrNoPathInfo;
     return h;
 }
 
@@ -9874,13 +9921,104 @@ void TrafficPathFinderTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
     TrafficHooks(seam, nullptr, nullptr);  // the game's allocator again
 }
 
+// ---- the traffic shadow (FC4TrafficShadow.h, test seam op 51) on a stand-in original -------------
+//
+// Our own simulator stands in for the original behind fake objects: the
+// city's GetTrafficSimulator (slot 69) answers the fake simulator, whose
+// agent forwards DoMessage and whose serializable forwards Write to ours.
+
+struct FakeOrigTraffic {
+    FakeVtable simVt, agentVt, serVt, cityVt;
+    FakeObject sim{}, agent{}, ser{}, city{}, other{};
+    cIGZMessageTarget2* innerTarget = nullptr;
+    cIGZSerializable* innerSer = nullptr;
+    int refs = 1;
+    int deliveries = 0;
+    int writes = 0;
+};
+
+FakeOrigTraffic* g_ot = nullptr;
+
+bool __fastcall OtQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, agent, serializable)
+    if (out == nullptr) return false;
+    if (iid == kIID_cIGZMessageTarget2T) {
+        *out = &g_ot->agent;
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_ot->ser;
+    } else {
+        return false;
+    }
+    ++g_ot->refs;
+    return true;
+}
+uint32_t __fastcall OtAddRef(void*, void*) { return static_cast<uint32_t>(++g_ot->refs); }   // 1
+uint32_t __fastcall OtRelease(void*, void*) { return static_cast<uint32_t>(--g_ot->refs); }  // 2
+bool __fastcall OtWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_ot->writes;
+    return g_ot->innerSer->Write(*s);
+}
+uint32_t __fastcall OtClsid(void*, void*) { return kCLSID_Traffic; }  // serializable 5
+bool __fastcall OtDoMessage(void*, void*, cIGZMessage2* m) {          // agent 3
+    ++g_ot->deliveries;
+    return g_ot->innerTarget->DoMessage(m);
+}
+void* __fastcall OtCitySim(void*, void*) { return &g_ot->sim; }  // city 69
+
+void InitFakeOrigTraffic(FakeOrigTraffic& o, cIGZMessageTarget2* target, cIGZSerializable* ser) {
+    g_ot = &o;
+    o.innerTarget = target;
+    o.innerSer = ser;
+    for (FakeVtable* vt : {&o.simVt, &o.agentVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OtQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OtAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OtRelease);
+    }
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OtDoMessage);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OtWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OtClsid);
+    o.cityVt.slots[69] = reinterpret_cast<void*>(&OtCitySim);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.other.vtbl = o.agentVt.slots.data();  // an agent, but not the simulator's
+}
+
+intptr_t TrafficShadowOnce(FC4TestSeamFn seam, FakeObject* city, FakeObject* target, uint32_t type,
+                           uint32_t fresh = 0) {
+    FC4TrafficShadowTestInput in{reinterpret_cast<cISC4City*>(city), reinterpret_cast<cIGZMessageTarget2*>(target),
+                                 type, 2451576, fresh};  // 2000-02-01
+    return seam(kFC4SeamTrafficShadow, &in, nullptr);
+}
+
+// The shadow follows the stand-in clean through the one-shot, days and a
+// month; an agent that is not the simulator's, or no city, is left to the
+// caller (nothing delivered).
+void TrafficShadowStandIn(FC4TestSeamFn seam, cIGZMessageTarget2* target, cIGZSerializable* ser) {
+    static FakeOrigTraffic o;
+    InitFakeOrigTraffic(o, target, ser);
+    CHECK(TrafficShadowOnce(seam, nullptr, &o.agent, kMsgSimNewDay, 1) == -1);
+    CHECK(TrafficShadowOnce(seam, &o.city, &o.other, kMsgSimNewDay) == -1);
+    CHECK(o.deliveries == 0 && o.writes == 0);
+    CHECK(TrafficShadowOnce(seam, &o.city, &o.agent, 0x66956810) == 0);  // the one-shot: the copy starts
+    for (int d = 0; d < 3; ++d) CHECK(TrafficShadowOnce(seam, &o.city, &o.agent, kMsgSimNewDay) == 0);
+    CHECK(TrafficShadowOnce(seam, &o.city, &o.agent, kMsgSimNewMonth, 2) == 0);
+    CHECK(o.deliveries == 5 && o.writes == 10);
+    CHECK(o.refs == 1);  // every QueryInterface released
+}
+
 int TrafficEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
     // Off by default; `enable = traffic` registers the traffic simulator.
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
     SetEnvironmentVariableA("FC4_TRAFFIC_SEED", nullptr);
     SetEnvironmentVariableA("FC4_TRAFFIC_UNITS_PER_SLICE", nullptr);
-    WriteTextFile(ini, "[subsystems]\nenable = traffic\ntraffic_seed = 1234\n");
+    SetEnvironmentVariableA("FC4_TRAFFIC_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_TRAFFIC_SHADOW_DIFFS", nullptr);
+    SetEnvironmentVariableA("FC4_TRAFFIC_SHADOW_LINES", nullptr);
+    // The traffic shadow is requested too: with our traffic simulator it is inactive.
+    WriteTextFile(ini, "[subsystems]\nenable = traffic\ntraffic_seed = 1234\n[tools]\ntraffic_shadow = 1\n"
+                       "traffic_shadow_diffs = 8\ntraffic_shadow_lines = 8\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);
     if (hd == nullptr) return 1;
@@ -9953,6 +10091,10 @@ int TrafficEnableTest(const std::string& dll, const std::string& ini, const std:
             if (record.size() > 2) CHECK(record[0] == 0x29 && record[1] == 0);
             // Init without a city: no services, no grid; still neutral.
             CHECK(ts->Init());
+            // The traffic shadow (seam op 51) with this simulator as the stand-in
+            // original, from its first delivery (the day of month last seen is
+            // not saved, §3.3: a copy started later would see a new day).
+            if (mt != nullptr && ser != nullptr) TrafficShadowStandIn(seam, mt, ser);
             CHECK(ts->GetCongestionMap() == nullptr);
             CheckTrafficX87(ts, &pct, 0);  // the game's allocator is unavailable: the vector stays empty
             CHECK(pct.begin == nullptr);
@@ -10011,6 +10153,13 @@ int TrafficEnableTest(const std::string& dll, const std::string& ini, const std:
     CHECK(text.find("traffic Read -> 0") != std::string::npos);
     CHECK(text.find("cFC4TrafficSimulator destroyed (2 fallbacks, 0 external pathfinders)") != std::string::npos);
     CHECK(text.find("traffic: test hooks installed") != std::string::npos);
+    // The traffic shadow on the stand-in original (seam op 51).
+    CHECK(text.find("traffic shadow: requested (traffic_shadow from FreeCity4.ini) but INACTIVE") !=
+          std::string::npos);
+    CHECK(text.find("traffic shadow: comparing with the original traffic simulator") != std::string::npos);
+    CHECK(text.find("traffic shadow month to 2000-02-01: clean; deliveries=5 (day 3, month 1, other 1)") !=
+          std::string::npos);
+    CHECK(text.find("INCOMPLETE") == std::string::npos);
     CHECK(CountOf(text, "traffic: WARNING FindPath with a route deque refused") == 1);
     CHECK(text.find("cFC4TrafficSimulator destroyed (0 fallbacks, 2 external pathfinders)") != std::string::npos);
     CHECK(text.find("structured exception") == std::string::npos);
