@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "name": "03_controller_times",
+  "spec": ["automata 3.1", "automata 14.3"],
+  "description": "Getting Started Tutorial: both controller times are the bytes 77 77 5F 41 03 00 = (13.9667 h, day 3).",
+  "steps": [
+    {"op": "automata_record", "class": "0xCA14CA03", "hex": "0100 1893010A 29F9E7A7 77775F410300 77775F410300 00000000 00000000", "fields": {"time_a": [13.966666, 3], "time_b": [13.966666, 3]}}
+  ]
+}

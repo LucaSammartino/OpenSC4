@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "09_fire",
+  "spec": ["automata 8.2", "automata 14.9"],
+  "description": "The fire occupant's SetTarget on a building calls controller manager slot 10 AddControllersFromOccupantGroup(\"fire_occupant\", target, 0); on a non-building it calls nothing; Shutdown calls slot 14 RemoveControllers(target), and nothing once the target is gone.",
+  "steps": [
+    {"op": "automata_city", "buildings": ["0x10"]},
+    {"op": "automata_fire_target", "target": "0x10", "expect": true},
+    {"op": "automata_fire_shutdown", "expect": true},
+    {"op": "automata_expect_calls", "calls": ["AddControllersFromOccupantGroup fire_occupant 0x10 0", "RemoveControllers 0x10"]},
+    {"op": "automata_clear_calls"},
+    {"op": "automata_fire_target", "target": "0x20", "expect": false},
+    {"op": "automata_expect_calls", "calls": []},
+    {"op": "automata_fire_shutdown", "expect": true},
+    {"op": "automata_fire_shutdown", "expect": false},
+    {"op": "automata_expect_calls", "calls": ["RemoveControllers 0x20"]}
+  ]
+}

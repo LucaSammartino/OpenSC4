@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "11_unknown_template",
+  "spec": ["automata 3.4", "automata 12.7", "automata 14.11"],
+  "description": "A loaded controller whose template name the scripts do not define is dropped at PostCityInit (logged, shut down, released) and the rest are kept: re-bound, Init'ed and put in the grid. An occupant left without controllers goes (its reference released). A city that was not loaded skips the pass.",
+  "steps": [
+    {"op": "automata_scripts", "templates": [{"name": "dog_make", "kind": "generator"}]},
+    {"op": "automata_cm_read", "hex": "0100 00000000 000000000000 000000000000 02000000 40000000 2D88BDA9 02000000 01000000 C528164A 02000000 BA28166A 41000000 2D88BDA9 01000000 03000000 C528164A 00000000", "templates": {"1": "dog_make", "2": "gone_name", "3": "gone_name"}, "expect": true},
+    {"op": "automata_cm_expect", "loaded": true, "occupants": {"0x40": ["dog_make", "gone_name"], "0x41": ["gone_name"]}, "bound": [false, false, false]},
+    {"op": "automata_cm_post_city_init", "expect": ["gone_name", "gone_name"]},
+    {"op": "automata_cm_expect", "occupants": {"0x40": ["dog_make"]}, "bound": [true], "shut_down": [2, 3]},
+    {"op": "automata_expect_log", "log": ["log Couldn't find automata controller template 'gone_name' in scripts. Removing controller.", "log Couldn't find automata controller template 'gone_name' in scripts. Removing controller.", "release 0x41"]},
+    {"op": "automata_cm_write", "hex": "0100 00000000 000000000000 000000000000 01000000 40000000 2D88BDA9 01000000 01000000 C528164A 00000000"},
+    {"op": "automata_cm_new"},
+    {"op": "automata_clear_log"},
+    {"op": "automata_scripts", "templates": [{"name": "a", "kind": "generator"}]},
+    {"op": "automata_cm_add", "occupant": "0x40", "template": "a", "expect": true},
+    {"op": "automata_scripts", "templates": []},
+    {"op": "automata_cm_post_city_init", "expect": []},
+    {"op": "automata_cm_expect", "loaded": false, "occupants": {"0x40": ["a"]}, "bound": [true]}
+  ]
+}
