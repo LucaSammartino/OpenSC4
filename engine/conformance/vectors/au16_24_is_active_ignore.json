@@ -1,0 +1,98 @@
+{
+  "format": 1,
+  "name": "audio_is_active_and_ignore_bit",
+  "spec": [
+    "audio 16.24",
+    "audio 9.3",
+    "audio 14.16",
+    "audio 14.17"
+  ],
+  "description": "IsActive returns the +0x1C started byte and stays true until Stop, so a non-ignored sound with length == 0 pins its effect forever. Component record +0x10 bit 0 becomes runtime flag bit 2 (runtime+0x40 |= 4) and CheckFinished skips components with that bit set. The text parser's rule bit0 = (length == 0) does not hold in the shipped data [quirks 16, 17].",
+  "steps": [
+    {
+      "op": "aud_component_create",
+      "sound": 1,
+      "rate": 0.0,
+      "length": 0
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "active": false
+      }
+    },
+    {
+      "op": "aud_component_call",
+      "method": "start",
+      "this": 66
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "active": true
+      }
+    },
+    {
+      "op": "aud_component_call",
+      "method": "update",
+      "dt": 1000000000.0
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "active": true
+      },
+      "note": "length == 0 never self-stops: the effect is pinned forever"
+    },
+    {
+      "op": "aud_component_call",
+      "method": "stop",
+      "mode": 1
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "active": false
+      }
+    },
+    {
+      "op": "aud_ignore_bit",
+      "record_flags": 1,
+      "runtime_flags": 0,
+      "state": {
+        "flags": 4,
+        "considered": false
+      },
+      "note": "bit 0 -> runtime +0x40 |= 4, and CheckFinished skips it"
+    },
+    {
+      "op": "aud_ignore_bit",
+      "record_flags": 0,
+      "runtime_flags": 0,
+      "state": {
+        "flags": 0,
+        "considered": true
+      }
+    },
+    {
+      "op": "aud_ignore_bit",
+      "record_flags": 0,
+      "runtime_flags": 4,
+      "state": {
+        "flags": 0,
+        "considered": true
+      },
+      "note": "the bit is cleared when the record bit is off"
+    },
+    {
+      "op": "aud_ignore_bit",
+      "record_flags": 1,
+      "runtime_flags": 3,
+      "state": {
+        "flags": 7,
+        "considered": false
+      },
+      "note": "only bit 2 of the runtime flags matters"
+    }
+  ]
+}

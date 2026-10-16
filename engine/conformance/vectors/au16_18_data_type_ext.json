@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "name": "audio_data_type_and_extension",
+  "spec": [
+    "audio 16.18",
+    "audio 10.2",
+    "audio 10.3",
+    "audio 10.11"
+  ],
+  "description": "A 0x2026960B record resolves to .str in the HitLists segment, .hit in the TLO segment and raw sample data in the [SampleDataSegments] groups, exactly as the configuration record's [DBSegmentDirectoryFiles] section says; 0x9D796DB4 resolves to .tlo. The binding is data-driven, not hard-coded (0x00936707).",
+  "steps": [
+    {
+      "op": "aud_data_expect",
+      "type": 539399691,
+      "context": "hitlists",
+      "state": {
+        "ext": "str"
+      }
+    },
+    {
+      "op": "aud_data_expect",
+      "type": 539399691,
+      "context": "tlo",
+      "state": {
+        "ext": "hit"
+      }
+    },
+    {
+      "op": "aud_data_expect",
+      "type": 539399691,
+      "context": "sample",
+      "state": {
+        "ext": ""
+      }
+    },
+    {
+      "op": "aud_data_expect",
+      "type": 2641980852,
+      "context": "tlo",
+      "state": {
+        "ext": "tlo"
+      }
+    },
+    {
+      "op": "aud_data_expect",
+      "type": 2641980852,
+      "context": "sample",
+      "state": {
+        "ext": "tlo"
+      }
+    },
+    {
+      "op": "aud_data_expect",
+      "type": 2065354701,
+      "context": "hitlists",
+      "state": {
+        "ext": "hls"
+      }
+    },
+    {
+      "op": "aud_data_expect",
+      "type": 193823258,
+      "context": "tlo",
+      "state": {
+        "ext": null
+      }
+    },
+    {
+      "op": "aud_data_expect",
+      "type": 539399691,
+      "context": "tlo",
+      "state": {
+        "entries": 2776,
+        "bytes": 122372241
+      },
+      "note": "Sound.dat: 2776 index entries, 122,372,241 bytes (10.1)"
+    }
+  ]
+}

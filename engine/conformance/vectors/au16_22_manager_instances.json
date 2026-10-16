@@ -1,0 +1,99 @@
+{
+  "format": 1,
+  "name": "audio_manager_instance_table",
+  "spec": [
+    "audio 16.22",
+    "audio 8.3",
+    "audio 10.6"
+  ],
+  "description": "_StartSound with an instance id that is already live first stops the old one and then starts the new one under the same id. _StopSound with an id that is not present returns false and leaves the hashtable and the list unchanged [quirk 12].",
+  "steps": [
+    {
+      "op": "aud_manager_start",
+      "sound": 1,
+      "instance": 42,
+      "expect": 42
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "instances": 1,
+        "list": 1
+      }
+    },
+    {
+      "op": "aud_manager_start",
+      "sound": 2,
+      "instance": 42,
+      "expect": 42,
+      "note": "the live instance is stopped first, then a new one starts under the same id"
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "instances": 1,
+        "list": 1
+      }
+    },
+    {
+      "op": "aud_manager_stop",
+      "instance": 153,
+      "expect": "unknown",
+      "note": "a miss returns false and does nothing"
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "instances": 1,
+        "list": 1
+      }
+    },
+    {
+      "op": "aud_manager_stop",
+      "instance": 42,
+      "expect": "stopped"
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "instances": 0,
+        "list": 0
+      }
+    },
+    {
+      "op": "aud_manager_start",
+      "sound": 3,
+      "instance": 0,
+      "expect": 1,
+      "note": "id 0 takes a fresh global id"
+    },
+    {
+      "op": "aud_manager_start",
+      "sound": 4,
+      "instance": 0,
+      "expect": 2
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "instances": 2,
+        "list": 2
+      }
+    },
+    {
+      "op": "aud_manager_event",
+      "event": 1782913288,
+      "a": 1,
+      "b": 1,
+      "expect": "stopped",
+      "note": "the stop event reaches the manager as 0x6A451908"
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "instances": 1,
+        "list": 1
+      }
+    }
+  ]
+}

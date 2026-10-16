@@ -10,6 +10,7 @@
 //! running the vectors against `fc4-core`.
 
 pub(crate) mod advisors;
+pub(crate) mod audio;
 pub(crate) mod aura;
 pub(crate) mod automata;
 pub(crate) mod budget;

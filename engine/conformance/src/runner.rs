@@ -1248,6 +1248,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::city_detail::exec(host, other, op))
             .or_else(|| crate::port_developer::exec(host, other, op))
             .or_else(|| crate::prop_developer::exec(host, other, op))
+            .or_else(|| crate::audio::exec(host, other, op))
             .or_else(|| crate::automata::exec(host, other, op))
             .or_else(|| crate::disasters::exec(host, other, op))
             .or_else(|| crate::prop_lotconfig::exec(host, other, op))

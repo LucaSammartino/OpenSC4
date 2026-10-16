@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "name": "audio_state_entry_exit_slots",
+  "spec": [
+    "audio 16.11",
+    "audio 6.1",
+    "audio 3.3"
+  ],
+  "description": "HandleEnterState calls slot 61 (+0xF4) with state+0x18 only when that field is non-zero, and HandleExitState calls slot 62 (+0xF8) with the same field under the same guard. A state whose +0x18 is 0 never reaches either, so SFX id 0 means 'this state makes no sound'.",
+  "steps": [
+    {
+      "op": "aud_env"
+    },
+    {
+      "op": "aud_state",
+      "enter": true,
+      "id": 0,
+      "expect": false
+    },
+    {
+      "op": "aud_state",
+      "enter": false,
+      "id": 0,
+      "expect": false
+    },
+    {
+      "op": "aud_automaton_expect",
+      "state": {
+        "posts": 0
+      }
+    },
+    {
+      "op": "aud_state",
+      "enter": true,
+      "id": 7,
+      "occupant": 11534344,
+      "expect": true
+    },
+    {
+      "op": "aud_state",
+      "enter": false,
+      "id": 7,
+      "occupant": 11534344,
+      "expect": true
+    },
+    {
+      "op": "aud_post_expect",
+      "index": 0,
+      "state": {
+        "type": 2318949848,
+        "data1": 7
+      }
+    },
+    {
+      "op": "aud_post_expect",
+      "index": 1,
+      "state": {
+        "type": 2855889248,
+        "data1": 7
+      }
+    }
+  ]
+}

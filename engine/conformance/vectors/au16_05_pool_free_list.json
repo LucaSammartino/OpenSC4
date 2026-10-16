@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "name": "audio_pool_free_list",
+  "spec": [
+    "audio 16.5",
+    "audio 4.2",
+    "audio 4.3"
+  ],
+  "description": "Freeing A then B makes the next two allocations return B then A: the free list is LIFO and each free object holds its successor in its first dword. A free recovers its page as p & 0xFFFFC000, so two pointers in the same 16 KB window share a free list. operator delete(0) is a no-op.",
+  "steps": [
+    {
+      "op": "aud_env",
+      "page_base": 1048576
+    },
+    {
+      "op": "aud_pool_alloc",
+      "expect": 1048592,
+      "note": "the first object of the page"
+    },
+    {
+      "op": "aud_pool_alloc",
+      "expect": 1048648
+    },
+    {
+      "op": "aud_pool_page_of",
+      "addr": 1048592,
+      "expect": 1048576
+    },
+    {
+      "op": "aud_pool_page_of",
+      "addr": 1064959,
+      "expect": 1048576
+    },
+    {
+      "op": "aud_pool_page_of",
+      "addr": 1064960,
+      "expect": 1064960
+    },
+    {
+      "op": "aud_pool_free",
+      "addr": 1048592,
+      "expect": "none"
+    },
+    {
+      "op": "aud_pool_free",
+      "addr": 1048648,
+      "expect": "none"
+    },
+    {
+      "op": "aud_pool_free",
+      "addr": 0,
+      "expect": "none",
+      "note": "delete(0) is a no-op, not a crash"
+    },
+    {
+      "op": "aud_pool_alloc",
+      "expect": 1048648,
+      "note": "LIFO: the last freed is the first returned"
+    },
+    {
+      "op": "aud_pool_alloc",
+      "expect": 1048592
+    },
+    {
+      "op": "aud_pool_free_list",
+      "page": 1048576,
+      "limit": 4,
+      "state": {
+        "chain": [
+          "0x00100080",
+          "0x001000B8",
+          "0x001000F0",
+          "0x00100128"
+        ]
+      },
+      "note": "both re-allocated objects are live, so the free list carries on at the third object"
+    }
+  ]
+}
