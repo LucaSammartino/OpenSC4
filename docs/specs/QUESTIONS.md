@@ -4688,3 +4688,41 @@ Three TG2 callbacks stay NULL because the specs leave them open. The current cho
 - **TG26:** traffic-simulator §4.1, §9.1 TG19: when does the original release its source iterator's connection snapshot
   on a city close: at Shutdown, or only when the simulator is destroyed? And does a Read that replaces the state release
   it? [released at Shutdown and when Read replaces the state; otherwise at the next Reset]
+
+## From the automata layer core (filed by the coordinator from the `cores14a` lane's report, 2026-10-16; merged `44cf925`)
+
+cores14a implemented automata.md (short form) as a Rust core (`engine/core/src/automata/`), a C ABI (`fc4_automata_*`;
+ABI 62, reserved 65 on the lane) and conformance vectors (`am14_01`-`am14_14`); §14 test 12 is the formats save sweep
+(`cargo test -p fc4-formats --release --test automata_records -- --nocapture`: 417 saves, every record of components
+40, 41 and 43-46 and every referenced record re-encodes byte-identically). There is no plugin glue yet, so none of these
+readings has been checked in game. The core predates re-answers16 (AT2-AT5 above), which a later lane applies. AM is the
+prefix the code comments use; automata.md's own Q1-Q6 keep their numbers. The current choice is in brackets.
+
+- **AM1:** (versions on re-save) the original's writers always write the current version (traffic manager 3 / base 6,
+  automaton base 8, state 3, aircraft 5, watercraft 6), but §14 test 4 expects a version-2 record to round-trip byte
+  for byte. Must a re-save upgrade old versions, or keep them? [writes the version it read; raises it only when the data
+  needs the newer layout]
+- **AM2:** §6.4 gives no read check for the pedestrian (5), vehicle, emergency vehicle, patrol car and trailer (2)
+  versions, nor for the incident list's `u16` 1. Do the original readers reject other versions? [any value accepted
+  and kept]
+- **AM3:** §5.1 field 4 (the ID at the traffic manager's list cursor): what are the IDs of the list nodes, and what
+  should a new manager write? [the value read is kept; 0 for a new manager]
+- **AM4:** §7.3 SetMaxCount removes the automata "beyond" the new maximum: which ones? Does CreateAutomaton refuse at
+  the hard limit? [the newest first; CreateAutomaton returns null at the limit]
+- **AM5:** (§3.1) how exactly do the controller manager's two times A and B advance with HourChanged, and when can A
+  differ from B?
+- **AM6:** (§7.1 slots 5, 6, 9, 10) what does the `extra` argument mean? [ignored]
+- **AM7:** (§7.1 slots 11 and 12) does the original track the controllers that an occupant group itself created?
+  ["remove the controllers that the group added" is the occupant's controllers whose template is one of the group's
+  templates, which also works after a load]
+- **AM8:** §6.4 gives the emergency vehicle record as `u16 2, vehicle record, …`, but §12 quirk 3 says the vehicle
+  loader "reads the vehicle part and leaves the rest unread". With the §6.4 layout a vehicle reader meets the
+  emergency's own `u16` first and misaligns, failing at the occupant base version. Which layout is correct?
+- **AM9:** §5.3 gives no upper version check for the watercraft manager. [fails above 6, as §5.2 does for the aircraft
+  manager above 5]
+- **AM10:** §6.4 names no IID for the trailer's list of vehicle references. [read with the automaton IID
+  `0xA9B40F05`]
+- **AM11:** (§4, §12 item 4) the original base Read ignores stream errors. Should a truncated manager record load
+  partially, as in the original? [a short or cut record is a failed, atomic read, so round trips can be checked]
+- **AM12:** (§7.3 slot 31, TrackAutomataGroupInstances) what are the semantics? [adds delta, does not go below 0,
+  appends a new group]

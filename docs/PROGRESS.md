@@ -94,6 +94,8 @@ budget is off by default (enable = <key>).
 - [ ] Disaster glue: wire `fc4_disasters_host` to the game's managers and shadow it against the original; answer DS1–DS24
 - [x] Terrain core and C ABI (terrain.md; cores16, merged d651d74, ABI 58, regress run 124 PASS): height field and records, GetAltitude and face normals, setters, RedisplayTerrain, brushes (kind 0, earthquake, random walk), surface water, navigability and bodies of water, volcano lava; nation.md GetEconomyModifier; every §18 test as a `tr18_*` vector
 - [ ] Terrain glue: wire `cISTETerrain` / `cISTESurfaceWater` to `fc4_terrain_*` (mind the re-entrancy rule, TR18) and shadow it against the original; answer TR1–TR18
+- [x] Automata layer core and C ABI (automata.md short form; cores14a, merged 44cf925, ABI 62, regress run 129 PASS): exact load / re-save of components 40, 41 and 43-46 and of every referenced controller, automaton and state record (save sweep: 417 saves, 0 failures), the riot leader, fire occupant and U-Drive-It hooks; §14 tests as `am14_*` vectors
+- [ ] Automata glue: GZCOM classes for components 40/41/43-46 over `fc4_automata_*`, riot leaders and the fire occupant through its host tables, U-Drive-It pause/resume, an in-game shadow; apply AT2-AT5; answer AM1-AM12
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**
