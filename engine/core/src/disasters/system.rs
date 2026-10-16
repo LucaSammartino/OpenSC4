@@ -23,6 +23,7 @@ use super::volcano::{VolcanoSnapshot, VolcanoState, VolcanoTuning};
 use super::{
     instance_class, kind, msg, CellRect, DerivedSeeds, DisasterHost, DisasterMessage, DisasterRandom, Generator, Target,
 };
+use crate::network_manager::RiotLock;
 use crate::rng::RzRandom;
 use crate::seeding::{keys, SeedKey};
 
@@ -101,8 +102,9 @@ pub(crate) struct Core {
     pub toxic_instance: Option<u32>,
     pub fire_tuning: Option<FireTuning>,
     pub riot_tuning: Option<RiotTuning>,
-    /// The network occupants the riots have locked (network-manager.md §10).
-    pub riot_locked: Vec<u64>,
+    /// The network occupants the riots have locked (network-manager.md §10):
+    /// one `network_manager::RiotLock` for the whole engine (glue24).
+    pub riot_lock: RiotLock,
     pub quake_tuning: Option<QuakeTuning>,
     pub pipe_tuning: Option<PipeTuning>,
     pub volcano_tuning: Option<VolcanoTuning>,
@@ -134,7 +136,7 @@ impl Core {
             toxic_instance: None,
             fire_tuning: None,
             riot_tuning: None,
-            riot_locked: Vec::new(),
+            riot_lock: RiotLock::new(),
             quake_tuning: None,
             pipe_tuning: None,
             volcano_tuning: None,

@@ -10,7 +10,30 @@ use super::layer::Timer;
 use super::system::{Core, InstanceState};
 use super::{history, instance_class, kind, prop, trunc_i32, zoom_of, TICK_PRIORITY};
 use crate::curve::ResponseCurve;
+use crate::network_manager::RiotHost;
 use crate::property::PropertyHolder;
+
+/// [`RiotHost`] over the disasters host: the one lock of
+/// `network_manager::riot` reads the game through this (glue24).
+struct HostRiot<'a>(&'a dyn super::DisasterHost);
+
+impl RiotHost for HostRiot<'_> {
+    fn tile_occupant(&self, x: i32, z: i32) -> Option<u64> {
+        self.0.network_occupant_at(x, z)
+    }
+    fn add_ref(&self, token: u64) {
+        self.0.add_ref(token);
+    }
+    fn release(&self, token: u64) {
+        self.0.release(token);
+    }
+    fn unset_removal_flags(&self, occupant: u64, m: u32) {
+        self.0.unset_removal_flags(occupant, m);
+    }
+    fn set_removal_flags(&self, occupant: u64, m: u32) {
+        self.0.set_removal_flags(occupant, m);
+    }
+}
 
 /// Tuning properties of the "Riot" exemplar (§6.1).
 pub mod riot_prop {
@@ -37,12 +60,12 @@ pub const DEFAULT_LEADERS_SPAWNED: [u32; 6] = [0, 1, 0, 1, 0, 0];
 pub const DEFAULT_POLICE_CURVE: [(f32, f32); 3] = [(64.0, 0.0), (65.0, 1.0), (255.0, 3.0)];
 /// The police limit of §6.4 step 2: `trunc(curve(coverage)) ≤ 1`.
 pub const POLICE_LIMIT: i32 = 2;
-/// The road search radius (§6.4 step 1) and the removal-lock radius (§6.3).
+/// The road search radius (§6.4 step 1).
 pub const ROAD_SEARCH_RADIUS: i32 = 7;
-pub const BLOCK_RADIUS: i32 = 3;
-/// The removal privilege the riot locks: the player's (network-manager.md
-/// §10).
-pub const PLAYER_REMOVAL: u32 = 2;
+/// The removal lock (§10) is `network_manager::RiotLock`, one implementation
+/// for the whole engine (glue24); the privilege it clears is its
+/// `PLAYER_REMOVAL`. The ±3 marking radius is that type's `mark`.
+pub use crate::network_manager::PLAYER_REMOVAL;
 /// The leader's offset inside its cell: `16 × RandomDoubleUniform()` per
 /// axis (aura.md §6.16).
 pub const LEADER_OFFSET: f64 = 16.0;
@@ -250,29 +273,11 @@ impl Core {
     /// `MarkRiotNetworkOccupants(x, z)` (network-manager.md §10): the
     /// network occupants of the cells within ±3 (x outer) are locked against
     /// the player's bulldozer. The bounds compare unsigned: within 3 cells of
-    /// the west or north edge nothing is locked [quirk].
+    /// the west or north edge nothing is locked [quirk]. The lock itself is
+    /// `network_manager::RiotLock` (glue24).
     fn mark_riot_network(&mut self, x: i32, z: i32) {
-        if x < BLOCK_RADIUS || z < BLOCK_RADIUS {
-            return;
-        }
-        for i in x - BLOCK_RADIUS..=x.saturating_add(BLOCK_RADIUS) {
-            for j in z - BLOCK_RADIUS..=z.saturating_add(BLOCK_RADIUS) {
-                if let Some(n) = self.host.network_occupant_at(i, j) {
-                    self.lock_network_occupant(n);
-                }
-            }
-        }
-    }
-
-    /// `LockNetworkOccupant(n)` (riot manager slot 9): once per occupant
-    /// (a reference held, the player's removal counter decremented).
-    fn lock_network_occupant(&mut self, n: u64) {
-        if n == 0 || self.riot_locked.contains(&n) {
-            return;
-        }
-        self.host.add_ref(n);
-        self.host.unset_removal_flags(n, PLAYER_REMOVAL);
-        self.riot_locked.push(n);
+        let host = self.host.clone();
+        self.riot_lock.mark(&HostRiot(host.as_ref()), x, z);
     }
 
     /// `ClearRiotNetworkOccupants`: every locked occupant gets its counter
@@ -281,14 +286,11 @@ impl Core {
     /// `Shutdown`.
     pub(crate) fn clear_riot_network(&mut self) {
         let host = self.host.clone();
-        for n in std::mem::take(&mut self.riot_locked) {
-            host.set_removal_flags(n, PLAYER_REMOVAL);
-            host.release(n);
-        }
+        self.riot_lock.clear(&HostRiot(host.as_ref()));
     }
 
     pub(crate) fn riot_locked(&self) -> Vec<u64> {
-        self.riot_locked.clone()
+        self.riot_lock.locked()
     }
 
     /// `FindNearestRoadTile` (§6.4 step 1, Q18): the city's clockwise
