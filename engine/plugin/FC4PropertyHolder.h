@@ -33,11 +33,9 @@
 // both are used through cISCProperty and the game's variant slot order only.
 // The value adders (slots 10-14) and CopyAddProperty (16) write the value of
 // the entry for that ID in place (a new cFC4Property if there is none)
-// [choice]. AddPropertyData stores a Uint8 array; GetPropertyList is not
-// supported (false) [choice]. GetPropertyData answers raw bytes (type 0x8000)
-// only and has no size query (neighbors.md §15.4 NG23), so it does not read
-// back what AddPropertyData stores [spec question: what the original's slot
-// 10 stores].
+// [choice]. AddPropertyData stores raw bytes (type 0x8000, count = length;
+// neighbors.md §15.4 NG37), which GetPropertyData reads back (raw bytes only,
+// no size query, NG23); GetPropertyList is not supported (false) [choice].
 //
 // Lifetime: AddRef / Release go to the owner (the object the holder is part
 // of). The entries are released at removal, replacement and Clear (holder

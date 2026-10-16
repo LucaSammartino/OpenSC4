@@ -154,10 +154,6 @@ struct DevelopmentContext {
     // successes, slot 26 / 29 calls and successes, foundations created.
     uint32_t foundationCalls = 0, foundationsAdded = 0, foundationsCreated = 0;
     uint32_t foundationLoads = 0, foundationLoadsOk = 0, wallLoads = 0, wallLoadsOk = 0;
-    // The wall of the slot 29 call in progress (cISC4LotRetainingWallOccupant,
-    // borrowed) and its occupant token (retaining_wall_type).
-    cIGZUnknown* currentWall = nullptr;
-    uint64_t currentWallToken = 0;
 };
 
 // The host table over `ctx` (the simulator's).
