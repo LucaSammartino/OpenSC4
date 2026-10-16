@@ -1658,6 +1658,29 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
 
      Success is `mismatches=0` on every line. A difference with a question number (`[Q37]` and so on, the glue13
      lane report) is a known gap of the spec, not a defect of the core.
+   - **Automata shadow** (`automata_shadow = 1`, env `FC4_AUTOMATA_SHADOW`; off by default;
+     `plugin/FC4AutomataShadow.h`, host tables `plugin/FC4AutomataHost.h`): a same-process differential of the
+     six saved components of the automata layer (40 the script system, 41 the controller manager, 43-46 the four
+     automata managers) and of every object their records reference. It needs the **original** components (there
+     is no `enable = automata` yet); otherwise it logs `automata shadow: requested … but INACTIVE`. At each city
+     load and each SimNewMonth each component's own `Write` is captured into memory and read by a fresh shadow
+     core (`fc4_automata_scripts` / `_cm` / `_manager`), which writes it back; the two byte sequences are
+     compared byte for byte and the first difference is named. A reference travels as its host token, which here
+     is the capture's 1-based object number (the number the original's own `Write` puts in the record). The
+     original is only ever read. Movement, path following, animation and sound are out of scope (spec §0): this
+     shadow compares the records, which are the surface the save file depends on. Lines (always written):
+
+     ```
+     automata shadow: ON (automata_shadow from …): …                                        (game start)
+     automata shadow yyyy-mm-dd load|month: script N bytes identical; cm …; vehicle …; pedestrian …;
+       aircraft …; watercraft …; mismatches=0
+     automata shadow: city shutdown: N lines, M with mismatches=0; components compared …, bytes compared …,
+       mismatches …
+     ```
+
+     Success is `mismatches=0` on every line (each component's record reads into the shadow core and writes back
+     byte for byte). A run to 2032 on Konradshohe gives 73 lines, all clean: 438 components compared, 778,963
+     bytes, 0 mismatches (glue19-shadow-2).
    - **Zone developer shadow** (`zonedev_shadow = 1`, env `FC4_ZONEDEV_SHADOW`; off by default;
      `plugin/FC4ZoneDevShadow.h`): a same-process differential of the lot manager. It needs the **original** zone
      developer (do not enable `zonedev`); otherwise it logs `zonedev shadow: requested … but INACTIVE`. At
