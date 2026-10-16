@@ -48,6 +48,7 @@
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
+#include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -66,6 +67,7 @@
 #include "FC4CommercialShadow.h"  // the cmglue lane
 #include "FC4CivicShadow.h"       // the cmglue lane
 #include "FC4ParksShadow.h"       // the cmglue lane
+#include "FC4DisasterShadow.h"    // the glue13 lane
 #include "FC4TrafficShadow.h"
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
@@ -458,6 +460,8 @@ void Resolve() {
     CivicShadowStartup(g_enabled[0], enabledKey("civic"));
     // The parks shadow (FC4ParksShadow.h; it compares the original park manager).
     ParksShadowStartup(g_enabled[0], enabledKey("parks"));
+    // The disasters shadow (FC4DisasterShadow.h; it compares the original disaster layer, fire and riot).
+    DisastersShadowStartup(enabledKey("disasters"));
     // The zone developer shadow (FC4ZoneDevShadow.h; it compares the original lot manager).
     ZoneDevShadowStartup(enabledKey("zonedev"));
     // The history warehouse shadow (FC4HistoryShadow.h; it follows the original warehouse).
@@ -468,6 +472,8 @@ void Resolve() {
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
     // The network manager shadow (FC4NetMgrShadow.h; it follows the original network managers).
     NetMgrShadowStartup();
+    // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
+    TerrainShadowStartup();
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

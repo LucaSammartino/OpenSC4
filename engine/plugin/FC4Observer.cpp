@@ -37,9 +37,11 @@
 #include "FC4CommercialShadow.h"
 #include "FC4CivicShadow.h"
 #include "FC4ParksShadow.h"
+#include "FC4DisasterShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
+#include "FC4TerrainShadow.h"  // the glue16 lane
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "cFC4LotDeveloper.h"
@@ -530,6 +532,7 @@ public:
         // script = <path>: a `save` and the actions behind it (FC4Script.h);
         // before the save autotest and before AutotestOnTick's quit or end.
         ScriptOnTick();
+        DisastersShadowOnTick();  // disasters_shadow: the quiet-point comparison
         if (saveDue_) {
             saveDue_ = false;
             SaveAndEnd();  // does not return
@@ -562,6 +565,8 @@ public:
                 HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
                 NetMgrShadowCityLoaded(CurrentCity());   // netmgr_shadow = 1 only
+                TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
+                DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -583,6 +588,8 @@ public:
                 CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
                 ParksShadowCityShutdown();  // parks_shadow: the same
                 NetMgrShadowCityShutdown();  // netmgr_shadow: the shadow cores and their references go
+                TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
+                DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:

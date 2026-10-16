@@ -30,6 +30,7 @@
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
+#include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4Fpu.h"
 #include "FC4GrowthProbe.h"
 #include "FC4LandValueShadow.h"
@@ -38,6 +39,7 @@
 #include "FC4Popups.h"
 #include "FC4Subsystems.h"
 #include "FC4TractShadow.h"
+#include "FC4DisasterShadow.h"
 #include "cFC4Simulator.h"
 
 #include "cIGZCOM.h"
@@ -330,6 +332,7 @@ public:
         fc4::HistoryShadowStart();       // history_shadow (FC4HistoryShadow.h)
         fc4::Clock24ShadowStart();       // clock24_shadow (FC4Clock24Shadow.h)
         fc4::NetMgrShadowStart();        // netmgr_shadow (FC4NetMgrShadow.h): before any city subscribes
+        fc4::TerrainShadowStart();       // terrain_shadow (FC4TerrainShadow.h)
         fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }
@@ -338,11 +341,13 @@ public:
         FC4_LOGV("hook PreAppShutdown");
         fc4::FpuLog("hook PreAppShutdown");
         fc4::NetMgrShadowStop();
+        fc4::TerrainShadowStop();
         fc4::Clock24ShadowStop();
         fc4::HistoryShadowStop();
         fc4::FlammabilityShadowStop();
         fc4::LandValueShadowStop();
         fc4::GrowthProbeStop();
+        fc4::DisastersShadowStop();  // disasters_shadow (FC4DisasterShadow.h): the original vtable entries back
         fc4::TractShadowStop();  // tract_shadow (FC4TractShadow.h): the original UpdatePopulation back
         fc4::ClockProbeStop();
         fc4::DialogsStop();  // close_dialogs (FC4Dialogs.h)
