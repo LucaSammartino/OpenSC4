@@ -131,9 +131,9 @@ The data model, by meaning (offsets are deliberately not part of it):
 | Per-network-type statistics (13 types, current and last) and the traffic stats block (slot 34) | §4.9 |
 | Income accumulators (two doubles: income, fees), monthly income floats (transit, tolls, total) | §4.5, §4.12 |
 | Commute accumulators: car-commute length sum and count, freight length sum and count | §4.6, §4.12 |
-| Per-travel-type trip counts (two vectors of 9 u32: building, published) | §4.6 |
+| Per-travel-type trip counts (two vectors of 9 u32: building `+0x430`, published `+0x424`; the end of FullTrips swaps them, §4.4; saved as pairs (published, building), §6.1 row 19; TS56) | §4.6 |
 | Cycle state machine: state, phase-entry flags, slicing step state, iterators | §3 |
-| Day pacing: day index, days for the phase, total, processed counters, the 20 pass counters | §3.3 |
+| Day pacing: day index, days for the phase, total, processed counters, the ten pass counters (§10 Q4); the last day of month seen (`+0x1AC`, unsaved, TS50) | §3.3 |
 | Re-route context (current source, search state, flags, work budget) | §4.4 |
 | Re-route bucket `rerouteBucket` (0…3) | §4.3 |
 | Strategy bucket counter, strategy bucket multimap (bucket → lot cell) | §4.1.3 |
@@ -146,7 +146,7 @@ The data model, by meaning (offsets are deliberately not part of it):
 | Field | Type | Meaning |
 |---|---|---|
 | route | `vector<u8>` | compressed route of the outbound leg (pathfinder.md §4.15) |
-| returnRoute | `vector<u8>` | compressed route of the return leg (empty for reversible and freight trips) |
+| returnRoute | `vector<u8>` | compressed route of the return leg. A freight or reversible result does **not** touch it: it keeps whatever an earlier two-leg result, the split it was copied from or the save left there (TS58, §4.4) |
 | count | u32 | number of trips in this batch |
 | type | u8 | trip type = destination type: 0, 1, 2 = commuters of wealth $, $$, $$$ (jobs of that wealth), 3 = freight (§4.1) |
 | strategy | u8 | lots: travel strategy 0 = mass-transit preference, 1 = car preference, 2 = neutral; neighbour connections: a travel type 0…8 (§4.1.4) |
@@ -201,7 +201,7 @@ when the subnetwork data need no rebuild *[inferred: flag meaning, traffic-netwo
 | 6 | ReduceEdgeDensities (`0x007110B0`) | §4.8 | scanning iterator reset |
 | 10 | RefreshCommuteMap (`0x0070F6E0`) | §4.11 | `freeDest[0…3]` := 0; scanning iterator reset |
 | 12 | UpdateSubnetworks (`0x007183B0`) | traffic-network.md §4.11 | runs in one call |
-| 13 | UpdateSubnetworkInfo (`0x0071DC50`) | traffic-network.md §4.12 | working subnetwork info reset; when the phase finishes the working vector is copied to the published one (`vector::operator=` `0x0071CD90`, also called by DoPostCityInit) |
+| 13 | UpdateSubnetworkInfo (`0x0071DC50`) | traffic-network.md §4.12 | working subnetwork info reset; **scanning iterator reset** to (0, 0) (`0x00721308`–`0x0072132A`, TS64); when the phase finishes the working vector is copied to the published one (`vector::operator=` `0x0071CD90`, also called by DoPostCityInit) |
 | 19 | FerryRoutes (`0x0071DC90`) | traffic-network.md §4.9.3 | ferry counters roll (last := current, current := 0; the riders are added to the ferry total used by history) and the pass restarts; posts `0x2C06BA82` when done |
 | 8 | FinalCalculations (`0x0070E7D0`) | §4.12 | |
 | 1 | (lot sweep) | | entry: lot iterator reset. **No `next` entry leads to 1**, so the cycle never enters it after construction (state 0); `GetDesiredLotInsertionPoint` (slot 22), which answers only in state 1, therefore returns null in practice *[inferred]* |
@@ -217,7 +217,11 @@ own static step state); slicing only splits the work, the results do not depend 
 ### 3.3 DoDailySimulation (`0x007215C0`): the day agent
 
 1. Deadline := now + **4 ms** (`0x0068BF50`).
-2. Day of month from the simulator (slot 6 `GetSimDate`). If it differs from the last seen value: store it, and
+2. Day of month from the simulator (slot 6 `GetSimDate`). The last seen value (`+0x1AC`) is set to −1 by the
+   constructor (`0x0071FA3B`) and written only here (`0x00721603`); it is not saved, and neither Read, Init nor
+   DoPostCityInit touches it (TS50). The simulator is built with each city, so the first call after a load always
+   takes the branch below, also on the day the save was taken: on day 1 the incomes are set again, and the strategy
+   re-draw of that date runs a second time. If the day differs from the last seen value: store it, and
    * on day **1**: mass-transit line item 2 `SetIncome(int64 ftol(transitIncome))`, roads line item 5
      `SetIncome(int64 ftol(tollIncome))` (line item slot 15 `+0x3C`, pop 8; budget.md §8);
      `lastMonthlyIncome := r24(tollIncome + transitIncome)` (slot 18);
@@ -235,7 +239,7 @@ own static step state); slicing only splits the work, the results do not depend 
        div 20)`; day index and processed := 0; `toReRoute`, `toSearch` := 0 (`0x0072184B`, the only place they are
        zeroed; Read restores them, ConfirmTrips counts them and states 17 and 18 add to `toSearch`, §4.4, TS21); of
        the ten pass counters that follow
-       them (§6.1 row 15 and two unsaved ones; §10 Q4) all are zeroed **except** counter 1 (the re-route counter,
+       them (all ten saved in §6.1 row 15; §10 Q4 names them, TS59) all are zeroed **except** counter 1 (the re-route counter,
        incremented by ReRouteTrips; zeroed on entering 17 instead) and counter 2 = `rerouteBucket` (kept: only
        StartRecalc advances it). Counter 3, the source counter of §4.3, is zeroed here, so it restarts at 0 every
        cycle (TS1); continue;
@@ -247,7 +251,10 @@ own static step state); slicing only splits the work, the results do not depend 
      * `s = 2` or `s = 11`: return **true**;
      * otherwise continue;
    * if not finished: if `16 ≤ state ≤ 18`, `dayIndex < days` and `processed ≥ total · (dayIndex + 1) / days`
-     (all unsigned, `0x0072191E`), then `dayIndex += 1` and return **true**; else return false. *(Corrected: the
+     (all unsigned, `0x0072191E`), then `dayIndex += 1` and return **true**; else return false. The members:
+     `processed` `+0x914`, `dayIndex` `+0x918`, `total` `+0x91C`, `days` `+0x92C` (`0x00721912`–`0x0072193E`).
+     In the record (§6.1 row 15) `dayIndex` is therefore the s32 right after `processed`, not the u32 after `days`
+     (TS60). *(Corrected: the
      `dayIndex < days` guard was missing.)* Once `dayIndex` has reached `days` (a cycle with more trips than the
      last one, or `days = 0` after a load, §3.5 step 13) no share ends the day: the phase runs on, slice after
      slice, until it finishes.
@@ -263,13 +270,34 @@ progress (§11).
 
 ### 3.4 Traffic work budget *[choice]*
 
-The original tests its 4 ms deadline once per **unit**: before each traffic source in ConfirmTrips (`0x0071E222`)
-and before each trip in ReRouteTrips (`0x0071D1D9`) and FullTrips (`0x0071D607`). FreeCity4 replaces the deadline
-with a count of those units.
+The original tests its 4 ms deadline at fixed **test points** (TS62):
+
+| Phase | Test points | Step statics |
+|---|---|---|
+| ConfirmTrips (16, `0x0071E1B0`) | before each source is taken (`0x0071E222`), including the first of each call | `0x00B4B378`, `0x00B4B37C` |
+| ReRouteTrips (17, `0x0071D020`) | (a) at the top of the source loop (`0x0071D094`): at the start of each call and after each finished source, that is after its merge and before the next source is taken; (b) before **each trip** of the list, whatever its status (`0x0071D1D9`, before the status-1 test) | `0x00B4B354`, `0x00B4B358` |
+| FullTrips (18, `0x0071D440`) | (a) at the top of the source loop (`0x0071D4B3`): at the start of each call and after each finished source, after its CompleteTripSourceCalculations and before the next source is taken; (b) before each trip, whatever its status (`0x0071D607`, before the status-0 test) | `0x00B4B360`, `0x00B4B364` |
+| FinishTripMap (15, `0x0070FEF0`) | before each lot is taken (`0x0070FF84`, TS63) | `0x00B4B324`, `0x00B4B328` |
+| UpdateSubnetworkInfo (13, `0x00716180`) | before each cell step of the scanning iterator (TS64) | `0x00B4B33C`, `0x00B4B340` |
+
+Every test point first adds the phase's `step` to a per-call counter and reads the clock only when the counter is a
+multiple of 1024 (the adaptive helper of simulator.md §5.5; `step` starts at 1024, so at first every point reads
+the clock; at the end of each call it adapts by the rule of simulator.md §5.5 with `n = counter >> 10`, inlined in
+the suspended-search exits of 17 and 18). The statics are per phase and process-wide. Both kinds of point count, so
+with `step` 512 the clock is read at every second point, whether that point is a trip or a source.
+
+What a stop leaves (16–18). The source being worked keeps its cell in the phase positions (§3.5) and the "take the
+next source" flag (`+0x838`, unsaved) stays 0. A stop at (b) leaves the list part-done: the next call walks the same
+list again from its head, skipping the trips whose status no longer qualifies; in 17 the merge and in 18
+CompleteTripSourceCalculations have not run yet. A stop at (a) after a source leaves that source finished (merge or
+CompleteTripSourceCalculations done) and the next source not yet taken. Since a non-qualifying trip costs almost no
+time, stops in game fall almost always right after a search; that is timing, not a rule. FreeCity4 replaces the
+deadline with a count of units.
 
 - **Unit of work**: in ConfirmTrips, one traffic source (`UpdateTrafficVolume` + `ConfirmTrips(source)`); in
   ReRouteTrips and FullTrips, one trip examined (with `SetupTrip` + `PerformPathSearch` when it is searched). A
-  search never suspends (pathfinder max work time 0), so a trip is atomic.
+  search never suspends (pathfinder max work time 0), so a trip is atomic. *[choice]* The original passes the
+  slice's remaining milliseconds to `SetMaxWorkTime`, so its searches can suspend (§4.4, TS65).
 - **Budget** `trafficUnitsPerSlice` = N (tuning value, ≥ 1). One `WorkOnSimCycle` call in states 16–18 is a
   slice: it ends unfinished after N units (where the original's deadline would fire). Step 3 of §3.3 then applies
   unchanged: the share test runs at each unfinished slice end; when the share is not reached the day continues
@@ -499,7 +527,11 @@ The target per strategy `w[0…2]` (u16) starts at 0, `type` at 0.
 
 **Strategy byte.** Each lot has a byte, `0xFF` at construction; `cSC4Lot::Init` replaces `0xFF` by
 `RandomUint32Uniform(100)` from the lot file's `cRZRandomSuper` (`0x00B49120`, foundations §6.2); it is saved with
-the lot (§6.3). The value the traffic simulator writes into property `0x4A611773` (§3.3, §4.1.3) is **never read**
+the lot (§6.3). It is the lot member `+0x88`: UpdateTrafficVolume reads it at `0x006C2986` (traffic-source `+0x6C`),
+and it is the **last byte of the lot's own record**, written after the trip list by `cSC4Lot::Write` (`0x006C0347`).
+No interface slot returns it (no getter of that member is in any `cSC4Lot` vtable); outside the lot, that record
+byte is the only way to read it (TS51). The copy constructor copies it (`0x006C25AA`). The value the traffic
+simulator writes into property `0x4A611773` (§3.3, §4.1.3) is **never read**
 by the executable (the only references are the two writers `0x007216F6`, `0x00723FD0`) *[compat: the property is
 saved with the lot's properties]*.
 
@@ -561,7 +593,12 @@ holder (lot slot 3). A null lot does nothing. In order:
    slot 56 `RemoveBudgetItemFromBudget(holder, item.id)` and `E −= item.cost` (the int64 at record `+0x10`).
    Then, **independently** (unlike activation, which asks the second purpose only when the first fails):
    `GetBudgetItemForPurpose(holder, 0x0C3BF549, item)`, and if found `RemoveBudgetItemFromBudget(holder,
-   item.id)`, with no change to `E`.
+   item.id)`, with no change to `E`. The lookup is the city budget simulator's slot 51 (`0x00691880`) with the
+   lot's own property holder as a `cISCPropertyHolder*` (`0x0071E4BD`–`0x0071E4CA`); it only fills `item` and
+   changes nothing, so a reader may call it to learn `item.cost` without removing the item (TS52). It copies a whole
+   `0x20`-byte `BudgetItem` into the caller's record (`rep movsd`, 8 dwords, `0x006918EE`): department `+0x00`,
+   line `+0x04`, purpose `+0x08`, cost s64 `+0x10`, index `+0x18`, local funding f32 `+0x1C`. A smaller buffer is
+   overrun.
 4. **Free destinations.** Unless the cycle is in state 10: for `k` = 0…3, if bit `k` of the destination byte at the
    rect's NW cell `(x1, z1)` is set, `freeDest[k] −= 1` (`0x0071E570`). Only that one cell is read, so each lot is
    counted once, as RefreshCommuteMap counts it.
@@ -652,10 +689,16 @@ neighbour pool capacities and sets the destination bits of the off-map edge cell
 **ConfirmTrips** walks all traffic sources (§4.1). For each source: `source.UpdateTrafficVolume()` (§4.1.1 /
 §4.1.4), then `ConfirmTrips(source)` (`0x0071D920`):
 
-* `sourceCounter += 1`; `rerouteSource := ((sourceCounter & 3) = rerouteBucket)` — one source in four takes part in
-  this cycle's re-balancing. `sourceCounter` is 0 on entering state 16 (§3.3), so the first source has counter 1.
-* If `rerouteSource`: **merge** — for each routed (status 3) trip, every later trip of the same type and strategy is
-  merged into it (counts added, the other erased) and the trip's status becomes 0 (search again).
+* `sourceCounter` (pass counter 3) `+= 1`; `rerouteSource := ((sourceCounter & 3) = rerouteBucket)` — one source in
+  four takes part in this cycle's re-balancing. `sourceCounter` is 0 on entering state 16 (§3.3), so the first
+  source has counter 1.
+* Before anything else, pass counter 7 += the number of status-0 trips in the list (`0x0071D95D`, every source).
+* If `rerouteSource`: **merge** (`0x0071D983`–`0x0071DA18`, TS55). For each trip `A` that has status 3 when the walk
+  reaches it, every later trip `B` of the same type and strategy, **whatever `B`'s status**, is merged into it:
+  `A.count += B.count`, `A.status := 0`, `B` is erased (its two route vectors and its node freed). `A`'s status
+  becomes 0 **only when it absorbed at least one trip** (the store is inside the match, `0x0071D9B6`); a routed trip
+  with no later partner keeps status 3 and goes on to the capacity test below. Each `A` that ends the scan with
+  status 0 adds 1 to pass counter 5 (`0x0071DA0D`). `A` keeps its own route vectors, destination and trip length.
 * Then for each trip (`processed += 1`):
   * **status 3** (routed):
     * if `CapacityStillAvailable`: status := 1 (re-route to the known destination), but 0 for freight. If not
@@ -664,9 +707,12 @@ neighbour pool capacities and sets the destination bits of the off-map edge cell
       * freight: `ApplyRoute(route, mode 0)` (§4.5) unless probe; status := 3;
       * reversible (flag 0): `ApplyRoute(route, mode 2)` unless probe; status := 3;
       * otherwise `ConfirmRoute(returnRoute)` must succeed too; then `ApplyRoute(route, mode 0)` and
-        `ApplyRoute(returnRoute, mode 1)` unless probe; status := 3.
-    * else (destination full): status := 0.
-  * **status 5** (failed last time): status := 0.
+        `ApplyRoute(returnRoute, mode 1)` unless probe; status := 3. When it fails the status stays 1 and pass
+        counter 6 += 1 (`0x0071DBA0`).
+
+      Each status := 3 here adds 1 to pass counter 0 (`0x0071DBF5`).
+    * else (destination full): status := 0, pass counter 4 += 1 (`0x0071DC01`).
+  * **status 5** (failed last time): status := 0, pass counter 8 += 1 (`0x0071DC11`).
   * afterwards status 1 counts towards `toReRoute`, status 0 towards `toSearch`.
 
 **ConfirmRoute(route)** (`0x0070E320`, one argument) *[compat]* (TS14). It replays the compressed route
@@ -718,8 +764,13 @@ or 14 and (3,3)'s `conn[1]` has bit `2 + 4·0 = 2`; (4,3) is not looked at. The 
 **ReRouteTrips** (`0x0071D020`) takes, for each source, the status-1 trips: if the destination has no capacity left
 (`CapacityStillAvailable` false) the trip goes back to status 0; otherwise `SetupTrip` then `PerformPathSearch`;
 result found → status 3 and `tripLength := pf.GetTripLength()`; not found → status 5. Then, for the same source, a
-merge of status-0 trips (each absorbs the later ones of the same type and strategy whose status is not 3). A
-network change (`DoConnectionsChanged`) aborts a suspended search: both pathfinders `Reset` and the context restarts.
+**merge** (`0x0071D2B2`–`0x0071D344`, TS57): for each trip `A` with status 0, every later trip `B` of the same type
+and strategy is merged into it (`A.count += B.count`, `B` erased with its route vectors), **whatever `B`'s status**
+(0, 1, 3, 4 or 5). The code has a test meant to skip routed trips, but it reads `A`'s status (`0x0071D2D7`), which is
+always 0 there, so it never skips *[quirk]*. `A` stays status 0; no counter moves. Example: a lot with `[st0 ×2,
+st3 ×1]`, all of type 0 and strategy 1, after its status-1 trips: the first trip absorbs both others and the list is
+`[st0 ×3]`. A network change (`DoConnectionsChanged`) aborts a suspended search: both pathfinders `Reset` and the
+context restarts.
 Counters (TS21): a trip sent back to status 0 for lack of capacity adds 1 to `toSearch` and to pass counter 4
 (`0x0071D20D`), not to `processed`. So the next state's `total` (§3.3) includes it. Each search that is not
 suspended adds 1 to `processed`; a found one also adds 1 to pass counter 1, the re-route counter.
@@ -736,8 +787,13 @@ Counters (TS21): each search that is not suspended adds 1 to `processed`. Each s
 phase's `total` and to pass counter 9 (`0x0071D75A`). The day shares of the running phase (§3.3) therefore stretch
 with the splits: `total` was `toSearch` on entering 18 and grows as copies are made.
 
-After each source's list: `CompleteTripSourceCalculations(source)` (§4.6). At the end of the phase the per-travel-type
-trip counts built in this pass are published (slot-34 stats and history, §4.12).
+After each source's list: `CompleteTripSourceCalculations(source)` (§4.6). At the end of the phase (the source
+iterator has no more sources, `0x0071D806`–`0x0071D84E`) the two per-travel-type count vectors are **swapped**, not
+copied (TS56): the three words (begin, end, capacity) of the building vector (`+0x430`) and the published vector
+(`+0x424`) are exchanged. The published vector (read by DoMonthlySimulation's history, §4.12) then holds this pass's
+counts and the building vector the previous published counts, until the next entry into 18 refills it with 9 zeros
+(`0x007210E6`). Example: published `[…, 132, …]` and this pass built `[…, 130, …]`; right after the end the record
+(§6.1 row 19, pairs (published, building)) holds `(130, 132)`.
 
 **SetupTrip(trip)** (`0x0070EC40`) configures **pf** (pathfinder.md §4.2 for the meaning of every setting):
 
@@ -806,6 +862,30 @@ trip counts built in this pass are published (slot-34 stats and history, §4.12)
    * `pf2.FindPath()`: 2 → suspended; 0 → not found (the whole trip fails). Found: both compressed routes are
      fetched (`travelTypesUsed |=` pf2's mask), `ApplyRoute(route, mode 0)`, `ApplyRoute(returnRoute, mode 1)` unless
      probe.
+
+**What a search writes into the trip, and when** (TS58, TS65). The search state is the context word `+0x884`
+(0 idle, 1 outbound suspended, 2 return leg suspended; `0x0071C702`, `0x0071CA0A`, `0x0071CA2C`):
+
+* Outbound suspended (state 1): nothing in the trip changes.
+* Outbound found: `destX, destZ := pf.GetEndCell()` at once (`0x0071C752`), before anything else. On the two-leg
+  path flags bit 0 is cleared (`0x0071C858`) and the return leg starts; if that leg **suspends** (state 2) the trip
+  already holds the new destination and the cleared bit 0, and nothing else: `route`, `returnRoute`, `tripLength`,
+  `travelTypesUsed`, `count` and the status are unchanged, and `processed` is not counted. If the return leg then
+  fails, the trip becomes status 5 with that destination kept.
+* Freight and reversible results fetch only the outbound route (pathfinder slot 32 `+0x80`, into `route` and
+  `travelTypesUsed`). **`returnRoute` is not touched**: it keeps whatever it held, from an earlier two-leg result of
+  the same record, from the trip a split copy was made from (the copy is built with both vectors, `0x0071D6DE`,
+  `0x0071D6EA`), or from the save. Nothing reads it while the reversible bit is set (ConfirmTrips and ApplyRoute use
+  mode 2 on `route` only), but it is saved with the trip and the query tool's route display may read it.
+* A resumed search (state ≠ 0 when FullTrips or ReRouteTrips reaches the trip again) skips `SetupTrip` and goes on
+  with the suspended leg. Resumption takes the first qualifying trip of the list; the suspended trip is that one,
+  because every trip before it was already handled. A network change (`+0x888`) resets both pathfinders and the
+  state to 0 first, so the trip is set up again; the destination written by the abandoned search stays.
+
+Example (FullTrips, a split): trip T (count 40, dest (18, 40)) arrives 25, so a copy C (count 15, status 0, dest
+(18, 40) copied from T) follows it and is searched with the continue flag. C's outbound leg finds (28, 37) and its
+return leg suspends at the deadline: C is still status 0 with dest (28, 37). FreeCity4 never suspends (§3.4), so its
+C keeps (18, 40) until its search completes.
 
 **SetupPathFinderForLot(pf, lot)** (slot 7, `0x00711610`, returns a bool in AL) configures a caller's pathfinder
 from a lot's trip list, for outside callers (TS10):
@@ -962,6 +1042,13 @@ neighbour connection found at that point (neighbour simulator slot 11 `FindConne
 gets property `0xCA947077 := avg` (float).
 
 ### 4.7 FinishTripMap (state 15, `0x0070FEF0`)
+
+**Time slicing** (TS63). The phase is deadline-stoppable per lot: the test point is before each lot is taken
+(`0x0070FF84`, §3.4). A lot is taken from the lot iterator, its location (slot 21) is written to the phase positions
+(`0x0070FFE0`) and it is then handled completely (flag clear, borrow, write). So a stop always falls after a whole
+lot, and the saved cell is that of the last lot handled; the resume (§3.5 step 11) skips past it. A call can
+therefore return part-way through state 15; DoDailySimulation then returns false and the next call of the same day
+continues (§3.3 step 3).
 
 For each lot (lot iterator): clear the lot's flag `0x80` (slots 12/13). For residential lots that are not
 "traffic sources of their own" (zone 8 or 9 *[inferred: these are the zone values tested]* and slot 28 false), the
@@ -1149,7 +1236,12 @@ destination byte `&= 0xF8` (bits 0–2 cleared, *[quirk]* bit 3 = freight destin
 **FinalCalculations** (`0x0070E7D0`): `transitIncome := float(incomeAcc)`, `tollIncome := float(feeAcc)`;
 `avgCarCommute := r24(carLenSum / float(u32 carLenCount))` *[quirk: no zero check; 0/0 = NaN]*; if
 `freightCount ≠ 0`, `freightByte := low8(ftol(r24(r24(r24(freightLenSum / float(freightCount)) / commuteMaxTime)
-× 255.0f)))` (truncation, no clamp *[quirk]*), else 0. The next state is 0:
+× 255.0f)))` (truncation, no clamp *[quirk]*), else 0. `freightByte` is the **last byte of the published statistics
+set** (offset `0x238` of the slot-34 block, member `+0x41C`; written at `0x0070E84A` / `0x0070E862`), the unnamed
+`u8` that ends each set in §6.1 row 16. It changes once per cycle, here, by recomputation, not by an increment (TS61).
+The same byte of the working set (`+0x678`) is written only by the constructor (0, `0x0071FE52`) and Read (the saved
+byte, or `0x80` for an old record, `0x00722D55`), and the publishing step of CreateMaps copies field by field without
+it, so it keeps its loaded (or constructed) value. The next state is 0:
 
 **StartRecalc** (state 0, `0x00717C90`): remembers the cycle start date (`GetSimDateNumber`); income and fee
 accumulators := 0.0; `jobCapacity[k]`, `attempted[k]`, `routed[k]` := 0; `rerouteBucket := (rerouteBucket + 1) & 3`;
@@ -1343,6 +1435,17 @@ The simulator owns one `cRZRandomSuper` (MT19937 with the non-standard seeding o
 from the wall clock. *[choice]* FreeCity4 seeds it from the host-supplied seed for "traffic simulator" (foundations
 §6.3).
 
+**Where the original's generator is** (TS66). No interface slot and no save field exposes it. It is a heap object
+of `0x9C8` bytes whose pointer is the simulator member `+0x6FC`, created by Init only when that member is null
+(`0x0071F132`–`0x0071F1A9`; constructor `0x00913B74`) and seeded there once from the local date and time (C
+`time`/`localtime`, built into a date-time value, then `Seed` `0x00913A72`), so there is no deterministic seed
+path in the original. Layout: `u32 state[624]` at `+0x000`, a pointer to the next unread state word at `+0x9C0`,
+and the count of words left before the next regeneration at `+0x9C4` (a draw decrements it and regenerates when it
+goes negative, `0x009139B9`). Those 624 words, the index `(next − state) / 4` and the count are the generator's
+whole state. A same-process observer that can read the simulator object can therefore copy that state after each
+delivery and compare draw sequences (reading changes nothing), or seed both generators alike by calling `Seed(s)`
+(`thiscall`, one u32, `ret 4`) on that object after Init (a write into the original, so a test-only choice).
+
 | # | Operation | Generator | Method (advances) | Arguments | Position |
 |---|---|---|---|---|---|
 | 1 | strategy re-draw (§3.3) | simulator's `cRZRandomSuper` | `RandomUint32Uniform(100)` (1 word) | — | once per lot of the day's bucket, in multimap order, before any cycle work of that day |
@@ -1463,11 +1566,28 @@ vectors.
 | 12 | income | s64 budget-item total (§4.1.3), f32 transit income, f32 toll income, f32 last monthly income, f64 income accumulator, f64 fee accumulator |
 | 13 | cycle date, strike, damage | u32 cycle start date (§4.12 StartRecalc), u8 strike state, s32 strike month counter; road: u32 cell count, u32 damaged count, f32 damage rate; u32 n + n × u16 intact road cell keys, u32 n + n × u16 damaged road cell keys (hash iteration order); rail: the same five fields and two key lists |
 | 14 | cycle position | u8 cycle state, the scanning iterator (helper `0x005D9FD0`/`operator<<`), bool intersection-dirty flag, s32 × 4 intersection dirty rect, bool network-changed byte (§3.1; never read), u32 strategy bucket counter, u32 strategy bucket, s16 × 2 phase positions (the saved source or lot cell x, z, §3.5), the lot iterator position (helper `0x005DA390`), bool, bool, f32, s32 x, s32 z (re-route context), u32 n + n × u32, u8, u32, s32 × 4, u32 n + n × u32 (per entry), u8 × 2 (context flags) |
-| 15 | pacing and counters | s32 processed, s32, s32 total, u32 days, u32 day index, u32, u32, s32 `passTotal`, s32 `toReRoute`, s32 `toSearch`, then u32 × 10 pass counters (routed, re-routed, `rerouteBucket`, source counter, …; §10 Q4) |
+| 15 | pacing and counters | s32 processed, s32 day index, s32 total, u32 days, u32, u32, u32 (unused), s32 `passTotal`, s32 `toReRoute`, s32 `toSearch`, then u32 × 10 pass counters (§10 Q4); corrected, see below (TS60) |
 | 16 | network-type statistics, two sets (published "last" set = slot 34 block, then the working set) | per set: 13 × (f32 average (the working set holds the sum), u32 congested count (`r > 1`), s32 max x, s32 max z, f32 max), the bridge row (same 5 fields, §4.9), u16 × 13 (network-info records per type; published = the cell counts), u16 (bridge records; never published), u16 (published set: the pothole count, §3.6), s32 12, 12 × (u16, f32, s32, s32, f32) per-switch-type records, f32, f32, bool, f32, u8 |
 | 17 | neighbour-connection records | u32 count, per record (traffic-network.md §2.7): u16, u8, u8, u16, u16, then its f32 values |
 | 18 | commute | f32 `avgCarCommute`, f32 `carLenSum`, u32 `carLenCount`, f32 `freightLenSum`, u32 `freightCount`, u32 × 13 cells per network type, u32 4, u32 × 4 `freeDest` |
 | 19 | tail | u32 count + records of the neighbour pool map (per pool: u16 ID, then its property-holder record; traffic-network.md §2.7.3), the per-travel-type count vectors (u32 × 9 each) and the ferry total, then the **ferry terminals**: u32 count, per terminal u8 × 6, u8, u16 × 3, u8 × 2 (kind, cell, counters), u32 link count + per link (f32 cost, s16 x, s16 z, u16, u16 × 4 counters, route bytes `vector<u8>`), u32 neighbour-link count + per link (f32, s16 × 4, u16 × 4, two route vectors); Read rebuilds the terminal tables from them (`0x00713DF0`) *[inferred: field grouping]*; traffic-network.md §6 agrees |
+
+**Named fields of rows 14, 15 and 19** (TS56, TS59, TS60; member offsets of the simulator object; `Write` and `Read`
+run on the object `+8`, so their listings show each offset 8 lower):
+
+- Row 14, re-route context `s32 x, s32 z` (`+0x83C`, `+0x840`): the cell of the traffic source being worked, written
+  as each source is taken in 16, 17 and 18 (`0x0071E26D`/`0x0071E284`, `0x0071D104`/`0x0071D119`,
+  `0x0071D523`/`0x0071D538`), the s16 phase positions widened. Entering 16–18 resets the phase positions but not
+  these, so between trip phases they hold the last source's cell.
+- Row 15, in record order: `processed` (`+0x914`), **`dayIndex`** (`+0x918`, the s32 right after `processed`; it
+  counts the days of the running trip phase, so with `days` 1 or 2 it toggles 0/1, §3.3), `total` (`+0x91C`),
+  `days` (`+0x92C`), then three u32 (`+0x930`, `+0x934`, `+0x938`) that no code reads or writes besides Write and
+  Read (the constructor zeroes `+0x934` and `+0x938`, not `+0x930`), then `passTotal`, `toReRoute`, `toSearch`, and
+  the ten pass counters `+0x948`…`+0x96C` of §10 Q4. *(Corrected: save-records.md §7.1.1 called the fifth field
+  `dayIndex`.)*
+- Row 19, the per-travel-type pairs: for `i` = 0…8, `published[i]` (`+0x424`) then `building[i]` (`+0x430`)
+  (`0x00713370`–`0x00713398`; Read the same, `0x00722FD0`). After the end of FullTrips the pair is (this pass, previous
+  pass), because the vectors are swapped (§4.4); after entering 18 the second element is 0.
 
 Rows 14–19 are partly given by type sequence; the meaning of each unnamed scalar is either traffic-network.md's or an
 internal counter that FreeCity4 writes back unchanged. The full write order with addresses is in the evidence file named in
@@ -1491,6 +1611,24 @@ the trip-data lists (in the lots, §6.3), edge densities (traffic automata and t
 and monthly income, `freeDest`, the destination map, damage sets and strike state, the transit switches, the ferry
 terminals, and the cycle position. Everything else is rebuilt within one
 cycle.
+
+**Variants in the record** (TS53). The only variants are inside the pool property holders of row 19. Each pool is a
+plain `cSCPropertyHolder` (the map is `map<u16, cSCPropertyHolder*>`); Write writes its u16 key and then calls the
+holder's own `Write` (holder slot `+0x5C`, `0x00713324`), which writes the plain holder record of foundations §10.2,
+each property through `WriteVariant` (foundations §9.2): u32 marker 0, u32 disk tag, then for an array a u32 count
+and the elements. The traffic code puts one property on a pool, `0x8A0B4100` (§4.2), as a u16 array (disk tag
+`0x8002`) or, once promoted, a u32 array (`0x8003`). A writer that produces that form for those two types produces
+the original's bytes. Other properties appear only if some other code adds them to a pool holder; none is known.
+
+**Hash container order after Read** (TS54). Read inserts into the freshly constructed containers, each built with a
+hint of 100, so 193 buckets (`0x00829BC0`, prime list `0x00A829B0`: 53, 97, 193, 389, 769, …). For each key in file
+order: grow to the smallest listed prime ≥ count + 1 when that exceeds the bucket count (`0x00710DD0`; a grow walks
+the old buckets in ascending order and moves each chain's nodes from its head, each to the head of its new chain),
+then insert the new node at the **head** of its chain (`0x0060D270` for the four damage sets, `0x0072249C`–
+`0x007225FB`; `operator[]` `0x006D7820` → `0x006D6FD0` for the edge densities, `0x00721DD8`). Iteration is bucket
+ascending, chain order. The order matters in two places: ApplyPotholeChanges picks the `r`-th element of a damage
+set in iteration order (§4.12), so the cells that get potholes depend on it, and the next Write lists keys in it.
+Nothing else depends on the order of these containers (the edge-density passes of §4.8 treat each record alone).
 
 ### 6.3 Trip data in the lot record
 
@@ -1771,8 +1909,24 @@ Open questions:
 * **Q2** The meaning of the slot-59 lot link and of zones 8/9 in FinishTripMap (§4.7).
 * **Q3** *Answered* (§5): `0x0C05E4C3`, data1 = x, data2 = z, posted queued, no compiled receiver; rail accidents
   post nothing. Open: who calls `CheckRailAccident` and what the caller does with a true result.
-* **Q4** Names of the 20 pass counters (sources, merges, confirmed, re-routed, failed, split, …) saved in §6.1 row 15;
-  only `toReRoute`, `toSearch`, `passTotal`, `processed` and `rerouteBucket` drive behaviour.
+* **Q4** *Answered* (TS59). The ten pass counters of §6.1 row 15 (`+0x948` + 4·i), all saved; on entering 16 every
+  one is zeroed except 1 and 2 (`0x00721857`–`0x00721881`):
+
+  | # | Meaning | Increment points |
+  |---|---|---|
+  | 0 | routes confirmed without a search | ConfirmTrips, each status := 3 after ConfirmRoute (`0x0071DBF5`) |
+  | 1 | re-route searches found | ReRouteTrips (`0x0071D289`); zeroed on entering 17 (`0x007218F2`), kept through 18 (TS35) |
+  | 2 | `rerouteBucket` | StartRecalc `+1 & 3` (`0x00717CF4`) |
+  | 3 | source counter | ConfirmTrips, once per source (`0x0071D93F`) |
+  | 4 | destination full | ConfirmTrips, status 3 → 0 (`0x0071DC01`); ReRouteTrips, status 1 → 0 (`0x0071D221`) |
+  | 5 | merges | ConfirmTrips merge, per routed trip that absorbed at least one trip (`0x0071DA0D`) |
+  | 6 | return leg not confirmed | ConfirmTrips, outbound confirmed but `ConfirmRoute(returnRoute)` false (`0x0071DBA0`) |
+  | 7 | status-0 trips met | ConfirmTrips, each status-0 trip of a source before its merge (`0x0071D95D`) |
+  | 8 | failures retried | ConfirmTrips, status 5 → 0 (`0x0071DC11`) |
+  | 9 | splits | FullTrips, per split (`0x0071D77F`) |
+
+  Only `toReRoute`, `toSearch`, `passTotal`, `processed`, `dayIndex`, `total`, `days` and counter 2 drive behaviour;
+  the others are statistics nobody reads (no reader outside Write besides the code above).
 * **Q5** Full save layout: rows 14–19 of §6.1 are given by type sequence (write trace of `0x00712400`, kept in the
   helper's scratch folder `m5sim/write_trace.txt`); traffic-network.md must name the network-owned fields.
 * **Q6** `0x0CAAAEB8` has no name in the tuning file; its only use is the commercial traffic scale.

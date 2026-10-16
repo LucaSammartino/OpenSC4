@@ -348,3 +348,38 @@ Factory `0x004A18A0`. Full behaviour in [occupant-manager.md](../specs/occupant-
   `0x00A8F784`; +0x8 `uint32_t` reference count; +0xC `uint32_t` type.
 - `cISC4Occupant` manager box: 4 bytes `{x0, z0, x1, z1}`, world cells, inclusive, at occupant +0x28 in the base
   class; a first byte of 0xFF means no box (base `GetOccupantManagerBBox` `0x005E8BF0`).
+
+## Lot configuration (`cISC4LotConfiguration`, original class `cSC4LotConfiguration`, 0xC0 bytes)
+
+From re-specs15a (lot-configuration.md §2). Vtable `0x00A8CEB8`, 34 slots: slot 33 is the scalar deleting
+destructor. The lot configuration manager writes +0x3E, +0x40, +0x80 and +0x8C directly (not through a slot) when it
+receives `kSC4MessagePostCityInit` (`0x0048AD40`), so a replacement configuration that the original manager fills
+must keep these four offsets.
+
+| Offset | Size | Field |
+|---|---|---|
+| +0x00 | 4 | vtable |
+| +0x04 | 4 | reference count |
+| +0x08 | 4 | ID (exemplar instance) |
+| +0x0C | 0x14 | name (`cRZString`) |
+| +0x20 | 1 | width in cells |
+| +0x21 | 1 | depth in cells |
+| +0x24 | 0x0C | family IDs (`vector<uint32>`) |
+| +0x30 | 4 | maximum slope (f32) |
+| +0x34 | 4 | minimum slope (f32) |
+| +0x38 | 4 | maximum slope before foundation (f32) |
+| +0x3C | 1 | growth stage |
+| +0x3E | 2 | minimum building capacity (u16; manager-written) |
+| +0x40 | 2 | maximum building capacity (u16; manager-written) |
+| +0x42 | 1 | water-compatible flag |
+| +0x44 | 0x14 | zone types (`vector<bool>`, 16 bits) |
+| +0x58 | 0x14 | wealths (`vector<bool>`, 4 bits) |
+| +0x6C | 0x14 | purposes (`vector<bool>`, 9 bits) |
+| +0x80 | 0x0C | styles / occupant groups (`vector<uint32>`, ascending; manager-written) |
+| +0x8C | 1 | monopoly flag (manager-written; nothing reads it) |
+| +0x8D | 1 | do-construction flag |
+| +0x8E | 1 | required road sides (bits 0–3) |
+| +0x90 | 0x0C | object records (`vector`, 0x34 bytes each: lot-developer.md §17.1) |
+| +0x9C | 0x0C | retaining wall types (`vector<uint32>`) |
+| +0xA8 | 0x0C | fence types (`vector<uint32>`) |
+| +0xB4 | 0x0C | fence segment positions (`vector` of 4 signed bytes) |
