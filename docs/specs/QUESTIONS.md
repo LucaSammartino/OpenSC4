@@ -4698,31 +4698,35 @@ ABI 62, reserved 65 on the lane) and conformance vectors (`am14_01`-`am14_14`); 
 readings has been checked in game. The core predates re-answers16 (AT2-AT5 above), which a later lane applies. AM is the
 prefix the code comments use; automata.md's own Q1-Q6 keep their numbers. The current choice is in brackets.
 
-- **AM1:** (versions on re-save) the original's writers always write the current version (traffic manager 3 / base 6,
+- ~~**AM1:** (versions on re-save) the original's writers always write the current version (traffic manager 3 / base 6,
   automaton base 8, state 3, aircraft 5, watercraft 6), but §14 test 4 expects a version-2 record to round-trip byte
   for byte. Must a re-save upgrade old versions, or keep them? [writes the version it read; raises it only when the data
-  needs the newer layout]
-- **AM2:** §6.4 gives no read check for the pedestrian (5), vehicle, emergency vehicle, patrol car and trailer (2)
+  needs the newer layout]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §4.1). Every writer writes a constant, its current version: base 6 `0x0050CB80`, traffic manager 3 `0x00553570`, aircraft manager 5, watercraft manager 6, automaton base 8 `0x0050AC0D`, state 3 `0x00509D0A`, pedestrian 5, vehicle, emergency and trailer 2. It never writes the version it read, and the missing fields come from the live object: a version-2 traffic manager re-saves as 3 with its incident list, and a version-4 base as 6 with the source building counts that `PostCityInit` recounted. A live save must write the current versions. A record codec may keep the read version for byte round-trip tests *[choice]*; §14 test 4 is such a codec test, and test 18 is the re-save.
+- ~~**AM2:** §6.4 gives no read check for the pedestrian (5), vehicle, emergency vehicle, patrol car and trailer (2)
   versions, nor for the incident list's `u16` 1. Do the original readers reject other versions? [any value accepted
-  and kept]
-- **AM3:** §5.1 field 4 (the ID at the traffic manager's list cursor): what are the IDs of the list nodes, and what
-  should a new manager write? [the value read is kept; 0 for a new manager]
-- **AM4:** §7.3 SetMaxCount removes the automata "beyond" the new maximum: which ones? Does CreateAutomaton refuse at
-  the hard limit? [the newest first; CreateAutomaton returns null at the limit]
-- **AM5:** (§3.1) how exactly do the controller manager's two times A and B advance with HourChanged, and when can A
-  differ from B?
-- **AM6:** (§7.1 slots 5, 6, 9, 10) what does the `extra` argument mean? [ignored]
-- **AM7:** (§7.1 slots 11 and 12) does the original track the controllers that an occupant group itself created?
+  and kept]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §4.1 table, §6.4). The original requires exact values: pedestrian 5 (`0x005446D5`), vehicle 2 (`0x0055BCF0`), emergency 2 (`0x0052FAE0`), patrol car 2 (`0x00543E05`), trailer 2 (`0x00556C47`), and the incident list's `u16` 1 (`0x00553E90`). A mismatch makes that Read return false. The incident's ref is checked against the occupant IID `0x26BB767E`.
+- ~~**AM3:** §5.1 field 4 (the ID at the traffic manager's list cursor): what are the IDs of the list nodes, and what
+  should a new manager write? [the value read is kept; 0 for a new manager]~~ **ANSWERED 2026-10-16 (re-answers20):** Read value kept: MATCHES. New manager writes 0: **DIFFERS**, it writes 1 (automata.md §5.1). The list is the manager's fixed **layer list**, one node per traffic layer with the layer ID and an accumulated time. Vehicle `0x0055FB50`: 1, 2, 3, 5, 4, 7, 6, 8, 9, 10; pedestrian `0x00545500`: 1, 7, 8. The cursor starts on the first node, so a new manager writes 1, which every empty-city corpus record holds. Each population pass moves it on, wrapping and skipping layers disabled in the tuning mask. Write gives 0 only when the cursor is at the end, after a Read that found no node with the saved ID. Field 3 is the default path type: vehicle 1, pedestrian 2.
+- ~~**AM4:** §7.3 SetMaxCount removes the automata "beyond" the new maximum: which ones? Does CreateAutomaton refuse at
+  the hard limit? [the newest first; CreateAutomaton returns null at the limit]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §7.2, §7.3, §12 quirk 8). `SetMaxCount` (`0x0050AA60`): clamp to 0–5000; an unchanged n does nothing. Otherwise it walks the list from the **front** (oldest first) while n < count. Every automaton without flag `0x200000` and below priority `0xFF` goes to the unplace hook (slot 62, `0x00507430`), which takes it out of the renderer and the occupant manager. The hook does not erase it from the list or lower the count, so all eligible automata are unplaced and none leaves the list or the save. Then max = n and hard limit = trunc(n × 1.25). `CreateAutomaton` refuses above the **max** (count > max) unless make-room (`0x0050A740`) succeeds. Make-room needs count < hard limit and p > 0, and evicts the first automaton of lower priority with `Remove(false)`. Flag `0x80` and priority `0xFF` bypass even the hard limit.
+- ~~**AM5:** (§3.1) how exactly do the controller manager's two times A and B advance with HourChanged, and when can A
+  differ from B?~~ **ANSWERED 2026-10-16 (re-answers20):** Answered (automata.md §3.1). A is the current time (object `+0x34`), the one slot 24 `GetControllerTime` (`0x0051A310`) returns. §3.1 and §7.1 said B; **corrected**. B (`+0x3C`) is A at the previous animation tick.
+  - `HourChanged` (`0x005193BF`) adds 1.0 h to A (`0x00515080`), unnormalised, so A can reach 24 or more. Each controller then gets slot 24 with (A, A − B).
+  - Each animation tick (`0x00518B80`): t = hour + minute × (1/60); if t < A's hour, A's day + 1; A's hour = t; delta = A − B; A is normalised (NaN → 0, hour into [0, 24), day mod 7); then B = A.
+
+  So A ≠ B only between an `HourChanged` and the next tick (A = B + 1 h). Both must round-trip.
+- ~~**AM6:** (§7.1 slots 5, 6, 9, 10) what does the `extra` argument mean? [ignored]~~ **ANSWERED 2026-10-16 (re-answers20):** Mostly MATCHES (automata.md §7.1). `extra` is a `const vec3*` position. Slot 6 (`0x0051AD20`) uses it only when the occupant is null: it calls controller slot 17 (`+0x44`) with it at `0x0051B117`. With an occupant, slot 14 attaches the controller (`0x0051B091`) and `extra` is unused. Every known caller passes an occupant and 0, so ignoring it is correct there. A null-occupant call must place the controller at `*extra`.
+- ~~**AM7:** (§7.1 slots 11 and 12) does the original track the controllers that an occupant group itself created?
   ["remove the controllers that the group added" is the occupant's controllers whose template is one of the group's
-  templates, which also works after a load]
-- **AM8:** §6.4 gives the emergency vehicle record as `u16 2, vehicle record, …`, but §12 quirk 3 says the vehicle
+  templates, which also works after a load]~~ **ANSWERED 2026-10-16 (re-answers20):** MATCHES (automata.md §7.1). Nothing tracks which controllers a group created. The body (`0x0051A350`) removes the occupant's controllers whose template (controller slot 8) is in the group's template list. Each removed controller gets the message `0xEA298D50`, leaves the grid, and is shut down and released. When the list becomes empty, the occupant's queue entry and its list entry are dropped. The call returns true if anything was removed. Slot 14 is the same body with a null template, which matches all.
+- ~~**AM8:** §6.4 gives the emergency vehicle record as `u16 2, vehicle record, …`, but §12 quirk 3 says the vehicle
   loader "reads the vehicle part and leaves the rest unread". With the §6.4 layout a vehicle reader meets the
-  emergency's own `u16` first and misaligns, failing at the occupant base version. Which layout is correct?
-- **AM9:** §5.3 gives no upper version check for the watercraft manager. [fails above 6, as §5.2 does for the aircraft
-  manager above 5]
-- **AM10:** §6.4 names no IID for the trailer's list of vehicle references. [read with the automaton IID
-  `0xA9B40F05`]
-- **AM11:** (§4, §12 item 4) the original base Read ignores stream errors. Should a truncated manager record load
-  partially, as in the original? [a short or cut record is a failed, atomic read, so round trips can be checked]
-- **AM12:** (§7.3 slot 31, TrackAutomataGroupInstances) what are the semantics? [adds delta, does not go below 0,
-  appends a new group]
+  emergency's own `u16` first and misaligns, failing at the occupant base version. Which layout is correct?~~ **ANSWERED 2026-10-16 (re-answers20):** The §6.4 layout is correct and **quirk 3 was wrong** (automata.md §12 quirk 3, §6.4). The emergency Write (`0x0052FA60`) writes `u16` 2, the full vehicle record, then its own fields. Reloaded under the vehicle class ID, the readers shift by one `u16`: vehicle (2 ok), traffic (2 ok), automaton base (2, ≤ 8 ok). The occupant base then reads 8 where it needs 4 (`0x005E8D75`) and fails, so that object's Read fails; it does not stop partway with success. The cores14a description is right.
+- ~~**AM9:** §5.3 gives no upper version check for the watercraft manager. [fails above 6, as §5.2 does for the aircraft
+  manager above 5]~~ **ANSWERED 2026-10-16 (re-answers20):** MATCHES. `0x00574A0B`: below 6 is a base-only record, above 6 fails (`0x00574A26`). automata.md §5.3.
+- ~~**AM10:** §6.4 names no IID for the trailer's list of vehicle references. [read with the automaton IID
+  `0xA9B40F05`]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS**: the IID is `0x896E714A` (`0x00556C8B`; automata.md §6.4). That is the vehicle's class ID, which the vehicle's `QueryInterface` (`0x0055B665`) answers. Refs to vehicles, emergency vehicles, patrol cars and trailers resolve; any other automaton reads as null. Null entries are dropped from the list.
+- ~~**AM11:** (§4, §12 item 4) the original base Read ignores stream errors. Should a truncated manager record load
+  partially, as in the original? [a short or cut record is a failed, atomic read, so round trips can be checked]~~ **ANSWERED 2026-10-16 (re-answers20):** Atomic failure accepted as *[choice]* (automata.md §4.1). The original stores fields as it reads and never rolls back. The current-version wrappers return `GetError() == 0`: controller manager `0x0051B9B8`, traffic v3 through the incident reader, aircraft v5 `0x004FBFC3`, watercraft v6 `0x00575153`. A cut record of a current version therefore returns false, as in the core. Only a cut base-only old version (traffic 2, aircraft < 5, watercraft < 6) returns true in the original. That is a **DIFFERS** case that no save contains.
+- ~~**AM12:** (§7.3 slot 31, TrackAutomataGroupInstances) what are the semantics? [adds delta, does not go below 0,
+  appends a new group]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §7.3, §4). Slot 31 `TrackAutomataGroupInstances(group, bool track)` (`0x00513C40`) is not a counter. When slot 30 says the group is known, `track` = true creates an unsaved **set of the group's automata**, with a reference each, filled from the list; an existing set is kept. `track` = false releases the set and erases it. Later adds and removals keep the sets current, and slot 32 reads them. §4 field 6 was mislabelled: it holds the **source building counts**, occupant group ID → number of complete buildings, which slots 36 and 37 read. They are seeded at `Init` from script slot 18 (`0x0050F930`) and recounted at `PostCityInit` for base versions below 6 (`0x0050F341`). The record bytes are unchanged; only the meaning changes.
