@@ -247,8 +247,10 @@ impl BudgetHost for World {
         self.push(Event::Disaster { id, x, z });
         true
     }
-    fn rng_seed(&self) -> u32 {
-        self.env.borrow().rng_seed
+    fn session_seed(&self) -> u32 {
+        // The vectors give the generator's seed (`rng_seed`, the original's
+        // clock XOR K); the session seed whose derive(K) is that seed.
+        self.env.borrow().rng_seed ^ fc4_core::seeding::keys::BUDGET.k()
     }
     fn ltext(&self, group: u32, instance: u32) -> Vec<u8> {
         match self.ltexts.borrow().get(&(group, instance)) {

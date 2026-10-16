@@ -18,11 +18,11 @@ use super::{
     occupant, side_of, status, CityHandle, CityId, ForeignConnection, NeighborsHost, NeighborsMessage, Side, Stat,
     AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, CLSID_NEIGHBORS_SIMULATOR, CLSID_NEIGHBOR_CONNECTION,
     ELEVATED_MARKER_HEIGHT, IID_MESSAGE_TARGET2, IID_NEIGHBORS_SIMULATOR, IID_NEIGHBOR_CONNECTION, IID_SERIALIZABLE,
-    IID_UNKNOWN, PROPOSAL_SEED_KEY,
+    IID_UNKNOWN,
 };
 use crate::curve::ResponseCurve;
 use crate::property::PropertyHolder;
-use crate::rng::{derive_seed, FixedSeeds, RzRandom};
+use crate::rng::{FixedSeeds, RzRandom};
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 
 /// The record version (§13).
@@ -931,7 +931,7 @@ impl NeighborsSimulator {
     fn proposal_rng_range(&self, lo: f64, hi: f64) -> f64 {
         let mut slot = self.rng.borrow_mut();
         let rng = slot.get_or_insert_with(|| {
-            let s = derive_seed(self.session, PROPOSAL_SEED_KEY);
+            let s = crate::seeding::seed(self.session, crate::seeding::keys::neighbors_proposals(0));
             RzRandom::new(
                 s,
                 &FixedSeeds {

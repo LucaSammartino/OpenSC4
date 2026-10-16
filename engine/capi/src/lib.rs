@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 63;
+pub const FC4_ABI_VERSION: u32 = 64;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -303,6 +303,12 @@ unsafe fn slice_arg<'a, T>(ptr: *const T, len: usize) -> Option<&'a [T]> {
 #[no_mangle]
 pub extern "C" fn fc4_abi_version() -> u32 {
     FC4_ABI_VERSION
+}
+
+/// `derive(S, K)` of foundations §6.3 (fc4.h: the session seed).
+#[no_mangle]
+pub extern "C" fn fc4_seed_derive(session_seed: u32, k: u32) -> u32 {
+    fc4_core::rng::derive_seed(session_seed, k)
 }
 
 // ---- lifetime -------------------------------------------------------------------

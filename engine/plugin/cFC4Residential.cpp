@@ -19,6 +19,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -1026,8 +1027,8 @@ uint32_t SessionSeed(bool* fixed) {
     // value; no save or output exposes the seed. [choice] The session seed S
     // is the wall clock (foundations §6.3) and the core uses derive(S,
     // 0x4990C013), the class's GZCLSID, for its member generator.
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 // The game's query record <-> the core's (REH §4.11): the costs are 32-bit
@@ -1211,7 +1212,7 @@ cFC4ResidentialSimulator::cFC4ResidentialSimulator() {
     core_ = fc4_residential_create(&host_, SelfToken(), seed);
     if (core_ == nullptr) fc4::Log("cFC4ResidentialSimulator: core creation failed");
     fc4::Log("cFC4ResidentialSimulator(%p) created, core %p, session seed 0x%08X (%s)", static_cast<void*>(this),
-             static_cast<void*>(core_), seed, fixed ? "residential_seed" : "cRZTime");
+             static_cast<void*>(core_), seed, fixed ? "residential_seed" : "session seed");
 }
 
 cFC4ResidentialSimulator::~cFC4ResidentialSimulator() {
