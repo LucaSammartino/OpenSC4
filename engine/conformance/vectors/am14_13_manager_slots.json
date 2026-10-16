@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "13_manager_slots",
+  "spec": ["automata 7.3", "automata 9"],
+  "description": "SetMaxCount clamps to 0-5000, removes the automata beyond it and sets the hard limit to trunc(n x 1.25); IsDrivingMode is true exactly for the U-Drive-It view 0x2B709676.",
+  "steps": [
+    {"op": "automata_mgr_new", "kind": "pedestrian", "automata": 5},
+    {"op": "automata_mgr_max_count", "n": 9000, "state": {"max": 5000, "hard_limit": 6250, "removed": 0, "count": 5}},
+    {"op": "automata_mgr_max_count", "n": -3, "state": {"max": 0, "hard_limit": 0, "removed": 5, "count": 0}},
+    {"op": "automata_mgr_max_count", "n": 199, "state": {"max": 199, "hard_limit": 248}},
+    {"op": "automata_mgr_max_count", "n": 336, "state": {"hard_limit": 420}},
+    {"op": "automata_mgr_driving_mode", "view": "0x2B709676", "expect": true},
+    {"op": "automata_mgr_driving_mode", "view": 0, "expect": false}
+  ]
+}

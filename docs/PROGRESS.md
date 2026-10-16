@@ -81,6 +81,7 @@ budget is off by default (enable = <key>).
 - [x] **Traffic simulator core** (merged a11eb7d: all 15 §11 tests as unit tests and 29 `ts11_*` vectors)
 - [x] **Traffic glue, phase 1** (merged 850b567, `enable = traffic`): our traffic simulator and pathfinder replace the original in game; clean alone, across saves and for 84 months at normal speed, and in a full city with 17 other replacements (run 105, one reference warning under investigation)
 - [x] **Traffic phase 2** (merged 40d9eab, regress run 119 PASS): the TS35–TS49 answers, the O(1) source iterator, and the traffic shadow (`traffic_shadow = 1`): with `traffic_shadow_hypotheses = 7` every delivery matches the original on Konradshohe for 7 game months (261/261, resyncs=0); TS55–TS57 decide whether those readings become the spec
+- [x] **Traffic glue, re-answers10 applied** (apply11traffic, merged 85919d3, regress run 128 PASS): TG1 (FindPath fills the route deque), TG7 (department / line-item creation as the original, ABI `create_line_item`), TG10 (master list with FreeCity4's lot manager: rect=0), TG15/TG21 (slot 19 direct write), TG19 (counted connection snapshot); `update_network_costs`, the path-info helpers and `tunnel_paired_portal` stay NULL until TG23-TG25
 - [ ] Calibration; commute and volume maps match (M5 exit): answer TS50–TS66, make the confirmed readings the core's behaviour, run the shadow on Spandau and past 2026-08 (on Konradshohe to 2032 under turbo it is not exact: run 121, 43 of 72 month lines, TS63/TS64); `traffic` and `traffic_shadow` are in regress since run 121
 
 **M6+: beyond simulation**
@@ -93,6 +94,8 @@ budget is off by default (enable = <key>).
 - [ ] Disaster glue: wire `fc4_disasters_host` to the game's managers and shadow it against the original; answer DS1–DS24
 - [x] Terrain core and C ABI (terrain.md; cores16, merged d651d74, ABI 58, regress run 124 PASS): height field and records, GetAltitude and face normals, setters, RedisplayTerrain, brushes (kind 0, earthquake, random walk), surface water, navigability and bodies of water, volcano lava; nation.md GetEconomyModifier; every §18 test as a `tr18_*` vector
 - [ ] Terrain glue: wire `cISTETerrain` / `cISTESurfaceWater` to `fc4_terrain_*` (mind the re-entrancy rule, TR18) and shadow it against the original; answer TR1–TR18
+- [x] Automata layer core and C ABI (automata.md short form; cores14a, merged 44cf925, ABI 62, regress run 129 PASS): exact load / re-save of components 40, 41 and 43-46 and of every referenced controller, automaton and state record (save sweep: 417 saves, 0 failures), the riot leader, fire occupant and U-Drive-It hooks; §14 tests as `am14_*` vectors
+- [ ] Automata glue: GZCOM classes for components 40/41/43-46 over `fc4_automata_*`, riot leaders and the fire occupant through its host tables, U-Drive-It pause/resume, an in-game shadow; apply AT2-AT5; answer AM1-AM12
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**

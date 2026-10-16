@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "02_controller_manager_empty",
+  "spec": ["automata 3.1", "automata 14.2"],
+  "description": "The 30-byte controller manager record of New City (11): version 1, the 24-hour clock 0x0A019318 of class 0xA7E7F929, times (0.0 h, day 0) twice, no controllers, no automaton sets. Read sets the loaded flag; the record re-encodes byte-identically. A cut record fails.",
+  "steps": [
+    {"op": "automata_record", "class": "0xCA14CA03", "hex": "0100 1893010A 29F9E7A7 000000000000 000000000000 00000000 00000000", "fields": {"version": 1, "clock": ["0x0A019318", "0xA7E7F929"], "time_a": [0.0, 0], "time_b": [0.0, 0], "entries": 0, "sets": 0, "loaded": true}},
+    {"op": "automata_record", "class": "0xCA14CA03", "hex": "0100 1893010A 29F9E7A7 000000000000 000000000000 00000000", "expect": false}
+  ]
+}
