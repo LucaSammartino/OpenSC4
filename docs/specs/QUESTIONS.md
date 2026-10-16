@@ -4077,10 +4077,17 @@ in-game harness with the FreeCity4 turbo clock and a message log.
 - ~~**PV1:** the prop developer's night batch size (`+0xA34`) is not initialised; 225 shipped records hold
   `0xBAADF00D`. [never read while the night mode is 0; *[choice]* FreeCity4 writes 0 for a new city and writes a
   loaded value back unchanged. A new city saved by the original would show what the GOG build writes]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice confirmed; prop-developer.md §2). The constructor never writes `+0xA34`, so the original saves whatever the heap block held (`0xBAADF00D` is the debug heap's fill *[inferred]*); there is no fixed value to match, and the field is never read while the mode is 0.
-- **PV2:** a tagged prop whose tag names no object of its lot's configuration lowers the block's slot count by one.
+- ~~**PV2:** a tagged prop whose tag names no object of its lot's configuration lowers the block's slot count by one.
   Which props have such tags in practice? [props left over from a different configuration (a lot redeveloped with a
   new configuration, or a lower detail level before the city detail manager's reduce); reproduced. Counting, in a
-  corpus city, lot props whose tag matches no object of their lot's configuration would show how common it is]
+  corpus city, lot props whose tag matches no object of their lot's configuration would show how common it is]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES (prop-developer.md §10 quirk
+  1). The tag is the configuration object's ID (`+0x24`), saved with the prop. The one source the bracket lacks is a
+  configuration of version < 2: its objects get generated IDs from a per-process serial (`0x00B2166C`,
+  `ConvertPropertiesToObjectArray` `0x00479D10`), so its props' tags match nothing after the next load. That cannot
+  happen with shipped data: all 1908 lot configurations and all 543 network lot configurations are version 2 (a scan
+  of `SimCity_1.dat`…`SimCity_5.dat` and `EP1.dat`). So the bracket's sources are the shipped ones; the detail-level
+  case lasts only until the city detail manager's reduce at `Init`. The corpus count was not made (it needs the
+  saved prop records with their tags).
 - ~~**PV3:** `UpdateAllOptionalProps` (slot 7) has no caller. [none in the exe; FreeCity4 implements it as specified
   (every block, x outer). A plugin scan or a call trace in a long turbo run would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (prop-developer.md §4.2). No direct call targets `0x006F4DB0`; it is reachable only through vtable slot 7. Implementing it as specified is harmless.
 - ~~**PV4:** the block step runs on every Idle delivery, also while paused, so props develop at a frame-rate-dependent
