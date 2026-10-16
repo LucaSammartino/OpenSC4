@@ -1785,7 +1785,7 @@ cFC4TrafficSimulator::cFC4TrafficSimulator() {
     }
     RefreshSnapshot();
     fc4::Log("cFC4TrafficSimulator(%p) created, core %p, session seed %u (%s)", static_cast<void*>(Primary()),
-             static_cast<void*>(core_), seed_, seedFixed_ ? "traffic_seed" : "the clock");
+             static_cast<void*>(core_), seed_, seedFixed_ ? "traffic_seed" : "session seed");
 }
 
 cFC4TrafficSimulator::~cFC4TrafficSimulator() {
