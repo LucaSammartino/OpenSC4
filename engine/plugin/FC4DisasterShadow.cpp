@@ -152,6 +152,17 @@ struct Shadow {
     std::map<uint32_t, uint32_t> idMap;
     std::deque<uint32_t> pendingIds;
     uint64_t idGuesses = 0;
+    // Ignitions inside the original's fire step (a spread): mirrored after
+    // the mirror's own step of that tick (a fire lit during UpdateAllFires is
+    // not stepped in that pass, §5.8; the core iterates a snapshot too).
+    struct Deferred {
+        uint64_t o;
+        bool force, focus, result, paused, emergency;
+        uint32_t id;
+        const char* why;
+    };
+    std::vector<Deferred> deferred;
+    uint64_t deferredIgnites = 0;
     // The original's fire instance.
     void* fireInternal = nullptr;            // cISC4DisasterInstanceFire* (borrowed)
     cISC4DisasterInstance* fireInst = nullptr;  // one reference ours
@@ -591,7 +602,12 @@ uint32_t __fastcall IgniteFwd(void* self, void* edx, uintptr_t o, uintptr_t forc
     const uint64_t t = OccToken(reinterpret_cast<cIGZUnknown*>(o));
     Keep(g.targets, t);
     if (g.outerMirror == 0 && t != 0) {
-        MirrorIgnite(t, B(force), static_cast<uint32_t>(id), B(focus), B(r), "Ignite");
+        if (g.fireMsgDepth > 0) {
+            g.deferred.push_back({t, B(force), B(focus), B(r), g.ctx.pausedSample, g.ctx.emergencySample,
+                                  static_cast<uint32_t>(id), "Ignite (in the original's fire step)"});
+        } else {
+            MirrorIgnite(t, B(force), static_cast<uint32_t>(id), B(focus), B(r), "Ignite");
+        }
     }
     return r;
 }
@@ -625,7 +641,12 @@ uint32_t __fastcall IgniteCellFwd(void* self, void* edx, uintptr_t x, uintptr_t 
             if (burned || !DisasterOccupantBurning(AsOcc(occ))) continue;
             ++g.cellFallbacks;
             Keep(g.targets, occ);
-            MirrorIgnite(occ, B(t), static_cast<uint32_t>(id), !B(t), true, "IgniteCell (no nested Ignite)");
+            if (g.fireMsgDepth > 0) {
+                g.deferred.push_back({occ, B(t), !B(t), true, g.ctx.pausedSample, g.ctx.emergencySample,
+                                      static_cast<uint32_t>(id), "IgniteCell (no nested Ignite, in the fire step)"});
+            } else {
+                MirrorIgnite(occ, B(t), static_cast<uint32_t>(id), !B(t), true, "IgniteCell (no nested Ignite)");
+            }
         }
     }
     return r;
@@ -753,6 +774,14 @@ uint32_t __fastcall FireMessageFwd(void* self, void* edx, uintptr_t m) {
     if (stepped && g.fireNextValid) g.fireNext += 1000;
     TrackFirePhase();
     const int32_t origPhaseAfter = g.fireInst ? g.fireInst->GetPhase() : 0;
+    std::vector<Shadow::Deferred> later;
+    later.swap(g.deferred);
+    for (const auto& dfr : later) {
+        ++g.deferredIgnites;
+        g.ctx.pausedSample = dfr.paused;
+        g.ctx.emergencySample = dfr.emergency;
+        MirrorIgnite(dfr.o, dfr.force, dfr.id, dfr.focus, dfr.result, dfr.why);
+    }
     if (steps > 0 || stepped) {
         g.dirty = true;
         char what[64];
@@ -808,9 +837,11 @@ uint32_t __fastcall LayerRegisterFwd(void* self, void* edx, uintptr_t inst, uint
     const uint32_t r = orig(self, edx, inst, x, z, occ, zoom, focus);
     if (!Ready()) return r;
     cISC4DisasterInstance* i = reinterpret_cast<cISC4DisasterInstance*>(inst);
-    if (i != nullptr && !NotAnObject(i) && i->GetID() == kRiot) {
-        Log("disasters shadow: riot RegisterDisasterLocation(instance %p, %d, %d, occupant %p, zoom %u, focus %u)",
-            static_cast<void*>(i), static_cast<int32_t>(x), static_cast<int32_t>(z), reinterpret_cast<void*>(occ),
+    if (i != nullptr && !NotAnObject(i)) {
+        const uint32_t type = i->GetID();
+        Log("disasters shadow: %s RegisterDisasterLocation(instance %p, %d, %d, occupant %p, zoom %u, focus %u)",
+            type == kRiot ? "riot" : type == kFire ? "fire" : "other", static_cast<void*>(i),
+            static_cast<int32_t>(x), static_cast<int32_t>(z), reinterpret_cast<void*>(occ),
             static_cast<uint32_t>(zoom), static_cast<uint32_t>(focus & 0xFF));
     }
     if (i != nullptr && !NotAnObject(i) && g.riotStartDepth > 0 && g.riotStartInst == nullptr &&
@@ -1191,9 +1222,10 @@ void QuietLine() {
     if (d.n == 0) ++g.quietLines.clean;
     if (d.n != 0 && d.unexplained == 0) ++g.quietLines.questioned;
     Log("disasters shadow quiet: posts orig/ours %s; cost orig %lld ours %lld (not compared: Q41); %s "
-        "unfollowable=%llu id-guesses=%llu leaders-missing=%llu cell-fallbacks=%llu radius=%llu extinguish=%llu "
-        "mismatches=%u%s%s",
-        text.c_str(), (long long)origCost, (long long)ourCost, layer, (unsigned long long)g.unfollowable,
+        "deferred=%llu unfollowable=%llu id-guesses=%llu leaders-missing=%llu cell-fallbacks=%llu radius=%llu "
+        "extinguish=%llu mismatches=%u%s%s",
+        text.c_str(), (long long)origCost, (long long)ourCost, layer, (unsigned long long)g.deferredIgnites,
+        (unsigned long long)g.unfollowable,
         (unsigned long long)g.idGuesses, (unsigned long long)g.ctx.leadersMissing, (unsigned long long)g.cellFallbacks,
         (unsigned long long)g.radiusCalls, (unsigned long long)g.extinguishCalls, d.n,
         d.text.empty() ? "" : "; differences: ",
@@ -1332,6 +1364,8 @@ void DisastersShadowCityLoaded(cISC4City* city) {
     g.origSteps = g.coreSteps = g.fireStepLines = 0;
     g.idMap.clear();
     g.pendingIds.clear();
+    g.deferred.clear();
+    g.deferredIgnites = 0;
     g.origBegun = g.origEnded = 0;
     g.origPosts.clear();
     g.origD1.clear();
