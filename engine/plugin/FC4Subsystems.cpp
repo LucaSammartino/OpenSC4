@@ -77,6 +77,7 @@
 #include "cFC4Civic.h"       // the cmglue lane: civic
 #include "cFC4Parks.h"       // the cmglue lane: parks
 #include "cFC4Tutorial.h"    // the glue15 lane: tutorial
+#include "cFC4PropManager.h"  // the glue21 lane: propmgr
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -302,6 +303,13 @@ const ClassEntry kZoneDevClasses[] = {
 const ClassEntry kTutorialClasses[] = {
     {kFC4_CLSID_cSC4TutorialSystem, "cSC4TutorialSystem", &CreateFC4TutorialSystem},
 };
+// docs/specs/prop-lotconfig.md Part A: the prop manager (city component 5).
+// Off by default (the glue21 lane): `enable = propmgr`. Replaces the game's
+// cSC4PropManager; propmgr_shadow still compares the live class against the
+// core over a read-only host (FC4PropLotShadow.h).
+const ClassEntry kPropMgrClasses[] = {
+    {kFC4_CLSID_cSC4PropManager, "cSC4PropManager", &CreateFC4PropManager},
+};
 
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
@@ -339,6 +347,8 @@ const Subsystem kSubsystems[] = {
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
     // the glue15 lane
     {"tutorial", nullptr, kTutorialClasses, sizeof(kTutorialClasses) / sizeof(kTutorialClasses[0]), false},
+    // the glue21 lane
+    {"propmgr", nullptr, kPropMgrClasses, sizeof(kPropMgrClasses) / sizeof(kPropMgrClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

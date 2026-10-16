@@ -322,6 +322,10 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Tutorial.h
         plugin/FC4PropLotShadow.cpp
         plugin/FC4PropLotShadow.h
+        # The two replacement classes (the glue21 lane): enable = propmgr, lotcfg.
+        plugin/FC4PropLotInterfaces.h
+        plugin/cFC4PropManager.cpp
+        plugin/cFC4PropManager.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp
