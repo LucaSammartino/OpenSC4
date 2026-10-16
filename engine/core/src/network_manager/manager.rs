@@ -536,7 +536,9 @@ impl NetworkManager {
                 group.1.push(n);
             }
             for (tool_type, (cells, list)) in [(4u32, &pipes), (7u32, &subways)] {
-                // [choice] A null cached tool skips the kind.
+                // [choice] A null cached tool skips the kind. [question NM9]
+                // Step 2 has no "if any" test (unlike §7.2), so both kinds
+                // run even with an empty list.
                 if let Some(t) = self.get_network_tool(tool_type, false) {
                     h.tool_init(t);
                     h.tool_update_underground_heights(t, cells, list, tool_type);
