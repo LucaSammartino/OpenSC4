@@ -275,10 +275,13 @@ def fix_sdk_gitlink(wt):
     if not dot.is_file():
         return
     want = (REPO / ".git" / "modules" / "engine" / "third_party" / "gzcom-dll").as_posix()
-    text = dot.read_text(encoding="utf-8", errors="replace").strip()
-    if text.startswith("gitdir:") and not Path(text.split(":", 1)[1].strip()).exists():
-        dot.write_text(f"gitdir: {want}\n", encoding="utf-8")
-        log(f"repointed the gzcom-dll gitlink in {Path(wt).name}")
+    try:
+        text = dot.read_text(encoding="utf-8", errors="replace").strip()
+        if text.startswith("gitdir:") and not Path(text.split(":", 1)[1].strip()).exists():
+            dot.write_text(f"gitdir: {want}\n", encoding="utf-8")
+            log(f"repointed the gzcom-dll gitlink in {Path(wt).name}")
+    except OSError as exc:
+        log(f"could not repoint the gzcom-dll gitlink in {Path(wt).name}: {exc}")
 
 
 def ensure_train_worktree():
