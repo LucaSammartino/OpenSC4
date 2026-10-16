@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "port_developers_round_trip",
+  "spec": ["port-developers 2", "port-developers 4.7", "port-developers 7", "port-developers 12"],
+  "description": "Section 12 test 2: the section 7 example (one small airport at stage 1, type 0, location (40, 52)) reads into a fresh airport and writes back identically. The read loads the tuning with the record's instance; the port waits for its lot (needsLookup, efficiency 1.0, usage 0) and PostCityInit fetches it from the lot manager at (40, 52). GetNumAirports(0) = 1, GetNumPorts(0x1F, 2) = 1, GetNumPorts(2, 0x1F) = 1 (the size bit is 1 << size class: small is 2), GetNumPorts(1, 0x1F) = 0, GetNumAirports(1) = 1 (bit 2). [choice] A type index out of range rejects the record and leaves the list unchanged; Read appends to the list.",
+  "steps": [
+    {"op": "pd_create", "kind": "airport"},
+    {"op": "pd_read", "hex": "0200 0100 9D0E27CA 0B00 0100 01000000 0000 2800 3400", "expect": true},
+    {"op": "pd_expect", "state": {"tuning_loaded": true, "types": 3, "ports": 1}},
+    {"op": "pd_expect_port", "index": 0, "state": {"stage": 1, "type": 0, "x": 40, "z": 52, "needs_lookup": true, "lot": null, "efficiency": 1.0, "usage": 0}},
+    {"op": "pd_write", "hex": "0200 0100 9D0E27CA 0B00 0100 01000000 0000 2800 3400"},
+    {"op": "pd_query", "query": "num_airports", "args": [0], "expect": 1},
+    {"op": "pd_query", "query": "num_ports", "args": ["0x1F", 2], "expect": 1},
+    {"op": "pd_query", "query": "num_ports", "args": [2, "0x1F"], "expect": 1},
+    {"op": "pd_query", "query": "num_ports", "args": [1, "0x1F"], "expect": 0},
+    {"op": "pd_query", "query": "num_ports", "args": ["0x1F", 1], "expect": 0},
+    {"op": "pd_query", "query": "num_airports", "args": [1], "expect": 1},
+    {"op": "pd_query", "query": "num_airports", "args": [2], "expect": 0},
+    {"op": "pd_lot", "lot": "0x40", "config": ["0xCA2436C1", 2], "x": 40, "z": 52},
+    {"op": "pd_message", "msg": "0x26D31EC1", "expect": true},
+    {"op": "pd_expect_port", "index": 0, "state": {"needs_lookup": false, "lot": "0x40"}},
+    {"op": "pd_read", "hex": "0200 0100 9D0E27CA 0B00 0100 01000000 0300 2800 3400", "expect": false},
+    {"op": "pd_expect", "state": {"ports": 1}},
+    {"op": "pd_read", "hex": "0200 0100 9D0E27CA 0B00 0100 01000000 0000 2800 3400", "expect": true},
+    {"op": "pd_expect", "state": {"ports": 2}}
+  ]
+}
