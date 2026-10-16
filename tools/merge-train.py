@@ -343,6 +343,11 @@ def split_terminator(x):
     one close per lane. Only the last line of each side is split — a close mid-side is real structure.
     """
     s = x.rstrip()
+    # Never treat a comment's own trailing `}` or `*/` as a block close: that changes the brace
+    # arithmetic and the union is then refused (or, worse, accepted wrong).
+    ls = s.lstrip()
+    if ls.startswith("*") or ls.startswith("//") or ls.startswith("/*"):
+        return x, None
     m = re.search(r"(\}\;?,?|\*/)\s*$", s)
     if not m:
         return x, None
@@ -419,7 +424,7 @@ def union_hunks(wt, rel):
     for ln in text.split(NL):
         s = ln.strip()
         import re as _re
-        if _re.search(r"[^\s]\s*(pub(\(crate\))? )?fn [A-Za-z_]", ln) and                 not s.startswith(("fn ", "pub fn ", "pub(crate) fn ")):
+        if _re.search(r"(pub(\(crate\))? )?fn [A-Za-z_][A-Za-z0-9_]*\s*\(", ln) and                 not s.startswith(("fn ", "pub fn ", "pub(crate) fn ")):
             return False
     # Structural check: for an additive union the merged brace balance must equal ours + theirs - base.
     # A duplicated (or dropped) `};` breaks that arithmetic, which is exactly the failure mode that
