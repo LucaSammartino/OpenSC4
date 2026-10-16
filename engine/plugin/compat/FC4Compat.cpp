@@ -67,6 +67,30 @@ const ExecutableVersion kVersions[] = {
         0x00AB1EE0,  // cSC4NeighborsSimulator's cISC4NeighborsSimulator vtable (neighbors.md §15.4 NG7)
         0x00AB0CCC,  // cSC4CommercialSimulator primary vtable (commercial-industrial.md §1.1, §2.1)
         0x00AB20AC,  // cSC4ParkManager primary vtable (parks.md §1, §2)
+        {
+            // The disaster shadow's forwarder sites (disasters.md §2.4, §2.7, §5.4-§5.8, §6.2,
+            // §15; network-manager.md §10; docs/abi/vtables.tsv, interfaces.tsv), DisasterHook order.
+            {0x00A9E390, 8, 0x00578FC0},   // cSC4DisasterLayer::DisasterHasBegun
+            {0x00A9E390, 9, 0x00577E90},   // DisasterHasEnded
+            {0x00A9E390, 13, 0x005783D0},  // RegisterDisasterLocation
+            {0x00A9E390, 14, 0x00577D30},  // UnregisterDisasterLocations
+            {0x00A9E390, 15, 0x00577DE0},  // UnregisterDisasterLocationByOccupant
+            {0x00A9E5B0, 6, 0x0057A7D0},   // cSC4DisasterInstanceFire::Ignite
+            {0x00A9E5B0, 7, 0x0057B170},   // IgniteCell
+            {0x00A9E5B0, 8, 0x0057B350},   // ExtinguishCell
+            {0x00A9E5B0, 9, 0x0057B500},   // QuickBurnCell
+            {0x00A9E5B0, 10, 0x0057AF10},  // IgniteCellRadius
+            {0x00A9E5B0, 11, 0x00579BD0},  // Extinguish
+            {0x00A9E5B0, 12, 0x00579BF0},  // BurnDown
+            {0x00A9E5B0, 13, 0x00579230},  // SetCause
+            {0x00A9E580, 3, 0x00579600},   // cSC4DisasterInstanceFire::DoMessage
+            {0x00A9E4DC, 4, 0x0057B930},   // cSC4DisasterManagerFire::IgniteOccupant
+            {0x00A9E798, 6, 0x0057EA10},   // cSC4DisasterManagerRiot::AttemptDisasterStart(x, z)
+            {0x00A9E798, 9, 0x0057D7E0},   // cSC4DisasterManagerRiot::RemoveInstanceFromList
+            {0x00A9E7F0, 3, 0x0057E740},   // cSC4DisasterInstanceRiot::DoMessage
+            {0x00A9E7C8, 9, 0x0057DA40},   // cSC4DisasterManagerRiot::LockNetworkOccupant
+            {0x00A861B8, 8, 0x0043F650},   // cSC4TutorialSystem::IsTutorial
+        },
     },
 };
 
@@ -575,6 +599,38 @@ const void* CommercialSimulatorVtable() {
         }
     }
     return state == 1 ? vtable : nullptr;
+}
+
+bool DisasterHookEntry(DisasterHook which, void*** entry, uintptr_t* function) {
+    static int state[static_cast<unsigned>(DisasterHook::Count)] = {};  // 0 unknown, 1 available, -1 refused
+    static void** entries[static_cast<unsigned>(DisasterHook::Count)] = {};
+    const unsigned i = static_cast<unsigned>(which);
+    if (i >= static_cast<unsigned>(DisasterHook::Count)) return false;
+    const ExecutableVersion* v = IdentifiedVersion();
+    if (state[i] == 0) {
+        state[i] = -1;
+        const DisasterHookSite site = v ? v->disasterHooks[i] : DisasterHookSite{};
+        const uintptr_t slotVA = site.vtableVA + 4u * site.slot;
+        MEMORY_BASIC_INFORMATION mbi{};
+        bool ok = v != nullptr && site.vtableVA != 0 && site.vtableVA % 4 == 0 &&
+                  VirtualQuery(reinterpret_cast<const void*>(slotVA), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        if (ok) ok = CheckCode("disaster hook function", site.functionVA, v->imageBase);
+        if (ok) {
+            entries[i] = reinterpret_cast<void**>(slotVA);
+            state[i] = 1;
+        } else {
+            Log("compat: disaster hook %u (vtable 0x%08lX slot %u) NOT available (%s)", i,
+                static_cast<unsigned long>(site.vtableVA), static_cast<unsigned>(site.slot),
+                v ? "address rejected" : "executable not identified");
+        }
+    }
+    if (state[i] != 1) return false;
+    if (entry != nullptr) *entry = entries[i];
+    if (function != nullptr) *function = v->disasterHooks[i].functionVA;
+    return true;
 }
 
 const void* ParkManagerVtable() {

@@ -38,6 +38,7 @@
 #include "FC4Popups.h"
 #include "FC4Subsystems.h"
 #include "FC4TractShadow.h"
+#include "FC4DisasterShadow.h"
 #include "cFC4Simulator.h"
 
 #include "cIGZCOM.h"
@@ -343,6 +344,7 @@ public:
         fc4::FlammabilityShadowStop();
         fc4::LandValueShadowStop();
         fc4::GrowthProbeStop();
+        fc4::DisastersShadowStop();  // disasters_shadow (FC4DisasterShadow.h): the original vtable entries back
         fc4::TractShadowStop();  // tract_shadow (FC4TractShadow.h): the original UpdatePopulation back
         fc4::ClockProbeStop();
         fc4::DialogsStop();  // close_dialogs (FC4Dialogs.h)

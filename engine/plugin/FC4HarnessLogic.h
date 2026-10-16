@@ -173,12 +173,24 @@ inline void FormatRunFigures(int32_t julian, bool started, uint32_t elapsedMs, u
 //                             0..5000), the water of the rectangle reset and
 //                             RedisplayTerrain(1, 1, rect, kind) (kind 0..6, §8.2;
 //                             [choice] default 1, the god-mode tool's)
+//   disaster fire|riot x z    the disaster layer's manager for fire or riot
+//   disaster fire|riot auto   (auto: the survey's first candidate cell):
+//                             AttemptDisasterStart(x, z) (manager slot 6; for
+//                             the fire IgniteCell(x, z, false, false, 0),
+//                             disasters.md §5.5; for the riot §6.2), cells
+//   disaster survey           a log of candidate cells for the two (no call
+//                             into the layer; FC4DisasterShadow.h)
 // Coordinates are whole numbers 0..kScriptMaxCell with x0 <= x1 and z0 <= z1
 // ([choice]: a reversed rectangle is an error, not swapped).
 
-enum class ScriptOp { Zone, PriceZone, Dezone, Speed, Pause, Resume, Turbo, Digest, Mark, Save, Terrain };
+enum class ScriptOp { Zone, PriceZone, Dezone, Speed, Pause, Resume, Turbo, Digest, Mark, Save, Terrain, Disaster };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
+
+// The `disaster` action's kinds.
+constexpr int32_t kDisasterFire = 0;
+constexpr int32_t kDisasterRiot = 1;
+constexpr int32_t kDisasterSurvey = 2;
 
 inline const char* ScriptOpName(ScriptOp op) {
     switch (op) {
@@ -193,6 +205,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::Mark: return "mark";
         case ScriptOp::Save: return "save";
         case ScriptOp::Terrain: return "terrain";
+        case ScriptOp::Disaster: return "disaster";
     }
     return "?";
 }
@@ -209,6 +222,7 @@ struct ScriptAction {
     bool fast = false;                       // save
     float height = 0.0f;                     // terrain (metres)
     int32_t kind = 1;                        // terrain (RedisplayTerrain's data4)
+    int32_t disaster = 0;                    // disaster: kDisasterFire, kDisasterRiot, kDisasterSurvey
     std::string text;                        // mark; the arguments as written for the others
 };
 
@@ -412,6 +426,38 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
             *error = "terrain kind '" + tok[7] + "' is not 0..6";
             return false;
         }
+    } else if (name == "disaster") {
+        a.op = ScriptOp::Disaster;
+        const std::string kind = nargs > 0 ? detail::Lower(tok[2]) : std::string();
+        if (kind == "survey") {
+            a.disaster = kDisasterSurvey;
+            if (!wantArgs(1, "survey")) return false;
+        } else if (kind == "fire" || kind == "riot") {
+            a.disaster = kind == "fire" ? kDisasterFire : kDisasterRiot;
+            if (nargs == 2 && detail::Lower(tok[3]) == "auto") {
+                a.x0 = a.z0 = a.x1 = a.z1 = -1;  // the survey's first candidate
+                *out = a;
+                *has = true;
+                return true;
+            }
+            if (!wantArgs(3, "fire|riot x z, or fire|riot auto")) return false;
+            static const char* const kNames[2] = {"x", "z"};
+            int32_t* const dst[2] = {&a.x0, &a.z0};
+            for (int i = 0; i < 2; ++i) {
+                if (!detail::ParseCount(tok[3 + i], kScriptMaxCell, dst[i])) {
+                    char b[160];
+                    std::snprintf(b, sizeof(b), "%s '%s' is not a cell coordinate 0..%d", kNames[i],
+                                  tok[3 + i].c_str(), kScriptMaxCell);
+                    *error = b;
+                    return false;
+                }
+            }
+            a.x1 = a.x0;
+            a.z1 = a.z0;
+        } else {
+            *error = "disaster '" + (nargs > 0 ? tok[2] : std::string()) + "' is not fire, riot or survey";
+            return false;
+        }
     } else if (name == "save_as") {
         // [question] Not implemented: what cISC4App::SaveCity(path, fast)
         // (slot 15) leaves as the city's save path, and what the region does
@@ -422,7 +468,7 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         return false;
     } else {
         *error = "unknown action '" + tok[1] +
-                 "' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark, save, terrain)";
+                 "' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark, save, terrain, disaster)";
         return false;
     }
     *out = a;

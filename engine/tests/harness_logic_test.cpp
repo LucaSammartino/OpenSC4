@@ -198,6 +198,20 @@ void ScriptParseTests() {
     }
     CHECK(ScriptOpName(ScriptOp::PriceZone) == std::string("pricezone"));
     CHECK(ScriptOpName(ScriptOp::Save) == std::string("save"));
+    CHECK(ScriptOpName(ScriptOp::Disaster) == std::string("disaster"));
+    {
+        ScriptAction a;
+        bool has = false;
+        std::string error;
+        CHECK(ParseScriptLine("2026-02-01 Disaster FIRE 12 34", 7, &a, &has, &error) && has);
+        CHECK(a.op == ScriptOp::Disaster && a.disaster == kDisasterFire && a.x0 == 12 && a.z0 == 34);
+        CHECK(ParseScriptLine("2026-02-01 disaster riot 0 4095 # c", 8, &a, &has, &error) && has);
+        CHECK(a.disaster == kDisasterRiot && a.x0 == 0 && a.z0 == 4095 && a.text == "riot 0 4095");
+        CHECK(ParseScriptLine("2026-02-01 disaster survey", 9, &a, &has, &error) && has);
+        CHECK(a.disaster == kDisasterSurvey);
+        CHECK(ParseScriptLine("2026-02-01 disaster fire AUTO", 10, &a, &has, &error) && has);
+        CHECK(a.disaster == kDisasterFire && a.x0 == -1 && a.z0 == -1);
+    }
 
     // Every error, with the message the log shows.
     CHECK(ErrorIs("2000-13-01 zone 1 1 2 2 1", "'2000-13-01' is not a date YYYY-MM-DD"));
@@ -207,7 +221,7 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01   # just a date", "a date with no action"));
     CHECK(ErrorIs("2000-01-01 plop 1 2",
                   "unknown action 'plop' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark, save, "
-                  "terrain)"));
+                  "terrain, disaster)"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 4"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4 1 9", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 6"));
     CHECK(ErrorIs("2000-01-01 pricezone 1 2 3", "pricezone takes 5 argument(s) (x0 z0 x1 z1 type), not 3"));
@@ -232,6 +246,15 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01 mark # only a comment", "mark takes a text"));
     CHECK(ErrorIs("2000-01-01 save slow", "save 'slow' is not fast (save, or save fast)"));
     CHECK(ErrorIs("2000-01-01 save fast now", "save takes 0 or 1 argument(s) (fast), not 2"));
+    CHECK(ErrorIs("2000-01-01 disaster", "disaster '' is not fire, riot or survey"));
+    CHECK(ErrorIs("2000-01-01 disaster flood 1 2", "disaster 'flood' is not fire, riot or survey"));
+    CHECK(ErrorIs("2000-01-01 disaster fire 1",
+                  "disaster takes 3 argument(s) (fire|riot x z, or fire|riot auto), not 2"));
+    CHECK(ErrorIs("2000-01-01 disaster riot 1 2 3",
+                  "disaster takes 3 argument(s) (fire|riot x z, or fire|riot auto), not 4"));
+    CHECK(ErrorIs("2000-01-01 disaster riot x 2", "x 'x' is not a cell coordinate 0..4095"));
+    CHECK(ErrorIs("2000-01-01 disaster fire 1 4096", "z '4096' is not a cell coordinate 0..4095"));
+    CHECK(ErrorIs("2000-01-01 disaster survey now", "disaster takes 1 argument(s) (survey), not 2"));
     CHECK(ErrorIs("2000-01-01 save_as test1",
                   "save_as is not available (an open question: what saving a city under another path does to the "
                   "city and its region is not documented); save saves in place"));
