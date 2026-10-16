@@ -1871,7 +1871,8 @@ The prop developer vectors (`pv12_…`) drive `fc4_core::prop_developer::PropDev
 (`docs/specs/prop-developer.md`) over one scripted city implementing `PropHost`. Every op name starts with `pv_`.
 The default world: a 64 × 64 city, cell width 16, no lots, no props, every cell powered, no 24-hour clock, visual
 mode 0, day, a 3D view with every trigger off, the managers and wealth requester token of the corpus. A network
-occupant's token names its first cell (`0xXXXXZZZZ`). Records are written and read with each reference as
+occupant's token names its first cell (`0xXXXXZZZZ`). A prop removed through the prop manager keeps its type and
+properties for its removal message, as the live occupant does (§4.7). Records are written and read with each reference as
 `u32 token, u32 class`, so the spec's corpus records round-trip byte for byte. Every generator draw is logged as a
 `draw` event (`gen` `"member"` or `"wealth"`; `call` `"RS"` with `lo`, `hi`, or `"U"` with `n`; `value`).
 
@@ -1894,7 +1895,7 @@ occupant's token names its first cell (`0xXXXXZZZZ`). Records are written and re
 | `pv_signs` | `show?`, `toggle?`, `expect?` (visible afterwards) | slots 8–10 |
 | `pv_wealth_select` | `ids`, `x`, `z`, `expect` | the wealth requester's `SelectProp` |
 | `pv_identity` | `iids?`, `wealth_iids?` (`{"0xIID": offset \| false}`), `member_seed?` (`[S, seed]`) | `QueryInterface`, the member seed |
-| `pv_expect` | `state` (partial: `initialized`, `scan_flag`, `scanner` (`"fresh"`, `"running"`, `"done"`), `scan_at`, `clip`, `wealth_added`, `night_cursor`, `night_mode`, `night_batch`, `night_acc`, `is_night`, `tod_last`, `signs_visible`, `ref_count`, `destroyed`, `crt_state`, and the list lengths `requesters`, `night`, `triggers`, `time_of_day`, `dated`, `power`, `signs`) | the developer |
+| `pv_expect` | `state` (partial: `initialized`, `scan_flag`, `scanner` (`"fresh"`, `"running"`, `"done"`), `scan_byte` (the state byte written while running, PV13), `scan_at`, `clip`, `wealth_added`, `night_cursor`, `night_mode`, `night_batch`, `night_acc`, `is_night`, `tod_last`, `signs_visible`, `ref_count`, `destroyed`, `crt_state`, and the list lengths `requesters`, `night`, `triggers`, `time_of_day`, `dated`, `power`, `signs`) | the developer |
 | `pv_expect_block` | `state` (partial: `block`, `lots`, `occ_sum`, `slots`, `kept_all`, `target`, `want`, `kept`, `removed`, `created`, `member_draws`, `stopped`) | the last block update |
 | `pv_expect_lists` | any of `requesters` (`[[token, class]]`), `night`, `time_of_day`, `dated`, `power`, `signs` (tokens), `triggers` (`[[trigger, [tokens]]]`), `classes` (`{"0xTOKEN": class}`) | the lists |
 | `pv_expect_prop` | `prop`, `state` (partial: `exists`, `state`, `type`, `lot`, `tag`, `requester`, `pos`) | a prop in the world |
@@ -3278,7 +3279,7 @@ available, but no vector pins its draws).
 | 12 registration (and triggers, power, unregistering) | `pv12_13_registration` |
 | 13 signs | `pv12_14_signs` |
 | 14 lot state | `pv12_15_lot_state` |
-| other sections | `pv12_16_cell_walk_quirks`, `pv12_17_requesters` |
+| other sections | `pv12_16_cell_walk_quirks`, `pv12_17_requesters`, `pv12_18_scanner_state_byte` (§7, PV13), `pv12_19_unregister_tests` (§4.7, PV12) |
 
 Not covered by a vector: the 421-save corpus itself (item 3) is not available to this suite; `pv12_02` and `pv12_03`
 replay the records §7 quotes.

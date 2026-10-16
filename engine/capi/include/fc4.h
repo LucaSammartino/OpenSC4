@@ -7432,7 +7432,7 @@ typedef struct fc4_prop_message {
 typedef struct fc4_prop_state {
     uint32_t struct_size;
     int32_t scan_flag;      /* 0 never set up, 1 set up, 2 scanning */
-    uint32_t scanner_state; /* 0 fresh, 1 running, 2 done */
+    uint32_t scanner_state; /* 0 fresh, 2 done, any other byte running (1, or a byte above 2 as read, PV13) */
     int32_t scanner_x, scanner_z, scanner_step;
     int32_t clip_x0, clip_z0, clip_x1, clip_z1;
     uint32_t night_cursor, night_mode, night_batch, night_acc;
