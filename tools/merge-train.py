@@ -290,8 +290,15 @@ HANDOFF = "docs/HANDOFF.md"
 MANUAL = "docs/manual-checks.md"
 QUESTIONS = "docs/specs/QUESTIONS.md"
 PROGRESS = "docs/PROGRESS.md"
-# Append-style files: both sides only ever add rows/sections, so a union of the two sides keeps everything.
-UNION_PATHS = (HANDOFF, MANUAL, QUESTIONS, PROGRESS, "engine/conformance/README.md")
+# Append-style files: both sides only ever add rows/sections/registrations, so a union of the two sides
+# keeps everything. A union that produces invalid code is caught by the batch gate, never silently dropped.
+UNION_PATHS = (
+    HANDOFF, MANUAL, QUESTIONS, PROGRESS,
+    "engine/conformance/README.md",
+    "engine/conformance/src/runner.rs",
+    "engine/plugin/FC4Config.h",
+    "engine/plugin/FC4Config.cpp",
+)
 
 
 def conflicted_paths(wt):
@@ -402,6 +409,7 @@ def _resolve_abi_version(wt, rel):
             if is_h and x.lstrip().startswith("*") and x not in seen:
                 seen.add(x)
                 hist.append(x)
+        hist = close_comment(hist)
         # The version macro is often NOT in the hunk: lanes that pick the same number merge cleanly and only
         # their history entries collide. Comment-only hunks union; a hunk that carries the macro keeps one
         # copy at the higher number.
@@ -423,6 +431,25 @@ def _resolve_abi_version(wt, rel):
     path.write_text(text, encoding="utf-8")
     git(["-C", str(wt), "add", rel], check=False)
     return True
+
+
+def close_comment(lines):
+    """Strip any trailing `*/` from comment lines and close the block exactly once, on the last line.
+
+    Every lane's history entry ends with `*/` because it is the final entry in the block. Unioning two of
+    them, or keeping main's last entry above a new one, would close the comment in the middle and turn the
+    rest into stray source.
+    """
+    closed = False
+    out = []
+    for x in lines:
+        if x.rstrip().endswith("*/"):
+            closed = True
+            x = x.rstrip()[:-2].rstrip()
+        out.append(x)
+    if closed and out:
+        out[-1] = (out[-1] + " */") if out[-1].strip() else " */"
+    return out
 
 
 def parse_history(text):
@@ -501,6 +528,7 @@ def consolidate_abi_history(wt, main_header, lanes, batch_id):
         body.extend(ls)
     body.append(" * %d = merge-train batch %s (%s): %s"
                 % (new, batch_id, ", ".join(lanes), " | ".join(d for _n, d in batch)))
+    body = close_comment(body)
     lines = text.splitlines()
     out = lines[:_s] + body + lines[_e:]
     text = "\n".join(out) + ("\n" if text.endswith("\n") else "")
