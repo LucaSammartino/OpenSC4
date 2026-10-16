@@ -147,7 +147,8 @@ makes nothing depend on them. (If `EndInput` runs without a matching `EnterDrivi
    3. `city.DisableSave()` (slot 104).
 3. `GetMostRecentDisasterLocation(instance, &x, &z)` (slot 12). x and z stay 0 if the instance has none.
 4. Post `0xCA1B1E64` (DisasterPeriodStarted) with data1 = `ongoing`, data2 = x, data3 = z, data4 =
-   `instance.GetID()`, void1 = the instance.
+   `instance.GetID()`, and the message's IGZUnknown (message slot `+0x84`, not void1) = the instance
+   (`0x00579000`–`0x00579099`).
 
 **`DisasterHasEnded()`** (slot 9, `0x00577E90`), only while initialised and `ongoing > 0`:
 
@@ -180,7 +181,10 @@ true:
    absent.
 2. If the occupant is a building (`0x278128A0`):
    1. `buildingCount += 1`.
-   2. Read the building-type flags from the BDS, then add 1 and `cost` to the kind pairs:
+   2. Read the building-type flags from the BDS, then add 1 and `cost` to the kind pairs. The occupant is
+      queried for the building interface (`0x87DDA3A9`); building slot 11 (`0x00459250`) is the BDS (`0x00B43D68`)
+      slot 39 `GetBuildingProfile(type)` with the type at building `+0x38` (an empty static profile when there is
+      no BDS), and the flags are the profile's dword at `+0x1C`:
       - flag bit 1 → `+0x60/+0x68`;
       - bit 2 → `+0x70/+0x78`;
       - bit 4 → `+0x80/+0x88`;
@@ -220,9 +224,11 @@ So a stop message for an unknown ID leaves a zero-time entry, which still counts
    2. Read the times with the timer's **float** `GetElapsedTime` overload (`0x00890377`, units 5): fractional
       seconds, not truncated.
    3. `fire := Σ(fire-map seconds) / (float(N_fire) × overall seconds)`, where `N_fire` is the fire protection
-      simulator's (`0x00B43D78`) `GetTotalDispatchCount()` (slot 25, unsigned; the number of dispatch units over
-      all stations, protection.md). If `N_fire = 0`, `fire := 0`.
-   4. `police` is the same with the police-map seconds and the police simulator's (`0x00B43D98`) slot 26 count.
+      simulator's (`0x00B43D78`) `GetTotalDispatchCount()` (slot 25, `+0x64`, unsigned; the number of dispatch
+      units over all stations, protection.md). If `N_fire = 0`, `fire := 0`.
+   4. `police` is the same with the police-map seconds and the police simulator's (`0x00B43D98`) slot 26 (`+0x68`)
+      count, also `GetTotalDispatchCount` (the two simulators' interfaces differ by one slot). If either
+      simulator is missing, **neither** value is written (`0x00577C0F`).
    5. Store them at `+0xAC` / `+0xB0`. Nothing is passed to the simulators.
 
    The divisor is **not** the number of timers. An empty map gives Σ = 0, hence 0. The overall time is never 0
@@ -258,8 +264,11 @@ replacement must return a pointer to a record with this layout and keep it valid
 
 - **`RegisterDisasterLocation(instance, x, z, occupant, zoomLevel, focus)`** (slot 13, pop 24):
   1. Append the entry and AddRef the occupant.
-  2. If `focus` is true and the "follow disasters" preference byte (`0x00B43CD8 + 0xF08`) is set, call
-     `GoToNextDisaster`.
+  2. If `focus` is true and the "follow disasters" preference byte is set, call `GoToNextDisaster`
+     (`0x00578490`). The byte is at `+0xF08` of the preferences object, which is the application's (`cISC4App`,
+     global `0x00B43C94`) slot 38 (`+0x98`) result, cached in `0x00B43CD8`. It defaults to 1 (the preferences
+     constructor `0x00449070`) and is set by a checkbox of the game-preferences dialog (control `0x4A7F19F2`,
+     `0x0076B186`–`0x0076B1A8`). A port without preferences uses 1 *[choice]*.
 - **Occupant-based entries** *[compat]*. An entry is 20 bytes: {instance, x, z, zoom, occupant}. Its stored x and
   z change only when the entry is **resolved** (`ResolveDisasterLocation`, `0x00577540`):
   - With an occupant: if the occupant manager still holds it (occupant manager slot 27, `FindOccupant(occ, false,
@@ -470,7 +479,7 @@ Returns true if the occupant burns afterwards.
 8. With `force`: set the counter to `D3cum[0]` (30), or to half of it (15) when the target's maximum stage is
    below 2.
 9. Add a transient aura effect at the occupant's position (aura.md §8.2).
-10. Post `0x49E3DB1D` with data1 = the fire occupant and data2 = 1 (fire started).
+10. Post `0x49E3DB1D` with data1 = the fire occupant's `cISC4Occupant` pointer and data2 = 1 (fire started; §12).
 11. Count the ignition: flora → `+0xD4`, building → `+0xD0` (props are not counted).
 12. Run `UpdatePhase` (§5.9).
 
@@ -499,19 +508,35 @@ false, 0, true)` and returns **true whatever `Ignite` returned** *[quirk]*.
    `r ≤ p`. Without `useProbability` nothing is drawn.
 3. If `fireID` is 0, draw one now (`RandomUint32Uniform()`, raw). This happens once per call that passed step 2,
    **even when no occupant in the cell then ignites**. A call refused in step 2 draws no ID.
-4. For each occupant in the cell that passes the type filter: `Ignite(occupant, teleport, fireID, not teleport)`.
-   All of them share the ID of step 3.
+4. For each occupant in the cell that passes the type filter: `Ignite(occupant, teleport, fireID, not teleport)`,
+   through the instance's own slot 6. All of them share the ID of step 3, which is non-zero in practice, so these
+   `Ignite` calls never draw.
+
+`Ignite` draws an ID only when called with 0, which in the executable means through `IgniteOccupant` (manager slot
+4); `IgniteCell` draws its own at `0x0057B201`, and `IgniteCellRadius` likewise (§5.6).
 
 The fire manager's `AttemptDisasterStart(x, z)` is `IgniteCell(x, z, false, false, 0)` and returns null.
 
 ### 5.6 `IgniteCellRadius(x, z, r0, r1)` (slot 10, `0x0057AF10`)
 
+The radii are **unsigned 32-bit integers, in cells**. They are converted to `float` metres once: `r0w := float(r0) ×
+w` and `r1w := float(r1) × w`, where `w` is the cell width (city slot 91, a `float`, 16 m). The integer-to-float
+load treats the value as unsigned (a 2^32 correction for values with the top bit set).
+
 1. Draw one fire ID for the whole call (`RandomUint32Uniform()`, raw), first and always.
-2. Visit every occupant in the clamped box of radius `r1` cells around (x, z) that passes the type filter. Let
-   `d` be the 2D distance from its position to the cell centre, and `w` the cell width (city slot 91, 16 m).
-   - `d < r0 × w`: add it to the toast list (it burns down at the next `Update`, if flammable; §5.7).
-   - `r0 × w ≤ d < r1 × w`: `Ignite(occupant, false, id, false)`.
+2. Take the cell centre (city slot 97, cell to position).
+3. The cell box is `[x − r1, x + r1] × [z − r1, z + r1]`. The low ends are clamped to 0 (signed compare); the high
+   ends are clamped to `cells − 1` when they are `≥ cells` (unsigned compare).
+4. Visit every occupant in the box that passes the type filter (occupant manager slot 40). Let `d :=
+   sqrt(dx² + dz²)` from its position to the centre, computed on the x87 and not rounded to `float` (`0x005D76A0`).
+   - `d < r0w`: add it to the toast list (it burns down at the next `Update`; §5.7), **only if its flammability
+     `0x29244DB5` is above 0**.
+   - `r0w ≤ d < r1w`: `Ignite(occupant, false, id, false)`.
    - Otherwise: nothing.
+5. Return whether anything was toasted or ignited.
+
+The effect action that burns a radius (`0x005BCBF0`) calls `IgniteCellRadius(x, z, 0, radius)` and then
+`SetCause(4)`.
 
 ### 5.7 Other entry points
 
@@ -637,7 +662,7 @@ For one fire with target `t`:
 
 **`KillFire(fire)`** (`0x0057B640`):
 
-1. Post `0x49E3DB1D` with data2 = 0 (fire ended).
+1. Post `0x49E3DB1D` with data1 = the fire occupant's `cISC4Occupant` pointer and data2 = 0 (fire ended; §12).
 2. `removed := layer.UnregisterDisasterLocationByOccupant(instance, target)`. It returns true if it removed at least
    one (instance, occupant) entry (`0x00577DE0`).
 3. **Only if `removed`**: look for another fire in the list with the same ID (fire occupant slot 13). If there is
@@ -664,24 +689,55 @@ For one fire with target `t`:
 
 ### 5.11 The fire occupant (class `0x69D25C5F`)
 
-A fire occupant is a visual occupant placed on its target. It holds:
+A fire occupant is a visual occupant placed on its target. The object is `0x6C` bytes, built by `0x004711C0`, with
+GZCLSID `0x29D25F1D`. `QueryInterface` answers `0x69D25C60` (the fire-occupant interface, the primary vtable) itself
+and passes anything else to the `cSC4Occupant` base. The occupant sub-object sits at `+0x04` (vtable `0x00A883D8`);
+its occupant type is `0x69D25C5F`.
 
-- the counter;
-- the stage and the maximum stage;
-- the fire ID;
-- the number of hoses (`SetHosed(+n)` / `(−n)`, clamped at 0);
-- the extinguish time;
-- the top- and side-flame counts.
+**Fire-occupant interface** (`0x69D25C60`, vtable `0x00A88460`):
+
+| Slot | Method | Field / target | Pop |
+|---|---|---|---|
+| 0–2 | `QueryInterface`, `AddRef`, `Release` | | |
+| 3 | `AsOccupant()` | returns `this + 0x04` | 0 |
+| 4 | `SetTarget(occupant)` | `0x00471900` (below) | 4 |
+| 5 | `GetTarget()` | `+0x54` | 0 |
+| 6 | `GetStage()` | `+0x44`, initially −1 | 0 |
+| 7 | `GetMaxStage()` | `+0x48` | 0 |
+| 8 | `SetStage(s)` | `0x004728B0`, also rebuilds the flame visuals | 4 |
+| 9 | `GetCounter()` | `+0x40` | 0 |
+| 10 | `SetCounter(c)` | `+0x40` | 4 |
+| 11 | `GetHosed()` | `+0x4C` | 0 |
+| 12 | `AddHosed(delta)` | `0x0046FDD0`; a result below 0 is clamped to 0 | 4 |
+| 13 | `GetFireID()` | `+0x68` | 0 |
+| 14 | `SetFireID(id)` | `+0x68` | 4 |
+
+Other fields: `+0x38` top-flame count, `+0x3C` side-flame count, `+0x50` extinguish time (ms, 0 = none), `+0x58`
+to `+0x60` the flame-effect vector, and a byte at `+0x64` (not traced). The flame counts are the D7 and D8 curves
+(kept in the statics `0x00B21638` and `0x00B2163C`) at the target's bounding-box top and side areas, rounded half
+to even.
+
+The occupant sub-object overrides `Init` (`0x00471170`: adds the occupant to group `0x5005` through occupant slot
+23, then builds the flames), `Shutdown` (`0x00470DC0`), `GetPosition` and `GetBoundingBox`. The last two forward to
+the target while one is set, so the fire stands where its target stands.
 
 `SetTarget(t)` does the following:
 
-1. Read `maxStage` from `0x49BEDA31` (default 2).
-2. Compute the flame counts from D7 and D8 at the target's bounding-box top and side areas.
-3. Set `t`'s `0x69DBEBE1` ("burning") to true and call occupant slot 12 with 2 *[inferred: highlight state]*.
-4. For a building, attach the automata controller "fire_occupant" (city slot 47, controller manager slot 10, the by-name `AddControllersFromOccupantGroup`; automata.md §8.2).
-   That brings the fleeing people.
+1. Read `maxStage` from `t`'s `0x49BEDA31` (default 2).
+2. Compute the flame counts (above).
+3. Set `t`'s `0x69DBEBE1` ("burning") to true (`0x004719DF`) and call `t`'s occupant slot 12
+   `SetRemovalFlags(2)`, which raises the player's removal counter: **the player cannot bulldoze a burning
+   occupant** while the fire lasts (`CanRemove(2)` is false; the riot reaches the same state by decrementing,
+   network-manager.md §10).
+4. For a building, attach the automata controllers "fire_occupant" (city slot 47, controller manager slot 10, the
+   by-name `AddControllersFromOccupantGroup`; automata.md §8.2). That brings the fleeing people.
 
-Removing the fire occupant clears `0x69DBEBE1`.
+`Shutdown` (`0x00470DC0`), run when `KillFire` removes the fire occupant, undoes it: it clears `t`'s `0x69DBEBE1`
+(`0x00470E5D`), calls `UnsetRemovalFlags(2)`, removes the target's controllers (controller manager slot 14) and
+releases the target.
+
+Outside the fire instance the class is used by the active-fire filter (`0x0046FD70`, §5.7), the fire crew's target
+search (`cSC4SimFireCrew`, `0x005492E6` and `0x00549678`) and the MySim agent simulator.
 
 ### 5.12 Timing in the harness
 
@@ -765,20 +821,43 @@ skipped; otherwise it is AddRef'd, its removal flag 2 is unset (`AsOccupant`, ne
    found. Fail if there is none. The search uses the city's `SpiralIterator` in its clockwise mode, exactly as
    plumbing.md §7.2 describes it: the centre (x, z) first, then ring 1, ring 2 and so on, each ring starting at
    (x + r, z − r + 1) and running +z first. The bounding box is the whole city,
-   `[0, cellsX − 1] × [0, cellsZ − 1]`, so cells outside it are skipped. Rings 0 to 7 are searched (Chebyshev distance ≤ 7). At each cell, take the
-   traffic network map's tile (city slot 40, map slot 14); the first cell whose tile occupant is of network type
-   0, 3 or 6 (network occupant slot 22, road, street and avenue) wins.
+   `[0, cellsX − 1] × [0, cellsZ − 1]`, so cells outside it are skipped. Rings 0 to 7 are searched (Chebyshev
+   distance ≤ 7; the loop ends at ring 8). At each cell:
+   1. `tile := SafeGetTileInfoAtCell(x, z)` on the traffic network map (city slot 40, map slot 14,
+      `0x004AE0C0`). It returns null unless `0 ≤ x < width` (map `+0x1C`) and `0 ≤ z < height` (`+0x20`);
+      otherwise it is `GetTileInfoAtCell` (slot 13, `0x004B3AC0`): the tile pointer at index `(z << shift) + x`
+      (shift at `+0x24`) of the table at `+0x18`, itself possibly null. A null tile is skipped.
+   2. `occupant := ` the tile's first field (the network occupant). It is **not** checked for null before the
+      test *[quirk]*; a port skips a tile without one.
+   3. The cell passes if `occupant.IsNetworkType(t)` (network occupant slot 22, `0x00619520`) holds for `t` = 0, 3
+      or 6, tested in that order. Slot 22 turns `t` into one bit (table `0x00AA7CE8`: 0 → `0x1`, 3 → `0x8`, 6 →
+      `0x40`) and calls slot 8 `HasAllNetworkFlags(mask)`, which is `(flags & mask) == mask` on the piece's
+      network-type flags at `+0x13C`. So road, street and avenue pass; one-way road, highway, rail, dirt road and
+      the rest do not.
+   4. On a pass, (x, z) is overwritten with the cell and the occupant is returned.
 2. Read the police coverage at the cell (police simulator slot 5 grid, `GetCellValue`). Require
    `trunc(curve(coverage)) ≤ 1` and `leaders < ` the maximum leaders (§6.1; 10 shipped). With the shipped curve
    that is coverage ≤ 112.
 3. Create a pedestrian automaton of kind `0x4107` (city slot 44, pedestrian manager slot 15):
-   1. Place it at the cell's corner (city slot 96, `CellCornerToPosition`) plus `(16 × u1, 16 × u2)` metres, on
-      the terrain height. `u1` then `u2` are two `RandomDoubleUniform()` draws on the riot generator
-      `0x00B22B80`, made only after the checks of steps 1 and 2 passed. The offset is therefore in [0, 16] m on
-      each axis, not centred.
-   2. Set it to riot-leader mode (automaton slot 51 with 8) and start it (slot 9 with 1).
-4. `layer.RegisterDisasterLocation(instance, 0, 0, automaton, zoomLevel, not spawned)`.
-5. Mark the network around the cell (§6.3) and run `UpdatePhase` (§6.7).
+   1. Place it at the cell's corner (city slot 96, `CellCornerToPosition`) plus `(16 × u1, 16 × u2)` metres, in
+      `float`, at the terrain height there (terrain `0x00B43CF4` slot 13, `GetAltitude(px, pz)`). `u1` then `u2`
+      are two `RandomDoubleUniform()` draws on the riot generator `0x00B22B80`, made only after the checks of
+      steps 1 and 2 passed. The offset is therefore in [0, 16] m on each axis, not centred.
+   2. Create it with the pedestrian manager's slot 15, `CreateAutomaton(0x4107, &position, 2, &{0, 0, 0}, null,
+      0xFF, null)` (automata.md §7.2), and AddRef it.
+   3. Append the leader record {automaton, counter 0, stage −1, maximum stage −1, last network occupant = the tile
+      occupant of step 1}.
+   4. Set it to riot-leader mode (automaton slot 51, `SetState(8, 0, −1.0f, 1, 0, 0, 0)`) and start it (slot 9
+      with 1).
+4. `layer.RegisterDisasterLocation(instance, 0, 0, automaton.AsOccupant(), zoomLevel (+0x74), not spawned)`.
+5. Mark the network around the cell (§6.3), release the local automaton reference (the record keeps its own),
+   and run `UpdatePhase` (§6.7).
+
+The leader's visuals and behaviour come from the automata side (automata.md §8.1). The riot code itself only changes
+the automaton's effects when the stage changes (`UpdateRiotEffects`, `0x0057DC20`): it removes the effects "Riot1" to
+"Riot*N*" (*N* = the number of stages; automaton slot 43) and adds "Riot" followed by *s* + 1 for the new stage *s*
+(slot 41). The stage message of §6.5 step 4 is the string "riot_leader_%d" (`0x00A9E860`, through the pointer
+`0x00B22B9C`) formatted with the stage, sent to the automata controller manager (slot 5).
 
 A new leader record starts with stage −1 and maximum stage −1 and a counter of 0. Its "last network occupant"
 (record `+0x18`) starts as the tile occupant that `FindNearestRoadTile` returned (`0x0057DE67`–`0x0057DE78`), not
@@ -1140,15 +1219,21 @@ The damage comes from the effect's actions in the effects manager (INVENTORY ran
 
 | ID | Sender | data |
 |---|---|---|
-| `0xCA1B1E64` DisasterPeriodStarted | layer, every `DisasterHasBegun` | data1 ongoing count, data2/data3 location, data4 instance ID, void1 instance |
+| `0xCA1B1E64` DisasterPeriodStarted | layer, every `DisasterHasBegun` | data1 ongoing count, data2/data3 location, data4 instance ID, IGZUnknown instance |
 | `0xAA1B2002` DisasterPeriodEnded | layer, when the count reaches 0 | — |
-| `0x49E3DB1D` fire started / ended | fire | data1 fire occupant, data2 1 / 0 |
+| `0x49E3DB1D` fire started / ended | fire | data1 the fire occupant's `cISC4Occupant` pointer (fire occupant + 4), data2 1 / 0; **no subscriber in the executable** |
 | `0x49D15B73` ignitions | fire `Update` | data1 buildings, data2 flora |
 | `0x49D15B72` severity | fire | 1 when fires appear, 0 when they end |
 | `0xA9C7CAB6` phase | fire | data1 `0x621CDA33`, data2 phase |
 | `0xEA1F0DCD` pipe burst at a cell | pipe burst | x, z |
 | history `0x49D15B74` + 1 | fire, per episode | — |
 | history `0xAA8C87C7` + 1 | riot, per riot | — |
+
+Every fire post goes through the message server (`0x00B43CCC`) slot 4, `MessagePost(msg, false)`, with the
+message's IGZUnknown set to the fire instance; data1 and data2 are set with `SetData1` / `SetData2`. The only other
+reference to `0x49E3DB1D` in the executable is the debug message-name table (`0x00B080C0`); nothing subscribes to
+it. A mirror may therefore put a token in data1 *[choice]*; a live replacement should keep the occupant pointer
+*[compat]*, since plugins may listen.
 
 The layer subscribes during a disaster to `0x99EF1143`, `0xE94671EC`, `0xE94671EB`, `0x894671F6` and
 `0xE94671ED` (§2.5).
@@ -1173,6 +1258,14 @@ The layer subscribes during a disaster to `0x99EF1143`, `0xE94671EC`, `0xE94671E
   then z), after the leader passed its checks (§6.4).
 - **Pipe burst.** The pipe burst's generator draws the burst time per leak. Its argument-less start uses a
   throwaway generator.
+
+**Following the original in a shadow** (glue advice, not a rule for a replacement). Every fire draw comes from the
+one `cRZRandom` of the fire instance: `lcg` at instance identity `+0x18`, `mul` at `+0x1C` (foundations.md §6). A
+mirror that copies these two words from the original into its own generator before each forwarded call
+(`Ignite`, `IgniteCell`, `IgniteCellRadius`, `ExtinguishCell`, `Update`) draws exactly the same IDs, counter
+decrements, extinguish delays and spread cells, so no ID mapping is needed. Without that, the outcomes can be read
+back instead: the counter through the fire occupant's slot 9 and the extinguish time at fire occupant `+0x50`
+(`ExtinguishFire`, `0x00579250`, sets it to elapsed ms + `RandomUint32Uniform(4000)` when it is 0).
 
 ## 14. Persistence
 
@@ -1206,6 +1299,8 @@ occupant rows below are in `build-runs/re-answers23-abi-rows.tsv` of the re-answ
 | 14 | `GetCause()` | 0 |
 | 15 | `GetFireCountInCellRect(rect)` | 4 |
 | 16 | `GetFireCount()` | 0 |
+
+The fire occupant's interface (`0x69D25C60`, vtable `0x00A88460`) is the table in §5.11.
 
 `cISC4DisasterInstance` of the fire (`0x00A9E590`) is given in §3.2. The fire manager's `IgniteOccupant` (4),
 `IgniteCell` (5), `ExtinguishCell` (6), `QuickBurnCell` (7), `IgniteCellRadius` (8), `SetCause` (9), `GetCause`
@@ -1307,6 +1402,32 @@ The glue13 lane's questions (QUESTIONS.md DS25–DS40; the lane's own numbers Q2
   taken before each step (§5.8). The mirror's "never" **DIFFERS**. Also: a null target triggers `KillAllFires`
   only after the earlier fires were stepped; the extinguish-time test is strict (§5.10 step 2); `KillFire`
   re-registers or erases the ID only when its target's entry was removed (§5.10).
+- ~~**Q26** (DS25). The fire ID through `IgniteCell`.~~ MATCHES §5.5: `IgniteCell` draws the ID (`0x0057B201`) and
+  passes it, non-zero, to every `Ignite` of the cell (slot 6), which then draws nothing; §5.5 never said 0. `Ignite`
+  draws only when called with 0 (through `IgniteOccupant`). A shadow needs no ID heuristic if it copies the fire
+  generator's state (§13).
+- ~~**Q27** (DS26). The fire occupant.~~ Specified in §5.11: object, interface `0x69D25C60` (vtable `0x00A88460`,
+  slots 0–14), fields and overrides. **DIFFERS** from the old §5.11 on one point: `SetTarget`'s occupant slot 12
+  call is `SetRemovalFlags(2)` (the target cannot be bulldozed while it burns), not a highlight; `Shutdown`
+  undoes it.
+- ~~**Q28** (DS27). Riot leader creation.~~ MATCHES automata.md §7.2 and §8.1; §6.4 now gives the full sequence
+  (position, `CreateAutomaton` arguments, record, `SetState`, registration) and the "Riot" effects.
+- ~~**Q30** (DS29). The data1 token.~~ `0x49E3DB1D`'s data1 is the fire occupant's `cISC4Occupant` pointer; the
+  message has no subscriber in the executable, so a mirror's token is acceptable *[choice]* (§12). Every fire post
+  carries the fire instance as IGZUnknown. Minor correction: `0xCA1B1E64` carries the instance as IGZUnknown, not
+  void1 (§2.4).
+- ~~**Q31** (DS30). Preference, BDS flags, slots 25 and 26.~~ The preference byte is `cISC4App` slot 38's object
+  `+0xF08`, default 1 (§2.7). The flags are the BDS profile's `+0x1C` through building slot 11 (§2.5). Slots 25
+  and 26 are both `GetTotalDispatchCount` (MATCHES §2.5); a missing simulator leaves both values unwritten.
+- ~~**Q32** (DS31). The road cell test.~~ Network occupant slot 22 `IsNetworkType(t)` for 0, 3, 6, a flag-mask test
+  (§6.4 step 1): road, street, avenue only.
+- ~~**Q33** (DS32). `SafeGetTileInfoAtCell`.~~ Bounds check against the map size, then the tile table; a null tile
+  is skipped (§6.4 step 1).
+- ~~**Q34** (DS33). The extinguish delay and the counter draw.~~ Not a spec gap: they are ordinary draws on the
+  fire generator. Copy the generator state into the mirror, or read the outcomes back (§13).
+- ~~**Q35** (DS34). `IgniteCellRadius` radii.~~ Unsigned integers in cells, scaled to `float` metres; the distance
+  is unrounded x87 (§5.6). Also: the toast branch requires flammability > 0, the box clamps are signed below and
+  unsigned above, and the call returns whether anything happened.
 
 ## 18. Conformance tests (must exist in `engine/conformance` if the layer is replaced)
 
@@ -1374,3 +1495,10 @@ The glue13 lane's questions (QUESTIONS.md DS25–DS40; the lane's own numbers Q2
 19. **Riot locks while walking.** A leader moves from road piece P to road piece Q between two steps: the step after
     the move locks every network occupant within ±3 cells of Q's cell. Moving back onto P later locks around P
     again (no new pieces if nothing changed).
+20. **Radius units.** `IgniteCellRadius(x, z, 1, 3)` with a 16 m cell: an occupant 15.9 m from the centre is
+    toasted (if flammable), one at 16 m is ignited, one at 47.9 m is ignited, one at 48 m is untouched. An occupant
+    inside 16 m with flammability 0 is not queued.
+21. **Road test.** A one-way road or dirt road at the riot's start cell, with a street two cells away: the leader
+    starts on the street.
+22. **Burning blocks the bulldozer.** While a fire burns on a building, `CanRemove(2)` is false; after `KillFire` it
+    is true again.

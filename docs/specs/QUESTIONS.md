@@ -4928,20 +4928,62 @@ of the questions below in the log. The lane's Q36 (the riot's AttemptDisasterSta
 (it always returns null; the shadow takes the instance from the first riot RegisterDisasterLocation). The lane's own
 numbers (its Q26-Q42) are given in parentheses; the current choice is in brackets.
 
-- **DS25:** (Q26) fire ID mapping: IgniteCell passes a drawn nonzero ID to Ignite, although §5.5 says 0. [the shadow maps
-  the original's IDs to the mirror's by a heuristic]
-- **DS26:** (Q27) the fire occupant class `0x69D25C5F`: its interface and visuals are not specified. [not wired in live
-  mode]
-- **DS27:** (Q28) how riot leader automata are created is not specified. [not wired in live mode]
+- ~~**DS25:** (Q26) fire ID mapping: IgniteCell passes a drawn nonzero ID to Ignite, although §5.5 says 0. [the shadow maps
+  the original's IDs to the mirror's by a heuristic]~~ **ANSWERED 2026-10-16 (re-answers23):** MATCHES disasters.md
+  §5.5, which never said 0: `IgniteCell` (`0x0057B170`) draws the ID itself (`0x0057B201`) only when its argument is 0
+  and the probability passed, then calls `Ignite(o, teleport, id, !teleport)` through slot 6 with that non-zero ID, so
+  those `Ignite`s draw nothing. `Ignite` draws only when called with 0 (through `IgniteOccupant`). For the shadow:
+  copy the original fire generator's state (`lcg` at identity `+0x18`, `mul` at `+0x1C`) into the mirror before each
+  forwarded call and every ID matches, with no heuristic. disasters.md §5.5, §13.
+- ~~**DS26:** (Q27) the fire occupant class `0x69D25C5F`: its interface and visuals are not specified. [not wired in live
+  mode]~~ **ANSWERED 2026-10-16 (re-answers23):** Specified in disasters.md §5.11 and the ABI rows. Object `0x6C`
+  bytes (constructor `0x004711C0`, GZCLSID `0x29D25F1D`); interface `0x69D25C60` at vtable `0x00A88460`, slots 0-14
+  (AsOccupant, SetTarget, GetTarget, Get/SetStage, GetMaxStage, Get/SetCounter, GetHosed, AddHosed, Get/SetFireID);
+  occupant sub-object at `+4` (vtable `0x00A883D8`) overriding Init (group `0x5005`, flames), Shutdown, GetPosition
+  and GetBoundingBox (forwarded to the target). **DIFFERS** from the old §5.11 in one point: `SetTarget`'s occupant
+  slot 12 call is `SetRemovalFlags(2)`, so a burning occupant cannot be bulldozed; `Shutdown` clears `0x69DBEBE1` and
+  undoes it. Rows: `build-runs/re-answers23-abi-rows.tsv`.
+- ~~**DS27:** (Q28) how riot leader automata are created is not specified. [not wired in live mode]~~ **ANSWERED
+  2026-10-16 (re-answers23):** MATCHES automata.md §7.2/§8.1 and disasters.md §6.4; §6.4 now has the whole sequence of
+  `AddRiotLeader` (`0x0057DD00`): corner + 16·(u1, u2) at terrain altitude, pedestrian manager slot 15
+  `CreateAutomaton(0x4107, &pos, 2, &{0,0,0}, null, 0xFF, null)`, AddRef, the leader record (last network occupant =
+  the found road tile's occupant), `SetState(8, 0, −1.0f, 1, 0, 0, 0)`, slot 9 (1), the location registration, the
+  network mark, then `UpdatePhase`. The visuals are the "Riot<n>" automaton effects (`0x0057DC20`) and the
+  "riot_leader_%d" controller message.
 - **DS28:** (Q29) toxic spill, terrain, pipe burst and volcano are not mirrored: no start path was exercised. [fire and
   riot only]
-- **DS29:** (Q30) the data1 token of the posts.
-- **DS30:** (Q31) the follow-disasters preference, the BDS type flags, and the dispatch effectiveness slots 25 and 26.
-- **DS31:** (Q32) the road cell test.
-- **DS32:** (Q33) SafeGetTileInfoAtCell. [a fallback; it matched 4/4 at the start]
-- **DS33:** (Q34) the extinguish delay Random(4000) and a covered fire's counter draw cannot be followed: the mirror's
-  draw is 0.
-- **DS34:** (Q35) does IgniteCellRadius take its radii as float or int?
+- ~~**DS29:** (Q30) the data1 token of the posts.~~ **ANSWERED 2026-10-16 (re-answers23):** data1 of `0x49E3DB1D` is
+  the fire occupant's `cISC4Occupant` pointer (fire occupant + 4), data2 1 or 0. Nothing in the executable subscribes
+  to it (the only other reference is the debug name table `0x00B080C0`), so a mirror token is acceptable as a choice;
+  live mode should keep the pointer for plugins. All fire posts are `MessagePost(msg, false)` with the fire instance
+  as IGZUnknown. Minor correction: `0xCA1B1E64` carries the instance as IGZUnknown (slot `+0x84`), not void1.
+  disasters.md §2.4, §12.
+- ~~**DS30:** (Q31) the follow-disasters preference, the BDS type flags, and the dispatch effectiveness slots 25 and
+  26.~~ **ANSWERED 2026-10-16 (re-answers23):** Preference: byte `+0xF08` of `cISC4App` (`0x00B43C94`) slot 38's
+  preferences object, cached in `0x00B43CD8`, default 1 (`0x00449070`), set by the game-preferences checkbox
+  `0x4A7F19F2`. BDS flags: building slot 11 (`0x00459250`) is BDS (`0x00B43D68`) slot 39 `GetBuildingProfile(type at
+  +0x38)`, flags at profile `+0x1C` (an empty static profile without a BDS). Slots 25 (fire) and 26 (police) are both
+  `GetTotalDispatchCount`, unsigned: MATCHES §2.5; if either simulator is missing neither value is written
+  (`0x00577C0F`). disasters.md §2.5, §2.7.
+- ~~**DS31:** (Q32) the road cell test.~~ **ANSWERED 2026-10-16 (re-answers23):** `FindNearestRoadTile` (`0x0057D4C0`)
+  accepts a cell whose tile occupant passes network occupant slot 22 `IsNetworkType(t)` (`0x00619520`) for t = 0, 3 or
+  6; slot 22 maps t to one bit (table `0x00AA7CE8`) and tests `(flags +0x13C & mask) == mask` (slot 8). So road,
+  street and avenue only. The occupant is not null-checked. disasters.md §6.4 step 1, test 21.
+- ~~**DS32:** (Q33) SafeGetTileInfoAtCell. [a fallback; it matched 4/4 at the start]~~ **ANSWERED 2026-10-16
+  (re-answers23):** Traffic map slot 14 (`0x004AE0C0`): null unless `0 ≤ x < width (+0x1C)` and `0 ≤ z < height
+  (+0x20)`, else slot 13 (`0x004B3AC0`), the table at `+0x18` indexed `(z << shift(+0x24)) + x`, which may itself be
+  null; the tile's first field is the network occupant. MATCHES the glue's fallback. disasters.md §6.4 step 1.
+- ~~**DS33:** (Q34) the extinguish delay Random(4000) and a covered fire's counter draw cannot be followed: the mirror's
+  draw is 0.~~ **ANSWERED 2026-10-16 (re-answers23):** Not a spec gap: both are ordinary draws on the fire generator
+  (`ExtinguishFire` `0x00579250`: `RandomUint32Uniform(4000)` once; the step's `RandomUint32Uniform(k + 1)`). Copy the
+  original generator's state into the mirror before each forwarded call (as in DS25), or read the outcomes back: the
+  counter through fire occupant slot 9 and the extinguish time at fire occupant `+0x50`. disasters.md §13.
+- ~~**DS34:** (Q35) does IgniteCellRadius take its radii as float or int?~~ **ANSWERED 2026-10-16 (re-answers23):**
+  MATCHES §5.6 (r × cell width). Unsigned 32-bit integers in cells: each is loaded as unsigned and multiplied by the
+  `float` cell width (city slot 91) into `float` metres; the distance `sqrt(dx² + dz²)` (`0x005D76A0`) is unrounded
+  x87. The ID is drawn first; the box clamps are signed below and unsigned above; the toast branch also requires
+  flammability > 0; the call returns whether anything happened. The effect action (`0x005BCBF0`) calls it with r0 = 0,
+  then `SetCause(4)`. These details are now in disasters.md §5.6, test 20.
 - ~~**DS35:** (Q37) occupant location entries read (0,0), or the cell at registration when focus = 1, and never follow
   the occupant, although §2.7 says they resolve while the occupant is in the manager. Do they resolve only on focus or
   GoToNextDisaster? [tagged in the log: fire location 43 lines, riot location 2339 in dis-final-11]~~ **ANSWERED
