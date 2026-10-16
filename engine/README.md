@@ -1668,6 +1668,15 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
 
      Success is `mismatches=0` on every line. A difference with a question number (`[Q37]` and so on, the lane
      reports) is a known gap of the spec, not a defect of the core.
+
+     The shadow's writes are recorded, never made. The host's two creates are **wired for a live layer**, though
+     there is no `enable = disasters` yet: `create_fire_occupant` makes the fire occupant class `0x69D25C5F`
+     (GZCOM `0x29D25F1D`, interface `0x69D25C60`) and runs its own `SetTarget` (§5.11), `create_riot_leader` a
+     pedestrian automaton of group `0x4107` with `SetState(8, ...)` and `SetVisible(true)` (§6.4, automata.md
+     §8.1). `end_riot_leader` makes the `SetState(1, ...)` call the spec's End order names but does **not** rely
+     on it (the RiotLeader state was pushed `final=1`, so the call is a no-op against a leader still in it):
+     `RemoveControllers` and the release are what end it. `set_riot_effect` is still not made (its add,
+     `AddRegEffect`, takes two names and §8.1 names one).
    - **Zone developer shadow** (`zonedev_shadow = 1`, env `FC4_ZONEDEV_SHADOW`; off by default;
      `plugin/FC4ZoneDevShadow.h`): a same-process differential of the lot manager. It needs the **original** zone
      developer (do not enable `zonedev`); otherwise it logs `zonedev shadow: requested … but INACTIVE`. At
