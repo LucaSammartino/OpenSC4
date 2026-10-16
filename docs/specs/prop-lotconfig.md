@@ -493,7 +493,8 @@ For every configuration in the map (bucket order), fill its building information
 2. Store in the configuration: +0x3E the smallest u16, +0x40 the largest (both **0** when no type was found, or
    when there is no building record); +0x80 the sorted group set as a vector; +0x8C the flag (1 when at least one
    type lacks the monopoly property). The SDK's `GetMinBuildingCapacity` and `GetMaxBuildingCapacity`
-   (configuration slots 12 and 13) report the two u16 values *[inferred]*.
+   (configuration slots 12 and 13) report the two u16 values (confirmed: lot-configuration.md §4, §5.1). Nothing
+   reads +0x8C (lot-configuration.md §5.4).
 
 ## B5. Behaviour of the queries
 
@@ -677,8 +678,12 @@ chooser (slots 5, 7, 22, 23) and the lot configuration filters.
   …). Debug-only; an in-game run of the command would settle it.
 - **PL2:** the value at `0x00B21770` sent as data2 of `kSC4MessagePropExemplarDataUpdated`: no writer was found,
   so it is 0 *[inferred]*. A memory read after the first city load would settle it.
-- **PL3:** configuration +0x8C (the monopoly flag) and the SDK's `IsCompatibleWithMonopolyPieceUse`
-  (configuration slot 19): whether the slot returns the flag or its negation belongs to a lot configuration spec.
+- ~~**PL3:** configuration +0x8C (the monopoly flag) and the SDK's `IsCompatibleWithMonopolyPieceUse`
+  (configuration slot 19): whether the slot returns the flag or its negation belongs to a lot configuration spec.~~
+  **ANSWERED 2026-10-16 (re-specs15a):** neither (lot-configuration.md §5.4). Slot 19 is the shared "return true,
+  pop 4" stub `0x004FC900`: it answers **true** for every configuration, takes one ignored dword argument (the SDK
+  declares none) and does not read +0x8C. Nothing else reads +0x8C either; the monopoly rule is applied from the
+  building exemplars' `0x2781283F` by the tract developer and the plop tool's monopoly lot filter.
 
 ## T. Conformance tests
 
