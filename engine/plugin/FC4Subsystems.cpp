@@ -70,6 +70,7 @@
 #include "FC4TrafficShadow.h"
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
+#include "FC4PropLotShadow.h"  // the glue15 lane
 #include "cFC4LotDeveloper.h"
 #include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
 #include "cFC4Civic.h"       // the cmglue lane: civic
@@ -480,6 +481,8 @@ void Resolve() {
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
     // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
     TerrainShadowStartup();
+    // The prop manager, lot configuration manager and tutorial shadows (FC4PropLotShadow.h; the glue15 lane).
+    PropLotShadowStartup(enabledKey("propmgr"), enabledKey("lotcfg"), enabledKey("tutorial"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

@@ -43,6 +43,7 @@
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
+#include "FC4PropLotShadow.h"  // the glue15 lane
 #include "cFC4LotDeveloper.h"
 #include "cFC4Message2Standard.h"
 #include "fc4.h"
@@ -86,9 +87,10 @@ constexpr uint32_t kMsgPostCityShutdown = 0x26D31EC3;
 // shadow (FC4AuraShadow.h) no longer uses it: it is posted and arrives
 // later than the original's state 17 (§5.3).
 constexpr uint32_t kMsgAuraCycleCompleted = 0x2A09B21A;
+constexpr uint32_t kMsgPreSave = 0x26C63343;  // foundations.md §3.7: the prop / lot configuration / tutorial shadows
 constexpr uint32_t kObserverMessages[] = {kMsgPostCityInit,     kMsgSimNewDay,       kMsgSimNewMonth,
                                          kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown,
-                                         kMsgAuraCycleCompleted};
+                                         kMsgAuraCycleCompleted, kMsgPreSave};
 constexpr uint32_t kObserverServiceID = 0x5C7A43E2;  // random, FreeCity4's
 constexpr int32_t kObserverPriority = -1000000;      // [choice] tooling; any value works
 
@@ -563,10 +565,14 @@ public:
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
+                PropLotShadowCityLoaded(CurrentCity());    // propmgr_shadow / lotcfg_shadow / tutorial_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
                 monthsSinceLoad_ = 0;
+                break;
+            case kMsgPreSave:
+                PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them
                 break;
             case kMsgConnectionsReady:
                 PopupDialogsOnConnectionsReady();
@@ -585,6 +591,7 @@ public:
                 ParksShadowCityShutdown();  // parks_shadow: the same
                 TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
+                PropLotShadowCityShutdown();    // the prop / lot configuration / tutorial shadows' totals
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:
@@ -619,6 +626,7 @@ public:
                 LotDevShadowMonth(CurrentCity(), julian);       // lotdev_shadow = 1 only
                 fc4::ZoneDevMonthLine(julian);                  // enable = zonedev only (the month status line)
                 ZoneDevShadowMonth(CurrentCity(), julian);      // zonedev_shadow = 1 only
+                PropLotShadowMonth(CurrentCity(), julian);      // propmgr / lotcfg / tutorial shadows only
                 ++monthsSinceLoad_;
                 if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the

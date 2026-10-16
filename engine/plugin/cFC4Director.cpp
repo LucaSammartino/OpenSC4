@@ -39,6 +39,7 @@
 #include "FC4Subsystems.h"
 #include "FC4TractShadow.h"
 #include "FC4DisasterShadow.h"
+#include "FC4PropLotShadow.h"  // the glue15 lane
 #include "cFC4Simulator.h"
 
 #include "cIGZCOM.h"
@@ -346,6 +347,7 @@ public:
         fc4::GrowthProbeStop();
         fc4::DisastersShadowStop();  // disasters_shadow (FC4DisasterShadow.h): the original vtable entries back
         fc4::TractShadowStop();  // tract_shadow (FC4TractShadow.h): the original UpdatePopulation back
+        fc4::PropLotShadowAppShutdown();  // the prop / lot configuration shadows' process catalogues
         fc4::ClockProbeStop();
         fc4::DialogsStop();  // close_dialogs (FC4Dialogs.h)
         fc4::ObserverStop();
