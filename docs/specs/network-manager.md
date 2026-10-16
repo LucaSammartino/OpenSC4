@@ -805,6 +805,11 @@ Quirks *[compat]*:
   something else would be unlocked during the riot (its counter goes from 1 to 0).
 - **No unlock in between.** Nothing unlocks while any riot instance remains. A city with overlapping riots keeps
   every marked piece locked until the last one ends.
+- **No unlock before the city closes** (re-answers14, 2026-10-15). An ended riot (phase 3) is **not** removed from
+  the riot manager's list; only its `Shutdown` removes it, and that runs from the riot manager's `Shutdown`
+  (disasters.md §6.7). So the list never becomes empty during play, and `ClearRiotNetworkOccupants` runs only at
+  the riot manager's `Shutdown`. Every piece any riot locked stays unbulldozable by the player for the rest of the
+  session. Leaders also lock more road as they walk (disasters.md §6.5).
 
 ---
 

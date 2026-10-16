@@ -940,6 +940,8 @@ impl TrafficSimHost for ShadowHost {
         self.inner.department_budget(id)
     }
     fn release_department(&self, _department: u64) {}
+    /// The original's departments are the original's: nothing is created.
+    fn create_line_item(&self, _department: u64, _item: super::dept::LineItem, _only_if_missing: bool) {}
     fn department_funding(&self, department: u64) -> f32 {
         self.inner.department_funding(department)
     }

@@ -1172,6 +1172,9 @@ impl Run<'_, '_> {
             .flatten()
             .filter(|d| Some(*d) != p.s.roads && Some(*d) != p.s.mass_transit)
             .collect();
+        // The running source iterator's connection references (§9.1 TG19)
+        // go with the state the record replaces.
+        let old_conns = std::mem::take(&mut self.st.iter.conns);
         *self.st = p.s;
         self.st.loaded = true;
         let s = &mut *self.cx.s;
@@ -1200,6 +1203,9 @@ impl Run<'_, '_> {
         self.pools.borrow_mut().map = p.pools;
         for b in old_buildings {
             self.cx.h.release(b);
+        }
+        for c in old_conns {
+            self.cx.h.release(c);
         }
         for d in old_depts {
             self.h.release_department(d);
