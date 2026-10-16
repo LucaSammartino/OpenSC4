@@ -611,7 +611,9 @@ typedef struct fc4_budget_host {
     bool (*try_start_disaster)(void* user, uint32_t id, float x, float z); /* false if it does not exist */
     /* The session seed S (foundations §6.3): the RiskyMoney generator is seeded
      * with derive(S, 0x6C09C3D7) (ABI 64; before, this callback returned the
-     * generator's seed itself). */
+     * generator's seed itself). The generator is process-wide (RN3): the first
+     * fc4_budget_create of the process seeds it, later budgets (later city
+     * loads) continue its stream and their seed is not read again. */
     uint32_t (*session_seed)(void* user);
     bool (*ltext)(void* user, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
     bool (*building_type_name)(void* user, uint32_t building_type, fc4_bytes_sink sink, void* ctx);
@@ -2338,7 +2340,9 @@ typedef struct fc4_pollution_host {
 
 /* `token`: the simulator's own host identity; `session_seed` is the session
  * seed S (foundations §6.3): the visual-effect generator is seeded with
- * derive(S, 0x4C09C4D3) (ABI 64; before, the argument was its seed). */
+ * derive(S, 0x4C09C4D3) (ABI 64; before, the argument was its seed). It is
+ * process-wide (RN3): the first fc4_pollution_create of the process seeds it,
+ * later simulators (later city loads) continue its stream. */
 fc4_pollution* fc4_pollution_create(const fc4_pollution_host* host, uint64_t token, uint32_t session_seed);
 /* A loaded, never-initialised object gives its list and department references back. */
 void fc4_pollution_destroy(fc4_pollution* p);
