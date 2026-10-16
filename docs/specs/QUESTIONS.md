@@ -4517,3 +4517,20 @@ and the vectors. The current choice is in brackets.
 - **TR18:** (glue contract) the lava and brush host callbacks run while the core holds the terrain mutably, so a
   callback that calls back into the same `fc4_terrain` handle is refused (and counted). Should the glue lane queue
   such work instead? [refused and counted; for the glue lane to decide]
+
+## From applying the re-answers10/11 DIFFERS entries (filed by the coordinator from the `apply12` lane's report, 2026-10-16; merged `463cca7`)
+
+apply12 applied ZG18, ZG21, CM5, NG35-NG37, NG43, NG44 and DG35 (ABI 59, taken as 66 on the lane; FC4TestSeam op
+66 installs a fake confirmation dialog). DG28 is not applied: the audited release in the growth developer's
+destructor (`FC4_RELEASE_AT_DESTRUCTION`) stays. The lane's choices are in brackets.
+
+- **NG45:** (neighbors.md §6.2, NG35) RequestCreateConnection's title and text are LTEXT keys, but the spec does not
+  say which loader reads them or which group the two instance-only keys (`0x0A8E152D` text, `0x0A8E15F9` fallback
+  name) belong to. [SC4LoadString's rule (group + language ID, then the group alone, U+2022 becomes U+200B), with
+  both keys in the title's group `0x6A231EAA`; the sprintf template takes the name at the first `%s` and `%%` gives
+  `%`; a missing LTEXT gives empty text (choice)]
+- **DG39:** (building-development §1.4, DG28) after loading a saved city (Konradshohe, run `apply12-dev-1`), our
+  growth developers are destroyed only after the simulator's Shutdown, not inside the BDS Shutdown, although the
+  core shuts each one down and releases it there. Does the original's load-time object table (or anything else)
+  hold a reference to a growth developer it resolved for the BDS record, and when is that reference released?
+  [the destructor's audited release stays until this is answered]
