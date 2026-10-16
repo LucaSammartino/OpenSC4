@@ -183,6 +183,7 @@ cFC4OccMgr::cFC4OccMgr() {
 }
 
 cFC4OccMgr::~cFC4OccMgr() {
+    fc4::Log("occmgr destroyed (core %p)", static_cast<void*>(core_));
     if (core_ != nullptr) {
         fc4_occmgr_destroy(core_);
         core_ = nullptr;
@@ -230,8 +231,17 @@ uint32_t cFC4OccMgr::Release() {
 
 // ---- slots 3-19: lifecycle and conversions -------------------------------------------------------
 
-bool cFC4OccMgr::Init() { return fc4_occmgr_init(core_); }
-bool cFC4OccMgr::Shutdown() { return fc4_occmgr_shutdown(core_); }
+bool cFC4OccMgr::Init() {
+    const bool ok = fc4_occmgr_init(core_);
+    fc4::Log("occmgr Init -> %d", ok ? 1 : 0);
+    return ok;
+}
+bool cFC4OccMgr::Shutdown() {
+    fc4::Log("occmgr Shutdown: enter");
+    const bool ok = fc4_occmgr_shutdown(core_);
+    fc4::Log("occmgr Shutdown -> %d", ok ? 1 : 0);
+    return ok;
+}
 bool cFC4OccMgr::SetCitySize(float fx, float fz) { return fc4_occmgr_set_city_size(core_, fx, fz); }
 
 // Slots 6-19 do not set AL in the original (§3.2 quirk). [choice] We return
@@ -569,17 +579,35 @@ bool cFC4OccMgr::DoMessage(cIGZMessage2*) { return true; }
 
 // ---- cIGZSerializable (§13) ----------------------------------------------------------------------
 
+namespace {
+// The record's shape (§13) as it goes out and comes back: version 1, the two
+// sizes and four counts, 192 rows of 192 cells. Logged so a game run shows the
+// v1 record was written and read.
+void LogRecord(const char* what, bool ok, fc4_occmgr* core) {
+    fc4_occmgr_state st{};
+    st.struct_size = sizeof(st);
+    fc4_occmgr_get_state(core, &st);
+    fc4::Log("occmgr %s -> %d (version 1, size %.0fx%.0f counts %d,%d,%d,%d rows=%u holders=%u nodes=%u)", what,
+             ok ? 1 : 0, st.size_x, st.size_z, st.counts[0], st.counts[1], st.counts[2], st.counts[3], st.rows,
+             st.holders, st.nodes);
+}
+}  // namespace
+
 bool cFC4OccMgr::Write(cIGZOStream& gzOut) {
     FC4_TRACE("OccMgr::Write");
     fc4::OStreamAdapter a(gzOut);
-    return fc4_occmgr_write(core_, a.Get());
+    const bool ok = fc4_occmgr_write(core_, a.Get());
+    LogRecord("Write", ok, core_);
+    return ok;
 }
 
 // Read runs before Init (HANDOFF §5.1); nothing here is sized from the city.
 bool cFC4OccMgr::Read(cIGZIStream& gzIn) {
     FC4_TRACE("OccMgr::Read");
     fc4::IStreamAdapter a(gzIn);
-    return fc4_occmgr_read(core_, a.Get());
+    const bool ok = fc4_occmgr_read(core_, a.Get());
+    LogRecord("Read", ok, core_);
+    return ok;
 }
 
 uint32_t cFC4OccMgr::GetGZCLSID() { return kFC4_CLSID_cSC4OccupantManager; }

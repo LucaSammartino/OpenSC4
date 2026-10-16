@@ -137,8 +137,11 @@ struct Follow {
     std::string msgDiffs;
     size_t msgListed = 0;
     // RemoveOccupants' interleaving (§5.3 step 4): Remove(o1), Destroy(o1),
-    // Remove(o2), Destroy(o2), ... A Destroy whose predecessor is a Remove of
-    // another occupant means the messages were batched the other way round.
+    // Remove(o2), Destroy(o2), ... A Destroy of an occupant whose own Remove is
+    // outstanding but is NOT the message just before it means the batch was
+    // posted the other way round. A Destroy of an occupant with no outstanding
+    // Remove is an occupant shut down outside the manager (counted only).
+    std::unordered_set<uint64_t> removed;
     uint32_t destroyOk = 0, destroyOther = 0, destroyElse = 0;
     std::string rmDiffs;
     size_t rmListed = 0;
@@ -1490,23 +1493,26 @@ void CallMessage(void* ctx) {
 // batched the-wrong-way-round order and is counted. A Destroy after anything
 // else (an occupant shut down outside the manager) is only counted.
 void NoteDestroy(uint64_t occ) {
-    if (g_follow.origMsgs.empty()) {
-        ++g_follow.destroyElse;
+    auto it = g_follow.removed.find(occ);
+    if (it == g_follow.removed.end()) {
+        ++g_follow.destroyElse;  // shut down outside the manager
         return;
     }
-    const MsgRec& prev = g_follow.origMsgs.back();
-    if (prev.kind == kMsgRemoved && prev.occ == occ) {
+    g_follow.removed.erase(it);
+    const bool adjacent = !g_follow.origMsgs.empty() && g_follow.origMsgs.back().kind == kMsgRemoved &&
+                          g_follow.origMsgs.back().occ == occ;
+    if (adjacent) {
         ++g_follow.destroyOk;
-    } else if (prev.kind == kMsgRemoved) {
-        ++g_follow.destroyOther;
-        if (g_follow.rmListed++ < 4) {
-            char b[128];
-            snprintf(b, sizeof(b), "[destroy of %p after a remove of %p]", static_cast<void*>(Occ(occ)),
-                     static_cast<void*>(Occ(prev.occ)));
-            g_follow.rmDiffs += b;
-        }
-    } else {
-        ++g_follow.destroyElse;
+        return;
+    }
+    ++g_follow.destroyOther;  // its own remove is outstanding, but not just before
+    if (g_follow.rmListed++ < 4) {
+        char b[160];
+        const char* prev = g_follow.origMsgs.empty() ? "nothing" : MsgName(g_follow.origMsgs.back().kind);
+        snprintf(b, sizeof(b), "[destroy of %p not after its own remove (prev %s of %p)]",
+                 static_cast<void*>(Occ(occ)), prev,
+                 static_cast<void*>(g_follow.origMsgs.empty() ? nullptr : Occ(g_follow.origMsgs.back().occ)));
+        g_follow.rmDiffs += b;
     }
 }
 
@@ -1566,6 +1572,11 @@ void OnMessage(cIGZMessage2* msg) {
                 NoteDestroy(m.occ);
             } else {
                 g_follow.origMsgs.push_back(MsgRec{type, m.occ, m.data4});
+                if (type == kMsgRemoved) {
+                    g_follow.removed.insert(m.occ);
+                } else if (m.occ != 0) {
+                    g_follow.removed.erase(m.occ);  // live again (insert), or never left (move)
+                }
                 if (GetCurrentThreadId() != g_mainTid) ++g_follow.offThread;
                 if (m.occ != 0) SehGuard("occmgr shadow (followed message)", &CallMessage, &m);
             }
