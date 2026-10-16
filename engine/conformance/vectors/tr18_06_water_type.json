@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "name": "tr18_06_water_type",
+  "spec": [
+    "terrain 10.2",
+    "terrain 18.6"
+  ],
+  "description": "GetWaterType at a vertex: depth -2 -> 0 (land); depth 3 at altitude 247 with the sea at 250 -> level 250, not above the sea -> 3 (sea water); depth 3 at altitude 260 -> level 263 > 250 -> 2 (fresh water).",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        1,
+        1
+      ],
+      "altitudes": [
+        247,
+        260,
+        300,
+        300
+      ],
+      "sea": 250
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        0,
+        1
+      ],
+      "depth": -2
+    },
+    {
+      "op": "ter_call",
+      "method": "water_type",
+      "args": [
+        0,
+        1
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        0,
+        0
+      ],
+      "depth": 3
+    },
+    {
+      "op": "ter_call",
+      "method": "water_type",
+      "args": [
+        0,
+        0
+      ],
+      "expect": 3
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        1,
+        0
+      ],
+      "depth": 3
+    },
+    {
+      "op": "ter_call",
+      "method": "water_type",
+      "args": [
+        1,
+        0
+      ],
+      "expect": 2
+    }
+  ]
+}
