@@ -954,9 +954,20 @@ impl Terrain {
         std::mem::take(&mut self.posts)
     }
 
+    /// Removes and returns up to `n` queued messages, oldest first.
+    pub fn take_posts_upto(&mut self, n: usize) -> Vec<Post> {
+        let k = n.min(self.posts.len());
+        self.posts.drain(..k).collect()
+    }
+
     /// Whether messages are waiting in the outbox.
     pub fn has_posts(&self) -> bool {
         !self.posts.is_empty()
+    }
+
+    /// The number of messages waiting in the outbox.
+    pub fn pending_posts(&self) -> usize {
+        self.posts.len()
     }
 
     /// `DoPostCityInit` (slot 40): sets the view-ready flag (§12.1).

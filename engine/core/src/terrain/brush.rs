@@ -161,6 +161,11 @@ impl Terrain {
         self.brushes.get(&id)
     }
 
+    /// The number of brush descriptions.
+    pub fn brush_count(&self) -> usize {
+        self.brushes.len()
+    }
+
     /// `ApplyBrush(brushID, params)` (slot 57, §9.2). `random_uniform(n)` is
     /// `RandomUint32Uniform(n)`, used only by a brush with a random-walk step.
     /// Returns false for an unknown brush (the out rectangle stays empty and
