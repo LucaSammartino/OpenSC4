@@ -408,8 +408,24 @@ undefined4 FUN_005f9390(undefined4 param_1, undefined4 param_2, undefined4 param
 - It is a **3-argument** thunk. Its return is the window pointer in EAX, or `0` when the script service is missing.
 - The service is looked up as service id `0x5A356E15`, interface id `0xFA3562FA`. The UI script service class is
   `cGZUIScriptService`, class id `0xFA3562FB` (INVENTORY-M6 §4.1) — the interface id is one less than the class id.
+  Independently confirmed by `cRZSysServPtr<cIGZUIScriptService, 4197802746ul, 1513451029ul>`
+  (`0x00449750`; `4197802746 = 0xFA3562FA`, `1513451029 = 0x5A356E15`).
 - `FUN_004495C0` runs on both exits; *[inferred]* it releases a lock or a COM reference taken by `FUN_008793EC`.
-- The work is `cGZUIScriptService` **slot 4**, three arguments, forwarded unchanged.
+- The work is `cGZUIScriptService` **slot 4**, three arguments, forwarded unchanged, **returning the window in EAX**.
+
+**Name-collision trap — read this before using `re/names_windows.tsv`.** The name table attaches
+`cGZUIScriptService::CreateWindowFromScript` to **two** different functions (`re/names_windows.tsv:12614`, `:12622`),
+and **neither of them is slot 4**:
+
+| Address | Signature (measured) | Returns | What it actually does |
+|---|---|---|---|
+| `0x0094B08B` | 5 dwords (`ret 0x14`), thiscall | **bool in `AL`** | `w = this->slot4(p1, p2, p3);` if `w`: `ok = w->QueryInterface(p4, p5); w->Release();` return `ok` |
+| `0x0094B210` | one struct pointer (reads `+0`, `+4`, `+8` of it) | — | a struct-taking overload |
+| slot 4 (not separately named) | 3 dwords | **`cIGZWin*` in EAX** | the actual factory; `SC4CreateWindowFromScript` calls it |
+
+So `0x0094B08B` is a **QI wrapper that consumes the window it created** — it returns only whether the query worked,
+and releases the window before returning. A caller that wants the window must call slot 4, which is what
+`SC4CreateWindowFromScript` does. Confusing the two is the difference between getting a window and getting `AL`.
 
 **Answers modal-dialogs.md open question 1, in part.** The question asks whether "the window ID passed to
 `SC4CreateWindowFromScript` (`0x005F9390`, third argument) becomes the window's `GetID`". What is measured here:
@@ -420,8 +436,8 @@ undefined4 FUN_005f9390(undefined4 param_1, undefined4 param_2, undefined4 param
   *instance*, not a free-form ID;
 - whether the resulting window's `GetID` (slot 63) equals any of the three is **still not measured**. *[inferred]* the
   instance argument becomes the window's ID, because `GetChildWindowFromID` (slot 34) must be able to find scripted
-  children and `cGZLegacyControl` names controls by instance. What would settle it: read
-  `cGZUIScriptService::CreateWindowFromScript` (slot 4 of the service) and see whether it calls `SetID` (slot 64).
+  children and `cGZLegacyControl` names controls by instance. What would settle it: read **slot 4** of
+  `cGZUIScriptService` (not `0x0094B08B`) and see whether it calls `SetID` (slot 64).
 
 Until that is checked, the dialog closer's rule stands: key on its own records, not on IDs (modal-dialogs.md §3.2).
 
@@ -562,15 +578,15 @@ rather than by calling it directly; the window-layer slots and the effects-side 
 
 The task brief asks whether `cSCResProperty`, `fn:getDefaultValue`, `WriteEntry`/`InterpretEntry` and `cGroupLayer`
 belong to the UI window layer. `tools/coverage-map.tsv` already assigns three of the five away from UI; this section
-records the verdict so the coverage map is not reopened by guesswork.
+records the verdict **with the caller evidence**, so the coverage map is not reopened by guesswork.
 
-| Owner | coverage-map row | Verdict for this spec | Evidence |
+| Owner | coverage-map row | Verdict | Evidence |
 |---|---|---|---|
-| `fn:InterpretEntry` | `data formats (DBPF, exemplars)` → `data-formats.md` `formats/src/exemplar.rs` | **Not UI.** Exemplar text form reader | `tools/coverage-map.tsv:247`; `InterpretEntry` `0x0067DFD0` is named in that row's comment |
-| `fn:WriteEntry` | same | **Not UI.** Exemplar text form writer | `tools/coverage-map.tsv:248` |
-| `cSCResProperty` | same | **Not UI.** The resource property object created by the exemplar factories | `tools/coverage-map.tsv:251` |
-| `cGroupLayer` | `audio` → `audio` | **Not UI, and not a UI "layer" at all.** The sound group layer under the ambience layer | `tools/coverage-map.tsv:284-285`: "every caller is `cSC4AudioAmbienceLayer`". Its methods are `ClearEmptyGroups` `0x004F0A30`, `RemoveInstance` `0x004F0AC0`, `GetPositions` `0x004F0B40`, `_AddPositionToGroup` `0x004F0C20`, `Clear` `0x004F0DE0`, `InsertInstance` `0x004F0E80` (`re/names_windows.tsv:2274-2280`) |
-| `fn:getDefaultValue` | `resource and exemplar editor` → `ui` | **Editor-only, not the window layer.** Part of the `cSCPropertyView` object file (`0x0066F8E0`–`0x00671080`), along with `fn:getUnquotedString` and `fn:convertStringToFloatValue` | `tools/coverage-map.tsv:389-392` |
+| `fn:InterpretEntry` | `data formats (DBPF, exemplars)` → `data-formats.md` `formats/src/exemplar.rs` | **Not UI.** Exemplar text-form reader | Two bodies: `0x0067DFD0` (212 B, parses `ParentCohort=Key:{g,i,t}`) and `0x0067E780` (2319 B, parses `0xID:{"name"}=Type:reps:{values}`). Both `pop 0` (cdecl). Callers: only the two unnamed helpers `FUN_0067E140` / `FUN_0067F0D0`, reached only from `cSCResExemplarFactory::SerialRead` `0x0067F5B3` and `cSCResExemplarCohortFactory::SerialRead` `0x0067FB49` |
+| `fn:WriteEntry` | same | **Not UI.** Exemplar text-form writer | Three bodies: `0x0067C590` (70 B, `"%s=Key:{0x%08x,0x%08x,0x%08x}\r\n"`), `0x0067C5E0` (51 B, `"%s=0x%08x\r\n"`), `0x0067CDD0` (2446 B, the typed writer). Callers: only `cSCResExemplarFactory::SerialWrite` `0x006801E8`/`0x0068022C`/`0x006802DD` and `cSCResExemplarCohortFactory::SerialWrite` `0x006806E2`/`0x00680839` |
+| `cSCResProperty` | same | **Not UI.** A 56-byte (`0x38`) resource-value COM object built by the exemplar factories | 5 methods: `AddRef` `0x005FD060`, `Release` `0x005FD070`, `QueryInterface` `0x005FD080`, ctor `0x005FDE80`, dtor `0x005FE9E0`. **No `GetGZCLSID`.** Layout: `+0x00` primary vptr, `+0x04` `cRZVariant` sub-object (vftable_2 `0x00AA69E8`, 60+ slots), `+0x08..0x1F` variant body, `+0x20` `cGZPersistResource`. Size confirmed twice: the pool stride in `FUN_005FD6B0` is `0x38`, and `cSCResExemplarFactory.c` passes `0x38` to the allocator |
+| `cGroupLayer` | `audio` → `audio` | **Not UI, and not a UI "layer" at all.** The sound group layer under the ambience layer | **Confirmed.** 10 methods, all 40-byte (`0x28`) spatial sound-group operations: `ClearEmptyGroups` `0x004F0A30`, `RemoveInstance` `0x004F0AC0`, `GetPositions` `0x004F0B40`, `_AddPositionToGroup` `0x004F0C20`, `Clear` `0x004F0DE0`, `InsertInstance` `0x004F0E80`, `Intersect` `0x004F0EA0`, `_AddInstanceToGroup` `0x004F10C0`, `InsertInstance` `0x004F1210`, `UpdateInstance` `0x004F12B0`. Every external caller is `cSC4AudioAmbienceLayer` (`BeginUpdate`/`EndUpdate`/`HandleCell`/`HandleOccupant`/`InsertOccupant`/`MoveOccupant`/`RemoveOccupant`/`Update`); it is created only by `cSC4AudioAmbienceLayer::_CreateLayers` `0x004E4F60`. **It has no vtable row in `docs/abi/vtables.tsv`** — it is not a `cGZWin` descendant, unlike every real window class in §14 |
+| `fn:getDefaultValue` | `resource and exemplar editor` → `ui` | **Editor-only, not the window layer.** | One address only: `0x00670940`, 1177 B, `__cdecl` 4 dwords (`pop 0`), returns `AL`. Coerces a text default into a property through the variant setters (`+0x2C` `SetValBool`, `+0x38` `SetValUint8`, …). **Exactly one caller**: `cSCPropertyView::propertiesSectionCallback` `0x00672880`. Neighbours in the same object file are `getUnquotedString` `0x00670E10` and `convertStringToFloatValue<float>` `0x00670300` |
 
 **DIFFERS** from the brief's framing ("if they belong to the UI layer, say so and give them real sections"): **four of
 the five do not**, and the fifth belongs to the F8 developer tools that INVENTORY-M6 §2.7 lists as "not needed for a
@@ -578,8 +594,11 @@ standalone game". The three exemplar ones already have a real home in data-forma
 audio (INVENTORY-M6 §5). None of them needs a section in a UI window spec.
 
 **Corrects:** nothing in `docs/specs/` claims these are UI classes — the coverage map is already right. What *is* owed
-is HANDOFF.md's item 4 ("split the catch-all owners … into map rows"), which is a coverage-tooling task, not a spec
-task. This spec records the verdict so a later coverage lane does not have to re-derive it.
+is HANDOFF.md item 4 ("split the catch-all owners … into map rows"), which is a coverage-tooling task, not a spec
+task. Two small gaps in **data-formats.md §4.3** are worth noting for whoever picks that up: it never names
+`InterpretEntry`/`WriteEntry`/`cSCResProperty` (addresses only), and it does not record that the `ParentCohort`
+**writer** `0x0067C590` prints the key as `instance, type, group` while the **reader** `0x0067DFD0` reads
+`group, instance, type` — a real asymmetry.
 
 ---
 
@@ -620,6 +639,12 @@ be regenerated by hand here. This lane appends the *new* rows it derived — the
 9. **`docs/abi/vtables.tsv` misnames `0x005F8400`** as five folded occupant `AsOccupant` methods; it is
    `cSC4View3DWin::AsIGZWin`. Name-collision folding in `re/names_windows.tsv` is a known source of wrong names —
    always confirm with a body. *[quirk]* of the tooling, but it produced a wrong ABI row.
+10. **`cGZUIScriptService::CreateWindowFromScript` names two functions and neither is the one you want.**
+    `0x0094B08B` returns a bool in `AL` and **releases the window it just made**; `0x0094B210` takes a struct. The
+    function that returns the window is the unnamed **slot 4**. Writing a shim against the name rather than the slot
+    gives you a success flag and a freed window. *[quirk]*
+11. **`cGroupLayer` is an audio class named like a UI one.** It has no window vtable at all. A name-driven layering
+    pass that files `*Layer*` under UI will misfile it. *[quirk]* of the naming.
 
 ---
 
@@ -710,21 +735,89 @@ An implementer should be able to make all of these pass without asking a questio
   Nothing in §2–§4 depends on interpreting the shipped scripts: the only thing the window layer needs is
   "create a window whose parent is X and whose instance/group are G/I", which is §5.1.
 
-## 14. Class list covered
+## 14. UI window class inventory
 
-Specified here in detail: `cSC4View3DWin` / `cISC4View3DWin`, `cGZWinGen` / `cIGZWin` / `cIGZWinGen`,
+Specified in detail in this document: `cSC4View3DWin` / `cISC4View3DWin`, `cGZWinGen` / `cIGZWin` / `cIGZWinGen`,
 `cGZWinMgrW32` / `cIGZWinMgr` (cross-referenced), `cSC4AdvisorPopupTracker`, `cSC4AutoGamePause` / `SC4GamePause`,
 `SC4CreateWindowFromScript` / `cGZUIScriptService` (as far as §5.1), `nSC4UI` (`AlignWindowToWindow`),
 `cSC4EffectsManager` (draw-pass side only).
 
-Named and placed, but not specified: `cSC4WinGameDelay`, `cSC4WinIntroVideoScreen`, `cSC4WinSplashScreen`,
-`cSC4WinMapView`, `cSC4WinRegionScreen`, `cSC4WinRegionView`, `cSC4ProgressScreen`, `cSC4BudgetUIWinProc` and its
-expense/income sub-procs, `cSC4SubBudgetWindow`, `cSC4GraphsViewWinProc`, `cSC4NewsTickerWinProc`,
-`cSC4AdvisorUIAdvisorWinProc`, `cSC4AdvisorUIImageWinProc`, `cSC4TutorialUIWinProc`, `cSC4MySimBalloonWinProc`,
-`cSC4QueryDialogWinProc`, `cSC4LegendDialogWinProc`, `cSC4DialogWinProcBase`, `cSC4VideoPreferencesWinProc`,
-`cSC4AudioPreferencesWinProc`, `cSC4CheatCodeEntryDialog`, `cSC4MissingPluginPacksDialog`, `cGZWinGenDlg`,
-`cGZWinDlg`, `cGZWinMsgBox`, `cGZWinCtrlMgr`, `cGZLegacyControl`, `cGZFont`, `cGZFontSys`. Each is at
-INVENTORY-M6 §4.5–§4.7's level (a class, a size, a role) and needs its own section before an implementer can build it.
+Everything below is **named and sized, not specified** — it is the ranked reading list an implementer needs before S4.
+`fns` = functions attributed to the class in `re/names_windows.tsv`; `bytes` = summed function-body bytes from
+`decomp/index.tsv`; `vtables` from `docs/abi/vtables.tsv` (`—` = no attributed vtable row). These are reading-effort
+figures in the sense of INVENTORY-M6 §0, not port sizes.
+
+### 14.1 The toolkit (needed to describe any window)
+
+| Class | Vtables | fns | bytes | What |
+|---|---|---|---|---|
+| `cGZWin` | `—` | 161 | 12 804 | The **base window**: parenting and child list, coordinates, hit testing, mouse/keyboard routing, accelerators, cursors, `Plot`/blit/fill, packed-RGB conversion. The 152-slot `cIGZWin` surface of §2.2 is this class |
+| `cGZWinGen` | `00adc678` | 55 | 6 960 | The **general/script-built window**: caption, gutters, colour bars and dividers, title and side bars, `place_controls`, `calc_user_area`, `SetWinProc`, background bitmap |
+| `cGZWinCtrlMgr` | `00adc1ec`, `00adc1d4`, `00adc128` | 40 | 6 602 | Control factory and registry: `CreateButton`/`CheckBox`/`Label`/`WinBMP`/`Slider`/`Scrollbar`/`Spinner`/`LineInput`/`OptGrp`, font/BMP/colour defaults, `RegisterCtrlCreator`. Set up by `cSC4App::SetupWinCtrlMgr` `0x0044D810` |
+| `cGZWinMgrBase` / `cGZWinMgrW32` | `00ae48d8` / `00ae46b4` | 9 / 4 | 1 469 / 526 | Window manager: `OnTick`, `GZMsgBox`, `DoModalWin` (modal-dialogs.md §2), `GZWinMsgPost`, `GZShowCursor` |
+| `cGZLegacyControl` | `00ad5360`, `00ad5324` | 56 | **54 189** | The **UI-script control vocabulary** — `InterpretPropertiesGZWin*` / `ControlVocabularyGZWin*` for every widget type (`Btn`, `BMP`, `Combo`, `ListBox`, `Slider`, `LineInput`, `Spinner`, `Outline`, `Folders`, `TextTicker`, …) plus `InterpretPropertiesSC3WinGen`. This is the single biggest piece of the "interpret the shipped UI scripts" decision |
+| `cGZUIScriptService` | `00ad5158` + 5 more | 28 | 2 775 | UI-script interpreter: `ExecuteScriptFile`/`Resource`/`String`, `CreateWindowFromScript` (§5.1), `ScriptBegin`/`Tag`/`End`, `PushParent`/`PopParent`, `SetLegacyWinProc` |
+| `cGZWinGenDlg` | `00ae0240`, `00ae01e8` | 28 | 3 128 | Procedural dialog builder: `AddListBox`/`AddBtn`/`AddCombo`/`AddLineInput`/`AddSlider`/`AddSpinner`/`AddText`/`AddTextEdit`/`AddCheck`/`AddOptionGroup`/`AddLineGraph`/`AddBarGraph`/`AddScatterGraph`, `SetCommandCallback` |
+| `cGZWinDlg` / `cGZWinMsgBox` | `00ae2398` / `00ae2648` | 3 / 12 | 152 / 3 397 | Minimal dialog base; the message box (`Init`, `create_and_add_button`, `GZPaint`, `GZOnCommand`) |
+| `cGZFont` / `cGZFontSys` | `00ac55d8` / `—` | 70 / 13 | 10 823 / 4 455 | Font object (glyph cache, `CharWidth`/`GetAdvanceWidth`, code page, antialiasing/gamma, `CalculateCharsToFitInWidth`, `FormatForEllipsis`) and the font system (`AddAllFontsFromDirectory`, `FontAcquire`, `AddFont`, `AddSubstitution`). **The MXF format is still a spec gap** (INVENTORY-M6 §4.2) |
+
+Framework widgets, needed to describe the toolkit but not game UI: `cGZWinBMP` (24 fns / 1 378 B), `cGZWinBtn`
+(39 / 5 326), `cGZWinCombo` (52 / 4 612), `cGZWinGrid` (61 / 20 377), `cGZWinLineInput` (59 / 5 876), `cGZWinListBox`
+(33 / 5 485), `cGZWinOptGrp` (44 / 4 659), `cGZWinScrollbar2` (34 / 6 185), `cGZWinSlider` (29 / 2 925),
+`cGZWinSpinner` (48 / 4 348), `cGZWinText` (13 / 1 879), `cGZWinTextEdit` (136 / **19 459**), `cGZWinTextTicker`
+(11 / 1 761), `cGZWinToolTip` (10 / 1 996), `cGZWinTreeView` (34 / 10 706), `cGZWinPieMenu` (14 / 2 640),
+`cGZWinDragAndDropManager` (30 / 3 116), `cRZWinKeyAccelerator` (16 / 801), `cRZCursorManager` (18 / 914).
+
+### 14.2 Screens and the city view (S2–S4)
+
+| Class | Vtables | fns | bytes | What |
+|---|---|---|---|---|
+| `cSC4View3DWin` | `00abce40`, `00abcbc0` | **149** | **62 066** | The city screen. §3 |
+| `cWinSC4App` | `00a92f28` | 13 | 2 113 | The top-level app window (INVENTORY-M6 §2.1) |
+| `cSC4WinIntroVideoScreen` | `00ab78f0` | 12 | 1 845 | Maxis-logo and splash video at boot (`SetupMaxisLogoScreen`, `SetupSplashScreen`, `DoUserStop`) |
+| `cSC4WinSplashScreen` | `00ab9eb8`, `00ab9ea4` | 12 | 1 277 | Script-driven splash/title (`SetupScriptWindow`, `TransitionTimerCallback`) |
+| `cSC4WinRegionScreen` | `00ab9260`, `00ab923c` | 36 | 20 760 | The region view screen (`LoadRegion`, `LaunchCity`/`LaunchRegionalCity`, `LoadGUI`, `MakeWholeRegion`, signposts, `GZOnCommand`) |
+| `cSC4WinRegionView` | `00ab9644` | 24 | 7 925 | The region playfield widget (`RenderTile`, `GetCityAtPoint`, `SelectCity`, `InitSignpost`, `SetScrollPos`) |
+| `cSC4ProgressScreen` | `—` | 5 | 1 874 | Progress/wait screen; created only from `cSC4View3DWin::CreateProgressScreen` `0x007E5BDB` |
+| `cSC4WinGameDelay` | `00aa56c0` | 3 | 161 | Invisible delay window (`SC4GameDelay` `0x005F9140`; modal-dialogs.md §3.4) |
+
+### 14.3 Panels, data views and dialogs (S5)
+
+| Class | Vtables | fns | bytes | What |
+|---|---|---|---|---|
+| `cSC4SubBudgetWindow` | `00ab5494` | 32 | **71 235** | Neighbour/ordinance/individual funding dialog, built procedurally (`SetupWindowBig`/`Indiv`, `add_comboBox`, `updateOrdinanceBudget`) |
+| `cSC4BudgetUIWinProc` | `00ab4a40`, `00ab4a2c`, `00ab4a1c` | 21 | 17 952 | Budget window (`SetTaxes`, `InitBalanceSheet`, `DisplayLoanWindow`, `DoSubBudgetWindow`) |
+| `cSC4BudgetUIExpenseWinProc` / `…IncomeWinProc` | `00ab499c` / `00ab49e0` | 3 / 3 | 479 / 733 | Budget tabs |
+| `cSC4WinMapView` | `00ab7e60`, `00ab7ee0` | 22 | 19 792 | The large data-map overlay (`DisplayLegend`, `DisplayStandardUint8Grid`/`Sint8Grid`, `SetDataView`, `ShowLargeWindow`) |
+| `cSC4WinSnapshotAlbum` | `00ab9e54` | 40 | 22 565 | Snapshot album browser |
+| `cSC4WinLotConfigurationEditor` | `—` | **92** | **51 054** | Lot-configuration editor (F8 — not needed) |
+| `cSC4VideoPreferencesWinProc` | `00ab55f8` | 8 | 14 965 | Video preferences modal |
+| `cSC4AudioPreferencesWinProc` | `00a94264` | 20 | 11 020 | Audio preferences modal |
+| `cSC4MySimWinProc` | `—` | 24 | 14 731 | MySim (advisor avatar) window |
+| `cSC4AdvisorUIAdvisorWinProc` | `00a83548`, `00a83538` | 21 | 9 712 | Advisor window |
+| `cSC4WinMiniMap` | `00ab837c` + 2 | 28 | 7 889 | Minimap |
+| `cSC4WinCalloutBox` | `00ab6770` | 7 | 6 879 | Tutorial/label callout box |
+| `cSC4GraphsViewWinProc` | `00ab4fe0` | 13 | 8 864 | Graphs panel (`ShowGraphType`, `SetTimeScale`, `RefreshGraph`, `SetExpanded`) |
+| `cSC4WinSnapshotTaker` | `00ab9bf8` | 18 | 6 010 | Snapshot capture |
+| `cSC4TutorialUIWinProc` | `00a86378` | 17 | 6 695 | Tutorial overlay |
+| `cSC4NewsTickerWinProc` | `00ab5150` | 8 | 6 754 | News ticker (`DisplayNewsFlipperLine`, `DoFlipperMessage`) |
+| `cSC4CheatCodeEntryDialog` | `00ab7078`, `00ab7020` | 10 | 2 308 | Cheat-code entry |
+| `cSC4WinTrendBar` | `00aba430`, `00aba68c` | 12 | 2 492 | Trend/graph bar |
+| `cSC4WinAdviceList` | `00ab5880`, `00ab58b0` | 13 | 2 663 | Advisor message list |
+| `cSC4WinCatalogView` | `00ab6d88` | 14 | 2 064 | Lot/prop catalog view |
+| `cSC4ToolTipManager` | `00abcb60` | 7 | 1 658 | Tooltips |
+| `cSC4WinAlertBorder` / `cSC4WinRCI` | `00ab5b48` / `00ab8628` | 3 / 5 | 304 / 945 | Alert border flash; RCI demand bar |
+| `cSC4MissingPluginPacksDialog` | `—` | 1 | 435 | Missing-content warning (`DoDialog`, from `cSC4MissingPluginDataReporter::DoPostCityInit` `0x0048C84B`) |
+
+Region dialogs and the remaining winprocs (`cSC4NewRegionDialog`, `cSC4DeleteCityDialog`, `cSC4DeleteRegionDialog`,
+`cSC4ImportCityDialog`, `cSC4LoadRegionDialog`, `cSC4PickSimWinProc`, `cSC4QueryDialogWinProc`
+`00a90b58`, `cSC4LegendDialogWinProc` `00a90980`, `cSC4CreditsWinProc`, `cSC4EstablishCityWinProc`,
+`cSC4BuildingSelectWinProc`, `cSC4GamePreferencesWinProc`, `cSC4TipOfTheDayWinProc`, `cSC4PanelUIWinProc`,
+`cSC4TimeDisplayMiniWindowWinProc`, `cSC4DialogWinProcBase`, `cSLWinLocationSaver`) are each under 3 KB except
+`cSC4GamePreferencesWinProc` (2 655 B) and are listed so the set is complete.
+
+**Not to be specified** (INVENTORY-M6 §2.7, F7/F8): `cGZWinHTML`, the IME family, `cGZWinFileBrowser`, the Lua debugger
+windows, `cSC4WinAnimationRecorder`, `cSC4WinProcSpy`, the Game of Life easter egg, and the 2D blitters.
 
 ## 15. Open questions
 
@@ -733,9 +826,11 @@ INVENTORY-M6 §4.5–§4.7's level (a class, a size, a role) and needs its own s
 2. **UIW-2:** The **fifth** argument of `InvokeTertiaryMenu` is a small negative integer (−25 at `0x007E7179`, −75 at
    `0x007F5093`), the only argument the secondary form lacks; it does not reach `AlignWindowToWindow`. What it is
    consumed by (§4.4). Settle by disassembling `0x007E5DC0`–`0x007E5E40`.
-3. **UIW-3:** The exact argument order of the `SC4CreateWindowFromScript` call in `InvokeSecondaryMenu`, and whether
-   the window's `GetID` becomes the instance argument (§4.3, §5.1 — this is modal-dialogs.md open question 1, still
-   open). Settle by reading `cGZUIScriptService::CreateWindowFromScript`.
+3. **UIW-3:** Whether the window's `GetID` becomes the instance argument of the create call (this is
+   modal-dialogs.md open question 1, still open). §5.1 now establishes that `SC4CreateWindowFromScript` calls
+   **slot 4** of `cGZUIScriptService` — not the method the name table calls `CreateWindowFromScript` (`0x0094B08B`,
+   a 5-argument QI wrapper that returns `AL` and releases the window). Settle by reading slot 4 and checking for a
+   `SetID` (slot 64).
 4. **UIW-4:** What the `cIGZWinGen` generator flags 4 and 1 mean when cleared (§4.3).
 5. **UIW-5:** What `0xAAAA` means to `nSC4UI::AlignWindowToWindow` (§4.3). Its third argument is now known to be a
    target window id (§4.4); the anchor code is still unnamed.
