@@ -4546,6 +4546,40 @@ constexpr uint32_t kIID_cISC4BuildingDevelopmentSimulator = 0x07813EAE;
 constexpr uint32_t kIID_cIGZMessageTargetDev = 0xE98B2F57;
 constexpr uint32_t kIID_cIGZMessageTarget2Dev = 0x452294AA;
 
+// DG35 (§4.9.2): a retaining wall (primary interface: slot 3 AsOccupant,
+// slot 11 GetRetainingWallType) whose occupant sub-object (+0x04) answers QI
+// 0x295D1162 with the wall, AddRef'd; the wall's own QI (slot 0, probed by
+// the reference audit) answers nothing. Other slots trap.
+struct FakeWall {
+    void** vtbl;
+    void** occVtbl;
+    int refs = 1;  // the caller's
+    int qis = 0;
+    int typeCalls = 0;
+    bool isWall = true;
+    uint32_t type = 7;
+};
+FakeWall* g_wall = nullptr;
+FakeVtable g_wallVt, g_wallOccVt;
+bool __fastcall WallOccQi(void*, void*, uint32_t iid, void** out) {  // occupant 0
+    ++g_wall->qis;
+    if (out == nullptr || !g_wall->isWall || iid != 0x295D1162u) return false;
+    *out = g_wall;
+    ++g_wall->refs;
+    return true;
+}
+bool __fastcall WallQi(void*, void*, uint32_t, void** out) {  // wall 0: the reference audit's class probe
+    if (out != nullptr) *out = nullptr;
+    return false;
+}
+uint32_t __fastcall WallAddRef(void*, void*) { return static_cast<uint32_t>(++g_wall->refs); }   // 1
+uint32_t __fastcall WallRelease(void*, void*) { return static_cast<uint32_t>(--g_wall->refs); }  // 2
+void* __fastcall WallAsOccupant(FakeWall* w, void*) { return &w->occVtbl; }                      // wall 3
+uint32_t __fastcall WallType(FakeWall* w, void*) {                                               // wall 11
+    ++w->typeCalls;
+    return w->type;
+}
+
 // The answers without a city or catalogue (§7.1), through the compiled
 // slots. The AL-only slots 42 / 43 are also called raw: the whole of EAX
 // must be the key (zero-extended).
@@ -4572,6 +4606,28 @@ void CheckDevelopmentNeutral(cFC4ISC4BuildingDevelopmentSimulator* b, uint32_t t
     CHECK(pos[1] == 0.0f);
     // 26 / 29: a null occupant [choice] and a type outside the (empty) key maps: false.
     CHECK(!b->LoadFoundationProperties(nullptr, 1) && !b->LoadLotRetainingWallProperties(nullptr, 1));
+    // 29, DG35: type 0 takes the wall's type, reached from its occupant
+    // token by QI 0x295D1162 (released after); the type is not in the
+    // (empty) key map: false. An occupant that is not a wall gives type 0.
+    {
+        FakeWall wall;
+        g_wall = &wall;
+        g_wallVt.slots[1] = g_wallOccVt.slots[1] = reinterpret_cast<void*>(&WallAddRef);
+        g_wallVt.slots[2] = g_wallOccVt.slots[2] = reinterpret_cast<void*>(&WallRelease);
+        g_wallVt.slots[3] = reinterpret_cast<void*>(&WallAsOccupant);
+        g_wallVt.slots[11] = reinterpret_cast<void*>(&WallType);
+        g_wallOccVt.slots[0] = reinterpret_cast<void*>(&WallOccQi);
+        g_wallVt.slots[0] = reinterpret_cast<void*>(&WallQi);
+        wall.vtbl = g_wallVt.slots.data();
+        wall.occVtbl = g_wallOccVt.slots.data();
+        auto* w = reinterpret_cast<cISC4LotRetainingWallOccupant*>(&wall);
+        CHECK(!b->LoadLotRetainingWallProperties(w, 0));
+        CHECK(wall.qis == 1 && wall.typeCalls == 1 && wall.refs == 1);
+        wall.isWall = false;
+        CHECK(!b->LoadLotRetainingWallProperties(w, 0));
+        CHECK(wall.qis == 2 && wall.typeCalls == 1 && wall.refs == 1);
+        g_wall = nullptr;
+    }
     CHECK(!b->CheatIgnorePlumbing() && !b->CheatIgnorePower() && !b->CheatIgnoreCaps() && !b->CheatDebugGrowth() &&
           !b->CheatCoffeeBar());
     // 42 / 43: 4p + w + 1, in EAX.
@@ -4844,7 +4900,7 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
     // refused a null occupant. The month and state lines count the calls (calls/successes).
     CHECK(text.find("development: WARNING could not create a foundation occupant (class 0x49C05C8F)") !=
           std::string::npos);
-    CHECK(text.find("lotUpdates=0 foundations=1/0 foundationLoads=1/0 wallLoads=1/0") != std::string::npos);
+    CHECK(text.find("lotUpdates=0 foundations=1/0 foundationLoads=1/0 wallLoads=3/0") != std::string::npos);
     // The growth developers: one created and initialised (refused), two read.
     CHECK(text.find("development: growth statics ") != std::string::npos);
     CHECK(CountOf(text, "cFC4GrowthDeveloper(") == 8);  // created and destroyed (one for the shadow's bridge)
