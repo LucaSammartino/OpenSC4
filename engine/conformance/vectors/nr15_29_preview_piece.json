@@ -1,0 +1,82 @@
+{
+  "format": 1,
+  "name": "nr15_29_preview_piece",
+  "spec": [
+    "network-rules 8.3"
+  ],
+  "description": "SolveMultiTypeSeparation returns the piece the cell itself would get and claims nothing: (5, 5) gives 0x100 rot 0 flip 0 while the solved list stays empty; a cell no rule matches returns no piece.",
+  "steps": [
+    {
+      "op": "nr_reset"
+    },
+    {
+      "op": "nr_load",
+      "resource": "0x8",
+      "text": [
+        "#T#",
+        "1,0,2,0,2",
+        "3,0,0x100,0,0",
+        "3,7,0x101,0,0"
+      ]
+    },
+    {
+      "op": "nr_cell",
+      "x": 5,
+      "z": 5,
+      "edges": {
+        "Road": "0x02000200"
+      }
+    },
+    {
+      "op": "nr_cell",
+      "x": 5,
+      "z": 6,
+      "edges": {
+        "Road": "0x02000200"
+      }
+    },
+    {
+      "op": "nr_set_s",
+      "cells": [
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          6
+        ]
+      ]
+    },
+    {
+      "op": "nr_separation",
+      "x": 5,
+      "z": 5,
+      "type": "Road",
+      "expect": [
+        "0x100",
+        0,
+        0
+      ]
+    },
+    {
+      "op": "nr_expect_solved",
+      "records": []
+    },
+    {
+      "op": "nr_cell",
+      "x": 7,
+      "z": 7,
+      "edges": {
+        "Road": "0x00000002"
+      }
+    },
+    {
+      "op": "nr_separation",
+      "x": 7,
+      "z": 7,
+      "type": "Road",
+      "expect": null
+    }
+  ]
+}

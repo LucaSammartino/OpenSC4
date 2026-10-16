@@ -14,8 +14,10 @@ use std::rc::Rc;
 
 use fc4_core::network_rules::{
     adjust_tile_subsets, apply_network_rules, assign_edge_subtypes, cell_key, edge_token,
-    identify_highway_intersections, key_cell, mirror_edge_byte, mirror_edges, neighbourhood, network_name_to_id,
-    patch_tile_pair, rotate_edges, rotate_meta, rotate_orientation, solve_multi_type_intersections, solve_network,
+    identify_highway_intersections, key_cell, mark_highway_intersection_pieces, mirror_edge_byte, mirror_edges,
+    neighbourhood, network_name_to_id, patch_tile_pair, remove_bridge_pieces_from_solve_set,
+    remove_highway_intersection_pieces_from_solve_set, resolve_one_way_conflicts, rotate_edges, rotate_meta,
+    rotate_orientation, solve_multi_type_intersections, solve_multi_type_separation, solve_network,
     verify_tile_subsets, CellGrid, CellInfo, DryHost, Evaluator, IntRule, LoadReport, LoadStatus, NetworkRules,
     OccupantView, ResourceId, SolveState, SolvedRecord, TilePiece, TYPE_COUNT, TYPE_NAMES,
 };
@@ -102,6 +104,12 @@ fn dispatch(w: &World, name: &str, rest: &str, op: &Json) -> R<()> {
         "int_rule" => int_rule(w, op),
         "int_test" => int_test(w, op),
         "identify" => identify(w, op),
+        "one_way" => one_way(w, op),
+        "separation" => separation(w, op),
+        "tile_info" => tile_info(w, op),
+        "pieces" => pieces(w, op),
+        "mark_pieces" => mark_pieces(w, op),
+        "remove_pieces" => remove_pieces(w, op),
         "expect_solved" => expect_solved(w, op),
         "expect_s" => {
             let st = w.state.borrow();
@@ -402,6 +410,12 @@ fn cell(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "intersection") {
         c.intersection = bool_of(v, "intersection")?;
     }
+    if let Some(v) = opt(op, "one_way") {
+        c.one_way = u32_of(v, "one_way")? as u8;
+    }
+    if let Some(v) = opt(op, "marked") {
+        c.marked = bool_of(v, "marked")?;
+    }
     if let Some(o) = opt(op, "occupant") {
         let mut occ = OccupantView::default();
         if let Some(v) = opt(o, "piece") {
@@ -422,6 +436,9 @@ fn cell(w: &World, op: &Json) -> R<()> {
         }
         if let Some(v) = opt(o, "anchor") {
             occ.anchor = Some(xz_of(v, "anchor")?);
+        }
+        if let Some(v) = opt(o, "paired_portal") {
+            occ.paired_portal = Some(xz_of(v, "paired_portal")?);
         }
         c.occupant = Some(occ);
     }
@@ -679,6 +696,124 @@ fn expect_solved(w: &World, op: &Json) -> R<()> {
 /// `nr_expect_cell`: the cell at (`x`, `z`): `state` checks `flags`,
 /// `union`, `solved`, `intersection` and `edges` (`{name: word}`, every
 /// type with a non-zero word).
+/// `nr_one_way`: `ResolveOneWayConflicts` over `steps` (one array of `[x, z]`
+/// per dragged step). Check the one-way bytes with `nr_expect_cell` and the
+/// solve set with `nr_expect_s`.
+fn one_way(w: &World, op: &Json) -> R<()> {
+    let steps: R<Vec<Vec<(i32, i32)>>> = arr(field(op, "steps")?, "steps")?
+        .iter()
+        .map(|s| arr(s, "steps")?.iter().map(|c| xz_of(c, "steps")).collect())
+        .collect();
+    let steps = steps?;
+    resolve_one_way_conflicts(&mut w.grid.borrow_mut(), &mut w.state.borrow_mut(), &steps);
+    Ok(())
+}
+
+/// `nr_separation`: `SolveMultiTypeSeparation` at (`x`, `z`) for `type`, over
+/// the rule database's evaluators of that type. `expect` is null (no piece)
+/// or `[id, rot, flip]`.
+fn separation(w: &World, op: &Json) -> R<()> {
+    let (x, z) = (
+        i64_of(field(op, "x")?, "x")? as i32,
+        i64_of(field(op, "z")?, "z")? as i32,
+    );
+    let t = type_of_json(field(op, "type")?, "type")?;
+    let r = w.rules.borrow();
+    let g = w.grid.borrow();
+    let got = match solve_multi_type_separation(r.evaluators[t as usize].iter(), &g, x, z, t) {
+        None => Json::Null,
+        Some((id, rot, flip)) => Json::Array(vec![ji(id), ji(rot), ji(flip)]),
+    };
+    check_expect(op, got)
+}
+
+/// `nr_tile_info`: `GetTileInfo(dx, dz)` of the rule. `expect` is null or
+/// `[tile, orientation, new_cell]`.
+fn tile_info(w: &World, op: &Json) -> R<()> {
+    let r = int_rule_of(w, op)?;
+    let (dx, dz) = xz_of(field(op, "offset")?, "offset")?;
+    let got = match r.get_tile_info(dx, dz) {
+        None => Json::Null,
+        Some(t) => Json::Array(vec![ji(t.tile), ji(t.orientation), ji(t.new_cell)]),
+    };
+    check_expect(op, got)
+}
+
+/// `nr_pieces`: the pieces an intersection at (`x`, `z`) places (§10.9), one
+/// per occupied cell: `[ox, oz, piece_id, orientation, path, ax, az, new_cell]`.
+fn pieces(w: &World, op: &Json) -> R<()> {
+    let r = int_rule_of(w, op)?;
+    let (x, z) = (
+        i64_of(field(op, "x")?, "x")? as i32,
+        i64_of(field(op, "z")?, "z")? as i32,
+    );
+    let g = w.grid.borrow();
+    let got = Json::Array(
+        r.intersection_pieces(x, z, &g)
+            .iter()
+            .map(|p| {
+                Json::Array(vec![
+                    ji(p.offset.0),
+                    ji(p.offset.1),
+                    ji(p.piece_id),
+                    ji(p.orientation),
+                    ji(p.path),
+                    ji(p.anchor.0),
+                    ji(p.anchor.1),
+                    ji(p.new_cell),
+                ])
+            })
+            .collect(),
+    );
+    check_expect(op, got)
+}
+
+/// `nr_mark_pieces`: `MarkHighwayIntersectionPieces` over the recorded
+/// intersections, for the records whose start step is below `valid_count`.
+fn mark_pieces(w: &World, op: &Json) -> R<()> {
+    let on = bool_of(field(op, "on")?, "on")?;
+    let valid_count = i64_of(field(op, "valid_count")?, "valid_count")? as i32;
+    let r = w.rules.borrow();
+    let mut g = w.grid.borrow_mut();
+    let st = w.state.borrow();
+    mark_highway_intersection_pieces(&r.int_rules, &mut g, &st.intersections, valid_count, on);
+    Ok(())
+}
+
+/// `nr_remove_pieces`: `RemoveHighwayIntersectionPiecesFromSetOfCellsToBeSolved`
+/// when `bridge` is absent or false, else `RemoveBridgePiecesFromSetOfCellsToBeSolved`
+/// over `bridge_cells` `[[end_step, [key, ...]], ...]`.
+fn remove_pieces(w: &World, op: &Json) -> R<()> {
+    let valid_count = i64_of(field(op, "valid_count")?, "valid_count")? as i32;
+    if opt(op, "bridge").map(|v| bool_of(v, "bridge")).transpose()? == Some(true) {
+        let cells: R<Vec<(i32, Vec<u32>)>> = arr(field(op, "bridge_cells")?, "bridge_cells")?
+            .iter()
+            .map(|e| {
+                let a = arr(e, "bridge_cells")?;
+                if a.len() != 2 {
+                    return Err("'bridge_cells' entries are [end_step, [key, ...]]".into());
+                }
+                let keys: R<Vec<u32>> = arr(&a[1], "bridge_cells")?
+                    .iter()
+                    .map(|k| u32_of(k, "bridge_cells"))
+                    .collect();
+                Ok((i64_of(&a[0], "bridge_cells")? as i32, keys?))
+            })
+            .collect();
+        remove_bridge_pieces_from_solve_set(&mut w.state.borrow_mut(), &cells?, valid_count);
+        return Ok(());
+    }
+    let r = w.rules.borrow();
+    let intersections = w.state.borrow().intersections.clone();
+    remove_highway_intersection_pieces_from_solve_set(
+        &r.int_rules,
+        &mut w.state.borrow_mut(),
+        &intersections,
+        valid_count,
+    );
+    Ok(())
+}
+
 fn expect_cell(w: &World, op: &Json) -> R<()> {
     let (x, z) = (
         i64_of(field(op, "x")?, "x")? as i32,
@@ -697,6 +832,9 @@ fn expect_cell(w: &World, op: &Json) -> R<()> {
         ("union".to_string(), ji(c.union)),
         ("solved".to_string(), ji(c.solved)),
         ("intersection".to_string(), Json::Bool(c.intersection)),
+        ("one_way".to_string(), ji(c.one_way)),
+        ("marked".to_string(), Json::Bool(c.marked)),
+        ("in_run".to_string(), Json::Bool(c.in_run)),
         ("edges".to_string(), edges),
     ];
     check_state(&got, field(op, "state")?)

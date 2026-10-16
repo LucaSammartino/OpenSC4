@@ -1,0 +1,273 @@
+{
+  "format": 1,
+  "name": "nr15_28_intersection_tiles",
+  "spec": [
+    "network-rules 10.3",
+    "network-rules 10.9"
+  ],
+  "description": "The tile grid gives the occupied cells of the bounds the tiles 0x0000, 0x0100, 0x0200 and 0x0010; at commit the pieces are AutoTileBase + tile (0x5000, 0x5100, 0x5200, 0x5010) with no path override, and with an AutoPathBase they are 0x7000, 0x7100, 0x7200 and 0x7010. Every piece's anchor is the rule's position.",
+  "steps": [
+    {
+      "op": "nr_reset"
+    },
+    {
+      "op": "nr_load",
+      "resource": "intersections",
+      "text": [
+        "[HighwayIntersectionInfo_0x1]",
+        "CheckType=a - Road:0x00020002",
+        "AutoTileBase=0x5000",
+        "AutoPathBase=0",
+        "CellLayout=aaa<",
+        "CellLayout=a",
+        "CellLayout=...^"
+      ]
+    },
+    {
+      "op": "nr_tile_info",
+      "id": "0x1",
+      "offset": [
+        -3,
+        0
+      ],
+      "expect": [
+        "0x0000",
+        0,
+        0
+      ]
+    },
+    {
+      "op": "nr_tile_info",
+      "id": "0x1",
+      "offset": [
+        -2,
+        0
+      ],
+      "expect": [
+        "0x0100",
+        0,
+        0
+      ]
+    },
+    {
+      "op": "nr_tile_info",
+      "id": "0x1",
+      "offset": [
+        -1,
+        0
+      ],
+      "expect": [
+        "0x0200",
+        0,
+        0
+      ]
+    },
+    {
+      "op": "nr_tile_info",
+      "id": "0x1",
+      "offset": [
+        -3,
+        1
+      ],
+      "expect": [
+        "0x0010",
+        0,
+        0
+      ]
+    },
+    {
+      "op": "nr_tile_info",
+      "id": "0x1",
+      "offset": [
+        -2,
+        1
+      ],
+      "expect": null
+    },
+    {
+      "op": "nr_tile_info",
+      "id": "0x1",
+      "offset": [
+        -4,
+        0
+      ],
+      "expect": null
+    },
+    {
+      "op": "nr_cell",
+      "x": 7,
+      "z": 10,
+      "edges": {
+        "Road": "0x00020002"
+      }
+    },
+    {
+      "op": "nr_cell",
+      "x": 8,
+      "z": 10,
+      "edges": {
+        "Road": "0x00020002"
+      }
+    },
+    {
+      "op": "nr_cell",
+      "x": 9,
+      "z": 10,
+      "edges": {
+        "Road": "0x00020002"
+      }
+    },
+    {
+      "op": "nr_cell",
+      "x": 7,
+      "z": 11,
+      "edges": {
+        "Road": "0x00020002"
+      }
+    },
+    {
+      "op": "nr_pieces",
+      "id": "0x1",
+      "x": 10,
+      "z": 10,
+      "expect": [
+        [
+          -3,
+          0,
+          "0x5000",
+          0,
+          0,
+          10,
+          10,
+          0
+        ],
+        [
+          -2,
+          0,
+          "0x5100",
+          0,
+          0,
+          10,
+          10,
+          0
+        ],
+        [
+          -1,
+          0,
+          "0x5200",
+          0,
+          0,
+          10,
+          10,
+          0
+        ],
+        [
+          -3,
+          1,
+          "0x5010",
+          0,
+          0,
+          10,
+          10,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "nr_reset"
+    },
+    {
+      "op": "nr_load",
+      "resource": "intersections",
+      "text": [
+        "[HighwayIntersectionInfo_0x1]",
+        "CheckType=a - Road:0x00020002",
+        "AutoTileBase=0x5000",
+        "AutoPathBase=0x7000",
+        "CellLayout=aaa<",
+        "CellLayout=a",
+        "CellLayout=...^"
+      ]
+    },
+    {
+      "op": "nr_cell",
+      "x": 7,
+      "z": 10,
+      "edges": {
+        "Road": "0x00020002"
+      }
+    },
+    {
+      "op": "nr_cell",
+      "x": 8,
+      "z": 10,
+      "edges": {
+        "Road": "0x00020002"
+      }
+    },
+    {
+      "op": "nr_cell",
+      "x": 9,
+      "z": 10,
+      "edges": {
+        "Road": "0x00020002"
+      }
+    },
+    {
+      "op": "nr_cell",
+      "x": 7,
+      "z": 11,
+      "edges": {
+        "Road": "0x00020002"
+      }
+    },
+    {
+      "op": "nr_pieces",
+      "id": "0x1",
+      "x": 10,
+      "z": 10,
+      "expect": [
+        [
+          -3,
+          0,
+          "0x5000",
+          0,
+          "0x7000",
+          10,
+          10,
+          0
+        ],
+        [
+          -2,
+          0,
+          "0x5100",
+          0,
+          "0x7100",
+          10,
+          10,
+          0
+        ],
+        [
+          -1,
+          0,
+          "0x5200",
+          0,
+          "0x7200",
+          10,
+          10,
+          0
+        ],
+        [
+          -3,
+          1,
+          "0x5010",
+          0,
+          "0x7010",
+          10,
+          10,
+          0
+        ]
+      ]
+    }
+  ]
+}
