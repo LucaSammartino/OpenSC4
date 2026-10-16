@@ -527,8 +527,8 @@ fn worked_example_4_5() {
 
 #[test]
 fn rebuild_without_building_map_or_grid() {
-    // [compat] No building map (residential §5.3 step 1, RG24): nothing is
-    // seeded, not even the edge, so a fresh grid stays all 0.
+    // [compat] No building map (§4.4, CM5): no seed and no passes, so a
+    // fresh grid stays all 0.
     let (h, s) = ready(8);
     assert!(h.building_map().is_none());
     for _ in 0..3 {
@@ -537,14 +537,14 @@ fn rebuild_without_building_map_or_grid() {
     let zeros = vec![vec![0u8; 8]; 8];
     assert_eq!(cells(&s.proximity_map(developer::CO2).unwrap()), zeros);
     assert_eq!(cells(&s.proximity_map(developer::CO3).unwrap()), zeros);
-    // [question] The passes still run: a loaded grid is only lowered.
+    // CM5: no passes either, so a loaded grid keeps its values exactly.
     let co3 = s.proximity_map(developer::CO3).unwrap();
     co3.set(4, 4, 9);
     co3.set(2, 0, 200);
     s.rebuild(WEALTH_CO3);
     let mut want = zeros.clone();
-    want[4][4] = 1;
-    want[2][0] = 1;
+    want[4][4] = 9;
+    want[2][0] = 200;
     assert_eq!(cells(&co3), want);
     // [choice] An absent grid: the rebuild does nothing; the machine advances.
     let (h2, s2) = sim(8);

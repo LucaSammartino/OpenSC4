@@ -1,0 +1,138 @@
+{
+  "format": 1,
+  "name": "tr18_01_get_altitude",
+  "spec": [
+    "terrain 4.1",
+    "terrain 4.4",
+    "terrain 18.1"
+  ],
+  "description": "The 4.4 cell on a 2 x 2 city (h00 100, h10 104, h01 108, h11 120; vertex (2, 2) = 140, the rest 100). GetAltitude(4, 12) = 100 + (12*4 + 8*12)/16 = 109 (fx <= fz); (12, 4) = 100 + (16*4 + 4*12)/16 = 107; (8, 8) = 110; (0, 0) = 100; (-0.001, 0) is out of bounds: 0; (32, 32) = the vertex (2, 2). The triangulation flip flags are ignored (quirk 1).",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        2,
+        2
+      ],
+      "altitudes": [
+        100,
+        104,
+        100,
+        108,
+        120,
+        100,
+        100,
+        100,
+        140
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        4,
+        12
+      ],
+      "expect": 109
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        12,
+        4
+      ],
+      "expect": 107
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        8,
+        8
+      ],
+      "expect": 110
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        0,
+        0
+      ],
+      "expect": 100
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        -0.001,
+        0
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        32,
+        32
+      ],
+      "expect": 140
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        32.001,
+        0
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        "nan",
+        0
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        0,
+        0
+      ],
+      "flags": 14336
+    },
+    {
+      "op": "ter_call",
+      "method": "is_triangulation_flipped",
+      "args": [
+        0,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        4,
+        12
+      ],
+      "expect": 109,
+      "note": "flipped cell, same diagonal"
+    },
+    {
+      "op": "ter_call",
+      "method": "altitude",
+      "args": [
+        12,
+        4
+      ],
+      "expect": 107
+    }
+  ]
+}

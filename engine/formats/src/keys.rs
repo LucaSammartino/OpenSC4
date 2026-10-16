@@ -259,7 +259,8 @@ pub fn fixed_16_16(x: u32) -> f32 {
 
 /// A model or mask property's values as unsigned 32-bit integers, for [`occupant_models`]: the integer types up
 /// to 32 bits, converted (signed ones as two's complement); `None` for any other type *\[choice\]* (shipped
-/// model keys are Uint32 arrays).
+/// model keys are Uint32 arrays). GF18 (re-answers11): the original reads the raw 32-bit words of any stored type
+/// (`vec<u32>`, no conversion, a scalar giving an empty vector); the choice is accepted.
 pub fn property_u32s(p: &crate::exemplar::Property) -> Option<Vec<u32>> {
     use crate::exemplar::Values;
     Some(match &p.values {
@@ -297,7 +298,8 @@ pub struct OccupantModels {
 ///    whose selector equals `state` (its instance, 0 included, and its offset; the last match's T and G).
 ///
 /// *\[choice\]* (as [`model_key`]): a zoom above 4 gives no models from the RKT1–RKT3 rules (RKT0 ignores it);
-/// a rule with too few values adds no instance. *\[literal reading\]* The mask's bit number is the zoom index
+/// a rule with too few values adds no instance (GF17, re-answers11: the original appends an instance read past the
+/// array or the remap table; the choice is accepted). *\[literal reading\]* The mask's bit number is the zoom index
 /// as passed; a mask with no value counts as 0. *\[inferred\]* RKT0–RKT3 and RKT5 write their own T and G.
 pub fn occupant_models<'a>(
     get: impl Fn(u32) -> Option<&'a [u32]>,

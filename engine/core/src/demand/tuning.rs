@@ -182,12 +182,24 @@ impl NationEconomy {
     }
 
     /// `GetEconomyModifier(demandID)` for `months` since the city start and a
-    /// difficulty level. [choice] An unknown difficulty uses the last entry;
-    /// no curve at all contributes 0.
+    /// difficulty level, with a city (see [`NationEconomy::modifier_with_city`]).
     pub fn modifier(&self, demand_id: u32, months: i32, difficulty: u32) -> f32 {
+        self.modifier_with_city(demand_id, months, Some(difficulty))
+    }
+
+    /// `GetEconomyModifier(demandID)` (nation.md §2). The month count is
+    /// converted to float as an **unsigned** value, so a negative count
+    /// evaluates the curve at `months + 2^32` *[quirk]*; the curve value is
+    /// rounded to float; `difficulty[level]` is added only when a city exists
+    /// (`Some(level)`). [choice] An unknown difficulty uses the last entry;
+    /// no curve at all contributes 0.
+    pub fn modifier_with_city(&self, demand_id: u32, months: i32, city_difficulty: Option<u32>) -> f32 {
         let curve = self.curves.get(&demand_id).or_else(|| self.curves.get(&0));
-        let c = curve.map_or(0.0, |c| c.eval(months as f32));
-        c + self.difficulty[(difficulty as usize).min(2)]
+        let c = curve.map_or(0.0, |c| c.eval(months as u32 as f32));
+        match city_difficulty {
+            Some(d) => c + self.difficulty[(d as usize).min(2)],
+            None => c,
+        }
     }
 
     /// Months between two (year, month) dates (§8.2).
@@ -275,6 +287,32 @@ mod tests {
         assert_eq!(n.modifier(0x1010, 5, 0), 0.06);
         assert_eq!(n.modifier(0x4100, 100, 2), 0.01);
         assert_eq!(NationEconomy::months_between((2000, 11), (2001, 2)), 3);
+    }
+
+    /// nation.md §5: the difficulty is added only with a city, and a month
+    /// count before the start is read unsigned (far past the last point).
+    #[test]
+    fn nation_md_conformance() {
+        let mut h = PropertyHolder::new();
+        h.add(p::NATION_IDS, Variant::array(mem::UINT32, vec![Elem::U32(0)]));
+        h.add(p::NATION_DIFFICULTY, floats(&[0.06, 0.03, 0.01]));
+        h.add(p::NATION_CURVE_BASE, floats(&[0.0, 0.0, 120.0, 0.0]));
+        let n = NationEconomy::from_holder(&h);
+        for (d, want) in [(0, 0.06f32), (1, 0.03), (2, 0.01)] {
+            assert_eq!(n.modifier_with_city(0x1010, 5, Some(d)), want);
+        }
+        assert_eq!(n.modifier_with_city(0x1010, 5, None), 0.0);
+        let before = NationEconomy::months_between((2000, 2), (2000, 1));
+        assert_eq!(before, -1);
+        assert_eq!(n.modifier_with_city(0x1010, before, Some(0)), 0.06);
+        // A rising curve shows the unsigned read: −1 lands past the last
+        // point (value 1), not before the first (value 0).
+        let mut h2 = PropertyHolder::new();
+        h2.add(p::NATION_IDS, Variant::array(mem::UINT32, vec![Elem::U32(0)]));
+        h2.add(p::NATION_CURVE_BASE, floats(&[0.0, 0.0, 120.0, 1.0]));
+        let n2 = NationEconomy::from_holder(&h2);
+        assert_eq!(n2.modifier_with_city(7, -1, None), 1.0);
+        assert_eq!(n2.modifier_with_city(7, 0, None), 0.0);
     }
 
     #[test]
