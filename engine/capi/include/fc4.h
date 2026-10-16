@@ -165,7 +165,7 @@ extern "C" {
  * 71 = merge-train batch train4 (re-specs20, re-answers30, re-specs19, cores22, apply15e, glue20, cores21): merged (no C ABI history entry of its own)
  * 72 = merge-train batch train5 (re-answers31, re-specs21, cores24, coverage3, glue23): merged (no C ABI history entry of its own) */
 #define FC4_ABI_VERSION 72u
-#define FC4_ABI_VERSION 69u/* Return codes of fc4_sim_load. */
+/* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
 #define FC4_ERR_TRUNCATED         (-2)
