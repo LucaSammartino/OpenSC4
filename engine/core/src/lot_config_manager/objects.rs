@@ -83,19 +83,22 @@ pub fn object_from_values(v: &[u32], tag: Option<u32>) -> LotConfigObject {
 }
 
 /// The object array `ConvertPropertiesToObjectArray` (`0x00479D10`) builds
-/// at detail `d` (§B3.3): properties `0x88EDC900`, `0x88EDC901`, … up to
-/// (not including [choice]) `0x88EDCDFF`; the scan stops at the first
+/// at detail `d` (§B3.3, lot-configuration.md §3.5): properties
+/// `0x88EDC900`, `0x88EDC901`, … up to and including `0x88EDCDFF` (the scan
+/// stops at `0x88EDCE00`: at most 1280 objects); the scan stops at the first
 /// missing property; a property with fewer than 10 values is skipped; the
 /// kept objects follow in property order without gaps.
 ///
-/// The configuration's version is property `0x88EDC789` (1 when absent
-/// [inferred], as the network lot configuration's default,
-/// network-manager.md §2.4); below 2 each kept object gets the generated tag
-/// `*next_serial`, which then advances by one [inferred] (PL11).
+/// The configuration's version is property `0x88EDC789`. `Load` refuses an
+/// absent or 0 version before building the array (lot-configuration.md
+/// §3.1); here an absent one reads as 1 [choice]. Below 2 each kept object
+/// gets the tag `*next_serial`, which then advances by one: the process-wide
+/// serial `0x00B2166C` of lot-configuration.md §3.5 (the host seeds it from
+/// the GZCOM clock when 0), and the ID list starts at `v11`.
 pub fn lot_object_array(h: &PropertyHolder, detail: u32, next_serial: &mut u32) -> Vec<LotConfigObject> {
     let version = props::u32_of(h, prop::VERSION).unwrap_or(1);
     let mut out = Vec::new();
-    for id in prop::LOT_OBJECT_FIRST..prop::LOT_OBJECT_END {
+    for id in prop::LOT_OBJECT_FIRST..=prop::LOT_OBJECT_END {
         let Some(values) = props::u32s(h, id) else {
             break;
         };

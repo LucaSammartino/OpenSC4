@@ -386,6 +386,26 @@ fn identity() {
     assert_eq!(manager(&g).class_id(), 0x2990_62C0);
 }
 
+/// lot-configuration.md §3.5: the scan reads `0x88EDC900` through
+/// `0x88EDCDFF` (1280 objects, the shipped airport's count) and stops at
+/// `0x88EDCE00`; version 1 tags come from the serial.
+#[test]
+fn object_array_bound_and_serial_tags() {
+    let objs: Vec<Vec<u32>> = (0..1281).map(|i| obj_values(1, 0, &[i])).collect();
+    let h = holder_with_objects(Some(2), &objs);
+    let mut s = 0;
+    let v = lot_object_array(&h, 3, &mut s);
+    assert_eq!(v.len(), 1280);
+    assert_eq!(v[1279].ids, vec![1279]);
+    assert_eq!(s, 0);
+    let h = holder_with_objects(Some(1), &objs[..2]);
+    let mut s = 40;
+    let v = lot_object_array(&h, 3, &mut s);
+    assert_eq!((v[0].tag, v[1].tag, s), (40, 41, 42));
+    // The ID list starts at v11 for version 1.
+    assert_eq!(v[1].ids, vec![0x77, 1]);
+}
+
 /// §T 7: the detail filter.
 #[test]
 fn t7_detail_filter() {

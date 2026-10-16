@@ -98,7 +98,8 @@ pub mod prop {
     pub const VERSION: u32 = 0x88ED_C789;
     /// The first lot-object property.
     pub const LOT_OBJECT_FIRST: u32 = 0x88ED_C900;
-    /// The scan stops here.
+    /// The last lot-object property read (the scan stops at `0x88EDCE00`,
+    /// lot-configuration.md §3.5).
     pub const LOT_OBJECT_END: u32 = 0x88ED_CDFF;
     /// A building exemplar's monopoly property (bool).
     pub const MONOPOLY: u32 = 0x2781_283F;

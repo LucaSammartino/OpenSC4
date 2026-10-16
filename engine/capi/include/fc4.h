@@ -8158,7 +8158,8 @@ typedef struct fc4_lot_config_catalogue_state {
 /* ConvertPropertiesToObjectArray (§B3.3): the object array of a lot
  * configuration exemplar at `detail`, each object to `visit` in order.
  * `next_serial` (may be NULL) is the generated tag of a configuration below
- * version 2, advanced once per kept object (PL11). Returns the count. */
+ * version 2, advanced once per kept object (the process-wide serial of
+ * lot-configuration.md §3.5; seed it when 0). Returns the count. */
 size_t fc4_lot_config_object_array(const fc4_props* exemplar, uint32_t detail, uint32_t* next_serial,
                                    fc4_lotdev_cfg_object_callback visit, void* ctx);
 
