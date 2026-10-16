@@ -393,6 +393,49 @@ pub enum Generator {
     PipeBurstStart,
 }
 
+/// A generator for a core that mirrors the original layer (the plugin's
+/// `disasters_shadow`; tooling, not spec behaviour). The original's draws
+/// cannot be read, so the mirror core makes none of its own decisions that
+/// depend on one; every outcome the original drew arrives as a mirrored
+/// call instead:
+///
+/// - `raw_u32` (a new fire ID) counts from `0x8000_0001`, so the mirror's
+///   own IDs are recognisable;
+/// - `uniform_u32(n)` is 0 (a covered fire's change, `Random(4000)`);
+/// - `uniform_f64` is 1.0, so the spread test `u < 1 / D4[s]` (§5.10 step
+///   9) never passes for a D4 of 1 or more: the original's spreads arrive
+///   as its own `Ignite` calls;
+/// - `range_f64(a, b)` is `b` (the `IgniteCell` probability draw fails for
+///   any curve value below 100);
+/// - `range_gaussian(a, b)` is `a`.
+#[derive(Clone, Debug, Default)]
+pub struct MirrorRandom {
+    next_id: u32,
+}
+
+/// The first fire ID a [`MirrorRandom`] gives.
+pub const MIRROR_FIRST_ID: u32 = 0x8000_0001;
+
+impl DisasterRandom for MirrorRandom {
+    fn raw_u32(&mut self) -> u32 {
+        let id = MIRROR_FIRST_ID.wrapping_add(self.next_id);
+        self.next_id = self.next_id.wrapping_add(1);
+        id
+    }
+    fn uniform_u32(&mut self, _n: u32) -> u32 {
+        0
+    }
+    fn uniform_f64(&mut self) -> f64 {
+        1.0
+    }
+    fn range_f64(&mut self, _a: f64, b: f64) -> f64 {
+        b
+    }
+    fn range_gaussian(&mut self, a: f64, _b: f64) -> f64 {
+        a
+    }
+}
+
 /// A seed source that never reads a clock: FreeCity4 derives every seed
 /// from the session seed (foundations §6.3), and a zero multiplicative
 /// state falls back to the same derived seed.
