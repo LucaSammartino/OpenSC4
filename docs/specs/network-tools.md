@@ -245,7 +245,7 @@ reaches it through §3.
    4. `DoAdditionalDraws`;
    5. `IdentifyHighwayIntersections` (failure `0xF0000005`);
    6. `BuildSetOfCellsToBeSolved` (`0x006355C0`);
-   7. `ResolveOneWayConflicts` (type 10 only);
+   7. `ResolveOneWayConflicts` (`0x0063A640`, type 10 only; network-rules.md §6.5);
    8. `MarkNeighborConnections` (`0x00626EB0`);
    9. `SolveNetwork` (`0x00635CB0`, failure `0xF0000007`);
    10. up to 4 tries of `SmoothenNetwork` (`0x00637A80`, failure `0xF0000006`), each followed by

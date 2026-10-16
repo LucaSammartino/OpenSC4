@@ -4493,14 +4493,46 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
 
 Spec: [network-rules.md](network-rules.md) §14. RE-side follow-ups; nothing here blocks an implementer of §2–§10.
 
-- **NR1:** the texture an ordinary piece id selects, and how the orientation byte turns it (network-rules.md §11).
-  [not specified]
-- **NR2:** the placement of intersection models (`InsertHighwayIntersectionPiece(s)`, `0x006276D0`, `0x0062C4B0`),
+- ~~**NR1:** the texture an ordinary piece id selects, and how the orientation byte turns it (network-rules.md §11).
+  [not specified]~~ **ANSWERED 2026-10-16 (re-answers24), simulation part:** the piece id (or an intersection
+  piece's path override) also selects the occupant's **path info**: `GetPathInfo` (network occupant slot 49,
+  `0x0061B510`) maps it with `MapPath`, loads the path resource `{0x296678F7, 0x69668828 or 0xA966883F, id}` and
+  makes the occupant's transformed copy, which is where the orientation turns the paths (network-rules.md §11.1). The
+  texture an ordinary piece id selects is drawing only and is left to the renderer specs. The path-info internals are
+  filed as NR6.
+- ~~**NR2:** the placement of intersection models (`InsertHighwayIntersectionPiece(s)`, `0x006276D0`, `0x0062C4B0`),
   the rule's tile grid and map, `AutoTileBase`, `AutoPathBase` and the constraint layout's consumer (§10.3).
-  [not specified]
-- **NR3:** the exact `AddTypes` ring links (§10.8). [inferred: a second circular list through `+0xF4`/`+0xF8`]
-- **NR4:** `ResolveOneWayConflicts` and the preview's `SolveMultiTypeSeparation` (`0x00633FA0`). [not specified]
-- **NR5:** the order of several `[RuleOverrides]` patterns with the same first id (§9.1). [file order, inferred]
+  [not specified]~~ **ANSWERED 2026-10-16 (re-answers24):** specified in network-rules.md §10.3 (the tile codes, a
+  byte `row × 16 + col + 1`, and the map values `col × 0x100 + row × 0x10`) and §10.9 (each occupied cell gets piece
+  `AutoTileBase + tile`, path override `AutoPathBase + tile` when `AutoPathBase` is set, the prebuilt-model class,
+  group `0xA8434037`, the flags and the anchor). The constraint layout's consumer is `InsertIntersectionConstraints`
+  (`0x00644710`) in the smoothing loop, height geometry; the codes' meaning is filed as NR7.
+- ~~**NR3:** the exact `AddTypes` ring links (§10.8). [inferred: a second circular list through `+0xF4`/`+0xF8`]~~
+  **ANSWERED 2026-10-16 (re-answers24):** the shape MATCHES: `+0xF4`/`+0xF8` form a second circular list of rule
+  ids (the type ring). The spec's premise that `AddTypes` is read only without a `RotationRing` **DIFFERS**: every
+  line is tested on its own (`RotationRing` first, then `AddTypes`, case-insensitively), so both may share a section.
+  An `AddTypes` line forms its own rotation ring, and its k-th known rule enters the type ring of the k-th rule of
+  the previous `RotationRing`/`AddTypes` line of the file, right after it (a file-wide cursor). network-rules.md
+  §10.8, test 27.
+- ~~**NR4:** `ResolveOneWayConflicts` and the preview's `SolveMultiTypeSeparation` (`0x00633FA0`). [not
+  specified]~~ **ANSWERED 2026-10-16 (re-answers24):** network-rules.md §6.5 (the flow codes of `+0x50`, the codes
+  `AssignEdgeMajorTypes` writes for the one-way tool, the propagation from the run's first and last steps into the
+  existing one-way roads, and the per-cell conflict sweep, with a quirk: the sweep queues the current key instead of
+  the neighbour's) and §8.3 (`SolveMultiTypeSeparation` returns the first evaluator's self-targeting output for one
+  cell; it only draws and changes no state). Tests 26 and 29.
+- ~~**NR5:** the order of several `[RuleOverrides]` patterns with the same first id (§9.1). [file order,
+  inferred]~~ **ANSWERED 2026-10-16 (re-answers24):** file order MATCHES. `cRZIniFile::EnumEntries` (`0x0091D91C`)
+  keeps every line, repeated keys included, in file order; the multimap insertion (`0x0063C920`) puts an equal `idA`
+  after the existing entries; `PatchTilePair` walks the equal range forward, so the first matching line wins.
+  network-rules.md §9.1, test 25.
+- **NR6:** the path resource (`{0x296678F7, 0x69668828 or 0xA966883F, MapPath(id)}`, interface `0xA9667793`): its
+  file format, and what path-info slots 25 `CreateTransformedCopy`, 26 `RemoveWrongWayPaths`, 27
+  `InitializeNetworkConnectionBitmap`, 29 `OffsetAndScissor` and 40 `VerifyPathEdges` do; also who writes the
+  override offset `+0x168`/`+0x16C` that slot 29 receives (network-rules.md §11.1). [not specified; the traffic
+  rebuild borrows the original's path infos]
+- **NR7:** the constraint layout's codes 1–8 as `InsertIntersectionConstraints` (`0x00644710`) applies them: which
+  vertex heights each code makes equal and which slope limits it sets (network-rules.md §10.3; network-geometry.md
+  §9.4 step 4). [not specified]
 
 ## From the traffic glue, phase 2: the traffic shadow (filed by the coordinator from the `traffic2` lane's report, 2026-10-15)
 
@@ -4958,19 +4990,39 @@ cores14c implemented network-manager.md as a Rust core (`engine/core/src/network
 `fc4_netlot`, ABI 66) and conformance vectors (`nm16_*`, `nm00_*`). There is no plugin glue yet, so none of these
 readings has been checked in game. The current choice is in brackets.
 
-- **NM6:** §4.1, Read of component 53: "any failed ref read returns false at once". Does a null reference in the
+- ~~**NM6:** §4.1, Read of component 53: "any failed ref read returns false at once". Does a null reference in the
   saved list count as a failed read, or is it appended as a null entry? [a null reference is appended as a null entry
   and counts as read; a reference that does not resolve fails the read at once, and the entries appended so far stay.
-  Core `manager.rs` read_record, vector `nm16_01`]
-- **NM7:** §7.10, the retrofit at PostCityInit: when the list is emptied (`0x00611A20`), is each entry released? Is
+  Core `manager.rs` read_record, vector `nm16_01`]~~ **ANSWERED 2026-10-16 (re-answers24):** MATCHES
+  (network-manager.md §4.1). The ref helper (`0x005D96C0`) returns true with a null pointer for object ID 0
+  (`0x005D96F2`–`0x005D9713`), and Read appends it (`0x0061252D`–`0x00612544`). An unresolved reference, or one that
+  fails the QI to `0xA821EF94`, makes the helper return false and Read returns false at once (`0x0061252B`), with
+  nothing released or removed.
+- ~~**NM7:** §7.10, the retrofit at PostCityInit: when the list is emptied (`0x00611A20`), is each entry released? Is
   the list emptied even when no entry still asks for a retrofit? [every entry still asking goes to the host's retrofit
-  callback, then the list is always emptied and every entry released once (the reference taken at slot 23)]
-- **NM8:** §8.2, §8.4, §8.7: zone and wealth values outside the tables (zone outside 0..15, wealth outside 0..3, for
+  callback, then the list is always emptied and every entry released once (the reference taken at slot 23)]~~
+  **ANSWERED 2026-10-16 (re-answers24):** MATCHES (network-manager.md §7.10). The release is in the walk, not in
+  `0x00611A20`: each entry is released once right after its `CheckForRetrofit` test (`0x00612DB3`, also on the false
+  branch from `0x006128E0`), and `0x00611A20` then frees the nodes without releasing. An empty list returns at once
+  (`0x0061283A`). The net effect is the bracket's.
+- ~~**NM8:** §8.2, §8.4, §8.7: zone and wealth values outside the tables (zone outside 0..15, wealth outside 0..3, for
   example from a corrupt zone grid). [a neighbour zone outside 0..15 never wins in GetZoneTypeForNetwork;
-  IsLotCompatible fails for such a zone or wealth; the road style tables give such a zone the "every other zone" rows]
-- **NM9:** §7.6, the underground refit: step 2 has no "if any" test, unlike §7.2. When dirty is not empty but holds no
+  IsLotCompatible fails for such a zone or wealth; the road style tables give such a zone the "every other zone" rows]~~
+  **ANSWERED 2026-10-16 (re-answers24):** no defined original behaviour; the choices are **confirmed** as *[choice]*
+  (network-manager.md §8.2, §8.4, §8.7). None of the three has a range check. GetZoneTypeForNetwork indexes the
+  priority table with the signed neighbour value (`0x0060D0E7`–`0x0060D0F9`) and reads the neighbouring read-only
+  tables: most such values never win, but some do (28 reads 0, 92 reads −1, −4 reads 2); an out-of-range own-cell
+  value is returned as it is. IsLotCompatible reads bit vectors whose unused bits the constructor never initialises
+  (`0x00477E70` grows them bit by bit), and beyond 31 or below 0 reads heap memory. Road style reads past `T` and `V`
+  (`0x0060F5AE`, `0x0060F5DA`). Only a corrupt zone grid reaches any of this (wealth comes from §8.3, which clamps).
+  For `V`, the "every other zone" row is taken to be the zones 10–13 row, `1 1 1`.
+- ~~**NM9:** §7.6, the underground refit: step 2 has no "if any" test, unlike §7.2. When dirty is not empty but holds no
   pipe (or no subway), are tool 4 (or 7) Init, UpdateUndergroundOccupantTerrainHeights and Shutdown still called with
-  an empty list? [yes: both kinds always run when dirty is not empty (vector `nm16_10`)]
+  an empty list? [yes: both kinds always run when dirty is not empty (vector `nm16_10`)]~~ **ANSWERED 2026-10-16
+  (re-answers24):** **DIFFERS** (network-manager.md §7.6). Each kind runs only when its occupant list is not empty:
+  pipes at `0x00613E53`–`0x00613E59`, subways at `0x00613E9B`–`0x00613EA1`. A kind with no occupant in `dirty` gets no
+  `GetNetworkTool`, `Init`, `UpdateUndergroundOccupantTerrainHeights` or `Shutdown`. Also: a failed query (occupant
+  manager slot 40 returning false) skips the split and both kinds. Vector `nm16_10` needs updating.
 
 ## From the disaster layer glue (filed by the coordinator from the `glue13` lane's report, 2026-10-16; merged `e7386b0`)
 
@@ -5059,3 +5111,33 @@ TU4-TU5 (tutorial.md already has TU3).
   destroyed without running Shutdown or closing the window *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS**: it destroys the object, it does not just mark it. Release (`0x00449310` → `0x0090D997`) works on the reference-count sub-object at +0x14 (count at **+0x18**, not +0x14); at the last reference it calls the scalar deleting destructor (`0x0043F6C0` → `0x0043F780`, flag 1), which runs `0x0043F6E0` and frees the 0x44-byte object. The destructor releases the window (+0x40) **once** without closing it (`0x0043F70F`–`0x0043F718`), frees the vector buffer at +0x34, releases the Lua context (+0x30), runs the sub-object's base destructor (`0x0090D990`) and clears the global instance pointer `0x00B20E88` (`0x0043F746`). "Without running Shutdown or closing the window" MATCHES: no unsubscription, no cheat unregistration. A window that is still open keeps one of its two references (leak, *[quirk]*). tutorial.md §1.
 - ~~**TU5:** (tutorial.md §4.3, "Shutdown undoes both") what exactly does Shutdown undo? [unsubscribes the three
   messages and, when a cheat manager exists, unregisters the cheat and its handler *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS**: the bracket misses the window. Shutdown (`0x0043F330`) does, in order: (1) when the cheat manager `0x00B43CAC` exists (no `cISC4App` slot 21 test, unlike Init): slot 6 with (handler +8, 0), then slot 4 with `0x6A382BAF`; (2) when a window exists (+0x40): close (`0x00442C80`), release, clear +0x40, release again, the same window teardown as endTutorial; (3) when the message server `0x00B43CCC` exists: unsubscribe `0xAA3840E6`, `0xEA8AE29A`, `0x26C63343`; returns true. Is-tutorial, end-pending, the registry and the 3D view are not touched. tutorial.md §4.3, test 7.
+
+## From the return-channel audit (filed by the coordinator from the `voidbool` lane's report, 2026-10-16; merged `2501158`)
+
+voidbool checked every place `engine/plugin` reads a game method's return value against that slot's `ret` column in
+`docs/abi/interfaces.tsv` and the specs, fixed 10 call sites in 7 groups (F1-F7, each marked `[abi-ret]`) and added
+the checker `engine/tests/check_ret_channels.py` (ctest `ret_channel_check`). Its `SPEC_FACTS` table marks each slot
+bool, none, wide or spec-silent (`sdk`); the uses it trusts without a spec answer are listed by `--verbose` and asked
+below. When a spec answers one, move its `SPEC_FACTS` entry from "sdk" to "bool" or "none" and fix any call the checker
+then flags. The current reading is in brackets.
+
+- **HG2:** cISC4App (`vt:cSC4App::vftable_3`) return channels are in no spec: slot 10 RequestQuit (the autotest falls
+  back to AutotestFinish when it reads false), slot 13 LoadCity, slots 15/16 SaveCity, slot 21
+  GetDebugFunctionalityEnabled (it gates the cheat-code registration in `cFC4Budget.cpp` and `cFC4Simulator.cpp`).
+  Does each set AL/EAX, and with what meaning? [SDK bool trusted; LoadCity and SaveCity only logged; a garbage
+  RequestQuit true is covered by the 90 s quit grace]
+- **HG3:** framework slots read as bool with no spec: `vt:cGZCOM` slot 3 GetClassObject (every site also tests the out
+  pointer), cIGZPersistResourceManager slots 4 GetPrivateResource and 14, cIGZDate slots 4 SetDayNumber and 6
+  SetMonthDayYear (passed through by cFC4Date / cFC4Simulator), cIGZVariant slot 54 CreateValString, cIGZWin slot 36
+  GetChildAs. Is each a real bool? [SDK bool trusted]
+- **LD33:** (lot-developer.md §6.6) cSC4LotBaseTextureOccupant slot 9 UpdateVertexAltitudes(bool, bool, ptr): what does
+  it return? §6.6 passes it through as slot 45's AL. [passed through unchanged, as the original does]
+- **LD34:** lot-developer.md §11.1 gives slot 8 AbandonBuilding as "AL of SetState", and lot-records.md §13.2 gives lot
+  slot 34 SetState as "none defined". So is AbandonBuilding's result undefined? tract-developer.md's interface table
+  lists it as plain AL. [passed through; the tract core never reads it]
+- **ZG41:** lot manager slot 24 DeleteLot is "EAX undefined; error: no bool result" in zones.md §8.6 and §11.3, but
+  lot-developer.md (cross-reference table near line 1659) and tract-developer.md's interface table (line 1164) list it
+  as AL. Those two tables should be corrected. [our hosts ignore it and return true (F3)]
+- **ZG42:** (tract-developer.md, the lane's "Q8") the tract-developer.md interface table gives lot configuration manager
+  slots 18/19 (Register/UnregisterLotConfigurationFilter) as AL, but prop-lotconfig.md §B7 gives "—" (no defined
+  return). Which is right? [no defined return; the result is not tested (F6)]
