@@ -161,8 +161,10 @@ pub trait BudgetHost {
     fn set_history_queue_length(&self, series: u32, length: u32);
     /// Starts disaster `id` at (x, z) if it exists; false otherwise.
     fn try_start_disaster(&self, id: u32, x: f32, z: f32) -> bool;
-    /// Seed for the budget's `cRZRandomSuper` (foundations §6.2: wall clock).
-    fn rng_seed(&self) -> u32;
+    /// The session seed `S` (foundations §6.3 *[choice]*). The budget's
+    /// file-local `cRZRandomSuper` (§6.2: wall clock XOR `0x6C09C3D7`) is
+    /// seeded with `derive(0x6C09C3D7)` of it.
+    fn session_seed(&self) -> u32;
 
     // ---- strings ----
     fn ltext(&self, group: u32, instance: u32) -> Vec<u8>;

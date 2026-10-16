@@ -21,9 +21,11 @@
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "cFC4ZoneManager.h"
+#include "compat/FC4Compat.h"
 
 #include "SC4CellRegion.h"
 #include "SC4Point.h"
@@ -87,8 +89,8 @@ uint32_t SessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 template <class T>
@@ -234,7 +236,7 @@ cFC4ZoneDeveloper::cFC4ZoneDeveloper() {
     RefreshSnapshot();
     fc4::Log("cFC4ZoneDeveloper(%p) created, core %p, session seed 0x%08X (%s); lots from the game's lot pool "
              "(§8.5.1)",
-             static_cast<void*>(Primary()), static_cast<void*>(core_), seed_, seedFixed_ ? "zonedev_seed" : "cRZTime");
+             static_cast<void*>(Primary()), static_cast<void*>(core_), seed_, seedFixed_ ? "zonedev_seed" : "session seed");
 }
 
 // The core over this object's table (the test seam's callbacks answer first,
@@ -310,6 +312,24 @@ cFC4ZoneDeveloper* cFC4ZoneDeveloper::FromAny(const void* p) {
         }
     }
     return nullptr;
+}
+
+const void* cFC4ZoneDeveloper::SafeIteratorListObject(const void* lotManager, const char** why) {
+    const char* reason = nullptr;
+    const void* list = nullptr;
+    const fc4::compat::ExecutableVersion* v = fc4::compat::IdentifiedVersion();
+    if (lotManager == nullptr) {
+        reason = "no lot manager";
+    } else if (v == nullptr) {
+        reason = "executable not identified";
+    } else {
+        const cFC4ZoneDeveloper* ours = FromAny(lotManager);
+        list = fc4::safelots::ExpectedListObject(lotManager, v->imageBase, v->sizeOfImage,
+                                                 ours != nullptr ? ours->MasterListObject() : nullptr);
+        if (list == nullptr) reason = "the lot manager is neither the original nor FreeCity4's";
+    }
+    if (why != nullptr) *why = reason;
+    return list;
 }
 
 void cFC4ZoneDeveloper::SetTestHooks(const fc4_zonedev_host* test) {

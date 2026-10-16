@@ -22,6 +22,7 @@
 #include "FC4GameMap.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4RouteDeque.h"
@@ -129,7 +130,6 @@ constexpr uint32_t kTripCapacityProperty = 0x8A0B4100;
 constexpr uint32_t kMaxTrips = 1u << 16;          // one source's trip list
 constexpr size_t kMaxRouteBytes = 1u << 20;       // one compressed route
 constexpr uint32_t kMaxListNodes = 1u << 16;      // the ferry lists of slots 30 and 31
-constexpr uintptr_t kLotListObjectOffset = 0x5C;  // the original lot manager's list object (FC4BudgetHost.cpp)
 constexpr uint32_t kMaxRegisteredIterators = 4096;
 
 fc4::TrafficContext* Ctx(void* u) { return static_cast<fc4::TrafficContext*>(u); }
@@ -287,8 +287,8 @@ uint32_t SessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 // ---- framework (§1, §5) ------------------------------------------------------------------------------
@@ -698,16 +698,11 @@ bool MasterLots(cFC4ISC4LotManager* lm, std::vector<uint64_t>& out) {
     }
     // §9.1 TG10: the master list is the only order, also with FreeCity4's
     // lot manager (enable = zonedev), which mirrors it in the original's raw
-    // layout and hands out the same safe lot iterators (slot 15).
-    const void* expectedList = reinterpret_cast<const char*>(lm) + kLotListObjectOffset;
-    const uintptr_t vtable = *reinterpret_cast<const uintptr_t*>(lm);
-    if (vtable < v->imageBase || vtable - v->imageBase >= v->sizeOfImage) {
-        const cFC4ZoneDeveloper* ours = cFC4ZoneDeveloper::FromAny(lm);
-        if (ours == nullptr || ours->MasterListObject() == nullptr) {
-            return MasterRefused("the lot manager is neither the original nor FreeCity4's");
-        }
-        expectedList = ours->MasterListObject();
-    }
+    // layout and hands out the same safe lot iterators (slot 15); the list
+    // object is the original's (+0x5C) or ours (SafeIteratorListObject).
+    const char* why = nullptr;
+    const void* expectedList = cFC4ZoneDeveloper::SafeIteratorListObject(lm, &why);
+    if (expectedList == nullptr) return MasterRefused(why);
     const int32_t lotCount = lm->GetLotCount();  // slot 16
     if (lotCount < 0) return MasterRefused("negative GetLotCount");
     auto* block = reinterpret_cast<fc4::safelots::Block*>(lm->GetSafeLotIterator());  // slot 15
@@ -1859,7 +1854,7 @@ cFC4TrafficSimulator::cFC4TrafficSimulator() {
     }
     RefreshSnapshot();
     fc4::Log("cFC4TrafficSimulator(%p) created, core %p, session seed %u (%s)", static_cast<void*>(Primary()),
-             static_cast<void*>(core_), seed_, seedFixed_ ? "traffic_seed" : "the clock");
+             static_cast<void*>(core_), seed_, seedFixed_ ? "traffic_seed" : "session seed");
 }
 
 cFC4TrafficSimulator::~cFC4TrafficSimulator() {

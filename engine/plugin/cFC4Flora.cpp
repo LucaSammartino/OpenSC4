@@ -21,6 +21,7 @@
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -936,7 +937,6 @@ Census TakeCensus(cISC4OccupantManager* om) {
     return c;
 }
 
-uint32_t WallClockSeed() { return static_cast<uint32_t>(GetTickCount64() ^ GetCurrentProcessId()); }
 
 }  // namespace
 
@@ -1074,10 +1074,9 @@ cFC4FloraSimulator::cFC4FloraSimulator() {
     fc4_flora_registry* reg = fc4::FloraRegistry();
     {
         std::lock_guard<std::recursive_mutex> g(fc4::FloraLock());
-        // Seed(0xFFFFFFFF) (§3.1, §8, foundations §6.1): the wall-clock and
-        // process-clock values.
-        core_ = reg ? fc4_flora_create(&host_, reg, SelfToken(), WallClockSeed(), static_cast<uint32_t>(GetTickCount()))
-                    : nullptr;
+        // Seed(0xFFFFFFFF) in the original (§3.1, §8); ours takes derive(S,
+        // GZCLSID) of the session seed (foundations §6.3, FC4Seed.h).
+        core_ = reg ? fc4_flora_create(&host_, reg, SelfToken(), fc4::SessionSeed()) : nullptr;
     }
     if (core_ == nullptr) fc4::Log("cFC4FloraSimulator: core creation failed");
     fc4::Log("cFC4FloraSimulator(%p) created, core %p, registry %p", static_cast<void*>(this),

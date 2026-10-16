@@ -20,6 +20,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "FC4TractInterfaces.h"
@@ -83,8 +84,8 @@ uint32_t SessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 struct StaticsHolder {
@@ -205,7 +206,7 @@ cFC4LotDeveloper::cFC4LotDeveloper() {
         g_instances.push_back(this);
     }
     fc4::Log("cFC4LotDeveloper(%p) created, core %p, session seed 0x%08X (%s)%s", static_cast<void*>(Primary()),
-             static_cast<void*>(core_), seed_, seedFixed_ ? "lotdev_seed" : "cRZTime",
+             static_cast<void*>(core_), seed_, seedFixed_ ? "lotdev_seed" : "session seed",
              ctx_.lotLog ? ", lotdev_lot_log on" : "");
 }
 

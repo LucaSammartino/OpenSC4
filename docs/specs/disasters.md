@@ -35,7 +35,7 @@ coverage grids), [weather.md](weather.md) (wind), [INVENTORY.md](INVENTORY.md) (
 
   The budget's RiskyMoney earthquake (budget.md §4.3) is a fifth. An unattended run of a grown city therefore sees
   emergency pauses, and the harness must expect them. The layer's disable counter (§2.3) does **not** stop any of
-  these sources. To avoid the pauses, a test city needs fire
+  these sources; nothing in the game reads it. To avoid the pauses, a test city needs fire
   coverage above 50 everywhere flammable, police coverage, and water funding of at least 50 %.
 - **Disasters run on the wall clock, not on game days** *[compat]*. The fire advances once per **1000 ms of real
   time** through its own timer and the animation tick. The riot advances once per real second. The earthquake,
@@ -120,8 +120,21 @@ counter does not go below 0. Then it returns `DisastersEnabled()`, which is `cou
 The layer itself never reads the counter, and no manager's entry point reads it. **None of the simulation-side
 starters reads it either**: flammability, crime, aura (it calls the riot manager directly),
 plumbing and the budget call the managers without asking. Disabling disasters therefore does not stop spontaneous
-fires, arson, riots, pipe bursts or RiskyMoney earthquakes *[inferred: no read of slot 6 on those paths]*. Who
-reads the counter is open (§17 Q5; presumably the disaster menu and the game-options switch).
+fires, arson, riots, pipe bursts or RiskyMoney earthquakes.
+
+**Who uses the counter** (answers Q5). Nobody reads it. The only callers of `EnableDisasters` in the executable are
+the player-drive input control (U-Drive-It): `EnterDrivingMode` (`0x00565160`) calls `EnableDisasters(false)`
+(`0x00565189`) when it is given a vehicle, and `EndInput` (`0x005650E0`) calls `EnableDisasters(true)`
+(`0x0056514E`) every time, both through the city's disaster layer (city slot 72) and both ignoring the result.
+`DisastersEnabled` (slot 6) is called only from inside `EnableDisasters` itself (`0x005773E2`). Evidence: a scan of
+every call through city slot 72 in the executable (119 sites) and of every use of the cached layer pointer
+`0x00B43D3C` and of the layer pointers kept by the effect and toxic instances; no other site calls slot 5 or 6 of the
+layer, the disaster menu (`cSC4View3DWin::InvokeDisaster` `0x007E9DB0`) does not ask, and no string or Lua name in
+the executable mentions enabling disasters. The counter is cleared by `Init` (`0x00578E86`) and is not saved.
+
+So the counter only records that the player is driving, and has no effect *[compat]*: disasters, the disaster menu
+and the emergency pauses all go on during a mission. A replacement keeps the slots and the nesting (test 6) and
+makes nothing depend on them. (If `EndInput` runs without a matching `EnterDrivingMode`, the counter stays at 0.)
 
 ### 2.4 Begin and end *[compat]*
 
@@ -1135,8 +1148,10 @@ are in `docs/abi/interfaces.tsv`. The proposed rows for the fire instance's inte
   when the riot manager's list becomes empty or the riot manager shuts down. network-manager.md §10.
   **Corrected 2026-10-15 (re-answers14):** an ended riot stays in its manager's list (§6.7), so in practice the
   locks are released only at the riot manager's `Shutdown`, when the city closes.
-- **Q5.** Which callers read `DisastersEnabled` (slot 6) or call `EnableDisasters` (slot 5)? No simulation-side
-  caller was found (§2.3).
+- ~~**Q5.** Which callers read `DisastersEnabled` (slot 6) or call `EnableDisasters` (slot 5)? No simulation-side
+  caller was found (§2.3).~~ **ANSWERED 2026-10-16 (re-answers19):** only the player-drive input control calls
+  `EnableDisasters`: false on entering driving mode (`0x00565189`), true at `EndInput` (`0x0056514E`). Nothing
+  outside `EnableDisasters` reads `DisastersEnabled`; the counter has no effect (§2.3).
 
 The cores13 implementers' questions Q6–Q25 (QUESTIONS.md DS1–DS20) and DS21–DS24, all answered 2026-10-15
 (re-answers14):

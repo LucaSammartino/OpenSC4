@@ -141,7 +141,7 @@ pub struct fc4_plumbing_host {
     pub position_to_cell: Option<unsafe extern "C" fn(U, f32, f32, *mut i32, *mut i32)>,
     /// A NEW fc4_props (the core destroys it), NULL if the exemplar is missing.
     pub tuning: Option<unsafe extern "C" fn(U) -> *mut fc4_props>,
-    pub wall_clock_seed: Option<unsafe extern "C" fn(U) -> u32>,
+    pub session_seed: Option<unsafe extern "C" fn(U) -> u32>,
     // simulator, messages, history
     pub add_agent: Option<unsafe extern "C" fn(U, u32, *const c_char, usize, u32)>,
     pub remove_agent: Option<unsafe extern "C" fn(U)>,
@@ -275,8 +275,8 @@ impl PlumbingHost for CHost {
         // SAFETY: the host hands over a NEW fc4_props (or NULL).
         unsafe { take_props(p) }
     }
-    fn wall_clock_seed(&self) -> u32 {
-        cb!(self, wall_clock_seed, 0)
+    fn session_seed(&self) -> u32 {
+        cb!(self, session_seed, 0)
     }
     fn add_agent(&self, level: u32, name: &str, flags: u32) {
         cb!(

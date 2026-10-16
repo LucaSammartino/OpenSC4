@@ -31,12 +31,14 @@
 #include "FC4Interfaces.h"
 #include "FC4Properties.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "FC4TestSeam.h"
 #include "cFC4Budget.h"
 #include "cFC4Message2Standard.h"
 #include "FC4BudgetShadow.h"
+#include "cFC4ZoneDeveloper.h"
 
 #include "GZServPtrs.h"
 #include "SC4List.h"
@@ -366,10 +368,6 @@ const char* g_lastLotWalk = "none";
 // a caller's walk); a longer iterator ring is not trusted.
 constexpr uint32_t kMaxRegisteredIterators = 4096;
 
-// [abi] Lot manager slot 15 moves to the lot list object at this + 0x5C
-// (aura.md §6.5); the block's list object must be exactly that.
-constexpr uintptr_t kLotListObjectOffset = 0x5C;
-
 struct MasterCopy {
     safelots::Block* block;
     const void* expectedList;
@@ -419,7 +417,10 @@ void MasterRefused(long scan, const char* why) {
 // (budget.md §5.2 BQ1: the same lots as the rect query; BQ3: the float32
 // running total matches only in this order). Only on the identified
 // executable (allocators B and C) and only for the original lot manager (its
-// vtable in the executable's image): a replacement's slot 15 is never asked.
+// vtable in the executable's image; the block's list object must be lm +
+// 0x5C, aura.md §6.5) or FreeCity4's (enable = zonedev: the block's list
+// object must be its MasterListObject(); cFC4ZoneDeveloper::
+// SafeIteratorListObject): any other replacement's slot 15 is never asked.
 // The whole list is checked and copied before any lot is visited; any failure
 // visits nothing and returns false, and the caller falls back. The lots are
 // borrowed: the master list holds the manager's reference, and nothing here
@@ -438,9 +439,14 @@ bool WalkMasterList(cFC4ISC4LotManager* lm, cISC4LandValueSimulator* lv, fc4_lot
         MasterRefused(scan, "executable not identified, or allocator B / C unavailable");
         return false;
     }
-    const uintptr_t vtable = *reinterpret_cast<const uintptr_t*>(lm);
-    if (vtable < v->imageBase || vtable - v->imageBase >= v->sizeOfImage) {
-        MasterRefused(scan, "the lot manager is not the original");
+    // The original lot manager's list object (+0x5C), or FreeCity4's mirror
+    // of the master list in the same raw layout (enable = zonedev; its slot 15
+    // hands out the same blocks, registered in its own iterator list, B nodes
+    // and C blocks, so the release below is the same).
+    const char* why = nullptr;
+    const void* expectedList = cFC4ZoneDeveloper::SafeIteratorListObject(lm, &why);
+    if (expectedList == nullptr) {
+        MasterRefused(scan, why);
         return false;
     }
     const int32_t lotCount = lm->GetLotCount();  // slot 16
@@ -455,7 +461,7 @@ bool WalkMasterList(cFC4ISC4LotManager* lm, cISC4LandValueSimulator* lv, fc4_lot
     }
     std::vector<void*> lots(static_cast<size_t>(lotCount) + 1);
     MasterCopy copy{block,
-                    reinterpret_cast<const char*>(lm) + kLotListObjectOffset,
+                    expectedList,
                     lots.data(),
                     static_cast<uint32_t>(lotCount),
                     0,
@@ -595,7 +601,9 @@ bool TryStartDisaster(void*, uint32_t id, float x, float z) {
     return started;
 }
 
-uint32_t RngSeed(void*) { return GetTickCount(); }  // foundations §6.2: wall clock
+// The session seed (foundations §6.3, FC4Seed.h): the RiskyMoney generator
+// takes derive(S, 0x6C09C3D7).
+uint32_t SessionSeedCb(void*) { return fc4::SessionSeed(); }
 
 bool Ltext(void*, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx) {
     if (!On(Sw::Ltext)) {
@@ -761,7 +769,7 @@ fc4_budget_host MakeHost() {
     h.record_history = &RecordHistory;
     h.set_history_queue_length = &SetHistoryQueueLength;
     h.try_start_disaster = &TryStartDisaster;
-    h.rng_seed = &RngSeed;
+    h.session_seed = &SessionSeedCb;
     h.ltext = &Ltext;
     h.building_type_name = &BuildingTypeName;
     h.get_u32s = &GetU32s;

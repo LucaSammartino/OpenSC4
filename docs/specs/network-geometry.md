@@ -140,7 +140,7 @@ Offsets from the tool object; network-tools.md §2 has the rest.
 | `+0x84` | hash set of cell keys to solve (`BuildSetOfCellsToBeSolved`) |
 | `+0x98` | vector of solved cells |
 | `+0xA4` | hash set of cell keys to **smooth** (§9.4) |
-| `+0xF0`–`+0xF4` | vector of **extra cells** (20 bytes: x, z, ?, type, ?) |
+| `+0xF0`–`+0xF4` | vector of **extra cells**, 20 bytes each: x, z (i32), an edge word (u32), a network type (i32), two bytes. Filled only by the intersection tool's auto-complete (§4.5, NG3) |
 | `+0x124` | the **network** vertex-height satisfier (§9.1) |
 | `+0x188` | the **terrain** vertex-height satisfier (§9.6) |
 | `+0x238` | the cell size (terrain slot 6; 16.0) |
@@ -156,6 +156,7 @@ Offsets from the tool object; network-tools.md §2 has the rest.
 | `+0x2C8` | p+0x38, the support height threshold |
 | `+0x2FC` | p+0x6C, vector of floats: the tunnel clearance |
 | `+0x320`, `+0x324`, `+0x328` | p+0x90, p+0x94, p+0x98: bridge cost per cell, tunnel cost per cell, earthwork cost (NT2) |
+| `+0x330` | p+0xA0, the tool's copy of the id list (§2.4); never read (NG6) |
 | `+0x354` | byte: land bridges (network-tools.md §2) |
 
 A **cell key** for the tool's own sets and cell-info lookups (`GetCellInfo`) is `(z << 16) + x`. A **vertex id** is
@@ -182,12 +183,13 @@ Type `t`'s record is at `0x00B452C8 + t × 0x114`.
 | `+0x1C`, `+0x20` | the two **widths** in cells: 2, 2 for highway, avenue and ground highway; 1, 2 for power line; 1, 1 otherwise |
 | `+0x24` | vector of tile evaluators (§8) |
 | `+0x30` | vector of bridge types (`0x178` bytes each) |
+| `+0x3C` | hash map piece id → **support structure info** (§10.2, NG6) |
 | `+0x50` | the **placement parameters** (§2.4) |
 | `+0x100` | `r24(tan(p+0x00) × 16)`: the straight **slope** rise per cell |
 | `+0x104` | `r24(+0x100 × 0.70710677)`: the diagonal slope rise |
 | `+0x108` | `r24(tan(p+0x08) × 16)`: the straight **smoothness** limit |
 | `+0x10C` | `r24(+0x108 × 0.70710677)`: the diagonal smoothness limit |
-| `+0x110` | `r24(tan(p+0x04) × 16)`; no reader found |
+| `+0x110` | `r24(tan(p+0x04) × 16)`; written only by `0x0063D460` and **never read** (NG6) |
 
 The four products are computed by `0x0063D460` right after the parameters are read, with the x87 `fptan` and the
 float constants 16.0 (`0x00A8D45C`) and 0.70710677 (`0x00AA8C50`) *[compat]*.
@@ -227,7 +229,7 @@ Fields that this spec uses (p = parameter offset; "—" = absent, default applie
 | `0x90` | `0x8A2D49EA` | bridge cost per cell (default 10) | 100 | 100 | 1000 | — | — | 1000 | — |
 | `0x94` | `0x8A2D49F0` | tunnel cost per cell (default 20) | 20 | 20 | 400 | — | — | — | — |
 | `0x98` | `0x6A2D49F4` | earthwork cost per metre (default 0.1) | 0.1 | — | — | — | — | — | — |
-| `0xA0` | `0xE974EAA7` | id list; non-empty only for highway, light rail and monorail (§9.2) | — | — | 1 id | — | — | — | — |
+| `0xA0` | `0xE974EAA7` | id list; non-empty only for highway, light rail and monorail. Only its emptiness is read (§9.2, NG6) | — | — | 1 id | — | — | — | — |
 
 The other types: light rail and monorail are like rail (slopes 25/30/25, raise 25, cell cost 50 and 100, tunnel cost
 150, clearance 7.25 and 22.4; light rail's tunnel trigger is 89); one-way and dirt road are identical to road; ground
@@ -326,7 +328,11 @@ cannot start in water.
 ### 4.4 IdentifyLandBridgeCells
 
 Runs only for types whose `+0x354` byte is set. It marks bridge steps over land. It never lowers `v`. Its internals
-are not covered here (Q-NG4).
+are not covered here (NG4).
+
+`Init` (`0x006269C0`) clears `+0x354` and then, for each bridge type of the network type (type info `+0x30`), tests
+the address of a field inside that bridge type record (`0x00626B53`). The address is never null, so **`+0x354` is
+set exactly when the type has at least one bridge type** *[quirk: the test was presumably meant to read the field]*.
 
 ### 4.5 CheckForGoodTerrain (slot 69)
 
@@ -335,8 +341,19 @@ Only if `IsStoppedByWater`; otherwise it returns true at once.
 1. For each step `i < v` of kind 0, for each of its cells: if the cell has water and is not a connection node, then
    `v := i` and stop.
 2. For each **extra cell** (`+0xF0`): continue while the cell has water and is not a connection node. At the first
-   extra cell that is dry, or is a connection node, `v := 0` *[quirk]*. The test is the reverse of step 1's. The
-   extra-cell list is empty in an ordinary drag *[inferred]* (Q-NG3).
+   extra cell that is dry, or is a connection node, `v := 0` *[quirk]*. The test is the reverse of step 1's
+   (`0x00638A50`–`0x00638A91`).
+
+**Who fills the extra-cell list** (NG3). Only `0x00629170` appends to `+0xF0`, and its only caller is the
+intersection rule's auto-complete (`cIntRule::DoAutoComplete`, `0x006097E0`, call at `0x00609962`). That runs only
+from the intersection tool (`cSC4ViewInputControlNetworkIntxTool`: `OnMouseDownL` `0x00661078`, `OnMouseMove`
+`0x00661657`). In both, the tool is reset (tool slot 5; `Reset` `0x00626F90` empties the list at `0x0062706B`), the
+rule's auto-complete appends one extra cell per missing neighbour piece of the rule, and
+`InsertIsolatedHighwayIntersection` (`0x0062CD50`) places the intersection; the tool is reset again afterwards.
+`InsertIsolatedHighwayIntersection` uses the extra cells as additional cells to place (those that are not connection
+nodes, `0x0062CFEE`) and runs `CheckForReservedTiles` (slot 68, `0x0062D25C`), but it never calls slot 69. A drag never
+has extra cells, so step 2 and its quirk cannot be reached in the shipped game. A replacement may keep the step as
+written; it has no observable effect.
 
 Bridge and tunnel steps are skipped, so their water cells pass.
 
@@ -424,13 +441,35 @@ For each step i ≥ 2 such that steps i, i−1 and i−2 are regular:
      straight count.
 2. Then `AdjustBridgeSpan` and `FindBestBridgeType`.
 3. If the span fails or no bridge type fits: `v := i` (the run is cut here, code `0xF0000003`) and stop.
-4. Otherwise, if `span > 3` and the bridge type's minimum span (bridge type `+4`) ≤ span + 1: mark the steps kind 1,
-   record the bridge, choose its elevation (`SelectBridgeElevation`), and build a **specialised** bridge if its length
-   is in the bridge type's length map (`+0x164`), else a **parametric** one.
+4. Otherwise, with `span := end − start`: if `span > 3` and the bridge type's minimum span (bridge type `+4`) ≤
+   span + 1 (`0x006329C1`–`0x006329D4`): mark steps start … end kind 1, append a bridge record to the tool's vector
+   `+0xD8` (`0x28` bytes: network type, start, end, bridge type index, the elevation value from the span selection at
+   `+0x14`, a byte at `+0x18` cleared), choose its elevation (`0x0062EA90`), then look the step count `span + 1` up in
+   the bridge type's map at **`+0x16C`** (`0x00632A68`; an earlier text said `+0x164`). Found: a **specialised**
+   bridge from the map's entry (`0x00632060`); not found: a **parametric** bridge (`0x00631300`). A span that fails
+   this test records nothing, and the loop goes on with the next step.
 
 A crooked drag across water therefore never gets a bridge, and the later terrain pass (§4.5) cuts it at the first water
-cell with `0xF0000001` *[compat]*. The span selection, the elevation and the bridge models are not specified here
-(Q-NG2).
+cell with `0xF0000001` *[compat]*.
+
+### 7.1 The bridge internals: outline for a follow-up spec (NG2)
+
+The span selection, the elevation and the two bridge models are too large for this spec. A follow-up spec ("network
+bridges") should cover, with these entry points:
+
+| Part | Address | Notes |
+|---|---|---|
+| step good for a bridge | `0x0062FDB0` | called with the tool's `+0x364` object and the step's first and last cells |
+| step edge types | `0x0062EB80` | `(step, type)`; reads the terrain (slot 34) per cell |
+| span selection | `0x00630570` | `(step, &start, &end, &bridge type index, &elevation, type)`; calls `0x0062FDB0`, `0x0062EB80`, `0x0062FED0` and `0x0062F760` (the adjust and best-type steps *[inferred]*) |
+| elevation | `0x0062EA90` | on the new bridge record |
+| specialised model | `0x00632060` | the `+0x16C` map entry's data at `+0x14` |
+| parametric model | `0x00631300` | uses the bridge type's offsets around `+0xF8`–`+0x120` |
+| pieces | `InsertBridgePieces` `0x0062F610`, `InsertBridgePiece` `0x0062EEB0`, `AddSuspendedBridgeStructures` `0x0062DF30`, `RemoveBridgePiecesFromSetOfCellsToBeSolved` `0x00638B40` | |
+| loading | `LoadBridgeTypes` `0x006437A0` (road: `"RoadBridgeExemplars"`), `ReadBridgeTypeInfo` `0x00642220`, `ReadBridgeTypeSpecializations` `0x006436D0` with the parser at `0x00643580` | the specialisations are keyed by name (hash map `0x00640E10`) |
+| occupant | `cSC4NetworkBridgeOccupant` (`0x00604BB0` onwards) | |
+
+The tool's `Init` also derives `+0x354` from the bridge types (§4.4).
 
 ---
 
@@ -439,7 +478,7 @@ cell with `0xF0000001` *[compat]*. The span selection, the elevation and the bri
 After the passes, if `v > 0`, `PlaceNetwork` pushes the world cache and runs (network-tools.md §5.1 step 5):
 
 1. **Cell infos** (slot 71, §8.1).
-2. `AssignEdgeMajorTypes`, the grouping info for wide types, `IdentifyHighwayIntersections` (`0xF0000005`),
+2. `AssignEdgeMajorTypes`, the grouping info for wide types, `IdentifyHighwayIntersections` (§8.2),
    `BuildSetOfCellsToBeSolved` (the set `+0x84`), `ResolveOneWayConflicts` (one-way road only),
    `MarkNeighborConnections`.
 3. `SolveNetwork(type, resolve)` (`0x00635CB0`), returning a valid count:
@@ -492,6 +531,30 @@ On any failure `+0x78 := 0` and the world cache is popped.
 Cells around the run (`CreatePlaceholderCellInfo`, `0x00632EF0`) get a range of ± type info `+0x84` (p+0x34, the
 new-cell tolerance). An existing occupant's info (`ComputeAndStoreCellInfo`, `0x00633030`) gets ±FLT_MAX.
 
+### 8.2 IdentifyHighwayIntersections and the rule solver: outline for a follow-up spec (NG5)
+
+**`IdentifyHighwayIntersections(v, type)`** (`0x0063B340`, pop 8; called at `0x0063BAC2`). It clears the tool's
+intersection list (`+0xCC`/`+0xD0`), then for each step `< v` and each cell of the step that has an existing occupant
+(cell info `+0x0C`): it walks the global highway-intersection rule map (`0x00B452B0`, buckets `0x00B452B4`…), and a
+rule matches when the map entry's enabled byte (entry `+0xF1`; the rule starts at entry `+8`) is set, its flag mask
+(entry `+0xEC`) meets the cell's flags (cell info `+0x08`), `cIntRule::IsWithinBounds` passes and `cIntRule::Test`
+(`0x00609A00`) returns 0. Consecutive steps with a match form one intersection: it is marked (`MarkIntersection`) at
+its first match and recorded (the `+0xCC` list and an `(x, z, value)` entry in the tool's `+0x08` vector) when a step
+without a match ends the run, or after the last step. It **returns its `v` argument unchanged on every path**
+(`0x0063B7B5`, `0x0063B7D7`). The caller sets `0xF0000005` only when the result is below `+0x78`
+(`0x0063BAC7`–`0x0063BAD0`), so **`0xF0000005` is never set** *[quirk]*.
+
+**What the follow-up spec needs to cover:**
+
+| Part | Address / resource |
+|---|---|
+| rule files | INI resources type `0x0A5BCF4B`, group `0xAA5BCF57`: instance `0x10000000` highway intersection rules (`ReadHighwayIntersectionRules` into `0x00B452B0`), `0x10000001` multi-type intersection solutions and the override matrix (copied into each type info at `+0xFC`, `0x00B453C4` with stride `0x114`), `0x10000002` the `RuleOverrides` tile conflict rules; all loaded by `ReloadRules` (`0x006253D0`), called by the first network tool `Init` of the process (`0x00626A0D`) |
+| per-type evaluators | type info `+0x24` (`LoadEvaluator`); `SolveNetwork` (`0x00635CB0`) calls each evaluator through `SolveUsingEvaluator`, which applies the network rules (`ApplyNetworkRules`) |
+| multi-type intersections | `SolveMultiTypeIntersections` (`0x00634820`), `SolveMultiTypeSeparation` (`0x00633FA0`) |
+| edge subtypes | `AssignEdgeSubtypes` (`0x006359B0`) |
+| tile subsets | `AdjustTileSubsets`, `VerifyTileSubsets` (§8 step 3.5) |
+| intersection rules | `nSC4Networks::cIntRule`: `Test` `0x00609A00`, `DoAutoComplete` `0x006097E0` (§4.5), `IsWithinBounds`; the intersection tool's `InsertIsolatedHighwayIntersection` (`0x0062CD50`) |
+
 ---
 
 ## 9. The height solver
@@ -524,9 +587,12 @@ first record.
 
 1. Propagate all constraints once. Any empty range fails.
 2. Repeat while vertices remain:
-   1. **Pick** a vertex: first any vertex that propagation has already pinned; otherwise the unsolved vertex with the
-      **narrowest** range (the first with width 0 ends the search; a negative width fails). Ties go to the first in
-      the satisfier's hash-map iteration order *[compat; see Q-NG1]*.
+   1. **Pick** a vertex (`0x0065ED80`): the unsolved vertex with the **narrowest** range, in the iteration order of
+      the unsolved set (below). A width (max − min) below 0 fails the solve (the vertex id is stored at `+0x10`); a
+      width strictly below the best so far becomes the new best, so **the first of equal widths wins**; a NaN width
+      is skipped; the scan stops as soon as the best width is exactly 0. *(The pick first pops a pending
+      (vertex, height) pair from a stack at `+0x50`, but nothing ever pushes onto that stack: the only writes are the
+      pop, the clear at `0x0065FD7F`–`0x0065FDA4` and the constructor. It is always empty.)*
    2. **Choose its height**: the preferred value, if set and inside the range. Otherwise, if a preferred range is set
       and overlaps the range (within 0.01), narrow the range to the overlap; then clamp the **initial height** into
       the range.
@@ -534,6 +600,26 @@ first record.
 3. The result is true when every vertex got a height.
 
 A failed solve dumps its constraints (debug only) and returns false.
+
+**Iteration order of the unsolved set** (answers NG1) *[compat]*. The unsolved vertices are an SGI
+`hash_map<int, …>` at `+0x28`, with the identity hash. To reproduce the tie-break exactly:
+
+- Buckets: the bucket of vertex id `k` is `k mod n`. The constructor (`0x00660810`) asks for 100 buckets, which
+  becomes **193**, the first entry ≥ 100 of the prime list at `0x00A829B0` (53, 97, 193, 389, 769, 1543, 3079,
+  6151, 12289, 24593, 49157, 98317, 196613, 393241, 786433, 1572869, 3145739, …).
+- Insert (`0x004A29B0`): first `resize(count + 1)`, then, if the id is new, the node goes to the **head** of its
+  bucket's chain.
+- Resize (`0x004F0940`): when `count + 1 > n`, `n` becomes the first prime ≥ `count + 1`; the old buckets are walked
+  from 0 upwards, each chain from its head, and every node is moved to the head of its new bucket.
+- A vertex that is picked and pinned is erased from the set (`0x00660130`).
+- `Shutdown` clears the set but keeps its bucket count (`0x008EBA60`), so `n` only grows over the life of the tool
+  (one satisfier per tool, reused by every placement).
+- Iteration (`0x004B0390`) goes through the buckets in ascending order, each chain from its head.
+
+With 193 or more buckets and vertex ids `z × (X + 1) + x`, a run's vertices mostly fall in distinct buckets, so the
+order is roughly ascending `id mod n`. Equal widths are common: every vertex whose range was never narrowed has the
+same default width, and vertices tied to the same pinned neighbour by equal slope limits often get equal windows
+*[inferred]*.
 
 ### 9.2 Slope and smoothness constraints per cell
 
@@ -649,7 +735,8 @@ occupant (`0x8A4BD52B`) is made usable (`0x10000000`) with `0x4000` cleared; eve
 
 ### 10.2 Supports (InsertNetworkOccupant, slot 72, `0x006278A0`)
 
-If the piece has support structure info (`0x00623BB0`), its **support level** is the maximum over its 4 corners of:
+If the piece has support structure info (`GetSupportStructureInfo`, `0x00625860`: a lookup of the piece id in type
+info `+0x3C`), its **support level** (`0x00623BB0`) is the maximum over its 4 corners of:
 
 | d := r24(corner − terrain altitude) | level |
 |---|---|
@@ -658,6 +745,21 @@ If the piece has support structure info (`0x00623BB0`), its **support level** is
 | d ≥ `+0x2C8` | 2 |
 
 If the level is > 0: `AddSupportStructures` (`0x00643FB0`), then set flags **`0x40000000`** and `0x8000000`.
+
+**Where the support info comes from** (answers NG6). `ReloadNetworkTypeInfo` (`0x00623310`) calls `LoadSupports`
+(`0x0063F780`) with group `0x8974F80F` for **road, one-way road, dirt road, rail, light rail, monorail and street**
+(types 0, 10, 11, 1, 8, 9, 3), and for no other type. `ReadSupportStructureInfos` (`0x0063F700`) visits every
+exemplar of type `0x6534284A` in that group and `ReadSupportStructureInfo` (`0x0063F400`) reads from each:
+
+| Property | Value |
+|---|---|
+| `0xE974EAA1` | the piece id (the map key) |
+| `0xE974EAA2` | a u32 list (the support models) |
+| `0xE974EAA3` | 4 points (x, z pairs), stored as given and rotated by 90°, 180° and 270° (`SC4GeometryUtilities::RotatePoint2D`) for the four rotations |
+
+All seven types read the same group, so they share one set of entries. Every other type (highway, avenue, ground
+highway, pipe, subway, power line) has an empty map: its pieces never get supports here, and §9.6 treats them as
+pieces without supports. The p+0xA0 list plays no part (it is read only for its emptiness, §9.2).
 
 ### 10.3 The flags (answers NM3)
 
@@ -733,8 +835,10 @@ the set for the neighbours of doomed structures. For a removed occupant:
   **re-solve** set; otherwise the cell is erased from it.
 
 The re-solve set already holds, from the closure, the cells of the removed pieces' ordinary neighbours (movable
-pieces and connection nodes). Then `SolveNetwork(−1, true)` over the re-solve set. DIFFERS from network-tools.md §10
-(corrected there).
+pieces and connection nodes). Every cell key built in this function is `(z << 16) + x`, like the tool's sets: the
+row loop shifts z (`0x0062B4E1`) and the neighbour loop builds its key from the neighbour's z and x
+(`0x0062BA9A`–`0x0062BA9D`); there is no swapped key (NG7). Then `SolveNetwork(−1, true)` over the re-solve set.
+DIFFERS from network-tools.md §10 (corrected there).
 
 ---
 
@@ -742,11 +846,11 @@ pieces and connection nodes). Then `SolveNetwork(−1, true)` over the re-solve 
 
 | Code | Set by | When |
 |---|---|---|
-| `0xF0000001` | §4.2, §4.5 | the run starts in water; a regular step crosses water (cut there); an extra cell is dry (quirk) |
+| `0xF0000001` | §4.2, §4.5 | the run starts in water; a regular step crosses water (cut there); an extra cell is dry (quirk, unreachable) |
 | `0xF0000002` | §5, network-tools.md §6 | a reserved cell (cut there); an undemolishable occupant in the way |
 | `0xF0000003` | §7 | a bridge span or bridge type could not be found (cut there) |
 | `0xF0000004` | — | never (§6.3) |
-| `0xF0000005` | `IdentifyHighwayIntersections` | an intersection cannot be built |
+| `0xF0000005` | — | never: `IdentifyHighwayIntersections` never lowers `v` (§8.2) |
 | `0xF0000006` | §9.4 | the last smoothing level's height solve failed |
 | `0xF0000007` | §8 step 3 | a cell got no piece |
 | `0xF0000008` | §9.6 | the last smoothing level solved, but the terrain cannot support it |
@@ -764,6 +868,8 @@ Any code refuses the whole run (`+0x78 := 0`), even when a pass only cut it (net
   "previous result".
 - **NT4**: §12.
 - **NT5**: this spec (§3–§9).
+- **NG1, NG3, NG6, NG7** (§17, answered 2026-10-16): §9.1, §4.5, §2.3 and §10.2, §13. **NG2, NG5** partly: §7,
+  §7.1, §8.2.
 - **NM3** (network-manager.md §15): §10.3. `0x40000` MATCHES (bridge); `0x80000` MATCHES (tunnel portal);
   `0x40000000` MATCHES (supports); `0x80000000` = draft occupant.
 
@@ -771,28 +877,38 @@ Any code refuses the whole run (`+0x78 := 0`), even when a pass only cut it (net
 
 1. The tunnel failure code `0xF0000004` is never set (§6.3).
 2. `CheckForGoodTerrain` refuses the run when an **extra** cell is dry, the reverse of its test on dragged cells
-   (§4.5).
+   (§4.5). Unreachable: only the intersection tool fills extra cells, and it never calls that check.
 3. The power-line reserved-tile walk reads an uninitialised "previous result" on its first cell (§11).
 4. The grading rectangle divides vertex ids by the Z vertex count (§9.7).
 5. A width-1 diagonal snap adds one step along the major axis (§3.2).
 6. A failed smoothing loop reports the **last** level's code, even if an earlier level failed for the other reason
    (§9.4).
+7. The highway-intersection failure code `0xF0000005` is never set (§8.2).
+8. `+0x354` (land bridges) is set for every type with a bridge type, because `Init` tests a field's address (§4.4).
+9. Type info `+0x110` is computed and never read; the p+0xA0 ids are never read, only the list's emptiness (§2.3).
+10. The satisfier's pending-pin stack (`+0x50`) is never filled (§9.1).
 
 ## 17. Open questions
 
-- **NG1.** The tie-break of the satisfier's pick is the hash-map iteration order of vertex ids (§9.1). A replacement
-  that wants identical heights on ties must reproduce the bucket order of the original hash map (SGI `hash_map<int>`
-  with the default hash). Comparing one hill crossing in both engines would show whether ties occur in practice.
-- **NG2.** The bridge internals: `IsStepGoodForBridge`, `CheckBridgeStepEdgeTypes`, `AdjustBridgeSpan`,
-  `FindBestBridgeType`, `SelectBridgeElevation` and the specialised and parametric bridge models (§7).
-- **NG3.** Who fills the extra-cell list `+0xF0`, and whether quirk 2 can be reached in play.
-- **NG4.** `IdentifyLandBridgeCells` and which types set `+0x354` (§4.4).
-- **NG5.** The rule-driven piece solver (`SolveUsingEvaluator`, `ApplyNetworkRules`, the tile subsets) and
-  `IdentifyHighwayIntersections`. A later spec.
-- **NG6.** What reads type info `+0x110` (p+0x04, 16·tan) and p+0xA0 beyond the flat-cell test (§9.2); and
-  `GetSupportStructureInfo`'s source for road, which has supports (threshold 45) but no p+0xA0 list.
-- **NG7.** The neighbour test in `DestroyOccupantsAndResolve` builds keys as `(x << 16) + z` while the tool's own sets
-  use `(z << 16) + x` (§2.1). Whether that ever mismatches was not checked.
+- ~~**NG1.** The tie-break of the satisfier's pick is the hash-map iteration order of vertex ids (§9.1).~~
+  **ANSWERED 2026-10-16 (re-answers19):** §9.1 gives the exact order (identity hash, `id mod n`, 193 initial
+  buckets, head insertion, the SGI resize and prime list, buckets never shrink) and corrects the pick: there is no
+  "already pinned first" step; the first of equal widths wins.
+- ~~**NG2.** The bridge internals (§7).~~ **PARTLY ANSWERED 2026-10-16 (re-answers19):** §7 corrects the length map
+  offset (`+0x16C`, keyed by the step count) and gives the bridge record; §7.1 is the outline and the entry points for
+  a follow-up bridge spec.
+- ~~**NG3.** Who fills the extra-cell list `+0xF0`, and whether quirk 2 can be reached in play.~~ **ANSWERED
+  2026-10-16 (re-answers19):** only the intersection tool's rule auto-complete; quirk 2 is unreachable (§4.5).
+- **NG4.** `IdentifyLandBridgeCells` (§4.4). *Partly answered 2026-10-16 (re-answers19): `+0x354` is set for every
+  type with at least one bridge type (§4.4).*
+- ~~**NG5.** The rule-driven piece solver and `IdentifyHighwayIntersections`.~~ **PARTLY ANSWERED 2026-10-16
+  (re-answers19):** `IdentifyHighwayIntersections` is described and never fails (§8.2, quirk 7); the rule solver is
+  left to a follow-up spec, outlined in §8.2.
+- ~~**NG6.** What reads type info `+0x110` and p+0xA0, and the source of road's support info.~~ **ANSWERED 2026-10-16
+  (re-answers19):** nothing reads `+0x110`; p+0xA0 is read only for its emptiness (§9.2); the support info comes
+  from the `0x8974F80F` exemplars for seven types (§10.2).
+- ~~**NG7.** The neighbour key in `DestroyOccupantsAndResolve`.~~ **ANSWERED 2026-10-16 (re-answers19):** every key
+  there is `(z << 16) + x`; no mismatch (§13).
 
 ---
 
@@ -845,3 +961,10 @@ satisfier directly.
     the rectangle; 0.002 m is written.
 21. **Smoothing code** (§9.4). A run whose height solve fails at every level reports `0xF0000006`; one that solves but
     cannot be supported at every level reports `0xF0000008`.
+22. **Satisfier tie-break** (§9.1). A fresh satisfier (193 buckets), `Init(0, 1000)`; add vertices 10, 203 and 11 in
+    that order (203 mod 193 = 10), no constraints. All widths are 1000, so the pick order is 203, 10, 11 (bucket 10
+    holds 203 before 10, head insertion; then bucket 11).
+23. **No intersection code** (§8.2). Any drag, including a highway over an existing road: `GetFailureState()` is
+    never `0xF0000005`.
+24. **Supports by type** (§10.2). Road, rail and street pieces can have support info; a highway or avenue piece never
+    has (`GetSupportStructureInfo` returns null), whatever its height.

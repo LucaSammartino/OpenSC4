@@ -11,7 +11,8 @@
 // copy of the license along with this program (see LICENSE at the repository
 // root); if not, see <https://www.gnu.org/licenses/>.
 
-// The original lot manager's master lot list, read through the safe lot
+// The lot manager's master lot list (the original's, or FreeCity4's mirror of
+// it in the same layout), read through the safe lot
 // iterator that lot manager slot 15 (GetSafeLotIterator) hands out, the way
 // the original ComputeTax walks it (budget.md §5.2, BQ1 / BQ3: the tax total
 // is a float32 running sum, so only this order matches it to the simoleon).
@@ -76,6 +77,31 @@ inline const char* StatusName(Status s) {
         case Status::TooMany: return "more nodes than GetLotCount";
     }
     return "?";
+}
+
+// [abi] The original lot manager's lot list object is at lot manager + 0x5C
+// (aura.md §6.5): its slot 15 blocks point there.
+constexpr uintptr_t kOriginalListObjectOffset = 0x5C;
+
+// The list object the blocks of `lotManager`'s slot 15 must point to for a
+// raw walk, or null when its blocks are not walked raw:
+//   - the original lot manager (its vtable, the object's first word, inside
+//     the identified executable's image [imageBase, imageBase + sizeOfImage)):
+//     lotManager + 0x5C;
+//   - otherwise `replacementList`: FreeCity4's lot manager (enable = zonedev)
+//     mirrors the master list in the original's raw layout and hands out the
+//     same blocks (cFC4ZoneDeveloper.h); the caller passes its zone
+//     developer's MasterListObject(), or null when the lot manager is not
+//     FreeCity4's (then: null, never walked).
+// A zero sizeOfImage (executable not identified) matches no vtable.
+inline const void* ExpectedListObject(const void* lotManager, uintptr_t imageBase, uint32_t sizeOfImage,
+                                      const void* replacementList) {
+    if (lotManager == nullptr) return nullptr;
+    const uintptr_t vtable = *static_cast<const uintptr_t*>(lotManager);
+    if (vtable >= imageBase && vtable - imageBase < sizeOfImage) {
+        return static_cast<const char*>(lotManager) + kOriginalListObjectOffset;
+    }
+    return replacementList;
 }
 
 // The master list's head node, or null.

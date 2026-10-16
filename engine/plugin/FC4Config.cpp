@@ -297,6 +297,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // the traffic2 lane (FC4TrafficShadow.h)
                                   "traffic_shadow", "traffic_shadow_diffs", "traffic_shadow_lines",
                                   "traffic_shadow_hypotheses",
+                                  // the seeding lane (FC4Seed.h)
+                                  "session_seed",
                                   // the glue14b lane (FC4OccMgrShadow.h)
                                   "occmgr_shadow", "occmgr_shadow_samples", "occmgr_shadow_probe"};
 
