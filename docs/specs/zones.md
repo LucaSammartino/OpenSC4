@@ -119,7 +119,9 @@ Idempotent. In order:
 map, delete the lots of the map and free it (ZG32: `0x0072B8D0`, called at `0x00733663`, walks the cell map x outer,
 z inner, and calls the manager's own `DeleteLot` (slot 24, §8.6) on every non-null cell; since `DeleteLot` nulls the
 lot's cells, each lot is deleted once, at its first cell, and the manager's reference is released **here**, not in
-the destructor), `Shutdown`/`Release` the network tools and the maximum-capacity grid,
+the destructor), `Shutdown`/`Release` the network tools (each was created for the zone developer with a reference count of 0 and
+AddRef'd once at PostCityInit, so this Release destroys it: network-manager.md §7.1, ZG39) and the maximum-capacity
+grid,
 release the services. Returns AL = 1.
 
 ---
@@ -591,7 +593,8 @@ messages are posted (§7.2), and random numbers are still **drawn** (§9) *[comp
 
 Draws the zoning preview, one highlight texture per previewed cell, through the terrain view (`+0x38`, taken at
 PostCityInit from `SL::TerrainView`, terrain slot 66). It changes no simulation state, reads no lot developer state and
-draws no random number; a headless replacement may leave it out (§14.3 Q2).
+draws no random number; a headless replacement may leave it out (§14.3 Q2). A replacement that leaves it out in the
+real game shows no zoning preview while the zone tool drags; nothing else changes (ZG40).
 
 1. `colour := zoneManager.GetZoneDragColor(currentZone)` (slot 15). `edges := currentZone ∉ {7, 8, 9}`.
 2. **Virtual lots.** For every entry of the virtual-lot map (`+0xD8`: cell `(x, z)` → `{x1, z1, facing}` of the lot
@@ -1387,9 +1390,14 @@ Maps a rect of lot cells, given in the lot's own frame, onto the frame of a lot 
 | 1 | `{in.z1, X − in.x2, in.z2, X − in.x1}` |
 | 2 | `in` (the lot's own frame is the frame of facing 2) |
 | 3 | `{Z − in.z2, in.x1, Z − in.z1, in.x2}` |
-| other | `out` is not written |
+| other | `out` is not written (unsigned compare `facing > 3` at `0x004BDFDE`, so negatives too) |
 
 This is the cell form of lot-developer.md §17.6's position table.
+
+Both callers pass a stack rect as `out` (`GetNetworkObjectPlacement` at `0x0072AD70`, never set before the call;
+`CheckConstraintTiles` at `0x0072B58F`), so a facing outside 0…3 leaves them working on whatever that stack slot
+held (ZG36). The only path in, the plop tool, passes the lot's facing
+(0…3), so this cannot happen in the game; *[choice]* FreeCity4 leaves the rect unrotated.
 
 **`GetNetworkObjectPlacement(cfg, record, const int32 origin[2], facing, &x, &z, &maskA, &maskB, &type)`**
 (`0x0072AD00`, cdecl, caller pops 36):
@@ -1398,8 +1406,11 @@ This is the cell form of lot-developer.md §17.6's position table.
    `(lx, lz) := city.PositionToCell(cx, cz)` (slot 95, floor of `p / 16`).
 3. `R := RotateLotRect(facing, sx, sz, {lx, lz, lx, lz})`; `x := origin.x + R.x1`, `z := origin.z + R.z1` (origin =
    the rect's `(x1, z1)`).
-4. From the record's extra values (`+0x28`, read without a size check): `type := v[0]`, `maskA := v[1]`, `maskB :=
-   v[2]`.
+4. From the record's extra values (`+0x28`, read without a size check, `0x0072ADB7`–`0x0072ADD0`): `type := v[0]`,
+   `maskA := v[1]`, `maskB := v[2]`. Shipped data always has them: all 41 type-7 records of `SimCity_1.dat` …
+   `SimCity_5.dat` carry 15 or 16 values, i.e. 3 or 4 extra values (ZG37). A shorter vector makes the original read
+   past its end; *[choice]* FreeCity4 reads missing values as 0. Of the constraint records, the 43 type-5 records
+   carry 0 or 1 extra value and the 17 type-6 records none, which §8.4.2's `p0` rule already covers.
 5. `q := (record orientation byte + facing) mod 4`; `maskA` and `maskB` are rotated left by `8q` bits (byte `k` moves
    to byte `(k + q) mod 4`, so an edge mask turns with the lot).
 
@@ -1553,6 +1564,14 @@ temporary list, `DeleteLot` each, release and free.
 | 27 | `GetMaximumCapacityGrid()` | the `uint16` grid of §1.2, no AddRef |
 
 Slot 18's cell is ⌊x/16⌋ except that x/16 with fraction > 0.999 rounds up (x = 15.99 → cell 1) *[quirk]*.
+
+**`cISC4City::PositionToCell(x, z, &cx, &cz)`** (city slot 95, `0x004599E0`), which §8.4.2, §8.4.3 and many other
+specs use, is an exact **floor** per axis (ZG38): `t := x × 0.0625` (the float at `0x00B07F28`), `c :=
+round-half-even(t − 0.5)` (the 1.5·2²³ idiom, `0x004599EA`–`0x00459A00`), and `c := c + 1` when `t = c + 1` exactly
+(`0x00459A0D`–`0x00459A1C`, the case of an integer `t`). For every finite `t` with |t| < 2²² this is ⌊t⌋:
+negative positions give negative cells (x = −0.1 → −1, x = −16 → −1, x = −16.1 → −2), and nothing clamps at the
+map edge. A NaN gives the bit pattern of the NaN plus `0xB4C00000`, a meaningless large value. The AL it leaves is
+not a result (LD18).
 
 ### 8.8 `cISC4ZoneDeveloper` helpers used by growth
 
