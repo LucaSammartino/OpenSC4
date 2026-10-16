@@ -1868,6 +1868,63 @@ Disaster events: `emergency_pause`, `emergency_resume`, `disable_save`, `enable_
 `volcano_end_deformation`, `lava` (`instance`, `radius`), `lava_end`, and the stub's `raw`, `u32` (`n`),
 `double`, `range` and `gaussian` (`a`, `b`), each with its `generator`.
 
+## Occupant manager ops
+
+The occupant manager vectors (`om18_…`, `om14_…`) drive `fc4_core::occupant_manager::OccupantManager`
+(`docs/specs/occupant-manager.md`) over one scripted world implementing `OccupantHost`. Every op name starts with
+`om_`. Occupants are tokens with a bounding box, a type, flags, a stored manager box and the base occupant behaviour
+of §5.6: the first `Init` posts Create (unless `quiet`, bit 1 of `+0x2E` as a loaded occupant's own `Read` sets it: then an `occupant_slot17` event), `Shutdown` of an
+initialised occupant posts Destroy, and `PostOccupantMessage` records a `post` event (a Move of a `sync` occupant is
+marked `sync: true`). References are counted per token (net). Query results are released by the runner after the
+checks (unless `keep: true`), so reference counts show only the manager's own references.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `om_create` | | a new constructed manager (not initialised, no rows), which replaces the current one |
+| `om_occupant` | `occupant`, any of `type` (default `0x100`), `min`, `max` (`[x, y, z]`), `holder` (default true), `flags`, `om_box` (`[x0, z0, x1, z1]` or null = the "no box" mark), `initialized`, `quiet`, `sync` | creates or updates an occupant |
+| `om_filter` | `filter` (a token), `exclude` (tokens) | a caller filter that includes everything else |
+| `om_trace` | `locks?`, `refs?` | also record `lock` / `unlock` (`depth`) and `add_ref` / `release` (`occupant`) events |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `om_call` | `method`, its arguments, `expect?` | one slot (below) |
+| `om_expect` | `state` (partial: `initialized`, `was_read`, `ref_count`, `destroyed`, `size`, `counts` (the four), `filter_type` (null: no shared filter), `rows`, `holders`, `nodes`) | the manager |
+| `om_expect_cell` | `cell` (`[x, z]`, world cells), `occupants` (front first) and / or `single` (bit 0 per node), or `null: true` (no holder) | a cell list |
+| `om_expect_occupant` | `occupant`, `state` (partial: `flags`, `om_box`, `initialized`) | an occupant |
+| `om_expect_refs` | `{"token": references}` | net references taken |
+| `om_write` / `om_read` / `om_expect_record` | as for the park ops; `om_expect_record` also takes `u32s` (`[{offset, values}]`, little-endian) | the record (§13) |
+| `om_expect_events` / `om_expect_event_count` / `om_clear_events` | see the shared conventions | host calls |
+
+`om_call` methods (filters: `filter` null = all, a token = a caller filter, `{"type": n}` = the shared one-type
+filter; the typed overloads take `type`):
+
+- conversions (`args`): `position_to_world_cell`, `position_to_manager_cell`, `position_to_standard_cell` (two
+  floats); `world_to_manager_cell`, `manager_to_world_cell`, `standard_to_world_cell`, `world_cell_to_position`,
+  `manager_cell_to_position`, `standard_cell_to_position`, `bounding_cells` (two ints); `world_to_standard_cell`
+  (x, z, the old z output); `query_interface` (IID → view offset 0 / 4 / 8 or null);
+- lifecycle: `set_city_size` (`args`), `init`, `shutdown`, `add_ref`, `release`, `class_id`, `cell_sizes`,
+  `world_cell_count`, `cell_count`, `cell_bounds`;
+- `insert` (`occupant`, `data4`), `remove` (`occupant`, `shutdown`, `data4`), `remove_occupants` (`filter`,
+  `shutdown`, `data4`), `remove_occupants_typed` (`type`, …), `move` (`occupant`, `post`, default true);
+- `is_cell_empty` (`args`), `find_occupant` (`occupant`, `search_all`, `xz` (the outputs' values before the call),
+  `expect_xz`);
+- first-occupant queries (result: token or null): `first_by_position` (`args` floats), `first_in_cell`,
+  `first_by_standard_cell` (`args` ints), `first_by_standard_cells` (`min?`, `max?`), each with `_typed`;
+- list queries (`expect_list`, `list` = elements already in the list, `max_count` default −1): `by_bbox` (`min?`,
+  `max?` 3-vectors), `by_cells`, `by_standard_cells` (`min?`, `max?` pairs), each with `_typed`;
+- iteration (each call records `callback` (`occupant`, `depth`); `stop_at` = occupants for which the callback
+  returns false; `actions` = `{"occupant": [om_call bodies]}` run inside that callback, failures recorded as
+  `action_error`): `iterate_by_bbox` (`min`, `max`), `iterate` (`min?`, `max?` 3-int vectors),
+  `iterate_by_standard_cells` (`min?`, `max?`), each with `_typed`.
+
+Occupant manager events: `post` (`type`, `occupant`, `data2` (flag 4), `data3` (the type), `data4`, `sync`,
+`inserted` (flag 1 when posted)), `occupant_slot17`, `callback`, `action_error`, and with `om_trace`: `lock` /
+`unlock` (`depth`), `add_ref` / `release` (`occupant`).
+
 ## Terrain ops
 
 The terrain vectors (`tr18_…` for the §18 tests, `tr00_…` for the rest) drive `fc4_core::terrain`
@@ -1955,8 +2012,8 @@ types.
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
    (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `ds18_…` and `ds00_…` (disasters §18 and the
-   rest of disasters), `tr18_…` and `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5) and `am14_…`
-   (automata §14).
+   rest of disasters), `tr18_…` and `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
+   (automata §14) and `om18_…` / `om14_…` (occupant manager §18 / §14).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -2968,6 +3025,32 @@ replays the record shapes §7 reports.
 
 The core's unit tests (`fc4_core::disasters`) also cover the lot conditions, the spread, the toast list, the damage
 assessment, re-entrant occupant removal and the default generators.
+
+## Coverage (occupant manager §18)
+
+| §18 item | Vectors |
+|---|---|
+| 1 counts | `om18_01_counts` |
+| 2 position to world cell | `om18_02_position_to_world_cell` |
+| 3 standard cell floor | `om18_03_standard_cell_floor` |
+| 4 slot 12 bug | `om18_04_slot12_bug` |
+| 5 insert cells | `om18_05_insert_cells` |
+| 6 insert and its messages | `om18_06_insert_messages` |
+| 7 insert failure | `om18_07_insert_failure` |
+| 8 newest first | `om18_08_newest_first` |
+| 9 dedup and order across cells | `om18_09_dedup_and_order` |
+| 10 strict box test | `om18_10_strict_box` |
+| 11 null max quirk | `om18_11_null_max_quirk` |
+| 12 typed type 0 | `om18_12_typed_type_zero` |
+| 13 remove order | `om18_13_remove_order` |
+| 14 RemoveOccupants order | `om18_14_remove_occupants_order` |
+| 15 move | `om18_15_move` |
+| 16 FindOccupant | `om18_16_find_occupant` |
+| 17 GetBoundingCells | `om18_17_bounding_cells` |
+| 18 iteration | `om18_18_iteration` |
+| 19 save round-trip | `om18_19_save_round_trip` |
+| 20 shutdown | `om18_20_shutdown` |
+| §14 lock regions and re-entrant callbacks | `om14_lock_regions`, `om14_reentrant_callbacks` |
 
 ## Coverage (terrain §18)
 
