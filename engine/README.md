@@ -654,6 +654,7 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      | `turbo on\|off` | our simulator's turbo clock (`sim_turbo_frame_ms`, no end date); `on` before the city's first `ConnectionsReady` is held until it (`-> turbo requested: held …`), `off` also drops a held request; no effect with `disable = simulator` |
      | `digest` | the observer's `DIGEST` line, now |
      | `mark <text>` | a log line |
+     | `disaster fire\|riot x z`, `disaster fire\|riot auto`, `disaster survey` | the disaster layer's manager (city slot 72, layer slot 7, `0x621CDA33` fire / `0xCA380B06` riot) `AttemptDisasterStart(x, z)` (manager slot 6; disasters.md §3.1, §5.5, §6.2): the original's own start path, also with the disasters shadow; `auto` takes the survey's candidates in order (a fire: until the fire count rises; a riot: the first); `survey` logs the candidate cells: buildings on a lot away from the edge with flammability above 0 and fire coverage 0, and road cells with police coverage at most 64 (no call into the layer); `-> … AttemptDisasterStart(x, z) -> instance … fires a->b active=… ongoing=…` |
      | `save [fast]` | `cISC4App::SaveCity(fast)` (`docs/abi/vtables.tsv` `cSC4App::vftable_3` slot 16, pop 4, eax-or-void; foundations.md §3.7): the current city saved in place, a full save unless `fast`, through the same app reference and exception guard as the save autotest; `-> ok=<what SaveCity returned> (SaveCity(full\|fast) in N ms)`; no city: `ok=0 (skipped: no city)` |
 
      `save_as <name>` is not available (a parse error that says so). The interface exists
@@ -672,7 +673,7 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        after it wait behind it
      script: line 7 2000-02-01 save -> ok=1 (SaveCity(full) in 412 ms)
      script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark,
-       save)
+       save, disaster)
      script: REFUSED '…\script.txt' (script setting): 1 parse error(s); no action of it runs
      ```
 
@@ -1442,7 +1443,7 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      suspended, TS65; ours never suspend) and the record fields still unmodelled (labels starting `~`, named
      one by one). The pass counters (TS59), the day index and re-route context cell (TS60), the statistics
      byte (TS61) and the return routes (TS58) are modelled and compared exactly. `traffic_shadow_hypotheses`
-     (env `FC4_TRAFFIC_SHADOW_HYPOTHESES`) is retired (ABI 67): its three readings were confirmed
+     (env `FC4_TRAFFIC_SHADOW_HYPOTHESES`) is retired (ABI 68): its three readings were confirmed
      (traffic-simulator TS55-TS57: the ConfirmTrips merge sets status 0 only on a trip that absorbed one, row
      19's pairs are (published, building) and FullTrips' end swaps them, the ReRouteTrips merge absorbs routed
      trips too) and are the core's only behaviour; the key is still accepted, ignored and logged once at game
@@ -1553,6 +1554,38 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      ```
 
      Success is `mismatches=0` on every line.
+   - **Disasters shadow** (`disasters_shadow = 1`, env `FC4_DISASTERS_SHADOW`; off by default;
+     `plugin/FC4DisasterShadow.h`, host `plugin/FC4DisasterHost.h`): a same-process differential of the disaster
+     layer, fire and riot. It needs the **original** layer (there is no `enable = disasters` yet). At the first city
+     the original's vtable entries (compat table `DisasterHook`: the layer's begin, end and location calls, the fire
+     instance's entry points and animation tick, the fire manager's `IgniteOccupant`, the riot manager's start and
+     the riot instance's tick and network lock, the tutorial's `IsTutorial`) are pointed at forwarders, each only if
+     it holds the original function; all are put back at PreAppShutdown and DLL detach. A mirror core
+     (`fc4_disasters` with the deterministic generator, `fc4_disasters_set_mirror_random`) reads the city through the
+     host and records every write instead of making it; it follows every original ignition (same arguments, after
+     the original), every fire step (counted by the tutorial reads inside the original's tick; the core's clock
+     reaches its next step exactly then), every riot start (the original's registered leaders are the core's) and
+     every riot second (real clock). Compared after each: fire count, burning targets, phase, lot conditions,
+     steps; riot phase, leaders, active count, locked network occupants (`CanRemove(2)`); the layer's ongoing count
+     and location list; at each quiet point (30 frames with nothing ongoing either side) the posts per type. Use the
+     script's `disaster` action to start a fire or a riot. Lines (always written):
+
+     ```
+     disasters shadow: ON (disasters_shadow from …): …                                         (game start)
+     disasters shadow: forwarders installed: …; NOT installed: …
+     disasters shadow: city loaded: mirror core init=1 fire instance 1, 2 tuning exemplar(s); …
+     disasters shadow fire Ignite|step N|ExtinguishCell …|BurnDown|…: orig steps=… fires orig=… ours=…
+       burning orig=… ours=… phase o/o ongoing o/o locations o/o lots=… mismatches=N[; differences: …]
+     disasters shadow riot start x,z: orig instance … ours …
+     disasters shadow riot R start|update N|removed …: phase o/o leaders o/o [cells] active o/o locked o/o
+       ongoing o/o locations o/o mismatches=N[; differences: …]
+     disasters shadow quiet: posts orig/ours …; cost …; … mismatches=N[; differences: …]
+     disasters shadow: city shutdown: N lines, M with mismatches=0 (fire a/b, riot c/d, quiet e/f); lines whose
+       every difference is a numbered question: …; differences by kind: <kind> [Qnn] count, …
+     ```
+
+     Success is `mismatches=0` on every line. A difference with a question number (`[Q37]` and so on, the glue13
+     lane report) is a known gap of the spec, not a defect of the core.
    - **Zone developer shadow** (`zonedev_shadow = 1`, env `FC4_ZONEDEV_SHADOW`; off by default;
      `plugin/FC4ZoneDevShadow.h`): a same-process differential of the lot manager. It needs the **original** zone
      developer (do not enable `zonedev`); otherwise it logs `zonedev shadow: requested … but INACTIVE`. At

@@ -4898,3 +4898,23 @@ none of these readings has been checked in game. The current choice is in bracke
   power list ([choice] per §3.2). Does the original test each list's join condition instead of looking everywhere?
 - **PV13:** a scanner state byte above 2 in the record: what does the original do? No corpus record has one. [Read
   returns false and nothing changes]
+
+## From the network manager and network lot manager cores (filed by the coordinator from the `cores14c` lane's report, 2026-10-16; merged `9dad25e`)
+
+cores14c implemented network-manager.md as a Rust core (`engine/core/src/network_manager/`), a C ABI (`fc4_netmgr`,
+`fc4_netlot`, ABI 66) and conformance vectors (`nm16_*`, `nm00_*`). There is no plugin glue yet, so none of these
+readings has been checked in game. The current choice is in brackets.
+
+- **NM6:** §4.1, Read of component 53: "any failed ref read returns false at once". Does a null reference in the
+  saved list count as a failed read, or is it appended as a null entry? [a null reference is appended as a null entry
+  and counts as read; a reference that does not resolve fails the read at once, and the entries appended so far stay.
+  Core `manager.rs` read_record, vector `nm16_01`]
+- **NM7:** §7.10, the retrofit at PostCityInit: when the list is emptied (`0x00611A20`), is each entry released? Is
+  the list emptied even when no entry still asks for a retrofit? [every entry still asking goes to the host's retrofit
+  callback, then the list is always emptied and every entry released once (the reference taken at slot 23)]
+- **NM8:** §8.2, §8.4, §8.7: zone and wealth values outside the tables (zone outside 0..15, wealth outside 0..3, for
+  example from a corrupt zone grid). [a neighbour zone outside 0..15 never wins in GetZoneTypeForNetwork;
+  IsLotCompatible fails for such a zone or wealth; the road style tables give such a zone the "every other zone" rows]
+- **NM9:** §7.6, the underground refit: step 2 has no "if any" test, unlike §7.2. When dirty is not empty but holds no
+  pipe (or no subway), are tool 4 (or 7) Init, UpdateUndergroundOccupantTerrainHeights and Shutdown still called with
+  an empty list? [yes: both kinds always run when dirty is not empty (vector `nm16_10`)]
