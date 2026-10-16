@@ -162,8 +162,18 @@ With the fence list `v` present and at least 2 values long:
    bound-checked either.
 
 `Save` writes `[n, types…, m, segment values…]` with the types from index **1** (§7), so a saved fence list reads
-back shifted by one. No shipped configuration has fences, and no simulation code was found that reads slots 29
-and 30. *[choice]* FreeCity4 may read fences either way; it must not read past the end of the list.
+back shifted by one. No shipped configuration has fences, and **nothing in the game reads the fence lists through
+slots 29 and 30** (LC1):
+- the two getters (`0x004778B0`, `0x004778C0`) are referenced only from the vtable (`0x00A8CF2C`, `0x00A8CF30`), with
+  no direct call;
+- every virtual call through `+0x74` / `+0x78` in the place-lot tool, the lot developer, the zone, tract and prop
+  developers and the BDS goes to another interface: those calls pass arguments or return a float, and slots 29/30 take
+  none and return a pointer.
+
+The only other code that touches `+0xA8` / `+0xB4` is the configuration's own `Load`/`Save` and the debug lot
+configuration editor, which edits the vectors in place (`ToggleFence` `0x0047E890`, `0x00484700`). So no fence is
+ever drawn or built from a configuration. *[choice]* FreeCity4 may read fences either way; it must not read past the
+end of the list. Keeping them only for `Save` is enough.
 
 ### 3.5 The object array
 
@@ -430,9 +440,13 @@ Proposed `docs/abi` rows (lane files under `build-runs/`): `re-specs15a-abi-rows
 
 ## 10. Open questions
 
-- **LC1:** the fence lists (slots 29, 30): no simulation reader was found and no shipped configuration has fences.
+- ~~**LC1:** the fence lists (slots 29, 30): no simulation reader was found and no shipped configuration has fences.
   A caller search of the place-lot tool and the lot developer for vtable offsets +0x74 / +0x78 on a configuration
-  would settle whether anything draws them. Low priority.
+  would settle whether anything draws them. Low priority.~~ **ANSWERED 2026-10-16 (re-answers18):** nothing draws
+  them. The getters' only references are the vtable entries `0x00A8CF2C`/`0x00A8CF30`. A scan of every
+  `call [reg+0x74]` and `call [reg+0x78]` in the exe found none on a configuration: the lot-related ones take
+  arguments or return floats. Only `Load`/`Save` and the debug configuration editor (`ToggleFence` `0x0047E890`,
+  `0x00484700`, direct field access) touch the vectors. The §3.4 choice stands. §3.4.
 
 ## 11. Conformance tests
 
