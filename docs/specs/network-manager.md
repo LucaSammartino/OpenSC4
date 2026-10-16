@@ -257,16 +257,16 @@ subway), `0x90` pipe and subway, `0xD` road, highway and street.
 | `0x4000` | when set, the occupant also calls its slot 58 (`SetTranslucency(1, 0x80)`) | — | `SetNetworkFlag` (`0x00619EC0`) |
 | `0x10000` | pipe **distressed** (leaking) | plumbing (`ApplyPipeFunding` `0x006DD110`, its `Read` `0x006DB620`) | the pipe model choice (`0x0065A880`) only |
 | `0x20000` | pipe **burst** | plumbing | the pipe model choice only |
-| `0x40000` | meaning unknown | the tools | traffic-network.md §2.2 (record flag bit 0), the power wire bits, the water display handler (§6.1) |
-| `0x80000` | meaning unknown | — | the terrain handler skips it for kind 6 (§7.6); road style skips it (§8.7) |
+| `0x40000` | the piece is on a **bridge step** (abutments included) | the tools (network-geometry.md §8.1) | traffic-network.md §2.2 (record flag bit 0), the power wire bits, the water display handler (§6.1) |
+| `0x80000` | the piece is a **tunnel portal** | the tools (network-geometry.md §8.1) | the terrain handler skips it for kind 6 (§7.6); road style skips it (§8.7); `DestroyOccupantsAndResolve` |
 | `0x100000` | part of an intersection or complex piece | the tools | `RemoveOrReplaceOccupant` (§7.4), `GetAllIntersectionPieces` (§7.9) |
 | `0x200000` | lot **connection node** | `CreateConnectionNode` (§7.7) | excluded from the traffic graph (traffic-network.md §4.2), from network lots (§8.5) and from road style |
 | `0x400000` | **immovable** (slots 17 and 18): a prebuilt-model piece the tool did not place (traffic-network.md Q3) | the prebuilt-model constructor | `JoinAcrossRail` (zones.md §5.2.2) |
 | `0x2000000`, `0x4000000` | set together by road style when an under-texture is applied (§8.7); cleared by `CreateConnectionNode` and the retrofit | | *[inferred: presentation]* |
 | `0x8000000` | set by `CreateConnectionNode` and the retrofit | | *[inferred: presentation]* |
 | `0x10000000` | **usable** (slots 19 `IsUsable` and 20 `SetUsable`) | the tools when construction ends | the network lot manager (§8.5), road style |
-| `0x40000000` | unknown | | road style skips it |
-| `0x80000000` | unknown | | the traffic simulator's subway count (traffic-network.md §3), `UpdateRoadsInCell` skips it |
+| `0x40000000` | **elevated**: the piece has support structures | `InsertNetworkOccupant` (network-geometry.md §10.2) | road style skips it |
+| `0x80000000` | a **draft** (preview) occupant | `CreateNetworkOccupant` in draft mode (network-geometry.md §10.1) | the traffic simulator's subway count (traffic-network.md §3), `UpdateRoadsInCell` skips it |
 
 **The usable message** *[compat]*. `SetNetworkFlag` (`0x00619EC0`): if the new bits contain `0x10000000`, the
 occupant did not have it, and the occupant is in the city (cISC4Occupant `GetFlags() & 1`), it posts (queued,
@@ -953,8 +953,11 @@ The tools, models, remap tables and retrofit are presentation or legacy. A FreeC
   byte, and with that bit set the base `Init` (`0x005E8C90`) posts **no** Create `0x99EF1140` either. The network,
   bridge, tunnel and prebuilt `Init`s (`0x0061CB50`, `0x00604BF0`, `0x006471C0`, `0x0061DB00`) never insert. So
   `managed` comes only from component 53, once per piece.
-- **NM3.** Meanings of flags `0x40000`, `0x80000`, `0x40000000`, `0x80000000` and of terrain kinds 3, 4 and 6
-  (§7.6). *Partly answered* (re-specs14a): the kinds are settled in terrain.md §8.2 (3 = disasters and water
+- ~~**NM3.** Meanings of flags `0x40000`, `0x80000`, `0x40000000`, `0x80000000` and of terrain kinds 3, 4 and 6
+  (§7.6).~~ **ANSWERED 2026-10-15 (re-specs15b):** network-geometry.md §10.3. `0x40000` = bridge-step piece
+  (MATCHES); `0x80000` = tunnel portal (MATCHES); `0x40000000` = elevated with supports (MATCHES); `0x80000000` = draft
+  (preview) occupant, set by `CreateNetworkOccupant` in draft mode and cleared in real mode. The §5 table is updated.
+  History: *partly answered* (re-specs14a): the kinds are settled in terrain.md §8.2 (3 = disasters and water
   changes, 4 = the network height solver's own grading, 5 = levelling, 6 = the tunnel cut); `0x40000` is the bridge
   flag *[inferred from use]*. The other three flags stay open.
   Leads for the open flags (network-tools.md §6.2, §10):

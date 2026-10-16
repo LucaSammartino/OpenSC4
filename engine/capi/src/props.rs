@@ -136,8 +136,10 @@ fn decode_elem(mem_type: u16, b: &[u8]) -> Elem {
 /// Sets property `id` exactly as a game variant holds it: `mem_type` is the
 /// variant's element type (the cIGZVariant type without the array bit, 0x01
 /// to 0x0E), `data` holds `count` elements in that type's native layout
-/// (bool: one byte). A scalar (`is_array` false) needs `count` 1. False for
-/// other types (empty, pointers, objects) or a bad count.
+/// (bool: one byte). A scalar (`is_array` false) needs `count` 1. ABI 59
+/// (neighbors.md §15.4 NG37): `mem_type` 0 with `is_array` is the void array
+/// (raw bytes, type 0x8000), `count` bytes. False for other types (empty,
+/// pointers, objects) or a bad count.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_props_set_typed(
     p: *mut fc4_props,
@@ -147,7 +149,10 @@ pub unsafe extern "C" fn fc4_props_set_typed(
     data: *const std::ffi::c_void,
     count: usize,
 ) -> bool {
-    let Some(size) = elem_size(mem_type) else { return false };
+    let void_array = is_array && mem_type == mem::EMPTY;
+    let Some(size) = (if void_array { Some(1) } else { elem_size(mem_type) }) else {
+        return false;
+    };
     if !is_array && count != 1 {
         return false;
     }
@@ -159,7 +164,13 @@ pub unsafe extern "C" fn fc4_props_set_typed(
         None if count == 0 => &[],
         None => return false,
     };
-    let items: Vec<Elem> = bytes.chunks_exact(size).map(|c| decode_elem(mem_type, c)).collect();
+    let items: Vec<Elem> = if void_array {
+        // The void array (NG37): the core holds raw bytes as an array of
+        // memory type 0 with byte elements (foundations §9.2, tag 0x8000).
+        bytes.iter().map(|&b| Elem::U8(b)).collect()
+    } else {
+        bytes.chunks_exact(size).map(|c| decode_elem(mem_type, c)).collect()
+    };
     let v = if is_array {
         Variant::Array { elem: mem_type, items }
     } else {
@@ -196,9 +207,161 @@ pub unsafe extern "C" fn fc4_props_write_variant(
     }
 }
 
+/// `GetProperty(id, uint32&)` (holder slot 8) on one value held as a game
+/// variant holds it (neighbors.md §15.4 NG44, data-formats §5.1, the
+/// converting getters). `var_type` is the cIGZVariant type, the array bit
+/// `0x8000` included; `data` holds `count` elements of an array, or the one
+/// value of a scalar (`count` 1), in the element type's native layout (bool:
+/// one byte). A Uint32 scalar is returned as is, other scalars convert by
+/// number (signed values sign-extended, Char and RZChar as signed bytes,
+/// RZUnicodeChar zero-extended, 64-bit values keep their low 32 bits, floats
+/// truncated by `_ftol`: NaN, infinities and magnitudes of 2^63 or more give
+/// 0); arrays, strings, the void array and the Empty value (type 0) take the
+/// text round trip (the first element's text, a string's characters; an
+/// empty character array or the void array gives the empty text, which
+/// parses as 0, so true with 0). True with `*out` set; false with `*out`
+/// unchanged for a pointer or object value (*[choice]*, data-formats §5.1)
+/// or a bad layout.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_variant_get_u32(
+    var_type: u16,
+    data: *const std::ffi::c_void,
+    count: usize,
+    out: *mut u32,
+) -> bool {
+    guard(false, || {
+        let Some(v) = variant_u32(var_type, data as *const u8, count) else {
+            return false;
+        };
+        if let Some(o) = out.as_mut() {
+            *o = v;
+        }
+        true
+    })
+}
+
+/// [`fc4_variant_get_u32`]'s value, through `fc4_formats`' converting getter.
+unsafe fn variant_u32(var_type: u16, data: *const u8, count: usize) -> Option<u32> {
+    use fc4_formats::exemplar::{Property, Values};
+    let is_array = var_type & fc4_core::variant::ARRAY != 0;
+    let base = var_type & !fc4_core::variant::ARRAY;
+    if base == mem::EMPTY {
+        // The Empty value (type 0) and the void array (0x8000): their text is
+        // empty, which parses as 0 (data-formats §5.1). The void array's bytes
+        // are never read.
+        return Property::single(0, Values::Empty).get_u32();
+    }
+    let size = elem_size(base)?;
+    if !is_array && count != 1 {
+        return None;
+    }
+    let bytes = match slice_arg(data, size.checked_mul(count)?) {
+        Some(s) => s,
+        None if count == 0 => &[],
+        None => return None,
+    };
+    // The scalar Char and RZUnicodeChar have no fc4_formats form (only their
+    // arrays are readable there): by number, Char as a signed byte.
+    if !is_array && base == mem::CHAR {
+        return Some(i32::from(bytes[0] as i8) as u32);
+    }
+    if !is_array && base == mem::UNICODE_CHAR {
+        return Some(u32::from(u16::from_ne_bytes([bytes[0], bytes[1]])));
+    }
+    fn each<T>(b: &[u8], n: usize, f: impl Fn(&[u8]) -> T) -> Vec<T> {
+        b.chunks_exact(n).map(f).collect()
+    }
+    fn a4(c: &[u8]) -> [u8; 4] {
+        [c[0], c[1], c[2], c[3]]
+    }
+    fn a8(c: &[u8]) -> [u8; 8] {
+        [c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]
+    }
+    let values = match base {
+        mem::BOOL => Values::Bool(each(bytes, 1, |c| c[0] != 0)),
+        mem::UINT8 => Values::Uint8(bytes.to_vec()),
+        mem::SINT8 => Values::Sint8(each(bytes, 1, |c| c[0] as i8)),
+        mem::UINT16 => Values::Uint16(each(bytes, 2, |c| u16::from_ne_bytes([c[0], c[1]]))),
+        mem::SINT16 => Values::Sint16(each(bytes, 2, |c| i16::from_ne_bytes([c[0], c[1]]))),
+        mem::UINT32 => Values::Uint32(each(bytes, 4, |c| u32::from_ne_bytes(a4(c)))),
+        mem::SINT32 => Values::Sint32(each(bytes, 4, |c| i32::from_ne_bytes(a4(c)))),
+        mem::FLOAT32 => Values::Float32(each(bytes, 4, |c| f32::from_ne_bytes(a4(c)))),
+        mem::UINT64 => Values::Uint64(each(bytes, 8, |c| u64::from_ne_bytes(a8(c)))),
+        mem::SINT64 => Values::Sint64(each(bytes, 8, |c| i64::from_ne_bytes(a8(c)))),
+        mem::FLOAT64 => Values::Float64(each(bytes, 8, |c| f64::from_ne_bytes(a8(c)))),
+        mem::CHAR => Values::Char(bytes.to_vec()),
+        mem::UNICODE_CHAR => Values::UnicodeChar(each(bytes, 2, |c| u16::from_ne_bytes([c[0], c[1]]))),
+        mem::RZ_CHAR => Values::String(bytes.to_vec()),
+        _ => return None,
+    };
+    let p = if is_array {
+        Property::array(0, values)
+    } else {
+        Property::single(0, values)
+    };
+    p.get_u32()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn u32_of(var_type: u16, bytes: &[u8], count: usize) -> Option<u32> {
+        let mut out = 0xDEAD_BEEF;
+        let ok = unsafe { fc4_variant_get_u32(var_type, bytes.as_ptr().cast(), count, &mut out) };
+        ok.then_some(out)
+    }
+
+    /// NG44 (neighbors.md §15.4, data-formats §5.1): holder slot 8's
+    /// conversions. Scalars by number; arrays through their first element's
+    /// text; an empty character array gives true with 0.
+    #[test]
+    fn ng44_get_property_u32_conversions() {
+        const A: u16 = 0x8000;
+        // Scalars: Sint32 -1 and Sint8 -1 sign-extend; 64-bit keep the low bits.
+        assert_eq!(u32_of(mem::SINT32, &(-1i32).to_ne_bytes(), 1), Some(0xFFFF_FFFF));
+        assert_eq!(u32_of(mem::SINT8, &[0xFF], 1), Some(0xFFFF_FFFF));
+        assert_eq!(
+            u32_of(mem::UINT64, &0x1_2345_6789u64.to_ne_bytes(), 1),
+            Some(0x2345_6789)
+        );
+        // Floats truncate toward zero; NaN, infinities and >= 2^63 give 0.
+        assert_eq!(u32_of(mem::FLOAT32, &2.9f32.to_ne_bytes(), 1), Some(2));
+        assert_eq!(u32_of(mem::FLOAT32, &(-1.5f32).to_ne_bytes(), 1), Some(0xFFFF_FFFF));
+        assert_eq!(u32_of(mem::FLOAT32, &f32::NAN.to_ne_bytes(), 1), Some(0));
+        assert_eq!(u32_of(mem::FLOAT64, &f64::INFINITY.to_ne_bytes(), 1), Some(0));
+        assert_eq!(u32_of(mem::FLOAT32, &1e30f32.to_ne_bytes(), 1), Some(0));
+        // Char and RZChar scalars are signed bytes, RZUnicodeChar unsigned.
+        assert_eq!(u32_of(mem::RZ_CHAR, &[0xE9], 1), Some(0xFFFF_FFE9));
+        assert_eq!(u32_of(mem::CHAR, &[0xE9], 1), Some(0xFFFF_FFE9));
+        assert_eq!(u32_of(mem::UNICODE_CHAR, &0xFFE9u16.to_ne_bytes(), 1), Some(65_513));
+        // Arrays: the first element's text. Signed elements give the scalar's bits.
+        let trips: Vec<u8> = [30u16, 0].iter().flat_map(|x| x.to_ne_bytes()).collect();
+        assert_eq!(u32_of(A | mem::UINT16, &trips, 2), Some(30));
+        assert_eq!(u32_of(A | mem::SINT32, &(-5i32).to_ne_bytes(), 1), Some(0xFFFF_FFFB));
+        assert_eq!(u32_of(A | mem::FLOAT32, &2.75f32.to_ne_bytes(), 1), Some(2));
+        assert_eq!(u32_of(A | mem::FLOAT32, &30.0f32.to_ne_bytes(), 1), Some(30));
+        // Float32 {1e30} prints all its digits, which wrap in 64 bits.
+        assert_eq!(u32_of(A | mem::FLOAT32, &1e30f32.to_ne_bytes(), 1), Some(0x1905_8000));
+        // A NaN element prints as 1.#QNAN: 1.
+        let qnan = f32::from_bits(0x7FC0_0000);
+        assert_eq!(u32_of(A | mem::FLOAT32, &qnan.to_ne_bytes(), 1), Some(1));
+        // Empty arrays: "0" for numbers, the empty text for characters: true, 0.
+        assert_eq!(u32_of(A | mem::UINT32, &[], 0), Some(0));
+        assert_eq!(u32_of(A | mem::RZ_CHAR, &[], 0), Some(0));
+        assert_eq!(u32_of(A | mem::CHAR, &[], 0), Some(0));
+        // Strings parse as numbers: "12" -> 12, "0x1F" -> 31.
+        assert_eq!(u32_of(A | mem::RZ_CHAR, b"12", 2), Some(12));
+        assert_eq!(u32_of(A | mem::RZ_CHAR, b"0x1F", 4), Some(31));
+        // The void array and the Empty value: the empty text, 0.
+        assert_eq!(u32_of(0x8000, &[0x31, 0x32], 2), Some(0));
+        assert_eq!(u32_of(0, &[], 0), Some(0));
+        // Objects and pointers: false (the original gives an address).
+        assert_eq!(u32_of(mem::IGZ_UNKNOWN, &[0; 4], 1), None);
+        assert_eq!(u32_of(mem::VOID_PTR, &[0; 4], 1), None);
+        // A scalar needs one element.
+        assert_eq!(u32_of(mem::UINT32, &[0; 8], 2), None);
+    }
 
     /// ABI 50 (data-formats §5.2, EX39): a slice setter stores an array even
     /// for one value, which the core's vector readers read as that value; a

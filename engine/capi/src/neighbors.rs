@@ -1623,11 +1623,21 @@ pub unsafe extern "C" fn fc4_neighbor_connection_set_props(h: *mut fc4_neighbor_
 
 /// A connection property in the game's native layout, arrays included (the
 /// shared `native_variant` delivers scalars only: its type check sees the
-/// array flag). `None` for empty, pointer, object and raw void values.
+/// array flag). The void array (raw bytes, NG37) comes as memory type 0 with
+/// `is_array`, one byte per element. `None` for empty, pointer and object
+/// values.
 fn connection_property(v: &Variant) -> Option<NativeVariant> {
     let Variant::Array { elem, items } = v else {
         return native_variant(v);
     };
+    if *elem == mem::EMPTY {
+        return Some(NativeVariant {
+            mem_type: mem::EMPTY,
+            is_array: true,
+            count: items.len(),
+            bytes: items.iter().map(|e| e.as_i64() as u8).collect(),
+        });
+    }
     if !(mem::BOOL..=mem::RZ_CHAR).contains(elem) {
         return None;
     }

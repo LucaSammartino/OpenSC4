@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "zn15_45_dezone_across_city_edge",
+  "spec": [
+    "zones 5.1",
+    "zones 6"
+  ],
+  "description": "ZG21 (zones \u00a75.1, \u201cA rectangle that crosses the city edge\u201d): the dezone under a new network clips its bounding rectangle to the city (the outside cells are clear bits) and dezones the inside cells, as the original does for every defined cell. A 16 x 16 city zoned 1 along row z = 5 and column x = 15. A network occupant whose bounding cells are {-2, 5, 1, 5} dezones (0, 5) and (1, 5) and leaves (2, 5) zoned; one at {14, 3, 17, 3} crossing the high x edge dezones (14, 3) and (15, 3); one at {15, 14, 15, 18} crossing the high z edge dezones (15, 14) and (15, 15). One entirely outside ({20, 20, 22, 20}) changes nothing. Before ZG21 the whole call was refused (ZG2) and the inside cells stayed zoned.",
+  "steps": [
+    {"op": "zone_env", "cells": [16, 16], "funds": 100000},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+    {"op": "zone_zones", "rect": [0, 5, 2, 5], "v": 1},
+    {"op": "zone_zones", "rect": [13, 3, 15, 3], "v": 1},
+    {"op": "zone_zones", "rect": [15, 13, 15, 15], "v": 1},
+    {"op": "zone_occupant", "token": 100, "type": "0xC772BF98", "pos": [0.0, 0.0, 88.0], "bounding": [-2, 5, 1, 5]},
+    {"op": "zone_message", "target": "manager", "id": "0x99EF1142", "occupant": 100, "data3": "0xC772BF98", "expect": true},
+    {"op": "zone_expect", "zones": [[0, 5, 0], [1, 5, 0], [2, 5, 1]]},
+    {"op": "zone_occupant", "token": 101, "type": "0xC772BF98", "pos": [248.0, 0.0, 56.0], "bounding": [14, 3, 17, 3]},
+    {"op": "zone_message", "target": "manager", "id": "0x99EF1142", "occupant": 101, "data3": "0xC772BF98", "expect": true},
+    {"op": "zone_expect", "zones": [[13, 3, 1], [14, 3, 0], [15, 3, 0]]},
+    {"op": "zone_occupant", "token": 102, "type": "0xC772BF98", "pos": [248.0, 0.0, 248.0], "bounding": [15, 14, 15, 18]},
+    {"op": "zone_message", "target": "manager", "id": "0x99EF1142", "occupant": 102, "data3": "0xC772BF98", "expect": true},
+    {"op": "zone_expect", "zones": [[15, 13, 1], [15, 14, 0], [15, 15, 0]]},
+    {"op": "zone_occupant", "token": 103, "type": "0xC772BF98", "pos": [336.0, 0.0, 336.0], "bounding": [20, 20, 22, 20]},
+    {"op": "zone_message", "target": "manager", "id": "0x99EF1142", "occupant": 103, "data3": "0xC772BF98", "expect": true},
+    {"op": "zone_expect", "zones": [[2, 5, 1], [13, 3, 1], [15, 13, 1]]}
+  ]
+}
