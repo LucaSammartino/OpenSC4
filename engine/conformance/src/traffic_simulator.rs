@@ -455,6 +455,7 @@ impl TrafficSimHost for World {
     fn release_department(&self, department: u64) {
         self.released_departments.borrow_mut().push(department);
     }
+    fn create_line_item(&self, _department: u64, _item: fc4_core::traffic_simulator::dept::LineItem, _only: bool) {}
     /// Fixture stand-in (TS34): an unset department is at 100 % funding, as
     /// a department `CreateDepartmentBudget` makes (budget.md §6).
     fn department_funding(&self, department: u64) -> f32 {

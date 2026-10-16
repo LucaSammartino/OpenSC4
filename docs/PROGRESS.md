@@ -11,7 +11,7 @@ budget is off by default (enable = <key>).
 **M0: toolchain**
 - [x] CMake project, Rust core, C ABI, conformance runner (658 vector files)
 - [x] `FreeCity4.dll` loads in SC4 1.1.641 and replaces `cSC4Simulator`
-- [x] Unattended in-game runs: autoload a city, autotest verdict, monthly observer (`tools/ingame_run.ps1`)
+- [x] Unattended in-game runs: autoload a city, autotest verdict, monthly observer (`tools/ingame_run.ps1`); the autoload no longer depends on GetCityLocations' eax-or-void return value and retries a truly empty city list on the wall clock (autoloadfix, merged 4c92365; regress run 127 PASS)
 - [x] Hands-free game control: advisor popups and the save box closed automatically, scripted UI actions (`-Actions`), the test city restored after a save (`tools/sc4ctl.ps1`)
 - [x] Popups off without side effects: `popup_dialogs = 0` now waits for ConnectionsReady (d161d20). Set earlier, it silently kept power, plumbing and neighbours disabled (runs 58–64; foundations §11.6)
 
@@ -81,6 +81,7 @@ budget is off by default (enable = <key>).
 - [x] **Traffic simulator core** (merged a11eb7d: all 15 §11 tests as unit tests and 29 `ts11_*` vectors)
 - [x] **Traffic glue, phase 1** (merged 850b567, `enable = traffic`): our traffic simulator and pathfinder replace the original in game; clean alone, across saves and for 84 months at normal speed, and in a full city with 17 other replacements (run 105, one reference warning under investigation)
 - [x] **Traffic phase 2** (merged 40d9eab, regress run 119 PASS): the TS35–TS49 answers, the O(1) source iterator, and the traffic shadow (`traffic_shadow = 1`): with `traffic_shadow_hypotheses = 7` every delivery matches the original on Konradshohe for 7 game months (261/261, resyncs=0); TS55–TS57 decide whether those readings become the spec
+- [x] **Traffic glue, re-answers10 applied** (apply11traffic, merged 85919d3, regress run 128 PASS): TG1 (FindPath fills the route deque), TG7 (department / line-item creation as the original, ABI `create_line_item`), TG10 (master list with FreeCity4's lot manager: rect=0), TG15/TG21 (slot 19 direct write), TG19 (counted connection snapshot); `update_network_costs`, the path-info helpers and `tunnel_paired_portal` stay NULL until TG23-TG25
 - [ ] Calibration; commute and volume maps match (M5 exit): answer TS50–TS66, make the confirmed readings the core's behaviour, run the shadow on Spandau and past 2026-08 (on Konradshohe to 2032 under turbo it is not exact: run 121, 43 of 72 month lines, TS63/TS64); `traffic` and `traffic_shadow` are in regress since run 121
 
 **M6+: beyond simulation**
