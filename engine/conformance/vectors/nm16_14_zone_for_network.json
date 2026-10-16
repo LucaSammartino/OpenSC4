@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "net_zone_for_network",
+  "spec": ["network-manager 8.2", "network-manager 16.14"],
+  "description": "Cell (5, 5) unzoned; W = R$ (1, P 4), N = C$$$ (6, P 3), E = I-D (8, P 2), S none: 8 (lowest priority). Unzoned with W = agriculture (7) only: the best after the four sides is 7, so the diagonals are visited in order (-1,-1), (-1,1), (1,-1), (1,1); (4, 6) = R$$ (2, P 7 < 8) gives 2. A cell zoned C$ (4) answers 4 whatever its neighbours. Ties keep the earlier neighbour: W = C$$ (5, P 4) beats N = R$ (1, P 4). The diagonals are skipped when the sides found R$. Cells outside the city are not visited.",
+  "steps": [
+    {"op": "net_create"},
+    {"op": "net_zone", "cells": [[4, 5, 1], [5, 4, 6], [6, 5, 8]]},
+    {"op": "net_call", "method": "zone_type_for_network", "args": [5, 5], "expect": 8},
+    {"op": "net_zone", "clear": true, "cells": [[4, 5, 7], [4, 6, 2]]},
+    {"op": "net_call", "method": "zone_type_for_network", "args": [5, 5], "expect": 2},
+    {"op": "net_zone", "cells": [[5, 5, 4]]},
+    {"op": "net_call", "method": "zone_type_for_network", "args": [5, 5], "expect": 4},
+    {"op": "net_zone", "clear": true, "cells": [[4, 5, 5], [5, 4, 1]]},
+    {"op": "net_call", "method": "zone_type_for_network", "args": [5, 5], "expect": 5},
+    {"op": "net_zone", "clear": true, "cells": [[4, 5, 1], [4, 4, 9]]},
+    {"op": "net_call", "method": "zone_type_for_network", "args": [5, 5], "expect": 1},
+    {"op": "net_zone", "clear": true, "cells": [[-1, 0, 9]]},
+    {"op": "net_call", "method": "zone_type_for_network", "args": [0, 0], "expect": 0}
+  ]
+}

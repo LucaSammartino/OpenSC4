@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "net_lighting",
+  "spec": ["network-manager 6.1", "network-manager 16.6"],
+  "description": "managed = a bridge (CanBeLit) and a tunnel (not). Dusk (0xC9DA96E9) calls SetLit(true) on the bridge only, dawn (0xC9DA96E8) SetLit(false). PostCityInit (0x26D31EC1) runs the retrofit, then lights only at night.",
+  "steps": [
+    {"op": "net_occupant", "occupant": "0x0B", "flags": ["road"], "managed": true, "lit": true},
+    {"op": "net_occupant", "occupant": "0x0D", "flags": ["road"], "managed": true, "lit": false},
+    {"op": "net_create"},
+    {"op": "net_init"},
+    {"op": "net_message", "type": "OccupantInserted", "occupant": "0x0B"},
+    {"op": "net_message", "type": "OccupantInserted", "occupant": "0x0D"},
+    {"op": "net_clear_events"},
+    {"op": "net_message", "type": "Dusk", "expect": true},
+    {"op": "net_expect_events", "events": [{"event": "set_lit", "occupant": "0x0B", "lit": true}]},
+    {"op": "net_message", "type": "Dawn", "expect": true},
+    {"op": "net_expect_events", "events": [{"event": "set_lit", "occupant": "0x0B", "lit": false}]},
+    {"op": "net_message", "type": "PostCityInit", "expect": true},
+    {"op": "net_expect_events", "events": []},
+    {"op": "net_env", "night": true},
+    {"op": "net_message", "type": "PostCityInit", "expect": true},
+    {"op": "net_expect_events", "events": [{"event": "set_lit", "occupant": "0x0B", "lit": true}]}
+  ]
+}
