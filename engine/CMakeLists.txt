@@ -308,6 +308,13 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4DisasterHost.h
         plugin/FC4DisasterShadow.cpp
         plugin/FC4DisasterShadow.h
+        # the glue22 lane: the effects manager (docs/specs/effects.md)
+        plugin/cFC4Effects.cpp
+        plugin/cFC4Effects.h
+        plugin/FC4EffectsHost.cpp
+        plugin/FC4EffectsHost.h
+        plugin/FC4EffectsShadow.cpp
+        plugin/FC4EffectsShadow.h
         # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp

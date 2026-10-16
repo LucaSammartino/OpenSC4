@@ -237,164 +237,183 @@ void TestOccupantManager() {
     fc4_occmgr_destroy(m);
 }
 
-// The network rules (network-rules.md) over the C ABI: a Transmogrify file
-// loaded from bytes, one evaluation, and a Road / Rail crossing solved by a
-// RUL1 entry.
-void TestNetworkRules() {
-    static_assert(sizeof(fc4_network_rules_report) == 36, "report layout");
-    static_assert(sizeof(fc4_network_rules_output) == 8, "output layout");
-    static_assert(sizeof(fc4_network_rules_cell) == 116, "cell layout");
-    static_assert(sizeof(fc4_network_rules_solved) == 16, "solved layout");
-    static_assert(sizeof(fc4_network_rules_potential) == 12, "potential layout");
-    uint32_t inst[4] = {};
-    CHECK(fc4_network_rules_tile_instances(0, inst, 4) == 2 && inst[0] == 0x8 && inst[1] == 0x7);
-    fc4_network_rules* r = fc4_network_rules_create();
-    CHECK(r != nullptr);
-    const char tiles[] = "#Transmogrify\n1,0,2,0,2\n3,0,0x100,0,0";
-    fc4_network_rules_report rep{};
-    CHECK(fc4_network_rules_load(r, 0x8, reinterpret_cast<const uint8_t*>(tiles), sizeof(tiles) - 1, &rep));
-    CHECK(rep.struct_size == 36 && rep.status == FC4_NR_STATUS_COMPLETE && rep.transmogrify == 1);
-    CHECK(rep.source_rules == 1 && rep.rules == 2 && rep.dropped_variants == 6);
-    CHECK(fc4_network_rules_evaluator_count(r, 0) == 1);
-    fc4_network_rules_grid* g = fc4_network_rules_grid_create(64, 64);
-    fc4_network_rules_cell c{};
-    c.struct_size = sizeof c;
-    c.x = 10;
-    c.z = 10;
-    c.flags = 1;
-    c.edges[0] = 0x00020002u;
-    c.solved = -1;
-    CHECK(fc4_network_rules_grid_set_cell(g, &c));
-    fc4_network_rules_output out[2] = {};
-    CHECK(fc4_network_rules_evaluate(r, 0, 0, g, 10, 10, out, 2) == 1);
-    CHECK(out[0].id == 0x100 && out[0].m == 0 && out[0].orientation == 1);
-    const char multi[] = "[RoadRailIntersectionSolutions]\nk=0x02000200,0x00020002,0x1234,1,0\n";
-    CHECK(fc4_network_rules_load(r, 0x10000001u, reinterpret_cast<const uint8_t*>(multi), sizeof(multi) - 1, &rep));
-    CHECK(rep.status == -1 && rep.entries == 1);
-    c.flags = 3;
-    c.edges[0] = 0x02000200u;
-    c.edges[1] = 0x00020002u;
-    c.in_run = 1;
-    CHECK(fc4_network_rules_grid_set_cell(g, &c));
-    CHECK(fc4_network_rules_grid_add_to_solve(g, 10, 10));
-    CHECK(fc4_network_rules_grid_set_valid_count(g, 1));
-    int32_t result = -9;
-    CHECK(fc4_network_rules_solve(r, g, 0, false, &result) && result == 1);
-    fc4_network_rules_solved solved[2] = {};
-    CHECK(fc4_network_rules_grid_solved(g, solved, 2) == 1);
-    CHECK(solved[0].id == 0x1234 && solved[0].orientation == 1 && solved[0].x == 10 && solved[0].z == 10);
-    fc4_network_rules_potential pot[2] = {};
-    CHECK(fc4_network_rules_grid_potential(g, pot, 2) == 1 && pot[0].types == 3);
-    CHECK(fc4_network_rules_grid_unsolved(g, nullptr, 0) == 0);
-    fc4_network_rules_cell back{};
-    CHECK(fc4_network_rules_grid_get_cell(g, 10, 10, &back) && back.solved == 0 && back.union_edges == 0x02020202u);
-    fc4_network_rules_grid_destroy(g);
+// The network rules (network-rules.md) over the C ABI: a Transmogrify file
+// loaded from bytes, one evaluation, and a Road / Rail crossing solved by a
+// RUL1 entry.
+void TestNetworkRules() {
+    static_assert(sizeof(fc4_network_rules_report) == 36, "report layout");
+    static_assert(sizeof(fc4_network_rules_output) == 8, "output layout");
+    static_assert(sizeof(fc4_network_rules_cell) == 116, "cell layout");
+    static_assert(sizeof(fc4_network_rules_solved) == 16, "solved layout");
+    static_assert(sizeof(fc4_network_rules_potential) == 12, "potential layout");
+
+    uint32_t inst[4] = {};
+    CHECK(fc4_network_rules_tile_instances(0, inst, 4) == 2 && inst[0] == 0x8 && inst[1] == 0x7);
+
+    fc4_network_rules* r = fc4_network_rules_create();
+    CHECK(r != nullptr);
+    const char tiles[] = "#Transmogrify\n1,0,2,0,2\n3,0,0x100,0,0";
+    fc4_network_rules_report rep{};
+    CHECK(fc4_network_rules_load(r, 0x8, reinterpret_cast<const uint8_t*>(tiles), sizeof(tiles) - 1, &rep));
+    CHECK(rep.struct_size == 36 && rep.status == FC4_NR_STATUS_COMPLETE && rep.transmogrify == 1);
+    CHECK(rep.source_rules == 1 && rep.rules == 2 && rep.dropped_variants == 6);
+    CHECK(fc4_network_rules_evaluator_count(r, 0) == 1);
+
+    fc4_network_rules_grid* g = fc4_network_rules_grid_create(64, 64);
+    fc4_network_rules_cell c{};
+    c.struct_size = sizeof c;
+    c.x = 10;
+    c.z = 10;
+    c.flags = 1;
+    c.edges[0] = 0x00020002u;
+    c.solved = -1;
+    CHECK(fc4_network_rules_grid_set_cell(g, &c));
+    fc4_network_rules_output out[2] = {};
+    CHECK(fc4_network_rules_evaluate(r, 0, 0, g, 10, 10, out, 2) == 1);
+    CHECK(out[0].id == 0x100 && out[0].m == 0 && out[0].orientation == 1);
+
+    const char multi[] = "[RoadRailIntersectionSolutions]\nk=0x02000200,0x00020002,0x1234,1,0\n";
+    CHECK(fc4_network_rules_load(r, 0x10000001u, reinterpret_cast<const uint8_t*>(multi), sizeof(multi) - 1, &rep));
+    CHECK(rep.status == -1 && rep.entries == 1);
+    c.flags = 3;
+    c.edges[0] = 0x02000200u;
+    c.edges[1] = 0x00020002u;
+    c.in_run = 1;
+    CHECK(fc4_network_rules_grid_set_cell(g, &c));
+    CHECK(fc4_network_rules_grid_add_to_solve(g, 10, 10));
+    CHECK(fc4_network_rules_grid_set_valid_count(g, 1));
+    int32_t result = -9;
+    CHECK(fc4_network_rules_solve(r, g, 0, false, &result) && result == 1);
+    fc4_network_rules_solved solved[2] = {};
+    CHECK(fc4_network_rules_grid_solved(g, solved, 2) == 1);
+    CHECK(solved[0].id == 0x1234 && solved[0].orientation == 1 && solved[0].x == 10 && solved[0].z == 10);
+    fc4_network_rules_potential pot[2] = {};
+    CHECK(fc4_network_rules_grid_potential(g, pot, 2) == 1 && pot[0].types == 3);
+    CHECK(fc4_network_rules_grid_unsolved(g, nullptr, 0) == 0);
+    fc4_network_rules_cell back{};
+    CHECK(fc4_network_rules_grid_get_cell(g, 10, 10, &back) && back.solved == 0 && back.union_edges == 0x02020202u);
+    fc4_network_rules_grid_destroy(g);
     fc4_network_rules_destroy(r);
-// The effects manager (effects.md) over a real terrain: the crater brush goes
-// through fc4_terrain_apply_brush, and a volcano finishes through the hook.
-struct FxWorld {
-    fc4_terrain* terrain = nullptr;
-    int brushes = 0;
-    int long_ops = 0;
-    std::vector<fc4_effects_post> posts;
-};
-void TestEffects() {
-    FxWorld w;
-    fc4_terrain_host th{};
-    th.struct_size = sizeof(th);
-    w.terrain = fc4_terrain_create(&th, nullptr, 64, 64);
-    CHECK(w.terrain != nullptr);
-    std::vector<uint8_t> pixels(16 * 16, 255);
-    fc4_brush_component comp{};
-    comp.kind = 0;
-    for (int i = 0; i < 5; ++i) {
-        comp.radius[i] = 32.0f;
-        comp.strength[i] = 4.0f;
-    }
-    comp.bitmap_width = 16;
-    comp.bitmap_height = 16;
-    comp.pixels = pixels.data();
-    CHECK(fc4_terrain_add_brush(w.terrain, 0x8A33E17Au, &comp, 1, 0.0f, 0.0f));
-    fc4_effects_host h{};
-    h.struct_size = sizeof(h);
-    h.user = &w;
-    h.simulator = [](void*, float* d) { *d = 1.0f; return true; };
-    h.city_cells = [](void*, int32_t* x, int32_t* z) { *x = 64; *z = 64; };
-    h.location_in_bounds = [](void* u, float x, float z) {
-        return fc4_terrain_location_is_in_bounds(static_cast<FxWorld*>(u)->terrain, x, z);
-    };
-    h.apply_brush = [](void* u, uint32_t id, fc4_brush_params* p) {
-        auto* ww = static_cast<FxWorld*>(u);
-        ++ww->brushes;
-        return fc4_terrain_apply_brush(ww->terrain, id, p);
-    h.begin_long_terrain_operation = [](void* u) {
-        ++ww->long_ops;
-        fc4_terrain_begin_long_operation(ww->terrain);
-    h.end_long_terrain_operation = [](void* u) {
-        --ww->long_ops;
-        fc4_terrain_end_long_operation(ww->terrain);
-    h.post = [](void* u, const fc4_effects_post* m) { static_cast<FxWorld*>(u)->posts.push_back(*m); };
-    fc4_effects_host short_host = h;
-    short_host.struct_size = 8;
-    CHECK(fc4_effects_create(&short_host, 1) == nullptr);
-    fc4_effects* fx = fc4_effects_create(&h, 0x12345678u);
-    CHECK(fx != nullptr);
-    fc4_effects_directory* d = fc4_effects_directory_volcano();
-    CHECK(d != nullptr);
-    fc4_effects_directory_counts counts{};
-    CHECK(fc4_effects_directory_get_counts(d, &counts) && counts.brushes == 25 && counts.games == 57);
-    CHECK(fc4_effects_directory_find(d, "volcano_control", 5) == 9);
-    CHECK(fc4_effects_directory_find(d, "nothing", 5) == FC4_EFFECTS_UNKNOWN);
-    CHECK(fc4_effects_set_directory(fx, d));
-    fc4_effects_directory_destroy(d);  // the manager keeps its own reference
-    // The one-shot crater: two ApplyBrush calls on the terrain, which change it.
-    uint32_t crater = 0;
-    CHECK(fc4_effects_create_effect(fx, "meteorcrater_b", &crater) && crater != 0);
-    CHECK(fc4_effects_set_position(fx, crater, 320.0f, 0.0f, 480.0f));
-    CHECK(fc4_effects_start(fx, crater, 0));
-    const float before = fc4_terrain_altitude(w.terrain, 320.0f, 480.0f);
-    fc4_effects_tick(fx, 33333);
-    CHECK(w.brushes == 2);
-    CHECK(fc4_terrain_altitude(w.terrain, 320.0f, 480.0f) != before);
-    fc4_effects_brush_state b{};
-    CHECK(fc4_effects_get_brush(fx, crater, 0, &b) && !b.active && b.one_shot && b.applications == 2);
-    CHECK(b.brush_id == 0x8A33E17Au && b.strength == 6.0f);
-    char name[32] = {};
-    CHECK(fc4_effects_get_name(fx, crater, name, sizeof(name)) == 14 && std::strcmp(name, "meteorcrater_b") == 0);
-    CHECK(fc4_effects_release(fx, crater));
-    // volcano_control: one select draw, its end message once, through the hook.
-    uint32_t volcano = 0;
-    CHECK(fc4_effects_create_effect(fx, "volcano_control", &volcano));
-    uint32_t child = 0;
-    CHECK(fc4_effects_get_child(fx, volcano, 0, &child) && child != volcano);
-    CHECK(fc4_effects_set_end_message(fx, volcano, 0xCA493C1Du, 0x77));
-    CHECK(fc4_effects_set_position(fx, volcano, 500.0f, 0.0f, 500.0f));
-    CHECK(fc4_effects_start(fx, volcano, 0));
-    int frames = 0;
-    while (w.posts.empty() && frames < 200) {
-        fc4_effects_tick(fx, 33333);
-        CHECK(!fc4_effects_draw_pass(fx));
-        CHECK(fc4_effects_finish_hook(fx));
-        ++frames;
-    CHECK(frames < 60);
-    CHECK(w.posts.size() == 1 && w.posts[0].msg_type == 0xCA493C1Du && w.posts[0].data1 == 0x77);
-    CHECK(w.long_ops == -1);  // one begin, two ends (EF8)
-    CHECK(!fc4_effects_is_started(fx, volcano));
-    fc4_effects_state st{};
-    CHECK(fc4_effects_get_state(fx, &st) && st.select_draws == 1 && st.end_posts == 1);
-    CHECK(st.finish_mode == FC4_EFFECTS_FINISH_HOOK && st.level_of_detail == 1);
-    fc4_effect_info info{};
-    CHECK(fc4_effects_get_effect(fx, volcano, &info) && info.index >= 0 && info.refs == 2);
-    fc4_effects_demolish_filter f{};
-    f.max_size = 40.0f;
-    fc4_effects_occupant_facts o{};
-    o.extents[0] = 50.0f;
-    CHECK(fc4_effects_demolish_filter_skips(&f, &o));
-    o.extents[0] = 10.0f;
-    CHECK(!fc4_effects_demolish_filter_skips(&f, &o));
-    fc4_effects_shutdown(fx);
-    CHECK(fc4_effects_get_state(fx, &st) && st.effect_count == 0);
-    fc4_effects_destroy(fx);
+}
+
+// The effects manager (effects.md) over a real terrain: the crater brush goes
+// through fc4_terrain_apply_brush, and a volcano finishes through the hook.
+struct FxWorld {
+    fc4_terrain* terrain = nullptr;
+    int brushes = 0;
+    int long_ops = 0;
+    std::vector<fc4_effects_post> posts;
+};
+
+void TestEffects() {
+    FxWorld w;
+    fc4_terrain_host th{};
+    th.struct_size = sizeof(th);
+    w.terrain = fc4_terrain_create(&th, nullptr, 64, 64);
+    CHECK(w.terrain != nullptr);
+    std::vector<uint8_t> pixels(16 * 16, 255);
+    fc4_brush_component comp{};
+    comp.kind = 0;
+    for (int i = 0; i < 5; ++i) {
+        comp.radius[i] = 32.0f;
+        comp.strength[i] = 4.0f;
+    }
+    comp.bitmap_width = 16;
+    comp.bitmap_height = 16;
+    comp.pixels = pixels.data();
+    CHECK(fc4_terrain_add_brush(w.terrain, 0x8A33E17Au, &comp, 1, 0.0f, 0.0f));
+
+    fc4_effects_host h{};
+    h.struct_size = sizeof(h);
+    h.user = &w;
+    h.simulator = [](void*, float* d) { *d = 1.0f; return true; };
+    h.city_cells = [](void*, int32_t* x, int32_t* z) { *x = 64; *z = 64; };
+    h.location_in_bounds = [](void* u, float x, float z) {
+        return fc4_terrain_location_is_in_bounds(static_cast<FxWorld*>(u)->terrain, x, z);
+    };
+    h.apply_brush = [](void* u, uint32_t id, fc4_brush_params* p) {
+        auto* ww = static_cast<FxWorld*>(u);
+        ++ww->brushes;
+        return fc4_terrain_apply_brush(ww->terrain, id, p);
+    };
+    h.begin_long_terrain_operation = [](void* u) {
+        auto* ww = static_cast<FxWorld*>(u);
+        ++ww->long_ops;
+        fc4_terrain_begin_long_operation(ww->terrain);
+    };
+    h.end_long_terrain_operation = [](void* u) {
+        auto* ww = static_cast<FxWorld*>(u);
+        --ww->long_ops;
+        fc4_terrain_end_long_operation(ww->terrain);
+    };
+    h.post = [](void* u, const fc4_effects_post* m) { static_cast<FxWorld*>(u)->posts.push_back(*m); };
+
+    fc4_effects_host short_host = h;
+    short_host.struct_size = 8;
+    CHECK(fc4_effects_create(&short_host, 1) == nullptr);
+    fc4_effects* fx = fc4_effects_create(&h, 0x12345678u);
+    CHECK(fx != nullptr);
+    fc4_effects_directory* d = fc4_effects_directory_volcano();
+    CHECK(d != nullptr);
+    fc4_effects_directory_counts counts{};
+    CHECK(fc4_effects_directory_get_counts(d, &counts) && counts.brushes == 25 && counts.games == 57);
+    CHECK(fc4_effects_directory_find(d, "volcano_control", 5) == 9);
+    CHECK(fc4_effects_directory_find(d, "nothing", 5) == FC4_EFFECTS_UNKNOWN);
+    CHECK(fc4_effects_set_directory(fx, d));
+    fc4_effects_directory_destroy(d);  // the manager keeps its own reference
+
+    // The one-shot crater: two ApplyBrush calls on the terrain, which change it.
+    uint32_t crater = 0;
+    CHECK(fc4_effects_create_effect(fx, "meteorcrater_b", &crater) && crater != 0);
+    CHECK(fc4_effects_set_position(fx, crater, 320.0f, 0.0f, 480.0f));
+    CHECK(fc4_effects_start(fx, crater, 0));
+    const float before = fc4_terrain_altitude(w.terrain, 320.0f, 480.0f);
+    fc4_effects_tick(fx, 33333);
+    CHECK(w.brushes == 2);
+    CHECK(fc4_terrain_altitude(w.terrain, 320.0f, 480.0f) != before);
+    fc4_effects_brush_state b{};
+    CHECK(fc4_effects_get_brush(fx, crater, 0, &b) && !b.active && b.one_shot && b.applications == 2);
+    CHECK(b.brush_id == 0x8A33E17Au && b.strength == 6.0f);
+    char name[32] = {};
+    CHECK(fc4_effects_get_name(fx, crater, name, sizeof(name)) == 14 && std::strcmp(name, "meteorcrater_b") == 0);
+    CHECK(fc4_effects_release(fx, crater));
+
+    // volcano_control: one select draw, its end message once, through the hook.
+    uint32_t volcano = 0;
+    CHECK(fc4_effects_create_effect(fx, "volcano_control", &volcano));
+    uint32_t child = 0;
+    CHECK(fc4_effects_get_child(fx, volcano, 0, &child) && child != volcano);
+    CHECK(fc4_effects_set_end_message(fx, volcano, 0xCA493C1Du, 0x77));
+    CHECK(fc4_effects_set_position(fx, volcano, 500.0f, 0.0f, 500.0f));
+    CHECK(fc4_effects_start(fx, volcano, 0));
+    int frames = 0;
+    while (w.posts.empty() && frames < 200) {
+        fc4_effects_tick(fx, 33333);
+        CHECK(!fc4_effects_draw_pass(fx));
+        CHECK(fc4_effects_finish_hook(fx));
+        ++frames;
+    }
+    CHECK(frames < 60);
+    CHECK(w.posts.size() == 1 && w.posts[0].msg_type == 0xCA493C1Du && w.posts[0].data1 == 0x77);
+    CHECK(w.long_ops == -1);  // one begin, two ends (EF8)
+    CHECK(!fc4_effects_is_started(fx, volcano));
+    fc4_effects_state st{};
+    CHECK(fc4_effects_get_state(fx, &st) && st.select_draws == 1 && st.end_posts == 1);
+    CHECK(st.finish_mode == FC4_EFFECTS_FINISH_HOOK && st.level_of_detail == 1);
+    fc4_effect_info info{};
+    CHECK(fc4_effects_get_effect(fx, volcano, &info) && info.index >= 0 && info.refs == 2);
+
+    fc4_effects_demolish_filter f{};
+    f.max_size = 40.0f;
+    fc4_effects_occupant_facts o{};
+    o.extents[0] = 50.0f;
+    CHECK(fc4_effects_demolish_filter_skips(&f, &o));
+    o.extents[0] = 10.0f;
+    CHECK(!fc4_effects_demolish_filter_skips(&f, &o));
+
+    fc4_effects_shutdown(fx);
+    CHECK(fc4_effects_get_state(fx, &st) && st.effect_count == 0);
+    fc4_effects_destroy(fx);
     fc4_terrain_destroy(w.terrain);
 }
 

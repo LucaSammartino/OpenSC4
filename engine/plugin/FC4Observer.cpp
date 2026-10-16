@@ -38,6 +38,7 @@
 #include "FC4CivicShadow.h"
 #include "FC4ParksShadow.h"
 #include "FC4DisasterShadow.h"
+#include "FC4EffectsShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
@@ -565,6 +566,7 @@ public:
                 ZoneDevShadowCityLoaded(CurrentCity());  // zonedev_shadow = 1 only
                 HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
+                EffectsShadowCityLoaded(CurrentCity());  // effects_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
@@ -589,6 +591,7 @@ public:
                 ParksShadowCityShutdown();  // parks_shadow: the same
                 TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
+                EffectsShadowCityShutdown();  // effects_shadow: the mirror core goes with the city
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:

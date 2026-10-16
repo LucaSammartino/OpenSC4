@@ -68,6 +68,8 @@
 #include "FC4CivicShadow.h"       // the cmglue lane
 #include "FC4ParksShadow.h"       // the cmglue lane
 #include "FC4DisasterShadow.h"    // the glue13 lane
+#include "FC4EffectsShadow.h"      // the glue22 lane
+#include "cFC4Effects.h"           // the glue22 lane
 #include "FC4TrafficShadow.h"
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
@@ -94,6 +96,7 @@ cIGZUnknown* CreateFC4DepartmentBudget();
 cIGZUnknown* CreateFC4LineItem();
 cIGZUnknown* CreateFC4LandValueSimulator();
 cIGZUnknown* CreateFC4WeatherSimulator();
+cIGZUnknown* CreateFC4EffectsManager();
 
 namespace fc4 {
 namespace {
@@ -293,6 +296,13 @@ const ClassEntry kParkClasses[] = {
 // Lot creation waits for re-specs11 (CreateLot fails, logged).
 const ClassEntry kZoneDevClasses[] = {
     {kFC4_CLSID_cSC4ZoneDeveloper, "cSC4ZoneDeveloper", &CreateFC4ZoneDeveloper},
+};
+
+// docs/specs/effects.md §1: the effects manager (city slot 85, city +0x1FC),
+// its visual effects and their components. Off by default (glue trial):
+// `enable = effects`. Not a saved component (§13).
+const ClassEntry kEffectsClasses[] = {
+    {kFC4_CLSID_cSC4EffectsManager, "cSC4EffectsManager", &CreateFC4EffectsManager},
 };
 
 const Subsystem kSubsystems[] = {
