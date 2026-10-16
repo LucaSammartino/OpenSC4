@@ -1607,13 +1607,13 @@ void LcmRunStep(void* p) {
         return;
     }
     // Registered at once so a structured exception still tears it down.
+    // No fc4_lot_config_unload here: the shadow's managers share one process
+    // catalogue, and unload empties it (the family set stays, quirk 10), so the
+    // next run would rebuild the map and its bucket order would differ from the
+    // original's. The process unload callback runs at app shutdown instead.
     g_liveCore.p = s;
     g_liveCore.teardown = [](void* p) {
         auto* m = static_cast<fc4_lot_config_manager*>(p);
-        // The process unload callback (0x0048A240) runs here: the shadow's
-        // manager is per run, so the unload is its teardown path (a live glue
-        // manager gets it at app shutdown instead; FC4PropLotShadow.h).
-        fc4_lot_config_unload(m);
         fc4_lot_config_shutdown(m);
         fc4_lot_config_destroy(m);
     };
@@ -1860,6 +1860,18 @@ void PropLotShadowAppShutdown() {
         g_propCat = nullptr;
     }
     if (g_lcmCat != nullptr) {
+        // The lot configuration manager's process unload callback (0x0048A240):
+        // the shadow's managers are per run and already gone, so the unload runs
+        // here over the process catalogue on a manager made for it (the core
+        // needs one to unload through). It empties the map; the catalogue is
+        // destroyed right after.
+        fc4_lot_config_host h{};
+        h.struct_size = sizeof(h);
+        h.user = &g_lctx;
+        if (fc4_lot_config_manager* m = fc4_lot_config_create(&h, g_lcmCat, 0)) {
+            fc4_lot_config_unload(m);
+            fc4_lot_config_destroy(m);
+        }
         fc4_lot_config_catalogue_destroy(g_lcmCat);  // its configurations are stand-ins (no references)
         g_lcmCat = nullptr;
     }

@@ -94,11 +94,11 @@ void PropLotShadowPreSave(cISC4City* city);
 void PropLotShadowCityShutdown();
 
 // The director's PreAppShutdown: the shadows' process catalogues are torn
-// down (fc4_prop_catalogue_app_shutdown) and freed. The lot configuration
-// manager's process unload callback (fc4_lot_config_unload) runs at the end of
-// each shadow run instead: the shadow's manager is per run, so its teardown is
-// where the unload belongs. A live replacement manager (enable = lotcfg) gets
-// fc4_lot_config_unload at app shutdown.
+// down (fc4_prop_catalogue_app_shutdown) and freed, and the lot configuration
+// manager's process unload callback (fc4_lot_config_unload) runs over the
+// process catalogue. It is not run per shadow run: unload empties the map the
+// runs share, and a rebuild would put the configurations in a different bucket
+// order than the original's.
 void PropLotShadowAppShutdown();
 
 }  // namespace fc4
