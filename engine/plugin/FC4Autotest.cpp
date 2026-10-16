@@ -218,6 +218,8 @@ void RequestQuitNow(long julian) {
     cISC4App* sc4 = nullptr;
     if (app != nullptr && app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) && sc4 != nullptr) {
         FC4_ACQUIRED(sc4, "QueryInterface");
+        // [abi-ret] App slot 10 (vtables.tsv eax-or-void): no spec gives the result (question HG2). A garbage
+        // true is covered by the 90 s quit grace in ThreadProc; a garbage false ends the run here instead.
         const bool ok = sc4->RequestQuit(false, false);  // slot 10: (show dialog, save first)
         FC4_RELEASE(sc4);
         Log("autotest: cISC4App::RequestQuit(false, false) -> %d; the verdict follows at PostSystemServiceShutdown",

@@ -19,6 +19,7 @@
 #include "FC4Fpu.h"
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
+#include "FC4LotDevInterfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
@@ -1277,7 +1278,12 @@ bool AttemptAreaLevelling(void* u, int32_t x1, int32_t z1, int32_t x2, int32_t z
     cISC4LotDeveloper* ld = bds ? bds->GetLotDeveloper() : nullptr;
     if (ld == nullptr) return false;
     ++Ctx(u)->levellings;
-    return ld->AttemptAreaLevelling(SC4Rect<int32_t>(x1, z1, x2, z2), f, withWater, waterFlag, maxAreaSlope, nullptr);
+    // [abi-ret] Slot 21 returns EAX = 0 or ModifyTerrainHeight's count (interfaces.tsv eax, lot-developer.md
+    // §11.1); the SDK's bool reads only AL, false for a count that is a multiple of 256. Read the int32 through
+    // the compiled view (FC4LotDevInterfaces.h) and test all of it.
+    const int32_t changed = fc4::AsGame(ld)->AttemptLevelling(SC4Rect<int32_t>(x1, z1, x2, z2), f, withWater,
+                                                              waterFlag, maxAreaSlope, nullptr);
+    return changed != 0;
 }
 
 // §3.2 PreViewLevelChange: only zones with a seagull effect read it, and none
