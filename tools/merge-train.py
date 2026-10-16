@@ -818,15 +818,15 @@ def consolidate_abi_history(wt, lanes, batch_id, force=False):
     body.append(" * %d = merge-train batch %s (%s): %s"
                 % (new, batch_id, ", ".join(l for l, _b in lanes), " | ".join(descs) or "no C ABI change"))
     body = close_comment(body)
-    # The rewrite must touch nothing outside the history block. A bug here deleted every
-    # FC4_ADV_SRC_* define and 300 declarations from the header once; refuse rather than repeat it.
-    outside_before = [l for k, l in enumerate(text.split(NL)) if not (_as <= k < _ae)]
     path = Path(wt) / ABI_HEADER
     text = path.read_text(encoding="utf-8", errors="replace")
     _as, _ae = history_span(text, VERSION_RE_C)
     if _as is None:
         return None
     lines = text.split(NL)
+    # The rewrite must touch nothing outside the history block. A bug here deleted every
+    # FC4_ADV_SRC_* define and 300 declarations from the header once; refuse rather than repeat it.
+    outside_before = [l for k, l in enumerate(text.split(NL)) if not (_as <= k < _ae)]
     body.append("#define FC4_ABI_VERSION %du" % new)
     rest = lines[_ae:]
     # A union can leave one lane's history entries *after* the macro. They start with ` *` and belong to the
