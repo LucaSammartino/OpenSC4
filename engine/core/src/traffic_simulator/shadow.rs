@@ -1384,16 +1384,12 @@ fn date(julian: i32) -> String {
 }
 
 /// The cell-scanning phases (§3.2), which the original's deadline can stop
-<<<<<<< HEAD
 /// mid-scan. [TS64] State 13 is one of them: its deadline test is before each
 /// step of the scanning iterator, so a stopped call leaves the iterator at the
 /// last cell visited and the copy must stop there too. State 12 is not: it
 /// does not use the scanning iterator.
-=======
 /// mid-scan; UpdateSubnetworkInfo (13) among them, on the same scanning
-/// iterator (traffic-network.md §4.12, TS64).
->>>>>>> apply14traffic
-fn is_scan_phase(s: u8) -> bool {
+/// iterator (traffic-network.md §4.12, TS64).fn is_scan_phase(s: u8) -> bool {
     matches!(
         s,
         cs::CREATE_MAPS

@@ -176,7 +176,6 @@
 //                                 enable traffic; FC4TrafficShadow.h)
 //   traffic_shadow_diffs = N      its differences named per line (default 8, 1..64)
 //   traffic_shadow_lines = N      its delivery lines per month (default 8)
-<<<<<<< HEAD
 //   traffic_shadow_hypotheses = N its alternative readings of unclear spec points
 //                                 (a bit mask, default 0 = the spec as written; fc4.h
 //                                 FC4_TRAFFIC_SHADOW_HYP_*)
@@ -196,12 +195,9 @@
 //                                 1..64)
 //   occmgr_shadow_probe = 0 / 1   its thread probe on the original's vtable (default 1;
 //                                 calls per thread, OM1 / OM3)//   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's
-=======
 //   traffic_shadow_hypotheses = N retired (ABI 69): accepted and ignored, logged once;
 //                                 its readings (TS55-TS57) are the core's behaviour
-//   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's
->>>>>>> apply14traffic
-//                                 terrain core with the ORIGINAL terrain, which is
+//   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's//                                 terrain core with the ORIGINAL terrain, which is
 //                                 never replaced; FC4TerrainShadow.h)
 //   terrain_shadow_points = N     its sample points per month (default 256, 16..4096)
 //   terrain_shadow_diffs = N      its differences named per line (default 8, 1..64)

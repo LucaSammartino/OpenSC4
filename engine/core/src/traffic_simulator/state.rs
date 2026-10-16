@@ -477,16 +477,12 @@ pub struct State {
     pub last_day: i32,
 
     // ---- pacing (§3.3) ----
-<<<<<<< HEAD
     /// `dayIndex`, the s32 right after `processed` (§6.1 row 15, **`+0x918`**;
     /// TS60). It counts the days of the running trip phase, so with `days` 1
     /// or 2 it toggles 0/1 (§3.3). `processed` is `+0x914` and `total` is
     /// `+0x91C`.
-=======
     /// `dayIndex` (`+0x918`): saved as the s32 right after `processed`
-    /// (§6.1 row 15, TS60).
->>>>>>> apply14traffic
-    pub day_index: u32,
+    /// (§6.1 row 15, TS60).    pub day_index: u32,
     pub days: u32,
     pub total: i32,
     pub processed: i32,
