@@ -21,6 +21,7 @@
 #![forbid(unsafe_code)]
 
 pub mod advisors;
+pub mod audio;
 pub mod aura;
 pub mod automata;
 pub mod budget;
