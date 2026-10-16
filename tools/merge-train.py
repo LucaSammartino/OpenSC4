@@ -400,9 +400,15 @@ def union_hunks(wt, rel):
     # Structural check: for an additive union the merged brace balance must equal ours + theirs - base.
     # A duplicated (or dropped) `};` breaks that arithmetic, which is exactly the failure mode that
     # otherwise only surfaces as `kCount undeclared` twenty minutes later in the batch gate.
-    base = git(["-C", str(wt), "show", f":1:{rel}"], check=False)
-    if base.returncode == 0:
-        want = _brace_balance(sides[0]) + _brace_balance(sides[1]) - _brace_balance(base.stdout)
+    st = {}
+    for num, name in ((1, "base"), (2, "ours"), (3, "theirs")):
+        got = git(["-C", str(wt), "show", f":{num}:{rel}"], check=False)
+        if got.returncode != 0:
+            st = None
+            break
+        st[name] = got.stdout
+    if st:
+        want = _brace_balance(st["ours"]) + _brace_balance(st["theirs"]) - _brace_balance(st["base"])
         if _brace_balance(text) != want:
             return False
     path.write_text(text, encoding="utf-8")
