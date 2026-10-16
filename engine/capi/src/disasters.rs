@@ -37,7 +37,9 @@ use std::collections::BTreeMap;
 use std::ffi::{c_char, c_void, CString};
 use std::rc::Rc;
 
-use fc4_core::disasters::{CellRect, DisasterHost, DisasterMessage, DisasterPost, Disasters, Target, WorldBox};
+use fc4_core::disasters::{
+    CellRect, DisasterHost, DisasterMessage, DisasterPost, Disasters, Generator, MirrorRandom, Target, WorldBox,
+};
 use fc4_core::property::PropertyHolder;
 
 use crate::budget::fc4_token_callback;
@@ -276,6 +278,20 @@ pub struct fc4_riot_leader {
     pub x: i32,
     pub z: i32,
     pub reserved: u32,
+}
+
+/// One entry of the layer's location list (`fc4_disasters_get_location`,
+/// §2.7): an occupant entry's x and z are resolved as
+/// `GetDisasterLocationByIndex` reads them.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct fc4_disaster_location {
+    pub instance: u32,
+    pub zoom: u32,
+    pub x: i32,
+    pub z: i32,
+    /// 0 = a cell entry.
+    pub occupant: u64,
 }
 
 const CALLBACKS: usize = 82;
@@ -1170,5 +1186,76 @@ pub unsafe extern "C" fn fc4_disasters_riot_leaders(
             }
         }
         r.leaders.len()
+    })
+}
+
+/// Replaces the fire and riot generators (and the earthquake's and the pipe
+/// burst's) with the deterministic mirror generator (`MirrorRandom`): a core
+/// that mirrors the original layer (the plugin's `disasters_shadow`) makes
+/// no random decision of its own. Tooling, not spec behaviour. False for
+/// NULL.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_disasters_set_mirror_random(d: *mut fc4_disasters) -> bool {
+    with_d(d, false, |h| {
+        for g in [Generator::Fire, Generator::Riot, Generator::Earthquake, Generator::PipeBurst] {
+            h.sys.set_random(g, Box::new(MirrorRandom::default()));
+        }
+        true
+    })
+}
+
+/// The layer's location entry at `index` (§2.7, resolved as slot 17 reads
+/// it); false = none.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_disasters_get_location(
+    d: *const fc4_disasters,
+    index: usize,
+    out: *mut fc4_disaster_location,
+) -> bool {
+    let Some(o) = out.as_mut() else { return false };
+    with_d(d, false, |h| {
+        let Some(l) = h.sys.location_by_index(index) else {
+            return false;
+        };
+        *o = fc4_disaster_location {
+            instance: l.instance,
+            zoom: l.zoom,
+            x: l.x,
+            z: l.z,
+            occupant: l.occupant,
+        };
+        true
+    })
+}
+
+/// The network occupants the riots hold locked (network-manager.md §10), in
+/// locking order. Returns how many there are; copies at most `capacity`
+/// (`out` may be NULL).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_disasters_riot_locked(d: *const fc4_disasters, out: *mut u64, capacity: usize) -> usize {
+    with_d(d, 0, |h| {
+        let l = h.sys.riot_locked();
+        if !out.is_null() {
+            for (i, n) in l.iter().take(capacity).enumerate() {
+                *out.add(i) = *n;
+            }
+        }
+        l.len()
+    })
+}
+
+/// The fire instance's fire-ID set (§5.2), ascending, without creating the
+/// instance. Returns how many there are; copies at most `capacity` (`out`
+/// may be NULL).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_disasters_fire_ids(d: *const fc4_disasters, out: *mut u32, capacity: usize) -> usize {
+    with_d(d, 0, |h| {
+        let Some(f) = h.sys.fire_snapshot() else { return 0 };
+        if !out.is_null() {
+            for (i, n) in f.fire_ids.iter().take(capacity).enumerate() {
+                *out.add(i) = *n;
+            }
+        }
+        f.fire_ids.len()
     })
 }

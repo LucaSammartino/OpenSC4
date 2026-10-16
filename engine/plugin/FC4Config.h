@@ -139,6 +139,9 @@
 //                                 cRZTime clock; cFC4Civic.cpp)
 //   parks_shadow = 0 / 1          the park manager shadow (default 0; needs the ORIGINAL
 //                                 park manager: do not enable parks; FC4ParksShadow.h)
+//   disasters_shadow = 0 / 1     the disaster layer shadow (default 0; needs the ORIGINAL
+//                                 disaster layer: do not enable disasters; fire and riot;
+//                                 FC4DisasterShadow.h)
 //   parks_seed = N                the park member generator's session seed (default:
 //                                 the cRZTime clock; cFC4Parks.cpp)
 //   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the

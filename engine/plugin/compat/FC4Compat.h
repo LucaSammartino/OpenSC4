@@ -44,6 +44,40 @@ enum class Direct : unsigned {
     Count
 };
 
+// The disaster shadow's forwarders (the plugin's disasters_shadow, tooling;
+// docs/specs/disasters.md §15, docs/abi/vtables.tsv / interfaces.tsv): each
+// names one vtable entry of the original layer, its fire and riot classes or
+// the tutorial system, and the original function that entry must hold.
+enum class DisasterHook : unsigned {
+    LayerBegun,             // cSC4DisasterLayer slot 8 DisasterHasBegun(instance), pop 4
+    LayerEnded,             // slot 9 DisasterHasEnded(), pop 0
+    LayerRegister,          // slot 13 RegisterDisasterLocation(instance, x, z, occupant, zoom, focus), pop 24
+    LayerUnregisterAll,     // slot 14 UnregisterDisasterLocations(instance), pop 4
+    LayerUnregisterByOcc,   // slot 15 UnregisterDisasterLocationByOccupant(instance, occupant), pop 8
+    FireIgnite,             // fire instance internal slot 6 Ignite(occupant, force, fireID, focus), pop 16, AL
+    FireIgniteCell,         // slot 7 IgniteCell(x, z, useProbability, teleport, fireID), pop 20
+    FireExtinguishCell,     // slot 8 ExtinguishCell(x, z, amount), pop 12
+    FireQuickBurnCell,      // slot 9 QuickBurnCell(x, z), pop 8
+    FireIgniteCellRadius,   // slot 10 IgniteCellRadius(x, z, r0, r1), pop 16
+    FireExtinguish,         // slot 11 Extinguish(occupant), pop 4
+    FireBurnDown,           // slot 12 BurnDown(occupant), pop 4
+    FireSetCause,           // slot 13 SetCause(c), pop 4
+    FireMessage,            // fire instance cIGZMessageTarget2 slot 3 DoMessage(msg), pop 4
+    FireManagerIgniteOcc,   // fire manager cISC4DisasterManagerFire slot 4 IgniteOccupant(o), pop 4
+    RiotStart,              // riot manager slot 6 AttemptDisasterStart(x, z), pop 8
+    RiotRemoveInstance,     // riot manager slot 9 RemoveInstanceFromList(instance), pop 4
+    RiotMessage,            // riot instance cIGZMessageTarget2 slot 3 DoMessage(msg), pop 4
+    RiotLock,               // riot manager's riot interface slot 9 LockNetworkOccupant(n), pop 4
+    TutorialIsTutorial,     // cSC4TutorialSystem slot 8 IsTutorial(), pop 0
+    Count
+};
+
+struct DisasterHookSite {
+    uint32_t vtableVA;
+    uint32_t slot;
+    uint32_t functionVA;  // what the entry must hold
+};
+
 // One supported executable and its interop addresses (spec §5.5).
 struct ExecutableVersion {
     const char* name;
@@ -98,6 +132,8 @@ struct ExecutableVersion {
     // shadow reads the object's latch (+0x15) and distress threshold (+0x34)
     // only when its vtable is this one.
     uint32_t parkManagerVtableVA;
+    // The disaster shadow's forwarder sites, indexed by DisasterHook.
+    DisasterHookSite disasterHooks[static_cast<unsigned>(DisasterHook::Count)];
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -176,6 +212,14 @@ const void* CommercialSimulatorVtable();
 // §1), or nullptr (logged once; the same checks). For the parks shadow's raw
 // read of the latch and the threshold (§2).
 const void* ParkManagerVtable();
+
+// The disaster shadow (disasters_shadow): the vtable entry of `which` and the
+// original function it must hold, or false (logged once per hook) if the
+// executable is not identified, the vtable is not committed, readable memory
+// inside its image, or the function is not executable code inside the image.
+// The entry's current value is not checked here (the shadow compares it
+// before it patches).
+bool DisasterHookEntry(DisasterHook which, void*** entry, uintptr_t* function);
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);

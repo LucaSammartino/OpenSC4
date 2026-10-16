@@ -15,6 +15,7 @@
 
 #include "FC4Config.h"
 #include "FC4Diag.h"
+#include "FC4DisasterShadow.h"
 #include "FC4HarnessLogic.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -215,6 +216,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             break;
         case ScriptOp::Mark: result = "marked"; break;
         case ScriptOp::Save: result = RunSave(a, city); break;
+        case ScriptOp::Disaster: result = DisasterScriptAction(city, a.disaster, a.x0, a.z0); break;
     }
     std::string late;
     if (julian != a.julian) late = " (run on " + harness::FormatDate(harness::CivilFromJulian(julian)) + ")";
