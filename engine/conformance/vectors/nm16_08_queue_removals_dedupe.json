@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "net_queue_removals_dedupe",
+  "spec": ["network-manager 7.2", "network-manager 7.3", "network-manager 16.8"],
+  "description": "QueueRemovals(true); DestroyNetworkOccupants([A, B]) and ([A]) only queue (each queued element held). QueueRemovals(false) sorts by creation number (B = 0x30 before A = 0x31), releases the duplicate, and makes one DestroyOccupantsAndResolve call with the surface tool (type 0) containing B and A once each. The destroy keeps one reference per element (quirk), the list's are released: one each remains.",
+  "steps": [
+    {"op": "net_occupant", "occupant": "0x31", "flags": ["road"], "cell": [1, 1]},
+    {"op": "net_occupant", "occupant": "0x30", "flags": ["street"], "cell": [2, 1]},
+    {"op": "net_create"},
+    {"op": "net_init"},
+    {"op": "net_clear_events"},
+    {"op": "net_call", "method": "queue_removals", "args": [true]},
+    {"op": "net_call", "method": "destroy_network_occupants", "args": [["0x31", "0x30"]]},
+    {"op": "net_call", "method": "destroy_network_occupants", "args": [["0x31"]]},
+    {"op": "net_expect_events", "events": []},
+    {"op": "net_expect", "state": {"pending": ["0x31", "0x30", "0x31"], "queueing": true}},
+    {"op": "net_expect_refs", "refs": {"0x31": 2, "0x30": 1}},
+    {"op": "net_call", "method": "queue_removals", "args": [false]},
+    {"op": "net_expect_events", "events": [
+      {"event": "tool_init", "type": 0},
+      {"event": "destroy", "type": 0, "occupants": ["0x30", "0x31"]},
+      {"event": "tool_shutdown", "type": 0}
+    ]},
+    {"op": "net_expect", "state": {"pending": [], "queueing": false}},
+    {"op": "net_expect_refs", "refs": {"0x31": 1, "0x30": 1, "0x7000": 1}},
+    {"op": "net_call", "method": "queue_removals", "args": [false]},
+    {"op": "net_expect_events", "events": []}
+  ]
+}

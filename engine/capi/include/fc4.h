@@ -151,13 +151,19 @@ extern "C" {
  * 65 = adds the list sinks (fc4_u64s_sink / fc4_u32s_sink / fc4_lot_cfg_object), the city detail
  *      manager (fc4_city_detail), the airport/seaport developers (fc4_port_developer) and the prop
  *      developer (fc4_prop_developer) (taken as 61 on its lane; renumbered at merge);
- * 66 = terrain round 2 (re-answers17, apply15terrain lane): fc4_terrain_lerped_water_level,
+ * 66 = adds the network manager and network lot manager (fc4_netmgr, fc4_netlot, network-manager.md)
+ *      (taken as 68 on its lane; renumbered at merge);
+ * 67 = adds the disaster layer's mirror tooling (fc4_disasters_set_mirror_random,
+ *      fc4_disasters_get_location, fc4_disasters_riot_locked, fc4_disasters_fire_ids): the plugin's
+ *      disasters_shadow (a same-process differential of the original layer) (taken as 61, then 62
+ *      to 66, on its lane; renumbered at merge);
+ * 68 = terrain round 2 (re-answers17, apply15terrain lane): fc4_terrain_lerped_water_level,
  *      fc4_terrain_flooding_altitude, fc4_terrain_water_velocity, fc4_terrain_sediment_at,
  *      fc4_terrain_brush_angles, fc4_terrain_set_brush_angles, fc4_terrain_talus_angle and
  *      fc4_terrain_set_talus_angle; fc4_terrain_brush_angle returns the stroke angle and
  *      fc4_terrain_add_brush's angle is the walk angle's start; set_water_display_state posts only
- *      on a change (taken as 64, then 65 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 66u
+ *      on a change (taken as 64, then 65 and 66 on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 68u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -7753,6 +7759,292 @@ bool fc4_disasters_get_fire(const fc4_disasters* d, size_t index, fc4_disaster_f
 bool fc4_disasters_get_instance(const fc4_disasters* d, uint32_t instance, fc4_disaster_instance* out);
 /* Returns the number of leaders (0 for no such riot); copies at most `capacity`. */
 size_t fc4_disasters_riot_leaders(const fc4_disasters* d, uint32_t instance, fc4_riot_leader* out, size_t capacity);
+/* Mirror tooling (67; the plugin's disasters_shadow, not spec behaviour). set_mirror_random: the
+ * fire, riot, earthquake and pipe-burst generators become deterministic (new fire IDs count from
+ * 0x80000001; uniform_u32 0; uniform 1.0, so a fire never spreads by itself; range(a, b) b;
+ * gaussian(a, b) a): a core that mirrors the original makes no random decision of its own. */
+bool fc4_disasters_set_mirror_random(fc4_disasters* d);
+typedef struct fc4_disaster_location {
+    uint32_t instance, zoom;
+    int32_t x, z;      /* an occupant entry's resolved as GetDisasterLocationByIndex reads it */
+    uint64_t occupant; /* 0 = a cell entry */
+} fc4_disaster_location;
+bool fc4_disasters_get_location(const fc4_disasters* d, size_t index, fc4_disaster_location* out);
+/* The riots' locked network occupants (locking order) / the fire-ID set (ascending, the fire
+ * instance not created). Return the count; copy at most `capacity` (`out` may be NULL). */
+size_t fc4_disasters_riot_locked(const fc4_disasters* d, uint64_t* out, size_t capacity);
+size_t fc4_disasters_fire_ids(const fc4_disasters* d, uint32_t* out, size_t capacity);
+
+/* ---- network manager (docs/specs/network-manager.md; engine/capi/src/network_manager.rs) ----
+ * cSC4NetworkManager (component 53) and cSC4NetworkLotManager (component 11).
+ * The shim owns the GZCOM objects and forwards their slots here. Tokens are
+ * opaque host identities (0 = none): network occupants, tools, construction
+ * crews, lots, street props, flora and effect props. Occupants, the terrain
+ * and the network lot configurations are host inputs; the traffic graph is
+ * traffic-network.md's (fc4_traffic), the riot's removal lock (§10) the
+ * disaster layer's (fc4_disasters). A missing callback reads as 0 / false /
+ * none. One object's calls must be serialised; a callback must not call back
+ * into its object, except that crew_shutdown may call
+ * fc4_netmgr_unregister_construction_crew. */
+typedef struct fc4_netmgr fc4_netmgr;
+typedef struct fc4_netlot fc4_netlot;
+
+/* The network manager's host. */
+typedef struct fc4_netmgr_host {
+    uint32_t struct_size; /* sizeof(fc4_netmgr_host) */
+    void* user;
+    /* messages and the city */
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    bool (*uk_paths)(void* user);
+    void (*city_size)(void* user, int32_t* x_cells, int32_t* z_cells);
+    bool (*is_night)(void* user);
+    void (*view_rotation_changed)(void* user);
+    /* references */
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* a saved reference (fc4_ref token) as the interface `iid`, one reference held; 0 = none */
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+    /* tools (§7.1): created with one reference for the core */
+    uint64_t (*create_tool)(void* user, uint32_t network_type);
+    void (*tool_init)(void* user, uint64_t tool);
+    void (*tool_shutdown)(void* user, uint64_t tool);
+    void (*tool_destroy_occupants)(void* user, uint64_t tool, const uint64_t* occupants, size_t count);
+    /* UpdateUndergroundOccupantTerrainHeights: `cells` holds `count` (x, z) pairs */
+    void (*tool_update_underground_heights)(void* user, uint64_t tool, const int32_t* cells,
+                                            const uint64_t* occupants, size_t count, uint32_t network_type);
+    uint64_t (*tool_cell_info)(void* user, uint64_t tool, uint32_t packed_cell); /* (z << 16) + x */
+    void (*tool_reinsert_piece)(void* user, uint64_t tool, uint64_t info);
+    /* network occupants */
+    uint64_t (*query_network_occupant)(void* user, uint64_t occupant); /* borrowed; 0 = not one */
+    bool (*is_network_occupant)(void* user, uint64_t occupant);
+    uint32_t (*network_flags)(void* user, uint64_t n);
+    bool (*is_of_type)(void* user, uint64_t n, uint32_t network_type);
+    uint32_t (*occupant_flags)(void* user, uint64_t occupant);
+    bool (*occupant_flag_set)(void* user, uint64_t occupant, uint32_t flag);
+    void (*occupied_cell)(void* user, uint64_t n, int32_t* x, int32_t* z);
+    float (*occupant_altitude)(void* user, uint64_t n, float x, float z);
+    bool (*is_managed_globally)(void* user, uint64_t n);
+    bool (*can_be_lit)(void* user, uint64_t n);
+    void (*set_lit)(void* user, uint64_t n, bool lit);
+    bool (*check_for_retrofit)(void* user, uint64_t n);
+    void (*retrofit)(void* user, uint64_t n);
+    uint64_t (*creation_number)(void* user, uint64_t occupant); /* missing: the token */
+    /* the occupant manager and the terrain */
+    bool (*remove_occupant)(void* user, uint64_t occupant);
+    void (*occupants_in_rect)(void* user, const fc4_cell_rect* rect, uint32_t network_mask, fc4_token_callback cb,
+                              void* ctx);
+    void (*network_occupants)(void* user, fc4_token_callback cb, void* ctx);
+    void (*post_refresh)(void* user, uint64_t n); /* posts 0x99EF1145 */
+    float (*terrain_altitude)(void* user, float x, float z);
+    /* construction crews: slot 5 */
+    void (*crew_shutdown)(void* user, uint64_t crew);
+} fc4_netmgr_host;
+
+typedef struct fc4_netmgr_state {
+    uint32_t struct_size;
+    uint8_t initialized, destroyed, uk_paths, long_terrain_op;
+    uint8_t queueing, reserved[3];
+    uint32_t ref_count;
+    uint32_t managed, pending, retrofit, crews;
+    uint32_t tools;      /* cached tools that are not null */
+    fc4_cell_rect dirty; /* (0x7FFFFFFF, 0x7FFFFFFF, -1, -1) when empty */
+} fc4_netmgr_state;
+
+/* A network flag change (§5). */
+typedef struct fc4_network_flag_change {
+    uint32_t flags;       /* the new flags */
+    int32_t usable_post;  /* data1 of the 0x89D3E9F3 to post, or -1 for none */
+    uint8_t translucency; /* the translucency changes */
+    uint8_t reserved[3];
+} fc4_network_flag_change;
+
+/* Pure rules. */
+bool fc4_network_set_flag(uint32_t flags, uint32_t bits, bool in_city, fc4_network_flag_change* out);
+bool fc4_network_clear_flag(uint32_t flags, uint32_t bits, fc4_network_flag_change* out);
+uint32_t fc4_network_pipe_model(uint32_t flags); /* 0 normal, 1 distressed, 2 burst */
+/* §7.6 step 1: the rectangle of 0x278E6003, clamped to the city. */
+bool fc4_network_terrain_rect(uint32_t data1, uint32_t data2, int32_t x_size, int32_t z_size, fc4_cell_rect* out);
+/* The §7.6 corner rule for one corner's height difference (NaN: false). */
+bool fc4_network_corner_mismatch(float d);
+
+/* Lifecycle. fc4_netmgr_release returns 0 once the object is destroyed; the
+ * handle stays valid until fc4_netmgr_destroy. */
+fc4_netmgr* fc4_netmgr_create(const fc4_netmgr_host* host, uint64_t token);
+void fc4_netmgr_destroy(fc4_netmgr* m);
+bool fc4_netmgr_query_interface(uint32_t iid);
+uint32_t fc4_netmgr_add_ref(fc4_netmgr* m);
+uint32_t fc4_netmgr_release(fc4_netmgr* m);
+bool fc4_netmgr_init(fc4_netmgr* m); /* §3.1: 11 subscriptions, 13 tools */
+bool fc4_netmgr_shutdown(fc4_netmgr* m);
+/* DoMessage (§6.1). void1: the occupant of 0x99EF1142 / 0x99EF1143 (0 =
+ * none); view_old / view_new: the two values of 0xA6B79602. */
+bool fc4_netmgr_do_message(fc4_netmgr* m, uint32_t msg_type, uint32_t data1, uint32_t data2, uint32_t data3,
+                           uint32_t data4, uint64_t void1, uint32_t view_old, uint32_t view_new);
+/* Slot 5 (§7.1): the cached tool (borrowed) or, with `unique`, a new one carrying the caller's reference. */
+uint64_t fc4_netmgr_get_network_tool(fc4_netmgr* m, uint32_t network_type, bool unique);
+void fc4_netmgr_destroy_network_occupants(fc4_netmgr* m, const uint64_t* list, size_t count); /* slot 6 */
+void fc4_netmgr_queue_removals(fc4_netmgr* m, bool on);                                     /* slot 7 */
+/* Slot 8 (§7.4): `*replaced` is written (true) only when an intersection was replaced. */
+bool fc4_netmgr_remove_or_replace_occupant(fc4_netmgr* m, uint64_t tool, uint64_t occupant, bool* replaced);
+void fc4_netmgr_register_construction_crew(fc4_netmgr* m, uint64_t crew);   /* slot 16 */
+void fc4_netmgr_unregister_construction_crew(fc4_netmgr* m, uint64_t crew); /* slot 17 */
+void fc4_netmgr_add_to_retrofit_list(fc4_netmgr* m, uint64_t n);            /* slot 23 */
+/* The globally managed list (0 = a null entry read from a save). Returns the length; copies at most `capacity`. */
+size_t fc4_netmgr_managed(const fc4_netmgr* m, uint64_t* out, size_t capacity);
+bool fc4_netmgr_get_state(const fc4_netmgr* m, fc4_netmgr_state* out);
+/* The record (§4.1). Read appends to the managed list (resolve_ref, IID 0xA821EF94). */
+bool fc4_netmgr_write(const fc4_netmgr* m, const fc4_ostream* out);
+bool fc4_netmgr_read(fc4_netmgr* m, const fc4_istream* in);
+
+/* The network lot manager's host. */
+typedef struct fc4_netlot_host {
+    uint32_t struct_size; /* sizeof(fc4_netlot_host) */
+    void* user;
+    /* messages and references */
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid); /* one reference held; 0 = none */
+    /* network occupants */
+    uint64_t (*query_network_occupant)(void* user, uint64_t unknown); /* borrowed; 0 = not one */
+    uint32_t (*network_flags)(void* user, uint64_t n);
+    uint32_t (*piece_id)(void* user, uint64_t n);
+    int32_t (*rotation)(void* user, uint64_t n);
+    int32_t (*flip)(void* user, uint64_t n);
+    void (*position_cell)(void* user, uint64_t n, int32_t* x, int32_t* z);
+    void (*occupied_cell)(void* user, uint64_t n, int32_t* x, int32_t* z);
+    float (*occupant_altitude)(void* user, uint64_t n, float x, float z);
+    bool (*is_intersection)(void* user, uint64_t n);
+    uint32_t (*edge_types_flag)(void* user, uint64_t n, uint32_t kind);
+    uint32_t (*active_edges)(void* user, uint64_t n);
+    void (*set_network_flag)(void* user, uint64_t n, uint32_t bits);
+    void (*set_under_texture)(void* user, uint64_t n, uint32_t texture);
+    void (*set_variation)(void* user, uint64_t n, uint32_t variation);
+    /* the traffic network map (traffic-network.md) */
+    bool (*traffic_map_exists)(void* user);
+    uint64_t (*find_network_tile)(void* user, int32_t x, int32_t z, uint32_t mask); /* borrowed; 0 = none */
+    void (*update_intersection)(void* user, uint64_t n);
+    /* the city, the terrain, zones and lots */
+    void (*city_size)(void* user, int32_t* x_cells, int32_t* z_cells);
+    void (*cell_center)(void* user, int32_t x, int32_t z, float* wx, float* wz);
+    float (*terrain_altitude)(void* user, float x, float z);
+    int32_t (*zone_type)(void* user, int32_t x, int32_t z);
+    uint64_t (*lot_at)(void* user, int32_t x, int32_t z); /* borrowed; 0 = none */
+    int32_t (*lot_wealth)(void* user, uint64_t lot);
+    bool (*lot_is_livable)(void* user, uint64_t lot);
+    uint32_t (*lot_building_type)(void* user, uint64_t lot);
+    bool (*building_profile_wealth)(void* user, uint32_t building_type, int32_t* wealth);
+    uint64_t (*query_lot)(void* user, uint64_t unknown); /* borrowed; 0 = not a lot */
+    void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    float (*area_slope)(void* user, int32_t x, int32_t z);
+    /* street props and flora (§8.6); a position is float[3] (x, y, z) */
+    void (*remove_street_props)(void* user, int32_t x, int32_t z);
+    uint64_t (*add_street_prop)(void* user, uint32_t id, const float* pos, uint32_t orientation); /* borrowed */
+    void (*street_prop_slot28)(void* user, uint64_t prop, uint32_t value);
+    void (*street_prop_slot29)(void* user, uint64_t prop, uint32_t value);
+    void (*demolish_flora)(void* user, int32_t x, int32_t z);
+    uint64_t (*add_flora)(void* user, uint32_t id, const float* pos); /* borrowed */
+    void (*flora_slot28)(void* user, uint64_t flora, uint32_t index);
+    /* the candidate IDs of object `index` of configuration `config` (its token) */
+    void (*object_ids)(void* user, uint64_t config, uint32_t index, fc4_u32_callback cb, void* ctx);
+    /* potholes (§8.8): the effect prop is created with one reference for the core */
+    uint64_t (*create_effect_prop)(void* user);
+    void (*effect_set_name)(void* user, uint64_t prop, const char* name);
+    void (*effect_start)(void* user, uint64_t prop);
+    void (*effect_stop)(void* user, uint64_t prop);
+    void (*set_position)(void* user, uint64_t prop, const float* pos);
+    void (*insert_occupant)(void* user, uint64_t occupant);
+    void (*remove_occupant)(void* user, uint64_t occupant);
+    uint64_t (*first_network_occupant_at)(void* user, int32_t x, int32_t z, uint32_t mask); /* borrowed */
+} fc4_netlot_host;
+
+/* One configuration object (§8.6). */
+typedef struct fc4_netlot_object {
+    uint8_t kind;  /* 1 prop, 4 flora */
+    uint8_t flags; /* bit 0: no prop is created */
+    uint8_t orientation;
+    uint8_t reserved;
+    float offset[3];
+    uint32_t field_24; /* passed to a created prop's slot 28 */
+} fc4_netlot_object;
+
+/* A network lot configuration (§2.4). */
+typedef struct fc4_netlot_config {
+    uint32_t struct_size; /* sizeof(fc4_netlot_config) */
+    uint32_t piece_id;
+    uint64_t token; /* the host's identity of the configuration (object_ids) */
+    uint32_t id;
+    uint16_t zones;  /* bit z: zone type z allowed */
+    uint8_t wealths; /* bit w: wealth w allowed */
+    uint8_t period;
+    uint8_t mask[4];
+    uint8_t rotations;
+    uint8_t flip_rule;
+    uint16_t reserved;
+    float min_slope, max_slope;
+    uint32_t object_count;
+    const fc4_netlot_object* objects;
+} fc4_netlot_config;
+
+typedef struct fc4_netlot_lot {
+    uint64_t occupant;  /* 0 = a reference that did not resolve on load */
+    uint32_t config_id; /* the live configuration's, or the one read */
+    uint8_t has_config; /* false only between Read and Init */
+    uint8_t locked;
+    uint16_t reserved;
+} fc4_netlot_lot;
+
+typedef struct fc4_netlot_state {
+    uint32_t struct_size;
+    uint8_t initialized, destroyed, has_forced, reserved;
+    uint32_t ref_count;
+    uint32_t lots, potholes, pending, configs;
+    uint32_t forced_id;
+} fc4_netlot_state;
+
+typedef bool (*fc4_netlot_visitor)(void* ctx, int32_t x, int32_t z, const fc4_netlot_lot* lot);
+
+/* Lifecycle. `session_seed` seeds the generator (§17). */
+fc4_netlot* fc4_netlot_create(const fc4_netlot_host* host, uint64_t token, uint32_t session_seed);
+void fc4_netlot_destroy(fc4_netlot* l);
+bool fc4_netlot_query_interface(uint32_t iid);
+uint32_t fc4_netlot_add_ref(fc4_netlot* l);
+uint32_t fc4_netlot_release(fc4_netlot* l);
+/* Configurations for the next Init (load order = call order); objects are copied. The props
+ * form is ReadLotConfiguration (§2.4): false unless property 0x10 is 0x21 and the piece ID is present. */
+bool fc4_netlot_add_configuration(fc4_netlot* l, const fc4_netlot_config* cfg);
+bool fc4_netlot_add_configuration_props(fc4_netlot* l, uint64_t token, const fc4_props* props,
+                                        const fc4_netlot_object* objects, uint32_t object_count);
+void fc4_netlot_clear_configurations(fc4_netlot* l);
+bool fc4_netlot_init(fc4_netlot* l); /* §3.2 */
+bool fc4_netlot_shutdown(fc4_netlot* l);
+/* DoMessage (§6.2). rect: *data2 of 0x07699455 (NULL otherwise). */
+bool fc4_netlot_do_message(fc4_netlot* l, uint32_t msg_type, uint32_t data1, uint32_t data2, uint32_t data3,
+                           uint64_t void1, uint64_t unknown, const fc4_cell_rect* rect);
+bool fc4_netlot_get_lot(const fc4_netlot* l, int32_t x, int32_t z, fc4_netlot_lot* out); /* slot 5; out may be NULL */
+int32_t fc4_netlot_zone_type_for_network(const fc4_netlot* l, int32_t x, int32_t z);    /* slot 9, §8.2 */
+int32_t fc4_netlot_wealth_for_network(const fc4_netlot* l, int32_t x, int32_t z);       /* slot 10, §8.3 */
+/* IsLotCompatible (§8.4) for the loaded configuration `config_id` (false when none is loaded). */
+bool fc4_netlot_is_lot_compatible(const fc4_netlot* l, uint32_t config_id, int32_t x, int32_t z, int32_t zone,
+                                  int32_t wealth, int32_t rotation, int32_t flip);
+bool fc4_netlot_configuration_by_id(const fc4_netlot* l, uint32_t id);     /* slot 7: loaded */
+bool fc4_netlot_set_next_configuration(fc4_netlot* l, uint32_t config_id); /* slot 13 */
+void fc4_netlot_clear_next_configuration(fc4_netlot* l);                  /* slot 13 with null */
+bool fc4_netlot_iterate_lots(const fc4_netlot* l, fc4_netlot_visitor cb, void* ctx); /* slot 11 */
+void fc4_netlot_update_roads_in_cell(fc4_netlot* l, int32_t x, int32_t z);          /* §8.5 */
+void fc4_netlot_add_pending(fc4_netlot* l, int32_t x, int32_t z);
+void fc4_netlot_process_update_list(fc4_netlot* l);
+bool fc4_netlot_redevelop_lot(fc4_netlot* l, int32_t x, int32_t z); /* slot 12; false: no lot */
+/* Slot 8 CreateProp for the cell's lot: the street prop (borrowed) or 0. */
+uint64_t fc4_netlot_create_prop(fc4_netlot* l, int32_t x, int32_t z, uint32_t index, uint32_t id);
+void fc4_netlot_road_damage_change(fc4_netlot* l, int32_t x, int32_t z, bool damaged); /* §8.8 */
+bool fc4_netlot_get_state(const fc4_netlot* l, fc4_netlot_state* out);
+/* The record (§4.2). Read: false unless the version is 2; occupants (IID 0xA821EF94) and
+ * effect props (IID 0x09820792) come back through resolve_ref. */
+bool fc4_netlot_write(const fc4_netlot* l, const fc4_ostream* out);
+bool fc4_netlot_read(fc4_netlot* l, const fc4_istream* in);
 
 /* ---- occupant manager (docs/specs/occupant-manager.md) ---------------------
  * cSC4OccupantManager (0x098F964D): the city's spatial index of occupants, a
@@ -8152,7 +8444,7 @@ float fc4_terrain_water_depth_for_cell(const fc4_terrain* t, int32_t x, int32_t 
 bool fc4_terrain_has_draft_clearance(const fc4_terrain* t, int32_t x, int32_t z);
 uint32_t fc4_terrain_water_type(const fc4_terrain* t, int32_t x, int32_t z);
 bool fc4_terrain_is_navigable(const fc4_terrain* t, int32_t x, int32_t z, int32_t r, uint64_t lot);
-/* ABI 66. GetLerpedWaterLevel (slot 32, §5.1: no clamp at x = sizeX);
+/* ABI 68. GetLerpedWaterLevel (slot 32, §5.1: no clamp at x = sizeX);
  * AltitudeAtWhichFloodingWillOccur (surface water slot 10, §10.2); GetWaterVelocity (surface
  * water slot 11: out[3], a zero vector past the arrays); GetSedimentValue (slot 55, world
  * metres, 0 unless LocationIsInBounds). */
@@ -8198,9 +8490,9 @@ bool fc4_terrain_set_water_display_state(fc4_terrain* t, uint8_t state);
  * add_shipped_brush: the brushes 0x11, 0x12 and 0x14 with the host's bitmap; each walks with
  * the 0.5 degree default step (so every in-bounds ApplyBrush draws random_uniform(5) once) from
  * a walk angle of 0 (set the host's draw with set_brush_angles).
- * brush_angle: the stroke angle. brush_angles / set_brush_angles (ABI 66): the walk angle
+ * brush_angle: the stroke angle. brush_angles / set_brush_angles (ABI 68): the walk angle
  * (+0x68) and the stroke angle (+0x6C); the original's descriptions are process-wide, so a
- * host carries them across cities. talus_angle (ABI 66): kind 2's TalusAngle in radians. */
+ * host carries them across cities. talus_angle (ABI 68): kind 2's TalusAngle in radians. */
 bool fc4_terrain_add_brush(fc4_terrain* t, uint32_t id, const fc4_brush_component* components, size_t count,
                            float random_walk_step, float angle);
 bool fc4_terrain_add_shipped_brush(fc4_terrain* t, uint32_t id, uint32_t bitmap_width, uint32_t bitmap_height,

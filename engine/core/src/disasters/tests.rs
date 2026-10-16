@@ -1430,3 +1430,34 @@ fn flame_counts_from_the_curves() {
     h.add(prop::ZOOM_LEVEL, Variant::Scalar(Elem::U8(7)));
     assert_eq!(FireTuning::from_holder(Some(&h)).zoom, 7);
 }
+
+#[test]
+fn mirror_random_numbers_ids_and_never_spreads() {
+    let w = world();
+    w.sys.set_random(Generator::Fire, Box::new(MirrorRandom::default()));
+    let a = w.host.add(occupant::BUILDING, 5, 5);
+    let b = w.host.add(occupant::BUILDING, 6, 5);
+    w.host.flammability.borrow_mut().insert((6, 5), 255);
+    assert!(w.sys.ignite(a, false, 0, false));
+    assert_eq!(w.fire().fire_id, MIRROR_FIRST_ID);
+    // The next drawn ID follows; a given ID is kept.
+    assert!(w.sys.ignite(b, false, 0, false));
+    assert_eq!(w.sys.fire_snapshot().unwrap().fires[1].fire_id, MIRROR_FIRST_ID + 1);
+    w.sys.extinguish(b);
+    w.sys.fire_update();
+    for _ in 0..53 {
+        w.second();
+    }
+    // No spread in 54 updates (the probability draw fails), and the
+    // extinguished fire died at once (a zero Random(4000)).
+    let s = w.sys.fire_snapshot().unwrap();
+    assert_eq!(s.fires.len(), 1, "{:?}", s.fires);
+    assert_eq!(s.fires[0].target, a);
+    // IgniteCell with the probability test never ignites.
+    assert!(!w.sys.ignite_cell(6, 5, true, false, 9));
+    let mut m = MirrorRandom::default();
+    assert_eq!(m.uniform_u32(5), 0);
+    assert_eq!(m.uniform_f64(), 1.0);
+    assert_eq!(m.range_f64(0.0, 100.0), 100.0);
+    assert_eq!(m.range_gaussian(-3.0, 4.0), -3.0);
+}
