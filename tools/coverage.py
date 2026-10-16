@@ -556,6 +556,57 @@ def read_shadow_evidence(path, repo):
     return out, warned
 
 
+def map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress_name):
+    """The four statuses of every map row, its shadow note, and any warnings; returns (warnings, replace run).
+
+    One place for the status rules: coverage.py's report and coverage_treemap.py both call this, so the two cannot
+    disagree about what a row counts as (the treemap once recomputed them and drifted)."""
+    warnings = []
+    rrun = reg["runs"].get("replace", ("none", 1))
+    replace_clean = rrun[0] == "clean" and rrun[1] == 0
+    if not replace_clean:
+        warnings.append(f"the replace run of `{regress_name}` is not clean ({rrun[0]}): nothing counts as replaced")
+    for r in rows:
+        specs = split_list(r["spec"])
+        cores = split_list(r["core"])
+        r["specified"] = bool(specs) and all((REPO / "docs" / "specs" / s).exists() for s in specs)
+        r["implemented"] = bool(cores) and all((REPO / "engine" / c).exists() for c in cores)
+        for s in specs:
+            if not (REPO / "docs" / "specs" / s).exists():
+                warnings.append(f"map row `{r['pattern']}`: spec `{s}` does not exist")
+        for c in cores:
+            if not (REPO / "engine" / c).exists():
+                warnings.append(f"map row `{r['pattern']}`: core path `engine/{c}` does not exist")
+        sh = r["shadow"]
+        r["verified"] = False
+        r["shadow_note"] = "-"
+        if sh != "-":
+            label = sh[: -len("_shadow")] if sh.endswith("_shadow") else sh
+            label = SHADOW_LABEL_ALIAS.get(label, label)
+            if sh in shadow_list and label in reg["shadows"]:
+                clean, lines = reg["shadows"][label]
+                r["verified"] = lines > 0 and clean == lines
+                r["shadow_note"] = f"{clean}/{lines}"
+            elif sh in shadow_list:
+                r["shadow_note"] = "no lines"
+                warnings.append(f"shadow `{sh}` is in the regress list but `{regress_name}` has no `{label}` lines")
+            elif sh in shadow_ev:
+                sets, exact = shadow_ev[sh]
+                r["verified"] = exact
+                r["shadow_note"] = (", ".join(f"{lab} {c}/{t}" for lab, c, t in sets)
+                                    + (" (lane run)" if exact else " (lane run, not exact)"))
+            else:
+                r["shadow_note"] = "not in regress"
+        rp = r["replace"]
+        r["replaced"] = False
+        if rp != "-":
+            if rp not in keys:
+                warnings.append(f"map row `{r['pattern']}`: replace key `{rp}` is not an enable key in "
+                                "FC4Subsystems.cpp")
+            r["replaced"] = (rp in replace_list or keys.get(rp, False)) and replace_clean
+    return warnings, rrun
+
+
 def regress_lists(path):
     text = path.read_text(encoding="utf-8", errors="replace")
     m = re.search(r'\[string\]\$Replace\s*=\s*"([^"]*)"', text)
@@ -687,51 +738,10 @@ def main():
     keys = subsystem_keys(inputs["subsystems"])
     reg = read_regress(regress)
     shadow_ev, shadow_warn = read_shadow_evidence(inputs["shadows"], REPO)
-    warnings = list(shadow_warn)
 
     # statuses per map row
-    rrun = reg["runs"].get("replace", ("none", 1))
-    replace_clean = rrun[0] == "clean" and rrun[1] == 0
-    if not replace_clean:
-        warnings.append(f"the replace run of `{regress.name}` is not clean ({rrun[0]}): nothing counts as replaced")
-    for r in rows:
-        specs = split_list(r["spec"])
-        cores = split_list(r["core"])
-        r["specified"] = bool(specs) and all((REPO / "docs" / "specs" / s).exists() for s in specs)
-        r["implemented"] = bool(cores) and all((REPO / "engine" / c).exists() for c in cores)
-        for s in specs:
-            if not (REPO / "docs" / "specs" / s).exists():
-                warnings.append(f"map row `{r['pattern']}`: spec `{s}` does not exist")
-        for c in cores:
-            if not (REPO / "engine" / c).exists():
-                warnings.append(f"map row `{r['pattern']}`: core path `engine/{c}` does not exist")
-        sh = r["shadow"]
-        r["verified"] = False
-        r["shadow_note"] = "-"
-        if sh != "-":
-            label = sh[: -len("_shadow")] if sh.endswith("_shadow") else sh
-            label = SHADOW_LABEL_ALIAS.get(label, label)
-            if sh in shadow_list and label in reg["shadows"]:
-                clean, lines = reg["shadows"][label]
-                r["verified"] = lines > 0 and clean == lines
-                r["shadow_note"] = f"{clean}/{lines}"
-            elif sh in shadow_list:
-                r["shadow_note"] = "no lines"
-                warnings.append(f"shadow `{sh}` is in the regress list but `{regress.name}` has no `{label}` lines")
-            elif sh in shadow_ev:
-                sets, exact = shadow_ev[sh]
-                r["verified"] = exact
-                r["shadow_note"] = (", ".join(f"{lab} {c}/{t}" for lab, c, t in sets)
-                                    + (" (lane run)" if exact else " (lane run, not exact)"))
-            else:
-                r["shadow_note"] = "not in regress"
-        rp = r["replace"]
-        r["replaced"] = False
-        if rp != "-":
-            if rp not in keys:
-                warnings.append(f"map row `{r['pattern']}`: replace key `{rp}` is not an enable key in "
-                                "FC4Subsystems.cpp")
-            r["replaced"] = (rp in replace_list or keys.get(rp, False)) and replace_clean
+    status_warn, rrun = map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress.name)
+    warnings = list(shadow_warn) + status_warn
 
     def match(o):
         for i, r in enumerate(rows):

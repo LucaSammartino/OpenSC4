@@ -97,8 +97,10 @@ python tools/coverage_treemap.py                       # writes docs/coverage-ma
 ```
 
 About 6 seconds, deterministic (two runs write a byte-identical report; well under a minute). The report contains counts, class names, address ranges and statuses only, never
-code. `coverage_treemap.py` reads `coverage.py` as a module, so the two cannot drift: it colours the same owners by
-the furthest status their map row has reached.
+code. `coverage_treemap.py` reads `coverage.py` as a module and calls its `map_statuses()` for the four statuses,
+so the two cannot drift: it colours the same owners by the furthest status their map row has reached, and its
+header shares are summed on each status's own flag rather than on that colour, since a row can be implemented
+without a spec or replaced without a module.
 
 ## Moving the numbers honestly
 

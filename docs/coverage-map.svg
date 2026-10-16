@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" font-family="Segoe UI, Helvetica, Arial, sans-serif">
 <rect width="1600" height="1000" fill="#f6f7f4"/>
 <text x="16" y="44" font-size="30" font-weight="700" fill="#1d2320">OpenSC4 coverage of SimCity 4.exe</text>
-<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 33.1% · implemented 23.1% · verified 9.5% · replaced in game 12.1%.</text>
-<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main 36af773e, regress-voidbool.out.</text>
+<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 32.9% · implemented 23.1% · verified 10.5% · replaced in game 12.1%.</text>
+<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). coverage3 cb19fecf, regress-voidbool.out.</text>
 <rect x="18.0" y="146.0" width="75.4" height="112.5" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="18.0" y="258.5" width="75.4" height="104.4" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="93.4" y="146.0" width="94.2" height="79.9" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -181,7 +181,7 @@
 <rect x="142.1" y="519.8" width="104.6" height="88.6" fill="#1f6b43" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="142.1" y="519.8" width="104.6" height="88.6" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <text x="146.1" y="533.8" font-size="11.5" font-weight="600" fill="#1d2320" stroke="#f6f7f4" stroke-width="3" paint-order="stroke">zone developer…</text>
-<rect x="246.7" y="519.8" width="104.2" height="88.6" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="246.7" y="519.8" width="104.2" height="88.6" fill="#4fa36b" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="246.7" y="519.8" width="104.2" height="88.6" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <text x="250.7" y="533.8" font-size="11.5" font-weight="600" fill="#1d2320" stroke="#f6f7f4" stroke-width="3" paint-order="stroke">city situation</text>
 <rect x="350.8" y="519.8" width="69.9" height="45.5" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -284,7 +284,7 @@
 <rect x="503.5" y="749.5" width="51.8" height="53.8" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="373.2" y="803.3" width="54.4" height="48.8" fill="#1f6b43" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="373.2" y="803.3" width="54.4" height="48.8" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
-<rect x="373.2" y="852.1" width="51.7" height="44.3" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="373.2" y="852.1" width="51.7" height="44.3" fill="#4fa36b" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="424.9" y="852.1" width="2.8" height="44.3" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="373.2" y="852.1" width="54.4" height="44.3" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="373.2" y="896.4" width="30.1" height="39.6" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -304,7 +304,7 @@
 <rect x="550.8" y="840.7" width="4.6" height="7.4" fill="#c97b2a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="544.9" y="848.1" width="10.4" height="3.2" fill="#c97b2a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="514.4" y="803.3" width="40.9" height="48.0" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
-<rect x="427.6" y="851.3" width="36.7" height="44.5" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="427.6" y="851.3" width="36.7" height="44.5" fill="#4fa36b" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="427.6" y="851.3" width="36.7" height="44.5" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="427.6" y="895.8" width="36.7" height="40.2" fill="#c97b2a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="427.6" y="895.8" width="36.7" height="40.2" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
