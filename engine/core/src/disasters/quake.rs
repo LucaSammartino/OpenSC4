@@ -55,6 +55,9 @@ pub const MIN_WIDTH: f32 = 0.002;
 pub const SETTLE_US: u64 = 3_000_000;
 /// The rumble's intensity growth per µs (§7 state 1).
 pub const RUMBLE_PER_US: f64 = 1e-7;
+/// The constructor's intensity (§7): the rumble never ticks, so every
+/// started earthquake deforms at this intensity.
+pub const START_INTENSITY: f32 = 0.1;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct QuakeTuning {
@@ -180,7 +183,10 @@ impl Core {
         let id = self.new_instance(
             kind::EARTHQUAKE,
             instance_class::EARTHQUAKE,
-            InstanceState::Quake(Box::default()),
+            InstanceState::Quake(Box::new(QuakeState {
+                intensity: START_INTENSITY,
+                ..QuakeState::default()
+            })),
         );
         self.add_instance_to_list(kind::EARTHQUAKE, id);
         self.quake_init(id, x as f32, z as f32);
@@ -245,12 +251,10 @@ impl Core {
                 q.budget_m = 0.0;
             }
             3 => host.end_long_terrain_operation(),
+            // The phase stays 1 (§3.2): the instance leaves the manager.
             4 => {
                 host.stop_terrain_texture_updates();
                 self.unregister_locations(id);
-                if let Some(i) = self.instances.get_mut(&id) {
-                    i.phase = 3;
-                }
                 self.disaster_has_ended();
                 self.instance_finish(id);
             }

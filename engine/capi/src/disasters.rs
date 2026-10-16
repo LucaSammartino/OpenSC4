@@ -128,14 +128,13 @@ pub struct fc4_disasters_host {
     pub record_history: Option<unsafe extern "C" fn(U, u32, i32)>,
     pub add_ref: Option<unsafe extern "C" fn(U, u64)>,
     pub release: Option<unsafe extern "C" fn(U, u64)>,
-    // the camera and the dispatch effectiveness
+    // the camera and the dispatch-unit counts (the effectiveness divisor)
     pub follow_disasters: Option<unsafe extern "C" fn(U) -> bool>,
     pub go_to_location: Option<unsafe extern "C" fn(U, i32, i32, u32)>,
-    pub set_fire_dispatch_effectiveness: Option<unsafe extern "C" fn(U, f32)>,
-    pub set_police_dispatch_effectiveness: Option<unsafe extern "C" fn(U, f32)>,
+    pub fire_dispatch_count: Option<unsafe extern "C" fn(U) -> u32>,
+    pub police_dispatch_count: Option<unsafe extern "C" fn(U) -> u32>,
     // occupants
     pub building_type_flags: Option<unsafe extern "C" fn(U, u64) -> u32>,
-    pub network_default_cost: Option<unsafe extern "C" fn(U, u64) -> i64>,
     pub occupant_type: Option<unsafe extern "C" fn(U, u64) -> u32>,
     pub occupant_in_manager: Option<unsafe extern "C" fn(U, u64) -> bool>,
     pub occupant_cell: Option<unsafe extern "C" fn(U, u64, *mut i32, *mut i32) -> bool>,
@@ -158,7 +157,7 @@ pub struct fc4_disasters_host {
     pub remove_fire_occupant: Option<unsafe extern "C" fn(U, u64, u64)>,
     pub add_fire_aura: Option<unsafe extern "C" fn(U, u64)>,
     pub tutorial_no_burn_down: Option<unsafe extern "C" fn(U) -> bool>,
-    pub wind: Option<unsafe extern "C" fn(U) -> f32>,
+    pub wind: Option<unsafe extern "C" fn(U, *mut f32, *mut f32)>,
     pub play_effect: Option<unsafe extern "C" fn(U, *const c_char, u64)>,
     pub play_effect_at: Option<unsafe extern "C" fn(U, *const c_char, f32, f32)>,
     pub burn_flora: Option<unsafe extern "C" fn(U, u64)>,
@@ -197,7 +196,6 @@ pub struct fc4_disasters_host {
     pub demolish_pipe: Option<unsafe extern "C" fn(U, u64, u32)>,
     // volcano
     pub volcano_start_deformation: Option<unsafe extern "C" fn(U, u32, f32, f32)>,
-    pub volcano_end_deformation: Option<unsafe extern "C" fn(U, u32)>,
     pub volcano_start_lava: Option<unsafe extern "C" fn(U, u32, f32, f32, f32)>,
     pub volcano_lava_rates: Option<unsafe extern "C" fn(U, u32, f32, f32)>,
     pub volcano_end_lava: Option<unsafe extern "C" fn(U, u32)>,
@@ -294,7 +292,7 @@ pub struct fc4_disaster_location {
     pub occupant: u64,
 }
 
-const CALLBACKS: usize = 82;
+const CALLBACKS: usize = 80;
 
 const _: () = {
     assert!(std::mem::size_of::<fc4_disaster_post>() == 32);
@@ -457,17 +455,14 @@ impl DisasterHost for CHost {
     fn go_to_location(&self, x: i32, z: i32, zoom: u32) {
         cb!(self, go_to_location, (), x, z, zoom)
     }
-    fn set_fire_dispatch_effectiveness(&self, value: f32) {
-        cb!(self, set_fire_dispatch_effectiveness, (), value)
+    fn fire_dispatch_count(&self) -> u32 {
+        cb!(self, fire_dispatch_count, 0)
     }
-    fn set_police_dispatch_effectiveness(&self, value: f32) {
-        cb!(self, set_police_dispatch_effectiveness, (), value)
+    fn police_dispatch_count(&self) -> u32 {
+        cb!(self, police_dispatch_count, 0)
     }
     fn building_type_flags(&self, o: u64) -> u32 {
         cb!(self, building_type_flags, 0, o)
-    }
-    fn network_default_cost(&self, o: u64) -> i64 {
-        cb!(self, network_default_cost, 0, o)
     }
     fn occupant_type(&self, o: u64) -> u32 {
         cb!(self, occupant_type, 0, o)
@@ -562,8 +557,10 @@ impl DisasterHost for CHost {
     fn tutorial_no_burn_down(&self) -> bool {
         cb!(self, tutorial_no_burn_down, false)
     }
-    fn wind(&self) -> f32 {
-        cb!(self, wind, 0.0)
+    fn wind(&self) -> (f32, f32) {
+        let (mut x, mut z) = (0.0f32, 0.0f32);
+        cb!(self, wind, (), &mut x, &mut z);
+        (x, z)
     }
     fn play_effect(&self, name: &str, o: u64) {
         let n = c_name(name);
@@ -673,9 +670,6 @@ impl DisasterHost for CHost {
     }
     fn volcano_start_deformation(&self, instance: u32, x: f32, z: f32) {
         cb!(self, volcano_start_deformation, (), instance, x, z)
-    }
-    fn volcano_end_deformation(&self, instance: u32) {
-        cb!(self, volcano_end_deformation, (), instance)
     }
     fn volcano_start_lava(&self, instance: u32, x: f32, z: f32, radius: f32) {
         cb!(self, volcano_start_lava, (), instance, x, z, radius)
@@ -907,7 +901,9 @@ pub unsafe extern "C" fn fc4_disasters_tick(d: *mut fc4_disasters, instance: u32
     with_d(d, (), |h| h.sys.tick(instance, us))
 }
 
-/// `AttemptDisasterStart(x, z)` on a manager: the instance, 0 = none.
+/// `AttemptDisasterStart(x, z)` on a manager: the instance, 0 = none. The
+/// fire's and the riot's are always 0 (§5.5, §6.2); a new riot is the last
+/// entry of `fc4_disasters_manager_instances`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_disasters_attempt_start(d: *mut fc4_disasters, manager_type: u32, x: i32, z: i32) -> u32 {
     with_d(d, 0, |h| h.sys.attempt_start(manager_type, x, z).unwrap_or(0))
@@ -924,7 +920,9 @@ pub unsafe extern "C" fn fc4_disasters_active_count(d: *const fc4_disasters, man
     with_d(d, 0, |h| h.sys.active_count(manager_type))
 }
 
-/// The instance's `Shutdown` (it leaves its manager).
+/// The instance's `Shutdown` (§3.1): the fire, riot, pipe burst, toxic
+/// spill and volcano leave their manager; the earthquake and the effect
+/// stay.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_disasters_instance_shutdown(d: *mut fc4_disasters, instance: u32) {
     with_d(d, (), |h| h.sys.instance_shutdown(instance))
@@ -1011,9 +1009,11 @@ pub unsafe extern "C" fn fc4_disasters_burn_down(d: *mut fc4_disasters, occupant
     with_d(d, (), |h| h.sys.burn_down(occupant))
 }
 
+/// `SetCause(c)` (§5.7): sets it only while it is 0 (the first cause of an
+/// episode wins); returns the cause.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_disasters_set_cause(d: *mut fc4_disasters, cause: u32) {
-    with_d(d, (), |h| h.sys.set_cause(cause))
+pub unsafe extern "C" fn fc4_disasters_set_cause(d: *mut fc4_disasters, cause: u32) -> u32 {
+    with_d(d, 0, |h| h.sys.set_cause(cause))
 }
 
 #[no_mangle]
@@ -1056,7 +1056,8 @@ pub unsafe extern "C" fn fc4_disasters_toxic_set_hosed(d: *mut fc4_disasters, to
     with_d(d, false, |h| h.sys.toxic_set_hosed(toxic_occupant, delta))
 }
 
-/// Asks the volcano to end after its lava phase (§10).
+/// The volcano's end request (§10 state 7), as its "volcano_control"
+/// effect's completion (`0xCA493C1D`) delivers it.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_disasters_volcano_request_end(d: *mut fc4_disasters, instance: u32) -> bool {
     with_d(d, false, |h| h.sys.volcano_request_end(instance))
@@ -1240,6 +1241,27 @@ pub unsafe extern "C" fn fc4_disasters_get_location(
 pub unsafe extern "C" fn fc4_disasters_riot_locked(d: *const fc4_disasters, out: *mut u64, capacity: usize) -> usize {
     with_d(d, 0, |h| {
         let l = h.sys.riot_locked();
+        if !out.is_null() {
+            for (i, n) in l.iter().take(capacity).enumerate() {
+                *out.add(i) = *n;
+            }
+        }
+        l.len()
+    })
+}
+
+/// A manager's instance list (`GetInstances`, manager slot 11), in order.
+/// Returns how many there are (0 for no such manager); copies at most
+/// `capacity` (`out` may be NULL).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_disasters_manager_instances(
+    d: *const fc4_disasters,
+    manager_type: u32,
+    out: *mut u32,
+    capacity: usize,
+) -> usize {
+    with_d(d, 0, |h| {
+        let l = h.sys.manager_instances(manager_type);
         if !out.is_null() {
             for (i, n) in l.iter().take(capacity).enumerate() {
                 *out.add(i) = *n;

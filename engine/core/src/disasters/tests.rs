@@ -53,6 +53,11 @@ struct Fake {
     /// Remove the occupant (and notify the layer) on demolish.
     demolish_notifies: Cell<bool>,
     follow: Cell<bool>,
+    /// Fire occupant -> its target (a fire's cells and box are its target's).
+    fire_targets: RefCell<BTreeMap<u64, u64>>,
+    fire_dispatch: Cell<u32>,
+    police_dispatch: Cell<u32>,
+    wind: Cell<(f32, f32)>,
 }
 
 impl Fake {
@@ -109,6 +114,10 @@ impl Fake {
     }
     fn occ<R>(&self, o: u64, f: impl FnOnce(&Occ) -> R) -> Option<R> {
         self.occs.borrow().get(&o).map(f)
+    }
+    /// A fire occupant answers with its target.
+    fn placed(&self, o: u64) -> u64 {
+        self.fire_targets.borrow().get(&o).copied().unwrap_or(o)
     }
     fn advance(&self, ms: u64) {
         self.now.set(self.now.get() + ms);
@@ -186,17 +195,14 @@ impl DisasterHost for Fake {
     fn go_to_location(&self, x: i32, z: i32, zoom: u32) {
         self.log(format!("go_to {x} {z} {zoom}"));
     }
-    fn set_fire_dispatch_effectiveness(&self, v: f32) {
-        self.log(format!("fire_effectiveness {v}"));
+    fn fire_dispatch_count(&self) -> u32 {
+        self.fire_dispatch.get()
     }
-    fn set_police_dispatch_effectiveness(&self, v: f32) {
-        self.log(format!("police_effectiveness {v}"));
+    fn police_dispatch_count(&self) -> u32 {
+        self.police_dispatch.get()
     }
     fn building_type_flags(&self, o: u64) -> u32 {
         self.occ(o, |x| x.flags).unwrap_or(0)
-    }
-    fn network_default_cost(&self, _o: u64) -> i64 {
-        77
     }
     fn occupant_type(&self, o: u64) -> u32 {
         self.occ(o, |x| x.otype).unwrap_or(0)
@@ -208,14 +214,15 @@ impl DisasterHost for Fake {
         self.occ(o, |x| x.in_manager.then_some(x.cell)).flatten()
     }
     fn occupant_cell_rect(&self, o: u64) -> CellRect {
-        self.occ(o, |x| CellRect::cell(x.cell.0, x.cell.1)).unwrap_or_default()
+        self.occ(self.placed(o), |x| CellRect::cell(x.cell.0, x.cell.1))
+            .unwrap_or_default()
     }
     fn occupant_position(&self, o: u64) -> (f32, f32) {
         self.occ(o, |x| (x.cell.0 as f32 * 16.0 + 8.0, x.cell.1 as f32 * 16.0 + 8.0))
             .unwrap_or((0.0, 0.0))
     }
     fn occupant_bbox(&self, o: u64) -> WorldBox {
-        let (x, z) = self.occ(o, |x| x.cell).unwrap_or((0, 0));
+        let (x, z) = self.occ(self.placed(o), |x| x.cell).unwrap_or((0, 0));
         WorldBox {
             x0: x as f32 * 16.0,
             z0: z as f32 * 16.0,
@@ -272,6 +279,7 @@ impl DisasterHost for Fake {
         if let Some(x) = self.occs.borrow_mut().get_mut(&target) {
             x.burning = true;
         }
+        self.fire_targets.borrow_mut().insert(t, target);
         self.log(format!("create_fire {t} {target} {id:08X} {} {}", flames.0, flames.1));
         Some(t)
     }
@@ -279,14 +287,15 @@ impl DisasterHost for Fake {
         if let Some(x) = self.occs.borrow_mut().get_mut(&target) {
             x.burning = false;
         }
+        self.fire_targets.borrow_mut().remove(&fire);
         self.log(format!("remove_fire {fire} {target}"));
     }
     fn add_fire_aura(&self, _o: u64) {}
     fn tutorial_no_burn_down(&self) -> bool {
         self.no_burn_down.get()
     }
-    fn wind(&self) -> f32 {
-        0.0
+    fn wind(&self) -> (f32, f32) {
+        self.wind.get()
     }
     fn play_effect(&self, name: &str, o: u64) {
         self.log(format!("effect {name} {o}"));
@@ -404,9 +413,6 @@ impl DisasterHost for Fake {
     fn volcano_start_deformation(&self, _i: u32, _x: f32, _z: f32) {
         self.log("volcano_deform");
     }
-    fn volcano_end_deformation(&self, _i: u32) {
-        self.log("volcano_end_deform");
-    }
     fn volcano_start_lava(&self, _i: u32, _x: f32, _z: f32, r: f32) {
         self.log(format!("lava {r}"));
     }
@@ -425,7 +431,8 @@ fn tgt(t: Target) -> String {
 }
 
 /// A scripted generator: queued values, then defaults (`raw` 1, `u32`
-/// n − 1, doubles 0.99, ranges `a`, Gaussian ranges the midpoint).
+/// n − 1, doubles 0.99, ranges `a + 0.99 (b − a)`, Gaussian ranges the
+/// midpoint).
 #[derive(Default)]
 struct Script {
     u32s: Rc<RefCell<VecDeque<u32>>>,
@@ -448,10 +455,10 @@ impl DisasterRandom for Script {
     }
     fn range_f64(&mut self, a: f64, b: f64) -> f64 {
         self.draws.set(self.draws.get() + 1);
-        let u = self.f64s.borrow_mut().pop_front().unwrap_or(0.0);
+        let u = self.f64s.borrow_mut().pop_front().unwrap_or(0.99);
         a + u * (b - a)
     }
-    fn range_gaussian(&mut self, a: f64, b: f64) -> f64 {
+    fn range_gaussian_fast(&mut self, a: f64, b: f64) -> f64 {
         self.draws.set(self.draws.get() + 1);
         let u = self.f64s.borrow_mut().pop_front().unwrap_or(0.5);
         a + u * (b - a)
@@ -497,6 +504,22 @@ fn world() -> World {
 }
 
 impl World {
+    /// The riot instances in the manager's list (`AttemptDisasterStart`
+    /// returns null, §6.2).
+    fn riots(&self) -> Vec<u32> {
+        self.sys.manager_instances(kind::RIOT)
+    }
+    /// Starts a riot and returns the new instance, if one was made.
+    fn riot(&self, x: i32, z: i32) -> Option<u32> {
+        let before = self.riots();
+        assert!(self.sys.attempt_start(kind::RIOT, x, z).is_none(), "always null");
+        self.riots().into_iter().find(|i| !before.contains(i))
+    }
+    /// One riot tick after `ms` of wall clock.
+    fn riot_tick(&self, id: u32, ms: u64) {
+        self.host.advance(ms);
+        self.sys.tick(id, 16_000);
+    }
     /// One fire step: a second of wall clock and a tick.
     fn second(&self) {
         self.host.advance(1000);
@@ -553,9 +576,40 @@ fn t02_stage_lookup() {
     }
     let d = FireTuning::from_holder(None);
     assert_eq!(d.d3cum, [10, 20, 30, 40, 50]);
-    assert_eq!(d.d5, [0, 3, 5, 7, 9]);
+    assert_eq!(d.d4, vec![10; 5]);
+    assert_eq!(d.d5, vec![0, 3, 5, 7, 9]);
     assert_eq!(d.zoom, 4);
     assert!(d.d9.is_empty());
+}
+
+/// §5.1: the defaults apply only when the whole exemplar is missing; an
+/// exemplar without a property leaves arrays and curves empty and D6 and
+/// the zoom byte 0. Arrays keep their stored lengths.
+#[test]
+fn fire_tuning_defaults_only_without_the_exemplar() {
+    let e = FireTuning::from_holder(Some(&PropertyHolder::new()));
+    assert!(e.d3.is_empty() && e.d4.is_empty() && e.d5.is_empty());
+    assert_eq!(e.d3cum, [0; 5]);
+    assert_eq!((e.d6, e.zoom), (0.0, 0));
+    assert!(e.d7.is_empty() && e.da.is_empty());
+    let mut h = PropertyHolder::new();
+    h.add(
+        fire_prop::D4_SPREAD_DIVISOR,
+        Variant::Array {
+            elem: crate::variant::mem::UINT32,
+            items: [4u32, 3, 2, 2, 1, 7].iter().map(|&x| Elem::U32(x)).collect(),
+        },
+    );
+    h.add(
+        fire_prop::D3_DURATIONS,
+        Variant::Array {
+            elem: crate::variant::mem::UINT32,
+            items: [30u32, 25].iter().map(|&x| Elem::U32(x)).collect(),
+        },
+    );
+    let t = FireTuning::from_holder(Some(&h));
+    assert_eq!(t.d4, vec![4, 3, 2, 2, 1, 7], "the stored length");
+    assert_eq!(t.d3cum, [30, 55, 80, 105, 130], "a short D3 clamps to its last entry");
 }
 
 // ---- §18 test 3 ----
@@ -564,9 +618,20 @@ fn t02_stage_lookup() {
 fn t03_unattended_burn_down() {
     let w = world();
     let b = w.host.add(occupant::BUILDING, 5, 5);
+    w.sys.fire_instance(); // the instance's timer starts
+    w.host.advance(10_000);
     assert!(w.sys.ignite(b, false, 0, true));
-    w.sys.fire_update(); // the tick right after the ignition: update 1
-    for n in 2..=29 {
+    assert_eq!(w.sys.fire_snapshot().unwrap().next_ms, 10_000);
+    w.sys.fire_update(); // the first tick with timer ≥ 10000 ms: update 1
+    assert_eq!(w.fire().counter, 1);
+    // Update n at the first tick with timer ≥ 10000 + 1000 (n − 1) ms.
+    w.host.advance(999);
+    w.sys.fire_update();
+    assert_eq!(w.fire().counter, 1, "not before 11000 ms");
+    w.host.advance(1);
+    w.sys.fire_update();
+    assert_eq!(w.fire().counter, 2);
+    for n in 3..=29 {
         w.second();
         assert_eq!(w.fire().counter, n);
     }
@@ -581,6 +646,7 @@ fn t03_unattended_burn_down() {
     }
     assert_eq!(w.posts(msg::FIRE_STARTED_ENDED).len(), 0);
     w.second(); // the 55th update
+    assert_eq!(w.sys.fire_snapshot().unwrap().elapsed_ms, 64_000);
     assert_eq!(w.sys.fire_count(), 0);
     let ended = w.posts(msg::FIRE_STARTED_ENDED);
     assert_eq!(ended.len(), 1);
@@ -716,105 +782,143 @@ fn riot_world() -> World {
 fn t07_riot_timing() {
     let w = riot_world();
     w.f64s.borrow_mut().extend([0.5, 0.25]);
-    let id = w.sys.attempt_start(kind::RIOT, 10, 20).expect("riot");
+    let id = w.riot(10, 20).expect("riot");
     let log = w.host.take();
     assert!(log.contains(&"leader 4096 168 324".to_string()), "{log:?}");
     assert!(log.contains(&"history AA8C87C7 1".to_string()));
-    let first = w.sys.riot_snapshot(id).unwrap().leaders[0].automaton;
-    let tick = || {
-        w.host.advance(1000);
-        w.sys.tick(id, 16_000);
-    };
-    for s in 1..=180 {
-        tick();
+    let first = w.sys.riot_snapshot(id).unwrap().leaders[0];
+    assert_eq!((first.stage, first.max_stage, first.counter), (-1, -1, 0));
+    let first = first.automaton;
+    // Step n runs at riot second n − 1: the first at once (next starts at 0).
+    for n in 1..=180u64 {
+        w.riot_tick(id, if n == 1 { 0 } else { 1000 });
         let r = w.sys.riot_snapshot(id).unwrap();
+        assert_eq!(r.elapsed_s, n - 1);
+        assert_eq!(r.next_s, n);
+        let log = w.host.take();
         let alive = r.leaders.iter().any(|l| l.automaton == first);
-        match s {
-            30 => assert_eq!(r.leaders.len(), 2, "stage 1 spawns one"),
-            // At 90 s the first leader reaches stage 3 and the leader spawned at
-            // 60 s (by the one spawned at 30 s) reaches stage 1: two more.
-            90 => assert_eq!(r.leaders.len(), 5),
+        let msgs = log
+            .iter()
+            .filter(|l| l.starts_with(&format!("riot_message {first} ")))
+            .count();
+        match n {
+            1 => {
+                assert_eq!(r.leaders[0].stage, 0);
+                assert_eq!(msgs, 1);
+                assert!(log.contains(&format!("riot_message {first} 0")), "{log:?}");
+                assert_eq!(r.leaders.len(), 1, "no spawn at stage 0");
+            }
+            29 => assert_eq!(r.leaders.len(), 1),
+            30 => {
+                assert_eq!(r.leaders.len(), 2, "stage 1 spawns one");
+                assert!(log.contains(&format!("riot_message {first} 1")));
+            }
+            // At step 90 the first leader reaches stage 3 and the leader
+            // spawned at step 60 (by the one spawned at step 30) reaches
+            // stage 1: two more.
+            90 => {
+                assert_eq!(r.leaders.len(), 5);
+                assert!(log.contains(&format!("riot_message {first} 3")));
+            }
             _ => {}
         }
-        if s < 180 {
-            assert!(alive, "first leader alive at {s}");
+        if n < 180 {
+            assert!(alive, "first leader alive at step {n}");
         } else {
-            assert!(!alive, "first leader ends at 180 s");
+            assert!(!alive, "the first leader ends at step 180");
+            assert!(log.contains(&format!("end_leader {first}")));
         }
     }
-    let log = w.host.take();
-    assert!(log.contains(&format!("riot_message {first} 1")));
-    assert!(log.contains(&format!("riot_message {first} 3")));
-    assert!(log.contains(&format!("end_leader {first}")));
+    // A tick inside the same second runs no step (next := elapsed + 1).
+    let before = w.sys.riot_snapshot(id).unwrap();
+    w.riot_tick(id, 500);
+    assert_eq!(w.sys.riot_snapshot(id).unwrap().leaders, before.leaders);
 }
 
 #[test]
-fn t07b_riot_suppressed() {
+fn t07b_riot_suppressed_and_stays() {
     let w = riot_world();
-    for x in 0..64 {
-        w.host.police.borrow_mut().insert((x, 20), 255);
-    }
-    // Coverage 255 refuses the leader (curve 5 ≥ 2): start at coverage 0,
-    // then raise it.
-    w.host.police.borrow_mut().insert((10, 20), 0);
-    let id = w.sys.attempt_start(kind::RIOT, 10, 20).expect("riot");
+    let id = w.riot(10, 20).expect("riot");
     let a = w.sys.riot_snapshot(id).unwrap().leaders[0].automaton;
+    // Step 1: stage 0.
+    w.riot_tick(id, 0);
+    // Coverage 255 (curve 5): the next step adds −4, stage −1, it ends.
     w.host.police.borrow_mut().insert((10, 20), 255);
     w.host.take();
-    w.host.advance(1000);
-    w.sys.tick(id, 16_000);
+    w.riot_tick(id, 1000);
     let log = w.host.take();
-    assert!(log.contains(&format!("riot_effect {a} -1")));
+    assert!(log.contains(&format!("riot_effect {a} -1")), "{log:?}");
     assert!(log.contains(&format!("end_leader {a}")));
     assert!(log.contains(&"post AA1B2002 0 0 0 0 0".to_string()));
-    assert!(w.sys.riot_snapshot(id).is_none(), "the riot left its manager");
+    // The instance stays in its manager, on the tick, in phase 3.
+    let r = w.sys.riot_snapshot(id).expect("the riot stays in its manager");
+    assert_eq!(r.phase, 3);
+    assert!(r.leaders.is_empty());
+    assert_eq!(w.riots(), vec![id]);
     assert_eq!(w.sys.active_count(kind::RIOT), 0);
+    assert!(w.sys.instance_info(id).unwrap().tick_registered);
+    assert!(w.sys.attempt_start(kind::RIOT, 30, 20).is_none(), "still null");
+    w.riot_tick(id, 1000);
+    assert_eq!(
+        w.sys.riot_snapshot(id).unwrap().next_s,
+        3,
+        "an empty update every second"
+    );
+    // A leader whose automaton has gone ends at its next step.
+    let b = w.riots()[1];
+    let l = w.sys.riot_snapshot(b).unwrap().leaders[0].automaton;
+    w.host.automata.borrow_mut().insert(l, None);
+    w.riot_tick(b, 0);
+    assert!(w.host.log.borrow().contains(&format!("end_leader {l}")));
+    assert_eq!(w.sys.riot_snapshot(b).unwrap().phase, 3);
 }
 
-/// network-manager.md §10 (disasters.md Q4): the riots lock the network
-/// pieces around their starts and leaders against the player's bulldozer
-/// until the last riot leaves the manager.
+/// network-manager.md §10 (disasters.md Q4, §6.5 step 6, §6.7): the riots
+/// lock the network pieces around their starts and wherever a leader walks
+/// against the player's bulldozer; an ended riot stays in its manager, so
+/// the locks hold until the manager's `Shutdown`.
 #[test]
-fn riot_locks_the_network_until_the_last_riot_ends() {
+fn riot_locks_the_network_for_the_session() {
     let w = riot_world();
     for x in 0..64 {
         w.host.network.borrow_mut().insert((x, 20), 0x7000 + x as u64);
     }
-    let a = w.sys.attempt_start(kind::RIOT, 10, 20).unwrap();
+    let a = w.riot(10, 20).unwrap();
     let row = |r: std::ops::RangeInclusive<u64>| r.map(|x| 0x7000 + x).collect::<Vec<_>>();
     assert_eq!(w.sys.riot_locked(), row(7..=13), "each piece once");
     assert_eq!(w.host.count("unset_removal"), 7);
     assert_eq!(w.host.refs.borrow().get(&0x700A).copied(), Some(1));
-    let b = w.sys.attempt_start(kind::RIOT, 12, 20).unwrap();
+    w.riot(12, 20).unwrap();
     assert_eq!(w.sys.riot_locked(), row(7..=15));
     // Within 3 cells of the west edge nothing is locked.
-    let c = w.sys.attempt_start(kind::RIOT, 2, 20).unwrap();
+    w.riot(2, 20).unwrap();
     assert_eq!(w.sys.riot_locked().len(), 9);
-    w.host.take();
-    // Each riot ends at coverage 255 on its leader's cell; nothing unlocks
-    // while one remains.
-    let end = |id: u32, cell: (i32, i32)| {
-        w.host.police.borrow_mut().insert(cell, 255);
-        w.host.advance(1000);
-        w.sys.tick(id, 16_000);
-        assert!(w.sys.riot_snapshot(id).is_none());
-    };
-    end(a, (10, 20));
-    end(b, (12, 20));
-    assert_eq!(w.host.count("set_removal"), 0);
+    // The first step remembers the piece under the leader (held).
+    let la = w.sys.riot_snapshot(a).unwrap().leaders[0].automaton;
+    w.riot_tick(a, 0);
     assert_eq!(w.sys.riot_locked().len(), 9);
-    end(c, (2, 20));
-    assert!(w.sys.riot_locked().is_empty());
-    assert_eq!(w.host.count("set_removal"), 9);
-    assert!(w.host.refs.borrow().values().all(|r| *r == 0));
-    // The manager's Shutdown unlocks too.
-    w.host.police.borrow_mut().clear();
-    w.sys.attempt_start(kind::RIOT, 30, 20).unwrap();
-    assert_eq!(w.sys.riot_locked().len(), 7);
+    assert_eq!(w.host.refs.borrow().get(&0x700A).copied(), Some(2));
+    // A walking leader locks the road around its new piece.
+    w.host.automata.borrow_mut().insert(la, Some((20, 20)));
+    w.riot_tick(a, 1000);
+    assert_eq!(w.sys.riot_locked(), [row(7..=15), row(17..=23)].concat());
+    assert_eq!(w.host.refs.borrow().get(&0x700A).copied(), Some(1));
+    // The riot ends; its locks stay.
+    w.host.police.borrow_mut().insert((20, 20), 255);
     w.host.take();
+    w.riot_tick(a, 1000);
+    assert_eq!(w.sys.riot_snapshot(a).unwrap().phase, 3);
+    assert_eq!(w.host.count("set_removal"), 0, "an ended riot keeps its locks");
+    assert_eq!(w.sys.riot_locked().len(), 16);
+    // The manager's Shutdown unlocks everything.
     assert!(w.sys.shutdown());
-    assert_eq!(w.host.count("set_removal"), 7);
+    assert_eq!(w.host.count("set_removal"), 16);
     assert!(w.sys.riot_locked().is_empty());
+    assert!(
+        w.host.refs.borrow().values().all(|r| *r == 0),
+        "{:?}",
+        w.host.refs.borrow()
+    );
 }
 
 // ---- §18 test 8 ----
@@ -827,12 +931,34 @@ fn t08_riot_leader_limit() {
     assert!((t.police.eval(113.0) - 2.010_526_3).abs() < 1e-5);
     let w = riot_world();
     w.host.police.borrow_mut().insert((10, 20), 112);
-    assert!(w.sys.attempt_start(kind::RIOT, 10, 20).is_some());
+    assert!(w.riot(10, 20).is_some());
     assert_eq!(w.sys.active_count(kind::RIOT), 1);
     w.host.police.borrow_mut().insert((30, 20), 113);
-    let id = w.sys.attempt_start(kind::RIOT, 30, 20).expect("instance");
-    assert!(w.sys.riot_snapshot(id).unwrap().leaders.is_empty(), "refused leader");
+    let id = w.riot(30, 20).expect("instance");
+    let r = w.sys.riot_snapshot(id).unwrap();
+    assert!(r.leaders.is_empty(), "refused leader");
+    assert_eq!(r.phase, 0, "stays in phase 0, ticking");
     assert_eq!(w.sys.active_count(kind::RIOT), 1);
+    assert_eq!(w.riots().len(), 2);
+}
+
+/// §6.1: the defaults. Without the exemplar: 3 riots, 5 leaders, 6 stages
+/// of 30 s, spawned 0, 1, 0, 1, 0, 0, an empty police curve and zoom 0. An
+/// exemplar whose police curve has no points takes (64, 0) (65, 1) (255, 3).
+#[test]
+fn riot_tuning_defaults() {
+    let d = RiotTuning::from_holder(None);
+    assert_eq!((d.max_riots, d.max_leaders), (3, 5));
+    assert_eq!((d.stages, d.seconds_per_stage), (6, 30));
+    assert_eq!(d.leaders_spawned, vec![0, 1, 0, 1, 0, 0]);
+    assert!(d.police.is_empty());
+    assert_eq!(d.zoom, 0);
+    let e = RiotTuning::from_holder(Some(&PropertyHolder::new()));
+    assert_eq!(e.max_leaders, 5);
+    assert_eq!(e.police.eval(64.0), 0.0);
+    assert_eq!(e.police.eval(65.0), 1.0);
+    assert_eq!(e.police.eval(255.0), 3.0);
+    assert_eq!(e.zoom, 0);
 }
 
 #[test]
@@ -840,17 +966,55 @@ fn t08b_riot_limits_and_search() {
     let w = riot_world();
     // At most three active riots.
     for x in [5, 15, 25] {
-        assert!(w.sys.attempt_start(kind::RIOT, x, 20).is_some());
+        assert!(w.riot(x, 20).is_some());
     }
     assert_eq!(w.sys.active_count(kind::RIOT), 3);
-    assert!(w.sys.attempt_start(kind::RIOT, 35, 20).is_none());
+    assert!(w.riot(35, 20).is_none());
     // The nearest road within 7 cells; none further.
     let w = riot_world();
-    let id = w.sys.attempt_start(kind::RIOT, 10, 27).unwrap();
-    // Ring 7, row order: the first road cell of the ring's first row.
+    let id = w.riot(10, 27).unwrap();
+    // Ring 7 starts at (17, 21) and runs +z, −x, then −z down x = 3: the
+    // first road cell of the row z = 20 it meets is (3, 20).
     assert_eq!(w.sys.riot_snapshot(id).unwrap().leaders[0].cell, (3, 20));
-    let id = w.sys.attempt_start(kind::RIOT, 10, 28).unwrap();
+    let id = w.riot(10, 28).unwrap();
     assert!(w.sys.riot_snapshot(id).unwrap().leaders.is_empty());
+}
+
+// ---- §18 test 13 ----
+
+#[test]
+fn t13_riot_road_search_spiral() {
+    let w = world();
+    w.host.roads.borrow_mut().insert((11, 10));
+    let id = w.riot(10, 10).unwrap();
+    assert_eq!(w.sys.riot_snapshot(id).unwrap().leaders[0].cell, (11, 10));
+    let w = world();
+    w.host.roads.borrow_mut().extend([(10, 11), (11, 10)]);
+    let id = w.riot(10, 10).unwrap();
+    assert_eq!(w.sys.riot_snapshot(id).unwrap().leaders[0].cell, (11, 10), "+z first");
+    // Ring 1 in full, and cells outside the city are skipped, not clamped.
+    assert_eq!(
+        super::riot::riot_spiral(10, 10, 1),
+        vec![
+            (10, 10),
+            (11, 10),
+            (11, 11),
+            (10, 11),
+            (9, 11),
+            (9, 10),
+            (9, 9),
+            (10, 9),
+            (11, 9)
+        ]
+    );
+    let w = world();
+    w.host.roads.borrow_mut().insert((0, 0));
+    let id = w.riot(-3, -3).unwrap();
+    assert_eq!(w.sys.riot_snapshot(id).unwrap().leaders[0].cell, (0, 0));
+    let w = world();
+    w.host.roads.borrow_mut().insert((0, 5));
+    let id = w.riot(-8, 5).unwrap();
+    assert!(w.sys.riot_snapshot(id).unwrap().leaders.is_empty(), "no clamping");
 }
 
 // ---- §18 test 9 ----
@@ -895,6 +1059,8 @@ fn t09_toxic_spill() {
 #[test]
 fn t10_dispatch_effectiveness() {
     let w = world();
+    w.host.fire_dispatch.set(4);
+    w.host.police_dispatch.set(3);
     let b = w.host.add(occupant::BUILDING, 5, 5);
     w.sys.ignite(b, false, 0, false);
     let d = |t: u32, ty: i64, src: i64| {
@@ -928,9 +1094,40 @@ fn t10_dispatch_effectiveness() {
     assert!(snap.police_timers.is_empty());
     w.sys.fire_update();
     let log = w.host.take();
-    assert!(log.contains(&"fire_effectiveness 0.4".to_string()), "{log:?}");
-    assert!(!log.iter().any(|l| l.starts_with("police_effectiveness")));
-    assert_eq!(w.sys.layer_snapshot().fire_effectiveness, 0.4);
+    assert!(log.contains(&"post AA1B2002 0 0 0 0 0".to_string()), "{log:?}");
+    // (30 + 50) / (4 × 100); an empty map gives 0; stored only.
+    let s = w.sys.layer_snapshot();
+    assert_eq!(s.fire_effectiveness, 0.2);
+    assert_eq!(s.police_effectiveness, 0.0);
+    assert!(!log.iter().any(|l| l.contains("effectiveness")));
+}
+
+/// §18 test 10: a dispatch count of 0 gives 0, and the seconds are
+/// fractional (a 2.5 s timer counts 2.5).
+#[test]
+fn t10b_effectiveness_count_and_fractions() {
+    let run = |count: u32, timer_ms: u64| -> f32 {
+        let w = world();
+        w.host.fire_dispatch.set(count);
+        let b = w.host.add(occupant::BUILDING, 5, 5);
+        w.sys.ignite(b, false, 0, false);
+        let m = |t: u32| DisasterMessage {
+            data1: 1,
+            data2: 7,
+            ..DisasterMessage::of_type(t)
+        };
+        w.sys.do_message(Target::Layer, &m(msg::DISPATCH_ACTIVE));
+        w.host.advance(timer_ms);
+        w.sys.do_message(Target::Layer, &m(msg::DISPATCH_INACTIVE));
+        w.host.now.set(10_000);
+        w.sys.burn_down(b);
+        w.sys.fire_update();
+        assert!(!w.sys.is_disaster_ongoing());
+        w.sys.layer_snapshot().fire_effectiveness
+    };
+    assert_eq!(run(0, 5000), 0.0);
+    assert_eq!(run(1, 2500), 0.25);
+    assert_eq!(run(2, 2500), 0.125);
 }
 
 // ---- around the tests ----
@@ -1092,6 +1289,38 @@ fn spread_and_kill_fire_moves_the_location() {
     assert_eq!(w.sys.fire_snapshot().unwrap().fire_ids, vec![0x77]);
 }
 
+/// §5.10 step 9: only a step that reaches the spread draws; the box is the
+/// fire's, widened by the stage's radius plus the wind vector × D6 (a
+/// negative component narrows it).
+#[test]
+fn spread_draw_and_wind_vector() {
+    let w = world();
+    let a = w.host.add(occupant::BUILDING, 5, 5);
+    w.sys.ignite(a, false, 0, false);
+    let d = w.draws.get();
+    w.sys.fire_update();
+    assert_eq!(w.draws.get(), d + 1, "one spread draw, no spread");
+    for _ in 2..55 {
+        w.second();
+    }
+    let d = w.draws.get();
+    w.second(); // the burn-down step stops before the spread
+    assert_eq!(w.sys.fire_count(), 0);
+    assert_eq!(w.draws.get(), d);
+    // Wind (−16, 0), D6 1, D5[0] 32: x in [80 − 16, 96 + 16].
+    let w = world();
+    w.host.wind.set((-16.0, 0.0));
+    let a = w.host.add(occupant::BUILDING, 5, 5);
+    let b = w.host.add(occupant::BUILDING, 4, 5);
+    w.host.flammability.borrow_mut().insert((4, 5), 255);
+    w.sys.ignite(a, false, 0, false);
+    w.f64s.borrow_mut().extend([0.1, 0.0, 0.5, 0.0]);
+    w.sys.fire_update();
+    let s = w.sys.fire_snapshot().unwrap();
+    assert_eq!(s.fires.len(), 2);
+    assert_eq!(s.fires[1].target, b);
+}
+
 #[test]
 fn toast_list_and_radius() {
     let w = world();
@@ -1103,7 +1332,8 @@ fn toast_list_and_radius() {
     w.host.set_prop(near, prop::RADIATION_AMOUNT, 2.0);
     w.sys.ignite_cell_radius(10, 10, 1, 3);
     let s = w.sys.fire_snapshot().unwrap();
-    assert_eq!(s.toast, vec![flora, near]);
+    // The second entry draws Uniform(1) = 0 and goes first (§5.7).
+    assert_eq!(s.toast, vec![near, flora]);
     assert_eq!(s.fires.len(), 1);
     assert_eq!(s.fires[0].target, mid);
     let _ = far;
@@ -1116,14 +1346,38 @@ fn toast_list_and_radius() {
     assert!(log.contains(&format!("effect burndown_building {near}")));
     assert!(log.contains(&format!("radiation {near} 2 5")));
     assert_eq!(w.host.refs.borrow().get(&flora).copied(), Some(0));
-    // Five per update.
+    // Five per update, from the front. The script's draws are n − 1: each
+    // entry goes before the last one, so the list is p1 .. p6, p0.
     let w = world();
     let list: Vec<u64> = (0..7).map(|_| w.host.add(occupant::PROP, 3, 3)).collect();
-    w.host.set_prop(list[0], prop::BURN_DOWN_DEMOLISHES, 0.0);
+    w.host.set_prop(list[1], prop::BURN_DOWN_DEMOLISHES, 0.0);
     w.sys.quick_burn_cell(3, 3);
+    let mut want = list[1..].to_vec();
+    want.push(list[0]);
+    assert_eq!(w.sys.fire_snapshot().unwrap().toast, want);
     w.sys.fire_update();
-    assert_eq!(w.sys.fire_snapshot().unwrap().toast.len(), 2);
-    assert!(w.host.log.borrow().contains(&format!("remove_occupant {}", list[0])));
+    assert_eq!(w.sys.fire_snapshot().unwrap().toast, vec![list[6], list[0]]);
+    assert!(w.host.log.borrow().contains(&format!("remove_occupant {}", list[1])));
+}
+
+// ---- §18 test 12 ----
+
+#[test]
+fn t12_toast_insertion() {
+    let w = world();
+    let p = w.host.add(occupant::PROP, 3, 3);
+    let q = w.host.add(occupant::PROP, 4, 4);
+    let before = w.draws.get();
+    w.sys.quick_burn_cell(3, 3);
+    assert_eq!(w.draws.get(), before, "an empty list takes no draw");
+    w.sys.quick_burn_cell(4, 4);
+    assert_eq!(w.draws.get(), before + 1, "Uniform(1)");
+    assert_eq!(w.sys.fire_snapshot().unwrap().toast, vec![q, p]);
+    // A draw of i puts the entry before element i.
+    let r = w.host.add(occupant::PROP, 5, 5);
+    w.u32s.borrow_mut().push_back(1);
+    w.sys.quick_burn_cell(5, 5);
+    assert_eq!(w.sys.fire_snapshot().unwrap().toast, vec![q, r, p]);
 }
 
 #[test]
@@ -1153,6 +1407,35 @@ fn extinguish_cell_and_counts() {
     assert_eq!(w.sys.cause(), 2);
     w.sys.burn_down(b);
     assert_eq!(w.sys.fire_count(), 1);
+    // A fire with an extinguish time still counts and is still hit.
+    assert_eq!(w.sys.fire_count_in_rect(CellRect::cell(5, 5)), 1);
+    w.sys.extinguish_cell(5, 5, 1);
+    assert_eq!(w.fire().counter, 0);
+}
+
+/// §5.7, §5.9: `SetCause` keeps the first cause of an episode; the next
+/// episode's first fire resets it, so a cause set before it is lost.
+#[test]
+fn set_cause_first_wins_per_episode() {
+    let w = world();
+    let a = w.host.add(occupant::BUILDING, 5, 5);
+    assert_eq!(w.sys.set_cause(2), 2, "before any fire");
+    w.sys.ignite(a, false, 0, false);
+    assert_eq!(w.sys.cause(), 0, "the episode start resets it");
+    assert_eq!(w.sys.set_cause(2), 2);
+    assert_eq!(w.sys.set_cause(1), 2, "the first wins");
+    assert_eq!(w.sys.cause(), 2);
+    let b = w.host.add(occupant::BUILDING, 9, 9);
+    w.sys.ignite(b, false, 0, false);
+    assert_eq!(w.sys.cause(), 2, "a second fire of the episode keeps it");
+    w.sys.burn_down(a);
+    w.sys.burn_down(b);
+    w.sys.fire_update();
+    assert_eq!(w.sys.fire_snapshot().unwrap().phase, 3);
+    assert_eq!(w.sys.cause(), 2, "kept after the episode");
+    let c = w.host.add(occupant::BUILDING, 20, 20);
+    w.sys.ignite(c, false, 0, false);
+    assert_eq!(w.sys.cause(), 0);
 }
 
 #[test]
@@ -1172,14 +1455,14 @@ fn damage_assessment() {
     w.sys.do_message(Target::Layer, &m(n));
     let d = w.sys.layer_snapshot().damage;
     assert_eq!(d.building_count, 1);
-    assert_eq!(d.total_cost, 577);
+    assert_eq!(d.total_cost, 510, "a network piece without a cost counts 10");
     assert_eq!(d.kinds, [(0, 0), (1, 500), (0, 0), (1, 500)]);
     assert_eq!(d.special.len(), 1);
-    assert_eq!(w.sys.disaster_cost(), 577);
+    assert_eq!(w.sys.disaster_cost(), 510);
     // Not established: nothing counts.
     w.host.established.set(false);
     w.sys.do_message(Target::Layer, &m(b));
-    assert_eq!(w.sys.disaster_cost(), 577);
+    assert_eq!(w.sys.disaster_cost(), 510);
 }
 
 #[test]
@@ -1212,7 +1495,7 @@ fn locations_and_go_to_next() {
     assert_eq!(w.host.refs.borrow().get(&o).copied(), Some(1));
     w.sys.go_to_next_disaster();
     w.sys.go_to_next_disaster();
-    assert_eq!(w.host.take(), vec!["go_to 1 2 3", "go_to 0 0 3"]);
+    assert_eq!(w.host.take(), vec!["go_to 30 31 2", "go_to 0 0 3"], "newest first");
     w.sys.unregister_location_by_occupant(9, o);
     assert_eq!(w.host.refs.borrow().get(&o).copied(), Some(0));
     assert_eq!(w.sys.location_count(), 2);
@@ -1222,6 +1505,46 @@ fn locations_and_go_to_next() {
     w.host.follow.set(true);
     w.sys.register_location(4, 5, 6, 0, 1, true);
     assert!(!w.host.take().is_empty());
+}
+
+// ---- §18 test 11 ----
+
+#[test]
+fn t11_location_cursor() {
+    let w = world();
+    for (i, x) in [(1, 10), (2, 20), (3, 30)] {
+        w.sys.register_location(i, x, 0, 0, 1, false);
+    }
+    let go = |n: usize| {
+        for _ in 0..n {
+            w.sys.go_to_next_disaster();
+        }
+        w.host.take()
+    };
+    assert_eq!(
+        go(4),
+        vec!["go_to 30 0 1", "go_to 20 0 1", "go_to 10 0 1", "go_to 30 0 1"]
+    );
+    let w = world();
+    for (i, x) in [(1, 10), (2, 20), (3, 30)] {
+        w.sys.register_location(i, x, 0, 0, 1, false);
+    }
+    w.sys.go_to_next_disaster();
+    w.host.take();
+    w.sys.register_location(4, 40, 0, 0, 1, false);
+    w.sys.go_to_next_disaster();
+    assert_eq!(w.host.take(), vec!["go_to 40 0 1"], "the new entry is next");
+    // The unregister calls leave the cursor; its use clamps it.
+    assert_eq!(w.sys.layer_snapshot().cursor, Some(2));
+    w.sys.unregister_locations(3);
+    w.sys.unregister_locations(4);
+    w.sys.go_to_next_disaster();
+    assert_eq!(w.host.take(), vec!["go_to 20 0 1"]);
+    // No entry: nothing.
+    w.sys.unregister_locations(1);
+    w.sys.unregister_locations(2);
+    w.sys.go_to_next_disaster();
+    assert!(w.host.take().is_empty());
 }
 
 #[test]
@@ -1271,6 +1594,8 @@ fn pipe_burst_spreads_and_ends() {
     w.host.pipes.borrow_mut().insert((3, 3), 0x500);
     w.host.pipes.borrow_mut().insert((4, 3), 0x501);
     w.host.pipe_neighbours.borrow_mut().insert(0x500, vec![(4, 3), (99, 3)]);
+    // The burst times: the low bound for both leaks.
+    w.f64s.borrow_mut().extend([0.0, 0.0]);
     assert!(w.sys.attempt_start(kind::PIPE_BURST, 9, 9).is_none());
     let id = w.sys.attempt_start(kind::PIPE_BURST, 3, 3).expect("burst");
     assert!(w.sys.attempt_start(kind::PIPE_BURST, 3, 3).is_none(), "already leaks");
@@ -1325,28 +1650,112 @@ fn pipe_random_start_spirals() {
     assert!(w.sys.attempt_start_any(kind::RIOT).is_none());
 }
 
-#[test]
-fn volcano_cycles_until_asked_to_end() {
+// ---- §18 test 14 ----
+
+fn volcano_world() -> World {
     let w = world();
+    w.host
+        .tuning
+        .borrow_mut()
+        .insert(tuning_instance::VOLCANO, Rc::new(shipped_volcano()));
+    w
+}
+
+#[test]
+fn t14_volcano_phases() {
+    let w = volcano_world();
     let id = w.sys.attempt_start(kind::VOLCANO, 100, 100).unwrap();
-    assert!(w.sys.attempt_start(kind::VOLCANO, 1, 1).is_none());
-    assert_eq!(w.sys.volcano_snapshot(id).unwrap().state, 3);
-    w.sys.tick(id, 1);
+    assert!(w.sys.attempt_start(kind::VOLCANO, 1, 1).is_none(), "one at a time");
+    let v = w.sys.volcano_snapshot(id).unwrap();
+    assert_eq!((v.state, v.phase), (5, 2));
+    assert_eq!(w.sys.instance_info(id).unwrap().phase, 2);
+    assert_eq!(w.sys.active_count(kind::VOLCANO), 0, "phase 2 is not active");
+    let log = w.host.take();
+    assert_eq!(log.iter().filter(|l| *l == "volcano_deform").count(), 1);
+    assert!(log.contains(&"lava 100".to_string()), "{log:?}");
+    assert!(log.contains(&"emergency_pause".to_string()));
+    // SetLocation's entry and Init's [question, DS42].
+    assert_eq!(w.sys.layer_snapshot().locations.len(), 2);
+    // T = 50 s: at exactly T the lava still flows; past it, it ends.
+    for _ in 0..50 {
+        w.sys.tick(id, 1_000_000);
+    }
     assert_eq!(w.sys.volcano_snapshot(id).unwrap().state, 5);
+    assert!(w.sys.is_disaster_ongoing());
+    w.host.take();
+    w.sys.tick(id, 1);
+    let log = w.host.take();
+    assert_eq!(log.iter().filter(|l| *l == "emergency_resume").count(), 1);
+    assert_eq!(
+        log.iter().filter(|l| l.starts_with("post AA1B2002")).count(),
+        1,
+        "DisasterHasEnded once"
+    );
+    assert!(log.contains(&"lava_end".to_string()));
+    let v = w.sys.volcano_snapshot(id).unwrap();
+    assert_eq!((v.state, v.phase), (3, 1));
+    assert!(v.lava_has_run && !v.lava_flowing);
+    assert_eq!(w.sys.active_count(kind::VOLCANO), 1);
+    assert!(w.sys.layer_snapshot().locations.is_empty());
+    // It waits in state 3 for the end request: the effect's completion for
+    // this instance (another instance's is not it).
     w.sys.tick(id, 50_000_000);
     assert_eq!(w.sys.volcano_snapshot(id).unwrap().state, 3);
-    w.sys.tick(id, 1);
+    let done = |d1: i64| DisasterMessage {
+        data1: d1,
+        ..DisasterMessage::of_type(msg::VOLCANO_MESSAGE)
+    };
+    assert!(!w.sys.do_message(Target::Instance(id), &done(i64::from(id) + 1)));
+    assert!(w.sys.volcano_snapshot(id).is_some());
+    assert!(w.sys.do_message(Target::Instance(id), &done(i64::from(id))));
+    assert!(w.sys.volcano_snapshot(id).is_none(), "state 8 removes it");
+    assert!(w.sys.manager_instances(kind::VOLCANO).is_empty());
+    assert!(!w.sys.is_disaster_ongoing());
+    assert!(w.sys.attempt_start(kind::VOLCANO, 10, 10).is_some());
+}
+
+#[test]
+fn volcano_end_request_and_no_lava() {
+    // Asked to end during the flow: it stays in the flow, then goes.
+    let w = volcano_world();
+    let id = w.sys.attempt_start(kind::VOLCANO, 100, 100).unwrap();
     assert!(w.sys.volcano_request_end(id));
-    w.sys.tick(id, 50_000_000);
+    let v = w.sys.volcano_snapshot(id).unwrap();
+    assert_eq!(v.state, 5, "it stays in the flow");
+    assert!(v.end_requested);
+    w.sys.tick(id, 25_000_000);
+    w.sys.tick(id, 25_000_001);
     assert!(w.sys.volcano_snapshot(id).is_none());
     let log = w.host.take();
-    assert_eq!(log.iter().filter(|l| *l == "lava 20").count(), 2);
-    assert!(log.contains(&"volcano_end_deform".to_string()));
-    assert!(log.contains(&"emergency_resume".to_string()));
-    let t = VolcanoTuning::default();
+    assert_eq!(log.iter().filter(|l| l.starts_with("post AA1B2002")).count(), 1);
+    // Without the exemplar the lava is disabled: the volcano waits in state
+    // 3 (phase 1); the end request removes it and its Shutdown ends the
+    // disaster.
+    let w = world();
+    let id = w.sys.attempt_start(kind::VOLCANO, 100, 100).unwrap();
+    let v = w.sys.volcano_snapshot(id).unwrap();
+    assert_eq!((v.state, v.phase), (3, 1));
+    w.sys.tick(id, 100_000_000);
+    assert_eq!(w.sys.volcano_snapshot(id).unwrap().state, 3);
+    assert!(w.sys.is_disaster_ongoing());
+    assert!(w.sys.volcano_request_end(id));
+    assert!(w.sys.volcano_snapshot(id).is_none());
+    assert!(!w.sys.is_disaster_ongoing());
+    assert!(!w.host.take().iter().any(|l| l.starts_with("lava")));
+    // The rates; both 0 without production points.
+    let t = VolcanoTuning::from_holder(Some(&shipped_volcano()));
     let (p, s) = t.rates(25_000_000);
     assert!((p - 0.25 * 6.0 / 100_000.0).abs() < 1e-9);
     assert!((s - 0.002 / 100_000.0).abs() < 1e-12);
+    assert_eq!(VolcanoTuning::default().rates(1), (0.0, 0.0));
+    let d = VolcanoTuning::default();
+    assert_eq!(
+        (d.lava_seconds, d.scale, d.vent_radius, d.lava_flows),
+        (20.0, 1.0, 100.0, false)
+    );
+    // The volcano's GetPhase.
+    let phases: Vec<u32> = (0..=8).map(volcano_phase).collect();
+    assert_eq!(phases, vec![0, 2, 1, 1, 3, 2, 2, 2, 2]);
 }
 
 #[test]
@@ -1459,5 +1868,5 @@ fn mirror_random_numbers_ids_and_never_spreads() {
     assert_eq!(m.uniform_u32(5), 0);
     assert_eq!(m.uniform_f64(), 1.0);
     assert_eq!(m.range_f64(0.0, 100.0), 100.0);
-    assert_eq!(m.range_gaussian(-3.0, 4.0), -3.0);
+    assert_eq!(m.range_gaussian_fast(-3.0, 4.0), -3.0);
 }

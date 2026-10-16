@@ -15,8 +15,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::{Rc, Weak};
 
 use fc4_core::disasters::{
-    kind, msg, occupant, prop, shipped_flame, shipped_riot, tuning_instance, CellRect, DisasterHost, DisasterMessage,
-    DisasterPost, DisasterRandom, Disasters, FireEntry, FireTuning, Generator, RiotTuning, Target, WorldBox,
+    kind, msg, occupant, prop, shipped_flame, shipped_riot, shipped_volcano, tuning_instance, CellRect, DisasterHost,
+    DisasterMessage, DisasterPost, DisasterRandom, Disasters, FireEntry, FireTuning, Generator, RiotTuning, Target,
+    WorldBox,
 };
 use fc4_core::property::PropertyHolder;
 
@@ -61,7 +62,11 @@ pub(crate) struct World {
     established: Cell<bool>,
     follow: Cell<bool>,
     no_burn_down: Cell<bool>,
-    wind: Cell<f32>,
+    wind: Cell<(f32, f32)>,
+    fire_dispatch: Cell<u32>,
+    police_dispatch: Cell<u32>,
+    /// Fire occupant -> its target: a fire's cells and box are its target's.
+    fire_targets: RefCell<BTreeMap<u64, u64>>,
     view_level: Cell<u32>,
     demolish_removes: Cell<bool>,
     occs: RefCell<BTreeMap<u64, Occ>>,
@@ -84,8 +89,9 @@ pub(crate) struct World {
 
 /// The stub generator: queued u32s (then `RandomUint32Uniform(n)` gives
 /// n − 1 and the raw draw 1) and doubles (then 0.99; ranges map a queued u
-/// to `a + u (b − a)`, default u = 0 for uniform ranges and 0.5 for
-/// Gaussian ones). Every draw is an event.
+/// to `a + u (b − a)`, default u = 0.99 for uniform ranges, so a fire does
+/// not spread and an `IgniteCell` probability draw fails below 99, and 0.5
+/// for Gaussian ones). Every draw is an event.
 struct Stub(Weak<World>, &'static str);
 
 impl Stub {
@@ -124,13 +130,13 @@ impl DisasterRandom for Stub {
                 ("b", Json::Float(b)),
             ],
         );
-        let u = w.doubles.borrow_mut().pop_front().unwrap_or(0.0);
+        let u = w.doubles.borrow_mut().pop_front().unwrap_or(0.99);
         a + u * (b - a)
     }
-    fn range_gaussian(&mut self, a: f64, b: f64) -> f64 {
+    fn range_gaussian_fast(&mut self, a: f64, b: f64) -> f64 {
         let w = self.w();
         w.events.push(
-            "gaussian",
+            "gaussian_fast",
             vec![
                 ("generator", Json::Str(self.1.into())),
                 ("a", Json::Float(a)),
@@ -166,7 +172,10 @@ impl World {
             established: Cell::new(true),
             follow: Cell::new(false),
             no_burn_down: Cell::new(false),
-            wind: Cell::new(0.0),
+            wind: Cell::new((0.0, 0.0)),
+            fire_dispatch: Cell::new(0),
+            police_dispatch: Cell::new(0),
+            fire_targets: RefCell::new(BTreeMap::new()),
             view_level: Cell::new(1),
             demolish_removes: Cell::new(false),
             occs: RefCell::new(BTreeMap::new()),
@@ -315,17 +324,14 @@ impl DisasterHost for World {
     fn go_to_location(&self, x: i32, z: i32, zoom: u32) {
         self.ev("go_to", vec![("x", ji(x)), ("z", ji(z)), ("zoom", ji(zoom))]);
     }
-    fn set_fire_dispatch_effectiveness(&self, v: f32) {
-        self.ev("fire_effectiveness", vec![("value", scalar::jf(v))]);
+    fn fire_dispatch_count(&self) -> u32 {
+        self.fire_dispatch.get()
     }
-    fn set_police_dispatch_effectiveness(&self, v: f32) {
-        self.ev("police_effectiveness", vec![("value", scalar::jf(v))]);
+    fn police_dispatch_count(&self) -> u32 {
+        self.police_dispatch.get()
     }
     fn building_type_flags(&self, o: u64) -> u32 {
         self.occ(o, |x| x.flags).unwrap_or(0)
-    }
-    fn network_default_cost(&self, o: u64) -> i64 {
-        self.occ(o, |x| x.props.get(&0).map_or(0, |v| *v as i64)).unwrap_or(0)
     }
     fn occupant_type(&self, o: u64) -> u32 {
         self.occ(o, |x| x.otype).unwrap_or(0)
@@ -337,6 +343,7 @@ impl DisasterHost for World {
         self.occ(o, |x| x.in_manager.then_some(x.cell)).flatten()
     }
     fn occupant_cell_rect(&self, o: u64) -> CellRect {
+        let o = self.fire_targets.borrow().get(&o).copied().unwrap_or(o);
         self.occ(o, |x| x.rect.unwrap_or(CellRect::cell(x.cell.0, x.cell.1)))
             .unwrap_or_default()
     }
@@ -408,6 +415,7 @@ impl DisasterHost for World {
         if let Some(x) = self.occs.borrow_mut().get_mut(&target) {
             x.burning = true;
         }
+        self.fire_targets.borrow_mut().insert(t, target);
         self.ev(
             "create_fire",
             vec![
@@ -425,6 +433,7 @@ impl DisasterHost for World {
         if let Some(x) = self.occs.borrow_mut().get_mut(&target) {
             x.burning = false;
         }
+        self.fire_targets.borrow_mut().remove(&fire);
         self.ev(
             "remove_fire",
             vec![("fire", ji(fire as i64)), ("target", ji(target as i64))],
@@ -436,7 +445,7 @@ impl DisasterHost for World {
     fn tutorial_no_burn_down(&self) -> bool {
         self.no_burn_down.get()
     }
-    fn wind(&self) -> f32 {
+    fn wind(&self) -> (f32, f32) {
         self.wind.get()
     }
     fn play_effect(&self, name: &str, o: u64) {
@@ -616,9 +625,6 @@ impl DisasterHost for World {
     fn volcano_start_deformation(&self, i: u32, _x: f32, _z: f32) {
         self.ev("volcano_deformation", vec![("instance", ji(i))]);
     }
-    fn volcano_end_deformation(&self, i: u32) {
-        self.ev("volcano_end_deformation", vec![("instance", ji(i))]);
-    }
     fn volcano_start_lava(&self, i: u32, _x: f32, _z: f32, r: f32) {
         self.ev("lava", vec![("instance", ji(i)), ("radius", scalar::jf(r))]);
     }
@@ -663,6 +669,7 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "expect_fire" => expect_fire(&w, op),
         "expect_riot" => expect_riot(&w, op),
         "expect_instance" => expect_instance(&w, op),
+        "expect_volcano" => expect_volcano(&w, op),
         "expect_refs" => expect_refs(&w, op),
         "expect_events" => w.events.expect_events(op),
         "expect_event_count" => w.events.expect_count(op),
@@ -712,6 +719,7 @@ fn message_type_of(j: &Json) -> R<u32> {
         Some("PreViewLevelChange") => msg::PRE_VIEW_LEVEL_CHANGE,
         Some("EffectFinished") => msg::EFFECT_FINISHED,
         Some("EffectMoved") => msg::EFFECT_MOVED,
+        Some("VolcanoMessage") => msg::VOLCANO_MESSAGE,
         _ => u32_of(j, "type")?,
     })
 }
@@ -750,7 +758,8 @@ fn tuning_of(instance: u32, v: &Json) -> R<Option<PropertyHolder>> {
         Json::Str(s) if s == "shipped" => match instance {
             tuning_instance::FLAME => Some(shipped_flame()),
             tuning_instance::RIOT => Some(shipped_riot()),
-            _ => return Err("only the flame and riot exemplars have a \"shipped\" form".into()),
+            tuning_instance::VOLCANO => Some(shipped_volcano()),
+            _ => return Err("only the flame, riot and volcano exemplars have a \"shipped\" form".into()),
         },
         other => Some(holder_of(field(other, "props")?)?),
     })
@@ -779,7 +788,23 @@ fn env(w: &World, op: &Json) -> R<()> {
         w.emergency.set(i64_of(v, "emergency")? as i32);
     }
     if let Some(v) = opt(op, "wind") {
-        w.wind.set(f32_of(v, "wind")?);
+        // [x, z] (weather slot 22's vector); a number is (x, 0).
+        w.wind.set(match v {
+            Json::Array(_) => {
+                let a = arr(v, "wind")?;
+                if a.len() != 2 {
+                    return Err("'wind' must be [x, z] or a number".into());
+                }
+                (f32_of(&a[0], "wind")?, f32_of(&a[1], "wind")?)
+            }
+            n => (f32_of(n, "wind")?, 0.0),
+        });
+    }
+    if let Some(v) = opt(op, "fire_dispatch_count") {
+        w.fire_dispatch.set(u32_of(v, "fire_dispatch_count")?);
+    }
+    if let Some(v) = opt(op, "police_dispatch_count") {
+        w.police_dispatch.set(u32_of(v, "police_dispatch_count")?);
     }
     if let Some(v) = opt(op, "view_level") {
         w.view_level.set(u32_of(v, "view_level")?);
@@ -1135,6 +1160,12 @@ fn call(w: &World, op: &Json) -> R<()> {
         "attempt_start" => opt_id(s.attempt_start(manager_of(arg(op, 0)?)?, a_i32(op, 1)?, a_i32(op, 2)?)),
         "attempt_start_any" => opt_id(s.attempt_start_any(manager_of(arg(op, 0)?)?)),
         "active_count" => ji(s.active_count(manager_of(arg(op, 0)?)?)),
+        "manager_instances" => Json::Array(
+            s.manager_instances(manager_of(arg(op, 0)?)?)
+                .into_iter()
+                .map(ji)
+                .collect(),
+        ),
         "instance_shutdown" => {
             s.instance_shutdown(a_u32(op, 0)?);
             Json::Null
@@ -1176,10 +1207,7 @@ fn call(w: &World, op: &Json) -> R<()> {
             s.burn_down(a_tok(op, 0)?);
             Json::Null
         }
-        "set_cause" => {
-            s.set_cause(a_u32(op, 0)?);
-            Json::Null
-        }
+        "set_cause" => ji(s.set_cause(a_u32(op, 0)?)),
         "cause" => ji(s.cause()),
         "fire_count" => ji(s.fire_count()),
         "fire_count_in_rect" => ji(s.fire_count_in_rect(CellRect {
@@ -1314,6 +1342,7 @@ fn expect(w: &World, op: &Json) -> R<()> {
         ("overall_s".into(), ji(l.overall_s as i64)),
         ("fire_effectiveness".into(), scalar::jf(l.fire_effectiveness)),
         ("police_effectiveness".into(), scalar::jf(l.police_effectiveness)),
+        ("cursor".into(), l.cursor.map_or(Json::Null, |c| ji(c as i64))),
         (
             "locations".into(),
             Json::Array(
@@ -1402,7 +1431,7 @@ fn expect_fire(w: &World, op: &Json) -> R<()> {
 }
 
 /// `dis_expect_riot`: `instance`, `state` (partial: `phase`, `leader_count`,
-/// `leaders` ([{automaton, counter, stage, max_stage, cell}])), or
+/// `elapsed_s`, `next_s`, `leaders` ([{automaton, counter, stage, max_stage, cell}])), or
 /// `absent: true`.
 fn expect_riot(w: &World, op: &Json) -> R<()> {
     let s = w.sys()?;
@@ -1418,6 +1447,8 @@ fn expect_riot(w: &World, op: &Json) -> R<()> {
     let got = vec![
         ("phase".to_string(), ji(r.phase)),
         ("leader_count".into(), ji(r.leaders.len() as i64)),
+        ("elapsed_s".into(), ji(r.elapsed_s as i64)),
+        ("next_s".into(), ji(r.next_s as i64)),
         (
             "leaders".into(),
             Json::Array(
@@ -1461,6 +1492,32 @@ fn expect_instance(w: &World, op: &Json) -> R<()> {
             i.location.map_or(Json::Null, |(x, z)| Json::Array(vec![ji(x), ji(z)])),
         ),
         ("tick".into(), Json::Bool(i.tick_registered)),
+    ];
+    check_state(&got, field(op, "state")?)
+}
+
+/// `dis_expect_volcano`: `instance` and `state` (partial: `phase` (its
+/// `GetPhase`), `state`, `lava_us`, `end_requested`, `lava_flowing`,
+/// `lava_has_run`, `lava_phases`), or `absent: true`.
+fn expect_volcano(w: &World, op: &Json) -> R<()> {
+    let s = w.sys()?;
+    let id = u32_of(field(op, "instance")?, "instance")?;
+    let v = s.volcano_snapshot(id);
+    if opt(op, "absent").map_or(Ok(false), |v| bool_of(v, "absent"))? {
+        return match v {
+            None => Ok(()),
+            Some(_) => Err(format!("volcano {id} exists")),
+        };
+    }
+    let v = v.ok_or_else(|| format!("no volcano {id}"))?;
+    let got = vec![
+        ("phase".to_string(), ji(v.phase)),
+        ("state".into(), ji(v.state)),
+        ("lava_us".into(), ji(v.lava_us as i64)),
+        ("end_requested".into(), Json::Bool(v.end_requested)),
+        ("lava_flowing".into(), Json::Bool(v.lava_flowing)),
+        ("lava_has_run".into(), Json::Bool(v.lava_has_run)),
+        ("lava_phases".into(), ji(v.lava_phases)),
     ];
     check_state(&got, field(op, "state")?)
 }

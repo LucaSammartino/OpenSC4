@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "disaster_toast_insertion",
+  "spec": ["disasters 5.7", "disasters 18.12"],
+  "description": "AddToToastList inserts into a list of n >= 1 entries before element RandomUint32Uniform(n), one draw on the fire generator; an empty list takes the first entry with no draw. Toast list [P]: adding Q draws RandomUint32Uniform(1), always 0, and the list becomes [Q, P]. A queued draw of 1 puts R between them.",
+  "steps": [
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_occupant", "occupant": "0x51", "type": "prop", "cell": [3, 3]},
+    {"op": "dis_occupant", "occupant": "0x52", "type": "prop", "cell": [4, 4]},
+    {"op": "dis_occupant", "occupant": "0x53", "type": "prop", "cell": [5, 5]},
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "quick_burn_cell", "args": [3, 3], "note": "P into the empty list"},
+    {"op": "dis_expect_event_count", "filter": {"event": "u32"}, "count": 0},
+    {"op": "dis_expect", "state": {"toast": ["0x51"]}},
+    {"op": "dis_call", "method": "quick_burn_cell", "args": [4, 4], "note": "Q"},
+    {"op": "dis_expect_events", "filter": {"event": "u32"}, "events": [
+      {"event": "u32", "generator": "fire", "n": 1}
+    ]},
+    {"op": "dis_expect", "state": {"toast": ["0x52", "0x51"]}},
+    {"op": "dis_expect_refs", "refs": {"0x51": 1, "0x52": 1}},
+    {"op": "dis_env", "u32s": [1]},
+    {"op": "dis_call", "method": "quick_burn_cell", "args": [5, 5], "note": "R before element 1"},
+    {"op": "dis_expect_event_count", "filter": {"event": "u32", "n": 2}, "count": 1},
+    {"op": "dis_expect", "state": {"toast": ["0x52", "0x53", "0x51"]}}
+  ]
+}

@@ -1,8 +1,8 @@
 {
   "format": 1,
   "name": "disaster_stage_lookup",
-  "spec": ["disasters 5.2", "disasters 5.3", "disasters 18.2"],
-  "description": "With the shipped D3 (30, 25, 20, 20, 25) the cumulative thresholds are 30, 55, 75, 95, 120: counter 0 is stage 0, 29 is 0, 30 is 1, 54 is 1, 55 is 2, 119 is 4, 120 is 5 and 500 is 5. Without the exemplar the defaults apply: D3 and D4 ten each (thresholds 10 to 50), D5 0, 3, 5, 7, 9, zoom 4 and no D9 curve.",
+  "spec": ["disasters 5.1", "disasters 5.2", "disasters 5.3", "disasters 18.2"],
+  "description": "With the shipped D3 (30, 25, 20, 20, 25) the cumulative thresholds are 30, 55, 75, 95, 120: counter 0 is stage 0, 29 is 0, 30 is 1, 54 is 1, 55 is 2, 119 is 4, 120 is 5 and 500 is 5. Without the exemplar the defaults apply: D3 and D4 ten each (thresholds 10 to 50), D5 0, 3, 5, 7, 9, zoom 4 and no D9 curve. The defaults apply only when the whole exemplar is missing: with the exemplar, a missing array is empty and the zoom 0, and a short array keeps its length, a stage past its end reading its last entry (D3 5, 5 gives the thresholds 5, 10, 15, 20, 25).",
   "steps": [
     {"op": "dis_flame_tuning", "tuning": "shipped",
       "state": {"d3cum": [30, 55, 75, 95, 120]},
@@ -13,8 +13,8 @@
       "stages": [[9, 0], [10, 1], [49, 4], [50, 5]],
       "resistance": [[0, 0], [255, 0]]},
     {"op": "dis_flame_tuning", "tuning": {"props": {"0xA9B6ECD3": {"u32": [5, 5]}}},
-      "note": "a short D3 keeps the defaults for the missing stages (Q14)",
-      "state": {"d3": [5, 5, 10, 10, 10], "d3cum": [5, 10, 20, 30, 40]}},
+      "note": "the defaults apply only when the whole exemplar is missing: a short D3 keeps its length and a stage past its end reads its last entry; the missing D4, D5 and D9 are empty, the zoom 0",
+      "state": {"d3": [5, 5], "d3cum": [5, 10, 15, 20, 25], "d4": [], "d5": [], "zoom": 0, "d9_empty": true}},
 
     {"op": "dis_create"},
     {"op": "dis_init", "expect": true},

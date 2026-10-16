@@ -7,11 +7,14 @@
 //! The disaster layer (§2): the enable counter (§2.3), begin and end with
 //! the emergency pause (§2.4), the damage assessment and dispatch timers
 //! (§2.5), the cost (§2.6) and the locations (§2.7).
+//!
+//! The enable counter only nests (test 6): nothing reads it, so it has no
+//! effect on any disaster, the menu or the emergency pause (§2.3, Q5).
 
 use std::collections::BTreeMap;
 
 use super::system::Core;
-use super::{msg, occupant, prop, DisasterPost, Target, MANAGER_TABLE};
+use super::{msg, occupant, prop, DisasterPost, Target, MANAGER_TABLE, NETWORK_DEFAULT_COST};
 
 /// A wall-clock timer (`cRZTimer`): accumulates while running.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -44,9 +47,15 @@ impl Timer {
     pub fn elapsed_ms(&self, now: u64) -> u64 {
         self.accumulated_ms + self.started_at.map_or(0, |s| now.saturating_sub(s))
     }
-    /// Units 5 (seconds): whole seconds, truncated [choice, Q9].
+    /// Units 5 (seconds) through the integer `GetElapsedTime`: whole
+    /// seconds, truncated (the riot's gate, §6.5, Q9).
     pub fn elapsed_s(&self, now: u64) -> u64 {
         self.elapsed_ms(now) / 1000
+    }
+    /// Units 5 through the `float` `GetElapsedTime`: fractional seconds
+    /// (the dispatch effectiveness, §2.5, Q9).
+    pub fn elapsed_secs_f32(&self, now: u64) -> f32 {
+        (self.elapsed_ms(now) as f64 / 1000.0) as f32
     }
 }
 
@@ -99,7 +108,8 @@ pub(crate) struct LayerState {
     pub fire_effectiveness: f32,
     pub police_effectiveness: f32,
     pub locations: Vec<Location>,
-    /// `None` before the first `GoToNextDisaster` [choice, Q10].
+    /// The `GoToNextDisaster` cursor (`+0xC0`, §2.7); `None` before the
+    /// first registration.
     pub cursor: Option<usize>,
 }
 
@@ -258,31 +268,34 @@ impl Core {
         self.end_dispatch_timers();
     }
 
-    /// `EndDispatchTimers`: `Σ seconds / (timers × overall seconds)` per map,
-    /// passed to fire protection slot 25 / police slot 26. A map without
-    /// timers is skipped (its value stays) and a zero overall time gives 0
-    /// [choice, Q11].
+    /// `EndDispatchTimers` (§2.5): every timer stopped; per map
+    /// `Σ seconds / (float(N) × overall seconds)` in fractional seconds, `N`
+    /// being the protection simulator's `GetTotalDispatchCount()` (fire slot
+    /// 25, police slot 26). `N = 0` gives 0, an empty map gives 0, and a
+    /// zero overall time gives 0 [choice, §2.5]. The values are stored
+    /// (`+0xAC` / `+0xB0`) and passed to nobody (Q11).
     pub(crate) fn end_dispatch_timers(&mut self) {
         let host = self.host.clone();
         let now = host.now_ms();
-        let overall = self.layer.overall.elapsed_s(now);
         self.layer.overall.stop(now);
-        let eff = |m: &BTreeMap<u32, Timer>| -> Option<f32> {
-            if m.is_empty() {
-                return None;
+        for t in self.layer.fire_timers.values_mut() {
+            t.stop(now);
+        }
+        for t in self.layer.police_timers.values_mut() {
+            t.stop(now);
+        }
+        let overall = self.layer.overall.elapsed_secs_f32(now);
+        let eff = |m: &BTreeMap<u32, Timer>, n: u32| -> f32 {
+            let sum: f32 = m.values().map(|t| t.elapsed_secs_f32(now)).sum();
+            let den = n as f32 * overall;
+            if n == 0 || den == 0.0 {
+                0.0
+            } else {
+                sum / den
             }
-            let sum: u64 = m.values().map(|t| t.elapsed_s(now)).sum();
-            let den = (m.len() as u64).saturating_mul(overall);
-            Some(if den == 0 { 0.0 } else { sum as f32 / den as f32 })
         };
-        if let Some(f) = eff(&self.layer.fire_timers) {
-            self.layer.fire_effectiveness = f;
-            host.set_fire_dispatch_effectiveness(f);
-        }
-        if let Some(p) = eff(&self.layer.police_timers) {
-            self.layer.police_effectiveness = p;
-            host.set_police_dispatch_effectiveness(p);
-        }
+        self.layer.fire_effectiveness = eff(&self.layer.fire_timers, host.fire_dispatch_count());
+        self.layer.police_effectiveness = eff(&self.layer.police_timers, host.police_dispatch_count());
     }
 
     /// `DoOnOccupantRemoval` (only while assessing and established).
@@ -312,7 +325,7 @@ impl Core {
                 });
             }
         } else if t == occupant::NETWORK && prop_cost.is_none() {
-            cost = host.network_default_cost(o);
+            cost = NETWORK_DEFAULT_COST;
         }
         self.layer.damage.total_cost = self.layer.damage.total_cost.wrapping_add(cost);
     }
@@ -347,7 +360,8 @@ impl Core {
 
     // ---- §2.7 ----
 
-    /// `RegisterDisasterLocation` (slot 13).
+    /// `RegisterDisasterLocation` (slot 13): the cursor goes to the new
+    /// entry (§2.7).
     pub(crate) fn register_location(&mut self, instance: u32, x: i32, z: i32, occ: u64, zoom: u32, focus: bool) {
         let host = self.host.clone();
         if occ != 0 {
@@ -360,6 +374,7 @@ impl Core {
             zoom,
             occupant: occ,
         });
+        self.layer.cursor = Some(self.layer.locations.len() - 1);
         if focus && host.follow_disasters() {
             self.go_to_next_disaster();
         }
@@ -388,11 +403,6 @@ impl Core {
             }
         }
         self.layer.locations = kept;
-        if let Some(c) = self.layer.cursor {
-            if c >= self.layer.locations.len() {
-                self.layer.cursor = None;
-            }
-        }
     }
 
     /// `ResolveDisasterLocation`: an occupant entry reads its occupant's cell
@@ -425,19 +435,22 @@ impl Core {
         Some(Location { x, z, ..l })
     }
 
-    /// `GoToNextDisaster` (view-side): advance the cursor (cycling) and move
-    /// the camera there. The first call goes to entry 0 [choice, Q10].
-    pub(crate) fn go_to_next_disaster(&mut self) {
+    /// `GetNextDisasterLocation` (§2.7): the entry at the cursor (clamped
+    /// to the newest), then the cursor steps back, wrapping to the newest
+    /// below 0 (Q10).
+    pub(crate) fn next_location(&mut self) -> Option<Location> {
         let n = self.layer.locations.len();
         if n == 0 {
-            return;
+            return None;
         }
-        let c = match self.layer.cursor {
-            Some(c) => (c + 1) % n,
-            None => 0,
-        };
-        self.layer.cursor = Some(c);
-        if let Some(l) = self.location_by_index(c) {
+        let c = self.layer.cursor.map_or(n - 1, |c| c.min(n - 1));
+        self.layer.cursor = Some(if c == 0 { n - 1 } else { c - 1 });
+        self.location_by_index(c)
+    }
+
+    /// `GoToNextDisaster` (view-side): the next location, then the camera.
+    pub(crate) fn go_to_next_disaster(&mut self) {
+        if let Some(l) = self.next_location() {
             self.host.go_to_location(l.x, l.z, l.zoom);
         }
     }
