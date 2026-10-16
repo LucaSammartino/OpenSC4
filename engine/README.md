@@ -1983,8 +1983,11 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
   argument bytes (each argument rounded up to 4, int64/double 8, plus 4 for a hidden result pointer) ==
   `callee_pop`; float/double return ⇔ `ret = x87`; int64 return ⇒ `edx:eax`, and `edx:eax` (medium
   confidence) ⇒ int64. Per interface: slots contiguous and as many as the table's. The slots are decoded from
-  the compiler's vcall thunks, so the test checks what MSVC actually laid out. After adding a method or an
-  interface, run `python tests/gen_abi_entries.py` (from `engine/`) and rebuild; `--dump` prints every slot
+  the compiler's vcall thunks, so the test checks what MSVC actually laid out. The listing
+  `tests/abi_entries.inc` is generated, not checked in: the CMake target `fc4_abi_entries` runs
+  `tests/gen_abi_entries.py` on every build and this test depends on it, so it is always current and a stale
+  copy can never be compiled. Run `python tests/gen_abi_entries.py` (from `engine/`) yourself to refresh it
+  without a build; with no Python 3 this test is skipped, like `ret_channel_check`. `--dump` prints every slot
   next to its table row. SDK methods that disagree with the game but are never called by the plugin are
   waived (`kWaivers`); the waiver lapses, and the test fails, as soon as a file in `plugin/` calls one.
   Reviewed slot-count differences (class-private trailing virtuals) are in `kReviewedSlotCounts`. Interfaces

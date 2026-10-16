@@ -21,3 +21,9 @@ __pycache__/
 # Engine build outputs
 build*/
 target/
+
+# Generated at build time: CMake runs engine/tests/gen_abi_entries.py before
+# compiling the ABI conformance test. Do not commit it - a stale copy compiled
+# into that test is exactly what leaving git was meant to prevent. Regenerate
+# by hand with `python tests/gen_abi_entries.py` from engine/.
+engine/tests/abi_entries.inc
