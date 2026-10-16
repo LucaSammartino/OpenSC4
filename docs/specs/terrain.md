@@ -172,11 +172,21 @@ Read once per process by `ReadTuningParameters` (`0x0074B6A0`) from exemplar `0x
 | `0x48CD7B21` | sea level of a new terrain (clamped ≥ minimum allowed height) | — | 250 |
 | `0x48CD7B2A` | flat height of a new terrain (clamped ≥ minimum) | — | 300 |
 | `0x48CD7B28` | height scale for a new terrain from an image | — | 3 |
-| `0x48CD7B70`..`73` | sea-level range for `SetSeaLevel`: minimum, maximum, and two editor values | — | −10, 200, 5, 40 |
+| `0x48CD7B70`..`73` | sea-level range for `SetSeaLevel`: min `−10`, max `200`; and — **Corrects (TR25)** — `0x48CD7B72` is **not** an editor value but `ChangeSeaLevel`'s step (slot 46, stored at `0x00B0D584`, shipped **5.0**, fallback 20.0), and `0x48CD7B73` is the default raise/lower amount (slot 47, `0x00B0D588`, shipped **40.0**, fallback 20.0) | — | −10, 200, 5, 40 |
+| `0x48CD7B50` | minimum region size for `LevelAreaStartingAt` (slot 43's levelling) | 401 | 1000 |
+| `0x48CD7B51` | `CreateFlatAreas` tolerance scale, `tol = 0.003 × maxAllowedHeight` | — | 0.003 |
+| `0x48CD7B52`, `0x48CD7B53` | `CreateFlatAreas` band scales, `f1 = 0.1·M + sea`, `f2 = 0.9·M + sea` | — | 0.9, 0.1 |
 | `0x48CD7B65` | cliff slope threshold (render) | — | 0.5 |
 | `0x48CD7B20` | stored at `+0x78` and saved | — | 308 |
 
-`GetDefaultTerrainRaiseLowerAmount` (slot 47) returns the constant 20.0. The lava has its own exemplar (§11.1).
+**Corrects (TR25).** The clamps are two globals, not "the tuning (20, 2500)":
+`MinAllowedHeight` (slot 23, `0x0074C690`) is `0x00B0D5E0`, filled from `0x48CD7B27` with **fallback 5.0**;
+`MaxAllowedHeight` (slot 24, `0x0074C6A0`) is `0x00B0D5DC`, from `0x48CD7B26` with **fallback 200.0**. The shipped
+20 / 2500 hold only when the exemplar loaded; §6 and §4.2 quote them as if absolute.
+
+`GetDefaultTerrainRaiseLowerAmount` (slot 47, `0x0074C660`) is **`fld [0x00B0D588]`**, filled from `0x48CD7B73`
+(`0x0074B964`–`0x0074B96F`) — **shipped 40.0, fallback 20.0.** Quirk 19's "returns the constant 20.0 / the ini
+value is parsed and thrown away" is **wrong**: the value is read and returned.
 
 ---
 
@@ -1075,7 +1085,7 @@ priority `0xC0`.
 | 6 | `GetWaterDepthForCell(x, z)` (`0x0073D210`) | `i := terrain.GetVertIndex(x, z)` (no bounds check, §10.5). `m :=` the minimum of the depths at `i`, `i + 1`, `i + 1 + vertsX`, `i + vertsX`, in that order, a NaN candidate never replacing the minimum. Return `m` if `m > 0`, else 0.0 |
 | 13 | `HasDraftClearance(x, z)` (`0x0073CDB0`) | `GetWaterDepthForCell(x, z) > 5.0` |
 | 8 | `IsNavigable(x, z, r, lot)` (`0x0073EBF0`) | §10.4 |
-| 7 | `IsNavigable(position…)` (5 arguments) | converts the position to a cell (city slot 95) and calls slot 8 |
+| 7 | `IsNavigable(x, y, z, r, lot)` (`0x0073CEF0`) | **Corrects (TR26):** five dwords are `(float x, float y, float z, int32 r, void* lot)` — a 3D world position in metres plus the radius and lot that slot 8 takes. **`y` is never read.** Callee pops 20 bytes; **returns in AL only**. Converts with city slot 95 `LocationToCell(x, z, &cellX, &cellZ)` (`0x004599E0`), which is `floor(coord × 0.0625)` per horizontal axis — plain world→cell, no origin offset, not `GetVertIndex` — then calls slot 8 `IsNavigable(cellX, cellZ, r, lot)`. *[quirk]* it passes **`&arg1`** as city slot 95's cell-z out-parameter, so the incoming `x` is overwritten with the cell z; invisible to a caller (callee-pop) but a reimplementation must not reuse `x` afterwards |
 | 9 | `GetBodyOfWaterMap()` | the uint16 grid at `+0x4C` (SimGrid type `0x49B9E600`, ID `0x4BE3618B`), one value per cell, 0 = none |
 | 10 | `AltitudeAtWhichFloodingWillOccur(x, z)` (`0x0073D4F0`) | checked in the bytes (TR3). `i := GetVertIndex(x, z)` (no bounds check). `r := sea level`. With `L(v) := depth(v) + alt(v)` (one rounded add): if `depth(i) > 0` and `L(i) > r`: `r := L(i)`. Then `GetVertex(i)` and the `GetNeighbors` mask of §11.3; for each allowed neighbour in the offset order W, NW, N, NE, E, SE, S, SW: if its `depth > 0` and its `L > r` (strict; NaN never wins): `r := L`. Return `r` |
 | 11 | `GetWaterVelocity(x, z)` (`0x0073D7C0`) | a pointer to the vertex's velocity (no bounds check) |
@@ -1094,6 +1104,16 @@ It runs:
   interface at `+0x08`) is set, which it then clears;
 - on `0x89D3E9F3` for a bridge piece (network flag `0x40000`) with no adjacent bridge piece;
 - at `EndBrushScrub` when the city is established.
+
+**Corrects (TR27).** The SimNewDay trigger is **unreachable**. `DoMessage` has the branch (`0x0074019A`), but
+`Init` subscribes to exactly six messages (`0x0073FF7F`–`0x0073FFC3`) and `0x66956814` is not one of them, nor does
+it subscribe to the type-0 wildcard, so the server never delivers it — and `0x66956814` appears nowhere in
+`0x00730000`–`0x00750000` as an immediate. The consequence is a **dead dirty flag**: the power-pole handlers set
+`this+0x50` (`0x007402A4`) and the only reader is that unreachable branch, so it is set and never used.
+*[inferred: no other delivery path]* — a runtime breakpoint on `0x0074019A` would settle it. **A replacement must
+match this**: set the flag, and either also never deliver SimNewDay to the water or document the divergence. Also:
+`0x26D31EC5` **is** subscribed (`0x0073FF9C`) and its handler does nothing (it falls out of the compare chain at
+`0x00740194`).
 
 A power pole inserted or removed (`0x99EF1142` / `0x99EF1143`, occupant type `0x2890D4DE`, pole interface
 `0xA8C86142` with slot 13 false) sets the dirty flag when `GetWaterDepthForCell(x, z) > 0` (strict) at the pole's
@@ -1302,8 +1322,36 @@ and handles the animation tick `0x86AD10EE` (→ `DoAnimationTick`: render frame
 
 ### 12.2 Surface water
 
-Animation tick: animate the water (the flood flow) and `RedisplayTerrain(0, 1, rect, 3)` for changed water. Messages:
-§10.1, §10.3.
+**Corrects (TR27).** The surface water has its own message target and its own animation-tick registration, and the
+tick body is **gated off in the shipped binary**.
+
+| Item | Rule |
+|---|---|
+| Message target | **yes** — the `cIGZMessageTarget2` sub-object at water `+0x08`, vtable `0x00AB3AD8`; `DoMessage` is its slot 3 (`0x00740160`, `ret 4`, returns AL). `ecx` is `+0x08`, so the water object is `ecx − 8`. Ctor `0x0073DEE4`/`0x0073DEF1` |
+| Subscriptions | six, in `Init` (`0x0073FF7F`–`0x0073FFC3`): `0x26D31EC1`, `0x26D31EC4`, `0x26D31EC5` (no action), `0x89D3E9F3`, `0x99EF1142`, `0x99EF1143`. `Shutdown` (`0x0073E9DC`–`0x0073EA38`) removes exactly those six |
+| Tick registration | **yes** — `cSC4AnimationTickManager` (vtable `0x00A86760`) `AddTickableObject` (slot 5, `0x00448B70`) with **priority `0xC0`** and `target = &this+0x08` (`0x00740013`–`0x00740029`); `Shutdown` removes it with the same priority (slot 6, `0x00448C70`). The **guessed value `0xC0` is correct** |
+| Tick delivery | **not a queued message.** The manager keeps a reusable message typed `0x86AD10EE` and calls `target->DoMessage` **directly** (`0x00448A0F`), which is why the water never subscribes to `0x86AD10EE`. Nominal period 100 000 µs (10 Hz), delivered `dt` clamped to [2 000, 500 000] µs |
+| Priority bands | `p ≥ 0xC0` → band 0; `0x80 ≤ p < 0xC0` → 1; `0x40 ≤ p < 0x80` → 2; `p < 0x40` → 3 (`0x00448BF6`–`0x00448C1D`). `0xC0` is the **lowest** priority that still lands in band 0 |
+
+**The tick body never runs.** The animation-tick branch of `DoMessage` is gated on the water's byte **`+0x34`**
+(`0x007401E9`–`0x007401EE`: `mov al,[edi+0x2c]; test al,al; je skip`, `edi = this+8`) and **nothing ever sets that
+byte to non-zero**: the only writes in `0x0073CD50`–`0x00740900` are the two `= 0` of the constructor (`0x0073DF25`)
+and `Init` (`0x0073FF24`), no `cISTESurfaceWater` slot (5–13 are all getters) exposes it, and a whole-image scan for
+`mov byte [r+0x34], imm8` finds no writer in the terrain or water code. `[inferred: an external object could store
+it]` — settle with a hardware write breakpoint on that byte. The same gate is inverted in `Rain` (`0x0073EAB0`),
+which bails when `+0x34 != 0`, so the god-mode water brushes **do** run.
+
+So `AnimateWater` (`0x0073FDD0`) and, through it, `UpdateFloodWaters` (`0x0073EF00`) are **dead** — each has exactly
+one caller, and that caller is the gated handler (`0x007401F7`, `0x0073FDD6`). `UpdateFloodWaters` is a real
+simulation step (it ping-pongs a per-vertex water-level field between record offsets `+8` and `+0xC` of the 0x24-byte
+water records), but the shipped game never takes it.
+
+**The rule for a replacement (this is the TR27 answer glue18 needs):** a surface water that does not animate is
+**behaviour-compatible with the original**. To be byte-compatible, register the tick at priority `0xC0` and leave
+`+0x34` at 0 — or omit `AnimateWater` entirely. **Starting to animate would change water depths over time and would
+be a divergence, not a fix.** `AnimateWater` itself, when called, runs `UpdateFloodWaters()` then
+`RedisplayTerrain(0, 1, &rect, 3)` with `rect = (0, 0, cellsX−1, cellsZ−1)` taken from terrain `+0x38`/`+0x3C`
+(`0x0073FDDB`–`0x0073FE07`) — the whole city, not a changed rect. Messages: §10.1, §10.3.
 
 ---
 
@@ -1371,22 +1419,22 @@ corrected here (and proposed for that table).
 | 12–14, 17, 19–24 | height reads | §4 |
 | 15, 16 | `GetAltitudes`, `GetWaterDepths` (rect copies) | |
 | 18 | `GetMaxSurfaceLevel` | §5 |
-| 25 | `GetTerrainGridIndex` | |
+| 25 | `GetTerrainGridIndex` | §15.6.1 |
 | 26–28 | normals | §4.3 |
 | 29–38, 53, 55, 92 | water reads | §5 |
-| 39 | `AreSeaVertices(rect*)` | |
+| 39 | `AreSeaVertices(rect*)` | §15.6.1 — "all sea", not a presence test |
 | 40 | `DoPostCityInit` | §12.1 |
 | 41 | `SetTerrainType` | §6 |
 | 42 | `GetTerrainType()` | `+0x18` (exported as a folded `GetTractSize`) |
-| 43, 44 | `CreateFlatAreas`, `CreateShoreCliffs` | data4 0 |
-| 45, 46 | `SetSeaLevel`, `ChangeSeaLevel` | §6 |
-| 47 | `GetDefaultTerrainRaiseLowerAmount` | 20.0 |
-| 48 | `ChangeTerrainLevel` | data4 1 |
+| 43, 44 | `CreateFlatAreas`, `CreateShoreCliffs` | §15.6.2 (data4 0) |
+| 45, 46 | `SetSeaLevel`, `ChangeSeaLevel` | §6, §15.6.2 |
+| 47 | `GetDefaultTerrainRaiseLowerAmount` | **Corrects:** `0x00B0D588`, tuning `0x48CD7B73`, shipped 40.0 — not a constant (§2.4) |
+| 48 | `ChangeTerrainLevel` | §15.6.2 (data4 1) |
 | 49–52 | setters, lock | §6 |
 | 54 | returns `+0xE4` | render object (exported as a folded `GetSelectedCity`) |
-| 56 | `StartFlood` | debug: +500 m of water on vertices 20..39 × 20..39 |
+| 56 | `StartFlood` | §15.6.2 — the +500 m / 20..39 block is right, but it also snapshots, arms and steps a flood |
 | 57 | `ApplyBrush` | §9.2 |
-| 58–63 | brush and scrub helpers | §9.6 |
+| 58–63 | brush and scrub helpers | §9.6; 58, 61, 62 in §15.6.1 |
 | 64–67 | waves, view, lighting | render |
 | 68, 69 | `RedisplayTerrain` | §8.1 |
 | 70–77, 81, 82 | flags, hiding | §7 |
@@ -1759,6 +1807,54 @@ drawing is exercised. **Before any of that, confirm `0x00B43CF0` (the surface wa
 `0x00B43CD8` are non-null** — `Init` dereferences both without a check (§15.5.4) and those are the two most likely
 faults at this point.
 
+## 15.6 The slots §4–§10 left undefined (TR24, TR25) *[compat]*
+
+All confirmed by reading `0x00AB3D18 + 4N` and disassembling the target. Two helpers matter throughout:
+**`0x009EEF04` is MSVC `_ftol2`** (float → int64 `EDX:EAX`, **truncate toward zero**) — `names_windows.tsv`
+mis-names it `_lua_gettop`, which is why the Mac decomp of these functions lost their float arguments. And the x87
+compare idiom: `test ah,5` + `jp` ⇔ `a < b`; `test ah,0x41` + `jne` ⇔ `a > b`; `test ah,0x44` + `jnp` ⇔ `a != b`;
+all strict, and NaN never takes the first two's "then" branch.
+
+### 15.6.1 TR24
+
+| Slot | Signature | Rule |
+|---|---|---|
+| 25 `GetTerrainGridIndex` (`0x0074C6B0`) | `int(float x, float z)`, pop **8**, **EAX** | `EAX = trunc(r24(x·0.0625)) + trunc(r24(z·0.0625)) · vertsX(+0x38)`. **No bounds check, no clamp.** *[quirk]* it uses `_ftol2` (truncate toward zero) where `GetAltitude` uses floor, so they disagree for negative coordinates (`x = −8` → 0 here, −1 there) |
+| 39 `AreSeaVertices(rect*)` (`0x00740750`) | `bool(const tRect*)`, pop **4**, **AL only** | Inclusive **vertex** rect `(x0,z0,x1,z1)`. (1) any of x0,x1 ≥ `vertsX(+0x38)` or z0,z1 ≥ `vertsZ(+0x3C)` (unsigned) → **false**; (2) empty (`z0>z1` or `x0>x1`) → **true**; (3) else **true iff every vertex has `altitude < sea(+0x7C)`**. **Ground altitude, not depth** — it is an "all sea" test, not a presence test. NaN altitude → false |
+| 58 `GetBrushExemplarID` (`0x007415D0`) | `bool(int index, u32* out)`, pop **8**, **AL only**; **`this` unused** | `*out = *(u32*)(0x00AB3C88 + 4·index)`; `AL = (*out != 0)`. **No bounds check.** The table is 8 dwords; index ≥ 8 leaks adjacent `.data` |
+| 61 `BrushRadius` (`0x00747AE0`) | `float(u32 brushID)`, pop **4**, **ST0** (r24) | Lookup brushID in the `std::map` at `0x00B4BD58`. **Not found → 32.0.** Found → `radiusArray[defaultBrushLevel(+0xBC)]`, `radiusArray = *(float**)(node+0x20)` — the element-wise **max over all components'** radius arrays (merge at `0x0074F533`–`0x0074F57D`). No clamp on the level. Ignores `tBrushParameters.radiusScale` |
+| 62 `GetCostPerBrushApplication` (`0x00747C90`) | `int64(u32 brushID)`, pop **4**, **EDX:EAX** | Same map lookup. **Not found → 32.** Found → `EAX:EDX = trunc(cost[+0xBC])`, `cost[level] = *(float*)(node+0x38 + 4·level)`, the 5-float per-level array written from brush property `0x8A020101` (defaults all zero). No clamp on the level |
+
+**Slot 58's table** at `0x00AB3C88`: 0 `0xEA312EF9` GodMountainMesa, 1 `0xCA313035` VolcanoBrush, 2 `0xEA312F77`
+CanyonSoftBrush, 3 `0x2A312F97` LevelBrush, 4 `0xEA313BB9` SmoothingBrush, 5 `0x8A31301C` (not in §9.7.1
+*[inferred]*), 6 `0x2A31304E` FloraBrush, 7 `0` (AL = 0).
+
+### 15.6.2 TR25
+
+| Slot | Signature | Rule |
+|---|---|---|
+| 43 `CreateFlatAreas` (`0x0074A220`) | `void(bool redisplay)`, pop **4**, **void** | With `M = cachedMaxAlt(+0x74)`, `S = sea(+0x7C)`, `H = MaxAllowedHeight`: `f1 = r24(0.1·M + S)`, `f2 = r24(0.9·M + S)`, `tol = r24(0.003·H)`. **Pass 1:** every vertex, skip if `flags(+0x22) & 1`; seed when **`f1 < alt < f2`** (both strict) → `LevelAreaStartingAt(i, tol, 1)`. **Pass 2, only if any seed levelled:** `MarkRegion(…,2)`, `ComputeBoundsOfMarkedRegion`, `SmoothenMarkedRegion(&r, 3, 2)`, `flags &= 0xFC` over `vertexCount(+0x5C)`, then if `redisplay`: `RedisplayTerrain(1, 1, &wholeCity(+0x40), data4 = 0)` |
+| 44 `CreateShoreCliffs` (`0x0074C0F0`) | `bool(bool redisplay)`, pop **4**, **AL only** = "changed" | Select vertices with `(flags & 0x0001)==0 && (flags & 0x0010)!=0`; mark `flags |= 1`, grow a region, `AnalyzeShoreAndCreateCliffs` (`0x00749FA0`) — region size **< 4** → nothing; else walk up to 5 shore steps summing `(alt − sea)`, a run is a cliff when the sum **> 15.0**, runs > 4 flushed to `CreateShoreCliff` (`0x00744220`). **Pass 2, only if changed:** `MarkRegion(…, 8)`, bounds, `SmoothenMarkedRegion(&r, 20, 2)`, and if `redisplay`: `RedisplayTerrain(1, 1, &wholeCity, data4 = 0)`. **Always**, even if nothing changed: `flags &= 0xF8` over all vertices. Returns whether anything changed. *[inferred]* the 5-step / 15.0 / run-length geometry is from the decomp of `AnalyzeShoreAndCreateCliffs`; the Windows bytes confirm the size `< 4` early-out (`0x00749FD5`) and the 15.0 compare, but `CreateShoreCliff`'s per-vertex heights (`0x00744220`) are untraced |
+| 46 `ChangeSeaLevel` (`0x00740850`) | `void(bool raise)`, pop **4**, **void** (only AL of the arg is read) | `raise` → `SetSeaLevel(r24(step + sea))`, else `SetSeaLevel(r24(sea − step))`, `step = 0x00B0D584` = tuning `0x48CD7B72` = **5.0** shipped. The call is **virtual** (slot 45), so all of §6 `SetSeaLevel` applies — including rejecting a value outside `[−10, 200]`, so at a bound the proposal is refused outright |
+| 48 `ChangeTerrainLevel` (`0x00746440`) | `void(bool raise, float amount)`, pop **8**, **void** | Every vertex, skip if locked (`flags & 0x4000`). raise: `alt := r24(amount + alt)`, clamped to `MaxAllowedHeight`; lower: `alt := r24(alt − amount)`, clamped to `MinAllowedHeight`. **Always** `depth := r24(sea − alt)` into the surface-water array. Tail: `RedisplayTerrain(1, 1, &wholeCity, data4 = 1)` — **unconditional**, even when every vertex was locked |
+| 56 `StartFlood` (`0x00747720`) | `void()`, pop **0**, **void** (tail-calls `DoFloodFlowStep`) | **Corrects §15.1:** more than a debug dump. (1) `SaveWaterLevelsInTempArray(&wholeCity)` (`0x00744DE0`) snapshots every vertex **depth** into the float scratch at `this+0xE0`; (2) flood rect `(20,20,40,40)` into `this+0x19C..+0x1A8`, step counter `this+0x1AC := 0`; (3) for `z,x` in 20..39 (half-open 20..40): `depth[i] := r24(depth[i] + 500.0)`, `i = x + z·vertsX`; (4) `this+0xD4 := 1` (flood-running); (5) **one `DoFloodFlowStep` runs immediately** (`jmp 0x007467F0`), which posts the water-only redisplay with data4 0 and clears `+0xD4` once `+0x1AC` passes 500. So the amount and block MATCH §15.1, but the snapshot, rect, counter and the immediate step are missing there |
+
+**`LevelAreaStartingAt(this, startIndex, tol, flagMask)`** (`0x00749660`, pop `0xC`, **AL only**) underpins slot 43:
+BFS over the offsets at `0x00AB3CD0`/`0x00AB3CE0` in the order **(0,−1), (−1,0), (0,1), (1,0)**. A neighbour joins iff
+it is in bounds, `(flags & mask)==0`, **`alt > sea`**, and **`|alt − startAlt| < tol`**; then `flags |= mask`. If the
+region count is **≤ `0x00B0D5F0`** (tuning `0x48CD7B50`, shipped **1000**) it unmarks and returns 0; otherwise it
+calls **slot 50 `SetAltitudeAtVertex(i, startAlt)`** for every vertex and returns 1 — levelling the patch to the
+seed vertex's original altitude.
+
+### 15.6.3 Fields and flags this adds
+
+New terrain fields (§2.3): `+0xD4` flood-running flag, `+0xE0` float scratch array of `vertexCount` depths,
+`+0x19C`/`+0x1A0`/`+0x1A4`/`+0x1A8` flood rectangle, `+0x1AC` flood step counter.
+
+**§7 addendum:** the low flag bits `0x0001`, `0x0002`, `0x0004` are **transient work marks** — `CreateFlatAreas`
+clears `0xFC` when it changed something, `CreateShoreCliffs` clears `0xF8` **always**. They are never saved (the
+corpus never shows them), so a replacement may use them as scratch and must not persist them.
+
 ## 16. Quirks (summary)
 
 1. `GetAltitude` ignores the triangulation flips (§4.1).
@@ -1784,7 +1880,9 @@ faults at this point.
     touches the altitude (§9.4.4).
 18. The erosion-rate ramp endpoints are read as degrees, converted to radians, then compared with a height
     difference in metres (§9.4.4).
-19. The ini's `RaiseLowerAmount` is parsed and thrown away; slot 47 returns the constant 20.0 (§9.7).
+19. ~~The ini's `RaiseLowerAmount` is parsed and thrown away; slot 47 returns the constant 20.0 (§9.7).~~
+    **Corrects (TR25): wrong.** Slot 47 (`0x0074C660`) returns the global `0x00B0D588`, which
+    `ReadTuningParameters` fills from `0x48CD7B73` — shipped **40.0**, fallback 20.0 (§2.4).
 20. Kinds 1 and 3 scatter objects and draw from the terrain generator per vertex, so their RNG cost is not the
     one draw per application of §9.3 (§9.4.2).
 21. `DoPostCityInit`'s factory-fallback path does not null-check `operator new(0xE8)`: if the allocation fails it
@@ -1837,6 +1935,34 @@ faults at this point.
   `+0x20`). Full offset lists are in the `**Corrects (TR22)**` block of §2.3. The standout for `enable = terrain`
   is the view's direct read of the **vertex array at `+0x6C`**, and its two writes into the vertex `+0x22` flags
   (`LevelCell` `0x00759873`, `RemoveCellLevelling` `0x007586DA`). Nothing external reads `+0x24`.
+- ~~**TR24.** Slots 25, 39, 58, 61, 62.~~ **ANSWERED 2026-10-16 (re-answers30):** §15.6.1. **PARTLY** — the names
+  are broadly right but every rule was undefined, and slot 39 **DIFFERS** from the natural reading: it is an
+  **"all sea"** test (`every altitude < seaLevel`), not a presence test, and it compares ground altitude rather than
+  depth. Slot 25 uses `_ftol2` (truncate) where `GetAltitude` uses floor. Slot 58's table is 8 dwords at
+  `0x00AB3C88` with no bounds check. Slots 61/62 index a per-level array by the **default brush level** `+0xBC`
+  with no clamp.
+- ~~**TR25.** Slots 43, 44, 46, 48, 56.~~ **ANSWERED 2026-10-16 (re-answers30):** §15.6.2. **DIFFERS** in four
+  places. (a) **Quirk 19 is wrong**: slot 47 returns the tuning `0x48CD7B73` (shipped **40.0**), not a constant
+  20.0 — the ini value is used. (b) `0x48CD7B72`/`73` are `ChangeSeaLevel`'s step and the default raise/lower
+  amount, not "two editor values". (c) The height clamps are the globals `0x00B0D5E0`/`0x00B0D5DC` with fallbacks
+  **5.0 / 200.0** — §6 and §4.2 quote the shipped 20/2500 as if absolute. (d) Slot 56 does far more than the
+  documented +500 m dump: it snapshots depths to `+0xE0`, arms a `(20,20,40,40)` flood at `+0x19C`, and runs one
+  `DoFloodFlowStep` immediately. Slots 43/44/46/48 themselves MATCH the spec's one-liners once expanded.
+- ~~**TR26.** Surface water slot 7's five dwords.~~ **ANSWERED 2026-10-16 (re-answers30):** **PARTLY** — the outline
+  MATCHES but the signature was wrong. It is
+  `bool IsNavigableAtPosition(float x, float y, float z, int32 r, void* lot)` at `0x0073CEF0`, thiscall, **callee
+  pops 20 bytes, returns in AL only**. **`y` is never read.** City slot 95 `LocationToCell` (`0x004599E0`) is
+  `floor(coord × 0.0625)` per horizontal axis — plain world→cell, not `GetVertIndex`. *[quirk]* it passes `&arg1`
+  as the cell-z out-parameter, clobbering the caller's `x`.
+- ~~**TR27.** Does the surface water need its own message target and animation tick?~~ **ANSWERED 2026-10-16
+  (re-answers30):** **MATCHES** §10.1 — yes to both: a `cIGZMessageTarget2` at water `+0x08` (vtable `0x00AB3AD8`,
+  `DoMessage` `0x00740160`) subscribing to exactly those six messages, and `AddTickableObject` at **priority
+  `0xC0`** (`0x0074001E`) — the guessed value is correct. **But DIFFERS on reachability**, and this is the answer
+  glue18 needs: the tick body is gated on the water's byte **`+0x34`**, which nothing ever sets non-zero, so
+  `AnimateWater` and `UpdateFloodWaters` **never run in the shipped binary**. **A surface water that does not
+  animate is behaviour-compatible with the original**; starting to animate would be a *divergence*. Also
+  **DIFFERS** on §10.3: the SimNewDay `0x66956814` trigger is **unreachable** (the handler exists at `0x0074019A`
+  but `Init` never subscribes to it), so the dirty flag `+0x50` is set by the pole handlers and never read.
 
 
 ---
