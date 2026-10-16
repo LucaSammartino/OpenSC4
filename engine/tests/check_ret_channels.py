@@ -252,7 +252,7 @@ SPEC_FACTS = {
     ("cISC4NeighborConnection", 13): (B, "neighbors.md slot table"),
     ("cISC4NeighborDeal", 35): (B, "neighbors.md: returns true / otherwise false"),
     **{("cISC4NetworkOccupant", s): (B, "traffic-network.md network occupant table") for s in (8, 9, 22, 47)},
-    ("cISC4NetworkOccupant", 67): (S, "spec-silent GetPassageCeiling (TR19; terrain.md 10.4 step 4, deck height 'known')"),
+    ("cISC4NetworkOccupant", 67): (B, "QUESTIONS.md TR19 (re-answers25): GetPassageCeiling returns true with the float, false otherwise"),
     **{("cISC4Occupant", s): (B, "occupant slot table") for s in (5, 11, 14, 22, 27, 32)},
     ("cISC4OrdinanceSimulator", 8): (B, "ordinance.md"),
     **{("cISC4Ordinance", s): (B, "ordinance.md 3 table")

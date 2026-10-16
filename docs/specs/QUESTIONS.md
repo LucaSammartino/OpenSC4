@@ -3620,29 +3620,29 @@ answer is in brackets; each entry says what would settle it.
   stop being constant and offices start to affect growth. Should the correction be offered? [no: compatibility
   keeps the defect. A correction would be a separate *[choice]* behind an option, off by default. This is a
   coordinator decision, not an RE question]~~ **ANSWERED 2026-10-15 (re-answers11):** Not an RE question: the original's behaviour is the defect, and RE has nothing more to add. The bracket stands as the coordinator's policy (compatibility keeps it; any correction is an off-by-default *[choice]*).
-- **CM3:** The demand nodes `0x3000` and `0x3800` are held but never read, yet `Init` fails without them. Can the
+- ~~**CM3:** The demand nodes `0x3000` and `0x3800` are held but never read, yet `Init` fails without them. Can the
   shipped game reach `Init` without them? [no case found: the demand simulator creates them first, and FreeCity4
-  keeps the failure path. A load test with a city whose demand record is missing would settle it]
+  keeps the failure path. A load test with a city whose demand record is missing would settle it]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (commercial-industrial.md §2.1). The shipped game cannot reach the failure: `GetDemand` (`0x006A2960`) runs the demand simulator's `Init` first when it has not run, and `Init` builds the nodes from the demand exemplars (demand.md §4.1), not from the save. `SimCity_1.dat` holds `0x6534284A / 0xC7BB4816 / 0x3000` ("Commercial") and `/ 0x3800` ("Commercial Connections"), so both nodes exist in every city, whatever its demand record holds. Only a plugin that removes or retypes those exemplars makes `Init` fail; keeping the failure path is right.
 - ~~**IN1:** Does anything call the industrial simulator beyond the city's lifecycle calls? [no other reference to its
   interface or class ID was found, so the implementation is a stub with a version record. A runtime call trace on
   its vtable would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES as far as static analysis reaches. The interface IID `0x477A9E7D` and class ID `0xA990C022` occur only in `cSC4City::CreateCityComponents` (`0x0045AE5E`), `cSC4City::Read` (`0x0045CF15`), the class's own `QueryInterface`/`GetGZCLSID` (`0x006B8975`, `0x006B8961`) and the class table (`0x00B08E78`); the vtable `0x00AB1530` is referenced only by its constructor and destructor (`0x006B8A4A`, `0x006B8AF0`). A caller through the city getter (slot 60) cannot be ruled out statically; a runtime trace would.
-- **CB1:** Lot placement and exclusion IDs. The civic simulator has no preview-occupant test, so a preview occupant
+- ~~**CB1:** Lot placement and exclusion IDs. The civic simulator has no preview-occupant test, so a preview occupant
   of a building with `0xEA2E078B` adds that ID and then erases it. If the preview's removal came after the real
   building's insertion, the ID would be lost and the building could be placed twice. [in the shipped game a placed
   reward building is disabled in the menu, so either the preview's removal comes first or the preview is never
   inserted. FreeCity4 must keep the original message order. An in-game check (place the Mayor's House, look at the
-  menu) with a message log would settle it]
-- **CB2:** A lot that returns to state 3 (for example after abandonment) is charged a second time and listed in
+  menu) with a message log would settle it]~~ **ANSWERED 2026-10-16 (re-answers25):** Settled statically: the preview is never inserted, so the ID cannot be lost (the bracket's second alternative MATCHES). The place-lot tool's preview building is made by `cSC4ViewInputControlPlaceLot::GetBuildingPreviewModel` (`0x004C0680`; preview property `0x029244DB` set at `0x004C085C` and `0x004C0D6D`) and only drawn; the tool's `InsertOccupant` calls (occupant manager `(*0x00B43D0C)+0x50`, in `PlaceLot` around `0x004C1740`) insert the real lot's occupants, which carry no preview property. civic-buildings §4.3. In-game check if wanted: breakpoints on the exclusion insert (`0x0069E2DD`, call `0x0045D650`) and erase (`0x0069E2F9`, call `0x0045D460`) while hovering with the Mayor's House tool: expect no hit until the click places the lot, then one insert.
+- ~~**CB2:** A lot that returns to state 3 (for example after abandonment) is charged a second time and listed in
   `maintained` a second time. Does the shipped game send state 3 twice for a civic lot? [reproduced as is. The
   corpus holds 7 `maintained` entries in 5 cities and no duplicate. A lot-state message log for an abandoned and
-  restored civic building would settle it]
+  restored civic building would settle it]~~ **ANSWERED 2026-10-16 (re-answers25):** Reproduce as is (MATCHES); a second state 3 is not reachable for a civic (purpose-0) lot in the shipped game. Lot slot 34 `SetState` (`0x006C3100`) posts `0xE8BDA2E7` only on a change. Its callers: AbandonBuilding (4) and ReoccupyBuilding (3) and ChangeBuilding (3) in the tract developers, which act only on lots whose profile purpose is their own (no developer has purpose 0); ClearLot (1), EndDemolishLot (6), StartConstruction (3) and the construction occupant (3), which start a new building. The lot developer only reads a purpose-0 lot's condition. civic-buildings §4.4. In-game check: log `0xE8BDA2E7` with data2 = 3 per lot (or break at `0x0069E343`, the civic activation dispatch) while a civic building loses and regains power, water and funding: expect one message per lot.
 - ~~**CB3:** Status bytes 4, 5 and 6 occur in the corpus (15, 8 and 32 entries). The SDK calls bit 4 "advisor event
   data set". Who sets it, and does anything read it back? [carried through `Read` and `Write` unchanged; the
   advisors write through `GetConditionalBuildingStatus`. A trace of the writers of the status byte would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered (civic-buildings.md §2). Bit 4 is the reward advice's "already announced" mark: advisors.md §6.6 sets status 6 when the condition first returns 1 and fires only while bit 4 is clear. Later results keep it (a string gives 4, number 0 gives 5), which accounts for the corpus values 4, 5 and 6. The advisor reads it back; nothing else does.
-- **CB4:** `buildingCount` is a u16 that wraps. A removal without a matching insert gives 65,535: for example a
+- ~~**CB4:** `buildingCount` is a u16 that wraps. A removal without a matching insert gives 65,535: for example a
   building inserted before its status entry existed, or removed before activation. [reproduce the wrap. Counts
   above 0 occur in only 13 entries of 5 cities, and none has wrapped. A save that loads with a building but
-  without its status entry would show it]
+  without its status entry would show it]~~ **ANSWERED 2026-10-16 (re-answers25):** Reproduce the wrap (MATCHES). Insert and remove are symmetric (`0x0069E295` increment, `0x0069E29B` decrement, both after `GetConditionalBuildingStatus` `0x0069D8D0` finds the entry), so a wrap needs the entry to appear between the insert and the removal; shipped flows create a reward's entry (advisor reward evaluation) before it can be placed. Buildings loaded with a city are inserted before `Init` subscribes and are not re-counted; the saved count includes them, so their removal is correct. civic-buildings §4.3, test 11. In-game check: breakpoint at `0x0069E29B`, read the u16 at [entry+2] before the decrement; 0 means a wrap.
 - ~~**CB5:** The income line is keyed by the building type, not by the item's line. The line that
   `CreateLineItemForBuildingType` returns is used without a null check. [keep the keying. *[choice]* FreeCity4
   skips the income when creation fails, which the shipped budget never does for a new type]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice harmless). `CreateLineItem` always creates and stores a new item and returns it (budget.md, the department budget methods), so the null case does not arise in the original apart from an allocation failure.
@@ -3660,22 +3660,22 @@ answer is in brackets; each entry says what would settle it.
 - ~~**HW1:** The yearly thinning keeps the last point of every `Dispose` range and leaves the last group of every
   `Coalesce` range open. Is that an off-by-one in the original, or intended? [reproduced as is; Konradshohe's 296
   points match this model exactly]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES. The intent cannot be recovered from the code; the behaviour is as reproduced, and the 296-point corpus match confirms it. Keep it as *[compat]*.
-- **HW2:** `GetPoint` at an interior point returns the regression value through three points (a smoothing), and
+- ~~**HW2:** `GetPoint` at an interior point returns the regression value through three points (a smoothing), and
   `GetCount` counts the widened range. Do the graph windows depend on this? [reproduced; the graph and Lua callers
-  are not traced yet. A trace of the graph window's calls would settle it]
-- **HW3:** The regression sums are `double` variables, but they follow the caller's x87 precision: 24-bit from the
+  are not traced yet. A trace of the graph window's calls would settle it]~~ **ANSWERED 2026-10-16 (re-answers22):** Answered (history.md §9, §10). The graph window (`cSC4GraphsViewWinProc`) reads history only through slot 8: one `GetPoint` per series at one date (`0x0076BF69`), and for the line graph one or two `GetPoint` calls per series per sample date (`0x0076C510`, `0x0076C53A`; two keys combined by sum, difference, product or ratio, then scaled). It never calls `GetCount` (slot 5). So the graphs **do** depend on the smoothing: a sample date on an interior point is drawn at the three-point regression value. Reproduce it as is.
+- ~~**HW3:** The regression sums are `double` variables, but they follow the caller's x87 precision: 24-bit from the
   simulators, 53-bit inside Lua calls (foundations §18). [FreeCity4 evaluates them per caller. A differential test
-  through a Lua advisor call would confirm the 53-bit path]
+  through a Lua advisor call would confirm the 53-bit path]~~ **ANSWERED 2026-10-16 (re-answers25):** MATCHES, with the callers corrected. The regression (`0x004756C0` sums, `0x00475770` spreads, `0x00475820` correlation, `0x00475CC0` line) is reached only through slots 5, 6 and 8, whose callers are the Lua callbacks `game.trend_value` / `trend_slope` / `trend_count` (inside the guarded Lua call, 53-bit) and the graph window's `GetPoint` (`0x0076BF69`, `0x0076C510`, `0x0076C53A`; main thread, 24-bit). No simulator calls them (slots 7, 12, 13 only), so "24-bit from the simulators" should read "24-bit from the graph window". history §4.7. In-game check if wanted: breakpoint at `0x004756C0`, read the FPU control word's PC bits (bits 8-9: 0 = 24-bit, 2 = 53-bit) and the call stack (a Lua callback frame gives 2, the graph window gives 0).
 - ~~**HW4:** Version 1 records turn `maxCount = 100` into 0, duplicate dates overwrite the last point, and nothing in the
   executable posts `0x89EFA537`. Why `100 → 0`, and does any plugin post `0x89EFA537`? [reproduced; the message stays
   handled for plugins. The city getter is settled: slot 32 (`+0x80`) returns the field that `CreateCityComponents`
   fills with the warehouse (history.md §1); docs/abi still shows a folded name for it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (history.md §3). The four bytes of `0x89EFA537` occur only in the warehouse's `Init` (`0x00476726`), `Shutdown` (`0x00475900`) and `DoMessage` (`0x004770BE`), so nothing in the executable posts it. The reason for `100 → 0` is not recoverable from the code.
-- **CK1:** Does the clock run while the player pauses the simulation (pause button or speed 0)? [yes *[inferred]*:
+- ~~**CK1:** Does the clock run while the player pauses the simulation (pause button or speed 0)? [yes *[inferred]*:
   only hidden pauses (through `SC4GamePause` and the scrubber) stop it, and nothing links the simulator's `Pause()`
-  or speed to the clock. An in-game check would settle it: pause, then watch the clock display and the lighting]
-- **CK2:** Is the clock timer's unit 3 microseconds? [yes *[inferred]* from the `1e-6` factor, which gives a
+  or speed to the clock. An in-game check would settle it: pause, then watch the clock display and the lighting]~~ **ANSWERED 2026-10-16 (re-answers25):** MATCHES (yes, checked in the bytes). The simulator's `Pause` (`0x007021E0`), `HiddenPause` (`0x00702200`), `SetSimSpeed` (`0x007026D0`), `DoSetSimSpeed` (`0x00702430`) and `EmergencyPause` (`0x00702540`) never reach the clock. A scan for calls through the clock's `HiddenPause` (+0x68) finds only `SC4GamePause` (city slot 86, `0x005F92EA`) and the scrubber (global `0x00B43DBC`, `0x005BD0D6`, `0x005BD39B`); the clock's `Pause` (+0x60) is reached only by the cheat. The 3D view's sim-pause message handler (around `0x007F5714`) only updates the UI, and `DoTemporarySimHiddenPause` (`0x007E5B40`) pauses the simulator. clock24 §1, §3.1, test 20. In-game check if wanted: press pause, then watch `Update24HourClock` (`0x007EC0B0`) or the clock's seconds at +0x2C keep advancing.
+- ~~**CK2:** Is the clock timer's unit 3 microseconds? [yes *[inferred]* from the `1e-6` factor, which gives a
   640-second day at magnification 135. The unit factors from `0x00B54360` onwards are calibrated at runtime.
-  Reading that table in a running game, or timing one game day, would settle it]
+  Reading that table in a running game, or timing one game day, would settle it]~~ **ANSWERED 2026-10-16 (re-answers25):** MATCHES: unit 3 is exactly microseconds of `QueryPerformanceCounter` time; the table is **not** calibrated, the bracket's wording **DIFFERS**. A static initializer (`0x00A78F7F` → `0x0088FF4E`) calls `0x0088FDC0(&0x00B13420, &0x00B13428)` once at process start; `0x00B13420` is always `QueryPerformanceFrequency` (`0x0088FED4`), and the unit factors `0x00B54360`–`0x00B54370` are built from it (`0x0088FFB9`–`0x0089000D`; µs = (1/F) × 10^6 at `0x00B54364`). Only `0x00B13428` (the CPU cycle rate, measured with `SleepEx` loops when rdtsc and QPC disagree by 2 % or more) and the call overhead (`0x00B54358`, the smallest of 8 back-to-back QPC differences) are measured; the clock uses only the overhead. The clock's constructor pushes unit 3 (`0x0044596F`); units 1-6 read QPC (`0x00890198`). A day at magnification 135 is 640 s plus the truncation loss. clock24 §4.3.
 - ~~**CK3:** What is the object at `+0x8C` that `Shutdown` hands the string at `+0x78` to? [dead: nothing in the clock
   sets it, so FreeCity4 omits both fields. A write breakpoint on `+0x8C` would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (dead; clock24.md §2). The clock's only writes to `+0x8C` are the constructor's 0 (`0x00445A15`) and `Shutdown`'s clear (`0x0044516B`), and no accessor hands it out.
 - ~~**CK4:** A saved `pauseCount > 0` leaves the clock stopped after the load, and only `Stopwatch resume` restarts it.
@@ -4208,17 +4208,17 @@ repeat ZG22-ZG34. Stage B did not apply two re-answers11 answers: ZG22 (slot 19 
 untouched) and ZG24 (the zone tool owns the highlight region; ours returns null with the zone tool present). The current
 answer is in brackets.
 
-- **ZG35:** §8.5.1: the lot constructor does not write the vacate reason at `+0x83`, and the pool block is not zeroed, so a
-  new lot carries a stale byte there. [choice: FreeCity4 writes 0 after construction]
-- **ZG36:** §8.4.1 `RotateLotRect` with a facing outside 0..3. [choice: the rect is left unrotated]
-- **ZG37:** §8.4.2 / §8.4.3: a constraint or network configuration object whose data vector has fewer values than the
-  check reads. [choice: missing values read as 0]
-- **ZG38:** §8.7 `PositionToCell`: the core computes `floor(p / 16)`; does the original round differently at negative
-  positions or at the map edge? [floor]
-- **ZG39:** §1.2 Shutdown and §5.2 PostCityInit: `GetNetworkTool(type, 1)` returns a tool whose only reference is the zone
+- ~~**ZG35:** §8.5.1: the lot constructor does not write the vacate reason at `+0x83`, and the pool block is not zeroed, so a
+  new lot carries a stale byte there. [choice: FreeCity4 writes 0 after construction]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES the spec's *[choice]* (zones.md §8.5.1). Re-checked: the constructor `0x006C1E50` writes `+0x80`, `+0x81`, `+0x82`, `+0x84` and `+0x88` but never `+0x83` (`0x006C1F19`–`0x006C1F5B`), so the original's byte is whatever the pool block held; writing 0 for lots FreeCity4 creates is the documented *[choice]*, and a loaded lot keeps its byte.
+- ~~**ZG36:** §8.4.1 `RotateLotRect` with a facing outside 0..3. [choice: the rect is left unrotated]~~ **ANSWERED 2026-10-16 (re-answers22):** *[choice]* confirmed (zones.md §8.4.3). For a facing above 3 (unsigned, `0x004BDFDE`) `RotateLotRect` writes nothing, and both callers then use a stack rect that the original leaves as it was (never set before the call in `GetNetworkObjectPlacement`, `0x0072AD70`): undefined, not "unrotated". The only caller chain (the plop tool) passes the lot's facing 0…3, so leaving the rect unrotated is a safe *[choice]*.
+- ~~**ZG37:** §8.4.2 / §8.4.3: a constraint or network configuration object whose data vector has fewer values than the
+  check reads. [choice: missing values read as 0]~~ **ANSWERED 2026-10-16 (re-answers22):** *[choice]* confirmed (zones.md §8.4.3). `GetNetworkObjectPlacement` reads v[0], v[1], v[2] with no size check (`0x0072ADB7`–`0x0072ADD0`); a shorter vector reads past its end in the original. Shipped data never does: all 41 type-7 records carry 3 or 4 extra values; the 43 type-5 records carry 0 or 1 (the `p0` rule handles 0) and the 17 type-6 records none. Missing values as 0 is a safe *[choice]*.
+- ~~**ZG38:** §8.7 `PositionToCell`: the core computes `floor(p / 16)`; does the original round differently at negative
+  positions or at the map edge? [floor]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (zones.md §8.7). City slot 95 (`0x004599E0`) is an exact floor per axis: `t := x × 0.0625`, `c := round-half-even(t − 0.5)` by the 1.5·2²³ idiom, plus 1 when `t = c + 1` exactly. That is ⌊t⌋ for every finite |t| < 2²², negative positions included (−0.1 → −1, −16 → −1, −16.1 → −2), with no clamp at the map edge. Only a NaN differs (a meaningless large value).
+- ~~**ZG39:** §1.2 Shutdown and §5.2 PostCityInit: `GetNetworkTool(type, 1)` returns a tool whose only reference is the zone
   developer's AddRef, so Shutdown's Release frees it (the lane's game runs show this). The spec does not state the
-  ownership. [`FC4_RELEASE_CREATED`]
-- **ZG40:** `UpdateHighlightTextures` (§7.1.1), which the spec allows to be omitted, is not implemented. [omitted]
+  ownership. [`FC4_RELEASE_CREATED`]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES `FC4_RELEASE_CREATED` (network-manager.md §7.1, zones.md §1.2). `GetNetworkTool(type, true)` returns a freshly constructed tool with reference count 0 (base constructor `0x0062C5F0` clears `+0x14` at `0x0062C617`; no AddRef in the factory, `0x00610907`–`0x00610910`); the zone developer's AddRef at PostCityInit is the only reference, and tool `Release` (`0x00623270`) destroys it at count ≤ 1, so the developer's `Shutdown` Release frees it.
+- ~~**ZG40:** `UpdateHighlightTextures` (§7.1.1), which the spec allows to be omitted, is not implemented. [omitted]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (zones.md §7.1.1). The function changes no simulation state and draws nothing; omitting it only removes the zoning preview textures while the zone tool drags, a visible UI difference in game and nothing else.
 
 ## From the history warehouse and 24-hour clock glue (filed by the coordinator from the `histclock` lane's report, 2026-10-15)
 
@@ -4440,7 +4440,13 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
   bridge record (`+0xD8`, `0x28` bytes) and corrects the length map: bridge type `+0x16C`, keyed by the step count
   `end − start + 1` (`0x00632A68`), not `+0x164`. §7.1 lists the entry points for a follow-up bridge spec (span
   selection `0x00630570`, step test `0x0062FDB0`, edge test `0x0062EB80`, elevation `0x0062EA90`, specialised
-  `0x00632060`, parametric `0x00631300`, the piece inserters and the loaders).
+  `0x00632060`, parametric `0x00631300`, the piece inserters and the loaders). **ANSWERED 2026-10-16 (re-specs17a):**
+  MATCHES the outline, now specified in network-bridges.md: the INI sections and the `0x178`-byte bridge type record
+  with every exemplar property (§2), the specialisation grammar (§3), the water pass, span selection, bank adjustment
+  and type choice (§4–§6), the elevations (§8), the specialised and parametric models (§9, §10), pieces and columns
+  (§11), the cost (§12). Corrections: the straight test reads `v` (§4.1); the parametric model reads bridge type
+  `+0x34`–`+0x7C` and `+0xA8`–`+0xD4`, not `+0xF8`–`+0x120`; the bridge cost fields are bridge **type** fields, not
+  record fields (network-tools.md §8.1 fixed). New open questions NB1–NB3 (network-bridges.md §16).
 - ~~**NG3:** who fills the tool's extra-cell list (`+0xF0`), and whether `CheckForGoodTerrain`'s inverted extra-cell
   test can be reached. [empty in an ordinary drag, inferred]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES
   (network-geometry.md §4.5). Only `0x00629170` appends (20-byte entries: x, z, edge word, network type, two bytes),
@@ -4448,9 +4454,16 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
   `0x00661078`, `OnMouseMove` `0x00661657`), between two tool resets around `InsertIsolatedHighwayIntersection`
   (`0x0062CD50`). That function runs slot 68 but never slot 69, so the inverted test is unreachable in the shipped
   game.
-- **NG4:** `IdentifyLandBridgeCells` and which types set `+0x354`. [not specified] *Partly answered 2026-10-16
+- ~~**NG4:** `IdentifyLandBridgeCells` and which types set `+0x354`. [not specified]~~ *Partly answered 2026-10-16
   (re-answers19): `Init` sets `+0x354` for every type with at least one bridge type, because it tests a field's
-  address (`0x00626B53`); network-geometry.md §4.4. The pass itself is still open.*
+  address (`0x00626B53`); network-geometry.md §4.4.* **ANSWERED 2026-10-16 (re-specs17a):** MATCHES. The address
+  test is confirmed (`lea` of bridge type `+0x98`, then a null test); the field is the land flag (property
+  `0x482CB44F`), which every shipped bridge type sets, so reading the byte would give the same result: no shipped
+  effect. The pass (network-bridges.md §7) scans the first cell's +x or +z edge altitudes for a drop below the last
+  bank, keeps the lowest ground, and builds a land bridge (`CreateLandBridge` `0x00632580`) when the span has ≥ 4
+  steps, is deeper than p+0x3C (55 m road, 30 m others) and the far bank is within p+0x40 (`0xC804DD96`, 20 m) of the
+  near bank. The deck is the near bank's height; any occupant in the span's rectangle blocks it; the record's byte
+  `+0x18` is 1. It never lowers `v` and sets no code.
 - ~~**NG5:** the rule-driven piece solver (`SolveUsingEvaluator`, `ApplyNetworkRules`, tile subsets) and
   `IdentifyHighwayIntersections`. [a later spec]~~ **PARTLY ANSWERED 2026-10-16 (re-answers19):** MATCHES for the
   solver (network-geometry.md §8.2 outlines the follow-up spec: the three rule INI resources, type `0x0A5BCF4B`
@@ -4886,15 +4899,15 @@ seeding implemented foundations §6.3 across every merged core that owns a gener
 `seeding::keys`, ABI 64) and the plugin's session seed (`session_seed = <u32>`, else the wall clock at game start). The
 current choice is in brackets.
 
-- **RN2:** foundations §6.3 and growth-developer.md §7: a decline key whose coordinate seed is `0xFFFFFFFF` makes `Seed`
+- ~~**RN2:** foundations §6.3 and growth-developer.md §7: a decline key whose coordinate seed is `0xFFFFFFFF` makes `Seed`
   read the clock (growth-developer.md §7), but §6.3 says coordinate-seeded temporaries are unchanged. Is that case a
   clock-seeded temporary of the owning class, and is this the intended K? [derive(S, `0x0990C138` XOR n), n counting such
-  reads per developer object, not saved; `seeding::keys::growth_decline_clock`, `growth_developer/simulator.rs`]
-- **RN3:** foundations §6.2 / §6.3: the budget (RiskyMoney) and pollution-effects generators are file-local statics in the
+  reads per developer object, not saved; `seeding::keys::growth_decline_clock`, `growth_developer/simulator.rs`]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (foundations §6.3, growth-developer.md §7). `cRZRandom::Seed` (`0x00913667`) reads the clock for a seed of `0xFFFFFFFF` whatever the caller meant, so the decline key in that case is a clock-seeded temporary of the growth developer, and `derive(S, 0x0990C138 XOR n)` with `n` counting such reads per developer object (not saved) is the §6.3 form. §6.3 now says so.
+- ~~**RN3:** foundations §6.2 / §6.3: the budget (RiskyMoney) and pollution-effects generators are file-local statics in the
   original, seeded once per process. In our cores each simulator object owns one, so the stream restarts at every city
   load in the same process (crime and the development cores already keep theirs process-wide). Should budget and
   pollution keep their generator across city loads like the original, or is a restart at each load an acceptable
-  *[choice]*? [restart at each load]
+  *[choice]*? [restart at each load]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** (foundations §6.3). The original seeds both file-local generators once per process and never again: the budget's `0x00B47B78` is referenced only by its static initialiser (`0x00A749D2`) and its draws (`0x00693544`–`0x006935C6`), the pollution effects' `0x00B49BD0` only by `0x00A74E42` and its draws (`0x006E668D`, `0x006E66DC`). The stream therefore continues across city loads in one process, as crime and the development cores already do in FreeCity4; §6.3 now states that file-local generators are process-wide. Restarting at each load is not what §6.3 specifies.
 
 ## From the city detail, port developer and prop developer cores (filed by the coordinator from the `cores12b` lane's report, 2026-10-16; merged `3eb6d22`)
 
@@ -4903,41 +4916,41 @@ cores12b implemented city-detail.md, port-developers.md and prop-developer.md as
 `fc4_prop_developer`, ABI 65) and conformance vectors (`cd8_*`, `pd12_*`, `pv12_*`). There is no plugin glue yet, so
 none of these readings has been checked in game. The current choice is in brackets.
 
-- **PD5:** when the next stage's lot configuration is missing, growth fails before anything is demolished and no funds
-  are withdrawn. Is that the original order, or is the lot demolished first?
-- **PD6:** §4.8 does not say how the terrain grid's orientation follows the lot's facing. [the grid is rotated by
+- ~~**PD5:** when the next stage's lot configuration is missing, growth fails before anything is demolished and no funds
+  are withdrawn. Is that the original order, or is the lot demolished first?~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** (port-developers.md §4.5). The original never tests the next-stage configuration: the swap (`0x006E92A0`) uses `GetLotConfiguration`'s result as is (`0x006E9303`), demolishes the old lot, creates the new one, sets a null configuration and calls `ConstructDefaultLot(new, null, 0, 1)`, which reaches `StartConstruction` with type 0: state 2, condition 1, no construction occupant, return true. So the swap succeeds, the stage advances, the upgrade cost is withdrawn and the budget updated; the port is left on an empty lot stuck in state 2 (skipped every month, never grows again). Unreachable with shipped data; reproduce it, or keep failing early as a documented *[choice]*.
+- ~~**PD6:** §4.8 does not say how the terrain grid's orientation follows the lot's facing. [the grid is rotated by
   facing; facing 0 = rows along z as stored. Moot with shipped data (PD4: the grid never loads), but a correct 12 × 6
-  declaration would use it]
-- **PD7:** after a failed swap the port's lot lookup can return null. [the month skips such a port (counted in
-  `month_skipped`) and does not stop] Confirm.
-- **PD8:** in the month, does the usage value use cap = trunc(capacity × fr) (the §4.3 comment) or the plain capacity
-  (§4.7 PortUsageValues)? [§4.7]
-- **PD9:** is a seaport port with no sea access counted for the "if any" advisor-event condition in the seaport tick?
-  [excluded]
-- **PD10:** Init removes any existing agent before adding it, and Shutdown does not clear the port list (Read or
-  adoption rebuilds it). Confirm against the original.
-- **PD11:** Read loads the tuning exemplar from the record's instance even when a later field rejects the record. Does
-  the original leave the tuning loaded? [the rest of Read is atomic; the tuning stays loaded]
-- **CD3:** Init compares the saved level with the current preference on every call, not only the first; a second Init
-  at the same level does nothing. Confirm.
-- **CD4:** increase step 4 is implemented literally: one creation per required object missing from the lot; optional
-  objects are never created. Is an object present by its tag alone, whatever the occupant's type? [by tag]
-- **CD5:** the increase pass's session generator counter n (derive_seed(S, 0xEAD4BA36 XOR n)) is kept per thread and
-  per session seed. Should it reset on a new city load within the same session? [it does not reset]
-- **PV7:** a night batch decides on or off with the mode it started with, so the batch that ends a dusk sweep (mode
-  becomes 0) still switches its props on. Does the original read the mode before the end-of-sweep reset?
-- **PV8:** §4.4 step 6 does not test the created occupant for null. [a null creation returns false: the slot is
-  consumed and need is not decremented]
-- **PV9:** a timed prop with a non-zero global trigger while the 3D view is missing: the spec covers only the
-  view-present and zero cases. [mask 4 unchanged: neither on nor added to the trigger map]
-- **PV10:** a total share of 0 would divide by zero (§4.3 step 4). It cannot happen with the wealth requester present,
-  but can after a Read of a record without it. [stop after the cell walk]
-- **PV11:** §4.13 step 1 (night-lit street props in the power-change rectangle) does not say which cell IsPowered is
-  asked for. [trunc(position / cell width), as in the batch]
-- **PV12:** unregistering (§4.7) looks the prop up in every list whatever its properties, and Shutdown clears the
-  power list ([choice] per §3.2). Does the original test each list's join condition instead of looking everywhere?
-- **PV13:** a scanner state byte above 2 in the record: what does the original do? No corpus record has one. [Read
-  returns false and nothing changes]
+  declaration would use it]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** (port-developers.md §4.8, with a correction to PD4). At facing 0 the grid's rows run along **x** (row = x − x1, column = z − z1), not along z; facing 2 is the 180° turn of 0; facings 1 and 3 are the **transpose** (row = z2 − 1 − z, column = x2 − 1 − x for 1; row = z − z1, column = x − x1 for 3), so they mirror rather than rotate (jump table `0x007016F8`). The use test compares only the product R × C with (x2 − x1)(z2 − z1), i.e. 55 for a 12 × 6 lot: the shipped 11 × 5 declaration is what the use test wants, and a 12 × 6 declaration would load but would not apply to a 12 × 6 lot. The write passes `trunc(CellCenterToPosition)` metres to `SetAltitude(x, z, h)`, which takes vertex indices, so it would write the wrong vertices (`0x007014AE`). Never runs with shipped data.
+- ~~**PD7:** after a failed swap the port's lot lookup can return null. [the month skips such a port (counted in
+  `month_skipped`) and does not stop] Confirm.~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** from the original, *[choice]* confirmed (port-developers.md §4.3). After a failed swap `p.lot` is null (`0x006E9385`) and the original faults at the next month (`GetState` on the null lot, `0x006E9A2D`–`0x006E9A31`), and likewise in the removal lookup (`0x006E947A`) and the seaport tick. Skipping such a port and counting it is a safe *[choice]*; apply it to every walk over the ports.
+- ~~**PD8:** in the month, does the usage value use cap = trunc(capacity × fr) (the §4.3 comment) or the plain capacity
+  (§4.7 PortUsageValues)? [§4.7]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES the plain capacity (port-developers.md §4.3, §4.7). The month calls the internal `0x006E9770` (`0x006E9A7C`): usage = min(trips, stage capacity), cap = stage capacity, no funding scaling. Only the public slot 12 query (`0x00700FE0`) then scales the cap by funding, as trunc(float(capacity) / full × float(current)) (`0x00701027`–`0x00701063`), and clamps usage again. If the core applies the funding scaling in the month, that DIFFERS.
+- ~~**PD9:** is a seaport port with no sea access counted for the "if any" advisor-event condition in the seaport tick?
+  [excluded]~~ **ANSWERED 2026-10-16 (re-answers22):** Answered (port-developers.md §4.4). "If any" is over ports: the event flag is set for every listed port whose lot has no sea access (`0x00701FDE`), before the prop switch and whatever props the port has; a port with access never raises it. So a port without access **is counted**; if [excluded] means such a port does not raise the event, it **DIFFERS**.
+- ~~**PD10:** Init removes any existing agent before adding it, and Shutdown does not clear the port list (Read or
+  adoption rebuilds it). Confirm against the original.~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** on both points (port-developers.md §3). `Init` is guarded by `initialized` (`0x0068B013`, `0x006EA956`) and adds the agent without removing anything first (a duplicate cannot arise; removing first is harmless). `Shutdown` (`0x006E9F60`) **does** clear the port list: it deletes every port lot (resolving its lot first) and empties the list (`0x006E9FB2`–`0x006EA03D`), and deletes the port types and empties their vector (`0x006EA040`–`0x006EA07D`). It does not reset `tuningLoaded`, `typeCount` or the instance list *[quirk]*; the city never re-uses a developer.
+- ~~**PD11:** Read loads the tuning exemplar from the record's instance even when a later field rejects the record. Does
+  the original leave the tuning loaded? [the rest of Read is atomic; the tuning stays loaded]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (port-developers.md §7). In the original nothing after the version checks can reject the record: the port lots are appended without any check and `Read` returns true. The tuning is loaded (`0x006EAAC8`) before the first port lot, so a FreeCity4 rejection for an out-of-range index leaving the tuning loaded is what the original's order gives.
+- ~~**CD3:** Init compares the saved level with the current preference on every call, not only the first; a second Init
+  at the same level does nothing. Confirm.~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (city-detail.md §3.1). `Init` (`0x0045DD10`) has no initialised flag: every call compares the stored level with the preference, runs reduce or increase, and stores the preference; a second call at the same level does nothing.
+- ~~**CD4:** increase step 4 is implemented literally: one creation per required object missing from the lot; optional
+  objects are never created. Is an object present by its tag alone, whatever the occupant's type? [by tag]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** in part (city-detail.md §3.3). The presence test (callback `0x0045D5E0`) counts only occupants whose type is flora `0x74758926` or prop `0xA823821E`, then their lot tag; any other occupant type is ignored whatever its tag. Within those two types the tag alone decides (a prop may satisfy a flora object and the reverse). Step 4 is literal (one creation per missing required prop or flora object, optional never created), but it walks every object: an object of another type whose ID is in `need` still costs a draw when its ID list is not empty and creates nothing (`0x0045DC3F`, `0x0045DC4F`–`0x0045DC6F`).
+- ~~**CD5:** the increase pass's session generator counter n (derive_seed(S, 0xEAD4BA36 XOR n)) is kept per thread and
+  per session seed. Should it reset on a new city load within the same session? [it does not reset]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** (city-detail.md §3.5, foundations §6.3). The original seeds a fresh clock temporary each pass and keeps no counter; foundations §6.3 counts clock-seeded temporaries per owning object, from 0 at its construction. The city makes a new city detail manager for each city, so n restarts at 0 at every city load (and is 0 in practice, since `Init` runs once per city). A per-thread, per-session counter that does not reset gives a different seed on the second city of a session.
+- ~~**PV7:** a night batch decides on or off with the mode it started with, so the batch that ends a dusk sweep (mode
+  becomes 0) still switches its props on. Does the original read the mode before the end-of-sweep reset?~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (prop-developer.md §4.8). The batch (`0x006F0EC0`) reads `mode = 1` into a flag at `0x006F0EF6`–`0x006F0F04`, before the end test sets the mode to 0 (`0x006F0F53`), and decides on or off from that flag; the batch that ends a dusk sweep switches its props on.
+- ~~**PV8:** §4.4 step 6 does not test the created occupant for null. [a null creation returns false: the slot is
+  consumed and need is not decremented]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES the bracket; the spec was wrong (prop-developer.md §4.4). The original does test the created occupant: null → return false (`0x006F18C6`), so the free entry is consumed and `need` is not decremented.
+- ~~**PV9:** a timed prop with a non-zero global trigger while the 3D view is missing: the spec covers only the
+  view-present and zero cases. [mask 4 unchanged: neither on nor added to the trigger map]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (prop-developer.md §4.6). With a non-zero trigger and no 3D view (global `0x00B43DC8` null, or QueryInterface `0xFA47B3F9` failing) the code jumps past the step (`0x006F3D24`, `0x006F3D3A`): mask 4 unchanged, no trigger-map entry.
+- ~~**PV10:** a total share of 0 would divide by zero (§4.3 step 4). It cannot happen with the wealth requester present,
+  but can after a Read of a record without it. [stop after the cell walk]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** from the original, *[choice]* confirmed (prop-developer.md §4.3). The split is an unsigned `div` by the total (`0x006F4A69`); a total of 0 is a divide fault that ends the original. Stopping after the cell walk (its selector draws and removals done, nothing of steps 4–6) is a safe *[choice]*.
+- ~~**PV11:** §4.13 step 1 (night-lit street props in the power-change rectangle) does not say which cell IsPowered is
+  asked for. [trunc(position / cell width), as in the batch]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (prop-developer.md §4.13). The power-change handler asks `IsPowered(trunc(x / trunc(cellWidthX)), trunc(z / trunc(cellWidthZ)))` from the prop's position (`0x006F2491`–`0x006F25EE`), the same cell as the night batch.
+- ~~**PV12:** unregistering (§4.7) looks the prop up in every list whatever its properties, and Shutdown clears the
+  power list ([choice] per §3.2). Does the original test each list's join condition instead of looking everywhere?~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** for unregistering (prop-developer.md §4.7); the Shutdown *[choice]* is confirmed (the original releases the power list without clearing it). `HandleRemoveOccupant` (`0x006F2FF0`) searches each list only when the prop passes that list's test: night-lit = 1 and a prop occupant; trigger present, non-zero and the 3D view present; the time-of-day, date and power properties present (values not read); the two sign types. The visible difference from looking everywhere: a trigger-map prop is not removed (and stays held) when the 3D view is gone at its removal.
+- ~~**PV13:** a scanner state byte above 2 in the record: what does the original do? No corpus record has one. [Read
+  returns false and nothing changes]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** (prop-developer.md §7). The original stores the state byte as read (`0x005DA410`, no check), and `GetNext` (`0x0060C8D0`) treats every value other than 0 and 2 as running without rewriting it; so a state above 2 behaves as 1 and is written back unchanged until the scan finishes or resets. `Read` must not fail on it.
 
 ## From the network manager and network lot manager cores (filed by the coordinator from the `cores14c` lane's report, 2026-10-16; merged `9dad25e`)
 
@@ -5005,11 +5018,44 @@ final run glue16-final-2 on Konradshohe had every terrain line exact, but Konrad
 and no power pole on water, so the bridge and power-pole steps of IsNavigable ran only through their "nothing here"
 answers (23002/23002). The current choice is in brackets.
 
-- **TR19:** (terrain §10.4 step 4) for "the tile's deck height (tile slot 67) is known", the glue reads slot 67 as the
+- ~~**TR19:** (terrain §10.4 step 4) for "the tile's deck height (tile slot 67) is known", the glue reads slot 67 as the
   SDK's `cISC4NetworkOccupant::GetPassageCeiling(float&)`: "known" means it returns true, and the float is compared as
   a world height with alt + depth at the cell's north-west vertex (>= 20 m clearance). Is that the slot's meaning and
-  unit? [inferred; not exercised in game: a city with a ferry under a high bridge would test it]
-- **TR20:** (terrain §10.4 step 5) for "a power pole (type 0x2890D4DE) whose cell is (x, z)", the glue asks occupant
+  unit? [inferred; not exercised in game: a city with a ferry under a high bridge would test it]~~ **ANSWERED 2026-10-16 (re-answers25):** MATCHES. Network occupant slot 67 (vtable `0x00AA97B8`, `0x00619900`) is `GetPassageCeiling(float&)`: it reads property `0x4835C6A8` through the occupant's property holder and returns true with the float when present, false otherwise (`0x0061991D`–`0x0061992B`); slot 68 `SetPassageCeiling` (`0x0061B9A0`) stores it. The only writer is the bridge builder (`0x0062F005`), for pieces whose exemplar lacks `0xABE1B5A3`: the lowest of the cell's four corner heights minus the bridge rule's model offset, i.e. the absolute world height of the underside. IsNavigable (`0x0073EE95`–`0x0073EECD`) returns true when ceiling − (alt + depth at vertex (x, z)) is not below 20.0 (`0x00AA0F1C`), false when below or when the property is absent. terrain §10.4 step 4, test 24.
+- ~~**TR20:** (terrain §10.4 step 5) for "a power pole (type 0x2890D4DE) whose cell is (x, z)", the glue asks occupant
   manager slot 41 (the typed GetOccupantsByStandardCityCells) for the single cell min = max = (x, z), so any pole whose
   bounding cells include (x, z) blocks it. Does the original test the pole's own position cell instead? And is (x, z)
-  the visited spiral cell, not the query's centre? [the visited cell, bounding-cell overlap]
+  the visited spiral cell, not the query's centre? [the visited cell, bounding-cell overlap]~~ **ANSWERED 2026-10-16 (re-answers25):** (x, z) is the visited spiral cell (MATCHES); the pole test **DIFFERS**: after occupant manager slot 41 (`0x0073EDD4`, min = max = (x, z), type `0x2890D4DE`, -1), each returned occupant is queried for `cISC4PowerPoleOccupant` (`0xA8C86142`) and blocks only when its own cell (pole slot 8 `GetCell`) equals (x, z) (`0x0073EDF1`–`0x0073EE2F`); a bounds overlap alone does not block. Found → list freed, return false (`0x0073EEEA`). terrain §10.4 step 5, test 25.
+
+## From the prop manager, lot configuration manager and tutorial cores (filed by the coordinator from the `cores15` lane's report, 2026-10-16; merged `03e2dcf`)
+
+cores15 implemented prop-lotconfig.md (Parts A and B), the object reader of lot-configuration.md §3.5 and tutorial.md
+as Rust cores (`engine/core/src/{prop_manager,lot_config_manager,tutorial}/`), C ABIs (`fc4_prop_manager`,
+`fc4_lot_config`, `fc4_tutorial`, ABI 68) and conformance vectors (`plt_*`, `tu8_*`, `tu00_*`). There is no plugin
+glue yet, so none of these readings has been checked in game. The current choice is in brackets. The lane numbered
+these PL4-PL10 and TU3-TU4; they are filed as PL8-PL14 (plumbing's first-generation questions used PL4 and PL7) and
+TU4-TU5 (tutorial.md already has TU3).
+
+- ~~**PL8:** (prop-lotconfig §A3.2) in what order does the profile reader `0x004A3DB0` apply its properties (class,
+  size, satisfaction, wealth, crime)? OccupantSize values past the third overwrite the dwords from +0x10 on; values past
+  the profile's end are dropped (the original writes past its local copy). [that table order, each over the defaults]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS** in the overflow (prop-lotconfig §A3.2). The order is size first (`0x004A3DC4`–`0x004A3E11`: count and raw data pointer, copied with no bound; absent → three zeros), then class (default `0x2977AA47`, `0x004A3E20`), satisfaction (`0x004A3E38`), wealth (low byte only, `0x004A3E52`) and crime (`0x004A3E6D`), each default written just before its read. So extra size values are overwritten again: value 4 and value 6 vanish, value 5 survives in the upper three bytes of +0x14, and a seventh value overwrites the reader's return address (the local profile is the top 0x1C bytes of the frame): a crash, not a drop. A size with fewer than three values (or a scalar, count 0) leaves the missing size dwords unwritten (stack garbage). The bracket's table order and "each over the defaults" MATCH for the four scalar properties; *[choice]* FreeCity4 copies at most three size values, zero-fills the rest and keeps +0x14's upper bytes 0 (unreachable with shipped data). Test 13.
+- ~~**PL9:** (§A6.1 step 5) what bounding box does an OccupantSize with one or two values give? [the missing values are
+  0 (the building loader's bracket, DG32); an absent or empty size gives (1,1,1)]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS** (unreachable with shipped data; the bracket is accepted as a *[choice]*, as for DG32). `0x004A2A70` passes the OccupantSize value's raw data pointer (variant slot 111, `0x004A2B72`) to `SetBoundingBox` as the far corner (`0x004A2B78`–`0x004A2BBE`), with no count or type check: one or two Float32 values read past the heap block (garbage, not 0), an empty array or a scalar gives a null or bogus address (garbage or a fault), integer arrays give their bits as floats. Absent → (0,0,0)–(1,1,1) MATCHES. prop-lotconfig §A6.1 step 5.
+- ~~**PL10:** (§A7.1, slot 36 AddBuildingProp) when the building has no property holder, does the original skip the
+  property step and still set usage 3 and return true? [yes *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS** in the usage. With no property holder the slot returns true at once (`0x004A3BEB` sets the result, `0x004A3BF6` jumps to the exit), skipping both the property step and the final usage write. The prop's usage is 3 only when this call inserted it (step 2, `0x004A3BDF`); an already-inserted prop keeps its usage. prop-lotconfig §A7.1.
+- ~~**PL11:** (§B4.3, `0x0048AD40`) how does a building type whose exemplar does not load affect the building
+  information? lot-configuration.md §4 does not cover it. [monopoly property absent (sets +0x8C), no groups
+  *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers25):** MATCHES, with one addition (prop-lotconfig §B4.3, lot-configuration §4). The group collector `0x005E9500` loads the exemplar itself and returns nothing on failure (no groups); the monopoly flag is cleared before the load (`0x0048AE95`) and read only on success (`0x0048AEAA`), so a failed load sets +0x8C. The capacity comes from building development slot 39 (`0x0048AEE8`), not the exemplar, so the type **still counts** towards +0x3E/+0x40.
+- ~~**PL12:** (§B5.7, CreateGenericLotConfiguration) what are the lot size and the object placement? [ceil(w/16) x
+  ceil(d/16) cells, at least 1, for the slot 24 footprint, the building object centred *[choice]*]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS** in the size. Each side is `1 − trunc(w × −0.0625)` (`0x0048BD66`–`0x0048BD9B`, `_ftol`), which is `1 + floor(w/16)`: one cell more than `ceil(w/16)` when w is a multiple of 16 (w = 16 → 2, 32 → 3; 4 → 1). The building object is centred on the lot (MATCHES): offset (8·sizeX, 0, 8·sizeZ), footprint ± (w/2, d/2), ID list [type]. Also: the ID is a fresh GUID (`cIGZCOM::CreateGuid`), maximum slope before foundation 5.0, and the object's lot tag (+0x24) is never written (stack garbage; *[choice]* 0). prop-lotconfig §B5.7, test 14.
+- ~~**PL13:** (§B5.7, FixLotConfiguration) which validity test applies per record type, and how is the footprint
+  recomputed? [building: BDS slot 16; prop: prop manager slot 11; flora: slot 11 or a non-empty family. The footprint
+  is rebuilt from slots 24-26 (w and d swapped for orientations 1 and 3) around the old footprint's centre; one moved
+  outside the lot by more than 0.049 m is shifted back in, a centre outside it is clamped *[choice]*. The result is
+  the first problem's code]~~ **ANSWERED 2026-10-16 (re-answers25):** Validity tests MATCH, through the manager's held components (+0x14, +0x18, +0x1C): building development slot 16, prop manager slot 11, flora simulator slot 12 `IsFloraFamilyTypeValid` (a family or a registered type; equivalent to the bracket). Footprint **DIFFERS** in three ways: (1) a changed footprint is rebuilt around the record's **offset** (+0x04, +0x0C), not the old footprint's centre (`0x0048B667`–`0x0048B6A6`); (2) "outside the lot" (`minX/minZ < 0.049`, or `max > f32(lot − 0.05) + 0.001`) only sets code 4, **nothing is shifted** (`0x0048B6B3`–`0x0048B71F`); (3) an offset outside its footprint is **moved to the footprint's centre**, not clamped (`0x0048B727`–`0x0048B781`). The rebuild compares `|old − new| > 0` per axis after the orientation-1/3 swap. Only types 0, 1, 4 are examined. Result = the first problem's code (MATCHES). prop-lotconfig §B5.7, test 15.
+- ~~**PL14:** (§B5.7) what counts as a valid retaining wall ID for the slot 28 list in FixLotConfiguration, and is only
+  the first invalid ID removed (code 6)? [a host callback decides; the first invalid ID is removed]~~ **ANSWERED 2026-10-16 (re-answers25):** MATCHES on "first invalid only"; the rule is no host choice: an ID is valid when building development slot 28 `GetLotRetainingWallKeyFromType` (the held simulator, `0x0048B800`) returns true, i.e. it is the instance of an `ExemplarType 0x15` exemplar in the simulator's wall catalogue (`0x00698FC0`, lookup `0x00698250`). The first invalid ID is erased and the slot returns at once (`0x0048B822`–`0x0048B858`): the earlier code, else 6. prop-lotconfig §B5.7.
+- ~~**TU4:** (tutorial.md §1) what does the shared advisor-system Release do on the last reference? [marks the object
+  destroyed without running Shutdown or closing the window *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS**: it destroys the object, it does not just mark it. Release (`0x00449310` → `0x0090D997`) works on the reference-count sub-object at +0x14 (count at **+0x18**, not +0x14); at the last reference it calls the scalar deleting destructor (`0x0043F6C0` → `0x0043F780`, flag 1), which runs `0x0043F6E0` and frees the 0x44-byte object. The destructor releases the window (+0x40) **once** without closing it (`0x0043F70F`–`0x0043F718`), frees the vector buffer at +0x34, releases the Lua context (+0x30), runs the sub-object's base destructor (`0x0090D990`) and clears the global instance pointer `0x00B20E88` (`0x0043F746`). "Without running Shutdown or closing the window" MATCHES: no unsubscription, no cheat unregistration. A window that is still open keeps one of its two references (leak, *[quirk]*). tutorial.md §1.
+- ~~**TU5:** (tutorial.md §4.3, "Shutdown undoes both") what exactly does Shutdown undo? [unsubscribes the three
+  messages and, when a cheat manager exists, unregisters the cheat and its handler *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS**: the bracket misses the window. Shutdown (`0x0043F330`) does, in order: (1) when the cheat manager `0x00B43CAC` exists (no `cISC4App` slot 21 test, unlike Init): slot 6 with (handler +8, 0), then slot 4 with `0x6A382BAF`; (2) when a window exists (+0x40): close (`0x00442C80`), release, clear +0x40, release again, the same window teardown as endTutorial; (3) when the message server `0x00B43CCC` exists: unsubscribe `0xAA3840E6`, `0xEA8AE29A`, `0x26C63343`; returns true. Is-tutorial, end-pending, the registry and the 3D view are not touched. tutorial.md §4.3, test 7.

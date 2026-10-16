@@ -237,7 +237,11 @@ deviations, 0 when n = 0); `r = Σ((x − meanX)/sx · (y − meanY)/sy) / n`, w
 **line** of a non-empty range: if `sx = 0`, slope 0 and intercept = the first point's value; otherwise
 `slope = (sy / sx) · r` and `intercept = (Σy − slope · Σx) / n`, the value at `x = 0`, i.e. at `from`. An empty
 range has no line (false). The sums are held in `double` variables, but the x87 precision of the caller applies
-(foundations §18): 24-bit from the simulators, 53-bit inside Lua calls.
+(foundations §18). Only two callers reach the regression (slots 5, 6 and 8; HW3, checked in the bytes): the Lua
+functions `game.trend_value`, `trend_slope` and `trend_count` (advisors.md §8.3), which run inside the guarded Lua
+call and so at **53-bit**, and the graph window's `GetPoint` calls (`0x0076BF69`, `0x0076C510`, `0x0076C53A`), on
+the main thread at **24-bit**. No simulator reaches it: the simulators use slots 7, 12 and 13 only, and the safety
+advisor only writes (slot 12). So advisor results are 53-bit and graph curves 24-bit.
 
 **Operation order** (HW5, HW11; verified in the bytes). "Rounded" below means rounded once, at the caller's precision,
 from the exact result of that one operation on its exact operands. Integer operands (values, `x`, `n`) are loaded
@@ -438,6 +442,7 @@ and `Coalesce` has two dates (foundations §16).
 | demand simulator | slot 7 on the tax-rate series (demand.md §8.1) |
 | advisors and Lua (`trend_value`, safety advisor) | slots 5, 6, 8, 12 (advisors.md) |
 | win trend bar (UI) | subscribes to `0x89EFA536` |
+| graph window (`cSC4GraphsViewWinProc`) | slot 8 only: one `GetPoint` per series at one date (`0x0076BF69`), or per sample date of the line graph, for one or two keys per series (`0x0076C510`, `0x0076C53A`); never slot 5 |
 | the city (component 1) | creates it, `Init`, `Shutdown`, save and load |
 
 Answer to demand.md §15 item 7: when the tax series is missing or empty, `GetMinMaxAverage` returns false and
@@ -450,7 +455,8 @@ leaves `min`, `max` and `avg` untouched, so the caller keeps whatever its variab
 - The yearly pass leaves the last group of each range open and groups granularity 0 by month number only (§4.4).
 - `Dispose(key, from, to)` keeps the last point of the range (§4.5).
 - `GetPoint` at an interior point is the regression value through three points (§4.7); `GetCount` counts the
-  widened range.
+  widened range. The graph window draws its curves from `GetPoint` alone (§9), so a sample date that falls on an
+  interior point shows the smoothed value, not the recorded one (HW2): the smoothing is visible in the graphs.
 - `Read` does not clear the map and drops a duplicate key's later series (§7).
 
 ## 11. Open questions
