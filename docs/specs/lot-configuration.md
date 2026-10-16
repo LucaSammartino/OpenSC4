@@ -256,7 +256,8 @@ object's ID list:
 | +0x80 | every occupant group of those types' exemplars, sorted ascending, no duplicates (the old contents are dropped first) | empty |
 | +0x8C | 1 when at least one type's exemplar lacks the monopoly property `0x2781283F` or has it false | 0 |
 
-A configuration rebuilt by a detail change (prop-lotconfig §B3.1) is new, so it has the defaults until the next
+A type whose exemplar does not load adds no group and sets +0x8C, but its capacity still counts (prop-lotconfig
+§B4.3, PL11). A configuration rebuilt by a detail change (prop-lotconfig §B3.1) is new, so it has the defaults until the next
 city-init message. The message comes after every city load, so growth never sees the defaults in a normal session.
 
 ## 5. Behaviour of the slots
