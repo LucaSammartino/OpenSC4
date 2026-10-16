@@ -22,7 +22,7 @@ popup stops the simulation"), [modal-dialogs.md](modal-dialogs.md), [lot-develop
 The 24-hour clock is the city's **time of day**. It has nothing to do with the simulation date (simulator.md §2):
 it counts game seconds within one day, `0 … 86399`, and advances them from a **real-time timer** multiplied by a
 magnification, from the framework's idle loop. The simulation speed and the player's pause button do not drive it
-*[inferred: no code links the simulator's speed or `Pause()` to the clock; see CK1]*.
+(CK1, checked in the bytes; §3.1): **the clock keeps running while the simulation is paused or at speed 0**.
 
 It keeps two times:
 
@@ -85,6 +85,14 @@ constructor's 0 at `0x00445A15` and `Shutdown`'s clear at `0x0044516B`, and no a
 `Init` registers the clock as a framework **system service** and adds it to the framework's **on-idle** list. Every
 pass of the framework's idle loop calls `OnIdle` (§4.3). The clock has **no simulator agents**: it does not depend
 on the simulation date, speed or `Pause()`. It stops only for its own two pause counters (§4.7).
+
+*[compat]* (CK1) The simulator's `Pause` (`0x007021E0`), `HiddenPause` (`0x00702200`), `SetSimSpeed`
+(`0x007026D0`), `DoSetSimSpeed` (`0x00702430`) and `EmergencyPause` (`0x00702540`) never reach the clock. The only
+callers of the clock's `HiddenPause` (`+0x68`) are `SC4GamePause` (through city slot 86, `0x005F92EA`) and the
+scrubber (through the global `0x00B43DBC`, `0x005BD0D6` and `0x005BD39B`) (§9); its `Pause` (`+0x60`) is reached only
+by the cheat (§4.8). The 3D view's handler of the simulation-pause message (around `0x007F5714`) only updates the
+UI, and `DoTemporarySimHiddenPause` (`0x007E5B40`) pauses the simulator, not the clock. So the player's pause
+button and speed 0 leave the time of day, the lighting and the hour messages running.
 
 Since one pass advances the clock by at most 1200 game seconds (§4.3), the clock can move no further than
 20 game minutes per idle pass, however much real time passes: a host that starves the idle loop slows the clock in
@@ -236,6 +244,8 @@ return true
 
 The original subtracts a calibrated call overhead per interval, and counts at least one tick per interval.
 *[choice]* FreeCity4 may use any monotonic clock with microsecond resolution and skip the overhead correction (CK2).
+The clock's unit is 3 (pushed by the clock's constructor, `0x0044596F`), which is **exactly microseconds** of
+`QueryPerformanceCounter` time (CK2; below).
 
 **Timer layout** (CK21; the clock's timer is at `+0x50`, so these are `+0x50` … `+0x67` of the clock):
 
@@ -247,10 +257,24 @@ The original subtracts a calibrated call overhead per interval, and counts at le
 
 Unit 0 counts CPU cycles (`rdtsc`); every other unit counts `QueryPerformanceCounter` ticks (`Start` `0x008905C4`
 chooses by `unit = 0`). `GetElapsedTime` (`0x00890198`) converts the 64-bit tick total by unit: 0 and 1 return its
-low 32 bits; 2 to 6 multiply it, as float, by a factor computed once from the counter frequency `F` (`0x0088FF19`):
-2 nanoseconds (`10^9 / F`), **3 microseconds** (`10^6 / F`, `0x0088FFFF`), 4 milliseconds, 5 seconds (`1 / F`),
-6 minutes (`(1 / F) × 0.016666668`); then `_ftol`, low 32 bits. Any other unit returns 0. The calibrated overhead
-(u64 at `0x00B54358`) is subtracted from each interval longer than it; a shorter interval counts 1 tick.
+low 32 bits; 2 to 6 multiply it, as float, by a factor computed once from the counter frequency `F`:
+2 nanoseconds (`(1 / F) × 10^9`, `0x00B54360`), **3 microseconds** (`(1 / F) × 10^6`, `0x00B54364`, stored at
+`0x0088FFFF`), 4 milliseconds (`0x00B54368`), 5 seconds (`1 / F`, `0x00B5436C`), 6 minutes
+(`(1 / F) × 0.016666668`, `0x00B54370`), each stored as a float; then `_ftol`, low 32 bits. Any other unit returns 0.
+The calibrated overhead (u64 at `0x00B54358`) is subtracted from each interval longer than it; a shorter interval
+counts 1 tick.
+
+**Where `F` comes from** (CK2). Nothing is measured for these units: `F` is
+`QueryPerformanceFrequency`. A static initializer (`0x00A78F7F`) runs the timer set-up `0x0088FF4E` once at process
+start: it raises the process and thread priority, calls `0x0088FDC0(&0x00B13420, &0x00B13428)` and restores the
+priority. That routine always stores `QueryPerformanceFrequency` in `0x00B13420` (`0x0088FED4`), and in
+`0x00B13428` the CPU cycle rate: the same frequency when the ratio of `rdtsc` to the performance counter is within
+(0.98, 1.02) (`0x00AC50B8`, `0x00AC50B0`), otherwise one measured over `SleepEx(100)` loops lasting at least 0.33 s
+(`0x00AC50A8`). The unit table above is built from `0x00B13420` (`0x0088FFB9`–`0x0089000D`); the second value only
+feeds a separate table at `0x00B54390`–`0x00B543A0`, which the clock does not use. The only measured quantity the
+clock sees is the overhead: the smallest difference of 8 back-to-back `QueryPerformanceCounter` pairs
+(`0x00890051`–`0x0089009F`). `0x0088FF19` is a plain `QueryPerformanceCounter` call. So at magnification 135 a day
+lasts 86400 / 135 = 640 real seconds, plus the truncation loss of §4.3 (an observed 598 steps in 330 s fits).
 
 So a reader can recover the real time between two clock steps: after each step `Restart` leaves the accumulated
 ticks at 0 and the start tick at the moment of the step (`0x0089058F`), and the next step's `e` is the counter
@@ -582,7 +606,8 @@ developer.
 
 ## 11. Open questions
 
-See QUESTIONS.md, section "From the commercial, industrial, civic, park, history and clock specs" (CK1–CK6). CK7–CK15
+See QUESTIONS.md, section "From the commercial, industrial, civic, park, history and clock specs" (CK1–CK6; CK1 and
+CK2 are answered in §3.1 and §4.3). CK7–CK15
 (section "From the history warehouse and 24-hour clock cores") are answered in §4.1 (CK7), §4.2 (CK12, CK13), §4.3
 (CK8, CK9, CK15), §4.7 (CK14) and §4.8 (CK10, CK11).
 
@@ -664,3 +689,5 @@ Use a fake timer whose elapsed microseconds the test sets.
 19. **Cheat registration** (CK12, CK13): `Init` with a manager calls register `0x281F7858`, subscribe `0x281F7858`,
     register `0xC9B73FBB`, subscribe `0xC9B73FBB`, in that order; `Shutdown` calls remove-notification then
     unregister for each, in the same cheat order; without a manager neither happens.
+20. **Simulation pause** (CK1): with the simulator paused (`Pause`, or speed 0) and the clock's counters at 0,
+    idle passes still advance `seconds` and post HourChanged; only the clock's own `HiddenPause(true)` stops it.

@@ -441,6 +441,15 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME abi_conformance_test COMMAND fc4_abi_conformance_test
         --plugin-dir "${CMAKE_CURRENT_SOURCE_DIR}/plugin" "${FC4_ABI_TSV}")
 
+    # Every use the plugin makes of a game method's return value, against the
+    # slot's `ret` channel in docs/abi and what the specs say it returns
+    # (tests/check_ret_channels.py). Skipped when no Python 3 is found.
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME ret_channel_check
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_ret_channels.py")
+    endif()
+
     # Loads the built FreeCity4.dll like a GZCOM host and checks the diagnostics log.
     add_executable(fc4_plugin_load_test tests/plugin_load_test.cpp plugin/cFC4Variant.cpp
         "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
