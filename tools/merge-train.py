@@ -291,7 +291,7 @@ MANUAL = "docs/manual-checks.md"
 QUESTIONS = "docs/specs/QUESTIONS.md"
 PROGRESS = "docs/PROGRESS.md"
 # Append-style files: both sides only ever add rows/sections, so a union of the two sides keeps everything.
-UNION_PATHS = (HANDOFF, MANUAL, QUESTIONS, PROGRESS)
+UNION_PATHS = (HANDOFF, MANUAL, QUESTIONS, PROGRESS, "engine/conformance/README.md")
 
 
 def conflicted_paths(wt):
@@ -362,14 +362,19 @@ def resolve_conflicts(wt, lanes):
 
 
 def _resolve_abi_version(wt, rel):
-    """Resolve an fc4.h / lib.rs conflict whose only contested hunk is the ABI version constant."""
+    """Resolve an fc4.h / lib.rs conflict.
+
+    Every lane appends its own ` * <n> = ...` history entry and bumps the constant just before it, so the
+    contested hunk holds both sides' history lines *and* the version macro. Keep the comment lines from both
+    sides (ours first, duplicates dropped) and exactly one macro line, at the higher number.
+    `consolidate_abi_history` then turns the batch's entries into the single per-batch history line.
+    """
     path = Path(wt) / rel
     raw = path.read_text(encoding="utf-8", errors="replace")
     if "<<<<<<<" not in raw:
         return False
-    regex = VERSION_RE_C if rel.endswith(".h") else VERSION_RE_RS
-    nums, bodies = [], []
-    # Split every conflict into ours / theirs and keep both bodies, except the version line.
+    is_h = rel.endswith(".h")
+    regex = VERSION_RE_C if is_h else VERSION_RE_RS
     out, i, n = [], 0, len(raw)
     while i < n:
         start = raw.find("<<<<<<<", i)
@@ -381,35 +386,95 @@ def _resolve_abi_version(wt, rel):
         end = raw.find(">>>>>>>", mid) if mid >= 0 else -1
         if mid < 0 or end < 0:
             return False
-        ours = raw[start + len("<<<<<<<"):mid]
-        # drop the first line (the marker's trailing branch label)
-        ours = ours.split("\n", 1)[1] if "\n" in ours else ""
-        theirs = raw[mid + len("======="):end]
-        theirs = theirs.split("\n", 1)[1] if "\n" in theirs else ""
-        mo, mt = regex.search(ours), regex.search(theirs)
-        if mo and mt:
-            nums.append(int(mo.group(2)))
-            nums.append(int(mt.group(2)))
-            out.append(ours if int(mo.group(2)) >= int(mt.group(2)) else theirs)
+        body_o = raw[start + 7:mid]
+        body_t = raw[mid + 7:end]
+        nl = chr(10)
+        body_o = body_o.split(nl, 1)[1] if nl in body_o else ""
+        body_t = body_t.split(nl, 1)[1] if nl in body_t else ""
+        lines_o, lines_t = body_o.splitlines(), body_t.splitlines()
+        vo, vt = regex.search(body_o), regex.search(body_t)
+        if not (vo or vt):
+            return False
+        stray = [x for x in lines_o + lines_t
+                 if x.strip() and not (is_h and x.lstrip().startswith("*")) and not regex.search(x)]
+        if stray:
+            return False
+        hist, seen = [], set()
+        for x in lines_o + lines_t:
+            if is_h and x.lstrip().startswith("*") and x not in seen:
+                seen.add(x)
+                hist.append(x)
+        best = max(int(m.group(2)) for m in (vo, vt) if m)
+        if is_h:
+            out.append(nl.join(hist + [f"#define FC4_ABI_VERSION {best}u"]))
         else:
-            bodies.append(ours)
-            bodies.append(theirs)
-            out.append(ours)
-        i = raw.find("\n", end)
+            out.append(f"pub const FC4_ABI_VERSION: u32 = {best};")
+        i = raw.find(nl, end)
         i = n if i < 0 else i + 1
     text = "".join(out)
-    if nums and not bodies:
-        # only the version line differed: take the max explicitly
-        hi = max(nums)
-        text = regex.sub(lambda m: f"{m.group(1)}{hi}{m.group(3)}", text, count=1)
-        path.write_text(text, encoding="utf-8")
-        git(["-C", str(wt), "add", rel], check=False)
-        return True
-    if not bodies:
-        path.write_text(text, encoding="utf-8")
-        git(["-C", str(wt), "add", rel], check=False)
-        return True
-    return False
+    if "<<<<<<<" in text or ">>>>>>>" in text:
+        return False
+    path.write_text(text, encoding="utf-8")
+    git(["-C", str(wt), "add", rel], check=False)
+    return True
+
+
+HISTORY_ENTRY = re.compile(r"^ \* (\d+) = (.*)$", re.S | re.M)
+
+
+def consolidate_abi_history(wt, main_header, lanes, batch_id):
+    """Turn the batch's ABI history entries into the single per-batch line the plan calls for.
+
+    Each lane appends its own ` * <n> = ...` entry and bumps the constant. After the merges the file can hold
+    several entries at the same number. Entries already in main's copy are prior history and stay; the rest are
+    this batch's, and they collapse into one entry numbered `NEW`, with the constant set to `NEW`.
+    Returns the new number, or None if the file held no batch entry (then bump_abi runs instead).
+    """
+    path = Path(wt) / ABI_HEADER
+    if not path.exists():
+        return None
+    text = path.read_text(encoding="utf-8", errors="replace")
+    m_main = list(HISTORY_ENTRY.finditer(main_header or ""))
+    main_texts = {re.sub(r"\s+", " ", x.group(2)).strip() for x in m_main}
+    main_ver = 0
+    mm = VERSION_RE_C.search(main_header or "")
+    if mm:
+        main_ver = int(mm.group(2))
+    entries = list(HISTORY_ENTRY.finditer(text))
+    batch, keep, numbers = [], [], [main_ver]
+    for e in entries:
+        desc = re.sub(r"\s+", " ", e.group(2)).strip()
+        numbers.append(int(e.group(1)))
+        if desc in main_texts:
+            keep.append(e)
+        else:
+            batch.append((int(e.group(1)), desc))
+    if not batch:
+        return None
+    new = max([main_ver + 1] + [n for n, _ in batch])
+    lanes_s = ", ".join(lanes)
+    descs = " | ".join(d for _, d in batch)
+    line = f" * {new} = merge-train batch {batch_id} ({lanes_s}): {descs}"
+    # rebuild the history block: kept entries, then the one batch entry
+    if entries:
+        first, last = entries[0].start(), entries[-1].end()
+        body = "\n".join(e.group(0).rstrip() for e in keep)
+        if body:
+            body += "\n"
+        body += line
+        text = text[:first] + body + text[last:]
+    text = VERSION_RE_C.sub(lambda x: f"{x.group(1)}{new}{x.group(3)}", text, count=1)
+    path.write_text(text, encoding="utf-8")
+    git(["-C", str(wt), "add", ABI_HEADER], check=False)
+    rs = Path(wt) / ABI_RS
+    if rs.exists():
+        rt = rs.read_text(encoding="utf-8", errors="replace")
+        if VERSION_RE_RS.search(rt):
+            rs.write_text(VERSION_RE_RS.sub(lambda x: f"{x.group(1)}{new}{x.group(3)}", rt, count=1),
+                          encoding="utf-8")
+            git(["-C", str(wt), "add", ABI_RS], check=False)
+    log(f"ABI consolidated: {len(batch)} lane entri(es) -> one line at {new}")
+    return new
 
 
 def bump_abi(wt, lanes, batch_id):
@@ -570,6 +635,9 @@ def cmd_merge_batch(args):
     lanes = [r["lane"] for r in batch]
     log(f"batch {batch_id}: {', '.join(lanes)}")
     wt = reset_integration(integ)
+    # main's copy of fc4.h before the batch: consolidate_abi_history diffs the history block against it
+    pre = git(["show", f"main:{ABI_HEADER}"], check=False)
+    main_header = pre.stdout if pre.returncode == 0 else ""
     merged, skipped = [], []
     for r in batch:
         branch = r["branch"]
@@ -600,7 +668,10 @@ def cmd_merge_batch(args):
         die("no lane merged; aborting the batch")
     need_abi = any(r["abi"] for r in batch if r["lane"] in merged)
     note = []
-    if need_abi:
+    abi_n = consolidate_abi_history(wt, main_header, merged, batch_id)
+    if abi_n is not None:
+        note.append(f"ABI history consolidated to one batch line at {abi_n}")
+    elif need_abi:
         bump_abi(wt, merged, batch_id)
         note.append("ABI bumped once for the batch")
     note.extend(regenerate(wt))
