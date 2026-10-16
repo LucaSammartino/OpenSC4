@@ -4997,3 +4997,19 @@ numbers (its Q26-Q42) are given in parentheses; the current choice is in bracket
 - **DS40:** (Q42) does UpdateAllFires step a fire lit during the same pass? The original sometimes does (spread
   `150215A4` burned down one step earlier than in the mirror); the mirror never does, and §5.4 / §5.8 do not say which
   container the fire list is or how it is iterated. [never]
+
+## From the terrain shadow (filed by the coordinator from the `glue16` lane's report, 2026-10-16; merged `4cc88cf`)
+
+glue16 added the read-only terrain shadow (`terrain_shadow = 1`, `FC4TerrainShadow`) and the script action `terrain`. Its
+final run glue16-final-2 on Konradshohe had every terrain line exact, but Konradshohe has no high bridge over water
+and no power pole on water, so the bridge and power-pole steps of IsNavigable ran only through their "nothing here"
+answers (23002/23002). The current choice is in brackets.
+
+- **TR19:** (terrain §10.4 step 4) for "the tile's deck height (tile slot 67) is known", the glue reads slot 67 as the
+  SDK's `cISC4NetworkOccupant::GetPassageCeiling(float&)`: "known" means it returns true, and the float is compared as
+  a world height with alt + depth at the cell's north-west vertex (>= 20 m clearance). Is that the slot's meaning and
+  unit? [inferred; not exercised in game: a city with a ferry under a high bridge would test it]
+- **TR20:** (terrain §10.4 step 5) for "a power pole (type 0x2890D4DE) whose cell is (x, z)", the glue asks occupant
+  manager slot 41 (the typed GetOccupantsByStandardCityCells) for the single cell min = max = (x, z), so any pole whose
+  bounding cells include (x, z) blocks it. Does the original test the pole's own position cell instead? And is (x, z)
+  the visited spiral cell, not the query's centre? [the visited cell, bounding-cell overlap]
