@@ -34,6 +34,57 @@ merge: merge main, gate, regress for engine lanes, then `--no-ff` into main.
 Progress is measured with `python tools/coverage.py` and drawn with `python tools/coverage_treemap.py`
 (`docs/coverage-report.md`, `docs/coverage-map.svg`). Quote those numbers, not estimates.
 
+#### First task next session: replace the merge lock with a merge train (before spawning any lane)
+
+The merge of each lane is slow, not git. Measured on 2026-10-16:
+
+- Each lane ran its own gate and regress (cargo, ctest, two game runs to 2032: 20-40 min on a loaded machine).
+- Every merge into main forced each waiting lane to merge main again and re-gate. cores14c lost the lock 12 times and
+  re-merged 11 times, so N waiting lanes cost about N² gates.
+- Nearly every lane edits the same lines, so every merge conflicts and needs an agent:
+  - the FC4_ABI_VERSION number;
+  - the HANDOFF §0 rows;
+  - the run numbers in manual-checks.md;
+  - QUESTIONS.md sections;
+  - abi_entries.inc.
+- About 25 agents polled `build-runs/main-merge.lock`; the fastest poller won, so docs-only lanes waited about 2 h.
+
+The plan:
+
+1. **Merge queue with a single owner of main.** A lane that is ready writes `build-runs/merge-queue/<lane>.json`
+   (branch, tip, kind, abi needs, game-run labels) and stops. One merge-train agent is the only writer of main.
+   Lanes no longer take the lock or merge main.
+2. **Batches with bisection.**
+   1. The train takes up to K ready lanes (start with K = 8), oldest first.
+   2. It merges them one after another onto `integration/<n>` from main, resolving conflicts once.
+   3. It runs the gate and regress once for the whole batch.
+   4. On a pass, main fast-forwards to the integration branch and each lane gets a merged notice.
+   5. On a fail, it splits the batch in halves and gates both halves in parallel on separate game-queue slots, until
+      the culprit lane is isolated (about log2 K extra gates). The culprit goes back to its lane with the failure, and
+      the rest land.
+   6. Docs-only and RE lanes skip regress and can be batched freely.
+3. **Remove the shared conflict hotspots**, so most batches merge with no agent conflict resolution:
+   - **ABI version.** Lanes never bump FC4_ABI_VERSION. The train bumps it once per batch with a script, and writes
+     one fc4.h history line per batch listing the lanes.
+   - **Per-lane files.** Each lane writes `docs/lanes/<lane>.md` (today's HANDOFF §0 row) and `docs/runs/<tag>.md`
+     (today's manual-checks rows, keyed by tag, not by a sequential run number). A script regenerates the HANDOFF §0
+     table, the manual-checks index and the "latest in-game run" line from them.
+   - **abi_entries.inc** becomes a build-time generated file (CMake runs gen_abi_entries.py) and leaves git.
+   - **QUESTIONS.md.** Use per-spec question files, or keep one file with a fixed "append at the end of your spec's
+     section" rule.
+   - **Docs-only movement on main** never triggers a re-gate (engine/, tools/ or tests/ unchanged means the gate
+     result stands).
+4. **Tooling.** Build `tools/merge-train.ps1` (or .py): queue scan, batch merge, gate, regress via the game queue,
+   bisection, fast-forward, notices. Change `lane.js` so the merge step only enqueues. Update the lane prompts (MKWT,
+   LOCK) and CONTRIBUTING if it mentions the lock.
+5. **First batch.** Run it on the lanes listed above that were stopped while waiting to merge.
+
+Expected effect: no lock waits, several times fewer regress runs, and most of the merge-time agent work (re-merging,
+renumbering, conflict resolution) gone. The estimate for a standalone OpenSC4 was about 450-550 more lanes and
+150-300M agent tokens, measured from about 400k tokens per lane. With the train, the CPU (20 threads) becomes the
+limit instead of the merge, which takes that from about 3-4 weeks of continuous running to about 2-3. Also log each
+lane's token count against the coverage bytes it moved, so tokens per coverage point becomes a measured figure.
+
 ### Wind-down 2026-10-14 ~16:20 (usage limit): how to resume
 
 Every lane was asked to stop at a clean point, commit everything on its branch (`WIP:` commits where tests did not pass)
