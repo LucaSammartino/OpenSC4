@@ -600,6 +600,9 @@ bool AbandonBuilding(void* u, uint64_t lot, uint32_t reason) {
     TRACT_TEST(abandon_building, lot, reason);
     if (!Writes(u) || lot == 0 || !Gate(u, fc4::Sw::TractAbandon, "tract AbandonBuilding (refused)")) return false;
     cISC4LotDeveloper* ld = LotDeveloper(u);
+    // [abi-ret] Lot developer slot 8 returns "AL of SetState" (lot-developer.md §11.1), and SetState leaves it
+    // undefined (lot-records.md §13.2); tract-developer.md's table says AL (question LD34). Passed through only:
+    // the tract core never reads abandon_building's result.
     return ld != nullptr && ld->AbandonBuilding(SdkLotOf(lot), static_cast<int32_t>(reason));
 }
 
@@ -764,9 +767,11 @@ bool DeleteLot(void* u, uint64_t lot) {
     cISC4Lot* l = SdkLotOf(lot);
     FC4_ADDREF(l);
     Ctx(u)->deleted.push_back(l);
-    const bool ok = lm->DeleteLot(l);
+    // [abi-ret] Slot 24 leaves EAX undefined (interfaces.tsv eax-or-void; zones.md §8.6 and the §11.3 row:
+    // "no bool result"): the SDK's bool is garbage, so the call is the result.
+    lm->DeleteLot(l);
     FC4_X87_CHECK("tract DeleteLot");
-    return ok;
+    return true;
 }
 
 // ---- lots (FC4Interfaces.h cFC4ISC4Lot) ----------------------------------------------------------------
@@ -1025,11 +1030,9 @@ uint64_t RegisterConfigurationFilter(void* u, uint32_t wealth, uint32_t purpose)
         return 0;
     }
     cFC4TractFilter* f = new cFC4TractFilter(c->filterHost, wealth, purpose);
-    if (!m->RegisterLotConfigurationFilter(f)) {  // slot 18
-        fc4::Log("tract: RegisterLotConfigurationFilter(wealth %u, purpose %u) returned false (kept, as the "
-                 "original keeps it)",
-                 wealth, purpose);
-    }
+    // [abi-ret] Slot 18 has no defined return (prop-lotconfig.md §B7 "—"; interfaces.tsv eax-or-void): the
+    // SDK's bool is a leftover AL, so it is not read. The filter is kept either way, as the original keeps it.
+    m->RegisterLotConfigurationFilter(f);
     c->filters.push_back(f);
     ++c->filtersRegistered;
     return TokenOf(static_cast<cISC4LotConfigurationFilter*>(f));

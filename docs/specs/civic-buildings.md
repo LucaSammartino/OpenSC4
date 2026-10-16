@@ -152,15 +152,25 @@ occ.AsPropertyHolder()`. Then, in this order:
 1. **Count.** If the bool property `0xEA3209F8` (conditional building) is present and true, and `occ` answers
    `QueryInterface(0x87DDA3A9)` (`cISC4BuildingOccupant`): `key := BDS.GetBuildingKeyFromType(building type)`
    (building development simulator slot 14). If that succeeds and `GetConditionalBuildingStatus(key.instance)`
-   finds an entry, its `buildingCount` is incremented (insert) or decremented (remove), as a 16-bit wrap.
+   finds an entry, its `buildingCount` is incremented (insert, `0x0069E295`) or decremented (remove,
+   `0x0069E29B`), as a 16-bit wrap (CB4).
 2. **Exclusion.** If the u32 property `0xEA2E078B` (exclusion ID) is present: on insert, add the value to
    `exclusions` and **stop** (step 3 is for removals only); on remove, erase the value.
 3. **Removal.** On remove, if `occ` is a building: `DoBuildingRemoved(building)` (§4.5).
 
-*[quirk]* There is no preview-occupant test (foundations §5.2, property `0x029244DB`). If a preview occupant of a
-building with an exclusion ID passes through the occupant manager, its insert adds the ID and its removal erases
-it. Whether that removal can erase the ID of the building just placed depends on the order of the two messages
-(QUESTIONS CB1). Counts are symmetric (+1, then −1).
+*[quirk]* There is no preview-occupant test (foundations §5.2, property `0x029244DB`). In the shipped game this is
+harmless (CB1): the place-lot tool's preview building is built by `GetBuildingPreviewModel` (`0x004C0680`, which
+sets `0x029244DB` at `0x004C085C` and `0x004C0D6D`) and is only drawn, never given to the occupant manager's
+`InsertOccupant`; the tool's own inserts (`PlaceLot`, around `0x004C1740`) are the real lot's occupants, which do
+not carry the preview property. So the simulator never sees a preview and cannot lose an exclusion ID through one.
+*[compat]* FreeCity4 keeps preview buildings out of the occupant manager as well; a host that did insert them would
+need the preview test. Counts are symmetric (+1, then −1).
+
+*[compat]* The count only wraps when a removal finds a status entry that its insert did not (CB4): the entry must
+be created between the two. The shipped flows create a reward's entry (advisor reward evaluation, advisors.md §6.6)
+before the building can be placed, so a wrap does not occur with shipped data. Buildings loaded with a city are
+inserted before `Init` subscribes, so they are not counted again; the saved count already includes them, and their
+later removal decrements it correctly.
 
 *[quirk]* Erasing removes the ID even if a second building with the same exclusion ID still stands (possible only
 through plugins or cheats).
@@ -176,7 +186,10 @@ through plugins or cheats).
      `line.AddToFullExpenses(item.cost)` (int64);
    - in every case (even without a department): `AddRef` the building and append `b.AsOccupant()` to `maintained`.
      *[quirk]* There is no duplicate check: a lot that returns to state 3 a second time is charged and listed
-     twice.
+     twice. In the shipped game this does not happen to a civic lot (CB2): the lot state setter (lot slot 34,
+     `0x006C3100`) posts only on a change, and the paths back to 3 (`ReoccupyBuilding` after `AbandonBuilding`,
+     `ChangeBuilding`) belong to the tract developers, which only act on lots whose profile purpose is their own;
+     no developer has purpose 0, and the lot developer only reads a purpose-0 lot's condition.
 3. **Income.** If `budget.GetBudgetItemForPurpose(holder, 0x4A5A495E, &item)` and its department exists:
    `type := b.GetBuildingType()`; `line := dept.GetLineItem(type)` (**the building type, not `item.line`**); if
    absent, `line := dept.CreateLineItemForBuildingType(type, false)` and `line.SetType(1)` (income);
@@ -381,8 +394,9 @@ it. The SDK's `bool` return of slot 7 is not honoured by the original.
 
 ## 10. Original quirks (reproduced)
 
-- No preview-occupant test (§4.3).
-- No duplicate check in `maintained`; a re-activated lot is charged twice (§4.4).
+- No preview-occupant test (§4.3; unreachable, previews are never inserted).
+- No duplicate check in `maintained`; a re-activated lot is charged twice (§4.4; no shipped path re-activates a
+  civic lot).
 - Income lines are keyed by building type while maintenance lines use the item's line (§4.4).
 - `GetLandmarkCount` counts every maintained building (§4.7).
 - An exclusion ID is erased when any building carrying it is removed (§4.3).
@@ -420,3 +434,5 @@ See QUESTIONS.md, section "From the commercial, industrial, civic, park, history
 10. **Corpus**: every civic record of the 421-save corpus reads; its re-write equals the record with each multi-entry
     bucket chain reversed (byte-identical when no bucket holds two entries), and a second read → write gives the
     record back byte-identically.
+11. **Count wrap** (§4.3, CB4): a conditional building inserted while its key has no status entry, then the entry
+    created, then the building removed → `buildingCount` = 65,535.
