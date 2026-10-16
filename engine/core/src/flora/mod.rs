@@ -601,7 +601,10 @@ impl FloraRng {
     /// seeded from the clock takes `derive(GZCLSID)`, `0xC990C034`).
     pub fn from_session(session: u32) -> FloraRng {
         let key = crate::seeding::keys::FLORA;
-        FloraRng::with_seed(crate::seeding::seed(session, key), &crate::seeding::clocks(session, key))
+        FloraRng::with_seed(
+            crate::seeding::seed(session, key),
+            &crate::seeding::clocks(session, key),
+        )
     }
 }
 

@@ -455,7 +455,10 @@ impl AuraRng {
     /// seeded from the clock takes `derive(GZCLSID)`, `0x0990BDD8`).
     pub fn from_session(session: u32) -> AuraRng {
         let key = crate::seeding::keys::AURA;
-        AuraRng::with_seed(crate::seeding::seed(session, key), &crate::seeding::clocks(session, key))
+        AuraRng::with_seed(
+            crate::seeding::seed(session, key),
+            &crate::seeding::clocks(session, key),
+        )
     }
 }
 

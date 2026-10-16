@@ -500,7 +500,10 @@ impl CrimeShared {
     /// clock.
     pub fn from_session(session: u32) -> Rc<CrimeShared> {
         let key = crate::seeding::keys::CRIME;
-        CrimeShared::seeded(crate::seeding::seed(session, key), &crate::seeding::clocks(session, key))
+        CrimeShared::seeded(
+            crate::seeding::seed(session, key),
+            &crate::seeding::clocks(session, key),
+        )
     }
 
     /// The loaded crime type list (`None` before the first `Init`).

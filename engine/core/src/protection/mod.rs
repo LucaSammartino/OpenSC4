@@ -790,7 +790,10 @@ impl ProtectionRng {
             ProtectionKind::Fire => crate::seeding::keys::FIRE_PROTECTION,
             ProtectionKind::Police => crate::seeding::keys::POLICE,
         };
-        ProtectionRng::with_seed(crate::seeding::seed(session, key), &crate::seeding::clocks(session, key))
+        ProtectionRng::with_seed(
+            crate::seeding::seed(session, key),
+            &crate::seeding::clocks(session, key),
+        )
     }
 }
 

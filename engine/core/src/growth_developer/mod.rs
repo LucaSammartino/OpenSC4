@@ -643,7 +643,10 @@ impl GrowthStatics {
     /// `cRZTime() XOR 0xAC09C0E8` with the session seed in place of the
     /// clock.
     pub fn from_session(session: u32, seeds: &dyn SeedSource) -> Rc<GrowthStatics> {
-        GrowthStatics::new(crate::seeding::seed(session, crate::seeding::keys::GROWTH_DEVELOPER), seeds)
+        GrowthStatics::new(
+            crate::seeding::seed(session, crate::seeding::keys::GROWTH_DEVELOPER),
+            seeds,
+        )
     }
 
     /// One salt (§7 row 1): `NextRaw()`.
