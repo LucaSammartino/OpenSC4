@@ -836,7 +836,12 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
 - **Which `K`**, by the kinds of §6.2:
   - *File-local generators* (seeded once at static initialisation with the clock XOR a constant): `K` = the
     original's constant, so `derive(K)` is exactly what the original computes with `S` in place of the clock. The
-    table below lists all of them.
+    table below lists all of them. They are **process-wide**: the original seeds each once per process and never
+    again, so its stream continues across city loads in one session *[compat]*. FreeCity4 seeds each once per
+    session and keeps it across city loads, wherever the core keeps the generator (RN3: the budget's `0x00B47B78`
+    is referenced only by its static initialiser `0x00A749D2` and the draws at `0x00693544`–`0x006935C6`, the
+    pollution effects' `0x00B49BD0` only by `0x00A74E42` and the draws at `0x006E668D`, `0x006E66DC`; neither is
+    re-seeded).
   - *Member generators seeded from the clock* (`0xFFFFFFFF` at construction, or the clock at `Init`): `K` = the
     owning class's GZCLSID. Classes with several instances (MySims) use `GZCLSID XOR i`, where `i` is the instance's
     creation index from 0. A further transformation the original applies to the clock value (the prop developer's
@@ -847,6 +852,10 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
     generator): `K` = the owner's GZCLSID XOR `n`, where `n` counts earlier creations at that site by the
     owning object, from 0 when the object is constructed (not saved; a newly loaded city starts again at 0;
     QUESTIONS CB14).
+    A temporary seeded from coordinates whose seed happens to be `0xFFFFFFFF` also reads the clock in the original
+    (`cRZRandom::Seed`, §6.1), so it is one of these: the growth developer's decline-sort key (growth-developer.md
+    §7) uses `K` = `0x0990C138 XOR n`, with `n` counting only those clock reads by the developer object (RN2). The city
+    detail manager's increase pass is another (city-detail.md §3.5; per manager object, CD5).
   - *Temporaries seeded from coordinates*: unchanged, because they are deterministic already. The one case whose
     seed is 0 (tract developer `UpdatePopulation` for tract (0, 0)) uses `0x00000001` *[choice]*
     (tract-developer.md §4.18).
