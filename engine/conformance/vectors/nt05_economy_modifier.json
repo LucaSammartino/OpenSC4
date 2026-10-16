@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "name": "nt05_economy_modifier",
+  "spec": [
+    "nation 2",
+    "nation 5"
+  ],
+  "description": "GetEconomyModifier with a flat curve at 0 and the difficulty modifiers 0.06, 0.03, 0.01: with a city at difficulty 0, 1, 2 -> 0.06, 0.03, 0.01; with no city -> 0 (the curve alone). A month count of -1 (one month before the start) is read unsigned, 2^32 - 1, past the last point: still 0 + difficulty on the flat curve; on a rising curve (0, 0) - (120, 1) it gives the last value 1, not the first 0.",
+  "steps": [
+    {
+      "op": "nat_economy",
+      "difficulty": [
+        0.06,
+        0.03,
+        0.01
+      ],
+      "curves": {
+        "0": [
+          0,
+          0,
+          120,
+          0
+        ]
+      },
+      "checks": [
+        [
+          "0x1010",
+          5,
+          0,
+          0.06
+        ],
+        [
+          "0x1010",
+          5,
+          1,
+          0.03
+        ],
+        [
+          "0x4100",
+          100,
+          2,
+          0.01
+        ],
+        [
+          "0x1010",
+          5,
+          null,
+          0
+        ],
+        [
+          "0x1010",
+          -1,
+          0,
+          0.06
+        ]
+      ]
+    },
+    {
+      "op": "nat_economy",
+      "curves": {
+        "0": [
+          0,
+          0,
+          120,
+          1
+        ]
+      },
+      "checks": [
+        [
+          7,
+          -1,
+          null,
+          1.0
+        ],
+        [
+          7,
+          0,
+          null,
+          0
+        ],
+        [
+          7,
+          60,
+          null,
+          0.5
+        ]
+      ]
+    }
+  ]
+}

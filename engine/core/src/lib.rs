@@ -63,6 +63,7 @@ pub mod simulator;
 pub mod stl;
 pub mod store;
 pub mod stream;
+pub mod terrain;
 pub mod tract_developer;
 pub mod traffic_network;
 pub mod traffic_simulator;
