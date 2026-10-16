@@ -336,6 +336,61 @@ def conflicted_paths(wt):
     return [p for p in out if p]
 
 
+def is_terminator(x):
+    """A line that only closes a block or list: `}`, `};`, `},`, `*/` (with an optional trailing comment)."""
+    s = re.sub(r"//.*$", "", x).strip()
+    s = re.sub(r"/\*.*?\*/\s*$", "", s).strip()
+    return s in ("}", "};", "},", "};,", "*/") or s.endswith("*/") and len(s) <= 3
+
+
+def union_hunks(wt, rel):
+    """Union every conflict hunk, keeping each structural terminator exactly once.
+
+    Each lane's addition to a shared table ends with the table's own `};`, so a plain union leaves one `};`
+    per lane and the rest of the file falls apart (`kCount` / `kSwitches` undeclared in FC4Config.cpp). Same
+    for fc4.h, where every history entry ends with `*/`. Lines are never deduplicated otherwise — initialiser
+    runs like `1, 1, 1,` are legitimately repeated.
+    """
+    path = Path(wt) / rel
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if "<<<<<<<" not in text:
+        return False
+    out, i, n = [], 0, len(text)
+    while i < n:
+        s = text.find("<<<<<<<", i)
+        if s < 0:
+            out.append(text[i:])
+            break
+        out.append(text[i:s])
+        m = text.find("=======", s)
+        e = text.find(">>>>>>>", m) if m >= 0 else -1
+        if m < 0 or e < 0:
+            return False
+        body_o = text[s + 7:m]
+        body_t = text[m + 7:e]
+        body_o = body_o.split(NL, 1)[1] if NL in body_o else ""
+        body_t = body_t.split(NL, 1)[1] if NL in body_t else ""
+        lo, lt = body_o.splitlines(), body_t.splitlines()
+        merged = [x for x in lo + lt if not is_terminator(x)]
+        terms = []
+        for x in lo + lt:
+            if is_terminator(x) and x.rstrip() not in [t.rstrip() for t in terms]:
+                terms.append(x)
+        if any(t.rstrip().endswith("*/") for t in terms):
+            merged = close_comment(merged)
+        else:
+            merged = merged + terms
+        out.append(NL.join(merged))
+        j = text.find(NL, e)
+        i = n if j < 0 else j + 1
+    text = "".join(out)
+    if "<<<<<<<" in text or ">>>>>>>" in text:
+        return False
+    path.write_text(text, encoding="utf-8")
+    git(["-C", str(wt), "add", rel], check=False)
+    return True
+
+
 def union_merge(wt, rel):
     """Resolve a conflict by unioning ours and theirs over their common base.
 
@@ -475,7 +530,7 @@ def resolve_conflicts(wt, lanes):
             # constant to a single line. consolidate_abi_history rewrites the history block afterwards, so
             # the unioned block does not have to be pretty.
             fp = Path(wt) / p
-            if fp.exists() and (can_union(fp) or comments_only(fp)) and union_merge(wt, p) and \
+            if fp.exists() and (can_union(fp) or comments_only(fp)) and union_hunks(wt, p) and \
                     dedupe_version(fp, VERSION_RE_C if p.endswith(".h") else VERSION_RE_RS):
                 resolved.append(p + " (union + version)")
                 continue
@@ -493,7 +548,7 @@ def resolve_conflicts(wt, lanes):
         # Additive shared source, or any other file whose hunks are two sides adding different lines at one
         # anchor. A hunk that edits shared text goes to the operator.
         fp = Path(wt) / p
-        if fp.exists() and can_union(fp) and union_merge(wt, p):
+        if fp.exists() and can_union(fp) and union_hunks(wt, p):
             resolved.append(p + " (union, disjoint)")
             continue
         left.append(p)
