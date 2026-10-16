@@ -2,12 +2,14 @@
   "format": 1,
   "name": "tr18_11_pipe_burst_sinkhole",
   "spec": [
+    "terrain 8.1",
+    "terrain 9.1",
     "terrain 9.2",
     "terrain 9.3",
     "terrain 9.5",
     "terrain 18.11"
   ],
-  "description": "A flat terrain at 300, sea 250. ApplyBrush(0x14) at the north-west corner of cell (10, 10): from = to = (160, 160), level 0, redisplay, strength 1, radius 1, data4 3, target 100. Radius 16 on a W-pixel bitmap gives k = W pixels per vertex, so only the centre vertex (10, 10) lands inside the bitmap (U = V = W/2); its pixel 0 lowers it by (255 - 0) * 0.01 = 2.55 (r24: 297.45). Nothing is raised; one 0x278E6003 with data4 3 over the touched rectangle (10, 10, 10, 10), then the water and texture messages. Neutral pixels change and post nothing. The 16 x 16 bitmaps are stand-ins for the shipped 0x2A05BB19 [choice].",
+  "description": "A flat terrain at 300, sea 250. ApplyBrush(0x14) at the north-west corner of cell (10, 10): from = to = (160, 160), level 0, redisplay, strength 1, radius 1, data4 3, target 100. The shipped brush has no step property, so it walks with the 0.5 degree default and draws RandomUint32Uniform(5) once per application (quirk 12, TR8; the draw 0 turns the walk angle back by one step, which its unoriented components would use; 0x14's one component is oriented and draws at the stroke angle 0). Radius 16 on a W-pixel bitmap gives k = W pixels per vertex, so only the centre vertex (10, 10) lands inside the bitmap (U = V = W/2); its pixel 0 lowers it by (255 - 0) * 0.01 = 2.55 (r24: 297.45). Nothing is raised; one 0x278E6003 with data4 3 over the touched rectangle (10, 10, 10, 10), the water message with the same words, then the texture message 0x870BC918 over the render rectangle (the touched one padded by 1: 9..11) with data3 = (297 << 16) + 300 (TR11; the plain minimum and maximum [choice] of 8.1). Neutral pixels change and post nothing, but still draw. The 16 x 16 bitmaps are stand-ins for the shipped 0x2A05BB19 [choice].",
   "steps": [
     {
       "op": "ter_create",
@@ -79,6 +81,10 @@
       "op": "ter_expect_events",
       "events": [
         {
+          "event": "random",
+          "n": 5
+        },
+        {
           "event": "post",
           "msg": "0x278E6003",
           "data1": "0x000A000A",
@@ -91,11 +97,16 @@
           "msg": "0x678E6E3A",
           "data1": "0x000A000A",
           "data2": "0x000A000A",
-          "data4": 3
+          "data4": 3,
+          "data3": 0
         },
         {
           "event": "post",
-          "msg": "0x870BC918"
+          "msg": "0x870BC918",
+          "data1": "0x0009000B",
+          "data2": "0x0009000B",
+          "data3": "0x0129012C",
+          "data4": 3
         }
       ]
     },
@@ -125,7 +136,12 @@
     },
     {
       "op": "ter_expect_events",
-      "events": []
+      "events": [
+        {
+          "event": "random",
+          "n": 5
+        }
+      ]
     }
   ]
 }

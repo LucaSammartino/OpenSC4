@@ -75,12 +75,11 @@ pub trait LavaHost {
     fn next_burn_cell(&mut self) -> Option<(i32, i32)>;
 }
 
-/// The eight neighbour offsets (`+0x84..+0xA0`), edges first.
-///
-/// [choice] The spec does not list the offset order. Here: west, east,
-/// north (z − 1), south (z + 1), then the diagonals (−1, −1), (+1, −1),
-/// (−1, +1), (+1, +1).
-pub const NEIGHBOURS: [(i32, i32); 8] = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, -1), (-1, 1), (1, 1)];
+/// The eight neighbours `(dx, dz)` in the order of the terrain's offsets
+/// (`+0x84..+0xA0`, [`Terrain::neighbor_offsets`], TR4): W, NW, N, NE, E,
+/// SE, S, SW (north is z − 1). The even k are the edges, the odd k the
+/// diagonals.
+pub const NEIGHBOURS: [(i32, i32); 8] = [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1)];
 
 /// The lava of one eruption (§11.2).
 #[derive(Clone, Debug, PartialEq)]
@@ -170,39 +169,53 @@ impl Lava {
         r24(f64::from(terrain.altitudes()[i]) + f64::from(self.levels[i]))
     }
 
-    /// `GetNeighborWithLowestLavaLevel` (`0x0075DA90`): the best drop among
-    /// the four edge neighbours, then a diagonal wins only when its drop
-    /// exceeds `√2 ×` the best edge drop. `None` when no neighbour is lower.
-    ///
-    /// [choice] Ties keep the earlier neighbour; among diagonals that pass
-    /// the `√2` test, the largest drop wins (ties to the earlier).
-    pub fn lowest_neighbour(&self, terrain: &Terrain, x: i32, z: i32) -> Option<(i32, i32)> {
+    /// `GetNeighborWithLowestLavaLevel` (`0x0075DA90`, §11.3, TR4): the
+    /// neighbour index k (0..7 of [`NEIGHBOURS`]) or `None` when no neighbour
+    /// is lower. `surf := r24(lava + alt)`, `best := 0`. The edges W, N, E, S
+    /// (k = 0, 2, 4, 6) that the `GetNeighbors` mask allows win on `drop >
+    /// best` (strict: the first wins a tie, a NaN never wins); then `best :=
+    /// r24(√2 × best)` and the diagonals NW, NE, SE, SW (k = 1, 3, 5, 7)
+    /// compete against it the same way, a winning diagonal setting `best` to
+    /// its own unscaled drop.
+    pub fn lowest_neighbour_k(&self, terrain: &Terrain, x: i32, z: i32) -> Option<usize> {
+        if !terrain.vertex_in_bounds(x, z) {
+            return None;
+        }
         let me = self.surface(terrain, x, z);
-        let mut best: Option<((i32, i32), f64)> = None;
-        for &(dx, dz) in &NEIGHBOURS[..4] {
+        let mask = terrain.neighbor_mask(x, z);
+        let mut best = 0.0f64;
+        let mut result = None;
+        let mut scan = |k: usize, best: &mut f64| {
+            if mask & (1 << k) == 0 {
+                return;
+            }
+            let (dx, dz) = NEIGHBOURS[k];
             let (nx, nz) = (x + dx, z + dz);
             if !terrain.vertex_in_bounds(nx, nz) {
-                continue;
+                return;
             }
             let drop = r24(me - self.surface(terrain, nx, nz));
-            if drop > 0.0 && best.map_or(true, |(_, b)| drop > b) {
-                best = Some(((nx, nz), drop));
+            if drop > *best {
+                *best = drop;
+                result = Some(k);
             }
+        };
+        for k in [0, 2, 4, 6] {
+            scan(k, &mut best);
         }
-        let edge_drop = best.map_or(0.0, |(_, b)| b);
-        let bar = r24(std::f64::consts::SQRT_2 * edge_drop);
-        let mut diag: Option<((i32, i32), f64)> = None;
-        for &(dx, dz) in &NEIGHBOURS[4..] {
-            let (nx, nz) = (x + dx, z + dz);
-            if !terrain.vertex_in_bounds(nx, nz) {
-                continue;
-            }
-            let drop = r24(me - self.surface(terrain, nx, nz));
-            if drop > 0.0 && drop > bar && diag.map_or(true, |(_, b)| drop > b) {
-                diag = Some(((nx, nz), drop));
-            }
+        best = r24(f64::from(std::f32::consts::SQRT_2) * best);
+        for k in [1, 3, 5, 7] {
+            scan(k, &mut best);
         }
-        diag.or(best).map(|(p, _)| p)
+        result
+    }
+
+    /// The vertex of [`Lava::lowest_neighbour_k`].
+    pub fn lowest_neighbour(&self, terrain: &Terrain, x: i32, z: i32) -> Option<(i32, i32)> {
+        self.lowest_neighbour_k(terrain, x, z).map(|k| {
+            let (dx, dz) = NEIGHBOURS[k];
+            (x + dx, z + dz)
+        })
     }
 
     /// The amount one vertex passes on (§11.3 step 3.1) and the neighbour it
@@ -249,9 +262,11 @@ impl Lava {
     }
 
     /// `SetThingsOnFire(vertex, oldLava, amount)` (`0x0075DE60`, §11.5): the
-    /// flammable cells of `(x − 1 … x) × (z − 1 … z)`, each ignited or
-    /// quick-burned and then `SetCause(3)`. [choice] Cells outside the city
-    /// are skipped; `SetCause` follows each cell's call.
+    /// flammable cells of `(x − 1 … x) × (z − 1 … z)`, x outer and z inner
+    /// (`(x − 1, z − 1)`, `(x − 1, z)`, `(x, z − 1)`, `(x, z)`), each ignited
+    /// or quick-burned and then `SetCause(3)` (TR5): 0 to 4 `SetCause` per
+    /// call. A cell outside the city is not flammable (slot 6), so it is
+    /// skipped without asking the host.
     pub fn set_things_on_fire(
         &self,
         terrain: &Terrain,
@@ -265,8 +280,8 @@ impl Lava {
         if mode == FireMode::None {
             return mode;
         }
-        for cz in z - 1..=z {
-            for cx in x - 1..=x {
+        for cx in x - 1..=x {
+            for cz in z - 1..=z {
                 if !terrain.cell_in_bounds(cx, cz) || !host.is_cell_flammable(cx, cz) {
                     continue;
                 }

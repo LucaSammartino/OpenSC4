@@ -1,0 +1,186 @@
+{
+  "format": 1,
+  "name": "tr18_17_water_type_nan_and_flooding",
+  "spec": [
+    "terrain 5.1",
+    "terrain 10.2",
+    "terrain 10.5",
+    "terrain 18.17"
+  ],
+  "description": "Flat at 300, sea 250. GetWaterType at a vertex whose depth is NaN gives 2 (TR6). AltitudeAtWhichFloodingWillOccur(5, 5): the vertex dry, W wet at level 260 (alt 250, depth 10) and E wet at 255 -> 260; all neighbours dry -> 250 (the sea level); a wet vertex below the sea level does not raise it; its own level counts when wet and above (alt 200, depth 70 -> 270); the corner vertex's mask keeps its neighbours inside (TR3). GetLerpedWaterLevel (5.1): 250 over dry flat ground (level = alt + depth); NaN in a cell with the NaN corner (2, 2); at (72, 80), halfway between (4, 5) at 260 and (5, 5) at 250 -> 255; x < 0 -> 0. GetWaterVelocity: no flow, a zero vector; GetSedimentValue(x, z): 0 in bounds, 0 out of bounds (TR12).",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        10,
+        10
+      ],
+      "flat": 300,
+      "sea": 250
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        2,
+        2
+      ],
+      "depth": "nan"
+    },
+    {
+      "op": "ter_call",
+      "method": "water_type",
+      "args": [
+        2,
+        2
+      ],
+      "expect": 2
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        4,
+        5
+      ],
+      "altitude": 250,
+      "depth": 10
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        6,
+        5
+      ],
+      "altitude": 250,
+      "depth": 5
+    },
+    {
+      "op": "ter_call",
+      "method": "flooding_altitude",
+      "args": [
+        5,
+        5
+      ],
+      "expect": 260
+    },
+    {
+      "op": "ter_call",
+      "method": "flooding_altitude",
+      "args": [
+        8,
+        8
+      ],
+      "expect": 250
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        8,
+        8
+      ],
+      "altitude": 200,
+      "depth": 10
+    },
+    {
+      "op": "ter_call",
+      "method": "flooding_altitude",
+      "args": [
+        8,
+        8
+      ],
+      "expect": 250
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        8,
+        8
+      ],
+      "depth": 70
+    },
+    {
+      "op": "ter_call",
+      "method": "flooding_altitude",
+      "args": [
+        8,
+        8
+      ],
+      "expect": 270
+    },
+    {
+      "op": "ter_call",
+      "method": "flooding_altitude",
+      "args": [
+        0,
+        0
+      ],
+      "expect": 250
+    },
+    {
+      "op": "ter_call",
+      "method": "lerped_water_level",
+      "args": [
+        136,
+        40
+      ],
+      "expect": 250
+    },
+    {
+      "op": "ter_call",
+      "method": "lerped_water_level",
+      "args": [
+        40,
+        40
+      ],
+      "expect": "nan"
+    },
+    {
+      "op": "ter_call",
+      "method": "lerped_water_level",
+      "args": [
+        72,
+        80
+      ],
+      "expect": 255
+    },
+    {
+      "op": "ter_call",
+      "method": "lerped_water_level",
+      "args": [
+        -0.5,
+        0
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ter_call",
+      "method": "water_velocity",
+      "args": [
+        5,
+        5
+      ],
+      "expect": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "sediment_at",
+      "args": [
+        40,
+        40
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ter_call",
+      "method": "sediment_at",
+      "args": [
+        -1,
+        40
+      ],
+      "expect": 0
+    }
+  ]
+}
