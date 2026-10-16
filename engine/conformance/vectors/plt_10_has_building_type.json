@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "lot_config_has_building_type",
+  "spec": ["prop-lotconfig B5.3", "prop-lotconfig T10"],
+  "description": "A configuration whose building record lists [F1] (F1 = 0xF1 holds T1 = 0x71), after a prop record listing the same ID: slot 16 (family) is true for F1 and false for T1; slot 17 (type) is true for T1 (a member of a listed family) and for F1 (listed directly). Only the building record counts.",
+  "steps": [
+    {"op": "lcm_building_type", "type": "0x71"},
+    {"op": "lcm_building_family", "type": "0xF1", "types": ["0x71"]},
+    {"op": "lcm_config", "label": "cfg", "id": 1, "objects": [{"kind": 1, "ids": ["0xF1"]}, {"kind": 0, "ids": ["0xF1"]}]},
+    {"op": "lcm_create"},
+    {"op": "lcm_call", "method": "has_building_family", "args": ["cfg", "0xF1"], "expect": true},
+    {"op": "lcm_call", "method": "has_building_family", "args": ["cfg", "0x71"], "expect": false},
+    {"op": "lcm_call", "method": "has_building_type", "args": ["cfg", "0x71"], "expect": true},
+    {"op": "lcm_call", "method": "has_building_type", "args": ["cfg", "0xF1"], "expect": true},
+    {"op": "lcm_call", "method": "has_building_type", "args": ["cfg", "0x72"], "expect": false},
+    {"op": "lcm_call", "method": "has_building_family", "args": [null, "0xF1"], "expect": false}
+  ]
+}

@@ -2019,6 +2019,76 @@ Disaster events: `emergency_pause`, `emergency_resume`, `disable_save`, `enable_
 `volcano_end_deformation`, `lava` (`instance`, `radius`), `lava_end`, and the stub's `raw`, `u32` (`n`),
 `double`, `range` and `gaussian` (`a`, `b`), each with its `generator`.
 
+## Prop and lot configuration manager ops
+
+The `plt_…` vectors (prop-lotconfig.md §T) drive `fc4_core::prop_manager::PropManager` (Part A, ops `pm_…`) and
+`fc4_core::lot_config_manager::LotConfigManager` (Part B, ops `lcm_…`), each over its own scripted city that
+outlives `*_create`. Tokens are integers (`"0x301"`); props, configurations and decals the core has the world
+create get tokens from `0x1000` in creation order. The prop world: the occupant manager `0x50`, the lot manager
+`0x51`, the resource manager `0x52`, the view filter `0x53`, 16 m cells, exemplars in group `0x1234`; the occupant
+manager's box query returns the inserted occupants of the filter's usage inside the box (bounds included), its
+cell-rectangle query those within one cell of the rectangle, each with a reference for the caller. The lot world:
+detail 3, the building development simulator `0x50`, the flora simulator `0x51`, the prop manager `0x52`;
+configurations load from `lcm_lot_exemplar` with the core's object reader (`lot_object_array`).
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `pm_env` | any of `no_resource_manager`, `no_sink` (props have no exemplar interface), `no_services`, `gzcom_classes` (classes GZCOM can create) | the world |
+| `pm_exemplar` | `instance`, `families?`, `size?` (OccupantSize floats), `class?`, `exemplar_type?` (`0x1E`), `group?`, `properties?` (`{props}`) | a prop exemplar |
+| `pm_occupant` | `occupant`, `pos?` [x, y, z], `usage?`, `inserted?`, `shown?`, `refs?` (its starting count) | an occupant |
+| `pm_lot` | `lot`, `rect` [x1, z1, x2, z2] (cells, inclusive) | a lot |
+| `pm_building` | `building`, `cell` [x, z], `props` (null: no property holder; `"absent"`; or the property's prop list) | a building |
+| `pm_create` | `same_catalogue?` (keep the process catalogue; else a new one) | a new prop manager |
+| `pm_init` / `pm_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `pm_call` | `method`, `args?`, `list?` (the caller's list before the call), `vec?` (slot 9's vector), `expect?` | `is_prop_type_valid`, `is_prop_family_type_valid`, `is_prop_in_family [type, family]`, `prop_types_by_family` (`{result, vec}`), `all_prop_types` and `all_prop_family_types` (sorted), `prop_key_from_type` ([type, group, instance] or null), `prop_name`, `prop_profile` and `prop_profile_ptr` (`{class, size, satisfaction, wealth, crime}` or null), `create_prop` (the token or null), `add_city_prop`, `add_lot_prop [lot, occupant]`, `add_building_prop [building, prop]`, `get_lot_props [lot]`, `get_lot_props_at [x, z]`, `get_street_props_at [x, z]`, `get_building_props [building]`, `get_building_props_at [x, z]` (each `{result, list}`), `remove_building_prop [building, prop]`, `remove_building_props`, `remove_lot_props`, `remove_prop`, `remove_street_props_from_tile [x, z]` |
+| `pm_expect` | `state` (partial: `initialized`, `occupant_manager`, `resource_manager`, `lot_manager`, `view_filter`, `filter`, `types`, `families`, `profiles` (the catalogue's map sizes)) | the manager |
+| `pm_expect_occupant` | `occupant`, `state` (partial: `prop_type`, `bbox` ([min, max] or null), `builtin` (`plain`, `terrain_decal`, `visual_effect` or null), `class`, `usage`, `inserted`, `shown`, `inits`, `shutdowns`, `pos`) | an occupant |
+| `pm_expect_building` | `building`, `props` | the building-prop property |
+| `pm_expect_refs` | `refs` (`{"token": count}`) | reference counts |
+| `pm_record` / `pm_read` | `hex`; `pm_read` also `objects?` (`{"n": token}`, default `0x4F + n`) and `expect?` | the component 5 record |
+| `lcm_env` | any of `detail`, `no_resource_manager`, `valid_walls` | the world |
+| `lcm_lot_exemplar` | `id`, `families?`, `size?` [x, z] (1 × 1), `version?` (2; null: absent), `objects` (each the lot object's u32 values) | a lot configuration exemplar of group `0xA8FBD372` |
+| `lcm_remove_exemplar` | `id` | removes it |
+| `lcm_config` | `label`, `id`, `families?`, `size?`, `walls?`, `objects?` (`[{kind, ids, rect? [min_x, min_z, max_x, max_z], centre? [x, z], orientation?}]`) | a configuration not from an exemplar (one reference) |
+| `lcm_set_objects` | `configuration`, `objects` | replaces its objects |
+| `lcm_building_type` | `type`, `capacity?`, `footprint?` [w, d], `exemplar?` (`{props}`) | a building type |
+| `lcm_prop_type` / `lcm_flora_type` | `type`, `size` [x, z] / `radius` | a prop or flora type |
+| `lcm_building_family` / `lcm_prop_family` / `lcm_flora_family` | `type` (the family), `types` | a family |
+| `lcm_filter` | `filter`, `ids` (the configuration IDs it accepts) | a lot configuration filter |
+| `lcm_objects` | `objects`, `version?`, `detail`, `expect` ([[type, v1], …]) | the object reader alone |
+| `lcm_lod` | `v1`, `expect` | `LOD = (v1 >> 4) & 3` |
+| `lcm_create` | `same_catalogue?` | a new manager |
+| `lcm_init` / `lcm_shutdown` / `lcm_unload` | `expect?` | `Init`, `Shutdown`, the process unload callback |
+| `lcm_remember` / `lcm_expect_same` | `id`, `as` (a label); `lcm_expect_same` also `same` | slot 8's object kept under a label / compared |
+| `lcm_call` | `method`, `args?`, `as?`, `expect?` | `configuration_count`, `object_count` (summed over the map), `configuration_ids` (sorted), `family_id_set` (sorted), `configuration [id]` (its ID or null), `add_configuration [configuration, add]`, `remove_configuration [id]`, `configurations_by_family`, `configurations_by_size [x, z]`, `configurations_by_filter [filter or null]` (IDs in the core's order), `ids_by_family`, `ids_by_size`, `ids_by_filter`, `register_filter`, `unregister_filter`, `flush`, `has_building_family` and `has_building_type [configuration, id]` (booleans), `object_id_array [type, ids]`, `footprint_props`, `footprint_buildings`, `footprint_flora [ids]` ([w, d, 0, 0]), `post_city_init`, `fix [configuration]` (the code), `create_generic [type]` (`{size, objects}` or null; `as` labels it) |
+| `lcm_expect` | `state` (partial: `initialized`, `building_development`, `flora`, `prop_manager`, `filters`, `loaded`, `detail`) | the manager and its catalogue |
+| `lcm_expect_config` | `configuration`, `state` (partial: `id`, `size`, `objects`, `object_count`, `info` (`{min_capacity, max_capacity, groups, non_monopoly}` or null), `walls`, `generic_for`) | a configuration |
+| `lcm_expect_refs` | `refs` (tokens or labels) | reference counts |
+| `lcm_record` / `lcm_read` | as `pm_record` / `pm_read` | the component 9 record |
+
+Configuration arguments are labels, tokens or null. Events (`*_expect_events`, `*_expect_event_count`,
+`*_clear_events`): the prop world's `shutdown_callback`, `post` (`manager`, `data2`), `command` / `uncommand` (`id`),
+`subscribe` / `unsubscribe` (`type`), `hide`, `remove` (`occupant`), `add_property` / `remove_property`
+(`building`); the lot world's `register_callback`, `unregister_callback`, `subscribe`, `unsubscribe`.
+
+## Tutorial ops
+
+The `tu8_…` vectors (tutorial.md §8) and `tu00_…` drive `fc4_core::tutorial::TutorialSystem` over a scripted
+registry, window (token `0x40`, task none) and 3D view. Every op name starts with `tut_`.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `tut_env` | any of `cheats` (the cheat manager exists and the app allows cheats), `registry` (`{"guid": entry byte +0x10}`), `registry_result` (what `SetActive` leaves in AL), `task` (the window's current task or null), `task_edge` | the world |
+| `tut_create` | | a new system (constructed state) |
+| `tut_read` / `tut_record` | `hex`, `expect?` | `Read` / `Write` of the component 48 record |
+| `tut_message` | `type` (`CityInitComplete`, `EndTutorial`, `PreSave` or an ID), `data?`, `expect?` | `DoMessage` |
+| `tut_call` | `method`, `args?`, `expect?` | `init`, `shutdown`, `start_tutorial`, `end_tutorial [bool]`, `is_tutorial`, `task_number`, `guid`, `set_task_number`, `increment_task_number`, `is_edge_scrolling_allowed`, `current_task`, `scripting_context`, `filter_message [kind, id, field2, field3]`, `show_ui_hints`, `handle_catalog_menu`, `filter_left_mouse_click [x, z, n]`, `reset_num_and_index [a, b]` (the window answers `b`), `on_tutorial_event` |
+| `tut_expect` | `state` (partial: `is_tutorial` (the byte), `task_number`, `guid`, `field_28`, `end_pending`, `start_tried`, `window`, `window_refs`, `registry_active` (`{"0xGUID": bool}`)) | the system |
+
+Tutorial events: `subscribe` / `unsubscribe` (`type`), `register_cheat`, `unregister_cheat`, `create_window`,
+`init_window`, `close_window`, `window_filter` (`value`), `window_hints`, `window_menu` (`menu`), `window_reset`
+(`a`, `b`), `window_event` (`event`), `set_active` (`guid`, `active`), `view_restore`.
+
 ## Occupant manager ops
 
 The occupant manager vectors (`om18_…`, `om14_…`) drive `fc4_core::occupant_manager::OccupantManager`
@@ -2234,7 +2304,8 @@ MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_pos
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
    (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `nm16_…` (network manager §16;
    `nm00_…` for other network manager behaviour), `cd8_…` (city detail §8), `pd12_…` (port developers §12),
-   `pv12_…` (prop developer §12), `ds18_…` and `ds00_…` (disasters §18 and the rest of disasters), `tr18_…` and
+   `pv12_…` (prop developer §12), `ds18_…` and `ds00_…` (disasters §18 and the rest of disasters), `plt_…`
+   (prop-lotconfig §T), `tu8_…` and `tu00_…` (tutorial §8 and the rest), `tr18_…` and
    `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
    (automata §14), `om18_…` / `om14_…` (occupant manager §18 / §14), `ad17_…` (advisors §17; `ad04_…` and
    `ad06_…` for other advisor behaviour) and `ms12_…` (MySims §12).
@@ -3331,6 +3402,39 @@ replay the records §7 quotes.
 
 The core's unit tests (`fc4_core::disasters`) also cover the lot conditions, the spread, the toast list, the damage
 assessment, re-entrant occupant removal and the default generators.
+
+## Coverage (prop-lotconfig §T)
+
+| §T item | Vector |
+|---|---|
+| 1 profile defaults (the default box, OccupantSize) | `plt_01_profile_defaults` |
+| 2 unknown profile (slot 13 inserts, quirk 2) | `plt_02_unknown_profile` |
+| 3 families (load order, no duplicates, quirk 1) | `plt_03_families` |
+| 4 GetLotProps boundary (quirk 7) | `plt_04_get_lot_props_boundary` |
+| 5 street props (quirk 4) | `plt_05_street_props` |
+| 6 building props (the property vector) | `plt_06_building_props` |
+| 7 detail filter (CD1) | `plt_07_detail_filter` |
+| 8 rebuild on a detail change (a small catalogue in place of the shipped 1908) | `plt_08_rebuild_on_detail_change` |
+| 9 GetObjectIDArray (quirk 13) | `plt_09_object_id_array` |
+| 10 has building family / type | `plt_10_has_building_type` |
+| 11 prop footprint | `plt_11_prop_footprint` |
+| 12 records (components 5 and 9) | `plt_12_records` |
+
+The cores' unit tests (`fc4_core::prop_manager`, `fc4_core::lot_config_manager`) also cover `Init` / `Shutdown`,
+the catalogue message, CreateProp's classes, insertion by usage, the view filter and CreateTextDecal messages, the
+add/remove table, set queries, filter caches, building information, CreateGeneric and FixLotConfiguration.
+
+## Coverage (tutorial §8)
+
+| §8 item | Vector |
+|---|---|
+| 1 plain record | `tu8_01_plain_record` |
+| 2 tutorial record (the consumers through their own vectors) | `tu8_02_tutorial_record` |
+| 3 GUID mapping (quirk 1) | `tu8_03_guid_mapping` |
+| 4 version | `tu8_04_version` |
+| 5 end without registry, then save | `tu8_05_end_without_registry_then_save` |
+| 6 task counter | `tu8_06_task_counter` |
+| other sections (§4.3 messages, quirks 2 and 4) | `tu00_messages` |
 
 ## Coverage (occupant manager §18)
 
