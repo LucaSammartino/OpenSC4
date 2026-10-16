@@ -1248,6 +1248,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::city_situation::exec(host, other, op))
             .or_else(|| crate::automata::exec(host, other, op))
             .or_else(|| crate::disasters::exec(host, other, op))
+            .or_else(|| crate::occupant_manager::exec(host, other, op))
             .or_else(|| crate::terrain::exec(host, other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
     }

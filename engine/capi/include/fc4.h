@@ -140,12 +140,14 @@ extern "C" {
  * 62 = adds the automata layer (fc4_automata_*, automata.md short form): the referenced objects
  *      (controllers and automata), the script system, the controller manager, the four automata
  *      managers, and the riot and fire hooks (reserved 65 on its lane; renumbered at merge);
- * 63 = adds the demolition utility (fc4_demolition, demolition.md), the dispatch manager
+ * 63 = adds the occupant manager (fc4_occmgr, occupant-manager.md) (taken as 67 on its lane;
+ *      renumbered at merge);
+ * 64 = adds the demolition utility (fc4_demolition, demolition.md), the dispatch manager
  *      (fc4_dispatch, dispatch.md) and the city situation manager (fc4_citysit,
  *      city-situation.md), with the re-answers15 answers applied (dispatch host 39 callbacks:
  *      pylon_return_to_station takes the source and answers, vehicle_in_group appended; city
- *      situation host 79 callbacks) (taken as 60 on its lane, then 61; renumbered at merge). */
-#define FC4_ABI_VERSION 63u
+ *      situation host 79 callbacks) (taken as 60 on its lane, then 61, then 63; renumbered at merge). */
+#define FC4_ABI_VERSION 64u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -7858,6 +7860,206 @@ bool fc4_disasters_get_instance(const fc4_disasters* d, uint32_t instance, fc4_d
 /* Returns the number of leaders (0 for no such riot); copies at most `capacity`. */
 size_t fc4_disasters_riot_leaders(const fc4_disasters* d, uint32_t instance, fc4_riot_leader* out, size_t capacity);
 
+/* ---- occupant manager (docs/specs/occupant-manager.md) ---------------------
+ * cSC4OccupantManager (0x098F964D): the city's spatial index of occupants, a
+ * fixed 192 x 192 grid of 64 m world cells, each a newest-first list of the
+ * occupants whose manager box touches it. The shim owns the GZCOM object (and
+ * its cIGZSerializable / message-target views) and forwards its slots here.
+ * Occupants and the caller's occupant filters are opaque host tokens (0 =
+ * null). A missing callback reads as 0 / false / none.
+ *
+ * Threads (spec §14): each object owns a recursive lock, entered at
+ * exactly the points of the §14 table. Any entry point may be called
+ * from any thread; the host's callbacks must be safe on the threads that call
+ * in, and may call back into the manager. Slot 42 (fc4_occmgr_iterate_by_bbox)
+ * runs its callbacks WITHOUT the lock; slot 44 (fc4_occmgr_iterate) holds it
+ * for the whole walk. fc4_occmgr_destroy must not race other calls. */
+typedef struct fc4_occmgr fc4_occmgr;
+
+/* An occupant's bounding box (occupant slot 10): x, y, z. */
+typedef struct fc4_occ_bbox {
+    float min[3];
+    float max[3];
+} fc4_occ_bbox;
+
+/* An occupant's manager box (§4.3): world cells, inclusive, one byte each. */
+typedef struct fc4_occ_cell_box {
+    uint8_t x0, z0, x1, z1;
+} fc4_occ_cell_box;
+
+/* fc4_occ_filter.kind. A NULL filter pointer is a null filter. */
+#define FC4_OCC_FILTER_ALL 0u  /* null filter: everything is included */
+#define FC4_OCC_FILTER_HOST 1u /* a caller's cISC4OccupantFilter (token; 0 = null): filter_includes decides */
+#define FC4_OCC_FILTER_TYPE 2u /* the manager's shared one-type filter with occ_type (§4.4) */
+
+typedef struct fc4_occ_filter {
+    uint32_t kind;
+    uint32_t occ_type;
+    uint64_t token;
+} fc4_occ_filter;
+
+typedef struct fc4_occmgr_host {
+    uint32_t struct_size; /* sizeof(fc4_occmgr_host) */
+    void* user;
+    /* AddRef / Release on an occupant. */
+    void (*add_ref)(void* user, uint64_t occ);
+    void (*release)(void* user, uint64_t occ);
+    /* Occupant slots 3 Init / 4 Shutdown (the base posts Create / Destroy, §5.6). */
+    void (*init)(void* user, uint64_t occ);
+    void (*shutdown)(void* user, uint64_t occ);
+    /* Slot 6 AsPropertyHolder() is non-NULL; slot 7 GetType(). */
+    bool (*has_property_holder)(void* user, uint64_t occ);
+    uint32_t (*occupant_type)(void* user, uint64_t occ);
+    /* Slot 10 GetBoundingBox (out starts zeroed). */
+    void (*bounding_box)(void* user, uint64_t occ, fc4_occ_bbox* out);
+    /* Slot 15 PostOccupantMessage(msg_type, data4) (queued, or sent at once). */
+    void (*post_message)(void* user, uint64_t occ, uint32_t msg_type, uint32_t data4);
+    /* Slots 25 / 26 Get- / SetOccupantManagerBBox; false = "no box". */
+    bool (*manager_bbox)(void* user, uint64_t occ, fc4_occ_cell_box* out);
+    void (*set_manager_bbox)(void* user, uint64_t occ, const fc4_occ_cell_box* box);
+    /* Slots 29 / 31 / 32 SetFlag / ClearFlag / IsFlagSet. */
+    void (*set_flag)(void* user, uint64_t occ, uint32_t flag);
+    void (*clear_flag)(void* user, uint64_t occ, uint32_t flag);
+    bool (*is_flag_set)(void* user, uint64_t occ, uint32_t flag);
+    /* filter.IsOccupantIncluded(occ) of a FC4_OCC_FILTER_HOST filter. */
+    bool (*filter_includes)(void* user, uint64_t filter, uint64_t occ);
+    /* Read: the occupant a saved reference names, holding one reference for
+     * the manager (iid 0x26BB767E); 0 = does not resolve. */
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+} fc4_occmgr_host;
+
+/* Diagnostics (fc4_occmgr_get_state). */
+typedef struct fc4_occmgr_state {
+    uint32_t struct_size;
+    uint8_t initialized, was_read, destroyed, filter_present;
+    uint32_t ref_count;
+    uint32_t filter_type; /* the shared filter's type, 0 while it is null */
+    float size_x, size_z;
+    int32_t counts[4]; /* manager cells X, Z; standard cells X, Z */
+    uint32_t rows, holders, nodes;
+    uint32_t lock_waits; /* times a thread waited for the lock */
+} fc4_occmgr_state;
+
+/* A list query's output: once per appended occupant, in order, after the query
+ * returns; each holds one reference for the caller (release with
+ * fc4_occmgr_release_list). */
+typedef void (*fc4_occ_list_sink)(void* ctx, uint64_t occ);
+/* An iteration callback: false stops the walk. */
+typedef bool (*fc4_occ_iterate_fn)(void* ctx, uint64_t occ);
+
+/* The object (constructed: reference count 0, not initialised). NULL when host
+ * is NULL or too small. */
+fc4_occmgr* fc4_occmgr_create(const fc4_occmgr_host* host);
+void fc4_occmgr_destroy(fc4_occmgr* m);
+/* QueryInterface (§1): the view's offset (0, 4 or 8), -1 for other IIDs. */
+int32_t fc4_occmgr_query_interface(uint32_t iid);
+uint32_t fc4_occmgr_add_ref(fc4_occmgr* m);
+/* At the last reference: Shutdown, then destroyed (the handle stays valid). */
+uint32_t fc4_occmgr_release(fc4_occmgr* m);
+bool fc4_occmgr_init(fc4_occmgr* m);
+bool fc4_occmgr_shutdown(fc4_occmgr* m);
+bool fc4_occmgr_set_city_size(fc4_occmgr* m, float fx, float fz);
+/* Slots 6-9 and the stored sizes; outputs may be NULL (cell bounds: 4 values). */
+bool fc4_occmgr_get_cell_sizes(const fc4_occmgr* m, float* x, float* z);
+bool fc4_occmgr_get_world_cell_count(const fc4_occmgr* m, int32_t* x, int32_t* z);
+bool fc4_occmgr_get_cell_count(const fc4_occmgr* m, int32_t* x, int32_t* z);
+bool fc4_occmgr_get_standard_cell_count(const fc4_occmgr* m, int32_t* x, int32_t* z);
+bool fc4_occmgr_get_city_size(const fc4_occmgr* m, float* x, float* z);
+bool fc4_occmgr_get_cell_bounds(const fc4_occmgr* m, int32_t out[4]);
+
+/* Conversions, slots 10-19 (§3.2-§3.4; single precision). Outputs may be NULL.
+ * Slot 12 [quirk]: *ox = 4*z - 256, *oz = 4 * (the value already in *oz; NULL
+ * reads 0); x is ignored. */
+void fc4_occ_world_cell_to_manager_cell(int32_t x, int32_t z, int32_t* ox, int32_t* oz);
+void fc4_occ_manager_cell_to_world_cell(int32_t x, int32_t z, int32_t* ox, int32_t* oz);
+void fc4_occ_world_cell_to_standard_city_cell(int32_t x, int32_t z, int32_t* ox, int32_t* oz);
+void fc4_occ_standard_city_cell_to_world_cell(int32_t x, int32_t z, int32_t* ox, int32_t* oz);
+void fc4_occ_world_cell_to_position(int32_t x, int32_t z, float* fx, float* fz);
+void fc4_occ_position_to_world_cell(float fx, float fz, int32_t* x, int32_t* z);
+void fc4_occ_manager_cell_to_position(int32_t x, int32_t z, float* fx, float* fz);
+void fc4_occ_position_to_manager_cell(float fx, float fz, int32_t* x, int32_t* z);
+void fc4_occ_standard_city_cell_to_position(int32_t x, int32_t z, float* fx, float* fz);
+void fc4_occ_position_to_standard_city_cell(float fx, float fz, int32_t* x, int32_t* z);
+/* The manager box of a bounding box (§5.1 steps 5-6: bytes, no clamp). */
+bool fc4_occ_cell_box_of(const fc4_occ_bbox* box, fc4_occ_cell_box* out);
+/* Slot 26 GetBoundingCells: up to 8 (x, z) pairs; returns their number. */
+uint32_t fc4_occ_bounding_cells(int32_t x, int32_t z, int32_t out[16]);
+
+/* Slots 20-25, 27 (§5, §6). */
+bool fc4_occmgr_insert(fc4_occmgr* m, uint64_t occ, uint32_t data4);
+bool fc4_occmgr_remove(fc4_occmgr* m, uint64_t occ, bool shutdown, uint32_t data4);
+bool fc4_occmgr_remove_occupants(fc4_occmgr* m, const fc4_occ_filter* filter, bool shutdown, uint32_t data4);
+bool fc4_occmgr_remove_occupants_of_type(fc4_occmgr* m, uint32_t occ_type, bool shutdown, uint32_t data4);
+bool fc4_occmgr_move(fc4_occmgr* m, uint64_t occ, bool post);
+bool fc4_occmgr_is_cell_empty(const fc4_occmgr* m, int32_t x, int32_t z);
+/* x / z are written only by the full scan (§15 quirk 7). */
+bool fc4_occmgr_find_occupant(const fc4_occmgr* m, uint64_t occ, bool search_all, int32_t* x, int32_t* z);
+
+/* First-occupant queries, slots 28-35 (§7): *out = the occupant (one
+ * reference for the caller) or 0. Standard-cell min / max: (x, z) or NULL. */
+bool fc4_occmgr_first_by_position(const fc4_occmgr* m, float fx, float fz, const fc4_occ_filter* filter, uint64_t* out);
+bool fc4_occmgr_first_by_position_typed(const fc4_occmgr* m, float fx, float fz, uint32_t occ_type, uint64_t* out);
+bool fc4_occmgr_first_in_cell(const fc4_occmgr* m, int32_t x, int32_t z, const fc4_occ_filter* filter, uint64_t* out);
+bool fc4_occmgr_first_in_cell_typed(const fc4_occmgr* m, int32_t x, int32_t z, uint32_t occ_type, uint64_t* out);
+bool fc4_occmgr_first_by_standard_cell(const fc4_occmgr* m, int32_t x, int32_t z, const fc4_occ_filter* filter,
+                                       uint64_t* out);
+bool fc4_occmgr_first_by_standard_cell_typed(const fc4_occmgr* m, int32_t x, int32_t z, uint32_t occ_type,
+                                             uint64_t* out);
+bool fc4_occmgr_first_by_standard_cells(const fc4_occmgr* m, const int32_t* min, const int32_t* max,
+                                        const fc4_occ_filter* filter, uint64_t* out);
+bool fc4_occmgr_first_by_standard_cells_typed(const fc4_occmgr* m, const int32_t* min, const int32_t* max,
+                                              uint32_t occ_type, uint64_t* out);
+
+/* List queries, slots 36-41 (§8). bbox min / max: (x, y, z) or NULL; cells:
+ * (x, z) or NULL. max_count is compared unsigned (-1 = all; 0 = false). */
+bool fc4_occmgr_occupants_by_bbox(const fc4_occmgr* m, const float* min, const float* max,
+                                  const fc4_occ_filter* filter, int32_t max_count, fc4_occ_list_sink sink, void* ctx);
+bool fc4_occmgr_occupants_by_bbox_typed(const fc4_occmgr* m, const float* min, const float* max, uint32_t occ_type,
+                                        int32_t max_count, fc4_occ_list_sink sink, void* ctx);
+bool fc4_occmgr_occupants_by_cells(const fc4_occmgr* m, const int32_t* min, const int32_t* max,
+                                   const fc4_occ_filter* filter, int32_t max_count, fc4_occ_list_sink sink, void* ctx);
+bool fc4_occmgr_occupants_by_cells_typed(const fc4_occmgr* m, const int32_t* min, const int32_t* max,
+                                         uint32_t occ_type, int32_t max_count, fc4_occ_list_sink sink, void* ctx);
+bool fc4_occmgr_occupants_by_standard_cells(const fc4_occmgr* m, const int32_t* min, const int32_t* max,
+                                            const fc4_occ_filter* filter, int32_t max_count, fc4_occ_list_sink sink,
+                                            void* ctx);
+bool fc4_occmgr_occupants_by_standard_cells_typed(const fc4_occmgr* m, const int32_t* min, const int32_t* max,
+                                                  uint32_t occ_type, int32_t max_count, fc4_occ_list_sink sink,
+                                                  void* ctx);
+
+/* Iteration, slots 42-47 (§9). A NULL callback is false. Slot 42: min / max
+ * (x, y, z) required; slot 44: world cells (x, y, z; y ignored) or NULL; slots
+ * 46 / 47: standard cells (x, z) or NULL. */
+bool fc4_occmgr_iterate_by_bbox(const fc4_occmgr* m, fc4_occ_iterate_fn fn, void* ctx, const float* min,
+                                const float* max, const fc4_occ_filter* filter);
+bool fc4_occmgr_iterate_by_bbox_typed(const fc4_occmgr* m, fc4_occ_iterate_fn fn, void* ctx, const float* min,
+                                      const float* max, uint32_t occ_type);
+bool fc4_occmgr_iterate(const fc4_occmgr* m, fc4_occ_iterate_fn fn, void* ctx, const int32_t* min, const int32_t* max,
+                        const fc4_occ_filter* filter);
+bool fc4_occmgr_iterate_typed(const fc4_occmgr* m, fc4_occ_iterate_fn fn, void* ctx, const int32_t* min,
+                              const int32_t* max, uint32_t occ_type);
+bool fc4_occmgr_iterate_by_standard_cells(const fc4_occmgr* m, fc4_occ_iterate_fn fn, void* ctx, const int32_t* min,
+                                          const int32_t* max, const fc4_occ_filter* filter);
+bool fc4_occmgr_iterate_by_standard_cells_typed(const fc4_occmgr* m, fc4_occ_iterate_fn fn, void* ctx,
+                                                const int32_t* min, const int32_t* max, uint32_t occ_type);
+/* Slot 48 ReleaseOccupantList: releases each of the n occupants once. */
+void fc4_occmgr_release_list(const fc4_occmgr* m, const uint64_t* list, size_t n);
+
+/* Diagnostics. fc4_occmgr_cell: a cell's list, front first (at most capacity
+ * occupants and single-cell bits; either output may be NULL); returns the
+ * length, -1 for a null cell or one outside the grid. fc4_occmgr_lock_depth:
+ * how deep the calling thread holds the lock (0 = not held). */
+bool fc4_occmgr_get_state(const fc4_occmgr* m, fc4_occmgr_state* out);
+int32_t fc4_occmgr_cell(const fc4_occmgr* m, int32_t x, int32_t z, uint64_t* out, uint8_t* single, size_t capacity);
+uint32_t fc4_occmgr_lock_depth(const fc4_occmgr* m);
+
+/* Save record (§13), version 1. Write: occupants as host references (class
+ * 0). Read: false unless version 1; occupants through resolve_ref, appended
+ * in the saved order; [choice] atomic (nothing but the was-read flag changes
+ * when the record fails). */
+bool fc4_occmgr_write(const fc4_occmgr* m, const fc4_ostream* out);
+bool fc4_occmgr_read(fc4_occmgr* m, const fc4_istream* in);
+
 /* ---- terrain (docs/specs/terrain.md) ------------------------------------------
  * The terrain's core (cSTETerrain, CLSID 0xE98F9525) and the simulation side of
  * its surface water (cSTESurfaceWater) and of the volcano lava (cSTEVolcanoLava):
@@ -8706,6 +8908,11 @@ static_assert(sizeof(fc4_tract_host) == (sizeof(void*) == 4 ? 368 : 736), "fc4_t
 static_assert(sizeof(fc4_tract_grow_result) == 112, "fc4_tract_grow_result layout");
 static_assert(sizeof(fc4_tract_state) == 288, "fc4_tract_state layout");
 static_assert(sizeof(fc4_tract_tuning) == 120, "fc4_tract_tuning layout");
+static_assert(sizeof(fc4_occ_bbox) == 24, "fc4_occ_bbox layout");
+static_assert(sizeof(fc4_occ_cell_box) == 4, "fc4_occ_cell_box layout");
+static_assert(sizeof(fc4_occ_filter) == 16, "fc4_occ_filter layout");
+static_assert(sizeof(fc4_occmgr_state) == 56, "fc4_occmgr_state layout");
+static_assert(sizeof(fc4_occmgr_host) == (sizeof(void*) == 4 ? 68 : 136), "fc4_occmgr_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
@@ -8749,6 +8956,11 @@ _Static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout"
 _Static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 336 : 672), "fc4_disasters_host layout");
 _Static_assert(sizeof(fc4_disasters_state) == 80, "fc4_disasters_state layout");
 _Static_assert(sizeof(fc4_disaster_fire) == 56, "fc4_disaster_fire layout");
+_Static_assert(sizeof(fc4_occ_bbox) == 24, "fc4_occ_bbox layout");
+_Static_assert(sizeof(fc4_occ_cell_box) == 4, "fc4_occ_cell_box layout");
+_Static_assert(sizeof(fc4_occ_filter) == 16, "fc4_occ_filter layout");
+_Static_assert(sizeof(fc4_occmgr_state) == 56, "fc4_occmgr_state layout");
+_Static_assert(sizeof(fc4_occmgr_host) == (sizeof(void*) == 4 ? 68 : 136), "fc4_occmgr_host layout");
 _Static_assert(sizeof(fc4_terrain_rect) == 16, "fc4_terrain_rect layout");
 _Static_assert(sizeof(fc4_terrain_post) == 20, "fc4_terrain_post layout");
 _Static_assert(sizeof(fc4_terrain_tuning) == 48, "fc4_terrain_tuning layout");
