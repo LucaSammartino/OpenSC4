@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "01_script_system",
+  "spec": ["automata 2", "automata 14.1"],
+  "description": "The script system's record is u16 1 and nothing else; Read fails on any other version.",
+  "steps": [
+    {"op": "automata_record", "class": "0x4A1B664E", "hex": "0100", "fields": {"version": 1}},
+    {"op": "automata_record", "class": "0x4A1B664E", "hex": "0200", "expect": false},
+    {"op": "automata_record", "class": "0x4A1B664E", "hex": "01", "expect": false}
+  ]
+}
