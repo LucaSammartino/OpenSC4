@@ -1529,34 +1529,7 @@ void UpdateSurroundingRetainingWalls(void* u, uint64_t lot) {
     Ctx(u)->expireAll = true;
 }
 
-// cISC4NetworkManager as compiled (network-manager.md §11.1, vtable
-// 0x00AA7AD0), slots 3-21. Declared here rather than through the SDK header,
-// which has an extra GetAllIntersectionPieces overload at slot 13 and so
-// puts CreateConnectionNode and AutoconnectLotNodes one slot late.
-class cFC4ISC4NetworkManager : public cIGZUnknown {
-public:
-    virtual bool Init() = 0;                                                                   // 3
-    virtual bool Shutdown() = 0;                                                               // 4
-    virtual void* GetNetworkTool(int32_t type, bool unique) = 0;                               // 5
-    virtual void DestroyNetworkOccupants(SC4List<cISC4Occupant*> const& list) = 0;             // 6, pop 4
-    virtual void QueueRemovals(bool queue) = 0;                                                // 7
-    virtual bool RemoveOrReplaceOccupant(void* tool, cISC4Occupant* occ, bool& replaced) = 0;  // 8
-    virtual bool IsOccupantSubwayStation(cISC4Occupant* occ) = 0;                              // 9
-    virtual intptr_t FindPipeOccupant(intptr_t a, int32_t b, intptr_t c) = 0;                  // 10
-    virtual intptr_t FindPipeConnectionOccupant(intptr_t a, int32_t b, intptr_t c) = 0;        // 11
-    virtual intptr_t GetAllIntersectionPieces(intptr_t a, intptr_t b, intptr_t c, intptr_t d) = 0;  // 12
-    virtual uint32_t MapPreviewTexture(uint32_t a, uint8_t& b) = 0;                            // 13
-    virtual uint32_t MapShadowTexture(uint32_t a, uint8_t& b, uint32_t c, uint32_t d) = 0;     // 14
-    virtual uint32_t MapPath(uint32_t a) = 0;                                                  // 15
-    virtual bool RegisterConstructionCrew(intptr_t crew) = 0;                                  // 16
-    virtual bool UnregisterConstructionCrew(intptr_t crew) = 0;                                // 17
-    virtual void* GetWaterOccupantFilter() = 0;                                                // 18
-    virtual void* GetSubwayOccupantFilter() = 0;                                               // 19
-    // 20, pop 28, AL; `out` gets the node's occupant with one reference for the caller
-    virtual bool CreateConnectionNode(cISC4Occupant*& out, int32_t type, SC4Point<int> const& cell, uint32_t edgesA,
-                                      uint32_t edgesB, uint32_t pathOverride, uint8_t c) = 0;
-    virtual void AutoconnectLotNodes(cISC4Lot* lot, SC4List<cISC4Occupant*> const& nodes) = 0;  // 21, pop 8
-};
+// cFC4ISC4NetworkManager: FC4LotDevInterfaces.h (the SDK header puts slots 14+ one late).
 constexpr uint32_t kOccupantTypeNetwork = 0xC772BF98;
 constexpr uint32_t kIID_cISC4NetworkOccupant = 0xA821EF94;
 constexpr uint32_t kNetworkFlagConnectionNode = 0x200000;
@@ -1588,8 +1561,8 @@ void AddNetworkConnectionNodes(void* u, uint64_t lot, const fc4_lotdev_conn_node
         const fc4_lotdev_conn_node& c = nodes[i];
         cISC4Occupant* o = nullptr;
         const SC4Point<int> cell(c.x, c.z);
-        const bool ok = nm->CreateConnectionNode(o, static_cast<int32_t>(c.node_type), cell, c.b, c.c, c.d,
-                                                 c.orientation);  // slot 20
+        const int32_t type = static_cast<int32_t>(c.node_type);
+        const bool ok = nm->CreateConnectionNode(o, type, cell, c.b, c.c, c.d, c.orientation);  // 20, abi: via cFC4I
         FC4_X87_CHECK("lotdev CreateConnectionNode");
         if (o == nullptr) {
             ++ctx->nodesFailed;
@@ -1602,7 +1575,7 @@ void AddNetworkConnectionNodes(void* u, uint64_t lot, const fc4_lotdev_conn_node
     {
         SC4List<cISC4Occupant*> list;
         for (cISC4Occupant*& o : made) list.push_back(o);
-        nm->AutoconnectLotNodes(SdkLotOf(lot), list);  // slot 21
+        nm->AutoconnectLotNodes(SdkLotOf(lot), list);  // slot 21, abi: via cFC4I
         FC4_X87_CHECK("lotdev AutoconnectLotNodes");
         ++ctx->autoconnects;
         // The list's references are ours (made): released here, not by the list.

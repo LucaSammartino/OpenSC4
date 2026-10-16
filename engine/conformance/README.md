@@ -2363,6 +2363,7 @@ manager), and the stub's `double`, `u32` (`n`).
 | extra: `DetermineLotSize`'s int32 score (ZQ9), `sx = 0` (ZQ10), missing candidates (ZQ7) | `zn15_41_determine_lot_size_int32_score` |
 | extra: `LayInJogStreets`' parallel test has a draft branch (§7.12, ZQ4) | `zn15_42_jog_parallel_draft` |
 | extra: a failed size check is an ABORT (§6, ZG17): the type-14 landfill cost of the whole region, skipFunds, error 1 replacing 3 or 4 | `zn15_43_size_abort_landfill_cost` |
+| extra: `Shutdown` deletes every lot through its own `DeleteLot`, x outer, z inner, before the network tools (§1.2, ZG32); with `trace_calls` the world also logs `remove_building_zot_prop`, `lot_shutdown` and `release_lot` (`lot`, `refs`) | `zn1_2_shutdown_deletes_lots` |
 
 The two extras took the numbers 30 and 31 before §15 gained tests 30–32, so tests 30, 31 and 32 are the vectors
 numbered 32, 33 and 34.

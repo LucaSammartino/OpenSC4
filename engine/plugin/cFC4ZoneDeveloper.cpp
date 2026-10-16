@@ -70,6 +70,7 @@ volatile LONG g_notePlopped = 0;
 volatile LONG g_noteHighlight = 0;
 volatile LONG g_noteListAllocator = 0;
 volatile LONG g_noteIterator = 0;
+volatile LONG g_noteNoLots = 0;
 
 // §9 [choice] (foundations §6.3, as the tract developer's): the session seed
 // S from `zonedev_seed` / FC4_ZONEDEV_SEED, else the cRZTime clock (seconds
@@ -377,13 +378,13 @@ void cFC4ZoneDeveloper::LogState(const char* what) {
     fc4::Log("zonedev %s: version=1 init=%u loaded=%u real=%u lots=%u map=%dx%d created=%u deleted=%u "
              "iterators=%u issued=%u parcellizations=%u dezones=%u reentrant=%u refused=%u built=%u streets=%u "
              "joins=%u demolitions=%u levellings=%u removed=%u posts=%u options=0x%X grid=%p view=0x%X "
-             "fallbacks=%u",
+             "fallbacks=%u can_create_refused=%u",
              what, st.initialized, st.loaded, st.real_mode, st.lot_count, st.map_x, st.map_z, st.lots_created,
              st.lots_deleted, master_.RegisteredIterators(), ctx_.iteratorsIssued, st.parcellizations, st.dezones,
              st.reentrant_calls, ctx_.newLotRefusals, ctx_.lotsBuilt, ctx_.streetsPlaced, ctx_.joins,
              ctx_.demolitions, ctx_.levellings,
              ctx_.removedOccupants, ctx_.posts, st.options, static_cast<void*>(FromToken(st.max_capacity_grid)),
-             st.view_value, fallbacks_.load());
+             st.view_value, fallbacks_.load(), ctx_.canCreateRefusals);
 }
 
 void cFC4ZoneDeveloper::LogMonth(int32_t julian) {
@@ -660,10 +661,26 @@ float cFC4ZoneDeveloper::GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, b
     return fc4_zonedev_lot_savvy_cell_altitude(core_, cellX, cellZ);
 }
 
+// Slot 20 (§8.4). ZG34 (tract-developer.md §4.15.3): a failed
+// CreateLotIfPossible after PerformAggregation's DeleteLots is not safe (the
+// original Grow then reaches later candidates' borrowed, freed lots). While
+// this host cannot build lots (zonedev_lot_changes off, or the lot pool /
+// constructor unavailable), the slot answers 0 for every rectangle *[choice,
+// ZG34]*: IsLotSuitable maps 0 to 0 (tract-developer.md §4.8 check 5), so no
+// lot is suitable and Grow never reaches aggregation, subdivision or
+// redevelopment. The core's own callers (CreateLotIfPossible, parcellization)
+// are unchanged: they fail cleanly at CreateLot, after nothing was deleted.
 int32_t cFC4ZoneDeveloper::CanCreateLot(int32_t x, int32_t z, int32_t w, int32_t h, bool zoneNotNeeded,
                                         bool waterAllowed, cISC4LotConfiguration* config) {
     Section sec(this);
     if (!sec.ok()) return 0;
+    if (!fc4::ZoneDevLotsConstructible(&ctx_)) {
+        ++ctx_.canCreateRefusals;
+        NoteFew(&g_noteNoLots, "zonedev: WARNING lots cannot be built (zonedev_lot_changes off, or the lot pool / "
+                               "constructor not available): CanCreateLot answers 0, so growth leaves existing lots "
+                               "alone (ZG34)");
+        return 0;
+    }
     return fc4_zonedev_can_create_lot(core_, x, z, w, h, zoneNotNeeded, waterAllowed, TokenOf(config));
 }
 
@@ -827,4 +844,5 @@ void cFC4ZoneDeveloper::TestState(FC4ZoneDevTestState& out) {
     out.newLotRefusals = ctx_.newLotRefusals;
     out.heldConfigs = static_cast<uint32_t>(ctx_.heldConfigs.size());
     out.lotsBuilt = ctx_.lotsBuilt;
+    out.canCreateRefusals = ctx_.canCreateRefusals;
 }
