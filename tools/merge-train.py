@@ -380,13 +380,29 @@ def union_hunks(wt, rel):
         body_t = body_t.split(NL, 1)[1] if NL in body_t else ""
         sides = (body_o, body_t)
         merged, terms = [], []
-        for side in (body_o.splitlines(), body_t.splitlines()):
-            for k, x in enumerate(side):
-                head, term = split_terminator(x) if k == len(side) - 1 else (x, None)
-                if head.strip():
-                    merged.append(head)
-                if term and term.rstrip() not in [t.rstrip() for t in terms]:
-                    terms.append(term)
+        for raw in (body_o, body_t):
+            side = raw.splitlines()
+            while side and not side[-1].strip():
+                side.pop()
+            if not side:
+                continue
+            last_head, last_term = split_terminator(side[-1])
+            content = list(side[:-1])
+            if last_head.strip():
+                content.append(last_head)
+            if content:
+                # In a union this side's last entry is never the merged list's last entry, whether or not
+                # the side carried the close, so it needs its trailing comma now.
+                for j in range(len(content) - 1, -1, -1):
+                    s = content[j].strip()
+                    if not s or s.startswith("//") or s.startswith("/*") or s.startswith("*"):
+                        continue
+                    if not content[j].rstrip().endswith(","):
+                        content[j] = content[j].rstrip() + ","
+                    break
+            if last_term and last_term.rstrip() not in [t.rstrip() for t in terms]:
+                terms.append(last_term)
+            merged.extend(content)
         if any(t.rstrip().endswith("*/") for t in terms):
             merged = close_comment(merged)
         else:
