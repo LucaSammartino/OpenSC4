@@ -5018,14 +5018,14 @@ final run glue16-final-2 on Konradshohe had every terrain line exact, but Konrad
 and no power pole on water, so the bridge and power-pole steps of IsNavigable ran only through their "nothing here"
 answers (23002/23002). The current choice is in brackets.
 
-- **TR19:** (terrain §10.4 step 4) for "the tile's deck height (tile slot 67) is known", the glue reads slot 67 as the
+- ~~**TR19:** (terrain §10.4 step 4) for "the tile's deck height (tile slot 67) is known", the glue reads slot 67 as the
   SDK's `cISC4NetworkOccupant::GetPassageCeiling(float&)`: "known" means it returns true, and the float is compared as
   a world height with alt + depth at the cell's north-west vertex (>= 20 m clearance). Is that the slot's meaning and
-  unit? [inferred; not exercised in game: a city with a ferry under a high bridge would test it]
-- **TR20:** (terrain §10.4 step 5) for "a power pole (type 0x2890D4DE) whose cell is (x, z)", the glue asks occupant
+  unit? [inferred; not exercised in game: a city with a ferry under a high bridge would test it]~~ **ANSWERED 2026-10-16 (re-answers25):** MATCHES. Network occupant slot 67 (vtable `0x00AA97B8`, `0x00619900`) is `GetPassageCeiling(float&)`: it reads property `0x4835C6A8` through the occupant's property holder and returns true with the float when present, false otherwise (`0x0061991D`–`0x0061992B`); slot 68 `SetPassageCeiling` (`0x0061B9A0`) stores it. The only writer is the bridge builder (`0x0062F005`), for pieces whose exemplar lacks `0xABE1B5A3`: the lowest of the cell's four corner heights minus the bridge rule's model offset, i.e. the absolute world height of the underside. IsNavigable (`0x0073EE95`–`0x0073EECD`) returns true when ceiling − (alt + depth at vertex (x, z)) is not below 20.0 (`0x00AA0F1C`), false when below or when the property is absent. terrain §10.4 step 4, test 24.
+- ~~**TR20:** (terrain §10.4 step 5) for "a power pole (type 0x2890D4DE) whose cell is (x, z)", the glue asks occupant
   manager slot 41 (the typed GetOccupantsByStandardCityCells) for the single cell min = max = (x, z), so any pole whose
   bounding cells include (x, z) blocks it. Does the original test the pole's own position cell instead? And is (x, z)
-  the visited spiral cell, not the query's centre? [the visited cell, bounding-cell overlap]
+  the visited spiral cell, not the query's centre? [the visited cell, bounding-cell overlap]~~ **ANSWERED 2026-10-16 (re-answers25):** (x, z) is the visited spiral cell (MATCHES); the pole test **DIFFERS**: after occupant manager slot 41 (`0x0073EDD4`, min = max = (x, z), type `0x2890D4DE`, -1), each returned occupant is queried for `cISC4PowerPoleOccupant` (`0xA8C86142`) and blocks only when its own cell (pole slot 8 `GetCell`) equals (x, z) (`0x0073EDF1`–`0x0073EE2F`); a bounds overlap alone does not block. Found → list freed, return false (`0x0073EEEA`). terrain §10.4 step 5, test 25.
 
 ## From the prop manager, lot configuration manager and tutorial cores (filed by the coordinator from the `cores15` lane's report, 2026-10-16; merged `03e2dcf`)
 
