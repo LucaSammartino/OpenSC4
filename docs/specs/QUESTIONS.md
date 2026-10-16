@@ -4061,10 +4061,15 @@ in-game harness with the FreeCity4 turbo clock and a message log.
   top of the demand effects the building already has as an occupied building. Do both apply? [yes: the port call
   moves the effect by the ratio change only. Logging the demand caps (demand.md §8) before and after an airport's
   first month with known office jobs in a turbo run would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (port-developers.md §4.3). `UpdateOccupantEffects` removes the effects at the old ratio and adds them at the new one (demand.md §7.1), starting from 0, on top of the effects the occupied building already adds, so a port gives (1 + usage) × its effects *[inferred: port lots take the common occupancy path]*.
-- **PD3:** what does lot condition 2 mean on a port lot (set when the port is stressed for more than 90 days)?
+- ~~**PD3:** what does lot condition 2 mean on a port lot (set when the port is stressed for more than 90 days)?
   [what it means on any lot (lot-developer.md §5.5): the presentation of a distressed lot; the port developer resets
   it to 0 each month it is not stressed. A turbo run with an airport above 96 % usage for four months, logging
-  condition and state changes of its lot, would show whether anything else reacts]
+  condition and state changes of its lot, would show whether anything else reacts]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES (port-developers.md §4.3).
+  Nothing reads condition 2 as "port stressed"; the readers are the generic ones: the base-texture decay variant 1
+  (re-picked on every condition change, lot-developer.md §6.5), the crime lot bit `0x2` (crime.md §6.7) and the MySim
+  `home_condition`. The lot developer's civic branch touches only 0 ↔ 1 and 5, 6 → 0, so condition 2 stays until
+  the port month resets it. Consequence *[compat]*: a stressed port that loses power is not set to 1, so the port
+  month does not skip it and it keeps updating.
 - ~~**PD4:** the seaport type declares an 11 × 5 terrain grid but ships 72 values (12 × 6). Data error, or are the
   dimensions counted in cells while the values are vertices? [data error as far as the code goes: the grid is
   rejected, so seaports never re-level terrain. Plopping a seaport on an uneven coast and comparing vertex heights
