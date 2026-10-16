@@ -319,3 +319,268 @@ this evaluator.
 - A rule's centre key compares the whole edge word, subtypes included, so a cell whose subtypes were set by §7 only
   matches rules written with those subtypes.
 - Conditions on metaposition 0 test the centre itself.
+
+---
+
+## 6. The rule stages of `SolveNetwork`
+
+### 6.1 Order (`SolveNetwork(type, resolve)`, `0x00635CB0`)
+
+`S` is the tool's set of cells to be solved (`+0x84`, built by `BuildSetOfCellsToBeSolved`, network-geometry.md §8).
+Sets are hash sets of cell keys; "for each key" means their iteration order (network-geometry.md §9.1).
+
+1. `P := BuildPaddedNetworkSet(S, 2)` (§6.2).
+2. `AssignEdgeSubtypes(P, R, reset = true)` (§7). It fills `R`, the cells whose subtypes could not be assigned, and
+   takes them out of `P`.
+3. Take the cells of `R` out of `S`.
+4. `SolveMultiTypeIntersections(S, out, type)` (§8.2). Take every cell of `out` out of `S` and `P`.
+5. For each type `u` = 0 … 12 (every type, not only the tool's), for each tile evaluator of `u` in order until a null
+   entry: `SolveUsingEvaluator(P, S, evaluator, u)` (§6.3).
+6. Put the cells of `R` back into `S`.
+7. The result (network-geometry.md §8 step 3.5): when not `resolve` and `S` is not empty, the unsolved-cell rule;
+   otherwise `AdjustTileSubsets(solved, resolve)` (§9.1), then `VerifyTileSubsets(solved)` (§9.2); either failing
+   gives `+0x78 − 1`; when both pass, the unsolved-cell rule on what is left in `S` (`+0x78` when `S` is empty).
+
+A cell is **solved** when it has a record in the tool's **solved list** `+0x98`: 12-byte records
+`{piece id (u32), orientation byte, cell key (u32)}`. The cell info's `+0xB8` holds the record's index.
+
+### 6.2 BuildPaddedNetworkSet(src, out, pad) (`0x00634480`)
+
+For each key of `src`: every cell of the square of half-width `pad` around it (clamped to the city,
+`GetPaddedRectAroundCell` *[inferred]*) that has a cell info and is **not fixed** (`+0x53 = 0`) goes into `out`. The
+source cell itself goes in even when it is fixed.
+
+### 6.3 SolveUsingEvaluator(P, S, evaluator, u) (`0x006358C0`)
+
+`W` := a new empty hash set (100 initial buckets). `ApplyNetworkRules(P, S, W, evaluator, u)`. Then every key of `W`
+goes back into `P`. So each evaluator gets one pass over the open cells; a cell claimed by an output (below) leaves `P`
+for good, for every later evaluator and type.
+
+### 6.4 ApplyNetworkRules(P, S, W, evaluator, ·, u) (`0x006340D0`, pop 24)
+
+The fifth argument (the tool's `+0x48`) is not used. While `S` is not empty and `P` is not empty:
+
+1. `c` := the first key of `P` in iteration order.
+2. `c` **qualifies** when all of these hold:
+   1. `c` has a cell info;
+   2. its type bits are exactly `u`'s: `(flags & 0x1FFF) = 1 << u`;
+   3. it is not a connection node (`+0x56 = 0`), **or** all of: the node occupant's `GetNetworkFlag() & 0x1FFF`
+      equals the cell's **whole** flags word (`+0x08`), and either the occupant's slot 13 (`0x00619110`,
+      network-manager.md §7.8) returns false, or, with the two edge words `(a, b)` it returns, the cell's edge word
+      `e` for `u` has no subtype or kind bit above 2 in any byte (`e & 0xF8F8F8F8 = 0`), `within(a, e)` and
+      `within(e, b)` (§1.3);
+   4. `Evaluate` (§5) finds a rule.
+3. If `c` does not qualify: move `c` from `P` to `W`.
+4. Otherwise, for each output of the rule, in order: `target` := `c` moved by the output's metaposition.
+   1. If `target = c`, note "self claimed".
+   2. If `target` is in `P`, remove it from `P`; else if it is in `W`, remove it from `W`; else **skip this output**.
+   3. If `target` is in `S`: remove it from `S`, append `{id, orientation, target}` to the solved list and set the
+      target's `+0xB8` to the record's index.
+5. If "self claimed" was not noted: move `c` from `P` to `W`.
+
+Consequences *[compat]*:
+
+- An output may claim a **padding** cell (in `P` but not in `S`): it is removed from `P` and gets no record.
+- A cell already claimed by an earlier output (no longer in `P` or `W`) is never claimed twice; the output is skipped.
+- Condition 2.3 compares the occupant's masked type bits with the cell's whole flags word, so a connection-node cell
+  that carries a non-type flag (for example `0x40000`) never qualifies *[quirk]*.
+
+---
+
+## 7. Edge subtypes (`AssignEdgeSubtypes(P, R, reset)`, `0x006359B0`)
+
+The rule files key on subtypes (the tens digit of an edge token). Before the rules run, the solver writes them:
+
+1. `Q := BuildPaddedNetworkSet(P, 1)`.
+2. If `reset`: for each cell of `Q` whose flags word has at most one bit set, and that is in `P`: clear the subtypes
+   of its edge word for its type (`ResetEdgeMinorTypes`, `0x00621440`: keep bits 0–2 of each byte), then recompute
+   the union `+0x4C`.
+3. For each cell `c` of `Q` whose flags word has exactly one bit set (so a bridge-step cell, with `0x40000`, is
+   skipped *[compat]*): `t` := its type; the scheme := record `+0x00` of `t` (§2.2). Scheme 1 runs §7.1, scheme 2
+   runs §7.2, other schemes nothing. Each gets `inP` = whether `c` is in `P`. If the scheme returns false: remove `c`
+   from `P` and add it to `R`.
+
+A cell of `Q` that is not in `P` can still land in `R`; step 6 of §6.1 then adds it to `S`, where it counts as an
+unsolved cell *[compat]*.
+
+In both schemes, "set byte `i` of `c`" changes `c`'s edge word for `t` and recomputes `c`'s union.
+
+### 7.1 Scheme 1: diagonal stubs (`0x00633A60`; Road, Street, Pipe, Subway, OneWayRoad, DirtRoad)
+
+Let `e` be `c`'s edge word for `t`. Classify its sides by `byte & 7` (`0x00620DF0`): **orthogonal** sides (kind 2)
+and **diagonal** sides (kind 1 or 3), each in side order. A cell is **purely diagonal** (`0x00623C90`) when its edge
+word for `t` has no orthogonal side and one or two diagonal sides.
+
+If `c` has no orthogonal side or no diagonal side, return true. Otherwise compute the **through marks** `M[0..3]`
+(below), then for each diagonal side `s` with `M[s] = 0`:
+
+1. `n` := the neighbour across `s`. No cell info: next side.
+2. `pd` := `n` is purely diagonal.
+3. If `inP`: if `c` is fixed and `pd`, return **false**. Set `c`'s byte `s` subtype to `pd` (0 or 1, bits 3–7
+   replaced). If not `pd`, also set its kind to 2 (`(byte & 0xF8) | 2`): the diagonal stub becomes an orthogonal side.
+4. If `n` is in `P`: the same on `n`'s byte `(s + 2) & 3`. Otherwise, if `pd` and `n` is fixed, return **false**.
+
+Return true.
+
+**Through marks** (`0x006335E0`). `M` starts all 0. For each side `s` = 0 … 3 with `M[s] = 0`:
+
+1. `k := byte(s) & 3`. If `k = 1`, `s2 := (s + 1) & 3`; if `k = 3`, `s2 := (s + 3) & 3`; otherwise next side.
+2. `k2 := byte(s2) & 3`. If `k + k2 ≠ 4`, next side. (The two sides form one diagonal through their shared corner.)
+3. Walk twice, first with `(dir, kind) = (s, k)`, then with `(s2, k2)`; stop at the first failed walk. A walk: step
+   to the neighbour across `dir`. No cell info: **fail**. Purely diagonal: **success**. Otherwise turn,
+   `dir := (dir + 1) & 3` when `kind = 3`, else `(dir − 1) & 3`; `k' :=` that neighbour's `byte(dir) & 3`; if
+   `k' + kind = 4`, continue from it with `kind := k'`, else **fail**.
+4. If both walks succeed: `M[s] := M[s2] := 1`.
+
+### 7.2 Scheme 2: switches and curves (`0x00633C10`; Rail, LightRail, Monorail)
+
+For each side `i` = 0 … 3 (re-reading `c`'s edge word each time): `b := byte(i)`, `k := b & 3`; skip when `k = 0`.
+Let `opp = (i + 2) & 3`, `left = (i + 3) & 3`, `right = (i + 1) & 3`; `kind(j) = byte(j) & 3`.
+
+- **`k = 2`**: `f := (kind(opp) ≠ 0 ? 1 : 0) | (kind(left) = 1 ? 2 : 0) | (kind(right) = 3 ? 4 : 0)`. If `f` is 0 or
+  1, skip the side; otherwise the subtype is `f` (2–7).
+- **`k` = 1 or 3**: skip the side unless `kind(opp) ≠ 0`, and also skip it when `kind(opp) = k` and
+  `k + kind(left) = 4`. Then `p := right` when `k = 1`, else `left`; the subtype is 2 when `kind(p) = 2` or
+  `kind(p) + k = 4`, else 1.
+
+The new byte is `(subtype << 3) | k` (bit 2 is dropped). Then:
+
+1. If `inP`: if `c` is fixed, return **false**; set `c`'s byte `i`.
+2. `n` := the neighbour across `i`. If `n` is in `P`: set `n`'s byte `opp` to the same value (when `n` has a cell
+   info). Otherwise, if `n` has a cell info and is fixed, return **false**.
+
+Return true.
+
+---
+
+## 8. Multi-type intersections
+
+### 8.1 The solutions file (instance `0x10000001`)
+
+**Solutions.** For each pair of types `a < b` (by index), `ReadAllMultiTypeIntersectionSolutions` (`0x00641D30`) reads
+the section `[<NameA><NameB>IntersectionSolutions]`, for example `[RoadRailIntersectionSolutions]`, through
+`0x0063E340` and the entry callback `0x0063D080`:
+
+- the entry's key is ignored (keys may repeat);
+- the value is split on commas (`RZParseDelimitedText`) and must give **exactly 5** fields, else the entry is ignored:
+  `edgesA, edgesB, pieceId, rot, flip`, each read with `RZConvertToUint32A` (hex with `0x`, else decimal). The edge
+  words are written whole, in hex (`0xSSEENNWW`, §1.3), not with the per-side tokens of §3;
+- the pair's table maps `(edgesA, edgesB)` to `{pieceId, rot | (flip ≠ 0 ? 0x80 : 0)}`; a later entry with the same
+  key overwrites the earlier one.
+
+**Override matrix.** In the section `[AllowedOverrides]`, each entry's key is ignored and its value is
+`NameA,NameB` (`SC4NetworkLoadOverrideMatrix`). Both names are converted with `NetworkNameToID` and the bits are set
+**symmetrically**: row A gets bit B and row B gets bit A. The 13 rows are copied into the type records (`+0xFC`).
+
+### 8.2 SolveMultiTypeIntersections(S, out, primary) (`0x00634820`)
+
+`primary` is the tool's type. `prio` is the table `0x00AA8A18`:
+
+| Type | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| prio | 3 | 5 | 6 | 2 | 1 | 0 | 4 | 1 | 7 | 7 | 3 | 0 | 5 |
+
+`typeOf(bits)` (`0x00623E60`) is the lowest type 0–11 whose bit is in `bits`, and **12 when none is**, so the
+GroundHighway bit and every non-type flag bit read as type 12 *[quirk]*. `beats(j, i)` is true when
+`prio[i] < prio[j]`, or the priorities are equal, `i ≠ primary` and `j = primary`. `elevated(x)` is `x & 0x304 ≠ 0`
+for a set of type bits. "Remove type `i`" means: clear its bit in the flags, clear its edge word, recompute the union,
+and when `i` = 10 clear the one-way byte `+0x50`.
+
+For each key `c` of `S`, with `f` its flags word, `lo` the lowest set bit of `f` and `rest = f − lo`:
+
+1. `rest = 0`: next cell.
+2. **Three or more bits** (`rest` has two or more bits): `A := typeOf(lo)`, `B :=` typeOf(the lowest bit of `rest`),
+   `C :=` typeOf(`rest` without its lowest bit). For `i` in (A, B, C), then `j` in (A, B, C): if `beats(j, i)`,
+   `covers(e[j], e[i])` and `elevated(bit i) = elevated(bit j)`, **remove type `i`** and start again at step 1 for
+   this cell with the new flags. The edge words compared are those read when the cell's analysis started. If no pair
+   qualifies, next cell.
+3. **Two bits**: `A := typeOf(lo)`, `B := typeOf(rest)`. A connection node (`+0x56`): next cell.
+   1. Winner and loser: if `beats(B, A)`, `W = B`, `L = A` and the winner's bits are `rest`; otherwise `W = A`,
+      `L = B` and the winner's bits are `lo`. `eW := e[W]`, `eL := e[L]`.
+   2. **Covered**: if `covers(eW, eL)`: when row `W` of the override matrix has bit `L`, clear `e[L]`, recompute the
+      union, set the flags to **the winner's bits only**, and clear `+0x50` if `L` = 10. In both cases, next cell; no
+      piece comes from this stage, and the cell stays in `S` for the evaluators.
+   3. **Crossing**: if `elevated(W's bits) = elevated(L's bits)`, clear every byte of `eL` whose low two bits equal
+      `eW`'s and are non-zero (the shared arms belong to the winner); store `eL` and recompute the union; if `L` = 10,
+      `+0x50 &= D(eL)`. Then, whatever the elevation, `+0x50 &= ~D(U)`, where `U` is the OR of the edge words of
+      Road, Street, Avenue and DirtRoad.
+   4. Look up the table of the pair `(min(W, L), max(W, L))` with the key (edge word of the lower-index type, edge
+      word of the higher-index type), using the updated `eL`. Not found: next cell (it stays in `S`).
+   5. Found: set `+0xB8` and append `{pieceId, orientation, c}` to the solved list; append `c` to `out`; append
+      `(x, z, f)` to the tool's potential-intersection list `+0x08` (the list that
+      `QueryUserForPotentialIntersections` walks, §10.7).
+
+`+0x50` is the cell's one-way direction byte (two bits per side).
+
+---
+
+## 9. Tile subsets
+
+### 9.1 Conflict patches: `[RuleOverrides]` and AdjustTileSubsets
+
+**File** (instance `0x10000002`, section `[RuleOverrides]`, entry callback `0x0063D1E0`). Each entry's key and value
+are both six numbers `idA, rotA, flipA, idB, rotB, flipB`, each parsed with the pattern
+`" %i , %i , %d , %i , %i , %d"`, which must yield 6 fields (`%i` accepts `0x` hex). The key is the **pattern**, the
+value the **replacement**; an orientation is `rot | (flip ≠ 0 ? 0x80 : 0)`. Entries go into an ordered map
+(`0x00B466D0`) keyed by `idA`, several per `idA` allowed, in file order *[inferred]*.
+
+A pattern describes two pieces side by side, **B east of A** (B on A's side 2), in a normalised frame.
+
+**PatchTilePair(A, B, s)** (`0x006337E0`), where B is the piece on A's side `s` and the patterns are those with
+`idA = A.id`:
+
+1. Normalise both orientations to the frame where B is east: an unflipped orientation's rotation becomes
+   `(rot + 2 − s) & 3`; a flipped one's `(rot + s + 2) & 3`, keeping bit 7. Call them `nA`, `nB`.
+2. For each pattern in map order with `idB = B.id`:
+   1. If the flip bits of the pattern's A orientation and `nA` differ, compare against `nA ^ 0x82` and `nB ^ 0x82`
+      (the pair mirrored north–south, B still east); otherwise against `nA` and `nB`.
+   2. It matches when the A orientation equals, and either `B.id = 0` or the B orientation equals.
+   3. On a match: if the replacement's `idA` is 0, return **2** (a conflict that cannot be patched). Otherwise A and B
+      take the replacement's ids and orientations (`^ 0x82` again when step 2.1 mirrored), the orientations are
+      de-normalised (unflipped `(rot + s + 2) & 3`, flipped `(rot + 2 − s) & 3`), and the result is **1**.
+3. No match: **0**.
+
+**AdjustTileSubsets(solved, resolve)** (`0x00634D70`):
+
+1. An empty conflict table: return true.
+2. `budget := max(100, 8 × the solved count)`.
+3. A **pass**: `changed := false`; for each record A of the solved list, in index order:
+   1. `tries := 0`. For each side `s` = 0 … 3, with `n` the cell info across `s` (none: next side):
+      1. B := `n`'s solved record when `n.+0xB8 ≥ 0`. Otherwise, when `n` has an occupant, an **existing** B =
+         `{occupant PieceId (slot 23), occupant orientation (slot 26), n's key}`. Otherwise next side.
+      2. If `n` is fixed (`+0x53`) or a connection node (`+0x56`): B becomes an existing copy with **id 0** (so only
+         patterns with `idB = 0` match it).
+      3. `r := PatchTilePair(A, B, s)`. If `r = 0` and B is existing, try the reverse once:
+         `r := PatchTilePair(B, A, (s + 2) & 3)` with the patterns of `B.id`.
+      4. `r = 1`: `budget −= 1`; below 0, return **false**. `changed := true`. An existing B is appended to the
+         solved list (and `n.+0xB8` set), so it is placed again with its new piece. `tries += 1`; if `tries > 100`, go
+         to the next record; otherwise restart the sides of A from 0.
+      5. `r = 2`: if not `resolve`, return **false**. Otherwise put A's cell back into `S`, decrement `+0xB8` of
+         every later record's cell, remove A from the list, and **start the pass again from the first record** with
+         `changed := false`. A's own `+0xB8` is left as it was *[quirk]*.
+4. At the end of a pass: if `changed`, run another pass; otherwise return true.
+
+### 9.2 Pattern checks: `[TileVerifiers]` and VerifyTileSubsets
+
+**File** (the network INI of §2.1 step 1, section `[TileVerifiers]`, entry callback `LoadVerifiersCallback`
+`0x0063F7A0`). Each entry adds one **verifier** for the piece id in its key (hex, `RZAtoUint32HexA`). The value is a
+list of groups of four comma-separated tokens `m, id, rot, flip`: `m` by `atol`, `id` in hex, `rot` by `atol`, and
+`flip` non-zero adds `0x80` to the orientation. Each group is a **requirement** `{id, orientation, m}`. Several
+entries for one piece id give several verifiers, any one of which may pass.
+
+**VerifyTileSubsets(solved)** (`0x00635290`): with no verifiers, return true. For each record A, in index order:
+
+1. No verifier for `A.id`: keep A.
+2. A verifier **passes** when every requirement holds:
+   1. `(dx, dz)` := the offset of `m`, then turned by A's orientation: when rotation bit 0 is set,
+      `(dx, dz) := (−dz, dx)`; when rotation bit 1 is set, `(dx, dz) := (−dx, −dz)`; when flipped, `dx := −dx`.
+   2. The cell `(A.x + dx, A.z + dz)` lies inside the city (both coordinates below the city size, compared unsigned)
+      and has a cell info.
+   3. Its piece: its solved record, else its occupant's PieceId and orientation, else id 0 and orientation 0.
+   4. The relative orientation: when the flip bits of A's and the piece's orientations differ,
+      `(o + oA) & 0x83`, otherwise `(o − oA + 8) & 0x83` (byte arithmetic). The piece id must equal the requirement's,
+      and the relative orientation must equal the requirement's orientation.
+3. If no verifier of `A.id` passes: put A's cell back into `S`, decrement `+0xB8` of every later record's cell, remove
+   A from the list (the next record moves into its index) and note a failure.
+
+Return true when nothing was removed.
