@@ -4032,9 +4032,16 @@ in-game harness with the FreeCity4 turbo clock and a message log.
 - ~~**DP2:** 409 template saves hold `toolType` 4, while the shipped tool's "none" is 8. [written by an earlier build;
   every value loads the same and is overwritten when the tool opens. Nothing more to settle unless a value other
   than 4–8 turns up]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (dispatch.md §7). This build writes `toolType` only with 8 (`0x0046A116`, `0x0046A4F6`, `0x0046A56B`) or with a handled type in `BeginDispatchTool` (`0x0046B0AA`), so 4 can only come from an earlier build. All values load the same.
-- **DP3:** dispatch states: 0 idle, 3 dispatched and 5 working are inferred names; who sets the others? [the automata
+- ~~**DP3:** dispatch states: 0 idle, 3 dispatched and 5 working are inferred names; who sets the others? [the automata
   controllers; only state 5 changes `active`. A trace of `UpdateDispatchState` while a fire engine answers a fire in
-  a turbo run would list the states in order]
+  a turbo run would list the states in order]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES (the automata set
+  them; only 5 changes `active`), with the names corrected (dispatch.md §4.3, table with every setter). 1 = route
+  blocked (`0x0052F2B2`), 2 = finished at the scene (fire truck `0x00533679`, patrol car `0x00543C46`, helicopter
+  `0x00535518`), 3 = on the way (`BeginDispatch`, re-path `0x0052FEDA`), 4 = airplane only (`0x00504621`), 5 = at
+  the scene (arrival `0x0052F2A9`), 6 = going home (slot 29 `0x0052F330`, slot 198 `0x0052F570`). State 0 is set
+  only by the helicopter and the airplane; a ground vehicle's record ends on event 3 when the vehicle is removed. The
+  fire engine's sequence is 3 → 5 → 2 → 6 → event 3, so the §4.7 worked example (which said "state 0") is
+  corrected. Setter: emergency vehicle `SetDispatchState` `0x0052FF60` (slot 25), getter `0x00505020` (slot 26).
 - ~~**DP4:** (cores12a) clearing the available pylons shuts down and releases every pylon. Is that right? [yes]~~ **ANSWERED 2026-10-15 (re-answers15):** MATCHES (dispatch.md §4.1, "Dropping pylons"). `0x00469E10` walks the vector from the back; each non-null pylon gets `Shutdown` (pylon slot 5, which also releases its source occupant when initialized), then `Release`, then the pop. A pylon that is also the active one is shut down too; the active pointer keeps its own reference.
 - ~~**DP5:** (cores12a) clearing the active pylon is `SetActivePylon(null)`: UI state 1, then release. Is that right?
   [yes]~~ **ANSWERED 2026-10-15 (re-answers15):** MATCHES for `SetActivePylon` (`0x00469630`: old pylon `SetUIState(1)` and `Release`, no `Shutdown`; new pylon AddRef and `SetUIState(2)`) and for `Init` when loaded. Two other paths do different things. The manager's `Shutdown` shuts the active pylon down and releases it, with no UI state. `EndDispatchTool` does not touch the active pylon at all. Station removal and `EndDispatch` clear it with `SetActivePylon(null)`.
