@@ -211,15 +211,11 @@ impl TutorialSystem {
                 }
                 self.s.borrow_mut().start_tried = true;
             }
-            msg::END_TUTORIAL => {
-                if self.s.borrow().window.is_some() {
-                    self.end_tutorial(data == 0);
-                }
+            msg::END_TUTORIAL if self.window().is_some() => {
+                self.end_tutorial(data == 0);
             }
-            msg::PRE_SAVE => {
-                if self.s.borrow().end_pending {
-                    self.end_tutorial(true);
-                }
+            msg::PRE_SAVE if self.s.borrow().end_pending => {
+                self.end_tutorial(true);
             }
             _ => {}
         }

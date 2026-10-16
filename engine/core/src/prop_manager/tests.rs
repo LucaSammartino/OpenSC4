@@ -35,6 +35,9 @@ struct Occ {
     shutdowns: u32,
 }
 
+/// Buildings: token → (cell, props property).
+type Buildings = BTreeMap<u64, ((i32, i32), BuildingProps)>;
+
 #[derive(Default)]
 struct Game {
     log: RefCell<Vec<String>>,
@@ -48,7 +51,7 @@ struct Game {
     /// Lots: token → cell rect.
     lots: RefCell<BTreeMap<u64, CellRect>>,
     /// Buildings: token → (cell, props property).
-    buildings: RefCell<BTreeMap<u64, ((i32, i32), BuildingProps)>>,
+    buildings: RefCell<Buildings>,
     services: Cell<bool>,
 }
 

@@ -32,15 +32,21 @@ struct Cfg {
     generic_for: Option<u32>,
 }
 
+/// Exemplar keys and their contents.
+type Keys = Vec<(ResKey, Option<Rc<PropertyHolder>>)>;
+/// Per configuration ID: (families, size).
+type Meta = BTreeMap<u32, (Vec<u32>, (u32, u32))>;
+/// Building type → (capacity, footprint, exemplar).
+type BuildingTypes = BTreeMap<u32, (u16, Option<(f32, f32)>, Option<Rc<PropertyHolder>>)>;
+
 #[derive(Default)]
 struct Game {
     log: RefCell<Vec<String>>,
     refs: RefCell<BTreeMap<u64, i64>>,
     detail: Cell<u32>,
     /// Exemplar keys and their contents (`None`: `Load` fails).
-    keys: RefCell<Vec<(ResKey, Option<Rc<PropertyHolder>>)>>,
-    /// Per configuration ID: (families, size).
-    meta: RefCell<BTreeMap<u32, (Vec<u32>, (u32, u32))>>,
+    keys: RefCell<Keys>,
+    meta: RefCell<Meta>,
     no_resource_manager: Cell<bool>,
     next: Cell<u64>,
     serial: Cell<u32>,
@@ -49,7 +55,7 @@ struct Game {
     filters: RefCell<BTreeMap<u64, BTreeSet<u32>>>,
     filter_calls: Cell<u32>,
     /// Building type → (capacity, footprint, exemplar).
-    building_types: RefCell<BTreeMap<u32, (u16, Option<(f32, f32)>, Option<Rc<PropertyHolder>>)>>,
+    building_types: RefCell<BuildingTypes>,
     building_families: RefCell<BTreeMap<u32, Vec<u32>>>,
     flora_types: RefCell<BTreeMap<u32, f32>>,
     flora_families: RefCell<BTreeMap<u32, Vec<u32>>>,
