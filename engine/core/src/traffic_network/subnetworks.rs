@@ -265,7 +265,6 @@ impl Cx<'_> {
 
     /// Works on §4.12 for at most `max_cells` cells (x inner, z outer) of
     /// the cursor of [`Self::begin_subnetwork_info`]. After the last cell,
-
     /// adds the neighbour connections and publishes. Returns true when the    /// pass is finished (or none is running).
     pub(crate) fn work_on_subnetwork_info(&mut self, max_cells: usize) -> bool {
         let Some(mut i) = self.s.subnet_info_cursor else {
