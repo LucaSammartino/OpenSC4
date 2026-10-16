@@ -273,13 +273,10 @@ impl Run<'_, '_> {
             cs::FULL_TRIPS => {
                 let done = self.trip_slice(true);
                 if done {
-                    // End of FullTrips: the counts built in this pass are
-                    // published (§4.4).
-                    if self.st.shadow_hypotheses & super::state::HYP_TYPE_COUNTS_SWAP != 0 {
-                        std::mem::swap(&mut self.st.type_count_published, &mut self.st.type_count_building);
-                    } else {
-                        self.st.type_count_published = self.st.type_count_building;
-                    }
+                    // End of FullTrips: the published and building sets are
+                    // swapped (TS56, confirmed; the traffic_shadow_hypotheses
+                    // bits were retired once it was).
+                    std::mem::swap(&mut self.st.type_count_published, &mut self.st.type_count_building);
                 }
                 done
             }

@@ -263,21 +263,9 @@ impl Cx<'_> {
         self.s.subnet_info_cursor = None;
     }
 
-    /// Works on §4.12 with a **local** scan of the whole city (x inner, z
-    /// outer) for at most `max_cells` cells. This is DoPostCityInit's
-    /// synchronous pass (§1 step 7) and the conformance vectors' entry point;
-    /// the work cycle instead drives the simulator's own scanning iterator
-    /// through [`Self::subnetwork_info_cell`] (TS64). The budget is tested
-    /// before each cell, as the original's deadline is. Returns true when the
-    /// §4.12 after the last cell: the neighbour connections, then the working
-    /// vector published.
-    pub(crate) fn finish_subnetwork_info(&mut self) {
-        self.accumulate_neighbours();
-        self.s.subnet_published = self.s.subnet_working.clone();
-    }
-
     /// Works on §4.12 for at most `max_cells` cells (x inner, z outer) of
     /// the cursor of [`Self::begin_subnetwork_info`]. After the last cell,
+
     /// adds the neighbour connections and publishes. Returns true when the    /// pass is finished (or none is running).
     pub(crate) fn work_on_subnetwork_info(&mut self, max_cells: usize) -> bool {
         let Some(mut i) = self.s.subnet_info_cursor else {
