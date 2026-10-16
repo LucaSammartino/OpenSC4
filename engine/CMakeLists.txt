@@ -324,6 +324,10 @@ if(FC4_IS_WIN32_X86)
         # The dispatch manager's GZCOM class (enable = dispatch).
         plugin/cFC4Dispatch.cpp
         plugin/cFC4Dispatch.h
+        plugin/cFC4NetworkManager.cpp
+        plugin/cFC4NetworkManager.h
+        plugin/cFC4NetworkLotManager.cpp
+        plugin/cFC4NetworkLotManager.h
         # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp

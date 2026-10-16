@@ -122,6 +122,13 @@
 //   clock24_shadow = 0 / 1        the 24-hour clock shadow (default 0; needs the
 //                                 ORIGINAL clock: do not enable clock24;
 //                                 FC4Clock24Shadow.h)
+//   enable = netmgr               the network manager's replacement class
+//                                 (city component 53; off by default; the
+//                                 network tools stay the game's: §13;
+//                                 cFC4NetworkManager.h)
+//   enable = netlot               the network lot manager's replacement class
+//                                 (city component 11; off by default;
+//                                 cFC4NetworkLotManager.h)
 //   netmgr_shadow = 0 / 1         the network manager / network lot manager shadow
 //                                 (default 0; needs the ORIGINAL managers;
 //                                 FC4NetMgrShadow.h)

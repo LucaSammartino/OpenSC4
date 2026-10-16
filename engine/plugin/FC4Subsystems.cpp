@@ -54,6 +54,8 @@
 #include "FC4DemolitionShadow.h"  // the glue17 lane: demolition_shadow
 #include "FC4DispatchShadow.h"    // the glue17 lane: dispatch_shadow
 #include "cFC4Dispatch.h"        // the glue17 lane: enable = dispatch
+#include "cFC4NetworkManager.h"    // the glue24 lane: enable = netmgr
+#include "cFC4NetworkLotManager.h" // the glue24 lane: enable = netlot
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -308,6 +310,17 @@ const ClassEntry kDispatchClasses[] = {
     {kFC4_CLSID_cSC4DispatchManager, "cSC4DispatchManager", &CreateFC4DispatchManager},
 };
 
+// docs/specs/network-manager.md §1: the network manager (city component 53)
+// and the network lot manager (component 11). Off by default (glue24):
+// `enable = netmgr` / `enable = netlot`. The network tools and the network
+// occupants stay whoever the city runs (§13).
+const ClassEntry kNetworkManagerClasses[] = {
+    {kFC4_CLSID_cSC4NetworkManager, "cSC4NetworkManager", &CreateFC4NetworkManager},
+};
+const ClassEntry kNetworkLotClasses[] = {
+    {kFC4_CLSID_cSC4NetworkLotManager, "cSC4NetworkLotManager", &CreateFC4NetworkLotManager},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -343,6 +356,9 @@ const Subsystem kSubsystems[] = {
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
     {"dispatch", nullptr, kDispatchClasses, sizeof(kDispatchClasses) / sizeof(kDispatchClasses[0]), false},
+    {"netmgr", nullptr, kNetworkManagerClasses, sizeof(kNetworkManagerClasses) / sizeof(kNetworkManagerClasses[0]),
+     false},
+    {"netlot", nullptr, kNetworkLotClasses, sizeof(kNetworkLotClasses) / sizeof(kNetworkLotClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
