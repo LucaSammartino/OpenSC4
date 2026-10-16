@@ -19,8 +19,8 @@ use super::catalogue::SharedLotConfigCatalogue;
 use super::{
     kind, prop, BuildingInfo, LcmService, LotConfigHost, LotConfigObject, Rect2D, CELL_METRES,
     CLSID_LOT_CONFIG_MANAGER, FIX_EDGE_BITS, FIX_EPS_BITS, FIX_MARGIN_BITS, IID_BUILDING_DEVELOPMENT, IID_FLORA,
-    IID_LOT_CONFIG_MANAGER,
-    IID_PROP_MANAGER, IID_SERIALIZABLE, IID_UNKNOWN, LOT_CONFIG_GROUP, MSG_POST_CITY_INIT, RECORD_VERSION,
+    IID_LOT_CONFIG_MANAGER, IID_PROP_MANAGER, IID_SERIALIZABLE, IID_UNKNOWN, LOT_CONFIG_GROUP, MSG_POST_CITY_INIT,
+    RECORD_VERSION,
 };
 
 /// `QueryInterface` (§B1): `1`, `0xC8EDBEC0` and `cIGZSerializable`; the
@@ -735,8 +735,7 @@ impl LotConfigManager {
             let (old_w, old_d) = (o.max_x - o.min_x, o.max_z - o.min_z);
             if (old_w - w).abs() > 0.0 || (old_d - d).abs() > 0.0 {
                 let (x, z) = (o.offset[0], o.offset[2]);
-                (o.min_x, o.min_z, o.max_x, o.max_z) =
-                    (x - w * 0.5, z - d * 0.5, x + w * 0.5, z + d * 0.5);
+                (o.min_x, o.min_z, o.max_x, o.max_z) = (x - w * 0.5, z - d * 0.5, x + w * 0.5, z + d * 0.5);
                 note(3);
                 changed = true;
             }
@@ -748,10 +747,7 @@ impl LotConfigManager {
             // §B5.7 (`0x3D48B43A`, `0x3D4CCCCD`, `0x3A83126F`), so the
             // footprint must sit ~0.049 m inside every lot edge.
             let margin = f32::from_bits(FIX_MARGIN_BITS);
-            let (ex, ez) = (
-                lw - f32::from_bits(FIX_EDGE_BITS),
-                ld - f32::from_bits(FIX_EDGE_BITS),
-            );
+            let (ex, ez) = (lw - f32::from_bits(FIX_EDGE_BITS), ld - f32::from_bits(FIX_EDGE_BITS));
             let eps = f32::from_bits(FIX_EPS_BITS);
             if o.min_x < margin || o.min_z < margin || ex + eps < o.max_x || ez + eps < o.max_z {
                 note(4);
@@ -761,11 +757,7 @@ impl LotConfigManager {
             // `x := (maxX + minX) × 0.5`, `z := (minZ + maxZ) × 0.5`. A
             // rebuilt footprint is centred on the offset, so this fires
             // only for an unchanged footprint.
-            if o.offset[0] < o.min_x
-                || o.offset[0] > o.max_x
-                || o.offset[2] < o.min_z
-                || o.offset[2] > o.max_z
-            {
+            if o.offset[0] < o.min_x || o.offset[0] > o.max_x || o.offset[2] < o.min_z || o.offset[2] > o.max_z {
                 o.offset[0] = (o.max_x + o.min_x) * 0.5;
                 o.offset[2] = (o.min_z + o.max_z) * 0.5;
                 note(5);
