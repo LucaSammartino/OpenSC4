@@ -42,6 +42,7 @@
 #include "FC4HistoryShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
+#include "FC4DemolitionPriceShadow.h"  // the glue23 lane: demolition_price_shadow
 #include "FC4DemolitionShadow.h"  // the glue17 lane: demolition_shadow
 #include "FC4DispatchShadow.h"    // the glue17 lane: dispatch_shadow
 #include "cFC4TractDeveloper.h"
@@ -572,6 +573,7 @@ public:
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
                 CitySitShadowCityLoaded(CurrentCity());  // the glue17 lane: citysit_shadow = 1 only
                 DemolitionShadowCityLoaded(CurrentCity());  // demolition_shadow = 1 only
+                DemolitionPriceShadowCityLoaded(CurrentCity());  // the glue23 lane: demolition_price_shadow = 1 only
                 DispatchShadowCityLoaded(CurrentCity());  // dispatch_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
@@ -597,6 +599,7 @@ public:
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
                 CitySitShadowCityShutdown();  // the glue17 lane: citysit_shadow's summary, then the core goes
                 DemolitionShadowCityShutdown();
+                DemolitionPriceShadowCityShutdown();  // the glue23 lane
                 DispatchShadowCityShutdown();
                 AutotestOnCityShutdown(false);
                 break;
@@ -633,6 +636,7 @@ public:
                 fc4::ZoneDevMonthLine(julian);                  // enable = zonedev only (the month status line)
                 ZoneDevShadowMonth(CurrentCity(), julian);      // zonedev_shadow = 1 only
                 CitySitShadowMonth(CurrentCity(), julian);  // the glue17 lane: citysit_shadow = 1 only
+                DemolitionPriceShadowMonth(CurrentCity(), julian);  // the glue23 lane
                 DemolitionShadowMonth(CurrentCity(), julian);  // demolition_shadow = 1 only
                 DispatchShadowMonth(CurrentCity(), julian);    // dispatch_shadow = 1 only
                 ++monthsSinceLoad_;

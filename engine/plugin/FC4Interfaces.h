@@ -1465,6 +1465,12 @@ template <typename T> class SC4List;
 // list is std::list<cRZAutoRefCount<cISC4Lot>>.
 class cFC4ISC4Demolition : public cIGZUnknown {
 public:
+    // [abi] Slots 3 and 4 are Init and Shutdown (docs/abi/interfaces.tsv,
+    // demolition.md §4.1); without them every later slot sits two places
+    // early in the vtable. Declared here so the implementing class's table
+    // matches the game's.
+    virtual bool Init() = 0;                                               // 3  [abi-ret] eax-or-void
+    virtual bool Shutdown() = 0;                                           // 4  [abi-ret] eax-or-void
     virtual void SetDefaultOccupantFilter(cISC4OccupantFilter* filter) = 0;  // 5  does nothing
     // `demolished` is the caller's std::set<cRZAutoRefCount<cISC4Occupant>>*
     // (demolition.md §8 "Container arguments"); the SDK types it intptr_t.

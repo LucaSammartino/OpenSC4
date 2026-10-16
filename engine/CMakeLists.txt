@@ -330,6 +330,10 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4CitySituation.h
         plugin/FC4DemolitionHost.cpp
         plugin/FC4DemolitionHost.h
+        plugin/cFC4Demolition.cpp
+        plugin/cFC4Demolition.h
+        plugin/FC4DemolitionPriceShadow.cpp
+        plugin/FC4DemolitionPriceShadow.h
         # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp

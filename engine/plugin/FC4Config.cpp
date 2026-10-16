@@ -305,6 +305,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // the glue17 lane (FC4CitySitShadow.h, FC4DemolitionShadow.h,
                                   // FC4DispatchShadow.h)
                                   "citysit_shadow", "demolition_shadow", "dispatch_shadow",
+                                  // the glue23 lane (FC4DemolitionPriceShadow.h)
+                                  "demolition_price_shadow",
                                   // the seeding lane (FC4Seed.h)
                                   "session_seed",
                                   // the detpacing lane (FC4Pacing.h)
