@@ -415,6 +415,11 @@ def union_hunks(wt, rel):
     text = "".join(out)
     if "<<<<<<<" in text or ">>>>>>>" in text:
         return False
+    # A bad join shows up as a `fn` signature glued onto the end of a doc line.
+    for ln in text.split(NL):
+        s = ln.strip()
+        if "    fn " in ln and s.startswith(("///", "*", "//")):
+            return False
     # Structural check: for an additive union the merged brace balance must equal ours + theirs - base.
     # A duplicated (or dropped) `};` breaks that arithmetic, which is exactly the failure mode that
     # otherwise only surfaces as `kCount undeclared` twenty minutes later in the batch gate.
