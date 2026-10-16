@@ -39,6 +39,7 @@
 #include "FC4ParksShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
+#include "FC4TerrainShadow.h"  // the glue16 lane
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "cFC4LotDeveloper.h"
@@ -558,6 +559,7 @@ public:
                 ZoneDevShadowCityLoaded(CurrentCity());  // zonedev_shadow = 1 only
                 HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
+                TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -578,6 +580,7 @@ public:
                 CommercialShadowCityShutdown();  // commercial_shadow: the shadow core goes with the city
                 CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
                 ParksShadowCityShutdown();  // parks_shadow: the same
+                TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:

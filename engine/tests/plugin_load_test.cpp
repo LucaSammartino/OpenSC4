@@ -9315,7 +9315,7 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     // the 13, the late script's one, the save script's 5 and its "waits" line
     CHECK(CountOf(text, "script: line ") == 20);
     CHECK(text.find("script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, "
-                    "turbo, digest, mark, save)") != std::string::npos);
+                    "turbo, digest, mark, save, terrain)") != std::string::npos);
     CHECK(text.find("script: ERROR line 3: zone type '16' is not 0..15") != std::string::npos);
     CHECK(text.find("script: REFUSED '" + winDir + "fc4_script_bad.txt' (test seam): 2 parse error(s); no action of "
                     "it runs") != std::string::npos);
@@ -10755,6 +10755,9 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 }
 // The cmglue lane: commercial / industrial, civic, parks (plugin_cmglue_test.inc).
 #include "plugin_cmglue_test.inc"
+// The glue16 lane: the terrain shadow (plugin_terrain_test.inc, seam op 58).
+#include "FC4TerrainShadow.h"
+#include "plugin_terrain_test.inc"
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -10812,6 +10815,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-commercial") return CommercialEnableTest(dll, ini, log);
     if (mode == "--ini-enable-civic") return CivicEnableTest(dll, ini, log);
     if (mode == "--ini-enable-parks") return ParksEnableTest(dll, ini, log);
+    // The glue16 lane: the terrain shadow on a stand-in original (seam op 58).
+    if (mode == "--ini-terrain-shadow") return TerrainShadowIniTest(dll, ini, log);
     // Land value and flammability grid shadows on fake originals; both inactive with ours.
     if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
     if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);

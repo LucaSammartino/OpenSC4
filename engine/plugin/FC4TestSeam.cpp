@@ -35,6 +35,7 @@
 #include "FC4ResidentialShadow.h"
 #include "FC4Script.h"
 #include "FC4TrafficShadow.h"
+#include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4Popups.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
@@ -198,6 +199,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return DialogsTestSeam(static_cast<const FC4DialogsTestInput*>(a));
         case kFC4SeamHistClock:  // the history and clock lane (FC4HistClock.h)
             return HistClockTestSeam(static_cast<const FC4HistClockTestInput*>(a));
+        case kFC4SeamTerrainShadow:  // the glue16 lane (FC4TerrainShadow.h)
+            return TerrainShadowTest(static_cast<FC4TerrainShadowTestInput*>(a));
         case kFC4SeamParks:  // the cmglue lane (cFC4Parks.h)
             return a == nullptr ? -1 : fc4::ParksTestZooEscape(static_cast<const FC4ParksTestInput*>(a));
         case kFC4SeamNeighborsApp:  // the neighbours apply lane (NG14, NG4)

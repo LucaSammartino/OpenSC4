@@ -167,10 +167,16 @@ inline void FormatRunFigures(int32_t julian, bool started, uint32_t elapsedMs, u
 //   mark <text>               a log line with the text
 //   save [fast]               cISC4App::SaveCity(fast) in place, at the next
 //                             framework tick (FC4Script.h)
+//   terrain x0 z0 x1 z1 h [kind]  cISTETerrain::SetAltitude(rect, h, true, kind)
+//                             (terrain.md §6 slot 49): the inclusive VERTEX
+//                             rectangle set to the height h (metres, a decimal
+//                             0..5000), the water of the rectangle reset and
+//                             RedisplayTerrain(1, 1, rect, kind) (kind 0..6, §8.2;
+//                             [choice] default 1, the god-mode tool's)
 // Coordinates are whole numbers 0..kScriptMaxCell with x0 <= x1 and z0 <= z1
 // ([choice]: a reversed rectangle is an error, not swapped).
 
-enum class ScriptOp { Zone, PriceZone, Dezone, Speed, Pause, Resume, Turbo, Digest, Mark, Save };
+enum class ScriptOp { Zone, PriceZone, Dezone, Speed, Pause, Resume, Turbo, Digest, Mark, Save, Terrain };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
 
@@ -186,6 +192,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::Digest: return "digest";
         case ScriptOp::Mark: return "mark";
         case ScriptOp::Save: return "save";
+        case ScriptOp::Terrain: return "terrain";
     }
     return "?";
 }
@@ -200,6 +207,8 @@ struct ScriptAction {
     int32_t speed = 0;                       // speed
     bool on = false;                         // turbo
     bool fast = false;                       // save
+    float height = 0.0f;                     // terrain (metres)
+    int32_t kind = 1;                        // terrain (RedisplayTerrain's data4)
     std::string text;                        // mark; the arguments as written for the others
 };
 
@@ -241,6 +250,31 @@ inline bool ParseCount(const std::string& s, int32_t max, int32_t* out) {
     }
     if (v > max) return false;
     *out = v;
+    return true;
+}
+
+// A height in metres: digits, optionally a point and more digits, 0..max.
+inline bool ParseHeight(const std::string& s, double max, float* out) {
+    if (s.empty() || s.size() > 12) return false;
+    double v = 0.0, scale = 0.0;
+    bool digits = false;
+    for (char c : s) {
+        if (c == '.') {
+            if (scale != 0.0) return false;
+            scale = 1.0;
+            continue;
+        }
+        if (c < '0' || c > '9') return false;
+        digits = true;
+        if (scale == 0.0) {
+            v = v * 10.0 + (c - '0');
+        } else {
+            scale *= 0.1;
+            v += (c - '0') * scale;
+        }
+    }
+    if (!digits || v > max) return false;
+    *out = static_cast<float>(v);
     return true;
 }
 
@@ -359,6 +393,25 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
             }
             a.fast = true;
         }
+    } else if (name == "terrain") {
+        a.op = ScriptOp::Terrain;
+        if (nargs != 5 && nargs != 6) {
+            char b[160];
+            std::snprintf(b, sizeof(b), "terrain takes 5 or 6 argument(s) (x0 z0 x1 z1 height [kind]), not %u",
+                          static_cast<unsigned>(nargs));
+            *error = b;
+            return false;
+        }
+        if (!rect()) return false;
+        if (!detail::ParseHeight(tok[6], 5000.0, &a.height)) {
+            *error = "terrain height '" + tok[6] + "' is not a decimal 0..5000";
+            return false;
+        }
+        a.kind = 1;
+        if (nargs == 6 && !detail::ParseCount(tok[7], 6, &a.kind)) {
+            *error = "terrain kind '" + tok[7] + "' is not 0..6";
+            return false;
+        }
     } else if (name == "save_as") {
         // [question] Not implemented: what cISC4App::SaveCity(path, fast)
         // (slot 15) leaves as the city's save path, and what the region does
@@ -369,7 +422,7 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         return false;
     } else {
         *error = "unknown action '" + tok[1] +
-                 "' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark, save)";
+                 "' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark, save, terrain)";
         return false;
     }
     *out = a;

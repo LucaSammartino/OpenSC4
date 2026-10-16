@@ -179,6 +179,23 @@ void ScriptParseTests() {
         CHECK(p.errors.empty() && p.actions.size() == 1 && p.actions[0].op == ScriptOp::Save && p.actions[0].fast);
         CHECK(p.actions[0].text == "Fast");
     }
+    {  // the glue16 lane: terrain x0 z0 x1 z1 height [kind] (a vertex rectangle)
+        const ParsedScript p = One("2000-01-10 terrain 3 4 6 8 312.75");
+        CHECK(p.errors.empty() && p.actions.size() == 1 && p.actions[0].op == ScriptOp::Terrain);
+        CHECK(p.actions[0].x0 == 3 && p.actions[0].z0 == 4 && p.actions[0].x1 == 6 && p.actions[0].z1 == 8);
+        CHECK(p.actions[0].height == 312.75f && p.actions[0].kind == 1);
+        const ParsedScript q = One("2000-01-10 TERRAIN 0 0 0 0 300 5");
+        CHECK(q.errors.empty() && q.actions.size() == 1 && q.actions[0].height == 300.0f && q.actions[0].kind == 5);
+        CHECK(ErrorIs("2000-01-10 terrain 1 2 3 4", "terrain takes 5 or 6 argument(s) (x0 z0 x1 z1 height [kind]), "
+                                                   "not 4"));
+        CHECK(ErrorIs("2000-01-10 terrain 1 2 3 4 -5", "terrain height '-5' is not a decimal 0..5000"));
+        CHECK(ErrorIs("2000-01-10 terrain 1 2 3 4 5001", "terrain height '5001' is not a decimal 0..5000"));
+        CHECK(ErrorIs("2000-01-10 terrain 1 2 3 4 1.2.3", "terrain height '1.2.3' is not a decimal 0..5000"));
+        CHECK(ErrorIs("2000-01-10 terrain 1 2 3 4 300 7", "terrain kind '7' is not 0..6"));
+        CHECK(ErrorIs("2000-01-10 terrain 4 2 3 4 300", "the rectangle 4,2..3,4 is reversed (x0 <= x1 and z0 <= z1 "
+                                                       "needed)"));
+        CHECK(ScriptOpName(ScriptOp::Terrain) == std::string("terrain"));
+    }
     CHECK(ScriptOpName(ScriptOp::PriceZone) == std::string("pricezone"));
     CHECK(ScriptOpName(ScriptOp::Save) == std::string("save"));
 
@@ -189,7 +206,8 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01", "a date with no action"));
     CHECK(ErrorIs("2000-01-01   # just a date", "a date with no action"));
     CHECK(ErrorIs("2000-01-01 plop 1 2",
-                  "unknown action 'plop' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark, save)"));
+                  "unknown action 'plop' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark, save, "
+                  "terrain)"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 4"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4 1 9", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 6"));
     CHECK(ErrorIs("2000-01-01 pricezone 1 2 3", "pricezone takes 5 argument(s) (x0 z0 x1 z1 type), not 3"));
