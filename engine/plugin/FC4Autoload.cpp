@@ -72,6 +72,47 @@ Locations* NewLocations() {
     return new (storage) Locations();  // never destroyed
 }
 
+// [abi] cISC4Region slot 23 (GetCityLocations) as the game compiles it:
+// interfaces.tsv gives its return as `eax-or-void` (medium confidence) and no
+// spec says what it returns. The SDK declares `bool`, but in game EAX comes
+// back as the address of the caller's vector (observed: eax 0x60553300 with
+// the vector at 60553300, 85 locations), so a `bool` reads that address's low
+// byte. Only the vector's contents decide; this view calls the same slot and
+// keeps the full EAX for the log.
+// Found in the cores12a fix round: the cores12a DLL's static layout put the
+// vector's storage on a 256-byte boundary, AL was 0, and the old
+// `listed && !empty()` test retried ten times and gave up although the game
+// had filled the vector (lane runs c12a-repro-tip-1, c12a-fix-1).
+class RegionSlot23 : public cIGZUnknown {
+public:
+    virtual void s3() = 0;
+    virtual void s4() = 0;
+    virtual void s5() = 0;
+    virtual void s6() = 0;
+    virtual void s7() = 0;
+    virtual void s8() = 0;
+    virtual void s9() = 0;
+    virtual void s10() = 0;
+    virtual void s11() = 0;
+    virtual void s12() = 0;
+    virtual void s13() = 0;
+    virtual void s14() = 0;
+    virtual void s15() = 0;
+    virtual void s16() = 0;
+    virtual void s17() = 0;
+    virtual void s18() = 0;
+    virtual void s19() = 0;
+    virtual void s20() = 0;
+    virtual void s21() = 0;
+    virtual void s22() = 0;
+    virtual uint32_t GetCityLocationsRaw(Locations& cityLocations) = 0;  // 23
+};
+
+// The region's city locations into `out`; returns the raw EAX (log only).
+uint32_t GetCityLocations(cISC4Region* region, Locations& out) {
+    return reinterpret_cast<RegionSlot23*>(region)->GetCityLocationsRaw(out);
+}
+
 // The region's entry for the city whose save is `want`, or nullptr. Logs the
 // saves seen when there is no match.
 cRZAutoRefCount<cISC4RegionalCity>* FindCity(cISC4Region* region, const Locations& locations,
@@ -151,8 +192,10 @@ void AutoloadOnTick() {
         static Locations* locations = NewLocations();
         // Trivial elements: clear() only moves the end pointer.
         locations->clear();
-        const bool listed = region->GetCityLocations(*locations);  // slot 23
-        if (listed && !locations->empty()) {
+        const uint32_t eax = GetCityLocations(region, *locations);  // slot 23
+        Log("autoload: GetCityLocations returned eax 0x%08X; %u locations (vector at %p)", eax,
+            static_cast<unsigned>(locations->size()), static_cast<void*>(locations));
+        if (!locations->empty()) {
             Attempt(sc4, region, *locations);
         } else if (++g_emptyChecks <= 10) {
             Log("autoload: the region lists no cities yet (%d); retrying in %ld ticks", g_emptyChecks, g_delayTicks);
