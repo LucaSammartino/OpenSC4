@@ -4500,3 +4500,38 @@ filed here under their own prefix. The implementers' choices are in brackets.
 - ~~**OM8:** do `Write`/`Read` and slot 25 take the manager's lock? [yes]~~ **ANSWERED 2026-10-16 (re-answers16):**
   **DIFFERS**: none of them does (`0x0049ECF0`, `0x004A1A20`, `0x0049E490`). The extra recursive lock is not
   observable and may stay. occupant-manager §13, §14.
+- ~~**AT2 (automata.md §13 Q2):** the meaning of the two `vec3`s and the `bool` of a controller-manager automaton
+  set.~~ **ANSWERED 2026-10-16 (re-answers16):** it is an occupant's **queue**:
+  - the line of automata, front first;
+  - the queue point, 1 m outside the middle of the lot edge that touches a network (traffic network map slot 14);
+    the lot's facing picks the first side;
+  - the unit direction in which the line grows;
+  - "point found".
+
+  State 4 (`QUEUE`) appends, steers each automaton behind its leader, and removes (`0x0051BB60`–`0x0051BD50`; point
+  search `0x00516070`). automata §3.3.
+- ~~**AT3 (Q3):** the type numbers of RandomWalk, PlopJump, Plummet, PullOver, Bumped and Collide, and the meaning
+  of corpus state types 0, 2, 3, 7, `0x0D`.~~ **ANSWERED 2026-10-16 (re-answers16):**
+  - `0x0B` RandomWalk, `0x0E` Plummet, `0x0F` PlopJump, `0x11` Bumped, `0x14` Collide, `0x15` PullOver: the Windows
+    factory `0x0050B7F0` sizes match the Mac classes, and the game's Lua `automata_states` table agrees;
+  - 0 DEFAULT, 2 BEE_LINE, 3 CROWD, 7 IDLE;
+  - 13 is the traffic automaton's blocked wait, pushed at `0x0054E322` for (tuning `0x00B21C74`) × 1000 ms.
+
+  automata §6.2.
+- ~~**AT4 (Q4):** the records of aircraft and watercraft automata.~~ **ANSWERED 2026-10-16 (re-answers16):**
+  - aircraft base `0xC96E75DC`: `u16` 1 + automaton base (`0x004FB060`/`0x004FB080`);
+  - airplane `0xCBEB4F62` and helicopter `0x8BA98EDA`: `u16` 1 + aircraft record + `vec3` home position
+    (`0x004FD380`/`0x004FD3C0`, `0x005343C0`/`0x00534400`);
+  - watercraft `0x096E75F5`: `u16` 2 + automaton base (`0x00566EE0`/`0x00566F00`).
+
+  automata §6.4.
+- ~~**AT5 (Q5):** the generator's two trailing `u32`s, the automaton base's unnamed fields, `CreateAutomaton`'s mode
+  and last three arguments.~~ **ANSWERED 2026-10-16 (re-answers16):**
+  - the generator `u32`s are the current automata group ID (corpus `0x4122`–`0x4139`) and the count spawned from it;
+  - the base fields are named in automata §6.1 (attractor, distance, strength and attraction vector; model
+    instance; speed and opacity tweens; priority; group ID);
+  - `CreateAutomaton` is (group, const vec3& position, u32 automata flags, const key3& model key,
+    cIGZMessageTarget2* callback, u8 priority, const vec3* orientation). It returns a pointer without a reference
+    for the caller.
+
+  automata §3.5, §6.1, §7.2.

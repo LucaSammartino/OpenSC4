@@ -1,6 +1,7 @@
 # Spec: the automata layer (saved records and game hooks)
 
 Status: **behaviour spec, short form** (the layer is mostly animation; §0 says what that means), clean-room input.
+Q2–Q5 answered by re-answers16 (2026-10-16).
 This document describes *behaviour*, not code. It was written by the analysis team from observing the original
 program and its data files. Implementers must work from this spec, the public LGPL gzcom-dll SDK headers and
 general knowledge only. They must **not** consult decompiled or disassembled code (see
@@ -112,7 +113,62 @@ original reads any order.
 
 Each entry: `ref` occupant (`0x26BB767E`), `u32` k, k × `ref` automaton (`0xA9B40F05`), `vec3`, `vec3`, `bool`.
 Only one corpus save (Big City Tutorial) has an entry: a building with k = 0, the vectors (1256, 0, 1041) and
-(−1, 0, 0), and `true`. The meaning of the vectors is open (Q2).
+(−1, 0, 0), and `true`.
+
+**Meaning (Q2, answered).** Each entry is the **queue** of an occupant: the automata standing in line at a building.
+The manager keeps one per occupant, in a hash map keyed by the occupant (`GetControllerQInfo`, `0x0051B9D0`), and
+creates it on first use.
+
+| Field | Meaning |
+|---|---|
+| k automata | the line, front first. The queue holds one reference to each. |
+| first `vec3` | the **queue point**, where the front of the line stands |
+| second `vec3` | the **queue direction**, a unit axis vector along which the line grows behind the front |
+| `bool` | the queue point has been found. While it is false, the point is searched again at the next use. |
+
+The queue is driven by the controller's state callbacks for state **4**, which the game's own Lua table names
+`QUEUE` (§6.2):
+- **entering** state 4 (`0x0051BCA0`) appends the automaton at the back if it is not already in the line. It takes
+  a reference and makes the previous back automaton its **leader** (automaton slot 49, `0x005184E0`).
+- **each tick** in state 4 (`0x0051BB60`):
+  1. find the queue point if it is not found yet;
+  2. if it still is not found, remove the automaton (slot 13) and stop;
+  3. otherwise the target is the queue point when the automaton has no leader. With a leader, the target is the
+     leader's destination plus max(leader radius, 1) × the direction;
+  4. the target's height is taken from the traffic network map (city slot 40, slot 18) at the target's x and z;
+  5. set it as the destination (slot 10).
+- **leaving** state 4 (`0x0051BCE0`), or the automaton's removal, takes it out of the line (`0x005172D0`). Its
+  follower gets the removed automaton's leader, or no leader if the removed one was at the front. The queue's
+  reference is released.
+
+**Finding the queue point** (`0x00516070`), done once until it succeeds:
+1. Choose a side.
+   - If the occupant stands on a lot (lot manager `GetOccupantLot`, slot 14), take the lot's cell rectangle (lot
+     slot 14) in metres, x0·16 … (x1 + 1)·16 and the same for z. The lot's facing (lot slot 23) picks the starting
+     side: facing 0 → side 1, 1 → 2, 2 → 3, 3 → 0.
+   - Otherwise take the occupant's bounding box and a random side from 0 to 3.
+2. Each side is a segment 1 m outside one edge of the rectangle, at height 0, with a direction:
+
+   | Side | Segment | Direction |
+   |---|---|---|
+   | 0 | x = xmin − 1, along z | (0, 0, −1) |
+   | 1 | z = zmin − 1, along x | (1, 0, 0) |
+   | 2 | x = xmax + 1, along z | (0, 0, 1) |
+   | 3 | z = zmax + 1, along x | (−1, 0, 0) |
+
+3. The candidate point is the segment's midpoint.
+4. It is accepted when the traffic network map has a tile at its 16 m cell: slot 14, `SafeGetTileInfoAtCell`, with
+   the cell = floor(coordinate / 16) by the 12582912 rounding trick of foundations §18. In other words, the point
+   must touch a network.
+5. Otherwise try the next side ((side + 1) mod 4), at most four sides in all. When none is accepted, the flag stays
+   false.
+
+The corpus entry is side 3 of a one-cell lot at x 1248…1264, z 1024…1040: the point is (1256, 0, 1041) and the
+direction is (−1, 0, 0).
+
+Read (`0x0051B520`) restores the line in order, the point, the direction and the flag; it does not recompute the
+point. Each automaton keeps its leader in its own record (§6.1 field 8). A replacement that does not animate queues
+must still round-trip these entries *[compat]*.
 
 ### 3.4 Load
 
@@ -146,7 +202,15 @@ Two controller classes occur in saves. Both start with the controller base recor
 **Generator** (class `0x4A1628C5`, Write `0x005183D0`, Read `0x00518450`): `u16` 4 (Read requires 4), the base
 record, `time` (period), `time` (second period), `u32`, `u32`. Corpus: 291,346 records; names `wildlife_generator`
 (291,095), `construction_vehicle_generator`, `dog_make`, `crowd_sm`, `transit_strike_gen_1`/`_2`/`_3` and others.
-The first `u32` looks like a day stamp (16,674–16,697 seen), the second is 0–3. Both must round-trip.
+Both `u32`s must round-trip. Their meaning (Q5, answered from the Mac build's `ChooseAutomataGroup` and
+`TriggerGenerator`):
+- the first is the **current automata group ID**: the group the generator is now spawning. The corpus values
+  16,674–16,697 are `0x4122`–`0x4139`, automata group IDs like the riot's `0x4107`. 0 means none chosen yet.
+- the second is the **number of automata spawned** from that group so far.
+- The generator picks a group at random from its template's list. It keeps it until the count reaches a random
+  target drawn from the template's range; that target is not saved. Then it picks again and resets the count to 0.
+
+Each spawn calls `CreateAutomaton` (§7.2) with this group, flags `0x2000002` and the template's priority byte.
 
 **Attractor** (class `0x6A1628BA`, Write `0x00518230`, Read `0x00518270`): the base record, `u16` 1 (read and
 ignored), then a `curve` (attraction against distance [inferred]). Corpus: 196 records; names `dog_pull`,
@@ -232,21 +296,34 @@ the automaton classes found in saves, with their records.
 | # | Field | Notes |
 |---|---|---|
 | 1 | the occupant base record | lot-records §2.3; occupant type `0x496E5783` |
-| 2 | 3 × `vec3` | |
-| 3 | `f32`, `f32` | |
-| 4 | `u32` automata flags, `u32` | |
-| 5 | `ref` controller | `0x6A1857F8`; written as null when the controller has flag 8 |
-| 6 | `f32`, `f32` | |
-| 7 | `vec3` | |
-| 8 | `ref` automaton | `0xA9B40F05`; the leader (slots 48/49) [inferred] |
+| 2 | 3 × `vec3` | position, destination, orientation (automaton slots 7, 11, 15) |
+| 3 | `f32`, `f32` | radius (slot 17), default speed |
+| 4 | `u32` automata flags, `u32` | the flags (slots 30/31); then the dispatch info ID (slots 27/28). Flag bits named by the Mac build: 1 marked for removal, 2 self-controlling, 4 reached destination, `0x40` special route, `0x8000000` disabled |
+| 5 | `ref` controller | `0x6A1857F8`; the **attractor** now acting on the automaton, chosen as the strongest by the controller manager's `GetCompositeAttractionEffect` (§7.1 slot 22). Written as null when the controller has flag 8 |
+| 6 | `f32`, `f32` | the automaton's distance to that attractor, and its attraction strength (signed) |
+| 7 | `vec3` | the composite attraction: the sum over the attractors in range of strength × the unit horizontal vector toward each (y = 0). Random walks add it to their step |
+| 8 | `ref` automaton | `0xA9B40F05`; the leader (slots 48/49), e.g. the automaton ahead in a queue (§3.3) |
 | 9 | `u32` n, then n × (`u32` state type, state record) | the state stack (§6.2) |
 | 10 | `u32` m, then m × `key3` | model keys |
-| 11 | `key3` | the current model, e.g. type `0x5AD0E817` |
-| 12 | `u32` | |
+| 11 | `key3` | the first model key added, e.g. type `0x5AD0E817` |
+| 12 | `u32` | the instance ID of the model now shown; −1 after a state change that asks for a new one |
 | 13 | `u32` k, then k × `ref` callback target | only callbacks whose target is serializable (`QueryInterface 0xE4FDA3D4`) are written; read checks `0x452294AA`. Seen: the controller manager and the city situation manager (`0x0BB14381`). |
-| 14 | 8 × `f32` | |
-| 15 | `u8` | |
-| 16 | only in version 8: `u32` | |
+| 14 | 8 × `f32` | two tweens of four `f32` each: speed (slots 34–38), then opacity (slots 32–33). A tween is (start, target, duration, elapsed); its value is start + clamp(elapsed / duration, 0, 1) × (target − start), or target when the duration is ≤ 0 |
+| 15 | `u8` | priority (slots 63/64; `CreateAutomaton`'s priority, §7.2) |
+| 16 | only in version 8: `u32` | the automata group ID (slot 67 looks the group up from it) |
+
+Field names come from the Mac build's accessors (`GetPosition`, `GetRadius`, `GetDispatchInfoID`, `GetLeader`,
+`GetPriority`, `GetAutomataGroup`, `TweenStruct`), whose Write is in the same order. The Windows getters read the
+fields that the Windows Write (`0x0050AC00`) writes; Write's `this` is 8 bytes below the primary interface:
+
+| Slot (pedestrian vtable `0x00A9A718`) | Reads | Write offset |
+|---|---|---|
+| 7 | `+0x40` | `+0x38` |
+| 48 | `+0xB0` | `+0xA8` |
+| 63 | `+0x90` | `+0x88` |
+| 67 | `+0x1C4` | `+0x1BC` |
+
+The meanings are for naming only; every field must round-trip unchanged *[compat]*.
 
 Corpus: base version 7 in 79,509 automata, version 8 in the rest.
 
@@ -261,20 +338,65 @@ when it has flag 8; read checks `0x6A1857F8`), `u32`, `f32`, `bool`, `u32`, `u32
 | Type | Name | After the base | Write / Read |
 |---|---|---|---|
 | 8 | RiotLeader | `s32`, `s32`, `u8` | `0x00509DE0` / `0x00505F50` |
-| `0x0B` | | `vec3`, `f32`, `f32` | `0x00509D90` / `0x00505F00` |
-| `0x0E` | | 5 × `f32` | `0x00509E70` / `0x00505FE0` |
-| `0x0F` | | `f32`, `f32` | `0x00509E30` / `0x00505FA0` |
-| `0x10` | PlayerDrive [inferred] | `f32` | `0x00509EE0` / `0x00506090` |
-| `0x11` | | 4 × `vec3` | `0x00509F20` / `0x00506100` |
-| `0x13` | AttachAnim [inferred] | `ref` model (`0xA818EDD8`), `u16`, `bool` | `0x00509FB0` / `0x0050A020` |
-| `0x14` | | none | `0x00509F80` / `0x00506160` |
-| `0x15` | | `f32` | `0x00509EE0` / `0x00506050` |
-| `0x34` | Chase [inferred] | `ref` automaton | `0x0050A0A0` / `0x0050A0E0` |
+| `0x0B` | RandomWalk | `vec3`, `f32`, `f32` | `0x00509D90` / `0x00505F00` |
+| `0x0E` | Plummet | 5 × `f32` | `0x00509E70` / `0x00505FE0` |
+| `0x0F` | PlopJump | `f32`, `f32` | `0x00509E30` / `0x00505FA0` |
+| `0x10` | PlayerDrive | `f32` | `0x00509EE0` / `0x00506090` |
+| `0x11` | Bumped | 4 × `vec3` | `0x00509F20` / `0x00506100` |
+| `0x13` | AttachAnim | `ref` model (`0xA818EDD8`), `u16`, `bool` | `0x00509FB0` / `0x0050A020` |
+| `0x14` | Collide | none | `0x00509F80` / `0x00506160` |
+| `0x15` | PullOver | `f32` | `0x00509EE0` / `0x00506050` |
+| `0x34` | Chase | `ref` automaton | `0x0050A0A0` / `0x0050A0E0` |
 | any other | default | none | base only |
 
-Other names the original uses for states are RandomWalk, PlopJump, Plummet, PullOver, Bumped and Collide; their
-type numbers are not tied down (Q3). Corpus state types: `0x0B` 80,519; 0 811; 2 381; 7 107; `0x0D` 101; 3 32;
-`0x14` 10. State versions: 2 in 80,080, 3 in 1,881.
+**Names (Q3, answered).** Two sources tie the numbers to the names:
+- The game's own Lua constant table `automata_states` (`sit_constants.lua` in `SimCity_1.dat`) gives the numbers.
+- The Mac build's `CreateAutomataState` gives the classes: `tAutomataStateRandomWalk`, `…PlopJump`, `…Plummet`,
+  `…Bumped`, `…AttachAnim`, `…Collide`, `…PullOver`, `…Chase`, `…RiotLeader` and `…PlayerDrive`.
+- The two agree, and the Windows factory (`0x0050B7F0`, jump table `0x0050B98C` / `0x0050B9B8`) builds objects of
+  the same sizes for the same numbers: RiotLeader `0x34`, RandomWalk `0x40`, Plummet `0x40`, PlopJump `0x30`,
+  PlayerDrive `0x274`, Bumped `0x58`, AttachAnim `0x34`, Collide `0x2C`, PullOver `0x44`, Chase `0x2C`; default
+  `0x28`.
+
+| Type | Lua name | Record |
+|---|---|---|
+| 0 | `DEFAULT` | base only |
+| 1 | `DISAPPEAR` | base only |
+| 2 | `BEE_LINE` | base only |
+| 3 | `CROWD` | base only |
+| 4 | `QUEUE` (the controller queue, §3.3) | base only |
+| 6 | `STRIKE` | base only |
+| 7 | `IDLE` | base only |
+| 8 | `RIOT_LEADER` | table above |
+| 9 | `RIOT_FOLLOWER` | base only |
+| 10 | `SCRIPTED` | base only |
+| 11 (`0x0B`) | `RANDOM_WALK` | table above |
+| 12 | `IGNITE_OCCUPANT` | base only |
+| 13 (`0x0D`) | not in the Lua table; see below | base only |
+| 14 (`0x0E`) | not in the Lua table; the Mac class is `tAutomataStatePlummet` | table above |
+| 15 (`0x0F`) | `PLOP_JUMP` | table above |
+| 16 (`0x10`) | `PLAYER_DRIVE` | table above |
+| 17 (`0x11`) | `BUMPED` | table above |
+| 18 | `MAGNET` | base only |
+| 19 (`0x13`) | `ATTACH_ANIM` | table above |
+| 20 (`0x14`) | `COLLIDE` | table above |
+| 21 (`0x15`) | `PULL_OVER` | table above |
+| 30 | `STOP_AT_STATION` | base only |
+| 50–58 | aircraft: `RETURN_HOME`, `GO_TO_DESTINATION`, `CHASE` (52 = `0x34`, table above), `LOITER`, `LOOK_FOR_CRIME`, `LOOK_FOR_TRAFFIC`, `RESCUE`, `PUT_OUT_FIRE`, `CROP_DUST` | base only, except 52 |
+| 70–78 | watercraft: `CRASH_RUNAGROUND`, `CRASH_SINK`, `IMMEDIATE_REMOVE`, `SLOW_REMOVE`, `FERRY_DOCK`, `FERRY_QUEUE`, `MARINA_PARKED`, `BEING_TOWED`, `UNDOCKING` | base only |
+
+**Type 13** is the traffic automaton's **blocked wait**. The traffic automaton's collision update
+(`cSC4TrafficAutomaton::UpdateCollision`, push at `0x0054E322`) pushes it when all of these hold:
+- the traffic network map reports the automaton blocked by another one (result 1);
+- the automaton has flag `0x20`.
+
+The push is `PushState(13, 0, t, 0, 0, 0, 0)` (slot 52), where t = an automata tuning value (`float` at `0x00B21C74`)
+× 1000.0 (`0x00A8FAF0`), in milliseconds. A blocked automaton also gets flag `0x10` (`0x0054E2F1`), with or
+without the push. While the top state is 13 the
+collision update returns at once (Mac build).
+
+Corpus state types: `0x0B` 80,519; 0 811; 2 381; 7 107; `0x0D` 101; 3 32; `0x14` 10. In words: random walk,
+default, bee line, idle, blocked wait, crowd and collide. State versions: 2 in 80,080, 3 in 1,881.
 
 ### 6.3 Traffic automaton, version 2 (Write `0x00551DE0`, Read `0x00554D20`, requires 2)
 
@@ -295,6 +417,27 @@ The vehicle's Read discards the path entries and the constant vector; a replacem
 (writing an empty path list is allowed *[choice]*). Corpus: 81,787 pedestrians, 1,085 vehicles, 63 trailers and
 3 patrol cars, all parsing exactly to their ends. No aircraft or watercraft automata occur in the corpus (Q4).
 
+**Aircraft and watercraft automata (Q4, answered).** No corpus save has them, so these records come from the
+executable alone. Class IDs are from each class's `GetGZCLSID`; names are from the Mac build.
+
+| Class | ID (`GetGZCLSID`) | Record | Write / Read |
+|---|---|---|---|
+| aircraft base (`cSC4Aircraft`) | `0xC96E75DC` (`0x004FAE90`) | `u16` 1, the automaton base record (§6.1). Read requires exactly 1 | `0x004FB060` / `0x004FB080` |
+| airplane (`cSC4Airplane`) | `0xCBEB4F62` (`0x004FD280`) | `u16` 1, the aircraft base record, `vec3` home position. Read accepts ≤ 1 | `0x004FD380` / `0x004FD3C0` |
+| helicopter (`cSC4Helicopter`) | `0x8BA98EDA` (`0x0053C830`) | `u16` 1, the aircraft base record, `vec3` home position. Read accepts ≤ 1 | `0x005343C0` / `0x00534400` |
+| watercraft (`cSC4Watercraft`) | `0x096E75F5` (`0x0056DC60`) | `u16` 2, the automaton base record. Read requires exactly 2 | `0x00566EE0` / `0x00566F00` |
+
+So the aircraft base and airplane/helicopter records nest: airplane = `u16` 1, then `u16` 1 and the automaton base
+record, then the `vec3`.
+- The airplane and the helicopter write the `vec3` only when the aircraft part was written without error
+  (`0x004FD399`, `0x005343D9`). On a stream that has not failed, it is always present.
+- Read stores the `vec3` (airplane `+0x344`, helicopter `+0x1E8`) and sets a "position loaded" byte just below it
+  (`0x004FD3FF`, `0x0053443F`).
+- What the `vec3` is (Mac build, `Init`): a new aircraft copies its current position there at its first `Init`. A
+  loaded one moves to it instead, so it is the position the aircraft was placed at.
+- Aircraft and watercraft carry no traffic record (§6.3). Their own state types (50–58 and 70–78, §6.2) all use
+  the default record, except `CHASE` (52).
+
 ## 7. Calls other specs use *[compat]*
 
 ### 7.1 Controller manager (city slot 47)
@@ -314,9 +457,38 @@ simulators (slot 10, then slot 12), riots (slots 5 and 14, §8.1).
 
 ### 7.2 Pedestrian manager (city slot 44) slot 15: `CreateAutomaton`
 
-Seven arguments: automata group ID, position (`vec3` pointer), a mode, direction (`vec3` pointer), and three
-`u32`. It returns the new automaton or null. The riot passes (`0x4107`, cell position, 2, (0, 0, 0), 0, `0xFF`,
-0). Only the group ID and position matter to the simulation; the rest select the creation path [inferred].
+Seven arguments, `__thiscall`, callee pops 28 (`0x00505370`, shared by every manager). Q5 is answered: the names
+and types are the Mac build's signature, and the Windows code matches.
+
+| # | Argument | Use |
+|---|---|---|
+| 1 | `u32` automata group ID | selects the exemplar and the class through the script system's group |
+| 2 | `const vec3&` position | `SetPosition` (slot 8) after creation |
+| 3 | `u32` automata flags | set on the new automaton with slot 30 `SetAutomataFlag(flags, true)` (`0x005107EF`). Bit 2 = self-controlling; bit `0x80` lets the creation through when the manager is full (below) |
+| 4 | `const key3&` model key | when its instance is 0, the model comes from an exemplar chosen for the group (manager slot 25); otherwise that key is used. Callers pass an all-zero key |
+| 5 | `cIGZMessageTarget2*` | callback target, added with slot 39 `AddCallback` when non-null |
+| 6 | `u8` priority | stored with slot 64. `0xFF` forces the creation |
+| 7 | `const vec3*` orientation | slot 14 `SetOrientation` when non-null |
+
+The call creates the automaton (manager slot 46, `CreateAutomatonInternal` `0x00510690`). It then applies arguments
+5, 2 and 7 in that order, adds the automaton to the manager (slot 7) and releases its own reference. The returned
+pointer therefore holds **no reference for the caller**: a caller that keeps it must `AddRef`, as the riot does
+(§8.1 step 4).
+
+`CreateAutomatonInternal` refuses (returns null) in two cases:
+1. Priority 0, while the manager is inactive (slot 6 false).
+2. The manager holds more automata than its limit (count `+0x48` > `+0x3C`), the make-room call (slot 47,
+   `0x0050A740`) fails, flag `0x80` is clear and the priority is below `0xFF`.
+
+Any priority below `0xFF` is first offered to the city situation manager:
+- if its slot 19 accepts the group,
+- and its slot 28 count is below its slot 27 limit,
+- then the priority becomes `0xFE` (a situation automaton, §9).
+
+| Caller | Arguments |
+|---|---|
+| riot | (`0x4107`, cell position, 2, zero key, null, `0xFF`, null) |
+| generators | (current group, spawn point, `0x2000002`, zero key, null, the template's priority byte, null) |
 
 ### 7.3 Manager slots that other specs use
 
@@ -448,13 +620,40 @@ argument types given above for script slots 11 and 12 are checked, the others ar
 
 - **Q1 (settled here).** disasters.md §5.11 step 4 named controller manager slot 9 for `fire_occupant`. The exe
   calls slot 10 (`+0x28`, at `0x00471A48`), the by-name variant; disasters.md is corrected in the same commit.
-- **Q2.** The meaning of the two `vec3`s and the `bool` of a controller-manager automaton set (§3.3).
-- **Q3.** The type numbers of the RandomWalk, PlopJump, Plummet, PullOver, Bumped and Collide states, and the
-  meaning of corpus state types 0, 2, 3, 7 and `0x0D` (all use the default record).
-- **Q4.** The records of aircraft and watercraft automata (helicopter, plane, boat). None occur in the corpus,
-  and their Write and Read functions are not mapped here.
-- **Q5.** The meaning of the generator's two trailing `u32`s, the automaton base's unnamed fields, and
-  `CreateAutomaton`'s mode and last three arguments.
+- ~~**Q2.** The meaning of the two `vec3`s and the `bool` of a controller-manager automaton set (§3.3).~~
+  **ANSWERED 2026-10-16 (re-answers16; QUESTIONS.md AT2).** Each set is an occupant's **queue**:
+  - the automata in line, front first;
+  - the queue point, 1 m outside the middle of the lot edge that touches a network;
+  - the unit direction in which the line grows;
+  - "point found".
+
+  State 4 (`QUEUE`) drives it (`0x0051BB60`–`0x0051BD50`, point search `0x00516070`). The leader field of §6.1 links
+  each automaton to the one ahead. §3.3.
+- ~~**Q3.** The type numbers of the RandomWalk, PlopJump, Plummet, PullOver, Bumped and Collide states, and the
+  meaning of corpus state types 0, 2, 3, 7 and `0x0D` (all use the default record).~~ **ANSWERED 2026-10-16
+  (re-answers16; AT3).**
+  - The classed states are RandomWalk `0x0B`, Plummet `0x0E`, PlopJump `0x0F`, Bumped `0x11`, Collide `0x14` and
+    PullOver `0x15`. The Windows factory sizes match the Mac classes, and the game's Lua `automata_states` table
+    agrees.
+  - The default-record corpus types are 0 `DEFAULT`, 2 `BEE_LINE`, 3 `CROWD` and 7 `IDLE`.
+  - 13 (`0x0D`) is the traffic automaton's blocked wait (`0x0054E322`).
+
+  §6.2 has the full table.
+- ~~**Q4.** The records of aircraft and watercraft automata (helicopter, plane, boat). None occur in the corpus,
+  and their Write and Read functions are not mapped here.~~ **ANSWERED 2026-10-16 (re-answers16; AT4):**
+  - aircraft `0xC96E75DC`: `u16` 1 + base;
+  - airplane `0xCBEB4F62` and helicopter `0x8BA98EDA`: `u16` 1 + aircraft record + `vec3` home position;
+  - watercraft `0x096E75F5`: `u16` 2 + base.
+
+  §6.4.
+- ~~**Q5.** The meaning of the generator's two trailing `u32`s, the automaton base's unnamed fields, and
+  `CreateAutomaton`'s mode and last three arguments.~~ **ANSWERED 2026-10-16 (re-answers16; AT5).**
+  - The generator's `u32`s are the current automata group ID and the number spawned from it (§3.5).
+  - The automaton base fields are named in §6.1: position, destination, orientation, radius, speed, flags, dispatch
+    info ID, attractor, its distance and strength, attraction vector, leader, model instance, the speed and opacity
+    tweens, priority and group.
+  - `CreateAutomaton`'s arguments 3–7 are automata flags, model key, callback target, priority and orientation
+    (§7.2).
 - ~~**Q6.** Messages `0x89D3E9F3`, `0x06CDB65A`, `0xCAD61E00`, `0xEA298D50`, `0xEAD61E16`, `0xEBFF18A3`,
   `0xA6B79611`, `0xC9DA96E7` are handled but not named in other specs.~~ **Answered (re-answers12).** The names
   come from the executable's own message-name table (pairs of ID and name around `0x00B08360`–`0x00B086F8`):
@@ -513,3 +712,12 @@ Each test reads the record, checks the decoded fields, writes it back and compar
     `PostCityInit` and keeps the rest.
 12. **Corpus round trip.** Every component 40, 41, 43–46 record and every referenced object record in the corpus
     parses to its exact end.
+13. **Queue entry** (Big City Tutorial): an automaton set with occupant ref, k = 0, point (1256, 0, 1041),
+    direction (−1, 0, 0) and `true` round-trips.
+    - The point search for a one-cell lot at cells (78, 64), facing 2, gives side 3.
+    - If the traffic network map has a tile at cell (78, 65), that is point (1256, 0, 1041) and direction (−1, 0, 0).
+    - With no tile on any side, the flag stays false after four tries.
+14. **Queue order.** Automata A, B and C enter state 4 at the same occupant in that order. C's leader is B, and B's
+    is A. When B leaves, C's leader becomes A. When A leaves, C has no leader.
+15. **Aircraft records.** An airplane writes `01 00 | 01 00 | <automaton base> | <vec3>`, and a watercraft writes
+    `02 00 | <automaton base>`. Reading an aircraft base with version 2, or a watercraft with version 1, fails.
