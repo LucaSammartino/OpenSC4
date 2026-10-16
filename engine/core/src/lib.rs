@@ -49,6 +49,7 @@ pub mod landfill;
 pub mod landvalue;
 pub mod lot_developer;
 pub mod neighbors;
+pub mod network_manager;
 pub mod occupant_manager;
 pub mod ordinance;
 pub mod parks;

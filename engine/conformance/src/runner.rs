@@ -1243,6 +1243,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::commercial::exec(host, other, op))
             .or_else(|| crate::civic::exec(host, other, op))
             .or_else(|| crate::parks::exec(host, other, op))
+            .or_else(|| crate::network_manager::exec(host, other, op))
             .or_else(|| crate::city_detail::exec(host, other, op))
             .or_else(|| crate::port_developer::exec(host, other, op))
             .or_else(|| crate::prop_developer::exec(host, other, op))

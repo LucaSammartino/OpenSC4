@@ -4403,8 +4403,17 @@ Open points from network-manager.md §15. The current answer is in brackets; eac
   water, and its `0x89D3E9F3` handler tests it with "no adjacent piece" (terrain.md §10.3–§10.4). Still open: `0x80000`,
   `0x40000000`, `0x80000000` (a network-tool spec settles them; `0x80000` is the piece kept by a tunnel cut,
   *[inferred]* a tunnel portal).
-- **NM4:** the exact visited and rejected set tests of the avenue flood in `UpdateAvenueStyle`. [a cell is visited
-  once; styling an avenue loop through an intersection and logging the styled cells settles it]
+- ~~**NM4:** the exact visited and rejected set tests of the avenue flood in `UpdateAvenueStyle`. [a cell is visited
+  once; styling an avenue loop through an intersection and logging the styled cells settles it]~~ **ANSWERED
+  2026-10-16 (re-answers18):** **MATCHES**.
+  - `0x0060EF40` keeps three `u16` hash sets (work, accepted, rejected; key `(x << 8) | z`).
+  - A neighbour is skipped when it is accepted (`0x0060F228`) or rejected (`0x0060D1B0`), else inserted unique
+    into the work set (`0x0060E210`). Each cell is accepted or rejected in the step that takes it, so it is examined
+    once.
+  - New quirks: the far bounds are inclusive (nx ≤ countX, nz ≤ countZ). The 8-bit x in the key makes a neighbour
+    one past the edge of a 256-cell city alias a cell on the opposite edge.
+
+  network-manager §8.7.
 - ~~**NM5:** the effect-prop slots 6, 7 and 8 used for potholes. [set the effect name, start, stop; the prop occupant
   spec should confirm]~~ **ANSWERED 2026-10-15 (re-specs14b):** confirmed: `SetEffectType(char const*)`,
   `StartEffect(bool)`, `StopEffect(bool)` (vtable `0x00AA4ED8`, overloads in reverse SDK order). MATCHES.
@@ -4447,7 +4456,14 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
   solver (network-geometry.md §8.2 outlines the follow-up spec: the three rule INI resources, type `0x0A5BCF4B`
   group `0xAA5BCF57` instances `0x10000000`–`0x10000002`, loaded once by `ReloadRules` `0x006253D0`, and the entry
   points). `IdentifyHighwayIntersections` (`0x0063B340`) is described there: it marks rule matches but returns its
-  `v` argument on every path, so **`0xF0000005` is never set** (quirk 7).
+  `v` argument on every path, so **`0xF0000005` is never set** (quirk 7). **ANSWERED 2026-10-16 (re-specs17b):**
+  MATCHES; the new spec [network-rules.md](network-rules.md) covers the rule resources and their grammars (§2–§3,
+  §8.1, §9, §10.1–§10.3), the `#Transmogrify` expansion (§4), matching (§5), `SolveUsingEvaluator` and
+  `ApplyNetworkRules` (§6), the edge subtypes (§7), multi-type intersections (§8.2), `AdjustTileSubsets` and
+  `VerifyTileSubsets` (§9), `cIntRule` `Test`, `DoAutoComplete`, `IdentifyHighwayIntersections` and
+  `InsertIsolatedHighwayIntersection` (§10), and what a piece id selects (§11). One addition to the outline:
+  `SolveNetwork` runs the evaluators of all 13 types, not only the tool's. New open questions NR1–NR5 (network-rules.md
+  §14).
 - ~~**NG6:** the readers of type info `+0x110` and of the p+0xA0 id list, and the source of road's support info.
   [only the flat-cell test is known]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES (network-geometry.md §2.3,
   §10.2). `+0x110` is written only by `0x0063D460` and never read. The p+0xA0 list is read only at `0x00636763`, for
@@ -4460,6 +4476,19 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
   (re-answers19):** **DIFFERS** from the premise: there is no swapped key. Every key in the function is
   `(z << 16) + x` (row loop `0x0062B4E1`; neighbour key `0x0062BA9A`–`0x0062BA9D`); the earlier reading came from
   the decompiler's variable naming. network-geometry.md §13.
+## From the network rules spec (re-specs17b lane, 2026-10-16)
+
+Spec: [network-rules.md](network-rules.md) §14. RE-side follow-ups; nothing here blocks an implementer of §2–§10.
+
+- **NR1:** the texture an ordinary piece id selects, and how the orientation byte turns it (network-rules.md §11).
+  [not specified]
+- **NR2:** the placement of intersection models (`InsertHighwayIntersectionPiece(s)`, `0x006276D0`, `0x0062C4B0`),
+  the rule's tile grid and map, `AutoTileBase`, `AutoPathBase` and the constraint layout's consumer (§10.3).
+  [not specified]
+- **NR3:** the exact `AddTypes` ring links (§10.8). [inferred: a second circular list through `+0xF4`/`+0xF8`]
+- **NR4:** `ResolveOneWayConflicts` and the preview's `SolveMultiTypeSeparation` (`0x00633FA0`). [not specified]
+- **NR5:** the order of several `[RuleOverrides]` patterns with the same first id (§9.1). [file order, inferred]
+
 ## From the traffic glue, phase 2: the traffic shadow (filed by the coordinator from the `traffic2` lane's report, 2026-10-15)
 
 About `docs/specs/traffic-simulator.md` and the same-process traffic shadow (`traffic_shadow = 1`; core
@@ -4617,16 +4646,41 @@ apply12 applied ZG18, ZG21, CM5, NG35-NG37, NG43, NG44 and DG35 (ABI 59, taken a
 66 installs a fake confirmation dialog). DG28 is not applied: the audited release in the growth developer's
 destructor (`FC4_RELEASE_AT_DESTRUCTION`) stays. The lane's choices are in brackets.
 
-- **NG45:** (neighbors.md §6.2, NG35) RequestCreateConnection's title and text are LTEXT keys, but the spec does not
+- ~~**NG45:** (neighbors.md §6.2, NG35) RequestCreateConnection's title and text are LTEXT keys, but the spec does not
   say which loader reads them or which group the two instance-only keys (`0x0A8E152D` text, `0x0A8E15F9` fallback
   name) belong to. [SC4LoadString's rule (group + language ID, then the group alone, U+2022 becomes U+200B), with
   both keys in the title's group `0x6A231EAA`; the sprintf template takes the name at the first `%s` and `%%` gives
-  `%`; a missing LTEXT gives empty text (choice)]
-- **DG39:** (building-development §1.4, DG28) after loading a saved city (Konradshohe, run `apply12-dev-1`), our
+  `%`; a missing LTEXT gives empty text (choice)]~~ **ANSWERED 2026-10-16 (re-answers18):** **MATCHES**.
+  - All three keys are constructed with group `0x6A231EAA` (`0x006D1612`, `0x006D1627`, `0x006D163C`).
+  - The loader is the localized-string object `cSLString` (`0x00603580`). Its `Load` (`0x00603300`) uses
+    `SC4LoadString`'s lookup and U+2022 → U+200B. A missing LTEXT gives an empty string (`0x006034E4`), so the
+    choice is the original's behaviour.
+  - One detail differs from `SC4LoadString`: a failed detokenize keeps the text.
+  - `cRZString::Sprintf` (`0x0090F574`) uses the C `printf` conversions (first `%s`, `%%`).
+
+  neighbors §6.2.
+- ~~**DG39:** (building-development §1.4, DG28) after loading a saved city (Konradshohe, run `apply12-dev-1`), our
   growth developers are destroyed only after the simulator's Shutdown, not inside the BDS Shutdown, although the
   core shuts each one down and releases it there. Does the original's load-time object table (or anything else)
   hold a reference to a growth developer it resolved for the BDS record, and when is that reference released?
-  [the destructor's audited release stays until this is answered]
+  [the destructor's audited release stays until this is answered]~~ **ANSWERED 2026-10-16 (re-answers18):**
+  **MATCHES**: yes, and the observed late destruction is the original's.
+  - The BDS `Read` reads each developer by reference (`0x0069AD53`). The class store creates it (factory
+    `0x006B7870`), and the object table of the city segment's COM serializer keeps one reference (resolver
+    `0x005D2DD0`) on top of the map's.
+  - That reference goes only when the loaded segment closes. On city close, `PartialCloseCity` (`0x00454A60`)
+    unregisters the segment at `0x00454AF3`. That is after the city's `Shutdown` (`0x00454AC9`), in which the
+    simulator (`+0x158`, `0x0045B912`) comes after the BDS and the occupant manager. It is also after the
+    `0x26D31EC3` post and the city's release (`0x00454AE7`).
+  - So in a loaded, unsaved city the original's developers die at that segment close. After a save, the table is
+    empty (`0x00456449`) and the BDS `Shutdown`'s `Release` destroys them, as in a new city.
+  - The reset (`0x005D3250`/`0x005D2FE0`) goes in descending class ID. It drops lots (`0xC9BD5D4A`) and buildings
+    (`0xA9BD882D`) before developers (`0x0990C138`), so each developer's copy then holds the **last** reference to
+    its special buildings.
+  - This corrects re-answers10's DG28 answer, which counted no table reference. For a loaded, unsaved city the DG28
+    bracket ("the copy's release in the destructor is the last one") holds. `FC4_RELEASE_AT_DESTRUCTION` stays.
+
+  building-development §1.4, growth-developer §1.1.
 
 ## From the occupant manager and automata cores (filed by re-answers16 from the coordinator's task, 2026-10-16)
 
@@ -4801,3 +4855,46 @@ current choice is in brackets.
   load in the same process (crime and the development cores already keep theirs process-wide). Should budget and
   pollution keep their generator across city loads like the original, or is a restart at each load an acceptable
   *[choice]*? [restart at each load]
+
+## From the city detail, port developer and prop developer cores (filed by the coordinator from the `cores12b` lane's report, 2026-10-16; merged `3eb6d22`)
+
+cores12b implemented city-detail.md, port-developers.md and prop-developer.md as Rust cores
+(`engine/core/src/{city_detail,port_developer,prop_developer}/`), C ABIs (`fc4_city_detail`, `fc4_port_developer`,
+`fc4_prop_developer`, ABI 65) and conformance vectors (`cd8_*`, `pd12_*`, `pv12_*`). There is no plugin glue yet, so
+none of these readings has been checked in game. The current choice is in brackets.
+
+- **PD5:** when the next stage's lot configuration is missing, growth fails before anything is demolished and no funds
+  are withdrawn. Is that the original order, or is the lot demolished first?
+- **PD6:** §4.8 does not say how the terrain grid's orientation follows the lot's facing. [the grid is rotated by
+  facing; facing 0 = rows along z as stored. Moot with shipped data (PD4: the grid never loads), but a correct 12 × 6
+  declaration would use it]
+- **PD7:** after a failed swap the port's lot lookup can return null. [the month skips such a port (counted in
+  `month_skipped`) and does not stop] Confirm.
+- **PD8:** in the month, does the usage value use cap = trunc(capacity × fr) (the §4.3 comment) or the plain capacity
+  (§4.7 PortUsageValues)? [§4.7]
+- **PD9:** is a seaport port with no sea access counted for the "if any" advisor-event condition in the seaport tick?
+  [excluded]
+- **PD10:** Init removes any existing agent before adding it, and Shutdown does not clear the port list (Read or
+  adoption rebuilds it). Confirm against the original.
+- **PD11:** Read loads the tuning exemplar from the record's instance even when a later field rejects the record. Does
+  the original leave the tuning loaded? [the rest of Read is atomic; the tuning stays loaded]
+- **CD3:** Init compares the saved level with the current preference on every call, not only the first; a second Init
+  at the same level does nothing. Confirm.
+- **CD4:** increase step 4 is implemented literally: one creation per required object missing from the lot; optional
+  objects are never created. Is an object present by its tag alone, whatever the occupant's type? [by tag]
+- **CD5:** the increase pass's session generator counter n (derive_seed(S, 0xEAD4BA36 XOR n)) is kept per thread and
+  per session seed. Should it reset on a new city load within the same session? [it does not reset]
+- **PV7:** a night batch decides on or off with the mode it started with, so the batch that ends a dusk sweep (mode
+  becomes 0) still switches its props on. Does the original read the mode before the end-of-sweep reset?
+- **PV8:** §4.4 step 6 does not test the created occupant for null. [a null creation returns false: the slot is
+  consumed and need is not decremented]
+- **PV9:** a timed prop with a non-zero global trigger while the 3D view is missing: the spec covers only the
+  view-present and zero cases. [mask 4 unchanged: neither on nor added to the trigger map]
+- **PV10:** a total share of 0 would divide by zero (§4.3 step 4). It cannot happen with the wealth requester present,
+  but can after a Read of a record without it. [stop after the cell walk]
+- **PV11:** §4.13 step 1 (night-lit street props in the power-change rectangle) does not say which cell IsPowered is
+  asked for. [trunc(position / cell width), as in the batch]
+- **PV12:** unregistering (§4.7) looks the prop up in every list whatever its properties, and Shutdown clears the
+  power list ([choice] per §3.2). Does the original test each list's join condition instead of looking everywhere?
+- **PV13:** a scanner state byte above 2 in the record: what does the original do? No corpus record has one. [Read
+  returns false and nothing changes]
