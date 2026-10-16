@@ -457,8 +457,9 @@ simulators (slot 10, then slot 12), riots (slots 5 and 14, §8.1).
 
 ### 7.2 Pedestrian manager (city slot 44) slot 15: `CreateAutomaton`
 
-Seven arguments, `__thiscall`, callee pops 28 (`0x00505370`, shared by every manager). Q5 is answered: the names
-and types are the Mac build's signature, and the Windows code matches.
+Seven arguments, `__thiscall`, callee pops 28. The pedestrian, vehicle and aircraft managers share `0x00505370`;
+the watercraft manager overrides the slot (below). Q5 is answered: the names and types are the Mac build's
+signature, and the Windows code matches.
 
 | # | Argument | Use |
 |---|---|---|
@@ -488,6 +489,19 @@ Any priority below `0xFF` is first offered to the city situation manager:
 | Caller | Arguments |
 |---|---|
 | riot | (`0x4107`, cell position, 2, zero key, null, `0xFF`, null) |
+
+**Watercraft override** (`0x00568F30`, also pops 28). It returns null without creating anything when either check
+fails:
+1. **Spacing.** For each watercraft in the manager's list (`+0x44`), it takes the distance from that boat's
+   position (automaton slot 7) to the requested position, as a full 3-D length. If the distance is below 2.0
+   (`f32` at `0x00B0A158`) × that boat's radius (slot 17), the request is refused (`0x00568C10`). The first boat
+   that is too close stops the walk. Nothing is refused for an empty list.
+2. **Bounds.** The position's x and z are turned into a cell (city slot 95, `0x00568F74`), and the cell must be
+   inside the city (city slot 99, `0x00568F8C`).
+
+When both checks pass, it calls the shared `0x00505370` with arguments 1–6 unchanged and **null** as the
+orientation (`0x00568FAA`). A watercraft's orientation argument is therefore always ignored. The override does not
+look at water, the flags or the priority itself; those are handled by the shared code as above.
 | generators | (current group, spawn point, `0x2000002`, zero key, null, the template's priority byte, null) |
 
 ### 7.3 Manager slots that other specs use
@@ -721,3 +735,8 @@ Each test reads the record, checks the decoded fields, writes it back and compar
     is A. When B leaves, C's leader becomes A. When A leaves, C has no leader.
 15. **Aircraft records.** An airplane writes `01 00 | 01 00 | <automaton base> | <vec3>`, and a watercraft writes
     `02 00 | <automaton base>`. Reading an aircraft base with version 2, or a watercraft with version 1, fails.
+16. **Watercraft spacing.** A watercraft manager holds one boat of radius 10 at (100, 0, 100).
+    - Creating a boat at (115, 0, 100) returns null, because 15 < 2.0 × 10.
+    - At (120, 0, 100) the distance equals 20, which is not below 20, so the request goes on to the bounds check
+      and the shared creation.
+    - At (100, 0, 100) with an orientation, the new boat's orientation is not set from the argument.
