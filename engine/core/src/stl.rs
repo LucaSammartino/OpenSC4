@@ -440,6 +440,12 @@ impl StlHashSet {
         self.map.keys()
     }
 
+    /// The first element in iteration order (`*begin()`), without building
+    /// the whole order.
+    pub fn first(&self) -> Option<u32> {
+        self.map.iter().next().map(|(k, _)| k)
+    }
+
     /// `erase(value)`: removes `v` from its chain, keeping the order of the
     /// others (the bucket array is not shrunk). Returns whether it was
     /// present.
