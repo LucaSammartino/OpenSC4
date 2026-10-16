@@ -1754,23 +1754,36 @@ mod lock_tests {
     use super::ReentrantLock;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::time::{Duration, Instant};
 
     #[test]
     fn reentrant_lock_reenters_on_one_thread_and_excludes_others() {
         let l = Arc::new(ReentrantLock::default());
         let g1 = l.lock();
         let g2 = l.lock(); // same thread: re-enters
+        assert_eq!(l.waits(), 0, "re-entering does not wait");
         let inside = Arc::new(AtomicBool::new(false));
         let (l2, in2) = (l.clone(), inside.clone());
         let t = std::thread::spawn(move || {
             let _g = l2.lock();
             in2.store(true, Ordering::SeqCst);
         });
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        // The lock counts a thread when it starts to wait: wait until the
+        // other thread is counted, however long a busy machine takes to
+        // start it, instead of a fixed sleep (which it could outlast).
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while l.waits() == 0 {
+            assert!(Instant::now() < deadline, "the other thread never waited for the lock");
+            assert!(!t.is_finished(), "it finished without waiting for the lock");
+            std::thread::sleep(Duration::from_millis(1));
+        }
         assert!(!inside.load(Ordering::SeqCst), "the other thread waits");
         drop(g2);
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        // Still held once: a lock that let the waiter in now would show it
+        // within this pause (a correct one never does, however long).
+        std::thread::sleep(Duration::from_millis(20));
         assert!(!inside.load(Ordering::SeqCst), "still held once");
+        assert!(!t.is_finished(), "still waiting");
         drop(g1);
         t.join().unwrap();
         assert!(inside.load(Ordering::SeqCst));
