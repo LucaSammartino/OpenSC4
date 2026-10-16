@@ -43,6 +43,7 @@ use crate::grid::{
     add_distance_effect, process_two_grids, GridElem, ScanIterator, ScanState, SimGrid, TractGeometry, TractGrid,
     IID_SIM_GRID,
 };
+use crate::pacing::{self, Pacing};
 use crate::stream::{InStream, OutStream, RefValue};
 
 pub const CLSID_LAND_VALUE_SIMULATOR: u32 = 0xE990_C18E;
@@ -313,6 +314,8 @@ pub struct LandValueSim {
     /// gives a shadow whose tokens are the original's pointers.
     developers: Vec<(u64, f32)>,
     cursor: usize,
+    /// simulator.md §5.7: captured from [`pacing::process`] at construction.
+    pacing: Pacing,
 }
 
 /// The tract-rectangle iterator of a geometry (§6, simgrid §7.4).
@@ -371,6 +374,7 @@ impl LandValueSim {
             tuning: Tuning::default(),
             developers: Vec::new(),
             cursor: 0,
+            pacing: pacing::process(),
         }
     }
 
@@ -603,6 +607,9 @@ impl LandValueSim {
                     self.state = 0;
                 }
             }
+            msg::SIM_IDLE if self.pacing.is_deterministic() => {
+                self.settle_cycle();
+            }
             msg::SIM_IDLE => self.step(data3.clamp(0, i64::from(u32::MAX)) as u32),
             t if msg::CHANGES.contains(&t) => self.dirty = true,
             _ => {}
@@ -653,6 +660,31 @@ impl LandValueSim {
     }
 
     // ---- the pipeline (§6) --------------------------------------------------------------------------
+
+    /// The pacing this simulator runs (simulator.md §5.7).
+    pub fn pacing(&self) -> Pacing {
+        self.pacing
+    }
+
+    /// Shadows and tests: [`Pacing::Original`] keeps the frame's budget.
+    pub fn set_pacing(&mut self, p: Pacing) {
+        self.pacing = p;
+    }
+
+    /// simulator.md §5.7 [choice] (deterministic pacing): the day's settle
+    /// delivery runs the pass to completion with an unbounded tract count.
+    /// Returns whether it is finished.
+    pub fn settle_cycle(&mut self) -> bool {
+        let mut n = 0u32;
+        while self.state != STATE_FINISHED {
+            if n >= pacing::MAX_SETTLE_STEPS {
+                return false;
+            }
+            n += 1;
+            self.step(u32::MAX);
+        }
+        true
+    }
 
     /// `Step(budget)`: completes at most one state.
     pub fn step(&mut self, budget_ms: u32) {

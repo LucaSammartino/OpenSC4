@@ -121,6 +121,9 @@ int CommercialEnableTest(const std::string& dll, const std::string& ini, const s
     // without services (§4.1 step 5 fails), DoMessage (§3).
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    // One idle step per delivery below (the original's pacing; under the
+    // default deterministic pacing one SimIdle runs the whole rebuild).
+    SetEnvironmentVariableA("FC4_PACING", "original");
     WriteTextFile(ini, "[subsystems]\nenable = commercial, industrial\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);

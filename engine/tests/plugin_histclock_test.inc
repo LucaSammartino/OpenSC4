@@ -264,13 +264,18 @@ void HcHistoryRecordAndQuery(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
 // Queries from another thread while the main thread records (the lock).
 void HcHistoryThreads(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
     std::atomic<bool> stop{false};
+    std::atomic<bool> started{false};
     std::atomic<int> answers{0};
     std::thread t([&] {
         float n = 0;
+        started = true;
         while (!stop.load()) {
             if (h->GetCount(0x0A1100E8, HcDate(kHcDay0), HcDate(kHcDay0 + 100000), n)) ++answers;
         }
     });
+    // The querying thread runs before the records start (otherwise a fast
+    // main thread can finish all 2000 before the thread's first query).
+    while (!started.load()) std::this_thread::yield();
     for (int i = 0; i < 2000; ++i) {
         w.date = kHcDay0 + 200 + static_cast<uint32_t>(i);
         h->RecordHistoryData(0x0A1100E8, i);

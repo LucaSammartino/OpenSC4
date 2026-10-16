@@ -38,6 +38,7 @@
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Pacing.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4SafeLotIterator.h"
@@ -535,7 +536,9 @@ void PostMessage(void* u, uint32_t type, uint32_t data1, uint64_t lot) {
     cFC4Message2Standard* msg = FC4MakeMessage(type, static_cast<intptr_t>(data1), 0, 0);
     if (msg == nullptr) return;
     if (lot != 0) msg->SetIGZUnknown(FromToken(lot));
-    ms->MessagePost(msg, false);
+    // Deterministic pacing: a lot StateChanged is sent at the day's settle
+    // point instead (FC4Pacing.h; simulator.md §5.7 [choice]).
+    if (!fc4::PacingDefer(msg)) ms->MessagePost(msg, false);
     msg->Release();
     ++Ctx(u)->posts;
 }

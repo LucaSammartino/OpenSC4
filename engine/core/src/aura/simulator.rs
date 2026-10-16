@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use crate::grid::{add_radius_effect, GridProvider, TractGrid, IID_SIM_GRID};
+use crate::pacing::{self, Pacing};
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 use crate::variant::Elem;
 
@@ -158,6 +159,8 @@ pub struct AuraSim {
     pub(crate) rng: RefCell<Box<dyn AuraRandom>>,
     pub(crate) lots: RefCell<Option<Box<dyn LotIterator>>>,
     pub(crate) slice: Cell<SliceStep>,
+    /// simulator.md §5.7: captured from [`pacing::process`] at construction.
+    pub(crate) pacing: Cell<Pacing>,
 }
 
 impl AuraSim {
@@ -172,7 +175,18 @@ impl AuraSim {
             rng: RefCell::new(rng),
             lots: RefCell::new(None),
             slice: Cell::new(SliceStep::default()),
+            pacing: Cell::new(pacing::process()),
         })
+    }
+
+    /// The pacing this simulator runs (simulator.md §5.7).
+    pub fn pacing(&self) -> Pacing {
+        self.pacing.get()
+    }
+
+    /// Shadows and tests: [`Pacing::Original`] keeps the clock-bound steps.
+    pub fn set_pacing(&self, p: Pacing) {
+        self.pacing.set(p);
     }
 
     pub fn token(&self) -> u64 {
@@ -371,7 +385,11 @@ impl AuraSim {
                 true
             }
             msg::SIM_IDLE => {
-                self.do_idle(m.data3);
+                if self.pacing.get().is_deterministic() {
+                    self.settle_cycle();
+                } else {
+                    self.do_idle(m.data3);
+                }
                 true
             }
             msg::POST_CITY_INIT => {

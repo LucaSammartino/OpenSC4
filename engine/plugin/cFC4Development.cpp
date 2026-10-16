@@ -2896,7 +2896,9 @@ bool cFC4BuildingDevelopmentSimulator::DoMessage(cIGZMessage2* pMessage) {
         }
     }
     Drop(s);
-    fc4_development_do_message(core_, &m, nParams != 0 ? params : nullptr, nParams);
+    // Deterministic pacing (FC4Pacing.h): false only for a settle SimIdle
+    // that waits for a growth developer; the simulator delivers it again.
+    const bool finished = fc4_development_do_message(core_, &m, nParams != 0 ? params : nullptr, nParams);
     if (m.msg_type == kMsgSimNewDay) {
         ++days_;
         lastNewDay_ = m.data1;
@@ -2913,7 +2915,7 @@ bool cFC4BuildingDevelopmentSimulator::DoMessage(cIGZMessage2* pMessage) {
             lastPlanState_ = st.state;
         }
     }
-    return true;  // §3.1: always
+    return finished;  // §3.1: always true under original pacing
 }
 
 // ---- persistence (§6) -----------------------------------------------------------------------------

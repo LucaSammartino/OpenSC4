@@ -1094,6 +1094,8 @@ impl Shadow {
         let h = &self.host;
         h.parse.set(true);
         let sim = PlumbingSim::new(h.clone() as Rc<dyn PlumbingHost>, 0);
+        // Shadows replay the original's pacing (simulator.md §5.7).
+        sim.set_pacing(fc4_core::pacing::Pacing::Original);
         let mut r = CaptureReader::new(&c.bytes, &c.refs);
         let ok = sim.read(&mut r);
         h.parse.set(false);
@@ -1137,6 +1139,8 @@ impl Shadow {
             h.grids.borrow_mut().insert(t, SimGrid::from_values(geom, &[]));
         }
         let sim = PlumbingSim::new(h.clone() as Rc<dyn PlumbingHost>, 0);
+        // Shadows replay the original's pacing (simulator.md §5.7).
+        sim.set_pacing(fc4_core::pacing::Pacing::Original);
         sim.read_tuning();
         let mut r = CaptureReader::new(&cap.bytes, &cap.refs);
         if !sim.read(&mut r) || r.error() != 0 {

@@ -134,6 +134,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Config.h
         plugin/FC4Seed.cpp
         plugin/FC4Seed.h
+        plugin/FC4Pacing.cpp
+        plugin/FC4Pacing.h
         plugin/FC4RefAudit.cpp
         plugin/FC4RefAudit.h
         plugin/FC4Checked.cpp

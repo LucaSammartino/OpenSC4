@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use crate::development::{building_fits_in_zone, building_map_key, developer_type, wealth_of};
+use crate::pacing::{self, Pacing};
 use crate::props;
 use crate::stream::{InStream, OutStream, RefValue, ResKey, SaveObject};
 use crate::x87::ftol32;
@@ -134,6 +135,8 @@ pub struct DevelopmentSim {
     grid: RefCell<Option<Grid>>,
     node: RefCell<Option<Node>>,
     grow_budget: Cell<u32>,
+    /// simulator.md §5.7: captured from [`pacing::process`] at construction.
+    pacing: Cell<Pacing>,
 }
 
 type Node = Rc<dyn ConstructionNode>;
@@ -156,7 +159,38 @@ impl DevelopmentSim {
             grid: RefCell::new(None),
             node: RefCell::new(None),
             grow_budget: Cell::new(DEFAULT_GROW_ATTEMPT_BUDGET),
+            pacing: Cell::new(pacing::process()),
         })
+    }
+
+    /// The pacing this simulator runs (simulator.md §5.7).
+    pub fn pacing(&self) -> Pacing {
+        self.pacing.get()
+    }
+
+    /// Shadows and tests: [`Pacing::Original`] keeps one step per idle.
+    pub fn set_pacing(&self, p: Pacing) {
+        self.pacing.set(p);
+    }
+
+    /// simulator.md §5.7 [choice] (deterministic pacing): the day's settle
+    /// delivery runs the monthly rebuild to completion (state 0). False while
+    /// it waits for a growth developer's map update: the simulator delivers
+    /// the settle idle again after the other idle agents (the developers
+    /// among them) have run.
+    pub fn settle_cycle(&self) -> bool {
+        pacing::run_to_idle(
+            || {
+                let before = {
+                    let d = self.d.borrow();
+                    (d.state, d.cursor)
+                };
+                self.do_idle();
+                let d = self.d.borrow();
+                (d.state, d.cursor) != before
+            },
+            || self.d.borrow().state == 0,
+        )
     }
 
     /// The daily work budget of `Grow` ([choice], §4.4): at most this many
@@ -421,7 +455,8 @@ impl DevelopmentSim {
 
     // ---- messages (§3) -----------------------------------------------------------------------------
 
-    /// `DoMessage` (§3): always true.
+    /// `DoMessage` (§3): always true, except a deterministic-pacing settle
+    /// idle that waits for a developer ([`DevelopmentSim::settle_cycle`]).
     pub fn do_message(&self, m: &Message) -> bool {
         match m.msg_type {
             msg::SIM_BEGIN | msg::SIM_NEW_MONTH => self.do_monthly_simulation(),
@@ -429,6 +464,7 @@ impl DevelopmentSim {
                 self.do_idle();
                 self.do_daily_simulation();
             }
+            msg::SIM_IDLE if self.pacing.get().is_deterministic() => return self.settle_cycle(),
             msg::SIM_IDLE => self.do_idle(),
             msg::CHEAT => self.do_cheat(m.data1),
             msg::PLACE_BUILDING => self.place_building_command(&m.params),

@@ -15,6 +15,7 @@ use std::rc::Rc;
 
 use crate::curve::ResponseCurve;
 use crate::grid::{Bitmap, ScanIterator, ScanState, MAX_TRACTS};
+use crate::pacing::{self, Pacing};
 use crate::props::{self, round_half_even_f32};
 use crate::rng::{CrtRand, RzRandom};
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
@@ -452,6 +453,8 @@ pub struct PlumbingSim {
     host: Rc<dyn PlumbingHost>,
     token: Cell<u64>,
     s: RefCell<PlumbingState>,
+    /// simulator.md §5.7: captured from [`pacing::process`] at construction.
+    pacing: Cell<Pacing>,
 }
 
 impl PlumbingSim {
@@ -461,7 +464,35 @@ impl PlumbingSim {
             host,
             token: Cell::new(token),
             s: RefCell::new(PlumbingState::default()),
+            pacing: Cell::new(pacing::process()),
         })
+    }
+
+    /// The pacing this simulator runs (simulator.md §5.7).
+    pub fn pacing(&self) -> Pacing {
+        self.pacing.get()
+    }
+
+    /// Shadows and tests: [`Pacing::Original`] keeps one state per idle.
+    pub fn set_pacing(&self, p: Pacing) {
+        self.pacing.set(p);
+    }
+
+    /// simulator.md §5.7 [choice] (deterministic pacing): the day's settle
+    /// delivery runs the pass (and any pass a pending recompute starts) to
+    /// completion: state 9 without a recompute, or disabled. Returns whether
+    /// it is idle.
+    pub fn settle_cycle(&self) -> bool {
+        pacing::run_to_idle(
+            || {
+                self.do_idle(5);
+                true
+            },
+            || {
+                let s = self.s.borrow();
+                !s.enabled || (s.state == 9 && !s.recompute)
+            },
+        )
     }
 
     pub fn token(&self) -> u64 {
@@ -690,6 +721,9 @@ impl PlumbingSim {
         match m.msg_type {
             msg::SIM_NEW_MONTH => self.monthly_simulation(),
             msg::SIM_NEW_DAY => return self.do_idle(5),
+            msg::SIM_IDLE if self.pacing.get().is_deterministic() => {
+                self.settle_cycle();
+            }
             msg::SIM_IDLE => return self.do_idle(m.data3),
             msg::CONNECTIONS_READY => self.s.borrow_mut().enabled = true,
             msg::INSERT_OCCUPANT | msg::REMOVE_OCCUPANT => {
