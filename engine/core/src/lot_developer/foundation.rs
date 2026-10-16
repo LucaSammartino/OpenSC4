@@ -269,6 +269,9 @@ impl TerrainView {
                 }
             }
         }
+        // LD5 (re-answers12, §17.5.4): the original does not mask the facing
+        // (a facing outside 0-3 reads outside `corners`); facings are 0-3, so
+        // the mask is a safe [choice].
         let k = (f & 3) as usize;
         let a = corners[k];
         let b = corners[(k + 1) & 3];
