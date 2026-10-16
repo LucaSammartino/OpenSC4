@@ -93,6 +93,11 @@ cSC4OccupantManager	occupant manager	simulation	occupant-manager.md	core/src/occ
 cSC4NetworkManager	network manager	simulation	network-manager.md	core/src/network_manager	-	-
 cSC4NetworkLotManager	network manager	simulation	network-manager.md	core/src/network_manager	-	-
 cSC4NetworkConstructionCrew	network manager	simulation	network-manager.md	core/src/network_manager	-	-
+# the network lot and its configuration object, each a section of network-manager.md (§2.3 vtable 0x00AA78E0,
+# IID 0x89A5BA66; §2.4 vtable 0x00AA7998), implemented by core/src/network_manager (lots.rs, config.rs). They are
+# listed before the cSC4Network* catch-all, which would otherwise file them under network occupants
+cSC4NetworkLot	network manager	simulation	network-manager.md	core/src/network_manager	-	-
+cSC4NetworkLotConfiguration	network manager	simulation	network-manager.md	core/src/network_manager	-	-
 cSTETerrain	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTESurfaceWater	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTEVolcanoLava	terrain	simulation	terrain.md	core/src/terrain	-	-
@@ -176,8 +181,12 @@ cSC4RiotPolice	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4TrailerVehicle	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4Bus	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4GetawayVan	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4AutomataGenerator	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4AutomataAttractor	automata (vehicles, animation)	simulation	-	-	-	-
+# the generator (class 0x4A1628C5) and attractor (0x6A1628BA) controller records of automata.md §3.5, specified as
+# records (Write / Read addresses and fields) and implemented by core/src/automata (controller.rs). Only these two of
+# the vehicle-side classes are specified: automata.md §0 says the short form covers the records and the hooks, not
+# movement, path following or animation, so the rest of this block keeps spec -
+cSC4AutomataGenerator	automata (vehicles, animation)	simulation	automata.md	core/src/automata	-	-
+cSC4AutomataAttractor	automata (vehicles, animation)	simulation	automata.md	core/src/automata	-	-
 cSC4AttractorDescription	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4ControllerGrid	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4PropOccupantAutomataController	automata (vehicles, animation)	simulation	-	-	-	-
@@ -241,6 +250,12 @@ fn:RemoveUnnecessaryFloatingPointDigits	data formats (DBPF, exemplars)	framework
 (anonymous_namespace)::cExemplarReader	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
 cSCResProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
 cRZVariant	foundations	framework	foundations.md	core/src/variant.rs	-	-
+# the two generator classes of foundations.md §6.1, specified operation by operation (cRZRandom's lcg / mul states and
+# cRZRandomSuper's reload), and the session seeding of §6.3 that core/src/seeding.rs derives from the host seed with a
+# per-generator constant K; core/src/rng.rs is the two generators. cRZRandomSuper is listed before cRZRandom* so the
+# two classes can diverge later; both land on the same subsystem today
+cRZRandomSuper	random numbers and seeding	framework	foundations.md	core/src/seeding.rs,core/src/rng.rs	-	-
+cRZRandom*	random numbers and seeding	framework	foundations.md	core/src/seeding.rs,core/src/rng.rs	-	-
 cS3DFSHTextureFactory	graphics formats (FSH, S3D)	renderer	graphics-formats.md	formats/src/fsh	-	-
 cS3DResModel*	graphics formats (FSH, S3D)	renderer	graphics-formats.md	formats/src/s3d	-	-
 cS3DShapeFile	graphics formats (FSH, S3D)	renderer	graphics-formats.md	formats/src/fsh	-	-

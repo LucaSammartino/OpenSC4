@@ -59,8 +59,8 @@ is left out.
 
 | Share of the game's code | Whole game | Simulation | Renderer | UI | Audio |
 |---|---:|---:|---:|---:|---:|
-| **Specified** (a clean-room spec covers it) | 32.8% | 77.9% | 15.2% | 0% | 0% |
-| **Implemented** (an OpenSC4 module exists) | 21.2% | 56.3% | 0.6% | 0% | 0% |
+| **Specified** (a clean-room spec covers it) | 32.9% | 78.3% | 15.2% | 0% | 0% |
+| **Implemented** (an OpenSC4 module exists) | 21.3% | 56.6% | 0.6% | 0% | 0% |
 | **Verified** (its shadow matches the original exactly) | 9.5% | 27.4% | 0% | 0% | 0% |
 | **Replaced** (runs instead of the original in game) | 12.1% | 35.1% | 0% | 0% | 0% |
 
