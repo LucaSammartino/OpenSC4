@@ -138,8 +138,9 @@ impl PlumbingHost for Fake {
     fn tuning(&self) -> Option<Rc<PropertyHolder>> {
         self.tuning.borrow().clone()
     }
-    fn wall_clock_seed(&self) -> u32 {
-        1
+    fn session_seed(&self) -> u32 {
+        // derive(K) = 1, the clock value the tests were written for.
+        1 ^ crate::seeding::keys::PLUMBING.k()
     }
     fn add_agent(&self, level: u32, name: &str, flags: u32) {
         self.note(format!("agent {level} {name} {flags}"));

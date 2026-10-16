@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "12_versions_and_lists",
+  "spec": ["automata 4", "automata 5.1", "automata 5.2", "automata 5.3", "automata 3.3"],
+  "description": "Version 3 traffic managers with base 6, automata, a group map and the corpus incident (x 47, z 22, type 2, network occupant class 0xC9C05C6E, bool 1, last 6264); an aircraft record of version 5 with an airport pair and a spot, version 4 as a bare base and version 6 rejected; a watercraft ferry entry with a route element; the Big City Tutorial automaton set. All re-encode byte-identically.",
+  "steps": [
+    {"op": "automata_record", "class": "0xA98F9D3B", "hex": "0300 0600 50010000 01 01 01000000 07000000 AF756E89 01000000 05410000 03000000 01000000 07000000 0100 01000000 2F000000 16000000 02000000 01000000 02000000 03000000 04000000 05000000 06000000 07000000 08000000 05000000 6E5CC0C9 01 78180000", "fields": {"version": 3, "base_version": 6, "automata": 1, "group_counts": [["0x4105", 3]], "tag": 1, "cursor": 7, "incidents": 1, "old_version": false}},
+    {"op": "automata_record", "class": "0xC98F9D4A", "hex": "0500 0500 32000000 01 01 00000000 00000000 01000000 2D000000 2D88BDA9 31000000 AF756E89 01000000 0000803F 00000040 00004040 07", "fields": {"version": 5, "base_version": 5, "pairs": 1, "spots": 1}},
+    {"op": "automata_record", "class": "0xC98F9D4A", "hex": "0400 64000000 01 00 00000000", "fields": {"version": 4, "base_version": 4, "max_count": 100, "pairs": 0}},
+    {"op": "automata_record", "class": "0xC98F9D4A", "hex": "0600 0600 00000000 00 00 00000000 00000000", "expect": false},
+    {"op": "automata_record", "class": "0xA98F9D28", "hex": "0600 0600 14000000 01 00 00000000 00000000 01000000 03000000 4A5DBDC9 09000000 2D88BDA9 01000000 09000000 2D88BDA9 01000000 03000000 4A5DBDC9 09000000 2D88BDA9 01000000 03000000 4A5DBDC9 04000000 4A5DBDC9 01000000 0100 0200 0300 0400 01 FEFF 0500 02000000 AABB 00000000", "fields": {"lots": 1, "occupants": 1, "ferries": 1}},
+    {"op": "automata_record", "class": "0xCA14CA03", "hex": "0100 00000000 000000000000 000000000000 00000000 01000000 40000000 2D88BDA9 00000000 00009D44 00000000 00208244 000080BF 00000000 00000000 01", "fields": {"entries": 0, "sets": 1}}
+  ]
+}

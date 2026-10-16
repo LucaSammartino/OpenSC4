@@ -112,6 +112,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -2079,6 +2080,24 @@ struct FakePopupApp {
 };
 
 FakePopupApp* g_popupApp = nullptr;
+
+// NG35 (neighbors.md §15.4): a stand-in for nSC4UI::GenericConfirmationDialog
+// (cdecl, four strings, true only for Yes), given to the plugin through
+// FC4TestSeam op 66.
+struct FakeConfirm {
+    int calls = 0;
+    bool answer = false;
+    bool stringsOk = false;   // title and text non-null, with text
+    bool labelsNull = false;  // the default Yes / No
+};
+FakeConfirm g_fakeConfirm;
+bool __cdecl FakeConfirmDialog(cIGZString* title, cIGZString* text, cIGZString* yes, cIGZString* no) {
+    ++g_fakeConfirm.calls;
+    g_fakeConfirm.stringsOk =
+        title != nullptr && text != nullptr && title->ToChar() != nullptr && text->ToChar() != nullptr;
+    g_fakeConfirm.labelsNull = yes == nullptr && no == nullptr;
+    return g_fakeConfirm.answer;
+}
 
 bool __fastcall AppGetPopupDialogsEnabled(void*, void*) {  // cISC4App 23 (+0x5C), pops 0
     ++g_popupApp->gets;
@@ -4529,6 +4548,40 @@ constexpr uint32_t kIID_cISC4BuildingDevelopmentSimulator = 0x07813EAE;
 constexpr uint32_t kIID_cIGZMessageTargetDev = 0xE98B2F57;
 constexpr uint32_t kIID_cIGZMessageTarget2Dev = 0x452294AA;
 
+// DG35 (§4.9.2): a retaining wall (primary interface: slot 3 AsOccupant,
+// slot 11 GetRetainingWallType) whose occupant sub-object (+0x04) answers QI
+// 0x295D1162 with the wall, AddRef'd; the wall's own QI (slot 0, probed by
+// the reference audit) answers nothing. Other slots trap.
+struct FakeWall {
+    void** vtbl;
+    void** occVtbl;
+    int refs = 1;  // the caller's
+    int qis = 0;
+    int typeCalls = 0;
+    bool isWall = true;
+    uint32_t type = 7;
+};
+FakeWall* g_wall = nullptr;
+FakeVtable g_wallVt, g_wallOccVt;
+bool __fastcall WallOccQi(void*, void*, uint32_t iid, void** out) {  // occupant 0
+    ++g_wall->qis;
+    if (out == nullptr || !g_wall->isWall || iid != 0x295D1162u) return false;
+    *out = g_wall;
+    ++g_wall->refs;
+    return true;
+}
+bool __fastcall WallQi(void*, void*, uint32_t, void** out) {  // wall 0: the reference audit's class probe
+    if (out != nullptr) *out = nullptr;
+    return false;
+}
+uint32_t __fastcall WallAddRef(void*, void*) { return static_cast<uint32_t>(++g_wall->refs); }   // 1
+uint32_t __fastcall WallRelease(void*, void*) { return static_cast<uint32_t>(--g_wall->refs); }  // 2
+void* __fastcall WallAsOccupant(FakeWall* w, void*) { return &w->occVtbl; }                      // wall 3
+uint32_t __fastcall WallType(FakeWall* w, void*) {                                               // wall 11
+    ++w->typeCalls;
+    return w->type;
+}
+
 // The answers without a city or catalogue (§7.1), through the compiled
 // slots. The AL-only slots 42 / 43 are also called raw: the whole of EAX
 // must be the key (zero-extended).
@@ -4555,6 +4608,28 @@ void CheckDevelopmentNeutral(cFC4ISC4BuildingDevelopmentSimulator* b, uint32_t t
     CHECK(pos[1] == 0.0f);
     // 26 / 29: a null occupant [choice] and a type outside the (empty) key maps: false.
     CHECK(!b->LoadFoundationProperties(nullptr, 1) && !b->LoadLotRetainingWallProperties(nullptr, 1));
+    // 29, DG35: type 0 takes the wall's type, reached from its occupant
+    // token by QI 0x295D1162 (released after); the type is not in the
+    // (empty) key map: false. An occupant that is not a wall gives type 0.
+    {
+        FakeWall wall;
+        g_wall = &wall;
+        g_wallVt.slots[1] = g_wallOccVt.slots[1] = reinterpret_cast<void*>(&WallAddRef);
+        g_wallVt.slots[2] = g_wallOccVt.slots[2] = reinterpret_cast<void*>(&WallRelease);
+        g_wallVt.slots[3] = reinterpret_cast<void*>(&WallAsOccupant);
+        g_wallVt.slots[11] = reinterpret_cast<void*>(&WallType);
+        g_wallOccVt.slots[0] = reinterpret_cast<void*>(&WallOccQi);
+        g_wallVt.slots[0] = reinterpret_cast<void*>(&WallQi);
+        wall.vtbl = g_wallVt.slots.data();
+        wall.occVtbl = g_wallOccVt.slots.data();
+        auto* w = reinterpret_cast<cISC4LotRetainingWallOccupant*>(&wall);
+        CHECK(!b->LoadLotRetainingWallProperties(w, 0));
+        CHECK(wall.qis == 1 && wall.typeCalls == 1 && wall.refs == 1);
+        wall.isWall = false;
+        CHECK(!b->LoadLotRetainingWallProperties(w, 0));
+        CHECK(wall.qis == 2 && wall.typeCalls == 1 && wall.refs == 1);
+        g_wall = nullptr;
+    }
     CHECK(!b->CheatIgnorePlumbing() && !b->CheatIgnorePower() && !b->CheatIgnoreCaps() && !b->CheatDebugGrowth() &&
           !b->CheatCoffeeBar());
     // 42 / 43: 4p + w + 1, in EAX.
@@ -4827,7 +4902,7 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
     // refused a null occupant. The month and state lines count the calls (calls/successes).
     CHECK(text.find("development: WARNING could not create a foundation occupant (class 0x49C05C8F)") !=
           std::string::npos);
-    CHECK(text.find("lotUpdates=0 foundations=1/0 foundationLoads=1/0 wallLoads=1/0") != std::string::npos);
+    CHECK(text.find("lotUpdates=0 foundations=1/0 foundationLoads=1/0 wallLoads=3/0") != std::string::npos);
     // The growth developers: one created and initialised (refused), two read.
     CHECK(text.find("development: growth statics ") != std::string::npos);
     CHECK(CountOf(text, "cFC4GrowthDeveloper(") == 8);  // created and destroyed (one for the shadow's bridge)
@@ -7844,6 +7919,50 @@ void CheckGetPropertyData(cISC4NeighborConnection* conn, NbGameProperty& raw) {
     u = 9;
     CHECK(h->GetPropertyU32(0x5AFE0205, u) && u == 0);
     CHECK(h->RemoveProperty(0x5AFE0204, false) && h->RemoveProperty(0x5AFE0205, false));
+    // NG44 (data-formats §5.1): an empty character array gives the empty
+    // text, which parses as 0: true and 0 (it was false); a string parses as
+    // a number; a signed scalar sign-extends.
+    char none[1] = {};
+    arr.SetRefRZChar(none, 0);
+    CHECK(h->AddPropertyVariant(0x5AFE0206, &arr, false));
+    u = 9;
+    CHECK(h->GetPropertyU32(0x5AFE0206, u) && u == 0);
+    char twelve[2] = {'1', '2'};
+    arr.SetRefRZChar(twelve, 2);
+    CHECK(h->AddPropertyVariant(0x5AFE0207, &arr, false));
+    CHECK(h->GetPropertyU32(0x5AFE0207, u) && u == 12);
+    arr.SetValSint32(-1);
+    CHECK(h->AddPropertyVariant(0x5AFE0208, &arr, false));
+    CHECK(h->GetPropertyU32(0x5AFE0208, u) && u == 0xFFFFFFFFu);
+    float big[1] = {1e30f};
+    arr.SetRefFloat32(big, 1);
+    CHECK(h->AddPropertyVariant(0x5AFE0209, &arr, false));
+    CHECK(h->GetPropertyU32(0x5AFE0209, u) && u == 0x19058000u);
+    CHECK(h->RemoveProperty(0x5AFE0206, false) && h->RemoveProperty(0x5AFE0207, false));
+    CHECK(h->RemoveProperty(0x5AFE0208, false) && h->RemoveProperty(0x5AFE0209, false));
+    // NG37: AddPropertyData (slot 10) stores raw bytes (type 0x8000, count =
+    // length), which GetPropertyData reads back; a null `data` keeps the
+    // count; the void array reads as 0 through slot 8.
+    uint8_t five[5] = {9, 8, 7, 6, 5};
+    CHECK(h->AddPropertyData(0x5AFE020A, five, 5, false));
+    cISCProperty* dp = h->GetProperty(0x5AFE020A);
+    CHECK(dp != nullptr);
+    if (dp != nullptr) {
+        const cFC4IGZVariant* dv = fc4::AsGame(dp->GetPropertyValue());
+        CHECK(dv->GetType() == cIGZVariant::VoidArray && dv->GetCount() == 5);
+        uint8_t back[5] = {};
+        uint32_t want = 5;
+        CHECK(dv->GetValVoid(back, want) && want == 5 && back[0] == 9 && back[4] == 5);  // slot 57
+    }
+    uint8_t got[8] = {};
+    len = 8;
+    CHECK(h->GetPropertyData(0x5AFE020A, got, len) && len == 5 && got[0] == 9 && got[4] == 5);
+    u = 9;
+    CHECK(h->GetPropertyU32(0x5AFE020A, u) && u == 0);
+    CHECK(h->AddPropertyData(0x5AFE020A, nullptr, 3, false));
+    len = 8;
+    CHECK(h->GetPropertyData(0x5AFE020A, got, len) && len == 3);
+    CHECK(h->RemoveProperty(0x5AFE020A, false));
 }
 
 int NeighborsEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
@@ -7903,9 +8022,11 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
             CHECK(sim->Init());  // §14.1: true (no city here)
             CHECK(sim->GetTuningExemplar() == nullptr);
             // NG14 (§15.4): with popups disabled the original's confirmation
-            // dialog answers no, so the request is refused; enabled, it is
-            // confirmed without the dialog [choice]. The app's flag through
-            // its slot 23 (an app whose other slots trap).
+            // dialog answers no, so the request is refused. Enabled (NG35),
+            // the dialog is asked and its answer returned; with no dialog (an
+            // unidentified executable, as here) it is confirmed without
+            // asking [choice]. The app's flag through its slot 23 (an app
+            // whose other slots trap).
             static FakePopupApp popupApp;
             g_popupApp = &popupApp;
             popupApp.vt.slots[23] = reinterpret_cast<void*>(&AppGetPopupDialogsEnabled);
@@ -7920,13 +8041,33 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
                 popupApp.enabled = true;
                 CHECK(sim->RequestCreateConnection(NbType::Road, -1, 5, false));
                 CHECK(popupApp.gets == 2 && !sim->HasConnection(NbType::Road, -1, 5));
+                // NG35: the dialog's answer, with the §6.2 title and text and
+                // null labels; No refuses, Yes confirms.
+                CHECK(seam(kFC4SeamNeighborsConfirm, reinterpret_cast<void*>(&FakeConfirmDialog), nullptr) == 1);
+                g_fakeConfirm.answer = false;
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 1 && g_fakeConfirm.stringsOk && g_fakeConfirm.labelsNull);
+                g_fakeConfirm.answer = true;
+                CHECK(sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 2 && popupApp.gets == 4);
+                // Popups off: refused before the dialog.
+                popupApp.enabled = false;
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 2 && popupApp.gets == 5);
+                popupApp.enabled = true;
+                // NG36: no app (tests have no framework) counts as popups off.
+                CHECK(seam(kFC4SeamNeighborsApp, nullptr, nullptr) == 1);
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 2);
+                CHECK(seam(kFC4SeamNeighborsApp, &popupApp.app, nullptr) == 1);
+                CHECK(seam(kFC4SeamNeighborsConfirm, nullptr, nullptr) == 1);
             }
             cISC4NeighborConnection* conn = sim->CreateConnection(NbType::Road, -1, 5, false);
             CHECK(conn != nullptr);
             if (seam != nullptr) {
                 // It exists: refused before any dialog (§6.2).
                 CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
-                CHECK(popupApp.gets == 2);
+                CHECK(popupApp.gets == 5);
                 CHECK(seam(kFC4SeamNeighborsApp, nullptr, nullptr) == 1);
             }
             CHECK(sim->CreateConnection(NbType::Road, -1, 5, false) == nullptr);  // §6.3 step 1
@@ -8637,10 +8778,19 @@ void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         const FC4ZoneDevTestState st = ZdState(seam, zd);
         CHECK(st.newLotRefusals == 5 && st.masterSize == 0 && st.heldConfigs == 0 && st.lotsBuilt == 0);
         CHECK(lm->GetLotCount() == 0 && stub.defers == 2);
+        // ZG34 (tract-developer.md §4.15.3): while no lot can be built, slot
+        // 20 answers 0 for every rectangle, so the original Grow never deletes
+        // lots for an aggregation whose CreateLot would fail.
+        CHECK(lm->CanCreateLot(1, 1, 1, 1, false, false, nullptr) == 0);
+        CHECK(lm->CanCreateLot(1, 1, 1, 1, true, true, nullptr) == 0);
+        CHECK(ZdState(seam, zd).canCreateRefusals == 2);
     }
 
     // With the stub's lots.
     host.new_lot = &ZdNewLot;
+    // ZG34: with lots constructible slot 20 is the core's answer again.
+    CHECK(lm->CanCreateLot(1, 1, 1, 1, true, true, nullptr) != 0);
+    CHECK(ZdState(seam, zd).canCreateRefusals == 2);
     ZdLot* made = nullptr;
     {
         cISC4Lot* lot = nullptr;
@@ -9486,6 +9636,8 @@ struct TrafficStub {
     std::vector<uint32_t> subscribed;
     int agents = 0, posts = 0, rectQueries = 0, pathQueries = 0;
     std::vector<void*> blocks;  // the test allocator's blocks alive
+    // create_line_item calls: department, line, name, income, only if missing (TG7).
+    std::vector<std::tuple<uint64_t, uint32_t, uint32_t, bool, bool>> lineItems;
 };
 
 TrafficStub* g_tr = nullptr;
@@ -9560,6 +9712,9 @@ uint64_t TrCreateDepartment(void*, uint32_t, float) {
     g_tr->deptRefs[t] = 1;
     return t;
 }
+void TrCreateLineItem(void*, uint64_t dept, uint32_t line, uint32_t name, bool income, bool onlyIfMissing) {
+    g_tr->lineItems.emplace_back(dept, line, name, income, onlyIfMissing);
+}
 void TrReleaseDepartment(void*, uint64_t t) {
     CHECK(g_tr->deptRefs.count(t) == 1);
     --g_tr->deptRefs[t];
@@ -9633,6 +9788,7 @@ fc4_traffic_host TrafficStubHost(TrafficStub& s) {
     h.position_to_cell = &TrPositionToCell;
     h.cell_width = &TrCellWidth;
     h.create_department = &TrCreateDepartment;
+    h.create_line_item = &TrCreateLineItem;
     h.release_department = &TrReleaseDepartment;
     h.department_funding = &TrDepartmentFunding;
     h.set_line_item_income = &TrSetLineItemIncome;
@@ -9671,6 +9827,63 @@ intptr_t TrafficLivePathFinders(FC4TestSeamFn seam) {
 }
 
 // pathfinder.md §11 test 2 through slot 6: from (2, 2) to (4, 4) by car.
+// The caller-owned STLport deque<RouteData> of slot 8 (pathfinder.md §7):
+// ten 32-bit words, buffers of 0x7E bytes and the map from allocator B.
+struct TrRouteIter {
+    uint8_t* cur;
+    uint8_t* first;
+    uint8_t* last;
+    uint8_t** node;
+};
+struct TrRouteDeque {
+    TrRouteIter start, finish;
+    uint8_t** map;
+    uint32_t mapSize;
+};
+static_assert(sizeof(TrRouteDeque) == 0x28, "route deque: 0x28 bytes");
+
+void TrSetNode(TrRouteIter& it, uint8_t** node) {
+    it.node = node;
+    it.first = *node;
+    it.last = it.first + 0x7E;
+}
+
+// An empty deque as the callers' STLport constructs it, with its map of
+// `mapSize` slots and its one buffer at `slot`.
+TrRouteDeque TrEmptyRouteDeque(uint32_t mapSize, uint32_t slot) {
+    TrRouteDeque d{};
+    d.mapSize = mapSize;
+    d.map = static_cast<uint8_t**>(TrAllocate(mapSize * 4));
+    for (uint32_t i = 0; i < mapSize; ++i) d.map[i] = nullptr;
+    d.map[slot] = static_cast<uint8_t*>(TrAllocate(0x7E));
+    TrSetNode(d.start, d.map + slot);
+    d.start.cur = d.start.first;
+    d.finish = d.start;
+    return d;
+}
+
+// The caller's walk: start.cur up to finish.cur, buffer by buffer.
+std::vector<uint8_t> TrWalkRouteDeque(const TrRouteDeque& d) {
+    std::vector<uint8_t> out;
+    TrRouteIter it = d.start;
+    while (it.cur != d.finish.cur) {
+        out.insert(out.end(), it.cur, it.cur + 3);
+        it.cur += 3;
+        if (it.cur == it.last && it.node != d.finish.node) {
+            TrSetNode(it, it.node + 1);
+            it.cur = it.first;
+        }
+    }
+    return out;
+}
+
+// The caller's destructor: every buffer from start to finish, then the map.
+void TrFreeRouteDeque(TrRouteDeque& d) {
+    for (uint8_t** n = d.start.node; n <= d.finish.node; ++n) TrFree(*n);
+    TrFree(d.map);
+    d = TrRouteDeque{};
+}
+
 void ConfigurePathFinder(cFC4ISC4PathFinder* pf) {
     pf->SetFlag(1);
     pf->SetStartRect(SC4Rect<int32_t>(2, 2, 2, 2));
@@ -9694,6 +9907,18 @@ void TrafficPathFinderTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
     CHECK(TrafficHooks(seam, ts, &host) == 1);
     CHECK(ts->Init());
     CHECK(!stub.grids.empty() && stub.deptRefs.size() == 2 && !stub.subscribed.empty() && stub.agents > 0);
+    // TG7 (traffic-simulator.md §9.1): lines 1-3 with each new department,
+    // then lines 4-6 of both when missing; the two Income lines.
+    CHECK(stub.lineItems.size() == 12);
+    if (stub.lineItems.size() == 12) {
+        const uint64_t roads = std::get<0>(stub.lineItems[0]);
+        const uint64_t transit = std::get<0>(stub.lineItems[3]);
+        CHECK(roads != transit && stub.deptRefs.count(roads) == 1 && stub.deptRefs.count(transit) == 1);
+        CHECK((stub.lineItems[4] == std::make_tuple(transit, 2u, 0x8A5F978Cu, true, false)));
+        CHECK((stub.lineItems[6] == std::make_tuple(transit, 4u, 0x2AB7EA93u, false, true)));
+        CHECK((stub.lineItems[10] == std::make_tuple(roads, 5u, 0x0C3BF3C4u, true, true)));
+        CHECK((stub.lineItems[11] == std::make_tuple(roads, 6u, 0xEA5F96E7u, false, true)));
+    }
     // DoPostCityInit (§1): the whole city rebuilt from the network occupants.
     cIGZMessageTarget2* mt = nullptr;
     CHECK(ts->QueryInterface(kIID_cIGZMessageTarget2T, reinterpret_cast<void**>(&mt)) && mt != nullptr);
@@ -9740,11 +9965,49 @@ void TrafficPathFinderTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         CHECK((bytes == std::vector<uint8_t>{1, 2, 3, 0x41, 2, 0x0A}));
         CHECK(stub.blocks.size() == 1);
         CHECK(pf->WasTripReversible());
-        // A route deque set (slot 8): refused, the deque untouched (question 1).
-        uint32_t deque[10] = {};
-        pf->SetRouteInfo(deque);
-        CHECK(pf->FindPath() == 0);
-        for (uint32_t w : deque) CHECK(w == 0);
+        // A route deque set (slot 8): filled root -> result in place
+        // (pathfinder.md §4.13 step 5, §7 and §11 test 2; TG1).
+        const std::vector<uint8_t> want{2, 3, 1, 3, 3, 1, 4, 3, 1};
+        {
+            // An empty STLport deque: a map of 8 slots, one buffer at slot 3.
+            TrRouteDeque d = TrEmptyRouteDeque(8, 3);
+            pf->SetRouteInfo(&d);
+            CHECK(pf->FindPath() == 1);
+            CHECK(TrWalkRouteDeque(d) == want);
+            // A new buffer in the slot before the start one, no regrowth.
+            CHECK(d.mapSize == 8 && d.start.node == d.map + 2 && d.finish.node == d.map + 3);
+            CHECK(d.start.cur == d.start.first + 0x7E - 9 && d.finish.cur == d.finish.first);
+            // Again: cleared (the finish buffer freed), refilled in the start buffer.
+            const size_t before = stub.blocks.size();
+            CHECK(pf->FindPath() == 1);
+            CHECK(TrWalkRouteDeque(d) == want);
+            CHECK(d.start.node == d.map + 2 && d.finish.node == d.map + 2 && stub.blocks.size() == before - 1);
+            CHECK(d.start.cur == d.start.first + 0x7E - 18);
+            TrFreeRouteDeque(d);
+        }
+        {
+            // A one-slot map: regrown to 1 + 1 + 2 = 4 slots, the used slot
+            // copied to slot (4 - 2) / 2 + 1 = 2, the old map freed (§7 step 3).
+            TrRouteDeque d = TrEmptyRouteDeque(1, 0);
+            void* oldMap = d.map;
+            pf->SetRouteInfo(&d);
+            CHECK(pf->FindPath() == 1);
+            CHECK(TrWalkRouteDeque(d) == want);
+            CHECK(d.map != oldMap && d.mapSize == 4 && d.start.node == d.map + 1 && d.finish.node == d.map + 2);
+            CHECK(std::find(stub.blocks.begin(), stub.blocks.end(), oldMap) == stub.blocks.end());
+            TrFreeRouteDeque(d);
+        }
+        {
+            // Start at slot 0 of 8: the used slot moved within the map to slot
+            // (8 - 2) / 2 + 1 = 4, the new buffer at slot 3.
+            TrRouteDeque d = TrEmptyRouteDeque(8, 0);
+            void* const map = d.map;
+            pf->SetRouteInfo(&d);
+            CHECK(pf->FindPath() == 1);
+            CHECK(TrWalkRouteDeque(d) == want);
+            CHECK(d.map == map && d.start.node == d.map + 3 && d.finish.node == d.map + 4);
+            TrFreeRouteDeque(d);
+        }
         pf->SetRouteInfo(nullptr);
         CHECK(pf->FindPath() == 1);
         // The route again: the caller's buffer is kept and refilled.
@@ -10020,7 +10283,9 @@ int TrafficEnableTest(const std::string& dll, const std::string& ini, const std:
     CHECK(text.find("traffic shadow month to 2000-02-01: clean; deliveries=5 (day 3, month 1, other 1)") !=
           std::string::npos);
     CHECK(text.find("INCOMPLETE") == std::string::npos);
-    CHECK(CountOf(text, "traffic: WARNING FindPath with a route deque refused") == 1);
+    // TG1: a deque is filled, never refused; no fill failed.
+    CHECK(text.find("FindPath with a route deque refused") == std::string::npos);
+    CHECK(text.find("traffic: WARNING FindPath route deque") == std::string::npos);
     CHECK(text.find("cFC4TrafficSimulator destroyed (0 fallbacks, 2 external pathfinders)") != std::string::npos);
     CHECK(text.find("structured exception") == std::string::npos);
     CHECK(text.find("config: WARNING unknown key") == std::string::npos);

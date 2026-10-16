@@ -19,6 +19,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -593,7 +594,6 @@ void AppendGarbageBuilding(void* ctx, uint64_t t) {
     list->push_back(o);
 }
 
-uint32_t WallClockSeed() { return static_cast<uint32_t>(GetTickCount64() ^ GetCurrentProcessId()); }
 
 }  // namespace
 
@@ -622,7 +622,9 @@ cIGZUnknown* CreateFC4PollutionSimulator() {
 cFC4PollutionSimulator::cFC4PollutionSimulator() {
     host_ = MakeHost(this, &gridCtx_);
     // The visual-effect generator is seeded from the wall clock (foundations §6.2).
-    core_ = fc4_pollution_create(&host_, SelfToken(), WallClockSeed());
+    // The visual-effect generator: derive(S, 0x4C09C4D3) of the session seed
+    // (foundations §6.3, FC4Seed.h).
+    core_ = fc4_pollution_create(&host_, SelfToken(), fc4::SessionSeed());
     if (core_ == nullptr) fc4::Log("cFC4PollutionSimulator: core creation failed");
     fc4::Log("cFC4PollutionSimulator(%p) created, core %p", static_cast<void*>(this), static_cast<void*>(core_));
 }

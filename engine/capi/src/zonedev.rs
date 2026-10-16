@@ -52,12 +52,12 @@ use std::rc::Rc;
 
 use fc4_core::grid::{CellRect, GridProvider, TractGrid};
 use fc4_core::property::PropertyHolder;
-use fc4_core::rng::{derive_seed, FixedSeeds};
+use fc4_core::rng::FixedSeeds;
 use fc4_core::stream::{InStream, RefValue, SaveObject};
 use fc4_core::zones::{
     developer_answers_iid, BuildingProfile, CellRegion, Component, GrowthItem, InsertionPoint, LotObject, Position,
     Service, SharedZoneStatics, ZoneDeveloper, ZoneDeveloperStatics, ZonesHost, ZonesMessage, CLSID_ZONE_DEVELOPER,
-    IID_LOT, RNG_SEED_XOR,
+    IID_LOT,
 };
 
 use crate::budget::fc4_token_callback;
@@ -1187,7 +1187,7 @@ fn statics(session_seed: u32) -> SharedZoneStatics {
                     wall_clock: session_seed,
                     process_clock: session_seed,
                 };
-                ZoneDeveloperStatics::new(derive_seed(session_seed, RNG_SEED_XOR), &seeds)
+                ZoneDeveloperStatics::from_session(session_seed, &seeds)
             })
             .clone()
     })

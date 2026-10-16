@@ -1105,13 +1105,19 @@ impl DevelopmentSim {
         let t = if t == 0 { h.building_type(occ) } else { t };
         let key = self.process.catalogue().building_key(t);
         let Some(key) = key else { return true };
+        // [choice] (DG37, re-answers11) An occupant with no exemplar property
+        // holder crashes the original (no null test); here it is a success
+        // with an empty box. Unreachable with the game's classes.
         if !h.set_default_exemplar(occ, key) {
             return true;
         }
         if let Some(v) = h.occupant_property_f32s(occ, prop::OCCUPANT_SIZE) {
-            // [spec question, choice] The original reads three float32 values
-            // through the raw value pointer with no type or count check; a
-            // property with fewer values gives 0 for the missing ones here.
+            // [choice] (DG32, re-answers11) The original passes the value
+            // field to SetBoundingBox as three floats with no type or count
+            // check (garbage past a short array, a crash for a scalar, an
+            // integer array's bits as floats); a property with fewer values
+            // gives 0 for the missing ones here. Every shipped building
+            // exemplar holds a Float32 array of 3.
             let mut size = [0.0f32; 3];
             for (slot, x) in size.iter_mut().zip(v) {
                 *slot = x;

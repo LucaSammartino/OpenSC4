@@ -713,8 +713,8 @@ void AddRefToken(void* u, uint64_t t) {
 }
 
 // [choice] (reference audit) The lot manager owns its lots: the reference
-// it gives back at DeleteLot (§8.6 step 6) and at Shutdown (§1.2) is the
-// last one, where the original frees the lot too; so its releases are
+// it gives back at DeleteLot (§8.6 step 6), including the DeleteLot that
+// Shutdown runs for every lot of the cell map (§1.2, ZG32), is the last one, where the original frees the lot too; so its releases are
 // audited as releases at the owner's destruction (no warning when the audited
 // sites acquired the reference: a Read, or the lot creation).
 void ReleaseToken(void* u, uint64_t t) {
@@ -778,6 +778,19 @@ uint64_t NewLot(void* u, int32_t x, int32_t z, int32_t w, int32_t h, int32_t fac
     c->freshAdds = 0;
     return TokenOf(lot);
 }
+
+}  // namespace
+
+bool fc4::ZoneDevLotsConstructible(const ZoneDevContext* ctx) {
+    if (ctx == nullptr) return false;
+    if (ctx->test != nullptr) return ctx->test->new_lot != nullptr;
+    if (ctx->readOnly) return true;  // the shadow builds nothing and must not filter
+    if (ctx->gated && !fc4::On(fc4::Sw::ZoneDevLotChanges)) return false;
+    return fc4::compat::DirectCall(fc4::compat::Direct::LotPoolAllocate) != 0 &&
+           fc4::compat::DirectCall(fc4::compat::Direct::LotConstruct) != 0;
+}
+
+namespace {
 
 // Lot slot 32 UpdateZoneType (§7.2.2).
 void LotUpdateZoneType(void* u, uint64_t lot) {

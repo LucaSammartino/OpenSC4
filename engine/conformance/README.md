@@ -209,6 +209,7 @@ Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vec
 | `exemplar_holder` | `exemplars?` (a stub resource manager: `[{key, props}]`), `preset_parent?` (key), `hex`, `ok?`, `own?`, `parent?` (key or `null`), `lookup?` (`[{id, value or null}]`), `rewrite?`, `position?` | reading the exemplar holder (§10.3); keys are `{group, type, instance}` |
 | `crt_rand` | `seed?` (default 1), `srand?`, `expect?` (outputs), `shuffle?` (`{input, expect, calls?}`) | the C runtime `rand()` and `random_shuffle` (§12) |
 | `variant_convert` | `variant` (a scalar), `cases`: `[{to, expect}]` with `to` one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `u64`, `i64`, `bool`, `f32`, `f64` | a scalar element converted as a property reader does (`docs/specs/data-formats.md` §5.1): integer targets keep the low bits of the element's int64, Bool is int64 ≠ 0, float targets go through its double (a Float32 read as Float32 as is); integer expectations may be `"0x…"` bit patterns |
+| `variant_get_u32` | `variant` (any variant), `expect`: a number or `false` | holder slot 8, `GetProperty(id, uint32&)` (`docs/specs/data-formats.md` §5.1, `docs/specs/neighbors.md` §15.4 NG44): scalars by number, arrays, strings, the void array and Empty through the text round trip (`fc4-formats`); pointers and objects fail *[choice]* |
 
 Floats in `stream_write`, `stream_read` and `curve` may be numbers or `"0x…"` bit patterns (for NaN and −0.0).
 
@@ -1103,6 +1104,8 @@ session seed (§6.3), and `rand()` starts at state 1. Draws are traced by kind R
 | `ldev_start_construction` / `ldev_construct_default` | `lot`, `cfg?`, `type`, `animate?`, `expect?` | `StartConstruction` (§6.1) / `ConstructDefaultLot` (§6.4) |
 | `ldev_abandon` / `ldev_reoccupy` / `ldev_change_building` | `lot`, `reason` / `lot`, `dev` / `lot`, `type`, `expect?` | slots 8 / 9 / 10 (§6.4) |
 | `ldev_update_lot_elements` | `lot`, `kind` (the **whole 32-bit** terrain-change kind; only `kind != 5` is tested, §6.4), `expect?` | slot 37 |
+| `ldev_area_flat` | `rect` (cells) or `lot`, `water?` (default true), `expect` | slot 25 `IsAreaFlat` / slot 26 `IsLotFlat` (§17.2, LD29: every vertex against the first, read with water) |
+| `ldev_area_range` | `rect`, `water?` (default true), `expect?`, `expect_bits?` | slot 27 `GetAreaAltitudeRange` (§17.2) |
 | `ldev_start_demolish` / `ldev_end_demolish` / `ldev_clear_lot` | `lot`, `expect?` | slots 12 / 13 and `ClearLot` (§7) |
 | `ldev_explode_lot` | `lot`, `burnt?`, `expect?` | slot 14 (§7.2) |
 | `ldev_add_rubble` | `lot`, `min` (`[x,y,z]`), `max`, `burnt?` | `AddLotRubbleProps` (§7.3, draws R9–R14) |
@@ -1147,14 +1150,16 @@ Lot developer events: `acquire_services`, `release_services`, `add_agent` (`leve
 `occ`, `orientation`, `pos`), `prop_remove`, `remove_lot_props`, `remove_building_props`, `flora_add`,
 `flora_demolish`, `demolish_occupant`, `demolish_lot`, `add_building` (`occ`, `type`), `claim` (`amount`, `ok`),
 `add_lot_foundation` (`lot`, `type`), `add_building_foundation`, `remove_building_foundation`,
-`update_lot_foundation`, `update_retaining_walls`, `update_object_altitudes`, `update_base_texture_occupant`
+`update_lot_foundation`, `update_retaining_walls`, `lot_occupants` (`lot`; lot slot 49 of `UpdateLotObjectAlitudes`,
+§6.5, LD17), `occupant_moved` (`occ`, `y`: occupant manager slot 24 with 1 after the new y), `update_base_texture_occupant`
 (`lot`, `had_foundation`), `set_empty_texture`, `remove_retaining_walls`, `remove_lot_foundation`,
 `update_surrounding_foundations`, `update_surrounding_walls` (`lot`), the §17 terrain writer `modify_terrain`
 (`per_vertex`, `rect`, `h`, `exempt`) with `set_altitude` (`x`, `z`, `h`), `set_altitude_rect` (`rect`, `h`, `reason`) and
 `redisplay` (`rect`, `reason`), BDS slot 23 `add_foundation` (`type`, `kind`, `pos`, `dx`, `dz`, `orient`, `bottom`,
 `occ`, `top`, `size`, `cells`), `retaining_wall` (`lot`, `flag`), `set_textures` (`occ`, `n`) followed by one
 `set_texture` per record (`texture`, `x`, `z`, `orientation`, `byte3`, `extra` (five bytes), `frame`),
-`remove_occupant` (`occ`, `a`, `flags`), `shutdown_occupant` (`occ`), `add_network_nodes`, `remove_network_nodes`,
+`remove_occupant` (`occ`, `a`, `flags`), `shutdown_occupant` (`occ`), `add_network_nodes` (`lot`, `nodes`: one
+`[type, x, z, b, c, d, orientation]` per connection node, §6.5, LD17), `remove_network_nodes`,
 `construction_occupant` (`lot`), `level_internal`, `attempt_levelling`, `rubble_decal` (`instance`, `size`),
 `unit_create`, `unit_add` (`unit`, `lot`).
 
@@ -1847,6 +1852,59 @@ Prop developer events: `create_wealth_requester`, `add_agent` (`level`, `name`, 
 `prop_state`, `timer` (`prop`, `mask`, `on`), `chance`, `time_of_day_range`, `date_range`, `tick_date`, `position`,
 `flag`, `draw`.
 
+## Automata ops
+
+The automata vectors (`am14_…`) drive `fc4_core::automata` (`docs/specs/automata.md`). Every op name starts with
+`automata_`. One world per vector holds a script set (empty), a controller manager whose host logs `log <text>`,
+`add_ref 0x…` and `release 0x…` (the low 32 bits of the token), an automata manager, a scripted city for the riot
+and fire hooks, and the riot leaders and fire hook. Records are read with references resolved to host tokens
+`class << 32 | id` and written back as ID and class. An occupant given by number is a building of class
+`0xA9BD882D`. Controllers the manager creates get tokens from `0x1000` upward; controllers read by `cm_read` are core
+controllers whose token is their object ID.
+
+### Records
+
+| op | Arguments | Check |
+|---|---|---|
+| `automata_record` | `class` (any class of the layer: components 40, 41, 43–46 or a referenced object), `hex`, `expect?` (false: Read fails), `left?` (bytes left after the read; default 0), `fields?` (partial: `version`, `base_version`, `clock`, `time_a`, `time_b` (`[hour, day]`), `entries`, `sets`, `loaded`, `max_count`, `active`, `time_scaling`, `automata`, `group_counts` (`[[group, count]]`), `tag`, `cursor`, `incidents`, `old_version`, `pairs`, `spots`, `lots`, `occupants`, `ferries`, `occupant` (`[id, class]`), `template`, `position`, `flags`, `curve`, `period`, `second_period`, `day_stamp`, `counter`), `written?` (the expected re-encoding; default the input) | Read, the fields, Write |
+
+### Controller manager
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `automata_scripts` | `templates?` (`[{name, kind? ("generator" or "attractor"), flags?}]`), `groups?` (`[{id, name, templates}]`) | replaces the script set |
+| `automata_cm_new` | | a new controller manager (not loaded) |
+| `automata_cm_read` | `hex`, `templates?` (`{"<controller id>": name}`: the template name each read controller holds), `expect?` | Read |
+| `automata_cm_add` | `occupant`, `template`, `expect?` (whether a controller was made) | slot 5 `AddControllerFromTemplateName` |
+| `automata_cm_add_group` | `occupant`, `id` or `name`, `no_scripts?`, `expect?` | slots 9 and 10 |
+| `automata_cm_remove` | `occupant`, `expect?` (the count removed) | slot 14 `RemoveControllers` |
+| `automata_cm_remove_group` | `occupant`, `id` or `name`, `expect?` | slots 12 and 13 |
+| `automata_cm_post_city_init` | `expect?` (the dropped template names, in order) | `PostCityInit` |
+| `automata_cm_expect` | partial: `occupants` (`{"<occupant>": [template names]}`, every occupant), `loaded`, `bound` (per controller in order: template bound), `shut_down` (the read controller IDs shut down) | the manager state |
+| `automata_cm_write` | `hex` | Write |
+| `automata_expect_log` / `automata_clear_log` | `log` | the host log |
+
+### Managers and hooks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `automata_mgr_new` | `kind` (`vehicle`, `pedestrian`, `aircraft`, `watercraft`), `automata?` (a count of placeholder automata) | a new manager |
+| `automata_mgr_max_count` | `n`, `state?` (partial: `max`, `hard_limit`, `removed`, `count`) | `SetMaxCount` |
+| `automata_mgr_driving_mode` | `view`, `expect` | `IsDrivingMode` |
+| `automata_automaton_controller` | `flags`, `null` | an automaton whose controller has `flags` writes a null controller reference or not |
+| `automata_city` | any of `road`, `cap` (the leader cap is reached), `create_null`, `buildings` (occupants whose type is a building) | the scripted city |
+| `automata_riot_add` | `x`, `z`, `expect` (the leader index or null) | `AddRiotLeader` |
+| `automata_riot_stage` | `leader?`, `stage`, `expect` | the stage update |
+| `automata_riot_end` | `leader?`, `expect` | the end |
+| `automata_fire_target` / `automata_fire_shutdown` | `target` / none, `expect` | the fire occupant's hooks |
+| `automata_expect_calls` / `automata_clear_calls` | `calls` | the city calls, as text |
+
+City calls: `FindRoad x z`, `LeaderCap n`, `CreateAutomaton group (x, y, z) mode (dx, dy, dz) a b c`, `AddRef`,
+`SetState automaton type a b c d e f`, `SetVisible automaton bool`, `RegisterLocation`, `AddControllerFromTemplateName
+occupant name extra`, `RemoveControllers`, `UnregisterLocation`, `Release`, `AddControllersFromOccupantGroup name
+occupant extra`. A road tile at `(x, z)` is at `(16x + 8, 0, 16z + 8)`; the created automaton is `0x500`, `0x501`, …;
+its occupant is the automaton `| 0x10000`.
+
 ## Disaster ops
 
 The disaster vectors (`ds18_…` for the §18 tests, `ds00_…` for the rest) drive `fc4_core::disasters::Disasters`
@@ -1905,6 +1963,63 @@ Disaster events: `emergency_pause`, `emergency_resume`, `disable_save`, `enable_
 `volcano_end_deformation`, `lava` (`instance`, `radius`), `lava_end`, and the stub's `raw`, `u32` (`n`),
 `double`, `range` and `gaussian` (`a`, `b`), each with its `generator`.
 
+## Occupant manager ops
+
+The occupant manager vectors (`om18_…`, `om14_…`) drive `fc4_core::occupant_manager::OccupantManager`
+(`docs/specs/occupant-manager.md`) over one scripted world implementing `OccupantHost`. Every op name starts with
+`om_`. Occupants are tokens with a bounding box, a type, flags, a stored manager box and the base occupant behaviour
+of §5.6: the first `Init` posts Create (unless `quiet`, bit 1 of `+0x2E` as a loaded occupant's own `Read` sets it: then an `occupant_slot17` event), `Shutdown` of an
+initialised occupant posts Destroy, and `PostOccupantMessage` records a `post` event (a Move of a `sync` occupant is
+marked `sync: true`). References are counted per token (net). Query results are released by the runner after the
+checks (unless `keep: true`), so reference counts show only the manager's own references.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `om_create` | | a new constructed manager (not initialised, no rows), which replaces the current one |
+| `om_occupant` | `occupant`, any of `type` (default `0x100`), `min`, `max` (`[x, y, z]`), `holder` (default true), `flags`, `om_box` (`[x0, z0, x1, z1]` or null = the "no box" mark), `initialized`, `quiet`, `sync` | creates or updates an occupant |
+| `om_filter` | `filter` (a token), `exclude` (tokens) | a caller filter that includes everything else |
+| `om_trace` | `locks?`, `refs?` | also record `lock` / `unlock` (`depth`) and `add_ref` / `release` (`occupant`) events |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `om_call` | `method`, its arguments, `expect?` | one slot (below) |
+| `om_expect` | `state` (partial: `initialized`, `was_read`, `ref_count`, `destroyed`, `size`, `counts` (the four), `filter_type` (null: no shared filter), `rows`, `holders`, `nodes`) | the manager |
+| `om_expect_cell` | `cell` (`[x, z]`, world cells), `occupants` (front first) and / or `single` (bit 0 per node), or `null: true` (no holder) | a cell list |
+| `om_expect_occupant` | `occupant`, `state` (partial: `flags`, `om_box`, `initialized`) | an occupant |
+| `om_expect_refs` | `{"token": references}` | net references taken |
+| `om_write` / `om_read` / `om_expect_record` | as for the park ops; `om_expect_record` also takes `u32s` (`[{offset, values}]`, little-endian) | the record (§13) |
+| `om_expect_events` / `om_expect_event_count` / `om_clear_events` | see the shared conventions | host calls |
+
+`om_call` methods (filters: `filter` null = all, a token = a caller filter, `{"type": n}` = the shared one-type
+filter; the typed overloads take `type`):
+
+- conversions (`args`): `position_to_world_cell`, `position_to_manager_cell`, `position_to_standard_cell` (two
+  floats); `world_to_manager_cell`, `manager_to_world_cell`, `standard_to_world_cell`, `world_cell_to_position`,
+  `manager_cell_to_position`, `standard_cell_to_position`, `bounding_cells` (two ints); `world_to_standard_cell`
+  (x, z, the old z output); `query_interface` (IID → view offset 0 / 4 / 8 or null);
+- lifecycle: `set_city_size` (`args`), `init`, `shutdown`, `add_ref`, `release`, `class_id`, `cell_sizes`,
+  `world_cell_count`, `cell_count`, `cell_bounds`;
+- `insert` (`occupant`, `data4`), `remove` (`occupant`, `shutdown`, `data4`), `remove_occupants` (`filter`,
+  `shutdown`, `data4`), `remove_occupants_typed` (`type`, …), `move` (`occupant`, `post`, default true);
+- `is_cell_empty` (`args`), `find_occupant` (`occupant`, `search_all`, `xz` (the outputs' values before the call),
+  `expect_xz`);
+- first-occupant queries (result: token or null): `first_by_position` (`args` floats), `first_in_cell`,
+  `first_by_standard_cell` (`args` ints), `first_by_standard_cells` (`min?`, `max?`), each with `_typed`;
+- list queries (`expect_list`, `list` = elements already in the list, `max_count` default −1): `by_bbox` (`min?`,
+  `max?` 3-vectors), `by_cells`, `by_standard_cells` (`min?`, `max?` pairs), each with `_typed`;
+- iteration (each call records `callback` (`occupant`, `depth`); `stop_at` = occupants for which the callback
+  returns false; `actions` = `{"occupant": [om_call bodies]}` run inside that callback, failures recorded as
+  `action_error`): `iterate_by_bbox` (`min`, `max`), `iterate` (`min?`, `max?` 3-int vectors),
+  `iterate_by_standard_cells` (`min?`, `max?`), each with `_typed`.
+
+Occupant manager events: `post` (`type`, `occupant`, `data2` (flag 4), `data3` (the type), `data4`, `sync`,
+`inserted` (flag 1 when posted)), `occupant_slot17`, `callback`, `action_error`, and with `om_trace`: `lock` /
+`unlock` (`depth`), `add_ref` / `release` (`occupant`).
+
 ## Terrain ops
 
 The terrain vectors (`tr18_…` for the §18 tests, `tr00_…` for the rest) drive `fc4_core::terrain`
@@ -1960,7 +2075,8 @@ Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_bu
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
    (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `cd8_…` (city detail §8),
    `pd12_…` (port developers §12), `pv12_…` (prop developer §12), `ds18_…` and `ds00_…` (disasters §18 and the
-   rest of disasters), `tr18_…` and `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5).
+   rest of disasters), `tr18_…` and `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
+   (automata §14) and `om18_…` / `om14_…` (occupant manager §18 / §14).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -1997,7 +2113,7 @@ Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_bu
 | §6.3 seed derivation (session seed → each generator's seed) | `f6_03_seed_derivation` |
 | §14 16–17 variants | `f14_16_17_variants` |
 | §14 18–19 property holders | `f14_18_19_property_holders` |
-| data-formats §5.1 scalar conversions (EX2–EX4) | `df5_01_scalar_conversions`; the text round trip, the exemplar reader and data-formats §10.4–§10.7 are `fc4-formats` unit tests |
+| data-formats §5.1 scalar conversions (EX2–EX4) | `df5_01_scalar_conversions`; holder slot 8 `GetProperty(id, uint32&)` on every kind of value (NG44) in `df5_02_get_property_u32`; the text round trip, the exemplar reader and data-formats §10.4–§10.7 are `fc4-formats` unit tests |
 | §14 20–22 regional-city record, deal claiming, import/export | not yet (neighbours milestone) |
 | §14 23 `rand()` | `f14_23_crt_rand`; the prime-step iterator that uses it: `w14_05_iterator` and the `fc4-core` unit tests (`weather::iterator`) |
 | §14 24 month order | `s4_month_registration_order` (registration order within a level), `o13_10_month_order` (the ordinance-lag scenario with the real ordinance simulator and a stub budget, in both orders) |
@@ -2487,6 +2603,8 @@ Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_bu
 | 20–25 construction occupant (§6.7) | out of scope: a separate subsystem (`cSC4ConstructionOccupant`), not the lot developer core |
 | 26 StateChanged data4 (§3.2) | out of scope: `cSC4Lot::SetState`, owned by the lot core |
 | 27 UpdateLotElements kind (full 32-bit `kind != 5`) | `ld16_27_update_lot_elements_kind` |
+| 42 IsAreaFlat against the first vertex, with water (LD29) | `ld16_42_is_area_flat` |
+| extra: AddNetworkConnectionNodes and UpdateLotObjectAlitudes (§6.5, LD17) | `ld6_5_network_nodes_object_altitudes` |
 | 28 slot 16 float rectangle (sample order, clamp, interior vertices) | `ld16_28_float_rect_altitude` |
 | 29 slot 21 worked example 2 (int32 slot 18, per-vertex and area mode, slope cut-off) | `ld16_29_30_levelling` |
 | 30 slot 19 worked example 1 (negative target, force, narrow rectangles; LD-Q1) | `ld16_29_30_levelling` |
@@ -2554,6 +2672,9 @@ Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_bu
 | extra: `DetermineLotSize`'s int32 score (ZQ9), `sx = 0` (ZQ10), missing candidates (ZQ7) | `zn15_41_determine_lot_size_int32_score` |
 | extra: `LayInJogStreets`' parallel test has a draft branch (§7.12, ZQ4) | `zn15_42_jog_parallel_draft` |
 | extra: a failed size check is an ABORT (§6, ZG17): the type-14 landfill cost of the whole region, skipFunds, error 1 replacing 3 or 4 | `zn15_43_size_abort_landfill_cost` |
+| extra: `Init` copies the alpha to the default alpha whenever the exemplar is found, also without Zone Display Alpha (§10.1, ZG18); no exemplar leaves both | `zn15_44_default_alpha_without_property` |
+| extra: the dezone under a network clips a rectangle that crosses the city edge and dezones the inside cells (§5.1, ZG21) | `zn15_45_dezone_across_city_edge` |
+| extra: `Shutdown` deletes every lot through its own `DeleteLot`, x outer, z inner, before the network tools (§1.2, ZG32); with `trace_calls` the world also logs `remove_building_zot_prop`, `lot_shutdown` and `release_lot` (`lot`, `refs`) | `zn1_2_shutdown_deletes_lots` |
 
 The two extras took the numbers 30 and 31 before §15 gained tests 30–32, so tests 30, 31 and 32 are the vectors
 numbered 32, 33 and 34.
@@ -3017,6 +3138,32 @@ replay the records §7 quotes.
 The core's unit tests (`fc4_core::disasters`) also cover the lot conditions, the spread, the toast list, the damage
 assessment, re-entrant occupant removal and the default generators.
 
+## Coverage (occupant manager §18)
+
+| §18 item | Vectors |
+|---|---|
+| 1 counts | `om18_01_counts` |
+| 2 position to world cell | `om18_02_position_to_world_cell` |
+| 3 standard cell floor | `om18_03_standard_cell_floor` |
+| 4 slot 12 bug | `om18_04_slot12_bug` |
+| 5 insert cells | `om18_05_insert_cells` |
+| 6 insert and its messages | `om18_06_insert_messages` |
+| 7 insert failure | `om18_07_insert_failure` |
+| 8 newest first | `om18_08_newest_first` |
+| 9 dedup and order across cells | `om18_09_dedup_and_order` |
+| 10 strict box test | `om18_10_strict_box` |
+| 11 null max quirk | `om18_11_null_max_quirk` |
+| 12 typed type 0 | `om18_12_typed_type_zero` |
+| 13 remove order | `om18_13_remove_order` |
+| 14 RemoveOccupants order | `om18_14_remove_occupants_order` |
+| 15 move | `om18_15_move` |
+| 16 FindOccupant | `om18_16_find_occupant` |
+| 17 GetBoundingCells | `om18_17_bounding_cells` |
+| 18 iteration | `om18_18_iteration` |
+| 19 save round-trip | `om18_19_save_round_trip` |
+| 20 shutdown | `om18_20_shutdown` |
+| §14 lock regions and re-entrant callbacks | `om14_lock_regions`, `om14_reentrant_callbacks` |
+
 ## Coverage (terrain §18)
 
 | §18 item | Vector |
@@ -3039,3 +3186,25 @@ assessment, re-entrant occupant removal and the default generators.
 
 The core's unit tests (`fc4_core::terrain`) also cover the other brush kinds, the lava start and burn rectangles,
 the record versions and truncation, the tuning exemplar and the bodies-of-water flood fill; `fc4_capi`'s `terrain_tests` cover the C ABI.
+
+## Coverage (automata §14)
+
+| §14 item | Vector |
+|---|---|
+| 1 script system (`01 00`; `02 00` fails) | `am14_01_script_system` |
+| 2 controller manager, empty (30 bytes; a cut record) | `am14_02_controller_manager_empty` |
+| 3 controller manager times | `am14_03_controller_times` |
+| 4 vehicle and pedestrian managers, empty (versions 1 and 4, base 7, a cut record) | `am14_04_traffic_managers_empty` |
+| 5 attractor | `am14_05_attractor` |
+| 6 generator (version 3 fails; the base version is kept) | `am14_06_generator` |
+| 7 watercraft, version 6 (version 5 bare, version 7 fails) | `am14_07_watercraft_v6` |
+| 8 riot order (plus the stage rule and the road, cap and null-automaton stops) | `am14_08_riot_order` |
+| 9 fire | `am14_09_fire` |
+| 10 flag 8 | `am14_10_flag_8` |
+| 11 unknown template (and the skipped pass when not loaded) | `am14_11_unknown_template` |
+| 12 corpus round trip | not a vector: `cargo test -p fc4-formats --release --test automata_records -- --nocapture` |
+| other: version 3 traffic managers with an incident, the aircraft lists and versions, a ferry entry, an automaton set | `am14_12_versions_and_lists` |
+| other: `SetMaxCount`, `IsDrivingMode` | `am14_13_manager_slots` |
+| other: the template and occupant-group slots | `am14_14_controller_groups` |
+
+The automaton and state records (§6) are covered by the core unit tests and the corpus sweep, not by a vector.

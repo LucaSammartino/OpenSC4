@@ -313,13 +313,14 @@ impl CommercialSim {
         let Some(grid) = grid else {
             return;
         };
-        // *[compat]* The shared seed helper (residential.md §5.3 step 1,
-        // RG24) writes nothing when the map is null, not even the edge; the
-        // passes of the transform still run [question: literal reading of
-        // helper 0x005E5130, seed then passes].
-        if let Some(m) = map {
-            seed_proximity(&*grid, &*m, key);
-        }
+        // *[compat]* CM5 (§4.4): helper 0x005E5130 tests both pointers
+        // first and returns at once for a null building map: no seed and no
+        // passes, so the grid is left exactly as it was (a loaded grid is not
+        // lowered either). The state machine still advances (the caller).
+        let Some(m) = map else {
+            return;
+        };
+        seed_proximity(&*grid, &*m, key);
         distance_to_convergence(&*grid, grid.count_x(), grid.count_z());
     }
 

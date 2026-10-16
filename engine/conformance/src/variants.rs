@@ -183,6 +183,7 @@ pub fn exec(name: &str, op: &Json) -> Option<R<()>> {
         "exemplar_holder" => exemplar_holder(op),
         "crt_rand" => crt_rand(op),
         "variant_convert" => variant_convert(op),
+        "variant_get_u32" => variant_get_u32(op),
         _ => return None,
     };
     Some(r)
@@ -248,6 +249,69 @@ fn variant_convert(op: &Json) -> R<()> {
         }
     }
     Ok(())
+}
+
+/// `variant_get_u32`: `variant` (any variant notation), `expect`: the value
+/// `GetProperty(id, uint32&)` (holder slot 8) gives, or `false` when it fails
+/// (neighbors.md §15.4 NG44, data-formats §5.1). Scalars convert by number;
+/// arrays, strings, the void array and Empty take the text round trip.
+/// Pointers and objects fail (*[choice]*: the original gives an address).
+fn variant_get_u32(op: &Json) -> R<()> {
+    let v = variant_of(field(op, "variant")?)?;
+    let got = get_u32_of(&v);
+    let w = field(op, "expect")?;
+    let want = match w.as_bool() {
+        Some(false) => None,
+        Some(true) => return Err("'expect' is a number or false".into()),
+        None => Some(int_or_hex(w, "expect")? as u32),
+    };
+    if got != want {
+        return Err(format!("{v:?}: got {got:?}, expected {want:?}"));
+    }
+    Ok(())
+}
+
+/// [`variant_get_u32`]'s value, through `fc4_formats`' converting getter.
+fn get_u32_of(v: &Variant) -> Option<u32> {
+    use fc4_formats::exemplar::{Property, Values};
+    fn each<T>(items: &[Elem], f: impl Fn(&Elem) -> Option<T>) -> Option<Vec<T>> {
+        items.iter().map(f).collect()
+    }
+    fn values_of(elem: u16, items: &[Elem]) -> Option<Values> {
+        Some(match elem {
+            mem::EMPTY => Values::Void(each(items, |e| Some(e.as_i64() as u8))?),
+            mem::BOOL => Values::Bool(each(items, |e| Some(e.as_i64() != 0))?),
+            mem::UINT8 => Values::Uint8(each(items, |e| Some(e.as_i64() as u8))?),
+            mem::SINT8 => Values::Sint8(each(items, |e| Some(e.as_i64() as i8))?),
+            mem::UINT16 => Values::Uint16(each(items, |e| Some(e.as_i64() as u16))?),
+            mem::SINT16 => Values::Sint16(each(items, |e| Some(e.as_i64() as i16))?),
+            mem::UINT32 => Values::Uint32(each(items, |e| Some(e.as_i64() as u32))?),
+            mem::SINT32 => Values::Sint32(each(items, |e| Some(e.as_i64() as i32))?),
+            mem::UINT64 => Values::Uint64(each(items, |e| Some(e.as_i64() as u64))?),
+            mem::SINT64 => Values::Sint64(each(items, |e| Some(e.as_i64()))?),
+            mem::FLOAT32 => Values::Float32(each(items, |e| match e {
+                Elem::F32(x) => Some(*x),
+                _ => None,
+            })?),
+            mem::FLOAT64 => Values::Float64(each(items, |e| match e {
+                Elem::F64(x) => Some(*x),
+                _ => None,
+            })?),
+            mem::CHAR => Values::Char(each(items, |e| Some(e.as_i64() as u8))?),
+            mem::UNICODE_CHAR => Values::UnicodeChar(each(items, |e| Some(e.as_i64() as u16))?),
+            mem::RZ_CHAR => Values::String(each(items, |e| Some(e.as_i64() as u8))?),
+            _ => return None, // pointers, objects
+        })
+    }
+    match v {
+        Variant::Empty => Property::single(0, Values::Empty).get_u32(),
+        Variant::Object(_) => None,
+        // The scalar Char and RZUnicodeChar have no exemplar form: by number
+        // (Char a signed byte, RZUnicodeChar unsigned), as data-formats §5.1.
+        Variant::Scalar(e @ (Elem::Char(_) | Elem::UnicodeChar(_))) => Some(e.as_i64() as u32),
+        Variant::Scalar(e) => Property::single(0, values_of(e.mem_type(), std::slice::from_ref(e))?).get_u32(),
+        Variant::Array { elem, items } => Property::array(0, values_of(*elem, items)?).get_u32(),
+    }
 }
 
 fn check_tail(op: &Json, pos: usize, error: i32) -> R<()> {

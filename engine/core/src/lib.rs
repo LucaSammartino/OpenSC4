@@ -21,6 +21,7 @@
 #![forbid(unsafe_code)]
 
 pub mod aura;
+pub mod automata;
 pub mod budget;
 pub mod calibration;
 pub mod city_detail;
@@ -45,6 +46,7 @@ pub mod landfill;
 pub mod landvalue;
 pub mod lot_developer;
 pub mod neighbors;
+pub mod occupant_manager;
 pub mod ordinance;
 pub mod parks;
 pub mod pathfinder;
@@ -59,6 +61,7 @@ pub mod protection;
 pub mod residential;
 pub mod rng;
 pub mod save;
+pub mod seeding;
 pub mod simgrid;
 pub mod simulator;
 pub mod stl;

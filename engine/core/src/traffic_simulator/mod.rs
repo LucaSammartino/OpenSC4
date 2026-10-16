@@ -204,6 +204,51 @@ pub mod dept {
     /// The line items the day-1 income goes to (§3.3).
     pub const TRANSIT_INCOME_ITEM: u32 = 2;
     pub const TOLL_INCOME_ITEM: u32 = 5;
+    /// The budget group `CreateDepartmentBudget` is given (§9.1 TG7).
+    pub const GROUP: u32 = 0xAA36_9059;
+    /// The LTEXT group of the department and line-item names (§9.1 TG7).
+    pub const NAME_GROUP: u32 = 0x6A3F_F01C;
+    /// The departments' names (`SetDepartmentName(NAME_GROUP, name)`).
+    pub const ROADS_NAME: u32 = 0x4A49_3B73;
+    pub const MASS_TRANSIT_NAME: u32 = 0xEA49_3B83;
+
+    /// A line item of a traffic department: `CreateLineItem(line, false)`,
+    /// `SetName(NAME_GROUP, name)`, and `SetType(Income)` when `income`.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct LineItem {
+        pub line: u32,
+        pub name: u32,
+        pub income: bool,
+    }
+
+    const fn item(line: u32, name: u32, income: bool) -> LineItem {
+        LineItem { line, name, income }
+    }
+
+    /// Created with the roads department, when the member is still null
+    /// after `Read` (§9.1 TG7).
+    pub const ROADS_LINES: [LineItem; 3] = [
+        item(1, 0xEA84_46BE, false),
+        item(2, 0x2A84_46DA, false),
+        item(3, 0x2A84_46DF, false),
+    ];
+    /// Created with the mass-transit department; line 2 is Income.
+    pub const MASS_TRANSIT_LINES: [LineItem; 3] = [
+        item(1, 0xEA5F_96E7, false),
+        item(2, 0x8A5F_978C, true),
+        item(3, 0x6A8B_0CFB, false),
+    ];
+    /// On every `Init`, loaded departments included, each created only when
+    /// `GetLineItem(line)` is null, in this order (`true` = mass transit;
+    /// §9.1 TG7). Roads line 5 (tolls) is Income.
+    pub const INIT_LINES: [(bool, LineItem); 6] = [
+        (true, item(4, 0x2AB7_EA93, false)),
+        (true, item(5, 0x8BCE_33E0, false)),
+        (false, item(4, 0xCBCE_33D5, false)),
+        (true, item(6, 0x8BCE_33E1, false)),
+        (false, item(5, 0x0C3B_F3C4, true)),
+        (false, item(6, 0xEA5F_96E7, false)),
+    ];
 }
 
 /// Interface IDs used when reading references (save-records.md §7.1.1).
@@ -452,9 +497,18 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     fn sim_clock_ms(&self) -> u64;
 
     // ---- departments (budget.md §7–§8) ----
-    /// Creates a department budget with line items 1…6 (§1 Init step 5);
-    /// `max_funding` is the tuning value (1.2 = 120 %).
+    /// `CreateDepartmentBudget(id, dept::GROUP)` (an existing department is
+    /// returned unchanged), one reference for the core,
+    /// `SetDepartmentName(dept::NAME_GROUP, name of id)` and
+    /// `SetMaxAllowedFundingPercentage(max_funding)` (§1 Init step 5, §9.1
+    /// TG7); `max_funding` is the tuning value (1.2 = 120 %). The line items
+    /// come through `create_line_item`.
     fn create_department(&self, id: u32, max_funding: f32) -> Option<u64>;
+    /// `CreateLineItem(item.line, false)` (replacing any line of that ID),
+    /// `SetName(dept::NAME_GROUP, item.name)` and, for an income line,
+    /// `SetType(Income)` (§9.1 TG7). With `only_if_missing`, nothing when
+    /// `GetLineItem(item.line)` is not null.
+    fn create_line_item(&self, department: u64, item: dept::LineItem, only_if_missing: bool);
     /// Releases a department (Shutdown).
     fn release_department(&self, department: u64);
     /// The department's funding fraction (department slot 10).
@@ -628,7 +682,7 @@ impl TrafficSimulator {
             pools: pools.clone(),
         });
         let net = NetworkModel::new(adapter);
-        let seed = crate::rng::derive_seed(session_seed, RNG_K);
+        let seed = crate::seeding::seed(session_seed, crate::seeding::keys::TRAFFIC_SIMULATOR);
         Rc::new(TrafficSimulator {
             host,
             net,

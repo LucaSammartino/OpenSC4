@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "06_generator",
+  "spec": ["automata 3.5", "automata 14.6"],
+  "description": "A 76-byte generator of Tegel: u16 4, base version 5, occupant 0x09BD6E54 (a prop, class 0x2977AA47), template dog_make, flags 0x87, times (10.0, 0) and (0.16667, 0), u32s 16674 and 0. Read requires the generator version 4; the base version is ignored and kept.",
+  "steps": [
+    {"op": "automata_record", "class": "0x4A1628C5", "hex": "0400 0500 546EBD09 47AA7729 08000000 646F675F6D616B65 0000000000000000000000000000000000000000 00000000 87000000 00000000 000020410000 ABAA2A3E0000 22410000 00000000", "fields": {"base_version": 5, "occupant": ["0x09BD6E54", "0x2977AA47"], "template": "dog_make", "flags": "0x87", "automata": 0, "period": [10.0, 0], "second_period": [0.1666667, 0], "day_stamp": 16674, "counter": 0}},
+    {"op": "automata_record", "class": "0x4A1628C5", "hex": "0300 0500 546EBD09 47AA7729 08000000 646F675F6D616B65 0000000000000000000000000000000000000000 00000000 87000000 00000000 000020410000 ABAA2A3E0000 22410000 00000000", "expect": false},
+    {"op": "automata_record", "class": "0x4A1628C5", "hex": "0400 0900 546EBD09 47AA7729 08000000 646F675F6D616B65 0000000000000000000000000000000000000000 00000000 87000000 00000000 000020410000 ABAA2A3E0000 22410000 00000000", "fields": {"base_version": 9}}
+  ]
+}

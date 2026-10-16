@@ -22,6 +22,7 @@
 #include "FC4GameMapBuild.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -284,6 +285,14 @@ void AddRefToken(void*, uint64_t t) { AddRefAny(FromToken(t)); }
 // DG5), and without this workaround run a10a-after-dev (2026-10-15) still
 // gave the five warnings on class 0xA9BD882D, all from this release in the
 // destructor at shutdown. The workaround stays.
+// DG28 answer (re-answers10, building-development §1.4): in the original the
+// BDS Shutdown destroys each developer (the map's reference is its only one)
+// while the occupant manager still holds every building, so the copy's
+// release is the last only for a building that left the city. Our core
+// already shuts down and releases each developer in the BDS Shutdown, yet in
+// run apply12-dev-1 (2026-10-16, a saved city) our 12 developers were
+// destroyed only after the simulator's Shutdown: something still holds a
+// reference (spec question DG39), so the destructor case stays audited.
 void ReleaseToken(void* u, uint64_t t) {
     cIGZUnknown* o = FromToken(t);
     if (o != nullptr && G(u)->destroying && !fc4::IsOurObject(o)) {
@@ -596,12 +605,12 @@ void LimitTimerStart(void* u, uint32_t ms) {
 
 bool LimitTimerExpired(void* u) { return QpcNow() >= G(u)->deadline; }
 
-// §7: the clock a key seed of 0xFFFFFFFF falls back to. [choice] The
-// development session seed (development_seed when set, else the wall clock
-// once per process), so a seeded run stays reproducible. DG23: the original
-// derives it from time() and clock(), which cannot be matched; the choice
-// stands.
-uint32_t WallClockSeed(void*) { return fc4::DevelopmentSessionSeed(nullptr); }
+// §7: a key seed of 0xFFFFFFFF falls back to the clock in the original. Ours
+// is derive(S, 0x0990C138 XOR n) of the development session seed
+// (development_seed when set, else the session seed, FC4Seed.h), so a seeded
+// run stays reproducible (foundations §6.3; DG23: the original derives it
+// from time() and clock(), which cannot be matched; RN2).
+uint32_t SessionSeedCb(void*) { return fc4::DevelopmentSessionSeed(nullptr); }
 
 bool g_noteNoAllocator = false;
 
@@ -653,7 +662,7 @@ fc4_growth_host MakeGrowthHost(GrowthContext* ctx, const HostGridContext* grids)
     h.source_map = &SourceMap;
     h.limit_timer_start = &LimitTimerStart;
     h.limit_timer_expired = &LimitTimerExpired;
-    h.wall_clock_seed = &WallClockSeed;
+    h.session_seed = &SessionSeedCb;
     return h;
 }
 

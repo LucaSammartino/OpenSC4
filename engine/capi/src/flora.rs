@@ -63,7 +63,6 @@ use fc4_core::flora::{
 };
 use fc4_core::property::PropertyHolder;
 use fc4_core::props::u32_of;
-use fc4_core::rng::FixedSeeds;
 use fc4_core::stream::{RefValue, ResKey, SaveObject};
 
 use crate::budget::fc4_token_callback;
@@ -1427,15 +1426,15 @@ unsafe fn message_of(m: &fc4_flora_message) -> Message {
 
 /// Creates the core object (constructor values, §3.1) over the process-wide
 /// `registry`. The host table is copied. `token` is the host identity of the
-/// simulator itself; the two clock values seed its own `cRZRandom`
-/// (`Seed(0xFFFFFFFF)`, §3.1, §8, foundations §6.1).
+/// simulator itself; `session_seed` is foundations §6.3's `S`: its own
+/// `cRZRandom` (`Seed(0xFFFFFFFF)` in the original, §3.1, §8) takes
+/// `derive(S, 0xC990C034)`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_flora_create(
     host: *const fc4_flora_host,
     registry_handle: *const fc4_flora_registry,
     token: u64,
-    wall_clock_seed: u32,
-    process_clock: u32,
+    session_seed: u32,
 ) -> *mut fc4_flora {
     let Some(reg) = registry(registry_handle) else {
         return std::ptr::null_mut();
@@ -1450,11 +1449,7 @@ pub unsafe extern "C" fn fc4_flora_create(
                 last_birth: Cell::new(0),
                 counters: RefCell::new(Counters::default()),
             });
-            let seeds = FixedSeeds {
-                wall_clock: wall_clock_seed,
-                process_clock,
-            };
-            let rng: Box<dyn FloraRandom> = Box::new(FloraRng::new(&seeds));
+            let rng: Box<dyn FloraRandom> = Box::new(FloraRng::from_session(session_seed));
             let sim = FloraSim::new(chost.clone(), reg.reg.clone(), token, rng);
             Box::into_raw(Box::new(Handle {
                 reg: reg.clone(),
