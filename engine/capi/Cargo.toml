@@ -14,6 +14,6 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 fc4-core = { path = "../core" }
-# fc4_variant_get_u32 (ABI 66, NG44) uses the exemplar converting getters
+# fc4_variant_get_u32 (ABI 59, NG44) uses the exemplar converting getters
 # (data-formats §5.1); the save sweep (src/save_sweep_tests.rs) opens city saves.
 fc4-formats = { path = "../formats" }

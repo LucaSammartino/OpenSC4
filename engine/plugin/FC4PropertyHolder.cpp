@@ -213,7 +213,7 @@ bool fc4::VariantToCore(const cFC4IGZVariant& v, uint32_t id, fc4_props* out) {
     const uint16_t base = static_cast<uint16_t>(type & ~cIGZVariant::TypeArray);
     if (type == cIGZVariant::VoidArray) {
         // Raw bytes (NG37: what AddPropertyData stores): memory type 0 with
-        // the array flag, one byte each (fc4_props_set_typed, ABI 66).
+        // the array flag, one byte each (fc4_props_set_typed, ABI 59).
         const uint32_t n = v.GetCount();
         const void* p = v.RefVoid();  // slot 123
         if (n != 0 && p == nullptr) return false;

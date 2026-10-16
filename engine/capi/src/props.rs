@@ -136,7 +136,7 @@ fn decode_elem(mem_type: u16, b: &[u8]) -> Elem {
 /// Sets property `id` exactly as a game variant holds it: `mem_type` is the
 /// variant's element type (the cIGZVariant type without the array bit, 0x01
 /// to 0x0E), `data` holds `count` elements in that type's native layout
-/// (bool: one byte). A scalar (`is_array` false) needs `count` 1. ABI 66
+/// (bool: one byte). A scalar (`is_array` false) needs `count` 1. ABI 59
 /// (neighbors.md §15.4 NG37): `mem_type` 0 with `is_array` is the void array
 /// (raw bytes, type 0x8000), `count` bytes. False for other types (empty,
 /// pointers, objects) or a bad count.

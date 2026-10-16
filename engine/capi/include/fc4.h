@@ -127,11 +127,11 @@ extern "C" {
  * 58 = adds the demolition utility (fc4_demolition, demolition.md), the dispatch manager
  *      (fc4_dispatch, dispatch.md) and the city situation manager (fc4_citysit,
  *      city-situation.md) (taken as 60 on its lane; renumbered at merge);
- * 66 = adds fc4_variant_get_u32 (holder slot 8's converting getter, neighbors.md §15.4 NG44,
+ * 59 = adds fc4_variant_get_u32 (holder slot 8's converting getter, neighbors.md §15.4 NG44,
  *      data-formats §5.1); fc4_props_set_typed and the neighbour connection property callback carry
- *      the void array (raw bytes, mem_type 0 with is_array; NG37) (apply12 lane; renumbered at
- *      merge). */
-#define FC4_ABI_VERSION 66u
+ *      the void array (raw bytes, mem_type 0 with is_array; NG37) (taken as 66 on the apply12
+ *      lane; renumbered at merge). */
+#define FC4_ABI_VERSION 59u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -883,7 +883,7 @@ size_t fc4_props_count(const fc4_props* p);
 /* Set property `id` exactly as a game variant holds it: mem_type = the
  * cIGZVariant type without the array bit (0x01 bool .. 0x0E RZChar); data =
  * `count` elements in that type's layout (bool: 1 byte). A scalar
- * (is_array false) needs count 1. ABI 66 (neighbors.md §15.4 NG37):
+ * (is_array false) needs count 1. ABI 59 (neighbors.md §15.4 NG37):
  * mem_type 0 with is_array = the void array (raw bytes, type 0x8000), `count`
  * bytes. False for other types or a bad count. */
 bool fc4_props_set_typed(fc4_props* p, uint32_t id, uint16_t mem_type, bool is_array, const void* data,
@@ -893,7 +893,7 @@ bool fc4_props_set_typed(fc4_props* p, uint32_t id, uint16_t mem_type, bool is_a
  * false when absent or not writable (ABI 56; tooling: the traffic shadow's
  * capture stream). */
 bool fc4_props_write_variant(const fc4_props* p, uint32_t id, fc4_bytes_sink sink, void* ctx);
-/* ABI 66 (neighbors.md §15.4 NG44, data-formats §5.1): GetProperty(id, uint32&)
+/* ABI 59 (neighbors.md §15.4 NG44, data-formats §5.1): GetProperty(id, uint32&)
  * (holder slot 8) on one value held as a game variant: var_type = the
  * cIGZVariant type WITH the array bit; data = `count` elements of an array, or
  * the scalar's one value (count 1), in that type's layout (bool: 1 byte). A
