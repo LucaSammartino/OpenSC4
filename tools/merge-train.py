@@ -284,6 +284,9 @@ ABI_INC = "engine/tests/abi_entries.inc"
 HANDOFF = "docs/HANDOFF.md"
 MANUAL = "docs/manual-checks.md"
 QUESTIONS = "docs/specs/QUESTIONS.md"
+PROGRESS = "docs/PROGRESS.md"
+# Append-style files: both sides only ever add rows/sections, so a union of the two sides keeps everything.
+UNION_PATHS = (HANDOFF, MANUAL, QUESTIONS, PROGRESS)
 
 
 def conflicted_paths(wt):
@@ -291,10 +294,35 @@ def conflicted_paths(wt):
     return [p for p in out if p]
 
 
-def resolve_version_line(text, regex, prefer_max=True):
-    """Merge a one-line version constant: keep the higher number, leave every other line alone."""
-    m = regex.search(text)
-    return text, m
+def union_merge(wt, rel):
+    """Resolve a conflict by unioning ours and theirs over their common base.
+
+    Used for the append-style docs files, where each lane only adds rows or sections. Taking either side
+    alone silently drops the other side's additions; a union keeps both. Stage 1 is the base, 2 is ours
+    (integration), 3 is theirs (the lane).
+    """
+    wtp = Path(wt)
+    tmp = wtp / "build-runs" / "train-union"
+    tmp.mkdir(parents=True, exist_ok=True)
+    stages = {}
+    for n, name in ((1, "base"), (2, "ours"), (3, "theirs")):
+        p = git(["-C", str(wt), "show", f":{n}:{rel}"], check=False)
+        if p.returncode != 0:
+            return False
+        stages[name] = tmp / f"{name}-{Path(rel).name}"
+        stages[name].write_text(p.stdout, encoding="utf-8", newline="")
+    out = sh(["git", "merge-file", "--union", "-L", "ours", "-L", "base", "-L", "theirs",
+              str(stages["ours"]), str(stages["base"]), str(stages["theirs"])],
+             check=False)
+    # merge-file exits with the number of conflicts; --union resolves them all, so a non-zero exit with no
+    # conflict markers left still means success.
+    merged = stages["ours"].read_text(encoding="utf-8", errors="replace")
+    if "<<<<<<<" in merged:
+        return False
+    (wtp / rel).write_text(merged, encoding="utf-8", newline="")
+    git(["-C", str(wt), "add", rel], check=False)
+    _ = out
+    return True
 
 
 def resolve_conflicts(wt, lanes):
@@ -317,13 +345,13 @@ def resolve_conflicts(wt, lanes):
             if _resolve_abi_version(wt, p):
                 resolved.append(p)
                 continue
-        if p in (HANDOFF, MANUAL, QUESTIONS):
-            # Derived or append-only: keep ours now and regenerate/append afterwards.
-            git(["-C", str(wt), "checkout", "--ours", "--", p], check=False)
-            git(["-C", str(wt), "add", p], check=False)
-            resolved.append(p + " (kept ours; regenerate from docs/lanes + docs/runs, and re-append the lanes' "
-                                "QUESTIONS sections by hand)")
-            continue
+        if p in UNION_PATHS:
+            # Append-style: union both sides so no lane's rows or sections are dropped. Once
+            # tools/gen_handoff_tables.py exists, HANDOFF/manual-checks are regenerated from docs/lanes and
+            # docs/runs instead and this becomes a no-op for them.
+            if union_merge(wt, p):
+                resolved.append(p + " (union)")
+                continue
         left.append(p)
     return resolved, left
 
