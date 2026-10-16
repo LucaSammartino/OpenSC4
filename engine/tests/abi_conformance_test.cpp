@@ -33,7 +33,10 @@
 //
 // A few SDK declarations disagree with the game in methods the plugin never
 // calls; they are waived (kWaivers) for as long as no plugin source calls
-// them. Slot-count differences that were reviewed are in kReviewedSlotCounts.
+// them. Slot-count differences that were reviewed are in kReviewedSlotCounts;
+// a table one slot longer whose extra slot is the implementing class's
+// deleting destructor passes by rule (TrailingDeletingDestructor;
+// docs/abi/README.md "Slot counts").
 //
 // Usage: fc4_abi_conformance_test [--dump] [--plugin-dir DIR] [path/to/interfaces.tsv]
 //   --dump  print every declared slot next to its table row
@@ -137,6 +140,7 @@
 #include "cISC4ZoneDeveloper.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -429,6 +433,72 @@ const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlo
     return nullptr;
 }
 
+// The trailing deleting destructor rule (docs/abi/README.md, "Slot counts"):
+// the SDK interfaces declare no virtual destructor, so MSVC puts the
+// implementing class's scalar deleting destructor in the slot after the
+// interface's last method. Only that class's own Release calls it (on its own
+// object); no caller reaches it through the interface, and an object that
+// FreeCity4 implements is never destroyed through it. A table that has exactly
+// one slot more than the declaration, that slot being a deleting destructor
+// (named "~..." or "...deleting..." and popping 4, the flags dword), is
+// accepted without a kReviewedSlotCounts entry. Anything else (two extra
+// slots, a gap, a destructor that pops nothing, a declaration longer than the
+// table) still needs a review or a declaration. Returns the destructor's slot,
+// or -1.
+bool IsDeletingDestructorRow(const Row& r) {
+    if (r.calleePop != "4") return false;
+    std::string m = r.method;
+    std::transform(m.begin(), m.end(), m.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return m.find('~') != std::string::npos || m.find("deleting") != std::string::npos;
+}
+
+int TrailingDeletingDestructor(const std::map<int, Row>& rows, int declared) {
+    if (declared <= 0 || rows.empty() || rows.rbegin()->first != declared) return -1;
+    return IsDeletingDestructorRow(rows.at(declared)) ? declared : -1;
+}
+
+// The rule's own cases, run before the table is checked; a failure counts as
+// a mismatch in a required interface.
+int TrailingDeletingDestructorSelfTest() {
+    auto rows = [](std::initializer_list<std::pair<int, Row>> extra) {
+        std::map<int, Row> r;
+        for (int s = 0; s < 3; ++s) r[s] = Row{"0", "eax", "cX::Method", ""};
+        for (const auto& kv : extra) r[kv.first] = kv.second;
+        return r;
+    };
+    const Row scalar{"4", "eax-or-void", "cX::~cX (scalar deleting dtor)", ""};
+    const Row unnamedDtor{"4", "eax", "cX::(deleting destructor)(uint32 flags)", ""};
+    struct Case {
+        const char* what;
+        std::map<int, Row> rows;
+        int declared;
+        int want;
+    };
+    const Case cases[] = {
+        {"one trailing ~cX popping 4", rows({{3, scalar}}), 3, 3},
+        {"one trailing (deleting destructor) popping 4", rows({{3, unnamedDtor}}), 3, 3},
+        {"one trailing ~cX popping 0 (an ICF'd tail call)", rows({{3, Row{"0", "via-call", "icf::cX::~cX", ""}}}), 3,
+         -1},
+        {"one trailing Delete* method popping 4", rows({{3, Row{"4", "eax", "cX::DeleteConnection", ""}}}), 3, -1},
+        {"one trailing unnamed slot popping 4", rows({{3, Row{"4", "eax-or-void", "", ""}}}), 3, -1},
+        {"a destructor followed by another slot", rows({{3, scalar}, {4, Row{"0", "eax", "cX::GetType", ""}}}), 3, -1},
+        {"a destructor after a gap", rows({{4, scalar}}), 3, -1},
+        {"no extra slot", rows({}), 3, -1},
+        {"a declaration longer than the table", rows({{3, scalar}}), 5, -1},
+    };
+    int failed = 0;
+    for (const Case& c : cases) {
+        const int got = TrailingDeletingDestructor(c.rows, c.declared);
+        if (got != c.want) {
+            std::printf("  MISMATCH rule self-test: %s: got %d, want %d\n", c.what, got, c.want);
+            ++failed;
+        }
+    }
+    std::printf("rule self-test: trailing deleting destructor, %u cases, %d failed\n",
+                static_cast<unsigned>(sizeof(cases) / sizeof(cases[0])), failed);
+    return failed;
+}
+
 // SDK declarations that disagree with the game in methods the plugin never
 // calls (the SDK header is vendored and not ours to change). The mismatch is
 // printed as "waived" and does not fail the test, as long as no plugin source
@@ -623,7 +693,8 @@ int main(int argc, char** argv) {
     std::printf("ABI table: %s (%u interfaces and vtables; vtables.tsv %s)\n", path,
                 static_cast<unsigned>(table.size()), haveVtables ? "loaded" : "NOT FOUND");
 
-    int failures = 0, reported = 0, waived = 0, checkedSlots = 0;
+    int failures = TrailingDeletingDestructorSelfTest(), reported = 0, waived = 0, checkedSlots = 0;
+    int trailingDtors = 0;
     for (const AbiInterface& iface : kAbiInterfaces) {
         std::vector<AbiMethod> methods;
         iface.collect(methods);
@@ -681,6 +752,14 @@ int main(int argc, char** argv) {
                         std::printf("  reviewed %s: declares %d slots, the table has %d: %s\n", iface.table,
                                     declared, tableSlots, k->why);
                     }
+                } else if (TrailingDeletingDestructor(rows, declared) >= 0) {
+                    ++trailingDtors;
+                    if (iface.required) {
+                        std::printf("  dtor     %s / %s: declares %d slots, the table has %d: slot %d is the "
+                                    "implementing class's deleting destructor (%s), not an interface method\n",
+                                    iface.table, iface.cls, declared, tableSlots, declared,
+                                    rows.at(declared).method.c_str());
+                    }
                 } else {
                     report(-1, "declares %d slots, the table has %d", declared, tableSlots);
                 }
@@ -737,6 +816,8 @@ int main(int argc, char** argv) {
             reported += mismatches;
         }
     }
+    std::printf("%d declaration(s) end before the implementing class's deleting destructor (trailing destructor rule)\n",
+                trailingDtors);
     std::printf("%d slots compared; %d mismatch(es) in required interfaces, %d waived, %d in reported-only ones\n",
                 checkedSlots, failures, waived, reported);
     return failures == 0 ? 0 : 1;

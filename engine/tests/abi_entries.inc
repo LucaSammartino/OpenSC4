@@ -2663,8 +2663,8 @@ void AbiCollect76_cISC4DisasterLayer(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::GetDisasterCost, "GetDisasterCost"));
 }
 
-void AbiCollect77_cISC4TutorialSystem(std::vector<AbiMethod>& m) {
-    using C = cISC4TutorialSystem;
+void AbiCollect77_cFC4ISC4TutorialSystem(std::vector<AbiMethod>& m) {
+    using C = cFC4ISC4TutorialSystem;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
     m.push_back(AbiM(&C::Release, "Release"));
@@ -2683,6 +2683,9 @@ void AbiCollect77_cISC4TutorialSystem(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::HandleCatalogMenu, "HandleCatalogMenu"));
     m.push_back(AbiM(&C::FilterLeftMouseClick, "FilterLeftMouseClick"));
     m.push_back(AbiM(&C::ResetTutorialNumAndIndex, "ResetTutorialNumAndIndex"));
+    m.push_back(AbiM(&C::OnTutorialEvent, "OnTutorialEvent"));
+    m.push_back(AbiM(&C::SetTutorialTaskNumber, "SetTutorialTaskNumber"));
+    m.push_back(AbiM(&C::IncrementTutorialTaskNumber, "IncrementTutorialTaskNumber"));
 }
 
 void AbiCollect78_cFC4ISC4FireProtectionSimulator(std::vector<AbiMethod>& m) {
@@ -5365,7 +5368,7 @@ const AbiInterface kAbiInterfaces[] = {
     {"cIGZMessageTarget2(Flammability)", "cIGZMessageTarget2", true, &AbiCollect74_cIGZMessageTarget2},
     {"cISC4DisasterManagerFire", "cISC4DisasterManagerFire", true, &AbiCollect75_cISC4DisasterManagerFire},
     {"cISC4DisasterLayer", "cISC4DisasterLayer", true, &AbiCollect76_cISC4DisasterLayer},
-    {"cISC4TutorialSystem", "cISC4TutorialSystem", true, &AbiCollect77_cISC4TutorialSystem},
+    {"cISC4TutorialSystem", "cFC4ISC4TutorialSystem", true, &AbiCollect77_cFC4ISC4TutorialSystem},
     {"cISC4FireProtectionSimulator", "cFC4ISC4FireProtectionSimulator", true, &AbiCollect78_cFC4ISC4FireProtectionSimulator},
     {"cISC4PoliceSimulator", "cFC4ISC4PoliceSimulator", true, &AbiCollect79_cFC4ISC4PoliceSimulator},
     {"cISC4DispatchSource(Fire)", "cFC4ISC4DispatchSource", true, &AbiCollect80_cFC4ISC4DispatchSource},

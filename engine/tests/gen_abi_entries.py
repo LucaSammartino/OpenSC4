@@ -143,7 +143,9 @@ INTERFACES = [
     ("cIGZMessageTarget2(Flammability)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
     ("cISC4DisasterManagerFire", "cISC4DisasterManagerFire", "cISC4DisasterManagerFire.h", True),
     ("cISC4DisasterLayer", "cISC4DisasterLayer", "cISC4DisasterLayer.h", True),
-    ("cISC4TutorialSystem", "cISC4TutorialSystem", "cISC4TutorialSystem.h", True),
+    # The tutorial system (tutorial.md section 6): the SDK declaration (slots 0-17, which the
+    # flammability glue calls) extended by the three slots the SDK header lacks (18-20).
+    ("cISC4TutorialSystem", "cFC4ISC4TutorialSystem", FC4, True),
     # Protection (docs/specs/protection.md §14, §15): both simulators, the
     # sub-object interfaces of their own vtables, and the services they call.
     ("cISC4FireProtectionSimulator", "cFC4ISC4FireProtectionSimulator", FC4, True),
