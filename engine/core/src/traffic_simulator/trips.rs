@@ -14,7 +14,7 @@ use crate::pathfinder::{filter, flag, result, Pathfinder, NO_PARK_AND_RIDE};
 use crate::variant::{Elem, Variant};
 use crate::x87::{r24, rhe};
 
-use crate::traffic_network::NetworkState;
+use crate::traffic_network::{NetworkHost, NetworkState};
 
 use super::cycle::Run;
 use super::route::{confirm_route, mode};
@@ -386,11 +386,21 @@ impl Run<'_, '_> {
     // ---- §4.1 the traffic-source iterator ----
 
     /// `Reset` of the traffic-source iterator (§4.1, TS20): the neighbour
-    /// connections listed now, the lot walk rewound; no source held.
+    /// connections listed now, the lot walk rewound; no source held. The
+    /// snapshot holds a counted reference on each connection, so one removed
+    /// during the phase is still visited until the next `Reset` (§9.1 TG19);
+    /// the previous snapshot's references are given back.
     pub(crate) fn reset_sources(&mut self) {
         let conns = self.h.all_connections();
+        for &c in &conns {
+            NetworkHost::add_ref(self.h, c);
+        }
+        let old = std::mem::take(&mut self.st.iter.conns);
         self.st.iter.reset(conns);
         self.st.current = None;
+        for c in old {
+            NetworkHost::release(self.h, c);
+        }
     }
 
     /// `GetNext` of the traffic-source iterator (§4.1, TS20): the next lot

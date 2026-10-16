@@ -122,8 +122,8 @@ Each forwards to the tutorial window when there is one:
 | 15 `HandleCatalogMenu(menu)` | true | window slot 8, true |
 | 16 `FilterLeftMouseClick(x, z, n)` | true | window slot 10's result |
 | 17 `ResetTutorialNumAndIndex(a, b)` | false | GUID := `a`, task number := window slot 11 `(a, b)`; true |
-| 18 (not in the SDK) `OnTutorialEvent(e)` | true | passes `e` to the window; true |
-| 19 (not in the SDK) `SetTutorialTaskNumber(n)` | task number := `n` | same |
+| 18 (not in the SDK) `OnTutorialEvent(e)` | true | passes `e` to the window (`0x00443970`); true. `e` is a 32-bit event code, not a pointer: the window compares the whole dword with 1 (`0x00443989`) and acts only on 1 (if the current task's slot 20 returns 1, it calls the task's slot 15, then refreshes the instruction text from task slot 9); any other value does nothing (TU3) |
+| 19 (not in the SDK) `SetTutorialTaskNumber(n)` | task number := `n` (the whole dword into the s32 at +0x20, the field slot 11 returns) | same |
 | 20 (not in the SDK) `IncrementTutorialTaskNumber()` | task number += 1 | same |
 
 Slots 11 and 12 return the task number and the GUID. The SDK header stops at slot 17.
@@ -163,7 +163,10 @@ Slots 11 and 12 return the task number and the GUID. The SDK header stops at slo
 | 19 | +0x4C | `SetTutorialTaskNumber(n)` | 4 | — | `0x006CE100` (shared setter of +0x20) |
 | 20 | +0x50 | `IncrementTutorialTaskNumber()` | 0 | — | `0x0043F660` |
 
-Slots 18–20 are not in the SDK header; the names are ours. Proposed `docs/abi` rows (adding 18–20 and correcting
+Slots 18–20 are not in the SDK header; the names are ours. Argument types (TU3): slot 18's `e` is a `uint32_t`
+event code (only 1 does anything); slot 19's `n` is the task number, the same s32 field that slot 11 returns as
+`int32_t`, so `int32_t` is the consistent declaration (`uint32_t` passes the same dword; neither extends or tests a
+sign). Proposed `docs/abi` rows (adding 18–20 and correcting
 the shared-getter names of 11, 12): `build-runs/re-specs13d-abi-rows.tsv`.
 
 ## 7. Open questions
@@ -171,6 +174,14 @@ the shared-getter names of 11, 12): `build-runs/re-specs13d-abi-rows.tsv`.
 - **TU1:** what the registry entry's byte +0x10 means (enabled, unlocked, completed?) and what `SetActive` changes.
   This belongs to a spec of the tutorial registry (`cISC4App` slot 49) with the advisors' Lua host.
 - **TU2:** the 3D view slots 60 and 59 called by `endTutorial`.
+- ~~**TU3:** (abitidy) slots 18 and 19 have one dword each. What is `OnTutorialEvent`'s `e` (an event ID, a message
+  ID or a pointer)? Is `SetTutorialTaskNumber`'s `n` signed? [both declared `uint32_t`]~~ **ANSWERED 2026-10-15
+  (re-answers15):** MATCHES for `e` and for the ABI of `n`. Slot 18 (`0x0043F4E0`) passes the dword to the window's
+  `0x00443970`, which compares the whole dword with 1 (`cmp` at `0x00443989`) and does nothing for any other value,
+  so `e` is an event code, not a pointer and not a message ID. Slot 19 (`0x006CE100`, `ret 4`) stores the whole
+  dword into the task number at +0x20, which slot 11 returns and slot 20 increments: it is the s32 task number.
+  `uint32_t` passes the same bits; `int32_t` would match slot 11 (§4.4, §6). The Mac symbol table names both
+  methods but gives no parameter types, and no caller of slots 18–19 was established statically.
 
 ## 8. Conformance tests
 

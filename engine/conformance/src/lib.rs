@@ -10,6 +10,7 @@
 //! running the vectors against `fc4-core`.
 
 pub(crate) mod aura;
+pub(crate) mod automata;
 pub(crate) mod budget;
 pub(crate) mod city_situation;
 pub(crate) mod civic;

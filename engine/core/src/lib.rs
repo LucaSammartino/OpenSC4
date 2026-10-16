@@ -21,6 +21,7 @@
 #![forbid(unsafe_code)]
 
 pub mod aura;
+pub mod automata;
 pub mod budget;
 pub mod calibration;
 pub mod city_situation;
