@@ -114,7 +114,10 @@ pub fn shipped_volcano() -> PropertyHolder {
     h.add(volcano_prop::PRODUCTION, curve(&SHIPPED_PRODUCTION));
     h.add(volcano_prop::SOLIDIFICATION, curve(&SHIPPED_SOLIDIFICATION));
     h.add(volcano_prop::SCALE, Variant::Scalar(Elem::F32(SHIPPED_SCALE)));
-    h.add(volcano_prop::LAVA_SECONDS, Variant::Scalar(Elem::F32(SHIPPED_LAVA_SECONDS)));
+    h.add(
+        volcano_prop::LAVA_SECONDS,
+        Variant::Scalar(Elem::F32(SHIPPED_LAVA_SECONDS)),
+    );
     h.add(volcano_prop::LAVA_FLOWS, Variant::Scalar(Elem::Bool(true)));
     h
 }

@@ -15,8 +15,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::{Rc, Weak};
 
 use fc4_core::disasters::{
-    kind, msg, occupant, prop, shipped_flame, shipped_riot, shipped_volcano, tuning_instance, CellRect, DisasterHost, DisasterMessage,
-    DisasterPost, DisasterRandom, Disasters, FireEntry, FireTuning, Generator, RiotTuning, Target, WorldBox,
+    kind, msg, occupant, prop, shipped_flame, shipped_riot, shipped_volcano, tuning_instance, CellRect, DisasterHost,
+    DisasterMessage, DisasterPost, DisasterRandom, Disasters, FireEntry, FireTuning, Generator, RiotTuning, Target,
+    WorldBox,
 };
 use fc4_core::property::PropertyHolder;
 

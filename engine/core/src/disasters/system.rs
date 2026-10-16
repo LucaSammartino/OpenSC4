@@ -245,10 +245,7 @@ impl Core {
     /// `GetActiveInstanceCount` (slot 10): instances whose `GetPhase` is 1.
     pub(crate) fn active_count(&self, mtype: u32) -> u32 {
         self.managers.get(&mtype).map_or(0, |m| {
-            m.instances
-                .iter()
-                .filter(|i| self.phase_of(**i) == Some(1))
-                .count() as u32
+            m.instances.iter().filter(|i| self.phase_of(**i) == Some(1)).count() as u32
         })
     }
 

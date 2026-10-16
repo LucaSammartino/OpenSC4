@@ -519,7 +519,9 @@ impl Core {
     /// (one draw), into an empty list with no draw.
     fn toast_push(&mut self, o: u64) {
         let host = self.host.clone();
-        let Some(n) = self.fs_ref().map(|f| f.toast.len()) else { return };
+        let Some(n) = self.fs_ref().map(|f| f.toast.len()) else {
+            return;
+        };
         host.add_ref(o);
         let i = if n == 0 {
             0

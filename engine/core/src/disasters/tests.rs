@@ -840,7 +840,8 @@ fn t07b_riot_suppressed_and_stays() {
     let w = riot_world();
     let id = w.riot(10, 20).expect("riot");
     let a = w.sys.riot_snapshot(id).unwrap().leaders[0].automaton;
-    w.riot_tick(id, 0); // step 1: stage 0
+    // Step 1: stage 0.
+    w.riot_tick(id, 0);
     // Coverage 255 (curve 5): the next step adds −4, stage −1, it ends.
     w.host.police.borrow_mut().insert((10, 20), 255);
     w.host.take();
@@ -858,7 +859,11 @@ fn t07b_riot_suppressed_and_stays() {
     assert!(w.sys.instance_info(id).unwrap().tick_registered);
     assert!(w.sys.attempt_start(kind::RIOT, 30, 20).is_none(), "still null");
     w.riot_tick(id, 1000);
-    assert_eq!(w.sys.riot_snapshot(id).unwrap().next_s, 3, "an empty update every second");
+    assert_eq!(
+        w.sys.riot_snapshot(id).unwrap().next_s,
+        3,
+        "an empty update every second"
+    );
     // A leader whose automaton has gone ends at its next step.
     let b = w.riots()[1];
     let l = w.sys.riot_snapshot(b).unwrap().leaders[0].automaton;
@@ -990,7 +995,17 @@ fn t13_riot_road_search_spiral() {
     // Ring 1 in full, and cells outside the city are skipped, not clamped.
     assert_eq!(
         super::riot::riot_spiral(10, 10, 1),
-        vec![(10, 10), (11, 10), (11, 11), (10, 11), (9, 11), (9, 10), (9, 9), (10, 9), (11, 9)]
+        vec![
+            (10, 10),
+            (11, 10),
+            (11, 11),
+            (10, 11),
+            (9, 11),
+            (9, 10),
+            (9, 9),
+            (10, 9),
+            (11, 9)
+        ]
     );
     let w = world();
     w.host.roads.borrow_mut().insert((0, 0));
@@ -1506,7 +1521,10 @@ fn t11_location_cursor() {
         }
         w.host.take()
     };
-    assert_eq!(go(4), vec!["go_to 30 0 1", "go_to 20 0 1", "go_to 10 0 1", "go_to 30 0 1"]);
+    assert_eq!(
+        go(4),
+        vec!["go_to 30 0 1", "go_to 20 0 1", "go_to 10 0 1", "go_to 30 0 1"]
+    );
     let w = world();
     for (i, x) in [(1, 10), (2, 20), (3, 30)] {
         w.sys.register_location(i, x, 0, 0, 1, false);
@@ -1731,7 +1749,10 @@ fn volcano_end_request_and_no_lava() {
     assert!((s - 0.002 / 100_000.0).abs() < 1e-12);
     assert_eq!(VolcanoTuning::default().rates(1), (0.0, 0.0));
     let d = VolcanoTuning::default();
-    assert_eq!((d.lava_seconds, d.scale, d.vent_radius, d.lava_flows), (20.0, 1.0, 100.0, false));
+    assert_eq!(
+        (d.lava_seconds, d.scale, d.vent_radius, d.lava_flows),
+        (20.0, 1.0, 100.0, false)
+    );
     // The volcano's GetPhase.
     let phases: Vec<u32> = (0..=8).map(volcano_phase).collect();
     assert_eq!(phases, vec![0, 2, 1, 1, 3, 2, 2, 2, 2]);

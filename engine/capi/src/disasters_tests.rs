@@ -584,15 +584,24 @@ fn riot_leaders_and_toxic_spill() {
         // AttemptDisasterStart is always null (§6.2): the riot is in the list.
         assert_eq!(fc4_disasters_attempt_start(f.d, RIOT, 10, 20), 0);
         let mut ids = [0u32; 2];
-        assert_eq!(fc4_disasters_manager_instances(f.d, RIOT, ids.as_mut_ptr(), ids.len()), 1);
+        assert_eq!(
+            fc4_disasters_manager_instances(f.d, RIOT, ids.as_mut_ptr(), ids.len()),
+            1
+        );
         let id = ids[0];
         assert_ne!(id, 0);
-        assert_eq!(fc4_disasters_manager_instances(std::ptr::null(), RIOT, ids.as_mut_ptr(), 2), 0);
+        assert_eq!(
+            fc4_disasters_manager_instances(std::ptr::null(), RIOT, ids.as_mut_ptr(), 2),
+            0
+        );
         assert_eq!(fc4_disasters_active_count(f.d, RIOT), 1);
         assert_eq!(fc4_disasters_riot_leaders(f.d, id, std::ptr::null_mut(), 0), 1);
         let mut l = [fc4_riot_leader::default(); 4];
         assert_eq!(fc4_disasters_riot_leaders(f.d, id, l.as_mut_ptr(), l.len()), 1);
-        assert_eq!((l[0].x, l[0].z, l[0].counter, l[0].stage, l[0].max_stage), (10, 20, 0, -1, -1));
+        assert_eq!(
+            (l[0].x, l[0].z, l[0].counter, l[0].stage, l[0].max_stage),
+            (10, 20, 0, -1, -1)
+        );
         // The removal lock (network-manager.md section 10): the roads within 3 cells.
         let locked: Vec<String> = g
             .take()

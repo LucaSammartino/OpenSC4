@@ -9655,7 +9655,7 @@ static_assert(sizeof(fc4_park_host) == (sizeof(void*) == 4 ? 160 : 320), "fc4_pa
 static_assert(sizeof(fc4_disaster_post) == 32, "fc4_disaster_post layout");
 static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout");
 static_assert(sizeof(fc4_world_box) == 16, "fc4_world_box layout");
-static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 336 : 672), "fc4_disasters_host layout");
+static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 328 : 656), "fc4_disasters_host layout");
 static_assert(sizeof(fc4_disasters_state) == 80, "fc4_disasters_state layout");
 static_assert(sizeof(fc4_disaster_fire) == 56, "fc4_disaster_fire layout");
 static_assert(sizeof(fc4_terrain_rect) == 16, "fc4_terrain_rect layout");
@@ -9755,7 +9755,7 @@ _Static_assert(sizeof(fc4_prop_block) == 52, "fc4_prop_block layout");
 _Static_assert(sizeof(fc4_prop_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_prop_host layout");
 _Static_assert(sizeof(fc4_disaster_post) == 32, "fc4_disaster_post layout");
 _Static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout");
-_Static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 336 : 672), "fc4_disasters_host layout");
+_Static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 328 : 656), "fc4_disasters_host layout");
 _Static_assert(sizeof(fc4_disasters_state) == 80, "fc4_disasters_state layout");
 _Static_assert(sizeof(fc4_disaster_fire) == 56, "fc4_disaster_fire layout");
 _Static_assert(sizeof(fc4_prop_manager_host) == (sizeof(void*) == 4 ? 188 : 376), "fc4_prop_manager_host layout");

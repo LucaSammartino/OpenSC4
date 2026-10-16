@@ -92,8 +92,8 @@ pub use riot::{
 pub use system::{instance_class_of, Disasters, InstanceInfo, ManagerSnapshot};
 pub use toxic::{ToxicSnapshot, ToxicSpill};
 pub use volcano::{
-    shipped_volcano, volcano_phase, volcano_prop, VolcanoSnapshot, VolcanoTuning, SHIPPED_LAVA_SECONDS, SHIPPED_PRODUCTION,
-    SHIPPED_SCALE, SHIPPED_SOLIDIFICATION,
+    shipped_volcano, volcano_phase, volcano_prop, VolcanoSnapshot, VolcanoTuning, SHIPPED_LAVA_SECONDS,
+    SHIPPED_PRODUCTION, SHIPPED_SCALE, SHIPPED_SOLIDIFICATION,
 };
 
 use std::rc::Rc;
