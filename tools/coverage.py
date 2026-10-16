@@ -17,6 +17,8 @@ Inputs (all read-only):
   tools/coverage-libs.tsv       library / compiler buckets (excluded from the denominator)
   tools/coverage-ranges.tsv     owner ranges: game code whose functions have no name, owned by link order (with evidence)
   tools/coverage-map.tsv        owner pattern -> subsystem, area, spec, core module, shadow key, replace key
+  tools/coverage-shadows.tsv    shadow results a lane run recorded outside the regress shadows list; each row is
+                                checked against the run that records its counts, and is refused if they are not there
   docs/specs/*.md, engine/core/src/*        existence of the spec files and core modules the map names
   tools/regress.ps1             the regress replace list ($Replace) and shadows list
   engine/plugin/FC4Subsystems.cpp           the enable keys and which are on by default
@@ -507,6 +509,53 @@ def split_list(v):
     return [] if v in ("", "-") else [x.strip() for x in v.split(",") if x.strip()]
 
 
+def read_text_any(path):
+    """Text of an input file: a UTF-16 file is read as its UTF-8 text, like text_sha256 hashes it."""
+    raw = path.read_bytes()
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return raw.decode("utf-16")
+    return raw.decode("utf-8", "replace")
+
+
+def read_shadow_evidence(path, repo):
+    """Shadow results a lane run recorded outside the regress shadows list: key -> (rows, exact), plus warnings.
+
+    Used only for a shadow key the regress shadows list does not set; the house regress stays the primary source.
+    A row counts only when its source file literally contains "<label> <clean>/<total>", so the counts are checked
+    against the run that measured them and never taken on trust from this file. Any row that fails its check voids
+    the whole key (fail closed): a shadow with one unproven compared set is not verified."""
+    rows, warned = defaultdict(list), []
+    for r in read_tsv(path):
+        key, label = r["shadow"].strip(), r["label"].strip()
+        try:
+            clean, total = int(r["clean"]), int(r["total"])
+        except ValueError:
+            warned.append(f"shadow evidence `{key}`/{label}: clean and total must be integers; the key is void")
+            rows.pop(key, None)
+            rows[key] = None
+            continue
+        rel = r["source"].strip()
+        src = repo / rel
+        if not src.exists():
+            warned.append(f"shadow evidence `{key}`/{label}: source `{rel}` does not exist; the key is void")
+            rows[key] = None
+            continue
+        if f"{label} {clean}/{total}" not in read_text_any(src):
+            warned.append(f"shadow evidence `{key}`/{label}: `{rel}` does not contain `{label} {clean}/{total}`; "
+                          "the key is void")
+            rows[key] = None
+            continue
+        if rows.get(key) is None and key in rows:
+            continue  # already voided by an earlier row of the same key
+        rows[key].append((label, clean, total))
+    out = {}
+    for k, v in rows.items():
+        if v is None or not v:
+            continue
+        out[k] = (v, all(c == t and t > 0 for _, c, t in v))
+    return out, warned
+
+
 def regress_lists(path):
     text = path.read_text(encoding="utf-8", errors="replace")
     m = re.search(r'\[string\]\$Replace\s*=\s*"([^"]*)"', text)
@@ -626,6 +675,7 @@ def main():
         "libs": REPO / "tools" / "coverage-libs.tsv",
         "ranges": REPO / "tools" / "coverage-ranges.tsv",
         "map": REPO / "tools" / "coverage-map.tsv",
+        "shadows": REPO / "tools" / "coverage-shadows.tsv",
         "regress.ps1": REPO / "tools" / "regress.ps1",
         "subsystems": REPO / "engine" / "plugin" / "FC4Subsystems.cpp",
     }
@@ -636,7 +686,8 @@ def main():
     replace_list, shadow_list = regress_lists(inputs["regress.ps1"])
     keys = subsystem_keys(inputs["subsystems"])
     reg = read_regress(regress)
-    warnings = []
+    shadow_ev, shadow_warn = read_shadow_evidence(inputs["shadows"], REPO)
+    warnings = list(shadow_warn)
 
     # statuses per map row
     rrun = reg["runs"].get("replace", ("none", 1))
@@ -660,15 +711,20 @@ def main():
         if sh != "-":
             label = sh[: -len("_shadow")] if sh.endswith("_shadow") else sh
             label = SHADOW_LABEL_ALIAS.get(label, label)
-            if sh not in shadow_list:
-                r["shadow_note"] = "not in regress"
-            elif label not in reg["shadows"]:
-                r["shadow_note"] = "no lines"
-                warnings.append(f"shadow `{sh}` is in the regress list but `{regress.name}` has no `{label}` lines")
-            else:
+            if sh in shadow_list and label in reg["shadows"]:
                 clean, lines = reg["shadows"][label]
                 r["verified"] = lines > 0 and clean == lines
                 r["shadow_note"] = f"{clean}/{lines}"
+            elif sh in shadow_list:
+                r["shadow_note"] = "no lines"
+                warnings.append(f"shadow `{sh}` is in the regress list but `{regress.name}` has no `{label}` lines")
+            elif sh in shadow_ev:
+                sets, exact = shadow_ev[sh]
+                r["verified"] = exact
+                r["shadow_note"] = (", ".join(f"{lab} {c}/{t}" for lab, c, t in sets)
+                                    + (" (lane run)" if exact else " (lane run, not exact)"))
+            else:
+                r["shadow_note"] = "not in regress"
         rp = r["replace"]
         r["replaced"] = False
         if rp != "-":
@@ -791,7 +847,7 @@ def main():
     w("|---|---|---:|---:|---:|---:|")
     for s, desc in (("specified", "a spec in docs/specs covers its owner"),
                     ("implemented", "a clean-room module in engine/ implements its owner"),
-                    ("verified", "its same-process shadow is exact in the regress run"),
+                    ("verified", "its same-process shadow is exact in the run that measured it"),
                     ("replaced", "our class runs instead of the original in the regress replace run")):
         w(f"| **{s}** | {desc} | {whole[s + '_b']:,} | **{pct(whole[s + '_b'], game_b)}** | {whole[s + '_n']:,} | "
           f"{pct(whole[s + '_n'], game_n)} |")
@@ -830,7 +886,9 @@ def main():
     w("")
     w("One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Status columns: `yes` when every "
       "map row of the subsystem has the status, `part` when some do, `-` when none does. Shadow: clean/total lines "
-      f"in `{regress.name}` (`not in regress` when the shadow exists but the regress shadows run does not use it).")
+      f"in `{regress.name}` (`not in regress` when the shadow exists but the regress shadows run does not use it), "
+      "or the counts `tools/coverage-shadows.tsv` cites from a lane run (`lane run`, or `lane run, not exact` when "
+      "a compared set differs).")
     w("")
     w("| Area | Subsystem | Owners | Functions | Bytes | Specified | Implemented | Shadow | Verified | Replaced |")
     w("|---|---|---:|---:|---:|---|---|---|---|---|")
@@ -898,7 +956,7 @@ def main():
     w(f"| SimCity 4.exe | {exe_sha[:16]} | GOG 1.1.641, image base 0x{base:08X} |")
     for f in ("functions.tsv", "function-details.tsv", "calls.tsv", "data-references.tsv", "instructions.asm"):
         w(f"| ghidra/export/windows/{f} | {text_sha256(export / f)[:16]} | Ghidra 12.1.4 auto-analysis export |")
-    for k in ("names", "vtables", "interfaces", "libs", "ranges", "map", "regress.ps1", "subsystems"):
+    for k in ("names", "vtables", "interfaces", "libs", "ranges", "map", "shadows", "regress.ps1", "subsystems"):
         w(f"| {inputs[k].relative_to(REPO).as_posix()} | {text_sha256(inputs[k])[:16]} | |")
     w(f"| build-runs/{regress.name} | {text_sha256(regress)[:16]} | regress {reg['tag']} "
       f"({'PASS' if reg['pass'] else 'FAIL'}; {reg['profile'] or 'profile not recorded'}); replace run "

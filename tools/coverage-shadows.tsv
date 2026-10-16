@@ -1,0 +1,21 @@
+# Same-process shadow evidence outside the regress shadows run. tools/coverage.py reads this only for a shadow
+# key that tools/regress.ps1's shadows list does not set: the house regress is the primary source and is used
+# whenever it ran the shadow at all. This file covers the shadows that only a lane run has exercised.
+# Columns:
+#   shadow   the ini key the plugin reads (engine/plugin/FC4*Shadow.cpp)
+#   label    the word the source uses for that compared set (a shadow may compare several: fire, riot, ...)
+#   clean    lines with every mismatch count 0
+#   total    lines compared
+#   source   a repo-relative file that records that run; the tool REQUIRES the literal "<label> <clean>/<total>"
+#            to appear in it, and refuses the row (a warning, never a credit) if it does not. Numbers are never
+#            taken on trust from this file: they are checked against the run that measured them.
+#   note     where the run came from
+# verified is credited only when EVERY row of a shadow key is exact (clean == total and total > 0). A shadow with
+# any inexact set stays unverified: disasters_shadow is listed at its real counts precisely so the report shows
+# them instead of implying the disaster layer is proven.
+shadow	label	clean	total	source	note
+citysit_shadow	citysit	73	73	docs/runs/glue17-shadows-5.md	glue17 lane run 5 (record-only shadow; every line roundtrip=same, mismatches=0)
+demolition_shadow	demolition	73	73	docs/runs/glue17-shadows-5.md	glue17 lane run 5 (record-only shadow; every line roundtrip=same, mismatches=0)
+dispatch_shadow	dispatch	73	73	docs/runs/glue17-shadows-5.md	glue17 lane run 5 (record-only shadow; every line roundtrip=same, mismatches=0)
+disasters_shadow	fire	211	263	docs/lanes/glue13.md	disaster layer run dis-final-11 (not exact: DS25-DS40)
+disasters_shadow	riot	2	354	docs/lanes/glue13.md	disaster layer run dis-final-11 (not exact: DS25-DS40)
