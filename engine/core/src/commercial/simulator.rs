@@ -89,6 +89,9 @@ pub struct CommercialSim {
     host: Rc<dyn CommercialHost>,
     token: Cell<u64>,
     s: RefCell<CommercialState>,
+    /// simulator.md §5.7: captured from [`crate::pacing::process`] at
+    /// construction.
+    pacing: Cell<crate::pacing::Pacing>,
 }
 
 impl CommercialSim {
@@ -98,7 +101,35 @@ impl CommercialSim {
             host,
             token: Cell::new(token),
             s: RefCell::new(CommercialState::default()),
+            pacing: Cell::new(crate::pacing::process()),
         })
+    }
+
+    /// The pacing this simulator runs (simulator.md §5.7).
+    pub fn pacing(&self) -> crate::pacing::Pacing {
+        self.pacing.get()
+    }
+
+    /// Shadows and tests: [`crate::pacing::Pacing::Original`] keeps one
+    /// step per idle.
+    pub fn set_pacing(&self, p: crate::pacing::Pacing) {
+        self.pacing.set(p);
+    }
+
+    /// simulator.md §5.7 [choice] (deterministic pacing): the day's settle
+    /// delivery runs the rebuild to completion (idle and clean). Returns
+    /// whether it is idle.
+    pub fn settle_cycle(&self) -> bool {
+        crate::pacing::run_to_idle(
+            || {
+                self.do_idle();
+                true
+            },
+            || {
+                let s = self.s.borrow();
+                s.state == st::IDLE && !s.dirty
+            },
+        )
     }
 
     pub fn token(&self) -> u64 {
@@ -257,6 +288,9 @@ impl CommercialSim {
     /// dirty, with no preview-occupant test *[quirk]*. Returns true.
     pub fn do_message(&self, m: &CommercialMessage) -> bool {
         match m.msg_type {
+            msg::SIM_IDLE if self.pacing.get().is_deterministic() => {
+                self.settle_cycle();
+            }
             msg::SIM_IDLE | msg::SIM_NEW_DAY => self.do_idle(),
             msg::OCCUPANT_INSERTED | msg::OCCUPANT_REMOVED if m.data3 == OCCUPANT_TYPE_BUILDING => {
                 if let Some(occ) = m.void1 {

@@ -245,7 +245,7 @@ reaches it through §3.
    4. `DoAdditionalDraws`;
    5. `IdentifyHighwayIntersections` (failure `0xF0000005`);
    6. `BuildSetOfCellsToBeSolved` (`0x006355C0`);
-   7. `ResolveOneWayConflicts` (type 10 only);
+   7. `ResolveOneWayConflicts` (`0x0063A640`, type 10 only; network-rules.md §6.5);
    8. `MarkNeighborConnections` (`0x00626EB0`);
    9. `SolveNetwork` (`0x00635CB0`, failure `0xF0000007`);
    10. up to 4 tries of `SmoothenNetwork` (`0x00637A80`, failure `0xF0000006`), each followed by
@@ -397,7 +397,7 @@ The tool only **prices**. It never touches the budget. The price of the current 
 | demolition | `+0x220` (the demolition cost of what the drag clears, from `UpdateOccupantHighlights`) |
 | earthwork | `S := Σ abs(corner height − terrain altitude)` over the 4 corners of every solved cell, accumulated in a float (terrain slot 12 at the corner vertex). Then `r24(S × +0x328 + 12582912.0f)`, stored as a float, whose bit pattern minus `0x4B400000` is the integer (`0x00625834`–`0x0062584F`). This rounds to nearest, half to even, for values below 2²² |
 | cells | over every solved cell that is part of the run (cell record `+0x10`) and was not already built (`+0x52 = 0`): the **largest** per-type cell cost among the types in the cell's type mask. The per-type cost table is at `0x00B453A4`, stride `0x114`, filled from the network exemplars *[inferred]* |
-| bridges | per bridge: `(end − start) × (bridge per-cell cost + +0x320) + bridge fixed cost` (bridge record `+0x154`, `+0x150`) |
+| bridges | per bridge: `(end − start) × (bridge per-cell cost + +0x320) + bridge fixed cost` (bridge **type** `+0x154`, `+0x150`, 0 for every shipped type; network-bridges.md §12) |
 | tunnels | per tunnel: `(end − start) × +0x324` |
 | intersections | per highway intersection: its rule's cost (rule `+0xB4`) |
 

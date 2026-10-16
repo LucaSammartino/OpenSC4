@@ -1,8 +1,8 @@
 {
   "format": 1,
   "name": "disaster_layer_and_locations",
-  "spec": ["disasters 2.1", "disasters 2.3", "disasters 2.6", "disasters 3"],
-  "description": "Init creates the seven managers and inits them in ascending type order; Shutdown removes them. Locations: the most recent one wins (instance 0 = any), an occupant's location follows the occupant while it is in the occupant manager and falls back to the stored cell once it has gone, the location holds a reference to its occupant, GoToNextDisaster walks the list from the first entry. DisasterHasBegun and DisasterHasEnded nest; an end without a begin does nothing.",
+  "spec": ["disasters 2.1", "disasters 2.2", "disasters 2.4", "disasters 2.7", "disasters 3"],
+  "description": "Init creates the seven managers and inits them in ascending type order; Shutdown removes them. Locations: the most recent one wins (instance 0 = any), an occupant's location follows the occupant while it is in the occupant manager and falls back to the stored cell once it has gone, the location holds a reference to its occupant, GoToNextDisaster starts at the newest entry (every registration moves the cursor there) and walks backwards. DisasterHasBegun and DisasterHasEnded nest; an end without a begin does nothing.",
   "steps": [
     {"op": "dis_create"},
     {"op": "dis_init", "expect": true},
@@ -21,10 +21,11 @@
     {"op": "dis_call", "method": "most_recent_location", "args": [5], "expect": null},
     {"op": "dis_expect_refs", "refs": {"0x10": 1}},
     {"op": "dis_clear_events"},
+    {"op": "dis_expect", "state": {"cursor": 2}},
     {"op": "dis_call", "method": "go_to_next_disaster"},
     {"op": "dis_call", "method": "go_to_next_disaster"},
     {"op": "dis_expect_events", "filter": {"event": "go_to"}, "events": [
-      {"event": "go_to", "x": 1, "z": 2, "zoom": 3},
+      {"event": "go_to", "x": 30, "z": 31, "zoom": 2},
       {"event": "go_to", "x": 0, "z": 0, "zoom": 3}
     ]},
     {"op": "dis_call", "method": "unregister_location_by_occupant", "args": [9, "0x10"]},

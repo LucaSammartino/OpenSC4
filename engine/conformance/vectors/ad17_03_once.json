@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "advisor_once",
+  "spec": ["advisors 6.2", "advisors 17.3"],
+  "description": "The evaluation-gate advice with `once`: after its deactivation nextDay is 0x7FFFFFFF and it never activates again in later months.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_set", "object": {"advisor": 23}, "month_counter": 5, "current_day": 1000},
+    {"op": "adv_advice", "guid": "0x100", "trigger": "true", "once": true},
+    {"op": "adv_advisor_init", "object": {"advisor": 23}, "table_index": 1, "expect": true},
+    {"op": "adv_expect", "object": {"advice": "0x100"}, "state": {"active": false, "next_day": 1000, "expiry": 0, "last_month": 4}},
+    {"op": "adv_clear_events"},
+
+    {"op": "adv_day", "day": 1000, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": "0x100"}, "state": {"active": true, "expiry": 1045, "last_month": 5}},
+    {"op": "adv_expect_events", "filter": {"event": "post"}, "events": [{"event": "post", "type": "0x8A09FA64", "data1": 0, "object": "advice:0x100"}]},
+    {"op": "adv_day", "day": 1045, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": "0x100"}, "state": {"active": false, "expiry": 0, "next_day": 2147483647}},
+    {"op": "adv_expect_events", "filter": {"event": "send", "type": "0x8A09FA65"}, "events": [{"event": "send", "type": "0x8A09FA65", "data1": 0, "object": "advice:0x100"}]},
+    {"op": "adv_set", "object": {"advisor": 23}, "month_counter": 6},
+    {"op": "adv_day", "day": 1340, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": "0x100"}, "state": {"active": false, "next_day": 2147483647}},
+    {"op": "adv_set", "object": {"advisor": 23}, "month_counter": 7},
+    {"op": "adv_day", "day": 1380, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": "0x100"}, "state": {"active": false, "next_day": 2147483647}},
+    {"op": "adv_set", "object": {"advisor": 23}, "month_counter": 8},
+    {"op": "adv_day", "day": 1420, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": "0x100"}, "state": {"active": false, "next_day": 2147483647}}
+  ]
+}

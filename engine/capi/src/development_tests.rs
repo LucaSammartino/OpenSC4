@@ -82,6 +82,8 @@ struct Game {
     target: Cell<usize>,
     zone: Cell<i8>,
     lot_state: Cell<u32>,
+    /// `developer_map_update_finished` answers false this many times.
+    devs_busy: Cell<u32>,
     // growth developer host
     agents_g: RefCell<Vec<u32>>,
     tract_sizes: RefCell<Vec<(u64, i32)>>,
@@ -470,7 +472,12 @@ unsafe extern "C" fn b_dev_start(u: *mut c_void, d: u64) {
         dev.started += 1;
     }
 }
-unsafe extern "C" fn b_dev_finished(_u: *mut c_void, _d: u64) -> bool {
+unsafe extern "C" fn b_dev_finished(u: *mut c_void, _d: u64) -> bool {
+    let g = game(u);
+    if g.devs_busy.get() > 0 {
+        g.devs_busy.set(g.devs_busy.get() - 1);
+        return false;
+    }
     true
 }
 
@@ -801,6 +808,33 @@ fn monthly_planning_and_daily_growth_reach_the_tract_developer() {
         fc4_development_set_grow_budget(p, 3);
         assert_eq!(state(p).grow_budget, 3);
 
+        assert!(fc4_development_shutdown(p));
+        fc4_development_destroy(p);
+        fc4_development_process_destroy(pp);
+    }
+}
+
+#[test]
+fn deterministic_pacing_settles_the_rebuild_or_waits_for_developers() {
+    // simulator.md §5.7 [choice]: one settle SimIdle runs the monthly
+    // rebuild to the end (state 0); while a developer's map update is not
+    // finished it answers false (the simulator delivers it again later).
+    unsafe {
+        let g = Game::default();
+        g.census.set(1000.0);
+        let pp = fc4_development_process_create(7);
+        let p = new_bds(&g, pp, 0xB0);
+        assert!(fc4_development_init(p));
+        crate::development::test_set_pacing(p, fc4_core::pacing::Pacing::Deterministic);
+        send(p, msg::SIM_BEGIN);
+        assert_eq!(state(p).state, 1);
+        let idle = |p| fc4_development_do_message(p, &message(msg::SIM_IDLE), std::ptr::null(), 0);
+        g.devs_busy.set(100);
+        assert!(!idle(p));
+        assert_eq!(state(p).state, 2, "waiting for the developer");
+        g.devs_busy.set(0);
+        assert!(idle(p));
+        assert_eq!(state(p).state, 0, "the rest of the rebuild in one delivery");
         assert!(fc4_development_shutdown(p));
         fc4_development_destroy(p);
         fc4_development_process_destroy(pp);

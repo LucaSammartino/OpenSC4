@@ -45,6 +45,22 @@ impl AuraSim {
         self.d.borrow_mut().state = s;
     }
 
+    /// simulator.md §5.7 [choice] (deterministic pacing): the day's settle
+    /// delivery runs the monthly cycle to completion (state 0), or until it
+    /// waits (state 1 before the city is initialised). Returns whether it is
+    /// idle.
+    pub fn settle_cycle(&self) -> bool {
+        crate::pacing::run_to_idle(
+            || {
+                let before = self.d.borrow().state;
+                self.do_idle(super::DAY_STEP_MS);
+                // States 3 and 5 progress through a cursor.
+                before == 3 || before == 5 || self.d.borrow().state != before
+            },
+            || self.d.borrow().state == 0,
+        )
+    }
+
     /// `DoIdle(ms)`: one pipeline step (§6).
     pub fn do_idle(&self, ms: u32) {
         let state = self.d.borrow().state;
@@ -299,6 +315,7 @@ impl AuraSim {
     fn step_lots(&self, ms: u32) {
         let mut slice = self.slice.get();
         let step = slice.step.clamp(1, 1024);
+        let deterministic = self.pacing.get().is_deterministic();
         self.host.limit_timer_start(ms);
         let Some(mut it) = self.lots.borrow_mut().take() else {
             // [choice] No iterator: the walk ends.
@@ -309,7 +326,8 @@ impl AuraSim {
         let mut taken = 0u32;
         let done = loop {
             count = count.wrapping_add(step);
-            if count % 1024 == 0 && self.host.limit_timer_expired() {
+            // Deterministic pacing (simulator.md §5.7): no clock, only the cap.
+            if count % 1024 == 0 && !deterministic && self.host.limit_timer_expired() {
                 break false;
             }
             // [choice] A cap per call, whatever the host's clock says.

@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "nr15_11_claims",
+  "spec": ["network-rules 6.4", "network-geometry 9.1"],
+  "description": "With 193 buckets (5, 6) (bucket 80) comes before (5, 5) (bucket 164); the m 7 outputs are skipped; S ends empty.",
+  "steps": [
+    {"op": "nr_tiles", "text": ["#T#", "1,0,2,0,2", "3,0,0x100,0,0", "3,7,0x101,0,0"]},
+    {"op": "nr_cell", "x": 5, "z": 5, "edges": {"Road": "0x02000200"}},
+    {"op": "nr_cell", "x": 5, "z": 6, "edges": {"Road": "0x02000200"}},
+    {"op": "nr_set_s", "cells": [[5, 5], [5, 6]]},
+    {"op": "nr_apply", "p": [[5, 5], [5, 6]], "type": "Road", "expect_p": [], "expect_w": []},
+    {"op": "nr_expect_solved", "records": [["0x100", 0, 5, 6], ["0x100", 0, 5, 5]]},
+    {"op": "nr_expect_s", "cells": []},
+    {"op": "nr_expect_cell", "x": 5, "z": 6, "state": {"solved": 0}},
+    {"op": "nr_expect_cell", "x": 5, "z": 5, "state": {"solved": 1}}
+  ]
+}

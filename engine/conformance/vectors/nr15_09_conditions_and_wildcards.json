@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "nr15_09_conditions_and_wildcards",
+  "spec": ["network-rules 5"],
+  "description": "A condition on the north neighbour; '?' tokens drop their bytes from the mask.",
+  "steps": [
+    {"op": "nr_tiles", "text": ["#T#", "1,0,2,0,0", "2,3,0,0,0,2", "3,0,0x200,0,0"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x00000200"}},
+    {"op": "nr_cell", "x": 10, "z": 9, "edges": {"Road": "0x02000000"}},
+    {"op": "nr_evaluate", "x": 10, "z": 10, "type": "Road", "expect": [["0x200", 0, 0]]},
+    {"op": "nr_cell", "x": 10, "z": 9, "edges": {"Road": "0x02000200"}},
+    {"op": "nr_evaluate", "x": 10, "z": 10, "type": "Road", "expect": null},
+    {"op": "nr_tiles", "text": ["#T#", "1,0,2,0,0", "2,3,?,?,?,2", "3,0,0x200,0,0"]},
+    {"op": "nr_expect_rules", "rules": [{"conditions": [[3, "0x02000000", "0xFF000000"]]}]},
+    {"op": "nr_evaluate", "x": 10, "z": 10, "type": "Road", "expect": [["0x200", 0, 0]]},
+    {"op": "nr_cell", "x": 10, "z": 9, "edges": {"Road": "0x02000000"}},
+    {"op": "nr_evaluate", "x": 10, "z": 10, "type": "Road", "expect": [["0x200", 0, 0]]}
+  ]
+}

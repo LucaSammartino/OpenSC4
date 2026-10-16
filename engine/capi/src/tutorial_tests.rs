@@ -79,6 +79,7 @@ unsafe extern "C" fn release(u: *mut c_void, t: u64) {
 }
 unsafe extern "C" fn create_window(u: *mut c_void) -> u64 {
     game(u).log("create window");
+    *game(u).refs.borrow_mut().entry(WINDOW).or_default() += 1; // the creation count
     WINDOW
 }
 unsafe extern "C" fn init_window(u: *mut c_void, w: u64) {
@@ -283,7 +284,7 @@ fn init_shutdown_and_messages() {
             g.take(),
             ["create window", "init window 40", "set active 8A5B7A6C true"]
         );
-        assert_eq!(g.refs(WINDOW), 1);
+        assert_eq!(g.refs(WINDOW), 2, "the two references startTutorial took (TU5)");
         let s = state(t);
         assert_eq!((s.window, s.start_tried, s.end_pending), (WINDOW, 1, 0));
         assert!(fc4_tutorial_do_message(t, CITY_INIT_COMPLETE, 0));
@@ -300,13 +301,15 @@ fn init_shutdown_and_messages() {
         assert_eq!(state(t).end_pending, 0);
         assert_eq!(record(t), [2, 0, 0, 2, 0, 0, 0, 0x6C, 0x7A, 0x5B, 0x8A]);
         assert!(fc4_tutorial_shutdown(t));
+        // [TU5] The cheat first (no `cISC4App` slot 21 test), then the
+        // window (already gone here), then the messages in the spec's order.
         assert_eq!(
             g.take(),
             [
-                "unsubscribe EA8AE29A",
+                "unregister cheat",
                 "unsubscribe AA3840E6",
-                "unsubscribe 26C63343",
-                "unregister cheat"
+                "unsubscribe EA8AE29A",
+                "unsubscribe 26C63343"
             ]
         );
         fc4_tutorial_destroy(t);

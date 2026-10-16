@@ -1,0 +1,23 @@
+# Owner ranges for tools/coverage.py (RE side). Game code (it stays in the denominator) whose functions have no name
+# and that no reach edge can attribute, owned by link order. Rule 3b of docs/COVERAGE.md: after names and vtables, a
+# function still without an owner whose entry lies in [start, end) takes the range's owner; named functions inside
+# keep their own owner. Every range needs its evidence. Columns:
+#   range     [start, end) virtual addresses, hex start-end
+#   owner     the owner the map (tools/coverage-map.tsv) matches, a class or namespace
+#   evidence  why (vtables, tables, callers and Mac names seen; checked against ghidra/export/windows on 2026-10-16)
+range	owner	evidence
+# The software span renderer of cGZDrawContextRenderToBuffer (2D drawing). cGZDrawContextRenderToBuffer::Init 00830710
+# (vtable 00AC17D0 slot 3) creates one of five span renderer classes by buffer color type, vtables 00AC182C cSpanRender1555
+# / 00AC1844 565 / 00AC185C 4444 / 00AC1874 8888 / 00AC188C 8 (re/symbols/gzdraw-softrender.tsv, Mac slot order). Each
+# class's five vtable methods are its link-order anchor, so the range is split at them rather than one blob: 1555 at
+# 008310B0, 565 at 0083DE50, 4444 at 00847CE0, 8888 at 00854E10, 8 at 0085E640. Each RenderBlt indexes a 14 x 12
+# dispatch table of template blit and texel-conversion instantiations (tables 00AC18A4-00AC1B40, 00AC1B88-00AC1E24,
+# 00AC1E60-00AC20FC, 00AC2138-00AC23D4, 00AC2410-00AC26AC; 840 slots); those instantiations and the helpers they call
+# are the 793 unnamed functions here (768 take this rule, the 25 vtable methods already carry a name). No code outside
+# the range calls into it. The Mac build has 937 such nGZDrawSoftRender:: template functions (converttexel<RGBFormat...>,
+# 250 KB). The last range ends where the EA sound library starts (coverage-libs.tsv easnd 00864b60).
+008310b0-0083de50	nGZDrawSoftRender::cSpanRender1555	vtable 00AC182C, created by Init 00830710 for color types 4 R5G5B5 and 6 A1R5G5B5; RenderSolid 008310B0 .. the byte before cSpanRender565::RenderSolid 0083DE50; 172 functions, 50,817 bytes
+0083de50-00847ce0	nGZDrawSoftRender::cSpanRender565	vtable 00AC1844, created by Init 00830710 for color type 5 R5G6B5; RenderSolid 0083DE50 .. the byte before cSpanRender4444::RenderSolid 00847CE0; 145 functions, 39,051 bytes
+00847ce0-00854e10	nGZDrawSoftRender::cSpanRender4444	vtable 00AC185C, created by Init 00830710 for color type 7 A4R4G4B4; RenderSolid 00847CE0 .. the byte before cSpanRender8888::RenderSolid 00854E10; 172 functions, 51,809 bytes
+00854e10-0085e640	nGZDrawSoftRender::cSpanRender8888	vtable 00AC1874, created by Init 00830710 for color types 8 R8G8B8 and 9 A8R8G8B8; RenderSolid 00854E10 .. the byte before cSpanRender8::RenderSolid 0085E640; 174 functions, 37,218 bytes
+0085e640-00864b60	nGZDrawSoftRender::cSpanRender8	vtable 00AC188C, created by Init 00830710 for color type 2 RGB8; RenderSolid 0085E640 .. the EA sound library at 00864B60; 130 functions, 24,545 bytes

@@ -96,6 +96,18 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
 417 identical after a second trip (no save has a bucket with two entries; 3,821 to 5,305 bytes), parks 417/417
 (10 bytes ×411, 18, 34, 58, 82).
 
+### Network rules sweep (the shipped rule files)
+
+`formats/tests/network_rules.rs` loads every shipped network rule resource (the tile rule files with
+`#Transmogrify`, RUL0, RUL1, RUL2 and the network INI; network-rules.md §2) with `fc4_core::network_rules`, read
+from the install's `.dat` files at run time and never committed, and reports the expansion counts and the load
+order's evaluator and rule counts. See `formats/README.md` for the result.
+
+```sh
+cd engine
+cargo test -p fc4-formats --release --test network_rules -- --nocapture
+```
+
 ## Installing and checking in game
 
 1. Copy `build-x86/FreeCity4.dll` to the game's plugin folder, for example
@@ -767,17 +779,75 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      session seed: WARNING session_seed = 'abc' (FreeCity4.ini) is not a 32-bit number; using the clock
      ```
 
-     Two runs with the same `session_seed` give our generators the same seeds, but not yet the same city: in
-     two runs of the 26 regress replacements of run 118 (all but `traffic`) on Konradshohe with `session_seed = 0x5EED1234` (turbo to
-     2032-01-01, and speed 2 to 2028-01-01) the `DIGEST` lines differ from the first month (2026-02-01). The
-     first differences are pacing counters (simulator.md §5.7): the lot developer's day re-deliveries
-     (`days=5` / `7`, its 5 ms cycle budget), the aura and plumbing states reached, the commercial idle
-     deliveries, crime's requested props, the BDS's construction resources and draws, and the dates on which
-     posted month messages reach civic, parks, residential and flora. Our cores still slice their work by real
-     time (§5.5 helpers, idle deliveries per frame), which §5.7's *[choice]* says they should not; the original
-     subsystems still in the city (traffic simulator and network map, prop developer, occupants, network lot
-     manager and construction crew, automata, disasters, advisors, MySims) seed from the clock, and `rand()`
-     (state 1 at process start) is drawn in a pacing-dependent order.
+     Two runs with the same `session_seed` give our generators the same seeds, and with deterministic pacing
+     (below) nearly the same city, but not yet the same one. Runs of the 27 regress replacements of run 121 on
+     Konradshohe with `session_seed = 0x5EED1234` (lane detpacing, 2026-10-16):
+     - before deterministic pacing, two turbo runs to 2032-01-01 differed in the `DIGEST` from the first month;
+     - with it, two turbo runs to 2032-01-01 give the same `DIGEST` until 2027-02 (`dp-final1` / `dp-final2`;
+       until 2026-12 and 2027-05 in earlier pairs), and a speed-2 run without turbo to 2028-01-01 gives the turbo
+       run's `DIGEST` until 2027-05 (`dp-s1` / `dp-c1`); the `ordinance` and `zones` month lines are the same in
+       every run, and
+       `demand`, `landfill`, `plumbing`, `power`, `protection` and `neighbours` are the same at speed 2 and in
+       turbo to 2028;
+     - the first differences come from the original's frame-driven or clock-seeded subsystems still in the city:
+       the occupant messages counted by commercial, civic and parks (transient occupants of the automata and the
+       construction crew; from the third month), the occupants whose flammability the flammability scan reads
+       (`wateredQueries`, one query a month), the traffic route counts by travel type (`routes applied … by travel
+       type`, from the seventh month), and the props the original prop developer places and asks crime to select
+       (its generator is seeded from the clock; crime's `SelectProp` draws crime's own generator). The first
+       difference in our state is one tree more or less that flora plants on a cell (after 9 to 12 months), which
+       moves the flammability scan and the pollution absorption; small differences reach population (R ±4) after
+       11 to 16 months and then every subsystem. `rand()` (state 1 at process start) is drawn by the original in a
+       frame-dependent order.
+   - **Pacing** (`pacing = deterministic | original`, env `FC4_PACING`; `plugin/FC4Pacing.h`, `core/src/pacing.rs`,
+     fc4.h "pacing"; simulator.md §5.7 *[choice]*): how the work of our cores is bound to game days. The default
+     is `deterministic`, except that with any `<x>_shadow` on and `pacing` unset it is `original` (the shadows
+     compare our cores with the original's under the original's pacing; `pacing = deterministic` with a shadow on
+     logs a warning). Read once at game start, before any core exists (`fc4_pacing_set_process`); every core
+     captures it when it is constructed. Under `deterministic`, and only while our simulator runs:
+     - every day our simulator opens has a **settle point**: when the day's levels 2..7 have drained (the end of
+       the agent walk), each enabled idle agent of ours (its vtable lies in FreeCity4.dll) gets one `SimIdle`
+       (data3 22) and runs its cycle to completion in the core: aura, growth developers, plumbing, the demand
+       census, land value, crime, power, commercial, the BDS rebuild (which answers false while it waits for a
+       developer's map update: it is delivered again after the other idle agents, at most 4 passes); the
+       neighbours' push runs there too. The frame idle passes reach only the original's idle agents; the next
+       day opens only after the settle point;
+     - the day runs from open to settle in one simulator tick: the levels of an open day ignore the frame budget
+       (an open day is capped at 10 s of real time), so no frame, idle pass or message-server pump falls inside
+       a day;
+     - the clock is never read for slicing: the §5.5 adaptive helpers (aura lots, growth population pass) and
+       the demand census run without a time limit (an item cap only), land value runs with an unbounded tract
+       count, the history warehouse's yearly thinning thins its per-pass series on every delivery (no 5 ms
+       limit); the lot developer's daily budget and the BDS's daily growth budget (building-development §4.4.1)
+       were already item counts;
+     - the original's prop developer (one block step per `SimIdle`, prop-developer.md §3.3) is paced too: 20
+       `SimIdle` at each settle point (a day at the middle speed: 1000 ms per day at 20 frames per second), none
+       from the frame idle passes; the original's other idle agents keep the frame idle passes;
+     - the simulator's posted `SimNewDay` / `SimNewWeek` / `SimNewMonth` / `SimNewYear` and our lot developer's
+       lot `StateChanged` (`0xE8BDA2E7`) posts made while a day is open are held and sent (`MessageSend`, in
+       posting order, with any they cause) at that day's settle point, so every subscriber (ours, the
+       original's, the observer's `DIGEST` and month lines) sees them before the next day's agents, however
+       many frames the day took; then the message server's tick runs at the settle point until its post queue
+       stops shrinking (at most 64 ticks), which delivers every other post of the day (the original's lot
+       `StateChanged` among them). One message the original posts again at every tick stays queued (every
+       settle point in the runs; it reaches its target at the frame's own tick).
+
+     `original` keeps the clock- and frame-bound behaviour (one step per idle delivery, ms budgets, posts
+     delivered by the message server's next pump). Lines (game start, our simulator's `Init`, every month):
+
+     ```
+     pacing: deterministic (the default; simulator.md section 5.7 choice: our idle cycles complete within their
+       day at its settle point, item counts instead of ms budgets, posted day/month/StateChanged messages sent
+       at the settle point; pacing = original keeps the clock-bound pacing)
+     pacing: original (the default with a shadow on: aura_shadow; the original's frame- and clock-bound pacing,
+       simulator.md section 5.7 items 1-4, for the conformance shadows; pacing = deterministic forces the default)
+     Init: ok=1 speed=… … pacing=deterministic
+     pacing: the original's idle agent 'cSC4PropDeveloper' (…) gets 20 SimIdle per day at the settle point
+     pacing: days settled N, messages deferred D, sent at settle S, released unsent U, message-server ticks T,
+       settles with posts left L
+     pacing: the post queue still holds 1 message(s) after 2 message-server tick(s) at the settle point of julian …
+     post SimNewMonth 0x66956816 d1=… (yyyy-mm-dd) d2=0 d3=… -> deferred true
+     ```
    - **Monthly digest** (also at `FC4_LOG_LEVEL=1`; `digest = 0` turns it off): at every `SimNewMonth`, one line
      for diffing the original against FreeCity4 on the same save, read only through public interfaces:
 
@@ -1766,6 +1836,14 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
   the plugin only calls, and which `interfaces.tsv` lists under another name, are checked against a game
   class's vtable in `docs/abi/vtables.tsv` instead (entries named `vt:<class>`, e.g. `vt:cSC4City::vftable`
   for `cISC4City`); there the class may have more slots than the interface declares.
+- **Return channels** (`tests/check_ret_channels.py`, CTest `ret_channel_check`, needs Python 3): every place
+  the plugin uses a game method's return value, against the slot's `ret` column and what the specs say it
+  returns (`SPEC_FACTS`, each entry with its citation). MSVC reads only AL for a `bool`, and `eax-or-void` (the
+  table's default) may be a method that sets nothing (the GetCityLocations no-load), so a `bool` read of a
+  non-`al` slot fails until the spec's answer is in `SPEC_FACTS` or the call carries an `[abi-ret]` comment
+  saying why the value is fine; a slot the spec gives as "none" or as a wide count always fails. `--verbose`
+  also lists the spec-silent framework slots trusted as the SDK declares them, `--impl` the `eax` rows the
+  plugin implements as `bool`.
 - **Test seam:** `FreeCity4.dll` exports `FC4TestSeam` ([`plugin/FC4TestSeam.h`](plugin/FC4TestSeam.h)) for
   tests that load it without a game: a sink that sees every budget message as posted (budget §10: void1 =
   IGZUnknown = the sender), a fake city for the observer, and direct observer ticks and messages. The game

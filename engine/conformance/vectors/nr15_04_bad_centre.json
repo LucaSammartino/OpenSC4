@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "nr15_04_bad_centre",
+  "spec": ["network-rules 3.3"],
+  "description": "A centre token other than 1 stops loading; rules read before it stay.",
+  "steps": [
+    {"op": "nr_tiles", "text": ["#T#", "2,0,0,0,0", "3,0,0x100,0,0"], "expect": {"status": "bad_centre", "rules": 0}},
+    {"op": "nr_tiles", "text": ["#T#", "1,0,2,0,2", "3,0,0x100,0,0", "7,0,0,0,0", "1,1,1,1,1"], "expect": {"status": "bad_centre", "rules": 1}}
+  ]
+}

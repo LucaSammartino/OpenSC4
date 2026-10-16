@@ -370,6 +370,28 @@ fn hw12_05_per_pass_and_time_limit() {
 }
 
 #[test]
+fn deterministic_thinning_ignores_the_clock() {
+    // simulator.md §5.7 [choice]: under deterministic pacing every call thins
+    // its perPass series, whatever the clock shows.
+    let (f, mut w) = new();
+    w.set_pacing(crate::pacing::Pacing::Deterministic);
+    assert!(w.pacing().is_deterministic());
+    f.date.set(d(2026, 1, 1));
+    for k in 0..400 {
+        w.set_series(k, thinnable());
+    }
+    w.do_message(msg::SIM_NEW_YEAR, 0, 0);
+    f.step.set(50);
+    let count = |w: &HistoryWarehouse| (0..400).filter(|&k| points_of(w, k) == thinned()).count();
+    assert!(w.thinning_step());
+    assert_eq!(count(&w), 2);
+    assert!(w.thinning_step());
+    assert_eq!(count(&w), 4);
+    // The clock was never read.
+    assert_eq!(f.now.get(), 0);
+}
+
+#[test]
 fn hw12_05_variable_coalesce_dates() {
     // January: D1 is December 1 of the previous year.
     let (f, mut w) = new();

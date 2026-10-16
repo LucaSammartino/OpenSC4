@@ -240,8 +240,12 @@ requester `kept[r]` (0) and a kept list; one *free* list. For each cell, **x out
 with the 1.5·2²³ idiom, exact here). Split it: `q := N div total`, `m := N mod total` (unsigned).
 `want[r] := share[r] × q`. Then hand out `m` single units: start with `idx := 0`; for each unit advance
 `idx := (idx = R − 1) ? 0 : idx + 1` until `share[idx] ≠ 0`, then `share[idx] −= 1`, `want[idx] += 1`. The first unit
-therefore goes to index 1 if its share is non-zero. *[quirk]* `total = 0` would divide by zero; the wealth share of
-10 makes it impossible.
+therefore goes to index 1 if its share is non-zero. The number of units handed out is `min(m, total)`
+(`0x006F4A94`–`0x006F4AA6`; always `m` since `m < total`). *[quirk]* `total = 0` is an unsigned integer division by
+zero (`div` at `0x006F4A69`), a processor fault that ends the original; the wealth share of 10 makes it impossible
+while the wealth requester is listed. It can happen only after a `Read` of a record without it (PV10). *[choice]*
+FreeCity4 stops after the cell walk (everything of step 2, including its selector draws and removals, has
+happened; nothing of steps 4–6).
 
 **Step 5, removals.** For r = 0 … R − 1: if `kept[r] > want[r]`: `j := RandomSint32RangeUniform(0, kept[r])` from
 the **member generator**; the j-th entry of kept list r is removed (`RemovePropA`, Release), and its slot is appended
@@ -272,7 +276,9 @@ For free entry `(x, z, objs, i)` and requester r:
    `networkLotManager.GetNetworkLot(x, z)` exists, `occ := networkLotManager.CreateProp(netLot, i, pick)` (slot 8).
    Otherwise the original uses the free entry itself as the occupant *[quirk; unreachable: the entry came from a lot or
    network lot at that cell in the same call]*; *[choice]* FreeCity4 returns false.
-6. Set the u32 property `0x89A1C16C := r` on `occ`; return true. The original does not test `occ` for null.
+6. If `occ` is null, return false (`0x006F18C6`; correction: the original does test it, PV8). Otherwise set the u32
+   property `0x89A1C16C := r` on `occ` (held for the call); return true. A false result still uses up the free
+   entry and leaves `need` unchanged (§4.3 step 6).
 
 The new prop announces itself with `0x99EF1142` and is registered by §4.6 like any other prop.
 
@@ -314,7 +320,9 @@ Props with the preview marker `0x029244DB` are ignored. Otherwise, with `p` the 
    `SetPropTimerState(mask, on)`; lot-records.md §10.1 field 13):
    - mask 4, **global trigger** `0x6A3FCC37` (u32): non-zero and the 3D view is available (QueryInterface
      `0xFA47B3F9`) → add to `triggerMap[trigger]` (held) and set mask 4 to the view's current state of that trigger
-     (view slot 46). Zero or absent → mask 4 on.
+     (view slot 46). Zero or absent → mask 4 on. Non-zero with no 3D view (global `0x00B43DC8` null, or the
+     QueryInterface fails): **nothing**: mask 4 is left as it is and the prop joins no map (`0x006F3D24`,
+     `0x006F3D3A` both jump past the step; PV9).
    - mask 1, **time of day** `0x4A149631` (float32 pair, hours): absent → mask 1 on. At least two values with
      start ≠ end → `SetTimeOfDayRange(start, end)` and append to the time-of-day list (held). Otherwise unchanged.
    - mask 2, **date** `0x0A751675` (u32): absent → mask 2 on. Present → `SetSimulatorDateRange(value, u32
@@ -328,18 +336,33 @@ A prop shows only when all four timer bits are set *[inferred]*.
 
 ### 4.7 Unregistering a prop (`HandleRemoveOccupant`)
 
-The mirror of §4.6: erase from the night list (Release); from the trigger map (Release; an emptied entry is erased);
-from the time-of-day, dated and power lists by swapping with the last element and popping (Release); from the sign
-list (no Release). Each is a lookup of the prop in the list it would have joined.
+The mirror of §4.6 (`0x006F2FF0`), with the preview-marker test first. Each list is searched **only when the prop
+meets that list's test** (PV12) *[compat]*:
+
+| List | Test before the lookup | Removal |
+|---|---|---|
+| night list | u8 `0x49C9C93C` present and = 1, and the prop answers `0xE9793A65` | erase (Release) |
+| trigger map | u32 `0x6A3FCC37` present and non-zero, the 3D view present and answering `0xFA47B3F9` | erase from `triggerMap[trigger]` (Release); an emptied entry is erased |
+| time-of-day list | `0x4A149631` **present** (value not read) | the first matching entry takes the last entry's value and the last node is popped (Release) |
+| dated list | `0x0A751675` present | the same |
+| power list | `0x6A959E71` present (its value not read) | the same |
+| sign list | type `0xAB72FBB3` or `0xCB79919B` | erase (no Release) |
+
+The tests are looser than §4.6's join conditions (the time-of-day test ignores the value count and start ≠ end, the
+power test ignores the bool), so a prop that never joined is looked up and not found, which is harmless. The
+observable difference from "look everywhere": a prop that joined the trigger map while the 3D view existed is **not**
+removed from it when the view is gone at its removal, and stays held *[quirk]*.
 
 ### 4.8 Night lights
 
 **Sweep start** (`0xC9DA96E9` / `0xC9DA96E8`): set the mode and `isNight` (§3.3); `random_shuffle` the night list
 (C `rand()`, n − 1 calls, foundations §12.3); `batch := ⌈n / 8⌉`; cursor := 0.
 
-**Batch** (animation tick, mode ≠ 0): `acc := acc + ms`; if `acc ≤ 200` stop; `acc := 0`.
-`end := cursor + batch`; if `end > n` (signed): `end := n` and mode := 0. For each cursor value below `end`: in mode
-1, `SetState(powered at the prop's cell)`; otherwise `SetState(0)`; advance the cursor. The cell is
+**Batch** (animation tick, mode ≠ 0; `0x006F0EC0`): `acc := acc + ms`; if `acc ≤ 200` stop; `acc := 0`.
+`on := (mode = 1)`, read **before** the end test (`0x006F0EF6`–`0x006F0F04`). `end := cursor + batch`; if `end > n`
+(signed): `end := n` and mode := 0 (`0x006F0F53`). For each cursor value below `end`: if `on`, `SetState(powered at
+the prop's cell)`; otherwise `SetState(0)`; advance the cursor. So the batch that ends a dusk sweep still switches
+its props on (PV7). The cell is
 `(trunc(x / trunc(cellWidthX)), trunc(z / trunc(cellWidthZ)))` (`cISC4City` slots 91 and 92).
 
 So a sweep takes 8 batches of more than 200 ms each (fewer if props were removed). With n = 0 the batch is 0, the
@@ -401,7 +424,9 @@ otherwise).
 ### 4.13 Power changed (`0x8A07AE00`)
 
 1. Street props in the rectangle (prop manager slot 30) with `0x49C9C93C = 1`: unpowered and in state 1 →
-   `SetState(0)`; powered, `isNight` and in state 0 → `SetState(1)`. Night-lit **lot** props are not touched here
+   `SetState(0)`; powered, `isNight` and in state 0 → `SetState(1)`. "Powered" is `power.IsPowered(trunc(x /
+   trunc(cellWidthX)), trunc(z / trunc(cellWidthZ)))` from the prop's position, the cell of the night batch (§4.8;
+   `0x006F2491`–`0x006F25EE`, PV11). Night-lit **lot** props are not touched here
    *[quirk]*: they change only at the next sweep or switch.
 2. Power list (null entries replaced by the last element and popped): props whose cell (`trunc(pos × 0.0625)`) lies
    in the rectangle get `SetPropTimerState(8, IsPowered(cell))`.
@@ -459,7 +484,11 @@ Record class `0x89C48F47`. `Write` (`0x006F1930`, sub-object +8) always writes v
 | 12 | `signsVisible` (v5) | u8 |
 | 13 | sign list (v5) | u32 n; n refs |
 
-`Read` (`0x006F3620`): version < 4 → false. Version 4 stops after field 11 (`signsVisible` keeps 1, no signs);
+`Read` (`0x006F3620`): version < 4 → false. The scanner (field 3) is read by `0x005DA410` with no check: the state
+byte is stored as read (PV13). The scanning iterator's `GetNext` (`0x0060C8D0`) treats state 2 as done, state 0 as
+fresh and **every other value (1 and 3…255) as running**, and it never rewrites a running state, so a state above 2
+behaves exactly like 1 and is written back unchanged until the scan finishes (state 2) or the block step resets it
+(state 0). *[compat]* FreeCity4 keeps the byte and treats it as running; `Read` does not fail. Version 4 stops after field 11 (`signsVisible` keeps 1, no signs);
 version ≥ 5 reads fields 12 and 13 (a later version is read as 5). References are resolved with IID `0x89C498BE`
 (requesters), `0x681905BD`, `0x28326F3E`, `0x89A5BA3F` (managers) and `0xE9793A65` (props). The requester vector
 and the night list are resized to the count; the lists and the map are appended to. `Init` re-acquires the managers,
@@ -588,10 +617,15 @@ AL true, nothing transferred), 5 `GetGZCLSID` `0x006F0E00` → `0x89C49986`.
 10. The lot-state handler uses the message object as a lot without `QueryInterface`.
 11. No bounds check on the requester index (*[choice]*: treated as no index); the null-lot creation path and the
     null last element of the time-of-day list are undefined (*[choice]* in §4.4 and §4.9).
+12. Unregistering tests each list's own condition first; a trigger-map prop is not removed when the 3D view has gone
+    (§4.7).
+13. A scanner state byte above 2 is read as is and behaves as running (§7).
+14. A total requested share of 0 faults the original (*[choice]*: stop after the cell walk, §4.3).
 
 ## 11. Open questions
 
 See QUESTIONS.md, section "From the re-specs10 specs" (PV1–PV6). PV2 answered by re-answers19 (§10 quirk 1).
+PV7–PV13 answered by re-answers22 (§4.3, §4.4, §4.6, §4.7, §4.8, §4.13, §7).
 
 ## 12. Conformance tests
 

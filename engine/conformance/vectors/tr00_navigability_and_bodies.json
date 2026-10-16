@@ -5,7 +5,7 @@
     "terrain 10.3",
     "terrain 10.4"
   ],
-  "description": "A 10 x 10 city at 200 under a sea at 250 (50 m deep). IsNavigable fails when the square leaves the city, on another lot, on a power pole, on a bridge whose deck clears the water surface by less than 20 m or is unknown; a deck at 270 (exactly 20 m) passes and accepts the square at once (quirk 8: the pole at (2, 5) further out and the cells outside the city are not checked). Bodies of water: two pools of navigable cells, scanned x outer, z inner, get their IDs in scan order.",
+  "description": "A 10 x 10 city at 200 under a sea at 250 (50 m deep). IsNavigable fails when the square leaves the city, on another lot, on a power pole, on a bridge whose deck clears the water surface by less than 20 m or is unknown; a deck at 270 (exactly 20 m) passes and accepts the square at once (quirk 8: the pole at (2, 5) further out and the cells outside the city are not checked). A pole blocks only its own cell (TR20): a pole at (5, 5) whose bounds reach (6, 5) blocks IsNavigable(5, 5, 0, 0) and not IsNavigable(6, 5, 0, 0). Bodies of water: two pools of navigable cells, scanned x outer, z inner, get their IDs in scan order.",
   "steps": [
     {
       "op": "ter_create",
@@ -100,6 +100,37 @@
         0
       ],
       "expect": false
+    },
+    {
+      "op": "ter_env",
+      "poles": [
+        [
+          5,
+          5
+        ]
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "is_navigable",
+      "args": [
+        5,
+        5,
+        0,
+        0
+      ],
+      "expect": false
+    },
+    {
+      "op": "ter_call",
+      "method": "is_navigable",
+      "args": [
+        6,
+        5,
+        0,
+        0
+      ],
+      "expect": true
     },
     {
       "op": "ter_env",

@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "nr15_16_scheme_1",
+  "spec": ["network-rules 7.1"],
+  "description": "Scheme 1 (Road): a stub next to a purely diagonal neighbour takes subtype 1 (0x09) and the neighbour's E byte becomes 0x0B when it is in P; next to a straight neighbour the stub becomes orthogonal.",
+  "steps": [
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x00020001"}},
+    {"op": "nr_cell", "x": 9, "z": 10, "edges": {"Road": "0x00030100"}},
+    {"op": "nr_subtypes", "p": [[10, 10], [9, 10]], "expect": []},
+    {"op": "nr_expect_cell", "x": 10, "z": 10, "state": {"edges": {"Road": "0x00020009"}}},
+    {"op": "nr_expect_cell", "x": 9, "z": 10, "state": {"edges": {"Road": "0x000B0100"}}},
+    {"op": "nr_reset"},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x00020001"}},
+    {"op": "nr_cell", "x": 9, "z": 10, "edges": {"Road": "0x00030100"}},
+    {"op": "nr_subtypes", "p": [[10, 10]], "expect": []},
+    {"op": "nr_expect_cell", "x": 10, "z": 10, "state": {"edges": {"Road": "0x00020009"}}},
+    {"op": "nr_expect_cell", "x": 9, "z": 10, "state": {"edges": {"Road": "0x00030100"}}},
+    {"op": "nr_reset"},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x00020001"}},
+    {"op": "nr_cell", "x": 9, "z": 10, "edges": {"Road": "0x00020000"}},
+    {"op": "nr_subtypes", "p": [[10, 10], [9, 10]], "expect": []},
+    {"op": "nr_expect_cell", "x": 10, "z": 10, "state": {"edges": {"Road": "0x00020002"}}}
+  ]
+}

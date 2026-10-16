@@ -305,7 +305,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // the glue15 lane (FC4PropLotShadow.h)
                                   "propmgr_shadow", "propmgr_shadow_cells", "lotcfg_shadow", "tutorial_shadow",
                                   // the seeding lane (FC4Seed.h)
-                                  "session_seed"};
+                                  "session_seed",
+                                  // the detpacing lane (FC4Pacing.h)
+                                  "pacing"};
 
 
 // The switches that are off, for lock-free readers (autotest verdict).

@@ -14,6 +14,7 @@ use std::rc::Rc;
 
 use crate::curve::ResponseCurve;
 use crate::grid::{Bitmap, CellRect, TractGrid, MAX_BITMAP_SIDE};
+use crate::pacing::{self, Pacing};
 use crate::rng::CrtRand;
 use crate::variant::{Elem, Variant};
 
@@ -209,6 +210,8 @@ pub struct PowerSim {
     pub(crate) host: Rc<dyn PowerHost>,
     token: Cell<u64>,
     pub(crate) inner: RefCell<Inner>,
+    /// simulator.md §5.7: captured from [`pacing::process`] at construction.
+    pacing: Cell<Pacing>,
 }
 
 // ---- property helpers -----------------------------------------------------------------------------
@@ -912,7 +915,35 @@ impl PowerSim {
             host,
             token: Cell::new(token),
             inner: RefCell::new(Inner::default()),
+            pacing: Cell::new(pacing::process()),
         })
+    }
+
+    /// The pacing this simulator runs (simulator.md §5.7).
+    pub fn pacing(&self) -> Pacing {
+        self.pacing.get()
+    }
+
+    /// Shadows and tests: [`Pacing::Original`] keeps one step per idle.
+    pub fn set_pacing(&self, p: Pacing) {
+        self.pacing.set(p);
+    }
+
+    /// simulator.md §5.7 [choice] (deterministic pacing): the day's settle
+    /// delivery runs the recompute (and the pending wire update) to
+    /// completion: idle without a recompute, or disabled. Returns whether it
+    /// is idle.
+    pub fn settle_cycle(&self) -> bool {
+        pacing::run_to_idle(
+            || {
+                self.do_idle();
+                true
+            },
+            || {
+                let i = self.inner.borrow();
+                !i.s.enabled || (i.s.state == state::IDLE && !i.s.recompute && !i.s.wire_dirty)
+            },
+        )
     }
 
     pub fn token(&self) -> u64 {
@@ -1012,6 +1043,10 @@ impl PowerSim {
 
     /// `DoMessage` (§4.3, §5): always true.
     pub fn do_message(&self, m: &PowerMessage) -> bool {
+        if m.msg_type == msg::SIM_IDLE && self.pacing.get().is_deterministic() {
+            self.settle_cycle();
+            return true;
+        }
         self.run(|cx| cx.do_message(m))
     }
 

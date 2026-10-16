@@ -49,6 +49,26 @@ formulas, state changes, ordering) still reaches engine authors only as a behavi
   test.
 - Every behaviour in a spec section should have a conformance vector in `engine/conformance`.
 
+## How work lands
+
+Work happens in lanes: one agent, one worktree, one task. A lane keeps its state and next steps in
+`docs/lanes/<lane>.md` and its in-game runs in `docs/runs/<tag>.md`. The shared tables in
+`docs/HANDOFF.md` and `docs/manual-checks.md` are generated from those files:
+
+```
+python tools/gen_handoff_tables.py
+```
+
+Never edit a `<!-- BEGIN GENERATED: ... -->` region by hand: edit the lane or run file and regenerate,
+or two lanes finishing together will conflict on the same lines again.
+
+When a lane is done it writes `build-runs/merge-queue/<lane>.json` and **stops**. A single merge-train
+owner merges batches onto `integration/<n>`, runs the gate and the regress once per batch, and
+fast-forwards main. There is no merge lock to take; a lane never merges main and never bumps
+`FC4_ABI_VERSION` (the train bumps it once per batch).
+
+The exact row formats, the run-file format and the merge-queue contract are in
+[`docs/lanes/README.md`](docs/lanes/README.md).
 ## Never commit
 
 - Game files (executables, DLLs, `.dat` archives, saves) or anything extracted from them.

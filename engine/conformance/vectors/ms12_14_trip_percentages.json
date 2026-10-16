@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "mysim_trip_percentages",
+  "spec": ["mysims 4.6", "mysims 12.14"],
+  "description": "Three lots with buildings in the square, conditions {2, 2, 4}, wealth {1, 2, 3}: r = float32(1 / 3.0001), distress1 = int(2 x r x 100) = 66, distress2 = 0, distress3 = 33, each wealth band 33. A lot without a building is not counted.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_rect_lot", "cell": [0, 0], "wealth": 1, "condition": 2, "building": "0x600"},
+    {"op": "mysim_rect_lot", "cell": [1, 0], "wealth": 2, "condition": 2, "building": "0x601"},
+    {"op": "mysim_rect_lot", "cell": [2, 0], "wealth": 3, "condition": 4, "building": "0x602"},
+    {"op": "mysim_rect_lot", "cell": [0, 1], "wealth": 3, "condition": 4, "note": "no building: not counted"},
+    {"op": "mysim_call", "sim": 0, "method": "trip_area", "rect": [-5, -5, 5, 5]},
+    {"op": "mysim_expect_fields", "sim": 0, "fields": {"trip_distress1_p": 66, "trip_distress2_p": 0, "trip_distress3_p": 33, "trip_wealth_low_p": 33, "trip_wealth_med_p": 33, "trip_wealth_high_p": 33, "trip_landmark_nearby": 0, "trip_landmark_funding_p": 0, "trip_any_disaster_nearby": 0}}
+  ]
+}

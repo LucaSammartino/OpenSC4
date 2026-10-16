@@ -38,12 +38,12 @@
 //!   reads as "monopoly property absent" (sets the flag) and has no groups
 //!   [inferred]. Question PL7.
 //! - **`CreateGenericLotConfiguration`** (§B5.7, *[inferred]* in the spec):
-//!   the lot is `ceil(w / 16) × ceil(d / 16)` cells (at least 1) for the
-//!   footprint `(w, d)` of slot 24, the building object is centred on it
-//!   [choice]. Question PL8.
+//!   the lot is `1 + floor(w / 16) × 1 + floor(d / 16)` cells for the
+//!   footprint `(w, d)` of slot 24 (`1 − trunc(m × −0.0625)`, PL12), the
+//!   building object is centred on it [choice]. Questions PL8, PL12.
 //! - **`FixLotConfiguration`** (§B5.7): see [`LotConfigManager::fix`]; the
-//!   footprint, lot-bounds and centre steps are literal readings with
-//!   choices (questions PL9, PL10).
+//!   footprint, lot-bounds and centre steps are the literal readings of
+//!   PL13 (questions PL9, PL10).
 //! - **`Read`** (§B6) is atomic [choice], as for the prop manager.
 //! - **Threading**: the state is a `RefCell`; main thread only.
 
@@ -107,8 +107,16 @@ pub mod prop {
     pub const OCCUPANT_GROUPS: u32 = 0xAA1D_D396;
 }
 
-/// The lot margin of `FixLotConfiguration` (§B5.7), metres.
-pub const FIX_MARGIN: f32 = 0.049;
+/// The lot margin of `FixLotConfiguration` (§B5.7), metres. The three
+/// constants of the lot-bounds test are given "as stored" in the game
+/// (PL13): `0.049` is `0x3D48B43A` — one ULP above the `0.049` literal,
+/// which rounds to `0x3D48B439` — `0.05` is `0x3D4CCCCD` and `0.001` is
+/// `0x3A83126F`.
+pub const FIX_MARGIN_BITS: u32 = 0x3D48_B43A;
+/// `f32(lotW − 0.05)`'s subtrahend (PL13).
+pub const FIX_EDGE_BITS: u32 = 0x3D4C_CCCD;
+/// `ex + 0.001`'s addend (PL13).
+pub const FIX_EPS_BITS: u32 = 0x3A83_126F;
 /// Metres per cell.
 pub const CELL_METRES: f32 = 16.0;
 

@@ -664,6 +664,8 @@ impl Shadow {
         h.posts.set(0);
         h.history.set(None);
         let mut sim = LandValueSim::new(Box::new(HostRef(h.clone())));
+        // Shadows replay the original's pacing (simulator.md §5.7).
+        sim.set_pacing(fc4_core::pacing::Pacing::Original);
         sim.init(self.tuning.as_ref());
         // [compat] (§7.4, LV1): the original's order, ascending developer
         // pointer; our tokens are those pointers.

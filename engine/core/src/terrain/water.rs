@@ -36,7 +36,11 @@ pub trait NavigationHost {
     /// 1)`) if it is a bridge.
     fn bridge_at(&self, x: i32, z: i32) -> Bridge;
     /// Whether the occupant manager has a power pole (type `0x2890D4DE`)
-    /// whose cell is `(x, z)`.
+    /// whose **own cell** is `(x, z)` (pole slot 8 `GetCell`, §10.4 step 5).
+    /// [TR20] A pole blocks only its own cell: the typed cell query also
+    /// returns poles whose bounds merely overlap the cell, and those do not
+    /// count. The filter lives where the occupant manager is queried (the
+    /// plugin's `HostPowerPole`), so this predicate answers for one cell.
     fn has_power_pole(&self, x: i32, z: i32) -> bool;
 }
 
@@ -115,6 +119,10 @@ impl Terrain {
     /// no lot other than `lot` (when `lot ≠ 0`) and no power pole. A bridge
     /// cell decides at once: true if its deck clears the water by 20 m,
     /// false otherwise *[quirk: the rest of the square is not checked]*.
+    ///
+    /// [TR20] A power pole blocks **only the cell it stands on** (pole slot 8
+    /// `GetCell`); a pole whose bounds merely overlap a neighbouring cell
+    /// does not block that cell. Each visited cell is tested on its own.
     ///
     /// [choice] "Out of the city" (city slot 99) is the terrain's cell
     /// bounds; the spiral is the clockwise one of plumbing §7.2.

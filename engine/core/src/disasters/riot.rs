@@ -23,17 +23,19 @@ pub mod riot_prop {
     pub const POLICE_CURVE: u32 = 0xEA40_0624;
 }
 
-/// Defaults (§6.1). The maximum riots and leaders have no code default in
-/// the spec; we use the literal limits of §6.2 and §6.4 (3 and 10)
-/// [choice, Q16]. The zoom level falls back to the fire's default 4
-/// [choice, Q16].
+/// Defaults (§6.1, Q16): the two statics (3 riots, 5 leaders), then the
+/// instance's own (6 stages of 30 s, leaders spawned 0, 1, 0, 1, 0, 0). The
+/// zoom byte has no default: 0 [choice, §6.1].
 pub const DEFAULT_MAX_RIOTS: u32 = 3;
-pub const DEFAULT_MAX_LEADERS: u32 = 10;
+pub const DEFAULT_MAX_LEADERS: u32 = 5;
 pub const DEFAULT_STAGES: i32 = 6;
 pub const DEFAULT_SECONDS_PER_STAGE: i32 = 30;
 pub const DEFAULT_UNKNOWN_622: u32 = 3;
-pub const DEFAULT_ZOOM: u32 = 4;
-/// The police limit of §6.4 step 2: `trunc(curve(coverage)) < 2`.
+pub const DEFAULT_ZOOM: u32 = 0;
+pub const DEFAULT_LEADERS_SPAWNED: [u32; 6] = [0, 1, 0, 1, 0, 0];
+/// The police curve of an exemplar whose curve has no points (§6.1).
+pub const DEFAULT_POLICE_CURVE: [(f32, f32); 3] = [(64.0, 0.0), (65.0, 1.0), (255.0, 3.0)];
+/// The police limit of §6.4 step 2: `trunc(curve(coverage)) ≤ 1`.
 pub const POLICE_LIMIT: i32 = 2;
 /// The road search radius (§6.4 step 1) and the removal-lock radius (§6.3).
 pub const ROAD_SEARCH_RADIUS: i32 = 7;
@@ -56,7 +58,7 @@ pub struct RiotTuning {
     pub max_leaders: u32,
     pub stages: i32,
     pub seconds_per_stage: i32,
-    /// `0xEA400622`: read, meaning unknown, not used [question, Q17].
+    /// `0xEA400622`: stored and never read (§6.1, Q17).
     pub unknown_622: u32,
     pub leaders_spawned: Vec<u32>,
     pub police: ResponseCurve,
@@ -80,10 +82,15 @@ impl RiotTuning {
             unknown_622: u(riot_prop::UNKNOWN_622, DEFAULT_UNKNOWN_622),
             leaders_spawned: h
                 .and_then(|h| crate::props::u32s(h, riot_prop::LEADERS_SPAWNED))
-                .unwrap_or_default(),
-            police: h
-                .and_then(|h| crate::props::curve(h, riot_prop::POLICE_CURVE))
-                .unwrap_or_default(),
+                .unwrap_or_else(|| DEFAULT_LEADERS_SPAWNED.to_vec()),
+            // An exemplar without points takes the fallback curve; no
+            // exemplar leaves it empty (§6.1).
+            police: match h {
+                None => ResponseCurve::default(),
+                Some(h) => crate::props::curve(h, riot_prop::POLICE_CURVE)
+                    .filter(|c| !c.is_empty())
+                    .unwrap_or_else(|| ResponseCurve::from_points(&DEFAULT_POLICE_CURVE)),
+            },
             zoom: zoom_of(h, DEFAULT_ZOOM),
         }
     }
@@ -131,14 +138,30 @@ pub fn shipped_riot() -> PropertyHolder {
     h
 }
 
-/// A riot leader (§6.4, §6.5).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// A riot leader (§6.4, §6.5). A new one starts at stage −1, maximum
+/// stage −1, counter 0.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Leader {
     pub automaton: u64,
     pub counter: i32,
     pub stage: i32,
     pub max_stage: i32,
     pub cell: (i32, i32),
+    /// The network occupant it last stood on (AddRef'd; 0 = none).
+    pub last_network: u64,
+}
+
+impl Default for Leader {
+    fn default() -> Leader {
+        Leader {
+            automaton: 0,
+            counter: 0,
+            stage: -1,
+            max_stage: -1,
+            cell: (0, 0),
+            last_network: 0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -183,8 +206,16 @@ impl Core {
         self.riot_tuning.clone().unwrap_or_default()
     }
 
-    /// `AttemptDisasterStart(x, z)` (§6.2), x and z in cells.
+    /// `AttemptDisasterStart(x, z)` (§6.2), x and z in cells: below the
+    /// maximum active riots, a new instance in the manager with its first
+    /// leader. Always null; the instance is found in the manager's list.
     pub(crate) fn riot_attempt_start(&mut self, x: i32, z: i32) -> Option<u32> {
+        self.riot_start(x, z);
+        None
+    }
+
+    /// The start itself, returning the new instance (for tests).
+    pub(crate) fn riot_start(&mut self, x: i32, z: i32) -> Option<u32> {
         let tuning = self.rt();
         if self.active_count(kind::RIOT) >= tuning.max_riots {
             return None;
@@ -204,13 +235,14 @@ impl Core {
     }
 
     /// Instance `Init` (§6.3). The tick priority is the fire's `0xC0`
-    /// [choice]; the first update runs one second after `Init` [choice].
+    /// [choice]; `next` starts at 0, so the first step runs at the first
+    /// tick, at elapsed 0 (§6.5).
     fn riot_init(&mut self, id: u32, x: i32, z: i32) {
         self.register_tick(id, TICK_PRIORITY);
         let now = self.host.now_ms();
         if let Some(r) = self.rs(id) {
             r.timer.restart(now);
-            r.next_s = 1;
+            r.next_s = 0;
         }
         self.mark_riot_network(x, z);
     }
@@ -259,28 +291,14 @@ impl Core {
         self.riot_locked.clone()
     }
 
-    /// The nearest road cell (§6.4 step 1): rings of radius 0..7 around the
-    /// start, each ring in row order (z, then x) [choice, Q18], coordinates
-    /// clamped to the city (aura.md §6.16).
+    /// `FindNearestRoadTile` (§6.4 step 1, Q18): the city's clockwise
+    /// spiral (plumbing.md §7.2) from (x, z) over rings 0 to 7; cells
+    /// outside the city are skipped. The first road cell wins.
     pub(crate) fn find_road_cell(&self, x: i32, z: i32) -> Option<(i32, i32)> {
-        let (cx, cz) = self.host.city_cells();
-        let mx = (cx as i32 - 1).max(0);
-        let mz = (cz as i32 - 1).max(0);
-        for r in 0..=ROAD_SEARCH_RADIUS {
-            for dz in -r..=r {
-                for dx in -r..=r {
-                    if dx.abs().max(dz.abs()) != r {
-                        continue;
-                    }
-                    let px = x.saturating_add(dx).clamp(0, mx);
-                    let pz = z.saturating_add(dz).clamp(0, mz);
-                    if self.host.is_road_cell(px, pz) {
-                        return Some((px, pz));
-                    }
-                }
-            }
-        }
-        None
+        riot_spiral(x, z, ROAD_SEARCH_RADIUS)
+            .into_iter()
+            .filter(|&(px, pz)| self.inside_city(px, pz))
+            .find(|&(px, pz)| self.host.is_road_cell(px, pz))
     }
 
     /// `AddRiotLeader(x, z, spawned)` (§6.4).
@@ -291,8 +309,7 @@ impl Core {
             return false;
         };
         let c = tuning.police.eval(f32::from(host.police_coverage(rx, rz)));
-        let leaders = self.rs_ref(id).map_or(0, |r| r.leaders.len());
-        if !(trunc_i32(c) < POLICE_LIMIT && (leaders as u64) < u64::from(tuning.max_leaders)) {
+        if !(trunc_i32(c) < POLICE_LIMIT && self.riot_below_max_leaders(id, &tuning)) {
             return false;
         }
         let (px, pz) = host.cell_corner_position(rx, rz);
@@ -314,21 +331,29 @@ impl Core {
         true
     }
 
-    /// The animation tick: one update per second of the instance's timer
-    /// (one at most per tick, as the fire) [choice].
+    fn riot_below_max_leaders(&self, id: u32, tuning: &RiotTuning) -> bool {
+        let leaders = self.rs_ref(id).map_or(0, |r| r.leaders.len());
+        (leaders as u64) < u64::from(tuning.max_leaders)
+    }
+
+    /// The animation tick (§6.5): when the whole seconds reach `next`,
+    /// `next := elapsed + 1` (no backlog) and one step runs.
     pub(crate) fn riot_tick(&mut self, id: u32) {
         let now = self.host.now_ms();
-        let due = self.rs_ref(id).is_some_and(|r| r.timer.elapsed_s(now) >= r.next_s);
-        if due {
+        let Some((elapsed, next)) = self.rs_ref(id).map(|r| (r.timer.elapsed_s(now), r.next_s)) else {
+            return;
+        };
+        if elapsed >= next {
             if let Some(r) = self.rs(id) {
-                r.next_s += 1;
+                r.next_s = elapsed + 1;
             }
             self.riot_update(id);
         }
     }
 
-    /// One riot update (§6.5). Leaders spawned during the pass first move
-    /// in the next one [choice].
+    /// One riot step (§6.5). Leaders spawned during the pass first move in
+    /// the next one [choice]. The coverage is read at the automaton's cell
+    /// (its last known cell once it is gone).
     pub(crate) fn riot_update(&mut self, id: u32) {
         let tuning = self.rt();
         let host = self.host.clone();
@@ -343,20 +368,12 @@ impl Core {
             else {
                 continue;
             };
-            let Some(cell) = host.automaton_cell(a) else {
-                self.end_riot_leader(id, a);
-                continue;
-            };
+            let here = host.automaton_cell(a);
+            let cell = here.unwrap_or(l.cell);
             let c = tuning.police.eval(f32::from(host.police_coverage(cell.0, cell.1)));
             let counter = l.counter.saturating_add(trunc_i32(1.0f32 - c));
-            let stage = tuning.stage_of(counter);
-            let mut max_stage = l.max_stage;
-            let mut spawn = 0;
+            let stage = if here.is_none() { -1 } else { tuning.stage_of(counter) };
             let new_max = stage > l.max_stage && stage < tuning.stages;
-            if new_max {
-                max_stage = stage;
-                spawn = tuning.leaders_spawned.get(stage as usize).copied().unwrap_or(0);
-            }
             if let Some(x) = self
                 .rs(id)
                 .and_then(|r| r.leaders.iter_mut().find(|x| x.automaton == a))
@@ -364,36 +381,68 @@ impl Core {
                 x.counter = counter;
                 x.cell = cell;
                 x.stage = stage;
-                x.max_stage = max_stage;
+                if new_max {
+                    x.max_stage = stage;
+                }
             }
             if stage != l.stage {
                 host.set_riot_effect(a, stage);
             }
             if new_max {
-                for _ in 0..spawn {
-                    self.add_riot_leader(id, cell.0, cell.1, true);
+                let spawn = tuning.leaders_spawned.get(stage as usize).copied().unwrap_or(0);
+                if self.riot_below_max_leaders(id, &tuning) && spawn > 0 {
+                    for _ in 0..spawn {
+                        self.add_riot_leader(id, cell.0, cell.1, true);
+                    }
                 }
                 host.send_riot_message(a, stage);
             }
             if stage >= tuning.stages || stage < 0 {
                 self.end_riot_leader(id, a);
             } else {
+                // A walking leader keeps locking road (§6.5 step 6).
+                let n = host.network_occupant_at(cell.0, cell.1).unwrap_or(0);
+                if n != l.last_network {
+                    self.mark_riot_network(cell.0, cell.1);
+                    if n != 0 {
+                        host.add_ref(n);
+                    }
+                    if l.last_network != 0 {
+                        host.release(l.last_network);
+                    }
+                    if let Some(x) = self
+                        .rs(id)
+                        .and_then(|r| r.leaders.iter_mut().find(|x| x.automaton == a))
+                    {
+                        x.last_network = n;
+                    }
+                }
                 host.riot_leader_tick(a);
             }
         }
         self.riot_update_phase(id);
     }
 
+    /// A leader ends (§6.5 step 5): the automaton set back and detached,
+    /// its location dropped, the leader erased and its last network
+    /// occupant released.
     fn end_riot_leader(&mut self, id: u32, a: u64) {
         self.host.end_riot_leader(a);
         self.unregister_location_by_occupant(id, a);
+        let mut last = 0;
         if let Some(r) = self.rs(id) {
+            if let Some(l) = r.leaders.iter().find(|l| l.automaton == a) {
+                last = l.last_network;
+            }
             r.leaders.retain(|l| l.automaton != a);
+        }
+        if last != 0 {
+            self.host.release(last);
         }
     }
 
-    /// The phase (§6.7). After 1 → 3 the instance leaves the riot manager
-    /// [choice, Q19].
+    /// The phase (§6.7). After 1 → 3 the instance stays in its manager and
+    /// on the tick (Q19).
     fn riot_update_phase(&mut self, id: u32) {
         let Some(phase) = self.instances.get(&id).map(|i| i.phase) else {
             return;
@@ -411,12 +460,12 @@ impl Core {
             }
             self.unregister_locations(id);
             self.disaster_has_ended();
-            self.instance_finish(id);
         }
     }
 
-    /// Instance `Shutdown`: every leader ended, the locations dropped
-    /// [choice, Q13].
+    /// Instance `Shutdown` (§3.1): every leader ended [choice], the
+    /// locations dropped; the caller removes the instance from its manager
+    /// (Q13).
     pub(crate) fn riot_shutdown(&mut self, id: u32) {
         let list: Vec<u64> = self
             .rs_ref(id)
@@ -440,4 +489,20 @@ impl Core {
             start: r.start,
         })
     }
+}
+
+/// The clockwise spiral of plumbing.md §7.2 around (x, z), rings 0 to
+/// `rings`: the centre, then ring r from (x + r, z − r + 1) up +z to
+/// (x + r, z + r), −x to (x − r, z + r), −z to (x − r, z − r) and +x to
+/// (x + r, z − r).
+pub(crate) fn riot_spiral(x: i32, z: i32, rings: i32) -> Vec<(i32, i32)> {
+    let mut out = vec![(x, z)];
+    for r in 1..=rings {
+        let (x0, z0, x1, z1) = (x - r, z - r, x + r, z + r);
+        out.extend((z0 + 1..=z1).map(|zz| (x1, zz)));
+        out.extend((x0..x1).rev().map(|xx| (xx, z1)));
+        out.extend((z0..z1).rev().map(|zz| (x0, zz)));
+        out.extend((x0 + 1..=x1).map(|xx| (xx, z0)));
+    }
+    out
 }

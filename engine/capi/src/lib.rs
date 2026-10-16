@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 68;
+pub const FC4_ABI_VERSION: u32 = 69;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -715,6 +715,100 @@ pub unsafe extern "C" fn fc4_sim_take_turbo_auto_off(sim: *mut fc4_sim) -> i32 {
     with_sim(sim, 0, |s| s.take_turbo_auto_off().unwrap_or(0))
 }
 
+// ---- pacing (simulator.md §5.7 [choice]; fc4_core::pacing) -------------------------
+
+pub const FC4_PACING_ORIGINAL: u32 = 0;
+pub const FC4_PACING_DETERMINISTIC: u32 = 1;
+
+/// The simulator's deterministic-pacing hooks (fc4_core::PacingHooks).
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct fc4_pacing_hooks {
+    pub struct_size: u32,
+    pub user: *mut c_void,
+    pub is_paced: Option<unsafe extern "C" fn(user: *mut c_void, agent: fc4_agent) -> bool>,
+    pub settle: Option<unsafe extern "C" fn(user: *mut c_void, julian: i32)>,
+    pub idle_steps: Option<unsafe extern "C" fn(user: *mut c_void, agent: fc4_agent) -> u32>,
+}
+
+struct CPacingHooks(fc4_pacing_hooks);
+
+impl fc4_core::PacingHooks for CPacingHooks {
+    fn is_paced(&self, agent: AgentHandle) -> bool {
+        match self.0.is_paced {
+            // SAFETY: the installer promised valid callbacks while installed.
+            Some(f) => unsafe { f(self.0.user, agent) },
+            None => true,
+        }
+    }
+    fn settle(&self, julian: i32) {
+        if let Some(f) = self.0.settle {
+            // SAFETY: as above.
+            unsafe { f(self.0.user, julian) }
+        }
+    }
+    fn idle_steps(&self, agent: AgentHandle) -> u32 {
+        match self.0.idle_steps {
+            // SAFETY: as above.
+            Some(f) => unsafe { f(self.0.user, agent) },
+            None => 1,
+        }
+    }
+}
+
+/// The process-wide pacing that cores capture when they are created
+/// (`FC4_PACING_*`; default original). False for an unknown mode.
+#[no_mangle]
+pub extern "C" fn fc4_pacing_set_process(mode: u32) -> bool {
+    match fc4_core::pacing::Pacing::from_u32(mode) {
+        Some(p) => {
+            fc4_core::pacing::set_process(p);
+            true
+        }
+        None => false,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn fc4_pacing_process() -> u32 {
+    fc4_core::pacing::process().as_u32()
+}
+
+/// Sets the simulator's pacing and hooks (NULL hooks: every idle agent is
+/// paced, no settle callback). False for an unknown mode or a short struct.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_set_pacing(sim: *mut fc4_sim, mode: u32, hooks: *const fc4_pacing_hooks) -> bool {
+    let Some(p) = fc4_core::pacing::Pacing::from_u32(mode) else {
+        return false;
+    };
+    let h: Option<std::rc::Rc<dyn fc4_core::PacingHooks>> = match hooks.as_ref() {
+        None => None,
+        Some(k) => {
+            if (k.struct_size as usize) < std::mem::size_of::<fc4_pacing_hooks>() {
+                return false;
+            }
+            Some(std::rc::Rc::new(CPacingHooks(*k)))
+        }
+    };
+    with_sim(sim, false, |s| s.set_pacing(p, h))
+}
+
+/// The simulator's pacing (`FC4_PACING_*`) and whether the current day has
+/// had its settle point (always true under original pacing).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_pacing(sim: *const fc4_sim, mode: *mut u32, day_settled: *mut bool) -> bool {
+    let Some((p, settled)) = with_sim(sim, None, |s| Some((s.pacing(), s.day_settled()))) else {
+        return false;
+    };
+    if let Some(o) = mode.as_mut() {
+        *o = p.as_u32();
+    }
+    if let Some(o) = day_settled.as_mut() {
+        *o = settled;
+    }
+    true
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn fc4_sim_get_debug(sim: *const fc4_sim, out: *mut fc4_debug) -> bool {
     let Some(o) = out.as_mut() else { return false };
@@ -776,6 +870,7 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
     true
 }
 
+pub mod advisors;
 pub mod aura;
 pub mod aura_shadow;
 pub mod automata;
@@ -804,6 +899,7 @@ pub mod lotdev;
 pub mod neighbors;
 pub mod neighbors_shadow;
 pub mod network_manager;
+pub mod network_rules;
 pub mod occupant_manager;
 pub mod ordinance;
 pub mod panic_log;
@@ -837,6 +933,9 @@ mod tests;
 
 #[cfg(test)]
 mod aura_tests;
+
+#[cfg(test)]
+mod advisors_tests;
 
 #[cfg(test)]
 mod automata_tests;
@@ -894,6 +993,8 @@ mod neighbors_tests;
 
 #[cfg(test)]
 mod network_manager_tests;
+#[cfg(test)]
+mod network_rules_tests;
 
 #[cfg(test)]
 mod occupant_manager_tests;

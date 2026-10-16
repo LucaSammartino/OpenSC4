@@ -202,17 +202,37 @@ void Release(void* u, uint64_t t) {
     FC4_RELEASE(o);
 }
 
-// ---- camera, dispatch effectiveness ------------------------------------------------------------
+// ---- camera, dispatch-unit counts --------------------------------------------------------------
 
 bool FollowDisasters(void*) { return false; }  // [question Q31] the preference byte (§2.7) is not reachable
 void GoToLocation(void* u, int32_t, int32_t, uint32_t) { Wrote(u, "go_to_location"); }
-void FireEffectiveness(void* u, float) { Wrote(u, "set_fire_dispatch_effectiveness"); }
-void PoliceEffectiveness(void* u, float) { Wrote(u, "set_police_dispatch_effectiveness"); }
+// The dispatch effectiveness divisor (§2.5): GetTotalDispatchCount, a read in
+// either mode.
+uint32_t FireDispatchCount(void* u) {
+    cISC4City* c = C(u)->city;
+    cISC4FireProtectionSimulator* f = c ? c->GetFireProtectionSimulator() : nullptr;  // city slot 57
+    const int32_t n = f ? AsGame(f)->GetTotalDispatchCount() : 0;                    // slot 25
+    return n > 0 ? static_cast<uint32_t>(n) : 0u;
+}
+uint32_t PoliceDispatchCount(void* u) {
+    cISC4City* c = C(u)->city;
+    cISC4PoliceSimulator* p = c ? c->GetPoliceSimulator() : nullptr;  // city slot 65
+    const int32_t n = p ? AsGame(p)->GetTotalDispatchCount() : 0;     // slot 26
+    return n > 0 ? static_cast<uint32_t>(n) : 0u;
+}
 
 // ---- occupants ---------------------------------------------------------------------------------
 
 uint32_t BuildingTypeFlags(void*, uint64_t) { return 0; }  // [question Q31] the BDS flag read
-int64_t NetworkDefaultCost(void*, uint64_t) { return 0; }  // DS23: the table is not specified
+// The mirror's fire occupants are synthetic tokens: their cells and box are
+// the burning target's (FC4DisasterHost.h, `burning`).
+uint64_t FireTargetOf(void* u, uint64_t t) {
+    if (!IsSynthetic(t)) return t;
+    for (const auto& [target, fire] : C(u)->burning) {
+        if (fire == t) return target;
+    }
+    return t;
+}
 uint32_t OccupantType(void*, uint64_t t) {
     cISC4Occupant* o = Occ(t);
     return o ? static_cast<uint32_t>(o->GetType()) : 0;  // slot 7
@@ -226,8 +246,8 @@ bool OccupantCell(void* u, uint64_t t, int32_t* x, int32_t* z) {
     if (z) *z = b;
     return true;
 }
-void OccupantCellRect(void*, uint64_t t, fc4_cell_rect* out) {
-    cISC4Occupant* o = Occ(t);
+void OccupantCellRect(void* u, uint64_t t, fc4_cell_rect* out) {
+    cISC4Occupant* o = Occ(FireTargetOf(u, t));
     if (out == nullptr || o == nullptr) return;
     SC4Rect<long> r;
     o->GetBoundingCityCells(r);  // slot 11
@@ -246,10 +266,10 @@ void OccupantPosition(void*, uint64_t t, float* x, float* z) {
 void Box(cISC4Occupant* o, cS3DVector3* a, cS3DVector3* b) {
     if (o) o->GetBoundingBox(a, b);  // slot 10
 }
-void OccupantBBox(void*, uint64_t t, fc4_world_box* out) {
+void OccupantBBox(void* u, uint64_t t, fc4_world_box* out) {
     if (out == nullptr) return;
     cS3DVector3 a, b;
-    Box(Occ(t), &a, &b);
+    Box(Occ(FireTargetOf(u, t)), &a, &b);
     out->x0 = a.fX;
     out->z0 = a.fZ;
     out->x1 = b.fX;
@@ -359,12 +379,13 @@ bool TutorialNoBurnDown(void* u) {
     // Slot 8, or fc4_tutorial_is_tutorial when the system is ours (enable = tutorial).
     return fc4::TutorialIsTutorial(t);
 }
-float Wind(void* u) {
+void Wind(void* u, float* x, float* z) {
     cISC4City* c = C(u)->city;
     cISC4WeatherSimulator* w = c ? c->GetWeatherSimulator() : nullptr;
-    if (w == nullptr) return 0.0f;
     cS3DVector2 v;
-    return AsGame(w)->GetAmbientWind(v);  // slot 22 (§5.10 step 9)
+    if (w != nullptr) AsGame(w)->GetAmbientWind(v);  // slot 22: the vector (§5.10 step 9)
+    if (x) *x = w ? v.fX : 0.0f;
+    if (z) *z = w ? v.fY : 0.0f;
 }
 void PlayEffect(void* u, const char*, uint64_t) { Wrote(u, "play_effect"); }
 void PlayEffectAt(void* u, const char*, float, float) { Wrote(u, "play_effect_at"); }
@@ -452,7 +473,6 @@ bool CreateLeakEffect(void* u, uint64_t, uint32_t) {
 size_t ConnectedPipeCells(void*, uint64_t, int32_t*, size_t) { return 0; }
 void DemolishPipe(void* u, uint64_t, uint32_t) { Wrote(u, "demolish_pipe"); }
 void VolcanoStartDeformation(void* u, uint32_t, float, float) { Wrote(u, "volcano_start_deformation"); }
-void VolcanoEndDeformation(void* u, uint32_t) { Wrote(u, "volcano_end_deformation"); }
 void VolcanoStartLava(void* u, uint32_t, float, float, float) { Wrote(u, "volcano_start_lava"); }
 void VolcanoLavaRates(void* u, uint32_t, float, float) { Wrote(u, "volcano_lava_rates"); }
 void VolcanoEndLava(void* u, uint32_t) { Wrote(u, "volcano_end_lava"); }
@@ -572,10 +592,9 @@ fc4_disasters_host MakeDisasterHost(DisasterHostContext* ctx) {
     h.release = &Release;
     h.follow_disasters = &FollowDisasters;
     h.go_to_location = &GoToLocation;
-    h.set_fire_dispatch_effectiveness = &FireEffectiveness;
-    h.set_police_dispatch_effectiveness = &PoliceEffectiveness;
+    h.fire_dispatch_count = &FireDispatchCount;
+    h.police_dispatch_count = &PoliceDispatchCount;
     h.building_type_flags = &BuildingTypeFlags;
-    h.network_default_cost = &NetworkDefaultCost;
     h.occupant_type = &OccupantType;
     h.occupant_in_manager = &OccupantInManager;
     h.occupant_cell = &OccupantCell;
@@ -630,7 +649,6 @@ fc4_disasters_host MakeDisasterHost(DisasterHostContext* ctx) {
     h.connected_pipe_cells = &ConnectedPipeCells;
     h.demolish_pipe = &DemolishPipe;
     h.volcano_start_deformation = &VolcanoStartDeformation;
-    h.volcano_end_deformation = &VolcanoEndDeformation;
     h.volcano_start_lava = &VolcanoStartLava;
     h.volcano_lava_rates = &VolcanoLavaRates;
     h.volcano_end_lava = &VolcanoEndLava;

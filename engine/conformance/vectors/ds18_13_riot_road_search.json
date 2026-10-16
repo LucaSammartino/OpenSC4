@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "disaster_riot_road_search",
+  "spec": ["disasters 6.4", "disasters 18.13", "plumbing 7.2"],
+  "description": "FindNearestRoadTile walks the clockwise spiral of plumbing 7.2 from the riot's centre: the centre, then ring r from (x + r, z - r + 1) running +z, -x, -z, +x, rings 0 to 7, skipping cells outside the city. Centre (10, 10) with the only road at (11, 10): found in ring 1 at its first cell. With roads at both (10, 11) and (11, 10), (11, 10) wins. A road 8 cells away is not found.",
+  "steps": [
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_cell", "cell": [11, 10], "road": true},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 10, 10], "expect": null},
+    {"op": "dis_expect_riot", "instance": 1, "state": {"leader_count": 1,
+      "leaders": [{"automaton": "0xA000", "counter": 0, "stage": -1, "max_stage": -1, "cell": [11, 10]}]}},
+
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_cell", "cell": [10, 11], "road": true},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 10, 10], "expect": null},
+    {"op": "dis_expect_riot", "instance": 1, "state": {"leader_count": 1,
+      "leaders": [{"automaton": "0xA001", "counter": 0, "stage": -1, "max_stage": -1, "cell": [11, 10]}]}},
+
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_cell", "cell": [11, 10], "road": false},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 10, 10], "expect": null},
+    {"op": "dis_expect_riot", "instance": 1, "state": {"leader_count": 1,
+      "leaders": [{"automaton": "0xA002", "counter": 0, "stage": -1, "max_stage": -1, "cell": [10, 11]}]}},
+
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_cell", "cell": [10, 11], "road": false},
+    {"op": "dis_cell", "cell": [18, 10], "road": true},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 10, 10], "expect": null},
+    {"op": "dis_expect_riot", "instance": 1, "state": {"leader_count": 0, "phase": 0}}
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "name": "disaster_location_cursor",
+  "spec": ["disasters 2.3", "disasters 18.11"],
+  "description": "Every RegisterDisasterLocation sets the cursor to the newest entry; GoToNextDisaster visits the entry at the cursor, then moves the cursor one entry back, wrapping to the newest. With A, B, C registered in that order the visits are C, B, A, C. A location registered after the first call is visited next.",
+  "steps": [
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_call", "method": "register_location", "args": [1, 1, 2, 0, 1, false]},
+    {"op": "dis_call", "method": "register_location", "args": [2, 3, 4, 0, 1, false]},
+    {"op": "dis_call", "method": "register_location", "args": [3, 5, 6, 0, 1, false]},
+    {"op": "dis_expect", "state": {"cursor": 2}},
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "go_to_next_disaster"},
+    {"op": "dis_call", "method": "go_to_next_disaster"},
+    {"op": "dis_call", "method": "go_to_next_disaster"},
+    {"op": "dis_call", "method": "go_to_next_disaster"},
+    {"op": "dis_expect_events", "filter": {"event": "go_to"}, "events": [
+      {"event": "go_to", "x": 5, "z": 6, "zoom": 1},
+      {"event": "go_to", "x": 3, "z": 4, "zoom": 1},
+      {"event": "go_to", "x": 1, "z": 2, "zoom": 1},
+      {"event": "go_to", "x": 5, "z": 6, "zoom": 1}
+    ]},
+
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_call", "method": "register_location", "args": [1, 1, 2, 0, 1, false]},
+    {"op": "dis_call", "method": "register_location", "args": [2, 3, 4, 0, 1, false]},
+    {"op": "dis_call", "method": "register_location", "args": [3, 5, 6, 0, 1, false]},
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "go_to_next_disaster"},
+    {"op": "dis_expect", "state": {"cursor": 1}},
+    {"op": "dis_call", "method": "register_location", "args": [4, 7, 8, 0, 1, false]},
+    {"op": "dis_expect", "state": {"cursor": 3}},
+    {"op": "dis_call", "method": "go_to_next_disaster"},
+    {"op": "dis_call", "method": "go_to_next_disaster"},
+    {"op": "dis_expect_events", "filter": {"event": "go_to"}, "events": [
+      {"event": "go_to", "x": 5, "z": 6, "zoom": 1},
+      {"event": "go_to", "x": 7, "z": 8, "zoom": 1},
+      {"event": "go_to", "x": 5, "z": 6, "zoom": 1}
+    ]}
+  ]
+}

@@ -20,6 +20,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod advisors;
 pub mod aura;
 pub mod automata;
 pub mod budget;
@@ -46,10 +47,13 @@ pub mod landfill;
 pub mod landvalue;
 pub mod lot_config_manager;
 pub mod lot_developer;
+pub mod mysims;
 pub mod neighbors;
 pub mod network_manager;
+pub mod network_rules;
 pub mod occupant_manager;
 pub mod ordinance;
+pub mod pacing;
 pub mod parks;
 pub mod pathfinder;
 pub mod plumbing;
@@ -83,4 +87,4 @@ pub mod zones;
 pub use calibration::Calibration;
 pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message, TimerSource};
 pub use save::{LoadError, SaveRecord};
-pub use simulator::{AgentInfo, DebugInfo, Simulator, Snapshot, Tuning, Turbo, TURBO_DEFAULT_FRAME_MS};
+pub use simulator::{AgentInfo, DebugInfo, PacingHooks, Simulator, Snapshot, Tuning, Turbo, TURBO_DEFAULT_FRAME_MS};

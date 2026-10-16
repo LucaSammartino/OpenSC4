@@ -9,8 +9,8 @@ going until the original executable is no longer needed.
 
 You need your own copy of **SimCity 4 Deluxe** (the GOG 1.1.641 Windows release). OpenSC4 ships no game assets.
 
-> **Status: work in progress, and already playable in a hybrid form.** You can run the real game today with about
-> twenty of its simulation systems handed over to OpenSC4's Rust code.
+> **Status: work in progress, and already playable in a hybrid form.** You can run the real game today with 27 of
+> its simulation systems handed over to OpenSC4's Rust code.
 
 ## What works today
 
@@ -20,8 +20,13 @@ keeps running its own code for everything else.
 - **The clock, budget, demand, ordinances and weather.**
 - **Every map-based system:** power, water, pollution, crime, fire and police coverage, land value,
   flammability, trees and landfills.
-- **Growth:** residential simulation, building development, zoning, tract development and neighbour cities.
+- **Growth:** residential, commercial and industrial simulation, building development, the lot and zone developers,
+  zoning, tract development, civic buildings, parks and neighbour cities.
 - **Traffic:** the traffic simulator and the pathfinder.
+
+Cores for the disaster layer, terrain, automata, the network and occupant managers, props and lot configurations,
+ports and the city detail manager are written and tested, and are being wired into the game. The terrain already runs
+next to the original and matches it exactly.
 
 ### "Exactly like the original" is measured
 
@@ -46,15 +51,36 @@ stays the game people know.
 
 ## Progress
 
+Progress is measured, not estimated. [`tools/coverage.py`](tools/coverage.py) assigns every function of the original
+executable to the class that owns it and adds up the bytes of machine code at each stage. Library and compiler code
+is left out.
+
+![Treemap of SimCity 4.exe coloured by OpenSC4 status](docs/coverage-map.svg)
+
+| Share of the game's code | Whole game | Simulation | Renderer | UI | Audio |
+|---|---:|---:|---:|---:|---:|
+| **Specified** (a clean-room spec covers it) | 32.9% | 78.3% | 15.2% | 0% | 0% |
+| **Implemented** (an OpenSC4 module exists) | 21.3% | 56.6% | 0.6% | 0% | 0% |
+| **Verified** (its shadow matches the original exactly) | 9.5% | 27.4% | 0% | 0% | 0% |
+| **Replaced** (runs instead of the original in game) | 12.1% | 35.1% | 0% | 0% | 0% |
+
+These figures are weighted by the bytes of the original machine code, summed over the functions each owner (a class
+or a free function) owns — not by function count. An owner counts as verified when its same-process shadow matches
+the original exactly in the latest regression run, and replaced when our class runs in its place in the replace run.
+Of the game code, 3.7% is shared helpers reached from several owners and 1.7% is still unattributed; both stay in the
+denominator and never count as done. The full breakdown is in
+[docs/coverage-report.md](docs/coverage-report.md) and the rules are in [docs/COVERAGE.md](docs/COVERAGE.md).
+`python tools/coverage.py` and `python tools/coverage_treemap.py` regenerate both from the RE workspace.
+
 | Milestone | State |
 |---|---|
 | M0: toolchain and in-game plugin | ✅ Done |
 | M1: the clock | ✅ Done |
 | M2: budget, demand, ordinances, weather | ✅ Done, verified identical |
 | M3: map-based systems | ✅ Done, verified identical cell by cell |
-| M4: growth | 🟡 Most systems running in game; commercial, industrial, lots and the final growth check to go |
-| M5: traffic | 🟡 Running in game; verification and calibration to go |
-| M6+: rendering, UI, audio, region, standalone | ⬜ Data, save, texture and 3D model readers done; the rest is ahead |
+| M4: growth | 🟡 Running in game and verified, including commercial, industrial, lots and zones; the final growth check to go |
+| M5: traffic | 🟡 Running in game; matches the original on about two thirds of month lines, calibration to go |
+| M6+: rendering, UI, audio, region, standalone | ⬜ Data, save, texture and 3D model readers done; specs for the renderer and UI are next |
 
 The detailed checklist, with how each item was verified, is in [docs/PROGRESS.md](docs/PROGRESS.md). The
 milestones are defined in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap).
@@ -80,7 +106,7 @@ The clock and the budget are replaced by default; everything else stays the orig
 - **Specs:** [docs/specs/](docs/specs/), one per subsystem, with conformance tests.
 - **Engine:** a portable Rust core ([engine/core](engine/core)), the data formats ([engine/formats](engine/formats))
   and a thin C++ plugin that plugs the core into the running game ([engine/plugin](engine/plugin)).
-- **Verification:** more than 650 conformance test vectors, plus the in-game shadow comparisons above.
+- **Verification:** about 900 conformance test vectors, plus the in-game shadow comparisons above.
 
 ## Contributing
 

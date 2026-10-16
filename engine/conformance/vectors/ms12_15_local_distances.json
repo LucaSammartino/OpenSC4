@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "mysim_local_distances",
+  "spec": ["mysims 4.9", "mysims 12.15"],
+  "description": "Buildings of group G at distances 0 (the home) and 37 inside the +-20-cell box: DistanceToClosest(G) = 37 (the home, unfinished and abandoned buildings are filtered out); a group with nothing near: 0xFFFFFFFF. The closest special building of a type: 10 m. A MySim in state 0 has no distances.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x100", "groups": ["0x1500"], "position": [100, 0, 100], "lot": {"cell": [6, 6]}},
+    {"op": "mysim_building", "token": "0x101", "groups": ["0x1500"], "position": [137, 0, 100], "lot": {"cell": [8, 6]}},
+    {"op": "mysim_building", "token": "0x102", "groups": ["0x1500"], "position": [101, 0, 100], "completion": 0.5, "note": "not finished"},
+    {"op": "mysim_building", "token": "0x103", "groups": ["0x1500"], "position": [102, 0, 100], "lot": {"cell": [7, 6], "condition": 4}, "note": "abandoned"},
+    {"op": "mysim_building", "token": "0x104", "groups": ["0x777"], "position": [0, 0, 0], "lot": {"cell": [40, 40]}, "note": "outside the box"},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x100", "expect": true},
+    {"op": "mysim_call", "sim": 0, "method": "distance_to_closest", "group": "0x1500", "expect": 37},
+    {"op": "mysim_call", "sim": 0, "method": "distance_to_closest", "group": "0x4444", "expect": "0xFFFFFFFF"},
+    {"op": "mysim_call", "sim": 0, "method": "distance_to_closest", "group": "0x777", "expect": "0xFFFFFFFF"},
+    {"op": "mysim_building", "token": "0x300", "type": "0xAB", "position": [100, 0, 160]},
+    {"op": "mysim_building", "token": "0x301", "type": "0xAB", "position": [100, 0, 110]},
+    {"op": "mysim_env", "special": ["0x300", "0x301"]},
+    {"op": "mysim_call", "sim": 0, "method": "distance_to_closest_special", "type": "0xAB", "expect": 10},
+    {"op": "mysim_call", "sim": 0, "method": "distance_to_closest_special", "type": "0xAC", "expect": "0xFFFFFFFF"},
+    {"op": "mysim_set", "sim": 0, "state": 0},
+    {"op": "mysim_call", "sim": 0, "method": "distance_to_closest", "group": "0x1500", "expect": "0xFFFFFFFF", "note": "state 0: none"}
+  ]
+}

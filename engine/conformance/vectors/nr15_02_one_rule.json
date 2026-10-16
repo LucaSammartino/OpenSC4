@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "nr15_02_one_rule",
+  "spec": ["network-rules 3", "network-rules 3.3"],
+  "description": "One rule: key 0x02000200, no conditions, one output {0x100, m 0, orientation 0}, transform mask 0xFF.",
+  "steps": [
+    {"op": "nr_tiles", "text": ["#TestRules#", "1,0,2,0,2", "3,0,0x100,0,0"], "expect": {"status": "complete", "rules": 1, "transmogrify": false}},
+    {"op": "nr_expect_rules", "rules": [{"key": "0x02000200", "transform": "0xFF", "conditions": [], "outputs": [["0x100", 0, 0]]}]}
+  ]
+}

@@ -1,7 +1,8 @@
 # Spec: the automata layer (saved records and game hooks)
 
 Status: **behaviour spec, short form** (the layer is mostly animation; §0 says what that means), clean-room input.
-Q2–Q5 answered by re-answers16 (2026-10-16).
+Q2–Q5 answered by re-answers16 (2026-10-16). The cores14a implementers' questions AM1–AM12 (QUESTIONS.md) are
+answered and folded in by re-answers20 (2026-10-16): §3.1, §4, §4.1, §5, §6.1, §6.4, §7, §12, §14 tests 17–23.
 This document describes *behaviour*, not code. It was written by the analysis team from observing the original
 program and its data files. Implementers must work from this spec, the public LGPL gzcom-dll SDK headers and
 general knowledge only. They must **not** consult decompiled or disassembled code (see
@@ -86,13 +87,40 @@ trees, construction vehicles at construction sites, dogs, crowds, strike pickets
 |---|---|---|
 | 1 | `u16` version = 1 | Read does not check it. |
 | 2 | `ref` the 24-hour clock | Read checks IID `0x681BD53A`. Always class `0xA7E7F929` in the corpus. |
-| 3 | `time` A | |
-| 4 | `time` B | slot 24 `GetControllerTime` returns this one. A equals B in every corpus save. |
+| 3 | `time` A, the **current** controller time | slot 24 `GetControllerTime` (`0x0051A310`) returns this one (object `+0x34`) |
+| 4 | `time` B, the controller time at the **previous animation tick** | object `+0x3C`. A equals B in every corpus save. |
 | 5 | `u32` n1, then n1 × occupant entry | the controllers, grouped by occupant (§3.2) |
 | 6 | `u32` n2, then n2 × automaton set | §3.3 |
 
-The two times are the controller manager's view of the in-game time of day: they advance with the clock's
-`HourChanged` messages (clock24.md) [inferred].
+Write (`0x005174D0`) writes A then B. Each is the `f32` hour, then the day as a 16-bit value.
+
+**How A and B advance (AM5).** The two times are the controller manager's copy of the 24-hour clock (clock24.md)
+as a fractional hour and a day of the week. Three things change them:
+
+1. **`HourChanged`** (`0x44778230`, handler at `0x005193BF`). It adds 1.0 hour to A (`0x00515080`). The added
+   amount is brought into [0, 24) first, but the **result is not normalised**: 23.5 becomes 24.5, and A's day does
+   not change. Then every controller of every occupant gets controller slot 24 (`+0x60`) with (A, A − B).
+2. **Each animation tick** (`0x86AD10EE`, `DoAnimationTick` `0x00518B80`), in this order:
+   1. t = `GetHour()` + `GetMinute()` × (1/60) (clock slots 10 and 13; the factor is the `f32` `0x00A94124`;
+      x87 arithmetic, stored as `f32`). Both clock values are unsigned.
+   2. If t < A's hour, add 1 to A's day (`0x00518BD6`). Then A's hour = t.
+   3. Compute the step delta = A − B (below). The controllers' tick work receives it.
+   4. Normalise A (`0x00514FC0`):
+      - a NaN hour becomes 0.0;
+      - while the hour is below 0, add 24 and subtract a day;
+      - while it is 24 or more, subtract 24 and add a day;
+      - the day is then brought into 0–6 (add 7 while negative, then mod 7).
+   5. The controllers are updated (when the manager is active).
+   6. B = A: the hour and the day (`0x00518DB0`).
+3. **Read** stores both times as read; it does not normalise them.
+
+A − B (`0x00515D50`) starts from a copy of A. B's hour is first brought into [0, 24): +24 adds a day to the copy,
+−24 subtracts one. That hour is subtracted from the copy's hour (`0x00515100`), then B's day is subtracted from the
+copy's day. The result is not normalised.
+
+So A and B differ only between an `HourChanged` and the next animation tick: A = B + 1.0 h, possibly 24 or more.
+At midnight the tick sees t (about 0) below A's hour, so it adds the day. A save written in that window keeps the
+difference, and a replacement must round-trip both times unchanged.
 
 ### 3.2 Occupant entries
 
@@ -199,6 +227,36 @@ Two controller classes occur in saves. Both start with the controller base recor
 | 7 | `u32` flags | mostly 7; `0x87` seen on `dog_make`; never contains 8 (§3.2) |
 | 8 | `u32` n, then n × `ref` automaton | `0xA9B40F05`; the automata it currently controls |
 
+**Object offsets and names (Q5, completed 2026-10-16, re-answers29).** The record fields map onto the object
+like this. The stream order above is the compatibility surface; the names below are for a replacement's own
+struct and come from the accessors that use them.
+
+| Record field | Object offsets | Stream | Name from use |
+|---|---|---|---|
+| 2 | `+0x08` | `ref` (Write `0x005D99A0`, Read `0x005D9730`, IID `0x26BB767E`) | the **source occupant** the controller is attached to |
+| 3 | name object `+0x24`, its characters `+0x28` | `str` (stream slot 15) | the **template name**. `GetTemplateName` (`0x00517DF0`, slot 7) returns the *template's* name (`template + 4`) when the controller has a template, and otherwise the local characters at `+0x28` |
+| 4 | `+0x10`, `+0x14`, `+0x18` | `vec3` (`operator<<` `0x005DA580` / `operator>>` `0x005DA550`, three `f32` in x, y, z order) | the **position**; `GetPosition` (`0x00515A40`, slot 11) returns `+0x14`, `+0x18`, `+0x1C` when there is no template, so the live position is `+0x14`…`+0x1C` and the saved `vec3` starts one `f32` earlier *[see the note below]* |
+| 5a | `+0x4C` | `f32` | **unnamed**; 0 in the whole corpus. Not the radius: `GetRadius` (`0x00517E00`, slot 9) returns `template + 0x20`, never a field of the controller |
+| 5b | `+0x50` | `f32` | the controller's **age / tick counter**. It is incremented by 1 on every animation tick (`0x00514D90`); `IsExpired` (`0x00517EA0`) is true when the limit is > 0 and has been reached |
+| — | `+0x54` | *not saved* | the **lifetime limit**. `SetLifetime` (`0x00517EF0`) writes it, and `Init` copies it from the template (`template + 0x4C`). `IsExpired` = `limit > 0 && counter ≥ limit` |
+| 6 | `+0x38` | `u32` | **unnamed**; 0 in the whole corpus |
+| 7 | `+0x3C` | `u32` | the **flag dword** in the record (mostly 7, `0x87` on `dog_make`) |
+| 8 | `+0x44` | `u32` | the **count** of automata in the list (an `std::list`'s size) |
+
+The automata list itself is an `std::list` whose head pointer lives at `+0x40` and whose size is `+0x44`: Read
+allocates 12-byte nodes and splices them in at `+0x40`, and Write walks `*+0x40` until it returns to the
+sentinel.
+
+**The flag offset is not fully settled *[quirk]***. `CheckFlag` (`0x00517E60`) and `SetFlag` (`0x00517E70`)
+— controller interface **slots 12 and 13** — read and modify a `u32` at **`+0x40`**, and the Mac signature names
+the parameter type `cISC4AutomataController::tControllerFlag`. But `+0x40` is also the automata list's head
+pointer, and the record's flag dword is `+0x3C`. So either the original's flag accessors test the list head
+rather than the saved flags (which would make the state record's flag-8 test, `CheckFlag(8)` from the state
+Write at `0x00509D1E`, effectively a test of bit 3 of a heap pointer), or one of the two offsets is wrong.
+A breakpoint on `0x00517E60` while a controller is created would settle it. **What is certain:** the record
+carries one flag dword at `+0x3C`, mostly 7, never with bit 8 set; the flag-8 rule of §3.2 and §6.1 is
+"write a null ref when `CheckFlag(8)` is true".
+
 **Generator** (class `0x4A1628C5`, Write `0x005183D0`, Read `0x00518450`): `u16` 4 (Read requires 4), the base
 record, `time` (period), `time` (second period), `u32`, `u32`. Corpus: 291,346 records; names `wildlife_generator`
 (291,095), `construction_vehicle_generator`, `dog_make`, `crowd_sm`, `transit_strike_gen_1`/`_2`/`_3` and others.
@@ -227,14 +285,88 @@ All four managers start with this record (Write `0x0050CB80`; Read wrapper `0x00
 | # | Field | Notes |
 |---|---|---|
 | 1 | `u16` version = 6 | Read accepts ≤ 6 |
-| 2 | `s32` max count | applied with slot 23 `SetMaxCount` (§7.3) |
+| 2 | `s32` max count | Read stores it directly into the max (object `+0x3C`, `0x0050FEB0`). It does **not** call slot 23 `SetMaxCount`, so the hard limit (`+0x40`) keeps its current value |
 | 3 | `bool` active | slot 5 `Activate` / slot 6 `IsActive` |
 | 4 | `bool` | the time-of-day scaling flag [inferred] |
-| 5 | `u32` n, then n × `ref` automaton | `0xA9B40F05`; the manager's automata |
-| 6 | only when version ≥ 5: `u32` m, then m × (`u32` automata group ID, `u32` count) | the group instance counts (slot 31) |
+| 5 | `u32` n, then n × `ref` automaton | `0xA9B40F05`; the manager's automata, in list order (front first) |
+| 6 | only when version ≥ 5: `u32` m, then m × (`u32` occupant group ID, `u32` count) | the **source building counts** (AM12, below). Not the slot 31 group sets |
 
 Read sets the loaded flag, and an *old-version* flag that is true when the version is below 6. Write always
-returns true, and Read returns true without checking the stream error *[quirk]*.
+returns true, and the base Read returns true without checking the stream error *[quirk]*. The wrappers do check it
+(§4.1).
+
+**The source building counts (field 6).** The map is keyed by occupant group ID: the building groups that the
+automata scripts track (script system slot 18 `GetTrackBuildingGroups`). The value is the number of complete
+buildings in the city that belong to the group.
+- **Read by** slot 36 `GetSourceBuildingCount(group)` (`0x0050BE30`); slot 37 reads it for an automata group's
+  source building group. Groups `0x1402` and `0x1406` are special: they ask the landfill developer instead and never
+  look at the map. An unknown key gives 0.
+- **Seeded** at `Init` (`0x0050F930`): each tracked group missing from the map is added with count 0.
+- **Counted up** (Mac build `HandleNewBuilding`): a building that is inserted complete (completion ≥ 100 %), or
+  that becomes complete, adds 1 to every key among its occupant groups.
+- **Counted down** (Mac `HandleRemoveOccupant`): a removed occupant subtracts 1 from each key whose count is not 0
+  and whose group the occupant belongs to.
+- **Old saves.** When the read base version was below 6 (the old-version flag), `PostCityInit` (test at
+  `0x0050F341`) sets every count to 0 and recounts: +1 per (occupant, tracked group) over the occupants of the
+  tracked groups.
+
+A replacement must round-trip the pairs. The order is hash order in the original and is free *[choice]*.
+
+### 4.1 Versions on re-save, version checks and stream errors (AM1, AM2, AM11) *[compat]*
+
+**Re-save.** Every writer in this layer writes a **constant**, its current version, and never the version it read:
+- manager base 6 (`0x0050CB80`), traffic manager 3 (`0x00553570`), aircraft manager 5 (`0x004FB5B0`), watercraft
+  manager 6 (`0x0056FA70`);
+- automaton base 8 (`0x0050AC0D`), state base 3 (`0x00509D0A`);
+- pedestrian 5 (`0x0054465A`), vehicle 2, emergency vehicle 2 (`0x0052FA6B`), trailer 2 (`0x005562AA`), traffic
+  automaton 2.
+
+The fields that are missing from an old version are written from the live object:
+- a version-2 traffic manager re-saves as version 3, with an incident list (empty unless incidents occurred);
+- a version-4 base re-saves as version 6, with the source building counts that `PostCityInit` recounted;
+- a version-7 automaton re-saves as version 8, with its group ID;
+- a version-2 state re-saves as version 3, with its final `u32`.
+
+A replacement **must** save the live game this way: current versions, every field from the live state. A record
+codec may keep a read version so that a decode-and-encode test round-trips byte for byte *[choice]* (§14 test 4).
+The original reads both forms, so either output loads.
+
+**Read version checks** (the checks the original makes; a mismatch makes that object's Read return false):
+
+| Record | Accepts | Check at |
+|---|---|---|
+| script system | exactly 1 | `0x006B8A70` |
+| controller manager | anything (not checked) | `0x0051B520` |
+| controller base / attractor's `u16` | anything / anything | §3.5 |
+| generator | exactly 4 | §3.5 |
+| manager base | ≤ 6 | `0x0050FEB0` |
+| traffic manager | 2 or 3 | `0x00554410` |
+| traffic incident list `u16` | exactly 1 | `0x00553E90` |
+| aircraft manager | ≤ 5 (below 5: base-only record) | `0x004FBE91` |
+| watercraft manager | ≤ 6 (below 6: base-only record); above 6 fails at `0x00574A26` | `0x00574A0B` |
+| automaton base | ≤ 8 | `0x0050DFED` |
+| occupant base inside it | exactly 4 | `0x005E8D75` (lot-records §2.3) |
+| state base | ≤ 3 | `0x00505E50` |
+| traffic automaton | exactly 2 | `0x00554D37` |
+| pedestrian | exactly 5 | `0x005446D5` |
+| vehicle | exactly 2 | `0x0055BCF0` |
+| emergency vehicle | exactly 2 | `0x0052FAE0` |
+| patrol car | exactly 2 | `0x00543E05` |
+| trailer vehicle | exactly 2 | `0x00556C47` |
+
+**Stream errors.** The manager base Read and the object Reads store each field as they read it and never roll
+back. Whether a cut record is reported depends on the wrapper:
+- these return "no stream error" (`GetError() == 0`, stream slot 18) at their end:
+  - the controller manager (`0x0051B9B8`);
+  - the traffic manager at version 3, through the incident reader (`0x00553E90`);
+  - the aircraft manager at version 5 (`0x004FBFC3`);
+  - the watercraft manager at version 6 (`0x00575153`);
+- the base-only versions return the base Read's result, which is true: traffic version 2, aircraft below 5 and
+  watercraft below 6.
+
+So a cut record of a current version reads partially and returns **false**. A cut base-only record returns true
+*[quirk]*. A replacement may fail a short record atomically (all or nothing) *[choice]*. Every case where the original
+returns false stays false. The only case that changes is a cut base-only record, which no save contains.
 
 ## 5. The four managers
 
@@ -246,13 +378,33 @@ Write `0x00553570`, Read `0x00554410` (accepts 2 or 3).
 |---|---|---|
 | 1 | `u16` 3 | |
 | 2 | base record (§4) | |
-| 3 | `u32` | Read discards it. Vehicle manager 1, pedestrian manager 2 in every save. |
-| 4 | `u32` | the ID at the manager's list cursor, 0 at the end; Read moves the cursor to the first node with that ID |
+| 3 | `u32` | the manager's **default path type**, a constant set by the constructor: vehicle manager 1 (`0x0055FB50`), pedestrian manager 2 (`0x00545500`). Read discards it. |
+| 4 | `u32` | the **layer ID** under the manager's layer cursor, or 0 when the cursor is at the end (below) |
 | 5 | only in version 3: `u16` 1, `u32` count, count × incident | the traffic incidents (accidents) |
 
+**The layer list and its cursor (field 4, AM3).** Each traffic manager keeps a fixed, ordered list of the traffic
+layers it populates, built by its constructor. Each node holds a layer ID and an accumulated time. The cursor
+marks the layer that the next population pass serves (Mac `PopulateVisibleArea`).
+
+| Manager | Layer IDs, in list order |
+|---|---|
+| vehicle (`0x0055FB50`) | 1, 2, 3, 5, 4, 7, 6, 8, 9, 10 |
+| pedestrian (`0x00545500`) | 1, 7, 8 |
+
+- A **new** manager's cursor is on the first node, so it writes **1** (both managers). The empty-city corpus
+  records all hold 1 (§14 test 4).
+- When a population pass starts, the cursor moves to the next node, wrapping from the end to the first node. It
+  keeps moving while that layer is disabled in the tuning's layer mask, unless the list has one node.
+- Write (`0x00553570`) writes the cursor node's layer ID, or 0 when the cursor is at the list end.
+- Read (`0x00554410`) puts the cursor on the first node. If the value read is not 0, it walks forward to the first
+  node with that ID. When no node has that ID, the cursor stays at the end, and a re-save then writes 0.
+
+A replacement that does not populate layers must still write the value it read, or 1 for a new manager.
+
 An incident (Write helper `0x00552A80`, Read helper `0x00553E90`): `s32` x, `s32` z, `u32` type, 8 × `s32`, `ref`
-network occupant, `bool`, `u32`. The single corpus incident is (x 47, z 22, type 2), on network occupant class
-`0xC9C05C6E`, `bool` 1, last `u32` 6264.
+network occupant (read checks the **occupant** IID `0x26BB767E`), `bool`, `u32`. The single corpus incident is
+(x 47, z 22, type 2), on network occupant class `0xC9C05C6E`, `bool` 1, last `u32` 6264. The list's leading `u16`
+must be 1; otherwise the reader returns false without reading further (§4.1).
 
 Corpus: 410 of the 421 pairs are the 22-byte version-2 record with a version-4 base (an empty city's managers);
 11 are version 3 with base 5 or 6. Max counts seen: vehicle 336, 199, 750, 168; pedestrian 384, 512, 256.
@@ -273,7 +425,8 @@ Corpus: 12 records, 11 of version 5 and 1 of version 4.
 
 ### 5.3 Watercraft (46), version 6
 
-Write `0x0056FA70`, Read `0x005749E0`. A version below 6 means the whole record is a base record of that version.
+Write `0x0056FA70`, Read `0x005749E0`. Read: a version above 6 fails (`0x00574A26`, AM9); a version below 6 means
+the whole record is a base record of that version.
 
 1. `u16` 6;
 2. base record;
@@ -295,7 +448,8 @@ the automaton classes found in saves, with their records.
 
 | # | Field | Notes |
 |---|---|---|
-| 1 | the occupant base record | lot-records §2.3; occupant type `0x496E5783` |
+| 0 | `u16` 8 | the automaton base's own version (Write `0x0050AC0D`; Read `0x0050DFED` accepts ≤ 8) |
+| 1 | the occupant base record | lot-records §2.3 (its own `u16` must be 4); occupant type `0x496E5783` |
 | 2 | 3 × `vec3` | position, destination, orientation (automaton slots 7, 11, 15) |
 | 3 | `f32`, `f32` | radius (slot 17), default speed |
 | 4 | `u32` automata flags, `u32` | the flags (slots 30/31); then the dispatch info ID (slots 27/28). Flag bits named by the Mac build: 1 marked for removal, 2 self-controlling, 4 reached destination, `0x40` special route, `0x8000000` disabled |
@@ -335,6 +489,26 @@ any other type gets the default state, whose record is the base record alone.
 **State base, version 3** (Write `0x00509D00`, Read `0x00505E50`, accepts ≤ 3): `u16` 3, `ref` controller (null
 when it has flag 8; read checks `0x6A1857F8`), `u32`, `f32`, `bool`, `u32`, `u32`, and in version 3 a final `u32`.
 
+**Object offsets (Q5, re-answers29).** The record maps onto the state object like this; the stream order is the
+compatibility surface.
+
+| Object offset | Stream | Notes |
+|---|---|---|
+| `+0x00` | — | vtable (per state class) |
+| `+0x04` | — | the state type number; set by the factory, **not** in this record (the outer writer stores it) |
+| `+0x08` | `ref` | the controller |
+| `+0x0C` | `u32` | |
+| `+0x10` | `f32` | |
+| `+0x14` | `bool` (one byte) | |
+| `+0x18` | `u32` | |
+| `+0x1C` | `u32` | |
+| `+0x20` | `u32` | written only at version ≥ 3 |
+| `+0x24` | **not in the record** | Read zeroes it; the default-state constructor also zeroes it |
+
+**Version behaviour.** Write **always emits version 3 and all seven fields**, whatever version was read; Read
+accepts ≤ 3 and reads `+0x20` only at version ≥ 3. So a re-save of an older state record upgrades it (see
+QUESTIONS.md AM1). The default state's constructor (`0x0050B7F0`'s default branch) zeroes `+0x08` … `+0x24`.
+
 | Type | Name | After the base | Write / Read |
 |---|---|---|---|
 | 8 | RiotLeader | `s32`, `s32`, `u8` | `0x00509DE0` / `0x00505F50` |
@@ -351,6 +525,11 @@ when it has flag 8; read checks `0x6A1857F8`), `u32`, `f32`, `bool`, `u32`, `u32
 
 **Names (Q3, answered).** Two sources tie the numbers to the names:
 - The game's own Lua constant table `automata_states` (`sit_constants.lua` in `SimCity_1.dat`) gives the numbers.
+  **Read directly from the shipped script (2026-10-16, re-answers29) and it matches the table above exactly.**
+  The script's own grouping comment is `-- general` for 0–12, `-- vehicles` for 21 and 30, `-- aircraft` for
+  50–58 and `-- watercraft` for 70–78. Two extra facts from it: there is **no** entry for 5, 13 or 14 (so 13
+  and 14 really are unnamed in the game's own table), and `CHASE` (52) carries the comment *"can also apply to
+  vehicles"* — so the name is not aircraft-only.
 - The Mac build's `CreateAutomataState` gives the classes: `tAutomataStateRandomWalk`, `…PlopJump`, `…Plummet`,
   `…Bumped`, `…AttachAnim`, `…Collide`, `…PullOver`, `…Chase`, `…RiotLeader` and `…PlayerDrive`.
 - The two agree, and the Windows factory (`0x0050B7F0`, jump table `0x0050B98C` / `0x0050B9B8`) builds objects of
@@ -409,9 +588,24 @@ default, bee line, idle, blocked wait, crowd and collide. State versions: 2 in 8
 |---|---|---|
 | pedestrian | `0x896E75AF` | `u16` 5, traffic record, `bool`, `vec3`, `f32`, `u32` (Write `0x00544650`, Read `0x005446C0`) |
 | vehicle | `0x896E714A` | `u16` 2, traffic record, `u32` n + n × (`u32`, `s32`, `s32`) path entries, `u32` 0, `vec3`, `vec3` (−1, −2, −3), `f32` (Write `0x0055F640`, Read `0x0055BCF0`) |
-| emergency vehicle | (`0x896E714A`, see §12) | `u16` 2, vehicle record, `vec3`, `ref` occupant, `u8`, `u16`, `u32` (Write `0x0052FA60`, Read `0x0052FAE0`) |
-| patrol car | `0x4A222B98` | `u16` 2, emergency record, `ref` automaton (Write `0x00543DB0`, Read `0x00543DF0`) |
-| trailer vehicle | `0x4A5B69ED` | `u16` 2, vehicle record, `u32` n + n × `ref` vehicle, `u32` m + m × `u32`, `vec3`, `ref` network occupant, `u32` (Write `0x005562A0`, Read `0x00556C30`) |
+| emergency vehicle | (`0x896E714A`, see §12) | `u16` 2, vehicle record, `vec3`, `ref` occupant (`0x26BB767E`), `u8`, `u16`, `u32` (Write `0x0052FA60`, Read `0x0052FAE0`) |
+| patrol car | `0x4A222B98` | `u16` 2, emergency record, `ref` automaton (`0xA9B40F05`) (Write `0x00543DB0`, Read `0x00543DF0`) |
+| trailer vehicle | `0x4A5B69ED` | `u16` 2, vehicle record, `u32` n + n × `ref` vehicle (read checks IID **`0x896E714A`**, AM10), `u32` m + m × `u32`, `vec3`, `ref` network occupant (`0xA821EF94`), `u32` (Write `0x005562A0`, Read `0x00556C30`) |
+
+Each Read in this table requires its leading `u16` to equal the version shown, exactly (AM2, §4.1).
+
+**The trailer's vehicle refs (AM10).** The trailer reads them with IID `0x896E714A` (`0x00556C8B`). That is the
+vehicle's class ID, which the vehicle's `QueryInterface` (`0x0055B660`, test at `0x0055B665`) also answers as an
+interface ID. So a ref to a vehicle, emergency vehicle, patrol car or trailer resolves. A ref to any other automaton
+(a pedestrian, say) fails the check. Null refs are skipped, and the list keeps only the non-null ones.
+
+**The emergency vehicle layout (AM8).** The layout above is what the Write produces:
+- `0x0052FA6B` writes `u16` 2;
+- `0x0052FA75` calls the vehicle Write;
+- then come the `vec3`, the ref, the `u8`, the `u16` and the `u32`.
+
+So the record is the emergency's own `u16`, then the full vehicle record. §12 quirk 3 gives the corrected account
+of what happens when it is reloaded.
 
 The vehicle's Read discards the path entries and the constant vector; a replacement must still write them
 (writing an empty path list is allowed *[choice]*). Corpus: 81,787 pedestrians, 1,085 vehicles, 63 trailers and
@@ -447,9 +641,40 @@ record, then the `vec3`.
 | 5 | `AddControllerFromTemplateName(occupant, name, extra)` (`0x00514CA0`) | Look up the template by name (script slot 17). None: return null. Otherwise return slot 6 `AddControllerFromTemplate(occupant, template, extra)`. |
 | 9 | `AddControllersFromOccupantGroup(groupID, occupant, extra)` (`0x00517190`) | Look up the occupant group by **ID** (script slot 11). No script system or no group: return false. Otherwise add one controller per template in the group's list (slot 6 each) and return true. |
 | 10 | `AddControllersFromOccupantGroup(name, occupant, extra)` (`0x00517150`) | The same, with the group looked up by **name** (script slot 12). |
-| 11 / 12 | `RemoveControllersFromOccupantGroup` by ID / by name (`0x0051AB40` / `0x0051AB00`) | Remove the controllers that the group added to the occupant. |
+| 11 / 12 | `RemoveControllersFromOccupantGroup` by ID / by name (`0x0051AB40` / `0x0051AB00`) | Look the group up (script slot 11 / 12); none: return false. Otherwise remove the occupant's controllers whose **template is in the group's template list** (body `0x0051A350`, below). |
 | 14 | `RemoveControllers(occupant)` (`0x0051A520`) | Remove all controllers of the occupant. |
-| 24 | `GetControllerTime` (`0x0051A310`) | Returns `time` B (§3.1). |
+| 24 | `GetControllerTime` (`0x0051A310`) | Returns a pointer to `time` **A**, the current controller time (§3.1). |
+
+**The `extra` argument of slots 5, 6, 9 and 10 (AM6).** It is a `const vec3*` **position**, which may be null. Slot
+6 (`AddControllerFromTemplate`, `0x0051AD20`) creates the controller and adds it to the occupant's list. Then:
+- with a non-null occupant, it attaches the controller to the occupant (controller slot 14, `+0x38`,
+  `0x0051B091`), and `extra` is **not used**;
+- with a null occupant and a non-null `extra`, it places the controller at that position (controller slot 17,
+  `+0x44`, `0x0051B117`);
+- either way it then sets the template (slot 15), `Init`s the controller (slot 3) and adds it to the controller
+  grid.
+
+Slots 5, 9 and 10 pass `extra` through to slot 6 unchanged. Every caller in §7.1 passes an occupant and 0, so
+ignoring `extra` is correct for them. A replacement that accepts a null occupant must place the controller at
+`*extra`.
+
+**What slots 11 and 12 remove (AM7).** The original does **not** record which controllers a group created. The
+body (`0x0051A350`; Mac `RemoveControllersFromOccupantGroup(template*, occupant*)`) works like this:
+1. Find the occupant's controller list. None: return false.
+2. Walk it. A controller is removed when its template (controller slot 8, `+0x20`, `0x0051A3C6`) is one of the
+   group's templates (pointer comparison). So a controller from the same template that another path added, for
+   example slot 5 by name, is removed too. A controller that has lost its template is not.
+3. Each removed controller:
+   1. the manager **sends** `0xEA298D50` (`kSC4MessageRemoveAutomataController`, `0x0051A413`) naming it;
+   2. it leaves the controller grid;
+   3. it is shut down (slot 4) and released.
+4. If the occupant's list is now empty:
+   - its queue entry (§3.3) is cleared and erased, releasing the occupant's reference;
+   - its list entry is erased, releasing the occupant again.
+5. Return true if anything was removed.
+
+A null template (used internally by slot 14) matches every controller. The cores14a template-match reading is
+therefore the original's rule, and it works after a load because nothing is tracked.
 
 Callers: the fire occupant (slot 10, `fire_occupant`, §8.2), the civic ape escape (slot 10, `ape_escape`), the
 police jailbreak (slot 10 to begin, slot 12 to end), the strike states of the fire, police and residential
@@ -478,8 +703,25 @@ pointer therefore holds **no reference for the caller**: a caller that keeps it 
 
 `CreateAutomatonInternal` refuses (returns null) in two cases:
 1. Priority 0, while the manager is inactive (slot 6 false).
-2. The manager holds more automata than its limit (count `+0x48` > `+0x3C`), the make-room call (slot 47,
-   `0x0050A740`) fails, flag `0x80` is clear and the priority is below `0xFF`.
+2. The manager holds more automata than its **max count** (count `+0x48` > max `+0x3C`, a strict test, so the
+   creation that reaches the max still passes), the make-room call (slot 47, `0x0050A740`) fails, flag `0x80` is
+   clear and the priority is below `0xFF`.
+
+**Make room** (slot 47, `0x0050A740`, AM4) gets the new automaton's priority p.
+- It fails at once when the count has reached the **hard limit** (count `+0x48` ≥ `+0x40`, `0x0050A747`), or when
+  p is 0.
+- Otherwise it walks the list from the front (the oldest; `AddAutomaton` appends at the back). It takes the
+  **first** automaton whose priority (automaton slot 63) is below p and asks it to remove itself: automaton slot 13
+  `Remove(false)`, `0x0050A79A`. That call sets flags 1 (marked for removal) and `0x10000000` and starts a fade-out
+  (Mac `cSC4Automaton::Remove`); it does not erase the automaton from the list at once. Then make-room succeeds.
+- When no automaton has a lower priority, it fails.
+
+So, above the max count:
+- a creation succeeds only when it can push out a lower-priority automaton and the hard limit is not reached;
+- at or above the hard limit, only flag `0x80` or priority `0xFF` gets through, and nothing bounds those two.
+
+The cores14a reading ("null at the hard limit") is right only for the hard limit. Between the max and the hard
+limit, creation depends on the eviction, and the two bypasses ignore the hard limit.
 
 Any priority below `0xFF` is first offered to the city situation manager:
 - if its slot 19 accepts the group,
@@ -489,6 +731,7 @@ Any priority below `0xFF` is first offered to the city situation manager:
 | Caller | Arguments |
 |---|---|
 | riot | (`0x4107`, cell position, 2, zero key, null, `0xFF`, null) |
+| generators | (current group, spawn point, `0x2000002`, zero key, null, the template's priority byte, null) |
 
 **Watercraft override** (`0x00568F30`, also pops 28). It returns null without creating anything when either check
 fails:
@@ -502,20 +745,138 @@ fails:
 When both checks pass, it calls the shared `0x00505370` with arguments 1–6 unchanged and **null** as the
 orientation (`0x00568FAA`). A watercraft's orientation argument is therefore always ignored. The override does not
 look at water, the flags or the priority itself; those are handled by the shared code as above.
-| generators | (current group, spawn point, `0x2000002`, zero key, null, the template's priority byte, null) |
 
 ### 7.3 Manager slots that other specs use
 
 - slot 5 `Activate(bool)`, slot 6 `IsActive`;
 - slot 9 `Pause`, slot 10 `Resume`, slot 11 `IsPaused` (city-situation.md);
 - slot 13 `IsDrivingMode`: true when the current view's ID is `0x2B709676` (the U-Drive-It view; advisors.md);
-- slot 23 `SetMaxCount(n)` (`0x0050AA60`): clamp n to 0–5000, remove automata beyond it, and set the hard limit
-  to `trunc(n × 1.25)` (a `double` multiply, constant at `0x00A955A0`).
+- slot 23 `SetMaxCount(n)` (`0x0050AA60`, AM4):
+  1. Clamp n to 0–5000.
+  2. If n equals the current max (`+0x3C`), do **nothing**; the hard limit is not recomputed either.
+  3. Otherwise, walk the list from the **front** (oldest first) while n < count (`+0x48`). Skip an automaton that
+     has flag `0x200000` (slot 31) or priority `0xFF` (slot 63, `0x0050AAB7`). Every other automaton goes to the
+     manager's internal *unplace* hook (manager slot 62, `+0xF8`, `0x00507430`; Mac `RemoveAutomatonInternal`):
+     - if the automaton is in the renderer (status bit 2 of byte `+0x33`), it is taken out (automaton `+0x11C`,
+       Mac `PlaceInRenderer(false)`);
+     - if it is in the occupant manager (bit 1), it is taken out of that too (automaton `+0x118`, Mac
+       `PlaceInOccupantManager(false)`).
+  4. Set the max to n and the hard limit to `trunc(n × 1.25)`: `fild`, then `fmul` by the `double` 1.25 at
+     `0x00A955A0`, then the CRT truncation `0x009EEF04`.
+
+  The hook neither erases the automaton from the list nor lowers the count *[quirk]*, so the walk's condition
+  never changes. When the count is above n, **every** eligible automaton in the list is unplaced, not only the
+  excess. The automata stay in the manager's list and in the save. A replacement that does not animate needs only
+  the clamp, the "unchanged n does nothing" rule and the two stored values. It must not drop automata from the
+  saved list *[compat]*.
+- slot 31 `TrackAutomataGroupInstances(u32 group, bool track)` (`0x00513C40`, AM12). This is **not** a counter. It
+  keeps an unsaved map from automata group ID to a **set of automata**, each held with a reference. Neither the map
+  nor the sets are in the record; §4 field 6 is a different map.
+  1. If slot 30 `CanCreateGroup(group)` (`0x0050C300`: the group is a key of the manager's map from automata group to exemplar list) is false, return
+     true and do nothing.
+  2. With `track` true and no set yet for the group:
+     - create an empty set;
+     - put every automaton now in the manager's list that belongs to the group into it (occupant slot 22, `+0x58`,
+       with the group ID), adding a reference to each;
+     - return true. If the map insert fails, return false.
+
+     When a set already exists, nothing changes.
+  3. With `track` false: if a set exists, release every automaton in it (slot 33 `ReleaseAutomatonSet`,
+     `0x0050CDE0`), erase the entry and return true.
+
+  While a group is tracked, `AddAutomaton` adds each new member to the set (with a reference). Removing an
+  automaton takes it out of every set that holds it and releases it, and so does the occupant-group-changed path
+  (Mac `AddAutomaton`, `RemoveAutomaton`, `HandleOccupantGroupChanged`).
+- slot 32 `GetInstancesOfGroup(group, set&)` (`0x00510040`) fills the caller's set. The members come from the
+  group's tracked set when there is one, otherwise from a scan of the list. Each one belongs to the group, does not
+  have flag 1 (marked for removal) and is not in the set already. It is added with a reference. The call returns
+  true when the caller's set is not empty.
+- slot 36 `GetSourceBuildingCount(occupant group)` and slot 37 `GetSourceBuildingCountForAutomataGroup` read the
+  §4 field 6 counts.
 
 ### 7.4 Automaton slots that other specs use
 
 slot 5 `AsOccupant`; slot 9 `SetVisible(bool)`; slot 13 `Remove` (dispatch despawn); slot 29
 `ReturnToSourceOccupant` (dispatch "go home"); slot 51 `SetState(type, …6 more)`; slot 2 `Release`.
+
+### 7.5 The three `vec3` fields and their setters (Q2, completed) *[compat]*
+
+An automaton carries **three** `vec3` fields, stored consecutively and set one field at a time from a `const
+vec3*` (a pointer to three `f32` in x, y, z order). All three are **city coordinates in metres**; there is no
+unit conversion anywhere in the setters. The copy order is always x, then y, then z (three separate `f32`
+stores).
+
+| Field | Object offsets (x, y, z) | Slot | Setter | Getter |
+|---|---|---|---|---|
+| position | `+0x40`, `+0x44`, `+0x48` | 8 | `SetPosition` `0x00507D90` | slot 7 `GetPosition` `0x00505520` |
+| destination | `+0x4C`, `+0x50`, `+0x54` | 10 | `SetDestination` base `0x00505560`, traffic `0x0054E5B0` | slot 11 `GetDestination` `0x004ADB30` |
+| orientation | `+0x58`, `+0x5C`, `+0x60` | 14 | `SetOrientation` `0x0050AF10` | slot 15 `GetOrientation` `0x00505540` |
+
+Write (`0x0050AC00`) serialises them in that order (§6.1 field 2). The meanings are the Mac accessors'
+(`GetPosition`, `GetDestination`, `GetOrientation`); every value must round-trip unchanged *[compat]*.
+
+**`SetPosition` (`0x00507D90`)**, `__thiscall`, one stack argument, `ret 4`:
+
+1. Read the byte at **`+0x33`**. If **both** bit 0 and bit 1 are set, do not store anything: call **slot 16
+   `MoveTo(position, 0)`** — i.e. `MoveTo` with the new position and a null orientation — and return.
+2. Otherwise copy the three floats into `+0x40`, `+0x44`, `+0x48`.
+3. Then walk the array of model-instance pointers from `+0x110` to `+0x114` and call each element's **slot 1**
+   with `&this->position`. This is how a moved automaton repositions its render models; a replacement may
+   animate differently, but the position store is the observable part.
+
+**`SetOrientation` (`0x0050AF10`)**, same guard and same signature:
+
+1. The same `+0x33` test; when both bits are set, call **slot 16 `MoveTo(0, orientation)`** and return.
+2. Otherwise copy the three floats into `+0x58`, `+0x5C`, `+0x60`.
+3. **Normalise in place**: replace the vector by `v × (1.0 / |v|)` (constant `1.0` at `0x00B09978`). The stored
+   orientation is therefore always a **unit vector**, and a zero input stays zero (the divide is not guarded).
+4. Then call `PositionModelInstance` (`0x005094A0`) for every entry of the same `+0x110`…`+0x114` array.
+
+**`SetDestination` (slot 10)** has **two** implementations, and only one of them has side effects:
+
+- **Base, `0x00505560`** — a plain store. Copy the three floats into `+0x4C`, `+0x50`, `+0x54` and return
+  (`ret 4`). Nothing else happens: no flag, no turn, no `MoveTo`. This is what aircraft and the classes whose
+  vtable is not in the traffic family use (vtables `0x00A94608`, `0x00A94B38`, `0x00A95AC0`, `0x00A97188`,
+  `0x00A991E0`, `0x00A9DBB8`).
+- **Traffic override, `0x0054E5B0`** — the pedestrian, vehicle, emergency, patrol, trailer and watercraft-family
+  behaviour (every other vtable that shares the automaton getters). This is the one with the extra steps below.
+
+The traffic override:
+
+1. `SetAutomataFlag(4, 0)` (slot 30): **clears the "reached destination" flag** (§6.1 field 4, bit 4).
+2. Copy the three floats into `+0x4C`, `+0x50`, `+0x54`.
+3. Let `d = |destination − position|` (the Euclidean length of the per-axis differences).
+4. If `d > 0.0` (compare against `0.0` at `0x00A81054`): write the **unit vector** `(destination − position) /
+   d` into the *orientation* fields `+0x58`…`+0x60` (constant `1.0` at `0x00B0A07C`), then call
+   **`MoveTo(0, &orientation)`**. So setting a destination also turns the automaton to face it.
+5. If `d ≤ 0.0` (the destination is on top of the automaton): `SetAutomataFlag(4, 1)` — mark it as having
+   reached the destination instead, and do not touch the orientation.
+
+`MoveTo` likewise has three bodies: the traffic one `0x00544530` (pedestrian family), the plain helper
+`0x005080C0` used directly as slot 16 by most other classes, and `0x00567D80` on vtable `0x00A9DBB8`. A
+replacement that only keeps the records needs none of them; one that animates should pick the base behaviour
+(a store) and add the traffic behaviour for vehicles and pedestrians.
+
+**`MoveTo` (slot 16, `0x00544530`; helper `0x005080C0`)** takes two optional `const vec3*`: a position and an
+orientation. When the orientation is given it is copied into a local with **y forced to 0** — only x and z are
+kept, so the facing is always horizontal *[quirk]*. When the position is null the local is not built and the
+helper is called with a null orientation. The helper (`0x005080C0`) rejects non-finite coordinates (it tests the
+exponent field of y and the magnitude of x and z against a tolerance) before doing the move.
+
+**What the setters do *not* do:** none of them writes the destination, none of them sets or clears automata
+flags except `SetDestination`'s flag 4, and none of them touches the state stack.
+
+**The `+0x33` guard.** Both `SetPosition` and `SetOrientation` short-circuit into `MoveTo` when the byte at
+`+0x33` has bits 0 **and** 1 set. Which two flags those are is **not settled** here *[inferred]*: it is a pair of
+automaton state bits that mean "do not accept a direct position/orientation write; go through the movement
+system instead". A breakpoint on `0x00507D93` while an automaton walks would name them. Until then a
+replacement may treat the guard as "if both bits are set, delegate to `MoveTo`", which is exactly what the
+original does either way.
+
+**The controller-manager automaton set's two `vec3`s** (§3.3) are not set through these setters. They are the
+queue point and the queue direction, written by the point search (`0x00516070`) and by the record reader
+(`0x0051B520`), and they are already specified in §3.3: both are metres, the point is 1 m outside a lot edge,
+the direction is a unit axis vector, and the entry's `vec3`s are written point-then-direction.
 
 ## 8. Riot and fire hooks *[compat]*
 
@@ -618,17 +979,34 @@ argument types given above for script slots 11 and 12 are checked, the others ar
 2. **Duplicate occupant keys in the controller manager record corrupt memory.** When Read meets an occupant it
    has already seen, it appends to a stale list pointer. The original never writes duplicates. A replacement must
    skip the repeated entry's controllers (read them, then drop them) *[choice]*.
-3. **An emergency vehicle reloads as a plain vehicle.** Its class ID is the vehicle's (`0x896E714A`, the shared
-   `GetGZCLSID` `0x00532240`), so the loader builds a vehicle, reads the vehicle part and leaves the rest of the
-   record unread; the read of the next object then fails. The corpus has none, because emergency vehicles are
-   not in the managers' saved lists [inferred]. A replacement must not save emergency vehicles *[choice]*.
-4. **The manager base Read does not report stream errors** (§4).
+3. **An emergency vehicle cannot be reloaded** (corrected by AM8). Its class ID is the vehicle's (`0x896E714A`,
+   the shared `GetGZCLSID` `0x00532240`), so the loader builds a plain vehicle and runs the vehicle Read over the
+   emergency record (§6.4). Every nested reader then meets the `u16` one level up, and the checks fail at the
+   fourth:
+
+   | Reader | Reads | Check | Result |
+   |---|---|---|---|
+   | vehicle | the emergency's `u16` 2 | needs 2 | passes |
+   | traffic automaton | the vehicle's `u16` 2 | needs 2 | passes |
+   | automaton base | the traffic automaton's `u16` 2 | ≤ 8 | passes |
+   | occupant base | the automaton base's `u16` 8 | needs 4 (`0x005E8D75`) | **fails** |
+
+   So that object's Read fails. It does not succeed with a tail left unread, as this quirk said before. The §6.4
+   layout is the correct one: the Write produces it. The corpus has none, because emergency vehicles are not in the
+   managers' saved lists [inferred]. A replacement must not save emergency vehicles *[choice]*. It should decode
+   such a record by the §6.4 layout only in tests.
+4. **The manager base Read does not report stream errors**, but the wrappers of the current versions do (§4.1).
 5. **Discarded fields.** The traffic manager's `u32` (§5.1 field 3), the vehicle's path entries and constant vector
    (§6.4) and the controller manager's version are read and thrown away.
 6. **Pointer-order maps.** The aircraft manager's pairs (§5.2) are written in pointer order, so two saves of the
    same city may differ in order.
 7. **The controller manager's loaded flag gates `PostCityInit`.** A city that was not loaded (a new city) skips
    the template re-binding.
+8. **`SetMaxCount` unplaces instead of removing** (§7.3). Lowering the max below the count takes every eligible
+   automaton out of the renderer and the occupant manager. None leaves the list, and an unchanged n does nothing at
+   all.
+9. **A trailer only keeps vehicle refs** (§6.4). Its refs are checked against the vehicle's class ID used as an
+   IID, so any other automaton reads as null and is dropped.
 
 ## 13. Open questions
 
@@ -643,6 +1021,12 @@ argument types given above for script slots 11 and 12 are checked, the others ar
 
   State 4 (`QUEUE`) drives it (`0x0051BB60`–`0x0051BD50`, point search `0x00516070`). The leader field of §6.1 links
   each automaton to the one ahead. §3.3.
+  **Completed 2026-10-16 (re-answers29):** the automaton's **own** three `vec3` fields and what their setters do
+  are now specified in **§7.5** — which offsets each setter writes (position `+0x40`, destination `+0x4C`,
+  orientation `+0x58`, always x then y then z, always metres), that `SetOrientation` normalises to a unit vector,
+  that `SetDestination` clears automata flag 4, turns the automaton to face the destination and calls `MoveTo`,
+  and that both `SetPosition` and `SetOrientation` short-circuit into `MoveTo` when the byte at `+0x33` has bits 0
+  and 1 set. The one thing still open there is which two flags `+0x33` holds.
 - ~~**Q3.** The type numbers of the RandomWalk, PlopJump, Plummet, PullOver, Bumped and Collide states, and the
   meaning of corpus state types 0, 2, 3, 7 and `0x0D` (all use the default record).~~ **ANSWERED 2026-10-16
   (re-answers16; AT3).**
@@ -653,6 +1037,14 @@ argument types given above for script slots 11 and 12 are checked, the others ar
   - 13 (`0x0D`) is the traffic automaton's blocked wait (`0x0054E322`).
 
   §6.2 has the full table.
+  **Completed for this spec's scope (re-answers29, 2026-10-16).** The game's own `automata_states` table was read
+  from the shipped `sit_constants.lua` and matches §6.2's number-to-name table exactly, so the numbers an
+  implementer keys off are now confirmed against the original data rather than inferred from the factory sizes.
+  What each state *does on a tick* is deliberately **not** in this short form (§0: animation is out of scope and
+  a replacement may animate however it likes). An implementer that only loads, re-saves and services the riot,
+  fire and U-Drive-It hooks needs nothing more than §6.2's type → record-shape mapping plus state 4 (`QUEUE`,
+  §3.3) and state 13 (the blocked wait, §6.2). An **animation** lane would still want per-type enter/tick/exit
+  behaviour; that is a separate task.
 - ~~**Q4.** The records of aircraft and watercraft automata (helicopter, plane, boat). None occur in the corpus,
   and their Write and Read functions are not mapped here.~~ **ANSWERED 2026-10-16 (re-answers16; AT4):**
   - aircraft `0xC96E75DC`: `u16` 1 + base;
@@ -660,6 +1052,13 @@ argument types given above for script slots 11 and 12 are checked, the others ar
   - watercraft `0x096E75F5`: `u16` 2 + base.
 
   §6.4.
+  **Note (re-answers29).** The record *layouts* above come from the executable alone and stand without a sample.
+  What a save containing planes or boats would still add is **corpus validation**: a real aircraft/watercraft
+  automaton record to parse to its exact end, and a real manager record with a non-empty pair list to pin the
+  write order of §5.2's pointer-ordered map. The 421-save corpus has none, and no such save was found under
+  `Documents\SimCity 4\` in this session. To produce one: build an airport (or a marina and a ferry) in a city,
+  let it spawn aircraft/watercraft, and save. Until then, treat §6.4 and §5.2 as executable-only
+  *[compat]* facts and keep the round-trip tests of §14 item 15 driven by synthetic records.
 - ~~**Q5.** The meaning of the generator's two trailing `u32`s, the automaton base's unnamed fields, and
   `CreateAutomaton`'s mode and last three arguments.~~ **ANSWERED 2026-10-16 (re-answers16; AT5).**
   - The generator's `u32`s are the current automata group ID and the number spawned from it (§3.5).
@@ -668,6 +1067,19 @@ argument types given above for script slots 11 and 12 are checked, the others ar
     tweens, priority and group.
   - `CreateAutomaton`'s arguments 3–7 are automata flags, model key, callback target, priority and orientation
     (§7.2).
+  **Completed 2026-10-16 (re-answers29):** the **controller** and **state** records' remaining unnamed fields are
+  now named from use.
+  - The controller base's object offsets and names are in **§3.5**: the template name object (`+0x24`, characters
+    `+0x28`), the position, the age counter at `+0x50` (incremented by 1 per animation tick), the unsaved lifetime
+    limit at `+0x54` (`SetLifetime`, copied from the template at `Init`; `IsExpired` = limit > 0 and reached), the
+    automata `std::list` (head `+0x40`, size `+0x44`) and the flag dword at `+0x3C`. Two record `u32`s (`+0x38`
+    and the saved float at `+0x4C`) stay unnamed: both are 0 in the whole corpus.
+  - The state base record's offsets and stream types are exact (**§6.2**): `+0x0C` `u32`, `+0x10` `f32`, `+0x14`
+    `bool`, `+0x18` `u32`, `+0x1C` `u32`, `+0x20` `u32` (version 3 only), and `+0x24` is **not** in the record —
+    Read zeroes it. Write always emits version 3 and all seven fields.
+  **Still open:** what the state base fields and the two leftover controller fields *mean* (the state fields are
+  named from use by re-answers29's state-behaviour pass, below), and the flag-offset contradiction of §3.5
+  (`CheckFlag`/`SetFlag` test `+0x40`, the list head, while the record's flag dword is `+0x3C`).
 - ~~**Q6.** Messages `0x89D3E9F3`, `0x06CDB65A`, `0xCAD61E00`, `0xEA298D50`, `0xEAD61E16`, `0xEBFF18A3`,
   `0xA6B79611`, `0xC9DA96E7` are handled but not named in other specs.~~ **Answered (re-answers12).** The names
   come from the executable's own message-name table (pairs of ID and name around `0x00B08360`–`0x00B086F8`):
@@ -686,6 +1098,21 @@ argument types given above for script slots 11 and 12 are checked, the others ar
   are `0xC9DA96E8` dawn and `0xC9DA96E9` dusk (subscribed through message-server slot 5 at `0x0055B82B` / `0x0055B838`). Dusk calls slot 176
   (`+0x2C0`) with `(true, true)` on every vehicle of the list at `+0x38`, dawn with `(false, true)`
   (`0x00562788`–`0x005627C8`) *[inferred: headlights]*; then the base handler runs. The §10 table is corrected.
+
+- **AM1–AM12 (cores14a, answered 2026-10-16 by re-answers20; QUESTIONS.md "From the automata layer core").**
+  In brief:
+  - AM1: writers always write the current version (§4.1);
+  - AM2: the object Reads require exact versions (§4.1, §6.4);
+  - AM3: the cursor holds a layer ID, and a new manager writes 1 (§5.1);
+  - AM4: max-count refusal and eviction, and `SetMaxCount` unplaces front to back without removing (§7.2, §7.3);
+  - AM5: the controller times (§3.1);
+  - AM6: `extra` is a position (§7.1);
+  - AM7: removal matches templates (§7.1);
+  - AM8: the §6.4 layout is right, and quirk 3 is corrected (§12);
+  - AM9: the watercraft manager fails above 6 (§5.3);
+  - AM10: the trailer's IID is `0x896E714A` (§6.4);
+  - AM11: the stream-error rules (§4.1);
+  - AM12: slot 31 tracks sets of automata, and §4 field 6 is the source building counts (§4, §7.3).
 
 ## 14. Conformance tests (must exist in `engine/conformance`)
 
@@ -740,3 +1167,22 @@ Each test reads the record, checks the decoded fields, writes it back and compar
     - At (120, 0, 100) the distance equals 20, which is not below 20, so the request goes on to the bounds check
       and the shared creation.
     - At (100, 0, 100) with an orientation, the new boat's orientation is not set from the argument.
+17. **Version checks** (§4.1). Each of these fails to read: a pedestrian with `u16` 4 or 6; a vehicle, emergency
+    vehicle, patrol car or trailer with `u16` 1 or 3; a traffic manager whose incident list starts with `u16` 2; a
+    watercraft manager with `u16` 7. A watercraft manager with `u16` 5 reads as a version-5 base-only record.
+18. **Re-save** (§4.1). Reading the 22-byte version-2 vehicle manager of test 4 into a live manager and saving it
+    writes `03 00`, a version-6 base (with the group map the live manager holds: `00 00 00 00` when the scripts
+    track no building groups), the `u32` 1, the cursor 1, then `01 00 00 00 00 00` (an empty incident list).
+19. **Layer cursor** (§5.1). A new vehicle manager writes cursor 1 and a new pedestrian manager writes 1. A vehicle
+    manager record with cursor 5 re-saves 5. One with cursor 11 (no such layer) re-saves 0.
+20. **Controller times** (§3.1). Start from A = B = (23.5, day 6). `HourChanged` gives A = (24.5, 6), unnormalised,
+    and B unchanged; the controllers receive delta (1.0, 0). A tick at clock 0:00 then gives A = (0.0, 0), because
+    the day becomes 7 and 7 mod 7 is 0, and B = A.
+21. **Trailer IID** (§6.4). A trailer record whose vehicle list holds a ref to a pedestrian reads that entry as null
+    and drops it. A ref to a vehicle or a patrol car is kept.
+22. **SetMaxCount** (§7.3). A manager with max 10 holds 5 automata, the third with priority `0xFF`. `SetMaxCount(2)` keeps all
+    5 in the list (count 5). It unplaces the other four and sets max 2 and hard limit 2. A second `SetMaxCount(2)`
+    calls nothing.
+23. **Group tracking** (§7.3). `TrackAutomataGroupInstances(g, true)` with two members of g in the list makes
+    `GetInstancesOfGroup(g)` return both. A third member added later is in the set as well. `(g, false)` releases
+    the set. Neither call changes the saved record.

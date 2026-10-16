@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "advisor_subject_clamp",
+  "spec": ["advisors 2.5", "advisors 17.11"],
+  "description": "In a 64 x 64 city SetLocation(70.0, -3.0) gives (64.0, 0.0); a new subject has no location. The subject holds its object (one reference); a clone holds another.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_env", "cells": [64, 64]},
+    {"op": "adv_subject", "name": "s"},
+    {"op": "adv_expect", "object": "s", "state": {"has_location": false, "x": 0.0, "z": 0.0}},
+    {"op": "adv_subject", "name": "s", "location": [70.0, -3.0]},
+    {"op": "adv_expect", "object": "s", "state": {"has_location": true, "location": [64.0, 0.0]}},
+    {"op": "adv_subject", "name": "s", "object": "0x99"},
+    {"op": "adv_expect_refs", "refs": {"0x99": 1}},
+    {"op": "adv_subject", "name": "c", "clone_of": "s"},
+    {"op": "adv_expect", "object": "c", "state": {"location": [64.0, 0.0], "object": "0x99"}},
+    {"op": "adv_expect_refs", "refs": {"0x99": 2}},
+    {"op": "adv_subject", "name": "s", "object": "0x98"},
+    {"op": "adv_expect_refs", "refs": {"0x99": 1, "0x98": 1}}
+  ]
+}

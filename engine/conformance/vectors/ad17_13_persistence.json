@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "advisor_persistence_round_trip",
+  "spec": ["advisors 11.2", "advisors 17.13"],
+  "description": "An advisor with two advices (one active: expiry 1045, lastMonth 5, nextDay 0) and one queued event writes the version-3 record of section 11.2 (references numbered from 1 in write order). Saved and loaded through the class-object store into a new system: the advisor is back with its active map and queue; after Init the active map is empty and the advice keeps expiry 1045.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_advice", "guid": "0x100", "frequency": 10, "timeout": 45},
+    {"op": "adv_advice", "guid": "0x200", "trigger": "false", "event": "0x77"},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_set", "object": {"advisor": 23}, "month_counter": 5, "current_day": 1000},
+    {"op": "adv_day", "day": 1000, "advisor": {"advisor": 23}},
+    {"op": "adv_set", "object": {"advisor": 23}, "info": {"guid": "0x100", "last_month": 5}},
+    {"op": "adv_expect", "object": {"advice": "0x100"}, "state": {"active": true, "expiry": 1045, "next_day": 0, "last_month": 5}},
+    {"op": "adv_subject", "name": "s"},
+    {"op": "adv_push_event", "advisor": {"advisor": 23}, "event": "0x77", "subject": "s", "expect": true},
+    {"op": "adv_write", "object": {"advisor": 23}, "name": "advisor", "expect": true},
+    {"op": "adv_expect_record", "name": "advisor", "hex": "03000100000008000000506C616E6E696E6703000000426F6205000000E803000017000000010000000200000001000000F4F5098A150400000500000000000000010000000002000000F4F5098A00000000FFFFFFFF00000000007700000001000000770000000300000049D0266A"},
+
+    {"op": "adv_save", "name": "city"},
+    {"op": "adv_create"},
+    {"op": "adv_load", "name": "city", "expect": true},
+    {"op": "adv_expect", "object": "system", "state": {"loaded_from_save": true, "advisors": [23]}},
+    {"op": "adv_expect", "object": {"advisor": 23}, "state": {"active": ["0x100"], "advices": ["0x100", "0x200"], "events": {"0x77": [1]}, "queue": [["0x77", {"location": null, "object": null, "data1": 0, "data2": 0}]]}},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_expect", "object": {"advisor": 23}, "state": {"active": [], "month_counter": 5, "current_day": 1000}},
+    {"op": "adv_expect", "object": {"advice": "0x100"}, "state": {"active": false, "expiry": 1045, "loaded": false}}
+  ]
+}

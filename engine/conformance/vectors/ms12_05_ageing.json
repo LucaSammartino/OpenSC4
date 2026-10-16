@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "mysim_ageing",
+  "spec": ["mysims 4.2", "mysims 4.3", "mysims 12.5"],
+  "description": "Birth month 3; monthly steps with month counters 14, 15 and 27 (after the advisor's increment) add a year at 15 and 27 only. A blocked UI or a MySim in state 0 skips the steps.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_set", "sim": 0, "birth_month": 3},
+    {"op": "mysim_expect", "sim": 0, "state": {"age": 18}},
+    {"op": "mysim_simulate", "sim": 0, "kind": 1, "month_counter": 13},
+    {"op": "mysim_expect", "sim": 0, "state": {"age": 18, "month_counter": 14}},
+    {"op": "mysim_simulate", "sim": 0, "kind": 1, "month_counter": 14},
+    {"op": "mysim_expect", "sim": 0, "state": {"age": 19, "month_counter": 15}},
+    {"op": "mysim_simulate", "sim": 0, "kind": 1, "month_counter": 26},
+    {"op": "mysim_expect", "sim": 0, "state": {"age": 20, "month_counter": 27}},
+
+    {"op": "mysim_set", "sim": 0, "birth_month": 0},
+    {"op": "mysim_env", "ui_blocked": true},
+    {"op": "mysim_simulate", "sim": 0, "kind": 1, "month_counter": 11},
+    {"op": "mysim_expect", "sim": 0, "state": {"age": 20}, "note": "UI blocked: skipped"},
+    {"op": "mysim_env", "ui_blocked": false},
+    {"op": "adv_clear_events"},
+    {"op": "mysim_simulate", "sim": 1, "kind": 1},
+    {"op": "mysim_simulate", "sim": 1, "kind": 0},
+    {"op": "adv_expect_event_count", "filter": {"event": "activate"}, "count": 0, "note": "state 0: nothing"}
+  ]
+}

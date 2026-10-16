@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "advisor_hq_empty_lists",
+  "spec": ["advisors 7.6", "advisors 17.20"],
+  "description": "No hospitals: l_hospital_funding_l = 3.4028234e40 (FLT_MAX x 100 as a double) with a null subject, the grade minimum FLT_MAX, the counts 0.",
+  "steps": [
+    {"op": "adv_advisor", "class": "HQ", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_list", "kind": "hospitals", "groups": ["0x1513"], "items": []},
+    {"op": "adv_update_variables", "advisor": {"advisor": 23}},
+    {"op": "adv_expect_local", "name": "l_hospital_funding_l", "value": 3.4028234663852886e+40, "subject": null},
+    {"op": "adv_expect_local", "name": "l_hospital_grade_l", "value": 3.4028234663852886e+38, "subject": null},
+    {"op": "adv_expect_globals", "values": {"g_num_hospitals": 0, "g_num_treated_patients": 0}}
+  ]
+}

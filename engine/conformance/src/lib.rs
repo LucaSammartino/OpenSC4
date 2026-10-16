@@ -9,6 +9,7 @@
 //! `engine/conformance/README.md`; this crate is one implementation of it,
 //! running the vectors against `fc4-core`.
 
+pub(crate) mod advisors;
 pub(crate) mod aura;
 pub(crate) mod automata;
 pub(crate) mod budget;
@@ -31,8 +32,10 @@ pub mod json;
 pub(crate) mod landfill;
 pub(crate) mod landvalue;
 pub(crate) mod lot_developer;
+pub(crate) mod mysims;
 pub(crate) mod neighbors;
 pub(crate) mod network_manager;
+pub(crate) mod network_rules;
 pub(crate) mod occupant_manager;
 pub(crate) mod ordinance;
 pub(crate) mod parks;

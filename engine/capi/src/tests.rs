@@ -387,6 +387,101 @@ fn a_second_thread_may_read_the_clock_while_a_tick_runs() {
     unsafe { fc4_sim_destroy(sim.0) };
 }
 
+#[derive(Default)]
+struct PacingRecorder {
+    settles: RefCell<Vec<i32>>,
+}
+
+unsafe extern "C" fn paced_is_8(_user: *mut c_void, agent: fc4_agent) -> bool {
+    agent == 8
+}
+
+unsafe extern "C" fn record_settle(user: *mut c_void, julian: i32) {
+    (*(user as *const PacingRecorder)).settles.borrow_mut().push(julian);
+}
+
+#[test]
+fn deterministic_pacing_through_the_abi() {
+    // simulator.md §5.7 [choice]: the paced idle agent (8) gets exactly one
+    // settle SimIdle per day (data3 = 22), never a frame idle; the other (9)
+    // keeps the frame idle passes; settle() runs once per day, in order.
+    assert!(!fc4_pacing_set_process(7));
+    // The default; other tests in this process create cores concurrently,
+    // so this test never switches the process mode.
+    assert!(fc4_pacing_set_process(FC4_PACING_ORIGINAL));
+    assert_eq!(fc4_pacing_process(), FC4_PACING_ORIGINAL);
+    let rec = Recorder::default();
+    rec.step.set(1);
+    let pr = PacingRecorder::default();
+    let sim = make(&rec);
+    unsafe {
+        let hooks = fc4_pacing_hooks {
+            struct_size: std::mem::size_of::<fc4_pacing_hooks>() as u32,
+            user: &pr as *const PacingRecorder as *mut c_void,
+            is_paced: Some(paced_is_8),
+            settle: Some(record_settle),
+            idle_steps: None,
+        };
+        let short = fc4_pacing_hooks {
+            struct_size: 4,
+            ..hooks
+        };
+        assert!(!fc4_sim_set_pacing(sim, FC4_PACING_DETERMINISTIC, &short));
+        assert!(!fc4_sim_set_pacing(sim, 9, &hooks));
+        assert!(!fc4_sim_set_pacing(
+            std::ptr::null_mut(),
+            FC4_PACING_DETERMINISTIC,
+            &hooks
+        ));
+        for (agent, level, name) in [(7u64, 4u32, "day"), (8, 10, "ours"), (9, 10, "theirs")] {
+            assert!(fc4_sim_add_agent(sim, agent, level, name.as_ptr() as _, name.len(), 3));
+        }
+        assert!(fc4_sim_init(sim, std::ptr::null()));
+        assert!(fc4_sim_on_post_city_init(sim));
+        assert!(fc4_sim_set_pacing(sim, FC4_PACING_DETERMINISTIC, &hooks));
+        let mut mode = 9u32;
+        let mut settled = false;
+        assert!(fc4_sim_get_pacing(sim, &mut mode, &mut settled));
+        assert_eq!((mode, settled), (FC4_PACING_DETERMINISTIC, true));
+        let start = fc4_sim_get_julian_day(sim);
+        assert!(fc4_sim_set_turbo(sim, true, 50, 0));
+        for _ in 0..20 {
+            fc4_sim_on_tick(sim);
+        }
+        let end = fc4_sim_get_julian_day(sim);
+        assert!(end > start + 2, "turbo opened days: {start}..{end}");
+        let settles = pr.settles.borrow().clone();
+        // Every opened day but possibly the last is settled, in order.
+        let want: Vec<i32> = (start + 1..=end).collect();
+        assert!(
+            settles == want || settles == want[..want.len() - 1],
+            "{settles:?} {want:?}"
+        );
+        let ours: Vec<fc4_message> = rec
+            .deliveries
+            .borrow()
+            .iter()
+            .filter(|(a, m)| *a == 8 && m.type_ == 0x6695_681A)
+            .map(|(_, m)| *m)
+            .collect();
+        assert_eq!(ours.len(), settles.len());
+        assert!(ours.iter().all(|m| m.data2 == 0 && m.data3 == 22));
+        let days: Vec<i32> = ours.iter().map(|m| m.data1 as i32).collect();
+        assert_eq!(days, settles);
+        let theirs = rec.deliveries.borrow().iter().filter(|(a, _)| *a == 9).count();
+        assert!(theirs > 0, "frame idle still reaches the original's agents");
+        // Back to original: the paced agent gets frame idle again.
+        assert!(fc4_sim_set_pacing(sim, FC4_PACING_ORIGINAL, std::ptr::null()));
+        assert!(fc4_sim_get_pacing(sim, &mut mode, &mut settled));
+        assert_eq!((mode, settled), (FC4_PACING_ORIGINAL, true));
+        let before = rec.deliveries.borrow().iter().filter(|(a, _)| *a == 8).count();
+        fc4_sim_on_tick(sim);
+        let after = rec.deliveries.borrow().iter().filter(|(a, _)| *a == 8).count();
+        assert!(after > before);
+        fc4_sim_destroy(sim);
+    }
+}
+
 #[test]
 fn turbo_clock_through_the_abi() {
     // Tooling (fc4_core::Turbo): days open without the msPerDay wait, `until`

@@ -776,3 +776,29 @@ fn ci13_09_corpus_shapes() {
     assert!(load(&*i, &[1, 0], &[]));
     assert_eq!(record(&*i).0, vec![1, 0]);
 }
+
+#[test]
+fn deterministic_pacing_runs_the_rebuild_in_one_idle() {
+    // simulator.md §5.7 [choice]: one settle SimIdle rebuilds both maps;
+    // original pacing takes one step per idle.
+    let idle = CommercialMessage {
+        msg_type: msg::SIM_IDLE,
+        ..CommercialMessage::default()
+    };
+    let (h, s) = ready(8);
+    h.purposes.borrow_mut().push((1, 3));
+    assert!(s.do_message(&insert(1, OCCUPANT_TYPE_BUILDING)));
+    assert!(s.do_message(&idle));
+    assert_ne!(s.snapshot().state, state::IDLE, "original: one step");
+    let (h, d) = ready(8);
+    d.set_pacing(crate::pacing::Pacing::Deterministic);
+    h.purposes.borrow_mut().push((1, 3));
+    assert!(d.do_message(&insert(1, OCCUPANT_TYPE_BUILDING)));
+    assert!(d.do_message(&idle));
+    let st = d.snapshot();
+    assert_eq!(
+        (st.state, st.dirty),
+        (state::IDLE, false),
+        "the whole rebuild in one delivery"
+    );
+}

@@ -80,6 +80,7 @@ impl TutorialHost for Game {
     }
     fn create_window(&self) -> u64 {
         self.ev("create_window".into());
+        *self.refs.borrow_mut().entry(WINDOW).or_default() += 1; // the creation count
         WINDOW
     }
     fn init_window(&self, w: u64) {
@@ -236,7 +237,7 @@ fn t5_end_without_registry_then_save() {
     assert!(read(&t, &[0x02, 0x00, 0x01, 0, 0, 0, 0, 0xA3, 0xD3, 0x02, 0xCC]));
     g.registry_al.set(true);
     assert!(t.start_tutorial());
-    assert_eq!(g.refs(WINDOW), 1);
+    assert_eq!(g.refs(WINDOW), 2, "the two references startTutorial took (TU5)");
     assert_eq!(
         g.take_log(),
         vec!["create_window", "init_window 40", "set_active CC02D3A3 true"]
@@ -332,15 +333,57 @@ fn init_and_shutdown() {
         ]
     );
     assert!(t.shutdown());
+    // [TU5] The cheat goes first (no `cISC4App` slot 21 test), then the
+    // window (none here), then the messages in the spec's order.
     assert_eq!(
         g.take_log(),
         vec![
-            "unsubscribe EA8AE29A",
+            "unregister_cheat",
             "unsubscribe AA3840E6",
-            "unsubscribe 26C63343",
-            "unregister_cheat"
+            "unsubscribe EA8AE29A",
+            "unsubscribe 26C63343"
         ]
     );
+}
+
+/// §T 7: `Shutdown` with a running tutorial, a window and a cheat manager
+/// (TU5).
+#[test]
+fn t7_shutdown() {
+    let g = Game::new();
+    let t = system(&g);
+    g.registry_al.set(true);
+    assert!(t.init());
+    assert!(t.start_tutorial());
+    assert_eq!(t.snapshot().window, Some(WINDOW));
+    assert_eq!(g.refs(WINDOW), 2);
+    g.take_log();
+    // `Init` never registered a cheat here (`cheats_available` was false at
+    // the time); `Shutdown` unregisters one anyway, without the slot 21
+    // test, and drops both window references.
+    g.cheats.set(true);
+    assert!(t.shutdown());
+    assert_eq!(
+        g.take_log(),
+        vec![
+            "unregister_cheat",
+            "close_window 40",
+            "unsubscribe AA3840E6",
+            "unsubscribe EA8AE29A",
+            "unsubscribe 26C63343"
+        ]
+    );
+    let s = t.snapshot();
+    assert_eq!(s.window, None, "+0x40 is cleared");
+    assert_eq!(g.refs(WINDOW), 0, "both references dropped");
+    assert_eq!(s.is_tutorial, 1, "IsTutorial is left alone");
+    // The spec's "a message 0x26C63343 posted afterwards does nothing" is
+    // the unsubscribe above; the handler is also idle (end-pending was
+    // cleared by startTutorial and Shutdown does not touch it).
+    assert!(t.do_message(msg::PRE_SAVE, 0));
+    assert_eq!(g.take_log(), Vec::<String>::new());
+    assert_eq!(t.snapshot().is_tutorial, 1);
+    assert_eq!(t.snapshot().window, None);
 }
 
 #[test]
@@ -413,7 +456,7 @@ fn start_keeps_an_existing_window() {
     assert!(!t.start_tutorial());
     g.registry_al.set(true);
     assert!(t.start_tutorial());
-    assert_eq!(g.refs(WINDOW), 1);
+    assert_eq!(g.refs(WINDOW), 2, "the two references startTutorial took (TU5)");
     assert_eq!(
         g.take_log(),
         vec![

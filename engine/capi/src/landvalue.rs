@@ -257,6 +257,12 @@ fn with_lv<R>(lv: *const fc4_landvalue, fallback: R, f: impl FnOnce(&mut LandVal
     guard(fallback, || f(&mut s))
 }
 
+/// Tests: the core object's pacing (simulator.md §5.7).
+#[cfg(test)]
+pub(crate) fn test_set_pacing(lv: *mut fc4_landvalue, p: fc4_core::pacing::Pacing) {
+    with_lv(lv, (), |s| s.set_pacing(p))
+}
+
 /// Creates the core object. The host table is copied.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_landvalue_create(host: *const fc4_landvalue_host) -> *mut fc4_landvalue {

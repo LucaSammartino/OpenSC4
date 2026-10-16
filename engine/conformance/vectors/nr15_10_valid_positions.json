@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "nr15_10_valid_positions",
+  "spec": ["network-rules 5.1"],
+  "description": "An output's target must have no cell info or one whose type bits are only the evaluated type's.",
+  "steps": [
+    {"op": "nr_tiles", "text": ["#T#", "1,0,0,2,0", "3,0,0x300,0,0", "3,5,0x301,0,0"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x00020000"}},
+    {"op": "nr_evaluate", "x": 10, "z": 10, "type": "Road", "expect": [["0x300", 0, 0], ["0x301", 5, 0]]},
+    {"op": "nr_cell", "x": 11, "z": 10, "edges": {"Road": 0}},
+    {"op": "nr_evaluate", "x": 10, "z": 10, "type": "Road", "expect": [["0x300", 0, 0], ["0x301", 5, 0]]},
+    {"op": "nr_cell", "x": 11, "z": 10, "edges": {"Rail": 0}},
+    {"op": "nr_evaluate", "x": 10, "z": 10, "type": "Road", "expect": null},
+    {"op": "nr_cell", "x": 11, "z": 10, "edges": {"Road": 0, "Rail": 0}},
+    {"op": "nr_evaluate", "x": 10, "z": 10, "type": "Road", "expect": null}
+  ]
+}

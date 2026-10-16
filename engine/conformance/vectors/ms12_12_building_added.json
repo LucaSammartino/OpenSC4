@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "mysim_building_added",
+  "spec": ["mysims 3.2", "mysims 4.10", "mysims 12.12"],
+  "description": "Home at (100, 0, 100), a new building at (130, 0, 140): event 0xCA4E8986 with the building as the subject object and data1 = 50 (the distance). A fire occupant 3 m away pushes 0xEA5E4E89 with data1 3.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_building", "token": "0x700", "position": [130, 0, 140]},
+    {"op": "mysim_set", "sim": 0, "queue": []},
+    {"op": "mysim_message", "type": "0x99EF1142", "data3": "0x278128A0", "void1": "0x700", "expect": true},
+    {"op": "mysim_expect", "sim": 0, "state": {"events": ["0xCA4E8986"]}},
+    {"op": "mysim_expect_subject", "sim": 0, "event": "0xCA4E8986", "state": {"data1": 50, "object": "0x700"}},
+    {"op": "mysim_position", "occupant": "0x800", "position": [100, 0, 103]},
+    {"op": "mysim_set", "sim": 0, "queue": []},
+    {"op": "mysim_message", "type": "0x99EF1142", "data3": "0x69D25C5F", "void1": "0x800", "expect": true},
+    {"op": "mysim_expect_subject", "sim": 0, "event": "0xEA5E4E89", "state": {"data1": 3}}
+  ]
+}

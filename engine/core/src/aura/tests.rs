@@ -821,3 +821,40 @@ fn population_mapping() {
     assert_eq!(population_tract(3, 5, 4, 0), (3, 5));
     assert_eq!(population_tract(i32::MAX, 0, 4, 1), (i32::MAX, 2));
 }
+
+#[test]
+fn deterministic_pacing_runs_the_cycle_in_one_delivery() {
+    // simulator.md §5.7 [choice]: one settle SimIdle finishes the monthly
+    // cycle; the result equals the step-by-step (original) cycle.
+    let setup = || {
+        let f = Fake::new(16);
+        let s = sim(&f);
+        *f.lots.borrow_mut() = vec![residential_lot(0, 0, 3, 3, vec![(0x1020, 10)])];
+        f.pops[1].set(0, 0, 300);
+        f.crime.set(0, 0, 40);
+        f.trip.set(0, 0, 128);
+        (f, s)
+    };
+    let (_fo, original) = setup();
+    assert_eq!(original.pacing(), crate::pacing::Pacing::Original);
+    run_cycle(&original);
+    let (fd, det) = setup();
+    det.set_pacing(crate::pacing::Pacing::Deterministic);
+    det.data_mut().state = 1;
+    let idle = AuraMessage {
+        msg_type: msg::SIM_IDLE,
+        data3: 22,
+        ..Default::default()
+    };
+    assert!(det.do_message(&idle));
+    assert_eq!(det.data().state, 0, "the whole cycle in one delivery");
+    assert_eq!(
+        det.base_grid().unwrap().get(0, 0),
+        original.base_grid().unwrap().get(0, 0)
+    );
+    assert_eq!(det.mayor_rating(), original.mayor_rating());
+    assert!(fd.take_log().contains(&"post 0x2A09B21A".to_string()));
+    // Idle again: nothing to do.
+    assert!(det.do_message(&idle));
+    assert_eq!(det.data().state, 0);
+}

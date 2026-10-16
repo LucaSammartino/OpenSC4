@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "advisor_random_chance",
+  "spec": ["advisors 9", "advisors 17.18"],
+  "description": "With the multiplier state 1: the multiplier becomes 0x278DDE6D, u = f32(0x278DDE6D / 2^32 + 0.5) = 0.65450847, r = f32(u x 100) = 65.450844, so random_chance(70) = 1 and random_chance(60) = nil.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_rng", "mul": 1},
+    {"op": "adv_lua", "fn": "random_chance", "args": [70], "expect": [1]},
+    {"op": "adv_rng", "expect_mul": "0x278DDE6D"},
+    {"op": "adv_rng", "mul": 1},
+    {"op": "adv_lua", "fn": "random_chance", "args": [60], "expect": [null]},
+    {"op": "adv_rng", "mul": 1, "expect_range": 65.450844}
+  ]
+}

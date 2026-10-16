@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "advisor_ticker",
+  "spec": ["advisors 5.1", "advisors 17.8"],
+  "description": "The ticker on day 28 of a month runs the monthly step then the daily step and writes g_day 28 (with g_month, g_year, g_year_count and g_date); a jump from day 27 to day 29 in one ticker has no monthly step that month; when the city is not established the ticker chain stops (nothing done, no ticker posted).",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_env", "date": [2001, 3, 27]},
+    {"op": "adv_ticker"},
+    {"op": "adv_expect", "object": {"advisor": 23}, "state": {"month_counter": 0}},
+    {"op": "adv_clear_events"},
+    {"op": "adv_env", "date": [2001, 3, 28]},
+    {"op": "adv_ticker"},
+    {"op": "adv_expect", "object": {"advisor": 23}, "state": {"month_counter": 1, "current_day": 2451997}},
+    {"op": "adv_expect_globals", "values": {"g_day": 28, "g_month": 3, "g_year": 2001, "g_year_count": 1, "g_date": 2451997}},
+    {"op": "adv_expect_event_count", "filter": {"event": "collect_garbage"}, "count": 1},
+    {"op": "adv_expect_event_count", "filter": {"event": "ticker"}, "count": 1, "note": "the next ticker is posted"},
+    {"op": "adv_env", "date": [2001, 4, 27]},
+    {"op": "adv_ticker"},
+    {"op": "adv_env", "date": [2001, 4, 29]},
+    {"op": "adv_ticker"},
+    {"op": "adv_expect", "object": {"advisor": 23}, "state": {"month_counter": 1}, "note": "27 -> 29 in one ticker: no monthly step"},
+    {"op": "adv_env", "established": false, "date": [2001, 4, 30]},
+    {"op": "adv_clear_events"},
+    {"op": "adv_ticker"},
+    {"op": "adv_expect_events", "events": [], "note": "not established: the chain stops"}
+  ]
+}

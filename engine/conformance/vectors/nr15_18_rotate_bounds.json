@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "name": "nr15_18_rotate_bounds",
+  "spec": ["network-rules 10.4"],
+  "description": "Rotate 1 of cells (-1, 0) .. (2, 0): the cells turn to (0, -1) .. (0, 2) and the bounds become minX 0, maxX 1 (the odd-turn quirk), minZ -1, maxZ 2. A half turn is exact.",
+  "steps": [
+    {"op": "nr_load", "resource": "intersections", "text": ["[HighwayIntersectionInfo_0x100]", "CheckType=a - Road:0x00020002", "CellLayout=aaaa<", "CellLayout=.^"]},
+    {"op": "nr_int_rule", "id": "0x100", "state": {"occupied": [[-1, 0], [0, 0], [1, 0], [2, 0]], "bounds": [-1, 2, 0, 0]}},
+    {"op": "nr_int_rule", "id": "0x100", "rotate": 1, "state": {"occupied": [[0, -1], [0, 0], [0, 1], [0, 2]], "bounds": [0, 1, -1, 2], "edges": {"a": ["0x02000200", "0xFFFFFFFF", 0, "0xFFFFFFFF"]}}},
+    {"op": "nr_int_rule", "id": "0x100", "rotate": 2, "state": {"bounds": [-2, 1, 0, 0]}}
+  ]
+}

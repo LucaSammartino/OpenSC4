@@ -151,6 +151,7 @@ Offsets from the tool object; network-tools.md §2 has the rest.
 | `+0x290` | the tool's copy of the placement parameters (§2.4); tool offset = `0x290` + parameter offset |
 | `+0x2A4` | p+0x14, the re-solve tolerance of an existing cell |
 | `+0x2AC` | p+0x1C, the tunnel end slope (radians) |
+| `+0x2B0` | p+0x20, the **plane tolerance** of regular cells (§9.8) |
 | `+0x2B5` | p+0x25, byte **straight only** (street) |
 | `+0x2C4` | p+0x34, the new-cell tolerance |
 | `+0x2C8` | p+0x38, the support height threshold |
@@ -221,6 +222,7 @@ Fields that this spec uses (p = parameter offset; "—" = absent, default applie
 | `0x14` | `0xC804DD86` | re-solve tolerance of an existing cell (m) | 10 | 101 | 101 | 500 | 500 | 101 | 300 |
 | `0x18` | `0xC804DD87` | tunnel trigger slope (deg) | 35 | 25 | 20 | 89.5 | 89.5 | 40 | 89.5 |
 | `0x1C` | `0xC804DD88` | tunnel end slope (deg) | 40 | 25 | 20 | 40 | 45 | 40 | 35 |
+| `0x20` | `0xC804DD89` | plane tolerance (m), §9.8; stored as read, not converted | 35 | 15 | 15 | 15 | 15 | 15 | 15 |
 | `0x34` | `0xC804DD93` | new-cell tolerance (m) | 500 | 180 | 180 | 50000 | 40 | 180 | 40 |
 | `0x38` | `0xC804DD94` | support height threshold (m) | 45 | 10 | 10 | 10 | 10 | 10 | 10 |
 | `0x3C` | `0xC804DD95` | max height above the graded terrain with supports (m) | 55 | 30 | 30 | 30 | 30 | 30 | 30 |
@@ -233,7 +235,9 @@ Fields that this spec uses (p = parameter offset; "—" = absent, default applie
 
 The other types: light rail and monorail are like rail (slopes 25/30/25, raise 25, cell cost 50 and 100, tunnel cost
 150, clearance 7.25 and 22.4; light rail's tunnel trigger is 89); one-way and dirt road are identical to road; ground
-highway is like highway (cell cost 100, tunnel cost 200, clearance 11.25, 11.25).
+highway is like highway (cell cost 100, tunnel cost 200, clearance 11.25, 11.25). The plane tolerance p+0x20 is 35 for
+one-way and dirt road and 15 for light rail, monorail and ground highway. Power line has no exemplar, and the type info
+constructor (`0x00641F70`) never writes p+0x20, so its plane tolerance is 0 (zero-initialised static storage).
 
 p+0x25 is not read from the exemplar. It is 0, except the street's (`0x00B45679`), which is 1: the **straight only**
 flag. Properties `0xC804DD91` and `0xC804DD9A` are shipped but never read.
@@ -328,11 +332,13 @@ cannot start in water.
 ### 4.4 IdentifyLandBridgeCells
 
 Runs only for types whose `+0x354` byte is set. It marks bridge steps over land. It never lowers `v`. Its internals
-are not covered here (NG4).
+are in [network-bridges.md](network-bridges.md) §7 (NG4, answered).
 
 `Init` (`0x006269C0`) clears `+0x354` and then, for each bridge type of the network type (type info `+0x30`), tests
 the address of a field inside that bridge type record (`0x00626B53`). The address is never null, so **`+0x354` is
 set exactly when the type has at least one bridge type** *[quirk: the test was presumably meant to read the field]*.
+The field is bridge type `+0x98` (property `0x482CB44F`, a land bridge type); every shipped bridge type sets it, so the
+quirk has no shipped effect (network-bridges.md §2.5).
 
 ### 4.5 CheckForGoodTerrain (slot 69)
 
@@ -428,8 +434,9 @@ straight drag"). A non-straight drag simply gets no tunnel (step 2 needs i < the
 
 ## 7. Bridges
 
-`IdentifyBridgeCells` (`0x00632830`). Needs `AllowBridges` (slot 61), `v > 3`, a **wholly straight** drag (dragged
-count ≤ straight count) and at least one bridge type for the network type (type info `+0x30`).
+`IdentifyBridgeCells` (`0x00632830`). Needs `AllowBridges` (slot 61), `v > 3`, a **wholly straight** drag (`v` ≤
+straight count) and at least one bridge type for the network type (type info `+0x30`). The full behaviour is in
+[network-bridges.md](network-bridges.md); this section is the summary.
 
 For each step i ≥ 2 such that steps i, i−1 and i−2 are regular:
 
@@ -452,10 +459,10 @@ For each step i ≥ 2 such that steps i, i−1 and i−2 are regular:
 A crooked drag across water therefore never gets a bridge, and the later terrain pass (§4.5) cuts it at the first water
 cell with `0xF0000001` *[compat]*.
 
-### 7.1 The bridge internals: outline for a follow-up spec (NG2)
+### 7.1 The bridge internals (NG2)
 
-The span selection, the elevation and the two bridge models are too large for this spec. A follow-up spec ("network
-bridges") should cover, with these entry points:
+The span selection, the elevation and the two bridge models are specified in [network-bridges.md](network-bridges.md)
+(§4–§11). The entry points:
 
 | Part | Address | Notes |
 |---|---|---|
@@ -479,8 +486,13 @@ After the passes, if `v > 0`, `PlaceNetwork` pushes the world cache and runs (ne
 
 1. **Cell infos** (slot 71, §8.1).
 2. `AssignEdgeMajorTypes`, the grouping info for wide types, `IdentifyHighwayIntersections` (§8.2),
-   `BuildSetOfCellsToBeSolved` (the set `+0x84`), `ResolveOneWayConflicts` (one-way road only),
-   `MarkNeighborConnections`.
+   `BuildSetOfCellsToBeSolved` (the set `+0x84`, `0x006355C0`), `ResolveOneWayConflicts` (one-way road only),
+   `MarkNeighborConnections`. `BuildSetOfCellsToBeSolved` ends by taking three kinds of cell out of the set: the
+   highway-intersection cells (`0x0063B1A0`, network-rules.md §10.6), the tunnel cells (`0x00638BB0`: every cell of
+   the steps from each tunnel record's start step to its end step, stopping at the first record whose end step is
+   ≥ `+0x78`) and the bridge cells (`0x00638B40`,
+   network-bridges.md §8.3). The piece solver never chooses pieces for them; their pieces come from their own
+   inserters.
 3. `SolveNetwork(type, resolve)` (`0x00635CB0`), returning a valid count:
    1. Pad the solve set by 2 cells. Cells whose edges get special subtypes are taken out of the set for now.
    2. Multi-type intersections are solved first and removed.
@@ -521,7 +533,9 @@ On any failure `+0x78 := 0` and the world cache is popped.
 `CreateCellInfosForCurrentPlacementTiles` (`0x00633250`), for each dragged cell:
 
 - **New cell**: corner heights := the terrain altitudes; allowed range := height ± the new-cell tolerance (`+0x2C4`);
-  preferred range := ±4.25e37 (unbounded).
+  preferred range := ±4.25e37 (unbounded); **fixed** if its step kind ≠ 0, as for an existing piece. So every cell of
+  a bridge, portal or tunnel-interior step is fixed (§9.3); the corners of the bridge and portal cells are later
+  overwritten by the bridge pieces' and the portals' heights (§9.8).
 - **Existing piece in the run**: in-run; fixed if its step kind ≠ 0; allowed range := height ± the re-solve
   tolerance (`+0x2A4`); preferred range := [height, height].
 - Bridge-step and portal cells get `0x40000` and `0x80000` in `+0x08`.
@@ -658,14 +672,20 @@ highway 5.8235 and 4.1179 (20°); street 13.4256 and 9.4933 (40°); pipe 16.0 an
 
 ### 9.4 SmoothenNetwork(level) (`0x00637A80`)
 
-1. Put the intersection cells into the solved set; slot 75; `ComputeInitialSmoothingSet(level)` (`0x00637720`):
+1. Note the solved-cell count `n` (`+0x98`); put the intersection cells into the solved set
+   (`InsertIntersectionCellsIntoSolvedSet`, `0x006371E0`); slot 75; `ComputeInitialSmoothingSet(level)`
+   (`0x00636AB0`; an earlier text gave `0x00637720`, which is the vector resize below):
    - **Straight case** (dragged count = straight count = solved-cell count): the bounding box of all dragged cells,
      grown by `level` cells on each side and clipped to the city. Every cell in the box with a cell info that is not
      a tunnel interior goes into the **smoothing set** `+0xA4`. Every vertex on the box's border that is not on the
      city's edge goes into the **boundary set**: those vertices are held at the terrain.
    - **Otherwise**: the same, but the region is the union, per row, of each solved cell's span grown by `level`.
-2. Copy the bridge and tunnel elevation constraints (`0x0062FB90`, `0x006274B0`) and apply slot 77 (the plane
-   constraint for regular cells).
+   Then the solved-cell vector is cut back to its first `n` entries (`0x00637720`, a resize), so the intersection
+   cells appended in this step do not stay in it.
+2. Build the run's **height constraints** and pin the bridge and tunnel cells: `CopyBridgeElevationConstraintsIntoCellInfo`
+   (`0x0062FB90`, network-bridges.md §8.3), then the tunnel equivalent (`0x006274B0`), both appending to one local
+   list; then slot 77, `ApplyPlaneConstraintToRegularCells(list)` (§9.8). These run again at every level, before the
+   satisfier is reset, and write into the cell infos that step 4 reads.
 3. Reset the network satisfier (`+0x124`): `Shutdown`, then `Init(0.0, MaxAllowedHeight + 20.0)` (terrain slot 24;
    the 20.0 is a double, `0x00AA2010`). Networks are never placed below 0 m or more than 20 m above the highest
    allowed terrain.
@@ -683,6 +703,8 @@ else stop with success. If all levels fail, the **last** level's code is the fai
 | network height | [0, `MaxAllowedHeight` + 20] (§9.4) |
 | a new cell's corner | its terrain altitude ± the new-cell tolerance (p+0x34) |
 | a re-solved piece's corner | its height ± the re-solve tolerance (p+0x14) |
+| a regular cell's corner | within the plane height ± the plane tolerance (p+0x20), widened to include its current height (§9.8) |
+| a bridge or portal cell's corner | fixed at the bridge piece's corner or the portal's height (§9.8, network-bridges.md §8.3) |
 | any corner | ≥ the surface-water level at the vertex (§8.1) |
 | slope | type info `+0x100` / `+0x104` per cell (§9.2) |
 | change of slope | type info `+0x108` / `+0x10C` (§9.2) |
@@ -725,6 +747,98 @@ Called at commit (network-tools.md §6.1). It writes the terrain satisfier's sol
 4. If any vertex changed: `BeginLongTerrainOperation`, `RedisplayTerrain(1, 1, rect, 4)`, `EndLongTerrainOperation`.
 
 The underground tools' slot 57 is a no-op.
+
+### 9.8 Bridges, tunnels and the plane constraint (slot 77, `0x00637B90`, pop 4; answers network-bridges NB1)
+
+This is how bridges and tunnels constrain the height solve. It runs in step 2 of every `SmoothenNetwork` level
+(§9.4): after the smoothing set is known and before the satisfier is reset and fed (steps 3–5). It acts only on the
+**cell infos** (§8.1); slot 76 (§9.3) then hands their corner heights and ranges to the satisfier.
+
+**The constraint list.** A local list of 16-byte entries `{start step, end step, start height, end height}`, filled in
+this order:
+
+1. **Bridges** (`CopyBridgeElevationConstraintsIntoCellInfo`, `0x0062FB90`): one entry per bridge record, and every
+   bridge cell's corners pinned at its piece's corner heights (network-bridges.md §8.3).
+2. **Tunnels** (`0x006274B0`): for each tunnel record (`+0xE4`, 16 bytes: two heights `h0`, `h1`, then the start and
+   end steps), stopping at the first whose end step is ≥ `+0x78`: the entry `{start, end, h0, h1}`; every corner of
+   every cell of the start (portal) step gets height `h0` with its allowed range collapsed to `[h0, h0]`, and the end
+   step's cells likewise with `h1`. Interior steps are not touched *[inferred: h0 and h1 are the two portal heights of
+   §6.2]*.
+
+Bridge and portal cells are fixed (§8.1), so slot 76 pins their four corners at these heights (§9.3).
+
+**The walk** *[compat]*. For each step `s` from 0 to `+0x78 − 1` whose kind is 0 (regular; bridge, portal and tunnel
+steps are skipped):
+
+1. If no plane has been built yet, or `s` is past the current plane's far step `B`: choose the two **anchors**.
+   - `A`, `hA`: the entry with the **largest end step below `s`** (strictly): its end step and end height. None:
+     `A := s`, `hA := 0`.
+   - `B`, `hB`: the entry with the **smallest start step above `s`** (strictly): its start step and start height.
+     None: `B := +0x78 − 1`, `hB := 0`.
+
+   Build the plane (below). If its Y coefficient `b` is exactly 0, the **whole pass ends** here and no later step is
+   constrained *[quirk]*. Otherwise `m := r24(−1 / b)`.
+2. For each cell of the step and each corner `i` (cell info order, vertex `(vx, vz)`; the coordinates are converted
+   to float as unsigned values):
+   - the plane height `h := r24(r24(r24(tx + tz) + d) × m)`, with `tx := r24(r24(vx × cs) × a)`,
+     `tz := r24(r24(vz × cs) × c)` and `cs` = the cell size `+0x238`;
+   - the window: `lo := r24(h − tol)`, `hi := r24(h + tol)` with `tol` = `+0x2B0` (p+0x20, §2.4). Let `k` be the
+     corner's current height (`+0x58[i]`). If `k < lo`, `lo := k`; else if `hi < k`, `hi := k`. The window always
+     contains `k`;
+   - the allowed range (`+0x68[i]`): `min := max(min, lo)`, `max := min(max, hi)`; then, if `max < min` and
+     `min − max ≤ 0.01` (`0x00AA8A74`), `max := min`. A wider inversion is left for the satisfier to reject;
+   - the preferred range (`+0x88[i]`) is **replaced** by `[min(h, k), max(h, k)]`.
+
+**The plane** (`0x00637780`). `d` := the pen direction `+0x7C` if the straight count `+0x74` is ≥ 1, else the end
+direction `+0x80`; `d2 := (d + 4) mod 8`. With the vertex offset tables of §6.1 as `(dx, dz)` pairs (`+0x250` is the
+static table `0x00AA8AE0`, `+0x270` is `0x00AA8AA0`):
+
+- `Q1`, `Q2` := the first cell of step `A` plus `+0x250[d]` and `+0x270[d]`: the two corners of its **trailing**
+  edge;
+- `Q3`, `Q4` := the first cell of step `B` plus `+0x250[d2]` and `+0x270[d2]`: the corners of its **leading** edge.
+- If `hA ≤ 0`, `hA :=` the anchor height of `(Q1, Q2)`; if `hB ≤ 0`, `hB :=` the anchor height of `(Q3, Q4)`
+  (below). So a missing neighbour, and also an entry whose height is ≤ 0, takes its height from the terrain.
+- If `A = B` and `A ≥ +0x74` (a single step in the diagonal part): the level plane `(0, 1, 0, −hA)`.
+- Otherwise the plane through `P1 = (Q1.x × cs, hA, Q1.z × cs)`, `P2 = (Q2.x × cs, hA, Q2.z × cs)` and
+  `P3 = (Q3.x × cs, hB, Q3.z × cs)` (`Q4` is computed and not used). The coefficients (`0x005D67E0`), each operation
+  rounded to float, summed left to right:
+  - `a = (z3 − z1)·y2 + (z2 − z3)·y1 + (z1 − z2)·y3`
+  - `b = (x2 − x3)·z1 + (x3 − x1)·z2 + (x1 − x2)·z3`
+  - `c = (y1 − y2)·x3 + (y3 − y1)·x2 + (y2 − y3)·x1`
+  - `d = −((y2·z3 − z2·y3)·x1) − ((z1·y3 − y1·z3)·x2) − ((y1·z2 − z1·y2)·x3)`
+
+  For a straight run the plane is level across the drag and rises linearly from `hA` on step `A`'s trailing edge to
+  `hB` on step `B`'s leading edge. The products `x × cs` are rounded to float before use.
+
+**Anchor height of an edge `(Q, Q')`** (`0x006374B0`, once per vertex). For a vertex `v`, `t(v)` is its terrain
+altitude (terrain slot 12). `v` is **held** when one of the four cells around it, `(x, z)`, `(x, z − 1)`,
+`(x − 1, z − 1)`, `(x − 1, z)` (offset tables `0x00AA8A8C`, `0x00AA8A7C`), is inside the city, is **not** in the
+smoothing set `+0xA4`, and holds an occupant found through the tool's filter (`+0x364`, occupant manager slot 32)
+whose network flags meet the tool's layer mask `+0x360` (network occupant slot 9). Then:
+
+- `Q` held: `t(Q)`;
+- else `Q'` held: `t(Q')`;
+- else `r24(r24(t(Q') + t(Q)) × 0.5)` (`0x00A84D2C`).
+
+The vertex test first asks the lot manager (`+0x4C`, the city's lot manager; slot 26, `GetLotVertexAltitudeAdjustmentRange`, zones.md §8.7) and
+treats the vertex as held when its second output is exactly 0.0. That slot only ever outputs FLT_MAX or 32.0
+(`0x0072AEE6`–`0x0072AF17`), so lots never hold a vertex here *[quirk]*. The height used is always the terrain
+altitude, never a network or lot height.
+
+**Consequences.**
+
+- Every run of a surface tool gets a plane, with or without bridges and tunnels. With no entry, one plane joins the
+  trailing edge of step 0 to the leading edge of the last valid step, at the terrain heights there: each regular
+  corner may stray from that straight line by at most the tolerance (35 m for road, 15 m for the other shipped types),
+  or stay at its own current height if that is farther.
+- Between two structures (bridges or tunnels) the regular cells follow the straight line from the first one's end
+  height to the second one's start height. Before the first structure and after the last, the line runs to the run's
+  end, anchored on the terrain.
+- A structure's anchor edges are one cell **inside** it: the trailing edge of its end step and the leading edge of
+  its start step, at the outer height of its abutments (network-bridges.md §8.3). The line is therefore shifted by
+  one cell toward the structure *[quirk]*; with tolerances of 15 m or more and the window widening, it rarely binds.
+- Power line, with tolerance 0, gets the window `[min(h, k), max(h, k)]` on every regular corner, if its placement
+  reaches the smoothing step *[inferred]*. The underground tools' slot 77 is a no-op (§1.2).
 
 ---
 
@@ -871,8 +985,12 @@ Any code refuses the whole run (`+0x78 := 0`), even when a pass only cut it (net
   "previous result".
 - **NT4**: §12.
 - **NT5**: this spec (§3–§9).
-- **NG1, NG3, NG6, NG7** (§17, answered 2026-10-16): §9.1, §4.5, §2.3 and §10.2, §13. **NG2** partly: §7, §7.1.
-  **NG5**: §8.2 and [network-rules.md](network-rules.md) (answered 2026-10-16, re-specs17b).
+- **NG1, NG3, NG6, NG7** (§17, answered 2026-10-16): §9.1, §4.5, §2.3 and §10.2, §13. **NG2, NG4**:
+  [network-bridges.md](network-bridges.md) (answered 2026-10-16, re-specs17a). **NG5**: §8.2 and
+  [network-rules.md](network-rules.md) (answered 2026-10-16, re-specs17b).
+- **NB1** (network-bridges.md §16, answered 2026-10-16, re-answers26): §9.8 (the plane constraint and the tunnel
+  entries), §8 step 2 (the solve-set removals), §8.1 (bridge-step cells are fixed) and §9.4 step 2 (where it runs);
+  the bridge side is network-bridges.md §8.3.
 - **NM3** (network-manager.md §15): §10.3. `0x40000` MATCHES (bridge); `0x80000` MATCHES (tunnel portal);
   `0x40000000` MATCHES (supports); `0x80000000` = draft occupant.
 
@@ -890,6 +1008,11 @@ Any code refuses the whole run (`+0x78 := 0`), even when a pass only cut it (net
 8. `+0x354` (land bridges) is set for every type with a bridge type, because `Init` tests a field's address (§4.4).
 9. Type info `+0x110` is computed and never read; the p+0xA0 ids are never read, only the list's emptiness (§2.3).
 10. The satisfier's pending-pin stack (`+0x50`) is never filled (§9.1).
+11. A plane whose Y coefficient is exactly 0 ends the plane pass for the rest of the run (§9.8).
+12. The plane's anchor test asks the lot manager for a vertex range that it never reports, so lots never hold an
+    anchor vertex (§9.8).
+13. A structure anchors the plane one cell inside itself, on the inner edges of its end steps (§9.8).
+14. A bridge or tunnel height ≤ 0 cannot anchor the plane: it is replaced by the terrain anchor (§9.8).
 
 ## 17. Open questions
 
@@ -897,13 +1020,14 @@ Any code refuses the whole run (`+0x78 := 0`), even when a pass only cut it (net
   **ANSWERED 2026-10-16 (re-answers19):** §9.1 gives the exact order (identity hash, `id mod n`, 193 initial
   buckets, head insertion, the SGI resize and prime list, buckets never shrink) and corrects the pick: there is no
   "already pinned first" step; the first of equal widths wins.
-- ~~**NG2.** The bridge internals (§7).~~ **PARTLY ANSWERED 2026-10-16 (re-answers19):** §7 corrects the length map
-  offset (`+0x16C`, keyed by the step count) and gives the bridge record; §7.1 is the outline and the entry points for
-  a follow-up bridge spec.
+- ~~**NG2.** The bridge internals (§7).~~ **ANSWERED 2026-10-16 (re-specs17a):** [network-bridges.md](network-bridges.md).
+  Earlier (re-answers19): §7 corrected the length map offset (`+0x16C`, keyed by the step count) and gave the bridge
+  record.
 - ~~**NG3.** Who fills the extra-cell list `+0xF0`, and whether quirk 2 can be reached in play.~~ **ANSWERED
   2026-10-16 (re-answers19):** only the intersection tool's rule auto-complete; quirk 2 is unreachable (§4.5).
-- **NG4.** `IdentifyLandBridgeCells` (§4.4). *Partly answered 2026-10-16 (re-answers19): `+0x354` is set for every
-  type with at least one bridge type (§4.4).*
+- ~~**NG4.** `IdentifyLandBridgeCells` (§4.4).~~ **ANSWERED 2026-10-16 (re-specs17a):** network-bridges.md §7 (the
+  scan and `CreateLandBridge`) and §2.5 (the `+0x354` address test reads bridge type `+0x98`, property `0x482CB44F`;
+  no shipped effect).
 - ~~**NG5.** The rule-driven piece solver and `IdentifyHighwayIntersections`.~~ **PARTLY ANSWERED 2026-10-16
   (re-answers19):** `IdentifyHighwayIntersections` is described and never fails (§8.2, quirk 7); the rule solver is
   left to a follow-up spec, outlined in §8.2. **ANSWERED 2026-10-16 (re-specs17b):** the follow-up spec is
@@ -972,3 +1096,18 @@ satisfier directly.
     never `0xF0000005`.
 24. **Supports by type** (§10.2). Road, rail and street pieces can have support info; a highway or avenue piece never
     has (`GetSupportStructureInfo` returns null), whatever its height.
+25. **Plane, flat** (§9.8). Road, straight drag (0, 10) → (10, 10), pen 4, flat terrain at 100 m, nothing built: the
+    plane is `(0, 2816, 0, −281600)`, `h` = 100 at every vertex; every regular corner's allowed range becomes
+    [65, 135] (from the new-cell range [−400, 600]) and its preferred range [100, 100].
+26. **Plane, slope** (§9.8). As test 25 with the terrain altitude `100 + 2x` at vertex x: the anchors are 100 (x = 0)
+    and 122 (x = 11); the plane is `(−352, 2816, 0, −281600)` and `h` equals the terrain. Corners at x = 5: allowed
+    [75, 145], preferred [110, 110]; at x = 11: [87, 157].
+27. **Plane window widening** (§9.8). As test 25 with the two vertices at x = 5 raised to 150: `h` = 100 there, `hi`
+    widens to 150: allowed [65, 150], preferred [100, 150]. Lowered to 40 instead: allowed [40, 135], preferred
+    [40, 100].
+28. **Held anchor** (§9.8). Road (1, 10) → (11, 10), flat at 100 except vertex (1, 11) at 110, smoothing level 0:
+    `hA` = 105 (the mean), and the corner at (6, 10) gets `h` ≈ 102.72727, allowed ≈ [67.72727, 137.72726]. With a
+    rail piece at (0, 9) (outside the level-0 smoothing set, touching vertex (1, 10)): `hA` = 100 and every `h` is 100.
+    With the rail piece at (0, 11) instead (touching (1, 11) only): `hA` = 110, `h`(6, 10) ≈ 105.45455.
+29. **Bridge cells leave the piece solve** (§8). The bridge of network-bridges.md test 8: no cell of steps 9 … 20 is
+    in the set `+0x84` after `BuildSetOfCellsToBeSolved`; the cells of steps 0 … 8 and 21 … 30 are.

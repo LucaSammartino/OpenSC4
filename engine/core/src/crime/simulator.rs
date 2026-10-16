@@ -14,6 +14,7 @@ use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::rc::Rc;
 
 use crate::grid::{add_radius_effect, CellIterator, TractGrid, IID_SIM_GRID, MAX_TRACTS};
+use crate::pacing::{self, Pacing};
 use crate::stream::{InStream, OutStream, RefValue, ResKey, SaveObject};
 
 use super::algo::{
@@ -136,6 +137,8 @@ pub struct CrimeSim {
     shared: Rc<CrimeShared>,
     token: Cell<u64>,
     d: RefCell<CrimeData>,
+    /// simulator.md §5.7: captured from [`pacing::process`] at construction.
+    pacing: Cell<Pacing>,
 }
 
 /// The fields of a record (§12) read before they are committed.
@@ -163,7 +166,32 @@ impl CrimeSim {
             shared,
             token: Cell::new(token),
             d: RefCell::new(CrimeData::default()),
+            pacing: Cell::new(pacing::process()),
         })
+    }
+
+    /// The pacing this simulator runs (simulator.md §5.7).
+    pub fn pacing(&self) -> Pacing {
+        self.pacing.get()
+    }
+
+    /// Shadows and tests: [`Pacing::Original`] keeps one step per idle.
+    pub fn set_pacing(&self, p: Pacing) {
+        self.pacing.set(p);
+    }
+
+    /// simulator.md §5.7 [choice] (deterministic pacing): the day's settle
+    /// delivery runs the monthly pipeline to completion (idle), or until it
+    /// waits (state 0 before `Init`). Returns whether it is idle.
+    pub fn settle_cycle(&self) -> bool {
+        pacing::run_to_idle(
+            || {
+                let before = self.d.borrow().state;
+                self.do_idle();
+                self.d.borrow().state != before
+            },
+            || self.d.borrow().state == STATE_IDLE,
+        )
     }
 
     pub fn token(&self) -> u64 {
@@ -313,6 +341,9 @@ impl CrimeSim {
     /// `DoMessage` (§5). Always true.
     pub fn handle_message(&self, m: CrimeMessage) -> bool {
         match m.msg_type {
+            msg::SIM_IDLE if self.pacing.get().is_deterministic() => {
+                self.settle_cycle();
+            }
             msg::SIM_NEW_DAY | msg::SIM_IDLE => self.do_idle(),
             msg::SIM_NEW_MONTH => {
                 let mut d = self.d.borrow_mut();
@@ -1324,6 +1355,23 @@ mod tests {
             ..Default::default()
         });
         assert_eq!(f.count("types"), 1);
+    }
+
+    /// simulator.md §5.7 [choice]: under deterministic pacing one settle
+    /// SimIdle runs the whole monthly pipeline.
+    #[test]
+    fn deterministic_pacing_runs_the_pipeline_in_one_idle() {
+        let (f, sim) = setup(&[]);
+        sim.set_pacing(Pacing::Deterministic);
+        sim.init();
+        assert!(sim.handle_message(msg(msg::SIM_IDLE)));
+        assert_eq!(sim.data().state, STATE_IDLE);
+        f.take();
+        sim.handle_message(msg(msg::SIM_NEW_MONTH));
+        assert_eq!(sim.data().state, 0);
+        assert!(sim.handle_message(msg(msg::SIM_IDLE)));
+        assert_eq!(sim.data().state, STATE_IDLE, "the whole pipeline in one delivery");
+        assert_eq!(f.take().last().map(String::as_str), Some("map_updated"));
     }
 
     /// Test 13.

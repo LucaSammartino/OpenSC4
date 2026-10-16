@@ -289,11 +289,13 @@ void ReadDepartments(cFC4ISC4BudgetSimulator* budget, Depts& out) {
     out.truncated = false;
     if (budget == nullptr || !StlNodeAllocator::Available()) return;
     GameVector<GameBudgetGroupInfo> groups;
-    if (!budget->GetAllGroups(groups)) return;
+    // [abi-ret] Slots 29 and 31 (interfaces.tsv eax-or-void) return no meaningful value (budget.md §6, the
+    // closing rule): the SDK's bool is a leftover AL. Judge by the vectors only.
+    budget->GetAllGroups(groups);
     out.listed = true;
     for (GameBudgetGroupInfo& g : groups) {
         GameVector<cISC4DepartmentBudget*> depts;
-        if (!budget->GetDepartmentBudgetsInGroup(g.groupID, depts)) continue;
+        budget->GetDepartmentBudgetsInGroup(g.groupID, depts);  // [abi-ret] slot 31: no result (above)
         for (cISC4DepartmentBudget* raw : depts) {
             if (raw == nullptr) continue;
             cFC4ISC4DepartmentBudget* d = AsGame(raw);
@@ -478,6 +480,8 @@ struct SaveCall {
 
 void SaveStep(void* p) {
     auto* c = static_cast<SaveCall*>(p);
+    // [abi-ret] App slots 15/16 (vtables.tsv eax-or-void): no spec gives the result (question HG2); it is only
+    // reported (ok=%d in the script log), never acted on.
     c->result = c->app->SaveCity(c->fast);  // the SDK's SaveCity(bool) compiles to slot 16 (pop 4), as the game's
 }
 

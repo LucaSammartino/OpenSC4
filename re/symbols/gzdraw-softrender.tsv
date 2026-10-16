@@ -1,0 +1,51 @@
+va	name	evidence	mac_x86
+0082fd60	cGZDrawContextRenderToBuffer::QueryInterface	slot 0 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	00460946
+0082fd90	cGZDrawContextRenderToBuffer::SetClipRect	slot 6 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	0046097e
+0082fdb0	cGZDrawContextRenderToBuffer::SetGradientTransform	slot 12 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	00461938
+0082fe60	cGZDrawContextRenderToBuffer::ClearBltTiling	slot 14 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	004609a0
+0082fe70	cGZDrawContextRenderToBuffer::SetBltTiling	slot 15 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	004609b0
+0082fea0	cGZDrawContextRenderToBuffer::SetAlphaBlend	slot 8 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	004609e6
+0082feb0	cGZDrawContextRenderToBuffer::SetBltModulate	slot 9 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	004609f8
+0082fec0	cGZDrawContextRenderToBuffer::SetAntialiasing	slot 10 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	00460a06
+0082fed0	cGZDrawContextRenderToBuffer::LockTarget	slot 19 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	00460a20
+0082ff00	nGZDrawSoftRender::cISpanRender::~cISpanRender (deleting destructor, slot 0 of the five span renderer vtables)	sets vtable 00AC17AC, deletes when flag 1; slot 0 of vtables 00AC182C/44/5C/74/8C	007ab2c6
+0082ff20	cGZDrawContextRenderToBuffer::Shutdown	slot 4 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	00460e92
+0082ff70	cGZDrawContextRenderToBuffer::SetColorTable	slot 7 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	00460a7a
+0082ffd0	cGZDrawContextRenderToBuffer::SetBltSource	slot 13 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	00461a42
+008302a0	cGZDrawContextRenderToBuffer::Suspend	slot 17 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	00460ada
+008302c0	cGZDrawContextRenderToBuffer::Resume	slot 18 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	00460b08
+008302e0	cGZDrawContextRenderToBuffer::DrawPreclippedSpanList	slot 22 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)	00460b36
+008306c0	cGZDrawContextRenderToBuffer::Release	slot 2 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21); decrements +0x4, on zero deletes the span renderer at +0xB0 and releases +0x24 and +0x8	00461906
+00830710	cGZDrawContextRenderToBuffer::Init	slot 3 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21); QueryInterface 0x20732180 on the buffer, then by its color type creates the span renderer at +0xB0 (2: 0xac188c, 4/6: 0xac182c, 5: 0xac1844, 7: 0xac185c, 8/9: 0xac1874)	00461652
+008310b0	nGZDrawSoftRender::cSpanRender1555::RenderSolid	slot 1 of vtable 00AC182C (Mac vtable slot order)	00465b50
+00831100	nGZDrawSoftRender::cSpanRender1555::RenderGradient	slot 2 of vtable 00AC182C (Mac vtable slot order)	00465b9e
+00831200	nGZDrawSoftRender::cSpanRender1555::RenderAlpha	slot 3 of vtable 00AC182C (Mac vtable slot order)	00465ca0
+008312d0	nGZDrawSoftRender::cSpanRender1555::RenderAlphaGradient	slot 4 of vtable 00AC182C (Mac vtable slot order)	00465d86
+00831470	nGZDrawSoftRender::cSpanRender1555::RenderBlt	slot 5 of vtable 00AC182C (Mac vtable slot order); indexes the 14x12 blit dispatch table ending at 00AC1B44	00465f2e
+0083de50	nGZDrawSoftRender::cSpanRender565::RenderSolid	slot 1 of vtable 00AC1844 (Mac vtable slot order)	0046565c
+0083dea0	nGZDrawSoftRender::cSpanRender565::RenderGradient	slot 2 of vtable 00AC1844 (Mac vtable slot order)	004656aa
+0083dfb0	nGZDrawSoftRender::cSpanRender565::RenderAlpha	slot 3 of vtable 00AC1844 (Mac vtable slot order)	004657a8
+0083e070	nGZDrawSoftRender::cSpanRender565::RenderAlphaGradient	slot 4 of vtable 00AC1844 (Mac vtable slot order)	0046588e
+0083e210	nGZDrawSoftRender::cSpanRender565::RenderBlt	slot 5 of vtable 00AC1844 (Mac vtable slot order); indexes the 14x12 blit dispatch table ending at 00AC1E28	00465a36
+00847ce0	nGZDrawSoftRender::cSpanRender4444::RenderSolid	slot 1 of vtable 00AC185C (Mac vtable slot order)	00466048
+00847d30	nGZDrawSoftRender::cSpanRender4444::RenderGradient	slot 2 of vtable 00AC185C (Mac vtable slot order)	00466096
+00847e40	nGZDrawSoftRender::cSpanRender4444::RenderAlpha	slot 3 of vtable 00AC185C (Mac vtable slot order)	00466194
+00847f10	nGZDrawSoftRender::cSpanRender4444::RenderAlphaGradient	slot 4 of vtable 00AC185C (Mac vtable slot order)	0046626a
+008480c0	nGZDrawSoftRender::cSpanRender4444::RenderBlt	slot 5 of vtable 00AC185C (Mac vtable slot order); indexes the 14x12 blit dispatch table ending at 00AC2100	0046641a
+00854e10	nGZDrawSoftRender::cSpanRender8888::RenderSolid	slot 1 of vtable 00AC1874 (Mac vtable slot order)	00466534
+00854e60	nGZDrawSoftRender::cSpanRender8888::RenderGradient	slot 2 of vtable 00AC1874 (Mac vtable slot order)	00466582
+00854f70	nGZDrawSoftRender::cSpanRender8888::RenderAlpha	slot 3 of vtable 00AC1874 (Mac vtable slot order)	0046692e
+00855040	nGZDrawSoftRender::cSpanRender8888::RenderAlphaGradient	slot 4 of vtable 00AC1874 (Mac vtable slot order)	00466680
+008551d0	nGZDrawSoftRender::cSpanRender8888::RenderBlt	slot 5 of vtable 00AC1874 (Mac vtable slot order); indexes the 14x12 blit dispatch table ending at 00AC23D8	00466814
+0085e640	nGZDrawSoftRender::cSpanRender8::RenderSolid	slot 1 of vtable 00AC188C (Mac vtable slot order)	00465458
+0085e6a0	nGZDrawSoftRender::cSpanRender8::RenderGradient	slot 2 of vtable 00AC188C (Mac vtable slot order)	004654aa
+0085e720	nGZDrawSoftRender::cSpanRender8::RenderAlpha	slot 3 of vtable 00AC188C (Mac vtable slot order)	00465526
+0085e740	nGZDrawSoftRender::cSpanRender8::RenderAlphaGradient	slot 4 of vtable 00AC188C (Mac vtable slot order)	00465534
+0085e750	nGZDrawSoftRender::cSpanRender8::RenderBlt	slot 5 of vtable 00AC188C (Mac vtable slot order); indexes the 14x12 blit dispatch table ending at 00AC26B0	00465542
+00ac17ac	nGZDrawSoftRender::cISpanRender::vftable	installed by the deleting destructor 0082FF00	
+00ac17d0	cGZDrawContextRenderToBuffer::vftable	23 slots, installed by Release 008306C0; slot 21 = Draw 00831000 (symport B1), slot 3 = Init (Mac constant 0x20732180)	
+00ac182c	nGZDrawSoftRender::cSpanRender1555::vftable	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color types 4 R5G5B5 and 6 A1R5G5B5; Mac __ZTVN17nGZDrawSoftRender15cSpanRender1555E	
+00ac1844	nGZDrawSoftRender::cSpanRender565::vftable	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 5 R5G6B5; Mac __ZTVN17nGZDrawSoftRender14cSpanRender565E	
+00ac185c	nGZDrawSoftRender::cSpanRender4444::vftable	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 7 A4R4G4B4; Mac __ZTVN17nGZDrawSoftRender15cSpanRender4444E	
+00ac1874	nGZDrawSoftRender::cSpanRender8888::vftable	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color types 8 R8G8B8 and 9 A8R8G8B8; Mac __ZTVN17nGZDrawSoftRender15cSpanRender8888E	
+00ac188c	nGZDrawSoftRender::cSpanRender8::vftable	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 2 RGB8; Mac __ZTVN17nGZDrawSoftRender12cSpanRender8E	
