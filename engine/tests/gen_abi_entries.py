@@ -138,6 +138,8 @@ INTERFACES = [
     ("cIGZSerializable(Pollution)", "cIGZSerializable", "cIGZSerializable.h", True),
     ("cIGZMessageTarget2(Pollution)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
     ("cISC4PropRequester(Pollution)", "cFC4ISC4PropRequester", FC4, True),
+    # The SDK declares slots 0-10, which match prop-developer.md section 8.1; slot 11 is the
+    # class's scalar deleting destructor (the trailing deleting destructor rule in abi_conformance_test.cpp).
     ("cISC4PropDeveloper", "cISC4PropDeveloper", "cISC4PropDeveloper.h", True),
     # Flammability (docs/specs/flammability.md §11, §12): implemented, and the
     # services it calls. The SDK declaration of the simulator matches docs/abi.
