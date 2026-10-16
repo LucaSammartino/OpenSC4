@@ -134,8 +134,10 @@ extern "C" {
  * 60 = lot developer re-answers12 (apply13 lane): fc4_lotdev_host 178 callbacks: update_lot_object_altitudes
  *      removed (the core moves the objects, LD17), add_network_connection_nodes takes the nodes
  *      (fc4_lotdev_conn_node), lot_occupants, lot_configuration_object and occupant_moved appended (taken as
- *      71 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 60u
+ *      71 on its lane; renumbered at merge);
+ * 61 = traffic re-answers10 (traffic-simulator §9.1 TG7): fc4_traffic_host grows create_line_item at
+ *      its end (404 -> 408 bytes on 32-bit) (taken as 72 on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 61u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -5586,6 +5588,13 @@ typedef struct fc4_traffic_host {
     bool (*drives_on_right)(void* user);
     bool (*view_cell_rect)(void* user, fc4_cell_rect* out);
     void (*create_accident)(void* user, int32_t x, int32_t z, int64_t duration_ms);
+    /* ABI 61 (traffic-simulator §9.1 TG7): CreateLineItem(line, false), SetName(0x6A3FF01C, name)
+     * and, when income, SetType(Income); with only_if_missing nothing when GetLineItem(line) is
+     * not null. create_department makes the department only (CreateDepartmentBudget(id,
+     * 0xAA369059), SetDepartmentName, SetMaxAllowedFundingPercentage); the core asks for its
+     * line items through this. */
+    void (*create_line_item)(void* user, uint64_t department, uint32_t line, uint32_t name, bool income,
+                             bool only_if_missing);
 } fc4_traffic_host;
 
 /* QueryInterface(iid) (§1): 1, 0x68027F37, 0x452294AA, 0xE4FDA3D4. */
