@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "tutorial_messages",
+  "spec": ["tutorial 4.3", "tutorial 5.2", "tutorial 5.4"],
+  "description": "Init subscribes to city init complete (0xEA8AE29A), Tutorial_EndTutorial (0xAA3840E6) and pre-save (0x26C63343) and, with cheats available, registers the cheat; a second Init subscribes again (quirk 4). City init complete starts a loaded tutorial whose registry entry has byte +0x10 set, only the first time per session. A tutorial whose entry is disabled stays in tutorial without a window (quirk 2). EndTutorial acts only with a window: data 0 ends the registry entry too, non-zero leaves end-pending set. Every message returns true.",
+  "steps": [
+    {"op": "tut_env", "cheats": true, "registry": {"0xCC02D3A3": true, "0x0BFDB71B": false}},
+    {"op": "tut_create"},
+    {"op": "tut_call", "method": "init", "expect": true},
+    {"op": "tut_call", "method": "init", "expect": true},
+    {"op": "tut_expect_events", "events": [
+      {"event": "subscribe", "type": "0xEA8AE29A"},
+      {"event": "subscribe", "type": "0xAA3840E6"},
+      {"event": "subscribe", "type": "0x26C63343"},
+      {"event": "register_cheat"},
+      {"event": "subscribe", "type": "0xEA8AE29A"},
+      {"event": "subscribe", "type": "0xAA3840E6"},
+      {"event": "subscribe", "type": "0x26C63343"},
+      {"event": "register_cheat"}
+    ]},
+    {"op": "tut_read", "hex": "02000100000000a3d302cc", "expect": true},
+    {"op": "tut_message", "type": "EndTutorial", "expect": true},
+    {"op": "tut_expect", "state": {"is_tutorial": 1, "window": false}},
+    {"op": "tut_message", "type": "CityInitComplete", "expect": true},
+    {"op": "tut_expect", "state": {"is_tutorial": 1, "window": true, "start_tried": true}},
+    {"op": "tut_message", "type": "EndTutorial", "data": 1, "expect": true},
+    {"op": "tut_expect", "state": {"is_tutorial": 0, "window": false, "end_pending": true}},
+    {"op": "tut_call", "method": "start_tutorial"},
+    {"op": "tut_message", "type": "EndTutorial", "data": 0, "expect": true},
+    {"op": "tut_expect", "state": {"is_tutorial": 0, "end_pending": false, "registry_active": {"0xCC02D3A3": false}}},
+    {"op": "tut_read", "hex": "02000100000000a3d302cc", "expect": true},
+    {"op": "tut_clear_events"},
+    {"op": "tut_message", "type": "CityInitComplete", "expect": true},
+    {"op": "tut_expect_events", "events": []},
+    {"op": "tut_create"},
+    {"op": "tut_read", "hex": "020001000000001bb7fd0b", "expect": true},
+    {"op": "tut_message", "type": "CityInitComplete", "expect": true},
+    {"op": "tut_expect", "state": {"is_tutorial": 1, "window": false, "start_tried": true}},
+    {"op": "tut_call", "method": "shutdown", "expect": true},
+    {"op": "tut_expect_events", "events": [
+      {"event": "unsubscribe", "type": "0xEA8AE29A"},
+      {"event": "unsubscribe", "type": "0xAA3840E6"},
+      {"event": "unsubscribe", "type": "0x26C63343"},
+      {"event": "unregister_cheat"}
+    ]}
+  ]
+}
