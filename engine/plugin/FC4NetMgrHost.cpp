@@ -208,6 +208,9 @@ void PositionCell(void* u, uint64_t n, int32_t* x, int32_t* z) {
     if (z != nullptr) *z = cz;
 }
 
+// [abi-ret] read as bool on a row whose return channel is `eax-or-void` (medium):
+// network-manager.md 752 uses `c := s.IsIntersection()` and compares it against another
+// tile's value, so a value is returned, but the spec does not pin it to `al`.
 bool IsIntersection(void*, uint64_t n) { return n != 0 && NetOf(n)->IsIntersection(); }  // slot 55
 uint32_t EdgeTypesFlag(void*, uint64_t n, uint32_t kind) {
     return n ? NetOf(n)->GetEdgeTypesFlag(static_cast<cISC4NetworkOccupant::eNetworkType>(kind)) : 0;  // slot 38
