@@ -16,10 +16,11 @@
 // can check it.
 //
 // At start-up the framework ticks about once a millisecond, so a retry
-// counted in ticks (10 checks, 60 ticks apart) gave up within ~130 ms, before
-// a loaded machine had filled the region's city list (queue runs of
-// 2026-10-15). The wait is therefore on the wall clock: a check about once a
-// second, giving up only after two minutes.
+// counted in ticks (10 checks, 60 ticks apart) spent its budget within
+// ~130 ms. The wait is therefore on the wall clock: a check about once a
+// second, giving up only after two minutes. (The "no city load" runs of
+// 2026-10-15/16 were not an empty list but GetCityLocations' meaningless
+// bool read as false; FC4Autoload.cpp now judges by the list itself.)
 #pragma once
 
 #include "FC4DiagLogic.h"

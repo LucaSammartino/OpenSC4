@@ -158,12 +158,14 @@ void AutoloadOnTick() {
         static Locations* locations = NewLocations();
         // Trivial elements: clear() only moves the end pointer.
         locations->clear();
+        // [abi] Slot 23's return channel is eax-or-void in docs/abi/interfaces.tsv:
+        // its bool is not used. The queue runs of 2026-10-15/16 that ended "no
+        // city load" had it false with the region's 85 locations filled in.
         const bool listed = region->GetCityLocations(*locations);  // slot 23
-        if (listed && !locations->empty()) {
-            if (g_empty.checks > 0) {
-                Log("autoload: the region lists %u cities after %u ms (%d empty checks)",
-                    static_cast<unsigned>(locations->size()), AutoloadWaitedMs(g_empty, now), g_empty.checks);
-            }
+        if (!locations->empty()) {
+            Log("autoload: the region lists %u cities (GetCityLocations -> %s; %u ms and %d empty checks before)",
+                static_cast<unsigned>(locations->size()), listed ? "true" : "false", AutoloadWaitedMs(g_empty, now),
+                g_empty.checks);
             Attempt(sc4, region, *locations);
         } else if (AutoloadRecordEmpty(g_empty, now)) {
             Log("autoload: the region lists no cities yet (%d); retrying in %u ms (%u ms since the first check)",

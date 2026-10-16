@@ -93,14 +93,20 @@ Verdict words:
 ## City load
 
 The plugin's autoload (`engine/plugin/FC4Autoload.h`) opens the city once the region view is up and 60 framework
-ticks have passed. While the region still lists no cities it reads the list again about once a second on the wall
-clock and gives up only 120 s after the first empty read; the log shows `autoload: the region lists no cities yet (N);
-retrying in 1000 ms (M ms since the first check)`, then `autoload: the region lists K cities after M ms (N empty
-checks)` or `autoload: the region lists no cities; giving up after M ms (N checks)`. Before the `autoloadfix` merge the
-retry counted ticks (10 reads 60 ticks apart): at start-up the ticks come about once a millisecond, so a loaded
-machine gave up within ~130 ms and the run ended "no city load within N s (region view? needs a click)" although the
-region view showed the cities (three queue runs of 2026-10-15). A DLL older than this fix can still do that; send the
-request again.
+ticks have passed: `autoload: the region lists K cities (GetCityLocations -> true/false; M ms and N empty checks
+before)`, then `autoload: LoadCity(<save>) -> true`. While the region's list is empty it reads it again about once a
+second on the wall clock and gives up only 120 s after the first empty read (`autoload: the region lists no cities yet
+(N); retrying in 1000 ms (M ms since the first check)`, last `autoload: the region lists no cities; giving up after M
+ms (N checks)`).
+
+Before the `autoloadfix` merge the autoload also required `GetCityLocations` to return true, but that return value is
+not meaningful (`eax-or-void` in `docs/abi/interfaces.tsv`): in some builds it read as false with all 85 locations of
+FC4 Test filled in, the autoload logged "the region lists no cities yet" ten times within ~130 ms (the retry counted
+ticks, which come about once a millisecond at start-up), gave up, and the run ended `no-load` ("no city load within N
+s (region view? needs a click)") with the region view showing the cities (three queue runs of 2026-10-15). The
+value is whatever the game's code leaves in the register: in the failing run it stayed false for 120 reads in one
+process, so a run that ends this way says nothing about the DLL under test; with an older DLL, rebuild on a main with
+the fix.
 
 ## How long to wait
 
