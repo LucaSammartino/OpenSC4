@@ -23,6 +23,7 @@
 #include "FC4GameMapBuild.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -1810,8 +1811,8 @@ uint32_t SessionSeedValue(bool* fixed) {
         }
     }
     if (fixed != nullptr) *fixed = false;
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01 (cRZTime)
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 }  // namespace
@@ -1869,7 +1870,7 @@ fc4_development_process* DevelopmentProcess() {
         const uint32_t seed = DevelopmentSessionSeed(&fixed);
         pp = fc4_development_process_create(seed);
         fc4::Log("development: process statics %p, session seed 0x%08X (%s)", static_cast<void*>(pp), seed,
-                 fixed ? "development_seed" : "wall clock");
+                 fixed ? "development_seed" : "session seed");
     }
     return pp;
 }
@@ -1881,7 +1882,7 @@ fc4_growth_statics* GrowthStatics() {
         const uint32_t seed = DevelopmentSessionSeed(&fixed);
         gs = fc4_growth_statics_create(seed);
         fc4::Log("development: growth statics %p, session seed 0x%08X (%s)", static_cast<void*>(gs), seed,
-                 fixed ? "development_seed" : "wall clock");
+                 fixed ? "development_seed" : "session seed");
     }
     return gs;
 }

@@ -59,6 +59,7 @@ pub mod protection;
 pub mod residential;
 pub mod rng;
 pub mod save;
+pub mod seeding;
 pub mod simgrid;
 pub mod simulator;
 pub mod stl;

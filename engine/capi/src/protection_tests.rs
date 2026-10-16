@@ -438,7 +438,7 @@ fn host(g: &Game) -> fc4_protection_host {
 
 fn create(g: &Game, kind: u32) -> *mut fc4_protection {
     let h = host(g);
-    let p = unsafe { fc4_protection_create(&h, kind, 0x51A, 7, 9) };
+    let p = unsafe { fc4_protection_create(&h, kind, 0x51A, 7) };
     assert!(!p.is_null());
     p
 }
@@ -474,14 +474,14 @@ fn list(f: impl FnOnce(crate::budget::fc4_token_callback, *mut c_void) -> u32) -
 fn create_rejects_bad_tables_and_kinds() {
     let g = Game::default();
     unsafe {
-        assert!(fc4_protection_create(std::ptr::null(), 0, 1, 0, 0).is_null());
+        assert!(fc4_protection_create(std::ptr::null(), 0, 1, 0).is_null());
         let mut h = host(&g);
-        assert!(fc4_protection_create(&h, 2, 1, 0, 0).is_null());
+        assert!(fc4_protection_create(&h, 2, 1, 0).is_null());
         h.grids.struct_size = 8;
-        assert!(fc4_protection_create(&h, 0, 1, 0, 0).is_null());
+        assert!(fc4_protection_create(&h, 0, 1, 0).is_null());
         let mut h = host(&g);
         h.struct_size = 8;
-        assert!(fc4_protection_create(&h, 0, 1, 0, 0).is_null());
+        assert!(fc4_protection_create(&h, 0, 1, 0).is_null());
         assert!(fc4_protection_shadow_create(&h, 0).is_null());
         let h = host(&g);
         assert!(fc4_protection_shadow_create(&h, 5).is_null());

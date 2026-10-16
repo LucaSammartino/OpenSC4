@@ -44,6 +44,10 @@
 //   crime_shadow = 0 / 1          the crime grid shadow (default 0; needs the
 //                                 original crime simulator; FC4CrimeShadow.h)
 //   crime_shadow_cells = N        its differing cells listed per month (default 8)
+//   session_seed = N              the process's session seed S (default: the cRZTime
+//                                 wall clock at game start; env FC4_SESSION_SEED;
+//                                 foundations §6.3, FC4Seed.h); a subsystem's own
+//                                 <key>_seed below overrides it for that subsystem
 //   crime_seed = N                the crime generator's session seed (default:
 //                                 the cRZTime clock, crime.md §9; cFC4Crime.cpp)
 //   popup_dialogs = 0 / 1         unattended runs: 0 = cISC4App::SetPopupDialogsEnabled(false)
