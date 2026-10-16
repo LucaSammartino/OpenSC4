@@ -44,6 +44,7 @@ budget is off by default (enable = <key>).
 - [x] **All ten replacements together track the original for 36 game years** (runs 77/78 on Konradshohe: the same funds curve and the same end in 2062)
 - [x] Shadows for power (290093b), plumbing (571a47e), land value and flammability (9bb91f2): in game since runs 80–83
 - [x] x87 return channels fixed (5ee5c52): our methods no longer leave values on the game's x87 stack (run 74's corruption); 0 leftovers in every run since, the 900 s soaks included
+- [x] Return-channel audit (voidbool, merged 2501158; regress run 141 PASS): every read of a game method's return value in the plugin checked against interfaces.tsv and the specs; 10 call sites that read a bool the spec does not give fixed; ctest `ret_channel_check` keeps it so (open: HG2, HG3, LD33, LD34, ZG41, ZG42)
 - [x] **Shadow scoreboard (run 103, `regress.ps1 -Tag r6c`), exact:** pollution, protection, crime, aura, flora,
   flammability, land value, residential, power (463/463), plumbing (179/179; exact since run 103, after apply6c),
   landfill (89/89), neighbours, budget, demand; 0 INCOMPLETE lines. Zones differ only by ZG17

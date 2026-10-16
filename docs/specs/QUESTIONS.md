@@ -5059,3 +5059,33 @@ TU4-TU5 (tutorial.md already has TU3).
   destroyed without running Shutdown or closing the window *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS**: it destroys the object, it does not just mark it. Release (`0x00449310` → `0x0090D997`) works on the reference-count sub-object at +0x14 (count at **+0x18**, not +0x14); at the last reference it calls the scalar deleting destructor (`0x0043F6C0` → `0x0043F780`, flag 1), which runs `0x0043F6E0` and frees the 0x44-byte object. The destructor releases the window (+0x40) **once** without closing it (`0x0043F70F`–`0x0043F718`), frees the vector buffer at +0x34, releases the Lua context (+0x30), runs the sub-object's base destructor (`0x0090D990`) and clears the global instance pointer `0x00B20E88` (`0x0043F746`). "Without running Shutdown or closing the window" MATCHES: no unsubscription, no cheat unregistration. A window that is still open keeps one of its two references (leak, *[quirk]*). tutorial.md §1.
 - ~~**TU5:** (tutorial.md §4.3, "Shutdown undoes both") what exactly does Shutdown undo? [unsubscribes the three
   messages and, when a cheat manager exists, unregisters the cheat and its handler *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS**: the bracket misses the window. Shutdown (`0x0043F330`) does, in order: (1) when the cheat manager `0x00B43CAC` exists (no `cISC4App` slot 21 test, unlike Init): slot 6 with (handler +8, 0), then slot 4 with `0x6A382BAF`; (2) when a window exists (+0x40): close (`0x00442C80`), release, clear +0x40, release again, the same window teardown as endTutorial; (3) when the message server `0x00B43CCC` exists: unsubscribe `0xAA3840E6`, `0xEA8AE29A`, `0x26C63343`; returns true. Is-tutorial, end-pending, the registry and the 3D view are not touched. tutorial.md §4.3, test 7.
+
+## From the return-channel audit (filed by the coordinator from the `voidbool` lane's report, 2026-10-16; merged `2501158`)
+
+voidbool checked every place `engine/plugin` reads a game method's return value against that slot's `ret` column in
+`docs/abi/interfaces.tsv` and the specs, fixed 10 call sites in 7 groups (F1-F7, each marked `[abi-ret]`) and added
+the checker `engine/tests/check_ret_channels.py` (ctest `ret_channel_check`). Its `SPEC_FACTS` table marks each slot
+bool, none, wide or spec-silent (`sdk`); the uses it trusts without a spec answer are listed by `--verbose` and asked
+below. When a spec answers one, move its `SPEC_FACTS` entry from "sdk" to "bool" or "none" and fix any call the checker
+then flags. The current reading is in brackets.
+
+- **HG2:** cISC4App (`vt:cSC4App::vftable_3`) return channels are in no spec: slot 10 RequestQuit (the autotest falls
+  back to AutotestFinish when it reads false), slot 13 LoadCity, slots 15/16 SaveCity, slot 21
+  GetDebugFunctionalityEnabled (it gates the cheat-code registration in `cFC4Budget.cpp` and `cFC4Simulator.cpp`).
+  Does each set AL/EAX, and with what meaning? [SDK bool trusted; LoadCity and SaveCity only logged; a garbage
+  RequestQuit true is covered by the 90 s quit grace]
+- **HG3:** framework slots read as bool with no spec: `vt:cGZCOM` slot 3 GetClassObject (every site also tests the out
+  pointer), cIGZPersistResourceManager slots 4 GetPrivateResource and 14, cIGZDate slots 4 SetDayNumber and 6
+  SetMonthDayYear (passed through by cFC4Date / cFC4Simulator), cIGZVariant slot 54 CreateValString, cIGZWin slot 36
+  GetChildAs. Is each a real bool? [SDK bool trusted]
+- **LD33:** (lot-developer.md §6.6) cSC4LotBaseTextureOccupant slot 9 UpdateVertexAltitudes(bool, bool, ptr): what does
+  it return? §6.6 passes it through as slot 45's AL. [passed through unchanged, as the original does]
+- **LD34:** lot-developer.md §11.1 gives slot 8 AbandonBuilding as "AL of SetState", and lot-records.md §13.2 gives lot
+  slot 34 SetState as "none defined". So is AbandonBuilding's result undefined? tract-developer.md's interface table
+  lists it as plain AL. [passed through; the tract core never reads it]
+- **ZG41:** lot manager slot 24 DeleteLot is "EAX undefined; error: no bool result" in zones.md §8.6 and §11.3, but
+  lot-developer.md (cross-reference table near line 1659) and tract-developer.md's interface table (line 1164) list it
+  as AL. Those two tables should be corrected. [our hosts ignore it and return true (F3)]
+- **ZG42:** (tract-developer.md, the lane's "Q8") the tract-developer.md interface table gives lot configuration manager
+  slots 18/19 (Register/UnregisterLotConfigurationFilter) as AL, but prop-lotconfig.md §B7 gives "—" (no defined
+  return). Which is right? [no defined return; the result is not tested (F6)]
