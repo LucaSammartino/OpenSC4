@@ -312,9 +312,9 @@ private:
 void HcHistoryThreads(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
     std::atomic<bool> stop{false};
     std::atomic<bool> started{false};
-    std::atomic<int> answers{0
+    std::atomic<int> answers{0};
     HcAnswerGate gate;
-};    std::thread t([&] {
+    std::thread t([&] {
         float n = 0;
         started = true;
         while (!stop.load()) {
@@ -326,7 +326,8 @@ void HcHistoryThreads(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
     while (!started.load()) std::this_thread::yield();
     const auto deadline = std::chrono::steady_clock::now() + kHcThreadDeadline;
     int seen = 0, checkpoints = 0;
-    bool answering = true;    for (int i = 0; i < 2000; ++i) {
+    bool answering = true;
+    for (int i = 0; i < 2000; ++i) {
         w.date = kHcDay0 + 200 + static_cast<uint32_t>(i);
         h->RecordHistoryData(0x0A1100E8, i);
         // From the first record on the key exists, so every query answers.
