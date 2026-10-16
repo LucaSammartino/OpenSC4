@@ -170,15 +170,25 @@ size_t g_geomListed = 0;
 // cell, the inner cells, its last cell; the middle rows at x0, at x1; the
 // last row): cells, the original changed, ours changed where the original
 // kept. Whole city session (reported at city shutdown).
-constexpr int kPlaces = 6;
+constexpr int kPlaces = 7;
 const char* const kPlaceNames[kPlaces] = {"first row x0", "first row inner", "first row x1", "middle x0", "middle x1",
-                                          "last row"};
+                                          "last row", "not on the border"};
 uint32_t g_place[kPlaces][3] = {};
+// netmgr_shadow_wide = N: the first N lot state messages are snapshotted over
+// the whole city (not only the grown rect), to see what the original changes
+// off the border; the first changes there are listed at city shutdown.
+int32_t g_wideLeft = 0;
+std::string g_wideNotes;
+size_t g_wideListed = 0;
+bool g_snapWide = false;
 
 int PlaceOf(int32_t x, int32_t z, const fc4_cell_rect& r) {
+    if (x < r.x1 || x > r.x2 || z < r.z1 || z > r.z2) return 6;
     if (z == r.z1) return x == r.x1 ? 0 : (x == r.x2 ? 2 : 1);
     if (z == r.z2) return 5;
-    return x == r.x1 ? 3 : 4;
+    if (x == r.x1) return 3;
+    if (x == r.x2) return 4;
+    return 6;
 }
 std::map<uint64_t, uint32_t> g_msgWrites;
 struct PerMessage {
@@ -219,6 +229,7 @@ void ReadSettings() {
     if (g_settingsRead) return;
     g_settingsRead = true;
     g_enabled = SettingInt("netmgr_shadow", "FC4_NETMGR_SHADOW", 0) != 0;
+    g_wideLeft = static_cast<int32_t>(SettingInt("netmgr_shadow_wide", "FC4_NETMGR_SHADOW_WIDE", 0));
     std::string order = Setting("netmgr_shadow_order", "FC4_NETMGR_SHADOW_ORDER");
     for (char& c : order) c = static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c);
     g_late = order != "early";
@@ -1086,13 +1097,17 @@ void TakeSnapshot(void* p) {
     if ((r.x2 - r.x1 + 1) * (r.z2 - r.z1 + 1) > kMaxSnapCells) return;
     int32_t cx = 0, cz = 0;
     g_lhost.city_size(g_lhost.user, &cx, &cz);
-    for (int32_t z = r.z1; z <= r.z2; ++z) {
-        for (int32_t x = r.x1; x <= r.x2; ++x) {
+    g_snapWide = m.type == kMsgLotStateChanged && g_wideLeft > 0;
+    if (g_snapWide) --g_wideLeft;
+    const fc4_cell_rect area = g_snapWide ? fc4_cell_rect{0, 0, cx - 1, cz - 1} : r;
+    for (int32_t z = area.z1; z <= area.z2; ++z) {
+        for (int32_t x = area.x1; x <= area.x2; ++x) {
             if (x < 0 || z < 0 || x >= cx || z >= cz) continue;
             const uint64_t n = g_lhost.find_network_tile(g_lhost.user, x, z, 0x1F4F);  // borrowed
             if (n == 0) continue;
             SnapCell c{x, z, NetOf(n)->GetVariation() & 0xFFu};
-            if (cISC4NetworkLotManager* nlm = g_city ? g_city->GetNetworkLotManager() : nullptr) {
+            const bool inRect = x >= r.x1 && x <= r.x2 && z >= r.z1 && z <= r.z2;
+            if (cISC4NetworkLotManager* nlm = inRect && g_city ? g_city->GetNetworkLotManager() : nullptr) {
                 c.zone = static_cast<int32_t>(nlm->GetZoneTypeForNetwork(x, z));  // slot 9
                 c.wealth = static_cast<int32_t>(nlm->GetWealthForNetwork(x, z));  // slot 10
             }
@@ -1118,6 +1133,10 @@ void PmNote(const char* fmt, ...) {
 
 // After the original (snapshot -> now) and ours (g_msgWrites) handled the
 // same message: whose style writes changed what.
+bool InSnapRect(const SnapCell& c) {
+    return c.x >= g_snapRect.x1 && c.x <= g_snapRect.x2 && c.z >= g_snapRect.z1 && c.z <= g_snapRect.z2;
+}
+
 void CompareMessageStyle(const Msg& m, const std::map<uint64_t, uint32_t>& afterOrig) {
     // The geometry of a message where ours changed a cell the original kept:
     // the rect, then every cell with a network tile as x,z:before/orig/ours.
@@ -1134,6 +1153,7 @@ void CompareMessageStyle(const Msg& m, const std::map<uint64_t, uint32_t>& after
                       m.d[1], g_snapRect.x1, g_snapRect.z1, g_snapRect.x2, g_snapRect.z2);
         g_geom += b;
         for (const auto& c : g_snap) {
+            if (!InSnapRect(c.second)) continue;
             auto w = g_msgWrites.find(c.first);
             const uint32_t orig = afterOrig.count(c.first) != 0 ? afterOrig.at(c.first) : c.second.before;
             char v[8] = "-";
@@ -1150,6 +1170,21 @@ void CompareMessageStyle(const Msg& m, const std::map<uint64_t, uint32_t>& after
         const uint32_t orig = afterOrig.count(c.first) != 0 ? afterOrig.at(c.first) : c.second.before;
         auto w = g_msgWrites.find(c.first);
         const bool origChanged = orig != c.second.before;
+        if (!InSnapRect(c.second)) {
+            // netmgr_shadow_wide: a cell off the message's rect.
+            ++g_place[6][0];
+            if (origChanged) ++g_place[6][1];
+            if (!origChanged && w != g_msgWrites.end() && w->second != orig) ++g_place[6][2];
+            if (origChanged && g_wideListed < 16) {
+                ++g_wideListed;
+                char b[160];
+                std::snprintf(b, sizeof(b), "%srect %d,%d..%d,%d: %d,%d %u->%u (ours %s)", g_wideNotes.empty() ? "" : ", ",
+                              g_snapRect.x1, g_snapRect.z1, g_snapRect.x2, g_snapRect.z2, c.second.x, c.second.z,
+                              c.second.before, orig, w != g_msgWrites.end() ? "wrote" : "no write");
+                g_wideNotes += b;
+            }
+            continue;
+        }
         ++pt.cells;
         if (origChanged) ++pt.origChanged;
         if (w != g_msgWrites.end() && w->second != orig) ++pt.oursChanged;
@@ -1158,6 +1193,14 @@ void CompareMessageStyle(const Msg& m, const std::map<uint64_t, uint32_t>& after
             ++g_place[place][0];
             if (origChanged) ++g_place[place][1];
             if (!origChanged && w != g_msgWrites.end() && w->second != orig) ++g_place[place][2];
+            if (place == 6 && origChanged && g_wideListed < 16) {
+                ++g_wideListed;
+                char b[160];
+                std::snprintf(b, sizeof(b), "%srect %d,%d..%d,%d: %d,%d %u->%u (ours %s)", g_wideNotes.empty() ? "" : ", ",
+                              g_snapRect.x1, g_snapRect.z1, g_snapRect.x2, g_snapRect.z2, c.second.x, c.second.z,
+                              c.second.before, orig, w != g_msgWrites.end() ? "wrote" : "no write");
+                g_wideNotes += b;
+            }
         }
         if (w == g_msgWrites.end()) {
             if (origChanged) {
@@ -1435,9 +1478,15 @@ void NetMgrShadowCityShutdown() {
             Log("netmgr shadow: lot state changed (0xE8BDA2E7) border cells with a network tile, by place in the grown "
                 "rect (cells / the original changed the variation / ours changed it where the original kept it): %s",
                 t.c_str());
+            if (!g_wideNotes.empty()) {
+                Log("netmgr shadow: the original's changes off the grown rect's border (netmgr_shadow_wide): %s",
+                    g_wideNotes.c_str());
+            }
         }
     }
     std::memset(g_place, 0, sizeof(g_place));
+    g_wideNotes.clear();
+    g_wideListed = 0;
     DropCores();
     g_city = nullptr;
     g_ctx.city = nullptr;
