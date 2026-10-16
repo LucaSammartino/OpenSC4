@@ -263,6 +263,11 @@ impl View3DWin {
         self.input_control
     }
 
+    /// `SetCurrentViewInputControl` (slot 25). Passing 0 clears the tool.
+    pub fn set_input_control(&mut self, control: u32) {
+        self.input_control = (control != 0).then_some(control);
+    }
+
     /// `RemoveAllViewInputControls(force)` (slot 27).
     ///
     /// `[inferred]` the argument is a "force"/"silent" flag; slot 27's body

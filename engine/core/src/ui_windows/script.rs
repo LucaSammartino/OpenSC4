@@ -151,8 +151,8 @@ pub fn iface_is_class_minus_one() -> bool {
 /// catalog path can be exercised without a UI script interpreter.
 #[derive(Debug, Default)]
 pub struct StoreScriptService {
-    /// The id the next window gets, for `SetID` (slot 64).
-    next_id: u32,
+    /// The token the next window gets.
+    next_id: WinToken,
     /// Whether the service answers at all (a false here models the "script
     /// service is missing" path of §5.1).
     pub present: bool,
@@ -168,17 +168,17 @@ impl StoreScriptService {
         if !self.present {
             return 0;
         }
-        self.next_id = self.next_id.wrapping_add(1);
         // *[choice]* the instance becomes the window's `GetID` (UIW-3,
         // *[inferred]* in §5.1). `GetChildWindowFromID` (slot 34) has to find
         // scripted children, and `cGZLegacyControl` names controls by
         // instance.
-        let win = store.create(req.instance);
-        if req.parent != 0 {
-            store.child_add(req.parent, win);
+        self.next_id = self.next_id.wrapping_add(1);
+        let token = self.next_id;
+        if store.adopt(token, req.instance, req.parent) {
+            token
+        } else {
+            0
         }
-        let _ = self.next_id;
-        win
     }
 }
 

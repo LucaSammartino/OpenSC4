@@ -327,6 +327,25 @@ impl WinStore {
         token
     }
 
+    /// Adopt a window the host made outside this store (§5.1's factory
+    /// returns a `cIGZWin*` the store has never seen) and parent it.
+    ///
+    /// Returns false when the token is already taken or is 0.
+    pub fn adopt(&mut self, token: WinToken, id: WinId, parent: WinToken) -> bool {
+        if token == 0 || self.wins.contains_key(&token) {
+            return false;
+        }
+        let mut w = ZWin::new(token, id);
+        w.parent = if parent != 0 { Some(parent) } else { None };
+        self.wins.insert(token, w);
+        if parent != 0 {
+            if let Some(p) = self.wins.get_mut(&parent) {
+                p.child_add(token);
+            }
+        }
+        true
+    }
+
     pub fn get(&self, token: WinToken) -> Option<&ZWin> {
         self.wins.get(&token)
     }

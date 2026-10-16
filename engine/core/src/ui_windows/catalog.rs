@@ -92,7 +92,6 @@ pub trait CatalogHost {
     /// caller; see question 3 in the module docs.
     fn create_window_from_script(
         &mut self,
-        store: &mut WinStore,
         group: u32,
         parent: WinToken,
         instance: u32,
@@ -298,7 +297,7 @@ fn invoke(
     // script group 0x96A006B0 (§4.3, conformance test 16), not a window ID.
     let parent = view.as_igzwin();
     store.push(WinOp::CreateWindow { parent, group: UI_SCRIPT_GROUP, instance });
-    let Some(win) = host.create_window_from_script(store, UI_SCRIPT_GROUP, parent, instance) else {
+    let Some(win) = host.create_window_from_script(UI_SCRIPT_GROUP, parent, instance) else {
         // Conformance test 17: a null create writes no field, calls no
         // AddMessageFilter, and leaves the previous menu closed.
         store.push(WinOp::WindowCreated { token: 0, ok: false });
@@ -308,6 +307,10 @@ fn invoke(
             InvokeResult::Toggled
         };
     };
+    // The factory produced a window the store has never seen (§5.1: it comes
+    // back as a `cIGZWin*` in EAX). Adopt it and parent it to the view's own
+    // window sub-object — conformance test 15.
+    store.adopt(win, instance, parent);
     store.push(WinOp::WindowCreated { token: win, ok: true });
 
     // (4) The generator interface: QueryInterface(0x5386D516) on the new
@@ -445,6 +448,7 @@ mod tests {
         released: Vec<u64>,
         flags: Vec<(WinToken, u32, bool)>,
         aligns: Vec<(u32, u32, u32, u32)>,
+        minted: u64,
     }
 
     impl TestHost {
@@ -457,6 +461,7 @@ mod tests {
                 released: Vec::new(),
                 flags: Vec::new(),
                 aligns: Vec::new(),
+                minted: 0,
             }
         }
     }
@@ -464,17 +469,14 @@ mod tests {
     impl CatalogHost for TestHost {
         fn create_window_from_script(
             &mut self,
-            store: &mut WinStore,
             _group: u32,
-            parent: WinToken,
-            instance: u32,
+            _parent: WinToken,
+            _instance: u32,
         ) -> Option<WinToken> {
             if self.create_ok {
-                let win = store.create(instance);
-                if parent != 0 {
-                    store.child_add(parent, win);
-                }
-                Some(win)
+                // A window the store has never seen: `invoke` adopts it.
+                self.minted += 1;
+                Some(0x9000 + self.minted)
             } else {
                 None
             }

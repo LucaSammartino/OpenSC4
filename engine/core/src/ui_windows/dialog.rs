@@ -36,7 +36,7 @@
 //! **nesting count**, so a harness must not read it as "how many advisor
 //! popups are open" (conformance test 23).
 
-use super::message::{GzMessage, Handled, MsgKind, PARAM_ADVICE};
+use super::message::{GzMessage, Handled, MsgKind};
 use super::win::{WinToken, WinStore};
 
 /// The window property the advice is reached under (§6.2).
