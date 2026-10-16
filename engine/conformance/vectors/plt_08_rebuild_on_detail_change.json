@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "name": "lot_config_rebuild_on_detail_change",
+  "spec": ["prop-lotconfig B3.1", "prop-lotconfig B4.1", "prop-lotconfig Q10", "prop-lotconfig T8"],
+  "description": "A small catalogue instead of the shipped 1908 configurations: 0x11 (family 0x900; building and a LOD-1 prop), 0x12 (family 0x901; building and a LOD-0 prop) and 0x13 (family 0x900; building, a LOD-0 prop and a LOD-2 texture). Init at detail 3: 3 configurations, 7 objects. Shutdown, detail 1, Init: the catalogue is unloaded and rebuilt: the same 3 configurations, 5 objects, new configuration objects (the old ones released). Init again at detail 1: no reload (the same objects). The family set keeps its IDs.",
+  "steps": [
+    {"op": "lcm_env", "detail": 3},
+    {"op": "lcm_lot_exemplar", "id": "0x11", "families": ["0x900"], "objects": [
+      [0, 48, 0, 0, 0, 0, 0, 0, 1048576, 1048576, 0, 1, 113],
+      [1, 16, 0, 0, 0, 0, 0, 0, 1048576, 1048576, 0, 2, 161]
+    ]},
+    {"op": "lcm_lot_exemplar", "id": "0x12", "families": ["0x901"], "objects": [
+      [0, 48, 0, 0, 0, 0, 0, 0, 1048576, 1048576, 0, 1, 113],
+      [1, 0, 0, 0, 0, 0, 0, 0, 1048576, 1048576, 0, 2, 161]
+    ]},
+    {"op": "lcm_lot_exemplar", "id": "0x13", "families": ["0x900"], "objects": [
+      [0, 48, 0, 0, 0, 0, 0, 0, 1048576, 1048576, 0, 1, 113],
+      [1, 0, 0, 0, 0, 0, 0, 0, 1048576, 1048576, 0, 2, 161],
+      [2, 32, 0, 0, 0, 0, 0, 0, 1048576, 1048576, 0, 3, 4660]
+    ]},
+    {"op": "lcm_create"},
+    {"op": "lcm_init", "expect": true},
+    {"op": "lcm_call", "method": "configuration_count", "expect": 3},
+    {"op": "lcm_call", "method": "object_count", "expect": 7},
+    {"op": "lcm_call", "method": "family_id_set", "expect": ["0x900", "0x901"]},
+    {"op": "lcm_expect", "state": {"loaded": true, "detail": 3}},
+    {"op": "lcm_remember", "id": "0x11", "as": "high"},
+    {"op": "lcm_shutdown", "expect": true},
+    {"op": "lcm_env", "detail": 1},
+    {"op": "lcm_init", "expect": true},
+    {"op": "lcm_call", "method": "configuration_count", "expect": 3},
+    {"op": "lcm_call", "method": "object_count", "expect": 5},
+    {"op": "lcm_expect", "state": {"loaded": true, "detail": 1}},
+    {"op": "lcm_expect_same", "id": "0x11", "as": "high", "same": false},
+    {"op": "lcm_expect_refs", "refs": {"high": 0}},
+    {"op": "lcm_remember", "id": "0x11", "as": "low"},
+    {"op": "lcm_shutdown", "expect": true},
+    {"op": "lcm_init", "expect": true},
+    {"op": "lcm_expect_same", "id": "0x11", "as": "low", "same": true},
+    {"op": "lcm_expect_refs", "refs": {"low": 1}},
+    {"op": "lcm_call", "method": "family_id_set", "expect": ["0x900", "0x901"]}
+  ]
+}
