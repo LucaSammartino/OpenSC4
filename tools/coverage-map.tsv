@@ -94,12 +94,14 @@ cSC4AirportDeveloper	port developers	simulation	port-developers.md	core/src/port
 cSC4SeaportDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	-	-
 cSC4PropDeveloper	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	-
 cSC4WealthRequester	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	-
-cSC4NetworkTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
+cSC4NetworkTool	network tools	simulation	network-tools.md,network-geometry.md,network-bridges.md	-	-	-
 cSC4PowerLineTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4UndergroundNetworkTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4PipeTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4VertexHtConstraintSatisfier	network tools	simulation	network-geometry.md	-	-	-
 cSC4NetworkCellInfo	network tools	simulation	network-geometry.md	-	-	-
+fn:ReadBridge*	network tools	simulation	network-bridges.md	-	-	-
+(anonymous_namespace)::cBridge*	network tools	simulation	network-bridges.md	-	-	-
 cSC4TileEvaluator	network rules	simulation	network-rules.md	-	-	-
 cSC4TileRule	network rules	simulation	network-rules.md	-	-	-
 cSC4TileInfo	network rules	simulation	network-rules.md	-	-	-
@@ -161,8 +163,6 @@ tControllerQInfo	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4NetworkToolUI	city tools and input	ui	-	-	-	-
 cSC4NetworkPreview	city tools and input	ui	-	-	-	-
 cSC4NetworkLayout*View	3D scene and models	renderer	-	-	-	-
-fn:ReadBridge*	network occupants	simulation	-	-	-	-
-(anonymous_namespace)::cBridge*	network occupants	simulation	-	-	-	-
 cSC4*DispatchSource	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4Network*Occupant*	network occupants	simulation	-	-	-	-
 cSC4UndergroundOccupant	network occupants	simulation	-	-	-	-
