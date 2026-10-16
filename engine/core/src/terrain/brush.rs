@@ -439,7 +439,8 @@ impl Terrain {
             };
             let threshold = if k % 2 == 0 { edge } else { diag };
             let excess = r24(r24(f64::from(self.alt[ix]) - f64::from(self.alt[nx])) - f64::from(threshold));
-            if !(excess > 0.0) {
+            // A NaN excess moves nothing.
+            if excess.is_nan() || excess <= 0.0 {
                 continue;
             }
             let mv = r24(excess * step);

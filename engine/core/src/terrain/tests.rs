@@ -712,7 +712,7 @@ fn quirk12_shipped_brushes_draw_once_per_application() {
     assert_eq!(DEFAULT_WALK_STEP, (0.5 * std::f64::consts::PI / 180.0) as f32);
     assert!(d.walks() && d.walk_angle == 0.0 && d.stroke_angle == 0.0);
     t.add_brush(brush_id::PIPE_SINK_HOLE, d);
-    assert!(t.set_brush_angles(brush_id::PIPE_SINK_HOLE, 6.28, 0.0));
+    assert!(t.set_brush_angles(brush_id::PIPE_SINK_HOLE, 6.2775, 0.0));
     assert!(!t.set_brush_angles(0x99, 0.0, 0.0));
     let mut draws = vec![];
     let mut p = sinkhole_params();
@@ -720,11 +720,11 @@ fn quirk12_shipped_brushes_draw_once_per_application() {
         draws.push(n);
         2
     });
-    // One RandomUint32Uniform(5); 6.28 + 0.0087 ≥ 2π wraps once.
+    // One RandomUint32Uniform(5); 6.2775 + 0.0087 ≥ 2π wraps once.
     assert_eq!(draws, [5]);
     let w = t.brush(brush_id::PIPE_SINK_HOLE).unwrap().walk_angle;
     let want =
-        crate::x87::r24(crate::x87::r24(f64::from(DEFAULT_WALK_STEP) + f64::from(6.28f32)) - f64::from(TWO_PI_F32))
+        crate::x87::r24(crate::x87::r24(f64::from(DEFAULT_WALK_STEP) + f64::from(6.2775f32)) - f64::from(TWO_PI_F32))
             as f32;
     assert_eq!(w, want);
     // The oriented component still drew with the stroke angle 0: only the
@@ -1410,7 +1410,10 @@ fn t22_kind5_level() {
         (t.altitude_at_vertex(10, 10), p.out, t.take_posts().len())
     };
     // step = 255 / 256 = 0.99609375.
-    assert_eq!(run(105.0, 255, false), (104.003_906, Some(VertRect::point(10, 10)), 3));
+    assert_eq!(
+        run(105.0, 255, false),
+        (104.0 + 1.0 / 256.0, Some(VertRect::point(10, 10)), 3)
+    );
     assert_eq!(run(100.5, 255, false).0, 100.0);
     assert_eq!(run(100.0, 255, false), (100.0, None, 0));
     assert_eq!(run(99.5, 255, false).0, 100.0);
