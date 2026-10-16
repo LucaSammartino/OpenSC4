@@ -8,8 +8,8 @@
 
 use super::system::{Core, InstanceState};
 use super::{
-    instance_class, kind, msg, zoom_of, DerivedSeeds, DisasterMessage, DisasterPost, DisasterRandom,
-    PIPE_BURST_FLAGS, TICK_PRIORITY,
+    instance_class, kind, msg, zoom_of, DerivedSeeds, DisasterMessage, DisasterPost, DisasterRandom, PIPE_BURST_FLAGS,
+    TICK_PRIORITY,
 };
 use crate::property::PropertyHolder;
 use crate::rng::RzRandom;

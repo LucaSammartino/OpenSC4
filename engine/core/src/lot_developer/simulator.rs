@@ -172,7 +172,10 @@ impl LotDeveloperStatics {
     /// The statics seeded from the session seed `session` (foundations §6.3
     /// *[choice]*): `derive_seed(session, 0x6C09C0F4)`.
     pub fn from_session(session: u32, seeds: FixedSeeds) -> SharedStatics {
-        LotDeveloperStatics::new(crate::seeding::seed(session, crate::seeding::keys::LOT_DEVELOPER), seeds)
+        LotDeveloperStatics::new(
+            crate::seeding::seed(session, crate::seeding::keys::LOT_DEVELOPER),
+            seeds,
+        )
     }
 
     /// Appends a draw to the trace (when tracing is on).

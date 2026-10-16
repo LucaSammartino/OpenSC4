@@ -175,7 +175,10 @@ impl TractDeveloperStatics {
     /// the session seed in place of the clock. `rand()` stays at state 1
     /// (the game never seeds it, foundations §12).
     pub fn from_session(session: u32, seeds: &dyn SeedSource) -> SharedStatics {
-        TractDeveloperStatics::new(crate::seeding::seed(session, crate::seeding::keys::TRACT_DEVELOPER), seeds)
+        TractDeveloperStatics::new(
+            crate::seeding::seed(session, crate::seeding::keys::TRACT_DEVELOPER),
+            seeds,
+        )
     }
 
     /// Appends a draw to the trace (when tracing is on). The core records

@@ -31,8 +31,8 @@ use super::tuning::{le_curve, new_ages_by_wealth, pct, workforce_curve, Populati
 use super::{
     group, history, instance, msg, state as st, wealth, CreatedEffect, DepartmentBlock, OccupantLists, ResidentialHost,
     ResidentialMessage, ResidentialRandom, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, AGE_BUCKETS,
-    BUILDING_PURPOSE_RESIDENTIAL, BUZZARDS_EFFECT, DEFAULT_TRACT_SIZE,
-    DEFAULT_WORK_BUDGET, DEVELOPERS, MAX_QUOTIENT, OCCUPANT_TYPE_BUILDING, PROP_AUTO_BUDGET, PROXIMITY_TRACT_SIZE,
+    BUILDING_PURPOSE_RESIDENTIAL, BUZZARDS_EFFECT, DEFAULT_TRACT_SIZE, DEFAULT_WORK_BUDGET, DEVELOPERS, MAX_QUOTIENT,
+    OCCUPANT_TYPE_BUILDING, PROP_AUTO_BUDGET, PROXIMITY_TRACT_SIZE,
 };
 
 /// The grids of §2. The temporary proximity grid is created in states 13–15
@@ -298,7 +298,10 @@ impl ResidentialRng {
     /// generator seeded from the wall clock uses the owning class's GZCLSID as
     /// its constant, so `derive_seed(session, 0x4990C013)`.
     pub fn from_session(session: u32, seeds: &dyn SeedSource) -> ResidentialRng {
-        ResidentialRng(RzRandom::new(crate::seeding::seed(session, crate::seeding::keys::RESIDENTIAL), seeds))
+        ResidentialRng(RzRandom::new(
+            crate::seeding::seed(session, crate::seeding::keys::RESIDENTIAL),
+            seeds,
+        ))
     }
 }
 

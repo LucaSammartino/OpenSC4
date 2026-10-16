@@ -21,8 +21,7 @@ use super::riot::{RiotSnapshot, RiotState, RiotTuning};
 use super::toxic::{ToxicSnapshot, ToxicState};
 use super::volcano::{VolcanoSnapshot, VolcanoState, VolcanoTuning};
 use super::{
-    instance_class, kind, msg, CellRect, DerivedSeeds, DisasterHost, DisasterMessage, DisasterRandom, Generator,
-    Target,
+    instance_class, kind, msg, CellRect, DerivedSeeds, DisasterHost, DisasterMessage, DisasterRandom, Generator, Target,
 };
 use crate::rng::RzRandom;
 use crate::seeding::{keys, SeedKey};

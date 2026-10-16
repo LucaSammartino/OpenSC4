@@ -145,8 +145,7 @@ pub mod keys {
     pub const FLORA: SeedKey = SeedKey::member(crate::flora::CLSID_FLORA_SIMULATOR);
     /// Fire protection simulator (`cRZRandom`, wall clock at construction;
     /// GZCLSID `0x2990C05A`, protection.md §1).
-    pub const FIRE_PROTECTION: SeedKey =
-        SeedKey::member(crate::protection::ProtectionKind::Fire.params().clsid);
+    pub const FIRE_PROTECTION: SeedKey = SeedKey::member(crate::protection::ProtectionKind::Fire.params().clsid);
     /// Police simulator (`cRZRandom`, wall clock at construction; GZCLSID
     /// `0x6990C04F`, protection.md §1).
     pub const POLICE: SeedKey = SeedKey::member(crate::protection::ProtectionKind::Police.params().clsid);
@@ -383,7 +382,13 @@ mod tests {
             instance: 5,
         };
         check(k, 0xAB00_0005);
-        assert_eq!(SeedKey::member(0x10), SeedKey::Member { clsid: 0x10, instance: 0 });
+        assert_eq!(
+            SeedKey::member(0x10),
+            SeedKey::Member {
+                clsid: 0x10,
+                instance: 0
+            }
+        );
     }
 
     #[test]

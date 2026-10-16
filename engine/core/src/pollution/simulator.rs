@@ -437,7 +437,10 @@ impl PollutionSim {
     /// `cRZRandomSuper` takes `derive(0x4C09C4D3)`.
     pub fn from_session(host: Rc<dyn PollutionHost>, token: u64, session: u32) -> Rc<PollutionSim> {
         let key = crate::seeding::keys::POLLUTION_EFFECTS;
-        let fx = RzRandomSuper::new(crate::seeding::seed(session, key), &crate::seeding::clocks(session, key));
+        let fx = RzRandomSuper::new(
+            crate::seeding::seed(session, key),
+            &crate::seeding::clocks(session, key),
+        );
         PollutionSim::with_fx(host, token, fx)
     }
 

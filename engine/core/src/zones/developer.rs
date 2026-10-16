@@ -113,7 +113,10 @@ impl ZoneDeveloperStatics {
     /// [`RNG_SEED_XOR`] with the session seed in place of the clock. Session 0
     /// gives seed `0x8C09C68A`.
     pub fn from_session(session: u32, seeds: &dyn SeedSource) -> SharedZoneStatics {
-        ZoneDeveloperStatics::new(crate::seeding::seed(session, crate::seeding::keys::ZONE_DEVELOPER), seeds)
+        ZoneDeveloperStatics::new(
+            crate::seeding::seed(session, crate::seeding::keys::ZONE_DEVELOPER),
+            seeds,
+        )
     }
 
     /// Appends a draw to the trace (when tracing is on).
