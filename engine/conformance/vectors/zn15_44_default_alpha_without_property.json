@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "zn15_44_default_alpha_without_property",
+  "spec": [
+    "zones 4",
+    "zones 10.1"
+  ],
+  "description": "ZG18 (zones \u00a710.1, the default-alpha table): Init's tuning read copies the alpha to the default alpha whenever the exemplar is found, also when it has no Zone Display Alpha (0xE94825B7). A manager initialised with an exemplar whose alpha is 128 has alpha 128 and default 128 and saves 128. A fresh manager loaded from that record has alpha 128 and the default alpha 0xFF (not saved; FreeCity4's constructor value). Init with an exemplar that has only Zone Min Cell Size: the alpha stays the saved 128 and the default alpha becomes a copy of it (128; before ZG18 it stayed 0xFF). Loaded again and initialised with no exemplar at all: both alphas are left as they were (128, 0xFF).",
+  "steps": [
+    {"op": "zone_env", "cells": [16, 16], "tuning": {"0xE94825B7": {"u8": 128}}},
+    {"op": "zone_create", "session": 0, "developer": false},
+    {"op": "zone_init", "expect": true},
+    {"op": "zone_call", "target": "manager", "method": "zone_display_alpha", "expect": 128},
+    {"op": "zone_call", "target": "manager", "method": "default_zone_display_alpha", "expect": 128},
+    {"op": "zone_save", "slot": "s0"},
+    {"op": "zone_env", "tuning": {"0xE94825B2": {"i32": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]}}},
+    {"op": "zone_load", "slot": "s0"},
+    {"op": "zone_call", "target": "manager", "method": "zone_display_alpha", "expect": 128},
+    {"op": "zone_call", "target": "manager", "method": "default_zone_display_alpha", "expect": 255},
+    {"op": "zone_init", "expect": true},
+    {"op": "zone_call", "target": "manager", "method": "zone_display_alpha", "expect": 128},
+    {"op": "zone_call", "target": "manager", "method": "default_zone_display_alpha", "expect": 128},
+    {"op": "zone_env", "tuning": null},
+    {"op": "zone_load", "slot": "s0"},
+    {"op": "zone_init", "expect": true},
+    {"op": "zone_call", "target": "manager", "method": "zone_display_alpha", "expect": 128},
+    {"op": "zone_call", "target": "manager", "method": "default_zone_display_alpha", "expect": 255}
+  ]
+}

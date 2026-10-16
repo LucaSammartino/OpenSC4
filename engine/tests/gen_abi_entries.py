@@ -268,6 +268,7 @@ INTERFACES = [
     ("cIGZMessageTarget2(LotDeveloper)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
     ("cIGZSerializable(LotDeveloper)", "cIGZSerializable", "cIGZSerializable.h", True),
     ("vt:cSC4AnimationTickManager::vftable", "cFC4ISC4AnimationTickManager", FCL, True),
+    ("cISC4NetworkManager", "cFC4ISC4NetworkManager", FCL, True),
     # The dialog closer (docs/specs/modal-dialogs.md section 3.2; tooling switch
     # close_dialogs): the window manager and the window through the compiled
     # slot order (the SDK headers are wrong for these slots), the legacy message

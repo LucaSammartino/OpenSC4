@@ -1,0 +1,213 @@
+{
+  "format": 1,
+  "name": "tr18_07_set_altitude_at_vertex",
+  "spec": [
+    "terrain 6",
+    "terrain 18.7"
+  ],
+  "description": "SetAltitudeAtVertex with the sea at 250 (the depth starts at sea - alt). A land vertex at 260 (depth -10) set to 270: the depth stays -10 (quirk 4); set to 240: below the sea, depth = 250 - 240 = 10. A water vertex at 240 (depth 10, level 250) set to 245: depth 5; set to 255: depth -5 (it keeps its level). No clamp: 5000 is kept. A locked vertex never changes. No message.",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        1,
+        1
+      ],
+      "altitudes": [
+        260,
+        300,
+        300,
+        300
+      ],
+      "sea": 250
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude_at_vertex",
+      "args": [
+        0,
+        270
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        0,
+        0
+      ],
+      "altitude": 270,
+      "depth": -10
+    },
+    {
+      "op": "ter_create",
+      "cells": [
+        1,
+        1
+      ],
+      "altitudes": [
+        260,
+        300,
+        300,
+        300
+      ],
+      "sea": 250
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude_at_vertex",
+      "args": [
+        0,
+        240
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        0,
+        0
+      ],
+      "altitude": 240,
+      "depth": 10
+    },
+    {
+      "op": "ter_create",
+      "cells": [
+        1,
+        1
+      ],
+      "altitudes": [
+        240,
+        300,
+        300,
+        300
+      ],
+      "sea": 250
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude_at_vertex",
+      "args": [
+        0,
+        245
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        0,
+        0
+      ],
+      "altitude": 245,
+      "depth": 5
+    },
+    {
+      "op": "ter_create",
+      "cells": [
+        1,
+        1
+      ],
+      "altitudes": [
+        240,
+        300,
+        300,
+        300
+      ],
+      "sea": 250
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude_at_vertex",
+      "args": [
+        0,
+        255
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        0,
+        0
+      ],
+      "altitude": 255,
+      "depth": -5
+    },
+    {
+      "op": "ter_create",
+      "cells": [
+        1,
+        1
+      ],
+      "altitudes": [
+        260,
+        300,
+        300,
+        300
+      ],
+      "sea": 250
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude_at_vertex",
+      "args": [
+        0,
+        5000
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        0,
+        0
+      ],
+      "altitude": 5000,
+      "depth": -10
+    },
+    {
+      "op": "ter_create",
+      "cells": [
+        1,
+        1
+      ],
+      "altitudes": [
+        240,
+        300,
+        300,
+        300
+      ],
+      "sea": 250
+    },
+    {
+      "op": "ter_call",
+      "method": "lock_altitude",
+      "args": [
+        0,
+        0,
+        0,
+        0,
+        true
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude_at_vertex",
+      "args": [
+        0,
+        255
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        0,
+        0
+      ],
+      "altitude": 240,
+      "depth": 10,
+      "flags": 16384
+    },
+    {
+      "op": "ter_expect_events",
+      "events": []
+    }
+  ]
+}

@@ -1783,9 +1783,9 @@ cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	28	+0x70	0049e4d0	cSC4Occupant
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	29	+0x74	0049dc80	cSC4OccupantManager::GetFirstOccupantByPosition(cISC4Occupant*&, float, float, uint32 type)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x70]; false if uninitialised; type 0 filters on type 0; 7, 10
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	30	+0x78	0049e5e0	cSC4OccupantManager::GetFirstOccupant(cISC4Occupant*&, int, int, cISC4OccupantFilter*)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): world cell; filter only; 7
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	31	+0x7C	0049dcb0	cSC4OccupantManager::GetFirstOccupant(cISC4Occupant*&, int, int, uint32 type)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x78]; type 0 literal
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	32	+0x80	0049e690	cSC4OccupantManager::GetFirstOccupantByStandardCityCell(cISC4Occupant*&, int, int, cISC4OccupantFilter*)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): re-answers5 LG4 and re-answers8 ZG11 confirmed; box x*16+0.1..(x+1)*16-0.1, strict; 7
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	32	+0x80	0049e690	cSC4OccupantManager::GetFirstOccupantByStandardCityCell(cISC4Occupant*&, int, int, cISC4OccupantFilter*)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): re-answers5 LG4 and re-answers8 ZG11 confirmed; box x*16+0.1..(x+1)*16-0.1, strict; walks the one world cell of (x*16+0.1, z*16+0.1), x/z NOT clamped (0x0049E736); constants are f32; 7; re-answers16 OM5
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	33	+0x84	0049dce0	cSC4OccupantManager::GetFirstOccupantByStandardCityCell(cISC4Occupant*&, int, int, uint32 type)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x80]; LG4/ZG11; type 0 literal
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	34	+0x88	0049e800	cSC4OccupantManager::GetFirstOccupantByStandardCityCells(cISC4Occupant*&, SC4Point<int> const*, SC4Point<int> const*, cISC4OccupantFilter*)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): clamped; null min (0,0), null max (count,count); strict; 7
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	34	+0x88	0049e800	cSC4OccupantManager::GetFirstOccupantByStandardCityCells(cISC4Occupant*&, SC4Point<int> const*, SC4Point<int> const*, cISC4OccupantFilter*)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): non-null corners clamped to 0..count-1 per axis (0x0049E827/0x0049E876); null min (0,0); null max (count,count) unclamped; strict; 7; re-answers16 OM5
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	35	+0x8C	0049dd10	cSC4OccupantManager::GetFirstOccupantByStandardCityCells(cISC4Occupant*&, SC4Point<int> const*, SC4Point<int> const*, uint32 type)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x88]; type 0 literal
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	36	+0x90	004a0670	cSC4OccupantManager::GetOccupantsByBBox(ilist&, float const* min3, float const* max3, cISC4OccupantFilter*, uint32 maxCount)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): A list, appends, AddRef each; true whenever initialised and maxCount != 0, even with no result; strict 3-axis overlap; dedup before filter; 8.2
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	37	+0x94	0049dd40	cSC4OccupantManager::GetOccupantsByBBox(ilist&, float const* min3, float const* max3, uint32 type, uint32 maxCount)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x90]; false when uninitialised; type 0 -> null filter; the 5th argument is maxCount, not a filter (corrects the re-specs11 name); 8.5
@@ -1795,7 +1795,7 @@ cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	40	+0xA0	0049e250	cSC4Occupant
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	41	+0xA4	0049ddc0	cSC4OccupantManager::GetOccupantsByStandardCityCells(ilist&, SC4Point<int> const*, SC4Point<int> const*, uint32 type, uint32 maxCount)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0xa0]; type 0 -> null filter
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	42	+0xA8	004a0d70	cSC4OccupantManager::IterateOccupantsByBBox(bool(*)(cISC4Occupant*, void*), void*, float const* min3, float const* max3, cISC4OccupantFilter*)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): true when uninitialised; min/max not null-checked; lock per cell, callbacks unlocked; local hash set; 9.1
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	43	+0xAC	0049de00	cSC4OccupantManager::IterateOccupantsByBBox(bool(*)(cISC4Occupant*, void*), void*, float const*, float const*, uint32 type)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0xa8]; false when uninitialised; type 0 -> null filter
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	44	+0xB0	004a1360	cSC4OccupantManager::IterateOccupants(bool(*)(cISC4Occupant*, void*), void*, int const* min3, int const* max3, cISC4OccupantFilter*)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): int[3] vectors, elements 0 and 2; world cells; lock held across callbacks; local hash set; true always; 9.2
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	44	+0xB0	004a1360	cSC4OccupantManager::IterateOccupants(bool(*)(cISC4Occupant*, void*), void*, int const* min3, int const* max3, cISC4OccupantFilter*)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): int[3] vectors, elements 0 and 2; world cells clamped 0..191; outer lock held across callbacks; single cell: no dedup; multi cell: per-cell AddRef batches, local hash set dedup skipped for bit-0 nodes; callback may remove its occupant; true always; 9.2; re-answers16 OM7
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	45	+0xB4	0049de40	cSC4OccupantManager::IterateOccupants(bool(*)(cISC4Occupant*, void*), void*, int const*, int const*, uint32 type)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0xb0]; type 0 -> null filter
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	46	+0xB8	0049de80	cSC4OccupantManager::IterateOccupantsByStandardCityCell(bool(*)(cISC4Occupant*, void*), void*, int const*, int const*, uint32 type)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0xbc]; the TYPED overload comes first in this pair only (SDK declaration order gives the opposite); 9.4
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	47	+0xBC	0049e370	cSC4OccupantManager::IterateOccupantsByStandardCityCell(bool(*)(cISC4Occupant*, void*), void*, int const*, int const*, cISC4OccupantFilter*)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): false when uninitialised (0x0049E487); slot 40 conversion; calls slot 42 through the vtable at 0x0049E477; 9.3
@@ -2672,7 +2672,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	46	+0xB8	00619540		0	0	via-cal
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	47	+0xBC	00619320		8	2	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	48	+0xC0	005fd7e0	std::vector<unsigned_char,std::allocator<unsigned_char>>::operator[]	0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	49	+0xC4	0061b510	cSC4NetworkOccupant::GetPathInfo	0	0	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	50	+0xC8	00619680		0	0	via-call	low	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	50	+0xC8	00619680	cSC4NetworkOccupant::ReleasePathInfo	0	0	void	medium	re-specs15b (replace): releases and clears the path info at +0x140; network-geometry.md 12 (NT4)
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	51	+0xCC	006197d0		4	1	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	52	+0xD0	006197e0	cSC4City::GetBuildingDevelopmentSimulator	0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	53	+0xD4	006196a0		12	3	eax-or-void	medium	
@@ -2703,6 +2703,21 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	77	+0x134	0061c950		8	2	eax-or
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	78	+0x138	0061c5f0		4	1	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	79	+0x13C	0061bb60	cSC4NetworkOccupant::UpdateLighting	4	1	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	80	+0x140	0061a430		8	2	edx:eax?	low	
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aa97b8	50	+0xC8	00619680	cSC4NetworkOccupant::ReleasePathInfo	0	0	void	medium	re-specs15b (new): base, shared
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aa97b8	84	+0x150	0065ae30	cSC4UndergroundOccupant::SetVertexHeights	4	1	unknown	medium	re-specs15b (new): network-tools.md 11
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aa97b8	86	+0x158	0065add0	cSC4UndergroundOccupant::CreateGeometry(bool)	4	1	void	medium	re-specs15b (new): rebuilds the model; network-geometry.md 12 (NT4)
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aa97b8	94	+0x178	00659dd0	cSC4UndergroundOccupant::GetTerrainHeights	4	1	unknown	medium	re-specs15b (new): network-tools.md 11
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aa97b8	95	+0x17C	0065b6b0	cSC4UndergroundOccupant::SetTerrainHeights	4	1	unknown	medium	re-specs15b (new): network-tools.md 11
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aaa3c8	50	+0xC8	00619680	cSC4NetworkOccupant::ReleasePathInfo	0	0	void	medium	re-specs15b (new): base, shared
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aaa3c8	84	+0x150	0065ae30	cSC4UndergroundOccupant::SetVertexHeights	4	1	unknown	medium	re-specs15b (new): network-tools.md 11
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aaa3c8	86	+0x158	0065add0	cSC4UndergroundOccupant::CreateGeometry(bool)	4	1	void	medium	re-specs15b (new): rebuilds the model; network-geometry.md 12 (NT4)
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aaa3c8	94	+0x178	00659dd0	cSC4UndergroundOccupant::GetTerrainHeights	4	1	unknown	medium	re-specs15b (new): network-tools.md 11
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aaa3c8	95	+0x17C	0065b6b0	cSC4UndergroundOccupant::SetTerrainHeights	4	1	unknown	medium	re-specs15b (new): network-tools.md 11
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aaad40	50	+0xC8	00619680	cSC4NetworkOccupant::ReleasePathInfo	0	0	void	medium	re-specs15b (new): base, shared
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aaad40	84	+0x150	0065ae30	cSC4UndergroundOccupant::SetVertexHeights	4	1	unknown	medium	re-specs15b (new): network-tools.md 11
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aaad40	86	+0x158	0065add0	cSC4UndergroundOccupant::CreateGeometry(bool)	4	1	void	medium	re-specs15b (new): rebuilds the model; network-geometry.md 12 (NT4)
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aaad40	94	+0x178	00659dd0	cSC4UndergroundOccupant::GetTerrainHeights	4	1	unknown	medium	re-specs15b (new): network-tools.md 11
+cISC4NetworkOccupant(Underground)	cSC4UndergroundOccupant	00aaad40	95	+0x17C	0065b6b0	cSC4UndergroundOccupant::SetTerrainHeights	4	1	unknown	medium	re-specs15b (new): network-tools.md 11
 cISC4DisasterManager(PipeBurst)	cSC4DisasterManagerPipeBurst	00a9e66c	0	+0x0	00575650		8	2	eax-or-void	medium	tail->00577470
 cISC4DisasterManager(PipeBurst)	cSC4DisasterManagerPipeBurst	00a9e66c	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
 cISC4DisasterManager(PipeBurst)	cSC4DisasterManagerPipeBurst	00a9e66c	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
@@ -2852,35 +2867,35 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	47	+0xBC	0062c920		0	0	eax-or-void	med
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	48	+0xC0	0062cad0	cSC4NetworkTool::GetPlacementParams	4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	49	+0xC4	0062d450	cSC4NetworkTool::QueryUserForPotentialIntersections	0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	50	+0xC8	0062a5c0	cSC4NetworkTool::DestroyOccupantsAndResolve	4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	51	+0xCC	0062cd30		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	51	+0xCC	0062cd30	cSC4NetworkTool::~cSC4NetworkTool	4	1	eax-or-void	medium	re-specs15b (replace): deleting destructor, flag argument
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	52	+0xD0	0062bf60	cSC4NetworkTool::GetFailureReasonString	8	2	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	53	+0xD4	0062c980	cSC4NetworkTool::DoNetworkSpecificPlacement	8	2	al	high	re-specs14b: base stub returns false (ICF-folded); power-line override 0x00652980 returns true; PlaceNetwork 0x0063B8B3 returns true at once when it does
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	54	+0xD8	00624210	cSC4NetworkTool::CreateNetworkOccupant	16	4	via-call	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	54	+0xD8	00624210	cSC4NetworkTool::CreateNetworkOccupant	16	4	via-call	low	re-specs15b (replace): draft sets 0x80000000, real clears it; network-geometry.md 10.1
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	55	+0xDC	006258c0	cSC4NetworkTool::InsertOccupantsForSolvedCells	12	3	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	57	+0xE4	00644530		4	1	via-call	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	al	high	re-specs15b (replace): (type); terrain satisfier +0x188; network-geometry.md 9.6
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	57	+0xE4	00644530	cSC4NetworkTool::UpdateTerrainHeights	4	1	void	high	re-specs15b (replace): (&changedVertices); grading, RedisplayTerrain data4 4; network-geometry.md 9.7
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	58	+0xE8	006246a0	cSC4NetworkTool::AddCellPreview	8	2	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	59	+0xEC	006299a0	cSC4NetworkTool::UpdateOccupantHighlights	4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	60	+0xF0	00624920				forward	medium	indirect-jump dword ptr [edx + 0x44]
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	61	+0xF4	00648f00	operator.new	0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	62	+0xF8	00648f00	operator.new	0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	63	+0xFC	00648f00	operator.new	0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	64	+0x100	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	65	+0x104	00638680		8	2	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	66	+0x108	00638710		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	67	+0x10C	006392f0		12	3	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	68	+0x110	00639170		12	3	via-call	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	69	+0x114	00638990		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	70	+0x118	00407990	_memset	0	0	unknown	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	60	+0xF0	00624920	cSC4NetworkTool::DestroyHilightedOccupants	0	0	void	medium	re-specs15b (replace): Mac name; a real function, not a forward
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	61	+0xF4	00648f00	cSC4NetworkTool::AllowBridges	0	0	al	high	re-specs15b (replace): returns 1 (ICF stub 0x00648F00)
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	62	+0xF8	00648f00	cSC4NetworkTool::AllowTunnels	0	0	al	high	re-specs15b (replace): returns 1 (ICF stub 0x00648F00)
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	63	+0xFC	00648f00	cSC4NetworkTool::IsStoppedByWater	0	0	al	high	re-specs15b (replace): returns 1 (ICF stub 0x00648F00)
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	64	+0x100	00648ef0	cSC4NetworkTool::ShouldAutoConnect	0	0	al	high	re-specs15b (replace): returns 0 (ICF stub 0x00648EF0)
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	65	+0x104	00638680	cSC4NetworkTool::TestForAutoConnectOccupant	8	2	al	medium	re-specs15b (replace): (x, z); Mac name
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	66	+0x108	00638710	cSC4NetworkTool::IdentifyStartingConditions	4	1	al	medium	re-specs15b (replace): (int& valid); pass 1, code 0xF0000001; network-geometry.md 4.2
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	67	+0x10C	006392f0	cSC4NetworkTool::CheckForReservedTiles(x,z,type)	12	3	al	medium	re-specs15b (replace): one cell; network-geometry.md 5.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	68	+0x110	00639170	cSC4NetworkTool::CheckForReservedTiles(int&,type,bool)	12	3	al	medium	re-specs15b (replace): the pass, code 0xF0000002; network-geometry.md 5.2
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	69	+0x114	00638990	cSC4NetworkTool::CheckForGoodTerrain	4	1	al	high	re-specs15b (replace): (int& valid); code 0xF0000001; network-geometry.md 4.5
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	70	+0x118	00407990	cSC4NetworkTool::StartPlacing	0	0	void	high	re-specs15b (replace): no-op (ICF ret 0x00407990)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	71	+0x11C	00633250	cSC4NetworkTool::CreateCellInfosForCurrentPlacementTiles	4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	72	+0x120	006278a0	cSC4NetworkTool::InsertNetworkOccupant	12	3	via-call	low	indirect-jump dword ptr [edx*4 + 0x62836c]
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	73	+0x124	006444f0		4	1	x87	high	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	73	+0x124	006444f0	cSC4NetworkTool::GetNetworkVertexHt	4	1	x87	high	re-specs15b (replace): (vertex id)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	74	+0x128	0062c990	cSC4NetworkTool::GetPlacementHeight	4	1	x87	high	re-specs14b: name is ours; base returns its float argument; underground 0x00648F20 returns arg - depth(+0x36C)
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	75	+0x12C	00407990	_memset	0	0	unknown	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	75	+0x12C	00407990	cSC4NetworkTool::PropagateSolvedCellsForSmoothing	0	0	void	high	re-specs15b (replace): no-op (ICF ret 0x00407990)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	76	+0x130	006360c0	cSC4NetworkTool::InsertRangeConstraintsForCell	4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	77	+0x134	00637b90		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	78	+0x138	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	79	+0x13C	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	77	+0x134	00637b90	cSC4NetworkTool::ApplyPlaneConstraintToRegularCells	4	1	void	medium	re-specs15b (replace): Mac name
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	78	+0x138	00648f10	cSC4NetworkTool::InsertNetworkSpecificConstraintsForCell	4	1	void	high	re-specs15b (replace): no-op (ICF ret 4 0x00648F10)
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	79	+0x13C	00648f10	cSC4NetworkTool::ReloadNetworkSpecificInfo	4	1	void	high	re-specs15b (replace): no-op (ICF ret 4 0x00648F10)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	80	+0x140	00623ce0	cSC4NetworkTool::SetQuadTrianglesToDraw	8	2	via-call	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	0	+0x0	00623290		8	2	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
@@ -2938,35 +2953,87 @@ cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	52	+0xD0	0064f570	cSC4Pow
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	53	+0xD4	00652980	cSC4PowerLineTool::DoNetworkSpecificPlacement	8	2	al	high	re-specs14b: always returns 1; network-tools.md §9
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	54	+0xD8	00624210	cSC4NetworkTool::CreateNetworkOccupant	16	4	via-call	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	55	+0xDC	006258c0	cSC4NetworkTool::InsertOccupantsForSolvedCells	12	3	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	57	+0xE4	00644530		4	1	via-call	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	al	high	re-specs15b (replace): (type); terrain satisfier +0x188; network-geometry.md 9.6
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	57	+0xE4	00644530	cSC4NetworkTool::UpdateTerrainHeights	4	1	void	high	re-specs15b (replace): (&changedVertices); grading, RedisplayTerrain data4 4; network-geometry.md 9.7
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	58	+0xE8	006246a0	cSC4NetworkTool::AddCellPreview	8	2	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	59	+0xEC	006299a0	cSC4NetworkTool::UpdateOccupantHighlights	4	1	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	60	+0xF0	00624920				forward	medium	indirect-jump dword ptr [edx + 0x44]
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	61	+0xF4	00648f00	operator.new	0	0	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	62	+0xF8	00648f00	operator.new	0	0	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	63	+0xFC	00648f00	operator.new	0	0	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	64	+0x100	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	65	+0x104	00638680		8	2	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	66	+0x108	00638710		4	1	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	67	+0x10C	006392f0		12	3	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	68	+0x110	00639170		12	3	via-call	low	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	69	+0x114	00638990		4	1	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	70	+0x118	00407990	_memset	0	0	unknown	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	60	+0xF0	00624920	cSC4NetworkTool::DestroyHilightedOccupants	0	0	void	medium	re-specs15b (replace): Mac name; a real function, not a forward
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	61	+0xF4	00648f00	cSC4NetworkTool::AllowBridges	0	0	al	high	re-specs15b (replace): returns 1 (ICF stub 0x00648F00)
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	62	+0xF8	00648f00	cSC4NetworkTool::AllowTunnels	0	0	al	high	re-specs15b (replace): returns 1 (ICF stub 0x00648F00)
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	63	+0xFC	00648f00	cSC4NetworkTool::IsStoppedByWater	0	0	al	high	re-specs15b (replace): returns 1 (ICF stub 0x00648F00)
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	64	+0x100	00648ef0	cSC4NetworkTool::ShouldAutoConnect	0	0	al	high	re-specs15b (replace): returns 0 (ICF stub 0x00648EF0)
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	65	+0x104	00638680	cSC4NetworkTool::TestForAutoConnectOccupant	8	2	al	medium	re-specs15b (replace): (x, z); Mac name
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	66	+0x108	00638710	cSC4NetworkTool::IdentifyStartingConditions	4	1	al	medium	re-specs15b (replace): (int& valid); pass 1, code 0xF0000001; network-geometry.md 4.2
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	67	+0x10C	006392f0	cSC4NetworkTool::CheckForReservedTiles(x,z,type)	12	3	al	medium	re-specs15b (replace): one cell; network-geometry.md 5.1
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	68	+0x110	00639170	cSC4NetworkTool::CheckForReservedTiles(int&,type,bool)	12	3	al	medium	re-specs15b (replace): the pass, code 0xF0000002; network-geometry.md 5.2
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	69	+0x114	00638990	cSC4NetworkTool::CheckForGoodTerrain	4	1	al	high	re-specs15b (replace): (int& valid); code 0xF0000001; network-geometry.md 4.5
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	70	+0x118	00407990	cSC4NetworkTool::StartPlacing	0	0	void	high	re-specs15b (replace): no-op (ICF ret 0x00407990)
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	71	+0x11C	00633250	cSC4NetworkTool::CreateCellInfosForCurrentPlacementTiles	4	1	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	72	+0x120	006278a0	cSC4NetworkTool::InsertNetworkOccupant	12	3	via-call	low	indirect-jump dword ptr [edx*4 + 0x62836c]
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	73	+0x124	006444f0		4	1	x87	high	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	73	+0x124	006444f0	cSC4NetworkTool::GetNetworkVertexHt	4	1	x87	high	re-specs15b (replace): (vertex id)
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	74	+0x128	0062c990		4	1	x87	high	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	75	+0x12C	00407990	_memset	0	0	unknown	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	75	+0x12C	00407990	cSC4NetworkTool::PropagateSolvedCellsForSmoothing	0	0	void	high	re-specs15b (replace): no-op (ICF ret 0x00407990)
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	76	+0x130	006360c0	cSC4NetworkTool::InsertRangeConstraintsForCell	4	1	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	77	+0x134	00637b90		4	1	eax-or-void	medium	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	78	+0x138	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	79	+0x13C	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	77	+0x134	00637b90	cSC4NetworkTool::ApplyPlaneConstraintToRegularCells	4	1	void	medium	re-specs15b (replace): Mac name
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	78	+0x138	00648f10	cSC4NetworkTool::InsertNetworkSpecificConstraintsForCell	4	1	void	high	re-specs15b (replace): no-op (ICF ret 4 0x00648F10)
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	79	+0x13C	00648f10	cSC4NetworkTool::ReloadNetworkSpecificInfo	4	1	void	high	re-specs15b (replace): no-op (ICF ret 4 0x00648F10)
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	80	+0x140	00623ce0	cSC4NetworkTool::SetQuadTrianglesToDraw	8	2	via-call	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	81	+0x144	0064fed0	cSC4PowerLineTool::CheckForReservedTiles	4	1	void	medium	re-specs14b: sets 0xF0000011/12/13
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	82	+0x148	0064f2b0	cSC4PowerLineTool::SetTerrainHilight	4	1	eax-or-void	medium	
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	51	+0xCC	00648f50	cSC4UndergroundNetworkTool::~cSC4UndergroundNetworkTool	4	1	eax-or-void	medium	re-specs15b (new): deleting destructor, flag argument
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	54	+0xD8	00657740	cSC4UndergroundNetworkTool::CreateNetworkOccupant	16	4	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	55	+0xDC	006599d0	cSC4UndergroundNetworkTool::InsertOccupantsForSolvedCells	12	3	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	56	+0xE0	004fc900	cSC4UndergroundNetworkTool::CanTilesBeSupportedOnTerrain	4	1	al	high	re-specs15b (new): returns 1 (ICF 0x004FC900)
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	57	+0xE4	00648f10	cSC4UndergroundNetworkTool::UpdateTerrainHeights	4	1	void	high	re-specs15b (new): no-op: underground tools never grade
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	58	+0xE8	006597e0	cSC4UndergroundNetworkTool::AddCellPreview	8	2	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	59	+0xEC	00648f30	cSC4UndergroundNetworkTool::UpdateOccupantHighlights	4	1	eax	high	re-specs15b (new): returns its argument
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	60	+0xF0	00407990	cSC4UndergroundNetworkTool::DestroyHilightedOccupants	0	0	void	high	re-specs15b (new): no-op
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	61	+0xF4	00648ef0	cSC4UndergroundNetworkTool::AllowBridges	0	0	al	high	re-specs15b (new): returns 0
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	62	+0xF8	00648ef0	cSC4UndergroundNetworkTool::AllowTunnels	0	0	al	high	re-specs15b (new): returns 0
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	63	+0xFC	00648ef0	cSC4UndergroundNetworkTool::IsStoppedByWater	0	0	al	high	re-specs15b (new): returns 0
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	64	+0x100	00648f00	cSC4UndergroundNetworkTool::ShouldAutoConnect	0	0	al	high	re-specs15b (new): returns 1
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	65	+0x104	00659470	cSC4UndergroundNetworkTool::TestForAutoConnectOccupant	8	2	al	medium	re-specs15b (new)
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	66	+0x108	00638710	cSC4NetworkTool::IdentifyStartingConditions	4	1	al	medium	re-specs15b (new): base
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	67	+0x10C	006392f0	cSC4NetworkTool::CheckForReservedTiles(x,z,type)	12	3	al	medium	re-specs15b (new): base
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	68	+0x110	00657730	cSC4UndergroundNetworkTool::CheckForReservedTiles(int&,type,bool)	12	3	void	high	re-specs15b (new): no-op: no reserved-tile pass
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	69	+0x114	004fc900	cSC4UndergroundNetworkTool::CheckForGoodTerrain	4	1	al	high	re-specs15b (new): returns 1 (ICF 0x004FC900)
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	70	+0x118	00658710	cSC4UndergroundNetworkTool::StartPlacing	0	0	void	medium	re-specs15b (new)
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	71	+0x11C	00657da0	cSC4UndergroundNetworkTool::CreateCellInfosForCurrentPlacementTiles	4	1	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	73	+0x124	00657790	cSC4UndergroundNetworkTool::GetNetworkVertexHt	4	1	x87	medium	re-specs15b (new)
 cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	74	+0x128	00648f20	cSC4UndergroundNetworkTool::GetPlacementHeight	4	1	x87	high	re-specs14b: arg - [this+0x36C]; same entry in 0x00AAA5C0 and 0x00AAA950
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	75	+0x12C	00659410	cSC4UndergroundNetworkTool::PropagateSolvedCellsForSmoothing	0	0	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	76	+0x130	00658040	cSC4UndergroundNetworkTool::InsertRangeConstraintsForCell	4	1	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	77	+0x134	00648f10	cSC4UndergroundNetworkTool::ApplyPlaneConstraintToRegularCells	4	1	void	high	re-specs15b (new): no-op
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	78	+0x138	00657860	cSC4UndergroundNetworkTool::InsertNetworkSpecificConstraintsForCell	4	1	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	79	+0x13C	00657980	cSC4UndergroundNetworkTool::ReloadNetworkSpecificInfo	4	1	unknown	low	re-specs15b (new): reads the depth properties
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	80	+0x140	00657a30	cSC4UndergroundNetworkTool::SetQuadTrianglesToDraw	8	2	unknown	low	re-specs15b (new)
 cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	81	+0x144	00648f40	cSC4PipeTool::GetOccupantClass	0	0	eax	high	re-specs14b: name is ours; returns 0x49C05B9F; used by UpdateUndergroundOccupantTerrainHeights
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	51	+0xCC	00648f50	cSC4UndergroundNetworkTool::~cSC4UndergroundNetworkTool	4	1	eax-or-void	medium	re-specs15b (new): deleting destructor, flag argument
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	54	+0xD8	00657740	cSC4UndergroundNetworkTool::CreateNetworkOccupant	16	4	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	55	+0xDC	006599d0	cSC4UndergroundNetworkTool::InsertOccupantsForSolvedCells	12	3	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	56	+0xE0	004fc900	cSC4UndergroundNetworkTool::CanTilesBeSupportedOnTerrain	4	1	al	high	re-specs15b (new): returns 1 (ICF 0x004FC900)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	57	+0xE4	00648f10	cSC4UndergroundNetworkTool::UpdateTerrainHeights	4	1	void	high	re-specs15b (new): no-op: underground tools never grade
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	58	+0xE8	006597e0	cSC4UndergroundNetworkTool::AddCellPreview	8	2	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	59	+0xEC	00648f30	cSC4UndergroundNetworkTool::UpdateOccupantHighlights	4	1	eax	high	re-specs15b (new): returns its argument
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	60	+0xF0	00407990	cSC4UndergroundNetworkTool::DestroyHilightedOccupants	0	0	void	high	re-specs15b (new): no-op
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	61	+0xF4	00648ef0	cSC4UndergroundNetworkTool::AllowBridges	0	0	al	high	re-specs15b (new): returns 0
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	62	+0xF8	00648ef0	cSC4UndergroundNetworkTool::AllowTunnels	0	0	al	high	re-specs15b (new): returns 0
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	63	+0xFC	00648ef0	cSC4UndergroundNetworkTool::IsStoppedByWater	0	0	al	high	re-specs15b (new): returns 0
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	64	+0x100	00648f00	cSC4UndergroundNetworkTool::ShouldAutoConnect	0	0	al	high	re-specs15b (new): returns 1
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	65	+0x104	00659470	cSC4UndergroundNetworkTool::TestForAutoConnectOccupant	8	2	al	medium	re-specs15b (new)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	66	+0x108	00638710	cSC4NetworkTool::IdentifyStartingConditions	4	1	al	medium	re-specs15b (new): base
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	67	+0x10C	006392f0	cSC4NetworkTool::CheckForReservedTiles(x,z,type)	12	3	al	medium	re-specs15b (new): base
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	68	+0x110	00657730	cSC4UndergroundNetworkTool::CheckForReservedTiles(int&,type,bool)	12	3	void	high	re-specs15b (new): no-op: no reserved-tile pass
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	69	+0x114	004fc900	cSC4UndergroundNetworkTool::CheckForGoodTerrain	4	1	al	high	re-specs15b (new): returns 1 (ICF 0x004FC900)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	70	+0x118	00658710	cSC4UndergroundNetworkTool::StartPlacing	0	0	void	medium	re-specs15b (new)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	71	+0x11C	00657da0	cSC4UndergroundNetworkTool::CreateCellInfosForCurrentPlacementTiles	4	1	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	73	+0x124	00657790	cSC4UndergroundNetworkTool::GetNetworkVertexHt	4	1	x87	medium	re-specs15b (new)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	75	+0x12C	00659410	cSC4UndergroundNetworkTool::PropagateSolvedCellsForSmoothing	0	0	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	76	+0x130	00658040	cSC4UndergroundNetworkTool::InsertRangeConstraintsForCell	4	1	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	77	+0x134	00648f10	cSC4UndergroundNetworkTool::ApplyPlaneConstraintToRegularCells	4	1	void	high	re-specs15b (new): no-op
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	78	+0x138	00657860	cSC4UndergroundNetworkTool::InsertNetworkSpecificConstraintsForCell	4	1	unknown	low	re-specs15b (new)
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	79	+0x13C	00657980	cSC4UndergroundNetworkTool::ReloadNetworkSpecificInfo	4	1	unknown	low	re-specs15b (new): reads the depth properties
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	80	+0x140	00657a30	cSC4UndergroundNetworkTool::SetQuadTrianglesToDraw	8	2	unknown	low	re-specs15b (new)
 cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	81	+0x144	00653d90	cSC4SubwayTool::GetOccupantClass	0	0	eax	high	re-specs14b: name is ours; returns 0xCA16374F
 cISC4Demolition	cSC4Demolition	00a88004	0	+0x0	004664b0	cSC4Demolition::QueryInterface	8	2	eax-or-void	medium	
 cISC4Demolition	cSC4Demolition	00a88004	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
@@ -4644,7 +4711,7 @@ cISC4AutomataManager	cSC4PedestrianManager	00a9a470	11	+0x2C	004fbc10	cSC4Automa
 cISC4AutomataManager	cSC4PedestrianManager	00a9a470	12	+0x30	00698cf0	cSC4AutomataManager::GetAutomataCount	0	0	eax-or-void	medium	names_windows: cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])
 cISC4AutomataManager	cSC4PedestrianManager	00a9a470	13	+0x34	00506940	cSC4AutomataManager::IsDrivingMode	0	0	eax-or-void	medium	true when current view id is 0x2B709676
 cISC4AutomataManager	cSC4PedestrianManager	00a9a470	14	+0x38	004fbc20	cSC4AutomataManager::GetMinZoom	0	0	eax-or-void	medium	
-cISC4AutomataManager	cSC4PedestrianManager	00a9a470	15	+0x3C	00505370	cSC4AutomataManager::CreateAutomaton	28	7	eax-or-void	medium	args: group id, const vec3* pos, u32 mode, vec3* dir, u32, u32, u32 (riot: 0x4107,&pos,2,&zero,0,0xFF,0)
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	15	+0x3C	00505370	cSC4AutomataManager::CreateAutomaton(uint32_t, cS3DVector3 const&, uint32_t, cGZPersistResourceKey const&, cIGZMessageTarget2*, uint8_t, cS3DVector3 const*)	28	7	eax	high	CORRECTS ret: cISC4Automaton* in EAX (0x005053D5; null 0x005053E0), no reference for the caller; args: u32 group id, const vec3& pos, u32 automata flags (2 self-controlling, 0x80 bypass full), const key3& model key (instance 0 = random exemplar), cIGZMessageTarget2* callback, u8 priority (0xFF forces), const vec3* orientation (nullable); returned pointer holds NO caller reference; riot: 0x4107,&pos,2,&zero,0,0xFF,0; automata.md 7.2; re-answers16 AT5
 cISC4AutomataManager	cSC4PedestrianManager	00a9a470	16	+0x40	00553080	cSC4AutomataManager::GetRandomCreationPoint	28	7	eax-or-void	medium	
 cISC4AutomataManager	cSC4PedestrianManager	00a9a470	17	+0x44	00551730	cSC4AutomataManager::Dispatch	20	5	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
 cISC4AutomataManager	cSC4PedestrianManager	00a9a470	18	+0x48	0054dbf0	cSC4AutomataManager::Dispatch	28	7	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
@@ -4682,7 +4749,7 @@ cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	11	+0x2C	004fbc10	cSC4AutomataM
 cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	12	+0x30	00698cf0	cSC4AutomataManager::GetAutomataCount	0	0	eax-or-void	medium	names_windows: cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])
 cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	13	+0x34	00506940	cSC4AutomataManager::IsDrivingMode	0	0	eax-or-void	medium	true when current view id is 0x2B709676
 cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	14	+0x38	004fbc20	cSC4AutomataManager::GetMinZoom	0	0	eax-or-void	medium	
-cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	15	+0x3C	00505370	cSC4AutomataManager::CreateAutomaton	28	7	eax-or-void	medium	args: group id, const vec3* pos, u32 mode, vec3* dir, u32, u32, u32 (riot: 0x4107,&pos,2,&zero,0,0xFF,0)
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	15	+0x3C	00505370	cSC4AutomataManager::CreateAutomaton(uint32_t, cS3DVector3 const&, uint32_t, cGZPersistResourceKey const&, cIGZMessageTarget2*, uint8_t, cS3DVector3 const*)	28	7	eax	high	CORRECTS ret: cISC4Automaton* in EAX (0x005053D5; null 0x005053E0), no reference for the caller; args: u32 group id, const vec3& pos, u32 automata flags (2 self-controlling, 0x80 bypass full), const key3& model key (instance 0 = random exemplar), cIGZMessageTarget2* callback, u8 priority (0xFF forces), const vec3* orientation (nullable); returned pointer holds NO caller reference; riot: 0x4107,&pos,2,&zero,0,0xFF,0; automata.md 7.2; re-answers16 AT5
 cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	16	+0x40	00553080	cSC4AutomataManager::GetRandomCreationPoint	28	7	eax-or-void	medium	
 cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	17	+0x44	00551730	cSC4AutomataManager::Dispatch	20	5	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
 cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	18	+0x48	0054dbf0	cSC4AutomataManager::Dispatch	28	7	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
@@ -4720,7 +4787,7 @@ cISC4AutomataManager	cSC4AircraftManager	00a94850	11	+0x2C	004fbc10	cSC4Automata
 cISC4AutomataManager	cSC4AircraftManager	00a94850	12	+0x30	00698cf0	cSC4AutomataManager::GetAutomataCount	0	0	eax-or-void	medium	names_windows: cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])
 cISC4AutomataManager	cSC4AircraftManager	00a94850	13	+0x34	00506940	cSC4AutomataManager::IsDrivingMode	0	0	eax-or-void	medium	true when current view id is 0x2B709676
 cISC4AutomataManager	cSC4AircraftManager	00a94850	14	+0x38	004fbc20	cSC4AutomataManager::GetMinZoom	0	0	eax-or-void	medium	
-cISC4AutomataManager	cSC4AircraftManager	00a94850	15	+0x3C	00505370	cSC4AutomataManager::CreateAutomaton	28	7	eax-or-void	medium	args: group id, const vec3* pos, u32 mode, vec3* dir, u32, u32, u32 (riot: 0x4107,&pos,2,&zero,0,0xFF,0)
+cISC4AutomataManager	cSC4AircraftManager	00a94850	15	+0x3C	00505370	cSC4AutomataManager::CreateAutomaton(uint32_t, cS3DVector3 const&, uint32_t, cGZPersistResourceKey const&, cIGZMessageTarget2*, uint8_t, cS3DVector3 const*)	28	7	eax	high	CORRECTS ret: cISC4Automaton* in EAX (0x005053D5; null 0x005053E0), no reference for the caller; args: u32 group id, const vec3& pos, u32 automata flags (2 self-controlling, 0x80 bypass full), const key3& model key (instance 0 = random exemplar), cIGZMessageTarget2* callback, u8 priority (0xFF forces), const vec3* orientation (nullable); returned pointer holds NO caller reference; riot: 0x4107,&pos,2,&zero,0,0xFF,0; automata.md 7.2; re-answers16 AT5
 cISC4AutomataManager	cSC4AircraftManager	00a94850	16	+0x40	00506dc0	cSC4AutomataManager::GetRandomCreationPoint	28	7	eax-or-void	medium	
 cISC4AutomataManager	cSC4AircraftManager	00a94850	17	+0x44	004faaf0	cSC4AutomataManager::Dispatch	20	5	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
 cISC4AutomataManager	cSC4AircraftManager	00a94850	18	+0x48	004fc440	cSC4AutomataManager::Dispatch	28	7	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
@@ -4758,7 +4825,7 @@ cISC4AutomataManager	cSC4WatercraftManager	00a9df38	11	+0x2C	004fbc10	cSC4Automa
 cISC4AutomataManager	cSC4WatercraftManager	00a9df38	12	+0x30	00698cf0	cSC4AutomataManager::GetAutomataCount	0	0	eax-or-void	medium	names_windows: cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])
 cISC4AutomataManager	cSC4WatercraftManager	00a9df38	13	+0x34	00506940	cSC4AutomataManager::IsDrivingMode	0	0	eax-or-void	medium	true when current view id is 0x2B709676
 cISC4AutomataManager	cSC4WatercraftManager	00a9df38	14	+0x38	004fbc20	cSC4AutomataManager::GetMinZoom	0	0	eax-or-void	medium	
-cISC4AutomataManager	cSC4WatercraftManager	00a9df38	15	+0x3C	00568f30	cSC4AutomataManager::CreateAutomaton	28	7	eax-or-void	medium	args: group id, const vec3* pos, u32 mode, vec3* dir, u32, u32, u32 (riot: 0x4107,&pos,2,&zero,0,0xFF,0)
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	15	+0x3C	00568f30	cSC4WatercraftManager::CreateAutomaton(uint32_t, cS3DVector3 const&, uint32_t, cGZPersistResourceKey const&, cIGZMessageTarget2*, uint8_t, cS3DVector3 const*)	28	7	eax	high	CORRECTS ret: cISC4Automaton* in EAX (0x005053D5; null 0x005053E0), no reference for the caller; args: u32 group id, const vec3& pos, u32 automata flags (2 self-controlling, 0x80 bypass full), const key3& model key (instance 0 = random exemplar), cIGZMessageTarget2* callback, u8 priority (0xFF forces), const vec3* orientation (nullable); returned pointer holds NO caller reference; riot: 0x4107,&pos,2,&zero,0,0xFF,0; automata.md 7.2; re-answers16 AT5; WATERCRAFT OVERRIDE: refuses (null) if an existing boat is within 2.0*its radius (0x00568C10) or the cell is out of bounds (city 95/99), then calls 0x00505370 with orientation forced null
 cISC4AutomataManager	cSC4WatercraftManager	00a9df38	16	+0x40	0056c990	cSC4AutomataManager::GetRandomCreationPoint	28	7	eax-or-void	medium	
 cISC4AutomataManager	cSC4WatercraftManager	00a9df38	17	+0x44	005053f0	cSC4AutomataManager::Dispatch	20	5	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
 cISC4AutomataManager	cSC4WatercraftManager	00a9df38	18	+0x48	005053e0	cSC4AutomataManager::Dispatch	28	7	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed

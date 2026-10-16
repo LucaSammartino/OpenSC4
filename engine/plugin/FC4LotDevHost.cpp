@@ -42,6 +42,7 @@
 #include "FC4SafeLotIterator.h"
 #include "FC4Streams.h"
 #include "FC4TractInterfaces.h"
+#include "FC4WinInterfaces.h"
 #include "cFC4Message2Standard.h"
 #include "compat/FC4Compat.h"
 
@@ -69,6 +70,7 @@
 #include "cISC4FoundationOccupant.h"
 #include "cISC4GrowthDeveloper.h"
 #include "cISC4Lot.h"
+#include "cISC4NetworkOccupant.h"
 #include "cISC4LotBaseTextureOccupant.h"
 #include "cISC4LotConfiguration.h"
 #include "cISC4LotConfigurationManager.h"
@@ -79,8 +81,10 @@
 #include "cISC4PowerSimulator.h"
 #include "cISC4PropManager.h"
 #include "cISC4PropOccupant.h"
+#include "cISC4PropOccupantTerrainDecal.h"
 #include "cISC4SimGrid.h"
 #include "cISC4TrafficSimulator.h"
+#include "cISC4View3DWin.h"
 #include "cISC4ZoneManager.h"
 #include "cISCPropertyHolder.h"
 #include "cISTETerrain.h"
@@ -121,9 +125,6 @@ constexpr uint32_t kOccupantTypeFlora = 0x74758926;
 constexpr uint32_t kOccupantTypeBaseTexture = 0x497F6D9D;
 // A lot's base texture has usage 2 (the landfill's 1, landfill.md §4.8).
 constexpr int32_t kLotTextureUsage = 2;
-// Occupant flag 1: inserted (§6.6).
-constexpr uint32_t kOccupantFlagInserted = 1;
-constexpr uint32_t kMsgOccupantChanged = 0x99EF1145;
 constexpr uint32_t kMsgNightLight = 0x09D8E0B6;
 constexpr uint32_t kMsgNightUpdated = 0xA6B79621;
 // §3.5 the "Building Development" exemplar.
@@ -177,8 +178,6 @@ void NoteOnce(bool& done, const char* text) {
 }
 bool g_noteNoAllocator = false;
 bool g_noteRetainingWalls = false;
-bool g_noteObjectAltitudes = false;
-bool g_noteNetworkNodes = false;
 bool g_noteBurnt = false;
 bool g_noteRubble = false;
 bool g_noteConstruction = false;
@@ -188,6 +187,7 @@ bool g_noteFamilySet = false;
 bool g_noteIteratorFallback = false;
 bool g_noteIteratorLeak = false;
 bool g_noteTick = false;
+bool g_noteZotView = false;
 
 // The app's current city (borrowed).
 cISC4City* AppCity() {
@@ -560,22 +560,17 @@ void CityCellWidths(void* u, float* out2) {
     out2[1] = c ? c->CellWidthZ() : 16.0f;  // slot 92, ST0
 }
 
-// City slot 95 PositionToCell: the SDK declares it void; the compiled one
-// answers AL (in the city). Called raw on the slot.
-bool PositionToCell(void* u, float x, float z, int32_t* out2) {
+// City slot 95 PositionToCell returns nothing (lot-developer.md §17.2,
+// LD18): its AL is the low byte of the x87 status word, so it is called as
+// the SDK declares it (void) and no result is read.
+void PositionToCell(void* u, float x, float z, int32_t* out2) {
     LOTDEV_TEST(position_to_cell, x, z, out2);
     int cx = 0, cz = 0;
-    bool ok = false;
-    if (cISC4City* c = City(u)) {
-        using Fn = uint8_t(__fastcall*)(void*, void*, float, float, int*, int*);
-        void** vt = *reinterpret_cast<void***>(c);
-        ok = reinterpret_cast<Fn>(vt[95])(c, nullptr, x, z, &cx, &cz) != 0;
-    }
+    if (cISC4City* c = City(u)) c->PositionToCell(x, z, cx, cz);  // slot 95
     if (out2 != nullptr) {
         out2[0] = cx;
         out2[1] = cz;
     }
-    return ok;
 }
 
 void CellCornerToPosition(void* u, int32_t x, int32_t z, float* out2) {
@@ -678,12 +673,49 @@ uint8_t ZoneDisplayAlpha(void* u) {
     return z ? z->GetZoneDisplayAlpha() : uint8_t{0xAA};  // slot 16 (shipped 0xAA)
 }
 
-// §5.6: field +0x10 of SC4ViewUtilities (0x00B43DD8), the view rotation.
-// [question] The spec names the global but no interface to read it through:
-// 0 (north) here.
+// §5.6 step 5 (LD12): the zot prop's orientation is field +0x10 of the
+// global SC4ViewUtilities (0x00B43DD8), the current view rotation 0..3; the
+// only use of the view in the lot developer. Read through the interfaces
+// (as the landfill's zot, landfill.md §4.7.5): the app's main window, its
+// child 0x6104489A, that child's cISC4View3DWin (0x9A47B417 / 0xFA47B3F9),
+// its renderer (slot 4) and the renderer's view utilities (slot 8, not
+// GZCOM). 0 without a view (logged once).
+const uint32_t kWinSC4App = 0x6104489A;
+const uint32_t kWinSC4View3DWin = 0x9A47B417;
+const uint32_t kIID_cISC4View3DWin = 0xFA47B3F9;
+const uintptr_t kViewUtilitiesRotation = 0x10;
+
 int32_t ViewRotation(void* u) {
     LOTDEV_TEST0(view_rotation);
-    return 0;
+    cIGZFrameWork* fw = RZGetFrameWork();
+    cIGZApp* app = fw ? fw->Application() : nullptr;
+    cISC4App* sc4 = nullptr;
+    if (app == nullptr || !app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) || sc4 == nullptr) {
+        NoteOnce(g_noteZotView, "lotdev: no cISC4App; the zot's orientation is 0 (§5.6, LD12)");
+        return 0;
+    }
+    FC4_ACQUIRED(sc4, "QueryInterface");
+    int32_t rotation = 0;
+    bool read = false;
+    cISC4View3DWin* view = nullptr;
+    auto* main = reinterpret_cast<cFC4IGZWin*>(sc4->GetMainWindow());                // borrowed
+    cFC4IGZWin* parent = main ? main->GetChildWindowFromID(kWinSC4App) : nullptr;  // slot 34, borrowed
+    if (parent != nullptr &&
+        parent->GetChildAs(kWinSC4View3DWin, kIID_cISC4View3DWin, reinterpret_cast<void**>(&view)) &&  // slot 36
+        view != nullptr) {
+        FC4_ACQUIRED(view, "GetChildAs");
+        auto* render = reinterpret_cast<cFC4ISC43DRender*>(view->GetRenderer());  // slot 4, borrowed
+        void* utilities = render ? render->GetViewUtilities() : nullptr;           // slot 8, borrowed, not GZCOM
+        if (utilities != nullptr) {
+            rotation = *reinterpret_cast<const int32_t*>(static_cast<const uint8_t*>(utilities) +
+                                                         kViewUtilitiesRotation);
+            read = true;
+        }
+        FC4_RELEASE(view);
+    }
+    if (!read) NoteOnce(g_noteZotView, "lotdev: no city view; the zot's orientation is 0 (§5.6, LD12)");
+    FC4_RELEASE(sc4);
+    return rotation;
 }
 
 // §8.2: the 24-hour clock's slot 6 GetVisualTimeMode.
@@ -1120,7 +1152,11 @@ uint32_t LotOccupantWealth(void* u, uint64_t lot) {
     LOTDEV_TEST(lot_occupant_wealth, lot);
     return lot ? LotOf(lot)->GetOccupantWealth() : 0;  // slot 41
 }
-// Slot 61 GetOccupancy: an SC4Percentage by value (hidden pointer).
+// Slot 61 GetOccupancy (§11.4, LD20): `void GetOccupancy(float& out)`, pop 4,
+// EAX = the out pointer. Declared as an SC4Percentage returned by value,
+// which MSVC passes the same way (a hidden result pointer, one stack dword,
+// returned in EAX; vtable_layout_test checks it), so the float is read
+// through the pointer, never from EAX.
 float LotOccupancy(void* u, uint64_t lot) {
     LOTDEV_TEST(lot_occupancy, lot);
     return lot ? LotOf(lot)->GetOccupancy().percentage : 0.0f;
@@ -1299,66 +1335,130 @@ uint64_t FirstBuilding(void* u, uint64_t lot) {
     return TokenOf(fc4::LotDevFirstBuilding(Ctx(u), SdkLotOf(lot)));
 }
 
-// Slot 62 / 0x005E37F0 (cSC4LotRetainingWallOccupant): not specified.
-// [question] No retaining walls are made or updated; false.
+// The retaining-wall helpers (§7.2, LD3; docs/abi/direct-calls.md): static
+// functions of cSC4LotRetainingWallOccupant, __cdecl (the caller pops),
+// taking the cISC4Lot interface pointer. Called by address behind the
+// executable check (fc4::compat::DirectCall) and the lotdev_terrain switch;
+// when either refuses, no wall is made or updated (logged once).
+using RetainingWallAddFn = bool(__cdecl*)(cISC4Lot* lot, uint32_t add);  // 0x005E3070, pops 8 (caller), AL
+using RetainingWallLotFn = bool(__cdecl*)(cISC4Lot* lot);                // 0x005E37F0, pops 4 (caller), AL
+using RetainingWallVoidFn = void(__cdecl*)(cISC4Lot* lot);               // 0x005E3960, pops 4 (caller)
+
+uintptr_t RetainingWallCall(void* u, fc4::compat::Direct which, uint64_t lot, const char* what) {
+    if (!Writes(u) || lot == 0 || !Gate(u, fc4::Sw::LotdevTerrain, what)) return 0;
+    const uintptr_t fn = fc4::compat::DirectCall(which);
+    if (fn == 0) {
+        NoteOnce(g_noteRetainingWalls, "lotdev: the retaining-wall helpers are not available (executable not "
+                                       "identified or address rejected): no walls made or updated (§7.2, LD3)");
+    } else {
+        ++Ctx(u)->wallCalls;
+    }
+    return fn;
+}
+
+// Slot 62 UpdateLotRetainingWalls(lot) (§7.2, LD3): UpdateRetainingWalls
+// (0x005E37F0); AL is that call's leftover (no defined value). False when
+// the call is refused.
 bool UpdateLotRetainingWalls(void* u, uint64_t lot) {
     LOTDEV_TEST(update_lot_retaining_walls, lot);
-    NoteOnce(g_noteRetainingWalls, "lotdev: retaining walls are not specified (UpdateLotRetainingWalls, "
-                                   "AddRetainingWallOccupant, UpdateSurroundingRetainingWalls): none made or updated "
-                                   "(question)");
-    return false;
+    const uintptr_t fn =
+        RetainingWallCall(u, fc4::compat::Direct::RetainingWallsUpdate, lot, "lotdev UpdateRetainingWalls");
+    if (fn == 0) return false;
+    const bool al = reinterpret_cast<RetainingWallLotFn>(fn)(SdkLotOf(lot));
+    FC4_X87_CHECK("lotdev UpdateRetainingWalls");
+    Ctx(u)->expireAll = true;  // the lot's walls may be removed and rebuilt
+    return al;
 }
 
-// §6.4 UpdateLotObjectAlitudes: not specified [question]; nothing.
-void UpdateLotObjectAltitudes(void* u, uint64_t lot) {
-    LOTDEV_TEST(update_lot_object_altitudes, lot);
-    NoteOnce(g_noteObjectAltitudes, "lotdev: UpdateLotObjectAlitudes is not specified: the lot's objects keep their "
-                                    "altitudes (question)");
+// UpdateLotObjectAlitudes (§6.5, LD17) is the core's; these are its game
+// calls. Lot slot 49 GetLotOccupants: the lot's occupants in list order, one
+// reference each kept for the call (the original's A list holds referenced
+// occupants and releases them one by one).
+void LotOccupants(void* u, uint64_t lot, fc4_token_callback cb, void* cbCtx) {
+    LOTDEV_TEST(lot_occupants, lot, cb, cbCtx);
+    if (lot == 0 || cb == nullptr) return;
+    SC4List<cISC4Occupant*> list;
+    LotOf(lot)->GetLotOccupants(list);  // slot 49
+    Each(TakeOccupants(u, list, "GetLotOccupants list entry"), cb, cbCtx);
 }
 
-// The lot's base-texture occupant (usage 2) in its cells, or null.
+// Lot slot 11 GetLotConfigurationObject(occ): the configuration object the
+// occupant was made from (a pointer into the configuration's array), or
+// none.
+bool LotConfigurationObject(void* u, uint64_t lot, uint64_t occ, fc4_lotdev_cfg_object_callback cb, void* cbCtx) {
+    LOTDEV_TEST(lot_configuration_object, lot, occ, cb, cbCtx);
+    if (lot == 0 || occ == 0) return false;
+    cISC4Occupant* o = Occ(occ);
+    if (o == nullptr) return false;
+    cSC4LotConfigurationObject* obj = LotOf(lot)->GetLotConfigurationObject(o);  // slot 11
+    if (obj == nullptr) return false;
+    std::vector<uint32_t> ids;
+    const fc4_lotdev_cfg_object c = fc4::LotDevObjectOf(obj, ids);
+    if (cb != nullptr) cb(cbCtx, &c);
+    return true;
+}
+
+// Occupant manager slot 24 (occ, 1): the occupant moved (UpdateLotObjectAlitudes
+// after SetPosition).
+void OccupantMoved(void* u, uint64_t occ) {
+    LOTDEV_TEST(occupant_moved, occ);
+    cISC4OccupantManager* om = Occupants(u);
+    if (!Writes(u) || om == nullptr) return;
+    if (cISC4Occupant* o = Occ(occ)) {
+        om->MoveOccupant(o, true);  // slot 24
+        ++Ctx(u)->objectsMoved;
+    }
+    FC4_X87_CHECK("lotdev MoveOccupant");
+}
+
+// Slot 41's lookup (§6.6, LD16 / LD24): occupant manager slot 33
+// GetFirstOccupantByStandardCityCell(&o, x, z, base texture) at the lot's
+// location cell (lot slot 21): the first base-texture occupant in that cell's
+// bucket order whose box overlaps it. The lot pointer and the usage are NOT
+// checked: whichever base texture comes first at the cell is taken. The hit
+// carries a reference (occupant-manager.md §7), kept for the call.
 cISC4Occupant* FindBaseTexture(void* u, cISC4Lot* lot) {
     cISC4OccupantManager* om = Occupants(u);
     if (lot == nullptr || om == nullptr) return nullptr;
-    SC4Rect<int32_t> r;
-    fc4::AsGame(lot)->GetBoundingRect(r);  // slot 14
-    SC4List<cISC4Occupant*> list;
-    const SC4Point<int> a(r.topLeftX, r.topLeftY);
-    const SC4Point<int> b(r.bottomRightX, r.bottomRightY);
-    om->GetOccupantsByStandardCityCells(list, &a, &b, kOccupantTypeBaseTexture, 0xFFFFFFFFu);  // slot 41
-    cISC4Occupant* found = nullptr;
-    for (uint64_t t : TakeOccupants(u, list, "GetOccupantsByStandardCityCells list entry")) {
-        cISC4LotBaseTextureOccupant* tex = As<cISC4LotBaseTextureOccupant>(t, kIID_cISC4LotBaseTextureOccupant);
-        if (tex == nullptr || tex->GetUsage() != kLotTextureUsage) continue;  // slot 4
-        SC4Rect<long> cells;
-        cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(FromToken(t));
-        o->GetBoundingCityCells(cells);  // slot 11: inside the lot
-        if (cells.topLeftX < r.topLeftX || cells.topLeftY < r.topLeftY || cells.bottomRightX > r.bottomRightX ||
-            cells.bottomRightY > r.bottomRightY) {
-            continue;
-        }
-        found = o;
-        break;
+    int32_t x = 0, z = 0;
+    fc4::AsGame(lot)->GetLocation(x, z);  // slot 21
+    cISC4Occupant* o = nullptr;
+    if (!om->GetFirstOccupantByStandardCityCell(o, x, z, kOccupantTypeBaseTexture) || o == nullptr) {  // slot 33
+        return nullptr;
     }
-    return found;
+    FC4_ACQUIRED(o, "GetFirstOccupantByStandardCityCell");
+    fc4::LotDevHold(Ctx(u), o);
+    return o;
 }
 
-// Slot 45: [question] the spec names it, not its body. If the lot has a
-// base texture that is inserted, the occupant manager is told it changed
-// (slot 24) and it is sent 0x99EF1145, as §6.6 does after new textures.
-bool UpdateLotBaseTextureOccupant(void* u, uint64_t lot, bool hadFoundation) {
-    LOTDEV_TEST(update_lot_base_texture_occupant, lot, hadFoundation);
+// Slot 41 step 3 (§6.6): the found occupant as cISC4LotBaseTextureOccupant
+// (borrowed: the query's reference is dropped, the hold keeps it), given
+// SetUsage(2) (base-texture slot 5) when the context writes. Null when the
+// query fails (then slot 41 answers false and does not create one).
+cISC4LotBaseTextureOccupant* FoundBaseTexture(void* u, cISC4Occupant* o) {
+    if (o == nullptr) return nullptr;
+    cISC4LotBaseTextureOccupant* tex = As<cISC4LotBaseTextureOccupant>(TokenOf(o), kIID_cISC4LotBaseTextureOccupant);
+    if (tex != nullptr && Writes(u) && Gate(u, fc4::Sw::LotdevTextures, "lotdev base-texture SetUsage")) {
+        tex->SetUsage(kLotTextureUsage);  // slot 5
+    }
+    return tex;
+}
+
+// Slot 45 UpdateLotBaseTextureOccupant(lot, force) (§6.6, LD16): slot 41
+// without create, then the occupant's UpdateVertexAltitudes(true, force,
+// null) (base-texture slot 9), which rebounds it from the terrain and, when
+// forced or its box changed, notifies the occupant manager and rebuilds its
+// models. AL: what that call left; false when there is no occupant.
+bool UpdateLotBaseTextureOccupant(void* u, uint64_t lot, bool force) {
+    LOTDEV_TEST(update_lot_base_texture_occupant, lot, force);
     if (!Writes(u) || lot == 0 || !Gate(u, fc4::Sw::LotdevTextures, "lotdev UpdateLotBaseTextureOccupant")) {
         return false;
     }
-    cISC4Occupant* o = FindBaseTexture(u, SdkLotOf(lot));
-    cISC4OccupantManager* om = Occupants(u);
-    if (o == nullptr || om == nullptr) return false;
-    if (o->IsFlagSet(kOccupantFlagInserted)) {
-        om->MoveOccupant(o, false);                      // slot 24
-        o->PostOccupantMessage(kMsgOccupantChanged, 0);  // slot 15
-    }
-    return true;
+    cISC4LotBaseTextureOccupant* tex = FoundBaseTexture(u, FindBaseTexture(u, SdkLotOf(lot)));
+    if (tex == nullptr) return false;
+    const bool ok = tex->UpdateVertexAltitudes(true, force, nullptr);  // slot 9
+    FC4_X87_CHECK("lotdev UpdateVertexAltitudes");
+    return ok;
 }
 
 uint64_t BaseTextureOccupant(void* u, uint64_t lot, bool create) {
@@ -1405,28 +1505,122 @@ void BaseTextureSet(void* u, uint64_t occ, const fc4_lotdev_texture* records, si
     ++Ctx(u)->texturesSet;
 }
 
+// AddRetainingWallOccupant(lot, add) (0x005E3070; §7.2, LD3): `add` 0
+// removes the lot's wall occupant, 1 builds and inserts one. Its AL (a wall
+// was removed / inserted) is not read by the lot developer's callers.
 void AddRetainingWallOccupant(void* u, uint64_t lot, uint32_t flag) {
     LOTDEV_TEST(add_retaining_wall_occupant, lot, flag);
-    UpdateLotRetainingWalls(u, lot);
+    const uintptr_t fn =
+        RetainingWallCall(u, fc4::compat::Direct::RetainingWallAdd, lot, "lotdev AddRetainingWallOccupant");
+    if (fn == 0) return;
+    reinterpret_cast<RetainingWallAddFn>(fn)(SdkLotOf(lot), flag != 0 ? 1u : 0u);
+    FC4_X87_CHECK("lotdev AddRetainingWallOccupant");
+    Ctx(u)->expireAll = true;
 }
 
+// UpdateSurroundingRetainingWalls(lot) (0x005E3960; §7.2, LD3).
 void UpdateSurroundingRetainingWalls(void* u, uint64_t lot) {
     LOTDEV_TEST(update_surrounding_retaining_walls, lot);
-    UpdateLotRetainingWalls(u, lot);
+    const uintptr_t fn = RetainingWallCall(u, fc4::compat::Direct::RetainingWallsUpdateSurrounding, lot,
+                                           "lotdev UpdateSurroundingRetainingWalls");
+    if (fn == 0) return;
+    reinterpret_cast<RetainingWallVoidFn>(fn)(SdkLotOf(lot));
+    FC4_X87_CHECK("lotdev UpdateSurroundingRetainingWalls");
+    Ctx(u)->expireAll = true;
 }
 
-// AddNetworkConnectionNodes / RemoveNetworkConnectionNodes: not specified
-// [question]; nothing.
-void AddNetworkConnectionNodes(void* u, uint64_t lot, uint64_t cfg) {
-    LOTDEV_TEST(add_network_connection_nodes, lot, cfg);
-    ++Ctx(u)->completions;
-    NoteOnce(g_noteNetworkNodes, "lotdev: Add/RemoveNetworkConnectionNodes are not specified: no network "
-                                 "connection nodes (question)");
+// cFC4ISC4NetworkManager: FC4LotDevInterfaces.h (the SDK header puts slots 14+ one late).
+constexpr uint32_t kOccupantTypeNetwork = 0xC772BF98;
+constexpr uint32_t kIID_cISC4NetworkOccupant = 0xA821EF94;
+constexpr uint32_t kNetworkFlagConnectionNode = 0x200000;
+
+// The city's network manager (borrowed), or null.
+cFC4ISC4NetworkManager* NetworkManager(void* u) {
+    cISC4City* c = City(u);
+    return c ? reinterpret_cast<cFC4ISC4NetworkManager*>(c->GetNetworkManager()) : nullptr;
 }
+
+// AddNetworkConnectionNodes steps 2-3 (§6.5, LD17; the core gives the
+// nodes): network manager slot 20 CreateConnectionNode for each node in
+// order, each result appended to one list whatever the call returned, then
+// slot 21 AutoconnectLotNodes(lot, list) (also with no node); then the list
+// releases its entries (the original's occupant manager slot 48) and is
+// freed. [choice, LD32] A failed call that left `out` null appends nothing:
+// the original's list would carry a null that AutoconnectLotNodes reads.
+void AddNetworkConnectionNodes(void* u, uint64_t lot, const fc4_lotdev_conn_node* nodes, size_t n) {
+    LOTDEV_TEST(add_network_connection_nodes, lot, nodes, n);
+    fc4::LotDevContext* ctx = Ctx(u);
+    ++ctx->completions;
+    cFC4ISC4NetworkManager* nm = NetworkManager(u);
+    if (!Writes(u) || lot == 0 || nm == nullptr ||
+        !Gate(u, fc4::Sw::LotdevBuildings, "lotdev AddNetworkConnectionNodes (no nodes)")) {
+        return;
+    }
+    std::vector<cISC4Occupant*> made;
+    for (size_t i = 0; i < n && nodes != nullptr; ++i) {
+        const fc4_lotdev_conn_node& c = nodes[i];
+        cISC4Occupant* o = nullptr;
+        const SC4Point<int> cell(c.x, c.z);
+        const int32_t type = static_cast<int32_t>(c.node_type);
+        const bool ok = nm->CreateConnectionNode(o, type, cell, c.b, c.c, c.d, c.orientation);  // 20, abi: via cFC4I
+        FC4_X87_CHECK("lotdev CreateConnectionNode");
+        if (o == nullptr) {
+            ++ctx->nodesFailed;
+            continue;
+        }
+        FC4_ACQUIRED(o, "CreateConnectionNode");
+        ++(ok ? ctx->nodesMade : ctx->nodesFailed);
+        made.push_back(o);
+    }
+    {
+        SC4List<cISC4Occupant*> list;
+        for (cISC4Occupant*& o : made) list.push_back(o);
+        nm->AutoconnectLotNodes(SdkLotOf(lot), list);  // slot 21, abi: via cFC4I
+        FC4_X87_CHECK("lotdev AutoconnectLotNodes");
+        ++ctx->autoconnects;
+        // The list's references are ours (made): released here, not by the list.
+        for (cISC4Occupant*& o : list) o = nullptr;
+    }
+    for (cISC4Occupant* o : made) FC4_RELEASE(o);
+}
+
+// RemoveNetworkConnectionNodes(lot) (§6.5, LD17): the network occupants
+// (0xC772BF98) of the lot's bounding rectangle (occupant manager slot 41,
+// maxCount -1; nothing more when it fails), those whose network occupant
+// (QueryInterface 0xA821EF94) has every bit of 0x200000 (slot 8) go to
+// network manager slot 6 DestroyNetworkOccupants; the rest are dropped.
 void RemoveNetworkConnectionNodes(void* u, uint64_t lot) {
     LOTDEV_TEST(remove_network_connection_nodes, lot);
-    NoteOnce(g_noteNetworkNodes, "lotdev: Add/RemoveNetworkConnectionNodes are not specified: no network "
-                                 "connection nodes (question)");
+    cISC4OccupantManager* om = Occupants(u);
+    cFC4ISC4NetworkManager* nm = NetworkManager(u);
+    if (!Writes(u) || lot == 0 || om == nullptr || nm == nullptr ||
+        !Gate(u, fc4::Sw::LotdevDemolition, "lotdev RemoveNetworkConnectionNodes (kept)")) {
+        return;
+    }
+    SC4Rect<int32_t> r;
+    LotOf(lot)->GetBoundingRect(r);  // slot 14
+    SC4List<cISC4Occupant*> found;
+    const SC4Point<int> a(r.topLeftX, r.topLeftY);
+    const SC4Point<int> b(r.bottomRightX, r.bottomRightY);
+    const bool ok = om->GetOccupantsByStandardCityCells(found, &a, &b, kOccupantTypeNetwork, 0xFFFFFFFFu);  // 41
+    const std::vector<uint64_t> tokens = TakeOccupants(u, found, "GetOccupantsByStandardCityCells list entry");
+    if (!ok) return;
+    std::vector<cISC4Occupant*> nodes;
+    for (uint64_t t : tokens) {
+        cISC4NetworkOccupant* no = As<cISC4NetworkOccupant>(t, kIID_cISC4NetworkOccupant);
+        if (no != nullptr && no->HasNetworkFlag(kNetworkFlagConnectionNode)) {  // slot 8
+            nodes.push_back(reinterpret_cast<cISC4Occupant*>(FromToken(t)));
+        }
+    }
+    SC4List<cISC4Occupant*> list;
+    for (cISC4Occupant*& o : nodes) {
+        list.push_back(o);
+        fc4::LotDevExpire(Ctx(u), o);
+    }
+    nm->DestroyNetworkOccupants(list);  // slot 6 (also with none, as the original)
+    FC4_X87_CHECK("lotdev DestroyNetworkOccupants");
+    Ctx(u)->nodesDestroyed += static_cast<uint32_t>(nodes.size());
+    for (cISC4Occupant*& o : list) o = nullptr;  // the held references are released after the call
 }
 
 // cSC4ConstructionOccupant (class 0xA97F909E, IID 0x496E7636) as §6.3 uses it.
@@ -1436,9 +1630,11 @@ public:
     virtual intptr_t SetLot(cISC4Lot* lot) = 0;  // 4
 };
 
-// §6.3: CreateInstance(0xA97F909E, 0x496E7636), SetLot(lot), InsertOccupant
-// (occupant manager slot 20), release. [choice] The original's direct
-// construction when GZCOM fails is not reproduced (logged once).
+// §6.3 (LD25: the occupant comes from the COM directory, not the BDS):
+// CreateInstance(0xA97F909E, 0x496E7636), SetLot(lot), InsertOccupant
+// (occupant manager slot 20), release. The class is registered, so the
+// original's direct construction when GZCOM fails is never reached; it is
+// not reproduced (refused, logged once).
 void StartConstructionOccupant(void* u, uint64_t lot) {
     LOTDEV_TEST(start_construction_occupant, lot);
     if (!Writes(u) || lot == 0 || !Gate(u, fc4::Sw::LotdevBuildings, "lotdev construction occupant (none)")) return;
@@ -1809,19 +2005,116 @@ void RemoveBuildingProps(void* u, uint64_t building) {
     pm->RemoveBuildingProps(o);
 }
 
-// §7.2 step 2: cSC4PropOccupantBurntBuilding. [question] The spec names the
-// class, not how it is made: none (the explosion leaves no burnt shell).
+// §7.2 ExplodeLot step 2 (LD14): cSC4PropOccupantBurntBuilding, class
+// 0xC9EFB016, made with CreateInstance(0xC9EFB016, cISC4PropOccupant
+// 0xE9793A65), which answers the object's base (the class is registered in
+// the COM directory); SetBoundsFromOccupant(building occupant) by address
+// (0x005EEB70, __thiscall on the base, pop 4: docs/abi/direct-calls.md);
+// then on its occupant (AsOccupant, the sub-object at +8): SetFlag(0x40)
+// (slot 29) and Init (slot 3). Its bounding box (occupant slot 10) goes to
+// the core. The object's reference is kept for the call (released after
+// AddLotProp, as the original's). [choice] The original's direct `new` when
+// the class factory fails is not reproduced: no burnt prop (logged once).
+// The building's position (occupant slot 8) is kept for the decal (§7.2
+// step 4), read here, before ClearLotBuildings removes the building.
+const uint32_t kCLSID_cSC4PropOccupantBurntBuilding = 0xC9EFB016;
+const uint32_t kCLSID_cSC4PropOccupantTerrainDecal = 0x2977AA48;
+const uint32_t kIID_cISC4PropOccupantTerrainDecal = 0xE982078A;
+const uint32_t kOccupantFlagProp40 = 0x40;
+const uint32_t kRubbleDecalType = 0x7AB50E44;
+const uint32_t kRubbleDecalGroup = 0x1ABE787D;
+const float kRubbleDecalOpacity = 0.7f;
+// __thiscall through __fastcall: ECX = this, EDX unused, stack (source), callee pops 4.
+using SetBoundsFromOccupantFn = void(__fastcall*)(void* self, void* edx, cISC4Occupant* source);
+
 bool MakeBurntBuilding(void* u, uint64_t building, fc4_lotdev_burnt* out) {
     LOTDEV_TEST(make_burnt_building, building, out);
-    NoteOnce(g_noteBurnt, "lotdev: the burnt-building prop (cSC4PropOccupantBurntBuilding) is not specified: none "
-                          "made (question)");
-    return false;
+    if (out == nullptr || building == 0 || !PropWrites(u, "lotdev burnt building (none)")) return false;
+    cISC4Occupant* source = Occ(building);
+    const uintptr_t setBounds = fc4::compat::DirectCall(fc4::compat::Direct::BurntBuildingSetBounds);
+    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    void* p = nullptr;
+    if (source == nullptr || setBounds == 0 || com == nullptr ||
+        !com->GetClassObject(kCLSID_cSC4PropOccupantBurntBuilding, kIID_cISC4PropOccupant, &p) || p == nullptr) {
+        NoteOnce(g_noteBurnt, "lotdev: WARNING no burnt-building prop (class 0xC9EFB016 not created through GZCOM, "
+                              "or SetBoundsFromOccupant not available): the explosion leaves no burnt shell and no "
+                              "rubble (§7.2, LD14)");
+        return false;
+    }
+    auto* prop = static_cast<cISC4PropOccupant*>(p);
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(prop), "GetClassObject");
+    fc4::LotDevHold(Ctx(u), prop, true);
+    reinterpret_cast<SetBoundsFromOccupantFn>(setBounds)(prop, nullptr, source);  // 0x005EEB70, on the base
+    FC4_X87_CHECK("lotdev burnt SetBoundsFromOccupant");
+    cISC4Occupant* o = prop->AsOccupant();  // slot 3, borrowed (+8)
+    if (o == nullptr) return false;
+    o->SetFlag(kOccupantFlagProp40);  // slot 29
+    o->Init();                        // slot 3
+    cS3DVector3 mn, mx;
+    o->GetBoundingBox(&mn, &mx);  // slot 10
+    cS3DVector3 at;
+    source->GetPosition(&at);  // slot 8: the building's, for the decal
+    FC4_X87_CHECK("lotdev burnt building");
+    fc4::LotDevContext* ctx = Ctx(u);
+    ctx->burntPos[0] = at.fX;
+    ctx->burntPos[1] = at.fY;
+    ctx->burntPos[2] = at.fZ;
+    ctx->burntOccupant = TokenOf(o);
+    out->occupant = TokenOf(o);
+    out->min[0] = mn.fX;
+    out->min[1] = mn.fY;
+    out->min[2] = mn.fZ;
+    out->max[0] = mx.fX;
+    out->max[1] = mx.fY;
+    out->max[2] = mx.fZ;
+    ++ctx->burntMade;
+    return true;
 }
 
-// §7.2 step 4: [question] the decal prop's construction is not specified.
+// §7.2 ExplodeLot step 4 (LD14): cSC4PropOccupantTerrainDecal, class
+// 0x2977AA48, CreateInstance(0x2977AA48, 0xE982078A); on its occupant
+// (QueryInterface cISC4Occupant, the sub-object at +0xC): Init; then decal
+// slot 3 SetDecalTexture(&{0x7AB50E44, 0x1ABE787D, instance}, size) and slot 4
+// SetOpacity(0.7); occupant SetPosition(the building's position) (slot 9),
+// SetFlag(0x40) (slot 29); prop manager slot 25 AddLotProp(lot, occupant).
+// The decal's reference is released after (kept for the call). [choice] No
+// direct `new` when the factory fails: no decal (logged once).
 void AddRubbleDecal(void* u, uint64_t lot, const fc4_lotdev_burnt* burnt, uint32_t instance, float size) {
     LOTDEV_TEST(add_rubble_decal, lot, burnt, instance, size);
-    NoteOnce(g_noteRubble, "lotdev: the rubble decal prop is not specified: none added (question)");
+    cISC4PropManager* pm = Props(u);
+    fc4::LotDevContext* ctx = Ctx(u);
+    if (pm == nullptr || lot == 0 || burnt == nullptr || !PropWrites(u, "lotdev rubble decal (none)")) return;
+    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    void* p = nullptr;
+    if (com == nullptr ||
+        !com->GetClassObject(kCLSID_cSC4PropOccupantTerrainDecal, kIID_cISC4PropOccupantTerrainDecal, &p) ||
+        p == nullptr) {
+        NoteOnce(g_noteRubble, "lotdev: WARNING could not create a rubble decal through GZCOM (class 0x2977AA48): "
+                               "none added (§7.2, LD14)");
+        return;
+    }
+    auto* decal = static_cast<cISC4PropOccupantTerrainDecal*>(p);
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(decal), "GetClassObject");
+    fc4::LotDevHold(ctx, decal, true);
+    cISC4Occupant* o = As<cISC4Occupant>(TokenOf(decal), kIID_cISC4Occupant);  // +0xC, borrowed
+    if (o == nullptr) return;
+    o->Init();  // slot 3
+    const cGZPersistResourceKey key(kRubbleDecalType, kRubbleDecalGroup, instance);
+    decal->SetDecalTexture(key, size);       // slot 3
+    decal->SetOpacity(kRubbleDecalOpacity);  // slot 4
+    // The building's position from MakeBurntBuilding (the same ExplodeLot);
+    // the burnt prop's own when it is not that one.
+    cS3DVector3 at;
+    if (ctx->burntOccupant != 0 && ctx->burntOccupant == burnt->occupant) {
+        at = cS3DVector3(ctx->burntPos[0], ctx->burntPos[1], ctx->burntPos[2]);
+    } else if (cISC4Occupant* b = Occ(burnt->occupant)) {
+        b->GetPosition(&at);
+    }
+    o->SetPosition(&at);               // slot 9
+    o->SetFlag(kOccupantFlagProp40);   // slot 29
+    pm->AddLotProp(SdkLotOf(lot), o);  // slot 25
+    FC4_X87_CHECK("lotdev rubble decal");
+    ++ctx->decalsAdded;
 }
 
 // ---- BDS (building-development.md §7.1) ----------------------------------------------------------------
@@ -2114,8 +2407,11 @@ void UnitMembers(void* u, uint64_t unit, fc4_token_callback cb, void* cbCtx) {
     Each(tokens, cb, cbCtx);
 }
 
-// A new cSC4BusinessUnit (GZCOM 0x4A232DA8, IID 0x6A233069) [question: the
-// spec names the class, not how PickUnitToJoin makes it]. Kept for the call.
+// §5.7 step 4 (LD13): a new cSC4BusinessUnit, CreateInstance(0x4A232DA8,
+// cISC4BusinessUnit 0x6A233069) (the class is registered; the original's
+// direct construction holds no reference of its own: the member lots do).
+// Our reference is kept for the call and released after the core has added
+// the candidate and the lot (the created hold), so the members hold the unit.
 uint64_t UnitCreate(void* u) {
     LOTDEV_TEST0(unit_create);
     if (!Writes(u) || !Gate(u, fc4::Sw::LotdevUnits, "lotdev business unit (none)")) return 0;
@@ -2204,10 +2500,11 @@ cSC4LotConfigurationObject* LotDevObjectAt(cISC4LotConfiguration* cfg, uint32_t 
     return v->begin() + index;
 }
 
-// Slot 38 GetFirstBuilding(lot) [question: the spec gives no body]: the
-// first occupant of type building (0x278128A0) in the lot's cells that is a
-// cISC4BuildingOccupant, in list order; no reference for the caller (one is
-// kept for the call).
+// Slot 38 GetFirstBuilding(lot) (§7.1, LD15): the building occupants
+// (0x278128A0) of the lot's bounding rectangle from occupant manager slot 41
+// with maxCount 1; only the FIRST entry is queried for cISC4BuildingOccupant
+// (null when it is not one); no reference for the caller (one is kept for
+// the call, as the list's are).
 cISC4BuildingOccupant* LotDevFirstBuilding(LotDevContext* ctx, cISC4Lot* lot) {
     void* u = ctx;
     if (ctx->test != nullptr && ctx->test->first_building != nullptr) {
@@ -2221,18 +2518,18 @@ cISC4BuildingOccupant* LotDevFirstBuilding(LotDevContext* ctx, cISC4Lot* lot) {
     SC4List<cISC4Occupant*> list;
     const SC4Point<int> a(r.topLeftX, r.topLeftY);
     const SC4Point<int> b(r.bottomRightX, r.bottomRightY);
-    om->GetOccupantsByStandardCityCells(list, &a, &b, kOccupantTypeBuilding, 0xFFFFFFFFu);  // slot 41
-    for (uint64_t t : TakeOccupants(u, list, "GetOccupantsByStandardCityCells list entry")) {
-        if (cISC4BuildingOccupant* bo = Building(t)) return bo;
-    }
-    return nullptr;
+    const bool ok = om->GetOccupantsByStandardCityCells(list, &a, &b, kOccupantTypeBuilding, 1u);  // slot 41
+    const std::vector<uint64_t> entries = TakeOccupants(u, list, "GetOccupantsByStandardCityCells list entry");
+    return ok && !entries.empty() ? Building(entries.front()) : nullptr;
 }
 
-// Slot 41's occupant: the lot's base texture (usage 2) in its cells, or,
-// with `create`, a new one (CreateInstance(0xC97F987C, 0x097F6D98),
+// Slot 41's occupant (§6.6, LD16 / LD24): the first base texture at the
+// lot's location cell (FindBaseTexture; queried, SetUsage(2)), or, with
+// `create`, a new one (CreateInstance(0xC97F987C, 0x097F6D98),
 // AsOccupant()->Init(), SetUsage(2); not inserted: §6.6 inserts it after
-// SetTextureSpecification). [question] The spec gives slot 41's lookup no
-// body. Borrowed (a reference is kept for the call).
+// SetTextureSpecification). [choice] The original's direct construction when
+// GZCOM fails is not reproduced (logged once). Borrowed (a reference is kept
+// for the call).
 cISC4Occupant* LotDevBaseTextureOccupant(LotDevContext* ctx, cISC4Lot* lot, bool create) {
     void* u = ctx;
     if (ctx->test != nullptr && ctx->test->base_texture_occupant != nullptr) {
@@ -2240,7 +2537,10 @@ cISC4Occupant* LotDevBaseTextureOccupant(LotDevContext* ctx, cISC4Lot* lot, bool
             FromToken(ctx->test->base_texture_occupant(ctx->test->user, TokenOf(lot), create)));
     }
     if (lot == nullptr) return nullptr;
-    if (cISC4Occupant* o = FindBaseTexture(u, lot)) return o;
+    if (cISC4Occupant* o = FindBaseTexture(u, lot)) {
+        // Found: a failed query answers false, and nothing is created.
+        return FoundBaseTexture(u, o) != nullptr ? o : nullptr;
+    }
     if (!create || ctx->readOnly || !Gate(u, fc4::Sw::LotdevTextures, "lotdev base-texture occupant (none)")) {
         return nullptr;
     }
@@ -2451,7 +2751,6 @@ fc4_lotdev_host MakeLotDevHost(LotDevContext* ctx) {
     h.object_id_array = &ObjectIdArray;
     h.first_building = &FirstBuilding;
     h.update_lot_retaining_walls = &UpdateLotRetainingWalls;
-    h.update_lot_object_altitudes = &UpdateLotObjectAltitudes;
     h.update_lot_base_texture_occupant = &UpdateLotBaseTextureOccupant;
     h.base_texture_occupant = &BaseTextureOccupant;
     h.base_texture_set = &BaseTextureSet;
@@ -2527,6 +2826,9 @@ fc4_lotdev_host MakeLotDevHost(LotDevContext* ctx) {
     h.unit_create = &UnitCreate;
     h.unit_add = &UnitAdd;
     h.unit_remove = &UnitRemove;
+    h.lot_occupants = &LotOccupants;
+    h.lot_configuration_object = &LotConfigurationObject;
+    h.occupant_moved = &OccupantMoved;
     return h;
 }
 
@@ -2570,7 +2872,6 @@ fc4_lotdev_host MakeLotDevReadOnlyHost(LotDevContext* ctx) {
     h.lot_set_population = nullptr;
     h.lot_set_property = nullptr;
     h.update_lot_retaining_walls = nullptr;
-    h.update_lot_object_altitudes = nullptr;
     h.update_lot_base_texture_occupant = nullptr;
     h.base_texture_occupant = nullptr;
     h.base_texture_set = nullptr;
@@ -2613,6 +2914,7 @@ fc4_lotdev_host MakeLotDevReadOnlyHost(LotDevContext* ctx) {
     h.unit_create = nullptr;
     h.unit_add = nullptr;
     h.unit_remove = nullptr;
+    h.occupant_moved = nullptr;
     return h;
 }
 

@@ -638,7 +638,9 @@ pub trait DevelopmentHost: GridProvider<u8> {
     fn set_foundation_usage(&self, occ: OccupantId, usage: i32);
     /// Slot 12 `SetOrientation(orientation)` (clamped to 0..3).
     fn set_foundation_orientation(&self, occ: OccupantId, orientation: i32);
-    /// `cISC4LotRetainingWallOccupant` slot 11 `GetRetainingWallType()`.
+    /// `cISC4LotRetainingWallOccupant` slot 11 `GetRetainingWallType()`, the
+    /// wall reached from any occupant by its IID `0x295D1162` (§4.9.2, DG35);
+    /// 0 when the occupant is not a wall.
     fn retaining_wall_type(&self, occ: OccupantId) -> u32;
     /// `lotDeveloper.GetLowestOrHighestAreaAltitude(SC4Rect<int32>{x1, z1,
     /// x2, z2}, lowest, withWater)` (lot-developer.md, slot 17).

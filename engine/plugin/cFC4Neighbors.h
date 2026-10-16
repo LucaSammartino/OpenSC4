@@ -59,6 +59,7 @@
 #include "FC4Interfaces.h"
 #include "FC4PropertyHolder.h"
 #include "cIGZMessageTarget2.h"
+#include "cIGZString.h"
 #include "cIGZSerializable.h"
 #include "cISC4NeighborConnection.h"
 #include "cISC4NeighborDeal.h"
@@ -74,6 +75,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 
 class cIGZMessageServer2;
@@ -489,6 +491,16 @@ uint32_t NeighborsFallbacks();
 // (slot 23) RequestCreateConnection reads instead of the framework's
 // (borrowed: never queried or released; null: back to the framework's).
 void NeighborsTestSetApp(cISC4App* app);
+// nSC4UI::GenericConfirmationDialog (neighbors.md §15.4 NG35, the original
+// 0x0078DFF0): cdecl (title, text, yesLabel, noLabel), the labels null for the
+// default Yes and No; true only when closed with Yes.
+using NeighborsConfirmFn = bool(__cdecl*)(cIGZString* title, cIGZString* text, cIGZString* yesLabel,
+                                          cIGZString* noLabel);
+// FC4TestSeam op 66: a fake dialog for RequestCreateConnection (null: the
+// game's, through compat::Direct::GenericConfirmationDialog).
+void NeighborsTestSetConfirm(NeighborsConfirmFn fn);
+// §6.2's sprintf(text, name) (NG45 [choice]: the first %s, and %%).
+std::string NeighborsFormatConfirmText(const std::string& format, const std::string& name);
 // Test seam (op 48 with `b`): a new deal of ours with `src`'s state (Copy,
 // §5.4), one reference for the caller in `*out`. AddDeal now keeps a
 // foreign deal itself (NG4), so the tests make their deal of ours here.

@@ -98,8 +98,10 @@ public:
     bool CreateValString(cIGZString** value) const override { return v_.CreateValString(value); }
     bool GetValString(cIGZString& value) const override { return v_.GetValString(value); }
     void SetValString(cIGZString const& value) override { v_.SetValString(value); }
-    bool GetValVoid(void* value, uint32_t& length) const override { return v_.GetValVoid(value, length); }
-    void SetValVoid(void* value, uint32_t length) override { v_.SetValVoid(value, length); }
+    // Slots 57 / 58, the raw bytes (type 0x8000): not the SDK's (it answers
+    // false and stores nothing); see cFC4Variant.cpp (NG37, data-formats §5.2).
+    bool GetValVoid(void* value, uint32_t& length) const override;
+    void SetValVoid(void* value, uint32_t length) override;
     cIGZUnknown* GetValUnknown() override { return v_.GetValUnknown(); }
     void SetValUnknown(cIGZUnknown* value) override { v_.SetValUnknown(value); }
     bool AsBool() const override { return static_cast<const cRZBaseVariant&>(v_).AsBool(); }
