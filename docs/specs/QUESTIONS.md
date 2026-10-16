@@ -4726,3 +4726,19 @@ prefix the code comments use; automata.md's own Q1-Q6 keep their numbers. The cu
   partially, as in the original? [a short or cut record is a failed, atomic read, so round trips can be checked]
 - **AM12:** (§7.3 slot 31, TrackAutomataGroupInstances) what are the semantics? [adds delta, does not go below 0,
   appends a new group]
+
+## From the session seed (filed by the coordinator from the `seeding` lane's report, 2026-10-16; merged `77b7909`)
+
+seeding implemented foundations §6.3 across every merged core that owns a generator (`engine/core/src/seeding.rs`,
+`seeding::keys`, ABI 64) and the plugin's session seed (`session_seed = <u32>`, else the wall clock at game start). The
+current choice is in brackets.
+
+- **RN2:** foundations §6.3 and growth-developer.md §7: a decline key whose coordinate seed is `0xFFFFFFFF` makes `Seed`
+  read the clock (growth-developer.md §7), but §6.3 says coordinate-seeded temporaries are unchanged. Is that case a
+  clock-seeded temporary of the owning class, and is this the intended K? [derive(S, `0x0990C138` XOR n), n counting such
+  reads per developer object, not saved; `seeding::keys::growth_decline_clock`, `growth_developer/simulator.rs`]
+- **RN3:** foundations §6.2 / §6.3: the budget (RiskyMoney) and pollution-effects generators are file-local statics in the
+  original, seeded once per process. In our cores each simulator object owns one, so the stream restarts at every city
+  load in the same process (crime and the development cores already keep theirs process-wide). Should budget and
+  pollution keep their generator across city loads like the original, or is a restart at each load an acceptable
+  *[choice]*? [restart at each load]
