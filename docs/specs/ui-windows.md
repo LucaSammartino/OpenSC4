@@ -136,15 +136,16 @@ instructions and was read on Windows.
 | `+0x00` | `cISC4View3DWin` vptr → `0x00ABCE40` | `CloseSecondaryMenu` `0x007E5D2D` does `mov eax,[esi]; call [eax+0xf0]` and `0x00ABCE40` slot 60 is `CloseTertiaryMenu` |
 | `+0x08` | a `cIGZWinMessageFilter` sub-object *[inferred]* | `InvokeSecondaryMenu` `0x007E5CA1` does `lea eax,[edi+8]; call [edx+0x1d0]` — `AddMessageFilter` takes the **address** of the field, so the filter is inline at `+8`, not a pointer. Its vtable is not read here |
 | `+0x0C` | `cIGZWin` / `cGZWinGen` sub-object (vptr → `0x00ADC678`) | `AsIGZWin` `0x005F8404` |
-| `+0x1F8` | secondary catalog-menu window, `cIGZWin*` or null | `CloseSecondaryMenu` `0x007E5D23`, cleared at `0x007E5D5E` |
-| `+0x1FC` | tertiary catalog-menu window, `cIGZWin*` or null | `CloseTertiaryMenu` `0x007E5E94`, cleared at `0x007E5F1C` |
-| `+0x200` | secondary menu kind / instance id | `InvokeSecondaryMenu` `0x007E5C1E` compares it to the argument; cleared at `0x007E5D68` |
-| `+0x204` | tertiary menu kind / instance id | `InvokeTertiaryMenu` `0x007E5D8E`; cleared at `0x007E5F26` |
+| `+0x1F8` | secondary catalog-menu window, `cIGZWin*` or null | written by `InvokeSecondaryMenu` (stores `esi`), cleared at `0x007E5D5E`; read at `0x007E5D23` |
+| `+0x1FC` | tertiary catalog-menu window, `cIGZWin*` or null | written by `InvokeTertiaryMenu` `0x007E5E70`, cleared at `0x007E5F1C`; read at `0x007E5E94` |
+| `+0x200` | secondary menu kind | `InvokeSecondaryMenu` `0x007E5C1E` compares it to **arg2**; cleared at `0x007E5D68` |
+| `+0x204` | tertiary menu kind | written by `InvokeTertiaryMenu` `0x007E5E76` (from `ebx` = **arg2**), cleared at `0x007E5F26` |
 | `+0x208` | pointer to a two-dword catalog state, or null | `CloseTertiaryMenu` `0x007E5EA2`–`0x007E5EE7` writes `+0` and `+4` through it; only the tertiary path uses it |
 | `+0x300` | object answering `QueryInterface(0x67C5BEDE)` (the view manager) | `GetViewManager` `0x007E60B1`–`0x007E60C2` |
 
-Offsets `+0x1F8`…`+0x208` are confirmed twice (once by the open path, once by the close path) and are safe to code
-against. `+0x08` and `+0x300` are single-site readings and are marked accordingly.
+Offsets `+0x1F8`…`+0x208` are confirmed **from both directions** — written by the `Invoke*` open path and cleared by the
+`Close*` teardown path — and are safe to code against. `+0x08` and `+0x300` are single-site readings and are marked
+accordingly.
 
 ### 3.3 `cISC4View3DWin` slot table, vtable `0x00ABCE40` *[compat]*
 
@@ -337,8 +338,9 @@ Measured facts and their limits:
   `0x0099xxxx` inside `cGZWinGen`. What would settle it: the flag bit meanings (they are `cIGZWinGen` generator flags,
   distinct from `cIGZWin` `GetFlag`/`SetFlag` slot 67/68).
 - `nSC4UI::AlignWindowToWindow` at `0x0078DB20` (name from `re/names_windows.tsv:7942`, Mac score 0.987) is called
-  once, with `0xAAAA` as one of its four arguments. *[inferred]* `0xAAAA` is an alignment/anchor code. The other three
-  arguments are `win->GetID()` (slot 63), one of the caller's own arguments, and `0`.
+  once, with `0xAAAA` as its second argument and `win->GetID()` (slot 63) as its first. Its third argument is
+  **arg4 of the caller**, which at the two known call sites is `1` and a resource-shaped id — so it is a *target
+  window id*, not a coordinate (§4.4). *[inferred]* `0xAAAA` is an anchor/alignment code. The fourth argument is `0`.
 - The argument **order** into `SC4CreateWindowFromScript` is not fully settled: the callee takes 3 dwords (§5.1) and
   the caller cleans 12 bytes, but one of the three dwords it writes is an out-pointer local and the register saves
   interleave with the pushes. *[inferred]* the order is `(out_ptr, parent, instance)` from the push sequence
@@ -347,17 +349,35 @@ Measured facts and their limits:
 
 ### 4.4 `InvokeTertiaryMenu` (`0x007E5D80`) *[compat]*
 
-Byte-for-byte the same shape as §4.3 with four differences, all measured from `0x007E5D80`–`0x007E5DAF`:
+Byte-for-byte the same shape as §4.3 with four differences, all measured from `0x007E5D80`–`0x007E5E82`:
 
 | | Secondary | Tertiary |
 |---|---|---|
 | Menu-kind field tested | `+0x200` (`0x007E5C1E`) | `+0x204` (`0x007E5D8E`) |
 | Close slot on toggle/replace | 59 (`0x007E5C34`, `0x007E5C44`) | 60 (`0x007E5DA4`, `0x007E5DB4`) |
 | Callee pops | `ret 0x10` = **4** args (`0x007E5C3F`) | `ret 0x14` = **5** args (`0x007E5DAF`) |
+| Stored on success | `+0x1F8` = window | `+0x1FC` = window (`0x007E5E70`), `+0x204` = arg2 (`0x007E5E76`) |
 | State pointer written on close | none | `+0x208` (§4.1) |
 
-The extra fifth argument is not yet identified. *[inferred]* it is the initial catalog state the close path writes back
-to `+0x208`. What would settle it: the callers of `0x007E5D80` (`re/` cross-references or a Ghidra caller list).
+**The fifth argument, now identified (answers UIW-2 in part).** `InvokeTertiaryMenu` has exactly two callers
+(`xrefs` to `0x007E5D80`, both inside `cSC4View3DWin`), and both push five values right-to-left:
+
+| Call site | arg1 | arg2 | arg3 | arg4 | arg5 |
+|---|---|---|---|---|---|
+| `0x007E718A` | `0x9DE3002` | `0x9DE8798` | a variable (`[esp+0xC]`) | `1` | `-25` (`0xFFFFFFE7`) |
+| `0x007F50A7` | `0xCB95403E` | `0xAB954023` | a variable (`[esp+0x34]`) | `0xAB9537B7` | `-75` (`0xFFFFFFB5`) |
+
+So arg1 is a script-instance id, arg2 is the **menu kind** (it is what `ebx` holds and what is stored to `+0x204` at
+`0x007E5E76`), arg3 is caller data, and **arg5 is a small negative integer** — the only argument the secondary form
+lacks. arg5 does **not** reach `AlignWindowToWindow`, which is passed `arg4` (§4.3); it is consumed earlier in the body
+or is unused. *[inferred]* it is a pixel margin/offset for the popup placement, which would explain the −25 / −75. What
+would settle it: disassemble `0x007E5DC0`–`0x007E5E40`, the span between the create and the align call.
+
+**`AlignWindowToWindow` takes a window id to align to.** The tertiary tail (`0x007E5E40`–`0x007E5E57`) passes
+`win->GetID()` (slot 63), `0xAAAA`, `arg4`, `0` — and `arg4` is `1` at one site and a resource-shaped id at the other,
+which fits a **target window id** (with `1` as a special "screen"/"parent" id) far better than a coordinate.
+*[inferred]* the signature is
+`nSC4UI::AlignWindowToWindow(uint32 winID, uint32 anchor, uint32 targetWinID, uint32 flags)`.
 
 ---
 
@@ -626,9 +646,12 @@ An implementer should be able to make all of these pass without asking a questio
     not call `AddMessageFilter`, and must still leave the previous menu closed.
 19. **Generator flags.** On a successful create, the new window answers `QueryInterface(0x5386D516)` and flags 4 and 1
     are set to 0 on the resulting `cIGZWinGen`; the interface is released afterwards.
-20. **Alignment call.** `nSC4UI::AlignWindowToWindow` (`0x0078DB20`) is called once per create, with `0xAAAA` among its
-    arguments, before `PullToFront` and `ShowWindow`.
-21. **Show order.** `PullToFront` (slot 23) then `ShowWindow` (slot 69) — both after the alignment call.
+20. **Alignment call.** `nSC4UI::AlignWindowToWindow` (`0x0078DB20`) is called once per create, as
+    `AlignWindowToWindow(win->GetID(), 0xAAAA, <caller arg4>, 0)`, before `PullToFront` and `ShowWindow`. Its third
+    argument is a target window id (observed `1` and `0xAB9537B7`), not a coordinate.
+21. **Show and store order.** `PullToFront` (slot 23) then `ShowWindow` (slot 69), and only then are the fields
+    written: `+0x1F8`/`+0x1FC` = the window and `+0x200`/`+0x204` = arg2. A test that reads the fields must see the
+    window already shown.
 22. **Advisor popup closes on a button command** (any ID) and on the advice going inactive; **Esc and Enter must not
     close it.** *(This is the `docs/manual-checks.md` run 48 observation, expressed as a test.)* **[game]**
 23. **Advisor popup takes a hidden pause, not a pause.** While one is open, `IsHiddenPaused()` is true and
@@ -690,12 +713,15 @@ INVENTORY-M6 §4.5–§4.7's level (a class, a size, a role) and needs its own s
 
 1. **UIW-1:** What the two values written through `view+0x208` on a tertiary close mean, and what interface
    `0x8A2CAD8B` is (§4.1). Settle by naming the interface or reading the slot-17 and slot-9 bodies.
-2. **UIW-2:** The fifth argument of `InvokeTertiaryMenu` (§4.4). Settle by finding the callers of `0x007E5D80`.
+2. **UIW-2:** The **fifth** argument of `InvokeTertiaryMenu` is a small negative integer (−25 at `0x007E7179`, −75 at
+   `0x007F5093`), the only argument the secondary form lacks; it does not reach `AlignWindowToWindow`. What it is
+   consumed by (§4.4). Settle by disassembling `0x007E5DC0`–`0x007E5E40`.
 3. **UIW-3:** The exact argument order of the `SC4CreateWindowFromScript` call in `InvokeSecondaryMenu`, and whether
    the window's `GetID` becomes the instance argument (§4.3, §5.1 — this is modal-dialogs.md open question 1, still
    open). Settle by reading `cGZUIScriptService::CreateWindowFromScript`.
 4. **UIW-4:** What the `cIGZWinGen` generator flags 4 and 1 mean when cleared (§4.3).
-5. **UIW-5:** What `0xAAAA` means to `nSC4UI::AlignWindowToWindow` (§4.3).
+5. **UIW-5:** What `0xAAAA` means to `nSC4UI::AlignWindowToWindow` (§4.3). Its third argument is now known to be a
+   target window id (§4.4); the anchor code is still unnamed.
 6. **UIW-6:** Whether the view's paint path reaches `cSC4EffectsManager::Update` directly or through the 3D renderer's
    draw pass (§7).
 7. **UIW-7:** The identity of the field at `cIGZWin + 4` that `ChildDelete` forwards through (§2.3) — presumably the
