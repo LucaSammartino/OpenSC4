@@ -393,8 +393,6 @@ def _resolve_abi_version(wt, rel):
         body_t = body_t.split(nl, 1)[1] if nl in body_t else ""
         lines_o, lines_t = body_o.splitlines(), body_t.splitlines()
         vo, vt = regex.search(body_o), regex.search(body_t)
-        if not (vo or vt):
-            return False
         stray = [x for x in lines_o + lines_t
                  if x.strip() and not (is_h and x.lstrip().startswith("*")) and not regex.search(x)]
         if stray:
@@ -404,11 +402,19 @@ def _resolve_abi_version(wt, rel):
             if is_h and x.lstrip().startswith("*") and x not in seen:
                 seen.add(x)
                 hist.append(x)
-        best = max(int(m.group(2)) for m in (vo, vt) if m)
-        if is_h:
-            out.append(nl.join(hist + [f"#define FC4_ABI_VERSION {best}u"]))
+        # The version macro is often NOT in the hunk: lanes that pick the same number merge cleanly and only
+        # their history entries collide. Comment-only hunks union; a hunk that carries the macro keeps one
+        # copy at the higher number.
+        if (vo or vt):
+            best = max(int(m.group(2)) for m in (vo, vt) if m)
+            if is_h:
+                out.append(nl.join(hist + [f"#define FC4_ABI_VERSION {best}u"]))
+            else:
+                out.append(f"pub const FC4_ABI_VERSION: u32 = {best};")
         else:
-            out.append(f"pub const FC4_ABI_VERSION: u32 = {best};")
+            if not hist:
+                return False
+            out.append(nl.join(hist))
         i = raw.find(nl, end)
         i = n if i < 0 else i + 1
     text = "".join(out)
