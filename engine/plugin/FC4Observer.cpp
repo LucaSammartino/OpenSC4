@@ -41,6 +41,7 @@
 #include "FC4HistoryShadow.h"
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
+#include "FC4OccMgrShadow.h"
 #include "cFC4LotDeveloper.h"
 #include "cFC4Message2Standard.h"
 #include "fc4.h"
@@ -558,6 +559,7 @@ public:
                 ZoneDevShadowCityLoaded(CurrentCity());  // zonedev_shadow = 1 only
                 HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
+                OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -578,6 +580,7 @@ public:
                 CommercialShadowCityShutdown();  // commercial_shadow: the shadow core goes with the city
                 CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
                 ParksShadowCityShutdown();  // parks_shadow: the same
+                OccMgrShadowCityShutdown();  // occmgr_shadow: the probe, the shadow core and its references
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:
@@ -612,6 +615,7 @@ public:
                 LotDevShadowMonth(CurrentCity(), julian);       // lotdev_shadow = 1 only
                 fc4::ZoneDevMonthLine(julian);                  // enable = zonedev only (the month status line)
                 ZoneDevShadowMonth(CurrentCity(), julian);      // zonedev_shadow = 1 only
+                OccMgrShadowMonth(CurrentCity(), julian);       // occmgr_shadow = 1 only
                 ++monthsSinceLoad_;
                 if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the

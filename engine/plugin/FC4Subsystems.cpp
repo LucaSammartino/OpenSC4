@@ -65,6 +65,7 @@
 #include "FC4CivicShadow.h"       // the cmglue lane
 #include "FC4ParksShadow.h"       // the cmglue lane
 #include "FC4TrafficShadow.h"
+#include "FC4OccMgrShadow.h"  // the glue14b lane
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "cFC4LotDeveloper.h"
@@ -463,6 +464,8 @@ void Resolve() {
     Clock24ShadowStartup(enabledKey("clock24"));
     // The traffic shadow (FC4TrafficShadow.h; it compares the original traffic simulator).
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
+    // The occupant manager shadow (FC4OccMgrShadow.h; it follows the original occupant manager).
+    OccMgrShadowStartup();
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
