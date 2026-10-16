@@ -656,6 +656,7 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      | `mark <text>` | a log line |
      | `disaster fire\|riot x z`, `disaster fire\|riot auto`, `disaster survey` | the disaster layer's manager (city slot 72, layer slot 7, `0x621CDA33` fire / `0xCA380B06` riot) `AttemptDisasterStart(x, z)` (manager slot 6; disasters.md §3.1, §5.5, §6.2): the original's own start path, also with the disasters shadow; `auto` takes the survey's candidates in order (a fire: until the fire count rises; a riot: the first); `survey` logs the candidate cells: buildings on a lot away from the edge with flammability above 0 and fire coverage 0, and road cells with police coverage at most 64 (no call into the layer); `-> … AttemptDisasterStart(x, z) -> instance … fires a->b active=… ongoing=…` |
      | `save [fast]` | `cISC4App::SaveCity(fast)` (`docs/abi/vtables.tsv` `cSC4App::vftable_3` slot 16, pop 4, eax-or-void; foundations.md §3.7): the current city saved in place, a full save unless `fast`, through the same app reference and exception guard as the save autotest; `-> ok=<what SaveCity returned> (SaveCity(full\|fast) in N ms)`; no city: `ok=0 (skipped: no city)` |
+     | `terrain x0 z0 x1 z1 h [kind]` | `cISTETerrain::SetAltitude(SC4Rect(x0, z0, x1, z1), h, true, kind)` (city slot 84, terrain slot 49; terrain.md §6): every vertex of the inclusive rectangle set to `h` metres (decimal, 0..5000), its water reset, the redisplay posted with `kind` (0..6, default 1; §8.2); a rectangle past the city's vertices is refused (`skipped: …`; the original does not check it); `-> SetAltitude(x0,z0..x1,z1, h, true, kind): vertex (x0,z0) before -> after`; with `terrain_shadow = 1` the shadow mirrors the call (below) |
 
      `save_as <name>` is not available (a parse error that says so). The interface exists
      (`SaveCity(cIGZString const& path, bool fast)`, slot 15, pop 8), but what saving under another path does is
@@ -1653,6 +1654,40 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      clock shadow yyyy-mm-dd month: time=… visual=… mode=… pause=… hidden=…; samples=… steps=… jumps=… modes=…
        pauses=…; posts original=… matched=… unmatched=0 pending=…; values=… differing=0; mismatches=0;
        comparisons=C clean=C
+     ```
+   - **Terrain shadow** (`terrain_shadow = 1`, env `FC4_TERRAIN_SHADOW`; off by default; `terrain_shadow_points = N`
+     sample points a month, default 256, 16..4096; `terrain_shadow_diffs = N` differences named per line, default 8,
+     1..64; `terrain_shadow_lines = N` change lines a month, default 8, 0..1000; `plugin/FC4TerrainShadow.h`): a
+     same-process, read-only differential of the terrain core (`fc4_terrain`, docs/specs/terrain.md) against the
+     **original** `cSTETerrain` / `cSTESurfaceWater`. There is no terrain replacement: the shadow never writes to the
+     city's terrain, and needs none of our simulators (its own message subscription). At city load a FreeCity4
+     terrain is built from the original's altitudes and sea level (the water rebuilt from the sea level, §10.1, and
+     compared with the original's depths, which are then copied), the original's cached minimum and maximum taken
+     (§4.6), and every cell compared (CellHasWater, CellHasLand, GetWaterDepthForCell, GetWaterType, IsNavigable
+     r = 0) plus a sample of GetAltitude and GetFaceNormal. On every `0x278E6003` / `0x678E6E3A` (§8.1) the
+     message's rectangle is re-read (the moved vertices replayed through our SetAltitudeAtVertex and the depth rule
+     classified), our RedisplayTerrain must post the same four data words, the cached heights must match with the
+     terrain flag, and the queries are compared on the rectangle grown by one (cells touching a vertex changed
+     elsewhere, whose own message is still queued, are left out and counted). The messages are queued posts,
+     delivered after the change (under turbo, weeks of game time later; a change line's date is its delivery's). At
+     each `SimNewMonth` every vertex is re-read: one that differs from ours is copied and kept pending (`ahead`); the
+     change message that covers it later puts ours back first and follows it (`late`); one that no message covered
+     by the next month counts as `unfollowed`. Then the cache, the sea level and a date-seeded sample of all the
+     queries (IsNavigable r = 0..2, half on wet cells) are compared. The script
+     action `terrain` is mirrored exactly. Floats are compared bit for bit; the navigability host (bridges, power
+     poles) reads the game only (TR18; the refused count is in every line). Lines (always written):
+
+     ```
+     terrain shadow: ON (…) | requested but INACTIVE (…)                         (game start)
+     terrain shadow load yyyy-mm-dd|-: cells=XxZ sea=…; depths rebuilt from the sea level e/t; cache …; allowed
+       heights e/t; queries <name> e/t …; refused=R; mismatches=N[; first: …]        (- : before the first day)
+     terrain shadow change yyyy-mm-dd terrain|water kind=K rect=x0,z0..x1,z1: vertices=V moved=M wet=W depth rules
+       slot50/raiselower/reset/none=a/b/c/d; message e/t; [late L (…); ]changed elsewhere E[ (rect=…; cells
+       touching them skipped S)]; [cache …; ]queries …; refused=R; mismatches=N
+     terrain shadow script yyyy-mm-dd SetAltitude rect=… h=… kind=K: vertices e/t; cache …; refused=R; mismatches=N
+     terrain shadow month yyyy-mm-dd: unfollowed=U[ (altitudes, depths only, rect, first)]; ahead=A; cache …;
+       sea e/t; queries …; changes terrain=T water=W …; refused=R; mismatches=N[; first: …]
+     terrain shadow: city shutdown: N lines, M with mismatches=0; totals <name> e/t …
      ```
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
