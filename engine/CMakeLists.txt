@@ -319,6 +319,9 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4DemolitionShadow.h
         plugin/FC4DispatchShadow.cpp
         plugin/FC4DispatchShadow.h
+        # The dispatch manager's GZCOM class (enable = dispatch).
+        plugin/cFC4Dispatch.cpp
+        plugin/cFC4Dispatch.h
         # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp
