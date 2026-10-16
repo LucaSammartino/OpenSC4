@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "nr15_21_bridge_cell_as_two_types",
+  "spec": ["network-rules 8.2"],
+  "description": "A Road cell carrying the bridge flag 0x40000 reads as Road and type 12; type 12 wins and does not cover. The RoadGroundHighway entry solves it; without it the Road evaluators do.",
+  "steps": [
+    {"op": "nr_load", "resource": "multi", "text": ["[RoadGroundHighwayIntersectionSolutions]", "k=0x00020002,0x00000000,0x4321,0,0"]},
+    {"op": "nr_tiles", "type": "Road", "text": ["#T#", "1,2,0,2,0", "3,0,0x500,0,0"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x00020002"}, "flags": "0x40000", "in_run": true},
+    {"op": "nr_set_s", "cells": [[10, 10]]},
+    {"op": "nr_set_valid_count", "count": 1},
+    {"op": "nr_solve", "type": "Road", "expect": 1},
+    {"op": "nr_expect_solved", "records": [["0x4321", 0, 10, 10]]},
+    {"op": "nr_reset"},
+    {"op": "nr_tiles", "type": "Road", "text": ["#T#", "1,2,0,2,0", "3,0,0x500,0,0"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": "0x00020002"}, "flags": "0x40000", "in_run": true},
+    {"op": "nr_set_s", "cells": [[10, 10]]},
+    {"op": "nr_set_valid_count", "count": 1},
+    {"op": "nr_solve", "type": "Road", "expect": 1},
+    {"op": "nr_expect_solved", "records": [["0x500", 0, 10, 10]]}
+  ]
+}

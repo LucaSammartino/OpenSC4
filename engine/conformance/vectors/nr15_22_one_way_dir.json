@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "name": "nr15_22_one_way_dir",
+  "spec": ["network-rules 10.4"],
+  "description": "OneWayDir 1: after Rotate 1 it is 3; after Transpose it is 5 ((-d - 2) & 7).",
+  "steps": [
+    {"op": "nr_load", "resource": "intersections", "text": ["[HighwayIntersectionInfo_0x9]", "OneWayDir=1"]},
+    {"op": "nr_int_rule", "id": "0x9", "state": {"one_way_dir": 1}},
+    {"op": "nr_int_rule", "id": "0x9", "rotate": 1, "state": {"one_way_dir": 3}},
+    {"op": "nr_int_rule", "id": "0x9", "transpose": true, "state": {"one_way_dir": 5}}
+  ]
+}

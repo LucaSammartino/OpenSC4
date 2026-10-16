@@ -50,6 +50,7 @@ pub mod lot_developer;
 pub mod mysims;
 pub mod neighbors;
 pub mod network_manager;
+pub mod network_rules;
 pub mod occupant_manager;
 pub mod ordinance;
 pub mod pacing;

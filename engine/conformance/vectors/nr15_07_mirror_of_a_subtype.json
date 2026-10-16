@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "nr15_07_mirror_of_a_subtype",
+  "spec": ["network-rules 4.2"],
+  "description": "Mirroring an edge byte: 0x12 -> 0x22, 0xBA -> 0x3A, 0x0B -> 0x09; kinds 0 and 4-7 are unchanged.",
+  "steps": [
+    {"op": "nr_mirror_byte", "byte": "0x12", "expect": "0x22"},
+    {"op": "nr_mirror_byte", "byte": "0xBA", "expect": "0x3A"},
+    {"op": "nr_mirror_byte", "byte": "0x0B", "expect": "0x09"},
+    {"op": "nr_mirror_byte", "byte": "0x00", "expect": "0x00"},
+    {"op": "nr_mirror_byte", "byte": "0x04", "expect": "0x04"},
+    {"op": "nr_mirror_byte", "byte": "0x16", "expect": "0x16"}
+  ]
+}

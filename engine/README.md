@@ -96,6 +96,18 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
 417 identical after a second trip (no save has a bucket with two entries; 3,821 to 5,305 bytes), parks 417/417
 (10 bytes ×411, 18, 34, 58, 82).
 
+### Network rules sweep (the shipped rule files)
+
+`formats/tests/network_rules.rs` loads every shipped network rule resource (the tile rule files with
+`#Transmogrify`, RUL0, RUL1, RUL2 and the network INI; network-rules.md §2) with `fc4_core::network_rules`, read
+from the install's `.dat` files at run time and never committed, and reports the expansion counts and the load
+order's evaluator and rule counts. See `formats/README.md` for the result.
+
+```sh
+cd engine
+cargo test -p fc4-formats --release --test network_rules -- --nocapture
+```
+
 ## Installing and checking in game
 
 1. Copy `build-x86/FreeCity4.dll` to the game's plugin folder, for example

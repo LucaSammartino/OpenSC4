@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "nr15_15_scheme_2",
+  "spec": ["network-rules 7.2"],
+  "description": "Scheme 2 (Rail): the west diagonal leans into N, so N becomes 0x12; the north neighbour's S byte follows only when it is in P. A fixed cell fails into R.",
+  "steps": [
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Rail": "0x00000201"}},
+    {"op": "nr_cell", "x": 10, "z": 9, "edges": {"Rail": "0x02000000"}},
+    {"op": "nr_subtypes", "p": [[10, 10], [10, 9]], "expect": []},
+    {"op": "nr_expect_cell", "x": 10, "z": 10, "state": {"edges": {"Rail": "0x00001201"}}},
+    {"op": "nr_expect_cell", "x": 10, "z": 9, "state": {"edges": {"Rail": "0x12000000"}}},
+    {"op": "nr_reset"},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Rail": "0x00000201"}},
+    {"op": "nr_cell", "x": 10, "z": 9, "edges": {"Rail": "0x02000000"}},
+    {"op": "nr_subtypes", "p": [[10, 10]], "expect": []},
+    {"op": "nr_expect_cell", "x": 10, "z": 10, "state": {"edges": {"Rail": "0x00001201"}}},
+    {"op": "nr_expect_cell", "x": 10, "z": 9, "state": {"edges": {"Rail": "0x02000000"}}},
+    {"op": "nr_reset"},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Rail": "0x00000201"}, "fixed": true},
+    {"op": "nr_subtypes", "p": [[10, 10]], "expect": [[10, 10]], "expect_p": []}
+  ]
+}

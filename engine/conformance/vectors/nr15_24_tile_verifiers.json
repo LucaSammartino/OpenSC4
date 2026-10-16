@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "nr15_24_tile_verifiers",
+  "spec": ["network-rules 9.2"],
+  "description": "A record {0x100, 0x01} at (10, 10) looks at (10, 11) (metaposition 5 turned once): kept when it holds {0x101, 0x01}; otherwise removed back into S and the result is false.",
+  "steps": [
+    {"op": "nr_reset"},
+    {"op": "nr_load", "resource": "network", "text": ["[TileVerifiers]", "0x100=5,0x101,0,0"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": 0}},
+    {"op": "nr_cell", "x": 10, "z": 11, "edges": {"Road": 0}},
+    {"op": "nr_append_solved", "id": "0x100", "orientation": 1, "x": 10, "z": 10},
+    {"op": "nr_append_solved", "id": "0x101", "orientation": 1, "x": 10, "z": 11},
+    {"op": "nr_verify", "expect": true},
+    {"op": "nr_expect_solved", "records": [["0x100", 1, 10, 10], ["0x101", 1, 10, 11]]},
+    {"op": "nr_reset"},
+    {"op": "nr_load", "resource": "network", "text": ["[TileVerifiers]", "0x100=5,0x101,0,0"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": 0}},
+    {"op": "nr_cell", "x": 10, "z": 11, "edges": {"Road": 0}},
+    {"op": "nr_append_solved", "id": "0x100", "orientation": 1, "x": 10, "z": 10},
+    {"op": "nr_append_solved", "id": "0x101", "orientation": 0, "x": 10, "z": 11},
+    {"op": "nr_verify", "expect": false},
+    {"op": "nr_expect_solved", "records": [["0x101", 0, 10, 11]]},
+    {"op": "nr_expect_s", "cells": [[10, 10]]},
+    {"op": "nr_reset"},
+    {"op": "nr_load", "resource": "network", "text": ["[TileVerifiers]", "0x100=5,0x101,0,0"]},
+    {"op": "nr_cell", "x": 10, "z": 10, "edges": {"Road": 0}},
+    {"op": "nr_cell", "x": 10, "z": 11, "edges": {"Road": 0}},
+    {"op": "nr_append_solved", "id": "0x100", "orientation": 1, "x": 10, "z": 10},
+    {"op": "nr_verify", "expect": false},
+    {"op": "nr_expect_solved", "records": []}
+  ]
+}
