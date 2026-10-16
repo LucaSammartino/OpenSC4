@@ -117,6 +117,49 @@ that u32 with `+0xBC`, storing it only when it differs:
 So the zoom lives at **`*GetVoid2()`**, the same source zones.md §5.2 reads for the same message. A replacement
 that read `data1` would track the wrong word.
 
+**Corrects (TR22).** The heading of this table says "otherwise internal". That is wrong for the fields below:
+**three other classes hold a `cISTETerrain*` and read terrain-object fields directly**, not through the slot table.
+A replacement must reproduce these offsets and their meaning exactly — a slot-only implementation is not enough.
+
+| Holder | where it keeps the terrain | how it gets it |
+|---|---|---|
+| `cSTESurfaceWater` | water `+0x14` | global `0x00B43CF4` (`0x0073FE86`, `0x0073FEA0`) |
+| `cSTEVolcanoLava` | lava `+0x14` | city slot 84 `GetTerrain` `+0x150` (`0x0075E2FF`, `0x0075E307`) |
+| `cSTETerrainView3D` | view `+0x20` | the `Init` argument (§15.5) |
+
+**`cSTESurfaceWater` reads (all reads, never writes):**
+
+| Offset | Read by | For |
+|---|---|---|
+| `+0x38` vertsX | `ResetWaterToSeaLevel` `0x0073D180` (`0x0073D1A3`), `GetWaterDepthForCell` `0x0073D210` (`0x0073D251`) | the vertex-array row stride |
+| `+0x38`, `+0x3C` | `Init` `0x0073FE70`, `AnimateWater` `0x0073FDD0` (`0x0073FDDE`/`0x0073FDE1`) | the cell map, the whole-grid rect |
+| `+0x28`, `+0x2C` cellsX/Z | `UpdateNeighborConnections` `0x0073D850`, `UpdateFloodWaters` `0x0073EF00` | bounds |
+| `+0x40`..`+0x4C` city rect | `Init` `0x0073FE70` (`0x0074002C`–`0x00740035`) | **address-of** the rect, passed to `ResetWaterToSeaLevel` |
+| `+0x5C` vertex count | `Init` `0x0073FE70`, `SaveWaterInfo` `0x0073D090` | sizing the water arrays |
+| `+0x6C` vertex array | `ResetWaterToSeaLevel`, `FindLocalMinimumOrWater` `0x0073D2B0`, `AltitudeAtWhichFloodingWillOccur` `0x0073D4F0`, `GetWaterType` `0x0073D7F0`, `GetBasinVertices` `0x0073DFF0`, `Rain_Static` `0x0073E350`, `UpdateFloodWaters` `0x0073EF00` | altitude at record `+0x00`, 0x24-byte records |
+| `+0x7C` sea level | `ResetWaterToSeaLevel`, `GetWaterType`, `UpdateFloodWaters` | `depth := sea − alt` |
+| `+0x84`..`+0xA0` | `FindLocalMinimumOrWater`, `AltitudeAtWhichFloodingWillOccur`, `UpdateFloodWaters` | the 8 neighbour offsets |
+
+It mixes both styles in one function: e.g. `GetWaterDepthForCell` calls **slot 9** `GetVertIndex` (`0x0073D222`)
+then reads `+0x38`; `GetWaterType` calls slot 9 then reads `+0x6C` and `+0x7C`.
+
+**`cSTEVolcanoLava` reads:** `+0x6C` is cached into lava `+0x8C` for the whole eruption (`0x0075E316`–`0x0075E319`)
+and `+0x84`..`+0xA0` supply the neighbour indices in `DoLavaFlow` `0x0075F4A0`. It also calls `RaiseVertex`
+directly (not by slot) and terrain slot 6 `CellWidth` (`0x0075E321`).
+
+**`cSTETerrainView3D` reads `+0x6C` only** (§15.5.5) — it takes everything else from slots and from its own cached
+statics — **and it also writes into the vertex records**: `LevelCell` `0x00759750` does
+`or byte [vertex+i*4+0x22], 0x60` (`0x00759873`) and `RemoveCellLevelling` `0x00758620` does
+`and byte [vertex+i*4+0x22], 0x9F` (`0x007586DA`). Those are the §7 hide bits `0x20|0x40` ("the whole cell
+hidden"), used as the levelling marks. **So the vertex array must be writable and those two bits must survive**;
+a replacement that recomputes `+0x22` from scratch will fight the view.
+
+**Nobody outside the terrain reads `+0x24`** (the surface-water pointer) — it is terrain-internal, and neither
+`cSTEWaterRipple`, `cSTEOverlayManager`, `cSTESelectedTerrainArea` nor `cSTEVertBufExtn` holds a terrain pointer.
+The only writes from outside the class are into the **vertex records**, never into the terrain object's own fields.
+*[inferred: completeness]* a caller holding the terrain in an untyped `int*` would not be caught by this sweep;
+settling it needs a data-flow sweep of the city slot 84 results.
+
 ### 2.4 Tuning *[compat]*
 
 Read once per process by `ReadTuningParameters` (`0x0074B6A0`) from exemplar `0x6534284A / 0x88CD66E9 / 1`
@@ -1768,6 +1811,12 @@ drawing is exercised.
   but it is reachable at all: `SL::OnView3DInit` (`0x006025D7`) stores `0x00B43DD0` slot 8 into `0x00B43DD8`, and
   `0x00B43DD0` is the same draw-callback registry the view's `Init` already uses (§15.5.4 step 12). A host that has
   neither leaves `+0xBC` at 0, which is what a headless harness sees and is harmless until the first view message.
+- ~~**TR22.** Does the game read the terrain object's fields directly?~~ **ANSWERED 2026-10-16 (re-answers30):
+  DIFFERS** — §2.3's "otherwise internal" is wrong. Three external classes hold a `cISTETerrain*` and read fields
+  directly: `cSTESurfaceWater` (water `+0x14`), `cSTEVolcanoLava` (lava `+0x14`) and `cSTETerrainView3D` (view
+  `+0x20`). Full offset lists are in the `**Corrects (TR22)**` block of §2.3. The standout for `enable = terrain`
+  is the view's direct read of the **vertex array at `+0x6C`**, and its two writes into the vertex `+0x22` flags
+  (`LevelCell` `0x00759873`, `RemoveCellLevelling` `0x007586DA`). Nothing external reads `+0x24`.
 
 
 ---
