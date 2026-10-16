@@ -163,6 +163,10 @@ struct Shadow {
     };
     std::vector<Deferred> deferred;
     uint64_t deferredIgnites = 0;
+    // Ignitions the original refused and the mirror took (Q40): the mirror's
+    // fire is put out at once (it dies at the mirror's next step).
+    std::set<uint64_t> resyncTargets;
+    uint64_t resyncs = 0, resyncSteps = 0;  // resyncSteps: mirror steps with no original fire tick
     // The original's fire instance.
     void* fireInternal = nullptr;            // cISC4DisasterInstanceFire* (borrowed)
     cISC4DisasterInstance* fireInst = nullptr;  // one reference ours
@@ -380,15 +384,23 @@ private:
 };
 
 // The layer: ongoing count and the location list (instance, x, z).
-void CompareLayer(Diffs& d, char* out, size_t cap, bool riot = false) {
+// `countQ`: the question that explains a count difference (ongoing, the
+// number of locations), or null.
+void CompareLayer(Diffs& d, char* out, size_t cap, const char* countQ) {
     const fc4_disasters_state s = CoreState();
     const int64_t ongoing = g.origBegun - g.origEnded;
-    if (ongoing != static_cast<int64_t>(s.ongoing)) d.Add("ongoing orig %lld ours %u", (long long)ongoing, s.ongoing);
+    if (ongoing != static_cast<int64_t>(s.ongoing)) {
+        if (countQ != nullptr) {
+            d.AddQ(countQ, "ongoing orig %lld ours %u", (long long)ongoing, s.ongoing);
+        } else {
+            d.Add("ongoing orig %lld ours %u", (long long)ongoing, s.ongoing);
+        }
+    }
     cISC4DisasterLayer* l = Layer();
     const int32_t n = l ? l->GetDisasterLocationCount() : 0;  // slot 16
     if (n != static_cast<int32_t>(s.location_count)) {
-        if (riot) {
-            d.AddQ("Q39", "locations orig %d ours %u", n, s.location_count);  // a leader a second apart
+        if (countQ != nullptr) {
+            d.AddQ(countQ, "locations orig %d ours %u", n, s.location_count);
         } else {
             d.Add("locations orig %d ours %u", n, s.location_count);
         }
@@ -401,9 +413,11 @@ void CompareLayer(Diffs& d, char* out, size_t cap, bool riot = false) {
         fc4_disasters_get_location(g.core, static_cast<size_t>(i), &loc);
         const uint32_t mapped = CoreInstanceOf(inst);
         if (mapped != loc.instance || x != loc.x || z != loc.z) {
-            // A riot leader's entry: the original's never follows the automaton (Q37).
-            const bool leader = riot && mapped == loc.instance && loc.occupant != 0;
-            if (leader) {
+            // An occupant entry (a riot leader, a fire's target): the original's
+            // reads (0, 0) or the cell where it was registered with focus, never
+            // the occupant's cell of now (Q37).
+            const bool occupantEntry = mapped == loc.instance && loc.occupant != 0;
+            if (occupantEntry) {
                 d.AddQ("Q37", "location %d orig (inst %u, %d,%d) ours (inst %u, %d,%d)", i, mapped, x, z,
                        loc.instance, loc.x, loc.z);
                 continue;
@@ -422,7 +436,6 @@ void FireLine(const char* what) {
     d.scope = "fire";
     const fc4_disasters_state s = CoreState();
     const int32_t origCount = OrigFireCount();
-    if (origCount != static_cast<int32_t>(s.fire_count)) d.Add("fires orig %d ours %u", origCount, s.fire_count);
     // Burning targets: the core's fires against BURNING of every target
     // either side knows (in the occupant manager only).
     std::set<uint64_t> ours;
@@ -430,6 +443,16 @@ void FireLine(const char* what) {
         fc4_disaster_fire f{};
         if (!fc4_disasters_get_fire(g.core, i, &f)) break;
         ours.insert(f.target);
+    }
+    // A fire of ours the original refused (Q40), until it dies.
+    bool resync = false;
+    for (uint64_t t : ours) resync = resync || g.resyncTargets.count(t) != 0;
+    if (origCount != static_cast<int32_t>(s.fire_count)) {
+        if (resync) {
+            d.AddQ("Q40", "fires orig %d ours %u", origCount, s.fire_count);
+        } else {
+            d.Add("fires orig %d ours %u", origCount, s.fire_count);
+        }
     }
     uint32_t origBurning = 0, oursBurning = 0, lots = 0;
     std::set<uint64_t> all = g.targets;
@@ -441,7 +464,11 @@ void FireLine(const char* what) {
         const bool cb = ours.count(t) != 0;
         origBurning += ob;
         oursBurning += cb;
-        if (ob != cb) d.Add("occupant %p burning orig %d ours %d", static_cast<void*>(o), ob, cb);
+        if (ob != cb && g.resyncTargets.count(t) != 0) {
+            d.AddQ("Q40", "occupant %p burning orig %d ours %d", static_cast<void*>(o), ob, cb);
+        } else if (ob != cb) {
+            d.Add("occupant %p burning orig %d ours %d", static_cast<void*>(o), ob, cb);
+        }
         // The lot condition the mirror set (lot slot 35 against ours).
         if (cb) {
             cISC4LotManager* lm = g.city->GetLotManager();
@@ -450,19 +477,29 @@ void FireLine(const char* what) {
             if (lot != nullptr && it != g.ctx.lotConditions.end()) {
                 ++lots;
                 const uint32_t live = AsGame(lot)->GetCondition();
-                if (live != it->second) {
+                if (live != it->second && g.resyncTargets.count(t) != 0) {
+                    d.AddQ("Q40", "lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
+                } else if (live != it->second) {
                     d.Add("lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
                 }
             }
         }
     }
     const int32_t origPhase = g.fireInst ? g.fireInst->GetPhase() : 0;  // slot 7
-    if (static_cast<uint32_t>(origPhase) != s.fire_phase) d.Add("phase orig %d ours %u", origPhase, s.fire_phase);
-    if (g.origSteps != g.coreSteps) {
-        d.Add("steps orig %llu ours %llu", (unsigned long long)g.origSteps, (unsigned long long)g.coreSteps);
+    // After a refused ignition (Q40) the mirror can have begun and ended an
+    // episode the original never had (phase 3 against 0).
+    const bool phaseQ40 = resync || (g.resyncs != 0 && origPhase == 0 && s.fire_phase == 3);
+    if (static_cast<uint32_t>(origPhase) != s.fire_phase && phaseQ40) {
+        d.AddQ("Q40", "phase orig %d ours %u", origPhase, s.fire_phase);
+    } else if (static_cast<uint32_t>(origPhase) != s.fire_phase) {
+        d.Add("phase orig %d ours %u", origPhase, s.fire_phase);
+    }
+    if (g.origSteps + g.resyncSteps != g.coreSteps) {
+        d.Add("steps orig %llu ours %llu (%llu of them putting out a refused fire)", (unsigned long long)g.origSteps,
+              (unsigned long long)g.coreSteps, (unsigned long long)g.resyncSteps);
     }
     char layer[96];
-    CompareLayer(d, layer, sizeof(layer));
+    CompareLayer(d, layer, sizeof(layer), resync ? "Q40" : nullptr);
     ++g.fire.lines;
     if (d.n == 0) ++g.fire.clean;
     if (d.n != 0 && d.unexplained == 0) ++g.fire.questioned;
@@ -523,7 +560,7 @@ void RiotLine(Riot& r, const char* what) {
         if (cells.size() < 160) cells += b;
     }
     char layer[96];
-    CompareLayer(d, layer, sizeof(layer), true);
+    CompareLayer(d, layer, sizeof(layer), "Q39");  // a leader a second apart
     ++g.riot.lines;
     if (d.n == 0) ++g.riot.clean;
     if (d.n != 0 && d.unexplained == 0) ++g.riot.questioned;
@@ -568,7 +605,8 @@ void FirstFireInternal(void* self) {
 }
 
 // Mirrors one original Ignite (after it ran).
-void MirrorIgnite(uint64_t o, bool force, uint32_t id, bool focus, bool origResult, const char* why) {
+void MirrorIgnite(uint64_t o, bool force, uint32_t id, bool focus, bool origResult, const char* why,
+                  bool compare = true) {
     const std::set<uint32_t> before = id == 0 ? CoreFireIds() : std::set<uint32_t>();
     const uint32_t mid = MapId(id);
     bool ours = false;
@@ -579,17 +617,30 @@ void MirrorIgnite(uint64_t o, bool force, uint32_t id, bool focus, bool origResu
             if (before.count(x) == 0) g.pendingIds.push_back(x);  // the mirror's own new ID (Q26)
         }
     }
+    const bool refused = !origResult && ours && !DisasterOccupantBurning(AsOcc(o));
+    if (refused) {
+        // [question Q40] The original refused an ignition the spec admits:
+        // ours is put out (the mirror's extinguish delay is 0).
+        CoreCall("disasters shadow Extinguish (resync, ours)", true, [&] { fc4_disasters_extinguish(g.core, o); });
+        g.resyncTargets.insert(o);
+        ++g.resyncs;
+    }
     TrackFirePhase();
     g.dirty = true;
     const uint8_t cover = DisasterFireCoverage(g.city, AsOcc(o));
     if (cover > 50) ++g.unfollowable;
     char what[240];
     std::snprintf(what, sizeof(what),
-                  "%s %p force=%d id=%08X->%08X focus=%d coverage=%u paused=%d emergency=%d -> orig %d ours %d", why,
-                  reinterpret_cast<void*>(static_cast<uintptr_t>(o)), force, id, mid, focus, cover,
-                  g.ctx.pausedSample, g.ctx.emergencySample, origResult, ours);
+                  "%s %p force=%d id=%08X->%08X focus=%d coverage=%u paused=%d emergency=%d -> orig %d ours %d%s",
+                  why, reinterpret_cast<void*>(static_cast<uintptr_t>(o)), force, id, mid, focus, cover,
+                  g.ctx.pausedSample, g.ctx.emergencySample, origResult, ours,
+                  refused ? " (refused by the original: Q40; ours put out)" : "");
     if (origResult != ours) ++g.calls.lines;  // counted in the line below too
-    FireLine(what);
+    if (compare) {
+        FireLine(what);
+    } else {
+        Log("disasters shadow fire %s (compared in the step line)", what);
+    }
 }
 
 uint32_t __fastcall IgniteFwd(void* self, void* edx, uintptr_t o, uintptr_t force, uintptr_t id, uintptr_t focus) {
@@ -780,7 +831,7 @@ uint32_t __fastcall FireMessageFwd(void* self, void* edx, uintptr_t m) {
         ++g.deferredIgnites;
         g.ctx.pausedSample = dfr.paused;
         g.ctx.emergencySample = dfr.emergency;
-        MirrorIgnite(dfr.o, dfr.force, dfr.id, dfr.focus, dfr.result, dfr.why);
+        MirrorIgnite(dfr.o, dfr.force, dfr.id, dfr.focus, dfr.result, dfr.why, false);
     }
     if (steps > 0 || stepped) {
         g.dirty = true;
@@ -1197,17 +1248,22 @@ void QuietLine() {
         std::snprintf(b, sizeof(b), "%s%08X %llu/%llu", text.empty() ? "" : " ", t, (unsigned long long)o,
                       (unsigned long long)c);
         text += b;
-        if (o != c) d.Add("posts %08X orig %llu ours %llu", t, (unsigned long long)o, (unsigned long long)c);
+        if (o != c && g.resyncs != 0) {  // the posts count since the city loaded
+            d.AddQ("Q40", "posts %08X orig %llu ours %llu", t, (unsigned long long)o, (unsigned long long)c);
+        } else if (o != c) {
+            d.Add("posts %08X orig %llu ours %llu", t, (unsigned long long)o, (unsigned long long)c);
+        }
     }
+    const char* sumsQ = g.resyncs != 0 ? "Q40" : nullptr;  // the sums count since the city loaded
     for (uint32_t t : {0x49D15B73u, 0x49E3DB1Du}) {
         if (g.origD2[t] != g.ctx.postData2Sums[t]) {
-            d.Add("%08X data2 sum orig %llu ours %llu", t, (unsigned long long)g.origD2[t],
-                  (unsigned long long)g.ctx.postData2Sums[t]);
+            d.AddQ(sumsQ, "%08X data2 sum orig %llu ours %llu", t, (unsigned long long)g.origD2[t],
+                   (unsigned long long)g.ctx.postData2Sums[t]);
         }
     }
     if (g.origD1[0x49D15B73] != g.ctx.postData1Sums[0x49D15B73]) {
-        d.Add("49D15B73 data1 sum orig %llu ours %llu", (unsigned long long)g.origD1[0x49D15B73],
-              (unsigned long long)g.ctx.postData1Sums[0x49D15B73]);
+        d.AddQ(sumsQ, "49D15B73 data1 sum orig %llu ours %llu", (unsigned long long)g.origD1[0x49D15B73],
+               (unsigned long long)g.ctx.postData1Sums[0x49D15B73]);
     }
     if (g.ctx.pauses != 0 || g.ctx.saveOff != 0) d.Add("ours left pause %d save-off %d", g.ctx.pauses, g.ctx.saveOff);
     cISC4DisasterLayer* l = Layer();
@@ -1217,15 +1273,15 @@ void QuietLine() {
     const int64_t origCost = l ? reinterpret_cast<CostFn>((*reinterpret_cast<void***>(l))[18])(l, nullptr) : 0;
     const int64_t ourCost = fc4_disasters_cost(g.core);
     char layer[96];
-    CompareLayer(d, layer, sizeof(layer));
+    CompareLayer(d, layer, sizeof(layer), nullptr);
     ++g.quietLines.lines;
     if (d.n == 0) ++g.quietLines.clean;
     if (d.n != 0 && d.unexplained == 0) ++g.quietLines.questioned;
     Log("disasters shadow quiet: posts orig/ours %s; cost orig %lld ours %lld (not compared: Q41); %s "
-        "deferred=%llu unfollowable=%llu id-guesses=%llu leaders-missing=%llu cell-fallbacks=%llu radius=%llu "
-        "extinguish=%llu mismatches=%u%s%s",
+        "deferred=%llu refused-by-the-original=%llu unfollowable=%llu id-guesses=%llu leaders-missing=%llu "
+        "cell-fallbacks=%llu radius=%llu extinguish=%llu mismatches=%u%s%s",
         text.c_str(), (long long)origCost, (long long)ourCost, layer, (unsigned long long)g.deferredIgnites,
-        (unsigned long long)g.unfollowable,
+        (unsigned long long)g.resyncs, (unsigned long long)g.unfollowable,
         (unsigned long long)g.idGuesses, (unsigned long long)g.ctx.leadersMissing, (unsigned long long)g.cellFallbacks,
         (unsigned long long)g.radiusCalls, (unsigned long long)g.extinguishCalls, d.n,
         d.text.empty() ? "" : "; differences: ",
@@ -1366,6 +1422,8 @@ void DisastersShadowCityLoaded(cISC4City* city) {
     g.pendingIds.clear();
     g.deferred.clear();
     g.deferredIgnites = 0;
+    g.resyncTargets.clear();
+    g.resyncs = g.resyncSteps = 0;
     g.origBegun = g.origEnded = 0;
     g.origPosts.clear();
     g.origD1.clear();
@@ -1416,8 +1474,37 @@ void DisastersShadowCityShutdown() {
     EndCity();
 }
 
+// A fire the original refused (Q40) while it has no episode: its tick does
+// not run, so the mirror's is driven here until the mirror's episode ends.
+void ResyncTick() {
+    if (g.resyncs == 0 || g.inCore) return;
+    const fc4_disasters_state s = CoreState();
+    const int32_t origPhase = g.fireInst ? g.fireInst->GetPhase() : 0;
+    if (s.fire_phase != 1 || origPhase == 1) return;
+    for (size_t i = 0;; ++i) {
+        fc4_disaster_fire f{};
+        if (!fc4_disasters_get_fire(g.core, i, &f)) break;
+        if (g.resyncTargets.count(f.target) == 0) return;
+    }
+    if (s.fire_count != 0 && g.fireNextValid && g.fireClock < g.fireNext) g.fireClock = g.fireNext;
+    const uint64_t before = g.coreSteps;
+    CoreCall("disasters shadow fire tick (resync, ours)", true,
+             [&] { fc4_disasters_tick(g.core, s.fire_instance, 0); });
+    const bool stepped = g.coreSteps != before;
+    g.resyncSteps += g.coreSteps - before;
+    if (stepped && g.fireNextValid) g.fireNext += 1000;
+    const uint32_t phaseBefore = g.corePhase;
+    TrackFirePhase();
+    if (stepped || g.corePhase != phaseBefore) {
+        g.dirty = true;
+        FireLine("resync tick (a fire the original refused, Q40; the original has no fire tick)");
+    }
+}
+
 void DisastersShadowOnTick() {
-    if (g.core == nullptr || !g.dirty || GetCurrentThreadId() != g.mainTid) return;
+    if (g.core == nullptr || GetCurrentThreadId() != g.mainTid) return;
+    ResyncTick();
+    if (!g.dirty) return;
     const int64_t ongoing = g.origBegun - g.origEnded;
     const fc4_disasters_state s = CoreState();
     if (ongoing != 0 || s.ongoing != 0) {
