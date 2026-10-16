@@ -28,6 +28,18 @@ pub fn query_interface(iid: u32) -> bool {
     )
 }
 
+/// The window teardown of `endTutorial` and `Shutdown` (§4.2, TU5): close
+/// it, release it, then clear +0x40 and release it again — the two
+/// references `startTutorial` took.
+fn drop_window(s: &RefCell<TutorialState>, host: &dyn TutorialHost) {
+    let Some(w) = s.borrow_mut().window.take() else {
+        return;
+    };
+    host.close_window(w);
+    host.release(w);
+    host.release(w);
+}
+
 /// Every field of §2.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TutorialState {
@@ -142,13 +154,32 @@ impl TutorialSystem {
         true
     }
 
-    /// `Shutdown` (slot 4): undoes `Init` [inferred] (TU4). True.
+    /// `Shutdown` (slot 4): the teardown of §4.3, in the spec's order (TU5).
+    /// True.
+    ///
+    /// 1. The cheat manager, **whether or not `Init` registered anything**
+    ///    (the `cISC4App` slot 21 test is not repeated): [`TutorialHost::unregister_cheat`].
+    /// 2. The window, when there is one: close it, release it, clear +0x40
+    ///    and release it again — the two references `startTutorial` took.
+    /// 3. Unsubscribe `0xAA3840E6`, `0xEA8AE29A` and `0x26C63343`, in that
+    ///    order.
+    ///
+    /// Is-tutorial, end-pending, the task number, the GUID and the registry
+    /// are not touched.
     pub fn shutdown(&self) -> bool {
-        for m in msg::SUBSCRIPTIONS {
-            self.host.unsubscribe(m);
-        }
+        // [TU5] Step 1: the cheat manager test only — `Init` gated its
+        // registration on `cISC4App` slot 21 as well, and that test is not
+        // repeated here.
         if self.host.has_cheat_manager() {
             self.host.unregister_cheat();
+        }
+        // [TU5] Step 2: the same window teardown as `endTutorial`, without
+        // its registry, 3D view and flag steps. Both references
+        // `startTutorial` took are dropped.
+        drop_window(&self.s, &*self.host);
+        // [TU5] Step 3: the unsubscribe order is not `SUBSCRIPTIONS`'s.
+        for m in msg::UNSUBSCRIPTIONS {
+            self.host.unsubscribe(m);
         }
         true
     }
@@ -174,16 +205,14 @@ impl TutorialSystem {
         self.host.registry_set_active(guid, true)
     }
 
-    /// `endTutorial(endRegistry)` (slot 6): closes and releases the window,
-    /// deactivates the registry entry when `end_registry`, restores the 3D
-    /// view's controls, clears is-tutorial and sets end-pending to
-    /// `!end_registry`. Returns `end_registry`.
+    /// `endTutorial(endRegistry)` (slot 6): closes and drops the window's
+    /// two references, deactivates the registry entry when `end_registry`,
+    /// restores the 3D view's controls, clears is-tutorial and sets
+    /// end-pending to `!end_registry`. Returns `end_registry`.
     pub fn end_tutorial(&self, end_registry: bool) -> bool {
-        let window = self.s.borrow_mut().window.take();
-        if let Some(w) = window {
-            self.host.close_window(w);
-            self.host.release(w);
-        }
+        // [TU5] The same window teardown as `Shutdown`, without its cheat
+        // and unsubscribe steps.
+        drop_window(&self.s, &*self.host);
         if end_registry {
             let guid = self.s.borrow().guid;
             self.host.registry_set_active(guid, false);
