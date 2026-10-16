@@ -49,6 +49,7 @@ pub mod lot_config_manager;
 pub mod lot_developer;
 pub mod mysims;
 pub mod neighbors;
+pub mod network_bridge;
 pub mod network_geometry;
 pub mod network_manager;
 pub mod network_rules;
