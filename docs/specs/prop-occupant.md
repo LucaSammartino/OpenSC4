@@ -587,7 +587,11 @@ three.
    bits 0, lot tag **`0xFFFFFFFF`**, prop type index 0 and occupant type `0xA823821E`.
 3. **Object size** (§1). `CreateProp` for a profile with occupant class `0x2977AA47` allocates `0x68` bytes;
    `0x2977AA48` allocates `0xA0`; `0x2977AA49` allocates `0x94`.
-4. **AsOccupant** (§2.3). Slot 3 returns `this + 8` and returns null for a null `this`.
+4. **AsOccupant, the vtable extent and the refcount** (§2.2, §2.3, §4.2, quirk 10). Slot 3 returns `this + 8`
+   and returns null for a null `this`. The `cISC4PropOccupant` vtable has exactly **24** entries
+   (`+0x00`…`+0x5F`): the word at `0x00AA4900 + 24*4` is not part of this interface (it belongs to the
+   pool/factory table at `0x00AA4960`). `AddRef` twice from 0 and `Release` once: the count lives at `+0x14` and
+   the value returned by slot 1 must agree with it; a naive refcount on `+0x04` must **not**.
 5. **GetPropType round trip** (§5.1). `SetPropType(id)` then `GetPropType()` returns `id`. Two props set to the
    same `id` report the same value and store the **same** `+0x5C` index (a global table).
 6. **Unknown type is interned** (§5.1). Reading a save whose prop names a type absent from the catalogue
