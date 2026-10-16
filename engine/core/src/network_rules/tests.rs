@@ -1414,3 +1414,52 @@ fn t15_29_preview_piece() {
     g.insert(road(7, 7, 0x0000_0002));
     assert_eq!(solve_multi_type_separation(evs.iter().copied(), &g, 7, 7, ROAD), None);
 }
+
+#[test]
+fn highway_and_bridge_pieces_leave_the_solve_set() {
+    // A rule with two occupied cells.
+    let m = int_rules("[HighwayIntersectionInfo_0x9]\nCheckType=a - Road:0x00020002\nCellLayout=aa<\nCellLayout=.^\n");
+    let r = m.get(9).unwrap();
+    assert_eq!(r.occupied, vec![(-1, 0), (0, 0)]);
+    let mut g = grid();
+    for &(x, z) in &r.occupied {
+        g.insert(CellInfo::new(10 + x, 10 + z).with_type(ROAD, 0x0002_0002));
+    }
+    let mut st = SolveState::new();
+    st.s = set_of(&[cell_key(9, 10), cell_key(10, 10), cell_key(20, 20)]);
+    st.valid_count = 2;
+    st.intersections = vec![IntersectionRecord {
+        rule_id: 9,
+        x: 10,
+        z: 10,
+        start_step: 0,
+        step_a: 1,
+        step_b: 2,
+        cells: Vec::new(),
+    }];
+    // A record whose start step is at or above the valid count is not walked.
+    let mut late = st.intersections[0].clone();
+    late.start_step = 5;
+    st.intersections.push(late);
+
+    mark_highway_intersection_pieces(&m, &mut g, &st.intersections, 2, true);
+    assert!(g.at(9, 10).unwrap().intersection);
+    assert!(g.at(10, 10).unwrap().intersection);
+    mark_highway_intersection_pieces(&m, &mut g, &st.intersections, 2, false);
+    assert!(!g.at(9, 10).unwrap().intersection);
+
+    let records = st.intersections.clone();
+    remove_highway_intersection_pieces_from_solve_set(&m, &mut st, &records, 2);
+    assert!(!st.s.contains(cell_key(9, 10)));
+    assert!(!st.s.contains(cell_key(10, 10)));
+    assert!(st.s.contains(cell_key(20, 20)));
+
+    // The bridge counterpart of network-bridges.md 8.3.1.
+    let mut st = SolveState::new();
+    st.s = set_of(&[cell_key(9, 10), cell_key(20, 20)]);
+    let bridges = vec![(1, vec![cell_key(9, 10)]), (7, vec![cell_key(20, 20)])];
+    remove_bridge_pieces_from_solve_set(&mut st, &bridges, 3);
+    assert!(!st.s.contains(cell_key(9, 10)));
+    // The second record's end step (7) is at or above the valid count.
+    assert!(st.s.contains(cell_key(20, 20)));
+}

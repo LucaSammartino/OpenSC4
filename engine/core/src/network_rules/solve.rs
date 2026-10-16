@@ -215,6 +215,29 @@ fn set_flow_code(info: &mut CellInfo, s: usize, code: u8) {
     info.one_way = (info.one_way & !(3 << (2 * s))) | (code << (2 * s));
 }
 
+/// What one cell contributes to the one-way pass: its OneWayRoad edge word,
+/// its one-way byte and, for a tunnel portal, the paired portal's cell.
+type RunCell = (u32, u8, Option<(i32, i32)>);
+
+/// §6.5 step 2.1 for one cell: sets `+0x10`, and on a clear `+0x57` marks it
+/// and adds its key to the solve set.
+fn enter_run(grid: &mut CellGrid, state: &mut SolveState, x: i32, z: i32) -> Option<RunCell> {
+    let info = grid.at_mut(x, z)?;
+    info.in_run = true;
+    if !info.marked {
+        info.marked = true;
+        state.s.insert(cell_key(x, z));
+    }
+    let e = info.edges[ONE_WAY_ROAD as usize];
+    let one_way = info.one_way;
+    let portal = if info.flags & FLAG_PORTAL != 0 {
+        info.occupant.and_then(|o| o.paired_portal)
+    } else {
+        None
+    };
+    Some((e, one_way, portal))
+}
+
 /// `ResolveOneWayConflicts(type)` (`0x0063A640`, pop 4, §6.5): carries the
 /// dragged run's direction into the existing one-way roads it joins, then
 /// clears the codes that make a cell's flow contradict itself.
@@ -252,23 +275,13 @@ pub fn resolve_one_way_conflicts(grid: &mut CellGrid, state: &mut SolveState, st
         for &(x, z, mut from) in &a {
             // There is no null test in the original: a cell with no info
             // would be read anyway. Ours skips it *[choice]*.
-            let Some(info) = grid.at_mut(x, z) else { continue };
-            info.in_run = true;
-            if !info.marked {
-                info.marked = true;
-                state.s.insert(cell_key(x, z));
-            }
-            let e = info.edges[ONE_WAY_ROAD as usize];
+            let Some((e, one_way, portal)) = enter_run(grid, state, x, z) else {
+                continue;
+            };
             let arms = (0..4).filter(|&s| edge_byte(e, s) & 7 != 0).count();
             if arms != 1 && arms != 2 {
                 continue;
             }
-            let one_way = info.one_way;
-            let portal = if info.flags & FLAG_PORTAL != 0 {
-                info.occupant.and_then(|o| o.paired_portal)
-            } else {
-                None
-            };
             let portal_side = portal.and_then(|(ox, oz)| {
                 if ox < x {
                     Some(0)
@@ -282,7 +295,6 @@ pub fn resolve_one_way_conflicts(grid: &mut CellGrid, state: &mut SolveState, st
                     None
                 }
             });
-            drop(info);
             let mut to: i32 = -1;
             let mut t_key = 0u32;
             let mut dropped: Vec<usize> = Vec::new();

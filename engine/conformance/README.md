@@ -1831,7 +1831,7 @@ that accepts every demolition region.
 | `nr_tiles` | `text`, `type?` (append the file to that type's evaluator list), `append?` (add to the scratch evaluator instead of replacing it), `expect?` (partial: `status` (`missing`, `complete`, `rejected`, `bad_centre`, `truncated`), `transmogrify`, `source_rules`, `rules`, `dropped`) | reads a tile rule file |
 | `nr_expect_rules` | `rules` (`[{key, transform, conditions: [[m, value, mask]], outputs: [[id, m, orientation]]}]`; fields left out are not compared) | the scratch evaluator's rules in map order |
 | `nr_load` | `resource` (`multi` (RUL1), `overrides` (RUL2), `intersections` (RUL0), `network` (the network INI) or a tile instance), `text`, `expect?` (partial: `entries`, `ignored`, `sections`, `rules`, …) | `LoadResource` into the database |
-| `nr_cell` | `x`, `z`, `edges` (`{name: word}`, each setting its type bit), `flags?` (ORed), `in_run?`, `step?`, `fixed?`, `node?`, `intersection?`, `occupant?` (`{piece, orientation, network_flags, node_edges: [a, b], anchor: [x, z]}`) | puts a cell info |
+| `nr_cell` | `x`, `z`, `edges` (`{name: word}`, each setting its type bit), `flags?` (ORed), `in_run?`, `step?`, `fixed?`, `node?`, `intersection?`, `one_way?`, `marked?`, `occupant?` (`{piece, orientation, network_flags, node_edges: [a, b], anchor: [x, z], paired_portal: [x, z]}`) | puts a cell info |
 | `nr_evaluate` | `x`, `z`, `type`, `expect` (null or `[[id, m, orientation]]`) | `Evaluate` with the scratch evaluator |
 | `nr_set_s` / `nr_set_valid_count` | `cells` / `count` | the solve state |
 | `nr_append_solved` | `id`, `orientation`, `x`, `z` | appends a solved record (sets the cell's `+0xB8`) |
@@ -1844,8 +1844,14 @@ that accepts every demolition region.
 | `nr_int_rule` | `id`, `rotate?`, `transpose?` (applied to a copy), `state` (`occupied`, `new_cells`, `tagged` (`[[x, z, tag]]`), `bounds` (`[minX, maxX, minZ, maxZ]`), `one_way_dir`, `type_mask`, `ring`, `add` (`[prev, next]`), `edges` (`{tag: [edges1, mask1, edges2, mask2]}`)) | an intersection rule |
 | `nr_int_test` | `id`, `rotate?`, `transpose?`, `x`, `z`, `expect` (0, 1 or 2) | `cIntRule::Test` |
 | `nr_identify` | `steps` (`[[[x, z], …], …]`), `v`, `type`, `expect`, `expect_intersections?` (`[[rule, x, z, start, a, b]]`) | `IdentifyHighwayIntersections` |
+| `nr_one_way` | `steps` (`[[[x, z], …], …]`) | `ResolveOneWayConflicts` (§6.5) over the dragged run |
+| `nr_separation` | `x`, `z`, `type`, `expect` (null or `[id, rot, flip]`) | `SolveMultiTypeSeparation` (§8.3) over the database's evaluators |
+| `nr_tile_info` | `id`, `rotate?`, `transpose?`, `offset` (`[dx, dz]`), `expect` (null or `[tile, orientation, new_cell]`) | `GetTileInfo` (§10.9) |
+| `nr_pieces` | `id`, `rotate?`, `transpose?`, `x`, `z`, `expect` (`[[ox, oz, piece_id, orientation, path, ax, az, new_cell]]`) | the pieces an intersection places (§10.9) |
+| `nr_mark_pieces` | `on`, `valid_count` | `MarkHighwayIntersectionPieces` (§10.6) over the recorded intersections |
+| `nr_remove_pieces` | `valid_count`, `bridge?`, `bridge_cells?` (`[[end_step, [key, …]], …]`) | the §10.6 remove, or the bridge one of network-bridges.md §8.3.1 when `bridge` |
 | `nr_expect_solved` / `nr_expect_s` / `nr_expect_potential` | `records` (`[[id, orientation, x, z]]`) / `cells` / `entries` (`[[x, z, t]]`) | the solve state |
-| `nr_expect_cell` | `x`, `z`, `state` (`flags`, `union`, `solved`, `intersection`, `edges` (every non-zero word)) | a cell info |
+| `nr_expect_cell` | `x`, `z`, `state` (`flags`, `union`, `solved`, `intersection`, `one_way`, `marked`, `in_run`, `edges` (every non-zero word)) | a cell info |
 
 ## City detail ops
 

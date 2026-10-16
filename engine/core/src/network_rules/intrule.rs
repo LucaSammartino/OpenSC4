@@ -5,14 +5,18 @@
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
 //! The highway intersection rules (`nSC4Networks::cIntRule`, §10): the file
-//! (instance `0x10000000`), the check types, the ASCII layouts, the
-//! transforms, `IsWithinBounds`, `Test`, `DoAutoComplete`, `GetPrimaryType`
-//! and `IdentifyHighwayIntersections`.
+//! (instance `0x10000000`), the check types, the ASCII layouts, the tile
+//! grid and map, the transforms, `IsWithinBounds`, `Test`, `DoAutoComplete`,
+//! `GetPrimaryType`, `GetTileInfo`, the pieces an intersection places
+//! (§10.9) and `IdentifyHighwayIntersections`.
 //!
-//! Not here: the tile grid `+0xB8` and its map `+0xD4`, `AutoTileBase` and
-//! `AutoPathBase` beyond storing them, and the constraint layout's consumer
-//! (NR2); `InsertIsolatedHighwayIntersection` (§10.7), which is the
-//! intersection tool's pipeline (geometry and commit), not a rule stage.
+//! Not here: `InsertIsolatedHighwayIntersection` (§10.7), which is the
+//! intersection tool's pipeline (the demolition region, the reserved tiles,
+//! the cell infos, the height solver and the commit), not a rule stage; the
+//! occupant creation of `InsertHighwayIntersectionPiece` (§10.9), which
+//! [`IntersectionPiece`] describes but leaves to the geometry layer; and the
+//! constraint layout's consumer `InsertIntersectionConstraints` (NR7, height
+//! geometry).
 
 use std::collections::BTreeMap;
 

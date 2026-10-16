@@ -53,7 +53,9 @@
 //! rotation table past row 3, the padded set's scan order and the bucket
 //! hints of the sets the spec does not size, the through-mark walk's step
 //! cap, the field trimming of `RZParseDelimitedText`, the intersection-rule
-//! map's bucket hint, and what `CopyFrom` copies of the layout lines.
+//! map's bucket hint, what `CopyFrom` copies of the layout lines, and the
+//! one-way pass dropping the flow code of a side it cannot follow (§6.5 step
+//! 2.4, which says only "skip"; §15 test 26 needs the drop).
 
 mod grid;
 mod intrule;
