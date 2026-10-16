@@ -59,6 +59,12 @@ pub(crate) struct World {
     vehicles_fail: Cell<bool>,
     next_handle: Cell<u32>,
     record: RefCell<Vec<u8>>,
+    /// Each new vehicle's occupant group (§4.2 step 5).
+    groups: RefCell<BTreeMap<u64, u32>>,
+    /// `dispatch_env` `vehicle_group`: the group of new vehicles (None: by type).
+    vehicle_group: Cell<Option<u32>>,
+    /// `dispatch_env` `park_fails`: the return's unit-state call fails (§4.4).
+    park_fails: Cell<bool>,
 }
 
 impl World {
@@ -74,6 +80,9 @@ impl World {
             vehicles_fail: Cell::new(false),
             next_handle: Cell::new(1),
             record: RefCell::new(Vec::new()),
+            groups: RefCell::new(BTreeMap::new()),
+            vehicle_group: Cell::new(None),
+            park_fails: Cell::new(false),
         });
         *w.me.borrow_mut() = Rc::downgrade(&w);
         w
@@ -241,7 +250,16 @@ impl DispatchHost for World {
             self.ev("vehicle_failed", vec![("id", ji(info.id))]);
             return None;
         }
-        let a = info.automaton.unwrap_or_else(|| self.fresh());
+        let a = info.automaton.unwrap_or_else(|| {
+            let a = self.fresh();
+            let g = self.vehicle_group.get().unwrap_or(match info.dispatch_type {
+                1 => 0x4202,
+                5 => 0x4303,
+                _ => 0x4101,
+            });
+            self.groups.borrow_mut().insert(a, g);
+            a
+        });
         self.ev(
             "vehicle",
             vec![("automaton", tok(a)), ("id", ji(info.id)), ("call", ji(info.call_id))],
@@ -301,8 +319,16 @@ impl DispatchHost for World {
             ],
         );
     }
-    fn pylon_return_to_station(&self, p: u64, st: u64) {
+    fn pylon_return_to_station(&self, _src: u64, p: u64, st: u64) -> bool {
+        if self.park_fails.get() {
+            self.ev("park_failed", vec![("pylon", tok(p)), ("station", tok(st))]);
+            return false;
+        }
         self.ev("park", vec![("pylon", tok(p)), ("station", tok(st))]);
+        true
+    }
+    fn vehicle_in_group(&self, a: u64, g: u32) -> bool {
+        self.groups.borrow().get(&a) == Some(&g)
     }
     fn pylon_shutdown(&self, p: u64) {
         self.ev("pylon_shutdown", vec![("pylon", tok(p))]);
@@ -378,10 +404,22 @@ fn token_of(j: &Json, what: &str) -> R<u64> {
     Ok(i64_of(j, what)? as u64)
 }
 
-/// `dispatch_env`: `vehicles_fail` (BeginVehicle fails).
+/// `dispatch_env`: `vehicles_fail` (BeginVehicle fails), `vehicle_group` (the occupant
+/// group of new vehicles; null: 0x4202 for type 1, 0x4303 for type 5, else 0x4101),
+/// `park_fails` (the return's unit-state call fails).
 fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "vehicles_fail") {
         w.vehicles_fail.set(bool_of(v, "vehicles_fail")?);
+    }
+    if let Some(v) = opt(op, "vehicle_group") {
+        w.vehicle_group.set(if matches!(v, Json::Null) {
+            None
+        } else {
+            Some(u32_of(v, "vehicle_group")?)
+        });
+    }
+    if let Some(v) = opt(op, "park_fails") {
+        w.park_fails.set(bool_of(v, "park_fails")?);
     }
     Ok(())
 }

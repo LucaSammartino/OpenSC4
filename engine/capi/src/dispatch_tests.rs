@@ -239,8 +239,13 @@ unsafe extern "C" fn pylon_move_to(u: *mut c_void, p: u64, x: f32, y: f32, z: f3
 unsafe extern "C" fn pylon_place_at_unit(u: *mut c_void, p: u64, st: u64, i: u32, n: u32) {
     game(u).log(format!("place {p:#x} {st:#x} {i}/{n}"));
 }
-unsafe extern "C" fn pylon_return_to_station(u: *mut c_void, p: u64, st: u64) {
+unsafe extern "C" fn pylon_return_to_station(u: *mut c_void, _src: u64, p: u64, st: u64) -> bool {
     game(u).log(format!("park {p:#x} {st:#x}"));
+    true
+}
+/// Every vehicle of this one-source city is a fire engine (group 0x4202).
+unsafe extern "C" fn vehicle_in_group(_u: *mut c_void, _a: u64, g: u32) -> bool {
+    g == 0x4202
 }
 unsafe extern "C" fn pylon_shutdown(u: *mut c_void, p: u64) {
     game(u).log(format!("shutdown {p:#x}"));
@@ -292,6 +297,7 @@ fn host(g: &Game) -> fc4_dispatch_host {
         pylon_return_to_station: Some(pylon_return_to_station),
         pylon_shutdown: Some(pylon_shutdown),
         resolve_ref: Some(resolve_ref),
+        vehicle_in_group: Some(vehicle_in_group),
     }
 }
 

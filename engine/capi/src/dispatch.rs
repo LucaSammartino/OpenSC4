@@ -143,12 +143,17 @@ pub struct fc4_dispatch_host {
     pub pylon_set_ui_state: Option<unsafe extern "C" fn(U, u64, u32)>,
     pub pylon_move_to: Option<unsafe extern "C" fn(U, u64, f32, f32, f32)>,
     pub pylon_place_at_unit: Option<unsafe extern "C" fn(U, u64, u64, u32, u32)>,
-    pub pylon_return_to_station: Option<unsafe extern "C" fn(U, u64, u64)>,
+    /// `(source, pylon, station)`: true when the station's unit state was
+    /// available and the pylon was placed (§4.4).
+    pub pylon_return_to_station: Option<unsafe extern "C" fn(U, u64, u64, u64) -> bool>,
     pub pylon_shutdown: Option<unsafe extern "C" fn(U, u64)>,
     // save references (§7)
     /// A reference read from a record (`token`, `iid`): the object with
     /// one reference for the core, 0 = none.
     pub resolve_ref: Option<unsafe extern "C" fn(U, u64, u32) -> u64>,
+    // vehicles, continued (§4.2 step 5)
+    /// `(automaton, group)`: the vehicle's occupant is in that occupant group.
+    pub vehicle_in_group: Option<unsafe extern "C" fn(U, u64, u32) -> bool>,
 }
 
 /// Diagnostics (`fc4_dispatch_get_state`).
@@ -174,7 +179,7 @@ pub struct fc4_dispatch_state {
 }
 
 /// Number of callbacks in [`fc4_dispatch_host`].
-const HOST_CALLBACKS: usize = 38;
+const HOST_CALLBACKS: usize = 39;
 
 const _: () = {
     assert!(std::mem::size_of::<fc4_dispatch_info>() == 56);
@@ -346,8 +351,11 @@ impl DispatchHost for CHost {
     fn pylon_place_at_unit(&self, pylon: u64, station: u64, index: u32, count: u32) {
         cb!(self, pylon_place_at_unit, (), pylon, station, index, count)
     }
-    fn pylon_return_to_station(&self, pylon: u64, station: u64) {
-        cb!(self, pylon_return_to_station, (), pylon, station)
+    fn pylon_return_to_station(&self, source: u64, pylon: u64, station: u64) -> bool {
+        cb!(self, pylon_return_to_station, false, source, pylon, station)
+    }
+    fn vehicle_in_group(&self, automaton: u64, group: u32) -> bool {
+        cb!(self, vehicle_in_group, false, automaton, group)
     }
     fn pylon_shutdown(&self, pylon: u64) {
         cb!(self, pylon_shutdown, (), pylon)

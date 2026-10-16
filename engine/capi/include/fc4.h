@@ -7244,7 +7244,9 @@ typedef struct fc4_dispatch_host {
     void (*automaton_go_home)(void* user, uint64_t automaton);
     /* Pylons: a new initialised pylon (one reference for the core); its
      * source occupant (borrowed), call number, dispatch type and state, UI
-     * state; placement along the station's lot (§4.5) and back (§4.4). */
+     * state; placement along the station's lot (§4.5) and back (§4.4:
+     * source slot 7 for the station's unit state; true = placed, the core
+     * then sets dispatch state 0 and UI state 1). */
     uint64_t (*create_pylon)(void* user);
     uint64_t (*pylon_source)(void* user, uint64_t pylon);
     void (*pylon_set_source)(void* user, uint64_t pylon, uint64_t station);
@@ -7256,10 +7258,13 @@ typedef struct fc4_dispatch_host {
     void (*pylon_set_ui_state)(void* user, uint64_t pylon, uint32_t state);
     void (*pylon_move_to)(void* user, uint64_t pylon, float x, float y, float z);
     void (*pylon_place_at_unit)(void* user, uint64_t pylon, uint64_t station, uint32_t index, uint32_t count);
-    void (*pylon_return_to_station)(void* user, uint64_t pylon, uint64_t station);
+    bool (*pylon_return_to_station)(void* user, uint64_t source, uint64_t pylon, uint64_t station);
     void (*pylon_shutdown)(void* user, uint64_t pylon);
     /* A reference read from a record (§7): the object with one reference for the core (0 = none). */
     uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+    /* The vehicle's occupant is in that occupant group (§4.2 step 5: a new vehicle is tracked as
+     * kind 0 in group 0x4202 or 0x4303, else kind 1). */
+    bool (*vehicle_in_group)(void* user, uint64_t automaton, uint32_t group);
 } fc4_dispatch_host;
 
 typedef struct fc4_dispatch_state {
@@ -8294,7 +8299,7 @@ static_assert(sizeof(fc4_demolition_host) == (sizeof(void*) == 4 ? 344 : 688), "
 static_assert(sizeof(fc4_dispatch_info) == 56, "fc4_dispatch_info layout");
 static_assert(sizeof(fc4_station_units) == 24, "fc4_station_units layout");
 static_assert(sizeof(fc4_dispatch_state) == 56, "fc4_dispatch_state layout");
-static_assert(sizeof(fc4_dispatch_host) == (sizeof(void*) == 4 ? 160 : 320), "fc4_dispatch_host layout");
+static_assert(sizeof(fc4_dispatch_host) == (sizeof(void*) == 4 ? 164 : 328), "fc4_dispatch_host layout");
 static_assert(sizeof(fc4_citysit_advice_info) == 40, "fc4_citysit_advice_info layout");
 static_assert(sizeof(fc4_citysit_track_entry) == 24, "fc4_citysit_track_entry layout");
 static_assert(sizeof(fc4_citysit_success_count) == 8, "fc4_citysit_success_count layout");
@@ -8355,7 +8360,7 @@ _Static_assert(sizeof(fc4_demolition_host) == (sizeof(void*) == 4 ? 344 : 688), 
 _Static_assert(sizeof(fc4_dispatch_info) == 56, "fc4_dispatch_info layout");
 _Static_assert(sizeof(fc4_station_units) == 24, "fc4_station_units layout");
 _Static_assert(sizeof(fc4_dispatch_state) == 56, "fc4_dispatch_state layout");
-_Static_assert(sizeof(fc4_dispatch_host) == (sizeof(void*) == 4 ? 160 : 320), "fc4_dispatch_host layout");
+_Static_assert(sizeof(fc4_dispatch_host) == (sizeof(void*) == 4 ? 164 : 328), "fc4_dispatch_host layout");
 _Static_assert(sizeof(fc4_citysit_advice_info) == 40, "fc4_citysit_advice_info layout");
 _Static_assert(sizeof(fc4_citysit_track_entry) == 24, "fc4_citysit_track_entry layout");
 _Static_assert(sizeof(fc4_citysit_success_count) == 8, "fc4_citysit_success_count layout");

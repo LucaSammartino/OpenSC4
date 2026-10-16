@@ -43,6 +43,11 @@ struct World {
     next: Cell<u64>,
     vehicles_fail: Cell<bool>,
     next_handle: Cell<u32>,
+    /// Each new vehicle's occupant group (fire engines 0x4202, fire planes
+    /// 0x4303, others 0x4101).
+    groups: RefCell<BTreeMap<u64, u32>>,
+    /// The return's unit-state call fails (§4.4).
+    park_fails: Cell<bool>,
 }
 
 impl World {
@@ -55,6 +60,8 @@ impl World {
             next: Cell::new(0x1000),
             vehicles_fail: Cell::new(false),
             next_handle: Cell::new(1),
+            groups: RefCell::new(BTreeMap::new()),
+            park_fails: Cell::new(false),
         })
     }
     fn ev(&self, s: impl Into<String>) {
@@ -198,7 +205,16 @@ impl DispatchHost for World {
         if self.vehicles_fail.get() {
             return None;
         }
-        let a = info.automaton.unwrap_or_else(|| self.fresh());
+        let a = info.automaton.unwrap_or_else(|| {
+            let a = self.fresh();
+            let g = match info.dispatch_type {
+                dispatch_type::FIRE_ENGINE => 0x4202,
+                dispatch_type::FIRE_PLANE => 0x4303,
+                _ => 0x4101,
+            };
+            self.groups.borrow_mut().insert(a, g);
+            a
+        });
         self.ev(format!("vehicle {a:#x} id {} call {}", info.id, info.call_id));
         Some(a)
     }
@@ -244,8 +260,12 @@ impl DispatchHost for World {
     fn pylon_place_at_unit(&self, p: u64, st: u64, i: u32, n: u32) {
         self.ev(format!("place {p:#x} {st:#x} {i}/{n}"));
     }
-    fn pylon_return_to_station(&self, p: u64, st: u64) {
+    fn pylon_return_to_station(&self, _src: u64, p: u64, st: u64) -> bool {
         self.ev(format!("park {p:#x} {st:#x}"));
+        !self.park_fails.get()
+    }
+    fn vehicle_in_group(&self, a: u64, g: u32) -> bool {
+        self.groups.borrow().get(&a) == Some(&g)
     }
     fn pylon_shutdown(&self, p: u64) {
         self.ev(format!("shutdown {p:#x}"));
@@ -561,8 +581,90 @@ fn dp12_09_station_removed() {
         .any(|e| e.starts_with("post") || e.starts_with("revoke_from_station")));
     assert!(log.contains(&format!("despawn {va:#x}")) && log.contains(&format!("despawn {vb:#x}")));
     assert_eq!(w.refs(STATION), 0);
-    // [question DP7] The vehicles are not released.
-    assert_eq!((w.refs(va), w.refs(vb)), (1, 1));
+    // DP7: the vehicles are despawned and released.
+    assert_eq!((w.refs(va), w.refs(vb)), (0, 0));
+}
+
+#[test]
+fn station_removed_available_pylon_order() {
+    // DP7: an available pylon of the removed station is shut down and
+    // released, then cleared from active (UI state 1, the active reference).
+    let (w, d) = setup();
+    d.begin_dispatch_tool(1);
+    let p = d.snapshot().available_pylons[0].unwrap();
+    d.set_active_pylon(Some(p));
+    assert_eq!(w.refs(p), 2);
+    w.take();
+    d.station_removed(STATION);
+    let log = w.take();
+    assert_eq!(log.iter().filter(|e| **e == format!("shutdown {p:#x}")).count(), 1);
+    assert_eq!(w.pylons.borrow()[&p].ui, 1);
+    assert_eq!(w.refs(p), 0);
+    assert_eq!(d.get_active_pylon(), None);
+    assert!(d.snapshot().available_pylons.is_empty());
+}
+
+#[test]
+fn begin_dispatch_tracks_new_vehicles_by_group() {
+    // §4.2 step 5: kind 0 for occupant groups 0x4202 / 0x4303, else 1; every
+    // new vehicle is tracked, whatever its dispatch type.
+    let (w, d) = setup();
+    w.source(0x501, &[dispatch_type::POLICE_CAR, 3], 0x601, 1, 3);
+    d.register_dispatch_source(0x501);
+    w.take();
+    let a = d.dispatch(dispatch_type::FIRE_ENGINE, 1.0, 1.0);
+    let b = d.dispatch(dispatch_type::POLICE_CAR, 1.0, 1.0);
+    let c = d.dispatch(3, 1.0, 1.0);
+    let veh = |id| d.get_dispatch_info(id).unwrap().automaton.unwrap();
+    let log = w.take();
+    assert!(log.contains(&format!("track {:#x} 0 -> 1", veh(a))));
+    assert!(log.contains(&format!("track {:#x} 1 -> 2", veh(b))));
+    assert!(log.contains(&format!("track {:#x} 1 -> 3", veh(c))));
+    assert_eq!(d.get_dispatch_info(c).unwrap().view_handle, 3);
+}
+
+#[test]
+fn retargeted_vehicle_is_not_tracked_again() {
+    // DP9: a re-target keeps the record's handle, even 0, and tracks nothing.
+    let (w, d) = setup();
+    d.begin_dispatch_tool(1);
+    let p1 = d.snapshot().available_pylons[0].unwrap();
+    d.set_active_pylon(Some(p1));
+    let id = d.dispatch(1, 10.0, 10.0);
+    let i = d.snapshot().records.iter().position(|r| r.id == id).unwrap();
+    d.with_state(|s| s.records[i].view_handle = 0);
+    w.take();
+    assert_eq!(d.dispatch(1, 30.0, 40.0), id);
+    let log = w.take();
+    assert!(!log.iter().any(|e| e.starts_with("track")));
+    assert_eq!(d.get_dispatch_info(id).unwrap().view_handle, 0);
+    assert!(log.contains(&"post E94671EB 1 1".to_string()));
+}
+
+#[test]
+fn return_pylon_states_need_the_unit_state() {
+    // §4.4: when the station's unit state is not available the pylon is not
+    // placed and keeps its states, but still joins the available list.
+    let (w, d) = setup();
+    d.begin_dispatch_tool(1);
+    let p1 = d.snapshot().available_pylons[0].unwrap();
+    d.set_active_pylon(Some(p1));
+    let id = d.dispatch(1, 10.0, 10.0);
+    d.update_dispatch_state(id, 5);
+    assert_eq!(w.pylons.borrow()[&p1].dstate, 5);
+    w.park_fails.set(true);
+    assert!(d.revoke_dispatch_by_pylon(p1));
+    // Not reset to dispatch state 0 (SetActivePylon(null) gave UI state 1).
+    assert_eq!(w.pylons.borrow()[&p1].dstate, 5);
+    assert_eq!(
+        d.snapshot().available_pylons.iter().filter(|&&e| e == Some(p1)).count(),
+        1
+    );
+    // DP8: no source for the pylon's type: nothing at all.
+    w.pylons.borrow_mut().get_mut(&p1).unwrap().dtype = 9;
+    w.take();
+    assert!(!d.revoke_dispatch_by_pylon(p1));
+    assert!(w.take().is_empty());
 }
 
 #[test]

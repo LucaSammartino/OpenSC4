@@ -15,7 +15,7 @@ use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 use super::{
     dispatch_type, msg, state, vehicle_view_kind, DispatchHost, DispatchInfo, DispatchMessage, CLSID_DISPATCH_MANAGER,
     IID_AUTOMATON, IID_DISPATCH_MANAGER, IID_MESSAGE_TARGET2, IID_OCCUPANT, IID_PYLON, IID_SERIALIZABLE, IID_UNKNOWN,
-    RECORD_VERSION, UI_STATE_ACTIVE, UI_STATE_IDLE,
+    RECORD_VERSION, TRACK_KIND0_GROUPS, UI_STATE_ACTIVE, UI_STATE_IDLE,
 };
 
 /// `QueryInterface` (§1): the sub-object offset (`1` and `0x694028EC` at
@@ -458,11 +458,15 @@ impl DispatchManager {
             return false;
         };
         let mut handle = rec.view_handle;
-        // [question DP9] A re-targeted vehicle that is tracked stays tracked.
-        if handle == 0 {
-            if let Some(kind) = vehicle_view_kind(rec.dispatch_type) {
-                handle = h.track_vehicle(a, kind);
-            }
+        // DP9: only a new vehicle is tracked (kind 0 in occupant group 0x4202
+        // or 0x4303, else 1); a re-targeted one keeps the record's handle.
+        if rec.automaton.is_none() {
+            let kind = if TRACK_KIND0_GROUPS.iter().any(|&g| h.vehicle_in_group(a, g)) {
+                0
+            } else {
+                1
+            };
+            handle = h.track_vehicle(a, kind);
         }
         if let Some(i) = self.index_of_id(id) {
             let mut s = self.s.borrow_mut();
@@ -522,7 +526,7 @@ impl DispatchManager {
                 self.set_active_pylon(None);
             }
             if rec.dispatch_type == self.s.borrow().tool_type {
-                self.return_pylon_to_station(p);
+                self.return_pylon_to_station(Some(src), p);
             } else {
                 h.pylon_shutdown(p);
             }
@@ -576,10 +580,8 @@ impl DispatchManager {
             Some(id) => self.revoke_dispatch_by_id(id),
             None => false,
         };
-        // [question DP8] Only when a source handles the pylon's type.
-        if self.get_dispatch_source(h.pylon_dispatch_type(p)).is_some() {
-            self.return_pylon_to_station(p);
-        }
+        // DP8: in every case; with no source for the type it does nothing.
+        self.return_pylon_to_station(self.get_dispatch_source(h.pylon_dispatch_type(p)), p);
         r
     }
 
@@ -593,17 +595,22 @@ impl DispatchManager {
         true
     }
 
-    /// Returns a pylon to its station (§4.4).
-    fn return_pylon_to_station(&self, p: u64) {
+    /// `ReturnPylonToStation(source, p)` (§4.4): nothing without a source.
+    fn return_pylon_to_station(&self, source: Option<u64>, p: u64) {
         let h = &*self.host;
+        let Some(src) = source else { return };
         let Some(station) = h.pylon_source(p) else {
-            // [question DP6] Shut down; the caller's release follows.
+            // DP6 [choice]: shut down; the caller's release follows (the
+            // original releases here too, an over-release).
             h.pylon_shutdown(p);
             return;
         };
-        h.pylon_return_to_station(p, station);
-        h.pylon_set_dispatch_state(p, state::IDLE);
-        h.pylon_set_ui_state(p, UI_STATE_IDLE);
+        // The states only when the station's unit state was available; the
+        // pylon joins the available list either way.
+        if h.pylon_return_to_station(src, p, station) {
+            h.pylon_set_dispatch_state(p, state::IDLE);
+            h.pylon_set_ui_state(p, UI_STATE_IDLE);
+        }
         let listed = self.s.borrow().available_pylons.contains(&Some(p));
         if !listed {
             h.add_ref(p);
@@ -748,9 +755,10 @@ impl DispatchManager {
             if rec.view_handle != 0 {
                 h.untrack_vehicle(rec.view_handle);
             }
-            // [question DP7] Despawned, not released.
+            // DP7: despawned and released.
             if let Some(a) = rec.automaton {
                 h.automaton_despawn(a);
+                h.release(a);
             }
             if let Some(p) = rec.pylon {
                 if self.s.borrow().active_pylon == Some(p) {
@@ -766,11 +774,12 @@ impl DispatchManager {
             if h.pylon_source(p) != Some(o) {
                 continue;
             }
+            // DP7: shut down, released, then cleared from active.
+            h.pylon_shutdown(p);
+            h.release(p);
             if self.s.borrow().active_pylon == Some(p) {
                 self.set_active_pylon(None);
             }
-            h.pylon_shutdown(p);
-            h.release(p);
             let mut s = self.s.borrow_mut();
             if let Some(i) = s.available_pylons.iter().position(|&e| e == Some(p)) {
                 s.available_pylons.remove(i);

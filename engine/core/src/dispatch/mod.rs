@@ -35,20 +35,25 @@
 //! # Choices (`[choice]`) and literal readings (`[question]`)
 //!
 //! - **"Clear the available pylons"** (§4.1, §4.5) shuts every pylon down
-//!   and releases it [question DP4].
+//!   and releases it (DP4).
 //! - **"Clear the active pylon"** (§3, §4.4) is `SetActivePylon(null)`: the
-//!   old pylon gets UI state 1 and is released [question DP5].
+//!   old pylon gets UI state 1 and is released (DP5). `Shutdown` shuts the
+//!   active pylon down and releases it with no UI state; `EndDispatchTool`
+//!   leaves it alone.
 //! - **Returning a pylon without a source occupant** (§4.4) shuts it down
 //!   and does not release it: `EndDispatch` releases the record's reference
-//!   right after, and a second release would over-release [question DP6].
-//! - **A station removed** (§3): the vehicle is untracked and despawned but
-//!   not released (the spec lists no release) [question DP7].
-//! - **`RevokeDispatchByPylon`** returns the pylon to its station only when
-//!   a source handles the pylon's dispatch type ("via the source of `p`'s
-//!   dispatch type") [question DP8].
-//! - **`BeginDispatch` on a record that already has a vehicle** (step 2's
-//!   re-target) does not track it again when it has a view handle
-//!   [question DP9].
+//!   right after. The original releases twice (an over-release); the single
+//!   release is the spec's *[choice]* (DP6).
+//! - **A station removed** (§3, DP7): each of its records' vehicles is
+//!   untracked, despawned and released; its pylon cleared from active, shut
+//!   down and released; then its available pylons are shut down, released,
+//!   cleared from active and erased.
+//! - **`RevokeDispatchByPylon`** always calls `ReturnPylonToStation` with
+//!   the source of the pylon's dispatch type, which does nothing when there
+//!   is no such source (DP8).
+//! - **`BeginDispatch`** (§4.2 step 5, DP9) tracks only a new vehicle (kind
+//!   0 in occupant group `0x4202` or `0x4303`, else kind 1); a re-targeted
+//!   vehicle keeps the record's handle and is not tracked again.
 //! - **`Shutdown`** runs only when initialised and clears `initialized`
 //!   [choice]; `Release` at a count of 1 or less runs `Shutdown` and the
 //!   destructor, which releases the records' references and the sources.
@@ -107,6 +112,10 @@ pub const UI_STATE_ACTIVE: u32 = 2;
 
 /// Vehicle-view kinds (§4.1): types 0 and 6 as kind 1, types 1 and 5 as
 /// kind 0, other types untracked.
+/// The occupant groups whose new vehicles `BeginDispatch` tracks as kind 0
+/// (§4.2 step 5); any other new vehicle is kind 1.
+pub const TRACK_KIND0_GROUPS: [u32; 2] = [0x4202, 0x4303];
+
 pub fn vehicle_view_kind(t: u32) -> Option<u32> {
     match t {
         dispatch_type::POLICE_CAR | dispatch_type::POLICE_HELICOPTER => Some(1),
@@ -274,12 +283,21 @@ pub trait DispatchHost {
     /// Places the pylon of unit `index` of `count` along the station's lot
     /// diagonal (§4.5; presentation).
     fn pylon_place_at_unit(&self, pylon: u64, station: u64, index: u32, count: u32);
-    /// Places the pylon back at its parking spot next to the station (§4.4).
-    fn pylon_return_to_station(&self, pylon: u64, station: u64);
+    /// `ReturnPylonToStation`'s placement (§4.4): `source` slot 7 for the
+    /// station's unit state; when it succeeds, the pylon is placed back at
+    /// its parking spot next to the station (index `callNumber − base + 1`)
+    /// and the call returns true (the core then sets dispatch state 0 and UI
+    /// state 1); false = the unit state was not available, nothing placed.
+    fn pylon_return_to_station(&self, source: u64, pylon: u64, station: u64) -> bool;
     fn pylon_shutdown(&self, pylon: u64);
 
     // ---- save references (§7) ----
     fn object_ref(&self, token: u64) -> RefValue;
     /// Resolves a reference read from a record (one reference for the core).
     fn resolve_ref(&self, r: &RefValue, iid: u32) -> Option<u64>;
+
+    // ---- vehicles, continued ----
+    /// The vehicle's occupant is in occupant group `group` (§4.2 step 5: a
+    /// new vehicle is tracked as kind 0 in group `0x4202` or `0x4303`).
+    fn vehicle_in_group(&self, automaton: u64, group: u32) -> bool;
 }

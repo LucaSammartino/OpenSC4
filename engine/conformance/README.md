@@ -1817,7 +1817,7 @@ record resolve to their object IDs (the manager takes one reference each).
 
 | op | Arguments | Effect |
 |---|---|---|
-| `dispatch_env` | `vehicles_fail?` (BeginVehicle fails) | the world |
+| `dispatch_env` | `vehicles_fail?` (BeginVehicle fails), `vehicle_group?` (the occupant group of new vehicles; null: `0x4202` for type 1, `0x4303` for type 5, else `0x4101`), `park_fails?` (the return's unit-state call fails: nothing placed) | the world |
 | `dispatch_source` | `source`, `types?`, `can?` (true), `all_busy?` (false), `nearest?` (true), `stations?` (`[{station, base? (1), count, mask? (all free)}]`), `register?` (true: `RegisterDispatchSource` on creation) | creates a source, or updates the given fields |
 | `dispatch_create` | | a new constructed manager |
 
@@ -1841,7 +1841,7 @@ Dispatch events: `acquire` / `release_service` (`service`: `message_server`, `ci
 (`automaton`, `kind`, `handle`), `untrack` (`handle`), `nearest` (`station`, `call`), `from_station` /
 `revoke_from_station` (`station`, `call`), `vehicle` (`automaton`, `id`, `call`), `vehicle_failed` (`id`),
 `despawn` / `go_home` (`automaton`), `create_pylon` / `pylon_shutdown` (`pylon`), `move` (`pylon`, `x`, `y`, `z`),
-`place` (`pylon`, `station`, `index`, `count`), `park` (`pylon`, `station`).
+`place` (`pylon`, `station`, `index`, `count`), `park` / `park_failed` (`pylon`, `station`).
 
 ## City situation ops
 
@@ -3032,11 +3032,12 @@ replays the record shapes §7 reports.
 | 6 automaton events 7 (5, 5, 3, 0) and 3 | `dp12_06_state_events` |
 | 7 RevokeDispatchByID of an active record: end only, the unit back; no source | `dp12_07_revoke_active` |
 | 8 RevokeAllDispatches(1) removes type-0 records | `dp12_08_revoke_all` |
-| 9 RemoveOccupant of a station with two records | `dp12_09_station_removed` |
+| 9 RemoveOccupant of a station with two records (the vehicles released, DP7) | `dp12_09_station_removed` |
 | 10 the tool with mask `0b101` | `dp12_10_tool` |
 | extra: identity, lifecycle, sources | `dp00_lifecycle` |
 | extra: the §4.7 walk-through and its record | `dp00_worked_example` |
 | extra: DisasterPeriodEnded, ViewChanged, re-targeting a dragged pylon, dropping it on its station | `dp00_messages` |
+| extra: new vehicles tracked by occupant group, a re-target not tracked again (DP9); a failed return's unit state, `RevokeDispatchByPylon` without a source (DP8); a removed station's active available pylon (DP7) | `dp00_answers15` |
 
 ## Coverage (city situation §12)
 
