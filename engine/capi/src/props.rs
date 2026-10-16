@@ -321,7 +321,10 @@ mod tests {
         // Scalars: Sint32 -1 and Sint8 -1 sign-extend; 64-bit keep the low bits.
         assert_eq!(u32_of(mem::SINT32, &(-1i32).to_ne_bytes(), 1), Some(0xFFFF_FFFF));
         assert_eq!(u32_of(mem::SINT8, &[0xFF], 1), Some(0xFFFF_FFFF));
-        assert_eq!(u32_of(mem::UINT64, &0x1_2345_6789u64.to_ne_bytes(), 1), Some(0x2345_6789));
+        assert_eq!(
+            u32_of(mem::UINT64, &0x1_2345_6789u64.to_ne_bytes(), 1),
+            Some(0x2345_6789)
+        );
         // Floats truncate toward zero; NaN, infinities and >= 2^63 give 0.
         assert_eq!(u32_of(mem::FLOAT32, &2.9f32.to_ne_bytes(), 1), Some(2));
         assert_eq!(u32_of(mem::FLOAT32, &(-1.5f32).to_ne_bytes(), 1), Some(0xFFFF_FFFF));
