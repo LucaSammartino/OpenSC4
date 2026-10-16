@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 68;
+pub const FC4_ABI_VERSION: u32 = 69;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -799,6 +799,7 @@ pub mod landfill;
 pub mod landfill_shadow;
 pub mod landvalue;
 pub mod landvalue_shadow;
+pub mod lot_config;
 pub mod lotdev;
 pub mod neighbors;
 pub mod neighbors_shadow;
@@ -815,6 +816,7 @@ pub mod port_developer;
 pub mod power;
 pub mod power_shadow;
 pub mod prop_developer;
+pub mod prop_manager;
 pub mod props;
 pub mod protection;
 pub mod residential;
@@ -825,6 +827,7 @@ pub mod terrain;
 pub mod traffic;
 pub mod traffic_shadow;
 pub mod tract_developer;
+pub mod tutorial;
 pub mod weather;
 pub mod zonedev;
 pub mod zones;
@@ -881,6 +884,9 @@ mod landvalue_tests;
 mod landvalue_shadow_tests;
 
 #[cfg(test)]
+mod lot_config_tests;
+
+#[cfg(test)]
 mod lotdev_tests;
 
 #[cfg(test)]
@@ -926,6 +932,9 @@ mod protection_tests;
 mod residential_tests;
 
 #[cfg(test)]
+mod prop_manager_tests;
+
+#[cfg(test)]
 mod save_sweep_tests;
 
 #[cfg(test)]
@@ -938,6 +947,8 @@ mod test_streams;
 mod traffic_tests;
 #[cfg(test)]
 mod tract_developer_tests;
+#[cfg(test)]
+mod tutorial_tests;
 
 #[cfg(test)]
 mod weather_tests;
