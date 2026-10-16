@@ -79,7 +79,11 @@ Offsets are from the primary interface pointer. They are given for orientation; 
 
 The two demand nodes (`GetDemand(0x3000, 0)` "commercial" sum and `GetDemand(0x3800, 0)` "commercial
 connections", demand.md §4) are fetched, `AddRef`ed and released at `Shutdown`, and never read *[quirk]*. Their
-only effect is that `Init` fails when either is missing (§4.1).
+only effect is that `Init` fails when either is missing (§4.1). The shipped game cannot reach that failure (CM3):
+`GetDemand` initialises the demand simulator first if needed (demand.md §5, `0x006A2960`), and its nodes come
+from the demand exemplars, not from the save, so the two nodes exist whenever the installed data holds the
+exemplars `0x6534284A / 0xC7BB4816 / 0x3000` ("Commercial") and `0x3800` ("Commercial Connections"), both in
+`SimCity_1.dat`. Only a plugin that removes or retypes them makes `Init` fail.
 
 ### 2.2 Industrial
 
