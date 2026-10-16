@@ -30,13 +30,46 @@
 //! call back into the simulator (it is a clock read).
 
 use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::calibration::Calibration;
 use crate::host::{AgentHandle, Host, Message, TimerSource};
 use crate::ids::{cheat, level, msg, LEVEL_COUNT};
 use crate::julian::{self, DateFields, JULIAN_2000_01_01};
+use crate::pacing::Pacing;
 use crate::save::{LoadError, SaveRecord, SAVE_VERSION};
+
+/// The host side of deterministic pacing (simulator.md §5.7 *[choice]*,
+/// [`crate::pacing`]). Optional: without hooks every idle agent counts as
+/// paced and there is no settle callback.
+///
+/// In [`Pacing::Deterministic`] each day has one **settle** point: after the
+/// day's agents (levels 2-7) have drained, before the next day may open
+/// (§5.2 step 8 gains the condition "the day is settled"):
+/// 1. every enabled *paced* idle agent gets one `SimIdle` (data1 = the day,
+///    data2 = 0, data3 = [`SETTLE_IDLE_BUDGET_MS`]), in idle order; an agent
+///    that answers false ("my cycle waits for another agent") is delivered
+///    again after the others, at most [`MAX_SETTLE_PASSES`] passes;
+/// 2. [`PacingHooks::settle`] (the plugin sends the day's deferred posted
+///    messages there).
+///
+/// The per-frame idle passes (§5.4) skip paced agents, so their idle work is a
+/// fixed amount per day. Agents that are not paced (the original's) keep the
+/// §5.4 deliveries.
+pub trait PacingHooks {
+    /// Whether `agent` is paced by the day (FreeCity4's own agents).
+    fn is_paced(&self, agent: AgentHandle) -> bool;
+    /// The day's settle point, after the paced idle pass.
+    fn settle(&self, julian: i32);
+}
+
+/// [choice] `data3` (the idle budget in ms) of a settle `SimIdle`: the
+/// largest share §5.4 can offer. Deterministic cores ignore it.
+pub const SETTLE_IDLE_BUDGET_MS: i64 = 22;
+
+/// [choice] The most idle passes one settle makes (see [`PacingHooks`]).
+pub const MAX_SETTLE_PASSES: u32 = 4;
 
 /// Tuning values read from the "Main Simulator" exemplar (spec §7).
 /// `None` (or a value of the wrong length) keeps the §3 defaults.
@@ -195,6 +228,11 @@ struct State {
     turbo: Turbo,
     /// The Julian day of the last automatic turbo switch-off, until taken.
     turbo_auto_off: Option<i32>,
+    /// simulator.md §5.7 [choice] ([`PacingHooks`]).
+    pacing: Pacing,
+    /// Deterministic pacing: the current day has had its settle point. True
+    /// after `init` and a load (the loaded day is not settled again).
+    day_settled: bool,
 }
 
 impl State {
@@ -228,6 +266,8 @@ impl State {
             effects: Vec::new(),
             turbo: Turbo::default(),
             turbo_auto_off: None,
+            pacing: Pacing::Original,
+            day_settled: true,
         }
     }
 
@@ -487,10 +527,21 @@ impl State {
         let blocked = (starts_week && !done(self, level::WEEK))
             || (starts_month && !done(self, level::MONTH))
             || (starts_year && !done(self, level::YEAR));
-        if self.level_counters[HOUR] >= 24 && (gate != level::DAY || ready) && done(self, level::DAY) && !blocked {
+        // §5.7 [choice] (deterministic pacing): the next day waits for this
+        // day's settle point as well. Original pacing: always true.
+        let settled = !self.pacing.is_deterministic() || self.day_settled;
+        if self.level_counters[HOUR] >= 24
+            && (gate != level::DAY || ready)
+            && done(self, level::DAY)
+            && !blocked
+            && settled
+        {
             self.level_counters[HOUR] = 0;
             if gate == level::DAY {
                 self.interval_timer = host.now_ms();
+            }
+            if self.pacing.is_deterministic() {
+                self.day_settled = false;
             }
             self.level_fired[level::DAY as usize] = true;
             self.julian += 1;
@@ -569,6 +620,10 @@ pub struct Simulator {
     /// Only the main thread reaches it (`on_tick`'s calibration step and the
     /// host's install/read of the coefficients), so a `RefCell` is enough.
     timers: RefCell<Option<(Box<dyn TimerSource>, Calibration)>>,
+    /// Optional deterministic-pacing hooks ([`PacingHooks`]). Main thread
+    /// only, like `timers`; cloned out before each call, so a hook may call
+    /// back into the simulator.
+    pacing_hooks: RefCell<Option<Rc<dyn PacingHooks>>>,
 }
 
 impl Simulator {
@@ -577,6 +632,7 @@ impl Simulator {
             state: Mutex::new(State::new()),
             host,
             timers: RefCell::new(None),
+            pacing_hooks: RefCell::new(None),
         }
     }
 
@@ -652,6 +708,7 @@ impl Simulator {
             let now = host.now_ms();
             s.frame_timer = now;
             s.interval_timer = now;
+            s.day_settled = true;
             true
         })
     }
@@ -781,6 +838,50 @@ impl Simulator {
                 }
             }
         }
+        // Every level up to the idle one has drained: the day's settle point
+        // (deterministic pacing only).
+        self.settle_if_due();
+    }
+
+    /// Deterministic pacing: the day's settle point ([`PacingHooks`]), once
+    /// per opened day. Does nothing under [`Pacing::Original`].
+    fn settle_if_due(&self) {
+        let due = self.with(|s, _| {
+            if !s.pacing.is_deterministic() || s.day_settled {
+                return None;
+            }
+            s.day_settled = true;
+            Some(s.julian)
+        });
+        let Some(julian) = due else { return };
+        let hooks = self.pacing_hooks.borrow().clone();
+        const IDLE: usize = level::IDLE as usize;
+        let mut pending: Vec<AgentHandle> =
+            self.read(|s| s.agents[IDLE].iter().filter(|e| e.enabled).map(|e| e.handle).collect());
+        pending.retain(|&h| match &hooks {
+            Some(k) => k.is_paced(h),
+            None => true,
+        });
+        for _ in 0..MAX_SETTLE_PASSES {
+            let mut again = Vec::new();
+            for h in pending {
+                // An agent removed or disabled by an earlier delivery is skipped.
+                if !self.read(|s| s.agents[IDLE].iter().any(|e| e.handle == h && e.enabled)) {
+                    continue;
+                }
+                let m = Message::new(msg::SIM_IDLE, i64::from(julian), 0, SETTLE_IDLE_BUDGET_MS);
+                if !self.host.deliver(self, h, &m) {
+                    again.push(h);
+                }
+            }
+            if again.is_empty() {
+                break;
+            }
+            pending = again;
+        }
+        if let Some(k) = hooks {
+            k.settle(julian);
+        }
     }
 
     /// `BeginNewInterval(L)` (§5.3 step 1): flush the level's unfinished work
@@ -814,6 +915,7 @@ impl Simulator {
             Some(s.frame_budget_ms / 3)
         });
         let Some(share) = share else { return };
+        let hooks = self.pacing_hooks.borrow().clone();
         loop {
             let step = self.with(|s, host| {
                 let i = s.idle_cursor?;
@@ -832,11 +934,19 @@ impl Simulator {
                 Some((
                     handle,
                     enabled,
+                    s.pacing.is_deterministic(),
                     Message::new(msg::SIM_IDLE, i64::from(s.julian), paused, i64::from(budget_left)),
                 ))
             });
-            let Some((handle, enabled, m)) = step else { break };
-            if enabled {
+            let Some((handle, enabled, deterministic, m)) = step else { break };
+            // §5.7 [choice]: under deterministic pacing a paced agent's idle
+            // work happens only at the day's settle point.
+            let paced = deterministic
+                && match &hooks {
+                    Some(k) => k.is_paced(handle),
+                    None => true,
+                };
+            if enabled && !paced {
                 let _ = self.host.deliver(self, handle, &m); // result ignored
             }
         }
@@ -1081,6 +1191,7 @@ impl Simulator {
             s.level_counters = rec.level_counters;
             s.level_fired = rec.level_fired;
             s.julian = rec.julian_day as i32;
+            s.day_settled = true;
         });
         Ok(())
     }
@@ -1192,6 +1303,32 @@ impl Simulator {
         self.with(|s, _| s.turbo_auto_off.take())
     }
 
+    // ---- pacing (simulator.md §5.7 [choice]) --------------------------------
+
+    /// Sets the pacing mode and its hooks ([`PacingHooks`]). Takes effect at
+    /// the next day gate; a day already open under original pacing counts as
+    /// settled. Always returns true.
+    pub fn set_pacing(&self, pacing: Pacing, hooks: Option<Rc<dyn PacingHooks>>) -> bool {
+        *self.pacing_hooks.borrow_mut() = hooks;
+        self.with(|s, _| {
+            if s.pacing != pacing {
+                s.pacing = pacing;
+                s.day_settled = true;
+            }
+            true
+        })
+    }
+
+    pub fn pacing(&self) -> Pacing {
+        self.read(|s| s.pacing)
+    }
+
+    /// Deterministic pacing: whether the current day has had its settle
+    /// point (always true under original pacing).
+    pub fn day_settled(&self) -> bool {
+        self.read(|s| !s.pacing.is_deterministic() || s.day_settled)
+    }
+
     // ---- inspection --------------------------------------------------------
 
     pub fn snapshot(&self) -> Snapshot {
@@ -1218,6 +1355,7 @@ impl Simulator {
                 !s.agents[level::ONE_SHOT as usize].is_empty() || !s.agents[level::EMERGENCY as usize].is_empty();
             let hours_complete = s.level_counters[level::HOUR as usize] >= 24;
             let gate_ready = s.gate_level != level::DAY || ready;
+            let settled = !s.pacing.is_deterministic() || s.day_settled;
             DebugInfo {
                 interval_elapsed_ms,
                 slice_elapsed_ms: now.wrapping_sub(s.slice_timer),
@@ -1238,7 +1376,8 @@ impl Simulator {
                     && done(level::DAY)
                     && !blocked_by_week
                     && !blocked_by_month
-                    && !blocked_by_year,
+                    && !blocked_by_year
+                    && settled,
                 cursors: s.cursors,
                 idle_cursor: s.idle_cursor,
             }
@@ -1279,7 +1418,8 @@ pub struct DebugInfo {
     pub blocked_by_week: bool,
     pub blocked_by_month: bool,
     pub blocked_by_year: bool,
-    /// all §5.2 step 8 conditions hold right now
+    /// all §5.2 step 8 conditions hold right now (and, under deterministic
+    /// pacing, the current day has been settled)
     pub day_gate_open: bool,
     pub cursors: [Option<usize>; LEVEL_COUNT],
     pub idle_cursor: Option<usize>,
@@ -1310,5 +1450,204 @@ impl Drop for Simulator {
         for h in handles {
             self.host.release(h);
         }
+    }
+}
+
+#[cfg(test)]
+mod pacing_tests {
+    //! Deterministic pacing (simulator.md §5.7 [choice], [`PacingHooks`]).
+    use super::*;
+    use std::cell::{Cell, RefCell};
+
+    #[derive(Default)]
+    struct Log {
+        now: Cell<u32>,
+        events: RefCell<Vec<String>>,
+        /// idle answers: agent -> how many false answers before true
+        busy: RefCell<Vec<(AgentHandle, u32)>>,
+    }
+
+    struct H(Rc<Log>);
+    impl crate::host::Clock for H {
+        fn now_ms(&self) -> u32 {
+            self.0.now.get()
+        }
+    }
+    impl crate::host::AgentDelivery for H {
+        fn deliver(&self, _sim: &Simulator, agent: AgentHandle, m: &Message) -> bool {
+            let kind = match m.msg_type {
+                msg::SIM_NEW_DAY => "day",
+                msg::SIM_NEW_MONTH => "month",
+                msg::SIM_IDLE => "idle",
+                _ => "other",
+            };
+            self.0.events.borrow_mut().push(format!("{kind} {agent} {}", m.data1));
+            if m.msg_type == msg::SIM_IDLE {
+                let mut b = self.0.busy.borrow_mut();
+                if let Some(e) = b.iter_mut().find(|e| e.0 == agent) {
+                    if e.1 > 0 {
+                        e.1 -= 1;
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+        fn add_ref(&self, _agent: AgentHandle) {}
+        fn release(&self, _agent: AgentHandle) {}
+    }
+    impl crate::host::Broadcast for H {
+        fn post(&self, m: &Message) {
+            if m.msg_type == msg::SIM_NEW_DAY {
+                self.0.events.borrow_mut().push(format!("post day {}", m.data1));
+            }
+        }
+    }
+
+    /// Agents 100.. are paced (ours), 200.. are not (the original's).
+    struct Hooks(Rc<Log>);
+    impl PacingHooks for Hooks {
+        fn is_paced(&self, agent: AgentHandle) -> bool {
+            agent < 200
+        }
+        fn settle(&self, julian: i32) {
+            self.0.events.borrow_mut().push(format!("settle {julian}"));
+        }
+    }
+
+    fn sim(pacing: Pacing) -> (Simulator, Rc<Log>) {
+        let log = Rc::new(Log::default());
+        let s = Simulator::new(Box::new(H(log.clone())));
+        s.add_agent(1, level::DAY, "day", 3);
+        s.add_agent(100, level::IDLE, "ours", 3);
+        s.add_agent(200, level::IDLE, "theirs", 3);
+        s.init(&Tuning::default());
+        s.set_sim_speed(2);
+        s.hidden_resume();
+        // Turbo: every day gate is `ready` although the fake clock stands
+        // still (so the 15 ms slice never runs out: the tests drive the
+        // steps of a round themselves).
+        s.set_turbo(Turbo {
+            on: true,
+            frame_ms: 15,
+            until_julian: 0,
+        });
+        // One round under original pacing drains the cursors `init` set.
+        round(&s);
+        s.set_pacing(pacing, Some(Rc::new(Hooks(log.clone()))));
+        take(&log);
+        (s, log)
+    }
+
+    /// One round of the §5.1 loop.
+    fn round(s: &Simulator) {
+        s.simulate_time_passage();
+        s.simulate_agents();
+        s.simulate_idle_time();
+    }
+
+    fn take(log: &Log) -> Vec<String> {
+        std::mem::take(&mut *log.events.borrow_mut())
+    }
+
+    #[test]
+    fn original_pacing_is_unchanged() {
+        let (s, log) = sim(Pacing::Original);
+        let j = s.julian_day();
+        round(&s);
+        let ev = take(&log);
+        assert_eq!(
+            ev,
+            vec![
+                format!("post day {}", j + 1),
+                format!("day 1 {}", j + 1),
+                format!("idle 100 {}", j + 1),
+                format!("idle 200 {}", j + 1),
+            ]
+        );
+        assert!(s.day_settled());
+    }
+
+    #[test]
+    fn deterministic_settles_each_day_before_the_next() {
+        let (s, log) = sim(Pacing::Deterministic);
+        let j = s.julian_day();
+        take(&log);
+        // Frame idle before any day: our agent is skipped.
+        s.simulate_idle_time();
+        assert_eq!(take(&log), vec![format!("idle 200 {j}")]);
+        s.simulate_time_passage();
+        assert!(!s.day_settled());
+        s.simulate_agents();
+        assert!(s.day_settled());
+        assert_eq!(
+            take(&log),
+            vec![
+                format!("post day {}", j + 1),
+                format!("day 1 {}", j + 1),
+                format!("idle 100 {}", j + 1),
+                format!("settle {}", j + 1),
+            ]
+        );
+        // Frame idle after the settle: still only the original's agent.
+        s.simulate_idle_time();
+        assert_eq!(take(&log), vec![format!("idle 200 {}", j + 1)]);
+    }
+
+    #[test]
+    fn deterministic_day_waits_for_its_settle() {
+        let (s, log) = sim(Pacing::Deterministic);
+        let j = s.julian_day();
+        s.simulate_time_passage();
+        assert_eq!(s.julian_day(), j + 1);
+        // No walk yet, so no settle: the next day does not open.
+        s.simulate_time_passage();
+        assert_eq!(s.julian_day(), j + 1);
+        assert!(!s.debug_info().day_gate_open);
+        s.simulate_agents();
+        s.simulate_time_passage();
+        assert_eq!(s.julian_day(), j + 2);
+        take(&log);
+    }
+
+    #[test]
+    fn deterministic_settle_redelivers_busy_agents() {
+        let (s, log) = sim(Pacing::Deterministic);
+        s.add_agent(101, level::IDLE, "ours2", 3);
+        log.busy.borrow_mut().push((100, 2));
+        log.busy.borrow_mut().push((101, 9));
+        let j = s.julian_day() + 1;
+        take(&log);
+        s.simulate_time_passage();
+        s.simulate_agents();
+        let ev = take(&log);
+        let idles: Vec<&String> = ev.iter().filter(|e| e.starts_with("idle")).collect();
+        // Pass 1: both; pass 2: both busy again; pass 3: 100 finishes, 101
+        // still busy; pass 4: only 101; then the cap.
+        assert_eq!(idles.len(), 2 + 2 + 2 + 1, "{ev:?}");
+        assert_eq!(ev.last().unwrap(), &format!("settle {j}"));
+    }
+
+    #[test]
+    fn switching_pacing_counts_the_open_day_as_settled() {
+        let (s, _log) = sim(Pacing::Original);
+        s.simulate_time_passage();
+        s.set_pacing(Pacing::Deterministic, None);
+        assert!(s.day_settled());
+        assert_eq!(s.pacing(), Pacing::Deterministic);
+        let j = s.julian_day();
+        s.simulate_time_passage();
+        assert_eq!(s.julian_day(), j + 1);
+        assert!(!s.day_settled());
+    }
+
+    #[test]
+    fn load_counts_the_loaded_day_as_settled() {
+        let (s, _log) = sim(Pacing::Deterministic);
+        s.simulate_time_passage();
+        assert!(!s.day_settled());
+        let bytes = s.save();
+        s.load(&bytes).unwrap();
+        assert!(s.day_settled());
     }
 }

@@ -147,8 +147,12 @@ extern "C" {
  *      instead of the two clock values; fc4_pollution_create's seed and the budget, plumbing
  *      and growth hosts' seed callbacks (renamed session_seed) carry S, and the core derives
  *      every generator's seed from it (derive(S, K), fc4_seed_derive); adds fc4_seed_derive
- *      (seeding lane; taken as 73 on its lane, then 59-63; renumbered at merge). */
-#define FC4_ABI_VERSION 64u
+ *      (seeding lane; taken as 73 on its lane, then 59-63; renumbered at merge);
+ * 65 = deterministic pacing (simulator.md §5.7 [choice]): fc4_pacing_set_process / fc4_pacing_process,
+ *      fc4_sim_set_pacing / fc4_sim_get_pacing with fc4_pacing_hooks (the day's settle point), and
+ *      every core with an idle-driven cycle runs it to completion in one settle delivery under
+ *      FC4_PACING_DETERMINISTIC (detpacing lane; next free number, renumbered at merge). */
+#define FC4_ABI_VERSION 65u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -8118,6 +8122,46 @@ bool fc4_sim_set_turbo(fc4_sim* sim, bool on, uint32_t frame_ms, int32_t until_j
 bool fc4_sim_get_turbo(const fc4_sim* sim, bool* on, uint32_t* frame_ms, int32_t* until_julian);
 /* The Julian day of the last automatic switch-off, once; 0 if none since the last call. */
 int32_t fc4_sim_take_turbo_auto_off(fc4_sim* sim);
+
+/* ---- pacing (simulator.md §5.7 [choice]; core fc4_core::pacing) ----------------
+ * FC4_PACING_ORIGINAL keeps the original's frame- and clock-bound pacing (one
+ * step per idle delivery, the hosts' millisecond limit timers): the conformance
+ * shadows. FC4_PACING_DETERMINISTIC: every kind-1 / kind-2 cycle (growth
+ * developers, aura, plumbing, the demand census, land value, crime, power, the
+ * BDS rebuild) runs to completion in its day's single settle idle delivery,
+ * millisecond budgets are item counts, and the simulator's day has a settle
+ * point (after the day's agents, before the next day opens) where the host
+ * delivers the day's deferred posted messages.
+ *
+ * The process mode is captured by every core when it is created (default
+ * original); set it once before any core exists (the plugin: at game start). */
+#define FC4_PACING_ORIGINAL      0u
+#define FC4_PACING_DETERMINISTIC 1u
+/* False (nothing changed) for an unknown mode. */
+bool fc4_pacing_set_process(uint32_t mode);
+uint32_t fc4_pacing_process(void);
+
+/* The simulator's side. Under FC4_PACING_DETERMINISTIC each opened day has one
+ * settle point, after levels 2-7 have drained: every enabled idle agent that
+ * is_paced() accepts gets one SimIdle (data1 = the day, data2 = 0, data3 = 22),
+ * in idle order; an agent that returns false (its cycle waits for another
+ * agent) is delivered again after the others, at most 4 passes; then settle()
+ * runs. The next day opens only after it. The per-frame idle passes (§5.4)
+ * skip paced agents. A load, init or a mode change counts the current day as
+ * settled. Under FC4_PACING_ORIGINAL nothing of this happens. */
+typedef struct fc4_pacing_hooks {
+    uint32_t struct_size; /* sizeof(fc4_pacing_hooks) */
+    void* user;
+    /* NULL: every idle agent is paced. */
+    bool (*is_paced)(void* user, fc4_agent agent);
+    /* May be NULL. */
+    void (*settle)(void* user, int32_t julian);
+} fc4_pacing_hooks;
+/* `hooks` may be NULL (every idle agent paced, no settle callback); it is
+ * copied. False for an unknown mode, a short struct or a NULL sim. */
+bool fc4_sim_set_pacing(fc4_sim* sim, uint32_t mode, const fc4_pacing_hooks* hooks);
+/* Pointers may be NULL. `day_settled` is always true under original pacing. */
+bool fc4_sim_get_pacing(const fc4_sim* sim, uint32_t* mode, bool* day_settled);
 
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
