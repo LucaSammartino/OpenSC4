@@ -1630,6 +1630,25 @@ What it takes, in order:
 **8** (`GetCellCountZ`) and **42** (`GetTerrainType`). Those four are all the terrain interaction at construction
 time. Everything else the view needs from the terrain is needed later, at draw time (§15.5.5).
 
+**The two globals `Init` dereferences without a null check — check these first if it faults.** These are the most
+likely cause of "faults in the terrain 3D view" from a replacement, because `Init` runs inside `DoPostCityInit` and
+nothing else in the sequence touches these objects:
+
+| Global | Use | Bytes | Safe? |
+|---|---|---|---|
+| `0x00B43CD8` | `mov cl,[eax+1]` to seed the static `0x00B4C741` | `0x0075C453`–`0x0075C458` | **no null check** |
+| `0x00B43CF0` | stored to `view+0x24`, then `AddRef` (slot 1) | `0x0075C499`–`0x0075C4A5` | **no null check** |
+| `0x00B43CEC` | city, stored to `view+0x1C` | `0x0075C46B`–`0x0075C47C` | null-checked |
+| `0x00B43CCC` | message server, slot 5 subscriptions | `0x0075C810`–`0x0075C818` | null-checked |
+| `0x00B43DD0` | draw registry, slot 32 registrations | `0x0075C86B`–`0x0075C873` | null-checked |
+
+`0x00B43CF0` is the **surface water**: `SL::OnAppInit`-family code fills it from city slot 83 `GetSurfaceWater`
+(`+0x14C`) at `0x00601C40`–`0x00601C4C`. So a replacement that makes `cISTESurfaceWater` obtainable only through
+its own handle and never through city slot 83 / that global leaves `0x00B43CF0` null, and the view faults at
+`0x0075C4A3` the moment `DoPostCityInit` runs. `0x00B43CD8` is an app-level object the 3D view is created from
+(`SL::OnView3DInit`'s source, `0x00602590`); a host with no 3D view window leaves it null and faults at
+`0x0075C458`. Both are cheap to check before anything else.
+
 ### 15.5.5 What the view reads off the terrain — including outside the slot table
 
 The view keeps the terrain at `base+0x20` and reaches it two ways.
@@ -1737,7 +1756,9 @@ different offset** — terrain `+4`, zone developer `+8`, terrain view `+0x10` (
 argument, then set `+0xEC`. Ensure slot 66 returns `view+0x0C`. Ensure terrain `+0x6C` is a live `0x24`-byte
 vertex array before anything draws. Do all of that **before** any other `PostCityInit` handler calls slot 66. That
 is enough to get past the point where `enable = terrain` currently faults; the remaining view slots only matter once
-drawing is exercised.
+drawing is exercised. **Before any of that, confirm `0x00B43CF0` (the surface water, city slot 83) and
+`0x00B43CD8` are non-null** — `Init` dereferences both without a check (§15.5.4) and those are the two most likely
+faults at this point.
 
 ## 16. Quirks (summary)
 
