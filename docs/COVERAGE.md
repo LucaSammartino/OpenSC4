@@ -2,7 +2,9 @@
 
 `python tools/coverage.py` answers "how much of SimCity 4 have we reimplemented?" with one reproducible number per
 status, weighted by the bytes of the original machine code. It writes [coverage-report.md](coverage-report.md);
-rerun it after every merge and commit the report. Same inputs, same report, byte for byte.
+rerun it after every merge and commit the report. Same inputs, same report, byte for byte, in the main checkout
+(`core.autocrlf=true`, CRLF working files) and in an LF worktree alike: text inputs are hashed with CRLF normalised to
+LF, the text as git stores it (a UTF-16 file as its UTF-8 text); only the exe is hashed as raw bytes.
 
 This is an RE-side tool: it reads the exe's analysis (function sizes, names, call graph). Engine lanes never read it
 or the report's owner lists; they work from docs/specs only.
@@ -32,6 +34,10 @@ or the report's owner lists; they work from docs/specs only.
    `name-ghidra` by the name's confidence).
 3. **vtable.** A slot target of a class vtable in `docs/abi/vtables.tsv` or `docs/abi/interfaces.tsv` takes that
    class; a target in vtables of several classes is shared (`vtable-shared`).
+   3b. **owner-range.** A function still without an owner whose entry lies in a range of `tools/coverage-ranges.tsv`
+   takes that range's owner. For game code that link order identifies but nothing names and no edge reaches, such as
+   template instantiations reached only through a hub's dispatch table; every range carries its evidence (vtables,
+   tables, callers, Mac names). Named functions inside keep their own owner; the code stays in the denominator.
 4. **reach.** An unowned function reached only from functions of one owner takes that owner. Edges are direct calls,
    code references (an instruction operand equal to a function entry), function-pointer tables in data (slots walked
    back to a head that code refers to) and vtables installed by code. A *hub*, a function referring to more than 64
@@ -80,6 +86,11 @@ About 15 seconds. The report contains counts, class names, address ranges and st
 ## Moving the numbers honestly
 
 - A new spec, core, shadow or replace key: edit the subsystem's row in `coverage-map.tsv`.
-- Unattributed or shared bytes: name functions in `re/names_windows.tsv`, add vtables to `docs/abi`, or a library
-  range with its evidence to `coverage-libs.tsv`. Never add rows or ranges just to move a number; every range needs
-  evidence in its row.
+- Unattributed or shared bytes: name functions (a manual file in `re/symbols/` with evidence, then
+  `python tools/symport/merge_names.py` regenerates `re/names_windows.tsv` and `re/labels_windows.tsv`), add vtables to
+  `docs/abi`, a library range with its evidence to `coverage-libs.tsv`, or a game-code owner range with its evidence
+  to `coverage-ranges.tsv`. Never add rows or ranges just to move a number; every range needs evidence in its row.
+  Example: `0x008310B0-0x00864B60` (793 functions, 203,440 bytes, unattributed until 2026-10-16) is the software span
+  renderer of `cGZDrawContextRenderToBuffer` (`nGZDrawSoftRender`): its vtables and the five span renderer classes are
+  named in `re/symbols/gzdraw-softrender.tsv`, and the 768 template blit functions their `RenderBlt` dispatch tables
+  reach (each `RenderBlt` refers to 168 functions, so it is a hub) are one owner range.

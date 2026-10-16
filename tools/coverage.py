@@ -4,7 +4,8 @@
 Every function of SimCity 4.exe (GOG 1.1.641) gets one owner by fixed rules, every owner one subsystem row of
 tools/coverage-map.tsv, and every row four yes/no statuses (specified, implemented, verified, replaced). The report
 sums function body bytes and function counts per status, for the whole exe and per area. Same inputs, same numbers:
-nothing depends on dict order, time or the machine, and the report lists the SHA-256 of every input.
+nothing depends on dict order, time or the machine, and the report lists the SHA-256 of every input (text inputs
+hashed with CRLF line endings normalised to LF, so a CRLF checkout and an LF checkout give the same report).
 
 Inputs (all read-only):
   ghidra/export/windows/{functions,function-details,calls,data-references}.tsv, instructions.asm  Ghidra 12.1.4 export of
@@ -14,6 +15,7 @@ Inputs (all read-only):
   docs/abi/vtables.tsv          class vtables (slot targets)
   docs/abi/interfaces.tsv       interface vtables with the game class that installs them
   tools/coverage-libs.tsv       library / compiler buckets (excluded from the denominator)
+  tools/coverage-ranges.tsv     owner ranges: game code whose functions have no name, owned by link order (with evidence)
   tools/coverage-map.tsv        owner pattern -> subsystem, area, spec, core module, shadow key, replace key
   docs/specs/*.md, engine/core/src/*        existence of the spec files and core modules the map names
   tools/regress.ps1             the regress replace list ($Replace) and shadows list
@@ -80,6 +82,24 @@ def sha256(path):
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
+    return h.hexdigest()
+
+
+def text_sha256(path):
+    """SHA-256 of a text file with CRLF normalised to LF (a UTF-16 file is hashed as its UTF-8 text), so a checkout
+    with core.autocrlf=true and one without give the same hash: the hash of the text as git stores it."""
+    with open(path, "rb") as f:
+        head = f.read(2)
+        if head in (b"\xff\xfe", b"\xfe\xff"):
+            data = (head + f.read()).decode("utf-16").encode("utf-8")
+            return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
+        h = hashlib.sha256()
+        carry = head
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            buf = carry + chunk
+            carry = b"\r" if buf.endswith(b"\r") else b""  # a CRLF split across two chunks
+            h.update((buf[:-1] if carry else buf).replace(b"\r\n", b"\n"))
+        h.update(carry.replace(b"\r\n", b"\n"))
     return h.hexdigest()
 
 
@@ -152,7 +172,7 @@ def folded_owner(note):
 
 
 class Attribution:
-    def __init__(self, export, names_tsv, vtables_tsv, interfaces_tsv, libs_tsv, text_lo, text_hi):
+    def __init__(self, export, names_tsv, vtables_tsv, interfaces_tsv, libs_tsv, ranges_tsv, text_lo, text_hi):
         self.funcs = {}  # va -> size
         self.gname = {}  # va -> Ghidra name (non-default)
         self.thunk = set()
@@ -212,6 +232,12 @@ class Attribution:
             else:
                 sys.exit(f"coverage: unknown kind {r['kind']!r} in {libs_tsv}")
         self.libraries = sorted({x[2] for x in self.lib_ranges} | {x[1] for x in self.lib_names})
+        self.owner_ranges = []
+        for r in read_tsv(ranges_tsv):
+            a, b = r["range"].split("-")
+            if not r["owner"] or not r["evidence"]:
+                sys.exit(f"coverage: {ranges_tsv}: range {r['range']} needs an owner and its evidence")
+            self.owner_ranges.append((int(a, 16), int(b, 16), r["owner"].strip()))
         # edges: direct calls, plus code that takes a function's address (callbacks, tables built in code)
         self.callees = defaultdict(set)  # direct calls
         self.refs = defaultdict(set)  # code references and data tables
@@ -335,6 +361,14 @@ class Attribution:
             cls = self.vt[va]
             owner[va] = next(iter(cls)) if len(cls) == 1 else SHARED
             rule[va] = "vtable" if len(cls) == 1 else "vtable-shared"
+        # 3b. owner ranges (link order, with evidence): unowned functions inside take the range's owner
+        for va in self.order:
+            if va in owner:
+                continue
+            for a, b, o in self.owner_ranges:
+                if a <= va < b:
+                    owner[va], rule[va] = o, "owner-range"
+                    break
         # 4/5. reach (calls, code and table references) with a single owner, then the neighbour rule, repeated to a
         # fixpoint; only then does reach mark functions that several owners reach as shared (and repeat)
         while True:
@@ -588,12 +622,13 @@ def main():
         "vtables": REPO / "docs" / "abi" / "vtables.tsv",
         "interfaces": REPO / "docs" / "abi" / "interfaces.tsv",
         "libs": REPO / "tools" / "coverage-libs.tsv",
+        "ranges": REPO / "tools" / "coverage-ranges.tsv",
         "map": REPO / "tools" / "coverage-map.tsv",
         "regress.ps1": REPO / "tools" / "regress.ps1",
         "subsystems": REPO / "engine" / "plugin" / "FC4Subsystems.cpp",
     }
-    att = Attribution(export, inputs["names"], inputs["vtables"], inputs["interfaces"], inputs["libs"], text_lo,
-                      text_hi)
+    att = Attribution(export, inputs["names"], inputs["vtables"], inputs["interfaces"], inputs["libs"],
+                      inputs["ranges"], text_lo, text_hi)
     owner, rule = att.run()
     rows = read_map(inputs["map"])
     replace_list, shadow_list = regress_lists(inputs["regress.ps1"])
@@ -854,14 +889,16 @@ def main():
     w("")
     w("## Inputs")
     w("")
+    w("Text inputs are hashed with CRLF line endings normalised to LF (the text as git stores it); the exe as its bytes.")
+    w("")
     w("| Input | SHA-256 (first 16 hex) | Note |")
     w("|---|---|---|")
     w(f"| SimCity 4.exe | {exe_sha[:16]} | GOG 1.1.641, image base 0x{base:08X} |")
     for f in ("functions.tsv", "function-details.tsv", "calls.tsv", "data-references.tsv", "instructions.asm"):
-        w(f"| ghidra/export/windows/{f} | {sha256(export / f)[:16]} | Ghidra 12.1.4 auto-analysis export |")
-    for k in ("names", "vtables", "interfaces", "libs", "map", "regress.ps1", "subsystems"):
-        w(f"| {inputs[k].relative_to(REPO).as_posix()} | {sha256(inputs[k])[:16]} | |")
-    w(f"| build-runs/{regress.name} | {sha256(regress)[:16]} | regress {reg['tag']} "
+        w(f"| ghidra/export/windows/{f} | {text_sha256(export / f)[:16]} | Ghidra 12.1.4 auto-analysis export |")
+    for k in ("names", "vtables", "interfaces", "libs", "ranges", "map", "regress.ps1", "subsystems"):
+        w(f"| {inputs[k].relative_to(REPO).as_posix()} | {text_sha256(inputs[k])[:16]} | |")
+    w(f"| build-runs/{regress.name} | {text_sha256(regress)[:16]} | regress {reg['tag']} "
       f"({'PASS' if reg['pass'] else 'FAIL'}; {reg['profile'] or 'profile not recorded'}); replace run "
       f"{rrun[0]} |")
     w("")

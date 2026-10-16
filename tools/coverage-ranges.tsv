@@ -1,0 +1,9 @@
+# Owner ranges for tools/coverage.py (RE side). Game code (it stays in the denominator) whose functions have no name
+# and that no reach edge can attribute, owned by link order. Rule 3b of docs/COVERAGE.md: after names and vtables, a
+# function still without an owner whose entry lies in [start, end) takes the range's owner; named functions inside
+# keep their own owner. Every range needs its evidence. Columns:
+#   range     [start, end) virtual addresses, hex start-end
+#   owner     the owner the map (tools/coverage-map.tsv) matches, a class or namespace
+#   evidence  why (vtables, tables, callers and Mac names seen; checked against ghidra/export/windows on 2026-10-16)
+range	owner	evidence
+008310b0-00864b60	nGZDrawSoftRender	the software span renderer of cGZDrawContextRenderToBuffer (2D drawing). cGZDrawContextRenderToBuffer::Init 00830710 (vtable 00AC17D0 slot 3) creates one of five span renderer classes by buffer color type, vtables 00AC182C cSpanRender1555 / 00AC1844 565 / 00AC185C 4444 / 00AC1874 8888 / 00AC188C 8 (re/symbols/gzdraw-softrender.tsv, Mac slot order). Their methods are the range's anchors in link order: 1555 at 008310B0, 565 at 0083DE50, 4444 at 00847CE0, 8888 at 00854E10, 8 at 0085E640. Each RenderBlt indexes a 14 x 12 dispatch table of template blit and texel-conversion instantiations (tables 00AC18A4-00AC1B40, 00AC1B88-00AC1E24, 00AC1E60-00AC20FC, 00AC2138-00AC23D4, 00AC2410-00AC26AC; 840 slots, 789 of the range's 793 functions; the other 4 are called from them); no code outside the range calls into it. The Mac build has 937 such nGZDrawSoftRender:: template functions (converttexel<RGBFormat...>, 250 KB). The range ends where the EA sound library starts (coverage-libs.tsv easnd)
