@@ -164,6 +164,15 @@
 //   traffic_shadow_hypotheses = N its alternative readings of unclear spec points
 //                                 (a bit mask, default 0 = the spec as written; fc4.h
 //                                 FC4_TRAFFIC_SHADOW_HYP_*)
+//   pacing = deterministic | original
+//                                 simulator.md §5.7 [choice] (env FC4_PACING; default
+//                                 deterministic, or original when a *_shadow switch is on
+//                                 and `pacing` is unset): idle cycles of our cores complete
+//                                 within their day, item counts instead of ms budgets,
+//                                 posted day/month/StateChanged messages at the day's
+//                                 settle point; `original` keeps the clock-bound pacing
+//                                 (conformance shadows). Read once at game start;
+//                                 FC4Pacing.h
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

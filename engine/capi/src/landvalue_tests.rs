@@ -475,3 +475,37 @@ fn pass_save_load() {
         assert!(log.iter().all(|l| l.starts_with("release ")));
     }
 }
+
+#[test]
+fn deterministic_pacing_runs_the_pass_in_one_idle() {
+    // simulator.md §5.7 [choice]: one settle SimIdle runs the whole pass,
+    // whatever its budget; the result equals the step-by-step pass.
+    unsafe {
+        let run = |deterministic: bool| {
+            let g = Game::default();
+            let h = host(&g);
+            let lv = fc4_landvalue_create(&h);
+            let t = tuning(&SHIPPED);
+            assert!(fc4_landvalue_init(lv, &t));
+            let mut st = fc4_landvalue_state::default();
+            if deterministic {
+                crate::landvalue::test_set_pacing(lv, fc4_core::pacing::Pacing::Deterministic);
+                assert!(fc4_landvalue_handle_message(lv, 0x6695_681A, 0));
+            } else {
+                for _ in 0..50 {
+                    fc4_landvalue_step(lv, 1000);
+                    assert!(fc4_landvalue_get_state(lv, &mut st));
+                    if st.pipeline_state == 9 {
+                        break;
+                    }
+                }
+            }
+            assert!(fc4_landvalue_get_state(lv, &mut st));
+            fc4_landvalue_destroy(lv);
+            (st.pipeline_state, st.average_land_value, st.count)
+        };
+        let original = run(false);
+        assert_eq!(original.0, 9);
+        assert_eq!(run(true), original, "one delivery, the same pass");
+    }
+}

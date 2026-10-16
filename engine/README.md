@@ -776,6 +776,42 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      subsystems still in the city (traffic simulator and network map, prop developer, occupants, network lot
      manager and construction crew, automata, disasters, advisors, MySims) seed from the clock, and `rand()`
      (state 1 at process start) is drawn in a pacing-dependent order.
+   - **Pacing** (`pacing = deterministic | original`, env `FC4_PACING`; `plugin/FC4Pacing.h`, `core/src/pacing.rs`,
+     fc4.h "pacing"; simulator.md §5.7 *[choice]*): how the work of our cores is bound to game days. The default
+     is `deterministic`, except that with any `<x>_shadow` on and `pacing` unset it is `original` (the shadows
+     compare our cores with the original's under the original's pacing; `pacing = deterministic` with a shadow on
+     logs a warning). Read once at game start, before any core exists (`fc4_pacing_set_process`); every core
+     captures it when it is constructed. Under `deterministic`, and only while our simulator runs:
+     - every day our simulator opens has a **settle point**: when the day's levels 2..7 have drained (the end of
+       the agent walk), each enabled idle agent of ours (its vtable lies in FreeCity4.dll) gets one `SimIdle`
+       (data3 22) and runs its cycle to completion in the core: aura, growth developers, plumbing, the demand
+       census, land value, crime, power, commercial, the BDS rebuild (which answers false while it waits for a
+       developer's map update: it is delivered again after the other idle agents, at most 4 passes); the
+       neighbours' push runs there too. The frame idle passes reach only the original's idle agents; the next
+       day opens only after the settle point;
+     - the clock is never read for slicing: the §5.5 adaptive helpers (aura lots, growth population pass) and
+       the demand census run without a time limit (an item cap only), land value runs with an unbounded tract
+       count; the lot developer's daily budget and the BDS's daily growth budget (building-development §4.4.1)
+       were already item counts;
+     - the simulator's posted `SimNewDay` / `SimNewWeek` / `SimNewMonth` / `SimNewYear` and our lot developer's
+       lot `StateChanged` (`0xE8BDA2E7`) posts made while a day is open are held and sent (`MessageSend`, in
+       posting order, with any they cause) at that day's settle point, so every subscriber (ours, the
+       original's, the observer's `DIGEST` and month lines) sees them before the next day's agents, however
+       many frames the day took.
+
+     `original` keeps the clock- and frame-bound behaviour (one step per idle delivery, ms budgets, posts
+     delivered by the message server's next pump). Lines (game start, our simulator's `Init`, every month):
+
+     ```
+     pacing: deterministic (the default; simulator.md section 5.7 choice: our idle cycles complete within their
+       day at its settle point, item counts instead of ms budgets, posted day/month/StateChanged messages sent
+       at the settle point; pacing = original keeps the clock-bound pacing)
+     pacing: original (the default with a shadow on: aura_shadow; the original's frame- and clock-bound pacing,
+       simulator.md section 5.7 items 1-4, for the conformance shadows; pacing = deterministic forces the default)
+     Init: ok=1 speed=… … pacing=deterministic
+     pacing: days settled N, messages deferred D, sent at settle S, released unsent U
+     post SimNewMonth 0x66956816 d1=… (yyyy-mm-dd) d2=0 d3=… -> deferred true
+     ```
    - **Monthly digest** (also at `FC4_LOG_LEVEL=1`; `digest = 0` turns it off): at every `SimNewMonth`, one line
      for diffing the original against FreeCity4 on the same save, read only through public interfaces:
 

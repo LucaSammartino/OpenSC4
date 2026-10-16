@@ -938,7 +938,9 @@ impl Simulator {
                     Message::new(msg::SIM_IDLE, i64::from(s.julian), paused, i64::from(budget_left)),
                 ))
             });
-            let Some((handle, enabled, deterministic, m)) = step else { break };
+            let Some((handle, enabled, deterministic, m)) = step else {
+                break;
+            };
             // §5.7 [choice]: under deterministic pacing a paced agent's idle
             // work happens only at the day's settle point.
             let paced = deterministic

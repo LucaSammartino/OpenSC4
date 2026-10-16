@@ -21,6 +21,7 @@ use crate::development::{building_fits_in_zone, ConstructionProfile, GrowthItem,
 use crate::grid::{
     add_radius_effect, process_two_grids, GridElem, GridProvider, ScanIterator, TractGrid, IID_SIM_GRID,
 };
+use crate::pacing::{self, Pacing};
 use crate::property::PropertyHolder;
 use crate::rng::CLOCK_SEED;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
@@ -165,6 +166,8 @@ pub struct GrowthDeveloper {
     /// Decline-key temporaries whose coordinate seed read the clock since
     /// construction: the `n` of their `K` (foundations §6.3, RN2).
     decline_clock_reads: Cell<u32>,
+    /// simulator.md §5.7: captured from [`pacing::process`] at construction.
+    pacing: Cell<Pacing>,
 }
 
 impl GrowthDeveloper {
@@ -179,7 +182,33 @@ impl GrowthDeveloper {
             d: RefCell::new(GrowthData::new()),
             g: RefCell::new(Grids::default()),
             decline_clock_reads: Cell::new(0),
+            pacing: Cell::new(pacing::process()),
         })
+    }
+
+    /// The pacing this developer runs (simulator.md §5.7).
+    pub fn pacing(&self) -> Pacing {
+        self.pacing.get()
+    }
+
+    /// Shadows and tests: [`Pacing::Original`] keeps the clock-bound steps.
+    pub fn set_pacing(&self, p: Pacing) {
+        self.pacing.set(p);
+    }
+
+    /// simulator.md §5.7 [choice] (deterministic pacing): the day's settle
+    /// delivery runs the map update to completion (state 0), or until it
+    /// waits (state 1 before `Init`). Returns whether it is idle.
+    pub fn settle_cycle(&self) -> bool {
+        pacing::run_to_idle(
+            || {
+                let before = self.d.borrow().update_state;
+                self.do_idle(5);
+                // States 15 and 18 progress through a cursor.
+                before == 15 || before == 18 || self.d.borrow().update_state != before
+            },
+            || self.d.borrow().update_state == 0,
+        )
     }
 
     /// `CreateDeveloper`'s construction (building-development.md §1.5, §1.1
@@ -471,7 +500,11 @@ impl GrowthDeveloper {
     pub fn handle_message(&self, m: &GrowthMessage) -> bool {
         match m.msg_type {
             msg::SIM_IDLE => {
-                self.do_idle(m.data3);
+                if self.pacing.get().is_deterministic() {
+                    self.settle_cycle();
+                } else {
+                    self.do_idle(m.data3);
+                }
                 true
             }
             msg::SIM_NEW_DAY => {
@@ -860,13 +893,15 @@ impl GrowthDeveloper {
         };
         let mut slice = self.statics.slice_step();
         let step = slice.step.clamp(1, 1024);
+        let deterministic = self.pacing.get().is_deterministic();
         self.host.limit_timer_start(ms);
         let td = self.host.tract_developer();
         let me = self.token();
         let mut count = 0u32;
         let done = loop {
             count = count.wrapping_add(step);
-            if count % 1024 == 0 && self.host.limit_timer_expired() {
+            // Deterministic pacing (simulator.md §5.7): no clock.
+            if count % 1024 == 0 && !deterministic && self.host.limit_timer_expired() {
                 break false;
             }
             let Some((x, z)) = it.next_cell() else { break true };

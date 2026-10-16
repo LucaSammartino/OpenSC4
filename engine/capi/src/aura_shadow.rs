@@ -654,6 +654,8 @@ impl Shadow {
     /// The record in a never-initialised core object holding copies.
     fn parse(&self, c: &Capture) -> Result<Rc<AuraSim>, &'static str> {
         let sim = AuraSim::new(self.host.clone() as Rc<dyn AuraHost>, 0, fixed_rng());
+        // Shadows replay the original's pacing (simulator.md §5.7).
+        sim.set_pacing(fc4_core::pacing::Pacing::Original);
         let mut r = CaptureReader {
             r: ByteReader::new(&c.bytes),
             refs: &c.refs,

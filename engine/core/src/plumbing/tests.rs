@@ -1474,3 +1474,25 @@ fn no_panics_without_init_or_grids() {
     pass(&s);
     assert_eq!(s.snapshot().state, 9);
 }
+
+#[test]
+fn deterministic_pacing_runs_the_pass_in_one_idle() {
+    // simulator.md §5.7 [choice]: one settle SimIdle runs the whole pass;
+    // the result equals the step-by-step (original) pass.
+    let (_fo, original) = basic(300);
+    pass(&original);
+    let (_fd, s) = basic(300);
+    s.set_pacing(crate::pacing::Pacing::Deterministic);
+    s.with_state(|st| st.recompute = true);
+    let idle = Message {
+        msg_type: msg::SIM_IDLE,
+        data3: 22,
+        ..Message::default()
+    };
+    assert!(s.do_message(&idle));
+    let st = s.snapshot();
+    assert_eq!((st.state, st.recompute), (9, false), "the whole pass in one delivery");
+    assert_eq!(s.supply_value(12, 5), original.supply_value(12, 5));
+    assert_eq!(s.last_month().consumed, original.last_month().consumed);
+    assert!(s.are_watered_buildings_in_cell(12, 5));
+}

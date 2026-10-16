@@ -105,6 +105,10 @@ public:
     static void HostAddRef(void* user, fc4_agent agent);
     static void HostRelease(void* user, fc4_agent agent);
     static void HostPost(void* user, const fc4_message* msg);
+    // Deterministic pacing (FC4Pacing.h; fc4_pacing_hooks): our agents are
+    // paced; the day's settle point sends the deferred posts.
+    static bool HostIsPaced(void* user, fc4_agent agent);
+    static void HostSettle(void* user, int32_t julian);
 
     // Limit-timer calibration sources/sink (fc4_timer_source, spec §5.5).
     static uint64_t TimerQpc(void* user);
@@ -134,6 +138,7 @@ private:
     bool QueryInterfaceImpl(uint32_t riid, void** ppvObj);
     bool TracePause(const char* name, bool ok);
     void InstallTimerSource();
+    void InstallPacing();  // fc4_sim_set_pacing with the process mode (FC4Pacing.h)
     void LogCalibration(const char* when);
 
     // Delivery diagnostics (FC4_LOG_LEVEL=2), keyed by (agent, level).

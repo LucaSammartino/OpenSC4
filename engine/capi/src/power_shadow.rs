@@ -1454,6 +1454,8 @@ impl Shadow {
         let h = &self.host;
         h.begin_run(mode);
         let sim = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 0);
+        // Shadows replay the original's pacing (simulator.md §5.7).
+        sim.set_pacing(fc4_core::pacing::Pacing::Original);
         sim.read_tuning();
         let mut r = CaptureReader::new(&p.before.bytes, &p.before.refs);
         if !sim.read(&mut r) {
@@ -1520,6 +1522,8 @@ impl Shadow {
             return Err("the city reports no cells".to_string());
         }
         let sim = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 0);
+        // Shadows replay the original's pacing (simulator.md §5.7).
+        sim.set_pacing(fc4_core::pacing::Pacing::Original);
         sim.init();
         let all = CellRect::new(0, 0, cx - 1, cz - 1);
         let mut seen = BTreeSet::new();
@@ -1606,6 +1610,8 @@ impl Shadow {
         let h = &self.host;
         h.mode.set(Mode::Parse);
         let sim = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 0);
+        // Shadows replay the original's pacing (simulator.md §5.7).
+        sim.set_pacing(fc4_core::pacing::Pacing::Original);
         let mut r = CaptureReader::new(&after.bytes, &after.refs);
         let ok = sim.read(&mut r);
         h.mode.set(Mode::Live);
@@ -2597,6 +2603,8 @@ impl Shadow {
                 let h = &self.host;
                 let mode = h.mode.replace(Mode::Parse);
                 let sim = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 0);
+                // Shadows replay the original's pacing (simulator.md §5.7).
+                sim.set_pacing(fc4_core::pacing::Pacing::Original);
                 sim.read_tuning();
                 // The original handles a removal only once initialised, which
                 // it is while the shadow compares it.

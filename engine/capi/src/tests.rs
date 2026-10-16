@@ -421,10 +421,17 @@ fn deterministic_pacing_through_the_abi() {
             is_paced: Some(paced_is_8),
             settle: Some(record_settle),
         };
-        let short = fc4_pacing_hooks { struct_size: 4, ..hooks };
+        let short = fc4_pacing_hooks {
+            struct_size: 4,
+            ..hooks
+        };
         assert!(!fc4_sim_set_pacing(sim, FC4_PACING_DETERMINISTIC, &short));
         assert!(!fc4_sim_set_pacing(sim, 9, &hooks));
-        assert!(!fc4_sim_set_pacing(std::ptr::null_mut(), FC4_PACING_DETERMINISTIC, &hooks));
+        assert!(!fc4_sim_set_pacing(
+            std::ptr::null_mut(),
+            FC4_PACING_DETERMINISTIC,
+            &hooks
+        ));
         for (agent, level, name) in [(7u64, 4u32, "day"), (8, 10, "ours"), (9, 10, "theirs")] {
             assert!(fc4_sim_add_agent(sim, agent, level, name.as_ptr() as _, name.len(), 3));
         }
@@ -445,7 +452,10 @@ fn deterministic_pacing_through_the_abi() {
         let settles = pr.settles.borrow().clone();
         // Every opened day but possibly the last is settled, in order.
         let want: Vec<i32> = (start + 1..=end).collect();
-        assert!(settles == want || settles == want[..want.len() - 1], "{settles:?} {want:?}");
+        assert!(
+            settles == want || settles == want[..want.len() - 1],
+            "{settles:?} {want:?}"
+        );
         let ours: Vec<fc4_message> = rec
             .deliveries
             .borrow()

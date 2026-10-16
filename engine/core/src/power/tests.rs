@@ -1369,3 +1369,24 @@ fn saved_bitmaps_of_another_size_never_panic() {
         h.cells.set((32, 32));
     }
 }
+
+#[test]
+fn deterministic_pacing_runs_the_recompute_in_one_idle() {
+    // simulator.md §5.7 [choice]: one settle SimIdle runs the whole
+    // recompute; original pacing takes one step per idle.
+    let h = Host::new(16);
+    let s = sim(&h);
+    s.update_state(|st| st.recompute = true);
+    s.do_message(&message(msg::SIM_IDLE, 0));
+    assert_eq!(s.state().state, state::RESET, "original: one step");
+    let d = sim(&h);
+    d.set_pacing(crate::pacing::Pacing::Deterministic);
+    d.update_state(|st| st.recompute = true);
+    assert!(d.do_message(&message(msg::SIM_IDLE, 0)));
+    let st = d.state();
+    assert_eq!(
+        (st.state, st.recompute),
+        (state::IDLE, false),
+        "the whole recompute in one delivery"
+    );
+}

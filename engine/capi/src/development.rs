@@ -1727,6 +1727,12 @@ pub unsafe extern "C" fn fc4_development_do_message(
     })
 }
 
+/// Tests: the BDS's pacing (simulator.md §5.7).
+#[cfg(test)]
+pub(crate) fn test_set_pacing(p: *mut fc4_development, pacing: fc4_core::pacing::Pacing) {
+    sim(p, (), |s| s.set_pacing(pacing))
+}
+
 /// The daily growth budget (§4.4.1): at most `n` tract developer `Grow`
 /// calls per day; 0 = unlimited.
 #[no_mangle]

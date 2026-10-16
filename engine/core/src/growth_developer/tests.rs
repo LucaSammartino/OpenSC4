@@ -537,3 +537,32 @@ fn replacement_unit_methods() {
     assert_eq!(bare.data().ref_count, 1);
     assert_eq!(bare.source_active_demand(), None);
 }
+
+#[test]
+fn deterministic_pacing_finishes_the_update_in_one_idle() {
+    // simulator.md §5.7 [choice]: one settle SimIdle runs the whole map
+    // update; the lists equal the step-by-step (original) update.
+    let host = Fake::new(8);
+    park(&host, &[(0, 0, 60), (0, 1, 70), (1, 0, 60), (1, 1, 40)]);
+    let st = GrowthStatics::new(0, &seeds());
+    let original = developer(&host, &st, exemplar(0x1010, 1, 1));
+    original.update_max_capacity([0, 0, 7, 7]);
+    run_update(&original);
+    let d = developer(&host, &st, exemplar(0x1010, 1, 1));
+    d.set_pacing(crate::pacing::Pacing::Deterministic);
+    d.update_max_capacity([0, 0, 7, 7]);
+    d.start_map_update();
+    let idle = GrowthMessage {
+        data3: 22,
+        ..GrowthMessage::of_type(msg::SIM_IDLE)
+    };
+    assert!(d.handle_message(&idle));
+    assert!(d.is_map_update_finished(), "the whole update in one delivery");
+    assert_eq!(*d.growth_list(), *original.growth_list());
+    assert_eq!(*d.decline_list(), *original.decline_list());
+    // Original pacing: one state per idle.
+    let o = developer(&host, &st, exemplar(0x1010, 1, 1));
+    o.start_map_update();
+    assert!(o.handle_message(&idle));
+    assert!(!o.is_map_update_finished());
+}

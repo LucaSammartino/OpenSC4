@@ -11,6 +11,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
+use crate::pacing::{self, Pacing};
 use crate::property::PropertyHolder;
 use crate::props;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
@@ -109,6 +110,8 @@ pub struct DemandSim {
     host: Rc<dyn DemandHost>,
     token: Cell<u64>,
     d: RefCell<SimData>,
+    /// simulator.md §5.7: captured from [`pacing::process`] at construction.
+    pacing: Cell<Pacing>,
 }
 
 /// `clamp(v, 0, 1)` as §3.3 defines it (NaN passes through).
@@ -400,7 +403,31 @@ impl DemandSim {
                 census_state: CENSUS_DONE,
                 ..Default::default()
             }),
+            pacing: Cell::new(pacing::process()),
         })
+    }
+
+    /// The pacing this simulator runs (simulator.md §5.7).
+    pub fn pacing(&self) -> Pacing {
+        self.pacing.get()
+    }
+
+    /// Shadows and tests: [`Pacing::Original`] keeps the clock-bound census.
+    pub fn set_pacing(&self, p: Pacing) {
+        self.pacing.set(p);
+    }
+
+    /// simulator.md §5.7 [choice] (deterministic pacing): the day's settle
+    /// delivery runs the census to completion (done). Returns whether it is
+    /// idle.
+    pub fn settle_cycle(&self) -> bool {
+        pacing::run_to_idle(
+            || {
+                self.do_idle(5);
+                true
+            },
+            || self.d.borrow().census_state == CENSUS_DONE,
+        )
     }
 
     pub fn token(&self) -> u64 {
@@ -749,6 +776,9 @@ impl DemandSim {
                 self.daily();
             }
             msg::SIM_NEW_MONTH => self.monthly(),
+            msg::SIM_IDLE if self.pacing.get().is_deterministic() => {
+                self.settle_cycle();
+            }
             msg::SIM_IDLE => self.do_idle(data3),
             msg::PRE_SAVE => {
                 self.do_demand_index_links();
@@ -809,9 +839,11 @@ impl DemandSim {
 
     // ---- census (§6) -------------------------------------------------------------------------------------
 
-    /// `DoIdle(ms)` (§6.2).
+    /// `DoIdle(ms)` (§6.2). Deterministic pacing (simulator.md §5.7): the
+    /// scan is not bound by the clock.
     pub fn do_idle(&self, ms: u32) {
-        let start = self.host.now_ms();
+        let deterministic = self.pacing.get().is_deterministic();
+        let start = if deterministic { 0 } else { self.host.now_ms() };
         loop {
             let state = self.d.borrow().census_state;
             match state {
@@ -841,7 +873,7 @@ impl DemandSim {
                         if self.d.borrow().cursor.1 >= cz {
                             continue; // finished: apply on the next loop turn
                         }
-                        if self.host.now_ms().wrapping_sub(start) >= ms {
+                        if !deterministic && self.host.now_ms().wrapping_sub(start) >= ms {
                             return;
                         }
                     }
@@ -1776,6 +1808,37 @@ mod tests {
         s.do_idle(0);
         assert_eq!(s.snapshot().census_state, CENSUS_DONE);
         assert!(f.history.borrow().contains(&(history::RESIDENTS[0], 0)));
+    }
+
+    /// simulator.md §5.7 [choice]: under deterministic pacing one settle
+    /// SimIdle runs the whole census, whatever the clock (0 ms budget here,
+    /// which stops the original after one cell).
+    #[test]
+    fn deterministic_pacing_runs_the_census_in_one_idle() {
+        let f = Fake::new();
+        f.cells.set((2, 1));
+        let lot = CensusLot {
+            building_type: 1,
+            wealth: 1,
+        };
+        f.census.borrow_mut().insert((0, 0), (lot, 100, 10, 120.0, 0.5));
+        f.census.borrow_mut().insert((1, 0), (lot, 50, 10, 0.0, 1.0));
+        f.add_exemplar(0x1011, &[(exemplar_prop::REGION_USE, Variant::Scalar(Elem::U8(1)))]);
+        let s = sim(&f);
+        s.handle_message(msg::SIM_NEW_MONTH, 0, 0, 0);
+        s.handle_message(msg::SIM_IDLE, 0, 0, 0);
+        assert_eq!(
+            s.snapshot().census_state,
+            CENSUS_SCANNING,
+            "original: one cell per 0 ms"
+        );
+        let d = sim(&f);
+        d.set_pacing(Pacing::Deterministic);
+        d.handle_message(msg::SIM_NEW_MONTH, 0, 0, 0);
+        d.handle_message(msg::SIM_IDLE, 0, 0, 0);
+        let snap = d.snapshot();
+        assert_eq!(snap.census_state, CENSUS_DONE, "the whole census in one delivery");
+        assert_eq!(snap.current_census[&0x1011], 15.0);
     }
 
     #[test]
