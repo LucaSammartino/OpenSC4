@@ -90,6 +90,8 @@ network type's bridge type vector, without a bounds check.
 | `0x00632AD0` | `IdentifyLandBridgeCells` | §7 |
 | `0x00632580` | `CreateLandBridge` *[inferred]* | §7.3 |
 | `0x0062EA90` | `SelectBridgeElevation` *[inferred]* | §8.2 |
+| `0x00638B40` | `RemoveBridgePiecesFromSetOfCellsToBeSolved` | §8.3 |
+| `0x0062FB90` | `CopyBridgeElevationConstraintsIntoCellInfo` *[inferred]* | §8.3 |
 | `0x00632060` | `ConstructSpecializedBridge` *[inferred]* | §9 |
 | `0x00631300` | `ConstructParametricBridge` *[inferred]* | §10 |
 | `0x0062F610` | `InsertBridgePieces` | §11 |
@@ -566,6 +568,52 @@ A record has a **reference** elevation (`+0x14`), the bank height chosen by `Adj
 So the deck is the highest of the override and, per step, the last cell's surface plus the water or land height. For a
 one-cell-wide network the quirk changes nothing. For two-wide networks the first cell of each step is ignored.
 
+### 8.3 The bridge in the height solve (answers NB1)
+
+The network geometry spec has the solve order (network-geometry.md §8, §9.4) and the plane constraint of the regular
+cells (§9.8). A bridge takes part in four places:
+
+1. **Out of the piece solve.** `RemoveBridgePiecesFromSetOfCellsToBeSolved` (`0x00638B40`), the last step of
+   `BuildSetOfCellsToBeSolved` (network-geometry.md §8 step 2): for each bridge record in order, stopping at the
+   first whose end step is ≥ `+0x78` (as §11.1), the cell key `(z << 16) + x` of each of its piece records is erased
+   from the solve set `+0x84`. The rule solver never chooses a piece for a bridge cell: the models of §9 and §10 are
+   its pieces.
+2. **Fixed cells.** Every cell of a kind-1 step is marked fixed when its cell info is made, whether or not a piece is
+   already there (network-geometry.md §8.1).
+3. **Pinned corners and the constraint entry.** `CopyBridgeElevationConstraintsIntoCellInfo` (`0x0062FB90`) runs at
+   every smoothing level (network-geometry.md §9.4 step 2). For each bridge record in order, stopping at the first
+   whose end step is ≥ `+0x78`:
+   - it appends the entry `{start, end, e, e}` to the level's constraint list, with
+     `e := r24(deck − +0x60[0])`: the record's deck elevation `+0x10` minus the bridge type's total ramp rise
+     (`+0x60[0]` = `+0x78`, §2.4). For a parametric bridge that is the height of the abutments' **outer** edges
+     (§10.3); a specialised bridge's outer edge is `h[0] + deck` (§9.3), which `e` ignores. The bridge type is
+     found through the tool's own type info (`+0x358`, vector `+0x30`) and the record's index `+0x0C`;
+   - it walks the steps `start … end`, and each step's cells first to last (network-geometry.md §2.2), with one
+     counter over the record's piece records starting at 0. Each cell info gets the piece's four corner heights
+     (`+0x14` … `+0x20`) as its corner heights `+0x58[i]`, index for index (the two use the same corner order), and
+     its allowed range `+0x68[i]` := `[corner, corner]`. The preferred range is not touched.
+
+   The piece records are in lane order (§9.1), which runs last to first when `R` is 2 or 3, so on a bridge more than
+   one cell wide built with pen 0 or 6 the records of a step land on its cells in reverse *[quirk]*. Both models give
+   every lane of a step the same corner heights (§9.3, §10.3), so this has no effect.
+
+   Slot 76 then fixes each corner of each bridge cell at that height (network-geometry.md §9.3): in the network
+   satisfier every vertex of a bridge is pinned at its pieces' corners. Bridge cells, being fixed, get no slope or
+   smoothness constraints (network-geometry.md §9.2); the regular cells beside them are tied to them through the
+   shared vertices.
+4. **The plane of the regular cells.** The entry anchors the plane constraint on each side of the bridge
+   (network-geometry.md §9.8): the regular cells between two bridges (or a bridge and a tunnel) must stay within the
+   type's plane tolerance (35 m for road, 15 m for the other shipped types) of the straight line from the first one's
+   end height `e` to the second one's start height, unless their own height is farther; before the first bridge and
+   after the last, the line runs to the run's end at the terrain. The line is anchored on the abutment steps' inner
+   edges (network-geometry.md quirk 13).
+
+A run with a bridge starts smoothing at level 1 (network-geometry.md §9.4). In the terrain pass (network-geometry.md
+§9.6) a bridge cell is fixed but not yet placed (`+0x51` is set by §11.1, after the smoothing loop), and it has no
+solved piece and no existing occupant to ask for supports, so its vertices get the range `[t − p10, min(n, t + p0C)]`
+with the preferred value `t`: the terrain under a bridge is left alone unless a vertex it shares with a regular cell is
+graded there *[inferred]*.
+
 ---
 
 ## 9. The specialised model: ConstructSpecializedBridge(&record, &entry) (`0x00632060`, pop 8)
@@ -773,6 +821,8 @@ its steps regular, and the height solver then treats them as ordinary terrain.
   parametric model reads `+0x34`–`+0x7C` and `+0xA8`–`+0xD4`, not `+0xF8`–`+0x120` (those are suspension tower data).
 - **NG4**: §7 and §2.5. `+0x354` is set by an address test (`0x00626B53`) of bridge type `+0x98` (property
   `0x482CB44F`, land); every shipped type sets the property, so there is no shipped effect. The pass itself: §7.
+- **NB1** (§16, answered 2026-10-16, re-answers26): §8.3, with the solver side in network-geometry.md §9.8. There was
+  no implemented answer to compare.
 
 ## 15. Quirks (summary)
 
@@ -787,12 +837,18 @@ its steps regular, and the height solver then treats them as ordinary terrain.
 8. `InsertBridgePieces` stops at the first record past `v` instead of skipping it (§11.1).
 9. The specialised walk does not check the piece list's length against the cells (§9.3); the shipped files were not
    checked for a mismatch.
+10. The height pins copy a step's piece records onto its cells first to last, while the records are in lane order;
+    no effect, since every lane of a step has the same corners (§8.3).
 
 ## 16. Open questions
 
-- **NB1.** The rule that the network solver applies to bridge cells (`RemoveBridgePiecesFromSetOfCellsToBeSolved`,
+- ~~**NB1.** The rule that the network solver applies to bridge cells (`RemoveBridgePiecesFromSetOfCellsToBeSolved`,
   `0x00638B40`, and `CopyBridgeElevationConstraintsIntoCellInfo`): how the corner heights of §9 and §10 constrain the
-  height solver (network-geometry.md §9). Not read.
+  height solver (network-geometry.md §9). Not read.~~ **ANSWERED 2026-10-16 (re-answers26):** §8.3. Bridge cells
+  leave the piece solve set; they are fixed, and at every smoothing level their corners and allowed ranges are set to
+  their pieces' corners, so the satisfier pins every bridge vertex. Each bridge also adds the entry
+  `{start, end, deck − +0x60[0], same}` that anchors the plane constraint of the regular cells
+  (network-geometry.md §9.8, new), which runs in step 2 of each `SmoothenNetwork` level.
 - **NB2.** The suspension profile (`0x0062E690`), the cable plotting (`0x00630F70`) and `AddSuspendedBridgeStructures`
   in detail. Drawing only *[inferred]*.
 - **NB3.** The occupant position height used for the column top (§11.3): inferred to be the piece's model height Y
@@ -877,3 +933,12 @@ surface level (slot 18) is the water level. Unless stated, the banks are flat an
     added); `IsMajorBridgeLandBridge` is true and `GetMajorBridgeAltitude` gives 100.
 25. **Getters** (§1.1). With no bridge: `GetMajorBridge` = −1, `GetMajorBridgeAltitude` false.
     `GetBridgeBitmapKey(0, …)` for road: true, (`0x6A386D26`, 1).
+26. **Bridge pins** (§8.3). The bridge of test 14 (road key 1, drag (0, 10) → (30, 10), start 9, end 19, deck 270): the
+    constraint entry is {9, 19, 270, 270}; every corner of every cell of steps 9 … 19 has height 270, allowed range
+    [270, 270], and is fixed; none of those cells is in the solve set `+0x84`.
+27. **Plane beside a bridge** (§8.3, network-geometry.md §9.8). The same run, regular corners (terrain 250 m, plane
+    tolerance 35): before the bridge the plane rises from 250 at x = 0 to 270 at x = 10 (step 9's leading edge, one
+    cell inside the bridge): allowed [215, 285] at x = 0, [225, 295] at x = 5, [233, 303] at x = 9, with preferred
+    ranges [250, 250], [250, 260], [250, 268]. After it the plane falls from 270 at x = 19 (step 19's trailing edge) to
+    250 at x = 31: at x = 20, `h` ≈ 268.33334, allowed ≈ [233.33334, 303.33334], preferred ≈ [250, 268.33334]; at x = 25,
+    [225, 295]; at x = 31, [215, 285].
