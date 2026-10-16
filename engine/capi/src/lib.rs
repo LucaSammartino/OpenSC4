@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 72;
+pub const FC4_ABI_VERSION: u32 = 59;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -773,13 +773,16 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
 pub mod aura;
 pub mod aura_shadow;
 pub mod budget;
+pub mod city_situation;
 pub mod civic;
 pub mod clock24;
 pub mod commercial;
 pub mod crime;
 pub mod demand;
+pub mod demolition;
 pub mod development;
 pub mod disasters;
+pub mod dispatch;
 pub mod flammability;
 pub mod flammability_shadow;
 pub mod flora;
@@ -825,6 +828,9 @@ mod aura_tests;
 mod budget_tests;
 
 #[cfg(test)]
+mod city_situation_tests;
+
+#[cfg(test)]
 mod civic_tests;
 
 #[cfg(test)]
@@ -840,10 +846,16 @@ mod crime_tests;
 mod demand_tests;
 
 #[cfg(test)]
+mod demolition_tests;
+
+#[cfg(test)]
 mod development_tests;
 
 #[cfg(test)]
 mod disasters_tests;
+
+#[cfg(test)]
+mod dispatch_tests;
 
 #[cfg(test)]
 mod flora_tests;
