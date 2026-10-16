@@ -13,15 +13,22 @@
 // not, see <https://www.gnu.org/licenses/>.
 
 // The automata layer shadow (FC4AutomataShadow.h; docs/specs/automata.md).
+//
+// The two streams below carry a reference as its **host token** and class ID,
+// which for this shadow is the capture's 1-based object number: the automata
+// core writes `token` back unchanged (fc4.h: "A core object is written with
+// the token given by fc4_automata_object_set_token"), and the original's own
+// Write writes that same object number (FC4WriteCapture.h). A shared stream
+// that used an object pointer as the token would round-trip the wrong number.
 #include "FC4AutomataShadow.h"
 
 #include "FC4Config.h"
-#include "FC4HistClock.h"  // MemOStream
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"  // TokenOf
 #include "FC4WriteCapture.h"
 
+#include "cIGZSerializable.h"
 #include "cIGZUnknown.h"
 #include "cISC4City.h"
 
@@ -48,7 +55,6 @@ uint64_t g_mismatches = 0;
 uint64_t g_componentsCompared = 0;
 uint64_t g_bytesCompared = 0;
 
-// A line's detail, appended (the shadows' shared shape).
 void AppendF(std::string& out, const char* fmt, ...) {
     char buf[512];
     va_list ap;
@@ -68,38 +74,46 @@ std::string DateText(int32_t julian) {
     return buf;
 }
 
-// ---- the shadow cores' host: the references a captured record hands us ------
+// ---- the two streams, and the shadow cores' reference host -----------------
+//
+// `user` of every stream and host callback below is the compare's
+// `WriteCapture`, which is alive for as long as the shadow core is (the core
+// is created and destroyed inside one ComparePart).
 
-void HostAddRef(void* /*user*/, uint64_t token) {
-    if (token != 0) FC4_ADDREF(static_cast<cIGZUnknown*>(reinterpret_cast<void*>(token)));
+cIGZSerializable* ObjectOf(const WriteCapture* cap, uint64_t token) {
+    return cap != nullptr ? cap->SerializableAt(static_cast<uint32_t>(token)) : nullptr;
 }
 
-void HostRelease(void* /*user*/, uint64_t token) {
-    if (token != 0) FC4_RELEASE(static_cast<cIGZUnknown*>(reinterpret_cast<void*>(token)));
+void HostAddRef(void* user, uint64_t token) {
+    cIGZSerializable* o = ObjectOf(static_cast<const WriteCapture*>(user), token);
+    if (o != nullptr) FC4_ADDREF(reinterpret_cast<cIGZUnknown*>(o));
 }
 
-// The controller manager's host also logs and reads a controller's flags
-// (§3.2: flag 8 keeps a controller out of the record). The shadow never has a
-// live controller to ask: a captured record carries no flags of its own, and
-// a missing value reads as 0 (never transient), which is what the original
-// writes for the controllers the corpus holds.
+void HostRelease(void* user, uint64_t token) {
+    cIGZSerializable* o = ObjectOf(static_cast<const WriteCapture*>(user), token);
+    if (o != nullptr) FC4_RELEASE(reinterpret_cast<cIGZUnknown*>(o));
+}
+
+// The controller manager's host also reads a controller's flags (§3.2: flag 8
+// keeps a controller out of the record). A captured record carries no live
+// controller to ask, and a missing value reads as 0 (never transient).
 uint32_t HostControllerFlags(void* /*user*/, uint64_t /*controller*/) { return 0; }
 
 void HostLog(void* /*user*/, const char* text) { Log("automata shadow: %s", text); }
 
-fc4_automata_ref_host RefHost() {
+fc4_automata_ref_host RefHost(const WriteCapture* cap) {
     fc4_automata_ref_host h{};
     h.struct_size = sizeof(h);
-    h.user = nullptr;
+    h.user = const_cast<WriteCapture*>(cap);
     h.add_ref = &HostAddRef;
     h.release = &HostRelease;
     return h;
 }
 
-fc4_automata_cm_host CmHost() {
+fc4_automata_cm_host CmHost(const WriteCapture* cap) {
     fc4_automata_cm_host h{};
     h.struct_size = sizeof(h);
-    h.user = nullptr;
+    h.user = const_cast<WriteCapture*>(cap);
     h.log = &HostLog;
     h.add_ref = &HostAddRef;
     h.release = &HostRelease;
@@ -107,15 +121,156 @@ fc4_automata_cm_host CmHost() {
     return h;
 }
 
+// An fc4_istream over a captured record: a reference is the capture's object
+// number as the token (so a write puts the same number back) and comes with
+// one reference for the reader (fc4_istream's contract; the core drops it
+// through the host table).
+class CaptureIn {
+public:
+    explicit CaptureIn(const WriteCapture& cap) : cap_(cap) {
+        s_.struct_size = sizeof(s_);
+        s_.user = this;
+        s_.get_u8 = &GetU8;
+        s_.get_u16 = &GetU16;
+        s_.get_u32 = &GetU32;
+        s_.get_u64 = &GetU64;
+        s_.get_f32 = &GetF32;
+        s_.get_f64 = &GetF64;
+        s_.get_bytes = &GetBytes;
+        s_.get_str = &GetStr;
+        s_.get_ref = &GetRef;
+        s_.skip = &Skip;
+        s_.error = &Error;
+    }
+    const fc4_istream* Get() const { return &s_; }
+    bool atEnd() const { return pos_ == cap_.Bytes().size(); }
+
+private:
+    bool Take(void* out, size_t n) {
+        const std::vector<uint8_t>& b = cap_.Bytes();
+        if (bad_ || n > b.size() - pos_) {
+            bad_ = true;
+            return false;
+        }
+        if (out != nullptr && n > 0) std::memcpy(out, b.data() + pos_, n);
+        pos_ += n;
+        return true;
+    }
+    static CaptureIn* Self(void* u) { return static_cast<CaptureIn*>(u); }
+    static bool GetU8(void* u, uint8_t* o) { return Self(u)->Take(o, 1); }
+    static bool GetU16(void* u, uint16_t* o) { return Self(u)->Take(o, 2); }
+    static bool GetU32(void* u, uint32_t* o) { return Self(u)->Take(o, 4); }
+    static bool GetU64(void* u, uint64_t* o) { return Self(u)->Take(o, 8); }
+    static bool GetF32(void* u, float* o) { return Self(u)->Take(o, 4); }
+    static bool GetF64(void* u, double* o) { return Self(u)->Take(o, 8); }
+    static bool GetBytes(void* u, uint8_t* o, size_t n) { return Self(u)->Take(o, n); }
+    static bool Skip(void* u, size_t n) { return Self(u)->Take(nullptr, n); }
+    static bool GetStr(void* u, fc4_bytes_sink sink, void* ctx) {
+        CaptureIn* s = Self(u);
+        uint32_t n = 0;
+        if (!s->Take(&n, 4)) return false;
+        const size_t off = s->pos_;
+        if (!s->Take(nullptr, n)) return false;
+        if (sink != nullptr) sink(ctx, s->cap_.Bytes().data() + off, n);
+        return true;
+    }
+    static bool GetRef(void* u, uint32_t iid, fc4_ref* out) {
+        CaptureIn* s = Self(u);
+        uint32_t id = 0, cls = 0;
+        if (!s->Take(&id, 4)) return false;
+        if (id != 0 && !s->Take(&cls, 4)) return false;
+        fc4_ref r{};
+        r.class_id = cls;
+        if (id != 0) {
+            cIGZSerializable* o = s->cap_.SerializableAt(id);
+            if (o == nullptr) {
+                s->bad_ = true;
+                return false;
+            }
+            void* p = nullptr;
+            if (!o->QueryInterface(iid == 0 ? GZIID_cIGZUnknown : iid, &p) || p == nullptr) {
+                // The original wrote a reference to something that does not
+                // answer what the reader asks: the same null the original's
+                // own Read stores (automata.md §1).
+                if (out != nullptr) *out = r;
+                return true;
+            }
+            // The token below is a number, not a kept pointer: the interface
+            // reference this QueryInterface took goes back at once, and the
+            // reader's own reference is taken on the capture's object.
+            reinterpret_cast<cIGZUnknown*>(p)->Release();
+            FC4_ADDREF(reinterpret_cast<cIGZUnknown*>(o));
+            r.token = id;
+        }
+        if (out != nullptr) *out = r;
+        return true;
+    }
+    static int32_t Error(void* u) { return Self(u)->bad_ ? 1 : 0; }
+
+    const WriteCapture& cap_;
+    size_t pos_ = 0;
+    bool bad_ = false;
+    fc4_istream s_{};
+};
+
+// An fc4_ostream that records bytes and writes a reference as its token and
+// class ID (a `str` as its length and bytes): the original's own layout.
+class RecordOut {
+public:
+    RecordOut() {
+        s_.struct_size = sizeof(s_);
+        s_.user = this;
+        s_.put_u8 = &PutU8;
+        s_.put_u16 = &PutU16;
+        s_.put_u32 = &PutU32;
+        s_.put_u64 = &PutU64;
+        s_.put_f32 = &PutF32;
+        s_.put_f64 = &PutF64;
+        s_.put_bytes = &PutBytes;
+        s_.put_str = &PutStr;
+        s_.put_ref = &PutRef;
+        s_.error = &Error;
+    }
+    const fc4_ostream* Get() const { return &s_; }
+    std::vector<uint8_t> bytes;
+
+private:
+    bool Put(const void* p, size_t n) {
+        const uint8_t* b = static_cast<const uint8_t*>(p);
+        bytes.insert(bytes.end(), b, b + n);
+        return true;
+    }
+    static RecordOut* Self(void* u) { return static_cast<RecordOut*>(u); }
+    static bool PutU8(void* u, uint8_t v) { return Self(u)->Put(&v, 1); }
+    static bool PutU16(void* u, uint16_t v) { return Self(u)->Put(&v, 2); }
+    static bool PutU32(void* u, uint32_t v) { return Self(u)->Put(&v, 4); }
+    static bool PutU64(void* u, uint64_t v) { return Self(u)->Put(&v, 8); }
+    static bool PutF32(void* u, float v) { return Self(u)->Put(&v, 4); }
+    static bool PutF64(void* u, double v) { return Self(u)->Put(&v, 8); }
+    static bool PutBytes(void* u, const uint8_t* p, size_t n) { return Self(u)->Put(p, n); }
+    static bool PutStr(void* u, const uint8_t* p, size_t n) {
+        const uint32_t len = static_cast<uint32_t>(n);
+        return Self(u)->Put(&len, 4) && (n == 0 || Self(u)->Put(p, n));
+    }
+    static bool PutRef(void* u, const fc4_ref* r) {
+        const uint32_t id = r == nullptr ? 0u : static_cast<uint32_t>(r->token);
+        if (!Self(u)->Put(&id, 4)) return false;
+        return id == 0 || Self(u)->Put(&r->class_id, 4);
+    }
+    static int32_t Error(void*) { return 0; }
+
+    fc4_ostream s_{};
+};
+
 // ---- one component: the original's record against the shadow core's --------
 
 // The three shapes the six components come in (§2, §3, §4-§5).
 enum class Kind { Scripts, Cm, Manager };
 
 struct Part {
-    const char* name;   // the log's short name
-    uint32_t slot;      // the city getter (§0's table)
-    uint32_t classId;   // the class ID of §0
+    const char* name;  // the log's short name
+    uint32_t slot;     // the city getter (§0's table)
+    uint32_t classId;  // the class ID of §0
     Kind kind;
     void* core = nullptr;
 };
@@ -123,9 +278,9 @@ struct Part {
 // §0's table: 40 the script system, 41 the controller manager, 43-46 the
 // managers. The city getters are slots 48, 47, 43, 44, 45, 46.
 Part g_parts[] = {
-    {"script", 48, 0x4A1B664E, Kind::Scripts, nullptr},   // 40
-    {"cm", 47, 0xCA14CA03, Kind::Cm, nullptr},            // 41
-    {"vehicle", 43, 0xA98F9D3B, Kind::Manager, nullptr},  // 43
+    {"script", 48, 0x4A1B664E, Kind::Scripts, nullptr},      // 40
+    {"cm", 47, 0xCA14CA03, Kind::Cm, nullptr},               // 41
+    {"vehicle", 43, 0xA98F9D3B, Kind::Manager, nullptr},     // 43
     {"pedestrian", 44, 0xC98F9D17, Kind::Manager, nullptr},  // 44
     {"aircraft", 45, 0xC98F9D4A, Kind::Manager, nullptr},    // 45
     {"watercraft", 46, 0xA98F9D28, Kind::Manager, nullptr},  // 46
@@ -135,6 +290,8 @@ constexpr size_t kParts = sizeof(g_parts) / sizeof(g_parts[0]);
 
 cIGZUnknown* UnknownOf(cISC4City* city, uint32_t slot) {
     if (city == nullptr) return nullptr;
+    // The city getters return the interface pointer (interfaces.tsv slots
+    // 43-48); the object's cIGZUnknown is its first sub-object.
     switch (slot) {
         case 43:
             return reinterpret_cast<cIGZUnknown*>(city->GetVehicleManager());
@@ -169,19 +326,19 @@ void DropCore(Part& p) {
     p.core = nullptr;
 }
 
-bool MakeCore(Part& p) {
+bool MakeCore(Part& p, const WriteCapture* cap) {
     DropCore(p);
     switch (p.kind) {
         case Kind::Scripts:
             p.core = fc4_automata_scripts_create();
             break;
         case Kind::Cm: {
-            const fc4_automata_cm_host h = CmHost();
+            const fc4_automata_cm_host h = CmHost(cap);
             p.core = fc4_automata_cm_create(&h);
             break;
         }
         case Kind::Manager: {
-            const fc4_automata_ref_host h = RefHost();
+            const fc4_automata_ref_host h = RefHost(cap);
             p.core = fc4_automata_manager_create(p.classId, &h);
             break;
         }
@@ -189,7 +346,7 @@ bool MakeCore(Part& p) {
     return p.core != nullptr;
 }
 
-bool WriteCore(Part& p, MemOStream& out) {
+bool WriteCore(Part& p, RecordOut& out) {
     switch (p.kind) {
         case Kind::Scripts:
             return fc4_automata_scripts_write(static_cast<fc4_automata_scripts*>(p.core), out.Get());
@@ -201,7 +358,7 @@ bool WriteCore(Part& p, MemOStream& out) {
     return false;
 }
 
-bool ReadCore(Part& p, CaptureIStream& in) {
+bool ReadCore(Part& p, CaptureIn& in) {
     switch (p.kind) {
         case Kind::Scripts:
             return fc4_automata_scripts_read(static_cast<fc4_automata_scripts*>(p.core), in.Get());
@@ -248,33 +405,39 @@ uint32_t ComparePart(Part& p, std::string& out) {
         return 1;
     }
     const std::vector<uint8_t> original = cap.Bytes();
-    if (!MakeCore(p)) {
-        AppendF(out, " %s: the shadow core could not be created", p.name);
+    uint32_t mismatches = 0;
+    if (!MakeCore(p, &cap)) {
+        AppendF(out, " %s: %u bytes, the shadow core could not be created", p.name,
+                static_cast<unsigned>(original.size()));
         return 1;
     }
-    CaptureIStream in(cap);
-    const bool read = ReadCore(p, in);
-    MemOStream again;
-    const bool written = read && in.atEnd() && WriteCore(p, again);
-    uint32_t mismatches = 0;
-    if (!read) {
-        AppendF(out, " %s: %u bytes, read FAILED", p.name, static_cast<unsigned>(original.size()));
-        mismatches = 1;
-    } else if (!in.atEnd()) {
-        AppendF(out, " %s: %u bytes, read did not consume the record", p.name,
-                static_cast<unsigned>(original.size()));
-        mismatches = 1;
-    } else if (!written) {
-        AppendF(out, " %s: %u bytes, written back FAILED", p.name, static_cast<unsigned>(original.size()));
-        mismatches = 1;
-    } else if (again.bytes == original) {
-        AppendF(out, " %s: %u bytes identical", p.name, static_cast<unsigned>(original.size()));
-    } else {
-        char diff[128] = "";
-        FirstDifference(again.bytes, original, diff, sizeof(diff));
-        AppendF(out, " %s: %u bytes DIFFERENT (%s)", p.name, static_cast<unsigned>(original.size()), diff);
-        mismatches = 1;
+    {
+        CaptureIn in(cap);
+        const bool read = ReadCore(p, in);
+        RecordOut again;
+        const bool written = read && in.atEnd() && WriteCore(p, again);
+        if (!read) {
+            AppendF(out, " %s: %u bytes, read FAILED", p.name, static_cast<unsigned>(original.size()));
+            mismatches = 1;
+        } else if (!in.atEnd()) {
+            AppendF(out, " %s: %u bytes, read did not consume the record", p.name,
+                    static_cast<unsigned>(original.size()));
+            mismatches = 1;
+        } else if (!written) {
+            AppendF(out, " %s: %u bytes, written back FAILED", p.name, static_cast<unsigned>(original.size()));
+            mismatches = 1;
+        } else if (again.bytes == original) {
+            AppendF(out, " %s: %u bytes identical", p.name, static_cast<unsigned>(original.size()));
+        } else {
+            char diff[128] = "";
+            FirstDifference(again.bytes, original, diff, sizeof(diff));
+            AppendF(out, " %s: %u bytes DIFFERENT (%s)", p.name, static_cast<unsigned>(original.size()), diff);
+            mismatches = 1;
+        }
     }
+    // The core goes before the capture: its references are dropped while the
+    // objects the capture named are still reachable (HANDOFF §5.1b).
+    DropCore(p);
     g_bytesCompared += original.size();
     return mismatches;
 }
@@ -283,14 +446,10 @@ void RunCompare(const char* what, int32_t julian) {
     if (!g_enabled || g_city == nullptr) return;
     std::string line;
     uint32_t mismatches = 0;
-    for (size_t i = 0; i < kParts; ++i) {
-        mismatches += ComparePart(g_parts[i], line);
-    }
+    for (size_t i = 0; i < kParts; ++i) mismatches += ComparePart(g_parts[i], line);
     AppendF(line, "; mismatches=%u", mismatches);
-    char buf[64] = "";
     const std::string d = DateText(julian);
-    _snprintf_s(buf, sizeof(buf), _TRUNCATE, "automata shadow %s %s:", d.c_str(), what);
-    Log("%s%s", buf, line.c_str());
+    Log("automata shadow %s %s:%s", d.c_str(), what, line.c_str());
     ++g_lines;
     if (mismatches == 0) {
         ++g_cleanLines;
@@ -328,15 +487,15 @@ void AutomataShadowStop() {
     g_city = nullptr;
 }
 
-void AutomataShadowCityLoaded(cISC4City* city) {
+void AutomataShadowCityLoaded(cISC4City* city, int32_t julian) {
     g_city = city;
     if (!g_enabled || city == nullptr) return;
     g_loggedNoRecord = false;
-    RunCompare("load", 0);
+    RunCompare("load", julian);
 }
 
 void AutomataShadowCityShutdown() {
-    if (!g_enabled && g_lines == 0) {
+    if (g_lines == 0) {
         g_city = nullptr;
         return;
     }
@@ -361,6 +520,8 @@ void AutomataShadowMonth(int32_t julian) { RunCompare("month", julian); }
 void AutomataShadowStartup(bool automataReplaced) { fc4::AutomataShadowStartup(automataReplaced); }
 void AutomataShadowStart() { fc4::AutomataShadowStart(); }
 void AutomataShadowStop() { fc4::AutomataShadowStop(); }
-void AutomataShadowCityLoaded(cISC4City* city) { fc4::AutomataShadowCityLoaded(city); }
+void AutomataShadowCityLoaded(cISC4City* city, int32_t julian) {
+    fc4::AutomataShadowCityLoaded(city, julian);
+}
 void AutomataShadowCityShutdown() { fc4::AutomataShadowCityShutdown(); }
 void AutomataShadowMonth(int32_t julian) { fc4::AutomataShadowMonth(julian); }

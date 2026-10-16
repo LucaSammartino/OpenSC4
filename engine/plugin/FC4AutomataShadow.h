@@ -62,7 +62,7 @@ void AutomataShadowStartup(bool automataReplaced);
 void AutomataShadowStart();
 void AutomataShadowStop();
 // The city's PostCityInit and PreCityShutdown.
-void AutomataShadowCityLoaded(cISC4City* city);
+void AutomataShadowCityLoaded(cISC4City* city, int32_t julian);
 void AutomataShadowCityShutdown();
 // SimNewMonth, with the game date (0 = none).
 void AutomataShadowMonth(int32_t julian);
