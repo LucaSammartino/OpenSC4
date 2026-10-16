@@ -793,6 +793,14 @@ argument types given above for script slots 11 and 12 are checked, the others ar
   - 13 (`0x0D`) is the traffic automaton's blocked wait (`0x0054E322`).
 
   §6.2 has the full table.
+  **Completed for this spec's scope (re-answers29, 2026-10-16).** The game's own `automata_states` table was read
+  from the shipped `sit_constants.lua` and matches §6.2's number-to-name table exactly, so the numbers an
+  implementer keys off are now confirmed against the original data rather than inferred from the factory sizes.
+  What each state *does on a tick* is deliberately **not** in this short form (§0: animation is out of scope and
+  a replacement may animate however it likes). An implementer that only loads, re-saves and services the riot,
+  fire and U-Drive-It hooks needs nothing more than §6.2's type → record-shape mapping plus state 4 (`QUEUE`,
+  §3.3) and state 13 (the blocked wait, §6.2). An **animation** lane would still want per-type enter/tick/exit
+  behaviour; that is a separate task.
 - ~~**Q4.** The records of aircraft and watercraft automata (helicopter, plane, boat). None occur in the corpus,
   and their Write and Read functions are not mapped here.~~ **ANSWERED 2026-10-16 (re-answers16; AT4):**
   - aircraft `0xC96E75DC`: `u16` 1 + base;
