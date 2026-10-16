@@ -849,8 +849,20 @@ Create. 16 occupant classes call this base `Read`.
 ## 14. Threading *[compat]*
 
 The occupant manager is one of the few city components with a lock: a recursive `cRZCriticalSection` at `+0x14`.
-This is an exception to foundations §19.1's "no locking on the simulation path". Which thread competes for it is not
-identified *[inferred: the renderer or the model loader reading occupants]*.
+This is an exception to foundations §19.1's "no locking on the simulation path". The thread that competes for it
+is the **background model loader** (OM1):
+- `cSC4ModelBackgroundLoader::Init` (`0x0048E900`) takes a reference to the occupant manager from the global
+  `0x00B43D0C` into its `+0x20` (`0x0048E985`).
+- It then starts its `cRZThread` (`+0x60`) on `0x0048E8F0`, which runs `ThreadFunction` (`0x0048E460`).
+- On that thread, `ContinueLoadTask` (`0x0048DCD0`, called at `0x0048E620`) walks standard cells in a spiral
+  around the view (`SpiralIterator::GetNext`, `0x00440850`).
+- When the loader's filter flag (`+0xF0`) is set, it calls slot 40 (`+0xA0`, `0x0048DDBC`) for each cell. The cell
+  is passed as both min and max, with the loader's filter (`+0xEC`) and no count limit. Slot 40 reaches the locked
+  slot 36. Each occupant found goes to `LoadResourcesForOccupant` (`0x0048D630`) on the same thread.
+
+So queries from the main thread, including Insert, Remove and Move, can wait for one cell's query from the loader
+thread, and the other way round. No other worker thread holding the manager was found *[inferred: the renderer and
+the simulators run on the main thread, foundations §19.1]*.
 
 | Slots | Locking |
 |---|---|
@@ -881,7 +893,7 @@ deviation, because no shipped callback nests a typed call *[inferred]*.
 ## 15. Quirks (summary)
 
 1. **Slot 12 is wrong** (§3.2). outX = 4·z − 256 uses the z input, and outZ is the old outZ times 4. The Mac build
-   has the same code. Whether anything calls it is OM3. Reproduce it.
+   has the same code. Nothing in the game calls it (OM3). Reproduce it anyway; nothing can observe it.
 2. Slot 13 rounds toward zero: standard cell −1 → world cell 64, not 63.
 3. Slots 6–19 return an undefined AL.
 4. Insert does not clamp the cell box (§5.1 step 6). Bytes wrap, so an occupant beyond position −4096 or 8192 indexes
@@ -908,14 +920,27 @@ deviation, because no shipped callback nests a typed call *[inferred]*.
 
 ## 16. Open questions
 
-- **OM1:** which thread contends for the lock? [*inferred*: the renderer or the model loader; settled by a
-  breakpoint on `0x0049DF80`/`0x004A0670` filtered by thread ID in a turbo run]
+- ~~**OM1:** which thread contends for the lock? [*inferred*: the renderer or the model loader; settled by a
+  breakpoint on `0x0049DF80`/`0x004A0670` filtered by thread ID in a turbo run]~~ **ANSWERED 2026-10-16
+  (re-answers18):** **MATCHES** for the model loader. The background model loader's thread (`cRZThread` at loader
+  `+0x60`, entry `0x0048E8F0` → `ThreadFunction` `0x0048E460` → `ContinueLoadTask` `0x0048DCD0`) calls slot 40 at
+  `0x0048DDBC` on its occupant-manager reference (`+0x20`, taken from `0x00B43D0C` at `0x0048E985`), one standard
+  cell at a time around the view. The renderer is on the main thread. §14.
 - ~~**OM2:** the loaded occupants' flag 1 and stored box: are they read from the occupant records, or restored some
   other way?~~ **Answered (re-specs14b):** from the occupant base record (§13): flag 1 is saved in the flags byte
   (mask `0xDD`) and the box in the 4 bytes at `+0x28`. The bracket MATCHES. A loaded occupant does not post Create
   (§2.2 corrected).
-- **OM3:** is slot 12 ever called? [not searched exhaustively: virtual calls through `+0x30` are common. A turbo run
-  with a breakpoint on `0x0049DA30` would settle it; until then reproduce the bug]
+- ~~**OM3:** is slot 12 ever called? [not searched exhaustively: virtual calls through `+0x30` are common. A turbo run
+  with a breakpoint on `0x0049DA30` would settle it; until then reproduce the bug]~~ **ANSWERED 2026-10-16
+  (re-answers18):** no caller was found. The bracket stands: reproduce the bug.
+  - `0x0049DA30`'s only reference is its vtable entry `0x00A8F820`; there is no direct call.
+  - Of the 2436 `call [reg+0x30]` sites, none gets its receiver from the manager global `0x00B43D0C` or from the
+    city's `GetOccupantManager` (`+0x88`).
+  - Every 4-argument site that passes an address goes to another interface (network manager, terrain, zone
+    manager, lighting).
+
+  A pointer passed through a field or parameter cannot be ruled out statically *[inferred]*. Either way the bug is
+  not observable through any shipped caller. §15 quirk 1.
 - ~~**OM4:** is the 0.1 m shrink constant (§5.1 step 5 and the standard-cell boxes of slots 32/34/40) `float` or
   `double`, and where is it? [float]~~ **ANSWERED 2026-10-16 (re-answers16):** MATCHES. It is `float`
   `0x3DCCCCCD` at `0x00A8F768`, read as a 4-byte operand everywhere; the 1.0 width limit is `float` at `0x00A81228`.

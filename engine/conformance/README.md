@@ -1757,6 +1757,62 @@ Park events: `tuning` (the exemplar was asked for), `acquire` (`service`, `ok`),
 `void1`, `unknown`: the posted ZooEscape), `controllers` (`name`, `occupant`; only with an automata controller
 manager), and the stub's `double`, `u32` (`n`).
 
+## Network manager ops
+
+The network manager vectors (`nm16_…`, `nm00_…`) drive `fc4_core::network_manager` (`docs/specs/network-manager.md`):
+the network manager (`NetworkManager`, component 53), the network lot manager (`NetworkLotManager`, component 11) and
+the riot's removal lock (`RiotLock`), over one scripted 64 × 64 city implementing `NetworkManagerHost`,
+`NetworkLotHost` and `RiotHost`. Every op name starts with `net_`. Ops that address one manager take `of`:
+`"manager"` (the default) or `"lots"`. The default world: day, no UK paths, flat terrain at altitude 0, area slope
+0, a traffic network map, crews that unregister themselves at their slot 5, no occupants, zones, lots or
+configurations, and the stub generator (queued `u32s`, then 0; every draw is a `draw` event with `n`). The managers'
+own tokens are `0xA000` and `0xB000`. Tool tokens are `0x7000 + n` in creation order (`Init` creates types 0..12,
+so the cached tool of type `t` is `0x7000 + t`); street props, flora and effect props get `0x5000`, `0x5001`, … in
+creation order. Cell (x, z) has its corner at `(16x, 16z)` and its centre at `(16x + 8, 16z + 8)`; an occupant's
+altitude is the terrain's plus its `height`. A save reference to an occupant or an effect prop resolves with one
+reference; any other token does not resolve. References held are counted per token (`net_expect_refs`); `add_ref` /
+`release` are not events.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `net_env` | any of `night`, `uk_paths`, `terrain` (the flat altitude), `slope` (the lot developer's area slope; `"nan"` allowed), `traffic_map`, `crews_unregister`, `random` (`"stub"` or `"default"`), `session_seed`, `u32s` | the world |
+| `net_occupant` | `occupant`, `flags?` (an integer or a list of names: `road`, `rail`, `highway`, `street`, `pipe`, `power_line`, `avenue`, `subway`, `light_rail`, `monorail`, `one_way_road`, `dirt_road`, `ground_highway`, `translucent`, `pipe_distressed`, `pipe_burst`, `flag_40000`, `flag_80000`, `intersection`, `connection_node`, `usable`, `flag_80000000`, or integers), `cell?`, `in_city?` (true: occupant flag 1), `managed?` (globally managed), `lit?` (CanBeLit), `height?` (`"nan"` allowed), `creation?` (the token), `retrofit?` (CheckForRetrofit), `flag4?` (occupant flag 4), `removable?` (true), `piece?`, `rotation?`, `flip?`, `intersection?`, `edges6?` (GetEdgeTypesFlag(6)), `active_edges?`; or `remove: true` | creates or updates an occupant (fields left out keep their value); a network occupant is one with a type flag (`0x1FFF`) |
+| `net_zone` | `cells` (`[[x, z, zone]]`), `clear?` | the zone grid |
+| `net_lot` | `lot`, `rect` (`[x1, z1, x2, z2]`) or `cell`, `wealth?` (0), `livable?`, `building_type?`; `profiles?` (`{"0xTYPE": wealth}`); `clear?` | a lot over its cells, building profiles |
+| `net_config` | `id`, `piece`, `token?` (the ID), `zones?` / `wealths?` (allowed values; absent: all), `mask?` (4 bytes), `period?`, `min_slope?`, `max_slope?`, `rotations?`, `flip_rule?`, `objects?` (`[{kind: "prop" \| "flora" \| n, flags?, orientation?, offset?: [x, y, z], field_24?, ids?: [...]}]`, `ids` being the object's candidate list); `clear?` | a network lot configuration, loaded at the lot manager's `Init` |
+| `net_create` | `of?` (`"manager"`, `"lots"` or `"both"`, the default) | new constructed managers |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `net_init` / `net_shutdown` / `net_add_ref` / `net_release` | `of?`, `expect?` | the lifecycle slots |
+| `net_identity` | `of?`, `iids` (`{"0xIID": bool}`), `class` | `QueryInterface` and `GetGZCLSID` |
+| `net_message` | `of?`, `type` (`ViewChanged`, `TerrainChanged`, `LongTerrainBegin`, `LongTerrainEnd`, `WaterDisplayChanged`, `PreCityShutdown`, `PostCityInit`, `OccupantInserted`, `OccupantRemoved`, `Dawn`, `Dusk`, `UsableChanged`, `CreateLotObjects`, `ZoningChanged`, `LotStateChanged`, `RoadDamageChanged` or an ID), `data1`..`data4`, `occupant` (void1), `unknown` (the IGZUnknown), `view` (`[old, new]`), `rect` (the zoning rectangle), `expect?` | `DoMessage` |
+| `net_call` | `method`, `args`, `expect?` | manager: `get_network_tool [type, unique]` (`{tool, type}` or null), `destroy_network_occupants [[occ…]]`, `queue_removals [on]`, `remove_or_replace_occupant [tool, occ \| null]` (`[result, replaced]`), `register_construction_crew [c]`, `unregister_construction_crew [c]`, `add_to_retrofit_list [n]`, `terrain_rect [data1, data2]` (`[x1, z1, x2, z2]`), `corner_mismatch [d]`, `set_network_flag [flags, bits, in_city]` / `clear_network_flag [flags, bits]` (`{flags, usable_post, translucency}`); lot manager: `zone_type_for_network [x, z]`, `wealth_for_network [x, z]`, `is_lot_compatible [config, x, z, zone, wealth, rotation, flip]`, `object_position [[x, z], rotation, flipped, o, [ox, oy, oz]]` (`{pos, orientation}`, the altitude being the flat terrain's), `update_roads_in_cell [x, z]`, `update_road_style [x, z, n]`, `add_pending [x, z]`, `add_border_to_pending [[x1, z1, x2, z2]]`, `process_update_list`, `set_lot_configuration_for_next_piece [config \| null]`, `redevelop_lot [x, z]`, `do_road_damage_change [x, z, damaged]`, `get_network_lot [x, z]`, `configuration_by_id [id]`, `pothole_offset [e]`, `road_texture [zone, wealth]`, `road_variation [zone, wealth]` |
+| `net_riot` | `action?` (`add_instance`, `remove_instance`, `shutdown`, or `mark` with `cell`), `can_remove?` (`{"0xOCC": [level, bool]}`, checked after the action) | the riot lock over the world's removal counters |
+| `net_expect` | `of?`, `state`: manager (partial: `initialized`, `destroyed`, `ref_count`, `uk_paths`, `long_terrain_op`, `dirty` (`[x1, z1, x2, z2]`, null when empty), `managed`, `pending`, `queueing`, `retrofit`, `crews`, `tools` (each cached tool's type or null), `riot_locked`, `riot_instances`); lots (partial: `initialized`, `destroyed`, `ref_count`, `lots` (`[{cell, occupant, config, config_id, locked}]` in map order), `lot_count`, `potholes` (`[{cell, prop}]`), `pending` (cells in key order), `pending_count`, `forced`, `configs` (IDs, sorted)) | the state |
+| `net_expect_lot` | `cell`, `state` (partial: `occupant`, `config`, `config_id`, `locked`) or `absent: true` | a network lot |
+| `net_expect_refs` | `refs` (`{"token": count}`) | references held |
+| `net_write` | `of?`, `slot?`, `expect?`, `length?`, `hex?`, `registered?` (the tokens in save-registry order) | the record |
+| `net_read` | `of?`, `slot` or `hex` (object IDs resolve to themselves), `length?` (cut), `reuse?` (the current manager, else a new one), `error?` (the stream starts in error), `position?` (bytes consumed), `expect?` | the record |
+| `net_expect_record` | `slot`, `same_as?`, `length?` | a saved record |
+| `net_expect_events` / `net_expect_event_count` / `net_clear_events` | see the shared conventions | host calls |
+
+Network manager events: `subscribe` / `unsubscribe` (`type`), `create_tool` (`type`, `tool`), `tool_init` /
+`tool_shutdown` (`type`), `destroy` (`type`, `occupants`), `underground` (`type`, `network_type`, `cells`,
+`occupants`), `cell_info` (`type`, `packed`), `reinsert` (`type`, `info`), `set_lit` (`occupant`, `lit`), `retrofit`
+(`occupant`), `remove_occupant` (`occupant`), `query` (`rect`, `mask`: the occupant manager's rectangle query),
+`refresh` (`occupant`: the posted `0x99EF1145`), `view_rotation`, `crew_shutdown` (`crew`). Network lot manager
+events: `texture` (`occupant`, `texture`), `variation` (`occupant`, `variation`), `set_flag` (`occupant`, `bits`),
+`intersection` (`occupant`), `remove_props` / `demolish_flora` (`cell`), `prop` (`id`, `pos`, `orientation`,
+`token`), `prop28` / `prop29` (`prop`, `value`), `flora` (`id`, `pos`, `token`), `flora28` (`flora`, `index`),
+`effect` (`token`), `effect_name` (`prop`, `name`), `effect_start` / `effect_stop` (`prop`), `position` (`prop`,
+`pos`), `insert` / `remove` (`occupant`), and the stub's `draw` (`n`). Riot events: `unset_removal` /
+`set_removal` (`occupant`, `mask`).
+
 ## City detail ops
 
 The city detail vectors (`cd8_…`) drive `fc4_core::city_detail::CityDetailManager` (`docs/specs/city-detail.md`)
@@ -2106,9 +2162,10 @@ types.
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
-   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `cd8_…` (city detail §8),
-   `pd12_…` (port developers §12), `pv12_…` (prop developer §12), `ds18_…` and `ds00_…` (disasters §18 and the
-   rest of disasters), `tr18_…` and `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
+   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `nm16_…` (network manager §16;
+   `nm00_…` for other network manager behaviour), `cd8_…` (city detail §8), `pd12_…` (port developers §12),
+   `pv12_…` (prop developer §12), `ds18_…` and `ds00_…` (disasters §18 and the rest of disasters), `tr18_…` and
+   `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
    (automata §14) and `om18_…` / `om14_…` (occupant manager §18 / §14).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
@@ -3102,6 +3159,39 @@ shapes of the §7.1 table.
 
 Not covered by a vector: the 421-save corpus itself (part of item 8) is not available to this suite; `pk12_08`
 replays the record shapes §7 reports.
+
+## Coverage (network manager §16)
+
+| §16 item | Vector |
+|---|---|
+| 1 component 53 empty (version 2 rejected after 2 bytes, a stream in error, a null reference (NM6), an unresolvable one) | `nm16_01_component_53_empty` |
+| 2 component 11 empty (version 1 rejected, nothing else read) | `nm16_02_component_11_empty` |
+| 3 managed list order (swap-and-pop, the record C then B, byte-identical round trip, Read appends) | `nm16_03_managed_list_order` |
+| 4 duplicate insert | `nm16_04_duplicate_insert` |
+| 5 not managed (a plain road, a non-network occupant, no occupant) | `nm16_05_not_managed` |
+| 6 lighting (dusk, dawn, PostCityInit by day and at night) | `nm16_06_lighting` |
+| 7 GetNetworkTool (Init's subscriptions and tools, type 13, cached, unique, PreCityShutdown) | `nm16_07_get_network_tool` |
+| 8 QueueRemovals dedupe (creation order, the references kept) | `nm16_08_queue_removals_dedupe` |
+| 9 groups (road, pipe, subway in that order; power lines ignored; null tools skipped) | `nm16_09_groups` |
+| 10 terrain rect (clamping, the long-operation merge, LongTerrainEnd's refit) | `nm16_10_terrain_rect` |
+| 11 corner rule (0.005, 0.02, −0.001, kind 4, NaN, a pipe with kinds 1 and 3, kind 5, kind 6) | `nm16_11_corner_rule` |
+| 12 riot lock (the set, two riots, the riot manager's Shutdown) | `nm16_12_riot_lock` |
+| 13 riot edge (x < 3, z < 3, the (3, 3) boundary) | `nm16_13_riot_edge` |
+| 14 zone for network (priorities, the diagonals, a zoned cell, ties, the city edge) | `nm16_14_zone_for_network` |
+| 15 wealth for network (tie up; 1, 1, 2; a diagonal; none; out of range; the building profile) | `nm16_15_wealth_for_network` |
+| 16 compatibility pattern (rows and columns, no zone list, slope, rotation, flip rule, wealth) | `nm16_16_compatibility_pattern` |
+| 17 object position (rotations 0–3 and 4, flipped) | `nm16_17_object_position` |
+| 18 choose and keep (one lot draw, the object draws, keeping, rezoning, usable off) | `nm16_18_choose_and_keep` |
+| 19 forced configuration (locked, never replaced; connection nodes and underground pieces) | `nm16_19_forced_configuration` |
+| 20 road style (street, rail, agriculture, skipped pieces, the tables) | `nm16_20_road_style` |
+| 21 pothole (the W dead end, repeat, rail, no network, repair, nothing to repair) | `nm16_21_pothole` |
+| 22 usable message (in and out of the city; translucency) | `nm16_22_usable_message` |
+| 23 lot state ring (the 14 border cells, processed in key order, the city edge) | `nm16_23_lot_state_ring` |
+| (§3.2, §4.2, §8.6, §17) the component 11 record with a lot and a pothole, Init resolving and dropping lots, RedevelopLot's draws, Shutdown | `nm00_01_lot_record_and_lifecycle` |
+
+Not covered by a vector: the presentation slots 13–15, `CreateConnectionNode`, `AutoconnectLotNodes` and
+`GetAllIntersectionPieces`, which are not in the core; the default generator's values (`random: "default"` is
+available, but no vector pins its draws).
 
 ## Coverage (city detail §8)
 

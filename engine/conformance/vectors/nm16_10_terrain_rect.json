@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "net_terrain_rect",
+  "spec": ["network-manager 7.6", "network-manager 16.10"],
+  "description": "data1 = 0x00060009, data2 = 0x0000000F in a 64 x 64 city: x1 = 6 - 1 = 5, z1 = 0 - 1 clamped to 0, x2 = 9, z2 = 15. During a long terrain operation the rect is merged into dirty (x 8..20, z 3..4 from a first message) giving x 5..20, z 0..15, and no refit runs; LongTerrainEnd queries the pipes and subways (mask 0x90) in dirty, runs the refit of types 4 and 7 (here with empty lists, question NM9) and empties dirty. Kind 5 (levelling) never queries the networks to destroy. With dirty empty, LongTerrainEnd queries nothing.",
+  "steps": [
+    {"op": "net_create"},
+    {"op": "net_call", "method": "terrain_rect", "args": ["0x00060009", "0x0000000F"], "expect": [5, 0, 9, 15]},
+    {"op": "net_call", "method": "terrain_rect", "args": ["0x00010100", "0x00020050"], "expect": [0, 1, 63, 63]},
+    {"op": "net_init"},
+    {"op": "net_message", "type": "LongTerrainBegin"},
+    {"op": "net_expect", "state": {"long_terrain_op": true, "dirty": null}},
+    {"op": "net_clear_events"},
+    {"op": "net_message", "type": "TerrainChanged", "data1": "0x00090014", "data2": "0x00040004", "data4": 5},
+    {"op": "net_expect", "state": {"dirty": [8, 3, 20, 4]}},
+    {"op": "net_message", "type": "TerrainChanged", "data1": "0x00060009", "data2": "0x0000000F", "data4": 5},
+    {"op": "net_expect", "state": {"dirty": [5, 0, 20, 15], "long_terrain_op": true}},
+    {"op": "net_expect_events", "events": []},
+    {"op": "net_message", "type": "LongTerrainEnd"},
+    {"op": "net_expect_events", "events": [
+      {"event": "query", "rect": [5, 0, 20, 15], "mask": "0x90"},
+      {"event": "tool_init", "type": 4},
+      {"event": "underground", "type": 4, "network_type": 4, "cells": [], "occupants": []},
+      {"event": "tool_shutdown", "type": 4},
+      {"event": "tool_init", "type": 7},
+      {"event": "underground", "type": 7, "network_type": 7, "cells": [], "occupants": []},
+      {"event": "tool_shutdown", "type": 7}
+    ]},
+    {"op": "net_expect", "state": {"dirty": null, "long_terrain_op": false}},
+    {"op": "net_message", "type": "LongTerrainEnd"},
+    {"op": "net_expect_events", "events": []}
+  ]
+}
