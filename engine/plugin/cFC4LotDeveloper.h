@@ -76,11 +76,13 @@ namespace fc4 {
 
 // One safe lot iterator handed to the core (fc4.h safe_lot_iterator): the
 // game's block (lot manager slot 15, walked raw as the original does, §15.1)
-// on the identified executable with the original lot manager, otherwise a
+// on the identified executable with the original lot manager or FreeCity4's
+// (enable = zonedev, the same raw layout; FC4LotDevHost.cpp RawListObject), otherwise a
 // list of the lots (GetLotsInCellRect over the city, one reference each)
 // taken at creation and at every rewind.
 struct LotDevIterator {
     void* block = nullptr;            // the game's {current node, list object}, or null
+    const void* listObject = nullptr;  // the list object `block` must point to (the original's or FreeCity4's)
     std::vector<cIGZUnknown*> lots;   // the fallback's lots (one reference each)
     size_t next = 0;                  // the fallback's cursor
     bool faulted = false;             // a raw step faulted: the iterator answers "end" from then on
