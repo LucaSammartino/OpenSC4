@@ -1766,6 +1766,14 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
   the plugin only calls, and which `interfaces.tsv` lists under another name, are checked against a game
   class's vtable in `docs/abi/vtables.tsv` instead (entries named `vt:<class>`, e.g. `vt:cSC4City::vftable`
   for `cISC4City`); there the class may have more slots than the interface declares.
+- **Return channels** (`tests/check_ret_channels.py`, CTest `ret_channel_check`, needs Python 3): every place
+  the plugin uses a game method's return value, against the slot's `ret` column and what the specs say it
+  returns (`SPEC_FACTS`, each entry with its citation). MSVC reads only AL for a `bool`, and `eax-or-void` (the
+  table's default) may be a method that sets nothing (the GetCityLocations no-load), so a `bool` read of a
+  non-`al` slot fails until the spec's answer is in `SPEC_FACTS` or the call carries an `[abi-ret]` comment
+  saying why the value is fine; a slot the spec gives as "none" or as a wide count always fails. `--verbose`
+  also lists the spec-silent framework slots trusted as the SDK declares them, `--impl` the `eax` rows the
+  plugin implements as `bool`.
 - **Test seam:** `FreeCity4.dll` exports `FC4TestSeam` ([`plugin/FC4TestSeam.h`](plugin/FC4TestSeam.h)) for
   tests that load it without a game: a sink that sees every budget message as posted (budget §10: void1 =
   IGZUnknown = the sender), a fake city for the observer, and direct observer ticks and messages. The game
