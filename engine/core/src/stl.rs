@@ -375,6 +375,15 @@ impl<V> StlHashMap<V> {
         (&mut self.buckets[b][pos].1, inserted)
     }
 
+    /// `clear()`: removes every node; the bucket array keeps its size (SGI
+    /// `hashtable::clear` does not shrink), so a refill sees the grown table.
+    pub fn clear(&mut self) {
+        for b in &mut self.buckets {
+            b.clear();
+        }
+        self.len = 0;
+    }
+
     /// Keys in iteration order.
     pub fn keys(&self) -> Vec<u32> {
         self.iter().map(|(k, _)| k).collect()

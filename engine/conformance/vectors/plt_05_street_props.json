@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "prop_street_props",
+  "spec": ["prop-lotconfig A7.2", "prop-lotconfig A7.3", "prop-lotconfig Q4", "prop-lotconfig T5"],
+  "description": "Slot 31 on cell (5, 5) with one street prop on that cell and one on (6, 5): the list holds the first (with a reference), the neighbour returned by the occupant manager's query is dropped and released, and the result is false (quirk 4). RemoveStreetPropsFromTile(5, 5) then removes and shuts down only the first.",
+  "steps": [
+    {"op": "pm_create"},
+    {"op": "pm_init", "expect": true},
+    {"op": "pm_occupant", "occupant": "0x310", "pos": [83, 0, 84], "usage": 4, "inserted": true, "refs": 1},
+    {"op": "pm_occupant", "occupant": "0x311", "pos": [99, 0, 84], "usage": 4, "inserted": true, "refs": 1},
+    {"op": "pm_call", "method": "get_street_props_at", "args": [5, 5], "expect": {"result": false, "list": ["0x310"]}},
+    {"op": "pm_expect_refs", "refs": {"0x310": 2, "0x311": 1}},
+    {"op": "pm_call", "method": "remove_street_props_from_tile", "args": [5, 5]},
+    {"op": "pm_expect_occupant", "occupant": "0x310", "state": {"inserted": false, "shutdowns": 1}},
+    {"op": "pm_expect_occupant", "occupant": "0x311", "state": {"inserted": true, "shutdowns": 0}}
+  ]
+}
