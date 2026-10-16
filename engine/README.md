@@ -1655,12 +1655,41 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        pauses=…; posts original=… matched=… unmatched=0 pending=…; values=… differing=0; mismatches=0;
        comparisons=C clean=C
      ```
+   - **Terrain replacement** (`enable = terrain`; `plugin/cFC4Terrain.*`, `plugin/FC4TerrainInterfaces.h`, over the
+     `fc4_terrain` core; the glue18 lane, **not yet clean in game**). The city's `cSTETerrain` (city component 49,
+     class `0xE98F9525`) and the `cSTESurfaceWater` it is kept next to (class `0x0B8DA7DB`): both are built from
+     the registry CLSID, so the originals never run. The two are stateless views over one `fc4_terrain` handle
+     (the height field, the surface water's depths, the bodies of water, the lava). `cISTETerrain` is declared in
+     the game's slot order, not the SDK's: the SDK's three `SetAltitude` overloads compile to slots 49/50/51 in a
+     different order, and slot 91 is the deleting destructor. The object's fields are laid out to
+     `docs/specs/terrain.md` §2.3 because the game reads them directly. Messages are posted queued with
+     `void1 = IGZUnknown = the terrain` (foundations §5). The terrain 3D view (class `0xC9B84E10`) is created at
+     `DoPostCityInit` through the class factory; its own initialisation is not in the spec and is what still stops
+     a run (TR21). Lines:
+
+     ```
+     terrain: Read (class record = version + ref, §13.2) -> ok=1 version=2
+     terrain: created cSTESurfaceWater (a view over the shared fc4_terrain handle)
+     terrain: replacement ON (enable = terrain): 128 x 128 cells, sea=250, default brush level=0
+     terrain: created the terrain 3D view (class 0xC9B84E10) at DoPostCityInit
+     terrain: TR9 default brush level -> N (view update)
+     terrain: TR18 refused host callback '<name>' from inside the terrain handle (guard count N)
+     terrain: shutdown: posts_pending=… brushes=… reentrant refused core=… guard=… (both expected 0 outside
+       god-mode brush kinds 1 and 8-10)
+     ```
+
+     TR18 (`terrain.md` §15.4) is enforced at the glue boundary as well as in the core: a host callback that comes
+     back into the same handle is refused, counted and logged. Both counts stay 0 on the simulation's paths. TR9
+     (§2.3): the default brush level follows the view-update message `0xA6B79602`; the initial camera copy is not
+     reproduced (no camera interface), so it stays 0 until that message, which is what a harness with no view sees.
    - **Terrain shadow** (`terrain_shadow = 1`, env `FC4_TERRAIN_SHADOW`; off by default; `terrain_shadow_points = N`
      sample points a month, default 256, 16..4096; `terrain_shadow_diffs = N` differences named per line, default 8,
      1..64; `terrain_shadow_lines = N` change lines a month, default 8, 0..1000; `plugin/FC4TerrainShadow.h`): a
      same-process, read-only differential of the terrain core (`fc4_terrain`, docs/specs/terrain.md) against the
-     **original** `cSTETerrain` / `cSTESurfaceWater`. There is no terrain replacement: the shadow never writes to the
-     city's terrain, and needs none of our simulators (its own message subscription). At city load a FreeCity4
+     **original** `cSTETerrain` / `cSTESurfaceWater`. The shadow never writes to the city's terrain, and needs none
+     of our simulators (its own message subscription). It needs the **original** terrain, so with
+     `enable = terrain` it is **inactive** and says so once (the same rule as the history shadow): the two never
+     fight, and `terrain_shadow = 1` alone is unchanged. At city load a FreeCity4
      terrain is built from the original's altitudes and sea level (the water rebuilt from the sea level, §10.1, and
      compared with the original's depths, which are then copied), the original's cached minimum and maximum taken
      (§4.6), and every cell compared (CellHasWater, CellHasLand, GetWaterDepthForCell, GetWaterType, IsNavigable
