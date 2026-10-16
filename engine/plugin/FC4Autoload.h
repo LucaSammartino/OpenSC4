@@ -20,7 +20,12 @@
 // the observer's tick finds the region's city whose save path is that file
 // and calls cISC4App::LoadCity(path, <that city's entry in the region>)
 // (compiled slot 13). The save must belong to the region the game opens at
-// start (the last region used). One attempt per process; logged as
+// start (the last region used). While the region lists no cities, the list is
+// read again about once a second (wall clock), and the autoload gives up only
+// 120 s after the first empty read (FC4AutoloadLogic.h), logged as
+//   autoload: the region lists no cities yet (<n>); retrying in 1000 ms (<ms> ms since the first check)
+//   autoload: the region lists no cities; giving up after <ms> ms (<n> checks)
+// One attempt per process; logged as
 //   autoload: LoadCity(<path>) -> <result>
 #pragma once
 

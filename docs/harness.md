@@ -85,10 +85,22 @@ Verdict words:
 | `ended` | the game ended the city itself |
 | `failed-start` | the game did not start properly (e.g. a graphics driver error, or the plugin never attached); usually not your DLL; send it again |
 | `exited` | the game process ended without a verdict (a crash: `0xC0000409` is a Rust panic; see the log's last lines) |
-| `no-load` | the city never loaded |
+| `no-load` | the city never loaded (see "City load" below) |
 | `timeout` | no verdict before `timeout` |
 | `rejected` | the request was not run; `line:` says which line and why (bad label, unknown key, DLL outside your worktree, no such city or file, a control character in a value, UTF-16 without a byte order mark); `the line:` repeats it and the request text follows, control characters shown as `<0xNN>` |
 | `harness-error` | the harness could not run it (a slot was busy, a file was locked); send it again |
+
+## City load
+
+The plugin's autoload (`engine/plugin/FC4Autoload.h`) opens the city once the region view is up and 60 framework
+ticks have passed. While the region still lists no cities it reads the list again about once a second on the wall
+clock and gives up only 120 s after the first empty read; the log shows `autoload: the region lists no cities yet (N);
+retrying in 1000 ms (M ms since the first check)`, then `autoload: the region lists K cities after M ms (N empty
+checks)` or `autoload: the region lists no cities; giving up after M ms (N checks)`. Before the `autoloadfix` merge the
+retry counted ticks (10 reads 60 ticks apart): at start-up the ticks come about once a millisecond, so a loaded
+machine gave up within ~130 ms and the run ended "no city load within N s (region view? needs a click)" although the
+region view showed the cities (three queue runs of 2026-10-15). A DLL older than this fix can still do that; send the
+request again.
 
 ## How long to wait
 
