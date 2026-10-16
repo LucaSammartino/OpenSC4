@@ -801,8 +801,12 @@ impl ZonesHost for World {
         }
     }
     fn release(&self, object: u64) {
-        if let Some(l) = self.lots.borrow_mut().get_mut(&object) {
+        let lot_refs = self.lots.borrow_mut().get_mut(&object).map(|l| {
             l.refs = l.refs.saturating_sub(1);
+            l.refs
+        });
+        if let Some(refs) = lot_refs {
+            self.trace("release_lot", vec![("lot", ji(object as i64)), ("refs", ji(refs))]);
         } else if self.cfgs.borrow().contains_key(&object) {
             self.cfg_refs.borrow_mut().entry(object).or_default().1 += 1;
         }
@@ -840,7 +844,9 @@ impl ZonesHost for World {
     fn lot_init(&self, lot: u64) {
         self.trace("lot_init", vec![("lot", ji(lot as i64))]);
     }
-    fn lot_shutdown(&self, _lot: u64) {}
+    fn lot_shutdown(&self, lot: u64) {
+        self.trace("lot_shutdown", vec![("lot", ji(lot as i64))]);
+    }
     fn lot_post_city_init(&self, _lot: u64) {}
     fn lot_configuration(&self, lot: u64) -> Option<u64> {
         self.lot(lot, |l| l.cfg)
@@ -971,7 +977,9 @@ impl ZonesHost for World {
     fn attempt_area_levelling(&self, _rect: CellRect) {
         self.levelling_count.set(self.levelling_count.get() + 1);
     }
-    fn remove_building_zot_prop(&self, _lot: u64) {}
+    fn remove_building_zot_prop(&self, lot: u64) {
+        self.trace("remove_building_zot_prop", vec![("lot", ji(lot as i64))]);
+    }
     fn lot_base_texture_occupant(&self, _lot: u64) -> Option<u64> {
         None
     }
