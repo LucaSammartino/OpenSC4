@@ -326,6 +326,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4PropLotInterfaces.h
         plugin/cFC4PropManager.cpp
         plugin/cFC4PropManager.h
+        plugin/cFC4LotConfigManager.cpp
+        plugin/cFC4LotConfigManager.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp

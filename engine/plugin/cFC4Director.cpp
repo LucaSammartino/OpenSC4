@@ -41,6 +41,7 @@
 #include "FC4DisasterShadow.h"
 #include "FC4PropLotShadow.h"  // the glue15 lane
 #include "cFC4PropManager.h"  // the glue21 lane: fc4::PropManagerAppShutdown
+#include "cFC4LotConfigManager.h"  // the glue21 lane: fc4::LotConfigManagerAppShutdown
 #include "cFC4Simulator.h"
 
 #include "cIGZCOM.h"
@@ -350,6 +351,7 @@ public:
         fc4::TractShadowStop();  // tract_shadow (FC4TractShadow.h): the original UpdatePopulation back
         fc4::PropLotShadowAppShutdown();  // the prop / lot configuration shadows' process catalogues
         fc4::PropManagerAppShutdown();  // the glue21 replacement's process prop catalogue
+        fc4::LotConfigManagerAppShutdown();  // its process configuration catalogue (unload once)
         fc4::ClockProbeStop();
         fc4::DialogsStop();  // close_dialogs (FC4Dialogs.h)
         fc4::ObserverStop();

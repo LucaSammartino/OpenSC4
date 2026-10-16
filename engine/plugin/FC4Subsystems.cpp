@@ -78,6 +78,7 @@
 #include "cFC4Parks.h"       // the cmglue lane: parks
 #include "cFC4Tutorial.h"    // the glue15 lane: tutorial
 #include "cFC4PropManager.h"  // the glue21 lane: propmgr
+#include "cFC4LotConfigManager.h"  // the glue21 lane: lotcfg
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -310,6 +311,11 @@ const ClassEntry kTutorialClasses[] = {
 const ClassEntry kPropMgrClasses[] = {
     {kFC4_CLSID_cSC4PropManager, "cSC4PropManager", &CreateFC4PropManager},
 };
+// docs/specs/prop-lotconfig.md Part B: the lot configuration manager (city
+// component 9). Off by default (the glue21 lane): `enable = lotcfg`.
+const ClassEntry kLotCfgClasses[] = {
+    {kFC4_CLSID_cSC4LotConfigManager, "cSC4LotConfigManager", &CreateFC4LotConfigManager},
+};
 
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
@@ -349,6 +355,7 @@ const Subsystem kSubsystems[] = {
     {"tutorial", nullptr, kTutorialClasses, sizeof(kTutorialClasses) / sizeof(kTutorialClasses[0]), false},
     // the glue21 lane
     {"propmgr", nullptr, kPropMgrClasses, sizeof(kPropMgrClasses) / sizeof(kPropMgrClasses[0]), false},
+    {"lotcfg", nullptr, kLotCfgClasses, sizeof(kLotCfgClasses) / sizeof(kLotCfgClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
