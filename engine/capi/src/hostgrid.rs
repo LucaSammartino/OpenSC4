@@ -20,6 +20,7 @@ use std::cell::Cell;
 use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use fc4_core::grid::{CellRect, GridElem, TractGeometry, TractGrid};
 use fc4_core::property::PropertyHolder;
@@ -176,6 +177,152 @@ impl<T: GridElem> TractGrid<T> for HostGrid<T> {
             class_id: T::CLSID,
         }
     }
+    /// One call of the host's bulk reader ([`fc4_grid_set_bulk_reader`]),
+    /// when one is registered for this grid's `get` callback and the grid's
+    /// geometry is known. Each value goes through the same `f64` round trip
+    /// as [`HostGrid::get`], so the copy equals tract-by-tract reads.
+    fn snapshot_values(&self) -> Option<Vec<T>> {
+        let read = bulk_reader(self.api.get)?;
+        let g = self.geometry();
+        if g.count_x <= 0 || g.count_z <= 0 {
+            return None;
+        }
+        let n = (g.count_x as usize).checked_mul(g.count_z as usize)?;
+        let count = u32::try_from(n).ok()?;
+        let mut v = vec![T::default(); n];
+        // SAFETY: `v` has room for `count` elements of the grid's element
+        // type; the reader writes at most `count` native values of the kind
+        // it is given (`T::CLSID`), and none for a kind it does not support.
+        let got = unsafe { read(self.token, T::CLSID, v.as_mut_ptr() as *mut c_void, count) };
+        if got != count {
+            return None;
+        }
+        Some(v.into_iter().map(|x| T::from_f64(x.to_f64())).collect())
+    }
+    /// One call of the host's bulk writer ([`fc4_grid_set_bulk_writer`]),
+    /// when one is registered for this grid's `set` callback. The values go
+    /// as the element type's native values, which is what `set`'s double
+    /// narrows to (every element type up to 32 bits is exact).
+    fn write_tracts(&self, changes: &[(u32, T)]) -> bool {
+        let Some(write) = bulk_writer(self.api.set) else {
+            return false;
+        };
+        let Ok(n) = u32::try_from(changes.len()) else {
+            return false;
+        };
+        let g = self.geometry();
+        let total = i64::from(g.count_x.max(0)) * i64::from(g.count_z.max(0));
+        if changes.iter().any(|&(i, _)| i64::from(i) >= total) {
+            return false;
+        }
+        let index: Vec<u32> = changes.iter().map(|&(i, _)| i).collect();
+        let values: Vec<T> = changes.iter().map(|&(_, v)| T::from_f64(v.to_f64())).collect();
+        // SAFETY: both arrays hold `n` elements; the writer reads `n` native
+        // values of the kind it is given (`T::CLSID`) and the `n` indices.
+        let done = unsafe {
+            write(
+                self.api.user,
+                self.token,
+                T::CLSID,
+                index.as_ptr(),
+                values.as_ptr() as *const c_void,
+                n,
+            )
+        };
+        done == n
+    }
+}
+
+/// The game grids' `get` callback (`fc4_grid_api.get`).
+pub type fc4_grid_get_fn = unsafe extern "C" fn(U, u64, u32, i32, i32) -> f64;
+
+/// The host's bulk tract reader (fc4.h `fc4_grid_bulk_reader`): copies every
+/// tract value of the grid `token`, x outer (`out[x * count_z + z]`), as
+/// native elements of class `kind` into `out` (room for `count`); returns
+/// the number written, which is used only when it is `count`
+/// (`count_x × count_z`), and 0 for a kind it does not support.
+pub type fc4_grid_bulk_reader =
+    Option<unsafe extern "C" fn(token: u64, kind: u32, out: *mut c_void, count: u32) -> u32>;
+
+type BulkReadFn = unsafe extern "C" fn(u64, u32, *mut c_void, u32) -> u32;
+
+/// The registered reader and the `get` callback it belongs to (0 = none).
+static BULK_READER: AtomicUsize = AtomicUsize::new(0);
+static BULK_GET: AtomicUsize = AtomicUsize::new(0);
+
+/// Registers the process-wide bulk tract reader for the grids whose
+/// `fc4_grid_api.get` is `get` (a NULL `reader` removes it). A performance
+/// hook only (devperf): without one every grid is read tract by tract
+/// through `get`, with the same values.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_grid_set_bulk_reader(get: Option<fc4_grid_get_fn>, reader: fc4_grid_bulk_reader) {
+    let (g, r) = match (get, reader) {
+        (Some(g), Some(r)) => (g as usize, r as usize),
+        _ => (0, 0),
+    };
+    BULK_READER.store(0, Ordering::Release);
+    BULK_GET.store(g, Ordering::Release);
+    BULK_READER.store(r, Ordering::Release);
+}
+
+/// The game grids' `set` callback (`fc4_grid_api.set`).
+pub type fc4_grid_set_fn = unsafe extern "C" fn(U, u64, u32, i32, i32, f64);
+
+/// The host's bulk tract writer (fc4.h `fc4_grid_bulk_writer`): for each `i <
+/// n` in order, `SetTractValue` of tract `index[i]` (`x * count_z + z`) to
+/// `values[i]` (a native element of class `kind`); returns `n` when it wrote
+/// them all and 0 when it wrote none (writes switched off, a kind it does
+/// not support): then the core sets them tract by tract through `set`.
+pub type fc4_grid_bulk_writer = Option<
+    unsafe extern "C" fn(
+        user: *mut c_void,
+        token: u64,
+        kind: u32,
+        index: *const u32,
+        values: *const c_void,
+        n: u32,
+    ) -> u32,
+>;
+
+type BulkWriteFn = unsafe extern "C" fn(*mut c_void, u64, u32, *const u32, *const c_void, u32) -> u32;
+
+static BULK_WRITER: AtomicUsize = AtomicUsize::new(0);
+static BULK_SET: AtomicUsize = AtomicUsize::new(0);
+
+/// Registers the process-wide bulk tract writer for the grids whose
+/// `fc4_grid_api.set` is `set` (a NULL `writer` removes it). A performance
+/// hook only (devperf), like [`fc4_grid_set_bulk_reader`].
+#[no_mangle]
+pub unsafe extern "C" fn fc4_grid_set_bulk_writer(set: Option<fc4_grid_set_fn>, writer: fc4_grid_bulk_writer) {
+    let (s, w) = match (set, writer) {
+        (Some(s), Some(w)) => (s as usize, w as usize),
+        _ => (0, 0),
+    };
+    BULK_WRITER.store(0, Ordering::Release);
+    BULK_SET.store(s, Ordering::Release);
+    BULK_WRITER.store(w, Ordering::Release);
+}
+
+fn bulk_writer(set: Option<fc4_grid_set_fn>) -> Option<BulkWriteFn> {
+    let set = set? as usize;
+    let p = BULK_WRITER.load(Ordering::Acquire);
+    if p == 0 || BULK_SET.load(Ordering::Acquire) != set {
+        return None;
+    }
+    // SAFETY: only `fc4_grid_set_bulk_writer` stores a non-zero value, and
+    // it stores a function pointer of exactly this type.
+    Some(unsafe { std::mem::transmute::<usize, BulkWriteFn>(p) })
+}
+
+fn bulk_reader(get: Option<fc4_grid_get_fn>) -> Option<BulkReadFn> {
+    let get = get? as usize;
+    let p = BULK_READER.load(Ordering::Acquire);
+    if p == 0 || BULK_GET.load(Ordering::Acquire) != get {
+        return None;
+    }
+    // SAFETY: only `fc4_grid_set_bulk_reader` stores a non-zero value, and
+    // it stores a function pointer of exactly this type.
+    Some(unsafe { std::mem::transmute::<usize, BulkReadFn>(p) })
 }
 
 /// `GridProvider::create_grid` over the host.
@@ -423,5 +570,129 @@ mod tests {
         assert_eq!(f.asked.get(), asked);
         drop(g);
         assert_eq!(f.released.get(), 1);
+    }
+
+    /// The value at tract (x, z) of the bulk test's grids, as the element
+    /// type of `kind` holds it.
+    fn value(kind: u32, x: i32, z: i32) -> f64 {
+        let n = x * 31 + z * 7 - 40;
+        match kind {
+            0x49B9_E60A => f64::from(n as f32 / 7.0),
+            0x49B9_E605 => f64::from(n as i16),
+            _ => f64::from(n.rem_euclid(256) as u8),
+        }
+    }
+    unsafe extern "C" fn get_xz(_: U, _t: u64, k: u32, x: i32, z: i32) -> f64 {
+        value(k, x, z)
+    }
+    unsafe extern "C" fn bulk(t: u64, k: u32, out: *mut c_void, count: u32) -> u32 {
+        // The test's grids are 5 × 5 (token 0x22 answers short: not used).
+        if count != 25 {
+            return 0;
+        }
+        for i in 0..25 {
+            let (x, z) = (i / 5, i % 5);
+            let v = value(k, x, z);
+            match k {
+                0x49B9_E60A => *(out as *mut f32).add(i as usize) = v as f32,
+                0x49B9_E605 => *(out as *mut i16).add(i as usize) = v as i16,
+                0x49B9_E602 => *(out as *mut u8).add(i as usize) = v as u8,
+                _ => return 0,
+            }
+        }
+        if t == 0x22 {
+            24
+        } else {
+            count
+        }
+    }
+
+    /// The bulk reader (devperf): a grid read in one host call gives the
+    /// values tract-by-tract reads give, only for the `get` it was
+    /// registered with, and only when it fills the whole grid.
+    #[test]
+    fn a_bulk_read_equals_tract_reads() {
+        use fc4_core::grid::GridSnapshot;
+        let f = Fake::default();
+        f.count.set(5);
+        let mut a = api(&f);
+        a.get = Some(get_xz);
+        // Registered for another `get`: tract by tract.
+        unsafe { fc4_grid_set_bulk_reader(Some(get), Some(bulk)) };
+        let g = HostGrid::<f32>::wrap(a, 0x11, false);
+        assert!(!GridSnapshot::new(&*g).is_copy());
+        unsafe { fc4_grid_set_bulk_reader(Some(get_xz), Some(bulk)) };
+        fn check<T: GridElem + std::fmt::Debug>(g: &HostGrid<T>) {
+            let s = GridSnapshot::new(g);
+            assert!(s.is_copy());
+            for x in -1..=5 {
+                for z in -1..=5 {
+                    assert_eq!(s.get(x, z), g.get(x, z), "({x}, {z})");
+                }
+            }
+        }
+        check(&*HostGrid::<f32>::wrap(a, 0x11, false));
+        check(&*HostGrid::<i16>::wrap(a, 0x11, false));
+        check(&*HostGrid::<u8>::wrap(a, 0x11, false));
+        // A kind the reader does not support, or a short read: tract by tract.
+        assert!(!GridSnapshot::new(&*HostGrid::<u32>::wrap(a, 0x11, false)).is_copy());
+        assert!(!GridSnapshot::new(&*HostGrid::<u8>::wrap(a, 0x22, false)).is_copy());
+        unsafe { fc4_grid_set_bulk_reader(Some(get_xz), None) };
+        assert!(!GridSnapshot::new(&*HostGrid::<u8>::wrap(a, 0x11, false)).is_copy());
+        a_bulk_write_equals_tract_writes();
+    }
+
+    thread_local! {
+        static SETS: std::cell::RefCell<Vec<(i32, i32, f64)>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    unsafe extern "C" fn set_log(_: U, _t: u64, _k: u32, x: i32, z: i32, v: f64) {
+        SETS.with(|s| s.borrow_mut().push((x, z, v)));
+    }
+    unsafe extern "C" fn writer(_: U, t: u64, k: u32, index: *const u32, values: *const c_void, n: u32) -> u32 {
+        // Token 0x33 refuses (writes switched off): nothing written.
+        if t == 0x33 || k != 0x49B9_E605 {
+            return 0;
+        }
+        for i in 0..n as usize {
+            let at = *index.add(i);
+            let v = *(values as *const i16).add(i);
+            SETS.with(|s| s.borrow_mut().push(((at / 5) as i32, (at % 5) as i32, f64::from(v))));
+        }
+        n
+    }
+
+    /// The bulk writer (devperf): a batched walk's writes reach the grid in
+    /// the order they were made, in one host call or, refused, tract by
+    /// tract; only for the `set` it was registered with. (Run from the read
+    /// test: the registrations are process-wide.)
+    fn a_bulk_write_equals_tract_writes() {
+        use fc4_core::grid::GridSnapshot;
+        let f = Fake::default();
+        f.count.set(5);
+        let mut a = api(&f);
+        a.get = Some(get_xz);
+        a.set = Some(set_log);
+        unsafe { fc4_grid_set_bulk_reader(Some(get_xz), Some(bulk)) };
+        unsafe { fc4_grid_set_bulk_writer(Some(set_log), Some(writer)) };
+        let changes = [(4, 0, 7i16), (0, 3, -2), (2, 2, 9), (0, 3, 5), (7, 7, 1)];
+        let run = |token: u64| {
+            SETS.with(|s| s.borrow_mut().clear());
+            let g = HostGrid::<i16>::wrap(a, token, false);
+            {
+                let mut s = GridSnapshot::batched(&*g);
+                assert!(s.is_copy());
+                for &(x, z, v) in &changes {
+                    s.set(x, z, v);
+                    assert_eq!(s.get(x, z), if x < 5 && z < 5 { v } else { 0 });
+                }
+                assert!(SETS.with(|s| s.borrow().is_empty()), "nothing written before the flush");
+            }
+            SETS.with(|s| s.borrow().clone())
+        };
+        let want: Vec<(i32, i32, f64)> = changes[..4].iter().map(|&(x, z, v)| (x, z, f64::from(v))).collect();
+        assert_eq!(run(0x11), want, "one batch");
+        assert_eq!(run(0x33), want, "refused: tract by tract, same order");
+        unsafe { fc4_grid_set_bulk_writer(Some(set_log), None) };
+        assert_eq!(run(0x11), want, "no writer: tract by tract");
     }
 }

@@ -311,8 +311,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "pacing",
                                   // the glue14c lane (FC4NetMgrShadow.h)
                                   "netmgr_shadow", "netmgr_shadow_order", "netmgr_shadow_wide",
+                                  // the devperf lane's tooling (FC4Perf.h)
+                                  "perf_profile",
 };
-
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 

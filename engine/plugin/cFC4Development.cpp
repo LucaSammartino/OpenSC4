@@ -24,7 +24,7 @@
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Seed.h"
-#include "FC4Properties.h"
+#include "FC4Perf.h"#include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
@@ -120,6 +120,7 @@ constexpr uint32_t kMsgOccupantRemoved = 0x99EF1143;
 constexpr uint32_t kMsgStateChanged = 0xE8BDA2E7;
 constexpr uint32_t kMsgSimNewDay = 0x66956814;
 constexpr uint32_t kMsgSimNewMonth = 0x66956816;
+constexpr uint32_t kMsgSimIdle = 0x6695681A;  // tooling only (perf_profile)
 constexpr uint32_t kMsgBuildingTypesUpdated = 0xA783EBC8;
 
 // Exemplars (§1.3, §4.7.1, §4.13).
@@ -872,7 +873,11 @@ int32_t TractGrow(void* u, const fc4_growth_profile* profile, bool* flag) {
     }
     const FC4GrowthProfile g = GameProfile(profile);
     bool f = flag != nullptr && *flag;
-    const int32_t built = td->Grow(g, outcomes, f);
+    int32_t built;
+    {
+        fc4::perf::Scope perf(fc4::perf::kBdsTractGrow);  // tooling: perf_profile (FC4Perf.h)
+        built = td->Grow(g, outcomes, f);
+    }
     if (flag != nullptr) *flag = f;
     ++Ctx(u)->grows;
     return built;
@@ -883,6 +888,7 @@ int32_t TractDecline(void* u, const fc4_growth_profile* profile) {
     cFC4ISC4TractDeveloper* td = TractDeveloper(u, "development tract Decline (nothing declined)");
     if (td == nullptr) return 0;
     ++Ctx(u)->declines;
+    fc4::perf::Scope perf(fc4::perf::kBdsTractDecline);  // tooling: perf_profile (FC4Perf.h)
     return td->Decline(GameProfile(profile));  // slot 6
 }
 
@@ -2127,10 +2133,13 @@ std::string LotCensus(cISC4City* city) {
 // returns, the game copies are refreshed and the held tokens dropped.
 class cFC4BuildingDevelopmentSimulator::Call {
 public:
-    explicit Call(const cFC4BuildingDevelopmentSimulator* s)
+    Call(const cFC4BuildingDevelopmentSimulator* s, const char* what)
         : s_(const_cast<cFC4BuildingDevelopmentSimulator*>(s)) {
         if (lock_.held()) {
-            ++s_->depth_;
+            if (++s_->depth_ == 1 && fc4::perf::On()) {  // tooling: perf_profile (FC4Perf.h)
+                perfT0_ = fc4::perf::Now();
+                fc4::perf::CountCall("bds", what);
+            }
         } else {
             ++s_->offMainCalls_;
         }
@@ -2138,13 +2147,46 @@ public:
     ~Call() {
         if (!lock_.held()) return;
         if (--s_->depth_ == 0) {
-            s_->Publish();
+            {
+                fc4::perf::Scope publish(fc4::perf::kBdsPublish);
+                s_->Publish();
+            }
             fc4::DropHeldTokens(&s_->ctx_);
+            if (perfT0_ != 0) fc4::perf::Add(fc4::perf::kBdsCall, fc4::perf::Now() - perfT0_);
         }
     }
     Call(const Call&) = delete;
     Call& operator=(const Call&) = delete;
     bool ok() const { return lock_.held() && s_->core_ != nullptr; }
+
+private:
+    cFC4BuildingDevelopmentSimulator* s_;
+    fc4::DevelopmentLock lock_;
+    uint64_t perfT0_ = 0;
+};
+
+// A pure getter's fast path (devperf). Every change of the core happens inside
+// an outermost Call, whose Publish refreshes the published copies before the
+// lock is released; so with the lock held and no call in progress (depth 0)
+// the copies equal what the core would answer, and the getter reads them
+// without a core call, a Publish or a token drop. Inside a call (depth > 0:
+// the core may be part way through a change) the getter makes its Call as
+// before. Without the lock (another thread, after the wait) the copies answer,
+// as Call does then.
+class cFC4BuildingDevelopmentSimulator::Peek {
+public:
+    explicit Peek(const cFC4BuildingDevelopmentSimulator* s)
+        : s_(const_cast<cFC4BuildingDevelopmentSimulator*>(s)) {
+        if (!lock_.held()) ++s_->offMainCalls_;
+        if (published() && fc4::perf::On()) fc4::perf::Count(fc4::perf::kBdsPeek);  // tooling: perf_profile
+    }
+    Peek(const Peek&) = delete;
+    Peek& operator=(const Peek&) = delete;
+    // Whether the published copies answer.
+    // (Also only once the catalogue mirror is built: until then every Publish tries again.)
+    bool published() const {
+        return !lock_.held() || s_->core_ == nullptr || (s_->depth_ == 0 && s_->published_ && TheMirror().built);
+    }
 
 private:
     cFC4BuildingDevelopmentSimulator* s_;
@@ -2243,18 +2285,20 @@ void cFC4BuildingDevelopmentSimulator::Publish() {
         if (fc4_development_cheat(core_, i)) bits |= 1u << i;
     }
     cheats_ = bits;
-    std::vector<std::pair<uint32_t, uint64_t>> devs;
-    fc4_development_developers(core_, &CollectTypeToken, &devs);
-    if (devs != developerList_) {
+    // The scratch lists keep their buffers: an unchanged Publish allocates nothing (devperf).
+    developerScratch_.clear();
+    fc4_development_developers(core_, &CollectTypeToken, &developerScratch_);
+    if (developerScratch_ != developerList_) {
         AcquireSRWLockExclusive(&pubLock_);
-        developerList_.swap(devs);
+        developerList_.swap(developerScratch_);
         ReleaseSRWLockExclusive(&pubLock_);
         RebuildDevelopers();
     }
-    std::vector<uint64_t> specs;
-    fc4_development_special_buildings(core_, &CollectToken, &specs);
-    if (specs != specialTokens_) {
-        specialTokens_.swap(specs);
+    published_ = true;  // developerList_ is the core's map (Peek)
+    specialScratch_.clear();
+    fc4_development_special_buildings(core_, &CollectToken, &specialScratch_);
+    if (specialScratch_ != specialTokens_) {
+        specialTokens_.swap(specialScratch_);
         RefreshSpecials();
     }
     if (!TheMirror().built) BuildMirror(fc4::DevelopmentProcess());
@@ -2422,7 +2466,7 @@ void cFC4BuildingDevelopmentSimulator::LogDeclinePlan() {
 bool cFC4BuildingDevelopmentSimulator::Init() {
     FC4_TRACE("BuildingDevelopmentSimulator::Init");
     g_mainTid = GetCurrentThreadId();
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) return true;
     fc4_development_init(core_);  // §1.3, all of it (the core drives every host call)
     g_live = this;
@@ -2436,7 +2480,7 @@ bool cFC4BuildingDevelopmentSimulator::Shutdown() {
     // their references (unless this already is the final Release).
     if (!destroying_) AddRef();
     {
-        Call call(this);
+        Call call(this, __FUNCTION__);
         if (call.ok()) {
             fc4_development_shutdown(core_);  // §1.4
             LogState("Shutdown");
@@ -2450,7 +2494,7 @@ bool cFC4BuildingDevelopmentSimulator::Shutdown() {
 // ---- primary slots (§7.1) -------------------------------------------------------------------------
 
 bool cFC4BuildingDevelopmentSimulator::LocationIsOKForNewBuilding(uint32_t type, float x, float z) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() && fc4_development_location_is_ok(core_, type, x, z);
 }
 
@@ -2471,20 +2515,20 @@ uint64_t OccupantToken(cISC4FoundationOccupant* f) { return f ? TokenOf(f->AsOcc
 cISC4BuildingOccupant* cFC4BuildingDevelopmentSimulator::AddNewBuildingOccupantAtCell(uint32_t type, int32_t cellX,
                                                                                       int32_t cellZ,
                                                                                       int32_t orientation) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) return nullptr;
     return AsBuilding(fc4_development_add_building_at_cell(core_, type, cellX, cellZ, orientation));
 }
 
 cISC4BuildingOccupant* cFC4BuildingDevelopmentSimulator::AddNewBuildingOccupantAt(uint32_t type, float* position,
                                                                                   int32_t orientation) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok() || position == nullptr) return nullptr;
     return AsBuilding(fc4_development_add_building(core_, type, position, orientation));
 }
 
 bool cFC4BuildingDevelopmentSimulator::AddNewBuildingOccupant(cISC4BuildingOccupant* occupant) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() && fc4_development_insert_occupant(core_, OccupantToken(occupant));
 }
 
@@ -2494,7 +2538,7 @@ int64_t cFC4BuildingDevelopmentSimulator::GetCostOfFoundationDemolition(cISC4Fou
 }
 
 int64_t cFC4BuildingDevelopmentSimulator::GetCostOfOccupantDemolition(cISC4BuildingOccupant* occupant, uint32_t) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_development_demolition_cost(core_, OccupantToken(occupant)) : 0;
 }
 
@@ -2581,7 +2625,7 @@ bool cFC4BuildingDevelopmentSimulator::GetFoundationKeyFromType(uint32_t type, c
 bool cFC4BuildingDevelopmentSimulator::AddNewFoundationOccupantAt(uint32_t type, int32_t usage, float* position,
                                                                   float sizeX, float sizeZ, int32_t orientation,
                                                                   float base) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) {
         if (fc4::OnDevelopmentMainThread()) {
             NoteOnce(g_noteFoundationAt,
@@ -2597,19 +2641,19 @@ bool cFC4BuildingDevelopmentSimulator::AddNewFoundationOccupantAt(uint32_t type,
 }
 
 bool cFC4BuildingDevelopmentSimulator::AddNewFoundationOccupant(cISC4FoundationOccupant* occupant) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() && fc4_development_insert_occupant(core_, OccupantToken(occupant));
 }
 
 bool cFC4BuildingDevelopmentSimulator::DemolishFoundationOccupant(cISC4FoundationOccupant* occupant, uint32_t) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() && fc4_development_demolish_foundation(core_, OccupantToken(occupant));
 }
 
 // Slot 26 (§4.9.2, DG6): the foundation key map's exemplar becomes the
 // occupant's default exemplar; 0x88FCC3E3 sets the maximum height.
 bool cFC4BuildingDevelopmentSimulator::LoadFoundationProperties(cISC4FoundationOccupant* occupant, uint32_t type) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) {
         if (fc4::OnDevelopmentMainThread()) {
             NoteOnce(g_noteFoundationProps,
@@ -2636,7 +2680,7 @@ bool cFC4BuildingDevelopmentSimulator::GetLotRetainingWallKeyFromType(uint32_t t
 // The type-0 fallback reaches the wall from its occupant token (DG35).
 bool cFC4BuildingDevelopmentSimulator::LoadLotRetainingWallProperties(cISC4LotRetainingWallOccupant* occupant,
                                                                       uint32_t type) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) {
         if (fc4::OnDevelopmentMainThread()) {
             NoteOnce(g_noteWallProps,
@@ -2664,7 +2708,9 @@ cISC4GrowthDeveloper* cFC4BuildingDevelopmentSimulator::GetDeveloper(uint32_t de
     auto* self = const_cast<cFC4BuildingDevelopmentSimulator*>(this);
     uint64_t t = 0;
     {
-        Call call(this);
+        Peek peek(this);
+        if (peek.published()) return reinterpret_cast<cISC4GrowthDeveloper*>(FromToken(self->PublishedDeveloper(developerType)));
+        Call call(this, __FUNCTION__);
         t = call.ok() ? fc4_development_developer(core_, developerType) : self->PublishedDeveloper(developerType);
     }
     return reinterpret_cast<cISC4GrowthDeveloper*>(FromToken(t));
@@ -2705,7 +2751,7 @@ FC4BuildingProfile* cFC4BuildingDevelopmentSimulator::GetBuildingProfilePtr(uint
 cISC4SimGrid<uint8_t>* cFC4BuildingDevelopmentSimulator::GetBuildingMap() {
     uint64_t t = buildingMap_.load();
     {
-        Call call(this);
+        Call call(this, __FUNCTION__);
         if (call.ok()) t = fc4_development_building_map(core_);
     }
     return reinterpret_cast<cISC4SimGrid<uint8_t>*>(FromToken(t));
@@ -2754,7 +2800,7 @@ float cFC4BuildingDevelopmentSimulator::GetMaxCapacity(int32_t zone, uint32_t pu
 
 bool cFC4BuildingDevelopmentSimulator::IsSuitableForConstruction(FC4ConstructionProfile const& profile,
                                                                   int32_t& reason) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) return false;
     fc4_construction_profile p{};
     static_assert(sizeof(p) == sizeof(profile), "ConstructionProfile layouts");
@@ -2763,7 +2809,7 @@ bool cFC4BuildingDevelopmentSimulator::IsSuitableForConstruction(FC4Construction
 }
 
 cISC4BuildingOccupant* cFC4BuildingDevelopmentSimulator::PlopBuilding(FC4ConstructionProfile const& profile) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) return nullptr;
     fc4_construction_profile p{};
     std::memcpy(&p, &profile, sizeof(p));
@@ -2771,32 +2817,32 @@ cISC4BuildingOccupant* cFC4BuildingDevelopmentSimulator::PlopBuilding(FC4Constru
 }
 
 int32_t cFC4BuildingDevelopmentSimulator::GetFreeConstructionResources() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_development_free_resources(core_) : freeResources_.load();
 }
 
 int32_t cFC4BuildingDevelopmentSimulator::GetTotalConstructionResources() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_development_total_resources(core_) : totalResources_.load();
 }
 
 bool cFC4BuildingDevelopmentSimulator::ClaimConstructionResources(uint16_t amount) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() && fc4_development_claim(core_, amount);
 }
 
 bool cFC4BuildingDevelopmentSimulator::ReleaseConstructionResources(uint16_t amount) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() && fc4_development_release_resources(core_, amount);
 }
 
 int32_t cFC4BuildingDevelopmentSimulator::GetDayOfLastSuccessfulBuild(uint32_t developerType) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_development_last_successful_build(core_, developerType) : 0;
 }
 
 float cFC4BuildingDevelopmentSimulator::GetStagePopulationMultiplier() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) return stageMultiplier_.load();
     const float v = fc4_development_stage_population_multiplier(core_);
     stageMultiplier_ = v;
@@ -2808,27 +2854,27 @@ bool CheatBit(const std::atomic<uint32_t>& bits, uint32_t which) { return ((bits
 }  // namespace
 
 bool cFC4BuildingDevelopmentSimulator::CheatIgnorePlumbing() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_development_cheat(core_, 0) : CheatBit(cheats_, 0);
 }
 
 bool cFC4BuildingDevelopmentSimulator::CheatIgnorePower() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_development_cheat(core_, 1) : CheatBit(cheats_, 1);
 }
 
 bool cFC4BuildingDevelopmentSimulator::CheatIgnoreCaps() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_development_cheat(core_, 2) : CheatBit(cheats_, 2);
 }
 
 bool cFC4BuildingDevelopmentSimulator::CheatDebugGrowth() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_development_cheat(core_, 3) : CheatBit(cheats_, 3);
 }
 
 bool cFC4BuildingDevelopmentSimulator::CheatCoffeeBar() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_development_cheat(core_, 4) : CheatBit(cheats_, 4);
 }
 
@@ -2864,10 +2910,23 @@ size_t ReadPlaceBuildingParams(cIGZCommandParameterSet* ps, fc4_command_param* o
 }
 }  // namespace
 
+namespace {
+// Tooling (perf_profile, FC4Perf.h): the section a message to the BDS is timed in.
+fc4::perf::Section BdsPerfSection(uint32_t type) {
+    switch (type) {
+        case kMsgSimNewDay: return fc4::perf::kBdsDayMsg;
+        case kMsgSimNewMonth: return fc4::perf::kBdsMonthMsg;
+        case kMsgSimIdle: return fc4::perf::kBdsIdleMsg;
+        default: return fc4::perf::kBdsOtherMsg;
+    }
+}
+}  // namespace
+
 bool cFC4BuildingDevelopmentSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
     FC4_X87_SCOPE("development DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
-    Call call(this);
+    fc4::perf::Scope perf(BdsPerfSection(pMessage->GetType()));  // tooling: perf_profile (FC4Perf.h)
+    Call call(this, __FUNCTION__);
     if (!call.ok()) return true;  // [choice] a message from another thread that cannot get the lock is dropped
     fc4_development_message m{};
     m.msg_type = pMessage->GetType();
@@ -2922,7 +2981,7 @@ bool cFC4BuildingDevelopmentSimulator::DoMessage(cIGZMessage2* pMessage) {
 
 bool cFC4BuildingDevelopmentSimulator::Write(cIGZOStream& s) {
     FC4_TRACE("BuildingDevelopmentSimulator::Write");
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) return false;
     fc4::OStreamAdapter a(s);
     const bool ok = fc4_development_write(core_, a.Get());
@@ -2935,7 +2994,7 @@ bool cFC4BuildingDevelopmentSimulator::Read(cIGZIStream& s) {
     FC4_TRACE("BuildingDevelopmentSimulator::Read");
     bool ok = false;
     {
-        Call call(this);
+        Call call(this, __FUNCTION__);
         if (!call.ok()) return false;
         fc4::IStreamAdapter a(s);
         ok = fc4_development_read(core_, a.Get());

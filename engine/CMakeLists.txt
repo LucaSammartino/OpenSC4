@@ -345,6 +345,9 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Dialogs.cpp
         plugin/FC4Dialogs.h
         plugin/FC4WinInterfaces.h
+        # The devperf lane's tooling: perf_profile (where a month's real time goes).
+        plugin/FC4Perf.cpp
+        plugin/FC4Perf.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
