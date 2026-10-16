@@ -44,6 +44,7 @@ pub(crate) mod residential;
 pub mod runner;
 pub(crate) mod scalar;
 pub(crate) mod simgrid;
+pub(crate) mod terrain;
 pub(crate) mod tract_developer;
 pub(crate) mod traffic_network;
 pub(crate) mod traffic_simulator;

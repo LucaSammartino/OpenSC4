@@ -124,11 +124,13 @@ extern "C" {
  * 57 = adds the disaster layer (fc4_disasters, disasters.md): the layer, its managers (fire, riot,
  *      toxic spill, earthquake, pipe burst, volcano, effect) and their instances (taken as 64 on its
  *      lane; renumbered at merge);
-
- * 58 = adds the list sinks (fc4_u64s_sink / fc4_u32s_sink / fc4_lot_cfg_object), the city detail
+ * 58 = adds the terrain (fc4_terrain, terrain.md): the height field, the surface water's depths and
+ *      queries, the setters, RedisplayTerrain, kind-0 brushes, navigability, the bodies of water,
+ *      the volcano lava and the records;
+ * 59 = adds the list sinks (fc4_u64s_sink / fc4_u32s_sink / fc4_lot_cfg_object), the city detail
  *      manager (fc4_city_detail), the airport/seaport developers (fc4_port_developer) and the prop
  *      developer (fc4_prop_developer) (taken as 61 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 58u
+#define FC4_ABI_VERSION 59u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -7654,6 +7656,281 @@ bool fc4_disasters_get_instance(const fc4_disasters* d, uint32_t instance, fc4_d
 /* Returns the number of leaders (0 for no such riot); copies at most `capacity`. */
 size_t fc4_disasters_riot_leaders(const fc4_disasters* d, uint32_t instance, fc4_riot_leader* out, size_t capacity);
 
+/* ---- terrain (docs/specs/terrain.md) ------------------------------------------
+ * The terrain's core (cSTETerrain, CLSID 0xE98F9525) and the simulation side of
+ * its surface water (cSTESurfaceWater) and of the volcano lava (cSTEVolcanoLava):
+ * the height field and the per-vertex water depths (depth relative to the ground;
+ * "water" = depth > 0), the queries, the height setters with their depth
+ * bookkeeping, RedisplayTerrain and the other messages, kind-0 brushes, draft
+ * clearance, navigability, the bodies of water, the lava flow and the saved
+ * records. No plugin glue yet.
+ *
+ * Messages: every message the core posts is queued (MessagePost, §8.1). With
+ * `post` in the host table, each entry point hands them over in order after it
+ * released the terrain; without it they wait for fc4_terrain_take_posts.
+ *
+ * Threads: every entry point holds a re-entrant lock (one thread at a time; the
+ * owner may re-enter). From inside a callback, a read of the same terrain works
+ * when the outer call only reads (is_navigable, the bodies of water) and is
+ * refused (fallback value, counted in reentrant_refused) when the outer call
+ * changes the terrain (a brush's random_uniform, the lava's fire callbacks).
+ * Missing callbacks read as 0 / false / none. */
+typedef struct fc4_terrain fc4_terrain;
+
+/* An inclusive vertex rectangle (x0, z0, x1, z1): left, top, right, bottom. */
+typedef struct fc4_terrain_rect {
+    int32_t x0, z0, x1, z1;
+} fc4_terrain_rect;
+
+/* A queued message: MessagePost(msg_type, false) with data1..data4 (§8). */
+typedef struct fc4_terrain_post {
+    uint32_t msg_type;
+    uint32_t data1, data2, data3, data4;
+} fc4_terrain_post;
+
+/* "Terrain Properties" (§2.4). */
+typedef struct fc4_terrain_tuning {
+    uint32_t struct_size;
+    float max_height;        /* 0x48CD7B26, the raise clamp */
+    float min_height;        /* 0x48CD7B27, the lower clamp */
+    float new_sea_level;     /* 0x48CD7B21 */
+    float new_flat_height;   /* 0x48CD7B2A */
+    float image_height_scale;
+    float sea_level_min;     /* SetSeaLevel's range (0x48CD7B70..71) */
+    float sea_level_max;
+    float sea_level_editor[2];
+    float cliff_slope;
+    float saved_78;          /* 0x48CD7B20, saved in the misc record */
+} fc4_terrain_tuning;
+
+/* "Lava Properties" the flow uses (§11.1). */
+typedef struct fc4_lava_tuning {
+    uint32_t struct_size;
+    float max_flow_rate;        /* per microsecond (shipped 4e-6) */
+    float full_rate_difference; /* 12 */
+    float height_factor;        /* 0 */
+    float water_multiplier;     /* 2 */
+    float ignite_level;         /* 1.5 */
+    float burn_level;           /* 3 */
+    float solidify_threshold;   /* 3 */
+} fc4_lava_tuning;
+
+/* One brush component (§9.1). The bitmap (bitmap_width x bitmap_height bytes,
+ * row-major) is copied; NULL pixels or a zero size = none (the component is skipped). */
+typedef struct fc4_brush_component {
+    uint32_t kind;          /* 0-11; only kind 0 (raise / lower) changes the terrain */
+    float radius[5];        /* per brush level */
+    float strength[5];
+    uint8_t oriented;
+    uint8_t neutral;
+    uint8_t _pad[2];
+    uint32_t bitmap_width, bitmap_height;
+    const uint8_t* pixels;
+} fc4_brush_component;
+
+/* tBrushParameters (§9.2). `out` / `out_valid` receive the touched vertex rectangle. */
+typedef struct fc4_brush_params {
+    float from_x, from_z, to_x, to_z;
+    int32_t level;          /* 0-4; < 0 = the terrain's default level */
+    uint8_t redisplay;
+    uint8_t out_valid;
+    uint8_t _pad[2];
+    float strength_scale, radius_scale;
+    uint32_t data4;         /* RedisplayTerrain's data4 (3 = disaster) */
+    fc4_terrain_rect out;
+    float target_height;
+} fc4_brush_params;
+
+#define FC4_TERRAIN_BRIDGE_NONE 0
+#define FC4_TERRAIN_BRIDGE_UNKNOWN_DECK 1
+#define FC4_TERRAIN_BRIDGE_DECK 2
+
+typedef struct fc4_terrain_host {
+    uint32_t struct_size;
+    void* user;
+    void (*post)(void* user, const fc4_terrain_post* msg);
+    /* RandomUint32Uniform(n), for the random-walk brushes. */
+    uint32_t (*random_uniform)(void* user, uint32_t n);
+    /* IsNavigable (§10.4): the lot at the cell centre (0 = none); a bridge tile
+     * (FC4_TERRAIN_BRIDGE_*, the deck height written for _DECK); a power pole
+     * (type 0x2890D4DE) whose cell is (x, z). */
+    uint64_t (*lot_at_cell)(void* user, int32_t x, int32_t z);
+    int32_t (*bridge_at)(void* user, int32_t x, int32_t z, float* deck);
+    bool (*has_power_pole)(void* user, int32_t x, int32_t z);
+    /* The lava (§11.4, §11.5): flammability slot 6, fire slots 5 (IgniteCell(x, z,
+     * false, true, 0)), 7 (QuickBurnCell) and 9 (SetCause); the burn rectangle's
+     * random iterator (false = exhausted: the host resets it, the draw is lost). */
+    bool (*is_cell_flammable)(void* user, int32_t x, int32_t z);
+    void (*ignite_cell)(void* user, int32_t x, int32_t z);
+    void (*quick_burn_cell)(void* user, int32_t x, int32_t z);
+    void (*set_cause)(void* user, uint32_t cause);
+    bool (*next_burn_cell)(void* user, int32_t* x, int32_t* z);
+} fc4_terrain_host;
+
+typedef struct fc4_terrain_state {
+    uint32_t struct_size;
+    uint32_t cells_x, cells_z, verts_x, verts_z;
+    int32_t terrain_type;
+    int32_t default_brush_level;
+    float sea_level;
+    float min_height, max_height; /* the cached (possibly stale) values, §4.6 */
+    float saved_78;
+    uint8_t view_ready;
+    uint8_t water_display_state;
+    uint8_t lava_active;
+    uint8_t bodies_dirty;
+    uint32_t posts_pending;
+    uint32_t brush_count;
+    uint32_t reentrant_refused;
+} fc4_terrain_state;
+
+bool fc4_terrain_tuning_shipped(fc4_terrain_tuning* out);
+/* NULL props = no exemplar: the code defaults 200 / 5 for the height clamps. */
+bool fc4_terrain_tuning_from_props(const fc4_props* props, fc4_terrain_tuning* out);
+bool fc4_lava_tuning_shipped(fc4_lava_tuning* out);
+
+/* Create (§4.6): a flat terrain at the tuning's flat height, the sea at its sea
+ * level. NULL tuning = shipped. NULL for a bad host table or 0 / > 4096 cells. */
+fc4_terrain* fc4_terrain_create(const fc4_terrain_host* host, const fc4_terrain_tuning* tuning, uint32_t cells_x,
+                                uint32_t cells_z);
+/* From (cells_x + 1) x (cells_z + 1) altitudes in index order (x + z * vertsX). */
+fc4_terrain* fc4_terrain_create_from_altitudes(const fc4_terrain_host* host, const fc4_terrain_tuning* tuning,
+                                               uint32_t cells_x, uint32_t cells_z, const float* altitudes, size_t count,
+                                               float sea_level);
+/* Load (slot 96, §13.1) from the misc, altitude and vertex property payloads.
+ * *error := FC4_OK, FC4_ERR_TRUNCATED, FC4_ERR_UNSUPPORTED_VERSION or
+ * FC4_ERR_INVALID_ARGUMENT. The water is rebuilt from the tuning's sea level. */
+fc4_terrain* fc4_terrain_load(const fc4_terrain_host* host, const fc4_terrain_tuning* tuning, const uint8_t* misc,
+                              size_t misc_len, const uint8_t* altitudes, size_t altitudes_len,
+                              const uint8_t* properties, size_t properties_len, int32_t* error);
+void fc4_terrain_destroy(fc4_terrain* t);
+/* DoPostCityInit (slot 40): RedisplayTerrain posts nothing before it. */
+bool fc4_terrain_post_city_init(fc4_terrain* t);
+bool fc4_terrain_set_view_ready(fc4_terrain* t, bool ready);
+/* Copies and removes up to `capacity` queued messages, oldest first. */
+size_t fc4_terrain_take_posts(fc4_terrain* t, fc4_terrain_post* out, size_t capacity);
+bool fc4_terrain_get_state(const fc4_terrain* t, fc4_terrain_state* out);
+
+/* Grid and height queries (§2-§4). axis / which: 0 = x / minimum, 1 = z / maximum. */
+uint32_t fc4_terrain_cell_count(const fc4_terrain* t, uint32_t axis);
+uint32_t fc4_terrain_vert_index(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_vertex_of(const fc4_terrain* t, uint32_t index, uint32_t* x, uint32_t* z);
+bool fc4_terrain_location_is_in_bounds(const fc4_terrain* t, float x, float z);
+float fc4_terrain_altitude(const fc4_terrain* t, float x, float z);
+float fc4_terrain_altitude_at_index(const fc4_terrain* t, uint32_t index);
+float fc4_terrain_altitude_at_vertex(const fc4_terrain* t, int32_t x, int32_t z);
+/* The functions that copy into a buffer copy only when `capacity` suffices and
+ * always return the full count (call with NULL / 0 to size the buffer). */
+size_t fc4_terrain_altitudes_in(const fc4_terrain* t, fc4_terrain_rect rect, float* out, size_t capacity);
+size_t fc4_terrain_altitudes(const fc4_terrain* t, float* out, size_t capacity);
+/* out[4]: (x, z), (x, z + 1), (x + 1, z + 1), (x + 1, z); untouched (false) out of bounds. */
+bool fc4_terrain_cell_corner_altitudes(const fc4_terrain* t, int32_t x, int32_t z, float* out);
+float fc4_terrain_altitude_at_nearest_grid(const fc4_terrain* t, float x, float z);
+float fc4_terrain_altitude_checksum(const fc4_terrain* t, fc4_terrain_rect rect);
+float fc4_terrain_cached_height(const fc4_terrain* t, uint32_t which);
+float fc4_terrain_allowed_height(const fc4_terrain* t, uint32_t which);
+bool fc4_terrain_set_cached_heights(fc4_terrain* t, float min, float max);
+/* GetFaceNormal (slot 26): out[3], untouched (false) unless 0 <= x < sizeX and 0 <= z < sizeZ. */
+bool fc4_terrain_face_normal(const fc4_terrain* t, float x, float z, float* out);
+
+/* Water queries (§5, §10.2). */
+float fc4_terrain_sea_level(const fc4_terrain* t);
+float fc4_terrain_water_level(const fc4_terrain* t, float x, float z);
+float fc4_terrain_water_level_at_index(const fc4_terrain* t, uint32_t index);
+float fc4_terrain_water_depth_at_vertex(const fc4_terrain* t, int32_t x, int32_t z);
+float fc4_terrain_water_depth_at_index(const fc4_terrain* t, uint32_t index);
+float fc4_terrain_max_surface_level(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_cell_has_water(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_cell_has_land(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_is_land_vertex(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_is_water_vertex(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_is_sea_vertex(const fc4_terrain* t, int32_t x, int32_t z);
+uint32_t fc4_terrain_number_of_water_vertices(const fc4_terrain* t, fc4_terrain_rect rect);
+float fc4_terrain_sediment(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_set_water_depth(fc4_terrain* t, int32_t x, int32_t z, float depth);
+bool fc4_terrain_reset_water_to_sea_level(fc4_terrain* t);
+/* Surface water slots 6, 13, 12 (0 land, 2 fresh, 3 sea) and 8 (through the host). */
+float fc4_terrain_water_depth_for_cell(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_has_draft_clearance(const fc4_terrain* t, int32_t x, int32_t z);
+uint32_t fc4_terrain_water_type(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_is_navigable(const fc4_terrain* t, int32_t x, int32_t z, int32_t r, uint64_t lot);
+
+/* Setters (§6). Every setter skips a locked vertex (flag 0x4000). */
+bool fc4_terrain_raise_vertex(fc4_terrain* t, uint32_t index, float d);
+bool fc4_terrain_lower_vertex(fc4_terrain* t, uint32_t index, float d);
+bool fc4_terrain_set_altitude_at_vertex(fc4_terrain* t, uint32_t index, float h);
+bool fc4_terrain_set_altitude(fc4_terrain* t, int32_t x, int32_t z, float h);
+bool fc4_terrain_set_altitude_rect(fc4_terrain* t, fc4_terrain_rect rect, float h, bool redisplay, uint32_t data4);
+bool fc4_terrain_lock_altitude(fc4_terrain* t, fc4_terrain_rect rect, bool lock);
+/* SetSeaLevel (slot 45): false when out of the tuning's range (nothing posted). */
+bool fc4_terrain_set_sea_level(fc4_terrain* t, float h);
+/* No range check, message or water reset. */
+bool fc4_terrain_set_sea_level_raw(fc4_terrain* t, float h);
+int32_t fc4_terrain_terrain_type(const fc4_terrain* t);
+bool fc4_terrain_set_terrain_type(fc4_terrain* t, int32_t type);
+
+/* Vertex flags (§7). */
+uint16_t fc4_terrain_vertex_flags(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_set_vertex_flags(fc4_terrain* t, int32_t x, int32_t z, uint16_t flags);
+bool fc4_terrain_is_triangulation_flipped(const fc4_terrain* t, int32_t x, int32_t z);
+uint32_t fc4_terrain_cell_flags(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_set_cell_flags(fc4_terrain* t, int32_t x, int32_t z, uint32_t flags);
+
+/* RedisplayTerrain (slot 68) and slot 69 (two cell corners), the long-operation
+ * messages (slots 87, 88) and the water display state (slots 83, 84). */
+bool fc4_terrain_redisplay(fc4_terrain* t, bool terrain, bool water, fc4_terrain_rect rect, uint32_t data4);
+bool fc4_terrain_redisplay_cells(fc4_terrain* t, bool terrain, bool water, int32_t ax, int32_t az, int32_t bx,
+                                 int32_t bz, uint32_t data4);
+bool fc4_terrain_begin_long_operation(fc4_terrain* t);
+bool fc4_terrain_end_long_operation(fc4_terrain* t);
+uint8_t fc4_terrain_water_display_state(const fc4_terrain* t);
+bool fc4_terrain_set_water_display_state(fc4_terrain* t, uint8_t state);
+
+/* Brushes (§9). add_brush: at most 4 components, kinds 0-11 (false otherwise);
+ * random_walk_step in radians; `angle` is the start angle kept in the description.
+ * add_shipped_brush: the brushes 0x11, 0x12 and 0x14 with the host's bitmap. */
+bool fc4_terrain_add_brush(fc4_terrain* t, uint32_t id, const fc4_brush_component* components, size_t count,
+                           float random_walk_step, float angle);
+bool fc4_terrain_add_shipped_brush(fc4_terrain* t, uint32_t id, uint32_t bitmap_width, uint32_t bitmap_height,
+                                   const uint8_t* pixels);
+bool fc4_terrain_brush_angle(const fc4_terrain* t, uint32_t id, float* out);
+/* ApplyBrush (slot 57): false for an unknown brush. */
+bool fc4_terrain_apply_brush(fc4_terrain* t, uint32_t id, fc4_brush_params* params);
+int32_t fc4_terrain_default_brush_level(const fc4_terrain* t);
+bool fc4_terrain_set_default_brush_level(fc4_terrain* t, int32_t level);
+
+/* Bodies of water (§10.3). on_new_day returns whether it rebuilt the map. */
+bool fc4_terrain_update_bodies_of_water(fc4_terrain* t);
+bool fc4_terrain_bodies_on_new_day(fc4_terrain* t);
+bool fc4_terrain_bodies_note_power_pole(fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_bodies_dirty(const fc4_terrain* t);
+bool fc4_terrain_set_bodies_dirty(fc4_terrain* t, bool dirty);
+uint16_t fc4_terrain_body_of_water(const fc4_terrain* t, int32_t x, int32_t z);
+/* x + z * cellsX. */
+size_t fc4_terrain_bodies_map(const fc4_terrain* t, uint16_t* out, size_t capacity);
+
+/* The volcano lava (§11): one per terrain; not saved. lava_flow is DoLavaFlow(dt)
+ * with dt in microseconds; lava_burn is BurnSurroundingStuff. NULL tuning = shipped. */
+bool fc4_terrain_lava_start(fc4_terrain* t, float x, float z, float radius, const fc4_lava_tuning* tuning);
+bool fc4_terrain_lava_stop(fc4_terrain* t);
+bool fc4_terrain_lava_set_rates(fc4_terrain* t, float production, float solidification);
+bool fc4_terrain_lava_flow(fc4_terrain* t, float dt);
+bool fc4_terrain_lava_burn(fc4_terrain* t);
+float fc4_terrain_lava_level(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_lava_set_level(fc4_terrain* t, int32_t x, int32_t z, float v);
+bool fc4_terrain_lava_rects(const fc4_terrain* t, fc4_terrain_rect* source, fc4_terrain_rect* active,
+                            fc4_terrain_rect* burn);
+
+/* Saved records (§13.1): the payload (version word included) of the misc (0),
+ * altitude (1), vertex property (2) or edge (0x64 + side) record; 0 if unknown. */
+#define FC4_TERRAIN_RECORD_MISC 0u
+#define FC4_TERRAIN_RECORD_ALTITUDES 1u
+#define FC4_TERRAIN_RECORD_PROPERTIES 2u
+#define FC4_TERRAIN_RECORD_EDGE 0x64u
+size_t fc4_terrain_write_record(const fc4_terrain* t, uint32_t record, uint8_t* out, size_t capacity);
+/* An edge record's altitudes: the count, or -1 for a bad record. */
+int64_t fc4_terrain_read_edge(const uint8_t* record, size_t len, float* out, size_t capacity);
+
 /* ---- turbo clock (tooling, not simulator.md; fc4_core::Turbo) --------------
  * Tooling deviation for test runs (the plugin's sim_turbo). Off (the default)
  * changes nothing. On: the day gate's "ready" (spec §5.2 step 3) is always true
@@ -7868,6 +8145,14 @@ static_assert(sizeof(fc4_world_box) == 16, "fc4_world_box layout");
 static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 336 : 672), "fc4_disasters_host layout");
 static_assert(sizeof(fc4_disasters_state) == 80, "fc4_disasters_state layout");
 static_assert(sizeof(fc4_disaster_fire) == 56, "fc4_disaster_fire layout");
+static_assert(sizeof(fc4_terrain_rect) == 16, "fc4_terrain_rect layout");
+static_assert(sizeof(fc4_terrain_post) == 20, "fc4_terrain_post layout");
+static_assert(sizeof(fc4_terrain_tuning) == 48, "fc4_terrain_tuning layout");
+static_assert(sizeof(fc4_lava_tuning) == 32, "fc4_lava_tuning layout");
+static_assert(sizeof(fc4_brush_params) == 56, "fc4_brush_params layout");
+static_assert(sizeof(fc4_terrain_state) == 60, "fc4_terrain_state layout");
+static_assert(sizeof(fc4_brush_component) == (sizeof(void*) == 4 ? 60 : 64), "fc4_brush_component layout");
+static_assert(sizeof(fc4_terrain_host) == (sizeof(void*) == 4 ? 48 : 96), "fc4_terrain_host layout");
 static_assert(sizeof(fc4_disaster_instance) == 24, "fc4_disaster_instance layout");
 static_assert(sizeof(fc4_riot_leader) == 32, "fc4_riot_leader layout");
 static_assert(sizeof(fc4_tract_profile) == 24, "fc4_tract_profile layout");
@@ -7933,6 +8218,14 @@ _Static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout"
 _Static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 336 : 672), "fc4_disasters_host layout");
 _Static_assert(sizeof(fc4_disasters_state) == 80, "fc4_disasters_state layout");
 _Static_assert(sizeof(fc4_disaster_fire) == 56, "fc4_disaster_fire layout");
+_Static_assert(sizeof(fc4_terrain_rect) == 16, "fc4_terrain_rect layout");
+_Static_assert(sizeof(fc4_terrain_post) == 20, "fc4_terrain_post layout");
+_Static_assert(sizeof(fc4_terrain_tuning) == 48, "fc4_terrain_tuning layout");
+_Static_assert(sizeof(fc4_lava_tuning) == 32, "fc4_lava_tuning layout");
+_Static_assert(sizeof(fc4_brush_params) == 56, "fc4_brush_params layout");
+_Static_assert(sizeof(fc4_terrain_state) == 60, "fc4_terrain_state layout");
+_Static_assert(sizeof(fc4_brush_component) == (sizeof(void*) == 4 ? 60 : 64), "fc4_brush_component layout");
+_Static_assert(sizeof(fc4_terrain_host) == (sizeof(void*) == 4 ? 48 : 96), "fc4_terrain_host layout");
 #endif
 
 #endif /* FC4_H */

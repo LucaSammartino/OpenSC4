@@ -1,0 +1,131 @@
+{
+  "format": 1,
+  "name": "tr18_11_pipe_burst_sinkhole",
+  "spec": [
+    "terrain 9.2",
+    "terrain 9.3",
+    "terrain 9.5",
+    "terrain 18.11"
+  ],
+  "description": "A flat terrain at 300, sea 250. ApplyBrush(0x14) at the north-west corner of cell (10, 10): from = to = (160, 160), level 0, redisplay, strength 1, radius 1, data4 3, target 100. Radius 16 on a W-pixel bitmap gives k = W pixels per vertex, so only the centre vertex (10, 10) lands inside the bitmap (U = V = W/2); its pixel 0 lowers it by (255 - 0) * 0.01 = 2.55 (r24: 297.45). Nothing is raised; one 0x278E6003 with data4 3 over the touched rectangle (10, 10, 10, 10), then the water and texture messages. Neutral pixels change and post nothing. The 16 x 16 bitmaps are stand-ins for the shipped 0x2A05BB19 [choice].",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        20,
+        20
+      ],
+      "flat": 300,
+      "sea": 250
+    },
+    {
+      "op": "ter_add_brush",
+      "brush": "0x14",
+      "bitmap": {
+        "width": 16,
+        "height": 16,
+        "fill": 0
+      },
+      "expect": true
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": "0x14",
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0,
+      "redisplay": true,
+      "strength": 1,
+      "radius": 1,
+      "data4": 3,
+      "target": 100,
+      "expect": true,
+      "out": [
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "min": 297.449,
+      "max": 300,
+      "baseline": 300,
+      "changed_within": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "changed": 1
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        10,
+        10
+      ],
+      "altitude": 297.45001220703125,
+      "depth": -47.45001220703125
+    },
+    {
+      "op": "ter_expect_events",
+      "events": [
+        {
+          "event": "post",
+          "msg": "0x278E6003",
+          "data1": "0x000A000A",
+          "data2": "0x000A000A",
+          "data3": 0,
+          "data4": 3
+        },
+        {
+          "event": "post",
+          "msg": "0x678E6E3A",
+          "data1": "0x000A000A",
+          "data2": "0x000A000A",
+          "data4": 3
+        },
+        {
+          "event": "post",
+          "msg": "0x870BC918"
+        }
+      ]
+    },
+    {
+      "op": "ter_add_brush",
+      "brush": "0x14",
+      "bitmap": {
+        "width": 16,
+        "height": 16,
+        "fill": 255
+      }
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": "0x14",
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0,
+      "expect": true,
+      "out": null
+    },
+    {
+      "op": "ter_expect_events",
+      "events": []
+    }
+  ]
+}
