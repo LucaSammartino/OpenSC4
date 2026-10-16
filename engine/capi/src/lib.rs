@@ -871,6 +871,7 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
 }
 
 pub mod advisors;
+pub mod audio;
 pub mod aura;
 pub mod aura_shadow;
 pub mod automata;
@@ -1059,3 +1060,6 @@ mod zones_tests;
 
 #[cfg(test)]
 mod zonedev_tests;
+
+#[cfg(test)]
+mod audio_tests;
