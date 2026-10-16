@@ -283,10 +283,11 @@ because the implementer needs the drawing ones in one place.
 / `medium`; the body at `0x007CB530` writes `AL` on both exits (`xor al, al` at `0x007CB57B`, and the path through
 `0x007CB568`), so the return channel is **`al`**, `ret_confidence` **high** — see §4.1.
 
-The `cIGZSerializable` sub-object is `cSC43DRender::vftable_2` (`0x00ABAB38`, 6 slots): slot 3 `Write` `0x007C30F0`,
-slot 4 `Read` `0x007C3180`, slot 5 `GetGZCLSID` `0x007C9F90`. The renderer is therefore serialisable; it is not
-clear from this spec alone which record carries it *[inferred]* that it is one of the View3D record's references
-(save-records.md §2 / ui-windows.md §3.3a).
+The `cIGZSerializable` sub-object is at `+0x08`, vtable `cSC43DRender::vftable_2` (`0x00ABAB38`, **10** slots
+0–9): slot 3 `Write` `0x007C30F0`, slot 4 `Read` `0x007C3180`, slot 5 `GetGZCLSID` `0x007C9F90`. Slots 0–2 are the
+usual `QueryInterface`/`AddRef`/`Release` (tailing into the main ones). The renderer is therefore serialisable; it
+is not clear from this spec alone which record carries it *[inferred]* that it is one of the View3D record's
+references (save-records.md §2 / ui-windows.md §3.3a). See §3.4 for the third sub-object and `DoMessage`.
 
 ### 3.3 The four pass brackets
 
@@ -302,6 +303,48 @@ All four contain the identical 8-byte sequence
 `(this+8, *(this+0x11C))` to `SC4DrawContext` slot 3. *[inferred]* that slot 3 is a begin/end bracket on the draw
 context (it is not in the `SC4DrawContext` name table). What would settle it: `SC4DrawContext`'s vtable row for slot 3
 in `docs/abi/vtables.tsv`, or the body at the target of `0x007D5F10`'s vtable.
+
+### 3.4 Sub-objects and `DoMessage` *[compat]*
+
+`cSC43DRender`'s constructor `0x007C9B10` installs three vtables (`0x007C9B24`–`0x007C9B31`), and the destructor
+`0x007CA020` re-installs the same three (`0x007CA024`–`0x007CA031`):
+
+| Offset | vtable | Slots | Interface |
+|---|---|---|---|
+| `+0x00` | `0x00ABAB60` | 0–75 | `cISC43DRender` (§3.2) |
+| `+0x04` | `0x00ABAB50` | 0–3 | the **message target** — slot 3 is `DoMessage` |
+| `+0x08` | `0x00ABAB38` | 0–9 | the **serialisable** sub-object |
+
+This is the standard GZCOM shape (network-manager.md §1: message target at `+4`, serialisable at `+8`), and it is
+confirmed by `DoMessage` itself, which recovers the renderer with `lea ecx, [edi - 4]` (`0x007CB226`) before
+calling a renderer method.
+
+**`cSC43DRender::DoMessage` is `0x007CB0B0`, message-target slot 3 (`+0x0C` of the `+0x04` sub-object).** It is
+`__thiscall` with **one dword** (the message) and `ret 4`, and returns `al` — `1` when it handled the message, and
+the unhandled path falls through to `0x007CB524`. It reads the type through `msg->slot4()` (`0x007CB0C0`,
+`call [eax + 0x10]`) and binary-searches seven constants:
+
+| Type | Name (`re/class_id_table.tsv`) | Handler | What it does |
+|---|---|---|---|
+| `0x4A9F2FFE` | `kSC4MessageCameraUpdated` | `0x007CB0F7` | **[gate]** only if `this + 0x198` is non-null: `cSC43DRender::UpdateVisibleTerrainMetrics` (`0x007C4910`) |
+| `0x26D31EC1` | `kSC4MessagePostCityInit` | `0x007CB118` | the city-init path: city slots `+0x164`/`+0x168`, `0x004F20A0`, `+0xA0`, `+0x108`, then `UpdateVisibleTerrainMetrics` again (`0x007CB213`) |
+| `0x4C8D1E8B` | *[unlisted]* | `0x007CB1AC` | walks an object's list (`test esi,esi / mov ebx,[esi] / lea ecx,[esp+0x2c]`); **[inferred]** a model/view-object notification. Not in `re/class_id_table.tsv` |
+| `0x6ACB92A9` | *[unlisted]* | `0x007CB223` | `mov edx,[edi-4]; lea ecx,[edi-4]; call [edx+0x50]` = **renderer slot 20 `ForceFullRedraw`** (`+0x50`), then `al = 1`. Three instructions |
+| `0x870BC918` | `kSC4MessageRedisplayTerrain` | `0x007CB237` | the terrain redisplay — terrain.md §8.1 says "only the renderer reads it" |
+| `0x8ACAA95F` | `kSGLMessage_RestoreTextures` | `0x007CB23E` | texture restore |
+| `0xA6B79601` | `kSC4MessageViewZRChange2` | `0x007CB3E3` | view Z/R change; INVENTORY-M6 §3.3 lists the family `0xA6B79600`–`0xA6B79622` |
+
+Any other type falls to `0x007CB524` and is **not** handled. A replacement must return `al = 1` only for the seven
+above and must not claim to handle the rest of the `0xA6B79600` family that `DoMessage` does not compare — those
+go to other subscribers (the model maker, the terrain view, the lighting manager: INVENTORY-M6 §3.3).
+
+`cSC4View3DWin::DoMessage` has two bodies in the name table (`0x007F3E50`, `0x007F53C0`) and is specified only as
+far as other specs need it (modal-dialogs.md `0xAA5CF1E3`, automata.md `0x06CDB65A` `kSC4MessagePreViewFilterChange`
+via `SetCurrentViewFilterInfo` `0x007E6435`). The drawing layer is not on that path.
+
+**Save.** The renderer's `cIGZSerializable` sub-object at `+0x08` exposes `Write` `0x007C30F0` (slot 3),
+`Read` `0x007C3180` (slot 4) and `GetGZCLSID` `0x007C9F90` (slot 5). Which save record carries them is V3D-7.
+
 
 ---
 
@@ -748,10 +791,12 @@ Rows this lane derived are appended to `build-runs/pending-abi/re-specs21-rows.t
 Rows included:
 
 - `cISC43DRender` slots 0–75 (the complete `0x00ABAB60` table), with slot 21's `ret` corrected to `al`.
-- `cISC4View3DWin` slot 4 `GetRenderer` is **already** in `interfaces.tsv` (line 3102) and is **not** regenerated.
+- `cIGZMessageTarget2` slot 3 `cSC43DRender::DoMessage` (`0x00ABAB50`, the `+0x04` sub-object).
 - `cISTETerrainView3D` slots 0–21 (vtable `0x00AB4410`) and slots 0–4 (vtable `0x00AB4480`).
-- `cISTETerrain` slot 66 `GetView` is **already** in `interfaces.tsv` and is **not** regenerated.
-- `cISC4EffectsManager`'s draw interface `vftable_1` slot 3 `Update`, with `ret` corrected to `al`.
+- `cISC4EffectsManagerDraw` slot 3 `Update` (`0x00A9F250`), with `ret` corrected to `al`.
+
+That is **105 rows** in all. `cISC4View3DWin` slot 4 `GetRenderer` (line 3102) and `cISTETerrain` slot 66
+`GetView` are **already** in `interfaces.tsv` and are **not** regenerated.
 
 ---
 
