@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "om18_02_position_to_world_cell",
+  "spec": ["occupant-manager 3.3", "occupant-manager 18.2"],
+  "description": "Slot 15: rhe(((f + 4096) * 0.015625) - 0.499) in single precision, every value of the 3.3 table (63.9365 is the first value that switches; -4200 gives -2, no clamp). Slot 17: the same without + 4096.",
+  "steps": [
+    {"op": "om_call", "method": "position_to_world_cell", "args": [0.0, 0.0], "expect": [64, 64]},
+    {"op": "om_call", "method": "position_to_world_cell", "args": [63.9, 63.9], "expect": [64, 64]},
+    {"op": "om_call", "method": "position_to_world_cell", "args": [63.9365, 63.9365], "expect": [65, 65]},
+    {"op": "om_call", "method": "position_to_world_cell", "args": [63.95, 63.95], "expect": [65, 65]},
+    {"op": "om_call", "method": "position_to_world_cell", "args": [64.0, 64.0], "expect": [65, 65]},
+    {"op": "om_call", "method": "position_to_world_cell", "args": [-0.064, -0.064], "expect": [64, 64]},
+    {"op": "om_call", "method": "position_to_world_cell", "args": [-0.065, -0.065], "expect": [63, 63]},
+    {"op": "om_call", "method": "position_to_world_cell", "args": [-0.5, -0.5], "expect": [63, 63]},
+    {"op": "om_call", "method": "position_to_world_cell", "args": [1023.9, 1023.9], "expect": [79, 79]},
+    {"op": "om_call", "method": "position_to_world_cell", "args": [1024.0, 1024.0], "expect": [80, 80]},
+    {"op": "om_call", "method": "position_to_world_cell", "args": [-4096, -4096], "expect": [0, 0]},
+    {"op": "om_call", "method": "position_to_world_cell", "args": [-4200, -4200], "expect": [-2, -2]},
+    {"op": "om_call", "method": "position_to_manager_cell", "args": [0.0, 0.0], "expect": [0, 0]},
+    {"op": "om_call", "method": "position_to_manager_cell", "args": [63.9, 63.9], "expect": [0, 0]},
+    {"op": "om_call", "method": "position_to_manager_cell", "args": [63.95, 63.95], "expect": [1, 1]},
+    {"op": "om_call", "method": "position_to_manager_cell", "args": [64.0, 64.0], "expect": [1, 1]},
+    {"op": "om_call", "method": "position_to_manager_cell", "args": [-0.5, -0.5], "expect": [-1, -1]}
+  ]
+}
