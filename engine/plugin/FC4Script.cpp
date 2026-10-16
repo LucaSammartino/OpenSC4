@@ -236,6 +236,23 @@ std::string RunSimulator(const harness::ScriptAction& a, cISC4City* city) {
     return b;
 }
 
+// ---- hour: the 24-hour clock's SetHour / SetMinute (tooling) ----------------------------------------
+
+std::string RunHour(const harness::ScriptAction& a, cISC4City* city) {
+    cFC4ISC424HourClock* clock = city ? AsGame(city->Get24HourClock()) : nullptr;  // borrowed
+    if (clock == nullptr) return "skipped: no 24-hour clock";
+    const uint32_t beforeH = clock->GetHour();
+    const uint32_t beforeM = clock->GetMinute();
+    const bool nightBefore = clock->IsNight();
+    clock->SetHour(static_cast<uint32_t>(a.hour));  // slot 11
+    if (a.minute >= 0) clock->SetMinute(static_cast<uint32_t>(a.minute));  // slot 14
+    char b[224];
+    std::snprintf(b, sizeof(b), "SetHour(%d)%s: hour %u:%02u -> %u:%02u, visual %u:%02u, IsNight %d -> %d", a.hour,
+                  a.minute >= 0 ? " + SetMinute" : "", beforeH, beforeM, clock->GetHour(), clock->GetMinute(),
+                  clock->GetVisualHour(), clock->GetVisualMinute(), nightBefore ? 1 : 0, clock->IsNight() ? 1 : 0);
+    return b;
+}
+
 // ---- save: cISC4App::SaveCity(fast), at a framework tick -------------------------------------------
 
 std::string RunSave(const harness::ScriptAction& a, cISC4City* city) {
@@ -309,6 +326,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
                 default: result = "no effect: our simulator is not running (disable = simulator?)"; break;
             }
             break;
+        case ScriptOp::Hour: result = RunHour(a, city); break;
         case ScriptOp::Digest:
             result = "the DIGEST line follows";
             digest = true;

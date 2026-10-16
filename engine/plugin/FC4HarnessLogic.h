@@ -167,6 +167,12 @@ inline void FormatRunFigures(int32_t julian, bool started, uint32_t elapsedMs, u
 //   speed 0|1|2               SetSimSpeed (turtle, llama, cheetah)
 //   pause | resume            one Pause / Resume call
 //   turbo on|off              our simulator's turbo clock (FC4Turbo.h)
+//   hour <0..23> [0..59]      the 24-hour clock's SetHour (slot 11) and, with a
+//                             minute, SetMinute (slot 14) (tooling): moves the
+//                             city's time so the day / night transition and the
+//                             lot developer's night batches can be driven
+//                             without the mouse (the visual time follows the
+//                             clock; the log reports both and IsNight)
 //   digest                    the observer's DIGEST line now
 //   mark <text>               a log line with the text
 //   save [fast]               cISC4App::SaveCity(fast) in place, at the next
@@ -196,6 +202,7 @@ enum class ScriptOp {
     Pause,
     Resume,
     Turbo,
+    Hour,
     Digest,
     Mark,
     Save,
@@ -221,6 +228,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::Pause: return "pause";
         case ScriptOp::Resume: return "resume";
         case ScriptOp::Turbo: return "turbo";
+        case ScriptOp::Hour: return "hour";
         case ScriptOp::Digest: return "digest";
         case ScriptOp::Mark: return "mark";
         case ScriptOp::Save: return "save";
@@ -240,6 +248,8 @@ struct ScriptAction {
     int32_t type = 0;                        // zone, pricezone (dezone: 0); network: the network type
     int32_t speed = 0;                       // speed
     bool on = false;                         // turbo
+    int32_t hour = 0;                        // hour: 0..23
+    int32_t minute = -1;                     // hour: 0..59, or -1 (SetMinute not called)
     bool fast = false;                       // save
     float height = 0.0f;                     // terrain (metres)
     int32_t kind = 1;                        // terrain (RedisplayTerrain's data4)
@@ -419,6 +429,24 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
             return false;
         }
         a.on = v == "on";
+    } else if (name == "hour") {
+        a.op = ScriptOp::Hour;
+        if (nargs != 1 && nargs != 2) {
+            char b[160];
+            std::snprintf(b, sizeof(b), "hour takes 1 or 2 argument(s) (hour [minute]), not %u",
+                          static_cast<unsigned>(nargs));
+            *error = b;
+            return false;
+        }
+        if (!detail::ParseCount(tok[2], 23, &a.hour)) {
+            *error = "hour '" + tok[2] + "' is not 0..23";
+            return false;
+        }
+        a.minute = -1;
+        if (nargs == 2 && !detail::ParseCount(tok[3], 59, &a.minute)) {
+            *error = "minute '" + tok[3] + "' is not 0..59";
+            return false;
+        }
     } else if (name == "mark") {
         a.op = ScriptOp::Mark;
         if (nargs == 0) {
@@ -501,8 +529,8 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         return false;
     } else {
         *error = "unknown action '" + tok[1] +
-                 "' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, save, terrain, "
-                 "disaster)";
+                 "' (zone, pricezone, dezone, network, speed, pause, resume, turbo, hour, digest, mark, save, "
+                 "terrain, disaster)";
         return false;
     }
     *out = a;
