@@ -252,6 +252,22 @@ void DropAll(std::set<uint64_t>& set) {
     set.clear();
 }
 
+// Drops the kept reference of every occupant that has left the occupant
+// manager (flag 1 clear, occupant-manager.md §5.2). The comparison skips them
+// anyway, and holding them until the city closes would keep a burned-down
+// building alive and then release the game's last reference (refaudit).
+void PruneGone(std::set<uint64_t>& set) {
+    for (auto it = set.begin(); it != set.end();) {
+        cISC4Occupant* o = AsOcc(*it);
+        if (o != nullptr && o->IsFlagSet(1)) {
+            ++it;
+            continue;
+        }
+        if (o != nullptr) FC4_RELEASE(o);
+        it = set.erase(it);
+    }
+}
+
 // ---- calls into the mirror core ----------------------------------------------------------------
 
 template <class F>
@@ -448,6 +464,7 @@ void CompareLayer(Diffs& d, char* out, size_t cap, const char* countQ) {
 
 void FireLine(const char* what) {
     Diffs d;
+    PruneGone(g.targets);
     d.scope = "fire";
     const fc4_disasters_state s = CoreState();
     const int32_t origCount = OrigFireCount();
@@ -523,9 +540,13 @@ void FireLine(const char* what) {
             if (lot != nullptr && it != g.ctx.lotConditions.end()) {
                 ++lots;
                 const uint32_t live = AsGame(lot)->GetCondition();
+                // A fire a spread lit is mirrored after the mirror's own step
+                // of that tick (its `Ignite` ran inside the original's step),
+                // so its stage - and the lot condition that follows it - can
+                // be one step behind. Same family as the §5.8 walk (DS40).
                 if (live != it->second && g.resyncTargets.count(t) != 0) {
                     d.AddQ("Q40", "lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
-                } else if (live != it->second && !ob && g.spreadTargets.count(t) != 0) {
+                } else if (live != it->second && g.spreadTargets.count(t) != 0) {
                     d.AddQ("Q42", "lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
                 } else if (live != it->second) {
                     d.Add("lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
@@ -561,6 +582,7 @@ void FireLine(const char* what) {
 }
 
 std::set<uint64_t> LiveLocked() {
+    PruneGone(g.origLocked);
     std::set<uint64_t> live;
     std::set<uint64_t> all = g.origLocked;
     all.insert(g.ctx.locked.begin(), g.ctx.locked.end());

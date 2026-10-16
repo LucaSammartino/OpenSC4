@@ -1,6 +1,6 @@
 # Lane apply15c
 
-| Lane | Worktree | State at stop | Next steps |
+| Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
 | apply15c | `.claude/worktrees/apply15c` (branch `apply15c`) | **ready** — the four re-answers25 engine follow-ups are done and verified: PL12 (lot side `1 + floor(w/16)`), PL13 (`FixLotConfiguration` footprint around the record offset, code 4 moves nothing, centre moved to the footprint centre), TR20 (`IsNavigable` pole test blocks only its own cell), TU5 (tutorial `Shutdown` teardown). Gate green: cargo test 2599 passed / 0 failed (baseline 2595), clippy `-D warnings` clean, rustfmt clean on every touched file, plugin builds, ctest 57/57 including `ret_channel_check` (0 flagged, 7 reviewed). Game run `apply15c-terrain-1` on Konradshohe: **clean**, `ref_warnings=0`, terrain shadow 92/92 exact, `navigable 36742/36742`. Merge-queue entry written; no merge lock taken. | Merge `apply15c` into main with `--no-ff` (`build-runs/merge-queue/apply15c.json`). Two follow-ups for the coordinator: (1) confirm the §4.2 / TU5 window-reference reading in question 1 below; (2) `build-runs/pending-abi/re-answers25-rows.tsv` is untouched by this lane — `docs/abi/` was not edited and `FC4_ABI_VERSION` was not bumped. |
 
