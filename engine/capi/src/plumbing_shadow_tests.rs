@@ -286,7 +286,7 @@ unsafe extern "C" fn position_to_cell(_: *mut c_void, x: f32, z: f32, cx: *mut i
 unsafe extern "C" fn tuning(_: *mut c_void) -> *mut fc4_props {
     Box::into_raw(Box::new(Tuning::shipped_exemplar())) as *mut fc4_props
 }
-unsafe extern "C" fn wall_clock_seed(_: *mut c_void) -> u32 {
+unsafe extern "C" fn session_seed(_: *mut c_void) -> u32 {
     0x1234_5678
 }
 unsafe extern "C" fn post(u: *mut c_void, m: u32, d: u32) {
@@ -563,7 +563,7 @@ fn host(w: &World) -> fc4_plumbing_host {
     h.cell_counts = Some(cell_counts);
     h.position_to_cell = Some(position_to_cell);
     h.tuning = Some(tuning);
-    h.wall_clock_seed = Some(wall_clock_seed);
+    h.session_seed = Some(session_seed);
     h.post = Some(post);
     h.record_history = Some(record_history);
     h.occupant_type = Some(occupant_type);

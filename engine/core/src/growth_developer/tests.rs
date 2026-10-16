@@ -200,7 +200,7 @@ impl GrowthDeveloperHost for Fake {
     fn limit_timer_expired(&self) -> bool {
         false
     }
-    fn wall_clock_seed(&self) -> u32 {
+    fn session_seed(&self) -> u32 {
         1
     }
 }

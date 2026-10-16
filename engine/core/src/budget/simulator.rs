@@ -11,7 +11,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::{Rc, Weak};
 
-use crate::rng::{FixedSeeds, RzRandomSuper};
+use crate::rng::RzRandomSuper;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 
 use super::items::{
@@ -160,11 +160,9 @@ pub struct BudgetSim {
 impl BudgetSim {
     /// A fresh budget simulator (as created by its class factory).
     pub fn new(host: Rc<dyn BudgetHost>, token: u64) -> Rc<BudgetSim> {
-        let seed = host.rng_seed();
-        let seeds = FixedSeeds {
-            wall_clock: seed,
-            process_clock: seed,
-        };
+        let session = host.session_seed();
+        let key = crate::seeding::keys::BUDGET;
+        let (seed, seeds) = (crate::seeding::seed(session, key), crate::seeding::clocks(session, key));
         Rc::new_cyclic(|me| BudgetSim {
             host,
             token: Cell::new(token),
