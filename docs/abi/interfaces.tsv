@@ -2736,8 +2736,8 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	63	+0xFC	00604e10		0	0	edx:eax
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	64	+0x100	00604e20		8	2	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	65	+0x104	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	66	+0x108	006198a0		4	1	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	67	+0x10C	00619900		4	1	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	68	+0x110	0061b9a0	cSC4NetworkOccupant::SetPassageCeiling	4	1	via-call	low	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	67	+0x10C	00619900	cSC4NetworkOccupant::GetPassageCeiling(float&)	4	1	eax-or-void	medium	re-answers25 (TR19): absolute world height of the bridge underside; terrain.md IsNavigable needs clearance >= 20.0; same slot in 00aa97b8
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	68	+0x110	0061b9a0	cSC4NetworkOccupant::SetPassageCeiling(float)	4	1	via-call	low	re-answers25 (TR19): sets the ceiling read by slot 67; same slot in 00aa97b8
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	69	+0x114	00619940		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	70	+0x118	0061b9f0	cSC4NetworkOccupant::SetOneWayDirections	4	1	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	71	+0x11C	00619970	cSC4NetworkOccupant::GetIntersectionAnchorCell(uint32* x, uint32* z)	8	2	al	high	re-specs17b: QI 0x4835C6AB; splits a cell key (x low 16, z high 16); false when absent; name inferred; network-rules.md 10.5

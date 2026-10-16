@@ -46,7 +46,7 @@ The merge of each lane is slow, not git. Measured on 2026-10-16:
   - the HANDOFF §0 rows;
   - the run numbers in manual-checks.md;
   - QUESTIONS.md sections;
-  - abi_entries.inc.
+  - abi_entries.inc (done: it is generated at build time and no longer in git).
 - About 25 agents polled `build-runs/main-merge.lock`; the fastest poller won, so docs-only lanes waited about 2 h.
 
 The plan:
@@ -65,11 +65,18 @@ The plan:
    6. Docs-only and RE lanes skip regress and can be batched freely.
 3. **Remove the shared conflict hotspots**, so most batches merge with no agent conflict resolution:
    - **ABI version.** Lanes never bump FC4_ABI_VERSION. The train bumps it once per batch with a script, and writes
-     one fc4.h history line per batch listing the lanes.
+     one fc4.h history line per batch listing the lanes. The script is `tools/bump_abi.py`
+     (`python tools/bump_abi.py --batch <batch-id> --lanes laneA,laneB`); it also updates the mirrored Rust const in
+     `engine/capi/src/lib.rs`, refuses a dirty `fc4.h` and refuses to run twice for one batch
+     (`build-runs/abi-batches.json`). It does not commit and does not run git.
    - **Per-lane files.** Each lane writes `docs/lanes/<lane>.md` (today's HANDOFF §0 row) and `docs/runs/<tag>.md`
      (today's manual-checks rows, keyed by tag, not by a sequential run number). A script regenerates the HANDOFF §0
      table, the manual-checks index and the "latest in-game run" line from them.
    - **abi_entries.inc** becomes a build-time generated file (CMake runs gen_abi_entries.py) and leaves git.
+     **Done (abi-hygiene lane):** `engine/tests/abi_entries.inc` is gitignored and no longer tracked; the CMake
+     target `fc4_abi_entries` runs `gen_abi_entries.py` on every build and `fc4_abi_conformance_test` depends on it,
+     so a stale listing can never be compiled. With no Python 3 the conformance test is skipped, like
+     `ret_channel_check`. `python tests/gen_abi_entries.py` from `engine/` still works standalone.
    - **QUESTIONS.md.** Use per-spec question files, or keep one file with a fixed "append at the end of your spec's
      section" rule.
    - **Docs-only movement on main** never triggers a re-gate (engine/, tools/ or tests/ unchanged means the gate
@@ -356,8 +363,10 @@ lane implements it.
 - **Merge order:** merge one lane, then have the next lane `git merge main` itself, or, if
   `git merge-tree --write-tree --name-only main <branch>` prints only a hash, merge main into its worktree yourself
   (`git -C <wt> -c submodule.recurse=false ...`, add files explicitly: `commit -a` fails on the worktree's submodule
-  pointer). Renumber ABI / seam ops / switch counts at that point; rerun `python tests/gen_abi_entries.py` from
-  `engine/` (revert `abi_entries.inc` if only line endings change). Merge with `git merge --no-ff -F <msgfile>`.
+  pointer). Renumber seam ops / switch counts at that point. Bump the ABI version once for the whole batch with
+  `python tools/bump_abi.py --batch <batch-id> --lanes laneA,laneB` (never per lane, and never by hand).
+  `abi_entries.inc` is generated and no longer in git: do not merge, renumber or revert it - the build regenerates
+  it from `gen_abi_entries.py` before compiling. Merge with `git merge --no-ff -F <msgfile>`.
 - **After the merge:** copy the DLL/PDB to `build-runs/dlls/FreeCity4-<tag>.*`, run regress, record the run in
   `docs/manual-checks.md`, file the lane's questions in `docs/specs/QUESTIONS.md`, tick docs/PROGRESS.md.
 - **Pause / stop:** `TaskStop`, resume with `SendMessage`. After a hard stop, check the worktree's *unstaged* diff:

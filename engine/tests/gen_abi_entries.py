@@ -407,8 +407,21 @@ def main():
     out += table
     out.append("};")
     path = os.path.join(HERE, "abi_entries.inc")
-    open(path, "w", encoding="utf-8", newline="\n").write("\n".join(out) + "\n")
-    print("wrote %s (%d interfaces)" % (path, len(INTERFACES)))
+    body = "\n".join(out) + "\n"
+    # Only rewrite when the content changed. CMake regenerates this file on
+    # every build (it is a build product, not checked in), so rewriting
+    # unconditionally would move its mtime and recompile the conformance test
+    # every time for nothing.
+    old = None
+    if os.path.isfile(path):
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            old = f.read()
+    if old == body:
+        print("unchanged %s (%d interfaces)" % (path, len(INTERFACES)))
+    else:
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(body)
+        print("wrote %s (%d interfaces)" % (path, len(INTERFACES)))
 
 
 if __name__ == "__main__":

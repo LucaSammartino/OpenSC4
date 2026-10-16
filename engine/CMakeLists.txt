@@ -420,18 +420,44 @@ if(FC4_IS_WIN32_X86)
     # Every interface we implement or call against docs/abi/interfaces.tsv
     # (callee-pop bytes, return channel, slot count), read at run time.
     set(FC4_ABI_TSV "${CMAKE_CURRENT_SOURCE_DIR}/../docs/abi/interfaces.tsv")
-    add_executable(fc4_abi_conformance_test tests/abi_conformance_test.cpp tests/abi_entries.inc)
-    target_include_directories(fc4_abi_conformance_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
-    target_compile_definitions(fc4_abi_conformance_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX
-        FC4_ABI_TSV="${FC4_ABI_TSV}" FC4_PLUGIN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/plugin")
-    target_compile_options(fc4_abi_conformance_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
-    add_test(NAME abi_conformance_test COMMAND fc4_abi_conformance_test
-        --plugin-dir "${CMAKE_CURRENT_SOURCE_DIR}/plugin" "${FC4_ABI_TSV}")
+    # tests/abi_entries.inc is a BUILD PRODUCT: tests/gen_abi_entries.py writes
+    # it from the plugin's and the SDK's interface declarations. It is not
+    # checked in (gitignored) and is regenerated on every build, so a stale copy
+    # can never be compiled into the conformance test. A generation failure is a
+    # build failure (the generator exits non-zero before writing), never a
+    # silent compile of whatever was lying around.
+    set(FC4_ABI_ENTRIES "${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_entries.inc")
+    # Needed here as well as below: the conformance test needs the generator.
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        # ALL, and the command is the target's own action: it runs on every
+        # build rather than only when a dependency is newer than the output.
+        add_custom_target(fc4_abi_entries ALL
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/gen_abi_entries.py"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+            BYPRODUCTS "${FC4_ABI_ENTRIES}"
+            COMMENT "gen_abi_entries.py -> tests/abi_entries.inc"
+            VERBATIM)
+        add_executable(fc4_abi_conformance_test tests/abi_conformance_test.cpp)
+        target_include_directories(fc4_abi_conformance_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
+        target_compile_definitions(fc4_abi_conformance_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX
+            FC4_ABI_TSV="${FC4_ABI_TSV}" FC4_PLUGIN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/plugin")
+        target_compile_options(fc4_abi_conformance_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+        # Compiles only after the generator has run.
+        add_dependencies(fc4_abi_conformance_test fc4_abi_entries)
+        add_test(NAME abi_conformance_test COMMAND fc4_abi_conformance_test
+            --plugin-dir "${CMAKE_CURRENT_SOURCE_DIR}/plugin" "${FC4_ABI_TSV}")
+    else()
+        # Same pattern as ret_channel_check below: with no Python 3 there is no
+        # way to generate the listing, so the test is skipped rather than
+        # compiled against a stale or missing abi_entries.inc.
+        message(STATUS "Python 3 not found: skipping abi_conformance_test "
+            "(tests/abi_entries.inc is generated and cannot be built without it)")
+    endif()
 
     # Every use the plugin makes of a game method's return value, against the
     # slot's `ret` channel in docs/abi and what the specs say it returns
     # (tests/check_ret_channels.py). Skipped when no Python 3 is found.
-    find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
         add_test(NAME ret_channel_check
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_ret_channels.py")
