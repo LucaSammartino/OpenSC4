@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "prop_unknown_profile",
+  "spec": ["prop-lotconfig A5", "prop-lotconfig Q2", "prop-lotconfig T2"],
+  "description": "Slot 14 of an unknown ID is null; slot 13 inserts an all-zero profile (quirk 2), which slot 14 then finds. The type map is unchanged: slot 8 stays false and CreateProp fails.",
+  "steps": [
+    {"op": "pm_create"},
+    {"op": "pm_init", "expect": true},
+    {"op": "pm_call", "method": "prop_profile_ptr", "args": ["0x9999"], "expect": null},
+    {"op": "pm_call", "method": "prop_profile", "args": ["0x9999"], "expect": {"class": 0, "size": [0, 0, 0], "satisfaction": 0, "wealth": 0, "crime": 0}},
+    {"op": "pm_call", "method": "prop_profile_ptr", "args": ["0x9999"], "expect": {"class": 0, "size": [0, 0, 0], "satisfaction": 0, "wealth": 0, "crime": 0}},
+    {"op": "pm_call", "method": "is_prop_type_valid", "args": ["0x9999"], "expect": false},
+    {"op": "pm_call", "method": "create_prop", "args": ["0x9999"], "expect": null},
+    {"op": "pm_call", "method": "prop_name", "args": ["0x9999"], "expect": ""},
+    {"op": "pm_expect", "state": {"types": 0, "profiles": 1}}
+  ]
+}

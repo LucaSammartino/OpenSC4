@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "tutorial_plain_record",
+  "spec": ["tutorial 2", "tutorial 3", "tutorial 4.1", "tutorial 8.1"],
+  "description": "The record of 416 of the 421 sample saves: version 2, is-tutorial 0, task 0, GUID 0xFFFFFFFF. It reads true with those fields, IsTutorial is 0, and writing gives the same 11 bytes. A fresh instance already holds GUID 0xFFFFFFFF and +0x28 = 3.",
+  "steps": [
+    {"op": "tut_create"},
+    {"op": "tut_expect", "state": {"is_tutorial": 0, "task_number": 0, "guid": "0xFFFFFFFF", "field_28": 3, "window": false}},
+    {"op": "tut_read", "hex": "02000000000000ffffffff", "expect": true},
+    {"op": "tut_expect", "state": {"is_tutorial": 0, "task_number": 0, "guid": "0xFFFFFFFF"}},
+    {"op": "tut_call", "method": "is_tutorial", "expect": 0},
+    {"op": "tut_record", "hex": "02000000000000ffffffff"}
+  ]
+}
