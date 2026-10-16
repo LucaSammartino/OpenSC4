@@ -124,8 +124,8 @@ private:
     fc4::CoreLock lock_;
     fc4_prop_manager_host host_{};
     fc4_prop_manager* core_ = nullptr;
-    // §A5 slot 12: a reference to a string that is always empty.
-    uint32_t emptyName_[4] = {};
+    // §A5 slot 12: a reference to a string that is always empty (a process
+    // GameString, cFC4PropManager.cpp's GetPropName).
 };
 
 // Factory for the subsystem table (reference count 0).

@@ -294,7 +294,9 @@ uint64_t BuildingAtCell(void*, int32_t x, int32_t z) {
     cISC4OccupantManager* om = Occupants(nullptr);
     if (om == nullptr) return 0;
     cISC4Occupant* found = nullptr;
-    om->GetFirstOccupantByStandardCityCell(found, x, z, 0x02);  // the building type
+    om->GetFirstOccupantByStandardCityCell(found, x, z, kOccupantTypeBuilding);  // slot 33
+    if (found == nullptr) return 0;
+    FC4_ACQUIRED(found, "GetFirstOccupantByStandardCityCell");  // one reference for the core
     return Tok(found);
 }
 
@@ -340,6 +342,7 @@ void UnregisterCommand(void* u, uint32_t id) {
 void Subscribe(void* u, uint32_t msgType) {
     cFC4PropManager* s = Self(u);
     cIGZMessageServer2Ptr ms;
+    fc4::Log("propmgr: subscribe %08X (server %d)", msgType, ms ? 1 : 0);
     if (!ms || s == nullptr) return;
     ms->AddNotification(s->Target(), msgType);
 }
@@ -363,6 +366,9 @@ uint64_t AcquireService(void*, uint32_t service) {
         cIGZPersistResourceManagerPtr rm;
         p = static_cast<cIGZUnknown*>(static_cast<cIGZPersistResourceManager*>(rm));
     }
+    fc4::Log("propmgr: acquire_service %u -> %p", service, p);
+    if (p == nullptr) return 0;
+    FC4_ADDREF(p);  // one reference for the core, given back through `release`
     return Tok(p);
 }
 
@@ -577,7 +583,6 @@ fc4_prop_manager_host PropHost(cFC4PropManager* s) {
 
 }  // namespace
 
-cFC4PropManager::cFC4PropManager() = default;
 cFC4PropManager::~cFC4PropManager() = default;
 
 bool cFC4PropManager::QueryInterface(uint32_t riid, void** ppvObj) {
@@ -609,10 +614,16 @@ uint32_t cFC4PropManager::Release() {
     return 0;
 }
 
+// `Read` runs before `Init` (HANDOFF 5.1): the core is created in the
+// constructor so a saved record can be read before Init is called. Nothing
+// here sizes saved state from the city.
+cFC4PropManager::cFC4PropManager() {
+    host_ = PropHost(this);
+    core_ = fc4_prop_manager_create(&host_, fc4::PropCatalogueProcess(), 0);
+}
+
 bool cFC4PropManager::Init() {
     if (initialised_) return true;
-    host_ = PropHost(this);
-    if (core_ == nullptr) core_ = fc4_prop_manager_create(&host_, fc4::PropCatalogueProcess(), 0);
     if (core_ == nullptr) return false;
     const bool ok = fc4_prop_manager_init(core_);
     initialised_ = ok;
@@ -694,10 +705,16 @@ bool cFC4PropManager::IsPropFamilyTypeValid(uint32_t family) {
 
 cIGZString& cFC4PropManager::GetPropName(uint32_t propID) {
     // §A5 slot 12: a reference to a string that is always empty (the name map
-    // is never filled). The buffer is the manager's own empty cIGZString
-    // stand-in; nothing reads it.
+    // is never filled). The reference is a game cRZString (GameString: the
+    // game's own vtable and a B character buffer) so a caller that reads it
+    // lands on the game's string code; it is empty and never written.
     (void)propID;
-    return *reinterpret_cast<cIGZString*>(emptyName_);
+    static fc4::GameString empty = [] {
+        fc4::GameString s{};
+        fc4::GameStringInit(s, "", 0);
+        return s;
+    }();
+    return *reinterpret_cast<cIGZString*>(&empty);
 }
 
 cISC4PropOccupant::PropProfile& cFC4PropManager::GetPropProfile(uint32_t propID) {

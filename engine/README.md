@@ -1725,6 +1725,64 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
        pauses=…; posts original=… matched=… unmatched=0 pending=…; values=… differing=0; mismatches=0;
        comparisons=C clean=C
      ```
+   - **Prop manager and lot configuration manager replacements** (`enable = propmgr`, `enable = lotcfg`;
+     `plugin/cFC4PropManager.*`, `plugin/cFC4LotConfigManager.*`, over the `fc4_prop_manager` and
+     `fc4_lot_config_manager` cores, docs/specs/prop-lotconfig.md Parts A and B; the glue21 lane). Both are
+     **off by default** and swap in through the GZCOM registry (`disable` still wins). The prop manager is the
+     city's `cSC4PropManager` (class `0xA990BD10`, city component 5): the prop catalogue (process-wide, built
+     once), the catalogue queries, `CreateProp` / `CreateGenericProp`, adding and removing city, lot, street and
+     building props, and `Write` / `Read`. The lot configuration manager is `cSC4LotConfigurationManager`
+     (class `0x299062C0`, component 9): the configuration map and family set, the set queries, the building
+     tests and `Write` / `Read`. Neither interface is subclassed from the SDK's: `plugin/FC4PropLotInterfaces.h`
+     and `plugin/FC4TractInterfaces.h` declare `cFC4ISC4PropManager` / `cFC4ISC4LotConfigurationManager` with no
+     overloads, in the game's verified slot order (§A9 slots 0-40, §B7 slots 0-28; the last slot of each is the
+     class's scalar deleting destructor).
+
+     Two process-lifetime rules hold for both (glue15 found both the hard way): the catalogues are created once
+     and torn down only at `PreAppShutdown`, and `fc4_lot_config_unload` runs **once** there - never per city or
+     per run, or the map empties and the next rebuild takes a different bucket order than the original's.
+     Lines: `propmgr: process prop catalogue …`, `lotcfg: process configuration catalogue …`, `propmgr: command
+     … registered with the core …`, `propmgr: SetBuildingProps …`, `lotcfg: SetConfigObjects …`.
+
+     Known limit (GLUE21-1): `cSC4LotConfiguration` is **not** GZCOM-creatable (lot-configuration.md §1: "the
+     manager allocates it directly", 0xC0 bytes, constructor `0x004797A0`) and FreeCity4 does not replace that
+     class, so `enable = lotcfg` cannot build a configuration catalogue on a stock game. `create_configuration`
+     probes GZCOM for `0xA99062B4` and refuses when it does not answer rather than inventing a layout; the log
+     says `cSC4LotConfiguration (0xA99062B4) is not GZCOM-creatable … (GLUE21-1)`.
+   - **Prop manager, lot configuration and tutorial shadows** (`propmgr_shadow = 1`, `lotcfg_shadow = 1`,
+     `tutorial_shadow = 1`, env `FC4_PROPMGR_SHADOW` / `FC4_LOTCFG_SHADOW` / `FC4_TUTORIAL_SHADOW`; off by
+     default; `propmgr_shadow_cells = N` sample cells a run, default 32, 1..256; `plugin/FC4PropLotShadow.h`; the
+     glue15 lane). Same-process differentials of `cSC4PropManager`, `cSC4LotConfigurationManager` and
+     `cSC4TutorialSystem`: at `PostCityInit`, every `SimNewMonth` and `PreSave` the class the city holds is
+     written to memory, a FreeCity4 core is read from that record over a **read-only** host, and the answers are
+     compared. Compared: the prop catalogue in bucket order (each type's key and 0x1C-byte profile, each
+     family's members, the catalogue message's data2), `GetCityProps` / `GetLotProps` / `GetStreetProps` on
+     sample cells, `CreateProp` on sample types, both records byte for byte and reference by reference, the lot
+     configuration map and family set in bucket order, each configuration's object array at the city detail, the
+     ID-set queries and `GetObjectIDArray` on samples, and the tutorial's `IsTutorial`, task number and GUID.
+     Not compared (logged at start): `GetBuildingProps` (the `0xA8322B7F` property's layout is not in
+     docs/abi), every call that changes the city, the filter caches, the footprints, `PostCityInit`'s building
+     information, and the tutorial window, registry and cheat (TU6, TU7).
+
+     Since the glue21 lane the shadows stay **on** when a replacement is installed: they then compare
+     FreeCity4's own class against the private core, which is a class-layer self-check of the vtable, the QI
+     table and the record round trip (over the original it is the original-vs-core differential). The shadow and
+     the replacement keep separate process catalogues and neither tears the other's down. Lines
+     (`mismatches=N` on each):
+
+     ```
+     propmgr shadow (catalogue|queries|CreateProp|record) YYYY-MM-DD load|month|save: ...
+     lotcfg shadow (map|families|arrays|queries|record) YYYY-MM-DD load|month|save: ...
+     tutorial shadow (state|record) YYYY-MM-DD load|month|save: ...
+     ```
+
+     and at city shutdown one totals line per shadow:
+     `<name> shadow totals: lines=N exact=E mismatched=M incomplete=I`. Success is `mismatched=0`.
+   - **Tutorial system replacement** (`enable = tutorial`; `plugin/cFC4Tutorial.*`, over the `fc4_tutorial`
+     core, docs/specs/tutorial.md; the glue15 lane). The city's `cSC4TutorialSystem` (class `0xAA3836FB`, city
+     component 48): the 11-byte v2 record with the GUID mapping, `IsTutorial` and the getters, `Init` /
+     `Shutdown`, and `fc4::TutorialIsTutorial` (what the fire host and the flammability glue read instead of
+     tutorial slot 8). **Off by default**. There is no tutorial window, registry or cheat (TU6, TU7).
    - **Terrain shadow** (`terrain_shadow = 1`, env `FC4_TERRAIN_SHADOW`; off by default; `terrain_shadow_points = N`
      sample points a month, default 256, 16..4096; `terrain_shadow_diffs = N` differences named per line, default 8,
      1..64; `terrain_shadow_lines = N` change lines a month, default 8, 0..1000; `plugin/FC4TerrainShadow.h`): a

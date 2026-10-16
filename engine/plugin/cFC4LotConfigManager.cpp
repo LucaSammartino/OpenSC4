@@ -501,7 +501,6 @@ void FillSet(void* set, const std::vector<uint32_t>& ids) {
 
 }  // namespace
 
-cFC4LotConfigManager::cFC4LotConfigManager() = default;
 cFC4LotConfigManager::~cFC4LotConfigManager() = default;
 
 bool cFC4LotConfigManager::QueryInterface(uint32_t riid, void** ppvObj) {
@@ -531,10 +530,16 @@ uint32_t cFC4LotConfigManager::Release() {
     return 0;
 }
 
+// `Read` runs before `Init` (HANDOFF 5.1): the core is created in the
+// constructor so a saved record can be read before Init is called. Nothing
+// here sizes saved state from the city.
+cFC4LotConfigManager::cFC4LotConfigManager() {
+    host_ = LcmHost(this);
+    core_ = fc4_lot_config_create(&host_, fc4::LotConfigCatalogueProcess(), 0);
+}
+
 bool cFC4LotConfigManager::Init() {
     if (initialised_) return true;
-    host_ = LcmHost(this);
-    if (core_ == nullptr) core_ = fc4_lot_config_create(&host_, fc4::LotConfigCatalogueProcess(), 0);
     if (core_ == nullptr) return false;
     const bool ok = fc4_lot_config_init(core_);
     initialised_ = ok;
