@@ -255,10 +255,40 @@ impl TerrainView {
         (r24(f64::from(hi) - f64::from(lo))) as f32
     }
 
-    /// Slot 25 `IsAreaFlat(rect, withWater)`: the altitude range within
-    /// `0xE900EA24` *[inferred: `<=`]*.
+    /// Slot 25 `IsAreaFlat(rect, withWater)` (§17.2, LD29): **not** a range
+    /// test. The reference is the first vertex `(x1, z1)` read by slot 15
+    /// **always with water**, whatever `withWater` says, and stored as
+    /// float32; then every vertex `x1 … x2+1` (outer) by `z1 … z2+1` (inner)
+    /// is read by slot 15 with `withWater`, and `|v − ref| >
+    /// kMaxCellAltitudeDeltaForFlatness` (strict, NaN no) answers false. The
+    /// max − min range of a flat rectangle can therefore reach twice the
+    /// tuning value. The subtraction is one x87 operation under the game's
+    /// 24-bit precision control (`r24`); the absolute value is exact.
     pub fn is_area_flat(&self, host: &dyn LotDeveloperHost, rect: CellRect, with_water: bool) -> bool {
-        self.area_altitude_range(host, rect, with_water) <= self.tuning.max_cell_altitude_delta_for_flatness
+        // LD29: the first vertex, with water (the literal 1), as float32.
+        let reference = f64::from(self.altitude_by_vertex(host, rect.x1, rect.z1, true));
+        let limit = f64::from(self.tuning.max_cell_altitude_delta_for_flatness);
+        let mut flat = true;
+        // The original returns at the first vertex beyond the tuning; the
+        // reads have no side effects, so stopping the walk early is the same.
+        let x_end = i64::from(rect.x2) + 1;
+        let z_end = i64::from(rect.z2) + 1;
+        let mut x = i64::from(rect.x1);
+        'walk: while x <= x_end {
+            let mut z = i64::from(rect.z1);
+            while z <= z_end {
+                let v = f64::from(self.altitude_by_vertex(host, x as i32, z as i32, with_water));
+                let d = r24(v - reference).abs();
+                // Strict; a NaN difference is never above the limit.
+                if d > limit {
+                    flat = false;
+                    break 'walk;
+                }
+                z += 1;
+            }
+            x += 1;
+        }
+        flat
     }
 
     /// Slot 26 `IsLotFlat(lot, withWater)`.
@@ -286,20 +316,16 @@ impl TerrainView {
 
     /// Slot 22 `GetOccupantCellCoverage(occupant, rect&)` (§17.2): the
     /// bounding box shrunk by 0.05 on each side, converted with
-    /// `PositionToCell`.
+    /// `PositionToCell`. The slot has no defined result (LD18, LD27): the
+    /// original's AL is the x87 status flags `PositionToCell` leaves, and no
+    /// caller reads it, so only the rectangle is returned.
     pub fn occupant_cell_coverage(&self, host: &dyn LotDeveloperHost, occ: u64) -> CellRect {
-        self.occupant_cell_coverage_with_flag(host, occ).1
-    }
-
-    /// Slot 22 with its return: AL is the **second** `PositionToCell`'s
-    /// (§17.2).
-    pub fn occupant_cell_coverage_with_flag(&self, host: &dyn LotDeveloperHost, occ: u64) -> (bool, CellRect) {
         let (min, max) = host.occupant_bounding_box(occ);
         let grow = |v: f32| (r24(f64::from(v) + 0.05)) as f32;
         let shrink = |v: f32| (r24(f64::from(v) - 0.05)) as f32;
-        let (_ok1, x1, z1) = host.position_to_cell(grow(min[0]), grow(min[2]));
-        let (ok2, x2, z2) = host.position_to_cell(shrink(max[0]), shrink(max[2]));
-        (ok2, CellRect::new(x1, z1, x2, z2))
+        let (x1, z1) = host.position_to_cell(grow(min[0]), grow(min[2]));
+        let (x2, z2) = host.position_to_cell(shrink(max[0]), shrink(max[2]));
+        CellRect::new(x1, z1, x2, z2)
     }
 
     /// Slot 28 `GetLotAltitudeRange(lot, withWater)`: slot 27 on the lot's

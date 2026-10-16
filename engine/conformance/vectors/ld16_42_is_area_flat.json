@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "lot_developer_is_area_flat",
+  "spec": ["lot-developer 17.2", "lot-developer 16"],
+  "description": "Test 42 (§17.2 IsAreaFlat, LD29). Slot 25 is not a range test: the reference is the first vertex (x1, z1) read by slot 15 always with water (whatever withWater says), stored as float32, and every vertex x1 ... x2+1 (outer) by z1 ... z2+1 (inner) read with withWater must satisfy |v - ref| <= kMaxCellAltitudeDeltaForFlatness (strict >, NaN no). Tuning 1.0 (the shipped value), rectangle (0, 0, 0, 0) (vertices x, z = 0..1), dry: (0,0) = 100.5, (1,0) = 100, (0,1) = 101.4, (1,1) = 100.9 -> true although the range is 1.4 (slot 27 returns 101.4 - 100 = 1.4000015); (1,0) = 99.4 -> false (1.1 > 1.0); (1,0) = 99.5 -> true (1.0 is not above). Water level 101 at vertex (0,0) only, first case: the reference is 101 with either withWater, the other vertices give 1.0, 0.4, 0.1 -> true; with withWater = false vertex (0,0) itself is sampled dry (100.5, difference 0.5). Water level 102 there instead: (1,0) = 100 differs by 2.0 -> false for both values of withWater. Slot 26 applies slot 25 to the lot's bounding rectangle.",
+  "steps": [
+    {"op": "ldev_terrain", "flat": 50, "vertex": [[0, 0, 100.5], [1, 0, 100], [0, 1, 101.4], [1, 1, 100.9]]},
+    {"op": "ldev_lot", "id": 1, "x": 0, "z": 0, "w": 1, "h": 1, "state": 3},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_init", "expect": true},
+
+    {"op": "ldev_area_flat", "rect": [0, 0, 0, 0], "water": false, "expect": true},
+    {"op": "ldev_area_flat", "rect": [0, 0, 0, 0], "water": true, "expect": true},
+    {"op": "ldev_area_flat", "lot": 1, "water": false, "expect": true},
+    {"op": "ldev_area_range", "rect": [0, 0, 0, 0], "water": false, "expect_bits": "0x3FB33340"},
+
+    {"op": "ldev_terrain", "vertex": [[1, 0, 99.4]]},
+    {"op": "ldev_area_flat", "rect": [0, 0, 0, 0], "water": false, "expect": false},
+    {"op": "ldev_area_flat", "lot": 1, "water": false, "expect": false},
+    {"op": "ldev_terrain", "vertex": [[1, 0, 99.5]]},
+    {"op": "ldev_area_flat", "rect": [0, 0, 0, 0], "water": false, "expect": true},
+
+    {"op": "ldev_terrain", "vertex": [[1, 0, 100]], "water": [[0, 101]]},
+    {"op": "ldev_area_flat", "rect": [0, 0, 0, 0], "water": false, "expect": true},
+    {"op": "ldev_area_flat", "rect": [0, 0, 0, 0], "water": true, "expect": true},
+    {"op": "ldev_terrain", "water": [[0, 102]]},
+    {"op": "ldev_area_flat", "rect": [0, 0, 0, 0], "water": false, "expect": false},
+    {"op": "ldev_area_flat", "rect": [0, 0, 0, 0], "water": true, "expect": false},
+    {"op": "ldev_area_flat", "lot": 1, "water": false, "expect": false}
+  ]
+}
