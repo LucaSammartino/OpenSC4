@@ -2893,18 +2893,18 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	26	+0x68	00407ac0	icf::cSC424HourClock
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	27	+0x6C	00809240	icf::cS3DTextureBindingFactory::GetResGroup	0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	28	+0x70	0062c9c0		4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	29	+0x74	0062c9e0		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	30	+0x78	00626e80		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	31	+0x7C	00623b70	cSC4City::GetNetworkManager	0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	32	+0x80	00623b80		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	33	+0x84	00623b90		0	0	x87	high	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	34	+0x88	00623ba0		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	35	+0x8C	00624af0		8	2	via-call	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	36	+0x90	00624130		0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	37	+0x94	00624180		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	38	+0x98	00624150		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	39	+0x9C	006241b0		0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	40	+0xA0	00624b20		12	3	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	41	+0xA4	006241d0		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	30	+0x78	00626e80	cSC4NetworkTool::GetPossibleBridges	4	1	eax-or-void	medium	re-specs17a (replace): AL bool; copies candidate list +0x1F4; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	31	+0x7C	00623b70	cSC4NetworkTool::GetPreferredBridge	0	0	eax-or-void	high	re-specs17a (replace): returns +0x200 (body folded with cSC4City::GetNetworkManager); network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	32	+0x80	00623b80	cSC4NetworkTool::SetPreferredBridge	4	1	eax-or-void	high	re-specs17a (replace): +0x200 := arg; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	33	+0x84	00623b90	cSC4NetworkTool::GetBridgeAltitudeOverride	0	0	x87	high	re-specs17a (replace): returns +0x204; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	34	+0x88	00623ba0	cSC4NetworkTool::SetBridgeAltitudeOverride	4	1	eax-or-void	high	re-specs17a (replace): +0x204 := float arg; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	35	+0x8C	00624af0	cSC4NetworkTool::GetBridgeName	8	2	via-call	low	re-specs17a (replace): (index, cRZString&): bridge type +0x15C; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	36	+0x90	00624130	cSC4NetworkTool::GetMajorBridge	0	0	eax-or-void	high	re-specs17a (replace): last record +0x0C or -1; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	37	+0x94	00624180	cSC4NetworkTool::GetMajorBridgeAltitude	4	1	eax-or-void	high	re-specs17a (replace): AL bool; out := last record +0x10; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	38	+0x98	00624150	cSC4NetworkTool::GetMajorBridgeReferenceAltitude	4	1	eax-or-void	high	re-specs17a (replace): AL bool; out := last record +0x14; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	39	+0x9C	006241b0	cSC4NetworkTool::IsMajorBridgeLandBridge	0	0	eax-or-void	high	re-specs17a (replace): AL: last record byte +0x18, 0 if none; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	40	+0xA0	00624b20	cSC4NetworkTool::GetBridgeBitmapKey	12	3	eax-or-void	high	re-specs17a (replace): AL bool; (index, &a, &b) from bridge type +0x148/+0x14C; network-bridges.md 1.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	41	+0xA4	006241d0	cSC4NetworkTool::GetPossibleNeighborConnection	4	1	eax-or-void	medium	re-specs17a (replace): Mac name only; behaviour not specified here
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	42	+0xA8	0062c910		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	43	+0xAC	0062c930		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	44	+0xB0	0062c940		0	0	eax-or-void	medium	
@@ -4057,6 +4057,7 @@ cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	29	+0x74	004778b0	cSC4LotCon
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	30	+0x78	004778c0	cSC4LotConfiguration::GetFenceSegmentPositionArray	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): &+0xB4; 5.1
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	31	+0x7C	00479f70	cSC4LotConfiguration::Load(key const&, detail)	8	2	al	high	re-specs15a (lot-configuration.md, numbers are sections): second argument is the city detail 1-3 (SDK: prop array size); 3
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	32	+0x80	00479580	cSC4LotConfiguration::Save(key const&, segment)	8	2	al	high	re-specs15a (lot-configuration.md, numbers are sections): editor only; sets y := 0 in the live configuration; 7
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	33	+0x84	00479f50	cSC4LotConfiguration::~cSC4LotConfiguration (scalar deleting dtor)	4	1	eax	high	re-specs15a (lot-configuration.md, numbers are sections): past the SDK slot count (33); held like re-specs13d LCM slot 28; 1, 8
 cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	0	+0x0	0062c980	icf::cIGZWinProc::DoWinProcMessage	8	2	eax-or-void	medium	
 cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	1	+0x4	008cd450	cSC4EffectsManager::Release	0	0	eax-or-void	medium	
 cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	2	+0x8	008cd450	cSC4EffectsManager::Release	0	0	eax-or-void	medium	
@@ -4311,6 +4312,9 @@ cISC4FloraTypeFilter	(caller-supplied)		3	+0xC		IsFloraTypeIncluded(u32 type)	4	
 cIGZCommandParameterSet	cGZCommandParameterSet	00ad16c8	3	+0xC	009cede1	GetParameterCount()	0	0	eax-or-void	high	re-answers4 FQ10: EAX
 cIGZCommandParameterSet	cGZCommandParameterSet	00ad16c8	5	+0x14	0092a162	operator[](u32) -> cIGZVariant*	4	1	eax-or-void	high	re-answers4 FQ10: EAX, never null: out of range gives the empty variant at +0x14
 cIGZCommandParameterSet	cGZCommandParameterSet	00ad16c8	6	+0x18	0092a186	GetParameter(u32) -> cIGZVariant*	4	1	eax-or-void	high	re-answers4 FQ10: EAX, null when out of range
+cIGZCommandParameterSet	cGZCommandParameterSet	00ad16c8	7	+0x1C	0092abeb	SetParameter(u32 id, const cIGZVariant&)	8	2	eax-or-void	high	re-answers12 CB16: find-or-insert by ID, then assign the variant; civic get_landmark_count writes ID 1 (civic-buildings 4.1)
+cIGZCommandParameterSet	cGZCommandParameterSet	00ad16c8	8	+0x20	00929e19	AppendParameter(const cIGZVariant&)	4	1	eax-or-void	medium	re-answers12 CB16: ID = last ID + 1, or 0 when the set is empty
+cIGZCommandParameterSet	cGZCommandParameterSet	00ad16c8	10	+0x28	009296a5	SetStatusParameterValue(const cIGZVariant&)	4	1	eax-or-void	medium	re-answers12 CB16: stores the value under the reserved status ID 0x2B999D2B
 cIGZPersistDBSegment(SC4)	cSC4DBSegment	00aa2654	5	+0x14	005d2740	OpenIStream	8	2	eax-or-void	high	re-answers4 FQ3: AL
 cIGZPersistDBSegment(SC4)	cSC4DBSegment	00aa2654	6	+0x18	005d16c0	CloseIStream	4	1	eax-or-void	high	re-answers4 FQ3: ICF-folded with CloseOStream (slot 9); result ignored
 cIGZPersistDBSegment(SC4)	cSC4DBSegment	00aa2654	8	+0x20	005d27e0	OpenOStream(key&, OStream**, bool = true)	12	3	eax-or-void	high	re-answers4 FQ3: AL

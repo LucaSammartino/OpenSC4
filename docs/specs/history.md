@@ -438,6 +438,7 @@ and `Coalesce` has two dates (foundations §16).
 | demand simulator | slot 7 on the tax-rate series (demand.md §8.1) |
 | advisors and Lua (`trend_value`, safety advisor) | slots 5, 6, 8, 12 (advisors.md) |
 | win trend bar (UI) | subscribes to `0x89EFA536` |
+| graph window (`cSC4GraphsViewWinProc`) | slot 8 only: one `GetPoint` per series at one date (`0x0076BF69`), or per sample date of the line graph, for one or two keys per series (`0x0076C510`, `0x0076C53A`); never slot 5 |
 | the city (component 1) | creates it, `Init`, `Shutdown`, save and load |
 
 Answer to demand.md §15 item 7: when the tax series is missing or empty, `GetMinMaxAverage` returns false and
@@ -450,7 +451,8 @@ leaves `min`, `max` and `avg` untouched, so the caller keeps whatever its variab
 - The yearly pass leaves the last group of each range open and groups granularity 0 by month number only (§4.4).
 - `Dispose(key, from, to)` keeps the last point of the range (§4.5).
 - `GetPoint` at an interior point is the regression value through three points (§4.7); `GetCount` counts the
-  widened range.
+  widened range. The graph window draws its curves from `GetPoint` alone (§9), so a sample date that falls on an
+  interior point shows the smoothed value, not the recorded one (HW2): the smoothing is visible in the graphs.
 - `Read` does not clear the map and drops a duplicate key's later series (§7).
 
 ## 11. Open questions
