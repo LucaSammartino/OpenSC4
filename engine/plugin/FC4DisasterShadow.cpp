@@ -675,14 +675,32 @@ void MirrorIgnite(uint64_t o, bool force, uint32_t id, bool focus, bool origResu
     if (!compare && origResult && ours) g.spreadTargets.insert(o);
     TrackFirePhase();
     g.dirty = true;
-    const uint8_t cover = DisasterFireCoverage(g.city, AsOcc(o));
-    if (cover > 50) ++g.unfollowable;
-    char what[240];
+    // §5.4 "The refusals, exactly", logged at every call (DS38): the
+    // original-side inputs the answer names, plus which of the five exits
+    // those inputs admit. Exit 4 needs the D9 curve and is not in the mask;
+    // the coverage and the clamped rectangle are there to read it from.
+    const DisasterIgniteInputs in =
+        DisasterIgniteInputsOf(g.city, AsOcc(o), force, g.ctx.pausedSample, g.ctx.emergencySample);
+    if (in.coverage > 50) ++g.unfollowable;
+    char exits[24] = "";
+    if (refused) {
+        std::string e;
+        for (uint32_t i = 0; i < 5; ++i) {
+            if ((in.exits & (1u << i)) == 0) continue;
+            if (!e.empty()) e += ",";
+            e += std::to_string(i + 1);
+        }
+        if (e.empty()) e = "none-of-1,2,3,5";
+        std::snprintf(exits, sizeof(exits), " exits=%s", e.c_str());
+    }
+    char what[320];
     std::snprintf(what, sizeof(what),
-                  "%s %p force=%d id=%08X->%08X focus=%d coverage=%u paused=%d emergency=%d -> orig %d ours %d%s",
-                  why, reinterpret_cast<void*>(static_cast<uintptr_t>(o)), force, id, mid, focus, cover,
-                  g.ctx.pausedSample, g.ctx.emergencySample, origResult, ours,
-                  refused ? " (refused by the original: Q40; ours put out)" : "");
+                  "%s %p force=%d id=%08X->%08X focus=%d type=%08X flammability=%u rect=%d,%d..%d,%d "
+                  "coverage=%u burning=%d paused=%d emergency=%d -> orig %d ours %d%s%s",
+                  why, reinterpret_cast<void*>(static_cast<uintptr_t>(o)), force, id, mid, focus, in.type,
+                  in.flammability, in.x0, in.z0, in.x1, in.z1, in.coverage, in.burning ? 1 : 0, g.ctx.pausedSample,
+                  g.ctx.emergencySample, origResult, ours,
+                  refused ? " (refused by the original: Q40; ours put out)" : "", exits);
     if (origResult != ours) ++g.calls.lines;  // counted in the line below too
     if (compare) {
         FireLine(what);
