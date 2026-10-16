@@ -845,6 +845,8 @@ mod budget_tests;
 
 #[cfg(test)]
 mod city_detail_tests;
+
+#[cfg(test)]
 mod city_situation_tests;
 
 #[cfg(test)]
