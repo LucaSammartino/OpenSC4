@@ -580,26 +580,75 @@ void CopyVertex(int32_t x, int32_t z, float alt, float depth) {
 }
 
 // Every vertex re-read: the ones that differ from ours changed without a
-// message the shadow followed. Returns how many; they are copied.
-uint32_t Resync() {
-    uint32_t n = 0;
+// message the shadow followed. They are copied; what moved is summarised
+// (how many altitudes, how many depths only, their bounding rectangle and the
+// first one) for the month line.
+struct Unfollowed {
+    uint32_t n = 0, alt = 0;
+    int32_t x0 = 0, z0 = 0, x1 = -1, z1 = -1;
+    int32_t fx = 0, fz = 0;
+    float fa0 = 0.0f, fa1 = 0.0f, fd0 = 0.0f, fd1 = 0.0f;
+};
+Unfollowed Resync() {
+    Unfollowed u;
     for (uint32_t z = 0; z < g_s.vertsZ; ++z) {
         for (uint32_t x = 0; x < g_s.vertsX; ++x) {
             const int32_t ix = static_cast<int32_t>(x), iz = static_cast<int32_t>(z);
             const float a = g_s.src.altitudeAtVertex(g_s.src.u, ix, iz);
             const float d = g_s.src.depthAtVertex(g_s.src.u, ix, iz);
-            if (SameBits(a, fc4_terrain_altitude_at_vertex(g_s.ours, ix, iz)) &&
-                SameBits(d, fc4_terrain_water_depth_at_vertex(g_s.ours, ix, iz))) {
-                continue;
+            const float ma = fc4_terrain_altitude_at_vertex(g_s.ours, ix, iz);
+            const float md = fc4_terrain_water_depth_at_vertex(g_s.ours, ix, iz);
+            if (SameBits(a, ma) && SameBits(d, md)) continue;
+            if (u.n == 0) {
+                u.x0 = u.x1 = ix;
+                u.z0 = u.z1 = iz;
+                u.fx = ix;
+                u.fz = iz;
+                u.fa0 = ma;
+                u.fa1 = a;
+                u.fd0 = md;
+                u.fd1 = d;
+            } else {
+                u.x0 = std::min(u.x0, ix);
+                u.x1 = std::max(u.x1, ix);
+                u.z0 = std::min(u.z0, iz);
+                u.z1 = std::max(u.z1, iz);
             }
-            ++n;
+            ++u.n;
+            if (!SameBits(a, ma)) ++u.alt;
             CopyVertex(ix, iz, a, d);
         }
     }
-    return n;
+    return u;
 }
 
 int32_t ClampI(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+// Vertices outside the rectangle x0..x1 x z0..z1 whose altitude differs from
+// ours (not copied): changes this message does not cover (yet). Diagnostic.
+Unfollowed Elsewhere(int32_t x0, int32_t z0, int32_t x1, int32_t z1) {
+    Unfollowed u;
+    for (uint32_t z = 0; z < g_s.vertsZ; ++z) {
+        for (uint32_t x = 0; x < g_s.vertsX; ++x) {
+            const int32_t ix = static_cast<int32_t>(x), iz = static_cast<int32_t>(z);
+            if (ix >= x0 && ix <= x1 && iz >= z0 && iz <= z1) continue;
+            const float a = g_s.src.altitudeAtVertex(g_s.src.u, ix, iz);
+            const float ma = fc4_terrain_altitude_at_vertex(g_s.ours, ix, iz);
+            if (SameBits(a, ma)) continue;
+            if (u.n == 0) {
+                u.x0 = u.x1 = ix;
+                u.z0 = u.z1 = iz;
+            } else {
+                u.x0 = std::min(u.x0, ix);
+                u.x1 = std::max(u.x1, ix);
+                u.z0 = std::min(u.z0, iz);
+                u.z1 = std::max(u.z1, iz);
+            }
+            ++u.n;
+        }
+    }
+    return u;
+}
 
 void DropShadow() {
     fc4_terrain_destroy(g_s.ours);
@@ -700,6 +749,7 @@ void Change(uint32_t type, uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, i
     const int32_t vx = static_cast<int32_t>(g_s.vertsX) - 1, vz = static_cast<int32_t>(g_s.vertsZ) - 1;
     const int32_t x0 = ClampI(std::min(rx0, rx1), 0, vx), x1 = ClampI(std::max(rx0, rx1), 0, vx);
     const int32_t z0 = ClampI(std::min(rz0, rz1), 0, vz), z1 = ClampI(std::max(rz0, rz1), 0, vz);
+    const Unfollowed away = terrain ? Elsewhere(x0, z0, x1, z1) : Unfollowed{};
     // Re-read: replay moved vertices through slot 50 and classify the depth.
     const float sea = fc4_terrain_sea_level(g_s.ours);
     uint32_t vertices = 0, moved = 0, wet = 0;
@@ -788,7 +838,9 @@ void Change(uint32_t type, uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, i
            DateText(julian).c_str(), terrain ? "terrain" : "water", d4, rx0, rz0, rx1, rz1, vertices, moved, wet,
            rules[0], rules[1], rules[2], rules[3], packed ? 1u : 0u);
     if (terrain) {
-        Append(s, "cache %.9g/%.9g; ", fc4_terrain_cached_height(g_s.ours, 0), fc4_terrain_cached_height(g_s.ours, 1));
+        Append(s, "moved elsewhere %u", away.n);
+        if (away.n > 0) Append(s, " (rect=%d,%d..%d,%d)", away.x0, away.z0, away.x1, away.z1);
+        Append(s, "; cache %.9g/%.9g; ", fc4_terrain_cached_height(g_s.ours, 0), fc4_terrain_cached_height(g_s.ours, 1));
     }
     if (stride > 1) Append(s, "cells %u (every %u-th) ", cells, stride);
     AppendQueries(s, L.q);
@@ -807,7 +859,8 @@ void Change(uint32_t type, uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, i
 
 void Month(int32_t julian) {
     Line L;
-    const uint32_t unfollowed = Resync();
+    const Unfollowed uf = Resync();
+    const uint32_t unfollowed = uf.n;
     g_s.unfollowedTotal += unfollowed;
     if (unfollowed > 0) RefreshWaterCells();
     CompareCache(L, "month");
@@ -820,9 +873,13 @@ void Month(int32_t julian) {
     }
     CompareSample(L, static_cast<uint32_t>(julian), g_points);
     std::string s;
-    Append(s, "terrain shadow month %s: unfollowed=%u; cache %.9g/%.9g; sea %u/1; ", DateText(julian).c_str(),
-           unfollowed, fc4_terrain_cached_height(g_s.ours, 0), fc4_terrain_cached_height(g_s.ours, 1),
-           seaSame ? 1u : 0u);
+    Append(s, "terrain shadow month %s: unfollowed=%u", DateText(julian).c_str(), unfollowed);
+    if (unfollowed > 0) {
+        Append(s, " (altitudes %u, depths only %u; rect=%d,%d..%d,%d; first (%d,%d) alt %.9g->%.9g depth %.9g->%.9g)",
+               uf.alt, uf.n - uf.alt, uf.x0, uf.z0, uf.x1, uf.z1, uf.fx, uf.fz, uf.fa0, uf.fa1, uf.fd0, uf.fd1);
+    }
+    Append(s, "; cache %.9g/%.9g; sea %u/1; ", fc4_terrain_cached_height(g_s.ours, 0),
+           fc4_terrain_cached_height(g_s.ours, 1), seaSame ? 1u : 0u);
     AppendQueries(s, L.q);
     Append(s, "; changes terrain=%u water=%u sea=%u long=%u kinds=%u/%u/%u/%u/%u/%u/%u/%u (lines %u)",
            g_s.terrainChanges, g_s.waterChanges, g_s.seaChanges, g_s.longOps, g_s.kinds[0], g_s.kinds[1],
