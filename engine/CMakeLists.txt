@@ -317,6 +317,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4ZoneDevShadow.h
         # The automata layer's host tables (automata.md 8, 9; the glue19 lane) and
         # its shadow: automata_shadow.
+        plugin/cFC4Automata.cpp
+        plugin/cFC4Automata.h
         plugin/FC4AutomataHost.cpp
         plugin/FC4AutomataHost.h
         plugin/FC4AutomataInterfaces.h
