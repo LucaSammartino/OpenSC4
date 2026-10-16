@@ -53,7 +53,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | simulation | network tools | 9 | 392 | 150,573 | yes | - | - | - | - |
 | simulation | network occupants | 20 | 763 | 115,068 | - | - | - | - | - |
 | simulation | automata (managers, records) | 10 | 392 | 103,607 | yes | yes | - | - | - |
-| simulation | terrain | 3 | 321 | 84,327 | yes | yes | not in regress | - | - |
+| simulation | terrain | 3 | 321 | 84,327 | yes | yes | no lines | - | - |
 | simulation | mysims | 8 | 347 | 80,570 | yes | - | - | - | - |
 | simulation | advisors | 16 | 282 | 71,350 | yes | - | - | - | - |
 | simulation | occupants and props | 33 | 453 | 66,254 | - | - | - | - | - |
@@ -240,11 +240,15 @@ Owners that only a catch-all row of the map matches (candidates for a row of the
 | ghidra/export/windows/instructions.asm | ac3583ad0ca86c82 | Ghidra 12.1.4 auto-analysis export |
 | re/names_windows.tsv | 6e15a1c50c4315a4 | |
 | docs/abi/vtables.tsv | d8409c1d42e0ca85 | |
-| docs/abi/interfaces.tsv | 65c4e882f808e6e8 | |
-| tools/coverage-libs.tsv | de557a391ec04b04 | |
-| tools/coverage-map.tsv | 85ced3fabcf38019 | |
-| tools/regress.ps1 | 680e6e9cce99e643 | |
+| docs/abi/interfaces.tsv | 51ae714b29850053 | |
+| tools/coverage-libs.tsv | 44a0c1b48951b07e | |
+| tools/coverage-map.tsv | d4442cfb20690c22 | |
+| tools/regress.ps1 | dfef866850a9c5a6 | |
 | engine/plugin/FC4Subsystems.cpp | 4d2fdd6997cfcd4f | |
 | build-runs/regress-cores15.out | 77b16cbba587ec22 | regress cores15 (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time)); replace run clean |
 
-Read from tools/regress.ps1: 27 replace keys, 25 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
+Read from tools/regress.ps1: 27 replace keys, 26 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
+
+## Warnings
+
+- shadow `terrain_shadow` is in the regress list but `regress-cores15.out` has no `terrain` lines
