@@ -112,6 +112,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -9635,6 +9636,8 @@ struct TrafficStub {
     std::vector<uint32_t> subscribed;
     int agents = 0, posts = 0, rectQueries = 0, pathQueries = 0;
     std::vector<void*> blocks;  // the test allocator's blocks alive
+    // create_line_item calls: department, line, name, income, only if missing (TG7).
+    std::vector<std::tuple<uint64_t, uint32_t, uint32_t, bool, bool>> lineItems;
 };
 
 TrafficStub* g_tr = nullptr;
@@ -9709,6 +9712,9 @@ uint64_t TrCreateDepartment(void*, uint32_t, float) {
     g_tr->deptRefs[t] = 1;
     return t;
 }
+void TrCreateLineItem(void*, uint64_t dept, uint32_t line, uint32_t name, bool income, bool onlyIfMissing) {
+    g_tr->lineItems.emplace_back(dept, line, name, income, onlyIfMissing);
+}
 void TrReleaseDepartment(void*, uint64_t t) {
     CHECK(g_tr->deptRefs.count(t) == 1);
     --g_tr->deptRefs[t];
@@ -9782,6 +9788,7 @@ fc4_traffic_host TrafficStubHost(TrafficStub& s) {
     h.position_to_cell = &TrPositionToCell;
     h.cell_width = &TrCellWidth;
     h.create_department = &TrCreateDepartment;
+    h.create_line_item = &TrCreateLineItem;
     h.release_department = &TrReleaseDepartment;
     h.department_funding = &TrDepartmentFunding;
     h.set_line_item_income = &TrSetLineItemIncome;
@@ -9820,6 +9827,63 @@ intptr_t TrafficLivePathFinders(FC4TestSeamFn seam) {
 }
 
 // pathfinder.md §11 test 2 through slot 6: from (2, 2) to (4, 4) by car.
+// The caller-owned STLport deque<RouteData> of slot 8 (pathfinder.md §7):
+// ten 32-bit words, buffers of 0x7E bytes and the map from allocator B.
+struct TrRouteIter {
+    uint8_t* cur;
+    uint8_t* first;
+    uint8_t* last;
+    uint8_t** node;
+};
+struct TrRouteDeque {
+    TrRouteIter start, finish;
+    uint8_t** map;
+    uint32_t mapSize;
+};
+static_assert(sizeof(TrRouteDeque) == 0x28, "route deque: 0x28 bytes");
+
+void TrSetNode(TrRouteIter& it, uint8_t** node) {
+    it.node = node;
+    it.first = *node;
+    it.last = it.first + 0x7E;
+}
+
+// An empty deque as the callers' STLport constructs it, with its map of
+// `mapSize` slots and its one buffer at `slot`.
+TrRouteDeque TrEmptyRouteDeque(uint32_t mapSize, uint32_t slot) {
+    TrRouteDeque d{};
+    d.mapSize = mapSize;
+    d.map = static_cast<uint8_t**>(TrAllocate(mapSize * 4));
+    for (uint32_t i = 0; i < mapSize; ++i) d.map[i] = nullptr;
+    d.map[slot] = static_cast<uint8_t*>(TrAllocate(0x7E));
+    TrSetNode(d.start, d.map + slot);
+    d.start.cur = d.start.first;
+    d.finish = d.start;
+    return d;
+}
+
+// The caller's walk: start.cur up to finish.cur, buffer by buffer.
+std::vector<uint8_t> TrWalkRouteDeque(const TrRouteDeque& d) {
+    std::vector<uint8_t> out;
+    TrRouteIter it = d.start;
+    while (it.cur != d.finish.cur) {
+        out.insert(out.end(), it.cur, it.cur + 3);
+        it.cur += 3;
+        if (it.cur == it.last && it.node != d.finish.node) {
+            TrSetNode(it, it.node + 1);
+            it.cur = it.first;
+        }
+    }
+    return out;
+}
+
+// The caller's destructor: every buffer from start to finish, then the map.
+void TrFreeRouteDeque(TrRouteDeque& d) {
+    for (uint8_t** n = d.start.node; n <= d.finish.node; ++n) TrFree(*n);
+    TrFree(d.map);
+    d = TrRouteDeque{};
+}
+
 void ConfigurePathFinder(cFC4ISC4PathFinder* pf) {
     pf->SetFlag(1);
     pf->SetStartRect(SC4Rect<int32_t>(2, 2, 2, 2));
@@ -9843,6 +9907,18 @@ void TrafficPathFinderTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
     CHECK(TrafficHooks(seam, ts, &host) == 1);
     CHECK(ts->Init());
     CHECK(!stub.grids.empty() && stub.deptRefs.size() == 2 && !stub.subscribed.empty() && stub.agents > 0);
+    // TG7 (traffic-simulator.md §9.1): lines 1-3 with each new department,
+    // then lines 4-6 of both when missing; the two Income lines.
+    CHECK(stub.lineItems.size() == 12);
+    if (stub.lineItems.size() == 12) {
+        const uint64_t roads = std::get<0>(stub.lineItems[0]);
+        const uint64_t transit = std::get<0>(stub.lineItems[3]);
+        CHECK(roads != transit && stub.deptRefs.count(roads) == 1 && stub.deptRefs.count(transit) == 1);
+        CHECK((stub.lineItems[4] == std::make_tuple(transit, 2u, 0x8A5F978Cu, true, false)));
+        CHECK((stub.lineItems[6] == std::make_tuple(transit, 4u, 0x2AB7EA93u, false, true)));
+        CHECK((stub.lineItems[10] == std::make_tuple(roads, 5u, 0x0C3BF3C4u, true, true)));
+        CHECK((stub.lineItems[11] == std::make_tuple(roads, 6u, 0xEA5F96E7u, false, true)));
+    }
     // DoPostCityInit (§1): the whole city rebuilt from the network occupants.
     cIGZMessageTarget2* mt = nullptr;
     CHECK(ts->QueryInterface(kIID_cIGZMessageTarget2T, reinterpret_cast<void**>(&mt)) && mt != nullptr);
@@ -9889,11 +9965,49 @@ void TrafficPathFinderTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         CHECK((bytes == std::vector<uint8_t>{1, 2, 3, 0x41, 2, 0x0A}));
         CHECK(stub.blocks.size() == 1);
         CHECK(pf->WasTripReversible());
-        // A route deque set (slot 8): refused, the deque untouched (question 1).
-        uint32_t deque[10] = {};
-        pf->SetRouteInfo(deque);
-        CHECK(pf->FindPath() == 0);
-        for (uint32_t w : deque) CHECK(w == 0);
+        // A route deque set (slot 8): filled root -> result in place
+        // (pathfinder.md §4.13 step 5, §7 and §11 test 2; TG1).
+        const std::vector<uint8_t> want{2, 3, 1, 3, 3, 1, 4, 3, 1};
+        {
+            // An empty STLport deque: a map of 8 slots, one buffer at slot 3.
+            TrRouteDeque d = TrEmptyRouteDeque(8, 3);
+            pf->SetRouteInfo(&d);
+            CHECK(pf->FindPath() == 1);
+            CHECK(TrWalkRouteDeque(d) == want);
+            // A new buffer in the slot before the start one, no regrowth.
+            CHECK(d.mapSize == 8 && d.start.node == d.map + 2 && d.finish.node == d.map + 3);
+            CHECK(d.start.cur == d.start.first + 0x7E - 9 && d.finish.cur == d.finish.first);
+            // Again: cleared (the finish buffer freed), refilled in the start buffer.
+            const size_t before = stub.blocks.size();
+            CHECK(pf->FindPath() == 1);
+            CHECK(TrWalkRouteDeque(d) == want);
+            CHECK(d.start.node == d.map + 2 && d.finish.node == d.map + 2 && stub.blocks.size() == before - 1);
+            CHECK(d.start.cur == d.start.first + 0x7E - 18);
+            TrFreeRouteDeque(d);
+        }
+        {
+            // A one-slot map: regrown to 1 + 1 + 2 = 4 slots, the used slot
+            // copied to slot (4 - 2) / 2 + 1 = 2, the old map freed (§7 step 3).
+            TrRouteDeque d = TrEmptyRouteDeque(1, 0);
+            void* oldMap = d.map;
+            pf->SetRouteInfo(&d);
+            CHECK(pf->FindPath() == 1);
+            CHECK(TrWalkRouteDeque(d) == want);
+            CHECK(d.map != oldMap && d.mapSize == 4 && d.start.node == d.map + 1 && d.finish.node == d.map + 2);
+            CHECK(std::find(stub.blocks.begin(), stub.blocks.end(), oldMap) == stub.blocks.end());
+            TrFreeRouteDeque(d);
+        }
+        {
+            // Start at slot 0 of 8: the used slot moved within the map to slot
+            // (8 - 2) / 2 + 1 = 4, the new buffer at slot 3.
+            TrRouteDeque d = TrEmptyRouteDeque(8, 0);
+            void* const map = d.map;
+            pf->SetRouteInfo(&d);
+            CHECK(pf->FindPath() == 1);
+            CHECK(TrWalkRouteDeque(d) == want);
+            CHECK(d.map == map && d.start.node == d.map + 3 && d.finish.node == d.map + 4);
+            TrFreeRouteDeque(d);
+        }
         pf->SetRouteInfo(nullptr);
         CHECK(pf->FindPath() == 1);
         // The route again: the caller's buffer is kept and refilled.
@@ -10169,7 +10283,9 @@ int TrafficEnableTest(const std::string& dll, const std::string& ini, const std:
     CHECK(text.find("traffic shadow month to 2000-02-01: clean; deliveries=5 (day 3, month 1, other 1)") !=
           std::string::npos);
     CHECK(text.find("INCOMPLETE") == std::string::npos);
-    CHECK(CountOf(text, "traffic: WARNING FindPath with a route deque refused") == 1);
+    // TG1: a deque is filled, never refused; no fill failed.
+    CHECK(text.find("FindPath with a route deque refused") == std::string::npos);
+    CHECK(text.find("traffic: WARNING FindPath route deque") == std::string::npos);
     CHECK(text.find("cFC4TrafficSimulator destroyed (0 fallbacks, 2 external pathfinders)") != std::string::npos);
     CHECK(text.find("structured exception") == std::string::npos);
     CHECK(text.find("config: WARNING unknown key") == std::string::npos);
