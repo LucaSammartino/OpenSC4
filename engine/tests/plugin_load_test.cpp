@@ -8274,6 +8274,11 @@ bool __fastcall ZdLotQi(void* self, void*, uint32_t iid, void** out) {  // 0
 uint32_t __fastcall ZdLotAddRef(void* self, void*) { return static_cast<uint32_t>(++static_cast<ZdLot*>(self)->refs); }
 uint32_t __fastcall ZdLotRelease(void* self, void*) { return static_cast<uint32_t>(--static_cast<ZdLot*>(self)->refs); }
 uint32_t __fastcall ZdLotClass(void*, void*) { return kZdLotClass; }  // as cIGZSerializable, slot 5
+// Lot slot 9 `GetLotConfiguration` (borrowed). The shadow's CanCreatePloppedLot
+// compare (slot 21, zones.md §8.4.1) takes a configuration from the first lot
+// that has one, because the original reads it without a null test; these lots
+// have none, so that facet reports INCOMPLETE here and is compared in game.
+void* __fastcall ZdLotCfg9(void*, void*) { return nullptr; }
 
 // The host table's callbacks (the stub is global).
 bool ZdAcquire(void*) {
@@ -8744,6 +8749,7 @@ void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
     stub.lotVt.slots[1] = reinterpret_cast<void*>(&ZdLotAddRef);
     stub.lotVt.slots[2] = reinterpret_cast<void*>(&ZdLotRelease);
     stub.lotVt.slots[5] = reinterpret_cast<void*>(&ZdLotClass);
+    stub.lotVt.slots[9] = reinterpret_cast<void*>(&ZdLotCfg9);
     cISC4ZoneDeveloper* zd = NewZoneDeveloper(director);
     CHECK(zd != nullptr);
     if (zd == nullptr) return;
@@ -9013,6 +9019,10 @@ int ZoneDevEnableTest(const std::string& dll, const std::string& ini, const std:
     CHECK(text.find("zonedev shadow (cells) 2000-02-01 load: cells=64 covered=6 origins=5 mismatches=0") != npos);
     CHECK(text.find("zonedev shadow (lists) 2000-02-01 load: calls=32 mismatches=0") != npos);
     CHECK(text.find("zonedev shadow (CanCreateLot) 2000-02-01 load: calls=192 mismatches=0") != npos);
+    // Slot 21 (§8.4.1) is compared in game: these lots have no configuration,
+    // so the facet reports INCOMPLETE rather than calling the fake's slot 21.
+    CHECK(text.find("zonedev shadow (CanCreatePloppedLot) 2000-02-01 load: INCOMPLETE (no lot with a "
+                    "configuration); not compared") != npos);
     CHECK(text.find("the city's zone developer is FreeCity4's") != npos);
     CHECK(text.find("the city has no zone developer or lot manager") != npos);
     CHECK(text.find("zonedev shadow: requested (zonedev_shadow from FreeCity4.ini) but INACTIVE") != npos);

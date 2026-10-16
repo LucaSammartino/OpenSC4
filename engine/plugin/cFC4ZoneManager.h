@@ -132,6 +132,15 @@ bool ReadZoneRegion(const void* game, std::vector<uint8_t>& mask, fc4_zone_regio
 // `r` (PlaceZone's rejected cells: the game only clears bits). Returns the
 // bits cleared.
 uint32_t ClearRejectedBits(void* game, const fc4_zone_region& r);
+// A new `SC4CellRegion<long>` in the game's layout whose blocks all come from
+// the game's C allocator, so a caller that frees rows, row array and object
+// with C (ZG24, zones.md §13.2: HighlightParcels' `*out`) is given exactly
+// what its own free sequence expects. Null when the rectangle is not one the
+// game's layout holds, the executable is not the identified one, or allocator
+// C is unavailable. One pointer per x column, each column its own block of
+// `words` words (SDK cRZCellMap's `uint32_t** data`); cRZCellMap's vtable is
+// stored so a virtual destructor would still free the same blocks.
+SC4CellRegion<long>* NewGameCellRegion(const fc4_zone_region& in);
 
 // A region in the game's layout whose memory is ours: for DoParcellization,
 // GetZoningCost and the dry runs of the shadow. Not copyable.

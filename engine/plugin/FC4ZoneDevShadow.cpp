@@ -305,7 +305,9 @@ void RunStep(void* p) {
     if (s == nullptr) {
         std::string body;
         AppendF(body, "INCOMPLETE (%s); not compared", why != nullptr ? why : "no core");
-        for (const char* w : {"lots", "cells", "lists", "occupants", "CanCreateLot"}) Line(r, w, body);
+        for (const char* w : {"lots", "cells", "lists", "occupants", "CanCreateLot", "CanCreatePloppedLot"}) {
+            Line(r, w, body);
+        }
         r.result = -3;
         return;
     }
@@ -498,6 +500,66 @@ void RunStep(void* p) {
         Line(r, "CanCreateLot", "INCOMPLETE (no city size); not compared");
     }
 
+    // 6. CanCreatePloppedLot (slot 21, §8.4.1) on sample cells, sizes and
+    //    facings. The original reads the configuration without a null test,
+    //    so both sides get a real one: the configuration of the first lot
+    //    that has one (borrowed, never released). A city without any lot
+    //    with a configuration cannot reach the code and is left alone.
+    if (walkable) {
+        cISC4LotConfiguration* cfg = nullptr;
+        {
+            ShadowLotList list{};
+            lm->GetLotsInCellRect(AsCallerList(list), 0, 0, cx - 1, cz - 1, false);  // slot 7
+            std::vector<uint64_t> lots;
+            TakeList(list, lots);  // one reference each, given back as it goes
+            for (uint64_t t : lots) {
+                cISC4Lot* lot = static_cast<cISC4Lot*>(FromToken(t));
+                if (lot == nullptr) continue;
+                cfg = AsGame(lot)->GetLotConfiguration();  // slot 9, borrowed
+                if (cfg != nullptr) break;
+            }
+        }
+        if (cfg == nullptr) {
+            Line(r, "CanCreatePloppedLot", "INCOMPLETE (no lot with a configuration); not compared");
+        } else {
+            static const int32_t kSizes[3][2] = {{1, 1}, {2, 3}, {3, 3}};
+            uint32_t calls = 0, mismatches = 0;
+            uint32_t histOrig[9] = {}, histOurs[9] = {};
+            FirstList first;
+            const uint64_t cfgToken = TokenOf(cfg);
+            for (uint32_t i = 0; i < kCanCreateCells; ++i) {
+                const int32_t x = static_cast<int32_t>(NextRandom(seed) % static_cast<uint32_t>(cx));
+                const int32_t z = static_cast<int32_t>(NextRandom(seed) % static_cast<uint32_t>(cz));
+                for (const auto& sz : kSizes) {
+                    for (int32_t facing = 0; facing < 4; ++facing) {
+                        SC4Rect<long> bounds(static_cast<long>(x), static_cast<long>(z),
+                                             static_cast<long>(x + sz[0] - 1), static_cast<long>(z + sz[1] - 1));
+                        fc4_cell_rect rct{x, z, x + sz[0] - 1, z + sz[1] - 1};
+                        const int32_t o = lm->CanCreatePloppedLot(bounds, facing, cfg);
+                        const int32_t u = fc4_zonedev_can_create_plopped_lot(s, &rct, facing, cfgToken);
+                        ZoneDevReleaseHeld(&ctx);
+                        ++calls;
+                        if (o >= 0 && o <= 8) ++histOrig[o];
+                        if (u >= 0 && u <= 8) ++histOurs[u];
+                        if (o != u) {
+                            ++mismatches;
+                            first.Add("%d,%d %dx%d f%d:%d/%d", x, z, sz[0], sz[1], facing, o, u);
+                        }
+                    }
+                }
+            }
+            std::string body;
+            AppendF(body,
+                    "calls=%u mismatches=%u codes 0/1/3/4/7/8 orig=%u/%u/%u/%u/%u/%u ours=%u/%u/%u/%u/%u/%u; first=%s",
+                    calls, mismatches, histOrig[0], histOrig[1], histOrig[3], histOrig[4], histOrig[7], histOrig[8],
+                    histOurs[0], histOurs[1], histOurs[3], histOurs[4], histOurs[7], histOurs[8], first.Str());
+            Line(r, "CanCreatePloppedLot", body);
+            total += mismatches;
+        }
+    } else {
+        Line(r, "CanCreatePloppedLot", "INCOMPLETE (no city size); not compared");
+    }
+
     fc4_zonedev_shutdown(s);
     fc4_zonedev_destroy(s);
     ZoneDevReleaseHeld(&ctx);
@@ -541,8 +603,10 @@ void ZoneDevShadowStartup(bool zonedevReplaced) {
         "from the original zone developer's own record (its Write into memory, each cell's lot by reference) against "
         "the original lot manager: the lot count (slot 16), every cell (slot 6, originOnly 0 and 1), %u sample rects "
         "of GetLotsInCellRect (slot 7) and GetLotsSurroundingRect (slot 10) in order, GetOccupantLot (slot 14) on "
-        "sample occupants and CanCreateLot (slot 20) on %u sample cells x 4 sizes x 4 flag pairs",
-        src, static_cast<unsigned>(kListRects), static_cast<unsigned>(kCanCreateCells));
+        "sample occupants, CanCreateLot (slot 20) on %u sample cells x 4 sizes x 4 flag pairs and CanCreatePloppedLot "
+        "(slot 21) on %u sample cells x 3 sizes x 4 facings with the configuration of the first lot that has one",
+        src, static_cast<unsigned>(kListRects), static_cast<unsigned>(kCanCreateCells),
+        static_cast<unsigned>(kCanCreateCells));
     Log("zonedev shadow: NOT compared: parcellization (it changes the city and draws random numbers, zones.md §7, §9; "
         "no dry run exists: HighlightParcels draws, posts and places street drafts, §7.1), lot creation and "
         "deletion, the safe lot iterator, the master list order (a Read rebuilds it in first-cell order, §10.2)");

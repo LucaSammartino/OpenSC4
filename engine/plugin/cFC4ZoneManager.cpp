@@ -26,6 +26,7 @@
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
+#include "compat/FC4Compat.h"
 
 #include "GZServPtrs.h"
 #include "SC4CellRegion.h"
@@ -794,6 +795,73 @@ uint32_t ClearRejectedBits(void* game, const fc4_zone_region& r) {
         }
     }
     return cleared;
+}
+
+// cRZCellMap's vtable (zones.md §11.4): its only virtual is the destructor,
+// and nothing that frees a region the game owns goes through it (§13.2 frees
+// rows, row array and object with C), but a region the game destroys that way
+// still has to look like the game's own.
+constexpr uintptr_t kCellMapVtable = 0x00A86364;
+
+SC4CellRegion<long>* NewGameCellRegion(const fc4_zone_region& in) {
+    const int64_t w = int64_t{in.x1} - in.x0 + 1;
+    const int64_t h = int64_t{in.z1} - in.z0 + 1;
+    if (w <= 0 || h <= 0 || !Fits(w, h)) return nullptr;
+    const compat::ExecutableVersion* v = compat::IdentifiedVersion();
+    const uintptr_t allocVa = compat::DirectCall(compat::Direct::GlobalHeapAllocate);
+    const uintptr_t freeVa = compat::DirectCall(compat::Direct::GlobalHeapFree);
+    if (v == nullptr || allocVa == 0 || freeVa == 0) return nullptr;
+    // Both are cdecl (docs/abi/allocators.md): the game's operator new /
+    // operator delete, allocator C.
+    auto alloc = reinterpret_cast<void* (__cdecl*)(uint32_t)>(allocVa);
+    auto release = reinterpret_cast<void(__cdecl*)(void*)>(freeVa);
+    const uint32_t words = static_cast<uint32_t>((h + 31) / 32);
+    const uint32_t rowBytes = words * static_cast<uint32_t>(sizeof(uint32_t));
+
+    // The three blocks §13.2 frees: the 0x24-byte object, the row array and
+    // one block per x column (cRZCellMap's `uint32_t** data`). Columns are
+    // separate blocks so the game's per-column free is exact; a game that
+    // freed one columns block instead would leak the rest and never
+    // double-free.
+    void* mem = alloc(static_cast<uint32_t>(sizeof(GameCellRegionView)));
+    if (mem == nullptr) return nullptr;
+    GameCellRegionView* g = static_cast<GameCellRegionView*>(mem);
+    std::memset(g, 0, sizeof(*g));
+    void* rowsMem = alloc(static_cast<uint32_t>(w * sizeof(void*)));
+    if (rowsMem == nullptr) {
+        release(g);
+        return nullptr;
+    }
+    uint32_t** rows = static_cast<uint32_t**>(rowsMem);
+    std::memset(rows, 0, static_cast<size_t>(w) * sizeof(void*));
+    for (int64_t dx = 0; dx < w; ++dx) {
+        void* rowMem = alloc(rowBytes);
+        if (rowMem == nullptr) {
+            for (int64_t k = 0; k < dx; ++k) release(rows[k]);
+            release(rows);
+            release(g);
+            return nullptr;
+        }
+        rows[dx] = static_cast<uint32_t*>(rowMem);
+        std::memset(rows[dx], 0, rowBytes);
+    }
+    for (int64_t dz = 0; dz < h; ++dz) {
+        for (int64_t dx = 0; dx < w; ++dx) {
+            const size_t i = static_cast<size_t>(dz * w + dx);
+            const bool set = in.mask == nullptr || (i < in.len && in.mask[i] != 0);
+            if (set) rows[dx][dz / 32] |= 1u << (dz % 32);
+        }
+    }
+    g->x1 = in.x0;
+    g->z1 = in.z0;
+    g->x2 = in.x1;
+    g->z2 = in.z1;
+    g->map.vtbl = reinterpret_cast<const void*>(kCellMapVtable);
+    g->map.width = static_cast<uint32_t>(w);
+    g->map.height = static_cast<uint32_t>(h);
+    g->map.words = words;
+    g->map.rows = rows;
+    return reinterpret_cast<SC4CellRegion<long>*>(g);
 }
 
 bool ZoneRegionBuffer::Build(const fc4_zone_region& in) {

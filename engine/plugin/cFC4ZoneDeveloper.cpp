@@ -452,9 +452,12 @@ bool cFC4ZoneDeveloper::Shutdown() {
 
 // ---- cISC4ZoneDeveloper (§7.1, §8.8, §11.2) ------------------------------------------------------------------
 
-// Slot 5 (UI preview). [question] (§11.2, §13.2: *out receives a new C
-// region the caller frees; the caller is not traced) No region is handed
-// out: *out := null, a value the original also stores (§13.2).
+// Slot 5 (UI preview). ZG24 (zones.md §13.2): `*out` is a new
+// SC4CellRegion<long> the caller owns and frees (rows, row array and object)
+// with the game's C allocator. The only caller that passes `out` is the zone
+// tool's DoCursorUpdate, which keeps it in a field and frees the previous one
+// when it stores the next, so handing out null is safe only for a glue with no
+// zone tool; the real game always has one.
 void cFC4ZoneDeveloper::HighlightParcels(SC4CellRegion<long> const& region, cISC4ZoneManager::ZoneType zoneType,
                                          SC4Point<long>* point, SC4CellRegion<long>** out) {
     Section sec(this);
@@ -468,16 +471,44 @@ void cFC4ZoneDeveloper::HighlightParcels(SC4CellRegion<long> const& region, cISC
         pt[0] = static_cast<int32_t>(point->x);
         pt[1] = static_cast<int32_t>(point->y);
     }
+    if (out == nullptr) {
+        // No out pointer (ClearHighlights, ComputeAndMarkSelectedArea): the
+        // core is not asked for a region (§7.2 step 6).
+        fc4_zonedev_parcel_result res{};
+        res.struct_size = sizeof(res);
+        fc4_zonedev_highlight_parcels(core_, &r, static_cast<int32_t>(zoneType), point != nullptr ? pt : nullptr,
+                                      false, nullptr, nullptr, nullptr, &res);
+        return;
+    }
     bool written = false;
     fc4_cell_rect outRect{0, 0, -1, -1};
+    std::vector<uint8_t> outMask;
+    fc4_zone_region outRegion{};
+    {
+        // The region the core wrote is over the input rectangle at its
+        // largest, so that is the buffer (§7.2 step 6 starts from the input
+        // region's rect and bits). ReadZoneRegion already refused anything
+        // larger than the core accepts.
+        const int64_t w = int64_t{r.x1} - r.x0 + 1;
+        const int64_t h = int64_t{r.z1} - r.z0 + 1;
+        if (w > 0 && h > 0) {
+            outMask.assign(static_cast<size_t>(w * h), 0);
+            outRegion.mask = outMask.data();
+            outRegion.len = outMask.size();
+        }
+    }
     fc4_zonedev_parcel_result res{};
     res.struct_size = sizeof(res);
-    fc4_zonedev_highlight_parcels(core_, &r, static_cast<int32_t>(zoneType), point != nullptr ? pt : nullptr,
-                                  out != nullptr, &written, &outRect, &res);
-    if (written) {
-        NoteFew(&g_noteHighlight, "zonedev: HighlightParcels' region is not handed out (*out = null; the caller "
-                                  "and its allocator are not traced, zones.md §13.2; question)");
+    fc4_zonedev_highlight_parcels(core_, &r, static_cast<int32_t>(zoneType), point != nullptr ? pt : nullptr, true,
+                                  &written, &outRect, &outRegion, &res);
+    if (!written) return;
+    SC4CellRegion<long>* game = fc4::NewGameCellRegion(outRegion);
+    if (game == nullptr) {
+        NoteFew(&g_noteHighlight, "zonedev: WARNING HighlightParcels' region could not be built in the game's "
+                                  "layout (executable not identified, or allocator C unavailable): *out = null");
+        return;
     }
+    *out = game;
 }
 
 // Slot 6: the caller's region is neither freed nor kept (§13.2).
@@ -672,13 +703,17 @@ float cFC4ZoneDeveloper::GetLotSavvyTerrainAltitude(float x, float z, bool* onLo
     return fc4_zonedev_lot_savvy_terrain_altitude(core_, x, z, onLot);  // `ok` may be null (§8.7)
 }
 
-// Slot 19. [question] (§8.7) The spec does not say that *ok is written: it
-// is left untouched.
+// Slot 19 (§8.7, ZG22). `*ok` is written whenever `ok` is non-null, on both
+// paths, as slots 17 and 18 do: 1 for a lot with flag bit 0, 0 for the
+// terrain path. [choice] A caller that cannot take the lock is answered as
+// the terrain path (`*ok` := 0), the neutral value slots 17 and 18 give.
 float cFC4ZoneDeveloper::GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, bool* ok) {
-    (void)ok;
     Section sec(this);
-    if (!sec.ok()) return 0.0f;
-    return fc4_zonedev_lot_savvy_cell_altitude(core_, cellX, cellZ);
+    if (!sec.ok()) {
+        if (ok != nullptr) *ok = false;
+        return 0.0f;
+    }
+    return fc4_zonedev_lot_savvy_cell_altitude(core_, cellX, cellZ, ok);
 }
 
 // Slot 20 (§8.4). ZG34 (tract-developer.md §4.15.3): a failed
