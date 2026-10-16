@@ -508,6 +508,72 @@ compatibility surface.
 **Version behaviour.** Write **always emits version 3 and all seven fields**, whatever version was read; Read
 accepts ≤ 3 and reads `+0x20` only at version ≥ 3. So a re-save of an older state record upgrades it (see
 QUESTIONS.md AM1). The default state's constructor (`0x0050B7F0`'s default branch) zeroes `+0x08` … `+0x24`.
+**The state base fields, named** (re-integrate1, from `cSC4Automaton::PushState` Mac `0x000bf7d0` /
+Windows `0x0050EF50`, which writes every one of them, and `tAutomataState::Write`/`Read`
+Mac `0x000c3aa0`/`0x000c43f8`, Windows `0x00509D00`/`0x00505E50`). Object offsets are **Windows**:
+
+| Offset | Type | Name | Evidence |
+|---|---|---|---|
+| `+0x00` | vtable | — | every state ctor, e.g. Mac `0x0063803a` |
+| `+0x04` | `u32` | **state type** | not in the save; written by `PushState` from `param_1`, read as the dispatch key (Mac `0x000bd464`) |
+| `+0x08` | `ref`, IID `0x6A1857F8` | **controller** | Read/Write; every tick first goes to `controller->vtable+0x70` (Mac `0x000bd464`) |
+| **`+0x0C`** | `u32` | **stack index** (0-based, bottom = 0) | `PushState` sets it to `stack.size()-1` after the push (Mac `0x000bf7d0`). `PrevState(s)` = `stack[s->+0x0C - 1]`, the state below (Mac `0x000bbee4`, Windows `0x00509900`). **Not a parameter** — see the quirk below. |
+| **`+0x10`** | `f32` | **countdown, milliseconds** | `DoStateTick` subtracts `dt` and `PopState`s on expiry (Mac `0x000bd464`). ≤ 0 means "never expires". Supplied by `PushState` `param_3`; behaviour templates derive it as `template+0x28` seconds × 1000, or −1.0 if `+0x28 ≤ 0` (`tBehaviorTemplate::GetTimeoutMilliseconds` `0x000b4162`) |
+| **`+0x14`** | `bool` | **`final`** | Named by the Lua behaviour key **`final`** (`ImportBehaviorTable`, Windows `0x00522860` → `template+0x2C` → `PushState` `param_4`). `SetState` refuses to run while the top state has it (Mac `0x000bd3ca`, Windows `0x00509860`). `PopState` on a `final` state that is not already type 1 does **not** reveal the state below — it does `PushState(1, 0, -1.0, 0, 0, 0, 0)` (DISAPPEAR) instead (Mac `0x000bd2de`, Windows `0x0050B660`) |
+| **`+0x18`** | `u32` | **SFX id** | `HandleEnterState` calls `StartSFX` with it when non-zero (vtable `+0xF4`), `HandleExitState` calls `StopSFX` (`+0xF8`) (Mac `0x000c0c8e` / `0x000c0418`). From `PushState` `param_6`, which `PushBehavior` fills from a random entry of the template's **`sfx`** list (`template+0x1C`, `0x000be558`) |
+| **`+0x1C`** | `u32` | **animation id** | `HandleEnterState` applies it via vtable `+0x4C` (Windows `0x00510240`); `DoRandomWalkTick` re-applies it when leaving an idle (Mac `0x000c4b58`). From `PushState` `param_5`, filled by `PushBehavior` from a random name in the template's **`anims`** list resolved through vtable `+0x14C` |
+| **`+0x20`** | `u32` | **automata-flags snapshot** | On enter: `state+0x20 = automaton+0x84` (Mac `0x000c0c8e`). On exit: `automaton+0x84 = (automaton+0x84 & 0x600C001) \| state+0x20` (Mac `0x000c0418`). `+0x84` is the flags word (`SetAutomataFlag` `0x004FAD20`, `CheckAutomataFlag` `0x004FAD60`) |
+| **`+0x24`** | `tBehaviorTemplate const*` | **behaviour template** | `PushState` `param_7`. Not saved — `Read` zeroes it (Mac `0x000c43f8`). On enter, if non-null, its six bools at `+0x44..+0x49` set automata flags `0x2000`, `0x20000`, `0x40000`, `0x4000`, `0x400000`, `0x800000`, then `SetSpeedFromBehaviorTemplate` is called with it (vtable `+0x150` = Windows `0x00505780`). `DoRandomWalkTick` falls back to `_sDefaultBehaviorTemplate` when it is null |
+
+`PushState`'s full signature (Mac `0x000bf7d0`, authoritative):
+
+```
+PushState(u32 type, cISC4AutomataController* controller, float timeout_ms,
+          bool final, ulong animId, ulong sfxId, tBehaviorTemplate const* template)
+```
+
+`SetState` = pop everything then `PushState`, aborting with 0 if any top state is `final`.
+`PushState(0, 0, …)` delegates to `SetState` (Mac `0x000bf7d0`).
+
+**The behaviour template** (`tBehaviorTemplate`, ctor Windows `0x0050BD40` / Mac `0x00639a70`) — the Lua
+keys are read by `cSC4AutomataScriptSystem::ImportBehaviorTable` (Windows `0x00522860` / Mac `0x0015b978`):
+
+| Lua key | Offset | Default | Used as |
+|---|---|---|---|
+| `state` | `+0x00` | — | the state type |
+| `radius` | `+0x04` | `FLT_MAX` | |
+| `percentage` | `+0x08` | 1.0 | chance a candidate state is adopted |
+| `priority` | `+0x0C` | 1 | |
+| `anims` | `+0x10` | | `vector<string>` → state `+0x1C` |
+| `sfx` | `+0x1C` | | `vector<u32>` → state `+0x18` |
+| `timeout` | `+0x28` | | seconds → state `+0x10` × 1000 |
+| **`final`** | `+0x2C` | | → state `+0x14` |
+| `kph_multiply` | `+0x30`/`+0x34` | 1, 1 | speed multiplier range |
+| `kph` | `+0x38`/`+0x3C` | −1, −1 | integer kph override; × 1/3600 → units per ms (`0x000bb23c`) |
+| `acceleration` | `+0x40` | 0.5 | passed to `SetSpeed` |
+| `ignore_paths` … `avoid_roads` | `+0x44..+0x49` | | → the six automata flags of `+0x24` above |
+| `path_offset` | `+0x4C` | 0 | |
+| `random_walk.delay` | `+0x50`/`+0x54` | 10, 15 | seconds between turns |
+| `random_walk.turn` | `+0x58`/`+0x5C` | 0.01, 0.2 | turn amplitude / bias, as a fraction of a full turn |
+| `random_walk.strength` | `+0x60`/`+0x64` | 1, 1 | |
+| `random_walk.idle_delay` | `+0x68`/`+0x6C` | 0, 0 | walk duration; ≈0 means never rest |
+| `random_walk.idle_time` | `+0x70`/`+0x74` | 5, 10 | rest duration |
+| `random_walk.deceleration` | `+0x78` | 0.5 | rest speed passed to `SetSpeed` |
+
+**Per-type record layouts** (the field order a round trip must use):
+
+| Type | Object offsets | Stream order | Notes |
+|---|---|---|---|
+| `0x0B` RandomWalk | `+0x28..+0x3C` | `vec3`, `f32`, `f32` | heading, turn countdown, walk/idle countdown; `+0x3C` is a `bool` idle-anim-playing, unsaved |
+| `0x0E` Plummet | `+0x28` descent velocity, `+0x2C` roll rate, `+0x30` roll centre, `+0x34` tumble countdown ms, `+0x38` post-splash countdown ms, `+0x3C` unsaved `ref` | **`+0x28, +0x34, +0x30, +0x2C, +0x38`** (Mac `0x000c3e36` / `0x000c47f4`) | **not offset order.** `+0x3C` is a `ref` zeroed on Read, not a sixth `f32` (§12 quirk 12) |
+| `0x0F` PlopJump | `+0x28` floor Y, `+0x2C` vertical velocity | `f32`, `f32` | |
+| `0x10` PlayerDrive | `+0x28` one `f32` | `f32` | record is `0x274` bytes; only `+0x28` is saved |
+| `0x11` Bumped | `+0x28/+0x34/+0x40/+0x4C` 4 × `vec3` | `vec3` × 4 | no reader found (§12 quirk 13) |
+| `0x13` AttachAnim | `+0x28` `ref` model (`0xA818EDD8`), `+0x30` `u16` anim selector, `+0x2C` `bool` | `ref`, `u16`, `bool` (Mac `0x000c3bba` / `0x000c453a`) | **the `bool` sits before the `u16` in memory** (§12 quirk 14) |
+| `0x14` Collide | none | none | pushed `final=1` with a 5000 ms timeout |
+| `0x15` PullOver | `+0x28` one `f32` | `f32` | **the two reports read this field differently** — see the conflict note in §6.5 |
+| `0x34` Chase | `+0x28` `ref` automaton (`0xA9B40F05`) | `ref` | **a pure record**: no `0x34` case in any `DoStateTick` (§12 quirk 15) |
+| 8 RiotLeader | `+0x28` `s32` last cell X, `+0x2C` `s32` last cell Z, `+0x30` `u8` heading 0–3 | `s32`, `s32`, `u8` | |
 
 | Type | Name | After the base | Write / Read |
 |---|---|---|---|
@@ -577,6 +643,25 @@ collision update returns at once (Mac build).
 Corpus state types: `0x0B` 80,519; 0 811; 2 381; 7 107; `0x0D` 101; 3 32; `0x14` 10. In words: random walk,
 default, bee line, idle, blocked wait, crowd and collide. State versions: 2 in 80,080, 3 in 1,881.
 
+**How a state is ticked, and the returned-0 convention** (re-integrate1). `t = stack.end[-1]` (the state
+stack vector at the automaton `+0xB4`/`+0xB8`), `t->+0x04` is the state type. `cSC4Automaton::DoStateTick`
+(Windows `0x00508AA0` / Mac `0x000bd464`) does, in order:
+
+1. If `t->+0x10 > 0`, subtract `dt`; if it goes negative call **`PopState`** (vtable `+0xD4`) and take the new
+   top. So `+0x10` is a countdown in **milliseconds**; `dt` is in ms (`DoRandomWalkTick` divides by 1000 to
+   get seconds).
+2. If `t->+0x08` (controller) is non-null, give it first refusal via controller vtable `+0x70`
+   `(automaton, type, dt)`. A non-zero reply suppresses the automaton's own tick.
+3. Otherwise switch on the type. **A type with no case returns 0.**
+4. The return value means **"I moved myself"**: `cSC4Automaton::DoAnimationTick` (Mac `0x000c50b0`) only runs
+   the generic seek-to-destination when `DoStateTick` returns **0**. That is what type 0 `DEFAULT` is.
+
+So **returned 0 ⇒ `DoAnimationTick` seeks the destination**; returned 1 ⇒ the state handled its own movement.
+Derived dispatchers layered on the base: `cSC4TrafficAutomaton::DoStateTick` `0x00550090` (13, 30);
+`cSC4Vehicle::DoStateTick` `0x0055CA90` (14, 21); `cSC4Pedestrian::DoStateTick` `0x00546BC0`
+(2, 3, 4, 6, 8, 9, 12); `cSC4EmergencyVehicle::DoStateTick` `0x0052F490` (100–103);
+`cSC4Watercraft::DoStateTick` `0x00573340` (7, 70–78).
+
 ### 6.3 Traffic automaton, version 2 (Write `0x00551DE0`, Read `0x00554D20`, requires 2)
 
 `u16` 2, the automaton base record, `ref` automaton (`0xA9B40F05`), `u32`, `u8`, `ref` network occupant
@@ -631,6 +716,354 @@ record, then the `vec3`.
   loaded one moves to it instead, so it is the position the aircraft was placed at.
 - Aircraft and watercraft carry no traffic record (§6.3). Their own state types (50–58 and 70–78, §6.2) all use
   the default record, except `CHASE` (52).
+
+§6.5 and §6.6 below are **behaviour, not records**: what each state type does per frame. They sit under §6
+because they belong with the state types; nothing in them is saved.
+
+### 6.5 Per-tick behaviour of the state types *[compat]*
+
+Every claim here is from Windows `SimCity4.exe` 1.1.641 Ghidra pseudocode and Mac Rev A pseudocode
+(`external/extracted/sc4-mac-symbol-analysis/artifacts/code/Mac-RevA-x86-named/functions/`). **Platform note
+(re-integrate1):** for the upper automaton the Mac object offsets run `+0x10`–`+0x18` **above** the Windows ones
+for fields ≥ roughly `+0x1A0` (verified: TweenStruct Win `+0x1A0` / Mac `+0x1B0`; network occupant Win `+0x1EC` /
+Mac `+0x1FC`; path vector Win `+0x1F8` / Mac `+0x208`), while `+0x40 … +0xB8` agree. **Vtable slots agree up to
+slot 62; from slot 79 upward Mac slot = Windows slot + 7** (verified pairs: `DoCollideTick` Win 120 / Mac
+`+0x1FC`·127; blocked wait Win `0xA3` / Mac `+0x2A8`·170; station Win `0xA4` / Mac `+0x2AC`·171; plummet Win
+`0xB9` / Mac `+0x300`·192; emergency 100 Win `0xC3` / Mac `+0x328`·202). Offsets in this section are **Windows**
+unless a Mac address is cited.
+
+**Two corrections to the slot tables of §7.4 / §11** (re-integrate1):
+
+- **`MoveTo` is slot 16 / `vtable+0x40`**, not slot 8 or 14. `cSC4Automaton::MoveTo(float const* pos, float
+  const* orient)` (Mac `0x000c53a4`) takes either pointer null. It writes `this+0x40/0x44/0x48` from `pos`,
+  `this+0x58/0x5C/0x60` (normalised) from `orient`, rebuilds the `cS3DTransform` of every model in the instance
+  vector at `this+0x110` and does the 1/16 cell bookkeeping. `SetPosition` (Mac `0x000bc802`) and `SetOrientation`
+  (Mac `0x000c58ca`) are separate 1-argument methods and are **not** what these ticks call.
+- **Frame `dt` is milliseconds** (`cSC4Vehicle::DoAnimationTick` Mac `0x000a0c52` computes `param_2/1000.0`;
+  `DoPullOverTick` computes `radius*1.5*dt/1000.0`; countdowns compare against `1000.0` and are initialised
+  `rand*1000.0`). **Tween durations are seconds** — `cSC4TrafficAutomaton::DoAnimationTick` (Mac `0x000cad9e`)
+  steps the speed tween as `elapsed += dt/1000.0`, and the plummet splash pairs `TweenOpacity(0, r)` with
+  `state+0x38 = r*1000.0` ms.
+
+**TweenStruct** (automaton `+0x1B0` speed, `+0x1C0` opacity; Win `+0x1A0`/`+0x1B0`):
+`+0x0` start, `+0x4` target, `+0x8` duration, `+0xC` elapsed. `GetCurrent` (`0x004FA960` / Mac `0x0062c82a`) =
+`start + clamp(elapsed/duration, 0, 1)·(target−start)`, or `target` when `duration ≤ 0`. Two setter slots, both
+`(target, durationSeconds)`:
+
+- **slot 33 / `+0x84` = `TweenOpacity(target, dur)`** *[inferred name]* — called `(1.0, 0)` for an instant opaque
+  at player-drive entry (Mac `0x000c0c8e` case `0x10`), `(0, tuning+0xBC)` on entering state `0x67`,
+  `(1.0, tuning+0xBC)` in the teleport tick, `(0, r)` for the plummet splash.
+- **slot 36 / `+0x90` = `TweenSpeed(target, dur)`** *[inferred name]* — `SlowDownForStopLight` (Mac `0x000ca9de`)
+  `(0, 1.5/m)`, `ReturnToDefaultSpeed` (Mac `0x000caa42`) `(defaultSpeed, 0.3/m)`, pull-over `(0.0040365, 1.0)`,
+  station entry `(0, 0.5)`, path-following `(leaderSpeed, 0.5)`.
+
+**Automata flag bits**, from `GetDebugFlagsText` (`0x00511A90` / Mac `0x000c3346`) — this table supersedes the
+shorter one in §6.1 field 4: `0x1` remove · `0x2` self control · `0x4` reached dest · `0x8` collide · `0x10` stop
+light · `0x20` stopped · `0x40` special route · `0x80` Emergency! · `0x200` repathing · `0x400` teleporting ·
+`0x800` ignore lights · `0x2000` (checked before path-following) · `0x20000` · `0x40000` · `0x4000` ·
+`0x80000` (player-drive helpers) · `0x10000` · `0x2000000`.
+
+**MATCHES / DIFFERS / PARTLY** against the §6.2 text as it stood before this lane (re-integrate1):
+
+- **MATCHES** — the type→class→size table and the Write/Read addresses; the base record's *types and order*
+  (`u16` v3, `ref` controller, `u32`, `f32`, `bool`, `u32`, `u32`, and a final `u32` in v3, with `+0x24` zeroed
+  on Read; Mac `0x000c3aa0`/`0x000c43f8` confirm field for field); "type 13 is the traffic automaton's blocked
+  wait", the push with `t × 1000.0`, flag `0x10`, and the early return while it is on top; the derived
+  type→name mapping and the Lua table; "random walks add [the attraction vector] to their step"
+  (`0x000c4b58`, with the guard flag `ignore_attractors` = `0x4000`); Collide having no extra record fields.
+- **DIFFERS** — five points, each now corrected in place: (1) `+0x0C` is a stack index recomputed after any
+  stack mutation, not a plain saved `u32`; (2) `+0x14` is `final` and makes `SetState` a no-op, so the riot
+  end's `SetState(1, …)` does nothing to the leader; (3) Plummet's stream order is `+0x28, +0x34, +0x30, +0x2C,
+  +0x38` and there is an unsaved sixth `ref` at `+0x3C`; (4) AttachAnim's `bool` sits at `+0x2C` before the
+  `u16` at `+0x30`; (5) Chase is a pure record with no tick. See §12 quirks 10–15 and the §6.2 layouts.
+- **PARTLY** — Bumped (0x11) has a record and a class but **no tick anywhere** (quirk 13); type 0 `DEFAULT` is
+  not "nothing" but the generic seek-to-destination (quirk 16); and for types 50–58 / 70–78 the spec's "base
+  only, except 52" is true of the *record*, but 50, 51, 53, 54, 55, 56, 57 and 70–75, 77, 78 all have real
+  per-tick logic — only **58 `CROP_DUST`** and **76 `MARINA_PARKED`** are name-only (§6.5, §6.6).
+
+**Where the two reports disagree** (re-integrate1 — both readings given with their addresses, neither picked):
+
+1. **Plummet's `+0x28` at enter.** The automata report gives `+0x28 = −0.004166667` (−1/240) in
+   `HandleEnterState` case `0x0E` (Windows `0x005114A1`), and describes `+0x28` as a descent velocity that
+   `DoPlummetTick` advances by a gravity term from `_DAT_00B22980`. The vehicle report gives the same field's
+   enter value as `0xBB88888A` = **−0.0080729163** (Win `0x0055E1F0` / Mac `0x000a2e16`, enter at Win
+   `0x00511450` / Mac `0x000c0c8e` case `0x0E`), and names the gravity `kfGravityAccel = −0.00083333347`, a
+   lazy-init function-local static at `0x00B22980`. **Both agree** on the gravity's address and on the impact
+   value `0x3991A2B5` = 0.0002777778 (1/3600); only the enter constant differs, and they differ by roughly 2×.
+   Settle by reading the constant in `HandleEnterState` case `0x0E` on both builds.
+2. **PullOver's `+0x28`.** The automata report reads `if (+0x28 == 0.0)` as an **"already initialised" latch**
+   (Win `0x0055E550` / Mac `0x000a2978`): 0 seeds `+0x2C..+0x34` from the orientation and `+0x38..+0x40` as
+   its −90° Y-rotation. The vehicle report reads it as an **elapsed-milliseconds counter** — 0 = init,
+   `0 < +0x28 < 1000` = driving off, `+0x28 ≥ 1000` = finish — because the tick ends with
+   `+0x28 += dt` and the finish branch restores the saved heading and pops. These are compatible only if the
+   field is an elapsed counter that happens to be 0 on the first tick; the "latch" reading misses the 1000 ms
+   finish threshold and the increment. Settle by watching `+0x28` across a pull-over.
+
+**Per-frame detail for the vehicle and traffic states** (re-integrate1). Offsets are Windows; the platform note
+at the top of this section applies.
+
+- **Plummet (`0x0E`)** — `cSC4Vehicle::DoPlummetTick`, Win `0x0055E1F0` / Mac `0x000a2e16`, record `0x40`.
+  Fields: `+0x28` vertical velocity, `+0x2C` Y-spin rate (enter 0.5), `+0x30` Y-orientation centre (copy of
+  `this+0x5C`), `+0x34` tumble countdown ms (enter `U(1.0, 2.5)·1000`), `+0x38` post-splash countdown ms
+  (enter 0), `+0x3C` water-splash effect pointer (unsaved). Per frame:
+  1. flag 1 set → `MoveTo(&newPos, 0)` and return 1;
+  2. **tumble while `+0x34 > 0`:** `+0x34 -= dt`; build orientation `(this+0x58, this+0x5C + dt·0.01·(+0x2C),
+     this+0x60)`; if the new Y leaves `[+0x30 − 0.05, +0x30 + 0.05]` flip the sign of `+0x2C` (XOR `0x80000000`)
+     and clamp Y to the band edge; `Normalize`, `MoveTo(0, &orient)`, return 1. **No translation in this phase.**
+  3. **fall:** new position = `(this+0x40, this+0x44 + dt·(+0x28), this+0x48)`;
+  4. if `+0x38 > 0`: `+0x38 -= dt`; on `≤ 0` destroy the effect at `+0x3C` (`vtable+0x10(0)`, `vtable+0x08()`,
+     then `+0x3C = 0`) and `Remove(0)` (slot 13);
+  5. `+0x28 += dt · kfGravityAccel` (`0x00B22980`);
+  6. `SL::spCity->vtable+0x188(x, z)` in-city test — outside → `Remove(0)`;
+  7. inside: `hi = max(terrain height `spTerrain->vtable+0x30`, water height `spTerrain->vtable+0x7C`)`. If
+     `hi < newY` or `+0x38 > 0` nothing happens; otherwise the surface is reached and `+0x28 = 0x3991A2B5`
+     (1/3600). **Water** (`h1 < newY`) starts the splash: `spEffectsManager->vtable+0x18(_kWaterSplashEffectName,
+     &state+0x3C)`, an identity transform translated to the new position, `vtable+0x0C(0)`, `TweenOpacity(0, r)`
+     (slot 33) and `+0x38 = r·1000.0` — **no `Remove` here**. **Land** sets `+0x38 = 0` and falls through to
+     `Remove(0)`;
+  8. `MoveTo(&newPos, 0)` (slot 16), return 1.
+
+  It ends via `Remove(0)` — either on terrain impact or leaving the city, or `+0x38` ms after the water splash
+  expires. **No `PopState`/`SetState`**: the state is never popped, the automaton is destroyed.
+
+- **PullOver (`0x15`)** — `cSC4Vehicle::DoPullOverTick`, Win `0x0055E550` / Mac `0x000a2978`, record `0x44`.
+  Ctor (Mac `0x0063817a`) sets `+0x28 = 0`, `+0x2C = 1.0`, `+0x30..+0x38 = 0`, `+0x40 = 1.0` — the unit pair
+  `(1,0,0)` and its −90° Y-rotation `(0,0,1)`. `+0x2C..+0x34` is the pull-off heading (unit `vec3`), `+0x38..+0x40`
+  the sideways drift direction (the heading rotated `−1.5707964` about Y). Per frame:
+  1. flag 1 set → return 1 immediately (no timer advance);
+  2. branch on `+0x28` (see the conflict note above): **0 (init)** → `TweenSpeed(0x3B88888A = 0.0040364582, 1.0)`
+     (slot 36) to creep off the road for 1 s; seed the two vectors from `this+0x58/5C/60`; then ask
+     `controller->vtable+0x18` → `->vtable+0x20` for a point, and if `dot(position − point, +0x38..+0x40) < 0`
+     negate all three components of `+0x38..+0x40` so the vehicle drifts to the correct side. **`0 < +0x28 < 1000`**
+     (moving off) → only if `GetSpeed()·dt > 0` (slot 34): a sideways step of length `this+0x7C (radius) · 1.5 ·
+     dt/1000.0` plus a heading step of length `speed·dt`; `spTrafficNetworkMap->vtable+0x48(x, z)` snaps the new Y
+     to the terrain; the normalised delta becomes the orientation (written only when its Y is finite — an explicit
+     NaN/Inf test); `this+0x94 = 0`; `MoveTo(&newPos, &newOrient)`. **`+0x28 ≥ 1000`** (finish) → restore the saved
+     heading into `this+0x58/5C/60`, `MoveTo(0, &orient)`, then `spCity->vtable+0x17c(x, z, &a, &b)` and
+     `spTrafficSim->vtable+0x64(1, a, b)`; **if that returns > 3 → `PopState()`** (slot 53); then
+     `controller->vtable+0x5C(controller, &this+0x40, 0)` and **if it returns false → `PopState()`** again;
+  3. always (flag 1 clear): `+0x28 += dt`.
+
+  It ends by `PopState()` only — the automaton is not removed.
+
+- **Blocked wait (13, `0x0D`)** — `cSC4TrafficAutomaton::DoStopSignTick`, **Windows `0x005500D0`** (Ghidra
+  leaves it as `FUN_005500D0`) / Mac `0x000cbe5e`, Windows slot `0xA3` / Mac `+0x2A8`. Record is base only
+  (`0x28`), so it uses the base `+0x10` countdown. Per frame: if `state+0x10 > 0`, `CheckAutomataFlag(0x20)` —
+  **clear → return 0** (no-op); set → `state+0x10 -= GetSpeedModifier() · dt` (`FUN_00505AB0` / Mac `0x000bb5e6`,
+  which returns `cSC4AutomataManager::sfSimSpeedModifier`, clamped to 0/1 when flag `0x80` is set) and return 1
+  while still > 0. On expiry: slot `0xA0` (`+0x280` Win / `+0x29C` Mac) *[inferred `ReturnToDefaultSpeed`]*, then
+  `SetAutomataFlag(0x20, 0)` and `SetAutomataFlag(0x10, 0)`, then `obj = spCity->vtable+0xA0` and
+  `obj->vtable+0x84(obj, this+0x1EC /* network occupant, Mac +0x1FC */, this, routeInfo, &out)` where
+  `routeInfo = this->vtable+0x88(this)` (Win `+0x220` / Mac `+0x23C`) — **if it returns 0 → `PopState()`**.
+  Return **0**. No position, destination, orientation or model changes.
+
+- **STOP_AT_STATION (30)** — `cSC4TrafficAutomaton::DoStopAtStationTick`, Win `0x0054E3D0` / Mac `0x000ca8bc`,
+  Windows slot `0xA4` / Mac `+0x2AC`. It is a **speed-tween wrapper**, not station logic: read
+  `TweenStruct::GetCurrent(this+0x1B0)` (Win `+0x1A0`); if `t > 0` call slot `0x81` = `DoPathTick(this, dt)` to
+  keep driving while the tweened speed has not reached 0; then `cSC4Automaton::DoStateTick(this, dt)`; return 1.
+  Entry (Mac `0x000cf390` case `0x1E`) is `TweenSpeed(0, 0.5)`. The **bus** variant
+  `cSC4Bus::DoStopAtStationTick` (Win `0x00524180` / Mac `0x0039155e`) does the real dwell: requires flag `0x20`
+  or 4; if `state+0x10 ≤ dt` run the base tick and return (dwell expired) else `state+0x10 -= dt`; then
+  `RandomUint32Uniform` skips roughly half the frames; query `spOccupantManager->vtable+0x90` for occupants in an
+  AABB of `kfNearbyPedRadius` around `this+0x40`/`+0x48`, filter `0x496E5783`, and for each hit `QueryInterface
+  (0xA9B40F05)` then `GetTopStateType()` (slot 59) — **if it is `4` QUEUE, `Remove(0)` that pedestrian** (slot 13)
+  and stop scanning. If no queued pedestrian was boarded → `PopState()`; if one was, keep dwelling.
+
+- **Emergency vehicles 100–103, and 104 for patrol cars** — `cSC4EmergencyVehicle::DoStateTick` Win `0x0052F490` /
+  Mac `0x00235632`. Empty stack or `GetState() == 0` → return false. Then switch on `state+4`:
+
+  | Type | Name | Win slot | Mac `vtable+` | Method |
+  |---|---|---|---|---|
+  | 100 `0x64` | `EN_ROUTE` | `0xC3` | `0x328` | `DoEnRouteTick` Win `0x0052FD50` / Mac `0x0023571c` |
+  | 101 `0x65` | `REPATHING` | `0xC4` | `0x32C` | `DoRepathingTick` Win `0x0052FE50` / Mac `0x00235abe` |
+  | 102 `0x66` | `HANDLING_EVENT` | `0xC5` | `0x330` | `DoHandlingEventTick` (base stub Mac `0x00234a28`) |
+  | 103 `0x67` | `TELEPORT` | `0xC6` | `0x334` | `DoTeleportTick` Win `0x0052F570` / Mac `0x00235d84` |
+  | 104 `0x68` | `ARREST` (patrol car only) | `0xC8` | `0x33C` | `cSC4PatrolCar::DoArrestTick` Win `0x00544060` / Mac `0x00397b62` |
+
+  Any other type falls through to `cSC4Vehicle::DoStateTick`; if that returns false, the result is
+  `GetState() !=` the pointer captured at entry (i.e. "the state stack changed"). Naming evidence:
+  `cSC4EmergencyVehicle::SetDispatchState` (Win `0x0052FF60` / Mac `0x00234e62`) case 3 does
+  `SetState(100, 0, −1.0, 0, 0, 0, 0)`; `GetDebugExtraText` (Win `0x00532290`) names the dispatch states
+  `0 "[at station]"`, `1 "[route blocked]"`, `2 "[done]"`, `3 "[en route]"`, `4 "[no resources]"`,
+  `5 "[handling event]"`, `6 "[returning home]"`; `FUN_0052F210` does `SetDispatchState(5)` + `SetState(0x66)`
+  on arrival at an event, or `SetDispatchState(1)` + `PushState(0x65)` + `PushState(7, …)` on a blocked route;
+  `FUN_0052F330` does `SetDispatchState(6)` + `PushState(0x67)`. `HandleEnterState` case `0x67` fades opacity
+  out, which only the teleport tick fades back in. Slots 25/26 are `SetDispatchState(int)` / `GetDispatchState()`
+  (offsets `0x64`/`0x68`).
+
+  - **`DoEnRouteTick`** — while the route is unfinished and the network occupant (`+0x1FC`) is set: flag
+    `0x2000` clear → `cSC4Vehicle::DoPathTick`, else `cSC4TrafficAutomaton::DoStraightLineTick`. When finished:
+    `Remove(0)` or `HandleReachedRouteDestination`. `ValidateNetworkOccupant` failing → `Remove(0)`. Otherwise,
+    if the route deque is non-empty, flag `0x20` is set on both this automaton and its leader `+0xB0`, slot `0x94`
+    (Mac `+0x26C`) supplies a replacement leader. Returns 1.
+  - **`DoRepathingTick`** — `spCity->vtable+0xAC` is the path-finder. On success: `SetDispatchState(3)`,
+    `PopState()`, retry counter `this+0x2D8 = 0`. Otherwise increment `this+0x2D8`; while `≤ sTuningParams[0xF1]`
+    send the path-blocked message (Win `0x0052F910`) and `PushState(7, 0, sTuningParams[0xEC] · 1000.0, 0, 0, 0, 0)`
+    (IDLE for that many ms); past that, `Remove(0)`. Fields: the incident `vec3` at `+0x2C8/0x2CC/0x2D0`, the retry
+    counter `u8` at `+0x2D8` (Windows ≈ `0x2B8/0x2BC/0x2C0`, `0x2C8`).
+  - **`DoTeleportTick`** — read the **opacity** tween at `this+0x1C0`; while `t > 0.6` (or NaN) return 1 (still
+    fading out). Then `TweenOpacity(1.0, sTuningParams[0xBC])` to fade back in. If `this+0x2D4 == 0` (the
+    `ref` occupant `0x26BB767E`, the incident) → `Remove(0)`. If `|cur − target| < (u8)sTuningParams[0xF0] · 16`
+    (cells → metres) → `Remove(0)`. Otherwise `SetDispatchState(6)` and request `{0, this+0x2D4, 1, position}` from
+    `spCity->vtable+0xAC`: on success `this+0x2D8 = 0` and **`SetState(0, 0, −1.0, 0, 0, 0, 0)`** (snap to
+    DEFAULT and drive the new route); on failure `Remove(0)`.
+  - **`cSC4FireTruck::DoHandlingEventTick`** Win `0x005335F0` / Mac `0x003988ae` (the Windows decomp fails; the
+    Mac is authoritative) — from `GetFireCount` / `GetToxicSpillCount`: dispatch 2 with work outstanding →
+    `SetDispatchState(5)`; no fire left while dispatch 5 and not player-driven → `SetDispatchState(2)`;
+    dispatch 2 with nothing left → `ReturnToSourceOccupant()` (slot 29). No movement, no model changes.
+    `cSC4PatrolCar::DoHandlingEventTick` (Mac `0x00397afa`) is thinner and checks the riot manager
+    (`spCity->vtable+0x120` → `vtable+0x28`).
+  - **`DoArrestTick`** — dwell on the base `+0x10`, then swap model 0 to the arrest animation and wait for that
+    animation to finish, then `PopState()`. While `state+0x10 ≤ 0`: if the model's current frame
+    (`vtable+0x78`) is `≥ frames − 1` (`vtable+0x7C`) → `PopState()`. Otherwise `state+0x10 -= dt`, and on
+    reaching `≤ 0` this tick query `spCrimeSim` (`vtable+0x24` / `vtable+0x28` at 20.0 units) and either push
+    `SetState(7, 0, 5000.0, 1, 0, 0, 0)` on a suspect or loop up to 5 times on `vtable+0x2C(1)`; then build the
+    key `(this+0x11C, +0x120, +0x124)`, pick `_kArrestAnimationInstance[index]` with
+    `index = (int)((pol->vtable+0x64(…) · 100.0) / 40.0)` when `this+0x2D4` is set and the police sim agrees,
+    `ReplaceModelInstance` (Mac `0x000c11fc`) and play it (`model[0]->vtable+0x8C(1)`).
+  - **BUMPED (`0x11`) and COLLIDE (`0x14`)** — `cSC4Vehicle::DoBumpedTick` is a 7-byte `return 0` (Mac
+    `0x000a083e`); `cSC4Automaton::DoBumpedTick` is `return !CheckAutomataFlag(1)` (Mac `0x000bb14e`). There is
+    no `0x11` case anywhere, so a vehicle's Bumped state expires only through the base countdown's `PopState`.
+    `cSC4Vehicle::DoCollideTick` (Mac `0x000a0846`, 29 bytes) tail-calls `cSC4Automaton::DoCollideTick`
+    (Win `0x00508D70` / Mac `0x000bdbc8`, Windows slot 120 / Mac `+0x1FC`). That tick: flag 1 set → return 0;
+    `*(byte*)(this+0x33) & 2` → `SetVisible(false)` (slot 9); apply the saved crash transform at `this+0x170` to
+    the front model (`this+0x110`) through `->vtable+0x20`; `*(byte*)(this+0x33) & 1` → notify
+    `spOccupantManager->vtable+0x60(&this+4, 0)`; every time `*(f32*)(this+0x1D0) > 100.0` emit event id 9 and
+    reset it. Return 1. No position, destination or speed changes.
+
+- **`DoPathTick` / `DoStraightLineTick`** (movement, driven every frame from `DoAnimationTick` — see above):
+  `cSC4Vehicle::DoPathTick` Win `0x0055CAF0` / Mac `0x000a4450` and `cSC4TrafficAutomaton::DoPathTick`
+  **Win `0x0054FDC0`** / Mac `0x000d12fe` both advance along the path with
+  `step = GetSpeed() · speedScale · dt`, matching the leader's speed (`TweenSpeed(leaderSpeed, 0.5)`, slot 36)
+  when the distance remaining is under 16.0, flagging `0x20` ("stopped") and `4` ("reached dest") at the ends,
+  `Remove(0)`ing when the step goes below `−GetMaxSpeed()` and flag `0x40` is clear, and writing
+  `this+0x94 = |newPos − oldPos| / dt` as the measured current speed *[inferred]*. The vehicle version writes a
+  back-anchored destination `out − radius·0.5·facing` and keeps the path vector; the traffic version writes the
+  path-advance output straight into the destination field and passes nulls for the path vector.
+  `cSC4TrafficAutomaton::DoStraightLineTick` Win `0x00550190` / Mac `0x000d2c62` forces destination Y to 0,
+  flags arrival without snapping to the destination on the last frame, and `Remove(0)`s when the collision query
+  `obj->vtable+0xB0(obj, &position, &newPos, flags)` fails.
+
+**The behaviour table.** "Returns 1" means the state moved itself (so `DoAnimationTick` does not seek);
+"returns 0" means it did not.
+
+| # | Lua name | What it does per tick | Extra record fields |
+|---|---|---|---|
+| 0 | `DEFAULT` | nothing of its own; `DoAnimationTick` seeks `destination` at `GetCurrentSpeed()` and sets flag **4** on arrival | none |
+| 1 | `DISAPPEAR` | each tick `Remove(0)` unless flag 1 already set; returns 1 | none |
+| 2 | `BEE_LINE` | normalise automaton `+0xA4/+0xA8/+0xAC`, `MoveForwardWithCollision` (`0x00546150`) | none |
+| 3 | `CROWD` | walk toward the controller's attractor; consume a queued push at `+0x25C` (flag at `+0x258`); cycle random reaction anims (`0x00545B10`) | none |
+| 4 | `QUEUE` | controller does queue bookkeeping; `DoStraightLineTick`; with flag **0x20** face the queue head and play the idle anim (`0x00545690`) | none |
+| 6 | `STRIKE` | re-path toward a shrinking arrival box around the strike target; hands off to `ReturnToSourceOccupant` (`0x00544950`) | none |
+| 7 | `IDLE` | `CheckAutomataFlag(1)` gate then a controller/behaviour refresh (`0x005096B0`, `FUN_005055C0` `0x005055C0`); watercraft also accumulates a 60 s lifetime idle budget | none |
+| 8 | `RIOT_LEADER` | walks the road grid picking a walkable heading per cell; dies if it leaves the network (`0x00546220` / Mac `0x000b37f2`) | `s32` last cell X, `s32` last cell Z, `u8` heading 0–3 |
+| 9 | `RIOT_FOLLOWER` | acquires a leader by IID `0xA9B40F05`, mills about, steers toward it past 10 units (`0x00546530`) | none |
+| 10 | `SCRIPTED` | stub: `return !CheckAutomataFlag(1)` (`0x00505690`) | none |
+| 11 `0x0B` | `RANDOM_WALK` | walk/idle cycle driven by the behaviour template; adds the attraction vector to its heading (`0x0050CF90`) | `vec3` heading, `f32` turn countdown, `f32` walk/idle countdown, `bool` idle-anim-playing |
+| 12 | `IGNITE_OCCUPANT` | **one-shot**: starts a fire on the controller's target, then `SetState(1,…)` (`0x00545280`) | none |
+| 13 `0x0D` | *(none; traffic blocked wait)* | waits out `+0x10` at the speed-modifier rate while flag **0x20** holds, then clears `0x20`/`0x10` and pops if the path is clear (`0x005500D0`) | none |
+| 14 `0x0E` | *(none)* | vehicle tumbles then falls for a random 1–2.5 s, then a splash phase (`0x0055E1F0`) | 5 × `f32` + unsaved `ref` at `+0x3C` |
+| 15 `0x0F` | `PLOP_JUMP` | vertical hop: `y = max(+0x28, y + dt·velY)`, gravity on `velY` once above the floor (`0x005055F0`) | `f32` floor Y, `f32` vertical velocity |
+| 16 `0x10` | `PLAYER_DRIVE` | 13 elapsed-time channels tick up; `TranslatePlayerDriveCommands`; forces flags `0x2000000`, 2, `0x10000` (`0x00508C50`) | one saved `f32` + 13 × 9 runtime channel arrays |
+| 17 `0x11` | `BUMPED` | **stub on both base and vehicle** (`return !CheckAutomataFlag(1)` / `return 0`) | 4 × `vec3`, no reader found |
+| 18 | `MAGNET` | move straight at the controller's position at the speed-tween rate; sample terrain Y unless flag `0x40000` (`0x00508E10`) | none |
+| 19 `0x13` | `ATTACH_ANIM` | advances an attached model's animation; pops when the frame test passes (`0x00508F80`) | `ref`, `u16`, `bool` |
+| 20 `0x14` | `COLLIDE` | registers a `*_collide_fx` effect, hides the automaton, poses the model; pushed with a **5000 ms** timeout and `final` (`0x00508D70`) | none |
+| 21 `0x15` | `PULL_OVER` | vehicle steers through a rotating pull-over arc (`0x0055E550`) | one saved `f32` |
+| 30 | `STOP_AT_STATION` | only moves while the speed tween > 0; the bus variant does the actual stop | none |
+| 50 | `RETURN_HOME` | `AI_Land`; pops when landed | none |
+| 51 | `GO_TO_DESTINATION` | `AI_GotoDestination`; pops on arrival or when the destination is the uninitialised vector | none |
+| 52 `0x34` | `CHASE` | **record only** — holds the chase target; the helicopter reads it | `ref` automaton |
+| 53 | `LOITER` | hover 2 s (airplane, spending one ammo count) or the pushed timeout (helicopter) | none |
+| 54 | `LOOK_FOR_CRIME` | helicopter only: claim a crime cell, then LOITER + GO_TO_DESTINATION | none |
+| 55 | `LOOK_FOR_TRAFFIC` | helicopter only: claim a busy traffic cell, then LOITER + GO_TO_DESTINATION | none |
+| 56 | `RESCUE` | helicopter only: push RETURN_HOME, then claim the most recent accident location | none |
+| 57 | `PUT_OUT_FIRE` | airplane only: `FindFireNearLocation`, then GO_TO_DESTINATION + LOITER while ammo lasts | none |
+| 58 | `CROP_DUST` | **name only** — `AI_PursueGoal` has no case; it just pops | none |
+| 70 | `CRASH_RUNAGROUND` | heel/pitch ramp over the crash duration, then stops (no transition) | none |
+| 71 | `CRASH_SINK` | sink-angle ramp over the same duration, then stops | none |
+| 72 | `IMMEDIATE_REMOVE` | `Remove(true)` every tick | none |
+| 73 | `SLOW_REMOVE` | `Remove(false)` every tick | none |
+| 74 | `FERRY_DOCK` | `DoDockingTick`; pops when docked (angle < 1° and distance < 1) | none |
+| 75 | `FERRY_QUEUE` | `Ferry_DockRequests`: request a berth → push 74, request a wait → push 75, else 73 | none |
+| 76 | `MARINA_PARKED` | **name only** — no `DoStateTick` case; enter just zeroes the pitch/roll accumulators | none |
+| 77 | `BEING_TOWED` | `DoFollowingTick`: hold station behind the tug at radius + `sfTowDistance` | none |
+| 78 | `UNDOCKING` | `DoUndockingTick`; pops when clear of the berth by 2× radius | none |
+| 100–103 `0x64`–`0x67` | *(not in Lua)* | emergency-vehicle dispatch states → `DoEnRouteTick` `0x0052FD50`, `DoRepathingTick` `0x0052FE50`, `DoTeleportTick`, `DoHandlingEventTick` `0x005335F0` | none |
+| 104 `0x68` | *(patrol car only)* | `ARREST`: dwell on `+0x10`, swap model 0 to the arrest animation, pop when it finishes (`0x00544060`) | none |
+
+**Movement is not driven by the state type** (re-integrate1). The dispatcher is
+`cSC4TrafficAutomaton::DoAnimationTick` (Win `0x0054E050`, Mac `0x000cad9e`), run every frame: it steps the
+speed tween inline (`elapsed += dt/1000.0`, snapping `start = target` at the end), steps the opacity tween
+(slot `0x168`) and another (slot `0x1B8`), and then either `DoPathTick` (slot `0x81`) or `DoStraightLineTick`
+(slot `0x82`) depending on whether a network occupant (`+0x1FC`), `+0x200` and the path-point vector `+0x208`
+are all set and flag `0x2000` is clear. **State 0 `DEFAULT` and 2 `BEE_LINE` have no `DoStateTick` handler at
+all** — `cSC4Automaton::DoStateTick` (Mac `0x000bd464`) switches only on 1, 7, 10, `0x0B`, `0x0F`, `0x10`,
+`0x12`, `0x13`, `0x14`; everything else falls to `default` → return 0, and the vehicle keeps path-following from
+`DoAnimationTick`. Direct (non-virtual) callers of the two movement ticks: `cSC4EmergencyVehicle::DoEnRouteTick`
+and `cSC4Pedestrian::DoQueueTick` (Mac `0x000b2d80`).
+
+### 6.6 Aircraft and watercraft state families *[compat]*
+
+**There is no Lua name table for the 50–58 / 70–78 names.** A tree-wide search of `SimCity4.exe`'s decomp and
+the Mac symbol artifacts finds those names only as copies of this spec; there is no string table or constant
+table in the executable. The names `RETURN_HOME`, `CROP_DUST`, `MARINA_PARKED` and the rest are **project
+documentation labels for numeric types**. The behavioural answer comes from the switch tables in
+`cSC4Watercraft::DoStateTick` `0x00573340`, `cSC4Airplane::AI_PursueGoal` `0x00504590` and
+`cSC4Helicopter::AI_PursueGoal` `0x0053BBA0` — not from strings. A later reader should not go looking for a
+string table (re-integrate1).
+
+**Watercraft.** Offsets below are Windows (Mac = Windows + `0x10` above `~0x1A0`). Two accumulators:
+
+| Field (Win / Mac) | Name | Behaviour |
+|---|---|---|
+| `+0x2BC` / `+0x2CC` | **`idleElapsedMs`** | zeroed once in `Init` (`cSC4Watercraft.c:2037`); only touched in `DoStateTick` case 7: `+= dt`, and `> 60000.0` → `PushState(0x49 SLOW_REMOVE)` (`0x00573340`). Never reset afterwards, so it is **cumulative over the boat's life** — 60 s total in `IDLE` slow-removes the boat |
+| `+0x2C0` / `+0x2D0` | **`crashElapsedMs`** | zeroed on entering 70/71, `+= dt` there; compared against the crash duration `+0x398` / `+0x3A8` to drive the sink/heel ramp |
+
+`FUN_00570270` is **`cSC4Watercraft::DoCrashSequenceTick(float)`** (Windows `0x00570270`, Mac `0x00384d56`).
+Enter/exit: `HandleEnterState` `0x0056E340` (Mac `0x0038539e`), `HandleExitState` `0x0056D770` region /
+`cSC4Watercraft.c:2762` (Mac `0x00385ca6`).
+
+`eW_ChangeState` — `cSC4Watercraft::SetStateInternal` (Mac `0x00380298`; Windows inlined into `0x00568570`):
+
+| Value | Action |
+|---|---|
+| 0 | `PushState(0x48 IMMEDIATE_REMOVE, 0, -1.0, 0, 0, 0, 0)` |
+| 1 | `PushState(0x49 SLOW_REMOVE, 0, -1.0, 0, 0, 0, 0)` |
+| 2 | slot 102/109 `(0xB, 0)`; `PushState(0x46 CRASH_RUNAGROUND, 0, +0x398, 1, 0, 0, 0)` |
+| 3 | slot 102/109 `(0xB, 0)`; `PushState(0x47 CRASH_SINK, 0, +0x398, 1, 0, 0, 0)` |
+| 4 | `field262_0x2B2 = 1`, then as 3 |
+
+`Crash_DetermineCase` (`0x00568570`) tests the four bbox corners against `spSurfaceWater` slot 13. If any
+corner is dry it compares `-heading` (`0x30C/0x310/0x314`) with the terrain normal at `+0x2F4`/`+0x2FC`; an
+angle above `+0x3A8` gives case 2 (run aground), otherwise case 3 (sink). All-wet gives case 3. Then, **for a
+player-driven boat** (top type `0x10`) it pushes 70 or 71 with duration `+0x398`; **for any other boat it
+pushes `SLOW_REMOVE`**. The whole crash animation is therefore a **player-drive-only** feature; AI boats just
+vanish. 70 and 71 themselves **never transition** when they finish — they simply stop returning work and the
+boat is left beached or sunk *[inferred]* that `cSC4WatercraftManager` later reaps it.
+
+**Aircraft.** There is a second, independent enum `cSC4Airplane::State` at `this+0x1FC`, written only by
+`cSC4Airplane::SetAirplaneState` `0x004FCEF0` (Mac `0x00495f8e`) and `cSC4Helicopter::SetHelicopterState`
+`0x00533DC0` (Mac `0x004aaa50`), values 0, 1, 3. `SetAirplaneState(1)` also sets `this+0x240 = 3` (ammo refill)
+and toggles AEMS sound groups 8 / 9 / 10 / `0xD`. **This is not the state stack** — it is a flight/ground phase,
+and it returns early if the value is unchanged. The stack is dispatched by `AI_PursueGoal`.
+
+The airplane implements 50, 51, 53, 57; the helicopter implements 0, 50, 51, 52, 53, 54, 55, 56. **58
+`CROP_DUST` is name-only on both.** `LOITER` duration differs: the airplane pushes it with `-1.0` and
+self-terminates after a 2.0 s timer (`+0x23C`) plus one ammo decrement (`+0x240`); the helicopter pushes it with
+**6000.0 ms** from states 54/55/56. None of 50–58 other than 57 has an enter/exit hook.
+
+**Chase (52) and its `+0x28` ref.** Producer `cSC4AutomataManager::ChaseAutomaton`, manager slot 22 (2 args,
+Windows `FUN_005072E0`): refuses if the chaser already has state `0x10`, flag `0x40`, flag 1 or state `0x34`
+(`FindState`, slot 57); otherwise `PushState(0x34, 0, -1.0, 0, 0, 0, 0)` and
+`cRZAutoRefCount::operator=(stateRecord+0x28, target)` — exactly the `tAutomataStateChase` ref at `+0x28`
+(IID `0xA9B40F05`). Slot 21 (4 args, `FUN_00511260`) is the radius search that calls slot 22. The **only**
+consumer in the state machine is `cSC4Helicopter::AI_PursueGoal` case `0x34` (Windows `0x0053BBA0`, Mac
+`0x004b02c8`): pop if `+0x28` is null or the target's `GetTopStateType` (slot 59) is no longer `0x10`
+PLAYER_DRIVE; otherwise lead the target (`pos += orient · speed · 1000 · dt`), aim the spotlight, teleport when
+too far and the opacity is 0, and hover 20 units above it when close (`AI_ControlHover` `0x005353C0`). An
+airplane handed a Chase state just pops it. `cSC4Automaton::GetChaseVector` (Mac `0x000bc4e6`) is the other
+reader of `+0x28`.
 
 ## 7. Calls other specs use *[compat]*
 
@@ -888,7 +1321,8 @@ the direction is a unit axis vector, and the entry's `vec3`s are written point-t
 2. stop when the leader count has reached its cap;
 3. `CreateAutomaton` on the pedestrian manager (city slot 44, slot 15) with group `0x4107` (§7.2); null → fail;
 4. `AddRef` the automaton;
-5. automaton slot 51 `SetState(8, 0, −1.0, 1, 0, 0, 0)`: the RiotLeader state;
+5. automaton slot 51 `SetState(8, 0, −1.0, 1, 0, 0, 0)`: the RiotLeader state — the `1` in the fourth argument
+   is `final` (§6.2). The push is at `0x0057DD97`.
 6. automaton slot 9 `SetVisible(true)`;
 7. register the leader's location with the disaster layer (city slot 72).
 
@@ -902,6 +1336,13 @@ the direction is a unit axis vector, and the entry's `vec3`s are written point-t
 2. controller manager slot 14 `RemoveControllers(leader as occupant)`;
 3. disaster layer (city slot 72) slot 15: unregister the location by occupant;
 4. release the automaton and erase the leader.
+
+**Corrects (re-integrate1):** step 1 **does nothing**. The leader's RiotLeader state was pushed `final=1`
+(step 5 of Start, `0x0057DD97`), and `SetState` returns 0 and changes nothing while the top state has `final`
+(Mac `0x000bd3ca`, Windows `0x00509860`; §6.2). So the call is made but the leader keeps state 8. Steps 2–4
+still run: the leader is `Release`d and unregistered immediately after. This section and conformance test 8
+assert the call is made; **they do not say it succeeds**. What then pops the `final` RiotLeader (so DISAPPEAR
+runs and `Remove(0)` fires) is untraced — see §13.
 
 ### 8.2 Fire occupant (disasters.md §5)
 
@@ -1007,6 +1448,35 @@ argument types given above for script slots 11 and 12 are checked, the others ar
    all.
 9. **A trailer only keeps vehicle refs** (§6.4). Its refs are checked against the vehicle's class ID used as an
    IID, so any other automaton reads as null and is dropped.
+10. **`+0x0C` is a stack index, not a semantic field** (§6.2, re-integrate1). `PushState` computes it as
+    `stack.size()-1` after the push (Mac `0x000bf7d0`) and `PrevState` uses it as an index (Mac `0x000bbee4`,
+    Windows `0x00509900`). It round-trips, but a replacement must **recompute it after any stack mutation**
+    rather than trust the stream.
+11. **`+0x14` is `final`, and it has teeth** (§6.2, re-integrate1). `SetState` returns 0 and changes nothing
+    while the top state has it (Mac `0x000bd3ca`, Windows `0x00509860`). RiotLeader (`0x0057DD97`) and Collide
+    (Mac `0x000a091e`) are both pushed `final=1`. `PopState` on a `final` state that is not already type 1 does
+    not reveal the state below — it pushes DISAPPEAR instead (Mac `0x000bd2de`, Windows `0x0050B660`). So a
+    Collide with its 5000 ms timeout ends as DISAPPEAR → `Remove(0)`, and the riot end's `SetState(1, …)` is a
+    no-op (§8.1).
+12. **Plummet's five `f32` are not appended in offset order** (§6.2, re-integrate1). The stream is
+    `+0x28, +0x34, +0x30, +0x2C, +0x38` (Mac `0x000c3e36` / `0x000c47f4`), and the object has a **sixth** slot
+    `+0x3C` which is a `ref` zeroed on Read, not an `f32`. §6.2's "5 × `f32`" is right about the saved part and
+    misses the sixth. A round trip must use that order.
+13. **Bumped has a record and a class but no tick anywhere** (§6.2, re-integrate1). Base `DoBumpedTick` is
+    `return !CheckAutomataFlag(1)` (Mac `0x000bb14e`) and `cSC4Vehicle::DoBumpedTick` is `return 0`
+    (Mac `0x000a083e`). The 4 × `vec3` have no reader found; `cSC4Vehicle::HandleCollision` (Mac `0x000a091e`)
+    writes them and then pushes **COLLIDE**, not BUMPED *[inferred: a leftover bump-response record]*.
+14. **AttachAnim's `bool` sits before its `u16` in memory** (§6.2, re-integrate1). Stream `ref, u16, bool`;
+    object `+0x28, +0x30, +0x2C` (Mac `0x000c3bba` / `0x000c453a`).
+15. **Chase is a pure record** (§6.2, re-integrate1). No `0x34` case exists in any `DoStateTick`; the `ref` is
+    read by `GetChaseVector` (Mac `0x000bc4e6`) and the helicopter's `AI_PursueGoal` (§6.6).
+16. **Type 0 `DEFAULT` is not "nothing"** (§6.5, re-integrate1) — it is the generic seek-to-destination in
+    `DoAnimationTick`, which is exactly what a state returns 0 *for*.
+17. **`dt` is milliseconds but tween durations are seconds** (§6.5, re-integrate1). Mixing them up is the
+    easiest way to get a 1000× wrong speed or timeout.
+18. **Windows and Mac disagree on offsets and on high vtable slots** (§6.5, re-integrate1). Above `~+0x1A0` the
+    Windows struct runs `0x10`–`0x18` lower than the Mac; from vtable slot 79 upward Mac slot = Windows slot + 7.
+    Quote both, or state which one you mean.
 
 ## 13. Open questions
 
@@ -1114,6 +1584,47 @@ argument types given above for script slots 11 and 12 are checked, the others ar
   - AM11: the stream-error rules (§4.1);
   - AM12: slot 31 tracks sets of automata, and §4 field 6 is the source building counts (§4, §7.3).
 
+New from the re-integrate1 reports (the probe named is the one the source gives):
+
+- **Q7.** What is PlayerDrive's saved `f32` at `+0x28` (§6.2, §6.5)? It is set to 0 on enter and never touched
+  by `cSC4Automaton::DoPlayerDriveTick` *[inferred: a drive-channel / throttle accumulator]*. **Probe:** read
+  `cSC4Vehicle::TranslatePlayerDriveCommands` (Mac `0x000a577c` family) and `DoPlayerDriveOffRoadTick`.
+- **Q8.** What reads Bumped's 4 × `vec3` (§6.2, quirk 13)? No reader found. **Probe:** xrefs to
+  `tAutomataStateBumped::Read`'s output, and `cSC4Train::HandleCollision` (Mac `0x00393a4a`).
+- **Q9.** PlopJump's units (§6.2). `U(30, 50) × 1/3600` and `kfGravityAccel = −5.5555563e−05` only make sense
+  together if `dt` is ms and the result is m/ms *[inferred]*. **Probe:** one scripted plop and a position trace.
+- **Q10.** What pops the `final` RiotLeader after the riot end's `SetState(1, …)` fails (§8.1, quirk 11)? The
+  leader is `Release`d and unregistered immediately after. **Probe:** trace `cSC4DisasterInstanceRiot::Update`'s
+  removal path.
+- **Q11.** `random_walk.turn`'s exact template offsets (§6.2). `ImportBehaviorTable` writes the array/scalar
+  into `+0x54`/`+0x58` and zeroes `+0x5C`, while `DoRandomWalkTick` reads amplitude at `+0x58` and bias at
+  `+0x5C` — one is off by 4. **Probe:** a Lua table that sets `turn = {a, b}` and a breakpoint on `0x0050CF90`.
+- **Q12.** The mapping of emergency-vehicle states 100–103 to their ticks (§6.5). `cSC4EmergencyVehicle::DoStateTick`
+  `0x0052F490` switches on them into slots `0xC3`–`0xC6`; the names are assigned by elimination, not from a
+  name table. **Probe:** the emergency vehicle's vtable at slots 195–198.
+- **Q13.** The exact contract of `FUN_005096B0` (the per-tick behaviour refresh) on `state+0x24` vs `state+0x08`.
+  **Probe:** `cSC4AutomataController::GetBehaviorTemplate` (`0x0051BAB0` / Mac `0x000b8ce0`).
+- **Q14.** The fate of an aircraft or watercraft that finishes `CRASH_RUNAGROUND` / `CRASH_SINK` (§6.6) —
+  neither transitions when its duration expires. **Probe:** trace `cSC4WatercraftManager` occupancy/cleanup.
+- **Q15.** Whether `field259_0x2BC`'s idle budget never being re-zeroed (§6.6) is intentional lifetime-based
+  despawning of idle boats or a missed reset. **Probe:** a second look at every writer of that field.
+- **Q16.** Whether `Crash_SetStateInternal`'s slot-59 read is a "don't re-crash" guard (§6.6) — Ghidra dropped
+  the comparison (Mac `0x003804a6`) *[inferred]*. **Probe:** `x86dis` on the Windows inlined copy at
+  `0x00568570`, or `0x00570270`'s callers.
+- **Q17.** Whether the helicopter `AI_PursueGoal` `default:` really falls through into the `0x32` body (§6.6)
+  *[inferred: a safety net]*. **Probe:** `x86dis` on the jump table at `0x0053BBA0`.
+- **Q18.** Semantics of automaton vtable slot 102 (Windows) / 109 (Mac), the `(0xB, 0)` crash effect/anim kill
+  (§6.6), and the names of slots 77 (`EnableMotion(bool)`) and 82 (`SetTransform`) *[inferred names]* — all
+  absent from `docs/abi/interfaces.tsv`. **Probe:** dump those vtable entries.
+- **Q19.** What the city query in the blocked-wait exit path means (§6.5, `DoStopSignTick` step 5:
+  `spCity->vtable+0xA0` → `vtable+0x84(netOccupant, automaton, routeInfo, &out)`; returning 0 pops the wait).
+  It is not clear whether 0 means "intersection still blocked" or "release failed" *[inferred]*. **Probe:** name
+  that interface method (likely `cISC4TrafficNetworkMap` / `cISC4TrafficSimulator`).
+- **Q20.** Whether `this+0x94` is the measured current speed (written as `distance/dt` in both `DoPathTick`s and
+  zeroed at the end of the pull-over move tick) *[inferred]*. **Probe:** `cSC4Automaton::GetSpeed`'s body
+  (slot 34). Windows slot `0xA0` in `DoStopSignTick` step 3 being `ReturnToDefaultSpeed` is likewise
+  *[inferred]* — settle by dumping the Windows vtable entry at `+0x280`.
+
 ## 14. Conformance tests (must exist in `engine/conformance`)
 
 Each test reads the record, checks the decoded fields, writes it back and compares bytes.
@@ -1186,3 +1697,28 @@ Each test reads the record, checks the decoded fields, writes it back and compar
 23. **Group tracking** (§7.3). `TrackAutomataGroupInstances(g, true)` with two members of g in the list makes
     `GetInstancesOfGroup(g)` return both. A third member added later is in the set as well. `(g, false)` releases
     the set. Neither call changes the saved record.
+24. **Plummet stream order** (§6.2, quirk 12). A Plummet record with the five `f32` set to distinct values
+    writes them in the order `+0x28, +0x34, +0x30, +0x2C, +0x38`, **not** offset order, and writes nothing for
+    `+0x3C`. Reading it back leaves `+0x3C` zeroed and each `f32` at its own offset.
+25. **AttachAnim layout** (§6.2, quirk 14). An AttachAnim record writes `ref`, `u16`, `bool` in that stream
+    order while the object holds the `bool` at `+0x2C` and the `u16` at `+0x30`. Round-trips byte-exact.
+26. **`final` blocks `SetState`** (§8.1, quirk 11). Push a RiotLeader with `SetState(8, 0, −1.0, **1**, 0, 0, 0)`,
+    then call `SetState(1, 0, −1.0, 0, 0, 0, 0)`. `SetState` returns 0, the top state type stays 8, and nothing
+    on the stack changes. This is the riot end's step 1.
+27. **`PopState` on a `final` state** (quirk 11). Push Collide with `final=1` and a 5000 ms timeout over a
+    DEFAULT state, then let the countdown expire. The DEFAULT state is **not** revealed: `PopState` pushes
+    DISAPPEAR instead, and the next tick of DISAPPEAR calls `Remove(0)`.
+28. **Returned 0 means the generic seek** (§6.5). A state type with no `DoStateTick` case (0, 2, 3, 4, …) makes
+    `DoStateTick` return 0, and `DoAnimationTick` then seeks `destination` at `GetCurrentSpeed()`, setting flag
+    4 on arrival. A type that returns 1 (e.g. RANDOM_WALK) does not seek.
+29. **Stack index recomputation** (quirk 10). Push three states, pop one, and check that every remaining
+    state's `+0x0C` equals its 0-based position from the bottom. A record read from a stream must have `+0x0C`
+    recomputed rather than trusted.
+30. **`dt` is ms, tween durations are seconds** (quirk 17). `TweenSpeed(target, 1.0)` with `dt` of 500 ms
+    reaches the target after two ticks; `state+0x10 = 1000.0` expires after one 1000 ms tick.
+31. **Chase is record-only** (§6.2, quirk 15). `ChaseAutomaton` (manager slot 22) pushes `0x34` and stores the
+    target in `state+0x28`. No `DoStateTick` handles `0x34`, so `DoStateTick` returns 0 every frame; only
+    `GetChaseVector` and the helicopter's `AI_PursueGoal` read the ref.
+32. **The blocked wait's exit** (§6.2 type 13, §6.5). While `state+0x10 > 0` and flag `0x20` is clear the tick
+    returns 0 and does nothing. With `0x20` set it decrements by `GetSpeedModifier()·dt`. On expiry it clears
+    `0x20` and `0x10`, and `PopState`s only when the network map reports the way clear.
