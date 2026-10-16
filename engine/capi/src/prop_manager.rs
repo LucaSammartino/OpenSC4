@@ -7,7 +7,7 @@
 //! The prop manager over the C ABI (fc4.h "prop manager",
 //! docs/specs/prop-lotconfig.md Part A).
 //!
-//! The host implements [`fc4_prop_host`]; the plugin's `cISC4PropManager`
+//! The host implements [`fc4_prop_manager_host`]; the plugin's `cISC4PropManager`
 //! (with its message-target and serializable sub-objects) forwards its slots
 //! here. Props, buildings, lots, the occupant manager, the lot manager, the
 //! resource manager, the view filter and text decals are host objects, named
@@ -47,17 +47,17 @@ use crate::stream::{fc4_istream, fc4_ostream, istream_ok, ostream_ok, CIn, COut}
 
 type U = *mut c_void;
 
-/// `fc4_prop_host.acquire_service` services.
+/// `fc4_prop_manager_host.acquire_service` services.
 pub const FC4_PROP_SERVICE_OCCUPANT_MANAGER: u32 = 0;
 pub const FC4_PROP_SERVICE_RESOURCE_MANAGER: u32 = 1;
 pub const FC4_PROP_SERVICE_LOT_MANAGER: u32 = 2;
 
-/// `fc4_prop_host.create_builtin_prop` kinds (§A6.1 step 3).
+/// `fc4_prop_manager_host.create_builtin_prop` kinds (§A6.1 step 3).
 pub const FC4_PROP_BUILTIN_PLAIN: u32 = 0;
 pub const FC4_PROP_BUILTIN_TERRAIN_DECAL: u32 = 1;
 pub const FC4_PROP_BUILTIN_VISUAL_EFFECT: u32 = 2;
 
-/// `fc4_prop_host.building_props` results (§A7.1 step 3).
+/// `fc4_prop_manager_host.building_props` results (§A7.1 step 3).
 pub const FC4_PROP_BUILDING_NO_HOLDER: u32 = 0;
 pub const FC4_PROP_BUILDING_ABSENT: u32 = 1;
 pub const FC4_PROP_BUILDING_PRESENT: u32 = 2;
@@ -72,11 +72,11 @@ pub struct fc4_prop_manager {
     _private: [u8; 0],
 }
 
-/// What the prop manager needs from the game (fc4.h `fc4_prop_host`). A
+/// What the prop manager needs from the game (fc4.h `fc4_prop_manager_host`). A
 /// missing callback reads as 0 / false / none.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct fc4_prop_host {
+pub struct fc4_prop_manager_host {
     pub struct_size: u32,
     pub user: *mut c_void,
     // the catalogue (§A3)
@@ -206,13 +206,13 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_prop_manager_state>() == 48);
     assert!(std::mem::size_of::<fc4_prop_catalogue_state>() == 24);
     assert!(std::mem::size_of::<fc4_prop_command_arg>() == if cfg!(target_pointer_width = "32") { 12 } else { 16 });
-    assert!(std::mem::size_of::<fc4_prop_host>() == if cfg!(target_pointer_width = "32") { 188 } else { 376 });
+    assert!(std::mem::size_of::<fc4_prop_manager_host>() == if cfg!(target_pointer_width = "32") { 188 } else { 376 });
 };
 
 // ---- host adapter -----------------------------------------------------------------------------------
 
 struct CHost {
-    h: fc4_prop_host,
+    h: fc4_prop_manager_host,
 }
 
 macro_rules! cb {
@@ -560,12 +560,12 @@ unsafe fn emit(list: &[u64], out: fc4_token_callback, ctx: *mut c_void) {
 /// host identity (void1 of the catalogue message).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_prop_manager_create(
-    host: *const fc4_prop_host,
+    host: *const fc4_prop_manager_host,
     catalogue: *const fc4_prop_catalogue,
     token: u64,
 ) -> *mut fc4_prop_manager {
     guard(std::ptr::null_mut(), || match host.as_ref() {
-        Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_prop_host>() => {
+        Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_prop_manager_host>() => {
             let cat = match (catalogue as *const SharedPropCatalogue).as_ref() {
                 Some(c) => c.clone(),
                 None => PropCatalogue::shared(),

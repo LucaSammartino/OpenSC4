@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "city_detail_same_level",
+  "spec": ["city-detail 3.1", "city-detail 8.3"],
+  "description": "Saved 3, current 3: Init changes no occupant, draws nothing and redevelops no network lot, even with a prop tagged with an unlisted object and a missing required object.",
+  "steps": [
+    {"op": "cd_lot", "lot": "0x10", "objects": [{"type": "prop", "tag": "0xA"}, {"type": "prop", "tag": "0xB"}]},
+    {"op": "cd_occupant", "occupant": "0x11", "lot": "0x10", "type": "prop", "tag": "0x7"},
+    {"op": "cd_env", "network": [[1, 2, "0x50"]]},
+    {"op": "cd_create"},
+    {"op": "cd_read", "hex": "00000000 03000000", "expect": true},
+    {"op": "cd_init", "expect": true},
+    {"op": "cd_expect_events", "events": []},
+    {"op": "cd_expect_occupants", "lot": "0x10", "occupants": [["0x11", "prop", "0x7"]]},
+    {"op": "cd_expect", "state": {"level": 3, "last_pass": 0}}
+  ]
+}

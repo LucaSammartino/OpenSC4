@@ -5,7 +5,7 @@
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
 //! The prop manager through the C ABI (docs/specs/prop-lotconfig.md Part
-//! A): a fake game behind `fc4_prop_host`.
+//! A): a fake game behind `fc4_prop_manager_host`.
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
@@ -355,9 +355,9 @@ unsafe extern "C" fn resolve_ref(u: *mut c_void, t: u64, iid: u32) -> u64 {
     t
 }
 
-fn host(g: &Game) -> fc4_prop_host {
-    fc4_prop_host {
-        struct_size: std::mem::size_of::<fc4_prop_host>() as u32,
+fn host(g: &Game) -> fc4_prop_manager_host {
+    fc4_prop_manager_host {
+        struct_size: std::mem::size_of::<fc4_prop_manager_host>() as u32,
         user: g.user(),
         for_each_exemplar_key: Some(for_each_exemplar_key),
         load_exemplar: Some(load_exemplar),
