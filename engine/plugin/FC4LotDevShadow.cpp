@@ -379,21 +379,18 @@ void CompareLot(Compare& k, cISC4Lot* lot) {
     {
         SC4Rect<int32_t> orr;
         fc4_cell_rect crr{0, 0, 0, 0};
-        // The original's AL is the second PositionToCell's (section 17.2), which need not be 0 / 1:
-        // read the byte through the slot and compare it as a truth value.
+        // The original's AL is the x87 status flags its second PositionToCell leaves (section 17.2,
+        // LD18 / LD27), not a result: only the rectangle is compared. rawAL still counts the bytes
+        // other than 0 / 1 (information only).
         using CoverageFn = uint8_t(__thiscall*)(void*, cISC4Occupant*, SC4Rect<int32_t>&);
         const CoverageFn coverage = (*reinterpret_cast<CoverageFn* const*>(o))[22];
         const uint8_t oRaw = coverage(o, occ, orr);
-        const bool oHas = oRaw != 0;
-        const bool cHas = fc4_lotdev_occupant_cell_coverage(c, ot, &crr);
+        fc4_lotdev_occupant_cell_coverage(c, ot, &crr);
         if (oRaw > 1) ++k.rawTruth;
-        k.Int("s22", x, z, oHas, cHas);
-        if (oHas && cHas) {
-            k.Int("s22x1", x, z, orr.topLeftX, crr.x1);
-            k.Int("s22z1", x, z, orr.topLeftY, crr.z1);
-            k.Int("s22x2", x, z, orr.bottomRightX, crr.x2);
-            k.Int("s22z2", x, z, orr.bottomRightY, crr.z2);
-        }
+        k.Int("s22x1", x, z, orr.topLeftX, crr.x1);
+        k.Int("s22z1", x, z, orr.topLeftY, crr.z1);
+        k.Int("s22x2", x, z, orr.bottomRightX, crr.x2);
+        k.Int("s22z2", x, z, orr.bottomRightY, crr.z2);
     }
     k.Float("s31", x, z, o->GetOccupantSlope(occ, false), fc4_lotdev_occupant_slope(c, ot, false));
     k.Float("s31w", x, z, o->GetOccupantSlope(occ, true), fc4_lotdev_occupant_slope(c, ot, true));
