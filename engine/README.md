@@ -1705,8 +1705,10 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      **NM10 (open question).** In game the original never restyles the inner cells of the first row
      (x0 < x < x1, z = z0) of a lot state message's grown rect (§6.2 `0xE8BDA2E7`), which the spec walks with
      the rest of the border; Konradshohe to 2032: 0 of 589 such cells changed by the original, 80 changed by
-     ours, while every other place of the border agrees. Until NM10 is answered, a style or lot difference at
-     a cell our lot core updated there since the last line is counted and listed under `NM10`, not as a
+     ours, while every other place of the border agrees; whole-city snapshots (`netmgr_shadow_wide = N`, env
+     `FC4_NETMGR_SHADOW_WIDE`: the first N lot state messages, default 0) show the original restyling such a
+     cell later, during another message, only rarely. Until NM10 is answered, a style or lot difference at a
+     cell our lot core updated there since the city loaded is counted and listed under `NM10`, not as a
      mismatch.
    - **Terrain shadow** (`terrain_shadow = 1`, env `FC4_TERRAIN_SHADOW`; off by default; `terrain_shadow_points = N`
      sample points a month, default 256, 16..4096; `terrain_shadow_diffs = N` differences named per line, default 8,

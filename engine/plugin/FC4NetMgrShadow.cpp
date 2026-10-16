@@ -132,9 +132,10 @@ uint32_t g_lines = 0, g_exactLines = 0, g_draws = 0, g_resyncs = 0;
 // NM10 (open question, network-manager.md §6.2 0xE8BDA2E7): in game the
 // original never changes the road style of the first row's inner cells of a
 // lot state message's grown rect (x0 < x < x1, z = z0), where the spec walks
-// the whole border. The cells our lot core updated there since the last line;
-// a style or lot difference at one of them is counted under NM10, not as a
-// mismatch, until the question is answered.
+// the whole border (and, rarely, restyles such a cell later, during another
+// message, as if its key had stayed pending). The cells our lot core updated
+// there since the city loaded; a style or lot difference at one of them is
+// counted under NM10, not as a mismatch, until the question is answered.
 std::set<std::pair<int32_t, int32_t>> g_nm10Cells;
 uint32_t g_nm10Lines = 0, g_nm10Total = 0;
 uint32_t g_nm10Pending = 0;  // tick-time NM10 differences since the last line
@@ -979,7 +980,6 @@ void RunStep(void* p) {
     }
     g_nm10Pending = 0;
     g_nm10PendingDiffs.clear();
-    g_nm10Cells.clear();
     r.mismatches = d.mismatches;
     r.done = true;
     g_n = Counters{};
@@ -1386,8 +1386,9 @@ void NetMgrShadowStartup() {
     const char* src = "";
     Setting("netmgr_shadow", "FC4_NETMGR_SHADOW", &src);
     Log("netmgr shadow: ON (netmgr_shadow from %s): two shadow cores (read-only hosts) start from the ORIGINAL network "
-        "manager's and network lot manager's records at PostCityInit and follow their 16 messages through a listener "
-        "registered before any city's; the terrain rule's destructions and the road style writes are recorded and "
+        "manager's and network lot manager's records at PostCityInit and follow their 16 messages (the manager's through "
+        "a listener registered before any city's, the lot manager's, with netmgr_shadow_order = late, after the "
+        "original); the terrain rule's destructions and the road style writes are recorded and "
         "checked against the game at the next tick; at PostCityInit, each SimNewMonth and before a scripted save the "
         "component 53 and 11 records (our Write against the original's), the zone and wealth for network at every lot "
         "cell (slots 9, 10) and the compatibility of differing configurations are compared. Not compared: the lot "

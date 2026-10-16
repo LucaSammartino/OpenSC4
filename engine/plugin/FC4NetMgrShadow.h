@@ -26,9 +26,14 @@
 //     the exemplars (§3.2 step 4, read once per process);
 //   - a listener registered at PostAppInit, before any city subscribes, so it
 //     runs before the originals at every MessageSend (foundations §5.1),
-//     receives the 11 + 6 messages of §3 and feeds them to the cores (§6):
-//     occupant inserts and removes, terrain changes, the usable message,
-//     zoning, lot state and road damage;
+//     receives the 11 messages of §3.1 and feeds them to the manager core;
+//     the lot core hears its 6 (§3.2) through a second target subscribed at
+//     PostCityInit, after the original (netmgr_shadow_order = late, the
+//     default; early: the first listener), so it reads the game as the
+//     original did: occupant removals, the usable message, zoning, lot state
+//     and road damage (§6); the first listener then snapshots each lot
+//     message's cells, so the road style writes are also compared message by
+//     message;
 //   - the cores' writes are recorded, not made: the terrain rule's
 //     destructions (§7.6) are checked at the next framework tick against the
 //     occupants the original removed (each decided occupant gone; no other
@@ -45,11 +50,15 @@
 //     (IsLotCompatible, §8.4): then it is a random draw (the original's
 //     generator is seeded from the clock, §8.5, §17), counted, not a
 //     mismatch. A core whose record differs restarts from the original's.
+//   - NM10 (open): the original does not restyle the first row's inner cells
+//     of a lot state message's grown rect; differences at the cells our core
+//     updated there are counted under NM10, not as mismatches.
 //
 // Log lines (always written, not the verbose channel):
 //   netmgr shadow: ON (...) | requested but INACTIVE (...)        game start
 //   netmgr shadow (load|month|save) YYYY-MM-DD: mismatches=N managed=a/b ...
 //   netmgr shadow: city shutdown: N lines, M with mismatches=0 (...)
+//   netmgr shadow: lot state changed (0xE8BDA2E7) border cells ... by place
 #pragma once
 
 #include <cstdint>
