@@ -182,7 +182,7 @@ impl PropRecord {
     /// stored as read (`lr` §2.3): no message is posted and no model is
     /// switched, because this is the record reader rather than the `SetState`
     /// slot.
-    pub fn apply(&self, prop: &mut PropOccupant) {
+    pub fn apply(&self, prop: &PropOccupant) {
         prop.set_prop_type(self.prop_type);
         prop.set_bounding_box(self.bounds.0, self.bounds.1);
         prop.set_orientation(i32::from(self.orientation));

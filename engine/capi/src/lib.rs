@@ -913,6 +913,7 @@ pub mod power;
 pub mod power_shadow;
 pub mod prop_developer;
 pub mod prop_manager;
+pub mod prop_occupant;
 pub mod props;
 pub mod protection;
 pub mod residential;
@@ -1034,6 +1035,9 @@ mod residential_tests;
 
 #[cfg(test)]
 mod prop_manager_tests;
+
+#[cfg(test)]
+mod prop_occupant_tests;
 
 #[cfg(test)]
 mod save_sweep_tests;

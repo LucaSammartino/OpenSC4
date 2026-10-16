@@ -316,8 +316,8 @@ fn t04_as_occupant_vtable_and_refcount() {
 #[test]
 fn t05_get_prop_type_round_trip() {
     let t = types();
-    let mut a = PropOccupant::new(t.clone());
-    let mut b = PropOccupant::new(t.clone());
+    let a = PropOccupant::new(t.clone());
+    let b = PropOccupant::new(t.clone());
     a.set_prop_type(0x1234_5678);
     assert_eq!(a.get_prop_type(), 0x1234_5678);
     assert_eq!(a.prop_type_index(), 0);
@@ -341,7 +341,7 @@ fn t05_get_prop_type_round_trip() {
 #[test]
 fn t06_unknown_type_is_interned() {
     let t = types();
-    let mut p = PropOccupant::new(t.clone());
+    let p = PropOccupant::new(t.clone());
     let before = t.borrow().len();
 
     let rec = PropRecord {
@@ -350,7 +350,7 @@ fn t06_unknown_type_is_interned() {
         ..PropRecord::default()
     };
     let got = round_trip(&rec);
-    got.apply(&mut p);
+    got.apply(&p);
 
     assert_eq!(p.get_prop_type(), 0xFEED_F00D);
     // The table grew by exactly one (test 6).
@@ -410,14 +410,14 @@ fn t08_get_random_chance_is_al() {
 
 #[test]
 fn t09_bounding_box() {
-    let mut p = prop();
+    let p = prop();
     p.set_bounding_box_from_size(Some(&[2.0, 3.0, 4.0]));
     assert_eq!(p.bounding_box(), ([0.0, 0.0, 0.0], [2.0, 3.0, 4.0]));
 
-    let mut q = prop();
+    let q = prop();
     q.set_bounding_box_from_size(None);
     assert_eq!(q.bounding_box(), ([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]));
-    let mut r = prop();
+    let r = prop();
     r.set_bounding_box_from_size(Some(&[]));
     assert_eq!(r.bounding_box(), ([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]));
 
@@ -633,7 +633,7 @@ fn t15_usage() {
 #[test]
 fn t16_save_load_round_trip() {
     let g = Game::new();
-    let mut p = prop();
+    let p = prop();
     p.set_prop_type(0x1111_2222);
     p.set_bounding_box([0.5, 1.5, 2.5], [3.5, 4.5, 5.5]);
     p.set_orientation(2);
@@ -674,8 +674,8 @@ fn t16_save_load_round_trip() {
     assert_eq!(got.timer_bits, 7);
 
     // And the fields land in a fresh prop.
-    let mut q = prop();
-    got.apply(&mut q);
+    let q = prop();
+    got.apply(&q);
     assert_eq!(q.get_prop_type(), 0x1111_2222);
     assert_eq!(q.bounding_box(), ([0.5, 1.5, 2.5], [3.5, 4.5, 5.5]));
     assert_eq!(q.get_orientation(), 2);
@@ -757,7 +757,7 @@ fn t17_version_five_read() {
 #[test]
 fn t18_unknown_type_survives_a_round_trip() {
     let t = types();
-    let mut p = PropOccupant::new(t.clone());
+    let p = PropOccupant::new(t.clone());
     let unknown = 0xA1B2_C3D4;
     assert_eq!(t.borrow().len(), 0, "the type is not in the catalogue");
 
@@ -766,7 +766,7 @@ fn t18_unknown_type_survives_a_round_trip() {
         ..PropRecord::default()
     };
     let first = round_trip(&rec);
-    first.apply(&mut p);
+    first.apply(&p);
     assert_eq!(p.get_prop_type(), unknown);
 
     // Save again from the live prop.

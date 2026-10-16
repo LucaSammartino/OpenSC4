@@ -10258,6 +10258,186 @@ bool fc4_sim_get_debug(const fc4_sim* sim, fc4_debug* out);
 bool fc4_sim_get_agent_info(const fc4_sim* sim, uint32_t level, size_t index, fc4_agent_info* out, char* name,
                             size_t name_capacity);
 
+/* ---- prop occupant (docs/specs/prop-occupant.md) ---------------------------- */
+
+/* The process-wide prop type ID table of 5.1 (0x00B231A4): the +0x5C u16 is an
+ * index into it, not an exemplar key. GetPropTypeIndex appends an unknown ID,
+ * so the table grows across a session (quirk 2). */
+typedef struct fc4_prop_type_table fc4_prop_type_table;
+/* One cSC4PropOccupant (class 0x2977AA47, 0x68 bytes). */
+typedef struct fc4_prop_occupant fc4_prop_occupant;
+/* One cSC4PropOccupantVisualEffect (class 0x2977AA49, 0x94 bytes). */
+typedef struct fc4_prop_effect fc4_prop_effect;
+
+/* What the occupant reaches outside itself (3, 6.1, network-tools 13.1).
+ * Every callback receives `user`. */
+typedef struct fc4_prop_occupant_host {
+  uint32_t struct_size;           /* sizeof(fc4_prop_occupant_host) */
+  void* user;
+  /* Whether the occupant is in the city: SetState posts only when true. */
+  int32_t (*is_in_city)(void* user);
+  /* Post an occupant message carrying this prop and data1. */
+  void (*post_occupant_message)(void* user, uint32_t msg_type, uint32_t data1);
+  /* Whether the exemplar has property 0x4A70D491: 1 true, 0 false,
+   * -1 no exemplar is attached (quirk 6). */
+  int32_t (*has_model_state_property)(void* user);
+  /* Switch the drawn model instances to `state`. */
+  void (*set_model_state)(void* user, uint8_t state);
+  /* Register or clear the 24-hour clock entry; (0, 0) clears it. */
+  void (*set_clock_entry)(void* user, uint8_t start, uint8_t end);
+  /* One draw from the prop's own generator 0x00B231B0, uniform in 0..100. */
+  uint8_t (*draw_chance)(void* user);
+  /* Remove this prop from the occupant manager; 1 when it was there. */
+  int32_t (*remove_from_city)(void* user);
+} fc4_prop_occupant_host;
+
+/* What the visual-effect prop reaches outside itself (6.2). */
+typedef struct fc4_prop_effect_host {
+  uint32_t struct_size;
+  void* user;
+  /* (Re)create the effect object; returns the handle or 0. */
+  uint64_t (*restart_effect)(void* user, uint32_t id, const uint8_t* name, uint32_t name_len);
+  void (*effect_slot3)(void* user, uint64_t handle);
+  void (*effect_slot4)(void* user, uint64_t handle);
+  int32_t (*flag2)(void* user);
+} fc4_prop_effect_host;
+
+/* One compiled slot of cISC4PropOccupant (4.1). */
+typedef struct fc4_prop_slot_info {
+  uint8_t slot;                   /* compiled slot, 0..23 */
+  uint8_t sdk_index;              /* compiled slot - 3 */
+  uint8_t callee_pop;
+  uint8_t arg_dwords;
+  uint32_t offset;
+  uint32_t address;               /* the Windows address of the body */
+  uint32_t ret;                   /* FC4_RET_* */
+} fc4_prop_slot_info;
+
+/* Measured return channels (4.1). docs/abi/interfaces.tsv labels all 24 rows
+ * eax-or-void; the measurements differ. */
+#define FC4_RET_EAX 0u            /* a real value in EAX */
+#define FC4_RET_AL 1u             /* only AL: mask to 0xFF, never a bool */
+#define FC4_RET_VOID 2u           /* no result; ST(0) empty at return */
+#define FC4_RET_VIA_CALL 3u       /* a tail call */
+#define FC4_RET_EAX_OR_VOID 4u    /* the one ambiguous slot (8) */
+
+/* TagMatch of 5.3 / prop-developer 4.3 step 2.3.2. */
+#define FC4_TAG_MATCHED 0
+#define FC4_TAG_CONFIG_LACKS_TAG 1
+#define FC4_TAG_NO_CONFIGURATION 2
+#define FC4_TAG_UNKNOWN_CONFIGURATION 3
+#define FC4_TAG_NONE 4
+
+/* ReadOutcome of 7 / lot-records 10.1. */
+#define FC4_PROP_RECORD_OK 0
+#define FC4_PROP_RECORD_BASE_FAILED 1  /* a failing base read reports success */
+#define FC4_PROP_RECORD_TRUNCATED 2
+
+/* The type table (5.1). */
+fc4_prop_type_table* fc4_prop_type_table_create(void);
+void fc4_prop_type_table_destroy(fc4_prop_type_table* t);
+uint32_t fc4_prop_type_table_len(const fc4_prop_type_table* t);
+/* GetPropTypeIndex: interning at the end when the ID is unknown. */
+uint32_t fc4_prop_type_table_intern(const fc4_prop_type_table* t, uint32_t id);
+uint32_t fc4_prop_type_table_id_at(const fc4_prop_type_table* t, uint32_t index);
+
+/* The prop occupant. */
+fc4_prop_occupant* fc4_prop_occupant_create(const fc4_prop_occupant_host* host,
+                                            const fc4_prop_type_table* types);
+void fc4_prop_occupant_destroy(fc4_prop_occupant* p);
+/* QueryInterface (1.1): the sub-object offset, or -1 when the base refuses. */
+int32_t fc4_prop_occupant_query_interface(uint32_t iid);
+uint32_t fc4_prop_occupant_add_ref(fc4_prop_occupant* p);
+uint32_t fc4_prop_occupant_release(fc4_prop_occupant* p);
+uint32_t fc4_prop_occupant_refcount(fc4_prop_occupant* p);
+
+uint32_t fc4_prop_occupant_get_prop_type(const fc4_prop_occupant* p);
+void fc4_prop_occupant_set_prop_type(fc4_prop_occupant* p, uint32_t id);
+uint32_t fc4_prop_occupant_prop_type_index(const fc4_prop_occupant* p);
+int32_t fc4_prop_occupant_get_orientation(const fc4_prop_occupant* p);
+/* Slot 10: channel al, clamps to 0..3, always returns 1. */
+int32_t fc4_prop_occupant_set_orientation(fc4_prop_occupant* p, int32_t orientation);
+/* Slot 12: channel eax, a clean zero-extended value. */
+uint32_t fc4_prop_occupant_get_state(const fc4_prop_occupant* p);
+void fc4_prop_occupant_set_state(fc4_prop_occupant* p, uint8_t state);
+/* Slots 13/14: void, ST(0) empty at return. */
+void fc4_prop_occupant_set_time_of_day_range(fc4_prop_occupant* p, float start, float end);
+void fc4_prop_occupant_get_time_of_day_range(const fc4_prop_occupant* p, float* a, float* b);
+void fc4_prop_occupant_set_date_range(fc4_prop_occupant* p, uint32_t interval, uint32_t duration,
+                                      uint32_t start_day, uint32_t end_day);
+int32_t fc4_prop_occupant_has_date_range(const fc4_prop_occupant* p);
+void fc4_prop_occupant_set_random_chance(fc4_prop_occupant* p, uint8_t chance);
+/* Slot 18: channel al. The value is a percent 1..100, never a bool. */
+uint8_t fc4_prop_occupant_get_random_chance(const fc4_prop_occupant* p);
+uint32_t fc4_prop_occupant_get_timer_bitfield(const fc4_prop_occupant* p);
+/* Slot 20: channel eax, a real 0/1. */
+int32_t fc4_prop_occupant_get_timer_state(const fc4_prop_occupant* p, uint8_t mask);
+void fc4_prop_occupant_set_timer_state(fc4_prop_occupant* p, uint8_t mask, int32_t on);
+/* Slot 22: channel al. The value is a code 1..4, never a bool. */
+uint8_t fc4_prop_occupant_get_prop_usage(const fc4_prop_occupant* p);
+void fc4_prop_occupant_set_prop_usage(fc4_prop_occupant* p, uint8_t usage);
+/* The usage each Add*Prop path writes (3): kind 1 city, 2 lot, 3 building,
+ * 4 street. */
+uint8_t fc4_prop_add_usage(uint32_t kind);
+
+uint32_t fc4_prop_occupant_lot_tag(const fc4_prop_occupant* p);
+int32_t fc4_prop_occupant_has_lot_tag(const fc4_prop_occupant* p);
+void fc4_prop_occupant_set_lot_tag(fc4_prop_occupant* p, uint32_t tag);
+void fc4_prop_occupant_set_bounding_box(fc4_prop_occupant* p, const float* min, const float* max);
+void fc4_prop_occupant_get_bounding_box(const fc4_prop_occupant* p, float* min, float* max);
+int32_t fc4_prop_occupant_init_after_load(fc4_prop_occupant* p);
+int32_t fc4_prop_occupant_shutdown(fc4_prop_occupant* p);
+void fc4_prop_occupant_set_loaded(fc4_prop_occupant* p, int32_t loaded);
+
+/* The slot table (4.1). */
+uint32_t fc4_prop_occupant_slot_count(void);
+int32_t fc4_prop_occupant_slot_info(uint32_t index, fc4_prop_slot_info* out);
+int32_t fc4_prop_occupant_slot_channel(uint32_t index);
+/* Object size by occupant class (1.2, test 3). */
+uint32_t fc4_prop_object_size(uint32_t class_id);
+
+/* The save record (7 / lot-records 10.1). */
+int32_t fc4_prop_occupant_read_record(fc4_prop_occupant* p, const uint8_t* bytes, uint32_t len);
+int32_t fc4_prop_occupant_write_record(fc4_prop_occupant* p, uint8_t* out, uint32_t cap,
+                                       uint32_t* written);
+/* Returns the record version, or -1. */
+int32_t fc4_prop_record_read_summary(const uint8_t* bytes, uint32_t len, uint32_t* out_prop_type,
+                                     uint8_t* out_timer_bits, uint32_t* out_lot_tag);
+
+/* The lot tag and the PV2 rule (5.3). */
+int32_t fc4_prop_tag_classify(uint32_t tag, const uint32_t* ids, uint32_t ids_len, int32_t unknown);
+/* Corpus figures: which 0 tagged, 1 unmatched, 2 config-lacks-tag,
+ * 3 no-configuration, 4 unknown-configuration, 5 percent x 100. */
+uint32_t fc4_prop_tag_corpus(uint32_t which);
+
+/* The visual-effect prop (6.2). */
+fc4_prop_effect* fc4_prop_effect_create(const fc4_prop_effect_host* host,
+                                        const fc4_prop_type_table* types);
+void fc4_prop_effect_destroy(fc4_prop_effect* e);
+int32_t fc4_prop_effect_set_type_name(fc4_prop_effect* e, const uint8_t* name, uint32_t name_len);
+int32_t fc4_prop_effect_set_type_id(fc4_prop_effect* e, uint32_t id);
+/* Returns 1 only when an effect object exists at +0x6C. */
+int32_t fc4_prop_effect_start(fc4_prop_effect* e, int32_t b);
+/* Returns 1 only when one existed and was started. */
+int32_t fc4_prop_effect_stop(fc4_prop_effect* e, int32_t b);
+int32_t fc4_prop_effect_is_live(const fc4_prop_effect* e);
+int32_t fc4_prop_effect_is_started(const fc4_prop_effect* e);
+/* 1 when Write drops the name and the trailing u32 (lot-records 10.2). */
+int32_t fc4_prop_effect_should_drop_name(const fc4_prop_effect* e);
+int32_t fc4_prop_effect_sub_object_offsets(uint32_t* out);
+int32_t fc4_prop_effect_write_record(fc4_prop_effect* e, uint8_t* out, uint32_t cap,
+                                     uint32_t* written);
+int32_t fc4_prop_effect_read_record(fc4_prop_effect* e, const uint8_t* bytes, uint32_t len,
+                                    uint32_t* out_name_len);
+
+/* Constants (1, 2.2, 5.3, 7). */
+uint32_t fc4_prop_class_id(void);
+uint32_t fc4_prop_occupant_type(void);
+uint32_t fc4_prop_no_lot_tag(void);
+/* out[0] record version 6, out[1] effect version 3, out[2] legacy timer bits
+ * 0x0F, out[3] occupant base version 4. */
+int32_t fc4_prop_record_versions(uint16_t* out);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
@@ -10530,6 +10710,10 @@ static_assert(sizeof(fc4_occ_cell_box) == 4, "fc4_occ_cell_box layout");
 static_assert(sizeof(fc4_occ_filter) == 16, "fc4_occ_filter layout");
 static_assert(sizeof(fc4_occmgr_state) == 56, "fc4_occmgr_state layout");
 static_assert(sizeof(fc4_occmgr_host) == (sizeof(void*) == 4 ? 68 : 136), "fc4_occmgr_host layout");
+static_assert(sizeof(fc4_prop_occupant_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_prop_occupant_host layout");
+static_assert(sizeof(fc4_prop_effect_host) == (sizeof(void*) == 4 ? 24 : 48), "fc4_prop_effect_host layout");
+static_assert(sizeof(fc4_prop_slot_info) == 16, "fc4_prop_slot_info layout");
+
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
@@ -10636,6 +10820,10 @@ _Static_assert(sizeof(fc4_mysim_post) == 24, "fc4_mysim_post layout");
 _Static_assert(sizeof(fc4_mysim_host) == (sizeof(void*) == 4 ? 196 : 392), "fc4_mysim_host layout");
 _Static_assert(sizeof(fc4_mysims_agent_state) == 40, "fc4_mysims_agent_state layout");
 _Static_assert(sizeof(fc4_mysim_state) == 240, "fc4_mysim_state layout");
+_Static_assert(sizeof(fc4_prop_occupant_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_prop_occupant_host layout");
+_Static_assert(sizeof(fc4_prop_effect_host) == (sizeof(void*) == 4 ? 24 : 48), "fc4_prop_effect_host layout");
+_Static_assert(sizeof(fc4_prop_slot_info) == 16, "fc4_prop_slot_info layout");
+
 #endif
 
 #endif /* FC4_H */

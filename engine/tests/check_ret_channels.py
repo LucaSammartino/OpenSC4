@@ -271,6 +271,22 @@ SPEC_FACTS = {
     ("cISC4TutorialSystem", 8): (B, "tutorial system slot: EAX 0/1"),
     ("cISC4ZoneManager", 11): (B, "zones.md 11.1"),
     ("cISC4ZoneManager", 14): (B, "zones.md 11.1"),
+
+    # prop occupant (docs/specs/prop-occupant.md 4.1 measured channels). The
+    # interfaces.tsv rows all say eax-or-void, which is the failure mode exactly:
+    # GetState is movzx eax while GetRandomChance is mov al, and GetTimeOfDayRange
+    # is void with ST(0) empty (8 item 3). Only the slots whose answer really is a
+    # 0/1 bool get an entry here. Slots 12, 18, 19 and 22 get none on purpose: their
+    # values are zero-extended or come from AL, so a narrow read (uint8_t) is exact
+    # and only a bool read is wrong -- which the default "unchecked" already flags.
+    # Slots 5 and 6 get none either: their behaviour is settled (quirk 9) but their
+    # SDK names are not (PO6), so a bool read of them stays "unchecked".
+    ("cISC4PropOccupant", 0): (B, "prop-occupant.md 4.1/1.1: QueryInterface, AL"),
+    ("cISC4PropOccupant", 3): (W, "prop-occupant.md 4.1: AsOccupant returns this+8 in EAX, not an AL answer"),
+    ("cISC4PropOccupant", 10): (B, "prop-occupant.md 4.1: SetOrientation, AL = 1 always"),
+    ("cISC4PropOccupant", 20): (B, "prop-occupant.md 4.1: GetPropTimerState is a real 0/1 in EAX (sbb/neg)"),
+    ("cISC4PropOccupantVisualEffect", 7): (B, "prop-occupant.md 6.2, network-tools 13.2: StartEffect, EAX 0/1"),
+    ("cISC4PropOccupantVisualEffect", 8): (B, "prop-occupant.md 6.2, network-tools 13.2: StopEffect, EAX 0/1"),
 }
 
 

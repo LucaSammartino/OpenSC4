@@ -868,7 +868,7 @@ impl PropOccupant {
     /// §A6.1 step 5, test 9): from the origin to the size; a prop with **no**
     /// size gives `(0, 0, 0)`–`(1, 1, 1)`. One or two values leave the missing
     /// ones 0 [choice] (the prop manager's bracket, PL5).
-    pub fn set_bounding_box_from_size(&mut self, size: Option<&[f32]>) {
+    pub fn set_bounding_box_from_size(&self, size: Option<&[f32]>) {
         match size {
             None | Some([]) => self.set_bounding_box([0.0; 3], [1.0, 1.0, 1.0]),
             Some(s) => {
@@ -904,7 +904,7 @@ impl PropOccupant {
     /// `SetPropType` (slot 8, `0x005EF4C0`). Interns `id` and stores the index
     /// at `+0x5C`. `[choice]` FreeCity4 implements it as `void` (§4.1); the
     /// index is reachable through [`Self::prop_type_index`].
-    pub fn set_prop_type(&mut self, id: u32) {
+    pub fn set_prop_type(&self, id: u32) {
         let index = self.types.borrow_mut().intern(id);
         self.type_index.set(index);
     }
