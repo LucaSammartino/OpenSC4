@@ -249,12 +249,12 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | ghidra/export/windows/instructions.asm | cbc5795d08d336cb | Ghidra 12.1.4 auto-analysis export |
 | re/names_windows.tsv | 7754934901dd9772 | |
 | docs/abi/vtables.tsv | ef50c21aa1f80ddd | |
-| docs/abi/interfaces.tsv | 43d122feebadb801 | |
+| docs/abi/interfaces.tsv | c468e6ad76243f4d | |
 | tools/coverage-libs.tsv | de557a391ec04b04 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-map.tsv | b6f9a73d3820dec6 | |
 | tools/regress.ps1 | a2bb92879ba7e915 | |
-| engine/plugin/FC4Subsystems.cpp | b3bbaf819ddc5518 | |
+| engine/plugin/FC4Subsystems.cpp | 404430dee3e5fe94 | |
 | build-runs/regress-voidbool.out | 08052938525d100a | regress voidbool (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time)); replace run clean |
 
 Read from tools/regress.ps1: 27 replace keys, 26 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
