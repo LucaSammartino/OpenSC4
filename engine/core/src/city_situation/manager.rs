@@ -11,7 +11,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use crate::rng::{derive_seed, FixedSeeds, RzRandomSuper};
+use crate::rng::RzRandomSuper;
 use crate::stream::{InStream, OutStream, SaveObject};
 
 use super::{
@@ -134,13 +134,10 @@ impl CitySituationManager {
     /// member generator is seeded with `derive_seed(session_seed,
     /// 0x0BB14381)` (§5 *[choice]*).
     pub fn new(host: Rc<dyn CitySituationHost>, token: u64, session_seed: u32) -> Rc<CitySituationManager> {
-        let seed = derive_seed(session_seed, CLSID_CITY_SITUATION);
+        let key = crate::seeding::keys::CITY_SITUATION;
         let rng = RzRandomSuper::new(
-            seed,
-            &FixedSeeds {
-                wall_clock: seed,
-                process_clock: seed,
-            },
+            crate::seeding::seed(session_seed, key),
+            &crate::seeding::clocks(session_seed, key),
         );
         Rc::new(CitySituationManager {
             host,

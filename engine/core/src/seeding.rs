@@ -106,13 +106,13 @@ pub fn coordinate_seed(seed: u32) -> u32 {
 /// simulator's and the zone manager's members (never drawn, power.md,
 /// zones.md), the traffic network map's (no draws in traffic-network.md).
 /// Cores still in flight that own generators (§6.2, §6.3 table) adopt the
-/// helper when their glue lands: prop developer (member, × 28), city
-/// situation manager (member), advisors and MySims (members, MySims per
-/// instance), the `cSC4Lot`, wealth requester, network lot manager, network
-/// construction crew, construction / base-texture / retaining-wall / prop /
-/// fire occupants, automata, region creation and advice file-local
-/// generators. The disaster layer's core is merged (its glue is not): its
-/// generators are listed here.
+/// helper when their glue lands: prop developer (member, × 28), advisors
+/// and MySims (members, MySims per instance), the `cSC4Lot`, wealth
+/// requester, network lot manager, network construction crew, construction
+/// / base-texture / retaining-wall / prop / fire occupants, automata, region
+/// creation and advice file-local generators (keys below where the spec
+/// gives `K`). The disaster layer's and the city situation manager's cores
+/// are merged (their glue is not): their generators are listed here.
 pub mod keys {
     use super::{file_seed, SeedKey};
 
@@ -167,6 +167,9 @@ pub mod keys {
     /// The disaster fire instance's own `cRZRandom` (flammability.md §13.1;
     /// K = the fire instance class `0x69C1718F`, disasters lane choice, QUESTIONS DS1).
     pub const DISASTER_FIRE: SeedKey = SeedKey::member(crate::disasters::instance_class::FIRE);
+    /// City situation manager (`cRZRandomSuper`, wall clock at construction,
+    /// drawn only during a mission; city-situation.md §5).
+    pub const CITY_SITUATION: SeedKey = SeedKey::member(crate::city_situation::CLSID_CITY_SITUATION);
 
     // ---- members seeded with a constant -----------------------------------
 
@@ -313,6 +316,11 @@ mod tests {
         // derive(K) = 0x40000000 gives 0 after × 28.
         assert_eq!(prop_developer_seed(0x4000_0000 ^ 0x89C4_8F47), 0);
         assert_eq!(prop_developer_seed(0x89C4_8F47), 28);
+    }
+
+    #[test]
+    fn k_city_situation() {
+        check(keys::CITY_SITUATION, 0x0BB1_4381);
     }
 
     #[test]
@@ -523,6 +531,7 @@ mod tests {
             keys::PIPE_BURST,
             keys::RIOT,
             keys::DISASTER_FIRE,
+            keys::CITY_SITUATION,
         ];
         for key in all {
             assert_eq!(seed(S, key), seed(S, key));
