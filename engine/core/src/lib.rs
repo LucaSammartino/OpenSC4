@@ -38,7 +38,7 @@ pub mod development;
 pub mod development_simulator;
 pub mod disasters;
 pub mod dispatch;
-pub mod flammability;
+pub mod effects;pub mod flammability;
 pub mod flora;
 pub mod grid;
 pub mod growth_developer;

@@ -9879,6 +9879,10 @@ typedef struct fc4_automata_fire fc4_automata_fire;
 #define FC4_AUTOMATA_ATTRACTOR 1u
 /* fc4_automata_automaton_state.current_state when the stack is empty. */
 #define FC4_AUTOMATA_NO_STATE 0xFFFFFFFFu
+/* State types of §6.2 that this ABI names. DISAPPEAR is what SetState(1, ...)
+ * sets at a riot's end and what PopState pushes in place of a `final` state. */
+#define FC4_AUTOMATA_STATE_DEFAULT 0u
+#define FC4_AUTOMATA_STATE_DISAPPEAR 1u
 
 /* A controller time (§1 `time`): hour 0 <= h < 24, day of week 0-6. */
 typedef struct fc4_automata_time {
@@ -10031,10 +10035,17 @@ size_t fc4_automata_controller_template(const fc4_automata_object* o, char* out,
 bool fc4_automata_controller_get_state(const fc4_automata_object* o, fc4_automata_controller_state* out);
 /* Automata (no-ops on controllers): slots 51 SetState (the stack becomes one
  * state of that type), 52 PushState, 53 PopState, 9 SetVisible, 8
- * SetPosition (3 floats), 13 Remove, 29 ReturnToSourceOccupant. */
-void fc4_automata_automaton_set_state(const fc4_automata_object* o, uint32_t state_type, uint32_t a, float b,
-                                      uint32_t c, uint32_t d, uint32_t e, uint32_t f);
-void fc4_automata_automaton_push_state(const fc4_automata_object* o, uint32_t state_type);
+ * SetPosition (3 floats), 13 Remove, 29 ReturnToSourceOccupant.
+ * SetState and PushState take the full PushState signature (§6.2):
+ * controller, timeout_ms, final, animId, sfxId, behaviourTemplate. Both return
+ * false and change nothing while the top state has `final` (§12 quirk 11).
+ * PushState(0, ...) delegates to SetState. */
+bool fc4_automata_automaton_set_state(const fc4_automata_object* o, uint32_t state_type, uint32_t controller,
+                                      float timeout_ms, uint32_t is_final, uint32_t anim_id, uint32_t sfx_id,
+                                      uint32_t behaviour_template);
+bool fc4_automata_automaton_push_state(const fc4_automata_object* o, uint32_t state_type, uint32_t controller,
+                                       float timeout_ms, uint32_t is_final, uint32_t anim_id, uint32_t sfx_id,
+                                       uint32_t behaviour_template);
 bool fc4_automata_automaton_pop_state(const fc4_automata_object* o);
 void fc4_automata_automaton_set_visible(const fc4_automata_object* o, bool visible);
 void fc4_automata_automaton_set_position(const fc4_automata_object* o, const float* position);

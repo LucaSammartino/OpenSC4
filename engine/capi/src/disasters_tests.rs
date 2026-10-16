@@ -680,11 +680,30 @@ fn locations_and_effects() {
         let mut i = fc4_disaster_instance::default();
         assert!(fc4_disasters_get_instance(f.d, id, &mut i));
         assert_eq!((i.manager_type, i.has_location, i.x, i.z), (EFFECT, 1, 10, 20));
+        // [EF5] `data1 = the instance`, which only a slave reached as a meta
+        // child can post (effects.md §10.2).
         let done = fc4_disaster_message {
             msg_type: 0x2A7B_582D,
             void1: 0xE1,
+            data1: i64::from(id),
             ..Default::default()
         };
+        // A particle-spawned slave carries the particle's own `+0x26C`, not
+        // the instance, so its message is not this instance's.
+        let spawned = fc4_disaster_message {
+            msg_type: 0x2A7B_582E,
+            void1: 0xE1,
+            data1: 0x26C,
+            x: 100.0,
+            z: 100.0,
+            ..Default::default()
+        };
+        assert!(!fc4_disasters_do_message(
+            f.d,
+            FC4_DISASTER_TARGET_INSTANCE,
+            id,
+            &spawned
+        ));
         assert!(fc4_disasters_do_message(f.d, FC4_DISASTER_TARGET_INSTANCE, id, &done));
         assert!(!fc4_disasters_get_instance(f.d, id, &mut i));
         assert!(!fc4_disasters_is_ongoing(f.d));

@@ -162,7 +162,7 @@ impl RiotHost for City {
     fn set_state(&mut self, a: u64, t: u32, s: SetStateArgs) {
         self.calls.push(format!(
             "SetState {a:#x} {t} {} {} {} {} {} {}",
-            s.a, s.b, s.c, s.d, s.e, s.f
+            s.controller, s.timeout_ms, s.is_final, s.anim_id, s.sfx_id, s.behaviour_template
         ));
     }
     fn set_visible(&mut self, a: u64, v: bool) {

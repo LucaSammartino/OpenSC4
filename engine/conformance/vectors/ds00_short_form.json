@@ -83,10 +83,11 @@
     {"op": "dis_call", "method": "start_disaster_effect", "args": ["0xE1", 160, 320], "expect": 1},
     {"op": "dis_expect_instance", "instance": 1, "state": {"type": "0x6A7B4397", "phase": 1, "location": [10, 20]}},
     {"op": "dis_call", "method": "is_disaster_ongoing", "expect": true},
-    {"op": "dis_message", "target": {"instance": 1}, "type": "EffectMoved", "void1": "0xE1", "x": 32, "z": 48, "expect": true},
+    {"op": "dis_message", "target": {"instance": 1}, "type": "EffectMoved", "void1": "0xE1", "data1": 1, "x": 32, "z": 48, "expect": true},
+    {"op": "dis_message", "target": {"instance": 1}, "type": "EffectMoved", "void1": "0xE1", "data1": 620, "x": 100, "z": 100, "expect": false},
     {"op": "dis_expect_instance", "instance": 1, "state": {"location": [2, 3]}},
-    {"op": "dis_message", "target": {"instance": 1}, "type": "EffectFinished", "void1": "0xE2", "expect": false},
-    {"op": "dis_message", "target": {"instance": 1}, "type": "EffectFinished", "void1": "0xE1", "expect": true},
+    {"op": "dis_message", "target": {"instance": 1}, "type": "EffectFinished", "void1": "0xE2", "data1": 1, "expect": false},
+    {"op": "dis_message", "target": {"instance": 1}, "type": "EffectFinished", "void1": "0xE1", "data1": 1, "expect": true},
     {"op": "dis_expect_instance", "instance": 1, "absent": true},
     {"op": "dis_call", "method": "is_disaster_ongoing", "expect": false}
   ]

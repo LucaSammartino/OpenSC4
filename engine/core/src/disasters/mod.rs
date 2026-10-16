@@ -641,6 +641,13 @@ pub trait DisasterHost {
     // ---- volcano (§10) ----
     /// Starts the "volcano_control" effect; its completion is delivered as
     /// `0xCA493C1D` with data1 = the instance (§10 state 3).
+    ///
+    /// `volcano_control` is nine meta creators in one select group plus one
+    /// attractor; exactly one creator is built. The effect finishes only after
+    /// that child has finished on an earlier draw-pass sweep **and** the
+    /// child's brush, particle and decal components are all inactive on this
+    /// one (effects.md §10.1 Corrects). See
+    /// [`crate::effects::VolcanoCreatorChild`].
     fn volcano_start_deformation(&self, instance: u32, x: f32, z: f32);
     fn volcano_start_lava(&self, instance: u32, x: f32, z: f32, radius: f32);
     fn volcano_lava_rates(&self, instance: u32, production: f32, solidification: f32);
