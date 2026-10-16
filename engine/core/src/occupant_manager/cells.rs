@@ -65,9 +65,12 @@ const INV_CELL: f32 = 0.015_625;
 const BIAS: f32 = 0.499;
 /// `0.0625` = 1/16 (`0x00A8E174`).
 const INV_STANDARD: f32 = 0.0625;
-/// The 0.1 m shrink of §5.1 step 5 and of the standard-cell boxes (§7, §8.4).
-/// [question OM4] `float` 0.1 (the spec gives no address or width).
+/// The 0.1 m shrink of §5.1 step 5 and of the standard-cell boxes (§7, §8.4):
+/// `float` `0x3DCCCCCD` (`0x00A8F768`), read as a 4-byte operand everywhere
+/// (OM4). Each shrunk bound is a single-precision add or subtract.
 pub(crate) const SHRINK: f32 = 0.1;
+/// The width limit of §5.1 step 5: `float` 1.0 (`0x00A81228`, OM4).
+pub(crate) const SHRINK_MIN_WIDTH: f32 = 1.0;
 
 // ---- slots 10–19 (§3.2) ----
 
@@ -155,9 +158,12 @@ pub fn position_to_standard_city_cell(fx: f32, fz: f32) -> (i32, i32) {
 // ---- the occupant box (§5.1 steps 5–6) ----
 
 /// One axis of step 5: a span wider than 1.0 m (strict) loses 0.1 m on
-/// each side.
-pub(crate) fn shrink(min: f32, max: f32) -> (f32, f32) {
-    if max - min > 1.0 {
+/// each side. The width is compared without being stored, as a
+/// single-precision subtraction (24-bit precision control, OM4), and each
+/// bound is stored as a `float` (§18 test 24: 100.0…164.0 becomes
+/// 100.09999847…163.89999389).
+pub fn shrink(min: f32, max: f32) -> (f32, f32) {
+    if max - min > SHRINK_MIN_WIDTH {
         (min + SHRINK, max - SHRINK)
     } else {
         (min, max)
