@@ -165,6 +165,11 @@ public:
     void ReleaseEffect(uint32_t id);
 
 private:
+    // The two overload bodies (§4.1, §4.2). The vtable slots classify their first argument and
+    // call one of these, because the SDK's declaration order and the measured one disagree
+    // (question 8).
+    bool CreateByName(char const* name, cISC4VisualEffect** out);
+    bool CreateById(uint32_t id0, uint32_t id1, cISC4VisualEffect** out);
     bool LoadDirectory();
     cFC4VisualEffect* Wrap(uint32_t id);
 

@@ -1759,6 +1759,36 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
        sea e/t; queries …; changes terrain=T water=W …; refused=R; mismatches=N[; first: …]
      terrain shadow: city shutdown: N lines, M with mismatches=0; totals <name> e/t …
      ```
+   - **Effects** (`enable = effects`, docs/specs/effects.md; off by default; `plugin/cFC4Effects.h`,
+     `plugin/FC4EffectsHost.h`): replaces `cSC4EffectsManager` (CLSID `0x49822F75`, city slot 85, city +0x1FC)
+     with ours, backed by `fc4_effects`. It is not a saved component (§13). Creation by name under the detail
+     setting, the level-of-detail ranges and the select groups come from the core; the animation tick
+     (`0x86AD10EE`) dilates the step by the simulator's slot 32 and runs while the game is paused. The brush
+     effect reaches terrain `ApplyBrush`; the game effect reaches the fire disaster manager
+     (`IgniteCellRadius`, `SetCause`, `ExtinguishCell`), the toxic-spill manager and `DemolishRegion`.
+     - **`effects_finish`** (env `FC4_EFFECTS_FINISH`; default 0): where effects finish (§7, EF2). `0` finishes
+       **outside the draw pass** — the same §7 sweep runs after each animation tick (`fc4_effects_finish_hook`),
+       so a session that never draws the city still ends its effects and posts their end messages. `1` is the
+       original's compat mode: only the 3D view's draw pass finishes effects (`fc4_effects_draw_pass`), and a
+       session that never draws never finishes one. No end message is ever synthesised.
+     - Animations are stubbed: particles, decals, sequences, sounds, cameras and attractors are core
+       placeholders, and `render_component_active` is always false, so a render component never holds an effect
+       (`[choice, EF1]`). An effect therefore finishes when its brush, game and meta work is done, not after the
+       shipped decals' 45-50 s.
+   - **Effects shadow** (`effects_shadow = 1`, env `FC4_EFFECTS_SHADOW`; off by default;
+     `plugin/FC4EffectsShadow.h`): a same-process mirror of the effects manager. A second `fc4_effects` runs
+     over a host whose reads come from the game and whose **every write is recorded in the context instead of
+     being made**, so the mirror never changes the city. It is ticked with the same microseconds as the live
+     manager and finishes through the same sweep; the live side's create / start / stop / end-message calls are
+     mirrored into it. One line at shutdown:
+
+     ```
+     effects shadow: ticks N, created N, end posts N, select draws N, brush applies N, sweeps N, host writes N, differences N
+     ```
+
+     `differences` counts the times the mirror could not make an effect the live side made. The shadow does not
+     hook the original's vtables, so with `enable = effects` off it reports only its own state and recorded
+     writes; the game runs use both switches, which drives the two cores call for call.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,

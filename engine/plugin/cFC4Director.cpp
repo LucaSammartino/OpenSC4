@@ -26,6 +26,7 @@
 #include "FC4ClockProbe.h"
 #include "FC4Diag.h"
 #include "FC4Dialogs.h"
+#include "FC4EffectsShadow.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
@@ -338,6 +339,7 @@ public:
     bool PreAppShutdown() override {
         FC4_LOGV("hook PreAppShutdown");
         fc4::FpuLog("hook PreAppShutdown");
+        fc4::EffectsShadowStop();  // effects_shadow: the summary line
         fc4::TerrainShadowStop();
         fc4::Clock24ShadowStop();
         fc4::HistoryShadowStop();
