@@ -214,6 +214,11 @@
 //         lane, FC4TerrainShadow.h): the terrain shadow's scenario on a
 //         stand-in original made inside the DLL; returns its mismatch count
 //         (the counters in a), -1 for a bad input.
+//   op 59 kFC4SeamTerrainGlue     a = FC4TerrainGlueTestInput* (the glue18
+//         lane, cFC4Terrain.h): the terrain replacement through the same code
+//         as in game (create, the consumer slots of terrain.md §15.3, TR18's
+//         refuse-and-count, a change and its posts); returns its mismatch
+//         count (the counters in a), -1 for a bad input.
 //   op 66 kFC4SeamNeighborsConfirm a = fc4::NeighborsConfirmFn (cdecl bool
 //         (cIGZString* title, cIGZString* text, cIGZString* yes,
 //         cIGZString* no); null: the game's again) (the apply12 lane,
@@ -286,6 +291,7 @@ enum : uint32_t {
     kFC4SeamHistClock = 54,  // the history and clock lane
     kFC4SeamParks = 57,         // the cmglue lane (cFC4Parks.h FC4ParksTestInput)
     kFC4SeamTerrainShadow = 58,  // the glue16 lane (FC4TerrainShadow.h FC4TerrainShadowTestInput)
+    kFC4SeamTerrainGlue = 59,  // the glue18 lane (cFC4Terrain.h FC4TerrainGlueTestInput)
     kFC4SeamNeighborsConfirm = 66,  // the apply12 lane (NG35, cFC4Neighbors.h NeighborsTestSetConfirm)
 };
 

@@ -48,6 +48,7 @@
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
+#include "cFC4Terrain.h"        // the glue18 lane: the terrain replacement
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -253,6 +254,16 @@ const ClassEntry kClock24Classes[] = {
     {kFC4_CLSID_cSC424HourClock, "cSC424HourClock", &CreateFC4Clock24},
 };
 
+// docs/specs/terrain.md §1 (the glue18 lane). The terrain is city component 49;
+// it owns the surface water (CLSID 0x0B8DA7DB), which the city takes from it,
+// so only the terrain CLSID is registered - a second registration would give
+// the city a second, unrelated water object. Off by default:
+// `enable = terrain`. With it on the city builds ours from the start and the
+// original cSTETerrain never runs (registry CLSID precedence).
+const ClassEntry kTerrainClasses[] = {
+    {fc4::kFC4_CLSID_cSTETerrain, "cSTETerrain", &CreateFC4Terrain},
+};
+
 // docs/specs/tract-developer.md §1. Off by default (M4 glue trial):
 // `enable = tract`. The BDS, the growth developers, the lot developer, the
 // lot manager and the lot configuration manager stay whoever the city runs.
@@ -328,6 +339,7 @@ const Subsystem kSubsystems[] = {
     {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
+    {"terrain", nullptr, kTerrainClasses, sizeof(kTerrainClasses) / sizeof(kTerrainClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -470,7 +482,9 @@ void Resolve() {
     // The traffic shadow (FC4TrafficShadow.h; it compares the original traffic simulator).
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
     // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
-    TerrainShadowStartup();
+    // glue18: with `enable = terrain` there is no original terrain left, so the
+    // shadow goes inactive instead of comparing ours with itself.
+    TerrainShadowStartup(enabledKey("terrain"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
