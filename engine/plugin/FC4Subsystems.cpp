@@ -72,6 +72,8 @@
 #include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
 #include "cFC4Civic.h"       // the cmglue lane: civic
 #include "cFC4Parks.h"       // the cmglue lane: parks
+#include "FC4PortsShadow.h"    // the glue12b2 lane: ports
+#include "cFC4PortDeveloper.h"  // the glue12b2 lane: ports
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -285,6 +287,12 @@ const ClassEntry kCivicClasses[] = {
 const ClassEntry kParkClasses[] = {
     {kFC4_CLSID_cSC4ParkManager, "cSC4ParkManager", &CreateFC4ParkManager},
 };
+// docs/specs/port-developers.md §1: the airport and seaport developers (city
+// components 13 and 14). Off by default (glue12b2): `enable = ports`.
+const ClassEntry kPortClasses[] = {
+    {kFC4_CLSID_cSC4AirportDeveloper, "cSC4AirportDeveloper", &CreateFC4AirportDeveloper},
+    {kFC4_CLSID_cSC4SeaportDeveloper, "cSC4SeaportDeveloper", &CreateFC4SeaportDeveloper},
+};
 // docs/specs/zones.md §1, §1.2, §11.2, §11.3: the zone developer / lot manager
 // (city components 7 and 8). Off by default (M4 glue trial): enable = zonedev.
 // Lot creation waits for re-specs11 (CreateLot fails, logged).
@@ -326,6 +334,7 @@ const Subsystem kSubsystems[] = {
     {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
+    {"ports", nullptr, kPortClasses, sizeof(kPortClasses) / sizeof(kPortClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -465,6 +474,8 @@ void Resolve() {
     Clock24ShadowStartup(enabledKey("clock24"));
     // The traffic shadow (FC4TrafficShadow.h; it compares the original traffic simulator).
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
+    // The ports shadow (FC4PortsShadow.h; it compares the original airport and seaport developers).
+    PortsShadowStartup(g_enabled[0], enabledKey("ports"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

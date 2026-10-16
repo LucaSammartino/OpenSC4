@@ -150,8 +150,10 @@ extern "C" {
  *      (seeding lane; taken as 73 on its lane, then 59-63; renumbered at merge);
  * 65 = adds the list sinks (fc4_u64s_sink / fc4_u32s_sink / fc4_lot_cfg_object), the city detail
  *      manager (fc4_city_detail), the airport/seaport developers (fc4_port_developer) and the prop
- *      developer (fc4_prop_developer) (taken as 61 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 65u
+ *      developer (fc4_prop_developer) (taken as 61 on its lane; renumbered at merge);
+ * 66 = adds fc4_port_developer_required_budget and fc4_port_developer_funding_ratio (the port
+ *      glue's shadow; glue12b2 lane, renumbered at merge). */
+#define FC4_ABI_VERSION 66u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -7270,6 +7272,10 @@ uint32_t fc4_port_developer_num_seaports(const fc4_port_developer* p);
 /* Get...UsageValues(lot): false (0, 0) if not a port. */
 bool fc4_port_developer_usage_values(const fc4_port_developer* p, uint64_t lot, uint32_t* usage, uint32_t* cap);
 uint32_t fc4_port_developer_num_trips(const fc4_port_developer* p);
+/* RequiredBudget() (§4.2): the summed monthly cost of the current stages (line 1's full expenses after UpdateBudget). */
+int64_t fc4_port_developer_required_budget(const fc4_port_developer* p);
+/* The funding ratio fr (§4.2): line 1's current / full, 1.0 without the line or with full 0 (reads the line through the host). */
+float fc4_port_developer_funding_ratio(const fc4_port_developer* p);
 /* GetMaintenanceCost(lot) (0 if not a port). */
 int64_t fc4_port_developer_maintenance_cost(const fc4_port_developer* p, uint64_t lot);
 /* Seaport: CityHasSea / GetCellSeaAccess(x, z) (the map byte, 0 outside the map). */

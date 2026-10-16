@@ -305,6 +305,13 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4ZoneDevHost.cpp
         plugin/FC4ZoneDevShadow.cpp
         plugin/FC4ZoneDevShadow.h
+        # The airport and seaport developers (port-developers.md; glue12b2 lane):
+        # `enable = ports`, ports_shadow.
+        plugin/cFC4PortDeveloper.cpp
+        plugin/cFC4PortDeveloper.h
+        plugin/FC4PortInterfaces.h
+        plugin/FC4PortsShadow.cpp
+        plugin/FC4PortsShadow.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp

@@ -519,6 +519,20 @@ pub unsafe extern "C" fn fc4_port_developer_num_trips(p: *const fc4_port_develop
     with_p(p, 0, |h| h.sim.num_trips())
 }
 
+/// `RequiredBudget()` (§4.2): the summed monthly cost of the ports' current
+/// stages (what `UpdateBudget` writes to line 1). Diagnostics and the shadow.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_port_developer_required_budget(p: *const fc4_port_developer) -> i64 {
+    with_p(p, 0, |h| h.sim.required_budget())
+}
+
+/// The funding ratio `fr` (§4.2): line 1's current / full expenses, 1.0
+/// without the line or with full expenses 0. Reads the line through the host.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_port_developer_funding_ratio(p: *const fc4_port_developer) -> f32 {
+    with_p(p, 1.0, |h| h.sim.funding_ratio())
+}
+
 /// `GetMaintenanceCost(lot)` (0 if not a port).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_port_developer_maintenance_cost(p: *const fc4_port_developer, lot: u64) -> i64 {
