@@ -481,7 +481,10 @@ def resolve_conflicts(wt, lanes):
                 continue
             left.append(p)
             continue
-        if p in APPEND_ONLY:
+        if p in APPEND_ONLY or p.endswith(".md"):
+            # Docs and spec tables: both sides only add sections. Two new sections can begin with the same
+            # markdown table header, so a strict disjoint test rejects them; a duplicated header is a
+            # formatting nit and a dropped section is not.
             if union_merge(wt, p):
                 resolved.append(p + " (union)")
                 continue
