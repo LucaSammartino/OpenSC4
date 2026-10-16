@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "name": "po11_20_loaded_no_announce",
+  "spec": [
+    "prop-occupant 3",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 20. After a load no CreateOccupant 0x99EF1140 is posted for the loaded props: the occupant base's Init posts it only for occupants not loaded from a save (lot-records 2.4).",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_game",
+      "in_city": true,
+      "clear": true
+    },
+    {
+      "op": "po_call",
+      "method": "init_after_load",
+      "expect": true
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "messages": [
+          [
+            "0x99EF1140",
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "op": "po_game",
+      "clear": true
+    },
+    {
+      "op": "po_create",
+      "loaded": true
+    },
+    {
+      "op": "po_call",
+      "method": "init_after_load",
+      "expect": false
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "messages": []
+      }
+    },
+    {
+      "op": "po_const",
+      "name": "msg_create_occupant",
+      "expect": "0x99EF1140"
+    },
+    {
+      "op": "po_const",
+      "name": "msg_prop_state_changed",
+      "expect": "0xE9C86DDB"
+    }
+  ]
+}

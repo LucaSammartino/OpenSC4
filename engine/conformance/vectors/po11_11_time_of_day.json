@@ -1,0 +1,96 @@
+{
+  "format": 1,
+  "name": "po11_11_time_of_day",
+  "spec": [
+    "prop-occupant 4.1",
+    "prop-occupant 8",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 11. SetTimeOfDayRange(18, 8) stores (180, 80) in +0x5E/+0x5F and GetTimeOfDayRange returns (18.0, 8.0); SetTimeOfDayRange(0, 0) registers no clock entry. Both slots use x87 internally but leave ST(0) empty at return, so neither returns in st0 (section 8 item 3, quirk 12). The two arguments are by-value floats.",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_game",
+      "clear": true
+    },
+    {
+      "op": "po_call",
+      "method": "set_time_of_day_range",
+      "args": [
+        18.0,
+        8.0
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "time_of_day_bytes",
+      "expect": [
+        180,
+        80
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_time_of_day_range",
+      "expect": [
+        18.0,
+        8.0
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "tod_bytes": [
+          180,
+          80
+        ],
+        "clock": [
+          [
+            180,
+            80
+          ]
+        ]
+      }
+    },
+    {
+      "op": "po_call",
+      "method": "set_time_of_day_range",
+      "args": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "time_of_day_bytes",
+      "expect": [
+        0,
+        0
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "clock": []
+      }
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        13
+      ],
+      "expect": "void"
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        14
+      ],
+      "expect": "void"
+    }
+  ]
+}

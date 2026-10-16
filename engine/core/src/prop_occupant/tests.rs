@@ -104,7 +104,7 @@ impl PropOccupantHost for Game {
 }
 
 impl EffectHost for Game {
-    fn restart_effect(&mut self, _id: u32, _name: &[u8]) -> Option<u64> {
+    fn restart_effect(&self, _id: u32, _name: &[u8]) -> Option<u64> {
         let h = 0xE000 + self.effect_handles.borrow().len() as u64 + 1;
         self.effect_handles.borrow_mut().push(h);
         Some(h)
@@ -130,7 +130,7 @@ struct EffectlessGame {
 }
 
 impl EffectHost for EffectlessGame {
-    fn restart_effect(&mut self, _id: u32, _name: &[u8]) -> Option<u64> {
+    fn restart_effect(&self, _id: u32, _name: &[u8]) -> Option<u64> {
         None
     }
 
@@ -906,12 +906,12 @@ fn t20_loaded_props_do_not_announce_themselves() {
 
 #[test]
 fn t21_visual_effect_attach() {
-    let mut g = Game::new();
-    let mut e = VisualEffectProp::new(types());
+    let g = Game::new();
+    let e = VisualEffectProp::new(types());
     assert_eq!(e.class_id(), CLSID_PROP_VISUAL_EFFECT);
 
     // SetEffectType(name) makes an effect object through the host.
-    assert!(e.set_effect_type_name(b"pothole", &mut g));
+    assert!(e.set_effect_type_name(b"pothole", &g));
     assert_ne!(e.effect_handle(), 0, "the effect object is at +0x6C");
     assert_eq!(e.effect_name(), b"pothole");
     assert_eq!(e.effect_id(), 0, "the name form stores ID 0 (nt §13.2)");
@@ -928,9 +928,9 @@ fn t21_visual_effect_attach() {
     assert!(!e.stop_effect(true, &g));
 
     // With no effect object StartEffect still sets `started` and returns false.
-    let mut ng = EffectlessGame::default();
-    let mut f = VisualEffectProp::new(types());
-    assert!(!f.set_effect_type_name(b"x", &mut ng) || true);
+    let ng = EffectlessGame::default();
+    let f = VisualEffectProp::new(types());
+    assert!(!f.set_effect_type_name(b"x", &ng) || true);
     // `restart_effect` returned None, so +0x6C is 0.
     f.set_effect_handle(0);
     assert!(!f.start_effect(true, &ng.inner));
@@ -952,9 +952,9 @@ fn t21_visual_effect_attach() {
 
 #[test]
 fn t22_visual_effect_record_quirk() {
-    let mut g = Game::new();
-    let mut e = VisualEffectProp::new(types());
-    e.set_effect_type_name(b"welding_sparks", &mut g);
+    let g = Game::new();
+    let e = VisualEffectProp::new(types());
+    e.set_effect_type_name(b"welding_sparks", &g);
     assert!(e.is_live(), "the effect object is non-null");
 
     // The quirk: the name is dropped while the effect is live.

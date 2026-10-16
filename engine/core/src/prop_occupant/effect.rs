@@ -63,7 +63,7 @@ pub trait EffectHost {
     /// `SetEffectType` calls after storing a new type. Returns the handle, or
     /// `None` when no effect object could be made — the case `StartEffect`
     /// answers false for.
-    fn restart_effect(&mut self, id: u32, name: &[u8]) -> Option<u64>;
+    fn restart_effect(&self, id: u32, name: &[u8]) -> Option<u64>;
 
     /// The effect's slot 3, called with `b = 0` from `StartEffect` when
     /// occupant flag 2 is set (`nt` §13.2 step 1).
@@ -218,7 +218,7 @@ impl VisualEffectProp {
     /// `SetEffectType(uint32 id)` (slot 5, `nt` §13.2), channel **`void`**:
     /// when `id` differs from `+0x84`, clear the stored name, store `id`, zero
     /// `+0x88` / `+0x8C`, and restart the effect.
-    pub fn set_effect_type_id(&mut self, id: u32, host: &mut dyn EffectHost) -> bool {
+    pub fn set_effect_type_id(&self, id: u32, host: &dyn EffectHost) -> bool {
         if id == self.effect_id.get() {
             return false;
         }
@@ -232,7 +232,7 @@ impl VisualEffectProp {
     /// `SetEffectType(char const* name)` (slot 6, `nt` §13.2), channel
     /// **`void`**: when `name` differs from the stored name, set the stored ID
     /// to 0, store `name`, and restart.
-    pub fn set_effect_type_name(&mut self, name: &[u8], host: &mut dyn EffectHost) -> bool {
+    pub fn set_effect_type_name(&self, name: &[u8], host: &dyn EffectHost) -> bool {
         if name == self.name.borrow().as_slice() {
             return false;
         }
@@ -242,7 +242,7 @@ impl VisualEffectProp {
         true
     }
 
-    fn restart(&mut self, host: &mut dyn EffectHost) {
+    fn restart(&self, host: &dyn EffectHost) {
         let id = self.effect_id.get();
         let name = self.name.borrow().clone();
         self.effect.set(host.restart_effect(id, &name).unwrap_or(0));

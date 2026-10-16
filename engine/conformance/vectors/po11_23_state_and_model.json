@@ -1,0 +1,114 @@
+{
+  "format": 1,
+  "name": "po11_23_state_and_model",
+  "spec": [
+    "prop-occupant 4.1",
+    "prop-occupant 9",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 23. SetState(s) posts 0xE9C86DDB when the occupant is in the city and does nothing when s already equals +0x63 (network-tools 13.1). The model state switches only when the exemplar has property 0x4A70D491 (quirk 6).",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_game",
+      "in_city": true,
+      "clear": true
+    },
+    {
+      "op": "po_call",
+      "method": "set_state",
+      "args": [
+        0
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "messages": [],
+        "model_states": []
+      }
+    },
+    {
+      "op": "po_call",
+      "method": "set_state",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "messages": [
+          [
+            "0xE9C86DDB",
+            1
+          ]
+        ],
+        "state": 1
+      }
+    },
+    {
+      "op": "po_game",
+      "in_city": false,
+      "clear": true
+    },
+    {
+      "op": "po_call",
+      "method": "set_state",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "messages": [],
+        "state": 2
+      }
+    },
+    {
+      "op": "po_game",
+      "in_city": true,
+      "clear": true,
+      "model_state_property": false
+    },
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "set_state",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "model_states": []
+      }
+    },
+    {
+      "op": "po_game",
+      "model_state_property": true,
+      "clear": true
+    },
+    {
+      "op": "po_call",
+      "method": "set_state",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "model_states": [
+          2
+        ]
+      }
+    }
+  ]
+}

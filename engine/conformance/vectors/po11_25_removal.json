@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "name": "po11_25_removal",
+  "spec": [
+    "prop-occupant 3",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 25. RemovePropA then Shutdown removes the prop from the occupant manager; a second removal is a no-op.",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_game",
+      "in_city": true,
+      "clear": true
+    },
+    {
+      "op": "po_call",
+      "method": "shutdown",
+      "expect": true
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "removed": 1
+      }
+    },
+    {
+      "op": "po_call",
+      "method": "shutdown",
+      "expect": false
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "removed": 1
+      }
+    }
+  ]
+}

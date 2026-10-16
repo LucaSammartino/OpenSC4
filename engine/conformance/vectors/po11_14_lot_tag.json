@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "name": "po11_14_lot_tag",
+  "spec": [
+    "prop-occupant 5.3",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 14. A fresh prop's GetLotTag (occupant slot 27) is false; SetLotTag(0x1234) makes it true and returns 0x1234. The tag is the configuration object's ID at +0x24 that caused the prop to be placed, and the constructor default is 0xFFFFFFFF = none (quirk 1).",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "has_lot_tag",
+      "expect": false
+    },
+    {
+      "op": "po_call",
+      "method": "lot_tag",
+      "expect": "0xFFFFFFFF"
+    },
+    {
+      "op": "po_call",
+      "method": "set_lot_tag",
+      "args": [
+        "0x1234"
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "has_lot_tag",
+      "expect": true
+    },
+    {
+      "op": "po_call",
+      "method": "lot_tag",
+      "expect": "0x1234"
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "lot_tag": "0x1234",
+        "has_lot_tag": true
+      }
+    },
+    {
+      "op": "po_call",
+      "method": "set_lot_tag",
+      "args": [
+        "0xFFFFFFFF"
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "has_lot_tag",
+      "expect": false
+    }
+  ]
+}

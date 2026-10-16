@@ -1,0 +1,147 @@
+{
+  "format": 1,
+  "name": "po11_24_pv2_tag_matching",
+  "spec": [
+    "prop-occupant 5.3",
+    "prop-developer 4.3",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 24. A lot prop whose tag equals a configuration object's ID is counted normally; one whose tag names nothing leaves the block's slot count one lower (prop-developer 4.3 step 2.3.2 step 2: k := k - 1). The corpus count is 40,830 of 147,162 tagged lot props unmatched (27.7%): 40,794 on a lot whose configuration lacks the tag, 36 on a lot with no configuration, 0 unknown-config; effect props are clean.",
+  "steps": [
+    {
+      "op": "po_config",
+      "ids": [
+        "0x11",
+        "0x22",
+        "0x33",
+        "0x22"
+      ]
+    },
+    {
+      "op": "po_block",
+      "method": "reset"
+    },
+    {
+      "op": "po_block",
+      "method": "keep"
+    },
+    {
+      "op": "po_block",
+      "method": "keep"
+    },
+    {
+      "op": "po_block",
+      "method": "keep"
+    },
+    {
+      "op": "po_block",
+      "method": "kept",
+      "expect": 3
+    },
+    {
+      "op": "po_tag",
+      "args": [
+        "0x22"
+      ],
+      "expect": [
+        "matched",
+        1
+      ]
+    },
+    {
+      "op": "po_block",
+      "method": "kept",
+      "expect": 3
+    },
+    {
+      "op": "po_tag",
+      "args": [
+        "0x99"
+      ],
+      "expect": "config-lacks-tag"
+    },
+    {
+      "op": "po_block",
+      "method": "kept",
+      "expect": 2
+    },
+    {
+      "op": "po_block",
+      "method": "unmatched",
+      "expect": 1
+    },
+    {
+      "op": "po_block",
+      "method": "slots_with",
+      "args": [
+        4
+      ],
+      "expect": 6
+    },
+    {
+      "op": "po_tag",
+      "args": [
+        "0xFFFFFFFF"
+      ],
+      "expect": null
+    },
+    {
+      "op": "po_block",
+      "method": "kept",
+      "expect": 2
+    },
+    {
+      "op": "po_config",
+      "ids": null
+    },
+    {
+      "op": "po_tag",
+      "args": [
+        "0x22"
+      ],
+      "expect": "no-configuration"
+    },
+    {
+      "op": "po_config",
+      "ids": null,
+      "unknown": true
+    },
+    {
+      "op": "po_tag",
+      "args": [
+        "0x22"
+      ],
+      "expect": "unknown-configuration"
+    },
+    {
+      "op": "po_tally",
+      "method": "tagged",
+      "expect": 4
+    },
+    {
+      "op": "po_tally",
+      "method": "matched",
+      "expect": 1
+    },
+    {
+      "op": "po_tally",
+      "method": "config_lacks_tag",
+      "expect": 1
+    },
+    {
+      "op": "po_tally",
+      "method": "no_configuration",
+      "expect": 1
+    },
+    {
+      "op": "po_tally",
+      "method": "unknown_configuration",
+      "expect": 1
+    },
+    {
+      "op": "po_tally",
+      "method": "unmatched",
+      "expect": 3
+    }
+  ]
+}

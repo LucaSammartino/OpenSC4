@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "name": "po11_06_unknown_type_interned",
+  "spec": [
+    "prop-occupant 5.1",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 6. Reading a save whose prop names a type absent from the catalogue succeeds; afterwards GetPropType returns that ID and the process-wide table has grown by one (5.1 point 2, quirk 2).",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "type_table_len",
+      "expect": 0
+    },
+    {
+      "op": "po_read",
+      "hex": "06000400000000041e8223a80000000002000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006400ffffffff00",
+      "apply": true,
+      "expect": "ok"
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_type",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "type_table_len",
+      "expect": 1
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "type_index": 0,
+        "prop_type": 0
+      }
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_type",
+      "args": [
+        "0xFEEDF00D"
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_type",
+      "expect": "0xFEEDF00D"
+    },
+    {
+      "op": "po_call",
+      "method": "type_table_len",
+      "expect": 2
+    }
+  ]
+}
