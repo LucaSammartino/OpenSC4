@@ -406,7 +406,10 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4NetworkTool.h
         plugin/FC4NetToolHost.cpp
         plugin/FC4NetToolHost.h
-        # The occupant manager shadow (occupant-manager.md): occmgr_shadow (no replacement).
+        # The occupant manager (occupant-manager.md): enable = occmgr; its shadow
+        # is occmgr_shadow and follows whichever manager is active.
+        plugin/cFC4OccMgr.cpp
+        plugin/cFC4OccMgr.h
         plugin/FC4OccMgrShadow.cpp
         plugin/FC4OccMgrShadow.h
         # The prop manager, the lot configuration manager and the tutorial system
