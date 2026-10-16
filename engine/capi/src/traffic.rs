@@ -938,7 +938,16 @@ impl TrafficSimHost for CHost {
     }
     fn create_line_item(&self, department: u64, item: ts::dept::LineItem, only_if_missing: bool) {
         if department != 0 {
-            cb!(self, create_line_item, (), department, item.line, item.name, item.income, only_if_missing)
+            cb!(
+                self,
+                create_line_item,
+                (),
+                department,
+                item.line,
+                item.name,
+                item.income,
+                only_if_missing
+            )
         }
     }
     fn department_funding(&self, department: u64) -> f32 {

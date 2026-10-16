@@ -893,8 +893,7 @@ impl TrafficSimulator {
             Some(d)
         };
         let roads = loaded_roads.or_else(|| create(dept::ROADS, roads_max, &dept::ROADS_LINES));
-        let transit =
-            loaded_transit.or_else(|| create(dept::MASS_TRANSIT, transit_max, &dept::MASS_TRANSIT_LINES));
+        let transit = loaded_transit.or_else(|| create(dept::MASS_TRANSIT, transit_max, &dept::MASS_TRANSIT_LINES));
         // Then, on every Init, lines 4-6 of both when missing, in the
         // original's order (§9.1 TG7).
         for (mass_transit, item) in dept::INIT_LINES {

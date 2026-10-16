@@ -1457,10 +1457,16 @@ fn tg7_department_line_items() {
     let (r, m) = (DEPT_BASE, DEPT_BASE + 1);
     let mut want: Vec<(u64, dept::LineItem, bool)> = dept::ROADS_LINES.iter().map(|&i| (r, i, false)).collect();
     want.extend(dept::MASS_TRANSIT_LINES.iter().map(|&i| (m, i, false)));
-    want.extend(dept::INIT_LINES.iter().map(|&(mt, i)| (if mt { m } else { r }, i, true)));
+    want.extend(
+        dept::INIT_LINES
+            .iter()
+            .map(|&(mt, i)| (if mt { m } else { r }, i, true)),
+    );
     assert_eq!(*w.line_items.borrow(), want);
-    let order: Vec<(u64, u32, u32, bool)> =
-        w.line_items.borrow()[6..].iter().map(|&(d, i, _)| (d, i.line, i.name, i.income)).collect();
+    let order: Vec<(u64, u32, u32, bool)> = w.line_items.borrow()[6..]
+        .iter()
+        .map(|&(d, i, _)| (d, i.line, i.name, i.income))
+        .collect();
     assert_eq!(
         order,
         vec![
@@ -1472,8 +1478,11 @@ fn tg7_department_line_items() {
             (r, 6, 0xEA5F_96E7, false),
         ]
     );
-    let income: Vec<(u64, u32)> =
-        w.line_items.borrow()[..6].iter().filter(|e| e.1.income).map(|e| (e.0, e.1.line)).collect();
+    let income: Vec<(u64, u32)> = w.line_items.borrow()[..6]
+        .iter()
+        .filter(|e| e.1.income)
+        .map(|e| (e.0, e.1.line))
+        .collect();
     assert_eq!(income, vec![(m, 2)]);
     assert_eq!((dept::GROUP, dept::NAME_GROUP), (0xAA36_9059, 0x6A3F_F01C));
     // A load: Read before Init keeps the saved departments.
@@ -1485,8 +1494,10 @@ fn tg7_department_line_items() {
     assert!(s2.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
     assert!(s2.init());
     assert!(w2.departments.borrow().is_empty());
-    let loaded: Vec<(u64, dept::LineItem, bool)> =
-        dept::INIT_LINES.iter().map(|&(mt, i)| (if mt { m } else { r }, i, true)).collect();
+    let loaded: Vec<(u64, dept::LineItem, bool)> = dept::INIT_LINES
+        .iter()
+        .map(|&(mt, i)| (if mt { m } else { r }, i, true))
+        .collect();
     assert_eq!(*w2.line_items.borrow(), loaded);
 }
 
