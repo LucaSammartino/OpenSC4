@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "demolition_building_price",
+  "spec": ["demolition 4.3", "demolition 4.5", "demolition 12.3"],
+  "description": "Pricing a lot whose building costs 1234 (the building development simulator's 0x099AFACD price) with nothing else priced: true, cost 1234, nothing removed. Without the building development simulator the building is not priced (cost 0) and the call still succeeds.",
+  "steps": [
+    {"op": "demolition_create"},
+    {"op": "demolition_init", "expect": true},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_occupant", "occupant": "0x10", "type": "building", "cell": [5, 5], "cost": 1234},
+    {"op": "demolition_lot", "lot": "0x50", "rect": [5, 5, 5, 5], "zone": 1, "state": 3, "building": "0x10", "occupants": ["0x10"]},
+    {"op": "demolition_lots", "do_it": false, "lots": ["0x50"], "privilege": 0, "flags": 1, "expect": {"ok": true, "cost": 1234}},
+    {"op": "demolition_expect_events", "events": []},
+    {"op": "demolition_env", "building_development_simulator": false},
+    {"op": "demolition_lots", "do_it": false, "lots": ["0x50"], "privilege": 0, "flags": 1, "expect": {"ok": true, "cost": 0}}
+  ]
+}

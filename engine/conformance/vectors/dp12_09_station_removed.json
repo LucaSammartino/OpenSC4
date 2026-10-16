@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dispatch_station_removed",
+  "spec": ["dispatch 3", "dispatch 4.6", "dispatch 12.9"],
+  "description": "RemoveOccupant of a station with two records removes both, posts nothing and never calls RevokeDispatchFromStation; the vehicles are despawned and the station's references given back (the vehicles are not released, DP7).",
+  "steps": [
+    {"op": "dispatch_create"},
+    {"op": "dispatch_init", "expect": true},
+    {"op": "dispatch_source", "source": "0x500", "types": [1], "stations": [{"station": "0x600", "base": 1, "count": 3}]},
+    {"op": "dispatch_clear_events"},
+    {"op": "dispatch_call", "method": "dispatch", "args": [1, 1, 1], "expect": 1},
+    {"op": "dispatch_call", "method": "dispatch", "args": [1, 2, 2], "expect": 2},
+    {"op": "dispatch_expect_refs", "refs": {"0x600": 2}},
+    {"op": "dispatch_clear_events"},
+    {"op": "dispatch_message", "type": "RemoveOccupant", "object": "0x600", "expect": true},
+    {"op": "dispatch_expect", "state": {"record_count": 0}},
+    {"op": "dispatch_expect_event_count", "filter": {"event": "post"}, "count": 0},
+    {"op": "dispatch_expect_event_count", "filter": {"event": "revoke_from_station"}, "count": 0},
+    {"op": "dispatch_expect_event_count", "filter": {"event": "despawn"}, "count": 2},
+    {"op": "dispatch_expect_refs", "refs": {"0x600": 0}}
+  ]
+}

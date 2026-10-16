@@ -81,7 +81,7 @@ budget is off by default (enable = <key>).
 - [x] **Traffic simulator core** (merged a11eb7d: all 15 §11 tests as unit tests and 29 `ts11_*` vectors)
 - [x] **Traffic glue, phase 1** (merged 850b567, `enable = traffic`): our traffic simulator and pathfinder replace the original in game; clean alone, across saves and for 84 months at normal speed, and in a full city with 17 other replacements (run 105, one reference warning under investigation)
 - [x] **Traffic phase 2** (merged 40d9eab, regress run 119 PASS): the TS35–TS49 answers, the O(1) source iterator, and the traffic shadow (`traffic_shadow = 1`): with `traffic_shadow_hypotheses = 7` every delivery matches the original on Konradshohe for 7 game months (261/261, resyncs=0); TS55–TS57 decide whether those readings become the spec
-- [ ] Calibration; commute and volume maps match (M5 exit): answer TS50–TS66, make the confirmed readings the core's behaviour, run the shadow on Spandau and past 2026-08, add `traffic` and `traffic_shadow` to regress
+- [ ] Calibration; commute and volume maps match (M5 exit): answer TS50–TS66, make the confirmed readings the core's behaviour, run the shadow on Spandau and past 2026-08 (on Konradshohe to 2032 under turbo it is not exact: run 121, 43 of 72 month lines, TS63/TS64); `traffic` and `traffic_shadow` are in regress since run 121
 
 **M6+: beyond simulation**
 - [x] Specs: game data formats (DBPF, exemplars, tuning catalogue, 601f3a9), lot/occupant save records (0460f3a), city save records validated against 417 saves (e69009f)
@@ -94,7 +94,7 @@ budget is off by default (enable = <key>).
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**
-- [x] Interface/ABI reference for implementers: allocators, layouts, direct calls ([docs/abi/](abi/))
+- [x] Interface/ABI reference for implementers: allocators, layouts, direct calls ([docs/abi/](abi/)); the conformance test accepts a single trailing deleting destructor past the declared slot count (abitidy, merged b435187, regress run 122 PASS)
 - [x] Test harness switches in the plugin (6147be6, tooling, off by default): `sim_turbo` (our clock without the msPerDay wait), `autotest_end_date`, `script = <file>` (dated zone / dezone / speed / save / digest actions through the game's interfaces); turbo runs about 100 game days/s in game and waits for ConnectionsReady (0786064)
 - [x] Parallel game slots and a per-lane run queue (9e0fa74): up to 3 games at once, each lane tests its own DLL in game ([docs/harness.md](harness.md)); `regress -Parallel` in about 164 s
 - [x] Game dialogs ended from inside the plugin (dba09eb, tooling, off by default): `close_dialogs = 1` presses each modal dialog's default button through the window manager ([docs/specs/modal-dialogs.md](specs/modal-dialogs.md))

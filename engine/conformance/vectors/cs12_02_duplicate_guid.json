@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "citysit_duplicate_guid",
+  "spec": ["city-situation 7", "city-situation 12.2"],
+  "description": "A record with GUID g twice (counts 2, then 5) reads as g -> 2: the first value is kept.",
+  "steps": [
+    {"op": "citysit_read", "hex": "0200 02000000 07000000 0200 07000000 0500 01", "expect": true},
+    {"op": "citysit_expect", "state": {"success_counts": {"0x7": 2}}}
+  ]
+}
