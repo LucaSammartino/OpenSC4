@@ -298,6 +298,9 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Parks.h
         plugin/FC4ParksShadow.cpp
         plugin/FC4ParksShadow.h
+        # The terrain shadow (terrain.md; the glue16 lane): terrain_shadow.
+        plugin/FC4TerrainShadow.cpp
+        plugin/FC4TerrainShadow.h
         # The disaster layer's host (disasters.md; glue13) and its shadow: disasters_shadow.
         plugin/FC4DisasterHost.cpp
         plugin/FC4DisasterHost.h
@@ -574,6 +577,11 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_parks_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-parks)
     set_tests_properties(plugin_ini_enable_parks_test PROPERTIES RUN_SERIAL TRUE)
+    # `terrain_shadow = 1`: the terrain shadow (glue16) on a stand-in original
+    # built inside the DLL (seam op 58): exact, lost messages, perturbations.
+    add_test(NAME plugin_ini_terrain_shadow_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-terrain-shadow)
+    set_tests_properties(plugin_ini_terrain_shadow_test PROPERTIES RUN_SERIAL TRUE)
     # `enable = neighbors`: the neighbours simulator, its connections (an
     # original's accepted on load) and deals, through a fake city and region.
     add_test(NAME plugin_ini_enable_neighbors_test

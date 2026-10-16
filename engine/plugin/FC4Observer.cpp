@@ -40,6 +40,7 @@
 #include "FC4DisasterShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
+#include "FC4TerrainShadow.h"  // the glue16 lane
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "FC4OccMgrShadow.h"
@@ -562,6 +563,7 @@ public:
                 HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
                 OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
+                TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
@@ -584,6 +586,7 @@ public:
                 CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
                 ParksShadowCityShutdown();  // parks_shadow: the same
                 OccMgrShadowCityShutdown();  // occmgr_shadow: the probe, the shadow core and its references
+                TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
                 AutotestOnCityShutdown(false);
                 break;
