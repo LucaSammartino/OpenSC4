@@ -662,6 +662,7 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      | `zone x0 z0 x1 z1 type` | `cISC4ZoneManager::PlaceZone` (city slot 36, slot 11; zones.md §6): commit = 1, skipFunds = 0, checkSlope = 1, skipSizeCheck = 0, checkLotInside = 1, outLots = null; the region (§11.4) in our memory, every cell of the inclusive rectangle set |
      | `pricezone x0 z0 x1 z1 type` | the same with commit = 0 (a dry run) |
      | `dezone x0 z0 x1 z1` | the same with type 0, commit = 1 |
+     | `network ax az bx bz type` | a network run from cell (ax, az) to (bx, bz) as network-manager.md §9 gives it: the network manager's `GetNetworkTool(type, true)` (city slot 38, slot 5; a private tool, released after), tool `Init`, `PlaceNetworkOccupants(ax, az, bx, bz, 0, null, 1, -1)` (slot 7, real mode; network-tools.md §3), `Shutdown`; free (nothing is withdrawn), no regional connection, a failed validation places nothing of the run; type 0..12 (network-manager.md §3.1: 0 road, 1 rail, 3 street, 6 avenue, …); the two ends in either order; `-> ok=<AL of slot 7> (PlaceNetworkOccupants type T, real, free)` |
      | `speed 0\|1\|2`, `pause`, `resume` | the city simulator's `SetSimSpeed` / `Pause` / `Resume` (one call) |
      | `turbo on\|off` | our simulator's turbo clock (`sim_turbo_frame_ms`, no end date); `on` before the city's first `ConnectionsReady` is held until it (`-> turbo requested: held …`), `off` also drops a held request; no effect with `disable = simulator` |
      | `digest` | the observer's `DIGEST` line, now |
@@ -685,8 +686,9 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      script: line 7 2000-02-01 save: waits for the next framework tick (not run inside SimNewDay); the actions due
        after it wait behind it
      script: line 7 2000-02-01 save -> ok=1 (SaveCity(full) in 412 ms)
-     script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark,
-       save, disaster)
+     script: line 5 2000-01-06 network 4 4 14 4 0 -> ok=1 (PlaceNetworkOccupants type 0, real, free)
+     script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, network, speed, pause, resume, turbo,
+       digest, mark, save, terrain, disaster)
      script: REFUSED '…\script.txt' (script setting): 1 parse error(s); no action of it runs
      ```
 
@@ -1765,6 +1767,59 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
        pauses=…; posts original=… matched=… unmatched=0 pending=…; values=… differing=0; mismatches=0;
        comparisons=C clean=C
      ```
+   - **Network manager shadow** (`netmgr_shadow = 1`, env `FC4_NETMGR_SHADOW`; off by default;
+     `netmgr_shadow_order = late|early`, env `FC4_NETMGR_SHADOW_ORDER`, default `late`;
+     `plugin/FC4NetMgrShadow.h`): a same-process differential of `cSC4NetworkManager` (component 53) and
+     `cSC4NetworkLotManager` (component 11) (network-manager.md). It needs the **original** managers (there is
+     no replacement yet). Two shadow cores with read-only hosts (`plugin/FC4NetMgrHost.h`: every write
+     callback NULL, nothing reaches the game) start at PostCityInit from the originals' own records (their
+     `Write` into memory), the lot core with the 543 network lot configurations of the exemplars (type `0x21`,
+     read once per process), and follow the originals' messages (§6): the manager core through a listener
+     registered at PostAppInit (before every city listener), the lot core, with `late`, through a second target
+     subscribed at PostCityInit, after the original network lot manager, so it reads the game as the original
+     did (`early`: the first listener). The cores' writes are recorded, not made: the terrain rule's
+     destructions (§7.6) are checked at the next framework tick against the occupants the original removed, and
+     the road style writes (§8.7) against the occupants' `GetVariation` (slot 28) and flags `0x6000000`. At
+     PostCityInit, each SimNewMonth and before a scripted `save`: our component 53 `Write` against the
+     original's (byte for byte, object for object), our component 11 `Write` against the original's (entry by
+     entry: occupant and configuration; pothole keys), the original's `GetZoneTypeForNetwork` /
+     `GetWealthForNetwork` (slots 9, 10) against ours at every lot cell, and, for a configuration that differs,
+     whether both are compatible now (§8.4): then it is a random draw (the original's generator is seeded from
+     the clock, §8.5, §17), counted and not a mismatch. A core whose record differs restarts from the
+     original's. Lines (always written):
+
+     ```
+     netmgr shadow: ON (netmgr_shadow from …): …                                            (game start)
+     netmgr shadow: N exemplar keys enumerated, M network lot configuration exemplars (exemplar type 0x21)
+     netmgr shadow (load|month|save) yyyy-mm-dd: mismatches=N start|followed; managed=a/b record53=equal (6
+       bytes); lots=a/b potholes=a/b record11=equal|same entries (order differs)|DIFFERS; lot cells=… zone
+       diffs=0 wealth diffs=0 configs same=… draws=… incompatible=0; configs loaded=543; messages=… (mgr …, lot
+       …); terrain msgs=… tool calls=… destroyed=… confirmed=… kept-by-orig=0 orig-only=0 rebuilt=…
+       candidates=… refits=…; style writes=… checked=… gone=… mismatches=0; potholes created=…; order late:
+       probe before=…/…; per message: N compared, variations agree=… ours-only=… orig-only=… differ=…;
+       0x…: N msgs N cells, the original changed …, ours changed …[ (first notes)][; cells before/orig/ours
+       [0x… rect …: x,z:b/o/u …]]; NM10 (lot state border's first row, open)=K[; resynced: mgr lot]
+       [; differences: …][; NM10 differences: …]
+     netmgr shadow: city shutdown: N lines, M with mismatches=0 (exact M/N); D configuration draws not
+       compared; R resyncs; NM10 (…) differences K on L lines
+     netmgr shadow: lot state changed (0xE8BDA2E7) border cells with a network tile, by place in the grown
+       rect (cells / the original changed the variation / ours changed it where the original kept it): …
+     ```
+
+     Success is `mismatches=0` on every line. A style difference names the cell, both variations and the
+     zone / wealth both managers give the cell now, with the variation they imply. With `late`, every lot
+     message's cells are also compared message by message: the early target reads their variations before
+     the original handles the message, the late one after it and after the lot core, so the line counts, per
+     message type, the cells the original changed and those ours changed where the original kept the value.
+
+     **NM10 (open question).** In game the original never restyles the inner cells of the first row
+     (x0 < x < x1, z = z0) of a lot state message's grown rect (§6.2 `0xE8BDA2E7`), which the spec walks with
+     the rest of the border; Konradshohe to 2032: 0 of 589 such cells changed by the original, 80 changed by
+     ours, while every other place of the border agrees; whole-city snapshots (`netmgr_shadow_wide = N`, env
+     `FC4_NETMGR_SHADOW_WIDE`: the first N lot state messages, default 0) show the original restyling such a
+     cell later, during another message, only rarely. Until NM10 is answered, a style or lot difference at a
+     cell our lot core updated there since the city loaded is counted and listed under `NM10`, not as a
+     mismatch.
    - **Terrain shadow** (`terrain_shadow = 1`, env `FC4_TERRAIN_SHADOW`; off by default; `terrain_shadow_points = N`
      sample points a month, default 256, 16..4096; `terrain_shadow_diffs = N` differences named per line, default 8,
      1..64; `terrain_shadow_lines = N` change lines a month, default 8, 0..1000; `plugin/FC4TerrainShadow.h`): a

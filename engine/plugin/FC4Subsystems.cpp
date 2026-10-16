@@ -48,6 +48,7 @@
 #include "FC4FlammabilityShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
+#include "FC4NetMgrShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
 #include "FC4DemolitionShadow.h"  // the glue17 lane: demolition_shadow
@@ -483,6 +484,8 @@ void Resolve() {
     Clock24ShadowStartup(enabledKey("clock24"));
     // The traffic shadow (FC4TrafficShadow.h; it compares the original traffic simulator).
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
+    // The network manager shadow (FC4NetMgrShadow.h; it follows the original network managers).
+    NetMgrShadowStartup();
     // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
     TerrainShadowStartup();
     // The glue17 lane's three shadows (they compare the original city situation

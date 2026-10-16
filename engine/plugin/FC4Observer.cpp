@@ -40,6 +40,7 @@
 #include "FC4DisasterShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
+#include "FC4NetMgrShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
 #include "FC4DemolitionShadow.h"  // the glue17 lane: demolition_shadow
@@ -529,6 +530,8 @@ public:
         // close_dialogs (FC4Dialogs.h): a modal loop ticks us once per pass
         // (modal-dialogs.md §2.3); before the script and the autotest.
         DialogsOnTick();
+        // netmgr_shadow (FC4NetMgrShadow.h): the recorded writes against the game.
+        NetMgrShadowTick();
         if (loadSnapshotDue_) {
             loadSnapshotDue_ = false;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
@@ -568,6 +571,7 @@ public:
                 ZoneDevShadowCityLoaded(CurrentCity());  // zonedev_shadow = 1 only
                 HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
+                NetMgrShadowCityLoaded(CurrentCity());   // netmgr_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
                 CitySitShadowCityLoaded(CurrentCity());  // the glue17 lane: citysit_shadow = 1 only
@@ -593,6 +597,7 @@ public:
                 CommercialShadowCityShutdown();  // commercial_shadow: the shadow core goes with the city
                 CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
                 ParksShadowCityShutdown();  // parks_shadow: the same
+                NetMgrShadowCityShutdown();  // netmgr_shadow: the shadow cores and their references go
                 TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
                 CitySitShadowCityShutdown();  // the glue17 lane: citysit_shadow's summary, then the core goes
@@ -635,7 +640,7 @@ public:
                 CitySitShadowMonth(CurrentCity(), julian);  // the glue17 lane: citysit_shadow = 1 only
                 DemolitionShadowMonth(CurrentCity(), julian);  // demolition_shadow = 1 only
                 DispatchShadowMonth(CurrentCity(), julian);    // dispatch_shadow = 1 only
-                ++monthsSinceLoad_;
+                NetMgrShadowMonth(CurrentCity(), julian);       // netmgr_shadow = 1 only                ++monthsSinceLoad_;
                 if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.

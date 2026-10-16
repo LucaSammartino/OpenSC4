@@ -160,6 +160,10 @@ inline void FormatRunFigures(int32_t julian, bool started, uint32_t elapsedMs, u
 //   zone x0 z0 x1 z1 type     PlaceZone, commit = 1 (type 0..15, zones.md §2)
 //   pricezone x0 z0 x1 z1 type  the same, commit = 0 (a dry run)
 //   dezone x0 z0 x1 z1        PlaceZone type 0, commit = 1
+//   network ax az bx bz type  a straight network run from cell a to cell b in
+//                             real mode (network-manager.md §9,
+//                             network-tools.md §3: type 0..12, free, no
+//                             regional connection; a, b in either order)
 //   speed 0|1|2               SetSimSpeed (turtle, llama, cheetah)
 //   pause | resume            one Pause / Resume call
 //   turbo on|off              our simulator's turbo clock (FC4Turbo.h)
@@ -181,11 +185,27 @@ inline void FormatRunFigures(int32_t julian, bool started, uint32_t elapsedMs, u
 //   disaster survey           a log of candidate cells for the two (no call
 //                             into the layer; FC4DisasterShadow.h)
 // Coordinates are whole numbers 0..kScriptMaxCell with x0 <= x1 and z0 <= z1
-// ([choice]: a reversed rectangle is an error, not swapped).
+// ([choice]: a reversed rectangle is an error, not swapped; a network run's
+// two ends may come in either order: the tool clamps and draws them as given).
 
-enum class ScriptOp { Zone, PriceZone, Dezone, Speed, Pause, Resume, Turbo, Digest, Mark, Save, Terrain, Disaster };
+enum class ScriptOp {
+    Zone,
+    PriceZone,
+    Dezone,
+    Speed,
+    Pause,
+    Resume,
+    Turbo,
+    Digest,
+    Mark,
+    Save,
+    Terrain,
+    Disaster,
+    Network
+};
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
+constexpr int32_t kScriptMaxNetworkType = 12;  // network-manager.md §3.1: types 0..12
 
 // The `disaster` action's kinds.
 constexpr int32_t kDisasterFire = 0;
@@ -204,6 +224,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::Digest: return "digest";
         case ScriptOp::Mark: return "mark";
         case ScriptOp::Save: return "save";
+        case ScriptOp::Network: return "network";
         case ScriptOp::Terrain: return "terrain";
         case ScriptOp::Disaster: return "disaster";
     }
@@ -215,8 +236,8 @@ struct ScriptAction {
     Date date;
     int32_t julian = 0;  // of `date`
     ScriptOp op = ScriptOp::Mark;
-    int32_t x0 = 0, z0 = 0, x1 = 0, z1 = 0;  // zone, pricezone, dezone
-    int32_t type = 0;                        // zone, pricezone (dezone: 0)
+    int32_t x0 = 0, z0 = 0, x1 = 0, z1 = 0;  // zone, pricezone, dezone; network: the run's ends
+    int32_t type = 0;                        // zone, pricezone (dezone: 0); network: the network type
     int32_t speed = 0;                       // speed
     bool on = false;                         // turbo
     bool fast = false;                       // save
@@ -335,18 +356,22 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         *error = b;
         return false;
     };
-    auto rect = [&]() {
-        static const char* const kNames[4] = {"x0", "z0", "x1", "z1"};
+    auto cells = [&](const char* const* names) {
         int32_t* const dst[4] = {&a.x0, &a.z0, &a.x1, &a.z1};
         for (int i = 0; i < 4; ++i) {
             if (!detail::ParseCount(tok[2 + i], kScriptMaxCell, dst[i])) {
                 char b[160];
-                std::snprintf(b, sizeof(b), "%s '%s' is not a cell coordinate 0..%d", kNames[i], tok[2 + i].c_str(),
+                std::snprintf(b, sizeof(b), "%s '%s' is not a cell coordinate 0..%d", names[i], tok[2 + i].c_str(),
                               kScriptMaxCell);
                 *error = b;
                 return false;
             }
         }
+        return true;
+    };
+    auto rect = [&]() {
+        static const char* const kNames[4] = {"x0", "z0", "x1", "z1"};
+        if (!cells(kNames)) return false;
         if (a.x0 > a.x1 || a.z0 > a.z1) {
             char b[160];
             std::snprintf(b, sizeof(b), "the rectangle %d,%d..%d,%d is reversed (x0 <= x1 and z0 <= z1 needed)", a.x0,
@@ -367,6 +392,14 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         a.op = ScriptOp::Dezone;
         if (!wantArgs(4, "x0 z0 x1 z1") || !rect()) return false;
         a.type = 0;
+    } else if (name == "network") {
+        static const char* const kEnds[4] = {"ax", "az", "bx", "bz"};
+        a.op = ScriptOp::Network;
+        if (!wantArgs(5, "ax az bx bz type") || !cells(kEnds)) return false;
+        if (!detail::ParseCount(tok[6], kScriptMaxNetworkType, &a.type)) {
+            *error = "network type '" + tok[6] + "' is not 0..12";
+            return false;
+        }
     } else if (name == "speed") {
         a.op = ScriptOp::Speed;
         if (!wantArgs(1, "0, 1 or 2")) return false;
@@ -468,7 +501,8 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         return false;
     } else {
         *error = "unknown action '" + tok[1] +
-                 "' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark, save, terrain, disaster)";
+                 "' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, save, terrain, "
+                 "disaster)";
         return false;
     }
     *out = a;
