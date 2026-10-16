@@ -148,14 +148,38 @@ std::map<uint64_t, StyleWrite> g_style;
 struct SnapCell {
     int32_t x = 0, z = 0;
     uint32_t before = 0;
+    int32_t zone = -1, wealth = -1;  // the original's slots 9, 10 before the original handled it
 };
 std::map<uint64_t, SnapCell> g_snap;
 bool g_snapValid = false;
 uint32_t g_snapType = 0;
+fc4_cell_rect g_snapRect{};  // the message's cells (grown rect)
+std::string g_geom;          // up to 4 messages per line where ours changed a cell the original kept
+size_t g_geomListed = 0;
+// 0xE8BDA2E7 border cells by place in the grown rect (first row: its first
+// cell, the inner cells, its last cell; the middle rows at x0, at x1; the
+// last row): cells, the original changed, ours changed where the original
+// kept. Whole city session (reported at city shutdown).
+constexpr int kPlaces = 6;
+const char* const kPlaceNames[kPlaces] = {"first row x0", "first row inner", "first row x1", "middle x0", "middle x1",
+                                          "last row"};
+uint32_t g_place[kPlaces][3] = {};
+
+int PlaceOf(int32_t x, int32_t z, const fc4_cell_rect& r) {
+    if (z == r.z1) return x == r.x1 ? 0 : (x == r.x2 ? 2 : 1);
+    if (z == r.z2) return 5;
+    return x == r.x1 ? 3 : 4;
+}
 std::map<uint64_t, uint32_t> g_msgWrites;
 struct PerMessage {
     uint32_t messages = 0, agree = 0, oursOnly = 0, origOnly = 0, differ = 0;
 };
+// Per lot message type (usable, zoning, lot state): messages compared, cells
+// looked at, cells whose variation the original changed, cells ours changed.
+struct PerType {
+    uint32_t messages = 0, cells = 0, origChanged = 0, oursChanged = 0;
+};
+std::map<uint32_t, PerType> g_pt;
 PerMessage g_pm;
 std::string g_pmFirst;
 size_t g_pmListed = 0;
@@ -889,7 +913,15 @@ void RunStep(void* p) {
     if (g_late) {
         AppendF(s, "; per message: %u compared, variations agree=%u ours-only=%u orig-only=%u differ=%u", g_pm.messages,
                 g_pm.agree, g_pm.oursOnly, g_pm.origOnly, g_pm.differ);
-        if (!g_pmFirst.empty()) AppendF(s, " (%s)", g_pmFirst.c_str());
+        for (const auto& t : g_pt) {
+            AppendF(s, "; 0x%08X: %u msgs %u cells, the original changed %u, ours changed %u", t.first, t.second.messages,
+                    t.second.cells, t.second.origChanged, t.second.oursChanged);
+        }
+        if (!g_pmFirst.empty()) s += " (" + g_pmFirst + ")";
+        if (!g_geom.empty()) s += "; cells before/orig/ours " + g_geom;
+        g_geom.clear();
+        g_geomListed = 0;
+        g_pt.clear();
         g_pm = PerMessage{};
         g_pmFirst.clear();
         g_pmListed = 0;
@@ -1018,11 +1050,17 @@ void TakeSnapshot(void* p) {
             if (x < 0 || z < 0 || x >= cx || z >= cz) continue;
             const uint64_t n = g_lhost.find_network_tile(g_lhost.user, x, z, 0x1F4F);  // borrowed
             if (n == 0) continue;
-            g_snap[n] = SnapCell{x, z, NetOf(n)->GetVariation() & 0xFFu};
+            SnapCell c{x, z, NetOf(n)->GetVariation() & 0xFFu};
+            if (cISC4NetworkLotManager* nlm = g_city ? g_city->GetNetworkLotManager() : nullptr) {
+                c.zone = static_cast<int32_t>(nlm->GetZoneTypeForNetwork(x, z));  // slot 9
+                c.wealth = static_cast<int32_t>(nlm->GetWealthForNetwork(x, z));  // slot 10
+            }
+            g_snap[n] = c;
         }
     }
     g_snapValid = true;
     g_snapType = m.type;
+    g_snapRect = r;
 }
 
 void PmNote(const char* fmt, ...) {
@@ -1040,11 +1078,46 @@ void PmNote(const char* fmt, ...) {
 // After the original (snapshot -> now) and ours (g_msgWrites) handled the
 // same message: whose style writes changed what.
 void CompareMessageStyle(const Msg& m, const std::map<uint64_t, uint32_t>& afterOrig) {
+    // The geometry of a message where ours changed a cell the original kept:
+    // the rect, then every cell with a network tile as x,z:before/orig/ours.
+    bool oursOnly = false;
+    for (const auto& c : g_snap) {
+        auto w = g_msgWrites.find(c.first);
+        const uint32_t orig = afterOrig.count(c.first) != 0 ? afterOrig.at(c.first) : c.second.before;
+        if (w != g_msgWrites.end() && w->second != orig && orig == c.second.before) oursOnly = true;
+    }
+    if (oursOnly && g_geomListed < 4) {
+        ++g_geomListed;
+        char b[96];
+        std::snprintf(b, sizeof(b), "%s[0x%08X %u->%u rect %d,%d..%d,%d:", g_geom.empty() ? "" : " ", m.type, m.d[0],
+                      m.d[1], g_snapRect.x1, g_snapRect.z1, g_snapRect.x2, g_snapRect.z2);
+        g_geom += b;
+        for (const auto& c : g_snap) {
+            auto w = g_msgWrites.find(c.first);
+            const uint32_t orig = afterOrig.count(c.first) != 0 ? afterOrig.at(c.first) : c.second.before;
+            char v[8] = "-";
+            if (w != g_msgWrites.end()) std::snprintf(v, sizeof(v), "%u", w->second);
+            std::snprintf(b, sizeof(b), " %d,%d:%u/%u/%s", c.second.x, c.second.z, c.second.before, orig, v);
+            g_geom += b;
+        }
+        g_geom += "]";
+    }
     ++g_pm.messages;
+    PerType& pt = g_pt[m.type];
+    ++pt.messages;
     for (const auto& c : g_snap) {
         const uint32_t orig = afterOrig.count(c.first) != 0 ? afterOrig.at(c.first) : c.second.before;
         auto w = g_msgWrites.find(c.first);
         const bool origChanged = orig != c.second.before;
+        ++pt.cells;
+        if (origChanged) ++pt.origChanged;
+        if (w != g_msgWrites.end() && w->second != orig) ++pt.oursChanged;
+        if (m.type == kMsgLotStateChanged) {
+            const int place = PlaceOf(c.second.x, c.second.z, g_snapRect);
+            ++g_place[place][0];
+            if (origChanged) ++g_place[place][1];
+            if (!origChanged && w != g_msgWrites.end() && w->second != orig) ++g_place[place][2];
+        }
         if (w == g_msgWrites.end()) {
             if (origChanged) {
                 ++g_pm.origOnly;
@@ -1057,8 +1130,15 @@ void CompareMessageStyle(const Msg& m, const std::map<uint64_t, uint32_t>& after
             ++g_pm.agree;
         } else if (!origChanged) {
             ++g_pm.oursOnly;
-            PmNote("0x%08X d1=%u at %d,%d: ours %u->%u, the original kept %u", m.type, m.d[0], c.second.x, c.second.z,
-                   c.second.before, w->second, orig);
+            int32_t zl = -1, wl = -1;
+            if (cISC4NetworkLotManager* nlm = g_city ? g_city->GetNetworkLotManager() : nullptr) {
+                zl = static_cast<int32_t>(nlm->GetZoneTypeForNetwork(c.second.x, c.second.z));
+                wl = static_cast<int32_t>(nlm->GetWealthForNetwork(c.second.x, c.second.z));
+            }
+            PmNote("0x%08X d1=%u d2=%u at %d,%d: ours %u->%u, the original kept %u; its zone/wealth before %d/%d, after "
+                   "it ran %d/%d",
+                   m.type, m.d[0], m.d[1], c.second.x, c.second.z, c.second.before, w->second, orig, c.second.zone,
+                   c.second.wealth, zl, wl);
         } else {
             ++g_pm.differ;
             PmNote("0x%08X d1=%u at %d,%d: the original %u->%u, ours ->%u", m.type, m.d[0], c.second.x, c.second.z,
@@ -1300,7 +1380,18 @@ void NetMgrShadowCityShutdown() {
         Log("netmgr shadow: city shutdown: %u lines, %u with mismatches=0 (exact %u/%u); %u configuration draws not "
             "compared; %u resyncs",
             g_lines, g_exactLines, g_exactLines, g_lines, g_draws, g_resyncs);
+        if (g_late) {
+            std::string t;
+            for (int i = 0; i < kPlaces; ++i) {
+                AppendF(t, "%s%s %u/%u/%u", i ? ", " : "", kPlaceNames[i], g_place[i][0], g_place[i][1],
+                        g_place[i][2]);
+            }
+            Log("netmgr shadow: lot state changed (0xE8BDA2E7) border cells with a network tile, by place in the grown "
+                "rect (cells / the original changed the variation / ours changed it where the original kept it): %s",
+                t.c_str());
+        }
     }
+    std::memset(g_place, 0, sizeof(g_place));
     DropCores();
     g_city = nullptr;
     g_ctx.city = nullptr;
