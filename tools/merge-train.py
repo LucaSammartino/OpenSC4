@@ -391,13 +391,15 @@ def union_hunks(wt, rel):
             if last_head.strip():
                 content.append(last_head)
             if content:
-                # In a union this side's last entry is never the merged list's last entry, whether or not
-                # the side carried the close, so it needs its trailing comma now.
+                # In a union this side's last entry is never the merged list's last entry, so a *list entry*
+                # needs its trailing comma now. Only entries: a statement (`...;`) or a comment is left alone.
                 for j in range(len(content) - 1, -1, -1):
                     s = content[j].strip()
                     if not s or s.startswith("//") or s.startswith("/*") or s.startswith("*"):
                         continue
-                    if not content[j].rstrip().endswith(","):
+                    if s.endswith(";") or s.endswith("{") or s.endswith("}") or s.endswith(","):
+                        break
+                    if s.startswith(('"', "{", "'", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "-")):
                         content[j] = content[j].rstrip() + ","
                     break
             if last_term and last_term.rstrip() not in [t.rstrip() for t in terms]:
@@ -596,9 +598,11 @@ def resolve_conflicts(wt, lanes):
             continue
         # Additive shared source, or any other file whose hunks are two sides adding different lines at one
         # anchor. A hunk that edits shared text goes to the operator.
+        # union_hunks refuses a non-additive result via its three-way brace check, so no separate
+        # can_union gate is needed here.
         fp = Path(wt) / p
-        if fp.exists() and can_union(fp) and union_hunks(wt, p):
-            resolved.append(p + " (union, disjoint)")
+        if fp.exists() and union_hunks(wt, p):
+            resolved.append(p + " (union)")
             continue
         left.append(p)
     return resolved, left
