@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "prop_families",
+  "spec": ["prop-lotconfig A3.3", "prop-lotconfig A5", "prop-lotconfig Q1", "prop-lotconfig T3"],
+  "description": "Exemplars A (0xA0, families F = 0xF0 and G = 0xF1), B (0xB0, family F), then A again: families keep load order without duplicates, F = [A, B], G = [A]. Slot 9 assigns a family's members and returns the count; a single type assigns [type] and returns 0 (quirk 1); anything else leaves the vector. Slot 10 is true for a member or the type itself; slot 11 accepts types and families.",
+  "steps": [
+    {"op": "pm_exemplar", "instance": "0xA0", "families": ["0xF0", "0xF1"]},
+    {"op": "pm_exemplar", "instance": "0xB0", "families": ["0xF0"]},
+    {"op": "pm_exemplar", "instance": "0xA0", "families": ["0xF0", "0xF1"]},
+    {"op": "pm_create"},
+    {"op": "pm_init", "expect": true},
+    {"op": "pm_call", "method": "prop_types_by_family", "vec": [7], "args": ["0xF0"], "expect": {"result": 2, "vec": ["0xA0", "0xB0"]}},
+    {"op": "pm_call", "method": "prop_types_by_family", "vec": [7], "args": ["0xF1"], "expect": {"result": 1, "vec": ["0xA0"]}},
+    {"op": "pm_call", "method": "prop_types_by_family", "vec": [7], "args": ["0xA0"], "expect": {"result": 0, "vec": ["0xA0"]}},
+    {"op": "pm_call", "method": "prop_types_by_family", "vec": [7], "args": ["0x5555"], "expect": {"result": 0, "vec": [7]}},
+    {"op": "pm_call", "method": "is_prop_in_family", "args": ["0xA0", "0xF0"], "expect": true},
+    {"op": "pm_call", "method": "is_prop_in_family", "args": ["0xA0", "0xA0"], "expect": true},
+    {"op": "pm_call", "method": "is_prop_in_family", "args": ["0xB0", "0xF1"], "expect": false},
+    {"op": "pm_call", "method": "is_prop_family_type_valid", "args": ["0xA0"], "expect": true},
+    {"op": "pm_call", "method": "is_prop_family_type_valid", "args": ["0xF0"], "expect": true},
+    {"op": "pm_call", "method": "is_prop_family_type_valid", "args": ["0x5555"], "expect": false},
+    {"op": "pm_call", "method": "all_prop_types", "expect": ["0xA0", "0xB0"]},
+    {"op": "pm_call", "method": "all_prop_family_types", "expect": ["0xF0", "0xF1"]}
+  ]
+}

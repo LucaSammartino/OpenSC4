@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "tutorial_end_without_registry_then_save",
+  "spec": ["tutorial 4.2", "tutorial 4.3", "tutorial 8.5"],
+  "description": "A running tutorial (startTutorial: a window is created, referenced and initialised; the registry entry is activated): endTutorial(false) closes and releases the window, restores the 3D view's controls, clears is-tutorial and sets end-pending; the registry entry stays active. The pre-save message then calls endTutorial(true): the registry entry goes inactive and end-pending clears. A second pre-save does nothing.",
+  "steps": [
+    {"op": "tut_env", "registry_result": true},
+    {"op": "tut_create"},
+    {"op": "tut_read", "hex": "02000100000000a3d302cc", "expect": true},
+    {"op": "tut_call", "method": "start_tutorial", "expect": true},
+    {"op": "tut_expect_events", "events": [
+      {"event": "create_window"},
+      {"event": "init_window"},
+      {"event": "set_active", "guid": "0xCC02D3A3", "active": true}
+    ]},
+    {"op": "tut_expect", "state": {"is_tutorial": 1, "window": true, "window_refs": 1, "end_pending": false}},
+    {"op": "tut_call", "method": "end_tutorial", "args": [false], "expect": false},
+    {"op": "tut_expect_events", "events": [{"event": "close_window"}, {"event": "view_restore"}]},
+    {"op": "tut_call", "method": "is_tutorial", "expect": 0},
+    {"op": "tut_expect", "state": {"end_pending": true, "window": false, "window_refs": 0, "registry_active": {"0xCC02D3A3": true}}},
+    {"op": "tut_message", "type": "PreSave", "expect": true},
+    {"op": "tut_expect_events", "events": [
+      {"event": "set_active", "guid": "0xCC02D3A3", "active": false},
+      {"event": "view_restore"}
+    ]},
+    {"op": "tut_expect", "state": {"end_pending": false, "is_tutorial": 0, "registry_active": {"0xCC02D3A3": false}}},
+    {"op": "tut_message", "type": "PreSave", "expect": true},
+    {"op": "tut_expect_events", "events": []}
+  ]
+}
