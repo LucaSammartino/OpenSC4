@@ -4524,11 +4524,19 @@ apply12 applied ZG18, ZG21, CM5, NG35-NG37, NG43, NG44 and DG35 (ABI 59, taken a
 66 installs a fake confirmation dialog). DG28 is not applied: the audited release in the growth developer's
 destructor (`FC4_RELEASE_AT_DESTRUCTION`) stays. The lane's choices are in brackets.
 
-- **NG45:** (neighbors.md §6.2, NG35) RequestCreateConnection's title and text are LTEXT keys, but the spec does not
+- ~~**NG45:** (neighbors.md §6.2, NG35) RequestCreateConnection's title and text are LTEXT keys, but the spec does not
   say which loader reads them or which group the two instance-only keys (`0x0A8E152D` text, `0x0A8E15F9` fallback
   name) belong to. [SC4LoadString's rule (group + language ID, then the group alone, U+2022 becomes U+200B), with
   both keys in the title's group `0x6A231EAA`; the sprintf template takes the name at the first `%s` and `%%` gives
-  `%`; a missing LTEXT gives empty text (choice)]
+  `%`; a missing LTEXT gives empty text (choice)]~~ **ANSWERED 2026-10-16 (re-answers18):** **MATCHES**.
+  - All three keys are constructed with group `0x6A231EAA` (`0x006D1612`, `0x006D1627`, `0x006D163C`).
+  - The loader is the localized-string object `cSLString` (`0x00603580`). Its `Load` (`0x00603300`) uses
+    `SC4LoadString`'s lookup and U+2022 → U+200B. A missing LTEXT gives an empty string (`0x006034E4`), so the
+    choice is the original's behaviour.
+  - One detail differs from `SC4LoadString`: a failed detokenize keeps the text.
+  - `cRZString::Sprintf` (`0x0090F574`) uses the C `printf` conversions (first `%s`, `%%`).
+
+  neighbors §6.2.
 - ~~**DG39:** (building-development §1.4, DG28) after loading a saved city (Konradshohe, run `apply12-dev-1`), our
   growth developers are destroyed only after the simulator's Shutdown, not inside the BDS Shutdown, although the
   core shuts each one down and releases it there. Does the original's load-time object table (or anything else)
