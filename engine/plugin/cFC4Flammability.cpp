@@ -19,6 +19,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -447,10 +448,10 @@ cIGZUnknown* CreateFC4FlammabilitySimulator() {
 
 cFC4FlammabilitySimulator::cFC4FlammabilitySimulator() {
     host_ = MakeHost(this, &gridCtx_);
-    // Seed(0xFFFFFFFF): wall-clock and process-clock values (§7, foundations
-    // §6.1). The generator is the object's own cRZRandom, seeded 0.
-    core_ = fc4_flammability_create(&host_, SelfToken(), static_cast<uint32_t>(GetTickCount64() ^ GetCurrentProcessId()),
-                                    static_cast<uint32_t>(GetTickCount()));
+    // The generator is the object's own cRZRandom, seeded 0 (§7); its double
+    // path's clock reseed takes derive(S, GZCLSID) of the session seed
+    // (foundations §6.3, FC4Seed.h).
+    core_ = fc4_flammability_create(&host_, SelfToken(), fc4::SessionSeed());
     if (core_ == nullptr) fc4::Log("cFC4FlammabilitySimulator: core creation failed");
     fc4::Log("cFC4FlammabilitySimulator(%p) created, core %p", static_cast<void*>(this), static_cast<void*>(core_));
 }

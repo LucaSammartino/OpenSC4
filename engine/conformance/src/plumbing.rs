@@ -257,8 +257,10 @@ impl PlumbingHost for World {
     fn tuning(&self) -> Option<Rc<PropertyHolder>> {
         self.tuning.borrow().clone()
     }
-    fn wall_clock_seed(&self) -> u32 {
-        self.wall_seed.get()
+    fn session_seed(&self) -> u32 {
+        // The vectors give the original's clock value (`wall_seed`); the
+        // session seed whose derive(K) is that value (foundations §6.3).
+        self.wall_seed.get() ^ fc4_core::seeding::keys::PLUMBING.k()
     }
     fn add_agent(&self, level: u32, name: &str, flags: u32) {
         self.events.push(

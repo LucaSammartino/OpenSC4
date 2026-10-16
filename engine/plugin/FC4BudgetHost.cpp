@@ -31,6 +31,7 @@
 #include "FC4Interfaces.h"
 #include "FC4Properties.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "FC4TestSeam.h"
@@ -600,7 +601,9 @@ bool TryStartDisaster(void*, uint32_t id, float x, float z) {
     return started;
 }
 
-uint32_t RngSeed(void*) { return GetTickCount(); }  // foundations §6.2: wall clock
+// The session seed (foundations §6.3, FC4Seed.h): the RiskyMoney generator
+// takes derive(S, 0x6C09C3D7).
+uint32_t SessionSeedCb(void*) { return fc4::SessionSeed(); }
 
 bool Ltext(void*, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx) {
     if (!On(Sw::Ltext)) {
@@ -766,7 +769,7 @@ fc4_budget_host MakeHost() {
     h.record_history = &RecordHistory;
     h.set_history_queue_length = &SetHistoryQueueLength;
     h.try_start_disaster = &TryStartDisaster;
-    h.rng_seed = &RngSeed;
+    h.session_seed = &SessionSeedCb;
     h.ltext = &Ltext;
     h.building_type_name = &BuildingTypeName;
     h.get_u32s = &GetU32s;

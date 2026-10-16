@@ -21,6 +21,7 @@
 #include "FC4GameMap.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -643,7 +644,6 @@ fc4_aura_host MakeHost(cFC4AuraSimulator* self, const fc4::HostGridContext* grid
     return h;
 }
 
-uint32_t WallClockSeed() { return static_cast<uint32_t>(GetTickCount64() ^ GetCurrentProcessId()); }
 
 void AppendMissing(char* buf, size_t size, uint32_t mask, const char* none) {
     if (mask == 0) {
@@ -694,8 +694,10 @@ cIGZUnknown* CreateFC4AuraSimulator() {
 
 cFC4AuraSimulator::cFC4AuraSimulator() {
     host_ = MakeHost(this, &gridCtx_);
-    // §9: the cRZRandom is seeded from the wall clock at construction.
-    core_ = fc4_aura_create(&host_, SelfToken(), WallClockSeed(), static_cast<uint32_t>(GetTickCount()));
+    // §9: the original seeds the cRZRandom from the wall clock at
+    // construction; ours takes derive(S, GZCLSID) of the session seed
+    // (foundations §6.3, FC4Seed.h).
+    core_ = fc4_aura_create(&host_, SelfToken(), fc4::SessionSeed());
     if (core_ == nullptr) fc4::Log("cFC4AuraSimulator: core creation failed");
     fc4::Log("cFC4AuraSimulator(%p) created, core %p", static_cast<void*>(this), static_cast<void*>(core_));
 }
