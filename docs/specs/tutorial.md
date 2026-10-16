@@ -297,9 +297,34 @@ the shared-getter names of 11, 12): `build-runs/re-specs13d-abi-rows.tsv`.
   | `endTutorial` | 0 (unconditional) | `0x0043F186` |
   | `Read` | the saved byte | `0x0043F2E0` (through the `cIGZSerializable` sub-object at `+0x10`) |
 
-  Still open: the literal Lua shape of `tutorial_registry.lua` (extract it from `SimCity_1.dat` group
-  `0x4A5E8EF6`), `cItem+0x24`, and `GetNextActive`'s "next" semantics when tutorials are completed out of
-  order.
+  Still open: `cItem+0x24`, and `GetNextActive`'s "next" semantics when tutorials are completed out of
+  order. The Lua shape is **settled** (below), since `tutorial_registry.lua` is readable in the shipped scripts.
+
+  **`tutorial_registry.lua` (the shipped script, 2026-10-16).** The global is a table with `default_regions`
+  and `tutorials`, and three methods:
+
+  | Method | Effect |
+  |---|---|
+  | `add_tutorial(self, guid, order, region_dir)` | `tutorials[guid] = { order, region_dir, task_first = 0, task_count = 0, task_guid = guid, set_task_range }` |
+  | `add_default_region(self, exp_pack_id, region_dir)` | `default_regions[exp_pack_id] = { region_dir }` |
+  | `set_task_range_and_print_info(guid, task_first, task_count)` | looks the tutorial up with `hex2dec(guid)` and sets its `task_first` / `task_count` |
+
+  So the **GUID is the `tutorials` table key**, passed as a hex string and converted with `tonumber(s, 16)`.
+  That confirms the `[inferred]` above. `task_first` / `task_count` start at 0 and are filled later by the task
+  scripts calling `set_task_range_and_print_info`. The registered entries in the shipped file are exactly the
+  GUIDs the saves show:
+
+  | GUID | `order` | `region_dir` | Comment in the file |
+  |---|---|---|---|
+  | `0x8A5B7A6C` | 0 | `maxisland` | the old Mayor Tutorial (commented out) |
+  | `0xABFAD020` | 0 | `timbuktu` | Getting Started |
+  | `0xEA5D6DC8` | 1 | `timbuktu` | Terraforming |
+  | `0x0BFDB71B` | 2 | `timbuktu` | Making Money |
+  | `0xCC02D3A3` | 3 | `timbuktu` | Big City |
+
+  `add_default_region(0, 'timbuktu')` and `add_default_region(1, 'timbuktu')` cover the main build. Note the
+  save-side GUID mapping of §3 (`0 → 0x8A5B7A6C`, `1 → 0xEA5D6DC8`) is a *different* thing: it maps the two
+  legacy IDs a save may store onto these registry GUIDs.
 
 - ~~**TU2:** the 3D view slots 60 and 59 called by `endTutorial`.~~ **ANSWERED 2026-10-16 (re-answers29).
   DIFFERS from the spec's guess: they are not "restore the camera controls".** They close the 3D view's

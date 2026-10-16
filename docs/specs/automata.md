@@ -401,6 +401,11 @@ QUESTIONS.md AM1). The default state's constructor (`0x0050B7F0`'s default branc
 
 **Names (Q3, answered).** Two sources tie the numbers to the names:
 - The game's own Lua constant table `automata_states` (`sit_constants.lua` in `SimCity_1.dat`) gives the numbers.
+  **Read directly from the shipped script (2026-10-16, re-answers29) and it matches the table above exactly.**
+  The script's own grouping comment is `-- general` for 0–12, `-- vehicles` for 21 and 30, `-- aircraft` for
+  50–58 and `-- watercraft` for 70–78. Two extra facts from it: there is **no** entry for 5, 13 or 14 (so 13
+  and 14 really are unnamed in the game's own table), and `CHASE` (52) carries the comment *"can also apply to
+  vehicles"* — so the name is not aircraft-only.
 - The Mac build's `CreateAutomataState` gives the classes: `tAutomataStateRandomWalk`, `…PlopJump`, `…Plummet`,
   `…Bumped`, `…AttachAnim`, `…Collide`, `…PullOver`, `…Chase`, `…RiotLeader` and `…PlayerDrive`.
 - The two agree, and the Windows factory (`0x0050B7F0`, jump table `0x0050B98C` / `0x0050B9B8`) builds objects of
