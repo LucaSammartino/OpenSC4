@@ -244,8 +244,10 @@ void DispatchShadowStartup(bool dispatchReplaced) {
         "and its getters (slots 10-12, 18) against the core's",
         src);
     Log("dispatch shadow: NOT readable read-only (so not compared): the automaton events (0x09D92FC3) the manager "
-        "gets as the vehicle's event target, the messages it posts (0xE94671EB-ED, 0x894671F6), the tool's Begin / "
-        "End (slots 16, 17 write the pylon list) and the vehicle view's tracking (slot 22 is presentation)");
+        "gets as the vehicle's event target, the messages it posts (0xE94671EB-ED, 0x894671F6), the tool's pylon "
+        "list and everything derived from it (Begin / End, slots 16, 17, and GetAvailablePylonCount, slot 21: the "
+        "free units of the sources' stations, which a record-only shadow cannot see) and the vehicle view's "
+        "tracking (slot 22 is presentation)");
 }
 
 void DispatchShadowCityLoaded(cISC4City* city) {
