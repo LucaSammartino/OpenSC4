@@ -208,7 +208,16 @@ pub mod msg {
     pub const FUNDS_CHANGED: u32 = 0x0772_FAD4;
     pub const DAY_NIGHT_CHANGED: u32 = 0x4477_8234;
     pub const EXEMPLAR_CHANGED: u32 = 0xC53D_10AA;
+    pub const DAWN: u32 = 0xC9DA_96E8;
     pub const DUSK: u32 = 0xC9DA_96E9;
+    /// The names of §13 Q6 (answered).
+    pub const NETWORK_OCCUPANT_USABLE_CHANGE: u32 = 0x89D3_E9F3;
+    pub const PRE_VIEW_FILTER_CHANGE: u32 = 0x06CD_B65A;
+    pub const MOUSE_SCROLL_BEGIN: u32 = 0xCAD6_1E00;
+    pub const MOUSE_SCROLL_END: u32 = 0xEAD6_1E16;
+    pub const REMOVE_AUTOMATA_CONTROLLER: u32 = 0xEA29_8D50;
+    pub const OCCUPANT_GROUP_CHANGED: u32 = 0xEBFF_18A3;
+    pub const VIEW_T_CHANGE_2: u32 = 0xA6B7_9611;
     pub const FERRY_PASS_FINISHED: u32 = 0x2C06_BA82;
 
     /// The controller manager's messages (§10 row 1).
@@ -218,7 +227,7 @@ pub mod msg {
         AUTOMATON_NOTIFICATION,
         POST_CITY_INIT,
         HOUR_CHANGED,
-        0x89D3_E9F3,
+        NETWORK_OCCUPANT_USABLE_CHANGE,
         INSERT_OCCUPANT,
         REMOVE_OCCUPANT,
     ];
@@ -227,30 +236,31 @@ pub mod msg {
         REMOVE_OCCUPANT,
         EMERGENCY_PAUSE,
         PRE_CITY_SHUTDOWN,
-        0x06CD_B65A,
+        PRE_VIEW_FILTER_CHANGE,
         POST_CITY_INIT,
         BUILDING_COMPLETION_CHANGED,
         ANIMATION_TICK,
-        0x89D3_E9F3,
+        NETWORK_OCCUPANT_USABLE_CHANGE,
         INSERT_OCCUPANT,
-        0xCAD6_1E00,
+        MOUSE_SCROLL_BEGIN,
         VIEW_UPDATE,
         0xA6B7_9612,
         0xC9F7_75BB,
-        0xEA29_8D50,
-        0xEAD6_1E16,
-        0xEBFF_18A3,
+        REMOVE_AUTOMATA_CONTROLLER,
+        MOUSE_SCROLL_END,
+        OCCUPANT_GROUP_CHANGED,
     ];
     /// The pedestrian manager's own additions (§10 row 4).
     pub const PEDESTRIAN_EXTRA: [u32; 2] = [CHEAT, CROWD_REACTION];
-    /// The vehicle manager's own additions (§10 row 5).
+    /// The vehicle manager's own additions (§10 row 5, corrected by §13 Q6:
+    /// dawn `0xC9DA96E8`, not `0xC9DA96E7`).
     pub const VEHICLE_EXTRA: [u32; 7] = [
-        0xA6B7_9611,
+        VIEW_T_CHANGE_2,
         FUNDS_CHANGED,
         DAY_NIGHT_CHANGED,
         0xA6B7_9601,
         EXEMPLAR_CHANGED,
-        0xC9DA_96E7,
+        DAWN,
         DUSK,
     ];
     /// The watercraft manager's own addition (§10 row 7).
