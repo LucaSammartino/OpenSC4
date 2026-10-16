@@ -752,7 +752,7 @@ pub unsafe extern "C" fn fc4_netgeom_params_from_props(
 
 /// The per-type limits (§2.3) of `params` (NULL = shipped).
 #[no_mangle]
-pub unsafe extern "C" fn fc4_netgeom_type_info(
+pub unsafe extern "C" fn fc4_netgeom_params_type_info(
     type_id: u32,
     params: *const fc4_netgeom_params,
     out: *mut fc4_netgeom_type_info,

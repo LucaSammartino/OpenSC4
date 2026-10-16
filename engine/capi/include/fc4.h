@@ -8068,7 +8068,7 @@ bool fc4_netgeom_params_shipped(uint32_t type_id, fc4_netgeom_params* out);
 /* From the exemplar's properties (NULL = none: the defaults of §2.4). */
 bool fc4_netgeom_params_from_props(uint32_t type_id, const fc4_props* props, fc4_netgeom_params* out);
 /* params NULL = shipped. */
-bool fc4_netgeom_type_info(uint32_t type_id, const fc4_netgeom_params* params, fc4_netgeom_type_info* out);
+bool fc4_netgeom_params_type_info(uint32_t type_id, const fc4_netgeom_params* params, fc4_netgeom_type_info* out);
 bool fc4_netgeom_break_into_segments(int32_t start_x, int32_t start_z, int32_t end_x, int32_t end_z, bool snap,
                                      bool straight_only, uint32_t width1, uint32_t width2,
                                      fc4_netgeom_segments* out);

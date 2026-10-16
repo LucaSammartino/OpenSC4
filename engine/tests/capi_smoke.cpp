@@ -168,6 +168,27 @@ void TestReentrancyAndNames() {
     CHECK(h.refs == 0);
 }
 
+// The network geometry's pure entry points through the header (cores17).
+void TestNetworkGeometry() {
+    fc4_netgeom_params p{};
+    CHECK(fc4_netgeom_params_shipped(0, &p) && p.struct_size == sizeof(fc4_netgeom_params));
+    fc4_netgeom_type_info i{};
+    CHECK(fc4_netgeom_params_type_info(0, &p, &i) && i.width1 == 1 && i.slope_rise > 11.2f && i.slope_rise < 11.21f);
+    fc4_netgeom_segments s{};
+    CHECK(fc4_netgeom_break_into_segments(0, 0, 6, 4, true, false, 1, 1, &s));
+    CHECK(s.end_x == 5 && s.end_z == 4 && s.dragged_count == 6 && s.pen_direction == 4 && s.end_direction == 5);
+    fc4_vhcs* v = fc4_vhcs_create();
+    CHECK(fc4_vhcs_init(v, 0.0f, 1000.0f));
+    CHECK(fc4_vhcs_insert_fixed(v, 1, 0.0f) && fc4_vhcs_insert_fixed(v, 3, 20.0f) && fc4_vhcs_add_vertex(v, 2, 0.0f));
+    CHECK(fc4_vhcs_insert_slope(v, 1, 2, i.slope_rise) && fc4_vhcs_insert_slope(v, 2, 3, i.slope_rise));
+    float h = 0.0f;
+    CHECK(fc4_vhcs_solve(v) && fc4_vhcs_height(v, 2, &h) && h > 8.79f && h < 8.80f);
+    CHECK(fc4_vhcs_solution(v, nullptr, 0) == 3);
+    fc4_vhcs_destroy(v);
+    CHECK(fc4_netgeom_power_line_cost(3, 20, 15, 2.0f) == 85);
+    CHECK(fc4_netgeom_create(nullptr, nullptr, 0) == nullptr);
+}
+
 }  // namespace
 
 int main() {
@@ -176,6 +197,7 @@ int main() {
     CHECK(!fc4_sim_pause(nullptr));
     TestDays();
     TestReentrancyAndNames();
+    TestNetworkGeometry();
     if (g_failures == 0) std::printf("fc4 C ABI smoke test: all checks passed (%zu-bit)\n", sizeof(void*) * 8);
     return g_failures == 0 ? 0 : 1;
 }

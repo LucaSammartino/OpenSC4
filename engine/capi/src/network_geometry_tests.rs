@@ -157,19 +157,19 @@ fn params_and_type_info() {
         assert_eq!((p.max_slope, p.support_threshold, p.cell_cost), (35.0, 45.0, 10));
         assert!(!fc4_netgeom_params_shipped(13, &mut p));
         let mut i = fc4_netgeom_type_info::default();
-        assert!(fc4_netgeom_type_info(ROAD, std::ptr::null(), &mut i));
+        assert!(fc4_netgeom_params_type_info(ROAD, std::ptr::null(), &mut i));
         assert!((i.slope_rise - 11.2033).abs() < 1e-4);
         assert!((i.diagonal_slope_rise - 7.9219).abs() < 1e-4);
         assert_eq!((i.width1, i.width2), (1, 1));
-        assert!(fc4_netgeom_type_info(AVENUE, std::ptr::null(), &mut i));
+        assert!(fc4_netgeom_params_type_info(AVENUE, std::ptr::null(), &mut i));
         assert_eq!((i.width1, i.width2), (2, 2));
         // Explicit parameters: pipe's 45 degrees.
         assert!(fc4_netgeom_params_shipped(PIPE, &mut p));
-        assert!(fc4_netgeom_type_info(PIPE, &p, &mut i));
+        assert!(fc4_netgeom_params_type_info(PIPE, &p, &mut i));
         assert!((i.slope_rise - 16.0).abs() < 1e-4);
         // A short struct_size is refused.
         p.struct_size = 8;
-        assert!(!fc4_netgeom_type_info(PIPE, &p, &mut i));
+        assert!(!fc4_netgeom_params_type_info(PIPE, &p, &mut i));
         // No properties: street is still straight only; the costs keep their defaults.
         assert!(fc4_netgeom_params_from_props(STREET, std::ptr::null(), &mut p));
         assert_eq!(
@@ -244,7 +244,7 @@ fn segments_and_helpers() {
 fn standalone_satisfier_slope() {
     unsafe {
         let mut i = fc4_netgeom_type_info::default();
-        assert!(fc4_netgeom_type_info(ROAD, std::ptr::null(), &mut i));
+        assert!(fc4_netgeom_params_type_info(ROAD, std::ptr::null(), &mut i));
         let s_rise = i.slope_rise;
         let run = |c: f32| {
             let s = fc4_vhcs_create();
