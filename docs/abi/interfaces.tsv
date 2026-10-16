@@ -4678,6 +4678,26 @@ cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	4	+0x10	005793e0	cSC4Dis
 cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	5	+0x14	005792a0	cSC4DisasterInstanceFire::GetID() = 0x621CDA33	0	0	eax-or-void	medium	disasters.md §3.2
 cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	6	+0x18	0062c980	cSC4DisasterInstanceFire::GetLocation(int32& x, int32& z) (fire: returns false; folded body)	8	2	AL	medium	disasters.md §3.2
 cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	7	+0x1C	00420d90	cSC4DisasterInstanceFire::GetPhase() (+0xC0)	0	0	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceRiot	00a9e818	3	+0xC	0057d420	cSC4DisasterInstanceRiot::Shutdown()	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §6.7
+cISC4DisasterInstance	cSC4DisasterInstanceRiot	00a9e818	4	+0x10	00576ef0	cSC4DisasterInstanceRiot::GetManager()	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §6.7
+cISC4DisasterInstance	cSC4DisasterInstanceRiot	00a9e818	5	+0x14	0057d1e0	cSC4DisasterInstanceRiot::GetID() = 0xCA380B06	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §6.7
+cISC4DisasterInstance	cSC4DisasterInstanceRiot	00a9e818	6	+0x18	0062c980	cSC4DisasterInstanceRiot::GetLocation(int&, int&) = false	8	2	eax-or-void	medium	re-answers14; disasters.md §3.1, §6.7
+cISC4DisasterInstance	cSC4DisasterInstanceRiot	00a9e818	7	+0x1C	004ed900	cSC4DisasterInstanceRiot::GetPhase() (field +0x20)	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §6.7
+cISC4DisasterInstance	cSC4DisasterInstancePipeBurst	00a9e730	3	+0xC	0057c460	cSC4DisasterInstancePipeBurst::Shutdown()	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §8
+cISC4DisasterInstance	cSC4DisasterInstancePipeBurst	00a9e730	4	+0x10	0057c040	cSC4DisasterInstancePipeBurst::GetManager()	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §8
+cISC4DisasterInstance	cSC4DisasterInstancePipeBurst	00a9e730	5	+0x14	0057c020	cSC4DisasterInstancePipeBurst::GetID() = 0x4A1332E8	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §8
+cISC4DisasterInstance	cSC4DisasterInstancePipeBurst	00a9e730	6	+0x18	0062c980	cSC4DisasterInstancePipeBurst::GetLocation(int&, int&) = false	8	2	eax-or-void	medium	re-answers14; disasters.md §3.1, §8
+cISC4DisasterInstance	cSC4DisasterInstancePipeBurst	00a9e730	7	+0x1C	008cd450	cSC4DisasterInstancePipeBurst::GetPhase() = 1 (constant)	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §8
+cISC4DisasterInstance	cSC4DisasterInstanceVolcano	00a9ea60	3	+0xC	0057f920	cSC4DisasterInstanceVolcano::Shutdown()	0	0	eax-or-void	medium	re-answers14; disasters.md §3.2, §10
+cISC4DisasterInstance	cSC4DisasterInstanceVolcano	00a9ea60	4	+0x10	0057f430	cSC4DisasterInstanceVolcano::GetManager()	0	0	eax-or-void	medium	re-answers14; disasters.md §3.2, §10
+cISC4DisasterInstance	cSC4DisasterInstanceVolcano	00a9ea60	5	+0x14	0057f300	cSC4DisasterInstanceVolcano::GetID() = 0xC4C90997	0	0	eax-or-void	medium	re-answers14; disasters.md §3.2, §10
+cISC4DisasterInstance	cSC4DisasterInstanceVolcano	00a9ea60	6	+0x18	0062c980	cSC4DisasterInstanceVolcano::GetLocation(int&, int&) = false	8	2	eax-or-void	medium	re-answers14; disasters.md §3.2, §10
+cISC4DisasterInstance	cSC4DisasterInstanceVolcano	00a9ea60	7	+0x1C	0057f440	cSC4DisasterInstanceVolcano::GetPhase() (state 0->0, 1->2, 2-3->1, 4->3, 5-8->2)	0	0	eax-or-void	medium	re-answers14; disasters.md §3.2, §10
+cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	3	+0xC	00576300	cSC4DisasterInstanceEarthquake::Shutdown()	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §7
+cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	4	+0x10	00575630	cSC4DisasterInstanceEarthquake::GetManager()	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §7
+cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	5	+0x14	00575610	cSC4DisasterInstanceEarthquake::GetID() = 0x42963812	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §7
+cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	6	+0x18	0062c980	cSC4DisasterInstanceEarthquake::GetLocation(int&, int&) = false	8	2	eax-or-void	medium	re-answers14; disasters.md §3.1, §7
+cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	7	+0x1C	008cd450	cSC4DisasterInstanceEarthquake::GetPhase() = 1 (constant)	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §7
 cIGZMessageTarget2	cSC4DisasterInstanceFire	00a9e580	3	+0xC	00579600	cSC4DisasterInstanceFire::DoMessage	4	1	AL	medium	0x86AD10EE, 0x66956813, 0x06CDB65B, 0xA6B79602 (disasters.md §5.3, §5.8)
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	0	+0x0	0057ec10	cSC4DisasterManagerToxic::QueryInterface	8	2	eax-or-void	medium	disasters.md §9
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	1	+0x4	00429ce0	cSC4DisasterManagerToxic::AddRef	0	0	eax-or-void	medium	disasters.md §9
