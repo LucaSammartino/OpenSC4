@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "14_controller_groups",
+  "spec": ["automata 7.1"],
+  "description": "AddControllerFromTemplateName returns null for an unknown template; AddControllersFromOccupantGroup by ID or name returns false without a script system or a group, else adds one controller per template of the group; RemoveControllersFromOccupantGroup removes the occupant's controllers of the group's templates; RemoveControllers removes all and drops the occupant entry, releasing the reference the manager took.",
+  "steps": [
+    {"op": "automata_scripts", "templates": [{"name": "fire_crowd"}, {"name": "fire_pull", "kind": "attractor"}, {"name": "other"}], "groups": [{"id": "0x99", "name": "fire_occupant", "templates": ["fire_crowd", "fire_pull"]}]},
+    {"op": "automata_cm_add_group", "occupant": "0x40", "name": "fire_occupant", "no_scripts": true, "expect": false},
+    {"op": "automata_cm_add_group", "occupant": "0x40", "name": "nope", "expect": false},
+    {"op": "automata_cm_add_group", "occupant": "0x40", "id": "0x98", "expect": false},
+    {"op": "automata_cm_add_group", "occupant": "0x40", "name": "fire_occupant", "expect": true},
+    {"op": "automata_cm_add", "occupant": "0x40", "template": "missing", "expect": false},
+    {"op": "automata_cm_add", "occupant": "0x40", "template": "other", "expect": true},
+    {"op": "automata_cm_expect", "occupants": {"0x40": ["fire_crowd", "fire_pull", "other"]}},
+    {"op": "automata_cm_remove_group", "occupant": "0x40", "id": "0x99", "expect": true},
+    {"op": "automata_cm_expect", "occupants": {"0x40": ["other"]}},
+    {"op": "automata_cm_add_group", "occupant": "0x40", "id": "0x99", "expect": true},
+    {"op": "automata_cm_remove_group", "occupant": "0x40", "name": "fire_occupant", "expect": true},
+    {"op": "automata_cm_remove_group", "occupant": "0x40", "name": "nope", "expect": false},
+    {"op": "automata_cm_remove", "occupant": "0x40", "expect": 1},
+    {"op": "automata_cm_expect", "occupants": {}},
+    {"op": "automata_expect_log", "log": ["add_ref 0x40", "release 0x40"]}
+  ]
+}

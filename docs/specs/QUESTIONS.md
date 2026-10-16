@@ -4664,3 +4664,27 @@ region), from re-answers11. The lane's choices are in brackets.
   fails and leaves its out-parameter null, the original appends whatever was returned to the list that
   AutoconnectLotNodes (slot 21) reads. Is a null entry appended and passed on? [a null result is not appended; it is
   counted as `nodesFailed` (choice)]
+
+## From applying the traffic glue answers (filed by the coordinator from the `apply11traffic` lane's report, 2026-10-16; merged `85919d3`)
+
+apply11traffic applied the re-answers10 TG DIFFERS entries to the traffic glue (TG1, TG7, TG10, TG15/TG21, TG19, TG2
+partly; ABI 61). `enable = traffic` with the 26 other regress replacements is clean to 2032 (run 128, ref_warnings=0).
+Three TG2 callbacks stay NULL because the specs leave them open. The current choice is in brackets.
+
+- **TG23:** traffic-simulator §4.9 step 3, §9.1 TG2, spec Q1: what exactly do UpdateRoadsBudget (`0x0070D8A0`) and
+  UpdateMassTransitBudget (`0x0070DA40`) call? Which line item numbers get which network-type cell counts (roads:
+  Road+OneWayRoad, Street, Highway+GroundHighway, Avenue; mass transit not given), with which method (SetFullExpenses?
+  AddToFullExpenses?), what count x tile-cost formula and rounding, and are they also called when the count did not
+  change? [`update_network_costs` stays NULL: the transport line items keep the expenses they were loaded with]
+- **TG24:** traffic-network §4.4, §7.2, §9.1 TG2: what are the arguments, return values and result containers of path
+  info slots 14 (GetPathsFromEntryEdge, 3 args), 3 (GetPath, 2 args) and 7 (GetPathsNearEndPoint, 6 args)? Which field of
+  a path object is the exit byte, and which is its first vertex? Also: does GetPathInfo (occupant slot 49) hand over a
+  reference, and does the slot-4 turn-around test use all of EAX or only AL? [`path_info_exits_from_entry` and
+  `path_info_entries_near` stay NULL, so lane continuity changes nothing; GetPathInfo is treated as borrowed; the whole
+  EAX is tested]
+- **TG25:** traffic-network §4.8 step 1, §9.1 TG2: at what offset in cSC4NetworkTunnelOccupant is the paired-portal
+  member, what type is it, and is it a counted reference? [`tunnel_paired_portal` stays NULL, so no tunnel record is
+  made and tunnels carry no trips]
+- **TG26:** traffic-simulator §4.1, §9.1 TG19: when does the original release its source iterator's connection snapshot
+  on a city close: at Shutdown, or only when the simulator is destroyed? And does a Read that replaces the state release
+  it? [released at Shutdown and when Read replaces the state; otherwise at the next Reset]
