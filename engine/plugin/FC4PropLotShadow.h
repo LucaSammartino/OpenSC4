@@ -24,7 +24,7 @@
 //
 // Each shadow only reads the original. At PostCityInit ("load"), at every
 // SimNewMonth ("month") and at PreSave ("save"), on the main thread, a core
-// of FreeCity4's (fc4_prop_manager / fc4_lot_config / fc4_tutorial) reads
+// of FreeCity4's (fc4_prop_manager / fc4_lot_config_manager / fc4_tutorial) reads
 // the original's own record (its cIGZSerializable::Write into memory,
 // references resolved to the original's objects), runs Init over a
 // read-only host table, and its answers are compared with the original's:

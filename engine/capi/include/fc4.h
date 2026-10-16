@@ -159,7 +159,9 @@ extern "C" {
  *      to 66, on its lane; renumbered at merge);
  * 68 = adds the prop manager, lot configuration manager and tutorial system (fc4_prop_manager,
  *      fc4_lot_config, fc4_tutorial; prop-lotconfig.md, tutorial.md) (taken as 70 on its lane;
- *      renumbered at merge). */
+ *      renumbered at merge). The lot configuration manager's opaque handle is
+ *      fc4_lot_config_manager (the glue15 lane renamed it; the entry points keep their
+ *      fc4_lot_config_* names, so the ABI surface is unchanged). */
 #define FC4_ABI_VERSION 68u
 
 /* Return codes of fc4_sim_load. */
@@ -8044,7 +8046,12 @@ bool fc4_prop_manager_read(fc4_prop_manager* m, const fc4_istream* in);
  * (§B3.3), in the core so that every host builds the same arrays. A missing
  * callback reads as 0 / false / none. */
 typedef struct fc4_lot_config_catalogue fc4_lot_config_catalogue;
-typedef struct fc4_lot_config fc4_lot_config;
+/* The lot configuration MANAGER handle. Named `fc4_lot_config_manager`, not
+ * `fc4_lot_config`, so that it cannot be confused with the development glue's
+ * fc4_lot_config struct (§4.7.4, above): one name for two types is legal C
+ * but unusable in a C or C++ host that wants both (the glue15 lane). The C
+ * ABI entry points keep their fc4_lot_config_* names. */
+typedef struct fc4_lot_config_manager fc4_lot_config_manager;
 
 /* fc4_lot_config_host.acquire_service services. */
 #define FC4_LCM_SERVICE_BUILDING_DEVELOPMENT 0u
@@ -8175,80 +8182,80 @@ bool fc4_lot_config_catalogue_get_state(const fc4_lot_config_catalogue* c, fc4_l
 
 /* Constructed, reference count 0, sharing `catalogue` (NULL: a private one).
  * The host table is copied (NULL for a NULL or short table). */
-fc4_lot_config* fc4_lot_config_create(const fc4_lot_config_host* host, const fc4_lot_config_catalogue* catalogue,
-                                      uint64_t token);
-void fc4_lot_config_destroy(fc4_lot_config* m);
+fc4_lot_config_manager* fc4_lot_config_create(const fc4_lot_config_host* host, const fc4_lot_config_catalogue* catalogue,
+                                              uint64_t token);
+void fc4_lot_config_destroy(fc4_lot_config_manager* m);
 bool fc4_lot_config_query_interface(uint32_t iid);
-uint32_t fc4_lot_config_add_ref(fc4_lot_config* m);
+uint32_t fc4_lot_config_add_ref(fc4_lot_config_manager* m);
 /* The last one runs Shutdown and returns 0; the handle stays valid until destroy. */
-uint32_t fc4_lot_config_release(fc4_lot_config* m);
+uint32_t fc4_lot_config_release(fc4_lot_config_manager* m);
 /* Init builds the catalogue, or rebuilds it when the detail changed. */
-bool fc4_lot_config_init(fc4_lot_config* m);
-bool fc4_lot_config_shutdown(fc4_lot_config* m);
+bool fc4_lot_config_init(fc4_lot_config_manager* m);
+bool fc4_lot_config_shutdown(fc4_lot_config_manager* m);
 /* The process unload callback (0x0048A240); the family set stays (quirk 10). */
-void fc4_lot_config_unload(fc4_lot_config* m);
+void fc4_lot_config_unload(fc4_lot_config_manager* m);
 /* DoMessage (§B4.3): PostCityInit fills every configuration's building
  * information. Always true. */
-bool fc4_lot_config_do_message(fc4_lot_config* m, uint32_t msg_type);
-void fc4_lot_config_fill_building_information(fc4_lot_config* m, uint64_t cfg);
+bool fc4_lot_config_do_message(fc4_lot_config_manager* m, uint32_t msg_type);
+void fc4_lot_config_fill_building_information(fc4_lot_config_manager* m, uint64_t cfg);
 /* Slots 5 AddLotConfiguration(key), 6 AddLotConfiguration(cfg, add) (always
  * true), 7 RemoveLotConfiguration(id), 8 GetLotConfiguration(id) (no
  * reference; 0 = none). */
-bool fc4_lot_config_add_by_key(fc4_lot_config* m, uint32_t type_id, uint32_t group, uint32_t instance);
-bool fc4_lot_config_add_configuration(fc4_lot_config* m, uint64_t cfg, bool add);
-bool fc4_lot_config_remove_configuration(fc4_lot_config* m, uint32_t id);
-uint64_t fc4_lot_config_configuration(const fc4_lot_config* m, uint32_t id);
+bool fc4_lot_config_add_by_key(fc4_lot_config_manager* m, uint32_t type_id, uint32_t group, uint32_t instance);
+bool fc4_lot_config_add_configuration(fc4_lot_config_manager* m, uint64_t cfg, bool add);
+bool fc4_lot_config_remove_configuration(fc4_lot_config_manager* m, uint32_t id);
+uint64_t fc4_lot_config_configuration(const fc4_lot_config_manager* m, uint32_t id);
 /* Slots 20 (the map) and 21 (the family set) in bucket order. Return the
  * count; copy at most `capacity` (pointers may be NULL). */
-size_t fc4_lot_config_configuration_map(const fc4_lot_config* m, uint32_t* ids, uint64_t* configurations,
+size_t fc4_lot_config_configuration_map(const fc4_lot_config_manager* m, uint32_t* ids, uint64_t* configurations,
                                         size_t capacity);
-size_t fc4_lot_config_family_id_set(const fc4_lot_config* m, uint32_t* out, size_t capacity);
+size_t fc4_lot_config_family_id_set(const fc4_lot_config_manager* m, uint32_t* out, size_t capacity);
 /* Slots 9-11 GetLotConfigurationsBy{Filter,Family,Size}: `which` 0 = by filter
  * (`a` = the filter, 0 = null; registered filters cache their result), 1 = by
  * family (`a`), 2 = by size (`a` = x, `b` = z). The matches go to `out` in
  * bucket order, each with a new reference for the caller; returns the count. */
-uint32_t fc4_lot_config_configurations(fc4_lot_config* m, uint32_t which, uint64_t a, uint32_t b,
+uint32_t fc4_lot_config_configurations(fc4_lot_config_manager* m, uint32_t which, uint64_t a, uint32_t b,
                                        fc4_token_callback out, void* ctx);
 /* Slot 12 ClearLotConfigurationSet: releases every element once. */
-void fc4_lot_config_clear_set(fc4_lot_config* m, const uint64_t* set, size_t n);
+void fc4_lot_config_clear_set(fc4_lot_config_manager* m, const uint64_t* set, size_t n);
 /* Slots 13-15 GetLotConfigurationIDsBy{Filter,Family,Size}, as above (no
  * cache). Return the count; copy at most `capacity`. */
-size_t fc4_lot_config_ids(const fc4_lot_config* m, uint32_t which, uint64_t a, uint32_t b, uint32_t* out,
+size_t fc4_lot_config_ids(const fc4_lot_config_manager* m, uint32_t which, uint64_t a, uint32_t b, uint32_t* out,
                           size_t capacity);
 /* Slots 16 / 17 LotConfigurationHasBuilding{Family,Type}(cfg, id, obj)
  * (`by_type` false / true): the matching object's index in the array to
  * `index` (may be NULL). */
-bool fc4_lot_config_has_building(const fc4_lot_config* m, uint64_t cfg, uint32_t id, bool by_type,
+bool fc4_lot_config_has_building(const fc4_lot_config_manager* m, uint64_t cfg, uint32_t id, bool by_type,
                                  uint32_t* index);
 /* Slots 18 / 19 and the flush (0x0048A080). */
-void fc4_lot_config_register_filter(fc4_lot_config* m, uint64_t filter);
-void fc4_lot_config_unregister_filter(fc4_lot_config* m, uint64_t filter);
-void fc4_lot_config_flush(fc4_lot_config* m);
+void fc4_lot_config_register_filter(fc4_lot_config_manager* m, uint64_t filter);
+void fc4_lot_config_unregister_filter(fc4_lot_config_manager* m, uint64_t filter);
+void fc4_lot_config_flush(fc4_lot_config_manager* m);
 /* Diagnostics: a registered filter's cached result (false when not
  * registered; *cached false when nothing is cached). Configurations (no
  * references) copied, at most `capacity`; *count = their number. */
-bool fc4_lot_config_filter_cache(const fc4_lot_config* m, uint64_t filter, bool* cached, uint64_t* out,
+bool fc4_lot_config_filter_cache(const fc4_lot_config_manager* m, uint64_t filter, bool* cached, uint64_t* out,
                                  size_t capacity, size_t* count);
 /* Slots 24-26 GetMaxFootprintFor{Building,Prop,Flora}Families(ids) (`kind` 0,
  * 1 or 4: the object types): (w, d, 0, 0) into out4. */
-bool fc4_lot_config_max_footprint(const fc4_lot_config* m, uint32_t kind, const uint32_t* ids, size_t n,
+bool fc4_lot_config_max_footprint(const fc4_lot_config_manager* m, uint32_t kind, const uint32_t* ids, size_t n,
                                   float* out4);
 /* Slot 27 GetObjectIDArray(obj, vec): families expanded (quirk 13). Returns the
  * count; copies at most `capacity`. */
-size_t fc4_lot_config_object_id_array(const fc4_lot_config* m, const fc4_lotdev_cfg_object* obj, uint32_t* out,
+size_t fc4_lot_config_object_id_array(const fc4_lot_config_manager* m, const fc4_lotdev_cfg_object* obj, uint32_t* out,
                                       size_t capacity);
 /* Slot 22 CreateGenericLotConfiguration(type): one reference for the caller,
  * 0 when BDS rejects the type (PL8). */
-uint64_t fc4_lot_config_create_generic(fc4_lot_config* m, uint32_t building_type);
+uint64_t fc4_lot_config_create_generic(fc4_lot_config_manager* m, uint32_t building_type);
 /* Slot 23 FixLotConfiguration(cfg): the first problem's code (0 none, 1 an ID
  * removed, 2 a record removed, 3 a footprint changed, 4 outside the lot, 5 a
  * centre moved, 6 a retaining wall removed; PL9, PL10). */
-uint32_t fc4_lot_config_fix(fc4_lot_config* m, uint64_t cfg);
-bool fc4_lot_config_get_state(const fc4_lot_config* m, fc4_lot_config_state* out);
+uint32_t fc4_lot_config_fix(fc4_lot_config_manager* m, uint64_t cfg);
+bool fc4_lot_config_get_state(const fc4_lot_config_manager* m, fc4_lot_config_state* out);
 /* The record (§B6): version 1 and the three held services. Read is false for
  * another version and then changes nothing. */
-bool fc4_lot_config_write(const fc4_lot_config* m, const fc4_ostream* out);
-bool fc4_lot_config_read(fc4_lot_config* m, const fc4_istream* in);
+bool fc4_lot_config_write(const fc4_lot_config_manager* m, const fc4_ostream* out);
+bool fc4_lot_config_read(fc4_lot_config_manager* m, const fc4_istream* in);
 
 /* ---- tutorial system (docs/specs/tutorial.md) -------------------------------
  * cSC4TutorialSystem (0xAA3836FB, city component 48). The tutorial window, its

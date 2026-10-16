@@ -1335,7 +1335,7 @@ std::vector<uint32_t> SetValues(const GameHashSetU32<>& s) {
     return v;
 }
 
-std::vector<uint32_t> OursIds(fc4_lot_config* s, uint32_t which, uint64_t a, uint32_t b) {
+std::vector<uint32_t> OursIds(fc4_lot_config_manager* s, uint32_t which, uint64_t a, uint32_t b) {
     std::vector<uint32_t> v(fc4_lot_config_ids(s, which, a, b, nullptr, 0));
     if (!v.empty()) v.resize(fc4_lot_config_ids(s, which, a, b, v.data(), v.size()));
     return v;
@@ -1418,7 +1418,7 @@ intptr_t LcmArrays(const std::vector<uint32_t>& ids, std::string& body) {
     return static_cast<intptr_t>(diffCfgs + noKey);
 }
 
-intptr_t LcmQueries(const Run& r, fc4_lot_config* s, const std::vector<uint32_t>& ids,
+intptr_t LcmQueries(const Run& r, fc4_lot_config_manager* s, const std::vector<uint32_t>& ids,
                     const std::vector<uint32_t>& families, std::string& body) {
     LcmView* o = g_lctx.orig;
     uint32_t seed = Seed(r.julian, 0x4C434D51u);
@@ -1533,7 +1533,7 @@ void LcmRunStep(void* p) {
         return;
     }
     const fc4_lot_config_host host = LcmHost();
-    fc4_lot_config* s = fc4_lot_config_create(&host, g_lcmCat, 0);
+    fc4_lot_config_manager* s = fc4_lot_config_create(&host, g_lcmCat, 0);
     if (s == nullptr) {
         Line("lotcfg", g_lcmTotals, r, "record", -1, "the shadow core was not created");
         return;
@@ -1544,7 +1544,7 @@ void LcmRunStep(void* p) {
     {
         std::string body;
         CoreRecord rec([](const void* c, const fc4_ostream* o) {
-            return fc4_lot_config_write(static_cast<const fc4_lot_config*>(c), o);
+            return fc4_lot_config_write(static_cast<const fc4_lot_config_manager*>(c), o);
         }, s, kCLSID_LotConfigurationManager);
         const bool ok = read && g_capOurs.Capture(&rec);
         intptr_t m = CompareRecords(ok, body);
