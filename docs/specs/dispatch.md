@@ -86,7 +86,7 @@ Subscriptions (`Init`; removed in `Shutdown`):
 
 | Message | Handling |
 |---|---|
-| `0x99EF1143` RemoveOccupant (data1 = occupant) | every record whose **station** is that occupant is dropped **without** `EndDispatch`: untrack and despawn its vehicle (automaton slot 13 with 0), shut down and release its pylon (clearing the active pylon if it is that one), release the station, erase the record. **No end message, no inactive message, no unit returned** *[quirk]*. Then every available pylon whose source occupant is that occupant is shut down, released and removed (clearing the active pylon if needed) |
+| `0x99EF1143` RemoveOccupant (data1 = occupant) | every record whose **station** is that occupant is dropped **without** `EndDispatch`: if it has a vehicle, untrack it in the vehicle view (when the view exists), despawn it (automaton slot 13 `Remove` with 0, `+0x34`) and **release** the record's reference; if it has a pylon, `SetActivePylon(null)` when it is the active one, then shut the pylon down and release it; release the station; erase the record. **No end message, no inactive message, no unit returned** *[quirk]*. Then every available pylon whose source occupant (pylon slot 18) is that occupant is shut down, released, `SetActivePylon(null)` if it is the active one, and erased from the vector (DP7; `DoMessage` `0x0046A320`) |
 | `0xAA1B2002` DisasterPeriodEnded | every record's vehicle is told to go home (automaton slot 29); records stay until the vehicles report back |
 | `0xA6B79602` view changed | the vehicle view refreshes (presentation) |
 
@@ -121,9 +121,27 @@ renderer; hold the city. If `loaded`: `toolType := 8`, `SetActivePylon(null)`, c
 re-track every record's vehicle in the vehicle view (types 0 and 6 as kind 1, types 1 and 5 as kind 0, other
 types untracked; the new handle goes to record `+0x0C`). Return AL = 1.
 
-`Shutdown`: unsubscribe and release the message server; shut down and release the active pylon; clear the available
-pylons; unregister and release the vehicle view; release the city. Records are **kept** (they are released by the
+`Shutdown`: unsubscribe and release the message server; shut down and release the active pylon (no UI state
+change); clear the available pylons; unregister and release the vehicle view; release the city. Records are **kept** (they are released by the
 destructor).
+
+**Pylon calls** (`cISC4PylonOccupant`, vtable `0x00AA5150`): slot 3 the occupant (slot 9 of which is `SetPosition`);
+slot 5 `Shutdown` (`0x005F11A0`: when the pylon is initialized, it also clears and releases its source occupant
+`+0x78`); slot 6 `SetUIState`; slot 9 `SetDispatchType`; slot 10 `GetDispatchType` (`+0x74`); slot 11
+`SetDispatchState`; slot 13 `SetCallNumber`; slot 14 `GetCallNumber`; slot 17 `SetSourceOccupant`; slot 18
+`GetSourceOccupant` (`0x00407AB0`, `+0x78`).
+
+**Dropping pylons** (DP4, DP5). Three different operations, each with its own exact steps:
+
+- *Clear the available pylons* (`0x00469E10`; `Init` when loaded, `Shutdown`, `BeginDispatchTool`,
+  `EndDispatchTool`): walk the vector from the back; each non-null pylon is shut down (slot 5) and released, then
+  popped. A pylon that is also the active one is shut down too; the active pointer keeps its own reference.
+- *`SetActivePylon(p)`* (`0x00469630`): if `p` differs from the active pylon, the old one gets `SetUIState(1)` and
+  is released (**not** shut down); `p` is held and gets `SetUIState(2)`.
+- *`Shutdown`'s drop of the active pylon*: shut down and released, no UI state.
+
+`Init` when loaded does `SetActivePylon(null)` first, then clears the available pylons. `EndDispatchTool` clears
+only the available pylons and leaves the active pylon alone.
 
 ### 4.2 `Dispatch(type, x, z)` (`0x0046A630`, slot 6) → ID *[compat]*
 
@@ -143,10 +161,16 @@ destructor).
      call number` (low 16 bits); `source.DispatchFromStation(station, &callID)` (result ignored); the pylon leaves
      the available list.
    - If the record has a pylon: move it to the target and set its dispatch type. Return true.
-5. `BeginDispatch(record)`: find the automata manager for the source's vehicle group
+5. `BeginDispatch(record)` (`0x004698F0`): find the automata manager for the source's vehicle group
    (`GetDispatchAutomataProperties`, protection.md §8.2), create the vehicle (or re-target the existing one), set
    its dispatch ID, call ID and state 3, track it in the vehicle view, and post **begin**. On success return the
    record's ID; on failure `RevokeDispatchByID(ID)` and return 0.
+   - A **new** vehicle is tracked with kind 0 when its occupant group is `0x4202` or `0x4303`, else kind 1, and the
+     handle is stored at record `+0x0C`.
+   - **Re-targeting** (DP9): with a record that already has a vehicle (step 2), the vehicle gets
+     `SetDispatchState(3)` (automaton slot 25), a new path from the automata manager (slot 17, mode 2) and its event
+     target again (slot 39). It is **not** tracked again: the record keeps its vehicle-view handle. The pylon's
+     dispatch state is then set from automaton slot 26, and **begin** is posted again with the **same** ID.
 
 ### 4.3 `UpdateDispatchState(record, state)`
 
@@ -161,14 +185,28 @@ scene *[inferred names]*.
   (returns the unit, protection.md §8.2). If the record has a pylon: clear the active pylon if it is this one; if
   `type = toolType`, return the pylon to its station (below), else shut it down; release it. Untrack and release the
   vehicle; release the station; post **end**; return true.
-- **`RevokeDispatchByID(id)`** (slot 7): `EndDispatch` on the record with that ID, then erase it; AL = the
-  `EndDispatch` result, or false when no record has the ID.
-- **`RevokeDispatchByPylon(p)`** (slot 8): if a record holds `p`, `RevokeDispatchByID(its ID)`; in every case
-  then return `p` to its station via the source of `p`'s dispatch type. AL = the revoke result, false when no record.
+  The order (`0x0046ACE0`): `active := 0`; the source (none → return false, nothing released);
+  `RevokeDispatchFromStation`; the pylon (clear active, return or shut down, release); untrack the vehicle and
+  release it (**no** despawn call); release the station; post **end**; return true.
+- **`RevokeDispatchByID(id)`** (slot 7, `0x0046AEC0`): `EndDispatch` on the first record with that ID, then erase it
+  whatever `EndDispatch` returned; AL = the `EndDispatch` result, or false when no record has the ID.
+- **`RevokeDispatchByPylon(p)`** (slot 8, `0x0046AE70`): if a record holds `p` (record pylon at node `+0x30`, the
+  first match), `RevokeDispatchByID(its ID)`; in every case, also when no record holds it, then
+  `ReturnPylonToStation(GetDispatchSource(p.GetDispatchType()), p)`. With no source for that type the return does
+  nothing (below). AL = the revoke result, false when no record (DP8).
 - **`RevokeAllDispatches(type)`** (slot 9): revokes **every** record, whatever its type *[quirk]*; AL = 1.
-- **Return a pylon to its station**: a pylon without a source occupant is shut down and released. Otherwise it is
-  placed back at its parking spot next to the station (the same layout as §4.5), its dispatch state set to 0 and UI
-  state to 1, and it is added to the available list (with a reference) unless already there.
+- **Return a pylon to its station** (`ReturnPylonToStation(source, p)`, `0x0046AA20`, `ret 8`):
+  - `p` or `source` null: nothing at all (no shutdown, no add).
+  - `p` has no source occupant (slot 18 null): shut down and **released** (`0x0046ACBA`). That release drops a
+    reference the caller (`EndDispatch`) releases again afterwards, so the original over-releases *[quirk]*
+    (DP6). Unreachable in shipped play *[inferred]*: the tool gives every pylon its station as source, the
+    pylon's `Shutdown` is what clears it, and a station's removal erases its records first. FreeCity4 shuts it down without the extra release *[choice]*.
+  - Otherwise: `source` slot 7 (`+0x1C`) gives the station's unit state `(mask, base, count)`; if it succeeds, `p`
+    is placed at its parking spot (index `callNumber − base + 1` along the §4.5 step), with dispatch state 0 and UI
+    state 1. Whether or not that call succeeded, `p` is looked up in the available vector (`0x004696C0`) and, if
+    absent, pushed at the back with a reference (`0x007EBD30`).
+  - A record whose type is not `toolType` has its pylon shut down and released by `EndDispatch`; a following
+    `RevokeDispatchByPylon` return then finds no source occupant and over-releases as above (edge case).
 
 A revoke therefore never posts **inactive**: a dispatch revoked while active leaves its cone to the protection
 simulators' next full rebuild (protection.md §8.3 assumes inactive comes first).
@@ -308,7 +346,8 @@ first requires a source for that type (0, 1, 5 or 6).
 
 ## 11. Open questions
 
-See QUESTIONS.md, section "From the re-specs10 specs" (DP1–DP3).
+See QUESTIONS.md, section "From the re-specs10 specs" (DP1–DP3), and the cores12a questions DP4–DP9 filed in the
+same section; all but DP3 answered.
 
 ## 12. Conformance tests
 

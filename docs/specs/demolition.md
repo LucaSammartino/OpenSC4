@@ -85,7 +85,7 @@ Subscriptions (made in `Init`, removed in `Shutdown`):
 | `0xC53D10AA` (exemplar changed, foundations §5 table) | `ReadProperties()` (§6) **unconditionally**: data1/data2 are not compared with the tuning exemplars *[quirk]* |
 | `0x26D31EC1` (PostCityInit) | subscribed, ignored (returns true) |
 | `0xA9DED179` (deferred lot demolition) | data1 points to a heap record `{cISC4Lot* lot, bool dezone}`. If `lot` is non-null and `lot.IsInitialized()` (lot slot 6): `lotDeveloper.EndDemolishLot(lot)` (slot 13); if `dezone`: `zoneManager.PlaceZone(lot rect, 0, 1, 1, 0, 1, 1, 0, 0, 0)` (dezone the lot's rectangle, zones.md); release the lot. The record is then freed by the handler. **Nothing in the executable posts this message** (no immediate `0xA9DED179` outside `Init`/`Shutdown`/`DoMessage`; the ID's bytes occur only at `0x00466A03`,
-`0x00466F29` and `0x00467002` in the whole file, so no data table names it either, DM3) *[quirk]*; FreeCity4 must keep the subscription and the handling for plugins. |
+`0x00466F29` and `0x00467002` in the whole file, so no data table names it either, DM3) *[quirk]*; FreeCity4 must keep the subscription and the handling for plugins. The record owns one reference to the lot, released only on the initialized path (`0x004670A0`): a null lot or one whose `IsInitialized()` is false jumps straight to freeing the record (`0x004670A7`, heap free `0x005E5620`), so an uninitialized lot's reference leaks *[quirk]* (DM10). FreeCity4 may release it on both paths *[choice]*: nothing posts the message, so the leak is unobservable. `EndDemolishLot` is lot developer slot 13 (`+0x34`); the dezone is zone manager slot 11 (`0x0046708C`, the manager through `0x00B43D14`) |
 
 Sent (synchronously, `MessageSend`):
 
@@ -126,12 +126,16 @@ order), unsubscribe the three messages and clear `initialized`. Returns AL = 1 e
    rejects occupants of group `0x5001`, base-texture occupants on empty lots and props that are not "real" props.
    *[inferred]* summary; the two classes belong to the occupant-filter spec.)
 2. `callerFilter` non-null and it rejects `o` → reject.
-3. `boundsActive` and `o.GetPosition()` outside `[x0, x1] × [z0, z1]` (x and z only) → reject.
+3. `boundsActive` and `o.GetPosition()` outside `[x0, x1] × [z0, z1]` (x and z only) → reject. All four sides are
+   inclusive (`0x0046679D`–`0x004667C5`).
 4. `privilegeActive` and not `o.CanRemove(level)` → reject. The base `CanRemove(level)`: level bit 1 → true unless
    the occupant's "system lock" byte is set; level bit 2 → true unless its "player lock" byte is set; otherwise
    true.
 5. **Type.** foundation `0x68FD0C69`: accept only if its `cISC4FoundationOccupant` (`0xC8FCE101`) slot 9 returns 1
-   (and stop: steps 6–7 do not apply). building `0x278128A0`, power pole `0x2890D4DE`, construction `0x096E763C`,
+   (and stop: steps 6–7 do not apply). The original does not test the QueryInterface result (`0x00466817`–
+   `0x00466835`: the out pointer starts null and slot 9 is called through it), so a foundation-type occupant without
+   the interface crashes it. Every shipped foundation has the interface; FreeCity4 rejects such an occupant
+   *[choice]* (DM5). building `0x278128A0`, power pole `0x2890D4DE`, construction `0x096E763C`,
    prop `0xA823821E`, network `0xC772BF98`, flora `0x74758926`: continue. **Any other type → reject.**
 6. `viewFilter` non-null and it rejects `o` → reject.
 7. Network `0xC772BF98` while the 3D view's level (`GetCurrentViewLevel`, view slot 22) is **not 1**: reject if
@@ -159,6 +163,13 @@ Returns a bool (AL). Writes `*cost` (if non-null) on every path **except** the f
 | flora `0x74758926` | `flora.GetCostOfOccupantDemolition(o, 0)` (city slot 59, flora slot 22) | `RemoveOccupant(o, true, 0)` (result ignored) | true; **false** if there is no flora simulator |
 | anything else | 0 | — | false |
 
+   **Pole references** (DM11). The remembered neighbour poles are held: each one from pole slot 7 is wrapped in an
+   auto reference (`0x004F20C0`, AddRef) and pushed into a local vector (`0x00442E40`), which releases them all at
+   the end (`0x006C6E90`). An orphan's `QueryInterface(0x26BB767E)` gives a new reference; that reference is what is
+   appended to `orphans` (`0x00467B50`, no further AddRef), or it is released at once when `orphans` is null
+   (`0x0046937B`). So every orphan in the list carries one reference that the list's owner must release, which
+   `DemolishRegion` step 8 does. The `0xAA7A014D` send goes through the helper `0x00466C50`.
+
 3. `*cost := c` (int64) if `cost` is non-null; return the result.
 
 ### 4.4 `DemolishRegion(doIt, R, privilege, flags, dezone, callerFilter, int64* cost, set* demolished, clicked, sx, sy)` (`0x00468410`, slot 6) *[compat]*
@@ -172,6 +183,11 @@ Returns a bool (AL). Writes `*cost` (if non-null) on every path **except** the f
    `Φ.callerFilter := callerFilter`; `Φ.viewFilter := viewFilter` if `useView` (else it stays null);
    `Φ.privilegeActive := true`, `Φ.level := level`. *[choice]* With no 3D view, FreeCity4 must behave as if
    `viewFilter` were null and the view level were 1.
+   **`useView` gates only Φ** (DM12). The local `viewFilter` is fetched whatever `useView` is (`0x00468473`;
+   `useView` is computed after it, `0x0046847D`–`0x00468490`), and the two tests below that name `viewFilter`
+   directly use it **also** with `privilege = 0` or `flags & 0x2000`: the empty-lot qualification of step 4
+   (`0x00468960`–`0x00468974`, view filter slot 4) and the effect gate of step 5 (`0x00468D02`–`0x00468D12`, view
+   filter slot 3).
 3. `result := true`; `occs :=` an ordered set of occupants; `lots :=` a list (new entries at the **front**);
    `seen :=` a set of lots; `count := 0`.
 4. For `x := R.x0 … R.x1` (outer), `z := R.z0 … R.z1` (inner), for each cell in the mask:
@@ -218,7 +234,9 @@ Returns a bool (AL). Writes `*cost` (if non-null) on every path **except** the f
          `lotManager.CreateLotIfPossible(x, z, 1, 1, facing, &new, 0, 0, 0)` (slot 22) and release `new`;
        - else nothing more (an RCI lot stays as an empty zoned lot in state 1, lot-developer §7.2).
 8. Drain `orphans` from the back: insert each into `occs` and into `*demolished` if given. If `doIt`:
-   `UpdateNetworks(occs)` (§4.6), then `networkManager.QueueRemovals(false)`.
+   `UpdateNetworks(occs)` (§4.6), then `networkManager.QueueRemovals(false)`. (`0x00468F70`–`0x00469035`: each
+   orphan is popped and its node freed; the two sets take their own references on insert, and the list's reference
+   is then released at `0x00469031`. Net, the drain neither leaks nor over-releases: DM11.)
 9. `*cost := total` if `cost` is non-null. Clear Φ's caller filter, view filter and `privilegeActive`; release
    `viewFilter`; clear `+0x30`. Return `result`.
 
@@ -232,21 +250,33 @@ The orphan poles found in step 5 reach `UpdateNetworks` only through step 8, so 
   every cell of every lot for which `IsInDemolishableState()` is true. Lots not in a demolishable state are
   **silently skipped** (their cells are not in the region). Return `DemolishRegion(doIt, region, privilege,
   flags | 0x2000, dezone, callerFilter, cost, demolished, null, 0, 0)`.
+- A non-empty list whose lots are **all** not demolishable still calls `DemolishRegion`, with the union rect and an
+  empty mask: it returns true, writes `*cost := 0` and, when `doIt`, still calls `QueueRemovals(true)` and
+  `QueueRemovals(false)`.
 
-Because `0x2000` is set, the per-cell pass of §4.4 step 4 adds nothing on lot cells, and no view filter is used.
-A null entry in the list (power.md's nuclear-free-zone quirk) is dereferenced by the original; FreeCity4 must skip it
-*[choice]*.
+Because `0x2000` is set, the per-cell pass of §4.4 step 4 adds nothing on lot cells (a lot occupant is inserted only
+when it is also in the lot's own occupant list, which it always is), and Φ has no view filter. The 3D view's filter
+is still used by the empty-lot qualification and the effect gate (§4.4 step 2, DM12).
+
+A null entry in the list (power.md's nuclear-free-zone quirk) is dereferenced by the original: it calls lot slot 14
+on the first entry (`0x004670F9`) and on every later one, with no null test. FreeCity4 must skip null entries
+*[choice]*: the union covers the non-null entries only, and a list holding **only** null entries behaves like the
+empty list (returns true, `*cost` untouched). The original has no defined result there (it crashes), so this is the
+natural reading.
 
 ### 4.6 `UpdateNetworks(set)` (`0x004681A0`, not in the interface)
 
 For each occupant `o` in the set (set order) with `o.IsFlagSet(1)`:
 
-- power pole: send `0xAA7A014D` (§3), then `occupantManager.RemoveOccupant(o, true, 0)`;
-- network occupant: append to a list (AddRef) and call `neighbors.DeleteOccupantConnection(o)` (neighbours
-  simulator `0x00B43D8C`, slot 8; neighbors.md §6.5).
+- power pole (type `0x2890D4DE`): send `0xAA7A014D` (§3), then `occupantManager.RemoveOccupant(o, true, 0)`;
+- network occupant (type `0xC772BF98`): append to a list (AddRef) and call `neighbors.DeleteOccupantConnection(o)`
+  (neighbours simulator `0x00B43D8C`, slot 8; neighbors.md §6.5). The test is the occupant type alone: no
+  `QueryInterface` and no network-type filter, so every network kind is queued (roads, rails, pipes, power-line
+  pieces, subways and the rest) (DM9);
+- any other type: skipped.
 
-If the list is non-empty: `networkManager.DestroyNetworkOccupants(list)` (slot 6), then release the list (occupant
-manager slot 48).
+If the list is non-empty: `networkManager.DestroyNetworkOccupants(list)` (slot 6, `0x00468396`; the manager from the
+getter `0x00602680`), then release the list (occupant manager slot 48).
 
 Occupant flag 1 means "currently in the occupant manager" (DM4, verified): `InsertOccupant` returns at once when it
 is set (`0x0049EF8E`) and sets it (`SetFlag(1)`, `0x0049F202`) just before posting `0x99EF1142`; `RemoveOccupant`
@@ -271,16 +301,26 @@ filter: buildings, props, power poles and networks whose bool property `0x29F013
    0.05` (terrain slot 14). If `n = 0`: return 0.
 3. List the lots in `Q` (lot manager slot 7). The area is locked if any lot other than `exempt` reports
    `GetVerticesAreLocked()` (lot slot 68).
-4. If not locked and `doIt`: `terrain.SetAltitude(rect, h, 0, reason)` (slot 49) with `rect = (max(x0, 0),
-   max(z0, 0), min(x1, cellsX), min(z1, cellsZ))`, then `terrain.RedisplayTerrain(1, 1, rect′, reason)` (slot 68).
-5. Return `n`.
+4. If not locked and `doIt`: `terrain.SetAltitude(rect, h, 0, reason)` (slot 49, `0x00468172`) with `rect =
+   (max(x0, 0), max(z0, 0), min(x1, cellsX), min(z1, cellsZ))`, then `terrain.RedisplayTerrain(1, 1, rect, reason)`
+   (slot 68, `0x00468187`): both calls are given the **same** local rectangle (DM7).
+5. Return `n` (also when the area is locked or `doIt` is false).
+
+**The 0.05 tolerance is a `float` comparison** *[compat]* (DM6). In both modes the altitude (terrain slot 14,
+returned in ST0) minus `h` (loaded as `float`) is taken in absolute value and compared with the `float` constant at
+`0x00A880D8` (`0x3D4CCCCD`, 0.05000000074505806). Area mode counts the vertex when `|d| > 0.05f`
+(`0x0046802A`–`0x0046803E`); per-vertex mode skips it when `|d| < 0.05f` (`0x00467D45`–`0x00467D59`), so a vertex
+at exactly 0.05f is counted in neither. The main thread runs the x87 at 24-bit precision (HANDOFF §5.2), so the
+subtraction rounds to `float`: FreeCity4 must compute `abs(alt - h)` in `f32` and compare with `0.05f32`. Widening
+to `f64` and comparing with 0.05 differs for differences within one `float` step of the threshold.
 
 **Per-vertex mode** (`perVertex = true`, the only mode the shipped callers use — landfill.md §4.5.3):
 
 1. For `x := x0 … x1` (outer), `z := z0 … z1`: skip water vertices (`IsWaterVertex`, slot 37) and vertices with
    `|altitude − h| < 0.05`. Skip the vertex if any lot of the 2×2 cells around it (`(x−1, z−1)…(x, z)`) other than
    `exempt` has locked vertices, or if any immovable occupant's bounding box overlaps the square
-   `[16x − 14.5, 16x + 14.5] × [16z − 14.5, 16z + 14.5]` (x and z, closed). Otherwise count it, and if `doIt` set it:
+   `[16x − 14.5, 16x + 14.5] × [16z − 14.5, 16z + 14.5]` (x and z, closed; the 14.5 is `16 − 1.5`, the
+   `float` 1.5 at `0x00A880D4`). Otherwise count it, and if `doIt` set it:
    `terrain.SetAltitude(x, z, h)` (slot 51).
 2. If the count is > 0: `RedisplayTerrain(1, 1, (Q.x0, Q.z0, Q.x1 + 1, Q.z1 + 1), reason)` — **also in a dry
    run** *[quirk]*, so a dry run posts the terrain message `0x278E6003` with `data4 = reason`.
@@ -295,9 +335,12 @@ Presentation only; no simulation state changes. A headless or replaced utility m
 up if `s` scaled to the screen is below the render-quality cutoff. Build the effect key `k := (flags & 0xFF) << 8`
 plus a type nibble: building or power pole `0x10`; flora `0x20`; prop `0x20` if in occupant group `0x5004`, else
 `0x30`, and **no effect at all** unless the prop's bool property `0x8A5E5DB8` is true; network `0x50` if the network
-has type 1 but not type 2 (network slot 22), else `0x40`. Play the occupant's sound (u32 property `0x0A93036F`, if
-present) through the audio system. Add a size class: `+2` if `s > kMediumLargeModelThreshold`, else `+1` if
-`s > kSmallMediumModelThreshold`. Look the key up in effect group `0x6A3589A0`; when absent, try `k − 1`, `k − 2`, …
+has type 1 but not type 2 (network slot 22), else `0x40` (also `0x40` when the network interface is missing). Any
+other type (foundation, construction) keeps nibble **0** and the effect still goes ahead with key
+`(flags & 0xFF) << 8 | size` (DM13, `0x00466A90`: the nibble helper returns true for them; only the prop test can
+return false). Play the occupant's sound (u32 property `0x0A93036F`, if present) through the audio system. Add a
+size class: `+2` if `s > kMediumLargeModelThreshold`, else `+1` if `s > kSmallMediumModelThreshold` (both strict:
+`0x0046740E`, `0x0046743C`). Look the key up in effect group `0x6A3589A0`; when absent, try `k − 1`, `k − 2`, …
 down to the key whose low nibble is 0, then give up. Attach it to `o`; if `isClicked`, aim it along the ray through
 screen point `(sx, sy)`; if `lot` exists and its condition (lot slot 35) is neither 0 nor 1, tint it 50 % grey;
 start it.
@@ -306,7 +349,12 @@ start it.
 `(flags & 0xFF) << 8 | size`, where `size` compares **`n`** with the group thresholds. `DemolishRegion` passes
 `n = 0` and puts the count in the third argument, so the group size is **always the small variant** *[quirk]*
 (both platforms). The effect's altitude is sampled at the cell *indices* used as world coordinates *[quirk]*
-(visual only).
+(visual only; terrain slot 13, `0x004675A2`).
+
+Details (DM8): the centre cell is `((x0 + x1) / 2, (z0 + z1) / 2)` in signed integer division, truncating toward
+zero (`0x00467555`, `0x00467568`), as C and Rust `/` do. The size compares unsigned and strictly: `+2` if `n >
+kMediumLargeGroupThreshold` (`0x00B07F4C`, `jbe` at `0x004675BB`), else `+1` if `n > kSmallMediumGroupThreshold`
+(`0x00B07F48`), else `+0`.
 
 ### 4.9 Flag bits (the `flags` argument)
 
@@ -317,7 +365,7 @@ start it.
 | `0x00000300` | explode the lots (`ExplodeLot`) instead of the normal clear, unless the lot's configuration is water-compatible |
 | `0x00000800` | do not re-parcel agriculture and industrial lots (developers pass it) |
 | `0x00001000` | with `0x300`: `ExplodeLot(lot, false)` instead of `true` |
-| `0x00002000` | set by `DemolishLots` (and passed by the network tool): no view filter, and loose occupants of lot cells are not added |
+| `0x00002000` | set by `DemolishLots` (and passed by the network tool): Φ gets no view filter, and loose occupants of lot cells are not added. The 3D view's filter still gates empty lots and effects (§4.4 step 2) |
 
 `privilege`: 0 = the system (developers, simulators; `CanRemove(1)`), 1 = the player (tools; `CanRemove(2)` and the
 extra lot test of §4.4 step 4). Shipped callers use only 0 and 1.
@@ -428,10 +476,14 @@ to and the caller releases.
    1×1 lots unless `0x800` is set.
 8. The destroyed-lot surcharge is computed from the lot size bytes and is added in dry runs too.
 9. The original dereferences the 3D view without a null test (§4.4 step 2).
+10. The deferred-lot handler leaks the lot reference when the lot is not initialized (§3, DM10).
+11. The 3D view's filter gates empty lots and effects even when `0x2000` or privilege 0 keeps it out of Φ (§4.4
+    step 2, DM12).
 
 ## 11. Open questions
 
-See QUESTIONS.md, section "From the re-specs10 specs" (DM1–DM4).
+See QUESTIONS.md, section "From the re-specs10 specs" (DM1–DM4), and the cores12a questions DM5–DM13 and DM14 (the
+all-null `DemolishLots` list) filed in the same section; all answered.
 
 ## 12. Conformance tests (must exist in `engine/conformance` if the class is replaced)
 
@@ -455,3 +507,6 @@ See QUESTIONS.md, section "From the re-specs10 specs" (DM1–DM4).
 12. `ModifyTerrainHeight(true, true, …)` does not change a vertex under a building's bounding box or on a locked
     lot, and returns the number of changed vertices.
 13. Effects: with cause byte 0 no effect is created; a dry run never creates one.
+14. Tolerance: with `h = 0` and a vertex altitude whose `f32` difference from `h` is exactly `0.05f32`, the vertex
+    is counted by neither mode (§4.7); the next `f32` above is counted in area mode and set in per-vertex mode.
+15. All-null list: `DemolishLots(true, [null, null], …, &c, …)` returns true and leaves `c` unchanged (§4.5).
