@@ -145,11 +145,14 @@ roadmap in `docs/ARCHITECTURE.md`, build and ini keys in `engine/README.md`.
 ## 3. Running the game
 
 - **Regression after every merge that touches the plugin** (run detached):
-  `tools/regress.ps1 -Tag <tag> -Dll <dll> -Queue` submits a shadows run and a replace run (26 replacement keys,
-  `development`, `tract`, `history`, `clock24`, `commercial`, `industrial`, `civic`, `parks`, `lotdev` and `zonedev`
-  among them; every exact shadow, including `zonedev_shadow`, `history_shadow`, `clock24_shadow`, `commercial_shadow`,
-  `civic_shadow` and `parks_shadow`; lists of run 118, baseline `build-runs/regress-rl2.out`; not yet in them:
-  `lotdev_shadow` until LD29, `traffic` and `traffic_shadow` (merged `40d9eab`) until a turbo run to 2032 is clean and exact) through the run queue with
+  `tools/regress.ps1 -Tag <tag> -Dll <dll> -Queue` submits a shadows run and a replace run (27 replacement keys,
+  `development`, `tract`, `history`, `clock24`, `commercial`, `industrial`, `civic`, `parks`, `lotdev`, `zonedev` and
+  `traffic` among them; every exact shadow, including `zonedev_shadow`, `history_shadow`, `clock24_shadow`,
+  `commercial_shadow`, `civic_shadow` and `parks_shadow`, plus `traffic_shadow` with `traffic_shadow_hypotheses = 7`
+  as a **known difference**: not exact to 2032 (TS63 state-15 stop, TS64 scanning iterator; 43 of 72 month lines
+  clean in run 121, the share moves with the pacing), so compare its column with the baseline; lists of run 121,
+  baseline `build-runs/regress-rl3.out`; not yet in them: `lotdev_shadow` until LD29; the traffic shadow makes the
+  shadows run the long one, 2.5-3.5 days/s, 10-15 min, `-TurboTimeout` 1800 s) through the run queue with
   coordinator priority
   (`priority = high`: they jump the lanes' requests and run side by side), turbo to 2032-01-01 on Konradshohe by
   default (`-NormalSpeed` for the old timed runs), and prints one table, `REGRESS <tag>: PASS/FAIL`, and a delta
