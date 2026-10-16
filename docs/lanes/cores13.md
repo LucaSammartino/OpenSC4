@@ -1,0 +1,3 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| cores13 (disaster layer core) | `cores13` / (engine lane) | **merged `333ecde`** (ABI 57, taken as 64 on the lane; gate cores13: cargo 2107/0, clippy clean, ctest 55/55; regress cores13 run 120 PASS): `engine/core/src/disasters/` (fire, riot, toxic spill, earthquake, pipe burst, volcano, effect; disasters.md §2-§14), the riot removal lock (Q4 per network-manager.md §10), capi `fc4_disasters` (82-callback `fc4_disasters_host`, about 50 entry points), 14 `ds*` vector files; no plugin glue | a glue lane: wire `fc4_disasters_host` to the occupant/network managers, automata, terrain brushes, pipes, effects, messaging and the wall clock, then shadow it against the original; DS1-DS24 to the RE side |
