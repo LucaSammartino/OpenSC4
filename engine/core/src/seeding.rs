@@ -111,8 +111,9 @@ pub fn coordinate_seed(seed: u32) -> u32 {
 /// requester, network lot manager, network construction crew, construction
 /// / base-texture / retaining-wall / prop / fire occupants, automata, region
 /// creation and advice file-local generators (keys below where the spec
-/// gives `K`). The disaster layer's and the city situation manager's cores
-/// are merged (their glue is not): their generators are listed here.
+/// gives `K`). The disaster layer's core is merged (its glue is not): its
+/// generators are listed here. The city situation manager's core was merged
+/// and then reverted on main (cores12a); its key stays here, ready.
 pub mod keys {
     use super::{file_seed, SeedKey};
 
@@ -168,8 +169,9 @@ pub mod keys {
     /// K = the fire instance class `0x69C1718F`, disasters lane choice, QUESTIONS DS1).
     pub const DISASTER_FIRE: SeedKey = SeedKey::member(crate::disasters::instance_class::FIRE);
     /// City situation manager (`cRZRandomSuper`, wall clock at construction,
-    /// drawn only during a mission; city-situation.md §5).
-    pub const CITY_SITUATION: SeedKey = SeedKey::member(crate::city_situation::CLSID_CITY_SITUATION);
+    /// drawn only during a mission; city-situation.md §5). GZCLSID
+    /// `0x0BB14381`, written out while the city situation core is not on main.
+    pub const CITY_SITUATION: SeedKey = SeedKey::member(0x0BB1_4381);
 
     // ---- members seeded with a constant -----------------------------------
 
