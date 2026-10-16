@@ -4529,11 +4529,28 @@ destructor (`FC4_RELEASE_AT_DESTRUCTION`) stays. The lane's choices are in brack
   name) belong to. [SC4LoadString's rule (group + language ID, then the group alone, U+2022 becomes U+200B), with
   both keys in the title's group `0x6A231EAA`; the sprintf template takes the name at the first `%s` and `%%` gives
   `%`; a missing LTEXT gives empty text (choice)]
-- **DG39:** (building-development §1.4, DG28) after loading a saved city (Konradshohe, run `apply12-dev-1`), our
+- ~~**DG39:** (building-development §1.4, DG28) after loading a saved city (Konradshohe, run `apply12-dev-1`), our
   growth developers are destroyed only after the simulator's Shutdown, not inside the BDS Shutdown, although the
   core shuts each one down and releases it there. Does the original's load-time object table (or anything else)
   hold a reference to a growth developer it resolved for the BDS record, and when is that reference released?
-  [the destructor's audited release stays until this is answered]
+  [the destructor's audited release stays until this is answered]~~ **ANSWERED 2026-10-16 (re-answers18):**
+  **MATCHES**: yes, and the observed late destruction is the original's.
+  - The BDS `Read` reads each developer by reference (`0x0069AD53`). The class store creates it (factory
+    `0x006B7870`), and the object table of the city segment's COM serializer keeps one reference (resolver
+    `0x005D2DD0`) on top of the map's.
+  - That reference goes only when the loaded segment closes. On city close, `PartialCloseCity` (`0x00454A60`)
+    unregisters the segment at `0x00454AF3`. That is after the city's `Shutdown` (`0x00454AC9`), in which the
+    simulator (`+0x158`, `0x0045B912`) comes after the BDS and the occupant manager. It is also after the
+    `0x26D31EC3` post and the city's release (`0x00454AE7`).
+  - So in a loaded, unsaved city the original's developers die at that segment close. After a save, the table is
+    empty (`0x00456449`) and the BDS `Shutdown`'s `Release` destroys them, as in a new city.
+  - The reset (`0x005D3250`/`0x005D2FE0`) goes in descending class ID. It drops lots (`0xC9BD5D4A`) and buildings
+    (`0xA9BD882D`) before developers (`0x0990C138`), so each developer's copy then holds the **last** reference to
+    its special buildings.
+  - This corrects re-answers10's DG28 answer, which counted no table reference. For a loaded, unsaved city the DG28
+    bracket ("the copy's release in the destructor is the last one") holds. `FC4_RELEASE_AT_DESTRUCTION` stays.
+
+  building-development §1.4, growth-developer §1.1.
 
 ## From the occupant manager and automata cores (filed by re-answers16 from the coordinator's task, 2026-10-16)
 
