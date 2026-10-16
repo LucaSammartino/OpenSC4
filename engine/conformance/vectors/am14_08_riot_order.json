@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "08_riot_order",
+  "spec": ["automata 7.2", "automata 8.1", "automata 14.8"],
+  "description": "AddRiotLeader calls, in order: the road search, the leader cap, CreateAutomaton(0x4107, position, 2, (0,0,0), 0, 0xFF, 0) on the pedestrian manager, AddRef, SetState(8, 0, -1.0, 1, 0, 0, 0), SetVisible(true), the disaster location. A stage rise to 2 calls AddControllerFromTemplateName(leader as occupant, riot_leader_2, 0); a stage that is not a new maximum, or 6, calls nothing. The end calls SetState(1, 0, -1.0, 0, 0, 0, 0) before RemoveControllers(leader), then unregisters the location and releases the automaton. No road, a reached cap or a null automaton stop the start where the spec says.",
+  "steps": [
+    {"op": "automata_riot_add", "x": 3, "z": 4, "expect": 0},
+    {"op": "automata_expect_calls", "calls": ["FindRoad 3 4", "LeaderCap 0", "CreateAutomaton 0x4107 (56, 0, 72) 2 (0, 0, 0) 0 0xff 0", "AddRef 0x500", "SetState 0x500 8 0 -1 1 0 0 0", "SetVisible 0x500 true", "RegisterLocation 0x500"]},
+    {"op": "automata_clear_calls"},
+    {"op": "automata_riot_stage", "leader": 0, "stage": 1, "expect": true},
+    {"op": "automata_riot_stage", "leader": 0, "stage": 2, "expect": true},
+    {"op": "automata_riot_stage", "leader": 0, "stage": 2, "expect": false},
+    {"op": "automata_riot_stage", "leader": 0, "stage": 1, "expect": false},
+    {"op": "automata_riot_stage", "leader": 0, "stage": 6, "expect": false},
+    {"op": "automata_expect_calls", "calls": ["AddControllerFromTemplateName 0x10500 riot_leader_1 0", "AddControllerFromTemplateName 0x10500 riot_leader_2 0"]},
+    {"op": "automata_clear_calls"},
+    {"op": "automata_riot_end", "leader": 0, "expect": true},
+    {"op": "automata_expect_calls", "calls": ["SetState 0x500 1 0 -1 0 0 0 0", "RemoveControllers 0x10500", "UnregisterLocation 0x10500", "Release 0x500"]},
+    {"op": "automata_riot_end", "leader": 0, "expect": false},
+    {"op": "automata_clear_calls"},
+    {"op": "automata_city", "road": false},
+    {"op": "automata_riot_add", "x": 1, "z": 1, "expect": null},
+    {"op": "automata_city", "road": true, "cap": true},
+    {"op": "automata_riot_add", "x": 1, "z": 1, "expect": null},
+    {"op": "automata_city", "cap": false, "create_null": true},
+    {"op": "automata_riot_add", "x": 1, "z": 1, "expect": null},
+    {"op": "automata_expect_calls", "calls": ["FindRoad 1 1", "FindRoad 1 1", "LeaderCap 0", "FindRoad 1 1", "LeaderCap 0", "CreateAutomaton 0x4107 (24, 0, 24) 2 (0, 0, 0) 0 0xff 0"]}
+  ]
+}

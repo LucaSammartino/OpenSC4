@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "07_watercraft_v6",
+  "spec": ["automata 4", "automata 5.3", "automata 14.7"],
+  "description": "The 126-byte version-6 watercraft manager record of Konradshohe: base version 6, max 20, active, flag 0, no automata, 12 group counts, three empty lists. A version below 6 is a bare base record of that version (here 5, with its group map); version 7 is rejected.",
+  "steps": [
+    {"op": "automata_record", "class": "0xA98F9D28", "hex": "0600 0600 14000000 01 00 00000000 0C000000 05130000 00000000 06130000 00000000 07130000 00000000 08130000 00000000 09130000 00000000 39190000 00000000 41190000 00000000 10310100 00000000 20310100 01000000 30310100 02000000 0A150000 00000000 0F150000 00000000 00000000 00000000 00000000", "fields": {"version": 6, "base_version": 6, "max_count": 20, "active": true, "time_scaling": false, "automata": 0, "group_counts": [["0x1305", 0], ["0x1306", 0], ["0x1307", 0], ["0x1308", 0], ["0x1309", 0], ["0x1939", 0], ["0x1941", 0], ["0x13110", 0], ["0x13120", 1], ["0x13130", 2], ["0x150A", 0], ["0x150F", 0]], "lots": 0, "occupants": 0, "ferries": 0}},
+    {"op": "automata_record", "class": "0xA98F9D28", "hex": "0500 14000000 01 00 00000000 01000000 05130000 02000000", "fields": {"version": 5, "base_version": 5, "group_counts": [["0x1305", 2]], "old_version": true}},
+    {"op": "automata_record", "class": "0xA98F9D28", "hex": "0700 0600 14000000 01 00 00000000 00000000", "expect": false}
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "04_traffic_managers_empty",
+  "spec": ["automata 4", "automata 5.1", "automata 14.4"],
+  "description": "The 22-byte version-2 traffic automata manager record of an empty city: base version 4 (no group map), max 336 (vehicle) / 384 (pedestrian), inactive, flag 0, no automata, the discarded u32 (1 / 2), cursor 1. Written back unchanged (the read version is kept). Versions 1 and 4 are rejected; a base above 6 is rejected; a cut record fails.",
+  "steps": [
+    {"op": "automata_record", "class": "0xA98F9D3B", "hex": "0200 0400 50010000 00 00 00000000 01000000 01000000", "fields": {"version": 2, "base_version": 4, "max_count": 336, "active": false, "time_scaling": false, "automata": 0, "group_counts": [], "tag": 1, "cursor": 1, "old_version": true}},
+    {"op": "automata_record", "class": "0xC98F9D17", "hex": "0200 0400 80010000 00 00 00000000 02000000 01000000", "fields": {"version": 2, "base_version": 4, "max_count": 384, "tag": 2, "cursor": 1}},
+    {"op": "automata_record", "class": "0xA98F9D3B", "hex": "0100 0400 50010000 00 00 00000000 01000000 01000000", "expect": false},
+    {"op": "automata_record", "class": "0xA98F9D3B", "hex": "0400 0400 50010000 00 00 00000000 01000000 01000000", "expect": false},
+    {"op": "automata_record", "class": "0xA98F9D3B", "hex": "0300 0700 50010000 00 00 00000000 01000000 01000000 0100 00000000", "expect": false},
+    {"op": "automata_record", "class": "0xA98F9D3B", "hex": "0200 0400 50010000 00 00 00000000 01000000", "expect": false}
+  ]
+}
