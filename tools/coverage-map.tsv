@@ -89,15 +89,15 @@ cSC4PedestrianManager	automata (managers, records)	simulation	automata.md	core/s
 cSC4AircraftManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4WatercraftManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4TrafficAutomataManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-cSC4OccupantManager	occupant manager	simulation	occupant-manager.md	core/src/occupant_manager	-	-
-cSC4NetworkManager	network manager	simulation	network-manager.md	core/src/network_manager	-	-
-cSC4NetworkLotManager	network manager	simulation	network-manager.md	core/src/network_manager	-	-
-cSC4NetworkConstructionCrew	network manager	simulation	network-manager.md	core/src/network_manager	-	-
+cSC4OccupantManager	occupant manager	simulation	occupant-manager.md	core/src/occupant_manager	occmgr_shadow	-
+cSC4NetworkManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	-
+cSC4NetworkLotManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	-
+cSC4NetworkConstructionCrew	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	-
 # the network lot and its configuration object, each a section of network-manager.md (§2.3 vtable 0x00AA78E0,
 # IID 0x89A5BA66; §2.4 vtable 0x00AA7998), implemented by core/src/network_manager (lots.rs, config.rs). They are
 # listed before the cSC4Network* catch-all, which would otherwise file them under network occupants
-cSC4NetworkLot	network manager	simulation	network-manager.md	core/src/network_manager	-	-
-cSC4NetworkLotConfiguration	network manager	simulation	network-manager.md	core/src/network_manager	-	-
+cSC4NetworkLot	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	-
+cSC4NetworkLotConfiguration	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	-
 cSTETerrain	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTESurfaceWater	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTEVolcanoLava	terrain	simulation	terrain.md	core/src/terrain	-	-
@@ -118,19 +118,19 @@ cSC4VertexHtConstraintSatisfier	network tools	simulation	network-geometry.md	-	-
 cSC4NetworkCellInfo	network tools	simulation	network-geometry.md	-	-	-
 fn:ReadBridge*	network tools	simulation	network-bridges.md	-	-	-
 (anonymous_namespace)::cBridge*	network tools	simulation	network-bridges.md	-	-	-
-cSC4TileEvaluator	network rules	simulation	network-rules.md	-	-	-
-cSC4TileRule	network rules	simulation	network-rules.md	-	-	-
-cSC4TileInfo	network rules	simulation	network-rules.md	-	-	-
-nSC4Networks*	network rules	simulation	network-rules.md	-	-	-
-fn:ReadIntersection*	network rules	simulation	network-rules.md	-	-	-
+cSC4TileEvaluator	network rules	simulation	network-rules.md	core/src/network_rules	-	-
+cSC4TileRule	network rules	simulation	network-rules.md	core/src/network_rules	-	-
+cSC4TileInfo	network rules	simulation	network-rules.md	core/src/network_rules	-	-
+nSC4Networks*	network rules	simulation	network-rules.md	core/src/network_rules	-	-
+fn:ReadIntersection*	network rules	simulation	network-rules.md	core/src/network_rules	-	-
 cSC4PropManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/prop_manager	-	-
 cSC4LotConfigurationManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/lot_config_manager	-	-
-cSC4LotConfiguration	lot configuration	simulation	lot-configuration.md	-	-	-
+cSC4LotConfiguration	lot configuration	simulation	lot-configuration.md	core/src/lot_config_manager	-	-
 cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	-	-
-cSC4CitySituationManager	city situation	simulation	city-situation.md	-	-	-
-cSC4Demolition	demolition	simulation	demolition.md	-	-	-
-cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	-	-	-
-cSC4DispatchManager	dispatch	simulation	dispatch.md	-	-	-
+cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/city_situation	citysit_shadow	-
+cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolition_shadow	-
+cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
+cSC4DispatchManager	dispatch	simulation	dispatch.md	core/src/dispatch	dispatch_shadow	dispatch
 cSC4Advisor*WinProc	windows and panels	ui	-	-	-	-
 cSC4AdvisorSystem	advisors	simulation	advisors.md	-	-	-
 cSC4Advisor*	advisors	simulation	advisors.md	-	-	-
@@ -215,8 +215,8 @@ cSC4*OccupantFilter	occupants and props	simulation	-	-	-	-
 cSC4*Occupant	occupants and props	simulation	-	-	-	-
 cSC4GameOfLifeSimulator	other simulation	simulation	-	-	-	-
 SC4QuadGrid	other simulation	simulation	-	-	-	-
-cSC4TutorialRegistry	tutorial	simulation	-	-	-	-
-cSC4TutorialTask	tutorial	simulation	-	-	-	-
+cSC4TutorialRegistry	tutorial	simulation	-	core/src/tutorial	-	-
+cSC4TutorialTask	tutorial	simulation	-	core/src/tutorial	-	-
 cSC4AnimationTickManager	other simulation	simulation	-	-	-	-
 # ---- region
 cSC4Nation	region	region	nation.md	-	-	-

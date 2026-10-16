@@ -48,22 +48,8 @@ def collect():
     replace_list, shadow_list = cov.regress_lists(REPO / "tools" / "regress.ps1")
     keys = cov.subsystem_keys(REPO / "engine" / "plugin" / "FC4Subsystems.cpp")
     reg = cov.read_regress(regress)
-    rrun = reg["runs"].get("replace", ("none", 1))
-    replace_clean = rrun[0] == "clean" and rrun[1] == 0
-    for r in rows:  # same rules as coverage.py main()
-        specs, cores = cov.split_list(r["spec"]), cov.split_list(r["core"])
-        r["specified"] = bool(specs) and all((REPO / "docs" / "specs" / s).exists() for s in specs)
-        r["implemented"] = bool(cores) and all((REPO / "engine" / c).exists() for c in cores)
-        r["verified"] = False
-        sh = r["shadow"]
-        if sh != "-" and sh in shadow_list:
-            label = sh[: -len("_shadow")] if sh.endswith("_shadow") else sh
-            label = cov.SHADOW_LABEL_ALIAS.get(label, label)
-            if label in reg["shadows"]:
-                clean, lines = reg["shadows"][label]
-                r["verified"] = lines > 0 and clean == lines
-        rp = r["replace"]
-        r["replaced"] = rp != "-" and bool(rp in replace_list or keys.get(rp, False)) and replace_clean
+    shadow_ev, _ = cov.read_shadow_evidence(REPO / "tools" / "coverage-shadows.tsv", REPO)
+    cov.map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress.name)
     row_of = {}
 
     def match(o):
@@ -73,6 +59,7 @@ def collect():
         return None
 
     agg = defaultdict(int)
+    stat_b = {s: 0 for s in STAT}  # the four headline totals, summed on the row's own flags (not on the colour)
     for va in att.order:
         size, o = att.funcs[va], owner[va]
         if o is not None and o.startswith("lib:"):
@@ -85,12 +72,15 @@ def collect():
             if o not in row_of:
                 row_of[o] = match(o)
             r = rows[row_of[o]]
+            for s in STAT:
+                if r[s]:
+                    stat_b[s] += size
             k = (r["area"], r["subsystem"], o, stage([r[s] for s in STAT]))
         agg[k] += size
     tree = defaultdict(lambda: defaultdict(list))
     for (a, s, o, st), b in agg.items():
         tree[a][s].append((b, st, o))
-    return tree, regress.name
+    return tree, regress.name, stat_b
 
 
 def worst(row, w):
@@ -131,7 +121,7 @@ def squarify(values, x, y, w, h):
     return out
 
 
-def render(tree, regress, head, out):
+def render(tree, regress, head, out, stat_b):
     W, H = 1600, 1000
     top, legend_h = 120, 46
     mx, my, mw, mh = 16, top, W - 32, H - top - legend_h - 16
@@ -147,15 +137,14 @@ def render(tree, regress, head, out):
                'font-family="Segoe UI, Helvetica, Arial, sans-serif">')
     svg.append(f'<rect width="{W}" height="{H}" fill="#f6f7f4"/>')
     svg.append('<text x="16" y="44" font-size="30" font-weight="700" fill="#1d2320">OpenSC4 coverage of SimCity 4.exe</text>')
-    impl = sum(stage_b[2:]) / total
-    spec_ = sum(stage_b[1:]) / total
-    ver = (stage_b[4] + stage_b[5]) / total
-    repl = (stage_b[3] + stage_b[5]) / total
+    # the four headline shares, on each status's own flag (a row can be implemented without a spec, or replaced
+    # without a module, so the colour's stage bucket is not the same set)
     svg.append(f'<text x="16" y="74" font-size="17" fill="#4a544f">Game code: {total / 1048576:.2f} MB of machine code, '
-               f'libraries excluded. Specified {spec_:.1%} · implemented {impl:.1%} · verified {ver:.1%} · '
-               f'replaced in game {repl:.1%}.</text>')
+               f'libraries excluded. Specified {stat_b["specified"] / total:.1%} · '
+               f'implemented {stat_b["implemented"] / total:.1%} · verified {stat_b["verified"] / total:.1%} · '
+               f'replaced in game {stat_b["replaced"] / total:.1%}.</text>')
     svg.append(f'<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the '
-               f'owning class (tools/coverage.py, docs/COVERAGE.md). main {e(head)}, {e(regress)}.</text>')
+               f'owning class (tools/coverage.py, docs/COVERAGE.md). {e(head)}, {e(regress)}.</text>')
     areas = sorted(tree.items(), key=lambda kv: -sum(b for os in kv[1].values() for b, _, _ in os))
     avals = [sum(b for os in subs.values() for b, _, _ in os) for _, subs in areas]
     for (aname, subs), (ax, ay, aw, ah), av in zip(areas, squarify(avals, mx, my, mw, mh), avals):
@@ -200,10 +189,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=str(REPO / "docs" / "coverage-map.svg"))
     args = ap.parse_args()
-    head = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"], capture_output=True,
-                          text=True).stdout.strip()
-    tree, regress = collect()
-    total, shares = render(tree, regress, head, Path(args.out))
+    def git(*a):
+        return subprocess.run(["git", "-C", str(REPO), *a], capture_output=True, text=True).stdout.strip()
+    short = git("rev-parse", "--short", "HEAD")
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")  # a worktree is not on `main`; name the branch it is on
+    head = f"{branch} {short}" if branch and branch != "HEAD" else short
+    tree, regress, stat_b = collect()
+    total, shares = render(tree, regress, head, Path(args.out), stat_b)
     print(f"coverage_treemap: {total} bytes; stage shares " + ", ".join(f"{s:.1%}" for s in shares)
           + f"; wrote {args.out}")
 
