@@ -328,6 +328,9 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4PropManager.h
         plugin/cFC4LotConfigManager.cpp
         plugin/cFC4LotConfigManager.h
+        # The configuration class the replacement manager allocates (GLUE21-1).
+        plugin/cFC4LotConfiguration.cpp
+        plugin/cFC4LotConfiguration.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp

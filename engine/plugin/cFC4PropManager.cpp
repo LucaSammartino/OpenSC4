@@ -737,19 +737,27 @@ const cISC4PropOccupant::PropProfile* cFC4PropManager::GetPropProfilePtr(uint32_
 }
 
 bool cFC4PropManager::CreateProp(uint32_t propID, cISC4PropOccupant*& prop) {
-    prop = nullptr;
+    // GLUE21-2 (prop-developer.md 13.2): the out parameter is left UNTOUCHED
+    // until the core answers, never zeroed first - the game's callers take
+    // the occupant without a null check, so a cleared slot is read either
+    // way. When the core cannot produce an occupant (GZCOM does not answer
+    // and no built-in route exists yet) the call fails and the caller's
+    // pointer keeps whatever it held, as the original's only clean exit
+    // (13.2 step 1) leaves it.
     if (core_ == nullptr) return false;
     const uint64_t t = fc4_prop_manager_create_prop(core_, propID);
+    if (t == 0) return false;
     prop = reinterpret_cast<cISC4PropOccupant*>(static_cast<uintptr_t>(t));
-    return prop != nullptr;
+    return true;
 }
 
 bool cFC4PropManager::CreateGenericProp(cGZPersistResourceKey const& key, cISC4PropOccupant*& prop) {
-    prop = nullptr;
+    // GLUE21-2, as CreateProp: the out parameter is not pre-cleared.
     if (core_ == nullptr) return false;
     const uint64_t t = fc4_prop_manager_create_generic_prop(core_, key.type, key.group, key.instance);
+    if (t == 0) return false;
     prop = reinterpret_cast<cISC4PropOccupant*>(static_cast<uintptr_t>(t));
-    return prop != nullptr;
+    return true;
 }
 
 namespace {

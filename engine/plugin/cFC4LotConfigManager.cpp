@@ -22,6 +22,7 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
+#include "cFC4LotConfiguration.h"
 #include "cFC4LotDeveloper.h"
 
 #include "GZServPtrs.h"
@@ -113,26 +114,18 @@ void UnregisterShutdownCallback(void*) {
 }
 
 uint64_t CreateConfiguration(void*) {
-    // GLUE21-1: lot-configuration.md 1 - cSC4LotConfiguration is "not
-    // registered with GZCOM for creation: the manager allocates it directly"
-    // (0xC0 bytes, constructor 0x004797A0). FreeCity4 does not replace that
-    // class and has no route to the game's allocate-and-construct pair, so
-    // GZCOM is probed and, when it does not answer, no configuration is
-    // invented: the catalogue stays empty rather than a fabricated layout
-    // being handed to the game.
-    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
-    if (com == nullptr) return 0;
-    void* p = nullptr;
-    if (!com->GetClassObject(kFC4_CLSID_cSC4LotConfiguration, 0x68EDBEBC, &p) || p == nullptr) {
-        static bool noted = false;
-        if (!noted) {
-            noted = true;
-            fc4::Log("lotcfg: cSC4LotConfiguration (0xA99062B4) is not GZCOM-creatable "
-                     "(lot-configuration.md 1); the catalogue cannot be built by a replacement (GLUE21-1)");
-        }
-        return 0;
-    }
-    return Tok(p);
+    // GLUE21-1, answered (lot-configuration.md 1.1): cSC4LotConfiguration is
+    // NOT GZCOM-creatable - the class ID 0xA99062B4 exists only for
+    // serialization refs - and the named route to the allocate-and-construct
+    // pair is the manager's own helper, which is exactly what a replacement
+    // manager replaces. So the replacement allocates its own
+    // cISC4LotConfiguration-shaped object (option 1 of 1.1): cFC4LotConfiguration,
+    // the 34-slot table of 8 over the layout of 2, filled by the Load of 3.
+    // No reference is added here: the core's add_configuration takes the
+    // creation reference (B3.2), exactly as the original helper's AddRef
+    // feeds the catalogue.
+    cFC4LotConfiguration* c = new cFC4LotConfiguration();
+    return Tok(c);
 }
 
 bool LoadConfiguration(void*, uint64_t cfg, uint32_t t, uint32_t g, uint32_t i, uint32_t detail) {
@@ -211,12 +204,23 @@ bool ConfigPrimaryBuilding(void*, uint64_t cfg, fc4_lotdev_cfg_object_callback v
 }
 
 void SetConfigBuildingInfo(void*, uint64_t cfg, const fc4_lot_config_building_info* info) {
-    // B4.3 PostCityInit fills the building information through this. The
-    // configuration's in-memory fields are not a documented slot either; the
-    // core keeps them and the game's own read of them sees the original's
-    // values (the shadow compares the record, not these fields).
-    (void)cfg;
-    (void)info;
+    // B4.3 PostCityInit fills the building information: +0x3E, +0x40, +0x80
+    // and +0x8C, written directly (lot-configuration.md 4 - no slot). On our
+    // own configurations (GLUE21-1) the fields are ordinary members of
+    // cFC4LotConfiguration; on the original's (the shadow's read-only walk)
+    // the object is not ours and the write is skipped, as before.
+    if (info == nullptr || cfg == 0) return;
+    auto* c = reinterpret_cast<cFC4LotConfiguration*>(static_cast<uintptr_t>(cfg));
+    if (!fc4::IsOurObject(c)) {
+        static bool noted = false;
+        if (!noted) {
+            noted = true;
+            fc4::Log("lotcfg: SetConfigBuildingInfo on a non-FreeCity4 configuration (skipped)");
+        }
+        return;
+    }
+    std::vector<uint32_t> styles(info->groups, info->groups + info->n_groups);
+    c->SetBuildingInfo(info->min_capacity, info->max_capacity, std::move(styles), info->non_monopoly != 0);
 }
 
 void ConfigRetainingWalls(void*, uint64_t cfg, fc4_u32s_sink out, void* ctx) {
@@ -241,7 +245,10 @@ bool IsRetainingWallValid(void*, uint32_t id) { return id != 0; }
 
 uint64_t CreateGenericConfiguration(void*, uint32_t type, uint32_t, uint32_t, const fc4_lotdev_cfg_object*,
                                     size_t) {
-    // Same blocker as CreateConfiguration (GLUE21-1).
+    // Same route as CreateConfiguration (GLUE21-1, answered): our own
+    // cISC4LotConfiguration-shaped object. The editor's generic
+    // configuration (B5.7) fills itself afterwards through the editing
+    // helpers.
     return CreateConfiguration(nullptr);
 }
 

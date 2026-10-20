@@ -33,13 +33,14 @@
 // never run per city or per run - unload empties the map and a rebuild would
 // put the configurations in a different bucket order than the original's.
 //
-// What the shim cannot do (GLUE21-1, a numbered question): lot-configuration.md
-// §1 says cSC4LotConfiguration is "not registered with GZCOM for creation: the
-// manager allocates it directly" (0xC0 bytes, constructor 0x004797A0). FreeCity4
-// does not replace the configuration class and has no route to the game's
-// allocator-and-construct pair, so `create_configuration` probes GZCOM for
-// 0xA99062B4 and, when it does not answer, refuses rather than inventing a
-// layout: the catalogue then stays empty. Everything else is wired.
+// GLUE21-1, answered (lot-configuration.md 1.1): cSC4LotConfiguration is
+// not GZCOM-creatable - the class ID 0xA99062B4 exists only for
+// serialization refs - and the named route to the allocate-and-construct
+// pair is the manager's own helper, which is exactly what this replacement
+// replaces. `create_configuration` therefore builds FreeCity4's own
+// cISC4LotConfiguration-shaped object (cFC4LotConfiguration.h, the 34-slot
+// table of 8 over the layout of 2, loaded from the exemplar by the Load of
+// 3); the catalogue is filled by it. Everything else is wired.
 //
 // OFF by default: FreeCity4.ini `enable = lotcfg`; `disable` still wins.
 #pragma once
@@ -56,8 +57,6 @@
 static const uint32_t kFC4_CLSID_cSC4LotConfigManager = 0x299062C0;  // B1
 static const uint32_t kFC4_IID_cISC4LotConfigManager = 0xC8EDBEC0;   // B1 (city component 9)
 static const uint32_t kFC4_IID_cIGZSerializableLcm = 0xE4FDA3D4;
-// lot-configuration.md §1: the configuration class's own class ID.
-static const uint32_t kFC4_CLSID_cSC4LotConfiguration = 0xA99062B4;
 
 class cFC4LotConfigManager final : public cFC4ISC4LotConfigurationManager,
                                    public cIGZMessageTarget2,
