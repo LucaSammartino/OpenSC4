@@ -1,7 +1,8 @@
 # Lanes
 
 Per-lane stop state, as the merge train's "Per-lane files" step wants it: one file per lane holding today's
-HANDOFF §0 row, so the §0 table can be regenerated from these instead of every lane editing the same lines.
+lane-table row (`docs/lanes/INDEX.md`, the HANDOFF §0 table until 2026-10-20), so the table is regenerated
+from these instead of every lane editing the same lines.
 
 Format: a markdown table with the row `Lane | Worktree | State at stop | Next steps`.
 

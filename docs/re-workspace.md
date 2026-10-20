@@ -44,7 +44,7 @@ addresses alongside the matching named Mac Rev A function.
 - `tools/dbpf.py`, `tools/extract_tuning.py`: read-only DBPF/exemplar reader and tuning dumper.
 - `tools/x86dis.py`, `tools/class_vtables.py`: quick disassembly and vtable discovery from a CLSID.
 - In-game harness (coordinator): `tools/ingame_run.ps1`, `tools/regress.ps1`, `tools/run_summary.ps1`, `tools/sc4ctl.ps1`;
-  see [docs/HANDOFF.md](HANDOFF.md) §3. Implementers work from the coordinator's run results and do not open `tools/`.
+  see [docs/ops/running-the-game.md](ops/running-the-game.md). Implementers work from the coordinator's run results and do not open `tools/`.
 
 ## Rebuilding locally
 

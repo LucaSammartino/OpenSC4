@@ -1,3 +1,13 @@
+tag: apply15d-traffic-1
+run: 150
+date: 2026-10-16
+lane: apply15d
+dll: FreeCity4-apply15d
+pacing: turbo
+verdict: clean
+switches: lane apply15d; Konradshohe, `turbo = 1`, `end_date = 2032-01-01`, `seconds = 900 (timeout 1050)`; `enable = traffic`, `traffic_shadow = 1`, `traffic_shadow_hypotheses = 7`, `traffic_shadow_lines = 1`; DLL `engine/build-x86/FreeCity4.dll`, sha256 `858cd698`
+result: **clean** (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, julian=2463234, date=2032-01-02, real_seconds=38.828, days_per_second=56.37, switches_off=-, disabled=-). Details in the narrative below.
+
 # Run apply15d-traffic-1
 
 Lane `apply15d`, worktree `.claude/worktrees/apply15d`, DLL `engine/build-x86/FreeCity4.dll`
