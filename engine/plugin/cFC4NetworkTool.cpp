@@ -32,14 +32,15 @@
 
 #include <cstring>
 
-namespace {
-
 constexpr uint32_t kIID_cIGZUnknown = 1;  // the framework's 'any object' IID (GZIID_cIGZUnknown)
 
+namespace fc4 {
 // The one fc4_netgeom per process (one city, one geometry for the tool
 // family): the §3/§5/§10 pipeline replays through it, over the game terrain
-// read through the host. Created with the shipped placement table.
-fc4_netgeom* GeometryOf(fc4::NetToolContext* ctx) {
+// read through the host (the netgeom host binds the city's terrain and the
+// occupant manager — FC4NetToolHost.cpp). Created on demand: the core's
+// callbacks (draw/validate/resolve) call GeometryOf before its first use.
+fc4_netgeom* GeometryOf(NetToolContext* ctx) {
     if (ctx->geom == nullptr) {
         fc4_netgeom_host gh = fc4::MakeNetGeomHost(ctx);
         ctx->geom = fc4_netgeom_create(&gh, nullptr, 0);
@@ -47,8 +48,7 @@ fc4_netgeom* GeometryOf(fc4::NetToolContext* ctx) {
     }
     return ctx->geom;
 }
-
-}  // namespace
+}  // namespace fc4
 
 cIGZUnknown* cFC4NetworkTool::Create(uint32_t networkType) {
     // The factory returns the primary interface's pointer with reference
@@ -100,11 +100,33 @@ void cFC4NetworkTool::SetMessageServer(cIGZMessageServer2* ms) {
 }
 
 void cFC4NetworkTool::LogStatus(const char* why) {
-    if (lastInserts_ == 0 && lastRemoved_ == 0 && ctx_.inserts == 0 && ctx_.removed == 0) return;
-    fc4::Log("nettool type %u %s: inserts=%u (refused %u) removed=%u joins=%u draws=%u solves=%u", networkType_, why,
-             ctx_.inserts, ctx_.insertsRefused, ctx_.removed, ctx_.connections, ctx_.draws, ctx_.solves);
-    lastInserts_ = ctx_.inserts;
-    lastRemoved_ = ctx_.removed;
+    fc4::NetToolContext* ctx = &ctx_;
+    uint32_t failure = 0, valid = 0, dragged = 0, solved = 0;
+    if (ctx->geom != nullptr) {
+        fc4_netgeom_state gs{};
+        gs.struct_size = sizeof(gs);
+        if (fc4_netgeom_get_state(ctx->geom, &gs)) {
+            failure = gs.failure;
+            valid = gs.valid;
+            dragged = gs.dragged_count;
+            solved = gs.solved_count;
+        }
+    }
+    fc4_nettool_state ts{};
+    ts.struct_size = sizeof(ts);
+    uint32_t refusedCore = 0, cacheCount = 0, cityX = 0, cityZ = 0;
+    if (core_ != nullptr && fc4_nettool_get_state(core_, &ts)) {
+        refusedCore = ts.reentrant_refused;
+        cacheCount = ts.cache_count;
+        cityX = ts.city_x;
+        cityZ = ts.city_z;
+    }
+    fc4::Log("nettool type %u %s: inserts=%u refused=%u removed=%u joins=%u draws=%u solves=%u geom[dragged=%u "
+             "valid=%u solved=%u failure=0x%08X] core[city=%ux%u cache=%u refused=%u]",
+             networkType_, why, ctx->inserts, ctx->insertsRefused, ctx->removed, ctx->connections, ctx->draws,
+             ctx->solves, dragged, valid, solved, failure, cityX, cityZ, cacheCount, refusedCore);
+    lastInserts_ = ctx->inserts;
+    lastRemoved_ = ctx->removed;
 }
 
 bool cFC4NetworkTool::QueryInterface(uint32_t riid, void** ppvObj) {

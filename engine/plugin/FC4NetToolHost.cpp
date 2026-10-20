@@ -43,6 +43,10 @@
 
 namespace fc4 {
 
+// On-demand geometry: declared in cFC4NetworkTool.cpp (the shared core for
+// the tool family); the host callbacks create it on the first core call.
+fc4_netgeom* GeometryOf(NetToolContext* ctx);
+
 namespace {
 
 constexpr uint32_t kIID_cISC4NetworkOccupant = 0xA821EF94;  // network-tools.md §3.3, §10
@@ -98,7 +102,8 @@ uint32_t TypeOfFlags(uint32_t flags) {
 // / cells. false = the geometry core is absent.
 bool DrawNetworkLine(void* u, fc4_nettool_run* run, bool snap) {
     NetToolContext* c = Ctx(u);
-    if (c == nullptr || c->geom == nullptr || run == nullptr) return false;
+    if (c == nullptr || run == nullptr) return false;
+    if (GeometryOf(c) == nullptr) return false;  // on-demand (run 216: o geom nunca existia aqui)
     const bool ok = fc4_netgeom_draw_line(
         c->geom, run->type_id, run->start_x, run->start_z, run->end_x, run->end_z, snap);
     // Pull the geometry's counters and cells back into the run (§3.1 outputs).
@@ -126,7 +131,8 @@ bool DrawNetworkLine(void* u, fc4_nettool_run* run, bool snap) {
 // (§9.6). The failure code travels in fc4_netgeom_state.failure.
 bool ValidateAndSolve(void* u, fc4_nettool_run* run, bool real, fc4_nettool_pass* out) {
     NetToolContext* c = Ctx(u);
-    if (c == nullptr || c->geom == nullptr || run == nullptr) return false;
+    if (c == nullptr || run == nullptr) return false;
+    if (GeometryOf(c) == nullptr) return false;  // on-demand
     (void)real;
     ++c->solves;
     const uint32_t valid = fc4_netgeom_place(c->geom);
@@ -519,7 +525,8 @@ void OccupantRelease(void* u, uint64_t occ) {
 // core replays it; the solved cells come back for §10 step 6.2's inserts.
 void SolveNetworkResolve(void* u, fc4_nettool_run* run) {
     NetToolContext* c = Ctx(u);
-    if (c == nullptr || c->geom == nullptr || run == nullptr) return;
+    if (c == nullptr || run == nullptr) return;
+    if (GeometryOf(c) == nullptr) return;  // on-demand
     ++c->solves;
     fc4_netgeom_place(c->geom);
     fc4_netgeom_cell solved[FC4_NETTOOL_MAX_CELLS];
