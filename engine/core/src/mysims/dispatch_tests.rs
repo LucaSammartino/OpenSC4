@@ -24,6 +24,9 @@ use super::{dispatch_note, JobDestination, DISPATCH_CLSID, DISPATCH_IID};
 /// The job destination bits, from the dispatch module's setup.
 const JOB_BITS: u8 = 0x1F;
 
+/// holder → (max[4], used[4]).
+type Cap = ([u32; 4], [u32; 4]);
+
 /// An 8 × 8 city whose street runs (0,3)…(4,3) (pathfinder.md §11
 /// preamble): the MySim's home at (2,2), jobs along the street.
 #[derive(Default)]
@@ -40,7 +43,7 @@ struct DispatchWorld {
     dest: RefCell<HashMap<(i32, i32), u8>>,
     free: Cell<[u32; 4]>,
     /// holder → (max[4], used[4]).
-    caps: RefCell<HashMap<u64, ([u32; 4], [u32; 4])>>,
+    caps: RefCell<HashMap<u64, Cap>>,
     /// (lot token, bounding rect, holder).
     lots: RefCell<Vec<(u64, CellRect, u64)>>,
     pools: RefCell<HashMap<(i32, i32), u64>>,
@@ -373,7 +376,6 @@ impl PathfinderHost for DispatchWorld {
 /// A city of one street and three lots, wired to a `MySimDispatch`.
 struct D {
     w: Rc<DispatchWorld>,
-    net: Rc<NetworkModel>,
     d: Rc<MySimDispatch>,
 }
 
@@ -399,7 +401,7 @@ impl D {
         model.set_tuning(Tuning::shipped());
         *w.neighbors.borrow_mut() = vec![(-1, 3)];
         let d = MySimDispatch::new(w.clone(), model.clone(), shared_work_check());
-        D { w, net: model, d }
+        D { w, d }
     }
 
     fn take(&self) -> Vec<(i32, u32, u32, u32)> {
@@ -642,7 +644,7 @@ fn t37_pool() {
     assert_eq!(t.len(), 2);
     assert_eq!(t[0].name, b"Ann".to_vec());
     assert_eq!(t[1].name, b"Bob".to_vec());
-    assert_eq!(t[1].is_male, true);
+    assert!(t[1].is_male);
     // By index; out of range None.
     assert_eq!(p.template(1).map(|t| t.bitmap_id), Some(8));
     assert!(p.template(2).is_none());
