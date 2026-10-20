@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "tr18_23_sea_level_after_load",
+  "spec": [
+    "terrain 13.1",
+    "terrain 18.23"
+  ],
+  "description": "SetSeaLevel(100), save, load: GetSeaLevel() = 250 (the tuning's NewSeaLevel). The sea level is not saved (quirk 15, TR10).",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        4,
+        4
+      ],
+      "flat": 300
+    },
+    {
+      "op": "ter_call",
+      "method": "set_sea_level",
+      "args": [
+        100
+      ],
+      "expect": true
+    },
+    {
+      "op": "ter_call",
+      "method": "sea_level",
+      "expect": 100
+    },
+    {
+      "op": "ter_record",
+      "sea_after_load": 250
+    }
+  ]
+}

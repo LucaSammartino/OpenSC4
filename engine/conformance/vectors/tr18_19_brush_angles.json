@@ -1,0 +1,224 @@
+{
+  "format": 1,
+  "name": "tr18_19_brush_angles",
+  "spec": [
+    "terrain 9.1",
+    "terrain 9.3",
+    "terrain 18.19"
+  ],
+  "description": "A description keeps a walk angle (+0x68) and a stroke angle (+0x6C), both 0 here (TR8). A fresh description's stroke angle is 0, so a first ApplyBrush with from = to draws at angle 0: the 1 x 4 bitmap (16 m wide, 64 m tall, k = 1) covers columns 9 (the half pixel of quirk 7) and 10 and rows 8..11. A stroke from (144, 160) to (160, 160) sets the stroke angle to atan2(0, 16) + pi/2 = pi/2: the long side lies along x (row 10, columns 9..12). A later from = to reuses it (quirk 6). Each in-bounds application draws RandomUint32Uniform(5) once and moves the walk angle by the 0.5 degree default step: forward on a draw that is not 0, back on 0 (with 2 pi wrapping). An application whose centre vertex is out of bounds draws nothing and touches nothing. The host sets both angles with set_brush_angles (the original's map is process-wide).",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        20,
+        20
+      ],
+      "flat": 300
+    },
+    {
+      "op": "ter_add_brush",
+      "brush": "0x14",
+      "bitmap": {
+        "width": 1,
+        "height": 4,
+        "fill": 0
+      }
+    },
+    {
+      "op": "ter_call",
+      "method": "brush_angles",
+      "args": [
+        "0x14"
+      ],
+      "expect": [
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ter_env",
+      "random": [
+        1,
+        1,
+        1,
+        0
+      ]
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": "0x14",
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0,
+      "out": [
+        9,
+        8,
+        10,
+        11
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "brush_angles",
+      "args": [
+        "0x14"
+      ],
+      "expect": [
+        0.008726646192371845,
+        0
+      ]
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": "0x14",
+      "from": [
+        144,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0,
+      "out": [
+        9,
+        10,
+        12,
+        10
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "brush_angles",
+      "args": [
+        "0x14"
+      ],
+      "expect": [
+        0.01745329238474369,
+        1.5707963705062866
+      ]
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": "0x14",
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0,
+      "out": [
+        9,
+        10,
+        12,
+        10
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "brush_angles",
+      "args": [
+        "0x14"
+      ],
+      "expect": [
+        0.02617993950843811,
+        1.5707963705062866
+      ]
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": "0x14",
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0
+    },
+    {
+      "op": "ter_call",
+      "method": "brush_angles",
+      "args": [
+        "0x14"
+      ],
+      "expect": [
+        0.01745329238474369,
+        1.5707963705062866
+      ]
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": "0x14",
+      "from": [
+        -16,
+        160
+      ],
+      "to": [
+        -16,
+        160
+      ],
+      "level": 0,
+      "out": null
+    },
+    {
+      "op": "ter_expect_event_count",
+      "filter": {
+        "event": "random",
+        "n": 5
+      },
+      "count": 4
+    },
+    {
+      "op": "ter_call",
+      "method": "set_brush_angles",
+      "args": [
+        "0x14",
+        1.25,
+        2.5
+      ],
+      "expect": true
+    },
+    {
+      "op": "ter_call",
+      "method": "brush_angles",
+      "args": [
+        "0x14"
+      ],
+      "expect": [
+        1.25,
+        2.5
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "set_brush_angles",
+      "args": [
+        "0x99",
+        0,
+        0
+      ],
+      "expect": false
+    },
+    {
+      "op": "ter_call",
+      "method": "brush_angles",
+      "args": [
+        "0x99"
+      ],
+      "expect": null
+    }
+  ]
+}

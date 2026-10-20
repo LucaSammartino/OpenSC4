@@ -17,8 +17,8 @@ use std::rc::Rc;
 use fc4_core::curve::ResponseCurve;
 use fc4_core::demand::NationEconomy;
 use fc4_core::terrain::{
-    shipped_brush, BodiesOfWater, Bridge, BrushBitmap, BrushParams, FireMode, Lava, LavaHost, LavaTuning,
-    NavigationHost, Terrain, TerrainTuning, VertRect,
+    shipped_brush, BodiesOfWater, Bridge, BrushBitmap, BrushComponent, BrushDescription, BrushParams, FireMode, Lava,
+    LavaHost, LavaTuning, NavigationHost, Terrain, TerrainTuning, VertRect,
 };
 
 use crate::json::Json;
@@ -509,6 +509,42 @@ fn call(w: &World, op: &Json) -> R<()> {
                 }
                 "is_triangulation_flipped" => Json::Bool(t.is_triangulation_flipped(n(0)?, n(1)?)),
                 "cell_flags" => ji(t.cell_flags(n(0)?, n(1)?)),
+                // Round 2 (re-answers17, ABI 69).
+                "lerped_water_level" => jnum(t.lerped_water_level(f(0)?, f(1)?)),
+                "flooding_altitude" => jnum(t.altitude_at_which_flooding_will_occur(n(0)?, n(1)?)),
+                "water_velocity" => Json::Array(t.water_velocity(n(0)?, n(1)?).iter().map(|&v| jnum(v)).collect()),
+                "sediment_at" => jnum(t.sediment_at(f(0)?, f(1)?)),
+                "water_display_state" => ji(t.water_display_state()),
+                "set_water_display_state" => Json::Bool(t.set_water_display_state(u(0)? as u8)),
+                "default_brush_level" => ji(t.default_brush_level()),
+                "neighbor_mask" => ji(t.neighbor_mask(n(0)?, n(1)?)),
+                "talus_angle" => jnum(t.talus_angle()),
+                "set_talus_angle" => {
+                    t.set_talus_angle(f(0)?);
+                    Json::Null
+                }
+                // [id] -> [walk, stroke] or null
+                "brush_angles" => match t.brush(u(0)?) {
+                    Some(d) => Json::Array(vec![jnum(d.walk_angle), jnum(d.stroke_angle)]),
+                    None => Json::Null,
+                },
+                // [id, walk, stroke]
+                "set_brush_angles" => Json::Bool(t.set_brush_angles(u(0)?, f(1)?, f(2)?)),
+                // [cx, cz, w, h, c, s] -> [[x, z] x 4]
+                "brush_corners" => {
+                    let c = Terrain::brush_rectangle_corners(f(0)?, f(1)?, f(2)?, f(3)?, f(4)?, f(5)?);
+                    Json::Array(c.iter().map(|&(x, z)| Json::Array(vec![jnum(x), jnum(z)])).collect())
+                }
+                // [x0, z0, x1, z1, x2, z2, x3, z3] -> [[z, start, end]]
+                "spans" => {
+                    let c = [(f(0)?, f(1)?), (f(2)?, f(3)?), (f(4)?, f(5)?), (f(6)?, f(7)?)];
+                    let rows = t.compute_spans_for_rectangle(&c);
+                    Json::Array(
+                        rows.iter()
+                            .map(|&(z, s, e)| Json::Array(vec![ji(z), ji(s), ji(e)]))
+                            .collect(),
+                    )
+                }
                 other => return Err(format!("unknown method '{other}'")),
             })
         })?
@@ -543,14 +579,60 @@ fn bitmap_of(j: &Json) -> R<BrushBitmap> {
     BrushBitmap::new(wd, ht, px).ok_or_else(|| "bad bitmap".to_string())
 }
 
-/// `ter_add_brush`: `brush` (one of the shipped IDs `0x11`, `0x12`, `0x14`)
-/// and `bitmap`; `angle?` (the start angle); `expect?`.
+/// Five per-level values: a number (every level) or an array of five.
+fn levels(j: &Json, what: &str) -> R<[f32; 5]> {
+    match j {
+        Json::Array(a) => {
+            if a.len() != 5 {
+                return Err(format!("'{what}' must have 5 values"));
+            }
+            let mut v = [0.0; 5];
+            for (k, x) in a.iter().enumerate() {
+                v[k] = fl(x, what)?;
+            }
+            Ok(v)
+        }
+        v => Ok([fl(v, what)?; 5]),
+    }
+}
+
+/// `ter_add_brush`: `brush` and either `bitmap` (`brush` one of the shipped
+/// IDs `0x11`, `0x12`, `0x14`, which walk with the 0.5° default step) or
+/// `components` (`[{kind, radius, strength, oriented?, neutral?, bitmap?}]`,
+/// `radius` / `strength` a number or five per-level values; `oriented`
+/// false, `neutral` 0) with `step?` (the random-walk step in radians, 0);
+/// `walk_angle?` (`angle?` is the same) and `stroke_angle?` (0); `expect?`.
 fn add_brush(w: &World, op: &Json) -> R<()> {
     let id = u32_of(field(op, "brush")?, "brush")?;
-    let bmp = bitmap_of(field(op, "bitmap")?)?;
-    let mut d = shipped_brush(id, Some(bmp)).ok_or("not a shipped brush")?;
-    if let Some(a) = opt(op, "angle") {
-        d.angle = fl(a, "angle")?;
+    let mut d = match opt(op, "components") {
+        Some(cs) => BrushDescription {
+            components: arr(cs, "components")?
+                .iter()
+                .map(|c| {
+                    Ok(BrushComponent {
+                        kind: u32_of(field(c, "kind")?, "kind")?,
+                        radius: levels(field(c, "radius")?, "radius")?,
+                        strength: levels(field(c, "strength")?, "strength")?,
+                        oriented: opt(c, "oriented").map_or(Ok(false), |v| bool_of(v, "oriented"))?,
+                        neutral: opt(c, "neutral").map_or(Ok(0), |v| u32_of(v, "neutral"))? as u8,
+                        bitmap: opt(c, "bitmap").map(bitmap_of).transpose()?,
+                    })
+                })
+                .collect::<R<_>>()?,
+            random_walk_step: opt(op, "step").map_or(Ok(0.0), |v| fl(v, "step"))?,
+            walk_angle: 0.0,
+            stroke_angle: 0.0,
+        },
+        None => {
+            let bmp = bitmap_of(field(op, "bitmap")?)?;
+            shipped_brush(id, Some(bmp)).ok_or("not a shipped brush")?
+        }
+    };
+    if let Some(a) = opt(op, "walk_angle").or_else(|| opt(op, "angle")) {
+        d.walk_angle = fl(a, "walk_angle")?;
+    }
+    if let Some(a) = opt(op, "stroke_angle") {
+        d.stroke_angle = fl(a, "stroke_angle")?;
     }
     let ok = w.with(|t| Ok(t.add_brush(id, d)))?;
     check_expect(op, Json::Bool(ok))
@@ -735,7 +817,9 @@ fn lava_set(w: &World, op: &Json) -> R<()> {
 /// the edge or with no flow), `transfer [x, z, dt]` (the flow step for one
 /// vertex in isolation: `SetThingsOnFire` on the neighbour, then the levels
 /// move; returns `{amount, to, mode}`), `level [x, z]`, `flow [dt]`
-/// (`DoLavaFlow`), `burn` (`BurnSurroundingStuff`), `rects`.
+/// (`DoLavaFlow`), `burn` (`BurnSurroundingStuff`), `rects`,
+/// `lowest_neighbour [x, z]` (`[x, z]` or null, §11.3) and
+/// `set_things_on_fire [x, z, old, amount]` (the mode, §11.5).
 fn lava_call(w: &World, op: &Json) -> R<()> {
     let method = str_of(field(op, "method")?, "method")?;
     let a = |i| arg(op, i);
@@ -778,6 +862,25 @@ fn lava_call(w: &World, op: &Json) -> R<()> {
             let t = tb.as_ref().ok_or("no terrain (ter_create)")?;
             match method {
                 "level" => jnum(l.level(t, n(0)?, n(1)?)),
+                "lowest_neighbour" => match l.lowest_neighbour(t, n(0)?, n(1)?) {
+                    Some((x, z)) => Json::Array(vec![ji(x), ji(z)]),
+                    None => Json::Null,
+                },
+                "set_things_on_fire" => {
+                    let mut fire = w.fire.borrow_mut();
+                    let mode = l.set_things_on_fire(
+                        t,
+                        n(0)?,
+                        n(1)?,
+                        f(2)?,
+                        f(3)?,
+                        &mut FireHost {
+                            fire: &mut fire,
+                            events: &w.events,
+                        },
+                    );
+                    Json::Str(mode_name(mode).into())
+                }
                 "flow_amount" | "transfer" => {
                     let (x, z) = (n(0)?, n(1)?);
                     let (amount, to) = l.flow_amount(t, x, z, f(2)?);
@@ -805,12 +908,7 @@ fn lava_call(w: &World, op: &Json) -> R<()> {
                             let me = l.level(t, x, z);
                             l.set_level(t, x, z, me - amount);
                         }
-                        let m = match mode {
-                            FireMode::None => "none",
-                            FireMode::Ignite => "ignite",
-                            FireMode::Burn => "burn",
-                        };
-                        kv.push(("mode".to_owned(), Json::Str(m.into())));
+                        kv.push(("mode".to_owned(), Json::Str(mode_name(mode).into())));
                     }
                     Json::Object(kv)
                 }
@@ -821,12 +919,22 @@ fn lava_call(w: &World, op: &Json) -> R<()> {
     check_expect(op, got)
 }
 
+fn mode_name(mode: FireMode) -> &'static str {
+    match mode {
+        FireMode::None => "none",
+        FireMode::Ignite => "ignite",
+        FireMode::Burn => "burn",
+    }
+}
+
 // ---- records ------------------------------------------------------------------------------------
 
 /// `ter_record`: `sizes` (partial `{misc, altitudes, properties, edges:
 /// [4]}`) of the payloads; `round_trip: true` loads the three records into
 /// a new terrain and checks altitudes, flags, the cached heights and the
-/// misc record are the same; `edge` `{side, values?: [..], count?}`.
+/// misc record are the same; `sea_after_load` loads them and checks the
+/// loaded sea level (the tuning's, §13.1, TR10); `edge` `{side, values?:
+/// [..], count?}`.
 fn record(w: &World, op: &Json) -> R<()> {
     let tb = w.terrain.borrow();
     let t = tb.as_ref().ok_or("no terrain (ter_create)")?;
@@ -853,6 +961,17 @@ fn record(w: &World, op: &Json) -> R<()> {
         }
         if u.view_ready() {
             return Err("a loaded terrain is view-ready".into());
+        }
+    }
+    if let Some(want) = opt(op, "sea_after_load") {
+        let u = Terrain::load(&misc, &alts, &props, *t.tuning()).map_err(|e| format!("load: {e:?}"))?;
+        let got = jnum(u.sea_level());
+        if !scalar::matches(&got, want, false) {
+            return Err(format!(
+                "sea level after load {}, expected {}",
+                scalar::show(&got),
+                scalar::show(want)
+            ));
         }
     }
     if let Some(e) = opt(op, "edge") {

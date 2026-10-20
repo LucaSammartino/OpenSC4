@@ -9790,6 +9790,14 @@ float fc4_terrain_water_depth_for_cell(const fc4_terrain* t, int32_t x, int32_t 
 bool fc4_terrain_has_draft_clearance(const fc4_terrain* t, int32_t x, int32_t z);
 uint32_t fc4_terrain_water_type(const fc4_terrain* t, int32_t x, int32_t z);
 bool fc4_terrain_is_navigable(const fc4_terrain* t, int32_t x, int32_t z, int32_t r, uint64_t lot);
+/* ABI 69. GetLerpedWaterLevel (slot 32, §5.1: no clamp at x = sizeX);
+ * AltitudeAtWhichFloodingWillOccur (surface water slot 10, §10.2); GetWaterVelocity (surface
+ * water slot 11: out[3], a zero vector past the arrays); GetSedimentValue (slot 55, world
+ * metres, 0 unless LocationIsInBounds). */
+float fc4_terrain_lerped_water_level(const fc4_terrain* t, float x, float z);
+float fc4_terrain_flooding_altitude(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_water_velocity(const fc4_terrain* t, int32_t x, int32_t z, float* out);
+float fc4_terrain_sediment_at(const fc4_terrain* t, float x, float z);
 
 /* Setters (§6). Every setter skips a locked vertex (flag 0x4000). */
 bool fc4_terrain_raise_vertex(fc4_terrain* t, uint32_t index, float d);
@@ -9823,13 +9831,23 @@ uint8_t fc4_terrain_water_display_state(const fc4_terrain* t);
 bool fc4_terrain_set_water_display_state(fc4_terrain* t, uint8_t state);
 
 /* Brushes (§9). add_brush: at most 4 components, kinds 0-11 (false otherwise);
- * random_walk_step in radians; `angle` is the start angle kept in the description.
- * add_shipped_brush: the brushes 0x11, 0x12 and 0x14 with the host's bitmap. */
+ * random_walk_step in radians (not 0 sets the walk flag); `angle` is the walk angle's start
+ * (the host's RandomRange(0, 2*pi) draw); the stroke angle starts at 0 (TR8).
+ * add_shipped_brush: the brushes 0x11, 0x12 and 0x14 with the host's bitmap; each walks with
+ * the 0.5 degree default step (so every in-bounds ApplyBrush draws random_uniform(5) once) from
+ * a walk angle of 0 (set the host's draw with set_brush_angles).
+ * brush_angle: the stroke angle. brush_angles / set_brush_angles (ABI 69): the walk angle
+ * (+0x68) and the stroke angle (+0x6C); the original's descriptions are process-wide, so a
+ * host carries them across cities. talus_angle (ABI 69): kind 2's TalusAngle in radians. */
 bool fc4_terrain_add_brush(fc4_terrain* t, uint32_t id, const fc4_brush_component* components, size_t count,
                            float random_walk_step, float angle);
 bool fc4_terrain_add_shipped_brush(fc4_terrain* t, uint32_t id, uint32_t bitmap_width, uint32_t bitmap_height,
                                    const uint8_t* pixels);
 bool fc4_terrain_brush_angle(const fc4_terrain* t, uint32_t id, float* out);
+bool fc4_terrain_brush_angles(const fc4_terrain* t, uint32_t id, float* walk, float* stroke);
+bool fc4_terrain_set_brush_angles(fc4_terrain* t, uint32_t id, float walk, float stroke);
+float fc4_terrain_talus_angle(const fc4_terrain* t);
+bool fc4_terrain_set_talus_angle(fc4_terrain* t, float radians);
 /* ApplyBrush (slot 57): false for an unknown brush. */
 bool fc4_terrain_apply_brush(fc4_terrain* t, uint32_t id, fc4_brush_params* params);
 int32_t fc4_terrain_default_brush_level(const fc4_terrain* t);
