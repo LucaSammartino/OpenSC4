@@ -1101,19 +1101,22 @@ va	name	source	confidence	note
 0046efb0	cSC4DispatchVehicleView::UntrackOccupant	auto:B0	medium	mac 0019cbd8 score 0.988 support 2.0
 0046f120	cSC4DispatchVehicleView::cSC4DispatchVehicleView	auto:B1	medium	mac 0019b53e score 0.985 support 1.0
 0046f240	cSC4DispatchVehicleView::TrackOccupant	auto:B0	medium	mac 0019e1ea score 0.981 support 7.5
-0046f740	cSC4FeatureManager::QueryInterface	auto:C	high	mac 0048cf06 score 1.0 support 1
-0046f770	cSC4FeatureManager::Shutdown	auto:C	high	mac 0048cf98 score 1.0 support 1
-0046f780	cSC4FeatureManager::IsExpansionPackInstalled	auto:C	high	mac 0048cfb0 score 1.0 support 1
-0046f7a0	cSC4FeatureManager::GetCurrentExpansionPack	auto:C	high	mac 0048cfce score 1.0 support 1
-0046f7d0	cSC4FeatureManager::~cSC4FeatureManager	auto:C	high	mac 0048cef0 score 1.0 support 1
-0046f7f0	cSC4FeatureManager::Release	auto:C	high	mac 0048cf72 score 1.0 support 1
+0046f740	cSC4FeatureManager::QueryInterface	manual:feature-manager.tsv	high	feature-manager.md §1; vtable 0x00A88274 slot 0; answers IIDs 1 and 0x0B562673 only
+0046f770	cSC4FeatureManager::Shutdown	manual:feature-manager.tsv	high	feature-manager.md §4.3; slot 4; clears +4 only
+0046f780	cSC4FeatureManager::IsExpansionPackInstalled	manual:feature-manager.tsv	high	feature-manager.md §4.5; slot 6; tests bit (n-1)&31 of 0x00B21628
+0046f7a0	cSC4FeatureManager::GetCurrentExpansionPack	manual:feature-manager.tsv	high	feature-manager.md §4.6; slot 7; slot-6 calls for n = 32 down to 1
+0046f7d0	cSC4FeatureManager::~cSC4FeatureManager	manual:feature-manager.tsv	high	feature-manager.md §3; slot 8, deleting destructor (flag bit 0 frees to the global heap 0x005E5620)
+0046f7f0	cSC4FeatureManager::Release	manual:feature-manager.tsv	high	feature-manager.md §3; slot 2; count at +8, slot 4 then slot 8 when the count is 1 or less
 0046f820	std::_Rb_tree<unsigned_long,unsigned_long,std::_Identity<unsigned_long>,std::less<unsigned_long>,std::allocator<unsigned_long>>::clear	auto:B0	medium	mac 0062357e score 0.989 support 2.0
+0046f8b0	cSC4FeatureManager::cSC4FeatureManager	manual:feature-manager.tsv	high	feature-manager.md §1; installs vtable 0x00A88274, +4 = 0, +8 = 0; sole caller cSC4App::Init 0x0044CAB6 after GlobalHeapAlloc(0xC)
 0046f910	std::_Rb_tree<unsigned_long,unsigned_long,std::_Identity<unsigned_long>,std::less<unsigned_long>,std::allocator<unsigned_long>>::erase	auto:B5	medium	mac 0069f228 score 0.837 support 2.0
 0046f9d0	std::_Rb_tree<unsigned_long,unsigned_long,std::_Identity<unsigned_long>,std::less<unsigned_long>,std::allocator<unsigned_long>>::~_Rb_tree	auto:B5	medium	mac 005f99aa score 0.833 support 2.0
-0046fa80	cSC4FeatureManager::IsFeatureEnabled	auto:C	high	mac 0048cffc score 1.0 support 1
+0046fa20	cSC4FeatureManager::StaticShutdown	manual:feature-manager.tsv	high	feature-manager.md §3; pushed at 0x0046FC13 for cISC4App slot 69 (RegisterShutdownCallbackFunction); clears 0x00B21624, 0x00B21628 and the set
+0046fa80	cSC4FeatureManager::IsFeatureEnabled	manual:feature-manager.tsv	high	feature-manager.md §4.4; slot 5; find in the set 0x00B2162C
 0046fab0	std::_Rb_tree<unsigned_long,unsigned_long,std::_Identity<unsigned_long>,std::less<unsigned_long>,std::allocator<unsigned_long>>::erase	auto:B4	medium	mac 0069f27c score 0.977 support 2.0
-0046fbf0	cSC4FeatureManager::StaticInit	auto:A	high	mac 0048d066 score 1.0 support 0
-0046fd50	cSC4FeatureManager::Init	auto:B0	medium	mac 0048d1be score 0.906 support 1.0
+0046fb10	cSC4FeatureManager::FeaturesIniEntryCallback	manual:feature-manager.tsv	high	feature-manager.md §4.2; descriptive name, no Mac match; cRZIniFile::EnumEntries callback pushed at 0x0046FCED; RZConvertToUint32A key, value compared with 'off' 0x00A82B94
+0046fbf0	cSC4FeatureManager::StaticInit	manual:feature-manager.tsv	high	feature-manager.md §4.1; scans (0, 0x8A5971C5, 0x2B563701+k) for k = 0..31, section 'Features' 0x00A88298
+0046fd50	cSC4FeatureManager::Init	manual:feature-manager.tsv	high	feature-manager.md §4.1; slot 3; sole caller of StaticInit (0x0046FD5B)
 0046fd70	cSC4ActiveFireOccupantFilter::IsOccupantIncluded	auto:A	high	mac 00348694 score 1.0 support 0
 0046fdc0	cSC4FireOccupant::GetGZCLSID	auto:C	low	mac 0071ef3c score 1.0 support 1
 0046fe00	cSC4FireOccupant::Extinguish	auto:B2	medium	mac 0034876a score 0.995 support 2.0
@@ -16160,10 +16163,12 @@ va	name	source	confidence	note
 00a6fe90	lib::Unwind@00a6fe90	library	medium	Function ID
 00a6feb0	lib::Unwind@00a6feb0	library	medium	Function ID
 00a6fed0	lib::Unwind@00a6fed0	library	medium	Function ID
+00a71c70	cSC4FeatureManager::sEnabledFeatures static constructor	manual:feature-manager.tsv	high	feature-manager.md §2; allocates the 0x14-byte header node (0x0090CF54) and registers 0x00A7AE50 with ___cxa_atexit
 00a72b10	__static_initialization_and_destruction_0	auto:A	high	mac 00aa00f0 score 0.717 support 0
 00a730b0	__static_initialization_and_destruction_0	auto:A	high	mac 00a9fc2e score 0.717 support 0
 00a79312	cSC4BudgetSimulator::BudgetGroup::BudgetGroup	auto:B1	medium	mac 0069f55a score 0.916 support 1.0
 00a7947a	__static_initialization_and_destruction_0	auto:A	high	mac 00a8f768 score 0.5 support 0
+00a7ae50	cSC4FeatureManager::sEnabledFeatures static destructor	manual:feature-manager.tsv	high	feature-manager.md §2; empties the set, frees the header node (0x0090CF63)
 00a7c140	___tcf_1	auto:B1	medium	mac 00122ff2 score 0.974 support 1.0
 00a7f220	___tcf_3	auto:B2	medium	mac 0045b2e6 score 0.9 support 1.0
 00ab0840	kTaxTypeByPurposeAndWealth	manual:clock-budget-neighbors.tsv	high	s16[9][4] data table indexed purpose*4+wealth; read by ComputeTax
@@ -16175,3 +16180,6 @@ va	name	source	confidence	note
 00ac185c	nGZDrawSoftRender::cSpanRender4444::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 7 A4R4G4B4; Mac __ZTVN17nGZDrawSoftRender15cSpanRender4444E
 00ac1874	nGZDrawSoftRender::cSpanRender8888::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color types 8 R8G8B8 and 9 A8R8G8B8; Mac __ZTVN17nGZDrawSoftRender15cSpanRender8888E
 00ac188c	nGZDrawSoftRender::cSpanRender8::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 2 RGB8; Mac __ZTVN17nGZDrawSoftRender12cSpanRender8E
+00b21624	cSC4FeatureManager::sStaticInitDone (data, bool)	manual:feature-manager.tsv	high	feature-manager.md §2; set by StaticInit 0x0046FC0A, cleared by StaticShutdown 0x0046FA32
+00b21628	cSC4FeatureManager::sInstalledPacks (data, uint32 bit mask)	manual:feature-manager.tsv	high	feature-manager.md §2; bit k = pack k+1; OR-ed at 0x0046FCB9, read by IsExpansionPackInstalled 0x0046F78C
+00b2162c	cSC4FeatureManager::sEnabledFeatures (data, std::set<uint32_t> header pointer; count at 0x00B21630)	manual:feature-manager.tsv	high	feature-manager.md §2; filled by FeaturesIniEntryCallback, searched by IsFeatureEnabled

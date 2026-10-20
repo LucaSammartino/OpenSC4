@@ -398,6 +398,8 @@ cGZ*COMDirector	application	framework	-	-	-	-
 cSC4Preferences	application	framework	-	-	-	-
 cSC4GameDataRegistry	application	framework	-	-	-	-
 cSC4AutoGamePause	application	framework	-	-	-	-
+# expansion packs and optional features: the [Features] INIs (0, 0x8A5971C5, 0x2B563701+k); one instance owned by cSC4App
+cSC4FeatureManager	feature manager	framework	feature-manager.md	-	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource*	persistence and resources	framework	-	-	-	-
 cGZPropertySet*	persistence and resources	framework	-	-	-	-
