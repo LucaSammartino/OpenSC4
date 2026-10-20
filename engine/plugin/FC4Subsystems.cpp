@@ -80,12 +80,20 @@
 #include "FC4OccMgrShadow.h"  // the glue14b lane
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
+#include "FC4PropLotShadow.h"  // the glue15 lane
 #include "cFC4LotDeveloper.h"
 #include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
 #include "cFC4Civic.h"       // the cmglue lane: civic
 #include "cFC4Parks.h"       // the cmglue lane: parks
+#include "cFC4Tutorial.h"    // the glue15 lane: tutorial
+#include "FC4PortsShadow.h"    // the glue12b2 lane: ports
+#include "cFC4PortDeveloper.h"  // the glue12b2 lane: ports
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
+#include "FC4PropDevShadow.h"     // the glue12b1 lane: propdev_shadow
+#include "FC4CityDetailShadow.h"  // the glue12b1 lane: citydetail_shadow
+#include "cFC4PropDeveloper.h"    // the glue12b1 lane: propdev
+#include "cFC4CityDetail.h"       // the glue12b1 lane: citydetail
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -297,11 +305,23 @@ const ClassEntry kCivicClasses[] = {
 const ClassEntry kParkClasses[] = {
     {kFC4_CLSID_cSC4ParkManager, "cSC4ParkManager", &CreateFC4ParkManager},
 };
+// docs/specs/port-developers.md §1: the airport and seaport developers (city
+// components 13 and 14). Off by default (glue12b2): `enable = ports`.
+const ClassEntry kPortClasses[] = {
+    {kFC4_CLSID_cSC4AirportDeveloper, "cSC4AirportDeveloper", &CreateFC4AirportDeveloper},
+    {kFC4_CLSID_cSC4SeaportDeveloper, "cSC4SeaportDeveloper", &CreateFC4SeaportDeveloper},
+};
 // docs/specs/zones.md §1, §1.2, §11.2, §11.3: the zone developer / lot manager
 // (city components 7 and 8). Off by default (M4 glue trial): enable = zonedev.
 // Lot creation waits for re-specs11 (CreateLot fails, logged).
 const ClassEntry kZoneDevClasses[] = {
     {kFC4_CLSID_cSC4ZoneDeveloper, "cSC4ZoneDeveloper", &CreateFC4ZoneDeveloper},
+};
+// docs/specs/tutorial.md §1: the tutorial system (city component 48). Off by
+// default (glue trial): `enable = tutorial`. The fire and flammability
+// IsTutorial readers then read fc4_tutorial_is_tutorial (cFC4Tutorial.h).
+const ClassEntry kTutorialClasses[] = {
+    {kFC4_CLSID_cSC4TutorialSystem, "cSC4TutorialSystem", &CreateFC4TutorialSystem},
 };
 
 // docs/specs/dispatch.md §1. Off by default (glue17): `enable = dispatch`.
@@ -325,6 +345,19 @@ const ClassEntry kCitySitClasses[] = {
 // one would price utility demolition at 0 and demolish nothing.
 const ClassEntry kDemolitionClasses[] = {
     {kFC4_CLSID_cSC4Demolition, "cSC4Demolition", &CreateFC4Demolition},
+};
+
+// docs/specs/prop-developer.md §1: the prop developer (city component 10)
+// and its wealth requester (class 0x89C49986, resolved from saved records).
+// Off by default: `enable = propdev`.
+const ClassEntry kPropDevClasses[] = {
+    {kFC4_CLSID_cSC4PropDeveloper, "cSC4PropDeveloper", &CreateFC4PropDeveloper},
+    {kFC4_CLSID_cSC4WealthRequester, "cSC4WealthRequester", &CreateFC4WealthRequester},
+};
+// docs/specs/city-detail.md §1: the city detail manager. Off by default:
+// `enable = citydetail`.
+const ClassEntry kCityDetailClasses[] = {
+    {kFC4_CLSID_cSC4CityDetailManager, "cSC4CityDetailManager", &CreateFC4CityDetailManager},
 };
 
 const Subsystem kSubsystems[] = {
@@ -361,10 +394,9 @@ const Subsystem kSubsystems[] = {
     {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
-    {"dispatch", nullptr, kDispatchClasses, sizeof(kDispatchClasses) / sizeof(kDispatchClasses[0]), false},
-    {"citysit", nullptr, kCitySitClasses, sizeof(kCitySitClasses) / sizeof(kCitySitClasses[0]), false},
-    {"demolition", nullptr, kDemolitionClasses, sizeof(kDemolitionClasses) / sizeof(kDemolitionClasses[0]),
-     false},
+{"propdev", nullptr, kPropDevClasses, sizeof(kPropDevClasses) / sizeof(kPropDevClasses[0]), false},
+    {"citydetail", nullptr, kCityDetailClasses, sizeof(kCityDetailClasses) / sizeof(kCityDetailClasses[0]), false},
+    {"ports", nullptr, kPortClasses, sizeof(kPortClasses) / sizeof(kPortClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -510,7 +542,14 @@ void Resolve() {
     // The network manager shadow (FC4NetMgrShadow.h; it follows the original network managers).
     NetMgrShadowStartup();
     // The occupant manager shadow (FC4OccMgrShadow.h; it follows the original occupant manager).
-    OccMgrShadowStartup();    // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
+    OccMgrShadowStartup();
+    // The prop developer shadow (FC4PropDevShadow.h; it compares the original prop developer).
+    PropDevShadowStartup(g_enabled[0], enabledKey("propdev"));
+    // The city detail shadow (FC4CityDetailShadow.h; it compares the original city detail manager).
+    CityDetailShadowStartup(enabledKey("citydetail"));
+    // The ports shadow (FC4PortsShadow.h; it compares the original airport and seaport developers).
+    PortsShadowStartup(g_enabled[0], enabledKey("ports"));
+    // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
     TerrainShadowStartup();
     // The glue17 lane's three shadows (they compare the original city situation
     // manager, demolition utility and dispatch manager).
@@ -518,6 +557,8 @@ void Resolve() {
     DemolitionShadowStartup(enabledKey("demolition"));
     DemolitionPriceShadowStartup(enabledKey("demolition"));  // the glue23 lane
     DispatchShadowStartup(enabledKey("dispatch"));
+    // The prop manager, lot configuration manager and tutorial shadows (FC4PropLotShadow.h; the glue15 lane).
+    PropLotShadowStartup(enabledKey("propmgr"), enabledKey("lotcfg"), enabledKey("tutorial"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

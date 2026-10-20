@@ -1,0 +1,237 @@
+{
+  "format": 1,
+  "name": "tr18_22_kind5_level",
+  "spec": [
+    "terrain 9.4",
+    "terrain 9.4.1",
+    "terrain 18.22"
+  ],
+  "description": "Kind 5 levels toward the target height (TR1): step = r24(r24(b * strength) / 256); with target 100, b = 255 and strength 1 the step is 0.99609375. alt 105 -> 104.00390625 (lowered by the step); alt 100.5 -> 100 (within the step: set to the target); alt 99.5 -> 100; alt 90 -> 90.99609375 (raised); alt 100 -> no change, nothing reported (out null, no message). A custom one-component description with step 0 does not walk and draws nothing.",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        20,
+        20
+      ],
+      "flat": 300
+    },
+    {
+      "op": "ter_add_brush",
+      "brush": 9,
+      "components": [
+        {
+          "kind": 5,
+          "radius": 16,
+          "strength": 1,
+          "bitmap": {
+            "width": 4,
+            "height": 4,
+            "fill": 255
+          }
+        }
+      ],
+      "expect": true
+    },
+    {
+      "op": "ter_clear_events"
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        10,
+        10
+      ],
+      "altitude": 105
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": 9,
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0,
+      "target": 100,
+      "expect": true,
+      "out": [
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        10,
+        10
+      ],
+      "altitude": 104.00390625
+    },
+    {
+      "op": "ter_expect_event_count",
+      "filter": {
+        "event": "post"
+      },
+      "count": 3
+    },
+    {
+      "op": "ter_clear_events"
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        10,
+        10
+      ],
+      "altitude": 100.5
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": 9,
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0,
+      "target": 100,
+      "expect": true,
+      "out": [
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        10,
+        10
+      ],
+      "altitude": 100
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        10,
+        10
+      ],
+      "altitude": 99.5
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": 9,
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0,
+      "target": 100,
+      "expect": true,
+      "out": [
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        10,
+        10
+      ],
+      "altitude": 100
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        10,
+        10
+      ],
+      "altitude": 90
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": 9,
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0,
+      "target": 100,
+      "expect": true,
+      "out": [
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        10,
+        10
+      ],
+      "altitude": 90.99609375
+    },
+    {
+      "op": "ter_clear_events"
+    },
+    {
+      "op": "ter_set",
+      "vertex": [
+        10,
+        10
+      ],
+      "altitude": 100
+    },
+    {
+      "op": "ter_apply_brush",
+      "brush": 9,
+      "from": [
+        160,
+        160
+      ],
+      "to": [
+        160,
+        160
+      ],
+      "level": 0,
+      "target": 100,
+      "expect": true,
+      "out": null
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        10,
+        10
+      ],
+      "altitude": 100
+    },
+    {
+      "op": "ter_expect_events",
+      "events": []
+    }
+  ]
+}

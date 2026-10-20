@@ -237,6 +237,38 @@ fn setters_and_the_stale_cache() {
 }
 
 #[test]
+fn water_queries_and_the_display_state_abi65() {
+    let g = Game::default();
+    unsafe {
+        let t = flat(&g, true, 8, 200.0); // 50 m of sea everywhere
+        assert_eq!(fc4_terrain_lerped_water_level(t, 40.0, 40.0), 250.0);
+        assert_eq!(fc4_terrain_flooding_altitude(t, 2, 2), 250.0);
+        let mut v = [1f32; 3];
+        assert!(fc4_terrain_water_velocity(t, 2, 2, v.as_mut_ptr()));
+        assert_eq!(v, [0.0; 3]);
+        assert!(!fc4_terrain_water_velocity(t, 2, 2, std::ptr::null_mut()));
+        assert_eq!(fc4_terrain_sediment_at(t, 40.0, 40.0), 0.0);
+        assert_eq!(fc4_terrain_sediment_at(t, -1.0, 40.0), 0.0);
+        // TR14: the display state posts only when it changes.
+        let s = fc4_terrain_water_display_state(t);
+        g.posts.borrow_mut().clear();
+        assert!(fc4_terrain_set_water_display_state(t, s));
+        assert!(g.posts.borrow().is_empty());
+        assert!(fc4_terrain_set_water_display_state(t, s ^ 1));
+        assert!(fc4_terrain_set_water_display_state(t, s ^ 1));
+        assert_eq!(g.posts.borrow().len(), 1);
+        assert_eq!(g.posts.borrow()[0].msg_type, 0x6AB9_7795);
+        assert_eq!(fc4_terrain_water_display_state(t), s ^ 1);
+        // NULL handle: fallbacks.
+        assert_eq!(fc4_terrain_lerped_water_level(std::ptr::null(), 1.0, 1.0), 0.0);
+        assert_eq!(fc4_terrain_flooding_altitude(std::ptr::null(), 1, 1), 0.0);
+        assert!(!fc4_terrain_water_velocity(std::ptr::null(), 1, 1, v.as_mut_ptr()));
+        assert_eq!(fc4_terrain_talus_angle(std::ptr::null()), 0.0);
+        fc4_terrain_destroy(t);
+    }
+}
+
+#[test]
 fn sinkhole_brush_and_reentrancy() {
     let g = Game::default();
     unsafe {
@@ -299,12 +331,27 @@ fn sinkhole_brush_and_reentrancy() {
         assert_eq!(g.calls.borrow()[0], "random 5");
         let re = g.reentrant.borrow().clone();
         assert_eq!(re[0], 0.0, "refused while changing");
+        // The shipped 0x14 walks too (0.5 degree step, TR8): its application
+        // above drew once and its re-entrant read was refused as well.
+        assert_eq!(g.calls.borrow().as_slice(), ["random 5", "random 5"]);
         let mut st = fc4_terrain_state::default();
         fc4_terrain_get_state(t, &mut st);
-        assert_eq!((st.reentrant_refused, st.brush_count), (1, 2));
-        let mut angle = 0.0;
+        assert_eq!((st.reentrant_refused, st.brush_count), (2, 2));
+        let (mut walk, mut stroke) = (0.0, 1.0);
+        assert!(fc4_terrain_brush_angles(t, 7, &mut walk, &mut stroke));
+        assert!((f64::from(walk) - (0.5 - 1.0 + 2.0 * std::f64::consts::PI)).abs() < 1e-5);
+        assert_eq!(stroke, 0.0);
+        let mut angle = 1.0;
         assert!(fc4_terrain_brush_angle(t, 7, &mut angle));
-        assert!((f64::from(angle) - (0.5 - 1.0 + 2.0 * std::f64::consts::PI)).abs() < 1e-5);
+        assert_eq!(angle, 0.0, "brush_angle is the stroke angle");
+        assert!(fc4_terrain_set_brush_angles(t, 7, 1.25, 2.5));
+        assert!(fc4_terrain_brush_angles(t, 7, &mut walk, std::ptr::null_mut()));
+        assert_eq!(walk, 1.25);
+        assert!(!fc4_terrain_set_brush_angles(t, 0x99, 0.0, 0.0));
+        assert!(!fc4_terrain_brush_angles(t, 0x99, &mut walk, &mut stroke));
+        assert_eq!(fc4_terrain_talus_angle(t), 0.79);
+        assert!(fc4_terrain_set_talus_angle(t, 0.5));
+        assert_eq!(fc4_terrain_talus_angle(t), 0.5);
         // A kind above 11 is rejected.
         let bad = fc4_brush_component { kind: 12, ..comp };
         assert!(!fc4_terrain_add_brush(t, 8, &bad, 1, 0.0, 0.0));

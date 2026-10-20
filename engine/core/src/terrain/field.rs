@@ -12,7 +12,7 @@ use crate::property::PropertyHolder;
 use crate::props;
 use crate::x87::{ftol32, r24};
 
-use super::brush::BrushDescription;
+use super::brush::{BrushDescription, DEFAULT_TALUS_ANGLE};
 use super::{flag, msg, tuning_prop as tp, CELL_WIDTH};
 
 /// `0.0625` (`1 / 16`), the cell scale of §4.1.
@@ -210,10 +210,13 @@ pub struct Terrain {
     pub(super) water_display_state: u8,
     /// `+0xBC`, the brush level used for a negative `params.level` (§9.2).
     pub(super) default_brush_level: i32,
-    /// The brush descriptions (§9.1), by brush ID. [choice] The original
-    /// keeps one process-wide map; here each terrain has its own, so a brush
-    /// angle does not survive a city switch.
+    /// The brush descriptions (§9.1), by brush ID. The original keeps one
+    /// process-wide map (TR8); here each terrain has its own, and a host
+    /// carries the angles across a city switch (`set_brush_angles`).
     pub(super) brushes: BTreeMap<u32, BrushDescription>,
+    /// The talus angle of brush kind 2, radians (the terrain ini's
+    /// `WindErosion` `TalusAngle`, §9.4.1).
+    pub(super) talus_angle: f32,
     pub(super) posts: Vec<Post>,
 }
 
@@ -277,6 +280,7 @@ impl Terrain {
             water_display_state: 0,
             default_brush_level: 0,
             brushes: BTreeMap::new(),
+            talus_angle: DEFAULT_TALUS_ANGLE,
             posts: Vec::new(),
         })
     }
@@ -348,11 +352,53 @@ impl Terrain {
         ((i as usize) < self.alt.len()).then_some(i as usize)
     }
 
-    /// An unchecked `x + z × vertsX` (the slots with no bounds check), as an
-    /// array index if it lands inside the arrays.
-    pub(super) fn raw_index(&self, x: i64, z: i64) -> Option<usize> {
-        let i = x + z * i64::from(self.verts_x);
-        (0..self.alt.len() as i64).contains(&i).then_some(i as usize)
+    /// An unchecked `GetVertIndex(x, z)` (the slots with no bounds check,
+    /// §10.5), as an array index if the 32-bit flat index lands inside the
+    /// arrays. Coordinates past the last column wrap to the next row *[quirk
+    /// 16]*.
+    pub(super) fn raw_index(&self, x: i32, z: i32) -> Option<usize> {
+        self.idx(self.vert_index(x, z))
+    }
+
+    /// `GetNeighbors(x, z)` (`0x00741710`, §11.3): bit k for the neighbour k
+    /// of [`Terrain::neighbor_offsets`]. Start `0xFF`; `x < 1` (signed) →
+    /// `0x7C`; `x ≥ cellsX` (unsigned) → `& 0xC7`; `z < 1` (signed) → `&
+    /// 0xF1`; `z ≥ cellsZ` (unsigned) → `& 0x1F`.
+    pub fn neighbor_mask(&self, x: i32, z: i32) -> u8 {
+        let mut m = 0xFFu8;
+        if x < 1 {
+            m = 0x7C;
+        }
+        if (x as u32) >= self.cells_x {
+            m &= 0xC7;
+        }
+        if z < 1 {
+            m &= 0xF1;
+        }
+        if (z as u32) >= self.cells_z {
+            m &= 0x1F;
+        }
+        m
+    }
+
+    /// The eight neighbour index offsets (`+0x84`…`+0xA0`, set in `Init`,
+    /// §11.3), k = 0..7: W `−1`, NW `−1 − vertsX`, N `−vertsX`, NE `1 −
+    /// vertsX`, E `+1`, SE `vertsX + 1`, S `vertsX`, SW `vertsX − 1` (north is
+    /// z − 1).
+    pub fn neighbor_offsets(&self) -> [i32; 8] {
+        let v = self.verts_x as i32;
+        [-1, -1 - v, -v, 1 - v, 1, v + 1, v, v - 1]
+    }
+
+    /// The talus angle of brush kind 2, radians (§9.4.1).
+    pub fn talus_angle(&self) -> f32 {
+        self.talus_angle
+    }
+
+    /// Sets the talus angle (the terrain ini's `WindErosion` `TalusAngle` ×
+    /// π/180; [`DEFAULT_TALUS_ANGLE`] when the ini has none).
+    pub fn set_talus_angle(&mut self, radians: f32) {
+        self.talus_angle = radians;
     }
 
     // ---- bounds (§3) ----------------------------------------------------------------------------
@@ -549,33 +595,75 @@ impl Terrain {
         r24(f64::from(self.water[i].depth) + f64::from(self.alt[i])) as f32
     }
 
-    /// `GetWaterLevel(x, z)` (slot 30): `depth + altitude` at the vertex
-    /// `(floor(x / 16), floor(z / 16))`, no bounds clamp. [choice] An index
-    /// outside the arrays reads 0.0.
+    /// `GetWaterLevel(x, z)` (slot 30, §5): not `LocationIsInBounds` → 0.0;
+    /// else `depth + altitude` at the vertex `(floor(r24(x × 0.0625)),
+    /// floor(r24(z × 0.0625)))`, with no further clamp (`x = sizeX` reads the
+    /// vertex column `cellsX`).
     pub fn water_level(&self, x: f32, z: f32) -> f32 {
-        let fl = |t: f32| r24(f64::from(t) / 16.0).floor();
-        let (fx, fz) = (fl(x), fl(z));
-        if !fx.is_finite() || !fz.is_finite() {
+        if !self.location_is_in_bounds(x, z) {
             return 0.0;
         }
-        self.raw_index(fx as i64, fz as i64).map_or(0.0, |i| self.level_at(i))
+        self.vi(Self::cell_floor(x), Self::cell_floor(z))
+            .map_or(0.0, |i| self.level_at(i))
     }
 
-    /// `GetWaterLevel(index)` (slot 31). [choice] Past the arrays: 0.0.
+    /// `GetWaterLevel(index)` (slot 31): `index ≥ vertexCount` → 0.0.
     pub fn water_level_at_index(&self, index: u32) -> f32 {
         self.idx(index).map_or(0.0, |i| self.level_at(i))
     }
 
-    /// `GetWaterDepthAtVertex(x, z)` (slot 33): the depth, possibly negative.
-    /// [choice] Out of bounds: 0.0.
+    /// `depth + altitude` at an unchecked flat index; 0.0 past the arrays
+    /// ([choice] §10.5: the original reads past the array).
+    pub(super) fn level_raw(&self, i: u32) -> f64 {
+        self.idx(i).map_or(0.0, |i| f64::from(self.level_at(i)))
+    }
+
+    /// `GetLerpedWaterLevel(x, z)` (slot 32, §5.1): not `LocationIsInBounds`
+    /// → 0.0; else the bilinear interpolation of `L = depth + alt` over the
+    /// cell `(floor(x / 16), floor(z / 16))`, with **no clamp**: at `x =
+    /// sizeX` the `ix + 1` corners are the first vertices of the next rows
+    /// *[quirk 16]*. A flat index past the arrays reads 0.0 ([choice] §10.5).
+    pub fn lerped_water_level(&self, x: f32, z: f32) -> f32 {
+        if !self.location_is_in_bounds(x, z) {
+            return 0.0;
+        }
+        let tx = r24(f64::from(x) * INV_CELL);
+        let tz = r24(f64::from(z) * INV_CELL);
+        let (ix, iz) = (tx.floor(), tz.floor());
+        let fx = r24(tx - ix);
+        let fz = r24(tz - iz);
+        let i = self.vert_index(ix as i32, iz as i32);
+        let lerp = |a: f64, b: f64, f: f64| r24(a + r24(r24(b - a) * f));
+        let a = lerp(self.level_raw(i), self.level_raw(i.wrapping_add(1)), fx);
+        let below = i.wrapping_add(self.verts_x);
+        let b = lerp(self.level_raw(below), self.level_raw(below.wrapping_add(1)), fx);
+        lerp(a, b, fz) as f32
+    }
+
+    /// `GetWaterDepthAtVertex(x, z)` (slot 33): the depth, possibly negative;
+    /// a vertex out of bounds (unsigned) → 0.0.
     pub fn water_depth_at_vertex(&self, x: i32, z: i32) -> f32 {
         self.vi(x, z).map_or(0.0, |i| self.water[i].depth)
     }
 
-    /// `GetWaterDepthAtVertex(index)` (slot 92; surface water slot 5).
-    /// [choice] Past the arrays: 0.0.
+    /// `GetWaterDepthAtVertex(index)` (slot 92): `index ≥ vertexCount` → 0.0.
+    /// Also the surface water's slot 5, which has no check: past the array
+    /// it reads 0.0 too ([choice] §10.5).
     pub fn water_depth_at_index(&self, index: u32) -> f32 {
-        self.idx(index).map_or(0.0, |i| self.water[i].depth)
+        self.depth_raw(index)
+    }
+
+    /// The depth at an unchecked flat index; 0.0 past the arrays ([choice]
+    /// §10.5, never NaN).
+    pub(super) fn depth_raw(&self, i: u32) -> f32 {
+        self.idx(i).map_or(0.0, |i| self.water[i].depth)
+    }
+
+    /// `GetWaterVelocity(x, z)` (surface water slot 11): the velocity of the
+    /// vertex `GetVertIndex(x, z)`, no bounds check (§10.5); past the arrays
+    /// the shared zero vector ([choice]).
+    pub fn water_velocity(&self, x: i32, z: i32) -> [f32; 3] {
+        self.raw_index(x, z).map_or([0.0; 3], |i| self.water[i].velocity)
     }
 
     /// `GetMaxSurfaceLevel(x, z)` (slot 18): for an in-bounds cell, the
@@ -652,9 +740,20 @@ impl Terrain {
         n
     }
 
-    /// `GetSedimentValue(x, z)` (slot 55). [choice] Out of bounds: 0.0.
+    /// The sediment field of a vertex (out of bounds: 0.0).
     pub fn sediment(&self, x: i32, z: i32) -> f32 {
         self.vi(x, z).map_or(0.0, |i| self.water[i].sediment)
+    }
+
+    /// `GetSedimentValue(x, z)` (slot 55, §5): not `LocationIsInBounds(x, z)`
+    /// → 0.0; else the sediment field. [choice] At the vertex `(floor(x /
+    /// 16), floor(z / 16))`, as slot 30 (the spec does not name the vertex,
+    /// TR21).
+    pub fn sediment_at(&self, x: f32, z: f32) -> f32 {
+        if !self.location_is_in_bounds(x, z) {
+            return 0.0;
+        }
+        self.sediment(Self::cell_floor(x), Self::cell_floor(z))
     }
 
     /// The water record of an in-bounds vertex.
@@ -769,12 +868,14 @@ impl Terrain {
     }
 
     /// `SetAltitude(x, z, h)` (slot 51, §6): `i := (cellsX + 1) × z + x`, no
-    /// bounds check ([choice]: an index outside the arrays does nothing).
+    /// bounds check: a flat index inside the arrays is written even when a
+    /// coordinate is out of range (§10.5); one outside does nothing
+    /// ([choice]).
     /// Raising goes through `alt := r24(r24(h − alt) + alt)` with the maximum
     /// clamp; lowering is `LowerVertex(i, alt − h)`; equal or NaN does
     /// nothing.
     pub fn set_altitude(&mut self, x: i32, z: i32, h: f32) {
-        let Some(i) = self.raw_index(i64::from(x), i64::from(z)) else {
+        let Some(i) = self.raw_index(x, z) else {
             return;
         };
         let a = self.alt[i];
@@ -1002,13 +1103,8 @@ impl Terrain {
     /// minimum and maximum are recomputed and `0x278E6003` is posted with
     /// `data1 = (x0 << 16) + x1`, `data2 = (z0 << 16) + z1`, `data3 = 0`,
     /// `data4`; with the water flag `0x678E6E3A` with the same; then always
-    /// `0x870BC918` (render only).
-    ///
-    /// [choice] The texture message's packing is not given beyond "data1 /
-    /// data2 pack a render rectangle, data3 the minimum and maximum altitude
-    /// truncated to integers": here data1 / data2 pack the rectangle grown by
-    /// 1 and clipped to the vertices (the normals' rectangle), data3 is
-    /// `(trunc(min) << 16) | (trunc(max) & 0xFFFF)` and data4 is 0.
+    /// `0x870BC918` (render only) with the words of
+    /// [`Terrain::texture_redisplay_words`] (TR11).
     pub fn redisplay_terrain(&mut self, terrain: bool, water: bool, r: VertRect, data4: u32) {
         if !self.view_ready {
             return;
@@ -1021,16 +1117,59 @@ impl Terrain {
         if water {
             self.post(msg::WATER_CHANGED, d1, d2, 0, data4);
         }
-        let g = VertRect::new(
-            r.x0.saturating_sub(1).max(0),
-            r.z0.saturating_sub(1).max(0),
-            r.x1.saturating_add(1).min(self.cells_x as i32),
-            r.z1.saturating_add(1).min(self.cells_z as i32),
+        let (t1, t2, t3) = self.texture_redisplay_words(terrain, r);
+        self.post(msg::TEXTURE_REDISPLAY, t1, t2, t3, data4);
+    }
+
+    /// The render rectangle of the texture message `0x870BC918` (§8.1, TR11):
+    /// with the terrain flag, `rect` padded by 1 on every side and clamped to
+    /// `[0, cellsX] × [0, cellsZ]` (`PadRectangle`), united with `rect`
+    /// itself (which only matters for a rectangle outside the city); without
+    /// it, `rect`.
+    pub fn texture_render_rect(&self, terrain: bool, r: VertRect) -> VertRect {
+        if !terrain {
+            return r;
+        }
+        let (cx, cz) = (self.cells_x as i32, self.cells_z as i32);
+        let p = VertRect::new(
+            r.x0.saturating_sub(1).clamp(0, cx),
+            r.z0.saturating_sub(1).clamp(0, cz),
+            r.x1.saturating_add(1).clamp(0, cx),
+            r.z1.saturating_add(1).clamp(0, cz),
         );
-        let (t1, t2) = g.packed();
-        let lo = ftol32(f64::from(self.min_cache)) as u32;
-        let hi = ftol32(f64::from(self.max_cache)) as u32;
-        self.post(msg::TEXTURE_REDISPLAY, t1, t2, (lo << 16) | (hi & 0xFFFF), 0);
+        VertRect::new(p.x0.min(r.x0), p.z0.min(r.z0), p.x1.max(r.x1), p.z1.max(r.z1))
+    }
+
+    /// data1..data3 of the texture message (§8.1, TR11): the render
+    /// rectangle packed as the other two messages, and `(trunc(lo) << 16) +
+    /// trunc(hi)` of the altitude band. [choice] The core keeps no 3D view,
+    /// so the band is the plain minimum and maximum altitude over the render
+    /// rectangle's vertices (the cached §4.6 values when it is the whole city
+    /// or has no vertex inside the city), with no widening.
+    pub fn texture_redisplay_words(&self, terrain: bool, r: VertRect) -> (u32, u32, u32) {
+        let rr = self.texture_render_rect(terrain, r);
+        let (d1, d2) = rr.packed();
+        let (mut lo, mut hi) = (self.min_cache, self.max_cache);
+        if rr != self.whole_city() {
+            if let Some(c) = self.clip(rr) {
+                lo = self.h(c.x0, c.z0);
+                hi = lo;
+                for z in c.z0..=c.z1 {
+                    for x in c.x0..=c.x1 {
+                        let a = self.h(x, z);
+                        if a < lo {
+                            lo = a;
+                        }
+                        if a > hi {
+                            hi = a;
+                        }
+                    }
+                }
+            }
+        }
+        let lo = ftol32(f64::from(lo)) as u32;
+        let hi = ftol32(f64::from(hi)) as u32;
+        (d1, d2, (lo << 16).wrapping_add(hi))
     }
 
     /// Slot 69: the cell corners `a` and `b` are sorted, `x1 := max + 1`
@@ -1060,12 +1199,17 @@ impl Terrain {
         self.water_display_state
     }
 
-    /// `SetWaterSurfaceDisplayState` (slot 84): stores the state and posts
-    /// `0x6AB97795` with data1 = the state (§8.4). [choice] It posts on every
-    /// call, changed or not.
-    pub fn set_water_display_state(&mut self, state: u8) {
+    /// `SetWaterSurfaceDisplayState` (slot 84, §8.4, TR14): only when the new
+    /// state differs from the current one, stores it and posts `0x6AB97795`
+    /// with data1 = the state; the same state posts nothing (quirk 14).
+    /// Returns whether it posted.
+    pub fn set_water_display_state(&mut self, state: u8) -> bool {
+        if state == self.water_display_state {
+            return false;
+        }
         self.water_display_state = state;
         self.post(msg::WATER_DISPLAY_STATE, u32::from(state), 0, 0, 0);
+        true
     }
 
     // ---- rectangles -----------------------------------------------------------------------------
@@ -1086,7 +1230,11 @@ impl Terrain {
         (c.x0 <= c.x1 && c.z0 <= c.z1).then_some(c)
     }
 
-    /// The default brush level (`+0xBC`). [choice] It starts at 0.
+    /// The default brush level (`+0xBC`, §2.3, TR9): 0 from the constructor;
+    /// in game `DoPostCityInit` copies the 3D camera's zoom into it and each
+    /// view-update message `0xA6B79602` with a new zoom stores that zoom,
+    /// which the host feeds with [`Terrain::set_default_brush_level`]. With
+    /// no camera it stays 0.
     pub fn default_brush_level(&self) -> i32 {
         self.default_brush_level
     }

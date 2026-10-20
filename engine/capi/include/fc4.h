@@ -163,8 +163,9 @@ extern "C" {
  * 69 = merge-train batch train2 (re-answers28, mergetrain-docs, re-answers29, cores12c, detpacing, cores18, apply14dis, glue12b2, coverage2, apply15c, apply15b, cores17): cores12c: adds the advisor system and the MySims (fc4_advisors, fc4_adv_obj, fc4_advisor_host, fc4_mysim_host; advisors.md, mysims.md) (taken as 62 on its lane; renumbered at merge). | detpacing: deterministic pacing (simulator.md §5.7 [choice]): fc4_pacing_set_process / fc4_pacing_process, fc4_sim_set_pacing / fc4_sim_get_pacing with fc4_pacing_hooks (the day's settle point), and every core with an idle-driven cycle runs it to completion in one settle delivery under FC4_PACING_DETERMINISTIC (taken as 65 on its lane, then 68; renumbered at merge). | cores18: adds the network rules (fc4_network_rules, fc4_network_rules_grid, network-rules.md): the rule database from resource bytes, tile rule evaluation and the rule stages of SolveNetwork over a cell grid (taken as 68 on its lane; renumbered at merge). | apply14dis: the disaster layer after re-answers14 (disasters.md): the host's dispatch-unit counts (fire_dispatch_count / police_dispatch_count) replace the effectiveness setters, the wind is a vector, network_default_cost and volcano_end_deformation are gone; fc4_disasters_set_cause returns the cause; adds fc4_disasters_manager_instances (taken as 68 on its lane). | glue12b2: adds fc4_port_developer_required_budget and fc4_port_developer_funding_ratio (the port glue's shadow; glue12b2 lane, taken as 66 on the lane, renumbered at merge). | cores17: adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane; taken as 63, then 64-68 on its lane; renumbered at merge).
  * 70 = merge-train batch train3 (re-integrate1, glue17, apply15d, glue14c, devperf, cores19, flakyfix, glue14b, cores12a, glue15, apply15terrain, abi-hygiene, glue12b1): merged (no C ABI history entry of its own)
  * 71 = merge-train batch train4 (re-specs20, re-answers30, re-specs19, cores22, apply15e, glue20, cores21): merged (no C ABI history entry of its own)
- * 72 = merge-train batch train5 (re-answers31, re-specs21, cores24, coverage3, glue23): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 72u
+ * 72 = merge-train batch train5 (re-answers31, re-specs21, cores24, coverage3, glue23): merged (no C ABI history entry of its own);
+ * 73 = merge-train batch train6 (glue17, apply15b, cores17, cores19, glue15, apply15terrain, glue12b1, glue12b2): adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane; taken as 63, then 64-68 on its lane; renumbered at merge). | adds the effects manager (fc4_effects, fc4_effects_directory; effects.md): the effect directory parser, creation, LOD and select groups, the tick, finishing (the hook or the draw-pass compat mode), the brush and game effects through host callbacks (renumbered at merge). | The lot configuration manager's opaque handle is fc4_lot_config_manager (the glue15 lane renamed it; the entry points keep their fc4_lot_config_* names, so the ABI surface is unchanged). | terrain round 2 (re-answers17, apply15terrain lane): fc4_terrain_lerped_water_level, fc4_terrain_flooding_altitude, fc4_terrain_water_velocity, fc4_terrain_sediment_at, fc4_terrain_brush_angles, fc4_terrain_set_brush_angles, fc4_terrain_talus_angle and fc4_terrain_set_talus_angle; fc4_terrain_brush_angle returns the stroke angle and fc4_terrain_add_brush's angle is the walk angle's start; set_water_display_state posts only on a change (taken as 64, then 65, 66 and 68 on its lane; renumbered at merge). | adds fc4_port_developer_required_budget and fc4_port_developer_funding_ratio (the port glue's shadow; glue12b2 lane, taken as 66 on the lane, renumbered at merge). */
+#define FC4_ABI_VERSION 73u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -7135,7 +7136,8 @@ typedef void (*fc4_network_lot_sink)(void* ctx, int32_t x, int32_t z, uint64_t n
 typedef struct fc4_city_detail_host {
     uint32_t struct_size; /* sizeof(fc4_city_detail_host) */
     void* user;
-    /* The city detail setting (0 low, 1 medium, 2 high). */
+    /* The city detail setting: the preferences byte, 1 low, 2 medium, 3 high
+       (city-detail.md §2; the original's default is 3). */
     uint32_t (*detail_setting)(void* user);
     /* Every lot of the lot manager. */
     void (*lots)(void* user, fc4_u64s_sink sink, void* ctx);
@@ -7317,6 +7319,10 @@ uint32_t fc4_port_developer_num_seaports(const fc4_port_developer* p);
  * a port. */
 bool fc4_port_developer_usage_values(const fc4_port_developer* p, uint64_t lot, uint32_t* usage, uint32_t* cap);
 uint32_t fc4_port_developer_num_trips(const fc4_port_developer* p);
+/* RequiredBudget() (§4.2): the summed monthly cost of the current stages (line 1's full expenses after UpdateBudget). */
+int64_t fc4_port_developer_required_budget(const fc4_port_developer* p);
+/* The funding ratio fr (§4.2): line 1's current / full, 1.0 without the line or with full 0 (reads the line through the host). */
+float fc4_port_developer_funding_ratio(const fc4_port_developer* p);
 /* GetMaintenanceCost(lot) (0 if not a port). */
 int64_t fc4_port_developer_maintenance_cost(const fc4_port_developer* p, uint64_t lot);
 /* Seaport: CityHasSea / GetCellSeaAccess(x, z) (the map byte, 0 outside the map). */
@@ -8675,7 +8681,12 @@ bool fc4_prop_manager_read(fc4_prop_manager* m, const fc4_istream* in);
  * (§B3.3), in the core so that every host builds the same arrays. A missing
  * callback reads as 0 / false / none. */
 typedef struct fc4_lot_config_catalogue fc4_lot_config_catalogue;
-typedef struct fc4_lot_config fc4_lot_config;
+/* The lot configuration MANAGER handle. Named `fc4_lot_config_manager`, not
+ * `fc4_lot_config`, so that it cannot be confused with the development glue's
+ * fc4_lot_config struct (§4.7.4, above): one name for two types is legal C
+ * but unusable in a C or C++ host that wants both (the glue15 lane). The C
+ * ABI entry points keep their fc4_lot_config_* names. */
+typedef struct fc4_lot_config_manager fc4_lot_config_manager;
 
 /* fc4_lot_config_host.acquire_service services. */
 #define FC4_LCM_SERVICE_BUILDING_DEVELOPMENT 0u
@@ -8806,80 +8817,80 @@ bool fc4_lot_config_catalogue_get_state(const fc4_lot_config_catalogue* c, fc4_l
 
 /* Constructed, reference count 0, sharing `catalogue` (NULL: a private one).
  * The host table is copied (NULL for a NULL or short table). */
-fc4_lot_config* fc4_lot_config_create(const fc4_lot_config_host* host, const fc4_lot_config_catalogue* catalogue,
-                                      uint64_t token);
-void fc4_lot_config_destroy(fc4_lot_config* m);
+fc4_lot_config_manager* fc4_lot_config_create(const fc4_lot_config_host* host, const fc4_lot_config_catalogue* catalogue,
+                                              uint64_t token);
+void fc4_lot_config_destroy(fc4_lot_config_manager* m);
 bool fc4_lot_config_query_interface(uint32_t iid);
-uint32_t fc4_lot_config_add_ref(fc4_lot_config* m);
+uint32_t fc4_lot_config_add_ref(fc4_lot_config_manager* m);
 /* The last one runs Shutdown and returns 0; the handle stays valid until destroy. */
-uint32_t fc4_lot_config_release(fc4_lot_config* m);
+uint32_t fc4_lot_config_release(fc4_lot_config_manager* m);
 /* Init builds the catalogue, or rebuilds it when the detail changed. */
-bool fc4_lot_config_init(fc4_lot_config* m);
-bool fc4_lot_config_shutdown(fc4_lot_config* m);
+bool fc4_lot_config_init(fc4_lot_config_manager* m);
+bool fc4_lot_config_shutdown(fc4_lot_config_manager* m);
 /* The process unload callback (0x0048A240); the family set stays (quirk 10). */
-void fc4_lot_config_unload(fc4_lot_config* m);
+void fc4_lot_config_unload(fc4_lot_config_manager* m);
 /* DoMessage (§B4.3): PostCityInit fills every configuration's building
  * information. Always true. */
-bool fc4_lot_config_do_message(fc4_lot_config* m, uint32_t msg_type);
-void fc4_lot_config_fill_building_information(fc4_lot_config* m, uint64_t cfg);
+bool fc4_lot_config_do_message(fc4_lot_config_manager* m, uint32_t msg_type);
+void fc4_lot_config_fill_building_information(fc4_lot_config_manager* m, uint64_t cfg);
 /* Slots 5 AddLotConfiguration(key), 6 AddLotConfiguration(cfg, add) (always
  * true), 7 RemoveLotConfiguration(id), 8 GetLotConfiguration(id) (no
  * reference; 0 = none). */
-bool fc4_lot_config_add_by_key(fc4_lot_config* m, uint32_t type_id, uint32_t group, uint32_t instance);
-bool fc4_lot_config_add_configuration(fc4_lot_config* m, uint64_t cfg, bool add);
-bool fc4_lot_config_remove_configuration(fc4_lot_config* m, uint32_t id);
-uint64_t fc4_lot_config_configuration(const fc4_lot_config* m, uint32_t id);
+bool fc4_lot_config_add_by_key(fc4_lot_config_manager* m, uint32_t type_id, uint32_t group, uint32_t instance);
+bool fc4_lot_config_add_configuration(fc4_lot_config_manager* m, uint64_t cfg, bool add);
+bool fc4_lot_config_remove_configuration(fc4_lot_config_manager* m, uint32_t id);
+uint64_t fc4_lot_config_configuration(const fc4_lot_config_manager* m, uint32_t id);
 /* Slots 20 (the map) and 21 (the family set) in bucket order. Return the
  * count; copy at most `capacity` (pointers may be NULL). */
-size_t fc4_lot_config_configuration_map(const fc4_lot_config* m, uint32_t* ids, uint64_t* configurations,
+size_t fc4_lot_config_configuration_map(const fc4_lot_config_manager* m, uint32_t* ids, uint64_t* configurations,
                                         size_t capacity);
-size_t fc4_lot_config_family_id_set(const fc4_lot_config* m, uint32_t* out, size_t capacity);
+size_t fc4_lot_config_family_id_set(const fc4_lot_config_manager* m, uint32_t* out, size_t capacity);
 /* Slots 9-11 GetLotConfigurationsBy{Filter,Family,Size}: `which` 0 = by filter
  * (`a` = the filter, 0 = null; registered filters cache their result), 1 = by
  * family (`a`), 2 = by size (`a` = x, `b` = z). The matches go to `out` in
  * bucket order, each with a new reference for the caller; returns the count. */
-uint32_t fc4_lot_config_configurations(fc4_lot_config* m, uint32_t which, uint64_t a, uint32_t b,
+uint32_t fc4_lot_config_configurations(fc4_lot_config_manager* m, uint32_t which, uint64_t a, uint32_t b,
                                        fc4_token_callback out, void* ctx);
 /* Slot 12 ClearLotConfigurationSet: releases every element once. */
-void fc4_lot_config_clear_set(fc4_lot_config* m, const uint64_t* set, size_t n);
+void fc4_lot_config_clear_set(fc4_lot_config_manager* m, const uint64_t* set, size_t n);
 /* Slots 13-15 GetLotConfigurationIDsBy{Filter,Family,Size}, as above (no
  * cache). Return the count; copy at most `capacity`. */
-size_t fc4_lot_config_ids(const fc4_lot_config* m, uint32_t which, uint64_t a, uint32_t b, uint32_t* out,
+size_t fc4_lot_config_ids(const fc4_lot_config_manager* m, uint32_t which, uint64_t a, uint32_t b, uint32_t* out,
                           size_t capacity);
 /* Slots 16 / 17 LotConfigurationHasBuilding{Family,Type}(cfg, id, obj)
  * (`by_type` false / true): the matching object's index in the array to
  * `index` (may be NULL). */
-bool fc4_lot_config_has_building(const fc4_lot_config* m, uint64_t cfg, uint32_t id, bool by_type,
+bool fc4_lot_config_has_building(const fc4_lot_config_manager* m, uint64_t cfg, uint32_t id, bool by_type,
                                  uint32_t* index);
 /* Slots 18 / 19 and the flush (0x0048A080). */
-void fc4_lot_config_register_filter(fc4_lot_config* m, uint64_t filter);
-void fc4_lot_config_unregister_filter(fc4_lot_config* m, uint64_t filter);
-void fc4_lot_config_flush(fc4_lot_config* m);
+void fc4_lot_config_register_filter(fc4_lot_config_manager* m, uint64_t filter);
+void fc4_lot_config_unregister_filter(fc4_lot_config_manager* m, uint64_t filter);
+void fc4_lot_config_flush(fc4_lot_config_manager* m);
 /* Diagnostics: a registered filter's cached result (false when not
  * registered; *cached false when nothing is cached). Configurations (no
  * references) copied, at most `capacity`; *count = their number. */
-bool fc4_lot_config_filter_cache(const fc4_lot_config* m, uint64_t filter, bool* cached, uint64_t* out,
+bool fc4_lot_config_filter_cache(const fc4_lot_config_manager* m, uint64_t filter, bool* cached, uint64_t* out,
                                  size_t capacity, size_t* count);
 /* Slots 24-26 GetMaxFootprintFor{Building,Prop,Flora}Families(ids) (`kind` 0,
  * 1 or 4: the object types): (w, d, 0, 0) into out4. */
-bool fc4_lot_config_max_footprint(const fc4_lot_config* m, uint32_t kind, const uint32_t* ids, size_t n,
+bool fc4_lot_config_max_footprint(const fc4_lot_config_manager* m, uint32_t kind, const uint32_t* ids, size_t n,
                                   float* out4);
 /* Slot 27 GetObjectIDArray(obj, vec): families expanded (quirk 13). Returns the
  * count; copies at most `capacity`. */
-size_t fc4_lot_config_object_id_array(const fc4_lot_config* m, const fc4_lotdev_cfg_object* obj, uint32_t* out,
+size_t fc4_lot_config_object_id_array(const fc4_lot_config_manager* m, const fc4_lotdev_cfg_object* obj, uint32_t* out,
                                       size_t capacity);
 /* Slot 22 CreateGenericLotConfiguration(type): one reference for the caller,
  * 0 when BDS rejects the type (PL8). */
-uint64_t fc4_lot_config_create_generic(fc4_lot_config* m, uint32_t building_type);
+uint64_t fc4_lot_config_create_generic(fc4_lot_config_manager* m, uint32_t building_type);
 /* Slot 23 FixLotConfiguration(cfg): the first problem's code (0 none, 1 an ID
  * removed, 2 a record removed, 3 a footprint changed, 4 outside the lot, 5 a
  * centre moved, 6 a retaining wall removed; PL9, PL10). */
-uint32_t fc4_lot_config_fix(fc4_lot_config* m, uint64_t cfg);
-bool fc4_lot_config_get_state(const fc4_lot_config* m, fc4_lot_config_state* out);
+uint32_t fc4_lot_config_fix(fc4_lot_config_manager* m, uint64_t cfg);
+bool fc4_lot_config_get_state(const fc4_lot_config_manager* m, fc4_lot_config_state* out);
 /* The record (§B6): version 1 and the three held services. Read is false for
  * another version and then changes nothing. */
-bool fc4_lot_config_write(const fc4_lot_config* m, const fc4_ostream* out);
-bool fc4_lot_config_read(fc4_lot_config* m, const fc4_istream* in);
+bool fc4_lot_config_write(const fc4_lot_config_manager* m, const fc4_ostream* out);
+bool fc4_lot_config_read(fc4_lot_config_manager* m, const fc4_istream* in);
 
 /* ---- tutorial system (docs/specs/tutorial.md) -------------------------------
  * cSC4TutorialSystem (0xAA3836FB, city component 48). The tutorial window, its
@@ -9785,6 +9796,14 @@ float fc4_terrain_water_depth_for_cell(const fc4_terrain* t, int32_t x, int32_t 
 bool fc4_terrain_has_draft_clearance(const fc4_terrain* t, int32_t x, int32_t z);
 uint32_t fc4_terrain_water_type(const fc4_terrain* t, int32_t x, int32_t z);
 bool fc4_terrain_is_navigable(const fc4_terrain* t, int32_t x, int32_t z, int32_t r, uint64_t lot);
+/* ABI 69. GetLerpedWaterLevel (slot 32, §5.1: no clamp at x = sizeX);
+ * AltitudeAtWhichFloodingWillOccur (surface water slot 10, §10.2); GetWaterVelocity (surface
+ * water slot 11: out[3], a zero vector past the arrays); GetSedimentValue (slot 55, world
+ * metres, 0 unless LocationIsInBounds). */
+float fc4_terrain_lerped_water_level(const fc4_terrain* t, float x, float z);
+float fc4_terrain_flooding_altitude(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_water_velocity(const fc4_terrain* t, int32_t x, int32_t z, float* out);
+float fc4_terrain_sediment_at(const fc4_terrain* t, float x, float z);
 
 /* Setters (§6). Every setter skips a locked vertex (flag 0x4000). */
 bool fc4_terrain_raise_vertex(fc4_terrain* t, uint32_t index, float d);
@@ -9818,13 +9837,23 @@ uint8_t fc4_terrain_water_display_state(const fc4_terrain* t);
 bool fc4_terrain_set_water_display_state(fc4_terrain* t, uint8_t state);
 
 /* Brushes (§9). add_brush: at most 4 components, kinds 0-11 (false otherwise);
- * random_walk_step in radians; `angle` is the start angle kept in the description.
- * add_shipped_brush: the brushes 0x11, 0x12 and 0x14 with the host's bitmap. */
+ * random_walk_step in radians (not 0 sets the walk flag); `angle` is the walk angle's start
+ * (the host's RandomRange(0, 2*pi) draw); the stroke angle starts at 0 (TR8).
+ * add_shipped_brush: the brushes 0x11, 0x12 and 0x14 with the host's bitmap; each walks with
+ * the 0.5 degree default step (so every in-bounds ApplyBrush draws random_uniform(5) once) from
+ * a walk angle of 0 (set the host's draw with set_brush_angles).
+ * brush_angle: the stroke angle. brush_angles / set_brush_angles (ABI 69): the walk angle
+ * (+0x68) and the stroke angle (+0x6C); the original's descriptions are process-wide, so a
+ * host carries them across cities. talus_angle (ABI 69): kind 2's TalusAngle in radians. */
 bool fc4_terrain_add_brush(fc4_terrain* t, uint32_t id, const fc4_brush_component* components, size_t count,
                            float random_walk_step, float angle);
 bool fc4_terrain_add_shipped_brush(fc4_terrain* t, uint32_t id, uint32_t bitmap_width, uint32_t bitmap_height,
                                    const uint8_t* pixels);
 bool fc4_terrain_brush_angle(const fc4_terrain* t, uint32_t id, float* out);
+bool fc4_terrain_brush_angles(const fc4_terrain* t, uint32_t id, float* walk, float* stroke);
+bool fc4_terrain_set_brush_angles(fc4_terrain* t, uint32_t id, float walk, float stroke);
+float fc4_terrain_talus_angle(const fc4_terrain* t);
+bool fc4_terrain_set_talus_angle(fc4_terrain* t, float radians);
 /* ApplyBrush (slot 57): false for an unknown brush. */
 bool fc4_terrain_apply_brush(fc4_terrain* t, uint32_t id, fc4_brush_params* params);
 int32_t fc4_terrain_default_brush_level(const fc4_terrain* t);
@@ -9861,6 +9890,194 @@ bool fc4_terrain_lava_rects(const fc4_terrain* t, fc4_terrain_rect* source, fc4_
 size_t fc4_terrain_write_record(const fc4_terrain* t, uint32_t record, uint8_t* out, size_t capacity);
 /* An edge record's altitudes: the count, or -1 for a bad record. */
 int64_t fc4_terrain_read_edge(const uint8_t* record, size_t len, float* out, size_t capacity);
+
+/* ---- effects manager (docs/specs/effects.md; engine/capi/src/effects.rs) ------
+ * The visual effects' simulation side: the effect directory (resource
+ * 0xEA5118B0 / 0xEA5118B1 / 1, parsed from the bytes the host reads), the
+ * manager (creation by name under the detail setting, LOD ranges and select
+ * groups, the animation tick, finishing), the brush effect (terrain brushes
+ * through the host, e.g. fc4_terrain_apply_brush) and the game effect (fire,
+ * toxic spills, demolition, extinguishing, message posts, pauses). Rendering is
+ * the host's. Effects are named by IDs from 1. A missing callback does nothing
+ * and reads as 0 / false; `simulator` missing or returning false = no simulator.
+ * Finishing (EF2): by default the host calls fc4_effects_finish_hook once per
+ * frame after the tick; in the compat mode (FC4_EFFECTS_FINISH_DRAW_PASS) only
+ * fc4_effects_draw_pass finishes effects, as the original's draw pass does.
+ * A call into the same manager from inside a callback is refused (the fallback
+ * value). */
+typedef struct fc4_effects_directory fc4_effects_directory;
+typedef struct fc4_effects fc4_effects;
+
+#define FC4_EFFECTS_FINISH_HOOK      0u
+#define FC4_EFFECTS_FINISH_DRAW_PASS 1u
+#define FC4_EFFECTS_UNKNOWN          (-2)
+
+/* A post: an effect's end message (data2 = data3 = 0) or a game record's message
+ * (data1 = the instance parameter, data2 / data3 = the cell). */
+typedef struct fc4_effects_post {
+    uint32_t msg_type;
+    int32_t data2;
+    uint64_t data1;
+    int32_t data3;
+    uint32_t reserved;
+} fc4_effects_post;
+
+/* An inclusive cell rectangle, clipped to the city. */
+typedef struct fc4_effects_rect {
+    int32_t x0, z0, x1, z1;
+} fc4_effects_rect;
+
+/* A game record's demolition filter (§9.3). */
+typedef struct fc4_effects_demolish_filter {
+    bool no_networks;
+    bool no_flora;
+    uint8_t _pad[2];
+    float min_size;
+    float max_size;
+} fc4_effects_demolish_filter;
+
+/* What the demolition filter needs of an occupant. */
+typedef struct fc4_effects_occupant_facts {
+    bool signpost;
+    bool text_decal;
+    bool network;
+    bool flora;
+    float extents[3];
+} fc4_effects_occupant_facts;
+
+typedef struct fc4_effects_host {
+    uint32_t struct_size;
+    void* user;
+    /* Whether there is a simulator; *dilation = its slot 32. */
+    bool (*simulator)(void* user, float* dilation);
+    void (*sim_pause)(void* user);
+    void (*sim_resume)(void* user);
+    void (*sim_hidden_pause)(void* user);
+    void (*sim_hidden_resume)(void* user);
+    void (*clock_pause)(void* user, bool on);
+    void (*city_cells)(void* user, int32_t* x, int32_t* z);
+    bool (*location_in_bounds)(void* user, float x, float z);
+    /* ApplyBrush(brush_id, params) on the terrain. */
+    bool (*apply_brush)(void* user, uint32_t brush_id, fc4_brush_params* params);
+    void (*begin_long_terrain_operation)(void* user);
+    void (*end_long_terrain_operation)(void* user);
+    /* The fire simulator's IgniteCellRadius and SetCause. */
+    void (*ignite_cell_radius)(void* user, int32_t x, int32_t z, int32_t r0, int32_t r1);
+    void (*set_fire_cause)(void* user, uint32_t cause);
+    /* The toxic-spill disaster's attempt at a cell. */
+    void (*toxic_attempt_start)(void* user, int32_t x, int32_t z);
+    /* Demolish the occupants of `rect` the filter does not skip (fc4_effects_demolish_filter_skips). */
+    void (*demolish_region)(void* user, const fc4_effects_rect* rect, uint32_t flags, bool dezone,
+                            const fc4_effects_demolish_filter* filter);
+    void (*extinguish_cell)(void* user, int32_t x, int32_t z, int32_t amount);
+    void (*post)(void* user, const fc4_effects_post* msg);
+    /* IsActive of a render component (`component` its index in the effect); missing = inactive. */
+    bool (*render_component_active)(void* user, uint32_t effect, uint32_t component, uint8_t kind);
+} fc4_effects_host;
+
+typedef struct fc4_effects_directory_counts {
+    uint32_t brushes, attractors, games, effects, names;
+    uint16_t root_version;
+    uint16_t effects_version;
+} fc4_effects_directory_counts;
+
+typedef struct fc4_effects_state {
+    uint64_t created, recycled, end_posts, select_draws, ticks, sweeps;
+    uint64_t total_us;          /* accumulated dilated microseconds */
+    float total_seconds;
+    uint32_t effect_count, active_count, level_of_detail, max_priority, finish_mode;
+} fc4_effects_state;
+
+typedef struct fc4_effect_info {
+    int32_t index;              /* the description; -1 = none (a no-op) */
+    uint32_t flags, refs;
+    bool started, stopping, active;
+    uint8_t _pad;
+    uint32_t components;        /* built */
+    uint32_t end_type;
+    uint64_t end_data1;
+    float position[3];
+    uint32_t reserved;
+} fc4_effect_info;
+
+typedef struct fc4_effects_brush_state {
+    uint32_t brush_id;
+    float rate, length, strength, radius, acc, t;
+    float prev[2], cur[2];
+    bool one_shot, active, long_op;
+    uint8_t _pad;
+    uint64_t applications;
+} fc4_effects_brush_state;
+
+typedef struct fc4_effects_game_state {
+    bool started, pending, map_applied;
+    uint8_t _pad;
+    float timer;
+    uint32_t count, applies;
+    int32_t cell_x, cell_z;
+    uint64_t data;
+} fc4_effects_game_state;
+
+/* The directory: parsed from the resource's bytes (NULL if it does not parse), or the
+ * small synthetic volcano / meteor-crater directory (tests, hosts without an install). */
+fc4_effects_directory* fc4_effects_directory_parse(const uint8_t* data, size_t len);
+fc4_effects_directory* fc4_effects_directory_volcano(void);
+void fc4_effects_directory_destroy(fc4_effects_directory* d);
+bool fc4_effects_directory_get_counts(const fc4_effects_directory* d, fc4_effects_directory_counts* out);
+/* The description `name` resolves to under `max_priority`: its index, -1 if none
+ * qualifies, FC4_EFFECTS_UNKNOWN for an unknown name. */
+int32_t fc4_effects_directory_find(const fc4_effects_directory* d, const char* name, uint32_t max_priority);
+/* Writes the resource (the parser's inverse) when `cap` suffices; returns the size needed. */
+size_t fc4_effects_directory_write(const fc4_effects_directory* d, uint8_t* buf, size_t cap);
+
+/* The manager. NULL for a NULL or short host table. `session_seed` seeds the brush
+ * generator; the select generator uses the constant 0x1105. */
+fc4_effects* fc4_effects_create(const fc4_effects_host* host, uint32_t session_seed);
+void fc4_effects_destroy(fc4_effects* fx);
+/* Shares the directory (the caller may destroy its handle afterwards). */
+bool fc4_effects_set_directory(fc4_effects* fx, const fc4_effects_directory* d);
+/* The detail setting (default 5). */
+void fc4_effects_set_max_priority(fc4_effects* fx, uint32_t max_priority);
+/* Level of detail = max(zoom - offset + 1, 1); rebuilds every effect. */
+void fc4_effects_set_zoom(fc4_effects* fx, int32_t zoom, int32_t offset);
+bool fc4_effects_set_finish_mode(fc4_effects* fx, uint32_t mode);
+/* Whether meta components also update their children (the original's double update, EF9; default true). */
+void fc4_effects_set_nested_update(fc4_effects* fx, bool on);
+bool fc4_effects_has(const fc4_effects* fx, const char* name);
+/* CreateVisualEffect: the new ID (two references: the caller's and the manager's).
+ * False for an unknown name; no description under the detail setting = a no-op (index -1). */
+bool fc4_effects_create_effect(fc4_effects* fx, const char* name, uint32_t* out_id);
+bool fc4_effects_create_effect_by_index(fc4_effects* fx, uint32_t index, uint32_t* out_id);
+bool fc4_effects_add_ref(fc4_effects* fx, uint32_t id);
+bool fc4_effects_release(fc4_effects* fx, uint32_t id);
+bool fc4_effects_start(fc4_effects* fx, uint32_t id, uint32_t mode);
+/* mode 0 = soft (unless the description's hard-stop flag), otherwise hard. */
+bool fc4_effects_stop(fc4_effects* fx, uint32_t id, uint32_t mode);
+bool fc4_effects_is_started(const fc4_effects* fx, uint32_t id);
+bool fc4_effects_is_stopping(const fc4_effects* fx, uint32_t id);
+bool fc4_effects_set_position(fc4_effects* fx, uint32_t id, float x, float y, float z);
+/* Posted when the effect finishes (type 0 = none). */
+bool fc4_effects_set_end_message(fc4_effects* fx, uint32_t id, uint32_t msg_type, uint64_t data1);
+/* SetParameter, forwarded to the components and children (13 = the game records' message data). */
+bool fc4_effects_forward_parameter(fc4_effects* fx, uint32_t id, uint32_t index, uint64_t value);
+/* The animation tick (microseconds, scaled by the simulator's dilation; runs while paused). */
+void fc4_effects_tick(fc4_effects* fx, uint32_t us);
+/* The finishing pass of the mode: whether it ran. */
+bool fc4_effects_finish_hook(fc4_effects* fx);
+bool fc4_effects_draw_pass(fc4_effects* fx);
+/* Stops every effect (hard) and forgets them. */
+void fc4_effects_shutdown(fc4_effects* fx);
+bool fc4_effects_get_state(const fc4_effects* fx, fc4_effects_state* out);
+bool fc4_effects_get_effect(const fc4_effects* fx, uint32_t id, fc4_effect_info* out);
+/* The name, NUL-terminated (truncated to cap - 1); returns its length (0 = unknown ID). */
+size_t fc4_effects_get_name(const fc4_effects* fx, uint32_t id, char* buf, size_t cap);
+/* The child of the effect's n-th built meta component. */
+bool fc4_effects_get_child(const fc4_effects* fx, uint32_t id, uint32_t n, uint32_t* out_id);
+bool fc4_effects_get_brush(const fc4_effects* fx, uint32_t id, uint32_t n, fc4_effects_brush_state* out);
+bool fc4_effects_get_game(const fc4_effects* fx, uint32_t id, uint32_t n, fc4_effects_game_state* out);
+/* Whether the filter keeps (skips) the occupant: signposts and text decals always; networks
+ * and flora by the flags; max_size > 0: a largest extent >= max; min_size > 0: a smallest <= min. */
+bool fc4_effects_demolish_filter_skips(const fc4_effects_demolish_filter* f, const fc4_effects_occupant_facts* o);
 
 /* ---- automata layer (docs/specs/automata.md, short form; engine/capi/src/automata.rs) ----
  * The saved records of components 40, 41 and 43-46 and of the objects they
@@ -10822,6 +11039,288 @@ float fc4_mysim_local_grade(const fc4_advisors* p, int32_t id, uint32_t group, b
 #define FC4_ADV_SRC_DEAL_COUNT 132u
 #define FC4_ADV_SRC_POWER_FUNDING 133u
 
+/* ---- network geometry (docs/specs/network-geometry.md §3-§9; engine/capi/src/network_geometry.rs) ----
+ * The network tool's geometry: the drag (BreakIntoStraightAndDiagSegments,
+ * ComputeDraggedCells), the validation passes and their failure codes
+ * (0xF0000001 bad terrain, 0xF0000002 reserved, 0xF0000003 bridge,
+ * 0xF0000005 intersection, 0xF0000006 smoothing, 0xF0000007 unsolved,
+ * 0xF0000008 terrain support), the cell infos, SmoothenNetwork levels 0-3,
+ * CanTilesBeSupportedOnTerrain and the grading (UpdateTerrainHeights), plus
+ * the standalone height satisfier (fc4_vhcs) and the pure helpers of §10,
+ * §11 and §13. No plugin glue yet.
+ *
+ * The terrain is read through the host table, or through a core terrain bound
+ * with fc4_netgeom_set_terrain: then it is read under the terrain's lock and
+ * the grading writes it (its messages go to the terrain host's post). The rest
+ * of the world goes through the host table; a missing callback is the empty
+ * world (no occupants, no connection nodes, no bridge types; the bridge checks
+ * pass; the highlight pass keeps the count). The land-bridge pass (NG4) and the
+ * piece solver's extra constraints (NG5) are not exposed yet.
+ *
+ * Threads: one thread at a time. A callback that calls back into the same
+ * geometry is refused (fallback value, counted in reentrant_refused). */
+typedef struct fc4_netgeom fc4_netgeom;
+typedef struct fc4_vhcs fc4_vhcs;
+
+#define FC4_NETGEOM_SAT_NETWORK 0u
+#define FC4_NETGEOM_SAT_TERRAIN 1u
+
+#define FC4_NETGEOM_OCC_OTHER 0u
+#define FC4_NETGEOM_OCC_LANDFILL 1u
+#define FC4_NETGEOM_OCC_NETWORK 2u
+#define FC4_NETGEOM_OCC_BUILDING 3u
+
+#define FC4_NETGEOM_TV_FIX 0u
+#define FC4_NETGEOM_TV_RANGE 1u
+#define FC4_NETGEOM_TV_UNSUPPORTED 2u
+#define FC4_NETGEOM_TV_INVALID 0xFFFFFFFFu
+
+/* One type's placement parameters (§2.4, exemplar group 0x084344E0): angles in
+ * degrees, heights in metres. Types: 0 road, 1 rail, 2 highway, 3 street,
+ * 4 pipe, 5 power line, 6 avenue, 7 subway, 8 light rail, 9 monorail,
+ * 10 one-way road, 11 dirt road, 12 ground highway. */
+typedef struct fc4_netgeom_params {
+    uint32_t struct_size;
+    float max_slope;            /* 0x879D12E7 */
+    float slope_04;             /* 0x279D1707 */
+    float max_slope_change;     /* 0x07B36C71 */
+    float max_raise;            /* 0xC7B36CA4 */
+    float max_cut;              /* 0xC7B36CA5 */
+    float resolve_tolerance;    /* 0xC804DD86 */
+    float tunnel_trigger_slope; /* 0xC804DD87 */
+    float tunnel_end_slope;     /* 0xC804DD88 */
+    float new_cell_tolerance;   /* 0xC804DD93 */
+    float support_threshold;    /* 0xC804DD94 */
+    float max_support_height;   /* 0xC804DD95 */
+    float tunnel_clearance;     /* 0xE974EAA6, the first entry (the only one read) */
+    float earthwork_cost;       /* 0x6A2D49F4 */
+    int32_t cell_cost;          /* 0x4A2D49B9 */
+    int32_t bridge_cost;        /* 0x8A2D49EA */
+    int32_t tunnel_cost;        /* 0x8A2D49F0 */
+    uint32_t elevated_id_count; /* 0xE974EAA7's length (only emptiness is read) */
+    uint8_t straight_only;      /* p+0x25 (street) */
+    uint8_t reserved[3];
+} fc4_netgeom_params;
+
+/* The per-type limits (§2.3). */
+typedef struct fc4_netgeom_type_info {
+    uint32_t struct_size;
+    uint32_t type_id;
+    uint32_t width1, width2;
+    float slope_rise;           /* +0x100: r24(tan(max_slope) x 16) */
+    float diagonal_slope_rise;  /* +0x104 */
+    float smoothness;           /* +0x108 */
+    float diagonal_smoothness;  /* +0x10C */
+    float rise_04;              /* +0x110 */
+    float tunnel_trigger_rise;  /* tool +0x23C */
+    float tunnel_end_slope_rad; /* tool +0x2AC */
+} fc4_netgeom_type_info;
+
+/* BreakIntoStraightAndDiagSegments's outputs (§3.2). */
+typedef struct fc4_netgeom_segments {
+    uint32_t struct_size;
+    int32_t end_x, end_z;
+    uint32_t dragged_count, straight_count;
+    uint8_t axis0, axis1;
+    uint8_t pen_direction;      /* 0 -x, 2 -z, 4 +x, 6 +z */
+    uint8_t end_direction;      /* 1, 3, 5 or 7 */
+} fc4_netgeom_segments;
+
+typedef struct fc4_netgeom_cell {
+    int32_t x, z;
+} fc4_netgeom_cell;
+
+/* A dragged step (§2.2): kind 0 regular, 1 bridge, 2 tunnel portal, 3 tunnel interior. */
+typedef struct fc4_netgeom_step {
+    uint32_t first, last, kind;
+} fc4_netgeom_step;
+
+/* A tunnel or bridge: its end steps (bridge_type 0 for tunnels). */
+typedef struct fc4_netgeom_span {
+    uint32_t start, end, bridge_type;
+} fc4_netgeom_span;
+
+typedef struct fc4_netgeom_vertex_height {
+    int32_t vertex;
+    float height;
+} fc4_netgeom_vertex_height;
+
+/* A cell's occupant for the reserved-tile test (§5.1); the host fills it. */
+typedef struct fc4_netgeom_occupant {
+    uint32_t kind;              /* FC4_NETGEOM_OCC_* */
+    uint8_t immovable;          /* network occupants: slot 17 */
+    uint8_t connection_node;    /* network occupants: flag 0x200000 */
+    uint8_t reserved[2];
+    uint32_t type_id;           /* network occupants: slot 22 */
+} fc4_netgeom_occupant;
+
+/* The existing network piece in a cell (§8.1); the host fills it. */
+typedef struct fc4_netgeom_piece {
+    uint32_t flags;
+    uint8_t immovable;
+    uint8_t has_supports;
+    uint8_t reserved[2];
+    float corners[4];           /* (x,z), (x,z+1), (x+1,z+1), (x+1,z) */
+    uint32_t edges[13];
+} fc4_netgeom_piece;
+
+/* cSC4NetworkCellInfo (§8.1), the fields the height solver reads. A connection
+ * node's fixed vertices are not carried (an inserted info has none). */
+typedef struct fc4_netgeom_cell_info {
+    uint32_t struct_size;
+    int32_t x, z;
+    uint32_t flags;             /* +0x08 */
+    int32_t step;               /* +0x14, -1 off the run */
+    uint32_t edges[13];         /* +0x18 */
+    uint32_t edge_union;        /* +0x4C */
+    uint8_t in_run, placed, intersection, fixed, tunnel_interior, connection_node, has_supports;
+    uint8_t reserved;
+    float corners[4];           /* +0x58 */
+    float allowed[8];           /* +0x68, (lo, hi) per corner */
+    float preferred[8];         /* +0x88 */
+    int32_t vertices[4];        /* +0xA8 */
+} fc4_netgeom_cell_info;
+
+/* Diagnostics (fc4_netgeom_get_state). */
+typedef struct fc4_netgeom_state {
+    uint32_t struct_size;
+    uint32_t type_id;
+    int32_t start_x, start_z, end_x, end_z;
+    uint32_t dragged_count, straight_count;
+    uint8_t axis0, axis1, pen_direction, end_direction;
+    uint32_t valid;             /* tool +0x78 */
+    uint32_t failure;           /* tool +0x20C, 0 = none */
+    uint32_t cell_count, step_count, extra_cell_count, tunnel_count, bridge_count;
+    uint32_t cell_info_count, solved_count, smoothing_cell_count, boundary_count;
+    int32_t level;              /* the smoothing loop's level, -1 = none */
+    float tunnel_start_height;  /* NaN = none */
+    uint32_t reentrant_refused;
+    uint8_t terrain_bound;
+    uint8_t reserved[3];
+} fc4_netgeom_state;
+
+/* What the geometry needs from the game. Vertex ids are z * (cells_x + 1) + x. */
+typedef struct fc4_netgeom_host {
+    uint32_t struct_size;
+    void* user;
+    /* terrain (unused while a core terrain is bound) */
+    void (*cells)(void* user, uint32_t* cells_x, uint32_t* cells_z);
+    float (*vertex_altitude)(void* user, int32_t vertex);            /* slot 12 */
+    bool (*cell_has_water)(void* user, int32_t x, int32_t z);        /* slot 34 */
+    float (*surface_water_level)(void* user, int32_t vertex);        /* NaN = none */
+    float (*max_allowed_height)(void* user);                         /* slot 24 */
+    void (*set_altitude_at_vertex)(void* user, int32_t vertex, float h); /* slot 50 */
+    void (*begin_long_terrain_operation)(void* user);                /* slot 87 */
+    void (*redisplay_terrain)(void* user, const fc4_terrain_rect* rect, uint32_t kind); /* slot 68 */
+    void (*end_long_terrain_operation)(void* user);                  /* slot 88 */
+    /* world */
+    bool (*is_connection_node)(void* user, int32_t x, int32_t z);
+    /* Writes up to `capacity` occupants; returns the total (called again with a larger buffer). */
+    uint32_t (*cell_occupants)(void* user, int32_t x, int32_t z, fc4_netgeom_occupant* out, uint32_t capacity);
+    bool (*existing_piece)(void* user, int32_t x, int32_t z, fc4_netgeom_piece* out);
+    /* §3.3 step 3: the cell holds an auto-connect occupant (or, for road, a cell info with edges). */
+    bool (*extends_diagonal_end)(void* user, int32_t x, int32_t z, uint32_t type_id);
+    /* Slot 59 over the run's cells: the new valid count (at most `valid`). */
+    uint32_t (*update_occupant_highlights)(void* user, uint32_t type_id, const fc4_netgeom_cell* cells,
+                                           uint32_t count, uint32_t valid);
+    uint32_t (*bridge_type_count)(void* user, uint32_t type_id);
+    /* NG2: IsStepGoodForBridge, CheckBridgeStepEdgeTypes, AdjustBridgeSpan, FindBestBridgeType. */
+    bool (*is_step_good_for_bridge)(void* user, uint32_t type_id, uint32_t step, const fc4_netgeom_cell* cells,
+                                    uint32_t count);
+    bool (*bridge_step_edge_types_ok)(void* user, uint32_t type_id, uint32_t step, const fc4_netgeom_cell* cells,
+                                      uint32_t count);
+    bool (*adjust_bridge_span)(void* user, uint32_t type_id, uint32_t* start, uint32_t* end);
+    bool (*find_best_bridge_type)(void* user, uint32_t type_id, uint32_t start, uint32_t end,
+                                  uint32_t* bridge_type, uint32_t* min_span);
+} fc4_netgeom_host;
+
+/* Parameters and pure helpers. */
+bool fc4_netgeom_params_shipped(uint32_t type_id, fc4_netgeom_params* out);
+/* From the exemplar's properties (NULL = none: the defaults of §2.4). */
+bool fc4_netgeom_params_from_props(uint32_t type_id, const fc4_props* props, fc4_netgeom_params* out);
+/* params NULL = shipped. */
+bool fc4_netgeom_params_type_info(uint32_t type_id, const fc4_netgeom_params* params, fc4_netgeom_type_info* out);
+bool fc4_netgeom_break_into_segments(int32_t start_x, int32_t start_z, int32_t end_x, int32_t end_z, bool snap,
+                                     bool straight_only, uint32_t width1, uint32_t width2,
+                                     fc4_netgeom_segments* out);
+/* §9.6 step 3 for one vertex: FC4_NETGEOM_TV_*; for _FIX lo = hi = preferred = the height. */
+uint32_t fc4_netgeom_terrain_vertex(float network_height, float terrain_altitude, bool has_supports, bool fixed,
+                                    uint32_t type_id, const fc4_netgeom_params* params, float* lo, float* hi,
+                                    float* preferred);
+/* §10.2: 0, 1 or 2 from four corner and four terrain heights. */
+uint32_t fc4_netgeom_support_level(const float* corners, const float* terrain, float threshold);
+uint32_t fc4_netgeom_support_flags(uint32_t level);
+/* §10.1: the draft flag (0x80000000) is set for a draft occupant, cleared for a real one. */
+uint32_t fc4_netgeom_occupant_flags(uint32_t cell_flags, bool real, bool tunnel_occupant);
+/* §11: 0 for at most one pole. */
+int32_t fc4_netgeom_power_line_cost(uint32_t poles, uint32_t wire_cells, int32_t per_pole, float per_wire);
+/* §13: (x << 16) + z. */
+int32_t fc4_netgeom_destroy_key(int32_t x, int32_t z);
+
+/* The geometry. params NULL = the shipped table; else `count` types in type
+ * order (missing types: all-zero parameters). NULL on a bad host or params size. */
+fc4_netgeom* fc4_netgeom_create(const fc4_netgeom_host* host, const fc4_netgeom_params* params, uint32_t count);
+void fc4_netgeom_destroy(fc4_netgeom* g);
+/* Binds a core terrain (NULL = the host's terrain callbacks); it must outlive the binding. */
+bool fc4_netgeom_set_terrain(fc4_netgeom* g, fc4_terrain* terrain);
+bool fc4_netgeom_get_type_info(const fc4_netgeom* g, uint32_t type_id, fc4_netgeom_type_info* out);
+bool fc4_netgeom_set_land_bridges(fc4_netgeom* g, uint32_t type_id, bool on);
+bool fc4_netgeom_reset(fc4_netgeom* g);
+/* DrawNetworkLine (slot 18, §3.1). */
+bool fc4_netgeom_draw_line(fc4_netgeom* g, uint32_t type_id, int32_t start_x, int32_t start_z, int32_t end_x,
+                           int32_t end_z, bool snap);
+/* The validation passes (§4): the valid step count; the code is in the state's failure. */
+uint32_t fc4_netgeom_validate(fc4_netgeom* g);
+bool fc4_netgeom_create_cell_infos(fc4_netgeom* g);
+bool fc4_netgeom_insert_cell_info(fc4_netgeom* g, const fc4_netgeom_cell_info* info);
+bool fc4_netgeom_get_cell_info(const fc4_netgeom* g, int32_t x, int32_t z, fc4_netgeom_cell_info* out);
+bool fc4_netgeom_smoothen(fc4_netgeom* g, int32_t level);
+bool fc4_netgeom_can_tiles_be_supported(fc4_netgeom* g);
+/* The smoothing loop (§9.4): 0 and *level, else 0xF0000006 / 0xF0000008. */
+uint32_t fc4_netgeom_smooth(fc4_netgeom* g, int32_t* level);
+/* Passes, cell infos and smoothing (network-tools.md §5.1 steps 4-5 without the
+ * piece solver): the valid count, 0 = refused (see the failure code). */
+uint32_t fc4_netgeom_place(fc4_netgeom* g);
+/* GetCostOfSolution (network-tools.md §8.1) of the solved cells. */
+int32_t fc4_netgeom_cost(const fc4_netgeom* g, int32_t demolition);
+/* UpdateTerrainHeights (§9.7): changes above 0.001, RedisplayTerrain kind 4 inside
+ * Begin/EndLongTerrainOperation; the changed count, *rect (may be NULL) when not 0. */
+uint32_t fc4_netgeom_update_terrain_heights(fc4_netgeom* g, fc4_terrain_rect* rect);
+bool fc4_netgeom_get_state(const fc4_netgeom* g, fc4_netgeom_state* out);
+/* Lists: copy when `capacity` suffices; return the count. */
+uint32_t fc4_netgeom_get_cells(const fc4_netgeom* g, fc4_netgeom_cell* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_steps(const fc4_netgeom* g, fc4_netgeom_step* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_tunnels(const fc4_netgeom* g, fc4_netgeom_span* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_bridges(const fc4_netgeom* g, fc4_netgeom_span* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_solved(const fc4_netgeom* g, fc4_netgeom_cell* out, uint32_t capacity);
+/* The geometry's satisfiers (FC4_NETGEOM_SAT_*). */
+bool fc4_netgeom_sat_height(const fc4_netgeom* g, uint32_t which, int32_t vertex, float* out);
+bool fc4_netgeom_sat_range(const fc4_netgeom* g, uint32_t which, int32_t vertex, float* lo, float* hi);
+uint32_t fc4_netgeom_sat_solution(const fc4_netgeom* g, uint32_t which, fc4_netgeom_vertex_height* out,
+                                  uint32_t capacity);
+
+/* The standalone height satisfier (cSC4VertexHtConstraintSatisfier, §9.1). The
+ * pick tie-break is insertion order ([choice], NG1). */
+fc4_vhcs* fc4_vhcs_create(void);
+void fc4_vhcs_destroy(fc4_vhcs* s);
+bool fc4_vhcs_init(fc4_vhcs* s, float lo, float hi);
+bool fc4_vhcs_shutdown(fc4_vhcs* s);
+/* AddVertexToSolve: false when already present. */
+bool fc4_vhcs_add_vertex(fc4_vhcs* s, int32_t vertex, float initial);
+bool fc4_vhcs_insert_range(fc4_vhcs* s, int32_t vertex, float lo, float hi);
+bool fc4_vhcs_insert_fixed(fc4_vhcs* s, int32_t vertex, float height);
+bool fc4_vhcs_insert_equality(fc4_vhcs* s, int32_t a, int32_t b);
+bool fc4_vhcs_insert_slope(fc4_vhcs* s, int32_t a, int32_t b, float limit);
+/* |h(a) - 2 h(b) + h(c)| <= limit, b the middle vertex. */
+bool fc4_vhcs_insert_smoothness(fc4_vhcs* s, int32_t a, int32_t b, int32_t c, float limit);
+bool fc4_vhcs_set_preferred_value(fc4_vhcs* s, int32_t vertex, float height);
+bool fc4_vhcs_set_preferred_range(fc4_vhcs* s, int32_t vertex, float lo, float hi);
+/* Solve: false when a range became empty. */
+bool fc4_vhcs_solve(fc4_vhcs* s);
+bool fc4_vhcs_height(fc4_vhcs* s, int32_t vertex, float* out);
+bool fc4_vhcs_range(fc4_vhcs* s, int32_t vertex, float* lo, float* hi);
+uint32_t fc4_vhcs_solution(fc4_vhcs* s, fc4_netgeom_vertex_height* out, uint32_t capacity);
+
 /* ---- turbo clock (tooling, not simulator.md; fc4_core::Turbo) --------------
  * Tooling deviation for test runs (the plugin's sim_turbo). Off (the default)
  * changes nothing. On: the day gate's "ready" (spec §5.2 step 3) is always true
@@ -11559,6 +12058,16 @@ static_assert(sizeof(fc4_prop_occupant_host) == (sizeof(void*) == 4 ? 36 : 72), 
 static_assert(sizeof(fc4_prop_effect_host) == (sizeof(void*) == 4 ? 24 : 48), "fc4_prop_effect_host layout");
 static_assert(sizeof(fc4_prop_slot_info) == 16, "fc4_prop_slot_info layout");
 
+static_assert(sizeof(fc4_effects_post) == 24, "fc4_effects_post layout");
+static_assert(sizeof(fc4_effects_rect) == 16, "fc4_effects_rect layout");
+static_assert(sizeof(fc4_effects_demolish_filter) == 12, "fc4_effects_demolish_filter layout");
+static_assert(sizeof(fc4_effects_occupant_facts) == 16, "fc4_effects_occupant_facts layout");
+static_assert(sizeof(fc4_effects_directory_counts) == 24, "fc4_effects_directory_counts layout");
+static_assert(sizeof(fc4_effects_state) == 80, "fc4_effects_state layout");
+static_assert(sizeof(fc4_effect_info) == 48, "fc4_effect_info layout");
+static_assert(sizeof(fc4_effects_brush_state) == 56, "fc4_effects_brush_state layout");
+static_assert(sizeof(fc4_effects_game_state) == 32, "fc4_effects_game_state layout");
+static_assert(sizeof(fc4_effects_host) == (sizeof(void*) == 4 ? 80 : 160), "fc4_effects_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
@@ -11679,7 +12188,28 @@ _Static_assert(sizeof(fc4_mysim_state) == 240, "fc4_mysim_state layout");
 _Static_assert(sizeof(fc4_prop_occupant_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_prop_occupant_host layout");
 _Static_assert(sizeof(fc4_prop_effect_host) == (sizeof(void*) == 4 ? 24 : 48), "fc4_prop_effect_host layout");
 _Static_assert(sizeof(fc4_prop_slot_info) == 16, "fc4_prop_slot_info layout");
-
+_Static_assert(sizeof(fc4_netgeom_params) == 76, "fc4_netgeom_params layout");
+_Static_assert(sizeof(fc4_netgeom_type_info) == 44, "fc4_netgeom_type_info layout");
+_Static_assert(sizeof(fc4_netgeom_segments) == 24, "fc4_netgeom_segments layout");
+_Static_assert(sizeof(fc4_netgeom_cell) == 8, "fc4_netgeom_cell layout");
+_Static_assert(sizeof(fc4_netgeom_step) == 12, "fc4_netgeom_step layout");
+_Static_assert(sizeof(fc4_netgeom_span) == 12, "fc4_netgeom_span layout");
+_Static_assert(sizeof(fc4_netgeom_vertex_height) == 8, "fc4_netgeom_vertex_height layout");
+_Static_assert(sizeof(fc4_netgeom_occupant) == 12, "fc4_netgeom_occupant layout");
+_Static_assert(sizeof(fc4_netgeom_piece) == 76, "fc4_netgeom_piece layout");
+_Static_assert(sizeof(fc4_netgeom_cell_info) == 180, "fc4_netgeom_cell_info layout");
+_Static_assert(sizeof(fc4_netgeom_state) == 96, "fc4_netgeom_state layout");
+_Static_assert(sizeof(fc4_netgeom_host) == (sizeof(void*) == 4 ? 84 : 168), "fc4_netgeom_host layout");#endif
+_Static_assert(sizeof(fc4_effects_post) == 24, "fc4_effects_post layout");
+_Static_assert(sizeof(fc4_effects_rect) == 16, "fc4_effects_rect layout");
+_Static_assert(sizeof(fc4_effects_demolish_filter) == 12, "fc4_effects_demolish_filter layout");
+_Static_assert(sizeof(fc4_effects_occupant_facts) == 16, "fc4_effects_occupant_facts layout");
+_Static_assert(sizeof(fc4_effects_directory_counts) == 24, "fc4_effects_directory_counts layout");
+_Static_assert(sizeof(fc4_effects_state) == 80, "fc4_effects_state layout");
+_Static_assert(sizeof(fc4_effect_info) == 48, "fc4_effect_info layout");
+_Static_assert(sizeof(fc4_effects_brush_state) == 56, "fc4_effects_brush_state layout");
+_Static_assert(sizeof(fc4_effects_game_state) == 32, "fc4_effects_game_state layout");
+_Static_assert(sizeof(fc4_effects_host) == (sizeof(void*) == 4 ? 80 : 160), "fc4_effects_host layout");
 #endif
 
 #endif /* FC4_H */

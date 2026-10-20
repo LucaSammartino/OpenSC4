@@ -249,6 +249,9 @@ pub mod keys {
     pub const REGION_CREATION: SeedKey = SeedKey::FileLocal(file_seed::REGION_CREATION);
     /// Advice (`0x00B22E58`, `cRZRandom`).
     pub const ADVICE: SeedKey = SeedKey::FileLocal(file_seed::ADVICE);
+    /// Brush effects (`0x00B22BE8`, `cRZRandom`, effects.md §8.2): one per
+    /// effects manager in FreeCity4.
+    pub const BRUSH_EFFECTS: SeedKey = SeedKey::FileLocal(file_seed::BRUSH_EFFECTS);
     /// Prop developer (`cRZRandomSuper` member seeded with the wall clock
     /// × 28 at construction; GZCLSID `0x89C48F47`, prop-developer.md §1):
     /// seed it with [`super::prop_developer_seed`].
@@ -281,6 +284,16 @@ pub mod keys {
     pub const fn pipe_burst_start(n: u32) -> SeedKey {
         SeedKey::Temporary {
             clsid: crate::disasters::seed::PIPE_BURST_MANAGER,
+            n,
+        }
+    }
+
+    /// The city detail manager's increase-pass generator (city-detail.md
+    /// §3.5 *[choice]*), the `n`-th increase pass of the session; `K` =
+    /// `0xEAD4BA36` XOR `n`.
+    pub const fn city_detail_increase(n: u32) -> SeedKey {
+        SeedKey::Temporary {
+            clsid: crate::city_detail::CLSID_CITY_DETAIL,
             n,
         }
     }
@@ -356,6 +369,13 @@ mod tests {
         // derive(K) = 0x40000000 gives 0 after × 28.
         assert_eq!(prop_developer_seed(0x4000_0000 ^ 0x89C4_8F47), 0);
         assert_eq!(prop_developer_seed(0x89C4_8F47), 28);
+    }
+
+    #[test]
+    fn k_city_detail_increase() {
+        check(keys::city_detail_increase(0), 0xEAD4_BA36);
+        check(keys::city_detail_increase(1), 0xEAD4_BA37);
+        check(keys::city_detail_increase(5), 0xEAD4_BA33);
     }
 
     #[test]

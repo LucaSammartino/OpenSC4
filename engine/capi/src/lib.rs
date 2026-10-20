@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 72;
+pub const FC4_ABI_VERSION: u32 = 73;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -886,6 +886,7 @@ pub mod demolition;
 pub mod development;
 pub mod disasters;
 pub mod dispatch;
+pub mod effects;
 pub mod flammability;
 pub mod flammability_shadow;
 pub mod flora;
@@ -901,6 +902,7 @@ pub mod lot_config;
 pub mod lotdev;
 pub mod neighbors;
 pub mod neighbors_shadow;
+pub mod network_geometry;
 pub mod network_manager;
 pub mod network_rules;
 pub mod occupant_manager;
@@ -976,6 +978,8 @@ mod development_tests;
 
 #[cfg(test)]
 mod disasters_tests;
+#[cfg(test)]
+mod effects_tests;
 
 #[cfg(test)]
 mod dispatch_tests;
@@ -1003,6 +1007,9 @@ mod lotdev_tests;
 
 #[cfg(test)]
 mod neighbors_tests;
+
+#[cfg(test)]
+mod network_geometry_tests;
 
 #[cfg(test)]
 mod network_manager_tests;
@@ -1038,6 +1045,9 @@ mod power_shadow_tests;
 
 #[cfg(test)]
 mod prop_developer_tests;
+
+#[cfg(test)]
+mod prop_city_sweep_tests;
 
 #[cfg(test)]
 mod protection_tests;

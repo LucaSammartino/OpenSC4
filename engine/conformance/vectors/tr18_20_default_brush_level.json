@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "name": "tr18_20_default_brush_level",
+  "spec": [
+    "terrain 2.3",
+    "terrain 18.20"
+  ],
+  "description": "The default brush level (+0xBC) is 0 from the constructor and stays 0 after DoPostCityInit with no camera (TR9).",
+  "steps": [
+    {
+      "op": "ter_create",
+      "new": true,
+      "cells": [
+        64,
+        64
+      ],
+      "view_ready": false
+    },
+    {
+      "op": "ter_call",
+      "method": "default_brush_level",
+      "expect": 0
+    },
+    {
+      "op": "ter_call",
+      "method": "post_city_init"
+    },
+    {
+      "op": "ter_call",
+      "method": "default_brush_level",
+      "expect": 0
+    }
+  ]
+}

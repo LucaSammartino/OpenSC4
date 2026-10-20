@@ -436,3 +436,22 @@ fn registration_signs_and_triggers() {
         fc4_prop_developer_destroy(p);
     }
 }
+
+/// The save sweep (`prop_city_sweep_tests.rs`): `rec` read into a fresh
+/// developer (Read before Init, §7) and written again.
+pub(super) fn sweep_round_trip(rec: &[u8]) -> Result<Vec<u8>, String> {
+    let g = Game::new();
+    unsafe {
+        let p = fc4_prop_developer_create(&host(&g), 1, 0x7000);
+        if p.is_null() {
+            return Err("create failed".into());
+        }
+        let r = crate::save_sweep_tests::read_write(
+            rec,
+            |i| fc4_prop_developer_read(p, i),
+            |o| fc4_prop_developer_write(p, o),
+        );
+        fc4_prop_developer_destroy(p);
+        r
+    }
+}

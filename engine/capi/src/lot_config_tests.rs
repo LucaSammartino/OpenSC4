@@ -559,14 +559,14 @@ fn city() -> Box<Game> {
     g
 }
 
-fn ready(g: &Game, cat: *const fc4_lot_config_catalogue) -> *mut fc4_lot_config {
+fn ready(g: &Game, cat: *const fc4_lot_config_catalogue) -> *mut fc4_lot_config_manager {
     let m = unsafe { fc4_lot_config_create(&host(g), cat, 0x900) };
     assert!(!m.is_null());
     assert!(unsafe { fc4_lot_config_init(m) });
     m
 }
 
-fn state(m: *const fc4_lot_config) -> fc4_lot_config_state {
+fn state(m: *const fc4_lot_config_manager) -> fc4_lot_config_state {
     let mut s = fc4_lot_config_state::default();
     assert!(unsafe { fc4_lot_config_get_state(m, &mut s) });
     s
@@ -601,7 +601,7 @@ fn tokens(f: impl FnOnce(fc4_token_callback, *mut c_void) -> u32) -> Vec<u64> {
     v
 }
 
-fn configuration(m: *const fc4_lot_config, id: u32) -> u64 {
+fn configuration(m: *const fc4_lot_config_manager, id: u32) -> u64 {
     unsafe { fc4_lot_config_configuration(m, id) }
 }
 

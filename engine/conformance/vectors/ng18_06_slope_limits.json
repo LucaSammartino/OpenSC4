@@ -1,0 +1,71 @@
+{
+ "format": 1,
+ "name": "ng18_06_slope_limits",
+ "spec": [
+  "network-geometry 2.3",
+  "9.2",
+  "18.6"
+ ],
+ "description": "Type info +0x100 = r24(tan(r24(deg x 0.017453292)) x 16), +0x104 = r24(+0x100 x 0.70710677): road 11.2033 / 7.9219 (35 deg), highway 5.8235 / 4.1179 (20 deg), rail 7.4609 / 5.2757, street 13.4256 / 9.4933, pipe 16.0 / 11.3137.",
+ "steps": [
+  {
+   "op": "ng_type_info",
+   "type": 0,
+   "state": {
+    "slope_rise": 11.2033,
+    "diagonal_slope_rise": 7.92195,
+    "smoothness": 11.2033,
+    "widths": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "op": "ng_type_info",
+   "type": 2,
+   "state": {
+    "slope_rise": 5.82354,
+    "diagonal_slope_rise": 4.11785,
+    "widths": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "op": "ng_type_info",
+   "type": 1,
+   "state": {
+    "slope_rise": 7.46092,
+    "diagonal_slope_rise": 5.27567
+   }
+  },
+  {
+   "op": "ng_type_info",
+   "type": 3,
+   "state": {
+    "slope_rise": 13.4256,
+    "diagonal_slope_rise": 9.49333
+   }
+  },
+  {
+   "op": "ng_type_info",
+   "type": 4,
+   "state": {
+    "slope_rise": 16.0,
+    "diagonal_slope_rise": 11.3137
+   }
+  },
+  {
+   "op": "ng_type_info",
+   "type": 5,
+   "state": {
+    "widths": [
+     1,
+     2
+    ]
+   }
+  }
+ ]
+}

@@ -37,6 +37,9 @@
 #include "FC4CommercialShadow.h"
 #include "FC4CivicShadow.h"
 #include "FC4ParksShadow.h"
+#include "FC4PropDevShadow.h"     // the glue12b1 lane
+#include "FC4CityDetailShadow.h"  // the glue12b1 lane
+#include "cFC4PropDeveloper.h"    // the glue12b1 lane: the propdev month line
 #include "FC4DisasterShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
@@ -49,7 +52,7 @@
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "FC4OccMgrShadow.h"
-#include "cFC4LotDeveloper.h"
+#include "FC4PropLotShadow.h"  // the glue15 lane#include "cFC4LotDeveloper.h"
 #include "cFC4Message2Standard.h"
 #include "fc4.h"
 
@@ -92,9 +95,10 @@ constexpr uint32_t kMsgPostCityShutdown = 0x26D31EC3;
 // shadow (FC4AuraShadow.h) no longer uses it: it is posted and arrives
 // later than the original's state 17 (§5.3).
 constexpr uint32_t kMsgAuraCycleCompleted = 0x2A09B21A;
+constexpr uint32_t kMsgPreSave = 0x26C63343;  // foundations.md §3.7: the prop / lot configuration / tutorial shadows
 constexpr uint32_t kObserverMessages[] = {kMsgPostCityInit,     kMsgSimNewDay,       kMsgSimNewMonth,
                                          kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown,
-                                         kMsgAuraCycleCompleted};
+                                         kMsgAuraCycleCompleted, kMsgPreSave};
 constexpr uint32_t kObserverServiceID = 0x5C7A43E2;  // random, FreeCity4's
 constexpr int32_t kObserverPriority = -1000000;      // [choice] tooling; any value works
 
@@ -575,15 +579,19 @@ public:
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
                 NetMgrShadowCityLoaded(CurrentCity());   // netmgr_shadow = 1 only
                 OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only                TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
-                DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
+                CityDetailShadowCityLoaded(CurrentCity());  // citydetail_shadow = 1 only
+                TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only                DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
                 CitySitShadowCityLoaded(CurrentCity());  // the glue17 lane: citysit_shadow = 1 only
                 DemolitionShadowCityLoaded(CurrentCity());  // demolition_shadow = 1 only
                 DemolitionPriceShadowCityLoaded(CurrentCity());  // the glue23 lane: demolition_price_shadow = 1 only
                 DispatchShadowCityLoaded(CurrentCity());  // dispatch_shadow = 1 only
-                // The snapshot at the next tick (outside the city's init
+                PropLotShadowCityLoaded(CurrentCity());    // propmgr_shadow / lotcfg_shadow / tutorial_shadow = 1 only                // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
                 monthsSinceLoad_ = 0;
+                break;
+            case kMsgPreSave:
+                PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them
                 break;
             case kMsgConnectionsReady:
                 PopupDialogsOnConnectionsReady();
@@ -602,12 +610,13 @@ public:
                 ParksShadowCityShutdown();  // parks_shadow: the same
                 NetMgrShadowCityShutdown();  // netmgr_shadow: the shadow cores and their references go
                 OccMgrShadowCityShutdown();  // occmgr_shadow: the probe, the shadow core and its references                TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
-                DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
+                PropDevShadowCityShutdown();  // propdev_shadow: the shadow cores and their references go with the city
+                TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes                DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
                 CitySitShadowCityShutdown();  // the glue17 lane: citysit_shadow's summary, then the core goes
                 DemolitionShadowCityShutdown();
                 DemolitionPriceShadowCityShutdown();  // the glue23 lane
                 DispatchShadowCityShutdown();
-                AutotestOnCityShutdown(false);
+                PropLotShadowCityShutdown();    // the prop / lot configuration / tutorial shadows' totals                AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:
                 AutotestOnCityShutdown(true);
@@ -647,8 +656,10 @@ public:
                 DispatchShadowMonth(CurrentCity(), julian);    // dispatch_shadow = 1 only
                 NetMgrShadowMonth(CurrentCity(), julian);       // netmgr_shadow = 1 only                ++monthsSinceLoad_;
                 OccMgrShadowMonth(CurrentCity(), julian);       // occmgr_shadow = 1 only
-                ++monthsSinceLoad_;
-                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
+                PropLotShadowMonth(CurrentCity(), julian);      // propmgr / lotcfg / tutorial shadows only                ++monthsSinceLoad_;
+                cFC4PropDeveloper::MonthLine(julian);           // enable = propdev only (the month status line)
+                PropDevShadowMonth(CurrentCity(), julian);      // propdev_shadow = 1 only
+                ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.
                     saveStarted_ = true;

@@ -1,0 +1,45 @@
+{
+ "format": 1,
+ "name": "ng18_17_cell_cost",
+ "spec": [
+  "network-geometry 11",
+  "network-tools 8.1",
+  "18.17"
+ ],
+ "description": "Road (10, 10) -> (20, 10) on flat empty land: 11 solved in-run cells at 10 each, no earthwork (every corner on the terrain), no demolition: 110. A demolition cost of 7 adds 7.",
+ "steps": [
+  {
+   "op": "ng_draw",
+   "start": [
+    10,
+    10
+   ],
+   "end": [
+    20,
+    10
+   ],
+   "snap": true,
+   "expect": true
+  },
+  {
+   "op": "ng_place",
+   "expect": 11
+  },
+  {
+   "op": "ng_expect",
+   "state": {
+    "failure": 0,
+    "level": 0
+   }
+  },
+  {
+   "op": "ng_cost",
+   "expect": 110
+  },
+  {
+   "op": "ng_cost",
+   "demolition": 7,
+   "expect": 117
+  }
+ ]
+}

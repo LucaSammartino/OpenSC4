@@ -39,6 +39,7 @@ FCD = os.path.join(ENGINE, "plugin", "FC4DevelopmentInterfaces.h")
 FC4T = os.path.join(ENGINE, "plugin", "FC4TractInterfaces.h")
 FCL = os.path.join(ENGINE, "plugin", "FC4LotDevInterfaces.h")
 FCW = os.path.join(ENGINE, "plugin", "FC4WinInterfaces.h")
+FCP = os.path.join(ENGINE, "plugin", "FC4PortInterfaces.h")
 
 # (table interface, class, header, required)
 #   required = the plugin implements or calls the interface through this
@@ -289,6 +290,17 @@ INTERFACES = [
     # implemented through the SDK declarations (cISC4CommercialSimulator is listed above
     # for the growth developers' calls).
     ("cISC4IndustrialSimulator", "cISC4IndustrialSimulator", "cISC4IndustrialSimulator.h", True),
+    # The airport and seaport developers (docs/specs/port-developers.md section 8; the
+    # glue12b2 lane): implemented and called through the compiled slot order (the SDK's
+    # GetNumSeaports takes an argument; GetAvgEfficiency's hidden result), and their
+    # message-target and serializable sub-objects. The port sub-object at +4 implements
+    # slots 0-9 only (slots 10-18 are internal, section 8.3): not listed.
+    ("cISC4AirportDeveloper", "cFC4ISC4AirportDeveloper", FCP, True),
+    ("cISC4SeaportDeveloper", "cFC4ISC4SeaportDeveloper", FCP, True),
+    ("cIGZMessageTarget2(AirportDeveloper)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cIGZMessageTarget2(SeaportDeveloper)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cIGZSerializable(AirportDeveloper)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZSerializable(SeaportDeveloper)", "cIGZSerializable", "cIGZSerializable.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),
@@ -311,7 +323,9 @@ INTERFACES = [
     ("cISCResExemplarCohort", "cISCResExemplarCohort", "cISCResExemplarCohort.h", True),
 ]
 
-BASE_HEADERS = {"cIGZSerializable": "cIGZSerializable.h"}
+BASE_HEADERS = {"cIGZSerializable": "cIGZSerializable.h",
+                # the port developers (glue12b2): their shared base
+                "cFC4ISC4PortDeveloper": FCP}
 
 
 def strip_comments(text):

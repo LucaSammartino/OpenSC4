@@ -2345,20 +2345,20 @@ random draw returns 0 unless queued.
 | `ter_create` | `cells?` [x, z], `altitudes?` (row-major, z outer, `(x+1)(z+1)` values; `"nan"` allowed) or `flat?`, `sea?`, `tuning?` (`"shipped"` or a partial `TerrainTuning`: `max_height`, `min_height`, `new_sea_level`, `new_flat_height`, `image_height_scale`, `sea_level_min`, `sea_level_max`, `cliff_slope`, `saved_78`), `view_ready?` (true), `new?` (false; true: `Create` from the tuning instead of the altitude array) | a new terrain, replacing the current one |
 | `ter_env` | any of `lots` ([[x, z, lot]]), `bridges` ([[x, z, deck or null]]: null is a bridge whose deck is unknown), `poles` ([[x, z]]), `not_flammable` ([[x, z]]), `burn_cells` (the queue `next_burn_cell` returns), `random` (queued draws) | the world |
 | `ter_set` | `vertex` [x, z] or `vertices` [x0, z0, x1, z1] (inclusive) with any of `altitude`, `depth`, `flags`; or `cell` [x, z] with `depths` (the corners (x, z), (x+1, z), (x, z+1), (x+1, z+1)); or `cached` [min, max] | raw state, no messages, no depth bookkeeping |
-| `ter_add_brush` | `brush` (ID), `bitmap` (`{width, height, fill}` or `{width, height, pixels}`), `angle?`, `expect?` | registers a kind-0 description over the bitmap |
+| `ter_add_brush` | `brush` (ID) and either `bitmap` (`{width, height, fill}` or `{width, height, pixels}`; `brush` one of the shipped `0x11`, `0x12`, `0x14`) or `components` (`[{kind, radius, strength, oriented?, neutral?, bitmap?}]`, `radius` / `strength` one number or five per-level values, `oriented` false, `neutral` 0) with `step?` (the random-walk step in radians, 0); `walk_angle?` (`angle?` is the same), `stroke_angle?`, `expect?` | registers a description: a shipped one (one oriented kind-0 component, the 0.5° default walk step, so every in-bounds `ApplyBrush` logs one `random` n = 5) or a custom one |
 
 ### Calls and checks
 
 | op | Arguments | Effect / check |
 |---|---|---|
-| `ter_call` | `method`, `args?`, `expect?`, `expect_bits?` (the f32's bits) | the queries `altitude`, `altitude_at_index`, `altitude_at_vertex`, `altitude_at_nearest_grid`, `altitude_checksum`, `cell_corner_altitudes`, `location_is_in_bounds`, `face_normal` ([x, y, z] or null when untouched), `min_height`, `max_height`, `min_allowed_height`, `max_allowed_height`, `vert_index`, `sea_level`, `water_level`, `water_depth_at_vertex`, `water_depth_at_index`, `max_surface_level`, `cell_has_water`, `cell_has_land`, `is_land_vertex`, `is_water_vertex`, `is_sea_vertex`, `water_depth_for_cell`, `has_draft_clearance`, `water_type`, `is_navigable` ([x, z, r, lot]), `is_triangulation_flipped`, `cell_flags`, `terrain_type`; the setters `raise_vertex`, `lower_vertex`, `set_altitude_at_vertex`, `set_altitude`, `set_altitude_rect`, `lock_altitude` ([x0, z0, x1, z1, lock]), `set_sea_level`, `set_terrain_type`; the messages `redisplay` ([terrain, water, x0, z0, x1, z1, data4]), `redisplay_cells` (slot 69, the same arguments as cell corners), `begin_long_terrain_operation`, `end_long_terrain_operation`, `post_city_init`; the bodies of water `update_bodies`, `body` ([x, z] → the ID, 0 for none), `bodies_map` |
+| `ter_call` | `method`, `args?`, `expect?`, `expect_bits?` (the f32's bits) | the queries `altitude`, `altitude_at_index`, `altitude_at_vertex`, `altitude_at_nearest_grid`, `altitude_checksum`, `cell_corner_altitudes`, `location_is_in_bounds`, `face_normal` ([x, y, z] or null when untouched), `min_height`, `max_height`, `min_allowed_height`, `max_allowed_height`, `vert_index`, `sea_level`, `water_level`, `water_depth_at_vertex`, `water_depth_at_index`, `max_surface_level`, `cell_has_water`, `cell_has_land`, `is_land_vertex`, `is_water_vertex`, `is_sea_vertex`, `water_depth_for_cell`, `has_draft_clearance`, `water_type`, `is_navigable` ([x, z, r, lot]), `is_triangulation_flipped`, `cell_flags`, `terrain_type`; the setters `raise_vertex`, `lower_vertex`, `set_altitude_at_vertex`, `set_altitude`, `set_altitude_rect`, `lock_altitude` ([x0, z0, x1, z1, lock]), `set_sea_level`, `set_terrain_type`; the messages `redisplay` ([terrain, water, x0, z0, x1, z1, data4]), `redisplay_cells` (slot 69, the same arguments as cell corners), `begin_long_terrain_operation`, `end_long_terrain_operation`, `post_city_init`; the bodies of water `update_bodies`, `body` ([x, z] → the ID, 0 for none), `bodies_map`; round 2: `lerped_water_level` ([x, z] metres), `flooding_altitude` ([x, z]), `water_velocity` ([x, z] → [3]), `sediment_at` ([x, z] metres), `water_display_state`, `set_water_display_state` ([state] → whether it posted), `default_brush_level`, `neighbor_mask` ([x, z]), `talus_angle`, `set_talus_angle` ([radians]), `brush_angles` ([id] → [walk, stroke] or null), `set_brush_angles` ([id, walk, stroke]), `brush_corners` ([cx, cz, w, h, cos, sin] → four [x, z]), `spans` (the four corners as [x0, z0, … x3, z3] → `ComputeSpansForRectangle`'s [[z, start, end]]) |
 | `ter_apply_brush` | `brush`, `from` [x, z], `to?`, `level?`, `redisplay?`, `strength?` (1), `radius?` (1), `data4?`, `target?`, `expect?`, `out?` ([x0, z0, x1, z1] or null: empty) | `ApplyBrush` with a `BrushParams` |
 | `ter_expect` | `state` (partial: `cells`, `sea_level`, `min_height`, `max_height` (the cache), `view_ready`, `terrain_type`, `saved_78`, `posts_pending`) | the terrain object |
 | `ter_expect_vertices` | `vertex` [x, z] with any of `altitude`, `depth`, `flags`; or `rect?` (the whole terrain) with any of `min`, `max`, `baseline` + `changed_within` (the only vertices that differ from `baseline`) and `changed` (how many) | the height field |
 | `ter_lava_start` | `at` [x, z] (metres), `radius?` (20), `expect?` (`{source, active, burn}` rectangles) | a `Lava` over the terrain |
 | `ter_lava_set` | `vertex` [x, z] or `around` [x, z] (the eight neighbours) with any of `level`, `production`, `solidification` | lava state |
-| `ter_lava_call` | `method`, `args?`, `expect?` | `flow_amount` and `transfer` ([x, z, dt] → `{amount, to, mode}`; `mode` is `none`, `ignite` or `quick_burn`), `level` ([x, z]), `flow` ([dt], one `DoLavaFlow`), `burn`, `rects` |
-| `ter_record` | `sizes?` (`{misc, altitudes, properties, edges: [4]}`), `round_trip?` (write, load into a fresh terrain, compare every field), `edge?` (`{side, count, values?}`) | the §13.1 records |
+| `ter_lava_call` | `method`, `args?`, `expect?` | `flow_amount` and `transfer` ([x, z, dt] → `{amount, to, mode}`; `mode` is `none`, `ignite` or `burn`), `level` ([x, z]), `flow` ([dt], one `DoLavaFlow`), `burn`, `rects`, `lowest_neighbour` ([x, z] → [x, z] or null), `set_things_on_fire` ([x, z, old, amount] → the mode) |
+| `ter_record` | `sizes?` (`{misc, altitudes, properties, edges: [4]}`), `round_trip?` (write, load into a fresh terrain, compare every field), `sea_after_load?` (write, load, the loaded sea level), `edge?` (`{side, count, values?}`) | the §13.1 records |
 | `ter_expect_events` / `ter_expect_event_count` / `ter_clear_events` | see the shared conventions | host calls |
 
 Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_burn` (`x`, `z`), `cause`
@@ -2383,6 +2383,12 @@ sources (every read fails), tags (1, 2). Detokenizing prefixes `detok:`. A host 
 Object specs (`object`, `advisor`, `advice`, `target`, …): `"system"`, `{"advisor": id}`, `{"advice": guid,
 "advisor"?: id}` (the first advisor holding it), `{"mysim": index}` (with the MySim ops) or a name given by
 `adv_subject`, `adv_create_object`, `mysim_read` or a record read (`ref<id>`).
+## Effects ops
+
+The effects vectors (`ef17_…` for the §17 tests) drive `fc4_core::effects` (`docs/specs/effects.md`): the effects
+manager (`EffectsManager`), the brush effect, the game effect and the effect directory. Every op name starts with
+`ef_`. The host logs every call it receives. The default host: a simulator with dilation 1, a city of 64 × 64 cells
+(16 m), render components inactive.
 
 ### Setup
 
@@ -2457,6 +2463,13 @@ until set. `sim` is a vector index (0–5) or a name from `mysim_read`.
 | `mysim_position` / `mysim_rect_lot` / `mysim_dispatch` | `occupant`, `position` / a lot / `id` + dispatch fields | a fire's position / a lot of the trip square / a MySim's dispatch |
 | `mysim_set` | `sim` + MySim fields (state, slot, wealth, age, keys, rings, pylon, references, …), `month_counter`, `queue: []` | pokes the state |
 | `mysim_reseed` | `sim`, `seed` | the MySim's generator restarts (clock seeds 1) |
+| `ef_create` | `directory?` (`"volcano"`, the default: `shipped::volcano_directory()`; or inline `{games?, effects: [{name, priority? (1), flags?, components: [{type, index?, name?, flags?, lod? [min, max], group?, weight?}]}]}`, with the shipped brush records and, unless `games` is given, the shipped game records), `seed?` (the session seed), `max_priority?`, `finish_mode?` (`hook` (the default) or `draw_pass`), `nested_update?` (true) | a new manager, replacing the current one; labels are cleared |
+| `ef_env` | any of `dilation` (a number, or null: no simulator), `cells` [x, z], `render_active` | the host |
+| `ef_effect` | `name`, `as?` (a label), `expect?` (whether an effect was created), `expect_index?` (the description chosen; -1: none qualifies) | `CreateVisualEffect` |
+
+Component `type`: `particles`, `decal`, `meta`, `brush`, `attractor`, `game`, `sound` or a number. Game record
+fields (inline): `flags`, `demolish`, `demolish_flags`, `min_size`, `max_size`, `burn`, `message`, `message_data`,
+`duration`, `toxic`, `extinguish`.
 
 ### Calls and checks
 
@@ -2472,6 +2485,53 @@ until set. `sim` is a vector index (0–5) or a name from `mysim_read`.
 
 MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_post` (`type`, `data1`, `data2`,
 `void1`, `sim`), `dispatch` (`sim`, `what`), `trigger` (`name`, `position`), `mysim_subscribe` (`type`, `on`).
+## Network geometry ops
+
+The network geometry vectors (`ng18_…`, the §18 tests of `docs/specs/network-geometry.md`) drive
+`fc4_core::network_geometry`: a `NetworkGeometry` (the run, the passes, the cell infos, the two satisfiers) over a
+`fc4_core::terrain::Terrain` and a scripted host. Every op name starts with `ng_`. The terrain's posts are drained into
+the event log after each op. The default city: 64 × 64 cells, flat at 300 m, sea level 250 m, view-ready, the shipped
+placement parameters (§2.4). The default host: no occupants, no existing pieces, no connection nodes, no bridge
+types.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `ng_city` | `cells?` [x, z] (64, 64), `altitude?` (300), `sea?` (250), `columns?` [[x0, x1, alt]] (vertex columns), `slope_x?` (altitude := `altitude` + `slope_x` × x), `vertices?` [[x, z, alt]], `view_ready?` (true) | a new terrain |
+| `ng_types` | `type`, `params` (partial: `max_slope`, `max_slope_change`, `max_raise`, `max_cut`, `resolve_tolerance`, `tunnel_trigger_slope`, `tunnel_end_slope`, `new_cell_tolerance`, `support_threshold`, `max_support_height`, `tunnel_clearance`) | one type's placement parameters over the shipped ones |
+| `ng_host` | any of `landfill` [[x, z]], `immovable` [[x, z, node, type]] (immovable network occupants), `nodes` [[x, z]] (connection-node cell infos), `existing` [{`cell`, `corners` [4], `immovable?`, `flags?` (1), `supports?`}], `extend` [[x, z]] (§3.3 step 3), `bridge_types` (count), `bridge_min_span`, `highlight_cut` (slot 59's new count) | the host |
+| `ng_segments` | `start`, `end`, `snap?`, `straight_only?`, `widths?` [w1, w2]; `state` (partial: `end`, `dragged_count`, `straight_count`, `axis`, `pen_direction`, `end_direction`) | `BreakIntoStraightAndDiagSegments` |
+| `ng_draw` | `type?` (0), `start`, `end`, `snap?`, `expect?` | `Reset` then `DrawNetworkLine` |
+| `ng_validate` | `expect?` (the valid count) | the passes of §4 |
+| `ng_cell_infos` | | the cell infos of the valid steps |
+| `ng_smoothen` | `level`, `expect?` | `SmoothenNetwork(level)` |
+| `ng_support` | `expect?` | slot 56 on the last smoothing |
+| `ng_place` | `expect?` (the valid count) | the passes, the cell infos and the smoothing loop |
+| `ng_expect` | `state` (partial: `valid`, `failure`, `level` (null = none), `end`, `dragged_count`, `straight_count`, `pen_direction`, `end_direction`, `cells`, `kinds`, `tunnels` [[start, end]], `bridges` [[start, end]], `tunnel_searches`, `heights` / `terrain_heights` (`{"vertex": h}`, null = unsolved), `smoothing_cells`, `boundary`) | the geometry |
+| `ng_type_info` | `type`; `state` (partial: `slope_rise`, `diagonal_slope_rise`, `smoothness`, `diagonal_smoothness`, `tunnel_trigger_rise`, `widths`, `straight_only`) | the shipped type info (§2.3) |
+| `ng_sat` | `sat?` (`network` or `terrain`), `call`, `args?`, `expect?` | the satisfier: `init` [lo, hi] (`"max"` / `"-max"` for ±FLT_MAX), `shutdown`, `add` [v, h] (→ new), `fixed` [v, h], `range` [v, a, b], `equality` [a, b], `slope` [a, b, s], `smoothness` [a, b, c, s], `preferred` [v, h], `preferred_range` [v, a, b], `solve` (→ bool), `height` [v], `range_of` [v], `solution` (→ [[v, h]] in solution order) |
+| `ng_terrain_vertex` | `n`, `t`, `supports`, `fixed?`, `type?`; `expect` `{fix}`, `{range, preferred}` or `"unsupported"` | §9.6 step 3 |
+| `ng_support_level` | `corners`, `terrain`, `threshold`; `expect` `{level, flags}` | §10.2 |
+| `ng_occupant_flags` | `flags`, `real`, `tunnel?`; `expect` | §10.1 |
+| `ng_cost` | `demolition?`; `expect` | `GetCostOfSolution` of the placed run |
+| `ng_power_line_cost` | `poles`, `wire`, `per_pole?` (15), `per_wire?` (2.0); `expect` | §11 |
+| `ng_destroy` | `destroyed`, `pieces`, `replaced` ([[x, z]] each); `expect` `{removals, resolve}` | §13 |
+| `ng_grade` | `expect?` `{changed, rect}` | slot 57 on the terrain satisfier |
+| `ng_expect_events`, `ng_clear_events` | as elsewhere | the terrain's posts |
+| `ef_call` | `method`, `effect?` (a label), `args?`, `repeat?`, `expect?` (the last result) | the manager: `tick` ([us]), `frame` ([us]: the tick, then the finishing hook, then the draw pass), `finish_hook`, `draw_pass` (whether the sweep ran), `shutdown`, `set_zoom` ([zoom, offset]), `set_max_priority`, `has` ([name]); an effect: `start` / `stop` ([mode?], 0 by default), `set_position` ([x, y, z]), `set_end_message` ([type, data1]), `forward_parameter` ([index, value]), `add_ref`, `release`, `is_started`, `is_stopping` |
+| `ef_run_stroke` | `effect`, `us`, `max?` (10000), `ticks?`, `applications?`, `first?` (the brush calls of the first ticks), `every?` (the brush calls of every tick) | ticks until the effect's brush is inactive |
+| `ef_child` | `effect`, `n?` (0), `name?`, `as?` | the child of the effect's `n`-th built meta component |
+| `ef_expect` | `effect`, `state` (partial: `exists`, `name`, `index`, `refs`, `started`, `stopping`, `components` (built), `active`) | an effect |
+| `ef_expect_brush` | `effect`, `n?`, `state` (partial: `brush`, `rate`, `length`, `one_shot`, `strength`, `radius`, `active`, `long_op`, `acc`, `t`, `prev`, `cur`, `applications`) | the effect's `n`-th brush component |
+| `ef_expect_game` | `effect`, `n?`, `state` (partial: `started`, `pending`, `timer`, `count`, `cell`, `data`, `applies`) | the effect's `n`-th game component |
+| `ef_expect_manager` | `state` (partial: `select_draws`, `end_posts`, `recycled`, `effect_count`, `active_count`, `total_us`, `lod`, `max_priority`) | the manager |
+| `ef_select` | `first_word?`, `draws?`, `weights` + `members?` (1-based) | a fresh select generator (seed `0x1105`): its first word, its first `RandomUint32Uniform(0x10000)` draws and the members they pick |
+| `ef_expect_events` / `ef_expect_event_count` / `ef_clear_events` | see the shared conventions | host calls |
+
+Effects events: `brush` (`brush`, `from`, `to`, `level`, `strength`, `radius`, `redisplay`, `data4`, `target`),
+`begin_long`, `end_long`, `ignite` (`x`, `z`, `r0`, `r1`), `cause` (`cause`), `toxic` (`x`, `z`), `demolish`
+(`rect` [x0, z0, x1, z1], `flags`, `dezone`, `no_networks`, `no_flora`, `min_size`, `max_size`), `extinguish`
+(`x`, `z`, `amount`), `post` (`type`, `data1`, `data2`, `data3`), `pause`, `resume`, `hidden_pause`,
+`hidden_resume` and `clock` (`on`).
 
 ## Adding a vector
 
@@ -3771,13 +3831,22 @@ add/remove table, set queries, filter caches, building information, CreateGeneri
 | 8 `SetAltitude(x, z, h)` clamps, the lock, the unchecked index | `tr18_08_set_altitude_xz` |
 | 9 `SetSeaLevel` range and message order | `tr18_09_set_sea_level` |
 | 10 `RedisplayTerrain` packing, the view-ready gate, slot 69, the long-operation messages | `tr18_10_redisplay_packing` |
-| 11 the pipe-burst sinkhole (kind 0 lower; a neutral bitmap) | `tr18_11_pipe_burst_sinkhole` |
+| 11 the pipe-burst sinkhole (kind 0 lower; a neutral bitmap; the walk draw; the texture message's words) | `tr18_11_pipe_burst_sinkhole` |
 | 12 an unknown brush | `tr18_12_unknown_brush` |
 | 13 the lava flow rule and `SetThingsOnFire` | `tr18_13_lava_flow_rule` |
 | 14 the record sizes and round trip | `tr18_14_records` |
+| 15 the lava neighbour order and the `GetNeighbors` mask | `tr18_15_lava_neighbour_order` |
+| 16 `SetThingsOnFire` (x outer, z inner; one flammable cell) | `tr18_16_set_things_on_fire` |
+| 17 `GetWaterType` with a NaN depth, `AltitudeAtWhichFloodingWillOccur`, `GetLerpedWaterLevel`, `GetWaterVelocity`, `GetSedimentValue(x, z)` | `tr18_17_water_type_nan_and_flooding` |
+| 18 `ComputeSpansForRectangle` (the worked example, 45°, the clamps) | `tr18_18_spans` |
+| 19 the walk and stroke angles | `tr18_19_brush_angles` |
+| 20 the default brush level | `tr18_20_default_brush_level` |
+| 21 `SetWaterSurfaceDisplayState` posts only on a change | `tr18_21_water_display_state` |
+| 22 kind 5 (level toward the target) | `tr18_22_kind5_level` |
+| 23 the sea level after a load | `tr18_23_sea_level_after_load` |
 | other sections | `tr00_cached_min_max_stale` (§4.6), `tr00_navigability_and_bodies` (§10.3, §10.4), `nt05_economy_modifier` (nation §5) |
 
-The core's unit tests (`fc4_core::terrain`) also cover the other brush kinds, the lava start and burn rectangles,
+The core's unit tests (`fc4_core::terrain`) also cover the other brush kinds (2 talus smoothing, 7 the mark), the lava start and burn rectangles,
 the record versions and truncation, the tuning exemplar and the bodies-of-water flood fill; `fc4_capi`'s `terrain_tests` cover the C ABI.
 
 ## Coverage (automata §14)
@@ -3959,3 +4028,52 @@ Item 24 reproduces the PV2 rule literally: a tagged prop whose tag names no conf
 pins the corpus split of §5.3 (40,830 of 147,162 tagged lot props unmatched, 27.7 %: 40,794 + 36 + 0). Item 13 sets
 the prop to state 2 first so the `SetState(0)` call is observable — `SetState` is a no-op when the value already
 equals `+0x63` (`nt` §13.1 step 1).
+## Coverage (network geometry §18)
+
+| §18 item | Vector |
+|---|---|
+| 1 straight drag | `ng18_01_straight_drag` |
+| 2 near-straight drag (pre-adjust 1.2) | `ng18_02_near_straight_drag` |
+| 3 diagonal snap, width 1 | `ng18_03_diagonal_snap_width_1` |
+| 4 diagonal snap, width 2 | `ng18_04_diagonal_snap_width_2` |
+| 5 street is straight only | `ng18_05_street_straight_only` |
+| 6 slope limits | `ng18_06_slope_limits` |
+| 7 satisfier, slope | `ng18_07_satisfier_slope` |
+| 8 satisfier, smoothness and preference | `ng18_08_satisfier_smoothness_preference` |
+| 9 tunnel trigger | `ng18_09_tunnel_trigger` |
+| 10 no tunnel code | `ng18_10_no_tunnel_code` |
+| 11 a bridge needs a straight drag | `ng18_11_bridge_needs_straight_drag` |
+| 12 starting in water | `ng18_12_starting_in_water` |
+| 13 reserved landfill | `ng18_13_reserved_landfill` |
+| 14 support level | `ng18_14_support_level` |
+| 15 terrain support | `ng18_15_terrain_support` |
+| 16 draft flag | `ng18_16_draft_flag` |
+| 17 cell cost | `ng18_17_cell_cost` |
+| 18 power-line cost | `ng18_18_power_line_cost` |
+| 19 destroy test set | `ng18_19_destroy_test_set` |
+| 20 grading threshold | `ng18_20_grading_threshold` |
+| 21 smoothing codes | `ng18_21_smoothing_codes` |
+
+The core's unit tests (`fc4_core::network_geometry`) also cover the pre-adjust rules, the city-edge refusal of wide
+types, the satisfier's collapse rule, slope merging, preferred ranges and pinned propagation, the smoothing and
+boundary sets, the water-surface floor of the cell infos, the flat-cell and cross-section rules, the offset tables and
+the diagonal-end extension; `fc4_capi`'s `network_geometry_tests` cover the C ABI.
+## Coverage (effects §17)
+
+| §17 item | Vector |
+|---|---|
+| 1 the brush stroke count (record 2 at 33333 us) | `ef17_01_brush_stroke` |
+| 2 the dilation (1.5; 100000 us) and the truncated time | `ef17_02_dilation` |
+| 3 the select draw (seed `0x1105`) and the volcano creators | `ef17_03_select_draw` |
+| 4 the one-shot crater | `ef17_04_one_shot_crater` |
+| 5 out of bounds | `ef17_05_out_of_bounds` |
+| 6 the game record's order and the clipped rectangle | `ef17_06_game_record_order` |
+| 7 moving to a new cell | `ef17_07_move_to_new_cell` |
+| 8 the pause record | `ef17_08_pause_record` |
+| 9 the priority filter and the index -1 no-op | `ef17_09_priority_filter` |
+| 10 no end without the draw pass (both finish modes; EF2, EF8) | `ef17_10_no_end_without_the_draw_pass` |
+
+The core's unit tests (`fc4_core::effects`) also cover the directory parser and writer, the LOD ranges, the
+nested update (EF9), the game record's other actions, the shipped tables and shutdown; the install sweep
+(`cargo test -p fc4-formats --test effects_directory -- --nocapture`) parses the installed directory; `fc4_capi`'s
+`effects_tests` cover the C ABI.

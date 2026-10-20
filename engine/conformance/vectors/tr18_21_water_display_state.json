@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "name": "tr18_21_water_display_state",
+  "spec": [
+    "terrain 8.4",
+    "terrain 18.21"
+  ],
+  "description": "SetWaterSurfaceDisplayState posts only on a change (TR14): setting the current state (0) posts nothing; a different state (2) stores it and posts one 0x6AB97795 with data1 = the state, the rest 0; setting 2 again posts nothing.",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        2,
+        2
+      ],
+      "flat": 300
+    },
+    {
+      "op": "ter_clear_events"
+    },
+    {
+      "op": "ter_call",
+      "method": "water_display_state",
+      "expect": 0
+    },
+    {
+      "op": "ter_call",
+      "method": "set_water_display_state",
+      "args": [
+        0
+      ],
+      "expect": false
+    },
+    {
+      "op": "ter_expect_events",
+      "events": []
+    },
+    {
+      "op": "ter_call",
+      "method": "set_water_display_state",
+      "args": [
+        2
+      ],
+      "expect": true
+    },
+    {
+      "op": "ter_expect_events",
+      "events": [
+        {
+          "event": "post",
+          "msg": "0x6AB97795",
+          "data1": 2,
+          "data2": 0,
+          "data3": 0,
+          "data4": 0
+        }
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "set_water_display_state",
+      "args": [
+        2
+      ],
+      "expect": false
+    },
+    {
+      "op": "ter_expect_events",
+      "events": []
+    },
+    {
+      "op": "ter_call",
+      "method": "water_display_state",
+      "expect": 2
+    }
+  ]
+}
