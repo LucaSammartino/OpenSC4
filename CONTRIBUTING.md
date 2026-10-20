@@ -13,7 +13,7 @@ This file is the single source for the clean-room roles. Other docs link here.
 
 | | Analysis (spec writers) | Implementation (engine authors) |
 |---|---|---|
-| May read | the original executable, disassembly, Ghidra projects, `decomp/`, `decomp-mac/`, `ghidra/export/`, everything in `re/` | `docs/specs/` (questions for the analysis side go in `docs/specs/QUESTIONS.md`), `docs/abi/` (interface facts), the public SDK headers in `engine/third_party/gzcom-dll` (LGPL), the game's data files, general literature |
+| May read | the original executable, disassembly, Ghidra projects, `decomp/`, `decomp-mac/`, `ghidra/export/`, everything in `re/` | `docs/specs/` (questions for the analysis side go in `docs/specs/questions/<spec>.md`; `docs/specs/QUESTIONS.md` is the generated index), `docs/abi/` (interface facts), the public SDK headers in `engine/third_party/gzcom-dll` (LGPL), the game's data files, general literature; and the operating docs `docs/HANDOFF.md`, `docs/ops/`, `docs/lanes/INDEX.md`, `docs/lanes/README.md`, `docs/merge-train.md` |
 | Produces | **behaviour specs** in `docs/specs/` (what happens, in prose, tables and pseudo-math) and interface facts in `docs/abi/` | code in `engine/`, plus tests that check it against the specs |
 | Must not | write or edit `engine/` code | open `decomp/`, `decomp-mac/`, `external/`, `ghidra/project/`, `ghidra/mac/`, `ghidra/export/`, `re/`, `tools/`, `docs/subsystems/`, `docs/sim-engine.md`, the game executable, or any disassembly or decompiled output; or paste anything from them |
 
@@ -53,7 +53,8 @@ formulas, state changes, ordering) still reaches engine authors only as a behavi
 
 Work happens in lanes: one agent, one worktree, one task. A lane keeps its state and next steps in
 `docs/lanes/<lane>.md` and its in-game runs in `docs/runs/<tag>.md`. The shared tables in
-`docs/HANDOFF.md` and `docs/manual-checks.md` are generated from those files:
+`docs/lanes/INDEX.md` (the lane table), `docs/manual-checks.md` (the run log) and the HANDOFF's "Latest in-game
+run" line are generated from those files:
 
 ```
 python tools/gen_handoff_tables.py

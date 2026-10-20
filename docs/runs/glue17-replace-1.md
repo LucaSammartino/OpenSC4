@@ -1,3 +1,13 @@
+tag: glue17-replace-1
+run: 158
+date: 2026-10-16
+lane: glue17
+dll: FreeCity4-glue17
+pacing: turbo
+verdict: clean
+switches: lane glue17 with the citysit and dispatch replacements; Konradshohe, `turbo = 1`, `end_date = 2032-01-01`, `seconds = 600`; `enable = citysit,dispatch`, `citysit_shadow = 0`, `dispatch_shadow = 0`, `demolition_shadow = 1` (the third core is still only checked by its shadow), `popup_dialogs = 0`; DLL `engine/build-x86/FreeCity4.dll`
+result: **clean**, `ref_warnings=0`, rtc=0, overruns=0. Date 2032-01-17, 32.516 s real, 67.75 days/s. Both classes registered (`subsystem 'dispatch': enabled (1 class replaced)`, `AddCls(0x4990BD93)`; `subsystem 'citysit': enabled (1 class replaced)`, `AddCls(0x0BB14381)`) and both objects were created by the city. **Read ran before Init**, as the save/load rule requires: `citysit Read -> 1 (0 successes, indicators=1)` then `citysit Init: ok=1 ... status=4 indicators=1 successes=0`, and `dispatch Read -> 1 (0 records, nextID=1 toolType=8)` then `dispatch Init: ok=1 ... 0 records, nextID=1 toolType=8`. Both records match the Konradshohe corpus forms (city-situation.md §7 `02 00 00 00 00 00 01`, dispatch.md §7 the 22-byte empty record with `nextID = 1`). Shutdown lines `citysit Shutdown`, `dispatch Shutdown` and `budget Shutdown`; the demolition shadow stayed **74/74 exact**. Problems all 0 (the only WARNING lines are the two expected x87 start-up ones). No `Write` in this run: it did not save.
+
 # Run glue17-replace-1
 
 In-game run row keyed by tag (see `docs/merge-train.md`). Request `build-runs/game-queue/glue17-replace-1.req`

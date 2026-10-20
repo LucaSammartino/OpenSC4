@@ -13,7 +13,7 @@ The generator owns exactly three regions, marked with `<!-- BEGIN GENERATED: nam
 
 | Region | File | Content |
 |---|---|---|
-| `lanes` | `docs/HANDOFF.md` §0 | the lane table, one row per `docs/lanes/<lane>.md` |
+| `lanes` | `docs/lanes/INDEX.md` | the lane table, one row per `docs/lanes/<lane>.md` (in HANDOFF §0 until 2026-10-20; the generator creates INDEX.md if it is missing) |
 | `latest-run` | `docs/HANDOFF.md` §0 | the `- **Latest in-game run:** ...` bullet |
 | `runs` | `docs/manual-checks.md` | the in-game run log, one row per `docs/runs/<tag>.md` |
 
@@ -27,7 +27,8 @@ bytes).
 The file name is the lane slug: lower case, letters, digits and dashes (`zones2.md`,
 `re-specs13a.md`, `apply11traffic.md`).
 
-The file must hold exactly one table row with these four columns and the exact header:
+The file must hold exactly one table row with these four columns and the exact header (a second column
+headed `Worktree`, and a `| --- |` separator, are accepted too):
 
 ```markdown
 | Lane | Agent/worktree | State at stop | Next steps |
@@ -99,7 +100,7 @@ summary: regress voidbool, PASS, lists as run 138
 | `verdict` | `clean`, `corrupt`, `crash`, `ended`, `none` (no information), or `PASS` / `FAIL` for a regress. |
 | `switches` | The switches cell of the old run row, verbatim. |
 | `result` | The result cell of the old run row, verbatim — the notes. |
-| `summary` | *Optional.* The parenthetical for the HANDOFF "Latest in-game run" bullet, without its brackets or trailing period: `regress voidbool, PASS, lists as run 138`. Only runs that have it appear on that line. |
+| `summary` | *Optional.* The parenthetical for the HANDOFF's "Latest in-game run" bullet (§0), without its brackets or trailing period: `regress voidbool, PASS, lists as run 138`. Only runs that have it appear on that line. |
 | `summary_note` | *Optional.* A sentence after that parenthesis, e.g. `is the first with the traffic lists`. Also without a trailing period. |
 
 Rules:
@@ -148,7 +149,8 @@ never merges main.**
 4. **The train bumps `FC4_ABI_VERSION`, never a lane.** It bumps it once per batch and writes one
    `fc4.h` history line per batch listing the lanes. Do not touch `FC4_ABI_VERSION` in your lane.
 
-Why this shape: every lane used to edit the same handful of files at merge time (the HANDOFF §0 rows,
-the run numbers in `manual-checks.md`, `QUESTIONS.md`, `FC4_ABI_VERSION`, `abi_entries.inc`), so every
+Why this shape: every lane used to edit the same handful of files at merge time (the HANDOFF §0 rows, now
+`docs/lanes/INDEX.md`, the run numbers in `manual-checks.md`, `QUESTIONS.md` (now a generated index over the per-spec files in
+`docs/specs/questions/`; see its README), `FC4_ABI_VERSION`, `abi_entries.inc`), so every
 merge conflicted and about 25 agents polled a merge lock, costing about N² gates. Per-lane files and a
 single owner of main remove the shared lines.

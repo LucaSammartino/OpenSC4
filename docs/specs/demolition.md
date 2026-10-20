@@ -359,7 +359,7 @@ filter: buildings, props, power poles and networks whose bool property `0x29F013
 returned in ST0) minus `h` (loaded as `float`) is taken in absolute value and compared with the `float` constant at
 `0x00A880D8` (`0x3D4CCCCD`, 0.05000000074505806). Area mode counts the vertex when `|d| > 0.05f`
 (`0x0046802A`–`0x0046803E`); per-vertex mode skips it when `|d| < 0.05f` (`0x00467D45`–`0x00467D59`), so a vertex
-at exactly 0.05f is counted in neither. The main thread runs the x87 at 24-bit precision (HANDOFF §5.2), so the
+at exactly 0.05f is counted in neither. The main thread runs the x87 at 24-bit precision (docs/ops/lessons.md §5.2), so the
 subtraction rounds to `float`: FreeCity4 must compute `abs(alt - h)` in `f32` and compare with `0.05f32`. Widening
 to `f64` and comparing with 0.05 differs for differences within one `float` step of the threshold.
 

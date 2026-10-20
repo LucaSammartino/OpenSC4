@@ -109,7 +109,7 @@ both `cRZRandom` paths (`lcg` for the integer draws, `mul` for the `double` draw
 occupants) and the timers, and unsubscribes from everything that §2.5 subscribed to.
 
 `GetDisasterManager(type)` (slot 7) returns the map's manager for `type` **without AddRef**, or null *[compat]*.
-Callers must not release it. HANDOFF run 37 was a crash caused by exactly that.
+Callers must not release it. Run 37 was a crash caused by exactly that (docs/ops/lessons.md §5.1b).
 
 ### 2.3 Enabling (`EnableDisasters` slot 5, `DisastersEnabled` slot 6)
 
