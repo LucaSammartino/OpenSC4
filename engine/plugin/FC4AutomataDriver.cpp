@@ -92,6 +92,10 @@ void AutomataDriverCityLoaded(cISC4City* city) {
 
 void AutomataDriverCityShutdown() {
     if (g_driver == nullptr) return;
+    const AutomataHostContext& h = g_driver->hostCtx;
+    Log("automata driver: off: leaders created %u, refused %u, SetState calls %u, stage-rise calls %u, "
+        "fire controller calls %u",
+        h.created, h.refused, h.stateCalls, h.stageCalls, h.fireCalls);
     if (g_driver->riot != nullptr) {
         fc4_automata_riot_destroy(g_driver->riot);
         g_driver->riot = nullptr;
