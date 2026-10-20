@@ -12199,7 +12199,8 @@ _Static_assert(sizeof(fc4_netgeom_occupant) == 12, "fc4_netgeom_occupant layout"
 _Static_assert(sizeof(fc4_netgeom_piece) == 76, "fc4_netgeom_piece layout");
 _Static_assert(sizeof(fc4_netgeom_cell_info) == 180, "fc4_netgeom_cell_info layout");
 _Static_assert(sizeof(fc4_netgeom_state) == 96, "fc4_netgeom_state layout");
-_Static_assert(sizeof(fc4_netgeom_host) == (sizeof(void*) == 4 ? 84 : 168), "fc4_netgeom_host layout");#endif_Static_assert(sizeof(fc4_effects_post) == 24, "fc4_effects_post layout");
+_Static_assert(sizeof(fc4_netgeom_host) == (sizeof(void*) == 4 ? 84 : 168), "fc4_netgeom_host layout");#endif
+_Static_assert(sizeof(fc4_effects_post) == 24, "fc4_effects_post layout");
 _Static_assert(sizeof(fc4_effects_rect) == 16, "fc4_effects_rect layout");
 _Static_assert(sizeof(fc4_effects_demolish_filter) == 12, "fc4_effects_demolish_filter layout");
 _Static_assert(sizeof(fc4_effects_occupant_facts) == 16, "fc4_effects_occupant_facts layout");
@@ -12209,6 +12210,6 @@ _Static_assert(sizeof(fc4_effect_info) == 48, "fc4_effect_info layout");
 _Static_assert(sizeof(fc4_effects_brush_state) == 56, "fc4_effects_brush_state layout");
 _Static_assert(sizeof(fc4_effects_game_state) == 32, "fc4_effects_game_state layout");
 _Static_assert(sizeof(fc4_effects_host) == (sizeof(void*) == 4 ? 80 : 160), "fc4_effects_host layout");
-_Static_assert(sizeof(fc4_netgeom_host) == (sizeof(void*) == 4 ? 84 : 168), "fc4_netgeom_host layout");#endif
 #endif
+
 #endif /* FC4_H */
