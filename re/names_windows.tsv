@@ -542,7 +542,7 @@ va	name	source	confidence	note
 0043ab70	lib::operator==<char,class__STL::char_traits<char>,class__STL::allocator<char>_>	library	medium	Function ID
 0043aba0	std::list<cRZString,std::allocator<cRZString>>::clear	auto:B1	medium	mac 00606b2a score 0.861 support 6.0
 0043af20	std::_List_base<cRZString,std::allocator<cRZString>>::~_List_base	auto:D	medium	mac 005ef252 score 0.5 support 5
-0043af80	cRZPath::~cRZPath	auto:D	medium	mac 0068f156 score 0.5 support 5
+0043af80	cRZPath::~cRZPath	manual:paths.tsv	high	paths.md §2.2; destroys the strings at +0x50, +0x3C, +0x28, +0x14 and +0
 0043b180	cISC4MySimPool::tMySimTemplate::~tMySimTemplate	auto:B1	medium	mac 006e2a32 score 0.879 support 2.0
 0043b200	cSC4MySimPool::FindTheSimsInstallation	auto:C	high	mac 00550242 score 1.0 support 1
 0043b360	std::vector<cISC4MySimPool::tMySimTemplate,std::allocator<cISC4MySimPool::tMySimTemplate>>::erase	auto:D	medium	mac 006e2c5a score 0.5 support 1
@@ -4501,7 +4501,7 @@ va	name	source	confidence	note
 005f8fa0	__ZThn4_N10cGZWinGrid4InitEv	auto:B3	low	mac 006b1362 score 0.96 support 1.0
 005f8fb0	__ZThn4_N10cGZWinGrid8ShutdownEv	auto:B10	low	mac 006b1e00 score 0.96 support 1.0
 005f8fc0	__ZThn4_N10cGZWinGrid7SetAreaEllll	auto:B1	low	mac 006b1e50 score 0.96 support 1.0
-005f8fe0	cRZCriticalSection::Lock	auto:D	medium	mac 0002551a score 0.5 support 1
+005f8fe0	IsPathSeparator	manual:paths.tsv	high	paths.md §1; was cRZCriticalSection::Lock; true for '\' or '/' (cdecl, one char); 39 call sites in the path and directory code
 005f9000	SC4GetPopupModalDialogsSafe	auto:B2	medium	mac 00024c80 score 0.974 support 3.0
 005f9090	SC4GetPopupModalDialogsEnabled	auto:B0	medium	mac 00024db8 score 0.931 support 4.0
 005f90d0	cSC4AutoFlushInputMessageQueue::~cSC4AutoFlushInputMessageQueue	auto:D	medium	mac 00023ca8 score 0.5 support 3
@@ -11768,9 +11768,11 @@ va	name	source	confidence	note
 00917a33	cRZVariant::GetValVoidPtr	auto:C	high	mac 00037eb4 score 1.0 support 2
 00917a8c	cRZVariant::CreateValString	auto:C	high	mac 0003865c score 1.0 support 2
 00917adb	cRZVariant::GetValString	auto:C	low	mac 0003863e score 1.0 support 2
-00917bcb	Splitpath	auto:B1	medium	mac 00021318 score 0.998 support 3.0
-00917d1a	SplitDirectory	auto:B3	medium	mac 00021680 score 0.985 support 1.0
-00917e7c	Fullpath	auto:B4	medium	mac 00021800 score 0.975 support 2.0
+00917ae0	IsASCIILetter	manual:paths.tsv	high	paths.md §1; descriptive name; true for 'A'-'Z' and 'a'-'z' (signed compares); used by the current-directory Fullpath 0x00918625
+00917bcb	Splitpath	manual:paths.tsv	high	paths.md §1.5; drive if the second char is ':', dir to the last separator, the last dot after it starts ext, 255-char parts
+00917d1a	SplitDirectory	manual:paths.tsv	high	paths.md §1.6; parts from the end, 260 bytes each, trailing '\' added; a single part without trailing separator loses its last char
+00917e7c	Fullpath	manual:paths.tsv	high	paths.md §1.2; the normaliser against a base: 521-byte work buffer, '.' and '..' components, ':' guard, trailing separator restored; malloc result for a null out
+00918080	IsFullPath	manual:paths.tsv	high	paths.md §1.1; descriptive name; isalpha + ':' + '\', or '\\', and no strstr '\.' (0x00ACEFC0) or '/.' (0x00ACEFBC)
 00918103	MatchPattern	auto:B1	medium	mac 000204ba score 0.914 support 1.0
 009182ff	cRZFile::QueryInterface	auto:A	high	mac 000205ee score 1.0 support 0
 00918374	cRZFile::SeekToPosition	auto:B4	medium	mac 000207ac score 0.831 support 3.0
@@ -11778,7 +11780,8 @@ va	name	source	confidence	note
 009183ad	cRZFile::Write	auto:B3	medium	mac 0002080a score 0.935 support 4.0
 00918417	cRZFile::GetPathExtension	auto:B0	medium	mac 000215b4 score 0.965 support 3.0
 00918577	cRZFile::Open	auto:A	high	mac 00021c7e score 0.5 support 0
-009185c4	Fullpath	auto:B6	medium	mac 000219c8 score 0.803 support 1.0
+009185c4	Fullpath	manual:paths.tsv	high	paths.md §1.3; UNC prefix, drive letter, _getdrive / _getdcwd, then 0x00917E7C
+009186e7	IsFullPath (cRZString)	manual:paths.tsv	high	paths.md §1.1; descriptive name; 0x00918080 on the string's buffer; caller ResolvePath 0x00919740
 009187b1	cRZFile::FlushWriteBuffer	auto:B3	medium	mac 00021a5e score 0.915 support 1.0
 0091880e	cGZWinTextEdit::GetTextLength	auto:C	high	mac 006b2218 score 1.0 support 1
 009188a5	cRZFile::Close	auto:B2	medium	mac 00021dfe score 0.891 support 9.0
@@ -11792,11 +11795,11 @@ va	name	source	confidence	note
 0091917d	MakeFileNameValid	auto:B2	medium	mac 000233aa score 0.978 support 3.0
 009192a9	cRZFile::ReadWithCount	auto:B4	medium	mac 000224c4 score 0.933 support 3.0
 00919474	cRZFile::SetPath	auto:B7	medium	mac 00020852 score 0.901 support 3.0
-009194a0	Splitpath	auto:B2	medium	mac 00023266 score 0.955 support 2.0
+009194a0	Splitpath	manual:paths.tsv	high	paths.md §1.5; the cRZString form; the drive is written into its own 4-byte argument slot
 0091958b	SplitDirectory	auto:B4	medium	mac 00023154 score 0.982 support 3.0
-00919672	Fullpath	auto:B7	medium	mac 000230d4 score 0.96 support 3.0
-009196cc	Fullpath	auto:B5	medium	mac 0002303e score 0.962 support 2.0
-00919738	ResolvePath	auto:B3	medium	mac 000237b2 score 0.916 support 3.0
+00919672	Fullpath	manual:paths.tsv	high	paths.md §1.4; the cRZString form of 0x009185C4 with max 0x208; out unchanged on failure
+009196cc	Fullpath	manual:paths.tsv	high	paths.md §1.4; the cRZString form of 0x00917E7C with a base (null base text = empty)
+00919738	ResolvePath	manual:paths.tsv	high	paths.md §1.4; IsFullPath copies as is, else Fullpath with or without base
 0091977c	IsFileNameValid	auto:B0	medium	mac 0002295e score 0.991 support 2.0
 00919a60	cRZFile::cRZFile	auto:B2	medium	mac 00022eec score 0.895 support 1.5
 00919dc2	cRZFile::FileCreate	auto:B2	medium	mac 000208e4 score 0.906 support 2.0
@@ -11812,45 +11815,59 @@ va	name	source	confidence	note
 0091a847	cRZFile::GetPathDirectory	auto:B1	medium	mac 00022b0c score 0.973 support 5.0
 0091a93d	cRZFile::GetPathName	auto:B0	medium	mac 00021466 score 0.966 support 3.0
 0091ac34	cRZFile::IsFileWritable	auto:B2	medium	mac 000221c6 score 0.941 support 2.0
-0091ad83	cRZDirectory::GetNthEntry	auto:B4	medium	mac 0001efce score 0.97 support 2.0
+0091ad3e	cRZDirectory::HasEntryNamed	manual:paths.tsv	high	paths.md §3.3; descriptive name, no Mac match; scans the entry list for a name equal to the argument (STL operator==); used before adding '.' and '..'
+0091ad83	cRZDirectory::GetNthEntry	manual:paths.tsv	high	paths.md §3.2; node + 8 of the n-th node, null when n >= the count +4
+0091ada7	std::list<cRZDirectoryEntry,std::allocator<cRZDirectoryEntry>>::list	manual:paths.tsv	high	paths.md §3.1; descriptive name; allocates the 0x24-byte head node linked to itself
+0091adc2	cRZDirectoryEntry::cRZDirectoryEntry	manual:paths.tsv	high	paths.md §3.1; descriptive name; owner +0 := 0, name +4, kind +0x18 := 0
 0091adec	RZFileFindData::~RZFileFindData	auto:B3	medium	mac 005f543c score 0.866 support 1.0
-0091ae1e	cRZDirectory::AlphabetizeEntryList	auto:B4	medium	mac 0001f204 score 0.861 support 2.0
-0091ae31	cRZDirectory::MakeSurePathEndsWithSeparator	auto:B3	medium	mac 0001eff8 score 0.96 support 2.0
-0091ae66	RZFileFindFinish	auto:B2	medium	mac 0001ef84 score 0.879 support 1.0
+0091adff	cRZDirectoryEntry::~cRZDirectoryEntry (deleting destructor)	manual:paths.tsv	high	paths.md §3.1; descriptive name; destroys the name, GlobalHeapFree on flag bit 0
+0091ae1e	cRZDirectory::AlphabetizeEntryList	manual:paths.tsv	high	paths.md §3.2; list sort with the caller's comparison
+0091ae31	cRZDirectory::MakeSurePathEndsWithSeparator	manual:paths.tsv	high	paths.md §3.2; appends '\' when +8 is empty or does not end with a separator
+0091ae66	RZFileFindFinish	manual:paths.tsv	high	paths.md §4; FindClose on +0x2C unless INVALID_HANDLE_VALUE, then frees the search object
+0091ae8e	std::list<cRZDirectoryEntry,std::allocator<cRZDirectoryEntry>>::erase	manual:paths.tsv	high	paths.md §3.3; descriptive name; unlinks one node, destroys its entry, frees it
 0091aeba	std::_List_base<cRZDirectoryEntry,std::allocator<cRZDirectoryEntry>>::_M_clear	auto:B6	medium	mac 005f585c score 0.992 support 1.0
+0091aeed	cRZDirectoryEntry::cRZDirectoryEntry	manual:paths.tsv	high	paths.md §3.1; descriptive name; the copy constructor (owner, name, kind)
+0091af16	std::list<cRZDirectoryEntry,std::allocator<cRZDirectoryEntry>>::erase	manual:paths.tsv	high	paths.md §3.3; descriptive name; the range overload, used to clear the entries
 0091af4a	std::_List_base<cRZDirectoryEntry,std::allocator<cRZDirectoryEntry>>::~_List_base	auto:B5	medium	mac 005f589a score 0.983 support 1.0
 0091af61	cRZFile::Length	auto:D	medium	mac 0002068e score 0.5 support 1
-0091b017	cRZDirectory::SplitDirectoryPath	auto:B4	medium	mac 0001fba2 score 0.963 support 2.0
-0091b0a1	RZFileFindFirst	auto:B3	medium	mac 0001f262 score 0.923 support 2.0
-0091b2f7	cRZDirectory::~cRZDirectory	auto:B3	medium	mac 0001f20e score 0.884 support 15.0
-0091b312	cRZDirectory::DoesAnyEntryExistThatMatchesPattern	auto:B1	medium	mac 0001f522 score 0.944 support 4.0
+0091b017	cRZDirectory::SplitDirectoryPath	manual:paths.tsv	high	paths.md §3.9; SplitDirectory with two 260-byte parts; copies both even when one was written
+0091b0a1	RZFileFindFirst	manual:paths.tsv	high	paths.md §4; ConvertStringEncoding, FindFirstFileA, a 0x30-byte search object (name, directory bit 0x10, pattern, handle +0x2C)
+0091b21d	RZFileFindNext	manual:paths.tsv	high	paths.md §4; descriptive name, no Mac match; FindNextFileA, name and directory bit refreshed; AL false at the end
+0091b2d6	std::list<cRZDirectoryEntry,std::allocator<cRZDirectoryEntry>>::_M_create_node	manual:paths.tsv	high	paths.md §3.3; descriptive name; a 0x24-byte node with a copied entry at +8
+0091b2f7	cRZDirectory::~cRZDirectory	manual:paths.tsv	high	paths.md §3.2; destroys +0x1C, +8 and the entry list
+0091b312	cRZDirectory::DoesAnyEntryExistThatMatchesPattern	manual:paths.tsv	high	paths.md §3.6; RZFileFindFirst then RZFileFindFinish
 0091b32d	std::list<cRZString,std::allocator<cRZString>>::push_front	auto:B0	medium	mac 005f58c2 score 0.974 support 2.0
-0091b36e	cRZDirectory::ReadDirectorySpecificEntriesIntoStringList	auto:B2	medium	mac 0001f862 score 0.95 support 1.0
+0091b349	std::list<cRZDirectoryEntry,std::allocator<cRZDirectoryEntry>>::insert	manual:paths.tsv	high	paths.md §3.3; descriptive name; links a new node before the given position
+0091b36e	cRZDirectory::ReadDirectorySpecificEntriesIntoStringList	manual:paths.tsv	high	paths.md §3.4; flags 1 '.', 2 '..', 4 directories, 8 files; '.' / '..' put at the front for the filter '*' (0x00B169A0)
 0091b585	cGZWinTestService::GetAllTestNames	auto:B6	medium	mac 00376280 score 0.827 support 2.0
-0091b6ca	cRZDirectory::DoesDirectoryExist	auto:B0	medium	mac 0001f546 score 0.945 support 6.0
-0091b738	cRZDirectory::CreateDirectoryA	auto:B0	medium	mac 0001f5ea score 0.97 support 4.0
-0091b9c7	cRZDirectory::ReadDirectoryFileEntriesIntoStringList	auto:B3	medium	mac 0001fb7c score 0.814 support 10.0
-0091b9d5	cRZDirectory::ReadDirectoryDirectoryEntriesIntoStringList	auto:D	medium	mac 0001fb52 score 0.5 support 2
-0091ba22	cRZDirectory::ReadDirectoryEntries	auto:B3	medium	mac 0001fc5a score 0.94 support 3.0
-0091bcad	cRZDirectory::ChangeDirectory	auto:B2	medium	mac 000200aa score 0.905 support 6.0
-0091bcd7	cRZDirectory::SetNewDirectoryEntryFilter	auto:B4	medium	mac 00020020 score 0.948 support 11.0
-0091bd31	cRZDirectory::cRZDirectory	auto:B2	medium	mac 000200ee score 0.887 support 13.0
-0091bd88	cRZDirectory::ReadDirectoryFileEntriesIntoStringListRecursive	auto:B1	medium	mac 000201b6 score 0.957 support 3.0
-0091c264	cRZPath::GetFileName	auto:B1	low	mac 00474d04 score 0.825 support 3.0
-0091c298	cRZPath::FileName	auto:B3	medium	mac 00474d86 score 0.875 support 2.0
-0091c2c5	cRZPath::cRZPath	auto:D	medium	mac 00474fb2 score 0.5 support 7
-0091c2fe	cRZPath::FixExtensionString	auto:B1	medium	mac 00474d12 score 0.822 support 2.0
-0091c31f	cRZPath::GetExtension	auto:B0	medium	mac 00474d64 score 0.836 support 2.0
-0091c32d	cRZPath::FixDirectoryString	auto:D	medium	mac 00474dde score 0.5 support 1
-0091c37e	cRZPath::GetDirectory	auto:D	medium	mac 00474e56 score 0.5 support 1
-0091c38c	cRZPath::FixDriveString	auto:B0	medium	mac 00475062 score 0.934 support 1.0
-0091c3cf	cRZPath::GetDrive	auto:D	medium	mac 00475092 score 0.5 support 2
-0091c3dc	cRZPath::SetFileName	auto:B0	medium	mac 00474e7a score 0.869 support 2.0
-0091c41b	cRZPath::SetExtension	auto:D	medium	mac 004750b0 score 0.5 support 1
-0091c46e	cRZPath::SetBuffer	auto:B0	medium	mac 0047514a score 0.972 support 2.0
-0091c507	cRZPath::GetPath	auto:D	medium	mac 0047528a score 0.5 support 1
-0091c52a	cRZPath::GetDriveAndDirectory	auto:B0	medium	mac 00475242 score 0.859 support 2.0
-0091c54d	cRZPath::GetFileNameAndExtension	auto:D	medium	mac 004751fa score 0.5 support 1
+0091b6ca	cRZDirectory::DoesDirectoryExist	manual:paths.tsv	high	paths.md §3.6; path + separator + '*'
+0091b738	cRZDirectory::CreateDirectoryA	manual:paths.tsv	high	paths.md §3.7; static; the \\server\ prefix skipped, _mkdir per missing component, rollback with _rmdir in creation order
+0091b9c7	cRZDirectory::ReadDirectoryFileEntriesIntoStringList	manual:paths.tsv	high	paths.md §3.4; flags 8
+0091b9d5	cRZDirectory::ReadDirectoryDirectoryEntriesIntoStringList	manual:paths.tsv	high	paths.md §3.4; flags (dots & 3) | 4
+0091b9ec	std::list<cRZDirectoryEntry,std::allocator<cRZDirectoryEntry>>::push_front	manual:paths.tsv	high	paths.md §3.3; descriptive name; insert before the first node
+0091ba08	std::list<cRZDirectoryEntry,std::allocator<cRZDirectoryEntry>>::push_back	manual:paths.tsv	high	paths.md §3.3; descriptive name; insert before the head node
+0091ba22	cRZDirectory::ReadDirectoryEntries	manual:paths.tsv	high	paths.md §3.3; clears the list, searches path + filter, kinds 4 / 8, '.' and '..' by +0x31 / +0x30
+0091bcad	cRZDirectory::ChangeDirectory	manual:paths.tsv	high	paths.md §3.2; assigns +8, separator, optional read
+0091bcd7	cRZDirectory::SetNewDirectoryEntryFilter	manual:paths.tsv	high	paths.md §3.2; empty filter becomes '*'
+0091bd31	cRZDirectory::cRZDirectory	manual:paths.tsv	high	paths.md §3.2; (path, read, includeParent +0x30, includeSelf +0x31), filter '*'
+0091bd88	cRZDirectory::ReadDirectoryFileEntriesIntoStringListRecursive	manual:paths.tsv	high	paths.md §3.5; depth counter 0x00B62914, ChangeDirectory on the object, files then subdirectories
+0091bf93	cRZDirectory::RemoveDirectoryA	manual:paths.tsv	high	paths.md §3.8; descriptive name (the A suffix as in CreateDirectoryA); static (path, recursive); RemoveDirectoryA, GetLastError 2 / 3 / 0x13 stop, subdirectories then files, then again; callers cSC4Nation::DeleteRegion, cSC4Region::Delete, cSC4WinSnapshotAlbum::DeleteAlbum
+0091c264	cRZPath::GetFileName	manual:paths.tsv	high	paths.md §2.2; returns +0x28 unchanged
+0091c268	cRZPath::SetPath	manual:paths.tsv	high	paths.md §2.2; descriptive name, no Mac match; ResolvePath(+0x50, p, 0) then Splitpath into +0, +0x14, +0x28, +0x3C; sole caller the constructor
+0091c298	cRZPath::FileName	manual:paths.tsv	high	paths.md §2.2; re-splits the name from the buffer when the name is empty
+0091c2c5	cRZPath::cRZPath	manual:paths.tsv	high	paths.md §2.2; five empty strings, then SetPath
+0091c2fe	cRZPath::FixExtensionString	manual:paths.tsv	high	paths.md §2.2; inserts '.' at 0 when not empty and not starting with one
+0091c31f	cRZPath::GetExtension	manual:paths.tsv	high	paths.md §2.2; fix then return +0x3C
+0091c32d	cRZPath::FixDirectoryString	manual:paths.tsv	high	paths.md §2.2; '\' (0x00A85AD8) inserted at 0 and appended when not already a separator
+0091c37e	cRZPath::GetDirectory	manual:paths.tsv	high	paths.md §2.2; fix then return +0x14
+0091c38c	cRZPath::FixDriveString	manual:paths.tsv	high	paths.md §2.2; resize to 2, a non-isalpha first char becomes 'C', the second ':'
+0091c3cf	cRZPath::GetDrive	manual:paths.tsv	high	paths.md §2.2; fix then return +0
+0091c3dc	cRZPath::SetFileName	manual:paths.tsv	high	paths.md §2.2; when the string differs (0x00454BB0): assign, or Splitpath's name part
+0091c41b	cRZPath::SetExtension	manual:paths.tsv	high	paths.md §2.2; when it differs from the fixed extension: assign and fix, or Splitpath's extension part
+0091c46e	cRZPath::SetBuffer	manual:paths.tsv	high	paths.md §2.2; clears +0x50, then appends drive (bit 0), directory (bit 1), name (bit 2), extension (bit 3)
+0091c507	cRZPath::GetPath	manual:paths.tsv	high	paths.md §2.2; SetBuffer(15)
+0091c52a	cRZPath::GetDriveAndDirectory	manual:paths.tsv	high	paths.md §2.2; SetBuffer(3)
+0091c54d	cRZPath::GetFileNameAndExtension	manual:paths.tsv	high	paths.md §2.2; SetBuffer(12)
 0091c570	cRZIniFile::GetPath	auto:C	low	mac 0001cea8 score 1.0 support 1
 0091c574	cRZIniFile::SetFile	auto:C	high	mac 0001cec0 score 1.0 support 1
 0091c5db	cRZIniFile::Open	auto:C	high	mac 0001cf52 score 1.0 support 1
@@ -16378,6 +16395,9 @@ va	name	source	confidence	note
 00b0cdc8	cSC4SubwayOccupant::sModelDescriptor (data)	manual:underground-occupants.tsv	high	underground-occupants.md §1; returned by main slot 101
 00b13420	cRZTimer::sCounterFrequency (data, uint64)	manual:timers.tsv	high	timers.md §1.5; QueryPerformanceFrequency, written by MeasureFrequencies 0x0088FED4
 00b13428	cRZTimer::sCycleFrequency (data, uint64)	manual:timers.tsv	high	timers.md §1.5; the CPU cycle rate C, written by MeasureFrequencies 0x0088FECC
+00b16998	cRZDirectory::sSelfName (data, char const*)	manual:paths.tsv	high	paths.md §3.3; points at '.' (0x00AA1B74)
+00b1699c	cRZDirectory::sParentName (data, char const*)	manual:paths.tsv	high	paths.md §3.3; points at '..' (0x00ABF638)
+00b169a0	cRZDirectory::sAllFilter (data, char const*)	manual:paths.tsv	high	paths.md §3.2; points at '*' (0x00A870D4), the default filter
 00b169b0	cRZTextOStream::sFormats (data, char const*[5])	manual:output-streams.tsv	high	output-streams.md §2.2; %d, %u, %lld, %llu, %g (0x00A8281C, 0x00AA657C, 0x00ACEED0, 0x00ACEED8, 0x00AAEC04)
 00b21624	cSC4FeatureManager::sStaticInitDone (data, bool)	manual:feature-manager.tsv	high	feature-manager.md §2; set by StaticInit 0x0046FC0A, cleared by StaticShutdown 0x0046FA32
 00b21628	cSC4FeatureManager::sInstalledPacks (data, uint32 bit mask)	manual:feature-manager.tsv	high	feature-manager.md §2; bit k = pack k+1; OR-ed at 0x0046FCB9, read by IsExpansionPackInstalled 0x0046F78C
@@ -16394,5 +16414,10 @@ va	name	source	confidence	note
 00b54388	cRZTimer::sCycleOverhead (data, uint64)	manual:timers.tsv	high	timers.md §1.5; the minimum of 8 cpuid+rdtsc pair differences; no cRZTimer method reads it
 00b54390	cRZTimer::sCycleFactors (data, float[5])	manual:timers.tsv	high	timers.md §1.4; ns, us, ms, s, min per CPU cycle; GetMillisecondsPerCycle reads 0x00B54398
 00b543a4	cRZTimer::sCycleReciprocals (data, float[5])	manual:timers.tsv	high	timers.md §1.5; 1 / sCycleFactors
+00b62914	cRZDirectory::sRecursionDepth (data, int)	manual:paths.tsv	high	paths.md §3.5; incremented and decremented by 0x0091BD88
+00b6291c	RZFileFindFirstHook (data, function pointer)	manual:paths.tsv	high	paths.md §4; read by RZFileFindFirst, never written
+00b62920	RZFileFindNextHook (data, function pointer)	manual:paths.tsv	high	paths.md §4; read by RZFileFindNext, never written
+00b62924	RZCreateDirectoryHook (data, function pointer)	manual:paths.tsv	high	paths.md §4; read by CreateDirectoryA, never written
+00b62928	RZRemoveDirectoryHook (data, function pointer)	manual:paths.tsv	high	paths.md §4; read by CreateDirectoryA and RemoveDirectoryA, never written
 00b62a9c	cRZCallbackTimer::sLiveTimers (data, set of live timers)	manual:timers.tsv	high	timers.md §2.1; joined by the constructor, left by the destructor, searched by TimerCallback
 00b62aa8	cRZCallbackTimer::sLiveTimersLock (data, critical section)	manual:timers.tsv	high	timers.md §2.1; guards sLiveTimers and the handler's state change

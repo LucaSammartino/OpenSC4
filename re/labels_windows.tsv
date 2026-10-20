@@ -892,6 +892,9 @@ va	name	slots	note
 00b0cdc8	cSC4SubwayOccupant::sModelDescriptor	0	underground-occupants.md §1; returned by main slot 101
 00b13420	cRZTimer::sCounterFrequency	0	timers.md §1.5; QueryPerformanceFrequency, written by MeasureFrequencies 0x0088FED4
 00b13428	cRZTimer::sCycleFrequency	0	timers.md §1.5; the CPU cycle rate C, written by MeasureFrequencies 0x0088FECC
+00b16998	cRZDirectory::sSelfName	0	paths.md §3.3; points at '.' (0x00AA1B74)
+00b1699c	cRZDirectory::sParentName	0	paths.md §3.3; points at '..' (0x00ABF638)
+00b169a0	cRZDirectory::sAllFilter	0	paths.md §3.2; points at '*' (0x00A870D4), the default filter
 00b169b0	cRZTextOStream::sFormats	0	output-streams.md §2.2; %d, %u, %lld, %llu, %g (0x00A8281C, 0x00AA657C, 0x00ACEED0, 0x00ACEED8, 0x00AAEC04)
 00b21624	cSC4FeatureManager::sStaticInitDone	0	feature-manager.md §2; set by StaticInit 0x0046FC0A, cleared by StaticShutdown 0x0046FA32
 00b21628	cSC4FeatureManager::sInstalledPacks	0	feature-manager.md §2; bit k = pack k+1; OR-ed at 0x0046FCB9, read by IsExpansionPackInstalled 0x0046F78C
@@ -908,5 +911,10 @@ va	name	slots	note
 00b54388	cRZTimer::sCycleOverhead	0	timers.md §1.5; the minimum of 8 cpuid+rdtsc pair differences; no cRZTimer method reads it
 00b54390	cRZTimer::sCycleFactors	0	timers.md §1.4; ns, us, ms, s, min per CPU cycle; GetMillisecondsPerCycle reads 0x00B54398
 00b543a4	cRZTimer::sCycleReciprocals	0	timers.md §1.5; 1 / sCycleFactors
+00b62914	cRZDirectory::sRecursionDepth	0	paths.md §3.5; incremented and decremented by 0x0091BD88
+00b6291c	RZFileFindFirstHook	0	paths.md §4; read by RZFileFindFirst, never written
+00b62920	RZFileFindNextHook	0	paths.md §4; read by RZFileFindNext, never written
+00b62924	RZCreateDirectoryHook	0	paths.md §4; read by CreateDirectoryA, never written
+00b62928	RZRemoveDirectoryHook	0	paths.md §4; read by CreateDirectoryA and RemoveDirectoryA, never written
 00b62a9c	cRZCallbackTimer::sLiveTimers	0	timers.md §2.1; joined by the constructor, left by the destructor, searched by TimerCallback
 00b62aa8	cRZCallbackTimer::sLiveTimersLock	0	timers.md §2.1; guards sLiveTimers and the handler's state change

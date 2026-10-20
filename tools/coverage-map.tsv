@@ -434,6 +434,18 @@ cRZNullOStream	streams	framework	output-streams.md	-	-	-
 cRZOFStream	streams	framework	output-streams.md	-	-	-
 cRZIStream	streams	framework	output-streams.md	-	-	-
 cRZNullIStream	streams	framework	output-streams.md	-	-	-
+# the path utilities, cRZPath, cRZDirectory and the file-finding functions (paths.md)
+cRZPath	paths and directories	framework	paths.md	-	-	-
+cRZDirectory	paths and directories	framework	paths.md	-	-	-
+cRZDirectoryEntry	paths and directories	framework	paths.md	-	-	-
+fn:IsPathSeparator	paths and directories	framework	paths.md	-	-	-
+fn:IsASCIILetter	paths and directories	framework	paths.md	-	-	-
+fn:IsFullPath	paths and directories	framework	paths.md	-	-	-
+fn:Fullpath	paths and directories	framework	paths.md	-	-	-
+fn:ResolvePath	paths and directories	framework	paths.md	-	-	-
+fn:Splitpath	paths and directories	framework	paths.md	-	-	-
+fn:SplitDirectory	paths and directories	framework	paths.md	-	-	-
+fn:RZFileFind*	paths and directories	framework	paths.md	-	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource*	persistence and resources	framework	-	-	-	-
 cGZPropertySet*	persistence and resources	framework	-	-	-	-
