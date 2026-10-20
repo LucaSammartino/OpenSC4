@@ -39,7 +39,8 @@
 #include "FC4CitySitShadow.h"     // the glue17 lane
 #include "FC4DemolitionShadow.h"  // the glue17 lane
 #include "FC4DispatchShadow.h"    // the glue17 lane
-#include "cFC4Terrain.h"        // the glue18 lane#include "FC4Popups.h"
+#include "cFC4Terrain.h"        // the glue18 lane
+#include "FC4Popups.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "cFC4Crime.h"
