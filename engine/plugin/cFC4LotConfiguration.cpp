@@ -131,13 +131,42 @@ bool cFC4LotConfiguration::QueryInterface(uint32_t riid, void** ppvObj) {
     return false;
 }
 
-uint32_t cFC4LotConfiguration::AddRef() { return ++refCount_; }
+uint32_t cFC4LotConfiguration::AddRef() {
+    // PL18 diagnostic (the round-2 per-op trace, restored): name the caller
+    // so the game's release waves can be counted per configuration. Verbose
+    // only; the ref audit's own class lookup would QueryInterface mid-call.
+    ++refCount_;
+    void* frames[8] = {};
+    const USHORT n = RtlCaptureStackBackTrace(0, 8, frames, nullptr);
+    char chain[200] = {};
+    size_t at = 0;
+    for (USHORT i = 1; i < n && at < sizeof(chain) - 16; ++i) {
+        at += static_cast<size_t>(_snprintf_s(chain + at, sizeof(chain) - at, _TRUNCATE, "%s%08X", i > 1 ? " " : "",
+                                              static_cast<unsigned>(reinterpret_cast<uintptr_t>(frames[i]) & 0xFFFFFFFFu)));
+    }
+    fc4::Log("lotcfg: cfg %p AddRef -> %u (caller %s)", static_cast<void*>(this), refCount_,
+             chain[0] != 0 ? chain : "-");
+    return refCount_;
+}
 
 uint32_t cFC4LotConfiguration::Release() {
     // 1: a count above 1 is decremented and returned; otherwise the object
     // is deleted (its Shutdown is a no-op here - the configuration has no
     // Shutdown of its own, 0).
-    if (refCount_ == 0 || --refCount_ != 0) return refCount_;
+    if (refCount_ == 0 || --refCount_ != 0) {
+        // PL18 diagnostic: same caller capture as AddRef.
+        void* frames[8] = {};
+        const USHORT n = RtlCaptureStackBackTrace(0, 8, frames, nullptr);
+        char chain[200] = {};
+        size_t at = 0;
+        for (USHORT i = 1; i < n && at < sizeof(chain) - 16; ++i) {
+            at += static_cast<size_t>(_snprintf_s(chain + at, sizeof(chain) - at, _TRUNCATE, "%s%08X", i > 1 ? " " : "",
+                                                  static_cast<unsigned>(reinterpret_cast<uintptr_t>(frames[i]) & 0xFFFFFFFFu)));
+        }
+        fc4::Log("lotcfg: cfg %p Release -> %u (caller %s)", static_cast<void*>(this), refCount_,
+                 chain[0] != 0 ? chain : "-");
+        return refCount_;
+    }
     // Diagnostic: a wrapper dying while the catalogue map still holds it
     // leaves a dangling configuration the game reads at the next growth pass
     // (AV reading 0 inside IsCompatibleWithPurposeType). Name the releaser.

@@ -600,6 +600,8 @@ cISC4LotConfiguration* cFC4LotConfigManager::GetLotConfiguration(uint32_t id) {
 uint32_t cFC4LotConfigManager::GetLotConfigurationsByFilter(
     fc4::GameHashSetU32<fc4::TractNodeAllocator>& configs, cISC4LotConfigurationFilter* filter) {
     if (core_ == nullptr) return 0;
+    // PL18 diagnostic: the query marker the wave counts need.
+    fc4::Log("lotcfg: slot 9 ByFilter -> (open), set %p", static_cast<void*>(&configs));
     std::vector<uint64_t> v;
     fc4_lot_config_configurations(core_, kByFilter, Tok(filter), 0,
                                   [](void* ctx, uint64_t t) {
@@ -640,6 +642,8 @@ uint32_t cFC4LotConfigManager::GetLotConfigurationsByFilter(
 
 uint32_t cFC4LotConfigManager::GetLotConfigurationsByFamily(void* configs, uint32_t family) {
     if (core_ == nullptr) return 0;
+    // PL18 diagnostic: the query marker the wave counts need.
+    fc4::Log("lotcfg: slot 9 ByFamily %u -> (open), set %p", family, configs);
     std::vector<uint64_t> v;
     fc4_lot_config_configurations(core_, kByFamily, family, 0,
                                   [](void* ctx, uint64_t t) {
@@ -660,6 +664,8 @@ uint32_t cFC4LotConfigManager::GetLotConfigurationsByFamily(void* configs, uint3
 
 uint32_t cFC4LotConfigManager::GetLotConfigurationsBySize(void* configs, uint32_t x, uint32_t z) {
     if (core_ == nullptr) return 0;
+    // PL18 diagnostic: the query marker the wave counts need.
+    fc4::Log("lotcfg: slot 9 BySize %ux%u -> (open), set %p", x, z, configs);
     std::vector<uint64_t> v;
     fc4_lot_config_configurations(core_, kBySize, x, z,
                                   [](void* ctx, uint64_t t) {

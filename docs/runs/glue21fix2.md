@@ -18,3 +18,23 @@ qbuild all: cargo test 2860 passed / 0 failed, clippy clean (0 diagnostics), bui
 ctest 100% (58/58). Not yet game-clean: the PL18 configuration-lifetime fault stands between the
 run and a `clean` verdict; the merge-queue entry is `wip` until PL18 is answered and the run ladder
 reaches `clean` with the three shadows exact.
+
+## Round 4 (2026-10-21, the double-add measured)
+
+The candidate fix was already committed (`1b840d70`): the plugin loop's `FC4_ADDREF` per matched
+configuration over the core's `with_refs` add = 2 per matched config per slot-9 query (the isoref
+runs predate that commit and measured one add per query). Runs (Konradshohe, turbo to 2032,
+`enable = lotcfg`):
+
+| Run | Build | Verdict | Result |
+|---|---|---|---|
+| glue21fix2-ref2-1 | double-add | exited -1 | Day 29's wave no longer deletes (was ~23 wrappers); day 30 deletes 3 wrappers (k=1 query, no lot ref), then the same `vector<bool>` AV (`edi` = the dead wrapper). |
+| glue21fix2-ref2-2 | + per-op ref trace restored | exited -1 | Full ledger measured: base after load 2 (catalogue + raw map add), game bulk wave +1 (exe `0x0069C385`), per-candidate game adds exe `0x006BF53D` (1..66 per config, 736 configs), query +2. The wave (exe `0x00709798`) releases -1 per config per pass; a k=1 no-lot config (count 4) drains to 0 and dies; a k=1 with-lot one (count 5) keeps 1. |
+| glue21fix2-ref2-3 | + 40-ref cushion | exited -1 | DECISIVE: the wave drains a config to ZERO regardless of the references: five count-44 configs released 43 logged + 1 deleting times; two count-44 configs released once and stopped; in ref2-2 a count-4 died and a count-5 kept 1. The release count follows the game's candidate/pass structure (a config the game never AddRef'd was released 44 times), so no reference hand-out balances it. |
+
+Conclusion: reference-count compensation cannot fix PL18. Filed **PL19** (the wave's container and
+the original's behaviour at `0x00709798`) in docs/specs/questions/prop-lotconfig.md; the double-add
+is kept (strict improvement), the per-op trace stays in `cFC4LotConfiguration.cpp` and the slot-9
+query markers in `cFC4LotConfigManager.cpp` (diagnostics for the RE answer to be verifiable).
+qbuild all at `f65bf327`+1: cargo 2860/0, clippy 0, build+ctest green; the game runs keep
+ref_warnings = 0 and the shadows never ran to compare (the AV precedes them).
