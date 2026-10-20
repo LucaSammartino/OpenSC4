@@ -313,8 +313,10 @@ impl PortHost for World {
         );
     }
     fn construct_default_lot(&self, lot: u64, config: Option<u64>) -> bool {
-        self.events
-            .push("construct", vec![("lot", t(lot)), ("config", config.map_or(Json::Null, t))]);
+        self.events.push(
+            "construct",
+            vec![("lot", t(lot)), ("config", config.map_or(Json::Null, t))],
+        );
         if config.is_none() {
             // The lot developer with a null configuration (lot-developer.md
             // §6.4, PD5): an empty lot in state 2 with condition 1, true.

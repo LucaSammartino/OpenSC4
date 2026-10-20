@@ -394,7 +394,12 @@ const Subsystem kSubsystems[] = {
     {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
-{"propdev", nullptr, kPropDevClasses, sizeof(kPropDevClasses) / sizeof(kPropDevClasses[0]), false},
+    {"dispatch", nullptr, kDispatchClasses, sizeof(kDispatchClasses) / sizeof(kDispatchClasses[0]), false},
+    {"citysit", nullptr, kCitySitClasses, sizeof(kCitySitClasses) / sizeof(kCitySitClasses[0]), false},
+    {"demolition", nullptr, kDemolitionClasses, sizeof(kDemolitionClasses) / sizeof(kDemolitionClasses[0]),
+     false},
+    {"tutorial", nullptr, kTutorialClasses, sizeof(kTutorialClasses) / sizeof(kTutorialClasses[0]), false},
+    {"propdev", nullptr, kPropDevClasses, sizeof(kPropDevClasses) / sizeof(kPropDevClasses[0]), false},
     {"citydetail", nullptr, kCityDetailClasses, sizeof(kCityDetailClasses) / sizeof(kCityDetailClasses[0]), false},
     {"ports", nullptr, kPortClasses, sizeof(kPortClasses) / sizeof(kPortClasses[0]), false},
 };
