@@ -27,20 +27,6 @@
   Base record Write 0x0061A190 / Read 0x0061CC00 disassembled to field order (the quad/triangle/bbox/ref/int64
   layout is new to the docs; ABI tables only had slot names).
 - No ABI rows proposed (the docs/abi tables were sufficient once the compiled-vs-SDK slot notes were cited).
+- Merge-queue file `build-runs/merge-queue/re-netocc.json` written (tip fe37c540, kind docs, state ready).
 - Next: nothing for this lane; the merge train picks the docs batch.
 
-## Handoff
-- Goal: NEW spec `docs/specs/network-occupants.md` (cSC4NetworkOccupant family, 754 fns / 114,523 bytes) +
-  questions NO1+ in `docs/specs/questions/network-occupants.md`, QUESTIONS.md registration, final lane row +
-  report, `build-runs/merge-queue/re-netocc.json` (kind `docs`). Do NOT touch engine/ or tools/.
-- Done: all RE reading done (commit fb505627: research notes; 78414930: handoff commit). Spec written from the
-  notes plus this round's vtable-extent and record-field verification (vtdump.py in build-runs, reads the exe
-  PE directly, read-only). Spec, questions file and QUESTIONS.md index committed on this branch.
-- Next (fresh agent): the ONLY remaining step — write `build-runs/merge-queue/re-netocc.json` with exactly this
-  content, then return the structured result with state "ready" (tip 869ef360, kind docs, abi false, no game
-  runs): `{"lane":"re-netocc","branch":"re-netocc","tip":"869ef3605b01fd5727e25b853ba2db1029ea8e88","kind":"docs","abi":false,"game_runs":[],"summary":"network-occupants: new spec for the cSC4NetworkOccupant family (identity/inheritance, layouts, base save record v8, prebuilt/bridge/tunnel, underground/pipe/subway + connection occupants, pole/line/pylon, occupant-lot relationship, type-info loaders, routines, quirks, 25 tests); questions NO1-NO8 filed and indexed","state":"ready"}`
-  (This file was written once and removed because the round-2 context budget gate hit OVER before the final
-  return; round 2 verified everything else is committed at 869ef360 and the tree is clean.)
-- Facts: worktree C:/Users/tlori/FreeCity4/.claude/worktrees/re-netocc; main C:/Users/tlori/FreeCity4; base
-  a2e6fdf5; today 2026-10-20; budget 150k; no game runs; no ABI rows. cSC4NetworkLotOccupant does not exist in
-  the binary (spec §7.1 says so). NO1–NO8 filed; NO9/NO10 dropped (settled in-spec).
