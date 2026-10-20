@@ -250,7 +250,12 @@ void PlaceOccupant(NetToolContext* c, cISC4OccupantManager* om, cISC4NetworkOccu
     } else {
         n->SetNetworkFlag(0x4000u);     // slot 11 (drawn translucent)
     }
-    FC4_RELEASE(occ);
+    // NO release of `occ` here: AsOccupant (slot 3) is folded — returns this + 8
+    // (network-occupants.md §4.2), the same object WITHOUT an AddRef. The single
+    // GetClassObject reference is released by the caller on `n`. Releasing the
+    // folded view too double-releases the object (run 217: net -16 on the
+    // cISC4Occupant view, over-release warnings at this line, and the AV in the
+    // network manager's shutdown path right after the tool's Shutdown).
 }
 
 // §6.1 step 2.1 / §6.2: for each solved cell, insert the solved piece into
