@@ -165,7 +165,11 @@ extern "C" {
  * 71 = merge-train batch train4 (re-specs20, re-answers30, re-specs19, cores22, apply15e, glue20, cores21): merged (no C ABI history entry of its own)
  * 72 = merge-train batch train5 (re-answers31, re-specs21, cores24, coverage3, glue23): merged (no C ABI history entry of its own);
  * 73 = merge-train batch train6 (glue17, apply15b, cores17, cores19, glue15, apply15terrain, glue12b1, glue12b2): adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane; taken as 63, then 64-68 on its lane; renumbered at merge). | adds the effects manager (fc4_effects, fc4_effects_directory; effects.md): the effect directory parser, creation, LOD and select groups, the tick, finishing (the hook or the draw-pass compat mode), the brush and game effects through host callbacks (renumbered at merge). | The lot configuration manager's opaque handle is fc4_lot_config_manager (the glue15 lane renamed it; the entry points keep their fc4_lot_config_* names, so the ABI surface is unchanged). | terrain round 2 (re-answers17, apply15terrain lane): fc4_terrain_lerped_water_level, fc4_terrain_flooding_altitude, fc4_terrain_water_velocity, fc4_terrain_sediment_at, fc4_terrain_brush_angles, fc4_terrain_set_brush_angles, fc4_terrain_talus_angle and fc4_terrain_set_talus_angle; fc4_terrain_brush_angle returns the stroke angle and fc4_terrain_add_brush's angle is the walk angle's start; set_water_display_state posts only on a change (taken as 64, then 65, 66 and 68 on its lane; renumbered at merge). | adds fc4_port_developer_required_budget and fc4_port_developer_funding_ratio (the port glue's shadow; glue12b2 lane, taken as 66 on the lane, renumbered at merge).
- * 74 = merge-train batch train8 (re-answers32, glue27, cores23, cores20): merged (no C ABI history entry of its own) */
+ * 74 = merge-train batch train8 (re-answers32, glue27, cores23, cores20): merged (no C ABI history entry of its own);
+ * 75 = adds the network tools (fc4_nettool, network-tools.md §2-§11): the tool state, PlaceNetworkOccupants
+ *      (slot 7), PlaceNetworkOccupantById (slot 8), the PlaceNetwork pipeline hand-off with the commit order,
+ *      DestroyOccupantsAndResolve (slot 50) and the underground refit, over an fc4_nettool_host table (cores27
+ *      lane; taken as 75 on its lane; renumbered at merge; FC4_ABI_VERSION left at 74 for the train) */
 #define FC4_ABI_VERSION 74u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -11777,6 +11781,224 @@ uint32_t fc4_prop_no_lot_tag(void);
 /* out[0] record version 6, out[1] effect version 3, out[2] legacy timer bits
  * 0x0F, out[3] occupant base version 4. */
 int32_t fc4_prop_record_versions(uint16_t* out);
+
+/* ---- network tools (docs/specs/network-tools.md §2-§11; engine/capi/src/network_tools.rs) ----
+ * The network tool's own half of PlaceNetwork over the geometry core
+ * (fc4_netgeom): the tool state (§2), PlaceNetworkOccupants (slot 7, §3),
+ * PlaceNetworkOccupantById (slot 8, §4), the PlaceNetwork pipeline hand-off
+ * (§5) with the commit order (§6), DestroyOccupantsAndResolve (slot 50, §10)
+ * and UpdateUndergroundOccupantTerrainHeights (§11). No plugin glue yet.
+ *
+ * The world (occupants, poles, the terrain, the geometry core, the crew)
+ * goes through the host table; a missing callback is the empty world (no
+ * occupants, no neighbours, no structures, the passes keep the counts). The
+ * geometry itself runs through the host's draw/validate callbacks, which a
+ * glue host binds to an fc4_netgeom.
+ *
+ * Threads: one thread at a time. A callback that calls back into the same
+ * tool is refused (fallback value, counted in reentrant_refused). */
+typedef struct fc4_nettool fc4_nettool;
+
+/* One cell (§2.2's 8-byte cell, §10's (x, z)). */
+typedef struct fc4_nettool_cell {
+    int32_t x, z;
+} fc4_nettool_cell;
+
+/* A neighbour of the destroy closure (§10 step 3): flags 0x400000 immovable,
+ * 0x100000 intersection. */
+typedef struct fc4_nettool_neighbour {
+    uint64_t occ;
+    int32_t x, z;
+    uint8_t immovable, intersection;
+    uint8_t reserved[6];
+} fc4_nettool_neighbour;
+
+/* One collected occupant of §10 step 2. */
+typedef struct fc4_nettool_listed {
+    uint64_t occ;
+    int32_t x, z;
+} fc4_nettool_listed;
+
+/* One underground piece of §11: slot 94's stored terrain heights, slot 34's
+ * vertex heights, slot 38-with-type's edge mask. */
+typedef struct fc4_nettool_underground {
+    uint64_t occ;
+    int32_t x, z;
+    float stored_terrain[4]; /* (x,z), (x,z+1), (x+1,z+1), (x+1,z) */
+    float vertices[4];
+    uint32_t edges;
+} fc4_nettool_underground;
+
+/* FindUndergroundOccupant's solved record (§11.1 step 4): the occupant and
+ * the four solved corner heights. */
+typedef struct fc4_nettool_solved {
+    uint64_t occ;
+    float corners[4];
+} fc4_nettool_solved;
+
+/* The pass/solve result (§5.1 steps 4-5): the valid count and the failure
+ * code (0 = none; §14 of network-geometry.md). */
+typedef struct fc4_nettool_pass {
+    uint32_t valid_count;
+    uint32_t failure;
+} fc4_nettool_pass;
+
+/* The largest cell list one run carries. */
+#define FC4_NETTOOL_MAX_CELLS 4096u
+
+/* One run of DrawNetworkLine/PlaceNetwork (§3.2 step 2 / §3.3 step 5.4):
+ * the drag inputs, the counters (+0x70/+0x74/+0x78), the current +0x208 and
+ * the cell lists. */
+typedef struct fc4_nettool_run {
+    uint32_t struct_size;
+    uint32_t type_id;
+    int32_t start_x, start_z, end_x, end_z;
+    uint32_t dragged_count, straight_count, valid_count;
+    uint32_t data4; /* +0x208 at the insert */
+    uint32_t cell_count;
+    fc4_nettool_cell cells[FC4_NETTOOL_MAX_CELLS];
+    uint32_t resolve_count;
+    fc4_nettool_cell resolve_cells[FC4_NETTOOL_MAX_CELLS];
+} fc4_nettool_run;
+
+/* UpdateUndergroundOccupantTerrainHeights' outcomes (§11.1 steps 4-5). */
+#define FC4_NETTOOL_U_UPDATED 0u
+#define FC4_NETTOOL_U_KEPT 1u
+#define FC4_NETTOOL_U_DESTROY 2u
+
+/* What the network tool needs from the game. Occupants are opaque u64 host
+ * tokens; 0xFFFFFFFF as a type means "none". */
+typedef struct fc4_nettool_host {
+    uint32_t struct_size;
+    void* user;
+    /* ---- the drag and the pipeline (§3.2, §5) ---- */
+    bool (*draw_network_line)(void* user, fc4_nettool_run* run, bool snap); /* slot 18 */
+    bool (*do_network_specific_placement)(void* user, fc4_nettool_run* run, uint32_t arg3,
+                                          uint32_t neighbour_mode, bool real); /* slot 53 */
+    /* §5.1 steps 4-5 through the geometry core; false = no host. */
+    bool (*validate_and_solve)(void* user, fc4_nettool_run* run, bool real, fc4_nettool_pass* out);
+    bool (*attempt_neighbor_connections)(void* user, fc4_nettool_run* run);
+    void (*place_neighbor_connections)(void* user, fc4_nettool_run* run);
+    /* §3.3: GetNetworkOccupant with the OR filter (occupant manager slot 32 +
+     * QI 0xA821EF94): the occupant's network type, or 0xFFFFFFFF = none. */
+    uint32_t (*get_network_occupant)(void* user, int32_t x, int32_t z, uint32_t mask);
+    /* §3.3 step 6.2: the callback tool's PlaceNetworkOccupants (one-cell
+     * join in the callback tool's own type). */
+    void (*callback_place)(void* user, uint32_t callback, int32_t ax, int32_t az, int32_t bx, int32_t bz,
+                           bool real);
+    /* ---- the commit (§6) ---- */
+    void (*commit_pre)(void* user, const fc4_nettool_run* run, bool real);
+    void (*insert_occupants_for_solved_cells)(void* user, const fc4_nettool_run* run, bool preview_only);
+    void (*insert_bridge_pieces)(void* user, const fc4_nettool_run* run);
+    void (*insert_tunnel_pieces)(void* user, const fc4_nettool_run* run);
+    void (*insert_highway_intersection_pieces)(void* user, const fc4_nettool_run* run);
+    bool (*crew_parameters_both_one)(void* user, uint32_t type_id);
+    void (*crew_add_network_segment)(void* user, uint64_t crew, const fc4_nettool_run* run);
+    /* §6.3 MarkOccupantsUsable(set, release) — unconditional in real mode
+     * (quirk 5). */
+    void (*mark_occupants_usable)(void* user, const fc4_nettool_run* run, bool release);
+    void (*commit_draft)(void* user, const fc4_nettool_run* run);
+    /* ---- §4 / §6.4 ---- */
+    void (*insert_network_occupant_by_id)(void* user, const fc4_nettool_run* run, int32_t x, int32_t z,
+                                          uint32_t piece, bool usable, uint32_t type_id);
+    /* Slot 9 OccupantExists(x, z, flags, &mask) (zones.md §8.8): true with
+     * mask[0..4] written, false with mask untouched. */
+    bool (*occupant_exists)(void* user, int32_t x, int32_t z, uint32_t flags, uint8_t* mask);
+    /* ---- §10 DestroyOccupantsAndResolve ---- */
+    /* Network occupant slot 59 GetOccupiedCell. */
+    bool (*occupied_cell)(void* user, uint64_t occ, fc4_nettool_cell* out);
+    /* The occupant's neighbours by network type; writes up to `capacity`,
+     * returns the total (called again with a larger buffer). */
+    uint32_t (*neighbours_by_network_type)(void* user, uint64_t occ, fc4_nettool_neighbour* out,
+                                           uint32_t capacity);
+    bool (*is_intersection_piece)(void* user, uint64_t occ); /* flag 0x100000 */
+    /* Network manager slot 12 GetAllIntersectionPieces. */
+    uint32_t (*intersection_structure)(void* user, uint64_t occ, uint64_t* out, uint32_t capacity);
+    bool (*is_tunnel_portal)(void* user, uint64_t occ); /* flag 0x80000 */
+    /* The portal at the other end (QI 0x8A4BD52B); 0 = none. */
+    uint64_t (*paired_portal)(void* user, uint64_t occ);
+    /* §10 step 5.1: MessageSend of 0xAA7A014D (synchronous). */
+    void (*send_pre_demolish_sync)(void* user, uint64_t occ);
+    /* §10 step 5.3 (destroyed cell): occupantManager.RemoveOccupant(o, false, 0). */
+    void (*remove_occupant)(void* user, uint64_t occ, bool shutdown);
+    /* §10 step 5.3 (closure piece): RemoveOrReplaceOccupant — true when a
+     * plain piece was put back. */
+    bool (*remove_or_replace_occupant)(void* user, uint64_t occ);
+    void (*occupant_shutdown)(void* user, uint64_t occ);
+    void (*release)(void* user, uint64_t occ);
+    /* §10 step 6.1: SolveNetwork(−1, true) over the re-solve set. */
+    void (*solve_network_resolve)(void* user, fc4_nettool_run* run);
+    /* ---- §11 the underground refit ---- */
+    /* Terrain slot 17: the cell's current corner altitudes. */
+    void (*corner_altitudes)(void* user, int32_t x, int32_t z, float out[4]);
+
+    /* §11.1 step 3: SmoothenNetwork(level) over the solved records. */
+    bool (*smoothen_underground)(void* user, fc4_nettool_run* run, int32_t level);
+    /* §11.1 step 4: FindUndergroundOccupant(x, z, class). */
+    bool (*find_underground_solved)(void* user, int32_t x, int32_t z, fc4_nettool_solved* out);
+    /* §11.1 step 5.4: DestroyNetworkOccupants / ReleaseOccupantList. */
+    void (*destroy_network_occupants)(void* user, const uint64_t* occ, uint32_t count);
+    void (*release_occupant_list)(void* user, const uint64_t* occ, uint32_t count);
+    /* §11.1 step 6: slot 86 (true), SetUsable(false), slot 50, SetUsable(true),
+     * Release — in that order; the usable toggle posts 0x89D3E9F3 data1 = 0
+     * then 1. vertex_heights is set for U_UPDATED, stored_terrain for
+     * U_UPDATED and U_KEPT. */
+    void (*underground_rebuild)(void* user, uint64_t occ, uint32_t outcome, const float* vertex_heights,
+                                const float* stored_terrain);
+} fc4_nettool_host;
+
+/* Diagnostics (fc4_nettool_get_state). */
+typedef struct fc4_nettool_state {
+    uint32_t struct_size;
+    uint32_t type_id;
+    uint8_t real, stop_on_failure, destroyed_flag, preview_update;
+    uint8_t reserved[4];
+    uint32_t data4;      /* +0x208 */
+    uint32_t failure;    /* +0x20C, 0 = none */
+    int32_t demolition_cost; /* +0x220 */
+    uint32_t layer_mask;     /* +0x360 */
+    float depth;             /* +0x36C */
+    float cover_margin_a;    /* +0x370 */
+    float cover_margin_b;    /* +0x378 */
+    uint32_t city_x, city_z; /* +0x240, +0x244 */
+    uint32_t cache_count;
+    uint32_t reentrant_refused;
+} fc4_nettool_state;
+
+/* A tool of `type_id` over `host`. NULL on a bad host table size. */
+fc4_nettool* fc4_nettool_create(const fc4_nettool_host* host, uint32_t type_id);
+void fc4_nettool_destroy(fc4_nettool* t);
+/* Init (slot 3): the city size and the underground fields from the host's
+ * exemplar reads (ReloadNetworkSpecificInfo). */
+bool fc4_nettool_init(fc4_nettool* t, uint32_t city_x, uint32_t city_z, float depth, float cover_a,
+                      float cover_b, float piece_tolerance, bool land_bridges);
+/* Reset (slot 5): empties the world cache and the step counts. */
+bool fc4_nettool_reset(fc4_nettool* t);
+/* ClearFailureReason (slot 13). */
+bool fc4_nettool_clear_failure(fc4_nettool* t);
+/* EnablePreviewUpdate (slot 21): +0x234. */
+bool fc4_nettool_enable_preview_update(fc4_nettool* t, bool on);
+/* GetFailureState (slot 14): +0x20C. */
+uint32_t fc4_nettool_get_failure_state(const fc4_nettool* t);
+/* OccupantExists (slot 9, zones.md §8.8). */
+bool fc4_nettool_occupant_exists(const fc4_nettool* t, int32_t x, int32_t z, uint32_t flags, uint8_t* mask);
+/* PlaceNetworkOccupants (slot 7, §3): AL. callback 0 = none. */
+bool fc4_nettool_place_network_occupants(fc4_nettool* t, int32_t x1, int32_t z1, int32_t x2, int32_t z2,
+                                         uint32_t mask, uint32_t callback, bool real, int32_t type_id);
+/* PlaceNetworkOccupantById (slot 8, §4). */
+bool fc4_nettool_place_network_occupant_by_id(fc4_nettool* t, int32_t x, int32_t z, uint32_t piece,
+                                              bool usable, int32_t type_id);
+/* PlaceNetwork (§5) on a caller's run: true on success, false on refusal
+ * (the failure code is in the state). crew 0 = none. */
+bool fc4_nettool_place_network(fc4_nettool* t, const fc4_nettool_run* run, uint64_t crew, uint32_t arg3,
+                               uint32_t neighbour_mode, bool real);
+/* DestroyOccupantsAndResolve (slot 50, §10). */
+bool fc4_nettool_destroy_occupants_and_resolve(fc4_nettool* t, const fc4_nettool_listed* list, uint32_t count);
+/* UpdateUndergroundOccupantTerrainHeights (§11): the pipe/subway refit. */
+bool fc4_nettool_update_underground_heights(fc4_nettool* t, const fc4_nettool_underground* pieces,
+                                            uint32_t count, uint32_t network_type);
+/* Diagnostics. */
+bool fc4_nettool_get_state(const fc4_nettool* t, fc4_nettool_state* out);
 
 #ifdef __cplusplus
 } /* extern "C" */

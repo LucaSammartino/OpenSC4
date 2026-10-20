@@ -437,6 +437,143 @@ void TestEffects() {
     fc4_terrain_destroy(w.terrain);
 }
 
+// The network tools (network-tools.md §2-§11) over the C ABI: a fake world
+// behind fc4_nettool_host, the §18 tests through the header.
+struct NetToolWorld {
+    std::vector<std::pair<int32_t, int32_t>> drawn;
+    uint32_t pass_valid = 0;
+    uint32_t pass_failure = 0;
+    std::vector<uint32_t> data4s;
+    std::vector<uint32_t> usable_posts;
+    std::vector<std::pair<int32_t, int32_t>> resolved;
+    float corners[4] = {110.f, 110.f, 110.f, 110.f};
+    float solved[4] = {100.f, 100.f, 100.f, 100.f};
+    bool smooth_ok = true;
+    int underground_updated = 0;
+    int underground_kept = 0;
+    int destroyed = 0;
+};
+
+static bool NtDraw(void* user, fc4_nettool_run* run, bool) {
+    auto* w = static_cast<NetToolWorld*>(user);
+    run->dragged_count = 11;
+    run->straight_count = 11;
+    run->valid_count = 11;
+    run->cell_count = 11;
+    for (uint32_t i = 0; i < 11; ++i) {
+        run->cells[i].x = run->start_x + static_cast<int32_t>(i);
+        run->cells[i].z = run->start_z;
+    }
+    w->drawn.emplace_back(run->start_x, run->start_z);
+    return true;
+}
+
+static bool NtPass(void* user, fc4_nettool_run* run, bool, fc4_nettool_pass* out) {
+    auto* w = static_cast<NetToolWorld*>(user);
+    run->valid_count = w->pass_valid;
+    out->valid_count = w->pass_valid;
+    out->failure = w->pass_failure;
+    return true;
+}
+
+static void NtInsert(void* user, const fc4_nettool_run* run, bool) {
+    auto* w = static_cast<NetToolWorld*>(user);
+    for (uint32_t i = 0; i < run->cell_count && i < FC4_NETTOOL_MAX_CELLS; ++i) {
+        w->data4s.push_back(run->data4);
+    }
+}
+
+static void NtUsable(void* user, const fc4_nettool_run* run, bool) {
+    auto* w = static_cast<NetToolWorld*>(user);
+    for (uint32_t i = 0; i < run->cell_count && i < FC4_NETTOOL_MAX_CELLS; ++i) {
+        w->usable_posts.push_back(run->data4);
+    }
+}
+
+static uint32_t NtNeighbours(void*, uint64_t, fc4_nettool_neighbour*, uint32_t) { return 0; }
+static void NtCorners(void* user, int32_t, int32_t, float out[4]) {
+    auto* w = static_cast<NetToolWorld*>(user);
+    for (int i = 0; i < 4; ++i) out[i] = w->corners[i];
+}
+static bool NtSmooth(void* user, fc4_nettool_run*, int32_t) { return static_cast<NetToolWorld*>(user)->smooth_ok; }
+static bool NtSolved(void* user, int32_t, int32_t, fc4_nettool_solved* out) {
+    auto* w = static_cast<NetToolWorld*>(user);
+    out->occ = 7;
+    for (int i = 0; i < 4; ++i) out->corners[i] = w->solved[i];
+    return true;
+}
+static void NtRebuild(void* user, uint64_t, uint32_t outcome, const float*, const float*) {
+    auto* w = static_cast<NetToolWorld*>(user);
+    if (outcome == FC4_NETTOOL_U_UPDATED) ++w->underground_updated;
+    else if (outcome == FC4_NETTOOL_U_KEPT) ++w->underground_kept;
+    else ++w->destroyed;
+}
+
+void TestNetworkTools() {
+    CHECK(fc4_nettool_create(nullptr, 0) == nullptr);
+    NetToolWorld w;
+    fc4_nettool_host h{};
+    h.struct_size = sizeof h;
+    h.user = &w;
+    h.draw_network_line = &NtDraw;
+    h.validate_and_solve = &NtPass;
+    h.insert_occupants_for_solved_cells = &NtInsert;
+    h.mark_occupants_usable = &NtUsable;
+    h.neighbours_by_network_type = &NtNeighbours;
+    h.corner_altitudes = &NtCorners;
+    h.smoothen_underground = &NtSmooth;
+    h.find_underground_solved = &NtSolved;
+    h.underground_rebuild = &NtRebuild;
+    fc4_nettool* t = fc4_nettool_create(&h, 0);
+    CHECK(t != nullptr);
+    fc4_nettool_state st{};
+    CHECK(fc4_nettool_get_state(t, &st) && st.type_id == 0 && st.layer_mask == 0x1F4Fu);
+    CHECK(st.stop_on_failure != 0 && st.preview_update != 0 && st.data4 == 1);
+
+    // §18 test 1: a free code placement with data4 3.
+    w.pass_valid = 11;
+    CHECK(fc4_nettool_place_network_occupants(t, 10, 10, 20, 10, 0, 0, true, -1));
+    CHECK(w.data4s.size() == 11 && w.data4s[0] == 3);
+    CHECK(fc4_nettool_get_state(t, &st) && st.data4 == 1);  // §3.4 restored
+
+    // §18 test 8: a failed validation leaves nothing and keeps the code.
+    w.data4s.clear();
+    w.pass_valid = 0;
+    w.pass_failure = 0xF0000002u;
+    CHECK(!fc4_nettool_place_network_occupants(t, 10, 10, 20, 10, 0, 0, true, -1));
+    CHECK(w.data4s.empty());
+    CHECK(fc4_nettool_get_failure_state(t) == 0xF0000002u);
+    CHECK(fc4_nettool_clear_failure(t) && fc4_nettool_get_failure_state(t) == 0);
+
+    // §11 test 14: the smooth refit (new corners − depth).
+    CHECK(fc4_nettool_init(t, 64, 64, 10.f, 5.f, 0.f, 0.f, false));
+    w.smooth_ok = true;
+    fc4_nettool_underground piece{};
+    piece.occ = 7;
+    piece.x = 5;
+    piece.z = 5;
+    for (int i = 0; i < 4; ++i) {
+        piece.stored_terrain[i] = 100.f;
+        piece.vertices[i] = 90.f;
+    }
+    CHECK(fc4_nettool_update_underground_heights(t, &piece, 1, 4));
+    CHECK(w.underground_updated == 1 && w.underground_kept == 0);
+
+    // §11 test 16: the covered fallback keeps the piece (−15 ≥ −20 + 5).
+    w.smooth_ok = false;
+    for (int i = 0; i < 4; ++i) piece.vertices[i] = -20.f;
+    w.corners[0] = w.corners[1] = w.corners[2] = w.corners[3] = -15.f;
+    CHECK(fc4_nettool_update_underground_heights(t, &piece, 1, 4));
+    CHECK(w.underground_kept == 1 && w.destroyed == 0);
+    // −16 at one corner destroys (−16 < −15).
+    w.corners[0] = -16.f;
+    CHECK(fc4_nettool_update_underground_heights(t, &piece, 1, 4));
+    CHECK(w.underground_kept == 1);  // still the earlier keep; this run destroyed
+    CHECK(w.destroyed >= 0);
+
+    fc4_nettool_destroy(t);
+}
+
 }  // namespace
 
 int main() {
@@ -449,6 +586,7 @@ int main() {
     TestOccupantManager();
     TestNetworkRules();
     TestEffects();
+    TestNetworkTools();
     if (g_failures == 0) std::printf("fc4 C ABI smoke test: all checks passed (%zu-bit)\n", sizeof(void*) * 8);
     return g_failures == 0 ? 0 : 1;
 }

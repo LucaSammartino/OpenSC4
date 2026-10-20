@@ -58,6 +58,7 @@ pub mod network_bridge;
 pub mod network_geometry;
 pub mod network_manager;
 pub mod network_rules;
+pub mod network_tools;
 pub mod occupant_manager;
 pub mod ordinance;
 pub mod pacing;
