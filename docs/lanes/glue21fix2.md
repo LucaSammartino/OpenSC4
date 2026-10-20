@@ -50,10 +50,15 @@ vector fix = PL17), `1b840d70` (prop token QI normalization + lotcfg set-query r
   and `TractReleaseHeld` releases one -> +1 per config per Grow pass, invisible to the shadows (they compare
   outcomes, not refcounts); note it in the comment. Check first that nothing else calls these three methods
   expecting exactly one ref (grep `GetLotConfigurationsBy` in engine/plugin).
-- Next (round 4): (1) implement the plugin-side double-add with a comment citing PL18's measured ledger;
-  (2) `python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:/Users/tlori/FreeCity4/.claude/worktrees/glue21 quick`;
-  (3) game run `glue21fix2-ref2-1`: Konradshohe, `turbo = 1`, `end_date = 2032-01-01`, `enable = lotcfg`
-  only first (the fault is lotcfg-only; expect the SimNewDay-29 AV gone) via
+- ROUND 4 DECISIVE FACT (verified in the logs): the candidate fix is ALREADY COMMITTED - `1b840d70`
+  (22:50) added the plugin-loop `FC4_ADDREF` per matched config in all three `GetLotConfigurations*`
+  methods; the isoref runs (22:39/22:47) predate it, so their binaries had ONE add per matched config
+  per query (the core's `with_refs` only; isoref-3: 105-set configs got 3 add lines for three queries,
+  the 90-set 2 for two - exactly one per query). With `1b840d70` the ledger is the candidate's: cat1 +
+  map1 + 2 per query, releases 4 -> net +2/day, stable. Round 4 only refreshed the comments to cite
+  the ledger (no code change beyond comments) and rebuilt.
+- Next (round 5): (1) game run `glue21fix2-ref2-1`: Konradshohe, `turbo = 1`, `end_date = 2032-01-01`,
+  `enable = lotcfg` only first (the fault is lotcfg-only; expect the SimNewDay-29 AV gone) via
   `<WT>/build-runs/game-queue/glue21fix2-ref2-1.req` + one
   `python C:/Users/tlori/FreeCity4/.claude/lane-bin/qwait.py <WT>/build-runs/game-results/glue21fix2-ref2-1.verdict --fresh`;
   (4) then the full `enable = propmgr, lotcfg` run with the three shadows and check them exact; (5) on

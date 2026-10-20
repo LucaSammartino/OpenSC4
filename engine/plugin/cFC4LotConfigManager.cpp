@@ -608,15 +608,28 @@ uint32_t cFC4LotConfigManager::GetLotConfigurationsByFilter(
                                   &v);
     auto* s = reinterpret_cast<fc4::GameHashSetU32<>*>(&configs);
     for (uint64_t t : v) {
-        // §B5.2: every configuration enters the set with a reference - game
-        // callers that release their results directly (the zone developer's
-        // growth pass) count on it. Without the +1 the catalogue's own
-        // reference hits 0 and the wrapper is freed under the map (the
-        // SimNewDay AV reading 0 inside IsCompatibleWithPurposeType).
+        // PL18 (measured ledger, glue21fix2-isoref-3/-4): the game's growth
+        // pass releases FOUR references per configuration per SimNewDay
+        // (release site ILT 0x00709798), independent of how many slot-9
+        // queries matched it. The references no query owns are the
+        // catalogue's (creation, net +1) and the slot-20 scratch map's
+        // (InsertConfig, +1): 2. With one §B5.2 add per matched query, a
+        // no-lot configuration reached 2 + 2×1 = 4 given and 4 released:
+        // 0, and the wrapper deleted under the catalogue. So this loop
+        // adds a SECOND reference per matched configuration (the core's
+        // with_refs took the first): 2 + 2×2 = 6 given, 4 released, net
+        // +2, and the next day repeats (+4/-4) - stable. The original
+        // leaks the same direction (quirk 12: duplicates keep references
+        // slot 12 never releases). The core stays §B5.2-exact; this is the
+        // measured accommodation. Known side effect: our own tract host
+        // (ConfigurationsByFilter) also gets 2 per config and releases one
+        // in TractReleaseHeld, +1 per config per Grow pass, invisible to
+        // the shadows (they compare outcomes, not refcounts).
         if (s != nullptr) {
-            // The +1 is taken even when the value is already in the set (the
-            // quirk of §B5.2): the game releases once per element per pass,
-            // and a skipped duplicate's reference is the original's leak.
+            // Both query references are taken even when the value is
+            // already in the set (the quirk of §B5.2): the game releases
+            // once per element per pass, and a skipped duplicate's
+            // references are the original's leak.
             cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
             if (o != nullptr) FC4_ADDREF(o);
             s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
@@ -635,12 +648,8 @@ uint32_t cFC4LotConfigManager::GetLotConfigurationsByFamily(void* configs, uint3
                                   &v);
     auto* s = reinterpret_cast<fc4::GameHashSetU32<>*>(configs);
     for (uint64_t t : v) {
-        // §B5.2: every configuration enters the set with a reference (see
-        // GetLotConfigurationsByFilter).
+        // §B5.2 + the PL18 second reference (see GetLotConfigurationsByFilter).
         if (s != nullptr) {
-            // The +1 is taken even when the value is already in the set (the
-            // quirk of §B5.2): the game releases once per element per pass,
-            // and a skipped duplicate's reference is the original's leak.
             cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
             if (o != nullptr) FC4_ADDREF(o);
             s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
@@ -659,12 +668,8 @@ uint32_t cFC4LotConfigManager::GetLotConfigurationsBySize(void* configs, uint32_
                                   &v);
     auto* s = reinterpret_cast<fc4::GameHashSetU32<>*>(configs);
     for (uint64_t t : v) {
-        // §B5.2: every configuration enters the set with a reference (see
-        // GetLotConfigurationsByFilter).
+        // §B5.2 + the PL18 second reference (see GetLotConfigurationsByFilter).
         if (s != nullptr) {
-            // The +1 is taken even when the value is already in the set (the
-            // quirk of §B5.2): the game releases once per element per pass,
-            // and a skipped duplicate's reference is the original's leak.
             cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
             if (o != nullptr) FC4_ADDREF(o);
             s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
