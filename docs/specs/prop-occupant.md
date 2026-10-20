@@ -1,6 +1,7 @@
 # cSC4PropOccupant (behaviour spec)
 
-Status: prop-occupant spec, written 2026-10-16 (re-answers27 lane). Every fact was checked on the Windows
+Status: prop-occupant spec, written 2026-10-16 (re-answers27 lane); questions PO1b/PO2/PO3/PO5/PO6 answered
+2026-10-20 (re-answers32 lane). Every fact was checked on the Windows
 executable `bin/SimCity4.exe` (1.1.641, image base `0x00400000`, SHA-256
 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`); every address is a Windows address.
 Numeric details (float or double, operation order, widths) were checked against the instruction bytes.
@@ -45,7 +46,9 @@ carries a **prop type index** (`+0x5C`, a u16 into a process-wide ID table), a *
 a state, a time-of-day range, a random chance, a timer bitfield and a **lot tag**.
 
 It implements `cISC4PropOccupant` (vtable `0x00AA4900`), `cIGZMessageTarget2` (`0x00AA48F0`), `cISC4Occupant`
-(`0x00AA4868`), `cIGZSerializable` (`0x00AA484C`) and a `cSCExemplarPropertyHolder` (`0x00AA47E8`).
+(`0x00AA4868`), `cIGZSerializable` (`0x00AA484C`), a `cSCExemplarPropertyHolder` (`0x00AA47E8`) and
+`cISCExemplarPropertyHolder` (`0x00AA47D0` at `+0x24`, §2.4). Rendering goes through one lazily created
+`cSC43DPlaceableObject` held at occupant `+0x30` (§6.1).
 
 Three things in this spec correct or complete other documents and matter to implementers:
 
@@ -101,7 +104,7 @@ visual effect occur in saves.
 | `cSC4PropOccupantTerrainDecal` | `0x2977AA48` | `0xA0` | `QueryInterface` `0x005ECB10`; primary IID `0xE982078A` or the class ID; occupant sub-object at `+0xC`; vtable `0x00AA4790` (lot-developer.md §7.2 / LD14) |
 | `cSC4PropOccupantVisualEffect` | `0x2977AA49` | `0x94` | §6 |
 | `cSC4PropOccupantBurntBuilding` | `0xC9EFB016` | `0xD8` | `QueryInterface` answers `cISC4PropOccupant` with the **base**; occupant sub-object at `+8`; `SetBoundsFromOccupant` `0x005EEB70` (lot-developer.md §7.2) |
-| `cSC4PropOccupantAutomataController` | `0x2A4017A0` | — | occurs in no save; layout not specified (lot-records.md §16 Q6) |
+| `cSC4PropOccupantAutomataController` | `0x2A4017A0` | `0x88` | occurs in no save; the stride-`0x88` allocator group of §4.2 is its pool (`operator new` `0x005EDD80`, GZCOM creator `0x005F0490`, destructor `0x005F04D0` all use pool `0x00B0A914`). Its constructor `0x005EFDB0` embeds a full prop occupant at `+0x00` (all six sub-objects, prop-lotconfig.md §A2), then adds fields up to `+0x84` (a `cIGZMessageTarget2`-shaped 8-byte sub-object at `+0x74`, `vftable_1` `0x00AA4CC8` at `+0x08`, `vftable_2` `0x00AA4CB8` at `+0x0C`, `vftable_3` `0x00AA4C30` at `+0x10`, `vftable_4` `0x00AA4C14` at `+0x14`, `vftable_5` `0x00AA4BB0` at `+0x28`) and a byte flag at `+0x84` (lot-records.md §16 Q6 keeps the rest) |
 
 The three non-plain sizes are what `CreateProp` allocates when GZCOM has no registered class for the profile's
 occupant class ID (prop-lotconfig.md §A6.1 step 3).
@@ -176,19 +179,48 @@ sub-object pointer — a useful check that the layout is right.
 | `+0x08` | `cISC4Occupant` | `0x00AA4868` (34 slots) | `AsOccupant` (prop slot 3) returns `this + 8` |
 | `+0x0C` | `cIGZSerializable` | `0x00AA484C` | `Write` / `Read` / `GetGZCLSID` |
 | `+0x10` | `cSCExemplarPropertyHolder` | `0x00AA47E8` | occupant slot 6 `AsPropertyHolder` |
-| `+0x24` | unnamed | `0x00AA47D0` (5 slots + a null) | not identified *[inferred: a small auxiliary interface]* |
+| `+0x24` | `cISCExemplarPropertyHolder` | `0x00AA47D0` (5 slots + a null) | QI `0x0AC2B5F7` (§2.4) |
 
 The `cIGZMessageTarget2` vtable `0x00AA48F0` is exactly four slots — `QueryInterface` `0x005EE0F0`, `AddRef`
 `0x0064DD70`, `Release` `0x0064DD80`, `DoMessage` `0x005ECFB0` — which is why the next vtable in the image,
 `0x00AA4900`, starts immediately after it.
 
-### 2.4 The sixth sub-object (`0x00AA47D0` at `+0x24`) *[inferred]*
+### 2.4 The sixth sub-object (`0x00AA47D0` at `+0x24`) — `cISCExemplarPropertyHolder` *[compat]*
 
-Observed slots (read from the image): `0` `0x005EE140`, `1` `0x0064DE00`, `2` `0x0064DE10`, `3` `0x00458E60`,
-`4` `0x0060CE80`, `5` **null**. Slots 0–2 are the usual `QueryInterface` / `AddRef` / `Release` thunk triple
-seen on every other sub-object here. The interface identity is **not** established; nothing in `docs/`
-references `0x00AA47D0`. What would settle it: reading `0x005EE140`'s IID table, or finding the SDK header for
-the class.
+The interface is **`cISCExemplarPropertyHolder`**, IID **`0x0AC2B5F7`** (the SDK's
+`GZIID_cISCExemplarPropertyHolder`). Two independent proofs:
+
+1. The **QI chain** reaches it. `cSC4PropOccupant::QueryInterface` (`0x005EC960`) passes unknown IIDs to the
+   `cSC4Occupant` base (`0x005E89C0`, `this + 8`), which passes them to the exemplar-property-holder base
+   (`0x005FD310`, `this + 8`). That base answers IID `0x0AC2B5F7` with `LEA EAX, [ECX + 0x14]` — with
+   `ECX = obj + 0x10` that is exactly **`obj + 0x24`**.
+2. The **thunk pair agrees**. The `+0x24` vtable's `QueryInterface` is `0x005EE140`
+   (`SUB ECX, 0x24; JMP 0x005EC960`) and its `AddRef`/`Release` are `0x0064DE00`/`0x0064DE10` (`SUB ECX, 0x24`
+   → the shared `0x006491C0`/`0x006491D0`), the same this-adjusting pattern every other sub-object here uses.
+
+The two real slots match the SDK header exactly (`cISCExemplarPropertyHolder` has exactly two methods beyond
+the `cIGZUnknown` triple):
+
+| Slot | Address | Method | Behaviour (measured) |
+|---|---|---|---|
+| 0–2 | `0x005EE140` / `0x0064DE00` / `0x0064DE10` | `QueryInterface` / `AddRef` / `Release` | thunks, `SUB ECX, 0x24` |
+| 3 | `0x00458E60` | `SetDefaultExemplar(cISCResExemplar*)` | replaces the pointer at sub-object `+0x04` (object `+0x28`): AddRefs the new one first, Releases the old one after storing; a null new pointer releases only the old. Identical-code-folded with the other occupants' setters |
+| 4 | `0x0060CE80` | `GetDefaultExemplar()` | `MOV EAX, [ECX + 4]; RET` — the pointer at `+0x28`, no AddRef |
+| 5 | null | — | the vtable ends after slot 4 |
+
+**Who sets it.** The constructor writes only the vptr (`+0x24 := 0x00AA47D0`, `0x005EE08E`); the field at
+`+0x28` starts null and `SetDefaultExemplar` is reached only through the interface (no direct caller in the
+image: `0x00458E60` has zero data references outside vtables). The plain prop's exemplar is attached by the
+prop manager's `LoadPropProperties` (prop-lotconfig.md §A6.1 step 5) through the **property holder** at
+`+0x10`, not through this interface, so in practice a plain prop's `+0x28` stays null unless a plugin calls
+`SetDefaultExemplar` *[inferred: no image-side writer]*. `LoadPropProperties` does, however, **read** the
+interface: it QIs the occupant for `0x0AC2B5F7` first and falls back to the property holder when the QI fails
+(`0x004A2A8F`–`0x004A2AB6`) — which is why the fallback exists for occupants that lack the `+0x24`
+sub-object (building-development.md §8's LG27 note).
+
+`+0x28` is one of the dwords the constructor zeroes at `+0x3C`…`+0x54`'s neighbourhood — it sits between the
+vptr and the zeroed run and is **not** part of the seven-dword AABB-plus-pointer run (§2.2 lists the zeroed
+range correctly as `+0x3C`…`+0x54`).
 
 ---
 
@@ -244,8 +276,8 @@ these 24 rows `eax-or-void`; **15 of the 24 are unambiguous** and two of them ar
 | 2 | `+0x8` | `0x006491D0` | `Release` | 0 | 0 | `via-call` | thunk `add ecx,8` → `0x005E8DF0` (EAX = refcount) |
 | 3 | `+0xC` | `0x006C2040` | `AsOccupant` | 0 | 0 | **`eax`** | `this + 8`, null stays null |
 | 4 | `+0x10` | `0x00458C60` | `SetBoundingBox` | 8 | 2 | **`void`** | 2 args are `const float[3]*` min and max; writes the AABB at `+0x3C` |
-| 5 | `+0x14` | `0x004E13E0` | (stub) | 0 | 0 | **`eax`** | `xor eax,eax; ret` — always returns 0 |
-| 6 | `+0x18` | `0x00648F10` | (no-op stub) | 4 | 1 | **`void`** | `ret 4` alone; the argument is ignored |
+| 5 | `+0x14` | `0x004E13E0` | `GetPropPlacementProperties` | 0 | 0 | **`eax`** | `xor eax,eax; ret` — always returns **null** on this class: the plain prop never holds a `cSC4PropPlacementProperties` (PO6, §4.1b). The SDK name is the ground truth; the folded decompiler name `icf::cSC43DRender::GetProjectionMatrixEntries` is a guess |
+| 6 | `+0x18` | `0x00648F10` | `SetPropPlacementProperties(cSC4PropPlacementProperties*)` | 4 | 1 | **`void`** | `ret 4` alone — the argument is ignored on this class. SDK name per PO6; folded decompiler name `cSC4NetworkTool::DebugDumpEdgeTypes` is a guess |
 | 7 | `+0x1C` | `0x005ED280` | `GetPropType` | 0 | 0 | **`eax`** | §5.1; `movzx eax, word [ecx+0x5C]` then `*[0x00B231A4 + idx*4]` |
 | 8 | `+0x20` | `0x005EF4C0` | `SetPropType` | 4 | 1 | `eax-or-void` | calls `GetPropTypeIndex` `0x005EF2E0` (returns the interned index in AX) then `mov [esi+0x5C], ax`. EAX holds that index at return but nothing constructs it as a return value — implement as `void` unless a caller proves otherwise |
 | 9 | `+0x24` | `0x005EC9D0` | `GetOrientation` | 0 | 0 | **`eax`** | `movsx` of the byte `+0x61` |
@@ -269,6 +301,25 @@ these 24 rows `eax-or-void`; **15 of the 24 are unambiguous** and two of them ar
 `+0x61` (9/10), `+0x63` (11/12), `+0x5E`/`+0x5F` (13/14), the `+0x54` sub-record (15/16), `+0x62` (17/18),
 `+0x60` (19/20/21), `+0x64` (22/23).
 
+### 4.1b `GetPropPlacementProperties` / `SetPropPlacementProperties` (PO6) *[compat]*
+
+The SDK header (`cISC4PropOccupant.h`) names slots 5 and 6 **`GetPropPlacementProperties`**
+(`cSC4PropPlacementProperties*`) and **`SetPropPlacementProperties(cSC4PropPlacementProperties*)`**, between
+`SetBoundingBox` and `GetPropType`. The measured behaviour fits: the getter returns a pointer-type value in
+EAX and the setter consumes one pointer-sized argument (`ret 4`).
+
+**Why the plain prop's implementation is a stub pair.** `cSC4PropOccupant` never stores a
+`cSC4PropPlacementProperties`: the getter is a constant-0 (`33 C0 C3` at `0x004E13E0`) and the setter a bare
+`ret 4` (`0x00648F10`). The real objects exist — `cSC4PropPlacementProperties` is a
+`cGZPersistResourceFactory` subclass, `0xB8` bytes, created by its factory
+`cSC4PropPlacementPropertiesFactory::CreateInstance` (`0x005EDE90`, registered in the factory's vtable at
+`0x00AA44E8`; the class's own vtable is `0x00AA44C4`) — and the placement-properties *system* belongs to the
+prop **catalogue**: the profile record that `CreateProp` reads is built from it (prop-lotconfig.md §A6.1's
+profile `+0x00` occupant class and `OccupantSize` fields). The plain prop keeps no back-pointer to it; a
+subclass that wants one would override both slots. Implementers: keep the stub pair for `cSC4PropOccupant`
+itself (tests 3/9 in §11 depend on the constant-0 return), and treat the type as opaque (the SDK header
+declares it forward-only).
+
 ### 4.2 What is *not* part of this interface *[correction]*
 
 An earlier draft of this spec said the vtable continued past slot 23 and called slots 24–47 "undocumented
@@ -281,8 +332,11 @@ independent lines of evidence:
    (`re/labels_windows.tsv` line 326), with slots 1–23 byte-identical to this one and only slot 0 overridden.
    A derived class cannot truncate a vtable.
 3. Nothing stores `0x00AA4960` as a vptr. The constructor stores `0x00AA47D0`, `0x00AA47E8`, `0x00AA484C`,
-   `0x00AA4868`, `0x00AA48F0`, `0x00AA4900`; the derived constructor stores from `0x00AA49B0`. `0x00AA4960` is
-   written into a **global** (`mov [0x00B0A8E4], 0x00AA4960` at `0x00A7370C`).
+   `0x00AA4868`, `0x00AA48F0`, `0x00AA4900`; the derived constructor stores from `0x00AA49B0`. Each of the five
+   group tables is a **pool object's vtable**, written by its process-init constructor into its own global:
+   group 0 `0x00B0A8E4` (`0x00A736E0`), group 1 `0x00B0A8F0` (`0x00A73740`), group 2 `0x00B0A8FC`
+   (`0x00A73780`), group 3 `0x00B0A908` (`0x00A737C0`), group 4 `0x00B0A914` (`0x00A73800`); each is
+   `___cxa_atexit`-managed.
 4. The target of what an earlier draft called "slot 24" (`0x005E16E0`) reads `[this+4]` as a pool pointer and
    **writes through it**. With `this` = the `+0x00` interface that would clobber the `cIGZMessageTarget2` vptr.
 
@@ -290,25 +344,41 @@ So the words after `0x00AA4900` + 24 dwords are:
 
 | Address | What it is |
 |---|---|
-| `0x00AA4960` (20 dwords) | a **pool / factory method table**, five groups of `[AllocNode, FreeNode, CreatePool, FreePool]`, one per node type |
+| `0x00AA4960`…`0x00AA49AC` (20 dwords) | five **pool vtables**, one 4-dword `[AllocNode, FreeNode, CreatePool, FreePool]` table per pool, at `0x00AA4960`, `0x00AA4970`, `0x00AA4980`, `0x00AA4990`, `0x00AA49A0` |
 | `0x00AA49B0`, `0x00AA49FC`, `0x00AA4A00`, `0x00AA4A18`, `0x00AA4A7C`, `0x00AA4A98`, `0x00AA4B20`, `0x00AA4B30` | the extra vtables of `cSC4PropOccupantBurntBuilding` |
 | `0x00AA4B90` | the burnt-building vbtable `[0xFFFFFFFC, 0x68]` |
 
 The five allocator groups are worth recording even though they are not interface slots, because they explain the
 "repeating four-slot" pattern and they encode the **object sizes** of §1.2:
 
-| Group | AllocNode | FreeNode | CreatePool (stride) | FreePool | stride = the class size |
-|---|---|---|---|---|---|
-| 0 | `0x005E16E0` | `0x00477660` | `0x004771D0` | `0x005E5770` | `0x68` plain prop |
-| 1 | `0x005E16E0` | `0x005EEE50` | `0x005ECD10` | `0x005DEB90` | `0xA0` terrain decal |
-| 2 | `0x005E16E0` | `0x005EEE90` | `0x005ECD50` | `0x005DEB90` | `0x94` visual effect |
-| 3 | `0x005E16E0` | `0x005EEED0` | `0x005ECD90` | `0x005DEB90` | `0xD8` burnt building |
-| 4 | `0x005E16E0` | `0x005EEF10` | `0x005ECDD0` | `0x005DEB90` | `0x88` |
+| Group | AllocNode | FreeNode | CreatePool (stride × nodes) | FreePool | stride = the class size | Pool global |
+|---|---|---|---|---|---|---|
+| 0 | `0x005E16E0` | `0x00477660` | `0x004771D0` (0x68 × 78) | `0x005E5770` | `0x68` plain prop | `0x00B0A8E4` |
+| 1 | `0x005E16E0` | `0x005EEE50` | `0x005ECD10` (0xA0 × 102) | `0x005DEB90` | `0xA0` terrain decal | `0x00B0A8F0` |
+| 2 | `0x005E16E0` | `0x005EEE90` | `0x005ECD50` (0x94 × 110) | `0x005DEB90` | `0x94` visual effect | `0x00B0A8FC` |
+| 3 | `0x005E16E0` | `0x005EEED0` | `0x005ECD90` (0xD8 × 75) | `0x005DEB90` | `0xD8` burnt building | `0x00B0A908` |
+| 4 | `0x005E16E0` | `0x005EEF10` | `0x005ECDD0` (0x88 × 120) | `0x005DEB90` | `0x88` **automata controller** | `0x00B0A914` |
 
 `AllocNode` pops the pool's free list (`[this+4]+8`) and returns the node in **EAX**; `FreeNode` pushes it back
 masked and is **void**; `CreatePool` builds a free list of N nodes of the given stride and returns the pool in
 **EAX**; `FreePool` frees it and is **void**. The strides independently confirm the object sizes of §1.2 for
-three of the four prop classes (the fifth, `0x88`, is not a prop class this spec covers).
+all five classes.
+
+**PO1b — the fifth group (stride `0x88`) serves `cSC4PropOccupantAutomataController`.** Three users of the
+group-4 pool global `0x00B0A914` settle it:
+
+- `cSC4PropOccupantAutomataController::operator new` `0x005EDD80`: `MOV EAX, [0x00B0A918]` (the pool's
+  free-list head at pool `+4` `+8`), pop, increment the in-use count at `+0xC`.
+- the GZCOM creator `GZCOM_CreatecSC4PropOccupantAutomataController` `0x005F0490`: the same pop, then
+  `CALL 0x005EFDB0` (the constructor) and `ADD EAX, 4` (return the primary interface pointer at `+4`).
+- the destructor `0x005F04D0`: push the node back with the group's `FreeNode` `0x005EEF10` inline, then the
+  `0x4000005A`/empty checks.
+
+The constructor (`0x005EFDB0`) also confirms the size: it writes fields up to `+0x84`, so the class occupies
+`0x85`…`0x88` bytes, matching the stride (the pool rounds to `0x88`). `GetGZCLSID` `0x005EFE40` returns
+`0x2A4017A0`, and the class's primary vtable is `0x00AA4D28` (re/labels_windows.tsv line 322's neighbour,
+paired with Mac `__ZTV34cSC4PropOccupantAutomataController#0`). This closes the last "what is not part of
+this interface" gap: nothing after the five pool tables is a prop occupant's slot.
 
 ### 4.3 `cIGZMessageTarget2` (vtable `0x00AA48F0`, sub-object `+0x04`)
 
@@ -385,12 +455,29 @@ Consequences an implementer must reproduce:
   when the prop has no size — including the PL9 raw-data-pointer size quirk (prop-lotconfig.md §A6.1 step 5).
 - **Orientation** is the byte at `+0x61`, 0…3 (slots 9 `GetOrientation` / 10 `SetOrientation`; save record
   field 5). `SetOrientation` clamps its argument into 0…3, so a caller cannot store 4 or a negative value.
-- **Height / terrain coupling.** A prop does not carry its own altitude in the record beyond the box. The box's
-  `min.y` / `max.y` are the height extents. The terrain coupling that matters is on the **lot**: lot flags lock
-  the terrain flat at the lot's altitude (lot-records.md §3.2 field 3), and the network manager's terrain rule
-  destroys occupants whose corner is below the terrain or more than 0.01 above it (network-manager.md).
-  *[inferred]* A prop's y is not re-solved against terrain after placement; what would settle it is a
-  terraforming brush over a prop and a check that its box does not move.
+- **Height / terrain coupling (PO5).** A prop does not carry its own altitude in the record beyond the box. The
+  box's `min.y` / `max.y` are the height extents. The terrain coupling that matters is on the **lot**: lot flags
+  lock the terrain flat at the lot's altitude (lot-records.md §3.2 field 3), and the network manager's terrain
+  rule destroys occupants whose corner is below the terrain or more than 0.01 above it (network-manager.md).
+  **A prop's y is never re-solved against terrain after placement.** The box is written exactly twice, both
+  times at creation and neither from terrain: `SetBoundingBox` (slot 4) is reached only through the
+  `cISC4PropOccupant` vtable from `LoadPropProperties`'s tail (`0x004A2BBE`, `call [edx + 0x10]`, with the two
+  float[3] arrays built at `0x004A2B80`–`0x004A2BB8`), and `SetPosition` (occupant slot 9) is reached only from
+  `AddPropWithUsage` (`0x004A2046`, `call [edx + 0x24]`) with the **caller-supplied** position — the y in that
+  position comes from the lot's altitude at creation time (lot-developer.md §6.5, network-manager.md §8.6),
+  never from a terrain query. No other code path writes the box or the position afterwards:
+  - the terraforming brush (`ChangeTerrainLevel` `0x00746440`, `SetAltitude` slot 49) walks vertices, updates
+    the surface-water array and ends in `RedisplayTerrain` (`0x00749850`), which posts only view messages
+    (`0x278E6003`, `0x678E6E3A`, `0x870BC918`) — it never touches an occupant's box or position;
+  - the model maker's terrain-hiding pass (`DoTerrainHidingForOccupantCells` `0x00492440` /
+    `DoTerrainHidingForCells` `0x00491CD0`) sets per-cell **view** flags (cells 4-bit state written through
+    city slots `0x144`/`0x148`) for the cells under a drawn occupant; it reads occupants' boxes but never
+    writes one;
+  - the `0x4000005A`-style heap checks, `Shutdown` and removal do not move the box.
+  A prop whose terrain is later terraformed therefore keeps its creation-time y: the drawing transform floats
+  it (the model maker adds the occupant's own y, `GetOccupantOrientationAndState` `0x00496670` does not consult
+  terrain), and only the **network** occupants re-solve or die (network-manager.md). *[compat: reproducing the
+  original means storing the y once at creation and never adjusting it.]*
 
 ### 5.3 The lot tag
 
@@ -421,9 +508,59 @@ and the state from `GetOccupantOrientationAndState` (`0x00496670`). Frames are b
 Animated instances advance on the animation tick `0x86AD10EE` in `DoMessage` (`0x005ECFB0`, §4.3), and `SetState`
 also sets the frame to the state (`0x005ED3AC`).
 
-*[gap]* The occupant → **placeable** → 3D object step is not specified anywhere in `docs/` yet: occupant slots
-20/21 `GetOrCreatePlaceableObject` (`0x005E91C0`) / `SetPlaceableObject` (`0x0078DAF0`) appear only in
-`docs/abi/vtables.tsv`. An implementer who must actually render needs that seam; it is listed in §10.
+### 6.1 The occupant → placeable → 3D object seam (PO3) *[compat]*
+
+The rendering pipeline does not attach models to the occupant directly. Occupant slots 20/21 wrap one
+intermediate COM object per occupant, `cSC43DPlaceableObject` — the **placeable object**. The seam, measured:
+
+**The occupant side.** The `cSC4Occupant` base owns the pointer at `+0x30` (the `cSC4Occupant` constructor
+`0x005E9220` writes `+0x30 := null`). Three slots drive it (SDK names, `cISC4Occupant.h`):
+
+| Occupant slot | Method | Address | Behaviour |
+|---|---|---|---|
+| 18 | `GetPlaceableObject` | `0x006AAC50` (folded) | `MOV EAX, [ECX + 0x30]; RET` — the stored pointer or null, no AddRef |
+| 19 | `GetOrCreatePlaceableObject` | `0x005E91C0` | returns the stored pointer; if null, allocates a `0x30`-byte node from the placeable pool (`0x00B0A8CC`, `FUN_005EBDF0`), runs the constructor `0x005EC370`, stores it at `+0x30` with the usual AddRef-new/Release-old swap, and returns it |
+| 20 | `SetPlaceableObject` | `0x0078DAF0` | stores the argument at `+0x30` with the same AddRef-new/Release-old swap |
+
+*(Slot numbering: the compiled `cISC4Occupant` vtable `0x00AA4868` starts at QI, so `GetPlaceableObject` is
+compiled slot 18 at `+0x48` (`0x006AAC50` is an identical-code-folded getter `MOV EAX, [ECX+0x30]`); the SDK's
+declared order is `GetPlaceableObject` / `GetOrCreatePlaceableObject` / `SetPlaceableObject`, and the prop's
+behaviour is as the table says.)*
+
+**The placeable object.** `cSC43DPlaceableObject`, vtable `0x00AA4468` (re/labels_windows.tsv line 313, paired
+with Mac `__ZTV21cSC43DPlaceableObject#0`, 17 agreeing slots), **17 slots**, `0x30` bytes:
+
+| Slot | Address | Method |
+|---|---|---|
+| 0–2 | `0x005EBD20` / `0x005EBCC0` / `0x005EC0A0` | `QueryInterface` (IIDs `1` and **`0xC6BB5EFA`** only, `AL` return) / `AddRef` / `Release` (a u16 count at `+4`; at ≤ 1 it runs `FinalRelease` `0x005EBCD0`) |
+| 3 | `0x005EBBF0` | `GetModelCount` — `MOVSX EAX, word [ECX + 6]` |
+| 4 | `0x005EBC00` | `GetModels(cIS3DModelInstance** out, u32& count)` |
+| 5 | `0x005EBE20` | `AddModel(cIS3DModelInstance*)` — appends to the array at `+0x0C` (grows through `ResizeModelInstanceArray` `0x005EBC60`, global heap), bumps the count at `+6`; when the in-renderer bit is set it also hands the model to the 3D renderer (`0x00B43DD0`, vtable `+0x70`) |
+| 6 | `0x005EBE80` | `RemoveModel(cIS3DModelInstance*)` — the reverse |
+| 7 | `0x005EC190` | `AddOverlay(u32)` |
+| 8 | `0x005EC0C0` | `SetVisibility(bool)` — flag bit 1 of `+0x2C`, then `DoOverlayVisibilityChange` `0x005EBF80` |
+| 9 | `0x005EC110` | `SetOverlaysVisible(bool)` — flag bit 0 of `+0x2C` |
+| 10 | `0x005EBC50` | `IsVisible` — `(flags >> 1) & 1` |
+| 11 | `0x005EC240` | `RemoveAll` — `RemoveModelsFromRenderer` `0x005EC050` when in-renderer, then release every model instance |
+| 12–15 | `0x005EBD50`–`0x005EBD90` | `Get/SetZoomLevelsCreatedFor`, `Get/SetRotationsCreatedFor` — bits 2–6 and 7–10 of `+0x2C` |
+| 16 | `0x005EC3B0` | destructor — `RemoveAll`, free the quad-record vector at `+0x20` (`0x54` bytes per `cQuadRec`, each holding a `cS3DTextureBinding*` at `+0x50`), release the owner pointer at `+0x1C` and the overlay vector's buffer, then return the node to the pool |
+
+Layout (constructor `0x005EC370` zeroes everything, then sets `+0x2C := 1` = overlays visible):
+`+0x00` vptr; `+0x04` u16 refcount; `+0x06` u16 model count; `+0x08` first model instance;
+`+0x0C` instance array; `+0x10`…`+0x1B` overlay vector (u32 slots); `+0x1C` owner
+`cIGZUnknown*` (released in the destructor); `+0x20` quad-record vector; `+0x2C` flags
+(bit 0 overlays visible, bit 1 in renderer, bits 2–6 zoom levels created for, bits 7–10 rotations).
+
+**How a prop is drawn through it.** The model maker's `AddModels` (`0x00494390`) calls **occupant slot 19**
+`GetOrCreatePlaceableObject` (`0x0049440E`, `call [eax + 0x50]`) first and keeps the returned pointer; the view
+windows do the same and then `SetPlaceableObject` the result into their item-list records
+(`cSC4View3DWin::AddAutomataToItemList` `0x007ECBD1` and `AddBuildingsToItemList` `0x007F0588`, both
+`call 0x0078DAF0`). So the original's flow is: occupant holds one placeable; the model maker adds the built
+`cIS3DModelInstance`s (the RKT-keyed models of graphics-formats.md §4.2) to it; the renderer draws them. An
+implementer who replaces only the occupant can expose a minimal `GetOrCreatePlaceableObject` returning a stub
+object whose `AddModel`/`RemoveModel` no-op — the original never requires the placeable to render by itself.
+`CreateGeometry` (as in network geometry, network-geometry.md §86) belongs to the **network occupant** class,
+not to this seam: `cSC43DPlaceableObject` has no such slot.
 
 ### 6.2 `cSC4PropOccupantVisualEffect` (`0x2977AA49`)
 
@@ -515,7 +652,8 @@ what this `Write` produced. The CRC is CRC-32/MPEG-2 over `min(entrySize − 8, 
    `cSC4NetworkTool::DebugDumpEdgeTypes`, slot 10 `icf::cSC4PropOccupant::SetOrientation` as a folded body,
    slot 17 `icf::cSC43DRender::EnableTransparentBackground`). These are decompiler name guesses. Behaviourally
    slot 3 is `AsOccupant`, slot 5 is a constant-0 stub, slot 6 is a no-op, slot 10 is `SetOrientation`, and
-   slot 17 is `SetRandomChance`.
+   slot 17 is `SetRandomChance`. **Slots 5 and 6 now have SDK names (PO6, §4.1b): `GetPropPlacementProperties`
+   and `SetPropPlacementProperties`** — the pending rows should carry those instead of placeholder stub names.
 5. **`docs/abi/interfaces.tsv` coverage is complete** — the table stops at slot 23 because the interface stops
    at slot 23. An earlier draft of *this* spec claimed otherwise; see §4.2.
 
@@ -539,7 +677,8 @@ what this `Write` produced. The CRC is CRC-32/MPEG-2 over `min(entrySize − 8, 
 8. The visual-effect prop's `Write` drops the effect name and the trailing u32 while the effect is live
    (lot-records.md §10.2).
 9. **Adjacent slots, opposite return channels**: slot 5 (`0x004E13E0`) is `xor eax,eax; ret` — a genuine 0 in
-   EAX — while slot 6 (`0x00648F10`) is `ret 4` alone, a true no-op returning nothing (§4.1).
+   EAX — while slot 6 (`0x00648F10`) is `ret 4` alone, a true no-op returning nothing (§4.1). SDK names:
+   `GetPropPlacementProperties` / `SetPropPlacementProperties` (§4.1b).
 10. **`AddRef` / `Release` are this-adjusting thunks**: slots 1 and 2 do `add ecx, 8` before jumping to the
     shared `0x005E89B0` / `0x005E8DF0`. The reference count lives at `this + 0x14`, so a naive `AddRef` on `this`
     touches the wrong object (§2.2).
@@ -560,21 +699,51 @@ what this `Write` produced. The CRC is CRC-32/MPEG-2 over `min(entrySize − 8, 
   at 24; the burnt-building subclass's primary vtable `0x00AA4B30` is also 24 with slots 1–23 identical; and
   nothing stores `0x00AA4960` as a vptr). What follows in the image is documented in §4.2. **A follow-up that
   survives:** what the pool/factory method table at `0x00AA4960` is used for, and which class owns the fifth
-  allocator group (stride `0x88`).
-- **PO1b.** Which class the fifth allocator group at `0x00AA4960` serves (stride `0x88`, §4.2). None of the four
-  prop classes is `0x88` bytes.
-- **PO2.** The identity of the sixth sub-object at `+0x24` (vtable `0x00AA47D0`, §2.4).
-- **PO3.** The occupant → placeable → 3D object seam (§6.1): occupant slots 20/21 and `CreateGeometry`.
+  allocator group (stride `0x88`). ~~Both halves settled by PO1b below.~~
+- **PO1b.** ~~Which class the fifth allocator group at `0x00AA4960` serves (stride `0x88`, §4.2).~~
+  **ANSWERED 2026-10-20 (re-answers32): DIFFERS from its premise.** The premise said "none of the four prop
+  classes is `0x88` bytes" — true for the four, but the group serves the **fifth** prop subclass,
+  `cSC4PropOccupantAutomataController` (size `0x88`, §1.2/§4.2). Its `operator new` `0x005EDD80`, GZCOM creator
+  `0x005F0490` and destructor `0x005F04D0` all use the group-4 pool global `0x00B0A914`; the pool table at
+  `0x00AA4960` is in fact five pool-object vtables (§4.2), each owned by one process-init constructor.
+- **PO2.** ~~The identity of the sixth sub-object at `+0x24` (vtable `0x00AA47D0`, §2.4).~~
+  **ANSWERED 2026-10-20 (re-answers32): MATCHES the [inferred] guess.** It is **`cISCExemplarPropertyHolder`**
+  (IID `0x0AC2B5F7`, the SDK's `GZIID_cISCExemplarPropertyHolder`), reached by the QI chain
+  (`cSC4Occupant::QueryInterface` → `cSCExemplarPropertyHolder::QueryInterface` `0x005FD310` answers
+  `0x0AC2B5F7` with `LEA EAX,[ECX+0x14]` from `ECX = obj+0x10`, i.e. exactly `obj+0x24`) and by the thunk pair
+  (`0x005EE140`/`0x0064DE00`/`0x0064DE10`, all `SUB ECX, 0x24`). Its two real slots are
+  `SetDefaultExemplar` `0x00458E60` and `GetDefaultExemplar` `0x0060CE80` over the pointer at `+0x28`
+  (§2.4). The plain prop never sets it (the exemplar attaches through the property holder at `+0x10`), which is
+  why `LoadPropProperties` needs its property-holder fallback.
+- **PO3.** ~~The occupant → placeable → 3D object seam (§6.1): occupant slots 20/21 and `CreateGeometry`.~~
+  **ANSWERED 2026-10-20 (re-answers32): the seam is specified; the `CreateGeometry` half of the premise
+  DIFFERS.** Occupant `+0x30` holds one `cSC43DPlaceableObject` (vtable `0x00AA4468`, 17 slots, `0x30` bytes,
+  QI IID `0xC6BB5EFA`); slots 18/19/20 are `GetPlaceableObject` / `GetOrCreatePlaceableObject` (lazily creates
+  through pool `0x00B0A8CC`, constructor `0x005EC370`) / `SetPlaceableObject`. The model maker's `AddModels`
+  (`0x00494390`) and both view windows' item-list builders call slot 19, the view then `SetPlaceableObject`s
+  the result. `CreateGeometry` is **not** part of this seam — it is a network-occupant slot
+  (network-geometry.md §86); `cSC43DPlaceableObject` has no such slot (§6.1).
 - **PO4.** ~~The remaining unnamed fields: `+0x61`, `+0x64`, and the seven zeroed dwords at `+0x3C`…`+0x54` (§2.2).~~
   **ANSWERED 2026-10-16 (re-answers27), in the main.** `+0x61` = orientation, `+0x64` = prop usage,
   `+0x3C`…`+0x53` = the bounding box, `+0x54` = an owned sub-object pointer, `+0x14` = the reference count.
   **What still has no meaning:** the 0x28-byte sub-record at `+0x54` that slots 15/16 drive (through a manager
   at `0x00B43D5C`).
-- **PO5.** Whether a prop's box y is ever re-solved against terrain after placement (§5.2) *[inferred]*.
-- **PO6.** The SDK names of `cISC4PropOccupant` slots 5 and 6 (§4.1). Their **behaviour is settled** — slot 5
-  is a stub returning 0 in EAX (`xor eax,eax; ret`), slot 6 a true no-op (`ret 4`) — but the ABI rows carry
-  identical-code-folded names from unrelated classes and nothing indicates the SDK's names. A plugin that calls
-  them, or an SDK header, would settle the names.
+- **PO5.** ~~Whether a prop's box y is ever re-solved against terrain after placement (§5.2) *[inferred]*.~~
+  **ANSWERED 2026-10-20 (re-answers32): MATCHES the [inferred] guess — it is not.** The box is written exactly
+  twice, both at creation: `SetBoundingBox` from `LoadPropProperties`'s tail (`0x004A2BBE`) and `SetPosition`
+  from `AddPropWithUsage` (`0x004A2046`) with a caller-supplied y. The terraforming brush ends in view
+  messages only (`RedisplayTerrain` `0x00749850` posts `0x278E6003`/`0x678E6E3A`/`0x870BC918`), and the model
+  maker's terrain-hiding pass writes per-cell view flags, never an occupant box (§5.2). The re-solve/destroy
+  rule stays network-occupant-only (network-manager.md).
+- **PO6.** ~~The SDK names of `cISC4PropOccupant` slots 5 and 6 (§4.1).~~
+  **ANSWERED 2026-10-20 (re-answers32): MATCHES the behaviour, DIFFERS from the ABI rows' names.** The public
+  SDK header (`gzcom-dll/gzcom-dll/include/cISC4PropOccupant.h`) names them **`GetPropPlacementProperties`**
+  (slot 5) and **`SetPropPlacementProperties(cSC4PropPlacementProperties*)`** (slot 6). The measured channels
+  stand: slot 5 returns a pointer-type value (null on the plain prop — `33 C0 C3`), slot 6 consumes one
+  pointer (`ret 4`). The ABI rows' folded names (`icf::cSC43DRender::GetProjectionMatrixEntries`,
+  `cSC4NetworkTool::DebugDumpEdgeTypes`) are decompiler guesses and are corrected in the pending rows
+  (§8 item 2). The real `cSC4PropPlacementProperties` objects live in the prop catalogue as a
+  `0xB8`-byte `cGZPersistResourceFactory` subclass created by `0x005EDE90` (§4.1b); the plain prop stores none.
 
 ---
 
@@ -639,3 +808,21 @@ three.
     whose tag names nothing leaves the block's slot count one lower (prop-developer.md §4.3 step 2.3.2).
 25. **Removal** (§3). `RemovePropA` then `Shutdown` removes the prop from the occupant manager; a second removal
     is a no-op.
+26. **Exemplar-holder QI** (§2.4). `QueryInterface(0x0AC2B5F7)` on a fresh prop returns `this + 0x24` with a new
+    reference; `GetDefaultExemplar()` on it returns null (nothing sets `+0x28` on a plain prop); a
+    `SetDefaultExemplar(e)` / `GetDefaultExemplar()` round trip returns `e` and holds a reference that
+    `SetDefaultExemplar(null)` releases.
+27. **Placement-properties stubs** (§4.1, §4.1b). `GetPropPlacementProperties()` on a fresh plain prop returns
+    exactly 0 in EAX; `SetPropPlacementProperties(p)` with a non-null dummy consumes its argument, changes
+    nothing and leaves the next `GetPropPlacementProperties()` at 0.
+28. **Placeable object seam** (§6.1). `GetPlaceableObject()` on a fresh occupant is null;
+    `GetOrCreatePlaceableObject()` creates exactly one `cSC43DPlaceableObject` (a second call returns the same
+    pointer, no new reference), `AddModel(m)` twice raises `GetModelCount()` to 2 and `RemoveAll` drops it to 0
+    releasing both; `SetPlaceableObject(p)` then `GetPlaceableObject()` returns `p`.
+29. **No terrain re-solve** (§5.2). Create a prop at lot altitude with box y from `OccupantSize`; raise the
+    terrain under it by a brush; the prop's saved record (§7 field 4) is byte-identical afterwards — the box
+    y and the position do not move.
+30. **Allocator-group identities** (§4.2). `CreateProp` for each of the three class IDs of test 3 draws from
+    pools 0/1/2 (`0x00B0A8E4`/`0x00B0A8F0`/`0x00B0A8FC`); creating a `cSC4PropOccupantAutomataController`
+    through GZCOM class `0x2A4017A0` draws from pool 4 (`0x00B0A914`) and returns a `0x88`-stride object whose
+    `GetGZCLSID` is `0x2A4017A0` and whose prop-occupant sub-object answers `0xE9793A65`.
