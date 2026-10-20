@@ -19,3 +19,14 @@
   used the wrong shapes. Confirm the renames are the right fix for the whole plugin (an SDK erratum), rather than
   a per-lane override. [yes - B7 is the measured order]
 
+
+<!-- from: the glue21 fix round (2026-10-20; the network-lot fault after the QI/creation-ref fixes) -->
+- **PL17:** (city-detail.md §3.4 → network-manager.md §8.6) after the QI-AddRef and creation-reference fixes the
+  city Init reaches PostCityInit and the three shadows go ON over the replacements, but the run then faults in the
+  game's own `CreateLotObjects` (`SimCity 4.exe+0x60D4B5`, inside `0x0060D410`; `ACCESS_VIOLATION` reading
+  `0x06E932F8`, `ecx = 0`, `eax = edx = 0x01BA4CBE`) on the network-lot redevelopment path: city detail Init §3.4 →
+  `networkLotManager.RedevelopLot(x, z, lot)` (slot 12) → `CreateLotObjects(lot)` → the object array of the
+  network lot's `cSC4NetworkLotConfiguration`. Whose object array is being read there (the network configuration's
+  `objects` vector is the game's own), and what makes it unmapped at that point? The two FreeCity4 replacements
+  that could be involved are `GetObjectIDArray` (slot 27, ours, called by CreateLotObjects for prop objects) and
+  the prop manager's `AddStreetProp` (slot 32, ours, called by CreateProp).
