@@ -57,6 +57,22 @@ props pool, 453 fns), cores28 (MySimPool + MySimDispatch cores), glue29 (the cSC
 over cores27's fc4_nettool ABI). Pending after train10 lands: land, gen_handoff_tables, coverage, push;
 re-answers34 merges in the next batch.
 
+## 0z. WIND-DOWN (2026-10-20 ~23:00): the user said "no more new work creation, winding down only"
+
+No new lanes spawn from here. The 8 lanes still running (glue21fix2, re-terrain3d, devperf2, cores28, glue29,
+re-occprops, re-answers35, mysims1) finish their current task; when each enqueues, the coordinator merges,
+gates, regresses and lands it as usual, then stops. Landed since the restart: **train10** (cores27, the
+network-tools core, ABI 75), **train11** (re-answers34, effects EF1-EF10), **train12** (glue24fix2: the
+network managers glue `enable = netmgr,netlot` with the tick-5500 int3 DISARMED — a Debug build compiles
+/RTC1 with no RTC error func; the handler is now installed in every build; a/b/save all clean), **train13**
+(re-netocc: the network-occupants spec, 14 classes) + the coverage map wired → **specified 35.0%**
+(32.9 → 35.0), implemented 25.3%, verified 10.5%. Main is `98662e3b`, pushed. Lane states at wind-down
+(see docs/lanes/<lane>.md for each): glue21fix2 mid-PL17 (slot 27 GetObjectIDArray fix landed on the branch;
+isolation runs at `exited -1`, gate runs corrupt — diagnosing, its queue entry stays `wip`), devperf2
+measured UP 3.52 us/call at baseline and its fix3 run clean (63.96 days/s), cores28/glue29/re-terrain3d/
+re-occprops/re-answers35/mysims1 in progress. The next coordinator: merge whatever enqueues, land, stop;
+do NOT spawn.
+
 ## 0. Current state: pause 2026-10-20 ~19:10 (user closing the session)
 
 Main is `12e79cfc`, pushed. Today landed: train6 (8 lanes), train8 (6), train9 (cores26), train10 (glue19),
