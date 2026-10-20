@@ -1,18 +1,18 @@
 # Token ledger
 
-Generated 2026-10-20 by `python tools/lanes.py ledger` from 93 workflow run journals (2026-10-14 to 2026-10-20) in `%USERPROFILE%\.claude\projects\<slug>\*\workflows\`. Rerun it to refresh; the per-run and per-lane tables are `build-runs/lane-ledger.tsv` and `build-runs/lane-ledger-by-lane.tsv` (gitignored).
+Generated 2026-10-20 by `python tools/lanes.py ledger` from 96 workflow run journals (2026-10-14 to 2026-10-20) in `%USERPROFILE%\.claude\projects\<slug>\*\workflows\`. Rerun it to refresh; the per-run and per-lane tables are `build-runs/lane-ledger.tsv` and `build-runs/lane-ledger-by-lane.tsv` (gitignored).
 
 Tokens are the journal's own `tokens` per agent (what the run reports; not split into input, output and cache). A lane is one lane name: runs that were re-run or resumed are summed. `merge` is the agent that merged the lane into main under the old merge-lock protocol (the merge train has no such agent).
 
 ## Totals
 
-- 93 runs: 89 lane runs, 4 other (audits, doc cleanups); 91 distinct lanes.
-- 34,102k tokens in all; 29,355 tool calls; 199 agent-run hours (wall time of each run, summed).
-- Lane agents 20,250k, merge agents 9,723k, other agents 4,128k.
-- **Merge share: 32.3% of the tokens of lane runs** (9,723k of 30,061k) went to merging, not to the lane's work.
-- Landed: 87 of 91 lanes are on main (branch an ancestor of main, or the branch deleted and the journal's merge commit an ancestor); 58 lanes have a journal merge commit that is on main, 0 have one that is not (reported merged, reverted or rewritten).
-- Status of the runs: 67 completed, 24 killed, 2 failed.
-- 10,404k tokens (31%) were spent in runs that were killed before they finished.
+- 96 runs: 92 lane runs, 4 other (audits, doc cleanups); 92 distinct lanes.
+- 34,996k tokens in all; 30,595 tool calls; 204 agent-run hours (wall time of each run, summed).
+- Lane agents 21,144k, merge agents 9,723k, other agents 4,128k.
+- **Merge share: 31.4% of the tokens of lane runs** (9,723k of 30,954k) went to merging, not to the lane's work.
+- Landed: 88 of 92 lanes are on main (branch an ancestor of main, or the branch deleted and the journal's merge commit an ancestor); 58 lanes have a journal merge commit that is on main, 0 have one that is not (reported merged, reverted or rewritten).
+- Status of the runs: 68 completed, 24 killed, 4 failed.
+- 10,404k tokens (30%) were spent in runs that were killed before they finished.
 
 ## Per kind
 
@@ -20,19 +20,20 @@ Per lane (all runs of the lane summed). `engine?` = a wave lane whose kind no jo
 
 | Kind | Lanes | Avg tokens | Median | Avg tool calls | Avg hours | Merge share | Landed |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| engine | 40 | 357k | 346k | 366 | 2.5 | 37% | 37/40 |
-| re | 33 | 295k | 299k | 233 | 1.4 | 28% | 33/33 |
+| engine | 40 | 380k | 358k | 396 | 2.6 | 35% | 38/40 |
+| re | 34 | 286k | 297k | 226 | 1.3 | 28% | 33/34 |
 | engine? | 9 | 313k | 308k | 407 | 1.3 | 37% | 9/9 |
 | tools | 7 | 264k | 260k | 90 | 0.7 | 33% | 7/7 |
 | docs | 2 | 640k | 640k | 598 | 1.4 | 0% | 1/2 |
-| **all** | 91 | 329k | 321k | 306 | 1.8 | 32% | 87/91 |
+| **all** | 92 | 336k | 325k | 316 | 1.8 | 32% | 88/92 |
 
 ## Ten most expensive lanes
 
 | Lane | Kind | Runs | Tokens | of which merge | Tool calls | Hours | Landed |
 |---|---|---:|---:|---:|---:|---:|---|
+| glue21 | engine | 3 | 894k | 0k | 2159 | 5.7 | no |
 | cores12a | engine | 2 | 784k | 396k | 498 | 2.9 | yes |
-| cores27 | engine | 1 | 764k | 0k | 961 | 2.9 | no |
+| cores27 | engine | 1 | 764k | 0k | 961 | 2.9 | yes |
 | re-answers34 | docs | 1 | 746k | 0k | 817 | 2.2 | no |
 | cores15 | engine | 2 | 687k | 292k | 404 | 7.1 | yes |
 | zones2 | engine? | 1 | 614k | 127k | 527 | 2.0 | yes-commit |
@@ -40,7 +41,6 @@ Per lane (all runs of the lane summed). `engine?` = a wave lane whose kind no jo
 | seeding | engine | 1 | 547k | 231k | 285 | 4.8 | yes |
 | glue19 | engine | 3 | 537k | 0k | 1357 | 3.7 | yes |
 | re-answers33 | docs | 1 | 534k | 0k | 380 | 0.7 | yes |
-| re-answers32 | re | 2 | 528k | 0k | 553 | 0.6 | yes |
 
 ## Tokens per coverage point
 
