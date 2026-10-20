@@ -2,7 +2,7 @@
 
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| mysims1 (the mysims shadow: FC4MySimsShadow + regress shadows list) | `mysims1` / `.claude/worktrees/mysims1` (branch `mysims1`, engine lane) | in progress — baseline gate PASS (`qbuild all`: cargo 3568/0, clippy 0, CMake 174/174, ctest 62/62); design researched, no shadow code written yet | see Handoff |
+| mysims1 (the mysims shadow: FC4MySimsShadow + regress shadows list) | `mysims1` / `.claude/worktrees/mysims1` (branch `mysims1`, engine lane) | in progress — baseline gate PASS (`qbuild all`: cargo 3568/0, clippy 0, CMake 174/174, ctest 62/62); design researched round 2 (C++ ABI surface verified); no shadow code written yet; branch is 2 commits behind main (cores28 merged) | see Handoff |
 
 ## Handoff
 
@@ -43,11 +43,61 @@
     `MySimsShadowCityLoaded(CurrentCity())` and kMsgSimNewMonth case `MySimsShadowMonth`;
     CMakeLists.txt plugin list (additive); tools/regress.ps1 line 170 shadows string
     (additive at end).
-- Facts: main has cores28 NOT merged yet (train16 integration/16 pending gate/regress at
-  71e4cf36); mysims core on main already covers agent+sim (pool/dispatch land with
-  train16). Questions MS1-MS7 open (MS8-MS10 pending train16 merge); file MS11+ only if
-  the shadow reveals a spec gap.
-- Next: (1) write engine/plugin/FC4MySimsShadow.{h,cpp} per the design above (decode-and-
-  diff, not byte round trip); (2) wire FC4Config/Observer/Director/CMake/regress.ps1;
-  (3) qbuild quick then all; (4) game runs mysims1-sh-1/sh-2 via game-queue; (5) finish
-  report + merge-queue/mysims1.json (abi=false).
+- Round 2 (2026-10-21, context OVER before code; design above re-verified, keep it):
+  - main is now 37283fba and HAS cores28: engine/core/src/mysims/dispatch.rs + pool.rs (+
+    tests), sim.rs +6 lines, MySimHost gains only the optional-default `dispatch_check_flags`;
+    mysims.md itself unchanged; questions MS8-MS10 exist on main but NOT in this worktree.
+    This branch cut at 7e042544 = 2 commits behind. First step of round 3:
+    `git -C <WT> merge main` (the shadow touches no mysims core file; merge is clean).
+  - The C++ side of the design holds: cISC4City.h:188 slot 71, MySim QI 0x0A1DA42F,
+    AsAdvisor() = cISC4MySim slot 3 → cISC4Advisor slot 14 Simulate(kind)/slot 5 GetID; the
+    agent's 6 slot ids come from the city's advisor system (slot 81 GetAdvisorSystem,
+    slot 8 GetAdvisors map, id 30 = My Street at index 5). GetActiveMySims takes an
+    SC4Vector<cISC4MySim*> (the game appends; use a local SC4Vector, plugin/FC4GameContainers.h
+    PushTrivial for pointers).
+  - Feeding the shadow core over the C ABI (fc4.h): `fc4_advisors_create(&h,&m,S)` with
+    read-only hosts (all mutating callbacks NULL, resolve_ref returns the token,
+    object_created returns 0), `fc4_mysims_agent_init`, then mirror §3.2 messages via
+    `fc4_mysims_agent_do_message` (Target pattern, FC4HistoryShadow.cpp lines 655-700) and
+    the day/month steps via `fc4_mysims_advisor_simulate(p, id, 0|1)` AFTER the original's
+    own pass (ageing needs the shadow advisor's month_counter to advance — Simulate(1) does
+    that itself, advisor.rs:436). `ui_blocked` callback NULL (reads false; the original's
+    blocking-UI state is not readable read-only, question MS2).
+  - Session seed: `fc4::SessionSeed()` (plugin/FC4Seed.h). Each core MySim's RNG derives
+    seed = SessionSeed ^ (clsid::MYSIM ^ index) (sim.rs:105, rng.rs derive_seed), so with the
+    same S the shadow core is draw-exact; the original's MySim RNG is wall-clock-seeded and
+    unreadable — FindNewResidence's start position is the only uncomparable draw (only
+    reached on home destruction): log it, do not compare.
+  - Session-seed mismatch NOTE: the shadow core's per-MySim index is its creation order in
+    the class store during Read, which may differ from the original's; if a start-position
+    draw ever matters the diff will show it — name it and move on.
+  - Compare DECODED fields, not bytes: original per-MySim record (WriteCapture on each
+    MySim's Serializable, version 17 §6.2) decoded in C++ with CaptureReader; shadow state
+    read with fc4_mysims_agent_get_state + fc4_mysim_get_state + fc4_mysim_text. Also compare
+    GetActiveMySims count/ids and the getters (GetSlot/GetAge/GetSign/IsMale/GetWealth/
+    IsActive/GetResidence/GetJob) against the shadow's state — getters are the surface the
+    UI reads. EQ/HQ: the shadow's host must feed the same grid values for eq/hq to match:
+    wire the mysim host's eq_by_wealth/hq_by_wealth/life_expectancy/average_age to the game
+    (residential simulator, mysims.md §9.2) READ-ONLY, or expect those fields to differ and
+    name them. Simpler first cut: wire grid+eq hosts to the game read-only; the shadow is
+    then exact when the simulators are.
+  - Wiring points with VERIFIED line numbers (this worktree): FC4Config.cpp kOtherKeys ends
+    line 320 ("ports_shadow"}}; add `mysims_shadow` before the close); cFC4Director.cpp
+    PostAppInit 341-346 (add MySimsShadowStart() after TerrainShadowStart()), PreAppShutdown
+    354-364 (add Stop); FC4Observer.cpp PostCityInit case 574-601 (add CityLoaded after
+    AutomataShadowCityLoaded line 601), kMsgSimNewMonth case 664-707 (add Month after
+    PropDevShadowMonth ~line 701), PreCityShutdown 630-647 (add CityShutdown after
+    AutomataShadowCityShutdown 647); FC4Subsystems.cpp Resolve() end (~line 629, after
+    AutomataShadowStartup(enabledKey("automata"))): `MySimsShadowStartup(!SimulatorReplaced())`
+    (no subsystem named mysims; the INACTIVE case is `enable` making the agent ours — there
+    is no enable key for it, so the bool is always true and the check stays for symmetry);
+    engine/CMakeLists.txt plugin list after FC4AutomataShadow (~line 470); tools/regress.ps1
+    line 170 shadows string (append `mysims_shadow = 1` at the end); engine/README.md a
+    "MySims shadow" bullet after the Automata shadow bullet (~line 1774, additive).
+- Next: (1) merge main; (2) write engine/plugin/FC4MySimsShadow.{h,cpp} per the design above
+  (decode-and-diff, not byte round trip; host eq/grid callbacks to the game read-only);
+  (3) wire the points above; (4) qbuild quick, fix, then `qbuild all`; (5) game runs
+  mysims1-sh-1 (shadows incl. mysims) and mysims1-sh-2 clean ref_warnings=0; (6) report +
+  build-runs/merge-queue/mysims1.json (abi=false).
+4c8d19c4 mysims1: handoff — design researched, baseline gate PASS
+93c9ca3e mysims1: lane file, handoff at the baseline
