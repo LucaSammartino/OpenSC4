@@ -88,6 +88,10 @@
 #include "cFC4Tutorial.h"    // the glue15 lane: tutorial
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
+#include "FC4PropDevShadow.h"     // the glue12b1 lane: propdev_shadow
+#include "FC4CityDetailShadow.h"  // the glue12b1 lane: citydetail_shadow
+#include "cFC4PropDeveloper.h"    // the glue12b1 lane: propdev
+#include "cFC4CityDetail.h"       // the glue12b1 lane: citydetail
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -335,6 +339,19 @@ const ClassEntry kDemolitionClasses[] = {
     {kFC4_CLSID_cSC4Demolition, "cSC4Demolition", &CreateFC4Demolition},
 };
 
+// docs/specs/prop-developer.md §1: the prop developer (city component 10)
+// and its wealth requester (class 0x89C49986, resolved from saved records).
+// Off by default: `enable = propdev`.
+const ClassEntry kPropDevClasses[] = {
+    {kFC4_CLSID_cSC4PropDeveloper, "cSC4PropDeveloper", &CreateFC4PropDeveloper},
+    {kFC4_CLSID_cSC4WealthRequester, "cSC4WealthRequester", &CreateFC4WealthRequester},
+};
+// docs/specs/city-detail.md §1: the city detail manager. Off by default:
+// `enable = citydetail`.
+const ClassEntry kCityDetailClasses[] = {
+    {kFC4_CLSID_cSC4CityDetailManager, "cSC4CityDetailManager", &CreateFC4CityDetailManager},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -375,6 +392,8 @@ const Subsystem kSubsystems[] = {
      false},
     // the glue15 lane
     {"tutorial", nullptr, kTutorialClasses, sizeof(kTutorialClasses) / sizeof(kTutorialClasses[0]), false},
+    {"propdev", nullptr, kPropDevClasses, sizeof(kPropDevClasses) / sizeof(kPropDevClasses[0]), false},
+    {"citydetail", nullptr, kCityDetailClasses, sizeof(kCityDetailClasses) / sizeof(kCityDetailClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -520,7 +539,12 @@ void Resolve() {
     // The network manager shadow (FC4NetMgrShadow.h; it follows the original network managers).
     NetMgrShadowStartup();
     // The occupant manager shadow (FC4OccMgrShadow.h; it follows the original occupant manager).
-    OccMgrShadowStartup();    // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
+    OccMgrShadowStartup();
+    // The prop developer shadow (FC4PropDevShadow.h; it compares the original prop developer).
+    PropDevShadowStartup(g_enabled[0], enabledKey("propdev"));
+    // The city detail shadow (FC4CityDetailShadow.h; it compares the original city detail manager).
+    CityDetailShadowStartup(enabledKey("citydetail"));
+    // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
     TerrainShadowStartup();
     // The glue17 lane's three shadows (they compare the original city situation
     // manager, demolition utility and dispatch manager).

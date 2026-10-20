@@ -11057,6 +11057,8 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 }
 // The cmglue lane: commercial / industrial, civic, parks (plugin_cmglue_test.inc).
 #include "plugin_cmglue_test.inc"
+// The glue12b1 lane: the prop developer and the city detail manager (plugin_propcity_test.inc).
+#include "plugin_propcity_test.inc"
 // The glue16 lane: the terrain shadow (plugin_terrain_test.inc, seam op 58).
 #include "FC4TerrainShadow.h"
 #include "plugin_terrain_test.inc"
@@ -11120,6 +11122,9 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-commercial") return CommercialEnableTest(dll, ini, log);
     if (mode == "--ini-enable-civic") return CivicEnableTest(dll, ini, log);
     if (mode == "--ini-enable-parks") return ParksEnableTest(dll, ini, log);
+    // The glue12b1 lane (plugin_propcity_test.inc): the prop developer, the city detail manager.
+    if (mode == "--ini-enable-propdev") return PropDevEnableTest(dll, ini, log);
+    if (mode == "--ini-enable-citydetail") return CityDetailEnableTest(dll, ini, log);
     // The glue16 lane: the terrain shadow on a stand-in original (seam op 58).
     if (mode == "--ini-terrain-shadow") return TerrainShadowIniTest(dll, ini, log);
     // Land value and flammability grid shadows on fake originals; both inactive with ours.

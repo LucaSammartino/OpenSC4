@@ -357,7 +357,21 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4PropLotShadow.cpp
         plugin/FC4PropLotShadow.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.        plugin/FC4HarnessLogic.h
-        plugin/FC4Turbo.cpp
+        # The prop developer and the city detail manager (glue12b1): `enable = propdev,
+        # citydetail`, propdev_shadow, citydetail_shadow.
+        plugin/FC4PropCityCommon.cpp
+        plugin/FC4PropCityCommon.h
+        plugin/cFC4PropDeveloper.cpp
+        plugin/cFC4PropDeveloper.h
+        plugin/FC4PropDevHost.cpp
+        plugin/FC4PropDevShadow.cpp
+        plugin/FC4PropDevShadow.h
+        plugin/cFC4CityDetail.cpp
+        plugin/cFC4CityDetail.h
+        plugin/FC4CityDetailShadow.cpp
+        plugin/FC4CityDetailShadow.h
+        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
+        plugin/FC4HarnessLogic.h        plugin/FC4Turbo.cpp
         plugin/FC4Turbo.h
         plugin/FC4Script.cpp
         plugin/FC4Script.h
@@ -662,6 +676,16 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_parks_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-parks)
     set_tests_properties(plugin_ini_enable_parks_test PROPERTIES RUN_SERIAL TRUE)
+    # The glue12b1 lane (tests/plugin_propcity_test.inc): `enable = propdev` (the
+    # QI tables of the developer and its wealth requester, the record round
+    # trip, version 4 written back as 5, Init / Shutdown / the scan flag
+    # without a city) and `enable = citydetail` (QI table, record, Init).
+    add_test(NAME plugin_ini_enable_propdev_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-propdev)
+    set_tests_properties(plugin_ini_enable_propdev_test PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME plugin_ini_enable_citydetail_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-citydetail)
+    set_tests_properties(plugin_ini_enable_citydetail_test PROPERTIES RUN_SERIAL TRUE)
     # `terrain_shadow = 1`: the terrain shadow (glue16) on a stand-in original
     # built inside the DLL (seam op 58): exact, lost messages, perturbations.
     add_test(NAME plugin_ini_terrain_shadow_test

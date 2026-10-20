@@ -202,7 +202,18 @@
 //   traffic_shadow_hypotheses = N retired (ABI 69): accepted and ignored, logged once;
 //                                 its readings (TS55-TS57) are the core's behaviour
 //   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's//                                 terrain core with the ORIGINAL terrain, which is
-//                                 never replaced; FC4TerrainShadow.h)
+//   propdev_shadow = 0 / 1        the prop developer shadow (default 0; needs FreeCity4's
+//                                 simulator and the ORIGINAL prop developer: do not
+//                                 enable propdev; FC4PropDevShadow.h)
+//   propdev_seed = N              the prop developer's session seed (member and wealth
+//                                 generators; default: the session seed; cFC4PropDeveloper.cpp)
+//   citydetail_shadow = 0 / 1     the city detail shadow (default 0; needs the ORIGINAL
+//                                 city detail manager: do not enable citydetail;
+//                                 FC4CityDetailShadow.h)
+//   citydetail_seed = N           the city detail pass generator's session seed
+//                                 (default: the session seed; cFC4CityDetail.cpp)
+//   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's
+//                                 terrain core with the ORIGINAL terrain, which is//                                 never replaced; FC4TerrainShadow.h)
 //   terrain_shadow_points = N     its sample points per month (default 256, 16..4096)
 //   terrain_shadow_diffs = N      its differences named per line (default 8, 1..64)
 //   terrain_shadow_lines = N      its change lines per month (default 8, 0..1000)
