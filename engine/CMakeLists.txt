@@ -328,6 +328,10 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4NetworkManager.h
         plugin/cFC4NetworkLotManager.cpp
         plugin/cFC4NetworkLotManager.h
+        # The replacement network manager's tool stand-in (glue24; §13: the
+        # tools are their own subsystem, the slot 5 answer must not be null).
+        plugin/cFC4NetworkTool.cpp
+        plugin/cFC4NetworkTool.h
         # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp

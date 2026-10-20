@@ -32,27 +32,79 @@
 #include "FC4LotDevInterfaces.h"  // cFC4ISC4NetworkLotManager
 #include "FC4NetMgrHost.h"        // fc4::NetMgrContext
 #include "cISC4NetworkLot.h"
+#include "cSC4LotConfigurationObject.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
+#include "SC4Vector.h"
 #include "fc4.h"
 
 #include <atomic>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <string>
+#include <vector>
 
 class cIGZMessageServer2;
 class cISC4City;
+class cSC4LotConfigurationObject;
 static const uint32_t kFC4_CLSID_cSC4NetworkLotManager = 0xE9A6CD3B;
 static const uint32_t kFC4_IID_cISC4NetworkLotManager = 0x89A5BA3F;
 static const uint32_t kFC4_IID_cISC4NetworkLot = 0x89A5BA66;
+
+// One network lot configuration of ours (§2.4): the core's copy (fc4_netlot)
+// plus the game's view the callers reach: the configuration's objects as
+// 0x34-byte cSC4LotConfigurationObject records (§2.3 network lot slot 5,
+// prop-developer.md §4.3 step 2) and their ID lists (§8.6, object_ids). The
+// records are built once, from the exemplar's lot-object properties
+// (0x88EDC900 + k, lot-developer.md §17.1, prop-lotconfig.md §B3.3 with the
+// network detail d = 3), and shared by every lot of the configuration. The
+// record struct is the SDK's cSC4LotConfigurationObject (its layout matches
+// the compiled one, lot-developer.md §17.1); the records live in a
+// manager-owned SC4Vector built once per configuration.
+class cFC4NetworkLotConfiguration {
+public:
+    explicit cFC4NetworkLotConfiguration(uint64_t token) : token_(token) {}
+
+    void SetToken(uint64_t token) { token_ = token; }
+    void SetConfigId(uint32_t id) { configId_ = id; }
+    void AddIds(std::vector<uint32_t> ids) { ids_.push_back(std::move(ids)); }
+    void AddObject(const cSC4LotConfigurationObject& o) { records_.push_back(o); }
+    uint64_t Token() const { return token_; }
+    uint32_t ConfigId() const { return configId_; }
+    // The raw ID list of object `index` (the core's object_ids input).
+    const std::vector<uint32_t>& ObjectIds(size_t index) const;
+    // The type of object `index` (0 building, 1 prop, 4 flora; 0xFF past the
+    // kept records, so the expansion does nothing).
+    uint8_t ObjectType(size_t index) const {
+        return index < records_.size() ? static_cast<uint8_t>(records_[index].type) : 0xFF;
+    }
+    // The object count (the kept records).
+    size_t ObjectCount() const { return records_.size(); }
+
+    // The shared object array (built once, on first use; empty when the
+    // exemplar had no kept object). The pointer stays valid for the manager's
+    // life. The vector holds pointers into the kept record storage, the way
+    // the original's arrays do (the SDK's cISC4NetworkLot slot 5 returns
+    // SC4Vector<cSC4LotConfigurationObject>* whose elements are records).
+    SC4Vector<cSC4LotConfigurationObject>* Objects();
+
+private:
+    uint64_t token_ = 0;
+    uint32_t configId_ = 0;  // the exemplar's property 0x21 (§2.4)
+    std::vector<cSC4LotConfigurationObject> records_;  // the kept records, in property order
+    // Per kept-object index: the raw ID list of the object (object_ids).
+    std::vector<std::vector<uint32_t>> ids_;
+    std::unique_ptr<SC4Vector<cSC4LotConfigurationObject>> array_;
+};
 
 // A network lot of ours (§2.3: a 24-byte reference-counted object). The core
 // keeps the lot as a (occupant, configuration id) pair in its record; this is
 // the game's view of one, owned by the manager that hands it out.
 class cFC4NetworkLot final : public cISC4NetworkLot {
 public:
-    cFC4NetworkLot(cISC4NetworkOccupant* occ, uint32_t configId) : occ_(occ), configId_(configId) {}
+    cFC4NetworkLot(cISC4NetworkOccupant* occ, cFC4NetworkLotConfiguration* config)
+        : occ_(occ), config_(config) {}
 
     bool QueryInterface(uint32_t riid, void** ppvObj) override;
     uint32_t AddRef() override;
@@ -62,13 +114,13 @@ public:
     uint32_t GetLotConfigurationObjectCount() override;
     SC4Vector<cSC4LotConfigurationObject>* GetLotConfigurationObjectArray() override;
 
-    uint32_t ConfigId() const { return configId_; }
+    cFC4NetworkLotConfiguration* Config() const { return config_; }
 
 private:
     ~cFC4NetworkLot() = default;
     uint32_t refs_ = 1;
     cISC4NetworkOccupant* occ_ = nullptr;  // borrowed: the core holds the reference
-    uint32_t configId_ = 0;
+    cFC4NetworkLotConfiguration* config_ = nullptr;
 };
 
 class cFC4NetworkLotManager final : public cFC4ISC4NetworkLotManager,
@@ -116,8 +168,14 @@ public:
 
     // The lot objects this class handed out, kept alive while the manager is.
     cISC4NetworkLot* KeepLot(int32_t x, int32_t z, cISC4NetworkOccupant* occ, uint32_t configId);
+    // The configuration with the core's token (host identity), or null.
+    cFC4NetworkLotConfiguration* ConfigByToken(uint64_t token) const;
 
 private:
+    // §3.2 step 4: every exemplar of exemplar type 0x21 (read once per
+    // process), each as a core property holder plus the game's object records.
+    void ReadConfigurations();
+
     uint32_t refCount_ = 0;
     bool destroying_ = false;
     bool writable_ = false;
@@ -127,6 +185,8 @@ private:
     cISC4City* city_ = nullptr;
     cIGZMessageServer2* msgServer_ = nullptr;
     std::map<uint64_t, cFC4NetworkLot*> lots_;
+    std::map<uint64_t, std::unique_ptr<cFC4NetworkLotConfiguration>> configs_;
+    std::vector<fc4_props*> configProps_;  // alive until the adds are done
     std::atomic<uint32_t> posts_{0};
 };
 

@@ -21,9 +21,11 @@
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
+#include "cFC4NetworkTool.h"
 
 #include "GZServPtrs.h"
 #include "SC4List.h"
+#include "SC4Vector.h"
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
 #include "cIGZMessage2Standard.h"
@@ -168,6 +170,71 @@ void CrewShutdown(void*, uint64_t crew) {
     fc4::Log("netmgr crew_shutdown: crew %p", static_cast<void*>(fc4::FromToken(crew)));
 }
 
+// ---- the tools (§3.1 step 5, §7.1) ---------------------------------------------------------------------
+//
+// The original's Init holds 13 real tools, one per network type, and other
+// components take them from slot 5 without a null test (the game's zone
+// developer dereferences the null at PostCityInit; runs glue24-rep-1..3). The
+// game's own tool classes are constructed by the original manager's own code
+// (§7.1: the factory 0x00610907-0x00610910 calls the constructors directly);
+// no GZCOM class ID for them is stated in the specs, so the replacement
+// cannot create the game's tools (question NM11). The stand-in
+// (cFC4NetworkTool.h) answers the SDK's cISC4NetworkTool interface and does
+// nothing [choice]: the runs only need a non-null tool (PostCityInit takes
+// tools 3, 11 and 0, AddRefs them and Inits them, zones.md §5.2); placement,
+// the destroy pipeline and the underground refit are not reached in an
+// auto-run, and the core still counts its null-callback groups.
+
+cFC4NetworkTool* ToolOf(uint64_t t) {
+    return t != 0 && fc4::IsOurObject(fc4::FromToken(t))
+               ? static_cast<cFC4NetworkTool*>(fc4::FromToken(t))
+               : nullptr;
+}
+
+uint64_t CreateTool(void*, uint32_t) {
+    // §3.1 step 5 / §7.1: the tool is created with one reference for the core
+    // (the original's cache holds it; the core's create/release callbacks own
+    // it here). The stand-in starts at 0 like the original's (§7.1: the
+    // factory returns it with no AddRef) - the host holds the creation
+    // reference by AddRef'ing after the new.
+    auto* tool = new cFC4NetworkTool();
+    tool->AddRef();
+    return fc4::TokenOf(static_cast<cIGZUnknown*>(tool));
+}
+
+void ToolInit(void*, uint64_t tool) {
+    if (cFC4NetworkTool* t = ToolOf(tool)) t->Init();  // tool slot 3
+}
+
+void ToolShutdown(void*, uint64_t tool) {
+    if (cFC4NetworkTool* t = ToolOf(tool)) t->Shutdown();  // tool slot 4
+}
+
+void ToolDestroyOccupants(void*, uint64_t tool, const uint64_t* occupants, size_t count) {
+    // §7.2 step 2.2: the tool's slot 50 with the collected occupants. The
+    // stand-in's slot 50 destroys nothing (§10's pipeline is not
+    // implemented); the tokens travel as the cISC4NetworkOccupant pointers
+    // the core collected.
+    cFC4NetworkTool* t = ToolOf(tool);
+    if (t == nullptr || occupants == nullptr || count == 0) return;
+    SC4Vector<cISC4NetworkOccupant*> list;
+    for (size_t i = 0; i < count; ++i) {
+        if (occupants[i] == 0) continue;
+        list.push_back(reinterpret_cast<cISC4NetworkOccupant*>(fc4::FromToken(occupants[i])));
+    }
+    t->DestroyOccupantsAndResolve(list);  // tool slot 50, pop 4
+}
+
+void ToolUpdateUndergroundHeights(void*, uint64_t tool, const int32_t*, const uint64_t*, size_t, uint32_t) {
+    // §7.6 tail: the underground tool's UpdateUndergroundOccupantTerrain-
+    // Heights (network-tools.md §11, a direct call at 0x006588D0, a hash set
+    // passed by value). The stand-in has no underground state; the refit's
+    // Init / Shutdown bracket still runs (ToolInit / ToolShutdown).
+    (void)tool;
+}
+
+void ToolCellInfo(void*, uint64_t, uint32_t) {}
+
 // ---- host assembly -----------------------------------------------------------------------------------
 
 fc4_netmgr_host MakeHost(cFC4NetworkManager* self, fc4::NetMgrContext* ctx) {
@@ -186,9 +253,15 @@ fc4_netmgr_host MakeHost(cFC4NetworkManager* self, fc4::NetMgrContext* ctx) {
     h.remove_occupant = &RemoveOccupant;
     h.post_refresh = &PostRefresh;
     h.crew_shutdown = &CrewShutdown;
-    // NOT wired (NULL): create_tool and the five tool_* callbacks,
-    // network_occupants. The core's §7.2 / §7.6 / §7.4 steps that need a tool
-    // skip the group (its documented null-tool [choice]) and count it.
+    h.create_tool = &CreateTool;
+    h.tool_init = &ToolInit;
+    h.tool_shutdown = &ToolShutdown;
+    h.tool_destroy_occupants = &ToolDestroyOccupants;
+    h.tool_update_underground_heights = &ToolUpdateUndergroundHeights;
+    // NOT wired (NULL): tool_cell_info and tool_reinsert_piece (§7.4's
+    // intersection re-insert needs the tool's GetCellInfo 0x00633220 and its
+    // slot 72; a NULL cell info reads as 0 and the re-insert is skipped
+    // [choice], counted by the core), and network_occupants. Question NM11.
     return h;
 }
 
