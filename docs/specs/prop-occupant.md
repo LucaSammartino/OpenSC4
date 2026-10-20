@@ -96,7 +96,10 @@ Every successful branch calls the vtable's `AddRef` (`*vtable[1]`) before return
 ### 1.2 Subclasses
 
 Three prop subclasses share the record shape but differ in size and extra fields. Only the plain class and the
-visual effect occur in saves.
+visual effect occur in saves. Two further embedders place a **complete prop occupant inside another occupant**:
+the region-view signpost `cSC4SignpostOccupant` (`0xAB72FBB3`, prop at object +4) and the terrain text decal
+`cSC4TextDecalOccupant` (`0x8B79C707`, prop at object +4). Their save records, layouts and behaviour are
+specified in lot-records.md §10.3 and §10.4; the prop record (§7) is nested inside theirs.
 
 | Class | Class ID | Size | Notes |
 |---|---|---|---|

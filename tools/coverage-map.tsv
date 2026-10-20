@@ -213,7 +213,24 @@ cSC4TextDecalOccupant	occupants and props	simulation	-	-	-	-
 cSC4Occupant*	occupants and props	simulation	-	-	-	-
 cSC4*OccupantFilter	occupants and props	simulation	-	-	-	-
 cSC4*Occupant	occupants and props	simulation	-	-	-	-
-cSC4GameOfLifeSimulator	other simulation	simulation	-	-	-	-
+cSC4Network*Occupant*	network occupants	simulation	-	-	-	-
+cSC4UndergroundOccupant	network occupants	simulation	-	-	-	-
+cSC4UndergroundConnectionOccupant	network occupants	simulation	-	-	-	-
+cSC4PowerPoleOccupant	network occupants	simulation	-	-	-	-
+cSC4PowerLineOccupant	network occupants	simulation	-	-	-	-
+cSC4PipeOccupant	network occupants	simulation	-	-	-	-
+cSC4SubwayOccupant	network occupants	simulation	-	-	-	-
+cSC4PylonOccupant	network occupants	simulation	-	-	-	-
+cSC4NetworkTypeInfo	network occupants	simulation	-	-	-	-
+cSC4NetworkRoutines	network occupants	simulation	-	-	-	-
+cSC4Network*	network occupants	simulation	-	-	-	-
+cSC4ConstructionOccupant	occupants and props	simulation	lot-records.md	-	-	-
+cSC4PropOccupant*	occupants and props	simulation	prop-occupant.md, lot-records.md	-	-	-
+cSC4SignpostOccupant	occupants and props	simulation	lot-records.md	-	-	-
+cSC4TextDecalOccupant	occupants and props	simulation	lot-records.md	-	-	-
+cSC4Occupant*	occupants and props	simulation	occupant-manager.md, lot-records.md	-	-	-
+cSC4*OccupantFilter	occupants and props	simulation	occupant-manager.md, flora.md, demolition.md	-	-	-
+cSC4*Occupant	occupants and props	simulation	occupant-manager.md, lot-records.md, prop-occupant.md, flora.md, landfill.md, disasters.md	-	-	-cSC4GameOfLifeSimulator	other simulation	simulation	-	-	-	-
 SC4QuadGrid	other simulation	simulation	-	-	-	-
 cSC4TutorialRegistry	tutorial	simulation	-	core/src/tutorial	-	-
 cSC4TutorialTask	tutorial	simulation	-	core/src/tutorial	-	-
