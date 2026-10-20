@@ -19,6 +19,7 @@
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
+#include "FC4AutomataDriver.h"  // the glue19 lane: the riot / fire driver
 #include "cFC4Message2Standard.h"
 
 #include "GZServPtrs.h"
@@ -360,6 +361,10 @@ uint64_t CreateFireOccupant(void* u, uint32_t, uint64_t target, uint32_t, uint32
     DisasterHostContext* c = C(u);
     if (!c->shadow) {
         Wrote(u, "create_fire_occupant (class 0x69D25C5F, Q27)");
+        // Live: no fire occupant is made yet (Q27), so nothing drives the
+        // automata layer's 8.2 SetTarget. The driver's fire table is wired
+        // for the day the occupant lands: with a token here the bridge is
+        // fc4_automata_fire_set_target (the "fire_occupant" controllers).
         return 0;
     }
     const uint64_t fire = kSyntheticToken | c->nextSynthetic++;
@@ -401,11 +406,19 @@ void CellCorner(void* u, int32_t x, int32_t z, float* wx, float* wz) {
     if (wx) *wx = a;
     if (wz) *wz = b;
 }
-uint64_t CreateRiotLeader(void* u, float, float) {
+uint64_t CreateRiotLeader(void* u, float x, float z) {
     DisasterHostContext* c = C(u);
     if (!c->shadow) {
-        Wrote(u, "create_riot_leader (pedestrian automaton 0x4107, Q28)");
-        return 0;
+        // Live (our layer is the disaster layer): the automata layer's part
+        // of the 8.1 start runs through the driver (FC4AutomataDriver.h) -
+        // the road tile, the cap, the pedestrian manager's CreateAutomaton,
+        // AddRef, SetState(8, ...), SetVisible and the location. A 0 back
+        // means no leader was made.
+        const uint64_t a = AutomataDriverRiotAdd(static_cast<int32_t>(x) / 16, static_cast<int32_t>(z) / 16);
+        if (a == 0) {
+            Wrote(u, "create_riot_leader (pedestrian automaton 0x4107, Q28)");
+        }
+        return a;
     }
     ++c->writes["create_riot_leader"];
     if (c->leaders.empty()) {
@@ -441,8 +454,21 @@ bool AutomatonCell(void* u, uint64_t t, int32_t* x, int32_t* z) {
     return true;
 }
 void SetRiotEffect(void* u, uint64_t, int32_t) { Wrote(u, "set_riot_effect"); }
-void SendRiotMessage(void* u, uint64_t, int32_t) { Wrote(u, "send_riot_message"); }
-void EndRiotLeader(void* u, uint64_t) { Wrote(u, "end_riot_leader"); }
+void SendRiotMessage(void* u, uint64_t a, int32_t stage) {
+    if (!C(u)->shadow) {
+        // Live: the stage rise's controller call (8.1) through the driver.
+        if (AutomataDriverRiotSetStage(a, stage)) return;
+    }
+    Wrote(u, "send_riot_message");
+}
+void EndRiotLeader(void* u, uint64_t a) {
+    if (!C(u)->shadow) {
+        // Live: the 8.1 end (SetState(1, ...), RemoveControllers, the
+        // location, Release) through the driver.
+        if (AutomataDriverRiotEnd(a)) return;
+    }
+    Wrote(u, "end_riot_leader");
+}
 void RiotLeaderTick(void* u, uint64_t) { Wrote(u, "riot_leader_tick"); }
 
 // ---- toxic spill, terrain, pipes, volcano (not mirrored; Q29) -----------------------------------

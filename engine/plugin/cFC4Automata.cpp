@@ -22,15 +22,21 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"  // OStreamAdapter, IStreamAdapter, TokenOf
+#include "cFC4AutomatonObject.h"  // the automaton wrappers (7.2)
 
 #include "SC4List.h"
 #include "SC4Vector.h"
+#include "cGZPersistResourceKey.h"
 #include "cIGZMessage2.h"
 #include "cIGZSerializable.h"
 #include "cIGZUnknown.h"
+#include "cISC4Automaton.h"
+#include "cS3DVector3.h"
 
 #include <cinttypes>
 #include <cstdio>
+#include <map>
+#include <vector>
 
 #include "fc4.h"
 
@@ -78,12 +84,41 @@ constexpr uint32_t kIID_cISC4AutomataScriptSystem = 0x8A1B6647;
 constexpr uint32_t kIID_cISC4AutomataControllerManager = 0xCA14C9FC;
 constexpr uint32_t kIID_cISC4AutomataManager = 0x098F9BF4;  // all four managers
 
+// The wrappers the managers created (7.2), kept alive for the city session:
+// a Release never deletes one (cFC4AutomatonObject.h), so a token the core
+// holds stays valid until the owner manager is destroyed.
+std::map<const void*, std::vector<cFC4AutomatonObject*>>& CreatedAutomata() {
+    static std::map<const void*, std::vector<cFC4AutomatonObject*>> m;
+    return m;
+}
+
 }  // namespace
 
 fc4_ref RefOf(void* object, uint32_t classId) {
     fc4_ref r{};
     r.token = fc4::TokenOf(object);
     r.class_id = classId;
+    return r;
+}
+
+// A reference to an automaton as the core sees it: one of our wrappers (its
+// handle through cIFC4CoreObject, FC4Streams.h) or a host token.
+fc4_ref RefOfAutomaton(cISC4Automaton* a) {
+    fc4_ref r{};
+    if (a == nullptr) return r;
+    r.token = fc4::TokenOf(a);
+    // The class ID (GetGZCLSID is on the serializable view, 11).
+    cIGZSerializable* ser = nullptr;
+    if (a->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr) {
+        r.class_id = ser->GetGZCLSID();
+        ser->Release();
+    }
+    void* core = nullptr;
+    if (a->QueryInterface(kFC4_IID_CoreObject, &core) && core != nullptr) {
+        cIFC4CoreObject* c = static_cast<cIFC4CoreObject*>(core);
+        r.core_handle = c->CoreHandle();
+        c->Release();
+    }
     return r;
 }
 
@@ -220,6 +255,13 @@ cFC4AutomataManager::cFC4AutomataManager(uint32_t classId) : classId_(classId) {
 cFC4AutomataManager::~cFC4AutomataManager() {
     fc4_automata_manager_destroy(core_);
     core_ = nullptr;
+    // The wrappers this manager created (7.2): the handles go with them.
+    // The core above was dropped first, so no wrapper token is used again.
+    const auto it = CreatedAutomata().find(this);
+    if (it != CreatedAutomata().end()) {
+        for (cFC4AutomatonObject* w : it->second) delete w;
+        CreatedAutomata().erase(it);
+    }
 }
 
 bool cFC4AutomataManager::QueryInterface(uint32_t riid, void** ppvObj) {
@@ -448,11 +490,13 @@ bool cFC4AutomataManager::IsActive() const {
 }
 
 bool cFC4AutomataManager::AddAutomaton(cISC4Automaton* a) {
-    return false;
+    fc4_ref r = RefOfAutomaton(a);
+    return fc4_automata_manager_add_automaton(core_, &r);
 }
 
 bool cFC4AutomataManager::RemoveAutomaton(cISC4Automaton* a, bool b) {
-    return false;
+    fc4_ref r = RefOfAutomaton(a);
+    return fc4_automata_manager_remove_automaton(core_, &r);
 }
 
 void cFC4AutomataManager::Pause() {
@@ -480,7 +524,25 @@ uint8_t cFC4AutomataManager::GetMinZoom() const {
 }
 
 cISC4Automaton* cFC4AutomataManager::CreateAutomaton(uint32_t g, cS3DVector3 const& p, uint32_t flags, cGZPersistResourceKey const& key, cIGZMessageTarget2* cb, uint8_t pri, cS3DVector3 const* orient) {
-    return nullptr;
+    fc4_automata_create_args args{};
+    args.group = g;
+    args.position[0] = p.fX; args.position[1] = p.fY; args.position[2] = p.fZ;
+    args.flags = flags;
+    args.model_key[0] = key.type; args.model_key[1] = key.group; args.model_key[2] = key.instance;
+    args.callback = fc4::TokenOf(cb);
+    args.priority = pri;
+    if (orient != nullptr) {
+        args.has_orientation = 1;
+        args.orientation[0] = orient->fX; args.orientation[1] = orient->fY; args.orientation[2] = orient->fZ;
+    }
+    fc4_automata_object* h = fc4_automata_manager_create_automaton(core_, &args);
+    if (h == nullptr) return nullptr;
+    // The wrapper owns the handle; the token the core writes for it is
+    // this wrapper's automaton sub-object (fc4_automata_object_set_token).
+    cFC4AutomatonObject* w = new cFC4AutomatonObject(FC4AutomatonClassOfHandle(h), h);
+    fc4_automata_object_set_token(h, fc4::TokenOf(static_cast<cFC4ISC4Automaton*>(w)));
+    CreatedAutomata()[this].push_back(w);
+    return reinterpret_cast<cISC4Automaton*>(static_cast<cFC4ISC4Automaton*>(w));
 }
 
 bool cFC4AutomataManager::GetRandomCreationPoint(uint32_t a, cS3DVector3 const& b, float c, float d, cS3DVector3& e, uint32_t f, cS3DVector3* g) {

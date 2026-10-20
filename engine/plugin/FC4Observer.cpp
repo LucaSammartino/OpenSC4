@@ -38,6 +38,7 @@
 #include "FC4CivicShadow.h"
 #include "FC4ParksShadow.h"
 #include "FC4AutomataShadow.h"  // the glue19 lane
+#include "FC4AutomataDriver.h"  // the glue19 lane: the riot / fire driver
 #include "FC4DisasterShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
@@ -569,6 +570,7 @@ public:
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
                 AutomataShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // automata_shadow
+                fc4::AutomataDriverCityLoaded(CurrentCity());  // the automata riot / fire driver (automata.md 8)
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -592,6 +594,7 @@ public:
                 TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
                 AutomataShadowCityShutdown();  // automata_shadow: the shadow cores and their references
+                fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:

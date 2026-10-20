@@ -319,6 +319,10 @@ if(FC4_IS_WIN32_X86)
         # its shadow: automata_shadow.
         plugin/cFC4Automata.cpp
         plugin/cFC4Automata.h
+        plugin/cFC4AutomatonObject.cpp
+        plugin/cFC4AutomatonObject.h
+        plugin/FC4AutomataDriver.cpp
+        plugin/FC4AutomataDriver.h
         plugin/FC4AutomataHost.cpp
         plugin/FC4AutomataHost.h
         plugin/FC4AutomataInterfaces.h

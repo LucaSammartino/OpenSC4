@@ -4975,6 +4975,26 @@ prefix the code comments use; automata.md's own Q1-Q6 keep their numbers. The cu
 - **AM12:** (§7.3 slot 31, TrackAutomataGroupInstances) what are the semantics? [adds delta, does not go below 0,
   appends a new group]
 
+## From the glue19 fix round (the automata GZCOM classes registered, 2026-10-20)
+
+With the create-path QueryInterface fix (A4) in, the city loads the six components and the replacement runs to the
+first month tick: the fault that stopped glue19-enable-1..-4 at load is gone (run glue19-enable-5, still a verdict
+corrupt, but two months later, at the first month agent).
+
+<!-- from: the glue19 fix round (2026-10-20) -->
+- **AT20:** the four managers' primary vtables are larger than the 38 slots of §11. The month agent's
+  `DoMonthlySimulation` → `CheckForAccident` (traffic-simulator.md §4.13) calls
+  `cSC4TrafficAutomataManager::CreateAccident`, which crime.md names as **slot 83** of vtable `0x00A9BD88`
+  (inherited by the pedestrian manager `0x00A9A470` and the vehicle manager `0x00A9D1E0`), and
+  `PopulateCrimeLayer` also calls **slot 89** (`PopulateNetworkOccupantForCrimeLayer`). With the 38-slot
+  replacement vtable every call at slot ≥ 38 reads past the table: the month agent faults at
+  `SimCity 4.exe+0x1540AF` (a write to `0xCCCCCCC3`, registers `eax=0xCCCCCCC3 ecx=0 edx=0x4E20`), in the same
+  month tick in which the vehicle manager (`0x098347A0`, run glue19-enable-5) sits on the stack. What is the
+  full slot list of the four managers' primary vtables (0x00A9A470, 0x00A9D1E0, 0x00A94850, 0x00A9DF38), at
+  least through slot 89, and what must each of the game-used slots (83 at minimum; the dispatch, indicator and
+  tuning slots of city-situation.md §9 and advisors.md) answer for the replacement to survive a played city?
+  [an RE pass over the four vtables; the replacement stubs everything past 37 for now]
+
 ## From the session seed (filed by the coordinator from the `seeding` lane's report, 2026-10-16; merged `77b7909`)
 
 seeding implemented foundations §6.3 across every merged core that owns a generator (`engine/core/src/seeding.rs`,
