@@ -61,7 +61,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | simulation | disasters | 17 | 334 | 46,983 | yes | yes | fire 211/263, riot 2/354 (lane run, not exact) | - | - |
 | simulation | zone developer / lot manager | 1 | 104 | 42,068 | yes | yes | 365/365 | yes | yes |
 | simulation | city situation | 1 | 155 | 41,919 | yes | yes | citysit 73/73 (lane run) | yes | - |
-| simulation | network manager | 5 | 166 | 41,793 | yes | yes | not in regress | - | - |
+| simulation | network manager | 5 | 166 | 41,793 | yes | yes | no lines | - | - |
 | simulation | residential | 1 | 117 | 40,477 | yes | yes | 1137/1137 | yes | yes |
 | simulation | lot developer | 1 | 149 | 40,458 | yes | yes | 73/73 | yes | yes |
 | simulation | tract developer | 1 | 116 | 36,573 | yes | yes | 145/145 | yes | yes |
@@ -254,8 +254,12 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-map.tsv | 1a59ac89ccc72e26 | |
 | tools/coverage-shadows.tsv | 9559bafe0136e8c5 | |
-| tools/regress.ps1 | ac7c8f90858f8d2f | |
-| engine/plugin/FC4Subsystems.cpp | 86cd77363b432dbc | |
+| tools/regress.ps1 | 138cae90b2d15a09 | |
+| engine/plugin/FC4Subsystems.cpp | bae1e1542c8cb2cc | |
 | build-runs/regress-voidbool.out | 08052938525d100a | regress voidbool (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time)); replace run clean |
 
-Read from tools/regress.ps1: 27 replace keys, 27 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
+Read from tools/regress.ps1: 27 replace keys, 28 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
+
+## Warnings
+
+- shadow `netmgr_shadow` is in the regress list but `regress-voidbool.out` has no `netmgr` lines
