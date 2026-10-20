@@ -69,6 +69,15 @@ fc4_automata_cm_host CmHost() {
 // The message-target IID the plugin already uses (cFC4Aura.cpp, cFC4Budget.cpp).
 constexpr uint32_t kIID_cIGZMessageTarget2 = 0x452294AA;
 
+// The interface IIDs the city creates the six components through
+// (automata.md 15.2/15.3: the create path is CreateObject(CLSID, IID), and
+// QueryInterface must answer the IID, not only the CLSID, or the city's
+// component slot stays null and its Init dispatcher dereferences it
+// unconditionally at SimCity 4.exe+0x0045BF1B).
+constexpr uint32_t kIID_cISC4AutomataScriptSystem = 0x8A1B6647;
+constexpr uint32_t kIID_cISC4AutomataControllerManager = 0xCA14C9FC;
+constexpr uint32_t kIID_cISC4AutomataManager = 0x098F9BF4;  // all four managers
+
 }  // namespace
 
 fc4_ref RefOf(void* object, uint32_t classId) {
@@ -96,6 +105,8 @@ bool cFC4AutomataScriptSystem::QueryInterface(uint32_t riid, void** ppvObj) {
     *ppvObj = nullptr;
     if (riid == GZIID_cIGZSerializable) {
         *ppvObj = static_cast<cIGZSerializable*>(this);  // its own sub-object
+    } else if (riid == kIID_cISC4AutomataScriptSystem) {
+        *ppvObj = static_cast<cFC4ISC4AutomataScriptSystem*>(this);
     } else if (riid == 1 || riid == kFC4_CLSID_cSC4AutomataScriptSystem) {
         *ppvObj = static_cast<cIGZUnknown*>(static_cast<cFC4ISC4AutomataScriptSystem*>(this));
     } else {
@@ -151,6 +162,8 @@ bool cFC4AutomataControllerManager::QueryInterface(uint32_t riid, void** ppvObj)
         *ppvObj = static_cast<cIGZSerializable*>(this);
     } else if (riid == kIID_cIGZMessageTarget2) {
         *ppvObj = static_cast<cIGZMessageTarget2*>(this);
+    } else if (riid == kIID_cISC4AutomataControllerManager) {
+        *ppvObj = static_cast<cFC4ISC4AutomataControllerManager*>(this);
     } else if (riid == 1 || riid == kFC4_CLSID_cSC4AutomataControllerManager) {
         *ppvObj = static_cast<cIGZUnknown*>(static_cast<cFC4ISC4AutomataControllerManager*>(this));
     } else {
@@ -216,6 +229,8 @@ bool cFC4AutomataManager::QueryInterface(uint32_t riid, void** ppvObj) {
         *ppvObj = static_cast<cIGZSerializable*>(this);
     } else if (riid == kIID_cIGZMessageTarget2) {
         *ppvObj = static_cast<cIGZMessageTarget2*>(this);
+    } else if (riid == kIID_cISC4AutomataManager) {
+        *ppvObj = static_cast<cFC4ISC4AutomataManager*>(this);
     } else if (riid == 1 || riid == classId_) {
         *ppvObj = static_cast<cIGZUnknown*>(static_cast<cFC4ISC4AutomataManager*>(this));
     } else {

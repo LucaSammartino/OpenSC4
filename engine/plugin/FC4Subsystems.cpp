@@ -248,13 +248,12 @@ const ClassEntry kTrafficClasses[] = {
 // default (glue trial): `enable = history`.
 // docs/specs/automata.md 0: the script system (40), the controller manager
 // (41) and the four automata managers (43-46). Records and call contracts
-// only (0: animation stubbed).
-//
-// NOT REGISTERED (glue19): with these in kSubsystems the city's Init phase
-// faults at SimCity 4.exe+0x0045BF1B (a null dereference, ecx=0) after all six
-// components have Read their records successfully (runs glue19-enable-1 to
-// -4). The shadow is exact first and stays the gate; registering them is the
-// next lane's work (glue19 question A4).
+// only (0: animation stubbed). The Init fault that kept these out of
+// kSubsystems (glue19 question A4) was the create path's IID: the city's
+// ensure-components helper calls CreateObject(CLSID, IID) and the classes
+// answered the CLSID only, so the city's component slot stayed null and its
+// Init dispatcher dereferenced it unconditionally at SimCity 4.exe+0x0045BF1B
+// (automata.md §15). Every QueryInterface now answers its interface IID too.
 static const ClassEntry kAutomataClasses[] = {
     {kFC4_CLSID_cSC4AutomataScriptSystem, "cSC4AutomataScriptSystem", &CreateFC4AutomataScriptSystem},
     {kFC4_CLSID_cSC4AutomataControllerManager, "cSC4AutomataControllerManager",
@@ -350,6 +349,8 @@ const Subsystem kSubsystems[] = {
     {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
+    {"automata", nullptr, kAutomataClasses, sizeof(kAutomataClasses) / sizeof(kAutomataClasses[0]),
+     false},  // the automata layer (glue19); off by default: `enable = automata`
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
