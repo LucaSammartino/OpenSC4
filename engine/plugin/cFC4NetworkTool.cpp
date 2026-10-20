@@ -54,11 +54,20 @@ fc4_netgeom* GeometryOf(fc4::NetToolContext* ctx) {
 
 cIGZUnknown* cFC4NetworkTool::Create(uint32_t networkType) {
     // The factory returns the primary interface's pointer with reference
-    // count 0 (network-manager.md §7.1: no AddRef).
-    return static_cast<cIGZUnknown*>(static_cast<cISC4NetworkTool*>(new cFC4NetworkTool(networkType)));
+    // count 0 (network-manager.md §7.1: no AddRef). The GZCOM-registered
+    // class is always live (the nettool key is how it got registered).
+    return static_cast<cIGZUnknown*>(static_cast<cISC4NetworkTool*>(new cFC4NetworkTool(networkType, true)));
 }
 
-cFC4NetworkTool::cFC4NetworkTool(uint32_t networkType) : networkType_(networkType) {
+cFC4NetworkTool::cFC4NetworkTool(uint32_t networkType, bool live)
+    : live_(live), networkType_(networkType) {
+    if (!live_) {
+        // The glue24 stand-in semantics (cFC4NetworkManager.cpp's comment):
+        // no core, no host, nothing but the SDK vtable with the verified
+        // no-op answers.
+        fc4::Log("cFC4NetworkTool(%p) type %u created (stand-in)", static_cast<void*>(this), networkType);
+        return;
+    }
     host_ = fc4::MakeNetToolHost(&ctx_);
     ctx_.self = static_cast<cIGZUnknown*>(static_cast<cISC4NetworkTool*>(this));
     core_ = fc4_nettool_create(&host_, networkType);
@@ -127,6 +136,7 @@ uint32_t cFC4NetworkTool::Release() {
 // type's exemplar (ReloadNetworkSpecificInfo); the core's init carries them.
 bool cFC4NetworkTool::Init() {
     FC4_TRACE("cFC4NetworkTool::Init");
+    if (!live_) return true;  // the stand-in: glue24's runs verified true
     if (core_ == nullptr) return false;
     cISC4City* city = ctx_.city;
     uint32_t cityX = 0, cityZ = 0;
@@ -149,6 +159,7 @@ bool cFC4NetworkTool::Init() {
 
 bool cFC4NetworkTool::Shutdown() {
     FC4_TRACE("cFC4NetworkTool::Shutdown");
+    if (!live_) return true;  // the stand-in
     LogStatus("Shutdown");
     const bool ok = core_ != nullptr && fc4_nettool_reset(core_);
     fc4::NetToolReleaseHeld(&ctx_);
@@ -157,6 +168,7 @@ bool cFC4NetworkTool::Shutdown() {
 
 void cFC4NetworkTool::Reset() {
     // Slot 5: empties the world cache and the step counts.
+    if (!live_) return;  // the stand-in
     if (core_ != nullptr) fc4_nettool_reset(core_);
     if (ctx_.geom != nullptr) fc4_netgeom_reset(ctx_.geom);
 }
@@ -174,7 +186,7 @@ uint32_t cFC4NetworkTool::PlaceNetworkOccupants(uint32_t startX, uint32_t startZ
                                                 bool bUseWorldCache,
                                                 cISC4NetworkOccupant::eNetworkType networkType) {
     FC4_TRACE("cFC4NetworkTool::PlaceNetworkOccupants");
-    if (core_ == nullptr) return 0;
+    if (!live_ || core_ == nullptr) return 0;  // §3.4: a stand-in reports failure
     const uint32_t callback = toolCallback ? fc4::TokenOf(static_cast<cIGZUnknown*>(toolCallback)) : 0;
     const bool ok = fc4_nettool_place_network_occupants(
         core_, static_cast<int32_t>(startX), static_cast<int32_t>(startZ), static_cast<int32_t>(endX),
@@ -189,7 +201,7 @@ uint32_t cFC4NetworkTool::PlaceNetworkOccupants(uint32_t startX, uint32_t startZ
 void cFC4NetworkTool::PlaceNetworkOccupantById(int x, int z, unsigned long occupantId, bool bSelect,
                                                cISC4NetworkOccupant::eNetworkType networkType) {
     FC4_TRACE("cFC4NetworkTool::PlaceNetworkOccupantById");
-    if (core_ == nullptr) return;
+    if (!live_ || core_ == nullptr) return;  // the stand-in places nothing
     fc4_nettool_place_network_occupant_by_id(core_, x, z, static_cast<uint32_t>(occupantId), bSelect,
                                              static_cast<int32_t>(networkType));
     LogStatus("PlaceNetworkOccupantById");
@@ -199,7 +211,7 @@ void cFC4NetworkTool::PlaceNetworkOccupantById(int x, int z, unsigned long occup
 // query. AL only; the mask is written only on a hit.
 uint32_t cFC4NetworkTool::OccupantExists(uint32_t x, uint32_t z, unsigned long networkMask,
                                          unsigned long& outOccupantId) {
-    if (core_ == nullptr) return 0;
+    if (!live_ || core_ == nullptr) return 0;  // the stand-in: nothing exists
     uint8_t mask[4] = {};
     const bool ok = fc4_nettool_occupant_exists(core_, static_cast<int32_t>(x), static_cast<int32_t>(z),
                                                 static_cast<uint32_t>(networkMask), mask);
@@ -217,10 +229,13 @@ void cFC4NetworkTool::ForceReload() {}
 void cFC4NetworkTool::SetTraceFinal(bool) {}
 
 void cFC4NetworkTool::ClearFailureReason() {
-    if (core_ != nullptr) fc4_nettool_clear_failure(core_);
+    if (!live_ || core_ == nullptr) return;
+    fc4_nettool_clear_failure(core_);
 }
 
-uint32_t cFC4NetworkTool::GetFailureState() const { return core_ ? fc4_nettool_get_failure_state(core_) : 0; }
+uint32_t cFC4NetworkTool::GetFailureState() const {
+    return (live_ && core_) ? fc4_nettool_get_failure_state(core_) : 0;
+}
 
 // §5.3: the failure code's LTEXT (group 0x2A592FD1, instance = the code).
 void cFC4NetworkTool::GetFailureReasonString(cIGZString& outStr) const {
@@ -238,7 +253,7 @@ void cFC4NetworkTool::ClearCellPreviews() {}
 // Slot 18 DrawNetworkLine(&start, &end, snap, type): AL.
 uint32_t cFC4NetworkTool::DrawNetworkLine(const SC4Point<uint32_t>& start, const SC4Point<uint32_t>& end,
                                           bool useWorldCache, cISC4NetworkOccupant::eNetworkType networkType) {
-    if (core_ == nullptr) return 0;
+    if (!live_ || core_ == nullptr) return 0;  // the stand-in draws nothing
     // A standalone draw (the UI's preview path): draw on the geometry, then
     // leave the counters to the caller's getters. The core's run is not
     // involved (the pipeline's draws go through the host).
@@ -261,7 +276,7 @@ void cFC4NetworkTool::PlaceAllSegments(bool commit, bool previewOnly, bool allow
     FC4_TRACE("cFC4NetworkTool::PlaceAllSegments");
     (void)previewOnly;
     (void)allowDemolition;
-    if (core_ == nullptr) return;
+    if (!live_ || core_ == nullptr) return;
     // §8.2 step 4: one PlaceNetworkOccupants per anchor pair (the anchors
     // themselves are the UI's state; a code caller uses slot 7 directly).
     // [choice] With no anchors stored (no UI), nothing runs.
@@ -271,18 +286,19 @@ void cFC4NetworkTool::PlaceAllSegments(bool commit, bool previewOnly, bool allow
 // geometry core prices the solved cells; demolition cost comes from the
 // highlights pass [choice: 0 without the highlight wiring].
 int cFC4NetworkTool::GetCostOfSolution() const {
-    if (ctx_.geom == nullptr) return 0;
+    if (!live_ || ctx_.geom == nullptr) return 0;
     return fc4_netgeom_cost(ctx_.geom, 0);
 }
 
 void cFC4NetworkTool::EnablePreviewUpdate(bool enable) {
-    if (core_ != nullptr) fc4_nettool_enable_preview_update(core_, enable);
+    if (!live_ || core_ == nullptr) return;
+    fc4_nettool_enable_preview_update(core_, enable);
 }
 
 void cFC4NetworkTool::SetAnchorPoints(const SC4Vector<SC4Point<uint32_t>>&) {}
 
 void cFC4NetworkTool::GetDraggedCells(SC4Vector<SC4Point<uint32_t>>& outCells) const {
-    if (ctx_.geom == nullptr) return;
+    if (!live_ || ctx_.geom == nullptr) return;
     fc4_netgeom_cell cells[FC4_NETTOOL_MAX_CELLS];
     const uint32_t n = fc4_netgeom_get_cells(ctx_.geom, cells, FC4_NETTOOL_MAX_CELLS);
     for (uint32_t i = 0; i < n && i < FC4_NETTOOL_MAX_CELLS; ++i) {
@@ -349,7 +365,7 @@ void cFC4NetworkTool::QueryUserForPotentialIntersections() {}
 // §10 DestroyOccupantsAndResolve(list): the closure and the rebuild.
 void cFC4NetworkTool::DestroyOccupantsAndResolve(const SC4Vector<cISC4NetworkOccupant*>& occupants) {
     FC4_TRACE("cFC4NetworkTool::DestroyOccupantsAndResolve");
-    if (core_ == nullptr) return;
+    if (!live_ || core_ == nullptr) return;  // the stand-in destroys nothing
     std::vector<fc4_nettool_listed> listed;
     listed.reserve(occupants.size());
     for (cISC4NetworkOccupant* n : occupants) {
@@ -397,7 +413,7 @@ cFC4NetworkTool* Take(int32_t type, cISC4City* city, cIGZMessageServer2* ms) {
     if (!g_enabled || type < 0 || type >= 13) return nullptr;
     cFC4NetworkTool*& slot = g_tools[type];
     if (slot == nullptr) {
-        slot = new cFC4NetworkTool(static_cast<uint32_t>(type));
+        slot = new cFC4NetworkTool(static_cast<uint32_t>(type), true);
         slot->AddRef();  // the registry's reference
         fc4::Log("nettool: shared tool of type %d created", type);
     }

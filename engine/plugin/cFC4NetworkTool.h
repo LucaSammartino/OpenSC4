@@ -55,12 +55,21 @@ static const uint32_t kFC4_CLSID_cFC4NetworkTool = 0x4E543030;  // "NT00"
 cIGZUnknown* CreateFC4NetworkToolEntry();
 
 // The replacement tool over the fc4_nettool core. Created through GZCOM as
-// class `nettool` (FC4Subsystems.cpp) or directly by the glue's tool
-// registry; it starts at reference count 0 like the original's factory
-// (network-manager.md §7.1: the factory returns it with no AddRef).
+// class `nettool` (FC4Subsystems.cpp), directly by the glue's tool registry,
+// or by the netmgr replacement's create_tool callback (glue24); it starts at
+// reference count 0 like the original's factory (network-manager.md §7.1: the
+// factory returns it with no AddRef).
+//
+// Live and stand-in in one class: `live` (the nettool key on) delegates to
+// the fc4_nettool core; `!live` (glue24's manager running without the key)
+// keeps the do-nothing stand-in semantics glue24's runs were verified with —
+// Init/Shutdown true, every placement a no-op that reports failure (§3.4).
+// The manager's create_tool passes the key's verdict (cFC4NetworkManager.cpp
+// CreateTool), so `enable = netmgr,nettool` puts the real tool in the
+// manager's own cache.
 class cFC4NetworkTool final : public cISC4NetworkTool {
 public:
-    cFC4NetworkTool(uint32_t networkType);
+    cFC4NetworkTool(uint32_t networkType, bool live);
     ~cFC4NetworkTool();
 
     // cIGZUnknown
@@ -131,8 +140,12 @@ public:
     cISC4City* City() const { return ctx_.city; }
     // The message server for the §10 synchronous pre-demolish send (held).
     void SetMessageServer(cIGZMessageServer2* ms);
-    // The core handle (for the host's context and diagnostics).
+    // The core handle (for the host's context and diagnostics; null when
+    // the tool runs as the stand-in).
     fc4_nettool* Core() const { return core_; }
+    // Whether this tool runs the fc4_nettool core (the nettool key on) or
+    // the stand-in no-ops (glue24's verified default).
+    bool Live() const { return live_; }
     // The tool's network type (§2: +0x35C).
     uint32_t NetworkType() const { return networkType_; }
     // One status line of what the host did since the last call (the runs).
@@ -144,6 +157,7 @@ public:
 private:
     std::atomic<uint32_t> refCount_{0};
     bool destroying_ = false;
+    bool live_ = false;
     uint32_t networkType_ = 0;
     fc4::NetToolContext ctx_{};
     fc4_nettool_host host_{};
