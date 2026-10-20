@@ -611,23 +611,18 @@ void cFC4NetworkLotManager::ReadConfigurations() {
                 record->AddIds(v.size() > 12 ? std::vector<uint32_t>(v.begin() + 12, v.end())
                                              : std::vector<uint32_t>());
                 // The game's 0x34-byte record (§17.1; the mirror flag is the
-                // low byte of v2's bit 31).
-                cSC4LotConfigurationObject g{};
-                g.type = static_cast<cSC4LotConfigurationObject::Type>(v[0] & 0xFF);
-                g.flags = static_cast<uint8_t>(v[1] & 0xFF);
-                g.rotation = static_cast<cSC4LotConfigurationObject::Rotation>(v[2] & 0xFF);
-                g.mirrored = (v[2] & 0x80000000u) != 0;
-                g.x = o.offset[0];
-                g.y = o.offset[1];
-                g.z = o.offset[2];
-                g.rectMaxX = static_cast<float>(static_cast<int32_t>(v[8])) * (1.0f / 65536.0f);
-                g.rectMaxZ = static_cast<float>(static_cast<int32_t>(v[9])) * (1.0f / 65536.0f);
-                g.rectMinX = static_cast<float>(static_cast<int32_t>(v[6])) * (1.0f / 65536.0f);
-                g.rectMinZ = static_cast<float>(static_cast<int32_t>(v[7])) * (1.0f / 65536.0f);
-                g.foundationIID = v.size() > 10 ? v[10] : 0;
-                g.objectID = o.field_24;
-                for (size_t k = 12; k < v.size(); ++k) g.data.push_back(v[k]);
-                record->AddObject(g);
+                // low byte of v2's bit 31), built in place (AddObject: the
+                // data values are copied one by one).
+                record->AddObject(static_cast<uint8_t>(v[0] & 0xFF), static_cast<uint8_t>(v[1] & 0xFF),
+                                  static_cast<uint8_t>(v[2] & 0xFF), (v[2] & 0x80000000u) != 0, o.offset[0],
+                                  o.offset[1], o.offset[2],
+                                  static_cast<float>(static_cast<int32_t>(v[8])) * (1.0f / 65536.0f),
+                                  static_cast<float>(static_cast<int32_t>(v[9])) * (1.0f / 65536.0f),
+                                  static_cast<float>(static_cast<int32_t>(v[6])) * (1.0f / 65536.0f),
+                                  static_cast<float>(static_cast<int32_t>(v[7])) * (1.0f / 65536.0f),
+                                  v.size() > 10 ? v[10] : 0, o.field_24,
+                                  v.size() > 12 ? std::vector<uint32_t>(v.begin() + 12, v.end())
+                                                : std::vector<uint32_t>());
             }
             // The core's copy: the objects travel as fc4_netlot_object values.
             if (fc4_props* p = fc4::props::ToCoreAll(h, ex)) {

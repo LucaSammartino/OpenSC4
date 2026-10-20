@@ -72,7 +72,31 @@ public:
     void SetToken(uint64_t token) { token_ = token; }
     void SetConfigId(uint32_t id) { configId_ = id; }
     void AddIds(std::vector<uint32_t> ids) { ids_.push_back(std::move(ids)); }
-    void AddObject(const cSC4LotConfigurationObject& o) { records_.push_back(o); }
+    // Builds one record in place: SC4Vector's push_back memmoves the element
+    // bytes, so an AddObject(const T&) would share the source's `data` buffer
+    // with this record and free it twice (runs glue24-rep-6 / -rep-save: the
+    // heap-corruption crash at Shutdown in SC4Vector::deallocate). The caller
+    // passes the fields and the data list; the data is copied value by value.
+    void AddObject(uint8_t type, uint8_t flags, uint8_t rotation, bool mirrored, float x, float y, float z,
+                   float rectMaxX, float rectMaxZ, float rectMinX, float rectMinZ, uint32_t foundationIID,
+                   uint32_t objectID, const std::vector<uint32_t>& data) {
+        records_.push_back(cSC4LotConfigurationObject{});  // default-built slot (data empty)
+        cSC4LotConfigurationObject& r = *(records_.end() - 1);
+        r.type = static_cast<cSC4LotConfigurationObject::Type>(type);
+        r.flags = flags;
+        r.rotation = static_cast<cSC4LotConfigurationObject::Rotation>(rotation);
+        r.mirrored = mirrored;
+        r.x = x;
+        r.y = y;
+        r.z = z;
+        r.rectMaxX = rectMaxX;
+        r.rectMaxZ = rectMaxZ;
+        r.rectMinX = rectMinX;
+        r.rectMinZ = rectMinZ;
+        r.foundationIID = foundationIID;
+        r.objectID = objectID;
+        for (const uint32_t v : data) r.data.push_back(v);
+    }
     uint64_t Token() const { return token_; }
     uint32_t ConfigId() const { return configId_; }
     // The raw ID list of object `index` (the core's object_ids input).
