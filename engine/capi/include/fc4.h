@@ -165,22 +165,6 @@ extern "C" {
  * 71 = merge-train batch train4 (re-specs20, re-answers30, re-specs19, cores22, apply15e, glue20, cores21): merged (no C ABI history entry of its own)
  * 72 = merge-train batch train5 (re-answers31, re-specs21, cores24, coverage3, glue23): merged (no C ABI history entry of its own) */
 #define FC4_ABI_VERSION 72u
- *      renumbered at merge);
- * 69 = adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the
- *      validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading
- *      (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane;
- *      taken as 63, then 64-68 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 69u/* Return codes of fc4_sim_load. */
- *      renumbered at merge);
- * 69 = adds the effects manager (fc4_effects, fc4_effects_directory; effects.md): the effect
- *      directory parser, creation, LOD and select groups, the tick, finishing (the hook or the
- *      draw-pass compat mode), the brush and game effects through host callbacks (renumbered at
- *      merge). */
-#define FC4_ABI_VERSION 69u
- *      renumbered at merge). The lot configuration manager's opaque handle is
- *      fc4_lot_config_manager (the glue15 lane renamed it; the entry points keep their
- *      fc4_lot_config_* names, so the ABI surface is unchanged). */
-#define FC4_ABI_VERSION 68u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
