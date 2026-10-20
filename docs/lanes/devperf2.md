@@ -76,7 +76,7 @@ in-process; a batch slot would again be a C ABI change.
   lines (12 developers x 72 months), **0 mismatches**, catalogue 744/744, suitability 72/72 - on the
   pre-final and the final DLL alike (devperf2-devshadow, devperf2-final).
 
-## Gate (at 0b3271f4, the tip)
+## Gate (qbuild.py all at 0b3271f4; the two commits after it, a0aaa06c and b95ffa81, are docs-only)
 
 `qbuild.py all`: cargo test --workspace 3535 passed / 0 failed; clippy -D warnings 0 diagnostics;
 ctest 62/62; fc4verify PASS (abi_entries.inc unchanged, 184 interfaces). rustfmt clean on the six
