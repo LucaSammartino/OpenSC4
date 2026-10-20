@@ -55,6 +55,7 @@ generated index: the questions live one file per spec, so read only the file for
 | LF | landfill |
 | LG | landfill |
 | LV | landvalue |
+| MS | mysims |
 | NB | neighbors, network-bridges |
 | NG | neighbors, network-geometry |
 | NM | network-manager |
@@ -87,7 +88,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | aura | 0 | 15 | AU16 | - |
-| automata | 0 | 37 | A5, AM13, AT20 | questions/automata.md |
+| automata | 14 | 23 | A5, AM13, AT20 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 0 | 5 | CD6 | - |
@@ -111,6 +112,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landvalue | 0 | 5 | LV6 | - |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
+| mysims | 7 | 0 | MS8 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
@@ -136,4 +138,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **19** | **966** | | |
+| **total** | **40** | **952** | | |
