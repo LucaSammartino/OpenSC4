@@ -1720,8 +1720,8 @@ of the named functions (TR21 contract work, 2026-10-20, re-terrain3d).
 | 42 `GetTerrainType` | `+0xA8` | `Init` `0x0075C4CE`, `DrawTerrainLayers` `0x0075BF15` | `ChangeTerrainType` |
 | 67 | `+0x10C` | `DrawTerrainLayers` `0x0075BF74` (once, gated by `view+0x31`) | the first lighting/rect refresh |
 | 68 `RedisplayTerrain` | `+0x110` | `SetDisplayGridFlag` `0x00755EC2` | the grid toggle's whole-city redisplay |
-| 70 | `+0x118` | `DrawPlumbingInfo` `0x0075A9F4` | per-cell flag read (`IsTriangulationFlipped`) |
-| 76 | `+0x130` | `DrawPlumbingInfo` `0x0075A9D5` | per-cell flag read (`IsWholeCellHidden`) |
+| 70 | `+0x118` | `DrawPlumbingInfo` `0x00759C7C` | per-cell flag read (`IsTriangulationFlipped`) |
+| 76 | `+0x130` | `DrawPlumbingInfo` `0x00759C57` | per-cell flag read (`IsWholeCellHidden`) |
 | 83 `GetWaterSurfaceDisplayState` | `+0x14C` | `DrawWaterLayers` `0x007572B1` | the water-surface display gate |
 
 `SetDisplayGridFlag` (slot 21) is the only **write-back**: on a real change it calls terrain slot 68 with
@@ -1911,7 +1911,9 @@ replacement terrain, `W` = the replacement surface water.
 9. From `DrawWaterLayers`: slot 83 `GetWaterSurfaceDisplayState` in **AL**.
 10. From `DrawPlumbingInfo`: slots 76 and 70 in **AL**, per cell (quirk 10).
 11. From `DrawTerrainLayers`' first pass: slot 67 with a pointer to `V+0x34` as its argument
-    (`0x0075BF70`–`0x0075BF74`) — the terrain-side lighting hook.
+    (`0x0075BF70`–`0x0075BF74`), gated once by `V+0x31` — the terrain-side lighting hook; `DrawTerrainLayers`
+    then calls `FUN_007558B0` (a 663-byte software-state reset guarded by the static flag `0x00B4C848`) and sets
+    `V+0x31` = 1, so the hook runs exactly once per session (`0x0075BF7A`–`0x0075BF81`).
 
 **What `V` reads from `T` directly** *[compat]* — the field layout of §2.3 is load-bearing:
 
