@@ -149,6 +149,7 @@ never merges main.**
    `fc4.h` history line per batch listing the lanes. Do not touch `FC4_ABI_VERSION` in your lane.
 
 Why this shape: every lane used to edit the same handful of files at merge time (the HANDOFF §0 rows,
-the run numbers in `manual-checks.md`, `QUESTIONS.md`, `FC4_ABI_VERSION`, `abi_entries.inc`), so every
+the run numbers in `manual-checks.md`, `QUESTIONS.md` (now a generated index over the per-spec files in
+`docs/specs/questions/`; see its README), `FC4_ABI_VERSION`, `abi_entries.inc`), so every
 merge conflicted and about 25 agents polled a merge lock, costing about N² gates. Per-lane files and a
 single owner of main remove the shared lines.
