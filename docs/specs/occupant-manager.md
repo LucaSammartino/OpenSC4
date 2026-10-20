@@ -846,6 +846,144 @@ Create. 16 occupant classes call this base `Read`.
 
 ---
 
+## 13.1 The occupant base class (`cSC4Occupant`, `0xA9BC9AB6`)
+
+Every object the manager holds derives from this class. The manager's slots treat it through `cISC4Occupant`;
+this section specifies the class itself (the bare instances' save record is lot-records.md §2.3 / §12).
+
+**Layout** (constructor `0x005E9220`, 85 bytes of code; object size from the derived classes):
+
+| Offset | Type | Role |
+|---|---|---|
+| `+0x00` | vptr | `cISC4Occupant` view, vtable `0x00AA41D8`, 34 slots (+0x00…+0x84, no slot 34) |
+| `+0x04` | vptr | `cIGZSerializable` view, vtable `0x00AA41BC` |
+| `+0x08` | sub-object | the property holder (`cSCExemplarPropertyHolder`); its ctor `FUN_005FF1C0` zeroes +0x10…+0x28 relative to the holder, installs the holder vptrs (`0x00AA6D50` / `0x00AA6D3C` at the holder's +0x00/+0x14) and the `cISCExemplarPropertyHolder` view vptr `0x00AA4140` at occupant `+0x1C` |
+| `+0x20` | u32 | exemplar-holder payload (the holder's own field; base Write saves it via slot 0x24) |
+| `+0x24` | u32 | **occupant type** (ctor writes `0x74758925`; the base record field 5) |
+| `+0x28` | 4 × u8 | the stored manager box (ctor writes 0xFF to the first byte = "not indexed"; the base record field 6) |
+| `+0x2C` | u16 | removal counters: low byte = holders of removal flag 2, high byte = flag 1 (`SetRemovalFlags` slot 12 / `CanRemove` slot 14) |
+| `+0x2E` | u8 | status: bit 0 = initialised, bit 1 = loaded; the highlight nibble lives in the top bits (`GetHighlight` slot 16 = `+0x2E >> 4`) |
+| `+0x2F` | u8 | flags byte (ctor writes 0x04 = visible; flag 1 = inserted in the manager, flag 2 = visible) |
+| `+0x30` | ptr | placeable object (`GetOrCreatePlaceableObject` slot 20 creates it lazily) |
+
+All offsets above are from the **object base**. Derived classes that embed the base at +4 (props) or +8
+(construction) shift them accordingly; lot-records.md §9.1 and §10.3 state the shift per class.
+
+**The `cISC4Occupant` table** (vtable `0x00AA41D8`, all slots `__thiscall`; pop = stack bytes):
+
+| Slot | Method | Body |
+|---|---|---|
+| 0 | `QueryInterface(iid, out)` pop 8 | `0x005E89C0`: 1 and `0x26BB767E` (cISC4Occupant) → this; `0xE4FDA3D4` (cIGZSerializable) → this+4 and AddRef; else `ADD ECX,8` and tail-jump `cSCExemplarPropertyHolder::QueryInterface` `0x005FD310`, which answers `0x0AC2B5F7` with the holder at this+0x10 (and AddRefs it) |
+| 1 | `AddRef()` | `0x005E89B0`: `ThreadSafeIncrementReturn` (`0x00933015`) on `+0x0C` |
+| 2 | `Release()` | `0x005E8DF0`; at 0, calls vtable slot `+0x58` with argument 1 (the deleting destructor) |
+| 3 | `Init()` | `0x005E8C90` (§2.4 / §5.6) |
+| 4 | `Shutdown()` | `0x005E8980`: if initialised, clear bit 0 and post `0x99EF1141` Destroy (data4 0); return 1 |
+| 5 | `IsInitialized()` | `0x00458A40`: AL = bit 0 of `+0x2E` |
+| 6 | `AsPropertyHolder()` | `0x006C2040`: returns this+8 |
+| 7 | *(folded)* | `0x006BDD80` |
+| 8 | `GetPosition(out)` pop 4 | `0x005E8A20`: zeroes the three floats (the base has no position; derived classes override) |
+| 9 | *(folded)* | `0x00648F10` |
+| 10 | `GetBoundingBox(out)` pop 8 | `0x005E8A40`: zeroes both boxes |
+| 11 | `GetBoundingCityCells(out)` pop 4 | `0x005E8E20`: from the stored box shrunk by 0.01 (`0x00A823A4`), scaled by 0.0625 (`0x00AA40B0`), with the integer-magic constant `0x00AA40B4` = 12582912.0f |
+| 12 | `SetRemovalFlags(u32)` pop 4 | `0x005E8A60`: bit 1 → ++ byte `+0x2D`, bit 2 → ++ byte `+0x2C` |
+| 13 | `UnsetRemovalFlags(u32)` pop 4 | `0x005E8AA0`: the reverse |
+| 14 | `CanRemove()` pop 4 | `0x005E8AE0`: bit 1 → byte `+0x2D` == 0, bit 2 → byte `+0x2C` == 0, else 1 |
+| 15 | `PostOccupantMessage(type, data4)` pop 8 | `0x005E9010` (below) |
+| 16 | `GetHighlight()` | `0x00458A50`: `+0x2E >> 4` |
+| 17 | `SetHighlight(level, post)` pop 8 | `0x005E90E0`: level → the high nibble of `+0x2E`; when initialised and post, posts `0x99EF1145` with data4 0 |
+| 18 | `SetVisibility(bool, post)` pop 8 | `0x005E8B10`: arg1 sets/clears flag 2 of `+0x2F`; when arg2, posts `0x99EF1145` with data4 0 |
+| 19 | *(folded)* | `0x006AAC50` |
+| 20 | `GetOrCreatePlaceableObject()` | `0x005E91C0`: lazily creates via `FUN_005EBDF0`+`FUN_005EC370` into `+0x30` |
+| 21 | `SetPlaceableObject(p)` pop 4 | `0x0078DAF0` |
+| 22 | `IsOccupantGroup(groupID)` pop 4 | `0x005E92D0`: property `0xAA1DD396` (via the holder, `cSCPropertyHelp::GetPropertyValue` `0x005FF510`); true iff the returned u32 vector contains the ID |
+| 23 | `AddOccupantGroup(groupID)` pop 4 | `0x005E9350`: appends to the `0xAA1DD396` vector and writes it back (`cSCPropertyHelp::SetPropertyValue` `0x005FE6B0`); then `PostOccupantMessage(0xEBFF18A3, oldCount)` |
+| 24 | `GetOccupantGroups(out)` pop 4 | `0x005E9410`: fills the caller's set from the `0xAA1DD396` vector. Overload `0x005E9500` resolves the group names through the persist-resource manager `0x00B43CA8` slot 0xC with IID `0xA52160F5` *(semantics: OP10)* |
+| 25 | `GetOccupantManagerBBox(out)` pop 8 | `0x005E8BF0`: false when byte `+0x28` == 0xFF (not indexed) |
+| 26 | `SetOccupantManagerBBox(...)` | `0x005E8C20` |
+| 27 | *(folded)* | `0x005DEB40` |
+| 28 | *(folded)* | `0x00648F10` |
+| 29 | `SetFlag(bits)` pop 4 | `0x005E8B70`: OR into `+0x2F`; on change tail-jumps slot 30 |
+| 30 | `SetAllFlags(bits)` pop 4 | `0x005E8B90` |
+| 31 | `ClearFlag(bits)` pop 4 | `0x005E8BA0`: AND-NOT; tail-jumps slot 30 |
+| 32 | `IsFlagSet(bits)` pop 4 | `0x005E8BC0` |
+| 33 | `GetFlags()` | `0x005E8BE0` |
+
+**`PostOccupantMessage`** `0x005E9010` (207 bytes): allocates a `cRZMessage2Standard` (0x2C bytes, ctor
+`0x009134D6`), sets type = arg1, void1 and data2 = this (message slots 0x30 and 0x84), calls the occupant's own
+slot 32 with 4 and stores the zero-extended result into the message's `+0x40` dword, then calls the occupant's
+slot 7 (`+0x1C`, the folded getter) into the message's `+0x54`, then data4 = arg2 at `+0x68`. When type ==
+`0x99EF1146` (Move) and the placeable object `+0x30` is set, the message is delivered **synchronously** through
+the manager's slot 0xC; otherwise it is queued through `0x00B23194` (defaulted from `0x00B43CCC`) slot 0x10 with 0.
+The message constants: `0x99EF1140` Create, `0x99EF1141` Destroy, `0x99EF1142` Insert, `0x99EF1143` Remove,
+`0x99EF1144` Show, `0x99EF1145` highlight/visibility, `0x99EF1146` Move (§5.5).
+
+**The base save record**: Write `0x005E8CD0` / Read `0x005E8D60` (lot-records.md §2.3): u16 version 4; the u16
+at `+0x28` (removal counters) via slot 0x1C; `GetHighlight()` via slot 0x40 → u8 (slot 0x14); the flags byte
+`+0x2B` masked `0xDD` → u8; the type `+0x24` via slot 0x24; four bytes `+0x28…+0x2B` (the stored box) via slot
+0x14 each; then `cSCExemplarPropertyHolder::Write`/`Read` on the holder at +8. Read sets
+`+0x2E = (highlight << 4) | 2` (loaded, not initialised). 16 occupant classes call this base `Read`.
+
+---
+
+## 13.2 Occupant filters (`cISC4OccupantFilter`, `cSC4OccupantFilter` and the family)
+
+The query slots 20–22, 36–48 all take one of these. The interface:
+
+**`cISC4OccupantFilter`** IID `0x46A80026`, vtable 7 slots (+0x00…+0x18):
+
+| Slot | Method | Body (base) |
+|---|---|---|
+| 0 | `QueryInterface(iid, out)` pop 8 | base `0x005E95D0`: 1 and `0x46A80026` → this; `0xE4FDA3D4` → this+4; else 0 |
+| 1 | `AddRef()` | per class (the shared filter: `0x004BDF00`) |
+| 2 | `Release()` | per class (`0x007CB920` for the shared one) |
+| 3 | `IsOccupantIncluded(occ)` pop 4 | per class, AL |
+| 4 | `IsOccupantTypeIncluded(type)` pop 4 | `0x004FC900` in the base = true |
+| 5 | `IsPropertyHolderIncluded(holder)` pop 4 | per class, AL |
+| 6 | deleting dtor | `0x006C4A00` in the base (body + `GlobalHeapFree 0x005E5620` when flag&1) |
+
+Base class `cSC4OccupantFilter` CLSID `0xA9C74DC9` (creator `0x005EA130`, 12 bytes from the global heap: vptrs
+`0x00AA42C8`/`0x00AA42B0`, refcount +8 = 0): base dtor `0x005E95C0`, deleting dtor `0x006C4A00`. Its three test
+methods are the base's: `IsOccupantTypeIncluded` always true; `IsOccupantIncluded`/`IsPropertyHolderIncluded`
+are the per-class work.
+
+The family (each entry: CLSID, size, and what `IsOccupantIncluded` accepts):
+
+| Class | CLSID | Size | Accepts (IsOccupantIncluded) |
+|---|---|---|---|
+| `cSC4DefaultOccupantFilter` | `0xC9C75EAE` | 0x20 | `0x005E9630`: **excludes** occupants that QI `0x4A10AFC2` (underground occupant) or `0x8A139184` answer, and holders with property `0x4217`, `0x4208` or `0x421D`. Its `IsPropertyHolderIncluded` `0x005E96E0`: **excludes** holders answering QI `0x49512A09` or `0x8A15F1BD`; otherwise includes iff `GetPropertyValue(0xCAA45670)` byte == 0 |
+| `cSC4RealisticOccupantFilter` | `0x8A7A1C2C` | 0x20 | `0x005E9990`: first the Default test (call `0x005E9630`); false → false. Then: if byte `+0xD` is 0 and the holder HasProperty `0x5001` → false. Then a switch on the occupant's type (occupant slot 7): `0x497F6D9D` (lot base texture) → include iff byte `+0xC`; `0x097F6D98` base textures: QI `0x097F6D98` answers → take `GetPosition` (occupant slot 8) and ask the terrain service (`0x00B43CEC` slot 0x17C, then `0x00B43D08` slot 0x18 for the lot at the position): **exclude** when the lot's slot 0x84/4=33 == 1. `0xA823821E` (prop): include iff byte `+0xE`; QI `0x4B44FBE2` (signpost) or `0x2B3B7D86` (text decal) answers → **exclude**; else include. All other types: include |
+| demolition filter | — | 0x30 | `0x00466730` (demolition.md): Realistic test → continue; Default test → **exclude**; `+0x2C` filter slot 3 false → exclude; byte `+0x10` → box-containment test vs `+0x14…+0x20` (FCOMP); byte `+0x24` → `[occ vtable+0x38](+0x28)` continue; type switch `0x68FD0C69` foundation (QI `0xC8FCE101` → lot slot 0x24 == 1), `0x096E763C` construction, `0x278128A0` building, `0x74758926` flora, `0xA823821E` prop, `0xC772BF98` network → accept; else exclude; accept path: `+0x30` filter slot 3 false → exclude; network (`0xC772BF98`): `0x00B43DC4` slot 0x58 == 1 skips the `0xA821EF94` QI + slot 0x24 (`0x1F4F`) test, else that test true → exclude |
+| `cSC4OccupantTypesFilter` | `0xE9C75ED1` (single) | 0x10 | the **shared one-type filter** of §4.4 (`IsOccupantTypeIncluded` `0x005E9740`: t == `+0xC`) |
+| types-set variant | `0xE9C75EE8` | 0x18 | creator `0x005EA330` (vptrs `0x00A8EDBC`/`0x00A8EDA4`): a set of types *[body untraced — OP8]* |
+| hashed variant | `0xAA25CB90` | 0x20 | creator `0x005EB970`: a hash_set (64 buckets) at +0xC, vptrs `0x00A8EE38`/`0x00A8EE20`. Used by `cSC4ModelMaker::CreateOccupantFilters` `0x00493EF0`, which builds two: filter1 with {building `0x278128A0`, foundation `0x68FD0C69`, wall `0x895D1169`, flora `0x74758926`, prop `0xA823821E`, base texture `0x497F6D9D`, network `0xC772BF98`, pole `0x2890D4DE`, `0x2A183167`, `0x8A13918A`, landfill `0x6A11BD2B`}, filter2 with a subset starting {`0x68FD0C69`, `0x497F6D9D`, `0xC772BF98`, `0x2A183167`, `0x8A13918A`} |
+| `cSC4ViewLevelOccupantFilter` | `0xAAC3C01D` | | `0x005E9E40`: `SC4GetOccupantViewLevel(occ) == +0xC` |
+| `cSC4StringSpecificationOccupantFilter` | `0x0BCEB6C2` | 0x48 | `0x005E9F20`: include = (types empty or occ type ∈ vector `+0x24`) ∧ (groups empty or ∃g: occupant slot 22 `IsOccupantGroup(g)`) ∧ (levels empty or `SC4GetOccupantViewLevel(occ)` ∈ vector `+0x3C`). The spec string is parsed by `BuildSpecification` `0x005EA610` (4,670 bytes) from the tokens at `0x00AA4354…0x00AA4408`: `Position:`, `Rect:`, `BBox:`, `Cell:`, `CellRect:`, `PowerPole`, `PowerLine`, `Building`, `Flora`, `Vehicle`, `Pedestrian`, `Aircraft`, `Watercraft`, `Pylon`, `Automaton`, `Construction`, `Foundation`, `LotBaseTexture`, `LotRetainingWall`, `SurfaceLevel`, `SubwayLevel`, `PlumbingLevel` |
+| `cSC4MissingPluginPackOccupantFilter` | — | | `0x0048C4D0`: holder must QI `0x6A871B82`; then `AreModelsAvailable 0x0048C420` must return 1 (the `DEC/NEG/SBB/INC` epilogue maps 1→1, 0/2→0). `AreModelsAvailable` resolves the occupant's models via `0x00B43CA8` slot 0xC (`0xE83A081D`), `GetOccupantOrientationAndState 0x00496670`, and `AreModelsAvailableForZoomAndRotation 0x0048C300` (2 = unknown → 2, any missing model → 0, all present → 1) |
+| `cSC4ZoomRotationModelChangeOccupantFilter` | — | | ctor `0x00496790`, `SetZoomAndRotation` `0x004967B0`; `IsOccupantIncluded` body untraced (OP8) |
+| `cSC4SubwayOccupantFilter` | — | | `0x00653C00`: QI `0xA821EF94` → flags slot 0x30 & `0x1F4F` ≠ 0; QI `0xCA15ED6B` → include; `IsOccupantSubwayStation 0x00653B80` (property `0xE90E25A1` contains byte 0x06) or (type `0xC7CC75F1` ∧ (HasProperty `0x4217` ∨ `0x4208`)) → include; else the base slot 5 test |
+| `cSC4WaterOccupantFilter` | — | | `IsPropertyHolderIncluded 0x00648CC0`: HasProperty `0x88ED3303` or `0x49512A09` → true; else `GetPropertyValue(0xCAA45672)` byte |
+| `cSC4FloraBlockingOccupantFilter` | — | | flora.md §6.4.1 (`IsOccupantIncluded` `0x006AFD10`) |
+| `cSC4ActiveFireOccupantFilter` | — | | `0x0046FD70`: type `0x69D25C5F` ∧ QI `0x69D25C60` → slot 0x14 ≠ 0 |
+| `cSC4QueriableOccupantFilter` | — | | `0x004C46C0`: holder QI `0xCAA9AB92` answers → **exclude**; else `HoverQueriable 0x004C37B0` by type: flora `0x74758926` → holder QI `0x8A416A99` answers; building `0x278128A0`, pole `0x2890D4DE`, landfill `0x6A11BD2B`, prop `0xA823821E`, network `0xC772BF98` → include; else exclude. User: `PickQueriableOccupant 0x004C4C90` |
+| `cSC4DemolishByNetworksOccupantFilter` | — | | `0x0061F590`: QI `0xA9764C8C` answers → include |
+| `cSC4InsideLotOccupantFilter` | — | 0x38 | ctor `0x006BFB20` embeds a Default (`+0x1C`) and a Realistic (`+0x28`); `SetLot 0x006BFAC0` fills the box `+0xC…+0x18` from the lot's centre (`0x00B43CEC` slot 0x180 ×2); `IsOccupantIncluded 0x006BFB80`: `GetPosition` box test → Default slot 3 → Realistic slot 3. Created by `cSC4Lot::GetLotOccupants 0x006BFF70` (lot-records.md §3.1): allocate, ctor, SetLot, occmgr slot 40 (`GetOccupantsByStandardCityCells`) with maxCount −1, release |
+| `cSC4BlockingLotOccupantFilter` | — | | ctor `0x006C3C00` (vptrs `0x00AB1B28`/`0x00AB1B10`; slot 3 `0x004BDF90` body untraced — OP8) |
+| `cSC4SurfaceNetworkOccupantFilter` | — | | ctor `0x007A7900` (vptrs `0x00AB8340`, 6 slots); `IsOccupantIncluded 0x007A7970`: QI `0xA821EF94` → flags slot 0x30 & `0x1F4F` ≠ 0 |
+| `cSC4OccupantImmovabilityFilter` | — | | body untraced (OP8) |
+
+Non-class filters that answer the same interface and are specified with their owners: `cAmbienceOccupantFilterIsNature::IsTrueOccupant 0x004E2E10` (QI `0xC83DD057`, cached at +4/+8), `cAutomataOccupantFilter::IsOccupantIncluded 0x00562C90` (type ∈ {`0xC7CC75F1`, `0x496E5783`, `0x480E6151`, `0x897F7EC2`} — type identities: OP9), `tCrimePropOccupantFilter::IsOccupantIncluded 0x0069F490` (type `0xA823821E` ∧ holder HasProperty `0x8AA864D5`).
+
+**`SC4GetOccupantViewLevel(occ)`** `0x005E9CA0` (401 bytes, free function) — the level the filter compares:
+starts 1; QI `0x49C05B9F` (pipe) or `0xEA0A5ACF` (pipe connection) → 3; holder QI `0x49512A09` → 3; QI
+`0xCA16374F` (subway) or `0xCA15ED6B` (subway connection) → 2; the occupant's `HasProperty` path ([vtable+0x58]
+with `0x4217`, `0x4208`, `0x421D`) → 2; holder QI `0x8A15F1BD` → 2; then from the holder's properties:
+`0xCAA45672` ≠ 0 → 3, `0xCAA45671` ≠ 0 → 2, else stays 1.
+
+The shared one-type filter of §4.4 is the family member the manager itself owns; the typed slots write their type
+into it and pass it on (§10).
+
+---
+
 ## 14. Threading *[compat]*
 
 The occupant manager is one of the few city components with a lock: a recursive `cRZCriticalSection` at `+0x14`.
