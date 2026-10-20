@@ -11,7 +11,9 @@ is part of every verdict):
            24-hour clock (clock; under turbo the clock steps rarely, CK22), commercial (CO$$/CO$$$ map rebuilds),
            civic buildings (civic), parks, traffic (traffic_shadow_hypotheses = 7, the alternative readings of
            TS55-TS57; traffic_shadow_lines = 1 keeps one day line per month next to the month line) and terrain
-           (terrain_shadow = 1, glue16; added in run 138: 105/105 lines and every query exact to 2032, 0 unfollowed; see "Terrain" below). disasters_shadow stays out (it needs
+           (terrain_shadow = 1, glue16; added in run 138: 105/105 lines and every query exact to 2032, 0 unfollowed; see "Terrain" below) and the automata layer (automata_shadow = 1,
+           glue19; added in the fix round: the six saved components byte-identical at every city load and month —
+           the glue19 runs). disasters_shadow stays out (it needs
            scripted disasters and is not exact, glue13). A shadow line is
            clean when every mismatch count on it is 0. Known difference: the traffic shadow is not exact to 2032 (run
            121: 43 of 72 month lines clean, 3066 of 3165 deliveries, 0 incomplete; 49 of 72 alone at 4.5 days/s; the
@@ -165,7 +167,7 @@ $Out = Join-Path $PSScriptRoot "..\build-runs"
 New-Item -ItemType Directory -Force $Out | Out-Null
 
 $runs = [ordered]@{
-    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nlotdev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1`ncommercial_shadow = 1`ncivic_shadow = 1`nparks_shadow = 1`ntraffic_shadow = 1`ntraffic_shadow_hypotheses = 7`ntraffic_shadow_lines = 1`nterrain_shadow = 1"
+    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nlotdev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1`ncommercial_shadow = 1`ncivic_shadow = 1`nparks_shadow = 1`ntraffic_shadow = 1`ntraffic_shadow_hypotheses = 7`ntraffic_shadow_lines = 1`nterrain_shadow = 1`nautomata_shadow = 1"
     replace = "enable = $Replace"
 }
 $after = if ($Turbo) { $TurboTimeout } else { $Seconds }

@@ -11,7 +11,7 @@
 
 use std::rc::Rc;
 
-use crate::stream::{InStream, OutStream, RefValue};
+use crate::stream::{InStream, OutStream, RefValue, ResKey};
 
 use super::automaton::{Automaton, AutomatonRecord, PedestrianRecord, VehicleRecord};
 use super::codec::{
@@ -675,17 +675,28 @@ impl ManagerRecord {
     }
 }
 
-/// The arguments of pedestrian / vehicle manager slot 15 `CreateAutomaton`
-/// (§7.2): only the group and the position matter to the simulation.
+/// The seven arguments of pedestrian / vehicle manager slot 15
+/// `CreateAutomaton` (§7.2; Q5 answered by re-integrate1). Only the group and
+/// the position matter to the simulation; the rest are passed straight on to
+/// the host's call, which is where they are interpreted.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CreateArgs {
+    /// Argument 1, the automata group ID (selects the exemplar and the class).
     pub group: u32,
+    /// Argument 2, the position, city metres (`SetPosition` after creation).
     pub position: Vec3,
-    pub mode: u32,
-    pub direction: Vec3,
-    pub a: u32,
-    pub b: u32,
-    pub c: u32,
+    /// Argument 3, the automata flags. Bit 2 = self-controlling; `0x80`
+    /// lets the creation through when the manager is full.
+    pub flags: u32,
+    /// Argument 4, the model key (`key3`). An all-zero key means the model
+    /// comes from an exemplar chosen for the group.
+    pub model_key: ResKey,
+    /// Argument 5, the callback target (a host token); 0 = null.
+    pub callback: u64,
+    /// Argument 6, the priority; `0xFF` forces the creation.
+    pub priority: u8,
+    /// Argument 7, the orientation (`const vec3*`); `None` = null.
+    pub orientation: Option<Vec3>,
 }
 
 /// One automata manager (`cISC4AutomataManager`, components 43–46).

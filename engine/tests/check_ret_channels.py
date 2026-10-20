@@ -196,6 +196,7 @@ SPEC_FACTS = {
     ("vt:cSC4City::vftable", 22): (B, "city slot table (spec rows used by the cores)"),
     ("vt:cSC4City::vftable", 98): (B, "city slot table (spec rows used by the cores)"),
     ("vt:cSC4City::vftable", 99): (B, "city slot table (spec rows used by the cores)"),
+    ("cISC4CitySituationManager", 32): (B, "city-situation.md 8: CountdownIsInProgress, EAX 0 or 1"),
     ("vt:cSC4Region::vftable", 23): (N, "the GetCityLocations precedent (merge 4c92365): AL not set"),
     ("vt:cSC4DispatchManager::vftable", 10): (B, "dispatch.md 8: GetDispatchInfo, AL"),
     ("vt:cSC4DispatchManager::vftable", 13): (N, "dispatch.md 8: RegisterDispatchSource returns none"),

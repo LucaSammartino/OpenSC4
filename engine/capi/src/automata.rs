@@ -46,7 +46,7 @@ use fc4_core::automata::{
     TemplateKind, Vec3, CLSID_ATTRACTOR, CLSID_GENERATOR, CLSID_PATROL_CAR, CLSID_PEDESTRIAN, CLSID_TRAILER,
     CLSID_VEHICLE,
 };
-use fc4_core::stream::{InStream, OutStream, RefValue, SaveObject};
+use fc4_core::stream::{InStream, OutStream, RefValue, ResKey, SaveObject};
 
 use crate::guard;
 use crate::stream::{fc4_istream, fc4_ostream, fc4_ref, istream_ok, ostream_ok, CIn, COut};
@@ -85,12 +85,6 @@ pub const FC4_AUTOMATA_ATTRACTOR: u32 = 1;
 /// No state (`fc4_automata_automaton_state::current_state`).
 pub const FC4_AUTOMATA_NO_STATE: u32 = 0xFFFF_FFFF;
 
-/// State types of §6.2 that this ABI names (`fc4.h`). `DISAPPEAR` is what
-/// `SetState(1, …)` sets at a riot's end and what `PopState` pushes in place of
-/// a `final` state (§12 quirk 11). [AT3]
-pub const FC4_AUTOMATA_STATE_DEFAULT: u32 = 0;
-pub const FC4_AUTOMATA_STATE_DISAPPEAR: u32 = 1;
-
 /// A controller time (§1 `time`).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -104,13 +98,60 @@ pub struct fc4_automata_time {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct fc4_automata_create_args {
+    /// Argument 1, the automata group ID.
     pub group: u32,
+    /// Argument 2, the position, city metres.
     pub position: [f32; 3],
-    pub mode: u32,
-    pub direction: [f32; 3],
-    pub a: u32,
-    pub b: u32,
-    pub c: u32,
+    /// Argument 3, the automata flags (bit 2 = self-controlling, `0x80`
+    /// lets the creation through when the manager is full).
+    pub flags: u32,
+    /// Argument 4, the model key (`key3`: type, group, instance). All zero
+    /// = the exemplar is chosen for the group.
+    pub model_key: [u32; 3],
+    /// Argument 5, the callback target (a host token); 0 = null.
+    pub callback: u64,
+    /// Argument 6, the priority; `0xFF` forces the creation.
+    pub priority: u8,
+    /// Argument 7's present flag (`const vec3*`; 0 = null).
+    pub has_orientation: u8,
+    pub reserved: u16,
+    pub orientation: [f32; 3],
+}
+
+/// The C struct's seven arguments as the core's [`CreateArgs`] (§7.2).
+fn to_create_args(a: &fc4_automata_create_args) -> CreateArgs {
+    CreateArgs {
+        group: a.group,
+        position: a.position,
+        flags: a.flags,
+        model_key: ResKey {
+            type_id: a.model_key[0],
+            group: a.model_key[1],
+            instance: a.model_key[2],
+        },
+        callback: a.callback,
+        priority: a.priority,
+        orientation: if a.has_orientation != 0 {
+            Some(a.orientation)
+        } else {
+            None
+        },
+    }
+}
+
+/// The core's [`CreateArgs`] as the C struct (§7.2).
+fn from_create_args(a: &CreateArgs) -> fc4_automata_create_args {
+    fc4_automata_create_args {
+        group: a.group,
+        position: a.position,
+        flags: a.flags,
+        model_key: [a.model_key.type_id, a.model_key.group, a.model_key.instance],
+        callback: a.callback,
+        priority: a.priority,
+        has_orientation: u8::from(a.orientation.is_some()),
+        reserved: 0,
+        orientation: a.orientation.unwrap_or([0.0; 3]),
+    }
 }
 
 /// AddRef / Release on host objects (the managers and object reads).
@@ -268,7 +309,7 @@ pub struct fc4_automata_riot_leader {
 const _: () = {
     const P: usize = std::mem::size_of::<*const c_void>();
     assert!(std::mem::size_of::<fc4_automata_time>() == 8);
-    assert!(std::mem::size_of::<fc4_automata_create_args>() == 44);
+    assert!(std::mem::size_of::<fc4_automata_create_args>() == 56);
     assert!(std::mem::size_of::<fc4_automata_ref_host>() == 2 * P + 2 * P);
     assert!(std::mem::size_of::<fc4_automata_cm_host>() == 2 * P + 4 * P);
     assert!(std::mem::size_of::<fc4_automata_riot_host>() == 2 * P + 12 * P);
@@ -756,67 +797,68 @@ pub unsafe extern "C" fn fc4_automata_controller_get_state(
 }
 
 /// Automaton slot 51 `SetState(type, controller, timeout_ms, final, animId,
-/// sfxId, template)` (§6.2). Returns false and changes nothing while the top
-/// state has `final` (§12 quirk 11); the call itself is still recorded. [AT3]
+/// sfxId, template)` (§6.2): the state stack becomes one new state of that
+/// type. **False, with nothing changed, while the top state has `final`**
+/// (§12 quirk 11) — the riot end's `SetState(1, …)` is such a call (§8.1).
 #[allow(clippy::too_many_arguments)]
 #[no_mangle]
 pub unsafe extern "C" fn fc4_automata_automaton_set_state(
     o: *const fc4_automata_object,
     state_type: u32,
-    controller: u32,
-    timeout_ms: f32,
-    is_final: u32,
-    anim_id: u32,
-    sfx_id: u32,
-    behaviour_template: u32,
+    a: u32,
+    b: f32,
+    c: u32,
+    d: u32,
+    e: u32,
+    f: u32,
 ) -> bool {
     with_automaton(o, false, |x| {
         x.set_state(
             state_type,
             SetStateArgs {
-                controller,
-                timeout_ms,
-                is_final,
-                anim_id,
-                sfx_id,
-                behaviour_template,
+                controller: a,
+                timeout_ms: b,
+                final_flag: c,
+                anim_id: d,
+                sfx_id: e,
+                template: f,
             },
         )
     })
 }
 
-/// Slot 52 `PushState(type, controller, timeout_ms, final, animId, sfxId,
-/// template)` (§6.2, §12 quirks 10 and 11). The new state's `+0x0C` is
-/// `stack.size()-1`. Type 0 delegates to `SetState`. [AT7]
+/// Slot 52 `PushState` (the same seven arguments; §6.2). `PushState(0, 0, …)`
+/// delegates to `SetState`, so it can return false the same way.
 #[allow(clippy::too_many_arguments)]
 #[no_mangle]
 pub unsafe extern "C" fn fc4_automata_automaton_push_state(
     o: *const fc4_automata_object,
     state_type: u32,
-    controller: u32,
-    timeout_ms: f32,
-    is_final: u32,
-    anim_id: u32,
-    sfx_id: u32,
-    behaviour_template: u32,
+    a: u32,
+    b: f32,
+    c: u32,
+    d: u32,
+    e: u32,
+    f: u32,
 ) -> bool {
     with_automaton(o, false, |x| {
         x.push_state(
             state_type,
             SetStateArgs {
-                controller,
-                timeout_ms,
-                is_final,
-                anim_id,
-                sfx_id,
-                behaviour_template,
+                controller: a,
+                timeout_ms: b,
+                final_flag: c,
+                anim_id: d,
+                sfx_id: e,
+                template: f,
             },
         )
     })
 }
 
-/// Slot 53 `PopState`: false when the stack is empty. A `final` top pushes
-/// DISAPPEAR instead of revealing the state below (§12 quirk 11). [AT3]
+/// Slot 53 `PopState`: false when the stack is empty. A `final` top that is
+/// not already type 1 pushes DISAPPEAR instead of revealing the state below
+/// (§12 quirk 11).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_automata_automaton_pop_state(o: *const fc4_automata_object) -> bool {
     with_automaton(o, false, |x| x.pop_state())
@@ -1617,15 +1659,7 @@ pub unsafe extern "C" fn fc4_automata_manager_create_automaton(
     let Some(a) = args.as_ref() else {
         return std::ptr::null_mut();
     };
-    let args = CreateArgs {
-        group: a.group,
-        position: a.position,
-        mode: a.mode,
-        direction: a.direction,
-        a: a.a,
-        b: a.b,
-        c: a.c,
-    };
+    let args = to_create_args(a);
     with_mgr(m, std::ptr::null_mut(), |_, x| match x.create_automaton(args) {
         Some(a) => Obj::Automaton(a).into_handle(),
         None => std::ptr::null_mut(),
@@ -1734,15 +1768,7 @@ impl RiotHost for RiotCHost {
         cb!(self, leader_cap_reached, false, leaders as u32)
     }
     fn create_automaton(&mut self, args: CreateArgs) -> u64 {
-        let a = fc4_automata_create_args {
-            group: args.group,
-            position: args.position,
-            mode: args.mode,
-            direction: args.direction,
-            a: args.a,
-            b: args.b,
-            c: args.c,
-        };
+        let a = from_create_args(&args);
         cb!(self, create_automaton, 0, &a)
     }
     fn add_ref(&mut self, automaton: u64) {
@@ -1757,10 +1783,10 @@ impl RiotHost for RiotCHost {
             state_type,
             a.controller,
             a.timeout_ms,
-            a.is_final,
+            a.final_flag,
             a.anim_id,
             a.sfx_id,
-            a.behaviour_template
+            a.template
         )
     }
     fn set_visible(&mut self, automaton: u64, visible: bool) {

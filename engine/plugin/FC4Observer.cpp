@@ -40,6 +40,8 @@
 #include "FC4PropDevShadow.h"     // the glue12b1 lane
 #include "FC4CityDetailShadow.h"  // the glue12b1 lane
 #include "cFC4PropDeveloper.h"    // the glue12b1 lane: the propdev month line
+#include "FC4AutomataShadow.h"  // the glue19 lane
+#include "FC4AutomataDriver.h"  // the glue19 lane: the riot / fire driver
 #include "FC4DisasterShadow.h"
 #include "FC4EffectsShadow.h"
 #include "FC4Clock24Shadow.h"
@@ -98,9 +100,12 @@ constexpr uint32_t kMsgPostCityShutdown = 0x26D31EC3;
 // later than the original's state 17 (§5.3).
 constexpr uint32_t kMsgAuraCycleCompleted = 0x2A09B21A;
 constexpr uint32_t kMsgPreSave = 0x26C63343;  // foundations.md §3.7: the prop / lot configuration / tutorial shadows
+// The city situation manager's activation message (city-situation.md 3): the
+// automata layer's U-Drive-It pause / resume rides on it (automata.md 9).
+constexpr uint32_t kMsgSituationActive = 0xABBBCA64;
 constexpr uint32_t kObserverMessages[] = {kMsgPostCityInit,     kMsgSimNewDay,       kMsgSimNewMonth,
                                          kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown,
-                                         kMsgAuraCycleCompleted, kMsgPreSave};
+                                         kMsgAuraCycleCompleted, kMsgPreSave, kMsgSituationActive};
 constexpr uint32_t kObserverServiceID = 0x5C7A43E2;  // random, FreeCity4's
 constexpr int32_t kObserverPriority = -1000000;      // [choice] tooling; any value works
 
@@ -548,6 +553,7 @@ public:
         // before the save autotest and before AutotestOnTick's quit or end.
         ScriptOnTick();
         DisastersShadowOnTick();  // disasters_shadow: the quiet-point comparison
+        fc4::AutomataDriverSituationTick();  // U-Drive-It (automata.md 9): resume when the countdown ends
         if (saveDue_) {
             saveDue_ = false;
             SaveAndEnd();  // does not return
@@ -592,6 +598,8 @@ public:
                 EffectsShadowCityLoaded(CurrentCity());  // effects_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
+                AutomataShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // automata_shadow
+                fc4::AutomataDriverCityLoaded(CurrentCity());  // the automata riot / fire driver (automata.md 8)
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -609,6 +617,15 @@ public:
             case kMsgAuraCycleCompleted:
                 AuraShadowCycle(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // aura_shadow = 1 only
                 break;
+            case kMsgSituationActive: {
+                // The city situation manager's activation message (data1 of
+                // 0xABBBCA64): the automata layer's U-Drive-It pause
+                // (automata.md 9; the resume is the tick below).
+                bool ok = false;
+                const int64_t d1 = DataOf(msg, &ok);
+                if (ok) fc4::AutomataDriverSituationMessage(static_cast<int32_t>(d1));
+                break;
+            }
             case kMsgPreCityShutdown:
                 TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
                 LotDevShadowCityShutdown();
@@ -627,6 +644,8 @@ public:
                 TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
                 EffectsShadowCityShutdown();  // effects_shadow: the mirror core goes with the city
+                AutomataShadowCityShutdown();  // automata_shadow: the shadow cores and their references
+                fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:
@@ -653,6 +672,7 @@ public:
                     FpuLog("observe month");
                 }
                 ProtectionShadowMonth(CurrentCity(), julian);  // protection_shadow = 1 only
+                AutomataShadowMonth(julian);                    // automata_shadow = 1 only
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)

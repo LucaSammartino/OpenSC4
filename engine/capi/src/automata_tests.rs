@@ -180,8 +180,8 @@ fn automaton_slots_act_on_the_record() {
         assert!(fc4_automata_object_same(a, c));
         fc4_automata_object_set_token(a, 0x77);
         assert_eq!(fc4_automata_object_token(c), 0x77);
-        // [AT3] The RiotLeader is pushed `final=1`, so the stack never drains.
-        assert!(fc4_automata_automaton_set_state(a, 8, 0, -1.0, 1, 0, 0, 0));
+        // Not `final`, so this one can be popped away.
+        assert!(fc4_automata_automaton_set_state(a, 8, 0, -1.0, 0, 0, 0, 0));
         assert!(fc4_automata_automaton_push_state(a, 0x10, 0, -1.0, 0, 0, 0, 0));
         fc4_automata_automaton_set_visible(a, true);
         fc4_automata_automaton_set_position(a, [1.0f32, 2.0, 3.0].as_ptr());
@@ -189,23 +189,11 @@ fn automaton_slots_act_on_the_record() {
         assert!(fc4_automata_automaton_get_state(c, &mut st));
         assert_eq!((st.states, st.current_state, st.visible), (2, 0x10, 1));
         assert_eq!(st.position, [1.0, 2.0, 3.0]);
-        // PlayerDrive is not `final`: this pops it.
         assert!(fc4_automata_automaton_pop_state(a));
-        assert!(fc4_automata_automaton_get_state(c, &mut st));
-        assert_eq!(st.current_state, 8);
-        // [AT3] The `final` leader is not popped: DISAPPEAR is pushed instead.
         assert!(fc4_automata_automaton_pop_state(a));
+        assert!(!fc4_automata_automaton_pop_state(a));
         assert!(fc4_automata_automaton_get_state(c, &mut st));
-        assert_eq!(st.current_state, FC4_AUTOMATA_STATE_DISAPPEAR);
-        assert_eq!(st.states, 2);
-        // ...and the leader is still there under it.
-        assert!(fc4_automata_automaton_pop_state(a));
-        assert!(fc4_automata_automaton_get_state(c, &mut st));
-        assert_eq!(st.current_state, 8);
-        // An empty stack pops false.
-        let empty = fc4_automata_object_create(PEDESTRIAN);
-        assert!(!fc4_automata_automaton_pop_state(empty));
-        fc4_automata_object_destroy(empty);
+        assert_eq!(st.current_state, FC4_AUTOMATA_NO_STATE);
         fc4_automata_automaton_remove(a);
         fc4_automata_automaton_return_to_source(a);
         assert!(fc4_automata_automaton_get_state(c, &mut st));
@@ -214,6 +202,60 @@ fn automaton_slots_act_on_the_record() {
         assert_eq!(fc4_automata_controller_flags(a), 0);
         fc4_automata_object_destroy(a);
         fc4_automata_object_destroy(c);
+    }
+}
+
+/// §6.2 and §12 quirks 10-11 (§14 tests 26, 27, 29): `final` blocks `SetState`
+/// (the riot end's `SetState(1, …)` is a no-op, §8.1), `PopState` on a `final`
+/// state that is not already type 1 pushes DISAPPEAR instead of revealing the
+/// state below, and the stack index is recomputed after every stack mutation.
+#[test]
+fn state_stack_final_and_index_rules() {
+    unsafe {
+        let a = fc4_automata_object_create(PEDESTRIAN);
+        let mut st = fc4_automata_automaton_state::default();
+
+        // §8.1 start step 5: SetState(8, 0, -1.0, **1**, 0, 0, 0) — final.
+        assert!(fc4_automata_automaton_set_state(a, 8, 0, -1.0, 1, 0, 0, 0));
+        assert!(fc4_automata_automaton_get_state(a, &mut st));
+        assert_eq!((st.states, st.current_state), (1, 8));
+
+        // §8.1 end step 1: SetState(1, 0, -1.0, 0, 0, 0, 0) returns 0 and
+        // changes nothing — the leader keeps state 8.
+        assert!(!fc4_automata_automaton_set_state(a, 1, 0, -1.0, 0, 0, 0, 0));
+        assert!(fc4_automata_automaton_get_state(a, &mut st));
+        assert_eq!((st.states, st.current_state), (1, 8));
+
+        // PushState(0, 0, …) delegates to SetState and is refused the same way.
+        assert!(!fc4_automata_automaton_push_state(a, 0, 0, -1.0, 0, 0, 0, 0));
+        assert!(fc4_automata_automaton_get_state(a, &mut st));
+        assert_eq!((st.states, st.current_state), (1, 8));
+
+        // A push still works over a `final` top; only SetState is refused.
+        // Collide pushed over it, not `final`: popping it does reveal the
+        // RiotLeader.
+        assert!(fc4_automata_automaton_push_state(a, 0x14, 0, 5000.0, 0, 0, 0, 0));
+        assert!(fc4_automata_automaton_get_state(a, &mut st));
+        assert_eq!((st.states, st.current_state), (2, 0x14));
+        assert!(fc4_automata_automaton_pop_state(a));
+        assert!(fc4_automata_automaton_get_state(a, &mut st));
+        assert_eq!((st.states, st.current_state), (1, 8));
+
+        // §14 test 27: a `final` Collide does not pop away. PopState pushes
+        // DISAPPEAR (type 1) instead, so the stack grows and the Collide stays.
+        assert!(fc4_automata_automaton_push_state(a, 0x14, 0, 5000.0, 1, 0, 0, 0));
+        assert!(fc4_automata_automaton_pop_state(a));
+        assert!(fc4_automata_automaton_get_state(a, &mut st));
+        assert_eq!((st.states, st.current_state), (3, 1));
+        // DISAPPEAR itself pops normally (it is type 1), back to the Collide.
+        assert!(fc4_automata_automaton_pop_state(a));
+        assert!(fc4_automata_automaton_get_state(a, &mut st));
+        assert_eq!((st.states, st.current_state), (2, 0x14));
+
+        // §14 test 29 (the stack index is 0-based from the bottom and is
+        // recomputed after every mutation) needs the record's own fields; it
+        // is checked in `fc4-core`'s automata tests.
+        fc4_automata_object_destroy(a);
     }
 }
 
@@ -482,8 +524,8 @@ fn manager_slots_and_references() {
         let args = fc4_automata_create_args {
             group: 0x4107,
             position: [24.0, 0.0, 24.0],
-            mode: 2,
-            b: 0xFF,
+            flags: 2,
+            priority: 0xFF,
             ..Default::default()
         };
         let mut made = Vec::new();
@@ -637,8 +679,18 @@ unsafe extern "C" fn c_create(u: *mut c_void, a: *const fc4_automata_create_args
     call(
         u,
         format!(
-            "CreateAutomaton {:#x} {:?} {} {:?} {} {:#x} {}",
-            a.group, a.position, a.mode, a.direction, a.a, a.b, a.c
+            "CreateAutomaton {:#x} {:?} {:#x} {:?} callback={:#x} priority={:#x} orientation={:?}",
+            a.group,
+            a.position,
+            a.flags,
+            a.model_key,
+            a.callback,
+            a.priority,
+            if a.has_orientation != 0 {
+                Some(a.orientation)
+            } else {
+                None
+            }
         ),
     );
     let mut c = city(u).borrow_mut();
@@ -729,7 +781,7 @@ fn riot_leader_calls_in_order() {
             vec![
                 "FindRoad 3 4",
                 "LeaderCap 0",
-                "CreateAutomaton 0x4107 [56.0, 0.0, 72.0] 2 [0.0, 0.0, 0.0] 0 0xff 0",
+                "CreateAutomaton 0x4107 [56.0, 0.0, 72.0] 0x2 [0, 0, 0] callback=0x0 priority=0xff orientation=None",
                 "AddRef 0x500",
                 "SetState 0x500 8 0 -1 1 0 0 0",
                 "SetVisible 0x500 true",
