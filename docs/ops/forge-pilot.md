@@ -7,10 +7,11 @@ what the pilot measured. Every number below comes from `build-runs/forge/<class>
 report`) and from the game queue's verdict files.
 
 **Recommendation: GO, but narrowly.** Use forge for plugin glue classes whose core and C API already exist *and*
-that have in-process ctests. For one such class (History), the run that passed build and tests cost $0.024 and took
-5 calls; the lanes' rate is about $5 for the same subsystem. Do not use it, yet, for classes without a test oracle,
-and do not use compile-only mode at all: the pilot's first History run compiled cleanly and crashed the game. Keep
-agents for what failed to converge here (Parks) and for integration.
+that have in-process ctests, with the class's test functions in the pack. On that setup, both test-covered classes
+passed build and tests: History in 2 calls for $0.027, Parks in 6 calls for $0.086. The lanes' rate is about $5 and
+$2.5 for the same subsystems. Do not use it, yet, for classes without a test oracle (Dispatch), and do not use
+compile-only mode at all: the pilot's first History run compiled cleanly and crashed the game. Keep agents for
+integration and for whatever still fails to converge.
 
 ## What was measured
 
@@ -18,18 +19,29 @@ Model: `z-ai/glm-5.3-flash` on OpenRouter, provider pinned to DigitalOcean, no f
 Template class: `cFC4Aura`. Each class was regenerated into a scratch copy of `engine/` (`build-runs/forge/engine`).
 The files on main were never touched.
 
+With the class's test functions in the pack (final forge):
+
 | Class | Result | Calls | Prompt tok (total / cached) | Output tok | $ (API-reported) | Game run (replace) |
 |---|---|---:|---:|---:|---:|---|
-| cFC4History | build + 2 class ctests pass after 4 fix rounds | 5 | 197k / 161k | 32k | **0.0237** | clean, 0 ref warnings |
-| cFC4Dispatch | builds after 1 fix round (it has no class ctests) | 2 | 98k / 0 | 36k | **0.0287** | clean, 0 ref warnings |
-| cFC4Parks | did **not** converge: 3 attempts × 6 rounds, last 2 → 1-2 test failures | 7 per attempt | ~365k / ~270k per attempt | ~84k | **0.057-0.065 per attempt** | - |
-| cFC4History on Claude (subscription, below) | build + ctests pass after 1 fix round | 2 | 140k / 1.4k | 18k | 1.48 notional, $0 billed | clean, 0 ref warnings |
+| cFC4History | build + 2 class ctests pass after **1** fix round | 2 | 99k / 0 | 31k | **0.0267** | not rerun (same tests as the clean run below) |
+| cFC4Parks | build + class ctest pass after 5 fix rounds | 6 | 325k / 242k | 154k | **0.0856** | `forge-parks-1` clean; all 24 month lines agree with the baseline on `parks=`/`zoos=` |
+| cFC4Dispatch | (no class test exists; nothing to add) | | | | | |
 
-- **Pack size:** 51.6k / 56.8k / 59.4k tokens by estimate (chars / 3.6) for History, Dispatch and Parks. GLM's
-  tokenizer measured 54.3k / 55.6k / 61.4k on the first call, all under the 80k cap.
+Before that (tests only as failure lines, no test source in the pack):
+
+| Class | Result | Calls | Prompt tok (total / cached) | Output tok | $ (API-reported) | Game run (replace) |
+|---|---|---:|---:|---:|---:|---|
+| cFC4History | build + 2 class ctests pass after 4 fix rounds | 5 | 197k / 161k | 32k | 0.0237 | `forge-history-2` clean, 0 ref warnings |
+| cFC4Dispatch | builds after 1 fix round (it has no class ctests) | 2 | 98k / 0 | 36k | **0.0287** | `forge-dispatch-2` clean, 0 ref warnings |
+| cFC4Parks | did **not** converge: 3 attempts × 6 rounds, last 2 → 1-2 test failures | 7 per attempt | ~365k / ~270k per attempt | ~84k | 0.057-0.065 per attempt | - |
+| cFC4History on Claude (subscription, below) | build + ctests pass after 1 fix round | 2 | 140k / 1.4k | 18k | 1.48 notional, $0 billed | `forge-history-cc-1` clean, 0 ref warnings |
+
+- **Pack size:** 55.7k / 53.4k / 61.1k tokens by estimate (chars / 3.6) for History, Dispatch and Parks, of which
+  the test functions are 4.1k (History) and 1.4k (Parks). GLM's tokenizer measured 58.8k and 63.0k on the first
+  History and Parks calls, all under the 80k cap.
 - **Fix-round calls** carry only the header/ABI/contract block plus the files and failures: 35-52k tokens. From the
   second call on, DigitalOcean serves 26-54k of each prompt from cache.
-- **Total pilot spend:** **$0.294** on OpenRouter for 36 calls, including the tool-development reruns and probes, plus
+- **Total pilot spend:** **$0.406** on OpenRouter for 44 calls, including the tool-development reruns and probes, plus
   $1.49 notional on the Claude subscription (4 calls). The $5 cap was never approached.
 
 ### Against the lane baseline (2026-10-20 audit, docs/ops/efficiency-log.md)
@@ -39,7 +51,7 @@ The files on main were never touched.
 | Context per call | ~450k average, 172k on the first call | 35-61k |
 | Calls | ~1,000 per lane | 2-7 per class |
 | Output per call | ~100 tok | 1.7k-26k tok |
-| $ per subsystem | $46/coverage point: History $5.2, Dispatch $6.1, Parks $2.5 (or, at $0.19 per function, $8.0 / $7.6 / $3.6) | History $0.024, Dispatch $0.029, Parks unsolved at $0.18 for 3 attempts |
+| $ per subsystem | $46/coverage point: History $5.2, Dispatch $6.1, Parks $2.5 (or, at $0.19 per function, $8.0 / $7.6 / $3.6) | History $0.027, Dispatch $0.029, Parks $0.086 (plus $0.18 for the 3 attempts before the tests were in the pack) |
 
 **This is not like for like.** A lane's dollars bought the Rust core, the C API, the tests and the game verification
 as well as this class. Forge regenerated only the glue class, on top of an existing core, `fc4.h` and the project's
@@ -76,13 +88,21 @@ made per class.
    the forged objects into the "baseline". `forge-baseline-3` and `forge-dispatch-1` were invalid and were redone as
    `forge-baseline-4` and `forge-dispatch-2`. Forge now restores with a fresh mtime.
 
-## Why Parks failed
+7. **The class's tests belong in the pack.** The tests check exact log lines (`history Init: ok=1`,
+   `parks month 2000-02-01: parks=0 zoos=0`) that exist only in the tests, not in the spec. Forge now follows each
+   preset's ctest names to their `--mode` flag and to the test function in `engine/tests` (`test_sources`). It puts
+   those functions, numbered, in the shared block that every fix round resends, and adds the 6 test lines before
+   each failing CHECK. This is clean-room input: the tests are engine-side, not exe-derived. History dropped from 4
+   fix rounds to 1; Parks went from 0 of 3 attempts converging to passing on the first attempt.
 
-Across 3 attempts, the build converged within 2-3 rounds. The behaviour then bounced between 5, 3, 2 and 2 test
-failures (last: `parks month 2000-02-01: parks=0 zoos=0` was not logged). The test checks log text that the spec
-gives only loosely, and the glue's month bookkeeping is split between the spec and the template. More rounds would
-probably close it (each costs about $0.007), but that is the point where an agent with the failing test open does
-better. The right handover is forge's last files plus `test-failures.txt`.
+## Parks
+
+Without the test source, 3 attempts all failed: the build converged within 2-3 rounds, then the behaviour bounced
+between 5, 3, 2 and 2 test failures. With it, the first build was 4 compile errors, and every later round compiled
+and failed one check: `parks month 2000-02-01: parks=0 zoos=0` (the month line for a city with no parks). Round 5
+fixed it; that round spent 51k reasoning tokens ($0.028), a third of the run. In the game the forged Parks agrees
+with the baseline on `parks=` and `zoos=` in all 24 months. It drops the baseline's extra diagnostic fields
+(`funding= latch= lot-writes= escapes= occupants=`), which no test checks.
 
 ## Claude Code backend (`--backend claude-code`)
 
@@ -104,7 +124,7 @@ never passes through cmd.exe.
 The OpenRouter call's overhead is about 0: GLM counted 455 prompt tokens against forge's own ~523 estimate.
 
 On a real class (History, Opus 5.5, `--effort low`), the subscription run passed build and tests in 2 calls (one
-fix round, against 4 on GLM). It also stayed closer to the original: .cpp similarity 0.39 and 22/28 methods, against
+fix round, against 4 on GLM with the same pack, before the tests were added). It also stayed closer to the original: .cpp similarity 0.39 and 22/28 methods, against
 0.23 and 3/28 for GLM. **Limit:** the CLI sends the pack as one user message, so forge cannot place a cache
 breakpoint after the shared block. The fix call reused only the 709-token system prompt and re-wrote 54.5k to cache.
 On a subscription that costs quota, not dollars; through a paid gateway it would cost about 60× GLM's price.
@@ -133,7 +153,7 @@ start once the logged total reaches `--budget` ($5).
    the oracle). That is where lanes spend most of their calls; this pilot measured only the glue.
 2. Give glue classes without a class ctest (Dispatch) a generic in-process check: factory, QueryInterface, a
    Read/Write round trip, the message target at +4. Then "builds" stops being the only gate for them.
-3. Hand non-converging classes to a lean lane with forge's last round as the starting point, and measure that
-   combination on Parks.
+3. Hand classes that still do not converge to a lean lane with forge's last round as the starting point
+   (`r<N>/` files plus `test-failures.txt`).
 4. Forward use (a class that does not exist yet): the pilot took the include list and the contract from the existing
    files. A new class needs `--files/--specs/--interfaces/--seeds` and a contract written by the coordinator.

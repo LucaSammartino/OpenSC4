@@ -297,6 +297,44 @@ def contract(cls, files):
     return "\n".join(lines[:160])
 
 
+SHARED = ("headers", "abi", "contract", "tests")  # pack sections resent in every fix round
+
+
+def test_sources(regex):
+    """The source of the test functions behind the class's ctest cases (CMakeLists add_test NAME -> its --mode
+    flag -> plugin_load_test.cpp's `if (mode == "--x") return Fn(` -> Fn's body in engine/tests), numbered so the
+    fix rounds' `file(line)` failures point into it. Their exact log-line checks are not in the spec."""
+    if not regex:
+        return ""
+    cm = read(ROOT / "engine/CMakeLists.txt")
+    modes = [m.group(2) for m in re.finditer(r"add_test\(NAME\s+(\w+)\s+COMMAND\s+fc4_plugin_load_test\s+\S+\s+(--[\w-]+)", cm)
+             if re.search(regex, m.group(1))]
+    disp = read(ROOT / "engine/tests/plugin_load_test.cpp")
+    fns = [m.group(1) for mode in modes
+           for m in [re.search(r'mode == "' + re.escape(mode) + r'"\)\s*return\s+(\w+)\s*\(', disp)] if m]
+    out = []
+    for fn in dict.fromkeys(fns):
+        for p in sorted((ROOT / "engine/tests").glob("*")):
+            if p.suffix not in (".cpp", ".inc", ".h"):
+                continue
+            guard(p)
+            t = read(p)
+            m = re.search(r"^[^\n;]*\b" + fn + r"\s*\([^;{]*\)\s*\{", t, re.M)
+            if not m:
+                continue
+            depth, j = 0, t.index("{", m.start())
+            for j in range(j, len(t)):
+                depth += (t[j] == "{") - (t[j] == "}")
+                if depth == 0:
+                    break
+            first = t.count("\n", 0, m.start()) + 1
+            body = t[m.start():j + 1].splitlines()
+            out.append(f"--- {rel(p)}:{first}-{first + len(body) - 1} ({fn}) ---\n"
+                       + "\n".join(f"{first + k}: {l}" for k, l in enumerate(body)))
+            break
+    return "\n\n".join(out)
+
+
 def build_pack(cls, preset, template=TEMPLATE, header_budget=60_000):
     files = preset["files"]
     sections = []  # (title, text) in prompt order; the first block (headers) is shared with the fix rounds
@@ -321,6 +359,10 @@ def build_pack(cls, preset, template=TEMPLATE, header_budget=60_000):
                      + abi_rows(preset["interfaces"])))
     sections.append(("contract", "=== contract: lines elsewhere in engine/ that use this class's header ===\n"
                      + (contract(cls, files) or "(none)")))
+    tests = test_sources(preset.get("tests"))
+    if tests:
+        sections.append(("tests", "=== the project's tests for this class (your files must pass them; their exact "
+                         "log lines and values are part of the contract) ===\n" + tests))
     for s in preset["specs"]:
         guard(f"docs/specs/{s}")
         sections.append((f"spec {s}", f"=== spec docs/specs/{s} ===\n" + read(ROOT / "docs/specs" / s)))
@@ -633,6 +675,11 @@ def run_tests(regex, timeout=900):
             if key not in seen:
                 seen.add(key)
                 lines.append(f"{f}({m.group('line')}): test {m.group('msg')[:300]}")
+                # the test's own lines up to the CHECK: what it set up and which call it checked
+                src = SCRATCH / Path(f).relative_to("engine") if f.startswith("engine/") else None
+                if src is not None and src.exists():
+                    n, body = int(m.group("line")), read(src).splitlines()
+                    lines += [f"    {k}: {body[k - 1].rstrip()[:200]}" for k in range(max(1, n - 6), min(len(body), n) + 1)]
         elif re.search(r"\*\*\*(Exception|Failed)|SEGFAULT|tests passed|\(Failed\)", s):
             lines.append(s[:300])
     ok = code == 0 and "tests passed" in out and "100% tests passed" in out
@@ -814,9 +861,9 @@ def cmd_run(a):
     rdir = FORGE / a.cls / run_id
     rdir.mkdir(parents=True, exist_ok=True)
     (rdir / "pack.md").write_text("\n\n".join(t for _, t in sections) + "\n\n" + task, encoding="utf-8")
-    # cacheable prefix: the headers/ABI/contract block first (shared with the fix rounds), then spec + template
-    shared = "\n\n".join(t for title, t in sections if title in ("headers", "abi", "contract"))
-    rest = "\n\n".join(t for title, t in sections if title not in ("headers", "abi", "contract"))
+    # cacheable prefix: the headers/ABI/contract/tests block first (shared with the fix rounds), then spec + template
+    shared = "\n\n".join(t for title, t in sections if title in SHARED)
+    rest = "\n\n".join(t for title, t in sections if title not in SHARED)
     totals = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cached_tokens": 0, "cost_usd": 0.0}
     base = {"class": a.cls, "run": run_id, "provider": prov.kind, "model": prov.model, "pack_estimate": est, "replay": bool(a.replay)}
 
