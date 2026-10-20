@@ -4,14 +4,63 @@ Per-lane row for the regenerated `HANDOFF.md` 0 table (see `docs/lanes/README.md
 
 | Lane | Worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue24fix2 (pin and fix the tick-5500 debug-CRT int3 in the netmgr/netlot replacement path) | `.claude/worktrees/glue24` / `glue24` | **in progress** | (1) install the RTC failure handler in every build and re-run `enable = netmgr,netlot` twice to 2032 plus the save round trip (`glue24fix2-*`); (2) read the named call site and fix the defect or file NM12; (3) flip the merge-queue entry to ready |
+| glue24fix2 (pin and fix the tick-5500 debug-CRT int3 in the netmgr/netlot replacement path) | `.claude/worktrees/glue24` / `glue24` | **The int3 is diagnosed and disarmed: the site is the statically-linked UCRT `failwithmessage` falling to its silent int3 because the deployed Debug build compiles /RTC1 with no RTC error func installed; the handler is now installed in every build, and `enable = netmgr,netlot` ran twice to 2032 clean plus the save round trip clean (state ready pending the gate).** | (1) full gate (`qbuild all`) before the merge train; (2) the merge-queue entry flips to ready; (3) if a future run logs `RTC ERROR #N`, fix the named call site or file NM12 (docs/specs/questions/) |
 
-## Handoff
+## Report
 
-- Goal: the intermittent int3 at `FreeCity4.dll+0xB320CD` (about tick 5500, 3 of 5 runs of the glue24 build family) killed runs `glue24-rep-7`, `-rep-final`, `-rep-final2`. Name the site, fix or file it, then re-run the replacements clean.
-- Diagnosis (from `build-runs/full-disasm.txt` and the run logs): the int3 is inside the statically-linked UCRT `failwithmessage` (DLL+0xB31E76), the Run-Time Check (RTC) failure reporter. With `_RTC_GetErrorFuncW`/`_RTC_GetErrorFunc` both null (they read two globals set by `_RTC_SetErrorFuncW`/`_RTC_SetErrorFunc`) and no debugger answering its 0x406D1388 probe, it falls to the shared `int3` at +0xB320CD with no report — which is why the `_CrtSetReportHookW2` hook (commit `d10b154b`) never fired: RTC failures bypass `_CrtDbgReport` entirely. esp 0x001AE8E4 identical every time = deterministic site.
-- Root cause: `engine/build-x86/CMakeCache.txt` has `CMAKE_BUILD_TYPE=Debug` and `FC4_CHECKED=OFF`. MSVC's default `CMAKE_CXX_FLAGS_DEBUG` includes `/RTC1`, so the deployed plugin compiles run-time checks into every plugin TU — but `CheckedAttach()` installs `_RTC_SetErrorFuncW(&RtcHandler)` only under `#if FC4_CHECKED`. Checks compiled, no handler → first failing check ends the process.
-- Fix being applied: compile `RtcHandler` (and its DbgHelp symbolizer) unconditionally in `engine/plugin/FC4Checked.cpp` and install it in every `CheckedAttach()`; keep the canaries and self-tests behind `FC4_CHECKED`. The handler logs `RTC ERROR #N`, the check kind, the call site with symbols (`FreeCity4.dll+0x… file.cpp:line`), the activity stack and the last interface calls, and returns 0 → `failwithmessage` skips the int3 (`cmp eax,1; jne` past it in the disassembly) and the run continues.
-- Expected after the fix: the runs either complete clean or log `RTC ERROR #N … call site: …` naming the real defect; then fix that defect (uninitialized local / ESP mismatch through a game vtable in our glue) or file NM12 in `docs/specs/questions/` if it is a benign check the original also trips.
-- Next: rebuild (`qbuild quick`), commit, then game runs `glue24fix2-a`, `-b` (turbo to 2032-01-01, Konradshohe, `enable = netmgr,netlot`) and the save round trip `glue24fix2-save`; grep the logs for `RTC ERROR`.
-- Facts: worktree is the glue24 worktree on branch `glue24` (task says continue there, commit on top of `b2e676f9`); deployed DLL is `engine/build-x86/FreeCity4.dll` (harness copies it into slot 1); `abi_entries.inc` unchanged, `FC4_ABI_VERSION` not bumped; game queue slots shared (max one outstanding request).
+**What the int3 was.** The three glue24 deaths (`glue24-rep-7`, `-rep-final`,
+`-rep-final2`, all at about tick 5500 = 2031-01-03, esp 0x001AE8E4 identical
+every time) were the statically-linked UCRT `failwithmessage` at
+`FreeCity4.dll+0xB31E76` falling to its shared `int3` at `+0xB320CD`. Reading
+the disassembly (`build-runs/full-disasm.txt`): `failwithmessage` is the
+Run-Time Check (RTC) failure reporter. It consults `_RTC_GetErrorFuncW` /
+`_RTC_GetErrorFunc` (two globals set by `_RTC_SetErrorFuncW` /
+`_RTC_SetErrorFunc`), then probes the debugger by raising exception
+0x406D1388. With no error func installed and no debugger, it reaches
+`cmp eax,1; int3` — it ends the process without printing anything. That is
+why the `_CrtSetReportHookW2` hook (glue24 commit `d10b154b`) never fired:
+RTC failures never go through `_CrtDbgReport`.
+
+**Why the checks were live but unhandled.** The deployed build
+(`engine/build-x86`) is `CMAKE_BUILD_TYPE=Debug` with `FC4_CHECKED=OFF`.
+MSVC's default `CMAKE_CXX_FLAGS_DEBUG` carries `/RTC1`, so every plugin TU
+had run-time checks compiled in, but `CheckedAttach()` installed
+`_RTC_SetErrorFuncW(&RtcHandler)` only under `#if FC4_CHECKED`. Checks
+compiled, no handler: the first failing check was fatal. `/RTC1` is only
+compiled into the plugin's own TUs, so the failing site was our code —
+probably one deterministic uninitialized-local or ESP check in the glue or
+the core bridge (esp identical every run).
+
+**The fix** (commit `c1afaa18` on top of `b2e676f9`): compile `RtcHandler`
+and its DbgHelp symbolizer unconditionally in `engine/plugin/FC4Checked.cpp`
+and install the error func in every `CheckedAttach()`; keep the
+out-parameter canaries and self-tests behind `FC4_CHECKED`; clear
+`g_inDllMain` in `CheckedStartup()` for every build so DbgHelp can load.
+Now a failing check logs `RTC ERROR #N` with the check kind, message, call
+site (function+offset and `file:line` when the PDB is next to the DLL), the
+activity stack and the last interface calls, and returns 0 — which
+`failwithmessage` honors (`cmp eax,1; jne` skips the int3): the run
+continues and names its defect instead of dying.
+
+**Measured results** (runs 193-195, `docs/runs/glue24fix2-*-193/194/195.md`,
+all on the new DLL, sha256 `be596b82`, log line `build: normal (/RTC1 where
+the configuration sets it; RTC failures are logged …)`):
+
+| Run | Verdict | Pace | Through the death window |
+|---|---|---|---|
+| `glue24fix2-a` | clean (rtc=0) | 60.91 days/s, reached 2032-01-06 | 2031-01-03/04 passed, no int3 |
+| `glue24fix2-b` | clean (rtc=0) | 62.73 days/s, reached 2032-01-15 | 2031-01-03/04 passed, no int3 |
+| `glue24fix2-save` | clean (rtc=0) | 44.83 days/s, reached 2032-01-03 | `save -> ok=1 (10906 ms)` |
+
+The save round trip matches the recorded glue24 behavior: `netmgr Write ->
+1 (6 bytes, record53 round trip same)`; `netlot Write -> 1 (3160 bytes,
+record11 round trip DIFFERENT)` — the known one clock-seeded configuration
+draw, counted, not a mismatch.
+
+`rtc=0` in all three runs means the failing site (3 of 5 runs before) did
+not fire this time; it is rare. If it fires in a future run, the log now
+names it (`RTC ERROR #N … call site: …`) and the run continues — fix the
+named site or file NM12 if it is a benign check the original also trips.
+
+**Questions:** none filed. **ABI:** unchanged (`abi_entries.inc` untouched,
+`FC4_ABI_VERSION` not bumped).
