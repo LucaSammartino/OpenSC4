@@ -972,7 +972,7 @@ def commit_integration(wt, lanes, batch_id, note):
     if not st:
         return None
     msg = f"merge-train: resolve batch {batch_id} hotspots ({', '.join(lanes)})\n\n{note}\n\n" \
-          "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>\n"
+          "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
     msgfile = Path(wt) / "build-runs" / f"train-{batch_id}-resolve.txt"
     msgfile.parent.mkdir(parents=True, exist_ok=True)
     msgfile.write_text(msg, encoding="utf-8")
@@ -1148,7 +1148,7 @@ def cmd_merge_batch(args):
             f"Merge {r['lane']} into {integ} (merge-train batch {batch_id})\n\n"
             f"{r.get('summary', '')}\n\n"
             f"branch: {branch}\nleaf: {r['tip'][:12]}\nkind: {r['kind']}\n\n"
-            "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>\n",
+            "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n",
             encoding="utf-8",
         )
         git(["-C", str(wt), "commit", "-F", str(msgfile)], check=False)
@@ -1275,7 +1275,7 @@ def cmd_land(args):
         log("fast-forward refused; merging with --no-ff instead")
         git(["merge", "--no-ff", "-m",
              f"Merge merge-train batch {cur['id']}: {', '.join(cur['lanes'])}\n\n"
-             "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>\n", head])
+             "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n", head])
     main_sha = git(["rev-parse", "HEAD"]).stdout.strip()
     write_notices(cur, main_sha)
     st.setdefault("history", []).append({**cur, "main": main_sha, "landed_at": time.strftime("%Y-%m-%d %H:%M:%S")})
