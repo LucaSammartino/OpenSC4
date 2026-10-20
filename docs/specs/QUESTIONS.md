@@ -31,6 +31,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CB | civic-buildings |
 | CD | city-detail |
 | CK | clock24 |
+| CL | command-line |
 | CM | commercial-industrial |
 | CQ | crime |
 | CR | power |
@@ -99,6 +100,7 @@ generated index: the questions live one file per spec, so read only the file for
 | city-situation | 0 | 11 | CS12 | - |
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
+| command-line | 1 | 0 | CL2 | questions/command-line.md |
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 0 | 40 | EX41 | - |
@@ -146,4 +148,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **32** | **966** | | |
+| **total** | **33** | **966** | | |

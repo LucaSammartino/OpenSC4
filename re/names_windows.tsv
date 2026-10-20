@@ -191,8 +191,8 @@ va	name	source	confidence	note
 004190b0	cSC4AdvisorSystem::PushEvent	auto:C	high	mac 001e5d46 score 1.0 support 1
 00419140	std::vector<cRZString,std::allocator<cRZString>>::~vector	auto:D	medium	mac 005edcde score 0.5 support 6
 00419230	std::_Rb_tree<long,std::pair<long_const,cRZAutoRefCount<cISC4Advisor>>,std::_Select1st<std::pair<long_const,cRZAutoRefCount<cISC4Advisor>>>,std::less<long>,std::allocator<std::pair<long_const,cRZAutoRefCount<cISC4Advisor>>>>::insert_unique	auto:B0	medium	mac 006c20b8 score 0.812 support 1.0
-00419490	cRZCmdLine::~cRZCmdLine	auto:B0	medium	mac 005edd24 score 0.968 support 13.0
-00419500	cRZCmdLine::~cRZCmdLine	auto:C	high	mac 005ef7ec score 1.0 support 1
+00419490	cRZCmdLine::~cRZCmdLine	manual:command-line.tsv	high	command-line.md §1.2; destroys +0x28, +0x14 and each argument (cRZString virtual +0x70 with 0), frees the vector at +8
+00419500	cRZCmdLine::~cRZCmdLine (deleting destructor)	manual:command-line.tsv	high	command-line.md §1.2; slot 15 of vtable 0x00A82A20 (Release 0x008D29B9 calls +0x3C with 1); 0x00419490 then GlobalHeapFree on flag bit 0
 00419520	cSC4AdvisorSystem::SetLocalValue	auto:A	high	mac 001e569e score 1.0 support 0
 00419640	std::map<long,cRZAutoRefCount<cISC4Advisor>,std::less<long>,std::allocator<std::pair<long_const,cRZAutoRefCount<cISC4Advisor>>>>::operator[]	auto:D	medium	mac 006c21a8 score 0.5 support 1
 004197e0	cSC4AdvisorSystem::AddAdvisor	auto:A	high	mac 001e7b50 score 1.0 support 0
@@ -630,11 +630,12 @@ va	name	source	confidence	note
 00442200	cSC4TutorialUIWinProc::tick_self	auto:A	high	mac 000852b6 score 1.0 support 0
 004422a0	SC4CellRegion<long>::SC4CellRegion	auto:B6	medium	mac 0061ff36 score 0.938 support 10.0
 00442340	cSC4TutorialUIWinProc::HandleCatalogView	auto:B1	medium	mac 000856fc score 0.933 support 1.0
-004425c0	cSLTokenSerialRecordIO_Text::GetToken	auto:D	medium	mac 0037ebb0 score 0.5 support 1
-004427f0	std::vector<CookieData,std::allocator<CookieData>>::size	auto:B2	medium	mac 007a3d76 score 0.857 support 2.0
+004425c0	std::basic_string<char>::erase	manual:command-line.tsv	high	command-line.md §4.1; was cSLTokenSerialRecordIO_Text::GetToken; STLport erase(pos, n): out_of_range ('basic_string', 0x009DD0A0) when pos > size, else memmove of the tail; 238 call sites
+004427f0	std::basic_string<char>::find	manual:command-line.tsv	high	command-line.md §4.3; was std::vector<CookieData>::size; STLport find(char const* s, pos, n): npos when pos + n > size, else search 0x004426C0 from begin + pos; 21 call sites
 00442880	std::vector<cRZAutoRefCount<cSC4TutorialTask>,std::allocator<cRZAutoRefCount<cSC4TutorialTask>>>::reserve	auto:D	medium	mac 006231de score 0.5 support 1
 00442c80	cSC4TutorialUIWinProc::Shutdown	auto:B3	medium	mac 0008585e score 0.954 support 5.0
 00442e40	std::vector<cRZAutoRefCount<cSC4TutorialTask>,std::allocator<cRZAutoRefCount<cSC4TutorialTask>>>::push_back	auto:D	medium	mac 006230b4 score 0.5 support 1
+00442e90	std::basic_string<char>::resize	manual:command-line.tsv	high	command-line.md §4.2; descriptive name; STLport resize(n, c): truncates when n <= size, else appends n - size copies of c (0x00442A80); 35 call sites
 00443090	cSC4TutorialUIWinProc::load_task_script	auto:B18	medium	mac 00085dc4 score 0.924 support 1.0
 00443180	cSC4TutorialUIWinProc::ShowUIHintsForUsers	auto:B0	medium	mac 00088920 score 0.941 support 2.0
 00443410	cSC4TutorialUIWinProc::DoSpecialDocumentProcessing	auto:A	high	mac 000866aa score 1.0 support 0
@@ -764,6 +765,7 @@ va	name	source	confidence	note
 0044a520	cSC4App::Shutdown	auto:A	high	mac 0000b1e6 score 0.89 support 0
 0044a900	cSC4App::GetAppIniFileName	auto:A	high	mac 000069b0 score 1.0 support 0
 0044a940	cSC4App::GetAppPreferencesFileName	auto:A	high	mac 00006a08 score 1.0 support 0
+0044aa00	std::basic_string<char>::find	manual:command-line.tsv	high	command-line.md §4; descriptive name; STLport find(char c, pos): npos when pos >= size, else find_if (lib::__find_if 0x0044A4B0); 35 call sites, e.g. the switch-prefix test against '/-\' 0x00ACECC8
 0044abe0	cRZString::cRZString	auto:B2	medium	mac 005edeaa score 0.935 support 7.0
 0044acd0	cSC4App::cSC4App	auto:A	high	mac 00007ba4 score 1.0 support 0
 0044b490	cGZApp::AsIGZSystemService	auto:C	low	mac 005edfbc score 1.0 support 1
@@ -803,6 +805,7 @@ va	name	source	confidence	note
 0044d810	cSC4App::SetupWinCtrlMgr	auto:A	high	mac 0000d190 score 0.912 support 0
 0044e980	cSC4App::LaunchExceptionReportUploader	auto:A	high	mac 00009700 score 1.0 support 0
 0044eaf0	cSC4App::AddDynamicLibraryByPath	auto:B1	medium	mac 00010b5a score 0.986 support 3.5
+0044ed40	std::basic_string<char>::assign	manual:command-line.tsv	high	command-line.md §4.2; descriptive name; STLport assign(string const& s, pos, n): out_of_range when pos > s.size, else assign(begin + pos, begin + pos + min(n, size - pos)) through 0x00408A70; 21 call sites
 0044eda0	std::vector<cRZString,std::allocator<cRZString>>::_M_insert_aux	auto:D	medium	mac 005ef4f8 score 0.5 support 1
 0044eed0	cSC4App::ReadCommandLine	auto:A	high	mac 0000e87e score 1.0 support 0
 0044fe70	cSC4App::FindAndPossiblyFixIniFiles	auto:B1	medium	mac 00009ab2 score 0.954 support 4.0
@@ -1344,6 +1347,7 @@ va	name	source	confidence	note
 00485040	cSC4WinLotConfigurationEditor::MoveObject	auto:B1	medium	mac 00322524 score 0.966 support 3.0
 004851b0	cSC4WinLotConfigurationEditor::MoveObject	auto:B0	medium	mac 00322226 score 0.911 support 2.0
 00485230	__gnu_cxx::hashtable<std::pair<unsigned_long_const,cRZString>,unsigned_long,__gnu_cxx::hash<unsigned_long>,std::_Select1st<std::pair<unsigned_long_const,cRZString>>,std::equal_to<unsigned_long>,std::allocator<cRZString>>::find_or_insert	auto:D	medium	mac 0065a486 score 0.5 support 1
+00485280	std::copy (cRZString range)	manual:command-line.tsv	high	command-line.md §3 slot 14; descriptive name; cdecl wrapper passing (first, last, dest) to the cRZString copy loop 0x0051FF00; sole caller the vector erase 0x00914B90
 004852a0	cSC4WinLotConfigurationEditor::Save	auto:A	high	mac 0031b024 score 1.0 support 0
 00485445	cSC4WinLotConfigurationEditor::SaveAs	auto:A	high	mac 0031de7c score 1.0 support 0
 00485710	cSC4WinLotConfigurationEditor::GZOnKeyDown	auto:B0	medium	mac 003271ee score 0.985 support 5.0
@@ -11586,22 +11590,25 @@ va	name	source	confidence	note
 00913d7a	RZ::LM	auto:B0	medium	mac 000da9ae score 0.96 support 13.0
 00913da6	RZ::ADir	auto:B2	medium	mac 000daa40 score 0.951 support 3.0
 00913dde	RZ::DDir	auto:B2	medium	mac 000da9e6 score 0.951 support 4.0
-00913e16	cRZCmdLine::QueryInterface	auto:A	high	mac 000110fc score 1.0 support 0
-00913e62	cRZCmdLine::argv	auto:B2	medium	mac 000118ea score 0.927 support 2.0
-00913e8a	cRZCmdLine::argc	auto:B0	medium	mac 000112e2 score 1.0 support 10.0
-00913ec2	cRZCmdLine::GetIndexOfSwitch	auto:C	high	mac 000114aa score 1.0 support 1
-00913f1a	cRZCmdLine::GetIndexOfSwitch	auto:C	high	mac 000112f0 score 1.0 support 1
-00914001	cRZCmdLine::IsSwitchPresent	auto:C	high	mac 0001118e score 1.0 support 1
-00914174	cRZCmdLine::ConvertStringArrayToString	auto:D	medium	mac 00011924 score 0.5 support 1
-009143cb	cRZCmdLine::IsSwitchPresent	auto:B0	medium	mac 0001160c score 0.931 support 3.0
-009145a5	cRZCmdLine::Find	auto:C	high	mac 000120ee score 1.0 support 1
-00914691	cRZCmdLine::FindSubString	auto:C	high	mac 00011fb0 score 1.0 support 1
-00914a30	cRZCmdLine::cRZCmdLine	auto:B1	medium	mac 00011eac score 0.952 support 4.0
+00913e16	cRZCmdLine::QueryInterface	manual:command-line.tsv	high	command-line.md §3; slot 0 of vtable 0x00A82A20; IIDs 1 and 0xA31E539C (cIGZCmdLine)
+00913e3b	cRZCmdLine::GetArgument	manual:command-line.tsv	high	command-line.md §3; descriptive name, no Mac match; slot 16; returns &args[i] for i < argc (signed compare), else &this->+0x28; no direct caller
+00913e62	cRZCmdLine::argv	manual:command-line.tsv	high	command-line.md §3; slot 4; returns the character buffer (+4) of args[i] for i < argc (signed compare), else that of +0x28
+00913e8a	cRZCmdLine::argc	manual:command-line.tsv	high	command-line.md §3; slot 3; (end - begin) / 0x14 of the vector at +8
+00913ec2	cRZCmdLine::IsSwitchPresent	manual:command-line.tsv	high	command-line.md §3; was cRZCmdLine::GetIndexOfSwitch; slot 9, the one-argument (cIGZString const&) overload, ret 4, bool: slot 11 (name, 0) >= 0, else slot 8 (name, scratch, true); the Mac pairing swaps MSVC's overload order
+00913f1a	cRZCmdLine::GetIndexOfSwitch	manual:command-line.tsv	high	command-line.md §4.3; slot 12, the (char, int start) overload, ret 8: an argument of exactly 2 characters, prefix in '/-\', second character the letter in either case
+00914001	cRZCmdLine::GetIndexOfSwitch	manual:command-line.tsv	high	command-line.md §4.3; was cRZCmdLine::IsSwitchPresent; slot 11, the (cIGZString const&, int start) overload, ret 8, returns an index or -1: length Strlen(name) + 1, lower-cased text after the prefix equals the lower-cased name
+00914174	cRZCmdLine::ConvertStringArrayToString	manual:command-line.tsv	high	command-line.md §2.2; joins the arguments with spaces, quoting one that holds a space, tab or newline; ignores this, ret 8; callers InsertArgument 0x00914C18 and EraseArgument 0x00914C64
+00914240	cRZCmdLine::IsSwitchPresent	manual:command-line.tsv	high	command-line.md §4.2; descriptive name, no Mac match; slot 10, the (char, cIGZString& value, bool unquote) overload, ret 0xC; a bare -c leaves value unwritten (0x00914302)
+009143cb	cRZCmdLine::IsSwitchPresent	manual:command-line.tsv	high	command-line.md §4.1; slot 8, the (cIGZString const&, cIGZString& value, bool unquote) overload, ret 0xC; -name:value with ':' at len(name)+1, strips one leading and one trailing quote of either kind
+009145a5	cRZCmdLine::Find	manual:command-line.tsv	high	command-line.md §3; slot 6, (cIGZString const&, bool caseSensitive), ret 8; whole-argument equality, MakeLower on both when not case-sensitive; -1 when absent
+00914691	cRZCmdLine::FindSubString	manual:command-line.tsv	high	command-line.md §3; slot 7, (cIGZString const&, bool caseSensitive), ret 8; first argument containing the text (basic_string::find 0x004427F0); -1 when absent
+00914a30	cRZCmdLine::cRZCmdLine	manual:command-line.tsv	high	command-line.md §1.2; the (cIGZCmdLine const&) constructor: source slot 5 into +0x14, then source argv(i) for i < argc appended; callers cSC4App::Init, PostFrameWorkInit, DoPreferencesChanged, cSC4ConfigRuleManager, cSC4View3DWin
 00914ac9	std::vector<cRZString,std::allocator<cRZString>>::insert	auto:D	medium	mac 005efb08 score 0.5 support 1
-00914bae	cRZCmdLine::InsertArgument	auto:C	high	mac 00011a76 score 1.0 support 1
-00914c25	cRZCmdLine::EraseArgument	auto:B1	medium	mac 00011a18 score 0.955 support 3.0
-00914c70	cRZCmdLine::ConvertStringArrayToString	auto:B2	medium	mac 00011b0e score 0.889 support 3.0
-00914e14	cRZCmdLine::cRZCmdLine	auto:B1	medium	mac 00011e10 score 0.901 support 14.0
+00914b75	std::vector<cRZString,std::allocator<cRZString>>::erase	manual:command-line.tsv	high	command-line.md §3 slot 14; descriptive name; the one-iterator erase: copy the tail down (0x00485280), destroy the last element (virtual +0x70 with 0), ret 4; sole caller EraseArgument 0x00914C58
+00914bae	cRZCmdLine::InsertArgument	manual:command-line.tsv	high	command-line.md §3; slot 13, (cIGZString const&, int index), ret 8; index clamped to 0..argc, then the join 0x00914174; true
+00914c25	cRZCmdLine::EraseArgument	manual:command-line.tsv	high	command-line.md §3; slot 14, (int index), ret 4; index >= argc becomes argc - 1 (no lower bound), erase 0x00914B75, join 0x00914174; true
+00914c70	cRZCmdLine::ConvertStringToStringArray	manual:command-line.tsv	high	command-line.md §2.1; was cRZCmdLine::ConvertStringArrayToString; splits text into arguments (space, tab, newline; even-quote rule; outer quotes stripped); ignores this, ret 8; sole caller the char const* constructor 0x00914E49
+00914e14	cRZCmdLine::cRZCmdLine	manual:command-line.tsv	high	command-line.md §1.2; the (char const*) constructor: +0x14 := text (0x00408480), then ConvertStringToStringArray; callers _main (GetCommandLineA) and about 20 cheat handlers
 00914e56	cSCProperty::QueryInterface	auto:B1	medium	mac 00031682 score 0.837 support 1.0
 00914e78	cSCProperty::AddRef	auto:C	low	mac 00031640 score 1.0 support 1
 00914e81	cSCProperty::Release	auto:C	high	mac 00031656 score 1.0 support 1
@@ -16265,6 +16272,7 @@ va	name	source	confidence	note
 00ac185c	nGZDrawSoftRender::cSpanRender4444::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 7 A4R4G4B4; Mac __ZTVN17nGZDrawSoftRender15cSpanRender4444E
 00ac1874	nGZDrawSoftRender::cSpanRender8888::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color types 8 R8G8B8 and 9 A8R8G8B8; Mac __ZTVN17nGZDrawSoftRender15cSpanRender8888E
 00ac188c	nGZDrawSoftRender::cSpanRender8::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 2 RGB8; Mac __ZTVN17nGZDrawSoftRender12cSpanRender8E
+00acecc8	cRZCmdLine::sSwitchPrefixes (data, char[4]: slash, hyphen, backslash, NUL)	manual:command-line.tsv	high	command-line.md §4; the three switch prefix characters '/', '-', '\'; read by the five switch methods
 00ad1f14	cRZCallbackTimer::vftable	manual:timers.tsv	high	timers.md §2.2; 13 slots, installed by the constructor 0x00932C23
 00b13420	cRZTimer::sCounterFrequency (data, uint64)	manual:timers.tsv	high	timers.md §1.5; QueryPerformanceFrequency, written by MeasureFrequencies 0x0088FED4
 00b13428	cRZTimer::sCycleFrequency (data, uint64)	manual:timers.tsv	high	timers.md §1.5; the CPU cycle rate C, written by MeasureFrequencies 0x0088FECC

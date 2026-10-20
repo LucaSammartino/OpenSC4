@@ -410,6 +410,8 @@ cRZTime	dates and times	framework	dates.md	-	-	-
 # the stopwatch with its seven units and the start-up calibration, and the service-driven callback timer (timers.md)
 cRZTimer	timers	framework	timers.md	-	-	-
 cRZCallbackTimer	timers	framework	timers.md	-	-	-
+# the framework command-line object: splitting, joining and the switch lookups (command-line.md)
+cRZCmdLine	command line	framework	command-line.md	-	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource*	persistence and resources	framework	-	-	-	-
 cGZPropertySet*	persistence and resources	framework	-	-	-	-

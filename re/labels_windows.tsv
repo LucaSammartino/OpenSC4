@@ -682,6 +682,7 @@ va	name	slots	note
 00ace4fc	cGZGimexFactory::vftable_1	12	paired with Mac __ZTV15cGZGimexFactory#1, 6 agreeing slots
 00ace57c	cGZGimexReader::vftable	13	paired with Mac __ZTV14cGZGimexReader#0, 12 agreeing slots
 00ace5b0	cGZGimexWriter::vftable	11	paired with Mac __ZTV14cGZGimexWriter#0, 9 agreeing slots
+00acecc8	cRZCmdLine::sSwitchPrefixes	0	command-line.md §4; the three switch prefix characters '/', '-', '\'; read by the five switch methods
 00acecd0	cSCProperty::vftable_1	128	paired with Mac __ZTV11cSCProperty#1, 77 agreeing slots
 00acf150	cRZIniFile::vftable	20	paired with Mac __ZTV10cRZIniFile#0, 19 agreeing slots
 00acf1b4	cRZSystemService::vftable_1	6	paired with Mac __ZTV16cRZSystemService#1, 5 agreeing slots
