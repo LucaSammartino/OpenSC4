@@ -88,7 +88,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | aura | 0 | 15 | AU16 | - |
-| automata | 0 | 37 | A5, AM13, AT20 | questions/automata.md |
+| automata | 1 | 37 | A5, AM13, AT21 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 0 | 5 | CD6 | - |
@@ -138,4 +138,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **26** | **966** | | |
+| **total** | **27** | **966** | | |

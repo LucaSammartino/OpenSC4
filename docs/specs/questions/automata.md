@@ -13,3 +13,12 @@ effects.md §16 rather than in this file. Two of those are now closed or answere
 reader does not re-open them. AT6-AT19 continue automata.md §13's new Q7-Q20; EF1-EF10 continue effects.md §16.
 The probe named is the one the report gives. **All of AT6-AT19 were answered on 2026-10-20 by re-answers33**
 and moved to `answered/automata.md`.
+
+## From the glue19 lane (2026-10-20)
+
+**AT20.** Automata.md section 9 gives the U-Drive-It pause and resume hooks only from the manager's side
+(slots 9 and 10) and says the city situation manager drives them, but the spec does not name the manager's
+side: what city-situation slots or messages reach `fc4_automata_pause_all` / `_resume_all`, and when exactly
+(countdown start, countdown end, mission end)? A replacement wiring this from the outside (glue19 wires them
+to the manager's `MissionActivate` / countdown-end points through the city-situation interfaces) needs the
+receiver names to check it against the game's own call sites.
