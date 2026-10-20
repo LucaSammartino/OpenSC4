@@ -164,6 +164,9 @@
 //                                 manager: do not enable dispatch; FC4DispatchShadow.h)
 //   parks_seed = N                the park member generator's session seed (default:
 //                                 the cRZTime clock; cFC4Parks.cpp)
+//   ports_shadow = 0 / 1          the airport and seaport developer shadow (default 0;
+//                                 needs the ORIGINAL developers: do not enable ports;
+//                                 FC4PortsShadow.h)
 //   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
 //                                 ORIGINAL BDS and tract developer; counts the tract
 //                                 developer's Grow calls per game day; env

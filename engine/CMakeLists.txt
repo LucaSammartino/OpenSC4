@@ -370,7 +370,13 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4CityDetail.h
         plugin/FC4CityDetailShadow.cpp
         plugin/FC4CityDetailShadow.h
-        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
+        # The airport and seaport developers (port-developers.md; glue12b2 lane):
+        # `enable = ports`, ports_shadow.
+        plugin/cFC4PortDeveloper.cpp
+        plugin/cFC4PortDeveloper.h
+        plugin/FC4PortInterfaces.h
+        plugin/FC4PortsShadow.cpp
+        plugin/FC4PortsShadow.h        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h        plugin/FC4Turbo.cpp
         plugin/FC4Turbo.h
         plugin/FC4Script.cpp
@@ -686,7 +692,11 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_citydetail_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-citydetail)
     set_tests_properties(plugin_ini_enable_citydetail_test PROPERTIES RUN_SERIAL TRUE)
-    # `terrain_shadow = 1`: the terrain shadow (glue16) on a stand-in original
+    # `enable = ports`: the airport and seaport developers (port-developers.md): the QI
+    # tables (1 gives +4), the slots with no ports, the empty records, Init without a city.
+    add_test(NAME plugin_ini_enable_ports_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-ports)
+    set_tests_properties(plugin_ini_enable_ports_test PROPERTIES RUN_SERIAL TRUE)    # `terrain_shadow = 1`: the terrain shadow (glue16) on a stand-in original
     # built inside the DLL (seam op 58): exact, lost messages, perturbations.
     add_test(NAME plugin_ini_terrain_shadow_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-terrain-shadow)

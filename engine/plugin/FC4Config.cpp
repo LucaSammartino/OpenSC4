@@ -311,17 +311,10 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "propmgr_shadow", "propmgr_shadow_cells", "lotcfg_shadow", "tutorial_shadow",
                                   // the seeding lane (FC4Seed.h)
                                   "session_seed",
-                                  // the detpacing lane (FC4Pacing.h)
-                                  "pacing",
-                                  // the glue14c lane (FC4NetMgrShadow.h)
-                                  "netmgr_shadow", "netmgr_shadow_order", "netmgr_shadow_wide",
-                                  // the devperf lane's tooling (FC4Perf.h)
-                                  "perf_profile",
-                                  // the glue14b lane (FC4OccMgrShadow.h)
-                                  "occmgr_shadow", "occmgr_shadow_samples", "occmgr_shadow_probe",
-                                  // the glue12b1 lane (FC4PropDevShadow.h, FC4CityDetailShadow.h)
+// the glue12b1 lane (FC4PropDevShadow.h, FC4CityDetailShadow.h)
                                   "propdev_shadow", "propdev_seed", "citydetail_shadow", "citydetail_seed",
-};// The switches that are off, for lock-free readers (autotest verdict).
+                                  // the glue12b2 lane (FC4PortsShadow.h)
+                                  "ports_shadow"};// The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 
 volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,

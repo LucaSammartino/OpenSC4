@@ -1884,6 +1884,36 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      `AddTransientEffect` and the budget's `DepositFunds` (the §4.5 outcome) and the messages of §3; the mission
      pieces are not wired. Lines: `citysit Init: …`, `citysit Read|Write -> …`, `citysit Shutdown: …`. **Off by
      default**; the `citysit_shadow` differential above is the in-game check while it is.
+   - **Airport and seaport developers** (`enable = ports`; `plugin/cFC4PortDeveloper.*`, interfaces
+     `plugin/FC4PortInterfaces.h`, over the `fc4_port_developer` core; off by default): one shim, two classes
+     (`cSC4AirportDeveloper` `0xAA2049A1`, `cSC4SeaportDeveloper` `0xEA230A28`) with the four sub-objects of
+     port-developers.md §1 (QueryInterface(1) gives the port sub-object at +4). The host reaches the budget
+     department and line 1, the demand simulator's occupant effects, lots, the lot developer, the zone manager
+     (dezone), the traffic simulator, the terrain, the history warehouse message and the advisor system. The glue
+     holds one reference per port lot the core lists and one on the department. Not wired (logged once): the
+     seaport's "no sea access" prop state switch. Lines: `ports <kind> Init|Read|Shutdown: ok=… tuning=… ports=…
+     dept=… sea=… subscriptions=… agent=… held=…`, `ports <kind> Write -> 1 (ports=…)`, `ports <kind> month
+     yyyy-mm-dd: ports=… ran=… history=… event=… avg=… trips=… fr=… required=… writes: …` (months with ports and
+     the first month).
+   - **Ports shadow** (`ports_shadow = 1`, env `FC4_PORTS_SHADOW`; off by default; `plugin/FC4PortsShadow.h`):
+     needs FreeCity4's simulator and the **original** developers (do not enable `ports`). One shadow core per
+     developer, with a read-only host, starts from the original's record at its first SimNewMonth and follows the
+     messages of §3; a growth message restarts it from the record the next month (`followed=regrown`). Each month
+     the record's ports are compared (a difference restarts ours, `followed=resynced`), ours runs with writes
+     recorded, the original's month runs, then compared: the history value, GetAvgEfficiency (bits), trips,
+     GetNumPorts, GetAllPortLots, each port lot's usage values, maintenance and condition, line 1's full expenses
+     with our required budget; the seaport's sea map (CityHasSea and every cell) at the first month and after a
+     terrain message. Lines:
+
+     ```
+     ports shadow: ON (ports_shadow from …): …                                                 (game start)
+     ports shadow: following the original airport|seaport developer … (agent …)
+     ports shadow <kind> month yyyy-mm-dd: followed=yes|first|resynced|regrown ports=… avg o/u trips o/u
+       history o/u values sea=… map=…; ours: …; messages followed=…; mismatches=N[; differences: …]
+     ports shadow: city shutdown: <kind> N month lines, M with mismatches=0
+     ```
+
+     Success is `mismatches=0` on every line.
    - **History warehouse and 24-hour clock** (`enable = history`, `enable = clock24`; `plugin/cFC4History.*`,
      `plugin/cFC4Clock24.*`, over the `fc4_history` and `fc4_clock24` cores). The warehouse is the city's
      `cSC4HistoryWarehouse` (class `0x89EFA536`): it hears the record and queue-length messages, adds itself as a

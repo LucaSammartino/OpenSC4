@@ -33,6 +33,7 @@
 #include "FC4ParksShadow.h"
 #include "FC4PropDevShadow.h"  // the glue12b1 lane
 #include "FC4TrafficShadow.h"
+#include "FC4PortsShadow.h"
 #include "FC4HarnessLogic.h"
 #include "FC4Pacing.h"
 #include "FC4Perf.h"
@@ -386,8 +387,10 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
     // manager's SimNewMonth deliveries.
     // The traffic shadow (opt-in, FC4TrafficShadow.h) wraps every delivery to
     // the original traffic simulator's agents (one-shot, day, month).
-    // The prop developer shadow (opt-in, FC4PropDevShadow.h) wraps the
+// The prop developer shadow (opt-in, FC4PropDevShadow.h) wraps the
     // original prop developer's Idle / Day deliveries (its block steps).
+    // The ports shadow (opt-in, FC4PortsShadow.h) wraps the original airport
+    // and seaport developers' SimNewMonth deliveries.
     bool finished = false;
     const uint64_t perfT0 = fc4::perf::On() ? fc4::perf::Now() : 0;  // tooling: perf_profile (FC4Perf.h)
     if (!fc4::BudgetShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
@@ -408,7 +411,8 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         !fc4::ParksShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::HistoryShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::TrafficShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
-        !fc4::PropDevShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
+!fc4::PropDevShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::PortsShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
         finished = target->DoMessage(m);
     }
     if (perfT0 != 0) fc4::perf::AddDelivery(target, LevelOfType(msg->type), name, fc4::perf::Now() - perfT0);
