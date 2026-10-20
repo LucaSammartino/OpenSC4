@@ -1704,8 +1704,10 @@ its own handle and never through city slot 83 / that global leaves `0x00B43CF0` 
 
 ### 15.5.5 What the view reads off the terrain — including outside the slot table
 
-The view keeps the terrain at `base+0x20` and reaches it two ways. Everything below was read from the Windows bytes
-of the named functions (TR21 contract work, 2026-10-20, re-terrain3d).
+The view keeps the terrain at `base+0x20` and reaches it two ways: through the slot table, and directly through
+field pointers. Everything below was read from the Windows bytes of the named functions (TR21 contract work,
+2026-10-20, re-terrain3d); the message handlers' rebuild-vs-live rule is §15.5.8 and the draw-time statics are
+§15.5.9.
 
 **Through slots** (a replacement must answer these correctly once the view is drawing):
 
@@ -1840,7 +1842,7 @@ software caches once (`FUN_00753210`, `FUN_007539D0`) before the next frame.
 | Message | Handler branch | What the view does |
 |---|---|---|
 | `0x277A9364` ToggleTerrainGridDisplay | `0x007575EE` | calls its **own slot 21** `SetDisplayGridFlag(!0x00B4C741)` (`0x007575F3`–`0x007575FF`); the flag itself lives in the **static `0x00B4C741`**, not the object. That slot, on a real change, calls terrain slot 68 with the whole city — so a grid toggle triggers a full heights+water redisplay (§15.5.5) |
-| `0x278E6003` TerrainHeightsChanged | `0x007575C3` | `FUN_007523F0` unpacks the rect from `data1`/`data2` (the same `(x0<<16)+x1` packing §8.1 posts: `x0 = data1>>16`, `x1 = data1&0xFFFF`, `z0 = data2>>16`, `z1 = data2&0xFFFF`, `0x007523FA`–`0x00752424`), then `FUN_007569F0` **copies the terrain's altitudes into the view's software vertex buffer** row by row — it reads the terrain's `+0x6C` array directly (`0x007569F3`–`0x007569F9`) and terrain slot 29 `GetSeaLevel` (`0x00756A00`), and refreshes the city-edge layer heights through `FUN_00755B60` when the rect touches a border row or column (`0x00756A61`–`0x00756ABF`). Live vertex data is **not** re-read at draw time; the copy is the draw input |
+| `0x278E6003` TerrainHeightsChanged | `0x007575C3` | `FUN_007523F0` unpacks the rect from `data1`/`data2` (the same `(x0<<16)+x1` packing §8.1 posts: `x0 = data1>>16`, `x1 = data1&0xFFFF`, `z0 = data2>>16`, `z1 = data2&0xFFFF`, `0x007523FA`–`0x00752424`), then `FUN_007569F0` **copies the terrain's altitudes into the view's software vertex buffer** row by row — it reads the terrain's `+0x6C` array directly (`0x007569F3`–`0x007569F9`) and terrain slot 29 `GetSeaLevel` (`0x00756A00`), and refreshes the city-edge layer heights through `FUN_00755B60` when the rect touches a border row or column (`0x00756A61`–`0x00756ABF`, the rule is TR30). Live vertex data is **not** re-read at draw time; the copy is the draw input |
 | `0x678E6E3A` WaterHeightsChanged | `0x00757598` | same unpack, then `FUN_00756B00`: reads terrain slot 29 (`0x00756B23`), walks the rect reading the **water array through `view+0x24` → water `+0x18`** (`0x00756B10`–`0x00756B14`, record `+0x00` depth, terrain record `+0x00` altitude), and refills the **water** vertex buffer `0x00B4C75C`: the surface level written is `depth > 0 ? altitude + depth : sea level` (`0x00756B5A`–`0x00756B7C`), plus the per-vertex colour/tile bytes derived from a level lookup (`0x00756BF0`–`0x00756C5A`). Then `FUN_00756000` merges the unpacked rect into the water-colour update rect at `view+0x4C` (replace when `view+0x48` is set, else union — `0x00756029`–`0x0075606A`) |
 | `0xA6B79601` ViewZRChange2 | `0x0075757D`→`0x007575DE` | sets `view+0xB8` = 1 only |
 | `0xA6B79611` ViewTChange2 | `0x0075760C` | sets `view+0xB8` = 1 only |
