@@ -313,8 +313,10 @@ pub trait TractDeveloperHost {
     // ---- lot manager (zones.md) ----
     /// Slot 6 `GetLot(x, z, false)`.
     fn get_lot(&self, x: i32, z: i32) -> Option<u64>;
-    /// Slot 7 `GetLotsInCellRect(list, x1, z1, x2, z2, true)`, list order.
-    fn lots_in_cell_rect(&self, rect: CellRect) -> Vec<u64>;
+    /// Slot 7 `GetLotsInCellRect(list, x1, z1, x2, z2, true)`, list order,
+    /// handed to `f` lot by lot (devperf2: no list is built for
+    /// `UpdatePopulation`, which asks once per desirability tract).
+    fn lots_in_cell_rect(&self, rect: CellRect, f: &mut dyn FnMut(u64));
     /// Slot 9 `GetLotsSurroundingLot(lot, list, flags)`: the lots it
     /// appends.
     fn lots_surrounding_lot(&self, lot: u64, flags: u32) -> Vec<u64>;
