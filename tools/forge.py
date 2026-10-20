@@ -51,28 +51,30 @@ CHARS_PER_TOKEN = 3.6
 
 # Pilot classes: what the pack needs that is not derivable from the class name alone. `files` are the outputs,
 # `interfaces` the docs/abi/interfaces.tsv rows, `seeds` the identifiers that select declarations from the big
-# headers (fc4.h, FC4Interfaces.h, FC4Config.h), `ini` the game-run switches that exercise the class.
+# headers (fc4.h, FC4Interfaces.h, FC4Config.h), `ini` the game-run switches that exercise the class (the replace
+# run: the <x>_shadow switches compare the ORIGINAL class with the core and are inactive once ours is enabled, so
+# they cannot check a plugin class), `log` the plugin-log lines that `gamediff` compares between two runs.
 PRESETS = {
     "cFC4History": {
         "files": ["engine/plugin/cFC4History.h", "engine/plugin/cFC4History.cpp"],
         "specs": ["history.md"],
         "interfaces": ["cISC4HistoryWarehouse"],
         "seeds": [r"\bfc4_history\w*", r"HistoryWarehouse", r"\bCoreLock\b"],
-        "ini": ["enable = history", "history_shadow = 1"],
+        "ini": ["enable = history"], "log": r"\bhistory\b",
     },
     "cFC4Dispatch": {
         "files": ["engine/plugin/cFC4Dispatch.h", "engine/plugin/cFC4Dispatch.cpp"],
         "specs": ["dispatch.md"],
         "interfaces": ["cISC4DispatchManager"],
         "seeds": [r"\bfc4_dispatch\w*", r"DispatchManager", r"DispatchSource", r"\bCoreLock\b"],
-        "ini": ["enable = dispatch", "dispatch_shadow = 1"],
+        "ini": ["enable = dispatch"], "log": r"\bdispatch\b",
     },
     "cFC4Parks": {
         "files": ["engine/plugin/cFC4Parks.h", "engine/plugin/cFC4Parks.cpp"],
         "specs": ["parks.md"],
         "interfaces": ["cISC4ParkManager"],
         "seeds": [r"\bfc4_parks?\w*", r"ParkManager", r"\b[Pp]arks?\b", r"\bCoreLock\b"],
-        "ini": ["enable = parks", "parks_shadow = 1"],
+        "ini": ["enable = parks"], "log": r"\bparks?\b",
     },
 }
 TEMPLATE = ["engine/plugin/cFC4Aura.h", "engine/plugin/cFC4Aura.cpp"]
@@ -340,9 +342,33 @@ def print_pack(sections, task, hdr_stats):
 
 # ---- providers ------------------------------------------------------------------------------------------------
 
+def claude_bin(arg):
+    """The claude CLI: --claude-bin, FORGE_CLAUDE_BIN, `claude` on PATH, else the newest copy the desktop app
+    bundles. A .py path runs under this Python (the test stub)."""
+    c = arg or os.environ.get("FORGE_CLAUDE_BIN") or shutil.which("claude")
+    if not c:
+        base = Path(os.environ.get("LOCALAPPDATA", "")) / "Claude-3p" / "claude-code"
+        found = sorted(base.glob("*/*/claude.exe"), key=lambda p: [int(x) if x.isdigit() else 0
+                                                                  for x in p.parent.parent.name.split(".")])
+        if not found:
+            raise SystemExit("forge: no claude CLI (npm i -g @anthropic-ai/claude-code, or pass --claude-bin)")
+        c = str(found[-1])
+    c = str(Path(c).resolve()) if Path(c).exists() else c  # the call runs in another cwd
+    return [sys.executable, c] if c.endswith(".py") else [c]
+
+
 class Provider:
     def __init__(self, a):
         self.kind = a.provider
+        self.reasoning = a.reasoning
+        self.max_tokens = a.max_tokens
+        if self.kind == "claude-code":
+            # headless Claude Code: whatever login the CLI has (a subscription, or a gateway); no key here
+            self.model = a.model or "default"
+            self.bin = claude_bin(a.claude_bin)
+            self.settings = a.cc_settings
+            self.key, self.env = "-", "claude-code login"
+            return
         if self.kind == "openrouter":
             self.model = a.model or "z-ai/glm-5.3-flash"
             self.url = (a.base_url or "https://openrouter.ai/api/v1").rstrip("/") + "/chat/completions"
@@ -371,6 +397,8 @@ class Provider:
 
     def call(self, blocks, task):
         """blocks: [(text, cache)] - the stable prefix, in order; task: the varying tail. Returns (text, usage)."""
+        if self.kind == "claude-code":
+            return self._claude_code("\n\n".join(b for b, _ in blocks) + "\n\n" + task)
         if self.kind == "openrouter":
             body = {"model": self.model, "max_tokens": self.max_tokens, "usage": {"include": True},
                     "provider": {"order": self.provider_order, "allow_fallbacks": False},
@@ -386,7 +414,8 @@ class Provider:
             u = r.get("usage") or {}
             ptd = u.get("prompt_tokens_details") or {}
             ctd = u.get("completion_tokens_details") or {}
-            usage = {"input_tokens": u.get("prompt_tokens"), "output_tokens": u.get("completion_tokens"),
+            usage = {"input_tokens": u.get("prompt_tokens"), "prompt_total": u.get("prompt_tokens"),
+                     "output_tokens": u.get("completion_tokens"),
                      "cached_tokens": ptd.get("cached_tokens"), "cache_write_tokens": ptd.get("cache_write_tokens"),
                      "reasoning_tokens": ctd.get("reasoning_tokens"), "cost_usd": u.get("cost"),
                      "cost_source": "api" if u.get("cost") is not None else "none",
@@ -409,8 +438,53 @@ class Provider:
         usage = {"input_tokens": u.get("input_tokens"), "output_tokens": u.get("output_tokens"),
                  "cached_tokens": u.get("cache_read_input_tokens"),
                  "cache_write_tokens": u.get("cache_creation_input_tokens"), "reasoning_tokens": None,
+                 "prompt_total": sum(u.get(k) or 0 for k in ("input_tokens", "cache_read_input_tokens",
+                                                             "cache_creation_input_tokens")),
                  "cost_usd": cost, "cost_source": "computed (PRICES)" if p else "none", "finish": stop}
         return text, usage
+
+    def cc_command(self):
+        """One headless turn, stripped down: our system prompt instead of Claude Code's, no tools, no MCP servers,
+        no skills/slash commands, no session file; project/local settings off (the cwd is an empty folder anyway),
+        user settings kept because a gateway (e.g. OpenRouter) is configured there. Not --bare: it refuses OAuth,
+        i.e. a subscription login."""
+        cmd = self.bin + ["-p", "--output-format", "json", "--system-prompt", RULES, "--tools", "",
+                          "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--disable-slash-commands",
+                          "--no-session-persistence", "--setting-sources", self.settings]
+        if self.model != "default":
+            cmd += ["--model", self.model]
+        if self.reasoning:
+            cmd += ["--effort", self.reasoning]
+        return cmd
+
+    def _claude_code(self, prompt):
+        cwd = Path(os.environ.get("TEMP") or "/tmp") / "fc4-forge-cc"  # outside the repo: no CLAUDE.md, no memory
+        cwd.mkdir(parents=True, exist_ok=True)
+        # a nested run from inside a Claude Code session must not inherit that session's markers
+        env = {k: v for k, v in os.environ.items() if not (k.startswith("CLAUDE_CODE_") or k == "CLAUDECODE")}
+        p = subprocess.run(self.cc_command(), input=prompt.encode("utf-8"), capture_output=True, cwd=cwd, env=env,
+                           timeout=1800)
+        out = p.stdout.decode("utf-8", "replace").strip()
+        try:
+            r = json.loads(out.splitlines()[-1] if out else "{}")
+        except ValueError:
+            r = {}
+        if p.returncode != 0 or not r or r.get("is_error"):
+            err = (p.stderr.decode("utf-8", "replace") + "\n" + out)[-800:]
+            raise SystemExit(f"forge: claude-code call failed (exit {p.returncode}): {err.strip()}")
+        u = r.get("usage") or {}
+        models = r.get("modelUsage") or {}
+        usage = {"input_tokens": u.get("input_tokens"), "output_tokens": u.get("output_tokens"),
+                 "cached_tokens": u.get("cache_read_input_tokens"),
+                 "cache_write_tokens": u.get("cache_creation_input_tokens"), "reasoning_tokens": None,
+                 "prompt_total": sum(u.get(k) or 0 for k in ("input_tokens", "cache_read_input_tokens",
+                                                             "cache_creation_input_tokens")),
+                 "cost_usd": r.get("total_cost_usd"),
+                 "cost_source": "claude-code total_cost_usd (API-price equivalent; a subscription is not billed "
+                                "per call)",
+                 "finish": r.get("subtype"), "turns": r.get("num_turns"), "served_by": ",".join(models) or None,
+                 "id": r.get("session_id")}
+        return r.get("result") or "", usage
 
     def _request(self, body, hdr):
         data = json.dumps(body).encode("utf-8")
@@ -489,17 +563,23 @@ def run_cmd(inner, timeout=3600):
 
 
 def cmd_setup(a):
-    if not SCRATCH.exists():
-        files = subprocess.run(["git", "-C", str(ROOT), "ls-files", "engine"], capture_output=True, text=True,
-                               check=True).stdout.split()
-        for f in files:
-            if f.startswith("engine/third_party/gzcom-dll"):
-                continue
-            dst = FORGE / f
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ROOT / f, dst)
+    """Create the scratch engine, or bring an existing one in line with engine/ (every tracked file that differs)."""
+    fresh = not SCRATCH.exists()
+    files = subprocess.run(["git", "-C", str(ROOT), "ls-files", "engine"], capture_output=True, text=True,
+                           check=True).stdout.split()
+    synced = 0
+    for f in files:
+        if f.startswith("engine/third_party/gzcom-dll"):
+            continue
+        dst = FORGE / f
+        if dst.exists() and dst.read_bytes() == (ROOT / f).read_bytes():
+            continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / f, dst)
+        synced += 1
+    if fresh:
         shutil.copytree(MAIN / "engine/third_party/gzcom-dll", SCRATCH / "third_party/gzcom-dll", dirs_exist_ok=True)
-        print(f"forge: scratch engine copied to {rel(SCRATCH)}")
+    print(f"forge: scratch engine {rel(SCRATCH)}: {synced} file(s) {'copied' if fresh else 'synced from engine/'}")
     code, out = run_cmd(f'cd /d "{SCRATCH}" && cmake -S . -B build-x86 -G Ninja')
     print("\n".join(out.splitlines()[-3:]))
     print(f"configure exit={code}")
@@ -606,6 +686,30 @@ def preset_of(a):
     return p
 
 
+PROBE = "Reply with the single word OK."
+
+
+def cmd_probe(a):
+    """The fixed cost of one call: what the backend sends besides our system prompt and the user text."""
+    prov = Provider(a)
+    prov.check()
+    t0 = time.time()
+    text, usage = prov.call([], PROBE)
+    total = usage.get("prompt_total") or 0
+    ours = tokens(RULES) + tokens(PROBE)
+    rec = {"ts": now(), "kind": "probe", "provider": prov.kind, "model": prov.model, **usage, "prompt_total": total,
+           "ours_estimate": ours, "latency_s": round(time.time() - t0, 1), "reply": text[:40]}
+    log("probe", rec)
+    print(f"forge probe {prov.kind} ({prov.model}): prompt {total} tok (ours ~{ours}) -> overhead ~{total - ours} "
+          f"tok/call; out {usage.get('output_tokens')}; ${(usage.get('cost_usd') or 0):.5f} [{usage.get('cost_source')}]"
+          f"; {rec['latency_s']}s; reply {text[:20]!r}")
+    if prov.kind == "claude-code":
+        shown = ["<RULES>" if x == RULES else x for x in prov.cc_command()[len(prov.bin):]]
+        print("  command: claude " + " ".join(json.dumps(x) if (" " in x or not x) else x for x in shown)
+              + " < prompt")
+    return 0
+
+
 def cmd_pack(a):
     pre = preset_of(a)
     sections, task, stats = build_pack(a.cls, pre)
@@ -656,10 +760,11 @@ def cmd_run(a):
                "latency_s": round(time.time() - t0, 1)}
         log(a.cls, rec)
         totals["calls"] += 1
-        for k in ("input_tokens", "output_tokens", "cached_tokens"):
+        totals["input_tokens"] += usage.get("prompt_total") or 0  # the whole prompt, cached parts included
+        for k in ("output_tokens", "cached_tokens"):
             totals[k] += usage.get(k) or 0
         totals["cost_usd"] += usage.get("cost_usd") or 0.0
-        print(f"  call r{round_no}: in {usage.get('input_tokens')} (cached {usage.get('cached_tokens')}) out "
+        print(f"  call r{round_no}: in {usage.get('prompt_total')} (cached {usage.get('cached_tokens')}) out "
               f"{usage.get('output_tokens')} (reasoning {usage.get('reasoning_tokens')}) "
               f"${(usage.get('cost_usd') or 0):.4f} [{usage.get('cost_source')}] {usage.get('finish')} "
               f"{rec['latency_s']}s")
@@ -818,6 +923,63 @@ def cmd_game(a):
     return 0
 
 
+def log_lines(label, rx):
+    """The run's plugin-log lines matching rx, without the timestamp/pid/tid prefix (a multiset, in order)."""
+    p = ROOT / "build-runs" / "game-results" / f"{label}.log"
+    if not p.exists():
+        raise SystemExit(f"forge: no {rel(p)} (run not finished?)")
+    r = re.compile(rx, re.I)
+    out = []
+    for line in read(p).replace("\0", "").splitlines():
+        body = re.sub(r"^\S+ \S+ \[pid \d+ tid \d+\] ", "", line)
+        if r.search(body):
+            # object addresses differ per run (city=030E3014, 0x00E23390)
+            out.append(re.sub(r"\b(?:0x)?[0-9A-Fa-f]{8}\b", "<ptr>", body))
+    return out
+
+
+def cmd_gamediff(a):
+    """Compare the class's log lines of two runs (e.g. the baseline DLL and the forged one); exact = identical."""
+    pre = preset_of(a)
+    va = read(ROOT / "build-runs" / "game-results" / f"{a.a}.verdict").splitlines()[0]
+    vb = read(ROOT / "build-runs" / "game-results" / f"{b}.verdict").splitlines()[0] if (b := a.b) else ""
+    la, lb = log_lines(a.a, pre["log"]), log_lines(a.b, pre["log"])
+    if la == lb:
+        print(f"{a.cls}: {a.a} | {a.b}: EXACT ({len(la)} lines); {va} | {vb}")
+        return 0
+    # Two runs of the SAME DLL differ in the city's own state (occupants, records, the turbo end date), so compare
+    # what the class decides: mask the city-driven counts and cut the month lines to the months both runs reached.
+    def mask(lines):
+        out = []
+        for x in lines:
+            x = re.sub(r"\boccupants=\d+", "occupants=#", x)
+            x = re.sub(r"\b\d+ (points|records sent|queries)", r"# \1", x)
+            out.append(x)
+        return out
+    ma, mb = mask(la), mask(lb)
+    months = lambda L: [x for x in L if " month " in x]
+    na, nb = len(months(ma)), len(months(mb))
+    keep = min(na, nb)
+    def cut(L):
+        seen, out = 0, []
+        for x in L:
+            if " month " in x:
+                seen += 1
+                if seen > keep:
+                    continue
+            out.append(x)
+        return out
+    ca, cb = cut(ma), cut(mb)
+    diff = list(difflib.unified_diff(ca, cb, a.a, a.b, n=0, lineterm=""))
+    nd = sum(1 for d in diff[2:] if d[:1] in "+-")
+    word = "MATCH" if not diff else f"DIFFERS ({nd} lines)"
+    print(f"{a.cls}: {a.a} | {a.b}: {word} on the class's fields ({len(ca)} lines compared, {keep} common months; "
+          f"city counters masked); {va} | {vb}")
+    for d in diff[2:2 + a.show]:
+        print("  " + d[:220])
+    return 0 if not diff else 1
+
+
 # ---- report ---------------------------------------------------------------------------------------------------
 
 def cmd_report(a):
@@ -843,18 +1005,29 @@ def cmd_report(a):
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="forge.py", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
+    def backend_args(p):
+        p.add_argument("--backend", "--provider", dest="provider", default="openrouter",
+                       choices=("openrouter", "anthropic", "claude-code"),
+                       help="openrouter (default), anthropic (Messages API, prompt caching), claude-code (headless "
+                            "`claude -p`, the CLI's own login: subscription or gateway, no key)")
+        p.add_argument("--model"); p.add_argument("--base-url"); p.add_argument("--key-env")
+        p.add_argument("--key-file", help="a file holding the key (outside the repo)")
+        p.add_argument("--provider-order", help="OpenRouter provider order (default DigitalOcean), no fallbacks")
+        p.add_argument("--reasoning", help="low|medium|high (OpenRouter reasoning.effort / Anthropic and Claude "
+                                           "Code effort)")
+        p.add_argument("--max-tokens", type=int, default=32_000)
+        p.add_argument("--claude-bin", help="the claude CLI (default: PATH, then the desktop app's copy)")
+        p.add_argument("--cc-settings", default="user", help="claude-code --setting-sources (default user)")
+
+    p = sub.add_parser("probe", help="one tiny call: the backend's fixed per-call overhead in input tokens")
+    backend_args(p)
     for name in ("pack", "run", "compare", "game"):
         p = sub.add_parser(name)
         p.add_argument("cls")
         p.add_argument("--files"); p.add_argument("--specs"); p.add_argument("--interfaces"); p.add_argument("--seeds")
         p.add_argument("--max-pack", type=int, default=80_000)
         if name == "run":
-            p.add_argument("--provider", choices=("openrouter", "anthropic"), default="openrouter")
-            p.add_argument("--model"); p.add_argument("--base-url"); p.add_argument("--key-env")
-            p.add_argument("--key-file", help="a file holding the key (outside the repo)")
-            p.add_argument("--provider-order", help="OpenRouter provider order (default DigitalOcean), no fallbacks")
-            p.add_argument("--reasoning", help="low|medium|high (OpenRouter reasoning.effort / Anthropic effort)")
-            p.add_argument("--max-tokens", type=int, default=32_000)
+            backend_args(p)
             p.add_argument("--rounds", type=int, default=3)
             p.add_argument("--max-cost", type=float, default=1.50, help="stop a run above this many dollars")
             p.add_argument("--budget", type=float, default=5.00, help="refuse when the logged total reaches this")
@@ -866,9 +1039,12 @@ def main(argv=None):
             p.add_argument("--label"); p.add_argument("--end-date", default="2028-01-01")
             p.add_argument("--seconds", type=int, default=900)
             p.add_argument("--with", dest="with_", help="also the ini switches of these classes (comma list)")
+    p = sub.add_parser("gamediff", help="the class's log lines in two game runs (labels a, b)")
+    p.add_argument("cls"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=20)
+    p.add_argument("--files"); p.add_argument("--specs"); p.add_argument("--interfaces"); p.add_argument("--seeds")
     sub.add_parser("setup"); sub.add_parser("report")
     a = ap.parse_args(argv)
-    return {"pack": cmd_pack, "run": cmd_run, "compare": cmd_compare, "game": cmd_game, "setup": cmd_setup,
+    return {"probe": cmd_probe, "pack": cmd_pack, "run": cmd_run, "compare": cmd_compare, "game": cmd_game, "setup": cmd_setup, "gamediff": cmd_gamediff,
             "report": cmd_report}[a.cmd](a)
 
 
