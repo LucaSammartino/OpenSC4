@@ -61,10 +61,11 @@ python tools/merge-train.py bisect | fail --lane L  # a red batch
 - **Verify every landing:** `git merge-base --is-ancestor <lane> main` for each lane the train lists as landed.
   Never trust the train's own lane list (eight `train3` lanes were reported landed and were not; see
   [HANDOFF](../HANDOFF.md) "Current state").
-- **Gate.** The train's `gate` runs `cargo test` and `cargo clippy -D warnings` from `engine/`, then
-  `build-runs/coord-verify-lane.ps1` (CMake build + ctest, a private `_MSPDBSRV_ENDPOINT_`), and judges the parsed
-  `build exit=`, `ctest exit=` and ctest summary, never the wrapper's exit code. By hand, for one worktree:
-  `build-runs/coord-full-verify.ps1 -Engine <worktree>\engine -Tag <tag>`. Then `rustfmt --check --edition 2021` on
+- **Gate.** The train's `gate` is `.claude/lane-bin/fc4verify.py gate` on the integration tree: clippy
+  `-D warnings`, the CMake build, the full ctest (cargo_test included), each judged by parsing its output, never an
+  exit code. The record is `build-runs/gate-<id>.json`; `land` and `regress` judge it again for the exact head they
+  use (see "Build cache, lane checks and the gate" below). By hand, for one worktree:
+  `python .claude/lane-bin/fc4verify.py --wt <worktree> gate`. Then `rustfmt --check --edition 2021` on
   the touched `.rs` files from `engine/`. The history/clock24 thread tests were fixed by `flakyfix` (25/25 each
   under an 18-process CPU load, 2026-10-20); a failure there is now a real one.
 - **Conflicts the train refuses** go to the operator (see the notes below). Resolve in the integration worktree with
@@ -88,7 +89,10 @@ python tools/merge-train.py bisect | fail --lane L  # a red batch
 Learned the hard way on 2026-10-16:
 
 - `build-runs/coord-verify-lane.ps1` **exits 0 even when cmake fails**. Never take a gate from the wrapper's exit
-  code — `merge-train.py`'s `gate` parses `build exit=`, `ctest exit=` and the ctest summary.
+  code. The train no longer calls it (fc4verify parses ninja and ctest itself); lanes may still use it by hand.
+- **A gate is never set by hand.** Editing `state.json` to `gate: {ok: true}` is what landed train10's broken main;
+  `land` now ignores that flag. If a gate failure is an expected change (a test pin that moved), commit the fix to
+  the integration branch and gate again.
 - Lanes append to shared files (`fc4.h`'s ABI history, `FC4Config.*`'s key table, `FC4Subsystems.cpp`'s registry),
   and **each side's addition ends with the file's own closing `}`/`*/`**. The resolver now splits that close off the
   last line, commas list entries only, checks the three-way brace balance, and rejects glued `fn` signatures. It also
@@ -106,3 +110,51 @@ Learned the hard way on 2026-10-16:
   at `<main>/.git/modules/engine/third_party/gzcom-dll` or every git command in that worktree fails.
 - Disk: build caches are ~10-19 GB per worktree. `C:` hit ENOSPC twice mid-gate. Free
   `engine/target` and `engine/build-x86` of **merged, clean, 0-commits-ahead** worktrees only.
+
+## Build cache, lane checks and the gate
+
+Added 2026-10-20 after the day's audit (lanes: ~5 h in tools, 1.7 h of it builds/verify; train10 landed a main that
+did not compile).
+
+**sccache.** Install once per machine: `cargo install sccache --version 0.18.0 --locked` (5 min; lands in
+`~/.cargo/bin`). `engine/CMakeLists.txt` (`FC4_COMPILER_CACHE`, default ON) then compiles C++ through it and passes
+`RUSTC_WRAPPER` to its cargo commands; without sccache it builds as before. MSVC debug info is `/Z7` (cacheable
+objects; the compiler no longer uses mspdbsrv, the linker still writes the PDB; `_MSPDBSRV_ENDPOINT_` stays private
+per worktree/gate). `.claude/lane-bin/fc4verify.py` runs one sccache server per worktree (port from the path,
+`SCCACHE_BASEDIRS` = the worktree) on one shared cache, `%LOCALAPPDATA%\fc4\sccache` (20 GB cap; disk is tight,
+`SCCACHE_CACHE_SIZE` lowers it). Limits, measured: C++ objects hit across worktrees (157/157 in a fresh one); Rust
+does not (sccache hashes rustc's working directory, and test binaries are linked, so never cacheable), so a fresh
+worktree still compiles the Rust release library (~55 s). Objects from the cache carry the first worktree's paths
+in their debug info and `__FILE__` strings.
+
+**Lane checks.** `python <MAIN>/.claude/lane-bin/fc4verify.py --wt <WT> quick`: `cargo test -p` the crates changed
+since `main` (the crates that depend on them are compiled with `--no-run`), then the CMake build. Before enqueueing:
+`... build ctest` (the full ctest, `-j 4`; the DLL-loading tests are RUN_SERIAL). `cxxtest` is ctest without
+cargo_test. The engine lane brief names both. Branch `claude/wonderful-lamarr-87a662` (lean lane harness) was not
+on main when this landed: its `.claude/lane-bin/qbuild.py` should get a `quick` step that runs `fc4verify.py quick`
+and its `verify` step should call `fc4verify.py build ctest` instead of copying coord-verify-lane.ps1 (both files
+live in `.claude/lane-bin/`, no conflict).
+
+**Gate and land.** `gate` runs every step even after a failure and writes the record with the head, the tree and
+its dirty files. `land` refuses unless the record is for the integration head, built a clean tree, and passes when
+its step logs are parsed again; it also refuses when `main` changed build files since the batch was cut. `regress`
+submits only the DLL the record names (sha256). `bisect` gates the halves one after the other, judged by records.
+Regression tests: `python -m unittest discover -s tools/tests` (train10's cases, from real logs).
+
+What let train10 through (records in the main checkout's `build-runs/`): `gate-train10.out` is a FAIL in
+`cargo test` (the automata sweep's stale-index pin, 14 -> 0), so the C++ build never ran; `state.json` then shows
+`gate: {ok: true, note: "cargo test + clippy pass (run 10); conformance via coord-verify-lane"}`, set by hand with
+no gate log behind it; the regress passed on the integration worktree's `FreeCity4.dll` from 15:21, before the
+17:08 merge; `land` read only `gate.ok`. The two compile breaks (fc4.h, FC4Subsystems.cpp) came from the
+operator-resolved merge, so the lane's own green verify could not see them. The old `bisect` could not have helped
+either: it reset the one integration worktree under both halves' parallel builds and read coord-verify's exit code.
+
+Measured on this machine (20 threads), 2026-10-20, before -> after:
+
+| | before | after |
+|---|---|---|
+| fresh worktree, build + full ctest | 304 s (coord-verify-lane.ps1: build 60, ctest 240) | 168 s (build 57, ctest 111) |
+| merge-train gate, fresh tree | 444 s (cargo test 104, clippy 22, coord-verify 318) | 193 s (clippy 20, build 57, ctest 111) |
+| lane loop after a one-line `engine/core` edit | 240 s (coord-verify-lane.ps1) | 107 s (`quick`: core tests, dependents compiled, build) |
+| lane loop after a one-line plugin C++ edit | 172 s (coord-verify-lane.ps1) | 3 s (`quick`); 47 s with `cxxtest` |
+| abi_conformance_test | 84 s | 9 s (no regex scan of files without the method name) |
