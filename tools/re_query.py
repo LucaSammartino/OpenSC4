@@ -8,7 +8,8 @@ the size or mtime of a source changes. Nothing is written outside the cache dire
 
 Usage: python tools/re_query.py [--repo DIR] [--limit N] <command> ...
   func <addr|name>...          containing function: start+offset, size, name (source/confidence), owner class, proto
-  asm <addr|name> [--max N]    the function's instructions (instructions.asm), call/jump targets and strings named;
+  asm <addr|name> [--max N] [--skip N]  the function's instructions (instructions.asm), call/jump targets and
+                               strings named; 120 lines per call by default, --skip N pages on;
                                an address outside every function prints N lines from there (capstone if undecoded)
   callers <addr|name>          direct calls to the function (calls.tsv): callsite, caller+offset
   callees <addr|name>          direct calls made by the function, in address order
@@ -480,7 +481,7 @@ def annotate(db, text, here_fn):
 
 def cmd_asm(db, args):
     va, s = db.func_of(args.target)
-    limit = args.max
+    limit = args.max + args.skip
     if s is not None:
         rngs = [(lo, hi) for lo, hi, fn in db.f["rng"] if fn == s]
         print(f"; {s:08x} {db.fname(s)}  size={db.f['size'].get(s, 0)}  ranges=" +
@@ -499,10 +500,10 @@ def cmd_asm(db, args):
                 print(f"{a:08x}  {mn} {op}")
             return
         print(f"; {va:08x} is not inside a function; {limit} lines from there")
-    for a, byts, text in lines[:limit]:
+    for a, byts, text in lines[args.skip:limit]:
         print(f"{a:08x}  " + (f"{byts:<16s} " if args.bytes else "") + text + annotate(db, text, s))
     if len(lines) > limit:
-        print(f"... truncated at --max {limit}")
+        print(f"... truncated at line {limit} (--skip {limit} for the next page, --max N for more per page)")
 
 
 def cmd_callers(db, args):
@@ -648,7 +649,8 @@ def main(argv=None):
     p.add_argument("targets", nargs="+")
     p = sub.add_parser("asm")
     p.add_argument("target")
-    p.add_argument("--max", type=int, default=400)
+    p.add_argument("--max", type=int, default=120)
+    p.add_argument("--skip", type=int, default=0, help="lines to skip (paging)")
     p.add_argument("--bytes", action="store_true", help="also print the instruction bytes")
     for c in ("callers", "callees"):
         sub.add_parser(c).add_argument("target")

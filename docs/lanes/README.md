@@ -54,6 +54,10 @@ Optional, under the row:
 
 - A `## Next steps` paragraph for detail that does not fit the cell. The generator appends its text to
   the row's Next steps cell.
+- While the lane works: a `## Handoff` section (at most 25 lines: goal, done with commit hashes, next,
+  facts), under a row whose State at stop is `in progress`. It is the lane's working state: the fc4-lane
+  workflow restarts a lane in a fresh agent from it (docs/ops/coordinating.md "Lane context"). The lane
+  replaces it with its report when it finishes. The generator never reads it.
 - A `## Retired roster row` section, holding the old HANDOFF
   `| Lane | Agent ID | Worktree | Reserved | State |` row verbatim, for lanes that had one. The
   generator never reads it.

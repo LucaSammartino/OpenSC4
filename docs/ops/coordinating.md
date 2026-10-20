@@ -8,7 +8,8 @@ instead: write the lane file, enqueue, stop.
 ## Spawning a lane
 
 Every lane is one run of the saved workflow [`.claude/workflows/fc4-lane.js`](../../.claude/workflows/fc4-lane.js):
-`Workflow({name: 'fc4-lane', args: {kind, name, task, date, brief, deps, game, fix?, model?, effort?}})`. It has no
+`Workflow({name: 'fc4-lane', args: {kind, name, task, date, brief, deps, game, fix?, model?, effort?, ctxBudget?,
+maxRounds?}})` (see "Lane context" below). It has no
 merge step: the lane writes `docs/lanes/<lane>.md` (row + full report) and `build-runs/merge-queue/<lane>.json`,
 returns a short result (state, tip, one-line gate/game/questions, at most 5 next steps) and stops. Before each spawn
 ([docs/lane-tools.md](../lane-tools.md)):
@@ -31,6 +32,64 @@ in it), so it is served from the prompt cache; keep it that way when editing. A 
 (`tools/game_queue.ps1 -Slots 6`, started detached from the main checkout; [docs/harness.md](../harness.md)) and wait
 for verdicts in one blocking call, never a polling loop. A worktree lane cannot read files outside its worktree:
 paste what it needs into the task, or copy files into its gitignored `build-runs/`.
+
+## Lane context (2026-10-20)
+
+The audit of 2026-10-20 (OpenRouter, `z-ai/glm-5.3-flash`, $184.71) found 85% of the spend in cached context
+re-reads: lanes started big and grew without compaction. First-call context, measured from the `usage` of the first
+assistant event of every subagent transcript under `%USERPROFILE%\.claude\projects\*\*\subagents\`:
+
+| Route, agent | n | first call | peak per lane |
+|---|---|---|---|
+| GLM (`claude-desktop-3p`), `workflow-subagent` (today's lanes) | 23 | 172.3k-173.8k | 212k-975k |
+| MiMo (`claude-desktop-3p`), `general-purpose` / `claude` / `Explore` | 80 | 172.7k-177.4k | |
+| Claude Opus 5.5, `general-purpose` | 173 | 45.7k-55.0k | |
+| Claude Opus 5.5, `workflow-subagent` | 220 | 49.7k-90.9k | |
+| **After**, `fc4-lane-re` agent type (one probe) | 1 | see "Probe" below | |
+
+Why: on the third-party route Claude Code has no tool search, so every MCP schema of the session (REA's ~170 tools,
+Chrome, computer-use, the browser pane, the app's own servers) goes inline on every call; the Claude route defers
+them behind ToolSearch, hence ~55k. Lanes also made 10,258 Bash calls (13 REA calls), one command per turn, each
+re-sending the whole context. Three changes, on branch `claude/wonderful-lamarr-87a662`:
+
+1. **Agent types.** [`.claude/agents/fc4-lane.md`](../../.claude/agents/fc4-lane.md) (`tools: Bash, Read, Edit,
+   Write, Grep, Glob`) and [`fc4-lane-re.md`](../../.claude/agents/fc4-lane-re.md) (the same plus
+   `mcp__rea__procedure_pseudo_code`, `mcp__rea__batch_decompile`); the workflow passes `agentType` (RE lanes get
+   the second). A listed `tools:` is the agent's whole tool set, so no other schema is sent on either route.
+   **Agent types are read once, when a session starts, from its cwd's `.claude/agents/`:** after this lands, start
+   a new coordinator session in the main checkout. In an older session the workflow logs "agent type ... unknown to
+   this session" and runs the lane as a default subagent (every schema again), it does not fail.
+2. **Stateless lanes.** A lane keeps its working state in `docs/lanes/<lane>.md` (the row, State "in progress",
+   then `## Handoff`: goal, done with hashes, next, facts; at most 25 lines; the generator ignores the section),
+   commits it after every milestone, then runs `python <MAIN>/.claude/lane-bin/ctx.py <lane> --budget <n>`. Past
+   the budget it returns `state: "continue"`. The workflow loops (`args.ctxBudget`, default 150000;
+   `args.maxRounds`, default 6): `continue` or a null result (an API error after retries) starts a fresh agent with
+   the same prompt plus a RESTART block that reads the Handoff, `git log main..` and `git status`; two nulls in a
+   row stop (that is also what a user skip looks like). How the budget is detected: the workflow script has no
+   file access and `agent()` returns no usage, so the lane measures itself: `ctx.py` finds the newest transcript
+   whose `.meta.json` description is `lane:<lane>` or `lane:<lane>#<n>` and reads the last call's `usage` (0.1 s).
+   Restart rounds are labelled `lane:<lane>#<n>`; `lanes.py ledger` already strips the suffix.
+3. **Quiet output, several steps per call.** [`.claude/lane-bin/`](../../.claude/lane-bin/) (no RE content, so
+   engine lanes may run it): `qbuild.py --wt <WT> test clippy verify | fmt <files>` (full logs in
+   `<WT>/build-runs/qbuild-<step>.log`; prints counts, exit lines, the first 15 errors), `qgrep.py` (40 lines, 8
+   per file, 160 chars, then a count of the rest; `-l`, `-C`), `qwait.py <file> [--fresh]` (one blocking wait, 9
+   minutes). `tools/re_query.py asm` now prints 120 lines per call (was 400) with `--skip N` paging. The lane
+   prompt's new "Cost rules" say: chain steps in one Bash call or a build-runs script, cap every output, Grep with
+   `head_limit` <= 40, forward-slash paths (lanes have Bash, not the PowerShell tool).
+
+The audit's replay of today's call sequences with a ~50k base and a 250k cap gave 38% of today's tokens; the 150k
+default budget here is tighter.
+
+**Probe** (one trivial agent; the first call is the whole fixed cost). From a session started after the agent files
+exist in its cwd:
+`Workflow({name: 'fc4-lane', args: {kind: 're', name: 'probe-ctx', maxRounds: 1, effort: 'low', task: "PROBE ONLY ...
+return immediately: lane 'probe-ctx', tip 'none', state 'blocked', summary 'probe'."}})`, then read the first
+assistant `usage` in `<session>\subagents\workflows\<run>\agent-*.jsonl` (`python .claude/lane-bin/ctx.py
+probe-ctx --first` prints it). Run it once from a GLM-route session too: that route is the one that went from 172k.
+Not yet verified there: that `tools:` also drops the MCP schemas on the third-party route (it should, since it
+names the whole tool set and the route only changes deferral). If the GLM probe still starts near 172k, turn the
+Chrome, computer-use and browser connectors off for the coordinator session and keep `rea` (top-level
+`mcpServers` in `~/.claude.json`) only in sessions that spawn RE lanes.
 
 ## Keeping the coordinator cheap
 
