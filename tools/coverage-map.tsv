@@ -82,6 +82,9 @@ cSC4ToxicOccupant	disasters	simulation	disasters.md	core/src/disasters	-	-
 cSC4AutomataManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4AutomataControllerManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4AutomataScriptSystem	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
+# the occupant and automata group objects the script system builds from the Lua group tables (before the cSC4Occupant* catch-all)
+cSC4OccupantGroupTemplate	automata groups	simulation	occupant-groups.md	-	-	-
+tKeyEffect	automata groups	simulation	occupant-groups.md	-	-	-
 cSC4AutomataController	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4Automaton	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4VehicleManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-

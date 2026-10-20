@@ -2441,6 +2441,7 @@ va	name	source	confidence	note
 00505090	__ZThn4_N20cSC4EmergencyVehicle4InitEv	auto:B1	low	mac 006d3638 score 0.96 support 1.0
 005050a0	__ZThn4_N20cSC4EmergencyVehicle8ShutdownEv	auto:B1	low	mac 006d3642 score 0.96 support 1.0
 00505100	cSC4City::GetCitySituationManager	auto:C	low	mac 0002ff86 score 1.0 support 1
+00505330	cSC4OccupantGroupTemplate::GetSourceBuildingGroup	manual:occupant-groups.tsv	high	occupant-groups.md §4.4; descriptive name; first non-zero +0x6C (source_building) up the +0x0C parent chain; callers InitExemplarData 0x0050FC46, CreateAutomatonForPlayerDrive 0x00529367
 00505480	cSC4AutomataManager::QueryInterface	auto:D	medium	mac 000bafba score 0.5 support 1
 00505510	cSC4AutomataManager::AddRef	auto:C	high	mac 000bb010 score 1.0 support 1
 00505520	cSC4Automaton::GetPosition	auto:C	high	mac 000bca62 score 1.0 support 12
@@ -2639,8 +2640,10 @@ va	name	source	confidence	note
 0051c140	cSC4AutomataControllerManager::Init	auto:C	high	mac 000b7d2e score 1.0 support 1
 0051c2d0	cSC4AutomataScriptSystem::GetAutomataGroup	auto:C	low	mac 00159784 score 1.0 support 1
 0051c2e0	cSC4AutomataScriptSystem::QueryInterface	auto:C	high	mac 0015992e score 1.0 support 2
-0051c380	cSC4OccupantGroupTemplate::IsOccupantGroup	auto:D	medium	mac 0015a028 score 0.5 support 1
-0051c4a0	cSC4OccupantGroupTemplate::GetGroupHierarchyDepth	auto:D	medium	mac 00159a5c score 0.5 support 1
+0051c380	cSC4OccupantGroupTemplate::IsOccupantGroup	manual:occupant-groups.tsv	high	occupant-groups.md §4.2; compares the id with +0x10 of this group and each +0x0C ancestor
+0051c3b0	cSC4OccupantGroupTemplate::GetClassID	manual:occupant-groups.tsv	high	occupant-groups.md §4.3; descriptive name; first non-zero +0x14 (class_id) up the parent chain; sole caller CreateAutomatonInternal 0x0051079F
+0051c3d0	cSC4OccupantGroupTemplate::IsOccupantIncluded	manual:occupant-groups.tsv	high	occupant-groups.md §4.1; vtable 0x00A96C0C slot 3; property 0xAA1DD396 against +0x10, then the +0x2C percentage draw
+0051c4a0	cSC4OccupantGroupTemplate::GetGroupHierarchyDepth	manual:occupant-groups.tsv	high	occupant-groups.md §4.5; counts the +0x0C chain, 0 for a null this
 0051c4b0	cSC4AutomataScriptSystem::DoMessage	auto:A	high	mac 00159770 score 1.0 support 0
 0051c4c0	cSC4AutomataScriptSystem::InitScripts	auto:A	high	mac 00159b14 score 0.827 support 0
 0051c5d0	cSC4AutomataScriptSystem::ImportLotFlags	auto:A	high	mac 00159e08 score 1.0 support 0
@@ -2650,13 +2653,13 @@ va	name	source	confidence	note
 0051cb40	cSC4AutomataScriptSystem::ImportCalendarField	auto:A	high	mac 0015ad08 score 1.0 support 0
 0051cbf0	cSC4AutomataScriptSystem::ImportSFXList	auto:B1	medium	mac 0015af74 score 0.974 support 4.0
 0051cd20	cSC4AutomataScriptSystem::ImportIgnoreStateList	auto:A	high	mac 0015ac9a score 1.0 support 0
-0051cd90	cSC4OccupantGroupTemplate::GetGroupIDVariant	auto:D	medium	mac 0015adf8 score 0.5 support 1
+0051cd90	cSC4OccupantGroupTemplate::GetGroupIDVariant	manual:occupant-groups.tsv	high	occupant-groups.md §4.6; caches the chain's non-zero IDs in the +0x18 variant
 0051cf60	cSC4AutomataScriptSystem::GetAutomataGroup	auto:C	high	mac 0015d3e0 score 1.0 support 1
 0051cf90	cSC4AutomataScriptSystem::GetControllerTemplate	auto:C	high	mac 0015a5ca score 1.0 support 1
 0051cfc0	cSC4AutomataScriptSystem::GetOccupantGroup	auto:C	high	mac 0015d408 score 1.0 support 1
 0051cff0	cSC4AutomataScriptSystem::GetOccupantGroup	auto:C	high	mac 0015ac28 score 1.0 support 1
-0051d040	tKeyEffect::tKeyEffect	auto:B0	medium	mac 00688164 score 0.814 support 2.0
-0051d0d0	tKeyEffect::~tKeyEffect	auto:D	medium	mac 006881b6 score 0.5 support 1
+0051d040	tKeyEffect::tKeyEffect	manual:occupant-groups.tsv	high	occupant-groups.md §3.3; three empty cRZStrings (+0x00 fx, +0x14 bone, +0x28 controller) and flags +0x3C = 0
+0051d0d0	tKeyEffect::~tKeyEffect	manual:occupant-groups.tsv	high	occupant-groups.md §3.3; frees the three strings
 0051d120	cSC4AutomataScriptSystem::GetHexFromVariant	auto:B0	medium	mac 00159794 score 0.944 support 2.0
 0051d1d0	cSC4AutomataScriptSystem::GetDriveCommand	auto:C	high	mac 0015a3f4 score 1.0 support 1
 0051d220	cSC4AutomataScriptSystem::sCreateAutomaton	auto:A	high	mac 0015a1d4 score 1.0 support 0
@@ -2672,6 +2675,9 @@ va	name	source	confidence	note
 0051f2a0	cSC4AutomataScriptSystem::ImportEffectTriggerList	auto:A	high	mac 0015a6fa score 1.0 support 0
 0051f5c0	cSC4AutomataScriptSystem::LinkOccupantGroups	auto:A	high	mac 0015d0f2 score 1.0 support 0
 0051fa60	cSC4AutomataScriptSystem::ImportDriveCommandKeyMap	auto:B0	medium	mac 0015b486 score 0.954 support 4.0
+0051fb90	tKeyEffect::tKeyEffect (copy)	manual:occupant-groups.tsv	high	occupant-groups.md §3.3; copies the three strings and the flag word; used by the key-effect map insert 0x00520520
+0051fc80	cSC4OccupantGroupTemplate::ClearKeyEffects	manual:occupant-groups.tsv	high	occupant-groups.md §4.8; descriptive name; empties the +0x70 hash map of tKeyEffect nodes; sole caller the destructor 0x00520454
+0051fd30	tKeyEffect::operator=	manual:occupant-groups.tsv	high	occupant-groups.md §4.7; assigns the three strings and the flag word; sole caller GetKeyEffect 0x00520510
 0051fdc0	__gnu_cxx::hashtable<std::pair<std::string_const,cSC4OccupantGroupTemplate*>,std::string,__gnu_cxx::hash<std::string>,std::_Select1st<std::pair<std::string_const,cSC4OccupantGroupTemplate*>>,std::equal_to<std::string>,std::allocator<cSC4OccupantGroupTemplate*>>::insert_unique	auto:B0	medium	mac 0068df0a score 0.83 support 2.0
 0051ff00	std::vector<cRZString,std::allocator<cRZString>>::erase	auto:B1	medium	mac 005efa7a score 0.992 support 1.0
 00520050	cSC4AutomataScriptSystem::GetGZCLSID	auto:A	low	mac 00687ffa score 1.0 support 0
@@ -2681,8 +2687,10 @@ va	name	source	confidence	note
 00520090	cSC4AutomataScriptSystem::GetOccupantGroupIDMap	auto:C	low	mac 00688028 score 1.0 support 1
 005200a0	cSC4AutomataScriptSystem::GetSpecialFilterOccupantGroups	auto:C	low	mac 00688034 score 1.0 support 1
 005200b0	cSC4AutomataScriptSystem::GetTrackBuildingGroups	auto:C	low	mac 00688040 score 1.0 support 1
-005204d0	cSC4OccupantGroupTemplate::GetKeyEffect	auto:D	medium	mac 0015b93a score 0.5 support 1
-005206b0	cSC4OccupantGroupTemplate::cSC4OccupantGroupTemplate	auto:B0	medium	mac 0068d9d4 score 0.968 support 2.5
+00520410	cSC4OccupantGroupTemplate::~cSC4OccupantGroupTemplate	manual:occupant-groups.tsv	high	occupant-groups.md §4.8; frees +0x60/+0x64, clears +0x70, +0x54, +0x50, +0x48, +0x34, +0x30, +0x18, then the base destructor 0x005E95C0
+005204d0	cSC4OccupantGroupTemplate::GetKeyEffect	manual:occupant-groups.tsv	high	occupant-groups.md §4.7; looks up the low byte of the command in the +0x70 map
+005206b0	cSC4OccupantGroupTemplate::cSC4OccupantGroupTemplate	manual:occupant-groups.tsv	high	occupant-groups.md §2; base 0x005EA080, vtables 0x00A96C0C / 0x00A96BF4, +0x2C = 1.0, +0x4C = +0x4E = -2; sole caller CreateOccupantGroup 0x00520BF2 (0x84 bytes)
+00520780	cSC4OccupantGroupTemplate::~cSC4OccupantGroupTemplate (deleting destructor)	manual:occupant-groups.tsv	high	occupant-groups.md §4.8; vtable 0x00A96C0C slot 6; destructor 0x00520410, then GlobalHeapFree when flag bit 0 is set
 005208a0	cSC4AutomataScriptSystem::Shutdown	auto:C	high	mac 0015d060 score 1.0 support 1
 00520ac0	cSC4AutomataScriptSystem::CreateControllerTemplate	auto:A	high	mac 0015d57c score 1.0 support 0
 00520bd0	cSC4AutomataScriptSystem::CreateOccupantGroup	auto:A	high	mac 0015e19a score 1.0 support 0
