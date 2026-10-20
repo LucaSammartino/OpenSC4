@@ -26,6 +26,7 @@
 #include "FC4TerrainShadow.h"  // the glue16 lane: terrain
 #include "FC4Turbo.h"
 #include "FC4Watchdog.h"
+#include "cFC4NetworkTool.h"  // the glue29 lane: NetToolRegistry
 #include "cFC4ZoneManager.h"
 
 #include "SC4Rect.h"
@@ -198,17 +199,33 @@ void NetworkStep(void* p) {
 // Shutdown with the reference audit's release of a tool made for us
 // (FC4ZoneDevHost.cpp ReleaseNetworkTools: the game runs showed the count
 // reaching 0 there).
+// glue29: with `enable = nettool` the tool comes from our registry
+// (NetToolRegistry::Take) and the placement runs through the fc4_nettool
+// core; the borrowed shared tool from the registry is released at city
+// shutdown, not here.
 std::string RunNetwork(const harness::ScriptAction& a, cISC4City* city) {
     if (city == nullptr) return "skipped: no city";
-    cISC4NetworkManager* nm = city->GetNetworkManager();  // city slot 38, borrowed
-    if (nm == nullptr) return "skipped: the city has no network manager";
-    cISC4NetworkTool* t = nm->GetNetworkTool(a.type, true);  // slot 5
-    if (t == nullptr) return "skipped: no network tool for the type";
+    cISC4NetworkTool* t = nullptr;
+    bool ours = false;
+    if (NetToolRegistry::Enabled()) {
+        ours = true;
+        t = NetToolRegistry::Take(a.type, city, nullptr);  // borrowed, lives until city shutdown
+        if (t == nullptr) return "skipped: nettool registry has no tool for the type";
+    } else {
+        cISC4NetworkManager* nm = city->GetNetworkManager();  // city slot 38, borrowed
+        if (nm == nullptr) return "skipped: the city has no network manager";
+        t = nm->GetNetworkTool(a.type, true);  // slot 5
+        if (t == nullptr) return "skipped: no network tool for the type";
+    }
     FC4_ADDREF(t);
     NetworkCall c{reinterpret_cast<cFC4ISC4NetworkTool*>(t), &a, false};
     const bool clean = SehGuard("script PlaceNetworkOccupants", &NetworkStep, &c);
     FC4_X87_CHECK("script PlaceNetworkOccupants");
-    FC4_RELEASE_CREATED(t);
+    if (ours) {
+        FC4_RELEASE(t);  // the registry tool lives on until city shutdown
+    } else {
+        FC4_RELEASE_CREATED(t);  // a private tool made for us: the free is expected
+    }
     char b[160];
     std::snprintf(b, sizeof(b), "ok=%d (PlaceNetworkOccupants type %d, real, free)%s", c.ok ? 1 : 0, a.type,
                   clean ? "" : " [structured exception in PlaceNetworkOccupants]");
