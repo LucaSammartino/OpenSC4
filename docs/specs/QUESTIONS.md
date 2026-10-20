@@ -65,6 +65,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PG | pollution |
 | PK | parks |
 | PL | prop-lotconfig |
+| PO | prop-occupant |
 | PR | protection |
 | PS | plumbing |
 | PV | prop-developer |
@@ -125,6 +126,7 @@ generated index: the questions live one file per spec, so read only the file for
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 14 | GLUE22, PV14 | - |
 | prop-lotconfig | 0 | 7 | PL15 | - |
+| prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
@@ -134,4 +136,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **33** | **947** | | |
+| **total** | **33** | **952** | | |
