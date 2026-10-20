@@ -249,7 +249,7 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | ghidra/export/windows/instructions.asm | cbc5795d08d336cb | Ghidra 12.1.4 auto-analysis export |
 | re/names_windows.tsv | 7754934901dd9772 | |
 | docs/abi/vtables.tsv | ef50c21aa1f80ddd | |
-| docs/abi/interfaces.tsv | c468e6ad76243f4d | |
+| docs/abi/interfaces.tsv | ebed6652e84d4d4b | |
 | tools/coverage-libs.tsv | de557a391ec04b04 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-map.tsv | 1a59ac89ccc72e26 | |
