@@ -57,6 +57,7 @@
 #include "cFC4Dispatch.h"        // the glue17 lane: enable = dispatch
 #include "cFC4CitySituation.h"    // the glue17 lane: enable = citysit
 #include "cFC4Demolition.h"       // the glue23 lane: enable = demolition
+#include "cFC4Terrain.h"        // the glue18 lane: the terrain replacement
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -76,6 +77,8 @@
 #include "FC4CivicShadow.h"       // the cmglue lane
 #include "FC4ParksShadow.h"       // the cmglue lane
 #include "FC4DisasterShadow.h"    // the glue13 lane
+#include "FC4EffectsShadow.h"      // the glue22 lane
+#include "cFC4Effects.h"           // the glue22 lane
 #include "FC4TrafficShadow.h"
 #include "FC4OccMgrShadow.h"  // the glue14b lane
 #include "cFC4TractDeveloper.h"
@@ -111,6 +114,7 @@ cIGZUnknown* CreateFC4DepartmentBudget();
 cIGZUnknown* CreateFC4LineItem();
 cIGZUnknown* CreateFC4LandValueSimulator();
 cIGZUnknown* CreateFC4WeatherSimulator();
+cIGZUnknown* CreateFC4EffectsManager();
 
 namespace fc4 {
 namespace {
@@ -271,6 +275,18 @@ const ClassEntry kClock24Classes[] = {
     {kFC4_CLSID_cSC424HourClock, "cSC424HourClock", &CreateFC4Clock24},
 };
 
+// docs/specs/terrain.md §1 (the glue18 lane). The terrain is city component 49
+// and the surface water (CLSID 0x0B8DA7DB) is the object the city keeps next to
+// it (city slot 83). Both are registered so the city never builds the original
+// of either; both are stateless views over the one fc4_terrain handle, so which
+// of the two the city constructs does not matter. Off by default:
+// `enable = terrain`. With it on the city builds ours from the start and the
+// original cSTETerrain never runs (registry CLSID precedence).
+const ClassEntry kTerrainClasses[] = {
+    {fc4::kFC4_CLSID_cSTETerrain, "cSTETerrain", &CreateFC4Terrain},
+    {fc4::kFC4_CLSID_cSTESurfaceWater, "cSTESurfaceWater", &CreateFC4SurfaceWater},
+};
+
 // docs/specs/tract-developer.md §1. Off by default (M4 glue trial):
 // `enable = tract`. The BDS, the growth developers, the lot developer, the
 // lot manager and the lot configuration manager stay whoever the city runs.
@@ -360,6 +376,13 @@ const ClassEntry kCityDetailClasses[] = {
     {kFC4_CLSID_cSC4CityDetailManager, "cSC4CityDetailManager", &CreateFC4CityDetailManager},
 };
 
+// docs/specs/effects.md §1: the effects manager (city slot 85, city +0x1FC),
+// its visual effects and their components. Off by default (glue trial):
+// `enable = effects`. Not a saved component (§13).
+const ClassEntry kEffectsClasses[] = {
+    {kFC4_CLSID_cSC4EffectsManager, "cSC4EffectsManager", &CreateFC4EffectsManager},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -402,6 +425,8 @@ const Subsystem kSubsystems[] = {
     {"propdev", nullptr, kPropDevClasses, sizeof(kPropDevClasses) / sizeof(kPropDevClasses[0]), false},
     {"citydetail", nullptr, kCityDetailClasses, sizeof(kCityDetailClasses) / sizeof(kCityDetailClasses[0]), false},
     {"ports", nullptr, kPortClasses, sizeof(kPortClasses) / sizeof(kPortClasses[0]), false},
+    {"effects", nullptr, kEffectsClasses, sizeof(kEffectsClasses) / sizeof(kEffectsClasses[0]), false},
+    {"terrain", nullptr, kTerrainClasses, sizeof(kTerrainClasses) / sizeof(kTerrainClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -555,7 +580,9 @@ void Resolve() {
     // The ports shadow (FC4PortsShadow.h; it compares the original airport and seaport developers).
     PortsShadowStartup(g_enabled[0], enabledKey("ports"));
     // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
-    TerrainShadowStartup();
+// glue18: with `enable = terrain` there is no original terrain left, so the
+    // shadow goes inactive instead of comparing ours with itself.
+    TerrainShadowStartup(enabledKey("terrain"));
     // The glue17 lane's three shadows (they compare the original city situation
     // manager, demolition utility and dispatch manager).
     CitySitShadowStartup(enabledKey("citysit"));
@@ -564,6 +591,9 @@ void Resolve() {
     DispatchShadowStartup(enabledKey("dispatch"));
     // The prop manager, lot configuration manager and tutorial shadows (FC4PropLotShadow.h; the glue15 lane).
     PropLotShadowStartup(enabledKey("propmgr"), enabledKey("lotcfg"), enabledKey("tutorial"));
+    // The effects shadow (FC4EffectsShadow.h; a same-process mirror of the
+    // effects manager). It runs beside whichever manager the city uses.
+    EffectsShadowStartup(enabledKey("effects"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
@@ -596,6 +626,20 @@ const ClassEntry* FindEnabledClass(uint32_t clsid, const Subsystem** owner) {
     Resolve();
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         if (!g_enabled[i]) continue;
+        // The effects replacement fails closed (glue22 question 9): the class is
+        // registered only when the run also sets effects_replace = 1.
+        if (strcmp(kSubsystems[i].key, "effects") == 0) {
+            const long force = SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0);
+            if (force == 0) {
+                static bool warned = false;
+                if (!warned) {
+                    warned = true;
+                    Log("subsystem 'effects': the class replacement is NOT registered (glue22 question 9); "
+                        "effects_shadow = 1 is the verified path; set effects_replace = 1 to force it");
+                }
+                continue;
+            }
+        }
         const Subsystem& s = kSubsystems[i];
         for (size_t k = 0; k < s.classCount; ++k) {
             if (s.classes[k].clsid == clsid) {

@@ -400,6 +400,7 @@ cell. Grids are x-major (`rows[x][z]`).
 
 Weather events: `post` (`type`: `SeasonChanged`, `WeatherCycleCompleted`, `MoistureMapUpdated` or `other`;
 `data2`), and with a stub generator `rng` (`kind`: `uniform`, `gaussian`, `int` (with `lo`, `hi`); `value`).
+
 ## Simgrid ops
 
 The simgrid vectors (`g10_…`) drive the core grid class and map utilities of `fc4_core::grid` (`src/simgrid.rs`
@@ -2517,6 +2518,30 @@ types.
 | `ng_destroy` | `destroyed`, `pieces`, `replaced` ([[x, z]] each); `expect` `{removals, resolve}` | §13 |
 | `ng_grade` | `expect?` `{changed, rect}` | slot 57 on the terrain satisfier |
 | `ng_expect_events`, `ng_clear_events` | as elsewhere | the terrain's posts |
+
+## Effects ops
+
+The effects vectors (`ef17_…` for the §17 tests) drive `fc4_core::effects` (`docs/specs/effects.md`): the effects
+manager (`EffectsManager`), the brush effect, the game effect and the effect directory. Every op name starts with
+`ef_`. The host logs every call it receives. The default host: a simulator with dilation 1, a city of 64 × 64 cells
+(16 m), render components inactive.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `ef_create` | `directory?` (`"volcano"`, the default: `shipped::volcano_directory()`; or inline `{games?, effects: [{name, priority? (1), flags?, components: [{type, index?, name?, flags?, lod? [min, max], group?, weight?}]}]}`, with the shipped brush records and, unless `games` is given, the shipped game records), `seed?` (the session seed), `max_priority?`, `finish_mode?` (`hook` (the default) or `draw_pass`), `nested_update?` (true) | a new manager, replacing the current one; labels are cleared |
+| `ef_env` | any of `dilation` (a number, or null: no simulator), `cells` [x, z], `render_active` | the host |
+| `ef_effect` | `name`, `as?` (a label), `expect?` (whether an effect was created), `expect_index?` (the description chosen; -1: none qualifies) | `CreateVisualEffect` |
+
+Component `type`: `particles`, `decal`, `meta`, `brush`, `attractor`, `game`, `sound` or a number. Game record
+fields (inline): `flags`, `demolish`, `demolish_flags`, `min_size`, `max_size`, `burn`, `message`, `message_data`,
+`duration`, `toxic`, `extinguish`.
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
 | `ef_call` | `method`, `effect?` (a label), `args?`, `repeat?`, `expect?` (the last result) | the manager: `tick` ([us]), `frame` ([us]: the tick, then the finishing hook, then the draw pass), `finish_hook`, `draw_pass` (whether the sweep ran), `shutdown`, `set_zoom` ([zoom, offset]), `set_max_priority`, `has` ([name]); an effect: `start` / `stop` ([mode?], 0 by default), `set_position` ([x, y, z]), `set_end_message` ([type, data1]), `forward_parameter` ([index, value]), `add_ref`, `release`, `is_started`, `is_stopping` |
 | `ef_run_stroke` | `effect`, `us`, `max?` (10000), `ticks?`, `applications?`, `first?` (the brush calls of the first ticks), `every?` (the brush calls of every tick) | ticks until the effect's brush is inactive |
 | `ef_child` | `effect`, `n?` (0), `name?`, `as?` | the child of the effect's `n`-th built meta component |
@@ -2532,6 +2557,92 @@ Effects events: `brush` (`brush`, `from`, `to`, `level`, `strength`, `radius`, `
 (`rect` [x0, z0, x1, z1], `flags`, `dezone`, `no_networks`, `no_flora`, `min_size`, `max_size`), `extinguish`
 (`x`, `z`, `amount`), `post` (`type`, `data1`, `data2`, `data3`), `pause`, `resume`, `hidden_pause`,
 `hidden_resume` and `clock` (`on`).
+
+## UI window ops
+
+The UI window vectors (`ui11_…`) drive `fc4_core::ui_windows` (`docs/specs/ui-windows.md`): the window object,
+`cSC4View3DWin`, its catalog menus and the dialog close path. Every op name starts with `uiw_`. One vector per
+conformance test of §11, named `ui11_NN_<name>` where `NN` is the test number.
+
+`uiw_create` builds the view at a fixed object address `0x2000`, so its `cIGZWin` sub-object's token is always
+`0x200C` — `AsIGZWin()` is `this + 0x0C` and that *is* the token. Pre-seeded catalog menus use the fixed tokens
+`0x20` (secondary) and `0x30` (tertiary); a window the script factory creates is `0x9001`, `0x9002`, … in call order.
+
+### Setup and state
+
+| op | Arguments | Effect |
+|---|---|---|
+| `uiw_create` | | the view, its window store and the hidden-pause counter (logs cleared) |
+| `uiw_env` | any of `create_ok` (the script factory answers), `catalog_iface_ok` (`QueryInterface(0x8A2CAD8B)` answers), `slot17`, `slot9` | the host's answers |
+| `uiw_seed_secondary` / `uiw_seed_tertiary` | `kind` | a catalog menu already open at `+0x1F8` / `+0x1FC` |
+| `uiw_set_catalog_state` | `present?` (true), `field0?`, `field1?` | sets or clears `+0x208` |
+| `uiw_set_tool` | `tool` (0 clears) | the current view input control |
+| `uiw_expect` | `state` (partial) | `this_addr`, `win`, `as_igzwin`, `win_offset`, `secondary_win`, `tertiary_win`, `secondary_kind`, `tertiary_kind`, `catalog_state_ptr`, `catalog_field0`, `catalog_field1`, `view_manager`, `input_control`, `refs`, `hidden_pause_count`, `hidden_paused`, `paused`, `painted` |
+| `uiw_layout` | `state` (partial) | `as_igzwin_null`, `as_igzwin`, `win_offset`, `vtable_primary`, `vtable_window`, `slot_count`, `catalog_state_offset`, and `slot<N>_ret` / `slot<N>_produces_value` for every `cISC4View3DWin` slot |
+
+### Calls
+
+| op | Arguments | Effect |
+|---|---|---|
+| `uiw_close_secondary` / `uiw_close_tertiary` | | slots 59 / 60. Secondary cascades to slot 60 first |
+| `uiw_invoke_secondary` | `instance`, `kind`, `caller_data?`, `target_win_id?` (1), `expect?` (`toggled`, `replaced_then_failed`, `opened`) | `InvokeSecondaryMenu` (4 arguments) |
+| `uiw_invoke_tertiary` | the same + `margin?` | `InvokeTertiaryMenu` (5 arguments; `margin` is arg5, the −25 / −75 the secondary form lacks) |
+| `uiw_deliver` | `msg`, `data1?`, `data2?`, `data3?`, `expect?` (the stage list) | the §6.5 chain, returning the stages reached |
+| `uiw_popup` | `advice_flags?` (2), `msg`, `data1?`, `data2?`, `data3?`, `expect?` | the advisor popup's win-proc decision |
+| `uiw_popup_instance` | `mood?`, `expect?` | which UI script instance an advisor popup is built from |
+| `uiw_pause_enter` / `uiw_pause_leave` | `is_dialog?` (true) | one level of the hidden pause |
+| `uiw_paint` / `uiw_sweep_effects` | | the view paints / the effects sweep runs |
+| `uiw_save` / `uiw_load` | `state` / the record fields, `expect?` | `DoSave` / `DoLoad` of the View3D record |
+
+`msg` is one of `command`, `link`, `attach`, `detach`, `modal_begin`, `modal_end`, `modal_end_posted`, `key_down`,
+`key_up`. For `command`, `data1` is forced to `0x287259F6` and `data2` is the button id.
+
+### Checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `uiw_expect_ops` | `ops`, `only?` (an event-kind filter) | the window ops taken since `uiw_clear_ops`, one to one and **in order** |
+| `uiw_expect_ops_contain` / `uiw_expect_ops_absent` | `ops`, `only?` | every listed op present / none present |
+| `uiw_expect_last_align` | `state` | the one `AlignWindowToWindow` call |
+| `uiw_expect_events` / `uiw_expect_event_count` / `uiw_clear_events` | | the host callbacks taken |
+
+`uiw_expect_ops`'s events are `child_add`, `child_remove`, `child_delete`, `destroy_window`, `hide_window`,
+`show_window`, `pull_to_front`, `add_message_filter`, `remove_message_filter`, `remove_all_view_input_controls`,
+`create_window`, `window_created`, `align_window_to_window`, `set_win_gen_flag`, `query_interface`, `query_win_gen`,
+`release`, `do_message`, `do_win_proc_message`, `gz_on_command`, `is_window_valid`, `catalog_state_write`, `get_id`.
+Ordering is the point of several tests: `only` restricts the comparison to the named kinds so a vector can pin an
+order across kinds without listing every intermediate step.
+
+
+## Network bridge ops
+
+The network bridge vectors (`nbr17_...`, the section 17 tests of `docs/specs/network-bridges.md`)
+drive `fc4_core::network_bridge`: a `BridgeTool` (the bridge types, the water and land passes,
+the elevations, the two models) over a flat city and a scripted bridge host. Every op name
+starts with `nbr_`. The default city: 64 x 64 cells, flat at 300 m, sea level 250 m, no wet
+cells. The default host: nothing in the way. The default tool: the shipped road bridge types
+(section 2.6).
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `nbr_city` | `cells?` [x, z], `altitude?` (300), `sea?` (250), `wet_columns?` [[x0, x1, z]] (wet cells), `heights?` [[x, z, h]] (a per-cell height) | a new city |
+| `nbr_host` | `clear?`, `blocked?` [{`rect`: [[x, z], [x, z]], `mask?`}], `max_slope?` (0.6109, radians), `preferred?`, `override?` | the host and the tool's preferred bridge and altitude override |
+| `nbr_types` | `type` | the shipped bridge types of a network type (2.6), replacing the tool |
+| `nbr_drag` | `steps`, `z?` (10), `pen?` (4) | a straight one-cell-wide x-drag |
+| `nbr_water` | `expect?` (the number of bridges recorded) | `IdentifyBridgeCells` (4) |
+| `nbr_land_scan` | `max_height?` (55), `bank_tolerance?` (20) | `IdentifyLandBridgeCells` (7.2) |
+| `nbr_adjust` | `start`, `end`; `expect` {`start`, `end`, `clearance`, `reference`} | `AdjustBridgeSpan` (5.2) |
+| `nbr_pad` | `start`, `end`, `min_len`; `expect` {`ok`, `start`, `end`} | `PadStepsToMakeMinBridgeSpan` (6.2) |
+| `nbr_best` | `start`, `end`, `water?` (true), `h?` (0); `expect` {`index`, `start`, `end`, `candidates`} | `FindBestBridgeType` (6.1) |
+| `nbr_model` | `bridge_type`, `start`, `end`, `deck?` (270), `pen?` (4), `z?` (10), `specialized?` | the parametric (10) or specialised (9) model |
+| `nbr_pins` | `valid?`; `expect` [[start, end, e, e] ...] | the height-solve constraint entries (8.3) |
+| `nbr_cost` | `per_step?` (100); `expect` | `GetCostOfSolution`'s bridge term (12) |
+| `nbr_getter` | `slot` (`major`, `altitude`, `reference`, `land`, `preferred`, `override`, `bitmap`, `candidates`), `index?` | the tool's bridge slots (1.1) |
+| `nbr_edge_mask` | `pen`, `index`, `n`; `expect` | the allowed edge mask (4.3) |
+| `nbr_orient` | `pen`; `expect` {`r`, `t`, `t_mirror`, `forward`} | the orientation (9.1) |
+| `nbr_ramp_heights` | `pairs` [[a, b] ...]; `expect` {`rise`, `drops`, `offsets`, `last_column`} | the ramp heights (2.4) |
+| `nbr_parse` | `text`, `keys`, `min_span?`; `expect` {`ok`, `lengths`} | the specialisation grammar (3.1) |
+| `nbr_expect` | `expect` (partial: `valid`, `records`, `candidates`, `kinds`, `piece_kinds`, `columns`) | the tool and the run |
 
 ## Adding a vector
 
@@ -4077,3 +4188,38 @@ The core's unit tests (`fc4_core::effects`) also cover the directory parser and 
 nested update (EF9), the game record's other actions, the shipped tables and shutdown; the install sweep
 (`cargo test -p fc4-formats --test effects_directory -- --nocapture`) parses the installed directory; `fc4_capi`'s
 `effects_tests` cover the C ABI.
+## Coverage (ui-windows §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 AsIGZWin offset (`this + 0x0C`, null for a null `this`) | `ui11_01_as_igzwin_offset` |
+| 2 two vtables, one allocation | `ui11_02_two_vtables_one_allocation` |
+| 3 slots 59 and 60 return nothing | `ui11_03_slots_return_nothing` |
+| 4 secondary close is a no-op when nothing is open | `ui11_04_secondary_close_is_a_noop` |
+| 5 tertiary close is a no-op when nothing is open | `ui11_05_tertiary_close_is_a_noop` |
+| 6 secondary close cascades | `ui11_06_secondary_close_cascades` |
+| 7 teardown order (Hide, Release, ChildDelete) | `ui11_07_teardown_order` |
+| 8 both fields cleared | `ui11_08_both_fields_cleared` |
+| 9 secondary does not write catalog state | `ui11_09_secondary_does_not_write_catalog_state` |
+| 10 tertiary writes two dwords, slot 17 then slot 9 | `ui11_10_tertiary_writes_two_dwords` |
+| 11 tertiary skips the save on a failed query | `ui11_11_tertiary_skips_the_save_on_a_failed_query` |
+| 12 invoke toggles (secondary and tertiary) | `ui11_12_invoke_toggles` |
+| 13 invoke replaces | `ui11_13_invoke_replaces` |
+| 14 invoke drops the tool first | `ui11_14_invoke_drops_the_tool_first` |
+| 15 parent is the view's window | `ui11_15_parent_is_the_views_window` |
+| 16 script group | `ui11_16_script_group` |
+| 17 null create is safe | `ui11_17_null_create_is_safe` |
+| 18 generator flags | `ui11_18_generator_flags` |
+| 19 alignment and show order | `ui11_19_alignment_and_show_order` |
+| 20 advisor popup close path (`[game]` observation; replacement side pinned) | `ui11_20_advisor_popup_close_path` |
+| 21 `DoWinProcMessage` gets the window as arg1 | `ui11_21_do_win_proc_message_takes_the_window` |
+| 22 message delivery order | `ui11_22_message_delivery_order` |
+| 23 the hidden pause is a nesting count (`[game]`; replacement pinned) | `ui11_23_hidden_pause_is_a_nesting_count` |
+| 24 effects end messages need a paint (`[game]`; window-side consequence) | `ui11_24_effects_end_messages_need_a_paint` |
+| 25 only the View3D record is saved | `ui11_25_only_the_view3d_record_is_saved` |
+
+Tests 20, 23 and 24 are marked **[game]** in ui-windows.md §11: they need the original. Their vectors pin the
+replacement-side behaviour that makes the observation true — the popup's flag table (including that a key message is
+never looked at, which is why Esc and Enter do nothing), the hidden pause as a nesting count that a camera move raises
+with no dialog open, and the window-side consequence of effects.md EF2 (a view that is never painted never reaches the
+effects draw pass).

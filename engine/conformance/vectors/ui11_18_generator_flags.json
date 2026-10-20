@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "name": "ui11_18_generator_flags",
+  "spec": [
+    "ui-windows 4.3",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 18: on a successful create the new window answers QueryInterface(0x5386D516) (cIGZWinGen), generator flags 4 and 1 are both cleared on the resulting cIGZWinGen, and the interface is released afterwards. The flag bit meanings are ui-windows UIW-4; [inferred] the SetWinGenFlag slot pair is (flag, value).",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_invoke_secondary",
+      "instance": 1,
+      "kind": 1,
+      "target_win_id": 1,
+      "expect": "opened"
+    },
+    {
+      "op": "uiw_expect_ops",
+      "only": [
+        "query_win_gen",
+        "query_interface",
+        "add_message_filter",
+        "set_win_gen_flag",
+        "release"
+      ],
+      "ops": [
+        {
+          "event": "query_win_gen",
+          "win": "0x9001"
+        },
+        {
+          "event": "query_interface",
+          "win": "0x9001",
+          "iid": "0x5386D516",
+          "ok": true
+        },
+        {
+          "event": "add_message_filter",
+          "win": "0x9001",
+          "offset": 8
+        },
+        {
+          "event": "set_win_gen_flag",
+          "flag": 4,
+          "value": false
+        },
+        {
+          "event": "set_win_gen_flag",
+          "flag": 1,
+          "value": false
+        },
+        {
+          "event": "release",
+          "win": "0x9001"
+        }
+      ]
+    }
+  ]
+}

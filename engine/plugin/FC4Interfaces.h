@@ -2042,3 +2042,114 @@ inline cFC4ISC4CitySituationManager* AsGame(cISC4CitySituationManager* p) {
 // only through the compiled declaration (terrain §10).
 inline cFC4ISTESurfaceWater* AsGame(cISTESurfaceWater* p) { return reinterpret_cast<cFC4ISTESurfaceWater*>(p); }
 }  // namespace fc4
+
+// ---- effects (docs/specs/effects.md §11, docs/abi/interfaces.tsv rows 2268-2330) -------------------
+
+class cS3DTransform;
+class cS3DVector3;
+class cISC4EffectMaps;
+class cISC4Occupant;
+class cISC4VisualEffect;
+class cISC4DisasterManagerEffect;
+
+// The effect component interface (§11.2): not an IUnknown — the vtable starts
+// at Start. Three implementations share it: a visual effect's own sub-object
+// at +4 (vtable 0x00AA1148), the brush effect (0x00A9EDD0) and the game effect
+// (0x00AA0FF8). Slots 7 and 8 are AddRef and Release.
+class cFC4ISC4EffectComponent {
+public:
+    virtual void Start(uint32_t mode) = 0;                                                 // 0
+    virtual void Stop(uint32_t mode) = 0;                                                  // 1
+    virtual bool IsActive() = 0;                                                           // 2 AL
+    virtual void SetTransform(cS3DTransform const& local, cS3DTransform const& parent) = 0; // 3
+    virtual void Update(float dtSeconds) = 0;                                              // 4
+    virtual bool SetParameter(uint32_t index, float const* data, uint32_t count) = 0;      // 5
+    virtual bool SetParameter2(uint32_t index, void const* data, uint32_t count) = 0;      // 6
+    virtual uint32_t AddRef() = 0;                                                         // 7
+    virtual uint32_t Release() = 0;                                                        // 8
+};
+
+// cISC4VisualEffect (IID as cIGZUnknown's, vtable 0x00AA1170, 19 slots;
+// effects.md §11.1). The SDK header is readable but its two transform
+// accessors are named the other way round from docs/abi's SetTransform /
+// SetSecondaryTransform rows (slot 8 is the world transform, slot 7 the
+// secondary at +0x6C); the slot numbers below are the measured ones.
+class cFC4ISC4VisualEffect : public cIGZUnknown {
+public:
+    virtual void Start(uint32_t mode) = 0;                                                   // 3
+    virtual void Stop(uint32_t mode) = 0;                                                    // 4
+    virtual bool IsStarted() = 0;                                                            // 5 AL
+    virtual bool IsStopping() = 0;                                                           // 6 AL
+    virtual void SetSecondaryTransform(cS3DTransform const& t) = 0;                          // 7
+    virtual void SetTransform(cS3DTransform const& t) = 0;                                   // 8
+    virtual bool AttachToOccupant(cISC4Occupant* occupant) = 0;                              // 9 render
+    virtual void SetEndMessage(uint32_t type, uint32_t data1) = 0;                           // 10
+    virtual bool SetParameter3(uint32_t index, float const* data, uint32_t count) = 0;       // 11
+    virtual bool SetParameter(uint32_t index, float const* data, uint32_t count) = 0;        // 12
+    virtual bool ForwardParameter(uint32_t index, void const* data, uint32_t count) = 0;     // 13
+    virtual void GetTransform(cS3DTransform& t) = 0;                                         // 14
+    virtual void GetSecondaryTransform(cS3DTransform& t) = 0;                                // 15
+    virtual bool AddComponent(void* descRec, cFC4ISC4EffectComponent* component) = 0;        // 16 internal
+    virtual bool TestFlag(uint32_t bit) = 0;                                                 // 17 AL, bit <= 8
+};
+
+// cISC4EffectsManager (IID 0xC97CF5CD, vtable 0x00A9F264, 11 slots;
+// effects.md §1, §4). The SDK header declares the two CreateVisualEffect
+// overloads name-first; the measured vtable is the other way round — slot 6 is
+// the ID-pair form (0x00593AE0, 3 dwords, pop 12) and slot 7 the name form
+// (0x005939B0, 2 dwords, pop 8). This declaration is the measured order.
+class cFC4ISC4EffectsManager : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                                 // 3
+    virtual bool Shutdown() = 0;                                                             // 4
+    virtual bool HasVisualEffect(char const* name) = 0;                                      // 5
+    virtual bool CreateVisualEffect(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) = 0; // 6
+    virtual bool CreateVisualEffect(char const* name, cISC4VisualEffect** out) = 0;           // 7
+    virtual void GetStatsString(cIGZString& stats) = 0;                                      // 8
+    virtual cISC4EffectMaps* GetEffectMaps() = 0;                                            // 9
+    virtual float GetTallestBuildingAltitude() = 0;                                          // 10 x87
+};
+
+
+// The effects manager's second sub-object: the 3D view's draw-pass override.
+// effects.md §7: `Update(SC4DrawContext*)` (`0x00593120`) has no direct callers and is
+// dispatched as a vtable slot at `0x00A9F25C`, next to the cISC4EffectsManager vtable
+// `0x00A9F264`. The entry is the fourth of that vtable (an IUnknown prefix), so the
+// replacement keeps the same shape: IUnknown at slots 0-2 and Update at slot 3.
+class cFC4ISC4EffectsDrawPass : public cIGZUnknown {
+public:
+    virtual void Update(void* drawContext) = 0;  // 3 (render; effects.md §7)
+};
+
+// cISC4DisasterManagerEffect (IID 0xCA7B3F3C, vtable 0x00A9E190, 6 slots;
+// effects.md §11.3). The original implements it as a sub-object of the
+// effect-disaster manager at this-0x24. Slot 3 returns the new instance in
+// EAX (docs/abi note).
+class cFC4ISC4DisasterManagerEffect : public cIGZUnknown {
+public:
+    // Returns the new effect-disaster instance.
+    virtual void* StartDisasterEffect(cISC4VisualEffect* effect, cS3DVector3 const* position, uint32_t type) = 0;  // 3
+    virtual void AttractDisasterEffect(cISC4VisualEffect* effect) = 0;                                             // 4
+    virtual void CancelAttract() = 0;                                                                              // 5
+};
+
+namespace fc4 {
+// The effects manager travels as the SDK's pointer (cISC4City slot 85,
+// city +0x1FC). Call slots 6 and 7 only through the compiled declaration: the
+// SDK's two CreateVisualEffect overloads are declared in the opposite order.
+inline cFC4ISC4EffectsManager* AsGame(cISC4EffectsManager* p) {
+    return reinterpret_cast<cFC4ISC4EffectsManager*>(p);
+}
+inline cISC4EffectsManager* AsSdk(cFC4ISC4EffectsManager* p) {
+    return reinterpret_cast<cISC4EffectsManager*>(p);
+}
+inline cFC4ISC4VisualEffect* AsGame(cISC4VisualEffect* p) {
+    return reinterpret_cast<cFC4ISC4VisualEffect*>(p);
+}
+inline cISC4VisualEffect* AsSdk(cFC4ISC4VisualEffect* p) {
+    return reinterpret_cast<cISC4VisualEffect*>(p);
+}
+inline cFC4ISC4DisasterManagerEffect* AsGame(cISC4DisasterManagerEffect* p) {
+    return reinterpret_cast<cFC4ISC4DisasterManagerEffect*>(p);
+}
+}  // namespace fc4

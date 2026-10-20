@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "ui11_08_both_fields_cleared",
+  "spec": [
+    "ui-windows 4.1",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 8: after CloseTertiaryMenu both +0x1FC and +0x204 are 0. They are cleared unconditionally at the end (quirk 6), even when the QueryInterface fails.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_seed_tertiary",
+      "kind": 2
+    },
+    {
+      "op": "uiw_close_tertiary"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "tertiary_win": 0,
+        "tertiary_kind": 0
+      }
+    }
+  ]
+}

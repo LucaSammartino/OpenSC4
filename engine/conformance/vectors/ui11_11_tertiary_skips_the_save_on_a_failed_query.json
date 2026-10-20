@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "name": "ui11_11_tertiary_skips_the_save_on_a_failed_query",
+  "spec": [
+    "ui-windows 4.1",
+    "ui-windows 10",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 11: if QueryInterface(0x8A2CAD8B) returns false, +0x208 is not written but the window is still hidden, released and deleted. Quirk 6: both +0x1FC and +0x204 are still cleared and the state pointer is left untouched.",
+  "steps": [
+    {
+      "op": "uiw_env",
+      "catalog_iface_ok": false
+    },
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_set_catalog_state",
+      "present": true,
+      "field0": 5,
+      "field1": 6
+    },
+    {
+      "op": "uiw_seed_tertiary",
+      "kind": 2
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_close_tertiary"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "catalog_field0": 5,
+        "catalog_field1": 6,
+        "tertiary_win": 0,
+        "tertiary_kind": 0
+      }
+    },
+    {
+      "op": "uiw_expect_ops",
+      "ops": [
+        {
+          "event": "hide_window",
+          "win": "0x30"
+        },
+        {
+          "event": "release",
+          "win": "0x30"
+        },
+        {
+          "event": "child_delete",
+          "parent": "0x200C",
+          "child": "0x30"
+        },
+        {
+          "event": "destroy_window",
+          "win": "0x30"
+        }
+      ]
+    },
+    {
+      "op": "uiw_expect_ops_absent",
+      "ops": [
+        {
+          "event": "catalog_state_write"
+        }
+      ]
+    }
+  ]
+}

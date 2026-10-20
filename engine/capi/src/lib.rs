@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 73;
+pub const FC4_ABI_VERSION: u32 = 74;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -930,6 +930,7 @@ pub mod traffic;
 pub mod traffic_shadow;
 pub mod tract_developer;
 pub mod tutorial;
+pub mod ui_windows;
 pub mod weather;
 pub mod zonedev;
 pub mod zones;
@@ -1076,6 +1077,9 @@ mod traffic_tests;
 mod tract_developer_tests;
 #[cfg(test)]
 mod tutorial_tests;
+
+#[cfg(test)]
+mod ui_windows_tests;
 
 #[cfg(test)]
 mod weather_tests;

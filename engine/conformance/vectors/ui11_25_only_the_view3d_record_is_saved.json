@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "name": "ui11_25_only_the_view3d_record_is_saved",
+  "spec": [
+    "ui-windows 3.3a",
+    "ui-windows 10",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 25: DoSave writes group 0xA9C8647C / type 0xE9C8647E / instance 1 (plus the further integer 4) and nothing else from the window layer. A city saved with a catalog popup open loads with both null - quirk 13, by design, not an accident a replacement should fix. The record is a reference record: the two things written are this+0xF0 and this+0xF4, resolved by class id (0xA9C741B3 = cSC4ModelMaker).",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_invoke_secondary",
+      "instance": 1,
+      "kind": "0x1111",
+      "target_win_id": 1,
+      "expect": "opened"
+    },
+    {
+      "op": "uiw_invoke_tertiary",
+      "instance": 2,
+      "kind": "0x2222",
+      "target_win_id": 1,
+      "margin": -25,
+      "expect": "opened"
+    },
+    {
+      "op": "uiw_set_catalog_state",
+      "present": true,
+      "field0": 7,
+      "field1": 8
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "secondary_win": "0x9001",
+        "tertiary_win": "0x9002"
+      }
+    },
+    {
+      "op": "uiw_save",
+      "state": {
+        "group": "0xA9C8647C",
+        "type_id": "0xE9C8647E",
+        "instance": 1,
+        "version": 4,
+        "carries_ui_state": false
+      }
+    },
+    {
+      "op": "uiw_load",
+      "expect": true
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "secondary_win": 0,
+        "tertiary_win": 0,
+        "secondary_kind": 0,
+        "tertiary_kind": 0,
+        "catalog_field0": 0,
+        "catalog_field1": 0
+      }
+    },
+    {
+      "op": "uiw_load",
+      "group": 1,
+      "type_id": 2,
+      "instance": 3,
+      "expect": false
+    }
+  ]
+}

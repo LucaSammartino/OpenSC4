@@ -1,0 +1,47 @@
+{
+ "format": 1,
+ "name": "nbr17_12_no_far_bank",
+ "spec": [
+  "network-bridges 5.1",
+  "13",
+  "17.12"
+ ],
+ "description": "Road, (0, 10) -> (15, 10) with a river from x = 10 to past the end: the end reaches +0x78 - 1; v := 10 and PlaceNetwork reports 0xF0000003.",
+ "steps": [
+  {
+   "op": "nbr_city",
+   "altitude": 250,
+   "sea": 250,
+   "wet_columns": [
+    [
+     10,
+     40,
+     10
+    ]
+   ]
+  },
+  {
+   "op": "nbr_types",
+   "type": 0
+  },
+  {
+   "op": "nbr_drag",
+   "steps": 16,
+   "z": 10,
+   "pen": 4
+  },
+  {
+   "op": "nbr_water",
+   "expect": 0
+  },
+  {
+   "op": "nbr_expect",
+   "valid": true,
+   "records": true,
+   "expect": {
+    "valid": 10,
+    "records": []
+   }
+  }
+ ]
+}

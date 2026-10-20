@@ -39,6 +39,7 @@
 #include "FC4CitySitShadow.h"     // the glue17 lane
 #include "FC4DemolitionShadow.h"  // the glue17 lane
 #include "FC4DispatchShadow.h"    // the glue17 lane
+#include "cFC4Terrain.h"        // the glue18 lane
 #include "FC4Popups.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
@@ -210,6 +211,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return DemolitionShadowTest(static_cast<FC4DemolitionShadowTestInput*>(a));
         case kFC4SeamDispatchShadow:  // the glue17 lane (FC4DispatchShadow.h)
             return DispatchShadowTest(static_cast<FC4DispatchShadowTestInput*>(a));
+        case kFC4SeamTerrainGlue:  // the glue18 lane (cFC4Terrain.h)
+            return TerrainGlueTest(static_cast<FC4TerrainGlueTestInput*>(a));
         case kFC4SeamParks:  // the cmglue lane (cFC4Parks.h)
             return a == nullptr ? -1 : fc4::ParksTestZooEscape(static_cast<const FC4ParksTestInput*>(a));
         case kFC4SeamNeighborsConfirm:  // the apply12 lane (NG35)

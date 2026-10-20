@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "ui11_02_two_vtables_one_allocation",
+  "spec": [
+    "ui-windows 2.1",
+    "ui-windows 3.2",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 2: *(void**)view is cISC4View3DWin (0x00ABCE40) and *(void**)AsIGZWin() is cGZWinGen (0x00ADC678) - two distinct vtables within one allocation, the view's primary at +0 and the window sub-object at +0x0C.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_layout",
+      "state": {
+        "vtable_primary": "0xABCE40",
+        "vtable_window": "0xADC678",
+        "win_offset": 12
+      }
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "this_addr": "0x2000",
+        "win": "0x200C"
+      }
+    }
+  ]
+}

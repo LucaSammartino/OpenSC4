@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "ui11_01_as_igzwin_offset",
+  "spec": [
+    "ui-windows 3.2",
+    "ui-windows 3.3",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 1: AsIGZWin (0x005F8400, slot 3) returns this + 0x0C for a non-null view, and null for a null this. The window sub-object's token IS that address, so a caller cannot disagree with the layout.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "this_addr": "0x2000",
+        "win": "0x200C",
+        "as_igzwin": "0x200C",
+        "win_offset": 12
+      }
+    },
+    {
+      "op": "uiw_layout",
+      "state": {
+        "as_igzwin_null": 0,
+        "as_igzwin": "0x200C",
+        "win_offset": 12
+      }
+    }
+  ]
+}
