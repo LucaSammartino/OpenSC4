@@ -352,7 +352,8 @@ public:
         FC4_LOGV("hook PreAppShutdown");
         fc4::FpuLog("hook PreAppShutdown");
         fc4::NetMgrShadowStop();
-        fc4::EffectsShadowStop();  // effects_shadow: the summary line        fc4::TerrainShadowStop();
+        fc4::EffectsShadowStop();  // effects_shadow: the summary line
+        fc4::TerrainShadowStop();
         fc4::Clock24ShadowStop();
         fc4::HistoryShadowStop();
         fc4::FlammabilityShadowStop();
