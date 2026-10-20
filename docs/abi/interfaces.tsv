@@ -2123,30 +2123,30 @@ cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	8	+0x20	00578230	cSC
 cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	9	+0x24	0057d7e0	cSC4DisasterManagerRiot::RemoveInstanceFromList	4	1	eax-or-void	medium	
 cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	10	+0x28	00577990	cSC4DisasterManager::GetActiveInstanceCount	0	0	eax-or-void	medium	
 cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	11	+0x2C	00577450	icf::cSC4DisasterManager::GetInstances	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	0	+0x0	005ec960	cSC4PropOccupant::QueryInterface	8	2	eax-or-void	medium	tail->005e89c0
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	1	+0x4	006491c0	cSC4PropOccupant::AddRef	0	0	eax-or-void	medium	tail->005e89b0
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	2	+0x8	006491d0	icf::cSC4ConstructionOccupant::Release	0	0	eax-or-void	medium	tail->005e8df0
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	4	+0x10	00458c60	cSC4PropOccupant::SetBoundingBox	8	2	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	5	+0x14	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	6	+0x18	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	7	+0x1C	005ed280	cSC4PropOccupant::GetPropType	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	8	+0x20	005ef4c0	cSC4PropOccupant::SetPropType	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	9	+0x24	005ec9d0	cSC4PropOccupant::GetOrientation	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	10	+0x28	005ec9e0	icf::cSC4PropOccupant::SetOrientation	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	11	+0x2C	005ed290	cSC4PropOccupant::SetState	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	via-call	low	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	17	+0x44	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	18	+0x48	005ed570	cSC4PropOccupant::GetRandomChance	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	19	+0x4C	005ed580	cSC4PropOccupant::GetPropTimerBitfield	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	20	+0x50	005ed590	cSC4PropOccupant::GetPropTimerState	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	21	+0x54	005eca50	cSC4PropOccupant::SetPropTimerState	8	2	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	22	+0x58	00477120	cSC4PropOccupant::GetPropUsage	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	23	+0x5C	005ecae0	cSC4PropOccupant::SetPropUsage	4	1	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	0	+0x0	005ec960	cSC4PropOccupant::QueryInterface	8	2	al	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->al. mov al,1 on each success path. 0xE9793A65 and 0x2977AA47 -> this; 0x452294AA (cIGZMessageTarget2) -> this+4; else the cSC4Occupant base at this+8 (0x005E89C0). Each success AddRefs.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	1	+0x4	006491c0	cSC4PropOccupant::AddRef	0	0	via-call	high	re-answers27 (prop-occupant.md 2.2, 4.1): CORRECTS eax-or-void->via-call. THIS-ADJUSTING THUNK: add ecx,8; jmp 0x005E89B0. The refcount lives at THIS+0x14, not at +0x04. EAX = refcount on return.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	2	+0x8	006491d0	cSC4PropOccupant::Release	0	0	via-call	high	re-answers27 (prop-occupant.md 2.2, 4.1): CORRECTS eax-or-void->via-call and the name icf::cSC4ConstructionOccupant::Release. THIS-ADJUSTING THUNK: add ecx,8; jmp 0x005E8DF0. EAX = refcount.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	3	+0xC	006c2040	cSC4PropOccupant::AsOccupant	0	0	eax	high	re-answers27 (prop-occupant.md 2.3, 4.1): CORRECTS ret eax-or-void->eax and name icf::cSC4DBSegment::AsIGZPersistDBSegment->AsOccupant. Returns this+8 (the cISC4Occupant sub-object, vtable 00aa4868); null stays null.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	4	+0x10	00458c60	cSC4PropOccupant::SetBoundingBox	8	2	void	high	re-answers27 (prop-occupant.md 2.2, 4.1): CORRECTS eax-or-void->void. Two args are const float[3]* min and max. Writes the AABB (6 floats) at +0x3C..+0x53.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	5	+0x14	004e13e0	cSC4PropOccupant::StubReturnZero	0	0	eax	high	re-answers27 (prop-occupant.md 4.1, 8.4): CORRECTS eax-or-void->eax and name icf::cSC43DRender::GetProjectionMatrixEntries. 33 C0 C3 = xor eax,eax; ret. A genuine 0 in EAX (a value return), NOT void.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	6	+0x18	00648f10	cSC4PropOccupant::NoOpStub	4	1	void	high	re-answers27 (prop-occupant.md 4.1, 8.4): CORRECTS eax-or-void->void and name cSC4NetworkTool::DebugDumpEdgeTypes. ret 4 alone: a true no-op whose argument is ignored. Adjacent to slot 5 but with the opposite channel.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	7	+0x1C	005ed280	cSC4PropOccupant::GetPropType	0	0	eax	high	re-answers27 (prop-occupant.md 5.1): CORRECTS eax-or-void->eax. movzx eax,word [ecx+0x5C]; mov ecx,[0x00B231A4]; mov eax,[ecx+eax*4]; ret. Returns the u32 prop type ID from the process-wide ID table indexed by the +0x5C u16 index. ECX is the object base.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	8	+0x20	005ef4c0	cSC4PropOccupant::SetPropType	4	1	eax-or-void	low	re-answers27 (prop-occupant.md 4.1): calls GetPropTypeIndex 0x005EF2E0 (interns the key into the global vector at 0x00B231A4..0x00B231A8 and returns the index in AX), then mov [esi+0x5C], ax; ret 4. EAX holds that index at return but nothing constructs it as a return value; implement as void unless a caller proves otherwise.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	9	+0x24	005ec9d0	cSC4PropOccupant::GetOrientation	0	0	eax	high	re-answers27 (prop-occupant.md 4.1, 5.2): CORRECTS eax-or-void->eax. movsx of byte [ecx+0x61] (the orientation).
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	10	+0x28	005ec9e0	cSC4PropOccupant::SetOrientation	4	1	al	high	re-answers27 (prop-occupant.md 4.1, 5.2): CORRECTS eax-or-void->al and the folded name. Clamps the argument to 0..3 into +0x61; always returns 1 in AL.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	11	+0x2C	005ed290	cSC4PropOccupant::SetState	4	1	void	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void. Behaviour in network-tools.md 13.1: no-op if s == +0x63; else store, post 0xE9C86DDB when in the city, switch the model state when the exemplar has 0x4A70D491.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->eax. 0F B6 41 63 C3 = movzx eax, byte [ecx+0x63]; ret. Clean zero-extended byte (the state), so EAX upper bits ARE defined zero.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	void	high	re-answers27 (prop-occupant.md 4.1, 8.3): CORRECTS eax-or-void->void. The two args are BY-VALUE FLOATS (not float&): fld each, fmul 10.0, convert to a byte stored at +0x5E / +0x5F. x87 is used internally but ST(0) is EMPTY at return.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	void	high	re-answers27 (prop-occupant.md 4.1, 8.3): CORRECTS eax-or-void->void and CONTRADICTS docs/sdk-errata-draft.md which lists this slot as x87 (high). Measured body: movzx the byte [+0x5E]; fild; fmul 0.1; fstp dword [out]; then the same for +0x5F. Both fstp pop, so ST(0) is EMPTY at return. Two float* out-params. A uses-x87-implies-st0 rule is wrong here.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	void	medium	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void (ret 16). Four dwords (u32, u32, bool, byte). Drives the 0x28-byte sub-record owned at +0x54 through a manager at 0x00B43D5C. prop-developer.md 4.6.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	void	medium	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void. prop-developer.md 3.3.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	17	+0x44	007c2740	cSC4PropOccupant::SetRandomChance	4	1	void	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void and name icf::cSC43DRender::EnableTransparentBackground->SetRandomChance. Stores the u8 at +0x62 (constructor default 100).
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	18	+0x48	005ed570	cSC4PropOccupant::GetRandomChance	0	0	al	high	re-answers27 (prop-occupant.md 4.1, 8.2): CORRECTS eax-or-void->al. 8A 41 62 C3 = mov al, byte [ecx+0x62]; ret. ONLY AL is set; upper 24 bits of EAX are UNDEFINED. Callers must mask 0xFF. Contrast slot 12 which is movzx eax.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	19	+0x4C	005ed580	cSC4PropOccupant::GetPropTimerBitfield	0	0	eax	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->eax. movzx eax, byte [ecx+0x60].
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	20	+0x50	005ed590	cSC4PropOccupant::GetPropTimerState	4	1	eax	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->eax. (+0x60 & mask) != 0 produced as a real 0/1 via sbb/neg, so EAX holds 0 or 1.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	21	+0x54	005eca50	cSC4PropOccupant::SetPropTimerState	8	2	void	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void. Behaviour in network-tools.md 13.1: the low nibble of +0x60 is a 4-flag set; on the 0..0xE <-> 0xF transition it rolls RandomUint32Uniform(100) from 0x00B231B0 against +0x62 and calls slot 11 SetState(0) or SetState(1).
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	22	+0x58	00477120	cSC4PropOccupant::GetPropUsage	0	0	al	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->al. mov al of byte [ecx+0x64] (usage: 1 city, 2 lot, 3 building, 4 street). Upper EAX undefined. Identical-code-folded with cSC4FloraOccupant and cSC4LandfillOccupant.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	23	+0x5C	005ecae0	cSC4PropOccupant::SetPropUsage	4	1	void	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void. Stores the byte at +0x64.
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	0	+0x0	006f0d80	cSC4PropDeveloper::QueryInterface	8	2	eax-or-void	high	ret AL; prop-developer.md §8.1; re-specs10
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	1	+0x4	004f7ba0	cSC4PropDeveloper::AddRef	0	0	eax-or-void	high	ret EAX; prop-developer.md §8.1; re-specs10
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	2	+0x8	006f0ea0	cSC4PropDeveloper::Release	0	0	eax-or-void	high	ret EAX; prop-developer.md §8.1; re-specs10
@@ -4912,6 +4912,7 @@ cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	5	+0x14	00575610	c
 cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	6	+0x18	0062c980	cSC4DisasterInstanceEarthquake::GetLocation(int&, int&) = false	8	2	eax-or-void	medium	re-answers14; disasters.md §3.1, §7
 cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	7	+0x1C	008cd450	cSC4DisasterInstanceEarthquake::GetPhase() = 1 (constant)	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §7
 cIGZMessageTarget2	cSC4DisasterInstanceFire	00a9e580	3	+0xC	00579600	cSC4DisasterInstanceFire::DoMessage	4	1	AL	medium	0x86AD10EE, 0x66956813, 0x06CDB65B, 0xA6B79602 (disasters.md §5.3, §5.8)
+cIGZMessageTarget2	00aa48f0	3
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	0	+0x0	0057ec10	cSC4DisasterManagerToxic::QueryInterface	8	2	eax-or-void	medium	disasters.md §9
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	1	+0x4	00429ce0	cSC4DisasterManagerToxic::AddRef	0	0	eax-or-void	medium	disasters.md §9
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	2	+0x8	00429cf0	cSC4DisasterManagerToxic::Release	0	0	eax-or-void	medium	disasters.md §9
