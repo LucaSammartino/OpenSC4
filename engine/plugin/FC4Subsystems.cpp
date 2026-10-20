@@ -47,6 +47,8 @@
 #include "FC4LandValueShadow.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4Clock24Shadow.h"
+#include "FC4AutomataShadow.h"  // the glue19 lane
+#include "cFC4Automata.h"  // the glue19 lane
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
@@ -265,6 +267,24 @@ const ClassEntry kTrafficClasses[] = {
 
 // docs/specs/history.md §1: the history warehouse (city component 1). Off by
 // default (glue trial): `enable = history`.
+// docs/specs/automata.md 0: the script system (40), the controller manager
+// (41) and the four automata managers (43-46). Records and call contracts
+// only (0: animation stubbed). The Init fault that kept these out of
+// kSubsystems (glue19 question A4) was the create path's IID: the city's
+// ensure-components helper calls CreateObject(CLSID, IID) and the classes
+// answered the CLSID only, so the city's component slot stayed null and its
+// Init dispatcher dereferenced it unconditionally at SimCity 4.exe+0x0045BF1B
+// (automata.md §15). Every QueryInterface now answers its interface IID too.
+static const ClassEntry kAutomataClasses[] = {
+    {kFC4_CLSID_cSC4AutomataScriptSystem, "cSC4AutomataScriptSystem", &CreateFC4AutomataScriptSystem},
+    {kFC4_CLSID_cSC4AutomataControllerManager, "cSC4AutomataControllerManager",
+     &CreateFC4AutomataControllerManager},
+    {kFC4_CLSID_cSC4VehicleManager, "cSC4VehicleManager", &CreateFC4AutomataVehicleManager},
+    {kFC4_CLSID_cSC4PedestrianManager, "cSC4PedestrianManager", &CreateFC4AutomataPedestrianManager},
+    {kFC4_CLSID_cSC4AircraftManager, "cSC4AircraftManager", &CreateFC4AutomataAircraftManager},
+    {kFC4_CLSID_cSC4WatercraftManager, "cSC4WatercraftManager", &CreateFC4AutomataWatercraftManager},
+};
+
 const ClassEntry kHistoryClasses[] = {
     {kFC4_CLSID_cSC4HistoryWarehouse, "cSC4HistoryWarehouse", &CreateFC4HistoryWarehouse},
 };
@@ -426,8 +446,10 @@ const Subsystem kSubsystems[] = {
     {"citydetail", nullptr, kCityDetailClasses, sizeof(kCityDetailClasses) / sizeof(kCityDetailClasses[0]), false},
     {"ports", nullptr, kPortClasses, sizeof(kPortClasses) / sizeof(kPortClasses[0]), false},
     {"effects", nullptr, kEffectsClasses, sizeof(kEffectsClasses) / sizeof(kEffectsClasses[0]), false},
-    {"terrain", nullptr, kTerrainClasses, sizeof(kTerrainClasses) / sizeof(kTerrainClasses[0]), false},
-};
+    {"terrain", nullptr, kTerrainClasses, sizeof(kTerrainClasses) / sizeof(kTerrainClasses[0]), false,
+    {"automata", nullptr, kAutomataClasses, sizeof(kAutomataClasses) / sizeof(kAutomataClasses[0]),
+     false},  // the automata layer (glue19); off by default: `enable = automata`
+},};
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
 
@@ -594,7 +616,9 @@ void Resolve() {
     // The effects shadow (FC4EffectsShadow.h; a same-process mirror of the
     // effects manager). It runs beside whichever manager the city uses.
     EffectsShadowStartup(enabledKey("effects"));
-    // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
+    TerrainShadowStartup();
+    // The automata shadow (FC4AutomataShadow.h; it compares the original automata components).
+    AutomataShadowStartup(enabledKey("automata"));    // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
     ScriptReload();

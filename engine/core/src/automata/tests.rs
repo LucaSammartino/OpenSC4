@@ -12,7 +12,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::stream::{ByteReader, ByteWriter, InStream, OutStream, RefResolver, RefValue, ResKey, SaveObject};
+use crate::stream::{ByteReader, ByteWriter, OutStream, RefResolver, RefValue, ResKey, SaveObject};
 
 fn hex(s: &str) -> Vec<u8> {
     let c: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
@@ -718,8 +718,8 @@ fn sample_pedestrian() -> Rc<Automaton> {
         b.states[8].extra = StateExtra::PlayerDrive(1.5);
         b.states[10].extra = StateExtra::AttachAnim {
             model: host(0x1234, 6),
-            attached: true,
             anim_selector: 7,
+            flag: true,
         };
         b.states[13].extra = StateExtra::Chase(host(CLSID_VEHICLE, 8));
         b.states[1].base.version = 2;
@@ -875,20 +875,22 @@ fn automaton_slots() {
     assert!(!a.is_visible());
     a.set_visible(true);
     assert!(a.is_visible());
-    // [AT3] The RiotLeader of §8.1 step 5 is pushed `final=1`.
+    // §8.1 start step 5 pushes the RiotLeader `final`, so the end step 1's
+    // SetState(1, …) is a no-op (§12 quirk 11) and the leader keeps state 8.
     assert!(a.set_state(8, RIOT_LEADER_STATE_ARGS));
     assert_eq!(a.current_state(), Some(8));
     assert_eq!(a.last_set_state(), Some((8, RIOT_LEADER_STATE_ARGS)));
-    assert!(a.record().base().states[0].base.is_final);
+    assert!(!a.set_state(state_type::RIOT_END, RIOT_END_STATE_ARGS));
+    assert_eq!(a.current_state(), Some(8));
     assert!(a.push_state(0x14, SetStateArgs::default()));
     assert_eq!(a.current_state(), Some(0x14));
-    // The Collide is not `final`, so this one pops it and the leader is top.
+    // Popping Collide (not `final`) reveals the RiotLeader; popping that
+    // `final` state pushes DISAPPEAR instead of revealing below (quirk 11);
+    // popping DISAPPEAR does reveal it.
     assert!(a.pop_state());
     assert_eq!(a.current_state(), Some(8));
-    // [AT3] A `final` top is never popped: DISAPPEAR is pushed instead, so the
-    // leader is still there underneath and the stack does not drain.
     assert!(a.pop_state());
-    assert_eq!(a.current_state(), Some(state_type::DISAPPEAR));
+    assert_eq!(a.current_state(), Some(state_type::RIOT_END));
     assert!(a.pop_state());
     assert_eq!(a.current_state(), Some(8));
     a.remove();
@@ -938,11 +940,11 @@ fn create_automaton_stub_and_driving_mode() {
     let args = CreateArgs {
         group: RIOT_AUTOMATA_GROUP,
         position: [10.0, 0.0, 20.0],
-        mode: 2,
-        direction: [0.0; 3],
-        a: 0,
-        b: 0xFF,
-        c: 0,
+        flags: RIOT_CREATE_FLAGS,
+        model_key: ResKey::default(),
+        callback: 0,
+        priority: RIOT_CREATE_PRIORITY,
+        orientation: None,
     };
     let a = m.create_automaton(args).unwrap();
     assert_eq!(
@@ -987,7 +989,13 @@ impl RiotHost for FakeCity {
     fn create_automaton(&mut self, a: CreateArgs) -> u64 {
         self.calls.push(format!(
             "CreateAutomaton {:#x} {:?} {} {:?} {} {:#x} {}",
-            a.group, a.position, a.mode, a.direction, a.a, a.b, a.c
+            a.group,
+            a.position,
+            a.flags,
+            [a.model_key.type_id, a.model_key.group, a.model_key.instance],
+            a.callback,
+            a.priority,
+            u8::from(a.orientation.is_some())
         ));
         if self.create_null {
             0
@@ -1001,7 +1009,7 @@ impl RiotHost for FakeCity {
     fn set_state(&mut self, a: u64, t: u32, s: SetStateArgs) {
         self.calls.push(format!(
             "SetState {a:#x} {t} {} {} {} {} {} {}",
-            s.controller, s.timeout_ms, s.is_final, s.anim_id, s.sfx_id, s.behaviour_template
+            s.controller, s.timeout_ms, s.final_flag, s.anim_id, s.sfx_id, s.template
         ));
     }
     fn set_visible(&mut self, a: u64, v: bool) {
@@ -1042,7 +1050,7 @@ fn t08_riot_order() {
         [
             "road 3 4",
             "cap 0",
-            "CreateAutomaton 0x4107 [48.0, 0.0, 64.0] 2 [0.0, 0.0, 0.0] 0 0xff 0",
+            "CreateAutomaton 0x4107 [48.0, 0.0, 64.0] 2 [0, 0, 0] 0 0xff 0",
             "AddRef 0x500",
             "SetState 0x500 8 0 -1 1 0 0 0",
             "SetVisible 0x500 true",
@@ -1150,348 +1158,114 @@ fn message_and_class_tables() {
     assert!(Automaton::for_class(0x1234).is_none() && Controller::for_class(0x1234).is_none());
 }
 
-// ---- §6.2 state records, §12 quirks 10-15 (re-integrate1) -----------------------------------------------------
+// ---- §6.2 quirks 10-14 (re-integrate1's corrections; §14 tests 24, 25, 29) -------------------------------
 
-/// [AT1] The state-base fields are named, and `+0x24` is not in the record.
-#[test]
-fn state_base_fields_carry_their_offsets() {
-    let mut s = State::new(state_type::T0B);
-    s.base.controller = host(CLSID_CONTROLLER_MANAGER, 5); // +0x08
-    s.base.stack_index = 3; // +0x0C
-    s.base.countdown_ms = 1500.0; // +0x10
-    s.base.is_final = true; // +0x14
-    s.base.sfx_id = 0x11; // +0x18
-    s.base.anim_id = 0x22; // +0x1C
-    s.base.flags_snapshot = 0x600C001; // +0x20
-    s.base.behaviour_template = 0xDEAD_BEEF; // +0x24, not saved
-
-    let mut o = out();
-    // [AT2] `+0x0C` is written as the entry position, not as the field.
-    assert!(s.base.write_at(&mut o, 7));
-    let bytes = o.0.into_bytes();
-    // u16 version, ref controller, u32, f32, bool, u32, u32, u32.
-    assert_eq!(u16::from_le_bytes([bytes[0], bytes[1]]), 3);
-    assert_eq!(u32::from_le_bytes(bytes[2..6].try_into().unwrap()), 5);
-    assert_eq!(u32::from_le_bytes(bytes[10..14].try_into().unwrap()), 7);
-    assert_eq!(f32::from_le_bytes(bytes[14..18].try_into().unwrap()), 1500.0);
-    assert_eq!(bytes[18], 1); // `final`
-    assert_eq!(u32::from_le_bytes(bytes[19..23].try_into().unwrap()), 0x11);
-    assert_eq!(u32::from_le_bytes(bytes[23..27].try_into().unwrap()), 0x22);
-    assert_eq!(u32::from_le_bytes(bytes[27..31].try_into().unwrap()), 0x600C001);
-    assert_eq!(bytes.len(), 31, "`+0x24` is not written");
-
-    // [AT1] Read zeroes `+0x24`.
-    let mut t = Tokens;
-    let mut r = ByteReader::with_resolver(&bytes, &mut t);
-    let back = StateBase::read(&mut r).unwrap();
-    assert_eq!(r.remaining(), 0);
-    assert_eq!(back.behaviour_template, 0);
-    assert_eq!(back.countdown_ms, 1500.0);
-    assert!(back.is_final);
-    assert_eq!(back.sfx_id, 0x11);
-    assert_eq!(back.anim_id, 0x22);
-    assert_eq!(back.flags_snapshot, 0x600C001);
+fn f32s(v: &[f32]) -> Vec<u8> {
+    let mut b = Vec::with_capacity(v.len() * 4);
+    for x in v {
+        b.extend_from_slice(&x.to_le_bytes());
+    }
+    b
 }
 
-/// [AT2] §14 test 29: `+0x0C` is recomputed from the entry position, after a
-/// stack mutation and after a read. The stream value is never trusted.
-#[test]
-fn stack_index_is_recomputed_after_every_stack_mutation() {
-    let a = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
-    for _ in 0..3 {
-        a.push_state(state_type::T0B, SetStateArgs::default());
-    }
-    let idx = |a: &Automaton| -> Vec<u32> { a.record().base().states.iter().map(|s| s.base.stack_index).collect() };
-    assert_eq!(idx(&a), vec![0, 1, 2]);
-    assert!(a.pop_state());
-    assert_eq!(idx(&a), vec![0, 1], "the survivors are renumbered from 0");
-
-    // A stream whose `+0x0C` values are stale is renormalised on read. Encode
-    // one state on its own so its `+0x0C` is at a known place, then stack two.
-    let enc = |s: &State, index: u32| -> Vec<u8> {
-        let mut raw = ByteWriter::new();
-        assert!(s.write_at(&mut raw, index));
-        raw.into_bytes()
-    };
-    let mut one = enc(&State::new(state_type::T0B), 0);
-    // `u32 type`, `u16 version`, `ref` (4 bytes when null), then `+0x0C`.
-    const STACK_INDEX_AT: usize = 4 + 2 + 4;
-    one[STACK_INDEX_AT..STACK_INDEX_AT + 4].copy_from_slice(&9u32.to_le_bytes());
-    let mut two = enc(&State::new(state_type::T0B), 1);
-    two[STACK_INDEX_AT..STACK_INDEX_AT + 4].copy_from_slice(&4u32.to_le_bytes());
-
-    let mut stale = 2u32.to_le_bytes().to_vec();
-    stale.extend_from_slice(&one);
-    stale.extend_from_slice(&two);
-    let mut list = Vec::new();
-    let mut t = Tokens;
-    let mut r = ByteReader::with_resolver(&stale, &mut t);
-    // The stack is `u32 n`, then n state records (§6.1 field 9).
-    assert_eq!(r.get_u32(), Some(2));
-    for _ in 0..2 {
-        list.push(State::read(&mut r).unwrap());
-    }
-    assert_eq!(r.remaining(), 0);
-    // The stream said 9 and 4; the read kept neither.
-    reindex_states(&mut list);
-    assert_eq!(list.iter().map(|s| s.base.stack_index).collect::<Vec<_>>(), vec![0, 1]);
+fn contains(hay: &[u8], needle: &[u8]) -> bool {
+    hay.windows(needle.len()).any(|w| w == needle)
 }
 
+fn round_trip(a: &Automaton) -> Rc<Automaton> {
+    let bytes = write_obj(a);
+    let b = Automaton::for_class(a.class_id()).unwrap();
+    let (ok, left) = read_obj(&*b, &bytes);
+    assert!(ok && left == 0);
+    b
+}
+
+/// §14 test 24 (§6.2, quirk 12): a Plummet record writes its five `f32` in
+/// the stream order `+0x28, +0x34, +0x30, +0x2C, +0x38`, **not** offset order,
+/// and writes nothing for the object's sixth slot `+0x3C` (an unsaved `ref`).
 #[test]
 fn plummet_stream_order_is_not_offset_order() {
-    let e = StateExtra::Plummet {
-        descent_velocity: 1.0,                 // +0x28
-        roll_rate: 2.0,                        // +0x2C
-        roll_centre: 3.0,                      // +0x30
-        tumble_countdown_ms: 4.0,              // +0x34
-        splash_countdown_ms: 5.0,              // +0x38
-        splash_effect: host(CLSID_VEHICLE, 9), // +0x3C
-    };
-    let mut o = out();
-    assert!(e.write(&mut o));
-    let bytes = o.0.into_bytes();
-    assert_eq!(bytes.len(), 20, "five f32 and nothing for +0x3C");
-    let f: Vec<f32> = bytes
-        .chunks_exact(4)
-        .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
-        .collect();
-    assert_eq!(
-        f,
-        vec![1.0, 4.0, 3.0, 2.0, 5.0],
-        "stream is +0x28, +0x34, +0x30, +0x2C, +0x38"
-    );
-
-    let mut t = Tokens;
-    let mut r = ByteReader::with_resolver(&bytes, &mut t);
-    let back = StateExtra::read(state_type::T0E, &mut r).unwrap();
-    assert_eq!(r.remaining(), 0);
-    match back {
-        StateExtra::Plummet {
-            descent_velocity,
-            roll_rate,
-            roll_centre,
-            tumble_countdown_ms,
-            splash_countdown_ms,
-            splash_effect,
-        } => {
-            assert_eq!(
-                [
-                    descent_velocity,    // +0x28
-                    roll_rate,           // +0x2C
-                    roll_centre,         // +0x30
-                    tumble_countdown_ms, // +0x34
-                    splash_countdown_ms, // +0x38
-                ],
-                [1.0, 2.0, 3.0, 4.0, 5.0],
-                "each value lands at its own offset"
-            );
-            assert!(refs_equal(&splash_effect, &RefValue::Null), "+0x3C is zeroed on Read");
-        }
-        other => panic!("unexpected {other:?}"),
-    }
-}
-
-/// [AT5] §14 test 25 / §12 quirk 14: the stream is `ref`, `u16`, `bool` while
-/// the object holds the `bool` at `+0x2C` *before* the `u16` at `+0x30`.
-#[test]
-fn attach_anim_keeps_the_u16_and_bool_in_their_own_orders() {
-    let e = StateExtra::AttachAnim {
-        model: host(0x1234, 6), // +0x28
-        attached: true,         // +0x2C
-        anim_selector: 0x0203,  // +0x30
-    };
-    let mut o = out();
-    assert!(e.write(&mut o));
-    let bytes = o.0.into_bytes();
-    // ref (8 bytes for a host ref) + u16 + bool.
-    assert_eq!(&bytes[8..10], &0x0203u16.to_le_bytes(), "the u16 is second on the wire");
-    assert_eq!(bytes[10], 1, "the bool is last on the wire");
-
-    let mut t = Tokens;
-    let mut r = ByteReader::with_resolver(&bytes, &mut t);
-    let back = StateExtra::read(state_type::ATTACH_ANIM, &mut r).unwrap();
-    assert_eq!(r.remaining(), 0);
-    assert_eq!(back, e, "round-trips byte-exact");
-    // The object offsets are the documented ones.
-    assert_eq!(ATTACH_ANIM_OFF_MODEL, 0x28);
-    assert_eq!(ATTACH_ANIM_OFF_ATTACHED, 0x2C);
-    assert_eq!(ATTACH_ANIM_OFF_ANIM_SELECTOR, 0x30);
-    // +0x2C (the bool) is below +0x30 (the u16): the values above say so.
-    assert_eq!(ATTACH_ANIM_OFF_ATTACHED + 4, ATTACH_ANIM_OFF_ANIM_SELECTOR);
-}
-
-/// [AT6] §14 test 31 / §12 quirk 15: Chase is a pure record.
-#[test]
-fn chase_is_a_record_with_no_tick() {
-    assert!(is_record_only(state_type::CHASE));
-    for t in [
-        state_type::DEFAULT,
-        state_type::DISAPPEAR,
-        state_type::RIOT_LEADER,
-        state_type::T0B,
-        state_type::T0E,
-        state_type::T14,
-    ] {
-        assert!(!is_record_only(t), "type {t:#x} is not record-only");
-    }
-    // Its record is one `ref` and nothing else.
-    let e = StateExtra::Chase(host(CLSID_VEHICLE, 8));
-    let mut o = out();
-    assert!(e.write(&mut o));
-    assert_eq!(o.0.into_bytes().len(), 8, "one host ref");
-}
-
-/// [AT3] §14 test 26 / §8.1: `SetState` returns 0 and changes nothing while the
-/// top state has `final`. This is the riot end step 1 against a leader.
-#[test]
-fn final_blocks_set_state() {
     let a = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
-    assert!(a.set_state(state_type::RIOT_LEADER, RIOT_LEADER_STATE_ARGS));
-    assert!(a.record().base().states[0].base.is_final, "pushed final=1");
-    let before = a.record().base().states.clone();
-    assert!(
-        !a.set_state(state_type::DISAPPEAR, RIOT_END_STATE_ARGS),
-        "SetState returns 0 against a final top"
-    );
-    assert_eq!(a.current_state(), Some(state_type::RIOT_LEADER));
-    assert_eq!(a.record().base().states, before, "nothing on the stack changed");
-    // The call is still made and still logged (§8.1 asserts the call).
-    assert_eq!(a.last_set_state(), Some((state_type::DISAPPEAR, RIOT_END_STATE_ARGS)));
-}
-
-/// [AT3] §14 test 27 / §12 quirk 11: `PopState` on a `final` state that is not
-/// already type 1 pushes DISAPPEAR instead of revealing the state below. The
-/// pop is *replaced* by the push, so the `final` state stays underneath.
-#[test]
-fn pop_state_on_a_final_state_pushes_disappear() {
-    let a = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
-    assert!(a.push_state(state_type::DEFAULT, SetStateArgs::default()));
-    assert!(a.push_state(
-        state_type::T14,
-        SetStateArgs {
-            is_final: 1,
-            timeout_ms: 5000.0,
-            ..SetStateArgs::default()
-        }
-    ));
-    assert!(a.record().base().states[1].base.is_final);
-    assert_eq!(a.record().base().states[1].base.countdown_ms, 5000.0);
-
-    // The Collide 5000 ms expires and the tick pops it.
-    assert!(a.pop_state());
-    assert_eq!(
-        a.current_state(),
-        Some(state_type::DISAPPEAR),
-        "DISAPPEAR is pushed, the DEFAULT is not revealed"
-    );
-    let stack = a.record().base().states.clone();
-    assert_eq!(stack.len(), 3, "the pop was replaced by a push");
-    assert_eq!(stack[0].state_type, state_type::DEFAULT);
-    assert!(stack[1].base.is_final, "the Collide is not popped");
-    assert_eq!(stack[2].state_type, state_type::DISAPPEAR);
-    assert!(!stack[2].base.is_final, "DISAPPEAR itself is not final");
-    assert_eq!(
-        stack.iter().map(|s| s.base.stack_index).collect::<Vec<_>>(),
-        vec![0, 1, 2]
-    );
-
-    // DISAPPEAR is not `final`, so this pop really does pop -- and the Collide
-    // is back on top, where the same thing happens again. The DEFAULT below a
-    // `final` state is never revealed by PopState.
-    assert!(a.pop_state());
-    assert_eq!(a.current_state(), Some(state_type::T14));
-    assert!(a.pop_state());
-    assert_eq!(a.current_state(), Some(state_type::DISAPPEAR));
-    assert_eq!(a.record().base().states.len(), 3);
-}
-
-#[test]
-fn push_state_takes_the_full_signature() {
-    let a = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
-    let args = SetStateArgs {
-        controller: 0,
-        timeout_ms: 1000.0,
-        is_final: 1,
-        anim_id: 7,
-        sfx_id: 9,
-        behaviour_template: 0xAB,
+    assert!(a.set_state(state_type::T0E, SetStateArgs::default()));
+    let make = |descent, roll_rate, roll_centre, tumble_ms, post_splash_ms| StateExtra::T0E {
+        descent,
+        roll_rate,
+        roll_centre,
+        tumble_ms,
+        post_splash_ms,
     };
-    assert!(a.push_state(state_type::T0B, args));
-    let rec = a.record();
-    let s = &rec.base().states[0];
-    assert_eq!(s.base.countdown_ms, 1000.0, "+0x10 is param_3");
-    assert!(s.base.is_final, "+0x14 is param_4");
-    assert_eq!(s.base.anim_id, 7, "+0x1C is param_5");
-    assert_eq!(s.base.sfx_id, 9, "+0x18 is param_6");
-    assert_eq!(s.base.behaviour_template, 0xAB, "+0x24 is param_7");
-    assert_eq!(s.base.stack_index, 0, "+0x0C is stack.size()-1 after the push");
-
-    // PushState(0, ...) is SetState, and SetState is refused against a final
-    // top -- so the stack is untouched here.
-    assert!(!a.push_state(state_type::DEFAULT, SetStateArgs::default()));
-    assert_eq!(a.record().base().states.len(), 1);
-    // On a stack without a final top it replaces the stack as SetState does.
-    let b = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
-    assert!(b.push_state(state_type::T0B, SetStateArgs::default()));
-    assert!(b.push_state(state_type::T0B, SetStateArgs::default()));
-    assert!(b.push_state(state_type::DEFAULT, SetStateArgs::default()));
-    assert_eq!(b.record().base().states.len(), 1);
-    assert_eq!(b.current_state(), Some(state_type::DEFAULT));
+    a.with_record(|r| {
+        r.base_mut().states[0].extra = make(1.0, 2.0, 3.0, 4.0, 5.0);
+    });
+    let bytes = write_obj(&*a);
+    // Stream order: +0x28, +0x34, +0x30, +0x2C, +0x38.
+    assert!(contains(&bytes, &f32s(&[1.0, 4.0, 3.0, 2.0, 5.0])));
+    // Offset order is not what the record holds.
+    assert!(!contains(&bytes, &f32s(&[1.0, 2.0, 3.0, 4.0, 5.0])));
+    // Reading it back leaves each `f32` at its own offset.
+    let b = round_trip(&a);
+    assert_eq!(b.record().base().states[0].extra, make(1.0, 2.0, 3.0, 4.0, 5.0));
 }
 
-/// [AT7] `tBehaviorTemplate::GetTimeoutMilliseconds`: `+0x28` seconds x 1000,
-/// or -1.0 when `+0x28 <= 0`.
+/// §14 test 25 (§6.2, quirk 14): an AttachAnim record writes `ref`,
+/// `u16`, `bool` in that stream order while the object holds the `bool` at
+/// `+0x2C` before the `u16` at `+0x30`.
 #[test]
-fn behaviour_template_timeout_is_milliseconds() {
-    assert_eq!(BehaviorTemplate::default().timeout_ms(), -1.0);
-    assert_eq!(
-        BehaviorTemplate {
-            timeout_seconds: 0.0,
-            is_final: false
+fn attach_anim_stream_order_hides_the_memory_order() {
+    let a = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
+    assert!(a.set_state(state_type::ATTACH_ANIM, SetStateArgs::default()));
+    let make = |flag, anim_selector| StateExtra::AttachAnim {
+        model: host(0x1234, 6),
+        flag,
+        anim_selector,
+    };
+    a.with_record(|r| {
+        r.base_mut().states[0].extra = make(true, 7);
+    });
+    let bytes = write_obj(&*a);
+    // Stream: ref (object 6 of class 0x1234), u16 7, bool 1.
+    let mut stream = Vec::new();
+    stream.extend_from_slice(&6u32.to_le_bytes());
+    stream.extend_from_slice(&0x1234u32.to_le_bytes());
+    stream.extend_from_slice(&7u16.to_le_bytes());
+    stream.push(1u8);
+    assert!(contains(&bytes, &stream));
+    // The memory order (the bool before the u16) is not what the record holds.
+    let mut memory = Vec::new();
+    memory.extend_from_slice(&6u32.to_le_bytes());
+    memory.extend_from_slice(&0x1234u32.to_le_bytes());
+    memory.push(1u8);
+    memory.extend_from_slice(&7u16.to_le_bytes());
+    assert!(!contains(&bytes, &memory));
+    let b = round_trip(&a);
+    assert_eq!(b.record().base().states[0].extra, make(true, 7));
+}
+
+/// §14 test 29 (§6.2, quirk 10): the state's `+0x0C` is a stack index --
+/// 0-based from the bottom, recomputed after every stack **mutation**.
+/// §14 test 4 (byte-exact re-save) wins over recompute-on-**Read**, which the
+/// corpus contradicts: see `AutomatonBase::read` and glue19 question A1.
+#[test]
+fn stack_index_is_recomputed_on_stack_mutations() {
+    let idx = |a: &Automaton| -> Vec<u32> { a.record().base().states.iter().map(|s| s.base.stack_index).collect() };
+    let a = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
+    assert!(a.push_state(0x0B, SetStateArgs::default()));
+    assert!(a.push_state(0x0F, SetStateArgs::default()));
+    assert!(a.push_state(state_type::T14, SetStateArgs::default()));
+    assert_eq!(idx(&a), vec![0, 1, 2]);
+    assert!(a.pop_state());
+    assert_eq!(idx(&a), vec![0, 1]);
+
+    // A stale index is kept across a round trip (byte-exact re-save) and is
+    // corrected the next time the stack changes.
+    a.with_record(|r| {
+        for s in r.base_mut().states.iter_mut() {
+            s.base.stack_index = 9;
         }
-        .timeout_ms(),
-        -1.0
-    );
-    assert_eq!(
-        BehaviorTemplate {
-            timeout_seconds: 2.5,
-            is_final: true
-        }
-        .timeout_ms(),
-        2500.0
-    );
-}
-
-/// [AT8] The two RE reports of Plummet `+0x28` at enter never actually
-/// disagreed: `0xBB88888A` decodes to -0.0041666673, which is the other
-/// report's -0.004166667 to the precision it was written, and about -1/240.
-/// The spec's decimal for that hex (-0.0080729163) is the mis-decode that made
-/// the two look "roughly 2x" apart. See the lane report question.
-#[test]
-fn plummet_enter_constant_reports_agree() {
-    let from_hex = f32::from_bits(0xBB88_888A);
-    assert_eq!(from_hex, -0.0041666673f32, "0xBB88888A decodes to this");
-    // The automata report's -0.004166667 (-1/240): the same value to 7 digits.
-    assert!((from_hex - -0.004166667f32).abs() < 1e-9);
-    assert!((from_hex - (-1.0f32 / 240.0)).abs() < 1e-9);
-    // The spec prints -0.0080729163 for that hex: a different number, about
-    // twice this one, which is where its "roughly 2x" came from.
-    let spec_prints = -0.008072916_f32;
-    assert_ne!(from_hex, spec_prints);
-    assert!((from_hex - spec_prints).abs() > 0.003);
-    assert!(
-        spec_prints.abs() > from_hex.abs() * 1.5 && spec_prints.abs() < from_hex.abs() * 2.5,
-        "the spec's decimal is about twice the hex's value"
-    );
-}
-
-#[test]
-fn pullover_counter_is_milliseconds_not_a_latch() {
-    // 0 = init, 0 < t < 1000 = driving off, t >= 1000 = finish. A latch could
-    // not carry the 1000 ms threshold or the per-tick `+= dt`.
-    assert_eq!(PullOverPhase::of(0.0), PullOverPhase::Init);
-    assert_eq!(PullOverPhase::of(1.0), PullOverPhase::DrivingOff);
-    assert_eq!(PullOverPhase::of(999.0), PullOverPhase::DrivingOff);
-    assert_eq!(PullOverPhase::of(1000.0), PullOverPhase::Finish);
-    assert_eq!(PullOverPhase::of(2500.0), PullOverPhase::Finish);
+    });
+    assert_eq!(idx(&a), vec![9, 9]);
+    let b = round_trip(&a);
+    assert_eq!(idx(&b), vec![9, 9]);
+    assert!(b.push_state(0x0B, SetStateArgs::default()));
+    assert_eq!(idx(&b), vec![0, 1, 2]);
 }

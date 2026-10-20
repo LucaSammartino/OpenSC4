@@ -163,7 +163,10 @@
 //                                 demolition; FC4DemolitionPriceShadow.h)
 //   dispatch_shadow = 0 / 1       the dispatch manager shadow (default 0; needs the ORIGINAL
 //                                 manager: do not enable dispatch; FC4DispatchShadow.h)
-//   parks_seed = N                the park member generator's session seed (default:
+//   automata_shadow = 0 / 1      the automata layer shadow (default 0; needs the ORIGINAL
+//                                 automata components: do not enable automata; the six
+//                                 saved components 40, 41, 43-46 and the objects their
+//                                 records reference; FC4AutomataShadow.h)//   parks_seed = N                the park member generator's session seed (default:
 //                                 the cRZTime clock; cFC4Parks.cpp)
 //   ports_shadow = 0 / 1          the airport and seaport developer shadow (default 0;
 //                                 needs the ORIGINAL developers: do not enable ports;

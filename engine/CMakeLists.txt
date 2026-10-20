@@ -388,7 +388,22 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4PortsShadow.cpp
         plugin/FC4PortsShadow.h        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h        plugin/FC4Turbo.cpp
-        plugin/FC4Turbo.h
+        # The automata layer's host tables (automata.md 8, 9; the glue19 lane) and
+        # its shadow: automata_shadow.
+        plugin/cFC4Automata.cpp
+        plugin/cFC4Automata.h
+        plugin/cFC4AutomatonObject.cpp
+        plugin/cFC4AutomatonObject.h
+        plugin/FC4AutomataDriver.cpp
+        plugin/FC4AutomataDriver.h
+        plugin/FC4AutomataHost.cpp
+        plugin/FC4AutomataHost.h
+        plugin/FC4AutomataInterfaces.h
+        plugin/FC4AutomataShadow.cpp
+        plugin/FC4AutomataShadow.h
+        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
+        plugin/FC4HarnessLogic.h
+        plugin/FC4Turbo.cpp        plugin/FC4Turbo.h
         plugin/FC4Script.cpp
         plugin/FC4Script.h
         plugin/FC4Dialogs.cpp
