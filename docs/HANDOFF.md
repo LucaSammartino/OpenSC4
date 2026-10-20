@@ -44,6 +44,19 @@ re-reading cached context (lanes started every call at 172k tokens and grew to 4
 5. The "no new lanes" rule (item 5 below) was the pause rule. The user said to restart at full throttle once
    back: confirm with them, then fill the slots.
 
+**Restart state (2026-10-20 ~21:45, new coordinator session in the main checkout):** checklist done: new session
+started; first-call context of the first lanes measured **7.8k tokens** (`ctx.py glue21fix2 --first`), the lean
+harness works; the "no new lanes" rule is lifted by the user's restart order (full throttle). Done: re-answers34's
+stale tip fixed (queue file now points at `0eb16695`), train10 re-cut as **cores27 only** (batch seq 10;
+`3975a42e`'s automata-pin fix made the old train11 gate failure moot; glue21 re-queues when PL17 is fixed) —
+gate PASS (clippy, build, ctest), regress running. Spawned 8 lanes: glue21fix2 (PL17, on the glue21 branch),
+glue24fix2 (the tick-5500 int3, on the glue24 branch), re-netocc (the network occupants spec, 754 fns —
+re-specs22's work is NOT recoverable: its branch had no commits and no queue file; re-do it), re-terrain3d
+(TR21, terrain.md §15.5), devperf2 (UpdatePopulation 7.7x → target 2x), re-occprops (specify the occupants and
+props pool, 453 fns), cores28 (MySimPool + MySimDispatch cores), glue29 (the cSC4NetworkTool replacement glue
+over cores27's fc4_nettool ABI). Pending after train10 lands: land, gen_handoff_tables, coverage, push;
+re-answers34 merges in the next batch.
+
 ## 0. Current state: pause 2026-10-20 ~19:10 (user closing the session)
 
 Main is `12e79cfc`, pushed. Today landed: train6 (8 lanes), train8 (6), train9 (cores26), train10 (glue19),
