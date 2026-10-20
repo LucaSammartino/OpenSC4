@@ -2,13 +2,13 @@
 
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-netocc (network occupants spec) | `re-netocc` / `.claude/worktrees/re-netocc` (docs lane) | in progress: reading done, no spec text written | write docs/specs/network-occupants.md from the findings in build-runs/research-notes.md; then questions NO1+ in docs/specs/questions/network-occupants.md; register in docs/specs/QUESTIONS.md via tools/questions.py index; final lane report; merge-queue json (kind docs) |
+| re-netocc (network occupants spec) | `re-netocc` / `.claude/worktrees/re-netocc` (docs lane) | in progress: reading done (commit fb505627), no spec text written | write docs/specs/network-occupants.md from the findings in build-runs/research-notes.md; then questions NO1+ in docs/specs/questions/network-occupants.md; register in docs/specs/QUESTIONS.md via tools/questions.py index; final lane report; merge-queue json (kind docs) |
 
 ## Handoff
 - Goal: NEW spec `docs/specs/network-occupants.md` (cSC4NetworkOccupant family, 754 fns / 114,523 bytes) +
   questions NO1+ in `docs/specs/questions/network-occupants.md`, QUESTIONS.md registration, final lane row +
   report, `build-runs/merge-queue/re-netocc.json` (kind `docs`). Do NOT touch engine/ or tools/.
-- Done: all RE reading done. Every measured fact is in `build-runs/research-notes.md` (class IDs, IIDs,
+- Done: all RE reading done (committed fb505627: docs/lanes/re-netocc.md; research notes live uncommitted in build-runs/research-notes.md on the worktree disk). Every measured fact is in `build-runs/research-notes.md` (class IDs, IIDs,
   layouts, vtables, records, fields, addresses). no-iface-*.txt have the interface rows; vtable-extents.txt the
   primary vtable slot counts. Worktree created; lane row above written.
 - Next (fresh agent): Read `build-runs/research-notes.md` FIRST (it has everything), then docs/specs/README.md
