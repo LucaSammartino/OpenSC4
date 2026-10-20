@@ -281,6 +281,9 @@ impl MySim {
                 s.eq_index = 0;
                 s.hq_index = 0;
             }
+            self.post(super::msg::MYSIMS_CHANGED, 0, 0, None);
+            self.find_new_job();
+            self.host.dispatch_command(id, "start_commute");
         } else {
             // The "tracking" flag := dispatch CheckFlags(0x100) (§4.1 step
             // 3). The default host answers false (the pre-dispatch-core

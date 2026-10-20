@@ -10,7 +10,7 @@
 //!
 //! - `FindNewJob` runs a traffic pathfinder from the home lot towards job
 //!   destinations and takes the lot (building) or the neighbour connection
-//!   at the end (§4.7, destination mask `0x1CF` *[inferred]*).
+//!   at the end (§4.7, commuter travel-type mask `0x1CF` *[inferred]*).
 //! - `ChangeJob(b)` sets the commute destination to building `b`; the
 //!   result is the dispatch's (§4.7).
 //! - `CheckCommute` pathfinds home → job (or the neighbour cell) and
@@ -29,23 +29,23 @@
 //! (mysims.md §10 *[choice]*: "arrived" immediately, no trip fields).
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
 
 use crate::pathfinder::{filter, flag, result, CellRect, Pathfinder, PathfinderHost, SharedWorkCheck};
-use crate::traffic_network::{travel, NetworkModel};
+use crate::traffic_network::NetworkModel;
 
 use super::{JobDestination, DISPATCH_CLSID, DISPATCH_IID};
 
-/// The destination mask of the job-search pathfinder (§4.7 *[inferred:
-/// `0x1CF`]*, the commuter bits of every wealth plus the neighbour
-/// connection).
-const JOB_DESTINATION_BITS: u8 = 0x1F;
-/// The pathfinder setup of pathfinder.md §8: start rect, travel-type flag 2
-/// (Car), density 0, flags 1 | 2, filter 3, a route deque, end rect,
-/// `FindPath`, `Reset`.
+/// The commuter travel-type mask of the MySim job/commute pathfinder
+/// (§4.7 *[inferred: `0x1CF`]* — the same mask the traffic simulator sets
+/// for commuter trips: Walk, Car, Bus, Passenger train, Subway, Elevated
+/// train, Monorail).
+const COMMUTER_TRAVEL_MASK: u16 = 0x1CF;
+/// The pathfinder setup of pathfinder.md §8: start rect, travel-type flags,
+/// density 0, flags 1 | 2, filter 3, a route deque, end rect, `FindPath`,
+/// `Reset`.
 const PATHFINDER_FLAGS: u32 = flag::NO_BUDGET | flag::NEAREST_ON_FAILURE;
-const TRAVEL_TYPE_MASK: u16 = 1 << travel::CAR;
 const DENSITY: u32 = 0;
 const MAX_WORK_TIME: u32 = 0x1000;
 
@@ -277,7 +277,7 @@ impl MySimDispatch {
     }
 
     /// One pathfinder run (pathfinder.md §8's MySim dispatch setup):
-    /// filter 3, flags 1 | 2, the Car travel type, density 0, a route
+    /// commuter travel-type mask, density 0, flags 1 | 2, filter 3, a route
     /// deque, `FindPath`, `Reset`.
     fn run_pathfinder(&self, home: CellRect, end: CellRect) -> Option<Found> {
         let mut pf = Pathfinder::create(&*self.host, self.shared.clone());
@@ -285,9 +285,11 @@ impl MySimDispatch {
         pf.set_end_rect(end);
         pf.set_trip_destination_filter(filter::END_RECT);
         pf.set_flag(PATHFINDER_FLAGS);
-        pf.set_travel_type_flag(TRAVEL_TYPE_MASK, true);
+        pf.set_allowed_travel_types(COMMUTER_TRAVEL_MASK);
+        pf.set_starting_travel_types(COMMUTER_TRAVEL_MASK);
         pf.set_traffic_density(DENSITY);
         pf.set_max_work_time(MAX_WORK_TIME);
+        pf.set_route_info(Some(VecDeque::new()));
         let found = pf.find_path_on(&self.net, &*self.host);
         let outcome = if found == result::FOUND {
             let (x, z) = pf.get_end_cell();
