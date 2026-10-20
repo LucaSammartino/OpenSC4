@@ -1,3 +1,11 @@
+tag: apply15b-hw2-shadow
+run: 163
+date: 2026-10-16
+lane: apply15b
+verdict: clean
+switches: adopted by the merge train (the lane's own regress run)
+result: **clean.** clean, ref_warnings=0; 64.26 days/s.
+summary: regress apply15b-hw2-shadow, clean (the lane's pre-train run, adopted by the train)
 # Run apply15b-hw2-shadow (2026-10-16)
 
 Lane `apply15b`, DLL `engine/build-x86/FreeCity4.dll` at `e63d0b8f` (sha256 `b652c228`), city **Konradshohe**,

@@ -1,3 +1,11 @@
+tag: apply15b-cores
+run: 162
+date: 2026-10-16
+lane: apply15b
+verdict: PASS
+switches: landed with merge-train batch train6 (the lane's own regress; the run record follows the lane file's format)
+result: **PASS, 0 problems, 42 s.** Clean, `ref_warnings=0`: ports, citydetail, propdev, history enabled; turbo to 2032-01-01, 90.02 days/s.
+summary: regress apply15b-cores, PASS, clean to 2032 (the lane's pre-train run, adopted by the train)
 # Run apply15b-cores (2026-10-16)
 
 Lane `apply15b`, DLL `engine/build-x86/FreeCity4.dll` at `e63d0b8f` (sha256 `b652c228`), city **Konradshohe**,
