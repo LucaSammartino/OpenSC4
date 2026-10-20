@@ -1768,6 +1768,67 @@ water draw buffer. Water `+0x18` is the same array §2.2 gives, reached through 
 rather than the terrain — a replacement whose water object does not keep the array at `+0x18` with `0x24`-byte
 records faults in both places.
 
+### 15.5.6 What slot 66 is, and what zones.md §5.2's call does — TR21
+
+**Slot 66 is `GetView`, `0x00741810`** (already in `interfaces.tsv` as `cSTETerrain::GetView`, pop 0, 0 args,
+EAX):
+
+```
+00741810  mov  eax, [ecx + 0xe8]   ; the view OBJECT BASE
+00741816  test eax, eax
+00741818  je   -> return 0
+0074181a  add  eax, 0xc            ; return base + 0x0C
+0074181d  ret
+```
+
+So the pointer every consumer holds is **`view + 0x0C`** (IID `0x6771477D`), *not* the object base. That is the same
+adjustment `DoPostCityInit` makes in reverse when the factory hands it `out` (`add eax,-0x0C` at `0x00749596`).
+`SL::TerrainView` (`0x00602160`) is a tail-call to this slot: `mov ecx,[0x00B43CF4]; jmp [eax+0x108]`, returning
+**null** when the terrain is null or the view does not exist yet.
+
+What zones.md §5.2's slot-66 call **actually does**: in the zone developer's `PostCityInit` handler it is
+`SL::TerrainView` → `GetView`, and the result is cached at the zone developer's `+0x30` and `AddRef`'d — with the
+null-unsafety noted in §15.5.1. It is a pure accessor: it allocates nothing, initialises nothing and has no side
+effects. Everything the zone developer then does with it (slot 9 `ClearCurrentSelections` in `ClearHighlight`, and
+slot 4 `MarkSelected` at `+0x10` with seven arguments in `UpdateHighlightTextures`) is a call **through
+`base+0x0C`**, i.e. the `0x00AB4410` table of §15.5.3 — which is why "the terrain view `+0x10`" in zones.md §7.1.1
+is slot 4 of that table (`0x007526E0`), and "slot 9" is `0x00751ED0`.
+
+**MATCHES (zones.md).** The zone developer's `PostCityInit` handler stores the view at `esi+0x30`, but `esi` there
+is its **message-target interface at `this+8`** (`lea ecx,[esi-8]` at `0x00732A2B`, `0x00732A52`, `0x00732B73`,
+`0x00732B9C`, `0x00732BB1`), so the field is `+0x38` — exactly what zones.md §7.1.1 says. The other three fields in
+that handler line up the same way: `esi+0x3C`/`+0x40`/`+0x44` are `+0x44` (dirt road), `+0x48` (street) and `+0x4C`
+(road), matching zones.md §7.1.1. **The rule to carry forward: each object's message-target interface sits at a
+different offset** — terrain `+4`, zone developer `+8`, terrain view `+0x10` (§15.5.2) — so an offset read out of a
+`DoMessage` must be rebased before it is written down as an object field.
+
+### 15.5.7 The exact sequence the game runs
+
+1. `SL::OnView3DInit` (`0x00602590`) — when the 3D view window comes up. From `0x4E0960(0x00B43CBC)` it fills the
+   globals `0x00B43DC4` (manager; slots 3/5/4 → `0x00B43DC8`/`0x00B43DCC`/`0x00B43DD0`), then
+   `0x00B43DD0` slot 8 → **`0x00B43DD8` (the 3D camera)** and slot 9 → `0x00B43DDC`
+   (`0x006025D7`–`0x006025E7`).
+2. City `CreateCityComponents` / `Init` builds the terrain (component 49) and the surface water; the terrain's
+   `Init` subscribes to `PostCityInit` (`0x007502E5`) and the zone developer's `Init` does the same later
+   (`0x00733611`).
+3. On load, the terrain's class record is `Read` (u16 version 2 + a reference to the view class `0xC9B84E10`,
+   §13.2).
+4. `kSC4MessagePostCityInit` `0x26D31EC1` is **posted** (queued; foundations §5).
+5. On the next pump, the terrain's `DoMessage` → `DoPostCityInit` (slot 40) runs §15.5.1's ten steps, ending with
+   `+0xEC` = 1.
+6. The zone developer's `PostCityInit` handler runs, takes `GetView` (slot 66) and `AddRef`s it.
+7. From then on `RedisplayTerrain` (slot 68) posts `0x278E6003` / `0x678E6E3A`, and the view's own `DoMessage`
+   (`0x00757560`) consumes them to update its dirty rects.
+
+**For the implementer:** make the replacement's terrain create the view the same way (factory by CLSID `0xC9B84E10`
+/ IID `0x6771477D`, or `new(0xE8)` + ctor), call `view->Init(terrain)` with the terrain as the single stack
+argument, then set `+0xEC`. Ensure slot 66 returns `view+0x0C`. Ensure terrain `+0x6C` is a live `0x24`-byte
+vertex array before anything draws. Do all of that **before** any other `PostCityInit` handler calls slot 66. That
+is enough to get past the point where `enable = terrain` currently faults; the remaining view slots only matter once
+drawing is exercised. **Before any of that, confirm `0x00B43CF0` (the surface water, city slot 83) and
+`0x00B43CD8` are non-null** — `Init` dereferences both without a check (§15.5.4) and those are the two most likely
+faults at this point.
+
 ### 15.5.8 The change messages: what the view rebuilds vs. what it reads live — TR21 contract part 2
 
 `Init` subscribes the message target `base+0x10` to six messages (`0x0075C810`–`0x0075C868`); `Shutdown`
@@ -1946,67 +2007,6 @@ host; with `0x00B43DD0` null the draw-callback registrations of §15.5.4 step 12
 
 17. The whole chain — view created, `Init`ed, `+0xEC` set, slot 66 answerable — must complete before any
     `PostCityInit` consumer calls terrain slot 66 (§15.5.1); the zone developer faults otherwise.
-
-### 15.5.6 What slot 66 is, and what zones.md §5.2's call does — TR21
-
-**Slot 66 is `GetView`, `0x00741810`** (already in `interfaces.tsv` as `cSTETerrain::GetView`, pop 0, 0 args,
-EAX):
-
-```
-00741810  mov  eax, [ecx + 0xe8]   ; the view OBJECT BASE
-00741816  test eax, eax
-00741818  je   -> return 0
-0074181a  add  eax, 0xc            ; return base + 0x0C
-0074181d  ret
-```
-
-So the pointer every consumer holds is **`view + 0x0C`** (IID `0x6771477D`), *not* the object base. That is the same
-adjustment `DoPostCityInit` makes in reverse when the factory hands it `out` (`add eax,-0x0C` at `0x00749596`).
-`SL::TerrainView` (`0x00602160`) is a tail-call to this slot: `mov ecx,[0x00B43CF4]; jmp [eax+0x108]`, returning
-**null** when the terrain is null or the view does not exist yet.
-
-What zones.md §5.2's slot-66 call **actually does**: in the zone developer's `PostCityInit` handler it is
-`SL::TerrainView` → `GetView`, and the result is cached at the zone developer's `+0x30` and `AddRef`'d — with the
-null-unsafety noted in §15.5.1. It is a pure accessor: it allocates nothing, initialises nothing and has no side
-effects. Everything the zone developer then does with it (slot 9 `ClearCurrentSelections` in `ClearHighlight`, and
-slot 4 `MarkSelected` at `+0x10` with seven arguments in `UpdateHighlightTextures`) is a call **through
-`base+0x0C`**, i.e. the `0x00AB4410` table of §15.5.3 — which is why "the terrain view `+0x10`" in zones.md §7.1.1
-is slot 4 of that table (`0x007526E0`), and "slot 9" is `0x00751ED0`.
-
-**MATCHES (zones.md).** The zone developer's `PostCityInit` handler stores the view at `esi+0x30`, but `esi` there
-is its **message-target interface at `this+8`** (`lea ecx,[esi-8]` at `0x00732A2B`, `0x00732A52`, `0x00732B73`,
-`0x00732B9C`, `0x00732BB1`), so the field is `+0x38` — exactly what zones.md §7.1.1 says. The other three fields in
-that handler line up the same way: `esi+0x3C`/`+0x40`/`+0x44` are `+0x44` (dirt road), `+0x48` (street) and `+0x4C`
-(road), matching zones.md §7.1.1. **The rule to carry forward: each object's message-target interface sits at a
-different offset** — terrain `+4`, zone developer `+8`, terrain view `+0x10` (§15.5.2) — so an offset read out of a
-`DoMessage` must be rebased before it is written down as an object field.
-
-### 15.5.7 The exact sequence the game runs
-
-1. `SL::OnView3DInit` (`0x00602590`) — when the 3D view window comes up. From `0x4E0960(0x00B43CBC)` it fills the
-   globals `0x00B43DC4` (manager; slots 3/5/4 → `0x00B43DC8`/`0x00B43DCC`/`0x00B43DD0`), then
-   `0x00B43DD0` slot 8 → **`0x00B43DD8` (the 3D camera)** and slot 9 → `0x00B43DDC`
-   (`0x006025D7`–`0x006025E7`).
-2. City `CreateCityComponents` / `Init` builds the terrain (component 49) and the surface water; the terrain's
-   `Init` subscribes to `PostCityInit` (`0x007502E5`) and the zone developer's `Init` does the same later
-   (`0x00733611`).
-3. On load, the terrain's class record is `Read` (u16 version 2 + a reference to the view class `0xC9B84E10`,
-   §13.2).
-4. `kSC4MessagePostCityInit` `0x26D31EC1` is **posted** (queued; foundations §5).
-5. On the next pump, the terrain's `DoMessage` → `DoPostCityInit` (slot 40) runs §15.5.1's ten steps, ending with
-   `+0xEC` = 1.
-6. The zone developer's `PostCityInit` handler runs, takes `GetView` (slot 66) and `AddRef`s it.
-7. From then on `RedisplayTerrain` (slot 68) posts `0x278E6003` / `0x678E6E3A`, and the view's own `DoMessage`
-   (`0x00757560`) consumes them to update its dirty rects.
-
-**For the implementer:** make the replacement's terrain create the view the same way (factory by CLSID `0xC9B84E10`
-/ IID `0x6771477D`, or `new(0xE8)` + ctor), call `view->Init(terrain)` with the terrain as the single stack
-argument, then set `+0xEC`. Ensure slot 66 returns `view+0x0C`. Ensure terrain `+0x6C` is a live `0x24`-byte
-vertex array before anything draws. Do all of that **before** any other `PostCityInit` handler calls slot 66. That
-is enough to get past the point where `enable = terrain` currently faults; the remaining view slots only matter once
-drawing is exercised. **Before any of that, confirm `0x00B43CF0` (the surface water, city slot 83) and
-`0x00B43CD8` are non-null** — `Init` dereferences both without a check (§15.5.4) and those are the two most likely
-faults at this point.
 
 ## 15.6 The slots §4–§10 left undefined (TR24, TR25) *[compat]*
 
