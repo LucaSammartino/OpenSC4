@@ -118,8 +118,6 @@ pub struct PropCatalogue {
     profiles: StlHashMap<PropProfile>,
     /// The name map: never filled (§A5 slot 12).
     names: StlHashMap<String>,
-    /// `0x00B21770`: data2 of the catalogue message (PL2: 0).
-    data2: u32,
     /// The shutdown callback was registered.
     callback_registered: bool,
 }
@@ -153,14 +151,11 @@ impl PropCatalogue {
         self.callback_registered = true;
     }
 
-    /// The value sent as data2 with the catalogue message.
+    /// The value sent as data2 with the catalogue message: `0x00B21770`,
+    /// the type map's element count (§A2, §A3.4; PL2, re-answers18): the
+    /// number of distinct prop type IDs, a replaced key counted once.
     pub fn data2(&self) -> u32 {
-        self.data2
-    }
-
-    /// Sets the value at `0x00B21770` (PL2; tests and tools).
-    pub fn set_data2(&mut self, v: u32) {
-        self.data2 = v;
+        self.types.len() as u32
     }
 
     /// Whether `StaticInit` catalogues an exemplar: its `ExemplarType` is

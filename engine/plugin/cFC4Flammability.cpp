@@ -47,6 +47,7 @@
 #include "cISC4PlumbingSimulator.h"
 #include "cISC4SimGrid.h"
 #include "cISC4TutorialSystem.h"
+#include "cFC4Tutorial.h"  // the glue15 lane: fc4::TutorialIsTutorial
 #include "cISC4WeatherSimulator.h"
 #include "cISC4ZoneManager.h"
 #include "cISCPropertyHolder.h"
@@ -179,7 +180,9 @@ void PositionToCell(void* u, float x, float z, int32_t* cx, int32_t* cz) {
 bool IsTutorial(void* u) {
     cISC4City* c = Self(u)->City();
     cISC4TutorialSystem* t = c ? c->GetTutorialSystem() : nullptr;  // city slot 82
-    const bool tutorial = t != nullptr && t->IsTutorial();          // tutorial slot 8
+    // Tutorial slot 8, or fc4_tutorial_is_tutorial when the system is ours
+    // (enable = tutorial).
+    const bool tutorial = fc4::TutorialIsTutorial(t);
     ++Self(u)->Probe().fireRolls;
     if (tutorial) ++Self(u)->Probe().tutorialSkips;
     return tutorial;

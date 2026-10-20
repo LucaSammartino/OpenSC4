@@ -80,10 +80,12 @@
 #include "FC4OccMgrShadow.h"  // the glue14b lane
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
+#include "FC4PropLotShadow.h"  // the glue15 lane
 #include "cFC4LotDeveloper.h"
 #include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
 #include "cFC4Civic.h"       // the cmglue lane: civic
 #include "cFC4Parks.h"       // the cmglue lane: parks
+#include "cFC4Tutorial.h"    // the glue15 lane: tutorial
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -303,6 +305,12 @@ const ClassEntry kParkClasses[] = {
 const ClassEntry kZoneDevClasses[] = {
     {kFC4_CLSID_cSC4ZoneDeveloper, "cSC4ZoneDeveloper", &CreateFC4ZoneDeveloper},
 };
+// docs/specs/tutorial.md §1: the tutorial system (city component 48). Off by
+// default (glue trial): `enable = tutorial`. The fire and flammability
+// IsTutorial readers then read fc4_tutorial_is_tutorial (cFC4Tutorial.h).
+const ClassEntry kTutorialClasses[] = {
+    {kFC4_CLSID_cSC4TutorialSystem, "cSC4TutorialSystem", &CreateFC4TutorialSystem},
+};
 
 // docs/specs/dispatch.md §1. Off by default (glue17): `enable = dispatch`.
 // The protection simulators and the air sources register with it (§8), and the
@@ -365,6 +373,8 @@ const Subsystem kSubsystems[] = {
     {"citysit", nullptr, kCitySitClasses, sizeof(kCitySitClasses) / sizeof(kCitySitClasses[0]), false},
     {"demolition", nullptr, kDemolitionClasses, sizeof(kDemolitionClasses) / sizeof(kDemolitionClasses[0]),
      false},
+    // the glue15 lane
+    {"tutorial", nullptr, kTutorialClasses, sizeof(kTutorialClasses) / sizeof(kTutorialClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -518,6 +528,8 @@ void Resolve() {
     DemolitionShadowStartup(enabledKey("demolition"));
     DemolitionPriceShadowStartup(enabledKey("demolition"));  // the glue23 lane
     DispatchShadowStartup(enabledKey("dispatch"));
+    // The prop manager, lot configuration manager and tutorial shadows (FC4PropLotShadow.h; the glue15 lane).
+    PropLotShadowStartup(enabledKey("propmgr"), enabledKey("lotcfg"), enabledKey("tutorial"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

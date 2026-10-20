@@ -349,7 +349,14 @@ if(FC4_IS_WIN32_X86)
         # The occupant manager shadow (occupant-manager.md): occmgr_shadow (no replacement).
         plugin/FC4OccMgrShadow.cpp
         plugin/FC4OccMgrShadow.h        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
-        plugin/FC4HarnessLogic.h
+        # The prop manager, the lot configuration manager and the tutorial system
+        # (prop-lotconfig.md, tutorial.md; the glue15 lane): enable = propmgr, lotcfg,
+        # tutorial; propmgr_shadow, lotcfg_shadow, tutorial_shadow.
+        plugin/cFC4Tutorial.cpp
+        plugin/cFC4Tutorial.h
+        plugin/FC4PropLotShadow.cpp
+        plugin/FC4PropLotShadow.h
+        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.        plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp
         plugin/FC4Turbo.h
         plugin/FC4Script.cpp
@@ -692,6 +699,12 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_clock24_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-clock24)
     set_tests_properties(plugin_ini_enable_clock24_test PROPERTIES RUN_SERIAL TRUE)
+    # The tutorial system (docs/specs/tutorial.md; the glue15 lane): `enable =
+    # tutorial` registers it (QI table, the 11-byte record and its GUID
+    # mapping, IsTutorial and the getters, Init / Shutdown, the last Release).
+    add_test(NAME plugin_ini_enable_tutorial_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-tutorial)
+    set_tests_properties(plugin_ini_enable_tutorial_test PROPERTIES RUN_SERIAL TRUE)
     # The 24-hour clock shadow (FC4Clock24Shadow.h): inactive with ours;
     # through seam op 54 op 2, on FreeCity4's clock as the "original": the
     # load, mirrored steps and messages exact, then a magnification and a

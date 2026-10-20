@@ -11060,6 +11060,9 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 // The glue16 lane: the terrain shadow (plugin_terrain_test.inc, seam op 58).
 #include "FC4TerrainShadow.h"
 #include "plugin_terrain_test.inc"
+// The glue15 lane: the tutorial system (plugin_glue15_test.inc).
+#include "cISC4TutorialSystem.h"
+#include "plugin_glue15_test.inc"
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -11147,6 +11150,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-clock24") return Clock24EnableTest(dll, ini, log);
     // The 24-hour clock shadow (FC4Clock24Shadow.h, seam op 54 op 2).
     if (mode == "--ini-clock24-shadow") return Clock24ShadowIniTest(dll, ini, log);
+    // The tutorial system (tutorial.md; the glue15 lane).
+    if (mode == "--ini-enable-tutorial") return TutorialEnableTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).

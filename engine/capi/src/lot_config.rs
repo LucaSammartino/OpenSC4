@@ -56,7 +56,7 @@ pub struct fc4_lot_config_catalogue {
 }
 
 #[repr(C)]
-pub struct fc4_lot_config {
+pub struct fc4_lot_config_manager {
     _private: [u8; 0],
 }
 
@@ -570,8 +570,8 @@ struct Handle {
     m: Rc<LotConfigManager>,
 }
 
-fn with_m<R>(m: *const fc4_lot_config, fallback: R, f: impl FnOnce(&Handle) -> R) -> R {
-    // SAFETY: documented precondition: NULL or a live fc4_lot_config*.
+fn with_m<R>(m: *const fc4_lot_config_manager, fallback: R, f: impl FnOnce(&Handle) -> R) -> R {
+    // SAFETY: documented precondition: NULL or a live fc4_lot_config_manager*.
     match unsafe { (m as *const Handle).as_ref() } {
         Some(h) => guard(fallback, || f(h)),
         None => fallback,
@@ -603,7 +603,7 @@ pub unsafe extern "C" fn fc4_lot_config_create(
     host: *const fc4_lot_config_host,
     catalogue: *const fc4_lot_config_catalogue,
     token: u64,
-) -> *mut fc4_lot_config {
+) -> *mut fc4_lot_config_manager {
     guard(std::ptr::null_mut(), || match host.as_ref() {
         Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_lot_config_host>() => {
             let cat = match (catalogue as *const SharedLotConfigCatalogue).as_ref() {
@@ -611,14 +611,14 @@ pub unsafe extern "C" fn fc4_lot_config_create(
                 None => LotConfigCatalogue::shared(),
             };
             let m = LotConfigManager::new(Rc::new(CHost { h: *h }), cat, token);
-            Box::into_raw(Box::new(Handle { m })) as *mut fc4_lot_config
+            Box::into_raw(Box::new(Handle { m })) as *mut fc4_lot_config_manager
         }
         _ => std::ptr::null_mut(),
     })
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_destroy(m: *mut fc4_lot_config) {
+pub unsafe extern "C" fn fc4_lot_config_destroy(m: *mut fc4_lot_config_manager) {
     if !m.is_null() {
         guard((), || drop(Box::from_raw(m as *mut Handle)));
     }
@@ -631,47 +631,47 @@ pub extern "C" fn fc4_lot_config_query_interface(iid: u32) -> bool {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_add_ref(m: *mut fc4_lot_config) -> u32 {
+pub unsafe extern "C" fn fc4_lot_config_add_ref(m: *mut fc4_lot_config_manager) -> u32 {
     with_m(m, 0, |h| h.m.add_ref())
 }
 
 /// `Release`: the last one runs `Shutdown` and marks the object destroyed
 /// (0); the handle stays valid until [`fc4_lot_config_destroy`].
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_release(m: *mut fc4_lot_config) -> u32 {
+pub unsafe extern "C" fn fc4_lot_config_release(m: *mut fc4_lot_config_manager) -> u32 {
     with_m(m, 0, |h| h.m.release())
 }
 
 /// Slot 3 `Init` (§B4.1): builds the catalogue, or rebuilds it when the
 /// detail preference changed (`StaticInit`).
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_init(m: *mut fc4_lot_config) -> bool {
+pub unsafe extern "C" fn fc4_lot_config_init(m: *mut fc4_lot_config_manager) -> bool {
     with_m(m, false, |h| h.m.init())
 }
 
 /// Slot 4 `Shutdown` (§B4.2). The catalogue stays.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_shutdown(m: *mut fc4_lot_config) -> bool {
+pub unsafe extern "C" fn fc4_lot_config_shutdown(m: *mut fc4_lot_config_manager) -> bool {
     with_m(m, false, |h| h.m.shutdown())
 }
 
 /// The process unload callback (`0x0048A240`): releases every
 /// configuration and empties the map; the family set stays (quirk 10).
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_unload(m: *mut fc4_lot_config) {
+pub unsafe extern "C" fn fc4_lot_config_unload(m: *mut fc4_lot_config_manager) {
     with_m(m, (), |h| h.m.unload())
 }
 
 /// `DoMessage` (§B4.3): PostCityInit fills every configuration's building
 /// information. Always true.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_do_message(m: *mut fc4_lot_config, msg_type: u32) -> bool {
+pub unsafe extern "C" fn fc4_lot_config_do_message(m: *mut fc4_lot_config_manager, msg_type: u32) -> bool {
     with_m(m, true, |h| h.m.do_message(msg_type))
 }
 
 /// `0x0048AD40` (§B4.3) on one configuration.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_fill_building_information(m: *mut fc4_lot_config, cfg: u64) {
+pub unsafe extern "C" fn fc4_lot_config_fill_building_information(m: *mut fc4_lot_config_manager, cfg: u64) {
     with_m(m, (), |h| h.m.fill_building_information(cfg))
 }
 
@@ -680,7 +680,7 @@ pub unsafe extern "C" fn fc4_lot_config_fill_building_information(m: *mut fc4_lo
 /// Slot 5 `AddLotConfiguration(key)`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lot_config_add_by_key(
-    m: *mut fc4_lot_config,
+    m: *mut fc4_lot_config_manager,
     type_id: u32,
     group: u32,
     instance: u32,
@@ -695,19 +695,19 @@ pub unsafe extern "C" fn fc4_lot_config_add_by_key(
 
 /// Slot 6 `AddLotConfiguration(cfg, add)`. Always true.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_add_configuration(m: *mut fc4_lot_config, cfg: u64, add: bool) -> bool {
+pub unsafe extern "C" fn fc4_lot_config_add_configuration(m: *mut fc4_lot_config_manager, cfg: u64, add: bool) -> bool {
     with_m(m, false, |h| h.m.add_configuration(cfg, add))
 }
 
 /// Slot 7 `RemoveLotConfiguration(id)`.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_remove_configuration(m: *mut fc4_lot_config, id: u32) -> bool {
+pub unsafe extern "C" fn fc4_lot_config_remove_configuration(m: *mut fc4_lot_config_manager, id: u32) -> bool {
     with_m(m, false, |h| h.m.remove_configuration(id))
 }
 
 /// Slot 8 `GetLotConfiguration(id)`: no reference is added; 0 for none.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_configuration(m: *const fc4_lot_config, id: u32) -> u64 {
+pub unsafe extern "C" fn fc4_lot_config_configuration(m: *const fc4_lot_config_manager, id: u32) -> u64 {
     with_m(m, 0, |h| h.m.configuration(id).unwrap_or(0))
 }
 
@@ -715,7 +715,7 @@ pub unsafe extern "C" fn fc4_lot_config_configuration(m: *const fc4_lot_config, 
 /// NULL). Returns the number of entries; copies at most `capacity`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lot_config_configuration_map(
-    m: *const fc4_lot_config,
+    m: *const fc4_lot_config_manager,
     ids: *mut u32,
     configurations: *mut u64,
     capacity: usize,
@@ -731,7 +731,7 @@ pub unsafe extern "C" fn fc4_lot_config_configuration_map(
 /// Slot 21: the family set in bucket order. As the map.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lot_config_family_id_set(
-    m: *const fc4_lot_config,
+    m: *const fc4_lot_config_manager,
     out: *mut u32,
     capacity: usize,
 ) -> usize {
@@ -747,7 +747,7 @@ pub unsafe extern "C" fn fc4_lot_config_family_id_set(
 /// Returns the count.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lot_config_configurations(
-    m: *mut fc4_lot_config,
+    m: *mut fc4_lot_config_manager,
     which: u32,
     a: u64,
     b: u32,
@@ -766,7 +766,7 @@ pub unsafe extern "C" fn fc4_lot_config_configurations(
 
 /// Slot 12 `ClearLotConfigurationSet(set)`: releases every element once.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_clear_set(m: *mut fc4_lot_config, set: *const u64, n: usize) {
+pub unsafe extern "C" fn fc4_lot_config_clear_set(m: *mut fc4_lot_config_manager, set: *const u64, n: usize) {
     let s = slice_in(set, n).to_vec();
     with_m(m, (), |h| h.m.clear_set(&s))
 }
@@ -776,7 +776,7 @@ pub unsafe extern "C" fn fc4_lot_config_clear_set(m: *mut fc4_lot_config, set: *
 /// not cached). Returns the count; copies at most `capacity`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lot_config_ids(
-    m: *const fc4_lot_config,
+    m: *const fc4_lot_config_manager,
     which: u32,
     a: u64,
     b: u32,
@@ -801,7 +801,7 @@ pub unsafe extern "C" fn fc4_lot_config_ids(
 /// configuration's array goes to `index` (may be NULL).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lot_config_has_building(
-    m: *const fc4_lot_config,
+    m: *const fc4_lot_config_manager,
     cfg: u64,
     id: u32,
     by_type: bool,
@@ -829,19 +829,19 @@ pub unsafe extern "C" fn fc4_lot_config_has_building(
 
 /// Slot 18.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_register_filter(m: *mut fc4_lot_config, filter: u64) {
+pub unsafe extern "C" fn fc4_lot_config_register_filter(m: *mut fc4_lot_config_manager, filter: u64) {
     with_m(m, (), |h| h.m.register_filter(filter))
 }
 
 /// Slot 19.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_unregister_filter(m: *mut fc4_lot_config, filter: u64) {
+pub unsafe extern "C" fn fc4_lot_config_unregister_filter(m: *mut fc4_lot_config_manager, filter: u64) {
     with_m(m, (), |h| h.m.unregister_filter(filter))
 }
 
 /// The flush (`0x0048A080`): drops every cached result.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_flush(m: *mut fc4_lot_config) {
+pub unsafe extern "C" fn fc4_lot_config_flush(m: *mut fc4_lot_config_manager) {
     with_m(m, (), |h| h.m.flush())
 }
 
@@ -851,7 +851,7 @@ pub unsafe extern "C" fn fc4_lot_config_flush(m: *mut fc4_lot_config) {
 /// `*count` gets their number. Pointers may be NULL.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lot_config_filter_cache(
-    m: *const fc4_lot_config,
+    m: *const fc4_lot_config_manager,
     filter: u64,
     cached: *mut bool,
     out: *mut u64,
@@ -878,7 +878,7 @@ pub unsafe extern "C" fn fc4_lot_config_filter_cache(
 /// `(w, d, 0, 0)` into `out4`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lot_config_max_footprint(
-    m: *const fc4_lot_config,
+    m: *const fc4_lot_config_manager,
     kind: u32,
     ids: *const u32,
     n: usize,
@@ -907,7 +907,7 @@ pub unsafe extern "C" fn fc4_lot_config_max_footprint(
 /// copies at most `capacity`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lot_config_object_id_array(
-    m: *const fc4_lot_config,
+    m: *const fc4_lot_config_manager,
     obj: *const fc4_lotdev_cfg_object,
     out: *mut u32,
     capacity: usize,
@@ -922,7 +922,7 @@ pub unsafe extern "C" fn fc4_lot_config_object_id_array(
 /// not in the map with one reference for the caller, 0 when BDS rejects the
 /// type (PL8).
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_create_generic(m: *mut fc4_lot_config, building_type: u32) -> u64 {
+pub unsafe extern "C" fn fc4_lot_config_create_generic(m: *mut fc4_lot_config_manager, building_type: u32) -> u64 {
     with_m(m, 0, |h| h.m.create_generic(building_type).unwrap_or(0))
 }
 
@@ -931,14 +931,17 @@ pub unsafe extern "C" fn fc4_lot_config_create_generic(m: *mut fc4_lot_config, b
 /// outside the lot, 5 a centre moved, 6 a retaining wall removed; PL9,
 /// PL10).
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_fix(m: *mut fc4_lot_config, cfg: u64) -> u32 {
+pub unsafe extern "C" fn fc4_lot_config_fix(m: *mut fc4_lot_config_manager, cfg: u64) -> u32 {
     with_m(m, 0, |h| h.m.fix(opt(cfg)))
 }
 
 // ---- diagnostics and the record (§B6) ----
 
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_get_state(m: *const fc4_lot_config, out: *mut fc4_lot_config_state) -> bool {
+pub unsafe extern "C" fn fc4_lot_config_get_state(
+    m: *const fc4_lot_config_manager,
+    out: *mut fc4_lot_config_state,
+) -> bool {
     let Some(o) = out.as_mut() else { return false };
     with_m(m, false, |h| {
         let s = h.m.snapshot();
@@ -959,7 +962,7 @@ pub unsafe extern "C" fn fc4_lot_config_get_state(m: *const fc4_lot_config, out:
 
 /// `Write` (§B6): version 1 and the three held services.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_write(m: *const fc4_lot_config, out: *const fc4_ostream) -> bool {
+pub unsafe extern "C" fn fc4_lot_config_write(m: *const fc4_lot_config_manager, out: *const fc4_ostream) -> bool {
     let Some(o) = out.as_ref() else { return false };
     if !ostream_ok(o) {
         return false;
@@ -975,7 +978,7 @@ fn no_core_objects(_: u32, _: *mut c_void) -> Option<Rc<dyn SaveObject>> {
 /// references come back through `resolve_ref` with IIDs `0x07813EAE`,
 /// `0x06C66177` and `0x28326F3E`.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lot_config_read(m: *mut fc4_lot_config, inp: *const fc4_istream) -> bool {
+pub unsafe extern "C" fn fc4_lot_config_read(m: *mut fc4_lot_config_manager, inp: *const fc4_istream) -> bool {
     let Some(i) = inp.as_ref() else { return false };
     if !istream_ok(i) {
         return false;
