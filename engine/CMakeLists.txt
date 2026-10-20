@@ -379,7 +379,16 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4EffectsHost.cpp
         plugin/FC4EffectsHost.h
         plugin/FC4EffectsShadow.cpp
-        plugin/FC4EffectsShadow.h        # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
+        plugin/FC4EffectsShadow.h
+        plugin/cFC4NetworkManager.cpp
+        plugin/cFC4NetworkManager.h
+        plugin/cFC4NetworkLotManager.cpp
+        plugin/cFC4NetworkLotManager.h
+        # The replacement network manager's tool stand-in (glue24; §13: the
+        # tools are their own subsystem, the slot 5 answer must not be null).
+        plugin/cFC4NetworkTool.cpp
+        plugin/cFC4NetworkTool.h
+        # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp
         plugin/cFC4ZoneDeveloper.h
@@ -393,7 +402,7 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4NetMgrShadow.h
         # The occupant manager shadow (occupant-manager.md): occmgr_shadow (no replacement).
         plugin/FC4OccMgrShadow.cpp
-        plugin/FC4OccMgrShadow.h        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
+        plugin/FC4OccMgrShadow.h
         # The prop manager, the lot configuration manager and the tutorial system
         # (prop-lotconfig.md, tutorial.md; the glue15 lane): enable = propmgr, lotcfg,
         # tutorial; propmgr_shadow, lotcfg_shadow, tutorial_shadow.
@@ -401,7 +410,8 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Tutorial.h
         plugin/FC4PropLotShadow.cpp
         plugin/FC4PropLotShadow.h
-        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.        plugin/FC4HarnessLogic.h
+        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
+        plugin/FC4HarnessLogic.h
         # The prop developer and the city detail manager (glue12b1): `enable = propdev,
         # citydetail`, propdev_shadow, citydetail_shadow.
         plugin/FC4PropCityCommon.cpp
@@ -421,8 +431,8 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4PortDeveloper.h
         plugin/FC4PortInterfaces.h
         plugin/FC4PortsShadow.cpp
-        plugin/FC4PortsShadow.h        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
-        plugin/FC4HarnessLogic.h        plugin/FC4Turbo.cpp
+        plugin/FC4PortsShadow.h
+        plugin/FC4Turbo.cpp
         # The automata layer's host tables (automata.md 8, 9; the glue19 lane) and
         # its shadow: automata_shadow.
         plugin/cFC4Automata.cpp
@@ -438,7 +448,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4AutomataShadow.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
-        plugin/FC4Turbo.cpp        plugin/FC4Turbo.h
+        plugin/FC4Turbo.cpp
+        plugin/FC4Turbo.h
         plugin/FC4Script.cpp
         plugin/FC4Script.h
         plugin/FC4Dialogs.cpp

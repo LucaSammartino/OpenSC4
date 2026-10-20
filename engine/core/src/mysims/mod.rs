@@ -36,9 +36,13 @@
 //!   ([`MySimHost::read_dispatch_inline`]) [choice].
 
 mod agent;
+pub mod dispatch;
+pub mod pool;
 pub mod scripted;
 mod sim;
 
+#[cfg(test)]
+mod dispatch_tests;
 #[cfg(test)]
 mod tests;
 
@@ -56,7 +60,13 @@ pub mod clsid {
     pub const AGENT: u32 = 0x29E3_7DEC;
     pub const MYSIM: u32 = 0x4A1D_BBBF;
     pub const MY_STREET_SIM: u32 = 0x0BF6_06A5;
+    /// `cSC4MySimDispatch` (§1.1, out of scope for the spec but named).
+    pub const DISPATCH: u32 = 0xCBC1_4674;
 }
+
+/// `cSC4MySimDispatch`: class ID and read IID (§1.1).
+pub const DISPATCH_CLSID: u32 = clsid::DISPATCH;
+pub const DISPATCH_IID: u32 = iid::DISPATCH;
 
 /// Interface IDs (§1.1).
 pub mod iid {
@@ -399,6 +409,11 @@ pub trait MySimHost {
     /// `reset_commute`, `shutdown`, `leave_for_work`, `return_home`,
     /// `night_sound`, `update_residence`, `move_in_control`, `ghost`.
     fn dispatch_command(&self, sim: i32, what: &str);
+    /// `dispatch:CheckFlags(mask)` (§4.1 step 3 tracking flag). Optional:
+    /// the default false keeps the pre-dispatch-core stub behaviour.
+    fn dispatch_check_flags(&self, _sim: i32, _mask: u32) -> bool {
+        false
+    }
     /// The inline dispatch record of version-12 MySim records.
     fn read_dispatch_inline(&self, _sim: i32, _inp: &mut dyn InStream) -> bool {
         false

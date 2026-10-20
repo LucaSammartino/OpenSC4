@@ -59,9 +59,11 @@ generated index: the questions live one file per spec, so read only the file for
 | NB | neighbors, network-bridges |
 | NG | neighbors, network-geometry |
 | NM | network-manager |
+| NO | network-occupants |
 | NR | network-rules |
 | NT | network-tools |
 | OM | occupant-manager |
+| OP | occupants-props |
 | PD | port-developers |
 | PF | pathfinder |
 | PG | pollution |
@@ -113,14 +115,16 @@ generated index: the questions live one file per spec, so read only the file for
 | landvalue | 0 | 5 | LV6 | - |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
-| mysims | 7 | 0 | MS8 | questions/mysims.md |
+| mysims | 10 | 0 | MS11 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 9 | NM10 | - |
+| network-occupants | 8 | 0 | NO9 | questions/network-occupants.md |
 | network-rules | 2 | 7 | NR13 | questions/network-rules.md |
 | network-tools | 8 | 0 | NT14 | questions/network-tools.md |
 | occupant-manager | 0 | 5 | OM9 | - |
+| occupants-props | 10 | 0 | OP11 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | parks | 0 | 11 | PK12 | - |
 | pathfinder | 0 | 15 | PF16 | - |
@@ -134,10 +138,10 @@ generated index: the questions live one file per spec, so read only the file for
 | protection | 0 | 20 | PR21 | - |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
-| terrain | 0 | 27 | TR28 | - |
+| terrain | 5 | 27 | TR33 | questions/terrain.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 92 | TG27, TS67 | - |
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **27** | **974** | | |
+| **total** | **53** | **974** | | |

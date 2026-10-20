@@ -26,6 +26,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <crtdbg.h>
 #include <stdlib.h>
 
 namespace fc4 {
@@ -75,6 +76,23 @@ void __cdecl PureCall() {
     std::abort();
 }
 
+// The debug CRT's assert (_CrtDbgReport -> _CrtDbgBreak, the 0x80000003 int3 the
+// vectored handler sees at failwithmessage) dies before the report's own sink writes
+// anything a log can read. A report hook sees the message first: log it (and the last
+// interface calls) so the assert site is on the log, then return TRUE to drop the
+// report's own paths (no message box, no debugger write) - the int3 still fires and
+// the process still ends as it would have (glue24: runs glue24-rep-7 / glue24-rep-
+// final hit an assert at about tick 5500 whose report never reached the log).
+int __cdecl AssertReportHook(int reportType, wchar_t* message, int* returnValue) {
+    if (message != nullptr) {
+        LogWait(kWaitMs, "CRT assert (report type %d) in FreeCity4.dll: %ls", reportType, message);
+        DumpCallRing("  ");
+        LogFlush();
+    }
+    if (returnValue != nullptr) *returnValue = 0;
+    return TRUE;  // handled: no further reporting; the assert's break still follows
+}
+
 }  // namespace
 
 void FailFastLogText(const char* text, unsigned long len) {
@@ -91,8 +109,9 @@ void FailFastAttach() {
     fc4_set_panic_log(&PanicSink, nullptr);
     _set_invalid_parameter_handler(&InvalidParameter);
     _set_purecall_handler(&PureCall);
-    Log("fail-fast reports on: a Rust panic, a CRT invalid parameter or a pure call is logged (with the last "
-        "interface calls) before the process ends");
+    _CrtSetReportHookW2(_CRT_RPTHOOK_INSTALL, &AssertReportHook);
+    Log("fail-fast reports on: a Rust panic, a CRT invalid parameter, a pure call or a CRT assert is logged "
+        "(with the last interface calls) before the process ends");
 }
 
 }  // namespace fc4

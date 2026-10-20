@@ -462,16 +462,21 @@ impl TractDeveloperHost for World {
             (r.x1 <= x && x <= r.x2 && r.z1 <= z && z <= r.z2).then_some(k)
         })
     }
-    fn lots_in_cell_rect(&self, rect: CellRect) -> Vec<u64> {
-        self.lots
-            .borrow()
+    fn lots_in_cell_rect(&self, rect: CellRect, f: &mut dyn FnMut(u64)) {
+        // The same lots, in the same order, the Vec form handed over.
+        let lots = self.lots.borrow();
+        let hits: Vec<u64> = lots
             .iter()
             .filter(|(_, l)| {
                 let r = l.rect();
                 r.x1 <= rect.x2 && rect.x1 <= r.x2 && r.z1 <= rect.z2 && rect.z1 <= r.z2
             })
             .map(|(&k, _)| k)
-            .collect()
+            .collect();
+        drop(lots);
+        for k in hits {
+            f(k);
+        }
     }
     fn lots_surrounding_lot(&self, lot: u64, flags: u32) -> Vec<u64> {
         if flags != 1 {
