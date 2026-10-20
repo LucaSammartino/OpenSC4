@@ -62,5 +62,6 @@ not fire this time; it is rare. If it fires in a future run, the log now
 names it (`RTC ERROR #N … call site: …`) and the run continues — fix the
 named site or file NM12 if it is a benign check the original also trips.
 
-**Questions:** none filed. **ABI:** unchanged (`abi_entries.inc` untouched,
-`FC4_ABI_VERSION` not bumped).
+**Gate:** cargo **3019/0**, clippy clean (0 diagnostics), ctest **58/58**
+(`build-runs/gate-glue24fix2.txt`). **Questions:** none filed. **ABI:**
+unchanged (`abi_entries.inc` untouched, `FC4_ABI_VERSION` not bumped).
