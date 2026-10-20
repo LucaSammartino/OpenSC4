@@ -212,23 +212,6 @@ uint64_t CreateTool(void*, uint32_t type) {
     return fc4::TokenOf(static_cast<cIGZUnknown*>(tool));
 }
 
-cFC4NetworkTool* ToolOf(uint64_t t) {
-    return t != 0 && fc4::IsOurObject(fc4::FromToken(t))
-               ? static_cast<cFC4NetworkTool*>(fc4::FromToken(t))
-               : nullptr;
-}
-
-uint64_t CreateTool(void*, uint32_t) {
-    // §3.1 step 5 / §7.1: the tool is created with one reference for the core
-    // (the original's cache holds it; the core's create/release callbacks own
-    // it here). The stand-in starts at 0 like the original's (§7.1: the
-    // factory returns it with no AddRef) - the host holds the creation
-    // reference by AddRef'ing after the new.
-    auto* tool = new cFC4NetworkTool();
-    tool->AddRef();
-    return fc4::TokenOf(static_cast<cIGZUnknown*>(tool));
-}
-
 void ToolInit(void*, uint64_t tool) {
     if (cFC4NetworkTool* t = ToolOf(tool)) t->Init();  // tool slot 3
 }

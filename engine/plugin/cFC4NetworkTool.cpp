@@ -56,7 +56,7 @@ cIGZUnknown* cFC4NetworkTool::Create(uint32_t networkType) {
     // The factory returns the primary interface's pointer with reference
     // count 0 (network-manager.md §7.1: no AddRef). The GZCOM-registered
     // class is always live (the nettool key is how it got registered).
-    return static_cast<cIGZUnknown*>(static_cast<cISC4NetworkTool*>(new cFC4NetworkTool(networkType, true)));
+    return static_cast<cIGZUnknown*>(static_cast<cFC4ISC4NetworkToolFull*>(new cFC4NetworkTool(networkType, true)));
 }
 
 cFC4NetworkTool::cFC4NetworkTool(uint32_t networkType, bool live)
@@ -69,7 +69,7 @@ cFC4NetworkTool::cFC4NetworkTool(uint32_t networkType, bool live)
         return;
     }
     host_ = fc4::MakeNetToolHost(&ctx_);
-    ctx_.self = static_cast<cIGZUnknown*>(static_cast<cISC4NetworkTool*>(this));
+    ctx_.self = static_cast<cIGZUnknown*>(static_cast<cFC4ISC4NetworkToolFull*>(this));
     core_ = fc4_nettool_create(&host_, networkType);
     if (core_ == nullptr) fc4::Log("cFC4NetworkTool: core creation failed");
     fc4::Log("cFC4NetworkTool(%p) type %u created, core %p", static_cast<void*>(this), networkType,
@@ -182,7 +182,7 @@ uint32_t cFC4NetworkTool::GetUITool(cISC4NetworkToolUI** outUi) {
 
 // §3 PlaceNetworkOccupants(x1, z1, x2, z2, mask, callback, real, type): AL.
 uint32_t cFC4NetworkTool::PlaceNetworkOccupants(uint32_t startX, uint32_t startZ, uint32_t endX, uint32_t endZ,
-                                                unsigned long networkMask, cISC4NetworkTool* toolCallback,
+                                                unsigned long networkMask, cFC4ISC4NetworkToolFull* toolCallback,
                                                 bool bUseWorldCache,
                                                 cISC4NetworkOccupant::eNetworkType networkType) {
     FC4_TRACE("cFC4NetworkTool::PlaceNetworkOccupants");
@@ -222,7 +222,16 @@ uint32_t cFC4NetworkTool::OccupantExists(uint32_t x, uint32_t z, unsigned long n
     return ok ? 1u : 0u;
 }
 
-void cFC4NetworkTool::UpdateOnZoneChange() {}
+// Slot 10: the game's power simulator refreshes the shared power-line tool
+// over a zoning change (power.md §5, message 0x07699455): (SC4Rect by value,
+// uint32), pop 20 — the SDK declares no parameters (foundations.md M3
+// errata). The core has no zone-change state to refresh; the run's log line
+// records the call.
+void cFC4NetworkTool::UpdateOnZoneChange(FC4Int32Quad rect, uint32_t data3) {
+    if (!live_) return;  // the stand-in
+    fc4::Log("nettool type %u UpdateOnZoneChange rect (%d, %d)-(%d, %d) data3 %u", networkType_, rect.v[0],
+             rect.v[1], rect.v[2], rect.v[3], data3);
+}
 
 void cFC4NetworkTool::ForceReload() {}
 
@@ -238,7 +247,7 @@ uint32_t cFC4NetworkTool::GetFailureState() const {
 }
 
 // §5.3: the failure code's LTEXT (group 0x2A592FD1, instance = the code).
-void cFC4NetworkTool::GetFailureReasonString(cIGZString& outStr) const {
+void cFC4NetworkTool::GetFailureReasonString(cIGZString& outStr) {
     // [choice] The LTEXT lookup belongs to the presentation path; a
     // replacement writes the fixed "missing failure reason" text when the
     // string is missing. The lookup itself needs the language manager; the
@@ -324,11 +333,17 @@ int cFC4NetworkTool::GetPreferredBridge() const { return -1; }
 
 void cFC4NetworkTool::SetPreferredBridge(int) {}
 
-void cFC4NetworkTool::GetBridgeAltitudeOverride() {}
+// Slot 33: the altitude override (network-bridges.md 1.1: returns +0x204 in
+// ST0; Reset sets it to -1 = no override). The core carries it; the
+// stand-in's answer is the same -1.
+float cFC4NetworkTool::GetBridgeAltitudeOverride() { return -1.0f; }
 
 void cFC4NetworkTool::SetBridgeAltitudeOverride(float) {}
 
-void cFC4NetworkTool::GetBridgeName(cIGZString&, int) const {}
+// Slot 35: (index, string) as compiled (network-bridges.md 1.1; the SDK
+// declares (string, index)). The bridge-type names come from the type's
+// exemplar, which the tool does not read yet [choice: the empty write].
+void cFC4NetworkTool::GetBridgeName(int bridgeIndex, cIGZString& outStr) { (void)bridgeIndex; (void)outStr; }
 
 int cFC4NetworkTool::GetMajorBridge() const { return -1; }
 

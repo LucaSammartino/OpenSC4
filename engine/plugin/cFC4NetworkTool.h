@@ -21,12 +21,15 @@
 // table of FC4NetToolHost.h (the geometry core fc4_netgeom drives the
 // pipeline, the occupant manager carries the inserts).
 //
-// The SDK's cISC4NetworkTool declaration matches the compiled order
-// (interfaces.tsv 0x00AA8748 slot n = SDK index n - 2), so inheriting from
-// it gives the compiled vtable. The class-method slots past the SDK (51-81,
-// network-geometry.md §1.1) are not declared: nothing outside the tool's own
-// class calls them in the specs, and a replacement that keeps the original's
-// layout is [choice].
+// The class inherits FC4Interfaces.h's cFC4ISC4NetworkToolFull — the compiled
+// interface order (interfaces.tsv 0x00AA8748, slots 0-50) with the SDK's
+// signature errors fixed: slot 10 UpdateOnZoneChange takes a rectangle by
+// value and a uint32 (pops 20; the SDK declares none — the game's power
+// simulator calls it on the shared type-5 tool, power.md §5), slot 33 returns
+// a float in ST0, slot 35 takes (index, string). The class-method slots past
+// the SDK (51-80, network-geometry.md §1.1) are not declared: nothing outside
+// the tool's own class calls them in the specs, and a replacement that keeps
+// the original's layout is [choice].
 //
 // Threading: the core is single-threaded (RefCell); the plugin serialises
 // every call on this one object. Getters run from a second thread while
@@ -40,6 +43,7 @@
 
 #include "cISC4NetworkTool.h"
 
+#include "FC4Interfaces.h"  // cFC4ISC4NetworkToolFull (the compiled interface)
 #include "FC4NetToolHost.h"  // fc4::NetToolContext
 
 #include <atomic>
@@ -67,7 +71,7 @@ cIGZUnknown* CreateFC4NetworkToolEntry();
 // The manager's create_tool passes the key's verdict (cFC4NetworkManager.cpp
 // CreateTool), so `enable = netmgr,nettool` puts the real tool in the
 // manager's own cache.
-class cFC4NetworkTool final : public cISC4NetworkTool {
+class cFC4NetworkTool final : public cFC4ISC4NetworkToolFull {
 public:
     cFC4NetworkTool(uint32_t networkType, bool live);
     ~cFC4NetworkTool();
@@ -77,25 +81,26 @@ public:
     uint32_t AddRef() override;
     uint32_t Release() override;
 
-    // cISC4NetworkTool (the SDK's declaration order = the compiled order).
+    // cFC4ISC4NetworkToolFull (the compiled interface order; the methods the
+    // table names or the plugin calls).
     bool Init() override;
     bool Shutdown() override;
     void Reset() override;
     uint32_t GetUITool(cISC4NetworkToolUI** outUi) override;
     uint32_t PlaceNetworkOccupants(uint32_t startX, uint32_t startZ, uint32_t endX, uint32_t endZ,
-                                   unsigned long networkMask, cISC4NetworkTool* toolCallback,
+                                   unsigned long networkMask, cFC4ISC4NetworkToolFull* toolCallback,
                                    bool bUseWorldCache,
                                    cISC4NetworkOccupant::eNetworkType networkType) override;
     void PlaceNetworkOccupantById(int x, int z, unsigned long occupantId, bool bSelect,
                                   cISC4NetworkOccupant::eNetworkType networkType) override;
     uint32_t OccupantExists(uint32_t x, uint32_t z, unsigned long networkMask,
                             unsigned long& outOccupantId) override;
-    void UpdateOnZoneChange() override;
+    void UpdateOnZoneChange(FC4Int32Quad rect, uint32_t data3) override;
     void ForceReload() override;
     void SetTraceFinal(bool enable) override;
     void ClearFailureReason() override;
     uint32_t GetFailureState() const override;
-    void GetFailureReasonString(cIGZString& outStr) const override;
+    void GetFailureReasonString(cIGZString& outStr) override;
     void ClearOccupantHighlights() override;
     void ClearCellPreviews() override;
     uint32_t DrawNetworkLine(const SC4Point<uint32_t>& start, const SC4Point<uint32_t>& end, bool useWorldCache,
@@ -115,9 +120,9 @@ public:
     bool GetPossibleBridges(SC4Vector<int32_t>& outBridgeInstanceIds) const override;
     int GetPreferredBridge() const override;
     void SetPreferredBridge(int bridgeId) override;
-    void GetBridgeAltitudeOverride() override;
+    float GetBridgeAltitudeOverride() override;
     void SetBridgeAltitudeOverride(float altitude) override;
-    void GetBridgeName(cIGZString& outStr, int bridgeInstanceId) const override;
+    void GetBridgeName(int bridgeIndex, cIGZString& outStr) override;
     int GetMajorBridge() const override;
     bool GetMajorBridgeAltitude(float& outAltitude) const override;
     bool GetMajorBridgeReferenceAltitude(float& outAltitude) const override;

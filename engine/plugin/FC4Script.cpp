@@ -209,7 +209,7 @@ std::string RunNetwork(const harness::ScriptAction& a, cISC4City* city) {
     bool ours = false;
     if (NetToolRegistry::Enabled()) {
         ours = true;
-        t = NetToolRegistry::Take(a.type, city, nullptr);  // borrowed, lives until city shutdown
+        t = reinterpret_cast<cISC4NetworkTool*>(NetToolRegistry::Take(a.type, city, nullptr));  // borrowed, lives until city shutdown
         if (t == nullptr) return "skipped: nettool registry has no tool for the type";
     } else {
         cISC4NetworkManager* nm = city->GetNetworkManager();  // city slot 38, borrowed
