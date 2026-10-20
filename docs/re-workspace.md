@@ -42,9 +42,60 @@ addresses alongside the matching named Mac Rev A function.
 - `tools/setup_ghidra.ps1`: builds the Ghidra projects from your own executables and exports the analysis tables.
 - `tools/build.ps1`: the full pipeline (match → merge → apply → export to `decomp/`).
 - `tools/dbpf.py`, `tools/extract_tuning.py`: read-only DBPF/exemplar reader and tuning dumper.
+- `tools/re_query.py`: read-only queries over the Ghidra export (function, asm, callers, callees, xrefs, strings,
+  names, vtables); see [Querying in parallel lanes](#querying-in-parallel-lanes).
 - `tools/x86dis.py`, `tools/class_vtables.py`: quick disassembly and vtable discovery from a CLSID.
 - In-game harness (coordinator): `tools/ingame_run.ps1`, `tools/regress.ps1`, `tools/run_summary.ps1`, `tools/sc4ctl.ps1`;
   see [docs/HANDOFF.md](HANDOFF.md) §3. Implementers work from the coordinator's run results and do not open `tools/`.
+
+## Querying in parallel lanes
+
+Use `tools/re_query.py` first. It reads the Ghidra export (`ghidra/export/windows`, from the main checkout when a
+worktree has none) plus `re/names_windows.tsv` and `docs/abi/vtables.tsv`, prints one line per item, and needs no
+server or lock. Each table is parsed once into `build-runs/re-query-cache/` of the main checkout (about 1 s cold,
+written to a temp file and `os.replace`d) and rebuilt when a source's size or mtime changes. A query takes about
+0.15 s. 8 concurrent invocations work, with a cold cache (0.7 s wall) and a warm one (0.25 s wall).
+
+```bash
+python tools/re_query.py func 0x5B9FEB cSC4PathFinder::cSC4PathFinder   # containing function, size, name, owner
+python tools/re_query.py asm 00407bc0 --max 60      # instructions, call targets and strings named
+python tools/re_query.py callers 009457c6           # also: callees, xrefs [--from], vtable <class|addr>
+python tools/re_query.py --limit 20 strings 'demand'  # also: search <name-regex> [--all]
+```
+
+An address can be hex (with or without `0x`), `FUN_xxxxxxxx`, `SimCity 4.exe+0x...`, or a name (exact, else a
+unique regex match). `vtable <function>` lists every vtable slot that points at that function. `asm` on bytes that
+Ghidra did not decode falls back to capstone (`tools/x86dis.py`).
+
+The export does not have pseudocode, types or Ghidra's live analysis. For those, use REA (the Ghidra-backed MCP
+tools). These are the facts measured on 2026-10-20 (rea-agents 6.4.0, Ghidra 12.1.4):
+
+- **One session per Claude Code process.** Each Claude Code process starts one `rea.mjs mcp` server. That server
+  holds one active target, and the tools take no session id. Every subagent or lane of that process shares the one
+  target and the one Ghidra JVM (about 2 GB).
+  - When two lanes called `open_binary` on the same exe, they joined the same session. A second `open_binary` on an
+    exe that is already open returns at once.
+  - The first query after an open imports and auto-analyses the exe, which takes about 3 minutes. Other lanes'
+    calls wait for that import rather than failing.
+  - `close_binary` waits for in-flight requests and then closes the session for every lane. A lane's next call then
+    fails with `target_unavailable`. `open_binary` on another file replaces the target for everyone.
+- **Separate processes are independent.** A second process (`node .../rea-agents/scripts/rea.mjs xrefs <exe> <addr>`)
+  ran its own JVM next to the MCP session's JVM. Both answered. The second process also re-analysed the exe for 3
+  minutes.
+- **"Ghidra client is already started".** The error comes from `GhidraClient.#start` in rea-agents. It fires when a
+  start begins while the previous run's private runtime directory or socket is still recorded, meaning a startup that
+  failed was not cleaned up. Two things make a startup fail:
+  - The caller cancelled it, for example a lane that was stopped or timed out mid-call.
+  - It ran past `REA_GHIDRA_STARTUP_TIMEOUT_MS`, which defaults to 330 s. That limit is close to the 3-minute import
+    when several JVMs or a game run share the machine.
+
+  `%TEMP%\rea-ghidra-*` directories left over from 13, 14 and 16 October are the trace of such cleanups. From then on,
+  every call through that server fails until a `close_binary` completes the cleanup.
+
+Safe pattern: one lane (or the coordinator) opens the exe once and warms it with one query. Other lanes only query and
+never call `open_binary` on another file or `close_binary`. A lane is not interrupted while the first query is
+importing. Whoever opened the session closes it when the batch is done. On "already started", call `close_binary` once
+and retry, and do not loop.
 
 ## Rebuilding locally
 
