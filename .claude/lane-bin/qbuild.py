@@ -16,11 +16,8 @@ Exit 0 only if every step passed. Read more of a log with grep or Read offset/li
 import argparse
 import os
 import re
-import shutil
 import subprocess
 import sys
-
-MAIN = r"C:\Users\tlori\FreeCity4"
 
 
 def run(cmd, cwd, log, env=None):
@@ -93,32 +90,18 @@ def step_clippy(wt, logdir, cap):
     return rc == 0
 
 
+def fc4verify(wt, steps):
+    tool = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fc4verify.py")
+    p = subprocess.run([sys.executable, tool, "--wt", wt, *steps])
+    return p.returncode == 0
+
+
+def step_quick(wt, logdir, cap):
+    return fc4verify(wt, ["quick"])
+
+
 def step_verify(wt, logdir, cap):
-    ps1 = os.path.join(logdir, "coord-verify-lane.ps1")
-    if not os.path.exists(ps1):
-        shutil.copy(os.path.join(MAIN, "build-runs", "coord-verify-lane.ps1"), ps1)
-    log = os.path.join(logdir, "qbuild-verify.log")
-    rc, lines = run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1,
-                     "-Engine", os.path.join(wt, "engine")], wt, log)
-    keep = {}
-    for l in lines:
-        for k in ("configure exit=", "build exit=", "ctest exit="):
-            if l.startswith(k):
-                keep[k] = l.strip()
-    summary = [l.strip() for l in lines if re.search(r"tests passed, \d+ tests? failed out of \d+", l)]
-    errs = [l.strip()[:220] for l in lines if l.startswith("BUILD ERROR LINE:")]
-    failed = [l.strip()[:200] for l in lines if re.search(r"\(Failed\)|\*\*\*Failed|\(Not Run\)|\*\*\*Exception", l)]
-    print(f"verify: {' '.join(keep.values()) or 'no exit lines (script failed?)'}  (log {log})")
-    if summary:
-        print(f"  ctest: {summary[-1]}")
-    for l in errs[:cap]:
-        print(f"  {l}")
-    for l in failed[:cap]:
-        print(f"  {l}")
-    if len(failed) > cap:
-        print(f"  ... {len(failed) - cap} more failed tests")
-    ok = keep.get("build exit=", "").endswith("=0") and keep.get("ctest exit=", "").endswith("=0")
-    return ok
+    return fc4verify(wt, ["build", "ctest"])
 
 
 def step_fmt(wt, files, cap):
@@ -148,11 +131,11 @@ def main():
         return 0 if step_fmt(wt, steps[1:], a.errors) else 1
     if steps == ["all"]:
         steps = ["test", "clippy", "verify"]
-    fns = {"test": step_test, "clippy": step_clippy, "verify": step_verify}
+    fns = {"test": step_test, "clippy": step_clippy, "quick": step_quick, "verify": step_verify}
     ok = True
     for s in steps:
         if s not in fns:
-            sys.exit(f"qbuild: unknown step {s!r} (test, clippy, verify, fmt, all)")
+            sys.exit(f"qbuild: unknown step {s!r} (test, clippy, quick, verify, fmt, all)")
         ok = fns[s](wt, logdir, a.errors) and ok
     print("qbuild: PASS" if ok else "qbuild: FAIL")
     return 0 if ok else 1
