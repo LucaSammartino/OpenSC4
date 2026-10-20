@@ -44,7 +44,7 @@ pub mod state;
 #[cfg(test)]
 mod tests;
 
-pub use host::{NullHost, ToolHost, ToolRun};
+pub use host::{place_network_occupant_by_id, Neighbour, NullHost, PassResult, ToolHost, ToolRun};
 pub use place::{place_network, place_network_occupants};
 pub use resolve::{
     destroy_occupants_and_resolve, update_underground_occupant_terrain_heights, Listed, UndergroundOutcome,
