@@ -606,6 +606,13 @@ AL true, nothing transferred), 5 `GetGZCLSID` `0x006F0E00` → `0x89C49986`.
    lot, if one survives a change of configuration *[not traced]*. `GetLotProps` selects by the lot's **rectangle**
    (prop-lotconfig.md A7.2), not by owner, so any tagged prop inside it counts. Plugin lots of version < 2 hit the
    rule with every tagged prop after each load *[inferred]*.
+   **Corpus count (re-answers27, 2026-10-16).** The count is now made, with `re/prop_tag_corpus.py` over the 421
+   distinct saves under `Regions\`: **40,830 of 147,162 tagged lot props are unmatched (27.7 %)**, so the rule
+   fires on more than a quarter of the tagged lot props in the corpus. 40,794 sit on a lot that has a
+   configuration whose objects do not include the tag; 36 sit on a lot with no configuration. 38,933 of the tags
+   name no object in **any** shipped configuration (and `Plugins` holds no plugin `.dat`), so they are leftovers
+   of a configuration the install no longer has. Effect props are clean (844 tagged, 0 unmatched). Full figures,
+   the per-region breakdown and the parser's validation numbers are in QUESTIONS.md under PV2.
 2. At most one removal per requester per block update; creations are not limited.
 3. The remainder of the split starts at requester index 1 (§4.3 step 4).
 4. A failed creation still consumes the free slot for the rest of the update.
