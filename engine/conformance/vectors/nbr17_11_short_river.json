@@ -1,0 +1,46 @@
+{
+ "format": 1,
+ "name": "nbr17_11_short_river",
+ "spec": [
+  "network-bridges 4.4",
+  "17.11"
+ ],
+ "description": "A river at x = 10..11 (2 wet steps): start 9, end 12, end - start = 3 < 4: no record, v unchanged. CheckForGoodTerrain then refuses the run with 0xF0000001.",
+ "steps": [
+  {
+   "op": "nbr_city",
+   "altitude": 250,
+   "sea": 250,
+   "wet_columns": [
+    [
+     10,
+     11,
+     10
+    ]
+   ]
+  },
+  {
+   "op": "nbr_types",
+   "type": 0
+  },
+  {
+   "op": "nbr_drag",
+   "steps": 31,
+   "z": 10,
+   "pen": 4
+  },
+  {
+   "op": "nbr_water",
+   "expect": 0
+  },
+  {
+   "op": "nbr_expect",
+   "valid": true,
+   "records": true,
+   "expect": {
+    "valid": 31,
+    "records": []
+   }
+  }
+ ]
+}

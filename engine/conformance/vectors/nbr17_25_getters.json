@@ -1,0 +1,44 @@
+{
+ "format": 1,
+ "name": "nbr17_25_getters",
+ "spec": [
+  "network-bridges 1.1",
+  "17.25"
+ ],
+ "description": "With no bridge GetMajorBridge is -1 and GetMajorBridgeAltitude is false. GetBridgeBitmapKey(0, ...) for road is true with (0x6A386D26, 1).",
+ "steps": [
+  {
+   "op": "nbr_types",
+   "type": 0
+  },
+  {
+   "op": "nbr_getter",
+   "slot": "major",
+   "expect": -1
+  },
+  {
+   "op": "nbr_getter",
+   "slot": "altitude",
+   "expect": false
+  },
+  {
+   "op": "nbr_getter",
+   "slot": "reference",
+   "expect": false
+  },
+  {
+   "op": "nbr_getter",
+   "slot": "land",
+   "expect": false
+  },
+  {
+   "op": "nbr_getter",
+   "slot": "bitmap",
+   "index": 0,
+   "expect": [
+    1782082854,
+    1
+   ]
+  }
+ ]
+}

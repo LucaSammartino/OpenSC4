@@ -1,0 +1,93 @@
+{
+ "format": 1,
+ "name": "nbr17_14_deck_elevation",
+ "spec": [
+  "network-bridges 5.2",
+  "8.2",
+  "17.14"
+ ],
+ "description": "As test 9 (road key 1: +0x5C = 20, +0x78 = 0), water level 250 m, flat banks at 250 m: reference elevation 250, deck 270. With SetBridgeAltitudeOverride(300) the reference is 300, the span widens to start 1 and end v - 2, and the deck is 300.",
+ "steps": [
+  {
+   "op": "nbr_city",
+   "altitude": 250,
+   "sea": 250,
+   "wet_columns": [
+    [
+     10,
+     18,
+     10
+    ]
+   ]
+  },
+  {
+   "op": "nbr_types",
+   "type": 0
+  },
+  {
+   "op": "nbr_drag",
+   "steps": 31,
+   "z": 10,
+   "pen": 4
+  },
+  {
+   "op": "nbr_water",
+   "expect": 1
+  },
+  {
+   "op": "nbr_expect",
+   "records": true,
+   "expect": {
+    "records": [
+     [
+      0,
+      9,
+      19,
+      0,
+      270,
+      250,
+      0,
+      0
+     ]
+    ]
+   }
+  },
+  {
+   "op": "nbr_types",
+   "type": 0,
+   "note": "a fresh tool: the record vector is per run (network-tools 5.1 step 2)"
+  },
+  {
+   "op": "nbr_drag",
+   "steps": 31,
+   "z": 10,
+   "pen": 4
+  },
+  {
+   "op": "nbr_host",
+   "override": 300.0
+  },
+  {
+   "op": "nbr_water",
+   "expect": 1
+  },
+  {
+   "op": "nbr_expect",
+   "records": true,
+   "expect": {
+    "records": [
+     [
+      0,
+      1,
+      29,
+      4,
+      300,
+      300,
+      0,
+      0
+     ]
+    ]
+   }
+  }
+ ]
+}

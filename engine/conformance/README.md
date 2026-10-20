@@ -2589,6 +2589,36 @@ Ordering is the point of several tests: `only` restricts the comparison to the n
 order across kinds without listing every intermediate step.
 
 
+## Network bridge ops
+
+The network bridge vectors (`nbr17_...`, the section 17 tests of `docs/specs/network-bridges.md`)
+drive `fc4_core::network_bridge`: a `BridgeTool` (the bridge types, the water and land passes,
+the elevations, the two models) over a flat city and a scripted bridge host. Every op name
+starts with `nbr_`. The default city: 64 x 64 cells, flat at 300 m, sea level 250 m, no wet
+cells. The default host: nothing in the way. The default tool: the shipped road bridge types
+(section 2.6).
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `nbr_city` | `cells?` [x, z], `altitude?` (300), `sea?` (250), `wet_columns?` [[x0, x1, z]] (wet cells), `heights?` [[x, z, h]] (a per-cell height) | a new city |
+| `nbr_host` | `clear?`, `blocked?` [{`rect`: [[x, z], [x, z]], `mask?`}], `max_slope?` (0.6109, radians), `preferred?`, `override?` | the host and the tool's preferred bridge and altitude override |
+| `nbr_types` | `type` | the shipped bridge types of a network type (2.6), replacing the tool |
+| `nbr_drag` | `steps`, `z?` (10), `pen?` (4) | a straight one-cell-wide x-drag |
+| `nbr_water` | `expect?` (the number of bridges recorded) | `IdentifyBridgeCells` (4) |
+| `nbr_land_scan` | `max_height?` (55), `bank_tolerance?` (20) | `IdentifyLandBridgeCells` (7.2) |
+| `nbr_adjust` | `start`, `end`; `expect` {`start`, `end`, `clearance`, `reference`} | `AdjustBridgeSpan` (5.2) |
+| `nbr_pad` | `start`, `end`, `min_len`; `expect` {`ok`, `start`, `end`} | `PadStepsToMakeMinBridgeSpan` (6.2) |
+| `nbr_best` | `start`, `end`, `water?` (true), `h?` (0); `expect` {`index`, `start`, `end`, `candidates`} | `FindBestBridgeType` (6.1) |
+| `nbr_model` | `bridge_type`, `start`, `end`, `deck?` (270), `pen?` (4), `z?` (10), `specialized?` | the parametric (10) or specialised (9) model |
+| `nbr_pins` | `valid?`; `expect` [[start, end, e, e] ...] | the height-solve constraint entries (8.3) |
+| `nbr_cost` | `per_step?` (100); `expect` | `GetCostOfSolution`'s bridge term (12) |
+| `nbr_getter` | `slot` (`major`, `altitude`, `reference`, `land`, `preferred`, `override`, `bitmap`, `candidates`), `index?` | the tool's bridge slots (1.1) |
+| `nbr_edge_mask` | `pen`, `index`, `n`; `expect` | the allowed edge mask (4.3) |
+| `nbr_orient` | `pen`; `expect` {`r`, `t`, `t_mirror`, `forward`} | the orientation (9.1) |
+| `nbr_ramp_heights` | `pairs` [[a, b] ...]; `expect` {`rise`, `drops`, `offsets`, `last_column`} | the ramp heights (2.4) |
+| `nbr_parse` | `text`, `keys`, `min_span?`; `expect` {`ok`, `lengths`} | the specialisation grammar (3.1) |
+| `nbr_expect` | `expect` (partial: `valid`, `records`, `candidates`, `kinds`, `piece_kinds`, `columns`) | the tool and the run |
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
