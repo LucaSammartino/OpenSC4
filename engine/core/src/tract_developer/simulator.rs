@@ -389,6 +389,16 @@ impl Memo {
     }
 }
 
+/// `UpdatePopulation`'s per-tract values (§4.18): computed when the first
+/// lot of the tract arrives (an empty tract computes none, "if L is empty:
+/// return").
+struct UpdatePopulationState {
+    ds: f64,
+    dev_type: u32,
+    wealth: u32,
+    g: RzRandom,
+}
+
 /// One tract developer (§1).
 pub struct TractDeveloper {
     host: Rc<dyn TractDeveloperHost>,
@@ -1047,7 +1057,14 @@ impl TractDeveloper {
             self.w.chosen_cfg = None;
             self.w.chosen_building = 0;
             self.w.suitability.clear();
-            self.memo_on(false);
+            // devperf2: the memo is on for the whole listing (it used to be
+            // switched on only for the candidate passes). Everything between
+            // here and the candidate passes is a read (TakeOverAbandoned
+            // writes states, not the cell map or a lot's geometry), so the
+            // lots ListExistingLots learns for the tract's cells are the same
+            // answers the candidate passes get, and the cell → lot lookups of
+            // `aggregation_legal` hit the memo instead of the lot manager.
+            self.memo_on(true);
             let mut best = 0;
             let mut stop = false;
 
@@ -1060,7 +1077,6 @@ impl TractDeveloper {
                 return self.w.built;
             }
             if self.list_possible_lot_configurations() == code::SUCCESS {
-                self.memo_on(true);
                 best = best.max(self.list_candidate_lots_existing());
                 best = best.max(self.list_candidate_lots_aggregation());
                 if self.w.purpose != 5 {
@@ -1133,11 +1149,13 @@ impl TractDeveloper {
             }
         }
         // The cells are walked one at a time (no cell list), so a hostile
-        // tract size costs time, not memory.
+        // tract size costs time, not memory. devperf2: through the listing's
+        // memo, so the answers are also there for the candidate passes (the
+        // memo is on for the whole listing now, see `grow`).
         loop {
             let cell = self.statics.borrow_mut().list_iterator.next_cell();
             let Some((x, z)) = cell else { break };
-            if let Some(l) = self.host.get_lot(x, z) {
+            if let Some(l) = self.m_get_lot(x, z) {
                 insert_sorted(&mut self.w.lots, l);
             }
         }
@@ -1145,6 +1163,16 @@ impl TractDeveloper {
 
     /// `TakeOverAbandoned` (§4.4, as corrected): always ≥ 1.
     fn take_over_abandoned(&mut self) -> u32 {
+        // devperf2: the set is walked in place (the per-pass clone of
+        // `w.lots` is gone). Nothing in the pass changes the set, so the
+        // taken Vec (only its header moves) is put back afterwards.
+        let lots = std::mem::take(&mut self.w.lots);
+        let r = self.take_over_pass(&lots);
+        self.w.lots = lots;
+        r
+    }
+
+    fn take_over_pass(&mut self, lots: &[u64]) -> u32 {
         let h = self.host();
         let dev_type = self.w.sub_type;
         let t0 = ftol32(r24(
@@ -1156,8 +1184,7 @@ impl TractDeveloper {
         let mut best = code::NOTHING_TO_REOCCUPY;
         let mut sum: i32 = 0;
         let mut cands = Vec::new();
-        let lots: Vec<u64> = self.w.lots.clone();
-        for l in lots {
+        for &l in lots {
             // State, occupant wealth, building wealth and developer wealth
             // are read for every lot, eligible or not; signed compares.
             let state = h.lot_state(l);
@@ -1431,11 +1458,20 @@ impl TractDeveloper {
 
     /// `ListCandidateLots_Existing` (§4.9.1).
     fn list_candidate_lots_existing(&mut self) -> u32 {
+        // devperf2: the sets are walked in place (the per-pass clones are
+        // gone); see `take_over_abandoned`.
+        let lots = std::mem::take(&mut self.w.lots);
+        let cfgs = std::mem::take(&mut self.w.cfgs);
+        let r = self.existing_pass(&lots, &cfgs);
+        self.w.lots = lots;
+        self.w.cfgs = cfgs;
+        r
+    }
+
+    fn existing_pass(&mut self, lots: &[u64], cfgs: &[u64]) -> u32 {
         let h = self.host();
         let mut best = 0;
-        let lots: Vec<u64> = self.w.lots.clone();
-        let cfgs: Vec<u64> = self.w.cfgs.clone();
-        for l in lots {
+        for &l in lots {
             let r = self.is_lot_suitable(l, true);
             if h.lot_state(l) != lot_state::OCCUPIED && r != code::WRONG_ZONE {
                 self.w.out_flag = true;
@@ -1444,7 +1480,7 @@ impl TractDeveloper {
                 best = best.max(r);
                 continue;
             }
-            for &cfg in &cfgs {
+            for &cfg in cfgs {
                 let (lw, lh) = self.m_lot_size(l);
                 if self.m_cfg_size(cfg) != (lw, lh) {
                     self.hist(row::EXISTING, code::NO_CONFIGURATION);
@@ -1478,11 +1514,19 @@ impl TractDeveloper {
 
     /// `ListCandidateLots_Aggregation` (§4.9.2).
     fn list_candidate_lots_aggregation(&mut self) -> u32 {
+        // devperf2: the sets are walked in place; see `take_over_abandoned`.
+        let lots = std::mem::take(&mut self.w.lots);
+        let cfgs = std::mem::take(&mut self.w.cfgs);
+        let r = self.aggregation_pass(&lots, &cfgs);
+        self.w.lots = lots;
+        self.w.cfgs = cfgs;
+        r
+    }
+
+    fn aggregation_pass(&mut self, lots: &[u64], cfgs: &[u64]) -> u32 {
         let mut best = 0;
-        let lots: Vec<u64> = self.w.lots.clone();
-        let cfgs: Vec<u64> = self.w.cfgs.clone();
-        for l in lots {
-            for &cfg in &cfgs {
+        for &l in lots {
+            for &cfg in cfgs {
                 let (lw, lh) = self.m_lot_size(l);
                 let (cw, ch) = self.m_cfg_size(cfg);
                 if cw < lw || ch < lh || (cw == lw && ch == lh) {
@@ -1539,16 +1583,24 @@ impl TractDeveloper {
 
     /// `ListCandidateLots_Subdivision` (§4.9.3).
     fn list_candidate_lots_subdivision(&mut self) -> u32 {
+        // devperf2: the sets are walked in place; see `take_over_abandoned`.
+        let lots = std::mem::take(&mut self.w.lots);
+        let cfgs = std::mem::take(&mut self.w.cfgs);
+        let r = self.subdivision_pass(&lots, &cfgs);
+        self.w.lots = lots;
+        self.w.cfgs = cfgs;
+        r
+    }
+
+    fn subdivision_pass(&mut self, lots: &[u64], cfgs: &[u64]) -> u32 {
         let mut best = 0;
-        let lots: Vec<u64> = self.w.lots.clone();
-        let cfgs: Vec<u64> = self.w.cfgs.clone();
-        for l in lots {
+        for &l in lots {
             let r = self.is_lot_suitable(l, true);
             if r != code::SUCCESS {
                 best = best.max(r);
                 continue;
             }
-            for &cfg in &cfgs {
+            for &cfg in cfgs {
                 let (lw, lh) = self.m_lot_size(l);
                 let (cw, ch) = self.m_cfg_size(cfg);
                 if lw < cw || lh < ch || (lw == cw && lh == ch) {
@@ -2014,8 +2066,10 @@ impl TractDeveloper {
             }
         }
         let mut s_cfg: BTreeSet<u64> = BTreeSet::new();
-        let cfgs: Vec<u64> = self.w.cfgs.clone();
-        for cfg in cfgs {
+        // devperf2: the configuration set is walked in place (the per-attempt
+        // clone is gone); see `take_over_abandoned`.
+        let cfgs = std::mem::take(&mut self.w.cfgs);
+        for &cfg in &cfgs {
             if group != 0 && !h.cfg_compatible_style(cfg, group) {
                 self.hist(row::PICK_BUILDING, code::WRONG_STYLE);
                 continue;
@@ -2025,6 +2079,7 @@ impl TractDeveloper {
                 s_cfg.insert(cfg);
             }
         }
+        self.w.cfgs = cfgs;
         if s_cfg.is_empty() {
             return code::UNKNOWN;
         }
@@ -2120,53 +2175,68 @@ impl TractDeveloper {
             tx.wrapping_add(1).wrapping_shl(s).wrapping_sub(1),
             tz.wrapping_add(1).wrapping_shl(s).wrapping_sub(1),
         );
-        let lots = h.lots_in_cell_rect(rect);
-        if lots.is_empty() {
-            return;
-        }
-        let d = h.dev_desirability_value(dev, tx, tz);
-        let ds = r24(f64::from(d) * f64::from(0.01f32));
-        let dev_type = h.dev_subtype(dev);
-        let wealth = h.dev_wealth(dev);
-        // §4.18 [choice]: tract (0, 0) seeds 0 (a clock reseed in the
-        // original); it uses the fixed substitute 1 (foundations §6.3).
-        let seed = crate::seeding::coordinate_seed((tx.wrapping_shl(16).wrapping_add(tz)).wrapping_shl(4) as u32);
-        let mut g = RzRandom::new(
-            seed,
-            &FixedSeeds {
-                wall_clock: 1,
-                process_clock: 1,
-            },
-        );
+        // devperf2: the lots arrive one by one (the host walks them; no list
+        // is built, and the per-call token vector is gone with the host
+        // slot's callback form). The empty-tract short circuit (§4.18: "if L
+        // is empty: return") becomes "nothing was handed over": every value
+        // below is computed when the first lot arrives, so an empty tract
+        // still makes no desirability/subtype/wealth read and creates no
+        // generator, and a non-empty one reads them in the same order as
+        // before the listing began.
         let var = f64::from(self.tuning.occupancy_variation);
         let mv = [
             f64::from(self.tuning.min_vacancy[0]),
             f64::from(self.tuning.min_vacancy[1]),
         ];
-        for lot in lots {
-            if !(h.lot_has_capacity(lot) && h.lot_occupant_wealth(lot) == wealth) {
-                continue;
+        let statics = self.statics.clone();
+        let mut state: Option<UpdatePopulationState> = None;
+        h.lots_in_cell_rect(rect, &mut |lot| {
+            let st = state.get_or_insert_with(|| {
+                let d = h.dev_desirability_value(dev, tx, tz);
+                let ds = r24(f64::from(d) * f64::from(0.01f32));
+                let dev_type = h.dev_subtype(dev);
+                let wealth = h.dev_wealth(dev);
+                // §4.18 [choice]: tract (0, 0) seeds 0 (a clock reseed in
+                // the original); it uses the fixed substitute 1
+                // (foundations §6.3).
+                let seed =
+                    crate::seeding::coordinate_seed((tx.wrapping_shl(16).wrapping_add(tz)).wrapping_shl(4) as u32);
+                UpdatePopulationState {
+                    ds,
+                    dev_type,
+                    wealth,
+                    g: RzRandom::new(
+                        seed,
+                        &FixedSeeds {
+                            wall_clock: 1,
+                            process_clock: 1,
+                        },
+                    ),
+                }
+            });
+            if !(h.lot_has_capacity(lot) && h.lot_occupant_wealth(lot) == st.wealth) {
+                return;
             }
-            let max_cap = h.lot_available_capacity(lot, dev_type, false);
+            let max_cap = h.lot_available_capacity(lot, st.dev_type, false);
             if max_cap == 0 {
-                continue;
+                return;
             }
-            let j = g.range_f64(-var, var);
-            self.statics.borrow_mut().record(DrawKind::R7, 0, j);
-            let mut occ = r24(r24(j + 1.0) * ds);
+            let j = st.g.range_f64(-var, var);
+            statics.borrow_mut().record(DrawKind::R7, 0, j);
+            let mut occ = r24(r24(j + 1.0) * st.ds);
             if occ < 0.0 {
                 occ = 0.0;
             } else if occ >= 1.0 {
                 // A NaN occupancy compares as "< 1" (§4.18): no second
                 // draw, and its population is the low half of the NaN
                 // pattern, 0.
-                let v = g.range_f64(mv[0], mv[1]);
-                self.statics.borrow_mut().record(DrawKind::R7, 0, v);
+                let v = st.g.range_f64(mv[0], mv[1]);
+                statics.borrow_mut().record(DrawKind::R7, 0, v);
                 occ = r24(1.0 - v);
             }
             let pop = rhe(r24(f64::from(max_cap) * occ) as f32) as u16;
-            h.lot_set_population(lot, dev_type, pop);
-        }
+            h.lot_set_population(lot, st.dev_type, pop);
+        });
     }
 
     // ---- Decline (§4.19) ----

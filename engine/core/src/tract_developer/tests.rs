@@ -403,13 +403,17 @@ impl TractDeveloperHost for Script {
             .find(|(_, l)| l.x == x && l.z == z)
             .map(|(&k, _)| k)
     }
-    fn lots_in_cell_rect(&self, r: CellRect) -> Vec<u64> {
-        self.lots
+    fn lots_in_cell_rect(&self, r: CellRect, f: &mut dyn FnMut(u64)) {
+        let hits: Vec<u64> = self
+            .lots
             .borrow()
             .iter()
             .filter(|(_, l)| l.x >= r.x1 && l.x <= r.x2 && l.z >= r.z1 && l.z <= r.z2)
             .map(|(&k, _)| k)
-            .collect()
+            .collect();
+        for k in hits {
+            f(k);
+        }
     }
     fn lots_surrounding_lot(&self, _: u64, _: u32) -> Vec<u64> {
         Vec::new()
@@ -879,8 +883,10 @@ impl TractDeveloperHost for Hostile {
             Some(t)
         }
     }
-    fn lots_in_cell_rect(&self, _: CellRect) -> Vec<u64> {
-        self.tokens(5, 8)
+    fn lots_in_cell_rect(&self, _: CellRect, f: &mut dyn FnMut(u64)) {
+        for t in self.tokens(5, 8) {
+            f(t);
+        }
     }
     fn lots_surrounding_lot(&self, _: u64, _: u32) -> Vec<u64> {
         self.tokens(6, 60)
