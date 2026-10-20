@@ -241,6 +241,11 @@ impl MySim {
     }
 
     /// Slot 13 `SetResidence(b)` → true.
+    ///
+    /// §4.1 step 3 ("otherwise: the tracking flag := dispatch
+    /// `CheckFlags(0x100)`") is not stored: the flag feeds only the location
+    /// tracker, which is UI (§0) and rides the host's `dispatch_command`.
+    /// A dispatch replacement that needs it reads its own flags.
     pub fn set_residence(&self, b: Option<u64>) -> bool {
         let id = self.id();
         self.set_residence_ref(b);

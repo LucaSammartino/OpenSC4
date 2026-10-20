@@ -132,18 +132,18 @@ cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolitio
 cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
 cSC4DispatchManager	dispatch	simulation	dispatch.md	core/src/dispatch	dispatch_shadow	dispatch
 cSC4Advisor*WinProc	windows and panels	ui	-	-	-	-
-cSC4AdvisorSystem	advisors	simulation	advisors.md	-	-	-
-cSC4Advisor*	advisors	simulation	advisors.md	-	-	-
-cSC4Advice*	advisors	simulation	advisors.md	-	-	-
-cSC4RewardAdvice	advisors	simulation	advisors.md	-	-	-
-cSC4CitySituationAdvice	advisors	simulation	advisors.md	-	-	-
-cSC4MySimAgentSimulator	mysims	simulation	mysims.md	-	-	-
-cSC4MySim	mysims	simulation	mysims.md	-	-	-
+cSC4AdvisorSystem	advisors	simulation	advisors.md	core/src/advisors	-	-
+cSC4Advisor*	advisors	simulation	advisors.md	core/src/advisors	-	-
+cSC4Advice*	advisors	simulation	advisors.md	core/src/advisors	-	-
+cSC4RewardAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
+cSC4CitySituationAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
+cSC4MySimAgentSimulator	mysims	simulation	mysims.md	core/src/mysims	-	-
+cSC4MySim	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MySimPool	mysims	simulation	mysims.md	-	-	-
 cSC4MySimDispatch*	mysims	simulation	mysims.md	-	-	-
-cSC4MyStreetSim	mysims	simulation	mysims.md	-	-	-
-cSC4MySimAdvice	mysims	simulation	mysims.md	-	-	-
-cSC4MySimBalloonAdvice	mysims	simulation	mysims.md	-	-	-
+cSC4MyStreetSim	mysims	simulation	mysims.md	core/src/mysims	-	-
+cSC4MySimAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
+cSC4MySimBalloonAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4Lot	lots and lot records	simulation	lot-records.md	-	-	-
 cSC4BusinessUnit	lots and lot records	simulation	lot-records.md	-	-	-
 cSC4TripData	lots and lot records	simulation	lot-records.md	-	-	-

@@ -580,18 +580,20 @@ public:
                 HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
                 NetMgrShadowCityLoaded(CurrentCity());   // netmgr_shadow = 1 only
-                OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only                TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
+                OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
                 CityDetailShadowCityLoaded(CurrentCity());  // citydetail_shadow = 1 only
-                TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only                DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
+                TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
+                DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
                 CitySitShadowCityLoaded(CurrentCity());  // the glue17 lane: citysit_shadow = 1 only
                 DemolitionShadowCityLoaded(CurrentCity());  // demolition_shadow = 1 only
                 DemolitionPriceShadowCityLoaded(CurrentCity());  // the glue23 lane: demolition_price_shadow = 1 only
                 DispatchShadowCityLoaded(CurrentCity());  // dispatch_shadow = 1 only
-                PropLotShadowCityLoaded(CurrentCity());    // propmgr_shadow / lotcfg_shadow / tutorial_shadow = 1 only                // The snapshot at the next tick (outside the city's init
+                PropLotShadowCityLoaded(CurrentCity());    // propmgr_shadow / lotcfg_shadow / tutorial_shadow = 1 only
                 EffectsShadowCityLoaded(CurrentCity());  // effects_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
-                // The snapshot at the next tick (outside the city's init                // message), for comparison with the one before a save.
+                // The snapshot at the next tick (outside the city's init
+                // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
                 monthsSinceLoad_ = 0;
                 break;
@@ -624,7 +626,8 @@ public:
                 PropLotShadowCityShutdown();    // the prop / lot configuration / tutorial shadows' totals
                 TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
-                EffectsShadowCityShutdown();  // effects_shadow: the mirror core goes with the city                AutotestOnCityShutdown(false);
+                EffectsShadowCityShutdown();  // effects_shadow: the mirror core goes with the city
+                AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:
                 AutotestOnCityShutdown(true);
