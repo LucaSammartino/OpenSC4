@@ -790,19 +790,26 @@ void cFC4LotConfigManager::GetMaxFootprintForPropFamilies(void const* families, 
 
 void cFC4LotConfigManager::GetObjectIDArray(cSC4LotConfigurationObject* object, void* ids) {
     if (core_ == nullptr) return;
-    // The object's own ID array (§B5.6).
-    std::vector<uint32_t> v;
-    fc4_lotdev_cfg_object co{};
-    {
-        std::vector<uint32_t> ids;
-        if (object != nullptr) co = fc4::LotDevObjectOf(object, ids);
-    }
+    // §B5.6: the caller's `vec` is an SC4Vector<uint32_t>& (the SDK header and
+    // the shadow's GameU32s both say vector, NOT a hash set). The game reads
+    // it back as a vector in CreateLotObjects (network-manager.md §8.6:
+    // `ids[pick]` after RandomUint32Uniform(|ids|)) — filling it as a hash set
+    // left begin=0 / garbage end and faulted the game's own CreateLotObjects
+    // (PL17). Clear + push_back through the game allocator, like the shadow.
+    auto* v = reinterpret_cast<fc4::GameVector<uint32_t>*>(ids);
+    if (v == nullptr) return;
+    v->clear();
+    if (object == nullptr) return;
+    // The id buffer must outlive `co`: co.ids points into it.
+    std::vector<uint32_t> buf;
+    const fc4_lotdev_cfg_object co = fc4::LotDevObjectOf(object, buf);
+    std::vector<uint32_t> out;
     const uint32_t n = fc4_lot_config_object_id_array(core_, &co, nullptr, 0);
     if (n != 0) {
-        v.resize(n);
-        fc4_lot_config_object_id_array(core_, &co, v.data(), v.size());
+        out.resize(n);
+        fc4_lot_config_object_id_array(core_, &co, out.data(), out.size());
     }
-    FillSet(ids, v);
+    for (uint32_t id : out) v->push_back(id);
 }
 
 bool cFC4LotConfigManager::DoMessage(cIGZMessage2* pMessage) {
