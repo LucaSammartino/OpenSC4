@@ -2165,7 +2165,10 @@ impl TractDeveloper {
 
     /// `UpdatePopulation(profile)` (slot 7, §4.18).
     pub fn update_population(&mut self, profile: &GrowthProfile) {
-        let h = self.host();
+        // devperf2: `h` borrows the host through the field (the `host()`
+        // helper clones the `Rc` - two atomic refcount pairs per call, once
+        // per desirability tract of every growth developer's map update).
+        let h = &*self.host;
         let dev = profile.developer;
         let (tx, tz) = (profile.x, profile.z);
         let s = h.dev_desirability_shift(dev);
@@ -2188,7 +2191,9 @@ impl TractDeveloper {
             f64::from(self.tuning.min_vacancy[0]),
             f64::from(self.tuning.min_vacancy[1]),
         ];
-        let statics = self.statics.clone();
+        // The RefCell is borrowed inside the loop only (one borrow_mut per
+        // draw recorded); the Rc itself is not cloned per call.
+        let statics = &self.statics;
         let mut state: Option<UpdatePopulationState> = None;
         h.lots_in_cell_rect(rect, &mut |lot| {
             let st = state.get_or_insert_with(|| {
