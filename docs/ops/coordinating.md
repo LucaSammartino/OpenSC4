@@ -7,18 +7,40 @@ instead: write the lane file, enqueue, stop.
 
 ## Spawning a lane
 
-- One clean-room agent per task, in an isolated worktree under `.claude/worktrees/`, from a prompt like those in
-  `build-runs/lane-prompts/` (gitignored, on disk in the main checkout): clean-room rules, first steps, build/test
-  commands, shared-file rules, the task, the report. New engine lanes start from `engine-lane-header.txt` +
-  `selftest-addendum.txt` + the task.
-- A new worktree may start from an old commit: check `git merge-base --is-ancestor main HEAD` in it, and have the
-  lane merge main **once, before it starts**. After that it never merges main and never bumps `FC4_ABI_VERSION`;
-  the train does both.
-- **Engine lanes test their own DLL in game** through the run queue ([docs/harness.md](../harness.md); the queue is
-  `tools/game_queue.ps1 -Slots 6`, started detached from the main checkout, log `build-runs/game-queue.log`) and
-  must report request labels and verdict lines. See [running-the-game.md](running-the-game.md).
-- A worktree lane cannot read files outside its worktree: paste what it needs into the message, or copy files (a
-  game log, held ABI rows) into its gitignored `build-runs/`.
+Every lane is one run of the saved workflow [`.claude/workflows/fc4-lane.js`](../../.claude/workflows/fc4-lane.js):
+`Workflow({name: 'fc4-lane', args: {kind, name, task, date, brief, deps, game, fix?, model?, effort?}})`. It has no
+merge step: the lane writes `docs/lanes/<lane>.md` (row + full report) and `build-runs/merge-queue/<lane>.json`,
+returns a short result (state, tip, one-line gate/game/questions, at most 5 next steps) and stops. Before each spawn
+([docs/lane-tools.md](../lane-tools.md)):
+
+1. `python tools/lanes.py slots --game-slots 6` must say `spawn ok`. The cap exists because ~25 lanes on 20 threads
+   halved the regress speed (4.81 to 2.19 game days/s) and every agent then spent turns waiting.
+2. `python tools/lanes.py check <lane> --deps a,b --touches key1,key2` must say `ok`: dependencies landed on main
+   (spawn in order core, then its DIFFERS/answers, then glue), no existing branch or lane file, no other active lane
+   on the same keys (two riot-lock implementations came from skipping this). Do not spawn speculatively near a
+   planned stop: a lane stopped midway is mostly wasted.
+3. `python tools/lanes.py brief <subsystem> --kind engine|re`, pasted as `args.brief`: the spec, its questions file,
+   core paths, keys, ABI and conformance pointers. Lanes read the brief and the one-page HANDOFF, not whole trees.
+4. Pick the model: `kind: 'mech'` (docs rows, ABI rows, regress records, regenerations) runs on Sonnet by default;
+   RE, spec and engine work keep the session model. Pass `effort: 'low'` for mechanical steps.
+
+The template's long rules block comes first and is byte-identical for every lane of a kind (no name, date or path
+in it), so it is served from the prompt cache; keep it that way when editing. A fix round is the same call with
+`fix` set to the train's failure text. Engine lanes test their own DLL through the run queue
+(`tools/game_queue.ps1 -Slots 6`, started detached from the main checkout; [docs/harness.md](../harness.md)) and wait
+for verdicts in one blocking call, never a polling loop. A worktree lane cannot read files outside its worktree:
+paste what it needs into the task, or copy files into its gitignored `build-runs/`.
+
+## Keeping the coordinator cheap
+
+- **One monitor, events only:** run `python tools/lanes.py monitor` under the Monitor tool for the whole session. It
+  prints a line only when a lane enqueues, a verdict is not clean, a train gate/regress finishes, `main` moves or a
+  lane stalls; do not re-arm timers or poll status between events.
+- **Read results, not transcripts:** the lane's structured result and `docs/lanes/<lane>.md` are the record; never
+  read an agent's output file. Batch status updates to the user instead of one per event.
+- **Measure:** `python tools/lanes.py ledger --md docs/token-ledger.md` after each landed batch; it reads the
+  workflow journals and puts tokens per lane, merge share and tokens per coverage point in
+  [docs/token-ledger.md](../token-ledger.md). Quote it, not estimates.
 
 ## Landing work: the merge train
 
@@ -42,8 +64,8 @@ python tools/merge-train.py bisect | fail --lane L  # a red batch
   `build-runs/coord-verify-lane.ps1` (CMake build + ctest, a private `_MSPDBSRV_ENDPOINT_`), and judges the parsed
   `build exit=`, `ctest exit=` and ctest summary, never the wrapper's exit code. By hand, for one worktree:
   `build-runs/coord-full-verify.ps1 -Engine <worktree>\engine -Tag <tag>`. Then `rustfmt --check --edition 2021` on
-  the touched `.rs` files from `engine/`. Flaky under load: two flora lock-timing tests; rerun before blaming a
-  lane.
+  the touched `.rs` files from `engine/`. The history/clock24 thread tests were fixed by `flakyfix` (25/25 each
+  under an 18-process CPU load, 2026-10-20); a failure there is now a real one.
 - **Conflicts the train refuses** go to the operator (see the notes below). Resolve in the integration worktree with
   `git -C <wt> -c submodule.recurse=false ...` and add files explicitly (`commit -a` fails on the worktree's
   submodule pointer). Renumber seam ops / switch counts there if two lanes took the same one. The ABI version is

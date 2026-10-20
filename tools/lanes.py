@@ -1213,7 +1213,7 @@ def cmd_brief(ctx, a):
     if eng:
         L.append("Engine lane, clean-room rules (CONTRIBUTING.md): read only docs/specs, docs/abi, the public SDK "
                  "headers and the game's data files; nothing from the analysis side. Questions for the spec writers "
-                 "go in docs/specs/QUESTIONS.md.")
+                 "go at the end of the spec's docs/specs/questions/<spec>.md (listed below).")
     else:
         L.append("RE lane: write behaviour specs in docs/specs/ (no engine/ edits); answer open questions per spec.")
     L.append("")
