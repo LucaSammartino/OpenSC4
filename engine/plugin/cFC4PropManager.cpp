@@ -261,6 +261,8 @@ void SetBoundingBox(void*, uint64_t prop, const float* min3, const float* max3) 
 }
 
 void Position(void*, uint64_t prop, float* pos3) {
+    // TEMPORARY (glue21 resume): who walks occupants through the prop host.
+    fc4::Log("propmgr: host position occ %016llX", static_cast<unsigned long long>(prop));
     if (pos3 == nullptr) return;
     pos3[0] = pos3[1] = pos3[2] = 0.0f;
     cISC4PropOccupant* p = Occ(prop);
@@ -587,20 +589,30 @@ cFC4PropManager::~cFC4PropManager() = default;
 
 bool cFC4PropManager::QueryInterface(uint32_t riid, void** ppvObj) {
     if (ppvObj == nullptr) return false;
-    if (riid == kFC4_IID_cISC4PropManager || riid == GZIID_cIGZUnknown) {
-        *ppvObj = Primary();
-        return true;
+    // §A1: 0x28326F3E and 1 -> +0; the message target (+4) and the
+    // serializable (+8). A successful QueryInterface adds a reference (the
+    // COM contract; cFC4Simulator::QueryInterfaceImpl) - as for the lot
+    // configuration manager, the class store's loader takes the factory
+    // result as the caller's reference and releases it after Read; without
+    // the AddRef that release can drop the table's reference and destroy the
+    // object while the city still holds the pointer.
+    switch (riid) {
+        case kFC4_IID_cISC4PropManager:
+        case GZIID_cIGZUnknown:
+            *ppvObj = Primary();
+            break;
+        case kFC4_IID_cIGZMessageTarget2Prop:
+            *ppvObj = Target();
+            break;
+        case kFC4_IID_cIGZSerializableProp:
+            *ppvObj = static_cast<cIGZSerializable*>(this);
+            break;
+        default:
+            *ppvObj = nullptr;
+            return false;
     }
-    if (riid == kFC4_IID_cIGZMessageTarget2Prop) {
-        *ppvObj = Target();
-        return true;
-    }
-    if (riid == kFC4_IID_cIGZSerializableProp) {
-        *ppvObj = static_cast<cIGZSerializable*>(this);
-        return true;
-    }
-    *ppvObj = nullptr;
-    return false;
+    AddRef();
+    return true;
 }
 
 uint32_t cFC4PropManager::AddRef() { return ++refCount_; }

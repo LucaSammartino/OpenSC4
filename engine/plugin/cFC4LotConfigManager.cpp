@@ -46,6 +46,7 @@
 #include "cISC4PropManager.h"
 #include "cRZCOMDllDirector.h"
 
+#include <new>
 #include <vector>
 
 namespace {
@@ -121,10 +122,13 @@ uint64_t CreateConfiguration(void*) {
     // manager replaces. So the replacement allocates its own
     // cISC4LotConfiguration-shaped object (option 1 of 1.1): cFC4LotConfiguration,
     // the 34-slot table of 8 over the layout of 2, filled by the Load of 3.
-    // No reference is added here: the core's add_configuration takes the
-    // creation reference (B3.2), exactly as the original helper's AddRef
-    // feeds the catalogue.
+    // The creation reference is ours to hand over (B3.2): the original helper
+    // AddRefs right after the construct, the manager's slot 6 takes its own
+    // reference (B3.4) and slot 5 releases the creation one - the catalogue
+    // keeps the object at count 1. Without it the catalogue's release after
+    // the add reaches 0 and deletes the object out from under the catalogue.
     cFC4LotConfiguration* c = new cFC4LotConfiguration();
+    c->AddRef();
     return Tok(c);
 }
 
@@ -513,17 +517,27 @@ cFC4LotConfigManager::~cFC4LotConfigManager() = default;
 bool cFC4LotConfigManager::QueryInterface(uint32_t riid, void** ppvObj) {
     if (ppvObj == nullptr) return false;
     // B1: `1` and 0xC8EDBEC0 -> +0; 0xE4FDA3D4 -> +8; the message target is
-    // not offered.
-    if (riid == kFC4_IID_cISC4LotConfigManager || riid == GZIID_cIGZUnknown) {
-        *ppvObj = Primary();
-        return true;
+    // not offered. A successful QueryInterface adds a reference (the COM
+    // contract; cFC4Simulator::QueryInterfaceImpl): the class store counts on
+    // it - its loader takes the factory result as the caller's reference,
+    // registers the object in the segment's table with its own AddRef and
+    // releases its reference after Read. Without the AddRef the two
+    // cancel and the store's release destroys the object, leaving the city's
+    // component-9 pointer dangling into city Init (the 0x45BF49 fault).
+    switch (riid) {
+        case kFC4_IID_cISC4LotConfigManager:
+        case GZIID_cIGZUnknown:
+            *ppvObj = Primary();
+            break;
+        case kFC4_IID_cIGZSerializableLcm:
+            *ppvObj = static_cast<cIGZSerializable*>(this);
+            break;
+        default:
+            *ppvObj = nullptr;
+            return false;
     }
-    if (riid == kFC4_IID_cIGZSerializableLcm) {
-        *ppvObj = static_cast<cIGZSerializable*>(this);
-        return true;
-    }
-    *ppvObj = nullptr;
-    return false;
+    AddRef();
+    return true;
 }
 
 uint32_t cFC4LotConfigManager::AddRef() { return ++refCount_; }
@@ -695,17 +709,35 @@ void cFC4LotConfigManager::UnregisterLotConfigurationFilter(cISC4LotConfiguratio
     if (core_ != nullptr) fc4_lot_config_unregister_filter(core_, Tok(filter));
 }
 
+// The process-wide game-shaped hash containers of namespace fc4 (below).
+namespace fc4 {
+void RebuildConfigurationMap(fc4_lot_config_manager* core);
+void RebuildFamilyIDSet(fc4_lot_config_manager* core);
+void* ConfigurationMapTable();
+void* FamilyIDSetTable();
+void FreeGameHashTables();
+}  // namespace fc4
+
 void* cFC4LotConfigManager::GetLotConfigurationMap() {
-    // §B2: the address of the process-wide configuration map. The core's own
-    // map is an fc4 structure, not the game's STLport one, so the game is
-    // handed the process map the host keeps (B2's 0x00B216C8 stand-in): the
-    // shadow walks the original's map only, and no FreeCity4 caller reads ours.
-    return nullptr;
+    // §B2: the address of the process-wide configuration map. The game's
+    // callers (the building development simulator's maximum density table,
+    // building-development.md §4.7.4; the PlopAllLotTypes cheat, zones.md
+    // §5.4; the shadow's map comparison) walk it read-only with no null
+    // check, so a null answer faults (glue21 gate-5: SimCity 4.exe+0x4B0390,
+    // the map's begin iterator on a null table). The map is rebuilt from the
+    // core's catalogue on every call: the game-shaped STLport hash_map
+    // (allocators.md hash_set shape, 12-byte nodes {next, key, value}),
+    // one reference per configuration held here. The core's own map stays
+    // the authority; the callers only walk.
+    fc4::RebuildConfigurationMap(core_);
+    return fc4::ConfigurationMapTable();
 }
 
 void* cFC4LotConfigManager::GetLotConfigurationFamilyIDSet() {
-    // §B2: the address of the process-wide family set (B2's 0x00B216DC).
-    return nullptr;
+    // §B2: the address of the process-wide family set (B2's 0x00B216DC), as
+    // the map above: rebuilt from the core, walked read-only.
+    fc4::RebuildFamilyIDSet(core_);
+    return fc4::FamilyIDSetTable();
 }
 
 bool cFC4LotConfigManager::CreateGenericLotConfiguration(cISC4LotConfiguration*& config, uint32_t id) {
@@ -823,6 +855,222 @@ void LotConfigManagerAppShutdown() {
         fc4_lot_config_destroy(m);
     }
     fc4_lot_config_catalogue_destroy(cat);
+    FreeGameHashTables();
 }
+
+// ---- the game-shaped process map and family set (§B2 0x00B216C8 / 0x00B216DC) ----
+//
+// Slot 20 / 21 hand the game the address of an STLport hash container
+// (allocators.md hash_set shape: a 0x14-byte object, an empty functor member
+// first, the bucket vector {begin, end, capacity_end} of Node*, the count
+// last). The game's callers walk them read-only with no null check
+// (building-development.md §4.7.4's maximum density table, zones.md §5.4's
+// PlopAllLotTypes, the shadow's map comparison), so a null answer faults
+// (glue21 gate-5: SimCity 4.exe+0x4B0390, the map's begin iterator on a null
+// table). The map's nodes are 12 bytes {next, key, cISC4LotConfiguration*}
+// (building-development.md §4.7.4 Inputs); the family set's are the 8-byte
+// hash_set nodes {next, value}. The identity hash: a key lives in the chain
+// of bucket key mod n, n = (end - begin) / 4, a prime from the table.
+//
+// Both are rebuilt from the core's catalogue on each slot 20 / 21 call: the
+// core stays the authority and the game only walks. The tables live for the
+// process so the addresses handed out stay valid; a rebuild empties and
+// refills them in place. Each configuration in the map carries one reference
+// (B2: the map holds one reference per configuration), taken on insert and
+// released on erase or at shutdown.
+
+struct GameHashTable {
+    uint32_t functors;  // hasher/key-equal/extractor: empty, never read
+    void** begin;       // bucket vector
+    void** end;         // bucket count = (end - begin) / 4
+    void** capacityEnd;
+    uint32_t count;
+};
+static_assert(sizeof(GameHashTable) == 0x14, "the game's hash container is 0x14 bytes");
+
+// The map's node: {next, key, value} (12 bytes). The set's: {next, value}
+// (8 bytes) - the same layout with no key, read as node[1] = the value.
+struct LcmHashNode {
+    LcmHashNode* next;
+    uint32_t key;
+    cISC4LotConfiguration* value;
+};
+static_assert(sizeof(LcmHashNode) == 12, "the map node is 12 bytes");
+
+struct GameSetNode {
+    GameSetNode* next;
+    uint32_t value;
+};
+static_assert(sizeof(GameSetNode) == 8, "the set node is 8 bytes");
+
+// The prime table of allocators.md hash_set; a game bucket count is always
+// one of these. 193 holds 1909 configurations at load factor ~10 - the
+// game's own map uses the same table growth, so this is in range.
+constexpr uint32_t kGameHashPrimes[] = {53u,  97u,       193u,      389u,      769u,       1543u, 3079u,
+                                        6151u, 12289u,    24593u,    49157u,    98317u,     196613u,
+                                        393241u, 786433u, 1572869u,  3145739u,  6291469u,   12582917u,
+                                        25165843u, 50331653u, 100663319u, 201326611u, 402653189u,
+                                        805306457u, 1610612741u, 3221225473u, 4294967291u};
+
+uint32_t NextGameHashPrime(uint32_t hint) {
+    for (uint32_t p : kGameHashPrimes) {
+        if (p >= hint) return p;
+    }
+    return kGameHashPrimes[27];
+}
+
+// One process hash table with its own bucket buffer and node list. Rebuild
+// clears every chain and re-grows the buckets for the new count. The two
+// tables differ only in the node payload (the map's 12-byte node holds a
+// key and a configuration reference; the set's 8-byte node a family ID), so
+// both keep LcmHashNode-shaped nodes and a flag says whether a Release is
+// owed per node. The nodes are walked (and freed) through the buckets, so
+// the state keeps no separate list.
+struct GameHashState {
+    GameHashTable table{};
+    void** buckets = nullptr;      // the bucket buffer (used slots)
+    uint32_t used = 0;             // the table's bucket count (end - begin) / 4
+    uint32_t nodeCount = 0;
+    bool ownsValues = false;       // true: each map node's value is a reference
+
+    void Clear() {
+        if (buckets != nullptr && used != 0) {
+            for (uint32_t i = 0; i < used; ++i) {
+                for (LcmHashNode* n = static_cast<LcmHashNode*>(buckets[i]); n != nullptr;) {
+                    LcmHashNode* next = n->next;
+                    if (ownsValues && n->value != nullptr) n->value->Release();  // the map's reference
+                    delete n;
+                    n = next;
+                }
+                buckets[i] = nullptr;
+            }
+        }
+        nodeCount = 0;
+        table.count = 0;
+    }
+
+    ~GameHashState() { Clear(); }
+};
+
+GameHashState* ConfigMapState() {
+    static GameHashState s;
+    s.ownsValues = true;
+    return &s;
+}
+
+GameHashState* FamilySetState() {
+    static GameHashState s;
+    s.ownsValues = false;
+    return &s;
+}
+
+// Grows the bucket buffer to the first prime >= n and relinks the nodes.
+bool Grow(GameHashState& s, uint32_t n) {
+    const uint32_t prime = NextGameHashPrime(n);
+    if (prime <= s.used) return true;
+    auto** fresh = new (std::nothrow) void*[prime];
+    if (fresh == nullptr) return false;
+    for (uint32_t i = 0; i < prime; ++i) fresh[i] = nullptr;
+    if (s.buckets != nullptr) {
+        for (uint32_t i = 0; i < s.used; ++i) {
+            for (LcmHashNode* node = static_cast<LcmHashNode*>(s.buckets[i]); node != nullptr;) {
+                LcmHashNode* next = node->next;
+                LcmHashNode*& head = *reinterpret_cast<LcmHashNode**>(&fresh[node->key % prime]);
+                node->next = head;
+                head = node;
+                node = next;
+            }
+        }
+        delete[] reinterpret_cast<uint8_t*>(s.buckets);
+    }
+    s.buckets = fresh;
+    s.used = prime;
+    s.table.begin = fresh;
+    s.table.end = fresh + prime;
+    s.table.capacityEnd = fresh + prime;
+    return true;
+}
+
+// Inserts {key, value} at the head of bucket key mod n, as the game's insert
+// does. A key already present keeps its first entry (the game's map::insert
+// does not overwrite).
+void InsertConfig(GameHashState& s, uint32_t key, cISC4LotConfiguration* value) {
+    if (s.used == 0 && !Grow(s, 1)) return;
+    for (LcmHashNode* n = static_cast<LcmHashNode*>(s.buckets[key % s.used]); n != nullptr; n = n->next) {
+        if (n->key == key) return;
+    }
+    if (s.table.count + 1 > s.used && !Grow(s, s.table.count + 1)) return;
+    auto* node = new (std::nothrow) LcmHashNode{};
+    if (node == nullptr) return;
+    node->key = key;
+    node->value = value;
+    if (value != nullptr) value->AddRef();  // the map holds one reference per configuration
+    LcmHashNode*& head = *reinterpret_cast<LcmHashNode**>(&s.buckets[key % s.used]);
+    node->next = head;
+    head = node;
+    ++s.nodeCount;
+    ++s.table.count;
+}
+
+// Inserts the family ID at the head of its bucket, skipping a present one
+// (a set insert). The node is the 8-byte shape {next, value}; it is
+// allocated as an LcmHashNode (12 bytes) so Clear and Grow can walk either
+// table with one node type. The set node's +4 holds the ID as a u32 (the
+// node's value field is read as an integer by the set walkers), so no
+// configuration Release is owed - GameHashState::ownsValues is false here.
+void InsertFamily(GameHashState& s, uint32_t id) {
+    if (s.used == 0 && !Grow(s, 1)) return;
+    for (GameSetNode* n = static_cast<GameSetNode*>(s.buckets[id % s.used]); n != nullptr; n = n->next) {
+        if (n->value == id) return;
+    }
+    if (s.table.count + 1 > s.used && !Grow(s, s.table.count + 1)) return;
+    auto* node = new (std::nothrow) LcmHashNode{};
+    if (node == nullptr) return;
+    node->key = id;  // the set node's +4: the family ID
+    node->value = nullptr;
+    LcmHashNode*& head = *reinterpret_cast<LcmHashNode**>(&s.buckets[id % s.used]);
+    node->next = head;
+    head = node;
+    ++s.nodeCount;
+    ++s.table.count;
+}
+
+void RebuildConfigurationMap(fc4_lot_config_manager* core) {
+    GameHashState& s = *ConfigMapState();
+    s.Clear();
+    if (core == nullptr) return;
+    const uint32_t n = fc4_lot_config_configuration_map(core, nullptr, nullptr, 0);
+    if (n == 0) return;
+    std::vector<uint32_t> ids(n);
+    std::vector<uint64_t> toks(n);
+    fc4_lot_config_configuration_map(core, ids.data(), toks.data(), n);
+    if (!Grow(s, n)) return;
+    for (uint32_t i = 0; i < n; ++i) {
+        InsertConfig(s, ids[i], Cfg(toks[i]));
+    }
+    Log("lotcfg: process configuration map rebuilt, %u entries", static_cast<unsigned>(s.table.count));
+}
+
+void RebuildFamilyIDSet(fc4_lot_config_manager* core) {
+    GameHashState& s = *FamilySetState();
+    s.Clear();
+    if (core == nullptr) return;
+    const uint32_t n = fc4_lot_config_family_id_set(core, nullptr, 0);
+    if (n == 0) return;
+    std::vector<uint32_t> ids(n);
+    fc4_lot_config_family_id_set(core, ids.data(), n);
+    if (!Grow(s, n)) return;
+    for (uint32_t i = 0; i < n; ++i) InsertFamily(s, ids[i]);
+    Log("lotcfg: process family set rebuilt, %u entries", static_cast<unsigned>(s.table.count));
+}
+
+void FreeGameHashTables() {
+    delete ConfigMapState();
+    delete FamilySetState();
+}
+
+void* ConfigurationMapTable() { return &ConfigMapState()->table; }
+
+void* FamilyIDSetTable() { return &FamilySetState()->table; }
 
 }  // namespace fc4
