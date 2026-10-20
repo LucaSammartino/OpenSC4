@@ -192,9 +192,7 @@ impl MySimDispatch {
     /// neighbour cell), `None` on failure (the MySim then runs
     /// `FailCommute`).
     pub fn check_commute(&self, sim: i32) -> Option<f32> {
-        let Some(home) = self.host.home_rect(sim) else {
-            return None;
-        };
+        let home = self.host.home_rect(sim)?;
         let end = match self.get_state(sim).destination {
             Some(building) => self.host.building_rect(building)?,
             None => {
