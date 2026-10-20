@@ -4,623 +4,660 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! Conformance ops for `docs/specs/effects.md` §17: the brush stroke counts,
-//! the select draw, the game-record action order, the priority filter, the
-//! finish rule and the shipped flag and LOD censuses.
-//!
-//! These run over `fc4_core::effects` with no city and no host, which is what
-//! §17 asks for: "conformance tests (must exist in `engine/conformance` if the
-//! manager or the brush effect is replaced)".
+//! Conformance ops for `docs/specs/effects.md` (`ef_…`): an effects manager
+//! (`fc4_core::effects`) over a scripted host that logs every call (terrain
+//! brushes, fire, toxic, demolition, extinguishing, pauses, posts). See
+//! README.md ("Effects ops").
 
-use fc4_core::effects::brush::{floor_count, BrushEffect, EffectsRandom};
-use fc4_core::effects::directory::{ComponentDesc, EffectDesc, EffectDirectory, Found, NameEntry};
-use fc4_core::effects::game::GameEffect;
-use fc4_core::effects::manager::{ComponentState, EffectsManager};
-use fc4_core::effects::select::{draw_select, select_components, select_generator, SelectPlacement};
-use fc4_core::effects::shipped::{game_flags, BrushRecord, BRUSH_RECORDS, GAME_RECORDS};
-use fc4_core::effects::{component_type, runtime_flags, EffectRuntime, RuntimeComponent, SweepResult};
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::rc::Rc;
+
+use fc4_core::effects::{
+    component_type, shipped, Component, ComponentRecord, DemolishFilter, EffectDescription, EffectDirectory, EffectId,
+    EffectPost, EffectRect, EffectsHost, EffectsManager, FinishMode, GameRecord, SELECT_RANGE, SELECT_SEED,
+};
+use fc4_core::rng::{FixedSeeds, RzRandomSuper};
+use fc4_core::terrain::BrushParams;
 
 use crate::json::Json;
-
-type R<T> = Result<T, String>;
-
-fn field<'a>(op: &'a Json, key: &str) -> R<&'a Json> {
-    op.get(key).ok_or_else(|| format!("missing field '{key}'"))
-}
-
-fn int(j: &Json, what: &str) -> R<i64> {
-    j.as_i64().ok_or_else(|| format!("'{what}' must be an integer"))
-}
-
-fn num(j: &Json, what: &str) -> R<f64> {
-    j.as_f64().ok_or_else(|| format!("'{what}' must be a number"))
-}
-
-fn text<'a>(op: &'a Json, key: &str) -> R<&'a str> {
-    field(op, key)?
-        .as_str()
-        .ok_or_else(|| format!("'{key}' must be a string"))
-}
-
-/// Compares one integer field of `op` with `got`, when the field is present.
-fn expect_int(op: &Json, key: &str, got: i64) -> R<()> {
-    if let Some(want) = op.get(key) {
-        let want = int(want, key)?;
-        if want != got {
-            return Err(format!("{key} = {got}, expected {want}"));
-        }
-    }
-    Ok(())
-}
-
-/// Compares one float field of `op` with `got`, when the field is present.
-fn expect_f64(op: &Json, key: &str, got: f64) -> R<()> {
-    if let Some(want) = op.get(key) {
-        let want = num(want, key)?;
-        if (want - got).abs() > 1e-4 {
-            return Err(format!("{key} = {got}, expected {want}"));
-        }
-    }
-    Ok(())
-}
-
-/// A generator whose `RandomDoubleRangeUniform` returns `value`.
-struct FixedRandom(f64);
-impl EffectsRandom for FixedRandom {
-    fn range_f64(&mut self, a: f64, b: f64) -> f64 {
-        if (a - b).abs() < f64::EPSILON {
-            a
-        } else {
-            self.0
-        }
-    }
-}
-
-/// Executes an effects op; `None` if `name` is not one.
-pub fn exec(name: &str, op: &Json) -> Option<R<()>> {
-    let r = match name {
-        "ef_runtime_flags" => runtime_flags_op(op),
-        "ef_finish_rule" => finish_rule(op),
-        "ef_select" => select_op(op),
-        "ef_brush_stroke" => brush_stroke(op),
-        "ef_brush_one_shot" => brush_one_shot(op),
-        "ef_brush_bounds" => brush_bounds(op),
-        "ef_game_actions" => game_actions(op),
-        "ef_game_pause" => game_pause(op),
-        "ef_priority" => priority(op),
-        "ef_lod" => lod_op(op),
-        "ef_shipped_counts" => shipped_counts(op),
-        "ef_meta_waits" => meta_waits(op),
-        _ => return None,
-    };
-    Some(r)
-}
-
-/// §17 test 12: the description bit is not the tested bit. `desc+0x10 & 1` is
-/// copied to runtime bit 2 (value 4), and table types 3-15 also get bit 1
-/// (value 2).
-fn runtime_flags_op(op: &Json) -> R<()> {
-    let desc_flags = int(field(op, "desc_flags")?, "desc_flags")? as u32;
-    let kind = int(field(op, "type")?, "type")? as u8;
-    let got = runtime_flags(desc_flags, kind);
-    expect_int(op, "runtime_flags", i64::from(got))?;
-    if let Some(want) = op.get("ignored") {
-        let ignored = got & 4 != 0;
-        if want.as_bool().ok_or("'ignored' must be a bool")? != ignored {
-            return Err(format!("ignored = {ignored}"));
-        }
-    }
-    Ok(())
-}
-
-/// §17 test 11: the finish rule of §7.
-fn finish_rule(op: &Json) -> R<()> {
-    let started = bool_field(op, "started", true)?;
-    let index = int(op.get("index").unwrap_or(&Json::Int(3)), "index")? as i32;
-    let flags = int(op.get("flags").unwrap_or(&Json::Int(0)), "flags")? as u32;
-    let stopping = bool_field(op, "stopping", false)?;
-    let end_type = int(op.get("end_message_type").unwrap_or(&Json::Int(0)), "end_message_type")? as u32;
-
-    let runtime = EffectRuntime {
-        index,
-        started,
-        stopping,
-        flags,
-        end_message_type: end_type,
-        end_message_data1: 0,
-    };
-    let mut components = Vec::new();
-    for c in field(op, "components")?
-        .as_array()
-        .ok_or("'components' must be an array")?
-    {
-        components.push(RuntimeComponent {
-            flags: int(c.get("flags").unwrap_or(&Json::Int(0)), "flags")? as u8,
-            is_active: c
-                .get("active")
-                .and_then(|v| v.as_bool())
-                .ok_or("each component needs 'active'")?,
-        });
-    }
-    let want = text(op, "expect")?;
-    let got = match runtime.sweep(&components) {
-        SweepResult::DoneWithoutMessage => "done_without_message",
-        SweepResult::StillRunning => "still_running",
-        SweepResult::Finished { post_end_message } => {
-            if post_end_message {
-                "finished_with_message"
-            } else {
-                "finished_without_message"
-            }
-        }
-    };
-    if got != want {
-        return Err(format!("sweep = {got}, expected {want}"));
-    }
-    Ok(())
-}
-
-fn bool_field(op: &Json, key: &str, default: bool) -> R<bool> {
-    Ok(match op.get(key) {
-        Some(j) => j.as_bool().ok_or_else(|| format!("'{key}' must be a bool"))?,
-        None => default,
-    })
-}
-
-/// §17 test 3: the select draw of §5.3.
-fn select_op(op: &Json) -> R<()> {
-    // A fresh generator, seeded 0x1105.
-    let mut g = select_generator();
-    if let Some(want) = op.get("first_word") {
-        let got = g.next_u32();
-        let want = want.as_str().ok_or("'first_word' must be a hex string")?;
-        let want = u32::from_str_radix(want.trim_start_matches("0x").trim_start_matches("0X"), 16)
-            .map_err(|e| e.to_string())?;
-        if got != want {
-            return Err(format!("first tempered word = {got:#010X}, expected {want:#010X}"));
-        }
-        return Ok(());
-    }
-
-    let weights: Vec<u16> = field(op, "weights")?
-        .as_array()
-        .ok_or("'weights' must be an array")?
-        .iter()
-        .map(|w| int(w, "weight").map(|v| v as u16))
-        .collect::<R<Vec<u16>>>()?;
-    let placements: Vec<SelectPlacement> = weights.iter().map(|&w| SelectPlacement::member(1, w)).collect();
-
-    // Explicit draws, or the generator's own.
-    let created = if let Some(draws) = op.get("draws") {
-        let mut ds = draws
-            .as_array()
-            .ok_or("'draws' must be an array")?
-            .iter()
-            .map(|d| int(d, "draw").map(|v| v as u32))
-            .collect::<R<Vec<u32>>>()?
-            .into_iter();
-        select_components(&placements, move || ds.next().unwrap_or(u32::MAX))
-    } else {
-        let mut g = select_generator();
-        select_components(&placements, || draw_select(&mut g))
-    };
-
-    let chosen: Vec<i64> = created
-        .iter()
-        .enumerate()
-        .filter(|(_, &c)| c)
-        .map(|(i, _)| i as i64 + 1)
-        .collect();
-    let want: Vec<i64> = field(op, "expect_members")?
-        .as_array()
-        .ok_or("'expect_members' must be an array")?
-        .iter()
-        .map(|m| int(m, "member"))
-        .collect::<R<Vec<i64>>>()?;
-    if chosen != want {
-        return Err(format!("members {chosen:?}, expected {want:?}"));
-    }
-    Ok(())
-}
-
-/// §17 tests 1 and 2: the brush stroke's application count.
-fn brush_stroke(op: &Json) -> R<()> {
-    let record = brush_record(op)?;
-    let us = int(field(op, "us")?, "us")? as f64;
-    let dilation = num(op.get("dilation").unwrap_or(&Json::Float(1.0)), "dilation")?;
-    let ticks_max = int(field(op, "ticks")?, "ticks")?.max(0) as u32;
-
-    // §6: dt' = trunc(r24(us * dilation)); dt = r24(dt' * 1e-6).
-    let dt_prime = fc4_core::x87::ftol32(fc4_core::x87::r24(us * dilation)).max(0) as u64;
-    expect_int(op, "dt_prime", dt_prime as i64)?;
-    let dt = fc4_core::x87::r24(dt_prime as f64 * 1e-6) as f32;
-    expect_f64(op, "dt", f64::from(dt))?;
-
-    let mut b = BrushEffect::new(record, &mut FixedRandom(0.0));
-    b.set_position(100.0, 100.0);
-    b.start();
-
-    let mut per_tick = Vec::new();
-    let mut total = 0u32;
-    let mut ticks = 0u32;
-    while b.is_active() && ticks < ticks_max {
-        ticks += 1;
-        let n = b.update_stroke(dt);
-        per_tick.push(n);
-        total += n;
-        let _ = b.applications(n, |_, _| true);
-    }
-    expect_int(op, "tick_count", i64::from(ticks))?;
-    expect_int(op, "applications", i64::from(total))?;
-    if let Some(want) = op.get("per_tick") {
-        let want: Vec<i64> = want
-            .as_array()
-            .ok_or("'per_tick' must be an array")?
-            .iter()
-            .map(|v| int(v, "n"))
-            .collect::<R<Vec<i64>>>()?;
-        let got: Vec<i64> = per_tick.iter().take(want.len()).map(|&n| n as i64).collect();
-        if got != want {
-            return Err(format!("per-tick n = {got:?}, expected {want:?}"));
-        }
-    }
-    expect_f64(op, "t", f64::from(b.t))?;
-    expect_f64(op, "acc", f64::from(b.acc))?;
-    Ok(())
-}
-
-/// §17 test 4: a one-shot crater.
-fn brush_one_shot(op: &Json) -> R<()> {
-    let record = brush_record(op)?;
-    let mut b = BrushEffect::new(record, &mut FixedRandom(0.0));
-    b.set_position(10.0, 20.0);
-    b.start();
-    b.cur = (11.0, 21.0);
-    let n = b.update_one_shot();
-    expect_int(op, "applications", i64::from(n))?;
-    if b.is_active() {
-        return Err("a one-shot is inactive after its first update".into());
-    }
-    if b.long_operation_open() || b.needs_long_operation() {
-        return Err("a one-shot opens no long terrain operation".into());
-    }
-    let apps = b.applications(n, |_, _| true);
-    expect_int(op, "calls", apps.len() as i64)?;
-    if let Some(want) = op.get("redisplay") {
-        let want: Vec<bool> = want
-            .as_array()
-            .ok_or("'redisplay' must be an array")?
-            .iter()
-            .map(|v| v.as_bool().ok_or_else(|| "each value must be a bool".to_string()))
-            .collect::<R<Vec<bool>>>()?;
-        let got: Vec<bool> = apps.iter().map(|a| a.redisplay).collect();
-        if got != want {
-            return Err(format!("redisplay = {got:?}, expected {want:?}"));
-        }
-    }
-    for (key, got) in [
-        ("level", apps.first().map(|a| i64::from(a.level)).unwrap_or(-1)),
-        (
-            "strength_x100",
-            apps.first().map(|a| (a.strength * 100.0) as i64).unwrap_or(-1),
-        ),
-        (
-            "radius_x100",
-            apps.first().map(|a| (a.radius_scale * 100.0) as i64).unwrap_or(-1),
-        ),
-        ("data4", apps.first().map(|a| i64::from(a.data4)).unwrap_or(-1)),
-    ] {
-        expect_int(op, key, got)?;
-    }
-    Ok(())
-}
-
-/// §17 test 5: out of bounds applies nothing and keeps `prev`.
-fn brush_bounds(op: &Json) -> R<()> {
-    let record = brush_record(op)?;
-    let mut b = BrushEffect::new(record, &mut FixedRandom(0.0));
-    let ox = num(field(op, "prev_x")?, "prev_x")? as f32;
-    let oz = num(field(op, "prev_z")?, "prev_z")? as f32;
-    b.set_position(ox, oz);
-    b.start();
-    let cx = num(field(op, "cur_x")?, "cur_x")? as f32;
-    let cz = num(field(op, "cur_z")?, "cur_z")? as f32;
-    b.cur = (cx, cz);
-
-    let cells = (
-        int(field(op, "cells_x")?, "cells_x")? as u32,
-        int(field(op, "cells_z")?, "cells_z")? as u32,
-    );
-    let in_city = |x: f32, z: f32| x >= 0.0 && z >= 0.0 && x < cells.0 as f32 * 16.0 && z < cells.1 as f32 * 16.0;
-    let apps = b.applications(int(field(op, "n")?, "n")? as u32, in_city);
-    expect_int(op, "calls", apps.len() as i64)?;
-    expect_f64(op, "prev_x_after", f64::from(b.prev.0))?;
-    expect_f64(op, "prev_z_after", f64::from(b.prev.1))?;
-    Ok(())
-}
-
-/// §17 tests 6 and 7: a game record's action order and the move-to-a-new-cell
-/// rule.
-fn game_actions(op: &Json) -> R<()> {
-    let index = int(field(op, "record")?, "record")? as usize;
-    let record = *GAME_RECORDS.get(index).ok_or("no such game record")?;
-    let mut g = GameEffect::new(record);
-    let x = num(field(op, "x")?, "x")? as f32;
-    let z = num(field(op, "z")?, "z")? as f32;
-    g.set_position(x, z);
-    if !g.start() {
-        return Err("the record did not start".into());
-    }
-    if let Some(data) = op.get("data") {
-        g.set_parameter(13, int(data, "data")? as u64);
-    }
-    let cells = (
-        int(field(op, "cells_x")?, "cells_x")? as u32,
-        int(field(op, "cells_z")?, "cells_z")? as u32,
-    );
-
-    let mut names = Vec::new();
-    let updates = int(op.get("updates").unwrap_or(&Json::Int(1)), "updates")? as usize;
-    for _ in 0..updates {
-        let u = g.update(1.0, cells);
-        for a in &u.actions {
-            names.push(action_name(a));
-        }
-    }
-    let want: Vec<String> = field(op, "expect_actions")?
-        .as_array()
-        .ok_or("'expect_actions' must be an array")?
-        .iter()
-        .map(|v| {
-            v.as_str()
-                .map(|s| s.to_string())
-                .ok_or_else(|| "each value must be a string".to_string())
-        })
-        .collect::<R<Vec<String>>>()?;
-    if names != want {
-        return Err(format!("actions {names:?}, expected {want:?}"));
-    }
-    expect_int(op, "count", i64::from(g.count))?;
-    expect_int(op, "cell_x", i64::from(g.cell.0))?;
-    expect_int(op, "cell_z", i64::from(g.cell.1))?;
-    Ok(())
-}
-
-fn action_name(a: &fc4_core::effects::game::GameAction) -> String {
-    use fc4_core::effects::game::GameAction::*;
-    match a {
-        Burn { radius, .. } => format!("burn{radius}"),
-        SetFireCause { cause } => format!("cause{cause}"),
-        Toxic { .. } => "toxic".into(),
-        Demolish {
-            x0,
-            z0,
-            x1,
-            z1,
-            flags,
-            dezone,
-        } => format!("demolish({x0},{z0},{x1},{z1},{flags},{dezone})"),
-        Extinguish { amount, .. } => format!("extinguish{amount}"),
-        Message { msg_type, .. } => format!("message{msg_type:08X}"),
-        Map { .. } => "map".into(),
-    }
-}
-
-/// §17 test 8: a pause record.
-fn game_pause(op: &Json) -> R<()> {
-    let index = int(field(op, "record")?, "record")? as usize;
-    let record = *GAME_RECORDS.get(index).ok_or("no such game record")?;
-    let mut g = GameEffect::new(record);
-    if !g.start() {
-        return Err("the record did not start".into());
-    }
-    let start_pauses: Vec<String> = g.start_pauses().iter().map(|p| format!("{p:?}")).collect();
-    let want: Vec<String> = field(op, "expect_start_pauses")?
-        .as_array()
-        .ok_or("'expect_start_pauses' must be an array")?
-        .iter()
-        .map(|v| {
-            v.as_str()
-                .map(|s| s.to_string())
-                .ok_or_else(|| "each value must be a string".to_string())
-        })
-        .collect::<R<Vec<String>>>()?;
-    if start_pauses != want {
-        return Err(format!("start pauses {start_pauses:?}, expected {want:?}"));
-    }
-
-    let updates = int(field(op, "updates")?, "updates")? as usize;
-    let mut undo = Vec::new();
-    for _ in 0..updates {
-        let u = g.update(1.0, (64, 64));
-        undo.extend(u.undo_pauses.iter().map(|p| format!("{p:?}")));
-    }
-    if let Some(want) = op.get("expect_undo_pauses") {
-        let want: Vec<String> = want
-            .as_array()
-            .ok_or("'expect_undo_pauses' must be an array")?
-            .iter()
-            .map(|v| {
-                v.as_str()
-                    .map(|s| s.to_string())
-                    .ok_or_else(|| "each value must be a string".to_string())
-            })
-            .collect::<R<Vec<String>>>()?;
-        if undo != want {
-            return Err(format!("undo pauses {undo:?}, expected {want:?}"));
-        }
-    }
-    expect_int(op, "timer_x1000", (f64::from(g.timer) * 1000.0).round() as i64)?;
-    if let Some(want) = op.get("active") {
-        let active = g.is_active();
-        if want.as_bool().ok_or("'active' must be a bool")? != active {
-            return Err(format!("active = {active}"));
-        }
-    }
-    if let Some(want) = op.get("second_stop") {
-        let got = g.stop();
-        if want.as_bool().ok_or("'second_stop' must be a bool")? != got {
-            return Err(format!("second stop = {got}"));
-        }
-    }
-    Ok(())
-}
-
-/// §17 test 9: the priority filter of §4.1.
-fn priority(op: &Json) -> R<()> {
-    let mut descriptions = Vec::new();
-    let mut names = Vec::new();
-    for (i, d) in field(op, "descriptions")?
-        .as_array()
-        .ok_or("'descriptions' must be an array")?
-        .iter()
-        .enumerate()
-    {
-        let name = d
-            .get("name")
-            .and_then(|v| v.as_str())
-            .ok_or("each description needs 'name'")?;
-        let pri = int(d.get("priority").unwrap_or(&Json::Int(1)), "priority")? as u32;
-        descriptions.push(EffectDesc {
-            flags: 0,
-            priority: pri,
-            components: Vec::new(),
-            name: name.as_bytes().to_vec(),
-        });
-        names.push(NameEntry {
-            name: name.as_bytes().to_vec(),
-            description_index: i as u32,
-        });
-    }
-    let dir = EffectDirectory::from_parts(descriptions, names);
-    let max_priority = int(field(op, "max_priority")?, "max_priority")? as u32;
-    let name = text(op, "name")?.as_bytes().to_vec();
-    let found = dir.find(&fc4_core::effects::directory::lowercase(&name), max_priority);
-    let mut m = EffectsManager::new(dir);
-    m.set_max_priority(max_priority);
-
-    match found {
-        Found::Index(i) => expect_int(op, "expect_index", i64::from(i))?,
-        Found::BelowPriority => expect_int(op, "expect_index", -1)?,
-        Found::NoSuchName => {
-            if op.get("expect_index").is_some() {
-                return Err("the name does not exist".into());
-            }
-        }
-    }
-    Ok(())
-}
-
-/// §17 test 14: the LOD census of §5.2.
-fn lod_op(op: &Json) -> R<()> {
-    let min = int(field(op, "min")?, "min")? as u8;
-    let max = int(field(op, "max")?, "max")? as u8;
-    let c = ComponentDesc {
-        name: Vec::new(),
-        kind: int(field(op, "type")?, "type")? as u8,
-        flags: 0,
-        lod_min: min,
-        lod_max: max,
-        select_group: 0,
-        select_weight: 0,
-        index: 0,
-    };
-    if let Some(want) = op.get("reaches_table") {
-        let got = c.reaches_table();
-        if want.as_bool().ok_or("'reaches_table' must be a bool")? != got {
-            return Err(format!("reaches_table = {got}"));
-        }
-    }
-    for lod in [1u8, 2, 3, 4, 5] {
-        if let Some(want) = op.get(format!("at_{lod}").as_str()) {
-            let got = c.exists_at(lod);
-            if want.as_bool().ok_or("'at_N' must be a bool")? != got {
-                return Err(format!("exists at {lod} = {got}"));
-            }
-        }
-    }
-    Ok(())
-}
-
-/// §17 tests 13 and 14: the shipped counts.
-fn shipped_counts(op: &Json) -> R<()> {
-    expect_int(op, "brush_records", BRUSH_RECORDS.len() as i64)?;
-    expect_int(op, "game_records", GAME_RECORDS.len() as i64)?;
-    expect_int(
-        op,
-        "game_no_action",
-        GAME_RECORDS
-            .iter()
-            .filter(|g| {
-                g.flags & 7 == 0
-                    && g.demolish_radius == 0
-                    && g.burn_radius == 0
-                    && g.toxic_amount == 0
-                    && g.extinguish_amount == 0
-                    && g.message_type == 0
-                    && g.duration == 0.0
-            })
-            .count() as i64,
-    )?;
-    expect_int(
-        op,
-        "game_single",
-        GAME_RECORDS
-            .iter()
-            .filter(|g| g.flags & game_flags::SINGLE != 0)
-            .count() as i64,
-    )?;
-    Ok(())
-}
-
-/// §17 test 15: `volcano_control` finishes only after the chosen child finished
-/// on a previous sweep **and** its brush, particle and decal components are all
-/// inactive on this one.
-fn meta_waits(op: &Json) -> R<()> {
-    let finished_earlier = bool_field(op, "child_finished_earlier", false)?;
-    let brush = bool_field(op, "brush_active", false)?;
-    let particle = bool_field(op, "particle_active", false)?;
-    let decal = bool_field(op, "decal_active", false)?;
-    let attractor = bool_field(op, "attractor_active", false)?;
-    let game = bool_field(op, "game_active", false)?;
-
-    let child = fc4_core::effects::VolcanoCreatorChild {
-        finished_on_an_earlier_sweep: finished_earlier,
-        brush_active: brush,
-        particle_active: particle,
-        decal_active: decal,
-        attractor_active: attractor,
-        game_active: game,
-    };
-    let got = child.control_finishes();
-    let want = bool_field(op, "expect_finishes", false)?;
-    if got != want {
-        return Err(format!("control_finishes = {got}, expected {want}"));
-    }
-    Ok(())
-}
-
-/// The brush record named by an op: either a shipped index or an explicit one.
-fn brush_record(op: &Json) -> R<BrushRecord> {
-    if let Some(i) = op.get("record") {
-        let i = int(i, "record")? as usize;
-        return Ok(*BRUSH_RECORDS.get(i).ok_or("no such brush record")?);
-    }
-    Ok(BrushRecord {
-        brush_id: int(field(op, "brush_id")?, "brush_id")? as u32,
-        rate: num(field(op, "rate")?, "rate")? as f32,
-        length: num(field(op, "length")?, "length")? as f32,
-        one_shot: bool_field(op, "one_shot", false)?,
-        level: int(field(op, "level")?, "level")? as u32,
-        strength: [num(field(op, "strength")?, "strength")? as f32; 2],
-        radius_scale: [num(field(op, "radius")?, "radius")? as f32; 2],
-        target_height: num(op.get("target").unwrap_or(&Json::Float(100.0)), "target")? as f32,
-    })
-}
-
-/// Kept for the module to compile with the same shape as its siblings.
-const _: fn() = || {
-    let _ = floor_count(1.0);
-    let _ = ComponentState::Stub { kind: 0, active: false };
-    let _ = component_type::BRUSH;
+use crate::runner::{field, HostRef};
+use crate::scalar::{
+    self, arg, arr, bool_of, check_expect, check_state, i64_of, jf, ji, opt, str_of, u32_of, EventLog, R,
 };
+
+struct Env {
+    dilation: Option<f32>,
+    cells: (i32, i32),
+    render_active: bool,
+    brush_calls: usize,
+    events: Rc<EventLog>,
+}
+
+impl EffectsHost for Env {
+    fn simulator(&mut self) -> Option<f32> {
+        self.dilation
+    }
+    fn sim_pause(&mut self) {
+        self.events.push("pause", vec![]);
+    }
+    fn sim_resume(&mut self) {
+        self.events.push("resume", vec![]);
+    }
+    fn sim_hidden_pause(&mut self) {
+        self.events.push("hidden_pause", vec![]);
+    }
+    fn sim_hidden_resume(&mut self) {
+        self.events.push("hidden_resume", vec![]);
+    }
+    fn clock_pause(&mut self, on: bool) {
+        self.events.push("clock", vec![("on", Json::Bool(on))]);
+    }
+    fn city_cells(&mut self) -> (i32, i32) {
+        self.cells
+    }
+    fn location_in_bounds(&mut self, x: f32, z: f32) -> bool {
+        x >= 0.0 && z >= 0.0 && x < self.cells.0 as f32 * 16.0 && z < self.cells.1 as f32 * 16.0
+    }
+    fn apply_brush(&mut self, brush_id: u32, p: &mut BrushParams) -> bool {
+        self.brush_calls += 1;
+        self.events.push(
+            "brush",
+            vec![
+                ("brush", ji(brush_id)),
+                ("from", Json::Array(vec![jf(p.from_x), jf(p.from_z)])),
+                ("to", Json::Array(vec![jf(p.to_x), jf(p.to_z)])),
+                ("level", ji(p.level)),
+                ("strength", jf(p.strength_scale)),
+                ("radius", jf(p.radius_scale)),
+                ("redisplay", Json::Bool(p.redisplay)),
+                ("data4", ji(p.data4)),
+                ("target", jf(p.target_height)),
+            ],
+        );
+        true
+    }
+    fn begin_long_terrain_operation(&mut self) {
+        self.events.push("begin_long", vec![]);
+    }
+    fn end_long_terrain_operation(&mut self) {
+        self.events.push("end_long", vec![]);
+    }
+    fn ignite_cell_radius(&mut self, x: i32, z: i32, r0: i32, r1: i32) {
+        self.events.push(
+            "ignite",
+            vec![("x", ji(x)), ("z", ji(z)), ("r0", ji(r0)), ("r1", ji(r1))],
+        );
+    }
+    fn set_fire_cause(&mut self, cause: u32) {
+        self.events.push("cause", vec![("cause", ji(cause))]);
+    }
+    fn toxic_attempt_start(&mut self, x: i32, z: i32) {
+        self.events.push("toxic", vec![("x", ji(x)), ("z", ji(z))]);
+    }
+    fn demolish_region(&mut self, r: EffectRect, flags: u32, dezone: bool, f: &DemolishFilter) {
+        self.events.push(
+            "demolish",
+            vec![
+                ("rect", Json::Array(vec![ji(r.x0), ji(r.z0), ji(r.x1), ji(r.z1)])),
+                ("flags", ji(flags)),
+                ("dezone", Json::Bool(dezone)),
+                ("no_networks", Json::Bool(f.no_networks)),
+                ("no_flora", Json::Bool(f.no_flora)),
+                ("min_size", jf(f.min_size)),
+                ("max_size", jf(f.max_size)),
+            ],
+        );
+    }
+    fn extinguish_cell(&mut self, x: i32, z: i32, amount: i32) {
+        self.events
+            .push("extinguish", vec![("x", ji(x)), ("z", ji(z)), ("amount", ji(amount))]);
+    }
+    fn post(&mut self, m: EffectPost) {
+        self.events.push(
+            "post",
+            vec![
+                ("type", ji(m.msg_type)),
+                ("data1", Json::Int(m.data1 as i64)),
+                ("data2", ji(m.data2)),
+                ("data3", ji(m.data3)),
+            ],
+        );
+    }
+    fn render_component_active(&mut self, _effect: EffectId, _component: u32, _kind: u8) -> bool {
+        self.render_active
+    }
+}
+
+pub(crate) struct World {
+    events: Rc<EventLog>,
+    env: RefCell<Env>,
+    mgr: RefCell<Option<EffectsManager>>,
+    labels: RefCell<BTreeMap<String, EffectId>>,
+}
+
+impl World {
+    fn new() -> Rc<World> {
+        let events = Rc::new(EventLog::default());
+        Rc::new(World {
+            events: events.clone(),
+            env: RefCell::new(Env {
+                dilation: Some(1.0),
+                cells: (64, 64),
+                render_active: false,
+                brush_calls: 0,
+                events,
+            }),
+            mgr: RefCell::new(None),
+            labels: RefCell::new(BTreeMap::new()),
+        })
+    }
+
+    fn with<T>(&self, f: impl FnOnce(&mut EffectsManager, &mut Env) -> R<T>) -> R<T> {
+        let mut m = self.mgr.borrow_mut();
+        let m = m.as_mut().ok_or("no effects manager (ef_create)")?;
+        f(m, &mut self.env.borrow_mut())
+    }
+
+    fn label(&self, op: &Json) -> R<EffectId> {
+        let l = str_of(field(op, "effect")?, "effect")?;
+        self.labels
+            .borrow()
+            .get(l)
+            .copied()
+            .ok_or_else(|| format!("unknown effect label '{l}'"))
+    }
+}
+
+fn world(host: &HostRef) -> Rc<World> {
+    scalar::world(host, "effects", World::new)
+}
+
+pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
+    let rest = name.strip_prefix("ef_")?;
+    let w = world(host);
+    Some(match rest {
+        "create" => create(&w, op),
+        "env" => env(&w, op),
+        "effect" => effect(&w, op),
+        "call" => call(&w, op),
+        "run_stroke" => run_stroke(&w, op),
+        "child" => child(&w, op),
+        "expect" => expect(&w, op),
+        "expect_brush" => expect_brush(&w, op),
+        "expect_game" => expect_game(&w, op),
+        "expect_manager" => expect_manager(&w, op),
+        "select" => select(op),
+        "expect_events" => w.events.expect_events(op),
+        "expect_event_count" => w.events.expect_count(op),
+        "clear_events" => {
+            w.events.clear();
+            Ok(())
+        }
+        _ => Err(format!("unknown op '{name}'")),
+    })
+}
+
+// ---- setup -----------------------------------------------------------------------------------------
+
+fn kind_of(j: &Json) -> R<u8> {
+    if let Some(v) = j.as_i64() {
+        return Ok(v as u8);
+    }
+    Ok(match str_of(j, "type")? {
+        "particles" => component_type::PARTICLES,
+        "decal" => component_type::DECAL,
+        "meta" => component_type::META,
+        "brush" => component_type::BRUSH,
+        "attractor" => component_type::ATTRACTOR,
+        "game" => component_type::GAME,
+        "sound" => component_type::SOUND,
+        other => return Err(format!("unknown component type '{other}'")),
+    })
+}
+
+fn component(j: &Json) -> R<ComponentRecord> {
+    let kind = kind_of(field(j, "type")?)?;
+    let mut c = ComponentRecord::new(kind, opt(j, "index").map_or(Ok(0), |v| u32_of(v, "index"))?);
+    if let Some(n) = opt(j, "name") {
+        c.name = str_of(n, "name")?.to_owned();
+    }
+    if let Some(f) = opt(j, "flags") {
+        c.flags = u32_of(f, "flags")?;
+    }
+    if let Some(l) = opt(j, "lod") {
+        let l = arr(l, "lod")?;
+        c.lod_min = u32_of(&l[0], "lod")? as u8;
+        c.lod_max = u32_of(&l[1], "lod")? as u8;
+    }
+    if let Some(g) = opt(j, "group") {
+        c.select_group = u32_of(g, "group")? as u16;
+    }
+    if let Some(g) = opt(j, "weight") {
+        c.select_weight = u32_of(g, "weight")? as u16;
+    }
+    Ok(c)
+}
+
+fn game_record(j: &Json) -> R<GameRecord> {
+    let mut g = GameRecord::default();
+    let o = j.as_object().ok_or("a game record must be an object")?;
+    for (k, v) in o {
+        match k.as_str() {
+            "flags" => g.flags = u32_of(v, k)?,
+            "demolish" => g.demolish_radius = i64_of(v, k)? as i32,
+            "demolish_flags" => g.demolish_flags = u32_of(v, k)?,
+            "min_size" => g.min_demolish_size = scalar::f32_of(v, k)?,
+            "max_size" => g.max_demolish_size = scalar::f32_of(v, k)?,
+            "burn" => g.burn_radius = i64_of(v, k)? as i32,
+            "message" => g.message_type = u32_of(v, k)?,
+            "message_data" => g.message_data = u32_of(v, k)?,
+            "duration" => g.duration = scalar::f32_of(v, k)?,
+            "toxic" => g.toxic = i64_of(v, k)? as i32,
+            "extinguish" => g.extinguish = i64_of(v, k)? as i32,
+            other => return Err(format!("unknown game record field '{other}'")),
+        }
+    }
+    Ok(g)
+}
+
+/// `"volcano"` (shipped::volcano_directory) or an inline directory.
+fn directory(j: Option<&Json>) -> R<EffectDirectory> {
+    let Some(j) = j else {
+        return Ok(shipped::volcano_directory());
+    };
+    if let Some(s) = j.as_str() {
+        return match s {
+            "volcano" => Ok(shipped::volcano_directory()),
+            other => Err(format!("unknown directory '{other}'")),
+        };
+    }
+    let games = match opt(j, "games") {
+        None => shipped::game_records(),
+        Some(g) => arr(g, "games")?.iter().map(game_record).collect::<R<_>>()?,
+    };
+    let mut effects = Vec::new();
+    let mut names = Vec::new();
+    for e in arr(field(j, "effects")?, "effects")? {
+        let comps = arr(field(e, "components")?, "components")?
+            .iter()
+            .map(component)
+            .collect::<R<Vec<_>>>()?;
+        let mut d = EffectDescription::new(opt(e, "priority").map_or(Ok(1), |v| u32_of(v, "priority"))?, comps);
+        if let Some(f) = opt(e, "flags") {
+            d.flags = u32_of(f, "flags")?;
+        }
+        effects.push(d);
+        names.push((
+            str_of(field(e, "name")?, "name")?.to_owned(),
+            (effects.len() - 1) as u32,
+        ));
+    }
+    Ok(EffectDirectory::from_parts(
+        shipped::BRUSHES.to_vec(),
+        games,
+        effects,
+        names,
+    ))
+}
+
+fn create(w: &World, op: &Json) -> R<()> {
+    let dir = directory(opt(op, "directory"))?;
+    let seed = opt(op, "seed").map_or(Ok(0x1234_5678), |v| u32_of(v, "seed"))?;
+    let mut m = EffectsManager::new(seed);
+    m.set_directory(Rc::new(dir));
+    if let Some(p) = opt(op, "max_priority") {
+        m.set_max_priority(u32_of(p, "max_priority")?);
+    }
+    if let Some(f) = opt(op, "finish_mode") {
+        m.set_finish_mode(match str_of(f, "finish_mode")? {
+            "hook" => FinishMode::Hook,
+            "draw_pass" => FinishMode::DrawPass,
+            other => return Err(format!("unknown finish mode '{other}'")),
+        });
+    }
+    if let Some(n) = opt(op, "nested_update") {
+        m.set_nested_update(bool_of(n, "nested_update")?);
+    }
+    *w.mgr.borrow_mut() = Some(m);
+    w.labels.borrow_mut().clear();
+    Ok(())
+}
+
+fn env(w: &World, op: &Json) -> R<()> {
+    let mut e = w.env.borrow_mut();
+    if let Some(d) = op.get("dilation") {
+        e.dilation = match d {
+            Json::Null => None,
+            v => Some(scalar::f32_of(v, "dilation")?),
+        };
+    }
+    if let Some(c) = opt(op, "cells") {
+        let c = arr(c, "cells")?;
+        e.cells = (i64_of(&c[0], "cells")? as i32, i64_of(&c[1], "cells")? as i32);
+    }
+    if let Some(r) = opt(op, "render_active") {
+        e.render_active = bool_of(r, "render_active")?;
+    }
+    Ok(())
+}
+
+/// `ef_effect`: `CreateVisualEffect(name)`, labelled `as`; `expect` is the
+/// return value (false: no label).
+fn effect(w: &World, op: &Json) -> R<()> {
+    let name = str_of(field(op, "name")?, "name")?;
+    let id = w.with(|m, _| Ok(m.create(name)))?;
+    check_expect(op, Json::Bool(id.is_some()))?;
+    if let (Some(id), Some(l)) = (id, opt(op, "as")) {
+        w.labels.borrow_mut().insert(str_of(l, "as")?.to_owned(), id);
+    }
+    if let Some(i) = opt(op, "expect_index") {
+        let got = id
+            .and_then(|id| w.with(|m, _| Ok(m.effect(id))).ok().flatten())
+            .map(|e| e.index);
+        if got != Some(i64_of(i, "expect_index")? as i32) {
+            return Err(format!("index {got:?}, expected {}", scalar::show(i)));
+        }
+    }
+    Ok(())
+}
+
+fn f(op: &Json, i: usize) -> R<f32> {
+    scalar::f32_of(arg(op, i)?, "argument")
+}
+
+fn call(w: &World, op: &Json) -> R<()> {
+    let method = str_of(field(op, "method")?, "method")?;
+    let repeat = opt(op, "repeat").map_or(Ok(1), |v| i64_of(v, "repeat"))?;
+    let mut last = Json::Null;
+    for _ in 0..repeat {
+        last = match method {
+            "tick" => {
+                let us = u32_of(arg(op, 0)?, "us")?;
+                w.with(|m, h| {
+                    m.tick(us, h);
+                    Ok(Json::Null)
+                })?
+            }
+            // A host frame: the tick, then the finishing hook, then the draw
+            // pass (only the one of the finish mode does anything).
+            "frame" => {
+                let us = u32_of(arg(op, 0)?, "us")?;
+                w.with(|m, h| {
+                    m.tick(us, h);
+                    let a = m.finish_hook(h);
+                    let b = m.draw_pass(h);
+                    Ok(Json::Bool(a || b))
+                })?
+            }
+            "finish_hook" => w.with(|m, h| Ok(Json::Bool(m.finish_hook(h))))?,
+            "draw_pass" => w.with(|m, h| Ok(Json::Bool(m.draw_pass(h))))?,
+            "shutdown" => w.with(|m, h| {
+                m.shutdown(h);
+                Ok(Json::Null)
+            })?,
+            "set_zoom" => {
+                let (z, o) = (
+                    i64_of(arg(op, 0)?, "zoom")? as i32,
+                    i64_of(arg(op, 1)?, "offset")? as i32,
+                );
+                w.with(|m, h| {
+                    m.set_zoom(z, o, h);
+                    Ok(Json::Null)
+                })?
+            }
+            "set_max_priority" => {
+                let p = u32_of(arg(op, 0)?, "priority")?;
+                w.with(|m, _| {
+                    m.set_max_priority(p);
+                    Ok(Json::Null)
+                })?
+            }
+            "has" => {
+                let n = str_of(arg(op, 0)?, "name")?;
+                w.with(|m, _| Ok(Json::Bool(m.has_visual_effect(n))))?
+            }
+            _ => {
+                let id = w.label(op)?;
+                match method {
+                    "start" => {
+                        let mode = opt(op, "args").map_or(Ok(0), |_| u32_of(arg(op, 0)?, "mode"))?;
+                        w.with(|m, h| Ok(Json::Bool(m.start(id, mode, h))))?
+                    }
+                    "stop" => {
+                        let mode = opt(op, "args").map_or(Ok(0), |_| u32_of(arg(op, 0)?, "mode"))?;
+                        w.with(|m, h| Ok(Json::Bool(m.stop(id, mode, h))))?
+                    }
+                    "set_position" => {
+                        let p = [f(op, 0)?, f(op, 1)?, f(op, 2)?];
+                        w.with(|m, _| Ok(Json::Bool(m.set_position(id, p))))?
+                    }
+                    "set_end_message" => {
+                        let t = u32_of(arg(op, 0)?, "type")?;
+                        let d = i64_of(arg(op, 1)?, "data1")? as u64;
+                        w.with(|m, _| Ok(Json::Bool(m.set_end_message(id, t, d))))?
+                    }
+                    "forward_parameter" => {
+                        let i = u32_of(arg(op, 0)?, "index")?;
+                        let v = i64_of(arg(op, 1)?, "value")? as u64;
+                        w.with(|m, _| Ok(Json::Bool(m.forward_parameter(id, i, v))))?
+                    }
+                    "add_ref" => w.with(|m, _| Ok(Json::Bool(m.add_ref(id))))?,
+                    "release" => w.with(|m, _| Ok(Json::Bool(m.release(id))))?,
+                    "is_started" => w.with(|m, _| Ok(Json::Bool(m.is_started(id))))?,
+                    "is_stopping" => w.with(|m, _| Ok(Json::Bool(m.is_stopping(id))))?,
+                    other => return Err(format!("unknown method '{other}'")),
+                }
+            }
+        };
+    }
+    check_expect(op, last)
+}
+
+/// The brush component of an effect (the `n`-th, default 0).
+fn brush(w: &World, op: &Json) -> R<fc4_core::effects::BrushEffect> {
+    let id = w.label(op)?;
+    let n = opt(op, "n").map_or(Ok(0), |v| i64_of(v, "n"))? as usize;
+    w.with(|m, _| match m.component_of_kind(id, component_type::BRUSH, n) {
+        Some(Component::Brush(b)) => Ok(b.clone()),
+        _ => Err("no brush component".into()),
+    })
+}
+
+/// `ef_run_stroke`: ticks `us` until the effect's brush is inactive
+/// (`max?` ticks, default 10000); checks `ticks`, `applications` (the brush
+/// calls made) and `first` (the calls of the first ticks).
+fn run_stroke(w: &World, op: &Json) -> R<()> {
+    let us = u32_of(field(op, "us")?, "us")?;
+    let max = opt(op, "max").map_or(Ok(10_000), |v| i64_of(v, "max"))?;
+    let calls = || w.env.borrow().brush_calls;
+    let mut per_tick = Vec::new();
+    let mut ticks = 0i64;
+    loop {
+        let before = calls();
+        w.with(|m, h| {
+            m.tick(us, h);
+            Ok(())
+        })?;
+        per_tick.push(calls() - before);
+        ticks += 1;
+        if !brush(w, op)?.active {
+            break;
+        }
+        if ticks >= max {
+            return Err(format!("the stroke did not end in {max} ticks"));
+        }
+    }
+    if let Some(t) = opt(op, "ticks") {
+        if ticks != i64_of(t, "ticks")? {
+            return Err(format!("ended after {ticks} ticks, expected {}", scalar::show(t)));
+        }
+    }
+    let total: usize = per_tick.iter().sum();
+    if let Some(a) = opt(op, "applications") {
+        if total as i64 != i64_of(a, "applications")? {
+            return Err(format!("{total} applications, expected {}", scalar::show(a)));
+        }
+    }
+    if let Some(first) = opt(op, "first") {
+        let want = arr(first, "first")?;
+        let got: Vec<Json> = per_tick.iter().take(want.len()).map(|&n| ji(n as i64)).collect();
+        if !scalar::matches(&Json::Array(got.clone()), first, false) {
+            return Err(format!(
+                "per-tick applications {}, expected {}",
+                scalar::show(&Json::Array(got)),
+                scalar::show(first)
+            ));
+        }
+    }
+    if let Some(e) = opt(op, "every") {
+        let k = i64_of(e, "every")? as usize;
+        if per_tick.iter().any(|&n| n != k) {
+            return Err(format!("per-tick applications {per_tick:?}, expected {k} each"));
+        }
+    }
+    Ok(())
+}
+
+/// `ef_child`: labels (`as`) the child of the effect's built meta component
+/// (the `n`-th, default 0); `name?` checks the child's name.
+fn child(w: &World, op: &Json) -> R<()> {
+    let id = w.label(op)?;
+    let n = opt(op, "n").map_or(Ok(0), |v| i64_of(v, "n"))? as usize;
+    let (child, name) = w.with(|m, _| match m.component_of_kind(id, component_type::META, n) {
+        Some(Component::Meta(c)) => Ok((*c, m.effect(*c).map(|e| e.name).unwrap_or_default())),
+        _ => Err("no meta component".into()),
+    })?;
+    if let Some(want) = opt(op, "name") {
+        if name != str_of(want, "name")? {
+            return Err(format!("child '{name}', expected {}", scalar::show(want)));
+        }
+    }
+    if let Some(l) = opt(op, "as") {
+        w.labels.borrow_mut().insert(str_of(l, "as")?.to_owned(), child);
+    }
+    Ok(())
+}
+
+fn expect(w: &World, op: &Json) -> R<()> {
+    let id = w.label(op)?;
+    let info = w.with(|m, _| Ok(m.effect(id)))?;
+    let got = match info {
+        None => vec![("exists".to_owned(), Json::Bool(false))],
+        Some(e) => vec![
+            ("exists".to_owned(), Json::Bool(true)),
+            ("name".to_owned(), Json::Str(e.name)),
+            ("index".to_owned(), ji(e.index)),
+            ("refs".to_owned(), ji(e.refs)),
+            ("started".to_owned(), Json::Bool(e.started)),
+            ("stopping".to_owned(), Json::Bool(e.stopping)),
+            ("components".to_owned(), ji(e.components as i64)),
+            ("active".to_owned(), Json::Bool(e.active)),
+        ],
+    };
+    check_state(&got, field(op, "state")?)
+}
+
+fn pair(p: (f32, f32)) -> Json {
+    Json::Array(vec![jf(p.0), jf(p.1)])
+}
+
+fn expect_brush(w: &World, op: &Json) -> R<()> {
+    let b = brush(w, op)?;
+    let got = vec![
+        ("brush".to_owned(), ji(b.record.brush_id)),
+        ("rate".to_owned(), jf(b.record.rate)),
+        ("length".to_owned(), jf(b.record.length)),
+        ("one_shot".to_owned(), Json::Bool(b.record.one_shot)),
+        ("strength".to_owned(), jf(b.strength)),
+        ("radius".to_owned(), jf(b.radius)),
+        ("active".to_owned(), Json::Bool(b.active)),
+        ("long_op".to_owned(), Json::Bool(b.long_op)),
+        ("acc".to_owned(), jf(b.acc)),
+        ("t".to_owned(), jf(b.t)),
+        ("prev".to_owned(), pair(b.prev)),
+        ("cur".to_owned(), pair(b.cur)),
+        ("applications".to_owned(), Json::Int(b.applications as i64)),
+    ];
+    check_state(&got, field(op, "state")?)
+}
+
+fn expect_game(w: &World, op: &Json) -> R<()> {
+    let id = w.label(op)?;
+    let n = opt(op, "n").map_or(Ok(0), |v| i64_of(v, "n"))? as usize;
+    let g = w.with(|m, _| match m.component_of_kind(id, component_type::GAME, n) {
+        Some(Component::Game(g)) => Ok(g.clone()),
+        _ => Err("no game component".into()),
+    })?;
+    let got = vec![
+        ("started".to_owned(), Json::Bool(g.started)),
+        ("pending".to_owned(), Json::Bool(g.pending)),
+        ("timer".to_owned(), jf(g.timer)),
+        ("count".to_owned(), ji(g.count)),
+        ("cell".to_owned(), Json::Array(vec![ji(g.cell.0), ji(g.cell.1)])),
+        ("data".to_owned(), Json::Int(g.data as i64)),
+        ("applies".to_owned(), ji(g.applies)),
+    ];
+    check_state(&got, field(op, "state")?)
+}
+
+fn expect_manager(w: &World, op: &Json) -> R<()> {
+    let got = w.with(|m, _| {
+        let s = m.stats();
+        Ok(vec![
+            ("select_draws".to_owned(), Json::Int(s.select_draws as i64)),
+            ("end_posts".to_owned(), Json::Int(s.end_posts as i64)),
+            ("recycled".to_owned(), Json::Int(s.recycled as i64)),
+            ("effect_count".to_owned(), ji(m.effect_count() as i64)),
+            ("active_count".to_owned(), ji(m.active_list().len() as i64)),
+            ("total_us".to_owned(), Json::Int(m.total_time().0 as i64)),
+            ("lod".to_owned(), ji(m.level_of_detail())),
+            ("max_priority".to_owned(), ji(m.max_priority())),
+        ])
+    })?;
+    check_state(&got, field(op, "state")?)
+}
+
+/// `ef_select`: a fresh select generator (seed `0x1105`): `first_word?`
+/// (the first tempered word), `draws?` (the first `RandomUint32Uniform
+/// (0x10000)` values), `members?` with `weights` (the 1-based members the
+/// draws pick).
+fn select(op: &Json) -> R<()> {
+    let no_clock = FixedSeeds {
+        wall_clock: 0,
+        process_clock: 0,
+    };
+    if let Some(wd) = opt(op, "first_word") {
+        let got = RzRandomSuper::new(SELECT_SEED, &no_clock).next_u32();
+        if i64::from(got) != i64_of(wd, "first_word")? {
+            return Err(format!("first word 0x{got:08X}, expected {}", scalar::show(wd)));
+        }
+    }
+    let mut g = RzRandomSuper::new(SELECT_SEED, &no_clock);
+    let n = opt(op, "draws").map_or(0, |d| d.as_array().map_or(0, |a| a.len()));
+    let draws: Vec<u32> = (0..n.max(opt(op, "members").map_or(0, |m| m.as_array().map_or(0, |a| a.len()))))
+        .map(|_| g.uniform_u32(SELECT_RANGE))
+        .collect();
+    if let Some(d) = opt(op, "draws") {
+        let got = Json::Array(draws.iter().map(|&r| ji(r)).collect());
+        if !scalar::matches(&got, d, false) {
+            return Err(format!("draws {}, expected {}", scalar::show(&got), scalar::show(d)));
+        }
+    }
+    if let Some(mm) = opt(op, "members") {
+        let weights: Vec<u16> = arr(field(op, "weights")?, "weights")?
+            .iter()
+            .map(|v| u32_of(v, "weight").map(|w| w as u16))
+            .collect::<R<_>>()?;
+        let got = Json::Array(
+            draws
+                .iter()
+                .map(|&r| shipped::select_member(&weights, r).map_or(Json::Null, |k| ji(k as i64 + 1)))
+                .collect(),
+        );
+        if !scalar::matches(&got, mm, false) {
+            return Err(format!("members {}, expected {}", scalar::show(&got), scalar::show(mm)));
+        }
+    }
+    Ok(())
+}

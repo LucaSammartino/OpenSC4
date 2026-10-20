@@ -22,30 +22,6 @@
 //! Those rules are here as pure predicates over the record shapes that
 //! `fc4_formats::effects` parses. The rendering, the particles, the decals and
 //! the brushes themselves are not modelled.
-//!
-//! [`shipped`] holds the brush and game **record tables** the shipped effect
-//! directory carries (§8.4, §9.4).
-
-/// The brush and game records of the shipped effect directory (§8.4, §9.4).
-pub mod shipped;
-
-/// The random "select" groups of §5.3.
-pub mod select;
-
-/// The brush effect (§8).
-pub mod brush;
-
-/// The game effect (§9).
-pub mod game;
-
-/// The effect directory and `FindEffectDesc` (§3, §4.1, §5.2).
-pub mod directory;
-
-/// The effects manager (§1, §2, §4-§7).
-pub mod manager;
-
-#[cfg(test)]
-mod manager_tests;
 
 /// The effect flags of §7, and the runtime component flags of `comp + 0x40`.
 pub mod flags {
@@ -446,13 +422,6 @@ mod tests {
 
 /// The component types of §3, repeated here so `fc4-core` stays free of a
 /// dependency on `fc4-formats`.
-//! The effects manager and the effects the simulation depends on
-//! (`docs/specs/effects.md`): the effect directory ([`directory`]), effect
-//! creation with the priority filter, levels of detail and select groups,
-//! the dilated animation tick, finishing and the end message
-//! ([`EffectsManager`]), the brush effect ([`brush`]) and the game effect
-//! ([`game`]), and the shipped records and disaster mapping as data
-//! ([`shipped`]).
 //!
 //! Out of scope (the host's): drawing, particles, decals, sounds, the
 //! effect maps and the automata attractors. Their components exist in the
@@ -477,9 +446,6 @@ pub mod directory;
 pub mod game;
 mod manager;
 pub mod shipped;
-
-#[cfg(test)]
-mod tests;
 
 pub use brush::{BrushEffect, BRUSH_DATA4};
 pub use directory::{
@@ -526,7 +492,8 @@ pub mod msg {
     pub const VOLCANO_EFFECT_END: u32 = 0xCA49_3C1D;
 }
 
-/// Component types (§3, `+0x0C`).pub mod component_type {
+/// Component types (§3, `+0x0C`).
+pub mod component_type {
     pub const PARTICLES: u8 = 0;
     pub const DECAL: u8 = 1;
     pub const META: u8 = 2;
@@ -537,7 +504,6 @@ pub mod msg {
     pub const SOUND: u8 = 7;
     pub const CAMERA: u8 = 8;
     pub const MODEL: u8 = 16;
-    pub const MODEL: u8 = 0x10;
 }
 
 /// Visual effect flags (§11.1).
