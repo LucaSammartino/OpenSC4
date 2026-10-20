@@ -60,7 +60,8 @@ PRESETS = {
         "specs": ["history.md"],
         "interfaces": ["cISC4HistoryWarehouse"],
         "seeds": [r"\bfc4_history\w*", r"HistoryWarehouse", r"\bCoreLock\b"],
-        "ini": ["enable = history"], "log": r"\bhistory\b",
+        "ini": ["enable = history"],
+        "tests": "^plugin_ini_enable_history_test$|^plugin_ini_history_shadow_test$", "log": r"\bhistory\b",
     },
     "cFC4Dispatch": {
         "files": ["engine/plugin/cFC4Dispatch.h", "engine/plugin/cFC4Dispatch.cpp"],
@@ -74,7 +75,7 @@ PRESETS = {
         "specs": ["parks.md"],
         "interfaces": ["cISC4ParkManager"],
         "seeds": [r"\bfc4_parks?\w*", r"ParkManager", r"\b[Pp]arks?\b", r"\bCoreLock\b"],
-        "ini": ["enable = parks"], "log": r"\bparks?\b",
+        "ini": ["enable = parks"], "tests": "^plugin_ini_enable_parks_test$", "log": r"\bparks?\b",
     },
 }
 TEMPLATE = ["engine/plugin/cFC4Aura.h", "engine/plugin/cFC4Aura.cpp"]
@@ -278,16 +279,22 @@ def contract(cls, files):
     lines = []
     for p in sorted(list((ROOT / "engine/plugin").glob("*")) + list((ROOT / "engine/tests").glob("*"))
                     + [ROOT / "engine/CMakeLists.txt"]):
-        if p.suffix not in (".cpp", ".h", ".txt") or p.name in own:
+        if p.suffix not in (".cpp", ".h", ".inc", ".txt") or p.name in own:
             continue
         try:
             text = read(p)
         except OSError:
             continue
-        for n, line in enumerate(text.splitlines(), 1):
+        src = text.splitlines()
+        ctx = 4 if "tests" in p.parts else 0  # a test's usage needs its locals' types (e.g. an aggregate init)
+        shown = set()
+        for n, line in enumerate(src, 1):
             if rx.search(code_of(line)):
-                lines.append(f"{rel(p)}:{n}: {line.strip()[:200]}")
-    return "\n".join(lines[:120])
+                for k in range(max(1, n - ctx), min(len(src), n + ctx) + 1):
+                    if (p, k) not in shown:
+                        shown.add((p, k))
+                        lines.append(f"{rel(p)}:{k}:{'' if k == n else ' |'} {src[k - 1].strip()[:200]}")
+    return "\n".join(lines[:160])
 
 
 def build_pack(cls, preset, template=TEMPLATE, header_budget=60_000):
@@ -346,6 +353,13 @@ def claude_bin(arg):
     """The claude CLI: --claude-bin, FORGE_CLAUDE_BIN, `claude` on PATH, else the newest copy the desktop app
     bundles. A .py path runs under this Python (the test stub)."""
     c = arg or os.environ.get("FORGE_CLAUDE_BIN") or shutil.which("claude")
+    npm_exe = Path(os.environ.get("APPDATA", "")) / "npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe"
+    if c and Path(c).suffix.lower() in (".cmd", ".ps1", "") and not c.endswith(".py"):
+        # an npm shim: run the native exe it wraps, so the multi-line system prompt is not parsed by cmd.exe
+        exe = Path(c).parent / "node_modules/@anthropic-ai/claude-code/bin/claude.exe"
+        c = str(exe) if exe.exists() else c
+    if not c and npm_exe.exists():
+        c = str(npm_exe)
     if not c:
         base = Path(os.environ.get("LOCALAPPDATA", "")) / "Claude-3p" / "claude-code"
         found = sorted(base.glob("*/*/claude.exe"), key=lambda p: [int(x) if x.isdigit() else 0
@@ -470,7 +484,10 @@ class Provider:
         except ValueError:
             r = {}
         if p.returncode != 0 or not r or r.get("is_error"):
-            err = (p.stderr.decode("utf-8", "replace") + "\n" + out)[-800:]
+            err = (f"{r.get('terminal_reason')}: {str(r.get('result'))[:400]}" if r else
+                   (p.stderr.decode("utf-8", "replace") + "\n" + out)[-800:])
+            if r.get("terminal_reason") == "api_error":
+                err += " (not signed in? run `claude` once and log in, or check the gateway settings)"
             raise SystemExit(f"forge: claude-code call failed (exit {p.returncode}): {err.strip()}")
         u = r.get("usage") or {}
         models = r.get("modelUsage") or {}
@@ -575,7 +592,7 @@ def cmd_setup(a):
         if dst.exists() and dst.read_bytes() == (ROOT / f).read_bytes():
             continue
         dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(ROOT / f, dst)
+        shutil.copyfile(ROOT / f, dst)  # a fresh mtime: ninja must rebuild what changed
         synced += 1
     if fresh:
         shutil.copytree(MAIN / "engine/third_party/gzcom-dll", SCRATCH / "third_party/gzcom-dll", dirs_exist_ok=True)
@@ -591,6 +608,47 @@ def build(timeout=3600):
     code, out = run_cmd(f'cd /d "{SCRATCH}" && cmake --build build-x86 --target FreeCity4 -- -k 0', timeout)
     (FORGE / "last-build.txt").write_text(out, encoding="utf-8")
     return code == 0 and "FAILED:" not in out, out, round(time.time() - t0, 1)
+
+
+CHECK_RX = re.compile(r"^(?P<file>[A-Za-z]:\\[^:]+|[^\s:]+):(?P<line>\d+): (?P<msg>CHECK failed: .*)$")
+
+
+def run_tests(regex, timeout=900):
+    """The class's in-process ctest cases (plugin_load_test loads the DLL and drives the class through the real
+    vtable with stub game services). Returns (ok, trimmed failure text in compiler-error form, seconds)."""
+    t0 = time.time()
+    code, out = run_cmd(f'cd /d "{SCRATCH}" && cmake --build build-x86 --target fc4_plugin_load_test -- -k 0 && '
+                        f'cd build-x86 && ctest -R "{regex}" --output-on-failure', timeout)
+    (FORGE / "last-test.txt").write_text(out, encoding="utf-8")
+    scr = str(SCRATCH.resolve()).lower()
+    lines, seen = [], set()
+    for line in out.splitlines():
+        s = line.strip()
+        m = CHECK_RX.match(s)
+        if m:
+            f = m.group("file")
+            if f.lower().startswith(scr):
+                f = "engine/" + Path(f).resolve().relative_to(SCRATCH.resolve()).as_posix()
+            key = (f, m.group("line"))
+            if key not in seen:
+                seen.add(key)
+                lines.append(f"{f}({m.group('line')}): test {m.group('msg')[:300]}")
+        elif re.search(r"\*\*\*(Exception|Failed)|SEGFAULT|tests passed|\(Failed\)", s):
+            lines.append(s[:300])
+    ok = code == 0 and "tests passed" in out and "100% tests passed" in out
+    if re.search(r"^FAILED: (CMakeFiles/fc4_plugin_load_test|fc4_plugin_load_test)", out, re.M):
+        # the test program itself does not compile against the class's header (the contract was broken)
+        errs, _ = trim_errors(out)
+        return False, "the project's test program does not compile or link against your files:\n" + errs, \
+            round(time.time() - t0, 1)
+    if not ok and not any("CHECK failed" in l for l in lines):
+        # a crash with no CHECK line: the test's last output lines say how far it got
+        out_lines = out.splitlines()
+        crash = next((i for i, l in enumerate(out_lines) if "***Exception" in l or "SEGFAULT" in l), None)
+        start = next((i for i, l in enumerate(out_lines) if re.search(r"Test +#\d+:", l)), 0)
+        tail = out_lines[max(start, (crash or len(out_lines)) - 30):(crash or len(out_lines))]
+        lines = ["the test crashed; its last output lines before the crash:"] + [l[:240] for l in tail] + lines
+    return ok, "\n".join(lines[:80]), round(time.time() - t0, 1)
 
 
 ERR_RX = re.compile(r"^(?P<file>[A-Za-z]:\\[^(]+|[^\s(]+)\((?P<line>\d+)(?:,\d+)?\)\s*:\s*(?P<kind>fatal error|error)\s+"
@@ -616,6 +674,16 @@ def trim_errors(out, limit=40):
             lines.append(f"{f}({m.group('line')}): {m.group('kind')} {m.group('code')}: {m.group('msg')[:300]}")
             if f not in files:
                 files.append(f)
+        elif "note: see reference to" in line and lines and scr in line.lower():
+            # an error inside a system header (xutility, ...): keep the instantiation site in our file
+            n = re.match(r"^\s*(?P<file>[A-Za-z]:\\[^(]+)\((?P<line>\d+)\)", line)
+            if n:
+                f = "engine/" + Path(n.group("file")).resolve().relative_to(SCRATCH.resolve()).as_posix()
+                note = f"  {f}({n.group('line')}): note: {line.split('note: ', 1)[1][:240]}"
+                if note not in seen:
+                    seen.add(note); lines.append(note)
+                    if f not in files:
+                        files.append(f)
         else:
             m = LNK_RX.search(line)
             if m and m.group(1) not in seen:
@@ -649,7 +717,7 @@ def restore(paths):
     for path in paths:
         src, dst = ROOT / path, SCRATCH / Path(path).relative_to("engine")
         if src.exists():
-            shutil.copy2(src, dst)
+            shutil.copyfile(src, dst)  # not copy2: an old mtime would make ninja keep the forged .obj
         elif dst.exists():
             dst.unlink()
 
@@ -779,7 +847,10 @@ def cmd_run(a):
     got = parse_files(text, files)
     if not got:
         log(a.cls, {"ts": now(), "kind": "summary", **base, "ok": False, "why": "no files parsed", **totals})
-        raise SystemExit(f"forge: no <<<FILE>>> blocks for {files} in the response ({rdir / 'response-r0.txt'})")
+        last = json.loads(read(FORGE / f"{a.cls}.jsonl").splitlines()[-2]) if not a.replay else {}
+        hint = (" - the output cap was hit (reasoning tokens count against it): raise --max-tokens or lower "
+                "--reasoning" if last.get("finish") in ("length", "max_tokens") else "")
+        raise SystemExit(f"forge: no <<<FILE>>> blocks for {files} in the response ({rdir / 'response-r0.txt'}){hint}")
     current = {f: got.get(f, "") for f in files}
     ok, rounds, errs = False, 0, ""
     try:
@@ -796,6 +867,16 @@ def cmd_run(a):
             log(a.cls, {"ts": now(), "kind": "build", "round": rnd, **base, "ok": ok, "errors": n_err,
                         "seconds": secs})
             print(f"  build r{rnd}: {'ok' if ok else f'{n_err} errors'} ({secs}s)")
+            what = "do not build"
+            if ok and pre.get("tests") and not a.no_tests:
+                ok, errs, tsecs = run_tests(pre["tests"])
+                efiles = sorted(set(re.findall(r"^(engine/[^(]+)\(", errs, re.M)))
+                (d / "test-failures.txt").write_text(errs or "ok", encoding="utf-8")
+                n_fail = sum(1 for l in errs.splitlines() if ": test CHECK failed" in l or "***" in l)
+                log(a.cls, {"ts": now(), "kind": "test", "round": rnd, **base, "ok": ok, "failures": n_fail,
+                            "seconds": tsecs})
+                print(f"  test  r{rnd}: {'ok' if ok else f'{n_fail} failures'} ({tsecs}s)")
+                what = "build but fail the project's tests for this class"
             rounds = rnd
             if ok or rnd == a.rounds or a.replay:
                 break
@@ -804,9 +885,9 @@ def cmd_run(a):
             others = "\n\n".join(f"=== {f} (not yours; the lines around the errors) ===\n{snippet(f, errs)}"
                                  for f in efiles if f not in current and snippet(f, errs))
             mine = "\n\n".join(f"<<<FILE {f}>>>\n{b}<<<END>>>" for f, b in current.items())
-            fix = (f"Your files for {a.cls} do not build. Fix exactly these errors; keep the behaviour. Output every "
-                   f"file you change, complete, in the format of the rules.\n\n=== errors (trimmed) ===\n{errs}\n\n"
-                   f"{others}\n\n=== your current files ===\n{mine}")
+            fix = (f"Your files for {a.cls} {what}. Fix exactly these failures; keep the behaviour the spec gives. "
+                   f"Output every file you change, complete, in the format of the rules.\n\n=== failures (trimmed) "
+                   f"===\n{errs}\n\n{others}\n\n=== your current files ===\n{mine}")
             text = call(rnd + 1, [(shared, True)], fix)
             for f, b in parse_files(text, files).items():
                 current[f] = b
@@ -823,7 +904,7 @@ def cmd_run(a):
     cmp = compare(files, rdir / f"r{rounds}")
     summ = {"ts": now(), "kind": "summary", **base, "ok": ok, "fix_rounds": rounds, **totals, "compare": cmp}
     log(a.cls, summ)
-    print(f"forge {a.cls}: build {'OK' if ok else 'FAILED'} after {rounds} fix round(s); {totals['calls']} calls, "
+    print(f"forge {a.cls}: {('OK (build + tests)' if pre.get('tests') and not a.no_tests else 'OK (build only: no class tests)') if ok else 'FAILED'} after {rounds} fix round(s); {totals['calls']} calls, "
           f"in {totals['input_tokens']} / out {totals['output_tokens']} tok, ${totals['cost_usd']:.4f}")
     for f, c in cmp.items():
         print(f"  {f}: similarity {c['similarity']}, methods {c['methods']}, fc4 calls {c['fc4_calls']}")
@@ -1029,6 +1110,7 @@ def main(argv=None):
         if name == "run":
             backend_args(p)
             p.add_argument("--rounds", type=int, default=3)
+            p.add_argument("--no-tests", action="store_true", help="compile errors only (skip the class's ctests)")
             p.add_argument("--max-cost", type=float, default=1.50, help="stop a run above this many dollars")
             p.add_argument("--budget", type=float, default=5.00, help="refuse when the logged total reaches this")
             p.add_argument("--replay", help="a saved response to parse and build instead of calling the API")
