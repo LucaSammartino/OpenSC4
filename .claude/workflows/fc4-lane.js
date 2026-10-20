@@ -27,7 +27,7 @@ const RESULT = {
     game: { type: 'string', maxLength: 200, description: 'one line: run labels and verdicts, shadow exact or not; or n/a' },
     questions: { type: 'string', maxLength: 160, description: 'question IDs filed and the file, or none' },
     abi: { type: 'boolean', description: 'true if the C ABI exports changed' },
-    summary: { type: 'string', maxLength: 400 },
+    summary: { type: 'string', maxLength: 700 },
     next: { type: 'array', maxItems: 5, items: { type: 'string', maxLength: 200 } },
   },
   required: ['lane', 'tip', 'state', 'summary'],
