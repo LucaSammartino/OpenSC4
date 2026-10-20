@@ -43,6 +43,37 @@ if(FC4_CHECKED AND MSVC)
     message(STATUS "FC4_CHECKED: plugin built with /Od /RTC1 and out-parameter canaries")
 endif()
 
+# Debug info embedded in each object (/Z7) instead of a shared per-target PDB (/Zi): the objects become
+# cacheable (sccache, below) and the compiler no longer talks to mspdbsrv. The linker still writes the PDB.
+if(MSVC)
+    foreach(fc4_lang C CXX)
+        foreach(fc4_cfg "" _DEBUG _RELEASE _RELWITHDEBINFO _MINSIZEREL)
+            string(REGEX REPLACE "/Z[iI]" "/Z7" CMAKE_${fc4_lang}_FLAGS${fc4_cfg} "${CMAKE_${fc4_lang}_FLAGS${fc4_cfg}}")
+        endforeach()
+    endforeach()
+endif()
+
+# Compiler cache. Lanes build in fresh git worktrees, so every lane used to compile everything from scratch.
+# With sccache installed (`cargo install sccache --version 0.18.0 --locked`; docs/ops/coordinating.md "Build
+# cache") the C/C++ compiler and rustc go through it. .claude/lane-bin/fc4verify.py runs one sccache server per
+# worktree with SCCACHE_BASEDIRS set to the worktree, so C++ objects hit across worktrees. The cargo env below is
+# the one fc4verify uses: sccache hashes every CARGO_* variable, and incremental builds are not cacheable.
+option(FC4_COMPILER_CACHE "Compile C/C++ and Rust through sccache when it is installed" ON)
+set(FC4_CARGO_ENV "")
+if(FC4_COMPILER_CACHE)
+    find_program(FC4_SCCACHE_EXECUTABLE sccache
+        HINTS "$ENV{CARGO_HOME}/bin" "$ENV{USERPROFILE}/.cargo/bin" "$ENV{HOME}/.cargo/bin")
+    if(FC4_SCCACHE_EXECUTABLE)
+        set(CMAKE_C_COMPILER_LAUNCHER "${FC4_SCCACHE_EXECUTABLE}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${FC4_SCCACHE_EXECUTABLE}")
+        set(FC4_CARGO_ENV "RUSTC_WRAPPER=${FC4_SCCACHE_EXECUTABLE}" CARGO_INCREMENTAL=0
+            CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0)
+        message(STATUS "FC4_COMPILER_CACHE: compiling through ${FC4_SCCACHE_EXECUTABLE}")
+    else()
+        message(STATUS "FC4_COMPILER_CACHE: sccache not found, compiling without a cache")
+    endif()
+endif()
+
 # ---- Rust core (cargo) ----------------------------------------------------------
 
 find_program(CARGO_EXECUTABLE cargo
@@ -79,9 +110,12 @@ endif()
 
 # Cargo does its own incremental build; always ask it. It must run from
 # engine/ so that engine/.cargo/config.toml (static CRT) applies.
+# --target-dir rather than CARGO_TARGET_DIR: sccache hashes CARGO_* variables, and the
+# target directory must not split the cache between this build and a lane's own cargo runs.
 add_custom_target(fc4_capi_cargo ALL
-    COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${FC4_CARGO_TARGET_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E env ${FC4_CARGO_ENV}
             ${CARGO_EXECUTABLE} build --release -p fc4-capi ${FC4_CARGO_TARGET_ARGS}
+            --target-dir "${FC4_CARGO_TARGET_DIR}"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     BYPRODUCTS "${FC4_CAPI_LIB}"
     COMMENT "cargo build fc4-capi (${FC4_RUST_TARGET})"
@@ -97,8 +131,9 @@ add_dependencies(fc4_capi fc4_capi_cargo)
 
 # Rust unit tests + conformance vectors, for the same target as the plugin.
 add_test(NAME cargo_test
-    COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${FC4_CARGO_TARGET_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E env ${FC4_CARGO_ENV}
             ${CARGO_EXECUTABLE} test --workspace ${FC4_CARGO_TARGET_ARGS}
+            --target-dir "${FC4_CARGO_TARGET_DIR}"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # The C ABI exercised from C++ with this compiler/architecture/CRT.
