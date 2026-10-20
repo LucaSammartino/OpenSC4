@@ -4,7 +4,7 @@ Per-lane row for the regenerated `HANDOFF.md` 0 table (see `docs/lanes/README.md
 
 | Lane | Worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue24fix2 (pin and fix the tick-5500 debug-CRT int3 in the netmgr/netlot replacement path) | `.claude/worktrees/glue24` / `glue24` | **The int3 is diagnosed and disarmed: the site is the statically-linked UCRT `failwithmessage` falling to its silent int3 because the deployed Debug build compiles /RTC1 with no RTC error func installed; the handler is now installed in every build, and `enable = netmgr,netlot` ran twice to 2032 clean plus the save round trip clean (state ready pending the gate).** | (1) full gate (`qbuild all`) before the merge train; (2) the merge-queue entry flips to ready; (3) if a future run logs `RTC ERROR #N`, fix the named call site or file NM12 (docs/specs/questions/) |
+| glue24fix2 (pin and fix the tick-5500 debug-CRT int3 in the netmgr/netlot replacement path) | `.claude/worktrees/glue24` / `glue24` | **The int3 is diagnosed and disarmed: the site is the statically-linked UCRT `failwithmessage` falling to its silent int3 because the deployed Debug build compiles /RTC1 with no RTC error func installed; the handler is now installed in every build, and `enable = netmgr,netlot` ran twice to 2032 clean plus the save round trip clean (state ready (gate passed)).** | (1) full gate (`qbuild all`) before the merge train; (2) the merge-queue entry flips to ready; (3) if a future run logs `RTC ERROR #N`, fix the named call site or file NM12 (docs/specs/questions/) |
 
 ## Report
 
