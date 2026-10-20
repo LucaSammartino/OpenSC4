@@ -1,0 +1,68 @@
+$ C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\ctest.EXE --test-dir C:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe\engine\build-x86 --output-on-failure -j 4
+Internal ctest changing into directory: C:/Users/tlori/FreeCity4/.claude/worktrees/fc4build-probe/engine/build-x86
+Test project C:/Users/tlori/FreeCity4/.claude/worktrees/fc4build-probe/engine/build-x86
+      Start  1: cargo_test
+      Start 13: abi_conformance_test
+      Start 14: ret_channel_check
+      Start  4: game_container_test
+ 1/62 Test  #4: game_container_test ....................   Passed    0.02 sec
+[... cargo output trimmed for the fixture ...]
+test result: ok. 142 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+     Running unittests src\bin\fc4-dat.rs (build-x86/cargo\i686-pc-windows-msvc\debug\deps\fc4_dat-f625b5e86b539c2e.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\automata_records.rs (build-x86/cargo\i686-pc-windows-msvc\debug\deps\automata_records-9d8810f1258ec4ef.exe)
+
+running 2 tests
+test synthetic_records_round_trip_through_the_sweep ... ok
+test sweep_automata_records ... FAILED
+
+failures:
+
+---- sweep_automata_records stdout ----
+automata_records: C:\Program Files (x86)\GOG Galaxy\Games\SimCity 4 Deluxe Edition (417 .sc4 files, 417 distinct)
+  generator (0x4a1628c5): 396 records, 288905 entries, 288905 byte-identical, 0 index-renormalised; versions v4 288905; sizes 73:10, 75:3, 76:26, 77:8, 78:7, 79:4, … (30 more)
+  script system (0x4a1b664e): 417 records, 417 entries, 417 byte-identical, 0 index-renormalised; versions v1 417; sizes 2:417
+  patrol car (0x4a222b98): 1 records, 3 entries, 3 byte-identical, 0 index-renormalised; versions v2 3; sizes 372:2, 407:1
+  trailer (0x4a5b69ed): 2 records, 63 entries, 63 byte-identical, 0 index-renormalised; versions v2 63; sizes 360:1, 368:18, 380:14, 387:1, 388:21, 399:6, … (2 more)
+  attractor (0x6a1628ba): 8 records, 126 entries, 126 byte-identical, 0 index-renormalised; versions v5 126; sizes 75:10, 76:42, 79:5, 80:3, 82:5, 83:10, … (6 more)
+  vehicle (0x896e714a): 7 records, 881 entries, 881 byte-identical, 0 index-renormalised; versions v2 881; sizes 290:1, 294:57, 298:374, 302:53, 306:304, 325:11, … (10 more)
+  pedestrian (0x896e75af): 387 records, 81312 entries, 81312 byte-identical, 0 index-renormalised; versions v5 81312; sizes 267:3, 271:19, 275:38, 279:19, 283:84, 287:62, … (17 more)
+  watercraft manager (0xa98f9d28): 10 records, 10 entries, 10 byte-identical, 0 index-renormalised; versions v4 1, v5 4, v6 5; sizes 12:1, 40:4, 126:5
+  vehicle manager (0xa98f9d3b): 417 records, 417 entries, 417 byte-identical, 0 index-renormalised; versions v2 408, v3 9; sizes 22:408, 168:1, 176:1, 256:1, 960:1, 1040:1, … (3 more)
+  pedestrian manager (0xc98f9d17): 417 records, 417 entries, 417 byte-identical, 0 index-renormalised; versions v2 408, v3 9; sizes 22:30, 30:2, 32:1, 38:3, 46:2, 54:3, … (105 more)
+  aircraft manager (0xc98f9d4a): 10 records, 10 entries, 10 byte-identical, 0 index-renormalised; versions v4 1, v5 9; sizes 12:1, 82:4, 146:5
+  controller manager (0xca14ca03): 417 records, 417 entries, 417 byte-identical, 0 index-renormalised; versions v1 417; sizes 30:21, 50:1, 110:1, 130:1, 330:1, 350:1, … (349 more)
+  classes listed by the managers: 0x4a1628c5 288905, 0x4a222b98 3, 0x4a5b69ed 63, 0x6a1628ba 126, 0x896e714a 880, 0x896e75af 81309
+  automaton state types: 0x0 597, 0x14 10, 0x2 207, 0x3 21, 0x7 56, 0xb 80358, 0xd 79
+  automaton base versions: v7 79356, v8 2903
+  controller templates: accident_attract 1, accident_crowd 1, biz_gen_stand 1, biz_gen_walk 1, construction_vehicle_attractor 31, construction_vehicle_generator 31, court_car_attract 1, court_car_out 1, crowd_sm 18, dog_make 16, dog_pull 42, garbage_attract 1, garbage_out 1, hearse_attract 2, hearse_out 2, k6_bus_in 5, k6_bus_out 5, k6kids_attractor 5, k6kids_generator 5, k6kids_in 5, k6kids_repulsor 5, llama_crowd 1, maxis_crowd 1, mourner_attract 2, mower_gen 1, ogle_sims_generator 1, patrol_car__big_generator 1, patrol_car_generator 2, patrol_ped_gen_big 1, patrol_ped_generator 2, … (30 more)
+automata_records: 0 failures
+automata_records: 0 index-renormalised entries
+
+thread 'sweep_automata_records' (25688) panicked at formats\tests\automata_records.rs:460:5:
+assertion `left == right` failed: a re-save changed a state's `+0x0C`: Read must keep the streamed stack index (automata.md §12 quirk 10)
+  left: 0
+ right: 14
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    sweep_automata_records
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.92s
+
+error: test failed, to rerun pass `-p fc4-formats --test automata_records`
+
+[... ctest lines trimmed for the fixture ...]
+98% tests passed, 1 tests failed out of 62
+
+Total Test time (real) =  79.37 sec
+
+The following tests FAILED:
+	  1 - cargo_test (Failed)
+Errors while running CTest
