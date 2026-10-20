@@ -1,8 +1,8 @@
 # re-occprops
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| re-occprops (spec writer, occupants and props) | `re-occprops` (docs lane) | **ready**: 33 owners / 453 fns / 66,254 bytes specified in 4 commits (e4806019 lot-records 9.1/9.2/10.3/10.4/12, fcae164d occupant-manager 13.1 base class + 13.2 filter family, 5137f5f4 prop-occupant 1.2 cross-ref + OP1-OP10, 951fa9c7 coverage-map spec columns); 10 OP questions filed; no ABI or engine changes | docs/specs/lot-records.md, docs/specs/occupant-manager.md, docs/specs/prop-occupant.md (next steps: -) |
 
-| lane | branch | base | state at stop | spec | merge queue |
-|---|---|---|---|---|---|
-| re-occprops (spec writer, occupants and props) | `re-occprops` | main | **ready**: 33 owners / 453 fns / 66,254 bytes specified in 4 commits (e4806019 lot-records §9.1/§9.2/§10.3/§10.4/§12, fcae164d occupant-manager §13.1 base class + §13.2 filter family, 5137f5f4 prop-occupant §1.2 cross-ref + OP1–OP10, 951fa9c7 coverage-map spec columns); 10 OP questions filed; no ABI or engine changes | docs/specs/lot-records.md, docs/specs/occupant-manager.md, docs/specs/prop-occupant.md | `re-occprops.json` (kind docs) |
 
 ## Report
 
