@@ -99,7 +99,10 @@ class cISC4City;
 namespace fc4 {
 
 // Game start (FC4Subsystems.cpp): reads the settings and logs the state.
-void TerrainShadowStartup();
+// `terrainReplaced` is true when `enable = terrain` is on: the shadow compares
+// against the ORIGINAL cSTETerrain, which then never exists, so it goes
+// inactive and does nothing (glue18; the same rule as the history shadow).
+void TerrainShadowStartup(bool terrainReplaced = false);
 
 // PostAppInit (cFC4Director): reads the settings, logs the state, and (when
 // on) subscribes to SimNewMonth and the terrain messages. PreAppShutdown:

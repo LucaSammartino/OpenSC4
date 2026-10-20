@@ -303,6 +303,10 @@ if(FC4_IS_WIN32_X86)
         # The terrain shadow (terrain.md; the glue16 lane): terrain_shadow.
         plugin/FC4TerrainShadow.cpp
         plugin/FC4TerrainShadow.h
+        # The terrain replacement (terrain.md §4-§10, §15; the glue18 lane): enable = terrain.
+        plugin/cFC4Terrain.cpp
+        plugin/cFC4Terrain.h
+        plugin/FC4TerrainInterfaces.h
         # The disaster layer's host (disasters.md; glue13) and its shadow: disasters_shadow.
         plugin/FC4DisasterHost.cpp
         plugin/FC4DisasterHost.h

@@ -57,6 +57,7 @@
 #include "cFC4Dispatch.h"        // the glue17 lane: enable = dispatch
 #include "cFC4CitySituation.h"    // the glue17 lane: enable = citysit
 #include "cFC4Demolition.h"       // the glue23 lane: enable = demolition
+#include "cFC4Terrain.h"        // the glue18 lane: the terrain replacement
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -274,6 +275,18 @@ const ClassEntry kClock24Classes[] = {
     {kFC4_CLSID_cSC424HourClock, "cSC424HourClock", &CreateFC4Clock24},
 };
 
+// docs/specs/terrain.md §1 (the glue18 lane). The terrain is city component 49
+// and the surface water (CLSID 0x0B8DA7DB) is the object the city keeps next to
+// it (city slot 83). Both are registered so the city never builds the original
+// of either; both are stateless views over the one fc4_terrain handle, so which
+// of the two the city constructs does not matter. Off by default:
+// `enable = terrain`. With it on the city builds ours from the start and the
+// original cSTETerrain never runs (registry CLSID precedence).
+const ClassEntry kTerrainClasses[] = {
+    {fc4::kFC4_CLSID_cSTETerrain, "cSTETerrain", &CreateFC4Terrain},
+    {fc4::kFC4_CLSID_cSTESurfaceWater, "cSTESurfaceWater", &CreateFC4SurfaceWater},
+};
+
 // docs/specs/tract-developer.md §1. Off by default (M4 glue trial):
 // `enable = tract`. The BDS, the growth developers, the lot developer, the
 // lot manager and the lot configuration manager stay whoever the city runs.
@@ -413,6 +426,7 @@ const Subsystem kSubsystems[] = {
     {"citydetail", nullptr, kCityDetailClasses, sizeof(kCityDetailClasses) / sizeof(kCityDetailClasses[0]), false},
     {"ports", nullptr, kPortClasses, sizeof(kPortClasses) / sizeof(kPortClasses[0]), false},
     {"effects", nullptr, kEffectsClasses, sizeof(kEffectsClasses) / sizeof(kEffectsClasses[0]), false},
+    {"terrain", nullptr, kTerrainClasses, sizeof(kTerrainClasses) / sizeof(kTerrainClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -566,8 +580,10 @@ void Resolve() {
     // The ports shadow (FC4PortsShadow.h; it compares the original airport and seaport developers).
     PortsShadowStartup(g_enabled[0], enabledKey("ports"));
     // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
-    TerrainShadowStartup();
-// The glue17 lane's three shadows (they compare the original city situation
+// glue18: with `enable = terrain` there is no original terrain left, so the
+    // shadow goes inactive instead of comparing ours with itself.
+    TerrainShadowStartup(enabledKey("terrain"));
+    // The glue17 lane's three shadows (they compare the original city situation
     // manager, demolition utility and dispatch manager).
     CitySitShadowStartup(enabledKey("citysit"));
     DemolitionShadowStartup(enabledKey("demolition"));
