@@ -11511,7 +11511,7 @@ va	name	source	confidence	note
 009109fa	__gnu_cxx::hashtable<std::pair<unsigned_short_const,signed_char>,unsigned_short,__gnu_cxx::hash<unsigned_short>,std::_Select1st<std::pair<unsigned_short_const,signed_char>>,std::equal_to<unsigned_short>,std::allocator<signed_char>>::insert_unique_noresize	auto:D	medium	mac 005f150e score 0.5 support 1
 00910a6d	__gnu_cxx::hashtable<std::pair<unsigned_short_const,signed_char>,unsigned_short,__gnu_cxx::hash<unsigned_short>,std::_Select1st<std::pair<unsigned_short_const,signed_char>>,std::equal_to<unsigned_short>,std::allocator<signed_char>>::resize	auto:D	medium	mac 005f19ec score 0.5 support 1
 00910b18	__gnu_cxx::hashtable<std::pair<unsigned_short_const,signed_char>,unsigned_short,__gnu_cxx::hash<unsigned_short>,std::_Select1st<std::pair<unsigned_short_const,signed_char>>,std::equal_to<unsigned_short>,std::allocator<signed_char>>::insert_unique	auto:D	medium	mac 005f1b36 score 0.5 support 1
-00910bd3	RZParseDelimitedText	auto:B1	medium	mac 0001502c score 0.884 support 3.0
+00910bd3	RZParseDelimitedText	manual:command-system.tsv	high	command-system.md §2; cdecl, 20 bytes of arguments, AL; blanks are space and tab; even-quote rule; outer quotes stripped; the right trim tests the first non-blank byte (0x00910C0F)
 00910e18	ConvertStringEncoding	auto:B1	medium	mac 00015922 score 0.952 support 1.5
 00911358	ConvertStringEncoding	auto:B1	medium	mac 00016408 score 0.901 support 4.0
 009113ef	ConvertStringEncoding	auto:B2	medium	mac 0001635e score 0.929 support 3.0
@@ -12045,63 +12045,70 @@ va	name	source	confidence	note
 0092901a	cRZLanguageUtility::MakeMoneyString	auto:B3	medium	mac 0004add2 score 0.954 support 2.0
 00929379	cRZLanguageUtility::MakeNumberString	auto:B2	medium	mac 0004aa40 score 0.97 support 3.0
 00929609	cRZLanguageManager::~cRZLanguageManager	auto:C	high	mac 0004a752 score 1.0 support 1
-00929676	cGZCommandParameterSet::QueryInterface	auto:A	high	mac 002ee044 score 1.0 support 0
-009296a5	cGZCommandParameterSet::SetStatusParameterValue	auto:C	high	mac 002ee0ba score 1.0 support 1
-009296d5	cGZCommandParameterSet::ValidateParameter	auto:C	high	mac 002ee112 score 1.0 support 1
-009296f5	cGZStringCommandGenerator::QueryInterface	auto:A	high	mac 002ee17e score 1.0 support 0
-00929724	cGZStringCommandGenerator::Release	auto:C	high	mac 002ee1ce score 1.0 support 1
+00929676	cGZCommandParameterSet::QueryInterface	manual:command-system.tsv	high	command-system.md §1.3; slot 0, pop 8; IIDs 0x4B8C39E4, 0x4B8C39E5 and 1
+009296a5	cGZCommandParameterSet::SetStatusParameterValue	manual:command-system.tsv	high	command-system.md §1.5; slot 10, pop 4; Sint32 under 0x2B999D2B
+009296d5	cGZCommandParameterSet::ValidateParameter	manual:command-system.tsv	high	command-system.md §1.3; slot 12, pop 8; true only when the parameter exists and the second argument is 0xFF
+009296f5	cGZStringCommandGenerator::QueryInterface	manual:command-system.tsv	high	command-system.md §3.3; slot 0, pop 8; IIDs 0x0B90251F, 0x0B90251E and 1
+00929724	cGZStringCommandGenerator::Release	manual:command-system.tsv	high	command-system.md §3.2; slot 2; deletes through slot 7 at a count of 1 or less
 0092973b	icf::cGZStringCommandGenerator::CommandRegistered	folded	folded	4 names: cGZStringCommandGenerator::CommandRegistered | cGZStringCommandGenerator::CommandUnregistered | cGZUIScriptService::ApplyProperty | cGZWinBtn::GZOnMouseMove
-00929740	cGZStringCommandGenerator::ConvertStringToArgumentString	auto:D	medium	mac 002ee208 score 0.5 support 2
+00929740	cGZStringCommandGenerator::ConvertStringToArgumentString	manual:command-system.tsv	high	command-system.md §3.5; pop 8, ignores this; quotes a string that holds a space or tab; callers 0x0092A76D, 0x0092A7AB, 0x0092A85F
 009297a0	cRZSystemService::AddRef	auto:D	low	mac 00026af8 score 0.5 support 4
-009297b0	cGZMessage2CommandDispatcherMessage::QueryInterface	auto:A	high	mac 002ee4d6 score 1.0 support 0
-009297de	cGZMessage2CommandDispatcher::QueryInterface	auto:A	high	mac 002ee526 score 1.0 support 0
+009297a8	cGZMessage2CommandDispatcherMessage::Release	manual:command-system.tsv	high	command-system.md §4.5; descriptive name; slot 2 of 0x00AD1638; this + 4, then the standard message's Release 0x009132C1
+009297b0	cGZMessage2CommandDispatcherMessage::QueryInterface	manual:command-system.tsv	high	command-system.md §4.5; slot 0 of 0x00AD1638; IIDs 0x4B99446A and 0x0B903CC5, else the standard message's QI on +4
+009297de	cGZMessage2CommandDispatcher::QueryInterface	manual:command-system.tsv	high	command-system.md §4.2; slot 0, pop 8; IIDs 0x0B903CC3, 0x0B903CC4 and 1
 0092980d	cGZCommandServer::QueryInterface	auto:A	high	mac 002ee59e score 0.549 support 0
 00929844	cGZCommandServer::RegisterCommands	auto:C	high	mac 002ee62c score 1.0 support 1
 00929881	cGZCommandServer::UnregisterCommands	auto:C	high	mac 002ee684 score 1.0 support 1
 009298ae	cGZCommandServer::ExecuteCommandFormatted	auto:C	high	mac 002ee7b6 score 1.0 support 1
 009298f4	std::pair<unsigned_long_const,cRZVariant>::pair	auto:B0	medium	mac 006fde22 score 0.987 support 2.0
 00929911	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,cRZVariant>,std::_Select1st<std::pair<unsigned_long_const,cRZVariant>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,cRZVariant>>>::destroy_node	auto:B0	medium	mac 006fe39c score 0.971 support 1.0
-0092994d	cGZStringCommandGenerator::Init	auto:C	high	mac 002ee97a score 1.0 support 1
-00929979	cGZStringCommandGenerator::Shutdown	auto:C	high	mac 002ee142 score 1.0 support 1
-00929994	cGZStringCommandGenerator::ExecuteCommand	auto:C	high	mac 002ef928 score 1.0 support 1
-00929a29	__ZThn4_N35cGZMessage2CommandDispatcherMessage14QueryInterfaceEmPPv	auto:B0	low	mac 006fdbac score 0.96 support 1.0
-00929a90	cGZMessage2CommandDispatcher::Shutdown	auto:C	high	mac 002ee850 score 1.0 support 1
-00929ad5	cGZMessage2CommandDispatcher::ExecuteCommand	auto:C	high	mac 002eeb2a score 1.0 support 1
+0092994d	cGZStringCommandGenerator::Init	manual:command-system.tsv	high	command-system.md §3.2; slot 3; framework service 0xEB903A32 with IID 0xCB90253A (the command server)
+00929979	cGZStringCommandGenerator::Shutdown	manual:command-system.tsv	high	command-system.md §3.2; slot 4; releases the server and the unused +0x18 set
+00929994	cGZStringCommandGenerator::ExecuteCommand	manual:command-system.tsv	high	command-system.md §3.7; slot 8, pop 0xC; 2 without a server or when slot 9 fails, else server slot 20
+009299f5	cGZMessage2CommandDispatcherMessage::~cGZMessage2CommandDispatcherMessage	manual:command-system.tsv	high	command-system.md §4.5; descriptive name; releases +0x34 and +0x30, then the standard part; sole caller 0x00929C58
+00929a29	cGZMessage2CommandDispatcherMessage::QueryInterface (thunk)	manual:command-system.tsv	high	command-system.md §4.5; was __ZThn4_N35cGZMessage2CommandDispatcherMessage14QueryInterfaceEmPPv; this - 4; slot 0 of the +4 vtable 0x00AD15A0
+00929a39	cGZMessage2CommandDispatcherMessage::Release (thunk)	manual:command-system.tsv	high	command-system.md §4.5; descriptive name; this - 4 to 0x009297A8; slot 2 of 0x00AD15A0
+00929a41	cGZMessage2CommandDispatcherMessage::~cGZMessage2CommandDispatcherMessage (thunk)	manual:command-system.tsv	high	command-system.md §4.5; descriptive name; this - 4 to 0x00929C58; slot 37 of 0x00AD15A0
+00929a49	cGZMessage2CommandDispatcher::~cGZMessage2CommandDispatcher	manual:command-system.tsv	high	command-system.md §4.1; descriptive name; releases +0x18, +0x14, +0x10, +0xC, +8; sole caller the deleting destructor
+00929a90	cGZMessage2CommandDispatcher::Shutdown	manual:command-system.tsv	high	command-system.md §4.3; slot 4
+00929ad5	cGZMessage2CommandDispatcher::ExecuteCommand	manual:command-system.tsv	high	command-system.md §4.4; slot 5, pop 0xC; 2 without a message server; default sets cleared through slot 4; MessageSend; status 0x2B999D2B through the variant's slot 27, else SetStatusParameterValue(0) and 0
 00929b92	cGZCommandServer::SetCommandDispatcher	auto:C	high	mac 002eeb00 score 1.0 support 1
 00929ba8	cGZCommandServer::ExecuteCommand	auto:C	high	mac 002ee78e score 1.0 support 1
 00929bba	cGZCommandServer::ExecuteCommand	auto:C	high	mac 002ee8d8 score 1.0 support 1
 00929bcc	cGZCommandServer::ConvertStringToCommand	auto:C	high	mac 002ee900 score 1.0 support 1
 00929bdd	cGZCommandServer::ConvertCommandToString	auto:C	high	mac 002ee940 score 1.0 support 1
 00929bee	cGZCommandServer::ConvertCommandOutputToString	auto:C	high	mac 002ee81e score 1.0 support 1
-00929c2b	cGZMessage2CommandDispatcherMessage::cGZMessage2CommandDispatcherMessage	auto:D	medium	mac 002ef9c4 score 0.5 support 1
-00929c74	cGZMessage2CommandDispatcher::cGZMessage2CommandDispatcher	auto:D	medium	mac 002efdb6 score 0.5 support 1
-00929c91	cGZMessage2CommandDispatcher::~cGZMessage2CommandDispatcher	auto:C	high	mac 002eff76 score 1.0 support 1
+00929c2b	cGZMessage2CommandDispatcherMessage::cGZMessage2CommandDispatcherMessage	manual:command-system.tsv	high	command-system.md §4.5; the standard message's constructor on +4, both set references null; only from the dispatcher's Init
+00929c58	cGZMessage2CommandDispatcherMessage::~cGZMessage2CommandDispatcherMessage (deleting destructor)	manual:command-system.tsv	high	command-system.md §4.5; descriptive name; 0x009299F5 then the framework operator delete 0x00913409 on flag bit 0
+00929c74	cGZMessage2CommandDispatcher::cGZMessage2CommandDispatcher	manual:command-system.tsv	high	command-system.md §4.1; zeroes every member
+00929c91	cGZMessage2CommandDispatcher::~cGZMessage2CommandDispatcher (deleting destructor)	manual:command-system.tsv	high	command-system.md §4.1; was cGZMessage2CommandDispatcher::~cGZMessage2CommandDispatcher; slot 6
 00929cad	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,cRZVariant>,std::_Select1st<std::pair<unsigned_long_const,cRZVariant>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,cRZVariant>>>::erase	auto:D	medium	mac 006fe3c8 score 0.5 support 2
 00929d27	std::_Rb_tree<cRZString_const,std::pair<cRZString_const,long>,std::_Select1st<std::pair<cRZString_const,long>>,nGZLog::cLessRZString,std::allocator<std::pair<cRZString_const,long>>>::_Rb_tree_impl<nGZLog::cLessRZString,false>::_Rb_tree_impl	auto:B4	medium	mac 007e994e score 0.894 support 1.0
 00929d3d	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>,std::_Select1st<std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>>>::_Rb_tree_impl<std::less<unsigned_long>,false>::_Rb_tree_impl	auto:B1	medium	mac 006fe30c score 0.894 support 1.0
 00929d53	std::_Rb_tree<cRZAutoRefCount<cIGZCommandGenerator>,cRZAutoRefCount<cIGZCommandGenerator>,std::_Identity<cRZAutoRefCount<cIGZCommandGenerator>>,std::less<cRZAutoRefCount<cIGZCommandGenerator>>,std::allocator<cRZAutoRefCount<cIGZCommandGenerator>>>::_Rb_tree_impl<std::less<cRZAutoRefCount<cIGZCommandGenerator>>,false>::_Rb_tree_impl	auto:B1	medium	mac 006fe354 score 0.894 support 1.0
-00929e19	cGZCommandParameterSet::AppendParameter	auto:C	high	mac 002eee20 score 1.0 support 1
-00929e40	cGZCommandParameterSet::GetFirstParameterID	auto:C	high	mac 002eec44 score 1.0 support 1
+00929e19	cGZCommandParameterSet::AppendParameter	manual:command-system.tsv	high	command-system.md §1.3, §1.4; slot 8, pop 4; slot 7 with 0 for an empty set, else the highest ID (0x0040D500) + 1
+00929e40	cGZCommandParameterSet::GetFirstParameterID	manual:command-system.tsv	high	command-system.md §1.3; slot 13; the lowest key or 0xFFFFFFFF
 00929e54	cGZCommandServer::NotifyCommandRegistration	auto:D	medium	mac 002eef0a score 0.5 support 1
 00929ee0	cGZCommandServer::GetCommandID	auto:C	high	mac 002ef064 score 1.0 support 1
-0092a112	cGZCommandParameterSet::SetParameterCount	auto:C	high	mac 002eee60 score 1.0 support 1
-0092a162	cGZCommandParameterSet::operator[]	auto:C	high	mac 002ef0b4 score 1.0 support 1
-0092a186	cGZCommandParameterSet::GetParameter	auto:C	high	mac 002ef0e8 score 1.0 support 1
-0092a1a5	cGZCommandParameterSet::RemoveParameter	auto:C	high	mac 002eed16 score 1.0 support 1
-0092a1c9	cGZCommandParameterSet::GetNextParameterID	auto:C	high	mac 002eecd6 score 1.0 support 1
+0092a112	cGZCommandParameterSet::SetParameterCount	manual:command-system.tsv	high	command-system.md §1.3, §1.4; slot 4, pop 4; appends Empty (slot 8) while the count is below n, then erases the highest ID while above
+0092a162	cGZCommandParameterSet::operator[]	manual:command-system.tsv	high	command-system.md §1.3, §1.4; slot 5, pop 4; the node's value, or the fallback variant at +0x14 for a missing ID
+0092a186	cGZCommandParameterSet::GetParameter	manual:command-system.tsv	high	command-system.md §1.3; slot 6, pop 4; the node's value or null
+0092a1a5	cGZCommandParameterSet::RemoveParameter	manual:command-system.tsv	high	command-system.md §1.3; slot 9, pop 4
+0092a1c9	cGZCommandParameterSet::GetNextParameterID	manual:command-system.tsv	high	command-system.md §1.3, §1.4; slot 14, pop 4; find(prev) then the tree successor; a missing prev gives 0xFFFFFFFF
 0092a1f6	cGZCommandServer::GetCommandInfo	auto:C	high	mac 002eec64 score 1.0 support 1
 0092a236	cGZCommandServer::UnregisterCommandGenerator	auto:C	high	mac 002ef2fc score 1.0 support 1
 0092a2a6	std::vector<unsigned_long,cGZAllocatorServiceSTLAllocator<unsigned_long>>::_M_insert_aux	auto:B0	medium	mac 006fe60a score 0.839 support 1.0
-0092a4fa	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,cRZVariant>,std::_Select1st<std::pair<unsigned_long_const,cRZVariant>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,cRZVariant>>>::~_Rb_tree	auto:B0	medium	mac 006fe438 score 0.986 support 1.0
+0092a4fa	cGZCommandParameterSet::~cGZCommandParameterSet	manual:command-system.tsv	high	command-system.md §1.2; was std::_Rb_tree<unsigned_long,...cRZVariant...>::~_Rb_tree; installs vtable 0x00AD16C8, destroys the fallback variant +0x14, then the tree +8 (0x0092A278); sole caller the deleting destructor
+0092a514	cGZStringCommandGenerator::~cGZStringCommandGenerator	manual:command-system.tsv	high	command-system.md §3.2; descriptive name; installs vtable 0x00AD1708, releases +0x18, destroys the word vector +0xC, releases the server; sole caller the deleting destructor
 0092a562	std::vector<unsigned_long,cGZAllocatorServiceSTLAllocator<unsigned_long>>::push_back	auto:D	medium	mac 006fe750 score 0.5 support 1
-0092a5b0	cGZCommandParameterSet::cGZCommandParameterSet	auto:B5	medium	mac 002ef1bc score 0.873 support 2.0
-0092a5d1	cGZCommandParameterSet::~cGZCommandParameterSet	auto:C	high	mac 002eed4e score 1.0 support 1
-0092a5ed	cGZCommandParameterSet::CompareParameterString	auto:B3	medium	mac 002ee9d2 score 0.956 support 1.0
-0092a6c4	cGZStringCommandGenerator::cGZStringCommandGenerator	auto:B0	medium	mac 002efaf2 score 0.888 support 3.0
-0092a704	cGZStringCommandGenerator::~cGZStringCommandGenerator	auto:C	high	mac 002efd42 score 1.0 support 1
-0092a720	cGZStringCommandGenerator::ConvertCommandToString	auto:C	high	mac 002ee2b0 score 1.0 support 1
-0092a810	cGZStringCommandGenerator::ConvertCommandOutputToString	auto:C	high	mac 002ee3e8 score 1.0 support 1
-0092a8b0	cGZMessage2CommandDispatcher::Init	auto:C	high	mac 002efb92 score 1.0 support 1
+0092a5b0	cGZCommandParameterSet::cGZCommandParameterSet	manual:command-system.tsv	high	command-system.md §1.2; count 0, empty map, fallback Empty
+0092a5d1	cGZCommandParameterSet::~cGZCommandParameterSet (deleting destructor)	manual:command-system.tsv	high	command-system.md §1.2; was cGZCommandParameterSet::~cGZCommandParameterSet; slot 15; 0x0092A4FA then GlobalHeapFree on flag bit 0
+0092a5ed	cGZCommandParameterSet::CompareParameterString	manual:command-system.tsv	high	command-system.md §1.4; slot 11, pop 0xC; id -2 tries every parameter; else GetValString, cRZString::Find and an equal-length test
+0092a6c4	cGZStringCommandGenerator::cGZStringCommandGenerator	manual:command-system.tsv	high	command-system.md §3.2; empty words, +0x18 := a new parameter set
+0092a704	cGZStringCommandGenerator::~cGZStringCommandGenerator (deleting destructor)	manual:command-system.tsv	high	command-system.md §3.2; was cGZStringCommandGenerator::~cGZStringCommandGenerator; slot 7; 0x0092A514 then the global heap
+0092a720	cGZStringCommandGenerator::ConvertCommandToString	manual:command-system.tsv	high	command-system.md §3.6; slot 10, pop 0xC; clears out first, server GetCommandInfo, quoted name and values
+0092a810	cGZStringCommandGenerator::ConvertCommandOutputToString	manual:command-system.tsv	high	command-system.md §3.6; slot 11, pop 8; every parameter in ID order, the status included
+0092a8b0	cGZMessage2CommandDispatcher::Init	manual:command-system.tsv	high	command-system.md §4.3; slot 3; message server 2 (0x04FA845B / 0x652294C7), the command message, two default sets, a string generator
 0092a982	cGZCommandServer::Init	auto:C	high	mac 002efdfe score 1.0 support 1
 0092a9f8	cGZCommandServer::CreateCommandParameterSet	auto:C	high	mac 002ef20e score 1.0 support 1
 0092aa36	cGZCommandServer::CommandInfo::~CommandInfo	auto:B1	medium	mac 006fdd16 score 0.861 support 2.0
@@ -12110,7 +12117,7 @@ va	name	source	confidence	note
 0092ab0b	cGZCommandServer::RegisterCommandGenerator	auto:C	high	mac 002ef256 score 1.0 support 1
 0092ab69	std::map<unsigned_long,cRZVariant,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,cRZVariant>>>::operator[]	auto:D	medium	mac 006fed82 score 0.5 support 1
 0092abcc	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>,std::_Select1st<std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>>>::destroy_node	auto:B0	medium	mac 006fe45c score 0.971 support 1.0
-0092abeb	cGZCommandParameterSet::SetParameter	auto:C	high	mac 002eeede score 1.0 support 1
+0092abeb	cGZCommandParameterSet::SetParameter	manual:command-system.tsv	high	command-system.md §1.3; slot 7, pop 8; find or insert, then copy the cIGZVariant
 0092ac39	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>,std::_Select1st<std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>>>::erase	auto:D	medium	mac 006fe488 score 0.5 support 1
 0092ac76	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>,std::_Select1st<std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>>>::_M_erase	auto:B1	medium	mac 006fe4ba score 0.98 support 1.0
 0092ace7	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>,std::_Select1st<std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,cGZCommandServer::CommandInfo>>>::clear	auto:B2	medium	mac 006fe4f8 score 0.946 support 2.0
@@ -12122,7 +12129,7 @@ va	name	source	confidence	note
 0092af7c	cGZCommandServer::cGZCommandServer	auto:B1	medium	mac 002ef7d2 score 0.933 support 3.0
 0092afd5	cGZCommandServer::~cGZCommandServer	auto:C	high	mac 002ef416 score 1.0 support 1
 0092b075	cGZCommandServer::RegisterCommand	auto:C	high	mac 002ef4f6 score 1.0 support 1
-0092b139	cGZStringCommandGenerator::ConvertStringToCommand	auto:B2	medium	mac 002ef632 score 0.945 support 2.0
+0092b139	cGZStringCommandGenerator::ConvertStringToCommand	manual:command-system.tsv	high	command-system.md §3.4; slot 9, pop 0x10; RZParseDelimitedText with capacities 1, 2, 4, ... 256, server slot 12 on word 0, a new 0x28-byte parameter set of string parameters
 0092b25b	cRZOStream::Init	auto:C	low	mac 00018a84 score 1.0 support 1
 0092b267	icf::cRZOStream::SetSint8	folded	folded	2 names: cRZOStream::SetSint8 | cRZOStream::SetUint8
 0092b276	cRZOStream::SetFloat32	auto:C	high	mac 000195dc score 1.0 support 1
@@ -16337,6 +16344,8 @@ va	name	source	confidence	note
 00ac1874	nGZDrawSoftRender::cSpanRender8888::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color types 8 R8G8B8 and 9 A8R8G8B8; Mac __ZTVN17nGZDrawSoftRender15cSpanRender8888E
 00ac188c	nGZDrawSoftRender::cSpanRender8::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 2 RGB8; Mac __ZTVN17nGZDrawSoftRender12cSpanRender8E
 00acecc8	cRZCmdLine::sSwitchPrefixes (data, char[4]: slash, hyphen, backslash, NUL)	manual:command-line.tsv	high	command-line.md §4; the three switch prefix characters '/', '-', '\'; read by the five switch methods
+00ad15a0	cGZMessage2CommandDispatcherMessage::vftable_1	manual:command-system.tsv	high	command-system.md §4.5; the +4 standard-message vtable, 38 slots
+00ad1638	cGZMessage2CommandDispatcherMessage::vftable	manual:command-system.tsv	high	command-system.md §4.5; 3 slots: 0x009297B0, 0x009297A0 (shared), 0x009297A8
 00ad1f14	cRZCallbackTimer::vftable	manual:timers.tsv	high	timers.md §2.2; 13 slots, installed by the constructor 0x00932C23
 00b0b6d0	cSC4PipeConnectionOccupant::sModelDescriptor (data)	manual:underground-occupants.tsv	high	underground-occupants.md §4; passed to the base Init by 0x00648050
 00b0ba68	cSC4PipeOccupant::sCornerPoints (data, 24-byte points)	manual:underground-occupants.tsv	high	underground-occupants.md §2.5; read by StaticInit

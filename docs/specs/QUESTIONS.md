@@ -49,6 +49,7 @@ generated index: the questions live one file per spec, so read only the file for
 | FM | feature-manager |
 | FQ | flora |
 | FS | graphics-formats |
+| GC | command-system |
 | GF | graphics-formats |
 | GLUE | lot-configuration, prop-developer |
 | HG | foundations |
@@ -102,6 +103,7 @@ generated index: the questions live one file per spec, so read only the file for
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
 | command-line | 1 | 0 | CL2 | questions/command-line.md |
+| command-system | 4 | 0 | GC5 | questions/command-system.md |
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 0 | 40 | EX41 | - |
@@ -150,4 +152,4 @@ generated index: the questions live one file per spec, so read only the file for
 | underground-occupants | 4 | 0 | UG5 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **37** | **966** | | |
+| **total** | **41** | **966** | | |

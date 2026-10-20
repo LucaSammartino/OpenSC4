@@ -698,6 +698,8 @@ va	name	slots	note
 00acfee0	cGZClipboardManager::vftable	21	paired with Mac __ZTV19cGZClipboardManager#0, 21 agreeing slots
 00ad1250	cRZLanguageUtility::vftable	33	paired with Mac __ZTV18cRZLanguageUtility#0, 30 agreeing slots
 00ad14a0	cRZLanguageManager::vftable	48	paired with Mac __ZTV18cRZLanguageManager#0, 40 agreeing slots
+00ad15a0	cGZMessage2CommandDispatcherMessage::vftable_1	0	command-system.md §4.5; the +4 standard-message vtable, 38 slots
+00ad1638	cGZMessage2CommandDispatcherMessage::vftable	0	command-system.md §4.5; 3 slots: 0x009297B0, 0x009297A0 (shared), 0x009297A8
 00ad1644	cGZMessage2CommandDispatcher::vftable	7	paired with Mac __ZTV28cGZMessage2CommandDispatcher#0, 6 agreeing slots
 00ad16c8	cGZCommandParameterSet::vftable	16	paired with Mac __ZTV22cGZCommandParameterSet#0, 13 agreeing slots
 00ad1708	cGZStringCommandGenerator::vftable	12	paired with Mac __ZTV25cGZStringCommandGenerator#0, 9 agreeing slots

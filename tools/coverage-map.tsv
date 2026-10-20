@@ -420,6 +420,13 @@ cRZTimer	timers	framework	timers.md	-	-	-
 cRZCallbackTimer	timers	framework	timers.md	-	-	-
 # the framework command-line object: splitting, joining and the switch lookups (command-line.md)
 cRZCmdLine	command line	framework	command-line.md	-	-	-
+# the command parameter set, the text-to-command generator, the message-based dispatcher and its message, and the
+# splitter they use (command-system.md); the command server itself is not specified there (before the cGZ* catch-all)
+cGZCommandParameterSet	command system	framework	command-system.md	-	-	-
+cGZStringCommandGenerator	command system	framework	command-system.md	-	-	-
+cGZMessage2CommandDispatcher	command system	framework	command-system.md	-	-	-
+cGZMessage2CommandDispatcherMessage	command system	framework	command-system.md	-	-	-
+fn:RZParseDelimitedText	command system	framework	command-system.md	-	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource*	persistence and resources	framework	-	-	-	-
 cGZPropertySet*	persistence and resources	framework	-	-	-	-
