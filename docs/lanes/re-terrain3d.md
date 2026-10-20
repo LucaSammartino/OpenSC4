@@ -1,3 +1,5 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
 | re-terrain3d (TR21 terrain 3D view contract: slot behaviours, change messages, draw statics, the replacement checklist, into terrain.md §15.5) | `re-terrain3d` / (docs lane) worktree `.claude/worktrees/re-terrain3d` | **done, tip `751172ad`** (7 commits, all docs/tools): terrain.md §15.5 completed — §15.5.5 slot table with call sites, §15.5.8 change-message handlers + rebuild-vs-live rule, §15.5.9 draw-time statics/buffers + `cSTEVertBufExtn`, §15.5.10 every slot's behaviour with pop/ret channels, §15.5.11 the 17-point replacement contract; §15.5.2 field meanings; quirks 22–25; TR21 marked completed; questions **TR28–TR32** filed (5 open); `tools/coverage-map.tsv` points `cSTETerrainView3D` at terrain.md; ABI row proposals in `build-runs/abi-rows-re-terrain3d-{interfaces,vtables}.tsv` (34 rows, build-runs is gitignored — copy them into docs/abi/ at merge time if accepted) | - |
 
 ## Report (re-terrain3d, 2026-10-20)
