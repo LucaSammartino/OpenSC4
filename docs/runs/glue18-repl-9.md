@@ -1,3 +1,11 @@
+tag: glue18-repl-9
+run: 166
+date: 2026-10-20
+lane: 
+verdict: corrupt
+switches: adopted by the merge train (the lane's own run)
+result: **corrupt.** ref_warnings=0.
+summary: regress glue18-repl-9, corrupt (the lane's pre-train run, adopted by the train)
 # glue18-repl-9
 
 The terrain replacement (`enable = terrain` + `terrain_shadow = 1`) at the end

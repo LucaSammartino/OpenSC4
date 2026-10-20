@@ -1,3 +1,11 @@
+tag: glue22-effects-shadow
+run: 168
+date: 2026-10-20
+lane: 
+verdict: clean
+switches: adopted by the merge train (the lane's own run)
+result: **clean.** ref_warnings=0; 62.98 days/s.
+summary: regress glue22-effects-shadow, clean (the lane's pre-train run, adopted by the train)
 # Run glue22-effects-shadow (glue22, 2026-10-16)
 
 Request `glue22-effects-shadow.req`: `enable = effects`, `effects_shadow = 1`, `sim_turbo = 1`,

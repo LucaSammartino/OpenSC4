@@ -1,3 +1,11 @@
+tag: glue22-shadow-hook
+run: 170
+date: 2026-10-20
+lane: 
+verdict: clean
+switches: adopted by the merge train (the lane's own run)
+result: **clean.** ref_warnings=0; 71.23 days/s.
+summary: regress glue22-shadow-hook, clean (the lane's pre-train run, adopted by the train)
 # Run glue22-shadow-hook (glue22, 2026-10-16)
 
 Request `glue22-shadow-hook.req`: `effects_shadow = 1` (no `enable = effects`), `sim_turbo = 1`,

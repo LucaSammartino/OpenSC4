@@ -1,3 +1,11 @@
+tag: glue22-effects-crash
+run: 171
+date: 2026-10-16
+lane: glue22
+verdict: FAIL
+switches: enable = effects with effects_shadow = 1 (the class replacement faulted; the diagnosis lives in docs/runs/glue22-effects-shadow.md)
+result: **FAIL.** corrupt, foreign_exceptions=1 - the record this file documents.
+summary: regress glue22-effects-crash, FAIL (the lane's pre-train diagnosis run, adopted by the train)
 # Runs glue22-effects-shadow2 / -3 / -trace* (glue22, 2026-10-16): the class replacement faults
 
 Requests with `enable = effects` and `effects_shadow = 1`, once the `effects` class table entry and

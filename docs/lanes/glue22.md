@@ -1,3 +1,7 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| glue22 (effects glue) | `glue22` / (engine lane) | merged into train8 (the lane's own report follows) | landed with merge-train batch train8 |
+
 # Lane glue22: the effects layer glue
 
 Status: **engine lane**, branch `glue22`, worktree `.claude/worktrees/glue22`.

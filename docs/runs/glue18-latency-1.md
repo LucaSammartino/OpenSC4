@@ -1,3 +1,11 @@
+tag: glue18-latency-1
+run: 165
+date: 2026-10-20
+lane: 
+verdict: clean
+switches: adopted by the merge train (the lane's own run)
+result: **clean.** ref_warnings=0; 79.08 days/s.
+summary: regress glue18-latency-1, clean (the lane's pre-train run, adopted by the train)
 # glue18-latency-1
 
 Terrain shadow with a script that drives the height setters

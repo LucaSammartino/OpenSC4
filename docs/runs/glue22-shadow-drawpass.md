@@ -1,3 +1,11 @@
+tag: glue22-shadow-drawpass
+run: 169
+date: 2026-10-20
+lane: 
+verdict: clean
+switches: adopted by the merge train (the lane's own run)
+result: **clean.** ref_warnings=0; 68.85 days/s.
+summary: regress glue22-shadow-drawpass, clean (the lane's pre-train run, adopted by the train)
 # Run glue22-shadow-drawpass (glue22, 2026-10-16)
 
 Request `glue22-shadow-drawpass.req`: `effects_shadow = 1`, `effects_finish = 1` (EF2 compat mode),

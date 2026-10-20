@@ -1,3 +1,7 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| glue18 (terrain replacement glue) | `glue18` / (engine lane) | merged into train8 (see below; the lane's own report follows) | landed with merge-train batch train8 |
+
 # glue18 — terrain replacement (`enable = terrain`)
 
 Branch `glue18`. Wires `cISTETerrain` and `cISTESurfaceWater` to `fc4_terrain_*`
