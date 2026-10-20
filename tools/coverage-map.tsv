@@ -203,8 +203,16 @@ cSC4UndergroundOccupant	network occupants	simulation	-	-	-	-
 cSC4UndergroundConnectionOccupant	network occupants	simulation	-	-	-	-
 cSC4PowerPoleOccupant	network occupants	simulation	-	-	-	-
 cSC4PowerLineOccupant	network occupants	simulation	-	-	-	-
-cSC4PipeOccupant	network occupants	simulation	-	-	-	-
-cSC4SubwayOccupant	network occupants	simulation	-	-	-	-
+# the pipe and subway layers over the underground occupants and their connections (underground-occupants.md);
+# the connections are listed here so the cSC4*Occupant catch-all further down does not take them
+cSC4PipeOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+cSC4SubwayOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+cSC4PipeConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+cSC4SubwayConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+fn:GZCOM_CreatecSC4PipeOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+fn:GZCOM_CreatecSC4SubwayOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+fn:GZCOM_CreatecSC4PipeConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+fn:GZCOM_CreatecSC4SubwayConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
 cSC4PylonOccupant	network occupants	simulation	-	-	-	-
 cSC4NetworkTypeInfo	network occupants	simulation	-	-	-	-
 cSC4NetworkRoutines	network occupants	simulation	-	-	-	-

@@ -85,6 +85,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TR | terrain |
 | TS | traffic-simulator |
 | TU | tutorial |
+| UG | underground-occupants |
 | ZG | zones |
 | ZQ | zones |
 
@@ -146,6 +147,7 @@ generated index: the questions live one file per spec, so read only the file for
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 92 | TG27, TS67 | - |
 | tutorial | 0 | 2 | TU6 | - |
+| underground-occupants | 4 | 0 | UG5 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **33** | **966** | | |
+| **total** | **37** | **966** | | |
