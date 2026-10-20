@@ -610,14 +610,15 @@ public:
                 CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
                 ParksShadowCityShutdown();  // parks_shadow: the same
                 NetMgrShadowCityShutdown();  // netmgr_shadow: the shadow cores and their references go
-                OccMgrShadowCityShutdown();  // occmgr_shadow: the probe, the shadow core and its references                TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
+                OccMgrShadowCityShutdown();  // occmgr_shadow: the probe, the shadow core and its references go
                 PropDevShadowCityShutdown();  // propdev_shadow: the shadow cores and their references go with the city
-                TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes                DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
+                DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references go with the city
                 CitySitShadowCityShutdown();  // the glue17 lane: citysit_shadow's summary, then the core goes
                 DemolitionShadowCityShutdown();
                 DemolitionPriceShadowCityShutdown();  // the glue23 lane
                 DispatchShadowCityShutdown();
-                PropLotShadowCityShutdown();    // the prop / lot configuration / tutorial shadows' totals                AutotestOnCityShutdown(false);
+                PropLotShadowCityShutdown();    // the prop / lot configuration / tutorial shadows' totals
+                AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:
                 AutotestOnCityShutdown(true);
