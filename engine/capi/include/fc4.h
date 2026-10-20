@@ -165,7 +165,12 @@ extern "C" {
  * 71 = merge-train batch train4 (re-specs20, re-answers30, re-specs19, cores22, apply15e, glue20, cores21): merged (no C ABI history entry of its own)
  * 72 = merge-train batch train5 (re-answers31, re-specs21, cores24, coverage3, glue23): merged (no C ABI history entry of its own) */
 #define FC4_ABI_VERSION 72u
-/* Return codes of fc4_sim_load. */
+ *      renumbered at merge);
+ * 69 = adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the
+ *      validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading
+ *      (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane;
+ *      taken as 63, then 64-68 on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 69u/* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
 #define FC4_ERR_TRUNCATED         (-2)
@@ -10822,6 +10827,288 @@ float fc4_mysim_local_grade(const fc4_advisors* p, int32_t id, uint32_t group, b
 #define FC4_ADV_SRC_DEAL_COUNT 132u
 #define FC4_ADV_SRC_POWER_FUNDING 133u
 
+/* ---- network geometry (docs/specs/network-geometry.md §3-§9; engine/capi/src/network_geometry.rs) ----
+ * The network tool's geometry: the drag (BreakIntoStraightAndDiagSegments,
+ * ComputeDraggedCells), the validation passes and their failure codes
+ * (0xF0000001 bad terrain, 0xF0000002 reserved, 0xF0000003 bridge,
+ * 0xF0000005 intersection, 0xF0000006 smoothing, 0xF0000007 unsolved,
+ * 0xF0000008 terrain support), the cell infos, SmoothenNetwork levels 0-3,
+ * CanTilesBeSupportedOnTerrain and the grading (UpdateTerrainHeights), plus
+ * the standalone height satisfier (fc4_vhcs) and the pure helpers of §10,
+ * §11 and §13. No plugin glue yet.
+ *
+ * The terrain is read through the host table, or through a core terrain bound
+ * with fc4_netgeom_set_terrain: then it is read under the terrain's lock and
+ * the grading writes it (its messages go to the terrain host's post). The rest
+ * of the world goes through the host table; a missing callback is the empty
+ * world (no occupants, no connection nodes, no bridge types; the bridge checks
+ * pass; the highlight pass keeps the count). The land-bridge pass (NG4) and the
+ * piece solver's extra constraints (NG5) are not exposed yet.
+ *
+ * Threads: one thread at a time. A callback that calls back into the same
+ * geometry is refused (fallback value, counted in reentrant_refused). */
+typedef struct fc4_netgeom fc4_netgeom;
+typedef struct fc4_vhcs fc4_vhcs;
+
+#define FC4_NETGEOM_SAT_NETWORK 0u
+#define FC4_NETGEOM_SAT_TERRAIN 1u
+
+#define FC4_NETGEOM_OCC_OTHER 0u
+#define FC4_NETGEOM_OCC_LANDFILL 1u
+#define FC4_NETGEOM_OCC_NETWORK 2u
+#define FC4_NETGEOM_OCC_BUILDING 3u
+
+#define FC4_NETGEOM_TV_FIX 0u
+#define FC4_NETGEOM_TV_RANGE 1u
+#define FC4_NETGEOM_TV_UNSUPPORTED 2u
+#define FC4_NETGEOM_TV_INVALID 0xFFFFFFFFu
+
+/* One type's placement parameters (§2.4, exemplar group 0x084344E0): angles in
+ * degrees, heights in metres. Types: 0 road, 1 rail, 2 highway, 3 street,
+ * 4 pipe, 5 power line, 6 avenue, 7 subway, 8 light rail, 9 monorail,
+ * 10 one-way road, 11 dirt road, 12 ground highway. */
+typedef struct fc4_netgeom_params {
+    uint32_t struct_size;
+    float max_slope;            /* 0x879D12E7 */
+    float slope_04;             /* 0x279D1707 */
+    float max_slope_change;     /* 0x07B36C71 */
+    float max_raise;            /* 0xC7B36CA4 */
+    float max_cut;              /* 0xC7B36CA5 */
+    float resolve_tolerance;    /* 0xC804DD86 */
+    float tunnel_trigger_slope; /* 0xC804DD87 */
+    float tunnel_end_slope;     /* 0xC804DD88 */
+    float new_cell_tolerance;   /* 0xC804DD93 */
+    float support_threshold;    /* 0xC804DD94 */
+    float max_support_height;   /* 0xC804DD95 */
+    float tunnel_clearance;     /* 0xE974EAA6, the first entry (the only one read) */
+    float earthwork_cost;       /* 0x6A2D49F4 */
+    int32_t cell_cost;          /* 0x4A2D49B9 */
+    int32_t bridge_cost;        /* 0x8A2D49EA */
+    int32_t tunnel_cost;        /* 0x8A2D49F0 */
+    uint32_t elevated_id_count; /* 0xE974EAA7's length (only emptiness is read) */
+    uint8_t straight_only;      /* p+0x25 (street) */
+    uint8_t reserved[3];
+} fc4_netgeom_params;
+
+/* The per-type limits (§2.3). */
+typedef struct fc4_netgeom_type_info {
+    uint32_t struct_size;
+    uint32_t type_id;
+    uint32_t width1, width2;
+    float slope_rise;           /* +0x100: r24(tan(max_slope) x 16) */
+    float diagonal_slope_rise;  /* +0x104 */
+    float smoothness;           /* +0x108 */
+    float diagonal_smoothness;  /* +0x10C */
+    float rise_04;              /* +0x110 */
+    float tunnel_trigger_rise;  /* tool +0x23C */
+    float tunnel_end_slope_rad; /* tool +0x2AC */
+} fc4_netgeom_type_info;
+
+/* BreakIntoStraightAndDiagSegments's outputs (§3.2). */
+typedef struct fc4_netgeom_segments {
+    uint32_t struct_size;
+    int32_t end_x, end_z;
+    uint32_t dragged_count, straight_count;
+    uint8_t axis0, axis1;
+    uint8_t pen_direction;      /* 0 -x, 2 -z, 4 +x, 6 +z */
+    uint8_t end_direction;      /* 1, 3, 5 or 7 */
+} fc4_netgeom_segments;
+
+typedef struct fc4_netgeom_cell {
+    int32_t x, z;
+} fc4_netgeom_cell;
+
+/* A dragged step (§2.2): kind 0 regular, 1 bridge, 2 tunnel portal, 3 tunnel interior. */
+typedef struct fc4_netgeom_step {
+    uint32_t first, last, kind;
+} fc4_netgeom_step;
+
+/* A tunnel or bridge: its end steps (bridge_type 0 for tunnels). */
+typedef struct fc4_netgeom_span {
+    uint32_t start, end, bridge_type;
+} fc4_netgeom_span;
+
+typedef struct fc4_netgeom_vertex_height {
+    int32_t vertex;
+    float height;
+} fc4_netgeom_vertex_height;
+
+/* A cell's occupant for the reserved-tile test (§5.1); the host fills it. */
+typedef struct fc4_netgeom_occupant {
+    uint32_t kind;              /* FC4_NETGEOM_OCC_* */
+    uint8_t immovable;          /* network occupants: slot 17 */
+    uint8_t connection_node;    /* network occupants: flag 0x200000 */
+    uint8_t reserved[2];
+    uint32_t type_id;           /* network occupants: slot 22 */
+} fc4_netgeom_occupant;
+
+/* The existing network piece in a cell (§8.1); the host fills it. */
+typedef struct fc4_netgeom_piece {
+    uint32_t flags;
+    uint8_t immovable;
+    uint8_t has_supports;
+    uint8_t reserved[2];
+    float corners[4];           /* (x,z), (x,z+1), (x+1,z+1), (x+1,z) */
+    uint32_t edges[13];
+} fc4_netgeom_piece;
+
+/* cSC4NetworkCellInfo (§8.1), the fields the height solver reads. A connection
+ * node's fixed vertices are not carried (an inserted info has none). */
+typedef struct fc4_netgeom_cell_info {
+    uint32_t struct_size;
+    int32_t x, z;
+    uint32_t flags;             /* +0x08 */
+    int32_t step;               /* +0x14, -1 off the run */
+    uint32_t edges[13];         /* +0x18 */
+    uint32_t edge_union;        /* +0x4C */
+    uint8_t in_run, placed, intersection, fixed, tunnel_interior, connection_node, has_supports;
+    uint8_t reserved;
+    float corners[4];           /* +0x58 */
+    float allowed[8];           /* +0x68, (lo, hi) per corner */
+    float preferred[8];         /* +0x88 */
+    int32_t vertices[4];        /* +0xA8 */
+} fc4_netgeom_cell_info;
+
+/* Diagnostics (fc4_netgeom_get_state). */
+typedef struct fc4_netgeom_state {
+    uint32_t struct_size;
+    uint32_t type_id;
+    int32_t start_x, start_z, end_x, end_z;
+    uint32_t dragged_count, straight_count;
+    uint8_t axis0, axis1, pen_direction, end_direction;
+    uint32_t valid;             /* tool +0x78 */
+    uint32_t failure;           /* tool +0x20C, 0 = none */
+    uint32_t cell_count, step_count, extra_cell_count, tunnel_count, bridge_count;
+    uint32_t cell_info_count, solved_count, smoothing_cell_count, boundary_count;
+    int32_t level;              /* the smoothing loop's level, -1 = none */
+    float tunnel_start_height;  /* NaN = none */
+    uint32_t reentrant_refused;
+    uint8_t terrain_bound;
+    uint8_t reserved[3];
+} fc4_netgeom_state;
+
+/* What the geometry needs from the game. Vertex ids are z * (cells_x + 1) + x. */
+typedef struct fc4_netgeom_host {
+    uint32_t struct_size;
+    void* user;
+    /* terrain (unused while a core terrain is bound) */
+    void (*cells)(void* user, uint32_t* cells_x, uint32_t* cells_z);
+    float (*vertex_altitude)(void* user, int32_t vertex);            /* slot 12 */
+    bool (*cell_has_water)(void* user, int32_t x, int32_t z);        /* slot 34 */
+    float (*surface_water_level)(void* user, int32_t vertex);        /* NaN = none */
+    float (*max_allowed_height)(void* user);                         /* slot 24 */
+    void (*set_altitude_at_vertex)(void* user, int32_t vertex, float h); /* slot 50 */
+    void (*begin_long_terrain_operation)(void* user);                /* slot 87 */
+    void (*redisplay_terrain)(void* user, const fc4_terrain_rect* rect, uint32_t kind); /* slot 68 */
+    void (*end_long_terrain_operation)(void* user);                  /* slot 88 */
+    /* world */
+    bool (*is_connection_node)(void* user, int32_t x, int32_t z);
+    /* Writes up to `capacity` occupants; returns the total (called again with a larger buffer). */
+    uint32_t (*cell_occupants)(void* user, int32_t x, int32_t z, fc4_netgeom_occupant* out, uint32_t capacity);
+    bool (*existing_piece)(void* user, int32_t x, int32_t z, fc4_netgeom_piece* out);
+    /* §3.3 step 3: the cell holds an auto-connect occupant (or, for road, a cell info with edges). */
+    bool (*extends_diagonal_end)(void* user, int32_t x, int32_t z, uint32_t type_id);
+    /* Slot 59 over the run's cells: the new valid count (at most `valid`). */
+    uint32_t (*update_occupant_highlights)(void* user, uint32_t type_id, const fc4_netgeom_cell* cells,
+                                           uint32_t count, uint32_t valid);
+    uint32_t (*bridge_type_count)(void* user, uint32_t type_id);
+    /* NG2: IsStepGoodForBridge, CheckBridgeStepEdgeTypes, AdjustBridgeSpan, FindBestBridgeType. */
+    bool (*is_step_good_for_bridge)(void* user, uint32_t type_id, uint32_t step, const fc4_netgeom_cell* cells,
+                                    uint32_t count);
+    bool (*bridge_step_edge_types_ok)(void* user, uint32_t type_id, uint32_t step, const fc4_netgeom_cell* cells,
+                                      uint32_t count);
+    bool (*adjust_bridge_span)(void* user, uint32_t type_id, uint32_t* start, uint32_t* end);
+    bool (*find_best_bridge_type)(void* user, uint32_t type_id, uint32_t start, uint32_t end,
+                                  uint32_t* bridge_type, uint32_t* min_span);
+} fc4_netgeom_host;
+
+/* Parameters and pure helpers. */
+bool fc4_netgeom_params_shipped(uint32_t type_id, fc4_netgeom_params* out);
+/* From the exemplar's properties (NULL = none: the defaults of §2.4). */
+bool fc4_netgeom_params_from_props(uint32_t type_id, const fc4_props* props, fc4_netgeom_params* out);
+/* params NULL = shipped. */
+bool fc4_netgeom_params_type_info(uint32_t type_id, const fc4_netgeom_params* params, fc4_netgeom_type_info* out);
+bool fc4_netgeom_break_into_segments(int32_t start_x, int32_t start_z, int32_t end_x, int32_t end_z, bool snap,
+                                     bool straight_only, uint32_t width1, uint32_t width2,
+                                     fc4_netgeom_segments* out);
+/* §9.6 step 3 for one vertex: FC4_NETGEOM_TV_*; for _FIX lo = hi = preferred = the height. */
+uint32_t fc4_netgeom_terrain_vertex(float network_height, float terrain_altitude, bool has_supports, bool fixed,
+                                    uint32_t type_id, const fc4_netgeom_params* params, float* lo, float* hi,
+                                    float* preferred);
+/* §10.2: 0, 1 or 2 from four corner and four terrain heights. */
+uint32_t fc4_netgeom_support_level(const float* corners, const float* terrain, float threshold);
+uint32_t fc4_netgeom_support_flags(uint32_t level);
+/* §10.1: the draft flag (0x80000000) is set for a draft occupant, cleared for a real one. */
+uint32_t fc4_netgeom_occupant_flags(uint32_t cell_flags, bool real, bool tunnel_occupant);
+/* §11: 0 for at most one pole. */
+int32_t fc4_netgeom_power_line_cost(uint32_t poles, uint32_t wire_cells, int32_t per_pole, float per_wire);
+/* §13: (x << 16) + z. */
+int32_t fc4_netgeom_destroy_key(int32_t x, int32_t z);
+
+/* The geometry. params NULL = the shipped table; else `count` types in type
+ * order (missing types: all-zero parameters). NULL on a bad host or params size. */
+fc4_netgeom* fc4_netgeom_create(const fc4_netgeom_host* host, const fc4_netgeom_params* params, uint32_t count);
+void fc4_netgeom_destroy(fc4_netgeom* g);
+/* Binds a core terrain (NULL = the host's terrain callbacks); it must outlive the binding. */
+bool fc4_netgeom_set_terrain(fc4_netgeom* g, fc4_terrain* terrain);
+bool fc4_netgeom_get_type_info(const fc4_netgeom* g, uint32_t type_id, fc4_netgeom_type_info* out);
+bool fc4_netgeom_set_land_bridges(fc4_netgeom* g, uint32_t type_id, bool on);
+bool fc4_netgeom_reset(fc4_netgeom* g);
+/* DrawNetworkLine (slot 18, §3.1). */
+bool fc4_netgeom_draw_line(fc4_netgeom* g, uint32_t type_id, int32_t start_x, int32_t start_z, int32_t end_x,
+                           int32_t end_z, bool snap);
+/* The validation passes (§4): the valid step count; the code is in the state's failure. */
+uint32_t fc4_netgeom_validate(fc4_netgeom* g);
+bool fc4_netgeom_create_cell_infos(fc4_netgeom* g);
+bool fc4_netgeom_insert_cell_info(fc4_netgeom* g, const fc4_netgeom_cell_info* info);
+bool fc4_netgeom_get_cell_info(const fc4_netgeom* g, int32_t x, int32_t z, fc4_netgeom_cell_info* out);
+bool fc4_netgeom_smoothen(fc4_netgeom* g, int32_t level);
+bool fc4_netgeom_can_tiles_be_supported(fc4_netgeom* g);
+/* The smoothing loop (§9.4): 0 and *level, else 0xF0000006 / 0xF0000008. */
+uint32_t fc4_netgeom_smooth(fc4_netgeom* g, int32_t* level);
+/* Passes, cell infos and smoothing (network-tools.md §5.1 steps 4-5 without the
+ * piece solver): the valid count, 0 = refused (see the failure code). */
+uint32_t fc4_netgeom_place(fc4_netgeom* g);
+/* GetCostOfSolution (network-tools.md §8.1) of the solved cells. */
+int32_t fc4_netgeom_cost(const fc4_netgeom* g, int32_t demolition);
+/* UpdateTerrainHeights (§9.7): changes above 0.001, RedisplayTerrain kind 4 inside
+ * Begin/EndLongTerrainOperation; the changed count, *rect (may be NULL) when not 0. */
+uint32_t fc4_netgeom_update_terrain_heights(fc4_netgeom* g, fc4_terrain_rect* rect);
+bool fc4_netgeom_get_state(const fc4_netgeom* g, fc4_netgeom_state* out);
+/* Lists: copy when `capacity` suffices; return the count. */
+uint32_t fc4_netgeom_get_cells(const fc4_netgeom* g, fc4_netgeom_cell* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_steps(const fc4_netgeom* g, fc4_netgeom_step* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_tunnels(const fc4_netgeom* g, fc4_netgeom_span* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_bridges(const fc4_netgeom* g, fc4_netgeom_span* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_solved(const fc4_netgeom* g, fc4_netgeom_cell* out, uint32_t capacity);
+/* The geometry's satisfiers (FC4_NETGEOM_SAT_*). */
+bool fc4_netgeom_sat_height(const fc4_netgeom* g, uint32_t which, int32_t vertex, float* out);
+bool fc4_netgeom_sat_range(const fc4_netgeom* g, uint32_t which, int32_t vertex, float* lo, float* hi);
+uint32_t fc4_netgeom_sat_solution(const fc4_netgeom* g, uint32_t which, fc4_netgeom_vertex_height* out,
+                                  uint32_t capacity);
+
+/* The standalone height satisfier (cSC4VertexHtConstraintSatisfier, §9.1). The
+ * pick tie-break is insertion order ([choice], NG1). */
+fc4_vhcs* fc4_vhcs_create(void);
+void fc4_vhcs_destroy(fc4_vhcs* s);
+bool fc4_vhcs_init(fc4_vhcs* s, float lo, float hi);
+bool fc4_vhcs_shutdown(fc4_vhcs* s);
+/* AddVertexToSolve: false when already present. */
+bool fc4_vhcs_add_vertex(fc4_vhcs* s, int32_t vertex, float initial);
+bool fc4_vhcs_insert_range(fc4_vhcs* s, int32_t vertex, float lo, float hi);
+bool fc4_vhcs_insert_fixed(fc4_vhcs* s, int32_t vertex, float height);
+bool fc4_vhcs_insert_equality(fc4_vhcs* s, int32_t a, int32_t b);
+bool fc4_vhcs_insert_slope(fc4_vhcs* s, int32_t a, int32_t b, float limit);
+/* |h(a) - 2 h(b) + h(c)| <= limit, b the middle vertex. */
+bool fc4_vhcs_insert_smoothness(fc4_vhcs* s, int32_t a, int32_t b, int32_t c, float limit);
+bool fc4_vhcs_set_preferred_value(fc4_vhcs* s, int32_t vertex, float height);
+bool fc4_vhcs_set_preferred_range(fc4_vhcs* s, int32_t vertex, float lo, float hi);
+/* Solve: false when a range became empty. */
+bool fc4_vhcs_solve(fc4_vhcs* s);
+bool fc4_vhcs_height(fc4_vhcs* s, int32_t vertex, float* out);
+bool fc4_vhcs_range(fc4_vhcs* s, int32_t vertex, float* lo, float* hi);
+uint32_t fc4_vhcs_solution(fc4_vhcs* s, fc4_netgeom_vertex_height* out, uint32_t capacity);
+
 /* ---- turbo clock (tooling, not simulator.md; fc4_core::Turbo) --------------
  * Tooling deviation for test runs (the plugin's sim_turbo). Off (the default)
  * changes nothing. On: the day gate's "ready" (spec §5.2 step 3) is always true
@@ -11679,7 +11966,17 @@ _Static_assert(sizeof(fc4_mysim_state) == 240, "fc4_mysim_state layout");
 _Static_assert(sizeof(fc4_prop_occupant_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_prop_occupant_host layout");
 _Static_assert(sizeof(fc4_prop_effect_host) == (sizeof(void*) == 4 ? 24 : 48), "fc4_prop_effect_host layout");
 _Static_assert(sizeof(fc4_prop_slot_info) == 16, "fc4_prop_slot_info layout");
-
-#endif
+_Static_assert(sizeof(fc4_netgeom_params) == 76, "fc4_netgeom_params layout");
+_Static_assert(sizeof(fc4_netgeom_type_info) == 44, "fc4_netgeom_type_info layout");
+_Static_assert(sizeof(fc4_netgeom_segments) == 24, "fc4_netgeom_segments layout");
+_Static_assert(sizeof(fc4_netgeom_cell) == 8, "fc4_netgeom_cell layout");
+_Static_assert(sizeof(fc4_netgeom_step) == 12, "fc4_netgeom_step layout");
+_Static_assert(sizeof(fc4_netgeom_span) == 12, "fc4_netgeom_span layout");
+_Static_assert(sizeof(fc4_netgeom_vertex_height) == 8, "fc4_netgeom_vertex_height layout");
+_Static_assert(sizeof(fc4_netgeom_occupant) == 12, "fc4_netgeom_occupant layout");
+_Static_assert(sizeof(fc4_netgeom_piece) == 76, "fc4_netgeom_piece layout");
+_Static_assert(sizeof(fc4_netgeom_cell_info) == 180, "fc4_netgeom_cell_info layout");
+_Static_assert(sizeof(fc4_netgeom_state) == 96, "fc4_netgeom_state layout");
+_Static_assert(sizeof(fc4_netgeom_host) == (sizeof(void*) == 4 ? 84 : 168), "fc4_netgeom_host layout");#endif
 
 #endif /* FC4_H */

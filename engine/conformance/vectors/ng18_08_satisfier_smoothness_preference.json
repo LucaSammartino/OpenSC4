@@ -1,0 +1,200 @@
+{
+ "format": 1,
+ "name": "ng18_08_satisfier_smoothness_preference",
+ "spec": [
+  "network-geometry 9.1",
+  "18.8"
+ ],
+ "description": "Fixed a = 0 and c = 0; b with initial height 0; smoothness(a, b, c, 11.2) gives b the range [-5.6, 5.6] (the default range is (-FLT_MAX, FLT_MAX); the test does not give one). Preferred value 3 -> b = 3. Preferred value 9 -> b = 0 (out of range, so the initial height is clamped). An initial height of 7 clamps to 5.6, the propagated bound.",
+ "steps": [
+  {
+   "op": "ng_sat",
+   "call": "init",
+   "args": [
+    "-max",
+    "max"
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    1,
+    0
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    3,
+    0
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "add",
+   "args": [
+    2,
+    0
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "smoothness",
+   "args": [
+    1,
+    2,
+    3,
+    11.2
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "preferred",
+   "args": [
+    2,
+    3
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "solve",
+   "expect": true
+  },
+  {
+   "op": "ng_sat",
+   "call": "height",
+   "args": [
+    2
+   ],
+   "expect": 3.0
+  },
+  {
+   "op": "ng_sat",
+   "call": "shutdown"
+  },
+  {
+   "op": "ng_sat",
+   "call": "init",
+   "args": [
+    "-max",
+    "max"
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    1,
+    0
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    3,
+    0
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "add",
+   "args": [
+    2,
+    0
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "smoothness",
+   "args": [
+    1,
+    2,
+    3,
+    11.2
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "preferred",
+   "args": [
+    2,
+    9
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "solve",
+   "expect": true
+  },
+  {
+   "op": "ng_sat",
+   "call": "height",
+   "args": [
+    2
+   ],
+   "expect": 0.0
+  },
+  {
+   "op": "ng_sat",
+   "call": "shutdown"
+  },
+  {
+   "op": "ng_sat",
+   "call": "init",
+   "args": [
+    "-max",
+    "max"
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    1,
+    0
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    3,
+    0
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "add",
+   "args": [
+    2,
+    7
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "smoothness",
+   "args": [
+    1,
+    2,
+    3,
+    11.2
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "solve",
+   "expect": true
+  },
+  {
+   "op": "ng_sat",
+   "call": "height",
+   "args": [
+    2
+   ],
+   "expect": 5.6
+  }
+ ]
+}
