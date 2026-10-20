@@ -284,6 +284,12 @@ impl MySim {
             self.post(super::msg::MYSIMS_CHANGED, 0, 0, None);
             self.find_new_job();
             self.host.dispatch_command(id, "start_commute");
+        } else {
+            // The "tracking" flag := dispatch CheckFlags(0x100) (§4.1 step
+            // 3). The default host answers false (the pre-dispatch-core
+            // stub); a real dispatch answers its own flag. The flag feeds
+            // only the location tracker (UI, §0), so it is not stored.
+            let _ = self.host.dispatch_check_flags(id, 0x100);
         }
         self.update_variables();
         true
