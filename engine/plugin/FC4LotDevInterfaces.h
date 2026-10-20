@@ -47,6 +47,7 @@
 #include <cstdint>
 
 class cIGZMessageTarget2;
+class cIGZPersistDBSegment;
 class cISC4BuildingOccupant;
 class cISC4BusinessUnit;
 class cISC4FoundationOccupant;
@@ -54,6 +55,7 @@ class cISC4Lot;
 class cISC4LotBaseTextureOccupant;
 class cISC4LotConfiguration;
 class cISC4LotDeveloper;
+class cISC4NetworkLot;
 class cISC4Occupant;
 class cSC4LotConfigurationObject;
 
@@ -191,6 +193,33 @@ public:
     virtual void AutoconnectLotNodes(cISC4Lot* lot, SC4List<cISC4Occupant*> const& nodes) = 0;  // 21, pop 8
     virtual const char* GetEnglishNetworkName(int32_t type) = 0;                               // 22
     virtual void AddToRetrofitList(intptr_t networkOccupant) = 0;                              // 23
+};
+
+// cISC4NetworkLotManager as compiled (vtable 0x00AA7958, interfaces.tsv
+// cISC4NetworkLotManager, 16 slots; slot 15 is the class's deleting
+// destructor). The SDK's declaration matches the compiled order here, so this
+// is the SDK's list with every method named for its slot. Declared next to
+// cFC4ISC4NetworkManager for the network managers' replacement classes
+// (glue24: `enable = netlot`).
+class cFC4ISC4NetworkLotManager : public cIGZUnknown {
+public:
+    typedef bool (*LotVisitor)(uint32_t x, uint32_t z, cISC4NetworkLot* lot, void* ctx);
+
+    virtual bool Init() = 0;                                                    // 3
+    virtual bool Shutdown() = 0;                                                // 4
+    virtual cISC4NetworkLot* GetNetworkLot(int32_t x, int32_t z) = 0;           // 5, borrowed
+    // 6, pop 4: the SDK's `intptr_t` is a set the caller owns (allocators.md).
+    virtual void GetNetworkLotConfigurationSet(intptr_t set) = 0;
+    // 7: true when a loaded configuration has `id`; `out` is never written
+    // (network-manager.md 8.6).
+    virtual bool GetNetworkLotConfigurationById(uint32_t id, void* out) = 0;    // 7
+    virtual cISC4Occupant* CreateProp(cISC4NetworkLot* lot, uint32_t index, uint32_t propId) = 0;  // 8, borrowed
+    virtual int32_t GetZoneTypeForNetwork(int32_t x, int32_t z) = 0;            // 9
+    virtual int32_t GetWealthForNetwork(int32_t x, int32_t z) = 0;              // 10
+    virtual bool IterateAllNetworkLots(LotVisitor cb, void* ctx) = 0;           // 11
+    virtual void RedevelopLot(uint32_t x, uint32_t z, cISC4NetworkLot* lot) = 0;  // 12
+    virtual void SetLotConfigurationForNextPiece(void* cfg) = 0;                // 13
+    virtual bool WriteLotConfiguration(void* cfg, cIGZPersistDBSegment* seg) = 0;  // 14
 };
 
 namespace fc4 {

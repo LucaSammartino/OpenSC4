@@ -379,8 +379,16 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4EffectsHost.cpp
         plugin/FC4EffectsHost.h
         plugin/FC4EffectsShadow.cpp
-        plugin/FC4EffectsShadow.h        # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
-        # zonedev_shadow.
+        plugin/FC4EffectsShadow.
+        plugin/cFC4NetworkManager.cpp
+        plugin/cFC4NetworkManager.h
+        plugin/cFC4NetworkLotManager.cpp
+        plugin/cFC4NetworkLotManager.h
+        # The replacement network manager's tool stand-in (glue24; §13: the
+        # tools are their own subsystem, the slot 5 answer must not be null).
+        plugin/cFC4NetworkTool.cpp
+        plugin/cFC4NetworkTool.h
+        # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,        # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp
         plugin/cFC4ZoneDeveloper.h
         plugin/FC4ZoneDevHost.cpp

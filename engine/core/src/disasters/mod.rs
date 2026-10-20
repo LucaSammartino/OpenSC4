@@ -87,7 +87,8 @@ pub use layer::{DamageAssessment, LayerSnapshot, Location, SpecialBuilding, Time
 pub use pipe::{Leak, PipeSnapshot, PipeTuning};
 pub use quake::{QuakeSnapshot, QuakeTuning};
 pub use riot::{
-    riot_prop, shipped_riot, Leader, RiotSnapshot, RiotTuning, SHIPPED_LEADERS_SPAWNED, SHIPPED_POLICE_CURVE,
+    riot_prop, shipped_riot, Leader, RiotSnapshot, RiotTuning, PLAYER_REMOVAL, SHIPPED_LEADERS_SPAWNED,
+    SHIPPED_POLICE_CURVE,
 };
 pub use system::{instance_class_of, Disasters, InstanceInfo, ManagerSnapshot};
 pub use toxic::{ToxicSnapshot, ToxicSpill};

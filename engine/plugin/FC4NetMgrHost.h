@@ -41,6 +41,18 @@ struct NetMgrContext {
     std::vector<cIGZUnknown*> held;
 };
 
+// The host's user for the replacement classes (cFC4NetworkManager,
+// cFC4NetworkLotManager): the shared read callbacks (FC4NetMgrHost.cpp) read
+// the user as a NetMgrContext*, so the context must sit at offset 0; the
+// write callbacks the replacement overrides need its manager, which `mgr`
+// carries (glue24: runs glue24-rep-1..4 - with h.user = the manager itself,
+// Ctx(self) read the manager's vtable pointer as the city, and the game's
+// city-detail call through it jumped to garbage).
+struct NetMgrOwner {
+    NetMgrContext ctx;  // offset 0: what the read callbacks read
+    void* mgr;          // the owning replacement class (Self(u) in its .cpp)
+};
+
 // The read-side tables: every callback that changes the game, subscribes or
 // creates objects is NULL (a missing callback reads as 0 / false / none).
 fc4_netmgr_host MakeNetMgrReadOnlyHost(NetMgrContext* ctx);

@@ -25,12 +25,10 @@
 #include <cstdlib>
 #include <string>
 
-#if FC4_CHECKED
 #include <dbghelp.h>
 #include <rtcapi.h>
 #include <cstdarg>
 #include <cwchar>
-#endif
 
 namespace fc4 {
 namespace {
@@ -48,9 +46,15 @@ void Hex(const uint8_t* p, unsigned n, char* out, size_t cap) {
     }
 }
 
-#if FC4_CHECKED
-
 // ---- DbgHelp (loaded on the first RTC failure) -------------------------------------------------
+//
+// Present in every build. A Debug configuration compiles /RTC1 into every
+// plugin TU even when FC4_CHECKED is off (the glue24 runs died on exactly
+// that: MSVC's default CMAKE_CXX_FLAGS_DEBUG carries /RTC1, no error func was
+// installed, and the UCRT's failwithmessage fell to its silent int3 at
+// FreeCity4.dll+0xB320CD - no report, no hook, because RTC failures bypass
+// _CrtDbgReport). Installing the handler in every build turns that crash into
+// a log line naming the failing check and its call site.
 
 using SymSetOptionsFn = DWORD(WINAPI*)(DWORD);
 using SymInitializeFn = BOOL(WINAPI*)(HANDLE, PCSTR, BOOL);
@@ -231,7 +235,9 @@ int __cdecl RtcHandler(int type, const wchar_t* file, int line, const wchar_t* m
     return 0;  // continue (no debugger break, no dialog)
 }
 
-// ---- self-tests -------------------------------------------------------------------------------
+// ---- self-tests (checked builds only: /RTC1 detects the provoked mismatch) ---------------------
+
+#if FC4_CHECKED
 
 // The real object: its method takes no argument (callee pops nothing).
 struct SelfTestNoArg {
@@ -266,22 +272,28 @@ void ProvokeOutOverrun() {
 }  // namespace
 
 void CheckedAttach() {
-#if FC4_CHECKED
+    // Every build: a Debug configuration compiles /RTC1 into the plugin even
+    // when FC4_CHECKED is off, so the RTC error func must exist or the first
+    // failing check ends the process at failwithmessage's silent int3.
     InterlockedExchange(&g_inDllMain, 1);
     InitializeCriticalSection(&g_rtcLock);
     _RTC_SetErrorFuncW(&RtcHandler);
+#if FC4_CHECKED
     Log("build: CHECKED (/Od /RTC1; RTC failures and out-parameter overruns are logged)");
 #else
-    Log("build: normal (configure with -DFC4_CHECKED=ON for the checked build)");
+    Log("build: normal (/RTC1 where the configuration sets it; RTC failures are logged instead of ending the process; "
+        "configure with -DFC4_CHECKED=ON for the checked build's canaries and self-tests)");
 #endif
 }
 
 void CheckedStartup() {
     static volatile LONG done = 0;
     if (InterlockedExchange(&done, 1) != 0) return;
+    // Every build: the RTC handler is installed in DllMain; from here on it
+    // may load DbgHelp to name call sites.
+    InterlockedExchange(&g_inDllMain, 0);
     const bool selfTest = GetEnvironmentVariableA("FC4_CHECKED_SELFTEST", nullptr, 0) != 0;
 #if FC4_CHECKED
-    InterlockedExchange(&g_inDllMain, 0);
     if (selfTest) {
         Log("checked self-test: calling a no-argument method through a one-argument declaration");
         ProvokeEspMismatch();

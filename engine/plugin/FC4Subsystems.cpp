@@ -60,7 +60,8 @@
 #include "cFC4CitySituation.h"    // the glue17 lane: enable = citysit
 #include "cFC4Demolition.h"       // the glue23 lane: enable = demolition
 #include "cFC4Terrain.h"        // the glue18 lane: the terrain replacement
-#include "FC4ResidentialShadow.h"
+#include "cFC4NetworkManager.h"    // the glue24 lane: enable = netmgr
+#include "cFC4NetworkLotManager.h" // the glue24 lane: enable = netlot#include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
 #include "cFC4ZoneManager.h"
@@ -401,7 +402,15 @@ const ClassEntry kCityDetailClasses[] = {
 // `enable = effects`. Not a saved component (§13).
 const ClassEntry kEffectsClasses[] = {
     {kFC4_CLSID_cSC4EffectsManager, "cSC4EffectsManager", &CreateFC4EffectsManager},
+// docs/specs/network-manager.md §1: the network manager (city component 53)
+// and the network lot manager (component 11). Off by default (glue24):
+// `enable = netmgr` / `enable = netlot`. The network tools and the network
+// occupants stay whoever the city runs (§13).
+const ClassEntry kNetworkManagerClasses[] = {
+    {kFC4_CLSID_cSC4NetworkManager, "cSC4NetworkManager", &CreateFC4NetworkManager},
 };
+const ClassEntry kNetworkLotClasses[] = {
+    {kFC4_CLSID_cSC4NetworkLotManager, "cSC4NetworkLotManager", &CreateFC4NetworkLotManager},};
 
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
@@ -449,7 +458,9 @@ const Subsystem kSubsystems[] = {
     {"terrain", nullptr, kTerrainClasses, sizeof(kTerrainClasses) / sizeof(kTerrainClasses[0]), false},
     {"automata", nullptr, kAutomataClasses, sizeof(kAutomataClasses) / sizeof(kAutomataClasses[0]),
      false},  // the automata layer (glue19); off by default: `enable = automata`
-};
+    {"netmgr", nullptr, kNetworkManagerClasses, sizeof(kNetworkManagerClasses) / sizeof(kNetworkManagerClasses[0]),
+     false},
+    {"netlot", nullptr, kNetworkLotClasses, sizeof(kNetworkLotClasses) / sizeof(kNetworkLotClasses[0]), false},};
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
 
