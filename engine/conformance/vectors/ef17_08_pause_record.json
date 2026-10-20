@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "effects_pause_record",
+  "spec": ["effects 9.2", "effects 9.3", "effects 17"],
+  "description": "Game record 3 (hidden pause, duration 5): Start pauses the simulator hidden; five 1 s ticks run the timer to 5 with nothing else; the sixth stops the record (timer 6 > 5) and resumes; a later Stop does nothing.",
+  "steps": [
+    {"op": "ef_create", "directory": {"effects": [{"name": "pause", "components": [{"type": "game", "index": 3}]}]}},
+    {"op": "ef_clear_events"},
+    {"op": "ef_effect", "name": "pause", "as": "P", "expect": true},
+    {"op": "ef_call", "method": "set_position", "effect": "P", "args": [100, 0, 100], "expect": true},
+    {"op": "ef_call", "method": "start", "effect": "P", "expect": true},
+    {"op": "ef_expect_events", "events": [{"event": "hidden_pause"}]},
+    {"op": "ef_call", "method": "tick", "args": [1000000]},
+    {"op": "ef_expect_game", "effect": "P", "state": {"timer": 1.0}},
+    {"op": "ef_call", "method": "tick", "args": [1000000], "repeat": 4},
+    {"op": "ef_expect_game", "effect": "P", "state": {"timer": 5.0, "started": true}},
+    {"op": "ef_expect_events", "events": []},
+    {"op": "ef_call", "method": "tick", "args": [1000000]},
+    {"op": "ef_expect_events", "events": [{"event": "hidden_resume"}]},
+    {"op": "ef_expect_game", "effect": "P", "state": {"started": false}},
+    {"op": "ef_call", "method": "stop", "effect": "P"},
+    {"op": "ef_expect_events", "events": []}
+  ]
+}

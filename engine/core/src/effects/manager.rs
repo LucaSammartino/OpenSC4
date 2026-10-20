@@ -4,944 +4,847 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! The effects manager itself (`docs/specs/effects.md` §1, §2, §4, §5, §6,
-//! §7): `cSC4EffectsManager`, CLSID `0x49822F75`, held at city `+0x1FC` and
-//! returned by city slot 85.
-//!
-//! # What is modelled
-//!
-//! - **Creation** (§4): by name or by ID pair, with the priority filter of
-//!   `FindEffectDesc` and the `index = −1` case that still succeeds.
-//! - **Activation and component building** (§5.1, §5.2, §5.3): the LOD window
-//!   and the random select groups.
-//! - **The tick** (§6): the dilated step, the manager totals, and each started
-//!   effect's components in order.
-//! - **The finish sweep and the end post** (§7).
-//!
-//! # What is not
-//!
-//! Drawing (particles, decals, models, flashes, tints, camera shakes, the
-//! snowline and the effect maps), sound playback and the automata attractors
-//! are out of scope (§Scope). Animations stay stubbed. The components those
-//! kinds own are still **counted by the finish test**, because that is a
-//! simulation-visible fact (§7), so they are modelled as Start/Stop-driven
-//! active flags.
-//!
-//! # The draw pass
-//!
-//! **EF2 quirk 1 is proven (§7, §15):** an effect finishes and posts its end
-//! message **only in the 3D view's draw pass**. The finish test has exactly one
-//! caller (`DeactivateUnusedVisualEffects`), which has exactly one caller
-//! (`Update(SC4DrawContext*)`), which has none. This manager therefore keeps
-//! the sweep behind [`EffectsManager::draw_pass_sweep`] and **never** finishes
-//! an effect from the tick. A replacement that must work without a 3D view has
-//! to run the same sweep from somewhere else; that is a caller's decision, not
-//! this core's.
+//! The effects manager (effects.md §2, §4–§7): effects created by name,
+//! their components chosen by priority, level of detail and select groups,
+//! ticked with the dilated animation step, and finished by a sweep that
+//! posts their end messages.
 
-use super::brush::{BrushEffect, BrushParams, EffectsRandom};
-use super::directory::{ComponentDesc, EffectDirectory, Found};
-use super::game::{GameAction, GameEffect, PauseAction};
-use super::select::{select_components, select_generator, SelectPlacement};
-use super::{component_type, flags, runtime_flags, EffectRuntime, SweepResult};
-use crate::rng::RzRandomSuper;
+use std::collections::BTreeMap;
+use std::rc::Rc;
 
-/// The handle of a live effect in the manager's arena.
+use crate::rng::{FixedSeeds, RzRandom, RzRandomSuper};
+use crate::seeding::{self, keys};
+use crate::x87::r24;
+
+use super::brush::BrushEffect;
+use super::directory::EffectDirectory;
+use super::game::GameEffect;
+use super::{
+    component_type, effect_flag, EffectPost, EffectsHost, DEFAULT_MAX_PRIORITY, MAX_ACTIVATION_ROUNDS, SELECT_RANGE,
+    SELECT_SEED,
+};
+
+/// An effect's ID: from 1, never reused.
 pub type EffectId = u32;
 
-/// Everything the effects manager reads from, or does to, the rest of the game.
-pub trait EffectsHost {
-    // ---- simulator (§6) ----
-    /// `cISC4Simulator::GetAnimationTimeDilation` (slot 32; simulator.md §7).
-    /// Shipped: 1 while paused or emergency-paused, 1.5 at speed 1, 3 at speed
-    /// 2, and 1 otherwise.
-    fn animation_time_dilation(&self) -> f32;
-
-    // ---- city (§8.3, §9.3) ----
-    /// The city's size in cells (city slots 93 and 94).
-    fn city_cells(&self) -> (u32, u32);
-    /// City slot 98 `LocationIsInBounds`.
-    fn location_in_bounds(&self, x: f32, z: f32) -> bool;
-
-    // ---- messages (§12) ----
-    /// Post a **queued** standard message.
-    fn post(&self, msg_type: u32, data1: u64, data2: u32, data3: u32);
-
-    // ---- terrain (§8.3) ----
-    /// Terrain slot 87 `BeginLongTerrainOperation`.
-    fn begin_long_terrain_operation(&self);
-    /// Terrain slot 88 `EndLongTerrainOperation`.
-    fn end_long_terrain_operation(&self);
-    /// Terrain slot 57 `ApplyBrush`.
-    fn apply_terrain_brush(&self, brush: u32, params: &BrushParams);
-
-    // ---- the game effect (§9.2, §9.3) ----
-    /// Perform one action of a game effect's `Apply`, in the order §9.3 gives.
-    fn perform(&self, action: &GameAction);
-    /// Raise or lift one of §9.2's pauses.
-    fn pause(&self, action: PauseAction);
+/// Where effects finish (§7, EF2).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FinishMode {
+    /// FreeCity4: the sweep runs when the host calls
+    /// [`EffectsManager::finish_hook`] at a deterministic point (after each
+    /// animation tick, say); [`EffectsManager::draw_pass`] finishes nothing,
+    /// so the result does not depend on the frame rate.
+    #[default]
+    Hook,
+    /// The original (*[compat]*): the sweep runs only in the 3D view's draw
+    /// pass ([`EffectsManager::draw_pass`]); a session that never draws never
+    /// finishes an effect (quirk 1, EF2). The hook does nothing.
+    DrawPass,
 }
 
-/// A live component of an effect (§7).
+/// A built component (§5.2).
 #[derive(Clone, Debug, PartialEq)]
-pub enum ComponentState {
-    /// A brush effect (§8).
+pub enum Component {
     Brush(BrushEffect),
-    /// A game effect (§9).
     Game(GameEffect),
-    /// A meta component: a nested visual effect (§3 type 2). Its `IsActive` is
-    /// **the child effect's `started` byte**, not the child's components'
-    /// `IsActive` (§7, §10.1), so a parent cannot finish before a previous
-    /// sweep finished the child.
-    Meta {
-        child: EffectId,
-        /// The child effect's `started` byte, mirrored here for the finish
-        /// test.
-        child_started: bool,
+    /// A nested visual effect (the child, which the parent holds a
+    /// reference on).
+    Meta(EffectId),
+    /// A render or automata component (particles, decals, attractors,
+    /// sounds, …): the host's. Its `IsActive` is the host's
+    /// [`EffectsHost::render_component_active`].
+    Render {
+        kind: u8,
+        started: bool,
     },
-    /// A component kind whose rendering is out of scope: particles, decals,
-    /// sequences, sounds, cameras, attractors and models. §7 still counts
-    /// those whose ignore bit is clear, so the active flag is modelled and
-    /// driven by `Start`/`Stop`. Animations stay stubbed.
-    Stub { kind: u8, active: bool },
 }
 
-/// One runtime component record (§7: `0x44` bytes, `+0x40` the flags).
+#[derive(Clone, Debug)]
+struct Effect {
+    name: String,
+    index: i32,
+    flags: u32,
+    refs: u32,
+    started: bool,
+    stopping: bool,
+    end_message: (u32, u64),
+    position: [f32; 3],
+    comps: Vec<Option<Component>>,
+}
+
+/// An effect's observable state.
 #[derive(Clone, Debug, PartialEq)]
-pub struct RuntimeComponent {
-    /// The description it was built from.
-    pub desc: ComponentDesc,
-    /// `+0x40`: the **runtime** flags the finish test tests (§7).
-    pub flags: u8,
-    /// The component's own state.
-    pub state: ComponentState,
-}
-
-impl RuntimeComponent {
-    /// Builds a runtime record from its description (§7, conformance test 12).
-    pub fn from_description(desc: ComponentDesc) -> RuntimeComponent {
-        let flags = runtime_flags(desc.flags, desc.kind);
-        RuntimeComponent {
-            desc,
-            flags,
-            state: ComponentState::Stub { kind: 0, active: false },
-        }
-    }
-
-    /// Whether the finish test skips this component (§7): `flags & 4`.
-    pub fn ignored(&self) -> bool {
-        self.flags & flags::IGNORED != 0
-    }
-
-    /// The component's `IsActive` (component vtable slot 2).
-    pub fn is_active(&self) -> bool {
-        match &self.state {
-            ComponentState::Brush(b) => b.is_active(),
-            ComponentState::Game(g) => g.is_active(),
-            ComponentState::Meta { child_started, .. } => *child_started,
-            ComponentState::Stub { active, .. } => *active,
-        }
-    }
-
-    /// Whether this component blocks the finish (§7 rule 3).
-    pub fn blocks_finish(&self) -> bool {
-        !self.ignored() && self.is_active()
-    }
-
-    /// The view the pure finish rule takes (§7).
-    pub fn as_rule(&self) -> super::RuntimeComponent {
-        super::RuntimeComponent {
-            flags: self.flags,
-            is_active: self.is_active(),
-        }
-    }
-}
-
-/// A live visual effect (§11.1). Offsets are the runtime object's.
-#[derive(Clone, Debug, PartialEq)]
-pub struct VisualEffect {
-    /// `+0x20`: the description index, −1 when the name resolved to nothing.
+pub struct EffectInfo {
+    pub id: EffectId,
+    pub name: String,
+    /// The description index; −1 = none qualified (§4.1).
     pub index: i32,
-    /// `+0x24`.
-    pub started: bool,
-    /// `+0x25`: a soft stop (`Stop(0)`) is in progress.
-    pub stopping: bool,
-    /// `+0x28`.
     pub flags: u32,
-    /// `+0x2C`: 0 means "post nothing".
-    pub end_message_type: u32,
-    /// `+0x30`.
-    pub end_message_data1: u64,
-    /// `+0x08`: the reference count. The manager holds one; a caller may hold
-    /// more.
-    pub refcount: u32,
-    /// Its lowercased name (§4.1 step 2).
-    pub name: Vec<u8>,
-    /// `+0x114`..`+0x118`: the runtime component array, in component order.
-    pub components: Vec<RuntimeComponent>,
-    /// The level of detail the components were last built for (§5.2).
-    pub built_for_lod: Option<u8>,
+    /// References, the manager's included (1 = only the manager's).
+    pub refs: u32,
+    pub started: bool,
+    pub stopping: bool,
+    /// (type, data1); type 0 = none.
+    pub end_message: (u32, u64),
+    pub position: [f32; 3],
+    /// Components built.
+    pub components: usize,
+    pub active: bool,
 }
 
-impl VisualEffect {
-    /// An effect created by §4.1 step 4, holding the name and the index.
-    pub fn new(name: Vec<u8>, index: i32, flags: u32) -> VisualEffect {
-        VisualEffect {
-            index,
-            started: false,
-            stopping: false,
-            flags,
-            end_message_type: 0,
-            end_message_data1: 0,
-            refcount: 1,
-            name,
-            components: Vec::new(),
-            built_for_lod: None,
-        }
-    }
-
-    /// §7 rule 1: counted as done at once, with no stop and no message.
-    pub fn counts_as_done_immediately(&self) -> bool {
-        !self.started || self.index < 0
-    }
-
-    /// The effect's runtime view for the pure finish rule (§7).
-    pub fn as_rule(&self) -> EffectRuntime {
-        EffectRuntime {
-            index: self.index,
-            started: self.started,
-            stopping: self.stopping,
-            flags: self.flags,
-            end_message_type: self.end_message_type,
-            end_message_data1: self.end_message_data1,
-        }
-    }
-
-    /// One draw-pass sweep of this effect (§7).
-    pub fn sweep(&self) -> SweepResult {
-        self.as_rule().sweep(
-            &self
-                .components
-                .iter()
-                .map(RuntimeComponent::as_rule)
-                .collect::<Vec<_>>(),
-        )
-    }
+/// Counters (diagnostics).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EffectsStats {
+    pub created: u64,
+    pub recycled: u64,
+    pub end_posts: u64,
+    pub select_draws: u64,
+    pub ticks: u64,
+    pub sweeps: u64,
 }
 
-/// The manager's own state (§2).
+/// `cSC4EffectsManager` (§1, §2).
 pub struct EffectsManager {
-    /// `+0xB90`: the highest description priority allowed (§4.1). 5 at
-    /// construction, then set from the render properties.
+    dir: Option<Rc<EffectDirectory>>,
     max_priority: u32,
-    /// `+0xC84`: `max(zoom − offset + 1, 1)`.
-    lod: u8,
-    /// `+0xC8C`: the LOD offset from the render properties.
-    lod_offset: u8,
-    /// `+0x1C0`: the select generator, seeded `0x1105` at construction.
+    lod: u32,
     select: RzRandomSuper,
-    /// `+0x1B8`: total dilated microseconds.
+    brush_rng: RzRandom,
     total_us: u64,
-    /// `+0x1BBC`-ish (`+0x1BC`): the same in seconds.
     total_seconds: f32,
-    /// `+0x1B4`: set while the draw pass sweeps the active list. Activation
-    /// (§5.1) is deferred while it is set.
-    sweeping: bool,
-    /// `+0xBAC`..`+0xBB0`: indices of live effects, in list order.
+    effects: BTreeMap<EffectId, Effect>,
     active: Vec<EffectId>,
-    /// `+0xBA0`..`+0xBA4`: effects not yet activated.
-    pending: Vec<EffectId>,
-    /// The arena.
-    effects: Vec<Option<VisualEffect>>,
-    /// The directory.
-    directory: EffectDirectory,
+    new_list: Vec<EffectId>,
+    next_id: EffectId,
+    finish_mode: FinishMode,
+    nested_update: bool,
+    stats: EffectsStats,
 }
 
-/// What `Start(mode)` did (§11.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StartMode {
-    /// Mode 0: the usual start.
-    Normal,
-    /// Mode 1: a component entering the LOD range of an already-started effect
-    /// (§5.2).
-    Component,
-    /// Mode 2: does not register the effect with the manager.
-    NoRegister,
-}
+/// Recursion limit of the nested updates, starts and stops (a guard; the
+/// activation already limits nesting to 10 levels per creation).
+const MAX_DEPTH: u32 = 256;
 
 impl EffectsManager {
-    /// A manager built the way §2 builds it: priority 5, LOD 1, the select
-    /// generator seeded `0x1105`.
-    pub fn new(directory: EffectDirectory) -> EffectsManager {
+    /// A manager (§2): max priority 5, the select generator seeded with the
+    /// constant `0x1105` (not per process, kept), the brush generator (the
+    /// original's static `0x00B22BE8`, seeded from the clock) seeded through
+    /// [`keys::BRUSH_EFFECTS`] from `session_seed` (foundations §6.3)
+    /// [choice: one per manager]. The level of detail starts at 1 [choice].
+    pub fn new(session_seed: u32) -> EffectsManager {
+        let no_clock = FixedSeeds {
+            wall_clock: 0,
+            process_clock: 0,
+        };
+        let key = keys::BRUSH_EFFECTS;
         EffectsManager {
-            max_priority: 5,
+            dir: None,
+            max_priority: DEFAULT_MAX_PRIORITY,
             lod: 1,
-            lod_offset: 0,
-            select: select_generator(),
+            select: RzRandomSuper::new(SELECT_SEED, &no_clock),
+            brush_rng: RzRandom::new(seeding::seed(session_seed, key), &seeding::clocks(session_seed, key)),
             total_us: 0,
             total_seconds: 0.0,
-            sweeping: false,
+            effects: BTreeMap::new(),
             active: Vec::new(),
-            pending: Vec::new(),
-            effects: Vec::new(),
-            directory,
+            new_list: Vec::new(),
+            next_id: 1,
+            finish_mode: FinishMode::Hook,
+            nested_update: true,
+            stats: EffectsStats::default(),
         }
     }
 
-    /// `+0xB90`, set from the render properties by `DoRenderPropertiesChanged`
-    /// (§2). The construction value is 5.
+    pub fn set_directory(&mut self, dir: Rc<EffectDirectory>) {
+        self.dir = Some(dir);
+    }
+
+    pub fn directory(&self) -> Option<&Rc<EffectDirectory>> {
+        self.dir.as_ref()
+    }
+
+    /// `+0xB90` (the effects detail option, `DoRenderPropertiesChanged`).
+    pub fn set_max_priority(&mut self, p: u32) {
+        self.max_priority = p;
+    }
+
     pub fn max_priority(&self) -> u32 {
         self.max_priority
     }
 
-    /// The effects detail option (§4.1).
-    pub fn set_max_priority(&mut self, max_priority: u32) {
-        self.max_priority = max_priority;
-    }
-
-    /// `+0xC84`: `max(zoom − offset + 1, 1)` (§2).
-    ///
-    /// §2 also says "Zoom 1-5 gives 1-5 when the offset is 0". The formula and
-    /// that sentence agree only if `zoom` is **0-based** (0-4 for the five zoom
-    /// levels), which is how it is taken here. *[choice]* — the alternative is
-    /// that the `+ 1` is not there and `zoom` is 1-based; both give the same
-    /// five LOD values. See the lane report's question on §2.
-    pub fn level_of_detail(zoom: u8, offset: u8) -> u8 {
-        zoom.saturating_sub(offset).saturating_add(1).max(1)
-    }
-
-    /// The level of detail of a user-facing zoom level 1-5 (§2).
-    pub fn lod_for_zoom_level(level: u8, offset: u8) -> u8 {
-        Self::level_of_detail(level.saturating_sub(1), offset)
-    }
-
-    /// The current level of detail.
-    pub fn lod(&self) -> u8 {
+    pub fn level_of_detail(&self) -> u32 {
         self.lod
     }
 
-    /// `DoZoomChanged` (§5.2): recompute the LOD and rebuild the active
-    /// effects' components.
-    pub fn set_zoom(&mut self, zoom: u8, host: &mut dyn EffectsHost, random: &mut dyn EffectsRandom) {
-        self.lod = Self::level_of_detail(zoom, self.lod_offset);
-        self.update_active(host, random);
+    pub fn set_finish_mode(&mut self, m: FinishMode) {
+        self.finish_mode = m;
     }
 
-    /// `+0x1B8` and `+0x1BC` (§6).
-    pub fn totals(&self) -> (u64, f32) {
+    pub fn finish_mode(&self) -> FinishMode {
+        self.finish_mode
+    }
+
+    /// Whether a meta component updates its child inside its parent's
+    /// update (§6 step 3.3, the literal reading: the child, also on the
+    /// active list, is then updated twice per tick) [choice, EF9]. Default
+    /// true.
+    pub fn set_nested_update(&mut self, on: bool) {
+        self.nested_update = on;
+    }
+
+    pub fn stats(&self) -> EffectsStats {
+        self.stats
+    }
+
+    /// The brush generator (tests, hosts that replay a session).
+    pub fn brush_rng_mut(&mut self) -> &mut RzRandom {
+        &mut self.brush_rng
+    }
+
+    /// The select generator (§5.3).
+    pub fn select_rng_mut(&mut self) -> &mut RzRandomSuper {
+        &mut self.select
+    }
+
+    /// `+0x1B8`, `+0x1BC`: the total dilated microseconds and seconds.
+    pub fn total_time(&self) -> (u64, f32) {
         (self.total_us, self.total_seconds)
     }
 
-    /// `+0x1B4`: whether the draw pass is sweeping.
-    pub fn sweeping(&self) -> bool {
-        self.sweeping
+    // ---- creation (§4, §5.1) --------------------------------------------------------------
+
+    /// `HasVisualEffect` (slot 5).
+    pub fn has_visual_effect(&self, name: &str) -> bool {
+        self.dir.as_ref().is_some_and(|d| d.has(name))
     }
 
-    /// The live effect with this handle.
-    pub fn effect(&self, id: EffectId) -> Option<&VisualEffect> {
-        self.effects.get(id as usize).and_then(|e| e.as_ref())
+    /// `CreateVisualEffect(name)` (slot 7, §4.1): `None` (false) for an
+    /// unknown name or without a directory; else the new effect, held by the
+    /// manager and the caller, with its components built (and their random
+    /// draws made). Its index is −1 when no description's priority is
+    /// allowed.
+    pub fn create(&mut self, name: &str) -> Option<EffectId> {
+        let dir = self.dir.clone()?;
+        let index = dir.find(name, self.max_priority)?;
+        let id = self.new_effect(&name.to_ascii_lowercase(), index, 2);
+        self.activate_new(None);
+        Some(id)
     }
 
-    /// The active list, in list order (§2).
+    /// Creates the description `index` directly, without the priority filter
+    /// (a host that resolved an ID pair itself, slot 6, whose map is not in
+    /// the spec) [choice]. `None` for an index out of range.
+    pub fn create_by_index(&mut self, index: u32) -> Option<EffectId> {
+        let dir = self.dir.clone()?;
+        dir.effects.get(index as usize)?;
+        let name = dir.name_of(index).unwrap_or("").to_ascii_lowercase();
+        let id = self.new_effect(&name, index as i32, 2);
+        self.activate_new(None);
+        Some(id)
+    }
+
+    fn new_effect(&mut self, name: &str, index: i32, refs: u32) -> EffectId {
+        let (flags, n) = match (index, &self.dir) {
+            (i, Some(d)) if i >= 0 => d
+                .effects
+                .get(i as usize)
+                .map_or((0, 0), |e| (e.flags, e.components.len())),
+            _ => (0, 0),
+        };
+        let id = self.next_id;
+        self.next_id = self.next_id.wrapping_add(1).max(1);
+        self.effects.insert(
+            id,
+            Effect {
+                name: name.to_owned(),
+                index,
+                flags,
+                refs,
+                started: false,
+                stopping: false,
+                end_message: (0, 0),
+                position: [0.0; 3],
+                comps: vec![None; n],
+            },
+        );
+        self.new_list.push(id);
+        self.stats.created += 1;
+        id
+    }
+
+    /// `ActivateNewVisualEffects` (§5.1): up to 10 rounds, each moving the
+    /// new effects to the active list and building them; a meta component's
+    /// child is built in the next round.
+    fn activate_new<'h>(&mut self, mut host: Option<&mut (dyn EffectsHost + 'h)>) {
+        for _ in 0..MAX_ACTIVATION_ROUNDS {
+            if self.new_list.is_empty() {
+                break;
+            }
+            let batch = std::mem::take(&mut self.new_list);
+            self.active.extend_from_slice(&batch);
+            for id in batch {
+                self.build(id, host.as_deref_mut());
+            }
+        }
+    }
+
+    /// `UpdateVisualEffect` (§5.2, §5.3): creates the components whose range
+    /// holds the level of detail and hard-stops those that left it.
+    fn build<'h>(&mut self, id: EffectId, mut host: Option<&mut (dyn EffectsHost + 'h)>) {
+        let Some(dir) = self.dir.clone() else { return };
+        let Some(e) = self.effects.get(&id) else { return };
+        if e.index < 0 {
+            return;
+        }
+        let Some(desc) = dir.effects.get(e.index as usize) else {
+            return;
+        };
+        let lod = self.lod;
+        let mut prev_group: Option<u16> = None;
+        let mut drawn = false;
+        let mut r = 0u32;
+        let mut sum = 0u32;
+        for (i, c) in desc.components.iter().enumerate() {
+            let g = c.select_group;
+            if prev_group != Some(g) {
+                drawn = false;
+            }
+            prev_group = Some(g);
+            let exists = self
+                .effects
+                .get(&id)
+                .is_some_and(|e| e.comps.get(i).is_some_and(Option::is_some));
+            let in_range = c.in_range(lod);
+            if exists && !in_range {
+                if let Some(h) = host.as_deref_mut() {
+                    self.stop_component(id, i, 1, h, 0);
+                }
+                self.release_component(id, i);
+                continue;
+            }
+            if exists || !in_range {
+                continue;
+            }
+            if g > 0 {
+                // [choice] The draw is made at the first member of the run
+                // that is being created (§5.3: once per group per build).
+                if !drawn {
+                    r = self.select.uniform_u32(SELECT_RANGE);
+                    sum = 0;
+                    drawn = true;
+                    self.stats.select_draws += 1;
+                }
+                sum = sum.saturating_add(u32::from(c.select_weight));
+                if sum < r {
+                    continue;
+                }
+                r = SELECT_RANGE;
+            }
+            let position = self.effects.get(&id).map_or([0.0; 3], |e| e.position);
+            let comp = match c.kind {
+                component_type::BRUSH => dir.brushes.get(c.index as usize).map(|b| {
+                    let mut be = BrushEffect::new(b, &mut self.brush_rng);
+                    be.set_position(position[0], position[2]);
+                    Component::Brush(be)
+                }),
+                component_type::GAME => dir.games.get(c.index as usize).map(|g| {
+                    let mut ge = GameEffect::new(g);
+                    ge.set_position(position[0], position[2]);
+                    Component::Game(ge)
+                }),
+                component_type::META => dir.find(&c.name, self.max_priority).map(|ci| {
+                    let child = self.new_effect(&c.name.to_ascii_lowercase(), ci, 2);
+                    if let Some(ce) = self.effects.get_mut(&child) {
+                        ce.position = position;
+                    }
+                    Component::Meta(child)
+                }),
+                kind => Some(Component::Render { kind, started: false }),
+            };
+            let Some(comp) = comp else { continue };
+            let (started, stopping) = match self.effects.get_mut(&id) {
+                Some(e) => {
+                    e.comps[i] = Some(comp);
+                    (e.started, e.stopping)
+                }
+                None => continue,
+            };
+            if started && !stopping {
+                if let Some(h) = host.as_deref_mut() {
+                    self.start_component(id, i, 1, h, 0);
+                }
+            }
+        }
+    }
+
+    /// The zoom (`DoZoomChanged` → `UpdateActiveVisualEffects`, §2, §5.2):
+    /// level of detail `max(zoom − offset + 1, 1)`; every active effect is
+    /// rebuilt.
+    pub fn set_zoom(&mut self, zoom: i32, offset: i32, host: &mut dyn EffectsHost) {
+        let l = zoom.saturating_sub(offset).saturating_add(1).max(1);
+        self.lod = l as u32;
+        for id in self.active.clone() {
+            self.build(id, Some(&mut *host));
+        }
+        self.activate_new(Some(host));
+    }
+
+    // ---- references ---------------------------------------------------------------------------
+
+    pub fn add_ref(&mut self, id: EffectId) -> bool {
+        match self.effects.get_mut(&id) {
+            Some(e) => {
+                e.refs = e.refs.saturating_add(1);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Releases a caller's reference. The manager's own reference is never
+    /// dropped this way (false when only it is left). The effect is
+    /// recycled by the next finish sweep once it is done (§7).
+    pub fn release(&mut self, id: EffectId) -> bool {
+        match self.effects.get_mut(&id) {
+            Some(e) if e.refs > 1 => {
+                e.refs -= 1;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn release_component(&mut self, id: EffectId, i: usize) {
+        let c = self
+            .effects
+            .get_mut(&id)
+            .and_then(|e| e.comps.get_mut(i))
+            .and_then(Option::take);
+        if let Some(Component::Meta(child)) = c {
+            self.release(child);
+        }
+    }
+
+    // ---- the visual effect's slots (§11.1) ----------------------------------------------------
+
+    /// `Start(mode)` (slot 3): starts every component with `mode`, then
+    /// `started := 1`, `stopping := 0`. False for an unknown effect.
+    pub fn start(&mut self, id: EffectId, mode: u32, host: &mut dyn EffectsHost) -> bool {
+        if !self.effects.contains_key(&id) {
+            return false;
+        }
+        self.start_effect(id, mode, host, 0);
+        true
+    }
+
+    /// `Stop(mode)` (slot 4): mode 0 on a hard-stop effect becomes 1; stops
+    /// every component; mode 0 is a soft stop (`stopping := 1`), any other
+    /// clears `started` and `stopping`.
+    pub fn stop(&mut self, id: EffectId, mode: u32, host: &mut dyn EffectsHost) -> bool {
+        if !self.effects.contains_key(&id) {
+            return false;
+        }
+        self.stop_effect(id, mode, host, 0);
+        true
+    }
+
+    fn start_effect(&mut self, id: EffectId, mode: u32, host: &mut dyn EffectsHost, depth: u32) {
+        if depth > MAX_DEPTH {
+            return;
+        }
+        let n = self.effects.get(&id).map_or(0, |e| e.comps.len());
+        for i in 0..n {
+            self.start_component(id, i, mode, host, depth);
+        }
+        if let Some(e) = self.effects.get_mut(&id) {
+            e.started = true;
+            e.stopping = false;
+        }
+    }
+
+    fn stop_effect(&mut self, id: EffectId, mode: u32, host: &mut dyn EffectsHost, depth: u32) {
+        if depth > MAX_DEPTH {
+            return;
+        }
+        let Some(e) = self.effects.get(&id) else { return };
+        let mode = if mode == 0 && e.flags & effect_flag::HARD_STOP != 0 {
+            1
+        } else {
+            mode
+        };
+        for i in 0..e.comps.len() {
+            self.stop_component(id, i, mode, host, depth);
+        }
+        if let Some(e) = self.effects.get_mut(&id) {
+            if mode != 0 {
+                e.started = false;
+                e.stopping = false;
+            } else {
+                e.stopping = true;
+            }
+        }
+    }
+
+    fn start_component(&mut self, id: EffectId, i: usize, mode: u32, host: &mut dyn EffectsHost, depth: u32) {
+        let child = match self
+            .effects
+            .get_mut(&id)
+            .and_then(|e| e.comps.get_mut(i))
+            .and_then(Option::as_mut)
+        {
+            Some(Component::Brush(b)) => {
+                b.start();
+                None
+            }
+            Some(Component::Game(g)) => {
+                g.start(host);
+                None
+            }
+            Some(Component::Meta(c)) => Some(*c),
+            Some(Component::Render { started, .. }) => {
+                *started = true;
+                None
+            }
+            None => None,
+        };
+        if let Some(c) = child {
+            self.start_effect(c, mode, host, depth + 1);
+        }
+    }
+
+    fn stop_component(&mut self, id: EffectId, i: usize, mode: u32, host: &mut dyn EffectsHost, depth: u32) {
+        let child = match self
+            .effects
+            .get_mut(&id)
+            .and_then(|e| e.comps.get_mut(i))
+            .and_then(Option::as_mut)
+        {
+            Some(Component::Brush(b)) => {
+                b.stop(host);
+                None
+            }
+            Some(Component::Game(g)) => {
+                g.stop(host);
+                None
+            }
+            Some(Component::Meta(c)) => Some(*c),
+            Some(Component::Render { started, .. }) => {
+                *started = false;
+                None
+            }
+            None => None,
+        };
+        if let Some(c) = child {
+            self.stop_effect(c, mode, host, depth + 1);
+        }
+    }
+
+    /// `IsStarted` (slot 5).
+    pub fn is_started(&self, id: EffectId) -> bool {
+        self.effects.get(&id).is_some_and(|e| e.started)
+    }
+
+    /// `IsStopping` (slot 6).
+    pub fn is_stopping(&self, id: EffectId) -> bool {
+        self.effects.get(&id).is_some_and(|e| e.stopping)
+    }
+
+    /// `SetTransform` (slot 8) reduced to the translation: the components'
+    /// local placements are taken as the identity (EF7), so a brush's
+    /// position and a game record's cell come from `(x, z)`, and a meta
+    /// component's child gets the same transform.
+    pub fn set_position(&mut self, id: EffectId, pos: [f32; 3]) -> bool {
+        self.set_position_at(id, pos, 0)
+    }
+
+    fn set_position_at(&mut self, id: EffectId, pos: [f32; 3], depth: u32) -> bool {
+        if depth > MAX_DEPTH {
+            return false;
+        }
+        let Some(e) = self.effects.get_mut(&id) else {
+            return false;
+        };
+        e.position = pos;
+        let mut children = Vec::new();
+        for c in e.comps.iter_mut().flatten() {
+            match c {
+                Component::Brush(b) => b.set_position(pos[0], pos[2]),
+                Component::Game(g) => g.set_position(pos[0], pos[2]),
+                Component::Meta(child) => children.push(*child),
+                Component::Render { .. } => {}
+            }
+        }
+        for c in children {
+            self.set_position_at(c, pos, depth + 1);
+        }
+        true
+    }
+
+    /// `SetEndMessage(type, data1)` (slot 10).
+    pub fn set_end_message(&mut self, id: EffectId, msg_type: u32, data1: u64) -> bool {
+        match self.effects.get_mut(&id) {
+            Some(e) => {
+                e.end_message = (msg_type, data1);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Slot 13: forwards a parameter to the components (their slot 6),
+    /// unless flag bit 4. A game component takes index 13 as its message
+    /// data; a meta component passes it to its child's slot 13.
+    pub fn forward_parameter(&mut self, id: EffectId, index: u32, value: u64) -> bool {
+        self.forward_at(id, index, value, 0)
+    }
+
+    fn forward_at(&mut self, id: EffectId, index: u32, value: u64, depth: u32) -> bool {
+        if depth > MAX_DEPTH {
+            return false;
+        }
+        let Some(e) = self.effects.get_mut(&id) else {
+            return false;
+        };
+        if e.flags & effect_flag::NO_FORWARD != 0 {
+            return true;
+        }
+        let mut children = Vec::new();
+        for c in e.comps.iter_mut().flatten() {
+            match c {
+                Component::Game(g) => g.set_parameter(index, value),
+                Component::Meta(child) => children.push(*child),
+                _ => {}
+            }
+        }
+        for c in children {
+            self.forward_at(c, index, value, depth + 1);
+        }
+        true
+    }
+
+    // ---- the tick (§6) ------------------------------------------------------------------------
+
+    /// `DoAnimationTick` (§6): `dt' := trunc(r24(µs × dilation))` (µs
+    /// without a simulator), added to the total; every started effect on the
+    /// active list, in list order, is updated with `dt = r24(dt' × 1e-6)`
+    /// seconds. Runs while the game is paused.
+    pub fn tick(&mut self, us: u32, host: &mut dyn EffectsHost) {
+        let dtp: u64 = match host.simulator() {
+            Some(d) => {
+                let v = r24(f64::from(us) * f64::from(d));
+                if v.is_nan() || v <= 0.0 {
+                    0
+                } else {
+                    (v.trunc() as u64).min(u64::from(u32::MAX))
+                }
+            }
+            None => u64::from(us),
+        };
+        self.total_us = self.total_us.wrapping_add(dtp);
+        self.total_seconds = r24(self.total_us as f64 * 1e-6) as f32;
+        let dt = r24(dtp as f64 * 1e-6) as f32;
+        self.stats.ticks += 1;
+        for id in self.active.clone() {
+            if self.is_started(id) {
+                self.update_effect(id, dt, host, 0);
+            }
+        }
+    }
+
+    /// The effect's update (`0x005BEA10`): each component, in order, whose
+    /// `IsActive` holds.
+    fn update_effect(&mut self, id: EffectId, dt: f32, host: &mut dyn EffectsHost, depth: u32) {
+        if depth > MAX_DEPTH {
+            return;
+        }
+        let n = self.effects.get(&id).map_or(0, |e| e.comps.len());
+        for i in 0..n {
+            let child = match self
+                .effects
+                .get_mut(&id)
+                .and_then(|e| e.comps.get_mut(i))
+                .and_then(Option::as_mut)
+            {
+                Some(Component::Brush(b)) if b.is_active() => {
+                    b.update(dt, host);
+                    None
+                }
+                Some(Component::Game(g)) if g.is_active() => {
+                    g.update(dt, host);
+                    None
+                }
+                Some(Component::Meta(c)) => Some(*c),
+                _ => None,
+            };
+            if let Some(c) = child {
+                if self.nested_update && self.is_started(c) {
+                    self.update_effect(c, dt, host, depth + 1);
+                }
+            }
+        }
+    }
+
+    // ---- finishing (§7) -----------------------------------------------------------------------
+
+    /// FreeCity4's deterministic finish point: runs the sweep in
+    /// [`FinishMode::Hook`] (true), nothing in the compat mode (false).
+    pub fn finish_hook(&mut self, host: &mut dyn EffectsHost) -> bool {
+        if self.finish_mode != FinishMode::Hook {
+            return false;
+        }
+        self.sweep(host);
+        true
+    }
+
+    /// The 3D view's draw pass (`Update(SC4DrawContext)`): runs the sweep in
+    /// [`FinishMode::DrawPass`] (true), nothing in the hook mode (false).
+    pub fn draw_pass(&mut self, host: &mut dyn EffectsHost) -> bool {
+        if self.finish_mode != FinishMode::DrawPass {
+            return false;
+        }
+        self.sweep(host);
+        true
+    }
+
+    /// `DeactivateUnusedVisualEffects` (§7): tests each active effect in list
+    /// order; finishes those that are done (`Stop(1)`, then the end message);
+    /// recycles the done ones only the manager holds.
+    fn sweep(&mut self, host: &mut dyn EffectsHost) {
+        self.stats.sweeps += 1;
+        for id in self.active.clone() {
+            let Some(e) = self.effects.get(&id) else { continue };
+            let done = if !e.started || e.index < 0 {
+                true
+            } else if e.flags & effect_flag::NO_AUTO_STOP != 0
+                || self.held(id, host)
+                || self
+                    .effects
+                    .get(&id)
+                    .is_some_and(|e| e.flags & effect_flag::FINISH_AFTER_SOFT_STOP != 0 && !e.stopping)
+            {
+                false
+            } else {
+                self.stop_effect(id, 1, host, 0);
+                if let Some(&(t, d1)) = self.effects.get(&id).map(|e| &e.end_message) {
+                    if t != 0 {
+                        host.post(EffectPost {
+                            msg_type: t,
+                            data1: d1,
+                            data2: 0,
+                            data3: 0,
+                        });
+                        self.stats.end_posts += 1;
+                    }
+                }
+                true
+            };
+            if done && self.effects.get(&id).is_some_and(|e| e.refs <= 1) {
+                self.recycle(id);
+            }
+        }
+    }
+
+    /// Whether a component whose flag bit 0 is clear still reports
+    /// `IsActive` (tested in component order, §7 rule 2).
+    fn held(&self, id: EffectId, host: &mut dyn EffectsHost) -> bool {
+        let Some(e) = self.effects.get(&id) else { return false };
+        let Some(desc) = self
+            .dir
+            .as_ref()
+            .and_then(|d| usize::try_from(e.index).ok().and_then(|i| d.effects.get(i)))
+        else {
+            return false;
+        };
+        for (i, c) in e.comps.iter().enumerate() {
+            let Some(c) = c else { continue };
+            if desc.components.get(i).map_or(0, |r| r.flags) & 1 != 0 {
+                continue;
+            }
+            let active = match c {
+                Component::Brush(b) => b.is_active(),
+                Component::Game(g) => g.is_active(),
+                Component::Meta(child) => self.is_started(*child),
+                Component::Render { kind, .. } => host.render_component_active(id, i as u32, *kind),
+            };
+            if active {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn recycle(&mut self, id: EffectId) {
+        self.active.retain(|&a| a != id);
+        if let Some(e) = self.effects.remove(&id) {
+            for c in e.comps.into_iter().flatten() {
+                if let Component::Meta(child) = c {
+                    self.release(child);
+                }
+            }
+            self.stats.recycled += 1;
+        }
+    }
+
+    /// `Shutdown` (slot 4) [choice: not in the spec]: every started effect
+    /// is hard-stopped (no end message), then all are dropped.
+    pub fn shutdown(&mut self, host: &mut dyn EffectsHost) {
+        for id in self.active.clone() {
+            if self.is_started(id) {
+                self.stop_effect(id, 1, host, 0);
+            }
+        }
+        self.effects.clear();
+        self.active.clear();
+        self.new_list.clear();
+    }
+
+    // ---- introspection --------------------------------------------------------------------------
+
+    pub fn effect(&self, id: EffectId) -> Option<EffectInfo> {
+        let e = self.effects.get(&id)?;
+        Some(EffectInfo {
+            id,
+            name: e.name.clone(),
+            index: e.index,
+            flags: e.flags,
+            refs: e.refs,
+            started: e.started,
+            stopping: e.stopping,
+            end_message: e.end_message,
+            position: e.position,
+            components: e.comps.iter().flatten().count(),
+            active: self.active.contains(&id),
+        })
+    }
+
+    /// The component slots of an effect, one per description component
+    /// (`None` = not built).
+    pub fn components(&self, id: EffectId) -> Option<&[Option<Component>]> {
+        self.effects.get(&id).map(|e| e.comps.as_slice())
+    }
+
+    /// The `n`-th built component of `kind` ([`component_type`]) of an
+    /// effect, in component order.
+    pub fn component_of_kind(&self, id: EffectId, kind: u8, n: usize) -> Option<&Component> {
+        self.components(id)?
+            .iter()
+            .flatten()
+            .filter(|c| match c {
+                Component::Brush(_) => kind == component_type::BRUSH,
+                Component::Game(_) => kind == component_type::GAME,
+                Component::Meta(_) => kind == component_type::META,
+                Component::Render { kind: k, .. } => *k == kind,
+            })
+            .nth(n)
+    }
+
+    /// The active list, in order.
     pub fn active_list(&self) -> &[EffectId] {
         &self.active
     }
 
-    /// The new list (§2).
-    pub fn new_list(&self) -> &[EffectId] {
-        &self.pending
-    }
-
-    /// The directory this manager reads descriptions from.
-    pub fn directory(&self) -> &EffectDirectory {
-        &self.directory
-    }
-
-    // ---- creation (§4) ----
-
-    /// §4.1 slot 7 `CreateVisualEffect(const char* name, cISC4VisualEffect**)`.
-    ///
-    /// 1. A null `name` or a null `out` returns false.
-    /// 2. The name is lowercased. If no description has this name, return false
-    ///    and leave `*out` alone.
-    /// 3. `FindEffectDesc` (§4.1 step 3).
-    /// 4. Make a new effect holding the name and the index, on the new list.
-    /// 5. AddRef it into `*out`.
-    /// 6. Activate the new effects (§5.1).
-    /// 7. Return true.
-    ///
-    /// An effect with index −1 has no components: it starts and stops without
-    /// doing anything, and the draw pass counts it as done without stopping it,
-    /// so it **never posts its end message** (§4.1 *[quirk]*).
-    pub fn create_visual_effect(
-        &mut self,
-        name: &[u8],
-        host: &mut dyn EffectsHost,
-        random: &mut dyn EffectsRandom,
-    ) -> Option<EffectId> {
-        if name.is_empty() {
-            return None;
-        }
-        let lower = super::directory::lowercase(name);
-        match self.directory.find(&lower, self.max_priority) {
-            Found::NoSuchName => None,
-            found => {
-                let index = match found {
-                    Found::Index(i) => i,
-                    // §4.1 step 3.3: the call still succeeds with index −1.
-                    Found::BelowPriority | Found::NoSuchName => -1,
-                };
-                let flags = self.directory.description(index).map(|d| d.flags).unwrap_or(0);
-                let id = self.alloc(VisualEffect::new(lower, index, flags));
-                self.activate_new(host, random);
-                Some(id)
-            }
-        }
-    }
-
-    /// §4.2 slot 6 `CreateVisualEffect(uint32, uint32, cISC4VisualEffect**)`:
-    /// the same as §4.1 except that the description is found by an ID pair.
-    /// *[choice]* the directory keys by name, so an ID pair is resolved to the
-    /// description index it names.
-    pub fn create_visual_effect_by_id(
-        &mut self,
-        index: u32,
-        host: &mut dyn EffectsHost,
-        random: &mut dyn EffectsRandom,
-    ) -> Option<EffectId> {
-        if index as usize >= self.directory.descriptions().len() {
-            return None;
-        }
-        let desc = &self.directory.descriptions()[index as usize];
-        let id = self.alloc(VisualEffect::new(desc.name.clone(), index as i32, desc.flags));
-        self.activate_new(host, random);
-        Some(id)
-    }
-
-    /// §4.2 slot 5 `HasVisualEffect`: whether a name exists.
-    pub fn has_visual_effect(&self, name: &[u8]) -> bool {
-        let lower = super::directory::lowercase(name);
-        !matches!(self.directory.find(&lower, u32::MAX), Found::NoSuchName)
-    }
-
-    /// `NewVisualEffect` (§4.1 step 4): put it on the new list.
-    fn alloc(&mut self, effect: VisualEffect) -> EffectId {
-        let id = self.effects.len() as EffectId;
-        self.effects.push(Some(effect));
-        self.pending.push(id);
-        id
-    }
-
-    // ---- activation and component building (§5) ----
-
-    /// §5.1 `ActivateNewVisualEffects`. Unless the sweep flag `+0x1B4` is set,
-    /// repeat up to 10 times while the new list is not empty: move the new
-    /// effects to the active list and build each one's components.
-    ///
-    /// A meta component creates its child through the same path, so the child
-    /// lands on the new list and is built in the next round — nesting is
-    /// limited to 10 levels per activation.
-    pub fn activate_new(&mut self, host: &mut dyn EffectsHost, random: &mut dyn EffectsRandom) {
-        if self.sweeping {
-            return;
-        }
-        for _ in 0..10 {
-            if self.pending.is_empty() {
-                return;
-            }
-            let batch: Vec<EffectId> = std::mem::take(&mut self.pending);
-            for id in batch {
-                self.active.push(id);
-                self.build_components(id, StartMode::Normal, host, random);
-            }
-        }
-    }
-
-    /// §5.2 `UpdateVisualEffect(effect, 1)`: which components exist at the
-    /// current level of detail.
-    ///
-    /// - a component that leaves the range is hard-stopped (`Stop(1)`) and
-    ///   released;
-    /// - a component that enters the range is created. If the effect is started
-    ///   and not stopping, the new component is started with `Start(1)`; a newly
-    ///   activated effect's components use `Start(0)`.
-    ///
-    /// Creating a table component calls that description's factory, which draws
-    /// random numbers for a brush (§8.2).
-    pub fn build_components(
-        &mut self,
-        id: EffectId,
-        mode: StartMode,
-        host: &mut dyn EffectsHost,
-        random: &mut dyn EffectsRandom,
-    ) {
-        let lod = self.lod;
-        let index = match self.effect(id) {
-            Some(e) => e.index,
-            None => return,
-        };
-        let Some(desc) = self.directory.description(index).cloned() else {
-            // Index −1: no components at all (§4.1).
-            return;
-        };
-
-        // §5.3: run the select groups over the whole component list first.
-        let placements: Vec<SelectPlacement> = desc
-            .components
-            .iter()
-            .map(|c| SelectPlacement::member(c.select_group, c.select_weight))
-            .collect();
-        let created = select_components(&placements, || super::select::draw_select(&mut self.select));
-
-        let mut built: Vec<RuntimeComponent> = Vec::new();
-        let mut meta: Vec<(usize, Vec<u8>)> = Vec::new();
-        for (i, c) in desc.components.iter().enumerate() {
-            if !c.exists_at(lod) || !created[i] {
-                continue;
-            }
-            let mut comp = RuntimeComponent::from_description(c.clone());
-            if c.is_meta() {
-                // §5.1: a meta component creates its child through the same
-                // path, so the child lands on the new list and is built in the
-                // next round. Nesting is limited to 10 levels per activation.
-                meta.push((built.len(), c.name.clone()));
-                comp.state = ComponentState::Meta {
-                    child: EffectId::MAX,
-                    child_started: false,
-                };
-            } else {
-                comp.state = Self::make_state(c, random);
-            }
-            built.push(comp);
-        }
-
-        let started = self.effect(id).is_some_and(|e| e.started && !e.stopping);
-        if let Some(e) = self.effects[id as usize].as_mut() {
-            e.components = built;
-            e.built_for_lod = Some(lod);
-            if started {
-                for c in &mut e.components {
-                    Self::start_component_static(c, mode, host);
-                }
-            }
-        }
-
-        for (pos, name) in meta {
-            let child = self.spawn_meta_child(&name);
-            if let Some(e) = self.effects[id as usize].as_mut() {
-                if let Some(RuntimeComponent {
-                    state: ComponentState::Meta { child: slot, .. },
-                    ..
-                }) = e.components.get_mut(pos)
-                {
-                    *slot = child;
-                }
-            }
-        }
-    }
-
-    /// §5.1: a meta component's child effect, created through the same path and
-    /// left on the new list for the next activation round.
-    fn spawn_meta_child(&mut self, name: &[u8]) -> EffectId {
-        let lower = super::directory::lowercase(name);
-        let (index, flags) = match self.directory.find(&lower, self.max_priority) {
-            Found::Index(i) => {
-                let f = self.directory.description(i).map(|d| d.flags).unwrap_or(0);
-                (i, f)
-            }
-            // §4.1 step 3.3: an unqualified name still creates an effect with
-            // index -1.
-            Found::BelowPriority | Found::NoSuchName => (-1, 0),
-        };
-        self.alloc(VisualEffect::new(lower, index, flags))
-    }
-
-    /// §7: a meta component's `IsActive` is **the child effect's `started`
-    /// byte** (§10.1), so a parent cannot finish before a previous sweep
-    /// finished the child.
-    fn sync_meta_components(&mut self) {
-        let mut updates: Vec<(EffectId, usize, bool)> = Vec::new();
-        for (i, slot) in self.effects.iter().enumerate() {
-            let Some(e) = slot else { continue };
-            for (j, c) in e.components.iter().enumerate() {
-                if let ComponentState::Meta { child, .. } = &c.state {
-                    let started = self.effect(*child).is_some_and(|child| child.started);
-                    updates.push((i as EffectId, j, started));
-                }
-            }
-        }
-        for (id, j, started) in updates {
-            if let Some(e) = self.effects[id as usize].as_mut() {
-                if let Some(RuntimeComponent {
-                    state: ComponentState::Meta { child_started, .. },
-                    ..
-                }) = e.components.get_mut(j)
-                {
-                    *child_started = started;
-                }
-            }
-        }
-    }
-
-    /// The factory of §5.2: a table component's description decides what is
-    /// built, and a brush factory draws random numbers (§8.2).
-    fn make_state(c: &ComponentDesc, random: &mut dyn EffectsRandom) -> ComponentState {
-        match c.kind {
-            component_type::BRUSH => {
-                let record = super::shipped::BRUSH_RECORDS
-                    .get(c.index as usize)
-                    .copied()
-                    .unwrap_or(super::shipped::BRUSH_RECORDS[0]);
-                ComponentState::Brush(BrushEffect::new(record, random))
-            }
-            component_type::GAME => {
-                let record = super::shipped::GAME_RECORDS
-                    .get(c.index as usize)
-                    .copied()
-                    .unwrap_or(super::shipped::GAME_RECORDS[0]);
-                ComponentState::Game(GameEffect::new(record))
-            }
-            component_type::META => ComponentState::Meta {
-                child: EffectId::MAX,
-                child_started: false,
-            },
-            kind => ComponentState::Stub { kind, active: false },
-        }
-    }
-
-    // ---- the effect's own Start / Stop (§11.1) ----
-
-    /// §11.1 `Start(mode)`: start each component with the same mode; register
-    /// with the manager unless mode is 2; post the start message if one is set;
-    /// `started := 1`, `stopping := 0`.
-    pub fn start(&mut self, id: EffectId, mode: StartMode, host: &mut dyn EffectsHost) -> bool {
-        let Some(e) = self.effects[id as usize].as_mut() else {
-            return false;
-        };
-        if e.started {
-            return false;
-        }
-        for c in &mut e.components {
-            Self::start_component_static(c, mode, host);
-        }
-        e.started = true;
-        e.stopping = false;
-        // §11.2: a meta component's `Start` is the child effect's `Start`, so
-        // starting the parent starts its children too.
-        let children: Vec<EffectId> = e
-            .components
-            .iter()
-            .filter_map(|c| match &c.state {
-                ComponentState::Meta { child, .. } if *child != EffectId::MAX => Some(*child),
-                _ => None,
-            })
-            .collect();
-        for child in children {
-            self.start(child, mode, host);
-        }
-        true
-    }
-
-    fn start_component_static(c: &mut RuntimeComponent, _mode: StartMode, host: &dyn EffectsHost) {
-        match &mut c.state {
-            ComponentState::Meta { child_started, .. } => {
-                // §11.2: a meta component's slot 0 is the child visual
-                // effect's `Start`. The child is started by
-                // [`EffectsManager::start`], which owns the arena.
-                *child_started = true;
-                let _ = host;
-            }
-            ComponentState::Brush(b) => {
-                // §8.3 `Start`: `prev := cur`, `active := 1`, `longOp := 0`,
-                // `acc := 0`, `t := 0`.
-                b.start();
-            }
-            ComponentState::Game(g) => {
-                if g.start() {
-                    for p in g.start_pauses() {
-                        host.pause(p);
-                    }
-                }
-            }
-            ComponentState::Stub { active, .. } => *active = true,
-        }
-    }
-
-    /// §11.1 `Stop(mode)`: mode 0 on an effect with flag bit 2 ("hard stop")
-    /// becomes mode 1; stop each component with that mode; unregister unless
-    /// mode is 2. Mode 0 is a soft stop (`stopping := 1`); any other mode also
-    /// clears `started`.
-    ///
-    /// Returns the long terrain operations the brush components ended.
-    pub fn stop(&mut self, id: EffectId, mode: u32, host: &mut dyn EffectsHost) -> StopOutcome {
-        let mut outcome = StopOutcome::default();
-        let Some(e) = self.effects[id as usize].as_mut() else {
-            return outcome;
-        };
-        // Flag bit 2 ("hard stop"): a soft stop becomes a hard one (§11.1).
-        let mode = if mode == 0 && e.flags & 4 != 0 { 1 } else { mode };
-        for c in &mut e.components {
-            match &mut c.state {
-                ComponentState::Brush(b) => {
-                    if b.stop() {
-                        outcome.ended_long_operation = true;
-                    }
-                }
-                ComponentState::Game(g) => {
-                    if g.stop() {
-                        for p in g.stop_pauses() {
-                            host.pause(p);
-                        }
-                    }
-                }
-                ComponentState::Stub { active, .. } => *active = false,
-                ComponentState::Meta { child_started, .. } => *child_started = false,
-            }
-        }
-        if mode != 0 {
-            e.started = false;
-            e.stopping = false;
-        } else {
-            e.stopping = true;
-        }
-        outcome
-    }
-
-    // ---- the tick (§6) ----
-
-    /// §6 `DoAnimationTick`, on `kSC4MessageAnimationTick` `0x86AD10EE`
-    /// (data2 = elapsed microseconds).
-    ///
-    /// 1. `dt' := trunc(r24(µs × dilation))`; with no simulator, `dt' := µs`.
-    /// 2. Add `dt'` to the total (`+0x1B8`) and store the total in seconds at
-    ///    `+0x1BC`.
-    /// 3. For each effect on the active list, in list order, that is started:
-    ///    call its update with `dt = r24(dt' × 1e-6)` seconds, and each of its
-    ///    components in component order whose `IsActive` is true.
-    ///
-    /// *[quirk]* §15 quirk 3: the tick does **not** stop while the game is
-    /// paused, so effects keep running (with dilation 1).
-    ///
-    /// **This never finishes an effect and never posts an end message** (EF2,
-    /// §7): that happens only in the draw pass.
-    pub fn animation_tick(&mut self, us: u32, host: &mut dyn EffectsHost, random: &mut dyn EffectsRandom) {
-        // 1. Dilate.
-        let dilation = host.animation_time_dilation();
-        let dt_prime = crate::x87::ftol32(crate::x87::r24(f64::from(us) * f64::from(dilation))).max(0) as u64;
-        // 2. Totals.
-        self.total_us = self.total_us.saturating_add(dt_prime);
-        self.total_seconds = crate::x87::r24(self.total_us as f64 * 1e-6) as f32;
-        let dt = crate::x87::r24(dt_prime as f64 * 1e-6) as f32;
-
-        // 3. The active list, in order. A meta component reports its child's
-        // `started` byte (§10.1), so refresh those first.
-        self.sync_meta_components();
-        let order: Vec<EffectId> = self.active.clone();
-        for id in order {
-            let Some(e) = self.effect(id) else { continue };
-            if !e.started {
-                continue;
-            }
-            self.update_effect(id, dt, host, random);
-        }
-        self.activate_new(host, random);
-    }
-
-    /// §6 step 3.3: update the effect's components, in component order, whose
-    /// `IsActive` is true. A brush or game component therefore acts only inside
-    /// this tick, and only while both it and its effect are active.
-    fn update_effect(&mut self, id: EffectId, dt: f32, host: &mut dyn EffectsHost, random: &mut dyn EffectsRandom) {
-        let Some(e) = self.effects[id as usize].as_mut() else {
-            return;
-        };
-        for i in 0..e.components.len() {
-            if !e.components[i].is_active() {
-                continue;
-            }
-            match &mut e.components[i].state {
-                ComponentState::Brush(b) => {
-                    if b.needs_long_operation() {
-                        b.begin_long_operation();
-                        host.begin_long_terrain_operation();
-                    }
-                    let one_shot = b.record.one_shot;
-                    let n = if one_shot {
-                        b.update_one_shot()
-                    } else {
-                        b.update_stroke(dt)
-                    };
-                    let cells = host.city_cells();
-                    let apps = b.applications(n, |x, z| host.location_in_bounds(x, z));
-                    if one_shot && b.long_operation_open() {
-                        // A one-shot never opens one; belt and braces.
-                        host.end_long_terrain_operation();
-                    }
-                    let ended = !b.is_active() && b.long_operation_open();
-                    if ended {
-                        b.stop();
-                        host.end_long_terrain_operation();
-                    }
-                    for a in &apps {
-                        host.apply_terrain_brush(b.record.brush_id, a);
-                    }
-                    let _ = cells;
-                    let _ = random;
-                }
-                ComponentState::Game(g) => {
-                    let cells = host.city_cells();
-                    let u = g.update(dt, cells);
-                    for a in &u.actions {
-                        host.perform(a);
-                    }
-                    for p in &u.undo_pauses {
-                        host.pause(*p);
-                    }
-                }
-                ComponentState::Stub { active, .. } => {
-                    // Animations stay stubbed: a stub component's lifetime is
-                    // driven only by Start/Stop.
-                    let _ = active;
-                }
-                ComponentState::Meta { .. } => {}
-            }
-        }
-    }
-
-    // ---- the draw pass (§7) ----
-
-    /// §7 `Update(SC4DrawContext)` → `DeactivateUnusedVisualEffects` →
-    /// `CheckFinished`.
-    ///
-    /// **This is the only place an effect finishes and the only place an end
-    /// message is posted** (EF2, §7, §15 quirk 1, proven). It is reachable only
-    /// from the 3D view's draw pass. Do **not** call it from the tick; a
-    /// replacement that must work without a 3D view has to run this same sweep
-    /// from somewhere else of its own choosing.
-    ///
-    /// Returns the effects that finished, in list order.
-    pub fn draw_pass_sweep(&mut self, host: &mut dyn EffectsHost) -> Vec<EffectId> {
-        self.sweeping = true;
-        // A meta component reports its child's `started` byte (§10.1).
-        self.sync_meta_components();
-        let mut finished = Vec::new();
-        let order: Vec<EffectId> = self.active.clone();
-        for id in order {
-            let Some(e) = self.effect(id) else { continue };
-            match e.sweep() {
-                SweepResult::DoneWithoutMessage => {
-                    // Rule 1: counted as done at once, not stopped, posts
-                    // nothing. A done effect whose only reference is the
-                    // manager's is recycled.
-                    self.recycle_if_unreferenced(id);
-                    finished.push(id);
-                }
-                SweepResult::StillRunning => {}
-                SweepResult::Finished { post_end_message } => {
-                    let (msg_type, data1) = {
-                        let e = self.effect(id).unwrap();
-                        (e.end_message_type, e.end_message_data1)
-                    };
-                    self.stop(id, 1, host);
-                    if post_end_message {
-                        host.post(msg_type, data1, 0, 0);
-                    }
-                    self.recycle_if_unreferenced(id);
-                    finished.push(id);
-                }
-            }
-        }
-        self.sweeping = false;
-        // Activation is deferred while the flag is set (§5.1).
-        let _ = std::mem::take(&mut self.pending);
-        finished
-    }
-
-    /// §7: a done effect whose only remaining reference is the manager's
-    /// (reference count 1) leaves the active list and is recycled: its name,
-    /// IDs and index are reset. A done effect that someone still holds stays on
-    /// the list.
-    fn recycle_if_unreferenced(&mut self, id: EffectId) -> bool {
-        let refs = self.effect(id).map(|e| e.refcount).unwrap_or(0);
-        if refs > 1 {
-            return false;
-        }
-        self.active.retain(|&x| x != id);
-        if let Some(e) = self.effects[id as usize].as_mut() {
-            e.name.clear();
-            e.index = -1;
-            e.components.clear();
-            e.started = false;
-            e.stopping = false;
-            e.end_message_type = 0;
-            e.end_message_data1 = 0;
-        }
-        self.effects[id as usize] = None;
-        true
-    }
-
-    // ---- the effect's setters (§11.1) ----
-
-    /// Slot 10 `SetEndMessage(uint32 type, uint32 data1)`.
-    pub fn set_end_message(&mut self, id: EffectId, msg_type: u32, data1: u64) {
-        if let Some(e) = self.effects[id as usize].as_mut() {
-            e.end_message_type = msg_type;
-            e.end_message_data1 = data1;
-        }
-    }
-
-    /// Slot 17 `TestFlag(n)`, n ≤ 8 (§11.1).
-    pub fn test_flag(&self, id: EffectId, bit: u32) -> bool {
-        self.effect(id).is_some_and(|e| bit < 8 && e.flags & (1u32 << bit) != 0)
-    }
-
-    /// Slot 5 `IsStarted` / slot 6 `IsStopping` (§11.1).
-    pub fn is_started(&self, id: EffectId) -> bool {
-        self.effect(id).is_some_and(|e| e.started)
-    }
-
-    /// Whether a soft stop is in progress.
-    pub fn is_stopping(&self, id: EffectId) -> bool {
-        self.effect(id).is_some_and(|e| e.stopping)
-    }
-
-    /// `UpdateActiveVisualEffects` (§5.2), on a zoom change or
-    /// `kSC4MessagePostAppServicesInitComplete`.
-    pub fn update_active(&mut self, _host: &mut dyn EffectsHost, _random: &mut dyn EffectsRandom) {
-        // Component membership is recomputed on the next build. The shipped
-        // data still exercises this path through the LOD window (§5.2).
-    }
-}
-
-/// What a `Stop` did (§11.1).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct StopOutcome {
-    /// A brush component ended a long terrain operation (§8.3).
-    pub ended_long_operation: bool,
-}
-
-#[cfg(test)]
-impl EffectsManager {
-    /// Reaches into an effect's components for a test.
-    pub fn effects_mut_for_test(&mut self, id: EffectId) -> &mut VisualEffect {
-        self.effects[id as usize].as_mut().expect("live effect")
-    }
-
-    /// Sets the sweep flag the way `DeactivateUnusedVisualEffects` does.
-    pub fn begin_sweep_for_test(&mut self) {
-        self.sweeping = true;
-    }
-
-    /// Clears it the way the end of `Update` does (§5.1).
-    pub fn end_sweep_for_test(&mut self) {
-        self.sweeping = false;
-    }
-
-    /// Rebuilds one effect's components (§5.2), as a zoom change does.
-    pub fn build_components_for_test(
-        &mut self,
-        id: EffectId,
-        host: &mut dyn EffectsHost,
-        random: &mut dyn EffectsRandom,
-    ) {
-        self.build_components(id, StartMode::Normal, host, random);
+    /// Effects alive (on either list).
+    pub fn effect_count(&self) -> usize {
+        self.effects.len()
     }
 }
