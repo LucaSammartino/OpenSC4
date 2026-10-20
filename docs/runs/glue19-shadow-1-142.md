@@ -1,5 +1,5 @@
 tag: glue19-shadow-1-142
-run: 142
+run: 192
 date: 2026-10-16
 lane: glue19
 dll: FreeCity4-glue19

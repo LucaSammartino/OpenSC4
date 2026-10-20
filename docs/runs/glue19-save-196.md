@@ -1,5 +1,5 @@
 tag: glue19-save-196
-run: 196
+run: 190
 date: 2026-10-20
 lane: glue19
 dll: FreeCity4-glue19

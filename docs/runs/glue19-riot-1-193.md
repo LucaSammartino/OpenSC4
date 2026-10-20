@@ -1,5 +1,5 @@
 tag: glue19-riot-1-193
-run: 193
+run: 187
 date: 2026-10-20
 lane: glue19
 dll: FreeCity4-glue19
