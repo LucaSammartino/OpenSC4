@@ -1295,7 +1295,10 @@ def cmd_land(args):
     for lane in cur["lanes"]:
         for f in queue_files():
             if f.stem == lane:
-                f.rename(f.with_suffix(".merged.json"))
+                dst = f.with_suffix(".merged.json")
+                if dst.exists():  # a stale marker from a batch that crashed mid-land
+                    dst.unlink()
+                f.rename(dst)
     log(f"main is now {main_sha[:10]}; batch {cur['id']} landed")
     print(json.dumps({"main": main_sha, "lanes": cur["lanes"], "batch": cur["id"]}, indent=2))
     return 0
