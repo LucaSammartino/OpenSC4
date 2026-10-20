@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 74;
+pub const FC4_ABI_VERSION: u32 = 75;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -905,6 +905,7 @@ pub mod neighbors_shadow;
 pub mod network_geometry;
 pub mod network_manager;
 pub mod network_rules;
+pub mod network_tools;
 pub mod occupant_manager;
 pub mod ordinance;
 pub mod panic_log;
@@ -926,9 +927,9 @@ pub mod residential_shadow;
 pub mod sinks;
 pub mod stream;
 pub mod terrain;
+pub mod tract_developer;
 pub mod traffic;
 pub mod traffic_shadow;
-pub mod tract_developer;
 pub mod tutorial;
 pub mod ui_windows;
 pub mod weather;
@@ -1018,6 +1019,9 @@ mod network_manager_tests;
 mod network_rules_tests;
 
 #[cfg(test)]
+mod network_tools_tests;
+
+#[cfg(test)]
 mod occupant_manager_tests;
 
 #[cfg(test)]
@@ -1072,9 +1076,10 @@ mod terrain_tests;
 mod test_streams;
 
 #[cfg(test)]
-mod traffic_tests;
-#[cfg(test)]
 mod tract_developer_tests;
+
+#[cfg(test)]
+mod traffic_tests;
 #[cfg(test)]
 mod tutorial_tests;
 

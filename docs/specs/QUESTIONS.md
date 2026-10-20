@@ -60,6 +60,7 @@ generated index: the questions live one file per spec, so read only the file for
 | NG | neighbors, network-geometry |
 | NM | network-manager |
 | NR | network-rules |
+| NT | network-tools |
 | OM | occupant-manager |
 | PD | port-developers |
 | PF | pathfinder |
@@ -118,6 +119,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 9 | NM10 | - |
 | network-rules | 2 | 7 | NR13 | questions/network-rules.md |
+| network-tools | 8 | 0 | NT14 | questions/network-tools.md |
 | occupant-manager | 0 | 5 | OM9 | - |
 | ordinance | 0 | 1 | SV3 | - |
 | parks | 0 | 11 | PK12 | - |
@@ -138,4 +140,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **27** | **966** | | |
+| **total** | **35** | **966** | | |
