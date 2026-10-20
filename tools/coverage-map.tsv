@@ -403,6 +403,10 @@ cSC4GameDataRegistry	application	framework	-	-	-	-
 cSC4AutoGamePause	application	framework	-	-	-	-
 # expansion packs and optional features: the [Features] INIs (0, 0x8A5971C5, 0x2B563701+k); one instance owned by cSC4App
 cSC4FeatureManager	feature manager	framework	feature-manager.md	-	-	-
+# the day-number calendar, wall-clock instants and the COM date the simulator hands out (before the cGZ*/cRZ* catch-alls)
+cRZDate	dates and times	framework	dates.md	-	-	-
+cGZDate	dates and times	framework	dates.md	-	-	-
+cRZTime	dates and times	framework	dates.md	-	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource*	persistence and resources	framework	-	-	-	-
 cGZPropertySet*	persistence and resources	framework	-	-	-	-

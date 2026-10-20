@@ -40,6 +40,7 @@ generated index: the questions live one file per spec, so read only the file for
 | DP | dispatch |
 | DQ | demand, demolition |
 | DS | disasters |
+| DT | dates |
 | EF | effects |
 | EH | residential-education-health |
 | EX | data-formats |
@@ -100,6 +101,7 @@ generated index: the questions live one file per spec, so read only the file for
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 0 | 40 | EX41 | - |
+| dates | 1 | 0 | DT2 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 1 | 40 | DS41 | questions/disasters.md |
@@ -142,4 +144,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **30** | **966** | | |
+| **total** | **31** | **966** | | |

@@ -153,17 +153,19 @@ va	name	source	confidence	note
 00416030	cSC4AdvisorSafety::update_occupant_variables	auto:A	high	mac 00337768 score 0.817 support 0
 004166b0	cSC4AdvisorSafety::update_variables	auto:A	high	mac 00337fe2 score 0.906 support 0
 004169e0	cSC4AdvisorSafety::DoMessage	auto:A	high	mac 003383f8 score 0.866 support 0
-00417730	cRZTime::LocalSecs	auto:B0	medium	mac 005f6b30 score 0.824 support 2.0
+00417600	cRZTime::BeginDST	manual:dates.tsv	high	dates.md §2.2; descriptive name; 1974 Jan 6, 1975 Feb 23, else Sunday on or before Apr 8 (0x009130BE(4, 8, y) then 0x00912C42(7)), 02:00 + _timezone
+004176e0	cRZTime::EndDST	manual:dates.tsv	high	dates.md §2.2; descriptive name; Sunday on or before Oct 31, 01:00 + _timezone
+00417730	cRZTime::IsDST	manual:dates.tsv	high	dates.md §2.2; was cRZTime::LocalSecs; false when _daylight (0x00B18BAC) is 0, else BeginDST(Y) <= t < EndDST(Y)
 004177b0	gCombineGUIDs	auto:B6	low	mac 00303be6 score 0.964 support 1.0
 0041783a	lib::Catch@0041783a	library	medium	Function ID
-00417840	cRZDate::Set	auto:B1	medium	mac 000287d8 score 0.952 support 1.0
-00417870	cRZTime::Hour	auto:D	medium	mac 005f6b60 score 0.5 support 2
-004178b0	cRZTime::Minute	auto:D	medium	mac 005f6ba8 score 0.5 support 2
+00417840	cRZTime::LocalSecs	manual:dates.tsv	high	dates.md §2.3; was cRZDate::Set; t - _timezone (0x00B18BA8), plus 3600 under IsDST; called by cRZDate::Set(cRZTime) 0x00913223
+00417870	cRZTime::Hour	manual:dates.tsv	high	dates.md §2.3; (LocalSecs mod 86400) / 3600
+004178b0	cRZTime::Minute	manual:dates.tsv	high	dates.md §2.3; (LocalSecs mod 3600) / 60
 004178f0	cADVString::init	auto:A	high	mac 00303a68 score 0.861 support 0
 004179a0	gAdviceMessageBox	auto:D	medium	mac 00303b7c score 0.5 support 2
 00417a00	cADVString::FromScriptText	auto:B0	medium	mac 00303dbe score 0.917 support 3.0
 00417a30	cADVString::cADVString	auto:B0	medium	mac 00303b1c score 0.914 support 2.0
-00417a70	cGZDate::Year	auto:B4	medium	mac 0002834c score 0.868 support 3.0
+00417a70	std::basic_string<char>::push_back	manual:dates.tsv	high	dates.md lane; was cGZDate::Year; appends one char and the terminating NUL, growing through 0x0040F1B0; callers gConvertURLFromEndodedForm, cSC4MySim::GetPersonalName, std::operator+, cSC4App::PreFrameWorkInit
 00417af0	gAdviceDetokenizerFunction	auto:A	high	mac 00303df2 score 0.778 support 0
 004184b0	gConvertURLFromEndodedForm	auto:B1	medium	mac 00303cc2 score 0.904 support 2.0
 00418630	cSC4AdvisorSystem::GetGZCLSID	auto:C	low	mac 006c0028 score 1.0 support 1
@@ -1123,13 +1125,13 @@ va	name	source	confidence	note
 0046fe30	cSC4FireOccupant::QueryInterface	auto:C	high	mac 00348790 score 1.0 support 1
 0046fe60	lib::fill<void**,void*>	library	medium	Function ID
 0046ffc0	cS3DBoundingBox::Center	auto:B0	medium	mac 00660b5e score 0.965 support 3.0
-00470010	cRZTime::cRZTime	auto:D	medium	mac 005f69da score 0.5 support 1
+00470010	cRZTime::cRZTime (date, hour, minute, second)	manual:dates.tsv	high	dates.md §2.1; ((day - 2415386) * 24 + h - 1) * 3600 + m * 60 + s, + _timezone, DST adjustment, gap hour gives 0
 004700a0	cSC4Flame::Read	auto:B0	medium	mac 00348fb8 score 0.987 support 3.0
 00470130	cSC4FireOccupant::Write	auto:C	high	mac 00348ed8 score 1.0 support 2
 00470210	cSC4FireOccupant::GetPosition	auto:C	high	mac 003487d0 score 1.0 support 1
 00470230	cSC4FireOccupant::GetBoundingBox	auto:C	high	mac 00348734 score 1.0 support 1
 00470250	cSC4FireOccupant::SetVisible	auto:B5	medium	mac 003489bc score 0.95 support 1.0
-00470b50	cRZTime::cRZTime	auto:B0	medium	mac 005f6a5e score 0.959 support 4.0
+00470b50	cRZTime::cRZTime	manual:dates.tsv	high	dates.md §2, crime.md §9; now, from localtime(time())
 00470bc0	std::vector<cSC4Flame*,std::allocator<cSC4Flame*>>::resize	auto:B1	medium	mac 007210fa score 0.838 support 1.0
 00470ca0	cSC4Flame::UpdateTransform	auto:B4	medium	mac 00348c6c score 0.904 support 2.0
 00470dc0	cSC4FireOccupant::Shutdown	auto:B1	medium	mac 00349f44 score 0.986 support 2.5
@@ -11454,29 +11456,88 @@ va	name	source	confidence	note
 00912467	RZGetCurrentAppPath	auto:D	medium	mac 00016500 score 0.5 support 1
 00912588	GetComposedCharLength	auto:B5	medium	mac 00017386 score 0.947 support 4.0
 00912632	GetPreviousComposedCharLength	auto:B8	medium	mac 00017464 score 0.945 support 3.0
-009126f3	cIGZDate::cIGZDate	auto:D	medium	mac 005f76b2 score 0.5 support 1
-0091270e	cRZDate::cRZDate	auto:D	medium	mac 000275ec score 0.5 support 1
+009126e0	cRZDate::IsValidMonth	manual:dates.tsv	high	dates.md §1.1; descriptive name; 1 <= m <= 12
+009126f3	cRZDate::cRZDate (cIGZDate const&)	manual:dates.tsv	high	dates.md §3.1; was cIGZDate::cIGZDate; vtable 0x00A827D8, day number from the source date's cIGZDate slot 26 (+0x68)
+0091270e	cRZDate::cRZDate (cGZDate const&)	manual:dates.tsv	high	dates.md §3.1; day number from the source object's cIGZDate view at +8, slot 26
 0091272c	std::list<cSC4HistoryNode,std::allocator<cSC4HistoryNode>>::push_back	auto:D	medium	mac 00633308 score 0.5 support 1
-00912789	cRZDate::Mdy	auto:B6	medium	mac 0002761e score 0.948 support 3.0
-0091286f	cRZDate::Month	auto:B4	medium	mac 00027720 score 0.917 support 6.0
-009128a3	cRZDate::Year	auto:B5	medium	mac 000276f4 score 0.917 support 5.0
-009128bf	cGZDate::~cGZDate	auto:B0	medium	mac 00027786 score 0.923 support 7.0
-0091297e	cGZDate::DayNumber	auto:B1	low	mac 00027866 score 0.825 support 3.0
-00912b08	cRZDate::DayWithinMonth	auto:B3	medium	mac 00028408 score 0.891 support 1.0
-00912b5f	cRZDate::Jday	auto:B2	medium	mac 00028496 score 0.929 support 1.0
-00912bcc	cRZDate::DayOfYear	auto:B0	medium	mac 0002854e score 0.809 support 2.0
-00912beb	cRZDate::DayOfMonth	auto:B5	medium	mac 0002774c score 0.917 support 5.0
-00912c79	cRZDate::DateString	auto:A	high	mac 00027e80 score 1.0 support 0
-00912dfa	cGZDate::cGZDate	auto:B1	medium	mac 00027a62 score 0.908 support 3.0
-00912e7b	cGZDate::cGZDate	auto:B1	medium	mac 0002794a score 0.903 support 5.0
-00912f0b	cGZDate::DayOfYear	auto:D	low	mac 000285a0 score 0.5 support 1
-00913041	cGZDate::DayWithinMonth	auto:B4	medium	mac 0002847a score 0.969 support 1.0
-0091307c	cRZDate::cRZDate	auto:B2	medium	mac 00028678 score 0.95 support 2.0
-009130be	cRZDate::cRZDate	auto:B1	medium	mac 00028644 score 0.946 support 2.0
-00913113	cRZDate::Set	auto:B4	medium	mac 0002861a score 0.949 support 2.0
-00913177	cGZDate::cGZDate	auto:B1	medium	mac 00028724 score 0.917 support 5.0
-0091319b	cGZDate::cGZDate	auto:B2	medium	mac 00028786 score 0.905 support 2.0
-00913245	cGZDate::DateString	auto:B0	medium	mac 000282f0 score 0.995 support 1.0
+00912741	cRZDate::LeapYear	manual:dates.tsv	high	dates.md §1.1; y % 4 == 0 and y % 100 != 0, or y % 400 == 0
+0091276f	cRZDate::CompareTo	manual:dates.tsv	high	dates.md §1.4; -1 / 0 / 1 on unsigned day numbers
+00912789	cRZDate::Mdy	manual:dates.tsv	high	dates.md §1.3; inverse of Jday, constants 1721119, 146097, 1461, 153
+0091282d	cRZDate::Max	manual:dates.tsv	high	dates.md §1.4; the later of two dates, this one on a tie
+0091284e	cRZDate::Min	manual:dates.tsv	high	dates.md §1.4; the earlier of two dates, this one on a tie
+0091286f	cRZDate::Month	manual:dates.tsv	high	dates.md §1.3
+0091288b	cRZDate::WeekDay	manual:dates.tsv	high	dates.md §1.4; ((n + 1) mod 7 + 6) mod 7 + 1, 1 = Monday
+009128a3	cRZDate::Year	manual:dates.tsv	high	dates.md §1.3
+009128bf	cGZDate::~cGZDate	manual:dates.tsv	high	dates.md §3.1; resets vtables 0x00ACEAF0 / 0x00ACEA38
+009128cd	cGZDate::Copy	manual:dates.tsv	high	dates.md §4; cIGZDate slot 8; slot 4 with the source date's DayNumber
+009128e7	cGZDate::QueryInterface	manual:dates.tsv	high	dates.md §3.1; cIGZDate slot 0; IIDs 1 and 0x43378255
+00912912	cGZDate::Release	manual:dates.tsv	high	dates.md §3.1; cIGZDate slot 2; count at +0x0C, frees when below 2
+0091292e	cGZDate::Set (day number)	manual:dates.tsv	high	dates.md §4; cIGZDate slot 4; returns the day number in EAX
+00912938	cGZDate::CompareTo	manual:dates.tsv	high	dates.md §4; cIGZDate slot 11
+0091295c	cGZDate::WeekDay	manual:dates.tsv	high	dates.md §4; cIGZDate slot 12
+00912964	cGZDate::Year	manual:dates.tsv	high	dates.md §4; cIGZDate slot 13
+0091296c	cGZDate::IsValid	manual:dates.tsv	high	dates.md §4; cIGZDate slot 19; day number != 0
+00912976	cGZDate::Month	manual:dates.tsv	high	dates.md §4; cIGZDate slot 23
+0091297e	cGZDate::DayNumber	manual:dates.tsv	high	dates.md §4; cIGZDate slots 18 (Hash) and 26
+00912982	cGZDate::operator<	manual:dates.tsv	high	dates.md §4; cIGZDate slot 27
+009129a4	cGZDate::operator<=	manual:dates.tsv	high	dates.md §4; cIGZDate slot 28
+009129c5	cGZDate::operator>	manual:dates.tsv	high	dates.md §4; cIGZDate slot 29
+009129e7	cGZDate::operator>=	manual:dates.tsv	high	dates.md §4; cIGZDate slot 30
+00912a08	cGZDate::operator==	manual:dates.tsv	high	dates.md §4; cIGZDate slot 31
+00912a2b	cGZDate::operator!=	manual:dates.tsv	high	dates.md §4; cIGZDate slot 32
+00912a4e	cGZDate::operator- (cIGZDate const&)	manual:dates.tsv	high	dates.md §4; cIGZDate slot 34; returns a day number
+00912a65	cGZDate::operator+ (cIGZDate const&)	manual:dates.tsv	high	dates.md §4; cIGZDate slot 36; returns a day number
+00912a78	cGZDate::operator- (int32)	manual:dates.tsv	high	dates.md §4; cIGZDate slot 33; returns a day number
+00912a82	cGZDate::operator+ (int32)	manual:dates.tsv	high	dates.md §4; cIGZDate slot 35; returns a day number
+00912a8c	cGZDate::operator++	manual:dates.tsv	high	dates.md §4; cIGZDate slot 37
+00912a99	cGZDate::operator--	manual:dates.tsv	high	dates.md §4; cIGZDate slot 38
+00912aa6	cGZDate::operator+=	manual:dates.tsv	high	dates.md §4; cIGZDate slot 39
+00912ab9	cGZDate::operator-=	manual:dates.tsv	high	dates.md §4; cIGZDate slot 40
+00912acc	cGZDate::LeapYear	manual:dates.tsv	high	dates.md §4; cIGZDate slot 45
+00912ad9	cRZDate::Between	manual:dates.tsv	high	dates.md §1.4; inclusive, either order
+00912b08	cRZDate::DayWithinMonth	manual:dates.tsv	high	dates.md §1.1; month table 0x00ACE9F8
+00912b49	cRZDate::DaysInYear	manual:dates.tsv	high	dates.md §1.4; 365 + LeapYear
+00912b5f	cRZDate::Jday	manual:dates.tsv	high	dates.md §1.2; 0 for an invalid date
+00912bcc	cRZDate::DayOfYear	manual:dates.tsv	high	dates.md §1.4; n - Jday(12, 31, Year() - 1)
+00912beb	cRZDate::DayOfMonth	manual:dates.tsv	high	dates.md §1.3
+00912c07	cRZDate::FirstDayOfMonth	manual:dates.tsv	high	dates.md §1.4; table 0x00ACEA00, +1 after February in a leap year
+00912c42	cRZDate::Previous	manual:dates.tsv	high	dates.md §1.4; descriptive name; latest date on or before this one with the given weekday
+00912c79	cRZDate::DateString	manual:dates.tsv	high	dates.md §1.6; vtable 0x00A827D8 slot 2; format table of patterns
+00912dd6	cGZDate::~cGZDate (deleting destructor)	manual:dates.tsv	high	dates.md §3.1; vtable 0x00ACEAF0 slot 3; GlobalHeapFree with flag bit 0
+00912dfa	cGZDate::cGZDate (cIGZDate const&)	manual:dates.tsv	high	dates.md §3.1
+00912e24	cGZDate::cGZDate (cGZDate const&)	manual:dates.tsv	high	dates.md §3.1; copy
+00912e4e	cGZDate::cGZDate (cRZDate const&)	manual:dates.tsv	high	dates.md §3.1
+00912e7b	cGZDate::cGZDate (day number)	manual:dates.tsv	high	dates.md §3.1
+00912e9f	cGZDate::Clone	manual:dates.tsv	high	dates.md §4; cIGZDate slot 9; GlobalHeapAlloc(0x10)
+00912ed7	cGZDate::Between	manual:dates.tsv	high	dates.md §4; cIGZDate slot 10
+00912f0b	cGZDate::DayOfYear	manual:dates.tsv	high	dates.md §4; cIGZDate slot 14
+00912f13	cGZDate::DayOfMonth	manual:dates.tsv	high	dates.md §4; cIGZDate slot 15
+00912f1b	cGZDate::FirstDayOfMonth (month)	manual:dates.tsv	high	dates.md §4; cIGZDate slot 16
+00912f23	cGZDate::Leap	manual:dates.tsv	high	dates.md §4; cIGZDate slot 20
+00912f33	cGZDate::MaxDate	manual:dates.tsv	high	dates.md §4; cIGZDate slot 21
+00912f71	cGZDate::MinDate	manual:dates.tsv	high	dates.md §4; cIGZDate slot 22
+00912faf	cGZDate::Previous	manual:dates.tsv	high	dates.md §4; cIGZDate slot 24
+00912fdd	cGZDate::YearLastTwoDigits	manual:dates.tsv	high	dates.md §4; cIGZDate slot 25
+00912fef	cGZDate::operator-- (postfix)	manual:dates.tsv	high	dates.md §3.1; vtable 0x00ACEAF0 slot 5; returns the old value
+00913018	cGZDate::operator++ (postfix)	manual:dates.tsv	high	dates.md §3.1; vtable 0x00ACEAF0 slot 4; returns the old value
+00913041	cGZDate::DayWithinMonth	manual:dates.tsv	high	dates.md §4; cIGZDate slot 42
+00913058	cGZDate::DaysInYear	manual:dates.tsv	high	dates.md §4; cIGZDate slot 43
+00913065	cGZDate::Jday	manual:dates.tsv	high	dates.md §4; cIGZDate slot 44
+0091307c	cRZDate::cRZDate	manual:dates.tsv	high	dates.md §1.5; today, from localtime(time())
+009130be	cRZDate::cRZDate (month, day, year)	manual:dates.tsv	high	dates.md §1.5; Jday(m, d, y)
+009130e4	cRZDate::Set (day of year, year)	manual:dates.tsv	high	dates.md §1.5; year 0 counts from 1901-01-01 (0x24DB1A + day)
+00913113	cRZDate::Set (month, day, year)	manual:dates.tsv	high	dates.md §1.5; returns the day number in EAX
+00913131	cRZDate::Set (month name, day, year)	manual:dates.tsv	high	dates.md §1.5; 3-character strnicmp against Jan..Dec (0x00B168FC), no match = January
+00913177	cGZDate::cGZDate	manual:dates.tsv	high	dates.md §3.1; today
+0091319b	cGZDate::cGZDate (month, day, year)	manual:dates.tsv	high	dates.md §3.1
+009131cd	cGZDate::Set (day of year, year)	manual:dates.tsv	high	dates.md §4; cIGZDate slot 7; thunk to 0x009130E4
+009131d5	cGZDate::Set (month, day, year)	manual:dates.tsv	high	dates.md §4; cIGZDate slot 6; thunk to 0x00913113
+009131dd	cGZDate::Set (month name, day, year)	manual:dates.tsv	high	dates.md §4; cIGZDate slot 3; thunk to 0x00913131
+009131e5	cGZDate::FirstDayOfMonth	manual:dates.tsv	high	dates.md §4; cIGZDate slot 17; for Month()
+009131fa	cRZDate::cRZDate (day of year, year)	manual:dates.tsv	high	dates.md §1.5; static 1901-01-01 date 0x00B62898 built with (0, 0) at 0x00A7922F
+00913216	cRZDate::Set (cRZTime const&)	manual:dates.tsv	high	dates.md §1.5; LocalSecs / 86400 + 2415386, 0 for time 0
+0091323d	cGZDate::Set (cRZTime const&)	manual:dates.tsv	high	dates.md §4; cIGZDate slot 5; thunk to 0x00913216
+00913245	cGZDate::DateString	manual:dates.tsv	high	dates.md §4; cIGZDate slot 41
 0091328c	GZCOM_cRZMessage2StandardCLSID	auto:A	low	mac 0002a300 score 1.0 support 0
 00913292	cRZMessage2Standard::QueryInterface	auto:B0	medium	mac 0002a388 score 0.946 support 2.0
 009133da	operator new	manual:symbols_windows.tsv	high	
@@ -14252,7 +14313,7 @@ va	name	source	confidence	note
 009b2a0a	cGZBarGraph::CompleteRedraw	auto:C	high	mac 0029f910 score 1.0 support 1
 009b2a38	cGZScatterGraph::QueryInterface	auto:A	high	mac 0029f976 score 1.0 support 0
 009b2bef	cGZPieGraph::QueryInterface	auto:A	high	mac 0029fcd2 score 1.0 support 0
-009b2c1c	cRZDate::Set	auto:B3	low	mac 00027610 score 0.938 support 1.0
+009b2c1c	cRZDate::Set (day number)	manual:dates.tsv	high	dates.md §1.5; unchecked
 009b2c26	cGZPieGraph::SetPercentageTextDecimalPlaces	auto:C	high	mac 0029fd26 score 1.0 support 1
 009b2c38	cGZPieGraph::SetMinPercentageToDisplay	auto:C	high	mac 0029feaa score 1.0 support 1
 009b2c77	cGZPieGraph::Set3DViewMaskBuffers	auto:C	high	mac 002a060e score 1.0 support 1
