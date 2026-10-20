@@ -261,14 +261,19 @@ void SetBoundingBox(void*, uint64_t prop, const float* min3, const float* max3) 
 }
 
 void Position(void*, uint64_t prop, float* pos3) {
-    // TEMPORARY (glue21 resume): who walks occupants through the prop host.
-    fc4::Log("propmgr: host position occ %016llX", static_cast<unsigned long long>(prop));
     if (pos3 == nullptr) return;
     pos3[0] = pos3[1] = pos3[2] = 0.0f;
-    cISC4PropOccupant* p = Occ(prop);
-    if (p == nullptr) return;
+    // The occupant manager's queries hand the core `cISC4Occupant*` tokens
+    // (the occupant sub-object at +8 of a prop occupant), and the core
+    // passes them straight back here. Reading them as `cISC4PropOccupant*`
+    // and calling AsOccupant (prop-occupant slot 3) would in fact invoke
+    // occupant slot 3 = Init (returns 1) and then dereference 1 (glue21
+    // gate-9/gate-10: the AV at +0xA843DB reading 1). The position is the
+    // occupant's own slot 8 on the token as handed over.
+    cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(prop));
+    if (o == nullptr) return;
     cS3DVector3 v;
-    p->AsOccupant()->GetPosition(&v);  // occupant slot 8
+    o->GetPosition(&v);  // occupant slot 8
     pos3[0] = v.fX;
     pos3[1] = v.fY;
     pos3[2] = v.fZ;
