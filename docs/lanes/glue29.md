@@ -4,39 +4,60 @@ Per-lane row for the regenerated `HANDOFF.md` 0 table (see `docs/lanes/README.md
 
 | Lane | Worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue29 (the cSC4NetworkTool replacement glue over cores27's fc4_nettool ABI) | `glue29` / `.claude/worktrees/glue29` (branch `glue29`, engine lane) | in progress | (1) full gate (`qbuild all`); (2) in-game runs: `enable = nettool` + scripted `network` actions, full run to 2032; (3) queue file + report |
+| glue29 (the cSC4NetworkTool replacement glue over cores27's fc4_nettool ABI) | `glue29` / `.claude/worktrees/glue29` (branch `glue29`, engine lane) | in progress (round 3: rebased onto glue24's main; composed) | (1) fix the slot-10 ABI hazard (declare the as-compiled tool interface, cFC4ISC4NetworkToolFull, replacing the SDK base); (2) `qbuild all`; (3) in-game: `enable = netmgr,nettool` + scripted `network` actions to 2032; (4) queue file + report |
 
 ## Handoff
 
 - **Goal:** wire the network tools replacement: a `cFC4NetworkTool` plugin class over the `fc4_nettool_*` C ABI
   (cores27), the host callbacks bound to the geometry core (`fc4_netgeom`), the occupant manager and the network
   manager; enable key `nettool`; in-game checks.
-- **Done so far:**
-  - Rebased the worktree onto main (cores27/train10 landed; `fc4_nettool_*` is now on main at ABI 75).
-  - `engine/plugin/FC4NetToolHost.{h,cpp}` (commit `ed77c929`): the 36-callback `fc4_nettool_host` over the game's
-    interfaces — owner block `NetToolContext` at offset 0 (city, geom, msgServer, self, held refs, counters);
-    draw/solve replay through `fc4_netgeom`; §3.3 probes/§6 inserts/§10 destroy through the occupant manager and
-    the city's network manager; §11 refit through the extended underground interface (`cFC4UndergroundOccupant`,
-    vtable `0x00AAAD40`, slots 50/84/86/94/95).
-  - `engine/plugin/cFC4NetworkTool.{h,cpp}`: the replacement tool over the SDK vtable (44 virtuals, order
-    matches interfaces.tsv 0x00AA8748), delegating to `fc4_nettool_*`; plus `NetToolRegistry` — with
-    `enable = nettool` the plugin's own callers (scripted `network` action) take replacement tools instead of
-    the manager's factory (the game's tool classes have no GZCOM IDs — question NM11, so no vtable hooking).
-  - Registered additively in `FC4Subsystems.cpp` (key `nettool`, synthetic CLSID `0x4E543030`), wired into
-    `FC4Script.cpp` (RunNetwork: registry tool if enabled, else original path) and `FC4Observer.cpp`
-    (registry summary + CityShutdown at city shutdown); listed in `CMakeLists.txt`.
-  - Gate: `qbuild quick` PASS (build 6/6 edges).
-- **Next:** `qbuild all` (full gate); then in-game: `enable = nettool`, script with `network ax az bx bz 0`
-  actions (type 0 road), verify placement validates/commits through our core (`nettool ... inserts=N` log lines,
-  `0x99EF1142` data4=3 messages), full run to 2032, ref_warnings=0; runs numbered from 198.
+- **State at this stop (round 3, context budget OVER):**
+  - Round 2's skeleton landed on the branch: `FC4NetToolHost.{h,cpp}` (the 36-callback fc4_nettool_host over
+    the game's interfaces; NetToolContext at offset 0), `cFC4NetworkTool.{h,cpp}` (the tool over the SDK
+    vtable + `NetToolRegistry`), `FC4Subsystems.cpp` key `nettool` (CLSID 0x4E543030), `FC4Script.cpp`
+    RunNetwork registry path, `FC4Observer.cpp` city-shutdown release.
+  - REBASED onto main at `66a309b8` (train12 landed glue24: the replacement network manager `enable = netmgr`,
+    the lot manager `netlot`, and a do-nothing `cFC4NetworkTool` stand-in under the SAME filename).
+    Conflicts resolved: this lane's real tool kept; glue24's stand-in semantics preserved inside it as a
+    `live_` flag. Commit `4883aa89`.
+  - COMPOSITION (4883aa89): `cFC4NetworkTool(uint32_t type, bool live)` - live = the fc4_nettool core,
+    !live = glue24's verified no-ops (Init/Shutdown true, placements fail, getters idle). glue24's
+    `cFC4NetworkManager.cpp CreateTool` now creates `new cFC4NetworkTool(type, NetToolRegistry::Enabled())`:
+    with `enable = netmgr,nettool` the manager's own 13 cached tools are the REAL replacement and slot 5
+    hands them to the game's callers (zonedev takes 3/11/0 at PostCityInit; the power simulator the type-5
+    shared tool). With nettool off the behaviour is byte-for-byte glue24's. NetToolRegistry::Take still
+    creates live tools (key-gated); FC4Script RunNetwork prefers the registry when enabled.
+  - `qbuild quick` had passed pre-rebase; NOT yet re-run after the rebase.
+- **Next (exact steps):**
+  1. FIX the slot-10 ABI hazard first: the SDK `cISC4NetworkTool` declares `UpdateOnZoneChange()` pop 0 but
+     the game pops 20 (SC4Rect by value + u32; foundations.md errata ~line 2344; interfaces.tsv slot 10).
+     The game's own power simulator calls slot 10 on the type-5 tool (power.md line 250) - with netmgr on
+     that is OUR tool. Declare a local "as compiled" interface (the FC4LotDevInterfaces.h pattern,
+     `cFC4ISC4NetworkToolFull` in cFC4NetworkTool.h, 48 slots mirroring the SDK order with slot 10 fixed to
+     `(FC4Int32Quad, uint32_t)`), inherit THAT in cFC4NetworkTool, add the stand-in method bodies, then a
+     question or waiver note for abi_conformance (gen_abi_entries.py row for the SDK header is
+     report-only, line ~321; the required row cFC4ISC4NetworkTool slots 3-10 stays as is).
+  2. `python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:/Users/tlori/FreeCity4/.claude/worktrees/glue29 quick`, then `all`.
+  3. In-game (runs numbered from 213; docs/runs format): `enable = netmgr,nettool`, turbo to 2032 on
+     Konradshohe, script with `network ax az bx bz 0` actions (type 0 road; FC4HarnessLogic.h line 163);
+     verify `nettool ... inserts=N` log lines + `0x99EF1142` data4=3 messages; ref_warnings=0; a full-run
+     verdict at PostSystemServiceShutdown. Also one run with nettool ALONE (original manager) via the
+     registry path if slots allow.
+  4. docs/lanes/glue29.md report + build-runs/merge-queue/glue29.json (abi=false).
 - **Facts for the successor:**
-  - main does NOT carry glue24's `cFC4NetworkManager` (still wip on branch glue24) — the tool replacement
-    therefore rides the ORIGINAL manager: our registry is reached only from our own plugin callers, not from
-    the game's UI drag path. The scripted `network` action and zonedev street tools are the real test paths.
-  - `OccupantExists` (slot 9): the core answers it from its world cache itself (host callback NULL).
-  - The per-cell piece choice (network-rules.md §11) is NOT wired: every solved cell inserts one ordinary
-    network occupant via GZCOM class `0xC9C05C6E` with piece id 0 — documented [choice] in the host source.
-  - The underground exemplar depth fields (0xA96E5641 etc.) are passed as zeros for now — Init reads city size
-    only; fine for surface tools (road/power), the pipe refit needs a follow-up.
-  - `IntersectionStructure` flood and `NeighboursByNetworkType` use slot-32 queries + flags; capped arrays,
-    tokens held in ctx until NetToolReleaseHeld.
+  - main has glue24's replacement netmgr/netlot (train12); the tick-5500 int3 there was DISARMED (RTC
+    handler in every build; runs 210-212 clean). glue24's stand-in no longer exists as a separate file -
+    it is the !live_ mode of this lane's class.
+  - The core's netmgr Init caches all 13 tools via host.create_tool (manager.rs ~line 143) and slot 5
+    `unique=true` creates fresh ones; `destroy_network_occupants` calls tool_init/tool_destroy_occupants/
+    tool_shutdown on the cached tools (manager.rs 346-352); the underground refit calls
+    tool_update_underground_heights (manager.rs 544) - the manager's ToolUpdateUndergroundHeights is a
+    no-op stub; wiring it to the live tool's fc4_nettool_update_underground_heights is OPTIONAL follow-up
+    (the tool needs the underground pieces' slot-94 reads, which the stub does not collect).
+  - The per-cell piece choice (network-rules.md section 11) is NOT wired: every solved cell inserts one
+    ordinary network occupant via GZCOM class 0xC9C05C6E with piece id 0 - documented [choice] in the host.
+  - Underground exemplar depth fields passed as zeros (Init reads city size only) - fine for road/power;
+    the pipe refit needs a follow-up.
+  - `OccupantExists` (slot 9): the core answers from its world cache itself (host callback NULL).
+  - Paths: worktree C:/Users/tlori/FreeCity4/.claude/worktrees/glue29; branch glue29; tip 4883aa89;
+    questions file docs/specs/questions/network-tools.md holds NT6-NT13 (open, from cores27).
