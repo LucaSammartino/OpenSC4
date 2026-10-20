@@ -1144,7 +1144,11 @@ def cmd_merge_batch(args):
             if left:
                 log(f"  ! {r['lane']}: unresolved conflicts in {left}")
                 skipped.append((r["lane"], left))
-                git(["-C", str(wt), "merge", "--abort"], check=False)
+                # `merge --abort` refuses when a build artifact the lane still tracks (abi_entries.inc, untracked
+                # on main since 46f3b7cb) differs on disk; a failed abort left the conflict in the index and every
+                # later lane of train6 then "conflicted" in the same files. The integration branch is ours: reset.
+                if git(["-C", str(wt), "merge", "--abort"], check=False).returncode != 0:
+                    git(["-C", str(wt), "reset", "--hard", "HEAD"], check=False)
                 continue
             if resolved:
                 log(f"  resolved hotspots: {', '.join(resolved)}")
