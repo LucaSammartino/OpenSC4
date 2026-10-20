@@ -69,7 +69,7 @@ const RE = `You are a SPEC WRITER (RE side) lane on FreeCity4 (OpenSC4), a clean
 
 ## Where things are (main checkout)
 - bin\\SimCity4.exe (working copy), decomp\\ (gitignored), ghidra\\export\\windows (the export), re\\ (names, snapshot), docs\\abi\\ (interface tables). Read them from the main checkout by absolute path; edit only in your worktree.
-- Query the export first with \`python <MAIN>\\tools\\re_query.py\` (func, asm, callers, callees, xrefs, strings, search, vtable): read-only, safe in parallel, compact output. See docs/re-workspace.md "Querying in parallel lanes" for when to use the REA MCP tools instead and how to share them safely.
+- Query the export first with \`python <MAIN>\\tools\\re_query.py\` (func, asm, callers, callees, xrefs [--from], strings, search, vtable; --limit N): read-only, lock-free, ~0.15 s, safe in parallel. Use the REA MCP tools only for pseudocode, types/prototypes or analysis the export lacks. All lanes share ONE REA Ghidra session: never call close_binary, never open_binary on another file, expect ~3 minutes if you are the first to query. On "Ghidra client is already started": close_binary once, retry once, then fall back to re_query.py and say so in your report (docs/re-workspace.md "Querying in parallel lanes").
 - Ghidra pseudocode is unreliable on some functions: for anything numeric (float vs double, operation order, widths) verify against the instruction bytes and cite addresses.
 
 ## Rules
@@ -78,7 +78,7 @@ const RE = `You are a SPEC WRITER (RE side) lane on FreeCity4 (OpenSC4), a clean
 - Questions: each lives in docs/specs/questions/<spec>.md. Answering one: write the rule into the named spec section, then move the entry to docs/specs/questions/answered/<spec>.md marked \`**ANSWERED <date> (<lane>):** MATCHES|DIFFERS — <rule>\`. Then \`python <WT>\\tools\\questions.py index\`.
 - Proposed docs/abi rows: write them to <WT>\\build-runs\\abi-rows-<lane>.tsv in those files' formats and name the file in docs/lanes/<lane>.md; do not edit docs/abi/.`
 
-const TOOL = `You are a coordinator-side TOOLING lane on FreeCity4 (OpenSC4). You may read and change tools/, docs/ and build-runs scripts; engine/ only if the task says so. Tools are standard-library Python 3 or PowerShell 5.1, read results not exit codes, and are tested for real before you report (say what you ran and what it printed).`
+const TOOL = `You are a coordinator-side TOOLING lane on FreeCity4 (OpenSC4). You may read and change tools/, docs/ and build-runs scripts; engine/ only if the task says so. Exe facts: \`python <MAIN>\\tools\\re_query.py\`; waiting: \`python <MAIN>\\tools\\lanes.py wait\`. Tools are standard-library Python 3 or PowerShell 5.1, read results not exit codes, and are tested for real before you report (say what you ran and what it printed).`
 
 const MECH = `You are a MECHANICAL lane on FreeCity4 (OpenSC4): the task is a well-defined edit (docs rows, ABI rows, regress records, renames, regenerating generated files). Do exactly the task, verify it with the check the task names (or a diff review), and do not redesign anything. If the task turns out to need judgment, stop with state "blocked" and say why in one line.`
 
