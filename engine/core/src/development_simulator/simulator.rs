@@ -949,9 +949,9 @@ impl DevelopmentSim {
     }
 
     /// The developers as [DevelopmentSim::developers] lists them (ascending
-    /// type), without a copy: 
-/// (type, developer) for each.
- /// must not call
+    /// type), without a copy:
+    /// (type, developer) for each.
+    /// must not call
     /// back into this object (the state is borrowed meanwhile).
     pub fn for_each_developer(&self, mut f: impl FnMut(u32, DeveloperId)) {
         for (&t, &dev) in &self.d.borrow().developers {
@@ -980,8 +980,8 @@ impl DevelopmentSim {
     }
 
     /// The special buildings as [DevelopmentSim::special_buildings] lists
-    /// them, without a copy. 
- /// must not call back into this object.
+    /// them, without a copy.
+    /// must not call back into this object.
     pub fn for_each_special_building(&self, mut f: impl FnMut(OccupantId)) {
         for &o in &self.d.borrow().special_buildings {
             f(o);

@@ -52,7 +52,8 @@
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "FC4OccMgrShadow.h"
-#include "FC4PropLotShadow.h"  // the glue15 lane#include "cFC4LotDeveloper.h"
+#include "FC4PropLotShadow.h"  // the glue15 lane
+#include "cFC4LotDeveloper.h"
 #include "cFC4Message2Standard.h"
 #include "fc4.h"
 

@@ -314,6 +314,8 @@ void TestNetworkRules() {
     CHECK(fc4_network_rules_grid_get_cell(g, 10, 10, &back) && back.solved == 0 && back.union_edges == 0x02020202u);
     fc4_network_rules_grid_destroy(g);
     fc4_network_rules_destroy(r);
+}
+
 // The effects manager (effects.md) over a real terrain: the crater brush goes
 // through fc4_terrain_apply_brush, and a volcano finishes through the hook.
 struct FxWorld {
