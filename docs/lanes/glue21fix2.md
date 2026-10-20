@@ -5,42 +5,53 @@ Commits: `0c5d5625` (slot 27 vector fix), `1b840d70` (prop token QI normalizatio
 
 | Lane | Worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue21fix2 (PL17 CreateLotObjects fix) | `C:\Users\tlori\FreeCity4\.claude\worktrees\glue21`, branch `glue21`, tip `65d97b40` | in progress | see Handoff |
+| glue21fix2 (PL17 CreateLotObjects fix) | `C:\Users\tlori\FreeCity4\.claude\worktrees\glue21`, branch `glue21`,  tip `ba74dce5` | in progress | see Handoff |
 
 ## Handoff
-- Goal: fix open question PL17 — the AV at `SimCity 4.exe+0x60D4B5` inside the game's own
-  `CreateLotObjects` (network-lot redevelopment, city-detail §3.4).
-- **PL17 is FIXED** (`0c5d5625`): our slot 27 `GetObjectIDArray` filled the caller's `SC4Vector<uint32_t>&`
-  with an STLport hash-set layout (begin=0, garbage end → the game's `ids[pick]` faulted at
-  `pick × 4` = exactly the `0x60D4B5` signature). Now fills a `GameVector<uint32_t>` (clear +
-  push_back), plus the use-after-scope on `co.ids`. Verified in game: the 0x60D4B5 fault never
-  recurs and street props get created.
-- Second fix (`1b840d70`): the fix exposed a latent ABI bug — the game's `CreateProp` → our
-  `AddStreetProp` → `SetPosition` hit RTC #0 (ESP desync; the prop-occupant primary vtable's slot 9
-  is `GetOrientation`, pop 0, called as occupant `SetPosition`, pop 4). Prop tokens are now
-  normalized to the cISC4Occupant sub-object via QI `0x26BB767E` at creation; every occupant-side
-  host callback resolves via QI (scoped reference); prop-side callbacks QI back to the primary;
-  `CreateProp`/`CreateGenericProp` transfer the creation reference to the returned primary.
-- Also spec-exact now: lotcfg set queries (slots 9/10/11) add the §B5.2 reference per insert
-  (duplicates included, quirk 12); slot 12 releases every element once and empties the set (§B7).
-- Diagnostics added: in-image first-chance faults log registers + stack walk (`FC4Diag.cpp`);
-  a deleting configuration wrapper logs its releaser chain (`cFC4LotConfiguration.cpp`).
-- Gate at tip: cargo 2860/0, clippy clean, build PASS, ctest 58/58.
-- **Open: PL18** (filed in docs/specs/questions/prop-lotconfig.md): with `enable = lotcfg` the
-  growth developer's SimNewDay pass releases FOUR references per configuration (release site
-  SimCity 4.exe ILT `0x00709798`), freeing our `cFC4LotConfiguration` wrappers under the catalogue
-  map → AV reading 0 in `IsCompatibleWithPurposeType:191` (std::vector<bool> on a deleted wrapper),
-  deterministic, independent of propmgr (isolated runs `glue21fix2-iso-lotcfg*`, `isoref-1..4`).
-  Measured ledger: catalogue +1, slot-20 scratch map +1 (raw, per rebuild), set query +1; the game
-  also takes a bulk +1 wave per config at load through an unmodeled path. Needs an RE answer about
-  the game's configuration reference conventions (slots 8/9/20 at load and in the growth pass).
-- Next: (1) chase PL18 with an RE lane (file the question details); (2) once clean, run
-  `glue21fix2-gate-1` (Konradshohe, turbo 2032, `enable = propmgr, lotcfg`, three shadows) to
-  `clean` with ref_warnings=0 and shadows exact, then flip the merge-queue entry to ready.
-- Full report + run ladder: below and in docs/runs/glue21fix2.md. Game-request labels outstanding:
-  none. symtool.exe (glue24 worktree build-runs) symbolizes RVAs; checked build =
-  `cmake -B build-x86-checked -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFC4_CHECKED=ON`, queue accepts
-  `dll = engine\build-x86-checked\FreeCity4.dll`.
+- Goal: PL18 (the lotcfg configuration-lifetime fault) after PL17 was fixed. Branch glue21, worktree
+  C:/Users/tlori/FreeCity4/.claude/worktrees/glue21 (this file lives there; the restart brief's glue21fix2
+  worktree does not exist - keep working here), tip at stop: ba74dce5.
+- Done this round (analysis only, no code change committed): the isoref logs re-read and the ledger closed.
+  Site labels (RVA in FreeCity4.dll, base varies per run): 0xA91E2 = catalogue/creation add path; 0x7B2631 =
+  set-query insert AddRef (slots 9/10/11); 0x77E671 = the release paired with it (our development host's
+  density walk, balanced +1/-1 at load); 0xA3BAC3 = the scratch-map rebuild (GetLotConfigurationMap, +1 per
+  config); game exe: 0x006BF53D = lot Init takes 1 ref per placed lot's configuration (736 adds, 166 configs,
+  never released while the lot lives); 0x00709798 (ILT) = the growth pass's Release.
+- MEASURED (isoref-4, day 29; isoref-3, days 29-30): per SimNewDay the game makes TWO slot-9 queries
+  (90 matches each in isoref-4; 105/105/90 log lines in isoref-3 across two days, duplicate log lines
+  suppressed - identical text). Slot 9 adds exactly ONE reference per matched config per call (the
+  double-add hypothesis is WRONG; the 210-add segments are two back-to-back calls).
+  The game then releases through ILT 0x709798, in rounds (isoref-4: 23, 17, 17, 5 = 62 releases over 23
+  configs): every released config got exactly TWO game acquisitions that day; the 17 four-release configs
+  got releases 1-4 (12 of them had no lot reference and hit 0 -> deleted; 5 had 1-2 lot references and
+  survived); the 6 one-release configs were released once and survived.
+- The deficit for a no-lot config is EXACTLY 2: the game's 4 releases eat its 2 own acquisitions PLUS our
+  catalogue reference and our scratch-map reference. In the original the slot-20 map IS the catalogue
+  (one object), so the original's equivalent release pattern leaves the catalogue's reference intact;
+  the original must also supply the game 2 more refs per developed config from a path we do not model
+  (the filing lane's "bulk +1 wave at load" note; no per-config game adds are visible at load in our runs
+  beyond the 166 lot-held configs).
+- Candidate fix (measured accommodation, one change at a time): make our slot 9 hand out TWO references
+  per matched config per call (double the B5.2 reference). Ledger: cat1+map1+2x2=6 per matched config;
+  the game releases 4 -> 2 left; next day repeats (+4/-4) -> stable. Alternatively make the scratch map
+  hold no references (ownsValues=false) AND slot 9 double-adds: cat1+4-4=1 -> the catalogue survives and
+  the map holds borrowed pointers (the game's own slot-20 walks never released anything in our logs, so
+  borrowed may be safe - but the shadow compares the map's nodes, and the map-walk release convention is
+  unverified). File PL19 if the game-side release convention needs an RE answer.
+- Next: (1) implement the slot-9 double reference in cFC4LotConfigManager.cpp (all three set queries,
+  keeping quirk 12) OR the map-ownsValues=false variant; (2) qbuild quick, then a game run
+  glue21fix2-ref2-1 (Konradshohe, turbo 2032, enable = lotcfg; then the full enable = propmgr, lotcfg with
+  the three shadows); (3) on clean: glue21fix2-gate-1 re-run, flip build-runs/merge-queue/glue21.json to
+  ready (the file is git-ignored; write it in build-runs/merge-queue/); (4) update docs/runs/glue21fix2.md
+  and this file; run python tools/questions.py check is NOT needed (no question file change) - but if a
+  question is filed, append to docs/specs/questions/prop-lotconfig.md and run
+  `python tools/questions.py index` in MAIN? NO - tools/ is out of bounds for this lane; the coordinator
+  regenerates. Commit small.
+- Facts: the qbuild all verdict may report "ninja did not finish (0/3)" on an up-to-date tree (touch a
+  plugin .cpp first). symtool.exe: C:/Users/tlori/FreeCity4/.claude/worktrees/glue24/build-runs/symtool.exe
+  <dll> <rva-hex>. Checked build: cmake -B build-x86-checked -DCMAKE_BUILD_TYPE=RelWithDebInfo
+  -DFC4_CHECKED=ON; the queue accepts dll = engineuild-x86-checked\FreeCity4.dll. The full analysis is
+  in build-runs/pl18-analysis.txt (this worktree). Game-request labels outstanding: none.
 
 ## What was wrong (PL17, measured)
 
