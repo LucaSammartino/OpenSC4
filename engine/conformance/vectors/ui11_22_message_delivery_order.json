@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "ui11_22_message_delivery_order",
+  "spec": [
+    "ui-windows 6.5",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 22: the window procedure (DoWinProcMessage, then DoWinMsg) runs before the window's own DoMessage, and a type-3 command reaches GZOnCommand (slot 143) after both. A message that is not type 3 never reaches GZOnCommand.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_deliver",
+      "msg": "command",
+      "data1": "0x287259F6",
+      "data2": 7,
+      "expect": [
+        "DoWinProcMessage",
+        "DoWinMsg",
+        "DoMessage",
+        "GZOnCommand"
+      ]
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_deliver",
+      "msg": "link",
+      "expect": [
+        "DoWinProcMessage",
+        "DoWinMsg",
+        "DoMessage"
+      ]
+    },
+    {
+      "op": "uiw_deliver",
+      "msg": "key_down",
+      "expect": [
+        "DoWinProcMessage",
+        "DoWinMsg",
+        "DoMessage"
+      ]
+    }
+  ]
+}

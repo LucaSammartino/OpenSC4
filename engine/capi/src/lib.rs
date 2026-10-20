@@ -930,6 +930,7 @@ pub mod traffic;
 pub mod traffic_shadow;
 pub mod tract_developer;
 pub mod tutorial;
+pub mod ui_windows;
 pub mod weather;
 pub mod zonedev;
 pub mod zones;
@@ -1076,6 +1077,9 @@ mod traffic_tests;
 mod tract_developer_tests;
 #[cfg(test)]
 mod tutorial_tests;
+
+#[cfg(test)]
+mod ui_windows_tests;
 
 #[cfg(test)]
 mod weather_tests;

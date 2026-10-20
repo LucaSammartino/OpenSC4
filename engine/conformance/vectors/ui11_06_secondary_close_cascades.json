@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "name": "ui11_06_secondary_close_cascades",
+  "spec": [
+    "ui-windows 4.2",
+    "ui-windows 10",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 6: with both menus open, CloseSecondaryMenu closes the tertiary menu first. Quirk 1: a tertiary catalog is only reachable from a secondary one, so tearing the secondary down alone would leave the leftover unreachable - and ChildDelete destroys it.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_seed_secondary",
+      "kind": 1
+    },
+    {
+      "op": "uiw_seed_tertiary",
+      "kind": 2
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_close_secondary"
+    },
+    {
+      "op": "uiw_expect_ops",
+      "ops": [
+        {
+          "event": "hide_window",
+          "win": "0x30"
+        },
+        {
+          "event": "release",
+          "win": "0x30"
+        },
+        {
+          "event": "child_delete",
+          "parent": "0x200C",
+          "child": "0x30"
+        },
+        {
+          "event": "destroy_window",
+          "win": "0x30"
+        },
+        {
+          "event": "hide_window",
+          "win": "0x20"
+        },
+        {
+          "event": "release",
+          "win": "0x20"
+        },
+        {
+          "event": "child_delete",
+          "parent": "0x200C",
+          "child": "0x20"
+        },
+        {
+          "event": "destroy_window",
+          "win": "0x20"
+        }
+      ]
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "secondary_win": 0,
+        "tertiary_win": 0
+      }
+    }
+  ]
+}

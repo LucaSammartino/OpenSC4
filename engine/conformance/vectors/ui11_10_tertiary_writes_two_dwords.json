@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "name": "ui11_10_tertiary_writes_two_dwords",
+  "spec": [
+    "ui-windows 4.1",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 10: with +0x208 != 0 and the window answering QueryInterface(0x8A2CAD8B), the close path writes the slot-17 result to state+0 and the slot-9 result to state+4, in that order, then releases the interface. What the two values mean is not established (UIW-1); only their write order is measured.",
+  "steps": [
+    {
+      "op": "uiw_env",
+      "slot17": 170,
+      "slot9": 187
+    },
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_set_catalog_state",
+      "present": true,
+      "field0": 0,
+      "field1": 0
+    },
+    {
+      "op": "uiw_seed_tertiary",
+      "kind": 2
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_close_tertiary"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "catalog_field0": 170,
+        "catalog_field1": 187
+      }
+    },
+    {
+      "op": "uiw_expect_ops",
+      "only": [
+        "catalog_state_write"
+      ],
+      "ops": [
+        {
+          "event": "catalog_state_write",
+          "offset": 0,
+          "value": 170
+        },
+        {
+          "event": "catalog_state_write",
+          "offset": 4,
+          "value": 187
+        }
+      ]
+    },
+    {
+      "op": "uiw_expect_events",
+      "events": [
+        {
+          "event": "query_catalog_iface",
+          "win": "0x30",
+          "iid": "0x8A2CAD8B"
+        },
+        {
+          "event": "catalog_slot17"
+        },
+        {
+          "event": "catalog_slot9"
+        },
+        {
+          "event": "catalog_iface_release",
+          "iface": "0xC0"
+        }
+      ]
+    }
+  ]
+}

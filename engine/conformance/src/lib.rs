@@ -63,6 +63,7 @@ pub(crate) mod tract_developer;
 pub(crate) mod traffic_network;
 pub(crate) mod traffic_simulator;
 pub(crate) mod tutorial;
+pub(crate) mod ui_windows;
 pub mod variants;
 pub(crate) mod weather;
 pub(crate) mod zones;

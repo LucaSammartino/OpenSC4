@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "name": "ui11_20_advisor_popup_close_path",
+  "spec": [
+    "ui-windows 6.2",
+    "ui-windows 6.5",
+    "ui-windows 10",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 20 [game for the harness observation; this vector pins the replacement-side truth]. The advisor popup closes on a button command with ANY button id (quirk 7) and on the advice going inactive or expiring; Esc and Enter must not close it. cSC4AdvisorPopupTracker::DoWinProcMessage (0x00762D30) handles no keyboard messages, so a key produces no action at all. The attach/detach notices 0xA2BF8AD5/0xA2BF8AD6 are swallowed and are NOT key down/up.",
+  "steps": [
+    {
+      "op": "uiw_popup",
+      "advice_flags": 2,
+      "msg": "key_down",
+      "expect": "ignored"
+    },
+    {
+      "op": "uiw_popup",
+      "advice_flags": 2,
+      "msg": "key_up",
+      "expect": "ignored"
+    },
+    {
+      "op": "uiw_popup",
+      "advice_flags": 2,
+      "msg": "command",
+      "data2": 0,
+      "expect": "end"
+    },
+    {
+      "op": "uiw_popup",
+      "advice_flags": 2,
+      "msg": "command",
+      "data2": 1,
+      "expect": "end"
+    },
+    {
+      "op": "uiw_popup",
+      "advice_flags": 2,
+      "msg": "command",
+      "data2": "0x8A8DFD4E",
+      "expect": "end"
+    },
+    {
+      "op": "uiw_popup",
+      "advice_flags": 0,
+      "msg": "command",
+      "data2": 0,
+      "expect": "end"
+    },
+    {
+      "op": "uiw_popup",
+      "advice_flags": 10,
+      "msg": "command",
+      "data2": 0,
+      "expect": "end"
+    },
+    {
+      "op": "uiw_popup",
+      "advice_flags": 2,
+      "msg": "link",
+      "expect": "follow_link_then_end"
+    },
+    {
+      "op": "uiw_popup",
+      "advice_flags": 2,
+      "msg": "modal_begin",
+      "expect": "keep_open"
+    },
+    {
+      "op": "uiw_popup",
+      "advice_flags": 2,
+      "msg": "attach",
+      "expect": "swallow"
+    },
+    {
+      "op": "uiw_popup",
+      "advice_flags": 2,
+      "msg": "detach",
+      "expect": "swallow"
+    }
+  ]
+}
