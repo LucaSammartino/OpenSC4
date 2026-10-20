@@ -98,9 +98,55 @@ cISC4LotManager* Lots(void* u) {
     return c ? c->GetLotManager() : nullptr;
 }
 
-cISC4PropOccupant* Occ(uint64_t t) {
-    return reinterpret_cast<cISC4PropOccupant*>(static_cast<uintptr_t>(t));
+// Resolves the cISC4Occupant sub-object off any prop token (the prop-occupant
+// primary at +0, the occupant base at +8). QI hands the caller one reference,
+// released by the RAII wrapper below, so the token pointer itself stays
+// borrowed. Tokens are created as primaries (CreatePropInstance) or as
+// occupant sub-objects (occupant-manager queries), so every occupant-side
+// call must go through this instead of a blind cast: on the primary vtable
+// occupant slot 9 is GetOrientation (pop 0), and calling SetPosition (pop 4)
+// through it desyncs the stack (RTC #0 -> int3, the glue21fix2 game fault).
+cISC4Occupant* OccupantOf(uint64_t t) {
+    cIGZUnknown* u = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
+    if (u == nullptr) return nullptr;
+    void* q = nullptr;
+    if (!u->QueryInterface(GZIID_cISC4Occupant, &q) || q == nullptr) return nullptr;
+    return static_cast<cISC4Occupant*>(q);
 }
+
+// RAII: releases the reference a QI in this scope took (the glue §5.1b rule:
+// never Release a pointer you did not create/QI).
+struct ScopedOcc {
+    cISC4Occupant* o;
+    explicit ScopedOcc(uint64_t t) : o(OccupantOf(t)) {}
+    ~ScopedOcc() {
+        if (o != nullptr) o->Release();
+    }
+    cISC4Occupant* get() const { return o; }
+};
+
+// Resolves the cISC4PropOccupant primary off any prop token, with a temporary
+// reference the scope releases (the prop-side mirror of OccupantOf).
+cISC4PropOccupant* PropOfScoped(uint64_t t, cISC4PropOccupant** out) {
+    cIGZUnknown* u = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
+    if (u == nullptr || out == nullptr) return nullptr;
+    void* q = nullptr;
+    if (!u->QueryInterface(kIID_cISC4PropOccupant, &q) || q == nullptr) {
+        *out = nullptr;
+        return nullptr;
+    }
+    *out = static_cast<cISC4PropOccupant*>(q);
+    return *out;
+}
+
+struct ScopedProp {
+    cISC4PropOccupant* p;
+    explicit ScopedProp(uint64_t t) : p(nullptr) { PropOfScoped(t, &p); }
+    ~ScopedProp() {
+        if (p != nullptr) p->Release();
+    }
+    cISC4PropOccupant* get() const { return p; }
+};
 
 uint64_t Tok(const void* p) { return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(p)); }
 
@@ -208,13 +254,27 @@ void ReleaseToken(void*, uint64_t token) {
 
 // §A6.1 step 1: a prop occupant of `cls` through GZCOM. The object the class
 // factory returns already carries the caller's reference (the cFC4Development.cpp
-// DG5 convention), so no extra AddRef.
+// DG5 convention), so no extra AddRef. The token handed to the core is
+// NORMALIZED to the cISC4Occupant sub-object (QI 0x26BB767E): every
+// occupant-side host callback (Init, SetPosition, IsFlagSet, InsertOccupant,
+// ...) then runs on the right vtable. The factory's primary reference is
+// released right after the QI adds the core's own.
 uint64_t CreatePropInstance(void*, uint32_t cls) {
     cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
     if (com == nullptr) return 0;
     void* p = nullptr;
     if (!com->GetClassObject(cls, kIID_cISC4PropOccupant, &p) || p == nullptr) return 0;
-    return Tok(p);
+    auto* prop = static_cast<cISC4PropOccupant*>(p);
+    FC4_ACQUIRED(prop, "GetClassObject");  // DG5: the factory's caller reference
+    void* q = nullptr;
+    if (!prop->QueryInterface(GZIID_cISC4Occupant, &q) || q == nullptr) {
+        FC4_RELEASE_CREATED(prop);  // the factory's reference; nothing else holds it
+        return 0;
+    }
+    auto* occ = static_cast<cISC4Occupant*>(q);
+    FC4_ACQUIRED(occ, "QueryInterface");  // the core's reference, via the token
+    FC4_RELEASE_CREATED(prop);  // the factory's reference (the QI's ref takes over)
+    return Tok(occ);
 }
 
 // §A6.1 step 3: a builtin prop of `kind` (fc4.h: plain / terrain decal /
@@ -244,8 +304,8 @@ void PostExemplarDataUpdated(void* u, uint64_t manager, uint32_t data2) {
 }
 
 void SetPropType(void*, uint64_t prop, uint32_t id) {
-    cISC4PropOccupant* p = Occ(prop);
-    if (p != nullptr) p->SetPropType(id);
+    ScopedProp p(prop);
+    if (p.get() != nullptr) p.get()->SetPropType(id);
 }
 
 fc4_props* AttachExemplar(void*, uint64_t prop, uint32_t t, uint32_t g, uint32_t i, bool) {
@@ -256,24 +316,21 @@ fc4_props* AttachExemplar(void*, uint64_t prop, uint32_t t, uint32_t g, uint32_t
 }
 
 void SetBoundingBox(void*, uint64_t prop, const float* min3, const float* max3) {
-    cISC4PropOccupant* p = Occ(prop);
-    if (p != nullptr) p->SetBoundingBox(min3, max3);
+    ScopedProp p(prop);
+    if (p.get() != nullptr) p.get()->SetBoundingBox(min3, max3);
 }
 
 void Position(void*, uint64_t prop, float* pos3) {
     if (pos3 == nullptr) return;
     pos3[0] = pos3[1] = pos3[2] = 0.0f;
-    // The occupant manager's queries hand the core `cISC4Occupant*` tokens
-    // (the occupant sub-object at +8 of a prop occupant), and the core
-    // passes them straight back here. Reading them as `cISC4PropOccupant*`
-    // and calling AsOccupant (prop-occupant slot 3) would in fact invoke
-    // occupant slot 3 = Init (returns 1) and then dereference 1 (glue21
-    // gate-9/gate-10: the AV at +0xA843DB reading 1). The position is the
-    // occupant's own slot 8 on the token as handed over.
-    cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(prop));
-    if (o == nullptr) return;
+    // Tokens arrive as either the prop-occupant primary (CreatePropInstance)
+    // or the occupant sub-object (occupant-manager queries); resolving the
+    // occupant interface through QI (OccupantOf) covers both. Blind casts
+    // here were the glue21 gate-9/gate-10 AV at +0xA843DB reading 1.
+    ScopedOcc o(prop);
+    if (o.get() == nullptr) return;
     cS3DVector3 v;
-    o->GetPosition(&v);  // occupant slot 8
+    o.get()->GetPosition(&v);  // occupant slot 8
     pos3[0] = v.fX;
     pos3[1] = v.fY;
     pos3[2] = v.fZ;
@@ -387,55 +444,55 @@ uint64_t ViewFilter(void*) {
 }
 
 bool OccupantFlag(void*, uint64_t occ, uint32_t flag) {
-    cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(occ));
-    return o != nullptr && o->IsFlagSet(flag);
+    ScopedOcc o(occ);
+    return o.get() != nullptr && o.get()->IsFlagSet(flag);
 }
 
 bool OccupantInit(void*, uint64_t occ) {
-    cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(occ));
+    ScopedOcc o(occ);
     // [abi-ret] cISC4Occupant slot 3 (interfaces.tsv cSC4Occupant::Init) is
     // eax-or-void: the SDK declares bool and the game leaves whatever the last
     // inner call left. The core treats a missing Init as failure.
-    return o != nullptr && o->Init();
+    return o.get() != nullptr && o.get()->Init();
 }
 
 void OccupantShutdown(void*, uint64_t occ) {
-    cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(occ));
-    if (o != nullptr) o->Shutdown();
+    ScopedOcc o(occ);
+    if (o.get() != nullptr) o.get()->Shutdown();
 }
 
 void SetPropUsage(void*, uint64_t occ, uint32_t usage) {
-    cISC4PropOccupant* p = Occ(occ);
-    if (p != nullptr) p->SetPropUsage(usage);
+    ScopedProp p(occ);
+    if (p.get() != nullptr) p.get()->SetPropUsage(usage);
 }
 
 void SetPosition(void*, uint64_t occ, const float* pos3) {
-    cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(occ));
-    if (o == nullptr || pos3 == nullptr) return;
+    ScopedOcc o(occ);
+    if (o.get() == nullptr || pos3 == nullptr) return;
     const cS3DVector3 v(pos3[0], pos3[1], pos3[2]);
-    o->SetPosition(&v);
+    o.get()->SetPosition(&v);
 }
 
 void SetOrientation(void*, uint64_t occ, int32_t orientation) {
-    cISC4PropOccupant* p = Occ(occ);
-    if (p != nullptr) p->SetOrientation(orientation);
+    ScopedProp p(occ);
+    if (p.get() != nullptr) p.get()->SetOrientation(orientation);
 }
 
 void Hide(void*, uint64_t occ) {
-    cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(occ));
-    if (o != nullptr) o->SetFlag(0x00000001u);  // the hidden bit
+    ScopedOcc o(occ);
+    if (o.get() != nullptr) o.get()->SetFlag(0x00000001u);  // the hidden bit
 }
 
 bool InsertOccupant(void*, uint64_t occ) {
     cISC4OccupantManager* om = Occupants(nullptr);
-    cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(occ));
-    return om != nullptr && o != nullptr && om->InsertOccupant(o, 0);
+    ScopedOcc o(occ);
+    return om != nullptr && o.get() != nullptr && om->InsertOccupant(o.get(), 0);
 }
 
 void RemoveOccupant(void*, uint64_t occ) {
     cISC4OccupantManager* om = Occupants(nullptr);
-    cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(occ));
-    if (om != nullptr && o != nullptr) om->RemoveOccupant(o, true, 0);
+    ScopedOcc o(occ);
+    if (om != nullptr && o.get() != nullptr) om->RemoveOccupant(o.get(), true, 0);
 }
 
 bool OccupantsInCells(void*, const fc4_cell_rect* rect, uint32_t usage, fc4_token_callback found, void* ctx) {
@@ -753,6 +810,21 @@ const cISC4PropOccupant::PropProfile* cFC4PropManager::GetPropProfilePtr(uint32_
     return &out;
 }
 
+// Converts the core's normalized token (the cISC4Occupant sub-object carrying
+// the creation reference) into the cISC4PropOccupant* the SDK callers own:
+// QI to the primary takes one reference, the token's creation reference is
+// released, and the primary's reference goes to the game caller (one
+// reference owned, §A6.1 step 6).
+bool TokenToPropPrimary(uint64_t t, cISC4PropOccupant*& prop) {
+    cIGZUnknown* u = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
+    if (u == nullptr) return false;
+    void* q = nullptr;
+    if (!u->QueryInterface(kIID_cISC4PropOccupant, &q) || q == nullptr) return false;
+    prop = static_cast<cISC4PropOccupant*>(q);
+    FC4_RELEASE_CREATED(u);  // the creation reference (the QI ref hands over)
+    return true;
+}
+
 bool cFC4PropManager::CreateProp(uint32_t propID, cISC4PropOccupant*& prop) {
     // GLUE21-2 (prop-developer.md 13.2): the out parameter is left UNTOUCHED
     // until the core answers, never zeroed first - the game's callers take
@@ -764,8 +836,7 @@ bool cFC4PropManager::CreateProp(uint32_t propID, cISC4PropOccupant*& prop) {
     if (core_ == nullptr) return false;
     const uint64_t t = fc4_prop_manager_create_prop(core_, propID);
     if (t == 0) return false;
-    prop = reinterpret_cast<cISC4PropOccupant*>(static_cast<uintptr_t>(t));
-    return true;
+    return TokenToPropPrimary(t, prop);
 }
 
 bool cFC4PropManager::CreateGenericProp(cGZPersistResourceKey const& key, cISC4PropOccupant*& prop) {
@@ -773,8 +844,7 @@ bool cFC4PropManager::CreateGenericProp(cGZPersistResourceKey const& key, cISC4P
     if (core_ == nullptr) return false;
     const uint64_t t = fc4_prop_manager_create_generic_prop(core_, key.type, key.group, key.instance);
     if (t == 0) return false;
-    prop = reinterpret_cast<cISC4PropOccupant*>(static_cast<uintptr_t>(t));
-    return true;
+    return TokenToPropPrimary(t, prop);
 }
 
 namespace {

@@ -15,7 +15,10 @@
 // (see cFC4LotConfiguration.h). Every rule cites its section.
 #include "cFC4LotConfiguration.h"
 
+#include <windows.h>
+
 #include "FC4Fpu.h"
+#include "FC4Log.h"
 #include "FC4GameContainers.h"
 #include "FC4GameList.h"
 #include "FC4Properties.h"
@@ -135,6 +138,19 @@ uint32_t cFC4LotConfiguration::Release() {
     // is deleted (its Shutdown is a no-op here - the configuration has no
     // Shutdown of its own, 0).
     if (refCount_ == 0 || --refCount_ != 0) return refCount_;
+    // Diagnostic: a wrapper dying while the catalogue map still holds it
+    // leaves a dangling configuration the game reads at the next growth pass
+    // (AV reading 0 inside IsCompatibleWithPurposeType). Name the releaser.
+    void* frames[16] = {};
+    const USHORT n = RtlCaptureStackBackTrace(0, 16, frames, nullptr);
+    char chain[400] = {};
+    size_t at = 0;
+    for (USHORT i = 1; i < n && at < sizeof(chain) - 16; ++i) {
+        at += static_cast<size_t>(_snprintf_s(chain + at, sizeof(chain) - at, _TRUNCATE, "%s%p", i > 1 ? " " : "",
+                                              frames[i]));
+    }
+    fc4::Log("lotcfg: configuration %p deleted (frames %u, releaser chain: %s)", static_cast<void*>(this),
+             static_cast<unsigned>(n), chain[0] != 0 ? chain : "-");
     delete this;
     return 0;
 }

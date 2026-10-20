@@ -30,3 +30,22 @@
   `objects` vector is the game's own), and what makes it unmapped at that point? The two FreeCity4 replacements
   that could be involved are `GetObjectIDArray` (slot 27, ours, called by CreateLotObjects for prop objects) and
   the prop manager's `AddStreetProp` (slot 32, ours, called by CreateProp).
+
+
+<!-- from: the glue21fix2 round (2026-10-20; the configuration-lifetime fault after the PL17 fix) -->
+- **PL18:** (§B5.1, §B5.2, §B5.4, prop-lotconfig.md §B7 slot 20; the SimNewDay growth-pass AV) with
+  `enable = lotcfg` the city load completes and the run reaches turbo, but the growth developer's
+  SimNewDay pass faults: AV reading 0 inside our `cFC4LotConfiguration::IsCompatibleWithPurposeType`
+  (std::vector<bool> on a wrapper deleted out from under the catalogue map), deterministic at the
+  first SimNewDay with configurations. Measured with per-op ref tracing (glue21fix2-iso-lotcfg4/5,
+  isoref-1..4): each configuration's count over its life is creation +1 (the map's own reference,
+  core add_configuration), +1 raw per `GetLotConfigurationMap` rebuild (our scratch map,
+  InsertConfig), +1 per set-query insert (the §B5.2 reference, kept on duplicates per quirk 12);
+  then the game's growth pass (SimCity 4.exe+0x309798 / ILT 0x00709798) RELEASES FOUR references
+  per configuration and the wrapper deletes while the catalogue map still holds the pointer.
+  Which references does the game's growth pass believe it owns (its own acquisitions at load -
+  a bulk +1 wave of one reference per configuration that is not ours - and its per-query
+  release convention), and how should a replacement's slot 20 scratch map / slot 9 set queries
+  hand out references so the game's release pattern balances? The FreeCity4 readings
+  (slot 20 = a rebuilt scratch map holding one reference per configuration; slot 9 = the §B5.2
+  reference per insert, duplicates included) evidently do not match the game's expectations.

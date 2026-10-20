@@ -608,7 +608,19 @@ uint32_t cFC4LotConfigManager::GetLotConfigurationsByFilter(
                                   &v);
     auto* s = reinterpret_cast<fc4::GameHashSetU32<>*>(&configs);
     for (uint64_t t : v) {
-        if (s != nullptr) s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
+        // §B5.2: every configuration enters the set with a reference - game
+        // callers that release their results directly (the zone developer's
+        // growth pass) count on it. Without the +1 the catalogue's own
+        // reference hits 0 and the wrapper is freed under the map (the
+        // SimNewDay AV reading 0 inside IsCompatibleWithPurposeType).
+        if (s != nullptr) {
+            // The +1 is taken even when the value is already in the set (the
+            // quirk of §B5.2): the game releases once per element per pass,
+            // and a skipped duplicate's reference is the original's leak.
+            cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
+            if (o != nullptr) FC4_ADDREF(o);
+            s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
+        }
     }
     return static_cast<uint32_t>(v.size());
 }
@@ -623,7 +635,16 @@ uint32_t cFC4LotConfigManager::GetLotConfigurationsByFamily(void* configs, uint3
                                   &v);
     auto* s = reinterpret_cast<fc4::GameHashSetU32<>*>(configs);
     for (uint64_t t : v) {
-        if (s != nullptr) s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
+        // §B5.2: every configuration enters the set with a reference (see
+        // GetLotConfigurationsByFilter).
+        if (s != nullptr) {
+            // The +1 is taken even when the value is already in the set (the
+            // quirk of §B5.2): the game releases once per element per pass,
+            // and a skipped duplicate's reference is the original's leak.
+            cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
+            if (o != nullptr) FC4_ADDREF(o);
+            s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
+        }
     }
     return static_cast<uint32_t>(v.size());
 }
@@ -638,17 +659,33 @@ uint32_t cFC4LotConfigManager::GetLotConfigurationsBySize(void* configs, uint32_
                                   &v);
     auto* s = reinterpret_cast<fc4::GameHashSetU32<>*>(configs);
     for (uint64_t t : v) {
-        if (s != nullptr) s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
+        // §B5.2: every configuration enters the set with a reference (see
+        // GetLotConfigurationsByFilter).
+        if (s != nullptr) {
+            // The +1 is taken even when the value is already in the set (the
+            // quirk of §B5.2): the game releases once per element per pass,
+            // and a skipped duplicate's reference is the original's leak.
+            cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
+            if (o != nullptr) FC4_ADDREF(o);
+            s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
+        }
     }
     return static_cast<uint32_t>(v.size());
 }
 
+void cFC4LotConfigurationReleaseWalk(uint32_t v) {
+    reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(v))->Release();
+}
+
 void cFC4LotConfigManager::ClearLotConfigurationSet(void* configs) {
-    // §B7 slot 12: the game's own implementation leaves no defined return and
-    // the shadow does not compare the filter caches. [choice] the set is left
-    // alone: GameHashSetU32 has no clear() and freeing the game's nodes from
-    // here would fight its destructor.
-    (void)configs;
+    // §B7 slot 12: release every element once and empty the set. The nodes
+    // are freed here (to the same allocator the game's set uses) and every
+    // bucket head is nulled, so the game's own destructor afterwards finds
+    // empty chains and only frees the bucket buffer - no double free.
+    auto* s = reinterpret_cast<fc4::GameHashSetU32<>*>(configs);
+    if (s == nullptr) return;
+    s->ForEach(&cFC4LotConfigurationReleaseWalk);
+    s->ClearNodes();
 }
 
 namespace {

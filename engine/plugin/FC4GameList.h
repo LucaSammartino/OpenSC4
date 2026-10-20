@@ -357,6 +357,31 @@ public:
         return false;
     }
 
+    // Visits every value in bucket order (slot-12-style release walks).
+    template <typename F>
+    void ForEach(F&& f) {
+        for (Node** b = begin_; b != end_; ++b) {
+            for (Node* n = *b; n != nullptr; n = n->next) f(n->value);
+        }
+    }
+
+    // Empties the set: every node is freed to Alloc and every bucket head is
+    // nulled, so the game's own destructor afterwards finds empty chains and
+    // only frees the bucket buffer. Values are untouched: the caller has
+    // already released whatever references it added per element.
+    void ClearNodes() {
+        for (Node** b = begin_; b != end_; ++b) {
+            Node* n = *b;
+            while (n != nullptr) {
+                Node* next = n->next;
+                Alloc::Free(n);
+                n = next;
+            }
+            *b = nullptr;
+        }
+        count_ = 0;
+    }
+
     // As the game's insert (0x00624DD0): resize(count + 1) first, then a value
     // already present is not inserted again, else a new node goes to the head
     // of its chain. True if inserted; false if present or out of memory.
