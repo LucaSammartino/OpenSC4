@@ -31,13 +31,13 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 
 | Area | Functions | Bytes | % of game | Specified | Implemented | Verified | Replaced |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| simulation | 8,301 | 1,928,546 | 34.5% | 84.2% (84.2%) | 68.1% (67.8%) | 30.5% (28.4%) | 35.1% (31.5%) |
+| simulation | 8,299 | 1,928,261 | 34.5% | 84.2% (84.3%) | 68.1% (67.8%) | 30.5% (28.4%) | 35.1% (31.5%) |
 | framework | 4,935 | 648,694 | 11.6% | 20.9% (24.5%) | 14.1% (16.4%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | 5,093 | 1,206,975 | 21.6% | 18.5% (16.5%) | 3.9% (3.7%) | 3.3% (2.6%) | 0.0% (0.0%) |
 | ui | 5,079 | 1,105,882 | 19.8% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | audio | 1,981 | 225,440 | 4.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | region | 414 | 111,697 | 2.0% | 9.8% (7.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| other | 529 | 57,324 | 1.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| other | 531 | 57,609 | 1.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | shared | 2,238 | 206,377 | 3.7% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | unattributed | 911 | 95,483 | 1.7% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | **all game code** | **29,481** | **5,586,418** | 100.0% | **35.7%** (30.8%) | **26.0%** (22.5%) | **11.3%** (8.5%) | **12.1%** (8.9%) |
@@ -87,8 +87,8 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | simulation | port developers | 4 | 109 | 12,650 | yes | yes | - | - | - |
 | simulation | crime | 1 | 56 | 12,064 | yes | yes | 71/71 | yes | yes |
 | simulation | demolition | 2 | 29 | 10,968 | yes | yes | demolition 73/73 (lane run) | part | - |
-| simulation | other simulation | 3 | 71 | 9,797 | - | - | - | - | - |
 | simulation | lot configuration | 1 | 37 | 9,580 | yes | yes | - | - | - |
+| simulation | other simulation | 2 | 69 | 9,512 | - | - | - | - | - |
 | simulation | simulator | 1 | 76 | 9,360 | yes | yes | - | - | yes |
 | simulation | ordinance | 8 | 78 | 8,924 | yes | yes | - | - | yes |
 | simulation | dispatch | 1 | 40 | 7,425 | yes | yes | dispatch 73/73 (lane run) | yes | - |
@@ -130,7 +130,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | audio | audio | 56 | 1,981 | 225,440 | - | - | - | - | - |
 | region | region | 26 | 414 | 111,697 | part | - | - | - | - |
 | other | other free functions | 152 | 187 | 27,444 | - | - | - | - | - |
-| other | other SC4 classes | 59 | 191 | 17,154 | - | - | - | - | - |
+| other | other SC4 classes | 60 | 193 | 17,439 | - | - | - | - | - |
 | other | other | 57 | 151 | 12,726 | - | - | - | - | - |
 
 ## Excluded from the denominator
@@ -252,7 +252,7 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | docs/abi/interfaces.tsv | ebed6652e84d4d4b | |
 | tools/coverage-libs.tsv | de557a391ec04b04 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
-| tools/coverage-map.tsv | 25b4c67f4aa66a30 | |
+| tools/coverage-map.tsv | d34713cd666631b5 | |
 | tools/coverage-shadows.tsv | 9559bafe0136e8c5 | |
 | tools/regress.ps1 | 138cae90b2d15a09 | |
 | engine/plugin/FC4Subsystems.cpp | bae1e1542c8cb2cc | |
@@ -262,4 +262,23 @@ Read from tools/regress.ps1: 27 replace keys, 28 shadows. On by default in FC4Su
 
 ## Warnings
 
+- map row `cSC4*OccupantFilter` matches no owner
+- map row `cSC4*Occupant` matches no owner
+- map row `cSC4*Occupant`: replace key `-cSC4GameOfLifeSimulator` is not an enable key in FC4Subsystems.cpp
+- map row `cSC4ConstructionOccupant` matches no owner
+- map row `cSC4Network*Occupant*` matches no owner
+- map row `cSC4Network*` matches no owner
+- map row `cSC4NetworkRoutines` matches no owner
+- map row `cSC4NetworkTypeInfo` matches no owner
+- map row `cSC4Occupant*` matches no owner
+- map row `cSC4PipeOccupant` matches no owner
+- map row `cSC4PowerLineOccupant` matches no owner
+- map row `cSC4PowerPoleOccupant` matches no owner
+- map row `cSC4PropOccupant*` matches no owner
+- map row `cSC4PylonOccupant` matches no owner
+- map row `cSC4SignpostOccupant` matches no owner
+- map row `cSC4SubwayOccupant` matches no owner
+- map row `cSC4TextDecalOccupant` matches no owner
+- map row `cSC4UndergroundConnectionOccupant` matches no owner
+- map row `cSC4UndergroundOccupant` matches no owner
 - shadow `netmgr_shadow` is in the regress list but `regress-voidbool.out` has no `netmgr` lines
