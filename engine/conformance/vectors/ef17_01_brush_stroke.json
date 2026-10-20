@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "effects_brush_stroke",
+  "spec": ["effects 8.2", "effects 17"],
+  "description": "Brush record 2 (rate 30, length 3) at 33333 us per tick, dilation 1: the first tick applies nothing (acc 0.99999), then one application per tick; the stroke ends on tick 91 (t 3.0333 > 3) after 90 applications with 0.99909 left in the accumulator.",
+  "steps": [
+    {"op": "ef_create", "directory": {"effects": [{"name": "stroke", "components": [{"type": "brush", "index": 2}]}]}},
+    {"op": "ef_effect", "name": "stroke", "as": "S", "expect": true},
+    {"op": "ef_call", "method": "set_position", "effect": "S", "args": [100, 0, 100], "expect": true},
+    {"op": "ef_call", "method": "start", "effect": "S", "expect": true},
+    {"op": "ef_run_stroke", "effect": "S", "us": 33333, "ticks": 91, "applications": 90, "first": [0, 1, 1, 1]},
+    {"op": "ef_expect_brush", "effect": "S", "state": {"active": false, "t": 3.0333, "acc": 0.99909, "applications": 90, "long_op": true}}
+  ]
+}

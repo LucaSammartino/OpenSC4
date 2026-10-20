@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "effects_game_record_order",
+  "spec": ["effects 9.2", "effects 17"],
+  "description": "Game record 17 at cell (40, 40): burn (IgniteCellRadius 0..14, SetCause 4), then demolish the clipped rectangle (30, 30)-(50, 50) with flags 2; near the edge at (2, 60) the rectangle clips to (0, 50)-(12, 63).",
+  "steps": [
+    {"op": "ef_create", "directory": {"effects": [{"name": "g17", "components": [{"type": "game", "index": 17}]}]}},
+    {"op": "ef_effect", "name": "g17", "as": "G", "expect": true},
+    {"op": "ef_call", "method": "set_position", "effect": "G", "args": [648, 0, 648], "expect": true},
+    {"op": "ef_call", "method": "start", "effect": "G", "expect": true},
+    {"op": "ef_clear_events"},
+    {"op": "ef_call", "method": "tick", "args": [33333]},
+    {"op": "ef_expect_events", "events": [{"event": "ignite", "x": 40, "z": 40, "r0": 0, "r1": 14}, {"event": "cause", "cause": 4}, {"event": "demolish", "rect": [30, 30, 50, 50], "flags": 2, "dezone": false}]},
+    {"op": "ef_create", "directory": {"effects": [{"name": "g17", "components": [{"type": "game", "index": 17}]}]}},
+    {"op": "ef_effect", "name": "g17", "as": "G", "expect": true},
+    {"op": "ef_call", "method": "set_position", "effect": "G", "args": [32, 0, 960], "expect": true},
+    {"op": "ef_call", "method": "start", "effect": "G", "expect": true},
+    {"op": "ef_clear_events"},
+    {"op": "ef_call", "method": "tick", "args": [33333]},
+    {"op": "ef_expect_events", "filter": {"event": "demolish"}, "events": [{"event": "demolish", "rect": [0, 50, 12, 63], "flags": 2}]}
+  ]
+}

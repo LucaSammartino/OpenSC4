@@ -249,6 +249,9 @@ pub mod keys {
     pub const REGION_CREATION: SeedKey = SeedKey::FileLocal(file_seed::REGION_CREATION);
     /// Advice (`0x00B22E58`, `cRZRandom`).
     pub const ADVICE: SeedKey = SeedKey::FileLocal(file_seed::ADVICE);
+    /// Brush effects (`0x00B22BE8`, `cRZRandom`, effects.md §8.2): one per
+    /// effects manager in FreeCity4.
+    pub const BRUSH_EFFECTS: SeedKey = SeedKey::FileLocal(file_seed::BRUSH_EFFECTS);
     /// Prop developer (`cRZRandomSuper` member seeded with the wall clock
     /// × 28 at construction; GZCLSID `0x89C48F47`, prop-developer.md §1):
     /// seed it with [`super::prop_developer_seed`].

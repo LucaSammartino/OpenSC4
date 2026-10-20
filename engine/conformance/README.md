@@ -2383,6 +2383,12 @@ sources (every read fails), tags (1, 2). Detokenizing prefixes `detok:`. A host 
 Object specs (`object`, `advisor`, `advice`, `target`, …): `"system"`, `{"advisor": id}`, `{"advice": guid,
 "advisor"?: id}` (the first advisor holding it), `{"mysim": index}` (with the MySim ops) or a name given by
 `adv_subject`, `adv_create_object`, `mysim_read` or a record read (`ref<id>`).
+## Effects ops
+
+The effects vectors (`ef17_…` for the §17 tests) drive `fc4_core::effects` (`docs/specs/effects.md`): the effects
+manager (`EffectsManager`), the brush effect, the game effect and the effect directory. Every op name starts with
+`ef_`. The host logs every call it receives. The default host: a simulator with dilation 1, a city of 64 × 64 cells
+(16 m), render components inactive.
 
 ### Setup
 
@@ -2457,6 +2463,13 @@ until set. `sim` is a vector index (0–5) or a name from `mysim_read`.
 | `mysim_position` / `mysim_rect_lot` / `mysim_dispatch` | `occupant`, `position` / a lot / `id` + dispatch fields | a fire's position / a lot of the trip square / a MySim's dispatch |
 | `mysim_set` | `sim` + MySim fields (state, slot, wealth, age, keys, rings, pylon, references, …), `month_counter`, `queue: []` | pokes the state |
 | `mysim_reseed` | `sim`, `seed` | the MySim's generator restarts (clock seeds 1) |
+| `ef_create` | `directory?` (`"volcano"`, the default: `shipped::volcano_directory()`; or inline `{games?, effects: [{name, priority? (1), flags?, components: [{type, index?, name?, flags?, lod? [min, max], group?, weight?}]}]}`, with the shipped brush records and, unless `games` is given, the shipped game records), `seed?` (the session seed), `max_priority?`, `finish_mode?` (`hook` (the default) or `draw_pass`), `nested_update?` (true) | a new manager, replacing the current one; labels are cleared |
+| `ef_env` | any of `dilation` (a number, or null: no simulator), `cells` [x, z], `render_active` | the host |
+| `ef_effect` | `name`, `as?` (a label), `expect?` (whether an effect was created), `expect_index?` (the description chosen; -1: none qualifies) | `CreateVisualEffect` |
+
+Component `type`: `particles`, `decal`, `meta`, `brush`, `attractor`, `game`, `sound` or a number. Game record
+fields (inline): `flags`, `demolish`, `demolish_flags`, `min_size`, `max_size`, `burn`, `message`, `message_data`,
+`duration`, `toxic`, `extinguish`.
 
 ### Calls and checks
 
@@ -2504,6 +2517,21 @@ types.
 | `ng_destroy` | `destroyed`, `pieces`, `replaced` ([[x, z]] each); `expect` `{removals, resolve}` | §13 |
 | `ng_grade` | `expect?` `{changed, rect}` | slot 57 on the terrain satisfier |
 | `ng_expect_events`, `ng_clear_events` | as elsewhere | the terrain's posts |
+| `ef_call` | `method`, `effect?` (a label), `args?`, `repeat?`, `expect?` (the last result) | the manager: `tick` ([us]), `frame` ([us]: the tick, then the finishing hook, then the draw pass), `finish_hook`, `draw_pass` (whether the sweep ran), `shutdown`, `set_zoom` ([zoom, offset]), `set_max_priority`, `has` ([name]); an effect: `start` / `stop` ([mode?], 0 by default), `set_position` ([x, y, z]), `set_end_message` ([type, data1]), `forward_parameter` ([index, value]), `add_ref`, `release`, `is_started`, `is_stopping` |
+| `ef_run_stroke` | `effect`, `us`, `max?` (10000), `ticks?`, `applications?`, `first?` (the brush calls of the first ticks), `every?` (the brush calls of every tick) | ticks until the effect's brush is inactive |
+| `ef_child` | `effect`, `n?` (0), `name?`, `as?` | the child of the effect's `n`-th built meta component |
+| `ef_expect` | `effect`, `state` (partial: `exists`, `name`, `index`, `refs`, `started`, `stopping`, `components` (built), `active`) | an effect |
+| `ef_expect_brush` | `effect`, `n?`, `state` (partial: `brush`, `rate`, `length`, `one_shot`, `strength`, `radius`, `active`, `long_op`, `acc`, `t`, `prev`, `cur`, `applications`) | the effect's `n`-th brush component |
+| `ef_expect_game` | `effect`, `n?`, `state` (partial: `started`, `pending`, `timer`, `count`, `cell`, `data`, `applies`) | the effect's `n`-th game component |
+| `ef_expect_manager` | `state` (partial: `select_draws`, `end_posts`, `recycled`, `effect_count`, `active_count`, `total_us`, `lod`, `max_priority`) | the manager |
+| `ef_select` | `first_word?`, `draws?`, `weights` + `members?` (1-based) | a fresh select generator (seed `0x1105`): its first word, its first `RandomUint32Uniform(0x10000)` draws and the members they pick |
+| `ef_expect_events` / `ef_expect_event_count` / `ef_clear_events` | see the shared conventions | host calls |
+
+Effects events: `brush` (`brush`, `from`, `to`, `level`, `strength`, `radius`, `redisplay`, `data4`, `target`),
+`begin_long`, `end_long`, `ignite` (`x`, `z`, `r0`, `r1`), `cause` (`cause`), `toxic` (`x`, `z`), `demolish`
+(`rect` [x0, z0, x1, z1], `flags`, `dezone`, `no_networks`, `no_flora`, `min_size`, `max_size`), `extinguish`
+(`x`, `z`, `amount`), `post` (`type`, `data1`, `data2`, `data3`), `pause`, `resume`, `hidden_pause`,
+`hidden_resume` and `clock` (`on`).
 
 ## Adding a vector
 
@@ -4021,3 +4049,22 @@ The core's unit tests (`fc4_core::network_geometry`) also cover the pre-adjust r
 types, the satisfier's collapse rule, slope merging, preferred ranges and pinned propagation, the smoothing and
 boundary sets, the water-surface floor of the cell infos, the flat-cell and cross-section rules, the offset tables and
 the diagonal-end extension; `fc4_capi`'s `network_geometry_tests` cover the C ABI.
+## Coverage (effects §17)
+
+| §17 item | Vector |
+|---|---|
+| 1 the brush stroke count (record 2 at 33333 us) | `ef17_01_brush_stroke` |
+| 2 the dilation (1.5; 100000 us) and the truncated time | `ef17_02_dilation` |
+| 3 the select draw (seed `0x1105`) and the volcano creators | `ef17_03_select_draw` |
+| 4 the one-shot crater | `ef17_04_one_shot_crater` |
+| 5 out of bounds | `ef17_05_out_of_bounds` |
+| 6 the game record's order and the clipped rectangle | `ef17_06_game_record_order` |
+| 7 moving to a new cell | `ef17_07_move_to_new_cell` |
+| 8 the pause record | `ef17_08_pause_record` |
+| 9 the priority filter and the index -1 no-op | `ef17_09_priority_filter` |
+| 10 no end without the draw pass (both finish modes; EF2, EF8) | `ef17_10_no_end_without_the_draw_pass` |
+
+The core's unit tests (`fc4_core::effects`) also cover the directory parser and writer, the LOD ranges, the
+nested update (EF9), the game record's other actions, the shipped tables and shutdown; the install sweep
+(`cargo test -p fc4-formats --test effects_directory -- --nocapture`) parses the installed directory; `fc4_capi`'s
+`effects_tests` cover the C ABI.
