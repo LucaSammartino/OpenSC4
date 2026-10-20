@@ -86,6 +86,10 @@ exist in its cwd:
 return immediately: lane 'probe-ctx', tip 'none', state 'blocked', summary 'probe'."}})`, then read the first
 assistant `usage` in `<session>\subagents\workflows\<run>\agent-*.jsonl` (`python .claude/lane-bin/ctx.py
 probe-ctx --first` prints it). Run it once from a GLM-route session too: that route is the one that went from 172k.
+Not yet verified there: that `tools:` also drops the MCP schemas on the third-party route (it should, since it
+names the whole tool set and the route only changes deferral). If the GLM probe still starts near 172k, turn the
+Chrome, computer-use and browser connectors off for the coordinator session and keep `rea` (top-level
+`mcpServers` in `~/.claude.json`) only in sessions that spawn RE lanes.
 
 ## Keeping the coordinator cheap
 
