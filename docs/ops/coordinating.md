@@ -19,8 +19,9 @@ returns a short result (state, tip, one-line gate/game/questions, at most 5 next
    (spawn in order core, then its DIFFERS/answers, then glue), no existing branch or lane file, no other active lane
    on the same keys (two riot-lock implementations came from skipping this). Do not spawn speculatively near a
    planned stop: a lane stopped midway is mostly wasted.
-3. `python tools/lanes.py brief <subsystem> --kind engine|re`, pasted as `args.brief`: the spec, its questions file,
-   core paths, keys, ABI and conformance pointers. Lanes read the brief and the one-page HANDOFF, not whole trees.
+3. `python tools/lanes.py brief <subsystem> --kind engine|re --focus <regex>`, pasted as `args.brief`: the spec with its
+   section outline (`--focus` marks the sections the task names; specs run to 100-200 KB), its questions file, core
+   paths, keys, ABI and conformance pointers. Lanes read the brief and the one-page HANDOFF, not whole trees.
 4. Pick the model: `kind: 'mech'` (docs rows, ABI rows, regress records, regenerations) runs on Sonnet by default;
    RE, spec and engine work keep the session model. Pass `effort: 'low'` for mechanical steps.
 

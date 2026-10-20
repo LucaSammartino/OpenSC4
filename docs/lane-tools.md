@@ -16,7 +16,7 @@ at another checkout, read-only.
 | `wait --verdict <label>` or `wait --file <path> [--pattern <re>]` | **lanes** | one tool call instead of a polling loop |
 | `monitor [--interval 30]` | coordinator, under the Monitor tool | one line per event, silence otherwise |
 | `ledger [--out ...] [--md docs/token-ledger.md]` | coordinator, now and then | tokens per lane, merge share, tokens per coverage point |
-| `brief <subsystem-or-key> [--kind engine\|re]` | coordinator, when writing a lane prompt | a context pack of at most 60 lines to paste into the prompt |
+| `brief <subsystem-or-key> [--kind engine\|re] [--focus <regex>]` | coordinator, when writing a lane prompt | a context pack of at most 60 lines to paste into the prompt, with each spec's section outline (line ranges and sizes); `--focus` marks the sections and subsections the task is about, so the lane reads those ranges instead of a 100-200 KB spec |
 
 ## The cap rule
 

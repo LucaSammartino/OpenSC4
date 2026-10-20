@@ -1170,6 +1170,34 @@ def human(n):
     return f"{n / 1024:.0f} KB" if n >= 1024 else f"{n} B"
 
 
+def spec_outline(path, focus=None, limit=24):
+    """The spec's '## ' sections with line ranges and sizes, so a lane reads only the sections its task needs
+    (Read with offset/limit) instead of the whole spec. With focus (a regex), sections whose heading or body
+    match are marked '>>' and their '### ' subsections are listed too."""
+    lines = (read_text(path) or "").splitlines()
+    heads = [(i, l) for i, l in enumerate(lines) if re.match(r"#{2,4} ", l)]
+    tops = [(i, l) for i, l in heads if l.startswith("## ")]
+    rx = re.compile(focus, re.I) if focus else None
+    out_lines = [f"  - outline (read sections with offset/limit, not the whole file; line numbers are 1-based):"]
+    shown = 0
+    for n, (i, l) in enumerate(tops):
+        end = tops[n + 1][0] if n + 1 < len(tops) else len(lines)
+        size = sum(len(x) + 1 for x in lines[i:end])
+        hit = bool(rx and rx.search("\n".join(lines[i:end])))
+        if shown < limit or hit:
+            out_lines.append(f"    {'>>' if hit else '  '} {i + 1}-{end}  {human(size):>7}  {l[3:][:70]}")
+            shown += 1
+        if hit:  # the subsections (### / ####) whose own text matches, with their line ranges
+            subs = [(j, sl) for j, sl in heads if i < j < end]
+            for k, (j, sl) in enumerate(subs):
+                send = subs[k + 1][0] if k + 1 < len(subs) else end
+                if rx.search("\n".join(lines[j:send])):
+                    out_lines.append(f"         {j + 1}-{send}  {sl.lstrip('#').strip()[:70]}")
+    if len(tops) > shown:
+        out_lines.append(f"       (+{len(tops) - shown} more sections; pass --focus <regex> to pick)")
+    return out_lines
+
+
 def cmd_brief(ctx, a):
     key = a.key.strip()
     kl = key.lower()
@@ -1219,6 +1247,7 @@ def cmd_brief(ctx, a):
     L.append("")
     shown = list(groups.items())
     detail = shown[:4]
+    outlined = set()
     for name, g in detail:
         L.append(f"## {name} ({g['area']})")
         for s in g["specs"]:
@@ -1228,6 +1257,9 @@ def cmd_brief(ctx, a):
             qp = ctx.src / "docs" / "specs" / "questions" / f"{stem}.md"
             L.append(f"- spec: docs/specs/{s} ({size}); questions: docs/specs/questions/{stem}.md "
                      f"({'exists' if qp.exists() else 'not there yet'})")
+            if sp.exists() and s not in outlined:
+                outlined.add(s)
+                L.extend(spec_outline(sp, a.focus))
         if not g["specs"]:
             L.append("- spec: none yet" + ("" if eng else " (an RE lane writes it)"))
         for c in g["cores"]:
@@ -1341,6 +1373,7 @@ def main(argv=None):
     p = sub.add_parser("brief", help="a <= 60-line context pack for a lane")
     p.add_argument("key")
     p.add_argument("--kind", choices=("engine", "re"), default="engine")
+    p.add_argument("--focus", default=None, help="regex: mark the spec sections the task is about")
 
     a = ap.parse_args(argv)
     try:
