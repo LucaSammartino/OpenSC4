@@ -54,10 +54,6 @@ struct DispatchWorld {
     /// The neighbour cells of the map edges.
     neighbors: RefCell<Vec<(i32, i32)>>,
     notifications: RefCell<Vec<(i32, u32, u32, u32)>>,
-    installation: Cell<bool>,
-    installed: RefCell<Vec<MySimTemplate>>,
-    /// The `mysim` dispatch commands, for the notify path.
-    sim_commands: RefCell<Vec<(i32, String)>>,
 }
 
 impl DispatchWorld {
