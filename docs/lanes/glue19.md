@@ -1,18 +1,82 @@
-| Lane | Agent/worktree | State at stop | Next steps |
-|---|---|---|---|
-| glue19 (the automata layer glue: shadow, riot/fire host tables, U-Drive-It, the GZCOM classes) | `glue19` / (engine lane) | **ready** (no C ABI version bump; `fc4_automata_automaton_set_state` / `_push_state` return whether the stack changed and `_push_state` takes the full argument list, and `fc4_automata_create_args` is the seven named arguments of §7.2, 56 bytes: `"abi": true`; gate glue19: cargo 2863/0 against a 2859/0 baseline, clippy clean, plugin build clean, ctest 57/57, ret_channel_check 0 flagged; save sweep 417 saves, 0 failures, every record byte-identical): the **automata shadow** (`automata_shadow = 1`, `FC4AutomataShadow`) is exact — run `glue19-shadow-4` clean with `ref_warnings=0`, 73 lines, 73 with mismatches=0, 438 components compared, 774,664 bytes compared, 0 mismatches, all six components (40, 41, 43-46) byte identical at each city load and each month to 2032 (also `glue19-shadow-2-143` 778,963 bytes and `glue19-shadow-3-144` 780,487); `FC4AutomataHost` fills `fc4_automata_riot_host` and `fc4_automata_fire_host` with the game calls of §8.1 / §8.2 (road spiral, leader cap, `CreateAutomaton`'s seven arguments, `SetState` / `SetVisible` / `AsOccupant`, the disaster layer's location register, controller manager slots 5 / 10 / 14) and `AutomataPauseAll` / `AutomataResumeAll` for U-Drive-It (§9); `FC4AutomataInterfaces.h` declares the three interfaces in the verified slot order with no overloads (73 methods) plus sparse `cFC4ISC4Automaton` / `cFC4ISC4DisasterLayer` / `cFC4ISC4Occupant`; `cFC4Automata.{h,cpp}` holds the six GZCOM classes over `fc4_automata_*` with the records round-tripping (`Read -> 1` on all six in game) but is **not registered** — with it in `kSubsystems` the city's Init phase faults at `SimCity 4.exe+0x0045BF1B` (null deref) after the reads, runs `glue19-enable-1`..`-4` (question A4); the state-record corrections of the re-integrate1 answers (Plummet's stream order `+0x28, +0x34, +0x30, +0x2C, +0x38` and its unsaved sixth `ref`, AttachAnim's `bool` at `+0x2C` before the `u16` at `+0x30`, `final` blocking `SetState` and `PopState` pushing DISAPPEAR, `PushState(0, 0, …)` delegating to `SetState`, the stack index recomputed on every stack mutation, `CreateAutomaton`'s seven named arguments) with §14 tests 24-27 and 29 | Next: (1) **finish the `enable = automata` replacement**: find the Init-phase fault of question A4 (the game calls one of the stubs before any of ours is logged; the records already Read), then put `kAutomataClasses` into `kSubsystems` as `{"automata", …, false}` and re-run the shadow, which must stand it down (`AutomataShadowStartup(enabledKey("automata"))` already does); (2) the referenced classes through `fc4_automata_object_create` with `fc4_automata_object_set_token` for the wrappers; (3) drive the riot and fire host tables from the disaster layer's events (`fc4_automata_riot_add` / `_set_stage` / `_end`, `fc4_automata_fire_set_target` / `_shutdown`) and wire `AutomataPauseAll` / `AutomataResumeAll` to the city situation manager's mission start and countdown end; (4) apply the re-integrate1 DIFFERS to the core's per-tick behaviour when animation is no longer stubbed (§6.5, §6.6 — out of this lane's scope, §0); (5) a save / reload run with the shadow on; (6) add `automata_shadow = 1` to the regress shadows list once it is in a regress run. Questions A1-A4 filed |
+| glue19 (the automata layer glue: shadow, riot/fire host tables, U-Drive-It, the GZCOM classes) | `glue19` / (engine lane) | **ready** (no C ABI version bump; gate glue19-fix: cargo 2863/0, clippy clean, plugin build clean, ctest 57/57, ret_channel_check 0 flagged after `cISC4CitySituationManager` slot 32 joined SPEC_FACTS; runs 193-197 clean/ended, `ref_warnings=0`): the **automata shadow** (`automata_shadow = 1`) stays exact — run `glue19-shadow-4` (73/73 lines, 774,664 bytes, 0 mismatches) and, on the fix-round tip, the save / reload pair: run `glue19-save-196` `SaveCity(full)` inside the exact shadow (358/358 lines, 3,837,340 bytes) and run `glue19-reload-197` the saved 2026-02-13 state reloaded with the shadow exact (117/117 lines, 1,257,036 bytes; `Read: version 4 ... julian 2461085`), so the records round-trip a save. `FC4AutomataDriver` now also bridges the **fire** half: `AutomataDriverFireSetTarget` / `_Shutdown` wired to the disaster host's live `create_fire_occupant` / `remove_fire_occupant` (the occupant itself is still Q27, so the bridge is wired and inert), and **U-Drive-It** pause / resume is wired: the observer subscribes the city situation manager's activation message `0xABBBCA64` (data1 = 1 pause through `AutomataPauseAll`, slot 9; data1 = 0 does not resume, CS6) and its tick polls the manager's `CountdownIsInProgress` (slot 32) and resumes through `AutomataResumeAll` (slot 10) when the countdown that ran has ended (city-situation.md 4.4 steps 1-2); the driver logs its host counts at the city shutdown. **The riot / fire driver stays unexercised in game on this branch**: the disaster layer is the original's (there is no `enable = disasters`), so its `create_riot_leader` never reaches the FC4DisasterHost table the driver serves — runs `glue19-riot-1` / `-2` show a scripted riot starting (`AttemptDisasterStart(40, 33)`, `active=1 ongoing=1`, the game's own disaster emergency pause holding the date) with `leaders created 0, ... fire controller calls 0` as expected. `automata_shadow = 1` joined the regress shadows list. Questions AT20 filed (the receiver names of the pause / resume) | Next: (1) an RE answer to AT20 (what city-situation slots/messages reach the four managers' Pause/Resume in the original; the wiring waits for it — `AutomataDriverSituationMessage`'s message trigger and `_Tick`'s countdown poll are the *[inferred]* reading, marked in the code); (2) exercise the driver in game when a disasters replacement lands (its `create_riot_leader` then hands the leader to `fc4_automata_riot_add`, `_set_stage`, `_end` and `fc4_automata_fire_set_target` / `_shutdown` through `AutomataDriverRiotAdd` / `RiotSetStage` / `RiotEnd` / `FireSetTarget` / `FireShutdown`); (3) the month-agent slot-83/89 vtable answer (AT20 of the fix round, an RE pass over the four managers' primary vtables) before `enable = automata` can run a played city; (4) the enable run after that; (5) merge: the train may need the FC4Subsystems.cpp union (the branch's automata row is at the end of `kSubsystems`) and the fc4.h history comment. Questions AT20 (this round) and the earlier A1-A4 filed |
 
-## Next steps
+## Report
 
-1. **The replacement is built but not registered.** `engine/plugin/cFC4Automata.{h,cpp}` holds the six GZCOM
-   classes over `fc4_automata_*`, generated from `FC4AutomataInterfaces.h` so an override cannot drift from its
-   declaration. All six `Read -> 1` their own records in game. What is left is one Init-phase fault
-   (`SimCity 4.exe+0x0045BF1B`, a null dereference with `ecx=0`, right after the terrain and surface-water
-   `AddAgent` and before any further call of ours is logged): the failing slot is one of the stubs. Until that is
-   found the classes are **not** in `kSubsystems`, so `enable = automata` is inert and every gate run stays clean.
-2. **The riot and fire host tables are filled but nothing drives them yet.** `fc4_automata_riot_add` /
-   `_set_stage` / `_end` and `fc4_automata_fire_set_target` / `_shutdown` need a caller: glue13's disaster layer
-   is the natural one (its `fc4_disasters_host` already sees the riot and fire episodes).
-3. **Animation is stubbed by design** (automata.md §0: "A replacement may animate however it likes, or not at
-   all, provided it keeps the records and the hooks"). §6.5 / §6.6's per-tick behaviour is therefore out of
-   scope here and is a later lane.
+### What changed (commits on the branch, newest first)
+
+- `a28c7282` **automata_shadow in the regress shadows list** (the fix round's step (6)): `tools/regress.ps1`'s shadows
+  profile ends with `automata_shadow = 1`; the header comment names it.
+- `1dc7cfbd` **the driver's shutdown counts line**: `automata driver: off: leaders created N, refused N, SetState
+  calls N, stage-rise calls N, fire controller calls N` at the city shutdown, from `FC4AutomataHost`'s counts.
+- `9837af8f` **the fire bridge and the U-Drive-It pause / resume** (the fix round's step (3)):
+  - `FC4AutomataDriver.{h,cpp}`: `AutomataDriverFireSetTarget(token)` / `AutomataDriverFireShutdown()` over the
+    driver's `fc4_automata_fire` (the 8.2 bridge; the fire occupant itself is still Q27 on this branch, so the
+    bridge is wired and inert); the U-Drive-It state (`udrivePaused`, `countdownSeen`),
+    `AutomataDriverSituationMessage(data1)` (the pause on `0xABBBCA64` data1 = 1, through
+    `fc4::AutomataPauseAll` = manager slot 9 on the four managers) and `AutomataDriverSituationTick()` (every
+    framework tick: polls `cISC4CitySituationManager::CountdownIsInProgress` (city slot 49, slot 32) and resumes
+    through `fc4::AutomataResumeAll` (slot 10) when a countdown that was seen running has ended — the spec's own
+    resume, city-situation.md §4.4 step 2; CS6 says a deactivation does not unfreeze, the countdown running out
+    does). The message trigger is *[inferred]* (automata.md §9 names only the manager slots; the activation
+    message is the observable), marked in the code and asked as AT20.
+  - `FC4DisasterHost.cpp`: live-mode `remove_fire_occupant` hands the removal to the driver (the Shutdown of 8.2)
+    when the fire token is a real object; `create_fire_occupant`'s comment names the bridge.
+  - `FC4Observer.cpp`: `kMsgSituationActive` (0xABBBCA64) subscribed with the other observer messages and routed
+    to the driver; the driver's tick runs after the shadows' in `OnTick`.
+  - `engine/tests/check_ret_channels.py`: `SPEC_FACTS` gains `("cISC4CitySituationManager", 32)` (city-situation.md
+    §8: CountdownIsInProgress, EAX 0 or 1), so the plugin's bool read is reviewed rather than flagged.
+- Earlier (already on the branch at resume): the automata shadow, the state-record corrections, the host tables,
+  the six GZCOM classes (registered, `enable = automata`, off by default), the QueryInterface create-path fix
+  (A4), the wrappers and the riot half of the driver.
+
+### Measured results
+
+- **Gate glue19-fix** (at `9837af8f` + the counts line `1dc7cfbd`, `coord-verify-lane.ps1`): configure 0, build 0,
+  ctest **57/57** (the first run flagged `CountdownIsInProgress` in `ret_channel_check`; fixed by the SPEC_FACTS
+  row, rerun clean); **cargo 2863/0** (`cargo test --workspace --target i686-pc-windows-msvc`, the glue19
+  baseline); **clippy clean** (`-D warnings`); rustfmt: no `.rs` files touched, no diffs.
+- **Run 193 `glue19-riot-1`** (Konradshohe, `automata_shadow = 1`, `disaster survey` + `disaster riot auto`):
+  clean, `ref_warnings=0`, the automata shadow exact (1 line). The riot started
+  (`AttemptDisasterStart(40, 33) -> instance 00000000; active=1 ongoing=1`) and the game's disaster emergency
+  pause held the rest of the run at 2026-02-02.
+- **Run 194 `glue19-riot-2`** (the same + the counts line): clean, `ref_warnings=0`, the shadow exact;
+  `automata driver: off: leaders created 0, refused 0, SetState calls 0, stage-rise calls 0, fire controller
+  calls 0` — the expected empty count with the original disaster layer (see below).
+- **Run 195 `glue19-savesave`** (queued before the fix round, `243f82ff`, one `save` at 2030-01-01):
+  ended (the game ended the city itself, 0 problems), `ref_warnings=0`; `SaveCity(full)` ok in 10,766 ms; the
+  shadow exact for 464 lines (2,790 components, 4,929,327 bytes, 0 mismatches).
+- **Run 196 `glue19-save` / run 197 `glue19-reload`** (the direct `ingame_run` pair with `-KeepSaves`, because the
+  queue's region mirror undoes a slot save between runs): save clean (`SaveCity(full)` in 10,969 ms, shadow
+  exact 358/358 lines), reload clean (`Read: version 4 ... julian 2461085`, the saved 2026-02-13; shadow exact
+  117/117 lines, 1,257,036 bytes). **Save -> reload round-trips under the automata shadow.** Two earlier pairs
+  (g19sr, g19sr2) were diagnostic: no `autoload_city` (no load), then no `-KeepSaves` (the restore undid the
+  save before the reload).
+- The test region was restored to its original `864E0A88` state after the pair.
+
+### The riot / fire driver's in-game status
+
+The driver is reachable only through `FC4DisasterHost`'s host table, which serves **our** disaster core
+(`fc4_disasters`): in shadow mode the mirror drives it (the original's leaders handed over), in live mode ours
+would — but there is **no `enable = disasters`** on this branch (glue13's replacement never registered a
+subsystem key), so the live path cannot fire. The scripted riot of runs 193/194 went through the original layer
+directly (its own `CreateRiotLeader`), which is why the driver's counts stayed 0. The wiring is therefore
+complete and ready for the day a disasters replacement lands; exercising it in game needs that replacement
+(next steps item 2).
+
+### Questions filed
+
+- **AT20** (`docs/specs/questions/automata.md`, the QUESTIONS.md index updated): the receiver names of the
+  U-Drive-It pause / resume — what city-situation slots or messages reach the four managers' Pause / Resume in
+  the original, and when exactly. `AutomataDriverSituationMessage`'s message trigger and `_Tick`'s countdown
+  poll are the *[inferred]* reading, marked in the code.
+- Earlier: A1-A4 (the fix round's A4 answered by the QueryInterface fix) and AT20 of the fix round (the four
+  managers' primary vtables past slot 37) were already on the branch.
+
+### Next steps
+
+1. AT20's RE answer, then re-check the wiring against it.
+2. Exercise the driver in game once a disasters replacement exists.
+3. The four managers' vtable RE pass (the fix round's AT20) before `enable = automata` survives a played city.
+4. The `enable = automata` run after that.
+5. Merge: the FC4Subsystems.cpp automata row sits at the end of `kSubsystems` (union-friendly); `fc4.h` was not
+   touched by the fix round.
