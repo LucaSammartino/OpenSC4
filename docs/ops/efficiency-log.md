@@ -30,8 +30,9 @@ in brackets). *$ in >400k ctx* = calls with a prompt above 400k. *Median out* = 
 |---|---|---|---|
 | 2026-10-20 (baseline) | z-ai/glm-5.3-flash via OpenRouter; lanes start at 172k ctx, no compaction, 13 providers | - | $46/pt; 85% of $ is cached re-reads, 0.5% output |
 | 2026-10-20 evening | OpenRouter: provider pinned to DigitalOcean, auto top-up on | "$ in misses" near 0, providers ≤ 2, no 402/403 lane deaths | pending (next CSV) |
-| pending | Lean lane harness (session `lean-lane-harness-small`): lane agent type with few tools, 150k context budget with restart from `docs/lanes/<lane>.md`, quiet build/search wrappers | lane first-call ctx 172k → <30k; median ctx < 150k; ~60% fewer tokens per lane | pending |
-| pending | Forge pilot (session `forge-pilot-direct-api-s`): direct-API spec→class generator, no agent loop | 20-50× lower $ per class, if shadows stay exact | pending (docs/ops/forge-pilot.md) |
+| 2026-10-20 (`0e1ebcca`) | Lean lane harness: `fc4-lane` agent types with a minimal tool list, 150k context budget with restart from `docs/lanes/<lane>.md`, quiet build/search wrappers, blocking `qwait` | lane first-call ctx 172k → <30k; median ctx < 150k; ~60% fewer tokens per lane | probe (subscription route): first call 7,356 tokens vs 39,063 for a default subagent. The GLM route is still unmeasured: check the first lane after the restart |
+| 2026-10-20 (`b8628bfe`) | Forge: scripted spec→class generator with no agent loop; class tests in the pack | 20-50× lower $ per class | pilot: History $0.027 (2 calls), Parks $0.086 (6 calls), both pass their class tests, Parks clean in game; $0.41 total over 44 calls. A lane costs about $5 for a class like History. Claude-code backend overhead: 1,276 tokens |
+| 2026-10-20 (`445ed0ac`) | Build/gate: sccache, `fc4verify quick` lane checks, `land` requires a parsed gate record | faster lane checks; no unbuildable landings | fresh worktree build + ctest 304 s → 168 s; train gate 444 s → 193 s; one-line plugin edit check 172 s → 3 s |
 
 ## Baseline facts (2026-10-20 audit)
 

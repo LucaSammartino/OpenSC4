@@ -4,6 +4,46 @@ The one page every agent reads first: the current state, and where everything el
 before it stops and moves the stop note it replaces, verbatim, to [docs/history/](history/). Operating knowledge
 lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-10.md](history/handoff-2026-10.md).
 
+## 0a. Since the pause: efficiency work landed (2026-10-20 evening) - read before restarting lanes
+
+The user wants to restart at full throttle on these changes. Why: the day's $184.71 OpenRouter bill was 85% agents
+re-reading cached context (lanes started every call at 172k tokens and grew to 450-970k). See
+[ops/efficiency-log.md](ops/efficiency-log.md).
+
+**Landed on main:**
+- **`3975a42e`:** main builds again (train10's two merge breaks). The automata sweep's pin is now 0, per spec §12
+  quirk 10: Read keeps the streamed `+0x0C`. **This resolves train11's gate failure in item 1 below:** 14 -> 0 is
+  the correct result. Re-cut integration/11 on main and re-gate it.
+- **Lean lanes (`0e1ebcca`):**
+  - Agent types `fc4-lane` and `fc4-lane-re` with a minimal tool list (probe: first call 7.4k tokens vs 39k for a
+    default subagent, subscription route).
+  - Stateless lanes: a `## Handoff` section in docs/lanes/<lane>.md, a restart in a fresh agent past 150k context
+    or after an API error.
+  - Quiet wrappers in `.claude/lane-bin/`: `qbuild`, `qgrep`, `qwait` (one blocking wait, no polling).
+- **Forge (`b8628bfe`):** `tools/forge.py` writes a class from its spec in a scripted loop with no agent. The
+  pilot did History, Parks and Dispatch for $0.41 in total; History and Parks passed their class tests, and Parks
+  ran clean in game. See [ops/forge-pilot.md](ops/forge-pilot.md). Use it for classes that have class tests.
+  Backends: `openrouter` (key in `%USERPROFILE%\.config\fc4-forge\openrouter.key`, a test key) or `claude-code`
+  (the user's subscription through the `claude` CLI, about 1.3k tokens of overhead).
+- **Build and gate (`445ed0ac`, `4c601fac`):**
+  - sccache for C++ and Rust, /Z7 debug info. A fresh-worktree build + ctest went from 304 s to 168 s.
+  - `fc4verify.py quick` for lane checks, reached as `qbuild.py quick`; a one-line plugin edit is checked in 3 s.
+  - The train's `land` now requires a parsed post-merge gate record for the exact head. A hand-set `gate.ok` no
+    longer lands anything.
+  - `engine/tests/abi_entries.inc` is untracked again.
+
+**Restart checklist:**
+1. **Start a NEW coordinator session in the main checkout.** Agent types load only at session start; an old
+   session's lanes fall back to every tool and 172k context (fc4-lane.js logs it).
+2. **Check the first lane's first-call context** in its transcript, or with `.claude/lane-bin/ctx.py`. On the GLM
+   route it should be far below 172k. If it is still near 172k, turn off the Chrome, computer-use and browser
+   connectors for the coordinator session (docs/ops/coordinating.md "Lane context").
+3. **Re-gate train11** on the new main (item 1 below); `land` refuses without the gate record.
+4. **Track the day:** `python tools/spend.py <openrouter csv> --coverage-delta <pts>` adds a row to
+   ops/efficiency-log.md. The baseline is $46 per implemented point.
+5. The "no new lanes" rule (item 5 below) was the pause rule. The user said to restart at full throttle once
+   back: confirm with them, then fill the slots.
+
 ## 0. Current state: pause 2026-10-20 ~19:10 (user closing the session)
 
 Main is `12e79cfc`, pushed. Today landed: train6 (8 lanes), train8 (6), train9 (cores26), train10 (glue19),
