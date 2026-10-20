@@ -244,16 +244,22 @@ def cmd_enqueue(args):
     return 0
 
 
-def pick_batch(size):
+def pick_batch(size, lanes=None):
     recs = [describe_lane(r) for r in read_queue()]
     ready = [r for r in recs if r["_ready"]]
+    if lanes:  # an explicit batch (--lanes a,b,c): only these, and say which are not ready
+        want = [x.strip() for x in lanes.split(",") if x.strip()]
+        missing = [x for x in want if x not in {r["lane"] for r in ready}]
+        if missing:
+            log("not queued or not ready, left out: " + ", ".join(missing))
+        ready = [r for r in ready if r["lane"] in want]
     # Docs-only first (they never need a regress and they clear the way), then by tip commit date = age.
     ready.sort(key=lambda r: (0 if r["kind"] in DOCS_KINDS else 1, r.get("tip", "")))
     return ready[:size], recs
 
 
 def cmd_plan(args):
-    batch, recs = pick_batch(args.size)
+    batch, recs = pick_batch(args.size, getattr(args, "lanes", None))
     print(f"batch of {len(batch)} (of {len(recs)} queued):")
     for r in batch:
         print(f"  {r['lane']:<18} {r['kind']:<7} abi={r['abi']}  branch={r['branch']}  tip={r['tip'][:10]}")
@@ -1113,7 +1119,7 @@ def cmd_merge_batch(args):
         die(f"run this from main (currently on {current_branch()})")
     if not main_is_clean():
         die("main has uncommitted changes; commit or stash them first")
-    batch, _all = pick_batch(args.size)
+    batch, _all = pick_batch(args.size, getattr(args, "lanes", None))
     if not batch:
         log("nothing ready")
         return 0
@@ -1395,6 +1401,7 @@ def main():
     sub.add_parser("status")
     p = sub.add_parser("plan")
     p.add_argument("--size", type=int, default=8)
+    p.add_argument("--lanes", default=None, help="comma-separated: batch exactly these queued lanes")
     p = sub.add_parser("enqueue")
     p.add_argument("--lane", required=True)
     p.add_argument("--branch", required=True)
@@ -1405,6 +1412,7 @@ def main():
     p.add_argument("--summary", default="")
     p = sub.add_parser("merge-batch")
     p.add_argument("--size", type=int, default=8)
+    p.add_argument("--lanes", default=None, help="comma-separated: batch exactly these queued lanes")
     sub.add_parser("gate")
     p = sub.add_parser("regress")
     p.add_argument("--no-regress", action="store_true")
@@ -1415,6 +1423,7 @@ def main():
     p.add_argument("--lane", required=True)
     p = sub.add_parser("run")
     p.add_argument("--size", type=int, default=8)
+    p.add_argument("--lanes", default=None, help="comma-separated: batch exactly these queued lanes")
     p.add_argument("--land", action="store_true")
     p.add_argument("--no-regress", action="store_true")
     args = ap.parse_args()
