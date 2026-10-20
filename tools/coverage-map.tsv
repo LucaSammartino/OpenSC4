@@ -407,6 +407,9 @@ cSC4FeatureManager	feature manager	framework	feature-manager.md	-	-	-
 cRZDate	dates and times	framework	dates.md	-	-	-
 cGZDate	dates and times	framework	dates.md	-	-	-
 cRZTime	dates and times	framework	dates.md	-	-	-
+# the stopwatch with its seven units and the start-up calibration, and the service-driven callback timer (timers.md)
+cRZTimer	timers	framework	timers.md	-	-	-
+cRZCallbackTimer	timers	framework	timers.md	-	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource*	persistence and resources	framework	-	-	-	-
 cGZPropertySet*	persistence and resources	framework	-	-	-	-

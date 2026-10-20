@@ -79,6 +79,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RS | residential |
 | SV | foundations, ordinance |
 | TG | traffic-simulator |
+| TM | timers |
 | TN | traffic-network |
 | TR | terrain |
 | TS | traffic-simulator |
@@ -139,9 +140,10 @@ generated index: the questions live one file per spec, so read only the file for
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | terrain | 0 | 27 | TR28 | - |
+| timers | 1 | 0 | TM2 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 92 | TG27, TS67 | - |
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **31** | **966** | | |
+| **total** | **32** | **966** | | |

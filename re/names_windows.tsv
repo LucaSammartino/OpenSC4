@@ -9926,20 +9926,28 @@ va	name	source	confidence	note
 0088d0b0	nSGLDX7::TranslateGDFormatToSourceFormat	auto:B1	medium	mac 00428422 score 0.988 support 2.0
 0088f890	nSGLDX7::Init_PopulateFormatConversionTable	auto:D	medium	mac 00428bce score 0.5 support 1
 0088f8d0	nSGLDX7::Init_PopulateInternalFormatTable	auto:B2	medium	mac 00429788 score 0.968 support 1.0
-0088fedf	cIGZSerializable::cIGZSerializable	auto:B6	medium	mac 005f9a30 score 0.965 support 6.0
-0088fefb	cRZTimer::IsTimerRunning	auto:B0	medium	mac 00555d30 score 0.946 support 10.0
-0088ff0a	cRZTimer::Reset	auto:B0	medium	mac 00555d0c score 0.832 support 8.0
-0088ff19	cRZTimer::GetTimerCycle	auto:B0	low	mac 00556174 score 0.879 support 1.0
-00890181	cRZTimer::SetUnits	auto:B0	medium	mac 005561ca score 0.888 support 4.0
+0088fdc0	cRZTimer::MeasureFrequencies	manual:timers.tsv	high	timers.md §1.5; descriptive name, no Mac match; sole caller Calibrate (0x0088FFA4); writes F to 0x00B13420 (QueryPerformanceFrequency) and C to 0x00B13428 (= F when the raw rdtsc / QPC ratio is within 0.98..1.02, else cycles over SleepEx(100) loops of at least 0.33 s)
+0088fedf	cRZTimer::cRZTimer	manual:timers.tsv	high	timers.md §1.1; was cIGZSerializable::cIGZSerializable (no vtable store); stores the unit argument at +0, zeroes +8..+0x17; 98 call sites (clock24.md §4.3: the clock's 0x0044596F)
+0088fefb	cRZTimer::IsTimerRunning	manual:timers.tsv	high	timers.md §1.3; start tick +8/+0xC non-zero
+0088ff0a	cRZTimer::Reset	manual:timers.tsv	high	timers.md §1.3; zeroes start and accumulated, keeps the unit
+0088ff19	cRZTimer::GetTimerCycle	manual:timers.tsv	high	timers.md §1.3; QueryPerformanceCounter into the argument
+0088ff24	cRZTimer::GetNanosecondsPerTick	manual:timers.tsv	high	timers.md §1.4; descriptive name, no Mac match; fld 0x00B54360; called by cGZMiscCommandSystemSupport::DoMessage
+0088ff2b	cRZTimer::GetMicrosecondsPerTick	manual:timers.tsv	high	timers.md §1.4; descriptive name, no Mac match; fld 0x00B54364
+0088ff32	cRZTimer::GetMillisecondsPerTick	manual:timers.tsv	high	timers.md §1.4; descriptive name, no Mac match; fld 0x00B54368
+0088ff39	cRZTimer::GetSecondsPerTick	manual:timers.tsv	high	timers.md §1.4; descriptive name, no Mac match; fld 0x00B5436C; also called by cSC4GlyphTextureManager
+0088ff40	cRZTimer::GetMinutesPerTick	manual:timers.tsv	high	timers.md §1.4; descriptive name, no Mac match; fld 0x00B54370
+0088ff47	cRZTimer::GetMillisecondsPerCycle	manual:timers.tsv	high	timers.md §1.4; descriptive name, no Mac match; fld 0x00B54398 (the cycle table); called by cSC4GlyphTextureManager::GetGlyphTexture
+0088ff4e	cRZTimer::Calibrate	manual:timers.tsv	high	timers.md §1.5; descriptive name, no Mac match; reached by the jmp at 0x00A78F84 in the static initialisers; real-time priority, MeasureFrequencies, the factor tables 0x00B54360/0x00B54390 and their reciprocals, the minimum of 8 QPC and 8 rdtsc pair differences (0x00B54358, 0x00B54388)
+00890181	cRZTimer::SetUnits	manual:timers.tsv	high	timers.md §1.3; unit := argument, start and accumulated := 0
 00890198	cRZTimer::GetElapsedTime	manual:symbols_windows.tsv	high	timer at this+0x48 / +0x5C
-00890279	cRZTimer::GetElapsedTime	auto:B4	medium	mac 00555e00 score 0.922 support 1.0
-00890377	cRZTimer::GetElapsedTime	auto:B0	medium	mac 00555eac score 0.965 support 2.0
-0089045a	cRZTimer::SetElapsedTime	auto:B2	medium	mac 0055604e score 0.99 support 2.0
-00890501	cRZTimer::SetElapsedTime	auto:D	medium	mac 00555fbc score 0.5 support 1
+00890279	cRZTimer::GetElapsedTime	manual:timers.tsv	high	timers.md §1.3; the uint64& overload: units 0-1 raw 64 bits, 2-6 _ftol2(t * factor), else 0
+00890377	cRZTimer::GetElapsedTime	manual:timers.tsv	high	timers.md §1.3; the float& overload
+0089045a	cRZTimer::SetElapsedTime	manual:timers.tsv	high	timers.md §1.3; the uint64 overload: units 2-6 multiply by the reciprocal table 0x00B54374, unknown units keep accumulated; then start := now
+00890501	cRZTimer::SetElapsedTime	manual:timers.tsv	high	timers.md §1.3; the float overload: units 0-1 _ftol2(v), 2-6 _ftol2(v * reciprocal)
 0089058f	cRZTimer::Restart	manual:symbols_windows.tsv	high	
-008905c4	cRZTimer::Start	auto:B0	medium	mac 00556118 score 0.866 support 15.0
-008905f0	cRZTimer::Stop	auto:B0	medium	mac 0055612e score 0.941 support 6.0
-0089064d	cRZTimer::Delay	auto:D	medium	mac 005561f4 score 0.5 support 1
+008905c4	cRZTimer::Start	manual:timers.tsv	high	timers.md §1.3; rdtsc for unit 0, else QueryPerformanceCounter; no running test
+008905f0	cRZTimer::Stop	manual:timers.tsv	high	timers.md §1.3; always reads QueryPerformanceCounter, also for unit 0
+0089064d	cRZTimer::Delay	manual:timers.tsv	high	timers.md §1.3; local timer of the same unit, Sleep(0) until GetElapsedTime reaches the argument
 0089068a	cGZFileSystem::QueryInterface	auto:A	high	mac 003027b2 score 1.0 support 0
 008906b4	cGZFileSystem::AppDrive	auto:C	high	mac 003028ca score 1.0 support 1
 008906ce	cGZFileSystem::AppDirectory	auto:C	high	mac 003028f2 score 1.0 support 1
@@ -12185,12 +12193,20 @@ va	name	source	confidence	note
 00932670	FillEllipse	auto:B2	medium	mac 001fd1ce score 0.971 support 1.0
 00932700	cRZSpanList::SetPolygonSimple	auto:B3	medium	mac 001fceb2 score 0.91 support 2.0
 009328e0	DrawTriangle	auto:B2	medium	mac 001fd27c score 0.956 support 2.0
+0093294a	cRZCallbackTimer::SetDelay	manual:timers.tsv	high	timers.md §2.2; slot 1 of vtable 0x00AD1F14; +0x10; a running timer is restarted through slot 5
 009329a0	cGZWinScrollbar2::GetVisibleRange	auto:C	high	mac 00472396 score 1.0 support 1
+009329ae	cRZCallbackTimer::SetPeriod	manual:timers.tsv	high	timers.md §2.2; slot 3; +0x14; a running timer is restarted through slot 5
 00932a04	cGZWinScrollbar2::GetPageOverlapRange	auto:C	high	mac 004723ae score 1.0 support 1
-00932a12	cRZCallbackTimer::Stop	auto:B5	medium	mac 00446c26 score 0.921 support 2.0
-00932afe	cRZCallbackTimer::~cRZCallbackTimer	auto:B1	medium	mac 00446cbc score 0.861 support 2.0
+00932a12	cRZCallbackTimer::Stop	manual:timers.tsv	high	timers.md §2.2; slot 7; service slot 4 (RemoveTimer) with the ID at +0x1C
+00932a4a	cRZCallbackTimer::SetCallback	manual:timers.tsv	high	timers.md §2.2; slots 9 and 10; +8 := fn, +0xC := argument; also called directly by cSC4ViewInputControlQuery::DoQueryDialog 0x004D3D01 and cRZNetStreamSocket::Connect 0x00821475
+00932a5d	cRZCallbackTimer::UseTimerService	manual:timers.tsv	high	timers.md §2.2; descriptive name; slot 11; framework service 0xA76C78E7 / IID 0x276C784B, else the default object 0x00B62AB0
+00932afe	cRZCallbackTimer::~cRZCallbackTimer	manual:timers.tsv	high	timers.md §2.2; leaves the live set 0x00B62A9C under 0x00B62AA8, Stop if running, releases +0x24 and the service
 00932b83	cRZSystemService::IsServiceRunning	auto:C	low	mac 00026b3a score 1.0 support 12
-00932c23	cRZCallbackTimer::cRZCallbackTimer	auto:B0	medium	mac 004468f2 score 0.865 support 2.0
+00932b87	cRZCallbackTimer::TimerCallback	manual:timers.tsv	high	timers.md §2.4; descriptive name, no Mac match; the handler pushed by Start (0x00932CF5) and StartOnce (0x00932D66); checks the live set, clears a one-shot timer, then fn(argument)
+00932c23	cRZCallbackTimer::cRZCallbackTimer	manual:timers.tsv	high	timers.md §2.3; delay 100, period 1000, joins the live set, then UseTimerService(true)
+00932c9c	cRZCallbackTimer::~cRZCallbackTimer (deleting destructor)	manual:timers.tsv	high	timers.md §2.2; slot 0; 0x00932AFE then free on flag bit 0
+00932cb8	cRZCallbackTimer::Start	manual:timers.tsv	high	timers.md §2.2; descriptive name, no Mac match; slot 5; refused when running or without a callback; service slot 3 (handler, this, period, 0, 0)
+00932d21	cRZCallbackTimer::StartOnce	manual:timers.tsv	high	timers.md §2.2; descriptive name, no Mac match; slot 6; sets the one-shot flag +0x19; service slot 3 (handler, this, delay or period, 1, 0)
 00932e47	SignalPlatformData::SignalPlatformData	auto:B0	medium	mac 00697b70 score 0.904 support 1.0
 00932e65	cRZThreadSignal::cRZThreadSignal	auto:D	medium	mac 001705ba score 0.5 support 1
 00932f76	nRZHash::CRC24	auto:B2	medium	mac 00290d3c score 0.819 support 2.0
@@ -15288,7 +15304,7 @@ va	name	source	confidence	note
 009ee9b0	lib::underflow	library	medium	Function ID
 009eeb70	lib::_memmove	library	medium	Function ID
 009eeee5	lib::__fpmath	library	medium	Function ID
-009eef04	_lua_gettop	auto:B14	medium	mac 005b76f4 score 0.807 support 11.0
+009eef04	_ftol2	manual:timers.tsv	high	timers.md §1.3; was _lua_gettop; the CRT float-to-int64 truncation (fistp, then a toward-zero fix-up), 1,480 call sites; aura.md and budget.md call it _ftol (the classic _ftol is lib::__ftol 0x009F17B4)
 009eef79	lib::__onexit_lk	library	medium	Function ID
 009eeff9	lib::___onexitinit	library	medium	Function ID
 009ef021	lib::__onexit	library	medium	Function ID
@@ -16249,6 +16265,17 @@ va	name	source	confidence	note
 00ac185c	nGZDrawSoftRender::cSpanRender4444::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 7 A4R4G4B4; Mac __ZTVN17nGZDrawSoftRender15cSpanRender4444E
 00ac1874	nGZDrawSoftRender::cSpanRender8888::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color types 8 R8G8B8 and 9 A8R8G8B8; Mac __ZTVN17nGZDrawSoftRender15cSpanRender8888E
 00ac188c	nGZDrawSoftRender::cSpanRender8::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 2 RGB8; Mac __ZTVN17nGZDrawSoftRender12cSpanRender8E
+00ad1f14	cRZCallbackTimer::vftable	manual:timers.tsv	high	timers.md §2.2; 13 slots, installed by the constructor 0x00932C23
+00b13420	cRZTimer::sCounterFrequency (data, uint64)	manual:timers.tsv	high	timers.md §1.5; QueryPerformanceFrequency, written by MeasureFrequencies 0x0088FED4
+00b13428	cRZTimer::sCycleFrequency (data, uint64)	manual:timers.tsv	high	timers.md §1.5; the CPU cycle rate C, written by MeasureFrequencies 0x0088FECC
 00b21624	cSC4FeatureManager::sStaticInitDone (data, bool)	manual:feature-manager.tsv	high	feature-manager.md §2; set by StaticInit 0x0046FC0A, cleared by StaticShutdown 0x0046FA32
 00b21628	cSC4FeatureManager::sInstalledPacks (data, uint32 bit mask)	manual:feature-manager.tsv	high	feature-manager.md §2; bit k = pack k+1; OR-ed at 0x0046FCB9, read by IsExpansionPackInstalled 0x0046F78C
 00b2162c	cSC4FeatureManager::sEnabledFeatures (data, std::set<uint32_t> header pointer; count at 0x00B21630)	manual:feature-manager.tsv	high	feature-manager.md §2; filled by FeaturesIniEntryCallback, searched by IsFeatureEnabled
+00b54358	cRZTimer::sCounterOverhead (data, uint64)	manual:timers.tsv	high	timers.md §1.3; the minimum of 8 back-to-back QueryPerformanceCounter differences; subtracted per interval (all units)
+00b54360	cRZTimer::sCounterFactors (data, float[5])	manual:timers.tsv	high	timers.md §1.2; ns, us, ms, s, min per counter tick (1e9, 1e6, 1e3, 1, 0.016666668 over F)
+00b54374	cRZTimer::sCounterReciprocals (data, float[5])	manual:timers.tsv	high	timers.md §1.3; 1 / sCounterFactors, read by SetElapsedTime
+00b54388	cRZTimer::sCycleOverhead (data, uint64)	manual:timers.tsv	high	timers.md §1.5; the minimum of 8 cpuid+rdtsc pair differences; no cRZTimer method reads it
+00b54390	cRZTimer::sCycleFactors (data, float[5])	manual:timers.tsv	high	timers.md §1.4; ns, us, ms, s, min per CPU cycle; GetMillisecondsPerCycle reads 0x00B54398
+00b543a4	cRZTimer::sCycleReciprocals (data, float[5])	manual:timers.tsv	high	timers.md §1.5; 1 / sCycleFactors
+00b62a9c	cRZCallbackTimer::sLiveTimers (data, set of live timers)	manual:timers.tsv	high	timers.md §2.1; joined by the constructor, left by the destructor, searched by TimerCallback
+00b62aa8	cRZCallbackTimer::sLiveTimersLock (data, critical section)	manual:timers.tsv	high	timers.md §2.1; guards sLiveTimers and the handler's state change
