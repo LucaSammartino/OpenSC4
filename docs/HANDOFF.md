@@ -9,20 +9,25 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Main is `dfc95263`. The merge train (`tools/merge-train.py`, [docs/merge-train.md](merge-train.md)) is the only
 writer of `main`; the merge lock is gone. Full stop note: [history](history/handoff-2026-10.md#stop-notes).
 
+**2026-10-20 (token-efficiency session, no feature work):** the lane tooling changed (HANDOFF index, per-spec
+questions, `tools/lanes.py`, `tools/re_query.py`, the `fc4-lane` workflow; see [ops/coordinating.md](ops/coordinating.md)).
+`train5` was regressed (PASS; traffic shadow 55/89 vs 60/84, run-to-run noise in an uncalibrated shadow) and
+**landed** (`333d314a`, all five lanes verified on main). Its QUESTIONS.md section was ported to the per-spec files.
+
 **Resume in this order** (from the main checkout):
 
-1. **Eight lanes the train reported landed in `train3` are NOT on `main`** (work safe and committed on their
-   branches, worktrees clean; re-checked 2026-10-20): `cores17` (network geometry core), `cores19` (effects
-   core), `glue12b1` (prop developer, city detail), `glue12b2` (ports), `glue15` (`enable = tutorial`, shadows),
-   `glue17` (citysit/demolition/dispatch shadows), `apply15b` (PD4-PD10, PV8/12/13, CD4/5, RN3, HW2),
-   `apply15terrain` (TR4/TR7/TR11/TR14/TR3). Merge them (gate + regress + land) before anything else, then run
-   `git merge-base --is-ancestor <lane> main` for every lane listed as landed. On main (re-checked 2026-10-20):
-   `re-answers20/23/26/28/29/30`, `re-specs19/20`, `re-integrate1`, `mergetrain-docs`, `coverage2`, `cores12a`,
-   `cores12c`, `cores18`, `cores21`, `cores22`, `detpacing`, `apply14dis`, `apply14traffic`, `apply15c/d/e`,
-   `glue14b`, `glue14c`, `glue20`, `flakyfix`, `abi-hygiene`.
-2. **Land batch `train5`** (on `integration/5` in `.claude/worktrees/train-integration`; gate PASS, ctest 58/58,
-   regress never run): `python tools/merge-train.py regress`, then `land`. Lanes: `re-answers31`, `re-specs21`,
-   `cores24` (audio core), `coverage3` (coverage map: implemented 21.3% → 23.1%, verified 9.5% → 10.5%), `glue23`.
+1. **Finish batch `train6`** (the eight lanes the train reported landed in `train3` but that are NOT on `main`).
+   `integration/6` in `.claude/worktrees/train-integration` holds 7 of them, merged and operator-resolved but
+   **not gated**: `glue17`, `apply15b`, `cores17`, `cores19`, `glue15`, `apply15terrain`, `glue12b1`. Left:
+   **`glue12b2`** (ports): conflicts in `FC4Config.cpp` (key list: keep both; the closing `};` is shared),
+   `FC4Subsystems.cpp` (includes: keep both) and `cFC4Simulator.cpp` (two shadow comments: keep both). Then write
+   one `fc4.h` history line `73 = merge-train batch train6 (...)` from `build-runs/train6-abi-notes.txt` (the
+   lanes' own history texts, removed from the header while resolving) and set `FC4_ABI_VERSION` to 73 in
+   `fc4.h` and `capi/src/lib.rs`, then `gate`, `regress`, `land`, and check `git merge-base --is-ancestor` for
+   all eight. Helpers used: `build-runs/mlane.sh`, `resolve1.py`, `keep_ours_hunks.py`, `fix_fc4h2.py` in the
+   integration worktree.
+2. **Coverage after train5:** regenerate `docs/coverage-report.md` and `docs/coverage-map.svg` (`coverage3`
+   landed, which moves the numbers below).
 3. **Then the queue:** `status` / `plan` / `merge-batch --size 12` → `gate` → `regress` → `land`. Ready: `cores20`
    (bridges), `cores23` (UI windows), `cores25` (effects manager), `re-answers27`, `glue18`, `glue22`. Uncommitted
    edits on hold: `glue19`, `glue21`, `glue24`, `re-answers27`: `git -C .claude/worktrees/<lane> status` first.
