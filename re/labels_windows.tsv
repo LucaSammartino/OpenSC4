@@ -707,7 +707,10 @@ va	name	slots	note
 00ad176c	cGZCommandServer::vftable_1	13	paired with Mac __ZTV16cGZCommandServer#1, 5 agreeing slots
 00ad17a0	cGZCommandServer::vftable	25	paired with Mac __ZTV16cGZCommandServer#0, 22 agreeing slots
 00ad1818	cRZNullOStream::vftable	24	paired with Mac __ZTV14cRZNullOStream#0, 9 agreeing slots
+00ad1878	cRZIStream::vftable	0	output-streams.md §5; installed by 0x0092BC14
 00ad18d8	cRZNullOStream::vftable	24	paired with Mac __ZTV14cRZNullOStream#0, 8 agreeing slots
+00ad1938	cRZNullIStream::vftable	0	output-streams.md §5; installed by 0x0092BC80
+00ad1998	cRZTextOStream::vftable	0	output-streams.md §2.1; 24 slots
 00ad19f8	cRZOFStream::vftable	24	paired with Mac __ZTV11cRZOFStream#0, 20 agreeing slots
 00ad1ad0	cGZMessageQueue2::vftable	25	paired with Mac __ZTV16cGZMessageQueue2#0, 25 agreeing slots
 00ad1dc0	cGZDefaultAllocator::vftable	7	paired with Mac __ZTV19cGZDefaultAllocator#0, 5 agreeing slots
@@ -889,6 +892,7 @@ va	name	slots	note
 00b0cdc8	cSC4SubwayOccupant::sModelDescriptor	0	underground-occupants.md §1; returned by main slot 101
 00b13420	cRZTimer::sCounterFrequency	0	timers.md §1.5; QueryPerformanceFrequency, written by MeasureFrequencies 0x0088FED4
 00b13428	cRZTimer::sCycleFrequency	0	timers.md §1.5; the CPU cycle rate C, written by MeasureFrequencies 0x0088FECC
+00b169b0	cRZTextOStream::sFormats	0	output-streams.md §2.2; %d, %u, %lld, %llu, %g (0x00A8281C, 0x00AA657C, 0x00ACEED0, 0x00ACEED8, 0x00AAEC04)
 00b21624	cSC4FeatureManager::sStaticInitDone	0	feature-manager.md §2; set by StaticInit 0x0046FC0A, cleared by StaticShutdown 0x0046FA32
 00b21628	cSC4FeatureManager::sInstalledPacks	0	feature-manager.md §2; bit k = pack k+1; OR-ed at 0x0046FCB9, read by IsExpansionPackInstalled 0x0046F78C
 00b2162c	cSC4FeatureManager::sEnabledFeatures	0	feature-manager.md §2; filled by FeaturesIniEntryCallback, searched by IsFeatureEnabled

@@ -427,6 +427,13 @@ cGZStringCommandGenerator	command system	framework	command-system.md	-	-	-
 cGZMessage2CommandDispatcher	command system	framework	command-system.md	-	-	-
 cGZMessage2CommandDispatcherMessage	command system	framework	command-system.md	-	-	-
 fn:RZParseDelimitedText	command system	framework	command-system.md	-	-	-
+# the framework binary and text streams, the null and file sinks, and the reader side (output-streams.md)
+cRZOStream	streams	framework	output-streams.md	-	-	-
+cRZTextOStream	streams	framework	output-streams.md	-	-	-
+cRZNullOStream	streams	framework	output-streams.md	-	-	-
+cRZOFStream	streams	framework	output-streams.md	-	-	-
+cRZIStream	streams	framework	output-streams.md	-	-	-
+cRZNullIStream	streams	framework	output-streams.md	-	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource*	persistence and resources	framework	-	-	-	-
 cGZPropertySet*	persistence and resources	framework	-	-	-	-

@@ -66,6 +66,7 @@ generated index: the questions live one file per spec, so read only the file for
 | NR | network-rules |
 | OG | occupant-groups |
 | OM | occupant-manager |
+| OS | output-streams |
 | PD | port-developers |
 | PF | pathfinder |
 | PG | pollution |
@@ -132,6 +133,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
 | ordinance | 0 | 1 | SV3 | - |
+| output-streams | 2 | 0 | OS3 | questions/output-streams.md |
 | parks | 0 | 11 | PK12 | - |
 | pathfinder | 0 | 15 | PF16 | - |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
@@ -152,4 +154,4 @@ generated index: the questions live one file per spec, so read only the file for
 | underground-occupants | 4 | 0 | UG5 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **41** | **966** | | |
+| **total** | **43** | **966** | | |
