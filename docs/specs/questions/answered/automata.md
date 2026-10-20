@@ -171,3 +171,202 @@ entry is recorded with the lane it came from. Every answer is written into the s
   stream value is authoritative and must be stored unchanged; `tAutomataState::Read` (`0x00505E50`) reads it
   straight into `state+0x0C` (`0x505E99`-`0x505E9F`) and never derives it. Recompute only after a stack
   *mutation*. Corrected in [automata.md](../../automata.md) §12 quirk 10 and §14 test 29.
+
+## From the automata state behaviours and the effect-directory measurements (re-integrate1 lane, 2026-10-16; answered by re-answers33, 2026-10-20)
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT6:** what is PlayerDrive's saved `f32` at `+0x28`? Set to 0 on enter and never touched by
+  `cSC4Automaton::DoPlayerDriveTick`. [a drive-channel / throttle accumulator, inferred] **Probe:**
+  `cSC4Vehicle::TranslatePlayerDriveCommands` (Mac `0x000a577c` family) and `DoPlayerDriveOffRoadTick`.~~
+  **ANSWERED 2026-10-20 (re-answers33): DIFFERS.** `+0x28` IS touched - not by `DoPlayerDriveTick`, but by
+  `cSC4Vehicle::TranslatePlayerDriveCommands` (Mac `0x000a336c`): it integrates the throttle/brake key state
+  into it, `+0x28 += dt_s x accel` (params+0x10 normally, params+0x14 when the speed tween is running and
+  channel 0 is idle), sign by forward/reverse, and zeroes it when both drive channels are inactive. Then
+  `cSC4Vehicle::PlayerDriveUpdateSpeed` (Mac `0x000a3e1a`) integrates it into the speed at `+0x2C`
+  (`vel += dt_s x +0x28`, clamped to params+8/params+0xC). So `+0x28` is a **drive command accumulator** in
+  speed-per-second units; it is the only field of the PlayerDrive record that is saved. automata.md 6.2, 6.5.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT7:** what reads Bumped's 4 x `vec3`? Base `DoBumpedTick` is `return !CheckAutomataFlag(1)`
+  (Mac `0x000bb14e`) and `cSC4Vehicle::DoBumpedTick` is `return 0` (Mac `0x000a083e`); `HandleCollision`
+  (Mac `0x000a091e`) writes them then pushes COLLIDE. [a leftover bump-response record, inferred] **Probe:**
+  xrefs to `tAutomataStateBumped::Read`'s output and `cSC4Train::HandleCollision` (Mac `0x00393a4a`).~~
+  **ANSWERED 2026-10-20 (re-answers33): MATCHES** the leftover-record guess. **Nothing reads them.** On the
+  Mac side `tAutomataStateBumped` appears only in its own ctor (`0x00638236`, zeroes the four vectors), `Read`
+  (`0x000c4608`, fills them from the stream), `Write` (`0x000c3c62`) and the factory case `0x11`
+  (`0x000c8f5a`). No code pushes state `0x11` anywhere (no `SetState`/`PushState` call passes 0x11 on either
+  build), and `cSC4Vehicle::HandleCollision` (Mac `0x000a091e`, Windows `0x0055C8C0`) writes the *orientation*
+  `+0x58..+0x60` and pushes COLLIDE (`0x14`); `cSC4Train::HandleCollision` (`0x00558E00`) copies the train's
+  `+0x94` speed onto its cars and also pushes `0x14`. The four vectors round-trip through a save and are
+  otherwise dead storage. automata.md 6.2, quirk 13.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT8:** PlopJump's units. `U(30,50) x 1/3600` and `kfGravityAccel = -5.5555563e-05` only make sense
+  together if `dt` is ms and the result is m/ms. [inferred] **Probe:** one scripted plop and a position trace.~~
+  **ANSWERED 2026-10-20 (re-answers33): MATCHES** (dt in ms, position in m) - with the unit of the draw named:
+  the `U(30, 50)` draw is in **km/h**; `x 1/3600` converts km/h to m/ms (1 km/h = 1/3600 m/ms), so the vertical
+  velocity is 0.0083-0.0139 m/ms (8.3-13.9 m/s), the gravity `-5.5555563e-05` is m/ms^2, and a hop peaks at
+  v^2/2g = 0.62-1.7 m after 150-250 ms. The enter code is `cSC4Automaton::HandleEnterState` case `0x0F`
+  (`0x005114C5`): `RandomDoubleRangeUniform(30.0, 50.0)` (doubles at `0x00A95708`/`0x00A95710`)
+  `x 0.0002777778...` (double `0x00A95700` = 1/3600) -> `state+0x2C`. The gravity is lazy-initialised in
+  `cSC4Automaton::DoPlopJumpTick` (`0x005055F0`): the guard byte `0x00B22744` bit 0 gates
+  `MOV dword ptr [0x00B22740],0xB8690455` at `0x00505606`. automata.md 6.2.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT9:** what pops the `final` RiotLeader after the riot end's `SetState(1, ...)` fails (automata.md 8.1)?
+  The call is a no-op because the state was pushed `final=1`, and the leader is then `Release`d and
+  unregistered. **Probe:** trace `cSC4DisasterInstanceRiot::Update`'s removal path.~~
+  **ANSWERED 2026-10-20 (re-answers33): DIFFERS** from the implied "something pops it". **Nothing pops it.**
+  `cSC4DisasterInstanceRiot::Update` (`0x0057DFE0`) walks the leader list at `this+0x1C`; for each node it
+  accumulates elapsed ticks (node+0xC) and derives the phase (elapsed / this+0x50). When the leader's occupant
+  reports `IsFlagSet(1)` true (occupant slot 32 - the automata flag 1 "remove"), the end branch runs: occupant
+  slot `0xCC` = `SetState(1, 0, -1.0, 0, 0, 0, 0)` (the no-op), the script system (city slot 47) unregisters
+  the leader's occupant group (slot `0x38`), the disaster layer (city slot 72) unregisters the location by
+  occupant (slot `0x3C`), the automaton's `Release` runs (slot 2), and the node is unlinked and freed. The
+  automaton is released **while still in state 8 with `final` set**; DISAPPEAR never runs for a riot leader.
+  automata.md 8.1.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT10:** `random_walk.turn`'s exact template offsets. `ImportBehaviorTable` writes the array/scalar into
+  `+0x54`/`+0x58` and zeroes `+0x5C`, while `DoRandomWalkTick` reads amplitude at `+0x58` and bias at `+0x5C` -
+  one is off by 4. **Probe:** a Lua table that sets `turn = {a, b}` and a breakpoint on `0x0050CF90`.~~
+  **ANSWERED 2026-10-20 (re-answers33): DIFFERS** - there is **no off-by-4**; the `+0x54/+0x58` reading
+  mis-simulated the stack frame. `cSC4AutomataScriptSystem::ImportBehaviorTable` (`0x00522860`) reads the Lua
+  key `turn` (string `0x00A96DCC`) inside the `random_walk` subtable and writes the array/scalar into the
+  template's `+0x58` (amplitude) and `+0x5C` (bias): the template local is built by
+  `tBehaviorTemplate::tBehaviorTemplate` (`0x0050BD40`, whose defaults are `+0x58 = 0.1` `0x3DCCCCCD` and
+  `+0x5C = 0.2` `0x3E4CCCCD` - the spec's "0.01, 0.2" default row was also wrong and is corrected) and copied
+  into the vector by `FUN_005205D0`/`FUN_00521350` (0x7C bytes). `DoRandomWalkTick` (`0x0050CF90`) reads the
+  same offsets (`FLD float ptr [EBX+0x58]` at `0x0050D139`, `FLD float ptr [EBX+0x5C]` at `0x0050D187`). A
+  scalar `turn` fills the amplitude only (bias stays 0); an array of two or more fills both. The full turn
+  math is now in automata.md 6.2's Lua-key table and the new countdown paragraph.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT11:** the mapping of emergency-vehicle states 100-103 to their ticks.
+  `cSC4EmergencyVehicle::DoStateTick` `0x0052F490` switches into slots `0xC3`-`0xC6`; the names are by
+  elimination, not from a name table. **Probe:** the emergency vehicle's vtable at slots 195-198.~~
+  **ANSWERED 2026-10-20 (re-answers33): MATCHES** the slot mapping, with the naming evidence upgraded from
+  "by elimination" to the exe's own strings plus the dispatch pairings. The dispatch states 0-6 are named by
+  `cSC4EmergencyVehicle::GetDebugExtraText` (`0x00532290`, jump table `0x00532414`): `0 "[at station]"`,
+  `1 "[route blocked]"`, `2 "[done]"`, `3 "[en route]"`, `4 "[no resources]"`, `5 "[handling event]"`,
+  `6 "[returning home]"` (strings `0x00A98574`...`0x00A98514`). The state types are tied to the dispatch states
+  by the code that pairs them: `SetDispatchState(3)` + `SetState(100)` (`0x0052FF60` case 3);
+  `FUN_0052F210` = `NotifyCallbacks(5, 0)` + `SetDispatchState(5)` + `SetState(0x66=102)` on arrival (or
+  `SetDispatchState(1)` + `PushState(0x65=101)` + `PushState(7, ...)` on a blocked route); `FUN_0052F330` =
+  `SetDispatchState(6)` + `PushState(0x67=103)`. So 100 EN_ROUTE, 101 REPATHING, 102 HANDLING_EVENT,
+  103 TELEPORT stand on those ties; there is still no name table for the state types themselves.
+  automata.md 6.5.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT12:** the exact contract of `FUN_005096B0` (the per-tick behaviour refresh) on `state+0x24` vs
+  `state+0x08`. **Probe:** `cSC4AutomataController::GetBehaviorTemplate` (`0x0051BAB0` / Mac `0x000b8ce0`).~~
+  **ANSWERED 2026-10-20 (re-answers33):** `FUN_005096B0` is **automaton slot 105** (Windows `0x005096B0`;
+  `cSC4Pedestrian::vftable_2` slot 146). The emergency family overrides the same class-vtable slot with
+  `0x0052F730`, which tail-calls it only when flag `0x80` is clear and the top state is not `0x34`. Contract:
+  (1) `CheckAutomataFlag(0x4000)` set -> return; (2) look up the behaviour template for the automaton's current
+  occupant group (city slot `0xBC` -> controller-manager slot `0x58` with the occupant `this+4`, the attraction
+  vector `this+0xA4` and an out point `this+0x9C`), storing the found template at `this+0x98` and releasing the
+  old one; (3) if found, query the group's queue info (slot `+0x80`, position `this+0x40`), draw a uniform and
+  compare it with the group's strength; (4) walk the top of the state stack: **`state+0x24`** (the stored
+  behaviour template) equal to the found template -> stop, no push; the state's **controller** (`state+0x08`)
+  null or its group differing -> the state is popped (slot 53); otherwise `PushBehavior` (slot 55,
+  `vtable+0xDC`) pushes the found template. Both fields are read every refresh. automata.md 6.5 (new
+  subsection).
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT13:** the fate of an aircraft or watercraft that finishes `CRASH_RUNAGROUND` / `CRASH_SINK` - neither
+  transitions when its duration expires. [the manager later reaps it, inferred] **Probe:** trace
+  `cSC4WatercraftManager` occupancy/cleanup.~~ **ANSWERED 2026-10-20 (re-answers33): DIFFERS** - nothing reaps
+  it. `cSC4WatercraftManager::DoAnimationTick` (`0x005736A0`) has no state-70/71 cleanup, and a scan of all 41
+  watercraft functions finds no other writer of the crash accumulators or a reaper. The beached or sunk boat
+  stays in its final state until something else ends it: automata flag 1 removal, the occupant leaving the city
+  (`cSC4WatercraftManager::HandleOccupantRemoved` `0x00574520`), or a new `SetState` (the player taking the
+  wheel pushes state `0x10`). automata.md 6.6.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT14:** whether `field259_0x2BC`'s idle budget never being re-zeroed is intentional lifetime-based
+  despawning of idle boats or a missed reset (a boat that has spent 60 s total in IDLE is slow-removed).
+  **Probe:** every writer of that field.~~ **ANSWERED 2026-10-20 (re-answers33): MATCHES** the lifetime
+  reading. Exactly two writers exist across all 41 watercraft functions: `cSC4Watercraft::Init`
+  (`0x0056DE40`, `MOV dword ptr [ESI+0x2BC],0` at `0x0056E2A0`) and `cSC4Watercraft::DoStateTick` case 7
+  (`0x0057336A`: `+= dt`, and `> 60000.0` at `0x00A9DA40` -> slot 51 `SetState(0x49 SLOW_REMOVE, ...)`). It is
+  never re-zeroed on leaving IDLE, so the 60 s budget is **cumulative over the boat's life**. automata.md 6.6.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT15:** whether `Crash_SetStateInternal`'s slot-59 read is a "don't re-crash" guard - Ghidra dropped the
+  comparison (Mac `0x003804a6`). [inferred] **Probe:** `x86dis` on the Windows inlined copy at `0x00568570`,
+  or `0x00570270`'s callers.~~ **ANSWERED 2026-10-20 (re-answers33): DIFFERS** - the slot-59 read
+  (`GetTopStateType`, `vtable+0xEC`) is not a re-crash guard; it is the **player-drive test**. In
+  `Crash_DetermineCase` (`0x00568570`) both crash branches first call slot 102 (`NotifyAutomatonEvent(0xB, 0)`)
+  and then read slot 59: if the top state is `0x10` PLAYER_DRIVE the boat is pushed into `0x46`/`0x47`
+  (CRASH_RUNAGROUND/CRASH_SINK) with the duration `+0x398` and `final=1`; **any other boat is pushed into
+  `0x49` SLOW_REMOVE instead**. The `== 0x10` comparison is present in the bytes; the older Ghidra decompile
+  dropped it. automata.md 6.6.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT16:** whether the helicopter `AI_PursueGoal` `default:` really falls through into the `0x32` body.
+  [a safety net, inferred] **Probe:** `x86dis` on the jump table at `0x0053BBA0`.~~
+  **ANSWERED 2026-10-20 (re-answers33): DIFFERS** - there is **no fall-through**. The dispatch is a byte
+  selector at `0x0053C5A0` over the jump table `0x0053C57C`: state `0x32` has its own handler at
+  `0x0053C441` (slot 25 called with 0, then `PopState`), and every unlisted type 1-`0x31` plus anything above
+  `0x38` jumps to a separate default block at `0x0053C437` that is **`PopState` only** (bytes `8B 06 8B CE
+  FF 90 D4 00 00 00`). The decompiler's "default: ... case 0x32:" rendering put the two blocks visually
+  adjacent because they share the PopState tail, but they are distinct entries. automata.md 6.6.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT17:** the semantics of automaton vtable slot 102 (Windows) / 109 (Mac), the `(0xB, 0)` crash effect/anim
+  kill, and the names of slots 77 (`EnableMotion(bool)`) and 82 (`SetTransform`) - all absent from
+  `docs/abi/interfaces.tsv`. [inferred names] **Probe:** dump those vtable entries.~~
+  **ANSWERED 2026-10-20 (re-answers33): DIFFERS on two of the three names.**
+  - **Slot 102** (Windows `0x0050B540`, Mac 109 = Windows + 7): 2 stack args, `ret 8`. Reads the callback
+    target list at `this+0x188`; if empty does nothing; otherwise allocates a `cRZMessage2Standard`, sets the
+    message type to **`0x9D92FC3`** (the automaton-notification message the controller manager handles, S10),
+    the sender to `this` and the two payload dwords to the arguments, and broadcasts it to every target. The
+    crash path's `(0xB, 0)` reading was wrong: in `cSC4Watercraft::HandleEnterState` (`0x0056E40B`) the second
+    argument is the **crash duration** (the same value stored to `+0x2C0`), and `FUN_0052F210` passes `(5, 0)`.
+    Proposed name: `NotifyAutomatonEvent(u32 type, u32 value)` *[inferred]*. Slot 80 (`0x00505860`) is a
+    one-line wrapper that tail-calls slot 102 with `(6, 0)`.
+  - **Slot 77** is **`cSC4Automaton::EnableActiveSound(bool)`** (Windows `0x0050C330`, named by the export at
+    high confidence; Mac `0x000bfba6` carries the same name). It toggles the `+0x1DC` byte and, when enabling,
+    fills the active-sound list `+0x1C8` from exemplar property `0x6C044BB5`. The guessed `EnableMotion` is
+    wrong.
+  - **Slot 82** (Windows `0x004FB340`) is **`GetFirstModelInstance`** *[inferred]*: 22 bytes returning
+    `*(this+0x110)` when the model-instance vector `+0x110..+0x114` is non-empty, else null. The guessed
+    `SetTransform` is wrong - `cSC4Automaton::SetTransform` is Mac `0x000c1c68`, a different body that applies
+    a `cS3DTransform` to every instance.
+  New slot table in automata.md S11.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT18:** what the city query in the blocked-wait exit path means (`DoStopSignTick` step 5:
+  `spCity->vtable+0xA0` -> `vtable+0x84(netOccupant, automaton, routeInfo, &out)`; returning 0 pops the wait).
+  Whether 0 means "intersection still blocked" or "release failed" is not determinable from the bytes.
+  [inferred] **Probe:** name that interface method (likely `cISC4TrafficNetworkMap` / `cISC4TrafficSimulator`).~~
+  **ANSWERED 2026-10-20 (re-answers33): DIFFERS** from both guesses. `spCity->vtable+0xA0` is **city interface
+  slot 40 = `cSC4City::GetTrafficNetworkMap`** (already in interfaces.tsv), and the method called at
+  `vtable+0x84` is **`cSC4TrafficNetworkMap::CheckIntersection`** (`cISC4TrafficNetworkMap` slot 33,
+  `0x004B06F0`, named in the manual traffic list). It resolves the automaton's cell and facing (slot `0xEC`
+  on the automaton), bounds-checks the cell, looks up the network tile, finds the tile's intersection entry,
+  and selects the **approach lane opposite the facing** (`(facing + 2) & 3`); the return value is the **count
+  of automata occupying that lane** (0 = free), and the out `f32` receives the wait delay (`FLT_MAX` when
+  nothing was found). So returning 0 = the intersection is clear and the wait pops; non-zero = still occupied.
+  automata.md 6.5.
+
+<!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->
+- ~~**AT19:** whether `this+0x94` is the measured current speed (written as `distance/dt` in both `DoPathTick`s,
+  zeroed at the end of the pull-over move tick), and whether Windows slot `0xA0` in `DoStopSignTick` step 3 is
+  `ReturnToDefaultSpeed`. [inferred] **Probe:** `cSC4Automaton::GetSpeed`'s body (slot 34); dump the Windows
+  vtable entry at `+0x280`.~~ **ANSWERED 2026-10-20 (re-answers33): PARTLY.**
+  - `this+0x94`: written as `|newPos - oldPos| / dt` **only by `cSC4Vehicle::DoPathTick`**
+    (`FDIV [ESP+0x50]`, `FSTP [ESI+0x94]` at `0x0055CFBC`) - the "both DoPathTicks" claim was wrong,
+    `cSC4TrafficAutomaton::DoPathTick` (`0x0054FDC0`) has no `+0x94` store. `cSC4Vehicle::DoPullOverTick`
+    zeroes it (`MOV [EDI+0x94],0` at `0x0055E95C`) as claimed. `GetSpeed` (slot 34, `0x004FB370`) reads the
+    **speed tween** (`ADD ECX,0x1A0; JMP TweenStruct::GetCurrent`), not `+0x94`; no tick reads `+0x94`; the one
+    consumer found is `cSC4Train::HandleCollision` (`0x00558E00`), which copies the train's `+0x94` onto each
+    coupled car before spinning them *[inferred: a derived-speed debug field]*.
+  - Windows slot `0xA0` (`+0x280`, `0x0054DA50`) **is `ReturnToDefaultSpeed`**: it reads the max speed
+    (slot `+0x1F4` = 125 = `GetSpeedModifier`-adjacent family), computes the tween duration
+    `1.0 / maxSpeed x 0.3` (constants `0x00A81228 = 1.0`, `0x00A97D74 = 0.3`; `0.1` when the max speed is 0),
+    then `TweenSpeed(defaultSpeed, duration)` - slot `+0x8C` = 35 supplies the default speed and slot
+    `+0x90` = 36 is `TweenSpeed`. This matches the Mac `ReturnToDefaultSpeed` (`0x000caa42`,
+    `(defaultSpeed, 0.3/m)`).
+  automata.md 6.5, S11.
