@@ -60,8 +60,11 @@ static const uint32_t kFC4_IID_cISC4NetworkLot = 0x89A5BA66;
 // (0x88EDC900 + k, lot-developer.md §17.1, prop-lotconfig.md §B3.3 with the
 // network detail d = 3), and shared by every lot of the configuration. The
 // record struct is the SDK's cSC4LotConfigurationObject (its layout matches
-// the compiled one, lot-developer.md §17.1); the records live in a
-// manager-owned SC4Vector built once per configuration.
+// the compiled one, lot-developer.md §17.1); the records live in one
+// manager-owned SC4Vector built once per configuration (glue24: runs
+// glue24-rep-6 - two storages that both hold the records by value double-
+// freed each record's SC4Vector data at Shutdown, the run's heap-corruption
+// crash; one owner only).
 class cFC4NetworkLotConfiguration {
 public:
     explicit cFC4NetworkLotConfiguration(uint64_t token) : token_(token) {}
@@ -82,20 +85,22 @@ public:
     // The object count (the kept records).
     size_t ObjectCount() const { return records_.size(); }
 
-    // The shared object array (built once, on first use; empty when the
-    // exemplar had no kept object). The pointer stays valid for the manager's
-    // life. The vector holds pointers into the kept record storage, the way
-    // the original's arrays do (the SDK's cISC4NetworkLot slot 5 returns
-    // SC4Vector<cSC4LotConfigurationObject>* whose elements are records).
-    SC4Vector<cSC4LotConfigurationObject>* Objects();
+    // The shared object array: the one record storage, never null (a caller
+    // that takes GetLotConfigurationObjectArray() and calls size() on it would
+    // dereference null, this lane's run glue24-rep-2). The pointer stays valid
+    // for the manager's life; the SDK's cISC4NetworkLot slot 5 returns
+    // SC4Vector<cSC4LotConfigurationObject>* whose elements are records.
+    SC4Vector<cSC4LotConfigurationObject>* Objects() { return &records_; }
 
 private:
     uint64_t token_ = 0;
     uint32_t configId_ = 0;  // the exemplar's property 0x21 (§2.4)
-    std::vector<cSC4LotConfigurationObject> records_;  // the kept records, in property order
+    // The kept records, in property order: the ONLY storage (SC4Vector's
+    // push_back memmoves the element bytes, and its destructor runs each
+    // element's destructor, so a second copy would free the same data).
+    SC4Vector<cSC4LotConfigurationObject> records_;
     // Per kept-object index: the raw ID list of the object (object_ids).
     std::vector<std::vector<uint32_t>> ids_;
-    std::unique_ptr<SC4Vector<cSC4LotConfigurationObject>> array_;
 };
 
 // A network lot of ours (§2.3: a 24-byte reference-counted object). The core

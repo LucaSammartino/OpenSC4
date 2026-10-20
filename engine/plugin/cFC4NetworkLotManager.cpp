@@ -383,14 +383,6 @@ const std::vector<uint32_t>& cFC4NetworkLotConfiguration::ObjectIds(size_t index
     return index < ids_.size() ? ids_[index] : kEmpty;
 }
 
-SC4Vector<cSC4LotConfigurationObject>* cFC4NetworkLotConfiguration::Objects() {
-    if (array_ == nullptr) {
-        array_.reset(new SC4Vector<cSC4LotConfigurationObject>());
-        for (const cSC4LotConfigurationObject& o : records_) array_->push_back(o);
-    }
-    return array_.get();
-}
-
 // ---- cFC4NetworkLot -----------------------------------------------------------------------------------
 
 bool cFC4NetworkLot::QueryInterface(uint32_t riid, void** ppvObj) {
@@ -426,7 +418,6 @@ uint32_t cFC4NetworkLot::GetLotConfigurationObjectCount() {
 SC4Vector<cSC4LotConfigurationObject>* cFC4NetworkLot::GetLotConfigurationObjectArray() {
     return config_ != nullptr ? config_->Objects() : nullptr;
 }
-
 // ---- cFC4NetworkLotManager ----------------------------------------------------------------------------
 
 cFC4NetworkLotManager::cFC4NetworkLotManager() {
