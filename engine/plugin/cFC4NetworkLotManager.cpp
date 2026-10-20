@@ -406,17 +406,25 @@ uint32_t cFC4NetworkLot::Release() {
 
 cISC4NetworkOccupant* cFC4NetworkLot::GetNetworkOccupant() const { return occ_; }
 
+// A stable empty array, never null: a caller that takes GetLotConfiguration-
+// ObjectArray() and calls size() on it would dereference null (this lane's
+// run glue24-rep-2).
+SC4Vector<cSC4LotConfigurationObject>& kEmptyObjects() {
+    static SC4Vector<cSC4LotConfigurationObject> empty;
+    return empty;
+}
+
 uint32_t cFC4NetworkLot::GetLotConfigurationObjectCount() {
     // §2.3 slot 4: the configuration's objects.
-    SC4Vector<cSC4LotConfigurationObject>* o = config_ != nullptr ? config_->Objects() : nullptr;
-    return o != nullptr ? static_cast<uint32_t>(o->size()) : 0;
+    SC4Vector<cSC4LotConfigurationObject>* o = config_ != nullptr ? config_->Objects() : &kEmptyObjects();
+    return static_cast<uint32_t>(o->size());
 }
 
 // §2.3 slot 5: the configuration's shared object array (never null: a caller
 // that takes the pointer and calls size() on it would dereference null, this
 // lane's run glue24-rep-2).
 SC4Vector<cSC4LotConfigurationObject>* cFC4NetworkLot::GetLotConfigurationObjectArray() {
-    return config_ != nullptr ? config_->Objects() : nullptr;
+    return config_ != nullptr ? config_->Objects() : &kEmptyObjects();
 }
 // ---- cFC4NetworkLotManager ----------------------------------------------------------------------------
 

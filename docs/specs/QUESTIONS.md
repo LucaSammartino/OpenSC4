@@ -5378,3 +5378,17 @@ The probe named is the one the report gives.
   zeroed at the end of the pull-over move tick), and whether Windows slot `0xA0` in `DoStopSignTick` step 3 is
   `ReturnToDefaultSpeed`. [inferred] **Probe:** `cSC4Automaton::GetSpeed`'s body (slot 34); dump the Windows
   vtable entry at `+0x280`.
+
+## From the network manager and network lot manager glue (filed by the `glue24` lane, 2026-10-20)
+
+- **NM11:** how the original builds its 13 network tools (§7.1: the factory `0x00610907`-`0x00610910` calls the
+  constructors directly) and the GZCOM class IDs (or the vtables) of those tool classes — the replacement's
+  `create_tool` must return objects the rest of the game accepts. The glue24 lane's stand-in (`cFC4NetworkTool`,
+  `enable = netmgr`) answers the SDK's `cISC4NetworkTool` interface and does nothing: the runs that need it
+  (`enable = netmgr` reached PostCityInit only after the stand-in existed) pass with it, but the tools are the
+  manager's own state (§13 leaves the tool subsystem to its own lane), and a replacement cannot create the game's
+  tools without the classes' identities. Also open under the same head: the network lot manager's slot 6
+  `GetNetworkLotConfigurationSet` inserts into a caller-owned set of the game's `cSC4NetworkLotConfiguration`
+  objects (§11.2), and `update_intersection` needs the traffic network map's slot 36 (`cFC4ISC4TrafficNetworkMap`
+  stops at slot 8). **Probe:** a run with `enable = netmgr` that places a road segment (the tool's placement
+  pipeline, network-tools.md §5) and the vtables the game's tool factory calls.
