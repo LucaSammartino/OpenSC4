@@ -209,18 +209,20 @@ the `cIGZUnknown` triple):
 | 5 | null | — | the vtable ends after slot 4 |
 
 **Who sets it.** The constructor writes only the vptr (`+0x24 := 0x00AA47D0`, `0x005EE08E`); the field at
-`+0x28` starts null and `SetDefaultExemplar` is reached only through the interface (no direct caller in the
-image: `0x00458E60` has zero data references outside vtables). The plain prop's exemplar is attached by the
-prop manager's `LoadPropProperties` (prop-lotconfig.md §A6.1 step 5) through the **property holder** at
-`+0x10`, not through this interface, so in practice a plain prop's `+0x28` stays null unless a plugin calls
-`SetDefaultExemplar` *[inferred: no image-side writer]*. `LoadPropProperties` does, however, **read** the
-interface: it QIs the occupant for `0x0AC2B5F7` first and falls back to the property holder when the QI fails
-(`0x004A2A8F`–`0x004A2AB6`) — which is why the fallback exists for occupants that lack the `+0x24`
-sub-object (building-development.md §8's LG27 note).
-
-`+0x28` is one of the dwords the constructor zeroes at `+0x3C`…`+0x54`'s neighbourhood — it sits between the
-vptr and the zeroed run and is **not** part of the seven-dword AABB-plus-pointer run (§2.2 lists the zeroed
-range correctly as `+0x3C`…`+0x54`).
+`+0x28` starts zeroed (the property-holder base constructor `FUN_005FF1C0`, run from `cSC4Occupant`'s
+constructor with `ECX = obj + 0x10`, zeroes `obj+0x14`…`obj+0x28` including it) and `SetDefaultExemplar` is
+reached only through the interface (no direct caller in the image: `0x00458E60` has zero data references
+outside vtables). The plain prop's exemplar is attached by the prop manager's `LoadPropProperties`
+(prop-lotconfig.md §A6.1 step 5) through the **property holder** at `+0x10`, not through this interface, so in
+practice a plain prop's `+0x28` stays null unless a plugin calls `SetDefaultExemplar` *[inferred: no
+image-side writer]*. `LoadPropProperties` does **read** the interface: it takes the occupant's property holder
+(`AsOccupant` then `AsPropertyHolder`, `0x004A2A83`/`0x004A2A8C`) and QIs **that** for `0x0AC2B5F7`
+(`0x004A2A9E`); on a failed QI it falls back to the prop's own **type ID** as the catalogue key
+(`GetPropType` slot 7 at `0x004A2AB3`, then the hash `DIV` into the type map) — the fallback that
+building-development.md §8's LG27 note describes for occupants whose holder does not answer the IID. The
+`+0x24` sub-object is the second interface **of the property-holder sub-object**: `FUN_005FF1C0` installs its
+base-class vptr (`0x00AA6D3C`) at holder `+0x14` = `obj + 0x24` and zeroes the exemplar pointer at holder
+`+0x18` = `obj + 0x28`, which the prop constructor later re-vtables to `0x00AA47D0`.
 
 ---
 
@@ -809,9 +811,9 @@ three.
 25. **Removal** (§3). `RemovePropA` then `Shutdown` removes the prop from the occupant manager; a second removal
     is a no-op.
 26. **Exemplar-holder QI** (§2.4). `QueryInterface(0x0AC2B5F7)` on a fresh prop returns `this + 0x24` with a new
-    reference; `GetDefaultExemplar()` on it returns null (nothing sets `+0x28` on a plain prop); a
-    `SetDefaultExemplar(e)` / `GetDefaultExemplar()` round trip returns `e` and holds a reference that
-    `SetDefaultExemplar(null)` releases.
+    reference; `GetDefaultExemplar()` on it returns null (the base constructor zeroes `+0x28` and nothing in the
+    image sets it on a plain prop); a `SetDefaultExemplar(e)` / `GetDefaultExemplar()` round trip returns `e` and
+    holds a reference that `SetDefaultExemplar(null)` releases.
 27. **Placement-properties stubs** (§4.1, §4.1b). `GetPropPlacementProperties()` on a fresh plain prop returns
     exactly 0 in EAX; `SetPropPlacementProperties(p)` with a non-null dummy consumes its argument, changes
     nothing and leaves the next `GetPropPlacementProperties()` at 0.

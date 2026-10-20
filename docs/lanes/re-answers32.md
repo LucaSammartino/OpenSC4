@@ -19,9 +19,12 @@
    with `LEA EAX, [ECX + 0x14]` from `ECX = obj + 0x10` — exactly `obj + 0x24`; and the `+0x24` vtable's
    QI/AddRef/Release are `SUB ECX, 0x24` thunks to the primary trio (`0x005EE140`/`0x0064DE00`/`0x0064DE10`). Its two
    real slots are `SetDefaultExemplar` `0x00458E60` (AddRef-new, store at `+0x28`, Release-old) and `GetDefaultExemplar`
-   `0x0060CE80` (`MOV EAX, [ECX+4]`). The plain prop never sets `+0x28`; `LoadPropProperties` QIs `0x0AC2B5F7` first
-   and falls back to the property holder — the fallback building-development.md §8 (LG27) needed for occupants without
-   this sub-object.
+   `0x0060CE80` (`MOV EAX, [ECX+4]`). The sub-object is the **second interface of the property-holder sub-object at
+   `+0x10`**: the holder base ctor `FUN_005FF1C0` installs its vptr at holder+0x14 = obj+0x24 and zeroes the exemplar
+   pointer at holder+0x18 = obj+0x28. The plain prop never sets `+0x28`; `LoadPropProperties` QIs the holder for
+   `0x0AC2B5F7` (`0x004A2A9E`) and falls back to the prop's own type ID as the catalogue key when the QI fails
+   (`0x004A2AB3`, slot 7) — the fallback building-development.md §8 (LG27) needed for occupants whose holder does not
+   answer the IID.
 3. **PO3 — seam specified; `CreateGeometry` DIFFERS.** Occupant `+0x30` holds one `cSC43DPlaceableObject`
    (vtable `0x00AA4468`, 17 slots, `0x30` bytes, QI answers only `1` and `0xC6BB5EFA`). Occupant slots 18/19/20 are
    `GetPlaceableObject` (folded `MOV EAX, [ECX+0x30]` getter), `GetOrCreatePlaceableObject` `0x005E91C0` (lazily creates

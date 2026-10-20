@@ -20,10 +20,12 @@
   `ECX = obj+0x10`, i.e. exactly `obj+0x24`), and the thunk pair `0x005EE140`/`0x0064DE00`/`0x0064DE10`
   (all `SUB ECX, 0x24` → the primary QI/AddRef/Release). Its two real slots are `SetDefaultExemplar`
   `0x00458E60` (AddRef-new, store at sub+0x04 = obj+0x28, Release-old) and `GetDefaultExemplar` `0x0060CE80`
-  (`MOV EAX,[ECX+4]`). The plain prop never sets `+0x28` (the exemplar attaches through the property holder at
-  `+0x10`), which is why `LoadPropProperties` (`0x004A2A8F`–`0x004A2AB6`) QIs `0x0AC2B5F7` first and falls back
-  to the property holder — the same fallback building-development.md §8 (LG27) needed. Rule written into
-  `prop-occupant.md` §2.4.
+  (`MOV EAX,[ECX+4]`). The sub-object is the second interface **of the property-holder sub-object at `+0x10`**:
+  the holder base constructor `FUN_005FF1C0` installs its vptr at holder+0x14 = obj+0x24 and zeroes the exemplar
+  pointer at holder+0x18 = obj+0x28. The plain prop never sets `+0x28` (the exemplar attaches through the
+  holder's property data), which is why `LoadPropProperties` (`0x004A2A9E`) QIs the holder for `0x0AC2B5F7`
+  first and falls back to the prop's type ID as the catalogue key when the QI fails — the fallback
+  building-development.md §8 (LG27) described. Rule written into `prop-occupant.md` §2.4.
 - ~~**PO3.** The occupant → placeable → 3D object seam (§6.1): occupant slots 20/21 and `CreateGeometry`.~~
   **ANSWERED 2026-10-20 (re-answers32): the seam is specified; the `CreateGeometry` half of the premise
   DIFFERS.** Occupant `+0x30` holds one `cSC43DPlaceableObject` (vtable `0x00AA4468`, 17 slots, `0x30` bytes,
