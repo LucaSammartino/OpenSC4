@@ -76,6 +76,8 @@
 #include "FC4CivicShadow.h"       // the cmglue lane
 #include "FC4ParksShadow.h"       // the cmglue lane
 #include "FC4DisasterShadow.h"    // the glue13 lane
+#include "FC4EffectsShadow.h"      // the glue22 lane
+#include "cFC4Effects.h"           // the glue22 lane
 #include "FC4TrafficShadow.h"
 #include "FC4OccMgrShadow.h"  // the glue14b lane
 #include "cFC4TractDeveloper.h"
@@ -111,6 +113,7 @@ cIGZUnknown* CreateFC4DepartmentBudget();
 cIGZUnknown* CreateFC4LineItem();
 cIGZUnknown* CreateFC4LandValueSimulator();
 cIGZUnknown* CreateFC4WeatherSimulator();
+cIGZUnknown* CreateFC4EffectsManager();
 
 namespace fc4 {
 namespace {
@@ -360,6 +363,13 @@ const ClassEntry kCityDetailClasses[] = {
     {kFC4_CLSID_cSC4CityDetailManager, "cSC4CityDetailManager", &CreateFC4CityDetailManager},
 };
 
+// docs/specs/effects.md §1: the effects manager (city slot 85, city +0x1FC),
+// its visual effects and their components. Off by default (glue trial):
+// `enable = effects`. Not a saved component (§13).
+const ClassEntry kEffectsClasses[] = {
+    {kFC4_CLSID_cSC4EffectsManager, "cSC4EffectsManager", &CreateFC4EffectsManager},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -402,6 +412,7 @@ const Subsystem kSubsystems[] = {
     {"propdev", nullptr, kPropDevClasses, sizeof(kPropDevClasses) / sizeof(kPropDevClasses[0]), false},
     {"citydetail", nullptr, kCityDetailClasses, sizeof(kCityDetailClasses) / sizeof(kCityDetailClasses[0]), false},
     {"ports", nullptr, kPortClasses, sizeof(kPortClasses) / sizeof(kPortClasses[0]), false},
+    {"effects", nullptr, kEffectsClasses, sizeof(kEffectsClasses) / sizeof(kEffectsClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -556,7 +567,7 @@ void Resolve() {
     PortsShadowStartup(g_enabled[0], enabledKey("ports"));
     // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
     TerrainShadowStartup();
-    // The glue17 lane's three shadows (they compare the original city situation
+// The glue17 lane's three shadows (they compare the original city situation
     // manager, demolition utility and dispatch manager).
     CitySitShadowStartup(enabledKey("citysit"));
     DemolitionShadowStartup(enabledKey("demolition"));
@@ -564,6 +575,9 @@ void Resolve() {
     DispatchShadowStartup(enabledKey("dispatch"));
     // The prop manager, lot configuration manager and tutorial shadows (FC4PropLotShadow.h; the glue15 lane).
     PropLotShadowStartup(enabledKey("propmgr"), enabledKey("lotcfg"), enabledKey("tutorial"));
+    // The effects shadow (FC4EffectsShadow.h; a same-process mirror of the
+    // effects manager). It runs beside whichever manager the city uses.
+    EffectsShadowStartup(enabledKey("effects"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
@@ -596,6 +610,20 @@ const ClassEntry* FindEnabledClass(uint32_t clsid, const Subsystem** owner) {
     Resolve();
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         if (!g_enabled[i]) continue;
+        // The effects replacement fails closed (glue22 question 9): the class is
+        // registered only when the run also sets effects_replace = 1.
+        if (strcmp(kSubsystems[i].key, "effects") == 0) {
+            const long force = SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0);
+            if (force == 0) {
+                static bool warned = false;
+                if (!warned) {
+                    warned = true;
+                    Log("subsystem 'effects': the class replacement is NOT registered (glue22 question 9); "
+                        "effects_shadow = 1 is the verified path; set effects_replace = 1 to force it");
+                }
+                continue;
+            }
+        }
         const Subsystem& s = kSubsystems[i];
         for (size_t k = 0; k < s.classCount; ++k) {
             if (s.classes[k].clsid == clsid) {

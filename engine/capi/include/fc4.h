@@ -165,10 +165,12 @@ extern "C" {
  * 71 = merge-train batch train4 (re-specs20, re-answers30, re-specs19, cores22, apply15e, glue20, cores21): merged (no C ABI history entry of its own)
  * 72 = merge-train batch train5 (re-answers31, re-specs21, cores24, coverage3, glue23): merged (no C ABI history entry of its own);
  * 73 = merge-train batch train6 (glue17, apply15b, cores17, cores19, glue15, apply15terrain, glue12b1, glue12b2): adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane; taken as 63, then 64-68 on its lane; renumbered at merge). | adds the effects manager (fc4_effects, fc4_effects_directory; effects.md): the effect directory parser, creation, LOD and select groups, the tick, finishing (the hook or the draw-pass compat mode), the brush and game effects through host callbacks (renumbered at merge). | The lot configuration manager's opaque handle is fc4_lot_config_manager (the glue15 lane renamed it; the entry points keep their fc4_lot_config_* names, so the ABI surface is unchanged). | terrain round 2 (re-answers17, apply15terrain lane): fc4_terrain_lerped_water_level, fc4_terrain_flooding_altitude, fc4_terrain_water_velocity, fc4_terrain_sediment_at, fc4_terrain_brush_angles, fc4_terrain_set_brush_angles, fc4_terrain_talus_angle and fc4_terrain_set_talus_angle; fc4_terrain_brush_angle returns the stroke angle and fc4_terrain_add_brush's angle is the walk angle's start; set_water_display_state posts only on a change (taken as 64, then 65, 66 and 68 on its lane; renumbered at merge). | adds fc4_port_developer_required_budget and fc4_port_developer_funding_ratio (the port glue's shadow; glue12b2 lane, taken as 66 on the lane, renumbered at merge).
- * 74 = merge-train batch train8 (re-answers32, glue27, cores23, cores20): merged (no C ABI history entry of its own) */
+ * 74 = merge-train batch train8 (re-answers32, glue27, cores23, cores20): merged (no C ABI history entry of its own)
 #define FC4_ABI_VERSION 74u
-#define FC4_ABI_VERSION 69u/* Return codes of fc4_sim_load. */
-#define FC4_OK                    0
+#define FC4_ABI_VERSION 69u/* Return codes of fc4_sim_load.
+ * 69 = merge-train batch train2 (re-answers28, mergetrain-docs, re-answers29, cores12c, detpacing, cores18, apply14dis, glue12b2, coverage2, apply15c, apply15b, cores17): cores12c: adds the advisor system and the MySims (fc4_advisors, fc4_adv_obj, fc4_advisor_host, fc4_mysim_host; advisors.md, mysims.md) (taken as 62 on its lane; renumbered at merge). | detpacing: deterministic pacing (simulator.md §5.7 [choice]): fc4_pacing_set_process / fc4_pacing_process, fc4_sim_set_pacing / fc4_sim_get_pacing with fc4_pacing_hooks (the day's settle point), and every core with an idle-driven cycle runs it to completion in one settle delivery under FC4_PACING_DETERMINISTIC (taken as 65 on its lane, then 68; renumbered at merge). | cores18: adds the network rules (fc4_network_rules, fc4_network_rules_grid, network-rules.md): the rule database from resource bytes, tile rule evaluation and the rule stages of SolveNetwork over a cell grid (taken as 68 on its lane; renumbered at merge). | apply14dis: the disaster layer after re-answers14 (disasters.md): the host's dispatch-unit counts (fire_dispatch_count / police_dispatch_count) replace the effectiveness setters, the wind is a vector, network_default_cost and volcano_end_deformation are gone; fc4_disasters_set_cause returns the cause; adds fc4_disasters_manager_instances (taken as 68 on its lane). | glue12b2: adds fc4_port_developer_required_budget and fc4_port_developer_funding_ratio (the port glue's shadow; glue12b2 lane, taken as 66 on the lane, renumbered at merge). | cores17: adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane; taken as 63, then 64-68 on its lane; renumbered at merge). | cores19: adds the effects manager (fc4_effects, fc4_effects_directory; effects.md): the effect directory parser, creation, LOD and select groups, the tick, finishing (the hook or the draw-pass compat mode), the brush and game effects through host callbacks (cores19 lane; renumbered at merge).
+#define FC4_ABI_VERSION 69u
+/* Return codes of fc4_sim_load. */#define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
 #define FC4_ERR_TRUNCATED         (-2)
 #define FC4_ERR_INVALID_ARGUMENT  (-3)
@@ -12199,8 +12201,7 @@ _Static_assert(sizeof(fc4_netgeom_occupant) == 12, "fc4_netgeom_occupant layout"
 _Static_assert(sizeof(fc4_netgeom_piece) == 76, "fc4_netgeom_piece layout");
 _Static_assert(sizeof(fc4_netgeom_cell_info) == 180, "fc4_netgeom_cell_info layout");
 _Static_assert(sizeof(fc4_netgeom_state) == 96, "fc4_netgeom_state layout");
-_Static_assert(sizeof(fc4_netgeom_host) == (sizeof(void*) == 4 ? 84 : 168), "fc4_netgeom_host layout");#endif
-_Static_assert(sizeof(fc4_effects_post) == 24, "fc4_effects_post layout");
+_Static_assert(sizeof(fc4_netgeom_host) == (sizeof(void*) == 4 ? 84 : 168), "fc4_netgeom_host layout");#endif_Static_assert(sizeof(fc4_effects_post) == 24, "fc4_effects_post layout");
 _Static_assert(sizeof(fc4_effects_rect) == 16, "fc4_effects_rect layout");
 _Static_assert(sizeof(fc4_effects_demolish_filter) == 12, "fc4_effects_demolish_filter layout");
 _Static_assert(sizeof(fc4_effects_occupant_facts) == 16, "fc4_effects_occupant_facts layout");
@@ -12211,5 +12212,5 @@ _Static_assert(sizeof(fc4_effects_brush_state) == 56, "fc4_effects_brush_state l
 _Static_assert(sizeof(fc4_effects_game_state) == 32, "fc4_effects_game_state layout");
 _Static_assert(sizeof(fc4_effects_host) == (sizeof(void*) == 4 ? 80 : 160), "fc4_effects_host layout");
 _Static_assert(sizeof(fc4_netgeom_host) == (sizeof(void*) == 4 ? 84 : 168), "fc4_netgeom_host layout");#endif
-
+#endif
 #endif /* FC4_H */

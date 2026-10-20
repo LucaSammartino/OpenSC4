@@ -23,9 +23,11 @@
 // letting it escape into the game.
 
 #include "FC4Autotest.h"
+#include "FC4Config.h"
 #include "FC4ClockProbe.h"
 #include "FC4Diag.h"
 #include "FC4Dialogs.h"
+#include "FC4EffectsShadow.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
@@ -139,6 +141,14 @@ public:
             const fc4::Subsystem& s = subsystems[i];
             if (!fc4::SubsystemEnabled(s)) continue;
             for (size_t k = 0; k < s.classCount; ++k) {
+                // The effects replacement fails closed (glue22 question 9): its class is
+                // registered only when the run also sets effects_replace = 1.
+                if (strcmp(s.key, "effects") == 0 &&
+                    fc4::SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) == 0) {
+                    FC4_LOGV("AddCls skipped for subsystem 'effects' (glue22 question 9); "
+                             "effects_shadow = 1 is the verified path; set effects_replace = 1 to force it");
+                    continue;
+                }
                 AddCls(s.classes[k].clsid, s.classes[k].create);
                 FC4_LOGV("AddCls(0x%08X) registered (%s, subsystem '%s')", s.classes[k].clsid, s.classes[k].name, s.key);
             }
@@ -342,7 +352,7 @@ public:
         FC4_LOGV("hook PreAppShutdown");
         fc4::FpuLog("hook PreAppShutdown");
         fc4::NetMgrShadowStop();
-        fc4::TerrainShadowStop();
+        fc4::EffectsShadowStop();  // effects_shadow: the summary line        fc4::TerrainShadowStop();
         fc4::Clock24ShadowStop();
         fc4::HistoryShadowStop();
         fc4::FlammabilityShadowStop();

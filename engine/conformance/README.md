@@ -400,6 +400,7 @@ cell. Grids are x-major (`rows[x][z]`).
 
 Weather events: `post` (`type`: `SeasonChanged`, `WeatherCycleCompleted`, `MoistureMapUpdated` or `other`;
 `data2`), and with a stub generator `rng` (`kind`: `uniform`, `gaussian`, `int` (with `lo`, `hi`); `value`).
+
 ## Simgrid ops
 
 The simgrid vectors (`g10_…`) drive the core grid class and map utilities of `fc4_core::grid` (`src/simgrid.rs`
@@ -2517,6 +2518,30 @@ types.
 | `ng_destroy` | `destroyed`, `pieces`, `replaced` ([[x, z]] each); `expect` `{removals, resolve}` | §13 |
 | `ng_grade` | `expect?` `{changed, rect}` | slot 57 on the terrain satisfier |
 | `ng_expect_events`, `ng_clear_events` | as elsewhere | the terrain's posts |
+
+## Effects ops
+
+The effects vectors (`ef17_…` for the §17 tests) drive `fc4_core::effects` (`docs/specs/effects.md`): the effects
+manager (`EffectsManager`), the brush effect, the game effect and the effect directory. Every op name starts with
+`ef_`. The host logs every call it receives. The default host: a simulator with dilation 1, a city of 64 × 64 cells
+(16 m), render components inactive.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `ef_create` | `directory?` (`"volcano"`, the default: `shipped::volcano_directory()`; or inline `{games?, effects: [{name, priority? (1), flags?, components: [{type, index?, name?, flags?, lod? [min, max], group?, weight?}]}]}`, with the shipped brush records and, unless `games` is given, the shipped game records), `seed?` (the session seed), `max_priority?`, `finish_mode?` (`hook` (the default) or `draw_pass`), `nested_update?` (true) | a new manager, replacing the current one; labels are cleared |
+| `ef_env` | any of `dilation` (a number, or null: no simulator), `cells` [x, z], `render_active` | the host |
+| `ef_effect` | `name`, `as?` (a label), `expect?` (whether an effect was created), `expect_index?` (the description chosen; -1: none qualifies) | `CreateVisualEffect` |
+
+Component `type`: `particles`, `decal`, `meta`, `brush`, `attractor`, `game`, `sound` or a number. Game record
+fields (inline): `flags`, `demolish`, `demolish_flags`, `min_size`, `max_size`, `burn`, `message`, `message_data`,
+`duration`, `toxic`, `extinguish`.
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
 | `ef_call` | `method`, `effect?` (a label), `args?`, `repeat?`, `expect?` (the last result) | the manager: `tick` ([us]), `frame` ([us]: the tick, then the finishing hook, then the draw pass), `finish_hook`, `draw_pass` (whether the sweep ran), `shutdown`, `set_zoom` ([zoom, offset]), `set_max_priority`, `has` ([name]); an effect: `start` / `stop` ([mode?], 0 by default), `set_position` ([x, y, z]), `set_end_message` ([type, data1]), `forward_parameter` ([index, value]), `add_ref`, `release`, `is_started`, `is_stopping` |
 | `ef_run_stroke` | `effect`, `us`, `max?` (10000), `ticks?`, `applications?`, `first?` (the brush calls of the first ticks), `every?` (the brush calls of every tick) | ticks until the effect's brush is inactive |
 | `ef_child` | `effect`, `n?` (0), `name?`, `as?` | the child of the effect's `n`-th built meta component |
