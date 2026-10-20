@@ -255,7 +255,11 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-map.tsv | ddaa415427cb41ab | |
 | tools/coverage-shadows.tsv | 9559bafe0136e8c5 | |
 | tools/regress.ps1 | a2bb92879ba7e915 | |
-| engine/plugin/FC4Subsystems.cpp | 404430dee3e5fe94 | |
+| engine/plugin/FC4Subsystems.cpp | aab3dd0573c95fd3 | |
 | build-runs/regress-voidbool.out | 08052938525d100a | regress voidbool (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time)); replace run clean |
 
 Read from tools/regress.ps1: 27 replace keys, 26 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
+
+## Warnings
+
+- map row `cSC4DispatchManager`: replace key `dispatch` is not an enable key in FC4Subsystems.cpp
