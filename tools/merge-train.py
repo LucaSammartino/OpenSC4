@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """FreeCity4 merge train: the single owner of `main`.
 
-Why this exists (HANDOFF "First task next session"): each lane used to take a shared merge lock, merge main,
-re-gate and renumber `FC4_ABI_VERSION` / the HANDOFF rows / the manual-checks run numbers itself. N waiting lanes
-therefore cost about N^2 gates, nearly every merge conflicted on the same five files, and about 25 agents polled
+Why this exists (docs/merge-train.md "Why"; the original plan is in docs/history/handoff-2026-10.md): each lane
+used to take a shared merge lock, merge main, re-gate and renumber `FC4_ABI_VERSION` / the HANDOFF rows / the
+manual-checks run numbers itself. N waiting lanes therefore cost about N^2 gates, nearly every merge conflicted on the same five files, and about 25 agents polled
 the lock so docs-only lanes waited hours.
 
 The train instead:
@@ -311,11 +311,18 @@ ABI_HEADER = "engine/capi/include/fc4.h"
 ABI_RS = "engine/capi/src/lib.rs"
 ABI_INC = "engine/tests/abi_entries.inc"
 HANDOFF = "docs/HANDOFF.md"
+LANES_INDEX = "docs/lanes/INDEX.md"
 MANUAL = "docs/manual-checks.md"
 QUESTIONS = "docs/specs/QUESTIONS.md"
 PROGRESS = "docs/PROGRESS.md"
+# Derived docs: lanes change them only by running tools/gen_handoff_tables.py (the lane table in INDEX.md, the
+# latest-run line in HANDOFF.md), and the HANDOFF's prose is the coordinator's. On a conflict take ours (the
+# integration side) and let regenerate() rebuild the generated regions from docs/lanes/ and docs/runs/. A union
+# would paste a lane's stale copy back in: HANDOFF.md was cut from 134 KB to one page on 2026-10-20, and every
+# lane cut before that carries the old file with its lane table.
+DERIVED = (HANDOFF, LANES_INDEX)
 # Append-only docs: both sides only ever add rows or sections, so a union always keeps everything.
-APPEND_ONLY = (HANDOFF, MANUAL, QUESTIONS, PROGRESS)
+APPEND_ONLY = (MANUAL, QUESTIONS, PROGRESS)
 # Shared source files where every lane only appends its own registration. These union ONLY when the hunks
 # are disjoint additions (see can_union) — blindly unioning FC4Config.cpp once produced a function body with
 # `Log` and `kCount` out of scope, which the batch gate then rejected.
@@ -595,6 +602,13 @@ def resolve_conflicts(wt, lanes):
             if fp.exists() and (can_union(fp) or comments_only(fp)) and union_hunks(wt, p) and \
                     dedupe_version(fp, VERSION_RE_C if p.endswith(".h") else VERSION_RE_RS):
                 resolved.append(p + " (union + version)")
+                continue
+            left.append(p)
+            continue
+        if p in DERIVED:
+            if git(["-C", str(wt), "checkout", "--ours", "--", p], check=False).returncode == 0:
+                git(["-C", str(wt), "add", p], check=False)
+                resolved.append(p + " (ours; regenerated after the merges)")
                 continue
             left.append(p)
             continue
@@ -1198,7 +1212,7 @@ def write_notices(cur, main_sha):
             f"- integration: `{cur['integration']}` at `{cur['head'][:12]}`\n"
             f"- gate: {cur.get('gate')}   regress: {cur.get('regress')}\n\n"
             "Nothing more to do on this lane. Any `docs/lanes/<lane>.md` and `docs/runs/<tag>.md` you wrote are now\n"
-            "the source of the generated HANDOFF / manual-checks tables.\n",
+            "the source of the generated docs/lanes/INDEX.md / HANDOFF / manual-checks tables.\n",
             encoding="utf-8",
         )
     # one copy in the main tree as well, so a later session can see what landed

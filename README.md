@@ -113,7 +113,8 @@ The clock and the budget are replaced by default; everything else stays the orig
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first, because the clean-room rules decide what
 each role may open.
 
-- **Coordinator:** [docs/HANDOFF.md](docs/HANDOFF.md).
+- **Coordinator:** [docs/HANDOFF.md](docs/HANDOFF.md) (one page: the current state and an index of
+  [docs/ops/](docs/ops/)). Every lane reads it first.
 - **Implementer (engine code):** [CONTRIBUTING.md](CONTRIBUTING.md), then [docs/specs/](docs/specs/) (questions for the
   RE side go in [docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md)), [docs/abi/](docs/abi/) and
   [engine/README.md](engine/README.md). The reverse-engineering workspace is not for implementers.

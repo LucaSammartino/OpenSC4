@@ -1,6 +1,6 @@
 # Lane glue17
 
-Per-lane row for the regenerated `HANDOFF.md` §0 table (see `docs/merge-train.md`).
+Per-lane row for the generated lane table `docs/lanes/INDEX.md` (see `docs/merge-train.md`).
 
 | Lane | Worktree | State at stop | Next steps |
 |---|---|---|---|
