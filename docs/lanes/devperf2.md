@@ -1,7 +1,8 @@
 | devperf2 | devperf2 | engine perf | in progress | — | close UpdatePopulation gap (glue27 open item 5) |
 
 ## Handoff
-- Goal: make UpdatePopulation and the tract Grow path cheaper without changing behaviour; target UpdatePopulation <= 2x original 0.36 us/call; shadows exact (development_shadow 913/913, tract round-trip same).
-- Done: (none yet)
-- Next: read docs/lanes/glue27.md + engine/core/src/growth_developer/; run qbuild all baseline.
-- Facts: worktree C:/Users/tlori/FreeCity4/.claude/worktrees/devperf2; base a2e6fdf5 (main). Labels devperf2-*.
+- Goal: make UpdatePopulation and the tract Grow path cheaper without changing behaviour; target UpdatePopulation <= 2x original 0.36 us/call; development_shadow exact (913/913), tract_shadow round-trip same.
+- Done: worktree cut at a2e6fdf5; qbuild all baseline PASS (cargo 3535/0, clippy 0, ctest 62/62, fc4verify PASS).
+- Baseline (our DLL, devperf2-base-ours, enable=development,tract, perf_profile=1, turbo to 2032, 72 months, verdict clean, ref_warnings=0): growth:tract-UpdatePopulation 3115 ms / 884736 calls = 3.52 us/call (glue27 run 2.99); bds:tract-Grow 3188 ms / 9132 calls = 349 us/call (glue27 311); grid:get 777527; tract month grows total 9135 (glue27 8186 - same work, slightly busier run).
+- Next: implement (1) LotsInCellRect without GameList/references (walk cells via get_lot, origin-only=true, inside FC4TractHost.cpp LotsInCellRect, no ABI change), (2) remove per-pass Vec clones in tract core (take_over_abandoned/list_candidate_* /pick_building iterate &self.w.lots directly or via index; m_lot_* memo still works), (3) memoise get_lot in list_existing_lots (m_get_lot is available but memo is off during that pass - check), (4) developer_growth_list copy: leave (ABI change) unless a cheap core-side fix appears.
+- Facts: shadow checks: development_shadow = 1 needs enable NOT set; tract self-check = enable=tract + tract_shadow=1. Run labels devperf2-*. UpdatePopulation path: capi growth.rs fc4_growth_host.update_population -> plugin cFC4GrowthDeveloper.cpp UpdatePopulation (perf kGrowthUpdatePop) -> cFC4TractDeveloper::UpdatePopulation -> capi fc4_tract_update_population -> core tract_developer::update_population -> host.lots_in_cell_rect (Vec<u64> via collect_tokens) + per-lot host calls. Original 0.36us = just the GameList walk? No: original does not build a list - glue27 says ours builds GameList + refs. FC4TractHost LotsInCellRect at FC4TractHost.cpp:654 uses GameList (TractNodeAllocator) + FC4_ACQUIRED per lot + held vector.
