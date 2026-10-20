@@ -144,14 +144,12 @@ struct Report {
 
 /// Whether two encodings of one automaton parse to the same record.
 ///
-/// `+0x0C` (the state stack index) is the one field a reader renormalises:
-/// `PushState` computes it as `stack.size()-1` and a replacement recomputes it
-/// after every stack mutation rather than trusting the stream (automata.md §12
-/// quirk 10, §14 test 29). The original leaves stale values behind — 14 of the
-/// corpus's states sit alone on their stack carrying `+0x0C == 1`, the index
-/// they had when a second state was underneath — so those 14 re-encode with a
-/// different index and are otherwise identical. This accepts exactly that:
-/// same length, same parsed record. Anything else is a real failure.
+/// `+0x0C` (the state stack index) is recomputed by `PushState` / `PopState`
+/// but stored as read by Read (automata.md §12 quirk 10, §14 test 29), so a
+/// re-save keeps the original's stale values: 14 of the corpus's states sit
+/// alone on their stack carrying `+0x0C == 1`. This tolerance (same length,
+/// same parsed record) would accept a re-encode that changed only the index;
+/// the sweep asserts it is never needed. Anything else is a real failure.
 fn renormalised_index_only(class: u32, ours: &[u8], saved: &[u8]) -> bool {
     if ours.len() != saved.len() {
         return false;
@@ -451,18 +449,17 @@ fn sweep_automata_records() {
         println!("FAILURE {f}");
     }
     println!("automata_records: {} failures", rep.failures.len());
-    // [AT2] The measured number of corpus entries whose state carries a stale
-    // `+0x0C` — a state left alone on its stack still holding the index it had
-    // when another state sat below it. `PushState` computes the index and a
-    // replacement recomputes it after every stack mutation rather than trusting
-    // the stream (automata.md §12 quirk 10, §14 test 29), so those entries
-    // re-encode with the position and are otherwise byte-identical. Pinning the
-    // count keeps the renormalisation from spreading unnoticed.
+    // [AT2] The corpus has 14 states carrying a stale `+0x0C` (a state alone on
+    // its stack still holding the index it had when another state sat below
+    // it). Read stores the streamed value unchanged and only PushState /
+    // PopState recompute it (automata.md §12 quirk 10 and §14 test 29, as
+    // corrected by A1), so those 14 re-save byte-identically: none may need the
+    // index-only tolerance. Was 14 while Read re-derived the index.
     let renormalised: usize = rep.by_class.values().map(|s| s.renormalised).sum();
     println!("automata_records: {renormalised} index-renormalised entries");
     assert_eq!(
-        renormalised, 14,
-        "the stale-`+0x0C` corpus count moved (was 14: automata.md §12 quirk 10)"
+        renormalised, 0,
+        "a re-save changed a state's `+0x0C`: Read must keep the streamed stack index (automata.md §12 quirk 10)"
     );
     assert!(
         rep.failures.is_empty(),

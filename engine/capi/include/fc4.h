@@ -10280,25 +10280,16 @@ bool fc4_automata_controller_get_state(const fc4_automata_object* o, fc4_automat
  * SetState and PushState take the full PushState signature (§6.2):
  * controller, timeout_ms, final, animId, sfxId, behaviourTemplate. Both return
  * false and change nothing while the top state has `final` (§12 quirk 11).
- * PushState(0, ...) delegates to SetState. */
+ * PushState(0, ...) delegates to SetState. PopState on a `final` state that
+ * is not already type 1 pushes DISAPPEAR (type 1) instead of revealing the
+ * state below. */
 bool fc4_automata_automaton_set_state(const fc4_automata_object* o, uint32_t state_type, uint32_t controller,
                                       float timeout_ms, uint32_t is_final, uint32_t anim_id, uint32_t sfx_id,
                                       uint32_t behaviour_template);
 bool fc4_automata_automaton_push_state(const fc4_automata_object* o, uint32_t state_type, uint32_t controller,
                                        float timeout_ms, uint32_t is_final, uint32_t anim_id, uint32_t sfx_id,
                                        uint32_t behaviour_template);
- *
- * SetState's and PushState's seven arguments are §6.2's: (type, controller,
- * timeout_ms, final, animId, sfxId, template). Both return false and change
- * nothing while the top state has `final` (§12 quirk 11) - that is why the
- * riot end's SetState(1, ...) is a no-op against its leader (§8.1).
- * PushState(0, 0, ...) delegates to SetState. PopState on a `final` state
- * that is not already type 1 pushes DISAPPEAR (type 1) instead of revealing
- * the state below. */
-bool fc4_automata_automaton_set_state(const fc4_automata_object* o, uint32_t state_type, uint32_t a, float b,
-                                      uint32_t c, uint32_t d, uint32_t e, uint32_t f);
-bool fc4_automata_automaton_push_state(const fc4_automata_object* o, uint32_t state_type, uint32_t a, float b,
-                                       uint32_t c, uint32_t d, uint32_t e, uint32_t f);bool fc4_automata_automaton_pop_state(const fc4_automata_object* o);
+bool fc4_automata_automaton_pop_state(const fc4_automata_object* o);
 void fc4_automata_automaton_set_visible(const fc4_automata_object* o, bool visible);
 void fc4_automata_automaton_set_position(const fc4_automata_object* o, const float* position);
 void fc4_automata_automaton_remove(const fc4_automata_object* o);
