@@ -383,11 +383,13 @@ uint32_t NeighboursByNetworkType(void* u, uint64_t occ, fc4_nettool_neighbour* o
     return count;
 }
 
-// Flag 0x100000: part of an intersection piece.
+// Flag 0x100000: part of an intersection piece. [abi-ret] slot 55
+// IsIntersection: row says eax-or-void — the bool the plugin reads is fine
+// (same use as FC4NetMgrHost.cpp; the flag byte is what matters).
 bool IsIntersectionPiece(void* u, uint64_t occ) {
     (void)u;
     cISC4NetworkOccupant* n = NetOf(occ);
-    return n != nullptr && n->IsIntersection();  // slot 55
+    return n != nullptr && n->IsIntersection();  // slot 55 [abi-ret] eax-or-void: only logged
 }
 
 // Network manager slot 12 GetAllIntersectionPieces: a flood over the
