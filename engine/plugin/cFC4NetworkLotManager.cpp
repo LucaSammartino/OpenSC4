@@ -69,7 +69,12 @@ constexpr uint32_t kNetworkLotExemplarType = 0x21;
 constexpr uint32_t kObjectPropBase = 0x88EDC900;
 constexpr uint32_t kObjectPropLimit = 0x88EDCE00;  // the scan stops here (§B3.3)
 
-cFC4NetworkLotManager* Self(void* u) { return static_cast<cFC4NetworkLotManager*>(u); }
+// The host's user is the manager's owner block (FC4NetMgrHost.h NetMgrOwner:
+// the shared read callbacks read the user as the NetMgrContext* at its offset
+// 0, the write callbacks reach the manager through `mgr`).
+cFC4NetworkLotManager* Self(void* u) {
+    return static_cast<cFC4NetworkLotManager*>(static_cast<fc4::NetMgrOwner*>(u)->mgr);
+}
 
 cISC4App* App() {
     cIGZFrameWork* fw = RZGetFrameWork();
@@ -339,9 +344,9 @@ void ObjectIds(void* u, uint64_t config, uint32_t index, fc4_u32_callback cb, vo
 
 // ---- host assembly -----------------------------------------------------------------------------------
 
-fc4_netlot_host MakeHost(cFC4NetworkLotManager* self, fc4::NetMgrContext* ctx) {
-    fc4_netlot_host h = fc4::MakeNetLotReadOnlyHost(ctx);
-    h.user = self;
+fc4_netlot_host MakeHost(cFC4NetworkLotManager* self, fc4::NetMgrOwner* owner) {
+    fc4_netlot_host h = fc4::MakeNetLotReadOnlyHost(&owner->ctx);
+    h.user = owner;
     h.subscribe = &SubscribeCb;
     h.unsubscribe = &UnsubscribeCb;
     h.set_network_flag = &SetNetworkFlag;
@@ -431,7 +436,7 @@ cFC4NetworkLotManager::cFC4NetworkLotManager() {
             FC4_ADDREF(msgServer_);
         }
     }
-    host_ = MakeHost(this, &ctx_);
+    host_ = MakeHost(this, &owner_);
     core_ = fc4_netlot_create(&host_, 0, fc4::SessionSeed());
     if (core_ == nullptr) fc4::Log("cFC4NetworkLotManager: core creation failed");
     fc4::Log("cFC4NetworkLotManager(%p) created, core %p", static_cast<void*>(Primary()),
@@ -489,7 +494,7 @@ void cFC4NetworkLotManager::SetCity(cISC4City* c) {
     if (c != nullptr) FC4_ADDREF(c);
     if (city_ != nullptr) FC4_RELEASE(city_);
     city_ = c;
-    ctx_.city = c;
+    owner_.ctx.city = c;
 }
 
 cFC4NetworkLotConfiguration* cFC4NetworkLotManager::ConfigByToken(uint64_t token) const {
@@ -652,7 +657,7 @@ void cFC4NetworkLotManager::ReadConfigurations() {
 bool cFC4NetworkLotManager::Init() {
     FC4_TRACE("NetworkLotManager::Init");
     writable_ = true;
-    AcquireCity(&ctx_);
+    AcquireCity(&owner_);
     ReadConfigurations();
     const bool ok = fc4_netlot_init(core_);
     fc4_netlot_state st{};
@@ -676,7 +681,7 @@ bool cFC4NetworkLotManager::Shutdown() {
     writable_ = false;
     for (auto& kv : lots_) kv.second->Release();
     lots_.clear();
-    fc4::NetMgrReleaseHeld(&ctx_);
+    fc4::NetMgrReleaseHeld(&owner_.ctx);
     if (!destroying_) Release();
     return true;
 }

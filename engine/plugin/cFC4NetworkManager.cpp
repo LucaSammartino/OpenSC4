@@ -51,7 +51,12 @@ constexpr uint32_t kMsgOccupantRefresh = 0x99EF1145;
 // cIGZMessageTarget2 IID: the SDK header declares no constant (network-manager.md 1).
 constexpr uint32_t kIID_cIGZMessageTarget2 = 0x452294AA;
 
-cFC4NetworkManager* Self(void* u) { return static_cast<cFC4NetworkManager*>(u); }
+// The host's user is the manager's owner block (FC4NetMgrHost.h NetMgrOwner:
+// the shared read callbacks read the user as the NetMgrContext* at its offset
+// 0, the write callbacks reach the manager through `mgr`).
+cFC4NetworkManager* Self(void* u) {
+    return static_cast<cFC4NetworkManager*>(static_cast<fc4::NetMgrOwner*>(u)->mgr);
+}
 
 cISC4App* App() {
     cIGZFrameWork* fw = RZGetFrameWork();
@@ -237,9 +242,9 @@ void ToolCellInfo(void*, uint64_t, uint32_t) {}
 
 // ---- host assembly -----------------------------------------------------------------------------------
 
-fc4_netmgr_host MakeHost(cFC4NetworkManager* self, fc4::NetMgrContext* ctx) {
-    fc4_netmgr_host h = fc4::MakeNetMgrReadOnlyHost(ctx);
-    h.user = self;
+fc4_netmgr_host MakeHost(cFC4NetworkManager* self, fc4::NetMgrOwner* owner) {
+    fc4_netmgr_host h = fc4::MakeNetMgrReadOnlyHost(&owner->ctx);
+    h.user = owner;
     h.subscribe = &SubscribeCb;
     h.unsubscribe = &UnsubscribeCb;
     h.uk_paths = &UkPaths;
@@ -277,7 +282,7 @@ cFC4NetworkManager::cFC4NetworkManager() {
             FC4_ADDREF(msgServer_);
         }
     }
-    host_ = MakeHost(this, &ctx_);
+    host_ = MakeHost(this, &owner_);
     core_ = fc4_netmgr_create(&host_, 0);
     if (core_ == nullptr) fc4::Log("cFC4NetworkManager: core creation failed");
     fc4::Log("cFC4NetworkManager(%p) created, core %p", static_cast<void*>(Primary()),
@@ -330,13 +335,13 @@ void cFC4NetworkManager::SetCity(cISC4City* c) {
     if (c != nullptr) FC4_ADDREF(c);
     if (city_ != nullptr) FC4_RELEASE(city_);
     city_ = c;
-    ctx_.city = c;
+    owner_.ctx.city = c;
 }
 
 bool cFC4NetworkManager::Init() {
     FC4_TRACE("NetworkManager::Init");
     SetWritable(true);
-    AcquireCity(&ctx_);
+    AcquireCity(&owner_);
     const bool ok = fc4_netmgr_init(core_);
     fc4_netmgr_state st{};
     st.struct_size = sizeof(st);
@@ -355,7 +360,7 @@ bool cFC4NetworkManager::Shutdown() {
     fc4_netmgr_get_state(core_, &st);
     fc4::Log("netmgr Shutdown: managed=%u pending=%u", st.managed, st.pending);
     SetWritable(false);
-    fc4::NetMgrReleaseHeld(&ctx_);
+    fc4::NetMgrReleaseHeld(&owner_.ctx);
     if (!destroying_) Release();
     return true;
 }

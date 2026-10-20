@@ -104,7 +104,10 @@ private:
     uint32_t refCount_ = 0;
     bool destroying_ = false;
     bool writable_ = false;
-    fc4::NetMgrContext ctx_{};
+    // The host's user: the context first (the shared read callbacks read the
+    // user as a NetMgrContext*), this second (the write callbacks reach the
+    // manager through it, FC4NetMgrHost.h NetMgrOwner).
+    fc4::NetMgrOwner owner_{};
     fc4_netmgr_host host_{};
     fc4_netmgr* core_ = nullptr;
     cISC4City* city_ = nullptr;
