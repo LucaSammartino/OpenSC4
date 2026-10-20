@@ -243,6 +243,7 @@ void ToolCellInfo(void*, uint64_t, uint32_t) {}
 // ---- host assembly -----------------------------------------------------------------------------------
 
 fc4_netmgr_host MakeHost(cFC4NetworkManager* self, fc4::NetMgrOwner* owner) {
+    owner->mgr = self;  // the write callbacks reach the manager through it
     fc4_netmgr_host h = fc4::MakeNetMgrReadOnlyHost(&owner->ctx);
     h.user = owner;
     h.subscribe = &SubscribeCb;

@@ -345,6 +345,7 @@ void ObjectIds(void* u, uint64_t config, uint32_t index, fc4_u32_callback cb, vo
 // ---- host assembly -----------------------------------------------------------------------------------
 
 fc4_netlot_host MakeHost(cFC4NetworkLotManager* self, fc4::NetMgrOwner* owner) {
+    owner->mgr = self;  // the write callbacks reach the manager through it
     fc4_netlot_host h = fc4::MakeNetLotReadOnlyHost(&owner->ctx);
     h.user = owner;
     h.subscribe = &SubscribeCb;
