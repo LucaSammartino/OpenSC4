@@ -254,8 +254,8 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-map.tsv | 1a59ac89ccc72e26 | |
 | tools/coverage-shadows.tsv | 9559bafe0136e8c5 | |
-| tools/regress.ps1 | a2bb92879ba7e915 | |
-| engine/plugin/FC4Subsystems.cpp | 1e85e9849e23fd70 | |
+| tools/regress.ps1 | ac7c8f90858f8d2f | |
+| engine/plugin/FC4Subsystems.cpp | 3ec91f3c11cf4b1b | |
 | build-runs/regress-voidbool.out | 08052938525d100a | regress voidbool (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time)); replace run clean |
 
-Read from tools/regress.ps1: 27 replace keys, 26 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
+Read from tools/regress.ps1: 27 replace keys, 27 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
