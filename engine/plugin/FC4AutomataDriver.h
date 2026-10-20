@@ -37,6 +37,13 @@
 // The fire occupant's SetTarget / Shutdown (8.2) ride on the fire occupant
 // the layer creates; our live layer does not make one yet (Q27), so the
 // fire bridge is wired but does not fire until Q27 lands.
+//
+// U-Drive-It (9): the city situation manager pauses the four managers when a
+// mission activates and resumes them when its start countdown ends
+// (city-situation.md 4.4). The plugin's observer hands the manager's
+// activation message (0xABBBCA64, data1) and its ticks to
+// AutomataDriverSituationMessage / _Tick; the calls themselves are
+// fc4::AutomataPauseAll / AutomataResumeAll (FC4AutomataHost.h).
 #pragma once
 
 #include <cstdint>
@@ -55,5 +62,19 @@ void AutomataDriverCityShutdown();
 uint64_t AutomataDriverRiotAdd(int32_t x, int32_t z);
 bool AutomataDriverRiotSetStage(uint64_t automaton, int32_t stage);
 bool AutomataDriverRiotEnd(uint64_t automaton);
+
+// The disaster host's fire occupant events (live mode): the target the live
+// create_fire_occupant made (its cISC4Occupant token) and the removal of the
+// fire occupant. 0 / no target: 8.2's SetTarget keeps the target and makes no
+// call; Shutdown makes none without a target.
+void AutomataDriverFireSetTarget(uint64_t target);
+void AutomataDriverFireShutdown();
+
+// U-Drive-It (9): the city situation manager's activation message (data1 of
+// 0xABBBCA64; 1 = a mission became active or a joyride starts, 0 = it is
+// deactivated) and every framework tick while a city runs. The tick resumes
+// the managers when the manager's start countdown has ended.
+void AutomataDriverSituationMessage(int32_t data1);
+void AutomataDriverSituationTick();
 
 }  // namespace fc4

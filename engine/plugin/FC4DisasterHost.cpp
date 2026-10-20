@@ -362,9 +362,11 @@ uint64_t CreateFireOccupant(void* u, uint32_t, uint64_t target, uint32_t, uint32
     if (!c->shadow) {
         Wrote(u, "create_fire_occupant (class 0x69D25C5F, Q27)");
         // Live: no fire occupant is made yet (Q27), so nothing drives the
-        // automata layer's 8.2 SetTarget. The driver's fire table is wired
-        // for the day the occupant lands: with a token here the bridge is
-        // fc4_automata_fire_set_target (the "fire_occupant" controllers).
+        // automata layer's 8.2 SetTarget. The driver's fire bridge is wired
+        // (FC4AutomataDriver.h): when the occupant lands and this callback
+        // returns its token, the target goes to fc4_automata_fire_set_target
+        // (the "fire_occupant" controllers) and remove_fire_occupant runs
+        // its Shutdown.
         return 0;
     }
     const uint64_t fire = kSyntheticToken | c->nextSynthetic++;
@@ -372,8 +374,15 @@ uint64_t CreateFireOccupant(void* u, uint32_t, uint64_t target, uint32_t, uint32
     ++c->writes["create_fire_occupant"];
     return fire;
 }
-void RemoveFireOccupant(void* u, uint64_t, uint64_t target) {
+void RemoveFireOccupant(void* u, uint64_t fire, uint64_t target) {
     C(u)->burning.erase(target);
+    if (!C(u)->shadow && fire != 0 && !IsSynthetic(fire)) {
+        // Live: the fire occupant went away (KillFire, 5.10), so its
+        // Shutdown (8.2) removes the target's "fire_occupant" controllers.
+        // (The live host does not make an occupant yet, Q27: the bridge is
+        // wired for the day it does.)
+        fc4::AutomataDriverFireShutdown();
+    }
     Wrote(u, "remove_fire_occupant");
 }
 void AddFireAura(void* u, uint64_t) { Wrote(u, "add_fire_aura"); }

@@ -88,9 +88,12 @@ constexpr uint32_t kMsgPostCityShutdown = 0x26D31EC3;
 // shadow (FC4AuraShadow.h) no longer uses it: it is posted and arrives
 // later than the original's state 17 (§5.3).
 constexpr uint32_t kMsgAuraCycleCompleted = 0x2A09B21A;
+// The city situation manager's activation message (city-situation.md 3): the
+// automata layer's U-Drive-It pause / resume rides on it (automata.md 9).
+constexpr uint32_t kMsgSituationActive = 0xABBBCA64;
 constexpr uint32_t kObserverMessages[] = {kMsgPostCityInit,     kMsgSimNewDay,       kMsgSimNewMonth,
                                          kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown,
-                                         kMsgAuraCycleCompleted};
+                                         kMsgAuraCycleCompleted, kMsgSituationActive};
 constexpr uint32_t kObserverServiceID = 0x5C7A43E2;  // random, FreeCity4's
 constexpr int32_t kObserverPriority = -1000000;      // [choice] tooling; any value works
 
@@ -536,6 +539,7 @@ public:
         // before the save autotest and before AutotestOnTick's quit or end.
         ScriptOnTick();
         DisastersShadowOnTick();  // disasters_shadow: the quiet-point comparison
+        fc4::AutomataDriverSituationTick();  // U-Drive-It (automata.md 9): resume when the countdown ends
         if (saveDue_) {
             saveDue_ = false;
             SaveAndEnd();  // does not return
@@ -585,6 +589,15 @@ public:
             case kMsgAuraCycleCompleted:
                 AuraShadowCycle(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // aura_shadow = 1 only
                 break;
+            case kMsgSituationActive: {
+                // The city situation manager's activation message (data1 of
+                // 0xABBBCA64): the automata layer's U-Drive-It pause
+                // (automata.md 9; the resume is the tick below).
+                bool ok = false;
+                const int64_t d1 = DataOf(msg, &ok);
+                if (ok) fc4::AutomataDriverSituationMessage(static_cast<int32_t>(d1));
+                break;
+            }
             case kMsgPreCityShutdown:
                 TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
                 LotDevShadowCityShutdown();
