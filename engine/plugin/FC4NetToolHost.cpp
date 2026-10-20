@@ -35,7 +35,7 @@
 #include "cISC4Occupant.h"
 #include "cISC4OccupantFilter.h"
 #include "cISC4OccupantManager.h"
-#include "cISTETerrain.h"
+#include "FC4TerrainInterfaces.h"  // cFC4ISTETerrain: the compiled terrain slots
 #include "cS3DVector3.h"
 
 #include <cstring>
@@ -531,11 +531,143 @@ void SolveNetworkResolve(void* u, fc4_nettool_run* run) {
     }
 }
 
+// ---- the fc4_netgeom host (the geometry core's own view of the world) ------
+// The geometry reads the terrain through its own host table (or a bound core
+// terrain). Without these callbacks its world is empty (cells 0x0) and every
+// drag fails — the bug of the first game run (glue29-run213: ok=0 everywhere,
+// netgeom logs silent). These adapters answer from the game's cISTETerrain and
+// the occupant manager, the same sources the tool's own host uses.
+
+// The city's terrain as compiled (FC4TerrainInterfaces.h): single
+// inheritance, vtable at offset 0.
+cFC4ISTETerrain* GameTerrain(void* u) {
+    return reinterpret_cast<cFC4ISTETerrain*>(Terrain(u));
+}
+
+// Terrain cells (vertex grid): (cellsX + 1) * (cellsZ + 1) vertices.
+void GeomCells(void* u, uint32_t* cellsX, uint32_t* cellsZ) {
+    cFC4ISTETerrain* t = GameTerrain(u);
+    if (t == nullptr || cellsX == nullptr || cellsZ == nullptr) return;
+    *cellsX = t->CellCountX();  // slot 7
+    *cellsZ = t->CellCountZ();  // slot 8
+}
+
+// Slot 12: the altitude at a flat vertex index.
+float GeomVertexAltitude(void* u, int32_t vertex) {
+    cFC4ISTETerrain* t = GameTerrain(u);
+    if (t == nullptr) return 0.0f;
+    return t->GetAltitudeAtFlatIndex(vertex);  // slot 12
+}
+
+// Slot 34: the cell has water.
+bool GeomCellHasWater(void* u, int32_t x, int32_t z) {
+    cFC4ISTETerrain* t = GameTerrain(u);
+    if (t == nullptr) return false;
+    return t->CellHasWater(static_cast<uint32_t>(x), static_cast<uint32_t>(z));  // slot 34
+}
+
+// Slot 33: the surface water level at a vertex (NaN = none).
+float GeomSurfaceWaterLevel(void* u, int32_t vertex) {
+    cFC4ISTETerrain* t = GameTerrain(u);
+    if (t == nullptr) return 0.0f;
+    return t->GetWaterDepthAtFlatIndex(vertex);  // slot 92 (depth; NaN when 0 below)
+}
+
+// Slot 24: the maximum allowed vertex height.
+float GeomMaxAllowedHeight(void* u) {
+    cFC4ISTETerrain* t = GameTerrain(u);
+    if (t == nullptr) return 0.0f;
+    return t->MaxAllowedHeight();  // slot 24
+}
+
+// Slot 50: writes the vertex altitude (the grading, §9.7).
+void GeomSetAltitudeAtVertex(void* u, int32_t vertex, float h) {
+    cFC4ISTETerrain* t = GameTerrain(u);
+    if (t == nullptr) return;
+    t->SetAltitudeAtVertex(vertex, h);  // slot 50
+}
+
+// Slots 87/88: the long terrain operation bracket.
+void GeomBeginLongTerrainOperation(void* u) {
+    cFC4ISTETerrain* t = GameTerrain(u);
+    if (t == nullptr) return;
+    t->BeginLongTerrainOperation();  // slot 87
+}
+
+void GeomEndLongTerrainOperation(void* u) {
+    cFC4ISTETerrain* t = GameTerrain(u);
+    if (t == nullptr) return;
+    t->EndLongTerrainOperation();  // slot 88
+}
+
+// Slot 68: the terrain redisplay (data4 kinds per terrain.md §8).
+void GeomRedisplayTerrain(void* u, const fc4_terrain_rect* rect, uint32_t kind) {
+    cFC4ISTETerrain* t = GameTerrain(u);
+    if (t == nullptr || rect == nullptr) return;
+    SC4Rect<int32_t> r(rect->x0, rect->z0, rect->x1, rect->z1);
+    t->RedisplayTerrainRect(true, true, r, kind);  // slot 68
+}
+
+// A connection node in the cell (network-manager.md §7.7: flag 0x200000).
+bool GeomIsConnectionNode(void* u, int32_t x, int32_t z) {
+    NetToolContext* c = Ctx(u);
+    if (c == nullptr) return false;
+    cISC4OccupantManager* om = OMgr(u);
+    if (om == nullptr) return false;
+    uint64_t tokens[8] = {};
+    const uint32_t n = CellNetworkOccupants(c, om, x, z, 0x1FFFu, tokens, 8, nullptr, nullptr);
+    for (uint32_t i = 0; i < n; ++i) {
+        cISC4NetworkOccupant* net = NetOf(tokens[i]);
+        if (net != nullptr && (net->GetNetworkFlag() & 0x200000u) != 0) return true;
+    }
+    return false;
+}
+
+// The cell's occupants in the geometry's record (kind + type + immovable).
+uint32_t GeomCellOccupants(void* u, int32_t x, int32_t z, fc4_netgeom_occupant* out, uint32_t capacity) {
+    NetToolContext* c = Ctx(u);
+    if (c == nullptr || out == nullptr || capacity == 0) return 0;
+    cISC4OccupantManager* om = OMgr(u);
+    if (om == nullptr) return 0;
+    uint64_t tokens[16] = {};
+    const uint32_t n = CellNetworkOccupants(c, om, x, z, 0x1FFFu, tokens, 16, nullptr, nullptr);
+    uint32_t written = 0;
+    for (uint32_t i = 0; i < n && written < capacity; ++i) {
+        cISC4NetworkOccupant* net = NetOf(tokens[i]);
+        if (net == nullptr) continue;
+        const uint32_t flags = net->GetNetworkFlag();
+        fc4_netgeom_occupant o{};
+        o.kind = FC4_NETGEOM_OCC_NETWORK;
+        o.immovable = (flags & 0x400000u) != 0 ? 1 : 0;
+        o.connection_node = (flags & 0x200000u) != 0 ? 1 : 0;
+        o.type_id = TypeOfFlags(flags);
+        out[written] = o;
+        ++written;
+    }
+    return written;
+}
+
+// Slot 59 over the proposed cells: the count the tool's own host uses.
+uint32_t GeomUpdateOccupantHighlights(void* u, uint32_t type_id, const fc4_netgeom_cell* cells, uint32_t count,
+                                      uint32_t valid) {
+    (void)u;
+    (void)type_id;
+    (void)cells;
+    (void)count;
+    return valid;  // [choice] keep the valid count (the highlight pass wiring is later work)
+}
+
+uint32_t GeomBridgeTypeCount(void* u, uint32_t type_id) {
+    (void)u;
+    (void)type_id;
+    return 0;  // no bridge types wired yet (the bridge pass passes with 0)
+}
+
 // ---- §11 the underground refit ---------------------------------------------------------------------
 
 // Terrain slot 17: the cell's current corner altitudes.
 void CornerAltitudes(void* u, int32_t x, int32_t z, float out[4]) {
-    cISTETerrain* t = Terrain(u);
+    cFC4ISTETerrain* t = GameTerrain(u);
     if (t == nullptr || out == nullptr) return;
     t->GetCellCornerAltitudes(static_cast<uint32_t>(x), static_cast<uint32_t>(z), out);  // slot 17
 }
@@ -692,6 +824,28 @@ fc4_nettool_host MakeNetToolHost(NetToolContext* ctx) {
     h.destroy_network_occupants = &DestroyNetworkOccupants;
     h.release_occupant_list = &ReleaseOccupantList;
     h.underground_rebuild = &UndergroundRebuild;
+    return h;
+}
+
+// The netgeom host over the ctx (terrain via the city, world via the occupant
+// manager). The presentation-only callbacks stay NULL (glue24's pattern).
+fc4_netgeom_host MakeNetGeomHost(NetToolContext* ctx) {
+    fc4_netgeom_host h{};
+    h.struct_size = sizeof(h);
+    h.user = ctx;
+    h.cells = &GeomCells;
+    h.vertex_altitude = &GeomVertexAltitude;
+    h.cell_has_water = &GeomCellHasWater;
+    h.surface_water_level = &GeomSurfaceWaterLevel;
+    h.max_allowed_height = &GeomMaxAllowedHeight;
+    h.set_altitude_at_vertex = &GeomSetAltitudeAtVertex;
+    h.begin_long_terrain_operation = &GeomBeginLongTerrainOperation;
+    h.redisplay_terrain = &GeomRedisplayTerrain;
+    h.end_long_terrain_operation = &GeomEndLongTerrainOperation;
+    h.is_connection_node = &GeomIsConnectionNode;
+    h.cell_occupants = &GeomCellOccupants;
+    h.update_occupant_highlights = &GeomUpdateOccupantHighlights;
+    h.bridge_type_count = &GeomBridgeTypeCount;
     return h;
 }
 

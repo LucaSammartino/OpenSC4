@@ -70,6 +70,10 @@ struct NetToolContext {
 // ones (highlights, previews, draft) stay NULL like glue24's empty defaults.
 fc4_nettool_host MakeNetToolHost(NetToolContext* ctx);
 
+// The netgeom host table (the geometry core's own view: terrain via the
+// city's cISTETerrain, world via the occupant manager).
+fc4_netgeom_host MakeNetGeomHost(NetToolContext* ctx);
+
 // Drops the references the queries gave since the last call.
 void NetToolReleaseHeld(NetToolContext* ctx);
 

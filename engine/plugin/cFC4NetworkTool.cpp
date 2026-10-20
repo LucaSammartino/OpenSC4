@@ -41,9 +41,7 @@ constexpr uint32_t kIID_cIGZUnknown = 1;  // the framework's 'any object' IID (G
 // read through the host. Created with the shipped placement table.
 fc4_netgeom* GeometryOf(fc4::NetToolContext* ctx) {
     if (ctx->geom == nullptr) {
-        fc4_netgeom_host gh{};
-        gh.struct_size = sizeof(gh);
-        gh.user = ctx;
+        fc4_netgeom_host gh = fc4::MakeNetGeomHost(ctx);
         ctx->geom = fc4_netgeom_create(&gh, nullptr, 0);
         if (ctx->geom == nullptr) fc4::Log("cFC4NetworkTool: WARNING the geometry core failed to create");
     }
