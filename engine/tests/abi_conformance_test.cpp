@@ -634,6 +634,9 @@ std::vector<std::string> CallersOf(const char* pluginDir, const char* method) {
         std::stringstream ss;
         ss << f.rdbuf();
         const std::string text = ss.str();
+        // Every match contains the method name: skip the regex (slow in the
+        // Debug /RTC1 build, ~85 s for the whole test) on files without it.
+        if (text.find(method) == std::string::npos) continue;
         bool calls = false;
         for (std::sregex_iterator it(text.begin(), text.end(), call), end; it != end && !calls; ++it) {
             const size_t at = static_cast<size_t>(it->position());

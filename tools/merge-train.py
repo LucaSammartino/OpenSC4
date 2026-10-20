@@ -62,6 +62,10 @@ KINDS = ("engine", "tools", "docs", "test")
 # docs, skip the regress.
 DOCS_KINDS = ("docs",)
 
+# The one build/test implementation, shared with the lanes: every verdict is parsed from the tools' output.
+sys.path.insert(0, str(REPO / ".claude" / "lane-bin"))
+import fc4verify  # noqa: E402
+
 VERSION_RE_C = re.compile(r"^(\s*#define\s+FC4_ABI_VERSION\s+)(\d+)(u?)\s*$", re.M)
 VERSION_RE_RS = re.compile(r"^(\s*pub const FC4_ABI_VERSION: u32 = )(\d+)(;.*)$", re.M)
 
@@ -989,15 +993,28 @@ def commit_integration(wt, lanes, batch_id, note):
 # --- gate / regress ----------------------------------------------------------
 
 
+BUILD_PREFIXES = ("engine/", "tools/", "tests/", ".claude/lane-bin/")
+
+
+def build_relevant(paths):
+    return [p for p in paths if p.startswith(BUILD_PREFIXES)]
+
+
 def batch_touches_engine(wt):
     base = git(["-C", str(wt), "merge-base", "main", "HEAD"], check=False).stdout.strip()
     if not base:
         return True
     diff = git(["-C", str(wt), "diff", "--name-only", base, "HEAD"], check=False).stdout.split()
-    for p in diff:
-        if p.startswith("engine/") or p.startswith("tools/") or p.startswith("tests/"):
-            return True
-    return False
+    return bool(build_relevant(diff))
+
+
+def main_moved_under(head):
+    """Build-relevant files main changed since the batch was cut from it. Landing then needs a real merge, and the
+    merged tree is not the tree the gate built."""
+    base = git(["merge-base", "main", head], check=False).stdout.strip()
+    if not base:
+        return ["(no merge base with main)"]
+    return build_relevant(git(["diff", "--name-only", base, "main"], check=False).stdout.split())
 
 
 def leftover_markers(root):
@@ -1024,67 +1041,75 @@ def leftover_markers(root):
     return bad
 
 
-def run_gate(wt, tag):
-    """cargo + clippy + ctest for the integration worktree. Returns (ok, tail).
+GATE_STEPS = fc4verify.GATE_STEPS
 
-    A gate passes only when cargo, clippy and the cmake build all exit 0 AND ctest reports every test run.
-    An earlier version accepted any script that exited 0, which happily reported PASS over a build failure
-    that left every ctest "Not Run".
+
+def gate_record_path(tag):
+    return LOG_DIR / f"gate-{tag}.json"
+
+
+def load_gate_record(tag):
+    try:
+        return json.loads(gate_record_path(tag).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def judge_gate(rec, head):
+    """(ok, reasons) for a gate record against the integration head about to be used.
+
+    The record must come from fc4verify, be for exactly `head`, have built a clean tree (no uncommitted or untracked
+    file the commit would not carry) and pass when its step logs are parsed again. Nothing else counts: not the
+    state file's `gate.ok` (train10 landed on a hand-set `ok: true` after its gate had failed in `cargo test`, before
+    the C++ build ever ran), not a wrapper's exit code (coord-verify-lane.ps1 exits 0 when cmake fails)."""
+    if not rec:
+        return False, ["no gate record"]
+    why = []
+    if rec.get("tool") != "fc4verify":
+        why.append("not an fc4verify gate record")
+    if rec.get("head") != head:
+        why.append(f"the gate built {str(rec.get('head'))[:10]}, the integration branch is at {head[:10]}")
+    if rec.get("dirty"):
+        why.append(f"the gate built a tree with {len(rec['dirty'])} uncommitted/untracked file(s): "
+                   + ", ".join(rec["dirty"][:5]))
+    if rec.get("changed_during_run"):
+        why.append("the tree changed while the gate ran")
+    ok, reasons = fc4verify.evaluate_record(rec, GATE_STEPS)
+    why.extend(reasons)
+    return not why, why
+
+
+def run_gate(wt, tag):
+    """Post-merge clippy + CMake build + full ctest (cargo_test included) of the integration tree. Returns (ok, tail).
+
+    fc4verify runs the steps and parses each one (ninja's progress and FAILED edges, the ctest summary against the
+    registered test count, clippy's error lines); the record goes to build-runs/gate-<tag>.json and `land`/`regress`
+    judge that record again for the exact head they use. Every step runs even after a failure, so a red gate shows
+    the whole picture (train10's stopped at `cargo test` and nobody saw that the C++ did not compile).
     """
     engine = Path(wt) / "engine"
     if not engine.is_dir():
         return True, "no engine/ in this batch"
     bad = leftover_markers(Path(wt))
     if bad:
-        return False, "leftover conflict markers in " + ", ".join(bad[:12])
-    log(f"gate {tag}: cargo test (this takes a while)")
-    results = []
-    for name, argv in (
-        ("cargo test", ["cargo", "test", "--workspace", "--target", "i686-pc-windows-msvc"]),
-        ("cargo clippy", ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]),
-    ):
-        p = sh(argv, cwd=engine, check=False, timeout=5400)
-        tail = ((p.stdout or "") + (p.stderr or ""))[-2500:]
-        results.append(f"=== {name}: exit {p.returncode}\n{tail}")
-        if p.returncode != 0:
-            _write_gate_log(tag, results)
-            return False, tail
-    verify = REPO / "build-runs" / "coord-verify-lane.ps1"
-    if not verify.exists():
-        _write_gate_log(tag, results)
-        return True, "\n".join(results)[-2500:]
-    log(f"gate {tag}: cmake + ctest")
-    p = sh(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(verify),
-         "-Engine", str(engine), "-Tag", tag],
-        check=False, timeout=7200,
-    )
-    tail = ((p.stdout or "") + (p.stderr or ""))[-6000:]
-    results.append(f"=== coord-verify-lane: exit {p.returncode}\n{tail}")
-    ok, why = _gate_verdict(tail, p.returncode)
-    results.append(f"=== gate verdict: {'PASS' if ok else 'FAIL'} ({why})")
-    _write_gate_log(tag, results)
-    return ok, tail if not ok else tail[-800:]
-
-
-def _gate_verdict(tail, script_exit):
-    """Parse the gate's own verdict, not just the wrapper's exit code."""
-    mb = re.search(r"build exit=(\d+)", tail)
-    mc = re.search(r"ctest exit=(\d+)", tail)
-    if script_exit != 0:
-        return False, f"wrapper exit {script_exit}"
-    if mb and mb.group(1) != "0":
-        return False, f"build exit {mb.group(1)}"
-    if mc and mc.group(1) != "0":
-        return False, f"ctest exit {mc.group(1)}"
-    if "Not Run" in tail and not re.search(r"100% tests passed", tail):
-        return False, "ctest left tests Not Run"
-    m = re.search(r"(\d+)% tests passed, (\d+) tests failed out of (\d+)", tail)
-    if m:
-        return (m.group(2) == "0"), f"{m.group(1)}% passed, {m.group(2)} failed of {m.group(3)}"
-    if re.search(r"tests passed", tail, re.I) and not re.search(r"tests failed", tail, re.I):
-        return True, "tests passed"
-    return False, "no ctest summary in the output"
+        why = "leftover conflict markers in " + ", ".join(bad[:12])
+        _write_gate_log(tag, [f"=== gate verdict: FAIL ({why})"])
+        return False, why
+    log(f"gate {tag}: clippy, CMake build, full ctest (fc4verify; this takes a while)")
+    rec = fc4verify.verify(wt, ["gate"], log_dir=LOG_DIR / "gate-logs" / tag, tag=f"fc4gate-{tag}", quiet=True)
+    gate_record_path(tag).write_text(json.dumps(rec, indent=2) + "\n", encoding="utf-8")
+    ok, why = judge_gate(rec, rec["head"])
+    lines = [f"gate {tag} at {rec['head'][:12]} ({rec['seconds']} s, record {gate_record_path(tag)})"]
+    for name in GATE_STEPS:
+        st = rec["steps"].get(name) or {}
+        lines.append(f"=== {name}: {'PASS' if st.get('ok') else 'FAIL'} {st.get('summary', 'not run')}"
+                     f"  ({st.get('seconds', 0)} s; log {st.get('log')})")
+        for e in (st.get("errors") or [])[:15] + [f"FAILED {t}" for t in (st.get("failed_tests") or [])[:15]]:
+            lines.append(f"    {e[:220]}")
+    lines.append(f"=== gate verdict: {'PASS' if ok else 'FAIL'} ({'; '.join(why) or 'clippy, build, ctest clean'})")
+    _write_gate_log(tag, lines)
+    tail = "\n".join(lines)
+    return ok, tail
 
 
 def _write_gate_log(tag, results):
@@ -1092,12 +1117,24 @@ def _write_gate_log(tag, results):
     (LOG_DIR / f"gate-{tag}.out").write_text("\n".join(results), encoding="utf-8")
 
 
-def run_regress(wt, tag):
+def gated_dll(cur, wt):
+    """The DLL the passing gate built for the current head, or (None, why)."""
+    head = git(["-C", str(wt), "rev-parse", "HEAD"]).stdout.strip()
+    rec = load_gate_record(cur["id"])
+    ok, why = judge_gate(rec, head)
+    if not ok:
+        return None, "; ".join(why)
+    dll = ((rec["steps"].get("build") or {}).get("dll") or {})
+    path = Path(dll.get("path", ""))
+    if not path.is_file():
+        return None, f"no DLL at {path}"
+    if fc4verify.sha256(path) != dll.get("sha256"):
+        return None, f"{path} is not the DLL the gate built (rebuilt or replaced since)"
+    return path, ""
+
+
+def run_regress(wt, tag, dll):
     """Submit the two regress runs through the game queue and wait for the verdict."""
-    dll = Path(wt) / "engine" / "build-x86" / "FreeCity4.dll"
-    if not dll.exists():
-        log(f"regress {tag}: no DLL at {dll}; skipping")
-        return None, "no DLL"
     log(f"regress {tag}: submitting to the game queue (about 10-20 min)")
     p = sh(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(REPO / "tools" / "regress.ps1"),
@@ -1107,7 +1144,7 @@ def run_regress(wt, tag):
     out = (p.stdout or "") + (p.stderr or "")
     (LOG_DIR / f"regress-{tag}.out").write_text(out, encoding="utf-8")
     m = re.search(r"REGRESS\s+\S+:\s*(PASS|FAIL)", out)
-    verdict = m.group(1) if m else ("PASS" if p.returncode == 0 and "PASS" in out else "FAIL")
+    verdict = m.group(1) if m else "FAIL"  # no REGRESS line: never a pass, whatever the exit code
     return verdict, out[-4000:]
 
 
@@ -1198,18 +1235,27 @@ def cmd_merge_batch(args):
     return 0
 
 
+def integration_head(wt):
+    return git(["-C", str(wt), "rev-parse", "HEAD"]).stdout.strip()
+
+
 def cmd_gate(_args):
     st = load_state()
     cur = st.get("current")
     if not cur:
         die("no current batch; run merge-batch first")
     wt = Path(cur["worktree"])
+    head = integration_head(wt)
+    if head != cur.get("head"):
+        log(f"integration moved since merge-batch ({str(cur.get('head'))[:10]} -> {head[:10]}); gating {head[:10]}")
+        cur["head"] = head
     if not batch_touches_engine(wt):
         log("docs-only batch: no gate needed")
-        cur["gate"] = {"ok": True, "skipped": "docs-only"}
+        cur["gate"] = {"ok": True, "skipped": "docs-only", "head": head}
     else:
         ok, tail = run_gate(wt, cur["id"])
-        cur["gate"] = {"ok": ok}
+        # informational only: land and regress judge build-runs/gate-<id>.json again, never this flag
+        cur["gate"] = {"ok": ok, "head": head, "record": str(gate_record_path(cur["id"]))}
         log(f"gate {cur['id']}: {'PASS' if ok else 'FAIL'}")
         if not ok:
             log(tail[-1500:])
@@ -1223,13 +1269,23 @@ def cmd_regress(args):
     if not cur:
         die("no current batch; run merge-batch first")
     wt = Path(cur["worktree"])
+    head = integration_head(wt)
     if args.no_regress or not batch_touches_engine(wt):
         log("no regress for this batch")
-        cur["regress"] = {"ok": True, "skipped": "docs/tools-only"}
+        cur["regress"] = {"ok": True, "skipped": "docs/tools-only" if not args.no_regress else "--no-regress",
+                          "head": head}
         save_state(st)
         return 0
-    verdict, tail = run_regress(wt, cur["id"])
-    cur["regress"] = {"ok": verdict == "PASS", "verdict": verdict}
+    # Only the DLL the passing gate built for this head: train10's regress "passed" on a FreeCity4.dll left in
+    # build-x86 from an earlier batch (built 15:21, the merge was 17:08), because its gate had never built one.
+    dll, why = gated_dll(cur, wt)
+    if dll is None:
+        log(f"regress {cur['id']}: refused, no gated DLL for {head[:10]}: {why}")
+        cur["regress"] = {"ok": False, "verdict": "REFUSED", "why": why, "head": head}
+        save_state(st)
+        return 1
+    verdict, tail = run_regress(wt, cur["id"], dll)
+    cur["regress"] = {"ok": verdict == "PASS", "verdict": verdict, "head": head}
     save_state(st)
     log(f"regress {cur['id']}: {verdict}")
     if verdict != "PASS":
@@ -1262,6 +1318,22 @@ def write_notices(cur, main_sha):
     )
 
 
+def land_blockers(cur, head, touches_build, record, main_moved):
+    """Why `land` must refuse (empty: it may land). Pure, so the train10 case is a unit test.
+
+    `touches_build` and `main_moved` are recomputed from git at land time and `record` is read from
+    build-runs/gate-<id>.json; the state file's gate flag is never consulted."""
+    why = []
+    if touches_build:
+        ok, reasons = judge_gate(record, head)
+        if not ok:
+            why.append("no passing post-merge gate for this head: " + "; ".join(reasons))
+    if main_moved:
+        why.append("main changed build files since the batch was cut (" + ", ".join(main_moved[:5])
+                   + "): the merged tree would not be the gated one; run merge-batch again")
+    return why
+
+
 def cmd_land(args):
     if current_branch() != "main":
         die("run this from main")
@@ -1271,13 +1343,19 @@ def cmd_land(args):
     cur = st.get("current")
     if not cur:
         die("no current batch")
-    if not (cur.get("gate") or {}).get("ok"):
-        die("gate did not pass; use bisect, or land with --force")
-    if not (cur.get("regress") or {}).get("ok"):
-        if not args.force:
-            die("regress did not pass; use bisect, or land with --force")
     wt = Path(cur["worktree"])
-    head = git(["-C", str(wt), "rev-parse", "HEAD"]).stdout.strip()
+    head = integration_head(wt)
+    touches = batch_touches_engine(wt)
+    blockers = land_blockers(cur, head, touches, load_gate_record(cur["id"]) if touches else None,
+                             main_moved_under(head))
+    if blockers:
+        die("refusing to land " + cur["id"] + ":\n  - " + "\n  - ".join(blockers)
+            + "\nThere is no override: fix the tree on the integration branch, commit, `gate` again.")
+    reg = cur.get("regress") or {}
+    if not (reg.get("ok") and reg.get("head") == head):
+        if not args.force:
+            die("regress did not pass for this head; use bisect, or land with --force")
+        log(f"landing without a passing regress for {head[:10]} (--force)")
     log(f"landing {cur['id']} ({head[:10]}) onto main")
     # fast-forward main to the integration branch
     p = git(["merge", "--ff-only", head], check=False)
@@ -1305,7 +1383,12 @@ def cmd_land(args):
 
 
 def cmd_bisect(_args):
-    """Split the current batch and gate the halves in parallel until one culprit lane is isolated."""
+    """Split the current batch and gate the halves until one culprit lane is isolated.
+
+    The halves are gated one after the other in the integration worktree (incremental builds), each judged by its
+    parsed fc4verify record. The earlier version gated both halves in parallel in the same worktree, so the second
+    reset wiped the first half's tree under its running build, and took coord-verify-lane.ps1's exit code (always 0)
+    as the verdict: every half "passed"."""
     st = load_state()
     cur = st.get("current")
     if not cur:
@@ -1315,7 +1398,8 @@ def cmd_bisect(_args):
         die(f"batch has a single lane ({lanes}); the culprit is already isolated")
     log(f"bisecting {cur['id']}: {lanes}")
     halves = [lanes[: len(lanes) // 2], lanes[len(lanes) // 2 :]]
-    procs = []
+    bad = None
+    wt = None
     for i, half in enumerate(halves):
         name = f"{cur['id']}-b{i}"
         wt = reset_integration(f"integration/{name}")
@@ -1326,22 +1410,14 @@ def cmd_bisect(_args):
             resolve_conflicts(wt, [lane])
             git(["-C", str(wt), "commit", "--no-edit"], check=False)
         log(f"  half {i}: {half} -> gating as {name}")
-        out = LOG_DIR / f"gate-{name}.out"
-        engine = Path(wt) / "engine"
-        verify = REPO / "build-runs" / "coord-verify-lane.ps1"
-        argv = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(verify),
-                "-Engine", str(engine), "-Tag", name]
-        procs.append((half, name, subprocess.Popen(argv, cwd=str(wt), stdout=subprocess.PIPE,
-                                                   stderr=subprocess.STDOUT, text=True,
-                                                   encoding="utf-8", errors="replace")))
-    bad = None
-    for half, name, proc in procs:
-        out, _ = proc.communicate(timeout=7200)
-        (LOG_DIR / f"gate-{name}.out").write_text(out or "", encoding="utf-8")
-        ok = proc.returncode == 0
-        log(f"  half {name}: {'PASS' if ok else 'FAIL'} ({half})")
-        if not ok and bad is None:
+        ok, _tail = run_gate(wt, name)
+        log(f"  half {name}: {'PASS' if ok else 'FAIL'} ({half}; build-runs/gate-{name}.out)")
+        if not ok:
             bad = half
+            break
+    # put the batch's own branch back, so `gate`/`land` never act on a bisect half by accident
+    if wt is not None:
+        git(["-C", str(wt), "checkout", "--force", cur["integration"]], check=False)
     if bad is None:
         log("both halves pass: the failure is in how they interact, or it was flaky. Rerun the full batch.")
         return 1
@@ -1374,7 +1450,9 @@ def cmd_fail(args):
     cur["lanes"] = [x for x in cur["lanes"] if x != lane]
     cur.setdefault("rejected", []).append(lane)
     save_state(st)
-    log(f"{lane} sent back; {len(cur['lanes'])} lane(s) remain in {cur['id']} (use 'land' to land them)")
+    # The integration branch still holds the culprit's merge, and its gate record failed: `land` refuses it.
+    log(f"{lane} sent back; {len(cur['lanes'])} lane(s) remain in {cur['id']}. Land them as a new batch: "
+        f"merge-batch --lanes {','.join(cur['lanes'])}, then gate")
     return 0
 
 

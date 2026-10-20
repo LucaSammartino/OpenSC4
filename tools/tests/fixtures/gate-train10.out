@@ -1,0 +1,31 @@
+=== cargo test: exit 101
+ listed by the managers: 0x4a1628c5 288905, 0x4a222b98 3, 0x4a5b69ed 63, 0x6a1628ba 126, 0x896e714a 880, 0x896e75af 81309
+  automaton state types: 0x0 597, 0x14 10, 0x2 207, 0x3 21, 0x7 56, 0xb 80358, 0xd 79
+  automaton base versions: v7 79356, v8 2903
+  controller templates: accident_attract 1, accident_crowd 1, biz_gen_stand 1, biz_gen_walk 1, construction_vehicle_attractor 31, construction_vehicle_generator 31, court_car_attract 1, court_car_out 1, crowd_sm 18, dog_make 16, dog_pull 42, garbage_attract 1, garbage_out 1, hearse_attract 2, hearse_out 2, k6_bus_in 5, k6_bus_out 5, k6kids_attractor 5, k6kids_generator 5, k6kids_in 5, k6kids_repulsor 5, llama_crowd 1, maxis_crowd 1, mourner_attract 2, mower_gen 1, ogle_sims_generator 1, patrol_car__big_generator 1, patrol_car_generator 2, patrol_ped_gen_big 1, patrol_ped_generator 2, … (30 more)
+automata_records: 0 failures
+automata_records: 0 index-renormalised entries
+
+thread 'sweep_automata_records' (4312) panicked at formats\tests\automata_records.rs:463:5:
+assertion `left == right` failed: the stale-`+0x0C` corpus count moved (was 14: automata.md §12 quirk 10)
+  left: 0
+ right: 14
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    sweep_automata_records
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.39s
+
+   Compiling fc4-conformance v0.1.0 (C:\Users\tlori\FreeCity4\.claude\worktrees\train-integration\engine\conformance)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 25.69s
+     Running unittests src\lib.rs (target\i686-pc-windows-msvc\debug\deps\fc4_capi-b418863ae732fb0f.exe)
+     Running unittests src\lib.rs (target\i686-pc-windows-msvc\debug\deps\fc4_conformance-25e4c2c77f4cbeb5.exe)
+     Running tests\turbo_off.rs (target\i686-pc-windows-msvc\debug\deps\turbo_off-67eaa0a9751a61d7.exe)
+     Running tests\vectors.rs (target\i686-pc-windows-msvc\debug\deps\vectors-a71ddc818ec5d2c1.exe)
+     Running unittests src\lib.rs (target\i686-pc-windows-msvc\debug\deps\fc4_core-1cfea4e766e7a3e7.exe)
+     Running unittests src\lib.rs (target\i686-pc-windows-msvc\debug\deps\fc4_formats-087147994f5a5ff7.exe)
+     Running unittests src\bin\fc4-dat.rs (target\i686-pc-windows-msvc\debug\deps\fc4_dat-43d370a6ffb4b0f9.exe)
+     Running tests\automata_records.rs (target\i686-pc-windows-msvc\debug\deps\automata_records-811b59ea9205c40d.exe)
+error: test failed, to rerun pass `-p fc4-formats --test automata_records`

@@ -59,12 +59,18 @@ python tools/merge-train.py fail --lane <lane>  # send the culprit back to its l
 1. **Batch (up to K lanes, start with K = 8), oldest first.** Docs-only lanes go first: they never need a regress.
 2. **Merge them one after another onto `integration/<n>`, cut from `main`.** Conflicts are resolved once for the
    whole batch, not per lane.
-3. **Gate and regress once for the batch** (skipped when `engine/`, `tools/` and `tests/` are all unchanged —
-   docs-only movement on `main` never re-gates).
-4. **On a pass**, `main` fast-forwards to the integration branch and each lane gets a merged notice.
-5. **On a fail**, the batch is split in halves and both halves are gated in parallel on separate game-queue slots
-   (about log₂ K extra gates) until one culprit lane is isolated. The culprit goes back to its lane with the
-   failure; the rest land.
+3. **Gate and regress once for the batch** (skipped when `engine/`, `tools/`, `tests/` and `.claude/lane-bin/` are
+   all unchanged — docs-only movement on `main` never re-gates). The gate is `.claude/lane-bin/fc4verify.py gate` on
+   the merged tree: clippy `-D warnings`, the CMake build, the full ctest (cargo_test included), each judged by
+   parsing its output. Its record, `build-runs/gate-train<n>.json`, names the head it built; the regress only takes
+   the DLL that record names.
+4. **On a pass**, `main` fast-forwards to the integration branch and each lane gets a merged notice. `land` judges
+   the gate record again (head, clean tree, every step log re-parsed) and refuses without one; the state file's
+   `gate.ok` is not consulted and there is no override. It also refuses when `main` changed build files since the
+   batch was cut (the merged tree would not be the gated one).
+5. **On a fail**, the batch is split in halves and the halves are gated one after the other in the integration
+   worktree (about log₂ K extra gates) until one culprit lane is isolated. The culprit goes back to its lane with
+   the failure; the rest land as a new batch (`merge-batch --lanes ...`, then `gate`).
 
 The long-lived integration worktree is `.claude/worktrees/train-integration` (branch `train-integration`); it is
 re-pointed at `integration/<n>` for every batch and keeps its cargo/CMake caches.
@@ -91,7 +97,8 @@ never bumped twice. `merge-train.py` calls it (and falls back to a built-in bump
 
 `build-runs/merge-train/state.json` (gitignored): the batch sequence, the current batch, and the landed history.
 Notices are `build-runs/merge-notices/<lane>.md` and `build-runs/merge-notices/train<n>.md`. Gate output is
-`build-runs/gate-train<n>.out`, regress output `build-runs/regress-train<n>.out` (both UTF-8 — the PowerShell
+`build-runs/gate-train<n>.out` (summary) with the record `build-runs/gate-train<n>.json` and the step logs in
+`build-runs/gate-logs/train<n>/`, regress output `build-runs/regress-train<n>.out` (both UTF-8 — the PowerShell
 `*>` files elsewhere in `build-runs/` are UTF-16 and need `tr -d '\0'`).
 
 ## Measuring
