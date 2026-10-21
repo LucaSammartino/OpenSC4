@@ -14,8 +14,8 @@ bytes by execution under an x86 emulator (§8). Every function of the owner rang
 colour: it stores bytes it is given (§2, §3), the top byte of a fixed-point ramp (§4), or a value derived **only from
 the source texel's alpha** and the draw colour's alpha byte (§7). No RGB channel of any source or of the draw colour
 is ever read by a blit body, and no blit body reads the destination (a keyed pixel is simply skipped). So the
-blit and gradient paths behave as if the buffer were an **alpha (coverage) plane**; the solid paths store whatever
-value the caller mapped (SR8-1).
+blit and gradient paths behave as if the buffer were an **alpha (coverage) plane**; the solid paths store the
+buffer-mapped colour, which is always 0 for a type-2 buffer (§10.4). How a context reaches this class: §10.
 
 ## 1. Common inputs [exact]
 
