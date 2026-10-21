@@ -8,6 +8,14 @@ Per-lane row for the regenerated `HANDOFF.md` 0 table (see `docs/lanes/README.md
 
 ## Handoff
 
+Run4 round1 diagnosis (2026-10-21):
+- g1 log: the city was NOT killed by the exception first. From the first month budget tax income was 0 (g2: ~4059/month),
+  funds went to -101730, the game ended the city itself at 2028-04-01 (bankruptcy), and the foreign AV (null read,
+  SimCity 4.exe+0x1D0F94, called from FreeCity4.dll) happened inside "occmgr Shutdown: enter" (RemoveOccupants with
+  shutdown, occupant callbacks). Same 742 lots in both runs, so lots exist but count no tax with occmgr.
+- Added diagnostics (budget lot scan tallies: with building / livable / land value / building value; occmgr query
+  tallies and a per-occupant shutdown trace). Request glue25fix3-g3 (enable=occmgr, turbo to 2026-05-01) outstanding.
+
 - Current tip before this report f42c08b2. Baseline/full lane gate PASS: cargo3576/0, clippy clean, ctest62/62.
 - glue25fix3-g1 replacement enable=occmgr is CORRUPT at 2028-04-01, foreign_exceptions=1, ref_warnings=0.
 - glue25fix3-g2 is CLEAN to2032 with ref_warnings=0, but its request has ONLY occmgr_shadow=1 and no enable=occmgr. It is shadow evidence, not a replacement pass.

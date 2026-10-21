@@ -87,6 +87,16 @@ fc4_occ_filter TypeOf(uint32_t occType) {
 // Release anything the core did not ask for.
 namespace {
 
+// Diagnostics (glue25fix3): query tallies, and a per-occupant trace of the
+// callbacks made while the manager shuts down.
+bool g_traceShutdown = false;
+uint32_t g_traceN = 0;
+uint64_t g_firstCalls = 0, g_firstHits = 0, g_listCalls = 0, g_listItems = 0, g_iterItems = 0;
+void TraceStep(const char* step, uint64_t t) {
+    if (!g_traceShutdown) return;
+    fc4::Log("occmgr shutdown trace #%u %s occ %p", g_traceN, step, reinterpret_cast<void*>(static_cast<uintptr_t>(t)));
+}
+
 void HAddRef(void*, uint64_t t) {
     if (t == 0) return;
     cISC4Occupant* o = Occ(t);
@@ -96,12 +106,14 @@ void HAddRef(void*, uint64_t t) {
 void HRelease(void*, uint64_t t) {
     if (t == 0) return;
     cISC4Occupant* o = Occ(t);
+    TraceStep("release", t);
     FC4_RELEASE(o);  // occupant slot 2, the core's reference
 }
 void HInit(void*, uint64_t t) {
     if (t != 0) Occ(t)->Init();  // occupant slot 3: the base posts Create (§5.6)
 }
 void HShutdown(void*, uint64_t t) {
+    TraceStep("shutdown", t);
     if (t != 0) Occ(t)->Shutdown();  // occupant slot 4: the base posts Destroy
 }
 // AsPropertyHolder is a borrowed pointer (no reference of ours).
@@ -123,6 +135,11 @@ void HBox(void*, uint64_t t, fc4_occ_bbox* out) {
 }
 
 void HPost(void*, uint64_t t, uint32_t msg_type, uint32_t data4) {
+    if (g_traceShutdown && t != 0) {
+        ++g_traceN;
+        fc4::Log("occmgr shutdown trace #%u post %08X occ %p type %08X", g_traceN, msg_type,
+                 reinterpret_cast<void*>(static_cast<uintptr_t>(t)), static_cast<uint32_t>(Occ(t)->GetType()));
+    }
     if (t != 0) Occ(t)->PostOccupantMessage(msg_type, data4);  // occupant slot 15
 }
 
@@ -237,9 +254,15 @@ bool cFC4OccMgr::Init() {
     return ok;
 }
 bool cFC4OccMgr::Shutdown() {
-    fc4::Log("occmgr Shutdown: enter");
+    fc4::Log("occmgr Shutdown: enter (queries: first %llu calls %llu hits, list %llu calls %llu items, iterate %llu items)",
+             static_cast<unsigned long long>(g_firstCalls), static_cast<unsigned long long>(g_firstHits),
+             static_cast<unsigned long long>(g_listCalls), static_cast<unsigned long long>(g_listItems),
+             static_cast<unsigned long long>(g_iterItems));
+    g_traceShutdown = true;
+    g_traceN = 0;
     const bool ok = fc4_occmgr_shutdown(core_);
-    fc4::Log("occmgr Shutdown -> %d", ok ? 1 : 0);
+    g_traceShutdown = false;
+    fc4::Log("occmgr Shutdown -> %d (%u occupants traced)", ok ? 1 : 0, g_traceN);
     return ok;
 }
 bool cFC4OccMgr::SetCitySize(float fx, float fz) { return fc4_occmgr_set_city_size(core_, fx, fz); }
@@ -357,7 +380,9 @@ bool cFC4OccMgr::FindOccupant(cISC4Occupant* occ, bool searchAll, int32_t* x, in
 // ---- slots 28-35: first-occupant queries ---------------------------------------------------------
 
 bool cFC4OccMgr::FirstOut(bool ok, uint64_t occ, cISC4Occupant*& out) {
+    ++g_firstCalls;
     if (!ok || occ == 0) return false;
+    ++g_firstHits;
     out = Occ(occ);  // the core's one reference is now the caller's
     return true;
 }
@@ -445,7 +470,9 @@ void cFC4OccMgr::ListSink(void* ctx, uint64_t occ) {
 // with one reference; the result is true whenever it ran (initialised and
 // maxCount != 0), even with nothing appended.
 bool cFC4OccMgr::FillList(bool ok, const ListOut& out, SC4List<cISC4Occupant*>& list) {
+    ++g_listCalls;
     if (!ok) return false;
+    g_listItems += out.occs.size();
     for (uint64_t t : out.occs) {
         cISC4Occupant* o = Occ(t);
         list.push_back(o);  // the core's reference is now the list's
@@ -514,6 +541,7 @@ bool cFC4OccMgr::GetOccupantsByStandardCityCellsTyped(SC4List<cISC4Occupant*>& l
 
 bool cFC4OccMgr::IterThunk(void* ctx, uint64_t occ) {
     IterIn* in = static_cast<IterIn*>(ctx);
+    ++g_iterItems;
     return in->fn(Occ(occ), in->data);
 }
 
