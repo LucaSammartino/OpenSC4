@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**train43 landed 5bcb01545b:** Eight-lane recovery batch excluding failing exemplar interaction. Dates and command owners implemented; budget/audio partial only, no whole-owner credit. Automata owned-reference teardown fix unblocks final simgrids validation. Tutorial/citydetail remain opt-in candidates, no default promotion. Zero-resync evidence now required for exact shadow credit. Full gate and tutorial/citydetail candidate union regress PASS. Network-occupant records and construction lanes parked at logical3/3 with unresolved contracts; worktrees preserved. Coverage44.3/34.3/16.1/17.6; rounds112 (open-ended).
+
 **train42 landed 401c00b18a:** Three-lane docs-only recovery batch: AD4/AD5/AD6 window/Lua contracts answered; partial legacy45/57 and view input/AddGUI specs preserved without whole-owner credit. Both incomplete3/3lanes parked and worktrees retained. Failed experimental train41 was NOTlanded; exemplar interaction remains under isolation. No gate/regress needed for docs-only tree. Missing analysis export restored read-only from newer savedproject; hashes/function-boundary change documented in history/export-recovery-2026-10-21.md, roundedmetrics unchanged. Coverage44.3/34.3/16.1/17.6; rounds101 (open-ended).
 
 **Run4 checkpoint100 (open-ended):**100 rounds;16 trains landed. Coverage44.3/34.3/16.1/17.6, delta since baseline+7.5/+6.0/+4.0/+1.7points. Parked: glue-terrain3, re-terrain4, re-widgets4, re-application4, re-particles4, re-editors4, re-driverdraw4, re-rzservices4, re-legacycontrol4, re-view3dwin4. Target6-8/max3glue; nextcheckpoint125.
@@ -27,7 +29,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target6-8 live lanes (coordinator target8), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
-**Coverage after train42:**44.3/34.3/16.1/17.6; baseline36.8/28.3/12.1/15.9, delta+7.5/+6.0/+4.0/+1.7 points. 17 trains landed; 101 rounds used, no total cap. Next25-round checkpoint 125.
+**Coverage after train43:**44.3/34.3/16.1/17.6; baseline36.8/28.3/12.1/15.9, delta+7.5/+6.0/+4.0/+1.7 points. 18 trains landed; 112 rounds used, no total cap. Next25-round checkpoint 125.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`, `run4-launch.py` (saved guarded Workflow,maxRounds1,ctx150k,calls150). Never use direct/unguarded agents. After compaction/restart reread this section and run lanes.py guard before spawning. Fresh slots/check --touches required, --resume for an existing worktree; deps must be on main.
 
@@ -48,7 +50,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 **Runtime:** elevated game queue6slots(pid23444) restarted after Windows elevation blocked non-elevated launches. Native CLI BG_WAIT_CEILING_MS=0; qwait without--fresh, unique labels. RE preflight must GO. Never set gate verdicts by hand.
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 237 (train39 PASS;8888/8 cores and network-occupant contract answers); 236 (train37 PASS; propdev replacement and four core modules); 235 (train34 PASS; citysit replacement, disaster exacttrace,4444core,RZ/language specs); 234 (train33 PASS; traffic TS67 corrected,565 complete, advisor blockers answered); 233 (train32 three-lane PASS;1555 spec and GZ queue-manager core). See `docs/manual-checks.md`.
+- **Latest in-game run:** 238 (Dates/commands cores, automata teardown ownership, opt-in tutorial/citydetail union; no exemplar candidate or default promotion); 237 (train39 PASS;8888/8 cores and network-occupant contract answers); 236 (train37 PASS; propdev replacement and four core modules); 235 (train34 PASS; citysit replacement, disaster exacttrace,4444core,RZ/language specs); 234 (train33 PASS; traffic TS67 corrected,565 complete, advisor blockers answered). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

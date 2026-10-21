@@ -2,7 +2,7 @@
 <rect width="1600" height="1000" fill="#f6f7f4"/>
 <text x="16" y="44" font-size="30" font-weight="700" fill="#1d2320">OpenSC4 coverage of SimCity 4.exe</text>
 <text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 44.3% · implemented 34.3% · verified 16.1% · replaced in game 17.6%.</text>
-<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main 3895090d, regress-train39.out.</text>
+<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main ab9e390a, regress-train43.out.</text>
 <rect x="18.0" y="146.0" width="75.5" height="112.4" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="18.0" y="258.4" width="75.5" height="104.3" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="93.5" y="146.0" width="94.3" height="79.8" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -1192,15 +1192,15 @@
 <rect x="1551.2" y="513.5" width="1.5" height="2.9" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1552.8" y="513.5" width="1.5" height="2.9" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1526.5" y="498.3" width="27.7" height="18.1" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
-<rect x="1554.2" y="479.1" width="18.1" height="17.7" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="1572.4" y="479.1" width="9.6" height="17.7" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1554.2" y="479.1" width="18.1" height="17.7" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1572.4" y="479.1" width="9.6" height="17.7" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1554.2" y="479.1" width="27.8" height="17.7" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="1554.2" y="496.7" width="11.9" height="10.1" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1554.2" y="506.8" width="11.9" height="9.6" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1554.2" y="496.7" width="11.9" height="19.7" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="1566.1" y="496.7" width="15.9" height="11.9" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1566.1" y="496.7" width="15.9" height="11.9" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
-<rect x="1566.1" y="508.7" width="15.9" height="7.7" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1566.1" y="508.7" width="15.9" height="7.7" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1566.1" y="508.7" width="15.9" height="7.7" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="1207.3" y="120.0" width="376.7" height="398.4" fill="none" stroke="#1d2320" stroke-width="2"/>
 <text x="1213.3" y="139.0" font-size="16" font-weight="700" fill="#1d2320">FRAMEWORK  11.7%</text>
