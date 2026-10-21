@@ -18,3 +18,8 @@
 - **MS4 (§11.2.4, §4.9):** the building development simulator's slot 44 list used by `DistanceToClosestSpecial`
   (§7.2): landmarks and rewards only, or every special building? [inferred: landmarks and rewards]
   **ANSWERED 2026-10-21 (re-answers35):** MATCHES — DistanceToClosestSpecial (0x00426AE0) walks cISC4City slot 53 -> BDS slot 44 (0x00520080, the list at BDS+0x4C), which BDS fills from occupant inserted/removed messages only for occupant groups 0x150A (landmark) and 0x150B (reward), previews excluded (building-development.md §3). Distance is float32 sqrt(dx^2+dz^2) truncated, unsigned minimum from 0xFFFFFFFF; entries without cISC4BuildingOccupant skipped. Spec §4.9.
+
+- **MS5 (§11.2.5, §4.5):** the exact clamp and neighbourhood of `local_traffic_congestion` (the Mac build shows
+  the rectangle grown by 1 cell on each side, clamped to `[0, CellCountX/Z − 1]`), and the neighbour-job constants
+  of `job_condition` / `job_has_power` / `job_has_water` (0 / 1 / 1 in the core). [inferred]
+  **ANSWERED 2026-10-21 (re-answers35):** DIFFERS — local_traffic_congestion (0x0042B3DE-0x0042B581): home lot bounding rect grown by 1, min edges clamped to 0, BOTH max edges clamped to CellCountX-1 (city slot 93; quirk); only the border ring of the grown rect is visited (not the interior), and only cells with traffic GetCapacity(1,x,z) != 0.0 count; u8 max of the congestion map, 0 if none. Neighbour-job constants confirmed 1/0/1/1 (is_neighbor/condition/power/water). New: a city job whose building profile purpose is 5 (agriculture) gets job_has_water = 1 without asking the plumbing simulator (0x0042BA92). Spec §4.5.

@@ -11,6 +11,7 @@
 - Facts: worktree C:/Users/tlori/FreeCity4/.claude/worktrees/re-answers35 (branch re-answers35, base main 7e042544);
   MAIN = C:/Users/tlori/FreeCity4. Questions file: docs/specs/questions/mysims.md (MS1-MS10 open; MS8-MS10 are
   cores28's, NOT in scope — answer only MS1-MS7). Spec: docs/specs/mysims.md (62 KB, read by sections).
-- Next: MS1 first (unnamed s32 pair row 25, unnamed bool row 30 — trace MySim Read at 0x00425490 and find the
-  field uses), then MS2 (UI service 0xA417445E +0xA8), MS3 (Init neighbour city), MS4 (BDS slot 44 list),
-  MS5 (congestion clamp + neighbour-job constants), MS6 (pathfinder side effects), MS7 (AnnounceMoveIn + states 4/5/6).
+- Done: MS1 eecb2081, MS2 77929a0c, MS3 758a3a4b, MS4 78863510, MS5 (this commit). Helpers: build-runs/move_q.py
+  (moves entry + answer file), build-runs/rd.py (read u32 at VA), build-runs/mysim_asm.txt (all cSC4MySim asm).
+- Frames: Write/Read this = MySim+0xC, DoMessage = +0x10, Init/Shutdown = +0x8; FindNewJob/ctor/simulate_day = +0.
+- Next: MS6 (CheckCommute 0x0042D9E0 / FindNewJob pathfinder side effects), MS7 (AnnounceMoveIn 0x0042BF70, states 4/5/6).

@@ -314,11 +314,11 @@ value *[quirk]*.
 | `desirability` | wealth 1/2/3 → building development simulator `GetDeveloper(0x1010 / 0x1020 / 0x1030)` → its desirability grid (developer slot 13) → `GetCellValue(homeX, homeZ)` (int16). Other wealth or no developer → not written. |
 | `home_occupant_wealth` | home lot `GetOccupantWealth()` |
 | `local_police_funding`, `local_fire_funding` | the **nearest** police / fire station (police `+0x54` / fire `+0x58` station lists; nearest by §4.10 distance, strict `<`, list order) → that station's funding fraction (`+0x1C` / `+0x20`, `SC4Percentage`), field = int(f × 100). No station → 0 (`kSC4PercentageZero`). |
-| `local_traffic_congestion` | maximum of the traffic congestion map over the home lot's rectangle grown by 1 cell on each side, clamped to `[0, CellCountX/Z − 1]` *[inferred: exact clamp edges from the Mac build]* |
+| `local_traffic_congestion` | the home lot's bounding rect (`cISC4Lot` slot 14, inclusive cells minX, minZ, maxX, maxZ) grown by 1 cell on each side; minX and minZ clamped up to 0, maxX **and maxZ** clamped down to `CellCountX − 1` (`cISC4City` slot 93 for both, *[quirk]*, invisible in square cities). Only the **border ring** of that rect is visited, not its interior: for x = minX..maxX the cells (x, maxZ) then (x, minZ); for z = minZ+1..maxZ−1 the cells (minX, z) then (maxX, z). A cell counts only if the traffic simulator's `GetCapacity(1, x, z)` (slot 23) is not 0.0; the value is the u8 maximum of the congestion map (slot 10, map slot 7 `Get(x, z)`) over counted cells, 0 if none (Windows `0x0042B3DE`–`0x0042B581`) |
 | `job_title`, `job_building`, `job_city` | strings (`GetJobTitle`, the job building's name, the neighbour city's name) |
 | `last_commute_time` | minutes (§4.7) |
 | `employed`, `unemployed_days` | 1 if job or neighbour job; jobless days |
-| `job_is_neighbor`, `job_condition`, `job_has_power`, `job_has_water` | for a city job: 0, job lot condition, power, water as for home. For a neighbour job: 1, then constants *[inferred: condition 0, power 1, water 1]* |
+| `job_is_neighbor`, `job_condition`, `job_has_power`, `job_has_water` | for a city job: 0; the job lot's condition (`cISC4Lot` slot 35, 0 when the job has no lot); power as for home; water: **1 when the job building's profile purpose is 5 (agriculture)** (BDS `GetBuildingProfile`, `0x0042BA92`), else as for home. For a neighbour job: 1, 0, 1, 1 (constants, `0x0042BB54`–`0x0042BC0F`) |
 
 `UpdateLocalBuildings` (§4.9) also runs inside the full refresh.
 
@@ -476,8 +476,9 @@ simulator's special-building list (`cISC4City` slot 53 → BDS slot 44 `GetSpeci
 `GetBuildingType()` equals `type`; `0xFFFFFFFF` when none. That list holds exactly the occupants in occupant group
 `0x150A` (landmark) or `0x150B` (reward), excluding previews (building-development.md §3, messages
 `0x99EF1142`/`0x99EF1143`), in insertion order. Per entry (`0x00426AE0`): query `cISC4BuildingOccupant`
-(`0x87DDA3A9`, entries that fail are skipped), compare its type, take its position, distance = float32
-`sqrt(dx² + dz²)` (x and z only, home position minus building position) truncated toward zero to an integer;
+(`0x87DDA3A9`, entries that fail are skipped), compare its type, take its position, distance =
+`sqrt(dx² + dz²)` (x and z only, home position minus building position, both float32; the products, sum and root
+stay on the x87 stack, no float32 rounding before `__ftol`) truncated toward zero to an integer;
 the result is the **unsigned** minimum, starting from `0xFFFFFFFF`.
 
 **`LocalSchoolGrade(group)` / `LocalHospitalGrade(group)`** (slots 52/53): over the residential simulator's school
@@ -853,9 +854,7 @@ the MySims own no grid).
 2. *Answered (MS2, 2026-10-21):* window-manager slot 42 = "a modal window is running" (§4.2).
 3. *Answered (MS3, 2026-10-21):* yes, see §2.2.1.
 4. *Answered (MS4, 2026-10-21):* groups `0x150A`/`0x150B` (landmarks and rewards), §4.9.
-5. The exact clamp and neighbourhood of `local_traffic_congestion`, and the neighbour-job constants of
-   `job_condition`/`job_has_power`/`job_has_water` (§4.5): taken from the Mac build, Windows not traced line by
-   line.
+5. *Answered (MS5, 2026-10-21):* traced on Windows, §4.5 (border ring only; agriculture jobs count as watered).
 6. Whether the traffic pathfinder used by `CheckCommute` has any side effect on traffic data (traffic spec).
 7. The "announce" check of `AnnounceMoveIn` (class slot) and the dispatch state numbering 4/5/6.
 
