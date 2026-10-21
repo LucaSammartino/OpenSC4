@@ -494,6 +494,24 @@ fn dispatch_range_and_row_from_index() {
 }
 
 #[test]
+fn fistp_rounds_half_to_even() {
+    let cases = [
+        (0.5, 0),
+        (1.5, 2),
+        (2.5, 2),
+        (-0.5, 0),
+        (-1.5, -2),
+        (-2.6, -3),
+        (3.2, 3),
+    ];
+    for (v, want) in cases {
+        assert_eq!(fistp32(v), want, "{v}");
+    }
+    assert_eq!(fistp32(f64::NAN), i32::MIN);
+    assert_eq!(fistp32(3e9), i32::MIN);
+}
+
+#[test]
 fn caller_helpers() {
     let m: Vec<_> = (0..11).map(src_format_index).collect();
     assert_eq!(

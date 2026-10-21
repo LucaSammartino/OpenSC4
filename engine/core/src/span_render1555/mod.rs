@@ -439,7 +439,13 @@ pub fn render_blt(spans: &[Span], dst: &mut Surface, src: &BltSource, b: &BlitRe
 /// `fistp` with round-to-nearest-even (the FPU default, §4.1); out-of-range
 /// and NaN give the integer indefinite `0x80000000`.
 fn fistp32(v: f64) -> i32 {
-    let r = v.round_ties_even();
+    // Round half to even by hand (f64::round_ties_even is above the MSRV).
+    let f = v.floor();
+    let r = if v - f > 0.5 || (v - f == 0.5 && f % 2.0 != 0.0) {
+        f + 1.0
+    } else {
+        f
+    };
     if r.is_nan() || !(-2_147_483_648.0..=2_147_483_647.0).contains(&r) {
         i32::MIN
     } else {
