@@ -41,21 +41,52 @@ pub const STRATEGY_UNSET: u8 = 0xFF;
 
 /// What a lot needs from the rest of the city during `Init` / `PostCityInit`.
 pub trait LotHost {
-    /// `terrain.GetAltitude(lot.GetCenter())` for a lot with this cell rect
-    /// (x1, z1, x2, z2 inclusive) and the slope `SetAltitude` stores in both
-    /// slope fields with it (§3.5 step 1).
-    // Spec silent (LR1): neither the `GetCenter` point nor the slope
-    // `SetAltitude` computes is given, so both come from the host.
-    fn center_altitude_and_slope(&mut self, rect: [u8; 4]) -> (f32, f32);
+    /// Terrain (`0x00B43CF4`) slot 13 `GetAltitude(x, z)` in metres (result in
+    /// ST0; the caller stores it to a float, §3.5 step 1).
+    fn terrain_altitude(&mut self, x: f32, z: f32) -> f64;
+    /// `lotDeveloper.GetLotSlope(lot, false)` (BDS slot 36, lot developer
+    /// slot 30 = `GetAreaSlope(rect, false)`, lot-developer.md §11.3) for the
+    /// lot's cell rect (x1, z1, x2, z2 inclusive).
+    fn lot_slope(&mut self, rect: [u8; 4]) -> f64;
+    /// `SL::TerrainView()` (`0x00602160`) is non-null (§3.5 `SetFlags`).
+    fn has_terrain_view(&mut self) -> bool;
     /// `RandomUint32Uniform(n)` on the lot file's `cRZRandomSuper` `0x00B49120`.
     fn random_uint32_uniform(&mut self, n: u32) -> u32;
     /// Lot configuration manager slot 8 `GetLotConfiguration(id)`: true when
     /// the configuration exists in the loaded data.
     fn has_lot_configuration(&mut self, id: u32) -> bool;
-    /// Lock terrain cell (x, z) flat at `altitude` in the terrain view.
+    /// Terrain view slot 16 `LevelCell(x, z, altitude)` (return ignored).
     fn lock_cell(&mut self, x: u8, z: u8, altitude: f32);
-    /// Unlock terrain cell (x, z).
+    /// Terrain view slot 17 `RemoveCellLevelling(x, z)`.
     fn unlock_cell(&mut self, x: u8, z: u8);
+}
+
+/// `cISC4Lot::GetCenter` (slot 15, `0x006BF560`): the rect centre in metres,
+/// cell size 16, `y` the stored altitude (§3.5). Every value is exact.
+pub fn lot_center(r: &super::lot::LotRecord) -> [f32; 3] {
+    let [x1, z1, x2, z2] = r.rect.map(u32::from);
+    let x = (16 * x1) as f32 + (16 * (x2 + 1)) as f32;
+    let z = (16 * z1) as f32 + (16 * (z2 + 1)) as f32;
+    [x * 0.5, r.altitude, z * 0.5]
+}
+
+/// `cISC4Lot::SetAltitude(a)` (slot 17, `0x006BF5C0`, §3.5): only when
+/// `|a − altitude| > 0.001` (double; equal or NaN: nothing), store `a`, then
+/// both slope fields := `f32(GetLotSlope(lot, false))`.
+pub fn lot_set_altitude(r: &mut super::lot::LotRecord, a: f32, host: &mut dyn LotHost) {
+    // x87: float minus stored float in extended precision, FABS, compared with
+    // the double 0.001; the f64 difference of two f32 values is used here.
+    if (f64::from(a) - f64::from(r.altitude)).abs() > 0.001 {
+        r.altitude = a;
+        let s = host.lot_slope(r.rect) as f32;
+        r.slope_at_altitude = s;
+        r.slope = s;
+    }
+}
+
+/// `cISC4Lot::UpdateSlope` (slot 20, `0x006BF610`): field 8 only.
+pub fn lot_update_slope(r: &mut super::lot::LotRecord, host: &mut dyn LotHost) {
+    r.slope = host.lot_slope(r.rect) as f32;
 }
 
 /// `cISC4Lot::Init` (`0x006BF490`, slot 5, §3.5). Returns true.
@@ -64,11 +95,10 @@ pub fn lot_init(lot: &Lot, host: &mut dyn LotHost) -> bool {
     // Step 1: only a lot that was neither read nor initialised.
     if !lot.initialised.get() {
         r.travel_jobs = [0.0; 3];
-        let (alt, slope) = host.center_altitude_and_slope(r.rect);
-        // `SetAltitude` "also sets both slopes" (§3.5); LR1.
-        r.altitude = alt;
-        r.slope_at_altitude = slope;
-        r.slope = slope;
+        let c = lot_center(&r);
+        // ST0 stored to the float argument of `SetAltitude`.
+        let a = host.terrain_altitude(c[0], c[2]) as f32;
+        lot_set_altitude(&mut r, a, host);
         lot.initialised.set(true);
     }
     // Step 2: one draw for a lot still holding the constructor value.
@@ -94,9 +124,14 @@ pub fn lot_set_flags(lot: &Lot, flags: u32, host: &mut dyn LotHost) {
     if (old ^ r.flags) & lot_flag::TERRAIN_LOCKED == 0 {
         return;
     }
+    // No terrain view: the flags stay stored, no cell is touched.
+    if !host.has_terrain_view() {
+        return;
+    }
     let [x1, z1, x2, z2] = r.rect;
     let lock = r.flags & lot_flag::TERRAIN_LOCKED != 0;
-    // Spec silent on the visiting order (LR2): x outer, z inner.
+    // x outer, z inner, ascending inclusive (LR2). The altitude is re-read per
+    // cell; the host cannot change it while the record is borrowed.
     for x in x1..=x2 {
         for z in z1..=z2 {
             if lock {
@@ -160,26 +195,18 @@ pub fn business_unit_add(unit: &Rc<BusinessUnit>, lot: &Rc<Lot>) {
     lot.rec.borrow_mut().business_unit = RefValue::Object(unit.clone() as Rc<dyn SaveObject>);
 }
 
-/// `cISC4BusinessUnit::Remove(lot)` (slot 4, `0x006C08B0`): unlink the lot,
-/// then `lot.SetUnit(0)` and `lot.SetTravelDesignate(0)`.
+/// `cISC4BusinessUnit::Remove(lot)` (slot 4, `0x006C08B0`): erase **every**
+/// node equal to the lot (nothing when absent), then always `lot.SetUnit(0)`
+/// and `lot.SetTravelDesignate(0)`, member or not (§4, LR3).
 ///
-/// The return value (AL) is not given by the spec (LR3): true when the lot was
-/// a member. The two setters run whether or not it was (literal order).
-pub fn business_unit_remove(unit: &Rc<BusinessUnit>, lot: &Rc<Lot>) -> bool {
-    let found = {
-        let mut u = unit.rec.borrow_mut();
-        match u.lots.iter().position(|m| same_lot(m, lot)) {
-            Some(i) => {
-                u.lots.remove(i);
-                true
-            }
-            None => false,
-        }
-    };
+/// No defined return: AL is the low byte of `SetTravelDesignate`'s EAX and
+/// every caller ignores it, so nothing is returned here.
+pub fn business_unit_remove(unit: &Rc<BusinessUnit>, lot: &Rc<Lot>) {
+    unit.rec.borrow_mut().lots.retain(|m| !same_lot(m, lot));
     let mut r = lot.rec.borrow_mut();
+    // `SetUnit(0)` first (releases the unit), then `SetTravelDesignate(0)`.
     r.business_unit = RefValue::Null;
     r.travel_designate = RefValue::Null;
-    found
 }
 
 /// `cISC4BusinessUnit::GetMembers()` (slot 5): the member list in order.
