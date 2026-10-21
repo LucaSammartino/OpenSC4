@@ -45,7 +45,7 @@ Operator notes (union glue, ABI rows, stalls) are in [ops/coordinating.md](ops/c
 operator notes".
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 221 (the network-tool replacement places roads and streets in the real game (inserts=8..69, valid=solved, failure 0), 20/20 scripted placements ok, city runs to 2032 clean with ref_warnings=0.); 216 (component 53 / 11 save round trip, record53 equal at load and save); 215 (devperf2 shadows over the replacement exact after the cell-walk host change); 214 (regress-style netmgr shadow, exact 72/73 to 2032 (the one difference is NM10)); 213 (devperf2 UpdatePopulation 3.52 -> 0.74-1.05 us/call, Grow 349 -> 267-413 us/call, shadows exact). See `docs/manual-checks.md`.
+- **Latest in-game run:** 222 (MySims shadow exact 73/73 through 2032, including load, ref_warnings=0); 221 (the network-tool replacement places roads and streets in the real game (inserts=8..69, valid=solved, failure 0), 20/20 scripted placements ok, city runs to 2032 clean with ref_warnings=0.); 216 (component 53 / 11 save round trip, record53 equal at load and save); 215 (devperf2 shadows over the replacement exact after the cell-walk host change); 214 (regress-style netmgr shadow, exact 72/73 to 2032 (the one difference is NM10)). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
