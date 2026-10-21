@@ -129,7 +129,7 @@ generated index: the questions live one file per spec, so read only the file for
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
-| city-tools-input | 5 | 0 | CT6 | questions/city-tools-input.md |
+| city-tools-input | 12 | 0 | CT13 | questions/city-tools-input.md |
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
 | command-line | 3 | 0 | CL4 | questions/command-line.md |
@@ -207,4 +207,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **196** | **1044** | | |
+| **total** | **203** | **1044** | | |

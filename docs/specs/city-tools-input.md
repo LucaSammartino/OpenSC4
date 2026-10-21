@@ -10,7 +10,9 @@ with all the evidence, not proven; *[quirk]* original behaviour that looks unint
 
 Outline: §1 scope; §2 the base class `cSC4ViewInputControl` (identity, layout, slot table, lifecycle, cursor,
 capture, stack queries, result sound); §3 the place-lot tool `cSC4ViewInputControlPlaceLot` (construction, Init,
-Shutdown, messages, key, mouse); §4 quirks; §5 open questions; §6 conformance tests; §7 coverage.
+Shutdown, messages, key, mouse); §4 quirks; §5 open questions; §6 conformance tests; §7 coverage; §8 the query
+tool `cSC4ViewInputControlQuery` (creation, layout, slots, Init, Shutdown, mouse, messages, pick filters,
+inventory).
 
 ## 1. Scope
 
@@ -278,7 +280,7 @@ text (`0xE9C877FA`) and the cost indicator (false); return true.
 
 ## 5. Open questions
 
-See docs/specs/questions/city-tools-input.md (CT1-CT5).
+See docs/specs/questions/city-tools-input.md (CT1-CT12).
 
 ## 6. Conformance tests
 
@@ -296,3 +298,216 @@ See docs/specs/questions/city-tools-input.md (CT1-CT5).
 `cSC4ViewInputControl` (all 17 functions) is specified by §2. `cSC4ViewInputControlPlaceLot` is specified for its
 lifecycle and input dispatch (§3); the bodies of `PlaceLot`, `CanPlaceLot`, the facing/coverage helpers, the
 preview model and the visual feedback are not, so it is **not** claimed as specified.
+
+`cSC4ViewInputControlQuery` is specified for its creation, lifecycle, input dispatch, message dispatch and pick
+filters (§8; 19 of its 215 functions, 5,907 of 76,564 bytes). The description builders, the dialog fillers and the
+route/path code are not (§8.10), so it is **not** claimed as specified.
+
+## 8. The query tool `cSC4ViewInputControlQuery`
+
+Added 2026-10-21 (re-querytool4 lane). Byte counts and the function inventory are from
+`python tools/coverage.py --owners` at main `fd9beb23`: the owner has 215 functions, 76,564 bytes.
+
+### 8.1 Creation *[compat]*
+
+The 3D view's `ProcessCommand` (`0x007F1C10`) creates the tool for two commands; it first asks the current
+control (3D view slot 24) for its ID and does nothing when that tool is already active:
+
+| Command | Mode `+0x8C` | Skipped when the current ID is | Control ID | Cursor ID |
+|---|---|---|---|---|
+| `0x6A935CF3` | 0 (query) | `0xC7AF928E` | `0xC7AF928E` | `0x816D7F74` |
+| `0x6A935CF4` | 1 (route query) | `0xC7AF928F` | `0xC7AF928F` | `0xCB8D5B54` |
+
+The object is 0xA0 bytes; the constructor (`0x004C4590`) takes (mode, tip delay) and both call sites pass a tip
+delay of 50 (`0x32`). The 3D view then pushes it with `SetCurrentViewInputControl(control, 0)` (slot 25). Mode 1
+is the route-query tool: it alone shows the legend dialog, traces paths and uses the route filter (§8.8)
+*[inferred name]*.
+
+### 8.2 Layout *[compat]*
+
+Base fields `+0x00..+0x20` as §2.2.
+
+| Offset | Type | Constructor value | Meaning |
+|---|---|---|---|
+| `+0x28` | vtable | `0x00A90A78` | message-target sub-object (its `DoMessage` is §8.7; `this` is the object + 0x28) |
+| `+0x2C` | cISC4Occupant* | null | the highlighted (hovered) occupant, held |
+| `+0x40` | uint32 | 0 | that occupant's highlight state before it was highlighted (restored on un-highlight) |
+| `+0x44` | cSC4WinCalloutBox* | null | the hover tip window, held |
+| `+0x48`, `+0x4C` | cIGZWin* | null | mode 1: the legend dialog's full and minimised panes, held |
+| `+0x50` | cRZCallbackTimer | constructed | the hover-tip timer (0x28 bytes) |
+| `+0x78` | bool | true | tip allowed (cleared by message `0x26D31EC2`, set again by `Init` and each timer start) |
+| `+0x7C`, `+0x80`, `+0x84` | float x3 | the global default vector `0x00B21858` (all three from the same dword) | the last terrain point under the cursor |
+| `+0x88` | bool | false | something queriable is under the cursor |
+| `+0x89` | bool | false | a click is in progress (suppresses the tip timer restart) |
+| `+0x8C` | uint32 | mode | §8.1 |
+| `+0x90` | uint32 | tip delay | the timer period passed to the timer start (§8.5) |
+| `+0x94` | bool | false | the 3D view's `GetTerrainQueryEnabled()` (slot 39) at `Init` |
+| `+0x98` | uint32 | 3 | not read by the functions of §8 (Q CT6) |
+| `+0x9C` | cSC4PathView* | null | mode 1: the path view, held |
+
+### 8.3 Slot table (vtable `0x00AA6658`-shaped, at `0x00A90A88`) *[compat]*
+
+Same 30 slots as §2.3 with these overrides; every other slot is the base body (§2.3), including the
+`QueryInterface` shared with the place-lot tool (`0x004BDF10`).
+
+| Slot | Method | Body |
+|---|---|---|
+| 3 | Init | `0x004C57A0` (§8.4) |
+| 4 | Shutdown | `0x004CBA80` (§8.4) |
+| 16 | OnMouseDownL | `0x004D4D70` (§8.6) |
+| 18 | OnMouseUpL | `0x004C4C50` (§8.6) |
+| 20 | OnMouseMove | `0x004CBC70` (§8.5) |
+| 22 | OnMouseExit | `0x004CC0B0` (§8.5) |
+| 26 | deleting destructor | `0x004C5730`: the destructor body `0x004C5750` (release `+0x9C`, destroy the timer `+0x50`, release `+0x4C`, `+0x48`, `+0x44`, then the base destructor), free when `flags & 1` |
+
+Key, character, right-button and wheel input are not handled (base stubs return false).
+
+### 8.4 Init (`0x004C57A0`) and Shutdown (`0x004CBA80`) *[compat]*
+
+`Init`, only when not initialised:
+
+1. Set the control and cursor IDs for the mode (§8.1), then the base `Init` (§2.4).
+2. Subscribe `+0x28` on the message server (`0x00B43CCC`, slot 5), in order, to `0x0A456D95` (tip timer fired),
+   `0x0A456D96` (coverage ring refresh), `0x26D31EC2` (pre-city-shutdown), `0xA6B79602` (view change),
+   `0x66956814` (sim new day), `0x69247DC7`.
+3. Set the timer callback to `MouseTipCallback` (`0x004C4E70`) with this object as its context (timer slot 9);
+   set `+0x78`; store the 3D view's `GetTerrainQueryEnabled()` in `+0x94`.
+4. Create the callout box (0x1B4 bytes, `cSC4WinCalloutBox`), hold it in `+0x44`; set its two style IDs
+   `0xA85F1A83` (slot 11) and `0x0A52F5C6` (slot 10), its rectangle (-40, -40, 40, 40) (slot 17), hide its window
+   (window slot 70) and add that window as a child of the 3D view's window (window slot 14).
+5. Mode 1 only: build the legend dialog from a UI script (`SC4CreateWindowFromScript`, `0x005F9480`; the key
+   words `0x96A006B0` / `0xABB0120F`, child ID `0x6BB92BCB`) under the 3D view's window, with a
+   `cSC4LegendDialogWinProc` (vtable `0x00A90980`, `+0x08` = this tool); look up its child windows `0x0BB0F5E7`
+   (into `+0x48`) and `0x6BB92BCA` (into `+0x4C`) as interface `0x22BA0121` (window slot 36), attach the window
+   proc to each, add each to the 3D view's window and position it from the 3D view's size (window slots 41, 44,
+   45, 56) (Q CT7).
+6. Return true.
+
+`Shutdown`, only when initialised: clear the cursor text with key `0x2A456CB1` (3D view slot 41); remove the
+callout window from the 3D view's window (slot 16) and release `+0x44`; for each of `+0x48`, `+0x4C`: detach the
+window proc (window slot 7 with null, after a QI for `0x5386D516`), remove it from the 3D view's window and release
+it; if a path view is held, unregister it from the renderer (`0x00B43DD0` slot 33), shut it down and release it;
+if an occupant is highlighted, restore its state (`+0x40`, occupant slot 17), `SetHighlightState(0)`, release it
+and clear `+0x40`; unsubscribe the six messages of step 2; stop the timer if it is running (and clear `+0x78`);
+then the base `Shutdown`. Returns true.
+
+### 8.5 Hover: OnMouseMove (`0x004CBC70`) and OnMouseExit (`0x004CC0B0`) *[compat]*
+
+`OnMouseMove(x, z, modifiers)` always returns true. Steps:
+
+1. Clear `+0x88`. No 3D view: return.
+2. Build the mode's hover filter (§8.8) and pick an occupant at (x, z) through it (`PickQueriableOccupant`,
+   §8.8). On a hit set `+0x88`; when the occupant's boolean property `0x6A95E503` is true and the lot manager
+   (`0x00B43D08` slot 14) finds its lot and the lot has a building (lot slot 48), the building replaces the hit.
+3. No hit: pick the terrain (3D view slot 36) into a local point preset to the default vector. If it hits, turn
+   it into a cell (city `0x00B43CEC` slot 95 `PositionToCell`) and get the lot there (lot manager slot 6); if
+   there is a lot with a building, mode 1 takes the building when the route filter accepts it (and sets `+0x88`),
+   mode 0 takes it when it is in occupant group `0x1006` (park). In mode 0 `+0x88` is set whenever the terrain
+   pick hit. Then, when any coordinate differs from `+0x7C/+0x80/+0x84` by 0.0001 or more (float `0x00A9097C`),
+   store the point; with no occupant found, the tip is marked stale.
+   With a hit in step 2 and `+0x94` set, the terrain point is still picked straight into `+0x7C`.
+4. When the occupant differs from the highlighted one `+0x2C`: un-highlight the old one (§8.4 Shutdown wording)
+   and release it; store the new one; if non-null, save its state (occupant slot 16) in `+0x40`, set state 7
+   (slot 17, then `SetHighlightState(7)`) and hold it. A change, a stale tip or no occupant clears the cursor text
+   (key `0x2A456CB1`) and hides the callout.
+5. Unless a click is in progress (`+0x89`): stop the timer, set `+0x78`, start it with period `+0x90` and this
+   object as context (timer slot 6).
+6. If the callout window is visible (window slot 71), move the callout to (x, z) (callout slot 15).
+
+`OnMouseExit()`: stop the timer, clear the cursor text (`0x2A456CB1`), hide the callout, un-highlight and release
+the occupant (as step 4), clear `+0x88`; returns true.
+
+### 8.6 Clicks: OnMouseDownL (`0x004D4D70`) and OnMouseUpL (`0x004C4C50`) *[compat]*
+
+`OnMouseDownL(x, z, modifiers)` always returns true:
+
+1. Stop the timer, clear the cursor text (`0x2A456CB1`), hide the callout.
+2. Modifier bit `0x01` set (Q CT8):
+   - pick at (x, z) with the automaton filter (vtable `0x00A90A18`, `0x004C4D10`; interface `0xA9B40F05`); a hit
+     goes to the object at city slot 43, its slot 34 (Q CT9); a miss posts message `0x2ACD2CF3` with data (x, z)
+     (message server slot 3);
+   - then pick a stoplight prop (§8.8); a hit goes to city slot 40, its slot 37 (Q CT9).
+3. Modifier bit `0x02` set: pick the terrain at (x, z) (result not tested *[quirk]*), turn the point into a cell
+   and call the residential simulator (`0x00B43DA4`) slot 59 with (cellX / 4, cellZ / 4), C division rounding
+   toward zero (Q CT10).
+4. Set `+0x89`. Mode 1: `GetOccupantPaths` (`0x004CAC50`) and return; `+0x89` stays set until `OnMouseUpL`.
+5. Mode 0: clear `+0x89`; when step 2 did not run (bit `0x01` clear), `DescribePick(x, z, <three static strings
+   0x00B2185C, 0x00B21870, 0x00B21884>, IsDebugQueryEnabled())` (`0x004D4140`, the query dialog; §8.10);
+   then `PlayResultSound(0)` (slot 28, which does nothing, §2.8).
+
+`OnMouseUpL(x, z, modifiers)`: stop the timer, clear the cursor text, hide the callout, clear `+0x89`; returns
+true.
+
+### 8.7 Messages (`DoMessage`, `0x004D7160`, on the `+0x28` sub-object) *[compat]*
+
+Always returns false.
+
+| Message | Action |
+|---|---|
+| `0x0A456D95` (posted by the timer, §8.9) | when the tip is allowed (`+0x78`), build the tip text (below) |
+| `0x0A456D96` | recalculate the 3D view's coverage helper (slot 49, `RecalcCoverage`) |
+| `0x26D31EC2` | clear `+0x78` |
+| `0x66956814` | every tenth day *[inferred]* (`0x00B43D5C` slot 7, then its slot 26, mod 10 == 0), when the debug info window `0x00B2184C` and its flag `0x00B21848` are set, refresh its two strings `0x00B21840`, `0x00B21844` (window slot 32) |
+| `0xA6B79602` | read the cursor position (window manager slot 33) and run `OnMouseMove` there |
+| `0x69247DC7` | with a path view held: clear its paths (`UpdatePaths`, `0x007DDC30`) and `ShowAllRoutesThatIntersectCityRect` (§8.10) |
+
+Tip text (`0x0A456D95`), two strings (title, body):
+
+- An occupant is highlighted: mode 1 asks `GetBuildingOccupantTrafficInfo` (buildings `0x278128A0`) or
+  `GetNetworkOccupantTrafficInfo` (networks `0xC772BF98`); mode 0 dispatches on the type: flora `0x74758926` and
+  props `0xA823821E` give the exemplar's display name (§8.8 name rule), buildings `GetBuildingOccupantTipInfo`
+  (which may also return an icon), networks `GetNetworkOccupantSummaryInfo`, power poles `0x2890D4DE` and
+  landfill `0x6A11BD2B` a fixed localised string.
+- No occupant: when the terrain query is enabled (`+0x94`) `GetTerrainSummaryInfo` fills it.
+- With the terrain query enabled the body gets a debug line `x=%.1f y=%.1f z=%.1f\ncell x=%d cell z=%d` from
+  `+0x7C..+0x84` and the cell; an empty title becomes a fixed string first.
+- A non-empty result is shown: the callout gets the text (style group `0x46A006B0`, instance `0x856DDBAC`, plus
+  the icon when there is one), `SetTip` (`0x004C5BA0`, §8.10) and the cursor text is updated; an empty result
+  hides the callout (Q CT11 for the exact display calls).
+
+### 8.8 Pick filters and picks *[compat]*
+
+All picks go through the renderer (`0x00B43DD0`) slot 65 (x, z, filter, &hit); the hit object's slot 3 gives the
+occupant, which is QI'd for the wanted interface (the result is held by the caller).
+
+| Filter (vtable) | `IsOccupantIncluded` | Accepts |
+|---|---|---|
+| hover, mode 0 (`0x00A909B0`) | `0x004C37B0` | buildings, power poles, landfill, network occupants; flora and props only when their exemplar has property `0x8A416A99` |
+| route, mode 1 (`0x00A909E4`) | `0x004C39A0` | buildings; network occupants (interface `0xA821EF94`) of any of the network types 0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12 (not 4 or 5) |
+| stoplight (`0x00A90A4C`) | `0x004C3AD0` | props in occupant group `0x5002` or `0x5003` |
+| automaton (`0x00A90A18`) | `0x004BDF90` | (not in this owner; Q CT9) |
+
+`PickQueriableOccupant(x, z, &out, filter)` (`0x004C4C90`) wants `0x26BB767E` (cISC4Occupant);
+`PickStoplightProp(x, z, &out)` (`0x004C4DC0`) wants `0xE9793A65`; both return true on a hit, false (and null)
+otherwise or without a renderer.
+
+Display name of a flora/prop (`0x004C3810`): the exemplar's string property `0x899AFBAD`, else the localised
+string named by property `0x8A416A99`, else property `0x20` (the exemplar name) *[inferred order]*.
+
+### 8.9 Timer callbacks *[compat]*
+
+- `MouseTipCallback(context)` (`0x004C4E70`): with a message server, send a `cRZMessage2Standard` of type
+  `0x0A456D95` to the context's `+0x28` target (server slot 7) and release it.
+- `CoverageRingCallback` (`0x004C4EE0`): with a message server, post a `cRZMessage2Standard` of type
+  `0x0A456D96` to all (server slot 4) and release it.
+
+### 8.10 Inventory
+
+Covered by §8 (19 functions, 5,907 bytes): `004C4590` constructor, `004C5730` / `004C5750` destructors, `004C57A0`
+Init, `004CBA80` Shutdown, `004D4D70` OnMouseDownL, `004C4C50` OnMouseUpL, `004CBC70` OnMouseMove, `004CC0B0`
+OnMouseExit, `004D7160` DoMessage (dispatch; the tip display tail is Q CT11), `004C4C90` PickQueriableOccupant,
+`004C4DC0` PickStoplightProp, `004C4D10` automaton pick, `004C4E70` MouseTipCallback, `004C4EE0`
+CoverageRingCallback, `004C39A0` / `004C3AD0` filter predicates, `004C3810` display name, `007DDC30` UpdatePaths.
+`004C37B0` (mode-0 predicate) is described but belongs to another owner.
+
+Remainder (196 functions, 70,657 bytes; the next rounds, Q CT12): the query dialogs (`DoQueryDialog`
+`0x004D3C30`, `DescribePick` `0x004D4140`, `DoZoneBasedQueryDialog`, `DoNeighborConnectionQueryDialog`), the
+description writers (`WriteDetailedDebugInfo` `0x004D12A0`, `DescribeCell`, `DescribeBuilding`,
+`DescribePopulation`, `DescribeDemand`, `WriteBuildInfo`, `WriteDesirabilityEquation`, `WriteOutcomeStats`,
+`GetLotHeadlines`), the tip builders (`GetBuildingOccupantTipInfo`, `GetNetworkOccupantSummaryInfo`,
+`GetTerrainSummaryInfo`, the traffic-info pair), the about fifty `SetOrGet*` dialog field fillers with
+`SetOrGetControlValue`, the `SetStaticControl*` / `SetSliderControlValue` helpers, the route code (`MakeRoutePath`,
+`GetOccupantPaths` and its building/network variants, `ShowAllRoutesThatIntersectCityRect`,
+`CalculateTripVolumeFromTrafficPaths`, `DoesRouteCrossCell`, `GetRouteTravelTypes`), `SetHighlightState`,
+`SetTip`, `SetLegendMinimized`, `IsDebugQueryEnabled`, `PlayOccupantQuerySound`, the rating helpers, and 42
+reach-attributed helpers. The exact list is the owner's rows of `coverage.py --owners` minus the covered list.
