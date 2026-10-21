@@ -133,7 +133,7 @@ generated index: the questions live one file per spec, so read only the file for
 | port-developers | 0 | 11 | PD12 | - |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 14 | GLUE22, PV14 | - |
-| prop-lotconfig | 0 | 7 | PL15 | - |
+| prop-lotconfig | 0 | 8 | PL20 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | residential | 0 | 17 | RS18 | - |
@@ -144,4 +144,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **56** | **974** | | |
+| **total** | **56** | **975** | | |
