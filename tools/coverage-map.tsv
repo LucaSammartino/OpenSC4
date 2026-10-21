@@ -80,18 +80,18 @@ cSC4DisasterInstance*	disasters	simulation	disasters.md	core/src/disasters	disas
 cSC4FireOccupant	disasters	simulation	disasters.md, fire-flames.md	core/src/disasters	-	-
 cSC4Flame	fire flames	renderer	fire-flames.md	-	-	-
 cSC4ToxicOccupant	disasters	simulation	disasters.md	core/src/disasters	-	-
-cSC4AutomataManager	automata (managers, records)	simulation	automata.md, automata-support.md	core/src/automata	-	-
+cSC4AutomataManager	automata (managers, records)	simulation	automata.md, automata-support.md, automata-managers.md	core/src/automata	-	-
 cSC4AutomataControllerManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
 cSC4AutomataScriptSystem	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
 cSC4OccupantGroupTemplate	automata groups	simulation	occupant-groups.md	-	-	-
 tKeyEffect	automata groups	simulation	occupant-groups.md	-	-	-
 cSC4AutomataController	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4Automaton	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-cSC4VehicleManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
-cSC4PedestrianManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
-cSC4AircraftManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
-cSC4WatercraftManager	automata (managers, records)	simulation	automata.md, watercraft.md	core/src/automata	-	automata
-cSC4TrafficAutomataManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
+cSC4VehicleManager	automata (managers, records)	simulation	automata.md, automata-managers.md	core/src/automata	-	automata
+cSC4PedestrianManager	automata (managers, records)	simulation	automata.md, automata-managers.md	core/src/automata	-	automata
+cSC4AircraftManager	automata (managers, records)	simulation	automata.md, automata-managers.md	core/src/automata	-	automata
+cSC4WatercraftManager	automata (managers, records)	simulation	automata.md, watercraft.md, automata-managers.md	core/src/automata	-	automata
+cSC4TrafficAutomataManager	automata (managers, records)	simulation	automata.md, automata-managers.md	core/src/automata	-	-
 cSC4OccupantManager	occupant manager	simulation	occupant-manager.md	core/src/occupant_manager	occmgr_shadow	occmgr
 cSC4NetworkManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	netmgr
 cSC4NetworkLotManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	netlot
@@ -168,29 +168,33 @@ fn:operator>>	city and save file	simulation	-	-	-	-
 fn:operator<<	city and save file	simulation	-	-	-	-
 # ---- simulation: no spec yet
 cSC4Aircraft	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
-cSC4Airplane	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
+cSC4Airplane	automata (vehicles, animation)	simulation	aircraft.md, automata.md, automata-managers.md	-	-	-
 cSC4Helicopter	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
 cSC4Watercraft	automata (vehicles, animation)	simulation	watercraft.md, automata.md	-	-	-
-cSC4Vehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
-cSC4TrainCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md	-	-	-
-cSC4Train	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
-cSC4PedestrianOneShot	automata (vehicles, animation)	simulation	pedestrians.md	-	-	-
+cSC4Vehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
+cSC4TrainCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md, automata-managers.md	-	-	-
+cSC4Train	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
+cSC4PedestrianOneShot	automata (vehicles, animation)	simulation	pedestrians.md, automata-managers.md	-	-	-
 cSC4Pedestrian	automata (vehicles, animation)	simulation	pedestrians.md, automata.md	-	-	-
-cSC4TrafficAutomaton	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
-cSC4EmergencyVehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
-cSC4FireTruck	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
-cSC4PatrolCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
-cSC4Tank	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
+cSC4TrafficAutomaton	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
+cSC4EmergencyVehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
+cSC4FireTruck	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
+cSC4PatrolCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
+cSC4Tank	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
 cSC4SimFireCrew	automata (vehicles, animation)	simulation	pedestrians.md, vehicles.md	-	-	-
-cSC4TrafficEffectManager	automata (vehicles, animation)	simulation	pedestrians.md, vehicles.md	-	-	-
+cSC4TrafficEffectManager	automata (vehicles, animation)	simulation	pedestrians.md, vehicles.md, automata-managers.md	-	-	-
 cSC4RiotPolice	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
-cSC4TrailerVehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
-cSC4Bus	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
-cSC4GetawayVan	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
+cSC4TrailerVehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
+cSC4Bus	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
+cSC4GetawayVan	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
 # the generator (class 0x4A1628C5) and attractor (0x6A1628BA) controller records of automata.md §3.5, specified as
 # records (Write / Read addresses and fields) and implemented by core/src/automata (controller.rs). Only these two of
 # the vehicle-side classes are specified: automata.md §0 says the short form covers the records and the hooks, not
 # movement, path following or animation, so the rest of this block keeps spec -
+cSC4CarjackedVehicle	automata (vehicles, animation)	simulation	automata-managers.md, vehicles.md	-	-	-
+cSC4MayorLimo	automata (vehicles, animation)	simulation	automata-managers.md, vehicles.md	-	-	-
+cSC4Ambulance	automata (vehicles, animation)	simulation	automata-managers.md, vehicles.md	-	-	-
+cSC4MassTransitTrain	automata (vehicles, animation)	simulation	automata-managers.md, vehicles.md	-	-	-
 cSC4AutomataGenerator	automata (vehicles, animation)	simulation	automata.md	core/src/automata	-	-
 cSC4AutomataAttractor	automata (vehicles, animation)	simulation	automata.md	core/src/automata	-	-
 cSC4AutomataTuningParams	automata (vehicles, animation)	simulation	automata-support.md	-	-	-
@@ -499,6 +503,7 @@ fn:convertStringToFloatValue	resource and exemplar editor	ui	-	-	-	-
 # ---- framework
 cSC4App	application	framework	-	-	-	-
 cWinSC4App	application	framework	-	-	-	-
+cSC4AutomataCOMDirector	application	framework	automata-managers.md	-	-	-
 cSC4*COMDirector	application	framework	-	-	-	-
 cGZ*COMDirector	application	framework	-	-	-	-
 cSC4Preferences	application	framework	-	-	-	-

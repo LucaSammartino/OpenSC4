@@ -24,7 +24,7 @@ generated index: the questions live one file per spec, so read only the file for
 | A | automata |
 | AA | audio-ambience |
 | AC | animation-coordinator |
-| AD | advisors |
+| AD | advisors, automata-managers |
 | AF | aircraft |
 | AM | automata |
 | AN | automata-support |
@@ -160,6 +160,7 @@ generated index: the questions live one file per spec, so read only the file for
 | audio-ambience | 1 | 8 | AA10 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
+| automata-managers | 2 | 0 | AD3 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
 | budget-window | 1 | 13 | BW15 | questions/budget-window.md |
@@ -274,4 +275,4 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **264** | **1118** | | |
+| **total** | **266** | **1118** | | |
