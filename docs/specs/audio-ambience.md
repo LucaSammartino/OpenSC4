@@ -16,7 +16,7 @@ service that turns occupants into positional sounds, runs the occupant alarm clo
 "attention rectangle", and drives the ambience layers once per tick. The layers themselves
 (`cSC4AudioAmbienceLayer`) are specified here as the interface the manager calls (§8) plus their `Init`,
 tuning and filter creation (§8.1–8.3); their score and loop algorithms (`_UpdateAmbienceScores` `0x004E5920`,
-`_UpdateAmbienceLoops` `0x004E5D50`) are left to a later section (§9, **AA1**). The sound-system events the
+`_UpdateAmbienceLoops` `0x004E5D50`) are specified in §8.6–§8.7 (AA1, answered). The sound-system events the
 manager posts are the ones `cSC4AudioSoundManager::DoEvent` handles ([audio.md](audio.md) §8.3).
 
 ---
@@ -379,8 +379,9 @@ where "cleared" says the destination is zeroed just before the read):
 
 The two ease values are converted **unsigned** (`FILD` plus 2^32 when negative, `0x004E8105`–`0x004E8130`);
 the call is the same setter as the default, so a missing `0x8AA039B7` still yields 0.1 s. The function returns 1
-on success. The roles of `+0x20`/`+0x24`, `+0x34`/`+0x38`, `+0x1E0`–`+0x1F0`, `+0x200`, `+0x204` and the
-four vectors belong to the scoring and loop code (still AA1, §9).
+on success. The two ease values are rates per millisecond (§8.7). Roles: `+0x34`/`+0x38`, `+0x200` in §8.5;
+`+0x1E8`, `+0x1F0`, `+0x204` and curves `+0x1A0`/`+0x1B0` in §8.6; curve `+0x1C0` in §8.7; `+0x20`/`+0x24` and the
+vectors in §8.3–§8.5. `+0x1E0`, `+0x1E1` and `+0x1EC` are read by none of the routines this spec covers.
 
 Worked example: an exemplar with only `0x6A3FBDDA = 0x1234` and `0x0A4168E1 = 30.0` gives loop sound
 `0x1234`, `+0x20 = +0x24 = 30.0`, `+0x1E0 = +0x1E1 = 0`, every other value its default.
@@ -505,11 +506,22 @@ Called after every `_DoStageUpdate` (§5) with the elapsed ms `e` and the manage
 | 3 | `FLT_MAX` (`0x7F7FFFFF`) |
 | 4 | the zoom index (`[0x00B43DD8] + 0x0C`) |
 | 5 | `peaks / +0xA8` (`FILD` then `FIDIV`, `0x004E659C`); 0.0 when `+0xA8 = 0` |
-| 6 | the u32 at `+0x11C` of the audio director's `+0x54` member (`0x004E82A0`), converted unsigned |
+| 6 | the u32 at `+0x11C` of the object at audio-director `+0x54` (`0x004E82A0`), converted unsigned — see below |
 | other | unchanged |
 
    `peaks` starts at 0 (`0x004E6511`), so with no group step mode 1 gives 0 and mode 5 gives 0 over the stale
    `+0xA8`.
+
+   **Mode 6** (`0x004E65AE`–`0x004E65FC`): the audio director is the static object `0x00B21978`
+   (`GetSC4AudioCOMDirector` `0x004ECD60`), so its `+0x54` is `0x00B219CC`. The director's constructor
+   (`0x004EC72D`) zeroes it and nothing else writes it: `PostAppInit` (`0x004EBF40`) fills `+0x48`, `+0x4C`,
+   `+0x50` (the ambience manager, class `0x6A12F51C`), `+0x58`, `+0x5C`, `+0x60`, `+0x64` but not `+0x54`; the
+   other 14 callers of `GetSC4AudioCOMDirector` read other members; the export has no data reference to
+   `0x00B219CC`. So the read is `[0 + 0x11C]` and the original **faults** (access violation in the one-instruction
+   getter `0x004E82A0`); with a null director the code also passes null. A layer with `+0x38 = 6` is therefore
+   unusable in the shipped game *[compat]*. `+0x11C` is the tracked-occupant count of the ambience manager (§1),
+   which sits one member earlier at `+0x50`; a reimplementation that must not crash may return that count
+   *[inferred]*, but no shipped behaviour exists to match.
 6. **Sample positions** (only when `+0xA8 ≠ 0`; `_GetEquallyDistributedPositions` `0x004E6070`) into the array
    `+0x3C` (9 × 3 floats), count back into `+0xA8`. Up to 9 group centres → all of them, in list order.
    10 or more → a 3 × 3 grid over the attention rectangle `+0x10` (floats x0, z0, x1, z1): `sx := trunc((x1 −
@@ -534,10 +546,68 @@ from Q (|cos| of the angle), sharpened by `a / (m − a)`.
 
 ### 8.6 `_UpdateAmbienceScores(e)` (`0x004E5920`)
 
-Not yet specified (AA1, §9). Known so far: it first calls `_UpdateFreshnessParameters` (`0x004E4AA0`), then
-walks the freshness-score list `+0x180`, starting/stopping score events through the sound-event system
-`0x00B21954` (ids `0xEA2D827C`, `0xEA2C0390`, `0x2A2C0393`, IID `0x5B523BA4`) by `+0xDC`, `+0xE0`, byte `+0x0D`
-and per-entry bytes `+8`/`+9`; tuning `+0x1F0` enters as `float(u32) × 0.01`.
+The argument `e` is not read (pop 4). `Pause` (slot 28, `0x004E6210`) stores its flag in byte `+0x0D` and then
+calls this and `_UpdateAmbienceLoops` with `e = 0x7FFFFFFF`.
+
+**Freshness parameters** (`_UpdateFreshnessParameters` `0x004E4AA0`, called first). When `+0x0C` (this update's
+`CanHandle`, §8.5) is clear: `+0xDC := 0`, `+0xE0 := 0`. Otherwise, with `s = +0xAC` (§8.5 step 5):
+
+1. `+0xDC := (trunc(curve +0x1B0 at s) × +0x1E8) >> 10` — `_ftol2`, then a 32-bit `IMUL` (low half, wraps) and a
+   **logical** shift (`SHR`, `0x004E4AD2`). Tuning: curve `0x6A4132F3`, `+0x1E8` = `0xAA3FC48E` (default 1024).
+2. `+0xE0 := trunc(curve +0x1A0 at s)` (curve `0xCA4132E9`), then by `+0x204` (§8.2): 0 → `+0xE0 × 50 / 100`,
+   1 → `+0xE0 × 75 / 100` (32-bit signed multiply, signed division truncating toward zero; the compiler's
+   reciprocal `0x51EB851F`, `SAR 5`, plus the sign bit, `0x004E4B00`–`0x004E4B34`), any other value → unchanged.
+
+So `+0xDC` is the score volume (0..1024 scale when the curve stays in 0..1024) and `+0xE0` the play percent.
+
+**The score list `+0x180`** (filled by `LoadFreshnessScore`, §8.1). Each entry: byte `+0x08` *playing*, byte
+`+0x09` *ready* (the entry has a loaded score; not written here), `+0x0C` last sent play percent, `+0x10` last
+sent volume, `+0x20` the freshness player (`cFreshPlayer`, the object `DoEvent` §6 acts on). "Send X(...)"
+below means: create event X through the sound-event system `0x00B21954` (slot 13 `+0x34`, IID `0x5B523BA4`);
+when that succeeds, put the player in the payload's void1 (slot 33 `+0x84`), the listed values in data1
+(slot 11 `+0x2C`) and data2 (slot 16 `+0x40`), post it (slot 12 `+0x30`); a failed create skips the rest of that
+send. The event reference is released before the next create and at the end of the entry.
+
+Let `on := (+0xDC ≠ 0) and (+0xE0 ≠ 0) and (+0x0D = 0)`. For each entry in list order:
+
+1. **Start** — when `+0xDC ≠ 0`, `+0xE0 ≠ 0`, entry not playing, entry ready and `+0x0D = 0`: last percent :=
+   0, last volume := 0; send `0xEA2D827C` (SetMinMaxDistance, §6) with data1 `= trunc(d)` and data2 `=
+   trunc(d × 16.0)` where `d := float(+0x1F0) × 0.01 × Z`, then send `0xEA2C0390` (SetHeadRelative + Play)
+   with data1 `= (+0x34 = 4)`; when that create succeeds, playing := 1. (Details below.)
+2. **Stop** — when not `on` and the entry is playing: send `0x2A2C0393` (3-second fade to 0) with no data;
+   when that create succeeds, playing := 0 and the entry ends here. A failed create falls through to step 3
+   with the entry still playing *[compat]*.
+3. **Update** — only when the entry is playing (reached when `on`, or after a failed stop create):
+   a. **Divisions**, skipped when `+0x34 = 4` (the head-relative mode): for `i = 0 .. +0xA8 − 1` (signed
+      count; none when ≤ 0), with column `i mod 3` and row `i div 3`, direct calls on the player: slot 33
+      (`+0x84`) `(col, row, trunc x, trunc y, trunc z)` of sample position `i` (`+0x3C + 12·i`, §8.5 step 6;
+      `_ftol2` each), then slot 32 (`+0x80`) `(col, row, 1)`. Then, if fewer than 9 were set, slot 32
+      `(col, row, 0)` for each remaining `i` up to 8. These are sent every update, without change detection.
+      (By name order in the export these are `SetDivision3DPosition` and `SetDivisionEnabled` *[inferred]*.)
+   b. **Volume** — when `+0xDC ≠` last volume: last volume := `+0xDC`, then (still playing) send `0x4A3DA208`
+      (SetVolume) with data1 `= +0xDC`.
+   c. **Play percent** — when `+0xE0 ≠` last percent: if playing, send `0x0A414C5C` (SetPlayPercent) with
+      data1 `= +0xE0`; then last percent := `+0xE0` whether or not the send happened.
+
+Step 1 falls into the same entry's step 3, so a freshly started score also gets its divisions, its volume
+(last volume was reset to 0, so the first nonzero `+0xDC` is sent) and its play percent in the same update.
+
+**Distance `d`** (`0x004E59B5`–`0x004E5A1B`): `+0x1F0` (tuning `0x6A3FC4C7`, default 100) is loaded with `FILD`
+plus 2^32 (`0x00A80AA8`) when negative (unsigned), multiplied by the f32 0.01 (`0x00A823A4`, 0x3C23D70A) and
+then by `Z`, the f32 at `0x00B21A30`, in x87 extended precision, and stored once as f32. `Z` is the listener's
+zoom-5 distance scale, written only by `cSC4AudioListener::_CalculateZoomValues` (`0x004F18C0`, the fifth of
+five floats `0x00B21A20`–`0x00B21A30`, each `A[i] × B[i] × k` from the listener's tuning) and 0.0 before it
+first runs. data1 is `_ftol2` of the stored f32; data2 is `_ftol2` of (that f32 × 16.0, `0x00A8D45C`, extended).
+
+Worked examples:
+- Freshness: `+0xAC = 20.0` with the default curves gives `+0xDC = 1024 × 1024 >> 10 = 1024` and `+0xE0 =
+  100`, then 50 when `+0x204 = 0`, 75 when it is 1. A curve value of −1 gives `0xFFFFFC00 >> 10 = 4194303`
+  (logical shift) *[compat]*. `+0x0C` clear gives 0/0, which stops every playing score (step 2).
+- Distance: `+0x1F0 = 100`, `Z = 1000.0`: `0.01f × 100 × 1000` is 999.99997764… in extended precision and
+  rounds to f32 1000.0, so data1 = 1000, data2 = 16000. With `Z = 0.0` both are 0.
+- One ready entry, ticks with (`+0xDC`, `+0xE0`) = (0, 0), (512, 50), (512, 50), (512, 60), then `+0x0D` set:
+  tick 1 nothing; tick 2 SetMinMaxDistance, Play, divisions, SetVolume 512, SetPlayPercent 50; tick 3 only the
+  divisions; tick 4 divisions and SetPlayPercent 60; the paused tick sends the fade (`0x2A2C0393`).
 
 ### 8.7 `_UpdateAmbienceLoops(e)` (`0x004E5D50`)
 
@@ -548,8 +618,29 @@ and per-entry bytes `+8`/`+9`; tuning `+0x1F0` enters as `float(u32) × 0.01`.
 **The ease object `+0xE8`** holds a vector (target `+0x00`, current `+0x0C`), a scalar (target `+0x18`, current
 `+0x1C`), a flag byte `+0x38` and the two ease times of §8.2. `SetTarget(v, snap)` (`0x004F8240` vector,
 `0x004F7BD0` scalar) stores the target and, when `snap` is set or the flag `+0x38` is clear, also the current;
-the getters (`0x004F8280`, `0x00808620`) return the current. The time step `0x004F8650` (316 bytes) is not
-yet specified (§9).
+the getters (`0x004F8280`, `0x00808620`) return the current. The scalar is an **integer** (s32 target and
+current; the setter `0x004F7BD0` copies the word). The two §8.2 values are **rates per millisecond**, not
+times: `+0x20` (layer `+0x108`, default 0.1 = 100 units/s) for the vector, `+0x24` (layer `+0x10C`, default 4.0
+= 4000 volume units/s) for the scalar.
+
+**Time step** `Step(t)` (`0x004F8650`, `t` an f32 in ms, pop 4); the only caller is `_UpdateAmbienceLoops`:
+
+1. Vector: `dx := tx − cx`, `dz := tz − cz` (x87 extended), `dy := ty − cy` stored f32; `L := sqrt((dz² + dx²)
+   + dy²)`, kept extended and also stored as f32 `L32`. When `L32 = 0.0` (`FUCOMPP`; NaN counts as unequal)
+   the vector is left alone. Otherwise `k := 1.0 / L` (`0x00B098C4`, extended), `nx := dx·k` and `ny := dy·k`
+   stored f32, `nz := dz·k` extended; `s := t × +0x20` stored f32; `m := L32` when `L32 < s`, else `s` (ties and
+   NaN take `s`). Then `cx := f32(cx + nx·m)` (the product extended), `cy := f32(cy + f32(m·ny))`, `cz :=
+   f32(cz + f32(nz·m))`. Arrival is not snapped: the current lands within rounding of the target.
+2. Scalar: `d := target − current` (32-bit wrapping subtraction); `a := f32(|float(d)|)`. When `a = 0.0`
+   nothing changes. Otherwise `s := f32(t × +0x24)`, `m := a` when `a < s`, else `s`; `current += trunc(sign(d)
+   × m)` (`_ftol2`, toward zero; the sign is `d / a` in extended).
+3. Flag `+0x38 := 1` (both paths, `0x004F8773` and `0x004F8781`). From then on `SetTarget` without `snap` no
+   longer moves the current, so every `SetTarget` before the first step snaps.
+
+Worked examples: scalar 0 → 512 with rate 4.0 and `t = 33`: steps of 132 give 132, 264, 396, 512 (the last
+move is the remaining 116). With `t = 16.5` the step is 66.0 exactly. Vector (0, 0, 0) → (3, 0, 4), rate 0.1,
+`t = 20`: `L = 5`, `s = 2.0`, current (1.2, 0, 1.6); the next step moves the remaining 3.0. `Pause` passes
+`e = 0x7FFFFFFF`, which becomes `t = 2^31` as an f32 and reaches every target in one step.
 
 Each loop entry of the list `+0x184` (filled by `AddAmbienceLoop`, §8.1) has the sound id `+0x08`, the
 instance id `+0x0C` (0 = not playing), the last sent position `+0x10`–`+0x18` and the last sent volume `+0x1C`.
@@ -577,7 +668,7 @@ because the last values were reset to 0; a later tick with `CanHandle` false pos
 
 | # | Question | What would settle it |
 |---|---|---|
-| **AA1** | Remaining layer behaviour: `_UpdateAmbienceScores` (`0x004E5920`, §8.6, with `_UpdateFreshnessParameters` `0x004E4AA0` and the freshness-score list), the ease time step `0x004F8650` (§8.7), and the role of the audio director's `+0x54` member `+0x11C` (§8.5 mode 6). Init, tuning, filters, filtering, group layers, `Update` and the loops are §8.1–8.5, §8.7. | a follow-up section of this spec |
+| **AA1** | Answered 2026-10-21: §8.6 (scores and freshness parameters), §8.7 (ease rates and time step), §8.5 mode 6 (the director member is never set; the original faults). | — |
 | **AA4** | Type `0xC7CC75F1` of the init walk: which automaton class (vehicle?) owns it. `0xA823821E` is props. | the occupant type table |
 
 ## 10. Conformance tests
@@ -605,3 +696,11 @@ because the last values were reset to 0; a later tick with `CanHandle` false pos
     occupied grid cell); with 9 centres it keeps all 9 (§8.5 step 6).
 14. `+0x38 = 5` with no groups (`+0xA8 = 0`) gives `+0xAC = 0.0`, target volume 0, and no start event (§8.5,
     §8.7).
+15. Freshness: `+0x0C` set, `+0xAC = 20.0`, default curves, `+0x204 = 1` gives `+0xDC = 1024`, `+0xE0 = 75`; a
+    curve value of −1 for `+0xDC` gives 4194303 (§8.6).
+16. A ready score with (`+0xDC`, `+0xE0`) going (0,0) → (512,50) sends, in order, `0xEA2D827C`, `0xEA2C0390`,
+    the division calls, `0x4A3DA208` 512 and `0x0A414C5C` 50 in that one update; unchanged values next update
+    send only the division calls; `+0x0D` set sends `0x2A2C0393` (§8.6).
+17. Ease scalar 0 → 512 at rate 4.0 with `t = 33` takes four steps (132, 264, 396, 512); a vector 5 units away
+    at rate 0.1 with `t = 20` moves 2.0 along the line (§8.7).
+18. `+0x38 = 6` on an `Update` that passes `CanHandle`: the original faults reading `0x0000011C` (§8.5 mode 6).

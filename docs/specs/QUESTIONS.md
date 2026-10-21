@@ -118,7 +118,7 @@ generated index: the questions live one file per spec, so read only the file for
 |---|---:|---:|---|---|
 | advisors | 0 | 6 | AD7 | questions/advisors.md |
 | application | 3 | 2 | AP6 | questions/application.md |
-| audio-ambience | 7 | 2 | AA10 | questions/audio-ambience.md |
+| audio-ambience | 6 | 3 | AA10 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -201,4 +201,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **195** | **1026** | | |
+| **total** | **194** | **1027** | | |
