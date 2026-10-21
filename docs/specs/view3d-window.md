@@ -124,8 +124,7 @@ Order of effects:
 
    The pairing is read from the instruction order (`0x007E998C`–`0x007E9C06`: each string load is followed by its
    ID push). Cheat text is matched by the cheat manager, not here; what each cheat does is `ProcessCheatCode`
-   (`0x007F3510`), reached through the window message `0x230E27AC` (§6). Per-cheat effects are not specified here
-   (VW1).
+   (`0x007F3510`), reached through the window message `0x230E27AC` (§6); per-cheat effects are §3.1.
 4. `cGZWin::Init` runs (`0x007E9C27`); its bool result is stored at `+0xE4` and is `Init`'s return value.
 5. The window names itself `"cSC4View3DWin"` (`0x007E9C2E`), sets its window ID class `0x9A47B417` (`0x007E9C62`,
    the class ID by which `GetChildAs(0x9A47B417, 0xFA47B3F9, …)` finds it, landfill.md §3.2), sizes itself to its
@@ -139,6 +138,68 @@ Order of effects:
 10. If the app's current city record (app slot 39 `+0x9C`, field `+0x204`) is non-zero, the progress screen is
    created (`CreateProgressScreen`, `0x007E5BB0`) — a city is being loaded.
 11. `0x00562DD0` is called last.
+
+### 3.1 What each cheat does (`ProcessCheatCode`, `0x007F3510`) *[compat]*
+
+**How it is called.** The window `DoMessage` (§6) handles message `0x230E27AC`: it takes the message's string
+(`data2`, string slot 5), splits it into a command line (`cRZCmdLine`, `0x007F40D4`) and calls
+`ProcessCheatCode(cheat ID = data1, command line)` on the object's `+0` sub-object (`0x007F40E2` passes `this − 0xC`).
+The `bool` result is the window message's result (`0x007F40EE`), so `false` means "not consumed". In the command line,
+argument 0 is the cheat word itself; `argc` (command-line slot 3, `+0xC`) counts it, and argument *i* is command-line
+slot 16 (`+0x40`). The dispatch is a compare tree on the unsigned cheat ID (`JA`/`JZ`/`JC`, `0x007F3517`–`0x007F3888`);
+an ID not in the table returns `false` (`0x007F39C0`).
+
+**Installing an input control** (four cheats) means: allocate the control, hold one reference, call the window's own
+`SetCurrentViewInputControl(control, 2)` (slot 25, `+0x64`; the same call the catalog makes, city-tools-input.md §3.1),
+release the reference, return `true`. If the allocation fails the call is still made with a null control.
+
+| Cheat | ID | Effect | Returns |
+|---|---|---|---|
+| `GOL` | `0x8973A69C` | installs a new `cSC4ViewInputControlGameOfLife` (0x88 bytes, ctor `0x004BC310`) | true |
+| `SizeOf` | `0xCA7BC5B5` | needs `argc ≥ 2`. `v := atof(argument 1)` (`RZAtofA`, stored as a float). If `v < 0.9f` (`0x00A88218`) then `v := 0.9f`, else if `v > 64.0f` (`0x00A9552C`) then `v := 64.0f` (equal to a bound is kept). Calls the camera control's (`+0xF0`) `0x007CD6E0` with `v` (below) | true; false when `argc < 2` |
+| `TastyZots` | `0xAA7A2746` | new occupant filter (below), flags: `+0xD` := **not** old `+0xD`, `+0xE` := old `+0xE`, `+0xC` := old `+0xC`; `SetCurrentViewFilterInfo` | **false** *[quirk]* |
+| `Zoneria` | `0x6A7A276E` | new occupant filter, flags: `+0xC` := **not** old `+0xC`, `+0xD` := old `+0xD`, `+0xE` := 0 (not copied) *[quirk]*; `SetCurrentViewFilterInfo` | **false** *[quirk]* |
+| `TerrainQuery` | `0x8AB730AE` | byte `+0x126` := 1. If `argc ≥ 2` and argument 1, lower-cased (`MakeLower`), equals `"off"` (`0x00A82B94`), `+0x126` := 0. `+0x126` is what `GetTerrainQueryEnabled` (slot 39, `0x007E5900`) returns | true |
+| `RenderProp`, `RP` | `0x88F3D4BB`, `0x88F3D4BC` | `argc ≥ 3`: `SetRenderProperties(argument 1, argument 2)` (`0x007ECDA0`). `argc = 2`: `SetRenderProperties(argument 1, "")`. `argc < 2`: shows the text `"Cheat code usage: renderprop <property name> [0|1] [true|false]"` (`0x00ABCF70`) through the window's slot 45 (`+0xB4`; an empty stub in this build, `0x00648F10`, so nothing is shown) | true; false when `argc < 2` |
+| `Recorder` | `0x6976AFA0` | `AddWinAnimationRecorder(true)` (`0x007F0840`, below) | true |
+| `WatchMeMove` | `0x4A972F37` | byte `+0x124` := 1. Nothing clears it here | true |
+| `You don't deserve it` | `0x4A82253E` | byte `+0x446` := 1. Nothing clears it here | true |
+| `LotPlop` | `0x4AC096C6` | installs a new `cSC4ViewInputControlPlaceLot` (0x158 bytes, ctor `0x004C0430`) built with arguments `(0, 0, 0, 0)` | true |
+| `BuildingPlop` | `0x4AC096CA` | the same control built with `(1, 0, 0, 0)`: the first argument is the only difference | true |
+| `toll` | `0x0BFD8064` | installs a new `cSC4ViewInputControlTollBooth` (0x38 bytes, ctor `0x004D9E80`) | true |
+
+No cheat reads its arguments beyond those listed: extra words are ignored.
+
+**The two filter cheats** (`TastyZots` `0x007F391F`, `Zoneria` `0x007F365D`). Both build a fresh 16-byte
+`cSC4RealisticOccupantFilter` (vtables `0x00A88084`/`0x00A8806C`, flag bytes `+0xC`/`+0xD`/`+0xE` all 0; `TastyZots`
+through `0x004666C0`, `Zoneria` inline with the same stores) and take the current filter from `+0x320` (the field
+`GetCurrentViewFilterInfo`, slot 18, returns). The old filter's flags are copied (as in the table) only when it answers
+`QueryInterface(0xE4FDA3D4)` and that interface's slot 5 returns `0x8A7A1C2C` (the realistic filter's type,
+occupant-manager.md filter table); otherwise the new filter keeps all three flags at 0. The new filter is handed to
+`SetCurrentViewFilterInfo` (slot 19, `+0x4C`) and the cheat's references are released. Each use therefore toggles one
+flag: `TastyZots` toggles `+0xD`, `Zoneria` toggles `+0xC` and clears `+0xE`. What the flags hide is the filter's
+business (occupant-manager.md, `cSC4RealisticOccupantFilter`: `+0xD` = 0 hides holders with property `0x5001`, `+0xC`
+gates lot base textures, `+0xE` = 1 shows every prop). Both branches end on the shared `return false` (`0x007F39A8` →
+`0x007F39C0`), so the cheat message counts as unconsumed although the filter changed *[quirk]*. If the 16-byte
+allocation fails and the old filter is realistic, the original writes through a null pointer (crash); a replacement
+may skip the cheat instead.
+
+**`SizeOf` and the camera control (`0x007CD6E0`).** The camera control stores the new value in its float `+0xF0` only
+when the value differs from the current one **and the current one** lies strictly between 0.0 (`0x00A81054`) and
+1000.0 (`0x00A8FAF0`): the bounds test the old value, not the new one. When it stores and its `+0xC` is non-null, it
+recomputes its zoom/rotation and position parameters, updates the view utilities (global `0x00B43DD8`), refreshes the
+scroll bounds when `+0x14C == +0x150`, and posts message `0xA6B79621` (PostViewRefresh) carrying its `+0x100` and
+`+0x110` vectors. With the cheat's clamp the stored value is always in [0.9, 64].
+
+Example: `SizeOf 100` stores 64.0; `SizeOf 0.5` stores 0.9; `SizeOf abc` stores 0.9 (`atof` gives 0); `SizeOf`
+alone does nothing and returns false.
+
+**`Recorder` (`AddWinAnimationRecorder(bool add)`, `0x007F0840`).** Looks for a child window with ID `0xA802B4EB`
+(`cIGZWin` slot 34). With `add` true and no such child: creates a `cSC4WinAnimationRecorder` (0x218 bytes, ctor
+`0x00796380`), sets its output directory to the user-data directory (`SL::UserDataDirectory`) + `"RecordedAnimations"`
++ `"\"` (`SetAnimationOutputDirectory(dir, 1)`, `0x00795100`), gives it window ID `0xA802B4EB` and adds it as a child
+(`cIGZWin` slot 14). With `add` true and the child present: nothing. With `add` false: removes the child if present
+(slot 15). Always returns true. The cheat only ever passes true, so a second `Recorder` is a no-op.
 
 ## 4. `Shutdown` (window slot 5, `0x007F1320`) *[compat]*
 
@@ -206,7 +267,7 @@ Every message is first offered to `nsSC4TutorialSystem::FilterUICommandMessage` 
 
 | Window message | Effect | Result |
 |---|---|---|
-| `0x230E27AC` (cheat) | `ProcessCheatCode(data1 = cheat ID, data2 = text)` | its result |
+| `0x230E27AC` (cheat) | `ProcessCheatCode(data1 = cheat ID, command line split from data2)` (§3.1) | its result |
 | 3 (command), data1 `0x49D993D4` | the window takes keyboard focus, then `InvokeCatalogItemCommand(data2, data3)` | true |
 | 3, data1 `0x287259F6` (button) | not handled here (the filter, §6.3, owns buttons) | base `cGZWin` |
 | `0x13` (mouse enter) | hover byte `+0x118` := 1 (`0x007F402F`), `Update24HourClockHover`, base | base |
@@ -272,5 +333,5 @@ message (`cSC4BudgetSimulator::PostBondMessage`); refreshes the mayor rating bar
 
 ## 8. Open questions
 
-See [questions/view3d-window.md](questions/view3d-window.md): VW1 (per-cheat effects of `ProcessCheatCode`), VW2
+See [questions/view3d-window.md](questions/view3d-window.md): VW1 answered (§3.1); VW2
 (identity of the two GZCOM helpers in `Init`), VW3 (length of the command-name table), VW4 (filter branches), VW5 (the `+0xEC` helper and the established/obliterated branch).

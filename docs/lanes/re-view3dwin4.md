@@ -1,8 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-view3dwin4: cSC4View3DWin window spec (view3d-window.md) | `re-view3dwin4` / (RE spec lane) | ready: new docs/specs/view3d-window.md §1-§6a, questions VW1-VW5 filed, ABI rows proposed in build-runs/abi-rows-re-view3dwin4.tsv (8 rows); docs-only, no gate, no game runs | 1. Answer VW1 (per-cheat effects of ProcessCheatCode 0x007F3510). 2. Spec AddGUI/RemoveGUI (0x007EDEB0/0x007EF200) and the input handlers. 3. Land the 8 ABI rows for vtables 0x00ABCE2C/0x00ABCE1C. |
+| re-view3dwin4: cSC4View3DWin window spec (view3d-window.md) | `re-view3dwin4` / (RE spec lane) | in progress (round 2): docs/specs/view3d-window.md §1-§6a, questions VW1-VW5 filed, ABI rows proposed in build-runs/abi-rows-re-view3dwin4.tsv (8 rows); docs-only, no gate, no game runs | 1. Answer VW1 (per-cheat effects of ProcessCheatCode 0x007F3510). 2. Spec AddGUI/RemoveGUI (0x007EDEB0/0x007EF200) and the input handlers. 3. Land the 8 ABI rows for vtables 0x00ABCE2C/0x00ABCE1C. |
 
-## Report
+## Handoff
+
+Goal (round 2): VW1 per-cheat contracts, then AddGUI 0x007EDEB0 / RemoveGUI 0x007EF200 and the input handlers in
+view3d-window.md; keep round-1 facts (§1-§6a, below as "Round 1 report").
+Done: §3.1 ProcessCheatCode per-cheat table + filter cheats + SizeOf camera store + Recorder; VW1 answered (commit: this one).
+Next: spec AddGUI/RemoveGUI as §6b (re_query asm into build-runs/, read by offset), then ProcessKeyDown/Up, mouse handlers.
+Facts: build-runs/peread.py va:n:f|s|x reads exe data; ProcessCheatCode this = obj+0; cmdline slot3 argc, slot16 arg(i).
+Do not apply the 8 ABI rows (build-runs/abi-rows-re-view3dwin4.tsv); no game gate; docs only.
+
+## Round 1 report
 
 What changed:
 
