@@ -182,7 +182,7 @@ offsets 0..999.
 | run | command | result |
 |---|---|---|
 | all kernels, random | `check.py 150` | 168/168 kernels, 747,927 pixels, 0 mismatches, registers and ESP preserved |
-| texel sweep | `EXH=1 check.py 1 <25 kernels>` | EXH_RESULT |
+| texel sweep | `EXH=1 check.py 1 <25 kernels>` | every 16-bit texel (65,536) and every A8 byte, columns 0-3 of rows 0, 2, 4, 6, 12 and column 0 of keyed rows 1, 3, 5, 7, 13: 25 kernels, 1,312,000 pixels, 0 mismatches |
 | span methods | `meth.py 300` | solid 9,551 px, alpha 9,275, gradient 8,617, alpha gradient 9,298: 0 mismatches |
 | alpha gradient, w > 256 | `BIGW=1 meth.py 200` | 6,323 px, 0 mismatches against the packed formula of section 6 |
 | blend forms | `blendproof.py` (numpy) | 2,425,356,288 (d, s, w) cases, 0 mismatches for both packed forms |
