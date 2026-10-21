@@ -126,7 +126,7 @@ generated index: the questions live one file per spec, so read only the file for
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 1 | 11 | BW13 | questions/budget-window.md |
+| budget-window | 3 | 11 | BW15 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
@@ -166,14 +166,14 @@ generated index: the questions live one file per spec, so read only the file for
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
-| network-occupants | 17 | 3 | NO21 | questions/network-occupants.md |
+| network-occupants | 21 | 3 | NO24 | questions/network-occupants.md |
 | network-rules | 3 | 9 | NR16 | questions/network-rules.md |
-| network-tools | 11 | 0 | NT18 | questions/network-tools.md |
+| network-tools | 14 | 0 | NT21 | questions/network-tools.md |
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
 | occupants-props | 11 | 5 | OP17 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
-| output-streams | 2 | 0 | OS3 | questions/output-streams.md |
+| output-streams | 6 | 0 | OS7 | questions/output-streams.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
@@ -199,7 +199,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
-| timers | 1 | 0 | TM2 | questions/timers.md |
+| timers | 2 | 0 | TM3 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 4 | 2 | TU10 | questions/tutorial.md |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **207** | **1090** | | |
+| **total** | **221** | **1090** | | |
