@@ -520,12 +520,44 @@ Only the second argument is read. If filter = `+0x58`: return. Otherwise AddRef 
 it in `+0x58`. Then, if `+0x44` is clear and the occupant manager exists: reload pass over the whole-city list for
 the type filter `+0x5C`, the step being `OccupantFilterIterationFunction(o)` (§6.3).
 
-### 10.4 `LoadOccupantModelsForZoomAndRotation(o, zoom, rot)` (`0x00495430`) — outline only
+### 10.4 `LoadOccupantModelsForZoomAndRotation(o, zoom, rot)` (`0x00495430`) *[compat]*
 
-Reads o's exemplar (slot `+0x18`), zbit = 1 << zoom, rbit = 1 << rot, the model holder (slot `+0x4C`) and the type,
-and `cSC4ModelMakerUtility::GetOccupantModelClass(o)` (compared with `0xAA123BF9`); uses the mask helpers of §7.6.
-Not yet specified: the decompiler output is unusable and the 1329-byte body has not been traced from the
-instructions (remainder, §20).
+Traced from the instructions (the decompiler output is unusable). RET 0xC, no result. zbit = 1 << zoom,
+rbit = 1 << rot; ex = o's exemplar (slot `+0x18`).
+
+1. h = o's model holder (slot `+0x4C`), AddRef'd when present. zmask = h slot `+0x30`, rmask = h slot `+0x38`
+   (both 0 without h). If (zmask & zbit) and (rmask & rbit): already loaded, release h, return.
+2. t = o slot `+0x1C`; n = h slot `+0x0C` (0 without h). If n = 0: `AddModels(o, zoom, rot, t, 1)` (§12),
+   release h, return.
+3. If `cSC4ModelMakerUtility::GetOccupantModelClass(o)` = `0xAA123BF9`: release h, return (nothing reloads).
+4. fixed = ex has property `0xE83A081D` (ex slot `+0x0C`, existence only). lz = `0x0048EA00(zmask)` and
+   lr = `0x0048EA30(rmask)` (§7.6: the loaded zoom, 5 when none; the loaded rotation, 4 when none).
+5. Two id lists, each created with 4 zero entries: N for the request and L for what is loaded.
+   `GetOccupantOrientationAndState(o, &a, &b)` (`0x00496670`), then the occupant form of
+   `GetAllModelInstanceIDs` (`0x00497120`, graphics-formats GF7) fills N for (zoom, rot) and, unless lz = 5 or
+   lr = 4, fills L for (lz, lr); both calls pass a, fixed, b and no offset/key outputs. (So the "fixed" byte is
+   the flag argument of GF7 here, not the occupant's flag `0x80`.)
+6. Decision, in this order:
+   - N ≠ L (element-wise list comparison): **reload**.
+   - lr ≠ rot and ex has property `0x4835C6A6` (ex slot `+0x24` non-null): **reload**.
+   - fixed, or lr = rot: **nothing** (the masks are not updated either; a pure zoom change whose ids are equal
+     leaves zmask without zbit, so the next call re-runs this decision).
+   - otherwise: **rotate in place**.
+7. Reload = `RemoveModels(o, t)` (§12.1) then `AddModels(o, zoom, rot, t, 1)`.
+8. Rotate in place: θ = -(`+0xF8`) (the camera yaw saved by §10.1 step 4, float). For each of the holder's n
+   instances (array filled by h slot `+0x10`): read its transform record (instance slot `+0x24` into a record
+   pre-set to identity: two header bytes 0, 3×3 identity, translation 0, then a 1.0), overwrite the 3×3 part
+   with the Y rotation rows (cos θ, -0, sin θ), (0, 1, -0), (-sin θ, 0, cos θ) (cos θ and sin θ rounded to float;
+   the zero entries come from multiplying by the cached cos 0 = 1 and sin 0 = 0 of the shared double constant at
+   `0x00A80990`, so the -0 signs are as listed), increment header byte 0 and OR 4 into header byte 1, and write it
+   back (instance slot `+0x28`). After the loop (also when n = 0) set the holder's masks: h slot `+0x34(zbit)`,
+   h slot `+0x3C(rbit)`.
+9. Free both lists and the instance array, release h.
+
+Example: a building loaded at (zoom 4, rot 0), requested (4, 1); same ids, no `0x4835C6A6`, no `0xE83A081D`:
+every instance keeps its position, gets the yaw rotation of the current camera, and the holder's masks become
+zoom bit 4 and rotation bit 1 (h slot `+0x34`/`+0x3C` are setters; whether they replace or OR is the model holder's
+contract).
 
 ## 12. Model loading (partial)
 
@@ -610,7 +642,7 @@ Round 2 cases (§6, §7, §9, §10):
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
-Specified: 16091 bytes; remainder (not yet specified or only outlined): 18614 bytes. The remainder is **not empty**,
+Specified: 17420 bytes; remainder (not yet specified or only outlined): 17285 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
 
 | address | bytes | name | section |
@@ -701,7 +733,7 @@ so this spec does not yet claim the whole owner.
 | `0x00494B30` | 584 | cSC4ModelMaker::EnableDeferredOccupantOperations | §8.7 |
 | `0x00494DA0` | 1463 | cSC4ModelMaker::DoPostCityInit | §3.2 |
 | `0x00495360` | 193 | cSC4ModelMaker::OccupantFilterIterationFunction | §6.3 |
-| `0x00495430` | 1329 | cSC4ModelMaker::LoadOccupantModelsForZoomAndRotation | §10.4 (outline) |
+| `0x00495430` | 1329 | cSC4ModelMaker::LoadOccupantModelsForZoomAndRotation | §10.4 |
 | `0x00495970` | 66 | FUN_00495970 | §8.6 |
 | `0x004959C0` | 313 | cSC4ModelMaker::DoViewFilterChange | §10.3 |
 | `0x00495B00` | 642 | cSC4ModelMaker::DoZoomAndRotationChange | §10.1 |
