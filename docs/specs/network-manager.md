@@ -727,14 +727,60 @@ original's order, exactly (answers NM13):
   more than 193 cells after growing it by one)
   and is part of the §17.3 capture: `B = (dword[+0x7C] − dword[+0x78]) / 4`, read on the cISC4NetworkLotManager
   pointer (the object, vtable `0x00AA7958` at +0).
-- Iteration (`ProcessUpdateList` takes `begin()` each time): buckets ascending, each from its head. So with no
-  resize during the pass, keys run by ascending `key mod B`, and within one bucket the latest inserted first.
+- Iteration (`ProcessUpdateList` takes `begin()` each time, `0x0060FA2E`-`0x0060FA4A`: scan from bucket 0 to the
+  first non-null head, copy that node's key, call `UpdateRoadsInCell`, then erase **by key value**): buckets
+  ascending, each from its head. A key that `UpdateAvenueStyle` already erased is simply never reached; erasing the
+  current key a second time is a no-op. Within one bucket the order is "latest inserted first" **only if no resize
+  happened after those keys went in** (see the rehash example below).
 
 Example (`B = 193`): a lot-state message queues, in this order, keys `0x0102` (258, bucket 65), `0x0201` (513,
 bucket 127), `0x0143` (323, bucket 130) and `0x00C3` (195, bucket 2). Processing order: `0x00C3`, `0x0102`,
 `0x0201`, `0x0143`. Ascending key order would give `0x00C3`, `0x0102`, `0x0143`, `0x0201`, so if `0x0201` and
 `0x0143` both create a lot, their configuration draws are swapped. With keys 2 (bucket 2) inserted before 195
 (bucket 2), the order is 195 then 2.
+
+**Replay contract for `pending`** *[compat]* (NM13, round 2; for exact shadow replay of the draw order):
+
+1. *No insert during a pass.* The only insert call sites are `0x0060FE45` and `0x0060FFBF` (§8.5 table below), both
+   inside `DoMessage` for `0x07699455` and `0xE8BDA2E7`, and each runs `ProcessUpdateList` after its own insert
+   loop. Both messages reach the manager **queued**: the zone manager's `PlaceZone` posts `0x07699455`
+   (landfill.md, answered Q4) and `cSC4Lot::SetState` posts `0xE8BDA2E7` (`0x006C3100`, lot-developer.md §3.2), so
+   lots created or removed inside a pass cannot re-enter the handler. Nothing reachable from `UpdateRoadsInCell`
+   inserts. So no resize happens during a pass, and the processing order is fixed when the insert loop ends.
+2. *Empty between messages.* `ProcessUpdateList` loops while the count (`+0x84`) is non-zero, so `pending` is empty
+   whenever no handler is running. The **only** state that carries from one message to the next is `B`. The set is
+   not saved (§2) and no other code touches it (the constructor `0x0060EE50` is its only setup; the manager is created
+   with the city, §1, so `B = 193` at every city creation or load).
+3. *Closed form for `B`.* Let `P` be the largest value of `count + 1` passed to resize by any insert call since the
+   manager was created (duplicates count: an insert of a key that is already present still asks for `count + 1`).
+   Then `B` is the first prime of the `0x00A829B0` list that is not below `max(100, P)`. Within one message, `count`
+   before an insert is the number of distinct keys inserted so far by that message. For the zoning handler every key
+   of the grown rect is distinct, so `P` for that message is the number of rect cells inside the city. For example,
+   `B` stays 193 until a message inserts its 194th distinct key (or calls insert with 193 keys present), then becomes
+   389, then 769 from the 389th, and so on.
+4. *Insertion order of one message.* Zoning (`0x0060FD6C`-`0x0060FE4A`): the rect `{x0−1, z0−1, x1+1, z1+1}`
+   (inclusive) walked with **x fastest**: for z ascending, for x ascending; cells with `x < 0`, `z < 0`,
+   `x ≥ city cells x` or `z ≥ city cells z` are skipped; key `= (x & 0xFF) << 8 | z`. Lot state: the §6.3 walk order,
+   duplicates included.
+5. *What a shadow must capture, and when.* Before the original handles the message (any time after its previous
+   `0x07699455`/`0xE8BDA2E7` handler returned; by 2, there is no in-flight state): `B = (dword[+0x7C] −
+   dword[+0x78]) / 4` on the cISC4NetworkLotManager object. `dword[+0x84]` must read 0; anything else is a capture
+   difference to report. Together with the §17.3 generator capture this is the complete input of the pass's draw
+   order. A shadow may instead track `B` itself by rule 3 from 193 at city creation or load, provided it sees every
+   insert call; the captured value is the check.
+6. *Typed replay.* Start from an empty set with the captured `B`; for each key in rule-4 order apply the insert rule
+   (resize with `count + 1`, then head-push unless present); then process by rule 1's iteration, skipping keys
+   already erased by an avenue flood. After the pass, compare the shadow's `B` with the original's (read the same
+   way): a check, never a copy. Do not substitute ascending key order or adopt the original's output order.
+
+Rehash example (from the rules above, not game output; reproduced by a simulation of rules 3, 4 and 6): a zoning
+change of the 12 × 12 rect x 10–21, z 10–21 in a city of at least 23 × 23 cells inserts the 196 keys of x 9–22,
+z 9–22, starting from `B = 193`. The 194th insert (key `0x1416`, x 20, z 22) resizes to `B = 389`; the last two keys
+go in afterwards. Processing then starts `0x1409`, `0x140A`, `0x140B`, … (buckets 72, 73, 74, …: `key mod 389`), not
+at the lowest key `0x0909`. Bucket 359 holds `0x0C0A` (18th insert, old bucket 187) and `0x0F14` (161st insert, old
+bucket 0). The rehash walks old bucket 0 first, so `0x0F14` lands in bucket 359 first and `0x0C0A` is pushed on its
+head: `0x0C0A` is processed **before** `0x0F14`, although it went in earlier. Six buckets of this example are ordered
+earliest-first in this way (359, 360, 361, 368, 369, 370), so "latest first" is not a rule once a resize has happened.
 
 **Every path that changes network lots** (answers NM11; from the call and cross-reference graph of the
 executable, no data references to any of these functions):
@@ -1156,7 +1202,8 @@ The tools, models, remap tables and retrofit are presentation or legacy. A FreeC
   by an in-process read of the generator's layout between network lot manager operations (§17.1–§17.3); the draw
   is compared exactly, no resync.
 - ~~**NM13.** The original's key order within one `ProcessUpdateList` pass.~~ **Answered (re-netmgr-rng4):**
-  **DIFFERS** from FreeCity4's ascending key order: hash order `key mod B`, latest first, `B` from 193 up (§8.5).
+  **DIFFERS** from FreeCity4's ascending key order: hash order `key mod B`, latest first unless a resize intervened, `B` from 193 up; capture and
+  typed-replay rules in §8.5 "Replay contract for `pending`".
 
 ---
 
@@ -1221,6 +1268,13 @@ Each test names its section. "City" means a fresh 64 × 64 city unless stated ot
 26. **Pending order** (§8.5, NM13). `B = 193`, keys queued `0x0102`, `0x0201`, `0x0143`, `0x00C3` → processed
     `0x00C3`, `0x0102`, `0x0201`, `0x0143`. Keys 2 then 195 (same bucket) → 195 first. 194 distinct keys queued
     from empty → `B = 389` after the 194th insert.
+27. **Pending rehash order** (§8.5 replay contract). `B = 193`, city ≥ 23 × 23, zoning change rect x 10–21,
+    z 10–21 → 196 keys inserted, resize to `B = 389` at insert 194 (key `0x1416`); processing starts `0x1409`,
+    `0x140A`, `0x140B`, `0x140C`; bucket 359 yields `0x0C0A` then `0x0F14`, bucket 368 `0x0909` then `0x0C13`.
+    After the pass `B = 389`, count 0. A following zoning change of one cell from that state keeps `B = 389`
+    (its 9 keys run by `key mod 389`).
+28. **Duplicate insert resizes** (§8.5 rule 3). With 193 distinct keys present at `B = 193`, inserting one of them
+    again resizes to `B = 389` and adds nothing (count stays 193).
 
 ---
 
@@ -1306,7 +1360,8 @@ differs among `count ≥ 2` compatible candidates is a mismatch, and a resync af
 Exactness also needs the original's draw order. Within one `ProcessUpdateList` pass that order follows the hash
 set's iteration order (§8.5 *[compat]* note, NM13), which FreeCity4 currently replaces by ascending key order
 *[choice]*. The two orders agree whenever at most one cell of the pass draws. For exact replay when several draw,
-the capture also takes `pending`'s bucket count `B` (§8.5) and the step processes keys in the original's order.
+the capture also takes `pending`'s bucket count `B` (§8.5) and the step processes keys in the original's order;
+the §8.5 replay contract (rules 1-6) gives what to capture, when, and the typed replay.
 
 ### 17.4 Worked vectors (from foundations §6.1; implementers compare their generator against these)
 
