@@ -38,6 +38,7 @@ pub(crate) mod landfill;
 pub(crate) mod landvalue;
 pub(crate) mod lot_developer;
 pub(crate) mod mysims;
+pub(crate) mod mysims_pool;
 pub(crate) mod neighbors;
 pub(crate) mod network_bridge;
 pub(crate) mod network_geometry;

@@ -1,0 +1,128 @@
+{
+  "format": 1,
+  "name": "mysim_job_search_no_home",
+  "spec": [
+    "mysims 4.7.1"
+  ],
+  "description": "Dispatch flag 0x80 clear (no home): only resetPath reaches the pathfinder; FindNewJob is false and no 0xEBA06BF4. An invalid location with notify false fails without any call; with dispatch state 2 it is stored unvalidated; a valid location is stored without a search.",
+  "steps": [
+    {
+      "op": "mysim_job_search",
+      "home": null,
+      "searches": [
+        {
+          "wealth": 2,
+          "end_cell": [
+            5,
+            5
+          ]
+        }
+      ],
+      "expect": {
+        "results": [
+          false
+        ],
+        "notifies": [
+          false
+        ],
+        "calls": [
+          "Reset",
+          "ClearAllTravelTypeFlags",
+          "SetRouteInfo"
+        ],
+        "flags": 0,
+        "dest_flags": [
+          0
+        ],
+        "find_path": 0
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": {
+        "rect": [
+          10,
+          10,
+          12,
+          11
+        ]
+      },
+      "searches": [
+        {
+          "wealth": 2,
+          "notify": false
+        }
+      ],
+      "expect": {
+        "results": [
+          false
+        ],
+        "calls": []
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": {
+        "rect": [
+          10,
+          10,
+          12,
+          11
+        ]
+      },
+      "state": 2,
+      "searches": [
+        {
+          "wealth": 2
+        }
+      ],
+      "expect": {
+        "results": [
+          true
+        ],
+        "notifies": [
+          true
+        ],
+        "calls": [],
+        "destination": {
+          "occupant": null,
+          "by_occupant": true,
+          "by_commute": true,
+          "cell": [
+            -1,
+            -1
+          ]
+        }
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": {
+        "rect": [
+          10,
+          10,
+          12,
+          11
+        ]
+      },
+      "searches": [
+        {
+          "location": 66,
+          "notify": false
+        }
+      ],
+      "expect": {
+        "results": [
+          true
+        ],
+        "notifies": [
+          false
+        ],
+        "calls": [],
+        "destination": {
+          "occupant": 66
+        }
+      }
+    }
+  ]
+}

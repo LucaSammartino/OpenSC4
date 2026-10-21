@@ -1,0 +1,467 @@
+{
+  "format": 1,
+  "name": "mysim_pool_import_cache",
+  "spec": [
+    "mysims 4.12"
+  ],
+  "description": "Import writes one record per member with a guid (portrait <first>_<guid hex>, converted into the MySim directory, F.ini deleted). Cache: count 2 with the cache loaded clears it (flag 0) and the next call returns the 2 new imports; count 0 keeps the loaded cache with the old imports although MySims.dat is now the magic alone; Import before any GetMySimTemplates clears nothing and the first call reads the new file.",
+  "steps": [
+    {
+      "op": "mysim_pool",
+      "mysim_dir": "C:\\U\\SimCity 4\\MySim\\",
+      "install": {
+        "registry": {
+          "InstallPath": "D:\\Sims"
+        },
+        "dirs": [
+          "D:\\Sims",
+          "D:\\Sims\\UserData2"
+        ],
+        "male_text": "Male",
+        "zodiac": [
+          "Aries",
+          "Taurus",
+          "Gemini",
+          "Cancer",
+          "Leo",
+          "Virgo",
+          "Libra",
+          "Scorpio",
+          "Sagittarius",
+          "Capricorn",
+          "Aquarius",
+          "Pisces"
+        ],
+        "families": [
+          {
+            "export": "D:\\Sims\\UserData2\\Export",
+            "ini": "D:\\Sims\\UserData2\\Export\\F.ini",
+            "entries": [
+              [
+                "WebPages",
+                "FamilyDescription",
+                "Newb/"
+              ],
+              [
+                "FamilyInfo",
+                "sims_family_nummembers",
+                "2"
+              ],
+              [
+                "FamilyInfo",
+                "sims_family_name",
+                "Newb"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_name",
+                "Bob"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_gender",
+                "MALE"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_zodiac",
+                "LEO"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_guid",
+                "107307"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember2_name",
+                "Betty"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember2_gender",
+                "Female"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember2_guid",
+                "255"
+              ]
+            ]
+          }
+        ]
+      },
+      "steps": [
+        "get",
+        "import",
+        "get"
+      ],
+      "expect": {
+        "results": [
+          [],
+          2,
+          [
+            {
+              "name": "Bob Newb",
+              "male": true,
+              "sign": 4,
+              "bitmap": 0,
+              "portrait": "Bob_1a32b.bmp"
+            },
+            {
+              "name": "Betty Newb",
+              "male": false,
+              "sign": 0,
+              "portrait": "Betty_ff.bmp"
+            }
+          ]
+        ],
+        "loaded": true,
+        "file_hex": "aae4324a08426f62204e657762010409426f625f31613332620a4265747479204e65776200000842657474795f6666",
+        "installation": "D:\\Sims",
+        "converted": [
+          [
+            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family1_face.jpg",
+            "C:\\U\\SimCity 4\\MySim\\Bob_1a32b.bmp"
+          ],
+          [
+            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family2_face.jpg",
+            "C:\\U\\SimCity 4\\MySim\\Betty_ff.bmp"
+          ]
+        ],
+        "deleted": [
+          "D:\\Sims\\UserData2\\Export\\F.ini"
+        ]
+      }
+    },
+    {
+      "op": "mysim_pool",
+      "mysim_dir": "C:\\U\\SimCity 4\\MySim\\",
+      "install": {
+        "registry": {
+          "InstallPath": "D:\\Sims"
+        },
+        "dirs": [
+          "D:\\Sims",
+          "D:\\Sims\\UserData2"
+        ],
+        "male_text": "Male",
+        "zodiac": [
+          "Aries",
+          "Taurus",
+          "Gemini",
+          "Cancer",
+          "Leo",
+          "Virgo",
+          "Libra",
+          "Scorpio",
+          "Sagittarius",
+          "Capricorn",
+          "Aquarius",
+          "Pisces"
+        ],
+        "families": [
+          {
+            "export": "D:\\Sims\\UserData2\\Export",
+            "ini": "D:\\Sims\\UserData2\\Export\\F.ini",
+            "entries": [
+              [
+                "WebPages",
+                "FamilyDescription",
+                "Newb/"
+              ],
+              [
+                "FamilyInfo",
+                "sims_family_nummembers",
+                "2"
+              ],
+              [
+                "FamilyInfo",
+                "sims_family_name",
+                "Newb"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_name",
+                "Bob"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_gender",
+                "MALE"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_zodiac",
+                "LEO"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_guid",
+                "107307"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember2_name",
+                "Betty"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember2_gender",
+                "Female"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember2_guid",
+                "255"
+              ]
+            ]
+          }
+        ]
+      },
+      "steps": [
+        "get",
+        "import"
+      ],
+      "expect": {
+        "results": [
+          [],
+          2
+        ],
+        "loaded": false,
+        "cached": 0
+      }
+    },
+    {
+      "op": "mysim_pool",
+      "mysim_dir": "C:\\U\\SimCity 4\\MySim\\",
+      "install": {
+        "registry": {
+          "InstallPath": "D:\\Sims"
+        },
+        "dirs": [
+          "D:\\Sims",
+          "D:\\Sims\\UserData2"
+        ],
+        "male_text": "Male",
+        "zodiac": [
+          "Aries",
+          "Taurus",
+          "Gemini",
+          "Cancer",
+          "Leo",
+          "Virgo",
+          "Libra",
+          "Scorpio",
+          "Sagittarius",
+          "Capricorn",
+          "Aquarius",
+          "Pisces"
+        ],
+        "families": [
+          {
+            "export": "D:\\Sims\\UserData2\\Export",
+            "ini": "D:\\Sims\\UserData2\\Export\\F.ini",
+            "entries": [
+              [
+                "WebPages",
+                "FamilyDescription",
+                "Newb/"
+              ],
+              [
+                "FamilyInfo",
+                "sims_family_nummembers",
+                "2"
+              ],
+              [
+                "FamilyInfo",
+                "sims_family_name",
+                "Newb"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_name",
+                "Bob"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_gender",
+                "MALE"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_zodiac",
+                "LEO"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_guid",
+                "107307"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember2_name",
+                "Betty"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember2_gender",
+                "Female"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember2_guid",
+                "255"
+              ]
+            ]
+          }
+        ]
+      },
+      "steps": [
+        "import",
+        "get",
+        "drop_families",
+        "import",
+        "get"
+      ],
+      "expect": {
+        "results": [
+          2,
+          [
+            {
+              "name": "Bob Newb"
+            },
+            {
+              "name": "Betty Newb"
+            }
+          ],
+          null,
+          0,
+          [
+            {
+              "name": "Bob Newb"
+            },
+            {
+              "name": "Betty Newb"
+            }
+          ]
+        ],
+        "loaded": true,
+        "cached": 2,
+        "file_hex": "aae4324a"
+      }
+    },
+    {
+      "op": "mysim_pool",
+      "mysim_dir": "C:\\U\\SimCity 4\\MySim\\",
+      "install": {
+        "registry": {
+          "InstallPath": "D:\\Sims"
+        },
+        "dirs": [
+          "D:\\Sims",
+          "D:\\Sims\\UserData2"
+        ],
+        "male_text": "Male",
+        "zodiac": [
+          "Aries",
+          "Taurus",
+          "Gemini",
+          "Cancer",
+          "Leo",
+          "Virgo",
+          "Libra",
+          "Scorpio",
+          "Sagittarius",
+          "Capricorn",
+          "Aquarius",
+          "Pisces"
+        ],
+        "families": [
+          {
+            "export": "D:\\Sims\\UserData2\\Export",
+            "ini": "D:\\Sims\\UserData2\\Export\\F.ini",
+            "entries": [
+              [
+                "WebPages",
+                "FamilyDescription",
+                "Newb/"
+              ],
+              [
+                "FamilyInfo",
+                "sims_family_nummembers",
+                "2"
+              ],
+              [
+                "FamilyInfo",
+                "sims_family_name",
+                "Newb"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_name",
+                "Bob"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_gender",
+                "MALE"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_zodiac",
+                "LEO"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember1_guid",
+                "107307"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember2_name",
+                "Betty"
+              ],
+              [
+                "FamilyInfo",
+                "sims_familymember2_gender",
+                "Female"
+              ]
+            ]
+          }
+        ]
+      },
+      "steps": [
+        "import",
+        "get"
+      ],
+      "expect": {
+        "results": [
+          1,
+          [
+            {
+              "name": "Bob Newb",
+              "sign": 4
+            }
+          ]
+        ],
+        "loaded": true
+      }
+    },
+    {
+      "op": "mysim_pool",
+      "mysim_dir": "C:\\U\\SimCity 4\\MySim\\",
+      "steps": [
+        "import",
+        "find"
+      ],
+      "expect": {
+        "results": [
+          0,
+          false
+        ],
+        "file_hex": null
+      }
+    }
+  ]
+}

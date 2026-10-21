@@ -1,0 +1,115 @@
+{
+  "format": 1,
+  "name": "mysim_job_search_neighbor",
+  "spec": [
+    "mysims 4.7.1"
+  ],
+  "description": "End cell (-1, 37) out of bounds, a neighbour city found, city 64 x 64: the location becomes cell (0, 37), no occupant, the regional city's position in the neighbour fields; true. No city across the connection: false.",
+  "steps": [
+    {
+      "op": "mysim_job_search",
+      "home": {
+        "rect": [
+          10,
+          10,
+          12,
+          11
+        ]
+      },
+      "searches": [
+        {
+          "wealth": 2,
+          "end_cell": [
+            -1,
+            37
+          ],
+          "city": [
+            3,
+            4
+          ]
+        }
+      ],
+      "expect": {
+        "results": [
+          true
+        ],
+        "destination": {
+          "occupant": null,
+          "by_occupant": false,
+          "by_commute": true,
+          "cell": [
+            0,
+            37
+          ],
+          "neighbor_city": [
+            3,
+            4
+          ]
+        }
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": {
+        "rect": [
+          10,
+          10,
+          12,
+          11
+        ]
+      },
+      "searches": [
+        {
+          "wealth": 2,
+          "end_cell": [
+            70,
+            64
+          ],
+          "city": [
+            0,
+            0
+          ]
+        }
+      ],
+      "expect": {
+        "results": [
+          true
+        ],
+        "destination": {
+          "cell": [
+            63,
+            63
+          ]
+        }
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": {
+        "rect": [
+          10,
+          10,
+          12,
+          11
+        ]
+      },
+      "searches": [
+        {
+          "wealth": 2,
+          "end_cell": [
+            -1,
+            37
+          ]
+        }
+      ],
+      "expect": {
+        "results": [
+          false
+        ],
+        "notifies": [
+          false
+        ]
+      }
+    }
+  ]
+}
