@@ -40,7 +40,7 @@ class SourceUnionTests(unittest.TestCase):
     def merge_union(self, root, rel, branch):
         merged = self.git(root, "merge", "--no-ff", "--no-commit", branch, check=False)
         self.assertEqual(merged.returncode, 1, merged.stdout + merged.stderr)
-        self.assertIn("<<<<<<<", (root / rel).read_text(encoding="utf-8"))
+        self.assertIn("<" * 7, (root / rel).read_text(encoding="utf-8"))
         self.assertTrue(mt.union_hunks(root, rel))
         self.git(root, "commit", "-qm", "resolved")
 

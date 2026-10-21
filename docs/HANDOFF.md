@@ -7,6 +7,16 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**train42 landed 401c00b18a:** Three-lane docs-only recovery batch: AD4/AD5/AD6 window/Lua contracts answered; partial legacy45/57 and view input/AddGUI specs preserved without whole-owner credit. Both incomplete3/3lanes parked and worktrees retained. Failed experimental train41 was NOTlanded; exemplar interaction remains under isolation. No gate/regress needed for docs-only tree. Missing analysis export restored read-only from newer savedproject; hashes/function-boundary change documented in history/export-recovery-2026-10-21.md, roundedmetrics unchanged. Coverage44.3/34.3/16.1/17.6; rounds101 (open-ended).
+
+**Run4 checkpoint100 (open-ended):**100 rounds;16 trains landed. Coverage44.3/34.3/16.1/17.6, delta since baseline+7.5/+6.0/+4.0/+1.7points. Parked: glue-terrain3, re-terrain4, re-widgets4, re-application4, re-particles4, re-editors4, re-driverdraw4, re-rzservices4, re-legacycontrol4, re-view3dwin4. Target6-8/max3glue; nextcheckpoint125.
+
+**train39 landed 88ee426b97:** 8888 and8 alpha-plane Rust cores added; NO15-NO17 record contracts corrected from bytes, no guessed offsets. Full gate and default union regression PASS. Core-only renderer credit; no shadow-exact or replacement claim. Coverage44.3/34.3/16.1/17.6; rounds98 (open-ended).
+
+**train38 landed f81962bbea:** External PRs3/4 integrated with both histories after conflict and security review. Preserved newer core/shadow/replace metadata, regenerated symbol tables byte-for-byte, tools81PASS. No executable contribution or blocking security findings; path-example ambiguity filedPA3. Full gate63/63PASS; game regression skipped for unchanged runtime after Windows elevation prevented launch. Specs only, no replacement/shadow claim. Coverage44.3/33.2/16.0/17.6; rounds88 (open-ended).
+
+**train37 landed c6dcdfe5af:** Seven-lane batch gate and full union propdev/ports regress PASS. 1555/565, file/INI and language cores added. Propdev replacement promoted. Ports remain candidate-only: PD12, saved-city Read and advisor-approved growth unresolved. Advisor map scaffolding only; AD4/AD5 pending. Renderer precision/format questions remain; no new shadow credit. Coverage44.0/33.2/16.0/17.6; rounds82 (open-ended).
+
 **train36 landed 002ab4e0f7:** Four-lane docs batch: complete8888 and8 alpha-plane specs; EX41-EX45 factory/resource contracts answered; SP3 filed for4444 caller/ABI bridge, no guessedhook. Emulatorproof supports specifiedonly, no in-game shadowverifiedcredit. Train35 engineattempt was notlanded becausemain toolschanged; its code will beregated/regressed in a fresh batch.77tools tests passed forresolverfixee0b5350. Coverage44.0/31.0/16.0/17.3; rounds75 (open-ended).
 
 **Run4 checkpoint75 (open-ended):**75 rounds used;12 trains landed. Coverage42.9/31.0/16.0/17.3, baseline delta+6.1/+2.7/+3.9/+1.4 points. Parked3/3: glue-terrain3, re-terrain4, re-widgets4, re-application4, re-particles4, re-editors4, re-driverdraw4, re-rzservices4. Train35 correctedRustmodule union, gatePASS/candidatepropdevregress running. Simgridsround2 joint/reloadvalidation inprogress, no promotionyet. Target6-8/max3glue; nextcheckpoint100.
@@ -17,28 +27,28 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target6-8 live lanes (coordinator target8), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
-**Coverage after train36:**44.0/31.0/16.0/17.3; baseline36.8/28.3/12.1/15.9, delta+7.2/+2.7/+3.9/+1.4 points. 13 trains landed; 75 rounds used, no total cap. Next25-round checkpoint 100.
+**Coverage after train42:**44.3/34.3/16.1/17.6; baseline36.8/28.3/12.1/15.9, delta+7.5/+6.0/+4.0/+1.7 points. 17 trains landed; 101 rounds used, no total cap. Next25-round checkpoint 125.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`, `run4-launch.py` (saved guarded Workflow,maxRounds1,ctx150k,calls150). Never use direct/unguarded agents. After compaction/restart reread this section and run lanes.py guard before spawning. Fresh slots/check --touches required, --resume for an existing worktree; deps must be on main.
 
-**Train authority:** `build-runs/merge-train/state.json`; latest landed train33. Start next batch immediately when2+ ready; guard and main ancestry remain authoritative.
+**Train authority:** `build-runs/merge-train/state.json`; train38 landed, train39 gating (8888/8 cores and NO15-NO17 answers). Start next batch immediately when2+ ready; guard and main ancestry remain authoritative.
 
-**Parked at3/3, never fourth:** re-rzservices4(File/INI/Directory/OFStream complete; CmdLine slot10/SysServPtr incomplete), glue-terrain3(97b1c237), re-driverdraw4(partial DX7, landed32), re-editors4(partial curves, landed30), re-particles4(partial drawing, landed30), re-widgets4(partial base, landed28), re-application4(partial57/322, landed27), re-terrain4(answers landed25). Preserve parked worktrees, even when supported portions landed.
+**Parked at3/3, never fourth:** re-view3dwin4(78a7bd7c,partial input/AddGUI specs;VW2-VW6/helpers remain;preserveWT/ABI proposals), re-legacycontrol4(603ed696,45/57functions;12interpreters andLC4/LC5/LC8 remain;partialdocs queued, preserveWT), re-rzservices4(File/INI/Directory/OFStream complete; CmdLine slot10/SysServPtr incomplete), glue-terrain3(97b1c237), re-driverdraw4(partial DX7, landed32), re-editors4(partial curves, landed30), re-particles4(partial drawing, landed30), re-widgets4(partial base, landed28), re-application4(partial57/322, landed27), re-terrain4(answers landed25). Preserve parked worktrees, even when supported portions landed.
 
 **Terrain:** crash fixed earlier, final diagnostics trace apparent stall to missing TerrainReconciliation/ConnectionsReady leaving dialogs enabled. Auto-close d8 reached2032 with refwarning1, NOT a pass. Tick/reconcile behavior, texture step7part2/TR37/Save unfinished. TR42/TR43 filed (preference width, edge comparison); no replacement credit or fourth round.
 
-**Other pending:** train35 carries1555/565 cores, propdev candidate,8888 spec, EX41-EX45 answers and advisor map scaffolding. Advisor system stilldisabled; AD4/AD5 must land/answer before ONE remaining implementation round (two total used including originalscoping). Tutorial denied overlapwiththatunlandedbranch. Simgridsround2 joint/save/reload validation; netmgr engine verification follows landedNM10/NM11, no newnetmgrcredityet. NR13 blocks internalnetworkrule boundary. Exact live/ready states are in ledger.
+**Other pending:** eight lanes active at round90: automata reference verification, exemplar and tutorial replacement, citydetail validation, advisor UI RE, legacy-control/view3D RE round2, budgetwindow core. Simgrids has one final round after automata warnings are fixed; netmgr has one final round after NM12 RNG contract is answered. Advisor final implementation awaits AD4/AD5, only one logical round remains. Effects spawn denied overlap with view3D; do not bypass.
 
 **Choosing work:** unblocked parked lanes with answered causes first (within3-round cap), then work one validation step from landing, then coverage-report subsystem bytes descending: coreyes/replaceabsent glue; specyes/coreabsent core; nonexact shadow verify (contract gap becomes a question); specabsent RE. Max3glue. Keep earlier skip of glue26 and abi/unreconciled-rows.tsv.
 
 **After every train:** gen_handoff_tables.py, coverage.py, coverage_treemap.py; one status line here, commit/push. `run4-post-train.py` applies explicit tested maps and question-index upkeep after actual PASS+land. Remove landed nonparked worktrees only after verifying lane ancestor of main and clean state; keep branches and ignored evidence. Never remove active, unlanded or parked worktrees. C:>85% stops spawning until cleanup. Keep this section about60lines; archive older status lines to [today's history](history/handoff-2026-10-21.md).
 
-**Main/tools:** clean checkout; tool changes require `python -m pytest -q tools/tests` and immediate separate commit (latest75PASS). Candidate union regression supports --add-shadow formats_shadow and --add-replace keys, preserving defaults.35default replacement keys includeoccmgr/propmgr/lotcfg. Formats own/effective8959exemplar+388cohort exact31; no factory replacement.
+**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest81PASS. Candidate union supports --add-shadow and --add-replace.37 default replacement keys includepropdev,citysit,occmgr,propmgr,lotcfg; ports andsimgrids not defaults.
 
-**Runtime:** game queue6slots(pid22296); native CLI BG_WAIT_CEILING_MS=0. qwait without--fresh, unique labels. RE preflight must GO; export-first allowed even if no REA binary open. Gate verdicts never set by hand. Train32 generated QUESTIONS conflict resolved by regeneration from merged sources, questioncheckPASS.
+**Runtime:** elevated game queue6slots(pid23444) restarted after Windows elevation blocked non-elevated launches. Native CLI BG_WAIT_CEILING_MS=0; qwait without--fresh, unique labels. RE preflight must GO. Never set gate verdicts by hand.
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 235 (train34 PASS; citysit replacement, disaster exacttrace,4444core,RZ/language specs); 234 (train33 PASS; traffic TS67 corrected,565 complete, advisor blockers answered); 233 (train32 three-lane PASS;1555 spec and GZ queue-manager core); 232 (train31 PASS; formats read-shadow exact;4444 span spec complete); 231 (train29 three-lane PASS; TS67 answered, partial occupant records). See `docs/manual-checks.md`.
+- **Latest in-game run:** 237 (train39 PASS;8888/8 cores and network-occupant contract answers); 236 (train37 PASS; propdev replacement and four core modules); 235 (train34 PASS; citysit replacement, disaster exacttrace,4444core,RZ/language specs); 234 (train33 PASS; traffic TS67 corrected,565 complete, advisor blockers answered); 233 (train32 three-lane PASS;1555 spec and GZ queue-manager core). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
