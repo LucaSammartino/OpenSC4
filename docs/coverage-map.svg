@@ -2,7 +2,7 @@
 <rect width="1600" height="1000" fill="#f6f7f4"/>
 <text x="16" y="44" font-size="30" font-weight="700" fill="#1d2320">OpenSC4 coverage of SimCity 4.exe</text>
 <text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 45.4% · implemented 34.5% · verified 16.4% · replaced in game 17.8%.</text>
-<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main 1a3b5d54, regress-train59.out.</text>
+<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main f1fab7c4, regress-train63.out.</text>
 <rect x="18.0" y="146.0" width="75.5" height="112.4" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="18.0" y="258.4" width="75.5" height="104.3" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="93.5" y="146.0" width="94.3" height="79.8" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -322,7 +322,7 @@
 <rect x="495.1" y="887.6" width="30.5" height="26.7" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="495.1" y="914.3" width="30.5" height="21.7" fill="#1f6b43" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="495.1" y="914.3" width="30.5" height="21.7" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
-<rect x="525.6" y="887.6" width="15.4" height="29.7" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="525.6" y="887.6" width="15.4" height="29.7" fill="#c97b2a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="525.6" y="887.6" width="15.4" height="29.7" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="541.0" y="887.6" width="15.0" height="25.5" fill="#1f6b43" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="541.0" y="913.1" width="15.0" height="4.2" fill="#c97b2a" stroke="#f6f7f4" stroke-width="0.4"/>
