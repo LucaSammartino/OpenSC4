@@ -82,9 +82,6 @@ cSC4ToxicOccupant	disasters	simulation	disasters.md	core/src/disasters	-	-
 cSC4AutomataManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4AutomataControllerManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
 cSC4AutomataScriptSystem	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
-cSC4AutomataControllerManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-cSC4AutomataScriptSystem	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-# the occupant and automata group objects the script system builds from the Lua group tables (before the cSC4Occupant* catch-all)
 cSC4OccupantGroupTemplate	automata groups	simulation	occupant-groups.md	-	-	-
 tKeyEffect	automata groups	simulation	occupant-groups.md	-	-	-
 cSC4AutomataController	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
@@ -224,32 +221,6 @@ cSC4TextDecalOccupant	occupants and props	simulation	lot-records.md	-	-	-
 cSC4Occupant*	occupants and props	simulation	occupant-manager.md, lot-records.md	-	-	-
 cSC4*OccupantFilter	occupants and props	simulation	occupant-manager.md, flora.md, demolition.md	-	-	-
 cSC4*Occupant	occupants and props	simulation	occupant-manager.md, lot-records.md, prop-occupant.md, flora.md, landfill.md, disasters.md	-	-	-
-cSC4Network*Occupant*	network occupants	simulation	-	-	-	-
-cSC4UndergroundOccupant	network occupants	simulation	-	-	-	-
-cSC4UndergroundConnectionOccupant	network occupants	simulation	-	-	-	-
-cSC4PowerPoleOccupant	network occupants	simulation	-	-	-	-
-cSC4PowerLineOccupant	network occupants	simulation	-	-	-	-
-# the pipe and subway layers over the underground occupants and their connections (underground-occupants.md);
-# the connections are listed here so the cSC4*Occupant catch-all further down does not take them
-cSC4PipeOccupant	network occupants	simulation	underground-occupants.md	-	-	-
-cSC4SubwayOccupant	network occupants	simulation	underground-occupants.md	-	-	-
-cSC4PipeConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
-cSC4SubwayConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
-fn:GZCOM_CreatecSC4PipeOccupant	network occupants	simulation	underground-occupants.md	-	-	-
-fn:GZCOM_CreatecSC4SubwayOccupant	network occupants	simulation	underground-occupants.md	-	-	-
-fn:GZCOM_CreatecSC4PipeConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
-fn:GZCOM_CreatecSC4SubwayConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
-cSC4PylonOccupant	network occupants	simulation	-	-	-	-
-cSC4NetworkTypeInfo	network occupants	simulation	-	-	-	-
-cSC4NetworkRoutines	network occupants	simulation	-	-	-	-
-cSC4Network*	network occupants	simulation	-	-	-	-
-cSC4ConstructionOccupant	occupants and props	simulation	-	-	-	-
-cSC4PropOccupant*	occupants and props	simulation	-	-	-	-
-cSC4SignpostOccupant	occupants and props	simulation	-	-	-	-
-cSC4TextDecalOccupant	occupants and props	simulation	-	-	-	-
-cSC4Occupant*	occupants and props	simulation	-	-	-	-
-cSC4*OccupantFilter	occupants and props	simulation	-	-	-	-
-cSC4*Occupant	occupants and props	simulation	-	-	-	-
 cSC4GameOfLifeSimulator	other simulation	simulation	-	-	-	-
 SC4QuadGrid	other simulation	simulation	-	-	-	-
 cSC4TutorialRegistry	tutorial	simulation	-	core/src/tutorial	-	-
@@ -457,34 +428,6 @@ cGZPersistDBSerialRecord	persistence and resources	framework	persistence.md	-	-	
 cGZPersistResource	persistence and resources	framework	persistence.md	-	-	-
 cGZPersistResourceFactory	persistence and resources	framework	persistence.md	-	-	-
 cGZPersistResourceKeyList	persistence and resources	framework	persistence.md	-	-	-
-# expansion packs and optional features: the [Features] INIs (0, 0x8A5971C5, 0x2B563701+k); one instance owned by cSC4App
-cSC4FeatureManager	feature manager	framework	feature-manager.md	-	-	-
-# the day-number calendar, wall-clock instants and the COM date the simulator hands out (before the cGZ*/cRZ* catch-alls)
-cRZDate	dates and times	framework	dates.md	-	-	-
-cGZDate	dates and times	framework	dates.md	-	-	-
-cRZTime	dates and times	framework	dates.md	-	-	-
-# the stopwatch with its seven units and the start-up calibration, and the service-driven callback timer (timers.md)
-cRZTimer	timers	framework	timers.md	-	-	-
-cRZCallbackTimer	timers	framework	timers.md	-	-	-
-# the framework command-line object: splitting, joining and the switch lookups (command-line.md)
-cRZCmdLine	command line	framework	command-line.md	-	-	-
-# the command parameter set, the text-to-command generator, the message-based dispatcher and its message, and the
-# splitter they use (command-system.md); the command server itself is not specified there (before the cGZ* catch-all)
-cGZCommandParameterSet	command system	framework	command-system.md	-	-	-
-cGZStringCommandGenerator	command system	framework	command-system.md	-	-	-
-cGZMessage2CommandDispatcher	command system	framework	command-system.md	-	-	-
-cGZMessage2CommandDispatcherMessage	command system	framework	command-system.md	-	-	-
-fn:RZParseDelimitedText	command system	framework	command-system.md	-	-	-
-# the framework binary and text streams, the null and file sinks, and the reader side (output-streams.md)
-cRZOStream	streams	framework	output-streams.md	-	-	-
-cRZTextOStream	streams	framework	output-streams.md	-	-	-
-cRZNullOStream	streams	framework	output-streams.md	-	-	-
-cRZOFStream	streams	framework	output-streams.md	-	-	-
-cRZIStream	streams	framework	output-streams.md	-	-	-
-cRZNullIStream	streams	framework	output-streams.md	-	-	-
-# the path utilities, cRZPath, cRZDirectory and the file-finding functions (paths.md)
-cRZPath	paths and directories	framework	paths.md	-	-	-
-cRZDirectory	paths and directories	framework	paths.md	-	-	-
 cRZDirectoryEntry	paths and directories	framework	paths.md	-	-	-
 fn:IsPathSeparator	paths and directories	framework	paths.md	-	-	-
 fn:IsASCIILetter	paths and directories	framework	paths.md	-	-	-
