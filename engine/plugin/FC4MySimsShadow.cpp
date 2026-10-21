@@ -1082,6 +1082,13 @@ public:
                     break;
                 }
                 default: {
+                    // An advice of a subclass (the advisor record reads its advice
+                    // references as iid Advice): a core advice of that class, so the
+                    // record keeps every advice instead of skipping the unresolved ones.
+                    if (iid == kIIDAdvice) {
+                        fc4_adv_obj* o = AdviceCache(id, cls);
+                        if (o != nullptr) { r.core_handle = o; r.token = TokenOf(o); break; }
+                    }
                     auto it = tokens_.find(id);
                     if (it != tokens_.end()) r.token = it->second;
                     // Diagnostic: a class the shadow cannot resolve to a core object (each class once).
@@ -1099,10 +1106,10 @@ public:
     }
 
 private:
-    fc4_adv_obj* AdviceCache(uint32_t id) {
+    fc4_adv_obj* AdviceCache(uint32_t id, uint32_t cls = kClsidAdvice) {
         auto it = advices_.find(id);
         if (it != advices_.end()) return it->second;
-        fc4_adv_obj* o = g_core != nullptr ? fc4_advisors_create_object(g_core, kClsidAdvice) : nullptr;
+        fc4_adv_obj* o = g_core != nullptr ? fc4_advisors_create_object(g_core, cls) : nullptr;
         if (o != nullptr) advices_[id] = o;
         return o;
     }
@@ -1755,13 +1762,10 @@ void MySimsShadowCityLoaded(cISC4City* city) {
         fc4_advisors_do_message(g_core, &m);
         g_state.postCityInitDelivered = true;
         TraceAdvisorPart("after PostCityInit");
-        if (CityEstablished(city)) {
-            fc4_adv_message e{};
-            e.msg_type = kMsgCityEstablished;
-            fc4_advisors_do_message(g_core, &e);
-            g_state.cityEstablishedDelivered = true;
-            TraceAdvisorPart("after CityEstablished");
-        }
+        // No hand-delivered CityEstablished: the game sends it only when a city
+        // becomes established (budget.md resets the funds on it), never on a load;
+        // a real one reaches the core through the forwarder. Delivering it here ran
+        // a second monthly step (advisors.md §5.2) the original never ran.
     }
     char loadDate[16];
     const int mismatches = RunCompare(julian, 0, loadDate);
