@@ -108,6 +108,41 @@ hundreds of calls. The levers are to keep output short (cap `re_query`/grep/buil
 print counts and paths, not dumps), to keep it short-lived (the enforced context budget), and to move inline scripts
 into files. Prose costs in another way: instructions that contradict each other or have gone stale.
 
+### Output caps: what they would have saved in run 2 (estimated 2026-10-21)
+
+`python tools/ctx_weight.py <run-2 subagents dir>` reruns the weighting over the 33 lane transcripts of run 2 (16,136
+calls, 3,333M re-sent tokens). It then applies the caps to the same transcripts. The chars-to-tokens ratio is
+calibrated against the transcripts' own usage records (3.94 chars/token). The categories differ from the table above
+because `sed -n`/`cat`/`head` file reads are split from other ad-hoc Bash here.
+
+| Re-sent lane context, run 2 | Share | Cap 60 lines / 4 KB saves |
+|---|---:|---:|
+| Bash file reads (`sed -n` ranges, `cat`, `head`; 23% of them read `docs/specs`) | 21.1% | not capped |
+| `Read` tool | 16.4% | not capped |
+| grep (`qgrep`, `grep`, `Grep`) | 15.0% | 7.8% of it |
+| `re_query` | 14.2% | 7.4% of it |
+| Bash command strings (22.5% of their chars are absolute `C:/Users/tlori/FreeCity4/...` paths) | 11.8% | - |
+| Prompt, attachments and user text | 9.6% | - |
+| Other ad-hoc Bash output (the `q.py` target) | 3.7% | 19% of it |
+| Write/Edit arguments | 1.7% | ~0 as Edit |
+| Inline heredoc scripts | 1.1% | ~0 as file + Edit |
+| Fixed preamble | 3.8% | - |
+
+| Cap on re_query, grep and ad-hoc Bash | Re-sent tokens saved |
+|---|---:|
+| 60 lines / 4 KB (the shipped default) | **2.9%** (98M) |
+| 40 lines / 3 KB | 5.7% |
+| 30 lines / 2 KB | 8.6% |
+
+**Reading:** a per-call cap saves little, because lanes already pipe almost every command through `| head -n 28`. The
+volume is thousands of small results: 5,361 grep calls and 3,785 `re_query` calls, with a median ad-hoc output of
+680 chars. These are upper bounds on the saving. A capped lane reruns some queries with `--full` or pages on, and
+those extra calls are not counted. Inline scripts and whole-file rewrites are about 3% together, so the file-and-Edit
+rule is for hygiene, not $. The cost is in how many results stay resident and for how long. That points back to lever
+1, the enforced context budget. File reads (37.5% with `Read`) are the largest category; reading spec sections by
+heading instead of in 80-150-line `sed` ranges is the next thing to measure. Running lanes with the worktree as
+their working directory would remove most of the absolute paths (~2.7% of the total).
+
 ## Next levers, ranked by measured $
 
 1. **Enforce the context budget in the harness**, not the prompt: stop a lane round at N context tokens and restart
