@@ -1,15 +1,24 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-wingrid4: cGZWinGrid owner spec (198 functions, 32735 B) in docs/specs/win-grid.md | `re-wingrid4` / (RE lane) | in progress (round 2 of 3), docs only, no ABI change; 127/198 functions, 11433/32735 B specified (remaining 71 fn, 21302 B, listed in spec §A as `pending`); WG1 answered (DIFFERS: slot 141 is PlaySound), WG2-WG4 open | 1. Round 2: §5.9 selection/mouse/keys (AddCellToSelection, SetSelection, ActLikeAListbox, GZOnMouseDownL/UpL/Move, GZOnKeyDown/Up, DoArrowKey, DoCursorHitTest). 2. Round 3: cell data, scroll bars, layout/RecalculateAll, sort, copy/delete, GZPaint. |
+| re-wingrid4: cGZWinGrid owner spec (198 functions, 32735 B) in docs/specs/win-grid.md | `re-wingrid4` / (RE lane) | wip after round 2 of 3, docs only, no ABI change; 127/198 functions, 11433/32735 B specified (remaining 71 fn, 21302 B, listed in spec §A as `pending`); WG1 answered (DIFFERS: slot 141 is PlaySound), WG2-WG4 open | Round 3 (last): cell data, scroll bars, layout/RecalculateAll, sort, copy/delete, GZPaint. |
 
-## Handoff
+## Handoff / round 2 report
 
-Round 2 in progress (2026-10-22), static only (REA: no app open). Goal: §5.9 selection/mouse/keys, then helpers.
-Done: §5.9 selection, hit test, notifications table, mouse down/up/move, key-up (commit "round 2 part 1").
-Coverage now: 100/198 functions, 8546/32735 B (appendix.py). Next: GZOnKeyDown 0x009A8D6D, DoArrowKey
-0x009A85B6, then FUN_ helpers 0x009A7E52, 0x009A8888..0x009A8C68 (region_009a0000.c has their decomp),
-then sizing/data. Tools: casm.py now fetches whole functions (--max 2000). Facts: +0x130/+0x134 are
-used as visible column/row counts by the hit test (ceil); hit records +0x238 (click) / +0x244 (hover).
+Round 2 done (2026-10-22), static only (REA: no app open, every call failed "No app is open").
+Done: 227181c2 §5.9 selection (AddCellToSelection, SetSelection, ActLikeAListbox), DoCursorHitTest,
+notification-id table, GZOnMouseDownL/UpL/Move, GZOnKeyUp; 0cffe427 GZOnKeyDown, DoArrowKey, 25 container
+and stable-sort helpers in §5.7, layout rows corrected (+0x130/+0x134 visible counts, +0x170 timer, +0x238/+0x244
+hit records). Coverage (appendix.py): 127/198 functions, 11433/32735 B; remaining 71 functions, 21302 B.
+Next (round 3, last): FUN_009A7E52 (876 B, GZPaint helper, decomp in decomp/_unnamed/region_009a0000.c:4070)
+with GZPaint 0x009AF168; scroll bars (AddScrollBar, RemoveScrollBar, SetScrollBarValues/Positions,
+TestForPossibleScrollBarAdditionOrRemoval); layout (RecalculateAll, MakeRoom*, CalculateCellHeight,
+Get*Internal, SetSizeCachedActual*); cell data (SetCellTextValue/Bitmap/Window, CopyCellData x2, ClearCell,
+Dispose*); sort; copy/delete rows/columns; SetCellFormat family; SetDefaultFormatting; FUN_ 0x009A5FE3,
+0x009A60BB, 0x009A6C45, 0x009AA91A.. (PENDING=1 python build-runs/appendix.py lists them).
+Facts: helper decomp for FUN_ addresses lives in region_009a0000.c (grep "^// ---- 009a...."); casm.py fetches
+whole functions (--max 2000); window-view decomp offsets are grid offsets minus 4. WG2 (+0x140/+0x144) and
+WG4 still open (no new byte/caller evidence this round); WG3 open. Flag 0x1000 meaning (ActLikeAListbox) and
+window flag 2 (input gate) not measured.
 
 ## Report (round 1)
 
