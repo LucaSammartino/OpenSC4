@@ -79,9 +79,11 @@ gate-11 reaches PostCityInit with all three ON and no INCOMPLETE lines before th
   reference deficit; the growth pass's walk over our slot-9 set CYCLES (8 distinct releases, then 6 nodes
   round-robin forever). Our insert placed nodes at v mod 193; the game's increment recomputes the bucket as
   (v >> 2) mod n (26/26 chain-end jumps fit; identity 0/26). Filed PL20 (questions/prop-lotconfig.md).
-- Fix (uncommitted -> see commits): FC4GameList.h gets a Hash policy (IdentityHashU32 default,
-  PointerHashU32 = v>>2); cFC4LotConfigManager slots 9/10/11/12 use LotConfigSet (pointer hash); the PL18
-  second AddRef in slots 9-11 is dropped (core with_refs = exactly one add per element per call, cache hit
-  included, per §B5.2 slot 9 rule). quick build PASS.
-- Next: commit, `qbuild all` baseline, game run label glue21-r4-1 (enable=propmgr,lotcfg, sim_turbo=1,
-  end_date 2032), check wave releases == slot-9 adds per query in the trace, shadows, then report.
+- Fix: d5f89876 (FC4GameList.h Hash policy, PointerHashU32 = v>>2; slots 9-12 LotConfigSet; PL18 second add
+  dropped). 6d362fea removes the per-op trace and slot-9 markers.
+- Game: glue21-r4-1 (enable=propmgr,lotcfg, turbo) clean to 2032-01-07, ref_warnings=0; ledger core slot-9
+  adds 949608 = releases at 00709798 949608, zero deletes. glue21-r4-2 (no trace) clean to 2032-01-04.
+  The propmgr/lotcfg shadows are no-ops over FreeCity4's own class (FC4PropLotShadow.cpp IsOurObject).
+  glue21-r4-3 (shadows over the originals, no enable) clean: propmgr 219/220 (1: GetLotProps lot(10,46)
+  2028-10-01 3/2), lotcfg 293/293, tutorial 146/146; base-1 had propmgr 220/220.
+- Next: r4-4 = r4-3 again to see if the propmgr mismatch repeats; then qbuild all, report.
