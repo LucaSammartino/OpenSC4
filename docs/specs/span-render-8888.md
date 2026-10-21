@@ -114,6 +114,31 @@ Neither slot 4's nor Init's result is tested there.
 [{0x00010002, 0x00010005}]`, surface `{B, 16}`, colour `0x12345678`: dwords at `B+24`, `B+28`, `B+32` become
 `0x12345678`, nothing else changes, 16 bytes popped.
 
+### 1.2 Which shipped buffers reach this class (re-span8888-bridge4) [static; runtime open as SR8888-6]
+
+An 8888 renderer exists only when a buffer of colour type 8 or 9 becomes the *target* of a RenderToBuffer
+context, i.e. reaches `cGZDrawContext` set-target `0x0082C830` (or a direct slot-4 + Init call) and is not taken by
+a factory registered in front of RenderToBuffer. Static sweep (immediates and direct callers in the image):
+
+| Source | Type | Reaches an 8888 renderer? |
+|---|---|---|
+| Screen buffer (`span-render-4444.md` §1.2): type 9 when the screen depth is above 16 bits (`0x0098B3CC`-`0x0098B3DD`), the normal case | 9 | **no**: `cGZScreenBuffer::Init` registers the SimGL factory (call `0x00992021`), which sits in front and accepts the screen buffer (IID `0xE3094DC8`), so it gets a SimGL context. Its 4 × 4 auxiliary `cGZBuffer` (same type, `+0x30`) gets no context in Init |
+| Lot-configuration editor, `0x00604920` (only caller `GetAllLotBaseTextureTypes` `0x0047FDCD`) | 8 or 9 (`0x006049A2`-`0x006049AD`: 9 when the texture's type `+0x14` is 3) | not as a target: the `cGZBuffer` (CLSID `0xC470D325`, `0x00604990`) is filled from a texture and kept in the editor's image list (`+0x1D0`); no set-target call follows. As a blit *source* it selects rows 8-11 (formats 4/5) of whichever renderer draws it |
+| Gimex load with literal target 9 (`0x007BFDB4`, `span-render-4444.md` §1.2) | 9 | image load; no set-target on the result was found |
+| `cGZWin::create_private_buffer` → draw system slot 5 | 1 | no: type 1 is rejected by Init (`0x0083087A`) |
+| Draw-system users: the IID `0x4B2EA3B3` occurs at 9 places (`0x00449736`, `0x0044DA8F`, `0x0082B895`, `0x0082C8CD`, `0x0098B4B7`, `0x0098ED39`, `0x00990E13`, `0x00990E5D`, `0x00992119`) | — | the only one that calls slot 4 is `0x0082C830` (`0x0082C8F6`); the target's type is whatever its caller passes, through the virtual `cIGZDrawContext +0x44`, which a static scan cannot resolve |
+
+**Result: no shipped path that makes a type-8/9 buffer the target of a RenderToBuffer context was found
+statically**; not a proof of absence, because set-target is reached only through a virtual call. The deciding
+probe is a runtime counter at `0x008307CC` (the 8888 vtable store) and at the five method entries during a normal
+session (SR8888-6).
+
+**What a pixel test can use (explicitly constructed, not a game path).** Create a `cGZBuffer` through GZCOM (CLSID
+`0xC470D325`, IID `0x20732180`), `Init` it with (8 or 9, 32 bpp), give it to a `cGZDrawContext` (draw system slot
+5 or any front-end context) through set-target, or call draw system slot 4 and then the context's `Init(buffer)`
+directly, draw through the context's public methods and read the pixels back. Label every such run
+"constructed buffer", never "in-game".
+
 ## 2. Shared conventions
 
 **Pixel.** 32 bits, A in bits 24-31, R 16-23, G 8-15, B 0-7. All writes are whole dwords. The renderer treats
@@ -297,7 +322,11 @@ what is not executed is listed in U4.
 
 ## 11. Unknowns
 - U1. `count = 0` (decrement-then-test loops would run 2^32 times): callers always pass >= 1? Not checked here.
-- U2. `src.format > 6` or `mode > 11` index past the table; callers are assumed to pass valid values.
+- U2. `src.format > 6` or `mode > 11` index past the table. The shipped caller (§1.1) never does: it writes
+  format 0..6 from the table `0x00830654`, `kind` 0..11 (alpha + 2 × modulate + 0/4/8), and for a `cGZBuffer`
+  texture the keyed byte is 0 or 1 (`0x00826620` returns `MOV AL,1` or `XOR AL,AL`); format 6 forces it to 0, so
+  row 13 is never selected. The row index `keyed + 2*format` is computed in 32 bits (`LEA EDX,[ECX+EAX*2]`,
+  `0x008551DC`) and would wrap, but no shipped input reaches that, so rejecting such inputs is compatible.
 - U3. Caller meaning of `rectA/rectB +0x08..+0x14` beyond what kernels read (view3d.md owns the caller).
 - U4. Input ranges not executed: negative strides, spans wider than 25 pixels, stretch steps >= 1 texel or
   accumulator wrap, tiled `x + u0` overflow, width or height 0 (tiled `DIV` by zero would fault).
