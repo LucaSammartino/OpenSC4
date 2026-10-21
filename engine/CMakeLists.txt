@@ -905,6 +905,12 @@ if(FC4_IS_WIN32_X86)
     target_include_directories(fc4_advisor_window_test PRIVATE plugin)
     target_compile_options(fc4_advisor_window_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME advisor_window_test COMMAND fc4_advisor_window_test)
+    # The advisor system's register_api vector, DoLink cuts, slot 9 shape, cheat payload and reload
+    # directories (FC4AdvisorApi.h, advisors.md §17 cases 23-27; glue-advisors-activate4).
+    add_executable(fc4_advisor_api_test tests/advisor_api_test.cpp)
+    target_include_directories(fc4_advisor_api_test PRIVATE plugin)
+    target_compile_options(fc4_advisor_api_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME advisor_api_test COMMAND fc4_advisor_api_test)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

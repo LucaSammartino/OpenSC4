@@ -17,6 +17,7 @@
 #include "cFC4AdvisorSystem.h"
 
 #include "FC4Log.h"
+#include "FC4AdvisorApi.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
@@ -350,80 +351,13 @@ uint64_t ObjectCreated(void* u, uint32_t kind, uint32_t, fc4_adv_obj* handle) {
 
 // ---- register_api (§8.2, lua-host.md §8.2) ---------------------------------------------------------------
 
-// §8.2 (AD7): the one 47-entry vector, simulation collector (1-38) then UI
-// collector (39-47), each in its constructor's order; only 36-38 are global.
-// `native` names an original function registered as it is (compat direct
-// call); Direct::Count means the core's function through a trampoline.
-// [choice] advice_info (entry 1, a debug message box, §8.3) has no published
-// address: it stays the core's (no effect, no results).
+using fc4::advisors::ApiEntry;
+using fc4::advisors::kApi;
+using fc4::advisors::kApiCount;
+using fc4::advisors::kCore;
 using fc4::compat::Direct;
-struct ApiEntry {
-    const char* name;
-    bool global;
-    Direct native;
-};
-constexpr Direct kCore = Direct::Count;
-constexpr ApiEntry kApi[] = {
-    {"advice_info", false, kCore},                                   // 1
-    {"trend_value", false, kCore},                                   // 2
-    {"trend_slope", false, kCore},                                   // 3
-    {"trend_count", false, kCore},                                   // 4
-    {"camera_jump", false, Direct::LuaCameraJump},                   // 5 (AD6)
-    {"camera_zoom", false, Direct::LuaCameraZoom},                   // 6 (AD6)
-    {"ordinance_is_on", false, kCore},                               // 7
-    {"ordinance_set_off", false, kCore},                             // 8
-    {"ordinance_set_on", false, kCore},                              // 9
-    {"ordinance_is_available", false, kCore},                        // 10
-    {"ordinance_name", false, kCore},                                // 11
-    {"ordinance_description", false, kCore},                         // 12
-    {"ordinance_enact_fee", false, kCore},                           // 13
-    {"ordinance_repeal_fee", false, kCore},                          // 14
-    {"ordinance_monthly_cost", false, kCore},                        // 15
-    {"difficulty_level", false, kCore},                              // 16
-    {"event_feedback", false, kCore},                                // 17
-    {"expire_advice", false, kCore},                                 // 18
-    {"retire_advice", false, kCore},                                 // 19
-    {"advice_subject", false, kCore},                                // 20
-    {"trigger_event", false, kCore},                                 // 21
-    {"building_is_group", false, kCore},                             // 22
-    {"event_building_distance", false, kCore},                       // 23
-    {"mysim_distance_to_closest_building", false, kCore},            // 24
-    {"mysim_distance_to_closest_landmark_or_reward", false, kCore},  // 25
-    {"mysim_local_school_grade", false, kCore},                      // 26
-    {"mysim_local_hospital_grade", false, kCore},                    // 27
-    {"mysim_dispatch_tool", false, kCore},                           // 28
-    {"event_disaster_distance", false, kCore},                       // 29
-    // 30: the original, so its draws use the generator slot 9 returns (AD8) and no
-    // second generator mirrors it.
-    {"random_chance", false, Direct::LuaRandomChance},               // 30
-    {"nd_cancel", false, kCore},                                     // 31
-    {"reward_instance_count", false, kCore},                         // 32
-    {"unlock_reward_building", false, kCore},                        // 33
-    {"get_reward_building_state", false, kCore},                     // 34
-    {"is_tutorial", false, kCore},                                   // 35
-    {"_combine_guids", true, kCore},                                 // 36
-    {"_dofile_from_resource", true, Direct::LuaDofileFromResource},  // 37 (AD10)
-    {"print", true, Direct::LuaPrint},                               // 38 (AD7)
-    {"tool_plop_network", false, Direct::LuaToolPlopNetwork},        // 39 (AD5)
-    {"tool_plop_zone", false, Direct::LuaToolPlopZone},              // 40
-    {"tool_plop_building", false, Direct::LuaToolPlopBuilding},      // 41
-    {"tool_plop_flora", false, Direct::LuaToolPlopFlora},            // 42
-    {"tool_button", false, Direct::LuaToolButton},                   // 43
-    {"window_budget", false, Direct::LuaWindowBudget},               // 44
-    {"window_map", false, Direct::LuaWindowMap},                     // 45
-    {"window_query", false, Direct::LuaWindowQuery},                 // 46
-    {"window_graph", false, Direct::LuaWindowGraph},                 // 47
-};
-constexpr size_t kApiCount = sizeof(kApi) / sizeof(kApi[0]);
-static_assert(kApiCount == 47, "advisors.md §8.2: 47 entries");
 
-// A thiscall through a vtable offset (the __fastcall form with an unused EDX).
-template <typename R, typename... A>
-R VCall(const void* obj, uint32_t offset, A... args) {
-    using Fn = R(__fastcall*)(const void*, void*, A...);
-    const uintptr_t* vt = *static_cast<const uintptr_t* const*>(obj);
-    return reinterpret_cast<Fn>(vt[offset / sizeof(uintptr_t)])(obj, nullptr, args...);
-}
+using fc4::advisors::VCall;
 
 // §4.2 step 2 (AD10): cISC4App +0xD4 GetPluginDirectory(out, -1), then +0xDC
 // GetSkuSpecificDirectory(out); `advisors\` is appended to each. AD11: the
@@ -586,7 +520,7 @@ cFC4AdvisorSystem::cFC4AdvisorSystem() : cheat_(this) {
     // §9: the generator is seeded with 0xFFFFFFFF at construction, which
     // foundations §6.1 Seed() turns into time(NULL) XOR ((c << 16) | c), c = clock().
     const uint32_t c = static_cast<uint32_t>(std::clock());
-    const uint32_t seed = static_cast<uint32_t>(std::time(nullptr)) ^ ((c << 16) | c);
+    const uint32_t seed = fc4::advisors::WallClockSeed(static_cast<uint32_t>(std::time(nullptr)), c);
     random_.mul = seed;
     random_.lcg = seed;
     fc4::AdvisorWinProcOps ops{};
@@ -704,10 +638,11 @@ void cFC4AdvisorSystem::ReloadScripts() {
     constexpr uint32_t kScriptGroup = 0x4A5E8EF6;
     cISC4App* app = App();
     if (app != nullptr && update != 0) {
-        for (const bool sku : {false, true}) {
-            const std::string dir = AppDirectory(app, sku) + "advisors\\";
-            fc4::Log("advisors reload: %s directory \"%s\"", sku ? "SKU-specific" : "plugin", dir.c_str());  // AD11
-            reinterpret_cast<UpdateFn>(update)(kScriptGroup, dir.c_str());
+        const fc4::advisors::ReloadDirectories dirs =
+            fc4::advisors::AdvisorReloadDirectories(AppDirectory(app, false), AppDirectory(app, true));
+        for (const std::string* dir : {&dirs.first, &dirs.second}) {
+            fc4::Log("advisors reload: directory \"%s\"", dir->c_str());  // AD11: recorded, not interpreted
+            reinterpret_cast<UpdateFn>(update)(kScriptGroup, dir->c_str());
         }
     }
     if (app != nullptr) FC4_RELEASE(app);
@@ -760,33 +695,24 @@ cISCLua* cFC4AdvisorSystem::GetScriptingContext() { return lua_; }
 
 // §12.1 slot 11 (AD8).
 bool cFC4AdvisorSystem::DoLink(const cIGZString& link) {
-    // 1. copy (Data +0x18, Strlen +0x1C) and trim. [choice] "trim" = ASCII
-    // whitespace off both ends.
+    // 1-2. copy (Data +0x18, Strlen +0x1C), trim, sscanf "%08x%08x".
     const char* data = VCall<const char*>(&link, 0x18);
     const uint32_t len = VCall<uint32_t>(&link, 0x1C);
-    std::string text(data ? data : "", data ? len : 0);
-    size_t b = 0, e = text.size();
-    while (b < e && std::isspace(static_cast<unsigned char>(text[b]))) ++b;
-    while (e > b && std::isspace(static_cast<unsigned char>(text[e - 1]))) --e;
-    text = text.substr(b, e - b);
-    // 2.
-    unsigned int advisorID = 0, sessionID = 0;
-    if (std::sscanf(text.c_str(), "%08x%08x", &advisorID, &sessionID) != 2) return false;
+    const fc4::advisors::AdvisorLink l = fc4::advisors::ParseAdvisorLink(data, len);
+    if (!l.parsed) return false;
     // 3. advisor slot 13 GetAdviceBySessionID (+0x34), advice slot 22 DoLink (+0x58).
-    if (advisorID != 0x1D && advisorID != 0 && sessionID != 0) {
-        cISC4Advisor* a = GetAdvisor(static_cast<int32_t>(advisorID));
-        void* advice = a ? VCall<void*, int32_t>(a, 0x34, static_cast<int32_t>(sessionID)) : nullptr;
+    if (l.TriesAdvice()) {
+        cISC4Advisor* a = GetAdvisor(static_cast<int32_t>(l.advisorID));
+        void* advice = a ? VCall<void*, int32_t>(a, 0x34, static_cast<int32_t>(l.sessionID)) : nullptr;
         if (advice != nullptr) {
-            cRZBaseString rest(text.size() > 16 ? text.substr(16).c_str() : "");
+            cRZBaseString rest(l.AdviceText().c_str());
             // [abi-ret] void: the advice's result is not read (§12.1 slot 11 returns true)
             VCall<bool, const cIGZString*>(advice, 0x58, static_cast<const cIGZString*>(&rest));
             return true;
         }
     }
-    // 4. Lua, from character 16 for 0x1D, else from character 8 [quirk];
-    // through the own slots 18/19, DoBuffer = cISCLua slot 55 (+0xDC), status ignored.
-    const size_t from = advisorID == 0x1D ? 16 : 8;
-    const std::string chunk = text.size() > from ? text.substr(from) : std::string();
+    // 4. Lua through the own slots 18/19; DoBuffer = cISCLua slot 55 (+0xDC), status ignored.
+    const std::string chunk = l.LuaChunk();
     PushContextAdvice(nullptr);
     if (lua_ != nullptr) {
         const char* p = chunk.c_str();
@@ -838,10 +764,9 @@ bool cFC4AdvisorSystem::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
     // §5.2 (AD9): cheat 0x230E27AC, ID = data1, text = GetVoid2 (+0x3C) as a
     // borrowed cIGZString*, used with no null test as the original.
-    if (pMessage->GetType() == 0x230E27AC) {
-        const uint32_t id = static_cast<uint32_t>(VCall<int32_t>(pMessage, 0x24));
-        const cIGZString* text = VCall<const cIGZString*>(pMessage, 0x3C);
-        fc4_advisors_cheat(core_, id, text->ToChar());
+    if (pMessage->GetType() == fc4::advisors::kCheatMessage) {
+        const fc4::advisors::CheatPayload c = fc4::advisors::ReadCheatPayload(pMessage);
+        fc4_advisors_cheat(core_, c.id, static_cast<const cIGZString*>(c.text)->ToChar());
         return true;
     }
     fc4_adv_message m{};
