@@ -432,9 +432,10 @@ impl DispatchHost for DispatchWorld {
     }
     fn occupant_position(&self, occupant: u64) -> (f32, f32) {
         // The lot's first cell centre; an unknown occupant sits at (−1, −1).
-        self.buildings.borrow().get(&occupant).map_or((-1.0, -1.0), |r| {
-            (r.x1 as f32 * 16.0 + 8.0, r.z1 as f32 * 16.0 + 8.0)
-        })
+        self.buildings
+            .borrow()
+            .get(&occupant)
+            .map_or((-1.0, -1.0), |r| (r.x1 as f32 * 16.0 + 8.0, r.z1 as f32 * 16.0 + 8.0))
     }
     fn region_city(&self, x: i32, z: i32) -> Option<u64> {
         ((x, z) == (-1, 0)).then_some(77)
@@ -757,12 +758,18 @@ fn t40_location_contract() {
     };
     s.set_by_occupant(Some((0x77, (175.9, 32.0))));
     assert_eq!((s.occupant, s.world, s.cell), (Some(0x77), (175.9, 32.0), (10, 2)));
-    assert_eq!((s.in_city, s.by_commute, s.neighbor_city, s.reserved), (true, false, (-1, -1), (0, 0)));
+    assert_eq!(
+        (s.in_city, s.by_commute, s.neighbor_city, s.reserved),
+        (true, false, (-1, -1), (0, 0))
+    );
     s.set_by_occupant(None);
     assert_eq!(s, DispatchLocation::default());
     assert!(!s.is_valid(&w));
     // floor, not truncation, below 0.
-    assert_eq!((world_to_cell(-0.5), world_to_cell(15.99), world_to_cell(16.0)), (-1, 0, 1));
+    assert_eq!(
+        (world_to_cell(-0.5), world_to_cell(15.99), world_to_cell(16.0)),
+        (-1, 0, 1)
+    );
 }
 
 /// `setState` (§4.7.1): `+0x40`/`+0x44`, flag 2 at state 3, the
@@ -772,7 +779,10 @@ fn t41_set_state() {
     let mut st = JobSearchState::default();
     assert_eq!(
         set_state(&mut st, 3),
-        vec![StateNote::Flags { old: 0, new: 2 }, StateNote::TripState { old: 0, new: 3 }]
+        vec![
+            StateNote::Flags { old: 0, new: 2 },
+            StateNote::TripState { old: 0, new: 3 }
+        ]
     );
     assert_eq!((st.state, st.prev_state, st.flags), (3, 0, 2));
     assert_eq!(set_state(&mut st, 3), vec![]);
@@ -818,10 +828,16 @@ fn t36_dispatch_find_new_job() {
         assert_eq!(f.d.job_pathfinder_config(1).unwrap(), config);
     }
     let d = f.d.get_state(1).search.commute_destination;
-    assert_eq!((d.occupant, d.cell, d.in_city, d.by_commute), (Some(7), (4, 4), true, true));
+    assert_eq!(
+        (d.occupant, d.cell, d.in_city, d.by_commute),
+        (Some(7), (4, 4), true, true)
+    );
     assert_eq!(
         f.d.job_destination(1),
-        Some(JobDestination::Lot { building: 7, cell: (4, 4) })
+        Some(JobDestination::Lot {
+            building: 7,
+            cell: (4, 4)
+        })
     );
     // A null occupant: invalid → the normal job search runs, which needs a
     // home (sim 2 has none: false, no notification); a building in the
