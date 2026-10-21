@@ -33,7 +33,7 @@ Then choose work from coverage-report.md subsystem bytes, largest eligible first
 The previous stop note is preserved verbatim in [history/handoff-run3-stop-2026-10-21.md](history/handoff-run3-stop-2026-10-21.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 226 (train22 PASS, occupant-manager replacement promoted, replaced coverage15.9 to16.2 percent); 225 (train21 PASS, aura restored to 71/71, verified coverage 12.1 to 12.4 percent; netmgr differences documented); 223 (train19 PASS, MySims shadow exact 73/73 alongside the full regression, ref_warnings=0); 222 (MySims shadow exact 73/73 through 2032, including load, ref_warnings=0); 221 (the network-tool replacement places roads and streets in the real game (inserts=8..69, valid=solved, failure 0), 20/20 scripted placements ok, city runs to 2032 clean with ref_warnings=0.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 227 (train25 four-lane PASS, PL19 replacement promoted, terrain spec blockers answered, coverage38.7/28.3/12.4/16.5); 226 (train22 PASS, occupant-manager replacement promoted, replaced coverage15.9 to16.2 percent); 225 (train21 PASS, aura restored to 71/71, verified coverage 12.1 to 12.4 percent; netmgr differences documented); 223 (train19 PASS, MySims shadow exact 73/73 alongside the full regression, ref_warnings=0); 222 (MySims shadow exact 73/73 through 2032, including load, ref_warnings=0). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
