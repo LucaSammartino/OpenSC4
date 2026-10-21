@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**train44 landed 98107b34df:** Three-lane docs-only unblock batch: NM12/NM13 raw RNG and pending hash-order replay contracts answered; NR13 establishes internal network-tool boundary, no standalone netrules key. SP3 caller ABI answered, SP4 narrowed but runtime type7 producer proof remains open. No runtime or ABI row changes, so gate/regress skipped; no shadow/replacement credit. Coverage44.3/34.3/16.1/17.6; rounds114 (open-ended).
+
 **train43 landed 5bcb01545b:** Eight-lane recovery batch excluding failing exemplar interaction. Dates and command owners implemented; budget/audio partial only, no whole-owner credit. Automata owned-reference teardown fix unblocks final simgrids validation. Tutorial/citydetail remain opt-in candidates, no default promotion. Zero-resync evidence now required for exact shadow credit. Full gate and tutorial/citydetail candidate union regress PASS. Network-occupant records and construction lanes parked at logical3/3 with unresolved contracts; worktrees preserved. Coverage44.3/34.3/16.1/17.6; rounds112 (open-ended).
 
 **train42 landed 401c00b18a:** Three-lane docs-only recovery batch: AD4/AD5/AD6 window/Lua contracts answered; partial legacy45/57 and view input/AddGUI specs preserved without whole-owner credit. Both incomplete3/3lanes parked and worktrees retained. Failed experimental train41 was NOTlanded; exemplar interaction remains under isolation. No gate/regress needed for docs-only tree. Missing analysis export restored read-only from newer savedproject; hashes/function-boundary change documented in history/export-recovery-2026-10-21.md, roundedmetrics unchanged. Coverage44.3/34.3/16.1/17.6; rounds101 (open-ended).
@@ -29,7 +31,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target6-8 live lanes (coordinator target8), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
-**Coverage after train43:**44.3/34.3/16.1/17.6; baseline36.8/28.3/12.1/15.9, delta+7.5/+6.0/+4.0/+1.7 points. 18 trains landed; 112 rounds used, no total cap. Next25-round checkpoint 125.
+**Coverage after train44:**44.3/34.3/16.1/17.6; baseline36.8/28.3/12.1/15.9, delta+7.5/+6.0/+4.0/+1.7 points. 19 trains landed; 114 rounds used, no total cap. Next25-round checkpoint 125.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`, `run4-launch.py` (saved guarded Workflow,maxRounds1,ctx150k,calls150). Never use direct/unguarded agents. After compaction/restart reread this section and run lanes.py guard before spawning. Fresh slots/check --touches required, --resume for an existing worktree; deps must be on main.
 
