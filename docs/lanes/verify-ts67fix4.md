@@ -4,5 +4,5 @@
 
 ## Handoff
 - Goal: per TS67 answer, entering states 1 and 15 zeroes +90C/+90E (16/17/18 already); replace test ts67_finish_trip_map_entry_keeps_phase_positions; gate; game shadow to 2032 turbo + normal.
-- Done: worktree at cf56bdf2.
-- Next: edit engine/core/src/traffic_simulator/cycle.rs ~line 407.
+- Done: code 518c5a2b+dae88670 (15/1 entry zeroes positions, test replaced); gate all PASS (cargo 3636, clippy 0, ctest 62/62).
+- Next: game run turbo to 2032 with traffic shadow, then normal-speed run.
