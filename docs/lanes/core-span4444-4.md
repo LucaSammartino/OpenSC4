@@ -4,5 +4,5 @@
 
 ## Handoff
 - Goal: engine/core/src/span_render4444/ from spec only; tests; full gate; no ABI/plugin.
-- Done: lane file.
-- Next: read spec sections, implement.
+- Done: 9717436d lane file; d9d84a7e core module + 26 tests, questions SP1-SP2 (QUESTIONS.md index not regenerated: tools/ is off limits).
+- Next: qbuild all gate, then final report + merge-queue json.
