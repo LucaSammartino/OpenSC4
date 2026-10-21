@@ -83,7 +83,7 @@ implementer of the class tables and records.
   gives its form (u8 mask; `& 4` 9 floats, `& 1` 3 floats, `& 2` 1 float, in that order). Which mask does the
   writer emit for a given live transform (the `+0x01` flags byte of the 0x38-byte object, a computed mask, or
   always 7), and what does the reader leave in a part the mask omits? And what is the byte layout of
-  `S3DTransformLegacyLoad` (`0x005DA930`, records below v5; effects.md §… calls it "56 bytes")? The core keeps
+  `S3DTransformLegacyLoad` (`0x005DA930`, records below v5; effects.md's component placement row calls it "56 bytes")? The core keeps
   the mask as data, leaves omitted parts at identity, and fails v4 records. [missing]
 - **NO16 - the §2.3 record's field shapes and v5-v7 conversions:** (a) field 4 says 4 x {5 u32, 4 u8} from
   `+0x94` but notes the loop covers only `+0x94...+0xE8`, then field 5 writes `+0xF4/+0xFD/+0xF8/+0xFC`: is the

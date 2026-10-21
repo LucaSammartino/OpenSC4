@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-netocc4 (network occupants core: identity, §2 piece behaviour, power line) | `core-netocc4` / (engine lane) | ready at dbc452ef: engine/core/src/network_occupants (identity 13/13 classes; behaviour for 5 of 13 owner classes, partial; 1 more partial for control vars only); no ABI, no glue, game=false; gate cargo 3595 passed / clippy 0 / ctest 62/62 PASS; questions NO9-NO14 filed | 1. §2.3 base record (needs an S3DTransform codec and the lot-records base). 2. Underground family §3. 3. Pole object §4.1-§4.4. 4. Pylon §6. 5. Glue/shadow once a record exists. |
+| core-netocc4 (network occupants core: identity, §2 piece, §2.3 base record, §3 underground behaviour, power line) | `core-netocc4` / (engine lane) | ready at ce36e023: engine/core/src/network_occupants (identity 13/13; no owner class fully implemented: §2.3 record codec v5-v8 in stream order, live mapping open; underground/pipe/subway behaviour partial, records blocked NO17); no ABI, no glue, game=false; gate cargo 3601 passed / clippy 0 / ctest 62/62 PASS; questions NO9-NO17 | 1. Answers NO15-NO17, then the live<->record mapping and the v4 legacy transform. 2. §3.4 underground + pipe v3/subway v2 records. 3. Pole object §4. 4. Pylon §6. 5. Glue/shadow. |
 
 ## Report
 
@@ -35,3 +35,19 @@ No game runs (game=false; no glue).
 QI IIDs; NO11 tunnel ctor `~0x400` vs prebuilt bit `0x400000`; NO12 path table shape and wildcard count; NO13
 power line offsets/record/version/rounding; NO14 conformance 6 slot 24 vs 25. Numbered from QUESTIONS.md's next
 free (NO9); note §12 also uses NO9/NO10 labels for two settled notes.
+
+## Round 2 (2026-10-21, ce36e023)
+
+- `xform.rs`: the `S3DTransform` stream form from lot-records.md §2.1 (mask; matrix/translation/scale in that
+  order). Mask kept as data, omitted parts left at identity (NO15). Legacy load (v<5) not implemented (NO15).
+- `record.rs`: the §2.3 base record v8 in stream order: occupant base (reuses `crate::automata::OccupantBase`),
+  xform, 4 quads + tail, `+0x100` sub-record (v2 only), triangles (type-column shape, NO16), bbox words, flags
+  masked `& 0xFFFF1FFF`, `+0x15C`, v8-only ref (IID 0xA9667793) + i64. Read rejects v<4, fails v4 (NO15),
+  reports `flags_need_v5_conversion` (v<6, NO16) and the tail as `LoadFixup` (NO16).
+- `underground.rs`: §3.2/§3.3 GetSortValue, GetPosition, GetTerrainHeights, Init height store, SetVertexHeights
+  stores, slot 104 model choice, IsImaginaryConnection (found case), pipe SetWateredState, pipe `+0x270`, the
+  shared Shutdown. `NetworkPiece::new` now accepts Underground/Pipe/Subway (base ctor, §3.1).
+- Blocked: §3.4 underground record and so the pipe/subway records, SetTerrainHeights, uv ratios, zipper type
+  (NO17). Honest coverage: no owner class is fully implemented; do not count identity-only families.
+- Measured: 7 new tests (tests_record.rs); qbuild all: 3601 passed, clippy 0, build 4/4, ctest 62/62.
+
