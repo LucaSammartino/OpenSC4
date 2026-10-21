@@ -4,7 +4,7 @@ A HANDOFF §0-style row for the coordinator's table, plus the knowledge the next
 
 | Lane | Worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue21 (`enable = propmgr` / `enable = lotcfg`, the save sweep, the refcount fixes) | `C:\Users\tlori\FreeCity4\.claude\worktrees\glue21`, branch `glue21`, tip `9f3bb016` | Gate at this tip: cargo 2860/0, clippy clean, ctest 58/58. **Game run `glue21-base-1` `clean`, `ref_warnings=0`, turbo to 2032-01-08, all three shadows exact over the originals** (propmgr 220/220, lotcfg 293/293, tutorial 146/146). **`glue21-gate-11` is still `corrupt`, but the two faults this lane fixed are gone**: the city Init now passes the lot configuration manager and the building development simulator's density walk, PostCityInit is reached and all three shadows go ON over the replacements; the remaining fault is in the game's own `CreateLotObjects` (network-lot redevelopment, city-detail §3.4) and is filed as **PL17**. Landed since `baf55a41`: (1) the creation reference (`CreateConfiguration` AddRefs the new `cFC4LotConfiguration`, the original helper's AddRef — without it the catalogue's release after the add deleted the object); (2) the game-shaped slot 20/21 tables (`GetLotConfigurationMap` / `GetLotConfigurationFamilyIDSet` rebuild STLport hash containers from the core and hand the game real, walkable addresses — the BDS's density walk faults on a null table, building-development §4.7.4); (3) `QueryInterface` AddRefs in both replacement managers (the COM contract; the class store's loader takes the factory result as the caller's reference and releases it after `Read`, so without the AddRef the release dropped the table's reference and destroyed the manager — the city's component-9 pointer dangled into city Init, the 0x45BF49 fault); (4) `Position` reads the occupant token as `cISC4Occupant*` (the occupant manager hands the core occupant sub-object tokens; calling `AsOccupant` through a prop-occupant cast invoked occupant slot 3 = `Init`, returned 1, and dereferenced 1). Questions PL15/PL16/PL17 filed in `docs/specs/questions/prop-lotconfig.md` (the file is new on this branch). | (1) PL17: the `CreateLotObjects` fault (`SimCity 4.exe+0x60D4B5` reading `0x06E932F8`, `ecx=0`, `eax=edx=0x01BA4CBE`, after civic Init, before PostCityInit) — candidates are our `GetObjectIDArray` (slot 27) and `AddStreetProp` (slot 32); (2) once clean, re-run `glue21-gate-1` and record `clean` with the shadows exact over the replacements; (3) the merge-queue entry is `wip` and must be flipped to `ready`. Cores15's PL1 (text decal slots), PL3 (monopoly-piece slot 19 sign), PL8-PL14, TU1-TU2 and TU4-TU5 are still with an RE lane and are not this lane's |
+| glue21 (`enable = propmgr` / `enable = lotcfg`; run4: PL19 closed) | `C:/Users/tlori/FreeCity4/.claude/worktrees/glue21`, branch `glue21` | ready: gate cargo 2860/0, clippy 0, ctest 58/58; glue21-r4-1/-2 (enable=propmgr,lotcfg, turbo to 2032) clean, ref_warnings=0, slot-9 adds = growth-pass releases (949608 each), 0 deletes; shadows over the originals (r4-3/-4/-5) lotcfg and tutorial exact, propmgr exact in r4-4, 1 intermittent GetLotProps sample in r4-3/r4-5 (PL21) | PL20 (confirm the pointer hasher v>>2), PL21; the shadows skip FreeCity4's own class, so the union regress checks the replacement |
 
 ## The refcount fixes (what was actually wrong)
 
@@ -72,18 +72,22 @@ gate-11 reaches PostCityInit with all three ON and no INCOMPLETE lines before th
 1. **PL15** (the shadow-over-a-replacement comparison) and **PL16** (the B7 slot 5/6 renames) — filed in
    `docs/specs/questions/prop-lotconfig.md` with the answers bracketed.
 2. **PL17** (the network-lot `CreateLotObjects` fault) — filed open; see the table row's next steps.
-## Handoff
-- State: in progress (run4 round 1). Goal: lotcfg/propmgr replacements game-clean (enable=propmgr,lotcfg,
-  turbo to 2032, ref_warnings=0, propmgr/lotcfg/tutorial shadows exact), then the full gate.
-- Diagnosis (from glue21fix2-pin-1.log, `build-runs/wave_walk.py <log> 11922`): PL19's "drain" is NOT a
-  reference deficit; the growth pass's walk over our slot-9 set CYCLES (8 distinct releases, then 6 nodes
-  round-robin forever). Our insert placed nodes at v mod 193; the game's increment recomputes the bucket as
-  (v >> 2) mod n (26/26 chain-end jumps fit; identity 0/26). Filed PL20 (questions/prop-lotconfig.md).
-- Fix: d5f89876 (FC4GameList.h Hash policy, PointerHashU32 = v>>2; slots 9-12 LotConfigSet; PL18 second add
-  dropped). 6d362fea removes the per-op trace and slot-9 markers.
-- Game: glue21-r4-1 (enable=propmgr,lotcfg, turbo) clean to 2032-01-07, ref_warnings=0; ledger core slot-9
-  adds 949608 = releases at 00709798 949608, zero deletes. glue21-r4-2 (no trace) clean to 2032-01-04.
-  The propmgr/lotcfg shadows are no-ops over FreeCity4's own class (FC4PropLotShadow.cpp IsOurObject).
-  glue21-r4-3 (shadows over the originals, no enable) clean: propmgr 219/220 (1: GetLotProps lot(10,46)
-  2028-10-01 3/2), lotcfg 293/293, tutorial 146/146; base-1 had propmgr 220/220.
-- Next: r4-4 = r4-3 again to see if the propmgr mismatch repeats; then qbuild all, report.
+## Run4 report (2026-10-21)
+- Cause of PL19's "drain to zero" (from the round-5 per-op trace glue21fix2-pin-1, replayed by
+  build-runs/wave_walk.py): not a reference deficit. Our slot 9 placed set nodes at v mod 193, but the growth
+  pass's iterator recomputes a chain-end node's bucket as (v >> 2) mod n, so it jumped backwards and cycled over
+  6 nodes forever (26/26 chain-end jumps fit v>>2, 0/26 the identity). Releasing on each visit drained them.
+- d5f89876: FC4GameList.h `GameHashSetU32<Alloc, Hash>` (IdentityHashU32 default, PointerHashU32 = v>>2);
+  cFC4LotConfigManager slots 9/10/11/12 use `LotConfigSet`; the PL18 second AddRef dropped (the core's
+  with_refs takes exactly one per returned element per call, cache hit included, §B5.2 slot 9 rule).
+  6d362fea: the per-op trace and slot-9 markers removed (200 MB logs crowded out the shadow lines).
+- Game: glue21-r4-1 (trace on) clean to 2032-01-07, ref_warnings=0, core slot-9 adds 949608 = releases at
+  00709798 949608, zero deletes; glue21-r4-2 (no trace) clean to 2032-01-04, ref_warnings=0.
+- Shadows: FC4PropLotShadow skips FreeCity4's own class (IsOurObject), so they were run over the originals:
+  r4-3 (turbo) propmgr 219/220, lotcfg 293/293, tutorial 146/146; r4-4 (turbo) 220/220, 293/293, 146/146;
+  r4-5 (normal speed, to 2035-11) 357/358, 477/477, 238/238. The one propmgr difference is a GetLotProps
+  sample on a different lot each time (PL21); this branch does not touch the propmgr core or shadow.
+- Gate: qbuild all PASS (cargo 2860/0, clippy 0, build, ctest 58/58). fc4verify reports "ninja did not
+  finish (0/3)" when the cargo restat prunes every edge; touch a plugin source to force a relink.
+- Questions: PL20 (the hash_set<cISC4LotConfiguration*> hasher), PL21 (the intermittent GetLotProps sample).
+- Next: coordinator union regress with both keys; when PL20 is answered, update the PointerHashU32 comment.
