@@ -69,6 +69,7 @@ generated index: the questions live one file per spec, so read only the file for
 | LF | landfill |
 | LG | landfill |
 | LR | lot-records |
+| LT | lighting |
 | LU | language-utility |
 | LV | landvalue |
 | MS | mysims |
@@ -160,6 +161,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landvalue | 1 | 5 | LV6 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
+| lighting | 4 | 0 | LT5 | questions/lighting.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | lot-records | 0 | 5 | LR6 | questions/lot-records.md |
@@ -211,4 +213,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **199** | **1115** | | |
+| **total** | **203** | **1115** | | |

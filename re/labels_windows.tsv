@@ -894,6 +894,11 @@ va	name	slots	note
 00b0c960	cSC4SubwayOccupant::sCornerPoints	0	underground-occupants.md §3.6; read by StaticInit
 00b0cdb8	cSC4SubwayOccupant::sPool	0	underground-occupants.md §1; vtable 0x00AAA578
 00b0cdc8	cSC4SubwayOccupant::sModelDescriptor	0	underground-occupants.md §1; returned by main slot 101
+00b0dce0	cSC4LightingManager::sAmbientColor	0	lighting.md §4.1; 0.05, 0.05, 0.05
+00b0dcec	cSC4LightingManager::sKeyLightDirection	0	lighting.md §3; -1, 1, 1 (normalised at use)
+00b0dcf8	cSC4LightingManager::sFillLightDirection	0	lighting.md §3; 1, 0.5, -1 (normalised at use)
+00b0dd04	cSC4LightingManager::sKeyLightColor	0	lighting.md §4.1; 1, 1, 0.8
+00b0dd10	cSC4LightingManager::sFillLightColor	0	lighting.md §4.1; 0, 0.1, 0.5
 00b13420	cRZTimer::sCounterFrequency	0	timers.md §1.5; QueryPerformanceFrequency, written by MeasureFrequencies 0x0088FED4
 00b13428	cRZTimer::sCycleFrequency	0	timers.md §1.5; the CPU cycle rate C, written by MeasureFrequencies 0x0088FECC
 00b16998	cRZDirectory::sSelfName	0	paths.md §3.3; points at '.' (0x00AA1B74)
