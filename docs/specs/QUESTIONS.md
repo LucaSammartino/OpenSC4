@@ -140,7 +140,7 @@ generated index: the questions live one file per spec, so read only the file for
 | dates | 3 | 0 | DT4 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
-| disasters | 5 | 40 | DS45 | questions/disasters.md |
+| disasters | 2 | 43 | DS45 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
 | drawing-fonts | 6 | 0 | FN7 | questions/drawing-fonts.md |
 | effects | 0 | 13 | EF14 | questions/effects.md |
@@ -207,4 +207,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **196** | **1047** | | |
+| **total** | **193** | **1050** | | |
