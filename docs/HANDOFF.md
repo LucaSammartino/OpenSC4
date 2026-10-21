@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**train26 landed 615a163a92:** Four-lane batch: effects tick/dilation/particle-stop core plus DX7, city-input and font specs. Full gate/regress PASS. Credit only four implemented effects owners, the specified input base, font director and bitmap helper; partial DX7/font classes remain uncredited. re-application4 parked at3/3 beforelanding: ready partial57/322 cSC4App spec, AP1/AP2 answered, AP3-AP5 open; nofourthround. Coverage38.7/30.0/12.4/16.5; rounds27/60.
+
 **Train25 landed bc937e312e (4 lanes):** PL19 replacement gate62/62 and union35-key regress PASS, both clean/ref0; aura71/71 and MySims73/73 remain exact, netmgr72/73 remains questioned. Terrain TR33-TR41 answers now landed; glue-terrain3 may resume after slots/check, with2 run4 rounds left. Audio and budget-window specs landed with export/asm evidence; default propmgr/lotcfg and exact-owner map promoted after69 tools tests. Coverage38.7/28.3/12.4/16.5 (run4 deltas+1.9/+0.0/+0.3/+0.6). Total21/60; five lanes active. The old noncanonical glue21 run narrative moved to history so run-table generation works.
 
 **Run4 checkpoint15/60:** trains21 and22 landed; coverage36.8/28.3/12.4/16.2 versus baseline36.8/28.3/12.1/15.9 (verified+0.3, replaced+0.3 points). Five live slots are refilled after checks; terrain RE is capped3/3 and ready awaiting a batch, never round4. Audio/panels returned supported-export specs but reported no live REA app; checking that workspace diagnostic separately from the guard before accepting their coverage.
@@ -33,7 +35,7 @@ Then choose work from coverage-report.md subsystem bytes, largest eligible first
 The previous stop note is preserved verbatim in [history/handoff-run3-stop-2026-10-21.md](history/handoff-run3-stop-2026-10-21.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 227 (train25 four-lane PASS, PL19 replacement promoted, terrain spec blockers answered, coverage38.7/28.3/12.4/16.5); 226 (train22 PASS, occupant-manager replacement promoted, replaced coverage15.9 to16.2 percent); 225 (train21 PASS, aura restored to 71/71, verified coverage 12.1 to 12.4 percent; netmgr differences documented); 223 (train19 PASS, MySims shadow exact 73/73 alongside the full regression, ref_warnings=0); 222 (MySims shadow exact 73/73 through 2032, including load, ref_warnings=0). See `docs/manual-checks.md`.
+- **Latest in-game run:** 228 (train26 four lanes, effects core improvements and three focused spec families); 227 (train25 four-lane PASS, PL19 replacement promoted, terrain spec blockers answered, coverage38.7/28.3/12.4/16.5); 226 (train22 PASS, occupant-manager replacement promoted, replaced coverage15.9 to16.2 percent); 225 (train21 PASS, aura restored to 71/71, verified coverage 12.1 to 12.4 percent; netmgr differences documented); 223 (train19 PASS, MySims shadow exact 73/73 alongside the full regression, ref_warnings=0). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
