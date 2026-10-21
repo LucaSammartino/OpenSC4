@@ -246,6 +246,31 @@ With weights summing to 65535 and `r` in [0, 65535], exactly one member is creat
 group's component is being created (it enters the level-of-detail range, or the effect is new), so with the shipped
 ranges it happens **once per effect**, when the effect is created (`0x00591C38`–`0x00591C92`).
 
+**The rebuild test (EF12, re-effects-contracts4).** There is no per-effect "already built" flag; the test is per
+component description and compares the current level of detail `L` (`+0xC84`) with the previous one `L_prev`
+(`+0xC88`; `DoZoomChanged` copies the old `L` there before computing the new one, `L = max(1, zoom − base + 1)`
+with `base` at `+0xC8C`; all three start at −1 in the constructor). `UpdateVisualEffect(effect, newBuild)`
+`0x005919D0` does two passes:
+
+1. **Existing components** (records at effect `+0x114`, `0x44` bytes each): a record survives only if the reload
+   flag `+0xB8C` is 0 and `L` is in its description's `[min, max)` (`+0x4C`, `+0x4D`); a survivor is refreshed
+   (`0x0058DC50`) when `L != L_prev`. Every other record is hard-stopped (`Stop(1)`) and released; the list is
+   compacted in order.
+2. **Descriptions**, in order. A description with a valid type index (`+0x68 ≥ 0`) takes part — draws and adds its
+   weight — only if **(in range at `L` and not in range at `L_prev`) or `newBuild` or the reload flag** is set
+   (`0x00591C08`–`0x00591C32`). Otherwise it is skipped without touching the group state. A participating member
+   creates a component only if it is in range at `L` (`0x00591C9B`).
+
+So a rebuild with `newBuild = 0` and no reload draws for a select group only if one of its members **just entered
+the range**, and the draw and running sum then cover only those entering members (members not entering are
+skipped and do not count as "a different group"). A reload (`+0xB8C` = 1) destroys every component in pass 1 and
+redraws every group. Consequences an implementer must keep:
+- The new-build and reload draws include members that are **out of range at `L`**: their weight still counts, and if
+  the draw lands on one, nothing in that group is created.
+- The group comparison is against the last *participating* component's group, and a group-0 component resets it.
+- The pick is "first running sum ≥ r" with an unsigned compare (`0x00591C84`); after a pick `r := 0x10000`, so if a
+  group's weights sum past `0xFFFF` a second, later member is also created.
+
 ## 6. The tick (`DoAnimationTick` `0x0058E580`) *[compat]*
 
 On `kSC4MessageAnimationTick` `0x86AD10EE` (data2 = elapsed microseconds `µs`):
@@ -261,6 +286,10 @@ On `kSC4MessageAnimationTick` `0x86AD10EE` (data2 = elapsed microseconds `µs`):
      `IsDrivingMode` (U-Drive-It active; slot 13 of the object cached at `0x00B43D44`, `0x00506940`) → `[4]`;
      `IsPaused` (slot 15, `0x00703D50`) → **`[0]` = 0.0**; otherwise by `GetSimSpeed` `0x008265C0`:
      speed 0 → `[1]` = 1.0, speed 1 → `[2]` = 1.5, speed 2 → `[3]` = 2.0.
+     **Speed outside 0–2 (EF11, re-effects-contracts4):** `GetSimSpeed` is the raw `u32` at the simulator's
+     `+0x3C` (`0x008265C0`), and the getter tests only `speed − 1 == 0` → `[2]` and `speed − 2 == 0` → `[3]`
+     (`0x00702727`–`0x0070272B`); **every other value — 0, 3 and above, or anything negative — falls through to
+     `[1]` = 1.0** (`0x0070272D`). No clamp, no arithmetic on the speed.
      **`IsHiddenPaused` (slot 16) is never consulted** — a hidden pause does not change the dilation (EF5).
    - *[quirk]* While paused the dilation is 0.0, so `dt'` is 0 and every component update runs with `dt = 0` —
      brushes make no progress, timers do not advance. (The earlier claim "1 while paused" is wrong; in a normal
@@ -281,10 +310,32 @@ non-zero the per-target sweep is skipped (`0x004488C0`–`0x004488D6`), so no ti
 effects manager registers a callback with the tick manager in `Init` (`0x00594EEE`:
 `EnableAutoStep(1, EffectsTickCallback)` on the `cISC4AnimationTickManager` at `+0xCD8`), and
 `EffectsTickCallback` `0x0058D9A0` posts `0x697D01ED` (`DoEffectsTick`, §12) through the message server every
-time the animation tick manager steps. So the effects manager's own tick — and with it
-`UpdateActiveVisualEffects` → `ActivateNewVisualEffects` (§5.1) — runs **once per animation tick in any session
-that ticks**, not only in the draw pass. The tick manager's own `DoAnimationTick` is driven from outside the
+time the animation tick manager steps. So the effects manager's own tick runs **once per animation tick in any
+session that ticks**, not only in the draw pass. The tick manager's own `DoAnimationTick` is driven from outside the
 effects subsystem (the framework scheduler), which is why a paused game stops it and a ticking harness keeps it.
+
+**Corrects (EF12, re-effects-contracts4): `DoEffectsTick` `0x00593D00` does not rebuild or activate anything on
+an ordinary tick.** Its body, in order:
+
+1. **Reload, only when pending.** If the object at `+0xC78` exists and its slot 14 (`+0x38`) returns true
+   (`0x00593D12`), it locks (`+0x94` slot 3), runs `EffectsParser::ParseQueuedFiles` `0x0058E4E0`, unlocks
+   (slot 4), sets the reload flag `+0xB8C` := 1, calls `UpdateActiveVisualEffects`, clears `+0xB8C`, and calls
+   slot 2 of `+0xC7C`. Otherwise this step is skipped entirely.
+2. **Snow line.** If `+0xB88` exists, its slot 22 (`+0x58`) fills a value stored at `+0xCB0` (`+0xCA8`, `+0xCAC`
+   with it); on 25 December (local date, `Month == 12`, `DayOfMonth == 25`) with a terrain view it resolves
+   `+0xDBC` once and calls `UpdateSnowline`.
+
+New effects therefore are **not** activated by the tick: `ActivateNewVisualEffects` runs from
+`CreateVisualEffect` (both overloads, `0x00593AB0` and `0x00593B68`) when the description was found, from the end of
+`DeactivateUnusedVisualEffects` (`0x00592A01`, the draw-pass sweep) and from `UpdateActiveVisualEffects`.
+
+**`UpdateActiveVisualEffects` `0x00593B90`** does nothing at all — not even activation — unless the byte
+`+0x1AD` is set (`0x00593B93`). That byte is 0 from the constructor (`0x0059131B`) and `Init` (`0x00594A57`), set
+to 1 only by `DoMessage` on `kSC4MessagePostAppServicesInitComplete` `0xAB96B05F` (`0x0059458A`, just before its
+own `UpdateActiveVisualEffects`), and cleared by `Shutdown` (`0x00595828`). Once set it walks the active list,
+calls `UpdateVisualEffect(effect, 0)` on each, then `ActivateNewVisualEffects`. Its callers are that message,
+`DoZoomChanged`, the reload of step 1, and `DoRenderPropertiesChanged` (also with `+0xB8C` = 1, when the
+cached pointer `+0xB90` changes, `0x00593E10+`).
 
 ## 7. Finishing and the end message *[compat]*
 
