@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-editors4 (RE spec: resource and exemplar editor, cSCPropertyView + value editors + edit-value dialog) | `re-editors4` / (RE spec lane) | ready: resource-exemplar-editor.md rounds 1+2 (round 2 commits 27651b80, e3192315, 14c28703, c7da5d1d); no ABI, no questions, no game runs; export + decomp + exe bytes only, REA not used | 1. coverage-map: `spec` for cSCPropertyView, 3 free functions, cSCEditValueDlg, cSCUint32ComboBoxEntryView, cSCUint8ComboBoxEntryView (exact owners, no wildcard); 2. round 3: grid, colour, curve, spinner, res-key table editors (spec §13) |
+| re-editors4 (RE spec: resource and exemplar editor, cSCPropertyView + value editors + edit-value dialog) | `re-editors4` / (RE spec lane) | in progress (round 3): resource-exemplar-editor.md rounds 1+2 (round 2 commits 27651b80, e3192315, 14c28703, c7da5d1d); no ABI, no questions, no game runs; export + decomp + exe bytes only, REA not used | 1. coverage-map: `spec` for cSCPropertyView, 3 free functions, cSCEditValueDlg, cSCUint32ComboBoxEntryView, cSCUint8ComboBoxEntryView (exact owners, no wildcard); 2. round 3: grid, colour, curve, spinner, res-key table editors (spec §13) |
 
 ## Report
 
@@ -33,3 +33,10 @@ Inferred points: who opens cSCEditValueDlg, reader of 0x00B46924, ref ownership 
 slot roles, meaning of the ResKeyTableEditorDefaults values.
 
 Questions: none filed. ABI: none proposed. REA: not used (export, decomp and exe bytes via build-runs/rd.py).
+
+## Handoff
+
+Goal (round 3, final): spec the 16-column grid, colour sequence, curve, spinner and res-key table editors (§11/§12 of resource-exemplar-editor.md), from export instructions.
+Done: rounds 1+2 up to 0b222b44.
+Next: find each class's vtable/methods via re_query.py (search cSC16ColumnGrid etc.), write §11 (grid, spinner), §12 (colour, curves, res-key table), update §13/§14.
+Facts: no REA needed so far; no ABI, no questions.
