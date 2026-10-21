@@ -64,6 +64,7 @@
 #include "cFC4Terrain.h"        // the glue18 lane: the terrain replacement
 #include "cFC4NetworkManager.h"    // the glue24 lane: enable = netmgr
 #include "cFC4NetworkLotManager.h" // the glue24 lane: enable = netlot
+#include "cFC4OccMgr.h"          // the glue25 lane: enable = occmgr
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -430,7 +431,13 @@ const ClassEntry kNetworkLotClasses[] = {
 // netmgr replacement's own create_tool callback hands out the real tool.
 const ClassEntry kNetToolClasses[] = {
     {kFC4_CLSID_cFC4NetworkTool, "cFC4NetworkTool", &CreateFC4NetworkToolEntry},
+};
 
+// docs/specs/occupant-manager.md §1, CLSID 0x098F964D. Off by default
+// (glue25): `enable = occmgr`. The city component table's #4 (foundations
+// §3.6); every manager query and the v1 save record go through it.
+const ClassEntry kOccMgrClasses[] = {
+    {kFC4_CLSID_cSC4OccupantManager, "cSC4OccupantManager", &CreateFC4OccupantManager},
 };
 
 const Subsystem kSubsystems[] = {
@@ -483,6 +490,7 @@ const Subsystem kSubsystems[] = {
     {"netmgr", nullptr, kNetworkManagerClasses, sizeof(kNetworkManagerClasses) / sizeof(kNetworkManagerClasses[0]),
      false},
     {"netlot", nullptr, kNetworkLotClasses, sizeof(kNetworkLotClasses) / sizeof(kNetworkLotClasses[0]), false},
+    {"occmgr", nullptr, kOccMgrClasses, sizeof(kOccMgrClasses) / sizeof(kOccMgrClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
