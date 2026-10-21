@@ -26,6 +26,103 @@ Masks used by the code: `0x001F`, `0x03E0`, `0x7C00`, `0x8000`, and the paired `
 - **Overlap.** Spans are processed in list order, each fully before the next; a pixel covered twice is blended
   twice (the second blend reads the first's result). RenderBlt reads a separate source; see §6.
 
+### 1.1 Native call boundary (re-span1555-bridge4) [exact]
+
+Every fact here was read from the 1555-specific bytes at the cited addresses; the shared context code is the same
+code `span-render-4444.md` §1.1 cites, re-read for this class.
+
+**Creation.** `cGZDrawContextRenderToBuffer::Init` (`0x00830710`, thiscall `(buffer)`, `RET 4`) locks the buffer
+(`vfunc +0x18`, flags `0x8040`; failure → return 0), reads its colour type (`vfunc +0x3C`, first dword of the
+returned pair) and switches on `type − 2` through the 8-entry table at `0x008308B0`:
+
+| Colour type | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | other |
+|---|---|---|---|---|---|---|---|---|---|
+| Case | `0x008307D4` | `0x0083087A` | `0x0083077C` | `0x00830792` | `0x0083077C` | `0x008307A8` | `0x008307BE` | `0x008307BE` | `0x0083087A` |
+| Renderer vtable | `0x00AC188C` (8-bit) | none: release the buffer, return 0 | **`0x00AC182C` (1555)** | `0x00AC1844` (565) | **`0x00AC182C`** | `0x00AC185C` (4444) | `0x00AC1874` (8888) | same | none |
+
+Types 4 and 6 share one case: `GlobalHeapAlloc(4)` (`0x005E55E0`, call `0x0083077E`), vtable store
+`0x0083078A` (the only occurrence of the immediate `0x00AC182C` in the image), pointer stored at context `+0xB0`
+(`0x008307EE`). A failed allocation stores **0** and Init still continues and returns 1; nothing later tests
+`+0xB0` for null (`0x008304AD`, `0x00830529`, `0x00830583`, `0x008305C2` load and dereference it), so the next
+draw would crash. *[compat: an implementation may fail Init instead]* Init then caches the surface record
+`ctx+0x78` = pixel pointer (`vfunc +0x88`), `+0x7C` = stride (`vfunc +0x8C`), with width `+0x80` (`+0x24`), height
+`+0x84` (`+0x28`). The renderer never reads the colour type again: a type-4 and a type-6 context are
+indistinguishable from here on, and every method assumes 2 bytes per pixel.
+
+**Object and vtable.** 4 bytes, only the vtable pointer. `0x00AC182C` is one static table of six entries:
+slot 0 `0x0082FF00` (shared by all five span vtables and the base `0x00AC17AC`), slots 1–5 the five methods below;
+each slot-1…5 address occurs exactly once in the image as a dword (its own entry). Patching entries 1–5 of
+`0x00AC182C` therefore redirects every type-4 and type-6 context; nothing copies the table.
+
+**Lifetime.** `Shutdown` (`0x0082FF20`; also the first thing Init does) and `Release` (`0x008306C0`) call slot 0
+with flags 1 and clear `+0xB0`. Slot 0 is thiscall `(flags)`, `RET 4`: it sets the vtable to `0x00AC17AC`, frees
+`this` with `GlobalHeapFree` (`0x005E5620`) when bit 0 is set, returns `this` in EAX.
+
+**Calling convention, slots 1–5.** MSVC thiscall: `this` in ECX and never read (each method overwrites ECX before
+any read of it; the object has no state), arguments pushed right to left, callee pops, no return value (no caller
+reads EAX). EBX, EBP, ESI, EDI preserved (each method pushes and pops the ones it uses; the caller keeps ESI live).
+
+| Slot | Offset | Method | Arguments (dwords, in order) | Callee pops |
+|---|---|---|---|---|
+| 0 | +0x00 | deleting destructor `0x0082FF00` | `flags` | `RET 4` (`0x0082FF1C`) |
+| 1 | +0x04 | RenderSolid `0x008310B0` | `spans, n, surface, colour` | `RET 0x10` (`0x008310F3`) |
+| 2 | +0x08 | RenderGradient `0x00831100` | `spans, n, surface, grad` | `RET 0x10` (`0x008311F4`) |
+| 3 | +0x0C | RenderAlpha `0x00831200` | `spans, n, surface, src, argb` | `RET 0x14` (`0x008312C0`) |
+| 4 | +0x10 | RenderAlphaGradient `0x008312D0` | `spans, n, surface, grad` | `RET 0x10` (`0x0083146D`) |
+| 5 | +0x14 | RenderBlt `0x00831470` | `spans, n, surface, src, b, kind` | `RET 0x18` (`0x008314FF`) |
+
+`spans`, `surface`, `grad`, `src` (slot 5) and `b` are pointers; `n`, `colour`, `src` (slot 3), `argb` and `kind`
+are values. RenderBlt reads `b.+0x10`/`b.+0x1C` before copying, pushes copies of `b` (32 bytes), `src` (24) and
+`surface` (24) by value, then `n` and `spans`, calls `rows[…][kind]` (cdecl, 22 dwords) and pops them itself
+(`ADD ESP,0x58` at `0x008314FA`). RenderSolid's per-span fill helper `0x0090FFC8` is cdecl `(dest, colour, count)`,
+popped by the caller (`ADD ESP,0xC` at `0x008310E9`).
+
+**The only native caller** is `DrawPreclippedSpanList` (`0x008302E0`, thiscall `(spans, n)`, `RET 8`, slot 22 of
+the context vtable `0x00AC17D0`), which passes its own `spans`, `n` through unchanged, `surface = ctx+0x78`
+always, and picks one slot per call (§6.1): slot 5 at `0x008304D1`, `0x0083053B`, `0x00830591` (textured; one
+site ORs 4 into `kind` at `0x0083050F`), slot 4 at `0x008305E7`, slot 2 at `0x008305FC`, slot 3 at `0x00830627`,
+slot 1 at `0x00830647`. The textured path first locks the texture (`vfunc +0x18`, `0x800`, `0x008302FB`; failure →
+return without drawing) and unlocks it (`vfunc +0x1C`) after the call.
+
+**Supported COM boundary.** No interface slot returns or sets `+0xB0`. The only way to get a
+`cGZDrawContextRenderToBuffer` is `cIGZDrawSystem` slot 4 (`0x0082BAB0`, thiscall `(buffer, out)`, `RET 8`),
+which tries the registered context factories front to back; the RenderToBuffer factory (`0x0082B910`, slot 3 of
+`0x00AC162C`) accepts any object answering `cIGZBuffer` `0x20732180`, allocates 0xD4 bytes, constructs
+(`0x00830690`) and AddRefs into `*out`; it does not call Init. Init has no direct caller: its only reference is
+slot 3 (`+0x0C`, entry `0x00AC17DC`) of the context vtable `0x00AC17D0`, so the holder of the context calls
+`Init(buffer)` through the interface before drawing. A plugin therefore
+reaches the 1555 methods either through a draw context on a type-4/6 buffer it owns, or by patching
+`0x00AC182C` entries 1–5. *[same shared factory path as `span-render-4444.md` §1.1; re-read here]*
+
+**Conformance examples (boundary).** (1) Slot 1, `spans = [{start 0x00010002, end 0x00010005}]`, `n = 1`,
+`surface = {base B, stride 8}`, `colour = 0x12347C1F`: words at `B+12`, `B+14`, `B+16` become `0x7C1F`, nothing
+else changes, 16 bytes popped. (2) Slot 5 with `b.+0x10 = 0` (A4444), `b.+0x1C = 0`, `kind = 0`, one span of one
+pixel whose texel is `0xF8C3`: the destination word becomes `0xC726` (§7.3), via `0x00831510`.
+
+### 1.2 Which shipped buffers reach this class (re-span1555-bridge4) [static; runtime open as SR1555-6]
+
+A 1555 renderer exists only for a buffer of colour type 4 or 6 that gets a RenderToBuffer context. Static sweep
+of the image (`build-runs/scan.py`):
+
+| Source | Result |
+|---|---|
+| The 34 direct calls of the colour-pair constructor `0x0044A490` | immediate types 1 (11 calls), 9 (4), 3 (10), a register/memory type (7) and two with other pushes; **no 4 or 6** |
+| The 37 places where `PUSH 4`/`PUSH 6` precedes a `CALL [reg+0x14]` within 16 bytes | all in UI, sound and simulation code (prop/network managers, automata, window controls, `cSC4WinAnimationRecorder::Init` `0x00796F41`, which is a 2-argument flag setter); none is `cIGZDrawSystem::CreateBuffer` |
+| The screen buffer (`span-render-4444.md` §1.2) | types 7 or 9 only, and it gets a SimGL context, not RenderToBuffer |
+| Gimex loads, buffer resources | type from the caller (literals 2, 9, 1) or from the file header; a resource stored as type 4/6 would load as such before `ConvertBufferFromFormatToFormat` (`0x00931CF0`, 3 callers) converts to the factory target (3 or 1) |
+
+**Result: no shipped path that draws spans into a type-4/6 RenderToBuffer target was found statically.** The
+sweep cannot see types computed at run time (window `+0x14` pushes through memory operands fall outside the
+16-byte window), so this is not a proof of absence. The deciding probe is a runtime counter at `0x0083078A`
+(the 1555 vtable store) and at the five method entries during a normal session (SR1555-6).
+
+**What a pixel test can use (explicitly constructed, not a game path).** Create a `cGZBuffer` through GZCOM
+(CLSID `0xC470D325`), `Init` it with the pair (4 or 6, 16 bpp) (the renderer assumes 2 bytes per pixel and reads
+the stride from the buffer), ask `cIGZDrawSystem` slot 4 for a context, then draw through the context's public
+methods (SetAlphaBlend, SetGradientTransform, SetBltSource, DrawPreclippedSpanList via the clipping paths) and
+read the buffer's pixels back. This exercises the shipped renderer bytes end to end but is a constructed
+scenario: a report must label it "constructed buffer", never "in-game".
+
 ## 2. RenderSolid (`0x008310B0`, slot 1) [exact]
 
 Arguments: spans, n, surface, colour (dword). For each span it calls the 16-bit fill helper `0x0090FFC8`
@@ -77,6 +174,25 @@ cleared and nothing else changes. Otherwise, for channel `i = 0…3` (record cha
 - `c_i = trunc(s_i − (dx_i × x0 + dy_i × y0))`, evaluated on the x87 stack (the integers loaded exactly, `x0`,
   `y0` as float, `+` before `−`) and truncated toward zero by `_ftol` (`0x009EEF04`).
 - Then `+0x74 = 1`.
+
+**x87 precision (SR1555-5b).** The function never writes the control word (no `FLDCW` in `0x0082FDB0`–`0x0082FE58`);
+it runs under the calling thread's precision, which on the game's main thread is **24-bit** (`foundations.md`
+§18.1). Under 24-bit precision every arithmetic result is rounded to a 24-bit significand, round-to-nearest-even:
+the product `p × 16711680` (`FMUL` `0x0082FDD3`/`…DEB`/`…E03`; the following store to float is then exact),
+`dx_i × x0` (`0x0082FE26`), `dy_i × y0` (`0x0082FE2C`), their sum (`FADDP` `0x0082FE30`) and `s_i − sum`
+(`FSUBP`, bytes `DE E9` at `0x0082FE32`: the earlier-loaded `s_i` minus the sum). The `FILD` loads of the integers
+`s_i`, `dx_i`, `dy_i` are exact. `_ftol` then truncates the 24-bit-rounded difference toward zero. Five roundings
+per channel, no others. Worked examples (`p[i]`, `p[4+i]`, `p[8+i]`, `x0`, `y0` → `c_i`; `build-runs/gradprec.py`):
+
+| Inputs | `s_i`, `dx_i`, `dy_i` | `c_i` at 24-bit | `c_i` if computed at 53-bit |
+|---|---|---|---|
+| 1.0, 0, 0, 0, 0 | 16744448, 0, 0 | 16744448 | same |
+| 0.5, 0.01, 0.02, 100.25, 37.75 | 8388608, 167117, 334234 | −20982204 | same |
+| 0.75, −0.003, 0.0007, 1023.3, 767.9 | 12566528, −50135, 11698 | **54886776** | 54886778 |
+| 0.2, 0.1, 0.1, 333.3, 222.2 | 3375104, 1671168, 1671168 | **−924958720** | −924958694 |
+
+An implementation that rounds each of the five results to float (IEEE single, nearest-even) and truncates the last
+reproduces the 24-bit column (no intermediate here leaves the single exponent range for inputs in ±2³¹).
 
 So the float inputs are channel fractions (1.0 → 255 in bits 16–23): the record is 8.16 fixed point with the
 8-bit channel in bits 16–23, the start pre-rounded by +0.5, and `(x0, y0)` the pixel at which the colour equals
@@ -212,7 +328,7 @@ column (`0x00834050`, `0x00848160`).
 
 | Source | Body | Rule (`s` = source texel) |
 |---|---|---|
-| A4444 | `0x00831510` | each 4-bit channel `c4` → `c5 = (c4 << 1) \| (c4 >> 3)` (bit replication); A = bit 15 of `s` (alpha4 ≥ 8) |
+| A4444 | `0x00831510` | each 4-bit channel `c4` → `c5 = (c4 << 1) \| (c4 >> 3)` (bit replication); A = bit 15 of `s` (alpha4 ≥ 8). Nibble order (SR1555-5a, from the masks at `0x00831566`–`0x00831594`): bits 0–3 → B, 4–7 → G, 8–11 → R, 12–15 alpha; each nibble lands at the top of its 5-bit field, then `+ ((w >> 4) & 0x0421)` copies each field's top bit into its low bit. Example: `0xF8C3` → `0xC726` |
 | A1555 | `0x00848160` | raw copy, A copied |
 | X555 | `0x00834EE0` | `(s & 0x7FFF) \| 0x8000` — **A forced to 1** |
 | R565 | `0x00836AF0` | R = `s` bits 11–15, G = top 5 of the 6 green bits (bits 6–10), B = bits 0–4 (truncation, no rounding); A = 1 |
@@ -317,5 +433,9 @@ no two slots byte-identical: rows differ in register use, so it gives no stronge
 ## 8. Open points
 
 Open: SR1555-2 (`docs/specs/questions/span-render-1555.md`): whether any shipped path draws a gradient into a
-1555 buffer. SR1555-1, -3, -4 are answered (§4.1, §6.1, §7.3–§7.7). Every function of the owner range is
+1555 buffer. Narrowed (re-span1555-bridge4): `0x0082FDB0` and `0x0082C360` have no direct caller; the only
+reference to `0x0082C360` is its `cGZDrawContext` vtable entry `0x00AC1734` (`+0x6C`), and the image has 594
+`CALL [reg+0x6C]` sites whose receiver type is not static, so it needs the same runtime probe as SR1555-6, which
+must hit first (no 1555 target, no 1555 gradient). SR1555-6: whether any shipped path creates a type-4/6
+RenderToBuffer target (§1.2). SR1555-1, -3, -4, -5 are answered (§4.1, §6.1, §7.3–§7.7). Every function of the owner range is
 [exact] or [verified]: 5 methods, 166 in-range slot bodies, the blend helper `0x0083C490`.
