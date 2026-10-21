@@ -1,0 +1,492 @@
+//! Conformance tests from the worked examples of docs/specs/html-document.md.
+
+use super::*;
+
+#[derive(Default)]
+struct TestHost {
+    downloads: Vec<Vec<u8>>,
+    delivered: Vec<(Option<NodeId>, ImageHandle)>,
+    written: Vec<(Vec<u8>, Vec<u8>)>,
+    removed: Vec<Vec<u8>>,
+    loaded: Vec<Vec<u8>>,
+    surfaces: u64,
+    visited: bool,
+}
+
+impl HtmlHost for TestHost {
+    fn rgb(&mut self, r: i32, g: i32, b: i32) -> u32 {
+        ((r as u32 & 0xff) << 16) | ((g as u32 & 0xff) << 8) | (b as u32 & 0xff)
+    }
+    fn set_color(&mut self, value: &[u8], color: &mut u32) {
+        *color = match value {
+            b"white" => 0xffffff,
+            b"#ff0000" => 0xff0000,
+            _ => *color,
+        };
+    }
+    fn convert_color(&mut self, parsed: u32) -> u32 {
+        parsed | 0x1000_0000
+    }
+    fn table_bgcolor(&mut self, _value: &[u8]) -> u32 {
+        0x123456
+    }
+    fn is_visited(&mut self, _url: &[u8]) -> bool {
+        self.visited
+    }
+    fn request_download(&mut self, url: &[u8]) -> u32 {
+        self.downloads.push(url.to_vec());
+        self.downloads.len() as u32
+    }
+    fn deliver_image(&mut self, waiter: Option<NodeId>, image: ImageHandle) -> bool {
+        self.delivered.push((waiter, image));
+        true
+    }
+    fn create_image_loader(&mut self) -> bool {
+        true
+    }
+    fn load_image(&mut self, path: &[u8]) -> Option<ImageHandle> {
+        self.loaded.push(path.to_vec());
+        Some(77)
+    }
+    fn make_temp_path(&mut self) -> Vec<u8> {
+        b"tmp0".to_vec()
+    }
+    fn write_file(&mut self, path: &[u8], data: &[u8]) -> bool {
+        self.written.push((path.to_vec(), data.to_vec()));
+        true
+    }
+    fn remove_file(&mut self, path: &[u8]) {
+        self.removed.push(path.to_vec());
+    }
+    fn create_bullet_surface(&mut self, w: u32, h: u32, bg: u32, c: Option<(u32, u32)>) -> Option<ImageHandle> {
+        self.surfaces += 1;
+        Some(u64::from(w) << 48 | u64::from(h) << 40 | u64::from(bg & 0xff) << 32 | u64::from(c.map_or(0, |x| x.0)))
+    }
+}
+
+fn doc() -> HtmlDocument<TestHost> {
+    let mut d = HtmlDocument::new(TestHost::default());
+    d.init(true, b"http://h/help/");
+    d
+}
+
+fn parse(src: &str) -> HtmlDocument<TestHost> {
+    let mut d = doc();
+    d.parse_sgml_elements(src.as_bytes());
+    d
+}
+
+/// Compact structure dump of the live tree: kinds and text.
+fn dump(d: &HtmlDocument<TestHost>, id: NodeId, out: &mut String) {
+    let name = match d.kind(id) {
+        Kind::Body(_) => "body".to_string(),
+        Kind::Text(t) => format!("'{}'", String::from_utf8_lossy(&t.text)),
+        Kind::Container(k) => format!("c{k}"),
+        Kind::Heading(l) => format!("h{}", l + 1),
+        Kind::List { kind, .. } => format!("list{kind}"),
+        Kind::Table(_) => "table".into(),
+        Kind::Tr(_) => "tr".into(),
+        Kind::Td(_) => "td".into(),
+        Kind::Img(_) => "img".into(),
+        k => format!("{k:?}")
+            .split(['(', ' ', '{'])
+            .next()
+            .unwrap_or("")
+            .to_lowercase(),
+    };
+    out.push_str(&name);
+    let kids = d.children(id);
+    if !kids.is_empty() {
+        out.push('[');
+        for (i, &k) in kids.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            dump(d, k, out);
+        }
+        out.push(']');
+    }
+}
+
+fn tree(src: &str) -> String {
+    let d = parse(src);
+    let mut s = String::new();
+    dump(&d, d.root.expect("root"), &mut s);
+    s
+}
+
+fn texts(d: &HtmlDocument<TestHost>) -> Vec<(String, Style, u32)> {
+    let mut v = Vec::new();
+    fn walk(d: &HtmlDocument<TestHost>, id: NodeId, v: &mut Vec<(String, Style, u32)>) {
+        if let Kind::Text(t) = d.kind(id) {
+            v.push((String::from_utf8_lossy(&t.text).into_owned(), t.style.clone(), t.align));
+        }
+        for &k in d.children(id) {
+            walk(d, k, v);
+        }
+    }
+    walk(d, d.root.unwrap(), &mut v);
+    v
+}
+
+#[test]
+fn constructor_and_font_table() {
+    let mut d = HtmlDocument::new(TestHost::default());
+    assert_eq!(d.font_sizes, DEFAULT_FONT_SIZES);
+    assert_eq!((d.proportional_size, d.fixed_size), (14, 14));
+    assert_eq!(d.proportional_face, b"arial");
+    assert_eq!(d.fixed_face, b"courier new");
+    d.set_font_size_table(&[6, 7, 8]);
+    assert_eq!(d.font_sizes, [6, 7, 8, 14, 18, 24, 36]);
+    assert_eq!(d.proportional_size, 14);
+    let mut out = [9; 9];
+    assert_eq!(d.get_font_size_table(&mut out), 7);
+    assert_eq!(out, [6, 7, 8, 14, 18, 24, 36, 0, 0]);
+    assert!(d.init(false, b""));
+    assert_eq!((d.style.selector, d.style.size, d.style.color), (1, 14, 0));
+    d.style.size = 3;
+    assert!(d.init(true, b"x"));
+    assert_eq!(d.style.size, 3);
+    assert_eq!(
+        HtmlDocument::<TestHost>::query_interface(0x452294aa),
+        Some(Base::Secondary)
+    );
+    assert_eq!(
+        HtmlDocument::<TestHost>::query_interface(0xe0eca23a),
+        Some(Base::Primary)
+    );
+    assert_eq!(HtmlDocument::<TestHost>::query_interface(7), None);
+}
+
+#[test]
+fn tag_table_and_sets() {
+    assert_eq!(TAGS.len(), 160);
+    assert_eq!(tag_id(b"/NOBR"), Some(162));
+    assert_eq!(tag_id(b"/IMG"), None);
+    assert!(sets::flow(3) && sets::block(126) && sets::block(89) && !sets::flow(149));
+}
+
+#[test]
+fn tokens_and_attributes() {
+    let mut d = doc();
+    d.source = b"<a  href=\"x.html\" >".to_vec();
+    d.get_token(false);
+    assert_eq!((d.token, d.tag_text.as_slice()), (54, &b"A"[..]));
+    assert_eq!(d.find_attribute("HREF", false), Some(b"x.html".to_vec()));
+    d.source = b"<!-- c --><b>".to_vec();
+    d.pos = 0;
+    d.get_token(false);
+    assert_eq!(d.token, 22);
+    d.source = b"<foo bar>".to_vec();
+    d.pos = 0;
+    d.get_token(false);
+    assert_eq!(d.token, 0);
+    assert_eq!(d.attrs, vec![(b"BAR".to_vec(), vec![])]);
+    d.source = b"<td HREF=foo.htm target='_x' href=\"bar\" NOWRAP>".to_vec();
+    d.pos = 0;
+    d.get_token(false);
+    assert_eq!(
+        d.attrs,
+        vec![
+            (b"HREF".to_vec(), b"foo.htm".to_vec()),
+            (b"TARGET".to_vec(), b"_x".to_vec()),
+            (b"NOWRAP".to_vec(), vec![])
+        ]
+    );
+    d.source = b"<td A=1 \" =\"x\" B>".to_vec();
+    d.pos = 0;
+    d.get_token(false);
+    assert_eq!(d.attrs, vec![(b"A".to_vec(), b"1".to_vec()), (b"B".to_vec(), vec![])]);
+    d.source = b"<td a= b>".to_vec();
+    d.pos = 0;
+    d.get_token(false);
+    assert_eq!(d.find_attribute("A", true), Some(b" b".to_vec()));
+    assert_eq!(d.find_attribute("A", true), None);
+    // Unterminated tag: token 0, position just after '<'.
+    d.source = b"ab<c".to_vec();
+    d.pos = 2;
+    d.get_token(false);
+    assert_eq!((d.token, d.pos), (0, 3));
+    // Comments join text.
+    d.source = b"a<!--x-->b<!-- open".to_vec();
+    d.pos = 0;
+    d.get_token(false);
+    assert_eq!((d.token, d.pending.as_slice()), (3, &b"ab"[..]));
+}
+
+#[test]
+fn entry_points() {
+    assert_eq!(tree("plain  text"), "body['plain  text']");
+    let d = parse("plain\r\ntext");
+    let t = texts(&d);
+    assert!(t[0].1.pre);
+    assert_eq!(
+        normalize_segment_text(&d.host, b"a  \t\r\n b", false),
+        b" a b"[1..].to_vec()
+    );
+    assert_eq!(
+        normalize_segment_text(&d.host, b"a  \t\r\n b", true),
+        b"a  \t\n b".to_vec()
+    );
+    assert_eq!(normalize_segment_text(&d.host, b"x\r\ry", true), b"x\n\ny".to_vec());
+    assert_eq!(tree("<html><body>Hi</body></html>"), "body['Hi']");
+    assert_eq!(
+        tree("<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01//EN\"><html><p>x</html>"),
+        "body[c21['x']]"
+    );
+    let mut d = doc();
+    assert!(!d.parse_sgml_elements(b"<!DOCTYPE svg><html>x</html>"));
+    assert!(d.root.is_none());
+}
+
+#[test]
+fn head_elements() {
+    let d = parse(
+        "<html><head><title>T 1</title><base href=\"http://x/y/\"><meta name=n content=c>\
+         <meta name=z><link href=a.css rev=r title=t><style>p{}</style></head><body>b</body></html>",
+    );
+    assert_eq!(d.title, b"T 1");
+    assert_eq!(d.base_url.as_deref(), Some(&b"http://x/y/"[..]));
+    assert_eq!(d.metas.len(), 1);
+    assert_eq!(d.metas[0].content, b"c");
+    assert_eq!(d.links[0].href, b"a.css");
+    assert!(!d.links[0].forward);
+    assert_eq!(d.links[0].title.as_deref(), Some(&b"t"[..]));
+    assert_eq!(texts(&d)[0].0, "b");
+}
+
+#[test]
+fn body_attributes() {
+    let d = parse("<html><body bgcolor=white text=#ff0000 link=white bgproperties>Hi</body></html>");
+    let b = d.body().unwrap();
+    assert_eq!(b.bgcolor, Some(0xffffff));
+    assert_eq!(b.link, 0x10ff_ffff);
+    assert!(b.bgproperties);
+    assert_eq!(texts(&d)[0].1.color, 0x10ff_0000);
+    assert!(!d.pushback || d.token != tok::BODY_END);
+}
+
+#[test]
+fn forms_select_and_misnesting() {
+    assert_eq!(tree("<html><form>a<p>b</p></form></html>"), "body[form['a',c21['b']]]");
+    assert_eq!(tree("<html><form></form>z</html>"), "body['z']");
+    assert_eq!(tree("<html><form>a</div>b</form>c</html>"), "body[form['a'],'c']");
+    assert_eq!(
+        tree("<html><select><option>One<option>Two</select></html>"),
+        "body[select[optionitem['One'],optionitem['Two']]]"
+    );
+    assert_eq!(tree("<html><select><option></option></select>q</html>"), "body['q']");
+    assert_eq!(tree("<html>x<sup>2</sup>y</html>"), "body['x','y']");
+    let d = parse("<html><b>x</i>y</b>z</html>");
+    let t = texts(&d);
+    assert_eq!(t.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(), ["x", "z"]);
+    assert_eq!((t[0].1.flags, t[1].1.flags), (BOLD, 0));
+    let d = parse("<html><em>a<p>b</p></em>c</html>");
+    let t = texts(&d);
+    assert_eq!(
+        t.iter().map(|x| (x.0.as_str(), x.1.flags)).collect::<Vec<_>>(),
+        [("a", ITALIC), ("c", 0)]
+    );
+}
+
+#[test]
+fn blocks() {
+    assert_eq!(tree("<html><p>a<p>b</html>"), "body[c21['a'],c21['b']]");
+    assert_eq!(tree("<html><dl><dt>t<dd>d</dl></html>"), "body[c8[c9['t'],c10['d']]]");
+    assert_eq!(tree("<html><blockquote>q</blockquote></html>"), "body[blockquote['q']]");
+    assert_eq!(tree("<html><center>c</center></html>"), "body[div['c']]");
+    let d = parse("<html><center>c</center><div align=right>r</div></html>");
+    assert_eq!(texts(&d).iter().map(|t| t.2).collect::<Vec<_>>(), [1, 2]);
+    let d = parse("<html><h2>Title</h2><i><h1>x</h1></i></html>");
+    let t = texts(&d);
+    assert_eq!((t[0].1.size, t[0].1.flags, t[0].1.selector), (32, BOLD, 9));
+    assert_eq!((t[1].1.size, t[1].1.flags), (40, BOLD));
+    let d = parse("<html><pre>a\n b</pre>c</html>");
+    let t = texts(&d);
+    assert!(t[0].1.pre && t[0].1.selector == 2 && !t[1].1.pre);
+    let d = parse("<html><hr width=50% size=2><hr width=300 align=top></html>");
+    let hrs: Vec<Hr> = d
+        .children(d.root.unwrap())
+        .iter()
+        .filter_map(|&k| match d.kind(k) {
+            Kind::Hr(h) => Some(h.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!((hrs[0].width, hrs[0].percent, hrs[0].size), (Some(50), true, Some(2)));
+    assert_eq!(
+        (hrs[1].width, hrs[1].percent, hrs[1].align),
+        (Some(300), false, Some(2))
+    );
+}
+
+#[test]
+fn lists_and_bullets() {
+    let d = parse("<html><ol><li>a<li>b</ol><ol><li>c</ol><ul><li>u</ul></html>");
+    let t = texts(&d);
+    assert_eq!(
+        t.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(),
+        ["  1. ", "a", "  2. ", "b", "  1. ", "c", "u"]
+    );
+    let lists: Vec<Kind> = d.children(d.root.unwrap()).iter().map(|&k| d.kind(k).clone()).collect();
+    assert_eq!(lists[1], Kind::List { kind: 7, serial: 1 });
+    assert_eq!(lists[2], Kind::List { kind: 6, serial: 0 });
+    let ul = d.children(d.root.unwrap())[2];
+    let li = d.children(ul)[0];
+    let kids = d.children(li);
+    match d.kind(kids[0]) {
+        Kind::Img(i) => assert_eq!(
+            i.surface.map(|s| (s >> 48, (s >> 40) & 0xff, s & 0xff)),
+            Some((11, 9, 7))
+        ),
+        k => panic!("{k:?}"),
+    }
+    assert_eq!(*d.kind(kids[1]), Kind::HangingIndent);
+    assert_eq!(format!("{:3}. ", 1000), "1000. ");
+}
+
+#[test]
+fn tables() {
+    let src = "<html><table border=1><tr><td align=right>1</td><td>2</td></tr></table></html>";
+    assert_eq!(tree(src), "body[table[tr[td['1'],td['2']]]]");
+    let d = parse(src);
+    assert_eq!(texts(&d).iter().map(|t| t.2).collect::<Vec<_>>(), [2, 0]);
+    assert_eq!(
+        tree("<html><table><tr><td>a<td>b</tr></table></html>"),
+        "body[table[tr[td['a'],td['b']]]]"
+    );
+    assert_eq!(
+        tree("<html><table><colgroup><col></colgroup><tr><td>x</td></tr></table></html>"),
+        "body[table]"
+    );
+    assert_eq!(
+        tree("<html><table><colgroup><col><tr><td>x</td></tr></table></html>"),
+        "body[table[tr[td['x']]]]"
+    );
+    assert_eq!(tree("<html><table><tr></tr></table></html>"), "body[table]");
+    assert_eq!(
+        tree("<html><table><tr><td>x</table></html>"),
+        "body[table[tr[td['x']]]]"
+    );
+    assert_eq!(tree("<html><table><tr><td>x</td></tr>"), "body");
+    assert_eq!(
+        tree("<html><table><thead><tr><th>h</tr></thead><tbody><tr><td>b</tbody></table></html>"),
+        "body[table[tr[th['h']],tr[td['b']]]]"
+    );
+}
+
+#[test]
+fn inline_elements() {
+    let d = parse("<html><a href=\"faq.htm\">FAQ</a><a name=top>T</a></html>");
+    let root = d.root.unwrap();
+    match d.kind(d.children(root)[0]) {
+        Kind::Anchor(a) => assert_eq!(a.href_absolute.as_deref(), Some(&b"http://h/help/faq.htm"[..])),
+        k => panic!("{k:?}"),
+    }
+    let t = texts(&d);
+    assert_eq!((t[0].1.color, t[0].1.flags, t[0].1.link), (0xff, UNDERLINE, true));
+    assert_eq!((t[1].1.flags, t[1].1.link), (0, true));
+    let mut d = d;
+    assert_eq!(d.find_named_anchor(b"top"), Some(d.children(root)[1]));
+    let d = parse("<html><span style=\"color:#ff0000; text-decoration:underline\">s</span></html>");
+    assert_eq!((texts(&d)[0].1.color, texts(&d)[0].1.flags), (0x00ff_0000, UNDERLINE));
+    let d = parse("<html><span style=\"color: rgb(1,2,3);font-family:Verdana;font-size:20px\">s</span></html>");
+    let s = &texts(&d)[0].1;
+    assert_eq!(
+        (s.color, s.face.as_slice(), s.size, s.selector),
+        (0x010203, &b"verdana"[..], 14, 0)
+    );
+    let d = parse("<html><font size=+1 color=white face=Times>a</font><font size=-9>b</font><font size=3>c</font><big>d</big><tt>e</tt></html>");
+    let t = texts(&d);
+    assert_eq!(
+        (t[0].1.size, t[0].1.color, t[0].1.face.as_slice()),
+        (18, 0x10ff_ffff, &b"Times"[..])
+    );
+    assert_eq!(
+        (t[1].1.size, t[2].1.size, t[3].1.size, t[4].1.selector),
+        (8, 14, 18, 10)
+    );
+    let d = parse("<html><blink>x</blink></html>");
+    assert!(d.has_blink);
+    assert_eq!(tree("<html><blink></blink></html>"), "body[blink]");
+}
+
+#[test]
+fn images_maps_and_downloads() {
+    let mut d = parse("<html><img src=a.gif alt=A width=5 align=middle><img src=a.gif><img>z</html>");
+    let root = d.root.unwrap();
+    let kids = d.children(root).to_vec();
+    assert_eq!(kids.len(), 2);
+    match d.kind(kids[0]) {
+        Kind::Img(i) => assert_eq!(
+            (i.url.as_slice(), i.width, i.valign),
+            (&b"http://h/help/a.gif"[..], Some(5), Some(3))
+        ),
+        k => panic!("{k:?}"),
+    }
+    assert_eq!(d.host.downloads.len(), 1);
+    assert_eq!(d.downloads[&b"http://h/help/a.gif"[..]].waiters.len(), 2);
+    let rec = DownloadRecord {
+        url: b"http://h/help/a.gif".to_vec(),
+        is_path: false,
+        data: b"GIF89a".to_vec(),
+    };
+    assert!(d.do_message(MSG_RESOURCE_DOWNLOADED, 1, &rec));
+    assert!(!d.do_message(5, 1, &rec));
+    assert_eq!(d.host.written, vec![(b"tmp0".to_vec(), b"GIF89a".to_vec())]);
+    assert_eq!(d.host.removed, vec![b"tmp0".to_vec()]);
+    assert_eq!(d.host.delivered, vec![(Some(kids[0]), 77), (Some(kids[1]), 77)]);
+    d.request_image(None, b"http://h/help/a.gif");
+    assert_eq!(d.host.delivered.len(), 3);
+    let rec2 = DownloadRecord {
+        url: b"u".to_vec(),
+        is_path: true,
+        data: b"c:/f.png".to_vec(),
+    };
+    d.request_image(None, b"u");
+    d.resource_has_been_downloaded(&rec2);
+    assert_eq!(d.host.loaded.last().map(Vec::as_slice), Some(&b"c:/f.png"[..]));
+    assert_eq!(d.host.removed.len(), 1);
+    assert_eq!(
+        tree("<html><map name=m><area shape=rect><p>x</p></map></html>"),
+        "body[map[area]]"
+    );
+    // An empty map returns false, which ends ParseBODY (§7.7): the text after it is lost.
+    assert_eq!(tree("<html><map name=m></map>y</html>"), "body");
+    assert!(d.shutdown());
+    assert!(d.root.is_none() && d.downloads.is_empty());
+}
+
+#[test]
+fn entity_table() {
+    assert_eq!(entities::ENTITY_COUNT, 100);
+    assert_eq!(get_string_for_escape(b"amp"), "&");
+    assert_eq!(get_string_for_escape(b"copy"), "\u{a9}");
+    assert_eq!(get_string_for_escape(b"trade"), "?");
+    assert_eq!(get_string_for_escape(b"QUOT"), "?");
+    assert_eq!(entity_code(b"nbsp"), Some(160));
+    assert_eq!(entity_code(b"Eacute"), Some(201));
+    assert_eq!(entity_code(b"eacute"), Some(233));
+    assert_eq!(entity_code(b"yuml"), Some(255));
+}
+
+#[test]
+fn alignment_keywords() {
+    assert_eq!(
+        [b"left".as_ref(), b"Right", b"CENTER", b"top", b"x"].map(make_output_style),
+        [0, 2, 1, 0, 0]
+    );
+    assert_eq!(
+        [
+            b"left".as_ref(),
+            b"right",
+            b"center",
+            b"top",
+            b"middle",
+            b"bottom",
+            b"x"
+        ]
+        .map(make_relative_to_text_alignment_style),
+        [0, 1, 4, 2, 3, 4, 4]
+    );
+}
