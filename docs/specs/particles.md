@@ -1,0 +1,312 @@
+# Spec: particle effect components (`cSC4ParticlesEffect`, `cSCParticleSimulatorBase`, the particle description)
+
+Status: **behaviour spec, partial**, clean-room input. This document describes *behaviour*, not code. It was written
+by the analysis team from observing the original program and its data files. Implementers must work from this spec,
+the public LGPL gzcom-dll SDK headers and general knowledge only. They must **not** consult decompiled or
+disassembled code (see [CONTRIBUTING.md](../../CONTRIBUTING.md)).
+
+Normative words and tags (*[compat]*, *[choice]*, *[inferred]*, *[quirk]*) as in [foundations.md](foundations.md).
+Written 2026-10-21 by the re-particles4 lane. Evidence: the Ghidra export (instruction bytes, call and data
+references) only; the shared REA session was unavailable (no app open), so no fresh pseudocode was used. Every
+address is SimCity 4.exe GOG 1.1.641.
+
+Scope: the **particle component** of a visual effect (component type 0 in [effects.md](effects.md) §3): which
+class is built, the particle description record (on disk and in memory), the shared simulator base (start, stop,
+particle list, particle pool, finish), the start of a particle component and the order of its per-frame update.
+
+Out of scope here: the effects manager, the directory resource as a whole, the finish test and brush/game components
+([effects.md](effects.md) §3–§9); the dynamic-particle family (`cSC4DynamicParticle*`, root version 4); decals; the
+vertex-buffer drawing of particles (§10 gaps). The emitter self-stop is in effects.md §7.1 (with one correction, §8).
+
+## 0. What this spec settles and what it leaves open
+
+| Owner | Status here | Where |
+|---|---|---|
+| `cSCParticleSimulatorBase` (the eleven functions `0x005B9CC0`–`0x005B9FB7`, slots of §9.2) | **fully specified** | §4, §5 |
+| `cSC4EffectsParticle` (constructor `0x005B9DF0`) | **fully specified** | §5 |
+| `cSC4ParticlesDescription` (`0x005B1660`, `0x005B1CB0`) | **fully specified** | §2 |
+| `cSC4ParticlesDescriptionBase` (constructor `0x005B0FE0`, copy `0x005B17F0`) | **specified** (layout, defaults, file order); meanings partly open (PT1) | §2, §3 |
+| `cSC4ParticlesDescriptionBase::cTractorPoint`, `::cWiggle` | **partial** (element shape only) | §2 |
+| `cSC4ParticlesEffect` | **partial**: identity, factory, `Start`, `Stop`, update order, pool, slots; open: physics, forces, rendering, emitters' rates | §1, §6, §7, §9, §10 |
+
+## 1. Identity *[compat]*
+
+Three classes implement the particle component. All share the simulator base sub-object at `+4`.
+
+| Class | Constructor | Main vtable | `+4` vtable | Factory |
+|---|---|---|---|---|
+| `cSC4ParticlesEffect` | `0x005B2B50` | `0x00AA0EA0` | `0x00AA0E58` | `0x00590BC0` |
+| `cSC4GeometrySourcedParticlesEffect` | `0x005A8ED0` (calls the base constructor first) | `0x00AA0B88` | `0x00AA0B40` | `0x00590EA0` |
+| `cSC4ModelBasedParticlesEffect` | `0x005AC510` (likewise) | `0x00AA0C58` | `0x00AA0C10` | `0x00590D40` |
+
+The `+4` vtable names come from the ABI table (docs/abi/vtables.tsv); the main vtables are paired with them by the
+constructors, which store both (`0x005B2B66`/`0x005B2B6C`, `0x005A8ED9`, `0x005AC51A`).
+
+**Which class is built** (`CreateComponentFromDescription`, `0x00591748`–`0x005917A9`). For a component of type 0,
+the description is the particle table entry at the component's description index. The manager builds **one particle
+component per copy**, the copy count being the component record's `u16` at `+0x4E` (a count of 0 builds none). For
+each copy:
+
+1. description `+0x08` bit 0 clear → `cSC4ParticlesEffect`;
+2. bit 0 set and description `+0x1D8` equal to 0.0 (an unordered compare counts as "not equal") →
+   `cSC4ModelBasedParticlesEffect`;
+3. bit 0 set otherwise → `cSC4GeometrySourcedParticlesEffect`.
+
+## 2. The particle description *[compat: data format]*
+
+`cSC4ParticlesDescription` is `cSC4ParticlesDescriptionBase` (`0x204` bytes, no vtable) followed by a `u32`
+reference count at `+0x204` (constructor `0x005B1660` sets it to 0; the description is held by
+`cRZAutoRefCount`). Its assignment (`0x005B1CB0`) is the base's assignment `0x005B17F0`, a member-by-member copy
+that deep-copies the vectors and the string *[inferred from its callees]*; the reference count is not copied.
+
+**The section** (inside `cSC4EffectsResource::Read`, `0x005A5225`–`0x005A52F4`, after the `u16` root version): a
+`u16` section version, a `u32` count, then that many records. Section version **1** uses reader A
+(`0x005B0B50`); any other version uses reader B (`0x005B1DC0`). Reader B differs from A in exactly two places, marked
+**B** below.
+
+Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`vec3` 2 or 3 `f32`; `box` 6 `f32`
+(min xyz, max xyz); `f32[]` a `u32` count then that many `f32`; `vec3[]` a `u32` count then that many `vec3`;
+`u32[]` likewise; `string` a `u32` length then the characters (no terminator).
+
+| Offset | File | Default (constructor) | Meaning (source of the name) |
+|---|---|---|---|
+| `+0x00` | `u32` | 0 | **flags A** (§3) |
+| `+0x04` | **B only**: `u32 & 0xFF` | 0 | **flags C**; bit 0 `destroyBuildings` (collision) |
+| `+0x08` | `u32 & 0x7FF` | 0 | **flags B** (§3) |
+| `+0x0C` | `vec2` | 2.0, 2.0 | particle life range in seconds (`life a b` gives a−b, a+b) |
+| `+0x14` | `f32` | 1.0 | |
+| `+0x18` | `u32` | 0 | emit loop count (effects.md §7.1); 0 = endless |
+| `+0x1C` | `f32` | 0 | `preroll` seconds |
+| `+0x20` | `vec2` | −1, −1 | `maintain … delay` range: the loop interval |
+| `+0x28` | `vec2` | −1, −1 | |
+| `+0x30` | `box` | min (0,1,0), max (0,1,0) | the random-walk start box (§6) |
+| `+0x48` | `vec2` | 0, 0 | |
+| `+0x50` | `box` | min (−1,−1,−1), max (1,1,1) | the emission volume (`source`) |
+| `+0x68`..`+0x78` | 5 × `f32` | 0 | `+0x70` rotation, `+0x74` rotation `offset` |
+| `+0x7C` | `vec3` | three copies of the global at `0x00B22D54` (PT3) | base colour |
+| `+0x88` | `f32[]` | `[30.0]` | the emission rate curve (`rate`, `inject`, `maintain`) |
+| `+0x94` | `vec3[]` | one entry (the vector at `0x00B0A5D4`) | the colour curve |
+| `+0xA0`, `+0xAC`, `+0xB8` | `f32[]` each | `[1.0]` each | three further curves (size/alpha family, PT1) |
+| `+0xC4` | `f32[]` | `[0.0]` | the rotation curve |
+| `+0xD0` | `u32` | 0 | texture id (`texture`) |
+| `+0xD4`, `+0xD5` | `u8`, `u8` | 0, 0 | `+0xD5` the alignment mode |
+| `+0xD8`, `+0xDC` | `f32`, `f32` | 0, 0 | |
+| `+0xE0` | `vec3` | the global at `0x00B22D54` | the constant force (gravity) |
+| `+0xEC` | `f32` | 0 | the wind gain (§7 step 3) |
+| `+0xF0` | `f32` | 0 | |
+| `+0xF4` | `vec3` | the global at `0x00B22D54` | |
+| `+0x100`, `+0x104` | `f32`, `f32` | 0, 0 | |
+| `+0x108` | `cTractorPoint[]`: `u32` count, each two `vec3` (reader `0x005B0930`) | empty | tractor points |
+| `+0x114` | `f32` | 0 | `wiggle` |
+| `+0x118` | `vec2` | 1.0, 0 | |
+| `+0x120` | `vec3` | 0, 1.0, 0 | |
+| `+0x12C` | `f32[]` | empty | the warp alpha curve |
+| `+0x138` | `f32` | 0 | collision `bounce` |
+| `+0x13C`..`+0x148` | 4 × `f32` | 0 | `terrainRepel` (two numbers, `scout`, `vertical`) |
+| `+0x14C` | `f32` | −1.0e9 | `killHeight` |
+| `+0x150`, `+0x154` | `f32`, `f32` | 0, 1.0 | collision `death` / `deathByWater` |
+| `+0x158` | `vec2` | −10000, 10000 | the height window (`aboveHeight`, `belowHeight`, `heightRange`) |
+| `+0x160` | `string` | empty | a name written by the particle block header (`0x0059D8F0`); *[inferred]* the block's own name (PT1) |
+| `+0x16C`, `+0x16E` | `u16`, `u16` | 0, 1 | |
+| `+0x170` | `f32` | 1.0 | |
+| `+0x174` | `vec2` | 5.0, 5.0 | random-walk `delay` range |
+| `+0x17C` | `vec2` | 50.0, 50.0 | random-walk `strength` range |
+| `+0x184`, `+0x188` | `f32`, `f32` | 0.1, 0.2 | random-walk parameters |
+| `+0x18C` | `vec3` | the global at `0x00B22D54` | random-walk `preferDir` |
+| `+0x198`, `+0x19C`, `+0x1A0` | 3 × `f32` | 0 | `windBank` and two alignment numbers |
+| `+0x1A4` | `f32[]` | empty | attractor curve; empty or `+0x1B0` ≤ 0 disables the attractor (§7 step 2) |
+| `+0x1B0` | `f32` | 1.0 | attractor strength |
+| `+0x1B4` | `u32` | 0 | |
+| `+0x1B8` | `cWiggle[]`: `u32` count, each two `vec3` (reader `0x005B09D0`) | empty | wiggles |
+| `+0x1C4` | `f32` | 0 | |
+| `+0x1CC` | **B only**: a string list (reader `0x005B1D60`) | empty | PT2 |
+| `+0x1D8` | `f32` | 0 | the source scale; picks the derived class (§1) |
+| `+0x1DC` | `f32` | 0 | |
+| `+0x1E0` | `u32[]` | empty | |
+| `+0x1EC` | `f32` | 0 | |
+| `+0x1F0` | `f32` | 4.0 | |
+| `+0x1F4` | `f32[]` | `[400.0]` | |
+| `+0x200` | `f32` | 4.0 | |
+
+The names in the last column are the keywords of the effect-script compiler that write each field (the parser
+writes the description at its block's `+0xF0`, `cParticleEffectCommand::EndBlock` `0x005A1A50`). A blank meaning
+is a field the runtime reads but this lane did not trace (PT1). An implementation must still read and keep every
+field, in this order, to stay aligned.
+
+## 3. The flag words *[compat]*
+
+**Flags A** (`+0x00`):
+
+| Bit | Keyword / use |
+|---|---|
+| `0x1` | self-lit: the draw context's self-lit shade is set before drawing and reset after (§7 steps 7, 9) |
+| `0x2` | `inject` / `rate … inject` |
+| `0x4` | `maintain` |
+| `0x8` | `emit … sustain`: allows a restart by `Start(1)` (§6) |
+| `0x10`, `0x4000000`, `0x8000000`, `0x10000000` | force modes (`force` command; attractor, tractor) — PT1 |
+| `0x100`, `0x200`, `0x800` | `collide`; `sticky`; `killOutsideCity` |
+| `0x400` | `terrainRepel` |
+| `0x1000`, `0x2000` | source shape bits (`square`, `model` …); `0x2000` set → the city-side wind emission volume is recomputed each frame (`0x005B7030`) |
+| `0x4000`, `0x8000`, `0x10000`, `0x20000`, `0x40000` | `pinToTerrain`, `pinToWater`, height window on, `seaOnly`, `lakeOnly` |
+| `0x80000`, `0x100000`, `0x200000` | `emit … scale`, `areaScale`, `volumeScale` |
+| `0x400000` | `scaleParticles` |
+| `0x800000` | `randomWalk` (§6, §7 step 10) |
+| `0x1000000` | random-walk `turn` |
+| `0x2000000` | random-walk `preferSea` |
+| `0x80000000` | an extra pre-pass `0x005B8410` each frame (§7 step 4) |
+
+**Flags B** (`+0x08`, masked to 11 bits on load): bit `0x1` model/geometry source (§1); `0x80` `windBank`; `0x100`
+`wiggle`/`warp`; `0x200` `resetIncoming`.
+
+## 4. The simulator base (`cSCParticleSimulatorBase`, at `+4` of the component) *[compat]*
+
+State, offsets relative to the base sub-object:
+
+| Offset | Field |
+|---|---|
+| `+0x05` | `started` (u8) |
+| `+0x08` | reference count |
+| `+0x0C` | `delayed_stop` (u8) |
+| `+0x0D` | `release_when_done` (u8) |
+| `+0x10` | the live-particle list: a circular doubly linked list with a heap sentinel; each node holds one particle pointer |
+| `+0x14` | the live count |
+
+**Start** (`0x005B9CF0`): succeeds, and returns true, only if (`started` is clear **or** a delayed stop is pending)
+**and** `release_when_done` is clear. On success it clears `delayed_stop` and `release_when_done` and sets
+`started`. Otherwise nothing changes and it returns false.
+
+**Stop(delayed, release_when_done)** (`0x005B9E70`): does nothing unless `started`. Then `delayed_stop` :=
+`delayed`.
+
+- `delayed` = 0 (**immediate**): `started` := 0, `release_when_done` := 0; every particle in the list is handed to
+  the class's `DestroyParticle` (slot 16 of the `+4` vtable) with the live count decremented for each; the list
+  nodes are freed and the list is empty. Returns true.
+- `delayed` ≠ 0: `release_when_done` := the second argument; if that is non-zero the component takes a reference on
+  itself (slot 1). The particles keep running. Returns false.
+
+**CheckForStop** (`0x005B9D40`), run at the end of every frame update (§7 step 10): only when the live count is 0:
+if `delayed_stop` is set it calls `Stop(0, 0)` and returns true; else if `release_when_done` is set it calls
+`Shutdown` (slot 5) then `Release` (slot 2) and returns true. Otherwise false.
+
+**Release** (`0x005B9DB0`): above 1 it decrements and returns the new count; at 1 it calls `FinalRelease`
+(slot 10) and returns 0 without storing the decrement. **FinalRelease** (`0x005B9DD0`): `Shutdown` (slot 5) then the
+deleting destructor (slot 3 with 1).
+
+**AddParticle(p)** (`0x005B9F80`): appends a node holding `p` at the tail and increments the live count.
+**RemoveParticle(p)** (`0x005B9D80`): only clears the particle's first byte (the "alive" byte); the node stays until
+the next update sweeps it (§7 step 5). **IsInDelayedStop** slot 9 is the shared function `0x005B9D30`.
+
+## 5. Particle records and pools *[compat]*
+
+Particles come from process-wide free lists, never from the general heap one by one; an empty list is refilled by
+`0x005A61B0` (a block allocation, the block size not traced: PT4).
+
+- Base particles (`cSCParticleSimulatorBase::CreateParticle` `0x005B9E20`): free list head `0x00B0A6A0` (pool
+  object `0x00B0A694`). The particle's first 28 bytes are zeroed. *[quirk]* Three words at `+0x0C`, `+0x10`,
+  `+0x14` are first set from the global at `0x00B22E20` and then overwritten by the zeroing: the net state is all
+  28 bytes zero. `DestroyParticle` (`0x005B9D90`) pushes the record back on the list head (null is ignored).
+- Effect particles (`cSC4ParticlesEffect::CreateParticle` `0x005B7C20`, slot 15 of the `+4` vtable): free list head
+  `0x00B0A688`. The `cSC4EffectsParticle` constructor (`0x005B9DF0`) gives the same 28-zero-byte prefix (same quirk);
+  six further `f32` fields are set from the global at `0x00B22D70`, then `InitEffectsParticle` (`0x005B7580`)
+  fills the particle from the description (PT5). `DestroyParticle` (`0x005B2240`) returns it to `0x00B0A688`.
+
+Byte 0 of a particle is the alive byte: an update sweep frees every particle whose byte 0 is 0.
+
+## 6. Starting a particle component (`Start(mode)`, slot 0, `0x005B3000`) *[compat]*
+
+1. **Restart filter.** The start proceeds only if `mode` is 0, or the description's emit loop count is 0, or flags A
+   has `0x8` (`sustain`). So a finite, non-sustained emitter ignores `Start(1)` — the start that a zoom change
+   gives a component re-created inside a running effect (effects.md §5.2). Then the base `Start` must succeed (§4).
+2. Emission counters reset: the effect fields `+0x110` (accumulated time, a double), `+0x120`, `+0x128`, `+0x138`
+   := 0.
+3. The force accumulator `+0x13C..+0x144` := the description's constant force `+0xE0`.
+4. **Random walk** (flags A `0x800000`). Clear: the walk vector `+0x150..+0x158` := 0. Set: each component drawn by
+   `RandomRange` (`0x00913761`) between the box `+0x30..+0x44` (x from `+0x30`/`+0x3C`, y from `+0x34`/`+0x40`, z
+   from `+0x38`/`+0x44`), then y := 0. Without `turn` (`0x1000000`): the walk delay `+0x148` := 0 and one
+   random-walk step runs at once (`0x005B2730`). With `turn`: the vector is rescaled to a length drawn from the
+   `strength` range `+0x17C`/`+0x180` (left unchanged if its length is 0), and the delay `+0x148` := a draw from the
+   `delay` range `+0x174`/`+0x178`.
+5. `preferSea` (`0x2000000`): sets `+0x15C` and asks the global at `0x00B43CEC` (slot `0x17C`) for a direction.
+   The rest of `Start` (emission volume, loop interval countdown `+0x190` from `+0x20`, preroll) is PT6.
+
+## 7. The frame update (main slot 9, `0x005B8540`; called with `dt` seconds and the draw context) *[compat]*
+
+Nothing happens unless `started`. In order:
+
+1. If the pending-preroll byte `+0x118` is set, `dt` += the description's `preroll` and the byte is cleared. The
+   effect stores `dt` at `+0x108` and adds it to the accumulated time `+0x110` (double).
+2. A value from the object at `+0x1F0` (its slot `0x74`) is stored at `+0x1FC`. If flags A `0x2000`, the
+   city-side emission volume is recomputed. The attractor offset `+0x16C..+0x174` := 0 when the attractor curve is
+   empty or its strength ≤ 0; else `UpdateAttractor` (`0x005B6C40`) computes it.
+3. The force accumulator := constant force + walk vector + attractor offset + wind gain × the wind vector (three
+   `f32` at `+0x08..+0x10` of the object at `+0x1E8`), component-wise in that order of addition.
+4. If flags A bit 31 is set, the pre-pass `0x005B8410` runs.
+5. **Sweep.** For every node in the live list: a particle whose alive byte is 0, or for which the per-particle
+   update (main slot 20, `0x005B9BA0`, given `dt`) returns false, is unlinked, its node freed, the live count
+   decremented and the particle handed to `DestroyParticle`.
+6. **Emit**, unless the byte `+0x21A` is set: main slot 15 (for `cSC4ParticlesEffect` `0x005B96E0`, §8).
+7. **Draw**: with no draw context or no live particles, main slot 19; otherwise slot 14 with the context, the
+   self-lit shade if flags A `0x1`, the model transform and the render state `+0x1C`, then slot 17 (no model at
+   `+0x1EC`) or slot 18 (a model), then the shade reset if self-lit.
+8. `CheckForStop` (§4). If it returned false and flags A `0x800000` is set, one random-walk step (`0x005B2730`)
+   with this frame's `dt`.
+
+## 8. Emission (correction to effects.md §7.1)
+
+The three-way emitter `0x005B96E0` of effects.md §7.1 item 2 is slot 15 of **both** `cSC4ParticlesEffect` (main
+vtable `0x00AA0EA0`, installed by the base constructor `0x005B2B50`) and `cSC4ModelBasedParticlesEffect`
+(`0x00AA0C58`, inherited). The slot-15 function `0x005AA5D0`, which §7.1 gives to `cSC4ParticlesEffect`, belongs
+to the vtable `0x00AA0B88` that `0x005A8ED0` installs: **`cSC4GeometrySourcedParticlesEffect`**. So a plain
+particle component (flags B bit 0 clear, §1) uses the three emitters keyed by the description's flag bits
+(`0x04` rate-integral, else `0x02` loop budget, else duration budget). The self-stop protocol of §7.1 (budget
+exhausted → `Stop(0)`, delayed) is unchanged.
+
+## 9. Slot tables *[compat]*
+
+### 9.1 Main vtable `0x00AA0EA0` (`cSC4ParticlesEffect`); slots 0–8 are the component interface of effects.md §11.2
+
+| Slot | Function | Role |
+|---|---|---|
+| 0 | `0x005B3000` | `Start(mode)` §6 |
+| 1 | `0x005B21E0` | `Stop(mode)`: stores the mode at `+0x18C`, calls base `Stop(mode == 0, 0)` (effects.md §7.1) |
+| 2 | `0x005A8FA0` | `IsActive`: the base `started` byte |
+| 3 | `0x005B3430` | `SetTransform` |
+| 4 | `0x00648F10` | `Update(dt)`: a shared 3-byte no-op; the work is slot 9 |
+| 5, 6 | `0x005B2490`, `0x005B2200` | `SetParameter` channels |
+| 7, 8 | `0x005A8F80`, `0x005A8F90` | AddRef, Release (forward to `+4`) |
+| 9 | `0x005B8540` | frame update §7 |
+| 10 | `0x005B7C90` | `SetDescription` |
+| 11–14 | `0x005B3820`, `0x005B3870`, `0x005B2220`, `0x005B3B90` | not traced (14 is the pre-draw step) |
+| 15 | `0x005B96E0` | emit (§8) |
+| 16 | `0x005B7170` | not traced |
+| 17 | `0x005B3DA0` | draw particles through a vertex buffer |
+| 18 | `0x005B4B90` | draw particles as models |
+| 19 | `0x005B6390` | the no-draw step |
+| 20 | `0x005B9BA0` | per-particle update; false = the particle dies |
+
+### 9.2 `+4` vtable `0x00AA0E58` (the simulator interface)
+
+Slots 0–3 QueryInterface `0x0048C940`, AddRef `0x005A8FB0`, Release `0x005A8FC0`, deleting destructor `0x005B2FD0`;
+4 `Init` `0x005B2390`; 5 `Shutdown` `0x005B2440`; 6 `Start` `0x005B9CF0`; 7 `IsStarted` `0x005A8FE0`; 8 `Stop`
+`0x005B9E70`; 9 `IsInDelayedStop` `0x005B9D30`; 10 `FinalRelease` `0x005B9DD0`; 11 `AddParticle` `0x005B9F80`;
+12 `RemoveParticle` `0x005B9D80`; 13, 14 shared one-line getters (`0x0040D3A0`, `0x004777E0`); 15 `CreateParticle`
+`0x005B7C20`; 16 `DestroyParticle` `0x005B2240`. The geometry-sourced class differs in 3, 4, 5 and 16
+(`0x005A8FD0`, `0x005AC030`, `0x005A6310`, `0x005A6200`).
+
+## 10. Gaps (not specified here)
+
+Particle physics (`0x005B9BA0`, `0x005B9790`, terrain forces `0x005B8DC0`, building collision `0x005B8020`,
+tractor `0x005B6600`, height-based emission `0x005B71E0`), `InitEffectsParticle` `0x005B7580`, `SetDescription`
+`0x005B7C90`, the three emitters' rate integration, and drawing (`0x005B3DA0`, `0x005B4B90`). These are visual only:
+no simulation state depends on them except through the finish test, which depends only on §4 and effects.md §7.1.
+
+## 11. Quirks
+
+1. `Stop(0)` of the component is the *delayed* stop and `Stop(1)` the immediate one (effects.md §7.1).
+2. The three `0x00B22E20` stores in particle creation are dead (§5).
+3. `RemoveParticle` does not unlink; the node is swept on the next update.
+4. A finite emitter cannot be restarted by `Start(1)` (§6 step 1).
+
+## 12. Open questions
+
+See [questions/particles.md](questions/particles.md): PT1–PT7.
