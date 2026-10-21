@@ -1,6 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-querytool4 | .claude/worktrees/re-querytool4 | ready (round 2 of 3): tips specified (§8.11), owner not claimed | round 3: DescribePick 004D4140, DoQueryDialog 004D3C30, fillers (CT12, CT13) |
+| re-querytool4 | .claude/worktrees/re-querytool4 | in progress (round 3 of 3, final) | §8.12 DescribePick/DoQueryDialog, CT12/CT13 |
+
+## Handoff (round 3)
+
+Goal: §8.12 DescribePick 0x004D4140 + DoQueryDialog 0x004D3C30; SetOrGet filler / route family tables (CT12);
+gauge services B43D98/B43D78/B43D9C, callout slots 4/14 (CT13). Final round: PARK with exact remainder if not done.
+Done: (round 3 start) nothing yet.
+Next: read DescribePick asm/decomp, write §8.12.
+Facts: owner rows in build-runs/qowner.tsv (215); covered 24 fns / 11,725 B before round 3. REA: static fallback.
 
 ## Report (round 2, 2026-10-21)
 
