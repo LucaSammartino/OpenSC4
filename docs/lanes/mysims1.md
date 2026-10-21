@@ -2,7 +2,7 @@
 
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| mysims1 (the mysims shadow: FC4MySimsShadow + regress shadows list) | `mysims1` / `.claude/worktrees/mysims1` (branch `mysims1`, engine lane) | in progress — baseline gate PASS (`qbuild all`: cargo 3568/0, clippy 0, CMake 174/174, ctest 62/62); design researched round 2 (C++ ABI surface verified); no shadow code written yet; branch is 2 commits behind main (cores28 merged) | see Handoff |
+| mysims1 (the mysims shadow: FC4MySimsShadow + regress shadows list) | `mysims1` / `.claude/worktrees/mysims1` (branch `mysims1`, engine lane) | in progress — round 3: main merged clean (tip `a1a6d6d3`, tree clean); full design research DONE including the run_summary/regress line-format contract and all host-callback sources; no shadow code written yet | see Handoff |
 
 ## Handoff
 
@@ -94,10 +94,76 @@
     engine/CMakeLists.txt plugin list after FC4AutomataShadow (~line 470); tools/regress.ps1
     line 170 shadows string (append `mysims_shadow = 1` at the end); engine/README.md a
     "MySims shadow" bullet after the Automata shadow bullet (~line 1774, additive).
-- Next: (1) merge main; (2) write engine/plugin/FC4MySimsShadow.{h,cpp} per the design above
-  (decode-and-diff, not byte round trip; host eq/grid callbacks to the game read-only);
-  (3) wire the points above; (4) qbuild quick, fix, then `qbuild all`; (5) game runs
-  mysims1-sh-1 (shadows incl. mysims) and mysims1-sh-2 clean ref_warnings=0; (6) report +
-  build-runs/merge-queue/mysims1.json (abi=false).
+- Round 3 (2026-10-21, further research, NO code yet):
+  - main MERGED clean (tip `a1a6d6d3`); questions MS8-MS10 now in this worktree
+    (docs/specs/questions/mysims.md, next free MS11).
+  - Line-format contract (run_summary.ps1:134-151): a shadow line counts as a "shadow line"
+    only if it matches `\] ([a-z]+) shadow [^:]*\d{4}-\d\d-\d\d[^:]*: .*(mismatch(es|ed)[= ]\d|: clean\b)`
+    — i.e. the log line must read `<name> shadow YYYY-MM-DD <event>: ... mismatches=N`. The
+    LAST `; mismatches=N` on the line decides clean/differs. So the shadow's load/month lines
+    must carry a date and end with `; mismatches=N` (civic/citysit shadows are the template).
+  - Compare DECODED vs DECODED (final decision): capture each original MySim's record
+    (WriteCapture), decode it in C++ with CaptureReader (version-17 layout mysims.md §6.2),
+    and diff against the shadow core's `fc4_mysim_get_state` + `fc4_mysims_agent_get_state`
+    + `fc4_mysim_text(bio=0/path=1)`. Plus agent getters via
+    `fc4_mysims_active/lives_here/get_active_ui_panel_sim` against the game's
+    GetActiveMySims/MySimLivesHere/GetActiveUIPanelSim (SC4Vector via plugin FC4GameContainers
+    PushTrivial; std::map GetAdvisors avoided — use GetAdvisor(id) after reading the map via
+    per-id probe is NOT possible: instead enumerate ids 1-5 + 30 by QI-ing each candidate
+    `as->GetAdvisor(id)` for cISC4MySim 0x0A1DA42F).
+  - ORIGINAL message mirroring (exact source): the agent's own cIGZMessageTarget2 (city
+    component, obtained slot 71) receives the SAME §3.2 messages the game delivers to it —
+    the shadow core must get copies. Route them from the shadow's own message-subscriptions:
+    register the shadow target for the SAME 11 msg ids (order in agent.rs AGENT_SUBSCRIPTIONS:
+    0x99EF1142, 0x99EF1145, 0x99EF1143, 0xA6B79602, 0xA6B79612, 0x44778230, 0x8A09FA6C,
+    0xCA1B1E64, 0xEA1F0DCD, 0x0A36F1E9, 0xEA0D163E) and forward each into
+    `fc4_mysims_agent_do_message` with fc4_adv_message{msg_type,data1..4,void1=token of the
+    occupant,unknown=advisor id for 0x8A09FA6C}. Occupant token = canonical cISC4Occupant
+    TokenOf (civic shadow's Canonical() helper pattern, cFC4Civic.cpp:157).
+  - Daily/monthly drive: the ADVISOR TICKER (0xCA5501F2, advisors.md §5.1) is what calls
+    Simulate(kind) on every advisor incl. MySims (monthly on day 28 BEFORE daily). The shadow
+    core's ticker must be driven identically: subscribe the shadow target to 0xCA5501F2 +
+    PostCityInit 0x26D31EC1 + CityEstablished 0x26D31EC4 and forward into
+    `fc4_advisors_do_message` — the core's on_ticker implements §5.1 itself (system.rs:431)
+    and calls Simulate on all advisors, so NO manual per-advisor simulate calls needed. The
+    host `sim_date` callback must return the real game date (fc4_adv_date{day_number,year,
+    month,day}) from cISC4Simulator slot 8 GetSimDateNumber + fc4_date_from_julian.
+  - Lua/host wiring for the SHADOW core (all read-only, mapped to game): create_table=false,
+    set_field=collector (fields go to a buffer, optionally diffed later), activate_lua=true
+    (no-op), tuning=NULL (code defaults — the original reads the same adv_const defaults at
+    Init), ui_blocked=false (MS2), register_agent_lua=no-op, cell_counts=city slots 93/94,
+    cell_center=city slot 97, disaster_ongoing=disaster layer slot 10, disaster_locations=
+    slots 16/17 + instance GetID() (manager type = instance id, disasters.md §1: GetID
+    returns the MANAGER's type), building=occupant QI 0x87DDA3A9: GetBuildingType(4)/
+    GetCompletionPercent(9, SC4Percentage* → float)/GetBuildingProfile(11: purpose,wealth)/
+    GetPosition(occ slot 8)/name=GetBuildingName(occ 123)/groups=GetOccupantGroups(occ 68,
+    std::set<uint32_t>), lot=lot mgr GetOccupantLot(14)+GetLocation(21)/HasRoadAccess(28)/
+    GetCondition(35)/GetOccupantWealth(41)/lot rect from GetLot bounds, occupant_position=
+    occ slot 8, buildings_in_box=occupant mgr slot 40 w/ filter... FIRST CUT: implement
+    only what the daily/monthly path + saved fields need (eq/hq/average_age/life_expectancy,
+    grids for UpdateVariables), leave trip/dispatch callbacks NULL and NAME the gap in the
+    startup log — trip fields only diverge on dispatch activity, which the test city's idle
+    MySims don't generate.
+  - EQ/HQ feed: residential simulator (city slot 68): GetCellEQByWealth(37)/GetCellHQByWealth(38)
+    take (x,z,WealthType), GetAverageAgeMap(41) → cISC4SimGrid<int32_t> GetCellValue,
+    GetCellLifeExpectancy(29) returns int32_t AL; grids for UpdateVariables: crime sim
+    (slot 33?) GetCrimeGrid, pollution GetPollutionGrid(0..3), aura GetAuraGrid (int8),
+    congestion GetCongestionMap, desirability via bds GetDeveloper(0x1010/0x1020/0x1030)
+    → GetDesirabilityMap; coverage: police/fire sim GetPolicePowerGrid/GetFireProtectionGrid
+    + GetAverageValueInCellRect; stations: police GetPoliceStations(63)/fire GetFireStations
+    (SC4List, ilist for fire) + GetStationFunding(occ, int32&, SC4Percentage&); powered
+    (power sim IsOccupantPowered 31), watered (plumbing IsBuildingWatered 9).
+  - Also verified: SDK headers exist for every sim used (cISC4SimGrid template in SDK dir);
+    `SC4Percentage` = struct{float percentage} (SC4Percentage.h:24); cISC4MySim SDK header
+    compiled-order caveat is IRRELEVANT for the shadow (we only CALL slots ≤ 20 which match);
+    cISC4AdvisorSystem::GetAdvisors returns std::map (avoid; use GetAdvisor(id) probes).
+  - Next: (1) write engine/plugin/FC4MySimsShadow.{h,cpp} (decode-and-diff pattern,
+    hosts above); (2) wire: FC4Config.cpp kOtherKeys end (~line 320, add `mysims_shadow`),
+    cFC4Director.cpp PostAppInit/PreAppShutdown, FC4Observer.cpp PostCityInit + kMsgSimNewMonth
+    + PreCityShutdown, FC4Subsystems.cpp after AutomataShadowStartup (line 637), engine/
+    CMakeLists.txt plugin list after FC4AutomataShadow (line 447-448), tools/regress.ps1
+    line 170 shadows string append, engine/README.md automata bullet area (additive);
+    (3) qbuild quick then all; (4) game runs mysims1-sh-1 (shadows) + mysims1-sh-2 clean
+    ref_warnings=0; (5) report + build-runs/merge-queue/mysims1.json (abi=false).
 4c8d19c4 mysims1: handoff — design researched, baseline gate PASS
 93c9ca3e mysims1: lane file, handoff at the baseline
