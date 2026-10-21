@@ -77,7 +77,8 @@
 // riot instance the original started is the one its first leader registered (its AttemptDisasterStart
 // returns null, §6.2; so does ours, whose new riot is the new last entry of
 // fc4_disasters_manager_instances). An ignition inside the original's fire step (a spread) is mirrored after the
-// mirror's own step of that tick (a fire lit during the pass is not stepped in it). An ignition the
+// mirror's own step of that tick, so the mirror cannot step it in that pass even though the
+// core now would (§5.8, DS40); the stage and lot-condition difference it leaves carries [Q42]. An ignition the
 // original refuses and the mirror takes (Q40) is put out in the mirror at once (its extinguish delay
 // is 0; when the original has no fire tick the mirror's runs from the framework tick until its episode
 // ends), and the differences it leaves carry [Q40]. A spread's fire that still burns in the mirror after

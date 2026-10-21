@@ -1,0 +1,169 @@
+{
+ "format": 1,
+ "name": "ng18_07_satisfier_slope",
+ "spec": [
+  "network-geometry 9.1",
+  "18.7"
+ ],
+ "description": "Init(0, 1000); fixed a = 0, c = 30; b with initial height 0; slope(a, b, 11.2033) and slope(b, c, 11.2033): Solve fails (|c - a| = 30 > 22.4066). With c = 20: b's range is [r24(20 - 11.2033), 11.2033] and b = 8.7967 (the initial 0 clamped). The fixed vertices are picked first (width 0), then b.",
+ "steps": [
+  {
+   "op": "ng_sat",
+   "call": "init",
+   "args": [
+    0,
+    1000
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    1,
+    0
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    3,
+    30
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "add",
+   "args": [
+    2,
+    0
+   ],
+   "expect": true
+  },
+  {
+   "op": "ng_sat",
+   "call": "slope",
+   "args": [
+    1,
+    2,
+    11.2033
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "slope",
+   "args": [
+    2,
+    3,
+    11.2033
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "solve",
+   "expect": false
+  },
+  {
+   "op": "ng_sat",
+   "call": "shutdown"
+  },
+  {
+   "op": "ng_sat",
+   "call": "init",
+   "args": [
+    0,
+    1000
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    1,
+    0
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "fixed",
+   "args": [
+    3,
+    20
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "add",
+   "args": [
+    2,
+    0
+   ],
+   "expect": true
+  },
+  {
+   "op": "ng_sat",
+   "call": "slope",
+   "args": [
+    1,
+    2,
+    11.2033
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "slope",
+   "args": [
+    2,
+    3,
+    11.2033
+   ]
+  },
+  {
+   "op": "ng_sat",
+   "call": "solve",
+   "expect": true
+  },
+  {
+   "op": "ng_sat",
+   "call": "height",
+   "args": [
+    2
+   ],
+   "expect": 8.7967
+  },
+  {
+   "op": "ng_sat",
+   "call": "height",
+   "args": [
+    1
+   ],
+   "expect": 0.0
+  },
+  {
+   "op": "ng_sat",
+   "call": "height",
+   "args": [
+    3
+   ],
+   "expect": 20.0
+  },
+  {
+   "op": "ng_sat",
+   "call": "solution",
+   "expect": [
+    [
+     1,
+     0.0
+    ],
+    [
+     3,
+     20.0
+    ],
+    [
+     2,
+     8.7967
+    ]
+   ]
+  }
+ ]
+}

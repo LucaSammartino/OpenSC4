@@ -1,0 +1,185 @@
+{
+  "format": 1,
+  "name": "nr15_27_ordering_rings",
+  "spec": [
+    "network-rules 10.8"
+  ],
+  "description": "One Ordering section holds both keys and several of each (NR3): each line forms its own rotation ring, AddTypes included, and the k-th rule of each AddTypes line enters the type ring of the k-th rule of the previous line. An unknown id is left out and does not move cur.",
+  "steps": [
+    {
+      "op": "nr_reset"
+    },
+    {
+      "op": "nr_load",
+      "resource": "intersections",
+      "text": [
+        "[HighwayIntersectionInfo_0xA1]",
+        "[HighwayIntersectionInfo_0xA2]",
+        "[HighwayIntersectionInfo_0xB1]",
+        "[HighwayIntersectionInfo_0xB2]",
+        "[HighwayIntersectionInfo_0xC1]",
+        "[HighwayIntersectionInfo_0xC2]",
+        "[Ordering1]",
+        "RotationRing=0xA1,0xA2",
+        "AddTypes=0xB1,0xB2",
+        "AddTypes=0xC1,0xC2"
+      ]
+    },
+    {
+      "op": "nr_int_rule",
+      "id": "0xA1",
+      "state": {
+        "ring": [
+          "0xA2",
+          "0xA2"
+        ],
+        "add": [
+          "0xC1",
+          "0xB1"
+        ]
+      }
+    },
+    {
+      "op": "nr_int_rule",
+      "id": "0xA2",
+      "state": {
+        "ring": [
+          "0xA1",
+          "0xA1"
+        ],
+        "add": [
+          "0xC2",
+          "0xB2"
+        ]
+      }
+    },
+    {
+      "op": "nr_int_rule",
+      "id": "0xB1",
+      "state": {
+        "ring": [
+          "0xB2",
+          "0xB2"
+        ],
+        "add": [
+          "0xA1",
+          "0xC1"
+        ]
+      }
+    },
+    {
+      "op": "nr_int_rule",
+      "id": "0xB2",
+      "state": {
+        "ring": [
+          "0xB1",
+          "0xB1"
+        ],
+        "add": [
+          "0xA2",
+          "0xC2"
+        ]
+      }
+    },
+    {
+      "op": "nr_int_rule",
+      "id": "0xC1",
+      "state": {
+        "ring": [
+          "0xC2",
+          "0xC2"
+        ],
+        "add": [
+          "0xB1",
+          "0xA1"
+        ]
+      }
+    },
+    {
+      "op": "nr_int_rule",
+      "id": "0xC2",
+      "state": {
+        "ring": [
+          "0xC1",
+          "0xC1"
+        ],
+        "add": [
+          "0xB2",
+          "0xA2"
+        ]
+      }
+    },
+    {
+      "op": "nr_reset"
+    },
+    {
+      "op": "nr_load",
+      "resource": "intersections",
+      "text": [
+        "[HighwayIntersectionInfo_0xA1]",
+        "[HighwayIntersectionInfo_0xA2]",
+        "[HighwayIntersectionInfo_0xB1]",
+        "[HighwayIntersectionInfo_0xB2]",
+        "[Ordering1]",
+        "RotationRing=0xA1,0xA2",
+        "AddTypes=0xB1,0x999,0xB2"
+      ]
+    },
+    {
+      "op": "nr_int_rule",
+      "id": "0xB1",
+      "state": {
+        "ring": [
+          "0xB2",
+          "0xB2"
+        ],
+        "add": [
+          "0xA1",
+          "0xA1"
+        ]
+      }
+    },
+    {
+      "op": "nr_int_rule",
+      "id": "0xB2",
+      "state": {
+        "ring": [
+          "0xB1",
+          "0xB1"
+        ],
+        "add": [
+          "0xA2",
+          "0xA2"
+        ]
+      }
+    },
+    {
+      "op": "nr_int_rule",
+      "id": "0xA1",
+      "state": {
+        "ring": [
+          "0xA2",
+          "0xA2"
+        ],
+        "add": [
+          "0xB1",
+          "0xB1"
+        ]
+      }
+    },
+    {
+      "op": "nr_int_rule",
+      "id": "0xA2",
+      "state": {
+        "ring": [
+          "0xA1",
+          "0xA1"
+        ],
+        "add": [
+          "0xB2",
+          "0xB2"
+        ]
+      }
+    }
+  ]
+}

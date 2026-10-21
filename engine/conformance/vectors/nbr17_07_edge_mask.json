@@ -1,0 +1,74 @@
+{
+ "format": 1,
+ "name": "nbr17_07_edge_mask",
+ "spec": [
+  "network-bridges 4.3",
+  "17.7"
+ ],
+ "description": "The allowed edge word of each cell of a step, by pen direction and by the cell place in the step (4.3).",
+ "steps": [
+  {
+   "op": "nbr_edge_mask",
+   "pen": 4,
+   "index": 0,
+   "n": 1,
+   "expect": 131074
+  },
+  {
+   "op": "nbr_edge_mask",
+   "pen": 0,
+   "index": 0,
+   "n": 1,
+   "expect": 131074
+  },
+  {
+   "op": "nbr_edge_mask",
+   "pen": 0,
+   "index": 0,
+   "n": 3,
+   "expect": 67239938
+  },
+  {
+   "op": "nbr_edge_mask",
+   "pen": 0,
+   "index": 1,
+   "n": 3,
+   "expect": 67240962
+  },
+  {
+   "op": "nbr_edge_mask",
+   "pen": 0,
+   "index": 2,
+   "n": 3,
+   "expect": 132098
+  },
+  {
+   "op": "nbr_edge_mask",
+   "pen": 2,
+   "index": 0,
+   "n": 1,
+   "expect": 33554944
+  },
+  {
+   "op": "nbr_edge_mask",
+   "pen": 6,
+   "index": 0,
+   "n": 3,
+   "expect": 33817088
+  },
+  {
+   "op": "nbr_edge_mask",
+   "pen": 6,
+   "index": 1,
+   "n": 3,
+   "expect": 33817092
+  },
+  {
+   "op": "nbr_edge_mask",
+   "pen": 6,
+   "index": 2,
+   "n": 3,
+   "expect": 33554948
+  }
+ ]
+}

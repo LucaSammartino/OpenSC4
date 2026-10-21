@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "name": "audio_event_payload_interface",
+  "spec": [
+    "audio 16.3",
+    "audio 3.1"
+  ],
+  "description": "QueryInterface(0x5B523BA4) returns this+0x2C and bumps the refcount; any other IID falls through. SetValue writes the outer +0x30 and sets +0x34 to 1, GetValue returns +0x30, GetFlag returns +0x34 and GetOuter returns this - 0x2C.",
+  "steps": [
+    {
+      "op": "aud_snd_event",
+      "ctor": "default",
+      "qi": 1532115876,
+      "state": {
+        "qi_offset": 44,
+        "refcount": 2,
+        "flag": 0,
+        "payload": 0
+      }
+    },
+    {
+      "op": "aud_snd_event",
+      "ctor": "default",
+      "qi": 305419896,
+      "state": {
+        "qi_offset": null,
+        "refcount": 1
+      },
+      "note": "any other IID falls through and does not AddRef"
+    },
+    {
+      "op": "aud_snd_event",
+      "ctor": "default",
+      "set_value": 11259375,
+      "state": {
+        "payload": 11259375,
+        "flag": 1,
+        "get_value": 11259375,
+        "get_flag": 1
+      }
+    },
+    {
+      "op": "aud_snd_event",
+      "ctor": "default",
+      "outer_of": 11534380,
+      "state": {
+        "outer": 11534336
+      }
+    }
+  ]
+}

@@ -1,3 +1,14 @@
+tag: apply15c-terrain-1
+run: 146
+date: 2026-10-16
+lane: apply15c
+dll: FreeCity4-apply15c
+pacing: turbo
+switches: apply15c (the four re-answers25 engine follow-ups: PL12 the lot side, PL13 the FixLotConfiguration footprint, TR20 the IsNavigable pole own-cell test, TU5 the tutorial Shutdown teardown); turbo to 2032-01-01 on Konradshohe, `enable = tutorial`, `terrain_shadow = 1`, 900 s (timeout 1050)
+result: **clean, `ref_warnings=0`, 47.8 s.** Terrain shadow 92/92 exact: terrain queries 7/7 exact (altitude 21650/21650, normal 21004/21004, water 36742/36742, land 36742/36742, depth 36742/36742, type 36742/36742, navigable 36742/36742), other checks 16927 with 0 mismatched; vertices unfollowed 0, followed late 8, pending 0. `navigable 36742/36742` is the TR20 check; `ref_warnings=0` also covers the new QueryInterface / FC4_RELEASE pair in HostPowerPole. 73 terrain shadow month lines, `unfollowed>0` in 0 and `ahead>0` in 3. Shutdown lines: budget Shutdown.
+verdict: clean
+summary: regress apply15c, clean, terrain shadow 92/92
+
 # Run apply15c-terrain-1
 
 Lane `apply15c`, worktree `.claude/worktrees/apply15c`, DLL `engine/build-x86/FreeCity4.dll`

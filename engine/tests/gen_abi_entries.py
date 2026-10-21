@@ -39,6 +39,7 @@ FCD = os.path.join(ENGINE, "plugin", "FC4DevelopmentInterfaces.h")
 FC4T = os.path.join(ENGINE, "plugin", "FC4TractInterfaces.h")
 FCL = os.path.join(ENGINE, "plugin", "FC4LotDevInterfaces.h")
 FCW = os.path.join(ENGINE, "plugin", "FC4WinInterfaces.h")
+FCP = os.path.join(ENGINE, "plugin", "FC4PortInterfaces.h")
 
 # (table interface, class, header, required)
 #   required = the plugin implements or calls the interface through this
@@ -118,6 +119,10 @@ INTERFACES = [
     ("cISC4NetworkOccupant", "cISC4NetworkOccupant", "cISC4NetworkOccupant.h", True),
     ("cISC4NetworkManager", "cISC4NetworkManager", "cISC4NetworkManager.h", True),
     ("cISC4NetworkTool(PowerLine)", "cFC4ISC4NetworkTool", FC4, True),
+    # The network tool (glue29): the replacement implements the compiled order
+    # (cFC4ISC4NetworkToolFull in FC4Interfaces.h, slots 0-50). The power-line
+    # row above stays: the power simulator's 3-10 view of the same vtable.
+    ("cISC4NetworkTool", "cFC4ISC4NetworkToolFull", FC4, True),
     ("cISC4NeighborDeal", "cISC4NeighborDeal", "cISC4NeighborDeal.h", True),
     # Neighbours (docs/specs/neighbors.md section 4.2): the connection's traffic source.
     ("cISC4TrafficSource", "cISC4TrafficSource", "cISC4TrafficSource.h", True),
@@ -289,6 +294,17 @@ INTERFACES = [
     # implemented through the SDK declarations (cISC4CommercialSimulator is listed above
     # for the growth developers' calls).
     ("cISC4IndustrialSimulator", "cISC4IndustrialSimulator", "cISC4IndustrialSimulator.h", True),
+    # The airport and seaport developers (docs/specs/port-developers.md section 8; the
+    # glue12b2 lane): implemented and called through the compiled slot order (the SDK's
+    # GetNumSeaports takes an argument; GetAvgEfficiency's hidden result), and their
+    # message-target and serializable sub-objects. The port sub-object at +4 implements
+    # slots 0-9 only (slots 10-18 are internal, section 8.3): not listed.
+    ("cISC4AirportDeveloper", "cFC4ISC4AirportDeveloper", FCP, True),
+    ("cISC4SeaportDeveloper", "cFC4ISC4SeaportDeveloper", FCP, True),
+    ("cIGZMessageTarget2(AirportDeveloper)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cIGZMessageTarget2(SeaportDeveloper)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cIGZSerializable(AirportDeveloper)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZSerializable(SeaportDeveloper)", "cIGZSerializable", "cIGZSerializable.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),
@@ -311,7 +327,9 @@ INTERFACES = [
     ("cISCResExemplarCohort", "cISCResExemplarCohort", "cISCResExemplarCohort.h", True),
 ]
 
-BASE_HEADERS = {"cIGZSerializable": "cIGZSerializable.h"}
+BASE_HEADERS = {"cIGZSerializable": "cIGZSerializable.h",
+                # the port developers (glue12b2): their shared base
+                "cFC4ISC4PortDeveloper": FCP}
 
 
 def strip_comments(text):
@@ -407,8 +425,21 @@ def main():
     out += table
     out.append("};")
     path = os.path.join(HERE, "abi_entries.inc")
-    open(path, "w", encoding="utf-8", newline="\n").write("\n".join(out) + "\n")
-    print("wrote %s (%d interfaces)" % (path, len(INTERFACES)))
+    body = "\n".join(out) + "\n"
+    # Only rewrite when the content changed. CMake regenerates this file on
+    # every build (it is a build product, not checked in), so rewriting
+    # unconditionally would move its mtime and recompile the conformance test
+    # every time for nothing.
+    old = None
+    if os.path.isfile(path):
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            old = f.read()
+    if old == body:
+        print("unchanged %s (%d interfaces)" % (path, len(INTERFACES)))
+    else:
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(body)
+        print("wrote %s (%d interfaces)" % (path, len(INTERFACES)))
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use crate::grid::CellRect;
-use crate::rng::{derive_seed, file_seed, FixedSeeds, RzRandomSuper};
+use crate::rng::RzRandomSuper;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 use crate::traffic_network::{DX, DZ};
 
@@ -80,16 +80,13 @@ pub struct NetworkLotManager {
 
 impl NetworkLotManager {
     /// A constructed (not initialised) manager. The generator `0x00B44870`
-    /// is seeded with `derive_seed(session_seed, 0x8C09C379)` (foundations
-    /// §6.3).
+    /// is seeded through `seeding::keys::NETWORK_LOT_MANAGER`: `derive(S,
+    /// 0x8C09C379)` (foundations §6.3).
     pub fn new(host: Rc<dyn NetworkLotHost>, token: u64, session_seed: u32) -> Rc<NetworkLotManager> {
-        let seed = derive_seed(session_seed, file_seed::NETWORK_LOT_MANAGER);
+        let key = crate::seeding::keys::NETWORK_LOT_MANAGER;
         let rng = RzRandomSuper::new(
-            seed,
-            &FixedSeeds {
-                wall_clock: seed,
-                process_clock: seed,
-            },
+            crate::seeding::seed(session_seed, key),
+            &crate::seeding::clocks(session_seed, key),
         );
         Rc::new(NetworkLotManager {
             host,

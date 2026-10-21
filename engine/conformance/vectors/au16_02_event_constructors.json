@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "name": "audio_event_constructors",
+  "spec": [
+    "audio 16.2",
+    "audio 3.1"
+  ],
+  "description": "Both constructors stamp message type 0xDB53383B with presence bit 0 set. The five-argument one stores its argument 2 at +0x30 and writes 1 to +0x34; the default one leaves both at 0.",
+  "steps": [
+    {
+      "op": "aud_snd_event",
+      "ctor": "default",
+      "state": {
+        "type": 3679664187,
+        "payload": 0,
+        "flag": 0,
+        "refcount": 1,
+        "get_value": 0,
+        "get_flag": 0
+      }
+    },
+    {
+      "op": "aud_snd_event",
+      "ctor": "five",
+      "payload": 12648430,
+      "data1": 1,
+      "data2": 2,
+      "data3": 3,
+      "data4": 4,
+      "state": {
+        "type": 3679664187,
+        "payload": 12648430,
+        "flag": 1,
+        "data1": 1,
+        "data2": 2,
+        "data3": 3,
+        "data4": 4,
+        "get_value": 12648430,
+        "get_flag": 1
+      }
+    }
+  ]
+}

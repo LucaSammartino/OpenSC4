@@ -122,9 +122,11 @@ impl Terrain {
     /// (§4.6); a misc version below 2 with a terrain type ≥ 1 loads type 0.
     /// The water is rebuilt from the sea level (§10.1, §13.3).
     ///
-    /// [choice] No record holds the sea level: it is the tuning's new-terrain
-    /// sea level (clamped to at least the minimum height). The terrain is not
-    /// view-ready until `post_city_init`. Trailing bytes are ignored.
+    /// No record holds the sea level (TR10, quirk 15): `Init` sets it from
+    /// the tuning's new-terrain sea level (clamped to at least the minimum
+    /// height) and `Load` never writes it, so a level set by a script before
+    /// the save is lost. [choice] The terrain is not view-ready until
+    /// `post_city_init`; trailing bytes are ignored.
     pub fn load(
         misc: &[u8],
         altitudes: &[u8],

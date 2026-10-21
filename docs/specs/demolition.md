@@ -67,6 +67,34 @@ bulk (about 250 lines of logic), `DemolishOccupant` about 100, `ModifyTerrainHei
 | `+0x2C` | terrain (`0x00B43CF4`) | null | no |
 | `+0x30` | the region of the `DemolishRegion` call in progress (cleared on exit) | null | no |
 
+**Cell counts are city slots 93 and 94 (DQ2 — MATCHES, confirmed 2026-10-16 by re-answers31).** The wording above
+is correct and is **not** contradicted by `docs/abi/interfaces.tsv`, whose rows for `cISC4City` slots 93 and 94 are
+*misnamed* (`GetLightingManager` / `GetDrawContext` — those names were picked up from byte-identical folded getter
+bodies in other classes). The compiled evidence:
+
+| Slot | Vtable entry | Body | Returns |
+|---|---|---|---|
+| 88 | `SetSize` `0x004593B0` | stores `param_2`/`param_3` to `+0x100`/`+0x104`, then `round(p × k)` to `+0x118`/`+0x11C` | — |
+| 89 | `SizeX` `0x0045A370` | `FLD dword ptr [ECX+0x100]` | `f32` |
+| 90 | `SizeZ` `0x0045A380` | `FLD dword ptr [ECX+0x104]` | `f32` |
+| 91 | `CellWidthX` `0x0045A390` | `FLD dword ptr [ECX+0x108]` | `f32` |
+| 92 | `CellWidthZ` `0x0045A3A0` | `FLD dword ptr [ECX+0x10C]` | `f32` |
+| **93** | `0x007C1910` | `MOV EAX, dword ptr [ECX+0x118]` | `u32` **cell count X** |
+| **94** | `0x004E82A0` | `MOV EAX, dword ptr [ECX+0x11C]` | `u32` **cell count Z** |
+
+Three independent confirmations that `+0x118`/`+0x11C` are counts, not object pointers:
+
+1. The public SDK header `cISC4City.h:218-219` declares `CellCountX` and `CellCountZ` immediately after
+   `CellWidthX` / `CellWidthZ`, i.e. exactly slots 93 and 94.
+2. `cSC4City::GetCitySizeType` (`0x00459390`, slot 87) discriminates on `+0x118` against `0x40` and `0x80` —
+   64 and 128, the two SC4 city cell counts — and `cSC4City::SetSize` derives them as `round(size × k)`.
+3. The cell-bounds tests (`CellIsInBounds` / `CellCornerIsInBounds`, `decomp/cSC4City.c:167`, `:187`) compare the
+   cell coordinate against `*(int*)(city+0x118)` / `*(int*)(city+0x11C)`.
+
+So the in-game reading of **128 × 128 is correct**, and this spec's "city slots 93, 94" is correct. A held ABI row
+correcting the two `interfaces.tsv` names is in `build-runs/pending-abi/re-answers31-rows.tsv`; that file is not
+merged here.
+
 Module globals (tuning, §6): `0x00B07F40` small/medium model threshold, `0x00B07F44` medium/large model threshold,
 `0x00B07F48` small/medium group threshold, `0x00B07F4C` medium/large group threshold, `0x00B07F50` cost to demolish
 a destroyed lot tile. All `u32`.
@@ -191,7 +219,7 @@ Returns a bool (AL). Writes `*cost` (if non-null) on every path **except** the f
 3. `result := true`; `occs :=` an ordered set of occupants; `lots :=` a list (new entries at the **front**);
    `seen :=` a set of lots; `count := 0`.
 4. For `x := R.x0 … R.x1` (outer), `z := R.z0 … R.z1` (inner), for each cell in the mask:
-   - `lot := lotManager.GetLot(x, z)` (slot 5). If `lot` is non-null and not in `seen`, add it to `seen` and
+   - `lot := lotManager.GetLot(x, z, false)` (**slot 6**; see the DQ4 note below). If `lot` is non-null and not in `seen`, add it to `seen` and
      decide whether the whole lot qualifies:
      - `b := lot.GetBuilding()` (lot slot 48).
      - If `b` is null: the lot qualifies when `lot.GetState()` (slot 33) is **1 or 6** and either `viewFilter` is
@@ -208,6 +236,27 @@ Returns a bool (AL). Writes `*cost` (if non-null) on every path **except** the f
      accepted by Φ (slot 41, max −1), clear the bounds. For each such occupant `o`: `inc :=` the **default**
      occupant filter's verdict on `o`; insert `o` into `occs` (and `count += 1` if new) when
      `(lot is null or not inc) and ((flags & 0x2000) = 0 or inc)`.
+
+   **DQ4 — which `GetLot`? (DIFFERS from the earlier wording, corrected 2026-10-16 by re-answers31.)** The
+   previous text said `GetLot(x, z)` "(slot 5)". That is wrong twice over: the cell lookup is **slot 6**, and it
+   takes **three** arguments. The compiled `cISC4LotManager` vtable (`0x00AB37C0`) is:
+
+   | Slot | Offset | Compiled | Stack args |
+   |---|---|---|---|
+   | 5 | `+0x14` | `0x0072A1C0` | 1 (pop 4) — takes a pointer and reads `+0x00`/`+0x08` from it, i.e. `cS3DVector3 const&` |
+   | 6 | `+0x18` | `0x0072B410` | 3 (pop 12, `ret 0x0C`) — bounds-checks `0 ≤ x < this+0x24` and `0 ≤ z < this+0x28`, then a 2-D grid lookup |
+
+   So **slot 5 = `GetLot(cS3DVector3 const& sPoint)`** and **slot 6 = `GetLot(int32 x, int32 z, bool)`**. The
+   SDK header `cISC4LotManager.h:42-43` declares them in the opposite order and is wrong; this is the same
+   finding already written down in [crime.md](crime.md) §"the SDK's own slot order" and used by
+   [aura.md](aura.md) §9 (`GetLot(x, z, false)`), [crime.md](crime.md) (`GetLot(cellX, cellZ, false)`),
+   [demand.md](demand.md) and [building-development.md](building-development.md) (`GetLot(x, z, true)`), all at
+   slot 6. **The change to make:** call **slot 6** with the third `bool` argument. Use `false` here — the
+   `bool` is a containment re-check: when it is true the body additionally asks the lot (slot 21) for its bounds
+   and returns null unless those bounds really contain `(x, z)`; when false it returns the lot occupying the cell
+   without that re-check. For a cell walk that is already inside the demolition rectangle, `false` is the right
+   choice and matches the other callers that walk cells.
+
 5. Price and remove the occupants. `total := 0` (int64); `orphans :=` an empty list. For each `o` in `occs` (set
    order):
    - `ok := DemolishOccupant(doIt and not effects, o, privilege, flags, &c, true, orphans)`.
@@ -310,7 +359,7 @@ filter: buildings, props, power poles and networks whose bool property `0x29F013
 returned in ST0) minus `h` (loaded as `float`) is taken in absolute value and compared with the `float` constant at
 `0x00A880D8` (`0x3D4CCCCD`, 0.05000000074505806). Area mode counts the vertex when `|d| > 0.05f`
 (`0x0046802A`–`0x0046803E`); per-vertex mode skips it when `|d| < 0.05f` (`0x00467D45`–`0x00467D59`), so a vertex
-at exactly 0.05f is counted in neither. The main thread runs the x87 at 24-bit precision (HANDOFF §5.2), so the
+at exactly 0.05f is counted in neither. The main thread runs the x87 at 24-bit precision (docs/ops/lessons.md §5.2), so the
 subtraction rounds to `float`: FreeCity4 must compute `abs(alt - h)` in `f32` and compare with `0.05f32`. Widening
 to `f64` and comparing with 0.05 differs for differences within one `float` step of the threshold.
 

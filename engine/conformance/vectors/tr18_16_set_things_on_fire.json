@@ -1,0 +1,143 @@
+{
+  "format": 1,
+  "name": "tr18_16_set_things_on_fire",
+  "spec": [
+    "terrain 11.5",
+    "terrain 18.16"
+  ],
+  "description": "SetThingsOnFire on the vertex (5, 5) with old lava 1.4 and amount 0.2 (crossing 1.5): the cells (4..5) x (4..5) x outer, z inner, each flammable one ignited and followed by SetCause(3): (4, 4), (4, 5), (5, 4), (5, 5) (TR5). With only (5, 4) flammable: one IgniteCell and one SetCause(3). Old 1.0 plus 0.2 crosses nothing: no call.",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        10,
+        10
+      ],
+      "flat": 300
+    },
+    {
+      "op": "ter_lava_start",
+      "at": [
+        80,
+        80
+      ],
+      "radius": 20
+    },
+    {
+      "op": "ter_clear_events"
+    },
+    {
+      "op": "ter_lava_call",
+      "method": "set_things_on_fire",
+      "args": [
+        5,
+        5,
+        1.4,
+        0.2
+      ],
+      "expect": "ignite"
+    },
+    {
+      "op": "ter_expect_events",
+      "events": [
+        {
+          "event": "ignite",
+          "x": 4,
+          "z": 4
+        },
+        {
+          "event": "cause",
+          "cause": 3
+        },
+        {
+          "event": "ignite",
+          "x": 4,
+          "z": 5
+        },
+        {
+          "event": "cause",
+          "cause": 3
+        },
+        {
+          "event": "ignite",
+          "x": 5,
+          "z": 4
+        },
+        {
+          "event": "cause",
+          "cause": 3
+        },
+        {
+          "event": "ignite",
+          "x": 5,
+          "z": 5
+        },
+        {
+          "event": "cause",
+          "cause": 3
+        }
+      ]
+    },
+    {
+      "op": "ter_env",
+      "not_flammable": [
+        [
+          4,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ]
+      ]
+    },
+    {
+      "op": "ter_lava_call",
+      "method": "set_things_on_fire",
+      "args": [
+        5,
+        5,
+        1.4,
+        0.2
+      ],
+      "expect": "ignite"
+    },
+    {
+      "op": "ter_expect_events",
+      "events": [
+        {
+          "event": "ignite",
+          "x": 5,
+          "z": 4
+        },
+        {
+          "event": "cause",
+          "cause": 3
+        }
+      ]
+    },
+    {
+      "op": "ter_env",
+      "not_flammable": []
+    },
+    {
+      "op": "ter_lava_call",
+      "method": "set_things_on_fire",
+      "args": [
+        5,
+        5,
+        1.0,
+        0.2
+      ],
+      "expect": "none"
+    },
+    {
+      "op": "ter_expect_events",
+      "events": []
+    }
+  ]
+}

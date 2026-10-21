@@ -677,26 +677,33 @@ impl DevelopmentSim {
         };
         let budget = self.grow_budget.get();
         let mut attempts: u32 = 0;
+        // glue27: one scratch for the selection and one for a Grow's outcomes,
+        // reused across the day's attempts. Each attempt used to allocate an
+        // outcomes Vec, and - the expensive one - each developer's demand was
+        // read twice per round (`ad` is two host calls), once to add up the
+        // weights and once to walk them. The values cannot change inside a
+        // round (both are reads), so one read per developer serves both.
+        let mut weights: Vec<(DeveloperId, i32)> = Vec::new();
+        let mut outcomes: Vec<Outcome> = Vec::new();
         while !pending.is_empty() && attempts < budget {
+            weights.clear();
             let mut total: i32 = 0;
             for &dev in pending.values() {
                 let ad = self.ad(dev);
                 if ad > GROWTH_THRESHOLD {
-                    total = total.wrapping_add(ad.wrapping_add(bias));
+                    let w = ad.wrapping_add(bias);
+                    total = total.wrapping_add(w);
+                    weights.push((dev, w));
                 }
             }
             let mut r = self.process.uniform(total as u32) as i32;
             let mut picked = None;
-            for &dev in pending.values() {
-                let ad = self.ad(dev);
-                if ad > GROWTH_THRESHOLD {
-                    let w = ad.wrapping_add(bias);
-                    if r < w {
-                        picked = Some(dev);
-                        break;
-                    }
-                    r = r.wrapping_sub(w);
+            for &(dev, w) in &weights {
+                if r < w {
+                    picked = Some(dev);
+                    break;
                 }
+                r = r.wrapping_sub(w);
             }
             // [choice] Nothing picked: the original spins until its timer
             // expires; nobody else can be picked.
@@ -718,7 +725,7 @@ impl DevelopmentSim {
                         z: it.z,
                         stage: it.max_stage,
                     };
-                    let mut outcomes: Vec<Outcome> = Vec::new();
+                    outcomes.clear();
                     let mut flag = false;
                     let built = h.tract_grow(&profile, &mut outcomes, &mut flag);
                     attempts += 1;
@@ -948,6 +955,17 @@ impl DevelopmentSim {
         self.d.borrow().developers.clone()
     }
 
+    /// The developers as [DevelopmentSim::developers] lists them (ascending
+    /// type), without a copy:
+    /// (type, developer) for each.
+    /// must not call
+    /// back into this object (the state is borrowed meanwhile).
+    pub fn for_each_developer(&self, mut f: impl FnMut(u32, DeveloperId)) {
+        for (&t, &dev) in &self.d.borrow().developers {
+            f(t, dev);
+        }
+    }
+
     /// `GetBuildingMap()` (41).
     pub fn building_map(&self) -> Option<Grid> {
         self.grid.borrow().clone()
@@ -966,6 +984,15 @@ impl DevelopmentSim {
     /// `GetSpecialBuildings()` (44).
     pub fn special_buildings(&self) -> Vec<OccupantId> {
         self.d.borrow().special_buildings.clone()
+    }
+
+    /// The special buildings as [DevelopmentSim::special_buildings] lists
+    /// them, without a copy.
+    /// must not call back into this object.
+    pub fn for_each_special_building(&self, mut f: impl FnMut(OccupantId)) {
+        for &o in &self.d.borrow().special_buildings {
+            f(o);
+        }
     }
 
     /// `GetMaxCapacity(zone, p, w)` (45).

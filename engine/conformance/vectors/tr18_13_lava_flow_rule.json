@@ -6,7 +6,7 @@
     "terrain 11.5",
     "terrain 18.13"
   ],
-  "description": "Flat ground at 300, dt = 33333 us. A vertex with lava 10 whose eight neighbours hold 1.4: every drop is 8.6, the first edge neighbour in the offset order wins ([choice] the order west, east, north, south: (4, 5)); h = 4.3, rate = (4e-6 / 12) * 4.3, amount = dt * h * rate = 0.20544 (each step rounded to float). The neighbour goes from 1.4 to 1.60544, crossing 1.5: the four flammable cells (3..4) x (4..5) are ignited, each followed by SetCause(3) ([choice] per cell). With the neighbours at 0: h = 5, amount = 0.277775, nothing ignited. A vertex on the city edge with lava 10 loses dt * 1e-7 * 10 = 0.033333 and goes nowhere.",
+  "description": "Flat ground at 300, dt = 33333 us. A vertex with lava 10 whose eight neighbours hold 1.4: every drop is 8.6, the first edge neighbour in the offset order W, NW, N, NE, E, SE, S, SW wins (W: (4, 5), TR4); h = 4.3, rate = (4e-6 / 12) * 4.3, amount = dt * h * rate = 0.20544 (each step rounded to float). The neighbour goes from 1.4 to 1.60544, crossing 1.5: the four flammable cells (3..4) x (4..5) are ignited x outer, z inner, each followed by SetCause(3) (TR5). With the neighbours at 0: h = 5, amount = 0.277775, nothing ignited. A vertex on the city edge with lava 10 loses dt * 1e-7 * 10 = 0.033333 and goes nowhere.",
   "steps": [
     {
       "op": "ter_create",
@@ -91,8 +91,8 @@
         },
         {
           "event": "ignite",
-          "x": 4,
-          "z": 4
+          "x": 3,
+          "z": 5
         },
         {
           "event": "cause",
@@ -100,8 +100,8 @@
         },
         {
           "event": "ignite",
-          "x": 3,
-          "z": 5
+          "x": 4,
+          "z": 4
         },
         {
           "event": "cause",

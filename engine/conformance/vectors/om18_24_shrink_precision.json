@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "om18_24_shrink_precision",
+  "spec": ["occupant-manager 5.1", "occupant-manager 16 OM4", "occupant-manager 18.24"],
+  "description": "The 0.1 shrink and the 1.0 width limit are float constants and each shrunk bound is stored as a float (OM4): x 100.0..164.0 becomes float(100.0 + 0.1f) = 100.09999847 (0x42C83333) and float(164.0 - 0.1f) = 163.89999389 (0x4323E666). A width of exactly 1.0 is not shrunk. The cells of the shrunk box follow (65..66 on x).",
+  "steps": [
+    {"op": "om_call", "method": "shrink_bits", "args": [100, 164], "expect": ["0x42C83333", "0x4323E666"]},
+    {"op": "om_call", "method": "shrink_bits", "args": [10, 11], "expect": ["0x41200000", "0x41300000"]},
+    {"op": "om_create"},
+    {"op": "om_call", "method": "set_city_size", "args": [1024, 1024], "expect": true},
+    {"op": "om_call", "method": "init", "expect": true},
+    {"op": "om_occupant", "occupant": "0x1", "min": [100, 0, 0], "max": [164, 10, 64]},
+    {"op": "om_call", "method": "insert", "occupant": "0x1", "data4": 0, "expect": true},
+    {"op": "om_expect_occupant", "occupant": "0x1", "state": {"om_box": [65, 64, 66, 64]}}
+  ]
+}

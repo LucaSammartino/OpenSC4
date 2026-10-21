@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "demolition_empty_list",
+  "spec": ["demolition 4.5", "demolition 12.2"],
+  "description": "DemolishLots with an empty list returns true and leaves the cost untouched (cost null), also for lists of null lots ([null] and [null, null], DM14); nothing is called.",
+  "steps": [
+    {"op": "demolition_create"},
+    {"op": "demolition_init", "expect": true},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_lots", "do_it": true, "lots": [], "privilege": 0, "flags": 1, "expect": {"ok": true, "cost": null}},
+    {"op": "demolition_lots", "do_it": true, "lots": [null], "privilege": 0, "flags": 1, "expect": {"ok": true, "cost": null}},
+    {"op": "demolition_lots", "do_it": true, "lots": [null, null], "privilege": 1, "flags": 1, "expect": {"ok": true, "cost": null}},
+    {"op": "demolition_expect_events", "events": []}
+  ]
+}

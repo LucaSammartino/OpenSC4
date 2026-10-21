@@ -14,12 +14,26 @@
 //! the `K` of every generator a merged core owns, and every core seeds
 //! through [`seed`] / [`clocks`] with one of them.
 //!
+//! **Process-wide generators (RN3).** A file-local generator of the §6.3
+//! table is a static of its source file: it is seeded once per process and
+//! keeps its stream across city loads, whichever object draws from it. The
+//! budget's and the pollution effects' `cRZRandomSuper` are shared that way
+//! through [`process_super`] (one per thread, keyed by `K`; the first
+//! session to ask seeds it). The crime generator is process-wide too, kept
+//! by its own [`crate::crime::CrimeShared`]. A core's plain constructor
+//! still builds a generator of its own (tests, conformance vectors,
+//! replays); the C ABI's create functions take the process-wide one.
+//!
 //! Not covered here, by §6.3: coordinate-seeded temporaries keep their
 //! coordinate seed ([`coordinate_seed`] only moves the tract developer's
 //! (0, 0) case off 0), and the C runtime `rand()` ([`crate::rng::CrtRand`])
 //! stays unseeded (state 1, §12.6).
 
-use crate::rng::{derive_seed, file_seed, FixedSeeds};
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::rc::Rc;
+
+use crate::rng::{derive_seed, file_seed, FixedSeeds, RzRandomSuper};
 
 /// Which `K` a generator uses (foundations §6.3, by the kinds of §6.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -100,6 +114,32 @@ pub fn coordinate_seed(seed: u32) -> u32 {
     }
 }
 
+/// A `cRZRandomSuper` several objects draw from in turn (RN3).
+pub type SharedSuper = Rc<RefCell<RzRandomSuper>>;
+
+thread_local! {
+    /// The process-wide file-local generators made so far, by `K`.
+    static PROCESS_SUPERS: RefCell<BTreeMap<u32, SharedSuper>> = const { RefCell::new(BTreeMap::new()) };
+}
+
+/// The process-wide file-local `cRZRandomSuper` `key` (RN3): seeded with
+/// `derive(S, K)` of the session that first asks for it, then shared, its
+/// stream continuing across city loads (a later `session` is ignored). One
+/// per thread: the plugin creates its simulators on the main thread.
+pub fn process_super(session: u32, key: SeedKey) -> SharedSuper {
+    PROCESS_SUPERS.with(|m| {
+        m.borrow_mut()
+            .entry(key.k())
+            .or_insert_with(|| {
+                Rc::new(RefCell::new(RzRandomSuper::new(
+                    seed(session, key),
+                    &clocks(session, key),
+                )))
+            })
+            .clone()
+    })
+}
+
 /// The `K` of every generator a merged core owns (foundations §6.2, §6.3).
 ///
 /// Generators the merged cores do not draw from are left out: the power
@@ -108,12 +148,11 @@ pub fn coordinate_seed(seed: u32) -> u32 {
 /// Cores still in flight that own generators (§6.2, §6.3 table) adopt the
 /// helper when their glue lands: prop developer (member, × 28), advisors
 /// and MySims (members, MySims per instance), the `cSC4Lot`, wealth
-/// requester, network lot manager, network construction crew, construction
+/// requester, network construction crew (no core yet), construction
 /// / base-texture / retaining-wall / prop / fire occupants, automata, region
 /// creation and advice file-local generators (keys below where the spec
-/// gives `K`). The disaster layer's core is merged (its glue is not): its
-/// generators are listed here. The city situation manager's core was merged
-/// and then reverted on main (cores12a); its key stays here, ready.
+/// gives `K`). The disaster layer's and the city situation manager's cores
+/// are merged (their glue is not): their generators are listed here.
 pub mod keys {
     use super::{file_seed, SeedKey};
 
@@ -169,9 +208,8 @@ pub mod keys {
     /// K = the fire instance class `0x69C1718F`, disasters lane choice, QUESTIONS DS1).
     pub const DISASTER_FIRE: SeedKey = SeedKey::member(crate::disasters::instance_class::FIRE);
     /// City situation manager (`cRZRandomSuper`, wall clock at construction,
-    /// drawn only during a mission; city-situation.md §5). GZCLSID
-    /// `0x0BB14381`, written out while the city situation core is not on main.
-    pub const CITY_SITUATION: SeedKey = SeedKey::member(0x0BB1_4381);
+    /// drawn only during a mission; city-situation.md §5).
+    pub const CITY_SITUATION: SeedKey = SeedKey::member(crate::city_situation::CLSID_CITY_SITUATION);
 
     // ---- members seeded with a constant -----------------------------------
 
@@ -188,7 +226,7 @@ pub mod keys {
     pub const LOT: SeedKey = SeedKey::FileLocal(file_seed::LOT);
     /// Wealth requester prop selection (`0x00B4A5C0`, `cRZRandomSuper`).
     pub const WEALTH_REQUESTER: SeedKey = SeedKey::FileLocal(file_seed::WEALTH_REQUESTER);
-    /// Network lot manager (`0x00B44870`, `cRZRandomSuper`).
+    /// Network lot manager (`0x00B44870`, `cRZRandomSuper`); adopted by the network lot core (network_manager).
     pub const NETWORK_LOT_MANAGER: SeedKey = SeedKey::FileLocal(file_seed::NETWORK_LOT_MANAGER);
     /// Network construction crew (`0x00B43E88`, `cRZRandomSuper`).
     pub const NETWORK_CONSTRUCTION_CREW: SeedKey = SeedKey::FileLocal(file_seed::NETWORK_CONSTRUCTION_CREW);
@@ -211,6 +249,9 @@ pub mod keys {
     pub const REGION_CREATION: SeedKey = SeedKey::FileLocal(file_seed::REGION_CREATION);
     /// Advice (`0x00B22E58`, `cRZRandom`).
     pub const ADVICE: SeedKey = SeedKey::FileLocal(file_seed::ADVICE);
+    /// Brush effects (`0x00B22BE8`, `cRZRandom`, effects.md §8.2): one per
+    /// effects manager in FreeCity4.
+    pub const BRUSH_EFFECTS: SeedKey = SeedKey::FileLocal(file_seed::BRUSH_EFFECTS);
     /// Prop developer (`cRZRandomSuper` member seeded with the wall clock
     /// × 28 at construction; GZCLSID `0x89C48F47`, prop-developer.md §1):
     /// seed it with [`super::prop_developer_seed`].
@@ -243,6 +284,16 @@ pub mod keys {
     pub const fn pipe_burst_start(n: u32) -> SeedKey {
         SeedKey::Temporary {
             clsid: crate::disasters::seed::PIPE_BURST_MANAGER,
+            n,
+        }
+    }
+
+    /// The city detail manager's increase-pass generator (city-detail.md
+    /// §3.5 *[choice]*), the `n`-th increase pass of the session; `K` =
+    /// `0xEAD4BA36` XOR `n`.
+    pub const fn city_detail_increase(n: u32) -> SeedKey {
+        SeedKey::Temporary {
+            clsid: crate::city_detail::CLSID_CITY_DETAIL,
             n,
         }
     }
@@ -318,6 +369,13 @@ mod tests {
         // derive(K) = 0x40000000 gives 0 after × 28.
         assert_eq!(prop_developer_seed(0x4000_0000 ^ 0x89C4_8F47), 0);
         assert_eq!(prop_developer_seed(0x89C4_8F47), 28);
+    }
+
+    #[test]
+    fn k_city_detail_increase() {
+        check(keys::city_detail_increase(0), 0xEAD4_BA36);
+        check(keys::city_detail_increase(1), 0xEAD4_BA37);
+        check(keys::city_detail_increase(5), 0xEAD4_BA33);
     }
 
     #[test]
@@ -544,5 +602,21 @@ mod tests {
         ks.sort_unstable();
         ks.dedup();
         assert_eq!(ks.len(), all.len());
+    }
+
+    /// RN3: a process-wide generator is seeded once, by the first session,
+    /// and every later request shares its stream.
+    #[test]
+    fn process_supers_are_shared() {
+        let a = process_super(S, keys::BUDGET);
+        let first = a.borrow_mut().next_u32();
+        let b = process_super(S ^ 2, keys::BUDGET);
+        assert!(Rc::ptr_eq(&a, &b));
+        let mut fresh = RzRandomSuper::new(seed(S, keys::BUDGET), &clocks(S, keys::BUDGET));
+        assert_eq!(fresh.next_u32(), first);
+        assert_eq!(b.borrow_mut().next_u32(), fresh.next_u32());
+        // Another K is another generator.
+        let c = process_super(S, keys::POLLUTION_EFFECTS);
+        assert!(!Rc::ptr_eq(&a, &c));
     }
 }

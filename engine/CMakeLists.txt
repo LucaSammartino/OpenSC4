@@ -43,6 +43,37 @@ if(FC4_CHECKED AND MSVC)
     message(STATUS "FC4_CHECKED: plugin built with /Od /RTC1 and out-parameter canaries")
 endif()
 
+# Debug info embedded in each object (/Z7) instead of a shared per-target PDB (/Zi): the objects become
+# cacheable (sccache, below) and the compiler no longer talks to mspdbsrv. The linker still writes the PDB.
+if(MSVC)
+    foreach(fc4_lang C CXX)
+        foreach(fc4_cfg "" _DEBUG _RELEASE _RELWITHDEBINFO _MINSIZEREL)
+            string(REGEX REPLACE "/Z[iI]" "/Z7" CMAKE_${fc4_lang}_FLAGS${fc4_cfg} "${CMAKE_${fc4_lang}_FLAGS${fc4_cfg}}")
+        endforeach()
+    endforeach()
+endif()
+
+# Compiler cache. Lanes build in fresh git worktrees, so every lane used to compile everything from scratch.
+# With sccache installed (`cargo install sccache --version 0.18.0 --locked`; docs/ops/coordinating.md "Build
+# cache") the C/C++ compiler and rustc go through it. .claude/lane-bin/fc4verify.py runs one sccache server per
+# worktree with SCCACHE_BASEDIRS set to the worktree, so C++ objects hit across worktrees. The cargo env below is
+# the one fc4verify uses: sccache hashes every CARGO_* variable, and incremental builds are not cacheable.
+option(FC4_COMPILER_CACHE "Compile C/C++ and Rust through sccache when it is installed" ON)
+set(FC4_CARGO_ENV "")
+if(FC4_COMPILER_CACHE)
+    find_program(FC4_SCCACHE_EXECUTABLE sccache
+        HINTS "$ENV{CARGO_HOME}/bin" "$ENV{USERPROFILE}/.cargo/bin" "$ENV{HOME}/.cargo/bin")
+    if(FC4_SCCACHE_EXECUTABLE)
+        set(CMAKE_C_COMPILER_LAUNCHER "${FC4_SCCACHE_EXECUTABLE}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${FC4_SCCACHE_EXECUTABLE}")
+        set(FC4_CARGO_ENV "RUSTC_WRAPPER=${FC4_SCCACHE_EXECUTABLE}" CARGO_INCREMENTAL=0
+            CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0)
+        message(STATUS "FC4_COMPILER_CACHE: compiling through ${FC4_SCCACHE_EXECUTABLE}")
+    else()
+        message(STATUS "FC4_COMPILER_CACHE: sccache not found, compiling without a cache")
+    endif()
+endif()
+
 # ---- Rust core (cargo) ----------------------------------------------------------
 
 find_program(CARGO_EXECUTABLE cargo
@@ -79,9 +110,12 @@ endif()
 
 # Cargo does its own incremental build; always ask it. It must run from
 # engine/ so that engine/.cargo/config.toml (static CRT) applies.
+# --target-dir rather than CARGO_TARGET_DIR: sccache hashes CARGO_* variables, and the
+# target directory must not split the cache between this build and a lane's own cargo runs.
 add_custom_target(fc4_capi_cargo ALL
-    COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${FC4_CARGO_TARGET_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E env ${FC4_CARGO_ENV}
             ${CARGO_EXECUTABLE} build --release -p fc4-capi ${FC4_CARGO_TARGET_ARGS}
+            --target-dir "${FC4_CARGO_TARGET_DIR}"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     BYPRODUCTS "${FC4_CAPI_LIB}"
     COMMENT "cargo build fc4-capi (${FC4_RUST_TARGET})"
@@ -97,8 +131,9 @@ add_dependencies(fc4_capi fc4_capi_cargo)
 
 # Rust unit tests + conformance vectors, for the same target as the plugin.
 add_test(NAME cargo_test
-    COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${FC4_CARGO_TARGET_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E env ${FC4_CARGO_ENV}
             ${CARGO_EXECUTABLE} test --workspace ${FC4_CARGO_TARGET_ARGS}
+            --target-dir "${FC4_CARGO_TARGET_DIR}"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # The C ABI exercised from C++ with this compiler/architecture/CRT.
@@ -303,11 +338,56 @@ if(FC4_IS_WIN32_X86)
         # The terrain shadow (terrain.md; the glue16 lane): terrain_shadow.
         plugin/FC4TerrainShadow.cpp
         plugin/FC4TerrainShadow.h
+        # The terrain replacement (terrain.md §4-§10, §15; the glue18 lane): enable = terrain.
+        plugin/cFC4Terrain.cpp
+        plugin/cFC4Terrain.h
+        plugin/FC4TerrainInterfaces.h
         # The disaster layer's host (disasters.md; glue13) and its shadow: disasters_shadow.
         plugin/FC4DisasterHost.cpp
         plugin/FC4DisasterHost.h
         plugin/FC4DisasterShadow.cpp
         plugin/FC4DisasterShadow.h
+        # The glue17 lane: the city situation manager, the demolition utility
+        # and the dispatch manager (city-situation.md, demolition.md,
+        # dispatch.md) and their shadows: citysit_shadow, demolition_shadow,
+        # dispatch_shadow. FC4CoreShadow is the record round trip the three
+        # shadows share.
+        plugin/FC4CoreShadow.cpp
+        plugin/FC4CoreShadow.h
+        plugin/FC4CitySitShadow.cpp
+        plugin/FC4CitySitShadow.h
+        plugin/FC4DemolitionShadow.cpp
+        plugin/FC4DemolitionShadow.h
+        plugin/FC4DispatchShadow.cpp
+        plugin/FC4DispatchShadow.h
+        # The dispatch manager's GZCOM class (enable = dispatch).
+        plugin/cFC4Dispatch.cpp
+        plugin/cFC4Dispatch.h
+        # The city situation manager's GZCOM class (enable = citysit): the
+        # city-situation.md §8 minimal replacement.
+        plugin/cFC4CitySituation.cpp
+        plugin/cFC4CitySituation.h
+        plugin/FC4DemolitionHost.cpp
+        plugin/FC4DemolitionHost.h
+        plugin/cFC4Demolition.cpp
+        plugin/cFC4Demolition.h
+        plugin/FC4DemolitionPriceShadow.cpp
+        plugin/FC4DemolitionPriceShadow.h
+        # the glue22 lane: the effects manager (docs/specs/effects.md)
+        plugin/cFC4Effects.cpp
+        plugin/cFC4Effects.h
+        plugin/FC4EffectsHost.cpp
+        plugin/FC4EffectsHost.h
+        plugin/FC4EffectsShadow.cpp
+        plugin/FC4EffectsShadow.h
+        plugin/cFC4NetworkManager.cpp
+        plugin/cFC4NetworkManager.h
+        plugin/cFC4NetworkLotManager.cpp
+        plugin/cFC4NetworkLotManager.h
+        # The replacement network manager's tool stand-in (glue24; §13: the
+        # tools are their own subsystem, the slot 5 answer must not be null).
+        plugin/cFC4NetworkTool.cpp
+        plugin/cFC4NetworkTool.h
         # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp
@@ -315,6 +395,23 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4ZoneDevHost.cpp
         plugin/FC4ZoneDevShadow.cpp
         plugin/FC4ZoneDevShadow.h
+        # The network manager and network lot manager (network-manager.md): netmgr_shadow.
+        plugin/FC4NetMgrHost.cpp
+        plugin/FC4NetMgrHost.h
+        plugin/FC4NetMgrShadow.cpp
+        plugin/FC4NetMgrShadow.h
+        # The replacement network tool over the fc4_nettool core (network-tools.md;
+        # the glue29 lane): enable = nettool.
+        plugin/cFC4NetworkTool.cpp
+        plugin/cFC4NetworkTool.h
+        plugin/FC4NetToolHost.cpp
+        plugin/FC4NetToolHost.h
+        # The MySims shadow (mysims.md): mysims_shadow (no replacement).
+        plugin/FC4MySimsShadow.cpp
+        plugin/FC4MySimsShadow.h
+        # The occupant manager shadow (occupant-manager.md): occmgr_shadow (no replacement).
+        plugin/FC4OccMgrShadow.cpp
+        plugin/FC4OccMgrShadow.h
         # The prop manager, the lot configuration manager and the tutorial system
         # (prop-lotconfig.md, tutorial.md; the glue15 lane): enable = propmgr, lotcfg,
         # tutorial; propmgr_shadow, lotcfg_shadow, tutorial_shadow.
@@ -333,6 +430,42 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4LotConfiguration.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
+        # The prop developer and the city detail manager (glue12b1): `enable = propdev,
+        # citydetail`, propdev_shadow, citydetail_shadow.
+        plugin/FC4PropCityCommon.cpp
+        plugin/FC4PropCityCommon.h
+        plugin/cFC4PropDeveloper.cpp
+        plugin/cFC4PropDeveloper.h
+        plugin/FC4PropDevHost.cpp
+        plugin/FC4PropDevShadow.cpp
+        plugin/FC4PropDevShadow.h
+        plugin/cFC4CityDetail.cpp
+        plugin/cFC4CityDetail.h
+        plugin/FC4CityDetailShadow.cpp
+        plugin/FC4CityDetailShadow.h
+        # The airport and seaport developers (port-developers.md; glue12b2 lane):
+        # `enable = ports`, ports_shadow.
+        plugin/cFC4PortDeveloper.cpp
+        plugin/cFC4PortDeveloper.h
+        plugin/FC4PortInterfaces.h
+        plugin/FC4PortsShadow.cpp
+        plugin/FC4PortsShadow.h
+        plugin/FC4Turbo.cpp
+        # The automata layer's host tables (automata.md 8, 9; the glue19 lane) and
+        # its shadow: automata_shadow.
+        plugin/cFC4Automata.cpp
+        plugin/cFC4Automata.h
+        plugin/cFC4AutomatonObject.cpp
+        plugin/cFC4AutomatonObject.h
+        plugin/FC4AutomataDriver.cpp
+        plugin/FC4AutomataDriver.h
+        plugin/FC4AutomataHost.cpp
+        plugin/FC4AutomataHost.h
+        plugin/FC4AutomataInterfaces.h
+        plugin/FC4AutomataShadow.cpp
+        plugin/FC4AutomataShadow.h
+        # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
+        plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp
         plugin/FC4Turbo.h
         plugin/FC4Script.cpp
@@ -340,6 +473,9 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Dialogs.cpp
         plugin/FC4Dialogs.h
         plugin/FC4WinInterfaces.h
+        # The devperf lane's tooling: perf_profile (where a month's real time goes).
+        plugin/FC4Perf.cpp
+        plugin/FC4Perf.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -426,6 +562,14 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_fpu_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME fpu_logic_test COMMAND fc4_fpu_logic_test)
 
+    # The network cost pricing of traffic-simulator.md §4.9.1 (TG23): the
+    # count x tile cost rounding (nearest, ties to even), the two-type sum and
+    # the out-of-range quirks.
+    add_executable(fc4_traffic_cost_logic_test tests/traffic_cost_logic_test.cpp)
+    target_include_directories(fc4_traffic_cost_logic_test PRIVATE plugin)
+    target_compile_options(fc4_traffic_cost_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME traffic_cost_logic_test COMMAND fc4_traffic_cost_logic_test)
+
     # The growth probe (building-development.md §12): the counting hook on a
     # fake vtable in this process (forwarding, count, result, callee-pop,
     # registers and x87 state, restore) and its day and summary lines.
@@ -438,18 +582,44 @@ if(FC4_IS_WIN32_X86)
     # Every interface we implement or call against docs/abi/interfaces.tsv
     # (callee-pop bytes, return channel, slot count), read at run time.
     set(FC4_ABI_TSV "${CMAKE_CURRENT_SOURCE_DIR}/../docs/abi/interfaces.tsv")
-    add_executable(fc4_abi_conformance_test tests/abi_conformance_test.cpp tests/abi_entries.inc)
-    target_include_directories(fc4_abi_conformance_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
-    target_compile_definitions(fc4_abi_conformance_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX
-        FC4_ABI_TSV="${FC4_ABI_TSV}" FC4_PLUGIN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/plugin")
-    target_compile_options(fc4_abi_conformance_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
-    add_test(NAME abi_conformance_test COMMAND fc4_abi_conformance_test
-        --plugin-dir "${CMAKE_CURRENT_SOURCE_DIR}/plugin" "${FC4_ABI_TSV}")
+    # tests/abi_entries.inc is a BUILD PRODUCT: tests/gen_abi_entries.py writes
+    # it from the plugin's and the SDK's interface declarations. It is not
+    # checked in (gitignored) and is regenerated on every build, so a stale copy
+    # can never be compiled into the conformance test. A generation failure is a
+    # build failure (the generator exits non-zero before writing), never a
+    # silent compile of whatever was lying around.
+    set(FC4_ABI_ENTRIES "${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_entries.inc")
+    # Needed here as well as below: the conformance test needs the generator.
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        # ALL, and the command is the target's own action: it runs on every
+        # build rather than only when a dependency is newer than the output.
+        add_custom_target(fc4_abi_entries ALL
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/gen_abi_entries.py"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+            BYPRODUCTS "${FC4_ABI_ENTRIES}"
+            COMMENT "gen_abi_entries.py -> tests/abi_entries.inc"
+            VERBATIM)
+        add_executable(fc4_abi_conformance_test tests/abi_conformance_test.cpp)
+        target_include_directories(fc4_abi_conformance_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
+        target_compile_definitions(fc4_abi_conformance_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX
+            FC4_ABI_TSV="${FC4_ABI_TSV}" FC4_PLUGIN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/plugin")
+        target_compile_options(fc4_abi_conformance_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+        # Compiles only after the generator has run.
+        add_dependencies(fc4_abi_conformance_test fc4_abi_entries)
+        add_test(NAME abi_conformance_test COMMAND fc4_abi_conformance_test
+            --plugin-dir "${CMAKE_CURRENT_SOURCE_DIR}/plugin" "${FC4_ABI_TSV}")
+    else()
+        # Same pattern as ret_channel_check below: with no Python 3 there is no
+        # way to generate the listing, so the test is skipped rather than
+        # compiled against a stale or missing abi_entries.inc.
+        message(STATUS "Python 3 not found: skipping abi_conformance_test "
+            "(tests/abi_entries.inc is generated and cannot be built without it)")
+    endif()
 
     # Every use the plugin makes of a game method's return value, against the
     # slot's `ret` channel in docs/abi and what the specs say it returns
     # (tests/check_ret_channels.py). Skipped when no Python 3 is found.
-    find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
         add_test(NAME ret_channel_check
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_ret_channels.py")
@@ -601,7 +771,21 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_parks_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-parks)
     set_tests_properties(plugin_ini_enable_parks_test PROPERTIES RUN_SERIAL TRUE)
-    # `terrain_shadow = 1`: the terrain shadow (glue16) on a stand-in original
+    # The glue12b1 lane (tests/plugin_propcity_test.inc): `enable = propdev` (the
+    # QI tables of the developer and its wealth requester, the record round
+    # trip, version 4 written back as 5, Init / Shutdown / the scan flag
+    # without a city) and `enable = citydetail` (QI table, record, Init).
+    add_test(NAME plugin_ini_enable_propdev_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-propdev)
+    set_tests_properties(plugin_ini_enable_propdev_test PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME plugin_ini_enable_citydetail_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-citydetail)
+    set_tests_properties(plugin_ini_enable_citydetail_test PROPERTIES RUN_SERIAL TRUE)
+    # `enable = ports`: the airport and seaport developers (port-developers.md): the QI
+    # tables (1 gives +4), the slots with no ports, the empty records, Init without a city.
+    add_test(NAME plugin_ini_enable_ports_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-ports)
+    set_tests_properties(plugin_ini_enable_ports_test PROPERTIES RUN_SERIAL TRUE)    # `terrain_shadow = 1`: the terrain shadow (glue16) on a stand-in original
     # built inside the DLL (seam op 58): exact, lost messages, perturbations.
     add_test(NAME plugin_ini_terrain_shadow_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-terrain-shadow)

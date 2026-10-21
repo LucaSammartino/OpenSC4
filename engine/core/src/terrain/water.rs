@@ -63,21 +63,21 @@ impl Terrain {
     /// `GetWaterDepthForCell(x, z)` (surface water slot 6, §10.2): `i :=
     /// GetVertIndex(x, z)` with no bounds check; the minimum of the depths at
     /// `i`, `i + 1`, `i + 1 + vertsX`, `i + vertsX` (in that order, a NaN
-    /// candidate never replacing it); that minimum if `> 0`, else 0.0.
-    /// [choice] An index outside the arrays reads as NaN.
+    /// candidate never replacing it); that minimum if `> 0`, else 0.0. While
+    /// a flat index lies inside the arrays it is read, even when a coordinate
+    /// is out of range (`x = cellsX` reads the first vertex of the next row
+    /// as `i + 1`, §10.5); one past the arrays reads 0.0 ([choice], never
+    /// NaN, TR12).
     pub fn water_depth_for_cell(&self, x: i32, z: i32) -> f32 {
-        let i = i64::from(x) + i64::from(z) * i64::from(self.verts_x);
-        let vx = i64::from(self.verts_x);
-        let d = |j: i64| {
-            if (0..self.water.len() as i64).contains(&j) {
-                self.water[j as usize].depth
-            } else {
-                f32::NAN
-            }
-        };
-        let mut m = d(i);
-        for j in [i + 1, i + 1 + vx, i + vx] {
-            let c = d(j);
+        let i = self.vert_index(x, z);
+        let vx = self.verts_x;
+        let mut m = self.depth_raw(i);
+        for j in [
+            i.wrapping_add(1),
+            i.wrapping_add(1).wrapping_add(vx),
+            i.wrapping_add(vx),
+        ] {
+            let c = self.depth_raw(j);
             if c < m {
                 m = c;
             }
@@ -89,16 +89,51 @@ impl Terrain {
         }
     }
 
+    /// `AltitudeAtWhichFloodingWillOccur(x, z)` (surface water slot 10,
+    /// `0x0073D4F0`, §10.2, TR3): `i := GetVertIndex(x, z)` (no bounds
+    /// check); `r := sea level`; with `L := depth + alt` (one rounded add),
+    /// the vertex's own `L` when it is wet (`depth > 0`) and above `r`; then
+    /// each neighbour that the `GetNeighbors` mask of `GetVertex(i)` allows,
+    /// in the offset order W, NW, N, NE, E, SE, S, SW, when wet and strictly
+    /// above `r` (a NaN never wins). Returns `r`. A flat index past the
+    /// arrays reads depth 0.0 (dry; [choice] §10.5).
+    pub fn altitude_at_which_flooding_will_occur(&self, x: i32, z: i32) -> f32 {
+        let i = self.vert_index(x, z);
+        let mut r = f64::from(self.sea_level);
+        if self.depth_raw(i) > 0.0 {
+            let l = self.level_raw(i);
+            if l > r {
+                r = l;
+            }
+        }
+        let (vx, vz) = self.vertex_of(i);
+        let mask = self.neighbor_mask(vx as i32, vz as i32);
+        for (k, off) in self.neighbor_offsets().iter().enumerate() {
+            if mask & (1 << k) == 0 {
+                continue;
+            }
+            let n = i.wrapping_add(*off as u32);
+            if self.depth_raw(n) > 0.0 {
+                let l = self.level_raw(n);
+                if l > r {
+                    r = l;
+                }
+            }
+        }
+        r as f32
+    }
+
     /// `HasDraftClearance(x, z)` (slot 13): `GetWaterDepthForCell > 5.0`.
     pub fn has_draft_clearance(&self, x: i32, z: i32) -> bool {
         self.water_depth_for_cell(x, z) > DRAFT_CLEARANCE
     }
 
     /// `GetWaterType(x, z)` (slot 12): at the vertex `GetVertIndex(x, z)`,
-    /// `depth ≤ 0` → 0; else `level > sea` (or NaN) → 2, otherwise 3.
-    /// [choice] An index outside the arrays gives 0.
+    /// `depth ≤ 0` → 0; else `level > sea` (or NaN) → 2, otherwise 3; a NaN
+    /// depth gives 2 (TR6). No bounds check (§10.5): a flat index outside the
+    /// arrays gives 0 ([choice]).
     pub fn water_type(&self, x: i32, z: i32) -> u32 {
-        let Some(i) = self.raw_index(i64::from(x), i64::from(z)) else {
+        let Some(i) = self.raw_index(x, z) else {
             return water_type::LAND;
         };
         let w = self.water[i];
@@ -124,8 +159,9 @@ impl Terrain {
     /// `GetCell`); a pole whose bounds merely overlap a neighbouring cell
     /// does not block that cell. Each visited cell is tested on its own.
     ///
-    /// [choice] "Out of the city" (city slot 99) is the terrain's cell
-    /// bounds; the spiral is the clockwise one of plumbing §7.2.
+    /// "Out of the city" (city slot 99, `CellIsInBounds`) is the terrain's
+    /// cell bounds, and the spiral is the clockwise one of plumbing §7.2 over
+    /// the unclipped square (TR17).
     pub fn is_navigable(&self, x: i32, z: i32, r: i32, lot: u64, host: &dyn NavigationHost) -> bool {
         let (x0, x1) = (x.wrapping_sub(r), x.wrapping_add(r));
         let (z0, z1) = (z.wrapping_sub(r), z.wrapping_add(r));
@@ -158,7 +194,7 @@ impl Terrain {
 }
 
 /// The body-of-water map (surface water `+0x4C`, slot 9; §10.3): one uint16
-/// per cell, 0 = none, and the dirty flag (`+0x48`).
+/// per cell, 0 = none, and the dirty flag (byte `+0x50` of the object, TR13).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BodiesOfWater {
     cells_x: u32,
@@ -243,8 +279,8 @@ impl BodiesOfWater {
     }
 
     /// A power pole inserted or removed (`0x99EF1142` / `0x99EF1143`, pole
-    /// slot 13 false) on a cell with `depth > 0` sets the dirty flag (§10.3).
-    /// [choice] "Depth > 0" is `GetWaterDepthForCell(x, z) > 0`.
+    /// slot 13 false) sets the dirty flag when `GetWaterDepthForCell(x, z) >
+    /// 0` (strict) at the pole's cell (§10.3, TR13).
     pub fn note_power_pole_changed(&mut self, terrain: &Terrain, x: i32, z: i32) {
         if terrain.water_depth_for_cell(x, z) > 0.0 {
             self.dirty = true;

@@ -139,6 +139,8 @@ pub mod file_seed {
     pub const REGION_CREATION: u32 = 0xAC35_7AF9;
     /// Advice (`0x00B22E58`, `cRZRandom`).
     pub const ADVICE: u32 = 0x2C09_C27B;
+    /// Brush effects (`0x00B22BE8`, `cRZRandom`; effects.md §8.2, §14).
+    pub const BRUSH_EFFECTS: u32 = 0xAC09_C1EF;
 }
 
 /// [choice] `RandomDoubleGaussian` gives up after this many rejected pairs

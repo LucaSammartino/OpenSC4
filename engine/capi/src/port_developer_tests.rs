@@ -219,6 +219,8 @@ fn create_and_identity() {
         assert!(!fc4_port_developer_query_interface(1, 0xEA20_548D, &mut off));
         assert!(!fc4_port_developer_query_interface(5, 1, &mut off));
         assert_eq!(fc4_port_developer_num_ports(std::ptr::null(), 0x1F, 0x1F), 0);
+        assert_eq!(fc4_port_developer_required_budget(std::ptr::null()), 0);
+        assert_eq!(fc4_port_developer_funding_ratio(std::ptr::null()), 1.0);
     }
 }
 
@@ -232,7 +234,8 @@ fn airport_adoption_month_and_record() {
         assert!(fc4_port_developer_init(p));
         assert_eq!(
             g.take(),
-            ["create_department 0x6a4119f0 1", "add_agent cSC4PortDeveloper 6 2"]
+            // §3 (PD10): the base's agent, then the subclass's department.
+            ["add_agent cSC4PortDeveloper 6 2", "create_department 0x6a4119f0 1"]
         );
         g.lots.borrow_mut().insert(0x10, (0xCA24_36C0, 1, 3, 4));
         assert!(fc4_port_developer_do_message(p, 0x99EF_1142, 0x1000, 0, 0));
@@ -253,6 +256,14 @@ fn airport_adoption_month_and_record() {
         assert!(!fc4_port_developer_usage_values(p, 0x11, &mut u, &mut c));
         assert_eq!(fc4_port_developer_num_trips(p), 5200);
         assert_eq!(fc4_port_developer_maintenance_cost(p, 0x10), 700);
+        assert_eq!(fc4_port_developer_required_budget(p), 700);
+        assert_eq!(fc4_port_developer_funding_ratio(p), 1.0);
+        g.line.set((700, 350));
+        assert_eq!(fc4_port_developer_funding_ratio(p), 0.5);
+        assert_eq!(fc4_port_developer_maintenance_cost(p, 0x10), 350);
+        g.line.set((0, 350));
+        assert_eq!(fc4_port_developer_funding_ratio(p), 1.0);
+        g.line.set((700, 700));
         assert_eq!(fc4_port_developer_num_airports(p, 0), 1);
         assert_eq!(fc4_port_developer_num_ports(p, 2, 1), 1);
         assert!((fc4_port_developer_avg_efficiency(p) - 0.48).abs() < 1e-6);

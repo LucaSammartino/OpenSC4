@@ -271,11 +271,12 @@ impl PortHost for CHost {
     fn create_lot(&self, x: i32, z: i32, width: i32, depth: i32, facing: u32) -> Option<u64> {
         opt(cb!(self, create_lot, 0, x, z, width, depth, facing))
     }
-    fn set_lot_configuration(&self, lot: u64, config: u64) {
-        cb!(self, set_lot_configuration, (), lot, config)
+    // A null configuration (PD5) goes to the host as 0.
+    fn set_lot_configuration(&self, lot: u64, config: Option<u64>) {
+        cb!(self, set_lot_configuration, (), lot, config.unwrap_or(0))
     }
-    fn construct_default_lot(&self, lot: u64, config: u64) -> bool {
-        cb!(self, construct_default_lot, false, lot, config)
+    fn construct_default_lot(&self, lot: u64, config: Option<u64>) -> bool {
+        cb!(self, construct_default_lot, false, lot, config.unwrap_or(0))
     }
     fn dezone(&self, rect: CellRect) {
         let r = rect_c(rect);
@@ -517,6 +518,20 @@ pub unsafe extern "C" fn fc4_port_developer_usage_values(
 #[no_mangle]
 pub unsafe extern "C" fn fc4_port_developer_num_trips(p: *const fc4_port_developer) -> u32 {
     with_p(p, 0, |h| h.sim.num_trips())
+}
+
+/// `RequiredBudget()` (§4.2): the summed monthly cost of the ports' current
+/// stages (what `UpdateBudget` writes to line 1). Diagnostics and the shadow.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_port_developer_required_budget(p: *const fc4_port_developer) -> i64 {
+    with_p(p, 0, |h| h.sim.required_budget())
+}
+
+/// The funding ratio `fr` (§4.2): line 1's current / full expenses, 1.0
+/// without the line or with full expenses 0. Reads the line through the host.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_port_developer_funding_ratio(p: *const fc4_port_developer) -> f32 {
+    with_p(p, 1.0, |h| h.sim.funding_ratio())
 }
 
 /// `GetMaintenanceCost(lot)` (0 if not a port).

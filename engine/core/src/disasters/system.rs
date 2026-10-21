@@ -23,6 +23,7 @@ use super::volcano::{VolcanoSnapshot, VolcanoState, VolcanoTuning};
 use super::{
     instance_class, kind, msg, CellRect, DerivedSeeds, DisasterHost, DisasterMessage, DisasterRandom, Generator, Target,
 };
+use crate::network_manager::RiotLock;
 use crate::rng::RzRandom;
 use crate::seeding::{keys, SeedKey};
 
@@ -101,8 +102,9 @@ pub(crate) struct Core {
     pub toxic_instance: Option<u32>,
     pub fire_tuning: Option<FireTuning>,
     pub riot_tuning: Option<RiotTuning>,
-    /// The network occupants the riots have locked (network-manager.md §10).
-    pub riot_locked: Vec<u64>,
+    /// The network occupants the riots have locked (network-manager.md §10):
+    /// one `network_manager::RiotLock` for the whole engine (glue24).
+    pub riot_lock: RiotLock,
     pub quake_tuning: Option<QuakeTuning>,
     pub pipe_tuning: Option<PipeTuning>,
     pub volcano_tuning: Option<VolcanoTuning>,
@@ -134,7 +136,7 @@ impl Core {
             toxic_instance: None,
             fire_tuning: None,
             riot_tuning: None,
-            riot_locked: Vec::new(),
+            riot_lock: RiotLock::new(),
             quake_tuning: None,
             pipe_tuning: None,
             volcano_tuning: None,
@@ -611,9 +613,10 @@ impl Disasters {
     pub fn unregister_location_by_occupant(&self, instance: u32, occ: u64) {
         self.with((), |c| c.unregister_location_by_occupant(instance, occ))
     }
-    /// `GetMostRecentDisasterLocation` (slot 12); `instance` 0 = any.
+    /// `GetMostRecentDisasterLocation` (slot 12); `instance` 0 = any. The
+    /// entry is **resolved**, so this is a write (§2.7, DS35).
     pub fn most_recent_location(&self, instance: u32) -> Option<(i32, i32)> {
-        self.read(None, |c| c.most_recent_location((instance != 0).then_some(instance)))
+        self.with(None, |c| c.most_recent_location((instance != 0).then_some(instance)))
     }
     pub fn location_count(&self) -> usize {
         self.read(0, |c| c.layer.locations.len())

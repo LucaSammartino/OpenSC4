@@ -606,6 +606,13 @@ AL true, nothing transferred), 5 `GetGZCLSID` `0x006F0E00` → `0x89C49986`.
    lot, if one survives a change of configuration *[not traced]*. `GetLotProps` selects by the lot's **rectangle**
    (prop-lotconfig.md A7.2), not by owner, so any tagged prop inside it counts. Plugin lots of version < 2 hit the
    rule with every tagged prop after each load *[inferred]*.
+   **Corpus count (re-answers27, 2026-10-16).** The count is now made, with `re/prop_tag_corpus.py` over the 421
+   distinct saves under `Regions\`: **40,830 of 147,162 tagged lot props are unmatched (27.7 %)**, so the rule
+   fires on more than a quarter of the tagged lot props in the corpus. 40,794 sit on a lot that has a
+   configuration whose objects do not include the tag; 36 sit on a lot with no configuration. 38,933 of the tags
+   name no object in **any** shipped configuration (and `Plugins` holds no plugin `.dat`), so they are leftovers
+   of a configuration the install no longer has. Effect props are clean (844 tagged, 0 unmatched). Full figures,
+   the per-region breakdown and the parser's validation numbers are in QUESTIONS.md under PV2.
 2. At most one removal per requester per block update; creations are not limited.
 3. The remainder of the split starts at requester index 1 (§4.3 step 4).
 4. A failed creation still consumes the free slot for the rest of the update.
@@ -658,3 +665,60 @@ PV7–PV13 answered by re-answers22 (§4.3, §4.4, §4.6, §4.7, §4.8, §4.13, 
     `AreSignsAndLabelsVisible` follows.
 14. **Lot state**: a lot going 2 → 3 posts `0xCA5E5027` with data3 = 1; a prop with `0x6A5E0727 = 3` on it ends in
     state 0, and in state 1 once the lot leaves state 3.
+
+## 13. How `CreateProp` actually gets an occupant (GLUE21-2 — DIFFERS, answered 2026-10-16 by re-answers31)
+
+**Question.** With `enable = propmgr` the game reads `0x7C` from a null (`esi = 0`) at `SimCity 4.exe+0x2F44EF`
+on the prop path that calls prop manager slot 15 `CreateProp`. The replacement's `create_prop_instance`
+returns 0 when GZCOM does not answer `GetClassObject(cls, 0xE9793A65, &p)`, and hands the game a null. Should
+`CreateProp` / `Add*Prop` **fail the call** instead?
+
+**Answer: neither.** The original never returns a null from `CreateProp`. When GZCOM does not answer it
+**fabricates the occupant itself**. Failing the call is a *[choice]* you may adopt as an interim, but it is not
+what the original does, and it will not by itself stop the fault: the observed `+0x7C` read shows the caller
+takes the out parameter as an occupant without a null check, so a null — whether returned with `true` or with
+`false` — is still dereferenced.
+
+### 13.1 What the original does (`cSC4PropManager::CreateProp`, `0x004A3040`)
+
+1. **Validate the type first.** `vtable+0x20` (slot 8) `IsPropTypeValid(id)`. If it answers false the call fails
+   immediately — that is the one real "fail the call" exit.
+2. **Pick the class.** Default `cls = 0x2977AA47` (`cSC4PropOccupant`, `re/class_id_table.tsv:400`). Then slot 13
+   `GetPropProfile(id)` (`0x004A3750`) and the dword at `profile+0` may override it (that is how
+   `0x2977AA48` `cSC4PropOccupantTerrainDecal`, `0x2977AA49` `cSC4PropOccupantVisualEffect` and the burnt
+   building `0xC9EFB016` are reached).
+3. **Try GZCOM.** `CreateObject(cls, 0xE9793A65, &out)` — `vtable+0x0C` on the class factory, three stack args
+   `(clsid, iid 0xE9793A65, out)`. If it succeeds, use that object.
+4. **Otherwise allocate and construct it by hand**, dispatching on the class id:
+
+   | `cls` | allocated size | path |
+   |---|---|---|
+   | `0x2977AA48` (terrain decal) | `0xA0` | `0x4A30D3` |
+   | `0x2977AA47` (prop occupant) | `0x94` | `0x4A30B1` |
+   | anything else | `0x68` | `0x4A309A` |
+
+   Each path is `alloc` → construct → test → `add eax, 4` → store. **The out parameter receives the object at
+   `+4`**, i.e. `CreateProp` returns the *second* sub-object, not the allocation base. Then `vtable+0x04`
+   `AddRef`, `vtable+0x20` with the id, and a call into the manager (`0x4A310C`) that registers it; on success a
+   further `AddRef`.
+5. Only if the allocation itself returns null does the function leave a null in the out parameter.
+
+So the compat behaviour is: **validate, try GZCOM, fall back to allocate-and-construct, and only then give up.**
+This is the same pattern as the lot configuration manager's helper (lot-configuration.md §1.1).
+
+### 13.2 The change to make
+
+Implement the fallback in `create_prop_instance` (and any `Add*Prop` that can reach it):
+
+1. If `IsPropTypeValid` is false, **fail the call** (this is the original's only clean failure).
+2. Try `GetClassObject(cls, 0xE9793A65, &p)`; if it answers, use it.
+3. Otherwise allocate `0x94` / `0xA0` / `0x68` by class-id family and construct a `cISC4PropOccupant`-shaped
+   object, returning the **`+4`** sub-object pointer as the original does. If FreeCity4 cannot own that layout
+   yet, do not hand back a null the caller will dereference — return `false` **and** make sure the out parameter
+   is left untouched rather than zeroed, and treat the remaining `+0x7C` fault as expected until the occupant
+   exists.
+
+`0xE9793A65` is the IID asked for at create time; it is an interface IID, not a class ID. The same
+IID-versus-CLSID mistake that broke the automata classes (automata §15) and the effects manager (effects §18)
+applies here: the class is `0x2977AA47` and the interface is `0xE9793A65`, and a `QueryInterface` that answers
+only the CLSID will leave the out parameter null.

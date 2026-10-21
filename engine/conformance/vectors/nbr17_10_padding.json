@@ -1,0 +1,50 @@
+{
+ "format": 1,
+ "name": "nbr17_10_padding",
+ "spec": [
+  "network-bridges 6.2",
+  "17.10"
+ ],
+ "description": "Key 5 has minimum span 22. Padding alternates one step back then one forward: from (9, 20) it reaches (4, 25) in 22 steps. With the back side blocked at once (start must stay > 1) the forward side takes all ten: (2, 23).",
+ "steps": [
+  {
+   "op": "nbr_city",
+   "altitude": 250,
+   "sea": 250
+  },
+  {
+   "op": "nbr_drag",
+   "steps": 31,
+   "z": 10,
+   "pen": 4
+  },
+  {
+   "op": "nbr_pad",
+   "start": 9,
+   "end": 20,
+   "min_len": 22,
+   "expect": {
+    "ok": true,
+    "start": 4,
+    "end": 25
+   }
+  },
+  {
+   "op": "nbr_drag",
+   "steps": 31,
+   "z": 10,
+   "pen": 4
+  },
+  {
+   "op": "nbr_pad",
+   "start": 2,
+   "end": 13,
+   "min_len": 22,
+   "expect": {
+    "ok": true,
+    "start": 2,
+    "end": 23
+   }
+  }
+ ]
+}

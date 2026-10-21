@@ -4,17 +4,19 @@
 
 Canonical tables (the only ones this script owns):
 
-  1. HANDOFF.md, between ``<!-- BEGIN GENERATED: lanes -->`` and ``<!-- END GENERATED -->``:
+  1. docs/lanes/INDEX.md, between ``<!-- BEGIN GENERATED: lanes -->`` and ``<!-- END GENERATED -->``:
      the four-column lane table::
 
          | Lane | Agent/worktree | State at stop | Next steps |
 
-     This is the one canonical lane table. It replaces both older HANDOFF section 0 tables:
+     This is the one canonical lane table. It lived in HANDOFF.md section 0 until 2026-10-20 and
+     moved to its own file so the HANDOFF stays one page. It replaces both older HANDOFF tables:
      the five-column wind-down table ``| Lane | Worktree / branch | Agent | State at the
      wind-down | Next steps |`` and the roster ``| Lane | Agent ID | Worktree | Reserved |
      State |``. A lane's ABI/seam reservation from the roster is folded into its "State at
      stop" cell; a lane that had a roster row keeps it verbatim under "## Retired roster row"
-     in its own ``docs/lanes/<lane>.md``, which this script never reads.
+     in its own ``docs/lanes/<lane>.md``, which this script never reads. If INDEX.md is missing
+     it is created with a fixed preamble.
 
   2. HANDOFF.md, between ``<!-- BEGIN GENERATED: latest-run -->`` and ``<!-- END GENERATED -->``:
      the ``- **Latest in-game run:** ...`` bullet.
@@ -27,7 +29,8 @@ Canonical tables (the only ones this script owns):
 Inputs:
 
   * ``docs/lanes/<lane>.md`` -- exactly one data row of the four columns above (with the
-    header and separator), optionally followed by a ``## Next steps`` paragraph whose text is
+    header and separator; a second column headed ``Worktree`` instead of ``Agent/worktree``
+    and a ``| --- |`` separator are accepted too), optionally followed by a ``## Next steps`` paragraph whose text is
     appended to the row's Next steps cell. Anything else in the file is ignored.
   * ``docs/runs/<tag>.md`` -- one ``key: value`` per line. Required keys: ``tag``, ``run``,
     ``verdict``, ``switches``, ``result``. Recommended: ``date``, ``lane``, ``dll``,
@@ -56,6 +59,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HANDOFF = os.path.join(ROOT, "docs", "HANDOFF.md")
+LANES_INDEX = os.path.join(ROOT, "docs", "lanes", "INDEX.md")
 MANUAL = os.path.join(ROOT, "docs", "manual-checks.md")
 LANES_DIR = os.path.join(ROOT, "docs", "lanes")
 RUNS_DIR = os.path.join(ROOT, "docs", "runs")
@@ -66,11 +70,29 @@ END = "<!-- END GENERATED -->"
 LANE_HEADER = "| Lane | Agent/worktree | State at stop | Next steps |"
 LANE_SEP = "|---|---|---|---|"
 LANE_COLUMNS = 4
+# Header cells a lane file may use: some lanes wrote "Worktree" for the second column.
+LANE_HEADER_CELLS = (("lane",), ("agent/worktree", "worktree"), ("state at stop",), ("next steps",))
+LANE_SKIP = ("README.md", "INDEX.md")
 
 RUN_HEADER = "| Tag | Run | Date | Lane | DLL | Pacing | Verdict | Switches | Result |"
 RUN_SEP = "|---|---|---|---|---|---|---|---|---|"
 RUN_FIELDS = ("tag", "run", "date", "lane", "dll", "pacing", "verdict", "switches", "result")
 RUN_REQUIRED = ("tag", "run", "verdict", "switches", "result")
+
+# docs/lanes/INDEX.md is created with this text when it is missing; the table goes between the markers.
+INDEX_PREAMBLE = (
+    "# Lane index (generated)",
+    "",
+    "One row per lane, generated from `docs/lanes/<lane>.md` by `python tools/gen_handoff_tables.py`.",
+    "Do not edit the table: edit the lane's own file and regenerate. The row format and the merge-queue",
+    "contract are in [README.md](README.md).",
+    "",
+    "Who reads this: the coordinator, and a lane that resumes or follows up another lane's work. A row's",
+    "\"merged\" is the lane's own claim: verify it with `git merge-base --is-ancestor <lane> main`.",
+    "",
+    BEGIN.format(name="lanes"),
+    END,
+)
 
 # No cell may hold a raw pipe: it would silently split the table.
 PIPE = re.compile(r"(?<!\\)\|")
@@ -106,19 +128,35 @@ def table_cells(line):
     return [c.strip() for c in line.split("|")[1:-1]]
 
 
+def is_lane_header(line):
+    s = line.strip()
+    if not (s.startswith("|") and s.endswith("|")):
+        return False
+    cells = [c.lower() for c in table_cells(s)]
+    return len(cells) == LANE_COLUMNS and all(c in ok for c, ok in zip(cells, LANE_HEADER_CELLS))
+
+
+def is_lane_sep(line):
+    s = line.strip()
+    if not (s.startswith("|") and s.endswith("|")):
+        return False
+    cells = table_cells(s)
+    return len(cells) == LANE_COLUMNS and all(re.match(r"^:?-{3,}:?$", c) for c in cells)
+
+
 def parse_lane_file(path):
     name = os.path.splitext(os.path.basename(path))[0]
     lines = split_lines(read_text(path))
     header_at = None
     for i, line in enumerate(lines):
-        if line.strip() == LANE_HEADER:
+        if is_lane_header(line):
             header_at = i
             break
     if header_at is None:
         raise Error("no table row (expected the header %r)" % LANE_HEADER)
     if header_at + 2 >= len(lines):
         raise Error("table row is missing")
-    if lines[header_at + 1].strip() != LANE_SEP:
+    if not is_lane_sep(lines[header_at + 1]):
         raise Error("table separator is not %r" % LANE_SEP)
     row = lines[header_at + 2].strip()
     if not row.startswith("|") or not row.endswith("|"):
@@ -175,7 +213,7 @@ def load_lanes():
         raise Error("no docs/lanes/ directory")
     lanes = []
     for fn in sorted(os.listdir(LANES_DIR), key=natural_key):
-        if not fn.endswith(".md") or fn == "README.md":
+        if not fn.endswith(".md") or fn in LANE_SKIP:
             continue
         path = os.path.join(LANES_DIR, fn)
         try:
@@ -227,9 +265,13 @@ def build_run_table(runs):
     return out
 
 
+LATEST_RUNS = 5
+
+
 def build_latest_run(runs):
     marked = [r for r in runs if r.get("summary")]
     marked.sort(key=lambda r: r["run"], reverse=True)
+    marked = marked[:LATEST_RUNS]  # the full log is docs/manual-checks.md; the HANDOFF stays one page
     if not marked:
         return ["- **Latest in-game run:** none recorded. See `docs/manual-checks.md`."]
     parts = []
@@ -273,7 +315,7 @@ def main(argv):
         lanes = load_lanes()
         runs = load_runs()
         jobs = [
-            (HANDOFF, "lanes", build_lane_table(lanes)),
+            (LANES_INDEX, "lanes", build_lane_table(lanes)),
             (HANDOFF, "latest-run", build_latest_run(runs)),
             (MANUAL, "runs", build_run_table(runs)),
         ]
@@ -281,16 +323,22 @@ def main(argv):
         sys.stderr.write("gen_handoff_tables: %s\n" % exc)
         return 1
 
-    # HANDOFF carries two regions: apply both to one in-memory copy before writing.
+    # Apply every region to one in-memory copy per file before writing.
     dirty = []
     cache = {}
+    original = {}
     for path, name, content in jobs:
         if path not in cache:
-            cache[path] = read_text(path)
+            if path == LANES_INDEX and not os.path.exists(path):
+                original[path] = ""
+                cache[path] = "".join(line + "\n" for line in INDEX_PREAMBLE)
+            else:
+                original[path] = read_text(path)
+                cache[path] = original[path]
         before = cache[path]
         after = replace_region(before, name, content)
         cache[path] = after
-        if before != after:
+        if before != after or not original[path]:
             dirty.append("%s: %s" % (os.path.relpath(path, ROOT), name))
 
     if args.check:
@@ -301,8 +349,7 @@ def main(argv):
         return 0
 
     for path, text in cache.items():
-        original = read_text(path)
-        if original != text:
+        if original[path] != text:
             with open(path, "w", encoding="utf-8", newline="") as fh:
                 fh.write(text)
     print("gen_handoff_tables: %d lanes, %d runs; rewrote %s"

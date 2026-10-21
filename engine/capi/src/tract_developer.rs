@@ -662,9 +662,25 @@ impl TractDeveloperHost for CHost {
     fn get_lot(&self, x: i32, z: i32) -> Option<u64> {
         opt(cb!(self, get_lot, 0, x, z))
     }
-    fn lots_in_cell_rect(&self, rect: CellRect) -> Vec<u64> {
+    fn lots_in_cell_rect(&self, rect: CellRect, f: &mut dyn FnMut(u64)) {
         let r = fc4_cell_rect::from(rect);
-        collect_tokens(|f, ctx| cb!(self, lots_in_cell_rect, (), &r, f, ctx))
+        // devperf2: the host hands the lots over one by one; no token vector
+        // is built for `UpdatePopulation` (once per desirability tract of
+        // every growth developer's map update).
+        if let Some(g) = self.c.lots_in_cell_rect {
+            // SAFETY: whoever created the object promised valid callbacks.
+            unsafe {
+                struct Sink<'a> {
+                    f: &'a mut dyn FnMut(u64),
+                }
+                unsafe extern "C" fn run(ctx: *mut c_void, token: u64) {
+                    let s = &mut *(ctx as *mut Sink);
+                    (s.f)(token);
+                }
+                let mut sink = Sink { f };
+                g(self.c.user, &r, Some(run), &mut sink as *mut Sink as *mut c_void);
+            }
+        }
     }
     fn lots_surrounding_lot(&self, lot: u64, flags: u32) -> Vec<u64> {
         collect_tokens(|f, ctx| cb!(self, lots_surrounding_lot, (), lot, flags, f, ctx))

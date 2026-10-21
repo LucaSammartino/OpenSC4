@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "name": "audio_start_sfx_message_shape",
+  "spec": [
+    "audio 16.8",
+    "audio 6.2",
+    "audio 6.4"
+  ],
+  "description": "With a non-zero id StartSFX allocates a fresh instance id into +0x8C and posts one message of type 0x8A385DD8 with data1 = the id, data2 = the new instance id and void1 = the automaton occupant (slot 5), at normal priority: the second argument of MessagePost is 0.",
+  "steps": [
+    {
+      "op": "aud_env"
+    },
+    {
+      "op": "aud_start_sfx",
+      "id": 13303297,
+      "occupant": 11534340,
+      "expect": 1
+    },
+    {
+      "op": "aud_automaton_expect",
+      "state": {
+        "instance_id": 1,
+        "posts": 1
+      }
+    },
+    {
+      "op": "aud_post_expect",
+      "index": 0,
+      "state": {
+        "type": 2318949848,
+        "data1": 13303297,
+        "data2": 1,
+        "void1": 11534340,
+        "high_priority": 0,
+        "flags": 135
+      }
+    }
+  ]
+}

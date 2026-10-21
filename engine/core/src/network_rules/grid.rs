@@ -27,6 +27,10 @@ pub struct OccupantView {
     pub node_edge_types: Option<(u32, u32)>,
     /// Slot 71 (`GetIntersectionAnchorCell`): `None` when it returns false.
     pub anchor: Option<(i32, i32)>,
+    /// The other end of a tunnel pair (the paired portal at `+0x1D0`, read
+    /// through interface `0x8A4BD52B` slot 59): `None` when the occupant has
+    /// no pair. Only the one-way pass (§6.5) reads it.
+    pub paired_portal: Option<(i32, i32)>,
 }
 
 /// One cell info (`cSC4NetworkCellInfo`, network-geometry.md §8.1): the
@@ -53,6 +57,10 @@ pub struct CellInfo {
     pub fixed: bool,
     /// `+0x56`: a connection node.
     pub node: bool,
+    /// `+0x57`: the one-way pass (§6.5) has marked this cell for re-solve.
+    /// A cell whose mark is set is not marked again and does not join the
+    /// solve set a second time.
+    pub marked: bool,
     /// `+0xB8`: the index of the cell's solved record, or -1.
     pub solved: i32,
     /// `+0x0C`: the existing occupant.

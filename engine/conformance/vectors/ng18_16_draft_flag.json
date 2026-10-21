@@ -1,0 +1,30 @@
+{
+ "format": 1,
+ "name": "ng18_16_draft_flag",
+ "spec": [
+  "network-geometry 10.1",
+  "18.16"
+ ],
+ "description": "A preview (real = 0) road piece on a bridge step (cell flags 0x40001) has 0x80000000, keeps the type and bridge bits and gets 0x4000: 0x80044001. The committed piece (real = 1) has 0x80000000 cleared: 0x44001. A tunnel occupant is made usable (0x10000000) with 0x4000 cleared. [inferred] Draft mode keeps the type bits and 0xC0000 of the cell flags.",
+ "steps": [
+  {
+   "op": "ng_occupant_flags",
+   "flags": 262145,
+   "real": false,
+   "expect": 2147762177
+  },
+  {
+   "op": "ng_occupant_flags",
+   "flags": 2147745793,
+   "real": true,
+   "expect": 278529
+  },
+  {
+   "op": "ng_occupant_flags",
+   "flags": 1064961,
+   "real": true,
+   "tunnel": true,
+   "expect": 269484033
+  }
+ ]
+}

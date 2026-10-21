@@ -167,6 +167,24 @@ pub trait TractGrid<T: GridElem> {
     /// The reference an owner writes into its record (§5).
     fn save_ref(&self) -> RefValue;
 
+    /// Every tract value at once, x outer (`count_x × count_z` values, each
+    /// equal to what [`TractGrid::get`] returns for it), when the grid can
+    /// hand them out faster than tract by tract; `None` otherwise (the
+    /// default). A performance hook only: walkers that use it read the same
+    /// values (see [`GridSnapshot`]).
+    fn snapshot_values(&self) -> Option<Vec<T>> {
+        None
+    }
+
+    /// `SetTractValue` for each `(index, value)` in order (index
+    /// `x × count_z + z`, inside the grid), in one call when the grid can;
+    /// false (nothing written) otherwise (the default). A performance hook
+    /// only: the caller then sets them tract by tract (see
+    /// [`GridSnapshot::batched`]).
+    fn write_tracts(&self, _changes: &[(u32, T)]) -> bool {
+        false
+    }
+
     /// `SetTractValues(v)`.
     fn fill(&self, v: T) {
         let g = self.geometry();
@@ -253,6 +271,110 @@ fn quotient<T: GridElem>(sum: i64, w: i32, h: i32) -> T {
     // One x87 division at 24-bit precision with exact integer operands
     // (foundations §18): the correctly rounded float32 quotient.
     T::from_quotient(f64::from((sum as f64 / f64::from(n)) as f32))
+}
+
+/// A grid read through one [`TractGrid::snapshot_values`] call when the grid
+/// offers it, tract by tract otherwise. Reads return exactly what
+/// [`TractGrid::get`] returns (0 outside the grid); [`GridSnapshot::set`]
+/// writes through to the grid and keeps the copy current. Valid while
+/// nothing else writes the grid (a walker's own loop).
+///
+/// [`GridSnapshot::batched`]: with a copy, the writes are kept (the copy
+/// answers the reads) and reach the grid when the snapshot is dropped, in
+/// the order they were made, in one [`TractGrid::write_tracts`] call when
+/// the grid offers it, tract by tract otherwise: the same writes, later. Only
+/// for walks during which nothing outside the walker reads the grid.
+pub struct GridSnapshot<'a, T: GridElem> {
+    grid: &'a dyn TractGrid<T>,
+    geom: TractGeometry,
+    values: Option<Vec<T>>,
+    pending: Option<Vec<(u32, T)>>,
+}
+
+impl<'a, T: GridElem> GridSnapshot<'a, T> {
+    pub fn new(grid: &'a dyn TractGrid<T>) -> GridSnapshot<'a, T> {
+        let geom = grid.geometry();
+        let n = if geom.count_x > 0 && geom.count_z > 0 {
+            (geom.count_x as usize).checked_mul(geom.count_z as usize)
+        } else {
+            None
+        };
+        // A copy of any other length is not used.
+        let values = n.and_then(|n| grid.snapshot_values().filter(|v| v.len() == n));
+        GridSnapshot {
+            grid,
+            geom,
+            values,
+            pending: None,
+        }
+    }
+
+    /// As [`GridSnapshot::new`], the writes batched when there is a copy.
+    pub fn batched(grid: &'a dyn TractGrid<T>) -> GridSnapshot<'a, T> {
+        let mut s = GridSnapshot::new(grid);
+        if s.values.is_some() {
+            s.pending = Some(Vec::new());
+        }
+        s
+    }
+
+    /// Hands the batched writes to the grid (also on drop).
+    pub fn flush(&mut self) {
+        let Some(p) = self.pending.as_mut() else { return };
+        if p.is_empty() || self.grid.write_tracts(p) {
+            p.clear();
+            return;
+        }
+        let nz = self.geom.count_z.max(1) as u32;
+        for (i, v) in p.drain(..) {
+            self.grid.set((i / nz) as i32, (i % nz) as i32, v);
+        }
+    }
+
+    /// Whether the values came in one call (tests).
+    pub fn is_copy(&self) -> bool {
+        self.values.is_some()
+    }
+
+    fn index(&self, tx: i32, tz: i32) -> Option<usize> {
+        if tx < 0 || tz < 0 || tx >= self.geom.count_x || tz >= self.geom.count_z {
+            return None;
+        }
+        Some(tx as usize * self.geom.count_z as usize + tz as usize)
+    }
+
+    /// `GetTractValue(tx, tz)`.
+    pub fn get(&self, tx: i32, tz: i32) -> T {
+        match &self.values {
+            Some(v) => self.index(tx, tz).map_or_else(T::default, |i| v[i]),
+            None => self.grid.get(tx, tz),
+        }
+    }
+
+    /// `SetTractValue(tx, tz, v)` on the grid (batched: when flushed); the
+    /// copy follows.
+    pub fn set(&mut self, tx: i32, tz: i32, value: T) {
+        let i = self.index(tx, tz);
+        match (i, self.pending.as_mut()) {
+            (Some(i), Some(p)) => p.push((i as u32, value)),
+            _ => self.grid.set(tx, tz, value),
+        }
+        if let (Some(i), Some(v)) = (i, self.values.as_mut()) {
+            v[i] = value;
+        }
+    }
+
+    /// `GetCellValue(cx, cz)` (the trait's default: the containing tract).
+    pub fn get_cell_value(&self, cx: i32, cz: i32) -> T {
+        let (tx, tz) = self.geom.cell_to_tract(cx, cz);
+        self.get(tx, tz)
+    }
+}
+
+impl<T: GridElem> Drop for GridSnapshot<'_, T> {
+    fn drop(&mut self) {
+        self.flush();
+    }
 }
 
 /// The mutable state of a core grid.

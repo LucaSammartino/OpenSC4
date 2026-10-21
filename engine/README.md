@@ -83,6 +83,8 @@ over the core types); these four go through the C ABI with the `fc4-capi` test h
 | industrial (§8.2) | `0xA990C022` | byte-identical |
 | civic (civic-buildings §7, §12 test 10) | `0x0A413481` | the record with each multi-entry bucket chain reversed (CB6), and byte-identical after a second round trip |
 | parks (parks §7, §12 test 8) | `0xAA3FE6BC` | byte-identical |
+| prop developer (prop-developer §7; `capi/src/prop_city_sweep_tests.rs`) | `0x89C48F47` | version 5 byte-identical; version 4 written as version 5 (version 4 -> 5, `01 00000000` appended) and byte-identical after a second trip |
+| city detail (city-detail §4; the same file) | `0xEAD4BA36` | byte-identical |
 
 ```sh
 cd engine
@@ -107,6 +109,11 @@ order's evaluator and rule counts. See `formats/README.md` for the result.
 cd engine
 cargo test -p fc4-formats --release --test network_rules -- --nocapture
 ```
+The prop developer and city detail records have their own test (`cargo test -p fc4-capi --release
+prop_city_save_sweep -- --nocapture`), printing `save sweep propdev|citydetail: records=… identical=…
+v4-written-as-v5=… second-trip-identical=… failures=…`. Result, 2026-10-16: 417 saves; prop developer 417 records,
+10 version 5 identical and 407 version 4 (122 bytes) written as version 5, all identical after a second trip; city
+detail 14 records (8 bytes, 403 saves have none), all identical.
 
 ## Installing and checking in game
 
@@ -194,7 +201,7 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
    - `disable = budget` means the same as `FC4_DISABLE`. It is read once, when the game enumerates the classes,
      so a change needs a game restart.
    - Some subsystems are **off by default** and only registered with `enable = …` (or `FC4_ENABLE`); `disable`
-     still wins (`enable = landvalue, weather` takes a list). Without it the log says
+     still wins (`enable = landvalue, weather` takes a list). The demolition utility is one of them: `enable = demolition` registers `cSC4Demolition` (class `0x0990C38A`) over `plugin/FC4DemolitionHost.h`, the full 84-callback `fc4_demolition_host`. Without it the log says
      `subsystem '…': off by default` and the game's class runs, so budget bisection runs are unaffected:
      - `landvalue`: the land value simulator (`cSC4LandValueSimulator`, landvalue spec; its grids are the game's
        own `cSC4SimGrid` objects, created through GZCOM, simgrid spec §6.3);
@@ -513,6 +520,22 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
        The log has `parks Init|Read|Shutdown: ok=… init=… parks=… zoos=… threshold=… curve=… dept=… latch=… …`,
        `parks Write -> 0|1 (…)` and one `parks month yyyy-mm-dd: parks=… zoos=… funding=… latch=… lot-writes=…
        escapes=… occupants=…` line per SimNewMonth.
+     - `propdev`: the prop developer (`cSC4PropDeveloper`, CLSID `0x89C48F47`, city component 10;
+       prop-developer spec) and its wealth requester (`cSC4WealthRequester`, class `0x89C49986`, resolved from
+       saved records): the Idle and Day agents (the block step), the 13 subscriptions of §3.1, the animation tick
+       (priority `0xC0`, the night batches), the requesters (wealth answered by the core, crime and pollution
+       held), the night, time-of-day, dated, power, trigger and sign lists, and the record (version 5; a version-4
+       record is read and written back as 5). The lighting manager's IsNight is read through the city view's
+       renderer (slot 9; question PV15). `propdev_seed = N` (env `FC4_PROPDEV_SEED`) fixes the session seed of the
+       member and wealth generators, else the session seed. The log has `propdev Init|Read|Shutdown|Write -> 0|1:
+       ok=… scan=… scanner=(…) wealthAdded=… requesters=… night=… …` and one `propdev month yyyy-mm-dd: blocks=…
+       (idle …, day …) removed=… created=… posts=… …` line per SimNewMonth.
+     - `citydetail`: the city detail manager (`cSC4CityDetailManager`, CLSID `0xEAD4BA36`, city component 51;
+       city-detail spec): Init's reduce / increase pass over every lot (the lot list's order) and
+       every network lot (IterateAllNetworkLots' callback answers true, question CD6), slot 5 and the record (version 0, 8 bytes). The setting is the preferences byte
+       (`videoPreferences.cityDetail`, default 3). `citydetail_seed = N` (env `FC4_CITYDETAIL_SEED`) fixes the
+       session seed of the pass generator. The log has `citydetail Init: setting=… level a->b pass=none|reduce|increase
+       removed=… created=… draws=… network-lots=…` and `citydetail Read|Write -> 0|1 (level …)`.
      - `zonedev`: the zone developer / lot manager (`cSC4ZoneDeveloper`, CLSID `0x498F9B01`; zones.md §1-§11),
        one object with the original's four interfaces at its offsets (`cISC4ZoneDeveloper` +0, `cISC4LotManager`
        +4 in the compiled slot order of §11.3, `cIGZMessageTarget2` +8, `cIGZSerializable` +0xC; city components 7
@@ -645,6 +668,24 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      simulator: turbo OFF at 2001-01-01 (sim_turbo_until reached); days paced by msPerDay again
      simulator: WARNING sim_turbo = 1 has no effect: our simulator is disabled (disable = simulator), ...
      ```
+   - **Perf profile** (`perf_profile = 1`, env `FC4_PERF_PROFILE`; off by default; `plugin/FC4Perf.h`; tooling, no
+     behaviour change): where a game month's real time goes. Every agent delivery of our simulator is timed per
+     agent and level (the original's agents and ours alike) and every `OnTick` as a whole; named sections time
+     the development unit's inner paths (each outermost call into the BDS or a growth developer core with its
+     Publish, the calls into the tract developer's `Grow` / `Decline` / `UpdatePopulation`, each growth
+     developer state); the grid callbacks, the whole-grid reads and writes (`grid:bulk`) and the getters answered from
+     the published copies (`bds:peek`, `growth:peek`) are counted, and every outermost call by the glue function that
+     made it (the `calls` line). At each turbo month line (under `sim_turbo`) it logs one set
+     of lines and starts over; off, no clock is read. Compare runs at equal settings (`turbo = 1`, one
+     `end_date`) and read several months: a loaded machine slows any one month. Lines:
+
+     ```
+     perf month 2029-04-01: real=372ms days=31 ms/day=12.0 tick=500.6ms (2 ticks) agents=320.9ms; outside ticks=…
+     perf month 2029-04-01 agents: cSC4TrafficSimulator/4 125.2ms (44) cSC4BuildingDevelopmentSimulator/4 …
+       (name/level, time, deliveries; top 24 by time; agents of one name and level summed)
+     perf month 2029-04-01 sections: bds:call …ms (n) bds:publish … growth:state5 … grid:get N grid:set N grid:bulk N
+     perf month 2029-04-01 calls: growth:cFC4GrowthDeveloper::GetSubType N bds:… (top 16 by count)
+     ```
    - **Scripted actions** (`script = <path>`, env `FC4_SCRIPT`; off by default; `plugin/FC4Script.h`, the grammar
      in `plugin/FC4HarnessLogic.h`; tooling): a text file of dated in-city actions, one per line,
      `YYYY-MM-DD <action> <args>`, `#` comments anywhere, blank lines allowed. A relative path is relative to the
@@ -662,6 +703,7 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      | `zone x0 z0 x1 z1 type` | `cISC4ZoneManager::PlaceZone` (city slot 36, slot 11; zones.md §6): commit = 1, skipFunds = 0, checkSlope = 1, skipSizeCheck = 0, checkLotInside = 1, outLots = null; the region (§11.4) in our memory, every cell of the inclusive rectangle set |
      | `pricezone x0 z0 x1 z1 type` | the same with commit = 0 (a dry run) |
      | `dezone x0 z0 x1 z1` | the same with type 0, commit = 1 |
+     | `network ax az bx bz type` | a network run from cell (ax, az) to (bx, bz) as network-manager.md §9 gives it: the network manager's `GetNetworkTool(type, true)` (city slot 38, slot 5; a private tool, released after), tool `Init`, `PlaceNetworkOccupants(ax, az, bx, bz, 0, null, 1, -1)` (slot 7, real mode; network-tools.md §3), `Shutdown`; free (nothing is withdrawn), no regional connection, a failed validation places nothing of the run; type 0..12 (network-manager.md §3.1: 0 road, 1 rail, 3 street, 6 avenue, …); the two ends in either order; `-> ok=<AL of slot 7> (PlaceNetworkOccupants type T, real, free)` |
      | `speed 0\|1\|2`, `pause`, `resume` | the city simulator's `SetSimSpeed` / `Pause` / `Resume` (one call) |
      | `turbo on\|off` | our simulator's turbo clock (`sim_turbo_frame_ms`, no end date); `on` before the city's first `ConnectionsReady` is held until it (`-> turbo requested: held …`), `off` also drops a held request; no effect with `disable = simulator` |
      | `digest` | the observer's `DIGEST` line, now |
@@ -685,8 +727,9 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      script: line 7 2000-02-01 save: waits for the next framework tick (not run inside SimNewDay); the actions due
        after it wait behind it
      script: line 7 2000-02-01 save -> ok=1 (SaveCity(full) in 412 ms)
-     script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark,
-       save, disaster)
+     script: line 5 2000-01-06 network 4 4 14 4 0 -> ok=1 (PlaceNetworkOccupants type 0, real, free)
+     script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, network, speed, pause, resume, turbo,
+       digest, mark, save, terrain, disaster)
      script: REFUSED '…\script.txt' (script setting): 1 parse error(s); no action of it runs
      ```
 
@@ -765,7 +808,9 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      traffic, parks), a temporary seeded from the clock the GZCLSID XOR its creation count (civic monthly,
      neighbours' proposals, a growth decline key whose coordinate seed is `0xFFFFFFFF`); flammability keeps its
      constant 0 and its zero-state reseed takes `derive(GZCLSID)`; coordinate-seeded temporaries are unchanged
-     (tract (0, 0) uses 1); `rand()` stays unseeded. Without the key `S` is the `cRZTime` wall clock at game start
+     (tract (0, 0) uses 1); `rand()` stays unseeded. The budget's, the crime simulator's and the pollution
+     effects' generators are process-wide like the original's statics (RN3, `seeding::process_super`): the first
+     create of the process seeds them and later city loads continue their streams. Without the key `S` is the `cRZTime` wall clock at game start
      (seconds since 1901-01-01, `time() + 2177452800`), like the clock the original seeds from. A subsystem's own
      `<key>_seed` (`crime_seed`, `development_seed`, `tract_seed`, `lotdev_seed`, `zonedev_seed`, `civic_seed`,
      `parks_seed`, `residential_seed`, `neighbors_seed`, `traffic_seed`) still overrides `S` for that subsystem.
@@ -1488,8 +1533,7 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      Success is `roundtrip=same`, `mismatches=0` and `failures=0` on every line.
    - **Traffic shadow** (`traffic_shadow = 1`, env `FC4_TRAFFIC_SHADOW`; off by default;
      `traffic_shadow_diffs = N`, env `FC4_TRAFFIC_SHADOW_DIFFS`, default 8, 1..64; `traffic_shadow_lines = N`,
-     env `FC4_TRAFFIC_SHADOW_LINES`, default 8; `traffic_shadow_hypotheses = N`, env
-     `FC4_TRAFFIC_SHADOW_HYPOTHESES`, default 0; `plugin/FC4TrafficShadow.h`): a same-process differential of the
+     env `FC4_TRAFFIC_SHADOW_LINES`, default 8; `plugin/FC4TrafficShadow.h`): a same-process differential of the
      traffic simulator. It needs **our simulator and the original traffic simulator** (do not enable `traffic`);
      otherwise it logs `traffic shadow: requested … but INACTIVE` at game start. It wraps every delivery of our
      simulator to the original's agents (`cSC4TrafficSimulator`: the one-shot, the day and the month). The
@@ -1511,15 +1555,15 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      pothole and accident draws' choices (the original's generator is not readable), posted messages, history,
      incomes, network costs, budget items and accidents. **Known differences** are counted apart on the month
      line, not as mismatches, and cause no resync: a new trip's undefined destination and travel types (§4.1.1),
-     a reversible trip's return route the original keeps, a status-0 trip's destination (written by a search the
-     original's deadline suspended; ours never suspend), a statistics set's unnamed last byte, pass counters 0
-     and 4-8 (§10 Q4) and the unnamed fields of rows 14-15. `traffic_shadow_hypotheses` is a bit mask of
-     alternative readings of unclear spec points the copy runs instead of the spec as written (fc4.h
-     `FC4_TRAFFIC_SHADOW_HYP_*`: 1 the ConfirmTrips merge sets status 0 only on a trip that absorbed one, 2 row
-     19's pairs are (published, building) and FullTrips' end swaps them, 4 the ReRouteTrips merge absorbs routed
-     trips too); the month line names the mask. With 7, Konradshohe 2026-01-27 to 2026-08-01 is clean but for a
-     few deliveries (lane traffic2 questions); with 0 most trip-phase days differ. Lines (always written; longer
-     ones continue on `traffic shadow (cont.)` lines):
+     a status-0 or status-1 trip's destination and cleared flags bit 0 (written by a search the original's deadline
+     suspended, TS65; ours never suspend) and the record fields still unmodelled (labels starting `~`, named
+     one by one). The pass counters (TS59), the day index and re-route context cell (TS60), the statistics
+     byte (TS61) and the return routes (TS58) are modelled and compared exactly. `traffic_shadow_hypotheses`
+     (env `FC4_TRAFFIC_SHADOW_HYPOTHESES`) is retired (ABI 69): its three readings were confirmed
+     (traffic-simulator TS55-TS57: the ConfirmTrips merge sets status 0 only on a trip that absorbed one, row
+     19's pairs are (published, building) and FullTrips' end swaps them, the ReRouteTrips merge absorbs routed
+     trips too) and are the core's only behaviour; the key is still accepted, ignored and logged once at game
+     start. Lines (always written; longer ones continue on `traffic shadow (cont.)` lines):
 
      ```
      traffic shadow: ON (traffic_shadow from …): …                                          (game start)
@@ -1527,7 +1571,7 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      traffic shadow yyyy-mm-dd day|month|begin (state A -> B, progress P, units U): mismatches=N; record FIELD:
        orig … ours …; trips of lot (x, z): …; holder … property 0x…: …; grid NAME: K of T tracts differ: …
      traffic shadow yyyy-mm-dd day: INCOMPLETE (why); not compared
-     traffic shadow month to yyyy-mm-dd [(hypotheses 0x…)]: clean|mismatches=N; deliveries=D (day d, month m,
+     traffic shadow month to yyyy-mm-dd: clean|mismatches=N; deliveries=D (day d, month m,
        other o) compared=C clean=K incomplete=I; record fields compared=… mismatched=… (FIELD xN, …); trip lists compared=…
        mismatched=…; holder properties compared=… mismatched=…; grid tracts compared=… mismatched=…; known
        differences (not counted): … xN, …; between deliveries: resyncs=R; ours: units=… run-ons=… (list ends …)
@@ -1626,6 +1670,41 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      ```
 
      Success is `mismatches=0` on every line.
+   - **Prop developer shadow** (`propdev_shadow = 1`, env `FC4_PROPDEV_SHADOW`; off by default;
+     `plugin/FC4PropDevShadow.h`): a same-process differential of the prop developer. It needs FreeCity4's
+     simulator and the **original** prop developer (do not enable `propdev`). At the first Idle or Day delivery to
+     the original's agent a shadow core with a read-only host reads the original's record (its own Write) and
+     inits; a listener follows the 13 messages of §3.1 and the animation tick for it. Every block step of the
+     original is wrapped: ours steps first (its removals and creations recorded, not made; a crime keep check
+     is answered without calling the crime simulator, certain only for a prop with crime incident ID 0), the
+     block's props are listed, the original steps, and the scan flag and scanner (raw +0x14 / +0x18, only while
+     the object's vtable lies in the identified executable and its class is `0x89C48F47`) are compared with ours;
+     when every keep check was certain, the number of props the original removed from the block must equal ours,
+     and every prop ours did not keep must be among them. Which kept prop the member generator removes and the
+     creations are not compared (member and wealth generators). At each SimNewMonth the original's record is read
+     into a second core and compared with ours (scan flag, scanner, wealthAdded, night state, requesters in order,
+     the night list as a set, the time-of-day, dated, power and sign lists in order, the trigger map); a
+     difference resyncs ours. Lines (always written):
+
+     ```
+     propdev shadow: ON (propdev_shadow from …): …                                              (game start)
+     propdev shadow: following the original prop developer … (agent …, class 0x89C48F47, raw scanner readable)
+     propdev shadow month yyyy-mm-dd: followed=yes|first|resynced steps=… blocks=… certain=… raw-compared=…
+       removed orig/ours a/b (not kept k) created orig/ours c/d (not compared) messages=… ticks=…
+       message-removals=…; record: scan=… scanner=(…) requesters=… night=… …; mismatches=N[; differences: …]
+     propdev shadow: city shutdown: N month lines, M with mismatches=0
+     ```
+
+     Success is `mismatches=0` on every line.
+   - **City detail shadow** (`citydetail_shadow = 1`, env `FC4_CITYDETAIL_SHADOW`; off by default;
+     `plugin/FC4CityDetailShadow.h`): needs the **original** class (do not enable `citydetail`). The city's own
+     instance is not reachable, so at each PostCityInit a fresh original object (GZCOM class `0xEAD4BA36`) and a
+     fresh core (read-only host) go through the same inputs that leave the city alone: a fresh Init, a Read of the
+     current setting's record then Init, a Read of the none record then Init, and a version-1 record (both must
+     refuse it); Read's result, slot 5 and the written record are compared. The other levels would run a pass on
+     the original, so only ours runs them with a recording host and the line gives what its pass would do. Line:
+     `citydetail shadow load yyyy-mm-dd: setting=… fresh=… read-same=… read-none=… read-v1=…; dry runs: …;
+     mismatches=N[; differences: …]`.
    - **Disasters shadow** (`disasters_shadow = 1`, env `FC4_DISASTERS_SHADOW`; off by default;
      `plugin/FC4DisasterShadow.h`, host `plugin/FC4DisasterHost.h`): a same-process differential of the disaster
      layer, fire and riot. It needs the **original** layer (there is no `enable = disasters` yet). At the first city
@@ -1651,13 +1730,90 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      disasters shadow riot start x,z: orig instance … ours …
      disasters shadow riot R start|update N|removed …: phase o/o leaders o/o [cells] active o/o locked o/o
        ongoing o/o locations o/o mismatches=N[; differences: …]
-     disasters shadow quiet: posts orig/ours …; cost …; … mismatches=N[; differences: …]
+     disasters shadow quiet: posts orig/ours …; cost record buildings b/b total c/c fire e/e police p/p; …
+       mismatches=N[; differences: …]
      disasters shadow: city shutdown: N lines, M with mismatches=0 (fire a/b, riot c/d, quiet e/f); lines whose
        every difference is a numbered question: …; differences by kind: <kind> [Qnn] count, …
      ```
 
+     The quiet line's "cost record" is layer slot 18, which returns a **pointer to the statistics record** (§2.6,
+     DS39), not a cost: the four fields the safety advisor reads (the damaged-building count at `+0x00`, the total
+     cost at `+0x08`, the fire and police effectiveness at `+0x5C` / `+0x60`) are read through that pointer and
+     compared with the mirror's. Every `Ignite` line carries the original-side inputs §5.4's five refusals are
+     taken on (DS38): `type`, `flammability` read as an unsigned integer, the clamped cell `rect`, its average
+     `coverage`, `burning` (`0x69DBEBE1`) and the pause samples; a refusal the original made and the mirror did
+     not also names which of exits 1, 2, 3 and 5 those inputs admit (exit 4 needs the D9 curve: read it from the
+     `coverage`, ≥ 51 blocks with the shipped curve).
+
+     Success is `mismatches=0` on every line. A difference with a question number (`[Q37]` and so on, the lane
+     reports) is a known gap of the spec, not a defect of the core.
+
+     The shadow's writes are recorded, never made. The host's two creates are **wired for a live layer**, though
+     there is no `enable = disasters` yet: `create_fire_occupant` makes the fire occupant class `0x69D25C5F`
+     (GZCOM `0x29D25F1D`, interface `0x69D25C60`) and runs its own `SetTarget` (§5.11), `create_riot_leader` a
+     pedestrian automaton of group `0x4107` with `SetState(8, ...)` and `SetVisible(true)` (§6.4, automata.md
+     §8.1). `end_riot_leader` makes the `SetState(1, ...)` call the spec's End order names but does **not** rely
+     on it (the RiotLeader state was pushed `final=1`, so the call is a no-op against a leader still in it):
+     `RemoveControllers` and the release are what end it. `set_riot_effect` is still not made (its add,
+     `AddRegEffect`, takes two names and §8.1 names one).
      Success is `mismatches=0` on every line. A difference with a question number (`[Q37]` and so on, the glue13
      lane report) is a known gap of the spec, not a defect of the core.
+   - **Automata shadow** (`automata_shadow = 1`, env `FC4_AUTOMATA_SHADOW`; off by default;
+     `plugin/FC4AutomataShadow.h`, host tables `plugin/FC4AutomataHost.h`): a same-process differential of the
+     six saved components of the automata layer (40 the script system, 41 the controller manager, 43-46 the four
+     automata managers) and of every object their records reference. It needs the **original** components (there
+     is no `enable = automata` yet); otherwise it logs `automata shadow: requested … but INACTIVE`. At each city
+     load and each SimNewMonth each component's own `Write` is captured into memory and read by a fresh shadow
+     core (`fc4_automata_scripts` / `_cm` / `_manager`), which writes it back; the two byte sequences are
+     compared byte for byte and the first difference is named. A reference travels as its host token, which here
+     is the capture's 1-based object number (the number the original's own `Write` puts in the record). The
+     original is only ever read. Movement, path following, animation and sound are out of scope (spec §0): this
+     shadow compares the records, which are the surface the save file depends on. Lines (always written):
+
+     ```
+     automata shadow: ON (automata_shadow from …): …                                        (game start)
+     automata shadow yyyy-mm-dd load|month: script N bytes identical; cm …; vehicle …; pedestrian …;
+       aircraft …; watercraft …; mismatches=0
+     automata shadow: city shutdown: N lines, M with mismatches=0; components compared …, bytes compared …,
+       mismatches …
+     ```
+
+     Success is `mismatches=0` on every line (each component's record reads into the shadow core and writes back
+     byte for byte). A run to 2032 on Konradshohe gives 73 lines, all clean: 438 components compared, 774,664 to
+     780,487 bytes, 0 mismatches (glue19-shadow-2 to -4).
+
+     The same lane's GZCOM classes for the six components (`plugin/cFC4Automata.h`, over `fc4_automata_*`, the
+     interfaces of `plugin/FC4AutomataInterfaces.h`) are **not registered**: with them in the subsystem table the
+     city's Init phase faults at `SimCity 4.exe+0x0045BF1B` after all six records have read back, so `enable =
+     automata` is inert until that is fixed (the lane report, question A4). The riot and fire host tables
+     (`plugin/FC4AutomataHost.h`) and the U-Drive-It pause / resume are wired either way.
+   - **MySims shadow** (`mysims_shadow = 1`, env `FC4_MYSIMS_SHADOW`; off by default;
+     `plugin/FC4MySimsShadow.h`): a same-process differential of the original MySim agent simulator and its
+     advisors (mysims.md). Needs the **original** classes (there is no `enable = mysims`). At each city load the
+     five MySims (advisor ids 1-5) and the My Street sim (30) are captured read-only (each one's own
+     version-17 record via its own `Write`) and read into a shadow core (`fc4_advisors` with the MySim host, no
+     Lua), which then follows the original: the advisor system's ticker (advisors.md §5.1 daily/monthly) and the
+     agent's §3.2 messages are forwarded through the shadow's own message subscriptions. At load and each
+     SimNewMonth the decoded saved fields (state, slot, wealth, sign, is_male, age, birth_month, retired,
+     generation, home cell/position, neighbor/commute cells, jobless days, keys, bitmap, bio, portrait path,
+     last_local_disaster, last_player_trip_day, EQ/HQ rings at float32 bits), the advisor part (personal name,
+     month counter, current day, cursor, advice count), the agent slots (1-5, 30) and the getters
+     (`GetActiveMySims` ids + order, `MySimLivesHere` per residence) are compared field by field. Not compared
+     (named on the lines): `last_commute_time` (pathfinder timing), the pylon and dispatch tool (UI), the
+     unnamed pair/flag (question MS1), per-advice nextDay/expiry/active (no Lua in the shadow), the trip state,
+     and the active UI panel index (set only by the UI). Lines (always written):
+
+     ```
+     mysims shadow: ON (mysims_shadow from …): …                                          (game start)
+     mysims shadow yyyy-mm-dd load: sims=N … mismatches=N                                 (city load)
+     mysims shadow yyyy-mm-dd month: sims=N mismatches=N                                  (each month)
+     mysims shadow (cont.) id=N <date>: <field>=<orig>/<shadow>; …                        (details)
+     mysims shadow: city shutdown: months=N clean=M last_mismatches=K                     (city shutdown)
+     ```
+
+     Success is `mismatches=0` on every line. The core's per-MySim RNG derives from the session seed
+     (`derive(S, 0x4A1DBBBF ^ index)`), so its only draw (FindNewResidence's start position, mysims.md §8) is
+     deterministic in the shadow; the original's is wall-clock seeded and unreadable.
    - **Zone developer shadow** (`zonedev_shadow = 1`, env `FC4_ZONEDEV_SHADOW`; off by default;
      `plugin/FC4ZoneDevShadow.h`): a same-process differential of the lot manager. It needs the **original** zone
      developer (do not enable `zonedev`); otherwise it logs `zonedev shadow: requested … but INACTIVE`. At
@@ -1680,6 +1836,142 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      ```
 
      Success is `mismatches=0` and `unread=0` on every line; a line that cannot compare says `INCOMPLETE (why)`.
+   - **City situation, demolition and dispatch shadows** (`citysit_shadow = 1`, `demolition_shadow = 1`,
+     `dispatch_shadow = 1`; env `FC4_CITYSIT_SHADOW`, `FC4_DEMOLITION_SHADOW`, `FC4_DISPATCH_SHADOW`; off by
+     default; `plugin/FC4CitySitShadow.h`, `plugin/FC4DemolitionShadow.h`, `plugin/FC4DispatchShadow.h`, the
+     shared record round trip in `plugin/FC4CoreShadow.h`): same-process differentials of the city situation
+     manager (city-situation.md), the demolition utility (demolition.md) and the dispatch manager (dispatch.md).
+     Each needs the **original** (do not enable `citysit`, `demolition` or `dispatch`); otherwise it logs
+     `… requested … but INACTIVE`. At PostCityInit and each SimNewMonth, the original's record (its own
+     `cIGZSerializable::Write` into memory) is read into a FreeCity4 core made for the run over a read-only host
+     table, and the core's `Write` must give the same bytes back (a reference is written as the capture's own
+     object number). Then the original's getters are compared with the core's: for dispatch, the record and
+     slots 10-12, 18 and 21 for the four dispatch types and 8 (counts, ID arrays, records field by field and as
+     object identities, the active pylon); for citysit, the record and slots 5-15, 17, 18, 27, 28, 30 and 32 (the
+     success counts of every GUID the record carries, the indicator flag, the status block and the three ST0
+     float times compared bit for bit) — this shadow is the only in-game check of that core; for demolition, the
+     record and the core's own state against the §6 code defaults. Lines (always written):
+
+     ```
+     dispatch shadow: ON (dispatch_shadow from …): …                                  (game start)
+     dispatch shadow: NOT readable read-only (so not compared): …
+     dispatch shadow yyyy-mm-dd load|month: record=N bytes roundtrip=same|DIFFERENT; compared=C mismatches=M first=…
+     dispatch shadow: city shutdown: L lines, C with mismatches=0; compared K values, M mismatched; differences: …
+     ```
+
+     and the same shape for `citysit shadow …` and `demolition shadow …`. Success is `mismatches=0` on every line
+     and `roundtrip=same`. What is not compared is named at game start: for dispatch the automaton events
+     (`0x09D92FC3`), the posted messages and the vehicle view's tracking; for citysit the indicator tracking, the
+     mission itself (city-situation.md §0 leaves targets, pursuit, coverage and the player-drive camera to the
+     host), the Lua table, the popup and the reward list; for demolition the `Demolish*` prices and the
+     `ModifyTerrainHeight` counts (a dry run needs the demolition host's occupant-query callbacks, which this lane
+     did not wire — the core is covered by its conformance vectors `dm00`-`dm12`), the effects and the §6 tuning
+     (module globals, no getter).
+   - **Demolition pricing differential** (`demolition_price_shadow = 1`; env
+     `FC4_DEMOLITION_PRICE_SHADOW`; off by default; `plugin/FC4DemolitionPriceShadow.h`): needs the
+     **original** utility (do not `enable = demolition`). It prices every `DemolishOccupant` of every occupant
+     the occupant manager lists over the city on **both** sides - FreeCity4's core over the full host table and
+     the original's - and compares every price (the int64 cost and the bool the call returns) at PostCityInit and
+     every SimNewMonth. Success is `mismatches=0` on every line; the shutdown line totals them:
+     `demolition price shadow: city shutdown: L lines, C with mismatches=0; compared K prices, M mismatched;`
+     `differences: ...`. Our own whole-city `DemolishRegion` dry run is logged each month as well. The
+     **original's** region dry run is not attempted: demolition.md §4.4 step 2 fetches the 3D view's filter with
+     no null test in the original, and that dereference faults in a headless run (lane question DQ7).
+     `ModifyTerrainHeight`'s vertex counts and the two effect methods are not priced here either.
+
+   - **Dispatch manager** (`enable = dispatch`; `plugin/cFC4Dispatch.*`, over the `fc4_dispatch` core): the
+     city's `cSC4DispatchManager` (class `0x4990BD93`, city component 3, the slot 39 getter). It answers
+     `cISC4DispatchManager` (dispatch.md §8, 24 slots), `cIGZMessageTarget2` and `cIGZSerializable`; `Read` runs
+     before `Init` and sizes nothing from the city. It holds the message server and subscribes to RemoveOccupant
+     (`0x99EF1143`), DisasterPeriodEnded (`0xAA1B2002`) and the view-changed message, posts the four dispatch
+     messages of §3, and reads the terrain altitude and the protection simulators' dispatch sources (§8.2). The
+     vehicle view and the pylons are not wired (the tool's presentation). Lines: `dispatch Init: …`,
+     `dispatch Read|Write -> …`, `dispatch Shutdown: …`. **Off by default**; the `dispatch_shadow` differential
+     above is the in-game check while it is.
+   - **Occupant manager shadow** (`occmgr_shadow = 1`, env `FC4_OCCMGR_SHADOW`; off by default;
+     `occmgr_shadow_samples = N`, default 4, 1..64; `occmgr_shadow_probe = 0/1`, default 1;
+     `plugin/FC4OccMgrShadow.h`): a same-process differential of the city's occupant manager
+     (`docs/specs/occupant-manager.md`) against the `fc4_occmgr` core. FreeCity4 never replaces the occupant
+     manager, so the shadow always follows the **original**. At PostCityInit a core with a read-only host starts
+     from the original's record (its own `Write` into memory); each occupant's stored box and flag 1 are read from
+     the occupant into the host's own state, which the core then changes instead of the occupant (nothing is
+     posted, initialised or shut down; the core's references are audited AddRefs). The core follows the Insert,
+     Remove and Move messages the original posts (after each Insert or Move the core's box is compared with the box
+     the original stored in the occupant). At each SimNewMonth: occupants whose stored box changed without a Move
+     message are moved in the core; the original's record is compared with the core's cells, in list order
+     (occupants whose Insert or Remove message is still queued, by their flag 1, are set aside; a difference left
+     after that restarts the core from the record, `resynced`); then, on the followed core when nothing was set
+     aside and otherwise on a fresh core read from the month's record, slots 25, 27 and 28-47 each run N times on
+     the original (through its
+     vtable, slots 46/47 in the game's order) and on the core with the same arguments (points, cells and
+     rectangles around the record's occupants or anywhere around the city, a null filter or one deterministic
+     filter shared by both, record types, 0 or an unused type, maxCounts and callbacks that stop early), and the
+     return values and occupants (in order) must be equal. The probe points the original's vtable entries of
+     slots 1, 2, 12, 20-22, 24, 25, 27, 28, 30, 32, 34, 36, 38, 40, 42 and 44 at counting forwarders (only while each
+     holds the 1.1.641 address; removed at PreCityShutdown) and counts calls per thread, the shadow's own excluded
+     (`overlaps` = entries while another thread was inside one of them; questions OM1, OM3). Lines (always written):
+
+     ```
+     occmgr shadow: ON (occmgr_shadow from …): …                                            (game start)
+     occmgr shadow: following the original occupant manager …: record B bytes, N occupants, R references; …
+     occmgr shadow: probe installed on 18 of 18 slots of vtable … (main thread …)
+     occmgr shadow month yyyy-mm-dd: followed=yes|first|resynced occupants=N refs=R record=exact (P set aside)|D
+       cells differ (P set aside); silent moves=S; messages ins/rem/move=a/b/c refused=r off-thread=t boxes=x/y;
+       queries on followed|fresh core q/Q (every slot exact)| differ: sN=e/t …; probe: slots=18 main=… other=… (threads tid:calls …)
+       overlaps=… slot12=… overflow=0; stray releases=0; mismatches=N[; differences: …]
+     occmgr shadow: city shutdown: N month lines, M with mismatches=0; resyncs=K; per slot exact/total: 25=…;
+       probe: … thread tid (main): s1=… …
+     ```
+
+     Success is `mismatches=0` on every line (they count cell, box and query differences and stray releases).
+     `refused` counts followed messages the core refused (an Insert of an occupant already read from the record, a
+     Remove of one not in it): possible right after the city load or a `resynced` month, otherwise a sign of a
+     missed message. In the lane's turbo runs to 2032 on Konradshohe (alone and with the 27 replacements) every
+     line had `mismatches=0`, `resyncs=0`, `refused=0` and every probed call on the main thread. OM1 was answered
+     statically (re-answers18): the background model loader's thread calls slot 40, one standard cell at a time,
+     when its filter flag is set; slot 40 is probed for that reason.
+   - **City situation manager** (`enable = citysit`; `plugin/cFC4CitySituation.*`, over the `fc4_citysit` core):
+     the city's `cSC4CitySituationManager` (class `0x0BB14381`, city component 52, the slot 49 getter). It answers
+     `cISC4CitySituationManager` (city-situation.md §8, 40 slots), `cIGZMessageTarget2`, the legacy
+     `cIGZMessageTarget` and `cIGZSerializable`; `Read` runs before `Init` and sizes nothing from the city. This is
+     the spec's §8 **minimal replacement** [choice]: the record byte for byte and the interface answered with "no
+     situation" — the mission gameplay (targets, pursuit, coverage, the player-drive camera, the popup) is
+     deliberately out of scope (§0 calls a full one "several thousand lines"), and unattended play never starts a
+     mission (§0: "its popup never opens by itself"). The host wires the message server and the ten subscriptions
+     of §3, the preferences' reward list, the advice and automaton queries the interface needs, the aura's
+     `AddTransientEffect` and the budget's `DepositFunds` (the §4.5 outcome) and the messages of §3; the mission
+     pieces are not wired. Lines: `citysit Init: …`, `citysit Read|Write -> …`, `citysit Shutdown: …`. **Off by
+     default**; the `citysit_shadow` differential above is the in-game check while it is.
+   - **Airport and seaport developers** (`enable = ports`; `plugin/cFC4PortDeveloper.*`, interfaces
+     `plugin/FC4PortInterfaces.h`, over the `fc4_port_developer` core; off by default): one shim, two classes
+     (`cSC4AirportDeveloper` `0xAA2049A1`, `cSC4SeaportDeveloper` `0xEA230A28`) with the four sub-objects of
+     port-developers.md §1 (QueryInterface(1) gives the port sub-object at +4). The host reaches the budget
+     department and line 1, the demand simulator's occupant effects, lots, the lot developer, the zone manager
+     (dezone), the traffic simulator, the terrain, the history warehouse message and the advisor system. The glue
+     holds one reference per port lot the core lists and one on the department. Not wired (logged once): the
+     seaport's "no sea access" prop state switch. Lines: `ports <kind> Init|Read|Shutdown: ok=… tuning=… ports=…
+     dept=… sea=… subscriptions=… agent=… held=…`, `ports <kind> Write -> 1 (ports=…)`, `ports <kind> month
+     yyyy-mm-dd: ports=… ran=… history=… event=… avg=… trips=… fr=… required=… writes: …` (months with ports and
+     the first month).
+   - **Ports shadow** (`ports_shadow = 1`, env `FC4_PORTS_SHADOW`; off by default; `plugin/FC4PortsShadow.h`):
+     needs FreeCity4's simulator and the **original** developers (do not enable `ports`). One shadow core per
+     developer, with a read-only host, starts from the original's record at its first SimNewMonth and follows the
+     messages of §3; a growth message restarts it from the record the next month (`followed=regrown`). Each month
+     the record's ports are compared (a difference restarts ours, `followed=resynced`), ours runs with writes
+     recorded, the original's month runs, then compared: the history value, GetAvgEfficiency (bits), trips,
+     GetNumPorts, GetAllPortLots, each port lot's usage values, maintenance and condition, line 1's full expenses
+     with our required budget; the seaport's sea map (CityHasSea and every cell) at the first month and after a
+     terrain message. Lines:
+
+     ```
+     ports shadow: ON (ports_shadow from …): …                                                 (game start)
+     ports shadow: following the original airport|seaport developer … (agent …)
+     ports shadow <kind> month yyyy-mm-dd: followed=yes|first|resynced|regrown ports=… avg o/u trips o/u
+       history o/u values sea=… map=…; ours: …; messages followed=…; mismatches=N[; differences: …]
+     ports shadow: city shutdown: <kind> N month lines, M with mismatches=0
+     ```
+
+     Success is `mismatches=0` on every line.
    - **History warehouse and 24-hour clock** (`enable = history`, `enable = clock24`; `plugin/cFC4History.*`,
      `plugin/cFC4Clock24.*`, over the `fc4_history` and `fc4_clock24` cores). The warehouse is the city's
      `cSC4HistoryWarehouse` (class `0x89EFA536`): it hears the record and queue-length messages, adds itself as a
@@ -1783,12 +2075,113 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      component 48): the 11-byte v2 record with the GUID mapping, `IsTutorial` and the getters, `Init` /
      `Shutdown`, and `fc4::TutorialIsTutorial` (what the fire host and the flammability glue read instead of
      tutorial slot 8). **Off by default**. There is no tutorial window, registry or cheat (TU6, TU7).
+   - **Network manager and network lot manager** (`enable = netmgr`, `enable = netlot`;
+     `plugin/cFC4NetworkManager.*`, `plugin/cFC4NetworkLotManager.*`, over the `fc4_netmgr` / `fc4_netlot` cores):
+     the city's `cSC4NetworkManager` (class `0xC990BD46`, component 53, the slot 38 getter) and
+     `cSC4NetworkLotManager` (`0xE9A6CD3B`, component 11, slot 42). Each answers its `cISC4*` interface in the
+     compiled slot order (`plugin/FC4LotDevInterfaces.h`), `cIGZMessageTarget2` and `cIGZSerializable`; `Read`
+     runs before `Init` and sizes nothing from the city. The managed list, the flags table, the terrain rule,
+     the removal queue, the crews, the retrofit, the lot choice, the road and avenue styles (§8.7), the lot
+     objects, the potholes and the riot lock are the core's; the host tables are the shadow's read side
+     (`plugin/FC4NetMgrHost.h`) plus the writes §13 needs (subscriptions, occupant remove / insert / refresh,
+     the retrofit and crews, the lit and flag writes, the style writes, the pothole effect props).
+     **Not wired** (a NULL callback the core counts at Init): the 13 tools and their five callbacks, the
+     underground refit's tool callbacks, the street props and flora of §8.6, the lot-configuration object
+     bridge (so `GetNetworkLotConfigurationSet` inserts nothing and a lot's object array is empty) and
+     `view_rotation_changed`. The three presentation slots (13-15) are identity mappings (§13 [choice]).
+     Lines: `cFC4NetworkManager(%p) created, core %p`, `netmgr Init: …`, `netmgr Read|Write -> … (N bytes,
+     record53 round trip same|DIFFERENT)`, `netmgr Shutdown: …`, and the matching `netlot …` /
+     `record11 round trip` lines. The round trip is on every save: the record is written, read back by a
+     scratch core and written again, and the bytes must match. **Off by default**; the `netmgr_shadow`
+     differential below needs the **original** managers, so it is not run together with either replacement.
+   - **Network manager shadow** (`netmgr_shadow = 1`, env `FC4_NETMGR_SHADOW`; off by default;
+     `netmgr_shadow_order = late|early`, env `FC4_NETMGR_SHADOW_ORDER`, default `late`;
+     `plugin/FC4NetMgrShadow.h`): a same-process differential of `cSC4NetworkManager` (component 53) and
+     `cSC4NetworkLotManager` (component 11) (network-manager.md). It needs the **original** managers (there is
+     no replacement yet). Two shadow cores with read-only hosts (`plugin/FC4NetMgrHost.h`: every write
+     callback NULL, nothing reaches the game) start at PostCityInit from the originals' own records (their
+     `Write` into memory), the lot core with the 543 network lot configurations of the exemplars (type `0x21`,
+     read once per process), and follow the originals' messages (§6): the manager core through a listener
+     registered at PostAppInit (before every city listener), the lot core, with `late`, through a second target
+     subscribed at PostCityInit, after the original network lot manager, so it reads the game as the original
+     did (`early`: the first listener). The cores' writes are recorded, not made: the terrain rule's
+     destructions (§7.6) are checked at the next framework tick against the occupants the original removed, and
+     the road style writes (§8.7) against the occupants' `GetVariation` (slot 28) and flags `0x6000000`. At
+     PostCityInit, each SimNewMonth and before a scripted `save`: our component 53 `Write` against the
+     original's (byte for byte, object for object), our component 11 `Write` against the original's (entry by
+     entry: occupant and configuration; pothole keys), the original's `GetZoneTypeForNetwork` /
+     `GetWealthForNetwork` (slots 9, 10) against ours at every lot cell, and, for a configuration that differs,
+     whether both are compatible now (§8.4): then it is a random draw (the original's generator is seeded from
+     the clock, §8.5, §17), counted and not a mismatch. A core whose record differs restarts from the
+     original's. Lines (always written):
+
+     ```
+     netmgr shadow: ON (netmgr_shadow from …): …                                            (game start)
+     netmgr shadow: N exemplar keys enumerated, M network lot configuration exemplars (exemplar type 0x21)
+     netmgr shadow (load|month|save) yyyy-mm-dd: mismatches=N start|followed; managed=a/b record53=equal (6
+       bytes); lots=a/b potholes=a/b record11=equal|same entries (order differs)|DIFFERS; lot cells=… zone
+       diffs=0 wealth diffs=0 configs same=… draws=… incompatible=0; configs loaded=543; messages=… (mgr …, lot
+       …); terrain msgs=… tool calls=… destroyed=… confirmed=… kept-by-orig=0 orig-only=0 rebuilt=…
+       candidates=… refits=…; style writes=… checked=… gone=… mismatches=0; potholes created=…; order late:
+       probe before=…/…; per message: N compared, variations agree=… ours-only=… orig-only=… differ=…;
+       0x…: N msgs N cells, the original changed …, ours changed …[ (first notes)][; cells before/orig/ours
+       [0x… rect …: x,z:b/o/u …]]; NM10 (lot state border's first row, open)=K[; resynced: mgr lot]
+       [; differences: …][; NM10 differences: …]
+     netmgr shadow: city shutdown: N lines, M with mismatches=0 (exact M/N); D configuration draws not
+       compared; R resyncs; NM10 (…) differences K on L lines
+     netmgr shadow: lot state changed (0xE8BDA2E7) border cells with a network tile, by place in the grown
+       rect (cells / the original changed the variation / ours changed it where the original kept it): …
+     ```
+
+     Success is `mismatches=0` on every line. A style difference names the cell, both variations and the
+     zone / wealth both managers give the cell now, with the variation they imply. With `late`, every lot
+     message's cells are also compared message by message: the early target reads their variations before
+     the original handles the message, the late one after it and after the lot core, so the line counts, per
+     message type, the cells the original changed and those ours changed where the original kept the value.
+
+     **NM10 (open question).** In game the original never restyles the inner cells of the first row
+     (x0 < x < x1, z = z0) of a lot state message's grown rect (§6.2 `0xE8BDA2E7`), which the spec walks with
+     the rest of the border; Konradshohe to 2032: 0 of 589 such cells changed by the original, 80 changed by
+     ours, while every other place of the border agrees; whole-city snapshots (`netmgr_shadow_wide = N`, env
+     `FC4_NETMGR_SHADOW_WIDE`: the first N lot state messages, default 0) show the original restyling such a
+     cell later, during another message, only rarely. Until NM10 is answered, a style or lot difference at a
+     cell our lot core updated there since the city loaded is counted and listed under `NM10`, not as a
+     mismatch.
+   - **Terrain replacement** (`enable = terrain`; `plugin/cFC4Terrain.*`, `plugin/FC4TerrainInterfaces.h`, over the
+     `fc4_terrain` core; the glue18 lane, **not yet clean in game**). The city's `cSTETerrain` (city component 49,
+     class `0xE98F9525`) and the `cSTESurfaceWater` it is kept next to (class `0x0B8DA7DB`): both are built from
+     the registry CLSID, so the originals never run. The two are stateless views over one `fc4_terrain` handle
+     (the height field, the surface water's depths, the bodies of water, the lava). `cISTETerrain` is declared in
+     the game's slot order, not the SDK's: the SDK's three `SetAltitude` overloads compile to slots 49/50/51 in a
+     different order, and slot 91 is the deleting destructor. The object's fields are laid out to
+     `docs/specs/terrain.md` §2.3 because the game reads them directly. Messages are posted queued with
+     `void1 = IGZUnknown = the terrain` (foundations §5). The terrain 3D view (class `0xC9B84E10`) is created at
+     `DoPostCityInit` through the class factory; its own initialisation is not in the spec and is what still stops
+     a run (TR21). Lines:
+
+     ```
+     terrain: Read (class record = version + ref, §13.2) -> ok=1 version=2
+     terrain: created cSTESurfaceWater (a view over the shared fc4_terrain handle)
+     terrain: replacement ON (enable = terrain): 128 x 128 cells, sea=250, default brush level=0
+     terrain: created the terrain 3D view (class 0xC9B84E10) at DoPostCityInit
+     terrain: TR9 default brush level -> N (view update)
+     terrain: TR18 refused host callback '<name>' from inside the terrain handle (guard count N)
+     terrain: shutdown: posts_pending=… brushes=… reentrant refused core=… guard=… (both expected 0 outside
+       god-mode brush kinds 1 and 8-10)
+     ```
+
+     TR18 (`terrain.md` §15.4) is enforced at the glue boundary as well as in the core: a host callback that comes
+     back into the same handle is refused, counted and logged. Both counts stay 0 on the simulation's paths. TR9
+     (§2.3): the default brush level follows the view-update message `0xA6B79602`; the initial camera copy is not
+     reproduced (no camera interface), so it stays 0 until that message, which is what a harness with no view sees.
    - **Terrain shadow** (`terrain_shadow = 1`, env `FC4_TERRAIN_SHADOW`; off by default; `terrain_shadow_points = N`
      sample points a month, default 256, 16..4096; `terrain_shadow_diffs = N` differences named per line, default 8,
      1..64; `terrain_shadow_lines = N` change lines a month, default 8, 0..1000; `plugin/FC4TerrainShadow.h`): a
      same-process, read-only differential of the terrain core (`fc4_terrain`, docs/specs/terrain.md) against the
-     **original** `cSTETerrain` / `cSTESurfaceWater`. There is no terrain replacement: the shadow never writes to the
-     city's terrain, and needs none of our simulators (its own message subscription). At city load a FreeCity4
+     **original** `cSTETerrain` / `cSTESurfaceWater`. The shadow never writes to the city's terrain, and needs none
+     of our simulators (its own message subscription). It needs the **original** terrain, so with
+     `enable = terrain` it is **inactive** and says so once (the same rule as the history shadow): the two never
+     fight, and `terrain_shadow = 1` alone is unchanged. At city load a FreeCity4
      terrain is built from the original's altitudes and sea level (the water rebuilt from the sea level, §10.1, and
      compared with the original's depths, which are then copied), the original's cached minimum and maximum taken
      (§4.6), and every cell compared (CellHasWater, CellHasLand, GetWaterDepthForCell, GetWaterType, IsNavigable
@@ -1817,6 +2210,36 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
        sea e/t; queries …; changes terrain=T water=W …; refused=R; mismatches=N[; first: …]
      terrain shadow: city shutdown: N lines, M with mismatches=0; totals <name> e/t …
      ```
+   - **Effects** (`enable = effects`, docs/specs/effects.md; off by default; `plugin/cFC4Effects.h`,
+     `plugin/FC4EffectsHost.h`): replaces `cSC4EffectsManager` (CLSID `0x49822F75`, city slot 85, city +0x1FC)
+     with ours, backed by `fc4_effects`. It is not a saved component (§13). Creation by name under the detail
+     setting, the level-of-detail ranges and the select groups come from the core; the animation tick
+     (`0x86AD10EE`) dilates the step by the simulator's slot 32 and runs while the game is paused. The brush
+     effect reaches terrain `ApplyBrush`; the game effect reaches the fire disaster manager
+     (`IgniteCellRadius`, `SetCause`, `ExtinguishCell`), the toxic-spill manager and `DemolishRegion`.
+     - **`effects_finish`** (env `FC4_EFFECTS_FINISH`; default 0): where effects finish (§7, EF2). `0` finishes
+       **outside the draw pass** — the same §7 sweep runs after each animation tick (`fc4_effects_finish_hook`),
+       so a session that never draws the city still ends its effects and posts their end messages. `1` is the
+       original's compat mode: only the 3D view's draw pass finishes effects (`fc4_effects_draw_pass`), and a
+       session that never draws never finishes one. No end message is ever synthesised.
+     - Animations are stubbed: particles, decals, sequences, sounds, cameras and attractors are core
+       placeholders, and `render_component_active` is always false, so a render component never holds an effect
+       (`[choice, EF1]`). An effect therefore finishes when its brush, game and meta work is done, not after the
+       shipped decals' 45-50 s.
+   - **Effects shadow** (`effects_shadow = 1`, env `FC4_EFFECTS_SHADOW`; off by default;
+     `plugin/FC4EffectsShadow.h`): a same-process mirror of the effects manager. A second `fc4_effects` runs
+     over a host whose reads come from the game and whose **every write is recorded in the context instead of
+     being made**, so the mirror never changes the city. It is ticked with the same microseconds as the live
+     manager and finishes through the same sweep; the live side's create / start / stop / end-message calls are
+     mirrored into it. One line at shutdown:
+
+     ```
+     effects shadow: ticks N, created N, end posts N, select draws N, brush applies N, sweeps N, host writes N, differences N
+     ```
+
+     `differences` counts the times the mirror could not make an effect the live side made. The shadow does not
+     hook the original's vtables, so with `enable = effects` off it reports only its own state and recorded
+     writes; the game runs use both switches, which drives the two cores call for call.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,
@@ -1886,8 +2309,11 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
   argument bytes (each argument rounded up to 4, int64/double 8, plus 4 for a hidden result pointer) ==
   `callee_pop`; float/double return ⇔ `ret = x87`; int64 return ⇒ `edx:eax`, and `edx:eax` (medium
   confidence) ⇒ int64. Per interface: slots contiguous and as many as the table's. The slots are decoded from
-  the compiler's vcall thunks, so the test checks what MSVC actually laid out. After adding a method or an
-  interface, run `python tests/gen_abi_entries.py` (from `engine/`) and rebuild; `--dump` prints every slot
+  the compiler's vcall thunks, so the test checks what MSVC actually laid out. The listing
+  `tests/abi_entries.inc` is generated, not checked in: the CMake target `fc4_abi_entries` runs
+  `tests/gen_abi_entries.py` on every build and this test depends on it, so it is always current and a stale
+  copy can never be compiled. Run `python tests/gen_abi_entries.py` (from `engine/`) yourself to refresh it
+  without a build; with no Python 3 this test is skipped, like `ret_channel_check`. `--dump` prints every slot
   next to its table row. SDK methods that disagree with the game but are never called by the plugin are
   waived (`kWaivers`); the waiver lapses, and the test fails, as soon as a file in `plugin/` calls one.
   Reviewed slot-count differences (class-private trailing virtuals) are in `kReviewedSlotCounts`. Interfaces

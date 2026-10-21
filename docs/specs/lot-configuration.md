@@ -50,6 +50,45 @@ Implementation size: about 300 lines (`Load` 150, the slots 80, the editor `Save
 | Created by | lot configuration manager slot 5 (`0x00489910`: allocate, construct, AddRef, `Load(key, detail)`), slot 22 (`CreateGenericLotConfiguration`, editor) |
 | Destructor | `0x00479C20` (calls `Shutdown` first); deleting destructor slot 33 `0x00479F50` |
 
+### 1.1 Creating one: the named route (GLUE21-1 — PARTLY, answered 2026-10-16 by re-answers31)
+
+**The premise is right and the conclusion is not.** `cSC4LotConfiguration` really is *not* registered with GZCOM
+for creation — its class ID `0xA99062B4` exists for serialization refs (`re/class_id_table.tsv:330`) but there is
+no factory entry, so a plugin cannot `GetClassObject` it. **But there is a named route to the
+allocate-and-construct pair, and it is the manager, not GZCOM.**
+
+The pair is the helper `FUN_00489910` (`0x00489910`), which is what the "Created by" row above describes:
+
+| Step | Call | Address |
+|---|---|---|
+| allocate | `FUN_005e55e0(0xC0)` — the pooled allocator, exactly the 0xC0-byte size | `0x005E55E0` |
+| construct | the constructor | `0x004797A0` |
+| AddRef | `vtable+0x04` | — |
+| load | `vtable+0x7C` (slot 31) `Load(key, detail)`, the detail byte from `*(DAT_00B43CD8 + 0xF16)` | — |
+| on success | `FUN_00648f00` — insert into the manager's map/family-ID set | `0x00648F00` |
+| on failure | `vtable+0x08` `Release`, return 0 | — |
+
+The **public** routes into it are the manager's own slots, and the manager **is** GZCOM-creatable — CLSID
+**`0x299062C0`** (`re/class_id_table.tsv:317`), `cISC4LotConfigurationManager`:
+
+- slot 5 `AddLotConfiguration(key const&)` — `0x00489A60`
+- slot 6 `AddLotConfiguration(cfg*, bool)` — `0x0048A690` (takes an already-built configuration)
+- slot 22 `CreateGenericLotConfiguration(cfg*&, buildingType)` — `0x0048BCF0` (the editor's generic one)
+
+**The change to make.** `enable = lotcfg` must not probe GZCOM for `cSC4LotConfiguration`. Either
+
+1. **replace the manager** (CLSID `0x299062C0`) and have the replacement allocate its own
+   `cISC4LotConfiguration`-shaped objects — 0xC0 bytes, vtable `0x00A8CEB8`, 34 slots (§8) — and answer slots
+   5/6/22/8 out of its own catalogue; or
+2. **keep the game's manager** and drive it through slots 5 and 22 with keys, letting the game allocate.
+
+Either way the configuration **class** does have to be reimplemented as a type you allocate (nothing else can
+make one), but it does **not** need a GZCOM registration — there is none to have. The previous behaviour
+("`create_configuration` probes GZCOM and refuses when it does not answer") is what blocks `enable = lotcfg`;
+probing GZCOM is the wrong lookup. Note also that `GetLotConfiguration` (slot 8, `0x0048A320`) returning null
+is a *legitimate* answer when a key is unknown, so the game's null deref at `SimCity 4.exe+0x5BF49` (reading
+`0x8C`) is most likely a key that never got registered, not a missing class.
+
 `QueryInterface` (`0x004777B0`): IIDs `1` and `0x68EDBEBC` give the object (with a reference); anything else false.
 Reference count at +0x04, starting at 0. `AddRef` is the shared `0x005F47F0`. `Release` (`0x00479CE0`): a count
 above 1 is decremented and returned; otherwise the object resets itself (`Shutdown`, §3.1 step 3) and is deleted

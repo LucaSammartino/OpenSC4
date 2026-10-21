@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "name": "audio_stop_sfx_guard_and_shape",
+  "spec": [
+    "audio 16.9",
+    "audio 6.3",
+    "audio 14.1",
+    "audio 14.3"
+  ],
+  "description": "With automaton+0x8C == 0 StopSFX posts nothing and still returns 1. Otherwise it posts one message of type 0xAA396960 with data1 = the argument it was called with, data2 = automaton+0x8C and void1 = the occupant, and it does NOT clear +0x8C [quirks 1, 3].",
+  "steps": [
+    {
+      "op": "aud_env"
+    },
+    {
+      "op": "aud_stop_sfx",
+      "id": 13303298,
+      "expect": 1,
+      "note": "returns 1 even when it does nothing"
+    },
+    {
+      "op": "aud_automaton_expect",
+      "state": {
+        "posts": 0,
+        "instance_id": 0
+      }
+    },
+    {
+      "op": "aud_start_sfx",
+      "id": 13303297,
+      "occupant": 11534340,
+      "expect": 1
+    },
+    {
+      "op": "aud_clear_posts"
+    },
+    {
+      "op": "aud_stop_sfx",
+      "id": 13303298,
+      "expect": 1
+    },
+    {
+      "op": "aud_post_expect",
+      "index": 0,
+      "state": {
+        "type": 2855889248,
+        "data1": 13303298,
+        "data2": 1,
+        "void1": 11534340,
+        "high_priority": 0
+      }
+    },
+    {
+      "op": "aud_automaton_expect",
+      "state": {
+        "instance_id": 1
+      },
+      "note": "StopSFX never clears the instance id (14.1)"
+    },
+    {
+      "op": "aud_stop_sfx",
+      "id": 13303298,
+      "expect": 1
+    },
+    {
+      "op": "aud_automaton_expect",
+      "state": {
+        "posts": 2
+      },
+      "note": "a second StopSFX posts again with the same instance id"
+    }
+  ]
+}

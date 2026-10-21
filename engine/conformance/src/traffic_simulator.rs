@@ -2135,6 +2135,21 @@ fn expect_state(w: &World, op: &Json) -> R<()> {
                 ("source_pos", ji(st.source_pos as u32)),
                 ("source_count", ji(st.iter.conns.len() as u32)),
                 ("phase_positions", jlist(&st.extras.phase_positions)),
+                // The re-route context cell of row 14 (TS60).
+                ("context_cell", jlist(&[st.extras.context_x, st.extras.context_z])),
+                // The scanning iterator: [state (0 fresh, 1 running, 2 done), x, z] (TS64).
+                (
+                    "scan",
+                    Json::Array(vec![
+                        ji(match st.scan.state {
+                            fc4_core::grid::ScanState::Fresh => 0,
+                            fc4_core::grid::ScanState::Running => 1,
+                            fc4_core::grid::ScanState::Done => 2,
+                        }),
+                        ji(st.scan.x),
+                        ji(st.scan.z),
+                    ]),
+                ),
                 (
                     "held_source",
                     match st.current {
@@ -2170,7 +2185,7 @@ fn expect_state(w: &World, op: &Json) -> R<()> {
                 ("car_len_count", ji(st.car_len_count)),
                 ("freight_len_sum", fb(st.freight_len_sum)),
                 ("freight_count", ji(st.freight_count)),
-                ("freight_byte", ji(st.freight_byte)),
+                ("freight_byte", ji(st.stats_last.byte)),
                 ("avg_car_commute", fb(st.avg_car_commute)),
                 ("transit_income", fb(st.transit_income)),
                 ("toll_income", fb(st.toll_income)),

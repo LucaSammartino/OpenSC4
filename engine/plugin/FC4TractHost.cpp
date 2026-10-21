@@ -649,26 +649,36 @@ bool ListsAvailable(void* u) {
     return false;
 }
 
-// Slot 7 GetLotsInCellRect(list, x1, z1, x2, z2, true) (§4.18): one
-// reference per lot, kept until the outermost call returns.
+// Slot 7 GetLotsInCellRect(list, x1, z1, x2, z2, true) (§4.18). The core only
+// ever asks for originOnly = true (tract-developer.md §4.18), where the
+// original walks its cell map and appends each lot whose origin is the cell,
+// z outer, x inner. devperf2: instead of the game's GameList (a node and one
+// AddRef'd reference per lot, released again at TractReleaseHeld - once per
+// desirability tract of every growth developer's map update), the lots are
+// read straight from the cell map through GetLot(x, z, true) (slot 6,
+// originOnly, no AddRef), which answers exactly the lot whose origin is that
+// cell (zones.md §8.2, §8.5). Same lots, same z-outer/x-inner order, all
+// borrowed like slot 6's, so nothing goes to `held`. The rect is clamped to
+// the city first (zones.md §8.3) - by the loops' bounds alone: GetLot answers
+// null outside the city (zones.md §8.2), so cells past it contribute nothing,
+// and the widest real city is 256 cells a side, far below the 65535 the
+// bounds use (they only keep the arithmetic in range).
 void LotsInCellRect(void* u, const fc4_cell_rect* rect, fc4_token_callback cb, void* cbCtx) {
     TRACT_TEST(lots_in_cell_rect, rect, cb, cbCtx);
     if (rect == nullptr || cb == nullptr) return;
     cFC4ISC4LotManager* lm = LotManager(u, "tract GetLotsInCellRect (none)");
-    if (lm == nullptr || !ListsAvailable(u)) return;
-    LotList list;
-    if (!list.valid()) return;
-    lm->GetLotsInCellRect(reinterpret_cast<fc4::GameList<cISC4Lot*>&>(list), rect->x1, rect->z1, rect->x2, rect->z2,
-                          true);
-    std::vector<uint64_t> tokens;
-    for (cISC4Lot*& lot : list) {
-        if (lot == nullptr) continue;
-        FC4_ACQUIRED(lot, "GetLotsInCellRect list entry");
-        Ctx(u)->held.push_back(lot);
-        tokens.push_back(TokenOf(lot));
-        lot = nullptr;  // the list's destructor then only frees its nodes
+    if (lm == nullptr) return;
+    const int64_t x1 = (std::max)(rect->x1, 0);
+    const int64_t x2 = (std::min)(rect->x2, 65535);
+    const int64_t z1 = (std::max)(rect->z1, 0);
+    const int64_t z2 = (std::min)(rect->z2, 65535);
+    for (int64_t z = z1; z <= z2; ++z) {
+        for (int64_t x = x1; x <= x2; ++x) {
+            if (cISC4Lot* lot = lm->GetLot(static_cast<int32_t>(x), static_cast<int32_t>(z), true)) {
+                cb(cbCtx, TokenOf(lot));
+            }
+        }
     }
-    for (uint64_t t : tokens) cb(cbCtx, t);
 }
 
 // BuildFarm's list (§4.15.2, §9.2: "one list appended across 4 + 4·k

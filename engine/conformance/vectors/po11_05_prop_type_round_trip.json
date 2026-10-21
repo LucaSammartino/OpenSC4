@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "name": "po11_05_prop_type_round_trip",
+  "spec": [
+    "prop-occupant 5.1",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 5. SetPropType(id) then GetPropType() returns id. Two props set to the same id report the same value and store the same +0x5C index, because the ID table at 0x00B231A4 is process-wide (5.1 point 1).",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_type",
+      "args": [
+        "0x12345678"
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_type",
+      "expect": "0x12345678"
+    },
+    {
+      "op": "po_call",
+      "method": "prop_type_index",
+      "expect": 0
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "prop_type": "0x12345678",
+        "type_index": 0
+      }
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_type",
+      "args": [
+        "0x12345678"
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "prop_type_index",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_type",
+      "args": [
+        "0x9ABCDEF0"
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "prop_type_index",
+      "expect": 1
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_type",
+      "expect": "0x9ABCDEF0"
+    },
+    {
+      "op": "po_call",
+      "method": "type_table_len",
+      "expect": 2
+    }
+  ]
+}

@@ -196,6 +196,7 @@ SPEC_FACTS = {
     ("vt:cSC4City::vftable", 22): (B, "city slot table (spec rows used by the cores)"),
     ("vt:cSC4City::vftable", 98): (B, "city slot table (spec rows used by the cores)"),
     ("vt:cSC4City::vftable", 99): (B, "city slot table (spec rows used by the cores)"),
+    ("cISC4CitySituationManager", 32): (B, "city-situation.md 8: CountdownIsInProgress, EAX 0 or 1"),
     ("vt:cSC4Region::vftable", 23): (N, "the GetCityLocations precedent (merge 4c92365): AL not set"),
     ("vt:cSC4DispatchManager::vftable", 10): (B, "dispatch.md 8: GetDispatchInfo, AL"),
     ("vt:cSC4DispatchManager::vftable", 13): (N, "dispatch.md 8: RegisterDispatchSource returns none"),
@@ -222,6 +223,9 @@ SPEC_FACTS = {
     ("cISC4Demolition", 7): (B, "demolition slot table: AL"),
     ("cISC4Demolition", 8): (B, "demolition slot table: AL"),
     ("cISC4DepartmentBudget", 24): (B, "power.md, protection.md: AL"),
+    ("cISC4AirportDeveloper", 12): (B, "port-developers.md 8.1: GetAirportUsageValues, AL = found"),
+    ("cISC4SeaportDeveloper", 12): (B, "port-developers.md 8.1: GetSeaportUsageValues, AL = found"),
+    ("cISC4SeaportDeveloper", 15): (B, "port-developers.md 8.1: CityHasSea, AL"),
     ("cISC4DepartmentBudget", 28): (B, "power.md, protection.md: AL"),
     ("cISC4DisasterLayer", 10): (B, "disaster layer slot table: AL"),
     ("cISC4DisasterManagerFire", 4): (B, "crime.md, flammability.md"),
@@ -237,6 +241,7 @@ SPEC_FACTS = {
     ("cISC4LandfillOccupant", 9): (B, "landfill.md: AL"),
     ("cISC4LotConfigurationManager", 18): (N, "prop-lotconfig.md B7: RegisterLotConfigurationFilter, no defined return"),
     **{("cISC4LotDeveloper", s): (B, "lot-developer.md 11.1") for s in (6, 25, 26, 36, 41, 46, 56, 57)},
+    ("cISC4LotDeveloper", 7): (B, "lot-developer.md 11.1: ConstructDefaultLot, AL of slot 6"),
     ("cISC4LotDeveloper", 8): (N, "lot-developer.md 11.1: AL of SetState, which lot-records.md 13.2 leaves undefined"),
     ("cISC4LotDeveloper", 9): (B, "lot-developer.md 11.1: AL of SetPopulation (tract-developer.md table: AL)"),
     ("cISC4LotDeveloper", 19): (W, "lot-developer.md 11.1: EAX = 0 or a count"),
@@ -244,6 +249,7 @@ SPEC_FACTS = {
     ("cISC4LotDeveloper", 21): (W, "lot-developer.md 11.1: AttemptAreaLevelling, EAX = 0 or ModifyTerrainHeight's count"),
     ("cISC4LotDeveloper", 45): (N, "lot-developer.md 6.6: UpdateVertexAltitudes leaves AL undefined"),
     ("cISC4LotManager", 22): (B, "zones.md 11.3: EAX 0/1"),
+    ("cISC4LotManager", 23): (B, "zones.md 11.3: CreateLot, EAX 0/1"),
     ("cISC4LotManager", 24): (N, "zones.md 8.6 / 11.3: DeleteLot, EAX undefined, no bool result"),
     **{("cISC4Lot", s): (B, "lot-developer.md lot table")
        for s in (6, 14, 21, 27, 28, 29, 37, 38, 39, 43, 55, 65, 66)},
@@ -254,9 +260,12 @@ SPEC_FACTS = {
     **{("cISC4NetworkOccupant", s): (B, "traffic-network.md network occupant table") for s in (8, 9, 22, 47)},
     ("cISC4NetworkOccupant", 67): (B, "QUESTIONS.md TR19 (re-answers25): GetPassageCeiling returns true with the float, false otherwise"),
     **{("cISC4Occupant", s): (B, "occupant slot table") for s in (5, 11, 14, 22, 27, 32)},
+    ("cISC4Occupant", 25): (B, "occupant-manager.md 4.3: the base GetOccupantManagerBBox (0x005E8BF0) fails on the"
+                               " 0xFF no-box mark; the manager tests it (5.2, 5.4)"),
     ("cISC4OrdinanceSimulator", 8): (B, "ordinance.md"),
     **{("cISC4Ordinance", s): (B, "ordinance.md 3 table")
        for s in (3, 4, 17, 18, 19, 21, 22, 23, 24, 25, 26, 27, 28, 29)},
+    ("cISC4PropRequester", 5): (B, "prop-developer.md 8.3, pollution.md slot table, crime.md: UsesCustomPropSelector, AL"),
     ("cISC4PlumbingSimulator", 11): (B, "plumbing.md: AL only"),
     ("cISC4PlumbingSimulator", 24): (B, "plumbing.md: AL only"),
     ("cISC4PollutionSimulator", 49): (B, "pollution.md slot table"),
@@ -271,6 +280,22 @@ SPEC_FACTS = {
     ("cISC4TutorialSystem", 8): (B, "tutorial system slot: EAX 0/1"),
     ("cISC4ZoneManager", 11): (B, "zones.md 11.1"),
     ("cISC4ZoneManager", 14): (B, "zones.md 11.1"),
+
+    # prop occupant (docs/specs/prop-occupant.md 4.1 measured channels). The
+    # interfaces.tsv rows all say eax-or-void, which is the failure mode exactly:
+    # GetState is movzx eax while GetRandomChance is mov al, and GetTimeOfDayRange
+    # is void with ST(0) empty (8 item 3). Only the slots whose answer really is a
+    # 0/1 bool get an entry here. Slots 12, 18, 19 and 22 get none on purpose: their
+    # values are zero-extended or come from AL, so a narrow read (uint8_t) is exact
+    # and only a bool read is wrong -- which the default "unchecked" already flags.
+    # Slots 5 and 6 get none either: their behaviour is settled (quirk 9) but their
+    # SDK names are not (PO6), so a bool read of them stays "unchecked".
+    ("cISC4PropOccupant", 0): (B, "prop-occupant.md 4.1/1.1: QueryInterface, AL"),
+    ("cISC4PropOccupant", 3): (W, "prop-occupant.md 4.1: AsOccupant returns this+8 in EAX, not an AL answer"),
+    ("cISC4PropOccupant", 10): (B, "prop-occupant.md 4.1: SetOrientation, AL = 1 always"),
+    ("cISC4PropOccupant", 20): (B, "prop-occupant.md 4.1: GetPropTimerState is a real 0/1 in EAX (sbb/neg)"),
+    ("cISC4PropOccupantVisualEffect", 7): (B, "prop-occupant.md 6.2, network-tools 13.2: StartEffect, EAX 0/1"),
+    ("cISC4PropOccupantVisualEffect", 8): (B, "prop-occupant.md 6.2, network-tools 13.2: StopEffect, EAX 0/1"),
 }
 
 

@@ -13,7 +13,7 @@ The generator owns exactly three regions, marked with `<!-- BEGIN GENERATED: nam
 
 | Region | File | Content |
 |---|---|---|
-| `lanes` | `docs/HANDOFF.md` §0 | the lane table, one row per `docs/lanes/<lane>.md` |
+| `lanes` | `docs/lanes/INDEX.md` | the lane table, one row per `docs/lanes/<lane>.md` (in HANDOFF §0 until 2026-10-20; the generator creates INDEX.md if it is missing) |
 | `latest-run` | `docs/HANDOFF.md` §0 | the `- **Latest in-game run:** ...` bullet |
 | `runs` | `docs/manual-checks.md` | the in-game run log, one row per `docs/runs/<tag>.md` |
 
@@ -27,7 +27,8 @@ bytes).
 The file name is the lane slug: lower case, letters, digits and dashes (`zones2.md`,
 `re-specs13a.md`, `apply11traffic.md`).
 
-The file must hold exactly one table row with these four columns and the exact header:
+The file must hold exactly one table row with these four columns and the exact header (a second column
+headed `Worktree`, and a `| --- |` separator, are accepted too):
 
 ```markdown
 | Lane | Agent/worktree | State at stop | Next steps |
@@ -53,6 +54,10 @@ Optional, under the row:
 
 - A `## Next steps` paragraph for detail that does not fit the cell. The generator appends its text to
   the row's Next steps cell.
+- While the lane works: a `## Handoff` section (at most 25 lines: goal, done with commit hashes, next,
+  facts), under a row whose State at stop is `in progress`. It is the lane's working state: the fc4-lane
+  workflow restarts a lane in a fresh agent from it (docs/ops/coordinating.md "Lane context"). The lane
+  replaces it with its report when it finishes. The generator never reads it.
 - A `## Retired roster row` section, holding the old HANDOFF
   `| Lane | Agent ID | Worktree | Reserved | State |` row verbatim, for lanes that had one. The
   generator never reads it.
@@ -99,7 +104,7 @@ summary: regress voidbool, PASS, lists as run 138
 | `verdict` | `clean`, `corrupt`, `crash`, `ended`, `none` (no information), or `PASS` / `FAIL` for a regress. |
 | `switches` | The switches cell of the old run row, verbatim. |
 | `result` | The result cell of the old run row, verbatim — the notes. |
-| `summary` | *Optional.* The parenthetical for the HANDOFF "Latest in-game run" bullet, without its brackets or trailing period: `regress voidbool, PASS, lists as run 138`. Only runs that have it appear on that line. |
+| `summary` | *Optional.* The parenthetical for the HANDOFF's "Latest in-game run" bullet (§0), without its brackets or trailing period: `regress voidbool, PASS, lists as run 138`. Only runs that have it appear on that line. |
 | `summary_note` | *Optional.* A sentence after that parenthesis, e.g. `is the first with the traffic lists`. Also without a trailing period. |
 
 Rules:
@@ -148,7 +153,41 @@ never merges main.**
 4. **The train bumps `FC4_ABI_VERSION`, never a lane.** It bumps it once per batch and writes one
    `fc4.h` history line per batch listing the lanes. Do not touch `FC4_ABI_VERSION` in your lane.
 
-Why this shape: every lane used to edit the same handful of files at merge time (the HANDOFF §0 rows,
-the run numbers in `manual-checks.md`, `QUESTIONS.md`, `FC4_ABI_VERSION`, `abi_entries.inc`), so every
+Why this shape: every lane used to edit the same handful of files at merge time (the HANDOFF §0 rows, now
+`docs/lanes/INDEX.md`, the run numbers in `manual-checks.md`, `QUESTIONS.md` (now a generated index over the per-spec files in
+`docs/specs/questions/`; see its README), `FC4_ABI_VERSION`, `abi_entries.inc`), so every
 merge conflicted and about 25 agents polled a merge lock, costing about N² gates. Per-lane files and a
 single owner of main remove the shared lines.
+# Per-lane documents
+
+One file per lane, `docs/lanes/<lane>.md`, holding what used to be that lane's
+`HANDOFF.md` §0 row; and one file per in-game run, `docs/runs/<tag>.md`, keyed
+by the run's **tag** (its request label) rather than a sequential run number.
+
+A script regenerates the `HANDOFF.md` §0 table, the `manual-checks.md` index and
+the "latest in-game run" line from these two folders
+(`tools/gen_handoff_tables.py`), so lanes no longer edit those shared files and
+conflict with each other at merge time. See [merge-train.md](../merge-train.md).
+
+## `docs/lanes/<lane>.md`
+
+Write it when you stop, before you enqueue for the merge train. Keep it to what
+a reader of `HANDOFF.md` §0 needs:
+
+- the lane name, branch and what it changed;
+- the gate it ran (cargo summed over every `test result:` line, clippy, ctest)
+  and the game-run labels it produced;
+- what is wired, what is measured, and what is deliberately not done;
+- the next steps and the numbered questions it filed.
+
+## `docs/runs/<tag>.md`
+
+One file per in-game run, named after the request's `label`. Put in it the
+verdict line, the summary counts, and any subsystem shadow lines a reader would
+otherwise have to grep the log for. The lane doc links to them.
+
+## Adding a subsystem key or a new run summary block
+
+Those still live in shared files (`engine/README.md`, `engine/plugin/FC4Config.*`,
+`tools/regress.ps1`, `tools/run_summary.ps1`): keep those edits additive and
+grouped, as before.

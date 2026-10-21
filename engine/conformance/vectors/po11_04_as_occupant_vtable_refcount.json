@@ -1,0 +1,122 @@
+{
+  "format": 1,
+  "name": "po11_04_as_occupant_vtable_refcount",
+  "spec": [
+    "prop-occupant 2.2",
+    "prop-occupant 2.3",
+    "prop-occupant 4.2",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 4. Slot 3 AsOccupant returns this + 8 and leaves a null this null; the cISC4PropOccupant vtable is exactly 24 entries (+0x00..+0x5F) and the word at 0x00AA4900 + 24*4 is the pool/factory table at 0x00AA4960, not part of this interface. AddRef twice from 0 and Release once: the count lives at +0x14 because the thunks do 'add ecx, 8' (quirk 10), not at +0x04.",
+  "steps": [
+    {
+      "op": "po_call",
+      "method": "as_occupant_offset",
+      "args": [
+        0
+      ],
+      "expect": 8
+    },
+    {
+      "op": "po_call",
+      "method": "as_occupant_offset_null",
+      "expect": null
+    },
+    {
+      "op": "po_call",
+      "method": "vtable_len",
+      "expect": 24
+    },
+    {
+      "op": "po_const",
+      "name": "vtable_len",
+      "expect": 24
+    },
+    {
+      "op": "po_call",
+      "method": "slot_offset",
+      "args": [
+        0
+      ],
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "slot_offset",
+      "args": [
+        23
+      ],
+      "expect": "0x5C"
+    },
+    {
+      "op": "po_call",
+      "method": "slot_method",
+      "args": [
+        23
+      ],
+      "expect": "SetPropUsage"
+    },
+    {
+      "op": "po_call",
+      "method": "slot_method",
+      "args": [
+        24
+      ],
+      "expect": null
+    },
+    {
+      "op": "po_call",
+      "method": "vtable_addr",
+      "expect": "0x00AA4900"
+    },
+    {
+      "op": "po_call",
+      "method": "vtable_next_addr",
+      "expect": "0x00AA4960"
+    },
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "refcount",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "add_ref",
+      "expect": 1
+    },
+    {
+      "op": "po_call",
+      "method": "add_ref",
+      "expect": 2
+    },
+    {
+      "op": "po_call",
+      "method": "release",
+      "expect": 1
+    },
+    {
+      "op": "po_call",
+      "method": "refcount",
+      "expect": 1
+    },
+    {
+      "op": "po_call",
+      "method": "add_ref",
+      "expect": 2
+    },
+    {
+      "op": "po_call",
+      "method": "refcount",
+      "expect": 2
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "refcount": 2
+      }
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+{
+ "format": 1,
+ "name": "nbr17_05_specialization_grammar",
+ "spec": [
+  "network-bridges 3.1",
+  "17.5"
+ ],
+ "description": "bridge 99 length 10 end end where no bridge type has key 99: the parse fails and nothing after it is read. bridge 1 length 9 for road key 1 (minimum span 10): the whole parse fails. bridge 1 length 10 succeeds.",
+ "steps": [
+  {
+   "op": "nbr_parse",
+   "text": "bridge 99 length 10 end end\nbridge 1 length 10 end end",
+   "keys": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "min_span": [
+    10,
+    16,
+    4,
+    4,
+    22,
+    4,
+    10,
+    12,
+    4
+   ],
+   "expect": {
+    "ok": false,
+    "lengths": [
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     []
+    ]
+   }
+  },
+  {
+   "op": "nbr_parse",
+   "text": "bridge 1 length 9 end end",
+   "keys": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "min_span": [
+    10,
+    16,
+    4,
+    4,
+    22,
+    4,
+    10,
+    12,
+    4
+   ],
+   "expect": {
+    "ok": false,
+    "lengths": [
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     []
+    ]
+   }
+  },
+  {
+   "op": "nbr_parse",
+   "text": "bridge 1 length 10 end end",
+   "keys": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "min_span": [
+    10,
+    16,
+    4,
+    4,
+    22,
+    4,
+    10,
+    12,
+    4
+   ],
+   "expect": {
+    "ok": true,
+    "lengths": [
+     [
+      10
+     ],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     []
+    ]
+   }
+  }
+ ]
+}

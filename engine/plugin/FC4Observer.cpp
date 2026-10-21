@@ -32,17 +32,31 @@
 #include "FC4ZonesShadow.h"
 #include "FC4ZoneDevShadow.h"
 #include "cFC4ZoneDeveloper.h"
+#include "cFC4NetworkTool.h"  // the glue29 lane: NetToolRegistry city shutdown
 #include "cFC4ZoneManager.h"
 #include "FC4TractShadow.h"
 #include "FC4CommercialShadow.h"
 #include "FC4CivicShadow.h"
 #include "FC4ParksShadow.h"
+#include "FC4PropDevShadow.h"     // the glue12b1 lane
+#include "FC4CityDetailShadow.h"  // the glue12b1 lane
+#include "cFC4PropDeveloper.h"    // the glue12b1 lane: the propdev month line
+#include "FC4AutomataShadow.h"  // the glue19 lane
+#include "FC4MySimsShadow.h"    // the mysims1 lane: mysims_shadow
+#include "FC4AutomataDriver.h"  // the glue19 lane: the riot / fire driver
 #include "FC4DisasterShadow.h"
+#include "FC4EffectsShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
+#include "FC4NetMgrShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
+#include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
+#include "FC4DemolitionPriceShadow.h"  // the glue23 lane: demolition_price_shadow
+#include "FC4DemolitionShadow.h"  // the glue17 lane: demolition_shadow
+#include "FC4DispatchShadow.h"    // the glue17 lane: dispatch_shadow
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
+#include "FC4OccMgrShadow.h"
 #include "FC4PropLotShadow.h"  // the glue15 lane
 #include "cFC4LotDeveloper.h"
 #include "cFC4Message2Standard.h"
@@ -88,9 +102,12 @@ constexpr uint32_t kMsgPostCityShutdown = 0x26D31EC3;
 // later than the original's state 17 (§5.3).
 constexpr uint32_t kMsgAuraCycleCompleted = 0x2A09B21A;
 constexpr uint32_t kMsgPreSave = 0x26C63343;  // foundations.md §3.7: the prop / lot configuration / tutorial shadows
+// The city situation manager's activation message (city-situation.md 3): the
+// automata layer's U-Drive-It pause / resume rides on it (automata.md 9).
+constexpr uint32_t kMsgSituationActive = 0xABBBCA64;
 constexpr uint32_t kObserverMessages[] = {kMsgPostCityInit,     kMsgSimNewDay,       kMsgSimNewMonth,
                                          kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown,
-                                         kMsgAuraCycleCompleted, kMsgPreSave};
+                                         kMsgAuraCycleCompleted, kMsgPreSave, kMsgSituationActive};
 constexpr uint32_t kObserverServiceID = 0x5C7A43E2;  // random, FreeCity4's
 constexpr int32_t kObserverPriority = -1000000;      // [choice] tooling; any value works
 
@@ -528,6 +545,8 @@ public:
         // close_dialogs (FC4Dialogs.h): a modal loop ticks us once per pass
         // (modal-dialogs.md §2.3); before the script and the autotest.
         DialogsOnTick();
+        // netmgr_shadow (FC4NetMgrShadow.h): the recorded writes against the game.
+        NetMgrShadowTick();
         if (loadSnapshotDue_) {
             loadSnapshotDue_ = false;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
@@ -536,6 +555,7 @@ public:
         // before the save autotest and before AutotestOnTick's quit or end.
         ScriptOnTick();
         DisastersShadowOnTick();  // disasters_shadow: the quiet-point comparison
+        fc4::AutomataDriverSituationTick();  // U-Drive-It (automata.md 9): resume when the countdown ends
         if (saveDue_) {
             saveDue_ = false;
             SaveAndEnd();  // does not return
@@ -567,9 +587,23 @@ public:
                 ZoneDevShadowCityLoaded(CurrentCity());  // zonedev_shadow = 1 only
                 HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
+                NetMgrShadowCityLoaded(CurrentCity());   // netmgr_shadow = 1 only
+                OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
+                CityDetailShadowCityLoaded(CurrentCity());  // citydetail_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
+                CitySitShadowCityLoaded(CurrentCity());  // the glue17 lane: citysit_shadow = 1 only
+                DemolitionShadowCityLoaded(CurrentCity());  // demolition_shadow = 1 only
+                DemolitionPriceShadowCityLoaded(CurrentCity());  // the glue23 lane: demolition_price_shadow = 1 only
+                DispatchShadowCityLoaded(CurrentCity());  // dispatch_shadow = 1 only
                 PropLotShadowCityLoaded(CurrentCity());    // propmgr_shadow / lotcfg_shadow / tutorial_shadow = 1 only
+                EffectsShadowCityLoaded(CurrentCity());  // effects_shadow = 1 only
+                TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
+                DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
+                AutomataShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // automata_shadow
+                fc4::AutomataDriverCityLoaded(CurrentCity());  // the automata riot / fire driver (automata.md 8)
+                fc4::MySimsShadowCityLoaded(CurrentCity());  // mysims_shadow = 1 only
+                fc4::MySimsShadowMonth(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // the load comparison
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -587,15 +621,38 @@ public:
             case kMsgAuraCycleCompleted:
                 AuraShadowCycle(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // aura_shadow = 1 only
                 break;
+            case kMsgSituationActive: {
+                // The city situation manager's activation message (data1 of
+                // 0xABBBCA64): the automata layer's U-Drive-It pause
+                // (automata.md 9; the resume is the tick below).
+                bool ok = false;
+                const int64_t d1 = DataOf(msg, &ok);
+                if (ok) fc4::AutomataDriverSituationMessage(static_cast<int32_t>(d1));
+                break;
+            }
             case kMsgPreCityShutdown:
                 TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
                 LotDevShadowCityShutdown();
                 CommercialShadowCityShutdown();  // commercial_shadow: the shadow core goes with the city
                 CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
                 ParksShadowCityShutdown();  // parks_shadow: the same
+                NetMgrShadowCityShutdown();  // netmgr_shadow: the shadow cores and their references go
+                OccMgrShadowCityShutdown();  // occmgr_shadow: the probe, the shadow core and its references go
+                PropDevShadowCityShutdown();  // propdev_shadow: the shadow cores and their references go with the city
+                DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references go with the city
+                CitySitShadowCityShutdown();  // the glue17 lane: citysit_shadow's summary, then the core goes
+                DemolitionShadowCityShutdown();
+                DemolitionPriceShadowCityShutdown();  // the glue23 lane
+                DispatchShadowCityShutdown();
+                PropLotShadowCityShutdown();    // the prop / lot configuration / tutorial shadows' totals
                 TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
-                PropLotShadowCityShutdown();    // the prop / lot configuration / tutorial shadows' totals
+                EffectsShadowCityShutdown();  // effects_shadow: the mirror core goes with the city
+                AutomataShadowCityShutdown();  // automata_shadow: the shadow cores and their references
+                fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
+                NetToolRegistry::LogSummary("city shutdown");
+                fc4::MySimsShadowCityShutdown();  // mysims_shadow: the summary line, then the core goes
+                NetToolRegistry::CityShutdown();  // the glue29 lane: the shared replacement tools
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:
@@ -622,6 +679,7 @@ public:
                     FpuLog("observe month");
                 }
                 ProtectionShadowMonth(CurrentCity(), julian);  // protection_shadow = 1 only
+                AutomataShadowMonth(julian);                    // automata_shadow = 1 only
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)
@@ -630,9 +688,17 @@ public:
                 LotDevShadowMonth(CurrentCity(), julian);       // lotdev_shadow = 1 only
                 fc4::ZoneDevMonthLine(julian);                  // enable = zonedev only (the month status line)
                 ZoneDevShadowMonth(CurrentCity(), julian);      // zonedev_shadow = 1 only
-                PropLotShadowMonth(CurrentCity(), julian);      // propmgr / lotcfg / tutorial shadows only
-                ++monthsSinceLoad_;
-                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
+                CitySitShadowMonth(CurrentCity(), julian);  // the glue17 lane: citysit_shadow = 1 only
+                DemolitionPriceShadowMonth(CurrentCity(), julian);  // the glue23 lane
+                DemolitionShadowMonth(CurrentCity(), julian);  // demolition_shadow = 1 only
+                DispatchShadowMonth(CurrentCity(), julian);    // dispatch_shadow = 1 only
+                NetMgrShadowMonth(CurrentCity(), julian);       // netmgr_shadow = 1 only                ++monthsSinceLoad_;
+                OccMgrShadowMonth(CurrentCity(), julian);       // occmgr_shadow = 1 only
+                PropLotShadowMonth(CurrentCity(), julian);      // propmgr / lotcfg / tutorial shadows only                ++monthsSinceLoad_;
+                cFC4PropDeveloper::MonthLine(julian);           // enable = propdev only (the month status line)
+                PropDevShadowMonth(CurrentCity(), julian);      // propdev_shadow = 1 only
+                fc4::MySimsShadowMonth(CurrentCity(), julian);  // mysims_shadow = 1 only
+                ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.
                     saveStarted_ = true;

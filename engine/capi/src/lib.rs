@@ -23,8 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 69;
-
+pub const FC4_ABI_VERSION: u32 = 75;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -871,18 +870,23 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
 }
 
 pub mod advisors;
+pub mod audio;
 pub mod aura;
 pub mod aura_shadow;
 pub mod automata;
 pub mod budget;
 pub mod city_detail;
+pub mod city_situation;
 pub mod civic;
 pub mod clock24;
 pub mod commercial;
 pub mod crime;
 pub mod demand;
+pub mod demolition;
 pub mod development;
 pub mod disasters;
+pub mod dispatch;
+pub mod effects;
 pub mod flammability;
 pub mod flammability_shadow;
 pub mod flora;
@@ -898,8 +902,10 @@ pub mod lot_config;
 pub mod lotdev;
 pub mod neighbors;
 pub mod neighbors_shadow;
+pub mod network_geometry;
 pub mod network_manager;
 pub mod network_rules;
+pub mod network_tools;
 pub mod occupant_manager;
 pub mod ordinance;
 pub mod panic_log;
@@ -913,6 +919,7 @@ pub mod power;
 pub mod power_shadow;
 pub mod prop_developer;
 pub mod prop_manager;
+pub mod prop_occupant;
 pub mod props;
 pub mod protection;
 pub mod residential;
@@ -920,10 +927,11 @@ pub mod residential_shadow;
 pub mod sinks;
 pub mod stream;
 pub mod terrain;
+pub mod tract_developer;
 pub mod traffic;
 pub mod traffic_shadow;
-pub mod tract_developer;
 pub mod tutorial;
+pub mod ui_windows;
 pub mod weather;
 pub mod zonedev;
 pub mod zones;
@@ -947,6 +955,9 @@ mod budget_tests;
 mod city_detail_tests;
 
 #[cfg(test)]
+mod city_situation_tests;
+
+#[cfg(test)]
 mod civic_tests;
 
 #[cfg(test)]
@@ -962,10 +973,18 @@ mod crime_tests;
 mod demand_tests;
 
 #[cfg(test)]
+mod demolition_tests;
+
+#[cfg(test)]
 mod development_tests;
 
 #[cfg(test)]
 mod disasters_tests;
+#[cfg(test)]
+mod effects_tests;
+
+#[cfg(test)]
+mod dispatch_tests;
 
 #[cfg(test)]
 mod flora_tests;
@@ -992,9 +1011,15 @@ mod lotdev_tests;
 mod neighbors_tests;
 
 #[cfg(test)]
+mod network_geometry_tests;
+
+#[cfg(test)]
 mod network_manager_tests;
 #[cfg(test)]
 mod network_rules_tests;
+
+#[cfg(test)]
+mod network_tools_tests;
 
 #[cfg(test)]
 mod occupant_manager_tests;
@@ -1027,6 +1052,9 @@ mod power_shadow_tests;
 mod prop_developer_tests;
 
 #[cfg(test)]
+mod prop_city_sweep_tests;
+
+#[cfg(test)]
 mod protection_tests;
 
 #[cfg(test)]
@@ -1034,6 +1062,9 @@ mod residential_tests;
 
 #[cfg(test)]
 mod prop_manager_tests;
+
+#[cfg(test)]
+mod prop_occupant_tests;
 
 #[cfg(test)]
 mod save_sweep_tests;
@@ -1045,11 +1076,15 @@ mod terrain_tests;
 mod test_streams;
 
 #[cfg(test)]
+mod tract_developer_tests;
+
+#[cfg(test)]
 mod traffic_tests;
 #[cfg(test)]
-mod tract_developer_tests;
-#[cfg(test)]
 mod tutorial_tests;
+
+#[cfg(test)]
+mod ui_windows_tests;
 
 #[cfg(test)]
 mod weather_tests;
@@ -1059,3 +1094,6 @@ mod zones_tests;
 
 #[cfg(test)]
 mod zonedev_tests;
+
+#[cfg(test)]
+mod audio_tests;

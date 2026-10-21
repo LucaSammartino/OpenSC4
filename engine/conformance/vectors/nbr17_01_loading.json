@@ -1,0 +1,33 @@
+{
+ "format": 1,
+ "name": "nbr17_01_loading",
+ "spec": [
+  "network-bridges 2.1",
+  "2.6",
+  "17.1"
+ ],
+ "description": "Road has 9 bridge types with keys 1-9 in INI order; street has none. Every shipped type has the maximum span 100000, the clearance range [0, 10000] and the cost (0, 0) (2.3).",
+ "steps": [
+  {
+   "op": "nbr_types",
+   "type": 0
+  },
+  {
+   "op": "nbr_expect",
+   "records": true,
+   "expect": {
+    "records": []
+   }
+  },
+  {
+   "op": "nbr_getter",
+   "slot": "bitmap",
+   "index": 0,
+   "expect": [
+    1782082854,
+    1
+   ],
+   "note": "road key 1: +0x148 = 0x6A386D26, +0x14C = 1"
+  }
+ ]
+}

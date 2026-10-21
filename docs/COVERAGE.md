@@ -67,11 +67,25 @@ catch-all row matches, the candidates for a new row.
 |---|---|
 | specified | the row names at least one spec and every named `docs/specs/<file>` exists; a spec counts only for the classes that are its subject |
 | implemented | the row names at least one core path and every `engine/<path>` exists |
-| verified | the shadow key is in the shadows list of `tools/regress.ps1` and every line of that shadow in the regress `.out` read has all mismatch counts 0 |
+| verified | every compared set of the row's shadow key is exact. Two sources, in this order: (1) the key is in the shadows list of `tools/regress.ps1` and every line of that shadow in the regress `.out` read has all mismatch counts 0; (2) else `tools/coverage-shadows.tsv` has the key and every row it records is exact |
 | replaced | the replace key is in `$Replace` of `tools/regress.ps1` (or is on by default in `FC4Subsystems.cpp`) and the regress replace run was clean |
 
 The regress `.out` read is `--regress`, else the PASS run of the newest lane merged into HEAD (first-parent
 `Merge <tag>:` subjects), so the default depends on the commit, not on file times.
+
+### Shadow evidence outside the regress run: `tools/coverage-shadows.tsv`
+
+The house regress is the primary source of `verified`, but its shadows run exercises only the keys its list sets.
+A shadow that a lane run alone has measured (a new glue lane's shadow before a `regresslists*` lane adds it, or
+one kept out of the list on purpose) is recorded in `tools/coverage-shadows.tsv`: one row per compared set, with
+its clean and total counts, the label the run uses for that set, and the file that records the run.
+
+A row counts only when its `source` file literally contains `<label> <clean>/<total>`. The counts are therefore
+checked against the run that measured them and never taken on trust from the ledger; a row that fails its check
+(missing source, counts absent from it) voids its whole shadow key and is reported as a warning. `verified` is
+credited only when every compared set of a key is exact, so a shadow with one differing set stays unverified and
+the report shows its real counts (`fire 211/263, riot 2/354 (lane run, not exact)`) instead of implying the
+subsystem is proven. The regress path still wins whenever the regress shadows list sets the key.
 
 ## Running it
 
@@ -82,13 +96,18 @@ python tools/coverage.py --owners build-runs/coverage-owners.tsv   # per-functio
 python tools/coverage_treemap.py                       # writes docs/coverage-map.svg from the same attribution
 ```
 
-About 15 seconds, deterministic. The report contains counts, class names, address ranges and statuses only, never
-code. `coverage_treemap.py` reads `coverage.py` as a module, so the two cannot drift: it colours the same owners by
-the furthest status their map row has reached.
+About 6 seconds, deterministic (two runs write a byte-identical report; well under a minute). The report contains counts, class names, address ranges and statuses only, never
+code. `coverage_treemap.py` reads `coverage.py` as a module and calls its `map_statuses()` for the four statuses,
+so the two cannot drift: it colours the same owners by the furthest status their map row has reached, and its
+header shares are summed on each status's own flag rather than on that colour, since a row can be implemented
+without a spec or replaced without a module.
 
 ## Moving the numbers honestly
 
-- A new spec, core, shadow or replace key: edit the subsystem's row in `coverage-map.tsv`.
+- A new spec, core, shadow or replace key: edit the subsystem's row in `coverage-map.tsv`. For a shadow the house
+  regress does not run, add its measured counts to `tools/coverage-shadows.tsv` as well, each row citing the run
+  that records them: the tool refuses a row whose source does not contain the counts it claims, so the ledger
+  cannot invent a proof. Do not record a shadow at exact counts the run did not measure.
 - Unattributed or shared bytes: name functions (a manual file in `re/symbols/` with evidence, then
   `python tools/symport/merge_names.py` regenerates `re/names_windows.tsv` and `re/labels_windows.tsv`), add vtables to
   `docs/abi`, a library range with its evidence to `coverage-libs.tsv`, or a game-code owner range with its evidence

@@ -98,6 +98,20 @@ Related specs:
 
 Strings are a `u32` length followed by the characters, with no terminator.
 
+**Corrects (re-integrate1): the two record tables below give the *in-memory* sizes, not the on-disk ones.**
+Measured against the shipped resource — type `0xEA5118B0`, group `0xEA5118B1`, instance 1, **1,094,484 bytes**,
+root version **4**, brush section at `0x98CA2` (count `0x19` = 25; the records themselves begin at `0x98CA6`),
+visual-effect section at **`0x9C274`** (section version 2, **1154** descriptions, **3373** components in total),
+name map at `0x103065` with **1148** names. On disk:
+
+| Record | On disk |
+|---|---|
+| visual-effect description | `u32 flags & 0x1FF`, `u32 priority`, `u32` component count, then that many **variable-length** component records, `u32` binding count, then that many 24-byte bindings (`u32 & 0xF`, string, `f32`, `u32`), then a string, then (section version > 1) 3 × `u32` |
+| component record | **variable**: string (`u32 len` + chars), `u8` type, `u32 flags & 3`, 56-byte transform, `u8`,`u8` LOD, `u16`,`u16` copies/spacing, 4 × `f32`, `u16`,`u16` select group/weight, `u32` index |
+
+So a parser must read the component records as a variable-length sequence inside the effect record; there is no
+fixed `0x6C`-byte stride on disk (readers `0x005ABF50` effect, `0x005AB690` component, `0x005ABEC0` binding).
+
 **Visual effect description** (`0x38` bytes in memory, reader `0x005ABF50`):
 
 | Field | File | Meaning |
@@ -191,6 +205,23 @@ A component exists only while the current level of detail `L` (§2) is in its ra
 appear or disappear with the zoom. The damage done by brush and game components therefore does **not** depend on
 the zoom or on the detail options, apart from the priority filter of §4.1.
 
+**Corrects (re-integrate1): the `[1, 6)` claim above is false as written.** Measured over all **3373** shipped
+components, only **2533** have `[1, 6)`. The other **840** do not:
+
+| Range | Count | Range | Count | Range | Count |
+|---|---|---|---|---|---|
+| `(5, 6)` | 182 | `(1, 3)` | 30 | `(3, 5)` | 8 |
+| `(4, 5)` | 156 | `(3, 6)` | 27 | `(1, 5)` | 5 |
+| `(3, 4)` | 141 | `(1, 4)` | 23 | | |
+| `(2, 3)` | 106 | `(2, 6)` | 10 | | |
+| `(1, 2)` | 101 | | | | |
+| `(4, 6)` | 98 | | | | |
+
+So components **do** appear and disappear with the zoom. The narrower claim worth keeping — and the one the
+implementer's test asserts — is that **every component that reaches a brush or game record, directly or through
+meta, is `[1, 6)`**; that still has to be checked per effect, but it is the property the simulation depends on.
+Quirk 8 is amended accordingly.
+
 Creating a component of a table type calls that description's factory:
 
 | Type | Factory |
@@ -223,8 +254,17 @@ On `kSC4MessageAnimationTick` `0x86AD10EE` (data2 = elapsed microseconds `µs`):
    - `dt' := trunc(r24(µs × dilation))`, where `dilation` is `cISC4Simulator::GetAnimationTimeDilation` (slot 32;
      simulator.md §7) and `µs` is taken as unsigned.
    - With no simulator, `dt' := µs`.
-   - Shipped dilation: 1 while paused or emergency-paused, 1.5 at speed 1, 3 at speed 2, and 1 otherwise.
-   - *[quirk]* The tick does not stop while the game is paused, so effects keep running.
+   - **Shipped dilation, measured from the bytes (`0x007026F0`, re-answers34):** the simulator keeps a five-float
+     table at the pointer `+0x108`, filled by `ReadSimulatorTunableValues` `0x007025B0`:
+     `[0] = 0.0, [1] = 1.0, [2] = 1.5, [3] = 2.0, [4] = 1.0` (the constants `0x702686`–`0x7026B1`). The getter
+     consults, in order: `IsEmergencyPaused` (slot 17, `0x00703D70`) → `[4]`; the automata manager's
+     `IsDrivingMode` (U-Drive-It active; slot 13 of the object cached at `0x00B43D44`, `0x00506940`) → `[4]`;
+     `IsPaused` (slot 15, `0x00703D50`) → **`[0]` = 0.0**; otherwise by `GetSimSpeed` `0x008265C0`:
+     speed 0 → `[1]` = 1.0, speed 1 → `[2]` = 1.5, speed 2 → `[3]` = 2.0.
+     **`IsHiddenPaused` (slot 16) is never consulted** — a hidden pause does not change the dilation (EF5).
+   - *[quirk]* While paused the dilation is 0.0, so `dt'` is 0 and every component update runs with `dt = 0` —
+     brushes make no progress, timers do not advance. (The earlier claim "1 while paused" is wrong; in a normal
+     session the tick also does not arrive, because the animation-tick manager is paused, see §6.1.)
 2. Add `dt'` to the total (`+0x1B8`) and store the total in seconds at `+0x1BC`.
 3. For each effect on the active list, in list order, that **is started** (slot 5):
    1. If its flag bit 5 is set, give it the pick ray as parameter 9 (render).
@@ -232,6 +272,19 @@ On `kSC4MessageAnimationTick` `0x86AD10EE` (data2 = elapsed microseconds `µs`):
    3. The effect updates each of its components, in component order, **whose `IsActive` is true** (`0x005BEA10`).
 
 A brush or game component therefore acts only inside this tick, and only while both it and its effect are active.
+
+### 6.1 When the tick arrives at all *[compat]*
+
+`kSC4MessageAnimationTick` is sent by `cSC4AnimationTickManager::DoAnimationTick` (`0x004487F0`) to each
+tickable object. The manager keeps a pause counter (`+0x84`, `PauseAnimationSystem` `0x00447EE0`); while it is
+non-zero the per-target sweep is skipped (`0x004488C0`–`0x004488D6`), so no ticks are delivered. Separately the
+effects manager registers a callback with the tick manager in `Init` (`0x00594EEE`:
+`EnableAutoStep(1, EffectsTickCallback)` on the `cISC4AnimationTickManager` at `+0xCD8`), and
+`EffectsTickCallback` `0x0058D9A0` posts `0x697D01ED` (`DoEffectsTick`, §12) through the message server every
+time the animation tick manager steps. So the effects manager's own tick — and with it
+`UpdateActiveVisualEffects` → `ActivateNewVisualEffects` (§5.1) — runs **once per animation tick in any session
+that ticks**, not only in the draw pass. The tick manager's own `DoAnimationTick` is driven from outside the
+effects subsystem (the framework scheduler), which is why a paused game stops it and a ticking harness keeps it.
 
 ## 7. Finishing and the end message *[compat]*
 
@@ -263,6 +316,15 @@ no longer started, rule 1 applies to it from then on, so the end message is post
 - `0x00593120` has **no direct callers**: it is dispatched as a vtable slot at `0x00A9F25C`, the draw-pass
   override next to the `cISC4EffectsManager` vtable `0x00A9F264`.
 
+**Corrects / refines (re-specs21, [view3d.md](view3d.md) §8):** the chain above is right at function granularity;
+the *call sites* are `0x00593985` (`DeactivateUnusedVisualEffects`), `0x0059395B` (`DrawScreenFlashes`) and
+`0x0059397D` (`0x0058EC40`), all inside `Update`. `vftable_1` is installed at **`manager + 0x04`** (destructor
+`0x0058FA60`: `mov [esi+4], 0xA9F250`), so `Update`'s `this` is `manager + 4` and it recovers the manager with
+`lea ecx, [esi - 4]` (`0x00593958`, `0x0059397A`, `0x00593982`). **DIFFERS** on the return channel: `Update` ends
+`mov al, 1` (`0x00593997`) then `ret 4` (`0x0059399D`), so it returns **`al` = true**, not `eax-or-void`. Its one
+argument is an `SC4DrawContext*`. Whether the view's paint reaches it through `cSC43DRender`'s dynamic pass is
+still *[inferred]* (view3d.md §8, open item V3D-1).
+
 So a session that never draws the city never runs the finish test, never finishes an effect and never posts an
 end message. **Quirk 1 of §15 is proven, not inferred.** Consequence for the disasters: a volcano instance that
 never sees a draw-pass sweep stays in state 5 or 7 and its effect-disaster emergency pause never lifts. A
@@ -286,9 +348,15 @@ Table component types 3–15 additionally set runtime bit 1 (value 2). An implem
 |---|---|---|
 | brush (`0x00A9EDD0`) | the byte at `+0x24` | a one-shot on its first update (`0x005817F0`); a stroke when `t > length`; `Stop` `0x00581530` (also ends the long terrain operation) |
 | game (`0x00AA0FF8`) | the byte at `+0x25` | `Stop` `0x005BD340`; internally when `timer > duration`; a `single` record after its one `Apply` |
-| particles | the `started` byte at `+0x05` | **hard** `Stop(mode ≠ 0)`: immediately. **Soft** `Stop(0)`: only when the particle list is empty (`CheckForStop` `0x005B9D40`, run at the end of every update) |
+| particles | the `started` byte at `+0x05` | **soft** `Stop(0)`: delayed — the particles play out and `CheckForStop` `0x005B9D40` clears `started` when the live count `+0x14` reaches 0. **hard** `Stop(1)`/`Stop(2)`: immediately, particles destroyed. The emitter also **self-stops** when its emit budget is exhausted (§7.1) |
 | decal | the byte at `+0x08` | `Stop` `0x00581FF0`, **or self-stop** when its fade timer passes 1.0 and its mode byte `+0x15 == 2` (`Update` `0x00582920`) |
 | meta (nested effect) | the **child effect's `started`** byte at `+0x24` | when the draw pass finishes the child |
+
+**Corrects (re-specs20, audio.md §9.2):** this table has no **sound** row. A sound component's `IsActive` is
+the started byte at `+0x1C`, returned by the shared `0x00580B50`; it becomes false only when `Stop`
+(`0x005BE4A0`) is called, which is either the effect's `Stop` or the component's own `Update` self-stop at
+`elapsed > desc+0x18` when that length is non-zero. So **a sound component with `length == 0` that is not
+ignored pins its effect forever**. Add the row. **PARTLY** — the five rows present are correct.
 
 **Component type numbers and which of them count (from the shipped effect directory, 2026-10-16).** The
 description's `component_type` `u8` selects a description table, and `description_index` indexes it. Bit 0 of the
@@ -357,6 +425,72 @@ Object offsets used above (from the destructor `0x005C0550`, Start `0x005BE920`,
 `+0x24` `started`, `+0x25` `stopping`, `+0x28` flags, `+0x2C` / `+0x30` end message type and data1,
 `+0x114` / `+0x118` the runtime component array begin and end (stride 0x44), `+0x148` the "built" gate that
 makes `Start` and `Stop` no-ops when it is 0.
+
+**Corrects (re-integrate1): the flags are now measured, and the "ignore" bit is not where one might expect.**
+Over all **3373** shipped component records (`desc+0x10 & 3`: bit 0 = ignored by the finish test, bit 1 = render):
+
+| Kind | | `flags=0` | `flags=1` | `flags=2` | Counts in the finish test? |
+|---|---|---|---|---|---|
+| 0 | particles | 1821 | 0 | 100 | **yes** — all 1921 |
+| 1 | decal | 406 | 0 | 0 | **yes** |
+| 2 | meta (nested effect) | 591 | 0 | 0 | **yes** |
+| 3 | brush | 25 | 0 | 0 | **yes** |
+| 4 | attractor | 0 | 64 | 0 | no |
+| 5 | game | 0 | 56 | 0 | no |
+| 6 | sequence | 10 | 0 | 0 | **yes** |
+| 7 | sound | 4 | 299 | 0 | 4 count, 299 no (98.7% ignored) |
+| 8 | camera | 0 | 41 | 0 | no |
+| 16 | model | 3 | 0 | 0 | **yes** |
+
+So:
+
+- **Particles and decals are *not* ignored.** They carry `flags = 0` and are exactly the components that hold an
+  effect. The second bullet above is correct and is now *measured fact*, not a hedge.
+- **The ignore bit is set uniformly on game, attractor and camera components, and on 98.7% of sound.** "Game
+  components never keep an effect alive" is confirmed by measurement (56 of 56).
+- Bit 1 (render) is used on exactly the 100 particle components of `robot_attack_control`'s family.
+- The description field is `desc+0x10 & 1`; `0x00591730` copies it to **runtime `comp+0x40` bit 2 (value 4)**,
+  which is what `0x005BFD70` tests. Table types 3–15 additionally set runtime bit 1 (value 2). An implementer
+  must test the **runtime** bit, not the description bit.
+
+**Where the two passes of the effects report disagree** (marked, not silently resolved): the first pass reasoned
+that particle components *must* carry the ignore bit, because `cSCParticleSimulatorBase::started` is written
+only by `Start` `0x005B9CF0` and `Stop` `0x005B9E70` and so particles can never self-terminate — which would pin
+every effect forever. The second pass measured the shipped directory and found `flags = 0` on all 1921 particle
+components. **The measurement stands.** The tension is resolved by §7.1: the particle emitter *does* self-stop,
+from inside the draw-time emit path. See §16 EF1.
+
+### 7.1 The particle emitter's self-stop (EF1, re-answers34) *[compat]*
+
+The bytes alone settle EF1 without a runtime trace. Three facts, all from instruction bytes:
+
+1. **The delayed-stop protocol.** `cSCParticleSimulatorBase::Stop` `0x005B9E70` takes two mode bytes. With
+   `started` set: `+0x0C` := mode1, and if mode1 == 0 the stop is **immediate** (`started` := 0, `+0x0D` := 0,
+   every particle destroyed, the list cleared); if mode1 != 0 the stop is **delayed** (only `+0x0C` is set,
+   particles keep running). `cSC4ParticlesEffect::Stop` `0x005B21E0` stores its mode at `+0x18C` and calls the
+   base with `(mode == 0, 0)` — so **the component's `Stop(0)` is the delayed one and `Stop(1)` destroys at
+   once** (the reverse of the naming one might expect). `CheckForStop` `0x005B9D40` (called at the end of
+   every draw-time update `0x005B8540+0x23E`) returns true only when the live count `+0x14` is 0 *and* a
+   delayed stop was requested (`+0x0C` != 0); it then calls base `Stop(0,0)` — the immediate form — which
+   clears `started`, so `IsActive` goes false.
+2. **The emitter self-stops through the same `Stop(0)`.** The three per-class emitter paths are all reached
+   from the draw-time update (`0x005B8540` slot 9 → slot 15 of the main vtable `0x00AA0B88` → `0x005AA5D0`):
+   - `cSC4ParticlesEffect` (slot 15 `0x005AA5D0`): when its emit state says the last loop is done it calls
+     `Stop(0)` on itself at `0x00AA6D4`/`0x00AA6EB`.
+   - `cSC4ModelBasedParticlesEffect` (slot 15 of the `+4` sub-object vtable `0x00AA0E58` → `0x005B96E0`):
+     the description's flag bits pick one of three emitters — bit 2 (`0x04`) → `0x005B3CF0` (a plain
+     rate-integral emitter with **no** self-stop), otherwise bit 1 (`0x02`) → `0x005B8B50` (loop-budget
+     emitter: `+0x128` counts loops, compared with the description's `emit_loop_count` at `+0x18`; when the
+     budget is exhausted it calls `Stop(0)` at `0x005B8D67`), else `0x005B87B0` (duration-budget emitter:
+     when its accumulated duration runs out it calls `Stop(0)` at `0x005B8B29`).
+3. **The budget fields.** `emit_loop_count` is the particle description's `+0x18` (`u32`); the loop-interval
+   countdown is the effect's `+0x190`, seeded in `Start` `0x005B3000` from the description's `+0x20..+0x2C`
+   range. So every shipped volcano particle (all `emit_loop_count = 1`, `life` 3–20 s) emits one loop and
+   then delays its stop; the last particle death clears `started`; the finish test then passes.
+
+So `volcano_control`'s finish time stands as measured in §7: the **crater decal's 50 effect-seconds** binds,
+the particles end on their own loop budget (well before 50 s), the brush stroke ends at 2–4 s, and the meta
+parent needs one further draw-pass sweep. The wall-clock end depends only on the dilation of §6.
 
 ## 8. The brush effect *[compat]*
 
@@ -623,6 +757,28 @@ Flags 1 and 2 are the cause byte of demolition.md §4.9. `0x1301` and `0x1302` a
      - one game record (records 9–17, §9.4): demolish 5–10 cells, burn 10–14, both applied **once**, at the vent
        cell, on the first tick;
      - four sounds, smoke and fallout particles, and lava and crater decals.
+
+   **Measured component tree** (re-integrate1, from the shipped directory):
+
+   | Effect | Component | Kind | `flags` | Ignored? |
+   |---|---|---|---|---|
+   | `volcano_control` (367) | `volcanocreator1a`…`4b` (×8) | 2 meta | **0** | no |
+   | | `volcanocreator5` | 2 meta | **0** | no |
+   | | attractor idx 18 | 4 | **1** | **yes** |
+   | `volcanocreator1a` (358), 11 components | brush idx 2 | 3 | 0 | counts |
+   | | 4 × sound | 7 | 1 | ignored |
+   | | particles `volcano_smoke_small` (423), `volcano_fallout_up` (428) | 0 | **0** | **count** |
+   | | decals `glowing_lava_small` (128), `glowing_lava_small_water` (129), `craterdecal_small` (134) | 1 | **0** | **count** |
+   | | game idx 9 | 5 | 1 | ignored |
+   | `volcanocreator5` (366), 13 components | brush idx 10 | 3 | 0 | counts |
+   | | 4 × sound | 7 | 1 | ignored |
+   | | 4 particles (`volcano_smoke_large`, `volcano_fallout`, `volcano_fallout_up`, `volcano_fallout_wide`) | 0 | **0** | **count** |
+   | | 3 decals (`glowing_lava_large`, `glowing_lava_large_water`, `craterdecal_large`) | 1 | **0** | **count** |
+   | | game idx 17 | 5 | 1 | ignored |
+
+   Exactly one creator is built. Its meta component's `IsActive` is **the child effect's `started` byte** (the
+   `+0x08`-thunk at `0x005C04F0`), not the child's components' `IsActive`, so `volcano_control` cannot finish
+   before the child has been finished by a previous sweep — it waits for a **full extra sweep**.
 3. **Ending.** The volcano's `DoMessage` (`0x0057F6C0`) maps `0xCA493C1D` whose data1 is this instance to
    `SetState(7)`:
    - state 7 sets the end-requested flag (`+0x3E`);
@@ -634,6 +790,18 @@ Flags 1 and 2 are the cause byte of demolition.md §4.9. `0x1301` and `0x1302` a
    decal **50 s**, and those (with the 3–20 s particles) are what the finish test waits for. The parent then
    needs one further draw-pass sweep for its meta child. So `volcano_control` ends about **50 effect-seconds**
    after its creator starts (§7, EF1).
+   So the volcano's end is triggered by the effect **finishing** (§7). The deformation stroke is at least `length`
+   effect-seconds (2–4 s × dilation), and the particles and decals may hold the effect longer (EF1).
+
+   **Corrects (re-integrate1): the finish condition is now measured.** `volcano_control` finishes at the first
+   draw-pass sweep (`0x005922A0`) after (i) the chosen `volcanocreator*` child has itself been finished on a
+   previous sweep, and (ii) at that sweep that child's **brush** (`t > length`, 2.0–4.0 dilated effect-seconds),
+   its **2–4 particle components** and its **3 decal components** are all inactive. The attractor and the game
+   record never hold it (both `flags = 1`). **Completed (re-answers34, EF1, §7.1):** the particles do not hold
+   it long — every emitter self-stops through `Stop(0)` when its loop/duration budget is exhausted, and
+   `CheckForStop` then clears `started` when the last particle dies. The binding component is the **crater
+   decal's 50 s**, so `volcano_control` ends ~50 effect-seconds after its creator starts, plus one sweep for
+   the meta parent.
 4. **Shutdown.** The volcano's `Shutdown` (`0x0057F920`) stops the effect with `Stop(1)` and releases it.
 5. **A random start.** The volcano manager's argument-less `AttemptDisasterStart` (`0x0057F5A0`; Ghidra names it as
    a function of the effect-disaster manager) does the following:
@@ -686,11 +854,57 @@ instance's parameter 13 reached** — the control effect and its meta descendant
 runs through *particle-spawned* slaves, which get a different parameter 13 value (§16 EF3), so their `data1` is
 open.
 
-**The shipped control effects** (all priority 1, all components `[1, 6)`):
+**Corrects (re-integrate1): "data1 = the instance" holds only for slaves reached as *meta* children.** There is
+no single spawn API: each particle class builds a child effect name by concatenating its own base name with a
+fixed suffix (`FUN_0041E270` `0x0041E270`) and calls `CreateVisualEffect` (slot 7). The suffixes and their
+callers are `_slave` (`cSC4ModelBasedParticlesEffect::CreateParticle` `0x005AEF20`, per particle, and
+`cSC4DynamicParticleEffect::Start` `0x00585190`, once), `_death` (`DestroyParticle` `0x005AF390`), `_collide`
+(`cSC4DynamicParticleEffect::ApplyEffect` `0x00584890`), and `_terrain` / `_water` (`FUN_005B8290`, on impact).
+Parameter 13 reaches **game components only** (`cSC4Scrubber` slot 6 `0x005BC2B0` accepts index 13 and copies
+`*value` into `this+0x58`; decals only index 6; meta recurses via `0x005C0540`). Slaves spawned through the
+**particle** path get the particle's own `+0x26C` value (flag `+0x26B`), **not** the disaster instance. Only a
+slave reachable as a **meta component** of a control effect the instance started can post `data1 = the
+instance`. **Settled (re-answers34, EF6):** the instance's handler `0x00576E70` matches strictly on
+`data1 == instance`, so those particle-spawned slaves' location updates are dropped, not re-matched.
+**Amended (re-answers34, EF7):** "particle `SetVoidParams` accepts only index 7" is the *shared*
+`cSC4ParticlesEffect` handler `0x005B2200`; `cSC4ModelBasedParticlesEffect` overrides it with `0x005AC040`,
+which also accepts index 13 (into its own `+0x26F`/`+0x270` channel). Whether the location update matches on
+something other than `data1 == instance` is settled: it does not.
+
+**The shipped slave family** (measured: 1148 names in the name map):
+
+| Suffix | Count | Role | Examples (index) |
+|---|---|---|---|
+| `_slave` | **143** | per-particle / per-emitter companion | `robot_walkfx_slave`(368), `meteor_stuff_slave`(384), `tornadofx_slave`(399), `tsaurus_walkfx_slave`(455), `default_dynparticle_slave`(**1116**), `car_slave`(586), `helifire_slave`(993), `debriscorefx_slave`(197), `blimpycreatorfx_slave`(528), `fireworks_slave`(464) |
+| `_terrain` | **33** | impact on terrain | `meteor_stuff_terrain`(390), `earthquakefire_terrain`(402), `tankfire_terrain`(952), `rocket_explodefx_terrain`(590), `erodefx_terrain`(1076), `whalefire_terrain`(1034) |
+| `_water` | **20** | impact on water | `meteor_stuff_water`(396), `lava_meets_water`(353), `heliwake_water`(668), `whalefire_water`(1035) |
+| `_death` | **21** | on particle death | `robot_walkfx_death`(380), `robot_landfx_death`(381), `tsaurus_walkfx_death`(461), `bolt*fx_death`(409–415), `skydiverdeath_death`(1043) |
+| `_collide` | **3** | on collision | `p_train_collide`(1117), `p_train_toxic_collide`(1120), `p_vehicle_collide`(1114) |
+| `_control` | **6** | disaster control | `volcano_control`(367), `robot_attack_control`(382), `meteorstrike_control`(383), `tornado_control`(400), `ufo_control`(453), `tsaurus_attack_control`(463) |
+
+`default_dynparticle_slave` being a real shipped effect **confirms** the literal lookup string in
+`cSC4DynamicParticleEffect::AttachSlaveEffect` `0x005840E0`. Lightning has no `_control`, as the table above
+says. So `meteor_stuff_terrain` / `_water` / `_slave` share the base `meteor_stuff`, and `robot_walkfx_slave`
+has base `robot_walkfx` — the §10.2 guess below is now proven and generalised to five suffixes.
+
+Three named effects, measured:
+
+- **`meteor_stuff_terrain` (390)** — 8 components: particles `meteorhit` (450, `flags=0`), sound (144, ignored),
+  game idx 24 (`flags=1`, ignored), and 5 meta `meteorcrater_a`…`_e` in select group 1 weight 13107.
+- **`meteor_stuff_water` (396)** — decal `meteor_hit_water`, particles `meteor_splash_water`, game **idx 25**,
+  5 meta `meteorcraterwater_a`…`_e`.
+- **`meteor_stuff_slave` (384)** — 2 particles (`meteortrailburn`, `meteortrailsmoke`), 2 decals
+  (`meteor_shadow_terrain`, `meteor_shadow_water`), sound 143, game idx 23, camera 4.
+
+The game components in all three are `flags = 1` → ignored, so they never hold those effects alive; the meta
+craters do.
+
+**The shipped control effects** (all priority 1; the components that reach a brush or game record are `[1, 6)`,
+EF10):
 
 | Menu entry | `N_control` | Components | Damage (through particle-spawned "slave" effects *[inferred from the names; the particle descriptions are render data and were not traced]*) |
 |---|---|---|---|
-| Meteors | `meteorstrike_control` (383) | particles `meteorcore` | `meteor_stuff_terrain` / `_water`: game 24 / 25 and one of five crater brushes (select group, weights 13107 each; records 11–15 / 16–20, one-shot, 2 applications); `meteor_stuff_slave`: location |
+| Meteors | `meteorstrike_control` (383) | particles `meteorcore` | `meteor_stuff_terrain` / `_water`: game 24 / 25 and one of five crater brushes (select group, weights 13107 each; records 11–15 / 16–20, one-shot, 2 applications); `meteor_stuff_slave`: game 23 posts the location message, but its `data1` is not the instance (EF6) so the instance does **not** track it |
 | Tornado | `tornado_control` (400) | particles `tornado_core` | `tornadofx_slave`: game 26 (demolish 4, tornado location), attractor `tornado_disaster` |
 | RobotAttack | `robot_attack_control` (382) | particles `giant_robot_landing`, `giant_robot_walk`, `giant_robot_fire` | `robot_walkfx_slave` (18, 19), `robot_firefx_slave` (21), `robot_landfx_slave` (22), `shooting_platesfx_slave` (20) |
 | Truckasaurus | `tsaurus_attack_control` (463) | a sound, meta `tsaurusphase_in`, particles `tsaurus_phase_in`, `tsaurus_walk` × 7, `tsaurus_dies`, attractor `tank_repulser` | `tsaurus_walkfx_slave` (35, 36), `mouthfirefx_slave` (34) |
@@ -765,8 +979,14 @@ The known flag bits:
 
 ### 11.2 The effect component interface
 
-Three implementations:
+**Corrects (re-specs20, audio.md §9.1):** this list is incomplete. There are **five** implementations of
+this interface. The **sound component** (vtable `0x00AA1118`) is a fourth with the identical nine-slot shape
+— its slots 5 and 6 share the no-op `0x005BE2E0` with brush and game — and `cSC4CameraEffect` is a fifth
+with a *different* layout (description at `+0x10`, started byte at `+0x20` rather than the sound component's
+`+0x0C` / `+0x1C`). Full sound-component table in [audio.md](audio.md) §9.1. **PARTLY** — the three rows
+below are correct.
 
+Three implementations:
 | Implementation | Vtable |
 |---|---|
 | the visual effect itself, at `+4` | `0x00AA1148` |
@@ -814,14 +1034,16 @@ The proposed `docs/abi` rows are in `build-runs/re-specs16-rows.tsv` of this lan
 | `0x2A7B582D` kSC4MessageEffectDone | effect → effect-disaster instance | data1 = the instance |
 | `0x2A7B582E` kSC4MessageEffectLocation | game record → instance | data1 = the game component's `data` field (see the note), data2 / data3 = cell |
 | `0x0A36F1E9` kSC4MessageTornadoLocation | game record 26 → MySims | data2 / data3 = cell |
-| `0x0A36F1E8` kSC4MessageTornadoDead | tornado | the "dead" sibling of TornadoLocation; not yet traced |
+| `0x0A36F1E8` kSC4MessageTornadoDead | — | **dead ID** (re-answers34, EF8): the name-table entry at `0x00B08430` is its only reference; nothing posts it and nothing consumes it |
 
-**Note on `0x2A7B582E`'s data1 (EF3, re-answers29).** The message's `data1` is the game component's `data`
-field at `+0x58`, which is filled from parameter 13 when one arrives and otherwise from the description. The
-effect-disaster instance forwards parameter 13 = itself to the control effect and every meta descendant, but a
-slave spawned by a *particle* gets the particle's own `+0x26C` instead (§16 EF3). So `data1 = the instance`
-holds for game records inside the control effect and its meta children, and is **not established** for the
-particle-spawned slaves that the §10.2 table relies on. The instance's handler is `0x00576E70`.
+**Note on `0x2A7B582E`'s data1 (EF3, re-answers29; settled re-answers34, EF6).** The message's `data1` is the
+game component's `data` field at `+0x58`, which is filled from parameter 13 when one arrives and otherwise from
+the description. The effect-disaster instance forwards parameter 13 = itself to the control effect and every
+meta descendant, but a slave spawned by a *particle* gets the particle's own `+0x26C` instead (§16 EF3). The
+instance's handler `0x00576E70` requires `data1 == this − 0xC` (the instance pointer) for **both** message
+types before it acts (`0x00576E93`–`0x00576EBE`), so `data1 = the instance` holds for game records inside the
+control effect and its meta children, and a particle-spawned slave is simply ignored — its location updates
+are dropped. §10.2's damage table is unaffected (the damages do not depend on the location messages).
 
 Order within one tick: the effects in active-list order, the components in component order, and in each game
 component the actions in the order of §9.3. All posts are queued, so their receivers run after the tick.
@@ -854,37 +1076,67 @@ saves nothing).
    and therefore the emergency pause, forever. **Proven 2026-10-16 (re-answers29, EF2):** the finish test is
    unreachable by any other route, so this needs no runtime check. A replacement that must work without a 3D
    view has to run the sweep elsewhere or synthesise the end message.
+   depend on it. A harness that ticks the simulation but never runs the 3D view's draw pass keeps the
+   disaster, and therefore the emergency pause, forever. **This is now proven, not inferred** (re-integrate1;
+   EF2 can be closed): `0x005BFD70` has exactly one reference in the whole decomp, in
+   `cSC4EffectsManager::DeactivateUnusedVisualEffects` `0x005922A0` (`cSC4EffectsManager.c:1987`); that in turn
+   is referenced only from `cSC4EffectsManager::Update(SC4DrawContext*)` `0x00593120` (`:2993`), which has no
+   direct call sites and lives in a vtable slot at `0x00A9F25C`. The end-message post exists in exactly one
+   place, `0x005BFD70`. So a session that never runs the draw pass never runs the finish test, never finishes an
+   effect and never posts an end message. One residual *[inferred]*: that `0x00593120` is reached only from the
+   3D view's draw pass — a caller-side fact outside the effects manager — but it does not change the conclusion,
+   because the finish test is unreachable by any other route regardless. Test 10 asserts this.
 2. An effect whose name exists but whose priorities are all above the detail setting is created with index −1. It
    does nothing and never ends (§4.1).
-3. Effects keep running while the game is paused, with dilation 1 (§6).
+3. The game does not stop the *animation-tick manager* when the user pauses (there is no `PauseAnimationSystem`
+   call wired to the pause), so `kSC4MessageAnimationTick` keeps arriving while paused — but the dilation is
+   **0.0** while paused (§6), so `dt'` is 0 and every component update is a no-op: brushes make no progress and
+   timers do not advance. The earlier reading "dilation 1 while paused" was wrong (re-answers34); the effect of
+   a pause is the same as before (nothing advances) but the mechanism is the zero dilation, not a missing tick.
 4. The brush effect does not advance `prev` when either end is outside the city (§8.3).
 5. A `single` game record with a pause flag would leave the simulator paused (§9.2). No shipped record does this.
 6. The toxic amount of a game record is ignored (§9.3).
 7. Creating an effect consumes random draws even when it is never started (§14).
-8. Damage could depend on the zoom through the level-of-detail ranges (§5.2). With the shipped data it does not.
+8. Damage could depend on the zoom through the level-of-detail ranges (§5.2). **Amended (re-integrate1):** 840
+   of 3373 shipped components are *not* `[1, 6)`, so components do come and go with the zoom. What the shipped
+   data still supports is the narrower claim that everything reaching a brush or game record is `[1, 6)` — that
+   is the invariant worth asserting in tests.
+9. **Particle components are advanced only in the draw pass** (§7, re-integrate1). `cSC4ParticlesEffect`'s
+   component vtable is `0x00AA0B88`; slot 4 `+0x10` is `0x00648F10`, an **empty stub**, while slot 9 `+0x24` is
+   `0x005B8540` `Update(float, SC4DrawContext*)`, the draw-time update. So particles never advance, never die
+   and never clear `started` outside the draw pass — which is why quirk 1 bites twice over. Note also that
+   `FUN_005BEA10` is the **`+4`-subobject** component driver (`this` = `object+4`), so its `+0x110`/`+0x114`
+   reads are the effect's `+0x114`/`+0x118` component array — there are not two arrays.
+
+### 15.1 MATCHES / DIFFERS / PARTLY (re-integrate1)
+
+- **MATCHES** — the finish test's rules 1–3 of §7 (`0x005BFD70` returns 1 = done: `started == 0` or `index < 0`
+  at once with no message; `flags & 2` means never auto-stop; any non-ignored component still `IsActive` blocks
+  the finish; `flags & 0x80` without a soft stop blocks it; otherwise `Stop(1)` then a **queued** end message
+  through `0x00B43CCC`); §7's "Game components never do [keep an effect alive]" (measured 56 of 56);
+  §10.1's `volcano_control` composition (nine meta creators in one select group plus one attractor); §10.2's
+  guess at the slave naming rule, now proven and generalised to five suffixes; §3's `flags & 3` meaning.
+- **DIFFERS** — three, each corrected in place above: (1) **§3** — the record tables give *in-memory* sizes
+  (`0x38`, `0x6C`); on disk the component record is **variable-length** and nested inside the effect record;
+  (2) **§5.2** — "every component has the range `[1, 6)`" is false for **840 of 3373**; (3) **§10.2** — "data1 =
+  the instance" holds only for slaves reached as meta children, not for particle-spawned ones (§16 EF6).
+- **PARTLY** — §7's "An effect's lifetime also depends on its particles and decals (flag 0)" is now *measured
+  fact* (both carry `flags = 0` and both count), but the mechanism is asymmetric: decals self-stop, particles
+  have no self-stop path at all (§16 EF1). And the earlier reasoning that particles *must* be ignored is
+  superseded by the measurement — both readings are recorded in §7 rather than one being dropped.
+  **Amended (re-answers34): the asymmetry is gone — particles self-stop too, through the emit budget
+  (§7.1), so the "no self-stop path at all" half of this entry is obsolete.**
 
 ## 16. Open questions
 
 - ~~**EF1.** The exact finish time of `volcano_control` and of the disaster control effects. It depends on the
-  particle and decal components' `IsActive`, which are render objects. A runtime trace of `0x005BFD70` on a
-  volcano would settle it.~~ **ANSWERED 2026-10-16 (re-answers29), bounded.** `0x005BFD70` is the finish test
-  (§7): it reports done when `started`, index ≥ 0, the no-auto-stop bit is clear, every non-ignored component is
-  inactive, and either bit 7 is clear or a soft stop is in progress; it then `Stop(1)` and posts the end message.
-  Each component kind's `IsActive` is tabled in §7. For `volcano_control` (§10.1) the end time is:
-  - **not before** the chosen `volcanocreator*` child has itself been finished on an *earlier* sweep (its meta
-    component reports the child's `started` byte, so the parent waits one full extra draw-pass sweep);
-  - and, for that child, not before its **crater decal** expires at `life = 50` effect-seconds — see the
-    lifetime table in §7.
-
-  **Settled from the shipped effect directory (2026-10-16), so this is no longer open.** Particles and decals
-  are **not** ignored: the ignore bit is clear on every particle, decal, meta, brush and sequence component in
-  the data. They do not pin the effect because they are finite — every shipped volcano particle has
-  `emit_loop_count = 1` and a `life` of 3–20 s, and the decals live 45 s (lava) or 50 s (crater). The real end
-  time is therefore **~50 effect-seconds plus one draw-pass sweep**, not the 2–4 s brush stroke. §7 has the
-  component-type table and the per-component lifetimes.
-
-  What remains open is only the exact wall-clock second in a live session (the effect-seconds are dilated by
-  §6), which a runtime trace of `0x005BFD70` would give.
+  particle and decal components' `IsActive`, which are render objects.~~ **Bounded 2026-10-16 (re-answers29),
+  closed 2026-10-20 (re-answers34) — see the ANSWERED entry above.** The bound stands: particles are not
+  ignored (`flags = 0`), every shipped volcano particle has `emit_loop_count = 1` and a `life` of 3–20 s, the
+  decals live 45 s (lava) and 50 s (crater), and the end is **~50 effect-seconds plus one draw-pass sweep**.
+  What re-answers34 added is the mechanism (§7.1): the emitter self-stops through `Stop(0)` when its loop or
+  duration budget is exhausted, and `CheckForStop` converts that to an immediate stop when the last particle
+  dies — so a runtime trace of `0x005BFD70` is no longer needed.
 - ~~**EF2.** Confirm at runtime that a volcano never reaches state 7 when the city view does not draw (quirk 1).~~
   **ANSWERED 2026-10-16 (re-answers29): settled statically; no runtime run needed.** The finish test has exactly
   one caller (`0x005922A0`), which has exactly one caller (`0x00593120`), which has none — it is a draw-pass
@@ -916,7 +1168,9 @@ saves nothing).
     to every component's slot 6 `SetVoidParams`, and only the **game** component accepts index 13 (copying
     `*value` into its `data` field at `+0x58`, which becomes the message's `data1`). Brush and decal ignore it;
     dynamic particles take only 7, `0x10`, `0x11` and `0x12`; a **meta** component forwards it recursively into
-    the child's components.
+    the child's components. *(Amended re-answers34, EF7: the shared particle handler `0x005B2200` takes only 7,
+    but `cSC4ModelBasedParticlesEffect`'s override `0x005AC040` also takes 13 — into its own `+0x26F`/`+0x270`
+    channel, not into any game-like `data` field.)*
   - **The effect-disaster instance's value is the instance pointer.** `cSC4DisasterInstanceEffect::Init`
     `0x00577010` does, in order: `SetEndMessage(0x2A7B582D, this)`, `ForwardParameter(13, &this, 1)`,
     `Start(0)`, then subscribes to `0x2A7B582D` and `0x2A7B582E`. So parameter 13 **does** reach every game
@@ -938,15 +1192,145 @@ saves nothing).
   **DIFFERS from §10.2**, which assumed the location messages carry `data1 = the instance`. Statically `data1` is
   the game component's `data` field, which for a particle-spawned slave is the particle's `+0x26C` value. Either
   the location handler matches on something other than `data1 == instance`, or those slaves are reached as meta
-  children in some effects. **Open:** a runtime break on `0x005BD3C0` when `+0x30 == 0x2A7B582E`, comparing
-  `data1` with the instance, would settle it. Also open: the semantics of `+0x26B` / `+0x26C` / `+0x26F` /
-  `+0x270` on `cSC4ModelBasedParticlesEffect`, and the full shipped list of `_*` effects (needs
-  `SimCity_1.dat`).
-- **EF4.** The meaning of visual effect flag bits 0, 3, 6 and 8. An effect created while the draw pass sweeps
-  (`+0x1B4`, §5.1) stays on the new list until the next activation. When that next activation happens in a session
-  that only ticks is untested.
-- **EF5.** Whether a hidden pause counts as "paused" for the time dilation, which would make the 5 s and 15 s pauses
-  of §9.4 real-time seconds.
+  children in some effects. **Settled by EF6 below (re-answers34): the handler matches strictly on
+  `data1 == instance`, so the slaves are simply not tracked.** Also settled there: the semantics of `+0x26B` /
+  `+0x26C` / `+0x26F` / `+0x270` on `cSC4ModelBasedParticlesEffect` (EF7), and the full shipped list of `_*`
+  effects was enumerated by re-integrate1 (§10.2).
+- ~~**EF2.** Confirm at runtime that a volcano never reaches state 7 when the city view does not draw (quirk 1).~~
+  **CLOSED (re-integrate1), statically.** `0x005BFD70` is reachable only from `DeactivateUnusedVisualEffects`
+  `0x005922A0`, which is reachable only from the draw-pass override `0x00593120` (vtable `0x00A9F25C`); the end
+  message is posted in exactly one place. Quirk 1 is proven. Consequence: the volcano instance stuck in state
+  5/7 and the effect-disaster emergency pause **never lift** in a session that only ticks.
+- ~~**EF3.** The path by which particle systems spawn the "slave" effects, and whether the parameter 13
+  forwarded by the effect-disaster instance reaches them.~~ **ANSWERED (re-integrate1)** — §10.2 has the suffix
+  table, the callers and the measured census (143 / 33 / 20 / 21 / 3 / 6). Parameter 13 reaches **game
+  components only**; particle `SetVoidParams` `0x005B2200` accepts only index 7 and decals only index 6. The
+  shipped inventory is enumerated. **One sub-question is now open in its own right — EF6 below.**
+- ~~**EF1.** The exact finish time of `volcano_control` and of the disaster control effects.~~
+  **ANSWERED 2026-10-20 (re-answers34): MATCHES — statically, no runtime trace needed.** The particle emitter
+  *does* self-stop; the mechanism is §7.1. In short:
+  - `cSCParticleSimulatorBase::Stop` `0x005B9E70` takes two bytes: mode1 == 0 is an **immediate** stop
+    (`started` := 0, all particles destroyed), mode1 != 0 is **delayed** (`+0x0C` set, particles play out).
+    `cSC4ParticlesEffect::Stop` `0x005B21E0` maps its mode to `(mode == 0, 0)`, so the component's `Stop(0)`
+    is the delayed one.
+  - `CheckForStop` `0x005B9D40`, called at the end of every draw-time update, converts a delayed stop into an
+    immediate one when the live count `+0x14` reaches 0 — that is the moment `IsActive` goes false.
+  - The emitter self-stops through `Stop(0)` when its budget is exhausted: `cSC4ParticlesEffect` at
+    `0x00AA6D4`/`0x00AA6EB`; `cSC4ModelBasedParticlesEffect` via its `emit_loop_count` budget at `0x005B8D67`
+    or its duration budget at `0x005B8B29` (three emitter paths picked by the particle description's flag bits
+    2 and 1, §7.1).
+  - So every shipped volcano particle component ends on its own (`emit_loop_count = 1`), and the finish time of
+    `volcano_control` is the **crater decal's 50 effect-seconds** plus one draw-pass sweep for the meta parent —
+    the earlier bound is now exact. §7.1 has the mechanism; the wall-clock second needs only the dilation of §6.
+
+  (Supersedes the 2026-10-16 bound and the "no self-stop path" reading recorded in §7; the runtime trace probe
+  is no longer needed.)
+- ~~**EF4.** The meaning of visual effect flag bits 0, 3, 6 and 8, and when an effect created during a draw-pass
+  sweep is activated in a session that only ticks.~~ **ANSWERED 2026-10-20 (re-answers34): MATCHES (bits) /
+  settled (activation).**
+  - **Bits.** The 9-bit description flags are stored verbatim into the effect's `+0x28` (reader `0x005ABF50`
+    masks `& 0x1FF`; `TestFlag` slot 17 `0x005BFC90` reads them back). A complete byte-level scan of the
+    effects module (`0x0058D000`–`0x005C5000`) finds tests of exactly five bits on `+0x28`: bit 1 (finish test
+    `0x005BFD89`), bit 2 (hard stop, `0x005BEBB6`), bit 4 (slot 13 does not forward, `0x005BFC26`/`0x005C05E6`),
+    bit 5 (pick ray, `0x0058E6A7`), bit 7 (finish test `0x005BFDD2`). **Bits 0, 3, 6 and 8 have no consumer
+    anywhere in the module**: no `TEST AL,1`-style test of `+0x28` for those bits exists. They are stored and
+    observable through `TestFlag`, and their only plausible use is external/scripting. A replacement may accept
+    them and ignore them.
+  - **Activation.** `ActivateNewVisualEffects` `0x005921B0` is called from four places: both `CreateVisualEffect`
+    overloads (`0x00593AB0`, `0x00593B68`), the end of `DeactivateUnusedVisualEffects` (`0x00592A01`, the draw
+    pass), and `UpdateActiveVisualEffects` `0x00593B90`. The last one runs on `kSC4MessageDoEffectsTick`
+    `0x697D01ED` (from `DoMessage` `0x00594476`) and on zoom/render-property changes. `0x697D01ED` is posted by
+    `EffectsTickCallback` `0x0058D9A0`, which the manager registered with the animation-tick manager in `Init`
+    (`0x00594EEE`: `EnableAutoStep(1, 0x0058D9A0)`). So **in a session that only ticks, an effect created during
+    a draw-pass sweep is activated on the next animation tick** (when the sweep flag `+0x1B4` is clear), not only
+    on the next draw pass. §6.1.
+- ~~**EF5.** Whether a hidden pause counts as "paused" for the time dilation.~~
+  **ANSWERED 2026-10-20 (re-answers34): DIFFERS from the earlier dilation reading.** `GetAnimationTimeDilation`
+  `0x007026F0` consults, in order: `IsEmergencyPaused` (slot 17) → the paused value; the object at global
+  `0x00B43D44` (a city manager whose slot 13 is `cSC4AutomataManager::IsDrivingMode` `0x00506940` — true while
+  the U-Drive-It view `0x2B709676` is up) → the paused value; `IsPaused` (slot 15) → **0.0**; otherwise the
+  speed value. `IsHiddenPaused` (slot 16) is **never called**. So:
+  - a hidden pause does **not** change the dilation — the 5 s and 15 s hidden pauses of §9.4 run in
+    **effect-seconds dilated at the current speed**, not real-time seconds;
+  - the shipped values are 0.0 (paused), 1.0 (emergency pause, U-Drive-It driving, speed 0), 1.5 (speed 1),
+    2.0 (speed 2) — the earlier "1 while paused, 3 at speed 2" was wrong (§6, quirk 3 amended).
+  Note the harness consequence: a hidden pause does not slow or freeze effects, so those 5 s/15 s pauses elapse
+  faster than wall-clock when the sim runs at speed 1 or 2.
+- ~~**EF6.** What `data1` is on a `kSC4MessageEffectLocation` (`0x2A7B582E`) posted from a game record inside a
+  **particle-spawned** slave.~~ **ANSWERED 2026-10-20 (re-answers34): DIFFERS — the handler matches strictly on
+  `data1 == instance`, so particle-spawned slaves never update the instance's location.** The instance's
+  message handler (registered as the `cIGZMessageTarget2` sub-object slot at `0x00A9E254`, function
+  `0x00576E70`) does:
+  - type `0x2A7B582D` (`EffectDone`): reads the message's data1 (`[vt+0x24]` slot 9) and requires it to equal
+    `this − 0xC` — the instance pointer (`LEA ECX,[EDI−0xC]; CMP EAX,ECX` at `0x00576EB9`–`0x00576EBE`).
+  - type `0x2A7B582E` (`EffectLocation`, the `SUB EAX,0x2A7B582D; DEC EAX` path at `0x00576E86`): **the same
+    equality check first** (`0x00576E93`–`0x00576E95`); only when `data1 == instance` does it read data2/data3
+    (slots `+0x38`/`+0x4C`) into the instance's `+0x4`/`+0x8` and call the location setter at `[this−4] vt+0xC`.
+  So `cSC4Scrubber::Apply` `0x005BD3C0` (which posts `data1 = data (+0x58)`) only drives the instance when its
+  `data` is literally the instance — established only through parameter 13. A particle-spawned slave whose
+  `data` is the particle's `+0x26C` is ignored. §10.2's damage table stays correct (the damages do not depend
+  on the location messages); only the *tracking* of those slaves by the instance does not happen. The part of
+  §10.2's table that says "`meteor_stuff_slave`: location" holds only when that slave is reachable as a meta
+  child (it is not, per EF3) — so in practice the instance does not track tornado/meteor/robot walk slaves.
+- ~~**EF7.** The exact semantics of `cSC4ModelBasedParticlesEffect +0x26B / +0x26C` and `+0x26F / +0x270`.~~
+  **ANSWERED 2026-10-20 (re-answers34): MATCHES the five-byte split, with one correction — there *is* a
+  `SetVoidParams`.** From the bytes (`0x005AC510` ctor, `0x005AEC90` `SetDescription`, `0x005AC040`):
+  - **`+0x26B`** (`u8`): the *forward-parameter-13 gate*. Read twice, both before forwarding parameter 13 to a
+    freshly spawned slave effect: in `CreateParticle` `0x005AEF20` at `0x005AF02A` and in
+    `DestroyParticle` `0x005AF390` at `0x005AF8B7` — when it is non-zero the child gets
+    `ForwardParameter(13, &this+0x26C, 1)`. **Nothing in the effects module ever writes it** (a full ModRM/SIB
+    scan for writes to disp32 `0x26B` finds none; the ctor at `0x005AC510` initialises `+0x26C..+0x270` but not
+    `+0x26B`), so its value is whatever the pooled allocation held — effectively uninitialised *[quirk]*.
+    A replacement should treat it as an explicit, default-off "forward the parameter to slaves" switch.
+  - **`+0x26C`** (`u8`): a render latch, set by `SetDescription` (`0x005AEDEB`) to the return of
+    `cS3DModelProcessor::SetModel` — non-zero when the description's model was set. Read only in
+    `RenderActiveParticles` `0x005AE4A1`, where it gates `LightModel` and `DeformModel` for the effect.
+  - **`+0x26D`** (`u8`): "a `<base>_slave` effect exists" — `SetDescription` formats `%s_slave`
+    (`0x00AA0CD0`) and stores the `HasVisualEffect` result (`0x00AEE79`).
+  - **`+0x26E`** (`u8`): "a `<base>_death` effect exists" — `%s_death` (`0x00AA0CC4`), `0x00AEEF7`.
+  - **`+0x26F`** (`u8`) / **`+0x270`** (`u32`): the *parameter-13 channel for the chain hand-off*.
+    `SetVoidParams` **does exist on this class** — `0x005AC040` (slot 6 of the component vtable `0x00AA0C58`):
+    index 13 sets `+0x26F = 1` and `+0x270 = *value`; any other index falls through to the shared particles
+    handler `0x005B2200` (index 7 only). `HandOffParticleToChainSystem` `0x005AF060` reads `+0x26F` at
+    `0x005AF27C` and forwards `13, &this+0x270` to the new slave; `DestroyParticle` reads `+0x26B` and forwards
+    `13, &this+0x26C`.
+  So the two channels are: `+0x26C` holds the value forwarded on the *per-particle* paths, `+0x270` the value
+  forwarded on the *chain hand-off* path, and `+0x26B`/`+0x26F` are their respective enable bytes. §10.2's
+  "particle `SetVoidParams` accepts only index 7" needs the amendment: that is the *shared* `cSC4ParticlesEffect`
+  handler `0x005B2200`; the ModelBased override `0x005AC040` also accepts index 13.
+- ~~**EF8.** Who posts and who consumes `kSC4MessageTornadoDead` `0x0A36F1E8` and
+  `kSC4MessageMissionEffectStarted` `0x5F900DCC`.~~ **ANSWERED 2026-10-20 (re-answers34).**
+  - `kSC4MessageTornadoDead` `0x0A36F1E8`: the constant occurs **once** in the whole image — its name-table
+    entry at `0x00B08430`. Nothing posts it and nothing dispatches on it. It is a dead ID in this build (its
+    live sibling `kSC4MessageTornadoLocation` `0x0A36F1E9` is posted by the MySims handlers `0x0042E5DF` /
+    `0x0042EE8C` and consumed by `cSC4MySimAgentSimulator::DoMessage` `0x0042EFDC`). A replacement need not
+    implement it; keeping it out of the name table would change nothing observable.
+  - `kSC4MessageMissionEffectStarted` `0xCC0D905F` (the ID as stored in the table; the question's `0x5F900DCC`
+    is a transposed reading): **nobody posts it** either — the only references are
+    `cSC4CitySituationManager::Init` `0x0052DD20` (subscribe, message-server slot 6 `+0x14`),
+    `DoMessage` `0x0052EFEC` → handler at `0x0052F096`, and `Shutdown` `0x00527C58` (unsubscribe, slot 6
+    `+0x18`). The handler checks `[this+0x9F0]`, calls its slot 15 `+0x3C` and, when that returns true, stores
+    the message's sender (`[vt+0x80]`) into the `cRZAutoRefCount<cIGZWin>` at `+0xA98` (`0x0052F0B9`–
+    `0x0052F0C0`) — i.e. it binds the sender window for a city situation, but in this build nothing ever sends
+    the message. Both are latent hooks, not live traffic.
+- ~~**EF9.** Where the message names for `0x86AD10EE` and `0x697D01ED` live.~~
+  **ANSWERED 2026-10-20 (re-answers34): DIFFERS from the "115 pairs" reading.** There is only **one** message
+  name table and it is larger than thought: it spans `0x00B07FD8`–`0x00B08FE0` (**513** `{u32 id, const char*}`
+  pairs, every one resolving to a printable name), not the 115 pairs at `0x00B08360` (that address is simply a
+  position inside the same table — `kSC4MessageMouseScrollBegin` sits there). `kSC4MessageAnimationTick`
+  `0x86AD10EE` is entry `0x00B08250` (name string `kSC4MessageAnimationTick` at `0x00A8C06C`; its sibling
+  `0x86AD10EF` "kSC4MessageAnimationTickPriority" is `0x00B08258`). `kSC4MessageDoEffectsTick`-style name for
+  `0x697D01ED` **does not exist**: the ID appears in exactly four places (`0x0058D9CA` the posting callback,
+  `0x0059446C`/`0x00594DA5` the dispatch and subscribe in the effects manager) and no name-table entry and no
+  name string anywhere in the image. So `0x697D01ED` is an unnamed internal message. §12 amended.
+- ~~**EF10.** Whether "every component that reaches a brush or game record is `[1, 6)`" holds per effect (§5.2).~~
+  **ANSWERED 2026-10-20 (re-answers34): MATCHES — measured on the shipped directory.** The assertion in
+  `engine/formats/tests/effects_directory.rs` (`effects_directory_sweep`) was run against the installed game
+  (`FC4_GAME_DIR` = the GOG install; `SimCity_1.dat`, 1,094,484 bytes, root version 4). Output:
+  `effects_directory: 72 effects reach a brush or game record, all through [1, 6) components; 887 other
+  components have another range`. So the narrower claim holds for all **72** effects that reach a brush or game
+  record, and the remaining **887** non-`[1, 6)` components are all outside those reach sets (render-only).
+  §5.2 and quirk 8 stand as written; test 14 has its measured counterpart.
 
 ## 17. Conformance tests (must exist in `engine/conformance` if the manager or the brush effect is replaced)
 
@@ -992,3 +1376,135 @@ saves nothing).
    posts its end message.
 10. **No end without the draw pass.** Start `volcano_control` with an end message, then tick past its brush length
     without calling the draw pass. No end message may be posted.
+11. **The finish rule** (§7, re-integrate1). Effect E finishes at the first draw-pass sweep at which `E.started`
+    is true and `E.index ≥ 0`, `E.flags & 2` is clear, every runtime component `c` with `(c.flags & 4) == 0` has
+    `c.IsActive()` false, and `E.flags & 0x80` is clear or `E.stopping` is true. At that moment `Stop(1)` is
+    called and, if `endMessageType != 0`, one **queued** `cRZMessage2Standard` is posted with
+    `type = endMessageType`, `data1 = endMessageData1`. `E.started` then becomes 0, so it never posts twice. A
+    done effect with refcount 1 is recycled (`name`/IDs reset, `index = −1`); one still referenced stays on the
+    active list.
+12. **The description bit is not the tested bit** (§7, re-integrate1). A component with `desc+0x10 & 1` set is
+    built with runtime `comp+0x40` bit 2 (value 4) set and is skipped by the finish test; one with it clear is
+    built with bit 2 clear and blocks the finish while it is active. Table types 3–15 additionally get runtime
+    bit 1 (value 2).
+13. **Shipped flag census** (§7, re-integrate1). Parsing the shipped effect directory gives `flags = 0` on all
+    1821 + 100 particle, 406 decal, 591 meta, 25 brush, 10 sequence and 3 model components, and `flags = 1` on
+    all 64 attractor, 56 game, 41 camera and 299 sound components (4 sound components have `flags = 0`).
+14. **LOD ranges are not uniform** (§5.2, re-integrate1). The shipped directory has 3373 components of which
+    2533 are `[1, 6)` and 840 are not. Every component that reaches a brush or game record, directly or through
+    meta, must still be `[1, 6)`.
+15. **`volcano_control` end condition** (§10.1, re-integrate1). The effect finishes only after the chosen
+    `volcanocreator*` child has finished on a previous sweep **and** that child's brush, particle and decal
+    components are all inactive on this one. The attractor and the game record never hold it.
+16. **The particle emitter self-stops** (§7.1, re-answers34). A `cSC4ParticlesEffect` or
+    `cSC4ModelBasedParticlesEffect` component started with `Start(0)` reaches inactive on its own: its emitter
+    calls `Stop(0)` on itself when the loop or duration budget is exhausted (`0x00AA6D4`, `0x005B8D67`,
+    `0x005B8B29`), the delayed stop (`+0x0C`) is converted by `CheckForStop` `0x005B9D40` to an immediate stop
+    once the live count `+0x14` is 0, and only then does `IsActive` return false. A hard `Stop(1)` destroys the
+    particles at once. No other path clears `started`.
+17. **The dilation table** (§6, re-answers34). With the shipped simulator: paused → 0.0; emergency-paused or
+    U-Drive-It driving → 1.0; speed 0 → 1.0; speed 1 → 1.5; speed 2 → 2.0. A hidden pause changes nothing.
+    (`dt' = trunc(µs × dilation)`; at dilation 0 the component updates still run, with `dt = 0`.)
+
+## 18. The manager's interface sub-objects *[compat]*
+
+**Answer to glue22 question 9** (`enable = effects` faults `ACCESS_VIOLATION` writing `0x4D` at a wild `eip`
+about 100 ms after `Init` returns, with `eax = esi = ebp = 0`, `edi = 0x0.....801E`, and no method of the
+replacement entered). Verdict: **DIFFERS** from the replacement's current shape. The original
+`cSC4EffectsManager` is **not** one interface; it is six C++ sub-objects with their own vptrs, and the game
+holds two of them by *offset*, not by the primary pointer. The change to make is in §18.4.
+
+### 18.1 The sub-object map
+
+The constructor/destructor of `cSC4EffectsManager` (`0x0058FA60`) stores every vptr, which fixes the layout
+exactly:
+
+```c
+this->field0_0x0    = vftable;             // 0x00A9F264
+this->field1_0x4    = vftable_1;           // 0x00A9F250
+this->field2_0x8    = &PTR_FUN_00a9f240;   // 0x00A9F240
+this->field3_0xc    = &PTR_FUN_00a9f210;   // 0x00A9F210
+this->field4_0x10   = vftable_4;           // 0x00A9F1F8
+this->field133_0x94 = (int)vftable_5;      // 0x00A9F198
+```
+
+The Mac build agrees independently: `cSC4EffectsManager` has exactly five non-virtual thunks, and the
+`__ZThnN_` adjustment in each mangled name is the sub-object offset (`__ZThn4_`, `__ZThn8_`, `__ZThn12_`,
+`__ZThn16_`, `__ZThn148_` — i.e. +4, +8, +12, +16, +148 = `0x4`, `0x8`, `0xC`, `0x10`, `0x94`).
+
+| Offset | Windows vtable | Slots | Methods on that sub-object (Mac thunks) | Interface |
+|---|---|---|---|---|
+| **`+0x00`** | `0x00A9F264` | 12 | the §11 `cISC4EffectsManager` slot table | `cISC4EffectsManager`, IID `0xC97CF5CD` |
+| **`+0x04`** | `0x00A9F250` | 5 | QI, AddRef, Release, `Update(SC4DrawContext*)`, `Pick(cS3DVector3 const&, cS3DVector3 const&, SC4DrawContext*, float*)` | the draw-pass / pick interface |
+| **`+0x08`** | `0x00A9F240` | 4 | QI, AddRef, Release, **`DoMessage(cIGZMessage2*)`** | **`cIGZMessageTarget2`, IID `0x452294AA`** |
+| **`+0x0C`** | `0x00A9F210` | 12 | QI, AddRef, Release, D0, D1, … | unnamed base *[inferred]* |
+| **`+0x10`** | `0x00A9F1F8` | 6 | QI, AddRef, Release, D0, D1, … | unnamed base *[inferred]* |
+| **`+0x94`** | `0x00A9F198` | 24 | QI, AddRef, Release, **`BeginCollection`**, **`EndCollection`** | the effects-collection interface, IID `0xC97CF5CE` |
+
+`DoMessage` is `0x00594120`, which is slot 3 of the `+0x08` vtable `0x00A9F240` — that is how the `+0x08`
+identity is pinned. The draw-pass `Update(SC4DrawContext*)` (`0x00593120`, §7) is slot 3 of `0x00A9F250`, so
+the draw-pass sub-object is **`+0x04`** and the `+4` experiment had the right offset.
+
+### 18.2 What `QueryInterface` hands out
+
+`cSC4EffectsManager::QueryInterface` is `0x0058D9E0`. It returns a **sub-object pointer**, never the primary,
+for two IIDs:
+
+| `riid` | returned | sub-object |
+|---|---|---|
+| `0xC97CF5CD` | `this` | `+0x00` |
+| `1` (`GZIID_cIGZUnknown`) | `this` | `+0x00` |
+| **`0x452294AA`** | **`this + 8`** | **`+0x08`** (`cIGZMessageTarget2`) |
+| **`0xC97CF5CE`** | **`this + 0x94`** | **`+0x94`** (collection) |
+| `0x0A5EAA1A` | forwarded to the object at `this + 0xD98` | a nested object, not a base |
+
+Any other IID returns 0 with the out pointer left alone. Note the same IID/CLSID confusion that broke the
+automata classes (automata §15): the two "extra" IIDs here are **interface** IIDs, and the primary pointer is
+only correct for `1` and `0xC97CF5CD`.
+
+### 18.3 Why the replacement faults the way it does
+
+The message service (`0x00B43CCC`) takes a `cIGZMessageTarget2*` and later dispatches to it. The original
+hands out `this + 8`. A replacement that is only as big as one interface has **nothing at `+0x08`**, so a
+target pointer formed the way the original forms it points just past the object; fetching `*(obj + 8)` as a
+vptr yields adjacent heap, the call jumps to whatever that contains (the observed `eip = 0x0.....8023`,
+"no module"), and the garbage instruction faults on a write to `0x4D`. That also explains why **no method of
+the replacement is entered after `Init`** and why `AddNotification` still returns normally: the subscription
+succeeds and only the later dispatch goes wrong. The `+4` draw-pass sub-object does not help because the
+dispatch is on `+0x08`, not `+0x04`, and `Update` is never reached before the fault
+*[inferred — the exact call site of the dispatch was not traced]*.
+
+The stack frame `SimCity 4.exe+0x5BF36` in the crash report is the return address of `call [edx+0x0C]` at
+`0x45BF33` in `FUN_0045bd20` (the city's Init loop), i.e. the `Init` of the component at `cSC4City + 0x12C`
+(`CreateObject(0x098F964D, 0xC6BB8334, …)`, `decomp/cSC4City.c:1999`), which runs **after** the effects
+manager's own `Init` (`0x45BF12`, next instruction `0x45BF15`). So the fault is during a later component's
+`Init`, not inside `cFC4EffectsManager::Init` — consistent with a dispatch that arrives after our `Init`
+returned.
+
+### 18.4 The change to make
+
+Do **not** ship a single-interface object. Either
+
+1. **Lay out all six sub-objects at exactly `+0x00`, `+0x04`, `+0x08`, `+0x0C`, `+0x10`, `+0x94`** and put the
+   matching vtable at each, with `QueryInterface` returning `this`, `this+8` and `this+0x94` for
+   `0xC97CF5CD`/`1`, `0x452294AA` and `0xC97CF5CE` respectively (§18.2); or
+2. keep the object small but make every `QueryInterface` answer return a sub-object that **actually exists**
+   at the offset the caller will use, and never return `this + N` for an `N` past the end of the object.
+
+At minimum the object must be large enough to hold `+0x94`, since that is a real sub-object the original
+returns from `QueryInterface`, and it must expose `cIGZMessageTarget2` at `+0x08` with `DoMessage` at that
+sub-object's slot 3. Return the **sub-object** pointer for those IIDs, not the primary — the same rule as
+automata §15.
+
+State the original keeps at `+0x1B4`, `+0x1B8`, `+0x1BC`, `+0x1C0`, `+0xB90`, `+0xBAC`, `+0xC84`, `+0xC8C`,
+`+0xD64` and `+0xD98` (§2 and §18.2) is inside the primary object and must exist at those offsets too if the
+replacement is to survive the game's own direct field access.
+
+### 18.5 Still open
+
+- The interface identities of the `+0x0C` and `+0x10` bases (12 and 6 slots, both with `D0`/`D1`) are
+  *[inferred]* to be internal bases: neither is returned by `QueryInterface` (`0x0058D9E0` handles only
+  `0xC97CF5CD`, `1`, `0x452294AA`, `0xC97CF5CE` and `0x0A5EAA1A`).
+- The exact dispatch site that reaches `+0x08` before the first draw needs a runtime probe: log every call
+  into the replacement after `Init` together with `this` and `this+8`, or break on `cIGZMessageTarget2`'s
+  `DoMessage` in the original and record the caller.

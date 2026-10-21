@@ -437,19 +437,12 @@ fn registration_signs_and_triggers() {
     }
 }
 
-/// The save sweep (`save_sweep_tests.rs`): `rec` read into a fresh developer
-/// and written again. The record's references are held as tokens, so no other
-/// record of the save is needed (foundations §2.7).
-///
-/// `Write` always emits version 5 (prop-developer.md §7), so a corpus version-4
-/// record (a shipped template: 122 bytes, stopping after the power list) comes
-/// back 5 bytes longer with `signsVisible` defaulting to 1 and an empty sign
-/// list. The sweep's `prop_developer_expected` encodes that; a version-5 record
-/// must round-trip byte for byte.
+/// The save sweep (`prop_city_sweep_tests.rs`): `rec` read into a fresh
+/// developer (Read before Init, §7) and written again.
 pub(super) fn sweep_round_trip(rec: &[u8]) -> Result<Vec<u8>, String> {
     let g = Game::new();
     unsafe {
-        let p = fc4_prop_developer_create(&host(&g), 0x89C4_8F47, 0xD1);
+        let p = fc4_prop_developer_create(&host(&g), 1, 0x7000);
         if p.is_null() {
             return Err("create failed".into());
         }

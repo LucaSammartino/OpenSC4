@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "name": "po11_10_orientation",
+  "spec": [
+    "prop-occupant 5.2",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 10. SetOrientation(3) then GetOrientation() returns 3, and field 5 of the save record is 3. SetOrientation clamps into 0..3, so a caller cannot store 4 or a negative value; the clamped value is what GetOrientation reports. The channel is al, always 1.",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "set_orientation",
+      "args": [
+        3
+      ],
+      "expect": true
+    },
+    {
+      "op": "po_call",
+      "method": "get_orientation",
+      "expect": 3
+    },
+    {
+      "op": "po_call",
+      "method": "set_orientation",
+      "args": [
+        4
+      ],
+      "expect": true
+    },
+    {
+      "op": "po_call",
+      "method": "get_orientation",
+      "expect": 3
+    },
+    {
+      "op": "po_call",
+      "method": "set_orientation",
+      "args": [
+        -1
+      ],
+      "expect": true
+    },
+    {
+      "op": "po_call",
+      "method": "get_orientation",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "slot_channel",
+      "args": [
+        10
+      ],
+      "expect": "al"
+    },
+    {
+      "op": "po_call",
+      "method": "set_orientation",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "orientation": 2
+      }
+    }
+  ]
+}

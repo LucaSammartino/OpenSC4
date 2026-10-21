@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "demolition_power_pole",
+  "spec": ["demolition 4.3", "demolition 4.4", "demolition 12.10"],
+  "description": "Demolishing a pole sends 0xAA7A014D once before the removal, breaks its connections and shuts it down; a neighbour left without connections (an orphan) is removed in the same DemolishRegion call; the 'demolished' set gets both. A dry run sends nothing. Called directly with a caller list, the orphan is appended to that list instead. An occupant of the pole type without the pole interface is refused.",
+  "steps": [
+    {"op": "demolition_create"},
+    {"op": "demolition_init", "expect": true},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_occupant", "occupant": "0x20", "type": "pole", "cell": [3, 3], "cost": 10, "connections": ["0x21", "0x22"]},
+    {"op": "demolition_occupant", "occupant": "0x21", "type": "pole", "cell": [9, 9], "connections": ["0x20"]},
+    {"op": "demolition_occupant", "occupant": "0x22", "type": "pole", "cell": [9, 10], "connections": ["0x20", "0x23"]},
+    {"op": "demolition_occupant", "occupant": "0x23", "type": "pole", "cell": [9, 11], "connections": ["0x22"]},
+    {"op": "demolition_region", "do_it": true, "rect": [3, 3, 3, 3], "privilege": 1, "flags": 0, "demolished": "0x5E7", "expect": {"ok": true, "cost": 10}},
+    {"op": "demolition_expect_events", "events": [{"event": "pre_demolish", "occupant": "0x20"}, {"event": "remove", "occupant": "0x20", "flag": false}, {"event": "break", "pole": "0x20"}, {"event": "shutdown", "occupant": "0x20"}, {"event": "insert", "set": "0x5E7", "occupant": "0x20"}, {"event": "queue", "on": true}, {"event": "insert", "set": "0x5E7", "occupant": "0x21"}, {"event": "pre_demolish", "occupant": "0x21"}, {"event": "remove", "occupant": "0x21", "flag": true}, {"event": "queue", "on": false}]},
+    {"op": "demolition_occupant", "occupant": "0x24", "type": "pole", "cell": [30, 30]},
+    {"op": "demolition_demolish_occupant", "do_it": false, "occupant": "0x24", "privilege": 1, "flags": 1, "orphans": "0x1157", "expect": {"ok": true, "cost": 0}},
+    {"op": "demolition_expect_events", "events": []},
+    {"op": "demolition_occupant", "occupant": "0x25", "type": "pole", "cell": [31, 31], "connections": ["0x26"]},
+    {"op": "demolition_occupant", "occupant": "0x26", "type": "pole", "cell": [32, 31], "connections": ["0x25"]},
+    {"op": "demolition_demolish_occupant", "do_it": true, "occupant": "0x25", "privilege": 1, "flags": 1, "orphans": "0x1157", "expect": {"ok": true, "cost": 0}},
+    {"op": "demolition_expect_events", "events": [{"event": "pre_demolish", "occupant": "0x25"}, {"event": "remove", "occupant": "0x25", "flag": false}, {"event": "break", "pole": "0x25"}, {"event": "shutdown", "occupant": "0x25"}, {"event": "append", "list": "0x1157", "occupant": "0x26"}]},
+    {"op": "demolition_occupant", "occupant": "0x27", "type": "pole", "cell": [33, 33], "pole": false},
+    {"op": "demolition_demolish_occupant", "do_it": true, "occupant": "0x27", "privilege": 1, "flags": 1, "expect": {"ok": false, "cost": 0}}
+  ]
+}

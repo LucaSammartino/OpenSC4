@@ -619,7 +619,9 @@ impl OccupantManager {
     // ---- cell helpers (§6) ----
 
     /// Slot 25 `IsCellEmpty(x, z)` (§6.1): world cells; true outside the
-    /// grid, for a null cell or an empty list. [choice] Takes the lock.
+    /// grid, for a null cell or an empty list. The original takes no lock
+    /// (OM8); [choice] the core takes it (the grid's `RefCell` is touched
+    /// only under the lock; OM8: same thread, no callbacks, not observable).
     pub fn is_cell_empty(&self, x: i32, z: i32) -> bool {
         let _g = self.lock();
         self.cell_nodes(x, z).map_or(true, |l| l.is_empty())
@@ -801,9 +803,11 @@ impl OccupantManager {
         self.first_by_standard_cell(x, z, Filter::Type(occ_type))
     }
 
-    /// Slot 34 `GetFirstOccupantByStandardCityCells(min, max, filter)`:
-    /// standard cells clamped to the standard counts ([question OM5]:
-    /// `0..=count`); null min = (0, 0), null max = (count, count).
+    /// Slot 34 `GetFirstOccupantByStandardCityCells(min, max, filter)` (§7,
+    /// OM5): a non-null corner is clamped to `0..=count − 1` on each axis;
+    /// null min = (0, 0), null max = **(count, count)**, unclamped (one cell
+    /// past the city edge, as slot 40: §15 quirk 17). The box's world cells
+    /// (slot 15 of the corners, not clamped) are walked x outer, z inner.
     pub fn first_by_standard_cells(
         &self,
         min: Option<(i32, i32)>,
@@ -814,11 +818,7 @@ impl OccupantManager {
         if !self.is_initialized() {
             return None;
         }
-        let (cx, cz) = self.standard_cell_count();
-        let clamp = |p: (i32, i32)| (p.0.clamp(0, cx.max(0)), p.1.clamp(0, cz.max(0)));
-        let min = min.map_or((0, 0), clamp);
-        let max = max.map_or((cx, cz), clamp);
-        let (qmin, qmax) = Self::standard_box(min, max);
+        let (qmin, qmax) = self.standard_cells_box(min, max);
         self.first_in_standard_box(qmin, qmax, filter)
     }
 
@@ -974,9 +974,9 @@ impl OccupantManager {
         self.occupants_by_cells(list, min, max, f, max_count)
     }
 
-    /// The box of slots 40 and 47 (§8.4): min null → (0, 0), else clamped
-    /// to 0…count − 1; max null → **(count, count)** (§15 quirk 8), else
-    /// clamped to 0…count − 1; y open.
+    /// The box of slots 34, 40 and 47 (§7, §8.4): min null → (0, 0), else
+    /// clamped to 0…count − 1; max null → **(count, count)** (§15 quirks 8
+    /// and 17), else clamped to 0…count − 1; y open.
     fn standard_cells_box(&self, min: Option<(i32, i32)>, max: Option<(i32, i32)>) -> (Vec3, Vec3) {
         let (cx, cz) = self.standard_cell_count();
         let clamp = |p: (i32, i32)| {
@@ -1059,19 +1059,27 @@ impl OccupantManager {
                     }
                 }
                 drop(g);
-                let mut go = true;
-                for o in batch {
-                    if go {
-                        go = f(o);
-                    }
-                    h.release(o);
-                }
-                if !go {
+                if !self.run_batch(f, batch) {
                     return true;
                 }
             }
         }
         true
+    }
+
+    /// The callbacks of one batch (§9.1 step 5.4, §9.2 steps 3.4 and 4.4):
+    /// `f` for each occupant while it keeps returning true; every occupant
+    /// is released (the batch's reference) whether it was called or not.
+    /// False when `f` stopped the walk.
+    fn run_batch(&self, f: &mut dyn FnMut(u64) -> bool, batch: Vec<u64>) -> bool {
+        let mut go = true;
+        for o in batch {
+            if go {
+                go = f(o);
+            }
+            self.host.release(o);
+        }
+        go
     }
 
     /// Slot 43: the typed thunk of slot 42 (not initialised: false; type 0
@@ -1084,12 +1092,25 @@ impl OccupantManager {
         self.iterate_by_bbox(f, min, max, filter)
     }
 
-    /// Slot 44 `IterateOccupants(fn, data, min, max, filter)` (§9.2): `min`
-    /// and `max` are three-int vectors (x = element 0, z = element 2;
+    /// Slot 44 `IterateOccupants(fn, data, min, max, filter)` (§9.2, OM7):
+    /// `min` and `max` are three-int vectors (x = element 0, z = element 2;
     /// element 1 is ignored, §15 quirk 9), world cells, inclusive, clamped;
-    /// null = the city's cells. Filter and duplicate check, no geometry.
-    /// The lock is held for the whole walk, callbacks included. True,
-    /// initialised or not (an uninitialised grid has no cells).
+    /// null = the city's cells. No geometry test.
+    ///
+    /// The **outer** lock is held for the whole walk, callbacks included.
+    /// Each cell is collected under an **inner** hold into a batch (each
+    /// match AddRef'd), the inner hold is dropped, then the callbacks run
+    /// (slot 42's structure, inside the outer lock). A callback may
+    /// therefore insert, remove or move occupants, including the one it was
+    /// given (the batch holds a reference); changes to cells not yet visited
+    /// are seen by the walk.
+    /// - Single-cell walk (min cell == max cell): every node passing the
+    ///   filter, in list order, with **no** duplicate check.
+    /// - Multi-cell walk, x outer, z inner: per node the duplicate check
+    ///   against a local set, skipped for single-cell (bit-0) nodes, then the
+    ///   filter.
+    ///
+    /// True, initialised or not; an uninitialised manager walks no cells.
     pub fn iterate(
         &self,
         f: &mut dyn FnMut(u64) -> bool,
@@ -1097,13 +1118,21 @@ impl OccupantManager {
         max: Option<[i32; 3]>,
         filter: Filter,
     ) -> bool {
-        let _g = self.lock();
+        let _outer = self.lock();
+        if !self.is_initialized() {
+            return true;
+        }
         let ((x0, z0), (x1, z1)) = self.city_cells(min.map(|v| (v[0], v[2])), max.map(|v| (v[0], v[2])));
+        if (x0, z0) == (x1, z1) {
+            let batch = self.batch_of(x0, z0, filter, None);
+            self.run_batch(f, batch);
+            return true;
+        }
         let mut seen = HashSet::new();
         for x in x0..=x1 {
             for z in z0..=z1 {
-                let _inner = self.lock();
-                if !self.walk_cell(x, z, f, filter, &mut seen) {
+                let batch = self.batch_of(x, z, filter, Some(&mut seen));
+                if !self.run_batch(f, batch) {
                     return true;
                 }
             }
@@ -1111,46 +1140,25 @@ impl OccupantManager {
         true
     }
 
-    /// One cell of slot 44, walked live: the callback may change the cell.
-    /// False when the callback stopped the walk.
-    fn walk_cell(
-        &self,
-        x: i32,
-        z: i32,
-        f: &mut dyn FnMut(u64) -> bool,
-        filter: Filter,
-        seen: &mut HashSet<u64>,
-    ) -> bool {
-        let mut i = 0usize;
-        loop {
-            let node = {
-                let s = self.s.borrow();
-                Self::index(&s.grid, x, z).and_then(|(xu, zu)| s.grid[xu][zu].as_ref()?.get(i).copied())
-            };
-            let Some(n) = node else {
-                return true;
-            };
-            let fresh = n.single || seen.insert(n.occupant);
-            if fresh && self.includes(filter, n.occupant) && !f(n.occupant) {
-                return false;
+    /// One cell's batch of slot 44 (§9.2 steps 3.1–3.3 and 4.1–4.3), under
+    /// the inner hold: in list order, the duplicate check against `seen`
+    /// when given (skipped for bit-0 nodes), then the filter; each match
+    /// AddRef'd.
+    fn batch_of(&self, x: i32, z: i32, filter: Filter, mut seen: Option<&mut HashSet<u64>>) -> Vec<u64> {
+        let _inner = self.lock();
+        let mut batch = Vec::new();
+        for n in self.cell_nodes(x, z).unwrap_or_default() {
+            if let Some(seen) = seen.as_deref_mut() {
+                if !n.single && !seen.insert(n.occupant) {
+                    continue;
+                }
             }
-            // The next node: after the visited one wherever it now is;
-            // [choice] the one that took its place if it was unlinked.
-            let s = self.s.borrow();
-            let pos = Self::index(&s.grid, x, z)
-                .and_then(|(xu, zu)| s.grid[xu][zu].as_ref())
-                .and_then(|l| {
-                    if l.get(i).is_some_and(|m| m.occupant == n.occupant) {
-                        Some(i)
-                    } else {
-                        l.iter().position(|m| m.occupant == n.occupant)
-                    }
-                });
-            i = match pos {
-                Some(p) => p + 1,
-                None => i,
-            };
+            if self.includes(filter, n.occupant) {
+                self.host.add_ref(n.occupant);
+                batch.push(n.occupant);
+            }
         }
+        batch
     }
 
     /// Slot 45: the typed thunk of slot 44 (not initialised: false; type 0
@@ -1295,7 +1303,8 @@ impl SaveObject for OccupantManager {
 
     /// §13: version 1, the sizes and counts, then every row, cell and
     /// occupant reference in list order (an occupant spanning k cells is
-    /// written k times). True unless the stream reports an error.
+    /// written k times). True unless the stream reports an error. The
+    /// original takes no lock (OM8); [choice] the core does (see slot 25).
     fn write(&self, out: &mut dyn OutStream) -> bool {
         let _g = self.lock();
         out.put_u16(RECORD_VERSION);
@@ -1334,7 +1343,8 @@ impl SaveObject for OccupantManager {
     /// §13: sets "was read"; false unless the version is 1. Sizes and counts
     /// are read raw; each cell with a count gets a holder, its occupants
     /// appended at the back (the saved order); one manager reference per
-    /// occupant. [choice] Atomic (see the module notes).
+    /// occupant. [choice] Atomic (see the module notes). The original takes
+    /// no lock (OM8); [choice] the core does (see slot 25).
     fn read(&self, inp: &mut dyn InStream) -> bool {
         let _g = self.lock();
         self.s.borrow_mut().was_read = true;

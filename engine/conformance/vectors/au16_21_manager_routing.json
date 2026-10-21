@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "name": "audio_manager_does_not_see_automata",
+  "spec": [
+    "audio 16.21",
+    "audio 8.3",
+    "audio 14.11"
+  ],
+  "description": "Delivering 0x8A385DD8 or 0xAA396960 directly to cSC4AudioSoundManager::DoMessage must do nothing: those types are handled by the audio event handler and reach the manager only as sound-system events 0xEA451903 / 0x6A451908. Its DoMessage handles exactly the eight types of section 8.3.",
+  "steps": [
+    {
+      "op": "aud_manager_message",
+      "type": 2318949848,
+      "expect": false
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 2855889248,
+      "expect": false
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "instances": 0,
+        "list": 0
+      }
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 686373243,
+      "expect": true,
+      "note": "kSC4MessagePostAppInit"
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 686373244,
+      "expect": true,
+      "note": "kSC4MessagePreAppShutdown"
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 651370178,
+      "expect": true,
+      "note": "kSC4MessagePreCityShutdown"
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 1128837393,
+      "expect": true,
+      "note": "kMessageTypeAppGainLoseFocus"
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 1249884137,
+      "expect": true,
+      "note": "kSC4MessageSimSpeedChange"
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 2320132551,
+      "expect": true,
+      "note": "kMessageListenerPosChanged"
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 2860496864,
+      "expect": true,
+      "note": "kSC4MessageSimPauseChange"
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 3309113514,
+      "expect": true,
+      "note": "exemplar changed"
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 651370177,
+      "expect": false
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 4195115920,
+      "expect": false
+    },
+    {
+      "op": "aud_manager_message",
+      "type": 0,
+      "expect": false
+    }
+  ]
+}

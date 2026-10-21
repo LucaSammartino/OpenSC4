@@ -1,0 +1,6 @@
+$ C:\Users\tlori\.cargo\bin\cargo.EXE clippy --workspace --all-targets --target-dir C:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe2\engine\build-x86\clippy -- -D warnings
+    Checking fc4-formats v0.1.0 (C:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe2\engine\formats)
+    Checking fc4-core v0.1.0 (C:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe2\engine\core)
+   Compiling fc4-conformance v0.1.0 (C:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe2\engine\conformance)
+    Checking fc4-capi v0.1.0 (C:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe2\engine\capi)
+    Finished `dev` profile [unoptimized] target(s) in 22.73s

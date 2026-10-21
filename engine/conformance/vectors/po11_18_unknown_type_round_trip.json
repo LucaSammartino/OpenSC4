@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "name": "po11_18_unknown_type_round_trip",
+  "spec": [
+    "prop-occupant 5.1",
+    "prop-occupant 7",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 18. Save a prop whose type is not in the catalogue, reload, save again: the type ID is unchanged in the record. The record carries the u32 ID, never the +0x5C index, so an unknown type round-trips even though the table grows on read (5.1, quirk 2).",
+  "steps": [
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_call",
+      "method": "type_table_len",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "set_prop_type",
+      "args": [
+        "0xA1B2C3D4"
+      ]
+    },
+    {
+      "op": "po_call",
+      "method": "get_prop_type",
+      "expect": "0xA1B2C3D4"
+    },
+    {
+      "op": "po_call",
+      "method": "type_table_len",
+      "expect": 1
+    },
+    {
+      "op": "po_record_from_prop"
+    },
+    {
+      "op": "po_record_field",
+      "name": "prop_type",
+      "expect": "0xA1B2C3D4"
+    },
+    {
+      "op": "po_record_create"
+    },
+    {
+      "op": "po_record_field",
+      "name": "prop_type",
+      "expect": 0
+    },
+    {
+      "op": "po_read",
+      "hex": "06000400000000041e8223a80000000002000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006400ffffffff00",
+      "expect": "ok"
+    },
+    {
+      "op": "po_record_field",
+      "name": "prop_type",
+      "expect": 0
+    },
+    {
+      "op": "po_call",
+      "method": "type_table_len",
+      "expect": 1
+    }
+  ]
+}

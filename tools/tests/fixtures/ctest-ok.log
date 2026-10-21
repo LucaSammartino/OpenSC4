@@ -1,0 +1,131 @@
+$ C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\ctest.EXE --test-dir C:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe2\engine\build-x86 --output-on-failure -j 4
+Internal ctest changing into directory: C:/Users/tlori/FreeCity4/.claude/worktrees/fc4build-probe2/engine/build-x86
+Test project C:/Users/tlori/FreeCity4/.claude/worktrees/fc4build-probe2/engine/build-x86
+      Start  1: cargo_test
+      Start  2: capi_smoke
+      Start  3: message_test
+      Start  4: game_container_test
+ 1/62 Test  #2: capi_smoke .............................   Passed    0.63 sec
+      Start  5: game_map_test
+ 2/62 Test  #3: message_test ...........................   Passed    1.21 sec
+      Start  6: game_set_test
+ 3/62 Test  #4: game_container_test ....................   Passed    1.99 sec
+      Start  7: safe_lot_iterator_test
+ 4/62 Test  #5: game_map_test ..........................   Passed    1.85 sec
+      Start  8: vtable_layout_test
+ 5/62 Test  #6: game_set_test ..........................   Passed    1.08 sec
+      Start  9: diag_logic_test
+ 6/62 Test  #7: safe_lot_iterator_test .................   Passed    0.27 sec
+      Start 10: fpu_logic_test
+ 7/62 Test  #8: vtable_layout_test .....................   Passed    0.28 sec
+      Start 11: traffic_cost_logic_test
+ 8/62 Test  #9: diag_logic_test ........................   Passed    0.27 sec
+      Start 12: growth_probe_test
+ 9/62 Test #10: fpu_logic_test .........................   Passed    0.34 sec
+      Start 13: abi_conformance_test
+10/62 Test #11: traffic_cost_logic_test ................   Passed    0.40 sec
+      Start 14: ret_channel_check
+11/62 Test #12: growth_probe_test ......................   Passed    0.32 sec
+      Start 59: harness_logic_test
+12/62 Test #59: harness_logic_test .....................   Passed    1.01 sec
+13/62 Test #14: ret_channel_check ......................   Passed    7.93 sec
+14/62 Test  #1: cargo_test .............................   Passed   81.58 sec
+15/62 Test #13: abi_conformance_test ...................   Passed   94.71 sec
+      Start 15: plugin_load_test
+16/62 Test #15: plugin_load_test .......................   Passed    9.87 sec
+      Start 16: plugin_disable_test
+17/62 Test #16: plugin_disable_test ....................   Passed    0.03 sec
+      Start 17: plugin_ini_disable_test
+18/62 Test #17: plugin_ini_disable_test ................   Passed    0.03 sec
+      Start 18: plugin_ini_enable_test
+19/62 Test #18: plugin_ini_enable_test .................   Passed    0.03 sec
+      Start 19: plugin_ini_enable_disabled_test
+20/62 Test #19: plugin_ini_enable_disabled_test ........   Passed    0.03 sec
+      Start 20: plugin_ini_enable_weather_test
+21/62 Test #20: plugin_ini_enable_weather_test .........   Passed    0.03 sec
+      Start 21: plugin_ini_enable_ordinance_test
+22/62 Test #21: plugin_ini_enable_ordinance_test .......   Passed    0.03 sec
+      Start 22: plugin_ini_enable_demand_test
+23/62 Test #22: plugin_ini_enable_demand_test ..........   Passed    0.03 sec
+      Start 23: plugin_ini_enable_plumbing_test
+24/62 Test #23: plugin_ini_enable_plumbing_test ........   Passed    0.03 sec
+      Start 24: plugin_ini_enable_pollution_test
+25/62 Test #24: plugin_ini_enable_pollution_test .......   Passed    0.03 sec
+      Start 25: plugin_ini_enable_crime_test
+26/62 Test #25: plugin_ini_enable_crime_test ...........   Passed    0.03 sec
+      Start 26: plugin_autotest_test
+27/62 Test #26: plugin_autotest_test ...................   Passed   23.18 sec
+      Start 27: plugin_ini_popups_test
+28/62 Test #27: plugin_ini_popups_test .................   Passed    0.21 sec
+      Start 28: plugin_ini_enable_protection_test
+29/62 Test #28: plugin_ini_enable_protection_test ......   Passed    0.13 sec
+      Start 29: plugin_ini_protection_shadow_test
+30/62 Test #29: plugin_ini_protection_shadow_test ......   Passed    0.03 sec
+      Start 30: plugin_ini_enable_aura_test
+31/62 Test #30: plugin_ini_enable_aura_test ............   Passed    0.04 sec
+      Start 31: plugin_ini_enable_flora_test
+32/62 Test #31: plugin_ini_enable_flora_test ...........   Passed    0.03 sec
+      Start 32: plugin_ini_enable_landfill_test
+33/62 Test #32: plugin_ini_enable_landfill_test ........   Passed    0.23 sec
+      Start 33: plugin_ini_landvalue_shadow_test
+34/62 Test #33: plugin_ini_landvalue_shadow_test .......   Passed    0.04 sec
+      Start 34: plugin_ini_flammability_shadow_test
+35/62 Test #34: plugin_ini_flammability_shadow_test ....   Passed    0.04 sec
+      Start 35: plugin_ini_lvfl_shadow_inactive_test
+36/62 Test #35: plugin_ini_lvfl_shadow_inactive_test ...   Passed    0.03 sec
+      Start 36: plugin_ini_enable_residential_test
+37/62 Test #36: plugin_ini_enable_residential_test .....   Passed    0.04 sec
+      Start 37: plugin_ini_enable_development_test
+38/62 Test #37: plugin_ini_enable_development_test .....   Passed    0.03 sec
+      Start 38: plugin_ini_development_shadow_test
+39/62 Test #38: plugin_ini_development_shadow_test .....   Passed    0.03 sec
+      Start 39: plugin_ini_enable_zones_test
+40/62 Test #39: plugin_ini_enable_zones_test ...........   Passed    0.19 sec
+      Start 40: plugin_ini_enable_zonedev_test
+41/62 Test #40: plugin_ini_enable_zonedev_test .........   Passed    0.04 sec
+      Start 41: plugin_ini_enable_tract_test
+42/62 Test #41: plugin_ini_enable_tract_test ...........   Passed    0.03 sec
+      Start 42: plugin_ini_enable_lotdev_test
+43/62 Test #42: plugin_ini_enable_lotdev_test ..........   Passed    0.03 sec
+      Start 43: plugin_ini_enable_commercial_test
+44/62 Test #43: plugin_ini_enable_commercial_test ......   Passed    0.03 sec
+      Start 44: plugin_ini_enable_civic_test
+45/62 Test #44: plugin_ini_enable_civic_test ...........   Passed    0.03 sec
+      Start 45: plugin_ini_enable_parks_test
+46/62 Test #45: plugin_ini_enable_parks_test ...........   Passed    0.03 sec
+      Start 46: plugin_ini_enable_propdev_test
+47/62 Test #46: plugin_ini_enable_propdev_test .........   Passed    0.03 sec
+      Start 47: plugin_ini_enable_citydetail_test
+48/62 Test #47: plugin_ini_enable_citydetail_test ......   Passed    0.03 sec
+      Start 48: plugin_ini_enable_ports_test
+49/62 Test #48: plugin_ini_enable_ports_test ...........   Passed    0.03 sec
+      Start 49: plugin_ini_terrain_shadow_test
+50/62 Test #49: plugin_ini_terrain_shadow_test .........   Passed    0.04 sec
+      Start 50: plugin_ini_enable_neighbors_test
+51/62 Test #50: plugin_ini_enable_neighbors_test .......   Passed    0.03 sec
+      Start 51: plugin_ini_enable_traffic_test
+52/62 Test #51: plugin_ini_enable_traffic_test .........   Passed    0.11 sec
+      Start 52: plugin_ini_enable_history_test
+53/62 Test #52: plugin_ini_enable_history_test .........   Passed    0.04 sec
+      Start 53: plugin_ini_history_shadow_test
+54/62 Test #53: plugin_ini_history_shadow_test .........   Passed    0.03 sec
+      Start 54: plugin_ini_enable_clock24_test
+55/62 Test #54: plugin_ini_enable_clock24_test .........   Passed    0.04 sec
+      Start 55: plugin_ini_enable_tutorial_test
+56/62 Test #55: plugin_ini_enable_tutorial_test ........   Passed    0.03 sec
+      Start 56: plugin_ini_clock24_shadow_test
+57/62 Test #56: plugin_ini_clock24_shadow_test .........   Passed    0.04 sec
+      Start 57: plugin_saved_refs_test
+58/62 Test #57: plugin_saved_refs_test .................   Passed    0.04 sec
+      Start 58: plugin_ini_growth_probe_test
+59/62 Test #58: plugin_ini_growth_probe_test ...........   Passed    0.04 sec
+      Start 60: plugin_ini_turbo_test
+60/62 Test #60: plugin_ini_turbo_test ..................   Passed    2.42 sec
+      Start 61: plugin_ini_script_test
+61/62 Test #61: plugin_ini_script_test .................   Passed    0.05 sec
+      Start 62: plugin_ini_dialogs_test
+62/62 Test #62: plugin_ini_dialogs_test ................   Passed    0.15 sec
+
+100% tests passed, 0 tests failed out of 62
+
+Total Test time (real) = 135.54 sec

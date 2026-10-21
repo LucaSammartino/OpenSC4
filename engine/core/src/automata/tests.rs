@@ -506,7 +506,7 @@ fn t10_flag_8() {
     // a state's controller ref too.
     let a = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
     a.set_controller(RefValue::Object(gone.clone()));
-    a.push_state(state_type::T14);
+    a.push_state(state_type::T14, SetStateArgs::default());
     a.with_record(|r| r.base_mut().states[0].base.controller = RefValue::Object(gone.clone()));
     let with_flag = write_obj(&*a);
     a.set_controller(RefValue::Null);
@@ -718,8 +718,8 @@ fn sample_pedestrian() -> Rc<Automaton> {
         b.states[8].extra = StateExtra::PlayerDrive(1.5);
         b.states[10].extra = StateExtra::AttachAnim {
             model: host(0x1234, 6),
-            a: 7,
-            b: true,
+            anim_selector: 7,
+            flag: true,
         };
         b.states[13].extra = StateExtra::Chase(host(CLSID_VEHICLE, 8));
         b.states[1].base.version = 2;
@@ -783,7 +783,7 @@ fn automaton_version_gates() {
     assert_eq!(write_obj(&*v7).len(), n8.len());
     // A state base above 3 fails the whole automaton.
     let s = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
-    s.push_state(0x14);
+    s.push_state(0x14, SetStateArgs::default());
     let mut sb = write_obj(&*s);
     let n = n8.len();
     // Find the state's version: the state list follows the fixed part; patch it by search.
@@ -875,12 +875,24 @@ fn automaton_slots() {
     assert!(!a.is_visible());
     a.set_visible(true);
     assert!(a.is_visible());
-    a.set_state(8, RIOT_LEADER_STATE_ARGS);
+    // §8.1 start step 5 pushes the RiotLeader `final`, so the end step 1's
+    // SetState(1, …) is a no-op (§12 quirk 11) and the leader keeps state 8.
+    assert!(a.set_state(8, RIOT_LEADER_STATE_ARGS));
     assert_eq!(a.current_state(), Some(8));
     assert_eq!(a.last_set_state(), Some((8, RIOT_LEADER_STATE_ARGS)));
-    a.push_state(0x14);
+    assert!(!a.set_state(state_type::RIOT_END, RIOT_END_STATE_ARGS));
+    assert_eq!(a.current_state(), Some(8));
+    assert!(a.push_state(0x14, SetStateArgs::default()));
     assert_eq!(a.current_state(), Some(0x14));
-    assert!(a.pop_state() && a.pop_state() && !a.pop_state());
+    // Popping Collide (not `final`) reveals the RiotLeader; popping that
+    // `final` state pushes DISAPPEAR instead of revealing below (quirk 11);
+    // popping DISAPPEAR does reveal it.
+    assert!(a.pop_state());
+    assert_eq!(a.current_state(), Some(8));
+    assert!(a.pop_state());
+    assert_eq!(a.current_state(), Some(state_type::RIOT_END));
+    assert!(a.pop_state());
+    assert_eq!(a.current_state(), Some(8));
     a.remove();
     a.return_to_source_occupant();
     assert!(a.is_removed() && a.is_returning());
@@ -928,11 +940,11 @@ fn create_automaton_stub_and_driving_mode() {
     let args = CreateArgs {
         group: RIOT_AUTOMATA_GROUP,
         position: [10.0, 0.0, 20.0],
-        mode: 2,
-        direction: [0.0; 3],
-        a: 0,
-        b: 0xFF,
-        c: 0,
+        flags: RIOT_CREATE_FLAGS,
+        model_key: ResKey::default(),
+        callback: 0,
+        priority: RIOT_CREATE_PRIORITY,
+        orientation: None,
     };
     let a = m.create_automaton(args).unwrap();
     assert_eq!(
@@ -977,7 +989,13 @@ impl RiotHost for FakeCity {
     fn create_automaton(&mut self, a: CreateArgs) -> u64 {
         self.calls.push(format!(
             "CreateAutomaton {:#x} {:?} {} {:?} {} {:#x} {}",
-            a.group, a.position, a.mode, a.direction, a.a, a.b, a.c
+            a.group,
+            a.position,
+            a.flags,
+            [a.model_key.type_id, a.model_key.group, a.model_key.instance],
+            a.callback,
+            a.priority,
+            u8::from(a.orientation.is_some())
         ));
         if self.create_null {
             0
@@ -991,7 +1009,7 @@ impl RiotHost for FakeCity {
     fn set_state(&mut self, a: u64, t: u32, s: SetStateArgs) {
         self.calls.push(format!(
             "SetState {a:#x} {t} {} {} {} {} {} {}",
-            s.a, s.b, s.c, s.d, s.e, s.f
+            s.controller, s.timeout_ms, s.final_flag, s.anim_id, s.sfx_id, s.template
         ));
     }
     fn set_visible(&mut self, a: u64, v: bool) {
@@ -1032,7 +1050,7 @@ fn t08_riot_order() {
         [
             "road 3 4",
             "cap 0",
-            "CreateAutomaton 0x4107 [48.0, 0.0, 64.0] 2 [0.0, 0.0, 0.0] 0 0xff 0",
+            "CreateAutomaton 0x4107 [48.0, 0.0, 64.0] 2 [0, 0, 0] 0 0xff 0",
             "AddRef 0x500",
             "SetState 0x500 8 0 -1 1 0 0 0",
             "SetVisible 0x500 true",
@@ -1138,4 +1156,116 @@ fn message_and_class_tables() {
         assert_eq!(ManagerKind::from_class(k.class_id()), Some(k));
     }
     assert!(Automaton::for_class(0x1234).is_none() && Controller::for_class(0x1234).is_none());
+}
+
+// ---- §6.2 quirks 10-14 (re-integrate1's corrections; §14 tests 24, 25, 29) -------------------------------
+
+fn f32s(v: &[f32]) -> Vec<u8> {
+    let mut b = Vec::with_capacity(v.len() * 4);
+    for x in v {
+        b.extend_from_slice(&x.to_le_bytes());
+    }
+    b
+}
+
+fn contains(hay: &[u8], needle: &[u8]) -> bool {
+    hay.windows(needle.len()).any(|w| w == needle)
+}
+
+fn round_trip(a: &Automaton) -> Rc<Automaton> {
+    let bytes = write_obj(a);
+    let b = Automaton::for_class(a.class_id()).unwrap();
+    let (ok, left) = read_obj(&*b, &bytes);
+    assert!(ok && left == 0);
+    b
+}
+
+/// §14 test 24 (§6.2, quirk 12): a Plummet record writes its five `f32` in
+/// the stream order `+0x28, +0x34, +0x30, +0x2C, +0x38`, **not** offset order,
+/// and writes nothing for the object's sixth slot `+0x3C` (an unsaved `ref`).
+#[test]
+fn plummet_stream_order_is_not_offset_order() {
+    let a = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
+    assert!(a.set_state(state_type::T0E, SetStateArgs::default()));
+    let make = |descent, roll_rate, roll_centre, tumble_ms, post_splash_ms| StateExtra::T0E {
+        descent,
+        roll_rate,
+        roll_centre,
+        tumble_ms,
+        post_splash_ms,
+    };
+    a.with_record(|r| {
+        r.base_mut().states[0].extra = make(1.0, 2.0, 3.0, 4.0, 5.0);
+    });
+    let bytes = write_obj(&*a);
+    // Stream order: +0x28, +0x34, +0x30, +0x2C, +0x38.
+    assert!(contains(&bytes, &f32s(&[1.0, 4.0, 3.0, 2.0, 5.0])));
+    // Offset order is not what the record holds.
+    assert!(!contains(&bytes, &f32s(&[1.0, 2.0, 3.0, 4.0, 5.0])));
+    // Reading it back leaves each `f32` at its own offset.
+    let b = round_trip(&a);
+    assert_eq!(b.record().base().states[0].extra, make(1.0, 2.0, 3.0, 4.0, 5.0));
+}
+
+/// §14 test 25 (§6.2, quirk 14): an AttachAnim record writes `ref`,
+/// `u16`, `bool` in that stream order while the object holds the `bool` at
+/// `+0x2C` before the `u16` at `+0x30`.
+#[test]
+fn attach_anim_stream_order_hides_the_memory_order() {
+    let a = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
+    assert!(a.set_state(state_type::ATTACH_ANIM, SetStateArgs::default()));
+    let make = |flag, anim_selector| StateExtra::AttachAnim {
+        model: host(0x1234, 6),
+        flag,
+        anim_selector,
+    };
+    a.with_record(|r| {
+        r.base_mut().states[0].extra = make(true, 7);
+    });
+    let bytes = write_obj(&*a);
+    // Stream: ref (object 6 of class 0x1234), u16 7, bool 1.
+    let mut stream = Vec::new();
+    stream.extend_from_slice(&6u32.to_le_bytes());
+    stream.extend_from_slice(&0x1234u32.to_le_bytes());
+    stream.extend_from_slice(&7u16.to_le_bytes());
+    stream.push(1u8);
+    assert!(contains(&bytes, &stream));
+    // The memory order (the bool before the u16) is not what the record holds.
+    let mut memory = Vec::new();
+    memory.extend_from_slice(&6u32.to_le_bytes());
+    memory.extend_from_slice(&0x1234u32.to_le_bytes());
+    memory.push(1u8);
+    memory.extend_from_slice(&7u16.to_le_bytes());
+    assert!(!contains(&bytes, &memory));
+    let b = round_trip(&a);
+    assert_eq!(b.record().base().states[0].extra, make(true, 7));
+}
+
+/// §14 test 29 (§6.2, quirk 10): the state's `+0x0C` is a stack index --
+/// 0-based from the bottom, recomputed after every stack **mutation**.
+/// §14 test 4 (byte-exact re-save) wins over recompute-on-**Read**, which the
+/// corpus contradicts: see `AutomatonBase::read` and glue19 question A1.
+#[test]
+fn stack_index_is_recomputed_on_stack_mutations() {
+    let idx = |a: &Automaton| -> Vec<u32> { a.record().base().states.iter().map(|s| s.base.stack_index).collect() };
+    let a = Automaton::for_class(CLSID_PEDESTRIAN).unwrap();
+    assert!(a.push_state(0x0B, SetStateArgs::default()));
+    assert!(a.push_state(0x0F, SetStateArgs::default()));
+    assert!(a.push_state(state_type::T14, SetStateArgs::default()));
+    assert_eq!(idx(&a), vec![0, 1, 2]);
+    assert!(a.pop_state());
+    assert_eq!(idx(&a), vec![0, 1]);
+
+    // A stale index is kept across a round trip (byte-exact re-save) and is
+    // corrected the next time the stack changes.
+    a.with_record(|r| {
+        for s in r.base_mut().states.iter_mut() {
+            s.base.stack_index = 9;
+        }
+    });
+    assert_eq!(idx(&a), vec![9, 9]);
+    let b = round_trip(&a);
+    assert_eq!(idx(&b), vec![9, 9]);
+    assert!(b.push_state(0x0B, SetStateArgs::default()));
+    assert_eq!(idx(&b), vec![0, 1, 2]);
 }

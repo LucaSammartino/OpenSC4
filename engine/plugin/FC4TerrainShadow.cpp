@@ -240,6 +240,7 @@ fc4_terrain_host GameHost() {
 // ---- settings and state (main thread) ------------------------------------------------------------------
 
 bool g_enabled = false;
+bool g_replaced = false;  // glue18: `enable = terrain`, so there is no original to compare
 long g_points = kDefaultPoints;
 long g_diffs = kDefaultDiffs;
 long g_lines = kDefaultLines;
@@ -1262,11 +1263,18 @@ void DeliverStandInPosts(StandIn* si, int32_t julian, bool deliver) {
 
 }  // namespace
 
-void TerrainShadowStartup() {
+void TerrainShadowStartup(bool terrainReplaced) {
     ReadSettings();
+    g_replaced = terrainReplaced;
     if (!g_enabled) return;  // off by default: not a word in the log
     const char* src = "";
     Setting("terrain_shadow", "FC4_TERRAIN_SHADOW", &src);
+    if (terrainReplaced) {
+        Log("terrain shadow: requested (terrain_shadow from %s) but INACTIVE: it compares against the ORIGINAL "
+            "cSTETerrain, and terrain is enabled (ours)",
+            src);
+        return;
+    }
     Log("terrain shadow: ON (terrain_shadow from %s): at PostCityInit a FreeCity4 terrain is built from the ORIGINAL "
         "cSTETerrain's altitudes and sea level (read-only), its rebuilt water compared with the original's depths "
         "(then copied) and every cell compared; each terrain / water-changed message (0x278E6003 / 0x678E6E3A) "
@@ -1278,7 +1286,7 @@ void TerrainShadowStartup() {
 }
 
 void TerrainShadowStart() {
-    if (g_started || !g_enabled) return;
+    if (g_started || !g_enabled || g_replaced) return;
     cIGZMessageServer2Ptr ms;
     if (!ms) {
         Log("terrain shadow: no message server; not started");

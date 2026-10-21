@@ -2123,30 +2123,30 @@ cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	8	+0x20	00578230	cSC
 cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	9	+0x24	0057d7e0	cSC4DisasterManagerRiot::RemoveInstanceFromList	4	1	eax-or-void	medium	
 cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	10	+0x28	00577990	cSC4DisasterManager::GetActiveInstanceCount	0	0	eax-or-void	medium	
 cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	11	+0x2C	00577450	icf::cSC4DisasterManager::GetInstances	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	0	+0x0	005ec960	cSC4PropOccupant::QueryInterface	8	2	eax-or-void	medium	tail->005e89c0
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	1	+0x4	006491c0	cSC4PropOccupant::AddRef	0	0	eax-or-void	medium	tail->005e89b0
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	2	+0x8	006491d0	icf::cSC4ConstructionOccupant::Release	0	0	eax-or-void	medium	tail->005e8df0
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	4	+0x10	00458c60	cSC4PropOccupant::SetBoundingBox	8	2	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	5	+0x14	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	6	+0x18	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	7	+0x1C	005ed280	cSC4PropOccupant::GetPropType	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	8	+0x20	005ef4c0	cSC4PropOccupant::SetPropType	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	9	+0x24	005ec9d0	cSC4PropOccupant::GetOrientation	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	10	+0x28	005ec9e0	icf::cSC4PropOccupant::SetOrientation	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	11	+0x2C	005ed290	cSC4PropOccupant::SetState	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	via-call	low	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	17	+0x44	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	18	+0x48	005ed570	cSC4PropOccupant::GetRandomChance	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	19	+0x4C	005ed580	cSC4PropOccupant::GetPropTimerBitfield	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	20	+0x50	005ed590	cSC4PropOccupant::GetPropTimerState	4	1	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	21	+0x54	005eca50	cSC4PropOccupant::SetPropTimerState	8	2	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	22	+0x58	00477120	cSC4PropOccupant::GetPropUsage	0	0	eax-or-void	medium	
-cISC4PropOccupant	cSC4PropOccupant	00aa4900	23	+0x5C	005ecae0	cSC4PropOccupant::SetPropUsage	4	1	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	0	+0x0	005ec960	cSC4PropOccupant::QueryInterface	8	2	al	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->al. mov al,1 on each success path. 0xE9793A65 and 0x2977AA47 -> this; 0x452294AA (cIGZMessageTarget2) -> this+4; else the cSC4Occupant base at this+8 (0x005E89C0). Each success AddRefs.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	1	+0x4	006491c0	cSC4PropOccupant::AddRef	0	0	via-call	high	re-answers27 (prop-occupant.md 2.2, 4.1): CORRECTS eax-or-void->via-call. THIS-ADJUSTING THUNK: add ecx,8; jmp 0x005E89B0. The refcount lives at THIS+0x14, not at +0x04. EAX = refcount on return.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	2	+0x8	006491d0	cSC4PropOccupant::Release	0	0	via-call	high	re-answers27 (prop-occupant.md 2.2, 4.1): CORRECTS eax-or-void->via-call and the name icf::cSC4ConstructionOccupant::Release. THIS-ADJUSTING THUNK: add ecx,8; jmp 0x005E8DF0. EAX = refcount.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	3	+0xC	006c2040	cSC4PropOccupant::AsOccupant	0	0	eax	high	re-answers27 (prop-occupant.md 2.3, 4.1): CORRECTS ret eax-or-void->eax and name icf::cSC4DBSegment::AsIGZPersistDBSegment->AsOccupant. Returns this+8 (the cISC4Occupant sub-object, vtable 00aa4868); null stays null.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	4	+0x10	00458c60	cSC4PropOccupant::SetBoundingBox	8	2	void	high	re-answers27 (prop-occupant.md 2.2, 4.1): CORRECTS eax-or-void->void. Two args are const float[3]* min and max. Writes the AABB (6 floats) at +0x3C..+0x53.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	5	+0x14	004e13e0	cSC4PropOccupant::StubReturnZero	0	0	eax	high	re-answers27 (prop-occupant.md 4.1, 8.4): CORRECTS eax-or-void->eax and name icf::cSC43DRender::GetProjectionMatrixEntries. 33 C0 C3 = xor eax,eax; ret. A genuine 0 in EAX (a value return), NOT void.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	6	+0x18	00648f10	cSC4PropOccupant::NoOpStub	4	1	void	high	re-answers27 (prop-occupant.md 4.1, 8.4): CORRECTS eax-or-void->void and name cSC4NetworkTool::DebugDumpEdgeTypes. ret 4 alone: a true no-op whose argument is ignored. Adjacent to slot 5 but with the opposite channel.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	7	+0x1C	005ed280	cSC4PropOccupant::GetPropType	0	0	eax	high	re-answers27 (prop-occupant.md 5.1): CORRECTS eax-or-void->eax. movzx eax,word [ecx+0x5C]; mov ecx,[0x00B231A4]; mov eax,[ecx+eax*4]; ret. Returns the u32 prop type ID from the process-wide ID table indexed by the +0x5C u16 index. ECX is the object base.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	8	+0x20	005ef4c0	cSC4PropOccupant::SetPropType	4	1	eax-or-void	low	re-answers27 (prop-occupant.md 4.1): calls GetPropTypeIndex 0x005EF2E0 (interns the key into the global vector at 0x00B231A4..0x00B231A8 and returns the index in AX), then mov [esi+0x5C], ax; ret 4. EAX holds that index at return but nothing constructs it as a return value; implement as void unless a caller proves otherwise.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	9	+0x24	005ec9d0	cSC4PropOccupant::GetOrientation	0	0	eax	high	re-answers27 (prop-occupant.md 4.1, 5.2): CORRECTS eax-or-void->eax. movsx of byte [ecx+0x61] (the orientation).
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	10	+0x28	005ec9e0	cSC4PropOccupant::SetOrientation	4	1	al	high	re-answers27 (prop-occupant.md 4.1, 5.2): CORRECTS eax-or-void->al and the folded name. Clamps the argument to 0..3 into +0x61; always returns 1 in AL.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	11	+0x2C	005ed290	cSC4PropOccupant::SetState	4	1	void	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void. Behaviour in network-tools.md 13.1: no-op if s == +0x63; else store, post 0xE9C86DDB when in the city, switch the model state when the exemplar has 0x4A70D491.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->eax. 0F B6 41 63 C3 = movzx eax, byte [ecx+0x63]; ret. Clean zero-extended byte (the state), so EAX upper bits ARE defined zero.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	void	high	re-answers27 (prop-occupant.md 4.1, 8.3): CORRECTS eax-or-void->void. The two args are BY-VALUE FLOATS (not float&): fld each, fmul 10.0, convert to a byte stored at +0x5E / +0x5F. x87 is used internally but ST(0) is EMPTY at return.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	void	high	re-answers27 (prop-occupant.md 4.1, 8.3): CORRECTS eax-or-void->void and CONTRADICTS docs/sdk-errata-draft.md which lists this slot as x87 (high). Measured body: movzx the byte [+0x5E]; fild; fmul 0.1; fstp dword [out]; then the same for +0x5F. Both fstp pop, so ST(0) is EMPTY at return. Two float* out-params. A uses-x87-implies-st0 rule is wrong here.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	void	medium	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void (ret 16). Four dwords (u32, u32, bool, byte). Drives the 0x28-byte sub-record owned at +0x54 through a manager at 0x00B43D5C. prop-developer.md 4.6.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	void	medium	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void. prop-developer.md 3.3.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	17	+0x44	007c2740	cSC4PropOccupant::SetRandomChance	4	1	void	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void and name icf::cSC43DRender::EnableTransparentBackground->SetRandomChance. Stores the u8 at +0x62 (constructor default 100).
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	18	+0x48	005ed570	cSC4PropOccupant::GetRandomChance	0	0	al	high	re-answers27 (prop-occupant.md 4.1, 8.2): CORRECTS eax-or-void->al. 8A 41 62 C3 = mov al, byte [ecx+0x62]; ret. ONLY AL is set; upper 24 bits of EAX are UNDEFINED. Callers must mask 0xFF. Contrast slot 12 which is movzx eax.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	19	+0x4C	005ed580	cSC4PropOccupant::GetPropTimerBitfield	0	0	eax	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->eax. movzx eax, byte [ecx+0x60].
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	20	+0x50	005ed590	cSC4PropOccupant::GetPropTimerState	4	1	eax	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->eax. (+0x60 & mask) != 0 produced as a real 0/1 via sbb/neg, so EAX holds 0 or 1.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	21	+0x54	005eca50	cSC4PropOccupant::SetPropTimerState	8	2	void	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void. Behaviour in network-tools.md 13.1: the low nibble of +0x60 is a 4-flag set; on the 0..0xE <-> 0xF transition it rolls RandomUint32Uniform(100) from 0x00B231B0 against +0x62 and calls slot 11 SetState(0) or SetState(1).
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	22	+0x58	00477120	cSC4PropOccupant::GetPropUsage	0	0	al	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->al. mov al of byte [ecx+0x64] (usage: 1 city, 2 lot, 3 building, 4 street). Upper EAX undefined. Identical-code-folded with cSC4FloraOccupant and cSC4LandfillOccupant.
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	23	+0x5C	005ecae0	cSC4PropOccupant::SetPropUsage	4	1	void	high	re-answers27 (prop-occupant.md 4.1): CORRECTS eax-or-void->void. Stores the byte at +0x64.
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	0	+0x0	006f0d80	cSC4PropDeveloper::QueryInterface	8	2	eax-or-void	high	ret AL; prop-developer.md §8.1; re-specs10
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	1	+0x4	004f7ba0	cSC4PropDeveloper::AddRef	0	0	eax-or-void	high	ret EAX; prop-developer.md §8.1; re-specs10
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	2	+0x8	006f0ea0	cSC4PropDeveloper::Release	0	0	eax-or-void	high	ret EAX; prop-developer.md §8.1; re-specs10
@@ -2736,8 +2736,8 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	63	+0xFC	00604e10		0	0	edx:eax
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	64	+0x100	00604e20		8	2	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	65	+0x104	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	66	+0x108	006198a0		4	1	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	67	+0x10C	00619900		4	1	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	68	+0x110	0061b9a0	cSC4NetworkOccupant::SetPassageCeiling	4	1	via-call	low	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	67	+0x10C	00619900	cSC4NetworkOccupant::GetPassageCeiling(float&)	4	1	eax-or-void	medium	re-answers25 (TR19): absolute world height of the bridge underside; terrain.md IsNavigable needs clearance >= 20.0; same slot in 00aa97b8
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	68	+0x110	0061b9a0	cSC4NetworkOccupant::SetPassageCeiling(float)	4	1	via-call	low	re-answers25 (TR19): sets the ceiling read by slot 67; same slot in 00aa97b8
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	69	+0x114	00619940		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	70	+0x118	0061b9f0	cSC4NetworkOccupant::SetOneWayDirections	4	1	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	71	+0x11C	00619970	cSC4NetworkOccupant::GetIntersectionAnchorCell(uint32* x, uint32* z)	8	2	al	high	re-specs17b: QI 0x4835C6AB; splits a cell key (x low 16, z high 16); false when absent; name inferred; network-rules.md 10.5
@@ -4652,6 +4652,81 @@ cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	10	+0x28	0091559a	cRZSys
 cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	11	+0x2C	00445820	cSC424HourClock::OnIdle	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); AL = 1
 cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	12	+0x30	009d4714	cRZSystemService::GetServiceTickPriority	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; -2,000,000
 cISC43DRender	cSC43DRender	00abab60	8	+0x20	007c9fb0	cSC43DRender::GetViewUtilities	0	0	eax	high	re-answers9 LG21: borrowed, not a GZCOM object; view rotation int32 at +0x10
+cISC43DRender	cSC43DRender	00abab60	0	+0x0	007c1890	cSC43DRender::QueryInterface	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	2	+0x8	007c3060	cSC43DRender::Release	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	3	+0xC	007c6410	cSC43DRender::Init	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	4	+0x10	007c7070	cSC43DRender::Shutdown	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	5	+0x14	007c9fa0	cSC43DRender::SetMapScaleFactor	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	6	+0x18	007c5d00	cSC43DRender::SetGraphicSystem	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	7	+0x1C	007c3be0	cSC43DRender::SetGDriver	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	9	+0x24	007c1910	icf::cSC43DRender::GetLightingManager	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	10	+0x28	004e82a0	icf::cSC43DRender::GetDrawContext	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	11	+0x2C	007c1920	cSC43DRender::GetViewportSize	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	12	+0x30	007c1940	cSC43DRender::SetViewportSize	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	13	+0x34	007c1960	cSC43DRender::SetSubpixelImageBias	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	14	+0x38	007c9fc0	cSC43DRender::GetCamera	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	15	+0x3C	007c1980	cSC43DRender::SetCamera	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	16	+0x40	007c9fd0	icf::cSC43DRender::GetCameraControl	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	17	+0x44	007c1a00	cSC43DRender::SetCameraControl	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	18	+0x48	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	19	+0x4C	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	20	+0x50	007c7dd0	cSC43DRender::ForceFullRedraw	0	0	edx:eax?	low	re-specs21 (view3d.md); extracted: tail->007c6d80
+cISC43DRender	cSC43DRender	00abab60	21	+0x54	007cb530	cSC43DRender::Draw	0	0	al	high	re-specs21 (view3d.md); re-specs21 view3d.md 4.1: body writes AL on both exits (xor al,al 0x007CB57B, mov al,1 0x007CB914); vtables.tsv said eax-or-void
+cISC43DRender	cSC43DRender	00abab60	22	+0x58	007c2570	cSC43DRender::TakeSnapshot	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	23	+0x5C	007c2530	cSC43DRender::TakeSnapshot	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	24	+0x60	007c1a50	cSC43DRender::Set3DCameraView	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	25	+0x64	007c1a90	cSC43DRender::Set2DCameraView	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	26	+0x68	007c1ac0	cSC43DRender::SetUICameraView	0	0	unknown	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	27	+0x6C	007ca180	cSC43DRender::IsModelInserted	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	28	+0x70	007ca200	cSC43DRender::InsertModel	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	29	+0x74	007ca3d0	cSC43DRender::RemoveModel	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	30	+0x78	007c9220	cSC43DRender::MoveModel	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	31	+0x7C	007c9320	cSC43DRender::ChangeModel	8	2	eax-or-void	medium	re-specs21 (view3d.md); extracted: indirect-jump dword ptr [ebp*4 + 0x7c94b0]
+cISC43DRender	cSC43DRender	00abab60	32	+0x80	007c5d90	cSC43DRender::AddViewObject	12	3	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	33	+0x84	007c5ac0	cSC43DRender::RemoveViewObject	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	34	+0x88	007c52f0	cSC43DRender::FindViewObject	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	35	+0x8C	007c22b0	cSC43DRender::SetZoom	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	36	+0x90	007c22d0	cSC43DRender::ZoomIn	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007ce080
+cISC43DRender	cSC43DRender	00abab60	37	+0x94	007c22e0	cSC43DRender::ZoomOut	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007ce0e0
+cISC43DRender	cSC43DRender	00abab60	38	+0x98	007c22f0	cSC43DRender::SetRotation	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	39	+0x9C	007c2300	cSC43DRender::RotateLeft	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007cd6a0
+cISC43DRender	cSC43DRender	00abab60	40	+0xA0	007c2310	cSC43DRender::RotateRight	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007cd6c0
+cISC43DRender	cSC43DRender	00abab60	41	+0xA4	007c2320	cSC43DRender::SetZoomAndRotation	8	2	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007cde60
+cISC43DRender	cSC43DRender	00abab60	42	+0xA8	007cacd0	cSC43DRender::StartScreenShake	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	43	+0xAC	007c6bc0	cSC43DRender::StartScreenShake	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	44	+0xB0	007c8630	cSC43DRender::StopScreenShake	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	45	+0xB4	007c2330	cSC43DRender::GetShakeOffsets	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	46	+0xB8	007c2350	cSC43DRender::SetViewportClearColor	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	47	+0xBC	007c3f80	cSC43DRender::ClearViewport	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	48	+0xC0	007c3350	cSC43DRender::ClearViewportWithSolidColor	12	3	via-call	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	49	+0xC4	007c3400	cSC43DRender::DrawViewportRectangle	16	4	unknown	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	50	+0xC8	007c2400	cSC43DRender::DrawTexturedViewportRectangle	20	5	unknown	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	51	+0xCC	007c25e0	cSC43DRender::EnableBackgroundPicture	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	52	+0xD0	007c25f0	cSC43DRender::GetBackgroundPicture	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	53	+0xD4	007c26d0	cSC43DRender::SetBackgroundPicture	16	4	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	54	+0xD8	007c2610	cSC43DRender::SetBackgroundPicture	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	55	+0xDC	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	56	+0xE0	007c2750	cSC43DRender::GetBackingStoreEnabled	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	57	+0xE4	007c2760	cSC43DRender::SetBackingStoreEnabled	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	58	+0xE8	007c2cd0	cSC43DRender::BorrowRenderSystem	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	59	+0xEC	007c2ce0	cSC43DRender::ReturnRenderSystem	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	60	+0xF0	007c5000	cSC43DRender::PickTerrain	20	5	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	61	+0xF4	007c35c0	cSC43DRender::PickTerrain	20	5	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	62	+0xF8	007c50f0	cSC43DRender::PickTerrainAlways	16	4	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	63	+0xFC	007c7e20	cSC43DRender::PickTerrainAlways	16	4	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	64	+0x100	007c6830	cSC43DRender::Pick	24	6	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	65	+0x104	007c2220	cSC43DRender::Pick	16	4	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	66	+0x108	005be2e0	icf::cS3DMaterialManager::CreateMaterialVariant	12	3	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	67	+0x10C	007c5260	cSC43DRender::IsModelVisible	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	68	+0x110	007c51d0	cSC43DRender::IsModelVisible	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	69	+0x114	007c2c00	cSC43DRender::GetViewFogEnabled	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	70	+0x118	007c2c10	cSC43DRender::SetViewFogEnabled	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	71	+0x11C	007c2c30	cSC43DRender::GetLightingEnabled	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	72	+0x120	007c2c40	cSC43DRender::SetLightingEnabled	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	73	+0x124	007c2d50	cSC43DRender::GetStatsString1	4	1	via-call	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	74	+0x128	007c2db0	cSC43DRender::GetStatsString2	4	1	via-call	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	75	+0x12C	007cb090	cSC43DRender::~cSC43DRender	4	1	eax-or-void	medium	re-specs21 (view3d.md)
 cISC4App	cSC4App	00a86af0	37	+0x94	0081f910	cSC4App::GetCity	0	0	eax	high	re-answers9 NB19: borrowed app+0x5C; same pointer as global 0x00B43CEC until the city's Shutdown
 cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	0	+0x0	005246b0	cSC4CitySituationManager::QueryInterface	8	2	eax-or-void	high	QueryInterface(iid, void); ret AL; city-situation.md §8; re-specs10
 cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	1	+0x4	00524750	cSC4CitySituationManager::AddRef	0	0	eax-or-void	high	AddRef(); ret EAX; city-situation.md §8; re-specs10
@@ -4912,6 +4987,8 @@ cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	5	+0x14	00575610	c
 cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	6	+0x18	0062c980	cSC4DisasterInstanceEarthquake::GetLocation(int&, int&) = false	8	2	eax-or-void	medium	re-answers14; disasters.md §3.1, §7
 cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	7	+0x1C	008cd450	cSC4DisasterInstanceEarthquake::GetPhase() = 1 (constant)	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §7
 cIGZMessageTarget2	cSC4DisasterInstanceFire	00a9e580	3	+0xC	00579600	cSC4DisasterInstanceFire::DoMessage	4	1	AL	medium	0x86AD10EE, 0x66956813, 0x06CDB65B, 0xA6B79602 (disasters.md §5.3, §5.8)
+cIGZMessageTarget2	cSC43DRender	00abab50	3	+0xC	007cb0b0	cSC43DRender::DoMessage(cIGZMessage*)	4	1	al	high	re-specs21 (view3d.md 3.4): sub-object at renderer+0x04 (ctor 0x007C9B2A), vtable 00ABAB50 (4 slots; tail-merges with 00ABAB38 slot 9 at 0x00ABAB5C); this = main+4, recovered with lea ecx,[edi-4] at 0x007CB226; ret 4; returns al=1 when handled; handles 0x4A9F2FFE CameraUpdated, 0x26D31EC1 PostCityInit, 0x4C8D1E8B (unlisted), 0x6ACB92A9 (unlisted, -> slot 20 ForceFullRedraw), 0x870BC918 RedisplayTerrain, 0x8ACAA95F RestoreTextures, 0xA6B79601 ViewZRChange2
+cIGZMessageTarget2	00aa48f0	3
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	0	+0x0	0057ec10	cSC4DisasterManagerToxic::QueryInterface	8	2	eax-or-void	medium	disasters.md §9
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	1	+0x4	00429ce0	cSC4DisasterManagerToxic::AddRef	0	0	eax-or-void	medium	disasters.md §9
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	2	+0x8	00429cf0	cSC4DisasterManagerToxic::Release	0	0	eax-or-void	medium	disasters.md §9
@@ -4924,10 +5001,6 @@ cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	8	+0x20	00578230	c
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	9	+0x24	00578310	cSC4DisasterManagerToxic::RemoveInstanceFromList	4	1	eax-or-void	medium	disasters.md §9
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	10	+0x28	00577990	cSC4DisasterManagerToxic::GetActiveInstanceCount	0	0	eax-or-void	medium	disasters.md §9
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	11	+0x2C	00577450	cSC4DisasterManagerToxic::GetInstances	0	0	eax-or-void	medium	disasters.md §9
-cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	22	+0x58	00525dc0	cSC4CitySituationManager::InitiateSituationForOccupant	8	2	eax-or-void	medium	re-answers11 CS2: (cISC4Occupant*, cISC4CitySituationAdvice*); AL; city-situation.md 8
-cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	23	+0x5C	0052ab00	cSC4CitySituationManager::InitiateSituationByAutomataGroup	12	3	eax-or-void	medium	re-answers11 CS2: (uint32, bool, bool); AL; city-situation.md 8
-cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	24	+0x60	00524e20	cSC4CitySituationManager::StartJoyride	12	3	eax-or-void	medium	re-answers11 CS2: (cISC4Automaton*, bool, cIGZMessageTarget2*); city-situation.md 8
-cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	25	+0x64	0052a7a0	cSC4CitySituationManager::TreatAutomatonAsGroup	8	2	eax-or-void	medium	re-answers11 CS2: (cISC4Automaton*, uint32); city-situation.md 8
 cSTETerrainView3D::vftable_2	cSTETerrainView3D	00ab4410	4	+0x10	007526e0	cSTETerrainView3D::MarkSelected	28	7	eax-or-void	medium	re-answers11 ZQ15(a): (SC4Point<int> const&, cGZPersistResourceKey const&, uint8 rotation, bool flip, uint32 colour, cGDCombiner::tOp, bool clearFirst); tail->00751a70; zones.md 7.1.1
 cISC4AutomataManager	cSC4PedestrianManager	00a9a470	0	+0x0	005444c0	cSC4AutomataManager::QueryInterface	8	2	eax-or-void	medium	tail->00505480
 cISC4AutomataManager	cSC4PedestrianManager	00a9a470	1	+0x4	00505510	cSC4AutomataManager::AddRef	0	0	eax-or-void	medium	
@@ -5235,3 +5308,201 @@ cISC4Nation	cSC4Nation	00a8ef00	14	+0x38	00498cf0	cSC4Nation::ResetTutorialCitie
 cISC4Nation	cSC4Nation	00a8ef00	15	+0x3C	00497700	cSC4Nation::GetRegionDownloadDirectory	0	0	eax	medium	nation.md §4
 cISC4Nation	cSC4Nation	00a8ef00	16	+0x40	00497570	cSC4Nation::GetEconomyModifier(demandID)	4	1	x87	high	nation.md §4; returns float in st0, value rounded to float
 cISC4Nation	cSC4Nation	00a8ef00	17	+0x44	00497800	cSC4Nation::~cSC4Nation (deleting)	4	1	eax	medium	nation.md §4
+cISTETerrainView	cSTETerrainView3D	00ab4410	0	+0x0	00756910	cSTETerrainView3D::QueryInterface	8	2	eax-or-void	high	thunk sub ecx,0xC -> 00752730; answers 0x6771477D (+0xC), 0x452294AA (+0x10), 0xE4FDA3D4 (+0x14), CLSID 0xC9B84E10 and extra 0xC989F960 (both +0x0), else cRZUnknown::QueryInterface 009457C6
+cISTETerrainView	cSTETerrainView3D	00ab4410	3	+0xC	0075A230	cSTETerrainView3D::Pick	20	5	al	high	ray/box (world x/z 0..sizeX/sizeZ, y -32768..32768) then two RayIntersectsTriangle per cell against the terrain +0x6C array read DIRECTLY; water depth offset via view+0x24 -> water+0x18 when arg5 set; on hit marks area slot 8 (point,2,1); terrain.md 15.5.10
+cISTETerrainView	cSTETerrainView3D	00ab4410	4	+0x10	007526E0	cSTETerrainView3D::MarkSelected (textured cell)	28	7	al	high	null-guarded fwd to cSTESelectedTerrainArea::MarkSelected 00751A70; zones.md 7.1.1
+cISTETerrainView	cSTETerrainView3D	00ab4410	5	+0x14	007526C0	cSTETerrainView3D::MarkSelected (textured rect)	28	7	al	high	fwd 007519A0: rect walk, AddTexturedSelection with op forced 2, alpha 1.0 (00751A52-00751A62)
+cISTETerrainView	cSTETerrainView3D	00ab4410	6	+0x18	007526A0	cSTETerrainView3D::MarkSelected (untextured point)	12	3	al	high	fwd 00751910: AddUntexturedSelection 007515E0
+cISTETerrainView	cSTETerrainView3D	00ab4410	7	+0x1C	00752680	cSTETerrainView3D::MarkSelected (point vector)	12	3	al	high	fwd FUN_00751780: every point of the vector untextured
+cISTETerrainView	cSTETerrainView3D	00ab4410	8	+0x20	00752660	cSTETerrainView3D::MarkSelected (point span)	12	3	al	high	fwd 007516D0: span between two points, row walk
+cISTETerrainView	cSTETerrainView3D	00ab4410	9	+0x24	00751ED0	cSTETerrainView3D::ClearCurrentSelections	0	0	void	high	jmp cSTESelectedTerrainArea::ClearCurrentSelections 00750CA0 when area non-null
+cISTETerrainView	cSTETerrainView3D	00ab4410	10	+0x28	00752860	cSTETerrainView3D::SetAutomaticCellCursorUpdateStatus	4	1	al	high	stores view+0x24, returns the OLD value in AL; terrain.md 15.5.10
+cISTETerrainView	cSTETerrainView3D	00ab4410	11	+0x2C	007568E0	cSTETerrainView3D::IsWaterGlareEnabled	0	0	al	high	AL = byte view+0x49 (ctor 1)
+cISTETerrainView	cSTETerrainView3D	00ab4410	12	+0x30	00756080	cSTETerrainView3D::SetWaterGlareStatus	4	1	void	high	no-op when equal; change marks the whole-city water-colour rect at view+0x40 (replace or union per view+0x3C)
+cISTETerrainView	cSTETerrainView3D	00ab4410	13	+0x34	00755F30	cSTETerrainView3D::SetLightingUpdateRect	4	1	void	high	null -> whole city; view+0x25 flag set -> replace view+0x28 rect, clear -> union via SetWaterColorUpdateRect 004665C0
+cISTETerrainView	cSTETerrainView3D	00ab4410	14	+0x38	00752870	cSTETerrainView3D::DrawTerrainQuad	12	3	void	high	frustum row guards; SetVertexBuffer(0xB, vertsX*2, 0xB4C758+cellZ*vertsX*0x20); index buffer 0xB4C6F8 when terrain record +0x23 (read DIRECTLY) has 0x30 else 0xB4C6FC; DrawPrimsIndexed(0, cellX*6, 6)
+cISTETerrainView	cSTETerrainView3D	00ab4410	15	+0x3C	00752940	cSTETerrainView3D::DrawTexturedTerrainQuad	24	6	void	high	arg6 bypasses frustum guards; flipped index buffer 0xB4C6DC/0xB4C6E8 by record +0x23; 4-vertex patch from 0xB4C758, level byte trunc(arg5) at +0xF of each; DrawPrimsIndexed(0,0,6)
+cISTETerrainView	cSTETerrainView3D	00ab4410	16	+0x40	00759750	cSTETerrainView3D::LevelCell	12	3	eax-or-void	medium	ret channel per vtables.tsv is ST0 but the body posts none (TR31); or byte [terrain verts +0x22],0x60 at 00759873 then SetTriangleIndicesForCell; terrain.md 15.5.10
+cISTETerrainView	cSTETerrainView3D	00ab4410	17	+0x44	00758620	cSTETerrainView3D::RemoveCellLevelling	8	2	void	high	and byte [terrain verts +0x22],0x9F at 007586DA then SetTriangleIndicesForCell
+cISTETerrainView	cSTETerrainView3D	00ab4410	18	+0x48	007558A0	cSTETerrainView3D::GetOverlayManager	4	1	eax	high	EAX = [ecx+index*4+0x6C] = base+0x78+index*4; NO bounds check
+cISTETerrainView	cSTETerrainView3D	00ab4410	19	+0x4C	0075A770	cSTETerrainView3D::HandleCheatCommand	4	1	al	high	"level x z amount" (3 args) -> own slot 16 LevelCell; "unlevel x z" (2 args) -> own slot 17; AL=1 iff matched; terrain.md 15.5.10
+cISTETerrainView	cSTETerrainView3D	00ab4410	20	+0x50	00752AE0	cSTETerrainView3D::GetDisplayGridFlag	0	0	al	high	AL = the STATIC 0x00B4C741, not a field
+cISTETerrainView	cSTETerrainView3D	00ab4410	21	+0x54	00755E80	cSTETerrainView3D::SetDisplayGridFlag	4	1	void	high	on change stores the static and calls terrain slot 68 RedisplayTerrain(1,1,&wholeCity,0) via terrain at base+0x20 (00755EC2)
+cISC4EffectsManagerDraw	cSC4EffectsManager	00a9f250	3	+0xC	00593120	cSC4EffectsManager::Update(SC4DrawContext*)	4	1	al	high	re-specs21 (view3d.md 8): draw interface sub-object at manager+0x04 (dtor 0x0058FA74); this = manager+4, recovered with lea ecx,[esi-4] at 0x00593958/0x0059397A/0x00593982; body ends mov al,1 (0x00593997) then ret 4 (0x0059399D); vtables.tsv row said eax-or-void/medium; exact call sites inside Update: DrawScreenFlashes 0x0059395B, 0x0058EC40 0x0059397D, DeactivateUnusedVisualEffects 0x00593985
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	0	+0x0	00756910	(unnamed)	8	2	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->00752730
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	1	+0x4	00761850	(unnamed)	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->005be3e0
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	2	+0x8	00761860	(unnamed)	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->005bcb30
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	3	+0xC	0075a230	cSTETerrainView3D::Pick	20	5	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	4	+0x10	007526e0	cSTETerrainView3D::MarkSelected	28	7	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->00751a70
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	5	+0x14	007526c0	cSTETerrainView3D::MarkSelected	28	7	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007519a0
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	6	+0x18	007526a0	cSTETerrainView3D::MarkSelected	12	3	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->00751910
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	7	+0x1C	00752680	cSTETerrainView3D::MarkSelected	12	3	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	8	+0x20	00752660	cSTETerrainView3D::MarkSelected	12	3	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007516d0
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	9	+0x24	00751ed0	cSTETerrainView3D::ClearCurrentSelections	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->00750ca0
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	10	+0x28	00752860	cSTETerrainView3D::SetAutomaticCellCursorUpdateStatus	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	11	+0x2C	007568e0	cSTETerrainView3D::IsWaterGlareEnabled	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	12	+0x30	00756080	cSTETerrainView3D::SetWaterGlareStatus	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	13	+0x34	00755f30	cSTETerrainView3D::SetLightingUpdateRect	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	14	+0x38	00752870	cSTETerrainView3D::DrawTerrainQuad	12	3	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	15	+0x3C	00752940	cSTETerrainView3D::DrawTexturedTerrainQuad	24	6	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	16	+0x40	00759750	cSTETerrainView3D::LevelCell	12	3	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	17	+0x44	00758620	cSTETerrainView3D::RemoveCellLevelling	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	18	+0x48	007558a0	cSTETerrainView3D::GetOverlayManager	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	19	+0x4C	0075a770	cSTETerrainView3D::HandleCheatCommand	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	20	+0x50	00752ae0	cSTETerrainView3D::GetDisplayGridFlag	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	21	+0x54	00755e80	cSTETerrainView3D::SetDisplayGridFlag	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4480	0	+0x0	00752730	cSTETerrainView3D::QueryInterface	8	2	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->009457c6
+cISTETerrainView3D	cSTETerrainView3D	00ab4480	1	+0x4	005be3e0	std::vector<cRZAutoRefCount<cIGZBuffer>,std::allocator<cRZAutoRefCount<cIGZBuffer>>>::operator[]	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->00968b60
+cISTETerrainView3D	cSTETerrainView3D	00ab4480	2	+0x8	005bcb30	cSC4Advice::Release	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->0090d997
+cISTETerrainView3D	cSTETerrainView3D	00ab4480	3	+0xC	0075bfd0	cSTETerrainView3D::Update	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4480	4	+0x10	00752700	cSTETerrainView3D::Pick	16	4	via-call	low	re-specs21 (view3d.md)
+cGZUIScriptService	cGZUIScriptService	unknown	4	+0x10	0099xxxx	(cGZUIScriptService) CreateWindowFromScript (slot 4)	12	3	eax	medium	re-ui: NEW interface. Reached through SC4CreateWindowFromScript (0x005f9390): GetSystemService(0x5A356E15, iid 0xFA3562FA, &svc) then svc->slot4(p1,p2,p3), returning the cIGZWin* in EAX or 0. Confirmed by cRZSysServPtr<cIGZUIScriptService,4197802746,1513451029> at 0x00449750 (0xFA3562FA / 0x5A356E15). NAME COLLISION: the method named CreateWindowFromScript at 0x0094b08b is NOT this slot - it is a 5-dword wrapper (ret 0x14) returning bool in AL that QIs the window and releases it; 0x0094b210 takes a struct. The view's call site passes the UI script group 0x96A006B0 among the three args. vtable not located (UIW-3). See docs/specs/ui-windows.md §5.1
+cIGZClassFactory	cGZClassFactory		3	+0x0C		(cGZClassFactory::CreateInstance)	12	3	al	high	used by terrain DoPostCityInit 0074956f-0074958c: CreateInstance(CLSID 0xC9B84E10, IID 0x6771477D, out*). Factory obtained from the service locator tail-call 0x0090DDF1. Returns bool in AL; on success *out is the view+0x0C interface (DoPostCityInit does add eax,-0x0C at 00749596). Slot 3 at vtable +0x0C.
+cIGZMessageTarget2	cSC4DisasterInstanceRiot	00a9e7f0	3	+0xC	0057e740	cSC4DisasterInstanceRiot::DoMessage	4	1	AL	medium	NEW (glue13: the disasters shadow forwards it; vtables.tsv vftable_3). The riot instance message target; 0x86AD10EE animation tick drives the once-per-second update (disasters.md 6.5)
+cIGZMessageTarget2	cSC4PropOccupant	00aa48f0	3	+0xC	005ecfb0	cSC4PropOccupant::DoMessage	4	1	unknown	medium	re-answers27 (prop-occupant.md 4.3): NEW. cIGZMessageTarget2 sub-object at prop +0x04, vtable 00aa48f0 is exactly 4 slots (QI 0x005EE0F0, AddRef 0x0064DD70, Release 0x0064DD80, DoMessage 0x005ECFB0). Handles the animation tick 0x86AD10EE (graphics-formats.md 3.9). QI IID 0x452294AA returns this+4.
+cIGZMessageTarget2	cSTESurfaceWater	00ab3ad8	3	+0x0C	00740160	cSTESurfaceWater::DoMessage	4	1	al	high	message target is at water +0x08 (vtable 0x00AB3AD8), not +0x04. ecx = +0x08 so the object is ecx-8. Six subscriptions in Init 0073ff7f-0073ffcb: 0x26D31EC1, 0x26D31EC4, 0x26D31EC5 (no action), 0x89D3E9F3, 0x99EF1142, 0x99EF1143. SimNewDay 0x66956814 has a handler (0074019a) but is NEVER subscribed, so the dirty flag +0x50 is set and never read. The animation tick is delivered DIRECTLY (not subscribed) and is gated on +0x34, which is never set -- AnimateWater 0073fdd0 is dead in the shipped binary.
+cIGZMessageTarget2	cSTETerrainView3D	00ab4400	0	+0x00	00756920		0	0	eax-or-void	medium	
+cIGZMessageTarget2	cSTETerrainView3D	00ab4400	1	+0x04	00756930		0	0	eax	medium	AddRef
+cIGZMessageTarget2	cSTETerrainView3D	00ab4400	2	+0x08	00756940		0	0	eax	medium	Release
+cIGZMessageTarget2	cSTETerrainView3D	00ab4400	3	+0x0C	00757560	cSTETerrainView3D::DoMessage	4	1	al	high	message target is at view+0x10 (vtable 00ab4400), NOT +0x04. Subscribes 0x277A9364, 0x278E6003, 0x678E6E3A, 0xA6B79601, 0xA6B79611, 0xC9DA96EA through message-server global 0x00B43CCC slot 5 (0075c810-0075c868).
+cIGZMessageTarget2	cSTETerrainView3D	00ab4400	4	+0x10	00756910		0	0	eax-or-void	medium	repeat of 00ab4410 slot 0
+cIGZMessageTarget2	cSTETerrainView3D	00ab4400	5	+0x14	00761850		0	0	eax	medium	repeat of 00ab4410 slot 1
+cIGZMessageTarget2	cSTETerrainView3D	00ab4400	6	+0x18	00761860		0	0	eax	medium	repeat of 00ab4410 slot 2
+cIGZMessageTarget2	cSTETerrainView3D	00ab4400	7	+0x1C	0075a230		20	5	x87	medium	repeat of 00ab4410 slot 3
+cISC4App	cSC4App	00a86af0	17	+0x44	0044bdb0	cSC4App::SavePreferences	0	0	al	high	re-answers29 (tutorial.md TU1): called by cSC4TutorialRegistry::SetActive and Init after mutating the prefs GUID list
+cISC4App	cSC4App	00a86af0	21	+0x54	004494c0	cSC4App::GetDebugFunctionalityEnabled	0	0	al	high	re-answers29: this is the cISC4App slot-21 test that tutorial Init uses to gate cheat registration and that Shutdown does NOT repeat
+cISC4App	cSC4App	00a86af0	38	+0x98	004494a0	cSC4App::GetPreferences	0	0	eax	high	re-answers29 (tutorial.md TU1): returns app+0x3A4. 256 x u32 inactive-tutorial GUIDs at +0xF34 (SetActive / registry Init); 64 x u32 city-situation list at +0x1334 (cSC4CitySituationManager::ResetTutorials 0x005266E0)
+cISC4App	cSC4App	00a86af0	47	+0xBC	0044b670	cSC4App::GetLuaInterpreter	0	0	eax	high	re-answers29 NAME CORRECTION: decomp/index.tsv wrongly labels 0x0044B670 as GetTutorialRegistry. It returns app+0x658. The real slot 47 is GetLuaInterpreter
+cISC4App	cSC4App	00a86af0	49	+0xC4	0044b510	cSC4App::GetTutorialRegistry	0	0	eax	high	re-answers29 (tutorial.md TU1): returns &app+0x1C0 - an EMBEDDED cSC4TutorialRegistry by value, not a heap object. Body is lea eax,[ecx+0x1C0]; ret
+cISC4AutomataController	cSC4AutomataController	00a95d90	0	+0x0	00514f60	cISC4AutomataController::QueryInterface	8	2	eax-or-void	high	re-answers29 (automata.md §3.5): same QueryInterface as the other automata controllers
+cISC4AutomataController	cSC4AutomataController	00a95d90	1	+0x4	008ae800	cISC4AutomataController::AddRef	0	0	eax-or-void	high	re-answers29: shared AddRef (0x008AE800), same body as many classes
+cISC4AutomataController	cSC4AutomataController	00a95d90	2	+0x8	00517f10	cISC4AutomataController::Release	0	0	eax-or-void	high	re-answers29
+cISC4AutomataController	cSC4AutomataController	00a95d90	3	+0xc	00516850	cISC4AutomataController::Init	0	0	eax-or-void	low	re-answers29: body longer than 200 bytes, callee_pop not read here; automata.md §3.5
+cISC4AutomataController	cSC4AutomataController	00a95d90	4	+0x10	005169f0	cISC4AutomataController::Shutdown	0	0	eax-or-void	high	re-answers29
+cISC4AutomataController	cSC4AutomataController	00a95d90	7	+0x1c	00517df0	cISC4AutomataController::GetTemplateName	0	0	eax	high	re-answers29 (automata.md §3.5): returns the template's name (template+4) when the controller has a template, else the local characters at +0x28
+cISC4AutomataController	cSC4AutomataController	00a95d90	9	+0x24	00517e00	cISC4AutomataController::GetRadius	0	0	st0	high	re-answers29: returns template+0x20 as f32, or 0.0 when there is no template; NOT a field of the controller
+cISC4AutomataController	cSC4AutomataController	00a95d90	10	+0x28	00517e20	cISC4AutomataController::IsActive	0	0	eax	high	re-answers29
+cISC4AutomataController	cSC4AutomataController	00a95d90	11	+0x2c	00515a40	cISC4AutomataController::GetPosition(float*)	4	1	none	high	re-answers29 (automata.md §3.5): writes +0x14/+0x18/+0x1C, or forwards to the +0x0C object's slot 8 when that object has flag 0x20
+cISC4AutomataController	cSC4AutomataController	00a95d90	12	+0x30	00517e60	cISC4AutomataController::CheckFlag(uint)	4	1	al	high	re-answers29: the flag-8 test of the state/automaton Write calls this with 8 (0x00509D1E); parameter type is cISC4AutomataController::tControllerFlag (Mac); reads the u32 at +0x40 - see automata.md §3.5 flag-offset note
+cISC4AutomataController	cSC4AutomataController	00a95d90	13	+0x34	00517e70	cISC4AutomataController::SetFlag(uint, bool)	8	2	none	high	re-answers29: sets or clears the flag bits in the u32 at +0x40; Mac type tControllerFlag
+cISC4AutomataController	cSC4AutomataController	00a95d90	14	+0x38	00517f40	cISC4AutomataController::SetOccupant	4	1	none	high	re-answers29
+cISC4AutomataController	cSC4AutomataController	00a95d90	15	+0x3c	00517430	cISC4AutomataController::SetTemplate	4	1	none	high	re-answers29: controller manager HandlePostCityInit calls this (slot 15) before Init, automata.md §3.4
+cISC4AutomataController	cSC4AutomataController	00a95d90	18	+0x48	00516aa0	cISC4AutomataController::Activate	4	1	none	high	re-answers29
+cISC4AutomataController	cSC4AutomataController	00a95d90	19	+0x4c	00517ef0	cISC4AutomataController::SetLifetime(float)	4	1	none	high	re-answers29 (automata.md §3.5): writes the unsaved lifetime limit at +0x54; IsExpired is limit>0 && counter(+0x50)>=limit
+cISC4AutomataController	cSC4AutomataController	00a95d90	20	+0x50	00516ec0	cISC4AutomataController::GetOccupantBoundingBox	8	2	none	medium	re-answers29
+cISC4AutomataController	cSC4AutomataController	00a95d90	21	+0x54	00515bd0	cISC4AutomataController::GetBoundingBox	0	0	none	low	re-answers29: body longer than 200 bytes, callee_pop not read here
+cISC4AutomataController	cSC4AutomataController	00a95d90	23	+0x5c	00515a80	cISC4AutomataController::IsPointWithinRadius	8	2	al	medium	re-answers29
+cISC4AutomataController	cSC4AutomataController	00a95d90	25	+0x64	00516b40	cISC4AutomataController::CheckEffectTriggers	0	0	none	low	re-answers29: body longer than 200 bytes, callee_pop not read here
+cISC4EffectsDraw (vftable_1)	cSC4EffectsManager	00a9f250	3	+0xC	00593120	cSC4EffectsManager::Update	4	1	eax-or-void	high	re-ui: NEW. The effects manager's draw interface (vtable 0x00A9f250, 5 slots, re/labels_windows.tsv:268), beside cISC4EffectsManager 0x00a9f264. xrefs to 0x00593120 return exactly one address, 0x00a9f25c, so this is the only route to it. Confirms effects.md EF2. Slot 4 of the same vtable is Pick at 0x00735290 (pops 16). See docs/specs/ui-windows.md §7
+cISC4LotManager	cSC4LotManager	00ab37c0	5	+0x14	0072a1c0	cISC4LotManager::GetLot(cS3DVector3 const&)	4	1	eax	high	re-answers31 (DQ4): NAME the unnamed row. One stack arg, a pointer read at +0x00 and +0x08 (x and z of a vec3). Compiled order is the point overload at slot 5 and the cell overload at slot 6; SDK cISC4LotManager.h:42-43 declares them the other way round and is wrong (same finding as crime.md). game_class cSC4ZoneDeveloper on the existing row is also a code-fold misattribution.
+cISC4LotManager	cISC4LotManager	00ab37c0	6	+0x18	0072b410	cISC4LotManager::GetLot(int32,int32,bool)	12	3	eax	high	re-answers31 (DQ4): NAME the unnamed row. `ret 0x0C` = pop 12. Bounds-checks 0 <= x < this+0x24 and 0 <= z < this+0x28 then a 2-D grid lookup. Third arg is a containment re-check: true asks the lot (slot 21) for its bounds and returns null unless they contain (x,z); false skips it. All glue callers use this slot, not 5.
+cISC4PathInfo	cSC4PathInfo	00a99e70	0	+0x0	0053cfa0	cSC4PathInfo::QueryInterface	8	2	eax-or-void	medium	re-answers24: IGZUnknown
+cISC4PathInfo	cSC4PathInfo	00a99e70	1	+0x4	00808600	cSC4PathInfo::AddRef	0	0	eax	medium	re-answers24: thunk: this += 4, tail-jump 0x009753b7 (shared refcount)
+cISC4PathInfo	cSC4PathInfo	00a99e70	2	+0x8	00808610	cSC4PathInfo::Release	0	0	eax	medium	re-answers24: thunk: this += 4, tail-jump 0x009753c5
+cISC4PathInfo	cSC4PathInfo	00a99e70	3	+0x0C	0053dd30	cSC4PathInfo::GetPath(unsigned int, float*)	8	2	eax	high	re-answers21 (TG24), traffic-network.md 7.3: hash lookup on the u32 path key (exit bits 0-7, entry 8-15, lane 16-23, path type 24-27, 28-31 zero); null when absent; when found and lengthOut is not null, *lengthOut := the record's length (f32 at +0xC of the path record); EAX is a pointer into the path info, BORROWED (valid while the path info is unchanged), never released by the caller
+cISC4PathInfo	cSC4PathInfo	00a99e70	4	+0x10	0053cff0	cSC4PathInfo::GetPath(unsigned int, unsigned char, unsigned char, unsigned char, float*)	20	5	eax	high	re-answers21 (TG24), traffic-network.md 7.3: slot 3 with key pathType << 24 | lane << 16 | entry << 8 | exit (only the low byte of pathType survives the shift); EAX is a path POINTER OR NULL, not a bool - the caller tests the whole of EAX (0x0071ABF9)
+cISC4PathInfo	cSC4PathInfo	00a99e70	5	+0x14	0053df70	cSC4PathInfo::GetBestPath	24	6	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	6	+0x18	0053e150	cSC4PathInfo::GetPathsNearStartPoint	24	6	eax	medium	re-answers24: returns EAX = esi at exit; probably the hidden vector pointer as slot 7 [inferred]
+cISC4PathInfo	cSC4PathInfo	00a99e70	7	+0x1C	0053e350	cSC4PathInfo::GetPathsNearEndPoint(unsigned int, float const*, unsigned char, unsigned char, float)	24	6	eax	high	re-answers21 (TG24), traffic-network.md 7.3: vector<u32> returned BY VALUE through a hidden first argument (the caller's uninitialised vector<u32>, which the callee constructs and the caller frees with allocator B 0x0090CF63); 6 dwords including the hidden pointer; EAX = the hidden pointer; match rule: key masked equals pathType << 24 | entry << 8 | exit with mask 0xFF00FFFF, dropping the entry byte when entry = 0xFF and the exit byte when exit = 0xFF; nearest first, the rest in no distance order
+cISC4PathInfo	cSC4PathInfo	00a99e70	8	+0x20	0053fa40	cSC4PathInfo::GetRandomPath	20	5	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	9	+0x24	0053fb80	cSC4PathInfo::GetRandomPathWildcard	24	6	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	10	+0x28	0053dd90	cSC4PathInfo::GetPathLength(u32 key)	4	1	x87	high	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	11	+0x2C	0053d030	cSC4PathInfo::GetPathLength(u32 pathType, u8 entry, u8 exit, u8 lane)	16	4	x87	medium	re-answers24: builds key pathType<<24|lane<<16|entry<<8|exit and calls slot 10; result left on the x87 stack
+cISC4PathInfo	cSC4PathInfo	00a99e70	12	+0x30	0053eaa0	cSC4PathInfo::GetLaneCount	12	3	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	13	+0x34	0053d0a0	cSC4PathInfo::IsIntersection	4	1	al	high	re-answers24: AL = byte [this + arg + 0x31] when arg != 0
+cISC4PathInfo	cSC4PathInfo	00a99e70	14	+0x38	0053e870	cSC4PathInfo::GetPathsFromEntryEdge(unsigned int, unsigned char, std::vector<unsigned int>&)	12	3	eax	high	re-answers21 (TG24), traffic-network.md 7.3: empties keys first (keeps the capacity), then walks the whole hash map in bucket order and appends every key with bits 28-31 zero, bits 24-27 equal to pathType (compared as a full u32, so a pathType above 15 matches nothing) and entry byte equal to entry; EAX = the number of keys appended; entry = 0xFF is not a wildcard here; the vector is the caller's (allocator B)
+cISC4PathInfo	cSC4PathInfo	00a99e70	15	+0x3C	0053e990	cSC4PathInfo::GetPathsToExitEdge	12	3	eax	medium	re-answers24: same shape as slot 14
+cISC4PathInfo	cSC4PathInfo	00a99e70	16	+0x40	005403a0	cSC4PathInfo::UseElevation	0	0	eax	high	re-answers24: EAX = byte [this+0x30] & 1 (zero-extended); GetPathInfo 0x0061B510 tests AL
+cISC4PathInfo	cSC4PathInfo	00a99e70	17	+0x44	005403b0	cSC4PathInfo::SetUseElevationFlag(bool)	4	1	void	high	re-answers24: true sets bit 0 of byte +0x30; false does nothing (never clears)
+cISC4PathInfo	cSC4PathInfo	00a99e70	18	+0x48	0053d6c0	cSC4PathInfo::GetDestinationPoint	16	4	al	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	19	+0x4C	0053d2e0	cSC4PathInfo::SnapPointToPath	8	2	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	20	+0x50	0053ece0	cSC4PathInfo::SnapPointToAnyPath	12	3	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	21	+0x54	0053ee90	cSC4PathInfo::GetDispatchDestination	16	4	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	22	+0x58	0053d890	cSC4PathInfo::GetPathMidpoint	8	2	al	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	23	+0x5C	0053da80	cSC4PathInfo::GetRandomPathPoint	8	2	al	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	24	+0x60	00540910	cSC4PathInfo::Clone	0	0	eax	high	re-answers24: new path info (owned reference) or null; GetPathInfo 0x0061B5B4 releases the original after it
+cISC4PathInfo	cSC4PathInfo	00a99e70	25	+0x64	00540ac0	cSC4PathInfo::CreateTransformedCopy(cISC4NetworkOccupant*)	4	1	eax	high	re-answers24: new path info placed at the occupant (owned) or null; network-rules.md 11.1 step 5
+cISC4PathInfo	cSC4PathInfo	00a99e70	26	+0x68	00541670	cSC4PathInfo::RemoveWrongWayPaths(cISC4NetworkOccupant*)	4	1	eax-or-void	medium	re-answers24: result unused by GetPathInfo; reads occupant slot 69 (one-way byte); network-rules.md 11.1 step 7
+cISC4PathInfo	cSC4PathInfo	00a99e70	27	+0x6C	0053ebb0	cSC4PathInfo::InitializeNetworkConnectionBitmap(cISC4NetworkOccupant*)	4	1	eax-or-void	medium	re-answers24: fills the occupant connection bitmap +0x144 (32 bytes); result unused; network-rules.md 11.1 step 8
+cISC4PathInfo	cSC4PathInfo	00a99e70	28	+0x70	0053ec40	cSC4PathInfo::OffsetBy	12	3	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	29	+0x74	00541ae0	cSC4PathInfo::OffsetAndScissor	16	4	eax	high	re-answers24: args (dx, 0, dz, const rect*); returns a new path info (owned); GetPathInfo stores it in +0x140; network-rules.md 11.1 step 6
+cISC4PathInfo	cSC4PathInfo	00a99e70	30	+0x78	008085f0	cSC4PathInfo::GetPathMap	0	0	eax	high	re-answers24: EAX = this + 0x1C (the hash map of 7.3)
+cISC4PathInfo	cSC4PathInfo	00a99e70	31	+0x7C	005425c0	cSC4PathInfo::CopyPaths	16	4	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	32	+0x80	0053fd70	cSC4PathInfo::MakeTunnelPaths	8	2	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	33	+0x84	0053e650	cSC4PathInfo::GetStopPointCount	4	1	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	34	+0x88	0053e550	cSC4PathInfo::GetStopPointCount	16	4	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	35	+0x8C	0053e740	cSC4PathInfo::GetStopPoint(arg, u32 key)	8	2	al	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	36	+0x90	0053d060	cSC4PathInfo::GetStopPoint(arg, u32 pathType, u8 entry, u8 exit, u8 lane)	20	5	al	medium	re-answers24: builds key (pathType|0x10)<<24|lane<<16|entry<<8|exit (bit 28 set: stop-point keys) and calls slot 35
+cISC4PathInfo	cSC4PathInfo	00a99e70	37	+0x94	0053f100	cSC4PathInfo::GetCenterLane	12	3	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	38	+0x98	0053f000	cSC4PathInfo::GetJunctionKeys	12	3	eax-or-void	medium	re-answers24: one exit is setne al
+cISC4PathInfo	cSC4PathInfo	00a99e70	39	+0x9C	0053f360	cSC4PathInfo::GetPathIntersection	28	7	eax-or-void	medium	re-answers24: name only
+cISC4PathInfo	cSC4PathInfo	00a99e70	40	+0xA0	0053f6c0	cSC4PathInfo::VerifyPathEdges(cISC4NetworkOccupant*)	4	1	eax-or-void	medium	re-answers24: result unused by GetPathInfo; switch through jump tables 0x0053F874/0x0053F884; network-rules.md 11.1 step 7
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	0	+0x00	00756910	cSTETerrainView3D::QueryInterface	8	2	eax-or-void	medium	IID 0x6771477D - the interface terrain slot 66 returns (view+0x0C). this = view+0x0C, so every offset in these methods is +0x0C vs the object table.
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	1	+0x04	00761850	cSTETerrainView3D::AddRef	0	0	eax	medium	
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	2	+0x08	00761860	cSTETerrainView3D::Release	0	0	eax	medium	
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	3	+0x0C	0075a230	cSTETerrainView3D::Pick	20	5	x87	high	returns float in st0
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	4	+0x10	007526e0	cSTETerrainView3D::MarkSelected (textured cell)	28	7	al	high	zones.md 7.1.1 calls this "the terrain view +0x10", seven arguments: (&cell, &tex, rotation, flip, colour, blendOp=3, clearFlag=0)
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	5	+0x14	007526c0	cSTETerrainView3D::MarkSelected	28	7	al	high	forwards to 007519a0
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	6	+0x18	007526a0	cSTETerrainView3D::MarkSelected	12	3	al	high	forwards to 00751910
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	7	+0x1C	00752680	cSTETerrainView3D::MarkSelected	12	3	al	high	
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	8	+0x20	00752660	cSTETerrainView3D::MarkSelected	12	3	al	high	forwards to 007516d0
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	9	+0x24	00751ed0	cSTETerrainView3D::ClearCurrentSelections	0	0	void	high	zones.md ClearHighlight "the terrain view's slot 9". reads [ecx+0x60] = view+0x6C (selected terrain area) and tail-jumps 00750ca0
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	10	+0x28	00752860	cSTETerrainView3D::SetAutomaticCellCursorUpdateStatus	4	1	void	high	
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	11	+0x2C	007568e0	cSTETerrainView3D::IsWaterGlareEnabled	0	0	al	high	AL only (quirk 10). reads [ecx+0x3d] = view+0x49
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	12	+0x30	00756080	cSTETerrainView3D::SetWaterGlareStatus	4	1	void	high	
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	13	+0x34	00755f30	cSTETerrainView3D::SetLightingUpdateRect	4	1	void	high	called from view Init (0075c72a) with the whole-city rect
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	14	+0x38	00752870	cSTETerrainView3D::DrawTerrainQuad	12	3	void	high	reads the terrain vertex array at +0x6C and tests record +0x23 (high byte of the flags word) mask 0x30 = the 0x3000 triangulation flips (007528FD). this = view+0x0C, so the terrain is at this+0x14.
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	15	+0x3C	00752940	cSTETerrainView3D::DrawTexturedTerrainQuad	24	6	void	high	
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	16	+0x40	00759750	cSTETerrainView3D::LevelCell	12	3	x87	medium	WRITES the terrain vertex array: or byte [vertex+i*4+0x22],0x60 at 00759873 (the two hide bits 0x20|0x40). Loads the array from terrain +0x6C (00759870). this = view+0x0C.
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	17	+0x44	00758620	cSTETerrainView3D::RemoveCellLevelling	8	2	void	high	WRITES the terrain vertex array: and byte [vertex+i*4+0x22],0x9F at 007586DA (clears the same 0x60 bits). Loads the array from terrain +0x6C (007586D7). this = view+0x0C.
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	18	+0x48	007558a0	cSTETerrainView3D::GetOverlayManager(index)	4	1	eax	high	EAX = [ecx + index*4 + 0x6c] = view+0x78+index*4 with ecx=view+0x0C. The four overlay managers (view+0x78..+0x84). terrain DoPostCityInit calls this with index 0 and AddRefs the result into terrain+0xF8 (00749637-00749655).
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	19	+0x4C	0075a770	cSTETerrainView3D::HandleCheatCommand	4	1	al	high	
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	20	+0x50	00752ae0	cSTETerrainView3D::GetDisplayGridFlag	0	0	al	high	AL only. reads the PROCESS STATIC 0x00B4C741, not an object field (00752ae0).
+cISTETerrainView3D2	cSTETerrainView3D	00ab4410	21	+0x54	00755e80	cSTETerrainView3D::SetDisplayGridFlag	4	1	void	high	also driven by the view's own message handler for 0x277A9364 (007575ee-007575ff)
+cISTETerrainView3D3	cSTETerrainView3D	00ab43e8	0	+0x00	00756950		0	0	eax-or-void	medium	
+cISTETerrainView3D3	cSTETerrainView3D	00ab43e8	1	+0x04	00756960		0	0	eax	medium	
+cISTETerrainView3D3	cSTETerrainView3D	00ab43e8	2	+0x08	00756970		0	0	eax	medium	
+cISTETerrainView3D3	cSTETerrainView3D	00ab43e8	3	+0x0C	00752cd0		4	1	al	medium	vtable at view+0x14; this = view+0x14
+cISTETerrainView3D3	cSTETerrainView3D	00ab43e8	4	+0x10	007527d0		4	1	eax-or-void	medium	
+cISTETerrainView3D3	cSTETerrainView3D	00ab43e8	5	+0x14	007523e0		0	0	eax-or-void	medium	the message-rect unpacker's sibling; 007523f0(msg,&rect) is used by the view's DoMessage for 0x278E6003 / 0x678E6E3A
+cRZUnknown	cSTETerrainView3D	00ab4468	0	+0x00	007568f0		0	0	eax-or-void	medium	sub-object at view+0x04. this = view+0x04.
+cRZUnknown	cSTETerrainView3D	00ab4468	1	+0x04	005be420		0	0	eax	medium	AddRef
+cRZUnknown	cSTETerrainView3D	00ab4468	2	+0x08	005bcb60		0	0	eax	medium	Release
+cRZUnknown	cSTETerrainView3D	00ab4468	3	+0x0C	00756900		0	0	eax-or-void	medium	
+cRZUnknown	cSTETerrainView3D	00ab4468	4	+0x10	0090d981	cRZUnknown::RemoveRef	0	0	eax	medium	
+cRZUnknown	cSTETerrainView3D	00ab4468	5	+0x14	009d7e63		0	0	eax	medium	
+cSC4AnimationTickManager	cSC4AnimationTickManager	00a86760	5	+0x14	00448b70	cSC4AnimationTickManager::AddTickableObject	8	2	eax	medium	(target, priority). The surface water registers at priority 0xC0 (push 0xc0 at 0074001e) with target = &this+0x08. Slot 6 (+0x18) 0x00448c70 RemoveTickableObject is the matching removal. Bands: p>=0xC0 -> 0, 0x80..0xBF -> 1, 0x40..0x7F -> 2, else 3 (00448bf6-00448c1d).
+cSC4EffectComponent	cSC4DecalEffect		2	+0x08	008264b0	IsActive (AL, *(u8*)(this+0x08))	0	0	al	high	re-integrate1: VTABLE BASE NOT MEASURED (pool ctor 0x00583190); left blank rather than guessed. Component-interface slot 2. Self-stops when the fade product passes 1.0 and mode byte +0x15 == 2 (Update 0x00582920)
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	0	+0x00	005b3000	Start(uint32 mode)	4	1	eax-or-void	high	re-integrate1: cSC4ParticlesEffect component vtable. -> cSCParticleSimulatorBase::Start 0x005b9cf0; only if !started || delayedStop and !flag7
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	1	+0x04	005b21e0	Stop(uint32 mode)	4	1	eax-or-void	high	re-integrate1: mode != 0 sets started=0 immediately and destroys every particle; mode == 0 sets delayedStop and leaves started=1. -> 0x005b9e70
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	2	+0x08	005a8fa0	IsActive (AL, *(u8*)(obj+0x09) started)	0	0	al	high	re-integrate1: the +4 cSCParticleSimulatorBase subobject's started byte. Vtable has no RTTI. Folded Ghidra name is not authoritative
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	3	+0x0C	005b3430	SetTransform(local, parent)	8	2	eax-or-void	high	re-integrate1
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	4	+0x10	00648f10	Update(float dtSeconds)	4	1	void	high	re-integrate1: EMPTY STUB. Particle components are advanced only in the draw pass (slot 9), never in the animation tick. Ghidra folds this onto cSC4NetworkTool::DebugDumpEdgeTypes
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	5	+0x14	005b2490	SetFloatParams(uint32, float const*, uint32)	12	3	eax-or-void	medium	re-integrate1: base class. The ModelBased/GeometrySourced vtables (0x00aa0c58 / 0x00aa0ea0) use 0x005aac90 at this slot
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	6	+0x18	005b2200	SetVoidParams(uint32 index, void const*, uint32)	12	3	eax-or-void	high	re-integrate1: FUN_005b2200. if (index != 7) return 0. PARAMETER 13 IS IGNORED BY PARTICLE COMPONENTS; forwards index 7 to slot 11
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	7	+0x1C	005a8f80	AddRef	0	0	eax-or-void	high	re-integrate1
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	8	+0x20	005a8f90	Release	0	0	eax-or-void	high	re-integrate1
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	9	+0x24	005b8540	Update(float dt, SC4DrawContext*)	8	2	eax-or-void	high	re-integrate1: the DRAW-PASS update, the only place particles advance and CheckForStop 0x005b9d40 runs
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	10	+0x28	005b7c90	SetDescription	0	0	eax-or-void	medium	re-integrate1: pop/args not measured. Twin address 0x005ab190 seen on a derived vtable
+cSC4EffectComponent	cSC4ParticlesEffect	00aa0b88	11	+0x2C	005aafe0	(index-7 target)	0	0	eax-or-void	medium	re-integrate1: pop/args not measured. The receiver of SetVoidParams index 7
+cSC4EffectComponent	cSC4Scrubber-runtime	00aa0ff8	2	+0x8	00644fc0	cSC4GameEffect::IsActive	0	0	al	high	re-answers29 RETURN CHANNEL: AL = *(u8*)(this+0x25). Cleared by Stop 0x005BD340 or when timer > duration
+cSC4EffectComponent	cSC4Scrubber-runtime	00aa0ff8	6	+0x18	005bc2b0	cSC4GameEffect::SetVoidParams	12	3	eax	high	re-answers29 (EF3): accepts ONLY index 13; copies *value to this+0x58 (the game record's data field, which becomes the message data1) and returns 1. Other indices return 0
+cSC4EffectComponent	cSC4VisualEffect-as-component	00aa1148	0	+0x0	005c0520	cSC4EffectComponent::Start(uint32)	4	1	none	high	re-answers29 (effects.md §7, EF1): thunk sub ecx,4 -> 0x005BE920; mode argument
+cSC4EffectComponent	cSC4VisualEffect-as-component	00aa1148	1	+0x4	005c0530	cSC4EffectComponent::Stop(uint32)	4	1	none	high	re-answers29: thunk sub ecx,4 -> 0x005BEBA0; mode 0 = soft stop, else hard
+cSC4EffectComponent	cSC4VisualEffect-as-component	00aa1148	2	+0x8	005c04f0	cSC4EffectComponent::IsActive	0	0	al	high	re-answers29 RETURN CHANNEL: AL. Thunk sub ecx,4 -> 0x007D6680 -> *(u8*)(obj+0x24) started. The finish test 0x005BFD70 calls this slot
+cSC4EffectComponent	cSC4VisualEffect-as-component	00aa1148	6	+0x18	005c0540	cSC4EffectComponent::SetVoidParams(uint32, void const*, uint32)	12	3	eax	high	re-answers29 (EF3): thunk sub ecx,4 -> 0x005BFC20 (ForwardParameter) - RECURSIVE into the child's components. Index 13 is the opaque pointer channel
+cISC4FireOccupant	cSC4FireOccupant	00a88460	0	+0x0	0046fe30	cSC4FireOccupant::QueryInterface(iid, void**)	8	2	al	high	re-answers23 (disasters.md 5.11): 0x69D25C60 -> this; else cSC4Occupant QI
+cISC4FireOccupant	cSC4FireOccupant	00a88460	1	+0x4	005e28f0	cSC4FireOccupant::AddRef	0	0	eax	high	re-answers23 (disasters.md 5.11)
+cISC4FireOccupant	cSC4FireOccupant	00a88460	2	+0x8	005e2900	cSC4FireOccupant::Release	0	0	eax	high	re-answers23 (disasters.md 5.11)
+cISC4FireOccupant	cSC4FireOccupant	00a88460	3	+0xC	005fd7e0	cSC4FireOccupant::AsOccupant	0	0	eax	high	re-answers23 (disasters.md 5.11): returns this+4 (cISC4Occupant, vtable 00a883d8)
+cISC4FireOccupant	cSC4FireOccupant	00a88460	4	+0x10	00471900	cSC4FireOccupant::SetTarget(cISC4Occupant*)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): maxStage from 0x49BEDA31 (2); flames; target 0x69DBEBE1 := 1; target SetRemovalFlags(2); building: fire_occupant controllers
+cISC4FireOccupant	cSC4FireOccupant	00a88460	5	+0x14	006aaeb0	cSC4FireOccupant::GetTarget	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x54
+cISC4FireOccupant	cSC4FireOccupant	00a88460	6	+0x18	00820250	cSC4FireOccupant::GetStage	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x44, initially -1
+cISC4FireOccupant	cSC4FireOccupant	00a88460	7	+0x1C	00698cf0	cSC4FireOccupant::GetMaxStage	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x48
+cISC4FireOccupant	cSC4FireOccupant	00a88460	8	+0x20	004728b0	cSC4FireOccupant::SetStage(int)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): rebuilds flame visuals
+cISC4FireOccupant	cSC4FireOccupant	00a88460	9	+0x24	0068d1b0	cSC4FireOccupant::GetCounter	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x40
+cISC4FireOccupant	cSC4FireOccupant	00a88460	10	+0x28	007b62d0	cSC4FireOccupant::SetCounter(int)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): +0x40
+cISC4FireOccupant	cSC4FireOccupant	00a88460	11	+0x2C	0068d1c0	cSC4FireOccupant::GetHosed	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x4C
+cISC4FireOccupant	cSC4FireOccupant	00a88460	12	+0x30	0046fdd0	cSC4FireOccupant::AddHosed(int delta)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): result clamped at 0
+cISC4FireOccupant	cSC4FireOccupant	00a88460	13	+0x34	0068d1d0	cSC4FireOccupant::GetFireID	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x68
+cISC4FireOccupant	cSC4FireOccupant	00a88460	14	+0x38	006d6e00	cSC4FireOccupant::SetFireID(uint32)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): +0x68

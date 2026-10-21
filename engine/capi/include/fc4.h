@@ -159,11 +159,15 @@ extern "C" {
  *      to 66, on its lane; renumbered at merge);
  * 68 = adds the prop manager, lot configuration manager and tutorial system (fc4_prop_manager,
  *      fc4_lot_config, fc4_tutorial; prop-lotconfig.md, tutorial.md) (taken as 70 on its lane;
- *      renumbered at merge). The lot configuration manager's opaque handle is
- *      fc4_lot_config_manager (the glue15 lane renamed it; the entry points keep their
- *      fc4_lot_config_* names, so the ABI surface is unchanged).
- * 69 = merge-train batch train2 (re-answers28, mergetrain-docs, re-answers29, cores12c, detpacing, cores18, apply14dis, glue12b2, coverage2, apply15c, apply15b, cores17): cores12c: adds the advisor system and the MySims (fc4_advisors, fc4_adv_obj, fc4_advisor_host, fc4_mysim_host; advisors.md, mysims.md) (taken as 62 on its lane; renumbered at merge). | detpacing: deterministic pacing (simulator.md §5.7 [choice]): fc4_pacing_set_process / fc4_pacing_process, fc4_sim_set_pacing / fc4_sim_get_pacing with fc4_pacing_hooks (the day's settle point), and every core with an idle-driven cycle runs it to completion in one settle delivery under FC4_PACING_DETERMINISTIC (taken as 65 on its lane, then 68; renumbered at merge). | cores18: adds the network rules (fc4_network_rules, fc4_network_rules_grid, network-rules.md): the rule database from resource bytes, tile rule evaluation and the rule stages of SolveNetwork over a cell grid (taken as 68 on its lane; renumbered at merge). | apply14dis: the disaster layer after re-answers14 (disasters.md): the host's dispatch-unit counts (fire_dispatch_count / police_dispatch_count) replace the effectiveness setters, the wind is a vector, network_default_cost and volcano_end_deformation are gone; fc4_disasters_set_cause returns the cause; adds fc4_disasters_manager_instances (taken as 68 on its lane). | glue12b2: adds fc4_port_developer_required_budget and fc4_port_developer_funding_ratio (the port glue's shadow; glue12b2 lane, taken as 66 on the lane, renumbered at merge). | cores17: adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane; taken as 63, then 64-68 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 69u
+ *      renumbered at merge).
+ * 69 = merge-train batch train2 (re-answers28, mergetrain-docs, re-answers29, cores12c, detpacing, cores18, apply14dis, glue12b2, coverage2, apply15c, apply15b, cores17): cores12c: adds the advisor system and the MySims (fc4_advisors, fc4_adv_obj, fc4_advisor_host, fc4_mysim_host; advisors.md, mysims.md) (taken as 62 on its lane; renumbered at merge). | detpacing: deterministic pacing (simulator.md §5.7 [choice]): fc4_pacing_set_process / fc4_pacing_process, fc4_sim_set_pacing / fc4_sim_get_pacing with fc4_pacing_hooks (the day's settle point), and every core with an idle-driven cycle runs it to completion in one settle delivery under FC4_PACING_DETERMINISTIC (taken as 65 on its lane, then 68; renumbered at merge). | cores18: adds the network rules (fc4_network_rules, fc4_network_rules_grid, network-rules.md): the rule database from resource bytes, tile rule evaluation and the rule stages of SolveNetwork over a cell grid (taken as 68 on its lane; renumbered at merge). | apply14dis: the disaster layer after re-answers14 (disasters.md): the host's dispatch-unit counts (fire_dispatch_count / police_dispatch_count) replace the effectiveness setters, the wind is a vector, network_default_cost and volcano_end_deformation are gone; fc4_disasters_set_cause returns the cause; adds fc4_disasters_manager_instances (taken as 68 on its lane). | glue12b2: adds fc4_port_developer_required_budget and fc4_port_developer_funding_ratio (the port glue's shadow; glue12b2 lane, taken as 66 on the lane, renumbered at merge). | cores17: adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane; taken as 63, then 64-68 on its lane; renumbered at merge).
+ * 70 = merge-train batch train3 (re-integrate1, glue17, apply15d, glue14c, devperf, cores19, flakyfix, glue14b, cores12a, glue15, apply15terrain, abi-hygiene, glue12b1): merged (no C ABI history entry of its own)
+ * 71 = merge-train batch train4 (re-specs20, re-answers30, re-specs19, cores22, apply15e, glue20, cores21): merged (no C ABI history entry of its own)
+ * 72 = merge-train batch train5 (re-answers31, re-specs21, cores24, coverage3, glue23): merged (no C ABI history entry of its own);
+ * 73 = merge-train batch train6 (glue17, apply15b, cores17, cores19, glue15, apply15terrain, glue12b1, glue12b2): adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane; taken as 63, then 64-68 on its lane; renumbered at merge). | adds the effects manager (fc4_effects, fc4_effects_directory; effects.md): the effect directory parser, creation, LOD and select groups, the tick, finishing (the hook or the draw-pass compat mode), the brush and game effects through host callbacks (renumbered at merge). | The lot configuration manager's opaque handle is fc4_lot_config_manager (the glue15 lane renamed it; the entry points keep their fc4_lot_config_* names, so the ABI surface is unchanged). | terrain round 2 (re-answers17, apply15terrain lane): fc4_terrain_lerped_water_level, fc4_terrain_flooding_altitude, fc4_terrain_water_velocity, fc4_terrain_sediment_at, fc4_terrain_brush_angles, fc4_terrain_set_brush_angles, fc4_terrain_talus_angle and fc4_terrain_set_talus_angle; fc4_terrain_brush_angle returns the stroke angle and fc4_terrain_add_brush's angle is the walk angle's start; set_water_display_state posts only on a change (taken as 64, then 65, 66 and 68 on its lane; renumbered at merge). | adds fc4_port_developer_required_budget and fc4_port_developer_funding_ratio (the port glue's shadow; glue12b2 lane, taken as 66 on the lane, renumbered at merge).
+ * 74 = merge-train batch train8 (re-answers32, glue27, cores23, cores20): merged (no C ABI history entry of its own)
+ * 75 = merge-train batch train10 (cores27): cores27: adds the network tools (fc4_nettool, network-tools.md §2-§11): the tool state, PlaceNetworkOccupants (slot 7), PlaceNetworkOccupantById (slot 8), the PlaceNetwork pipeline hand-off with the commit order, DestroyOccupantsAndResolve (slot 50) and the underground refit, over an fc4_nettool_host table (cores27 lane; taken as 75 on its lane; renumbered at merge; FC4_ABI_VERSION left at 74 for the train) */
+#define FC4_ABI_VERSION 75u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -613,7 +617,9 @@ typedef struct fc4_budget_host {
     bool (*try_start_disaster)(void* user, uint32_t id, float x, float z); /* false if it does not exist */
     /* The session seed S (foundations §6.3): the RiskyMoney generator is seeded
      * with derive(S, 0x6C09C3D7) (ABI 64; before, this callback returned the
-     * generator's seed itself). */
+     * generator's seed itself). The generator is process-wide (RN3): the first
+     * fc4_budget_create of the process seeds it, later budgets (later city
+     * loads) continue its stream and their seed is not read again. */
     uint32_t (*session_seed)(void* user);
     bool (*ltext)(void* user, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
     bool (*building_type_name)(void* user, uint32_t building_type, fc4_bytes_sink sink, void* ctx);
@@ -1451,6 +1457,26 @@ typedef struct fc4_grid_api {
     void (*shutdown)(void* user, uint64_t grid);
     void (*release)(void* user, uint64_t grid);
 } fc4_grid_api;
+
+/* 63: a performance hook (devperf). The host's bulk tract reader copies every
+ * tract value of `grid`, x outer (out[x * count_z + z]), as native elements of
+ * class `kind` into `out` (room for `count`) and returns the number written
+ * (0 for a kind it does not support); the core uses the copy only when that is
+ * count_x * count_z, and reads tract by tract through `get` otherwise, with
+ * the same values. Registered process-wide for the grids whose
+ * fc4_grid_api.get is `get`; a NULL `reader` removes it. */
+typedef uint32_t (*fc4_grid_bulk_reader)(uint64_t grid, uint32_t kind, void* out, uint32_t count);
+void fc4_grid_set_bulk_reader(double (*get)(void* user, uint64_t grid, uint32_t kind, int32_t tx, int32_t tz),
+                              fc4_grid_bulk_reader reader);
+/* 63: the bulk tract writer (devperf): for each i < n in order, SetTractValue of tract index[i]
+ * (x * count_z + z) to values[i], a native element of class `kind`; returns n when it wrote them all
+ * and 0 when it wrote none (writes switched off, an unsupported kind), and the core then sets them
+ * tract by tract through `set`. Registered process-wide for the grids whose fc4_grid_api.set is
+ * `set`; a NULL `writer` removes it. */
+typedef uint32_t (*fc4_grid_bulk_writer)(void* user, uint64_t grid, uint32_t kind, const uint32_t* index,
+                                         const void* values, uint32_t n);
+void fc4_grid_set_bulk_writer(void (*set)(void* user, uint64_t grid, uint32_t kind, int32_t tx, int32_t tz, double v),
+                              fc4_grid_bulk_writer writer);
 
 /* An inclusive cell rectangle. */
 typedef struct fc4_cell_rect {
@@ -2340,7 +2366,9 @@ typedef struct fc4_pollution_host {
 
 /* `token`: the simulator's own host identity; `session_seed` is the session
  * seed S (foundations §6.3): the visual-effect generator is seeded with
- * derive(S, 0x4C09C4D3) (ABI 64; before, the argument was its seed). */
+ * derive(S, 0x4C09C4D3) (ABI 64; before, the argument was its seed). It is
+ * process-wide (RN3): the first fc4_pollution_create of the process seeds it,
+ * later simulators (later city loads) continue its stream. */
 fc4_pollution* fc4_pollution_create(const fc4_pollution_host* host, uint64_t token, uint32_t session_seed);
 /* A loaded, never-initialised object gives its list and department references back. */
 void fc4_pollution_destroy(fc4_pollution* p);
@@ -4500,6 +4528,7 @@ bool fc4_development_add_foundation(fc4_development* p, uint32_t t, int32_t usag
 bool fc4_development_load_foundation(fc4_development* p, uint64_t occ, uint32_t t);     /* 26 */
 bool fc4_development_load_retaining_wall(fc4_development* p, uint64_t occ, uint32_t t); /* 29 */
 uint64_t fc4_development_developer(const fc4_development* p, uint32_t dev_type); /* 32, borrowed */
+/* 34 and 44: cb runs while the core's state is borrowed (no copy is made): it must not call back into p */
 uint32_t fc4_development_developers(const fc4_development* p, fc4_type_token_callback cb, void* ctx); /* 34 */
 uint64_t fc4_development_building_map(const fc4_development* p);                                     /* 41 */
 uint32_t fc4_development_special_buildings(const fc4_development* p, fc4_token_callback cb, void* ctx); /* 44 */
@@ -7109,7 +7138,8 @@ typedef void (*fc4_network_lot_sink)(void* ctx, int32_t x, int32_t z, uint64_t n
 typedef struct fc4_city_detail_host {
     uint32_t struct_size; /* sizeof(fc4_city_detail_host) */
     void* user;
-    /* The city detail setting (0 low, 1 medium, 2 high). */
+    /* The city detail setting: the preferences byte, 1 low, 2 medium, 3 high
+       (city-detail.md §2; the original's default is 3). */
     uint32_t (*detail_setting)(void* user);
     /* Every lot of the lot manager. */
     void (*lots)(void* user, fc4_u64s_sink sink, void* ctx);
@@ -7145,12 +7175,14 @@ typedef struct fc4_city_detail_state {
     /* The last Init: 0 nothing, 1 reduce, 2 increase; the occupants removed
      * and created, the draws, the network lots redeveloped. */
     uint32_t last_pass, last_removed, last_created, last_draws, last_network_lots;
-    uint32_t session_passes; /* increase passes so far in this session */
+    uint32_t session_passes; /* increase passes by this manager object so far (n of §3.5,
+                              * 0 at creation; CD5) */
 } fc4_city_detail_state;
 
 /* Constructed (level none, reference count 0). The host table is copied (NULL
  * for a NULL or short table). `session_seed` is S of §3.5; `token` is the
- * manager's own host identity. */
+ * manager's own host identity. The increase-pass count n of §3.5 belongs to
+ * the object and starts at 0 (CD5): the game makes one per city load. */
 fc4_city_detail* fc4_city_detail_create(const fc4_city_detail_host* host, uint32_t session_seed, uint64_t token);
 void fc4_city_detail_destroy(fc4_city_detail* c);
 bool fc4_city_detail_query_interface(uint32_t iid);
@@ -7205,12 +7237,13 @@ typedef struct fc4_port_host {
     void (*lot_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
     uint32_t (*lot_facing)(void* user, uint64_t lot);
     bool (*lot_zone_compatible)(void* user, uint64_t lot, uint16_t zone);
-    /* The lot configuration with this ID (0 = none). */
+    /* The lot configuration with this ID (0 = none: the swap still goes on, PD5). */
     uint64_t (*lot_configuration)(void* user, uint32_t id);
     void (*start_demolish_lot)(void* user, uint64_t lot);
     void (*end_demolish_lot)(void* user, uint64_t lot);
     /* CreateLot(x, z, width, depth, facing); the lot (0 = none). */
     uint64_t (*create_lot)(void* user, int32_t x, int32_t z, int32_t width, int32_t depth, uint32_t facing);
+    /* SetLotConfiguration + UpdateZoneType, ConstructDefaultLot(lot, cfg, 0, 1); `configuration` may be 0 (null, PD5). */
     void (*set_lot_configuration)(void* user, uint64_t lot, uint64_t configuration);
     bool (*construct_default_lot)(void* user, uint64_t lot, uint64_t configuration);
     void (*dezone)(void* user, const fc4_cell_rect* rect);
@@ -7225,6 +7258,9 @@ typedef struct fc4_port_host {
     void (*terrain_size)(void* user, uint32_t* width, uint32_t* depth);
     bool (*cell_has_water)(void* user, uint32_t x, uint32_t z);
     uint32_t (*set_access_props_state)(void* user, uint64_t lot, uint32_t property, uint32_t state);
+    /* cISTETerrain slot 51 SetAltitude(x, z, h): vertex indices. The seaport passes the truncated metre
+     * coordinates of a cell centre, as the original does (§4.8 step 4, PD6); ones outside the terrain's
+     * vertices are skipped. */
     void (*set_altitude)(void* user, int32_t x, int32_t z, float altitude);
 } fc4_port_host;
 
@@ -7260,7 +7296,9 @@ bool fc4_port_developer_query_interface(uint32_t kind, uint32_t iid, uint32_t* o
 uint32_t fc4_port_developer_add_ref(fc4_port_developer* p);
 /* Release: the last release calls Shutdown and returns 0; the handle stays valid until fc4_port_developer_destroy. */
 uint32_t fc4_port_developer_release(fc4_port_developer* p);
-/* Init: tuning, department, agent; the seaport's map. */
+/* Init (guarded: a second call returns true at once): tuning, agent, department; the seaport's map.
+ * Shutdown (nothing without Init): deletes every port and port type, removes the agent; keeps the
+ * tuning-loaded flag (PD10). */
 bool fc4_port_developer_init(fc4_port_developer* p);
 bool fc4_port_developer_shutdown(fc4_port_developer* p);
 /* DoMessage (§3): `data` is the occupant (0x99EF1142) or the lot (0xE8BDA2E7,
@@ -7278,9 +7316,15 @@ size_t fc4_port_developer_all_port_lots(const fc4_port_developer* p, uint64_t* o
 uint32_t fc4_port_developer_num_ports(const fc4_port_developer* p, uint32_t size_flags, uint32_t stage_flags);
 uint32_t fc4_port_developer_num_airports(const fc4_port_developer* p, uint32_t size);
 uint32_t fc4_port_developer_num_seaports(const fc4_port_developer* p);
-/* Get...UsageValues(lot): false (0, 0) if not a port. */
+/* Get...UsageValues(lot): usage = min(trips, capacity), cap = capacity, then with funding the funded
+ * cap and the usage clamped to it (§4.7; the month uses the plain capacity, PD8); false (0, 0) if not
+ * a port. */
 bool fc4_port_developer_usage_values(const fc4_port_developer* p, uint64_t lot, uint32_t* usage, uint32_t* cap);
 uint32_t fc4_port_developer_num_trips(const fc4_port_developer* p);
+/* RequiredBudget() (§4.2): the summed monthly cost of the current stages (line 1's full expenses after UpdateBudget). */
+int64_t fc4_port_developer_required_budget(const fc4_port_developer* p);
+/* The funding ratio fr (§4.2): line 1's current / full, 1.0 without the line or with full 0 (reads the line through the host). */
+float fc4_port_developer_funding_ratio(const fc4_port_developer* p);
 /* GetMaintenanceCost(lot) (0 if not a port). */
 int64_t fc4_port_developer_maintenance_cost(const fc4_port_developer* p, uint64_t lot);
 /* Seaport: CityHasSea / GetCellSeaAccess(x, z) (the map byte, 0 outside the map). */
@@ -7426,7 +7470,7 @@ typedef struct fc4_prop_message {
 typedef struct fc4_prop_state {
     uint32_t struct_size;
     int32_t scan_flag;      /* 0 never set up, 1 set up, 2 scanning */
-    uint32_t scanner_state; /* 0 fresh, 1 running, 2 done */
+    uint32_t scanner_state; /* 0 fresh, 2 done, any other byte running (1, or a byte above 2 as read, PV13) */
     int32_t scanner_x, scanner_z, scanner_step;
     int32_t clip_x0, clip_z0, clip_x1, clip_z1;
     uint32_t night_cursor, night_mode, night_batch, night_acc;
@@ -7504,6 +7548,591 @@ size_t fc4_prop_developer_trigger_entry(const fc4_prop_developer* p, uint32_t in
  * of class 0x89C49986 becomes a wealth requester with that token. */
 bool fc4_prop_developer_write(const fc4_prop_developer* p, const fc4_ostream* out);
 bool fc4_prop_developer_read(fc4_prop_developer* p, const fc4_istream* in);
+
+/* ---- demolition utility (docs/specs/demolition.md) ----------------------------
+ * cSC4DemolitionUtility (0x0990C38A). The shim owns the GZCOM objects and
+ * forwards their slots here. Tokens are opaque host identities: occupants,
+ * lots, filters, the caller's occupant list and set (0 = none). Tokens handed
+ * to the core are borrowed; the city, occupant manager, lot developer and
+ * terrain are held through the acquire_* / release_* pairs. The two tuning
+ * exemplars are fetched each time the core reads them. A missing callback
+ * reads as 0 / false / none. */
+typedef struct fc4_demolition fc4_demolition;
+
+typedef struct fc4_demolition_host {
+    uint32_t struct_size; /* sizeof(fc4_demolition_host) */
+    void* user;
+    /* Lifecycle (§4.1): message subscriptions, the city (and its cell counts),
+     * the occupant manager, the lot developer and the terrain; false = none. */
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    bool (*acquire_city)(void* user);
+    void (*release_city)(void* user);
+    void (*city_cell_counts)(void* user, int32_t* x, int32_t* z);
+    bool (*acquire_occupant_manager)(void* user);
+    void (*release_occupant_manager)(void* user);
+    bool (*acquire_lot_developer)(void* user);
+    void (*release_lot_developer)(void* user);
+    bool (*acquire_terrain)(void* user);
+    void (*release_terrain)(void* user);
+    /* The tuning (§6): "Demolition Thresholds" and "Building Development"
+     * as a new fc4_props the core takes over (NULL = none). */
+    fc4_props* (*thresholds_exemplar)(void* user);
+    fc4_props* (*building_development_exemplar)(void* user);
+    /* Release on a host object (the deferred lot of 0xA9DED179). */
+    void (*release)(void* user, uint64_t token);
+    /* The view's occupant filter (0 = none) and the view level (false = no view). */
+    uint64_t (*acquire_view_filter)(void* user);
+    bool (*view_level)(void* user, uint32_t* out);
+    /* filter.IsOccupantIncluded / IsOccupantTypeIncluded; the default and
+     * realistic occupant filters. */
+    bool (*filter_includes)(void* user, uint64_t filter, uint64_t occupant);
+    bool (*filter_includes_type)(void* user, uint64_t filter, uint32_t occupant_type);
+    bool (*default_filter_includes)(void* user, uint64_t occupant);
+    bool (*realistic_filter_includes)(void* user, uint64_t occupant);
+    /* Occupants: type, position (x, y, z into out[3]), CanRemove(level),
+     * flags, groups, a bool property (false = absent), the bounds (x0, z0,
+     * x1, z1 into out[4]), the foundation's slot 9 (false = no foundation
+     * interface), the network's flags / types (false = no network interface),
+     * Shutdown, the occupant manager's RemoveOccupant and the queries. */
+    uint32_t (*occupant_type)(void* user, uint64_t occupant);
+    void (*occupant_position)(void* user, uint64_t occupant, float* out);
+    bool (*can_remove)(void* user, uint64_t occupant, uint32_t level);
+    bool (*occupant_flag_set)(void* user, uint64_t occupant, uint32_t flag);
+    uint32_t (*occupant_flags)(void* user, uint64_t occupant);
+    bool (*is_occupant_group)(void* user, uint64_t occupant, uint32_t group);
+    bool (*occupant_bool_property)(void* user, uint64_t occupant, uint32_t id, bool* out);
+    void (*occupant_bounds)(void* user, uint64_t occupant, float* out);
+    bool (*foundation_slot9)(void* user, uint64_t occupant, uint32_t* out);
+    bool (*network_has_any_flag)(void* user, uint64_t occupant, uint32_t mask, bool* out);
+    bool (*network_has_type)(void* user, uint64_t occupant, uint32_t type);
+    void (*occupant_shutdown)(void* user, uint64_t occupant);
+    bool (*remove_occupant)(void* user, uint64_t occupant, bool b);
+    void (*occupants_in_box)(void* user, float x0, float z0, float x1, float z1, fc4_token_callback cb, void* ctx);
+    void (*occupants_in_cell_rect)(void* user, const fc4_cell_rect* rect, fc4_token_callback cb, void* ctx);
+    /* Prices and removals: the building development / flora simulators'
+     * prices (false = no simulator), networks, power poles (their
+     * connections, 0xAA7A014D), the prop manager. */
+    bool (*building_demolition_cost)(void* user, uint64_t building, int64_t* out);
+    bool (*flora_demolition_cost)(void* user, uint64_t occupant, int64_t* out);
+    bool (*is_network_occupant)(void* user, uint64_t occupant);
+    int64_t (*network_demolition_cost)(void* user, uint64_t occupant);
+    bool (*is_power_pole)(void* user, uint64_t occupant);
+    int64_t (*pole_demolition_cost)(void* user, uint64_t pole);
+    void (*pole_connections)(void* user, uint64_t pole, fc4_token_callback cb, void* ctx);
+    uint32_t (*pole_connection_count)(void* user, uint64_t pole);
+    void (*pole_break_all_connections)(void* user, uint64_t pole);
+    void (*send_pre_demolish)(void* user, uint64_t occupant);
+    bool (*has_prop_manager)(void* user);
+    bool (*remove_prop)(void* user, uint64_t occupant);
+    /* The caller's occupant list (push back) and set (insert). */
+    void (*list_append)(void* user, uint64_t list, uint64_t occupant);
+    void (*set_insert)(void* user, uint64_t set, uint64_t occupant);
+    /* The network manager: QueueRemovals(on), DeleteOccupantConnection,
+     * DestroyNetworkOccupants(list of `n`). */
+    void (*queue_removals)(void* user, bool on);
+    void (*delete_occupant_connection)(void* user, uint64_t occupant);
+    void (*destroy_network_occupants)(void* user, const uint64_t* list, size_t n);
+    /* City geometry: a cell corner's position; a position's cell (false = outside). */
+    void (*cell_corner_to_position)(void* user, int32_t x, int32_t z, float* px, float* pz);
+    bool (*position_to_cell)(void* user, float x, float z, int32_t* cx, int32_t* cz);
+    /* Lots (0 = none) and the lot developer. */
+    uint64_t (*lot_at)(void* user, int32_t x, int32_t z);
+    void (*lots_in_cell_rect)(void* user, const fc4_cell_rect* rect, fc4_token_callback cb, void* ctx);
+    uint64_t (*lot_building)(void* user, uint64_t lot);
+    uint32_t (*lot_state)(void* user, uint64_t lot);
+    bool (*lot_demolishable)(void* user, uint64_t lot);
+    void (*lot_occupants)(void* user, uint64_t lot, fc4_token_callback cb, void* ctx);
+    void (*lot_size)(void* user, uint64_t lot, uint8_t* x, uint8_t* z);
+    void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    uint32_t (*lot_facing)(void* user, uint64_t lot);
+    uint32_t (*lot_zone_type)(void* user, uint64_t lot);
+    bool (*lot_water_compatible)(void* user, uint64_t lot, bool* out); /* false = no configuration */
+    bool (*lot_initialized)(void* user, uint64_t lot);
+    bool (*lot_vertices_locked)(void* user, uint64_t lot);
+    uint32_t (*lot_condition)(void* user, uint64_t lot);
+    void (*explode_lot)(void* user, uint64_t lot, bool b);
+    void (*start_demolish_lot)(void* user, uint64_t lot);
+    void (*end_demolish_lot)(void* user, uint64_t lot);
+    void (*delete_lot)(void* user, uint64_t lot);
+    bool (*create_lot_if_possible)(void* user, int32_t x, int32_t z, uint32_t facing);
+    uint32_t (*zone_at)(void* user, int32_t x, int32_t z);
+    void (*dezone)(void* user, const fc4_cell_rect* rect);
+    /* The terrain (§4.7). */
+    float (*altitude_at_vertex)(void* user, int32_t x, int32_t z);
+    bool (*is_water_vertex)(void* user, int32_t x, int32_t z);
+    void (*set_altitude_rect)(void* user, const fc4_cell_rect* rect, float h, uint32_t reason);
+    void (*set_altitude_vertex)(void* user, int32_t x, int32_t z, float h);
+    void (*redisplay_terrain)(void* user, const fc4_cell_rect* rect, uint32_t reason);
+    /* Effects (§4.8): the model extent (false = none), the occupant's sound,
+     * the occupant effect (candidate keys; the ray when has_ray), the group effect. */
+    bool (*effect_extent)(void* user, uint64_t occupant, float* out);
+    void (*play_occupant_sound)(void* user, uint64_t occupant);
+    void (*start_occupant_effect)(void* user, uint64_t occupant, const uint32_t* keys, size_t n, bool has_ray,
+                                  int32_t rx, int32_t ry, bool grey);
+    void (*start_group_effect)(void* user, uint32_t instance, int32_t x, int32_t z);
+} fc4_demolition_host;
+
+typedef struct fc4_demolition_state {
+    uint32_t struct_size;
+    uint8_t initialized, destroyed, filter_created, city_held;
+    uint8_t occupant_manager_held, lot_developer_held, terrain_held, reserved;
+    uint32_t ref_count;
+    int32_t cells_x, cells_z;
+    /* The tuning (§6). */
+    uint32_t small_medium_model, medium_large_model, small_medium_group, medium_large_group;
+    uint32_t destroyed_tile_cost;
+} fc4_demolition_state;
+
+/* Constructed, reference count 0. The host table is copied (NULL for a NULL or
+ * short table). `token` is the utility's own token. */
+fc4_demolition* fc4_demolition_create(const fc4_demolition_host* host, uint64_t token);
+void fc4_demolition_destroy(fc4_demolition* d);
+/* QueryInterface (§1): true and the sub-object offset (0, 4 or 8; `offset` may be NULL). */
+bool fc4_demolition_query_interface(uint32_t iid, uint32_t* offset);
+uint32_t fc4_demolition_add_ref(fc4_demolition* d);
+/* Release: 0 when the object was destroyed (Shutdown ran); the handle stays valid until fc4_demolition_destroy. */
+uint32_t fc4_demolition_release(fc4_demolition* d);
+bool fc4_demolition_init(fc4_demolition* d);
+bool fc4_demolition_shutdown(fc4_demolition* d);
+/* DoMessage (§3): 0xC53D10AA re-reads the tuning; 0xA9DED179 (`lot` holding
+ * one reference, 0 = none; `dezone`) finishes a deferred lot demolition. Always true. */
+bool fc4_demolition_do_message(fc4_demolition* d, uint32_t msg_type, uint32_t data1, uint32_t data2, uint64_t lot,
+                               bool dezone);
+/* DemolishOccupant (§4.3), DemolishRegion (§4.4; false for a NULL or
+ * oversized region), DemolishLots (§4.5; 0 = a null entry). `*cost` is
+ * written only when the method writes it (`cost` may be NULL). */
+bool fc4_demolition_demolish_occupant(fc4_demolition* d, bool do_it, uint64_t occupant, uint32_t privilege,
+                                      uint32_t flags, bool skip_network_update, uint64_t orphans, int64_t* cost);
+bool fc4_demolition_demolish_region(fc4_demolition* d, bool do_it, const fc4_zone_region* region, uint32_t privilege,
+                                    uint32_t flags, bool dezone, uint64_t caller_filter, uint64_t demolished,
+                                    uint64_t clicked, int32_t sx, int32_t sy, int64_t* cost);
+bool fc4_demolition_demolish_lots(fc4_demolition* d, bool do_it, const uint64_t* lots, size_t count,
+                                  uint32_t privilege, uint32_t flags, bool dezone, uint64_t caller_filter,
+                                  uint64_t demolished, int64_t* cost);
+/* ModifyTerrainHeight (§4.7): the vertices changed (or that would change); `exempt` = a lot (0 = none). */
+int32_t fc4_demolition_modify_terrain_height(fc4_demolition* d, bool do_it, bool per_vertex, int32_t x0, int32_t z0,
+                                             int32_t x1, int32_t z1, float altitude, uint64_t exempt,
+                                             uint32_t reason);
+/* UpdateNetworks(set) (§4.6). */
+void fc4_demolition_update_networks(fc4_demolition* d, const uint64_t* set, size_t count);
+bool fc4_demolition_get_state(const fc4_demolition* d, fc4_demolition_state* out);
+/* Persistence (§7): u16 1. Read: false unless the version is 1. */
+bool fc4_demolition_write(const fc4_demolition* d, const fc4_ostream* out);
+bool fc4_demolition_read(fc4_demolition* d, const fc4_istream* in);
+
+/* ---- dispatch manager (docs/specs/dispatch.md) --------------------------------
+ * cSC4DispatchManager (0x4990BD93). Tokens are opaque host identities:
+ * dispatch sources, stations, vehicle automata, pylons and the vehicle view.
+ * The core holds one reference on every record's station, automaton and
+ * pylon, on the active pylon, the available pylons and the registered
+ * sources; a token from create_pylon, create_vehicle_view, a created
+ * begin_vehicle or resolve_ref comes with one reference for the core. Tokens
+ * from queries are borrowed. A missing callback reads as 0 / false / none. */
+typedef struct fc4_dispatch fc4_dispatch;
+
+/* DispatchInfo (§2); tokens 0 = none. */
+typedef struct fc4_dispatch_info {
+    uint32_t dispatch_type, id, call_id, view_handle;
+    uint8_t active;
+    uint8_t reserved[3];
+    float target_x, target_y, target_z;
+    uint64_t station, automaton, pylon;
+} fc4_dispatch_info;
+
+/* One station of a source: bit i of `mask` set = unit i free; `base` = unit 0's call number. */
+typedef struct fc4_station_units {
+    uint64_t station;
+    uint32_t mask, base, count, reserved;
+} fc4_station_units;
+
+typedef struct fc4_dispatch_host {
+    uint32_t struct_size; /* sizeof(fc4_dispatch_host) */
+    void* user;
+    /* Messages (§3, §4.1): the message server; MessagePost (queued) with
+     * IGZUnknown = the manager, data1 = the dispatch type, data2 = the ID. */
+    bool (*acquire_message_server)(void* user);
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    void (*release_message_server)(void* user);
+    void (*post)(void* user, uint32_t msg_type, uint32_t dispatch_type, uint32_t id);
+    /* The city; the vehicle view (created and registered, layer 5,
+     * priority 1000; destroyed; refreshed) and its tracking. */
+    bool (*acquire_city)(void* user);
+    void (*release_city)(void* user);
+    uint64_t (*create_vehicle_view)(void* user);
+    void (*destroy_vehicle_view)(void* user, uint64_t view);
+    void (*refresh_vehicle_view)(void* user, uint64_t view);
+    uint32_t (*track_vehicle)(void* user, uint64_t automaton, uint32_t kind);
+    void (*untrack_vehicle)(void* user, uint32_t handle);
+    /* AddRef / Release on a host object; the terrain altitude. */
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    float (*altitude)(void* user, float x, float z);
+    /* Dispatch sources (protection.md §8.2): CanHandle, CanDispatch (the
+     * result; *all_busy), DispatchFromNearestStation (the station, 0 = none;
+     * *call_id), DispatchFromStation (station 0 = none; *call_id in and out),
+     * RevokeDispatchFromStation, GetStations (returns the count; copies at
+     * most `capacity`, `out` may be NULL). */
+    bool (*source_can_handle)(void* user, uint64_t source, uint32_t dispatch_type);
+    bool (*source_can_dispatch)(void* user, uint64_t source, float x, float z, bool* all_busy);
+    uint64_t (*source_dispatch_from_nearest_station)(void* user, uint64_t source, float x, float z,
+                                                     uint32_t* call_id);
+    bool (*source_dispatch_from_station)(void* user, uint64_t source, uint64_t station, uint32_t* call_id);
+    void (*source_revoke_dispatch_from_station)(void* user, uint64_t source, uint64_t station, uint32_t call_id);
+    size_t (*source_stations)(void* user, uint64_t source, fc4_station_units* out, size_t capacity);
+    /* Vehicles (§4.2 step 5): create the vehicle or re-target info->automaton
+     * (0 = none; a created one with one reference for the core); despawn; go home. */
+    uint64_t (*begin_vehicle)(void* user, uint64_t source, const fc4_dispatch_info* info);
+    void (*automaton_despawn)(void* user, uint64_t automaton);
+    void (*automaton_go_home)(void* user, uint64_t automaton);
+    /* Pylons: a new initialised pylon (one reference for the core); its
+     * source occupant (borrowed), call number, dispatch type and state, UI
+     * state; placement along the station's lot (§4.5) and back (§4.4:
+     * source slot 7 for the station's unit state; true = placed, the core
+     * then sets dispatch state 0 and UI state 1). */
+    uint64_t (*create_pylon)(void* user);
+    uint64_t (*pylon_source)(void* user, uint64_t pylon);
+    void (*pylon_set_source)(void* user, uint64_t pylon, uint64_t station);
+    uint32_t (*pylon_call_number)(void* user, uint64_t pylon);
+    void (*pylon_set_call_number)(void* user, uint64_t pylon, uint32_t n);
+    uint32_t (*pylon_dispatch_type)(void* user, uint64_t pylon);
+    void (*pylon_set_dispatch_type)(void* user, uint64_t pylon, uint32_t type);
+    void (*pylon_set_dispatch_state)(void* user, uint64_t pylon, uint32_t state);
+    void (*pylon_set_ui_state)(void* user, uint64_t pylon, uint32_t state);
+    void (*pylon_move_to)(void* user, uint64_t pylon, float x, float y, float z);
+    void (*pylon_place_at_unit)(void* user, uint64_t pylon, uint64_t station, uint32_t index, uint32_t count);
+    bool (*pylon_return_to_station)(void* user, uint64_t source, uint64_t pylon, uint64_t station);
+    void (*pylon_shutdown)(void* user, uint64_t pylon);
+    /* A reference read from a record (§7): the object with one reference for the core (0 = none). */
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+    /* The vehicle's occupant is in that occupant group (§4.2 step 5: a new vehicle is tracked as
+     * kind 0 in group 0x4202 or 0x4303, else kind 1). */
+    bool (*vehicle_in_group)(void* user, uint64_t automaton, uint32_t group);
+} fc4_dispatch_host;
+
+typedef struct fc4_dispatch_state {
+    uint32_t struct_size;
+    uint8_t initialized, destroyed, loaded, message_server_held;
+    uint8_t city_held;
+    uint8_t reserved[3];
+    uint32_t ref_count, records, next_id;
+    uint32_t tool_type; /* the open tool's type; 8 = none */
+    uint32_t available_pylons, sources;
+    uint64_t vehicle_view, active_pylon;
+} fc4_dispatch_state;
+
+/* Constructed, reference count 0. The host table is copied (NULL for a NULL or
+ * short table). `token` is the manager's own token. */
+fc4_dispatch* fc4_dispatch_create(const fc4_dispatch_host* host, uint64_t token);
+void fc4_dispatch_destroy(fc4_dispatch* d);
+/* QueryInterface (§1): true and the sub-object offset (0, 4 or 8; `offset` may be NULL). */
+bool fc4_dispatch_query_interface(uint32_t iid, uint32_t* offset);
+uint32_t fc4_dispatch_add_ref(fc4_dispatch* d);
+/* Release: 0 when the object was destroyed; the handle stays valid until fc4_dispatch_destroy. */
+uint32_t fc4_dispatch_release(fc4_dispatch* d);
+bool fc4_dispatch_init(fc4_dispatch* d);
+bool fc4_dispatch_shutdown(fc4_dispatch* d);
+/* Slots 15-17: the sources (held; the first that handles `type`, borrowed, 0 = none). */
+void fc4_dispatch_register_source(fc4_dispatch* d, uint64_t source);
+void fc4_dispatch_unregister_source(fc4_dispatch* d, uint64_t source);
+uint64_t fc4_dispatch_get_source(const fc4_dispatch* d, uint32_t dispatch_type);
+/* Slots 5-9: CanDispatch, Dispatch (the ID, 0 on failure), UpdateDispatchState,
+ * RevokeDispatchByID, RevokeAllDispatches; and RevokeDispatchByPylon. */
+bool fc4_dispatch_can_dispatch(const fc4_dispatch* d, uint32_t dispatch_type, float x, float z);
+uint32_t fc4_dispatch_dispatch(fc4_dispatch* d, uint32_t dispatch_type, float x, float z);
+void fc4_dispatch_update_state(fc4_dispatch* d, uint32_t id, uint32_t state);
+bool fc4_dispatch_revoke_by_id(fc4_dispatch* d, uint32_t id);
+bool fc4_dispatch_revoke_by_pylon(fc4_dispatch* d, uint64_t pylon);
+bool fc4_dispatch_revoke_all(fc4_dispatch* d, uint32_t dispatch_type);
+/* Slots 10-12: a record by ID (false = none), the count of a type, the IDs
+ * of a type (`n` 0 = no limit; returns the count, copies at most `capacity`). */
+bool fc4_dispatch_get_info(const fc4_dispatch* d, uint32_t id, fc4_dispatch_info* out);
+uint32_t fc4_dispatch_get_count(const fc4_dispatch* d, uint32_t dispatch_type);
+size_t fc4_dispatch_get_id_array(const fc4_dispatch* d, uint32_t dispatch_type, uint32_t n, uint32_t* out,
+                                 size_t capacity);
+/* Slots 13, 14, 18-22: the dispatch tool, the active pylon (0 = clear /
+ * none), a pylon's vehicle, the free units, the vehicle view (borrowed). */
+bool fc4_dispatch_begin_tool(fc4_dispatch* d, uint32_t dispatch_type);
+bool fc4_dispatch_end_tool(fc4_dispatch* d, uint32_t dispatch_type);
+void fc4_dispatch_set_active_pylon(fc4_dispatch* d, uint64_t pylon);
+uint64_t fc4_dispatch_get_active_pylon(const fc4_dispatch* d);
+uint64_t fc4_dispatch_get_automaton_from_pylon(const fc4_dispatch* d, uint64_t pylon);
+uint32_t fc4_dispatch_get_available_pylon_count(const fc4_dispatch* d, uint32_t dispatch_type);
+uint64_t fc4_dispatch_get_vehicle_view(const fc4_dispatch* d);
+/* DoMessage (§3): 0x99EF1143 (object = the removed occupant), 0xAA1B2002,
+ * 0xA6B79602, 0x09D92FC3 (object = the automaton, data2 = the code, data3 = the state). */
+bool fc4_dispatch_do_message(fc4_dispatch* d, uint32_t msg_type, uint32_t data2, uint32_t data3, uint64_t object);
+/* The records in list order and the available pylons (0 = a null entry):
+ * return the count; copy at most `capacity` (`out` may be NULL). */
+size_t fc4_dispatch_records(const fc4_dispatch* d, fc4_dispatch_info* out, size_t capacity);
+size_t fc4_dispatch_available_pylons(const fc4_dispatch* d, uint64_t* out, size_t capacity);
+bool fc4_dispatch_get_state(const fc4_dispatch* d, fc4_dispatch_state* out);
+/* Persistence (§7). Read: false unless the version is 2 (`loaded` is set
+ * first); references come back through resolve_ref. */
+bool fc4_dispatch_write(const fc4_dispatch* d, const fc4_ostream* out);
+bool fc4_dispatch_read(fc4_dispatch* d, const fc4_istream* in);
+
+/* ---- city situation manager (docs/specs/city-situation.md) --------------------
+ * cSC4CitySituationManager (0x0BB14381), the U-Drive-It missions. Tokens are
+ * opaque host identities: advices, automata, targets, automata managers and
+ * windows. The core holds one reference on the active advice, the held window
+ * and the automata managers (acquire_automata_managers hands them over held);
+ * everything else is borrowed. The mission gameplay (targets,
+ * CheckForSuccess, pursuit, coverage, player drive, windows, effects) is the
+ * host's. A missing callback reads as 0 / false / none, except
+ * check_for_success, which reads as 3 (running). */
+typedef struct fc4_citysit fc4_citysit;
+
+/* An advice's Lua table as the core needs it (§6). */
+typedef struct fc4_citysit_advice_info {
+    uint32_t guid;
+    uint32_t flags;        /* 8: remember a window; 0x40: a reward */
+    uint32_t mission_type; /* 2: no target; 5: coverage; others: target missions */
+    float end_delay;       /* seconds */
+    int32_t success_money, failure_money;
+    float success_radius, success_magnitude, failure_radius, failure_magnitude;
+} fc4_citysit_advice_info;
+
+#define FC4_CITYSIT_SCRIPT_START   0u
+#define FC4_CITYSIT_SCRIPT_SUCCESS 1u
+#define FC4_CITYSIT_SCRIPT_FAILURE 2u
+/* The success popup also shows "could not start". */
+#define FC4_CITYSIT_POPUP_BRIEFING 0u
+#define FC4_CITYSIT_POPUP_SUCCESS  1u
+#define FC4_CITYSIT_POPUP_FAILURE  2u
+
+typedef struct fc4_citysit_host {
+    uint32_t struct_size; /* sizeof(fc4_citysit_host) */
+    void* user;
+    /* Lifecycle (§4.1): the debug flag, the "csitrigger" cheat, the
+     * subscriptions, the indicator view, the animation tick, the automata
+     * managers (each with one reference for the core), the lot manager,
+     * MySim, Lua (its table) and the mission resources; false = none. */
+    bool (*debug_enabled)(void* user);
+    bool (*register_cheat)(void* user);
+    void (*unregister_cheat)(void* user);
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    bool (*acquire_indicator_view)(void* user);
+    void (*release_indicator_view)(void* user);
+    void (*register_animation_tick)(void* user);
+    void (*unregister_animation_tick)(void* user);
+    void (*acquire_automata_managers)(void* user, fc4_token_callback cb, void* ctx);
+    bool (*acquire_lot_manager)(void* user);
+    void (*release_lot_manager)(void* user);
+    bool (*acquire_mysim)(void* user);
+    void (*release_mysim)(void* user);
+    bool (*acquire_lua)(void* user);
+    void (*release_lua)(void* user);
+    void (*create_lua_table)(void* user);
+    void (*remove_lua_table)(void* user);
+    void (*release_mission_resources)(void* user);
+    /* ShowAllIndicators(kind, visible); the preferences' reward list
+     * (returns its length, copies at most `capacity`, `out` may be NULL),
+     * one entry, saving the preferences. */
+    void (*show_all_indicators)(void* user, uint32_t kind, bool visible);
+    size_t (*preferences_rewards)(void* user, uint32_t* out, size_t capacity);
+    void (*set_preferences_reward)(void* user, uint32_t index, uint32_t guid);
+    void (*save_preferences)(void* user);
+    /* AddRef / Release on a host object. */
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* Advices: QueryInterface(0x6BEB1E8A), advisor 29's advices, by GUID (0 =
+     * none), the info (the core zeroes *out first), RetireAdvice, a script
+     * (FC4_CITYSIT_SCRIPT_*), the time limit (seconds, 0 = none), binding the
+     * mission script to the vehicle (0 = none), coverage cells (false = they
+     * could not be built), the first target (0 = none), the target count, a
+     * target's name (UTF-8, through the sink). */
+    bool (*is_situation_advice)(void* user, uint64_t object);
+    void (*advisor_advices)(void* user, fc4_token_callback cb, void* ctx);
+    uint64_t (*find_advice)(void* user, uint32_t guid);
+    void (*advice_info)(void* user, uint64_t advice, fc4_citysit_advice_info* out);
+    void (*retire_advice)(void* user, uint64_t advice);
+    void (*run_script)(void* user, uint64_t advice, uint32_t script);
+    float (*time_limit)(void* user, uint64_t advice);
+    void (*bind_mission_script)(void* user, uint64_t advice, uint64_t vehicle);
+    bool (*build_coverage_cells)(void* user, uint64_t advice);
+    uint64_t (*first_target)(void* user, uint64_t advice);
+    uint32_t (*target_count)(void* user, uint64_t advice);
+    void (*target_name)(void* user, uint64_t advice, uint64_t target, fc4_bytes_sink sink, void* ctx);
+    /* Advice slot 53 (+0xD4): the advice accepts the automaton (slot 22). */
+    bool (*advice_accepts_automaton)(void* user, uint64_t advice, uint64_t automaton);
+    /* Automata: QueryInterface(0xA9B40F05), a property's presence, the
+     * advice's candidate vehicles, flags, type, the indicator (TrackOccupant
+     * kind 4: the handle), the listener, freezing a manager, a sound, the
+     * position (x, z). */
+    bool (*is_automaton)(void* user, uint64_t object);
+    bool (*occupant_has_property)(void* user, uint64_t object, uint32_t id);
+    void (*candidate_vehicles)(void* user, uint64_t advice, fc4_token_callback cb, void* ctx);
+    uint32_t (*automaton_flags)(void* user, uint64_t automaton);
+    uint32_t (*automaton_type)(void* user, uint64_t automaton);
+    uint32_t (*track_indicator)(void* user, uint64_t automaton);
+    void (*untrack_indicator)(void* user, uint32_t handle);
+    void (*add_listener)(void* user, uint64_t automaton);
+    void (*remove_listener)(void* user, uint64_t automaton);
+    void (*freeze_automata)(void* user, uint64_t manager, bool on);
+    void (*play_sound)(void* user, uint64_t automaton, uint32_t sound);
+    void (*position)(void* user, uint64_t object, float* x, float* z);
+    /* The mission (out of the spec's scope): steps 2-4 of CheckForSuccess(t)
+     * (§4.4) from the current status (the new status; the core runs the
+     * mission clock), pursuit, the countdown effect, the outcome effect at
+     * (x, z), the player-drive mode (vehicle 0 = none), the joyride. */
+    uint32_t (*check_for_success)(void* user, uint64_t advice, float t_ms, uint32_t status);
+    void (*run_pursuit)(void* user, uint64_t advice, float t_ms);
+    void (*start_countdown_effect)(void* user);
+    void (*end_countdown_effect)(void* user);
+    void (*outcome_effect)(void* user, uint64_t advice, bool success, float x, float z);
+    void (*player_drive_mode)(void* user, uint64_t vehicle, bool on);
+    void (*start_joyride)(void* user, uint64_t vehicle);
+    /* aura.AddTransientEffect (aura.md §8.2); budget.DepositFunds (budget.md §6). */
+    void (*add_transient_effect)(void* user, float x, float z, float radius, float magnitude);
+    void (*deposit_funds)(void* user, int64_t amount);
+    /* Messages: MessageSend 0xABBBCA64 (data1 = active; advice 0 = none, a
+     * joyride); MessagePost of 0xEBB67EF7 to itself (advice, vehicle; 0 =
+     * none), 0x6BB350E4, 0xAC1045EF. */
+    void (*send_activation)(void* user, uint64_t advice, bool active);
+    void (*post_show_popup)(void* user, uint64_t advice, uint64_t vehicle);
+    void (*post_popup_closed)(void* user, uint64_t advice);
+    void (*post_initiate)(void* user, uint32_t guid, bool show_briefing);
+    /* The popup (§4.3): HideMissionStatusPanel, end an open MySim dialog, show
+     * the popup (FC4_CITYSIT_POPUP_*) modally: the button that closed it (0 = none). */
+    void (*hide_mission_status_panel)(void* user);
+    void (*end_mysim_dialog)(void* user);
+    uint32_t (*show_popup)(void* user, uint32_t popup, uint64_t advice, uint64_t vehicle);
+    /* Appended with re-answers15 (CS4-CS11): the next target of a disabled
+     * target (§4.7; 0 = none left), advice slot 54 (accepts the group, §8
+     * slot 23), advice slot 12 (the groups: returns the count, copies at most
+     * `capacity`, `out` may be NULL), the track-list priority (cISC4Advice
+     * slot 7, §4.2), a group's automata (borrowed),
+     * CreateAutomatonForPlayerDrive (advice 0 = none; held for the core, 0 =
+     * none), automaton Remove(0), SetFlag(flag, 1), the group of slot 25,
+     * EnterPlayerDriveView (target 0 = none, §8 slot 24), DeactivateSituation
+     * steps 1-2 (§4.3.1), EndSituation step 1 (the +0xA9C effect), a MySim
+     * window for advice flag 0x20 (held for the core, 0 = none). */
+    uint64_t (*next_target)(void* user, uint64_t advice);
+    bool (*advice_accepts_group)(void* user, uint64_t advice, uint32_t group);
+    size_t (*advice_groups)(void* user, uint64_t advice, uint32_t* out, size_t capacity);
+    uint32_t (*advice_priority)(void* user, uint64_t advice);
+    void (*group_automata)(void* user, uint32_t group, fc4_token_callback cb, void* ctx);
+    uint64_t (*create_automaton_for_player_drive)(void* user, uint64_t advice, uint32_t group);
+    void (*remove_automaton)(void* user, uint64_t automaton);
+    void (*set_automaton_flag)(void* user, uint64_t automaton, uint32_t flag);
+    void (*set_automaton_group)(void* user, uint64_t automaton, uint32_t group);
+    void (*enter_player_drive_view)(void* user, uint64_t automaton, uint64_t target);
+    void (*clear_mission_state)(void* user, uint64_t advice);
+    void (*release_situation_effect)(void* user);
+    uint64_t (*acquire_mysim_window)(void* user);
+} fc4_citysit_host;
+
+typedef struct fc4_citysit_track_entry {
+    uint64_t advice;
+    uint64_t automaton; /* 0 = none */
+    uint32_t handle;    /* the indicator (0 = none) */
+    uint32_t reserved;
+} fc4_citysit_track_entry;
+
+typedef struct fc4_citysit_success_count {
+    uint32_t guid;
+    uint16_t count;
+    uint16_t reserved;
+} fc4_citysit_success_count;
+
+typedef struct fc4_citysit_state {
+    uint32_t struct_size;
+    uint8_t initialized, destroyed, indicators_visible, loaded_from_save;
+    uint8_t just_activated, warning_given, max_csi, cheat_registered;
+    uint8_t indicator_view_held, lot_manager_held, mysim_held, lua_held;
+    uint32_t ref_count, status, num_targets, target_index;
+    float end_delay, elapsed, countdown, time_limit;
+    uint32_t track_entries, tracked, success_counts, automata_managers;
+    uint64_t active_situation, active_automaton, current_target, window;
+} fc4_citysit_state;
+
+/* Constructed, reference count 0. The host table is copied (NULL for a NULL or
+ * short table). `session_seed` seeds the member generator (§5:
+ * derive(0x0BB14381)); `token` is the manager's own token. */
+fc4_citysit* fc4_citysit_create(const fc4_citysit_host* host, uint32_t session_seed, uint64_t token);
+void fc4_citysit_destroy(fc4_citysit* m);
+/* QueryInterface (§1): true and the sub-object offset (`offset` may be NULL). */
+bool fc4_citysit_query_interface(uint32_t iid, uint32_t* offset);
+uint32_t fc4_citysit_add_ref(fc4_citysit* m);
+/* Release: 0 when the object was destroyed (Shutdown ran); the handle stays valid until fc4_citysit_destroy. */
+uint32_t fc4_citysit_release(fc4_citysit* m);
+bool fc4_citysit_init(fc4_citysit* m);
+bool fc4_citysit_shutdown(fc4_citysit* m);
+/* DoMessage (§3): object = IGZUnknown (an advice, a window) or the occupant /
+ * automaton; void1 = the vehicle of 0xEBB67EF7; text / text_len = the cheat's
+ * text of 0x230E27AC (UTF-8, NULL = none); the animation tick 0x86AD10EE
+ * carries the milliseconds as float bits in data3. Always true. */
+bool fc4_citysit_do_message(fc4_citysit* m, uint32_t msg_type, uint32_t data1, uint32_t data2, uint32_t data3,
+                            uint64_t object, uint64_t void1, const uint8_t* text, size_t text_len);
+/* The animation tick (§4.4). */
+void fc4_citysit_tick(fc4_citysit* m, float t_ms);
+/* Situations triggered / untriggered (§4.2). */
+void fc4_citysit_situation_triggered(fc4_citysit* m, uint64_t advice);
+void fc4_citysit_situation_untriggered(fc4_citysit* m, uint64_t advice);
+/* Slots 36, 21-25, 37-39 (§4.3, §8): initiate (advice / vehicle 0 = none;
+ * false when nothing started), by GUID (group 0 = the advice's groups), for
+ * an occupant (false unless an automaton; `advice` 0 = the first track-list
+ * entry whose vehicle it is or whose advice accepts it), by automata group,
+ * StartJoyride (target 0 = none), TreatAutomatonAsGroup (automaton 0 does
+ * nothing), activate, deactivate, end. check_for_success: CheckForSuccess(t)
+ * (§4.4; 4 without a mission or an active automaton). */
+bool fc4_citysit_initiate_situation(fc4_citysit* m, uint64_t advice, uint64_t vehicle, bool show_briefing);
+bool fc4_citysit_initiate_situation_by_guid(fc4_citysit* m, uint32_t guid, bool show_briefing, uint32_t group);
+bool fc4_citysit_initiate_situation_for_occupant(fc4_citysit* m, uint64_t occupant, uint64_t advice);
+bool fc4_citysit_initiate_situation_by_automata_group(fc4_citysit* m, uint32_t group, bool show_briefing, bool search);
+void fc4_citysit_start_joyride(fc4_citysit* m, uint64_t automaton, bool b, uint64_t target);
+void fc4_citysit_treat_automaton_as_group(fc4_citysit* m, uint64_t automaton, uint32_t group);
+uint32_t fc4_citysit_check_for_success(fc4_citysit* m, float t_ms);
+void fc4_citysit_activate_situation(fc4_citysit* m);
+void fc4_citysit_deactivate_situation(fc4_citysit* m);
+void fc4_citysit_end_situation(fc4_citysit* m);
+/* The popup (§4.3) and the outcome (§4.5). */
+void fc4_citysit_show_situation_popup(fc4_citysit* m, uint64_t advice, uint64_t vehicle);
+void fc4_citysit_success(fc4_citysit* m, uint64_t advice);
+void fc4_citysit_failure(fc4_citysit* m, uint64_t advice);
+/* Slot 5 / Lua get_success_count; Lua activate_situation. */
+uint16_t fc4_citysit_get_success_count(const fc4_citysit* m, uint32_t guid);
+bool fc4_citysit_lua_activate_situation(fc4_citysit* m, uint32_t guid, bool show_briefing);
+/* Slots 6-12 (tokens borrowed, 0 = none). */
+uint64_t fc4_citysit_active_situation(const fc4_citysit* m);
+uint32_t fc4_citysit_current_status(const fc4_citysit* m);
+uint64_t fc4_citysit_active_auto(const fc4_citysit* m);
+uint64_t fc4_citysit_current_target(const fc4_citysit* m);
+uint32_t fc4_citysit_current_target_index(const fc4_citysit* m);
+uint32_t fc4_citysit_num_targets(const fc4_citysit* m);
+uint32_t fc4_citysit_num_targets_remaining(const fc4_citysit* m);
+/* Slots 13-15 return float (the shim returns them in ST0, §12 item 8):
+ * the time limit, the elapsed time, the remaining time, in seconds. */
+float fc4_citysit_time_limit_seconds(const fc4_citysit* m);
+float fc4_citysit_situation_time(const fc4_citysit* m);
+float fc4_citysit_time_remaining_seconds(const fc4_citysit* m);
+/* Slot 16: the current target's name (UTF-8) through the sink. */
+bool fc4_citysit_current_target_name(const fc4_citysit* m, fc4_bytes_sink sink, void* ctx);
+/* Slots 17, 18: the active advice's success aura / money (false without a mission). */
+bool fc4_citysit_situation_aura(const fc4_citysit* m, float* radius, float* magnitude);
+bool fc4_citysit_situation_money(const fc4_citysit* m, int64_t* money);
+/* Slots 19, 20, 26-33, 35. */
+bool fc4_citysit_is_situation_available(const fc4_citysit* m, uint64_t automaton);
+void fc4_citysit_set_max_csi(fc4_citysit* m, uint8_t n);
+uint8_t fc4_citysit_max_csi(const fc4_citysit* m);
+uint32_t fc4_citysit_tracked_automata_count(const fc4_citysit* m);
+void fc4_citysit_set_csi_visible(fc4_citysit* m, bool on);
+bool fc4_citysit_csi_visible(const fc4_citysit* m);
+bool fc4_citysit_handle_tuning_parameters_changed(fc4_citysit* m);
+bool fc4_citysit_countdown_in_progress(const fc4_citysit* m);
+void fc4_citysit_reset_tutorials(fc4_citysit* m);
+void fc4_citysit_initiate_player_drive_mode(fc4_citysit* m, bool on);
+/* The track list and the success counts (ascending GUID): return the count;
+ * copy at most `capacity` (`out` may be NULL). */
+size_t fc4_citysit_track_list(const fc4_citysit* m, fc4_citysit_track_entry* out, size_t capacity);
+size_t fc4_citysit_success_counts(const fc4_citysit* m, fc4_citysit_success_count* out, size_t capacity);
+bool fc4_citysit_get_state(const fc4_citysit* m, fc4_citysit_state* out);
+/* Persistence (§7): version 2 (version 1 is read). */
+bool fc4_citysit_write(const fc4_citysit* m, const fc4_ostream* out);
+bool fc4_citysit_read(fc4_citysit* m, const fc4_istream* in);
 /* ---- disaster layer (docs/specs/disasters.md) ----------------------------------
  * cSC4DisasterLayer (0x61F6ABF5), its seven managers (fire, riot, toxic
  * spill, earthquake, pipe burst, volcano, effect) and their instances. The
@@ -8422,7 +9051,7 @@ typedef struct fc4_netmgr_host {
     uint64_t (*tool_cell_info)(void* user, uint64_t tool, uint32_t packed_cell); /* (z << 16) + x */
     void (*tool_reinsert_piece)(void* user, uint64_t tool, uint64_t info);
     /* network occupants */
-    uint64_t (*query_network_occupant)(void* user, uint64_t occupant); /* borrowed; 0 = not one */
+    uint64_t (*query_network_occupant)(void* user, uint64_t occupant); /* one reference for the core; 0 = not one */
     bool (*is_network_occupant)(void* user, uint64_t occupant);
     uint32_t (*network_flags)(void* user, uint64_t n);
     bool (*is_of_type)(void* user, uint64_t n, uint32_t network_type);
@@ -8514,7 +9143,7 @@ typedef struct fc4_netlot_host {
     void (*release)(void* user, uint64_t token);
     uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid); /* one reference held; 0 = none */
     /* network occupants */
-    uint64_t (*query_network_occupant)(void* user, uint64_t unknown); /* borrowed; 0 = not one */
+    uint64_t (*query_network_occupant)(void* user, uint64_t unknown); /* one reference for the core; 0 = not one */
     uint32_t (*network_flags)(void* user, uint64_t n);
     uint32_t (*piece_id)(void* user, uint64_t n);
     int32_t (*rotation)(void* user, uint64_t n);
@@ -8542,7 +9171,7 @@ typedef struct fc4_netlot_host {
     bool (*lot_is_livable)(void* user, uint64_t lot);
     uint32_t (*lot_building_type)(void* user, uint64_t lot);
     bool (*building_profile_wealth)(void* user, uint32_t building_type, int32_t* wealth);
-    uint64_t (*query_lot)(void* user, uint64_t unknown); /* borrowed; 0 = not a lot */
+    uint64_t (*query_lot)(void* user, uint64_t unknown); /* one reference for the core; 0 = not a lot */
     void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
     float (*area_slope)(void* user, int32_t x, int32_t z);
     /* street props and flora (§8.6); a position is float[3] (x, y, z) */
@@ -9169,6 +9798,14 @@ float fc4_terrain_water_depth_for_cell(const fc4_terrain* t, int32_t x, int32_t 
 bool fc4_terrain_has_draft_clearance(const fc4_terrain* t, int32_t x, int32_t z);
 uint32_t fc4_terrain_water_type(const fc4_terrain* t, int32_t x, int32_t z);
 bool fc4_terrain_is_navigable(const fc4_terrain* t, int32_t x, int32_t z, int32_t r, uint64_t lot);
+/* ABI 69. GetLerpedWaterLevel (slot 32, §5.1: no clamp at x = sizeX);
+ * AltitudeAtWhichFloodingWillOccur (surface water slot 10, §10.2); GetWaterVelocity (surface
+ * water slot 11: out[3], a zero vector past the arrays); GetSedimentValue (slot 55, world
+ * metres, 0 unless LocationIsInBounds). */
+float fc4_terrain_lerped_water_level(const fc4_terrain* t, float x, float z);
+float fc4_terrain_flooding_altitude(const fc4_terrain* t, int32_t x, int32_t z);
+bool fc4_terrain_water_velocity(const fc4_terrain* t, int32_t x, int32_t z, float* out);
+float fc4_terrain_sediment_at(const fc4_terrain* t, float x, float z);
 
 /* Setters (§6). Every setter skips a locked vertex (flag 0x4000). */
 bool fc4_terrain_raise_vertex(fc4_terrain* t, uint32_t index, float d);
@@ -9202,13 +9839,23 @@ uint8_t fc4_terrain_water_display_state(const fc4_terrain* t);
 bool fc4_terrain_set_water_display_state(fc4_terrain* t, uint8_t state);
 
 /* Brushes (§9). add_brush: at most 4 components, kinds 0-11 (false otherwise);
- * random_walk_step in radians; `angle` is the start angle kept in the description.
- * add_shipped_brush: the brushes 0x11, 0x12 and 0x14 with the host's bitmap. */
+ * random_walk_step in radians (not 0 sets the walk flag); `angle` is the walk angle's start
+ * (the host's RandomRange(0, 2*pi) draw); the stroke angle starts at 0 (TR8).
+ * add_shipped_brush: the brushes 0x11, 0x12 and 0x14 with the host's bitmap; each walks with
+ * the 0.5 degree default step (so every in-bounds ApplyBrush draws random_uniform(5) once) from
+ * a walk angle of 0 (set the host's draw with set_brush_angles).
+ * brush_angle: the stroke angle. brush_angles / set_brush_angles (ABI 69): the walk angle
+ * (+0x68) and the stroke angle (+0x6C); the original's descriptions are process-wide, so a
+ * host carries them across cities. talus_angle (ABI 69): kind 2's TalusAngle in radians. */
 bool fc4_terrain_add_brush(fc4_terrain* t, uint32_t id, const fc4_brush_component* components, size_t count,
                            float random_walk_step, float angle);
 bool fc4_terrain_add_shipped_brush(fc4_terrain* t, uint32_t id, uint32_t bitmap_width, uint32_t bitmap_height,
                                    const uint8_t* pixels);
 bool fc4_terrain_brush_angle(const fc4_terrain* t, uint32_t id, float* out);
+bool fc4_terrain_brush_angles(const fc4_terrain* t, uint32_t id, float* walk, float* stroke);
+bool fc4_terrain_set_brush_angles(fc4_terrain* t, uint32_t id, float walk, float stroke);
+float fc4_terrain_talus_angle(const fc4_terrain* t);
+bool fc4_terrain_set_talus_angle(fc4_terrain* t, float radians);
 /* ApplyBrush (slot 57): false for an unknown brush. */
 bool fc4_terrain_apply_brush(fc4_terrain* t, uint32_t id, fc4_brush_params* params);
 int32_t fc4_terrain_default_brush_level(const fc4_terrain* t);
@@ -9246,6 +9893,194 @@ size_t fc4_terrain_write_record(const fc4_terrain* t, uint32_t record, uint8_t* 
 /* An edge record's altitudes: the count, or -1 for a bad record. */
 int64_t fc4_terrain_read_edge(const uint8_t* record, size_t len, float* out, size_t capacity);
 
+/* ---- effects manager (docs/specs/effects.md; engine/capi/src/effects.rs) ------
+ * The visual effects' simulation side: the effect directory (resource
+ * 0xEA5118B0 / 0xEA5118B1 / 1, parsed from the bytes the host reads), the
+ * manager (creation by name under the detail setting, LOD ranges and select
+ * groups, the animation tick, finishing), the brush effect (terrain brushes
+ * through the host, e.g. fc4_terrain_apply_brush) and the game effect (fire,
+ * toxic spills, demolition, extinguishing, message posts, pauses). Rendering is
+ * the host's. Effects are named by IDs from 1. A missing callback does nothing
+ * and reads as 0 / false; `simulator` missing or returning false = no simulator.
+ * Finishing (EF2): by default the host calls fc4_effects_finish_hook once per
+ * frame after the tick; in the compat mode (FC4_EFFECTS_FINISH_DRAW_PASS) only
+ * fc4_effects_draw_pass finishes effects, as the original's draw pass does.
+ * A call into the same manager from inside a callback is refused (the fallback
+ * value). */
+typedef struct fc4_effects_directory fc4_effects_directory;
+typedef struct fc4_effects fc4_effects;
+
+#define FC4_EFFECTS_FINISH_HOOK      0u
+#define FC4_EFFECTS_FINISH_DRAW_PASS 1u
+#define FC4_EFFECTS_UNKNOWN          (-2)
+
+/* A post: an effect's end message (data2 = data3 = 0) or a game record's message
+ * (data1 = the instance parameter, data2 / data3 = the cell). */
+typedef struct fc4_effects_post {
+    uint32_t msg_type;
+    int32_t data2;
+    uint64_t data1;
+    int32_t data3;
+    uint32_t reserved;
+} fc4_effects_post;
+
+/* An inclusive cell rectangle, clipped to the city. */
+typedef struct fc4_effects_rect {
+    int32_t x0, z0, x1, z1;
+} fc4_effects_rect;
+
+/* A game record's demolition filter (§9.3). */
+typedef struct fc4_effects_demolish_filter {
+    bool no_networks;
+    bool no_flora;
+    uint8_t _pad[2];
+    float min_size;
+    float max_size;
+} fc4_effects_demolish_filter;
+
+/* What the demolition filter needs of an occupant. */
+typedef struct fc4_effects_occupant_facts {
+    bool signpost;
+    bool text_decal;
+    bool network;
+    bool flora;
+    float extents[3];
+} fc4_effects_occupant_facts;
+
+typedef struct fc4_effects_host {
+    uint32_t struct_size;
+    void* user;
+    /* Whether there is a simulator; *dilation = its slot 32. */
+    bool (*simulator)(void* user, float* dilation);
+    void (*sim_pause)(void* user);
+    void (*sim_resume)(void* user);
+    void (*sim_hidden_pause)(void* user);
+    void (*sim_hidden_resume)(void* user);
+    void (*clock_pause)(void* user, bool on);
+    void (*city_cells)(void* user, int32_t* x, int32_t* z);
+    bool (*location_in_bounds)(void* user, float x, float z);
+    /* ApplyBrush(brush_id, params) on the terrain. */
+    bool (*apply_brush)(void* user, uint32_t brush_id, fc4_brush_params* params);
+    void (*begin_long_terrain_operation)(void* user);
+    void (*end_long_terrain_operation)(void* user);
+    /* The fire simulator's IgniteCellRadius and SetCause. */
+    void (*ignite_cell_radius)(void* user, int32_t x, int32_t z, int32_t r0, int32_t r1);
+    void (*set_fire_cause)(void* user, uint32_t cause);
+    /* The toxic-spill disaster's attempt at a cell. */
+    void (*toxic_attempt_start)(void* user, int32_t x, int32_t z);
+    /* Demolish the occupants of `rect` the filter does not skip (fc4_effects_demolish_filter_skips). */
+    void (*demolish_region)(void* user, const fc4_effects_rect* rect, uint32_t flags, bool dezone,
+                            const fc4_effects_demolish_filter* filter);
+    void (*extinguish_cell)(void* user, int32_t x, int32_t z, int32_t amount);
+    void (*post)(void* user, const fc4_effects_post* msg);
+    /* IsActive of a render component (`component` its index in the effect); missing = inactive. */
+    bool (*render_component_active)(void* user, uint32_t effect, uint32_t component, uint8_t kind);
+} fc4_effects_host;
+
+typedef struct fc4_effects_directory_counts {
+    uint32_t brushes, attractors, games, effects, names;
+    uint16_t root_version;
+    uint16_t effects_version;
+} fc4_effects_directory_counts;
+
+typedef struct fc4_effects_state {
+    uint64_t created, recycled, end_posts, select_draws, ticks, sweeps;
+    uint64_t total_us;          /* accumulated dilated microseconds */
+    float total_seconds;
+    uint32_t effect_count, active_count, level_of_detail, max_priority, finish_mode;
+} fc4_effects_state;
+
+typedef struct fc4_effect_info {
+    int32_t index;              /* the description; -1 = none (a no-op) */
+    uint32_t flags, refs;
+    bool started, stopping, active;
+    uint8_t _pad;
+    uint32_t components;        /* built */
+    uint32_t end_type;
+    uint64_t end_data1;
+    float position[3];
+    uint32_t reserved;
+} fc4_effect_info;
+
+typedef struct fc4_effects_brush_state {
+    uint32_t brush_id;
+    float rate, length, strength, radius, acc, t;
+    float prev[2], cur[2];
+    bool one_shot, active, long_op;
+    uint8_t _pad;
+    uint64_t applications;
+} fc4_effects_brush_state;
+
+typedef struct fc4_effects_game_state {
+    bool started, pending, map_applied;
+    uint8_t _pad;
+    float timer;
+    uint32_t count, applies;
+    int32_t cell_x, cell_z;
+    uint64_t data;
+} fc4_effects_game_state;
+
+/* The directory: parsed from the resource's bytes (NULL if it does not parse), or the
+ * small synthetic volcano / meteor-crater directory (tests, hosts without an install). */
+fc4_effects_directory* fc4_effects_directory_parse(const uint8_t* data, size_t len);
+fc4_effects_directory* fc4_effects_directory_volcano(void);
+void fc4_effects_directory_destroy(fc4_effects_directory* d);
+bool fc4_effects_directory_get_counts(const fc4_effects_directory* d, fc4_effects_directory_counts* out);
+/* The description `name` resolves to under `max_priority`: its index, -1 if none
+ * qualifies, FC4_EFFECTS_UNKNOWN for an unknown name. */
+int32_t fc4_effects_directory_find(const fc4_effects_directory* d, const char* name, uint32_t max_priority);
+/* Writes the resource (the parser's inverse) when `cap` suffices; returns the size needed. */
+size_t fc4_effects_directory_write(const fc4_effects_directory* d, uint8_t* buf, size_t cap);
+
+/* The manager. NULL for a NULL or short host table. `session_seed` seeds the brush
+ * generator; the select generator uses the constant 0x1105. */
+fc4_effects* fc4_effects_create(const fc4_effects_host* host, uint32_t session_seed);
+void fc4_effects_destroy(fc4_effects* fx);
+/* Shares the directory (the caller may destroy its handle afterwards). */
+bool fc4_effects_set_directory(fc4_effects* fx, const fc4_effects_directory* d);
+/* The detail setting (default 5). */
+void fc4_effects_set_max_priority(fc4_effects* fx, uint32_t max_priority);
+/* Level of detail = max(zoom - offset + 1, 1); rebuilds every effect. */
+void fc4_effects_set_zoom(fc4_effects* fx, int32_t zoom, int32_t offset);
+bool fc4_effects_set_finish_mode(fc4_effects* fx, uint32_t mode);
+/* Whether meta components also update their children (the original's double update, EF9; default true). */
+void fc4_effects_set_nested_update(fc4_effects* fx, bool on);
+bool fc4_effects_has(const fc4_effects* fx, const char* name);
+/* CreateVisualEffect: the new ID (two references: the caller's and the manager's).
+ * False for an unknown name; no description under the detail setting = a no-op (index -1). */
+bool fc4_effects_create_effect(fc4_effects* fx, const char* name, uint32_t* out_id);
+bool fc4_effects_create_effect_by_index(fc4_effects* fx, uint32_t index, uint32_t* out_id);
+bool fc4_effects_add_ref(fc4_effects* fx, uint32_t id);
+bool fc4_effects_release(fc4_effects* fx, uint32_t id);
+bool fc4_effects_start(fc4_effects* fx, uint32_t id, uint32_t mode);
+/* mode 0 = soft (unless the description's hard-stop flag), otherwise hard. */
+bool fc4_effects_stop(fc4_effects* fx, uint32_t id, uint32_t mode);
+bool fc4_effects_is_started(const fc4_effects* fx, uint32_t id);
+bool fc4_effects_is_stopping(const fc4_effects* fx, uint32_t id);
+bool fc4_effects_set_position(fc4_effects* fx, uint32_t id, float x, float y, float z);
+/* Posted when the effect finishes (type 0 = none). */
+bool fc4_effects_set_end_message(fc4_effects* fx, uint32_t id, uint32_t msg_type, uint64_t data1);
+/* SetParameter, forwarded to the components and children (13 = the game records' message data). */
+bool fc4_effects_forward_parameter(fc4_effects* fx, uint32_t id, uint32_t index, uint64_t value);
+/* The animation tick (microseconds, scaled by the simulator's dilation; runs while paused). */
+void fc4_effects_tick(fc4_effects* fx, uint32_t us);
+/* The finishing pass of the mode: whether it ran. */
+bool fc4_effects_finish_hook(fc4_effects* fx);
+bool fc4_effects_draw_pass(fc4_effects* fx);
+/* Stops every effect (hard) and forgets them. */
+void fc4_effects_shutdown(fc4_effects* fx);
+bool fc4_effects_get_state(const fc4_effects* fx, fc4_effects_state* out);
+bool fc4_effects_get_effect(const fc4_effects* fx, uint32_t id, fc4_effect_info* out);
+/* The name, NUL-terminated (truncated to cap - 1); returns its length (0 = unknown ID). */
+size_t fc4_effects_get_name(const fc4_effects* fx, uint32_t id, char* buf, size_t cap);
+/* The child of the effect's n-th built meta component. */
+bool fc4_effects_get_child(const fc4_effects* fx, uint32_t id, uint32_t n, uint32_t* out_id);
+bool fc4_effects_get_brush(const fc4_effects* fx, uint32_t id, uint32_t n, fc4_effects_brush_state* out);
+bool fc4_effects_get_game(const fc4_effects* fx, uint32_t id, uint32_t n, fc4_effects_game_state* out);
+/* Whether the filter keeps (skips) the occupant: signposts and text decals always; networks
+ * and flora by the flags; max_size > 0: a largest extent >= max; min_size > 0: a smallest <= min. */
+bool fc4_effects_demolish_filter_skips(const fc4_effects_demolish_filter* f, const fc4_effects_occupant_facts* o);
+
 /* ---- automata layer (docs/specs/automata.md, short form; engine/capi/src/automata.rs) ----
  * The saved records of components 40, 41 and 43-46 and of the objects they
  * reference, the slots other specs call, and the riot, fire and U-Drive-It
@@ -9279,6 +10114,10 @@ typedef struct fc4_automata_fire fc4_automata_fire;
 #define FC4_AUTOMATA_ATTRACTOR 1u
 /* fc4_automata_automaton_state.current_state when the stack is empty. */
 #define FC4_AUTOMATA_NO_STATE 0xFFFFFFFFu
+/* State types of §6.2 that this ABI names. DISAPPEAR is what SetState(1, ...)
+ * sets at a riot's end and what PopState pushes in place of a `final` state. */
+#define FC4_AUTOMATA_STATE_DEFAULT 0u
+#define FC4_AUTOMATA_STATE_DISAPPEAR 1u
 
 /* A controller time (§1 `time`): hour 0 <= h < 24, day of week 0-6. */
 typedef struct fc4_automata_time {
@@ -9287,13 +10126,20 @@ typedef struct fc4_automata_time {
     uint16_t reserved;
 } fc4_automata_time;
 
-/* CreateAutomaton's seven arguments (§7.2). */
+/* CreateAutomaton's seven arguments (§7.2): group, position, flags, the
+ * model key (a `key3`, all zero = chosen for the group), the callback target
+ * (a host token, 0 = null), the priority (0xFF forces the creation) and the
+ * orientation (`const vec3*`, present when `has_orientation` is 1). */
 typedef struct fc4_automata_create_args {
     uint32_t group;
     float position[3];
-    uint32_t mode;
-    float direction[3];
-    uint32_t a, b, c;
+    uint32_t flags;
+    uint32_t model_key[3]; /* type, group, instance */
+    uint64_t callback;
+    uint8_t priority;
+    uint8_t has_orientation;
+    uint16_t reserved;
+    float orientation[3];
 } fc4_automata_create_args;
 
 /* AddRef / Release on host objects (managers, failed object reads). */
@@ -9431,10 +10277,19 @@ size_t fc4_automata_controller_template(const fc4_automata_object* o, char* out,
 bool fc4_automata_controller_get_state(const fc4_automata_object* o, fc4_automata_controller_state* out);
 /* Automata (no-ops on controllers): slots 51 SetState (the stack becomes one
  * state of that type), 52 PushState, 53 PopState, 9 SetVisible, 8
- * SetPosition (3 floats), 13 Remove, 29 ReturnToSourceOccupant. */
-void fc4_automata_automaton_set_state(const fc4_automata_object* o, uint32_t state_type, uint32_t a, float b,
-                                      uint32_t c, uint32_t d, uint32_t e, uint32_t f);
-void fc4_automata_automaton_push_state(const fc4_automata_object* o, uint32_t state_type);
+ * SetPosition (3 floats), 13 Remove, 29 ReturnToSourceOccupant.
+ * SetState and PushState take the full PushState signature (§6.2):
+ * controller, timeout_ms, final, animId, sfxId, behaviourTemplate. Both return
+ * false and change nothing while the top state has `final` (§12 quirk 11).
+ * PushState(0, ...) delegates to SetState. PopState on a `final` state that
+ * is not already type 1 pushes DISAPPEAR (type 1) instead of revealing the
+ * state below. */
+bool fc4_automata_automaton_set_state(const fc4_automata_object* o, uint32_t state_type, uint32_t controller,
+                                      float timeout_ms, uint32_t is_final, uint32_t anim_id, uint32_t sfx_id,
+                                      uint32_t behaviour_template);
+bool fc4_automata_automaton_push_state(const fc4_automata_object* o, uint32_t state_type, uint32_t controller,
+                                       float timeout_ms, uint32_t is_final, uint32_t anim_id, uint32_t sfx_id,
+                                       uint32_t behaviour_template);
 bool fc4_automata_automaton_pop_state(const fc4_automata_object* o);
 void fc4_automata_automaton_set_visible(const fc4_automata_object* o, bool visible);
 void fc4_automata_automaton_set_position(const fc4_automata_object* o, const float* position);
@@ -10195,6 +11050,288 @@ float fc4_mysim_local_grade(const fc4_advisors* p, int32_t id, uint32_t group, b
 #define FC4_ADV_SRC_DEAL_COUNT 132u
 #define FC4_ADV_SRC_POWER_FUNDING 133u
 
+/* ---- network geometry (docs/specs/network-geometry.md §3-§9; engine/capi/src/network_geometry.rs) ----
+ * The network tool's geometry: the drag (BreakIntoStraightAndDiagSegments,
+ * ComputeDraggedCells), the validation passes and their failure codes
+ * (0xF0000001 bad terrain, 0xF0000002 reserved, 0xF0000003 bridge,
+ * 0xF0000005 intersection, 0xF0000006 smoothing, 0xF0000007 unsolved,
+ * 0xF0000008 terrain support), the cell infos, SmoothenNetwork levels 0-3,
+ * CanTilesBeSupportedOnTerrain and the grading (UpdateTerrainHeights), plus
+ * the standalone height satisfier (fc4_vhcs) and the pure helpers of §10,
+ * §11 and §13. No plugin glue yet.
+ *
+ * The terrain is read through the host table, or through a core terrain bound
+ * with fc4_netgeom_set_terrain: then it is read under the terrain's lock and
+ * the grading writes it (its messages go to the terrain host's post). The rest
+ * of the world goes through the host table; a missing callback is the empty
+ * world (no occupants, no connection nodes, no bridge types; the bridge checks
+ * pass; the highlight pass keeps the count). The land-bridge pass (NG4) and the
+ * piece solver's extra constraints (NG5) are not exposed yet.
+ *
+ * Threads: one thread at a time. A callback that calls back into the same
+ * geometry is refused (fallback value, counted in reentrant_refused). */
+typedef struct fc4_netgeom fc4_netgeom;
+typedef struct fc4_vhcs fc4_vhcs;
+
+#define FC4_NETGEOM_SAT_NETWORK 0u
+#define FC4_NETGEOM_SAT_TERRAIN 1u
+
+#define FC4_NETGEOM_OCC_OTHER 0u
+#define FC4_NETGEOM_OCC_LANDFILL 1u
+#define FC4_NETGEOM_OCC_NETWORK 2u
+#define FC4_NETGEOM_OCC_BUILDING 3u
+
+#define FC4_NETGEOM_TV_FIX 0u
+#define FC4_NETGEOM_TV_RANGE 1u
+#define FC4_NETGEOM_TV_UNSUPPORTED 2u
+#define FC4_NETGEOM_TV_INVALID 0xFFFFFFFFu
+
+/* One type's placement parameters (§2.4, exemplar group 0x084344E0): angles in
+ * degrees, heights in metres. Types: 0 road, 1 rail, 2 highway, 3 street,
+ * 4 pipe, 5 power line, 6 avenue, 7 subway, 8 light rail, 9 monorail,
+ * 10 one-way road, 11 dirt road, 12 ground highway. */
+typedef struct fc4_netgeom_params {
+    uint32_t struct_size;
+    float max_slope;            /* 0x879D12E7 */
+    float slope_04;             /* 0x279D1707 */
+    float max_slope_change;     /* 0x07B36C71 */
+    float max_raise;            /* 0xC7B36CA4 */
+    float max_cut;              /* 0xC7B36CA5 */
+    float resolve_tolerance;    /* 0xC804DD86 */
+    float tunnel_trigger_slope; /* 0xC804DD87 */
+    float tunnel_end_slope;     /* 0xC804DD88 */
+    float new_cell_tolerance;   /* 0xC804DD93 */
+    float support_threshold;    /* 0xC804DD94 */
+    float max_support_height;   /* 0xC804DD95 */
+    float tunnel_clearance;     /* 0xE974EAA6, the first entry (the only one read) */
+    float earthwork_cost;       /* 0x6A2D49F4 */
+    int32_t cell_cost;          /* 0x4A2D49B9 */
+    int32_t bridge_cost;        /* 0x8A2D49EA */
+    int32_t tunnel_cost;        /* 0x8A2D49F0 */
+    uint32_t elevated_id_count; /* 0xE974EAA7's length (only emptiness is read) */
+    uint8_t straight_only;      /* p+0x25 (street) */
+    uint8_t reserved[3];
+} fc4_netgeom_params;
+
+/* The per-type limits (§2.3). */
+typedef struct fc4_netgeom_type_info {
+    uint32_t struct_size;
+    uint32_t type_id;
+    uint32_t width1, width2;
+    float slope_rise;           /* +0x100: r24(tan(max_slope) x 16) */
+    float diagonal_slope_rise;  /* +0x104 */
+    float smoothness;           /* +0x108 */
+    float diagonal_smoothness;  /* +0x10C */
+    float rise_04;              /* +0x110 */
+    float tunnel_trigger_rise;  /* tool +0x23C */
+    float tunnel_end_slope_rad; /* tool +0x2AC */
+} fc4_netgeom_type_info;
+
+/* BreakIntoStraightAndDiagSegments's outputs (§3.2). */
+typedef struct fc4_netgeom_segments {
+    uint32_t struct_size;
+    int32_t end_x, end_z;
+    uint32_t dragged_count, straight_count;
+    uint8_t axis0, axis1;
+    uint8_t pen_direction;      /* 0 -x, 2 -z, 4 +x, 6 +z */
+    uint8_t end_direction;      /* 1, 3, 5 or 7 */
+} fc4_netgeom_segments;
+
+typedef struct fc4_netgeom_cell {
+    int32_t x, z;
+} fc4_netgeom_cell;
+
+/* A dragged step (§2.2): kind 0 regular, 1 bridge, 2 tunnel portal, 3 tunnel interior. */
+typedef struct fc4_netgeom_step {
+    uint32_t first, last, kind;
+} fc4_netgeom_step;
+
+/* A tunnel or bridge: its end steps (bridge_type 0 for tunnels). */
+typedef struct fc4_netgeom_span {
+    uint32_t start, end, bridge_type;
+} fc4_netgeom_span;
+
+typedef struct fc4_netgeom_vertex_height {
+    int32_t vertex;
+    float height;
+} fc4_netgeom_vertex_height;
+
+/* A cell's occupant for the reserved-tile test (§5.1); the host fills it. */
+typedef struct fc4_netgeom_occupant {
+    uint32_t kind;              /* FC4_NETGEOM_OCC_* */
+    uint8_t immovable;          /* network occupants: slot 17 */
+    uint8_t connection_node;    /* network occupants: flag 0x200000 */
+    uint8_t reserved[2];
+    uint32_t type_id;           /* network occupants: slot 22 */
+} fc4_netgeom_occupant;
+
+/* The existing network piece in a cell (§8.1); the host fills it. */
+typedef struct fc4_netgeom_piece {
+    uint32_t flags;
+    uint8_t immovable;
+    uint8_t has_supports;
+    uint8_t reserved[2];
+    float corners[4];           /* (x,z), (x,z+1), (x+1,z+1), (x+1,z) */
+    uint32_t edges[13];
+} fc4_netgeom_piece;
+
+/* cSC4NetworkCellInfo (§8.1), the fields the height solver reads. A connection
+ * node's fixed vertices are not carried (an inserted info has none). */
+typedef struct fc4_netgeom_cell_info {
+    uint32_t struct_size;
+    int32_t x, z;
+    uint32_t flags;             /* +0x08 */
+    int32_t step;               /* +0x14, -1 off the run */
+    uint32_t edges[13];         /* +0x18 */
+    uint32_t edge_union;        /* +0x4C */
+    uint8_t in_run, placed, intersection, fixed, tunnel_interior, connection_node, has_supports;
+    uint8_t reserved;
+    float corners[4];           /* +0x58 */
+    float allowed[8];           /* +0x68, (lo, hi) per corner */
+    float preferred[8];         /* +0x88 */
+    int32_t vertices[4];        /* +0xA8 */
+} fc4_netgeom_cell_info;
+
+/* Diagnostics (fc4_netgeom_get_state). */
+typedef struct fc4_netgeom_state {
+    uint32_t struct_size;
+    uint32_t type_id;
+    int32_t start_x, start_z, end_x, end_z;
+    uint32_t dragged_count, straight_count;
+    uint8_t axis0, axis1, pen_direction, end_direction;
+    uint32_t valid;             /* tool +0x78 */
+    uint32_t failure;           /* tool +0x20C, 0 = none */
+    uint32_t cell_count, step_count, extra_cell_count, tunnel_count, bridge_count;
+    uint32_t cell_info_count, solved_count, smoothing_cell_count, boundary_count;
+    int32_t level;              /* the smoothing loop's level, -1 = none */
+    float tunnel_start_height;  /* NaN = none */
+    uint32_t reentrant_refused;
+    uint8_t terrain_bound;
+    uint8_t reserved[3];
+} fc4_netgeom_state;
+
+/* What the geometry needs from the game. Vertex ids are z * (cells_x + 1) + x. */
+typedef struct fc4_netgeom_host {
+    uint32_t struct_size;
+    void* user;
+    /* terrain (unused while a core terrain is bound) */
+    void (*cells)(void* user, uint32_t* cells_x, uint32_t* cells_z);
+    float (*vertex_altitude)(void* user, int32_t vertex);            /* slot 12 */
+    bool (*cell_has_water)(void* user, int32_t x, int32_t z);        /* slot 34 */
+    float (*surface_water_level)(void* user, int32_t vertex);        /* NaN = none */
+    float (*max_allowed_height)(void* user);                         /* slot 24 */
+    void (*set_altitude_at_vertex)(void* user, int32_t vertex, float h); /* slot 50 */
+    void (*begin_long_terrain_operation)(void* user);                /* slot 87 */
+    void (*redisplay_terrain)(void* user, const fc4_terrain_rect* rect, uint32_t kind); /* slot 68 */
+    void (*end_long_terrain_operation)(void* user);                  /* slot 88 */
+    /* world */
+    bool (*is_connection_node)(void* user, int32_t x, int32_t z);
+    /* Writes up to `capacity` occupants; returns the total (called again with a larger buffer). */
+    uint32_t (*cell_occupants)(void* user, int32_t x, int32_t z, fc4_netgeom_occupant* out, uint32_t capacity);
+    bool (*existing_piece)(void* user, int32_t x, int32_t z, fc4_netgeom_piece* out);
+    /* §3.3 step 3: the cell holds an auto-connect occupant (or, for road, a cell info with edges). */
+    bool (*extends_diagonal_end)(void* user, int32_t x, int32_t z, uint32_t type_id);
+    /* Slot 59 over the run's cells: the new valid count (at most `valid`). */
+    uint32_t (*update_occupant_highlights)(void* user, uint32_t type_id, const fc4_netgeom_cell* cells,
+                                           uint32_t count, uint32_t valid);
+    uint32_t (*bridge_type_count)(void* user, uint32_t type_id);
+    /* NG2: IsStepGoodForBridge, CheckBridgeStepEdgeTypes, AdjustBridgeSpan, FindBestBridgeType. */
+    bool (*is_step_good_for_bridge)(void* user, uint32_t type_id, uint32_t step, const fc4_netgeom_cell* cells,
+                                    uint32_t count);
+    bool (*bridge_step_edge_types_ok)(void* user, uint32_t type_id, uint32_t step, const fc4_netgeom_cell* cells,
+                                      uint32_t count);
+    bool (*adjust_bridge_span)(void* user, uint32_t type_id, uint32_t* start, uint32_t* end);
+    bool (*find_best_bridge_type)(void* user, uint32_t type_id, uint32_t start, uint32_t end,
+                                  uint32_t* bridge_type, uint32_t* min_span);
+} fc4_netgeom_host;
+
+/* Parameters and pure helpers. */
+bool fc4_netgeom_params_shipped(uint32_t type_id, fc4_netgeom_params* out);
+/* From the exemplar's properties (NULL = none: the defaults of §2.4). */
+bool fc4_netgeom_params_from_props(uint32_t type_id, const fc4_props* props, fc4_netgeom_params* out);
+/* params NULL = shipped. */
+bool fc4_netgeom_params_type_info(uint32_t type_id, const fc4_netgeom_params* params, fc4_netgeom_type_info* out);
+bool fc4_netgeom_break_into_segments(int32_t start_x, int32_t start_z, int32_t end_x, int32_t end_z, bool snap,
+                                     bool straight_only, uint32_t width1, uint32_t width2,
+                                     fc4_netgeom_segments* out);
+/* §9.6 step 3 for one vertex: FC4_NETGEOM_TV_*; for _FIX lo = hi = preferred = the height. */
+uint32_t fc4_netgeom_terrain_vertex(float network_height, float terrain_altitude, bool has_supports, bool fixed,
+                                    uint32_t type_id, const fc4_netgeom_params* params, float* lo, float* hi,
+                                    float* preferred);
+/* §10.2: 0, 1 or 2 from four corner and four terrain heights. */
+uint32_t fc4_netgeom_support_level(const float* corners, const float* terrain, float threshold);
+uint32_t fc4_netgeom_support_flags(uint32_t level);
+/* §10.1: the draft flag (0x80000000) is set for a draft occupant, cleared for a real one. */
+uint32_t fc4_netgeom_occupant_flags(uint32_t cell_flags, bool real, bool tunnel_occupant);
+/* §11: 0 for at most one pole. */
+int32_t fc4_netgeom_power_line_cost(uint32_t poles, uint32_t wire_cells, int32_t per_pole, float per_wire);
+/* §13: (x << 16) + z. */
+int32_t fc4_netgeom_destroy_key(int32_t x, int32_t z);
+
+/* The geometry. params NULL = the shipped table; else `count` types in type
+ * order (missing types: all-zero parameters). NULL on a bad host or params size. */
+fc4_netgeom* fc4_netgeom_create(const fc4_netgeom_host* host, const fc4_netgeom_params* params, uint32_t count);
+void fc4_netgeom_destroy(fc4_netgeom* g);
+/* Binds a core terrain (NULL = the host's terrain callbacks); it must outlive the binding. */
+bool fc4_netgeom_set_terrain(fc4_netgeom* g, fc4_terrain* terrain);
+bool fc4_netgeom_get_type_info(const fc4_netgeom* g, uint32_t type_id, fc4_netgeom_type_info* out);
+bool fc4_netgeom_set_land_bridges(fc4_netgeom* g, uint32_t type_id, bool on);
+bool fc4_netgeom_reset(fc4_netgeom* g);
+/* DrawNetworkLine (slot 18, §3.1). */
+bool fc4_netgeom_draw_line(fc4_netgeom* g, uint32_t type_id, int32_t start_x, int32_t start_z, int32_t end_x,
+                           int32_t end_z, bool snap);
+/* The validation passes (§4): the valid step count; the code is in the state's failure. */
+uint32_t fc4_netgeom_validate(fc4_netgeom* g);
+bool fc4_netgeom_create_cell_infos(fc4_netgeom* g);
+bool fc4_netgeom_insert_cell_info(fc4_netgeom* g, const fc4_netgeom_cell_info* info);
+bool fc4_netgeom_get_cell_info(const fc4_netgeom* g, int32_t x, int32_t z, fc4_netgeom_cell_info* out);
+bool fc4_netgeom_smoothen(fc4_netgeom* g, int32_t level);
+bool fc4_netgeom_can_tiles_be_supported(fc4_netgeom* g);
+/* The smoothing loop (§9.4): 0 and *level, else 0xF0000006 / 0xF0000008. */
+uint32_t fc4_netgeom_smooth(fc4_netgeom* g, int32_t* level);
+/* Passes, cell infos and smoothing (network-tools.md §5.1 steps 4-5 without the
+ * piece solver): the valid count, 0 = refused (see the failure code). */
+uint32_t fc4_netgeom_place(fc4_netgeom* g);
+/* GetCostOfSolution (network-tools.md §8.1) of the solved cells. */
+int32_t fc4_netgeom_cost(const fc4_netgeom* g, int32_t demolition);
+/* UpdateTerrainHeights (§9.7): changes above 0.001, RedisplayTerrain kind 4 inside
+ * Begin/EndLongTerrainOperation; the changed count, *rect (may be NULL) when not 0. */
+uint32_t fc4_netgeom_update_terrain_heights(fc4_netgeom* g, fc4_terrain_rect* rect);
+bool fc4_netgeom_get_state(const fc4_netgeom* g, fc4_netgeom_state* out);
+/* Lists: copy when `capacity` suffices; return the count. */
+uint32_t fc4_netgeom_get_cells(const fc4_netgeom* g, fc4_netgeom_cell* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_steps(const fc4_netgeom* g, fc4_netgeom_step* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_tunnels(const fc4_netgeom* g, fc4_netgeom_span* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_bridges(const fc4_netgeom* g, fc4_netgeom_span* out, uint32_t capacity);
+uint32_t fc4_netgeom_get_solved(const fc4_netgeom* g, fc4_netgeom_cell* out, uint32_t capacity);
+/* The geometry's satisfiers (FC4_NETGEOM_SAT_*). */
+bool fc4_netgeom_sat_height(const fc4_netgeom* g, uint32_t which, int32_t vertex, float* out);
+bool fc4_netgeom_sat_range(const fc4_netgeom* g, uint32_t which, int32_t vertex, float* lo, float* hi);
+uint32_t fc4_netgeom_sat_solution(const fc4_netgeom* g, uint32_t which, fc4_netgeom_vertex_height* out,
+                                  uint32_t capacity);
+
+/* The standalone height satisfier (cSC4VertexHtConstraintSatisfier, §9.1). The
+ * pick tie-break is insertion order ([choice], NG1). */
+fc4_vhcs* fc4_vhcs_create(void);
+void fc4_vhcs_destroy(fc4_vhcs* s);
+bool fc4_vhcs_init(fc4_vhcs* s, float lo, float hi);
+bool fc4_vhcs_shutdown(fc4_vhcs* s);
+/* AddVertexToSolve: false when already present. */
+bool fc4_vhcs_add_vertex(fc4_vhcs* s, int32_t vertex, float initial);
+bool fc4_vhcs_insert_range(fc4_vhcs* s, int32_t vertex, float lo, float hi);
+bool fc4_vhcs_insert_fixed(fc4_vhcs* s, int32_t vertex, float height);
+bool fc4_vhcs_insert_equality(fc4_vhcs* s, int32_t a, int32_t b);
+bool fc4_vhcs_insert_slope(fc4_vhcs* s, int32_t a, int32_t b, float limit);
+/* |h(a) - 2 h(b) + h(c)| <= limit, b the middle vertex. */
+bool fc4_vhcs_insert_smoothness(fc4_vhcs* s, int32_t a, int32_t b, int32_t c, float limit);
+bool fc4_vhcs_set_preferred_value(fc4_vhcs* s, int32_t vertex, float height);
+bool fc4_vhcs_set_preferred_range(fc4_vhcs* s, int32_t vertex, float lo, float hi);
+/* Solve: false when a range became empty. */
+bool fc4_vhcs_solve(fc4_vhcs* s);
+bool fc4_vhcs_height(fc4_vhcs* s, int32_t vertex, float* out);
+bool fc4_vhcs_range(fc4_vhcs* s, int32_t vertex, float* lo, float* hi);
+uint32_t fc4_vhcs_solution(fc4_vhcs* s, fc4_netgeom_vertex_height* out, uint32_t capacity);
+
 /* ---- turbo clock (tooling, not simulator.md; fc4_core::Turbo) --------------
  * Tooling deviation for test runs (the plugin's sim_turbo). Off (the default)
  * changes nothing. On: the day gate's "ready" (spec §5.2 step 3) is always true
@@ -10255,6 +11392,203 @@ bool fc4_sim_set_pacing(fc4_sim* sim, uint32_t mode, const fc4_pacing_hooks* hoo
 /* Pointers may be NULL. `day_settled` is always true under original pacing. */
 bool fc4_sim_get_pacing(const fc4_sim* sim, uint32_t* mode, bool* day_settled);
 
+/* ---- audio (docs/specs/audio.md) --------------------------------------------
+ * The sound-event system, the sound managers and the sound data. Four opaque
+ * handles: fc4_audio is one instance of the whole layer (the sound-event pool
+ * of §4, the automaton's SFX slots of §6, the audio event handler of §7, the
+ * sound manager of §8 and the process-global instance-id counter of §8.4);
+ * fc4_audio_msg is a cRZMessage2Standard (§3.2), fc4_audio_snd_event a
+ * cGZSndEventStd (§3.1) and fc4_audio_component the effects sound component
+ * (§9). Tokens are opaque host identities (the automaton's occupant, instance
+ * handles); 0 is null.
+ *
+ * Threads: the game calls getters from a second thread while the main thread
+ * is inside OnTick, so every main-thread call publishes an fc4_audio_state
+ * snapshot and fc4_audio_get_state reads only that. fc4_audio_instance_id is a
+ * counter and is safe from either thread.
+ *
+ * Nothing in the audio layer is saved (§12): there is no Read/Write pair. */
+typedef struct fc4_audio fc4_audio;
+typedef struct fc4_audio_msg fc4_audio_msg;
+typedef struct fc4_audio_snd_event fc4_audio_snd_event;
+typedef struct fc4_audio_component fc4_audio_component;
+
+/* One posted message (§6.4): the four fields and the message-server priority. */
+typedef struct fc4_audio_post {
+    uint32_t struct_size; /* sizeof(fc4_audio_post) */
+    uint32_t type;        /* +0x0C */
+    uint32_t data1;       /* +0x10: the SFX id */
+    uint32_t data2;       /* +0x14: the instance id */
+    uint32_t high_priority; /* MessagePost's second argument: always 0 */
+    uint32_t flags;       /* +0x08: the presence flags (0x87 for both SFX) */
+    uint64_t void1;       /* +0x24: the automaton's occupant */
+} fc4_audio_post;
+
+/* One sound-event pool page (§4.2). The page a pointer belongs to is
+ * `p & 0xFFFFC000`; +0x0C is the count/state word, marker included. */
+typedef struct fc4_audio_pool_page {
+    uint32_t struct_size;
+    uint32_t base;
+    uint32_t free_head;   /* +0x08 */
+    uint32_t state;       /* +0x0C */
+    uint32_t live;        /* state with the 0x40000000 marker removed */
+    uint32_t in_service;  /* 1 when the marker is set */
+    uint32_t active;
+    uint32_t retired;
+    uint32_t handed_back;
+} fc4_audio_pool_page;
+
+/* The published snapshot the second-thread getters read. */
+typedef struct fc4_audio_state {
+    uint32_t struct_size;
+    uint32_t instance_id;      /* automaton +0x8C */
+    uint32_t posts;
+    uint32_t live_sounds;
+    uint32_t snd_sys_events;
+    uint32_t rate_window_ms;   /* the handler's +0x48 */
+    uint32_t pooled_events;
+    uint32_t master_volume;    /* the manager's +0x14 */
+    uint32_t voice_gate;       /* tuning 0xAABAA0D3, +0x64 */
+    uint32_t one_shot;         /* tuning 0x0A946A57, +0x68 */
+    uint32_t update_period;    /* tuning 0x4A946A5D, +0x6C */
+    uint32_t component_active;
+    uint32_t reserved;
+} fc4_audio_state;
+
+/* fc4_audio_pool_free's result (§4.2). */
+#define FC4_AUDIO_RELEASE_NONE        0
+#define FC4_AUDIO_RELEASE_HANDED_BACK 1 /* post-dec 0: pool vtable slot 3 */
+#define FC4_AUDIO_RELEASE_RETIRED     2 /* post-dec 0x40000045: marker cleared */
+/* fc4_audio_manager_stop's result (§8.3). */
+#define FC4_AUDIO_STOP_UNKNOWN  0 /* the id is not present: nothing happens */
+#define FC4_AUDIO_STOP_STOPPED  1
+/* fc4_audio_data_extension's segment (§10.2). */
+#define FC4_AUDIO_CTX_HITLISTS 0
+#define FC4_AUDIO_CTX_TLO      1
+#define FC4_AUDIO_CTX_SAMPLE   2
+
+/* ---- the layer ---- */
+fc4_audio* fc4_audio_create(void);
+/* NULL is a no-op. */
+void fc4_audio_destroy(fc4_audio* a);
+/* Safe from the second thread. False for a NULL handle or out. */
+bool fc4_audio_get_state(const fc4_audio* a, fc4_audio_state* out);
+
+/* ---- the message object (§3.2) ---- SetType(0) stores 0 and CLEARS presence
+ * bit 0 (§14.4); SetVoid1(0) clears bit 7 but still writes +0x24. */
+fc4_audio_msg* fc4_audio_msg_create(void);
+void fc4_audio_msg_destroy(fc4_audio_msg* m);
+void fc4_audio_msg_set_type(fc4_audio_msg* m, uint32_t t);
+void fc4_audio_msg_set_data1(fc4_audio_msg* m, uint32_t v);
+void fc4_audio_msg_set_data2(fc4_audio_msg* m, uint32_t v);
+void fc4_audio_msg_set_data3(fc4_audio_msg* m, uint32_t v);
+void fc4_audio_msg_set_data4(fc4_audio_msg* m, uint32_t v);
+void fc4_audio_msg_set_void1(fc4_audio_msg* m, uint64_t p);
+uint32_t fc4_audio_msg_flags(const fc4_audio_msg* m);
+
+/* ---- the sound event (§3.1) ---- the default constructor leaves +0x30 and
+ * +0x34 at 0; the five-argument one stores `payload` and writes 1 to +0x34. */
+fc4_audio_snd_event* fc4_audio_snd_event_create(void);
+fc4_audio_snd_event* fc4_audio_snd_event_create5(uint32_t payload, uint32_t data1, uint32_t data2,
+                                                 uint32_t data3, uint32_t data4);
+void fc4_audio_snd_event_destroy(fc4_audio_snd_event* e);
+/* 0x5B523BA4 answers this+0x2C and AddRefs; any other IID falls through and
+ * the result is 0xFFFFFFFF. */
+uint32_t fc4_audio_snd_event_qi(fc4_audio_snd_event* e, uint32_t iid);
+void fc4_audio_snd_event_set_value(fc4_audio_snd_event* e, uint32_t v);
+uint32_t fc4_audio_snd_event_get_value(const fc4_audio_snd_event* e);
+uint32_t fc4_audio_snd_event_get_flag(const fc4_audio_snd_event* e);
+/* GetOuter: `this - 0x2C`. */
+uint32_t fc4_audio_snd_event_get_outer(uint32_t secondary);
+
+/* ---- the automaton's SFX slots (§6) ---- StartSFX is slot 61 (+0xF4,
+ * 0x00509950) and returns 1, or 0 when the id is 0; StopSFX is slot 62
+ * (+0xF8, 0x00505B50) and always returns 1 (§14.3). Both post queued at
+ * normal priority and return before any sound starts or stops (§6.4).
+ * StopSFX never clears automaton +0x8C (§14.1). */
+uint32_t fc4_audio_start_sfx(fc4_audio* a, uint32_t sfx_id, uint64_t occupant);
+uint32_t fc4_audio_stop_sfx(fc4_audio* a, uint32_t sfx_id, uint64_t occupant);
+/* HandleEnterState / HandleExitState (§6.1): the slot is called only when
+ * state+0x18 is non-zero. Returns 1 when it was called. */
+uint32_t fc4_audio_handle_enter_state(fc4_audio* a, uint32_t sfx_id, uint64_t occupant);
+uint32_t fc4_audio_handle_exit_state(fc4_audio* a, uint32_t sfx_id, uint64_t occupant);
+bool fc4_audio_get_post(const fc4_audio* a, uint32_t index, fc4_audio_post* out);
+
+/* ---- the instance-id counter (§8.4) ---- one process-wide counter, the
+ * pre-increment value, never 0 (including after a 32-bit wrap). */
+uint32_t fc4_audio_instance_id(fc4_audio* a);
+
+/* ---- the sound-event pool (§4) ---- alloc is FUN_005E16E0, free is
+ * FUN_005E1780 (a null pointer is a no-op, §4.3). Only a request of 0x38
+ * bytes uses the pool (§4.1, §14.7). */
+uint32_t fc4_audio_pool_alloc(fc4_audio* a);
+uint32_t fc4_audio_pool_free(fc4_audio* a, uint32_t p);
+uint32_t fc4_audio_pool_page_of(uint32_t p);
+uint32_t fc4_audio_pool_size_uses(uint32_t size);
+bool fc4_audio_pool_get_page(const fc4_audio* a, uint32_t base, fc4_audio_pool_page* out);
+
+/* ---- the audio event handler (§7) ---- Init subscribes the 13 main types;
+ * 0x26D31EC1 adds the city set of 11 and 0x26D31EC2 removes exactly that set,
+ * so the automata SFX messages are only heard while a city is loaded (§7.2). */
+uint32_t fc4_audio_handler_init(fc4_audio* a);
+void fc4_audio_handler_city_message(fc4_audio* a, uint32_t type);
+/* HandleAutomataMessages (§7.3). The rate limiter of 1000-4000 ms applies only
+ * when `payload` is 0xA9F14C47 (§14.5). */
+uint32_t fc4_audio_handler_play(fc4_audio* a, uint32_t payload, uint32_t rand, uint32_t sound_id,
+                                uint32_t instance);
+uint32_t fc4_audio_handler_stop(fc4_audio* a, uint32_t sound_id, uint32_t instance);
+
+/* ---- the sound manager (§8) ---- DoMessage handles exactly the eight types
+ * of §8.3; 0x8A385DD8 and 0xAA396960 are NOT among them (§14.11). */
+uint32_t fc4_audio_manager_message(fc4_audio* a, uint32_t type);
+/* _StartSound: an instance id that is already live is stopped first (§8.3). */
+uint32_t fc4_audio_manager_start(fc4_audio* a, uint32_t sound_id, uint32_t instance, uint32_t param);
+/* _StopSound: a miss returns FC4_AUDIO_STOP_UNKNOWN and does nothing (§14.12). */
+uint32_t fc4_audio_manager_stop(fc4_audio* a, uint32_t instance, uint32_t hard);
+/* _ReadTuningValues (§10.8): no clamping; read_ok 0 restores the defaults and
+ * logs the failure. */
+void fc4_audio_manager_tuning(fc4_audio* a, uint32_t read_ok, uint32_t voice_gate, uint32_t one_shot,
+                              uint32_t update_period);
+
+/* ---- the effects sound component (§9) ---- the description's sound id,
+ * 1/locationUpdateRate and length (§10.9). Start's and Stop's mode arguments
+ * are never read (§9.1, §14.14). */
+fc4_audio_component* fc4_audio_component_create(uint32_t sound_id, float inv_location_rate,
+                                                uint32_t length);
+void fc4_audio_component_destroy(fc4_audio_component* c);
+void fc4_audio_component_start(fc4_audio_component* c, uint32_t mode, uint32_t this_addr,
+                               uint32_t snd_sys);
+void fc4_audio_component_stop(fc4_audio_component* c, uint32_t mode);
+void fc4_audio_component_update(fc4_audio_component* c, float dt);
+void fc4_audio_component_set_transform(fc4_audio_component* c, float x, float y, float z);
+/* IsActive is the +0x1C started byte (§9.3). */
+uint32_t fc4_audio_component_is_active(const fc4_audio_component* c);
+/* Component record +0x10 bit 0 -> runtime flag bit 2 (§9.3). */
+uint32_t fc4_audio_ignore_flags(uint32_t record_flags, uint32_t runtime_flags);
+uint32_t fc4_audio_check_finished_considers(uint32_t runtime_flags);
+
+/* ---- the data (§10) ---- */
+/* Resolve a resource type to its extension in a DB segment (§10.2, §10.11).
+ * Copies up to cap-1 bytes NUL-terminated and returns the length without the
+ * NUL, or 0xFFFFFFFF when the type resolves to nothing. `out` may be NULL. */
+uint32_t fc4_audio_data_extension(uint32_t type, uint32_t context, uint8_t* out, uint32_t cap);
+uint32_t fc4_audio_data_entries(void); /* Sound.dat: 2776 (§10.1) */
+uint64_t fc4_audio_data_bytes(void);   /* Sound.dat: 122,372,241 (§10.1) */
+/* AU1: the "AB" magic is reported, not required to load a bank (§10.7). */
+uint32_t fc4_audio_aems_magic_present(uint32_t version, uint8_t magic0, uint8_t magic1);
+/* 0x1C for version >= 8, 0x14 below (§10.7). */
+uint32_t fc4_audio_aems_module_stride(uint32_t version);
+
+/* ---- the director (§1.1) ---- */
+uint32_t fc4_audio_director_id(void);          /* 0xFDB5CA17 */
+uint32_t fc4_audio_director_class_count(void); /* 92 */
+/* Copies the index-th OnStart name NUL-terminated; returns its length without
+ * the NUL, or 0xFFFFFFFF when index is out of range. `out` may be NULL. */
+uint32_t fc4_audio_director_on_start(uint32_t index, uint8_t* out, uint32_t cap);
+
+/* ---- nothing is saved (§12) ---- always 0. */
+uint32_t fc4_audio_has_save_record(void);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -10265,12 +11599,413 @@ bool fc4_sim_get_debug(const fc4_sim* sim, fc4_debug* out);
 bool fc4_sim_get_agent_info(const fc4_sim* sim, uint32_t level, size_t index, fc4_agent_info* out, char* name,
                             size_t name_capacity);
 
+/* ---- prop occupant (docs/specs/prop-occupant.md) ---------------------------- */
+
+/* The process-wide prop type ID table of 5.1 (0x00B231A4): the +0x5C u16 is an
+ * index into it, not an exemplar key. GetPropTypeIndex appends an unknown ID,
+ * so the table grows across a session (quirk 2). */
+typedef struct fc4_prop_type_table fc4_prop_type_table;
+/* One cSC4PropOccupant (class 0x2977AA47, 0x68 bytes). */
+typedef struct fc4_prop_occupant fc4_prop_occupant;
+/* One cSC4PropOccupantVisualEffect (class 0x2977AA49, 0x94 bytes). */
+typedef struct fc4_prop_effect fc4_prop_effect;
+
+/* What the occupant reaches outside itself (3, 6.1, network-tools 13.1).
+ * Every callback receives `user`. */
+typedef struct fc4_prop_occupant_host {
+  uint32_t struct_size;           /* sizeof(fc4_prop_occupant_host) */
+  void* user;
+  /* Whether the occupant is in the city: SetState posts only when true. */
+  int32_t (*is_in_city)(void* user);
+  /* Post an occupant message carrying this prop and data1. */
+  void (*post_occupant_message)(void* user, uint32_t msg_type, uint32_t data1);
+  /* Whether the exemplar has property 0x4A70D491: 1 true, 0 false,
+   * -1 no exemplar is attached (quirk 6). */
+  int32_t (*has_model_state_property)(void* user);
+  /* Switch the drawn model instances to `state`. */
+  void (*set_model_state)(void* user, uint8_t state);
+  /* Register or clear the 24-hour clock entry; (0, 0) clears it. */
+  void (*set_clock_entry)(void* user, uint8_t start, uint8_t end);
+  /* One draw from the prop's own generator 0x00B231B0, uniform in 0..100. */
+  uint8_t (*draw_chance)(void* user);
+  /* Remove this prop from the occupant manager; 1 when it was there. */
+  int32_t (*remove_from_city)(void* user);
+} fc4_prop_occupant_host;
+
+/* What the visual-effect prop reaches outside itself (6.2). */
+typedef struct fc4_prop_effect_host {
+  uint32_t struct_size;
+  void* user;
+  /* (Re)create the effect object; returns the handle or 0. */
+  uint64_t (*restart_effect)(void* user, uint32_t id, const uint8_t* name, uint32_t name_len);
+  void (*effect_slot3)(void* user, uint64_t handle);
+  void (*effect_slot4)(void* user, uint64_t handle);
+  int32_t (*flag2)(void* user);
+} fc4_prop_effect_host;
+
+/* One compiled slot of cISC4PropOccupant (4.1). */
+typedef struct fc4_prop_slot_info {
+  uint8_t slot;                   /* compiled slot, 0..23 */
+  uint8_t sdk_index;              /* compiled slot - 3 */
+  uint8_t callee_pop;
+  uint8_t arg_dwords;
+  uint32_t offset;
+  uint32_t address;               /* the Windows address of the body */
+  uint32_t ret;                   /* FC4_RET_* */
+} fc4_prop_slot_info;
+
+/* Measured return channels (4.1). docs/abi/interfaces.tsv labels all 24 rows
+ * eax-or-void; the measurements differ. */
+#define FC4_RET_EAX 0u            /* a real value in EAX */
+#define FC4_RET_AL 1u             /* only AL: mask to 0xFF, never a bool */
+#define FC4_RET_VOID 2u           /* no result; ST(0) empty at return */
+#define FC4_RET_VIA_CALL 3u       /* a tail call */
+#define FC4_RET_EAX_OR_VOID 4u    /* the one ambiguous slot (8) */
+
+/* TagMatch of 5.3 / prop-developer 4.3 step 2.3.2. */
+#define FC4_TAG_MATCHED 0
+#define FC4_TAG_CONFIG_LACKS_TAG 1
+#define FC4_TAG_NO_CONFIGURATION 2
+#define FC4_TAG_UNKNOWN_CONFIGURATION 3
+#define FC4_TAG_NONE 4
+
+/* ReadOutcome of 7 / lot-records 10.1. */
+#define FC4_PROP_RECORD_OK 0
+#define FC4_PROP_RECORD_BASE_FAILED 1  /* a failing base read reports success */
+#define FC4_PROP_RECORD_TRUNCATED 2
+
+/* The type table (5.1). */
+fc4_prop_type_table* fc4_prop_type_table_create(void);
+void fc4_prop_type_table_destroy(fc4_prop_type_table* t);
+uint32_t fc4_prop_type_table_len(const fc4_prop_type_table* t);
+/* GetPropTypeIndex: interning at the end when the ID is unknown. */
+uint32_t fc4_prop_type_table_intern(const fc4_prop_type_table* t, uint32_t id);
+uint32_t fc4_prop_type_table_id_at(const fc4_prop_type_table* t, uint32_t index);
+
+/* The prop occupant. */
+fc4_prop_occupant* fc4_prop_occupant_create(const fc4_prop_occupant_host* host,
+                                            const fc4_prop_type_table* types);
+void fc4_prop_occupant_destroy(fc4_prop_occupant* p);
+/* QueryInterface (1.1): the sub-object offset, or -1 when the base refuses. */
+int32_t fc4_prop_occupant_query_interface(uint32_t iid);
+uint32_t fc4_prop_occupant_add_ref(fc4_prop_occupant* p);
+uint32_t fc4_prop_occupant_release(fc4_prop_occupant* p);
+uint32_t fc4_prop_occupant_refcount(fc4_prop_occupant* p);
+
+uint32_t fc4_prop_occupant_get_prop_type(const fc4_prop_occupant* p);
+void fc4_prop_occupant_set_prop_type(fc4_prop_occupant* p, uint32_t id);
+uint32_t fc4_prop_occupant_prop_type_index(const fc4_prop_occupant* p);
+int32_t fc4_prop_occupant_get_orientation(const fc4_prop_occupant* p);
+/* Slot 10: channel al, clamps to 0..3, always returns 1. */
+int32_t fc4_prop_occupant_set_orientation(fc4_prop_occupant* p, int32_t orientation);
+/* Slot 12: channel eax, a clean zero-extended value. */
+uint32_t fc4_prop_occupant_get_state(const fc4_prop_occupant* p);
+void fc4_prop_occupant_set_state(fc4_prop_occupant* p, uint8_t state);
+/* Slots 13/14: void, ST(0) empty at return. */
+void fc4_prop_occupant_set_time_of_day_range(fc4_prop_occupant* p, float start, float end);
+void fc4_prop_occupant_get_time_of_day_range(const fc4_prop_occupant* p, float* a, float* b);
+void fc4_prop_occupant_set_date_range(fc4_prop_occupant* p, uint32_t interval, uint32_t duration,
+                                      uint32_t start_day, uint32_t end_day);
+int32_t fc4_prop_occupant_has_date_range(const fc4_prop_occupant* p);
+void fc4_prop_occupant_set_random_chance(fc4_prop_occupant* p, uint8_t chance);
+/* Slot 18: channel al. The value is a percent 1..100, never a bool. */
+uint8_t fc4_prop_occupant_get_random_chance(const fc4_prop_occupant* p);
+uint32_t fc4_prop_occupant_get_timer_bitfield(const fc4_prop_occupant* p);
+/* Slot 20: channel eax, a real 0/1. */
+int32_t fc4_prop_occupant_get_timer_state(const fc4_prop_occupant* p, uint8_t mask);
+void fc4_prop_occupant_set_timer_state(fc4_prop_occupant* p, uint8_t mask, int32_t on);
+/* Slot 22: channel al. The value is a code 1..4, never a bool. */
+uint8_t fc4_prop_occupant_get_prop_usage(const fc4_prop_occupant* p);
+void fc4_prop_occupant_set_prop_usage(fc4_prop_occupant* p, uint8_t usage);
+/* The usage each Add*Prop path writes (3): kind 1 city, 2 lot, 3 building,
+ * 4 street. */
+uint8_t fc4_prop_add_usage(uint32_t kind);
+
+uint32_t fc4_prop_occupant_lot_tag(const fc4_prop_occupant* p);
+int32_t fc4_prop_occupant_has_lot_tag(const fc4_prop_occupant* p);
+void fc4_prop_occupant_set_lot_tag(fc4_prop_occupant* p, uint32_t tag);
+void fc4_prop_occupant_set_bounding_box(fc4_prop_occupant* p, const float* min, const float* max);
+void fc4_prop_occupant_get_bounding_box(const fc4_prop_occupant* p, float* min, float* max);
+int32_t fc4_prop_occupant_init_after_load(fc4_prop_occupant* p);
+int32_t fc4_prop_occupant_shutdown(fc4_prop_occupant* p);
+void fc4_prop_occupant_set_loaded(fc4_prop_occupant* p, int32_t loaded);
+
+/* The slot table (4.1). */
+uint32_t fc4_prop_occupant_slot_count(void);
+int32_t fc4_prop_occupant_slot_info(uint32_t index, fc4_prop_slot_info* out);
+int32_t fc4_prop_occupant_slot_channel(uint32_t index);
+/* Object size by occupant class (1.2, test 3). */
+uint32_t fc4_prop_object_size(uint32_t class_id);
+
+/* The save record (7 / lot-records 10.1). */
+int32_t fc4_prop_occupant_read_record(fc4_prop_occupant* p, const uint8_t* bytes, uint32_t len);
+int32_t fc4_prop_occupant_write_record(fc4_prop_occupant* p, uint8_t* out, uint32_t cap,
+                                       uint32_t* written);
+/* Returns the record version, or -1. */
+int32_t fc4_prop_record_read_summary(const uint8_t* bytes, uint32_t len, uint32_t* out_prop_type,
+                                     uint8_t* out_timer_bits, uint32_t* out_lot_tag);
+
+/* The lot tag and the PV2 rule (5.3). */
+int32_t fc4_prop_tag_classify(uint32_t tag, const uint32_t* ids, uint32_t ids_len, int32_t unknown);
+/* Corpus figures: which 0 tagged, 1 unmatched, 2 config-lacks-tag,
+ * 3 no-configuration, 4 unknown-configuration, 5 percent x 100. */
+uint32_t fc4_prop_tag_corpus(uint32_t which);
+
+/* The visual-effect prop (6.2). */
+fc4_prop_effect* fc4_prop_effect_create(const fc4_prop_effect_host* host,
+                                        const fc4_prop_type_table* types);
+void fc4_prop_effect_destroy(fc4_prop_effect* e);
+int32_t fc4_prop_effect_set_type_name(fc4_prop_effect* e, const uint8_t* name, uint32_t name_len);
+int32_t fc4_prop_effect_set_type_id(fc4_prop_effect* e, uint32_t id);
+/* Returns 1 only when an effect object exists at +0x6C. */
+int32_t fc4_prop_effect_start(fc4_prop_effect* e, int32_t b);
+/* Returns 1 only when one existed and was started. */
+int32_t fc4_prop_effect_stop(fc4_prop_effect* e, int32_t b);
+int32_t fc4_prop_effect_is_live(const fc4_prop_effect* e);
+int32_t fc4_prop_effect_is_started(const fc4_prop_effect* e);
+/* 1 when Write drops the name and the trailing u32 (lot-records 10.2). */
+int32_t fc4_prop_effect_should_drop_name(const fc4_prop_effect* e);
+int32_t fc4_prop_effect_sub_object_offsets(uint32_t* out);
+int32_t fc4_prop_effect_write_record(fc4_prop_effect* e, uint8_t* out, uint32_t cap,
+                                     uint32_t* written);
+int32_t fc4_prop_effect_read_record(fc4_prop_effect* e, const uint8_t* bytes, uint32_t len,
+                                    uint32_t* out_name_len);
+
+/* Constants (1, 2.2, 5.3, 7). */
+uint32_t fc4_prop_class_id(void);
+uint32_t fc4_prop_occupant_type(void);
+uint32_t fc4_prop_no_lot_tag(void);
+/* out[0] record version 6, out[1] effect version 3, out[2] legacy timer bits
+ * 0x0F, out[3] occupant base version 4. */
+int32_t fc4_prop_record_versions(uint16_t* out);
+
+/* ---- network tools (docs/specs/network-tools.md §2-§11; engine/capi/src/network_tools.rs) ----
+ * The network tool's own half of PlaceNetwork over the geometry core
+ * (fc4_netgeom): the tool state (§2), PlaceNetworkOccupants (slot 7, §3),
+ * PlaceNetworkOccupantById (slot 8, §4), the PlaceNetwork pipeline hand-off
+ * (§5) with the commit order (§6), DestroyOccupantsAndResolve (slot 50, §10)
+ * and UpdateUndergroundOccupantTerrainHeights (§11). No plugin glue yet.
+ *
+ * The world (occupants, poles, the terrain, the geometry core, the crew)
+ * goes through the host table; a missing callback is the empty world (no
+ * occupants, no neighbours, no structures, the passes keep the counts). The
+ * geometry itself runs through the host's draw/validate callbacks, which a
+ * glue host binds to an fc4_netgeom.
+ *
+ * Threads: one thread at a time. A callback that calls back into the same
+ * tool is refused (fallback value, counted in reentrant_refused). */
+typedef struct fc4_nettool fc4_nettool;
+
+/* One cell (§2.2's 8-byte cell, §10's (x, z)). */
+typedef struct fc4_nettool_cell {
+    int32_t x, z;
+} fc4_nettool_cell;
+
+/* A neighbour of the destroy closure (§10 step 3): flags 0x400000 immovable,
+ * 0x100000 intersection. */
+typedef struct fc4_nettool_neighbour {
+    uint64_t occ;
+    int32_t x, z;
+    uint8_t immovable, intersection;
+    uint8_t reserved[6];
+} fc4_nettool_neighbour;
+
+/* One collected occupant of §10 step 2. */
+typedef struct fc4_nettool_listed {
+    uint64_t occ;
+    int32_t x, z;
+} fc4_nettool_listed;
+
+/* One underground piece of §11: slot 94's stored terrain heights, slot 34's
+ * vertex heights, slot 38-with-type's edge mask. */
+typedef struct fc4_nettool_underground {
+    uint64_t occ;
+    int32_t x, z;
+    float stored_terrain[4]; /* (x,z), (x,z+1), (x+1,z+1), (x+1,z) */
+    float vertices[4];
+    uint32_t edges;
+} fc4_nettool_underground;
+
+/* FindUndergroundOccupant's solved record (§11.1 step 4): the occupant and
+ * the four solved corner heights. */
+typedef struct fc4_nettool_solved {
+    uint64_t occ;
+    float corners[4];
+} fc4_nettool_solved;
+
+/* The pass/solve result (§5.1 steps 4-5): the valid count and the failure
+ * code (0 = none; §14 of network-geometry.md). */
+typedef struct fc4_nettool_pass {
+    uint32_t valid_count;
+    uint32_t failure;
+} fc4_nettool_pass;
+
+/* The largest cell list one run carries. */
+#define FC4_NETTOOL_MAX_CELLS 4096u
+
+/* One run of DrawNetworkLine/PlaceNetwork (§3.2 step 2 / §3.3 step 5.4):
+ * the drag inputs, the counters (+0x70/+0x74/+0x78), the current +0x208 and
+ * the cell lists. */
+typedef struct fc4_nettool_run {
+    uint32_t struct_size;
+    uint32_t type_id;
+    int32_t start_x, start_z, end_x, end_z;
+    uint32_t dragged_count, straight_count, valid_count;
+    uint32_t data4; /* +0x208 at the insert */
+    uint32_t cell_count;
+    fc4_nettool_cell cells[FC4_NETTOOL_MAX_CELLS];
+    uint32_t resolve_count;
+    fc4_nettool_cell resolve_cells[FC4_NETTOOL_MAX_CELLS];
+} fc4_nettool_run;
+
+/* UpdateUndergroundOccupantTerrainHeights' outcomes (§11.1 steps 4-5). */
+#define FC4_NETTOOL_U_UPDATED 0u
+#define FC4_NETTOOL_U_KEPT 1u
+#define FC4_NETTOOL_U_DESTROY 2u
+
+/* What the network tool needs from the game. Occupants are opaque u64 host
+ * tokens; 0xFFFFFFFF as a type means "none". */
+typedef struct fc4_nettool_host {
+    uint32_t struct_size;
+    void* user;
+    /* ---- the drag and the pipeline (§3.2, §5) ---- */
+    bool (*draw_network_line)(void* user, fc4_nettool_run* run, bool snap); /* slot 18 */
+    bool (*do_network_specific_placement)(void* user, fc4_nettool_run* run, uint32_t arg3,
+                                          uint32_t neighbour_mode, bool real); /* slot 53 */
+    /* §5.1 steps 4-5 through the geometry core; false = no host. */
+    bool (*validate_and_solve)(void* user, fc4_nettool_run* run, bool real, fc4_nettool_pass* out);
+    bool (*attempt_neighbor_connections)(void* user, fc4_nettool_run* run);
+    void (*place_neighbor_connections)(void* user, fc4_nettool_run* run);
+    /* §3.3: GetNetworkOccupant with the OR filter (occupant manager slot 32 +
+     * QI 0xA821EF94): the occupant's network type, or 0xFFFFFFFF = none. */
+    uint32_t (*get_network_occupant)(void* user, int32_t x, int32_t z, uint32_t mask);
+    /* §3.3 step 6.2: the callback tool's PlaceNetworkOccupants (one-cell
+     * join in the callback tool's own type). */
+    void (*callback_place)(void* user, uint32_t callback, int32_t ax, int32_t az, int32_t bx, int32_t bz,
+                           bool real);
+    /* ---- the commit (§6) ---- */
+    void (*commit_pre)(void* user, const fc4_nettool_run* run, bool real);
+    void (*insert_occupants_for_solved_cells)(void* user, const fc4_nettool_run* run, bool preview_only);
+    void (*insert_bridge_pieces)(void* user, const fc4_nettool_run* run);
+    void (*insert_tunnel_pieces)(void* user, const fc4_nettool_run* run);
+    void (*insert_highway_intersection_pieces)(void* user, const fc4_nettool_run* run);
+    bool (*crew_parameters_both_one)(void* user, uint32_t type_id);
+    void (*crew_add_network_segment)(void* user, uint64_t crew, const fc4_nettool_run* run);
+    /* §6.3 MarkOccupantsUsable(set, release) — unconditional in real mode
+     * (quirk 5). */
+    void (*mark_occupants_usable)(void* user, const fc4_nettool_run* run, bool release);
+    void (*commit_draft)(void* user, const fc4_nettool_run* run);
+    /* ---- §4 / §6.4 ---- */
+    void (*insert_network_occupant_by_id)(void* user, const fc4_nettool_run* run, int32_t x, int32_t z,
+                                          uint32_t piece, bool usable, uint32_t type_id);
+    /* Slot 9 OccupantExists(x, z, flags, &mask) (zones.md §8.8): true with
+     * mask[0..4] written, false with mask untouched. */
+    bool (*occupant_exists)(void* user, int32_t x, int32_t z, uint32_t flags, uint8_t* mask);
+    /* ---- §10 DestroyOccupantsAndResolve ---- */
+    /* Network occupant slot 59 GetOccupiedCell. */
+    bool (*occupied_cell)(void* user, uint64_t occ, fc4_nettool_cell* out);
+    /* The occupant's neighbours by network type; writes up to `capacity`,
+     * returns the total (called again with a larger buffer). */
+    uint32_t (*neighbours_by_network_type)(void* user, uint64_t occ, fc4_nettool_neighbour* out,
+                                           uint32_t capacity);
+    bool (*is_intersection_piece)(void* user, uint64_t occ); /* flag 0x100000 */
+    /* Network manager slot 12 GetAllIntersectionPieces. */
+    uint32_t (*intersection_structure)(void* user, uint64_t occ, uint64_t* out, uint32_t capacity);
+    bool (*is_tunnel_portal)(void* user, uint64_t occ); /* flag 0x80000 */
+    /* The portal at the other end (QI 0x8A4BD52B); 0 = none. */
+    uint64_t (*paired_portal)(void* user, uint64_t occ);
+    /* §10 step 5.1: MessageSend of 0xAA7A014D (synchronous). */
+    void (*send_pre_demolish_sync)(void* user, uint64_t occ);
+    /* §10 step 5.3 (destroyed cell): occupantManager.RemoveOccupant(o, false, 0). */
+    void (*remove_occupant)(void* user, uint64_t occ, bool shutdown);
+    /* §10 step 5.3 (closure piece): RemoveOrReplaceOccupant — true when a
+     * plain piece was put back. */
+    bool (*remove_or_replace_occupant)(void* user, uint64_t occ);
+    void (*occupant_shutdown)(void* user, uint64_t occ);
+    void (*release)(void* user, uint64_t occ);
+    /* §10 step 6.1: SolveNetwork(−1, true) over the re-solve set. */
+    void (*solve_network_resolve)(void* user, fc4_nettool_run* run);
+    /* ---- §11 the underground refit ---- */
+    /* Terrain slot 17: the cell's current corner altitudes. */
+    void (*corner_altitudes)(void* user, int32_t x, int32_t z, float out[4]);
+
+    /* §11.1 step 3: SmoothenNetwork(level) over the solved records. */
+    bool (*smoothen_underground)(void* user, fc4_nettool_run* run, int32_t level);
+    /* §11.1 step 4: FindUndergroundOccupant(x, z, class). */
+    bool (*find_underground_solved)(void* user, int32_t x, int32_t z, fc4_nettool_solved* out);
+    /* §11.1 step 5.4: DestroyNetworkOccupants / ReleaseOccupantList. */
+    void (*destroy_network_occupants)(void* user, const uint64_t* occ, uint32_t count);
+    void (*release_occupant_list)(void* user, const uint64_t* occ, uint32_t count);
+    /* §11.1 step 6: slot 86 (true), SetUsable(false), slot 50, SetUsable(true),
+     * Release — in that order; the usable toggle posts 0x89D3E9F3 data1 = 0
+     * then 1. vertex_heights is set for U_UPDATED, stored_terrain for
+     * U_UPDATED and U_KEPT. */
+    void (*underground_rebuild)(void* user, uint64_t occ, uint32_t outcome, const float* vertex_heights,
+                                const float* stored_terrain);
+} fc4_nettool_host;
+
+/* Diagnostics (fc4_nettool_get_state). */
+typedef struct fc4_nettool_state {
+    uint32_t struct_size;
+    uint32_t type_id;
+    uint8_t real, stop_on_failure, destroyed_flag, preview_update;
+    uint8_t reserved[4];
+    uint32_t data4;      /* +0x208 */
+    uint32_t failure;    /* +0x20C, 0 = none */
+    int32_t demolition_cost; /* +0x220 */
+    uint32_t layer_mask;     /* +0x360 */
+    float depth;             /* +0x36C */
+    float cover_margin_a;    /* +0x370 */
+    float cover_margin_b;    /* +0x378 */
+    uint32_t city_x, city_z; /* +0x240, +0x244 */
+    uint32_t cache_count;
+    uint32_t reentrant_refused;
+} fc4_nettool_state;
+
+/* A tool of `type_id` over `host`. NULL on a bad host table size. */
+fc4_nettool* fc4_nettool_create(const fc4_nettool_host* host, uint32_t type_id);
+void fc4_nettool_destroy(fc4_nettool* t);
+/* Init (slot 3): the city size and the underground fields from the host's
+ * exemplar reads (ReloadNetworkSpecificInfo). */
+bool fc4_nettool_init(fc4_nettool* t, uint32_t city_x, uint32_t city_z, float depth, float cover_a,
+                      float cover_b, float piece_tolerance, bool land_bridges);
+/* Reset (slot 5): empties the world cache and the step counts. */
+bool fc4_nettool_reset(fc4_nettool* t);
+/* ClearFailureReason (slot 13). */
+bool fc4_nettool_clear_failure(fc4_nettool* t);
+/* EnablePreviewUpdate (slot 21): +0x234. */
+bool fc4_nettool_enable_preview_update(fc4_nettool* t, bool on);
+/* GetFailureState (slot 14): +0x20C. */
+uint32_t fc4_nettool_get_failure_state(const fc4_nettool* t);
+/* OccupantExists (slot 9, zones.md §8.8). */
+bool fc4_nettool_occupant_exists(const fc4_nettool* t, int32_t x, int32_t z, uint32_t flags, uint8_t* mask);
+/* PlaceNetworkOccupants (slot 7, §3): AL. callback 0 = none. */
+bool fc4_nettool_place_network_occupants(fc4_nettool* t, int32_t x1, int32_t z1, int32_t x2, int32_t z2,
+                                         uint32_t mask, uint32_t callback, bool real, int32_t type_id);
+/* PlaceNetworkOccupantById (slot 8, §4). */
+bool fc4_nettool_place_network_occupant_by_id(fc4_nettool* t, int32_t x, int32_t z, uint32_t piece,
+                                              bool usable, int32_t type_id);
+/* PlaceNetwork (§5) on a caller's run: true on success, false on refusal
+ * (the failure code is in the state). crew 0 = none. */
+bool fc4_nettool_place_network(fc4_nettool* t, const fc4_nettool_run* run, uint64_t crew, uint32_t arg3,
+                               uint32_t neighbour_mode, bool real);
+/* DestroyOccupantsAndResolve (slot 50, §10). */
+bool fc4_nettool_destroy_occupants_and_resolve(fc4_nettool* t, const fc4_nettool_listed* list, uint32_t count);
+/* UpdateUndergroundOccupantTerrainHeights (§11): the pipe/subway refit. */
+bool fc4_nettool_update_underground_heights(fc4_nettool* t, const fc4_nettool_underground* pieces,
+                                            uint32_t count, uint32_t network_type);
+/* Diagnostics. */
+bool fc4_nettool_get_state(const fc4_nettool* t, fc4_nettool_state* out);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
 
 /* Layout checks (must match #[repr(C)] in engine/capi/src/lib.rs). */
 #ifdef __cplusplus
+static_assert(sizeof(fc4_audio_post) == 32, "fc4_audio_post layout");
+static_assert(sizeof(fc4_audio_pool_page) == 36, "fc4_audio_pool_page layout");
+static_assert(sizeof(fc4_audio_state) == 52, "fc4_audio_state layout");
 static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
 static_assert(sizeof(fc4_debug) == 76, "fc4_debug layout");
@@ -10448,6 +12183,17 @@ static_assert(sizeof(fc4_civic_state) == 40, "fc4_civic_state layout");
 static_assert(sizeof(fc4_civic_host) == (sizeof(void*) == 4 ? 160 : 320), "fc4_civic_host layout");
 static_assert(sizeof(fc4_park_state) == 48, "fc4_park_state layout");
 static_assert(sizeof(fc4_park_host) == (sizeof(void*) == 4 ? 160 : 320), "fc4_park_host layout");
+static_assert(sizeof(fc4_demolition_state) == 44, "fc4_demolition_state layout");
+static_assert(sizeof(fc4_demolition_host) == (sizeof(void*) == 4 ? 344 : 688), "fc4_demolition_host layout");
+static_assert(sizeof(fc4_dispatch_info) == 56, "fc4_dispatch_info layout");
+static_assert(sizeof(fc4_station_units) == 24, "fc4_station_units layout");
+static_assert(sizeof(fc4_dispatch_state) == 56, "fc4_dispatch_state layout");
+static_assert(sizeof(fc4_dispatch_host) == (sizeof(void*) == 4 ? 164 : 328), "fc4_dispatch_host layout");
+static_assert(sizeof(fc4_citysit_advice_info) == 40, "fc4_citysit_advice_info layout");
+static_assert(sizeof(fc4_citysit_track_entry) == 24, "fc4_citysit_track_entry layout");
+static_assert(sizeof(fc4_citysit_success_count) == 8, "fc4_citysit_success_count layout");
+static_assert(sizeof(fc4_citysit_state) == 96, "fc4_citysit_state layout");
+static_assert(sizeof(fc4_citysit_host) == (sizeof(void*) == 4 ? 324 : 648), "fc4_citysit_host layout");
 static_assert(sizeof(fc4_disaster_post) == 32, "fc4_disaster_post layout");
 static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout");
 static_assert(sizeof(fc4_world_box) == 16, "fc4_world_box layout");
@@ -10463,7 +12209,7 @@ static_assert(sizeof(fc4_terrain_state) == 60, "fc4_terrain_state layout");
 static_assert(sizeof(fc4_brush_component) == (sizeof(void*) == 4 ? 60 : 64), "fc4_brush_component layout");
 static_assert(sizeof(fc4_terrain_host) == (sizeof(void*) == 4 ? 48 : 96), "fc4_terrain_host layout");
 static_assert(sizeof(fc4_automata_time) == 8, "fc4_automata_time layout");
-static_assert(sizeof(fc4_automata_create_args) == 44, "fc4_automata_create_args layout");
+static_assert(sizeof(fc4_automata_create_args) == 56, "fc4_automata_create_args layout");
 static_assert(sizeof(fc4_automata_ref_host) == (sizeof(void*) == 4 ? 16 : 32), "fc4_automata_ref_host layout");
 static_assert(sizeof(fc4_automata_cm_host) == (sizeof(void*) == 4 ? 24 : 48), "fc4_automata_cm_host layout");
 static_assert(sizeof(fc4_automata_riot_host) == (sizeof(void*) == 4 ? 56 : 112), "fc4_automata_riot_host layout");
@@ -10537,6 +12283,20 @@ static_assert(sizeof(fc4_occ_cell_box) == 4, "fc4_occ_cell_box layout");
 static_assert(sizeof(fc4_occ_filter) == 16, "fc4_occ_filter layout");
 static_assert(sizeof(fc4_occmgr_state) == 56, "fc4_occmgr_state layout");
 static_assert(sizeof(fc4_occmgr_host) == (sizeof(void*) == 4 ? 68 : 136), "fc4_occmgr_host layout");
+static_assert(sizeof(fc4_prop_occupant_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_prop_occupant_host layout");
+static_assert(sizeof(fc4_prop_effect_host) == (sizeof(void*) == 4 ? 24 : 48), "fc4_prop_effect_host layout");
+static_assert(sizeof(fc4_prop_slot_info) == 16, "fc4_prop_slot_info layout");
+
+static_assert(sizeof(fc4_effects_post) == 24, "fc4_effects_post layout");
+static_assert(sizeof(fc4_effects_rect) == 16, "fc4_effects_rect layout");
+static_assert(sizeof(fc4_effects_demolish_filter) == 12, "fc4_effects_demolish_filter layout");
+static_assert(sizeof(fc4_effects_occupant_facts) == 16, "fc4_effects_occupant_facts layout");
+static_assert(sizeof(fc4_effects_directory_counts) == 24, "fc4_effects_directory_counts layout");
+static_assert(sizeof(fc4_effects_state) == 80, "fc4_effects_state layout");
+static_assert(sizeof(fc4_effect_info) == 48, "fc4_effect_info layout");
+static_assert(sizeof(fc4_effects_brush_state) == 56, "fc4_effects_brush_state layout");
+static_assert(sizeof(fc4_effects_game_state) == 32, "fc4_effects_game_state layout");
+static_assert(sizeof(fc4_effects_host) == (sizeof(void*) == 4 ? 80 : 160), "fc4_effects_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
@@ -10576,6 +12336,17 @@ _Static_assert(sizeof(fc4_prop_message) == 32, "fc4_prop_message layout");
 _Static_assert(sizeof(fc4_prop_state) == 104, "fc4_prop_state layout");
 _Static_assert(sizeof(fc4_prop_block) == 52, "fc4_prop_block layout");
 _Static_assert(sizeof(fc4_prop_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_prop_host layout");
+_Static_assert(sizeof(fc4_demolition_state) == 44, "fc4_demolition_state layout");
+_Static_assert(sizeof(fc4_demolition_host) == (sizeof(void*) == 4 ? 344 : 688), "fc4_demolition_host layout");
+_Static_assert(sizeof(fc4_dispatch_info) == 56, "fc4_dispatch_info layout");
+_Static_assert(sizeof(fc4_station_units) == 24, "fc4_station_units layout");
+_Static_assert(sizeof(fc4_dispatch_state) == 56, "fc4_dispatch_state layout");
+_Static_assert(sizeof(fc4_dispatch_host) == (sizeof(void*) == 4 ? 164 : 328), "fc4_dispatch_host layout");
+_Static_assert(sizeof(fc4_citysit_advice_info) == 40, "fc4_citysit_advice_info layout");
+_Static_assert(sizeof(fc4_citysit_track_entry) == 24, "fc4_citysit_track_entry layout");
+_Static_assert(sizeof(fc4_citysit_success_count) == 8, "fc4_citysit_success_count layout");
+_Static_assert(sizeof(fc4_citysit_state) == 96, "fc4_citysit_state layout");
+_Static_assert(sizeof(fc4_citysit_host) == (sizeof(void*) == 4 ? 324 : 648), "fc4_citysit_host layout");
 _Static_assert(sizeof(fc4_disaster_post) == 32, "fc4_disaster_post layout");
 _Static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout");
 _Static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 328 : 656), "fc4_disasters_host layout");
@@ -10643,6 +12414,30 @@ _Static_assert(sizeof(fc4_mysim_post) == 24, "fc4_mysim_post layout");
 _Static_assert(sizeof(fc4_mysim_host) == (sizeof(void*) == 4 ? 196 : 392), "fc4_mysim_host layout");
 _Static_assert(sizeof(fc4_mysims_agent_state) == 40, "fc4_mysims_agent_state layout");
 _Static_assert(sizeof(fc4_mysim_state) == 240, "fc4_mysim_state layout");
+_Static_assert(sizeof(fc4_prop_occupant_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_prop_occupant_host layout");
+_Static_assert(sizeof(fc4_prop_effect_host) == (sizeof(void*) == 4 ? 24 : 48), "fc4_prop_effect_host layout");
+_Static_assert(sizeof(fc4_prop_slot_info) == 16, "fc4_prop_slot_info layout");_Static_assert(sizeof(fc4_netgeom_params) == 76, "fc4_netgeom_params layout");
+_Static_assert(sizeof(fc4_netgeom_type_info) == 44, "fc4_netgeom_type_info layout");
+_Static_assert(sizeof(fc4_netgeom_segments) == 24, "fc4_netgeom_segments layout");
+_Static_assert(sizeof(fc4_netgeom_cell) == 8, "fc4_netgeom_cell layout");
+_Static_assert(sizeof(fc4_netgeom_step) == 12, "fc4_netgeom_step layout");
+_Static_assert(sizeof(fc4_netgeom_span) == 12, "fc4_netgeom_span layout");
+_Static_assert(sizeof(fc4_netgeom_vertex_height) == 8, "fc4_netgeom_vertex_height layout");
+_Static_assert(sizeof(fc4_netgeom_occupant) == 12, "fc4_netgeom_occupant layout");
+_Static_assert(sizeof(fc4_netgeom_piece) == 76, "fc4_netgeom_piece layout");
+_Static_assert(sizeof(fc4_netgeom_cell_info) == 180, "fc4_netgeom_cell_info layout");
+_Static_assert(sizeof(fc4_netgeom_state) == 96, "fc4_netgeom_state layout");
+_Static_assert(sizeof(fc4_netgeom_host) == (sizeof(void*) == 4 ? 84 : 168), "fc4_netgeom_host layout");#endif
+_Static_assert(sizeof(fc4_effects_post) == 24, "fc4_effects_post layout");
+_Static_assert(sizeof(fc4_effects_rect) == 16, "fc4_effects_rect layout");
+_Static_assert(sizeof(fc4_effects_demolish_filter) == 12, "fc4_effects_demolish_filter layout");
+_Static_assert(sizeof(fc4_effects_occupant_facts) == 16, "fc4_effects_occupant_facts layout");
+_Static_assert(sizeof(fc4_effects_directory_counts) == 24, "fc4_effects_directory_counts layout");
+_Static_assert(sizeof(fc4_effects_state) == 80, "fc4_effects_state layout");
+_Static_assert(sizeof(fc4_effect_info) == 48, "fc4_effect_info layout");
+_Static_assert(sizeof(fc4_effects_brush_state) == 56, "fc4_effects_brush_state layout");
+_Static_assert(sizeof(fc4_effects_game_state) == 32, "fc4_effects_game_state layout");
+_Static_assert(sizeof(fc4_effects_host) == (sizeof(void*) == 4 ? 80 : 160), "fc4_effects_host layout");
 #endif
 
 #endif /* FC4_H */

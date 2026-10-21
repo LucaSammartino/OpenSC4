@@ -148,6 +148,8 @@ public:
 private:
     class Call;  // the process lock and depth counting around core calls
     friend class Call;
+    class Peek;  // a pure getter's read of the published copies when no call is in progress (devperf)
+    friend class Peek;
     void Publish();
     void RefreshLists();
     void RebuildStyles();
@@ -159,6 +161,7 @@ private:
     uint32_t refCount_ = 0;
     bool destroying_ = false;
     uint32_t depth_ = 0;
+    bool published_ = false;  // the last Publish completed (Peek reads the copies only then)
     fc4::GrowthContext ctx_;
     fc4::HostGridContext gridCtx_;
     fc4_growth_host host_{};

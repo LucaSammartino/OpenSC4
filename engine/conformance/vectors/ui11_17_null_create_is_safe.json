@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "name": "ui11_17_null_create_is_safe",
+  "spec": [
+    "ui-windows 5.1",
+    "ui-windows 10",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 17: if SC4CreateWindowFromScript returns 0, Invoke must not write +0x1F8/+0x1FC, must not call AddMessageFilter, and must still leave the previous menu closed. Quirk 8: the thunk's cleanup still runs when the script service is missing, so a missing service is not an error.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_invoke_secondary",
+      "instance": 1,
+      "kind": "0x1111",
+      "target_win_id": 1,
+      "expect": "opened"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "secondary_win": "0x9001"
+      }
+    },
+    {
+      "op": "uiw_env",
+      "create_ok": false
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_invoke_secondary",
+      "instance": 2,
+      "kind": "0x2222",
+      "target_win_id": 1,
+      "expect": "replaced_then_failed"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "secondary_win": 0,
+        "secondary_kind": 0
+      }
+    },
+    {
+      "op": "uiw_expect_ops",
+      "only": [
+        "child_delete",
+        "destroy_window",
+        "create_window",
+        "window_created"
+      ],
+      "ops": [
+        {
+          "event": "child_delete",
+          "parent": "0x200C",
+          "child": "0x9001"
+        },
+        {
+          "event": "destroy_window",
+          "win": "0x9001"
+        },
+        {
+          "event": "create_window",
+          "parent": "0x200C",
+          "group": "0x96A006B0",
+          "instance": 2
+        },
+        {
+          "event": "window_created",
+          "win": 0,
+          "ok": false
+        }
+      ]
+    },
+    {
+      "op": "uiw_expect_ops_absent",
+      "ops": [
+        {
+          "event": "add_message_filter"
+        }
+      ]
+    }
+  ]
+}

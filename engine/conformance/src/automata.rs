@@ -136,19 +136,21 @@ impl RiotHost for City {
         self.cap
     }
     fn create_automaton(&mut self, a: CreateArgs) -> u64 {
+        // §7.2's seven arguments: group (x, y, z) flags (k0, k1, k2) callback
+        // priority orientation(0 = null).
         self.calls.push(format!(
             "CreateAutomaton {:#x} ({}, {}, {}) {} ({}, {}, {}) {} {:#x} {}",
             a.group,
             a.position[0],
             a.position[1],
             a.position[2],
-            a.mode,
-            a.direction[0],
-            a.direction[1],
-            a.direction[2],
-            a.a,
-            a.b,
-            a.c
+            a.flags,
+            a.model_key.type_id,
+            a.model_key.group,
+            a.model_key.instance,
+            a.callback,
+            a.priority,
+            u8::from(a.orientation.is_some())
         ));
         if self.create_null {
             0
@@ -160,10 +162,10 @@ impl RiotHost for City {
         self.calls.push(format!("AddRef {a:#x}"));
     }
     fn set_state(&mut self, a: u64, t: u32, s: SetStateArgs) {
+        // §6.2: type controller timeout_ms final animId sfxId template.
         self.calls.push(format!(
             "SetState {a:#x} {t} {} {} {} {} {} {}",
-            s.a, s.b, s.c, s.d, s.e, s.f
-        ));
+            s.controller, s.timeout_ms, s.final_flag, s.anim_id, s.sfx_id, s.template));
     }
     fn set_visible(&mut self, a: u64, v: bool) {
         self.calls.push(format!("SetVisible {a:#x} {v}"));

@@ -22,6 +22,7 @@
 #include "cFC4Message2Standard.h"
 
 #include "GZServPtrs.h"
+#include "cIGZCOM.h"
 #include "SC4List.h"
 #include "SC4Point.h"
 #include "SC4Rect.h"
@@ -39,8 +40,17 @@
 #include "cISC4TutorialSystem.h"
 #include "cFC4Tutorial.h"  // the glue15 lane: fc4::TutorialIsTutorial
 #include "cISC4WeatherSimulator.h"
+#include "cISC4AutomataControllerManager.h"
+#include "cISC4AutomataManager.h"
+#include "cISC4Automaton.h"
+#include "cISC4FireOccupant.h"
 #include "cISCPropertyHolder.h"
 #include "cS3DVector2.h"
+#include "cS3DVector3.h"
+#include "cISTETerrain.h"
+#include "SC4String.h"
+#include "cGZPersistResourceKey.h"
+#include "cRZCOMDllDirector.h"
 #include "cS3DVector3.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -61,6 +71,16 @@ constexpr uint32_t kTypeProp = 0xA823821E;
 constexpr uint32_t kTypeNetwork = 0xC772BF98;
 constexpr uint32_t kIID_cISC4NetworkOccupant = 0xA821EF94;
 constexpr uint32_t kPropBurning = 0x69DBEBE1;
+constexpr uint32_t kPropFlammability = 0x29244DB5;
+// The fire occupant (§5.11, DS26): class 0x29D25F1D answering the
+// fire-occupant interface 0x69D25C60 (the primary vtable) itself.
+constexpr uint32_t kCLSID_cSC4FireOccupant = 0x29D25F1D;
+constexpr uint32_t kIID_cISC4FireOccupant = 0x69D25C60;
+// The riot leader (§6.4, automata.md §8.1, DS27): the pedestrian
+// automata group, its RiotLeader state and the state the end sets.
+constexpr uint32_t kRiotAutomataGroup = 0x4107;
+constexpr uint32_t kRiotLeaderState = 8;
+constexpr uint32_t kRiotIdleState = 1;
 constexpr uint32_t kTrafficNetworkFlags = 0x1F4F;  // road .. ground highway (flora §6.4.1)
 // Road, street and avenue (network types 0, 3, 6 as flag bits; disasters.md §6.4 step 1 [inferred]).
 constexpr uint32_t kRiotRoadFlags = (1u << 0) | (1u << 3) | (1u << 6);
@@ -357,20 +377,62 @@ uint8_t FlammabilityAt(void* u, int32_t x, int32_t z) {
     cISC4SimGrid<uint8_t>* g = f ? f->GetFlammabilityGrid() : nullptr;
     return g ? g->GetCellValue(x, z) : uint8_t{0};
 }
-uint64_t CreateFireOccupant(void* u, uint32_t, uint64_t target, uint32_t, uint32_t, uint32_t) {
+// §5.4 step 7 (DS26): the fire occupant is created through GZCOM, Init'ed,
+// given its target and its fire ID, then inserted in the occupant manager.
+// `SetTarget` (§5.11) does the rest itself: max stage, the flame counts from
+// the static D7/D8 curves, the target's BURNING property, `SetRemovalFlags(2)`
+// and, for a building, the "fire_occupant" controllers (automata.md §8.2).
+// The flame counts the core passes are the same curves' values; the class
+// computes them from the target, so they are not written here [compat].
+uint64_t CreateFireOccupant(void* u, uint32_t, uint64_t target, uint32_t fire_id, uint32_t, uint32_t) {
     DisasterHostContext* c = C(u);
-    if (!c->shadow) {
-        Wrote(u, "create_fire_occupant (class 0x69D25C5F, Q27)");
+    if (c->shadow) {
+        const uint64_t fire = kSyntheticToken | c->nextSynthetic++;
+        c->burning[target] = fire;
+        ++c->writes["create_fire_occupant"];
+        return fire;
+    }
+    cISC4City* city = c->city;
+    cISC4Occupant* t = Occ(target);
+    if (city == nullptr || t == nullptr) return 0;
+    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    void* p = nullptr;
+    if (com == nullptr || !com->GetClassObject(kCLSID_cSC4FireOccupant, kIID_cISC4FireOccupant, &p) ||
+        p == nullptr) {
+        Wrote(u, "create_fire_occupant (GZCOM has no class 0x29D25F1D)");
         return 0;
     }
-    const uint64_t fire = kSyntheticToken | c->nextSynthetic++;
-    c->burning[target] = fire;
-    ++c->writes["create_fire_occupant"];
-    return fire;
+    auto* fo = static_cast<cISC4FireOccupant*>(p);
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(fo), "GetClassObject");
+    cISC4Occupant* occ = fo->AsOccupant();  // the +0x04 sub-object, borrowed
+    occ->Init();                            // §5.4 step 7.1
+    fo->SetTarget(t);                       // §5.4 step 7.2 (§5.11)
+    fo->SetFamily(fire_id);                 // slot 14 SetFireID (§5.11)
+    if (cISC4OccupantManager* om = city->GetOccupantManager()) {
+        om->InsertOccupant(occ, 0);  // slot 20 (§5.4 step 7.3); the manager takes its own reference
+    }
+    const uint64_t token = TokenOf(occ);
+    c->fireOccupants[token] = fo;  // our create reference, dropped by remove
+    return token;
 }
-void RemoveFireOccupant(void* u, uint64_t, uint64_t target) {
-    C(u)->burning.erase(target);
-    Wrote(u, "remove_fire_occupant");
+void RemoveFireOccupant(void* u, uint64_t fire, uint64_t target) {
+    DisasterHostContext* c = C(u);
+    if (c->shadow) {
+        c->burning.erase(target);
+        Wrote(u, "remove_fire_occupant");
+        return;
+    }
+    // §5.10 KillFire step 4: RemoveOccupant with shutdown, so the fire
+    // occupant's Shutdown runs (§5.11: clears BURNING, UnsetRemovalFlags(2),
+    // RemoveControllers and releases the target).
+    auto it = c->fireOccupants.find(fire);
+    if (it == c->fireOccupants.end()) return;
+    cISC4FireOccupant* fo = it->second;
+    c->fireOccupants.erase(it);
+    if (cISC4OccupantManager* om = c->city ? c->city->GetOccupantManager() : nullptr) {
+        om->RemoveOccupant(fo->AsOccupant(), true, 0);  // slot 21
+    }
+    FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(fo));
 }
 void AddFireAura(void* u, uint64_t) { Wrote(u, "add_fire_aura"); }
 bool TutorialNoBurnDown(void* u) {
@@ -403,20 +465,41 @@ void CellCorner(void* u, int32_t x, int32_t z, float* wx, float* wz) {
     if (wx) *wx = a;
     if (wz) *wz = b;
 }
-uint64_t CreateRiotLeader(void* u, float, float) {
+// §6.4 step 3 and automata.md §8.1 (DS27): a pedestrian automaton of group
+// 0x4107 at (x, z) on the terrain, AddRef'd for the leader record, then
+// `SetState(8, null, -1.0, true, 0, 0, null)` (the RiotLeader state) and
+// `SetVisible(true)`. The core has already found the road cell and drawn the
+// in-cell offset; the height here is the terrain's at (x, z) (§6.4 step 3.1).
+uint64_t CreateRiotLeader(void* u, float x, float z) {
     DisasterHostContext* c = C(u);
-    if (!c->shadow) {
-        Wrote(u, "create_riot_leader (pedestrian automaton 0x4107, Q28)");
+    if (c->shadow) {
+        ++c->writes["create_riot_leader"];
+        if (c->leaders.empty()) {
+            ++c->leadersMissing;
+            return kSyntheticToken | c->nextSynthetic++;
+        }
+        const uint64_t a = c->leaders.front();
+        c->leaders.pop_front();
+        return a;
+    }
+    cISC4City* city = c->city;
+    if (city == nullptr) return 0;
+    cISC4AutomataManager* pm = city->GetPedestrianManager();  // city slot 44
+    if (pm == nullptr) return 0;
+    const float y = city->GetTerrain() ? city->GetTerrain()->GetAltitude(x, z) : 0.0f;  // slot 13
+    const cS3DVector3 pos(x, y, z);
+    const cGZPersistResourceKey key;  // the zero model key (§7.2)
+    cISC4Automaton* a = pm->CreateAutomaton(kRiotAutomataGroup, pos, 2, key, nullptr, 0xFF, nullptr);
+    if (a == nullptr) {
+        Wrote(u, "create_riot_leader (CreateAutomaton refused)");
         return 0;
     }
-    ++c->writes["create_riot_leader"];
-    if (c->leaders.empty()) {
-        ++c->leadersMissing;
-        return kSyntheticToken | c->nextSynthetic++;
-    }
-    const uint64_t a = c->leaders.front();
-    c->leaders.pop_front();
-    return a;
+    FC4_ADDREF(a);
+    a->SetState(kRiotLeaderState, nullptr, -1.0f, true, 0, 0, nullptr);  // slot 51
+    a->SetVisible(true);                                                // slot 9
+    const uint64_t token = TokenOf(a);
+    c->riotLeaders[token] = a;
+    return token;
 }
 uint64_t NetworkOccupantAt(void* u, int32_t x, int32_t z) { return DisasterNetworkOccupantAt(C(u)->city, x, z); }
 void UnsetRemovalFlags(void* u, uint64_t t, uint32_t flags) {
@@ -442,10 +525,54 @@ bool AutomatonCell(void* u, uint64_t t, int32_t* x, int32_t* z) {
     if (z) *z = b;
     return true;
 }
+// [question] §8.1's "Riot1".."RiotN" removal is automaton slot 43
+// `RemoveRegEffect` (one name), but the add (slot 41 `AddRegEffect`) takes two
+// names and §8.1 names only one ("Riot" + stage + 1). Not made; counted.
 void SetRiotEffect(void* u, uint64_t, int32_t) { Wrote(u, "set_riot_effect"); }
-void SendRiotMessage(void* u, uint64_t, int32_t) { Wrote(u, "send_riot_message"); }
-void EndRiotLeader(void* u, uint64_t) { Wrote(u, "end_riot_leader"); }
-void RiotLeaderTick(void* u, uint64_t) { Wrote(u, "riot_leader_tick"); }
+// §6.5 step 4 and automata.md §8.1 "Stage rise": the template name
+// `riot_leader_<stage>` through controller manager slot 5.
+void SendRiotMessage(void* u, uint64_t a, int32_t stage) {
+    DisasterHostContext* c = C(u);
+    if (c->shadow) {
+        Wrote(u, "send_riot_message");
+        return;
+    }
+    auto it = c->riotLeaders.find(a);
+    if (it == c->riotLeaders.end()) return;
+    char name[32];
+    std::snprintf(name, sizeof(name), "riot_leader_%d", stage);
+    const SC4String tmpl(name);
+    if (cISC4AutomataControllerManager* cm = c->city ? c->city->GetAutomataControllerManager() : nullptr) {
+        cm->AddControllerFromTemplateName(it->second->AsOccupant(), tmpl, nullptr);  // slot 5
+    }
+}
+// §6.5 step 5 and automata.md §8.1 "End": the SetState(1, ...) call is made,
+// but it is a **no-op against a `final` leader** (the RiotLeader state was
+// pushed final=1 at the start), so nothing here relies on it to end the
+// leader: RemoveControllers and the release below are what end it.
+void EndRiotLeader(void* u, uint64_t a) {
+    DisasterHostContext* c = C(u);
+    if (c->shadow) {
+        Wrote(u, "end_riot_leader");
+        return;
+    }
+    auto it = c->riotLeaders.find(a);
+    if (it == c->riotLeaders.end()) return;
+    cISC4Automaton* aut = it->second;
+    c->riotLeaders.erase(it);
+    aut->SetState(kRiotIdleState, nullptr, -1.0f, false, 0, 0, nullptr);  // slot 51 (no-op; see above)
+    if (cISC4AutomataControllerManager* cm = c->city ? c->city->GetAutomataControllerManager() : nullptr) {
+        cm->RemoveControllers(aut->AsOccupant());  // slot 14
+    }
+    FC4_RELEASE(aut);  // the leader record's reference (§6.4 step 3.2)
+}
+// A living leader walks the road under it (§6.5 step 6.2) from the pedestrian
+// manager's own animation tick once it is in that manager; the riot's step
+// does not drive it. Nothing to do here in live mode.
+void RiotLeaderTick(void* u, uint64_t) {
+    if (!C(u)->shadow) return;
+    Wrote(u, "riot_leader_tick");
+}
 
 // ---- toxic spill, terrain, pipes, volcano (not mirrored; Q29) -----------------------------------
 
@@ -507,6 +634,54 @@ uint8_t DisasterFireCoverage(cISC4City* city, cISC4Occupant* o) {
                                         Clamp(static_cast<int32_t>(r.topLeftY), 0, mz),
                                         Clamp(static_cast<int32_t>(r.bottomRightX), 0, mx),
                                         Clamp(static_cast<int32_t>(r.bottomRightY), 0, mz));
+}
+
+// §5.4 step 4.1's clamped cell rectangle, shared with the coverage average.
+static SC4Rect<long> ClampedCityCells(cISC4City* city, cISC4Occupant* o) {
+    SC4Rect<long> r;
+    o->GetBoundingCityCells(r);
+    const int32_t mx = static_cast<int32_t>(city->CellCountX()) - 1;
+    const int32_t mz = static_cast<int32_t>(city->CellCountZ()) - 1;
+    // no overlap with the city gives an empty rectangle (§5.4 step 4).
+    if (static_cast<int32_t>(r.bottomRightX) < 0 || static_cast<int32_t>(r.bottomRightY) < 0 ||
+        static_cast<int32_t>(r.topLeftX) > mx || static_cast<int32_t>(r.topLeftY) > mz) {
+        return SC4Rect<long>(0, 0, -1, -1);
+    }
+    return SC4Rect<long>(Clamp(static_cast<int32_t>(r.topLeftX), 0, mx), Clamp(static_cast<int32_t>(r.topLeftY), 0, mz),
+                         Clamp(static_cast<int32_t>(r.bottomRightX), 0, mx),
+                         Clamp(static_cast<int32_t>(r.bottomRightY), 0, mz));
+}
+
+DisasterIgniteInputs DisasterIgniteInputsOf(cISC4City* city, cISC4Occupant* o, bool force, bool paused,
+                                            bool emergencyPaused) {
+    DisasterIgniteInputs v;
+    if (city == nullptr || o == nullptr) return v;
+    v.type = static_cast<uint32_t>(o->GetType());  // slot 7 (§5.4 step 2)
+    {
+        std::vector<uint32_t> f;
+        cISCPropertyHolder* h = o->AsPropertyHolder();
+        // §5.4 step 3 (DS38): read as an unsigned integer, a missing one is 0.
+        v.flammability = (h != nullptr && props::GetU32s(h, kPropFlammability, f) && !f.empty()) ? f[0] : 0u;
+    }
+    v.burning = DisasterOccupantBurning(o);  // 0x69DBEBE1 (§5.4 step 5)
+    const SC4Rect<long> r = ClampedCityCells(city, o);
+    v.x0 = static_cast<int32_t>(r.topLeftX);
+    v.z0 = static_cast<int32_t>(r.topLeftY);
+    v.x1 = static_cast<int32_t>(r.bottomRightX);
+    v.z1 = static_cast<int32_t>(r.bottomRightY);
+    cISC4FireProtectionSimulator* f = city->GetFireProtectionSimulator();  // city slot 57
+    cISC4SimGrid<uint8_t>* g = f ? AsGame(f)->GetFireProtectionGrid() : nullptr;  // slot 5
+    v.coverage = (g != nullptr && v.x0 <= v.x1 && v.z0 <= v.z1)
+                     ? g->GetAverageValueInCellRect(v.x0, v.z0, v.x1, v.z1)
+                     : uint8_t{0};
+    // The exits these inputs admit (§5.4 "The refusals, exactly"). Exit 4 is
+    // not computed here: it needs the D9 curve, so read it from `coverage`.
+    const bool burnable = v.type == kTypeBuilding || v.type == kTypeFlora || v.type == kTypeProp;
+    if (!force && !emergencyPaused && paused) v.exits |= 1u << 0;
+    if (!burnable) v.exits |= 1u << 1;
+    if (v.flammability == 0) v.exits |= 1u << 2;
+    if (v.burning && !force) v.exits |= 1u << 4;
+    return v;
 }
 
 uint8_t DisasterPoliceCoverage(cISC4City* city, int32_t x, int32_t z) {
@@ -667,6 +842,19 @@ void DisasterHostReleaseAll(DisasterHostContext* ctx) {
         for (int64_t i = 0; i < n && o != nullptr; ++i) FC4_RELEASE(o);
     }
     ctx->refs.clear();
+    // What the live creates made and the matching remove / end did not drop
+    // (a city closing mid-episode). The occupant manager is gone by now, so
+    // the objects are only released.
+    for (auto& [t, fo] : ctx->fireOccupants) {
+        (void)t;
+        FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(fo));
+    }
+    ctx->fireOccupants.clear();
+    for (auto& [t, a] : ctx->riotLeaders) {
+        (void)t;
+        FC4_RELEASE(a);
+    }
+    ctx->riotLeaders.clear();
 }
 
 int DisasterHostLoadTuning(fc4_disasters* core) {

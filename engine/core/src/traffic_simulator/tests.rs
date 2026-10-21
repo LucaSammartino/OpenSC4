@@ -663,6 +663,74 @@ fn t01_cycle_order() {
     assert_eq!(ends, vec![17, 18, 2, 11, 17]);
 }
 
+/// TS64 (traffic-network.md §4.12, traffic-simulator.md §3.2): entering state
+/// 13 resets the scanning iterator (the member `+0x818`, the one saved in §6.1
+/// row 14) to state 0 at (0, 0) with its rectangle and step kept; entering 12
+/// does not touch it; `UpdateSubnetworkInfo` tests the deadline **before each
+/// cell**, so a stopped call leaves the iterator running at the last cell
+/// visited; a finished pass rests in state 2 at `(x0, z1 + 1)`.
+#[test]
+fn ts64_state_13_scanning_iterator() {
+    use crate::grid::ScanState;
+
+    let w = World::new();
+    let s = sim(&w);
+    let (x0, z0, x1, z1) = s.read_state(|st| (st.scan.x0, st.scan.z0, st.scan.x1, st.scan.z1));
+    assert_eq!((x0, z0, x1, z1), (0, 0, 7, 7), "an 8x8 city scans its whole rect");
+
+    // Mid-scan, as a save taken mid-scan would leave it.
+    s.update_state(|st| {
+        st.scan.x = 3;
+        st.scan.z = 5;
+        st.scan.state = ScanState::Running;
+    });
+    // TS64: entering 12 does not touch the iterator (12 does not use it).
+    s.run(|r| r.enter_state(cycle_state::UPDATE_SUBNETWORKS));
+    assert_eq!(
+        s.read_state(|st| (st.scan.x, st.scan.z, st.scan.state)),
+        (3, 5, ScanState::Running),
+        "TS64: entering 12 leaves the scanning iterator alone"
+    );
+    // TS64: entering 13 resets it to state 0 at (0, 0), rectangle and step
+    // kept.
+    s.run(|r| r.enter_state(cycle_state::SUBNETWORK_INFO));
+    assert_eq!(
+        s.read_state(|st| (st.scan.x, st.scan.z, st.scan.state, st.scan.x1, st.scan.z1)),
+        (0, 0, ScanState::Fresh, x1, z1),
+        "TS64: entering 13 resets the iterator to (0, 0)"
+    );
+    // A whole pass: the iterator ends in state 2 at (x0, z1 + 1).
+    s.update_state(|st| st.cycle_state = cycle_state::SUBNETWORK_INFO);
+    assert!(s.work_on_sim_cycle(), "an empty city's state 13 finishes in one call");
+    assert_eq!(
+        s.read_state(|st| (st.scan.x, st.scan.z, st.scan.state)),
+        (x0, z1 + 1, ScanState::Done),
+        "TS64: a finished pass rests at (x0, z1 + 1)"
+    );
+
+    // TS64: the deadline test is before each step, so a call stops between two
+    // cells and the iterator reads state 1 at the last cell visited.
+    s.run(|r| r.enter_state(cycle_state::SUBNETWORK_INFO));
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::SUBNETWORK_INFO;
+        st.shadow_scan_stop = Some((cycle_state::SUBNETWORK_INFO, 3, 5));
+    });
+    assert!(!s.work_on_sim_cycle(), "the deadline stop ends the call unfinished");
+    assert_eq!(
+        s.read_state(|st| (st.scan.x, st.scan.z, st.scan.state)),
+        (3, 5, ScanState::Running),
+        "TS64: a stopped call leaves the iterator running at the last cell visited"
+    );
+    // The next call continues from it.
+    s.update_state(|st| st.shadow_scan_stop = None);
+    assert!(s.work_on_sim_cycle(), "the next call finishes the pass");
+    assert_eq!(
+        s.read_state(|st| (st.scan.x, st.scan.z, st.scan.state)),
+        (x0, z1 + 1, ScanState::Done),
+        "TS64: the next call continues from the iterator and rests at (x0, z1 + 1)"
+    );
+}
+
 /// Ten zone-0 lots (no trip generation) with four status-0 trips each.
 fn ten_sources(w: &World) {
     for i in 0..10u64 {
@@ -3536,6 +3604,364 @@ fn ts20_source_iterator_fast_path_is_the_rule() {
             }
         }
     }
+}
+
+// ---- re-answers13 (TS54-TS65) ----
+
+/// The bytes of one named field of the record (the marks of `write_record`).
+fn record_field(s: &TrafficSimulator, name: &str) -> Vec<u8> {
+    let mut w = shadow::CanonicalWriter::new();
+    assert!(s.write(&mut w));
+    let (_, a, b) = w
+        .fields()
+        .into_iter()
+        .find(|f| f.0 == name)
+        .unwrap_or_else(|| panic!("no field '{name}'"));
+    w.bytes[a..b].to_vec()
+}
+
+fn le32(v: &[i32]) -> Vec<u8> {
+    v.iter().flat_map(|x| x.to_le_bytes()).collect()
+}
+
+/// A lot trip with a destination.
+fn trip(count: u32, ty: u8, strategy: u8, flags: u8, st: u8, dest: (i16, i16)) -> TripData {
+    let mut t = TripData::new(count, ty, strategy, flags, st);
+    (t.dest_x, t.dest_z) = dest;
+    t
+}
+
+/// §4.3 merge (TS55): a routed trip absorbs every later trip of its type
+/// and strategy, whatever their status, and goes back to status 0 only when
+/// it absorbed one; a routed trip with no partner stays routed. The return
+/// value is pass counter 5's step.
+#[test]
+fn ts55_confirm_trips_merge() {
+    let mut l = vec![
+        trip(5, 0, 1, 0, status::ROUTED, (4, 4)),
+        trip(2, 0, 1, 0, status::SEARCH, (0, 0)),
+        trip(3, 1, 1, 0, status::ROUTED, (4, 4)),
+        trip(4, 0, 1, 0, status::FAILED, (0, 0)),
+        trip(6, 0, 2, 0, status::ROUTED, (4, 4)),
+        trip(1, 0, 2, 0, status::NEW, (0, 0)),
+    ];
+    assert_eq!(merge_routed(&mut l), 2);
+    let got: Vec<(u32, u8, u8, u8)> = l.iter().map(|t| (t.count, t.trip_type, t.strategy, t.status)).collect();
+    assert_eq!(
+        got,
+        vec![
+            (11, 0, 1, status::SEARCH),
+            (3, 1, 1, status::ROUTED),
+            (7, 0, 2, status::SEARCH)
+        ]
+    );
+    // A status-0 or failed trip absorbs nothing in ConfirmTrips.
+    let mut l = vec![
+        trip(1, 0, 0, 0, status::SEARCH, (0, 0)),
+        trip(2, 0, 0, 0, status::SEARCH, (0, 0)),
+    ];
+    assert_eq!(merge_routed(&mut l), 0);
+    assert_eq!(l.len(), 2);
+}
+
+/// §4.4 merge (TS57): each status-0 trip absorbs every later trip of its
+/// type and strategy whatever its status (0, 1, 3, 4, 5); a routed trip
+/// before it absorbs nothing.
+#[test]
+fn ts57_reroute_trips_merge() {
+    let mut l = vec![
+        trip(9, 0, 1, 0, status::ROUTED, (4, 4)),
+        trip(1, 0, 1, 0, status::SEARCH, (0, 0)),
+        trip(2, 0, 1, 0, status::REROUTE, (4, 4)),
+        trip(3, 0, 1, 0, status::ROUTED, (4, 4)),
+        trip(4, 0, 1, 0, status::NEW, (0, 0)),
+        trip(5, 0, 1, 0, status::FAILED, (0, 0)),
+        trip(6, 1, 1, 0, status::ROUTED, (4, 4)),
+    ];
+    merge_search(&mut l);
+    let got: Vec<(u32, u8, u8)> = l.iter().map(|t| (t.count, t.trip_type, t.status)).collect();
+    assert_eq!(
+        got,
+        vec![(9, 0, status::ROUTED), (15, 0, status::SEARCH), (6, 1, status::ROUTED)]
+    );
+}
+
+/// §4.3, §10 Q4 (TS59, TS55): one re-route source of ConfirmTrips. Counter
+/// 3 counts the source; 7 the two status-0 trips met before the merge; 5
+/// the one merge; 4 the routed trip whose destination is full; 8 the
+/// failed trip retried. Every trip ends status 0.
+#[test]
+fn ts59_confirm_trips_counters_reroute_source() {
+    use super::state::{PC_CAPACITY_SEND_BACKS, PC_FAILURES_RETRIED, PC_MERGES, PC_SEARCH_TRIPS_MET};
+    let (w, s) = test10();
+    // Lot 2's holder: max[1] = 2, so a type-1 trip of 3 does not fit.
+    set_capacity(&w, 12, &[100, 2]);
+    w.set_trips(
+        Source::Lot(1),
+        vec![
+            trip(5, 0, 1, 0, status::ROUTED, (4, 4)),
+            trip(2, 0, 1, 0, status::SEARCH, (0, 0)),
+            trip(3, 1, 1, 0, status::ROUTED, (4, 4)),
+            trip(4, 2, 0, 0, status::FAILED, (0, 0)),
+            trip(1, 2, 0, 0, status::SEARCH, (0, 0)),
+        ],
+    );
+    // Source counter 3 becomes 1 = rerouteBucket: a re-route source.
+    s.update_state(|st| st.pass_counters[PC_REROUTE_BUCKET] = 1);
+    s.confirm_source(Source::Lot(1));
+    let got: Vec<(u32, u8)> = w
+        .get_trips(Source::Lot(1))
+        .iter()
+        .map(|t| (t.count, t.status))
+        .collect();
+    assert_eq!(got, vec![(7, 0), (3, 0), (4, 0), (1, 0)]);
+    let c = s.read_state(|st| st.pass_counters);
+    assert_eq!(c[PC_SOURCE_COUNTER], 1);
+    assert_eq!(c[PC_SEARCH_TRIPS_MET], 2);
+    assert_eq!(c[PC_MERGES], 1);
+    assert_eq!(c[PC_CAPACITY_SEND_BACKS], 1);
+    assert_eq!(c[PC_FAILURES_RETRIED], 1);
+    assert_eq!(c, [0, 0, 1, 1, 1, 1, 0, 2, 1, 0]);
+    assert_eq!(
+        s.read_state(|st| (st.to_search, st.to_reroute, st.processed)),
+        (4, 0, 4)
+    );
+}
+
+/// §4.3, §10 Q4 (TS59): a source that is not re-routed confirms old routes.
+/// A reversible routed trip whose route confirms stays routed (counter 0);
+/// a two-leg trip whose return route does not confirm stays status 1
+/// (counter 6).
+#[test]
+fn ts59_confirm_trips_counters_0_and_6() {
+    use super::state::{PC_CONFIRMED, PC_RETURN_NOT_CONFIRMED};
+    let (w, s) = test10();
+    s.network().update_state(|n| {
+        n.conn_mut(3, 3).unwrap().conn[1] = 1 << 2;
+        n.conn_mut(2, 3).unwrap().conn[1] = 1 << 2;
+    });
+    let mut two_leg = trip(1, 0, 1, 0, status::ROUTED, (4, 4));
+    two_leg.route = ROUTE_10.to_vec();
+    let mut reversible = trip(
+        1,
+        0,
+        2,
+        trip_flag::REVERSIBLE | trip_flag::PROBE,
+        status::ROUTED,
+        (4, 4),
+    );
+    reversible.route = ROUTE_10.to_vec();
+    w.set_trips(Source::Lot(1), vec![two_leg, reversible]);
+    s.confirm_source(Source::Lot(1));
+    let got: Vec<u8> = w.get_trips(Source::Lot(1)).iter().map(|t| t.status).collect();
+    assert_eq!(got, vec![status::REROUTE, status::ROUTED]);
+    let c = s.read_state(|st| st.pass_counters);
+    assert_eq!((c[PC_CONFIRMED], c[PC_RETURN_NOT_CONFIRMED]), (1, 1));
+    assert_eq!(c, [1, 0, 0, 1, 0, 0, 1, 0, 0, 0]);
+    assert_eq!(
+        s.read_state(|st| (st.to_reroute, st.to_search, st.processed)),
+        (1, 0, 2)
+    );
+}
+
+/// §4.4, §6.1 row 19 (TS56): the end of FullTrips swaps the building and
+/// published count vectors; the record holds (published, building) pairs.
+/// Entering 18 zeroes the building vector only.
+#[test]
+fn ts56_travel_type_count_swap_and_pairs() {
+    let w = World::new();
+    let s = sim(&w);
+    let a: [u32; 9] = std::array::from_fn(|i| i as u32 + 1);
+    let b: [u32; 9] = std::array::from_fn(|i| 100 + i as u32);
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::FULL_TRIPS;
+        st.type_count_building = a;
+        st.type_count_published = b;
+    });
+    // No source: FullTrips finishes at once.
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(
+        s.read_state(|st| (st.type_count_published, st.type_count_building)),
+        (a, b)
+    );
+    let want: Vec<u8> = (0..9)
+        .flat_map(|i| [a[i] as i32, b[i] as i32])
+        .flat_map(|v| v.to_le_bytes())
+        .collect();
+    assert_eq!(record_field(&s, "travel type counts"), want);
+    // The record reads back the same way.
+    let (bytes, entries) = record(&s);
+    let w2 = World::new();
+    let s2 = sim(&w2);
+    assert!(s2.read(&mut ByteReader::with_resolver(
+        &bytes,
+        &mut Resolver(entries, w2.clone())
+    )));
+    assert_eq!(
+        s2.read_state(|st| (st.type_count_published, st.type_count_building)),
+        (a, b)
+    );
+    s.enter_cycle_state(cycle_state::FULL_TRIPS);
+    assert_eq!(
+        s.read_state(|st| (st.type_count_published, st.type_count_building)),
+        (a, [0; 9])
+    );
+}
+
+/// §6.1 rows 14 and 15 (TS60): the day index is the s32 after `processed`,
+/// then total, days and three unused u32; taking a source writes its cell
+/// into the re-route context cell (the two s16 widened).
+#[test]
+fn ts60_day_index_and_context_cell() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(3, 4, 3, 4), 11));
+    let s = sim(&w);
+    s.set_traffic_units_per_slice(1);
+    s.enter_cycle_state(cycle_state::CONFIRM_TRIPS);
+    assert!(!s.work_on_sim_cycle());
+    assert_eq!(s.read_state(|st| (st.extras.context_x, st.extras.context_z)), (3, 4));
+    assert_eq!(record_field(&s, "re-route context cell"), le32(&[3, 4]));
+    s.update_state(|st| {
+        st.processed = 5;
+        st.day_index = 2;
+        st.total = 40;
+        st.days = 3;
+        st.extras.pacing_unused = [7, 8, 9];
+    });
+    assert_eq!(record_field(&s, "processed"), le32(&[5]));
+    assert_eq!(record_field(&s, "day index"), le32(&[2]));
+    assert_eq!(record_field(&s, "total"), le32(&[40]));
+    assert_eq!(record_field(&s, "days"), le32(&[3]));
+    assert_eq!(record_field(&s, "~pacing unused u32 x3"), le32(&[7, 8, 9]));
+    let (bytes, entries) = record(&s);
+    let w2 = World::new();
+    let s2 = sim(&w2);
+    assert!(s2.read(&mut ByteReader::with_resolver(
+        &bytes,
+        &mut Resolver(entries, w2.clone())
+    )));
+    assert_eq!(
+        s2.read_state(|st| (
+            st.processed,
+            st.day_index,
+            st.total,
+            st.days,
+            st.extras.pacing_unused,
+            st.extras.context_x,
+            st.extras.context_z
+        )),
+        (5, 2, 40, 3, [7, 8, 9], 3, 4)
+    );
+}
+
+/// §4.12 FinalCalculations (TS61): `freightByte` is the last byte of the
+/// published statistics set, recomputed: 3.0 / 2 = 1.5, / 6.0 = 0.25,
+/// × 255 = 63.75 → 63. The working set's byte is not touched.
+#[test]
+fn ts61_freight_byte_is_the_published_set_byte() {
+    let w = World::new();
+    let s = sim(&w);
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::FINAL_CALCULATIONS;
+        st.freight_len_sum = 3.0;
+        st.freight_count = 2;
+        st.tuning.commute_max_time = 6.0;
+        st.stats_last.byte = 0x1C;
+        st.stats_work.byte = 0x1C;
+    });
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(s.read_state(|st| (st.stats_last.byte, st.stats_work.byte)), (63, 0x1C));
+    assert_eq!(record_field(&s, "statistics (published)").last(), Some(&63));
+    assert_eq!(record_field(&s, "statistics (working)").last(), Some(&0x1C));
+    // No freight: 0.
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::FINAL_CALCULATIONS;
+        st.freight_count = 0;
+    });
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(s.read_state(|st| st.stats_last.byte), 0);
+}
+
+/// traffic-network.md §4.12, §3.2 (TS64): entering 13 resets the scanning
+/// iterator to state 0 at (0, 0); a stop between two cells leaves it
+/// running at the last cell visited, unpublished; the finished pass leaves
+/// it done at (x0, z1 + 1) = (0, 8) for the 8 × 8 city, published.
+/// Entering 12 does not touch it.
+#[test]
+fn ts64_subnetwork_info_scan() {
+    use crate::grid::ScanState;
+    let w = World::new();
+    let s = sim(&w);
+    let scan = |s: &TrafficSimulator| s.read_state(|st| (st.scan.state, st.scan.x, st.scan.z));
+    s.update_state(|st| {
+        st.scan.state = ScanState::Done;
+        st.scan.x = 5;
+        st.scan.z = 6;
+    });
+    s.enter_cycle_state(cycle_state::UPDATE_SUBNETWORKS);
+    assert_eq!(scan(&s), (ScanState::Done, 5, 6));
+    s.network().update_state(|n| {
+        n.subnet_counter = 3;
+        n.subnet_published.clear();
+    });
+    s.enter_cycle_state(cycle_state::SUBNETWORK_INFO);
+    assert_eq!(scan(&s), (ScanState::Fresh, 0, 0));
+    s.update_state(|st| st.shadow_scan_stop = Some((cycle_state::SUBNETWORK_INFO, 3, 2)));
+    assert!(!s.work_on_sim_cycle());
+    assert_eq!(s.cycle_state(), cycle_state::SUBNETWORK_INFO);
+    assert_eq!(scan(&s), (ScanState::Running, 3, 2));
+    assert!(s.network().state().subnet_published.is_empty());
+    s.update_state(|st| st.shadow_scan_stop = None);
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(s.cycle_state(), cycle_state::FERRY_ROUTES);
+    assert_eq!(scan(&s), (ScanState::Done, 0, 8));
+    assert_eq!(s.network().state().subnet_published.len(), 3);
+}
+
+/// §6.2 (TS54): Read inserts each key at the head of its chain in file
+/// order, in a container of 193 buckets that grows before the insert that
+/// would overflow it. Keys 5 and 198 share bucket 5: the writer's order
+/// (198, 5; 198 inserted last) reads back as (5, 198). 194 keys grow the
+/// read container to 389 buckets.
+#[test]
+fn ts54_hash_order_after_read() {
+    use crate::traffic_network::TrafficEdgeDensity;
+    let round = |s: &TrafficSimulator| {
+        let (bytes, entries) = record(s);
+        let w2 = World::new();
+        let s2 = sim(&w2);
+        assert!(s2.read(&mut ByteReader::with_resolver(
+            &bytes,
+            &mut Resolver(entries, w2.clone())
+        )));
+        s2
+    };
+    let w = World::new();
+    let s = sim(&w);
+    s.network().update_state(|n| {
+        for k in [5u32, 198, 1] {
+            n.edge_density.entry(k, TrafficEdgeDensity::default).usage = k as u16;
+        }
+    });
+    s.update_damage(|d| {
+        d.road.intact.insert(5);
+        d.road.intact.insert(198);
+    });
+    assert_eq!(s.network().state().edge_density.keys(), vec![1, 198, 5]);
+    assert_eq!(s.damage().road.intact.iter_order(), vec![198, 5]);
+    let s2 = round(&s);
+    assert_eq!(s2.network().state().edge_density.keys(), vec![1, 5, 198]);
+    assert_eq!(s2.network().state().edge_density.get(198).map(|r| r.usage), Some(198));
+    assert_eq!(s2.damage().road.intact.iter_order(), vec![5, 198]);
+    // Growth.
+    s.network().update_state(|n| {
+        for k in 0..194u32 {
+            n.edge_density.entry(k + 1000, TrafficEdgeDensity::default);
+        }
+    });
+    let s3 = round(&s);
+    assert_eq!(s3.network().state().edge_density.len(), 197);
+    assert_eq!(s3.network().state().edge_density.bucket_count(), 389);
 }
 
 #[path = "shadow_tests.rs"]

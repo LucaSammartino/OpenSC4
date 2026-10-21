@@ -453,6 +453,25 @@ which hold the same values as §1.1.
       the portal side, otherwise `(x + dx, z + dz)`. Skip `s` when `m` is outside the city (unsigned compare), has no
       cell info, or is part of a highway intersection (`+0x52`). If `m`'s in-run byte is set and (`from < 0` or
       `s = from`): `from := s`. Otherwise `to := s` and `t := m` (so the **last** such side wins).
+
+      **A skipped side keeps its flow code (NR8 — DIFFERS, corrected 2026-10-16 by re-answers31).** "Skip `s`"
+      excludes the side from `from`/`to` selection **only**. It does **not** clear `code(c, s)`, for any of the
+      three reasons (outside the city, no cell info, highway intersection) — the three are the same skip and the
+      same outcome. In `FUN_0063a640` the propagation loop **reads** the code field (`c + 0x50`, two bits per
+      side) and never writes it; after the loop there are exactly two stores, `code(c, to) := a` and
+      `code(t, (to − 2) & 3) := a`. The **only** place the whole function zeroes a code is the conflict sweep of
+      step 3 (`decomp/cSC4NetworkTool.c:11343` for `c`, `:11353` for the partner cell), which stores
+      `'\0' << (p·2)` when `seen[p]` already holds a different flow.
+
+      Test 26's east drop on X is that sweep, not a skip. X's OneWayRoad edge word is `0x00000202`, so the
+      partner of side 0 is `(2 + 0) & 3 = 2` and the partner of side 2 is `(0 + 2) & 3 = 2` — both arms map to
+      partner side 2. Side 0 contributes `f = code(c,0) = 1` (no axis flip, since `(p ^ s) & 2 ≠ 0`), so
+      `seen[2] = 1`. Side 2 contributes `f = code(c,2) = 1` flipped to `1 ^ 3 = 2` (since `(2 ^ 2) & 2 = 0`).
+      `seen[2] = 1 ≠ 2` is a conflict, so `code(c, 2) := 0` — X's east code goes `1 → 0`, giving `0x09` once the
+      propagation has also set the north code to 2. **The change to make:** drop the `[choice]` that clears a
+      skipped side's flow code in `resolve_one_way_conflicts`; leave skipped codes alone and let step 3's sweep
+      do the clearing. If test 26 then fails on X's east byte, the sweep — not the propagation — is what to
+      check.
    5. If `from < 0` or `to < 0`, go to the next entry.
    6. `a := code(c, from)`. A turn between W and N, or between E and S (`to = from ^ 1`), reverses the axis sense:
       `a := a ^ 3`. (Flow entering from the west, moving +x, and leaving through the north moves −z.)
@@ -1153,6 +1172,26 @@ Answered 2026-10-16 (re-answers24), from the executable:
   instead of borrowing the original's.
 - **NR7.** The constraint layout's codes 1–8 as `InsertIntersectionConstraints` (`0x00644710`) applies them: which
   vertex heights each code makes equal and which slope limits it sets (§10.3; network-geometry.md §9.4 step 4).
+- **NR12** (cores22: should `fc4_network_rules_cell` grow `+0x57` and the occupant's paired portal, or should a
+  glue lane pass them another way?) — **ANSWERED 2026-10-16 (re-answers31): neither belongs in the cell struct
+  as a carried field.** Both are *runtime* state of the one-way pass, not properties a cell keeps:
+
+  - **`+0x57` is per-pass scratch on the world-cache cell info, not a cell fact.** §6.5 step 2.1 sets it to 1 and
+    adds the cell's key to the solve set `+0x84` the first time the pass visits the cell, and step 3.1 does the
+    same when the sweep reaches a neighbour (`decomp/cSC4NetworkTool.c:11360`). Nothing outside
+    `ResolveOneWayConflicts` reads it, and it is not saved. Model it as a mark on whatever object stands for the
+    game's cell info — the one `GetCellInfo` returns — scoped to one pass, **not** as a field of an ABI-stable or
+    persisted `fc4_network_rules_cell`. If the C boundary needs it, pass a scratch/marks table alongside the
+    pass rather than growing the shared struct.
+  - **The paired portal is a property of the *occupant*, not the cell.** It is reached only when the cell's flags
+    carry `0x80000` (a tunnel portal), through interface **`0x8A4BD52B` slot 59**, on the occupant's
+    `+0x1D0` (§6.5 step 2.3). Copying it into the cell struct would duplicate a live pointer the cell does not
+    own and would go stale. Resolve it on demand from the occupant when the portal flag is set.
+
+  So: do **not** grow `fc4_network_rules_cell` with either. The one-way pass needs a marks side-channel for
+  `+0x57`, and portal resolution goes through `0x8A4BD52B` slot 59 when `0x80000` is set. Whether the C entry
+  points `resolve_one_way_conflicts`, `solve_multi_type_separation`, `get_tile_info` and `intersection_pieces`
+  are exposed at all is a separate decision — the specs do not require them to be, only their behaviour.
 
 ---
 

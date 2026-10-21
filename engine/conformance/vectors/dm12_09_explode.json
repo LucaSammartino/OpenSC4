@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "demolition_explode",
+  "spec": ["demolition 4.6", "demolition 12.9"],
+  "description": "Flags 0x303 call ExplodeLot(lot, true) and never StartDemolishLot; 0x1303 passes false. A lot without a water configuration also explodes; a water-compatible lot is demolished normally.",
+  "steps": [
+    {"op": "demolition_create"},
+    {"op": "demolition_init", "expect": true},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_lot", "lot": "0x50", "rect": [1, 1, 1, 1], "zone": 1},
+    {"op": "demolition_lots", "do_it": true, "lots": ["0x50"], "privilege": 0, "flags": "0x303"},
+    {"op": "demolition_expect_event_count", "filter": {"event": "explode", "lot": "0x50", "flag": true}, "count": 1},
+    {"op": "demolition_expect_event_count", "filter": {"event": "start"}, "count": 0},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_lots", "do_it": true, "lots": ["0x50"], "privilege": 0, "flags": "0x1303"},
+    {"op": "demolition_expect_event_count", "filter": {"event": "explode", "lot": "0x50", "flag": false}, "count": 1},
+    {"op": "demolition_lot", "lot": "0x50", "water": null},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_lots", "do_it": true, "lots": ["0x50"], "privilege": 0, "flags": "0x300"},
+    {"op": "demolition_expect_event_count", "filter": {"event": "explode", "flag": true}, "count": 1},
+    {"op": "demolition_lot", "lot": "0x50", "water": true},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_lots", "do_it": true, "lots": ["0x50"], "privilege": 0, "flags": "0x300"},
+    {"op": "demolition_expect_event_count", "filter": {"event": "explode"}, "count": 0},
+    {"op": "demolition_expect_event_count", "filter": {"event": "start", "lot": "0x50"}, "count": 1}
+  ]
+}

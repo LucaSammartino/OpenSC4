@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "name": "po11_03_object_size",
+  "spec": [
+    "prop-occupant 1",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 3. CreateProp allocates 0x68 bytes for the plain class 0x2977AA47, 0xA0 for 0x2977AA48 (terrain decal) and 0x94 for 0x2977AA49 (visual effect). The pool strides of section 4.2 confirm three of the four.",
+  "steps": [
+    {
+      "op": "po_const",
+      "name": "object_size",
+      "expect": "0x68"
+    },
+    {
+      "op": "po_const",
+      "name": "object_size_terrain_decal",
+      "expect": "0xA0"
+    },
+    {
+      "op": "po_const",
+      "name": "object_size_visual_effect",
+      "expect": "0x94"
+    },
+    {
+      "op": "po_const",
+      "name": "object_size_burnt_building",
+      "expect": "0xD8"
+    },
+    {
+      "op": "po_create"
+    },
+    {
+      "op": "po_expect",
+      "state": {
+        "object_size": 104
+      }
+    },
+    {
+      "op": "po_effect_create"
+    },
+    {
+      "op": "po_effect_call",
+      "method": "object_size",
+      "expect": "0x94"
+    },
+    {
+      "op": "po_effect_call",
+      "method": "class_id",
+      "expect": "0x2977AA49"
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "format": 1,
+  "name": "po11_17_version_five_read",
+  "spec": [
+    "prop-occupant 7",
+    "prop-occupant 9",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 17. A record whose version is 5 (with field 13 omitted) reads successfully and comes back with timer bits 0x0F. Read does not check the version: any version is read with this layout (quirk 5); field 13 is consumed only when the version is greater than 5.",
+  "steps": [
+    {
+      "op": "po_read",
+      "hex": "05000400000000041e8223a80000000002000200000000000000000000000000000000004444333300000000000000000000000000000000000000000000000001000a14003c0466665555",
+      "expect": "ok"
+    },
+    {
+      "op": "po_record_field",
+      "name": "version",
+      "expect": 5
+    },
+    {
+      "op": "po_record_field",
+      "name": "version_class",
+      "expect": "without-timer-bits"
+    },
+    {
+      "op": "po_record_field",
+      "name": "effective_timer_bits",
+      "expect": "0x0F"
+    },
+    {
+      "op": "po_record_field",
+      "name": "timer_bits",
+      "expect": "0x0F"
+    },
+    {
+      "op": "po_record_field",
+      "name": "prop_type",
+      "expect": "0x33334444"
+    },
+    {
+      "op": "po_record_field",
+      "name": "time_of_day",
+      "expect": [
+        10,
+        20
+      ]
+    },
+    {
+      "op": "po_record_field",
+      "name": "chance",
+      "expect": 60
+    },
+    {
+      "op": "po_record_field",
+      "name": "prop_usage",
+      "expect": 4
+    },
+    {
+      "op": "po_record_field",
+      "name": "lot_tag",
+      "expect": "0x55556666"
+    },
+    {
+      "op": "po_record_field",
+      "name": "has_date_range",
+      "expect": false
+    },
+    {
+      "op": "po_read",
+      "hex": "06000400000000041e8223a8000000000200020000000000000000000000000000000000222211110000003f0000c03f0000204000006040000090400000b0400201b450016d0100000c0000000a0000001600000032023412cdab07",
+      "expect": "ok"
+    },
+    {
+      "op": "po_record_field",
+      "name": "version_class",
+      "expect": "with-timer-bits"
+    },
+    {
+      "op": "po_record_field",
+      "name": "effective_timer_bits",
+      "expect": 7
+    },
+    {
+      "op": "po_const",
+      "name": "legacy_timer_bits",
+      "expect": "0x0F"
+    },
+    {
+      "op": "po_const",
+      "name": "prop_record_version",
+      "expect": 6
+    },
+    {
+      "op": "po_const",
+      "name": "occupant_base_version",
+      "expect": 4
+    }
+  ]
+}

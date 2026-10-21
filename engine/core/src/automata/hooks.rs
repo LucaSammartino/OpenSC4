@@ -15,28 +15,35 @@ use super::automaton::{state_type, SetStateArgs};
 use super::codec::Vec3;
 use super::manager::{AutomataManager, CreateArgs};
 use super::{OCCUPANT_TYPE_BUILDING, RIOT_AUTOMATA_GROUP};
+use crate::stream::ResKey;
 
-/// `CreateAutomaton`'s mode for a riot leader (§7.2).
-pub const RIOT_CREATE_MODE: u32 = 2;
-/// `CreateAutomaton`'s three trailing `u32`s for a riot leader (§7.2).
-pub const RIOT_CREATE_TAIL: [u32; 3] = [0, 0xFF, 0];
+/// `CreateAutomaton`'s automata flags for a riot leader (§7.2 caller table:
+/// `(0x4107, cell position, 2, zero key, null, 0xFF, null)`).
+pub const RIOT_CREATE_FLAGS: u32 = 2;
+/// `CreateAutomaton`'s priority for a riot leader: `0xFF`, which forces the
+/// creation (§7.2).
+pub const RIOT_CREATE_PRIORITY: u8 = 0xFF;
 /// `SetState(8, 0, −1.0, 1, 0, 0, 0)`: the RiotLeader state (§8.1 step 5).
+/// The `1` in the fourth argument is **`final`** (§6.2), so the later
+/// `SetState(1, …)` of [`RIOT_END_STATE_ARGS`] is a no-op (§8.1 corrects).
 pub const RIOT_LEADER_STATE_ARGS: SetStateArgs = SetStateArgs {
-    a: 0,
-    b: -1.0,
-    c: 1,
-    d: 0,
-    e: 0,
-    f: 0,
+    controller: 0,
+    timeout_ms: -1.0,
+    final_flag: 1,
+    anim_id: 0,
+    sfx_id: 0,
+    template: 0,
 };
-/// `SetState(1, 0, −1.0, 0, 0, 0, 0)` at the end (§8.1 end step 1).
+/// `SetState(1, 0, −1.0, 0, 0, 0, 0)` at the end (§8.1 end step 1). The call
+/// is **made**; against a `final` leader it returns 0 and changes nothing
+/// (§8.1 corrects), and steps 2–4 of the end run all the same.
 pub const RIOT_END_STATE_ARGS: SetStateArgs = SetStateArgs {
-    a: 0,
-    b: -1.0,
-    c: 0,
-    d: 0,
-    e: 0,
-    f: 0,
+    controller: 0,
+    timeout_ms: -1.0,
+    final_flag: 0,
+    anim_id: 0,
+    sfx_id: 0,
+    template: 0,
 };
 /// The number of riot stages: a new maximum stage below it attaches a
 /// controller (disasters §6.5 step 4).
@@ -115,11 +122,11 @@ impl RiotLeaders {
         let a = host.create_automaton(CreateArgs {
             group: RIOT_AUTOMATA_GROUP,
             position,
-            mode: RIOT_CREATE_MODE,
-            direction: [0.0; 3],
-            a: RIOT_CREATE_TAIL[0],
-            b: RIOT_CREATE_TAIL[1],
-            c: RIOT_CREATE_TAIL[2],
+            flags: RIOT_CREATE_FLAGS,
+            model_key: ResKey::default(),
+            callback: 0,
+            priority: RIOT_CREATE_PRIORITY,
+            orientation: None,
         });
         if a == 0 {
             return None;

@@ -300,16 +300,29 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // the glue16 lane (FC4TerrainShadow.h)
                                   "terrain_shadow", "terrain_shadow_points", "terrain_shadow_diffs",
                                   "terrain_shadow_lines",
+                                  // the glue22 lane (FC4EffectsShadow.h, cFC4Effects.h)
+                                  "effects_shadow", "effects_finish", "effects_replace",
                                   // the glue13 lane (FC4DisasterShadow.h)
                                   "disasters_shadow",
+                                  // the glue17 lane (FC4CitySitShadow.h, FC4DemolitionShadow.h,
+                                  // FC4DispatchShadow.h)
+                                  "citysit_shadow", "demolition_shadow", "dispatch_shadow",
+                                  // the glue23 lane (FC4DemolitionPriceShadow.h)
+                                  "demolition_price_shadow",
                                   // the glue15 lane (FC4PropLotShadow.h)
                                   "propmgr_shadow", "propmgr_shadow_cells", "lotcfg_shadow", "tutorial_shadow",
-                                  // the seeding lane (FC4Seed.h)
+                                  // the glue19 lane (FC4AutomataShadow.h)
+                                  "automata_shadow",                                  // the seeding lane (FC4Seed.h)
                                   "session_seed",
-                                  // the detpacing lane (FC4Pacing.h)
-                                  "pacing"};
-
-
+// the glue12b1 lane (FC4PropDevShadow.h, FC4CityDetailShadow.h)
+                                  "propdev_shadow", "propdev_seed", "citydetail_shadow", "citydetail_seed",
+                                  // the glue12b2 lane (FC4PortsShadow.h)
+                                  "ports_shadow",
+                                  // the mysims1 lane (FC4MySimsShadow.h)
+                                  "mysims_shadow",
+                                  // the netmgr shadow (FC4NetMgrShadow.h; read there, never registered
+                                  // before verify-regress4)
+                                  "netmgr_shadow", "netmgr_shadow_order", "netmgr_shadow_wide"};
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 

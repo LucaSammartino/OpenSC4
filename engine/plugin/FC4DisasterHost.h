@@ -18,11 +18,12 @@
 // weather, the message server and the wall clock.
 //
 // Two modes:
-//   - live (a layer replacement): reads and writes go to the game. The writes
-//     the specs leave open are counted, logged once and not made (the fire
-//     occupant class 0x69D25C5F and its visuals, the riot leader automata,
-//     terrain brushes, pipes, the volcano, effects; questions Q27-Q31 of the
-//     lane report);
+//   - live (a layer replacement): reads and writes go to the game. The fire
+//     occupant class 0x69D25C5F (§5.11, DS26) and the riot leader automata
+//     (§6.4, automata.md §8.1, DS27) are created through GZCOM and the
+//     pedestrian manager; the writes the specs leave open are counted, logged
+//     once and not made (terrain brushes, pipes, the volcano, effects and the
+//     "RiotN" effect names; questions Q29-Q31 of the lane report);
 //   - shadow (FC4DisasterShadow.h): reads go to the game; every write is
 //     recorded in the context instead (nothing in the game changes); the
 //     BURNING property (0x69DBEBE1) of an occupant is answered from the
@@ -48,7 +49,9 @@
 #include <tuple>
 #include <vector>
 
+class cISC4Automaton;
 class cISC4City;
+class cISC4FireOccupant;
 class cISC4Occupant;
 
 namespace fc4 {
@@ -91,6 +94,12 @@ struct DisasterHostContext {
 
     // ---- live mode ----
     std::set<std::string> notWired;  // callbacks whose write is not made (logged once each)
+    // The game objects the live creates made, one reference each, keyed by
+    // their token: released by the matching remove / end and by
+    // DisasterHostReleaseAll (a fire occupant's token is its cISC4Occupant*,
+    // a leader's its cISC4Automaton*).
+    std::map<uint64_t, cISC4FireOccupant*> fireOccupants;
+    std::map<uint64_t, cISC4Automaton*> riotLeaders;
 
     // Lists from occupant queries, held until the outermost core call returns.
     std::vector<std::shared_ptr<void>> held;
@@ -108,6 +117,22 @@ void DisasterHostReleaseHeld(DisasterHostContext* ctx);
 // 0x6534284A, group 0x29B6C670; disasters.md §5.1, §6.1) handed to the core.
 // Returns how many were found.
 int DisasterHostLoadTuning(fc4_disasters* core);
+
+// disasters.md §5.4 "The refusals, exactly": one `Ignite`'s original-side
+// inputs, for the shadow's log at a refusal (DS38). `rect` is the clamped
+// cell rectangle of step 4.1 and `coverage` its average. `exits` is a bitmask
+// of the exits those inputs admit (bit 0 = exit 1, ... bit 4 = exit 5); exit 4
+// is not in the mask (it needs the D9 curve), so read it from `coverage`.
+struct DisasterIgniteInputs {
+    uint32_t type = 0;
+    uint32_t flammability = 0;  // 0x29244DB5, read as an unsigned integer
+    int32_t x0 = 0, z0 = 0, x1 = 0, z1 = 0;
+    uint8_t coverage = 0;
+    bool burning = false;  // 0x69DBEBE1, the live game value
+    uint32_t exits = 0;
+};
+DisasterIgniteInputs DisasterIgniteInputsOf(cISC4City* city, cISC4Occupant* o, bool force, bool paused,
+                                            bool emergencyPaused);
 
 // Helpers the shadow shares.
 uint8_t DisasterFireCoverage(cISC4City* city, cISC4Occupant* o);  // §5.4 step 4.1

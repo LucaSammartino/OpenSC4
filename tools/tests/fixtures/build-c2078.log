@@ -1,0 +1,10 @@
+$ C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.EXE --build C:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe\engine\build-x86
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.02s
+[0/5] cargo build fc4-capi (i686-pc-windows-msvc)
+[2/4] gen_abi_entries.py -> tests/abi_entries.inc
+unchanged C:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe\engine\tests\abi_entries.inc (184 interfaces)
+[3/4] Building CXX object CMakeFiles\FreeCity4.dir\plugin\FC4Subsystems.cpp.obj
+FAILED: CMakeFiles/FreeCity4.dir/plugin/FC4Subsystems.cpp.obj 
+C:\Users\tlori\.cargo\bin\sccache.exe C:\PROGRA~1\MICROS~3\2022\COMMUN~1\VC\Tools\MSVC\1437~1.328\bin\Hostx86\x86\cl.exe  /nologo /TP -DFC4_VERSION_STRING=\"0.1.0\" -DFreeCity4_EXPORTS -DNOMINMAX -DWIN32_LEAN_AND_MEAN -D_CRT_SECURE_NO_WARNINGS -IC:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe\engine\third_party\gzcom-dll\gzcom-dll\include -IC:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe\engine\plugin -IC:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe\engine\capi\include /DWIN32 /D_WINDOWS /EHsc /Z7 /Ob0 /Od /RTC1 -std:c++17 -MT /W3 /permissive- /utf-8 /EHsc /showIncludes /FoCMakeFiles\FreeCity4.dir\plugin\FC4Subsystems.cpp.obj /FdCMakeFiles\FreeCity4.dir\ /FS -c C:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe\engine\plugin\FC4Subsystems.cpp
+C:\Users\tlori\FreeCity4\.claude\worktrees\fc4build-probe\engine\plugin\FC4Subsystems.cpp(450): error C2078: too many initializers
+ninja: build stopped: subcommand failed.

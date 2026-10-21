@@ -1,0 +1,91 @@
+{
+ "format": 1,
+ "name": "ng18_14_support_level",
+ "spec": [
+  "network-geometry 10.2",
+  "18.14"
+ ],
+ "description": "Road (+0x2C8 = 45): corners 30 m above the terrain -> level 1, flags 0x40000000 and 0x8000000; 50 m -> level 2; 0.005 m -> level 0, no flags. The level is the maximum over the corners.",
+ "steps": [
+  {
+   "op": "ng_support_level",
+   "corners": [
+    130,
+    130,
+    130,
+    130
+   ],
+   "terrain": [
+    100,
+    100,
+    100,
+    100
+   ],
+   "threshold": 45,
+   "expect": {
+    "level": 1,
+    "flags": 1207959552
+   }
+  },
+  {
+   "op": "ng_support_level",
+   "corners": [
+    150,
+    150,
+    150,
+    150
+   ],
+   "terrain": [
+    100,
+    100,
+    100,
+    100
+   ],
+   "threshold": 45,
+   "expect": {
+    "level": 2,
+    "flags": 1207959552
+   }
+  },
+  {
+   "op": "ng_support_level",
+   "corners": [
+    100.005,
+    100.005,
+    100.005,
+    100.005
+   ],
+   "terrain": [
+    100,
+    100,
+    100,
+    100
+   ],
+   "threshold": 45,
+   "expect": {
+    "level": 0,
+    "flags": 0
+   }
+  },
+  {
+   "op": "ng_support_level",
+   "corners": [
+    100,
+    145,
+    100,
+    100
+   ],
+   "terrain": [
+    100,
+    100,
+    100,
+    100
+   ],
+   "threshold": 45,
+   "expect": {
+    "level": 2,
+    "flags": 1207959552
+   }
+  }
+ ]
+}

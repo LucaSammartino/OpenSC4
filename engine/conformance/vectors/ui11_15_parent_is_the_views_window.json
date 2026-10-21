@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "name": "ui11_15_parent_is_the_views_window",
+  "spec": [
+    "ui-windows 3.2",
+    "ui-windows 4.3",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 15: the created catalog window's parent (GetParentWin, slot 11) is AsIGZWin() - view + 0x0C. That is what makes ChildDelete on that sub-object the right teardown.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_invoke_secondary",
+      "instance": 1,
+      "kind": 1,
+      "target_win_id": 1,
+      "expect": "opened"
+    },
+    {
+      "op": "uiw_expect_ops",
+      "only": [
+        "create_window"
+      ],
+      "ops": [
+        {
+          "event": "create_window",
+          "parent": "0x200C",
+          "group": "0x96A006B0",
+          "instance": 1
+        }
+      ]
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "win": "0x200C",
+        "as_igzwin": "0x200C"
+      }
+    }
+  ]
+}

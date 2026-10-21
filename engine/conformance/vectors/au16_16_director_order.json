@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "audio_director_on_start_order",
+  "spec": [
+    "audio 16.16",
+    "audio 1.1"
+  ],
+  "description": "cSC4AudioCOMDirector::OnStart (0x004EB1B0) adds GetGZSoundCOMDirector, GetGZSndSysMacCOMDirector, cGZToolsCOMDirector::Get, GetHitManCOMDirector and cFreshnessCOMDirector::GetDirector in that order, calling each one's OnStart (slot 4, +0x10) immediately after adding it.",
+  "steps": [
+    {
+      "op": "aud_director_expect",
+      "state": {
+        "order": [
+          "GetGZSoundCOMDirector",
+          "GetGZSndSysMacCOMDirector",
+          "cGZToolsCOMDirector::Get",
+          "GetHitManCOMDirector",
+          "cFreshnessCOMDirector::GetDirector"
+        ],
+        "director_id": 4256549399,
+        "class_count": 92
+      }
+    }
+  ]
+}

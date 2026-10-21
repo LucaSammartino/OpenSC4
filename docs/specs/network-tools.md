@@ -601,9 +601,19 @@ Other callers:
 
 ## 13. Prop occupant slots used by other specs
 
+This section lists only the slots other specs call. The prop occupant class itself — identity, object layout,
+the full slot table with return channels, the spatial record, drawing and the save record — is
+[prop-occupant.md](prop-occupant.md) (re-answers27).
+
 ### 13.1 cISC4PropOccupant (vtable `0x00AA4900`, compiled slot = SDK index + 3)
 
-The interface pointer is the prop object `+4`. Field offsets below are from that pointer.
+The interface pointer **is the object base** (`cISC4PropOccupant`'s vtable `0x00AA4900` sits at `+0x00`).
+Field offsets below are from that pointer. *[corrected by re-answers27: this line previously said the
+interface pointer was "the prop object `+4`". That is wrong — `+4` is the `cIGZMessageTarget2` sub-object
+(vtable `0x00AA48F0`, `DoMessage` `0x005ECFB0`), and `QueryInterface` `0x005EC960` returns `this` unchanged
+for IID `0xE9793A65`. Three measured instructions address the fields from `ECX` = the object base:
+`GetPropType` `0x005ED280` reads `word [ecx+0x5C]`, `GetRandomChance` `0x005ED570` reads `byte [ecx+0x62]`,
+`GetState` `0x005ED560` reads `byte [ecx+0x63]`. The offsets in the table below were right all along.]*
 
 | Slot | Address | Name | Behaviour |
 |---|---|---|---|

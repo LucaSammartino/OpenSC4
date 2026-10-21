@@ -214,7 +214,19 @@
 //         lane, FC4TerrainShadow.h): the terrain shadow's scenario on a
 //         stand-in original made inside the DLL; returns its mismatch count
 //         (the counters in a), -1 for a bad input.
-//   op 66 kFC4SeamNeighborsConfirm a = fc4::NeighborsConfirmFn (cdecl bool
+//   op 59 kFC4SeamCitySitShadow    a = FC4CitySitShadowTestInput* (the glue17
+//         lane, FC4CitySitShadow.h): event 0 reports whether citysit_shadow
+//         is on and the run's tallies (1 / 0), event 1 writes the city
+//         shutdown summary. -1 for a bad input.
+//   op 60 kFC4SeamDemolitionShadow a = FC4DemolitionShadowTestInput* (the
+//         glue17 lane, FC4DemolitionShadow.h); same events as op 59.
+//   op 61 kFC4SeamDispatchShadow   a = FC4DispatchShadowTestInput* (the
+//         glue17 lane, FC4DispatchShadow.h); same events as op 59.
+//   op 59 kFC4SeamTerrainGlue     a = FC4TerrainGlueTestInput* (the glue18
+//         lane, cFC4Terrain.h): the terrain replacement through the same code
+//         as in game (create, the consumer slots of terrain.md §15.3, TR18's
+//         refuse-and-count, a change and its posts); returns its mismatch
+//         count (the counters in a), -1 for a bad input.//   op 66 kFC4SeamNeighborsConfirm a = fc4::NeighborsConfirmFn (cdecl bool
 //         (cIGZString* title, cIGZString* text, cIGZString* yes,
 //         cIGZString* no); null: the game's again) (the apply12 lane,
 //         neighbors.md §15.4 NG35): the confirmation dialog the neighbours
@@ -286,7 +298,12 @@ enum : uint32_t {
     kFC4SeamHistClock = 54,  // the history and clock lane
     kFC4SeamParks = 57,         // the cmglue lane (cFC4Parks.h FC4ParksTestInput)
     kFC4SeamTerrainShadow = 58,  // the glue16 lane (FC4TerrainShadow.h FC4TerrainShadowTestInput)
+    kFC4SeamCitySitShadow = 59,  // the glue17 lane (FC4CitySitShadow.h)
+    kFC4SeamDemolitionShadow = 60,  // the glue17 lane (FC4DemolitionShadow.h)
+    kFC4SeamDispatchShadow = 61,  // the glue17 lane (FC4DispatchShadow.h)
+    kFC4SeamTerrainGlue = 67,  // the glue18 lane (cFC4Terrain.h FC4TerrainGlueTestInput; 59 taken by kFC4SeamCitySitShadow)
     kFC4SeamNeighborsConfirm = 66,  // the apply12 lane (NG35, cFC4Neighbors.h NeighborsTestSetConfirm)
+    kFC4SeamMySimsShadow = 68,  // the mysims1 lane (FC4MySimsShadow.h MySimsShadowTest)
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

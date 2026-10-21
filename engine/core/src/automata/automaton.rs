@@ -44,7 +44,12 @@ pub const VEHICLE_CONSTANT: Vec3 = [-1.0, -2.0, -3.0];
 
 /// The state types of §6.2 with a record of their own.
 pub mod state_type {
-    /// SetState(1, …) at the riot's end (§8.1).
+    /// `DEFAULT` (Lua `automata_states`): `PushState(0, 0, …)` delegates to
+    /// `SetState` (§6.2).
+    pub const DEFAULT: u32 = 0;
+    /// `DISAPPEAR` (1). Also `SetState(1, …)` at the riot's end (§8.1), and
+    /// what `PopState` pushes instead of revealing the state below a `final`
+    /// one (§12 quirk 11).
     pub const RIOT_END: u32 = 1;
     pub const RIOT_LEADER: u32 = 8;
     pub const T0B: u32 = 0x0B;
@@ -64,21 +69,36 @@ pub mod state_type {
 // ---- states (§6.2) ------------------------------------------------------------------------------------------
 
 /// The state base record (§6.2, version 3; Read accepts ≤ 3).
+///
+/// The field names are the object offsets' meanings (§6.2, re-integrate1):
+/// `PushState` writes every one of them. `+0x24` (the behaviour template) is
+/// **not** in the record — `Read` zeroes it.
 #[derive(Clone, Debug)]
 pub struct StateBase {
     /// The version as read (3 for a new state). Written back unchanged unless
     /// [`StateBase::extra`] is non-zero, which needs version 3 *[choice]*.
     pub version: u16,
-    /// The controller (read with `0x6A1857F8`); written as null when it has
-    /// flag 8.
+    /// `+0x08` the controller (read with `0x6A1857F8`); written as null when
+    /// it has flag 8.
     pub controller: RefValue,
-    pub a: u32,
-    pub b: f32,
-    pub c: bool,
-    pub d: u32,
-    pub e: u32,
-    /// The final `u32` of version 3 (0 for an older record).
-    pub extra: u32,
+    /// `+0x0C` the **stack index** (0-based, bottom = 0) *[quirk]*. Not a
+    /// parameter of `PushState`: it is recomputed as `stack.len() - 1` after a
+    /// push (§12 quirk 10), and a replacement must recompute it after any
+    /// stack mutation rather than trust the stream.
+    pub stack_index: u32,
+    /// `+0x10` the **countdown in milliseconds**. `DoStateTick` subtracts `dt`
+    /// and `PopState`s on expiry; ≤ 0 means "never expires".
+    pub countdown_ms: f32,
+    /// `+0x14` **`final`**. `SetState` refuses to run while the top state has
+    /// it (§12 quirk 11), and `PopState` on a `final` state that is not already
+    /// type 1 pushes DISAPPEAR instead of revealing the state below.
+    pub is_final: bool,
+    /// `+0x18` the SFX id (`PushState` param 6).
+    pub sfx_id: u32,
+    /// `+0x1C` the animation id (`PushState` param 5).
+    pub anim_id: u32,
+    /// `+0x20` the automata-flags snapshot (written only at version ≥ 3).
+    pub flags_snapshot: u32,
 }
 
 impl Default for StateBase {
@@ -86,12 +106,12 @@ impl Default for StateBase {
         StateBase {
             version: STATE_BASE_VERSION,
             controller: RefValue::Null,
-            a: 0,
-            b: 0.0,
-            c: false,
-            d: 0,
-            e: 0,
-            extra: 0,
+            stack_index: 0,
+            countdown_ms: 0.0,
+            is_final: false,
+            sfx_id: 0,
+            anim_id: 0,
+            flags_snapshot: 0,
         }
     }
 }
@@ -100,18 +120,18 @@ impl PartialEq for StateBase {
     fn eq(&self, o: &Self) -> bool {
         self.version == o.version
             && refs_equal(&self.controller, &o.controller)
-            && self.a == o.a
-            && self.b == o.b
-            && self.c == o.c
-            && self.d == o.d
-            && self.e == o.e
-            && self.extra == o.extra
+            && self.stack_index == o.stack_index
+            && self.countdown_ms == o.countdown_ms
+            && self.is_final == o.is_final
+            && self.sfx_id == o.sfx_id
+            && self.anim_id == o.anim_id
+            && self.flags_snapshot == o.flags_snapshot
     }
 }
 
 impl StateBase {
     fn written_version(&self) -> u16 {
-        if self.version >= 3 || self.extra != 0 {
+        if self.version >= 3 || self.flags_snapshot != 0 {
             self.version.max(3)
         } else {
             self.version
@@ -122,13 +142,13 @@ impl StateBase {
         let v = self.written_version();
         out.put_u16(v);
         out.put_ref(&saved_controller_ref(&self.controller, &|_| 0));
-        out.put_u32(self.a);
-        out.put_f32(self.b);
-        out.put_bool(self.c);
-        out.put_u32(self.d);
-        out.put_u32(self.e);
+        out.put_u32(self.stack_index);
+        out.put_f32(self.countdown_ms);
+        out.put_bool(self.is_final);
+        out.put_u32(self.sfx_id);
+        out.put_u32(self.anim_id);
         if v >= 3 {
-            out.put_u32(self.extra);
+            out.put_u32(self.flags_snapshot);
         }
         out.error() == 0
     }
@@ -141,12 +161,12 @@ impl StateBase {
         Some(StateBase {
             version,
             controller: get_ref_checked(inp, IID_AUTOMATA_CONTROLLER)?,
-            a: inp.get_u32()?,
-            b: inp.get_f32()?,
-            c: inp.get_bool()?,
-            d: inp.get_u32()?,
-            e: inp.get_u32()?,
-            extra: if version >= 3 { inp.get_u32()? } else { 0 },
+            stack_index: inp.get_u32()?,
+            countdown_ms: inp.get_f32()?,
+            is_final: inp.get_bool()?,
+            sfx_id: inp.get_u32()?,
+            anim_id: inp.get_u32()?,
+            flags_snapshot: if version >= 3 { inp.get_u32()? } else { 0 },
         })
     }
 }
@@ -158,19 +178,45 @@ pub enum StateExtra {
     None,
     /// 8 RiotLeader: `s32`, `s32`, `u8`.
     RiotLeader { a: i32, b: i32, c: u8 },
-    /// `0x0B`: `vec3`, `f32`, `f32`.
+    /// `0x0B` RandomWalk: `vec3`, `f32`, `f32`.
     T0B { v: Vec3, a: f32, b: f32 },
-    /// `0x0E`: 5 × `f32`.
-    T0E([f32; 5]),
-    /// `0x0F`: `f32`, `f32`.
+    /// `0x0E` Plummet (§6.2, quirk 12): five `f32` named by their **object
+    /// offsets**, written in the stream order `+0x28, +0x34, +0x30, +0x2C,
+    /// +0x38` — **not** offset order. The object's sixth slot `+0x3C` is a
+    /// `ref` (an effect pointer) that is zeroed on Read and never written
+    /// *[quirk]*; a replacement that animates may keep it, but it is not part
+    /// of the record and this codec does not model it.
+    T0E {
+        /// `+0x28` the descent velocity.
+        descent: f32,
+        /// `+0x2C` the roll rate.
+        roll_rate: f32,
+        /// `+0x30` the roll centre (the Y-orientation centre).
+        roll_centre: f32,
+        /// `+0x34` the tumble countdown, milliseconds.
+        tumble_ms: f32,
+        /// `+0x38` the post-splash countdown, milliseconds.
+        post_splash_ms: f32,
+    },
+    /// `0x0F` PlopJump: `f32`, `f32`.
     T0F([f32; 2]),
     /// `0x10` PlayerDrive *[inferred]*: `f32`.
     PlayerDrive(f32),
-    /// `0x11`: 4 × `vec3`.
+    /// `0x11` Bumped: 4 × `vec3`.
     T11([Vec3; 4]),
-    /// `0x13` AttachAnim *[inferred]*: `ref` model (`0xA818EDD8`), `u16`, `bool`.
-    AttachAnim { model: RefValue, a: u16, b: bool },
-    /// `0x15`: `f32`.
+    /// `0x13` AttachAnim (§6.2, quirk 14): the stream is `ref`, `u16`, `bool`,
+    /// while the object holds the `bool` at `+0x2C` **before** the `u16` at
+    /// `+0x30`. The fields are named by their object offsets; `write` emits
+    /// the stream order.
+    AttachAnim {
+        /// `+0x28` the model (`0xA818EDD8`).
+        model: RefValue,
+        /// `+0x2C` the flag (a `bool` in memory, before the selector).
+        flag: bool,
+        /// `+0x30` the animation selector (`u16`).
+        anim_selector: u16,
+    },
+    /// `0x15` PullOver: `f32`.
     T15(f32),
     /// `0x34` Chase *[inferred]*: `ref` automaton.
     Chase(RefValue),
@@ -183,18 +229,37 @@ impl PartialEq for StateExtra {
             (None, None) => true,
             (RiotLeader { a, b, c }, RiotLeader { a: a2, b: b2, c: c2 }) => a == a2 && b == b2 && c == c2,
             (T0B { v, a, b }, T0B { v: v2, a: a2, b: b2 }) => v == v2 && a == a2 && b == b2,
-            (T0E(x), T0E(y)) => x == y,
+            (
+                T0E {
+                    descent,
+                    roll_rate,
+                    roll_centre,
+                    tumble_ms,
+                    post_splash_ms,
+                },
+                T0E {
+                    descent: d2,
+                    roll_rate: r2,
+                    roll_centre: c2,
+                    tumble_ms: t2,
+                    post_splash_ms: p2,
+                },
+            ) => descent == d2 && roll_rate == r2 && roll_centre == c2 && tumble_ms == t2 && post_splash_ms == p2,
             (T0F(x), T0F(y)) => x == y,
             (PlayerDrive(x), PlayerDrive(y)) => x == y,
             (T11(x), T11(y)) => x == y,
             (
-                AttachAnim { model, a, b },
+                AttachAnim {
+                    model,
+                    flag,
+                    anim_selector,
+                },
                 AttachAnim {
                     model: m2,
-                    a: a2,
-                    b: b2,
+                    flag: f2,
+                    anim_selector: a2,
                 },
-            ) => refs_equal(model, m2) && a == a2 && b == b2,
+            ) => refs_equal(model, m2) && flag == f2 && anim_selector == a2,
             (T15(x), T15(y)) => x == y,
             (Chase(x), Chase(y)) => refs_equal(x, y),
             _ => false,
@@ -213,14 +278,20 @@ impl StateExtra {
                 a: 0.0,
                 b: 0.0,
             },
-            t::T0E => StateExtra::T0E([0.0; 5]),
+            t::T0E => StateExtra::T0E {
+                descent: 0.0,
+                roll_rate: 0.0,
+                roll_centre: 0.0,
+                tumble_ms: 0.0,
+                post_splash_ms: 0.0,
+            },
             t::T0F => StateExtra::T0F([0.0; 2]),
             t::PLAYER_DRIVE => StateExtra::PlayerDrive(0.0),
             t::T11 => StateExtra::T11([[0.0; 3]; 4]),
             t::ATTACH_ANIM => StateExtra::AttachAnim {
                 model: RefValue::Null,
-                a: 0,
-                b: false,
+                flag: false,
+                anim_selector: 0,
             },
             t::T15 => StateExtra::T15(0.0),
             t::CHASE => StateExtra::Chase(RefValue::Null),
@@ -229,6 +300,9 @@ impl StateExtra {
         }
     }
 
+    /// The record's stream order. For Plummet this is **not** offset order
+    /// (§6.2, quirk 12) and for AttachAnim the `u16` comes before the `bool`
+    /// even though the object holds the `bool` first (quirk 14).
     fn write(&self, out: &mut dyn OutStream) -> bool {
         match self {
             StateExtra::None => {}
@@ -242,10 +316,19 @@ impl StateExtra {
                 out.put_f32(*a);
                 out.put_f32(*b);
             }
-            StateExtra::T0E(f) => {
-                for x in f {
-                    out.put_f32(*x);
-                }
+            StateExtra::T0E {
+                descent,
+                roll_rate,
+                roll_centre,
+                tumble_ms,
+                post_splash_ms,
+            } => {
+                // Stream: +0x28, +0x34, +0x30, +0x2C, +0x38 (not offset order).
+                out.put_f32(*descent);
+                out.put_f32(*tumble_ms);
+                out.put_f32(*roll_centre);
+                out.put_f32(*roll_rate);
+                out.put_f32(*post_splash_ms);
             }
             StateExtra::T0F(f) => {
                 for x in f {
@@ -260,10 +343,16 @@ impl StateExtra {
                     put_vec3(out, x);
                 }
             }
-            StateExtra::AttachAnim { model, a, b } => {
+            StateExtra::AttachAnim {
+                model,
+                flag,
+                anim_selector,
+            } => {
+                // Stream: ref, u16, bool — the bool is at +0x2C, before the
+                // u16 at +0x30, in the object (§6.2, quirk 14).
                 out.put_ref(model);
-                out.put_u16(*a);
-                out.put_bool(*b);
+                out.put_u16(*anim_selector);
+                out.put_bool(*flag);
             }
             StateExtra::Chase(r) => {
                 out.put_ref(r);
@@ -285,20 +374,20 @@ impl StateExtra {
                 a: inp.get_f32()?,
                 b: inp.get_f32()?,
             },
-            StateExtra::T0E(_) => {
-                let mut f = [0.0; 5];
-                for x in &mut f {
-                    *x = inp.get_f32()?;
-                }
-                StateExtra::T0E(f)
-            }
+            StateExtra::T0E { .. } => StateExtra::T0E {
+                descent: inp.get_f32()?,
+                tumble_ms: inp.get_f32()?,
+                roll_centre: inp.get_f32()?,
+                roll_rate: inp.get_f32()?,
+                post_splash_ms: inp.get_f32()?,
+            },
             StateExtra::T0F(_) => StateExtra::T0F([inp.get_f32()?, inp.get_f32()?]),
             StateExtra::PlayerDrive(_) => StateExtra::PlayerDrive(inp.get_f32()?),
             StateExtra::T11(_) => StateExtra::T11([get_vec3(inp)?, get_vec3(inp)?, get_vec3(inp)?, get_vec3(inp)?]),
             StateExtra::AttachAnim { .. } => StateExtra::AttachAnim {
                 model: get_ref_checked(inp, IID_MODEL)?,
-                a: inp.get_u16()?,
-                b: inp.get_bool()?,
+                anim_selector: inp.get_u16()?,
+                flag: inp.get_bool()?,
             },
             StateExtra::T15(_) => StateExtra::T15(inp.get_f32()?),
             StateExtra::Chase(_) => StateExtra::Chase(get_ref_checked(inp, IID_AUTOMATON)?),
@@ -312,6 +401,15 @@ pub struct State {
     pub state_type: u32,
     pub base: StateBase,
     pub extra: StateExtra,
+}
+
+/// Recompute every state's stack index (`+0x0C`, §12 quirk 10) after a stack
+/// **mutation**: 0-based from the bottom, which is what `PushState` derives.
+/// Not applied on Read — see the note in [`AutomatonBase::read`].
+fn reindex(states: &mut [State]) {
+    for (i, s) in states.iter_mut().enumerate() {
+        s.base.stack_index = i as u32;
+    }
 }
 
 impl State {
@@ -478,6 +576,13 @@ impl AutomatonBase {
         for _ in 0..n {
             states.push(State::read(inp)?);
         }
+        // The stack index (`+0x0C`) is kept as read: a re-save of the
+        // original's save must be byte-identical (§14 test 4), and the corpus
+        // carries values this reader would have to change to recompute
+        // (measured: byte 174 of a 342-byte pedestrian record, saved 1 against
+        // a recomputed 0; glue19 question A1). re-integrate1's §14 test 29 asks
+        // for recompute-on-read as well; it is applied after every stack
+        // **mutation** (below) but not here. See [`reindex`].
         let m = inp.get_u32()?;
         let mut model_keys = Vec::new();
         for _ in 0..m {
@@ -1044,16 +1149,65 @@ impl AutomatonRecord {
 }
 
 /// The arguments of automaton slot 51 `SetState(type, …6 more)` after the
-/// type (§7.4, §8.1). Their meaning is open (Q5); they are kept, not
-/// interpreted.
+/// type (§7.4, §6.2; Q5 answered, re-integrate1). They are
+/// `PushState`'s own: `SetState` = pop everything then `PushState`.
+///
+/// ```text
+/// PushState(u32 type, cISC4AutomataController* controller, float timeout_ms,
+///           bool final, ulong animId, ulong sfxId, tBehaviorTemplate const* template)
+/// ```
+///
+/// The controller and the template travel as host tokens (0 = null).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SetStateArgs {
-    pub a: u32,
-    pub b: f32,
-    pub c: u32,
-    pub d: u32,
-    pub e: u32,
-    pub f: u32,
+    /// The controller (`+0x08`); 0 = null.
+    pub controller: u32,
+    /// The countdown in milliseconds (`+0x10`); ≤ 0 never expires.
+    pub timeout_ms: f32,
+    /// `final` (`+0x14`): `SetState` refuses to run while the top state has it.
+    pub final_flag: u32,
+    /// The animation id (`+0x1C`, `PushState` param 5).
+    pub anim_id: u32,
+    /// The SFX id (`+0x18`, `PushState` param 6).
+    pub sfx_id: u32,
+    /// The behaviour template (`+0x24`, not saved); 0 = null.
+    pub template: u32,
+}
+
+impl Default for SetStateArgs {
+    fn default() -> SetStateArgs {
+        SetStateArgs {
+            controller: 0,
+            timeout_ms: -1.0,
+            final_flag: 0,
+            anim_id: 0,
+            sfx_id: 0,
+            template: 0,
+        }
+    }
+}
+
+impl SetStateArgs {
+    /// `final` as the state base's bool.
+    pub fn is_final(&self) -> bool {
+        self.final_flag != 0
+    }
+
+    /// The state these arguments create of `state_type` (§6.2: `PushState`
+    /// writes every one of the base's fields). `controller` is the reference
+    /// the `controller` argument denotes — the C ABI carries that argument as
+    /// a truncated `u32` host token with no class, so a caller that has the
+    /// reference passes it here. Every documented call (§8.1) passes 0, and
+    /// the state's controller is then null.
+    pub fn to_state(&self, state_type: u32, controller: RefValue) -> State {
+        let mut s = State::new(state_type);
+        s.base.controller = controller;
+        s.base.countdown_ms = self.timeout_ms;
+        s.base.is_final = self.is_final();
+        s.base.sfx_id = self.sfx_id;
+        s.base.anim_id = self.anim_id;
+        s
+    }
 }
 
 /// An automaton object (`cISC4Automaton`). Its saved state is an
@@ -1161,22 +1315,56 @@ impl Automaton {
         self.returning.get()
     }
 
-    /// Slot 51 `SetState(type, …)`: the state stack becomes one new state of
-    /// `state_type` *[choice]* (the state machine is not specified; slots 52 /
-    /// 53 push and pop).
-    pub fn set_state(&self, state_type: u32, args: SetStateArgs) {
-        self.rec.borrow_mut().base_mut().states = vec![State::new(state_type)];
+    /// Slot 51 `SetState(type, …)`: pop everything, then push one state of
+    /// `state_type` (§6.2). **Returns false and changes nothing while the top
+    /// state has `final`** (§12 quirk 11, `0x00509860`) — that is why the riot
+    /// end's `SetState(1, …)` is a no-op against its leader (§8.1).
+    pub fn set_state(&self, state_type: u32, args: SetStateArgs) -> bool {
+        let mut r = self.rec.borrow_mut();
+        if r.base().states.last().map(|s| s.base.is_final).unwrap_or(false) {
+            return false;
+        }
+        let mut states = vec![args.to_state(state_type, RefValue::Null)];
+        reindex(&mut states);
+        r.base_mut().states = states;
         *self.last_set_state.borrow_mut() = Some((state_type, args));
+        true
     }
 
-    /// Slot 52 `PushState`.
-    pub fn push_state(&self, state_type: u32) {
-        self.rec.borrow_mut().base_mut().states.push(State::new(state_type));
+    /// Slot 52 `PushState` (§6.2). `PushState(0, 0, …)` delegates to
+    /// [`Automaton::set_state`] (Mac `0x000bf7d0`).
+    pub fn push_state(&self, state_type: u32, args: SetStateArgs) -> bool {
+        if state_type == state_type::DEFAULT && args.controller == 0 {
+            return self.set_state(state_type, args);
+        }
+        let mut r = self.rec.borrow_mut();
+        let mut states = std::mem::take(&mut r.base_mut().states);
+        states.push(args.to_state(state_type, RefValue::Null));
+        reindex(&mut states);
+        r.base_mut().states = states;
+        true
     }
 
-    /// Slot 53 `PopState`: false when the stack is empty.
+    /// Slot 53 `PopState`: false when the stack is empty. **A `final` state
+    /// that is not already type 1 does not reveal the state below — it pushes
+    /// DISAPPEAR (type 1) instead** (§12 quirk 11, `0x0050B660`).
     pub fn pop_state(&self) -> bool {
-        self.rec.borrow_mut().base_mut().states.pop().is_some()
+        let mut r = self.rec.borrow_mut();
+        let mut states = std::mem::take(&mut r.base_mut().states);
+        let Some(top) = states.last() else {
+            r.base_mut().states = states;
+            return false;
+        };
+        if top.base.is_final && top.state_type != state_type::RIOT_END {
+            states.push(SetStateArgs::default().to_state(state_type::RIOT_END, RefValue::Null));
+            reindex(&mut states);
+            r.base_mut().states = states;
+            return true;
+        }
+        states.pop();
+        reindex(&mut states);
+        r.base_mut().states = states;
+        true
     }
 
     /// Slot 56 `GetState`: the type of the top state.

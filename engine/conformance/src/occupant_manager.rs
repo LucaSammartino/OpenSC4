@@ -16,7 +16,7 @@ use std::rc::{Rc, Weak};
 
 use fc4_core::occupant_manager::{
     bounding_cells, msg, occupant_manager_cell_to_position, occupant_manager_cell_to_world_cell,
-    position_to_occupant_manager_cell, position_to_standard_city_cell, position_to_world_cell, query_interface,
+    position_to_occupant_manager_cell, position_to_standard_city_cell, position_to_world_cell, query_interface, shrink,
     standard_city_cell_to_position, standard_city_cell_to_world_cell, world_cell_to_occupant_manager_cell,
     world_cell_to_position, world_cell_to_standard_city_cell, BBox, CellBox, Filter, Interface, OccupantHost,
     OccupantManager, Vec3, CLSID_OCCUPANT_MANAGER,
@@ -548,6 +548,13 @@ fn call(w: &World, op: &Json) -> R<()> {
         "bounding_cells" => {
             let (x, z) = args_i2(op)?;
             Json::Array(bounding_cells(x, z).into_iter().map(pair_json).collect())
+        }
+        // §5.1 step 5 on one axis (min, max): the two shrunk bounds as
+        // `float` bit patterns (OM4, §18 test 24).
+        "shrink_bits" => {
+            let (a, b) = args_f2(op)?;
+            let (x, y) = shrink(a, b);
+            Json::Array(vec![ji(x.to_bits()), ji(y.to_bits())])
         }
         "query_interface" => {
             let iid = u32_of(arg(op, 0)?, "iid")?;

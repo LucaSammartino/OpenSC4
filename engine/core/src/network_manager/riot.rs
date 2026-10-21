@@ -9,8 +9,10 @@
 //! and `ClearRiotNetworkOccupants`. The riot instances themselves are the
 //! disasters subsystem's; this type keeps only the locked set and the count
 //! of live instances that decides when the set is cleared.
-
-use std::collections::BTreeSet;
+//!
+//! This is the engine's one lock: `disasters::riot` holds a [`RiotLock`] and
+//! delegates here (glue24; cores14c's next step 2, which found the same §10
+//! contract implemented twice).
 
 /// What the lock needs from the game.
 pub trait RiotHost {
@@ -32,10 +34,11 @@ pub const PLAYER_REMOVAL: u32 = 2;
 /// The riot manager's locked set (§10).
 #[derive(Clone, Debug, Default)]
 pub struct RiotLock {
-    /// The locked network occupants, each held. The original's set orders by
-    /// pointer; here by token [choice] (only the release order depends on
-    /// it).
-    locked: BTreeSet<u64>,
+    /// The locked network occupants in locking order, each held. The
+    /// original's set orders by pointer; here in locking order [choice] (only
+    /// the release order depends on it, and `ClearRiotNetworkOccupants` then
+    /// releases in the order the pieces were locked).
+    locked: Vec<u64>,
     /// Live riot instances.
     instances: u32,
 }
@@ -45,9 +48,9 @@ impl RiotLock {
         RiotLock::default()
     }
 
-    /// The locked occupants, in set order.
+    /// The locked occupants, in locking order.
     pub fn locked(&self) -> Vec<u64> {
-        self.locked.iter().copied().collect()
+        self.locked.clone()
     }
 
     pub fn instances(&self) -> u32 {
@@ -103,7 +106,7 @@ impl RiotLock {
         }
         host.add_ref(n);
         host.unset_removal_flags(n, PLAYER_REMOVAL);
-        self.locked.insert(n);
+        self.locked.push(n);
     }
 
     /// `ClearRiotNetworkOccupants` (`0x0057D720`): `SetRemovalFlags(2)` and

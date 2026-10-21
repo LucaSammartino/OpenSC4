@@ -45,12 +45,16 @@
 //!   `Release` calls;
 //! - slot 42 (`IterateOccupantsByBBox`) takes it per cell and **releases it
 //!   around the callbacks**;
-//! - slot 44 (`IterateOccupants`) holds it for the whole walk, callbacks
-//!   included, plus an inner hold per cell; the lock must be re-entrant;
+//! - slot 44 (`IterateOccupants`) holds the outer lock for the whole walk,
+//!   callbacks included; each cell's batch is collected under an inner
+//!   hold that is dropped before the callbacks (OM7), so callbacks run at
+//!   depth 1; the lock must be re-entrant;
 //! - slots 40, 47 and the typed thunks take none of their own (they reach a
-//!   locking slot); slots 6–19, 25, 26 and 48 take none in the original.
-//!   [choice] The core takes it for slot 25 (`IsCellEmpty` reads the grid)
-//!   and for `Write` / `Read`, which the table does not list.
+//!   locking slot); slots 6–19, 25, 26, 48, `Write` and `Read` take none in
+//!   the original (OM8). [choice] The core takes it for slot 25
+//!   (`IsCellEmpty` reads the grid) and for `Write` / `Read`: the grid's
+//!   `RefCell` must only be touched under the lock, and OM8 notes the extra
+//!   hold is not observable (same thread, no callbacks inside).
 //!
 //! The host implements the hooks with a recursive lock (the capi does) or
 //! leaves them empty (a single-threaded host). The grid lives in a
@@ -78,32 +82,40 @@
 //!
 //! # Choices (`[choice]`) and literal readings (`[question]`)
 //!
-//! - **Crash paths** of the original are given safe results:
-//!   - slot 23 before `Init` / after `Shutdown` (null shared filter): nothing
-//!     is removed and the result is true;
-//!   - a cell index outside the grid (Insert before `Init`, Insert's
-//!     unclamped bytes beyond row 191, Remove / Move / slot 28 out of the
+//! - **Crash paths** of the original (§5.7, OM6: the original crashes or
+//!   reads wild memory; the choices below were accepted) are given safe
+//!   results:
+//!   - slot 23 before `Init` / after `Shutdown` (null shared filter; the
+//!     original writes to address `0xC`): nothing is removed and the result
+//!     is true;
+//!   - Insert before `Init` (the original crashes on the null row array
+//!     after Create and the stored box): it inserts no nodes and succeeds;
+//!   - a cell index outside the grid (Insert's unclamped bytes from 192 to
+//!     255 inside a running loop, Remove / Move / slots 28 and 32 out of the
 //!     grid, a smaller grid after a `Read`): the cell is skipped. Insert
-//!     still succeeds and posts its message, like a cell whose holder could
-//!     not be allocated (§5.1 step 9) [question OM6];
+//!     still sets flag 1 and posts its message, like a cell whose holder
+//!     could not be allocated (§5.1 step 9);
 //!   - FindOccupant without a property holder (an uninitialised guess,
 //!     §6.3): no guess; the full scan runs when asked.
-//! - **Iteration that unlinks the visited node** (slot 44, §9.2 "invalidates
-//!   the walk"): the walk continues with the node that took its place.
-//!   Nodes inserted before the cursor (at the front) are not visited; later
-//!   nodes unlinked by the callback are not visited.
+//!
+//!   Defined by the original and reproduced (OM6 MATCHES): a wrapped box
+//!   (low byte > high byte, e.g. a low corner below −4096 m stored as 255)
+//!   visits no cells: Insert succeeds with no nodes, sets flag 1 and posts
+//!   Insert; Remove returns true and posts Remove (§18 test 22). After
+//!   `Shutdown` the rows exist and Insert / Remove / Move work normally.
 //! - **`Read`** is atomic: on a stream error nothing changes and the
 //!   references kept so far are released; the "was read" flag is set
 //!   either way (§13 step 1). The old grid is replaced without releasing its
 //!   entries (`Read` runs on a fresh object). A grid of any size is read;
 //!   rows and cells are allocated as they are read, so a corrupt count
 //!   cannot allocate more than the stream holds.
-//! - **The 0.1 m shrink constants** (§5.1 step 5, §7 slot 32 / 34, §8.4)
-//!   are `float` 0.1 [question OM4]; slot 34's clamp is `0..=count`
-//!   [question OM5].
-//! - **The single-cell bit** (§4.2) is kept exactly like the original
-//!   (queries skip the duplicate check for such nodes), slot 44 checks
-//!   duplicates for single-cell walks too (the spec names no exception).
+//! - **The 0.1 m shrink and the 1.0 m width** (§5.1 step 5, §7 slots 32 /
+//!   34, §8.4) are `float` constants and every shrunk bound is a `float`
+//!   (OM4); slot 34 clamps a given corner to `0..=count − 1` and turns a
+//!   null max into (count, count) (OM5).
+//! - **The single-cell bit** (§4.2) is kept exactly like the original:
+//!   multi-cell queries and walks skip the duplicate check for such nodes,
+//!   and slot 44's single-cell walk has no duplicate check (OM7).
 
 mod cells;
 mod manager;
@@ -113,7 +125,7 @@ mod tests;
 
 pub use cells::{
     bounding_cells, cell_box_of, occupant_manager_cell_to_position, occupant_manager_cell_to_world_cell, overlaps,
-    position_to_occupant_manager_cell, position_to_standard_city_cell, position_to_world_cell,
+    position_to_occupant_manager_cell, position_to_standard_city_cell, position_to_world_cell, shrink,
     standard_city_cell_to_position, standard_city_cell_to_world_cell, world_cell_to_occupant_manager_cell,
     world_cell_to_position, world_cell_to_standard_city_cell, BBox, CellBox, Vec3,
 };

@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "ui11_07_teardown_order",
+  "spec": [
+    "ui-windows 2.3",
+    "ui-windows 4.1",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 7: for either close path the order is HideWindow, then Release, then ChildDelete, and only then are the field and the kind cleared. ChildDelete is the four-instruction tail forward of 2.3, so it destroys rather than detaches.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_seed_tertiary",
+      "kind": 2
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_close_tertiary"
+    },
+    {
+      "op": "uiw_expect_ops",
+      "ops": [
+        {
+          "event": "hide_window",
+          "win": "0x30"
+        },
+        {
+          "event": "release",
+          "win": "0x30"
+        },
+        {
+          "event": "child_delete",
+          "parent": "0x200C",
+          "child": "0x30"
+        },
+        {
+          "event": "destroy_window",
+          "win": "0x30"
+        }
+      ]
+    }
+  ]
+}

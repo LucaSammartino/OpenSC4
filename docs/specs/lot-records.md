@@ -39,6 +39,8 @@ because some other saved object holds a reference to it (§14).
 | `cSC4ConstructionOccupant` | `0xA97F909E` | construction in progress (crane, crew, dust) | `0x005CD250` / `0x005CE770` | `0x00AA219C` | 5 / ≥ 4 |
 | `cSC4PropOccupant` | `0x2977AA47` | props placed by the lot developer | `0x005ECE90` / `0x005EF360` | `0x00AA484C` | 6 / any |
 | `cSC4PropOccupantVisualEffect` | `0x2977AA49` | effect props (lot and construction effects) | `0x005F03B0` / `0x005EF750` | `0x00AA4DC4` | 3 / 3 |
+| `cSC4SignpostOccupant` | `0xAB72FBB3` | region-view signposts with editable text (§10.3) | `0x005F5080` / `0x005F50F0` | `0x00AA5364` | 2 / any |
+| `cSC4TextDecalOccupant` | `0x8B79C707` | terrain text labels (§10.4) | `0x005F7DB0` / `0x005F7E50` | `0x00AA556C` | 3 / any |
 | `cSC4FloraOccupant` | `0xA9C05C85` | trees and plants, on lots and wild | `0x00472990` / `0x00472A20` | `0x00A88564` | 3 / 3 |
 | `cSC4TripData` | — (inline element) | one trip of a lot's trip list | `0x0070E0B0` / `0x0070E160` | non-virtual | 2 / any |
 
@@ -372,11 +374,87 @@ the lot is in state 2. Field names after #12 are not known; their grouping follo
 | 11 | roof props | u32 n + n × ref | same; 0…1 |
 | 12 | effects | u32 n + n × ref | IID `0x2977AA49` (effect props), written as the effect-prop interface pointer; 1…3 |
 | 13 | current effect | ref | IID `0x2977AA49` |
-| 14 | unnamed | s8, 5 × u32, 2 × f32, 5 × u32, s8, 2 × f32, bool, 2 × u32, 2 × f32, u8 | construction / crane animation and daily progress state *[inferred]* |
+| 14 | unnamed | s8, 5 × u32, 2 × f32, 5 × u32, s8, 2 × f32, bool, 2 × u32, 2 × f32, u8 | construction / crane animation and daily progress state (decoded below) |
 | 15 | crew | u32 n + n × {bool, bool, ref} | ref IID `0xA9B40F05` (`cISC4Automaton`; class `0x896E75AF` `cSC4Pedestrian`, record in `save-records.md`); n 0…5 |
 
 `Read`: versions < 4 → false; versions ≥ 4 are read with this layout, version 4 using the legacy transform reader
 (`0x005DA930`). Versions > 5 are read as 5 *[quirk]*.
+
+### 9.1 Where the fields live (`0x005CD250` / `0x005CE770`)
+
+The class embeds the occupant base at `+0x08` (constructor `0x005D00F0`: `cSC4Occupant::cSC4Occupant` `0x005E9220`
+with ECX = this+8), so base fields are at object +0x2C onward. Object size `0x1A0`; GZCOM creator `0x005D0BC0`
+passes argument 1, which selects the per-instance-table vtable pair (`+0x3C` = `0x00AA211C`, `+0x40` = `0x00AA2264`,
+and `+0x19C` = `0x00AA1F38`); argument 0 leaves them shared. The saved field addresses, in Write order:
+
+| Offset | Type | Role, observed | Record field |
+|---|---|---|---|
+| `+0x5C`/`+0x60` | 2 × ref | the saved lot / building references (`SC4WriteGZSerializable`, IID `0xE818FCED` / `0x87DDA3A9`); live copies held at `+0x68`/`+0x6C` | 3, 4 |
+| `+0x64` | xform | `operator<<` `0x005DA8C0`, read with `0x005DA930` (v4) or `0x005DA710` (v5) | 5 |
+| `+0x9C`, `+0xB4` | 2 × box | world / local bounds (`0x005DA600`) | 6, 7 |
+| `+0xCC` | bool | written as `(+0xF8 != 0)` — "a crane model exists" | 8 |
+| `+0xFC` | vec3 | crane position (`0x005DA580`) | 9 |
+| `+0x11C`, `+0x120` | ground / roof-prop lists | `std::list`, nodes at +8 hold the prop ref (IID `0xE9793A65`); count then refs | 10, 11 |
+| `+0x124`/`+0x128` | effect vector | `vector<cRZAutoRefCount<…>>` begin/end; count then one ref per entry (pointer `+0x10` of each element, IID `0x2977AA49`) | 12 |
+| `+0x130` | current effect | written as (pointer + 0x10) or 0; read into `+0x130` (IID `0x2977AA49`) | 13 |
+| `+0x134` | s8 | unnamed *[inferred: effect-selection index]* | 14a |
+| `+0x138…+0x148` | 5 × u32 | daily-progress state (§9.2) | 14b |
+| `+0x14C`, `+0x150` | 2 × f32 | next segment day and segment length (§9.2) | 14c |
+| `+0x154…+0x164` | 5 × u32 | scaffold/placement progress state (§9.2) | 14d |
+| `+0x168` | s8 | unnamed | 14e |
+| `+0x16C`, `+0x170` | 2 × f32 | crane interpolation (§9.2) | 14f |
+| `+0x174` | bool | crane exists flag (drives `+0xCC` on Write) | 14g |
+| `+0x178`, `+0x17C` | 2 × u32 | unnamed | 14h |
+| `+0x180`, `+0x184` | 2 × f32 | crane swing phase (§9.2) | 14i |
+| `+0x118` | u8 | unnamed (written via `SetUint8` slot 0x14, last scalar before the crew) | 14j |
+| `+0x188` | crew list | `std::list`, each node {u8 at +8, u8 at +9, 16-byte sub-object at +0xC…}; count then {bool, bool, ref} per entry | 15 |
+
+The Write writes the crew count from the `+0x188` list, then per node reads two bytes (`operator>> bool`
+`0x005D9FA0` on Read) and one `SC4ReadGZSerializable` reference with IID `0xA9B40F05`.
+
+### 9.2 Life cycle (`0x005D1300` Init, `0x005D0890` SetLot, `0x005D0680` DoDailySim)
+
+- **Messages** (subscribed in `Init` `0x005D1300` through the message server `0x00B43CCC` slot 0x14, target = the
+  `cIGZMessageTarget2` view at `+0x4`): `0x66956814` → `DoDailySim`; `0x86AD10EE` (time-tick) → `DoAnimationTick`
+  `0x005CE110` with the message's data3 ÷ 1000 (`MUL 0x10624DD3; SHR 6`); `0x06CDB65B` (visibility test) → the
+  common flag-2 dance (§10.3); `0xA6B79602` (model availability) → sets `+0xFC` = 1; `0x26D31EC1` (view refresh)
+  → rebuild / crane / re-add-to-renderer as measured. `Init` also registers the object with the animation tick
+  manager (service `cRZSysServPtr<cISC4AnimationTickManager, 2259489005, 2259489004>` `0x00602600`, slot 0x14,
+  tag `0x80`) and pre-sizes 20 `cISC4SimGrid<float>*` slots from the service table `0x00AA1E30…0x00AA1E48`.
+  `Shutdown` (`0x005D0CE0`) unsubscribes all five, unregisters the tick, sends `SendConstructionMessage(0xC9E7B1E8, 0)`
+  first, and releases the lot/building/props/effects/crew.
+- **`SendConstructionMessage(type, data3)`** `0x005CBD20`: posts a `cRZMessage2Standard` (0x2C bytes) with type =
+  arg1, void1/data2 = this, data3 byte = arg2, through the message server slot 0x10 (queued).
+- **`SetLot(lot)`** `0x005D0890` (also reachable with the "already initialised" guard): releases the old lot and
+  building references (`+0x68`/`+0x6C`), holds the new lot, and when the lot has a building (`lot` slot 0xC0/4=48,
+  `GetBuilding`) drives the whole placement: `RebuildModel` `0x005CAD60`, `DivideLot` `0x005CB9F0`,
+  `AttemptAddCrane` `0x005CE360`, `AddGroundProps` `0x005CF790`, `CreateConstructionCrew` `0x005CFA60`,
+  `AddRoofProps` `0x005CFC40`, `CreateDustClouds` `0x005CBC10`, `CreateSparks` `0x005CEC20`,
+  `CreateLotTexture` `0x005CF380`. It then reads the sim day (`0x00B43D5C` slot 0x20/4=8) into `+0x144`, computes
+  the segment schedule into `+0x150…+0x164` from the lot's growth rate (`0x00B0A7D8`), resets state `+0x140` = 0,
+  sets completion 0 (building slots 9/10 + a queued `0x2977AE2F` message), sets the scaffold height to
+  ground + 0.001 (`0x005CC020`), and if a crane exists sets `+0x174` = 2, `+0x184` = 1, `+0x188` = 0 and calls
+  `FUN_005CBE10(height)`. Finally `SendConstructionMessage(0x49E7B1E2, 1)` (segment-start), then
+  `SendConstructionMessage(0xC9E7B1E8, 1)` and `AddToRenderer` `0x005CA960`.
+- **`DoDailySim`** `0x005D0680` matches lot-developer.md §6.7.5 (segment state machine at `+0x140`; sends
+  `SendConstructionMessage(0x49E7B1E2, 1)` at segment starts, completion at `0x5D0723`–`0x5D0790` fires the sparks
+  iterator over the `+0x12C` list and the effect slot 9/7 dance). This class's copy adds the day-stamp
+  bookkeeping: state 0/2 path at `0x005D0701`, and the completion path walks the effect list and drives
+  `SendConstructionMessage(0xC9E7B1E8, …)`.
+- **`GetPosition`** `0x005CA7D0` / **`GetBoundingBox`** `0x005CA820` read the live world box at `+0xA0…+0xB4`
+  (min at `+0xA0…+0xA8`, max at `+0xAC…+0xB4`); `GetPosition` returns the box centre (each coordinate
+  `(min + max) * 0.5f`, constant `0x00A84D2C`). These are copies of the building's box maintained by
+  `RebuildModel`/`SetLot`, not the saved `+0x9C` box.
+- **`DoAnimationTick`** `0x005CE110` drives the crane/scaffold animation from `+0x178…+0x184` and is also called
+  directly by the `0x26D31EC1` refresh path when `+0x13C` == 2 (it toggles `+0x13C` 2→1→2 around the call and
+  clears `+0xD5`).
+- Unnamed-field roles measured in `DoDailySim` (decompiler `cSC4ConstructionOccupant.c`): `+0x140` = segment
+  state (0…2), `+0x144` = segment start day, `+0x148` = segment end day, `+0x14C` = next-day f32, `+0x150` =
+  segments-per-completion u32 (min 1), `+0x154` = current segment (1-based), `+0x158`/`+0x15C` = scaffold target
+  and current height f32 (target = grown height + 0.1), `+0x160`/`+0x164` = per-state day counts, `+0x168` = s8
+  flag, `+0x16C`/`+0x170` = crane interpolation f32 pair (accumulated tick time / duration), `+0x174` = crane
+  phase bool, `+0x178`/`+0x17C` = crane swing u32 pair, `+0x180`/`+0x184` = crane swing phase f32 pair,
+  `+0x118` = u8 (read last via slot 0x14; role unmeasured — Q3).
 
 ---
 
@@ -420,6 +498,215 @@ effect handles is non-null). So lot effect props (849, exemplar parent) are save
 construction effects (99, parent `(0, 0, 0)`) carry names: `welding_sparks` (68), `large_dust` (20),
 `medium_dust` (11). On load the name comes back from the exemplar *[inferred]*.
 
+### 10.3 `cSC4SignpostOccupant` (`0xAB72FBB3`) *[compat]*
+
+A region-view signpost: the user places it with the sign tool and edits its text on the region map. It embeds a
+complete `cSC4PropOccupant` at `+0x04` (constructor `0x005F5519` calls the prop constructor with ECX = this+4), so
+every prop field and the prop save record (§10.1) live at object +4 onward; the base occupant sits inside the prop
+at +0x0C (prop-relative +8), and the prop's serializable Write/Read (`0x005ECE90`/`0x005EF360`, record §10.1) are
+called inline by the signpost's own Write/Read. Object size `0x590` (the allocator pool at `0x00B0A96C`).
+
+| # | Field | Type | Meaning |
+|---|---|---|---|
+| 1 | version | u16 | 2 |
+| 2 | prop record | §10.1 | complete inline, from the prop's own version 6 (base occupant type `0xA823821E`) |
+| 3 | u32 at `+0x88` | u32 | written/read through the stream's slot 0x3C helper *(name unresolved — Q5)*; 0 in fresh objects |
+| 4 | position delta | vec3 | the three floats at `+0xCC/+0xD0/+0xD4` (`operator<<` `0x005DA580`) |
+
+The vec3 is the signpost's own position: `SetPosition` (occupant view slot 9, `0x005F4E90`) adds the requested
+delta into six 3×3 orientation matrices at `+0xDC…+0x118` (one per orientation), writes the absolute position into
+`+0xCC/+0xD0/+0xD4`, sets byte `+0xA9` bit 0 (moved) and increments byte `+0xA8` (a change counter), translates the
+box, and re-registers with the renderer (`0x00B43DD0` slot 0x7C) when flag 2 is set. `Read` restores the vec3,
+increments `+0xA4` (a load counter) and sets `+0xA9` |= 1. Version 1 records additionally read one u32 (slot 0x24)
+whose value is discarded *[compat]*.
+
+State beyond the prop (measured on the object base):
+
+| Offset | Type | Role |
+|---|---|---|
+| `+0x6C`/`+0x70` | 2 × ptr | embedded `cS3DModelInstanceBasic` (`0x00801CF0`) sub-object; `+0x70` gets vtable `0x00AA5298` (edit mode) or `0x00AA5498` (game mode) from the constructor's bool argument |
+| `+0x88` | u32 | stream-slot-0x3C field, saved (record field 3) |
+| `+0x98` | `cRZString` | the sign text; constructor installs the shared empty-string vtable `0x00A80810` |
+| `+0x9C…+0xA4` | 3 × ptr + u8 | model-table back pointer, edit target, load counter (`+0xA4`) |
+| `+0xA8`, `+0xA9` | 2 × u8 | change counter and moved flag (bit 0) |
+| `+0xAC` | u8 | edit mode flag (`SetEditMode` arg) |
+| `+0xAD` | u8 | blink flag (toggles every 500 ms of accumulated `+0xB0` time while editing) |
+| `+0xB0` | u32 | accumulated tick milliseconds |
+| `+0xB4`, `+0xB5` | 2 × u8 | model-dirty flags with change counters (RebuildModel clears 0xFD / 0xFB bits, sets bit 2) |
+| `+0xB8…+0x118` | 4 × 3×3 f32 | four orientation matrices (identity when not loaded) |
+| `+0x11C…+0x134`, `+0x138…+0x150` | 2 × 6 × f32 | per-orientation corner positions (FUN_005F4D10 fills them) |
+| `+0x194` | 16-byte | message target sub-object |
+| `+0x4BC` | `cRZString*` | owned string (freed in the destructor) |
+| `+0x4C` | ptr | owned date-pair record (freed by `FUN_005EE160`) |
+| `+0x4D4…+0x507` | 4 rows × 4 bytes | corner colours copied from the static tables at `0x00AA5204` (row 0 = static colours, row 1 = dynamic) |
+| `+0x540…+0x564` | 10 × ptr | texture bindings, one per entry of the RID table `0x00AA5214…0x00AA523C` (keys `0x7AB50E44` / `0x1ABE787D`) |
+| `+0x568…+0x570` | vector | visual effects (`cRZAutoRefCount<cISC4VisualEffect>`) |
+| `+0x574` | | packed render state (`cSC4PackedRenderState::PackRenderState` `0x007D2B50`) |
+
+Interfaces (sub-object map): `+0x00` the 8-slot class view `0x00AA5478` (`cSC4SignpostOccupant`: QI `0x005F4930`
+answers `0x4B44FBE2` with this, otherwise `ADD ECX,4` and the prop QI; slot 3 `AsOccupant` `0x005F8400` returns
+this+0xC; slot 4 `SetText` `0x005F7600`; slot 5 `GetText` `0x005F5920`; slot 6 `SetDynamic` `0x005F4BA0`; slot 7
+`SetEditMode` `0x005F7320`); `+0x04` the prop's `cISC4PropOccupant` view (24 slots, `0x00AA5418`, QI-4 `0x005F5950`);
+`+0x08` `cIGZMessageTarget2` (QI-8 `0x005F5960`, `DoMessage` `0x005F7510`); `+0x0C` the 34-slot `cISC4Occupant`
+view `0x00AA5380` (QI-12 `0x005F5970`; overrides `Init` `0x005F73A0`, `Shutdown` `0x005F5E20`, `GetPosition`
+`0x005ED1F0` = box centre from the prop box at object +0x40…+0x54, `SetPosition` `0x005F4E90`, slots 27/28 =
+`cSC4PropOccupant::GetLotTag`/`SetLotTag` `0x005ECAC0`/`0x004302C0`, `SetAllFlags` `0x005F4A90`, everything else
+the base); `+0x10` `cIGZSerializable` `0x00AA5364` (Write `0x005F5080`, Read `0x005F50F0`, `GetGZCLSID`
+`0x005F5940`); `+0x14` the 26-slot `cSCExemplarPropertyHolder` view `0x00AA5300` (slots 3–21 shared holder
+implementations; 22 `0x005F59A0` and 23/24 `0x005F5AC0`/`0x005F5AD0` are `SUB ECX,4` thunks into Write/Read);
+`+0x28` `cISCExemplarPropertyHolder` `0x00AA52E8`; `+0x6C` a `cSCExemplarPropertyHolder`-base view `0x00AA52E4`
+(`SUB ECX,0x6C` thunks; the holder base at prop-relative +0x68).
+
+Behaviour:
+
+- **Creation** — GZCOM creator `0x005F5CE0` allocates from pool `0x00B0A96C` and calls the constructor with
+  argument 1. The sign tool (`cSC4ViewInputControlSignTool::OnMouseDownL` `0x004D81D0`, call at `0x004D82D9`)
+  creates it with argument 1, takes a reference and selects it for editing. Registered in the COM director
+  `0x00460090` at `0x0046083F` with `GetGZCLSID` `0x005F5940`.
+- **`Init`** `0x005F73A0` — if already initialised return true. When not loaded (status bit 1 clear): zero and
+  identity-fill the four matrices (`+0xE0…+0x118`, the three at `+0x40…+0x48` too), set the prop type to
+  `0xAB72FBB3` (prop-view slot 8 `SetPropType` `0x005EF4C0`, which interns the ID in the process-wide table and
+  writes the index — the saved record keeps the ID), set flag 0x10 (occupant view slot 30 `SetAllFlags`). Then the
+  prop's `Init` (`0x005EC940`), `PackRenderState(+0x574; args 1,1,1,0,1,1,1,0,3,4,5,-1,1.0f,1,-1)`, texture
+  loading, three message subscriptions (`0xA6B79602`, `0x06CDB65B`, then a third via slot 0x14), and
+  `RebuildModel`. Returns 1.
+- **`LoadTextures`** `0x005F5EF0` — for each of the ten RIDs in `0x00AA5214…0x00AA523C`: release the old binding,
+  ask the resource service (`0x00B43CD4`) slot 0x18 for (`0x7AB50E44`, `0x1ABE787D`, RID) → binding stored at
+  `+0x540 + 4·i`. `Shutdown` `0x005F5E20` unsubscribes, releases the ten bindings, empties the effect vector and,
+  when byte `+0xA0` says a model instance exists, unregisters from the animation tick manager (slot 0x18), then
+  frees the date pair and calls the base `Shutdown` (tail-jump).
+- **`SetText(text)`** `0x005F7600` — compares against the current text (`cRZString` slot 0x30 `CompareTo(arg, 1)`);
+  if equal **and** `+0x9C == +0xA0` the call is skipped; otherwise copies (slot 0x34) and calls `LoadTextures` and
+  `RebuildModel`. `GetText` `0x005F5920` tail-jumps the string's slot 0x34 copy into the caller's string.
+- **`SetDynamic(bool)`** `0x005F4BA0` — reads the current flag through `FUN_008018E0(&+0x9C)` (returns `+0x80` of
+  the object at `+0x9C`, i.e. the model instance's byte); no change → return. Sets the occupant view's flag 2 test
+  (`IsFlagSet(2)`, slot 32) result aside, drives the model instance (`+0x70` view slots 0x34/0x38) with the new
+  state, copies the four-byte colour row `0x00AA5204 + 4·(arg != 0)` into the four corner rows `+0x4D4…+0x4D7`,
+  `+0x4E4…+0x4E7`, `+0x4F4…+0x4F7`, `+0x504…+0x507` *(the row semantics are the OP3 question)*, and — only when
+  the object is in edit mode (`+0xAC`) and the argument is false — calls the class-view slot 7 (`SetEditMode`, via
+  `[EAX + 0x1C]` with 0).
+- **`SetEditMode(bool)`** `0x005F7320` — no change → return. Stores `+0xAC`. Turning on: class-view slot 6 with 1
+  (QI-4 helper `[EAX + 0x18]`), registers with the animation tick manager (slot 0x14, tag `0x80`, target = the
+  message target at `+0x8`), clears `+0xB0`, sets `+0xAD` = 1, `RebuildModel`. Turning off: unregister (slot 0x18),
+  slot 6 with 0, `RebuildModel`.
+- **`DoMessage`** `0x005F7510` — `0x06CDB65B` (visibility test): reads the message's void (slot 0x3C), QIs it
+  against `0x4B44FBE2` through slot 0xC; when it answers and the city config (`0x00B43DB8`) slot 0x28 forces the
+  hidden state, clears flag 2 (`ClearFlag(2)` via view slot 0x7C) unless already clear; then the prop's
+  `DoMessage`. `0x86AD10EE` (time tick): takes data3 (slot 0x38) as milliseconds (÷1000 via the `0x10624DD3`/SHR 6
+  pair) and calls `FUN_005F4960(this, ms)`: `+0xB0 += ms`; when `+0xB0 >= 500` (`0x1F4`) toggle `+0xAD` (SETZ of
+  the inverted byte) and reset `+0xB0` — the blink. Then the prop's `DoMessage`. `0xA6B79602`: `RebuildModel`.
+  Default: the prop's `DoMessage`.
+- **`SetAllFlags`** `0x005F4A90` — the same flag-2 protection as the decal (§10.4): when the city config slot 0x28
+  forces hidden, bit 2 is stripped from the new value before the base `SetAllFlags`. With bit 2 turning on it
+  registers the model with the renderer (`0x00B43DD0` slot 0x6C test, slot 0x70 add; box pointer from the per-
+  instance table at `+0x64`) — OP7.
+- **`Draw`** `0x005F5200` — visual only (renderer thunk `__ZThn108_N20cSC4SignpostOccupant4DrawEP14SC4DrawContextb`
+  `0x005F5CD0` adjusts `this` by −108 into the +0x6C sub-object). `RebuildModel` `0x005F5FB0` (4,964 bytes) builds
+  the sign geometry from the text and matrices; it is not specified further here.
+
+### 10.4 `cSC4TextDecalOccupant` (`0x8B79C707`) *[compat]*
+
+A terrain text label drawn by the terrain overlay manager (the city-detail label tool creates it). It also embeds
+a complete `cSC4PropOccupant` at `+0x04` (constructor `0x005F8300`), with the same consequences as §10.3. Object
+size `0x40`-strided group of the prop allocator (operator new `0x005F7D80`).
+
+| # | Field | Type | Meaning |
+|---|---|---|---|
+| 1 | version | u16 | 3 |
+| 2 | prop record | §10.1 | complete inline, from the prop's own version 6 (base occupant type `0xA823821E`) |
+| 3 | u32 at `+0x5C` | u32 | the **prop's lot tag** re-written through the stream slot 0x3C helper (a duplicate of record #12 of §10.1) *[quirk — see Q5]* |
+| 4 | decal ID pair | 2 × f32 | `+0x84`, `+0x88` (`operator<<` `0x005DA520`), written again as a pair later *[quirk: the pair is written twice]* |
+| 5 | text height | f32 | `+0x80` (slot 0x30) |
+| 6 | text height (repeat) | f32 | `+0x80` again via the pair-helper with `+0x84` *[quirk — verify with a save]* |
+| 7 | position / orientation triple | 3 × f32 | `+0x8C`, `+0x90`, `+0x94` (`operator<<` `0x005DA580`) |
+| 8 | y | f32 | `+0x98` (slot 0x30) |
+| 9 | colour index byte | u8 | the low byte of `+0x9C` (slot 0x14; the dword holds the blue colour f32) |
+
+Read (`0x005F7E50`) mirrors this: version < 3 reads one extra u32 (slot 0x24) into a scratch and drops it;
+version == 1 reads `+0x70`'s value as u32→f32 (slot 0x24 then `FILD`/`FSTP`) instead of slot 0x30; the rest
+symmetric. Returns `GetError() == 0` in EAX (the `NEG AL; SBB EAX,EAX; INC EAX` epilogue form, §13.1).
+
+State (decal-specific, from the object base; prop fields end at `+0x6C`):
+
+| Offset | Type | Role |
+|---|---|---|
+| `+0x6C` | `cRZString` | the text (empty-string vtable `0x00A80810` initially) |
+| `+0x78`, `+0x7C` | 2 × u32 | overlay-manager decal IDs, −1 = none (constructor 0 for `+0x7C`? measured: `+0x7C` = 0, `+0x78` = msg-target-8) — **OP1** |
+| `+0x80` | f32 | text height (default 1.0) |
+| `+0x84`, `+0x88` | 2 × s32 | terrain-decal IDs, −1 = none |
+| `+0x8C` | u8 | dynamic flag |
+| `+0x90` | f32 | computed decal size (default 100.0) |
+| `+0x94`, `+0x98` | 2 × f32 | position x, z (SetPosition writes +0x88/+0x8C — the **OP1** conflict) |
+| `+0x9C…+0xA4` | 3 × f32 | colour RGB (default 255, 255, 255) |
+| `+0xA8` | f32 | alpha (default 1.0) |
+| `+0xAC` | u32 | orientation (default 1) |
+| `+0xB0` | ptr | texture binding for the text |
+| `+0xB4`, `+0xB8` | 2 × ptr | the two overlay-manager handles |
+
+Interfaces: `+0x00` the 11-slot class view `0x00AA5680` (QI `0x005F7650` answers `0x2B3B7D86` with this, else
+`ADD ECX,4`; slot 3 `AsOccupant` `0x005F8400` shared → this+0xC; slots 4–10 `SetText` `0x005F82E0`, `GetText`
+`0x005F8410`, `SetTextHeight` `0x005F7B10`, `SetDynamic` `0x005F8170`, `SetTextColor` `0x005F7B50`,
+`SetOrientation` `0x005F7D60`, `SetAlpha` `0x005F7C00`); `+0x04` prop view `0x00AA5620`; `+0x08` message target
+`0x00AA5610` (`DoMessage` `0x005F8030`); `+0x0C` the 34-slot occupant view `0x00AA5588` (QI-12 `0x005F8460`;
+overrides `Init` `0x005F7F40`, `Shutdown` `0x005F76C0`, `GetPosition` `0x005ED1F0` shared with the signpost,
+`SetPosition` `0x005F7AA0`, slots 27/28 prop lot-tag pair, `SetAllFlags` `0x005F81F0`); `+0x10` serializable
+`0x00AA556C`; `+0x14` the 26-slot holder view `0x00AA5508` (slot 22 `0x005F8490` thunk `SUB ECX,0x14` → dtor;
+23/24 → Write/Read); `+0x28` `cISCExemplarPropertyHolder` `0x00AA54F0`. The prop-relative bbox max is set to
+0.1 in the constructor (`+0x4C/+0x50/+0x54` = prop-relative `+0x48/+0x4C/+0x50`).
+
+Behaviour:
+
+- **`SetText(text)`** `0x005F82E0` — copies into `+0x6C` (string slot 0x34) and calls `UpdateTexture`.
+- **`SetTextHeight(f)`** `0x005F7B10` — accepts 0 < f < 8.0 (constants `0x00A81054` / `0x00A8E178`); stores `+0x80`
+  and calls `UpdateDecal`. Text values outside the range are ignored.
+- **`SetTextColor(r, g, b)`** `0x005F7B50` — per-channel |new − old| > 1e-4 (constant `0x00AA54A0`) → store all
+  three; if dynamic (`+0x8C`), push the colour to both live decals (mgr slot 0x48 with id `+0x84`/`+0x88` and
+  `&+0x9C`); else `UpdateDecal`.
+- **`SetAlpha(f)`** `0x005F7C00` — if f ≠ `+0xA8`: store; dynamic → mgr slot 0x44 on both ids; else `UpdateDecal`.
+- **`SetOrientation(u)`** `0x005F7D60` — if u ≠ `+0xAC`: store, `UpdateDecal`.
+- **`SetDynamic(bool)`** `0x005F8170` — if ≠ byte `+0x8C`: store and `UpdateOverlayManager`.
+- **`SetPosition(vec3*)`** `0x005F7AA0` — writes `+0x88 = arg[0]` and `+0x8C = arg[8]` (the x and z of the vector),
+  translates the prop box, asks the terrain service (`0x00B43CEC` slot 0x17C) for the altitude at that x/z into
+  the stack pair, and then either `MoveDecal` (when `+0x80`'s flag byte is set) or `UpdateDecal`. **This is the
+  measured conflict with the ctor's `+0x88` = −1 (a decal ID): the live field roles are the OP1 question; the
+  table above records both readings.**
+- **`UpdateDecal`** `0x005F7810` — releases both decal IDs (mgr slot 0x3C, set −1); returns early when the texture
+  `+0xB0` is null or flag 2 is clear (occupant view slot 32). Computes the cell-size aspect from the overlay
+  manager (`+0xB0` slot 0xC out pair, `FILD` × 2 / `FDIV`), scales `+0x90` from `+0x98 * +0x80 * 16.0`
+  (`0x00A8D45C`), reads the city cell size (`0x00B43CF4` slot 0x34), computes width/height (`+0x80` × 8.0 and the
+  half-constants `0x00A84D2C`), swaps them when `+0xAC` == 0, takes the view-level scale from the renderer's
+  table (`0x00B43DD0` slot 0x28 → `0x00B0A978 + level·4`), recomputes the prop box (`+0x40…+0x54`) around the
+  position with 0.1 margins (`0x00A8C950`), then `AddDecal` on both managers (slot 0xC with the box and colour
+  `+0x9C`) storing ids `+0x84`/`+0x88`, pushes colour (slot 0x48) and alpha (slot 0x44) to each, and finally asks
+  the occupant manager (`0x00B43D0C`) slot 0x60/4=24 (`MoveOccupant`) with (this, 0) to re-index the cells.
+- **`UpdateOverlayManager`** `0x005F7C80` — releases both ids, then asks `SL::TerrainView` (`0x00602160`) for 1 or
+  2 handles (dynamic ? 2 : 1; the second call passes the count 2 when dynamic via `NEG/SBB/AND 2`), storing them
+  in `+0xB4`/`+0xB8`.
+- **`UpdateTexture`** `0x005F8190` — releases `+0xB0`, asks the resource service (`0x00B43CE4`) slot 0x10 for RID
+  `0xCC1FD62C` (keys `0x7AB50E44`/`0x1ABE787D`) with the text → binding; when it answers, `UpdateDecal`.
+- **`MoveDecal`** `0x005F7A50` — when dynamic, mgr slot 0x30 on both ids with `&+0x94` (the position pair).
+- **`RemoveDecals`** `0x005F77C0` — mgr slot 0x3C per id (each ≥ 0), reset both to −1.
+- **`Init`** `0x005F7F40` — prop type `0xCB79919B` via prop-view slot 8; prop `Init`; when **not** loaded:
+  `UpdateOverlayManager`, then ask the overlay service (`0x00B43DC4` slot 0x48) for a manager, QI it (slot 0xC)
+  with this or null (the `NEG/SBB/AND` trick), and when it answers and the city config slot 0x28 says so, set flag
+  2 (view slot 0x74); release the manager. Subscribe `0xA6B79602`, `0x06CDB65B`, `0x26D31EC1` (message server slot
+  0x14, target `+0x4`). Returns 1.
+- **`Shutdown`** `0x005F76C0` — unsubscribe the three; then per live manager handle (`+0xA8`, `+0xAC` — see OP1
+  for the ctor conflict) release its decal id (`+0x78`/`+0x7C`) and the manager itself; finally release `+0xA4`'s
+  object, free the date pair (`FUN_005EE160`) and tail-call the base `Shutdown`.
+- **`DoMessage`** `0x005F8030` — `0x06CDB65B`: the same flag-2 dance as the signpost. `0x26D31EC1`:
+  `UpdateOverlayManager`, re-ask the overlay service and set/clear flag 2 per its answer, then the prop's
+  `DoMessage`. `0xA6B79602`: `UpdateDecal`, then the prop's `DoMessage`. Default: the prop's `DoMessage`.
+- **`SetAllFlags`** `0x005F81F0` — the signpost's protection plus: with bit 2 turning on, if `+0xA8` or `+0xAC` is
+  0 → `UpdateOverlayManager` else `UpdateDecal`; when `+0xA4` is 0 and the prop view's slot 0x1C returns non-zero,
+  also `UpdateTexture`. With bit 2 turning off: `RemoveDecals`.
+- **Creation** — GZCOM creator `0x005F84D0` (pool `0x00B0A9B8`); registered at `0x00460851`. The label tool
+  (`cSC4ViewInputControlLabelTool::UpdateTextDecal` `0x004BD320`, creation in `OnMouseDownL` `0x004BD890`) drives
+  the setters: terrain altitude from `0x00B43CEC` slot 0x17C, water from `0x00B43CF4` slot 0x88, tile from
+  `0x00B43D54` slot 0x20 (constant `0x44B`), then occupant slots 0x20/0x18/0xC/0x24 with the float arguments
+  `0x40000000`/`0x3F000000`/`0x3F800000` etc. The debug command `0x0BEAF1A2` reaches the same setters through the
+  prop manager (prop-lotconfig.md §A4.3, PL1).
+
 ---
 
 ## 11. Flora occupant (`cSC4FloraOccupant`, `0xA9C05C85`) *[compat]*
@@ -449,6 +736,10 @@ from #3 *[inferred: on Init]*.
 properties. They are referenced only by the occupant manager; they are the dummy occupants of automata
 *[inferred]* (`save-records.md`).
 
+The class itself (behaviour, layout and the 34-slot `cISC4Occupant` interface) is specified in
+occupant-manager.md §19. The construction signpost and text-decal classes above embed this base; the prop classes
+do too (inside the prop). A replacement implements the base once and derives every occupant from it.
+
 ---
 
 ## 13. Interfaces *[compat]*
@@ -465,6 +756,7 @@ Return channels from the epilogues:
 | lot `0x006C0080` / `0x006C35F0` | **AL** (`sbb al,al`; failure path `xor al,al`) | **AL** (version > 8: `xor al,al`) |
 | business unit `0x006C0370` / `0x006C09E0` | **AL** | **AL** |
 | occupant base, building, base texture, wall, foundation, flora, prop, effect prop, construction | EAX = 0/1 | EAX = 0/1 on the normal path; **AL** = 0 on the version-reject path |
+| signpost `0x005F5080` / `0x005F50F0`, text decal `0x005F7DB0` / `0x005F7E50` | EAX = 0/1 (`NEG AL; SBB EAX,EAX; INC EAX`) | same epilogue form |
 | `cSC4TripData` `0x0070E0B0` / `0x0070E160` (non-virtual, `this` = the trip) | EAX = 0/1 | EAX = 0/1 |
 
 A replacement returns a clean 0/1 in EAX; callers in the original test AL only (`bool`).
@@ -541,11 +833,19 @@ the zone developer (`zones.md` §1.2).
 - **Class registry**: the loader creates every object by class ID through GZCOM (foundations §2.7). A replacement
   must register all classes of §1 (including the prop subclasses and `cSC4Occupant`) or loading a city fails for
   those classes (foundations §3.5).
+- **Signpost and text-decal embed the prop**: their `cISC4PropOccupant` view at object +4 answers with `this+4`
+  (`ADD ECX,4`), so a replacement must either reimplement the prop inline or forward — the two cannot be
+  substituted independently.
 - **Non-virtual entry points used across classes**: `cSC4TripData::Write/Read` (called from the lot and from
   neighbour connections, `neighbors.md`); `cSC4LotRetainingWallOccupant::AddRetainingWallOccupant` and
   `UpdateSurroundingRetainingWalls` (called by the lot developer); `GetPropTypeIndex` and the process-wide prop type
   table (used by every prop). Replacing the lot developer or traffic simulator alone therefore keeps these
   original helpers, or replaces them together.
+- **Occupant-manager coupling**: `UpdateDecal` (§10.4) calls `MoveOccupant` (occupant manager slot 24) after
+  changing the box; a replacement must call it too or the cell lists go stale.
+- **Message subscriptions**: the construction, signpost and decal occupants subscribe through the message server
+  slot 0x14 with their `cIGZMessageTarget2` view; a replacement must answer the same five message IDs with the
+  same semantics, including the `0x06CDB65B` flag-2 dance shared with the prop (§10.3/§10.4).
 - **Shared static RNGs**: the lot file's `0x00B49120` (lot Init, traffic) and the base-texture `0x00B23078`.
 - **Spatial lookup**: lots find their occupants through the occupant manager (§3.1); a replacement lot must keep
   the occupants in the original occupant manager or replace both.
@@ -561,7 +861,11 @@ Quirks (reproduced): vacate reason kept after leaving state 4 (§3.2); uninitial
 lot trip list appended on read (§3.4); lot `Read` sets "initialised" before checking the version, so a rejected lot
 skips Init's altitude step (§3.4); retaining-wall mask grows on load (§7); effect props lose their name while
 live (§10.2); prop and construction readers accept unknown newer versions (§9, §10.1); u8 map counts (§3.2); the lot
-configuration ID is dropped when the configuration is missing (§3.5); the crime-only lot (§14).
+configuration ID is dropped when the configuration is missing (§3.5); the crime-only lot (§14); the text-decal
+record re-writes the prop's lot tag and writes the decal-ID pair twice (§10.4); the decal's colour byte is the low
+byte of an f32 colour dword (§10.4); the signpost `SetText` skip requires both an equal string *and* an unchanged
+capacity pair (§10.3); construction `+0xCC` (record #8) is written as `(+0xF8 != 0)`, i.e. from the live crane
+pointer rather than a stored bool (§9.1).
 
 Open questions:
 
@@ -573,11 +877,19 @@ Open questions:
   lot constructor `0x006C1E50` writes the byte at `+0x80` (`0x006C1F19`) but never the vacate reason at `+0x83`, so a
   new lot keeps the byte left in its pool block by the lot that used it before, and a lot that was never vacant
   saves that stale value.
-- **Q3** Names of the 19 scalar fields of the construction occupant (§9 #14).
+- **Q3** Names of the 19 scalar fields of the construction occupant (§9 #14). Partially decoded in §9.1/§9.2 from
+  the state machine (`+0x140…+0x184`, `+0x118`); the remaining pure names and the meaning of `+0x118` are still
+  open (filed as OP7 in questions/occupants-props.md).
 - **Q4** Meaning of the five `0xFF`-default bytes of a base-texture record (§6) and of the effect prop's two bytes
   and u32 (§10.2).
 - **Q5** Who sets lot flag bit 7 (§3.2)?
 - **Q6** Layouts of the burnt-building, terrain-decal and automata-controller prop subclasses (absent from saves).
+- **Q7** (from re-occprops, 2026-10-20) The text-decal record fields 4/6/9 (§10.4): the decal-ID pair is written
+  twice and the second write carries `+0x84` again — which live field is record field 6? Filed as OP1/OP2 in
+  questions/occupants-props.md with the live-vs-saved conflict.
+- **Q8** (from re-occprops, 2026-10-20) The signpost record field 3 (`+0x88`, stream slot 0x3C) and the decal
+  record field 3 (`+0x5C`, the same helper): what the helper writes is not resolved from the callers alone
+  (lot-records §13.2 calls slot 0x3C "GZStr"; the signpost/decal pass u32 object addresses). Filed as OP2.
 
 ---
 

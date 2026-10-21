@@ -124,6 +124,9 @@ struct Stats {
     records: usize,
     entries: usize,
     identical: usize,
+    /// Entries whose re-encode differs from the save only because a state's
+    /// `+0x0C` was renormalised (see [`renormalised_index_only`]).
+    renormalised: usize,
     versions: BTreeMap<u16, usize>,
     sizes: BTreeMap<usize, usize>,
 }
@@ -137,6 +140,30 @@ struct Report {
     base_versions: BTreeMap<u16, usize>,
     template_names: BTreeMap<String, usize>,
     failures: Vec<String>,
+}
+
+/// Whether two encodings of one automaton parse to the same record.
+///
+/// `+0x0C` (the state stack index) is recomputed by `PushState` / `PopState`
+/// but stored as read by Read (automata.md §12 quirk 10, §14 test 29), so a
+/// re-save keeps the original's stale values: 14 of the corpus's states sit
+/// alone on their stack carrying `+0x0C == 1`. This tolerance (same length,
+/// same parsed record) would accept a re-encode that changed only the index;
+/// the sweep asserts it is never needed. Anything else is a real failure.
+fn renormalised_index_only(class: u32, ours: &[u8], saved: &[u8]) -> bool {
+    if ours.len() != saved.len() {
+        return false;
+    }
+    let parse = |payload: &[u8]| -> Option<automata::AutomatonRecord> {
+        let obj = Automaton::for_class(class)?;
+        let mut tokens = Tokens::default();
+        let mut r = ByteReader::with_resolver(payload, &mut tokens);
+        if !obj.read(&mut r) || r.remaining() != 0 {
+            return None;
+        }
+        Some(obj.record())
+    };
+    matches!((parse(ours), parse(saved)), (Some(a), Some(b)) if a == b)
 }
 
 fn first_difference(ours: &[u8], saved: &[u8]) -> String {
@@ -290,6 +317,7 @@ fn check_package<S: Source>(name: &str, pkg: &Package<S>, rep: &mut Report) {
             *s.sizes.entry(payload.len()).or_insert(0) += 1;
             match result {
                 Ok(ours) if ours == payload => s.identical += 1,
+                Ok(ours) if renormalised_index_only(class, &ours, payload) => s.renormalised += 1,
                 Ok(ours) => rep.failures.push(format!(
                     "{name}: class {class:#010x} object {id:#x}: {}",
                     first_difference(&ours, payload)
@@ -394,11 +422,12 @@ fn sweep_automata_records() {
     for (class, s) in &rep.by_class {
         let versions: BTreeMap<String, usize> = s.versions.iter().map(|(v, n)| (format!("v{v}"), *n)).collect();
         println!(
-            "  {} ({class:#010x}): {} records, {} entries, {} byte-identical; versions {}; sizes {}",
+            "  {} ({class:#010x}): {} records, {} entries, {} byte-identical, {} index-renormalised; versions {}; sizes {}",
             label(*class),
             s.records,
             s.entries,
             s.identical,
+            s.renormalised,
             summary(&versions, true, 8),
             summary(&s.sizes, false, 6)
         );
@@ -420,6 +449,18 @@ fn sweep_automata_records() {
         println!("FAILURE {f}");
     }
     println!("automata_records: {} failures", rep.failures.len());
+    // [AT2] The corpus has 14 states carrying a stale `+0x0C` (a state alone on
+    // its stack still holding the index it had when another state sat below
+    // it). Read stores the streamed value unchanged and only PushState /
+    // PopState recompute it (automata.md §12 quirk 10 and §14 test 29, as
+    // corrected by A1), so those 14 re-save byte-identically: none may need the
+    // index-only tolerance. Was 14 while Read re-derived the index.
+    let renormalised: usize = rep.by_class.values().map(|s| s.renormalised).sum();
+    println!("automata_records: {renormalised} index-renormalised entries");
+    assert_eq!(
+        renormalised, 0,
+        "a re-save changed a state's `+0x0C`: Read must keep the streamed stack index (automata.md §12 quirk 10)"
+    );
     assert!(
         rep.failures.is_empty(),
         "{} failures (see the output)",

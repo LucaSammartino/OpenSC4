@@ -35,6 +35,8 @@
 #pragma once
 
 #include "SC4Percentage.h"
+#include "SC4Point.h"   // glue29: cFC4ISC4NetworkToolFull usa SC4Point<uint32_t>
+#include "SC4Vector.h"  // glue29: idem, SC4Vector<SC4Point<uint32_t>>
 #include "cIGZUnknown.h"
 #include "SC4Rect.h"
 #include "cISC4BudgetSimulator.h"
@@ -46,6 +48,8 @@
 #include "cISC4SimGrid.h"
 #include "cISC4ZoneManager.h"
 #include "FC4GameList.h"
+// glue29: cFC4ISC4NetworkToolFull usa cISC4NetworkOccupant::eNetworkType
+#include "cISC4NetworkOccupant.h"
 
 #include <cstdint>
 #include <map>
@@ -1130,6 +1134,91 @@ public:
     virtual void UpdateOnZoneChange(FC4Int32Quad rect, uint32_t data3) = 0;      // 10
 };
 
+// cISC4NetworkTool in full compiled order (interfaces.tsv, base vtable
+// 0x00AA8748, slots 0-50; glue29 implements it as cFC4NetworkTool). The SDK's
+// declaration matches the compiled order slot for slot except:
+//   - slot 10 UpdateOnZoneChange: the game takes (SC4Rect by value, uint32) and
+//     pops 20 (foundations.md M3 errata; the power-line override 0x006522F0
+//     pops 20 too). The SDK declares no parameters — a game caller pushing the
+//     rectangle through an SDK-typed pointer would unbalance its stack.
+//   - slot 33 GetBridgeAltitudeOverride returns a float in ST0
+//     (network-bridges.md 1.1; SDK: void).
+//   - slot 35 GetBridgeName takes (index, string) (network-bridges.md 1.1; the
+//     SDK declares (string, index); pop 8 either way).
+// Slots 16/17: the SDK header says the Windows binary has ClearOccupant-
+// Highlights before ClearCellPreviews; network-geometry.md §1.1's Mac-name note
+// puts them the other way round (question NT15). Both pop 0 and the replacement
+// no-ops them, so the layout question only names the bodies.
+// The compiled GetFailureReasonString of network-tools.md §14 (slot 52, pop 8)
+// is the tool's own class method; the interface's slot 15 is the SDK's
+// GetFailureReasonString(cIGZString&) (pop 4, unnamed in the table). Slots
+// 51-80 are cSC4NetworkTool's own class methods past the interface
+// (network-geometry.md §1.1): not declared here — the concrete replacement is
+// final and nothing outside the tool's own class calls them in the specs (a
+// kReviewedSlotCounts entry covers the shorter declaration), [choice] like the
+// lot developer's class slots.
+class NeighborConnectionInfo;
+struct tPlacementParams;
+class cISC4NetworkToolUI;
+class cFC4ISC4NetworkToolFull : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                     // 3
+    virtual bool Shutdown() = 0;                                                 // 4
+    virtual void Reset() = 0;                                                    // 5
+    virtual uint32_t GetUITool(cISC4NetworkToolUI** outUi) = 0;                  // 6  (4)
+    virtual uint32_t PlaceNetworkOccupants(uint32_t startX, uint32_t startZ, uint32_t endX, uint32_t endZ,
+                                           unsigned long networkMask, cFC4ISC4NetworkToolFull* toolCallback,
+                                           bool bUseWorldCache,
+                                           cISC4NetworkOccupant::eNetworkType networkType) = 0;  // 7  (32)
+    virtual void PlaceNetworkOccupantById(int x, int z, unsigned long occupantId, bool bSelect,
+                                          cISC4NetworkOccupant::eNetworkType networkType) = 0;  // 8  (20)
+    virtual uint32_t OccupantExists(uint32_t x, uint32_t z, unsigned long networkMask,
+                                    unsigned long& outOccupantId) = 0;           // 9  (16)
+    virtual void UpdateOnZoneChange(FC4Int32Quad rect, uint32_t data3) = 0;      // 10 (20; SDK: ())
+    virtual void ForceReload() = 0;                                              // 11 (0)
+    virtual void SetTraceFinal(bool enable) = 0;                                 // 12 (4)
+    virtual void ClearFailureReason() = 0;                                       // 13 (0)
+    virtual uint32_t GetFailureState() const = 0;                                // 14 (0)
+    virtual void GetFailureReasonString(cIGZString& outStr) = 0;                 // 15 (4; unnamed in the table)
+    virtual void ClearOccupantHighlights() = 0;                                  // 16 (0)
+    virtual void ClearCellPreviews() = 0;                                        // 17 (0)
+    virtual uint32_t DrawNetworkLine(const SC4Point<uint32_t>& start, const SC4Point<uint32_t>& end, bool useWorldCache,
+                                     cISC4NetworkOccupant::eNetworkType networkType) = 0;       // 18 (16)
+    virtual void PlaceAllSegments(bool commit, bool previewOnly, bool allowDemolition,
+                                  cISC4NetworkOccupant::eNetworkType networkType) = 0;          // 19 (16)
+    virtual int GetCostOfSolution() const = 0;                                   // 20 (0)
+    virtual void EnablePreviewUpdate(bool enable) = 0;                           // 21 (4)
+    virtual void SetAnchorPoints(const SC4Vector<SC4Point<uint32_t>>& points) = 0;  // 22 (4)
+    virtual void GetDraggedCells(SC4Vector<SC4Point<uint32_t>>& outCells) const = 0;  // 23 (4)
+    virtual void SetValidStepCount(uint32_t count) = 0;                          // 24 (4)
+    virtual uint32_t GetValidStepCount() const = 0;                              // 25 (0)
+    virtual uint32_t GetStraightStepCount() const = 0;                           // 26 (0)
+    virtual uint32_t GetTotalStepCount() const = 0;                              // 27 (0)
+    virtual bool IsRegularStep(uint32_t stepIndex) const = 0;                    // 28 (4)
+    virtual void GetLastValidPoint(SC4Point<uint32_t>& outPoint) const = 0;      // 29 (4)
+    virtual bool GetPossibleBridges(SC4Vector<int32_t>& outBridgeInstanceIds) const = 0;  // 30 (4)
+    virtual int GetPreferredBridge() const = 0;                                  // 31 (0)
+    virtual void SetPreferredBridge(int bridgeId) = 0;                           // 32 (4)
+    virtual float GetBridgeAltitudeOverride() = 0;                               // 33 (0, ST0; SDK: void)
+    virtual void SetBridgeAltitudeOverride(float altitude) = 0;                  // 34 (4)
+    virtual void GetBridgeName(int bridgeIndex, cIGZString& outStr) = 0;         // 35 (8; SDK: (string, index))
+    virtual int GetMajorBridge() const = 0;                                      // 36 (0)
+    virtual bool GetMajorBridgeAltitude(float& outAltitude) const = 0;           // 37 (4)
+    virtual bool GetMajorBridgeReferenceAltitude(float& outAltitude) const = 0;  // 38 (4)
+    virtual bool IsMajorBridgeLandBridge() const = 0;                            // 39 (0)
+    virtual bool GetBridgeBitmapKey(long bridgeId, unsigned long& outGroup, unsigned long& outInstance) const = 0;  // 40 (12)
+    virtual bool GetPossibleNeighborConnection(NeighborConnectionInfo& outInfo) const = 0;  // 41 (4)
+    virtual uint32_t ViewInputControlId() const = 0;                             // 42 (0)
+    virtual uint32_t CursorId() const = 0;                                       // 43 (0)
+    virtual uint32_t DirectionalCursorBase() const = 0;                          // 44 (0)
+    virtual void PenWidth(int& outWidthX, int& outWidthZ) const = 0;             // 45 (8)
+    virtual uint32_t StopPickAtWater() const = 0;                                // 46 (0)
+    virtual uint32_t GetToolViewId() const = 0;                                  // 47 (0)
+    virtual void GetPlacementParams(tPlacementParams& outParams) const = 0;      // 48 (4)
+    virtual void QueryUserForPotentialIntersections() = 0;                       // 49 (0)
+    virtual void DestroyOccupantsAndResolve(const SC4Vector<cISC4NetworkOccupant*>& occupants) = 0;  // 50 (4)
+};
+
 class cISC4Simulator;
 class cISC4BudgetSimulator;
 class cISC4Ordinance;
@@ -1446,6 +1535,108 @@ public:
     virtual cISC4Automaton* GetAutomatonFromPylon(cISC4PylonOccupant* pylon) = 0;           // 20
     virtual uint32_t GetAvailablePylonCount(int32_t type) = 0;                              // 21
     virtual void* GetDispatchVehicleView() = 0;                                             // 22
+};
+
+// ---- demolition utility (docs/specs/demolition.md §8) --------------------------------------------------
+
+class cISC4Demolition;        // the SDK's travel type (cISC4City slot 31 returns it)
+class cISC4OccupantFilter;
+template <typename T> class SC4CellRegion;
+template <typename T> class SC4List;
+
+// cISC4Demolition (IID 0x26DDE2EA, cSC4Demolition vtable 0x00A88004, 13 slots).
+// docs/specs/demolition.md §8. SDK errors fixed: slot 9 returns the count of
+// differing vertices in EAX (SDK: void) and its `cost` out pointer is never
+// written (DM2); slots 10 and 11 are swapped against the decomp's names (slot
+// 10 is the occupant effect, slot 11 the group effect). Slot 5 does nothing.
+// Container arguments are B-side STLport containers (allocators.md): the `set`
+// arguments are std::set<cRZAutoRefCount<cISC4Occupant>> and DemolishLots'
+// list is std::list<cRZAutoRefCount<cISC4Lot>>.
+class cFC4ISC4Demolition : public cIGZUnknown {
+public:
+    // [abi] Slots 3 and 4 are Init and Shutdown (docs/abi/interfaces.tsv,
+    // demolition.md §4.1); without them every later slot sits two places
+    // early in the vtable. Declared here so the implementing class's table
+    // matches the game's.
+    virtual bool Init() = 0;                                               // 3  [abi-ret] eax-or-void
+    virtual bool Shutdown() = 0;                                           // 4  [abi-ret] eax-or-void
+    virtual void SetDefaultOccupantFilter(cISC4OccupantFilter* filter) = 0;  // 5  does nothing
+    // `demolished` is the caller's std::set<cRZAutoRefCount<cISC4Occupant>>*
+    // (demolition.md §8 "Container arguments"); the SDK types it intptr_t.
+    virtual bool DemolishRegion(bool doIt, SC4CellRegion<int32_t> const& region, int32_t privilege, uint32_t flags,
+                                bool dezone, cISC4OccupantFilter* filter, int64_t* cost, intptr_t demolished,
+                                cISC4Occupant* clicked, long x, long y) = 0;                          // 6
+    // `lots` is std::list<cRZAutoRefCount<cISC4Lot>> const&.
+    virtual bool DemolishLots(bool doIt, SC4List<cISC4Lot*> const& lots, int32_t privilege, uint32_t flags,
+                              bool dezone, cISC4OccupantFilter* filter, int64_t* cost,
+                              intptr_t demolished) = 0;                                               // 7
+    // `orphans` is the allocator-service list<cISC4Occupant*>*; the sixth
+    // argument is the effects flag of demolition.md §8 (SDK: `excludeNetworks`).
+    virtual bool DemolishOccupant(bool doIt, cISC4Occupant* occ, int32_t privilege, uint32_t flags, int64_t* cost,
+                                  bool effects, SC4List<cISC4Occupant*>* orphans) = 0;                // 8
+    // Returns the number of differing vertices (EAX); `cost` is never written
+    // (demolition.md §4.7, DM2).
+    virtual int32_t ModifyTerrainHeight(bool doIt, bool perVertex, int32_t x0, int32_t z0, int32_t x1, int32_t z1,
+                                        float h, cISC4Lot* exempt, uint32_t reason, int64_t* cost) = 0;  // 9
+    virtual void DoDemolishOccupantEffect(cISC4Occupant* occ, uint32_t flags, cISC4Lot* lot, bool clicked,
+                                          long x, long y) = 0;                                        // 10
+    virtual void DoDemolishGroupEffect(uint32_t cause, int32_t x, int32_t z,
+                                       SC4Rect<int32_t> const& r) = 0;                                 // 11
+};
+
+// ---- city situation manager (docs/specs/city-situation.md §8) ----------------------------------------
+
+class cISC4CitySituationManager;  // the SDK's travel type (cISC4City slot 49 returns it)
+class cISC4CitySituationAdvice;
+class cISC4Automaton;
+class cIGZString;
+
+// cISC4CitySituationManager (IID 0x6BB1437A, cSC4CitySituationManager vtable
+// 0x00A97E58, 40 slots; slot 34 is the deleting destructor). docs/specs/
+// city-situation.md §8. Slots 13-15 return `float` in ST0 (the §8 note: a
+// single `fld` of a member or a difference of two); declaring them void or
+// int leaves a value on the x87 stack (docs/abi/README.md). Slot 5 returns
+// only AX. Slot 24's result is whatever the call leaves (EAX).
+class cFC4ISC4CitySituationManager : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                                       // 3
+    virtual bool Shutdown() = 0;                                                                   // 4
+    virtual uint16_t GetMissionSuccessCount(uint32_t guid) = 0;                                    // 5  AX
+    virtual cISC4CitySituationAdvice* GetActiveSituation() = 0;                                    // 6
+    virtual uint32_t GetCurrentStatus() = 0;                                                       // 7
+    virtual cISC4Automaton* GetActiveAuto() = 0;                                                   // 8
+    virtual cISC4Occupant* GetCurrentTarget() = 0;                                                 // 9
+    virtual uint32_t GetCurrentTargetIndex() = 0;                                                  // 10
+    virtual uint32_t GetNumTargets() = 0;                                                          // 11
+    virtual uint32_t GetNumTargetsRemaining() = 0;                                                 // 12
+    virtual float GetCurrentTimeLimitSeconds() = 0;                                                // 13 ST0
+    virtual float GetCurrentSituationTime() = 0;                                                   // 14 ST0
+    virtual float GetCurrentTimeRemainingSeconds() = 0;                                            // 15 ST0
+    virtual void GetCurrentTargetName(cIGZString& out) = 0;                                        // 16 EAX = &out
+    virtual bool GetSituationAura(float& radius, float& magnitude) = 0;                            // 17
+    virtual bool GetSituationMoney(int64_t& money) = 0;                                            // 18
+    virtual bool IsSituationAvailable(cISC4Automaton* automaton) = 0;                              // 19
+    virtual bool IsSituationAvailable(cISC4Occupant* occupant) = 0;                                // 20 overload
+    virtual bool InitiateSituationByGuid(uint32_t guid, bool showBriefing, uint32_t group) = 0;     // 21
+    virtual bool InitiateSituationForOccupant(cISC4Occupant* occ, cISC4CitySituationAdvice* a) = 0;  // 22
+    virtual bool InitiateSituationByAutomataGroup(uint32_t group, bool showBriefing, bool search) = 0;  // 23
+    virtual void StartJoyride(cISC4Automaton* automaton, bool b, cIGZMessageTarget2* target) = 0;   // 24
+    virtual void TreatAutomatonAsGroup(cISC4Automaton* automaton, uint32_t group) = 0;              // 25
+    virtual void SetMaxCSI(uint8_t n) = 0;                                                         // 26
+    virtual uint8_t GetMaxCSI() = 0;                                                               // 27
+    virtual int32_t GetTrackedAutomataCount() = 0;                                                 // 28
+    virtual void SetCSIVisible(bool visible) = 0;                                                  // 29
+    virtual bool GetCSIVisible() = 0;                                                              // 30
+    virtual bool HandleTuningParametersChanged() = 0;                                              // 31
+    virtual uint32_t CountdownIsInProgress() = 0;  // 32 EAX 0 or 1 (city-situation.md §8)
+    virtual void ResetTutorials() = 0;                                                             // 33
+    // 34: the deleting destructor (not in the SDK)
+    virtual void InitiatePlayerDriveMode(bool on) = 0;                                             // 35
+    virtual bool InitiateSituation(cISC4CitySituationAdvice* advice, cISC4Automaton* automaton,
+                                  bool showBriefing) = 0;                                          // 36
+    virtual void ActivateSituation() = 0;                                                          // 37
+    virtual void DeactivateSituation() = 0;                                                        // 38
+    virtual void EndSituation() = 0;                                                               // 39
 };
 
 // ---- landfill (docs/specs/landfill.md §7.1, §8) -------------------------------------------------------
@@ -1924,7 +2115,130 @@ inline cFC4ISC4HistoryWarehouse* AsGame(cISC4HistoryWarehouse* p) {
 // 7, 9, 19 and 20 only ever through the compiled declaration (clock24.md §8).
 inline cFC4ISC424HourClock* AsGame(cISC424HourClock* p) { return reinterpret_cast<cFC4ISC424HourClock*>(p); }
 
+// The demolition utility (cISC4City slot 31), the city situation manager
+// (slot 49) and the dispatch manager (slot 39) travel as the SDK's pointers
+// (the city getters' types); single inheritance, vtable at offset 0. Call them
+// only through the compiled declarations (demolition.md §8, city-situation.md
+// §8, dispatch.md §8).
+inline cFC4ISC4Demolition* AsGame(cISC4Demolition* p) {
+    return reinterpret_cast<cFC4ISC4Demolition*>(p);
+}
+inline cFC4ISC4CitySituationManager* AsGame(cISC4CitySituationManager* p) {
+    return reinterpret_cast<cFC4ISC4CitySituationManager*>(p);
+}
+
 // The surface water travels as the SDK's pointer (cISC4City slot 83); call it
 // only through the compiled declaration (terrain §10).
 inline cFC4ISTESurfaceWater* AsGame(cISTESurfaceWater* p) { return reinterpret_cast<cFC4ISTESurfaceWater*>(p); }
+}  // namespace fc4
+
+// ---- effects (docs/specs/effects.md §11, docs/abi/interfaces.tsv rows 2268-2330) -------------------
+
+class cS3DTransform;
+class cS3DVector3;
+class cISC4EffectMaps;
+class cISC4Occupant;
+class cISC4VisualEffect;
+class cISC4DisasterManagerEffect;
+
+// The effect component interface (§11.2): not an IUnknown — the vtable starts
+// at Start. Three implementations share it: a visual effect's own sub-object
+// at +4 (vtable 0x00AA1148), the brush effect (0x00A9EDD0) and the game effect
+// (0x00AA0FF8). Slots 7 and 8 are AddRef and Release.
+class cFC4ISC4EffectComponent {
+public:
+    virtual void Start(uint32_t mode) = 0;                                                 // 0
+    virtual void Stop(uint32_t mode) = 0;                                                  // 1
+    virtual bool IsActive() = 0;                                                           // 2 AL
+    virtual void SetTransform(cS3DTransform const& local, cS3DTransform const& parent) = 0; // 3
+    virtual void Update(float dtSeconds) = 0;                                              // 4
+    virtual bool SetParameter(uint32_t index, float const* data, uint32_t count) = 0;      // 5
+    virtual bool SetParameter2(uint32_t index, void const* data, uint32_t count) = 0;      // 6
+    virtual uint32_t AddRef() = 0;                                                         // 7
+    virtual uint32_t Release() = 0;                                                        // 8
+};
+
+// cISC4VisualEffect (IID as cIGZUnknown's, vtable 0x00AA1170, 19 slots;
+// effects.md §11.1). The SDK header is readable but its two transform
+// accessors are named the other way round from docs/abi's SetTransform /
+// SetSecondaryTransform rows (slot 8 is the world transform, slot 7 the
+// secondary at +0x6C); the slot numbers below are the measured ones.
+class cFC4ISC4VisualEffect : public cIGZUnknown {
+public:
+    virtual void Start(uint32_t mode) = 0;                                                   // 3
+    virtual void Stop(uint32_t mode) = 0;                                                    // 4
+    virtual bool IsStarted() = 0;                                                            // 5 AL
+    virtual bool IsStopping() = 0;                                                           // 6 AL
+    virtual void SetSecondaryTransform(cS3DTransform const& t) = 0;                          // 7
+    virtual void SetTransform(cS3DTransform const& t) = 0;                                   // 8
+    virtual bool AttachToOccupant(cISC4Occupant* occupant) = 0;                              // 9 render
+    virtual void SetEndMessage(uint32_t type, uint32_t data1) = 0;                           // 10
+    virtual bool SetParameter3(uint32_t index, float const* data, uint32_t count) = 0;       // 11
+    virtual bool SetParameter(uint32_t index, float const* data, uint32_t count) = 0;        // 12
+    virtual bool ForwardParameter(uint32_t index, void const* data, uint32_t count) = 0;     // 13
+    virtual void GetTransform(cS3DTransform& t) = 0;                                         // 14
+    virtual void GetSecondaryTransform(cS3DTransform& t) = 0;                                // 15
+    virtual bool AddComponent(void* descRec, cFC4ISC4EffectComponent* component) = 0;        // 16 internal
+    virtual bool TestFlag(uint32_t bit) = 0;                                                 // 17 AL, bit <= 8
+};
+
+// cISC4EffectsManager (IID 0xC97CF5CD, vtable 0x00A9F264, 11 slots;
+// effects.md §1, §4). The SDK header declares the two CreateVisualEffect
+// overloads name-first; the measured vtable is the other way round — slot 6 is
+// the ID-pair form (0x00593AE0, 3 dwords, pop 12) and slot 7 the name form
+// (0x005939B0, 2 dwords, pop 8). This declaration is the measured order.
+class cFC4ISC4EffectsManager : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                                 // 3
+    virtual bool Shutdown() = 0;                                                             // 4
+    virtual bool HasVisualEffect(char const* name) = 0;                                      // 5
+    virtual bool CreateVisualEffect(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) = 0; // 6
+    virtual bool CreateVisualEffect(char const* name, cISC4VisualEffect** out) = 0;           // 7
+    virtual void GetStatsString(cIGZString& stats) = 0;                                      // 8
+    virtual cISC4EffectMaps* GetEffectMaps() = 0;                                            // 9
+    virtual float GetTallestBuildingAltitude() = 0;                                          // 10 x87
+};
+
+
+// The effects manager's second sub-object: the 3D view's draw-pass override.
+// effects.md §7: `Update(SC4DrawContext*)` (`0x00593120`) has no direct callers and is
+// dispatched as a vtable slot at `0x00A9F25C`, next to the cISC4EffectsManager vtable
+// `0x00A9F264`. The entry is the fourth of that vtable (an IUnknown prefix), so the
+// replacement keeps the same shape: IUnknown at slots 0-2 and Update at slot 3.
+class cFC4ISC4EffectsDrawPass : public cIGZUnknown {
+public:
+    virtual void Update(void* drawContext) = 0;  // 3 (render; effects.md §7)
+};
+
+// cISC4DisasterManagerEffect (IID 0xCA7B3F3C, vtable 0x00A9E190, 6 slots;
+// effects.md §11.3). The original implements it as a sub-object of the
+// effect-disaster manager at this-0x24. Slot 3 returns the new instance in
+// EAX (docs/abi note).
+class cFC4ISC4DisasterManagerEffect : public cIGZUnknown {
+public:
+    // Returns the new effect-disaster instance.
+    virtual void* StartDisasterEffect(cISC4VisualEffect* effect, cS3DVector3 const* position, uint32_t type) = 0;  // 3
+    virtual void AttractDisasterEffect(cISC4VisualEffect* effect) = 0;                                             // 4
+    virtual void CancelAttract() = 0;                                                                              // 5
+};
+
+namespace fc4 {
+// The effects manager travels as the SDK's pointer (cISC4City slot 85,
+// city +0x1FC). Call slots 6 and 7 only through the compiled declaration: the
+// SDK's two CreateVisualEffect overloads are declared in the opposite order.
+inline cFC4ISC4EffectsManager* AsGame(cISC4EffectsManager* p) {
+    return reinterpret_cast<cFC4ISC4EffectsManager*>(p);
+}
+inline cISC4EffectsManager* AsSdk(cFC4ISC4EffectsManager* p) {
+    return reinterpret_cast<cISC4EffectsManager*>(p);
+}
+inline cFC4ISC4VisualEffect* AsGame(cISC4VisualEffect* p) {
+    return reinterpret_cast<cFC4ISC4VisualEffect*>(p);
+}
+inline cISC4VisualEffect* AsSdk(cFC4ISC4VisualEffect* p) {
+    return reinterpret_cast<cISC4VisualEffect*>(p);
+}
+inline cFC4ISC4DisasterManagerEffect* AsGame(cISC4DisasterManagerEffect* p) {
+    return reinterpret_cast<cFC4ISC4DisasterManagerEffect*>(p);
+}
 }  // namespace fc4

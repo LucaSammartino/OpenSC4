@@ -565,7 +565,7 @@ table has no effect until the next city's `Init`.
 
 #### 6.8.1 Popup display and the simulation pause *[compat]*
 
-Written for unattended runs (HANDOFF §8: an advisor dialog holds the date while `OnTick` keeps counting). Everything
+Written for unattended runs (docs/ops/running-the-game.md, "Popups": an advisor dialog holds the date while `OnTick` keeps counting). Everything
 here was read from the Windows bytes. The popup is UI, but it is the one place where the advisor system stops the
 simulation, so a replacement or a test harness needs it.
 

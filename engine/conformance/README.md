@@ -400,6 +400,7 @@ cell. Grids are x-major (`rows[x][z]`).
 
 Weather events: `post` (`type`: `SeasonChanged`, `WeatherCycleCompleted`, `MoistureMapUpdated` or `other`;
 `data2`), and with a stub generator `rng` (`kind`: `uniform`, `gaussian`, `int` (with `lo`, `hi`); `value`).
+
 ## Simgrid ops
 
 The simgrid vectors (`g10_…`) drive the core grid class and map utilities of `fc4_core::grid` (`src/simgrid.rs`
@@ -1831,7 +1832,7 @@ that accepts every demolition region.
 | `nr_tiles` | `text`, `type?` (append the file to that type's evaluator list), `append?` (add to the scratch evaluator instead of replacing it), `expect?` (partial: `status` (`missing`, `complete`, `rejected`, `bad_centre`, `truncated`), `transmogrify`, `source_rules`, `rules`, `dropped`) | reads a tile rule file |
 | `nr_expect_rules` | `rules` (`[{key, transform, conditions: [[m, value, mask]], outputs: [[id, m, orientation]]}]`; fields left out are not compared) | the scratch evaluator's rules in map order |
 | `nr_load` | `resource` (`multi` (RUL1), `overrides` (RUL2), `intersections` (RUL0), `network` (the network INI) or a tile instance), `text`, `expect?` (partial: `entries`, `ignored`, `sections`, `rules`, …) | `LoadResource` into the database |
-| `nr_cell` | `x`, `z`, `edges` (`{name: word}`, each setting its type bit), `flags?` (ORed), `in_run?`, `step?`, `fixed?`, `node?`, `intersection?`, `occupant?` (`{piece, orientation, network_flags, node_edges: [a, b], anchor: [x, z]}`) | puts a cell info |
+| `nr_cell` | `x`, `z`, `edges` (`{name: word}`, each setting its type bit), `flags?` (ORed), `in_run?`, `step?`, `fixed?`, `node?`, `intersection?`, `one_way?`, `marked?`, `occupant?` (`{piece, orientation, network_flags, node_edges: [a, b], anchor: [x, z], paired_portal: [x, z]}`) | puts a cell info |
 | `nr_evaluate` | `x`, `z`, `type`, `expect` (null or `[[id, m, orientation]]`) | `Evaluate` with the scratch evaluator |
 | `nr_set_s` / `nr_set_valid_count` | `cells` / `count` | the solve state |
 | `nr_append_solved` | `id`, `orientation`, `x`, `z` | appends a solved record (sets the cell's `+0xB8`) |
@@ -1844,8 +1845,14 @@ that accepts every demolition region.
 | `nr_int_rule` | `id`, `rotate?`, `transpose?` (applied to a copy), `state` (`occupied`, `new_cells`, `tagged` (`[[x, z, tag]]`), `bounds` (`[minX, maxX, minZ, maxZ]`), `one_way_dir`, `type_mask`, `ring`, `add` (`[prev, next]`), `edges` (`{tag: [edges1, mask1, edges2, mask2]}`)) | an intersection rule |
 | `nr_int_test` | `id`, `rotate?`, `transpose?`, `x`, `z`, `expect` (0, 1 or 2) | `cIntRule::Test` |
 | `nr_identify` | `steps` (`[[[x, z], …], …]`), `v`, `type`, `expect`, `expect_intersections?` (`[[rule, x, z, start, a, b]]`) | `IdentifyHighwayIntersections` |
+| `nr_one_way` | `steps` (`[[[x, z], …], …]`) | `ResolveOneWayConflicts` (§6.5) over the dragged run |
+| `nr_separation` | `x`, `z`, `type`, `expect` (null or `[id, rot, flip]`) | `SolveMultiTypeSeparation` (§8.3) over the database's evaluators |
+| `nr_tile_info` | `id`, `rotate?`, `transpose?`, `offset` (`[dx, dz]`), `expect` (null or `[tile, orientation, new_cell]`) | `GetTileInfo` (§10.9) |
+| `nr_pieces` | `id`, `rotate?`, `transpose?`, `x`, `z`, `expect` (`[[ox, oz, piece_id, orientation, path, ax, az, new_cell]]`) | the pieces an intersection places (§10.9) |
+| `nr_mark_pieces` | `on`, `valid_count` | `MarkHighwayIntersectionPieces` (§10.6) over the recorded intersections |
+| `nr_remove_pieces` | `valid_count`, `bridge?`, `bridge_cells?` (`[[end_step, [key, …]], …]`) | the §10.6 remove, or the bridge one of network-bridges.md §8.3.1 when `bridge` |
 | `nr_expect_solved` / `nr_expect_s` / `nr_expect_potential` | `records` (`[[id, orientation, x, z]]`) / `cells` / `entries` (`[[x, z, t]]`) | the solve state |
-| `nr_expect_cell` | `x`, `z`, `state` (`flags`, `union`, `solved`, `intersection`, `edges` (every non-zero word)) | a cell info |
+| `nr_expect_cell` | `x`, `z`, `state` (`flags`, `union`, `solved`, `intersection`, `one_way`, `marked`, `in_run`, `edges` (every non-zero word)) | a cell info |
 
 ## City detail ops
 
@@ -1863,7 +1870,7 @@ over one scripted city implementing `CityDetailHost`. Every op name starts with 
 | `cd_init` / `cd_shutdown` / `cd_add_ref` / `cd_release` / `cd_get_level` | `expect?` | the slots |
 | `cd_set` | `level` | the stored level (test setup) |
 | `cd_identity` | `iids` (`{"0xIID": bool}`), `class?` | `QueryInterface`, `GetGZCLSID` |
-| `cd_expect` | `state` (partial: `level`, `ref_count`, `destroyed`, `last_pass`, `removed`, `created`, `draws`, `network_lots`, `session_passes`) | the manager |
+| `cd_expect` | `state` (partial: `level`, `ref_count`, `destroyed`, `last_pass`, `removed`, `created`, `draws`, `network_lots`, `session_passes`: the increase passes by this manager object, n of §3.5, CD5) | the manager |
 | `cd_expect_occupants` | `lot`, `occupants` (`[[occupant, kind or type, tag or null]]`, token order) | a lot's occupants |
 | `cd_write` / `cd_read` | `hex?`, `slot?`, `fresh?`, `expect?` | the record |
 | `cd_expect_events` / `cd_expect_event_count` / `cd_clear_events` | see the shared conventions | host calls |
@@ -1880,7 +1887,7 @@ terrain's water. Every op name starts with `pd_`. A lot configuration's token is
 
 | op | Arguments | Effect / check |
 |---|---|---|
-| `pd_env` | any of `kind`, `line` (`[full, current]` or null), `follow` (current expenses follow SetFullExpenses), `department` (a token or null), `offices` (`[[CO$$ per subnetwork], [CO$$$ per subnetwork]]`), `terrain` (`[width, depth]`), `water` (`[[x, z]]`, replacing the set), `create_lot`, `construct` (whether CreateLot and ConstructDefaultLot succeed), `exemplars` (`{"0xINSTANCE": {properties} \| null}`) | the world |
+| `pd_env` | any of `kind`, `line` (`[full, current]` or null), `follow` (current expenses follow SetFullExpenses), `department` (a token or null), `offices` (`[[CO$$ per subnetwork], [CO$$$ per subnetwork]]`), `terrain` (`[width, depth]`), `water` (`[[x, z]]`, replacing the set), `create_lot`, `construct` (whether CreateLot and ConstructDefaultLot succeed), `missing_configs` (configuration IDs the manager does not have; ConstructDefaultLot with the null configuration then leaves the lot in state 2 with condition 1 and answers true, PD5), `exemplars` (`{"0xINSTANCE": {properties} \| null}`) | the world |
 | `pd_lot` | `lot`, any of `config` (`[id, growth stage]` or null), `x`, `z`, `state`, `condition`, `days`, `rect` (`[x0, z0, x1, z1]`), `facing`, `compatible`, `subnetworks`, `arrived` | creates or updates a lot |
 | `pd_occupant` | `occupant`, `lot`, `type?` (`"building"` or an ID), `group?`, `preview?` | a building occupant |
 | `pd_create` | `kind?` (`"airport"` or `"seaport"`) | a new developer |
@@ -1905,7 +1912,8 @@ The prop developer vectors (`pv12_…`) drive `fc4_core::prop_developer::PropDev
 (`docs/specs/prop-developer.md`) over one scripted city implementing `PropHost`. Every op name starts with `pv_`.
 The default world: a 64 × 64 city, cell width 16, no lots, no props, every cell powered, no 24-hour clock, visual
 mode 0, day, a 3D view with every trigger off, the managers and wealth requester token of the corpus. A network
-occupant's token names its first cell (`0xXXXXZZZZ`). Records are written and read with each reference as
+occupant's token names its first cell (`0xXXXXZZZZ`). A prop removed through the prop manager keeps its type and
+properties for its removal message, as the live occupant does (§4.7). Records are written and read with each reference as
 `u32 token, u32 class`, so the spec's corpus records round-trip byte for byte. Every generator draw is logged as a
 `draw` event (`gen` `"member"` or `"wealth"`; `call` `"RS"` with `lo`, `hi`, or `"U"` with `n`; `value`).
 
@@ -1928,7 +1936,7 @@ occupant's token names its first cell (`0xXXXXZZZZ`). Records are written and re
 | `pv_signs` | `show?`, `toggle?`, `expect?` (visible afterwards) | slots 8–10 |
 | `pv_wealth_select` | `ids`, `x`, `z`, `expect` | the wealth requester's `SelectProp` |
 | `pv_identity` | `iids?`, `wealth_iids?` (`{"0xIID": offset \| false}`), `member_seed?` (`[S, seed]`) | `QueryInterface`, the member seed |
-| `pv_expect` | `state` (partial: `initialized`, `scan_flag`, `scanner` (`"fresh"`, `"running"`, `"done"`), `scan_at`, `clip`, `wealth_added`, `night_cursor`, `night_mode`, `night_batch`, `night_acc`, `is_night`, `tod_last`, `signs_visible`, `ref_count`, `destroyed`, `crt_state`, and the list lengths `requesters`, `night`, `triggers`, `time_of_day`, `dated`, `power`, `signs`) | the developer |
+| `pv_expect` | `state` (partial: `initialized`, `scan_flag`, `scanner` (`"fresh"`, `"running"`, `"done"`), `scan_byte` (the state byte written while running, PV13), `scan_at`, `clip`, `wealth_added`, `night_cursor`, `night_mode`, `night_batch`, `night_acc`, `is_night`, `tod_last`, `signs_visible`, `ref_count`, `destroyed`, `crt_state`, and the list lengths `requesters`, `night`, `triggers`, `time_of_day`, `dated`, `power`, `signs`) | the developer |
 | `pv_expect_block` | `state` (partial: `block`, `lots`, `occ_sum`, `slots`, `kept_all`, `target`, `want`, `kept`, `removed`, `created`, `member_draws`, `stopped`) | the last block update |
 | `pv_expect_lists` | any of `requesters` (`[[token, class]]`), `night`, `time_of_day`, `dated`, `power`, `signs` (tokens), `triggers` (`[[trigger, [tokens]]]`), `classes` (`{"0xTOKEN": class}`) | the lists |
 | `pv_expect_prop` | `prop`, `state` (partial: `exists`, `state`, `type`, `lot`, `tag`, `requester`, `pos`) | a prop in the world |
@@ -1941,6 +1949,146 @@ Prop developer events: `create_wealth_requester`, `add_agent` (`level`, `name`, 
 (`requester`, `ids`, `x`, `z`), `remove_prop`, `create_prop` (`lot`, `index`, `id`, `prop`), `create_network_prop`,
 `prop_state`, `timer` (`prop`, `mask`, `on`), `chance`, `time_of_day_range`, `date_range`, `tick_date`, `position`,
 `flag`, `draw`.
+
+## Demolition ops
+
+The demolition vectors (`dm12_…`, `dm00_…`) drive `fc4_core::demolition::DemolitionUtility`
+(`docs/specs/demolition.md`) over one scripted city implementing `DemolitionHost`. Every op name starts with
+`demolition_`. The default world: a 64 × 64 city, the building development simulator, the flora simulator and the
+prop manager present, no view filter, view level 1, the shipped thresholds and building development exemplars, no
+occupants, no lots, zone 0 and altitude 0 everywhere, no water. Cells are 16 m; an occupant placed with `cell` is
+centred in that cell with an 8 m box. `CanRemove(level)` answers false for level bit 1 with the system lock and
+for level bit 2 with the player lock. Removing an occupant clears its flag 1 (in the occupant manager); a second
+removal fails. `EndDemolishLot` leaves the lot in state 1 without a building; `CreateLotIfPossible` creates a 1 × 1
+lot with the zone of its cell (tokens from `0x9000`). The utility's own token is `0xD0`.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `demolition_env` | any of `cells` (`[x, z]`), `building_development_simulator`, `flora_simulator`, `prop_manager` (bools), `view_filter` (token or null), `view_level` (int or null), `rejects` (`{"filter": [occupants]}`), `rejects_buildings` (filters refusing the building type), `thresholds` / `building_development` (`"shipped"`, null or `{props}`), `water` (`[[x, z]]` vertices), `altitudes` (`[[x, z, h]]`), `zones` (`[[x1, z1, x2, z2, zone]]`) | the world |
+| `demolition_occupant` | `occupant`, `type` (`foundation`, `building`, `pole`, `construction`, `prop`, `network`, `flora` or an ID), `cell?`, `bounds?` (`[x0, z0, x1, z1]` m), `flags?` (1), `system_lock?`, `player_lock?`, `foundation?` (slot 9's answer; absent: no foundation interface), `network_flags?` (absent: no network interface), `network_types?`, `pole?` / `network?` (the interfaces; default by type), `cost?`, `connections?`, `default_ok?` / `realistic_ok?` (true), `props?` (`{"0xID": bool}`), `groups?`, `extent?` (screen extent, 10; null: below the cutoff) | creates an occupant, or updates the given fields |
+| `demolition_lot` | `lot`, `rect` (`[x1, z1, x2, z2]`, inclusive), `state?` (1), `building?`, `occupants?`, `demolishable?` (true), `zone?` (also written to the zone map), `water?` (false; null: no configuration), `locked?`, `initialized?` (true), `facing?`, `condition?` | creates a lot, or updates the given fields |
+| `demolition_create` | | a new constructed utility, which replaces the current one |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `demolition_init` / `demolition_shutdown` / `demolition_add_ref` / `demolition_release` | `expect?` | the lifecycle slots |
+| `demolition_identity` | `iids` (`{"0xIID": offset or null}`), `class` | `QueryInterface` and `GetGZCLSID` |
+| `demolition_message` | `type` (`ExemplarChanged`, `PostCityInit`, `DeferredLotDemolition` or an ID), `data1?`, `data2?`, `lot?`, `dezone?`, `expect?` | `DoMessage` |
+| `demolition_lots` | `do_it`, `lots` (tokens or null), `privilege?` (1), `flags?` (1), `dezone?`, `caller_filter?`, `demolished?`, `expect?` (`{ok, cost}`; cost null: left unchanged) | `DemolishLots` |
+| `demolition_region` | `do_it`, `rect` (a full region), `privilege?`, `flags?`, `dezone?`, `caller_filter?`, `demolished?`, `clicked?`, `sx?`, `sy?`, `expect?` | `DemolishRegion` |
+| `demolition_demolish_occupant` | `do_it`, `occupant`, `privilege?`, `flags?`, `skip_network_update?`, `orphans?` (a list token), `expect?` | `DemolishOccupant` |
+| `demolition_terrain` | `do_it`, `per_vertex`, `rect`, `altitude`, `exempt?`, `reason?` (5), `expect?` (the count) | `ModifyTerrainHeight` |
+| `demolition_expect` | `state` (partial: `initialized`, `destroyed`, `ref_count`, `tuning` (`[small/medium model, medium/large model, small/medium group, medium/large group, destroyed tile cost]`), `cells`) | the utility state |
+| `demolition_expect_lot` | `lot`, `state` (partial: `state`, `building`, `zone`, `rect`) or `absent: true` | a lot |
+| `demolition_expect_zones` | `cells?` (`[[x, z, zone]]`), `lot_count?` | the zone map and the lot count |
+| `demolition_write` / `demolition_read` | `expect?`, `hex?` | the record (read into the current utility; without `hex`, the last written record) |
+| `demolition_expect_events` / `demolition_expect_event_count` / `demolition_clear_events` | see the shared conventions | host calls |
+
+Demolition events: `subscribe` / `unsubscribe` (`type`), `acquire` / `release_service` (`service`: `city`,
+`occupant_manager`, `lot_developer`, `terrain`), `release` (`token`), `shutdown` / `pre_demolish` / `remove_prop` /
+`delete_connection` / `sound` (`occupant`), `remove` (`occupant`, `flag`), `break` (`pole`), `append` (`list`,
+`occupant`), `insert` (`set`, `occupant`), `queue` (`on`), `destroy` (`occupants`), `explode` (`lot`, `flag`),
+`start` / `end` / `delete` (`lot`), `create` (`x`, `z`, `facing`), `dezone` (`rect`), `set_rect` (`rect`, `height`,
+`reason`), `set_vertex` (`x`, `z`, `height`), `redisplay` (`rect`, `reason`), `effect` (`occupant`, `keys`, `ray`
+(`[x, y]` or null), `grey`), `group` (`instance`, `x`, `z`).
+
+## Dispatch ops
+
+The dispatch vectors (`dp12_…`, `dp00_…`) drive `fc4_core::dispatch::DispatchManager` (`docs/specs/dispatch.md`)
+over scripted dispatch sources implementing `DispatchHost`. Every op name starts with `dispatch_`. A source has
+dispatch types, `CanDispatch` / all-busy answers and stations with a unit mask (bit `i` = unit `base + i` free);
+`DispatchFromNearestStation` takes the first free unit of the first station that has one. New host objects
+(vehicles, pylons) get tokens from `0x1000` up, in creation order, each with one reference. The terrain altitude
+at (x, z) is (x + z) / 100. The vehicle view is `0x7E`; the manager's token is `0xD15`. References read from a
+record resolve to their object IDs (the manager takes one reference each).
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `dispatch_env` | `vehicles_fail?` (BeginVehicle fails), `vehicle_group?` (the occupant group of new vehicles; null: `0x4202` for type 1, `0x4303` for type 5, else `0x4101`), `park_fails?` (the return's unit-state call fails: nothing placed) | the world |
+| `dispatch_source` | `source`, `types?`, `can?` (true), `all_busy?` (false), `nearest?` (true), `stations?` (`[{station, base? (1), count, mask? (all free)}]`), `register?` (true: `RegisterDispatchSource` on creation) | creates a source, or updates the given fields |
+| `dispatch_create` | | a new constructed manager |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `dispatch_init` / `dispatch_shutdown` / `dispatch_add_ref` / `dispatch_release` | `expect?` | the lifecycle slots |
+| `dispatch_identity` | `iids`, `class` | `QueryInterface` and `GetGZCLSID` |
+| `dispatch_message` | `type` (`RemoveOccupant`, `DisasterPeriodEnded`, `ViewChanged`, `AutomatonEvent` or an ID), `code?` (data2), `state?` (data3), `object?` or `automaton_of?` (a dispatch ID: its record's automaton), `expect?` | `DoMessage` |
+| `dispatch_call` | `method`, `args`, `expect?` (a record is compared on the fields given) | `dispatch (type, x, z)`, `can_dispatch (type, x, z)`, `get_dispatch_source (type)`, `get_dispatch_info (id)`, `get_dispatch_count (type)`, `get_dispatch_id_array (type, n)`, `get_active_pylon`, `get_automaton_from_pylon (pylon)`, `get_available_pylon_count (type)`, `get_dispatch_vehicle_view`, `update_dispatch_state (id, state)`, `revoke_dispatch_by_id (id)`, `revoke_dispatch_by_pylon (pylon)`, `revoke_all_dispatches (type)`, `begin_dispatch_tool (type)`, `end_dispatch_tool (type)`, `set_active_pylon (pylon or null)`, `register_dispatch_source` / `unregister_dispatch_source (source)` |
+| `dispatch_expect` | `state` (partial: `initialized`, `destroyed`, `ref_count`, `loaded`, `next_id`, `tool_type`, `record_count`, `records` (`[{type, id, call, view_handle, active, target, station, automaton, pylon}]`), `active_pylon`, `available_pylons`, `available_calls` (their call numbers), `sources`, `vehicle_view`) | the manager state |
+| `dispatch_expect_units` | `source`, `masks` (one per station) | the unit masks |
+| `dispatch_expect_refs` | `{"token": references}` | references held |
+| `dispatch_write` | `expect?`, `hex?`, `length?` | the record |
+| `dispatch_read` | `hex?` (or the last written record), `reuse?`, `expect?` | `Read` into a new constructed manager (or the current one) |
+| `dispatch_expect_events` / `dispatch_expect_event_count` / `dispatch_clear_events` | see the shared conventions | host calls |
+
+Dispatch events: `acquire` / `release_service` (`service`: `message_server`, `city`), `subscribe` / `unsubscribe`
+(`type`), `post` (`type`, `dispatch_type`, `id`), `create_view`, `destroy_view` / `refresh_view` (`view`), `track`
+(`automaton`, `kind`, `handle`), `untrack` (`handle`), `nearest` (`station`, `call`), `from_station` /
+`revoke_from_station` (`station`, `call`), `vehicle` (`automaton`, `id`, `call`), `vehicle_failed` (`id`),
+`despawn` / `go_home` (`automaton`), `create_pylon` / `pylon_shutdown` (`pylon`), `move` (`pylon`, `x`, `y`, `z`),
+`place` (`pylon`, `station`, `index`, `count`), `park` / `park_failed` (`pylon`, `station`).
+
+## City situation ops
+
+The city situation vectors (`cs12_…`, `cs00_…`) drive `fc4_core::city_situation::CitySituationManager`
+(`docs/specs/city-situation.md`) over a scripted game implementing `CitySituationHost`. Every op name starts with
+`citysit_`. The default world: the debug flag clear, every service present, the four automata managers `0x43`,
+`0x45`, `0x44`, `0x46`, an empty (all-zero) reward list, the host's steps 2–4 of `CheckForSuccess` answering 3 (the
+core runs the mission clock, CS4), the popup closing with button 0, funds 100,000 (a withdrawal that would leave them
+below zero is refused, budget.md §6), coverage cells that build, no advices, no automata, no groups, no created
+automaton, no MySim window. The manager's token is `0xC5`; its generator is seeded with
+`derive_seed(0x12345678, 0x0BB14381)`.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `citysit_env` | any of `debug`, `rewards` (the reward list from its start), `status` (the answer of the host's steps 2–4 of `CheckForSuccess`), `button`, `funds`, `candidates` (`{"advice": [automata]}`), `groups` (`{"group": [automata]}`), `created` (the automaton `CreateAutomatonForPlayerDrive` hands over, held; null: none), `coverage_ok` (default true), `mysim_window` (the window of advice flag `0x20`, held; null: none) | the world |
+| `citysit_advice` | `advice`, `guid?`, `flags?`, `mission_type?` (2), `end_delay?`, `success_money?`, `failure_money?`, `success_aura?` / `failure_aura?` (`[radius, magnitude]`), `target?` (the first target; absent: none), `target_count?`, `time_limit?`, `accepts?` (the automata advice slot 53 accepts; logs an `advice_accepts` event per question), `accepts_groups?` (the groups advice slot 54 accepts), `groups?` (advice slot 12), `priority?` (`cISC4Advice` slot 7, default 0), `next_targets?` (what choosing the next target hands out, in order; then none) | a city-situation advice of advisor 29 |
+| `citysit_automaton` | `automaton`, `flags?` (2), `type?` (1), `position?` (`[x, z]`), `preview?`; or `remove: true` | an automaton |
+| `citysit_create` | `session_seed?` | a new constructed manager |
+| `citysit_set` | `success_counts?` (`{"0xGUID": count}`), `loaded_from_save?` | pokes the state (test setup) |
+| `citysit_mark` | | remembers the state and the generator's next word |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `citysit_init` / `citysit_shutdown` / `citysit_add_ref` / `citysit_release` | `expect?` | the lifecycle slots |
+| `citysit_identity` | `iids` (`{"0xIID": offset or null}`), `class` | `QueryInterface` and `GetGZCLSID` |
+| `citysit_message` | `type` (`OccupantInserted`, `OccupantRemoved`, `AdviceAdded`, `AdviceRemoved`, `AdviceRemovedAll`, `PopupClosed`, `ShowPopup`, `Window`, `InitiateByGuid`, `PostCityInit`, `AnimationTick`, `AutomatonNotify`, `PlayerLeftVehicle`, `Cheat`, `PopupNoAdvice` or an ID), `data1?`, `data2?`, `data3?` or `ms?` (the tick's float bits), `object?`, `void1?`, `text?`, `expect?` | `DoMessage` |
+| `citysit_ticks` | `count`, `ms` | that many animation ticks |
+| `citysit_call` | `method`, `args`, `expect?` | `initiate_situation (advice (null allowed), vehicle, briefing)`, `initiate_situation_by_guid (guid, briefing, group)`, `initiate_situation_for_occupant (occupant, advice?)`, `initiate_situation_by_automata_group (group, briefing, search)`, `start_joyride (automaton, b, target)`, `treat_automaton_as_group (automaton (null allowed), group)`, `check_for_success (t_ms)`, `activate_situation`, `deactivate_situation`, `end_situation`, `handle_status_changed (s)`, `get_mission_success_count (guid)`, `lua_activate_situation (guid, briefing)`, the getters of §8 (`get_active_situation`, `get_current_status`, `get_active_auto`, `get_current_target`, `get_current_target_index`, `get_num_targets`, `get_num_targets_remaining`, `get_current_time_limit_seconds`, `get_current_situation_time`, `get_current_time_remaining_seconds`, `get_current_target_name`, `get_situation_aura`, `get_situation_money`, `is_situation_available`, `get_max_csi`, `get_tracked_automata_count`, `get_csi_visible`, `countdown_is_in_progress`), `set_max_csi`, `set_csi_visible`, `handle_tuning_parameters_changed`, `reset_tutorials`, `initiate_player_drive_mode`, `random_uniform_u32 (n)` |
+| `citysit_expect` | `state` (partial: `initialized`, `destroyed`, `ref_count`, `indicators_visible`, `loaded_from_save`, `active_situation`, `automata_managers`, `track_list` (`[{advice, automaton, handle}]`), `tracked`, `success_counts` (`{"0xGUID": count}`), `status`, `active_automaton`, `current_target`, `num_targets`, `target_index`, `end_delay`, `elapsed`, `countdown`, `time_limit`, `just_activated`, `warning_given`, `max_csi`, `window`) | the manager state |
+| `citysit_expect_unchanged` | | the state and the generator are as at `citysit_mark` |
+| `citysit_expect_world` | `state` (partial: `funds`, `rewards` (up to the last non-zero entry), `retired`) | the game |
+| `citysit_expect_refs` | `{"token": references}` | references held |
+| `citysit_write` | `expect?`, `hex?` | the record |
+| `citysit_read` | `hex?` (or the last written record), `reuse?`, `expect?`, `consumed?` | `Read` into a new constructed manager (or the current one) |
+| `citysit_expect_events` / `citysit_expect_event_count` / `citysit_clear_events` | see the shared conventions | host calls |
+
+City situation events: `register_cheat`, `unregister_cheat`, `subscribe` / `unsubscribe` (`type`), `acquire` /
+`release_service` (`service`: `indicator_view`, `lot_manager`, `mysim`, `lua`), `register_tick`,
+`unregister_tick`, `acquire_automata_managers` (`managers`), `create_lua_table`, `remove_lua_table`,
+`release_mission_resources`, `show_all_indicators` (`kind`, `visible`), `save_preferences`, `retire` (`advice`),
+`script` (`advice`, `script`: `start`, `success`, `failure`), `bind` (`advice`, `vehicle`), `coverage` (`advice`,
+`built`), `next_target` (`advice`, `target`), `create_automaton` (`advice`, `group`, `automaton`),
+`remove_automaton` (`automaton`), `set_flag` (`automaton`, `flag`), `set_group` (`automaton`, `group`),
+`track` (`automaton`, `handle`), `untrack` (`handle`), `listen` / `unlisten` (`automaton`), `freeze` (`manager`,
+`on`), `sound` (`automaton`, `sound`), `countdown_start`, `countdown_end`, `outcome_effect` (`advice`, `success`,
+`x`, `z`), `drive` (`vehicle`, `on`), `joyride` (`vehicle`), `drive_view` (`automaton`, `target`),
+`clear_mission_state` (`advice`), `release_situation_effect`, `aura` (`x`, `z`, `radius`, `magnitude`), `deposit`
+(`amount`, `accepted`), `send` (`type`, `advice` (null: a joyride), `data1`), `post` (`type` and `advice`,
+`vehicle`, `data1`, `data2` as the message has them), `hide_mission_status_panel`, `end_mysim_dialog`, `popup`
+(`popup`: `briefing`, `success`, `failure`; `advice`, `vehicle`).
 
 ## Automata ops
 
@@ -2160,7 +2308,8 @@ filter; the typed overloads take `type`):
 - conversions (`args`): `position_to_world_cell`, `position_to_manager_cell`, `position_to_standard_cell` (two
   floats); `world_to_manager_cell`, `manager_to_world_cell`, `standard_to_world_cell`, `world_cell_to_position`,
   `manager_cell_to_position`, `standard_cell_to_position`, `bounding_cells` (two ints); `world_to_standard_cell`
-  (x, z, the old z output); `query_interface` (IID → view offset 0 / 4 / 8 or null);
+  (x, z, the old z output); `query_interface` (IID → view offset 0 / 4 / 8 or null); `shrink_bits` (min, max
+  floats: §5.1 step 5 on one axis, the two bounds as `float` bit patterns);
 - lifecycle: `set_city_size` (`args`), `init`, `shutdown`, `add_ref`, `release`, `class_id`, `cell_sizes`,
   `world_cell_count`, `cell_count`, `cell_bounds`;
 - `insert` (`occupant`, `data4`), `remove` (`occupant`, `shutdown`, `data4`), `remove_occupants` (`filter`,
@@ -2197,20 +2346,20 @@ random draw returns 0 unless queued.
 | `ter_create` | `cells?` [x, z], `altitudes?` (row-major, z outer, `(x+1)(z+1)` values; `"nan"` allowed) or `flat?`, `sea?`, `tuning?` (`"shipped"` or a partial `TerrainTuning`: `max_height`, `min_height`, `new_sea_level`, `new_flat_height`, `image_height_scale`, `sea_level_min`, `sea_level_max`, `cliff_slope`, `saved_78`), `view_ready?` (true), `new?` (false; true: `Create` from the tuning instead of the altitude array) | a new terrain, replacing the current one |
 | `ter_env` | any of `lots` ([[x, z, lot]]), `bridges` ([[x, z, deck or null]]: null is a bridge whose deck is unknown), `poles` ([[x, z]]), `not_flammable` ([[x, z]]), `burn_cells` (the queue `next_burn_cell` returns), `random` (queued draws) | the world |
 | `ter_set` | `vertex` [x, z] or `vertices` [x0, z0, x1, z1] (inclusive) with any of `altitude`, `depth`, `flags`; or `cell` [x, z] with `depths` (the corners (x, z), (x+1, z), (x, z+1), (x+1, z+1)); or `cached` [min, max] | raw state, no messages, no depth bookkeeping |
-| `ter_add_brush` | `brush` (ID), `bitmap` (`{width, height, fill}` or `{width, height, pixels}`), `angle?`, `expect?` | registers a kind-0 description over the bitmap |
+| `ter_add_brush` | `brush` (ID) and either `bitmap` (`{width, height, fill}` or `{width, height, pixels}`; `brush` one of the shipped `0x11`, `0x12`, `0x14`) or `components` (`[{kind, radius, strength, oriented?, neutral?, bitmap?}]`, `radius` / `strength` one number or five per-level values, `oriented` false, `neutral` 0) with `step?` (the random-walk step in radians, 0); `walk_angle?` (`angle?` is the same), `stroke_angle?`, `expect?` | registers a description: a shipped one (one oriented kind-0 component, the 0.5° default walk step, so every in-bounds `ApplyBrush` logs one `random` n = 5) or a custom one |
 
 ### Calls and checks
 
 | op | Arguments | Effect / check |
 |---|---|---|
-| `ter_call` | `method`, `args?`, `expect?`, `expect_bits?` (the f32's bits) | the queries `altitude`, `altitude_at_index`, `altitude_at_vertex`, `altitude_at_nearest_grid`, `altitude_checksum`, `cell_corner_altitudes`, `location_is_in_bounds`, `face_normal` ([x, y, z] or null when untouched), `min_height`, `max_height`, `min_allowed_height`, `max_allowed_height`, `vert_index`, `sea_level`, `water_level`, `water_depth_at_vertex`, `water_depth_at_index`, `max_surface_level`, `cell_has_water`, `cell_has_land`, `is_land_vertex`, `is_water_vertex`, `is_sea_vertex`, `water_depth_for_cell`, `has_draft_clearance`, `water_type`, `is_navigable` ([x, z, r, lot]), `is_triangulation_flipped`, `cell_flags`, `terrain_type`; the setters `raise_vertex`, `lower_vertex`, `set_altitude_at_vertex`, `set_altitude`, `set_altitude_rect`, `lock_altitude` ([x0, z0, x1, z1, lock]), `set_sea_level`, `set_terrain_type`; the messages `redisplay` ([terrain, water, x0, z0, x1, z1, data4]), `redisplay_cells` (slot 69, the same arguments as cell corners), `begin_long_terrain_operation`, `end_long_terrain_operation`, `post_city_init`; the bodies of water `update_bodies`, `body` ([x, z] → the ID, 0 for none), `bodies_map` |
+| `ter_call` | `method`, `args?`, `expect?`, `expect_bits?` (the f32's bits) | the queries `altitude`, `altitude_at_index`, `altitude_at_vertex`, `altitude_at_nearest_grid`, `altitude_checksum`, `cell_corner_altitudes`, `location_is_in_bounds`, `face_normal` ([x, y, z] or null when untouched), `min_height`, `max_height`, `min_allowed_height`, `max_allowed_height`, `vert_index`, `sea_level`, `water_level`, `water_depth_at_vertex`, `water_depth_at_index`, `max_surface_level`, `cell_has_water`, `cell_has_land`, `is_land_vertex`, `is_water_vertex`, `is_sea_vertex`, `water_depth_for_cell`, `has_draft_clearance`, `water_type`, `is_navigable` ([x, z, r, lot]), `is_triangulation_flipped`, `cell_flags`, `terrain_type`; the setters `raise_vertex`, `lower_vertex`, `set_altitude_at_vertex`, `set_altitude`, `set_altitude_rect`, `lock_altitude` ([x0, z0, x1, z1, lock]), `set_sea_level`, `set_terrain_type`; the messages `redisplay` ([terrain, water, x0, z0, x1, z1, data4]), `redisplay_cells` (slot 69, the same arguments as cell corners), `begin_long_terrain_operation`, `end_long_terrain_operation`, `post_city_init`; the bodies of water `update_bodies`, `body` ([x, z] → the ID, 0 for none), `bodies_map`; round 2: `lerped_water_level` ([x, z] metres), `flooding_altitude` ([x, z]), `water_velocity` ([x, z] → [3]), `sediment_at` ([x, z] metres), `water_display_state`, `set_water_display_state` ([state] → whether it posted), `default_brush_level`, `neighbor_mask` ([x, z]), `talus_angle`, `set_talus_angle` ([radians]), `brush_angles` ([id] → [walk, stroke] or null), `set_brush_angles` ([id, walk, stroke]), `brush_corners` ([cx, cz, w, h, cos, sin] → four [x, z]), `spans` (the four corners as [x0, z0, … x3, z3] → `ComputeSpansForRectangle`'s [[z, start, end]]) |
 | `ter_apply_brush` | `brush`, `from` [x, z], `to?`, `level?`, `redisplay?`, `strength?` (1), `radius?` (1), `data4?`, `target?`, `expect?`, `out?` ([x0, z0, x1, z1] or null: empty) | `ApplyBrush` with a `BrushParams` |
 | `ter_expect` | `state` (partial: `cells`, `sea_level`, `min_height`, `max_height` (the cache), `view_ready`, `terrain_type`, `saved_78`, `posts_pending`) | the terrain object |
 | `ter_expect_vertices` | `vertex` [x, z] with any of `altitude`, `depth`, `flags`; or `rect?` (the whole terrain) with any of `min`, `max`, `baseline` + `changed_within` (the only vertices that differ from `baseline`) and `changed` (how many) | the height field |
 | `ter_lava_start` | `at` [x, z] (metres), `radius?` (20), `expect?` (`{source, active, burn}` rectangles) | a `Lava` over the terrain |
 | `ter_lava_set` | `vertex` [x, z] or `around` [x, z] (the eight neighbours) with any of `level`, `production`, `solidification` | lava state |
-| `ter_lava_call` | `method`, `args?`, `expect?` | `flow_amount` and `transfer` ([x, z, dt] → `{amount, to, mode}`; `mode` is `none`, `ignite` or `quick_burn`), `level` ([x, z]), `flow` ([dt], one `DoLavaFlow`), `burn`, `rects` |
-| `ter_record` | `sizes?` (`{misc, altitudes, properties, edges: [4]}`), `round_trip?` (write, load into a fresh terrain, compare every field), `edge?` (`{side, count, values?}`) | the §13.1 records |
+| `ter_lava_call` | `method`, `args?`, `expect?` | `flow_amount` and `transfer` ([x, z, dt] → `{amount, to, mode}`; `mode` is `none`, `ignite` or `burn`), `level` ([x, z]), `flow` ([dt], one `DoLavaFlow`), `burn`, `rects`, `lowest_neighbour` ([x, z] → [x, z] or null), `set_things_on_fire` ([x, z, old, amount] → the mode) |
+| `ter_record` | `sizes?` (`{misc, altitudes, properties, edges: [4]}`), `round_trip?` (write, load into a fresh terrain, compare every field), `sea_after_load?` (write, load, the loaded sea level), `edge?` (`{side, count, values?}`) | the §13.1 records |
 | `ter_expect_events` / `ter_expect_event_count` / `ter_clear_events` | see the shared conventions | host calls |
 
 Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_burn` (`x`, `z`), `cause`
@@ -2235,6 +2384,12 @@ sources (every read fails), tags (1, 2). Detokenizing prefixes `detok:`. A host 
 Object specs (`object`, `advisor`, `advice`, `target`, …): `"system"`, `{"advisor": id}`, `{"advice": guid,
 "advisor"?: id}` (the first advisor holding it), `{"mysim": index}` (with the MySim ops) or a name given by
 `adv_subject`, `adv_create_object`, `mysim_read` or a record read (`ref<id>`).
+## Effects ops
+
+The effects vectors (`ef17_…` for the §17 tests) drive `fc4_core::effects` (`docs/specs/effects.md`): the effects
+manager (`EffectsManager`), the brush effect, the game effect and the effect directory. Every op name starts with
+`ef_`. The host logs every call it receives. The default host: a simulator with dilation 1, a city of 64 × 64 cells
+(16 m), render components inactive.
 
 ### Setup
 
@@ -2309,6 +2464,13 @@ until set. `sim` is a vector index (0–5) or a name from `mysim_read`.
 | `mysim_position` / `mysim_rect_lot` / `mysim_dispatch` | `occupant`, `position` / a lot / `id` + dispatch fields | a fire's position / a lot of the trip square / a MySim's dispatch |
 | `mysim_set` | `sim` + MySim fields (state, slot, wealth, age, keys, rings, pylon, references, …), `month_counter`, `queue: []` | pokes the state |
 | `mysim_reseed` | `sim`, `seed` | the MySim's generator restarts (clock seeds 1) |
+| `ef_create` | `directory?` (`"volcano"`, the default: `shipped::volcano_directory()`; or inline `{games?, effects: [{name, priority? (1), flags?, components: [{type, index?, name?, flags?, lod? [min, max], group?, weight?}]}]}`, with the shipped brush records and, unless `games` is given, the shipped game records), `seed?` (the session seed), `max_priority?`, `finish_mode?` (`hook` (the default) or `draw_pass`), `nested_update?` (true) | a new manager, replacing the current one; labels are cleared |
+| `ef_env` | any of `dilation` (a number, or null: no simulator), `cells` [x, z], `render_active` | the host |
+| `ef_effect` | `name`, `as?` (a label), `expect?` (whether an effect was created), `expect_index?` (the description chosen; -1: none qualifies) | `CreateVisualEffect` |
+
+Component `type`: `particles`, `decal`, `meta`, `brush`, `attractor`, `game`, `sound` or a number. Game record
+fields (inline): `flags`, `demolish`, `demolish_flags`, `min_size`, `max_size`, `burn`, `message`, `message_data`,
+`duration`, `toxic`, `extinguish`.
 
 ### Calls and checks
 
@@ -2324,6 +2486,163 @@ until set. `sim` is a vector index (0–5) or a name from `mysim_read`.
 
 MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_post` (`type`, `data1`, `data2`,
 `void1`, `sim`), `dispatch` (`sim`, `what`), `trigger` (`name`, `position`), `mysim_subscribe` (`type`, `on`).
+## Network geometry ops
+
+The network geometry vectors (`ng18_…`, the §18 tests of `docs/specs/network-geometry.md`) drive
+`fc4_core::network_geometry`: a `NetworkGeometry` (the run, the passes, the cell infos, the two satisfiers) over a
+`fc4_core::terrain::Terrain` and a scripted host. Every op name starts with `ng_`. The terrain's posts are drained into
+the event log after each op. The default city: 64 × 64 cells, flat at 300 m, sea level 250 m, view-ready, the shipped
+placement parameters (§2.4). The default host: no occupants, no existing pieces, no connection nodes, no bridge
+types.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `ng_city` | `cells?` [x, z] (64, 64), `altitude?` (300), `sea?` (250), `columns?` [[x0, x1, alt]] (vertex columns), `slope_x?` (altitude := `altitude` + `slope_x` × x), `vertices?` [[x, z, alt]], `view_ready?` (true) | a new terrain |
+| `ng_types` | `type`, `params` (partial: `max_slope`, `max_slope_change`, `max_raise`, `max_cut`, `resolve_tolerance`, `tunnel_trigger_slope`, `tunnel_end_slope`, `new_cell_tolerance`, `support_threshold`, `max_support_height`, `tunnel_clearance`) | one type's placement parameters over the shipped ones |
+| `ng_host` | any of `landfill` [[x, z]], `immovable` [[x, z, node, type]] (immovable network occupants), `nodes` [[x, z]] (connection-node cell infos), `existing` [{`cell`, `corners` [4], `immovable?`, `flags?` (1), `supports?`}], `extend` [[x, z]] (§3.3 step 3), `bridge_types` (count), `bridge_min_span`, `highlight_cut` (slot 59's new count) | the host |
+| `ng_segments` | `start`, `end`, `snap?`, `straight_only?`, `widths?` [w1, w2]; `state` (partial: `end`, `dragged_count`, `straight_count`, `axis`, `pen_direction`, `end_direction`) | `BreakIntoStraightAndDiagSegments` |
+| `ng_draw` | `type?` (0), `start`, `end`, `snap?`, `expect?` | `Reset` then `DrawNetworkLine` |
+| `ng_validate` | `expect?` (the valid count) | the passes of §4 |
+| `ng_cell_infos` | | the cell infos of the valid steps |
+| `ng_smoothen` | `level`, `expect?` | `SmoothenNetwork(level)` |
+| `ng_support` | `expect?` | slot 56 on the last smoothing |
+| `ng_place` | `expect?` (the valid count) | the passes, the cell infos and the smoothing loop |
+| `ng_expect` | `state` (partial: `valid`, `failure`, `level` (null = none), `end`, `dragged_count`, `straight_count`, `pen_direction`, `end_direction`, `cells`, `kinds`, `tunnels` [[start, end]], `bridges` [[start, end]], `tunnel_searches`, `heights` / `terrain_heights` (`{"vertex": h}`, null = unsolved), `smoothing_cells`, `boundary`) | the geometry |
+| `ng_type_info` | `type`; `state` (partial: `slope_rise`, `diagonal_slope_rise`, `smoothness`, `diagonal_smoothness`, `tunnel_trigger_rise`, `widths`, `straight_only`) | the shipped type info (§2.3) |
+| `ng_sat` | `sat?` (`network` or `terrain`), `call`, `args?`, `expect?` | the satisfier: `init` [lo, hi] (`"max"` / `"-max"` for ±FLT_MAX), `shutdown`, `add` [v, h] (→ new), `fixed` [v, h], `range` [v, a, b], `equality` [a, b], `slope` [a, b, s], `smoothness` [a, b, c, s], `preferred` [v, h], `preferred_range` [v, a, b], `solve` (→ bool), `height` [v], `range_of` [v], `solution` (→ [[v, h]] in solution order) |
+| `ng_terrain_vertex` | `n`, `t`, `supports`, `fixed?`, `type?`; `expect` `{fix}`, `{range, preferred}` or `"unsupported"` | §9.6 step 3 |
+| `ng_support_level` | `corners`, `terrain`, `threshold`; `expect` `{level, flags}` | §10.2 |
+| `ng_occupant_flags` | `flags`, `real`, `tunnel?`; `expect` | §10.1 |
+| `ng_cost` | `demolition?`; `expect` | `GetCostOfSolution` of the placed run |
+| `ng_power_line_cost` | `poles`, `wire`, `per_pole?` (15), `per_wire?` (2.0); `expect` | §11 |
+| `ng_destroy` | `destroyed`, `pieces`, `replaced` ([[x, z]] each); `expect` `{removals, resolve}` | §13 |
+| `ng_grade` | `expect?` `{changed, rect}` | slot 57 on the terrain satisfier |
+| `ng_expect_events`, `ng_clear_events` | as elsewhere | the terrain's posts |
+
+## Effects ops
+
+The effects vectors (`ef17_…` for the §17 tests) drive `fc4_core::effects` (`docs/specs/effects.md`): the effects
+manager (`EffectsManager`), the brush effect, the game effect and the effect directory. Every op name starts with
+`ef_`. The host logs every call it receives. The default host: a simulator with dilation 1, a city of 64 × 64 cells
+(16 m), render components inactive.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `ef_create` | `directory?` (`"volcano"`, the default: `shipped::volcano_directory()`; or inline `{games?, effects: [{name, priority? (1), flags?, components: [{type, index?, name?, flags?, lod? [min, max], group?, weight?}]}]}`, with the shipped brush records and, unless `games` is given, the shipped game records), `seed?` (the session seed), `max_priority?`, `finish_mode?` (`hook` (the default) or `draw_pass`), `nested_update?` (true) | a new manager, replacing the current one; labels are cleared |
+| `ef_env` | any of `dilation` (a number, or null: no simulator), `cells` [x, z], `render_active` | the host |
+| `ef_effect` | `name`, `as?` (a label), `expect?` (whether an effect was created), `expect_index?` (the description chosen; -1: none qualifies) | `CreateVisualEffect` |
+
+Component `type`: `particles`, `decal`, `meta`, `brush`, `attractor`, `game`, `sound` or a number. Game record
+fields (inline): `flags`, `demolish`, `demolish_flags`, `min_size`, `max_size`, `burn`, `message`, `message_data`,
+`duration`, `toxic`, `extinguish`.
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `ef_call` | `method`, `effect?` (a label), `args?`, `repeat?`, `expect?` (the last result) | the manager: `tick` ([us]), `frame` ([us]: the tick, then the finishing hook, then the draw pass), `finish_hook`, `draw_pass` (whether the sweep ran), `shutdown`, `set_zoom` ([zoom, offset]), `set_max_priority`, `has` ([name]); an effect: `start` / `stop` ([mode?], 0 by default), `set_position` ([x, y, z]), `set_end_message` ([type, data1]), `forward_parameter` ([index, value]), `add_ref`, `release`, `is_started`, `is_stopping` |
+| `ef_run_stroke` | `effect`, `us`, `max?` (10000), `ticks?`, `applications?`, `first?` (the brush calls of the first ticks), `every?` (the brush calls of every tick) | ticks until the effect's brush is inactive |
+| `ef_child` | `effect`, `n?` (0), `name?`, `as?` | the child of the effect's `n`-th built meta component |
+| `ef_expect` | `effect`, `state` (partial: `exists`, `name`, `index`, `refs`, `started`, `stopping`, `components` (built), `active`) | an effect |
+| `ef_expect_brush` | `effect`, `n?`, `state` (partial: `brush`, `rate`, `length`, `one_shot`, `strength`, `radius`, `active`, `long_op`, `acc`, `t`, `prev`, `cur`, `applications`) | the effect's `n`-th brush component |
+| `ef_expect_game` | `effect`, `n?`, `state` (partial: `started`, `pending`, `timer`, `count`, `cell`, `data`, `applies`) | the effect's `n`-th game component |
+| `ef_expect_manager` | `state` (partial: `select_draws`, `end_posts`, `recycled`, `effect_count`, `active_count`, `total_us`, `lod`, `max_priority`) | the manager |
+| `ef_select` | `first_word?`, `draws?`, `weights` + `members?` (1-based) | a fresh select generator (seed `0x1105`): its first word, its first `RandomUint32Uniform(0x10000)` draws and the members they pick |
+| `ef_expect_events` / `ef_expect_event_count` / `ef_clear_events` | see the shared conventions | host calls |
+
+Effects events: `brush` (`brush`, `from`, `to`, `level`, `strength`, `radius`, `redisplay`, `data4`, `target`),
+`begin_long`, `end_long`, `ignite` (`x`, `z`, `r0`, `r1`), `cause` (`cause`), `toxic` (`x`, `z`), `demolish`
+(`rect` [x0, z0, x1, z1], `flags`, `dezone`, `no_networks`, `no_flora`, `min_size`, `max_size`), `extinguish`
+(`x`, `z`, `amount`), `post` (`type`, `data1`, `data2`, `data3`), `pause`, `resume`, `hidden_pause`,
+`hidden_resume` and `clock` (`on`).
+
+## UI window ops
+
+The UI window vectors (`ui11_…`) drive `fc4_core::ui_windows` (`docs/specs/ui-windows.md`): the window object,
+`cSC4View3DWin`, its catalog menus and the dialog close path. Every op name starts with `uiw_`. One vector per
+conformance test of §11, named `ui11_NN_<name>` where `NN` is the test number.
+
+`uiw_create` builds the view at a fixed object address `0x2000`, so its `cIGZWin` sub-object's token is always
+`0x200C` — `AsIGZWin()` is `this + 0x0C` and that *is* the token. Pre-seeded catalog menus use the fixed tokens
+`0x20` (secondary) and `0x30` (tertiary); a window the script factory creates is `0x9001`, `0x9002`, … in call order.
+
+### Setup and state
+
+| op | Arguments | Effect |
+|---|---|---|
+| `uiw_create` | | the view, its window store and the hidden-pause counter (logs cleared) |
+| `uiw_env` | any of `create_ok` (the script factory answers), `catalog_iface_ok` (`QueryInterface(0x8A2CAD8B)` answers), `slot17`, `slot9` | the host's answers |
+| `uiw_seed_secondary` / `uiw_seed_tertiary` | `kind` | a catalog menu already open at `+0x1F8` / `+0x1FC` |
+| `uiw_set_catalog_state` | `present?` (true), `field0?`, `field1?` | sets or clears `+0x208` |
+| `uiw_set_tool` | `tool` (0 clears) | the current view input control |
+| `uiw_expect` | `state` (partial) | `this_addr`, `win`, `as_igzwin`, `win_offset`, `secondary_win`, `tertiary_win`, `secondary_kind`, `tertiary_kind`, `catalog_state_ptr`, `catalog_field0`, `catalog_field1`, `view_manager`, `input_control`, `refs`, `hidden_pause_count`, `hidden_paused`, `paused`, `painted` |
+| `uiw_layout` | `state` (partial) | `as_igzwin_null`, `as_igzwin`, `win_offset`, `vtable_primary`, `vtable_window`, `slot_count`, `catalog_state_offset`, and `slot<N>_ret` / `slot<N>_produces_value` for every `cISC4View3DWin` slot |
+
+### Calls
+
+| op | Arguments | Effect |
+|---|---|---|
+| `uiw_close_secondary` / `uiw_close_tertiary` | | slots 59 / 60. Secondary cascades to slot 60 first |
+| `uiw_invoke_secondary` | `instance`, `kind`, `caller_data?`, `target_win_id?` (1), `expect?` (`toggled`, `replaced_then_failed`, `opened`) | `InvokeSecondaryMenu` (4 arguments) |
+| `uiw_invoke_tertiary` | the same + `margin?` | `InvokeTertiaryMenu` (5 arguments; `margin` is arg5, the −25 / −75 the secondary form lacks) |
+| `uiw_deliver` | `msg`, `data1?`, `data2?`, `data3?`, `expect?` (the stage list) | the §6.5 chain, returning the stages reached |
+| `uiw_popup` | `advice_flags?` (2), `msg`, `data1?`, `data2?`, `data3?`, `expect?` | the advisor popup's win-proc decision |
+| `uiw_popup_instance` | `mood?`, `expect?` | which UI script instance an advisor popup is built from |
+| `uiw_pause_enter` / `uiw_pause_leave` | `is_dialog?` (true) | one level of the hidden pause |
+| `uiw_paint` / `uiw_sweep_effects` | | the view paints / the effects sweep runs |
+| `uiw_save` / `uiw_load` | `state` / the record fields, `expect?` | `DoSave` / `DoLoad` of the View3D record |
+
+`msg` is one of `command`, `link`, `attach`, `detach`, `modal_begin`, `modal_end`, `modal_end_posted`, `key_down`,
+`key_up`. For `command`, `data1` is forced to `0x287259F6` and `data2` is the button id.
+
+### Checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `uiw_expect_ops` | `ops`, `only?` (an event-kind filter) | the window ops taken since `uiw_clear_ops`, one to one and **in order** |
+| `uiw_expect_ops_contain` / `uiw_expect_ops_absent` | `ops`, `only?` | every listed op present / none present |
+| `uiw_expect_last_align` | `state` | the one `AlignWindowToWindow` call |
+| `uiw_expect_events` / `uiw_expect_event_count` / `uiw_clear_events` | | the host callbacks taken |
+
+`uiw_expect_ops`'s events are `child_add`, `child_remove`, `child_delete`, `destroy_window`, `hide_window`,
+`show_window`, `pull_to_front`, `add_message_filter`, `remove_message_filter`, `remove_all_view_input_controls`,
+`create_window`, `window_created`, `align_window_to_window`, `set_win_gen_flag`, `query_interface`, `query_win_gen`,
+`release`, `do_message`, `do_win_proc_message`, `gz_on_command`, `is_window_valid`, `catalog_state_write`, `get_id`.
+Ordering is the point of several tests: `only` restricts the comparison to the named kinds so a vector can pin an
+order across kinds without listing every intermediate step.
+
+
+## Network bridge ops
+
+The network bridge vectors (`nbr17_...`, the section 17 tests of `docs/specs/network-bridges.md`)
+drive `fc4_core::network_bridge`: a `BridgeTool` (the bridge types, the water and land passes,
+the elevations, the two models) over a flat city and a scripted bridge host. Every op name
+starts with `nbr_`. The default city: 64 x 64 cells, flat at 300 m, sea level 250 m, no wet
+cells. The default host: nothing in the way. The default tool: the shipped road bridge types
+(section 2.6).
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `nbr_city` | `cells?` [x, z], `altitude?` (300), `sea?` (250), `wet_columns?` [[x0, x1, z]] (wet cells), `heights?` [[x, z, h]] (a per-cell height) | a new city |
+| `nbr_host` | `clear?`, `blocked?` [{`rect`: [[x, z], [x, z]], `mask?`}], `max_slope?` (0.6109, radians), `preferred?`, `override?` | the host and the tool's preferred bridge and altitude override |
+| `nbr_types` | `type` | the shipped bridge types of a network type (2.6), replacing the tool |
+| `nbr_drag` | `steps`, `z?` (10), `pen?` (4) | a straight one-cell-wide x-drag |
+| `nbr_water` | `expect?` (the number of bridges recorded) | `IdentifyBridgeCells` (4) |
+| `nbr_land_scan` | `max_height?` (55), `bank_tolerance?` (20) | `IdentifyLandBridgeCells` (7.2) |
+| `nbr_adjust` | `start`, `end`; `expect` {`start`, `end`, `clearance`, `reference`} | `AdjustBridgeSpan` (5.2) |
+| `nbr_pad` | `start`, `end`, `min_len`; `expect` {`ok`, `start`, `end`} | `PadStepsToMakeMinBridgeSpan` (6.2) |
+| `nbr_best` | `start`, `end`, `water?` (true), `h?` (0); `expect` {`index`, `start`, `end`, `candidates`} | `FindBestBridgeType` (6.1) |
+| `nbr_model` | `bridge_type`, `start`, `end`, `deck?` (270), `pen?` (4), `z?` (10), `specialized?` | the parametric (10) or specialised (9) model |
+| `nbr_pins` | `valid?`; `expect` [[start, end, e, e] ...] | the height-solve constraint entries (8.3) |
+| `nbr_cost` | `per_step?` (100); `expect` | `GetCostOfSolution`'s bridge term (12) |
+| `nbr_getter` | `slot` (`major`, `altitude`, `reference`, `land`, `preferred`, `override`, `bitmap`, `candidates`), `index?` | the tool's bridge slots (1.1) |
+| `nbr_edge_mask` | `pen`, `index`, `n`; `expect` | the allowed edge mask (4.3) |
+| `nbr_orient` | `pen`; `expect` {`r`, `t`, `t_mirror`, `forward`} | the orientation (9.1) |
+| `nbr_ramp_heights` | `pairs` [[a, b] ...]; `expect` {`rise`, `drops`, `offsets`, `last_column`} | the ramp heights (2.4) |
+| `nbr_parse` | `text`, `keys`, `min_span?`; `expect` {`ok`, `lengths`} | the specialisation grammar (3.1) |
+| `nbr_expect` | `expect` (partial: `valid`, `records`, `candidates`, `kinds`, `piece_kinds`, `columns`) | the tool and the run |
 
 ## Adding a vector
 
@@ -2338,8 +2657,9 @@ MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_pos
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
    (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `nm16_…` (network manager §16;
    `nm00_…` for other network manager behaviour), `cd8_…` (city detail §8), `pd12_…` (port developers §12),
-   `pv12_…` (prop developer §12), `ds18_…` and `ds00_…` (disasters §18 and the rest of disasters), `plt_…`
-   (prop-lotconfig §T), `tu8_…` and `tu00_…` (tutorial §8 and the rest), `tr18_…` and
+   `pv12_…` (prop developer §12), `dm12_…` / `dm00_…` (demolition §12 / other demolition behaviour), `dp12_…` /
+   `dp00_…` (dispatch), `cs12_…` / `cs00_…` (city situation), `ds18_…` and `ds00_…` (disasters §18 and the rest of
+   disasters), `plt_…` (prop-lotconfig §T), `tu8_…` and `tu00_…` (tutorial §8 and the rest), `tr18_…` and
    `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
    (automata §14), `om18_…` / `om14_…` (occupant manager §18 / §14), `ad17_…` (advisors §17; `ad04_…` and
    `ad06_…` for other advisor behaviour) and `ms12_…` (MySims §12).
@@ -3230,6 +3550,9 @@ Not covered by a vector, and why:
 | extra: the s16 phase positions: zeroed on entering 16–18, the taken source's cell, the 16-bit resume, FinishTripMap's lot location (TS44, TS45) | `ts11_48_phase_positions` |
 | extra: the state-2 statistics reset, the −1.0 comparison values, a NaN record (TS40, §4.9) | `ts11_49_statistics_reset` |
 | extra: the station cost rounded once above 2^24 (TS46, §4.16) | `ts11_50_station_cost_rounds_once` |
+| extra: the ConfirmTrips merge (a routed trip goes back to 0 only when it absorbed one) and pass counters 3, 4, 5, 7, 8 (TS55, TS59, §4.3) | `ts11_51_confirm_trips_merge_counters` |
+| extra: the re-route context cell written with the phase positions (TS60, §6.1 row 14) | `ts11_52_context_cell` |
+| extra: entering 13 resets the scanning iterator; done at (x0, z1 + 1) after it (TS64, traffic-network §4.12) | `ts11_53_subnetwork_info_scan` |
 
 Not covered by a vector, and why:
 
@@ -3415,6 +3738,8 @@ and the reload order; `fc4_capi`'s `network_rules_tests` cover the C ABI.
 | 4 reduce (unlisted tags removed, untagged and listed stay) | `cd8_04_reduce` |
 | 5 increase (one prop per missing required object, at the developer's placement; optional skipped; one draw each) | `cd8_05_increase`, `cd8_06_session_generator` |
 | 6 network lots redeveloped once in both directions, none in a new city | `cd8_01_new_city`, `cd8_04_reduce`, `cd8_05_increase` |
+| CD4: the presence test counts flora and prop occupants by tag alone; step 4 draws for any object type | `cd8_08_presence_and_object_types` |
+| CD5: the pass count n is per manager object and starts at 0 | `cd8_06_session_generator`, `cd8_07_pass_count_per_manager` |
 
 ## Coverage (port developers §12)
 
@@ -3430,7 +3755,10 @@ and the reload order; `fc4_capi`'s `network_rules_tests` cover the C ABI.
 | 8 a destroyed port lot | `pd12_08_removal` |
 | 9 the seaport map | `pd12_09_seaport_map`, `pd12_11_seaport_tick` |
 | 10 no ports | `pd12_10_no_ports` |
-| other sections | `pd12_12_funding`, `pd12_13_queries`, `pd12_14_tuning`, `pd12_15_reference_count` |
+| 11 funding scales only the public query (PD8) | `pd12_16_funding_month` |
+| 12 a missing next-stage configuration (PD5) | `pd12_17_missing_configuration` |
+| 13 `Init` guarded, `Shutdown` empties the ports and types (PD10) | `pd12_18_init_shutdown` |
+| other sections | `pd12_12_funding`, `pd12_13_queries`, `pd12_14_tuning`, `pd12_15_reference_count`, `pd12_19_terrain_grid` (§4.8 grid, PD4, PD6) |
 
 ## Coverage (prop developer §12)
 
@@ -3449,10 +3777,74 @@ and the reload order; `fc4_capi`'s `network_rules_tests` cover the C ABI.
 | 12 registration (and triggers, power, unregistering) | `pv12_13_registration` |
 | 13 signs | `pv12_14_signs` |
 | 14 lot state | `pv12_15_lot_state` |
-| other sections | `pv12_16_cell_walk_quirks`, `pv12_17_requesters` |
+| other sections | `pv12_16_cell_walk_quirks`, `pv12_17_requesters`, `pv12_18_scanner_state_byte` (§7, PV13), `pv12_19_unregister_tests` (§4.7, PV12) |
 
 Not covered by a vector: the 421-save corpus itself (item 3) is not available to this suite; `pv12_02` and `pv12_03`
 replay the records §7 quotes.
+
+## Coverage (demolition §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 record (`01 00`; version 2 and a cut record rejected) | `dm12_01_record` |
+| 2 empty list (and lists of null lots, §12 item 15): true, cost untouched | `dm12_02_empty_list` |
+| 3 building price 1234, nothing removed; no building development simulator | `dm12_03_building_price` |
+| 4 destroyed 3 × 2 lot: 12, dry run and committed | `dm12_04_destroyed_lot` |
+| 5 not demolishable: true, 0, untouched | `dm12_05_not_demolishable` |
+| 6 blocked lot (player lock, privilege 1), the other lot still demolished; the system privilege; a system-locked prop | `dm12_06_blocked_lot` |
+| 7 re-parcel into four 1 × 1 lots; `0x801` keeps the lot in state 1; §4.10 example 4 | `dm12_07_reparcel` |
+| 8 dezone, and zones 11, 12, 15 | `dm12_08_dezone` |
+| 9 explode `0x303` / `0x1303`; no water configuration; water-compatible | `dm12_09_explode` |
+| 10 power pole: `0xAA7A014D` once before the removal, the orphan in the same call; dry run; a caller list; no pole interface | `dm12_10_power_pole` |
+| 11 three networks in one `DestroyNetworkOccupants` inside the `QueueRemovals` bracket; directly; a network-type occupant without the network interface is still queued (DM9) | `dm12_11_networks` |
+| 12 per-vertex terrain (building box, locked lot, water, tolerance, exempt lot, movable building, the redisplay rectangle); area mode | `dm12_12_terrain` |
+| 13 effects: none with cause 0, none in a dry run; the occupant and group effects | `dm12_13_effects` |
+| 14 the `float` tolerance: exactly 0.05f not counted in area mode, the next `f32` above counted and set, the one below skipped (DM6) | `dm12_14_tolerance` |
+| extra: identity, Init / Shutdown, Release, the tuning and ExemplarChanged | `dm00_lifecycle` |
+| extra: the deferred lot demolition message | `dm00_deferred` |
+
+## Coverage (dispatch §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 empty record (22 bytes) | `dp12_01_empty_record` |
+| 2 the corpus forms round-trip (toolType 4, 5, 7, 8); Init sets toolType 8 | `dp12_02_corpus_round_trip` |
+| 3 versions 1 and 3 fail with `loaded` set; a cut record | `dp12_03_wrong_versions` |
+| 4 Dispatch: no source, a free unit (the record, begin once), CanDispatch false, all busy, a failed vehicle | `dp12_04_dispatch` |
+| 5 a failed InitDispatch advances nextID | `dp12_05_failed_init_dispatch` |
+| 6 automaton events 7 (5, 5, 3, 0) and 3 | `dp12_06_state_events` |
+| 7 RevokeDispatchByID of an active record: end only, the unit back; no source | `dp12_07_revoke_active` |
+| 8 RevokeAllDispatches(1) removes type-0 records | `dp12_08_revoke_all` |
+| 9 RemoveOccupant of a station with two records (the vehicles released, DP7) | `dp12_09_station_removed` |
+| 10 the tool with mask `0b101` | `dp12_10_tool` |
+| extra: identity, lifecycle, sources | `dp00_lifecycle` |
+| extra: the §4.7 walk-through and its record | `dp00_worked_example` |
+| extra: DisasterPeriodEnded, ViewChanged, re-targeting a dragged pylon, dropping it on its station | `dp00_messages` |
+| extra: new vehicles tracked by occupant group, a re-target not tracked again (DP9); a failed return's unit state, `RevokeDispatchByPylon` without a source (DP8); a removed station's active available pylon (DP7) | `dp00_answers15` |
+
+## Coverage (city situation §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 record round trip (the three corpus payloads; version 3; version 1) | `cs12_01_record` |
+| 2 duplicate GUID keeps the first count | `cs12_02_duplicate_guid` |
+| 3 profile rewards overwrite a loaded count with 1 | `cs12_03_profile_rewards` |
+| 4 idle tick: 10,000 ticks, nothing posted, drawn or changed | `cs12_04_idle_tick` |
+| 5 success payout (deposit, aura, count, one popup post) | `cs12_05_success_payout` |
+| 6 failure penalty refused by the budget, the popup still posted | `cs12_06_failure_no_money` |
+| 7 no city end | `cs12_07_no_city_end` |
+| 9 time limit: 0.5 s never fails by time; 40 s: the warning on the first tick whose pre-increment `elapsed` is ≥ 10.0f, status 2 when `elapsed` reaches 40.0f (CS4) | `cs12_09_time_limit` |
+| 10 `DeactivateSituation` vs `EndSituation` during the countdown (CS6) | `cs12_10_deactivate_vs_end` |
+| extra: identity, Init / Shutdown, Release | `cs00_lifecycle` |
+| extra: initiate, activate, the countdown, the 30-second warning, the time limit, deactivate | `cs00_mission_clock` |
+| extra: triggered / untriggered situations, max CSI, `HandleInsertAutomaton` (CS13), removed and disabled vehicles, PostCityInit | `cs00_tracking` |
+| extra: the popup and its buttons, could-not-start, by GUID, the cheat, Lua, ResetTutorials, `EndSituation` | `cs00_popup` |
+| extra: the reward list, saturation, the §8 getters | `cs00_reward_and_getters` |
+| extra: slot 22 `InitiateSituationForOccupant(occupant, advice)` (§8, CS2) | `cs00_slot22` |
+| extra: `InitiateSituation`'s results (CS5); the outcome positions (CS9); disabled automata and targets (CS10); the track list by priority (CS7); slots 21, 23–25 (CS11) | `cs00_answers15` |
+
+Not covered by a vector: item 8 (slots 13–15 return in ST0) is an ABI property of the C++ shim; the C ABI's
+`fc4_citysit_*` float getters return `float` and are checked by the capi tests.
 
 ## Coverage (disasters §18)
 
@@ -3530,6 +3922,10 @@ add/remove table, set queries, filter caches, building information, CreateGeneri
 | 18 iteration | `om18_18_iteration` |
 | 19 save round-trip | `om18_19_save_round_trip` |
 | 20 shutdown | `om18_20_shutdown` |
+| 21 slot 34 clamp (OM5) | `om18_21_slot34_clamp` |
+| 22 wrapped box (OM6) | `om18_22_wrapped_box` |
+| 23 slot 44 batches (OM7) | `om18_23_slot44_batches` |
+| 24 shrink precision (OM4) | `om18_24_shrink_precision` |
 | §14 lock regions and re-entrant callbacks | `om14_lock_regions`, `om14_reentrant_callbacks` |
 
 ## Coverage (terrain §18)
@@ -3546,13 +3942,22 @@ add/remove table, set queries, filter caches, building information, CreateGeneri
 | 8 `SetAltitude(x, z, h)` clamps, the lock, the unchecked index | `tr18_08_set_altitude_xz` |
 | 9 `SetSeaLevel` range and message order | `tr18_09_set_sea_level` |
 | 10 `RedisplayTerrain` packing, the view-ready gate, slot 69, the long-operation messages | `tr18_10_redisplay_packing` |
-| 11 the pipe-burst sinkhole (kind 0 lower; a neutral bitmap) | `tr18_11_pipe_burst_sinkhole` |
+| 11 the pipe-burst sinkhole (kind 0 lower; a neutral bitmap; the walk draw; the texture message's words) | `tr18_11_pipe_burst_sinkhole` |
 | 12 an unknown brush | `tr18_12_unknown_brush` |
 | 13 the lava flow rule and `SetThingsOnFire` | `tr18_13_lava_flow_rule` |
 | 14 the record sizes and round trip | `tr18_14_records` |
+| 15 the lava neighbour order and the `GetNeighbors` mask | `tr18_15_lava_neighbour_order` |
+| 16 `SetThingsOnFire` (x outer, z inner; one flammable cell) | `tr18_16_set_things_on_fire` |
+| 17 `GetWaterType` with a NaN depth, `AltitudeAtWhichFloodingWillOccur`, `GetLerpedWaterLevel`, `GetWaterVelocity`, `GetSedimentValue(x, z)` | `tr18_17_water_type_nan_and_flooding` |
+| 18 `ComputeSpansForRectangle` (the worked example, 45°, the clamps) | `tr18_18_spans` |
+| 19 the walk and stroke angles | `tr18_19_brush_angles` |
+| 20 the default brush level | `tr18_20_default_brush_level` |
+| 21 `SetWaterSurfaceDisplayState` posts only on a change | `tr18_21_water_display_state` |
+| 22 kind 5 (level toward the target) | `tr18_22_kind5_level` |
+| 23 the sea level after a load | `tr18_23_sea_level_after_load` |
 | other sections | `tr00_cached_min_max_stale` (§4.6), `tr00_navigability_and_bodies` (§10.3, §10.4), `nt05_economy_modifier` (nation §5) |
 
-The core's unit tests (`fc4_core::terrain`) also cover the other brush kinds, the lava start and burn rectangles,
+The core's unit tests (`fc4_core::terrain`) also cover the other brush kinds (2 talus smoothing, 7 the mark), the lava start and burn rectangles,
 the record versions and truncation, the tuning exemplar and the bodies-of-water flood fill; `fc4_capi`'s `terrain_tests` cover the C ABI.
 
 ## Coverage (automata §14)
@@ -3637,3 +4042,184 @@ Item 3: the `delta_eq` field is written by `UpdateVariables` (§4.3 step 3) befo
 field after step k shows the delta of step k − 1; the vector checks both. Item 20 in its full-game form (every
 simulator record byte-identical over 24 months with and without MySims) needs the whole simulator stack; the vector
 checks that the MySims make no simulator-facing host call.
+
+## Prop occupant ops
+
+The prop occupant vectors (`po11_…`, `po00_…`) drive `fc4_core::prop_occupant::PropOccupant` and
+`VisualEffectProp` (`docs/specs/prop-occupant.md`) behind a fake game implementing `PropOccupantHost` and
+`EffectHost`. Every op name starts with `po_`. The default world: no prop, an empty process-wide prop type table, a
+fake game that is not in the city and has no model-state property. `po_game` configures the fake game; `po_expect`
+reads the prop, the effect prop and the game together. The record ops take and emit hex, so a corpus record is pinned
+byte for byte.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `po_create` | `loaded?` | a fresh prop with the constructor's defaults (§2.2) |
+| `po_effect_create` | `no_effect?` | a fresh `0x2977AA49` prop (§6.2) |
+| `po_call` | `method`, `args?`, `expect?` | one method of the prop (below) |
+| `po_expect` | `state` (partial) | the prop, the effect prop and the game |
+| `po_game` | any of `in_city`, `model_state_property` (bool or null = no exemplar), `draws` (`[r, …]`, scripted `RandomUint32Uniform(100)`), `flag2`, `clear` (reset the logs) | the fake game |
+| `po_const` | `name`, `expect` | a constant of §1 and §2.2 |
+| `po_record_create` | | a fresh default record, replacing whatever was there |
+| `po_record_from_prop` | | the record a save would write for the live prop (§7) |
+| `po_read` | `hex`, `apply?`, `expect` (`"ok"`, `"base-failed"`, `"truncated"`) | `Read` (§7, `lr` §10.1) |
+| `po_write` | `hex?`, `expect` (the hex) | `Write` (§7) |
+| `po_record_field` | `name`, `expect` | one field of the current record |
+| `po_effect_call` | `method`, `args?`, `expect?` | one method of the visual-effect prop |
+| `po_effect_read` | `hex`, `expect` (`["ok", nameHex, trailer, byte0, byte1]` or `"failed"`) | `lr` §10.2 |
+| `po_effect_write` | `hex?`, `expect` (the hex) | `lr` §10.2, with the record quirk applied when the effect is live |
+| `po_config` | `ids` (array or null), `unknown?` | a lot's configuration object IDs, for the PV2 ops |
+| `po_tag` | `args` (`[tag]`), `expect` (`["matched", index]`, `"config-lacks-tag"`, `"no-configuration"`, `"unknown-configuration"`, or null) | classify one tag (§5.3) |
+| `po_block` | `method` (`reset`, `keep`, `kept`, `unmatched`, `slots_with`) | the `pd` §4.3 step 2.3.2 slot accounting |
+| `po_tally` | `method` (`tagged`, `matched`, `config_lacks_tag`, `no_configuration`, `unknown_configuration`, `unmatched`, `unmatched_percent`) | the PV2 corpus categories |
+| `po_store` | `method` (`write`), `args` (`[count]`), `expect` (`[written, entries, crcs_ok, read, index_ok]`) | the class-object store framing (§7) |
+
+### Prop occupant methods (`po_call`)
+
+`query_interface` / `query_interface_base`, `as_occupant_offset` / `as_occupant_offset_null`, `add_ref`, `release`,
+`refcount`, `set_bounding_box`, `bounding_box`, `set_bounding_box_from_size`, `slot5_stub`, `slot6_noop`,
+`get_prop_type`, `set_prop_type`, `prop_type_index`, `type_table_len`, `get_orientation`, `set_orientation`,
+`get_state`, `set_state`, `restore_state`, `set_time_of_day_range`, `get_time_of_day_range`, `time_of_day_bytes`,
+`set_simulator_date_range`, `simulator_date_range`, `tick_simulator_date`, `set_random_chance`,
+`get_random_chance`, `get_prop_timer_bitfield`, `get_prop_timer_state`, `set_prop_timer_state`, `get_prop_usage`,
+`set_prop_usage`, `add_usage`, `lot_tag`, `has_lot_tag`, `set_lot_tag`, `init_after_load`, `shutdown`, `set_loaded`,
+and the slot table `vtable_len`, `slot_channel`, `slot_method`, `slot_address`, `slot_offset`, `slot_args`,
+`vtable_addr`, `vtable_next_addr`.
+
+### Visual-effect methods (`po_effect_call`)
+
+`query_interface`, `as_occupant_offset`, `as_prop_occupant_offset`, `object_size`, `class_id`,
+`set_effect_type_id`, `set_effect_type_name`, `start_effect`, `stop_effect`, `effect_handle`, `effect_id`,
+`effect_name`, `is_started`, `is_live`, `should_drop_name_on_write`.
+
+### `po_expect` state fields
+
+`state`, `chance`, `tod`, `tod_bytes`, `timer_bits`, `lot_tag`, `has_lot_tag`, `prop_type`, `type_index`,
+`orientation`, `usage`, `bbox`, `refcount`, `loaded`, `has_date_range`, `date_range`, `occupant_type`,
+`object_size`, `effect_id`, `effect_name`, `effect_started`, `effect_live`, `effect_ctor_flag`, `effect_scratch`,
+`messages`, `clock`, `draws`, `removed`, `model_states`, `effect_calls`.
+
+## Coverage (prop-occupant §11)
+
+The 25 conformance tests of `docs/specs/prop-occupant.md` §11, plus one cross-section vector for the slot table.
+`po00_01_vtable_channels` pins the measured return channels of §4.1 that `docs/abi/interfaces.tsv` labels
+`eax-or-void`.
+
+| §11 item | Vector |
+|---|---|
+| 1 identity (§1) | `po11_01_identity` |
+| 2 constructor defaults (§2.2) | `po11_02_constructor_defaults` |
+| 3 object size (§1) | `po11_03_object_size` |
+| 4 AsOccupant, the vtable extent and the refcount (§2.2, §2.3, §4.2, quirk 10) | `po11_04_as_occupant_vtable_refcount` |
+| 5 GetPropType round trip (§5.1) | `po11_05_prop_type_round_trip` |
+| 6 unknown type is interned (§5.1) | `po11_06_unknown_type_interned` |
+| 7 GetState is a clean EAX return (§4.1) | `po11_07_get_state_eax` |
+| 8 GetRandomChance is an AL return (§4.1, quirk 3) | `po11_08_get_random_chance_al` |
+| 9 bounded box (§5.2) | `po11_09_bounding_box` |
+| 10 orientation (§5.2) | `po11_10_orientation` |
+| 11 time of day (§4.1, §8 item 3) | `po11_11_time_of_day` |
+| 12 timer bits (§4.1) | `po11_12_timer_bits` |
+| 13 timer transition draw (quirk 7) | `po11_13_timer_transition_draw` |
+| 14 lot tag default (§5.3) | `po11_14_lot_tag` |
+| 15 usage (§3) | `po11_15_usage` |
+| 16 save / load round trip (§7) | `po11_16_save_load_round_trip` |
+| 17 version ≤ 5 read (quirk 5) | `po11_17_version_five_read` |
+| 18 unknown type survives a round trip (§5.1, quirk 2) | `po11_18_unknown_type_round_trip` |
+| 19 class-object store framing (§7) | `po11_19_store_framing` |
+| 20 loaded props do not announce themselves (§3) | `po11_20_loaded_no_announce` |
+| 21 visual-effect attach (§6.2) | `po11_21_effect_attach` |
+| 22 visual-effect record quirk (§6.2) | `po11_22_effect_record_quirk` |
+| 23 state and the model (quirk 6) | `po11_23_state_and_model` |
+| 24 PV2 tag matching (§5.3) | `po11_24_pv2_tag_matching` |
+| 25 removal (§3) | `po11_25_removal` |
+| — the 24-slot table and its return channels (§4.1, §4.2, §8 item 2) | `po00_01_vtable_channels` |
+
+Item 24 reproduces the PV2 rule literally: a tagged prop whose tag names no configuration object lowers the block's
+`k` by one (`pd` §4.3 step 2.3.2 step 2), which is what leaves the block's slot count one lower. The vector also
+pins the corpus split of §5.3 (40,830 of 147,162 tagged lot props unmatched, 27.7 %: 40,794 + 36 + 0). Item 13 sets
+the prop to state 2 first so the `SetState(0)` call is observable — `SetState` is a no-op when the value already
+equals `+0x63` (`nt` §13.1 step 1).
+## Coverage (network geometry §18)
+
+| §18 item | Vector |
+|---|---|
+| 1 straight drag | `ng18_01_straight_drag` |
+| 2 near-straight drag (pre-adjust 1.2) | `ng18_02_near_straight_drag` |
+| 3 diagonal snap, width 1 | `ng18_03_diagonal_snap_width_1` |
+| 4 diagonal snap, width 2 | `ng18_04_diagonal_snap_width_2` |
+| 5 street is straight only | `ng18_05_street_straight_only` |
+| 6 slope limits | `ng18_06_slope_limits` |
+| 7 satisfier, slope | `ng18_07_satisfier_slope` |
+| 8 satisfier, smoothness and preference | `ng18_08_satisfier_smoothness_preference` |
+| 9 tunnel trigger | `ng18_09_tunnel_trigger` |
+| 10 no tunnel code | `ng18_10_no_tunnel_code` |
+| 11 a bridge needs a straight drag | `ng18_11_bridge_needs_straight_drag` |
+| 12 starting in water | `ng18_12_starting_in_water` |
+| 13 reserved landfill | `ng18_13_reserved_landfill` |
+| 14 support level | `ng18_14_support_level` |
+| 15 terrain support | `ng18_15_terrain_support` |
+| 16 draft flag | `ng18_16_draft_flag` |
+| 17 cell cost | `ng18_17_cell_cost` |
+| 18 power-line cost | `ng18_18_power_line_cost` |
+| 19 destroy test set | `ng18_19_destroy_test_set` |
+| 20 grading threshold | `ng18_20_grading_threshold` |
+| 21 smoothing codes | `ng18_21_smoothing_codes` |
+
+The core's unit tests (`fc4_core::network_geometry`) also cover the pre-adjust rules, the city-edge refusal of wide
+types, the satisfier's collapse rule, slope merging, preferred ranges and pinned propagation, the smoothing and
+boundary sets, the water-surface floor of the cell infos, the flat-cell and cross-section rules, the offset tables and
+the diagonal-end extension; `fc4_capi`'s `network_geometry_tests` cover the C ABI.
+## Coverage (effects §17)
+
+| §17 item | Vector |
+|---|---|
+| 1 the brush stroke count (record 2 at 33333 us) | `ef17_01_brush_stroke` |
+| 2 the dilation (1.5; 100000 us) and the truncated time | `ef17_02_dilation` |
+| 3 the select draw (seed `0x1105`) and the volcano creators | `ef17_03_select_draw` |
+| 4 the one-shot crater | `ef17_04_one_shot_crater` |
+| 5 out of bounds | `ef17_05_out_of_bounds` |
+| 6 the game record's order and the clipped rectangle | `ef17_06_game_record_order` |
+| 7 moving to a new cell | `ef17_07_move_to_new_cell` |
+| 8 the pause record | `ef17_08_pause_record` |
+| 9 the priority filter and the index -1 no-op | `ef17_09_priority_filter` |
+| 10 no end without the draw pass (both finish modes; EF2, EF8) | `ef17_10_no_end_without_the_draw_pass` |
+
+The core's unit tests (`fc4_core::effects`) also cover the directory parser and writer, the LOD ranges, the
+nested update (EF9), the game record's other actions, the shipped tables and shutdown; the install sweep
+(`cargo test -p fc4-formats --test effects_directory -- --nocapture`) parses the installed directory; `fc4_capi`'s
+`effects_tests` cover the C ABI.
+## Coverage (ui-windows §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 AsIGZWin offset (`this + 0x0C`, null for a null `this`) | `ui11_01_as_igzwin_offset` |
+| 2 two vtables, one allocation | `ui11_02_two_vtables_one_allocation` |
+| 3 slots 59 and 60 return nothing | `ui11_03_slots_return_nothing` |
+| 4 secondary close is a no-op when nothing is open | `ui11_04_secondary_close_is_a_noop` |
+| 5 tertiary close is a no-op when nothing is open | `ui11_05_tertiary_close_is_a_noop` |
+| 6 secondary close cascades | `ui11_06_secondary_close_cascades` |
+| 7 teardown order (Hide, Release, ChildDelete) | `ui11_07_teardown_order` |
+| 8 both fields cleared | `ui11_08_both_fields_cleared` |
+| 9 secondary does not write catalog state | `ui11_09_secondary_does_not_write_catalog_state` |
+| 10 tertiary writes two dwords, slot 17 then slot 9 | `ui11_10_tertiary_writes_two_dwords` |
+| 11 tertiary skips the save on a failed query | `ui11_11_tertiary_skips_the_save_on_a_failed_query` |
+| 12 invoke toggles (secondary and tertiary) | `ui11_12_invoke_toggles` |
+| 13 invoke replaces | `ui11_13_invoke_replaces` |
+| 14 invoke drops the tool first | `ui11_14_invoke_drops_the_tool_first` |
+| 15 parent is the view's window | `ui11_15_parent_is_the_views_window` |
+| 16 script group | `ui11_16_script_group` |
+| 17 null create is safe | `ui11_17_null_create_is_safe` |
+| 18 generator flags | `ui11_18_generator_flags` |
+| 19 alignment and show order | `ui11_19_alignment_and_show_order` |
+| 20 advisor popup close path (`[game]` observation; replacement side pinned) | `ui11_20_advisor_popup_close_path` |
+| 21 `DoWinProcMessage` gets the window as arg1 | `ui11_21_do_win_proc_message_takes_the_window` |
+| 22 message delivery order | `ui11_22_message_delivery_order` |
+| 23 the hidden pause is a nesting count (`[game]`; replacement pinned) | `ui11_23_hidden_pause_is_a_nesting_count` |
+| 24 effects end messages need a paint (`[game]`; window-side consequence) | `ui11_24_effects_end_messages_need_a_paint` |
+| 25 only the View3D record is saved | `ui11_25_only_the_view3d_record_is_saved` |
+
+Tests 20, 23 and 24 are marked **[game]** in ui-windows.md §11: they need the original. Their vectors pin the
+replacement-side behaviour that makes the observation true — the popup's flag table (including that a key message is
+never looked at, which is why Esc and Enter do nothing), the hidden pause as a nesting count that a camera move raises
+with no dialog open, and the window-side consequence of effects.md EF2 (a view that is never painted never reaches the
+effects draw pass).
