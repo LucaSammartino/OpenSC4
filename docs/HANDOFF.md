@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**train46 landed 58f47b0eb2:** Two-lane engine batch; exemplar registry conflict excluded instead of holding the batch. SimGrid factory promoted after clean current37+simgrids joint2032/ref0,136read/write grids and original-class reload116/116digestsref0; full64-test gate and candidate union regress PASS. SG1 remains open; no helper or shadow credit. Trip/base-texture cores credited only; lot/business-unit/retaining-wall owners withheld pendingLR1-LR5. Per-lane counters corrected for advisor/audio follow-ups: prior landed setup phases do not consume these lanes'3-round caps; no fourth round or guard override. Coverage44.3/34.5/16.1/17.8; rounds128 (open-ended).
+
 **Run4 checkpoint125 (open-ended):**125 rounds;20 trains landed. Coverage44.3/34.4/16.1/17.6, baseline delta+7.5/+6.1/+4.0/+1.7points. 16 lanes parked;6 actual live. Train46 (simgrids + lot records) gate64/64PASS, candidate regression running; EX registry conflict excluded. Netmgr final2032/ref0/resync0 remained2/73 with21RNGstate differences, parked without exactcredit. Nextcheckpoint150.
 
 **train45 landed f21518bafa:** Three-lane engine batch: full cRZCmdLine core added; URL and network-occupant records remain partial, no whole-owner credit. Construction shared-transform conflict excluded rather than holding batch. Full gate63/63 and current37-key default union regress PASS. Netmgr/simgrids final validations resumed after their blockers landed; netrules implementation phase retains shared3-round cap. Coverage44.3/34.4/16.1/17.6; rounds120 (open-ended).
@@ -35,7 +37,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target6-8 live lanes (coordinator target8), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
-**Coverage after train45:**44.3/34.4/16.1/17.6; baseline36.8/28.3/12.1/15.9, delta+7.5/+6.1/+4.0/+1.7 points. 20 trains landed; 120 rounds used, no total cap. Next25-round checkpoint 150.
+**Coverage after train46:**44.3/34.5/16.1/17.8; baseline36.8/28.3/12.1/15.9, delta+7.5/+6.2/+4.0/+1.9 points. 21 trains landed; 128 rounds used, no total cap. Next25-round checkpoint 150.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`, `run4-launch.py` (saved guarded Workflow,maxRounds1,ctx150k,calls150). Never use direct/unguarded agents. After compaction/restart reread this section and run lanes.py guard before spawning. Fresh slots/check --touches required, --resume for an existing worktree; deps must be on main.
 
@@ -56,7 +58,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 **Runtime:** elevated game queue6slots(pid23444) restarted after Windows elevation blocked non-elevated launches. Native CLI BG_WAIT_CEILING_MS=0; qwait without--fresh, unique labels. RE preflight must GO. Never set gate verdicts by hand.
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 239 (train45 PASS; command-line core and partial URL/network records); 238 (Dates/commands cores, automata teardown ownership, opt-in tutorial/citydetail union; no exemplar candidate or default promotion); 237 (train39 PASS;8888/8 cores and network-occupant contract answers); 236 (train37 PASS; propdev replacement and four core modules); 235 (train34 PASS; citysit replacement, disaster exacttrace,4444core,RZ/language specs). See `docs/manual-checks.md`.
+- **Latest in-game run:** 240 (train46 PASS; simgrid replacement promoted, trip/base-texture cores); 239 (train45 PASS; command-line core and partial URL/network records); 238 (Dates/commands cores, automata teardown ownership, opt-in tutorial/citydetail union; no exemplar candidate or default promotion); 237 (train39 PASS;8888/8 cores and network-occupant contract answers); 236 (train37 PASS; propdev replacement and four core modules). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
