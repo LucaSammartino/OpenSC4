@@ -1,6 +1,13 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-modelmaker4 (RE spec: exact cSC4ModelMaker owner, docs/specs/model-maker.md) | `re-modelmaker4` / (RE spec lane) | partial after round 2/3: 13942 of 34705 bytes specified, §20 lists 51 remainder/outline rows (20763 bytes); no whole-owner credit; no questions, no ABI rows, no game runs | 1. §10.4 LoadOccupantModelsForZoomAndRotation from asm 2. §9.1 0x4933A0 jump table 3. §9.5 DoBuildingCompletionChanged 4. round-3 list below |
+| re-modelmaker4 (RE spec: exact cSC4ModelMaker owner, docs/specs/model-maker.md) | `re-modelmaker4` / (RE spec lane) | in progress (round 3/3); after round 2: 13942 of 34705 bytes specified, §20 lists 51 remainder/outline rows (20763 bytes); no whole-owner credit; no questions, no ABI rows, no game runs | 1. §10.4 LoadOccupantModelsForZoomAndRotation from asm 2. §9.1 0x4933A0 jump table 3. §9.5 DoBuildingCompletionChanged 4. round-3 list below |
+
+## Handoff (round 3/3, final)
+
+- Goal: finish model-maker.md remainder (51 rows / 20763 B, §20) or PARK with exact remainder; no 4th round.
+- Done before round 3: see "Report (round 2)" below (13942 B specified).
+- Next: §10.4 0x495430 from asm; §9.1 table 0x49367C; §9.5 0x48FFF0; then §11/§12/§13 groups.
+- Facts: REA likely unavailable -> static fallback (re_query asm + decomp/). Helpers build-runs/ca.py, fn.py, inv.py.
 
 ## Report (round 2)
 
