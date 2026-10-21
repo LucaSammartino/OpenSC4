@@ -648,7 +648,7 @@ fn group_counts_and_special_headers() {
 /// §9 test 4 with the check boxes and the row map (BW9).
 #[test]
 fn ordinance_apply_calls_only_changed_rows() {
-    let mut h = Rec::default();
+    let mut h = Rec { ..Default::default() };
     h.ord = OrdinanceInit {
         rows: vec![
             OrdinanceRow {
