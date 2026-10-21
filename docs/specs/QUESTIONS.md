@@ -37,6 +37,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CQ | crime |
 | CR | power |
 | CS | city-situation |
+| CT | city-tools-input |
 | DG | building-development |
 | DM | demolition |
 | DP | dispatch |
@@ -46,6 +47,7 @@ generated index: the questions live one file per spec, so read only the file for
 | EH | residential-education-health |
 | EX | data-formats |
 | FL | flammability |
+| FN | drawing-fonts |
 | FQ | flora |
 | FS | graphics-formats |
 | GF | graphics-formats |
@@ -76,6 +78,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PS | plumbing |
 | PV | prop-developer |
 | PW | power |
+| RD | renderer-driver |
 | RG | residential-education-health |
 | RN | foundations |
 | RS | residential |
@@ -100,6 +103,7 @@ generated index: the questions live one file per spec, so read only the file for
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 0 | 5 | CD6 | - |
 | city-situation | 0 | 11 | CS12 | - |
+| city-tools-input | 5 | 0 | CT6 | questions/city-tools-input.md |
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
@@ -109,7 +113,8 @@ generated index: the questions live one file per spec, so read only the file for
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 1 | 40 | DS41 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
-| effects | 0 | 10 | EF11 | questions/effects.md |
+| drawing-fonts | 6 | 0 | FN7 | questions/drawing-fonts.md |
+| effects | 3 | 10 | EF14 | questions/effects.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
@@ -140,6 +145,7 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-lotconfig | 6 | 8 | PL22 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
+| renderer-driver | 5 | 0 | RD6 | questions/renderer-driver.md |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | terrain | 5 | 36 | TR42 | questions/terrain.md |
@@ -148,4 +154,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **67** | **991** | | |
+| **total** | **86** | **991** | | |
