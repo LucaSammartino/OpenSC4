@@ -62,8 +62,28 @@ Arguments: spans, n, surface, `g` (pointer to the gradient record, §4.1). Four 
 Twelve signed dwords: `+0x00..+0x0C` start values `c0, c1, c2, c3`; `+0x10..+0x1C` per-x steps `dx0..dx3`;
 `+0x20..+0x2C` per-y steps `dy0..dy3`. The value of channel `i` at absolute pixel (x, y) is
 `V_i(x, y) = c_i + dx_i × x + dy_i × y` (32-bit wrapping arithmetic). `c0` lands in **B**, `c1` in **G**, `c2` in
-**R**, `c3` is the alpha weight (§5 only). Who fills it (expected 8.16 fixed point, 8-bit channel in bits 16–23,
-as §5's conversion implies) is outside this class: question SR1555-1.
+**R**, `c3` is the alpha weight (§5 only).
+
+**Producer** (`cGZDrawContextRenderToBuffer::SetGradientTransform`, `0x0082FDB0`, vtable `0x00AC17D0` slot 12;
+`this`, `p` = pointer to 12 floats, `x0`, `y0` floats; `ret 0xC`). If `p` is null the gradient flag `+0x74` is
+cleared and nothing else changes. Otherwise, for channel `i = 0…3` (record channel `i` = float index `i`, so
+`p[0]` feeds B, `p[1]` G, `p[2]` R, `p[3]` alpha):
+
+- `dx_i = R(p[4+i] × 16711680)`, `dy_i = R(p[8+i] × 16711680)`, where 16711680 = 255 × 65536 (double at
+  `0x00AC17C8`) and `R(v)` = the product **rounded to float** (stored as a 32-bit float) and then converted with
+  the FPU's current rounding mode (round-to-nearest-even by default: `fistp`);
+- `s_i = R(p[i] × 16711680) + 0x8000` (start plus one half);
+- `c_i = trunc(s_i − (dx_i × x0 + dy_i × y0))`, evaluated on the x87 stack (the integers loaded exactly, `x0`,
+  `y0` as float, `+` before `−`) and truncated toward zero by `_ftol` (`0x009EEF04`).
+- Then `+0x74 = 1`.
+
+So the float inputs are channel fractions (1.0 → 255 in bits 16–23): the record is 8.16 fixed point with the
+8-bit channel in bits 16–23, the start pre-rounded by +0.5, and `(x0, y0)` the pixel at which the colour equals
+`p[0…3]`. Worked example: `p[0] = 1.0`, `p[4] = p[8] = 0`, `x0 = y0 = 0` → `c0 = 0x00FF8000`, `dx0 = dy0 = 0`;
+RenderGradient then writes B = `(0x00FF8000 >> 16) & 31 = 31` (§4.2 takes the low 5 bits of the 8-bit value).
+Neither `0x0082FDB0` nor the base `cGZDrawContext::SetGradientTransform` (`0x0082C360`, a forwarder through the
+engine's vtable `+0x30`, itself only reachable through `cGZDrawContext` vtable slot `+0x6C`) has a direct
+caller in the export; whether a shipped path reaches it is open (SR1555-2).
 
 ### 4.2 Per-pixel rule
 
@@ -121,9 +141,17 @@ surface record is always `this+0x78`. (`+0x41` = `SetAlphaBlend(v)` stores `v > 
 With a texture it locks it (`vfunc +0x18`, flag `0x800`; failure → nothing drawn) and calls `RenderBlt(spans, n,
 this+0x78, src, b, kind)`:
 
-- `src` (24 bytes): `+0` pixel pointer (texture vfunc `+0x88`, pre-biased by the caller so the per-pixel code
-  addresses source texel (x, y) for destination (x, y) in the plain case), `+4` stride (`+0x8C`), `+8` width
-  (`+0x24`), `+0xC` height (`+0x28`), `+0x10` colour type (`+0x3C`), `+0x14` (`+0x44`, the palette for 8-bit).
+- `src` (24 bytes): `+0` pixel pointer (texture vfunc `+0x88`), `+4` stride (`+0x8C`), `+8` width (`+0x24`),
+  `+0xC` height (`+0x28`), `+0x10` colour type (`+0x3C`), `+0x14` bytes per texel `bpp` (`+0x44`; the caller
+  uses it only for the pointer bias below, no body reads it). The pointer and size are then adjusted per mode
+  (§7.5, §7.6); in the plain (non-tiled, non-stretched) mode the pointer is biased by
+  `−(ox × bpp + oy × stride)` (`0x00830554`), with `ox = ctx+0x28`, `oy = ctx+0x2C`, so destination (x, y)
+  reads source texel `(x − ox, y − oy)`.
+- `ox, oy` come from `SetBltSource` (`0x0082FFD0`, args `src, x, y, sx, sy, …` floats): it stores
+  `ctx+0x30 = R(sx × 65536)`, `+0x34 = R(sy × 65536)`, `du = +0x38 = R(65536 / sx)`, `dv = +0x3C = R(65536 / sy)`
+  (`R` as in §4.1: rounded to float, then `fistp`; 65536.0 at `0x00A8CEB0`). If `+0x30` and `+0x34` both equal
+  `0x10000` it sets `ox = R(x)`, `oy = R(y)` (integers) and clears the stretch flag `+0x40`; otherwise
+  `ox = R(du × x)`, `oy = R(dv × y)` (**16.16**, already scaled) and sets `+0x40 = 1`.
 - `b.+0x10` **source-format index** from the texture colour type: 7 (A4444) → 0, 6 (A1R5G5B5) → 1, 4 (R5G5B5) → 2,
   5 (R5G6B5) → 3, 9 (A8R8G8B8) → 4, 8 (R8G8B8) → 5, 2 (8-bit) → 6; type 3 and any type outside 2…9 → **nothing
   drawn** (unlock and return).
@@ -216,6 +244,30 @@ G = 0 → `0x8000 | 16<<10 | 16 = 0xC010`.
 `b.+0x00` = u0, `+0x04` = v0, `+0x08` = du, `+0x0C` = dv (16.16, used unsigned). For destination (x, y):
 source row `= (v0 + dv × y) >> 16`, source column `= (u0 + du × x) >> 16`, then `u += du` per pixel —
 nearest-texel, **no clamp, no wrap** (the caller must keep it in range). The texel is converted as §7.3.
+
+**Caller values** (`0x008304EA`–`0x00830551`, taken when tiling is off and `ctx+0x40` is set): the source
+pointer is **not** biased; `b.+0x00 = (du >> 1) − ox`, `b.+0x04 = (dv >> 1) − oy` (arithmetic shifts, 32-bit
+wrap), `b.+0x08 = du`, `b.+0x0C = dv`, with `du, dv, ox, oy` from `SetBltSource` (§6.1, stretch case: `ox`,
+`oy` already 16.16). So destination (x, y) samples source column `floor((du·x − R(du·x_s) + du/2) / 65536)`
+(x_s the float blit x), i.e. the texel under the destination pixel's centre, all in unsigned 32-bit arithmetic.
+
+### 7.6 Tiled addressing (columns 8–11) [exact for X555 `0x00835760`; other rows: §7.7]
+
+**Caller** (`0x00830437`–`0x008304E7`, taken when `ctx+0xA4` is set, before the stretch test). With the tiling
+rectangle `L = ctx+0x94`, `T = +0x98`, `Rt = +0x9C`, `B = +0xA0` (stored verbatim by `SetBltTiling`
+`0x0082FE70`, which also sets `+0xA4 = 1`; `ClearBltTiling` `0x0082FE60` clears it):
+
+- source pointer `+= L × bpp + T × stride` (top-left of the tile); `src.+8 = TW = Rt − L`,
+  `src.+0xC = TH = B − T` (the tile replaces the texture size);
+- `b.+0x00 = u0 = (M − (M mod TW) − ox) mod TW` and `b.+0x04 = v0 = (M − (M mod TH) − oy) mod TH`, with
+  `M = 0x7FFFFFFF`, all unsigned 32-bit (`div`). For `0 ≤ ox ≤ M − (M mod TW)` this is `(−ox) mod TW`;
+  `b.+0x08`/`+0x0C` are left unset (stale stack) and no tiled body reads them. `TW = 0` or `TH = 0` is a
+  divide fault in the original *[compat: never pass an empty tile]*.
+
+**Body.** Per span at (x0, y): source row `sy = (y + v0) mod TH`, source column `sx = (x0 + u0) mod TW`
+(unsigned 32-bit `div`; x0 and y are the 16-bit span coordinates). Per pixel: read texel (sx, sy), convert and
+store as the matching column 0–3 body, then `sx += 1`; when `sx` reaches TW it resets to 0 (the pointer goes back
+to the start of the row). Net effect: destination (x, y) shows tile texel `((x − ox) mod TW, (y − oy) mod TH)`.
 
 All other bodies (columns 4–11 for the other rows, tiled addressing, keyed non-A1555 rows) are **[table]**:
 identified and named, per-pixel rule not yet restated (§8).
