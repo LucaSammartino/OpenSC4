@@ -417,6 +417,24 @@ MakeRelativeToTextAlignmentStyle gives the vertical placement code for inline ob
 Style stack: push (00902d28) copies the current style record (0x130) onto the vector at 0x15c; pop (00900e5f)
 does nothing on an empty stack, otherwise restores the last 0x28-byte record into 0x130 and removes it.
 
+## 9. Downloads and images
+
+- **DoMessage** (008fff4e, secondary vtable slot 3; `this` is the secondary base): when the message type
+  (message vtable +0x10) is **0x75758483**, read the message's status (+0x38) and payload (+0x50); a non-zero
+  status calls ResourceHasBeenDownloaded(payload) on the primary object. That message type returns 1
+  (handled) whatever the status; every other type returns 0.
+- **LoadFromImageFile(path, outImage)** (008fe71c): on first use create the image loader through
+  `GZCOM()` (vtable +0xc) with class id 0xa2ffb5d3 and interface id 0x02ffbb60, stored at 0x1a4; when that
+  fails, return without touching `outImage`. Then call loader vtable +0x10 (path, outImage, 1).
+- **ResourceHasBeenDownloaded(record)** (008ffbfc), under the document's critical section (0x34):
+  1. Find the record's URL (record +8) in the download table (end sentinel 0x198). Not found -> nothing.
+  2. When the record's "is a file" byte (+0x2c) is 0, the downloaded bytes are written to a temporary file
+     (`cRZFile::MakeTempPathName`) first; otherwise the record's own path is used (HD4).
+  3. LoadFromImageFile(path, &entry.image (+0x24)); remove the temporary file if one was made.
+  4. When the image is non-null, call slot 0 of every waiter in the entry's list (+0x28..+0x2c) with the
+     image, then clear the list. Entries stay in the table (later requests for the same URL reuse it).
+  Unlock.
+
 ## 10. Per-method remainder
 
 Specified above (complete): constructor, Init, SetBaseURL, QueryInterface (+ thunk 009006da),
@@ -426,12 +444,13 @@ ParseAttributeList, FindAttribute, DumpUnhandledAttributes (HD1), ParseFLOW, Par
 ParseSGMLElements, ParseHTMLDocument, ParseSGMLDocumentType, ParseTextDocument, ParseHTMLElements,
 ParseHEAD, InsertTextSegment, ParseTITLE, ParseBASE, ParseSCRIPT, ParseFORMCTRL, ParseSPECIAL,
 ParseBR, ParseINPUT, ParseSELECT, ParseOPTION, ParseDIV, ParseDIVActual, MakeOutputStyle,
-MakeRelativeToTextAlignmentStyle, ParseBLOCK, ParseP (FORM).
+MakeRelativeToTextAlignmentStyle, ParseBLOCK, ParseP (FORM), DoMessage, LoadFromImageFile,
+ResourceHasBeenDownloaded (HD4 open on the temp-file source).
 
 Remaining (not yet specified; whole-owner credit withheld): ParseMETA, ParseLINK, ParseBODY,
 ParseDL (BLOCKQUOTE), ParseLI, ParseTABLE, ParseTR, ParseTD, ParseTH, ParseHR, ParseFONTSTYLE, ParsePHRASE, ParseA,
 ParseIMG, ParseMAP, ParseAREA, ParseSPAN, ParseBLINK, CreateBullet, GetStringForEscape (entity table,
-6918 bytes), LoadFromImageFile, ResourceHasBeenDownloaded, DoMessage, the two hashtable helpers (008ffdc8
+6918 bytes), the two hashtable helpers (008ffdc8
 clear, 009001e7 destructor). Gap functions reached from this owner but outside its inventory (P 0090614f, PRE
 00906a5d, DL 009066a3, headings 00906754, lists 00906f1d, CENTER 00906d22, style push/pop, tag lookup
 008fead9) are not counted toward the owner.

@@ -152,7 +152,7 @@ generated index: the questions live one file per spec, so read only the file for
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | history | 0 | 17 | HW18 | - |
-| html-document | 3 | 0 | HD4 | questions/html-document.md |
+| html-document | 4 | 0 | HD5 | questions/html-document.md |
 | landfill | 0 | 36 | LF7, LG31 | - |
 | landvalue | 0 | 5 | LV6 | - |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
@@ -207,4 +207,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **210** | **1028** | | |
+| **total** | **211** | **1028** | | |
