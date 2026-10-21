@@ -117,6 +117,7 @@ Offsets in a `cGZFont`; names are ours.
 | 19/20 | Get/SetAntialiasingSharpness | clamp [-1, 1]; on change rebuild §10 |
 | 21/22 | Get/SetFilePath | string copy |
 | 23/24 | Get/SetCodePage | Get always returns true |
+| 25 | IsCodePageAvailable(cp) | §6 probe table |
 | 26 | IsCharEncodingAvailable(e) | `e == 2` |
 | 29/30 | Get/SetScaling(x, y) | clamp each to [0.01, 1000]; on change clear both caches and re-apply the char size at 72×72 dpi |
 | 31/32 | Get/SetAdvanceScaling | Get returns (advanceScale, 1.0); Set clamps [0.1, 10], on change clears both caches |
@@ -156,6 +157,28 @@ when it needs Thai substitution, else the input is used as is), then applies §1
 characters that need it. Measuring functions temporarily set codePage to 0x10 while they walk the converted text
 and restore it afterwards.
 
+`IsCodePageAvailable(cp)` (slot 25, `0x00898A5A`) builds a list of probe characters, then returns true iff every
+probe has a glyph in the open face (`0x0089F538` on the face handle at font +0xEC → +8, non-zero = present; the
+first absent probe returns false). The table, read from the switch at `0x00898A7E`..`0x00898C05`:
+
+| cp | probes |
+|---|---|
+| 8, 0x10 | none probed: true at once |
+| 0, 1252 | U+0061 |
+| 874 | U+0E01, U+0E2C |
+| 932 | U+3061, U+30A4 |
+| 936 | U+70A7, U+7535 |
+| 949 | U+C2B9, U+C9D1 |
+| 950 | U+6F54, U+70B5 |
+| 1250 | U+0142 |
+| 1251 | U+0401 |
+| 1253 | U+0370, U+0393 |
+| 1254 | U+011E |
+| 1255 | U+05D0, U+05E2 |
+| 1256 | U+0621, U+0641 |
+| 1257 | U+0160 |
+| any other | empty list: true (no probe) |
+
 ## 7. Glyph cache and glyph rasters
 
 - `GetAppropriateCachedBitmapData` (slot 59): monoCache when aaMode == 1, else greyCache.
@@ -194,6 +217,8 @@ and restore it afterwards.
 | 41 | CalculateWordsToFitInWidth(s, n, w, &width, mode) | §8.1 |
 | 43 | CalculateNumberOfLines(s, n, w) | repeatedly takes CalculateWordsToFitInWidth(…, mode 2) and counts lines (w 0 treated as 1) |
 | 47 | TextArea(rect) | rect = (0, 0, GetStringWidth, CharHeight) |
+| 44 | CalculateWidthOfLines(s, n, height) | §8.2 |
+| 45 | CalculateTextArea(s, n, rect, minW, maxW, maxH) | §8.2 |
 | 46 | CalculateTextArea(s, n, rect, wrap, fixWidth) | §8.2 |
 | 50 | FormatForEllipsis(text, ellipsis, rect, keepAll) | §8.3 |
 
@@ -206,7 +231,31 @@ source-unit length, and `width` = GetStringWidth of that prefix.
 
 **8.2 Text area.** Empty text: rect.right = rect.left. With wrap and fixWidth: height = CalculateNumberOfLines ×
 line height measured against the rect's width; without wrap: right = left + GetStringWidth; bottom = top + line
-height. With wrap and no fixWidth: right = left + CalculateWidthOfLines(rect height) (FN5).
+height. With wrap and no fixWidth: right = left + CalculateWidthOfLines(rect height).
+
+`CalculateWidthOfLines(s, n, height)` (slot 44, `0x008968EB`) returns the narrowest width, in steps of 10 pixels
+from 20 to 4000, at which the text wraps into at most maxLines = height / lineHeight lines (unsigned division;
+lineHeight 0 is not guarded). Binary search on lo = 2, hi = 400: mid = (lo + hi) >> 1; lines =
+CalculateNumberOfLines(s, n, mid·10); if lines > maxLines, lo = mid + 1; otherwise, if lo == hi return lo·10,
+else hi = mid; repeat while lo ≤ hi. Leaving the loop (even 4000 does not fit) returns 0. Height below one line
+gives maxLines 0 and so 0 for any text that has a line.
+
+`CalculateTextArea(s, n, rect, minW, maxW, maxH)` (slot 45, `0x008973D4`, 6 stack arguments, returns bool) fits
+the text into a box no taller than maxH; rect is {left, top, right, bottom} and only right and bottom are written.
+Signed compares except where marked:
+1. lh = GetLineHeight; maxH = max(maxH, lh).
+2. If minW or maxW is −1: aw = CharWidth('a'); minW −1 → 12·aw; maxW −1 → 32·aw; then if maxW ≤ minW,
+   maxW = 2·minW (this repair runs only in this branch).
+3. w = 1. If the text contains no U+000A (`Find(s, n, 10)` `0x0089738F` = −1): w = GetStringWidth(s, n), and
+   a. if w < minW: one line {w, lh} (right = left + w, bottom = top + lh), true;
+   b. if w < 2·minW: W2 = CalculateWidthOfLines(s, n, 2·lh); if W2 < maxW (unsigned) and 2·lh ≤ maxH:
+      {W2, 2·lh}, true;
+   c. if w < maxW: one line {w, lh}, true.
+4. For k = w / maxW + 1 while k < maxH / lh (k = 1 when the text has a newline): H = k·lh;
+   W = CalculateWidthOfLines(s, n, H); if W ≠ 0, W < maxW (unsigned) and H ≤ maxH: {W, H}, true.
+5. Nothing fits: right = left, bottom = top, false.
+Worked example: aw 8, lh 16, minW = maxW = −1 (so 96, 256), maxH 100: width 60 → 60 × 16; width 150 → the
+two-line width (say 80) → 80 × 32; k never reaches maxH / lh = 6, so at most 5 lines are tried.
 
 **8.3 Ellipsis.** Unless keepAll: if the characters fitting the rect width are fewer than the text, and the
 ellipsis width < rect width, truncate to what fits in (width − ellipsis width), drop trailing spaces, append the
