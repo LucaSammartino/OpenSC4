@@ -585,6 +585,31 @@ every instance keeps its position, gets the yaw rotation of the current camera, 
 zoom bit 4 and rotation bit 1 (h slot `+0x34`/`+0x3C` are setters; whether they replace or OR is the model holder's
 contract).
 
+## 11. Lighting and dynamic textures (partial)
+
+### 11.1 `DoLightingChanged` (`0x004930F0`) *[compat]*
+
+1. c = (v, v, v) with v the dword at `0x00B216F8`, then the lighting object at global `0x00B43DDC` slot
+   `+0x28(&c)` fills the three floats.
+2. Compare with the stored colour `+0xC4..+0xCC`: if |c[k] - stored[k]| < 1e-4f (`0x00A8ED94`, float, strict) for
+   all three k, return. A difference of exactly 1e-4f, or a NaN, counts as changed.
+3. Store c into `+0xC4..+0xCC`, then `RebuildDynamicTexture(k)` (§11.2) for k = 0, 1, 2, 3, 4 in order.
+4. If the occupant manager `+0x54` exists: build a counted occupant-type filter (0x18 bytes, vtables
+   `0x00A8EDBC`/`0x00A8EDA4`, a type list at `+0x0C..+0x14`) holding the single type `0x278128A0`, get a fresh
+   list (12-byte self-linked head from the list allocator service, global `0x00B207E4`, created on first use
+   from framework class `0x3AE4BEA3`/interface `0x3AE4BEAB`), and fill it with occupant manager slot
+   `+0x98(&list, 0, 0, filter, -1)`. For each listed occupant: AddRef and release its model holder (no other
+   effect) and release the occupant (the list's reference). Release the filter, free the list nodes
+   (`0x00413E60`) and the head (allocator slot `+0x10`).
+
+Net observable effect: the five dynamic texture bindings are rebuilt when the light colour moves by at least
+1e-4 in any channel; no model is re-flagged or re-sent to the renderer by this function. Whether materials bound
+earlier by §12.4 see the new texels depends on whether §11.2 rebuilds the binding in place (not traced).
+
+### 11.2 `RebuildDynamicTexture(k)` (`0x00492CC0`) — remainder
+
+Builds texture binding `+0xD0 + 4k` (k = 0..4) from the light colour; not traced (1068 bytes, §20).
+
 ## 12. Model loading (partial)
 
 ### 12.1 `RemoveModels(o, t)` (`0x00493340`) *[compat]*
@@ -722,7 +747,7 @@ Round 2 cases (§6, §7, §9, §10):
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
-Specified: 20022 bytes; remainder (not yet specified or only outlined): 14683 bytes. The remainder is **not empty**,
+Specified: 20607 bytes; remainder (not yet specified or only outlined): 14098 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
 
 | address | bytes | name | section |
@@ -788,7 +813,7 @@ so this spec does not yet claim the whole owner.
 | `0x004929D0` | 30 | FUN_004929d0 | §3.4 |
 | `0x004929F0` | 718 | cSC4ModelMaker::Shutdown | §3.3 |
 | `0x00492CC0` | 1068 | cSC4ModelMaker::RebuildDynamicTexture | remainder |
-| `0x004930F0` | 585 | cSC4ModelMaker::DoLightingChanged | remainder |
+| `0x004930F0` | 585 | cSC4ModelMaker::DoLightingChanged | §11.1 |
 | `0x00493340` | 86 | cSC4ModelMaker::RemoveModels | §12.1 |
 | `0x004933A0` | 729 | FUN_004933a0 | §9.1 |
 | `0x004936A0` | 96 | FUN_004936a0 | §8 |
