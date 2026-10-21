@@ -486,9 +486,9 @@ cGZStringCommandGenerator	command system	framework	command-system.md	core/src/co
 cGZMessage2CommandDispatcher	command system	framework	command-system.md	core/src/commands	-	-
 cGZMessage2CommandDispatcherMessage	command system	framework	command-system.md	core/src/commands	-	-
 fn:RZParseDelimitedText	command system	framework	command-system.md	core/src/commands	-	-
-cRZOStream	streams	framework	output-streams.md	-	-	-
+cRZOStream	streams	framework	output-streams.md	core/src/rz_streams/ostream.rs	-	-
 cRZTextOStream	streams	framework	output-streams.md	-	-	-
-cRZNullOStream	streams	framework	output-streams.md	-	-	-
+cRZNullOStream	streams	framework	output-streams.md	core/src/rz_streams/ostream.rs	-	-
 cRZOFStream	framework services (RZ)	framework	framework-rz-files.md	-	-	-
 cRZ*	framework services (RZ)	framework	-	-	-	-
 nGZ*	framework services (GZ)	framework	-	-	-	-
