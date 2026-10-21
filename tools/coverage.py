@@ -639,7 +639,7 @@ def subsystem_keys(path):
     return keys
 
 
-def read_regress(path):
+def read_regress(path, audit_legacy=True):
     raw = path.read_bytes()
     text = raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8", "replace")
     out = {"tag": None, "pass": False, "profile": "", "runs": {}, "shadows": {}, "resynced": {}}
@@ -669,6 +669,27 @@ def read_regress(path):
         if m and run == "shadows":
             label, count = m.group(1), int(m.group(2))
             out["resynced"][label] = max(count, out["resynced"].get(label, 0))
+    # Older summaries omitted reset counters. Recover them only from the
+    # corresponding recorded shadow log, with the same comparison-line filter
+    # as run_summary.ps1. A truncated log cannot prove zero resets.
+    missing = set(out["shadows"]) - set(out["resynced"])
+    source = path.with_name(path.stem + "-shadows.log")
+    if audit_legacy and missing and source.is_file():
+        counts, resets = Counter(), Counter()
+        comparison = re.compile(r"\] ([a-z]+) shadow [^:]*\d{4}-\d\d-\d\d[^:]*: .*"
+                                r"(mismatch(es|ed)[= ]\d|: clean\b)")
+        reset = re.compile(r"\bresynced:\s*(?!none\b|0\b)\S|\bresyncs?\s*[=:]\s*[1-9]\d*\b")
+        with source.open(encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                match = comparison.search(line)
+                if match and match.group(1) in missing:
+                    label = match.group(1)
+                    counts[label] += 1
+                    resets[label] += bool(reset.search(line))
+        for label in missing:
+            if resets[label] or counts[label] == out["shadows"][label][1] > 0:
+                out["resynced"][label] = resets[label]
+        out["resync_source"] = source
     return out
 
 
@@ -685,7 +706,7 @@ def newest_regress():
     usable = {}
     for tag, p in files.items():
         try:
-            r = read_regress(p)
+            r = read_regress(p, audit_legacy=False)
         except (OSError, UnicodeError):
             continue
         if r["pass"] and r["shadows"]:
@@ -760,6 +781,8 @@ def main():
     replace_list, shadow_list = regress_lists(inputs["regress.ps1"])
     keys = subsystem_keys(inputs["subsystems"])
     reg = read_regress(regress)
+    if reg.get("resync_source"):
+        inputs["resync evidence"] = reg["resync_source"]
     shadow_ev, shadow_warn = read_shadow_evidence(inputs["shadows"], REPO)
 
     # statuses per map row
