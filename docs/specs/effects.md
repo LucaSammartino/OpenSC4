@@ -246,6 +246,31 @@ With weights summing to 65535 and `r` in [0, 65535], exactly one member is creat
 group's component is being created (it enters the level-of-detail range, or the effect is new), so with the shipped
 ranges it happens **once per effect**, when the effect is created (`0x00591C38`–`0x00591C92`).
 
+**The rebuild test (EF12, re-effects-contracts4).** There is no per-effect "already built" flag; the test is per
+component description and compares the current level of detail `L` (`+0xC84`) with the previous one `L_prev`
+(`+0xC88`; `DoZoomChanged` copies the old `L` there before computing the new one, `L = max(1, zoom − base + 1)`
+with `base` at `+0xC8C`; all three start at −1 in the constructor). `UpdateVisualEffect(effect, newBuild)`
+`0x005919D0` does two passes:
+
+1. **Existing components** (records at effect `+0x114`, `0x44` bytes each): a record survives only if the reload
+   flag `+0xB8C` is 0 and `L` is in its description's `[min, max)` (`+0x4C`, `+0x4D`); a survivor is refreshed
+   (`0x0058DC50`) when `L != L_prev`. Every other record is hard-stopped (`Stop(1)`) and released; the list is
+   compacted in order.
+2. **Descriptions**, in order. A description with a valid type index (`+0x68 ≥ 0`) takes part — draws and adds its
+   weight — only if **(in range at `L` and not in range at `L_prev`) or `newBuild` or the reload flag** is set
+   (`0x00591C08`–`0x00591C32`). Otherwise it is skipped without touching the group state. A participating member
+   creates a component only if it is in range at `L` (`0x00591C9B`).
+
+So a rebuild with `newBuild = 0` and no reload draws for a select group only if one of its members **just entered
+the range**, and the draw and running sum then cover only those entering members (members not entering are
+skipped and do not count as "a different group"). A reload (`+0xB8C` = 1) destroys every component in pass 1 and
+redraws every group. Consequences an implementer must keep:
+- The new-build and reload draws include members that are **out of range at `L`**: their weight still counts, and if
+  the draw lands on one, nothing in that group is created.
+- The group comparison is against the last *participating* component's group, and a group-0 component resets it.
+- The pick is "first running sum ≥ r" with an unsigned compare (`0x00591C84`); after a pick `r := 0x10000`, so if a
+  group's weights sum past `0xFFFF` a second, later member is also created.
+
 ## 6. The tick (`DoAnimationTick` `0x0058E580`) *[compat]*
 
 On `kSC4MessageAnimationTick` `0x86AD10EE` (data2 = elapsed microseconds `µs`):
@@ -261,6 +286,10 @@ On `kSC4MessageAnimationTick` `0x86AD10EE` (data2 = elapsed microseconds `µs`):
      `IsDrivingMode` (U-Drive-It active; slot 13 of the object cached at `0x00B43D44`, `0x00506940`) → `[4]`;
      `IsPaused` (slot 15, `0x00703D50`) → **`[0]` = 0.0**; otherwise by `GetSimSpeed` `0x008265C0`:
      speed 0 → `[1]` = 1.0, speed 1 → `[2]` = 1.5, speed 2 → `[3]` = 2.0.
+     **Speed outside 0–2 (EF11, re-effects-contracts4):** `GetSimSpeed` is the raw `u32` at the simulator's
+     `+0x3C` (`0x008265C0`), and the getter tests only `speed − 1 == 0` → `[2]` and `speed − 2 == 0` → `[3]`
+     (`0x00702727`–`0x0070272B`); **every other value — 0, 3 and above, or anything negative — falls through to
+     `[1]` = 1.0** (`0x0070272D`). No clamp, no arithmetic on the speed.
      **`IsHiddenPaused` (slot 16) is never consulted** — a hidden pause does not change the dilation (EF5).
    - *[quirk]* While paused the dilation is 0.0, so `dt'` is 0 and every component update runs with `dt = 0` —
      brushes make no progress, timers do not advance. (The earlier claim "1 while paused" is wrong; in a normal
@@ -281,10 +310,32 @@ non-zero the per-target sweep is skipped (`0x004488C0`–`0x004488D6`), so no ti
 effects manager registers a callback with the tick manager in `Init` (`0x00594EEE`:
 `EnableAutoStep(1, EffectsTickCallback)` on the `cISC4AnimationTickManager` at `+0xCD8`), and
 `EffectsTickCallback` `0x0058D9A0` posts `0x697D01ED` (`DoEffectsTick`, §12) through the message server every
-time the animation tick manager steps. So the effects manager's own tick — and with it
-`UpdateActiveVisualEffects` → `ActivateNewVisualEffects` (§5.1) — runs **once per animation tick in any session
-that ticks**, not only in the draw pass. The tick manager's own `DoAnimationTick` is driven from outside the
+time the animation tick manager steps. So the effects manager's own tick runs **once per animation tick in any
+session that ticks**, not only in the draw pass. The tick manager's own `DoAnimationTick` is driven from outside the
 effects subsystem (the framework scheduler), which is why a paused game stops it and a ticking harness keeps it.
+
+**Corrects (EF12, re-effects-contracts4): `DoEffectsTick` `0x00593D00` does not rebuild or activate anything on
+an ordinary tick.** Its body, in order:
+
+1. **Reload, only when pending.** If the object at `+0xC78` exists and its slot 14 (`+0x38`) returns true
+   (`0x00593D12`), it locks (`+0x94` slot 3), runs `EffectsParser::ParseQueuedFiles` `0x0058E4E0`, unlocks
+   (slot 4), sets the reload flag `+0xB8C` := 1, calls `UpdateActiveVisualEffects`, clears `+0xB8C`, and calls
+   slot 2 of `+0xC7C`. Otherwise this step is skipped entirely.
+2. **Snow line.** If `+0xB88` exists, its slot 22 (`+0x58`) fills a value stored at `+0xCB0` (`+0xCA8`, `+0xCAC`
+   with it); on 25 December (local date, `Month == 12`, `DayOfMonth == 25`) with a terrain view it resolves
+   `+0xDBC` once and calls `UpdateSnowline`.
+
+New effects therefore are **not** activated by the tick: `ActivateNewVisualEffects` runs from
+`CreateVisualEffect` (both overloads, `0x00593AB0` and `0x00593B68`) when the description was found, from the end of
+`DeactivateUnusedVisualEffects` (`0x00592A01`, the draw-pass sweep) and from `UpdateActiveVisualEffects`.
+
+**`UpdateActiveVisualEffects` `0x00593B90`** does nothing at all — not even activation — unless the byte
+`+0x1AD` is set (`0x00593B93`). That byte is 0 from the constructor (`0x0059131B`) and `Init` (`0x00594A57`), set
+to 1 only by `DoMessage` on `kSC4MessagePostAppServicesInitComplete` `0xAB96B05F` (`0x0059458A`, just before its
+own `UpdateActiveVisualEffects`), and cleared by `Shutdown` (`0x00595828`). Once set it walks the active list,
+calls `UpdateVisualEffect(effect, 0)` on each, then `ActivateNewVisualEffects`. Its callers are that message,
+`DoZoomChanged`, the reload of step 1, and `DoRenderPropertiesChanged` (also with `+0xB8C` = 1, when the
+cached pointer `+0xB90` changes, `0x00593E10+`).
 
 ## 7. Finishing and the end message *[compat]*
 
@@ -481,8 +532,9 @@ The bytes alone settle EF1 without a runtime trace. Three facts, all from instru
      description's flags A (`+0x00`) pick one of three emitters — `0x04` (`maintain`) → `0x005B3CF0` (a plain
      rate-integral emitter with **no** self-stop), otherwise `0x02` (`inject`) → `0x005B8B50` (loop-budget
      emitter: `+0x128` counts loops, compared with the description's `emit_loop_count` at `+0x18`; when the
-     budget is exhausted it calls `Stop(0)` at `0x005B8D67`), else `0x005B87B0` (duration-budget emitter: when
-     its accumulated duration runs out it calls `Stop(0)` at `0x005B8B29`).
+     budget is exhausted it calls `Stop(0)` at `0x005B8D67`), else `0x005B87B0` (the rate emitter: when
+     its loop counter `+0x128` reaches `emit_loop_count` it calls `Stop(0)` at `0x005B8B29`, unless flag A
+     `0x08` holds it at the last loop; there is no separate seconds budget, §7.1.1).
    - `cSC4GeometrySourcedParticlesEffect` (main vtable `0x00AA0B88`, installed by `0x005A8ED0`) → `0x005AA5D0`:
      when its emit state says the last loop is done (its `+0x18` count is 0) it calls `Stop(0)` (main slot 1,
      argument 0) on itself at `0x005AA6D4`/`0x005AA6EB`.
@@ -491,6 +543,62 @@ The bytes alone settle EF1 without a runtime trace. Three facts, all from instru
    countdown is the effect's `+0x190`, seeded in `Start` `0x005B3000` from the description's `+0x20..+0x2C`
    range. So every shipped volcano particle (all `emit_loop_count = 1`, `life` 3–20 s) emits one loop and
    then delays its stop; the last particle death clears `started`; the finish test then passes.
+
+#### 7.1.1 The emitter contract (EF13, re-effects-contracts4) *[compat]*
+
+Offsets are on the particle effect (main object); `D` is its description (`+0x24`). Fields: phase `P` (`+0x120`,
+`double`, in loops), loop counter `n` (`+0x128`, `u32`), rate `ρ` (`+0x130`, `double`, loops per second),
+fractional-particle carry `c` (`+0x138`, `float`), countdown `w` (`+0x190`, `float`, seconds), step `dt`
+(`+0x108`, `float`). Description fields: flags A `D+0x00`, period `D+0x14` (seconds per loop), max burst age
+`D+0x10`, loop count `D+0x18` (0 = unlimited), pre-roll `D+0x1C`, start-delay range `D+0x20..+0x24`, interval
+range `D+0x28..+0x2C`, count curve `D+0x88..+0x8C` (a `float` vector).
+
+- **`SetDescription`** `0x005B7C90`: `ρ := 1.0 / D+0x14`, with `D+0x14` replaced by `1e-6` unless it is greater than
+  `1e-6` (`0x005B7CF3`–`0x005B7D44`); clears the "emission suppressed" byte `+0x21A`.
+- **`Start(arg)`** `0x005B3000`: if `arg != 0`, `D+0x18 > 0` and flag A bit 3 (`0x08`) is clear, it returns
+  without starting (a finite emitter is never restarted by the zoom path's `Start(1)`). Otherwise, after the base
+  start: `P := 0`, `n := 0`, `c := 0`, total age `+0x110 := 0`; then `w :=` uniform `double` in `[D+0x20, D+0x24]`
+  if `D+0x20 ≥ 0`, else uniform in `[D+0x28, D+0x2C]` if `D+0x28 ≥ 0`, else `0` — both draws from the global
+  `cRZRandom` at `0x00B22DF8` (`RandomDoubleRangeUniform` `0x00913761`, `0x005B3399`–`0x005B33FD`), stored as
+  `float`. Last: `+0x188 := arg`, `+0x18C := 0`, pre-roll pending `+0x118 := (arg != 0)`.
+- **Draw-time update** `0x005B8540` (only while started): `t := dt`; if pre-roll is pending, `t += D+0x1C` once
+  and the flag clears; `dt := t` (stored), total age `+= t`. Then **every live particle is aged first**: each
+  particle whose alive byte is set is updated by main slot 20 (`+0x50`) with `dt`; a dead one or one whose update
+  returns false is unlinked, the live count decremented and the particle destroyed (`0x005B86A5`–`0x005B86F8`).
+  **Then**, unless `+0x21A` is set, the emitter dispatch (main slot 15) runs (`0x005B870A`); new particles are
+  never aged by the same step's slot-20 pass (they get their own initial age, below). `CheckForStop` comes last.
+- **Dispatch** `0x005B96E0`: nothing if a delayed stop was requested (`+0x10`, the simulator base's `+0x0C`;
+  `0x005B96E1`) — **(d): no emission after `Stop(0)`**, the existing particles just run out. If `w > 0`:
+  `w −= dt`; if still `> 0` return; else the emit time is `e := −w` (the overshoot only). If `w ≤ 0` on entry,
+  `e := dt` (and `w` stays where it is; only the emitters reseed it). If `D+0x1C > 0` and `e > D+0x1C − 0.01`
+  (`double`), `e := D+0x1C − 0.01`. Then by flags A: `0x04` → `0x005B3CF0`, else `0x02` → loop-budget, else the
+  rate emitter.
+
+**Loop-budget emitter** (`inject`, `0x005B8B50`), one **burst per loop**:
+1. `P := P + e·ρ` (in `float`, stored `double`). If `P ≤ n` return.
+2. Burst size `N`: `x := curve[0]`; if `x > 20` and `D+0x08` bit 0 is clear, `x := x · m` where `m` is the product
+   of the `float`s at `*(+0x1E8)`, `+0x1E0`, `+0x1C4` (detail/density scales); `N := ceil(x)` (the
+   `1.5·2^23` rounding trick).
+3. While `P > n`: the burst's age is `a := (P − n) · D+0x14` seconds; if `a < D+0x10` and `N ≠ 0`, create `N`
+   particles, each initialised by main slot 20 with age `a` (a particle failing its init is destroyed). Then
+   `n := n + 1`; **if `D+0x18 ≠ 0` and `n ≥ D+0x18`, `Stop(0)` (delayed, `0x005B8D67`) and return.** If
+   `D+0x28 ≥ 0`: `P −= RandomRange(D+0x28, D+0x2C) · ρ`; if now `P < n`, `w := (n − P)·D+0x14`, `P := n`, return.
+So (a): with `D+0x20 < 0` and `D+0x28 < 0` the first burst comes on the first update after `Start` (age = that
+step); otherwise after the seeded `w`. (b): one burst of `N` per loop, not a rate.
+
+**Rate emitter** (neither `0x02` nor `0x04`, `0x005B87B0`; the "duration-budget" emitter of item 2 above), sub-steps
+of at most `1/15` s (`0x00AA0CF4`) until the remaining `e` is used up:
+1. `s := min(e, 1/15)`; `P += s·ρ`. If `P > n + 1`: `n := n + 1`; if `D+0x18 = 0` or `n ≠ D+0x18`: when
+   `D+0x28 ≥ 0`, cut `s` back to the loop boundary (`s −= (P − n)·D+0x14`), `P := n`, and mark a gap. If
+   `n = D+0x18`: **flag A bit 3 clear → `Stop(0)` (delayed, `0x005B8B29`) and return; set → hold**
+   (`n := D+0x18 − 1`, `P := D+0x18 − 1e-6`, emission continues at the curve's end).
+2. Rate `r`: one curve entry → `curve[0]`; else linear interpolation at position `(len − 1)·(P − n)`.
+   `x := r·s·m' + c` where `m'` is the same three-scale product, further multiplied by the scale `+0xC0` once,
+   squared or cubed for flags A bits 19 / 20 / 21; `N := floor(x)`, `c := x − N`.
+3. Create `N` particles with initial ages `e, e − s/N, e − 2s/N, …` (oldest first).
+4. `e −= s`; if a gap was marked, `e −= RandomRange(D+0x28, D+0x2C)`; if that is negative, `w := −e` and return.
+So (c): the budget is **loops of `D+0x14` seconds, counted in `+0x128` against `D+0x18`** — the same counter and
+field as the loop-budget emitter; there is no separate seconds budget. The count curve gives particles per second.
 
 So `volcano_control`'s finish time stands as measured in §7: the **crater decal's 50 effect-seconds** binds,
 the particles end on their own loop budget (well before 50 s), the brush stroke ends at 2–4 s, and the meta
@@ -1062,7 +1170,8 @@ saves nothing).
 
 | Draw | Generator | When |
 |---|---|---|
-| select group `RandomUint32Uniform(0x10000)` | the manager's `cRZRandomSuper` at `+0x1C0`, seed `0x1105` | once per select group per component build (§5.3) |
+| select group `RandomUint32Uniform(0x10000)` | the manager's `cRZRandomSuper` at `+0x1C0`, seed `0x1105` | once per participating select group per component build: new build, reload, or a member entering the level-of-detail range (§5.3 rebuild test, EF12) |
+| particle emitter start countdown | global `cRZRandom` `0x00B22DF8` (`RandomDoubleRangeUniform`), at most one per `Start` that starts | §7.1.1 (EF13); render only |
 | brush strength, then radius | static `cRZRandom` `0x00B22BE8` (`RandomDoubleRangeUniform`, two per brush component) | when a brush component is created (§8.2) |
 | volcano random start | a throwaway `cRZRandom(−1)` | §10.1 |
 

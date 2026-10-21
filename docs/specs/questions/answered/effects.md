@@ -153,3 +153,33 @@
   components have another range`. The narrower claim holds for all 72 effects whose reach set contains a
   brush or game record; the 887 non-`[1, 6)` components are all outside those reach sets (render-only).
   effects.md 5.2.
+
+- ~~**EF11 - §6 dilation table:** which dilation entry `GetSimSpeed` values outside 0-2 use.~~
+  **ANSWERED 2026-10-21 (re-effects-contracts4): MATCHES - `[1]` = 1.0 for every speed other than 1 and 2.**
+  `GetSimSpeed` `0x008265C0` returns the raw `u32` at simulator `+0x3C`; the getter `0x007026F0` tests only
+  `speed - 1 == 0` -> `[2]` and `speed - 2 == 0` -> `[3]` (`0x00702727`-`0x0070272B`); everything else, 0
+  included, loads `[1]` (`0x0070272D`). No clamp or arithmetic. effects.md 6 step 1.
+
+- ~~**EF12 - §6.1 / §5.2 / §5.3:** whether `DoEffectsTick` rebuilds every active effect each tick or only
+  activates the new list, and how an unchanged-L rebuild avoids a fresh select-group draw.~~
+  **ANSWERED 2026-10-21 (re-effects-contracts4): DIFFERS - `DoEffectsTick` does neither on an ordinary tick.**
+  `DoEffectsTick` `0x00593D00` calls `UpdateActiveVisualEffects` only when the `+0xC78` object's slot 14
+  reports queued effect files (then `ParseQueuedFiles` and a reload with `+0xB8C` = 1); otherwise it only does
+  the snow-line step. Activation of new effects happens in `CreateVisualEffect` (`0x00593AB0`, `0x00593B68`),
+  at the end of `DeactivateUnusedVisualEffects` (`0x00592A01`) and in `UpdateActiveVisualEffects`, which itself
+  is a no-op until `kSC4MessagePostAppServicesInitComplete` sets `+0x1AD` (`0x0059458A`). No per-effect
+  "built" flag: in `UpdateVisualEffect` `0x005919D0` a description takes part in a select draw only if it is
+  in range at `L` and was not at `L_prev` (`+0xC84` / `+0xC88`), or the build is new, or a reload is running
+  (`0x00591C08`-`0x00591C32`); existing components survive pass 1 unless reloading. effects.md 5.3 (rebuild
+  test), 6.1 (correction), 14.
+
+- ~~**EF13 - §7.1 emitter details** (a)-(e).~~ **ANSWERED 2026-10-21 (re-effects-contracts4): PARTLY.**
+  (a) DIFFERS - `Start` `0x005B3000` seeds the countdown `+0x190` from the start-delay range `D+0x20..+0x24`
+  if `D+0x20 >= 0`, else the interval range `D+0x28..+0x2C`, else 0; the first burst comes on the first
+  draw-time update after the countdown runs out (immediately only when both ranges are negative).
+  (b) loop-budget emitter: one burst of `N = ceil(curve[0])` (times the detail scales when `> 20`) per loop,
+  each particle initialised with the burst age; not a caller-given count. (c) DIFFERS - the rate emitter has no
+  seconds budget: it counts loops of `D+0x14` seconds in `+0x128` against `D+0x18`, like the loop-budget one;
+  with flag A `0x08` it holds at the last loop instead of stopping. (d) MATCHES - the dispatch `0x005B96E0`
+  returns at once while a delayed stop is pending (`+0x10` = base `+0x0C`). (e) MATCHES - live particles are
+  updated (slot 20) first, then the emitter runs (`0x005B870A`). effects.md 7.1.1, 14.
