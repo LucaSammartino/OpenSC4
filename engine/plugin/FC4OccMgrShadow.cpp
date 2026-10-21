@@ -63,6 +63,9 @@ constexpr int kSlots = 50;
 
 bool g_enabled = false;
 bool g_probeWanted = true;
+bool g_followCalls = false;  // occmgr_shadow_follow = 1: follow the calls (slots 20-24), not the messages
+thread_local int t_inMove = 0;  // inside the original's Move on this thread (a synchronous Move message, §5.4 step 9)
+thread_local int t_inCall = 0;  // inside a followed original call on this thread (nesting)
 int g_samples = 4;
 bool g_listening = false;
 bool g_loggedOurs = false;
@@ -145,6 +148,15 @@ struct Follow {
     uint32_t destroyOk = 0, destroyOther = 0, destroyElse = 0;
     std::string rmDiffs;
     size_t rmListed = 0;
+    // occmgr_shadow_follow = 1: the followed calls (slots 20-24) and their
+    // return values; synchronous Move messages on their own stream.
+    uint32_t callIns = 0, callRem = 0, callRemAll = 0, callMove = 0, callMovePost = 0;
+    uint32_t retExact = 0, retTotal = 0, unfollowed = 0, nested = 0;
+    std::string retDiffs;
+    size_t retListed = 0;
+    std::vector<MsgRec> origSync, coreSync;
+    bool routeSync = false;
+    uint32_t syncExact = 0, syncTotal = 0;
 };
 Follow g_follow;
 
@@ -265,7 +277,7 @@ void HBox(void*, uint64_t t, fc4_occ_bbox* out) {
 // fresh core (a month's query copy) is not followed and posts nothing here.
 void HPost(void* u, uint64_t occ, uint32_t msg_type, uint32_t data4) {
     if (Ctx(u) != &g_fol) return;
-    g_follow.coreMsgs.push_back(MsgRec{msg_type, occ, data4});
+    (g_follow.routeSync ? g_follow.coreSync : g_follow.coreMsgs).push_back(MsgRec{msg_type, occ, data4});
 }
 
 bool HGetBox(void* u, uint64_t t, fc4_occ_cell_box* out) {
@@ -1390,6 +1402,7 @@ void MonthStep(void* ctx) {
 
 // The message-order comparison (§5.5), defined with the message handlers below.
 void CompareMessages();
+void CompareMessagesCalls();
 
 void LogMonth(const Month& mo) {
     if (mo.incomplete != nullptr) {
@@ -1401,7 +1414,8 @@ void LogMonth(const Month& mo) {
     const uint32_t stray = g_fol.stray + mo.strayFresh;
     const uint32_t msgDiffer = g_follow.msgTotal - g_follow.msgExact;
     const uint32_t mismatches = mo.d.mismatches + (g_follow.boxTotal - g_follow.boxExact) + stray + msgDiffer +
-                                g_follow.destroyOther;
+                                g_follow.destroyOther + (g_follow.retTotal - g_follow.retExact) +
+                                (g_follow.syncTotal - g_follow.syncExact);
     if (mismatches == 0) ++g_cleanMonths;
     char rec[96];
     if (std::strcmp(mo.followed, "first") == 0) {
@@ -1423,7 +1437,21 @@ void LogMonth(const Month& mo) {
     char msgPart[192];
     snprintf(msgPart, sizeof(msgPart), "; msgorder=%u/%u%s destroy=%u/%u/%u", g_follow.msgExact, g_follow.msgTotal,
              msgDiffer == 0 ? " (exact)" : "", g_follow.destroyOk, g_follow.destroyOther, g_follow.destroyElse);
-    std::string line = std::string(head) + (mo.queries.empty() ? "" : " differ:" + mo.queries) + msgPart + "; " +
+    std::string calls;
+    if (g_followCalls) {
+        char cp[320];
+        snprintf(cp, sizeof(cp),
+                 "; calls ins/rem/remall/move(post)=%u/%u/%u/%u(%u) returns=%u/%u%s unfollowed=%u nested=%u; "
+                 "sync moves=%u/%u; pending orig/core=%u/%u+%u/%u",
+                 g_follow.callIns, g_follow.callRem, g_follow.callRemAll, g_follow.callMove, g_follow.callMovePost,
+                 g_follow.retExact, g_follow.retTotal, g_follow.retExact == g_follow.retTotal ? " (exact)" : "",
+                 g_follow.unfollowed, g_follow.nested, g_follow.syncExact, g_follow.syncTotal,
+                 static_cast<unsigned>(g_follow.origMsgs.size()), static_cast<unsigned>(g_follow.coreMsgs.size()),
+                 static_cast<unsigned>(g_follow.origSync.size()), static_cast<unsigned>(g_follow.coreSync.size()));
+        calls = cp;
+        if (!g_follow.retDiffs.empty()) g_follow.boxDiffs += " " + g_follow.retDiffs;
+    }
+    std::string line = std::string(head) + (mo.queries.empty() ? "" : " differ:" + mo.queries) + msgPart + calls + "; " +
                        ProbeText(false) + "; stray releases=" + std::to_string(stray) +
                        "; mismatches=" + std::to_string(mismatches) +
                        (mo.d.listed.empty() && g_follow.boxDiffs.empty() && g_follow.msgDiffs.empty() &&
@@ -1433,7 +1461,16 @@ void LogMonth(const Month& mo) {
                                   (g_follow.msgDiffs.empty() ? "" : " " + g_follow.msgDiffs) +
                                   (g_follow.rmDiffs.empty() ? "" : " " + g_follow.rmDiffs));
     LogShadowLine("occmgr shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
+    // The uncompared tails (calls mode) carry over to the next month.
+    std::vector<MsgRec> oq = std::move(g_follow.origMsgs), cq = std::move(g_follow.coreMsgs),
+                        os = std::move(g_follow.origSync), cs = std::move(g_follow.coreSync);
     g_follow = Follow{};
+    if (g_followCalls) {
+        g_follow.origMsgs = std::move(oq);
+        g_follow.coreMsgs = std::move(cq);
+        g_follow.origSync = std::move(os);
+        g_follow.coreSync = std::move(cs);
+    }
 }
 
 // ---- the followed messages (§5.5) -----------------------------------------------------------------
@@ -1520,6 +1557,10 @@ void NoteDestroy(uint64_t occ) {
 // original's against the followed core's, in order. A core that posts one
 // message per original message and in the same order is exact.
 void CompareMessages() {
+    if (g_followCalls) {
+        CompareMessagesCalls();
+        return;
+    }
     const size_t n = g_follow.origMsgs.size() < g_follow.coreMsgs.size() ? g_follow.origMsgs.size()
                                                                         : g_follow.coreMsgs.size();
     g_follow.msgTotal = static_cast<uint32_t>(g_follow.origMsgs.size() > g_follow.coreMsgs.size()
@@ -1552,6 +1593,37 @@ void CompareMessages() {
     }
 }
 
+// occmgr_shadow_follow = 1: the core posts at the call, the original's
+// queued messages arrive when the queue is pumped. The common prefix of the
+// two streams is compared and removed; the tails stay for the next month
+// (`pending`). The synchronous Move stream is compared the same way.
+uint32_t ComparePrefix(std::vector<MsgRec>& a, std::vector<MsgRec>& b, uint32_t& exact, const char* what) {
+    const size_t n = a.size() < b.size() ? a.size() : b.size();
+    uint32_t differ = 0;
+    for (size_t i = 0; i < n; ++i) {
+        if (a[i] == b[i]) {
+            ++exact;
+            continue;
+        }
+        ++differ;
+        if (g_follow.msgListed++ < 4) {
+            char t[176];
+            snprintf(t, sizeof(t), "[%s msg %u orig %s of %p d4=%u core %s of %p d4=%u]", what, static_cast<unsigned>(i),
+                     MsgName(a[i].kind), static_cast<void*>(Occ(a[i].occ)), a[i].data4, MsgName(b[i].kind),
+                     static_cast<void*>(Occ(b[i].occ)), b[i].data4);
+            g_follow.msgDiffs += t;
+        }
+    }
+    a.erase(a.begin(), a.begin() + static_cast<std::ptrdiff_t>(n));
+    b.erase(b.begin(), b.begin() + static_cast<std::ptrdiff_t>(n));
+    return static_cast<uint32_t>(n);
+}
+
+void CompareMessagesCalls() {
+    g_follow.msgTotal = ComparePrefix(g_follow.origMsgs, g_follow.coreMsgs, g_follow.msgExact, "queued");
+    g_follow.syncTotal = ComparePrefix(g_follow.origSync, g_follow.coreSync, g_follow.syncExact, "sync");
+}
+
 void OnMessage(cIGZMessage2* msg) {
     if (msg == nullptr) return;
     const uint32_t type = msg->GetType();
@@ -1570,6 +1642,20 @@ void OnMessage(cIGZMessage2* msg) {
             m.occ = Canonical(static_cast<cIGZUnknown*>(s->GetVoid1()));
             if (type == kMsgDestroyed) {
                 NoteDestroy(m.occ);
+            } else if (g_followCalls) {
+                // The calls are followed (ApplyCall): the messages are only
+                // counted and recorded, in delivery order; a Move delivered
+                // inside the original's Move on this thread is synchronous.
+                if (type == kMsgInserted) ++g_follow.ins;
+                if (type == kMsgRemoved) ++g_follow.rem;
+                if (type == kMsgMoved) ++g_follow.mov;
+                const bool sync = type == kMsgMoved && t_inMove != 0;
+                (sync ? g_follow.origSync : g_follow.origMsgs).push_back(MsgRec{type, m.occ, m.data4});
+                if (type == kMsgRemoved) {
+                    g_follow.removed.insert(m.occ);
+                } else if (m.occ != 0) {
+                    g_follow.removed.erase(m.occ);
+                }
             } else {
                 g_follow.origMsgs.push_back(MsgRec{type, m.occ, m.data4});
                 if (type == kMsgRemoved) {
@@ -1583,6 +1669,220 @@ void OnMessage(cIGZMessage2* msg) {
         }
     }
     FC4_RELEASE(s);
+}
+
+// ---- the followed calls (occmgr_shadow_follow = 1, verify-occmgr4) --------------------------------
+//
+// The original's vtable entries of slots 20-24 (§11) forward to these hooks
+// (chained in front of the probe's stub where the probe holds the entry). Each
+// hook captures the caller's typed arguments BEFORE the original runs (the
+// occupant's canonical token, data4, shutdown, post, the filter or type),
+// calls the original, and only AFTER it returns makes the same call on the
+// followed core (§5.1-5.4), under the shadow's lock. The core keeps its own
+// state (its host records the boxes and flags, never the original's outputs);
+// the original's stored box is only compared after Insert and Move (§5.1 steps
+// 5-7), and the two return values are compared. The messages are then only
+// recorded for the message-order comparison, never replayed.
+
+constexpr int kFollowSlots = 5;
+constexpr int kFollowSlot[kFollowSlots] = {20, 21, 22, 23, 24};
+constexpr uintptr_t kFollowExpected[kFollowSlots] = {0x0049EF60, 0x0049F240, 0x0049FCD0, 0x0049DB80,
+                                                     0x0049F3C0};  // §11
+uintptr_t g_followNext[kFollowSlots] = {};
+void** g_followEntry[kFollowSlots] = {};
+bool g_followOn[kFollowSlots] = {};
+
+struct FollowCall {
+    int kind;  // index into kFollowSlot
+    const void* self;
+    uint64_t occ;
+    uint64_t filter;
+    uint32_t type, flag, data4;
+    bool origResult;
+    bool nested;
+    size_t syncBefore;
+};
+
+void ApplyCall(void* ctx) {
+    const FollowCall& c = *static_cast<const FollowCall*>(ctx);
+    if (g_fol.core == nullptr || c.self != g_orig) {
+        ++g_follow.unfollowed;
+        return;
+    }
+    if (GetCurrentThreadId() != g_mainTid) ++g_follow.offThread;
+    if (c.nested) ++g_follow.nested;
+    bool ours = false;
+    switch (c.kind) {
+        case 0:
+            ++g_follow.callIns;
+            ours = fc4_occmgr_insert(g_fol.core, c.occ, c.data4);
+            if (ours && c.origResult) CompareBox(c.occ, "insert");
+            break;
+        case 1:
+            ++g_follow.callRem;
+            ours = fc4_occmgr_remove(g_fol.core, c.occ, c.flag != 0, c.data4);
+            break;
+        case 2: {
+            ++g_follow.callRemAll;
+            fc4_occ_filter f{};
+            f.kind = c.filter != 0 ? FC4_OCC_FILTER_HOST : FC4_OCC_FILTER_ALL;
+            f.token = c.filter;
+            ours = fc4_occmgr_remove_occupants(g_fol.core, &f, c.flag != 0, c.data4);
+            break;
+        }
+        case 3:
+            ++g_follow.callRemAll;
+            ours = fc4_occmgr_remove_occupants_of_type(g_fol.core, c.type, c.flag != 0, c.data4);
+            break;
+        default: {
+            ++g_follow.callMove;
+            if (c.flag != 0) ++g_follow.callMovePost;
+            // A Move the original delivered synchronously inside its own call
+            // (§5.4 step 9, flora §9.1) is compared with the core's Move on
+            // their own stream; the queued ones stay in delivery order.
+            g_follow.routeSync = g_follow.origSync.size() > c.syncBefore;
+            ours = fc4_occmgr_move(g_fol.core, c.occ, c.flag != 0);
+            g_follow.routeSync = false;
+            if (ours && c.origResult) CompareBox(c.occ, "move");
+            break;
+        }
+    }
+    ++g_follow.retTotal;
+    if (ours == c.origResult) {
+        ++g_follow.retExact;
+    } else if (g_follow.retListed++ < 4) {
+        char b[128];
+        snprintf(b, sizeof(b), "[slot %d of %p returned orig %d core %d]", kFollowSlot[c.kind],
+                 static_cast<void*>(Occ(c.occ)), c.origResult ? 1 : 0, ours ? 1 : 0);
+        g_follow.retDiffs += b;
+    }
+}
+
+void Apply(FollowCall& c) {
+    Lock lock;
+    SehGuard("occmgr shadow (followed call)", &ApplyCall, &c);
+}
+
+template <class Fn, class... A>
+uint32_t CallNext(int k, void* self, void* edx, A... a) {
+    return reinterpret_cast<Fn>(g_followNext[k])(self, edx, a...);
+}
+
+uint32_t __fastcall FollowInsert(void* self, void* edx, cISC4Occupant* occ, uint32_t data4) {
+    FollowCall c{0, self, Canonical(occ), 0, 0, 0, data4, false, t_inCall != 0, 0};
+    ++t_inCall;
+    const uint32_t r = CallNext<uint32_t(__fastcall*)(void*, void*, cISC4Occupant*, uint32_t)>(0, self, edx, occ, data4);
+    --t_inCall;
+    c.origResult = (r & 0xFF) != 0;
+    if (c.occ != 0) Apply(c);
+    return r;
+}
+
+uint32_t __fastcall FollowRemove(void* self, void* edx, cISC4Occupant* occ, uint32_t shutdown, uint32_t data4) {
+    FollowCall c{1, self, Canonical(occ), 0, 0, shutdown & 0xFF, data4, false, t_inCall != 0, 0};
+    // Our own reference across the call: a Remove with shutdown may drop the
+    // last other one before the core follows (released below, §5.1b).
+    HoldObject(occ);
+    ++t_inCall;
+    const uint32_t r =
+        CallNext<uint32_t(__fastcall*)(void*, void*, cISC4Occupant*, uint32_t, uint32_t)>(1, self, edx, occ, shutdown, data4);
+    --t_inCall;
+    c.origResult = (r & 0xFF) != 0;
+    if (c.occ != 0) Apply(c);
+    DropObject(occ);
+    return r;
+}
+
+uint32_t __fastcall FollowRemoveAll(void* self, void* edx, cISC4OccupantFilter* filter, uint32_t shutdown,
+                                    uint32_t data4) {
+    FollowCall c{2, self, 0, reinterpret_cast<uintptr_t>(filter), 0, shutdown & 0xFF, data4, false, t_inCall != 0, 0};
+    ++t_inCall;
+    const uint32_t r = CallNext<uint32_t(__fastcall*)(void*, void*, cISC4OccupantFilter*, uint32_t, uint32_t)>(
+        2, self, edx, filter, shutdown, data4);
+    --t_inCall;
+    c.origResult = (r & 0xFF) != 0;
+    Apply(c);
+    return r;
+}
+
+uint32_t __fastcall FollowRemoveType(void* self, void* edx, uint32_t type, uint32_t shutdown, uint32_t data4) {
+    FollowCall c{3, self, 0, 0, type, shutdown & 0xFF, data4, false, t_inCall != 0, 0};
+    ++t_inCall;
+    const uint32_t r = CallNext<uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t, uint32_t)>(3, self, edx, type,
+                                                                                                    shutdown, data4);
+    --t_inCall;
+    c.origResult = (r & 0xFF) != 0;
+    Apply(c);
+    return r;
+}
+
+uint32_t __fastcall FollowMove(void* self, void* edx, cISC4Occupant* occ, uint32_t post) {
+    FollowCall c{4, self, Canonical(occ), 0, 0, post & 0xFF, 0, false, t_inCall != 0, 0};
+    {
+        Lock lock;
+        c.syncBefore = g_follow.origSync.size();
+    }
+    ++t_inCall;
+    ++t_inMove;
+    const uint32_t r = CallNext<uint32_t(__fastcall*)(void*, void*, cISC4Occupant*, uint32_t)>(4, self, edx, occ, post);
+    --t_inMove;
+    --t_inCall;
+    c.origResult = (r & 0xFF) != 0;
+    if (c.occ != 0) Apply(c);
+    return r;
+}
+
+void* const kFollowHook[kFollowSlots] = {
+    reinterpret_cast<void*>(&FollowInsert),    reinterpret_cast<void*>(&FollowRemove),
+    reinterpret_cast<void*>(&FollowRemoveAll), reinterpret_cast<void*>(&FollowRemoveType),
+    reinterpret_cast<void*>(&FollowMove),
+};
+
+// The entry must hold the original's function, or the probe's stub of that
+// slot (which forwards to it).
+void InstallFollow(const void* orig) {
+    if (!g_followCalls) return;
+    void** vt = *reinterpret_cast<void** const*>(orig);
+    if (reinterpret_cast<uintptr_t>(vt) != kOriginalVtable) {
+        Log("occmgr shadow: call follow NOT installed: the manager's vtable is %p", static_cast<void*>(vt));
+        return;
+    }
+    int installed = 0;
+    std::string refused;
+    for (int k = 0; k < kFollowSlots; ++k) {
+        if (g_followOn[k]) continue;
+        void** entry = vt + kFollowSlot[k];
+        const uintptr_t found = reinterpret_cast<uintptr_t>(*entry);
+        bool ok = found == kFollowExpected[k];
+        for (int i = 0; i < kProbeSlots && !ok; ++i) {
+            ok = g_probeOn[i] && kProbe[i].slot == kFollowSlot[k] && found == reinterpret_cast<uintptr_t>(kProbeFwd[i]);
+        }
+        if (!ok) {
+            refused += " " + std::to_string(kFollowSlot[k]);
+            continue;
+        }
+        g_followNext[k] = found;
+        if (!WriteEntry(entry, kFollowHook[k])) {
+            refused += " " + std::to_string(kFollowSlot[k]) + "(protect)";
+            continue;
+        }
+        g_followEntry[k] = entry;
+        g_followOn[k] = true;
+        ++installed;
+    }
+    Log("occmgr shadow: call follow installed on %d of %d slots (20-24)%s%s", installed, kFollowSlots,
+        refused.empty() ? "" : "; refused:", refused.c_str());
+}
+
+void RemoveFollow() {
+    for (int k = 0; k < kFollowSlots; ++k) {
+        if (!g_followOn[k]) continue;
+        if (WriteEntry(g_followEntry[k], reinterpret_cast<void*>(g_followNext[k]))) {
+            g_followOn[k] = false;
+        } else {
+            Log("occmgr shadow: WARNING call follow slot %d NOT removed (VirtualProtect failed)", kFollowSlot[k]);
+        }
+    }
 }
 
 class EventTarget final : public cIGZMessageTarget2 {
@@ -1662,6 +1962,7 @@ void OccMgrShadowStartup() {
     long n = SettingInt("occmgr_shadow_samples", "FC4_OCCMGR_SHADOW_SAMPLES", 4);
     g_samples = n < 1 ? 1 : (n > 64 ? 64 : static_cast<int>(n));
     g_probeWanted = SettingInt("occmgr_shadow_probe", "FC4_OCCMGR_SHADOW_PROBE", 1) != 0;
+    g_followCalls = SettingInt("occmgr_shadow_follow", "FC4_OCCMGR_SHADOW_FOLLOW", 0) != 0;
     if (!g_csReady) {
         InitializeCriticalSection(&g_cs);
         g_csReady = true;
@@ -1673,6 +1974,11 @@ void OccMgrShadowStartup() {
         "with the occupant's after each); at each SimNewMonth the record is compared cell by cell and %d samples of "
         "each of slots 25, 27 and 28-47 run on both (occupant-manager.md); probe %s",
         src, g_samples, g_probeWanted ? "on (slots 1, 2, 12, 20-22, 24, 25, 27, 28-40 even, 42, 44: calls per thread)" : "off");
+    if (g_followCalls) {
+        Log("occmgr shadow: follow = calls (occmgr_shadow_follow = 1): slots 20-24 are hooked; each call's arguments are "
+            "captured before the original runs and the same call is made on the followed core after it returns; the "
+            "messages are only recorded");
+    }
 }
 
 void OccMgrShadowCityLoaded(cISC4City* city) {
@@ -1709,6 +2015,7 @@ void OccMgrShadowCityLoaded(cISC4City* city) {
             st.counts[3], st.holders, st.nodes);
     }
     InstallProbe(orig);
+    InstallFollow(orig);
 }
 
 void OccMgrShadowMonth(cISC4City* city, int32_t julian) {
@@ -1731,6 +2038,7 @@ void OccMgrShadowMonth(cISC4City* city, int32_t julian) {
 
 void OccMgrShadowCityShutdown() {
     if (!g_enabled) return;
+    RemoveFollow();
     RemoveProbe();
     Lock lock;
     if (g_months > 0 || g_fol.core != nullptr) {
