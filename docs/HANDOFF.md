@@ -7,13 +7,15 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**train33 landed 17d49e451a:** Traffic TS67 phase-entry fix, complete565 span spec, advisor AD1-AD3 answers. Gate and fulldefault35-key union regress PASS; no shadow resync/suppression. Advisor UI null/no-op disproven, privateglobal consumers and read-only external map layout specified. Coverage42.1/30.0/15.4/16.5; rounds64 (open-ended).
+
 **User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target6-8 live lanes (coordinator target8), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
-**Coverage after train32:**41.4/30.0/12.5/16.5 (specified/implemented/verified/replaced), baseline36.8/28.3/12.1/15.9; delta+4.6/+1.7/+0.4/+0.6 points. Ten trains landed:21,22,25,26,27,28,29,30,31,32.60 rounds dispatched, no total cap. Status checkpoint every25 rounds; next75. Two consecutive trains with no coverage-number change require a new table-based selection.
+**Coverage after train33:**42.1/30.0/15.4/16.5; baseline36.8/28.3/12.1/15.9, delta+5.3/+1.7/+3.3/+0.6 points. 11 trains landed; 64 rounds used, no total cap. Next25-round checkpoint 75.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`, `run4-launch.py` (saved guarded Workflow,maxRounds1,ctx150k,calls150). Never use direct/unguarded agents. After compaction/restart reread this section and run lanes.py guard before spawning. Fresh slots/check --touches required, --resume for an existing worktree; deps must be on main.
 
-**Current train33:** traffic TS67 fix + advisor AD1-AD3 answers + complete565span spec. Integration17d49e451ae2f247ad66ab4ceb25e564dab184b1, gate/regress running. Traffic lane exact72/72turbo to2032 and23/23normal to2028, ref0/resync0; no combined-train verification credit before PASS. Advisor null/no-op UI is disproven; answers must land before implementation.
+**Train authority:** `build-runs/merge-train/state.json`; latest landed train33. Start next batch immediately when2+ ready; guard and main ancestry remain authoritative.
 
 **Parked at3/3, never fourth:** glue-terrain3(97b1c237), re-driverdraw4(partial DX7, landed32), re-editors4(partial curves, landed30), re-particles4(partial drawing, landed30), re-widgets4(partial base, landed28), re-application4(partial57/322, landed27), re-terrain4(answers landed25). Preserve parked worktrees, even when supported portions landed.
 
@@ -30,7 +32,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 **Runtime:** game queue6slots(pid22296); native CLI BG_WAIT_CEILING_MS=0. qwait without--fresh, unique labels. RE preflight must GO; export-first allowed even if no REA binary open. Gate verdicts never set by hand. Train32 generated QUESTIONS conflict resolved by regeneration from merged sources, questioncheckPASS.
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 233 (train32 three-lane PASS;1555 spec and GZ queue-manager core); 232 (train31 PASS; formats read-shadow exact;4444 span spec complete); 231 (train29 three-lane PASS; TS67 answered, partial occupant records); 230 (train28 five-lane PASS; exact-owner specs and partial networkoccupant core); 229 (train27 two lanes PASS; TS67 filed and partial application spec landed). See `docs/manual-checks.md`.
+- **Latest in-game run:** 234 (train33 PASS; traffic TS67 corrected,565 complete, advisor blockers answered); 233 (train32 three-lane PASS;1555 spec and GZ queue-manager core); 232 (train31 PASS; formats read-shadow exact;4444 span spec complete); 231 (train29 three-lane PASS; TS67 answered, partial occupant records); 230 (train28 five-lane PASS; exact-owner specs and partial networkoccupant core). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
