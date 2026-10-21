@@ -205,7 +205,8 @@ which closes the old feature-sweep gap (U4). Method and criteria, so a successor
    untouched pixel either side of each span.
    Result: 150 trials per kernel, **168/168 kernels, 747,927 pixels, 0 mismatches**; every kernel returns with
    ESP restored and EBX/ESI/EDI/EBP preserved. Exhaustive texel sweep (all 65,536 16-bit texels, all 256 A8
-   bytes) for columns 0-3 of rows 0, 2, 4, 6, 12 and column 0 of rows 1, 3, 5, 7, 13: EXHRESULT.
+   bytes) for columns 0-3 of rows 0, 2, 4, 6, 12 and column 0 of rows 1, 3, 5, 7, 13: 25 kernels, 1,312,000 pixels, 0 mismatches (the 9.2/9.3
+   conversions and the per-format key masks hold for every texel value).
 4. Sensitivity. The same harness with one rule of the model changed fails at once: blend rounding `+7`
    instead of `+8` (78 kernels fail at 4 trials), constant-alpha weight `a+1` (39), modulate without `+128` (71),
    4444 key mask `0xFFFF` (all 12 keyed 4444 kernels at 40 trials), tiled start without `u0` (52).

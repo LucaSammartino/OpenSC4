@@ -1,15 +1,32 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-span4444-4 | workflow / `re-span4444-4` | in progress (round 2: U4 structural proof): new `docs/specs/span-render-4444.md` for `nGZDrawSoftRender::cSpanRender4444` (0x00847CE0-0x00854E10, 172 fn, 51,809 B) | line-by-line read of the 144 sweep-only kernels (U4); coverage "specified" for the class |
+| re-span4444-4 | workflow / `re-span4444-4` | **ready** (specs only, no ABI rows): `docs/specs/span-render-4444.md` for `nGZDrawSoftRender::cSpanRender4444` (0x00847CE0-0x00854E10, 172 fn, 51,809 B); round 2 closed U4: all 168 blit kernels verified by execution | coverage "specified" for the class; optional: extend the check to U7 ranges |
 
-## Handoff
-- Goal (round 2): resolve U4 (144 sweep-only kernels) by normalized structural comparison of export instructions.
-- Done round 1: 62184d4d spec sections 1-11 (see git log). Round 2 started at 62184d4d.
-- Done round 2: 935fc914 spec 9.5 execution verification, U4 closed, U7 added (EXHRESULT placeholder in 9.5).
-- Next: wait build-runs/run-exh.txt (exhaustive texel sweep, rerun with dstr fix), fill EXHRESULT, finish report.
-- Facts: table rows at 0x00AC2100, kernels from instructions.asm; cls.py = old feature sweep (weak); norm.py (byte identity + normalized diff), emu.py (x86 interp), check.py (model vs kernels; MUT=n mutations, EXH=1 exhaustive).
+## Report (round 2, 2026-10-21)
 
-## Report
+**What changed.** Spec section 9.5 rewritten, U4 closed, U6 extended, U7 added, section 11 updated.
+- Byte identity: Capstone disassembly of `bin/SimCity4.exe` vs export instructions for all 168 table entries:
+  0 mismatches; 91 in-loop alignment fillers (`lea r,[r]`, `nop`, `mov edi,edi`) are absent from the export.
+- Normalized text comparison (ordinal labels, immediates/widths kept): no two kernels identical, row-to-row diffs
+  5-91 lines from register allocation/scheduling, so a textual template proof is not possible. Constant inventory
+  per row matches the format (documented in 9.5 item 2).
+- Execution check: x86 interpreter for the 35 mnemonics used, kernels run on their real bytes against the spec
+  model 9.1-9.4: random 150 trials/kernel, 168/168 kernels, 747,927 pixels, 0 mismatches, ESP and callee-saved
+  registers preserved; exhaustive texel sweep 25 kernels (cols 0-3 of rows 0/2/4/6/12, col 0 of keyed rows
+  1/3/5/7/13), 1,312,000 pixels, 0 mismatches. Mutation sensitivity: five single-rule model changes each fail
+  39-78 kernels (12/12 for the key-mask mutation).
+- No rule of sections 1-9.4 changed: five methods, 14x12 table, conversions and rounding stand as written.
+
+**Unknowns left.** U1-U3, U5, U6 (caller meaning), U7 (input ranges the check did not exercise: spans >25 px,
+stretch steps >=1.0 or accumulator wrap, tiled `x+u0` wrap, width/height 0, negative strides).
+
+**Questions.** None filed (no ambiguous contract found).
+
+**Tools.** REA not used. Scripts (ignored, build-runs/): norm.py, emu.py, check.py (`MUT=n`, `EXH=1`).
+
+**Commits.** 935fc914 spec verification, 408968d1 handoff, final commit with this report.
+
+## Report (round 1)
 
 **What changed.** New spec `docs/specs/span-render-4444.md` (sections 1-11):
 - Class/vtable `0x00AC185C`, creation by `cGZDrawContextRenderToBuffer::Init` for colour type 7; methods take all
