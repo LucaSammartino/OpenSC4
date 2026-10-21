@@ -236,6 +236,7 @@ fn:SC4WriteRegionalCity	region	region	region.md	-	-	-
 fn:SC4CreateCitySerialNumber	region	region	region.md	-	-	-
 cSC4Region	region	region	region.md	-	-	-
 cSC4Region*	region	region	-	-	-	-
+cSC4WinRegionScreen	region	region	region-screen.md	-	-	-
 cSC4WinRegion*	region	region	-	-	-	-
 cSC4NewRegionDialog	region	region	-	-	-	-
 cSC4ImportCityDialog	region	region	-	-	-	-

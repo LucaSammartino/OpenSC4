@@ -8555,49 +8555,49 @@ va	name	source	confidence	note
 007aaf20	cSC4WinRegionScroll::GZOnMouseMove	auto:C	high	mac 0019f91c score 1.0 support 1
 007ab130	cSC4WinRegionScroll::GZPaint	auto:B1	medium	mac 0019ffc6 score 0.987 support 2.5
 007ab630	cSC4RegionalTerrainView::Update	auto:B4	medium	mac 001a0756 score 0.994 support 3.0
-007ab760	cSC4WinRegionScreen::GZOnMouseMove	auto:B4	medium	mac 0019f0c4 score 0.924 support 1.0
+007ab760	cSC4WinRegionScreen::GZOnMouseMove	manual:region-screen.tsv	high	region-screen.md §4
 007ab790	cSC4WinRegionScreen::GZOnMouseDownR	auto:C	high	mac 0019f63a score 1.0 support 1
-007ab7c0	cSC4WinRegionScreen::ComputeBaseLimits	auto:B4	medium	mac 001a0388 score 0.966 support 2.0
-007ab9f0	cSC4WinRegionScreen::DoMessage	auto:B1	medium	mac 001a0618 score 0.958 support 2.5
+007ab7c0	cSC4WinRegionScreen::ComputeBaseLimits	manual:region-screen.tsv	high	region-screen.md §3
+007ab9f0	cSC4WinRegionScreen::DoMessage	manual:region-screen.tsv	high	region-screen.md §8; window messages
 007abb00	cSC4WinRegionScreen::PostRegionScreenMessage	auto:D	medium	mac 001a10b8 score 0.5 support 1
 007abb60	cSC4WinRegionScreen::GZOnMouseExit	auto:B2	medium	mac 0019f0fa score 0.921 support 1.0
-007abb80	cSC4WinRegionScreen::SetCitySnapshotsToDefault	auto:B4	medium	mac 001a216e score 0.923 support 2.0
+007abb80	cSC4WinRegionScreen::SetCitySnapshotsToDefault	manual:region-screen.tsv	high	region-screen.md §3
 007abcd0	SC4MoveMaskToAlpha	auto:D	medium	mac 0019fe7a score 0.5 support 1
-007abdf0	cSC4WinRegionScreen::ShowPanel	auto:A	high	mac 001a2252 score 1.0 support 0
-007abf10	cSC4WinRegionScreen::ReadTunableValues	auto:A	high	mac 0019fbde score 0.896 support 0
-007ac110	cSC4WinRegionScreen::RestoreSignposts	auto:B0	medium	mac 0019f122 score 0.869 support 2.0
+007abdf0	cSC4WinRegionScreen::ShowPanel	manual:region-screen.tsv	high	region-screen.md §5 (outline)
+007abf10	cSC4WinRegionScreen::ReadTunableValues	manual:region-screen.tsv	high	region-screen.md §1; exemplar 0xAA383BFE
+007ac110	cSC4WinRegionScreen::RestoreSignposts	manual:region-screen.tsv	high	region-screen.md §4
 007ac1a0	cSC4WinRegionScreen::UpdateRendererPosition	auto:B4	medium	mac 0019f6ea score 0.95 support 2.0
-007ac270	cSC4WinRegionScreen::SetUserPreferencesToCurrentRegion	auto:B3	medium	mac 0019f21e score 0.948 support 2.5
-007ac2d0	cSC4WinRegionScreen::SetUserPreferencesToCurrentPosition	auto:B4	medium	mac 0019f298 score 0.954 support 3.0
+007ac270	cSC4WinRegionScreen::SetUserPreferencesToCurrentRegion	manual:region-screen.tsv	high	region-screen.md §7
+007ac2d0	cSC4WinRegionScreen::SetUserPreferencesToCurrentPosition	manual:region-screen.tsv	high	region-screen.md §7
 007ac380	cSC4WinRegionScreen::ShutdownApplicationServices	auto:B0	medium	mac 0019ef66 score 0.939 support 1.0
 007ac5c0	cSC4WinRegionScroll::~cSC4WinRegionScroll	auto:C	high	mac 0019ed3a score 1.0 support 1
 007ac620	cSC4WinRegionScroll::SetMouseScroll	auto:B2	medium	mac 001a0882 score 0.94 support 4.0
 007ac7d0	cSC4RegionalTerrainView::cSC4RegionalTerrainView	auto:B2	medium	mac 001a0ff4 score 0.862 support 2.5
 007ac830	cSC4WinRegionScreen::GZPaint	auto:B3	medium	mac 001a0be4 score 0.982 support 1.5
-007acad0	cSC4WinRegionScreen::GZOnMouseDownL	auto:A	high	mac 001a2400 score 0.887 support 0
-007acc90	cSC4WinRegionScreen::InitApplicationServices	auto:A	high	mac 001a114a score 0.855 support 0
+007acad0	cSC4WinRegionScreen::GZOnMouseDownL	manual:region-screen.tsv	high	region-screen.md §4; double click plays
+007acc90	cSC4WinRegionScreen::InitApplicationServices	manual:region-screen.tsv	high	region-screen.md §2 (outline)
 007ad3b0	cSC4WinRegionScroll::GZOnMouseDownR	auto:B3	medium	mac 001a0ad4 score 0.909 support 1.5
 007ad400	SC4CreateSpanList	auto:D	medium	mac 001a1fae score 0.5 support 1
 007ad7a0	std::vector<cISC4Region::cLocation,std::allocator<cISC4Region::cLocation>>::operator=	auto:D	medium	mac 006c768e score 0.5 support 1
-007adac0	cSC4WinRegionScreen::LoadRegion	auto:B5	medium	mac 001a0eb4 score 0.895 support 1.0
-007adc20	cSC4WinRegionScreen::LaunchRegionalCity	auto:B3	medium	mac 001a1808 score 0.971 support 2.0
+007adac0	cSC4WinRegionScreen::LoadRegion	manual:region-screen.tsv	high	region-screen.md §6.3
+007adc20	cSC4WinRegionScreen::LaunchRegionalCity	manual:region-screen.tsv	high	region-screen.md §6.2
 007ae160	(anonymous_namespace)::Resample	auto:B1	medium	mac 001a1b3a score 0.995 support 2.0
 007ae3d0	(anonymous_namespace)::Resample	auto:B2	medium	mac 001a1dd8 score 0.917 support 1.0
-007ae510	cSC4WinRegionScreen::RecalculateImagesFromCitySnapshots	auto:B3	medium	mac 001a4cfe score 0.866 support 3.0
-007aea00	cSC4WinRegionScreen::GetOrCreateRegionalCity	auto:A	high	mac 0019f368 score 0.58 support 0
-007aec00	cSC4WinRegionScreen::UpdatePopulation	auto:A	high	mac 0019f7e4 score 1.0 support 0
-007aedd0	cSC4WinRegionScreen::MakeWholeRegion	auto:A	high	mac 001a3f1c score 1.0 support 0
-007af4b0	cSC4WinRegionScreen::LaunchCity	auto:B0	medium	mac 001a190e score 0.972 support 1.0
-007af720	cSC4WinRegionScreen::ProcessCommand	auto:B0	medium	mac 001a479a score 0.969 support 9.0
-007afaa0	cSC4WinRegionScreen::GZOnCommand	auto:A	high	mac 001a5274 score 0.923 support 0
-007b0470	cSC4WinRegionScreen::LoadGUI	auto:A	high	mac 001a2650 score 0.875 support 0
-007b0af0	cSC4WinRegionScreen::DoMessage	auto:A	high	mac 001a4bc6 score 1.0 support 0
+007ae510	cSC4WinRegionScreen::RecalculateImagesFromCitySnapshots	manual:region-screen.tsv	high	region-screen.md §3 (outline)
+007aea00	cSC4WinRegionScreen::GetOrCreateRegionalCity	manual:region-screen.tsv	high	region-screen.md §6.1
+007aec00	cSC4WinRegionScreen::UpdatePopulation	manual:region-screen.tsv	high	region-screen.md §3; text 0xC9E41918
+007aedd0	cSC4WinRegionScreen::MakeWholeRegion	manual:region-screen.tsv	high	region-screen.md §5 (outline)
+007af4b0	cSC4WinRegionScreen::LaunchCity	manual:region-screen.tsv	high	region-screen.md §6.4
+007af720	cSC4WinRegionScreen::ProcessCommand	manual:region-screen.tsv	high	region-screen.md §4, §5
+007afaa0	cSC4WinRegionScreen::GZOnCommand	manual:region-screen.tsv	high	region-screen.md §5
+007b0470	cSC4WinRegionScreen::LoadGUI	manual:region-screen.tsv	high	region-screen.md §2 (outline)
+007b0af0	cSC4WinRegionScreen::DoMessage	manual:region-screen.tsv	high	region-screen.md §8; commands to ProcessCommand
 007b0bb0	std::vector<cSC4RegionViewCity,std::allocator<cSC4RegionViewCity>>::clear	auto:D	medium	mac 006a84d6 score 0.5 support 1
 007b0c00	cSC4WinRegionScreen::cSC4WinRegionScreen	auto:A	high	mac 001a3a04 score 0.728 support 0
-007b0f60	cSC4WinRegionScreen::Shutdown	auto:A	high	mac 001a2ee6 score 1.0 support 0
+007b0f60	cSC4WinRegionScreen::Shutdown	manual:region-screen.tsv	high	region-screen.md §2 (outline)
 007b1200	cSC4WinRegionScreen::~cSC4WinRegionScreen	auto:B1	medium	mac 001a35e4 score 0.963 support 1.0
-007b13c0	cSC4WinRegionScreen::PutCitiesInView	auto:B1	medium	mac 001a5f84 score 0.936 support 2.0
-007b1900	cSC4WinRegionScreen::Init	auto:A	high	mac 001a66de score 0.923 support 0
+007b13c0	cSC4WinRegionScreen::PutCitiesInView	manual:region-screen.tsv	high	region-screen.md §3
+007b1900	cSC4WinRegionScreen::Init	manual:region-screen.tsv	high	region-screen.md §2 (outline)
 007b2320	cSC4WinRegionScreen::~cSC4WinRegionScreen	auto:C	high	mac 001a31be score 1.0 support 1
 007b23e0	cSC4TiledScrollingCanvas::QueryInterface	auto:A	high	mac 00501cca score 1.0 support 0
 007b2410	cSC4WinRegionView::SetSignpostMode	auto:D	medium	mac 004fe75a score 0.5 support 2

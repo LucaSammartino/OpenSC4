@@ -109,6 +109,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PT | particles |
 | PV | prop-developer |
 | PW | power |
+| QR | region-screen |
 | QV | map-view |
 | RD | renderer-driver |
 | RG | residential-education-health |
@@ -232,6 +233,7 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | region | 2 | 0 | RQ3 | questions/region.md |
+| region-screen | 3 | 0 | QR4 | questions/region-screen.md |
 | regional-city | 2 | 0 | RY3 | questions/regional-city.md |
 | render-properties | 2 | 0 | RP3 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
@@ -262,4 +264,4 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **251** | **1118** | | |
+| **total** | **254** | **1118** | | |
