@@ -440,7 +440,68 @@ lot.GetLocation()` (slot 21, the corner cell of §3.2 field 5); `w := null`; if 
 21 `RemoveOccupant(w, 1, 0)`, Release `w`, result := 1. Then **always** `lot.SetFlags(lot.GetFlags() & ~4)`. Return
 AL = result (0 or 1). Only the first wall found at the location cell is removed; any other wall of the lot stays.
 
-`UpdateRetainingWalls(lot)` (`0x005E37F0`) is not specified yet (LR5 stays open for it).
+### 7.2 Refreshing walls: `UpdateRetainingWalls(lot)` (`0x005E37F0`, `__cdecl`, 4 bytes, no return)
+
+Static RE (re_query.py asm; REA had no binary open). Callers: lot developer slot 62 `UpdateLotRetainingWalls`
+(`0x006C4190`, which passes AL through) and `UpdateSurroundingRetainingWalls` (`0x005E39A8`). In this order:
+
+1. If `lot.GetFlags() & 1 = 0` (slot 12): return; nothing else is called.
+2. `w := null`; `(x, z) := lot.GetLocation()` (slot 21); occupant manager (`0x00B43D0C`) slot 33
+   `GetFirstOccupantByStandardCityCell(&w, x, z, 0x895D1169)`. If false: `AddRetainingWallOccupant(lot, true)` (§7.1)
+   and return.
+3. `W := w.QueryInterface(0x295D1162)` (wall interface, building-development.md DG35). **`w` is not tested for
+   null** before this call (the removal path of §7.1 does test it). If the QI fails:
+   `AddRetainingWallOccupant(lot, true)`, Release `w`, return.
+4. `R := lot.GetBoundingRect()` (slot 14); `top := 0`; `a := f32(lot.GetAltitude())` (slot 16);
+   `old := W.GetEdgeHashes()` (slot 9 `0x005E2910`, copies object `+0x44..+0x50`).
+5. `GetLotWallEdgeFlags(lot, a, R, new[4], &top)` (§7.1); its AL and `top` are **ignored**.
+6. For `i` = 0, 1, 2, 3: if `old[i] ≠ new[i]` (32-bit integer compare): if `old[i] ≠ 0`,
+   `AddRetainingWallModel(w, W, i, false, false)`; then if `new[i] ≠ 0`, `AddRetainingWallModel(w, W, i, true,
+   true)`; `changed := true`. Equal hashes (zero or not) do nothing.
+7. If `changed`: `W.SetEdgeHashes(new)` (slot 10 `0x005E2930`, a plain copy of the four words into `+0x44..+0x50`;
+   it does **not** touch the edge mask at `+0x40`).
+8. Release `W`, then Release `w`. Return (AL is whatever the last call left; slot 62 hands it on; LD3 callers
+   ignore it).
+
+What an update does **not** change on an existing wall: position, size (`top` is discarded, so a wall keeps the
+height it was built with), wall type, lot reference, lot flag bit 2. A wall whose new hashes are all 0 is **kept**
+(its models removed, the occupant stays). The edge mask changes only through `AddRetainingWallModel` below.
+
+**`AddRetainingWallModel(occ, W, edge, add, insert)`** (`0x005E3400`, `__cdecl`, 20 bytes, AL = 1 on every path):
+1. `P := occ.AsPropertyHolder()` (occupant slot 6, `occ + 8`); if null: return.
+2. `G :=` occupant slot 20 `GetOrCreatePlaceableObject()` (`0x005E91C0`) when `add`, slot 19 (the existing one at
+   `+0x30`, may be null) otherwise; if null: return; AddRef `G`.
+3. Removal (`add = false`): `FindRetainingWallModel(G, edge, &m)` (`0x005E2FC0`: asks `G` slot 4 for at most 16
+   attached objects; for each, QI `0xA9E2831E`, its slot 3 object `m`; match when the signed byte `m + 0x78` equals
+   `edge`; first match is AddRef'd and returned true). If found: if renderer (`0x00B43DD0`) slot 27
+   `IsModelInserted(m)`: slot 29 `RemoveModel(m)` (the renderer is not null-tested here); `G` slot 6 detach `m`;
+   `m` slot 4 `SetOccupant(null)`; Release `m`. **The mask bit is left as it was**; `insert` is unused.
+4. Add (`add = true`): create a model (`0xB0` bytes, constructor `0x005E17C0`, AddRef). Read properties
+   `0x295961F2` (vector of u32, starts as five zeros) and `0x295961F3` (one word) from `P` when `P` has
+   `0x295961F2` (slot 9), else from the resource `{type 0x6534284A, group 0x88CD66E9, instance 1}` (resource manager
+   `0x00B43CA8` slot 3, IID `0xA52160F5`), Released after; the word is not initialised by this function when neither
+   source has it. `occ` slot 10 gives the box (min starts (1,1,1), max (0,0,0); `0x005E2C30` derives it from the
+   wall's stored position and size, so a stale size stays stale). `0x005E12C0(model, vector, word)`; `Init(model,
+   box, edge, &ok)` (`0x005E2780`: stores `edge` at `+0x78`, builds the edge vertices; `ok` is written by its vertex
+   setup `0x005E1BC0`).
+   - `ok`: model slot 4 `SetOccupant(occ)`; `G` slot 5 attach the model; if `insert` and the renderer is non-null and
+     not `IsModelInserted(model)`: `InsertModel(model)` (slot 28). Mask := `W.GetMask() | (1 << edge)` (slots 7/8,
+     `+0x40`).
+   - not `ok`: mask := `W.GetMask() & ~(1 << edge)`; the model is not attached.
+   Release the model (destroyed when not attached), free the vector, Release `G`.
+
+So after an update the saved record (§7 fields 4 and 5) holds the new hashes; mask bits are set for edges whose new
+model built, cleared for edges whose new model failed, and **stay set for edges that went to hash 0**. A failed
+build leaves a non-zero hash with a clear mask bit, one way to get the masks lacking hash bits that `Read` repairs
+(T7) *[inferred: the cause of the 949 saved cases is not traced]*.
+
+**`UpdateSurroundingRetainingWalls(lot)`** (`0x005E3960`, `__cdecl`, 4 bytes, no defined return): allocate an empty
+list (12-byte head, `0x0090CF54`); `n :=` lot manager (`0x00B43D08`) slot 9 `GetLotsSurroundingLot(lot, list, 0xF)`
+(zones.md §8.3 slot 10: the ring one cell outside the rect, row order, each lot once, one AddRef each; the lot itself
+is excluded because it intersects the rect). If `n ≠ 0`: `UpdateRetainingWalls(L)` for each `L` in list order. Then
+Release every non-null element, free the nodes and the head. The lot passed in is **not** updated itself. Callers:
+`ClearLot` (`0x006C8A62`, after `AddRetainingWallOccupant(lot, false)`, `RemoveLotFoundation` and
+`UpdateSurroundingLotFoundations`) and `AddLotFoundation` (`0x006C8C34`); see lot-developer.md.
 
 ---
 
@@ -1114,3 +1175,15 @@ writes `0F 00 00 00` at payload offset 40. A conforming writer of an unmodified 
   With bit 0 set, rect (10, 20, 10, 20), altitude 100.0, edge 0 neighbour row = one cell holding no lot and its
   edge vertices (10, 20) and (11, 20) at 102.4 and 103.6: the cell has no lot, so `bits = 0` and `h[0] = (102·10·20 + 1) + (104·11·20 + 1) = 43,282`; `top = 103.6`; mask bit 0 set; size y = 3.6
   (float); AL = 0.
+- **T22** `UpdateRetainingWalls(lot)`, lot flags bit 0 set, wall at the location cell with hashes (5, 0, 7, 9) and mask
+  `0b1101`; the edge pass gives (5, 4, 0, 8) and every model build succeeds. Calls in order: edge 1 add(1), edge 2
+  remove, edge 3 remove then add. Result: hashes (5, 4, 0, 8), mask `0b1111` (bit 2 stays), position, size and type
+  unchanged, the wall is not removed.
+- **T23** Same wall, edge pass equal to the stored hashes: no `AddRetainingWallModel` call, `SetEdgeHashes` not
+  called, the record is byte-identical. Lot flags bit 0 clear: no occupant query at all. No wall at the location
+  cell: exactly one `AddRetainingWallOccupant(lot, true)`.
+- **T24** Edge 0 changes from 0 to 6 and the model's vertex setup fails: hash 0 := 6, mask bit 0 cleared; after a
+  save and load the mask has bit 0 again (§7 `Read`).
+- **T25** `UpdateSurroundingRetainingWalls(B)` with lot C touching only ring row z1 − 1 and lot A touching only
+  column x1 − 1 at rows z1..z2 (so C comes first in the zones.md ring order): `UpdateRetainingWalls(C)`, then `(A)`; never `(B)`; each of A and C ends with its reference count
+  unchanged.

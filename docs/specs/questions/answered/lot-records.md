@@ -23,3 +23,10 @@
 - **LR4 - section 3.2 field 2:** a lot that was read but never `Init`ed (the crime-only lot of section 14) holds no
   configuration object, only the ID read. Does its `Write` save 0 (no object) or the ID read? [the ID read]
   **ANSWERED 2026-10-21 (re-lot-record-answers4):** DIFFERS — sections 3.2 field 2 and 3.5: Write (0x6C0080) writes only the configuration object's GetID or 0 and never the ID read (+0x30), so a read-but-never-Inited lot saves 0.
+
+<!-- from: core-lotrecords4 (2026-10-21) -->
+- **LR5 - section 7 / lot-developer.md section 7.2 AddRetainingWallOccupant:** how does the add path compute the
+  wall type, edge mask, the four edge hashes, position and size of the new wall from the lot, and what does
+  `UpdateRetainingWalls(lot)` change on an existing wall? Without it a core can read and write walls but not build
+  them. [not implemented; record Write/Read and the T7 mask growth only]
+  **ANSWERED 2026-10-21 (re-lot-record-answers4):** MATCHES (add path) / DIFFERS (update) — sections 7.1 and 7.2: the add path is AddRetainingWallOccupant 0x005E3070 (edge hashes from GetLotWallEdgeFlags 0x005E2CE0, mask from non-zero hashes, rect-centre position, size (16w, top - a, 16d), AL always 0). UpdateRetainingWalls 0x005E37F0: flags bit 0 clear -> nothing; no wall at the location cell or QI 0x295D1162 fails -> AddRetainingWallOccupant(lot, true); else recompute hashes and, per edge i = 0..3 whose hash changed, remove model i (old != 0) then add model i (new != 0, inserted in the renderer), then SetEdgeHashes(new) once if any changed. Position, size, type, lot flags are never changed and an all-zero wall is kept; the mask changes only in AddRetainingWallModel 0x005E3400 (bit set when the model builds, cleared when it fails, untouched on removal). UpdateSurroundingRetainingWalls 0x005E3960 runs UpdateRetainingWalls on every lot of GetLotsSurroundingLot(lot, 0xF) in ring order, not on the lot itself.
