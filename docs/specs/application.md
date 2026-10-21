@@ -438,13 +438,13 @@ not touch +0x5B8.
    with failure.
 3. Read the save version (`SC4ReadAppLoadSaveVersion`); it must lie in 62..65 (`0x3E`..`0x41`)
    inclusive, else unregister (no-op) and fail.
-4. Send message `0x26C63340` (data: the segment and the path string). Keep the segment as the city
+4. Send message `0x26C63340` PreLoad (data: the segment and the path string). Keep the segment as the city
    segment (+0x654) and add it to the resource manager (slot +0x70).
 5. If the segment's slot +0x1C test passes, open the load stream (type `0x49DD6F4C`, group
    `0x49DD6F4E`, instance 1); it must be open with version word 1, then Read (below) must succeed.
    Then: the city gets slot +0x18 with the regional city's slot +0x6C value, slot +0x2C(path) and
    slot +0x3C(0); the window owner destroys the current screen and creates the city screen; send
-   `0x26C63341` then `0x26C63342` (same data); section 11.7 with new = 0; success.
+   `0x26C63341` Load then `0x26C63342` PostLoad (same data, names from re/class_id_table.tsv); section 11.7 with new = 0; success.
 6. On any failure after step 4: release the half-read city (+0x5C cleared) and unregister the city
    segment.
 7. Release the local segment reference; pump both servers and call the resource manager's
@@ -546,6 +546,53 @@ true. Code `0x30`: run the dialog above; on true copy the chosen path into the g
 GetNewCitySpecification (iface slot 39, +0x3B4), keeping at most the first 511 characters (a longer path
 is truncated by dropping its tail), return true. Any other code: return true. Meaning: the new-city
 terrain button sends 0x30 to pick a height-field image for the next NewCity.
+
+### 11.16 SaveCity(path, flag) (iface slot 15, `0x00455E20`, 2611 bytes)
+
+The package contents and the message order inside the write are in foundations.md section 3.7
+(PreSave `0x26C63343`, unnamed `0x26C63346`, version records, root record, Save `0x26C63344`, PostSave
+`0x26C63345`, adjacent-city regional records). This section is the app-side file handling around it.
+Result starts false; it is the return value.
+
+1. Scoped helpers for the whole call: wait cursor (`cRZAutoCursor` 15), input-queue flush
+   (`cSC4AutoFlushInputMessageQueue` 1000), game pause (0, 1, 1, 1) and one more scoped object
+   (`0x005F88A0`, constructed with 1, not identified).
+2. No city open: return false.
+3. Target path: `SC4CreateSavePathForCity` (`0x005DC790`) derives the city's save path from the city
+   (city slots +0x30 and +0x14 feed it). renamed := target differs from the path argument (exact,
+   case-sensitive byte comparison of the two strings, `0x00454BB0`). *[inferred: which local holds the
+   target; the name "renamed" is this spec's]*
+4. Remember the city's current file path (city slot +0x28), then set the city's file path to the target
+   (city slot +0x2C) so the saved records already carry it.
+5. Temp file: `cRZFile::MakeTempPathName`. Failure: skip to step 8 with result false (no package).
+6. Package: a new `cSC4DBSegment` (0x1DC bytes), Init (slot +0x10), path := temp (slot +0x2C), open for
+   writing (slot +0x18 with (0, 1)). Init or open failure: result false, go to step 8.
+7. Messages and writes as in foundations.md section 3.7 steps 1-5 (the PreSave data carry the package,
+   the path strings and flag != 0). After PostSave, result := true; then the package is closed (segment
+   slot +0x28) and result := the close result; the package is shut down and released.
+8. Unregister the city DB segment (section 11.5).
+9. Only when result is true, replace the file (city slot +0x3C is called first, no arguments, unnamed):
+   - If a file exists at target: backup := target with `_` appended
+     (`City.sc4` -> `City.sc4_`). If a backup file already
+     exists, remove it; failure -> result false, stop replacing. Rename target -> backup; failure ->
+     result false, stop.
+   - Rename temp -> target. Success: remove the backup if one was made. Failure: remove the temp file,
+     rename backup -> target when a backup was made, result false.
+   - If renamed and the file at the old path (the argument) exists, remove it (a renamed city leaves
+     no stale file).
+10. Remove the temp file when its path is non-empty (harmless when already renamed).
+11. City file path (slot +0x2C) := target when result is true, else the path remembered in step 4.
+12. Register the city DB segment again (section 11.5).
+13. Result true: through the framework service (`0x3AE4BEA3`, IID `0x3AE4BEAB`) get the set of
+    regional cities next to this one; for each one that is not this city (compared through slot +0x7C)
+    call `SC4WriteRegionalCity` (`0x005DC2E0`) so its file gets this city's new regional record
+    (foundations.md section 11.1).
+14. Return result.
+
+Worked example (rename): the city was opened from `...\City - Old.sc4` and renamed to `New`; target
+is `...\City - New.sc4` (assuming the derived name pattern), renamed is true. No file at target, so
+no backup; temp is renamed to `City - New.sc4`, then `City - Old.sc4` is deleted, and the city's path
+becomes the new name. If the temp rename failed, the old file stays and the path reverts.
 
 ## 12. Open (not specified here)
 
