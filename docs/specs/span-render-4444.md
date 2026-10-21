@@ -20,6 +20,78 @@ renderers, fonts, base widgets, the DX7 driver.
   (A4R4G4B4), stored at context `+0xB0`. The object has no data members the methods read: every method takes all
   its inputs as arguments (`this` is never dereferenced in slots 1-5).
 
+### 1.1 Native call boundary (SP3, re-spanbridge4444-4)
+
+All facts below were read from the instruction bytes at the cited addresses.
+
+**Object and vtable.** The renderer object is 4 bytes: only the vtable pointer. `Init` allocates it per context
+with `GlobalHeapAlloc(4)` (`0x005E55E0`, call at `0x008307AA`), stores `0x00AC185C` into it (`0x008307B6`; jump
+table `0x008308B0` indexed by colour type - 2, entry 5 = type 7) and the pointer into context `+0xB0`
+(`0x008307EE`); a failed allocation stores 0. The vtable is one static table in `.rdata`: `0x00AC185C` occurs once
+in the whole image as an immediate (that store), and each slot address 1-5 occurs once in the image (its own
+entry; slot 0 `0x0082FF00` is shared with the other five span vtables and `0x00AC17AC`). So every A4R4G4B4 context points at the same six entries: patching entries 1-5 of `0x00AC185C` covers all
+instances; nothing copies the table.
+
+**Lifetime.** Context `Shutdown` (`0x0082FF20`, slot 4 of `0x00AC17D0`, and the first thing `Init` calls) and
+`Release` (`0x008306C0`) call slot 0 with flags 1 and clear `+0xB0`. Slot 0 (`0x0082FF00`) is thiscall with one
+dword (`RET 4`): it sets the vtable to `0x00AC17AC` and, when flag bit 0 is set, frees with `GlobalHeapFree`
+(`0x005E5620`). A substitute object placed in `+0xB0` must therefore survive a slot-0 call with flags 1 that
+releases it through its own slot 0.
+
+**Calling convention (slots 1-5).** MSVC thiscall: `this` in ECX (ignored by all five; ECX is overwritten before
+any read), arguments pushed right to left, the callee pops them, nothing is returned (EAX is undefined and no call
+site reads it). EBX, EBP, ESI and EDI are preserved (each slot pushes and pops the ones it uses); the caller relies on
+ESI after the call.
+
+| Slot | Offset | Method | Arguments (dwords, in order) | Callee pops |
+|---|---|---|---|---|
+| 0 | +0x00 | deleting destructor `0x0082FF00` | `flags` (1) | `RET 4` |
+| 1 | +0x04 | RenderSolid `0x00847CE0` | `spans, count, buffer, colour` (4) | `RET 0x10` (`0x00847D23`) |
+| 2 | +0x08 | RenderGradient `0x00847D30` | `spans, count, buffer, grad` (4) | `RET 0x10` (`0x00847E33`) |
+| 3 | +0x0C | RenderAlpha `0x00847E40` | `spans, count, buffer, colour, alpha` (5) | `RET 0x14` (`0x00847F00`) |
+| 4 | +0x10 | RenderAlphaGradient `0x00847F10` | `spans, count, buffer, grad` (4) | `RET 0x10` (`0x008480B3`) |
+| 5 | +0x14 | RenderBlt `0x008480C0` | `spans, count, rectA, rectB, src, mode` (6) | `RET 0x18` (`0x0084814F`) |
+
+`buffer`, `grad`, `rectA`, `rectB` and `src` are pointers; `colour`, `alpha`, `count` and `mode` are by value.
+The kernels RenderBlt calls are cdecl with 22 dwords (`spans`, `count`, 6 + 6 + 8 dwords of the copied records),
+popped by RenderBlt (`ADD ESP,0x58` at `0x0084814A`).
+
+**The only native caller** is `cGZDrawContextRenderToBuffer::DrawPreclippedSpanList` (`0x008302E0`, thiscall
+`(spans, count)`, `RET 8`; slot 22 of `0x00AC17D0`). Byte sweep of `0x0082FD60`-`0x008310B0` for a `+0xB0`
+displacement finds only the constructor, `Init`, `Shutdown`, `Release` and the four loads in this function (`0x008304AD`, `0x00830529`, `0x00830583`, `0x008305C2`); the
+slots of `0x00AC17D0` outside that range are shared 1-8 byte stubs that do not touch `+0xB0`. The function picks
+one slot per call from context fields:
+
+| Context byte `+0x74` (gradient) | Context byte `+0x41` (alpha) | Call | Extra arguments from the context |
+|---|---|---|---|
+| 0 | 0 | slot 1 (`0x00830647`) | `buffer = ctx+0x78`, `colour = [ctx+0xC4]` |
+| 0 | non-zero | slot 3 (`0x00830627`) | `buffer = ctx+0x78`, `colour = [ctx+0xC4]`, `alpha = [ctx+0xB4]` |
+| non-zero | 0 | slot 2 (`0x008305FC`) | `buffer = ctx+0x78`, `grad = ctx+0x44` (12 dwords) |
+| non-zero | non-zero | slot 4 (`0x008305E7`) | `buffer = ctx+0x78`, `grad = ctx+0x44` |
+
+The textured path (three sites `0x008304D1`, `0x0083053B`, `0x00830591`) calls slot 5 with `rectA = ctx+0x78`,
+`rectB` and `src` in locals of the caller, and `mode` from EDI (one site ORs 4 into it at `0x0083050F`). `spans`
+and `count` are always the caller's own two arguments, passed through unchanged.
+
+**No interface reaches the renderer.** No slot of `cIGZDrawContext` (`0x00AC17D0`) returns or sets `+0xB0`.
+`cGZDrawContextRenderToBuffer` is created only by the factory at `0x0082B910` (the image's only `E8` call to the
+constructor `0x00830690`): slot 3 of a 4-slot factory vtable `0x00AC162C` (QueryInterface `0x0082B850` accepts
+IIDs 1 and `0x6B2EA76C`), thiscall `(buffer, out)`, `RET 8`, returns a bool in AL. It queries the buffer for
+`0x20732180`, allocates 0xD4 bytes, constructs, AddRefs into `*out`; it does not call `Init`.
+`cGZDrawSystem::Init` (`0x0082BC90`) appends this factory to the draw system's factory list, and
+`cIGZDrawSystem` vtable `0x00AC1668` slot 4 (`0x0082BAB0`, thiscall `(buffer, out)`, `RET 8`) tries each factory
+in list order until one returns true. `kcGZDrawContextAsBuffer` `0xAB300B20` is not on this path: its only code
+uses are the unreferenced 6-byte getter `0x0082ABD0` and `cGZScreenBuffer::Init` (`0x00992044`), which passes it
+with `0xAB300B2B` to slot `+0xC` of the GZCOM object. So a plugin can reach a 4444 renderer only by patching the
+shared vtable entries, or by writing context `+0xB0` after `Init` (no interface does that).
+
+**Which shipped path creates a colour-type 7 target: not found statically** (open as SP4). None of the 34 direct
+calls to the colour-pair constructor `0x0044A490` pushes the literal 7 (literals seen: 1, 3, 9; the rest take the
+type from data: buffer resources, `cGZGimexFactory::LoadWithReader`, `cSLBuffer::Load`), and the ten places in the image where
+`PUSH 7` precedes a `+0x14` virtual call within 16 bytes are all simulation code (prop and network managers,
+automata, vehicle collision), not calls of `cIGZDrawSystem` slot 5 `CreateBuffer(out, width, height, colourType)`
+(`0x0082B980`, `RET 0x10`).
+
 ## 2. Shared conventions
 
 **Pixel.** 16 bits, A in bits 12-15, R 8-11, G 4-7, B 0-3 (masks `0xF000/0x0F00/0x00F0/0x000F`).
@@ -87,7 +159,7 @@ Arguments `(spans, count, buffer, grad)`, same 12-dword layout as section 5, all
 
 ## 7. RenderBlt (`0x008480C0`) - kernel dispatch
 
-Arguments `(p1, p2, rectA, rectB, src, mode)`: `rectA`, `rectB` point to 24-byte records, `src` to a 32-byte
+Arguments `(p1, p2, rectA, rectB, src, mode)` (6 dwords, thiscall, `RET 0x18`; section 1.1): `rectA`, `rectB` point to 24-byte records, `src` to a 32-byte
 source descriptor, `mode` an int. It copies the three records by value and calls
 `kernel(p1, p2, *rectA, *rectB, *src)` (cdecl, 88 bytes of arguments), where
 `kernel = table[src.format * 2 + src.flag][mode]`: `src.format` is the dword at `src+0x10` (0..6),
@@ -239,4 +311,6 @@ cover is listed in U5 and U7.
 - specified: `nGZDrawSoftRender::cSpanRender4444` (whole owner range, 172 functions, 51,809 bytes): 5 methods +
   helper + ~24 kernels read in full; all 168 table entries (166 in range + 2 folded) verified by execution
   against 9.1-9.4 (section 9.5); remaining limits U1-U3, U5-U7.
-- No ABI rows proposed: the class is internal to `cGZDrawContextRenderToBuffer` and has no `docs/abi` rows.
+- ABI: the class is internal to `cGZDrawContextRenderToBuffer`. Proposed `docs/abi/vtables.tsv` rows for
+  `0x00AC185C` (section 1.1 table) are in lane re-spanbridge4444-4's `build-runs/abi-rows-re-spanbridge4444-4.tsv`;
+  not reconciled into docs/abi.

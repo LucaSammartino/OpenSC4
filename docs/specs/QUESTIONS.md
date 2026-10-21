@@ -182,7 +182,7 @@ generated index: the questions live one file per spec, so read only the file for
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | span-render-1555 | 2 | 3 | SR1556 | questions/span-render-1555.md |
-| span-render-4444 | 3 | 0 | SP4 | questions/span-render-4444.md |
+| span-render-4444 | 3 | 1 | SP5 | questions/span-render-4444.md |
 | span-render-565 | 4 | 0 | SR566 | questions/span-render-565.md |
 | span-render-8 | 2 | 0 | SR9 | questions/span-render-8.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
@@ -196,4 +196,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **167** | **1013** | | |
+| **total** | **167** | **1014** | | |
