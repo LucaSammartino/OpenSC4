@@ -35,6 +35,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CQ | crime |
 | CR | power |
 | CS | city-situation |
+| CT | city-tools-input |
 | DG | building-development |
 | DM | demolition |
 | DP | dispatch |
@@ -96,6 +97,7 @@ generated index: the questions live one file per spec, so read only the file for
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 0 | 5 | CD6 | - |
 | city-situation | 0 | 11 | CS12 | - |
+| city-tools-input | 5 | 0 | CT6 | questions/city-tools-input.md |
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
@@ -144,4 +146,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **52** | **982** | | |
+| **total** | **57** | **982** | | |
