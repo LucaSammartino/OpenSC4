@@ -42,6 +42,64 @@ pub fn source_type_from_file_name(lib: &dyn FontLibrary, path: &str) -> u32 {
     }
 }
 
+fn is_blank(c: char) -> bool {
+    c == ' ' || c == '\t'
+}
+
+/// `RZParseDelimitedText` at ',' (`0x00910BD3`, §12 step 1, FN14), at most `max` fields. Leading
+/// blanks of the text and after each ',' are skipped; every unquoted ',' ends a field, even an
+/// empty one; fields ended by ',' lose trailing blanks; the last part is a field only when
+/// non-empty and keeps its trailing blanks; a field that starts and ends with '"' loses both quotes
+/// (literal reading: only a field of at least two characters, so a lone '"' is kept).
+pub fn parse_delimited(text: &str, max: usize) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < chars.len() && is_blank(chars[i]) {
+        i += 1;
+    }
+    if i == chars.len() {
+        return out;
+    }
+    let unquote = |f: &[char]| -> String {
+        if f.len() >= 2 && f[0] == '"' && f[f.len() - 1] == '"' {
+            f[1..f.len() - 1].iter().collect()
+        } else {
+            f.iter().collect()
+        }
+    };
+    loop {
+        let start = i;
+        let mut quotes = 0u32;
+        while i < chars.len() && !(chars[i] == ',' && quotes % 2 == 0) {
+            if chars[i] == '"' {
+                quotes += 1;
+            }
+            i += 1;
+        }
+        if out.len() == max {
+            break;
+        }
+        if i < chars.len() {
+            let mut end = i;
+            while end > start && is_blank(chars[end - 1]) {
+                end -= 1;
+            }
+            out.push(unquote(&chars[start..end]));
+            i += 1;
+            while i < chars.len() && is_blank(chars[i]) {
+                i += 1;
+            }
+        } else {
+            if i > start {
+                out.push(unquote(&chars[start..i]));
+            }
+            break;
+        }
+    }
+    out
+}
+
 /// Catalogue record (§12).
 #[derive(Clone, Default)]
 pub struct FontFixedInfo {
@@ -259,11 +317,27 @@ impl GzFontSys {
         }
         let obj = FontObj::new(font);
         if cache {
-            // The spec records the font "in the catalogue entry"; with no entry for this path nothing
-            // is recorded (FN14).
+            // FN14: append to the path's entry, or create a new entry {[font], GetName, GetStyles,
+            // faceKind, source type 0} and add the lower-cased family to the family set.
+            obj.add_ref();
             if let Some(e) = self.catalogue.get_mut(path) {
-                obj.add_ref();
                 e.cache.push((obj.clone(), style));
+            } else {
+                let (family, styles, kind) = {
+                    let f = obj.lock();
+                    (f.family_name.clone(), f.style_flags, f.face_kind)
+                };
+                self.families.insert(lower(&family));
+                self.catalogue.insert(
+                    path.to_owned(),
+                    FontFixedInfo {
+                        cache: vec![(obj.clone(), style)],
+                        family,
+                        style: styles,
+                        kind,
+                        source_type: 0,
+                    },
+                );
             }
         }
         Some(obj)
@@ -278,14 +352,7 @@ impl GzFontSys {
         style: u32,
         cache: bool,
     ) -> Option<FontRef> {
-        // Empty names are dropped, so an empty list gives n = 0 (FN14: RZParseDelimitedText's
-        // handling of empty fields is not given).
-        let mut names: Vec<String> = lower(family_list)
-            .split(',')
-            .filter(|s| !s.is_empty())
-            .take(32)
-            .map(str::to_owned)
-            .collect();
+        let mut names = parse_delimited(&lower(family_list), 32);
         for i in (0..names.len()).rev() {
             for (key, aliases) in &self.substitutions {
                 for a in aliases {

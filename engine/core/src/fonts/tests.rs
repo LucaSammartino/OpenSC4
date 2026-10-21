@@ -33,7 +33,10 @@ impl FontFace for MockFace {
     fn set_char_size(&mut self, _: u32, _: u32, _: u32, _: f32, _: f32) -> Option<SizeMetrics> {
         Some(self.metrics)
     }
-    fn load_glyph(&mut self, index: u32, levels: GreyLevels) -> Option<GlyphRaster> {
+    fn fixed_advance(&self) -> i32 {
+        9 << 16
+    }
+    fn load_glyph(&mut self, index: u32, levels: GreyLevels, _flags: u16) -> Option<GlyphRaster> {
         let a = *self.adv.get(&index)?;
         let w = a.max(0) as u32;
         let (pitch, fill) = match levels {
@@ -48,6 +51,7 @@ impl FontFace for MockFace {
             bearing_x: 64,
             bearing_y: 10 * 64,
             advance: a << 16,
+            done_error: false,
         })
     }
 }
@@ -63,8 +67,15 @@ impl FontLibrary for MockLib {
     fn open(&self, path: &str) -> Option<Box<dyn FontFace>> {
         self.faces.get(path).map(|f| Box::new(f.clone()) as Box<dyn FontFace>)
     }
-    fn read_head(&self, _: &str, _: usize) -> Vec<u8> {
-        b"\x00\x01\x00\x00".to_vec()
+    fn read_head(&self, _: &str, n: usize) -> Vec<u8> {
+        // An sfnt with one table directory record, `loca` (source type 1).
+        let mut v = b"\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00loca".to_vec();
+        v.resize(28, 0);
+        v.truncate(n);
+        v
+    }
+    fn screen_format(&self) -> ScreenFormat {
+        ScreenFormat::Screen(9)
     }
     fn system_fonts_dir(&self) -> String {
         "C:\\Windows\\Fonts\\".into()
@@ -97,8 +108,6 @@ fn face(family: &str, style: u32) -> MockFace {
             a: 0x000A_0000,
             b: 0x0003_0000,
             c: 0xFFFE_0000u32 as i32,
-            underline_offset: 1,
-            line_thickness: 1,
         },
     }
 }
@@ -198,6 +207,7 @@ fn encodings_and_probes() {
 #[test]
 fn glyph_cache_and_widths() {
     let mut f = font();
+    f.set_antialiasing(3); // grey (the constructor default is monochrome, FN11)
     assert_eq!(f.char_width('H' as u32), 7);
     assert_eq!(f.get_x_offset('H' as u32), 1);
     f.set_spacing_adjustment(1, 0);
@@ -208,7 +218,7 @@ fn glyph_cache_and_widths() {
     // ReallocateSourceData sized cellWidth*32 + x.
     assert_eq!(f.grey_cache.pitch, 7 * 32);
     assert_eq!(f.grey_cache.block.len(), ((10 + 4) * 7 * 32) as usize);
-    // Zero-width characters: no glyph in the face -> filled block path, advance 0.
+    // Zero-width characters: no glyph in the face -> empty box, advance 0.
     let z = f.get_char_data(0x200B).unwrap();
     assert_eq!(z.advance, 0);
     // Monochrome: MSB-first unpacking into 0x00/0xFF.
@@ -295,12 +305,34 @@ fn words_to_fit_modes() {
 
 #[test]
 fn palette_rule() {
-    let p = Palette::build(0xFFFF_FFFF, 0xFF00_0000);
-    assert_eq!(p.entries.len(), 128);
-    assert_eq!(p.entries[0], 0xFF00_0000);
-    assert_eq!(p.entries[8], 0xFF00_0000);
-    assert_eq!(p.entries[16], 0xFF0F_0F0F);
-    assert_eq!(p.entries[127], 0xFFFF_FFFF);
+    // §9 FN12 vectors (entries 0, 8, 16, 24, 72, 112, 120), proved under unicorn.
+    let cases: [(u32, u32, u32, [u32; 7]); 6] = [
+        (7, 0xFFFF, 0xF000, [0xF000, 0xF000, 0xF000, 0xF111, 0xF777, 0xFCCC, 0xFFFF]),
+        (7, 0xF000, 0xFFFF, [0xFFFF, 0xFFFF, 0xFFFF, 0xFEEE, 0xF888, 0xF333, 0xF000]),
+        (7, 0xF84C, 0, [0, 0xF000, 0xF000, 0xF101, 0xF426, 0xF63A, 0xF84C]),
+        (9, 0xFFFF_FFFF, 0xFF00_0000, [0xFF00_0000, 0xFF00_0000, 0xFF00_0F0F, 0xFF00_1F1F, 0xFF00_7F7F, 0xFF00_CFCF, 0xFFFF_FFFF]),
+        (9, 0x00FF_0000, 0, [0, 0xFF00_0000, 0xFF00_0000, 0xFF00_0000, 0xFF00_0000, 0xFF00_0000, 0x00FF_0000]),
+        (9, 0xFF12_3456, 0xFF00_0000, [0xFF00_0000, 0xFF00_0000, 0xFF00_0305, 0xFF00_060A, 0xFF00_1A2B, 0xFF00_2A45, 0xFF12_3456]),
+    ];
+    for (t, fg, bg, want) in cases {
+        let p = Palette::build(fg, bg, ScreenFormat::Screen(t));
+        assert_eq!(p.entries.len(), 128);
+        let got: Vec<u32> = [0, 8, 16, 24, 72, 112, 120].iter().map(|&i| p.entries[i]).collect();
+        assert_eq!(got, want, "type {t} fg {fg:08X} bg {bg:08X}");
+        assert!(p.entries[120..].iter().all(|&e| e == fg));
+    }
+    // Another colour type composes 0; no screen keeps the caller-named stale output.
+    let p = Palette::build(0xFFFF, 0, ScreenFormat::Screen(0));
+    assert!(p.entries[8..120].iter().all(|&e| e == 0));
+    let p = Palette::build(0xFFFF, 0x1234, ScreenFormat::NoScreen { stale_out: 0xDEAD_BEEF });
+    assert_eq!(p.entries[0], 0x1234);
+    assert!(p.entries[8..120].iter().all(|&e| e == 0xDEAD_BEEF));
+    assert_eq!(ScreenFormat::from_depth(16), ScreenFormat::Screen(7));
+    assert_eq!(ScreenFormat::from_depth(32), ScreenFormat::Screen(9));
+    // Split/compose rules of the §9 table for 1555 and 565.
+    assert_eq!(super::font::split_colour(ScreenFormat::Screen(5), 0xFFFF), Some([255, 255, 255]));
+    assert_eq!(super::font::compose_colour(ScreenFormat::Screen(6), 0x17, 0x88, 0xF9), 0x8000 | (0x10 << 7) | (0x88 << 2) | (0xF9 >> 3));
+    assert_eq!(super::font::compose_colour(ScreenFormat::Screen(5), 0x107, 0x2FF, 0x380), (0xFC << 3) | 0x10);
     let mut f = font();
     for i in 0..5 {
         f.set_current_palette(i, 0);

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! `cGZFont` (drawing-fonts.md §2-§5, §7, §9, §10). Measuring and layout (§8) are in `layout.rs`.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use super::cache::{CachedBitmapData, GlyphRecord};
 use super::encoding::{self, Converted, CP_UTF16};
 use super::{
-    aa, fontsys, CodePageConverter, DrawColour, FontFace, FontLibrary, FontRenderer, GlyphRaster, GreyLevels,
-    SizeMetrics, SurfaceId,
+    aa, CodePageConverter, DrawColour, FontFace, FontLibrary, FontRenderer, GlyphRaster, GreyLevels,
+    ScreenFormat, SizeMetrics, SurfaceId,
 };
 
 /// Class ID of `cGZFont` (§1).
@@ -22,6 +23,51 @@ pub const USER_STYLES: u32 = 0x3C;
 pub const STYLE_UNDERLINE: u32 = 0x04;
 pub const STYLE_STRIKE: u32 = 0x08;
 
+/// The font-file content probe (`0x008A1BD8`, §5 FN10): an sfnt header (00 01 00 00, 00 02 00 00
+/// or "OTTO") with a `DSIG` table → 4, with a `loca` or `sloc` table → 1; a file starting "%!" → 2;
+/// else 0. The table directory is the sfnt one (u16 big-endian table count at byte 4, 16-byte
+/// records from byte 12, tag first). An sfnt with neither table falls through to the "%!" test.
+pub fn probe_source_type(lib: &dyn FontLibrary, path: &str) -> u32 {
+    let head = lib.read_head(path, 12);
+    let sfnt = head.len() >= 12
+        && (head[..4] == [0, 1, 0, 0] || head[..4] == [0, 2, 0, 0] || &head[..4] == b"OTTO");
+    if sfnt {
+        let n = u16::from_be_bytes([head[4], head[5]]) as usize;
+        let dir = lib.read_head(path, 12 + 16 * n);
+        let tags: Vec<&[u8]> = (0..n)
+            .filter_map(|i| dir.get(12 + 16 * i..16 + 16 * i))
+            .collect();
+        if tags.iter().any(|t| *t == b"DSIG") {
+            return 4;
+        }
+        if tags.iter().any(|t| *t == b"loca" || *t == b"sloc") {
+            return 1;
+        }
+    }
+    if head.starts_with(b"%!") {
+        2
+    } else {
+        0
+    }
+}
+
+/// Underline and strike-through thickness from pointSize only (§7 FN8, `0x00896618`/`0x00896636`).
+pub fn line_thickness(point_size: u32) -> (i32, i32) {
+    let u = match point_size {
+        0..=15 => 1,
+        16..=25 => 2,
+        26..=35 => 3,
+        _ => 4,
+    };
+    let s = match point_size {
+        0..=23 => 1,
+        24..=47 => 2,
+        48..=71 => 3,
+        _ => 4,
+    };
+    (u, s)
+}
+
 static NEXT_FONT_ID: AtomicUsize = AtomicUsize::new(1);
 
 /// A 128-entry ARGB palette for its (fg, bg) pair (§9).
@@ -33,20 +79,26 @@ pub struct Palette {
 }
 
 impl Palette {
-    /// The palette builder (§9). The spec has the graphic system split and compose the colours
-    /// (`RZ::GS()` +0x90/+0x8C) without naming the pixel format: channels are taken as A8R8G8B8
-    /// (question FN12).
-    pub fn build(fg: u32, bg: u32) -> Palette {
-        let ch = |c: u32, s: u32| ((c >> s) & 0xFF) as i32;
+    /// The palette builder of `SetCurrentPalette` (`0x0089838C`, §9 FN12): 0..7 = bg raw; for
+    /// k = 0..14 eight entries of compose(B + (F − B)·k / 16) per channel, F/B = split of the low
+    /// 16 bits of fg/bg (signed division toward zero); then 120..127 = fg raw, overwriting k = 14.
+    pub fn build(fg: u32, bg: u32, screen: ScreenFormat) -> Palette {
         let mut entries = vec![bg; 128];
+        let fs = split_colour(screen, fg & 0xFFFF);
+        let bs = split_colour(screen, bg & 0xFFFF);
         for k in 0..15i32 {
-            let mut c = 0u32;
-            for s in [24u32, 16, 8, 0] {
-                let b = ch(bg, s);
-                let f = ch(fg, s);
-                let v = b + (f - b) * k / 16;
-                c |= ((v as u32) & 0xFF) << s;
-            }
+            let c = match (fs, bs) {
+                (Some(f), Some(b)) => {
+                    let ch = |i: usize| (b[i] as i32 + (f[i] as i32 - b[i] as i32) * k / 16) as u32;
+                    compose_colour(screen, ch(0), ch(1), ch(2))
+                }
+                // The split wrote nothing: a screen of another type composes 0; without a screen
+                // the output dword keeps the caller-named stale value.
+                _ => match screen {
+                    ScreenFormat::Screen(_) => 0,
+                    ScreenFormat::NoScreen { stale_out } => stale_out,
+                },
+            };
             for j in 0..8 {
                 entries[(8 + 8 * k + j) as usize] = c;
             }
@@ -55,6 +107,39 @@ impl Palette {
             *e = fg;
         }
         Palette { fg, bg, entries }
+    }
+}
+
+/// The screen buffer's colour split (`0x00825F80`, §9 table); `None` = returned false (no screen
+/// or another colour type), outputs untouched.
+pub fn split_colour(screen: ScreenFormat, c: u32) -> Option<[u8; 3]> {
+    let ScreenFormat::Screen(t) = screen else {
+        return None;
+    };
+    let x5 = |v: u32| (((v & 31) * 33) >> 2) as u8;
+    match t {
+        4 | 6 => Some([x5(c >> 10), x5(c >> 5), x5(c)]),
+        5 => Some([x5(c >> 11), ((((c >> 5) & 63) * 65) >> 4) as u8, x5(c)]),
+        7 => Some([(((c >> 8) & 15) * 17) as u8, (((c >> 4) & 15) * 17) as u8, ((c & 15) * 17) as u8]),
+        8 | 9 => Some([(c >> 16) as u8, (c >> 8) as u8, c as u8]),
+        _ => None,
+    }
+}
+
+/// The screen buffer's colour compose (`0x00825DA0`, §9 table); channels are taken as bytes.
+/// Without a screen buffer the caller-named stale output is returned.
+pub fn compose_colour(screen: ScreenFormat, r: u32, g: u32, b: u32) -> u32 {
+    let t = match screen {
+        ScreenFormat::Screen(t) => t,
+        ScreenFormat::NoScreen { stale_out } => return stale_out,
+    };
+    let (r, g, b) = (r & 255, g & 255, b & 255);
+    match t {
+        4 | 6 => 0x8000 | (r & 0xF8) << 7 | (g & 0xF8) << 2 | b >> 3,
+        5 => (r & 0xF8) << 8 | (g & 0xFC) << 3 | b >> 3,
+        7 => 0xF000 | (r & 0xF0) << 4 | (g & 0xF0) | b >> 4,
+        8 | 9 => 0xFF00_0000 | r << 16 | g << 8 | b,
+        _ => 0,
     }
 }
 
@@ -112,15 +197,17 @@ pub struct GzFont {
     pub palettes: Vec<Palette>,
     pub mono_cache: CachedBitmapData,
     pub grey_cache: CachedBitmapData,
-    /// Font source type (§12) of filePath, read at Init (FN10: the spec uses it in §5/§7 without
-    /// saying where the font gets it).
+    /// Holder +0x24: the source type probed from the file contents when the face opens (§5 FN10).
     pub source_type: u32,
+    /// Holder +0x20: u16 glyph load flags (§5).
+    pub load_flags: u16,
+    /// Holder +0x28: character → glyph index cache of the name map (§7 FN9).
+    pub name_map: HashMap<u16, u32>,
     pub(crate) metrics: SizeMetrics,
 }
 
 impl GzFont {
-    /// A freshly created font. The spec gives no constructor defaults (FN11): scales, advance scale
-    /// and gamma start at 1.0 (the "no change" values of §4/§10), everything else at zero.
+    /// A freshly created font with the constructor defaults of §2 (FN11, `0x00899AAB`).
     pub fn new(lib: Arc<dyn FontLibrary>, conv: Arc<dyn CodePageConverter>) -> GzFont {
         GzFont {
             lib,
@@ -130,13 +217,13 @@ impl GzFont {
             file_path: String::new(),
             family_name: String::new(),
             face_kind: 0,
-            point_size: 0,
-            char_height: 0,
+            point_size: 16,
+            char_height: 16,
             style_flags: 0,
             fg: 0,
             bg: 0,
-            aa_mode: 0,
-            field_50: 0,
+            aa_mode: 1,
+            field_50: 2,
             aa_gamma: 1.0,
             aa_sharpness: 0.0,
             aa_table: Vec::new(),
@@ -151,7 +238,7 @@ impl GzFont {
             descent_raw: 0,
             renderer: None,
             glyph_map: Vec::new(),
-            default_char: 0,
+            default_char: 0x20,
             default_glyph: 0,
             face: None,
             records: Vec::new(),
@@ -160,6 +247,8 @@ impl GzFont {
             mono_cache: CachedBitmapData::default(),
             grey_cache: CachedBitmapData::default(),
             source_type: 0,
+            load_flags: 0x000A,
+            name_map: HashMap::new(),
             metrics: SizeMetrics::default(),
         }
     }
@@ -178,10 +267,16 @@ impl GzFont {
         if !self.lib.file_exists(&self.file_path) {
             return false;
         }
+        // §5 FN10: the content probe runs when the face is opened; type 0 does not open it.
+        let st = probe_source_type(&*self.lib, &self.file_path);
+        if st == 0 {
+            return false;
+        }
         let Some(face) = self.lib.open(&self.file_path) else {
             return false;
         };
-        self.source_type = fontsys::source_type_from_file_name(&*self.lib, &self.file_path);
+        self.source_type = st;
+        self.load_flags |= if st == 2 || st == 3 { 0x01 } else { 0x80 };
         self.face = Some(face);
         if self.point_size != 0 && !self.set_size(self.point_size) {
             return false;
@@ -429,6 +524,46 @@ impl GzFont {
         self.add_char_data(ch)
     }
 
+    /// The name map `0x00898EB2` (§7 FN9) for source types 2/3: holder map, then the PostScript
+    /// glyph name of `ch`, then `uniXXXX`; a hit is cached, a miss is not.
+    pub(crate) fn name_map_index(&mut self, ch: u32) -> u32 {
+        let key = ch as u16;
+        if let Some(&i) = self.name_map.get(&key) {
+            return i;
+        }
+        let Some(face) = self.face.as_ref() else {
+            return 0;
+        };
+        let names = [self.lib.ps_glyph_name(key), Some(format!("uni{:04X}", ch & 0xFFFF))];
+        for name in names.into_iter().flatten() {
+            if let Some(code) = face.glyph_name_to_code(&name) {
+                let idx = face.char_index(code).unwrap_or(0);
+                if idx != 0 {
+                    self.name_map.insert(key, idx);
+                    return idx;
+                }
+            }
+        }
+        0
+    }
+
+    /// The scaled advance of a loaded glyph (§7 FN7). `adv` is 16.16.
+    pub fn scaled_advance(adv: i32, s: f32, ch: u32) -> i32 {
+        if s == 1.0 {
+            return adv / 65536;
+        }
+        // x87: adv (exact) · s · 2^-16, truncated. f64 holds the product exactly for |adv| < 2^29;
+        // the x87 precision-control setting is not given by the spec (question FN16).
+        let v = (adv as f64 * s as f64 * (1.0 / 65536.0)) as i32;
+        // The band test compares the float s with 0.98 as a float (literal reading: s = 0.98 is
+        // "s ≤ 0.98").
+        if ch == 0x20 && s > 0.98f32 && s < 1.0 && v + 1 > adv / 65536 {
+            v - 1
+        } else {
+            v
+        }
+    }
+
     /// Slot 61, AddCharData (`0x00898FDC`) into the active cache.
     pub fn add_char_data(&mut self, ch: u32) -> Option<GlyphRecord> {
         let st23 = self.source_type == 2 || self.source_type == 3;
@@ -437,63 +572,76 @@ impl GzFont {
         } else {
             GreyLevels::Levels256
         };
-        let default_glyph = self.default_glyph;
-        let face = self.face.as_mut()?;
-        let mut idx = if ch < 0x80 || !st23 {
-            face.char_index(ch).unwrap_or(0)
-        } else {
-            0
-        };
-        if idx == 0 && st23 && ch >= 0x20 {
-            idx = face.fallback_char_index(ch);
-        }
-        if idx == 0 && default_glyph != 0 {
-            idx = default_glyph;
-        }
         let zero_width = ch == 0x200B || ch == 0xFEFF;
-        let loaded = face.load_glyph(idx, levels);
-        let m = self.metrics;
-        let (raster, x_off, y_off, adv, bits) = match loaded {
-            Some(g) => {
-                let x_off = g.bearing_x / 64;
-                let y_off = m.a.wrapping_add(m.b) / 65536 - g.bearing_y / 64;
-                let adv = if zero_width {
-                    0
-                } else if self.advance_scale == 1.0 {
-                    g.advance / 65536
-                } else {
-                    // The spec gives the advance only for advanceScale == 1.0 (FN7): scaled and
-                    // truncated here.
-                    (g.advance as f64 / 65536.0 * self.advance_scale as f64) as i32
-                };
-                let bits = levels == GreyLevels::Two;
-                (g, x_off, y_off, adv, bits)
+        let mut loaded = None;
+        if self.face.is_some() {
+            let mut idx = if ch < 0x80 || !st23 {
+                self.face.as_ref().and_then(|f| f.char_index(ch)).unwrap_or(0)
+            } else {
+                0
+            };
+            if idx == 0 && st23 && ch >= 0x20 {
+                idx = self.name_map_index(ch);
             }
-            None => {
-                // An empty box of width charHeight/2 (FN7: box height and placement are not given;
-                // charHeight rows at the line top here), drawn as a filled block; U+200B/U+FEFF an
-                // empty box with advance 0.
-                let w = (self.char_height / 2).max(0) as u32;
-                let rows = self.char_height.max(0) as u32;
-                let fill = if zero_width { 0 } else { 0xFF };
-                let g = GlyphRaster {
-                    width: w,
-                    rows,
-                    pitch: w,
-                    buffer: vec![fill; (w * rows) as usize],
-                    ..GlyphRaster::default()
-                };
-                (g, 0, 0, if zero_width { 0 } else { w as i32 }, false)
+            if idx == 0 {
+                idx = self.default_glyph;
             }
+            if idx != 0 {
+                let flags = self.load_flags;
+                let face = self.face.as_mut().expect("face");
+                let fixed = face.is_fixed_size().then(|| face.fixed_advance());
+                loaded = face.load_glyph(idx, levels, flags).map(|g| (g, fixed));
+            }
+        }
+        let a_plus_b = self.metrics.a.wrapping_add(self.metrics.b) / 65536;
+        if let Some((g, fixed)) = loaded {
+            let x_off = g.bearing_x / 64;
+            let y_off = a_plus_b - g.bearing_y / 64;
+            let adv16 = fixed.unwrap_or(g.advance);
+            let adv = if zero_width {
+                0
+            } else {
+                Self::scaled_advance(adv16, self.advance_scale, ch) as i16 as i32
+            };
+            let rec = self.copy_glyph_to_source_data(&g, levels == GreyLevels::Two, x_off, y_off, adv);
+            self.active_cache_mut().glyphs.insert(ch, rec);
+            if !g.done_error {
+                return Some(rec);
+            }
+        }
+        // Missing or unloadable glyph (§7 FN7): a hollow w × w outline at the line top.
+        let (raster, adv, bits) = if zero_width {
+            (GlyphRaster::default(), 0, true)
+        } else {
+            let w = (self.char_height as u32) >> 1;
+            let mut buf = vec![0u8; (w * w) as usize];
+            for y in 0..w {
+                for x in 0..w {
+                    if y == 0 || y + 1 == w || x == 0 || x + 1 == w {
+                        buf[(y * w + x) as usize] = 0xFF;
+                    }
+                }
+            }
+            let g = GlyphRaster {
+                width: w,
+                rows: w,
+                pitch: w,
+                buffer: buf,
+                ..GlyphRaster::default()
+            };
+            (g, (w as f64 * self.advance_scale as f64) as i32 as i16 as i32, false)
         };
-        let rec = self.copy_glyph_to_source_data(&raster, bits, x_off, y_off, adv);
-        let cache = if self.aa_mode == 1 {
+        let rec = self.copy_glyph_to_source_data(&raster, bits, 0, 0, adv);
+        // Insert-unique (`0x00897CB2`): after a glyph-done error the loaded record stays.
+        Some(*self.active_cache_mut().glyphs.entry(ch).or_insert(rec))
+    }
+
+    fn active_cache_mut(&mut self) -> &mut CachedBitmapData {
+        if self.aa_mode == 1 {
             &mut self.mono_cache
         } else {
             &mut self.grey_cache
-        };
-        cache.glyphs.insert(ch, rec);
-        Some(rec)
+        }
     }
 
     /// Slot 62, CopyGlyphToSourceData (`0x00897748`) into the active cache.
@@ -518,21 +666,21 @@ impl GzFont {
             cell_w = (g.width as i32 + dx).max(advance);
         }
         let cell_w = cell_w.max(0) as u32;
-        // Line rows (relative to the glyph top), clipped to charHeight.
-        let thick = self.metrics.line_thickness.max(0);
+        // §7 FN8: line rows (cell rows), from pointSize-only thicknesses; underline first.
+        let (t_u, t_s) = line_thickness(self.point_size);
         let mut line_rows: Vec<i32> = Vec::new();
-        let mut push_rows = |start: i32| {
-            for r in start..start + thick {
-                if r >= 0 && r + y_off < self.char_height {
-                    line_rows.push(r);
-                }
+        let ch_h = self.char_height;
+        let mut push_rows = |r: i32, t: i32| {
+            if r < 0 || r >= ch_h {
+                return;
             }
+            line_rows.extend((r..r + t).take_while(|&row| row < ch_h));
         };
         if lines & STYLE_UNDERLINE != 0 {
-            push_rows(self.ascent - y_off + self.metrics.underline_offset);
+            push_rows(self.ascent - y_off + t_u, t_u);
         }
         if lines & STYLE_STRIKE != 0 {
-            push_rows(self.ascent - self.char_height / 4 - y_off);
+            push_rows(self.ascent - (self.char_height >> 2) - y_off, t_s);
         }
         let mut rows = g.rows;
         if let Some(&m) = line_rows.iter().max() {
@@ -661,7 +809,7 @@ impl GzFont {
             if self.palettes.len() > 3 {
                 self.palettes.pop();
             }
-            self.palettes.insert(0, Palette::build(fg, bg));
+            self.palettes.insert(0, Palette::build(fg, bg, self.lib.screen_format()));
         }
         self.current_palette = Some(self.palettes[0].clone());
     }
@@ -746,7 +894,7 @@ impl GzFont {
             if !self.records.is_empty() {
                 if let Some(r) = &self.renderer {
                     let colour = if self.aa_mode == 2 {
-                        DrawColour::Palette(self.current_palette.clone().unwrap_or_else(|| Palette::build(fg, bg)))
+                        DrawColour::Palette(self.current_palette.clone().unwrap_or_else(|| Palette::build(fg, bg, self.lib.screen_format())))
                     } else {
                         DrawColour::Colour(fg)
                     };

@@ -33,11 +33,25 @@ pub struct SizeMetrics {
     pub a: i32,
     pub b: i32,
     pub c: i32,
-    /// Underline offset (`uOffset`, §7, helper `0x00896618`) in pixels. The spec names the value but
-    /// not its derivation: it is taken from the provider as is (question FN8).
-    pub underline_offset: i32,
-    /// Underline / strike-through line thickness in pixels (§7; question FN8). Taken from the provider.
-    pub line_thickness: i32,
+}
+
+/// The screen buffer's colour format as the palette builder sees it through `RZ::GS()` +0x90/+0x8C
+/// (§9, FN12). Explicit caller state: the core never assumes a display.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScreenFormat {
+    /// A screen buffer with colour type `t` (buffer +0xC): 4/6 = 1555, 5 = 565, 7 = 4444,
+    /// 8/9 = 8888; any other type splits nothing and composes 0.
+    Screen(u32),
+    /// No screen buffer: split and compose write nothing, so entries 8..119 keep whatever the
+    /// compose output dword held. The original leaves it uninitialised; the caller names it.
+    NoScreen { stale_out: u32 },
+}
+
+impl ScreenFormat {
+    /// The screen colour type for a display depth (§9): 7 (A4R4G4B4) at depth ≤ 16, else 9.
+    pub fn from_depth(depth: u32) -> ScreenFormat {
+        ScreenFormat::Screen(if depth <= 16 { 7 } else { 9 })
+    }
 }
 
 /// Grey levels a glyph is loaded at (§7): 2 for aaMode 1, 256 otherwise.
@@ -59,8 +73,10 @@ pub struct GlyphRaster {
     pub bearing_x: i32,
     /// Vertical bearing, 26.6 fixed.
     pub bearing_y: i32,
-    /// Advance, 16.16 fixed ("linear or metric advance", §7; which one is the provider's choice, FN7).
+    /// The loaded glyph's 16.16 advance (face+0xD0, §7 FN7); used unless the face is fixed-size.
     pub advance: i32,
+    /// The glyph-done call (`0x0089E29E`) reported an error after a successful load (§7 edge).
+    pub done_error: bool,
 }
 
 /// One open face (external library boundary).
@@ -72,10 +88,12 @@ pub trait FontFace: Send {
     fn is_fixed_size(&self) -> bool;
     /// `FT_Get_Char_Index`: `None` when the lookup reports an error.
     fn char_index(&self, ch: u32) -> Option<u32>;
-    /// The source-type 2/3 fallback map (`0x00898EB2`, §7). Unspecified by the spec (FN9): a provider
-    /// without one returns 0.
-    fn fallback_char_index(&self, _ch: u32) -> u32 {
-        0
+    /// The face's 16.16 advance at face+0x80, used for fixed-size faces (§7 FN7).
+    fn fixed_advance(&self) -> i32;
+    /// Resolve a PostScript glyph name to a character code (`0x0089F4F3`, §7 FN9); `None` when the
+    /// face has no such glyph name.
+    fn glyph_name_to_code(&self, _name: &str) -> Option<u32> {
+        None
     }
     /// Set the char size to `size` points at `dpi_x` × `dpi_y` with the scaling transform.
     fn set_char_size(
@@ -86,8 +104,9 @@ pub trait FontFace: Send {
         scale_x: f32,
         scale_y: f32,
     ) -> Option<SizeMetrics>;
-    /// Load and render glyph `index`; `None` when it cannot be loaded.
-    fn load_glyph(&mut self, index: u32, levels: GreyLevels) -> Option<GlyphRaster>;
+    /// Load and render glyph `index` with the holder's u16 load flags (§5: 0x000A, plus 0x80 for
+    /// source types 1/4, 0x01 for 2/3); `None` when the load reports an error.
+    fn load_glyph(&mut self, index: u32, levels: GreyLevels, load_flags: u16) -> Option<GlyphRaster>;
     /// The probe lookup used by IsCodePageAvailable / IsCharAvailable (`0x0089F538`): glyph present.
     fn has_glyph(&self, unit: u16) -> bool {
         matches!(self.char_index(unit as u32), Some(i) if i != 0)
@@ -108,6 +127,14 @@ pub trait FontLibrary: Send + Sync {
     /// The default 8-byte renderer Init creates when none is set (§3). `cGZDrawFontRenderer` is out
     /// of scope: a host without one returns `None`.
     fn default_renderer(&self) -> Option<Arc<dyn FontRenderer>> {
+        None
+    }
+    /// The screen colour format the palette builder splits and composes with (§9, FN12).
+    fn screen_format(&self) -> ScreenFormat;
+    /// The process-wide character → PostScript glyph-name table (479 pairs at `0x00B150F0`, §7 FN9).
+    /// The spec names only a few entries (question FN15): a provider without the table returns
+    /// `None`, and the lookup goes straight to the `uniXXXX` name.
+    fn ps_glyph_name(&self, _ch: u16) -> Option<String> {
         None
     }
 }
