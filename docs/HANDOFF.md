@@ -5,50 +5,24 @@ before it stops and moves the stop note it replaces, verbatim, to [docs/history/
 lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-10.md](history/handoff-2026-10.md).
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
-## 0. Current state (2026-10-21, run 3 stopped at 8/8 rounds)
+## 0. Current state (2026-10-21, run 4 active)
 
-**STOP is set: `run3 round limit reached (8/8); land committed ready work only`.** No lane is running,
-the merge queue is empty, and main is pushed. No further lane rounds are authorized in this run.
-The guard is authoritative; no parking, watchdog or context state was cleared or bypassed.
+**Run 4 is authorized; STOP was lifted by the user.** Limits: 20 total lane rounds, 3 rounds per lane, 3 live lanes. A lane with 3 rounds and no landing is parked and recorded here; do not restart it. Every workflow launch is maxRounds=1, with slots and check (resume for an existing worktree) before each launch. The guard is authoritative; no denied lane continues. At the run limit set STOP with reason run4 round limit, land ready work, regenerate and push.
 
-- **Train19 landed `832c7238e0`:** MySims shadow plus its lifecycle/ref-tracking fixes, and MS1-MS7 RE answers.
-  Gate PASS (clippy clean, build, ctest 62/62 including cargo_test); full regress PASS, both runs clean to 2032,
-  zero problems and ref_warnings=0. MySims is exact **73/73** in the combined shadow run (run 223; standalone
-  run 222 also 73/73). The recorded exclusions still apply; the new MS3/MS5/MS7 engine changes are future work.
-- **Train20 landed `37544298d4`:** PL19 answered in prop-lotconfig.md, docs only; no engine change or game claim.
-  Slot 9 AddRefs every returned element on every call, including cache hits, on the pointer inserted in the set.
-  The PL18 second add is wrong. This does not by itself explain the measured two-adds/drain contradiction:
-  inspect cache hits and pointer identity, then validate against glue21's per-op trace before claiming a fix.
+The live round ledger is build-runs/run4-coordinator-state.json; load it after compaction along with this section and lanes.py guard before any spawn. It records dispatched rounds and process IDs; do not infer the count from old guard totals. Main must remain clean; tool changes require pytest tools/tests and their own immediate commit.
 
-**Coverage:** 36.8% specified / 28.3% implemented / 12.1% verified / 15.9% replaced, from train19.
-The current regress is authoritative. MySim and MyStreetSim now map to mysims_shadow; untested classes do not.
-The earlier lane-DLL regress passed with three worse comparisons versus train17 (netmgr, landvalue, aura);
-the full train regression including MySims passed and its own shadow column is in build-runs/regress-train19.out.
+**Work order:**
+1. Verified regressions: compare train17 fed3a354 with train19 832c7238. Netmgr 71/73 (record11 lots, April/May 2026), aura 70/71, and netmgr_shadow unknown-key warning; fix or file a numbered question. This should restore verified coverage, currently 12.1%.
+2. glue25fix3 at 209ff7fc: replacement g1 corrupt 2028-04-01; shadow-only g2 is not replacement evidence. Diagnose from branch logs. After a clean replacement run: regress including occmgr, train; only after landing add occmgr to regress Replace and coverage-map replace key.
+3. glue-terrain3 at d112c328: gt3-repl-4 corrupt before game date; view/raw-record contract and slot96 Load already committed and gate 62/62. Diagnose crash; TR33-TR37 must be questions, never guessed.
+4. glue21 at 405da5f0: PL19 is answered on main; implement per-call slot9 AddRef on every returned pointer including cache hits, remove the PL18 extra add, then validate against its trace.
+Then other coverage-moving/unblocking open items if rounds remain. Skip glue26 and ABI reconciliation.
 
-**WIP preserved and pushed; none is queued for landing:**
+**Baseline:** main 29e22e21, queue empty, no lane running at start. Train19 gate and full regress PASS, MySims exact73/73; train20 landed MS/PL documentation. Coverage 36.8% specified /28.3% implemented /12.1% verified /15.9% replaced. WIP branches above are pushed.
 
-| Branch | Tip | State / next |
-|---|---|---|
-| `glue25fix3` (continues `glue25`) | `209ff7fc` | gate PASS, ctest 62/62. enable=occmgr game g1 corrupt at 2028-04-01, ref_warnings=0. g2 clean to 2032 was shadow-only, not a replacement pass. Diagnose g1, then replacement game and regress with occmgr. After it lands, add occmgr to tools/regress.ps1 $Replace and the cSC4OccupantManager replace key in tools/coverage-map.tsv. |
-| `glue-terrain3` | `d112c328` | round 2 committed view/raw-record glue and terrain Load (c1b06da3, 25a4ec76); the no-code parking condition did not apply. Full gate PASS, ctest 62/62; gt3-repl-4 corrupt before a game date, ref_warnings=0. Diagnose crash; finish Save and TR33-TR37. Its worktree lane file records the exact implementation plan. |
-| `glue21` | `405da5f0` | parked implementation. PL19's RE contract is now on main; apply and trace-validate the per-call slot-9 ownership rule before a new game run. No implementation round remained under the 8-round cap. |
-| `glue26` | `fca64f23` | skipped as requested; original glue25 branch also retained. |
+**Runtime:** CLI hosts must set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 and wait for TaskOutput. Use only the guarded saved fc4-lane workflow, never direct unguarded agents. The six-slot game queue is pid22296, started with a working Windows PowerShell module path after a Get-FileHash startup failure. RE spawns need a fresh REA preflight GO. After every train regenerate handoff tables, coverage and treemap; add a line here, commit and push.
 
-**Operator notes for resuming:**
-- The first three continuation workflows were killed by the CLI's default ten-minute background wait ceiling,
-  without final lane reports. Their code was preserved. The coordinator committed and validated the last MySims
-  timing edit; terrain/occmgr failures were not relabeled as ready. Future CLI hosts set
-  `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` and wait for TaskOutput; keep the guarded fc4-lane workflow.
-- The old game queue's child PowerShell could not load Get-FileHash. It was restarted from Windows PowerShell
-  with the working module path (queue pid 22296, six slots); real game verdicts then worked. No harness code changed.
-- REA was reconnected before each RE spawn; check and preflight both said GO. Both RE lanes used export bytes.
-  A later RE spawn still needs a fresh GO; do not treat an earlier connection as persistent.
-- Tool changes were separate commits (370f438d regression list, a9490b4c coverage map), each with tools/tests
-  passing 61/61. ABI reconciliation and glue26 were not worked on.
-- After compaction/restart, re-read this section and run `python tools/lanes.py guard` before any spawn.
-  Do not clear STOP or unpark a lane without the authorization/cause fix required by the user's run rules.
-
-The superseded start note is preserved verbatim in [history/handoff-run3-start-2026-10-21.md](history/handoff-run3-start-2026-10-21.md).
+The previous stop note is preserved verbatim in [history/handoff-run3-stop-2026-10-21.md](history/handoff-run3-stop-2026-10-21.md).
 
 <!-- BEGIN GENERATED: latest-run -->
 - **Latest in-game run:** 223 (train19 PASS, MySims shadow exact 73/73 alongside the full regression, ref_warnings=0); 222 (MySims shadow exact 73/73 through 2032, including load, ref_warnings=0); 221 (the network-tool replacement places roads and streets in the real game (inserts=8..69, valid=solved, failure 0), 20/20 scripted placements ok, city runs to 2032 clean with ref_warnings=0.); 216 (component 53 / 11 save round trip, record53 equal at load and save); 215 (devperf2 shadows over the replacement exact after the cell-walk host change). See `docs/manual-checks.md`.
