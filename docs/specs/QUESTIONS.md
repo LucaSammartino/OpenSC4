@@ -23,6 +23,7 @@ generated index: the questions live one file per spec, so read only the file for
 |---|---|
 | A | automata |
 | AA | audio-ambience |
+| AC | animation-coordinator |
 | AD | advisors |
 | AM | automata |
 | AO | foundations |
@@ -128,6 +129,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | advisors | 1 | 10 | AD12 | questions/advisors.md |
+| animation-coordinator | 2 | 0 | AC3 | questions/animation-coordinator.md |
 | application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 1 | 8 | AA10 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
@@ -223,4 +225,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **216** | **1115** | | |
+| **total** | **218** | **1115** | | |

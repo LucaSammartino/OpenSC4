@@ -338,7 +338,7 @@ fn:GZCOM_cSC4ConfigRuleManagerCLSID	graphics rules	renderer	graphics-rules.md	-	
 cSC4CellTextureModel	3D scene and models	renderer	-	-	-	-
 cSC4FoundationModel	3D scene and models	renderer	-	-	-	-
 cSC4LotRetainingWallModel	3D scene and models	renderer	-	-	-	-
-cSC4AnimationCoordinator	3D scene and models	renderer	-	-	-	-
+cSC4AnimationCoordinator	animation coordinator	renderer	animation-coordinator.md	-	-	-
 cSC4GlyphTextureManager	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSC4GlyphTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSC4StringTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-

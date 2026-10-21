@@ -58,6 +58,7 @@ va	name	slots	note
 00a8652c	cSC424HourClock::vftable_3	13	paired with Mac __ZTV15cSC424HourClock#3, 8 agreeing slots
 00a86560	cSC424HourClock::vftable_2	6	paired with Mac __ZTV15cSC424HourClock#2, 6 agreeing slots
 00a86588	cSC424HourClock::vftable	30	paired with Mac __ZTV15cSC424HourClock#0, 26 agreeing slots
+00a86690	cSC4AnimationCoordinator::vftable	0	animation-coordinator.md §1; descriptive name; 5 slots
 00a866ec	cSC4AnimationTickManager::vftable_4	6	paired with Mac __ZTV24cSC4AnimationTickManager#4, 4 agreeing slots
 00a86704	cSC4AnimationTickManager::vftable_3	13	paired with Mac __ZTV24cSC4AnimationTickManager#3, 6 agreeing slots
 00a86760	cSC4AnimationTickManager::vftable	17	paired with Mac __ZTV24cSC4AnimationTickManager#0, 15 agreeing slots
