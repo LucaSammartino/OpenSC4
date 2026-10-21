@@ -200,10 +200,10 @@ when the subnetwork data need no rebuild *[inferred: flag meaning, traffic-netwo
 | State | Phase | Spec | Entry action when entered |
 |---|---|---|---|
 | 0 | StartRecalc (`0x00717C90`) | §4.3 | |
-| 16 | ConfirmTrips (`0x0071E1B0`) | §4.3 | traffic-source iterator reset; saved source cell := (0, 0) (§3.5, TS44); re-route context idle |
+| 16 | ConfirmTrips (`0x0071E1B0`) | §4.3 | traffic-source iterator reset; phase positions (saved source cell, +0x90C/+0x90E) := (0, 0); "take the next source" flag `+0x838` := 1; `+0x884` := 0 (arm `0x007210B0`, zeroes at `0x007210BE`/`0x007210C5`; §3.5, TS44, TS67); re-route context x/z (`+0x83C`/`+0x840`) untouched |
 | 17 | ReRouteTrips (`0x0071D020`) | §4.4 | same |
 | 18 | FullTrips (`0x0071D440`) | §4.4 | same; the per-travel-type count vector being built := 9 zeros |
-| 15 | FinishTripMap (`0x0070FEF0`) | §4.7 | lot iterator reset |
+| 15 | FinishTripMap (`0x0070FEF0`) | §4.7 | lot iterator reset (`+0x904` := first lot); **phase positions := (0, 0)** (`0x00721123`/`0x0072112A`); `+0x838` := 1 (arm `0x0072110B`, shared with state 1; TS67) |
 | 2 | CreateMaps (`0x0071A0C0`) | §4.9 | scanning iterator reset; per-network-type statistics reset; commercial work grid := 0 |
 | 4 | CreateFinalMap (`0x0070F460`) | §4.10 | scanning iterator reset; commercial traffic grid := commercial work grid (copy of the grid data) |
 | 5 | ClearTripDestinations (`0x0070E4F0`) | §4.11 | scanning iterator reset |
@@ -216,12 +216,14 @@ when the subnetwork data need no rebuild *[inferred: flag meaning, traffic-netwo
 | 13 | UpdateSubnetworkInfo (`0x0071DC50`) | traffic-network.md §4.12 | working subnetwork info reset; **scanning iterator reset** to (0, 0) (`0x00721308`–`0x0072132A`, TS64); when the phase finishes the working vector is copied to the published one (`vector::operator=` `0x0071CD90`, also called by DoPostCityInit) |
 | 19 | FerryRoutes (`0x0071DC90`) | traffic-network.md §4.9.3 | ferry counters roll (last := current, current := 0; the riders are added to the ferry total used by history) and the pass restarts; posts `0x2C06BA82` when done |
 | 8 | FinalCalculations (`0x0070E7D0`) | §4.12 | |
-| 1 | (lot sweep) | | entry: lot iterator reset. **No `next` entry leads to 1**, so the cycle never enters it after construction (state 0); `GetDesiredLotInsertionPoint` (slot 22), which answers only in state 1, therefore returns null in practice *[inferred]* |
+| 1 | (lot sweep) | | entry: same arm as 15 (lot iterator reset, phase positions := (0, 0), `+0x838` := 1). **No `next` entry leads to 1**, so the cycle never enters it after construction (state 0); `GetDesiredLotInsertionPoint` (slot 22), which answers only in state 1, therefore returns null in practice *[inferred]* |
 | 9, 14 | (none) | | finish immediately, never entered either (14 resets a further iterator) |
 
 The cycle is therefore *[compat]*:
 
 `0 → 16 → 17 → 18 → 15 → 2 → 4 → 5 → 11 → 3 → 7 → 6 → 10 → (12) → 13 → 19 → 8 → 0`.
+
+**Phase positions across the trip phases** *[compat]* (TS67). The two s16 phase positions (+0x90C, +0x90E; §6.1 row 14) are written in exactly these places: (1) as each source is taken in 16, 17 and 18 (`0x0071E276`, `0x0071D0FD`, `0x0071D51C`), and as each lot is taken in 15 (`0x0070FFE0`); (2) by the entry action of the state being **entered** when a phase finishes, set to (0, 0): entering 16, 17 or 18 (one shared arm `0x007210B0`) and entering 15 or 1 (one shared arm `0x0072110B`). The entry actions run only on the finish path (`0x00721073`: the phase function returned done, or state 12 which runs in one call); a deadline stop runs no entry action and leaves the positions as the phase left them. The exhausted-iterator end of each trip phase (e.g. FullTrips `0x0071D806`) does not write them. So: 16 → 17, 17 → 18 and 18 → 15 all leave (0, 0) until the new phase takes its first source or lot; a save or record taken at that point (e.g. state 15, no lot taken yet) holds (0, 0), not the last source's cell. The re-route context x/z (`+0x83C`/`+0x840`) is not reset by any entry action and keeps the last 16–18 source's cell. 15 → 2 does not touch the positions (they keep the last lot's cell through states 2 … 8 and 0 until 16 is entered).
 
 The cell-scanning phases (2, 4, 5, 6, 10, …) use the adaptive slicing helper of simulator.md §5.5 (each with its
 own static step state); slicing only splits the work, the results do not depend on it.
@@ -366,7 +368,8 @@ whole order (TS7):
       same two phase positions, which FinishTripMap sets to each lot's location as it takes it,
       `0x0070FFD3`–`0x0070FFE7`, read back at `0x00720B2C`–`0x00720B46`; TS45), the
       iterator is advanced past that lot; if the walk reaches the end without meeting it, the iterator restarts from
-      the first lot.
+      the first lot. A stop before the first lot leaves the positions (0, 0) (entry action, §3.2, TS67); the resume then
+      looks up a lot at (0, 0) like any other cell *[inferred: consequence of the two traced rules]*.
     * 19: every ferry terminal's re-route flag := 1 and the ferry pass restarts at the first terminal, its sub-step
       0 (traffic-network.md §4.9.3). **Only in this state**: a city saved in any other state keeps the loaded ferry
       links until the next state-19 pass.
@@ -1059,7 +1062,7 @@ gets property `0xCA947077 := avg` (float).
 
 **Time slicing** (TS63). The phase is deadline-stoppable per lot: the test point is before each lot is taken
 (`0x0070FF84`, §3.4). A lot is taken from the lot iterator, its location (slot 21) is written to the phase positions
-(`0x0070FFE0`) and it is then handled completely (flag clear, borrow, write). So a stop always falls after a whole
+(`0x0070FFE0`) and it is then handled completely (flag clear, borrow, write). Entering 15 sets the positions to (0, 0) (§3.2, TS67), so before the first lot is taken they are (0, 0), not the last FullTrips source's cell. So a stop always falls after a whole
 lot, and the saved cell is that of the last lot handled; the resume (§3.5 step 11) skips past it. A call can
 therefore return part-way through state 15; DoDailySimulation then returns false and the next call of the same day
 continues (§3.3 step 3).
@@ -1682,8 +1685,8 @@ run on the object `+8`, so their listings show each offset 8 lower):
 
 - Row 14, re-route context `s32 x, s32 z` (`+0x83C`, `+0x840`): the cell of the traffic source being worked, written
   as each source is taken in 16, 17 and 18 (`0x0071E26D`/`0x0071E284`, `0x0071D104`/`0x0071D119`,
-  `0x0071D523`/`0x0071D538`), the s16 phase positions widened. Entering 16–18 resets the phase positions but not
-  these, so between trip phases they hold the last source's cell.
+  `0x0071D523`/`0x0071D538`), the s16 phase positions widened. Entering 16–18 (and 15) resets the phase positions to (0, 0) but not
+  these, so between trip phases, and in 15 before its first lot, they hold the last source's cell while the positions are (0, 0) (TS67).
 - Row 15, in record order: `processed` (`+0x914`), **`dayIndex`** (`+0x918`, the s32 right after `processed`; it
   counts the days of the running trip phase, so with `days` 1 or 2 it toggles 0/1, §3.3), `total` (`+0x91C`),
   `days` (`+0x92C`), then three u32 (`+0x930`, `+0x934`, `+0x938`) that no code reads or writes besides Write and
