@@ -28765,3 +28765,17 @@ cSC4CommercialSimulator::vftable	00ab0ccc	6	+0x18	0069eb20	deleting destructor	4
 cRZMessage2Standard::vftable	00a92d40	37	+0x94	004dcc10	scalar deleting destructor	4	1	eax	high	calls 0x004DCC30 (frees void2 with C); slots 0-36 identical to 00acec00; moved from interfaces.tsv (not an interface method)
 cSC4IndustrialSimulator::vftable	00ab1530	5	+0x14	006b8a40	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 commercial-industrial.md; moved from interfaces.tsv (not an interface method)
 cSC4ParkManager::vftable	00ab20ac	5	+0x14	006d5860	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 parks.md; moved from interfaces.tsv (not an interface method)
+cSTETerrainView3D::vftable_1	00ab4400	0	+0x0	00756920	cSTETerrainView3D::QueryInterface (thunk)	8	2	eax-or-void	high	sub ecx,0x10; jmp 00752730; message-target sub-object at +0x10
+cSTETerrainView3D::vftable_1	00ab4400	1	+0x4	00756930	cSTETerrainView3D::AddRef (thunk)	0	0	eax-or-void	high	sub ecx,0x10; jmp 005be3e0
+cSTETerrainView3D::vftable_1	00ab4400	2	+0x8	00756940	cSTETerrainView3D::Release (thunk)	0	0	eax-or-void	high	sub ecx,0x10; jmp 005bcb30
+cSTETerrainView3D::vftable_1	00ab4400	3	+0xC	00757560	cSTETerrainView3D::DoMessage	4	1	al	high	pop 4; rets AL=1; handles 0x277A9364/0x278E6003/0x678E6E3A/0xA6B79601/0xA6B79611/0xC9DA96EA; sets view+0xB8 on each; terrain.md 15.5.8
+cSTETerrainView3D::vftable_1	00ab4400	4	+0x10	00756910	cSTETerrainView3D::QueryInterface (thunk)	8	2	eax-or-void	medium	repeats 00ab4410 slots 0-3
+cSTETerrainView3D::vftable_1	00ab4400	5	+0x14	00761850	cSTETerrainView3D::AddRef (thunk)	0	0	eax-or-void	medium	repeats
+cSTETerrainView3D::vftable_1	00ab4400	6	+0x18	00761860	cSTETerrainView3D::Release (thunk)	0	0	eax-or-void	medium	repeats
+cSTETerrainView3D::vftable_1	00ab4400	7	+0x1C	0075A230	cSTETerrainView3D::Pick	20	5	eax-or-void	medium	repeats 00ab4410 slot 3
+cSTETerrainView3D::vftable_2b	00ab43e8	0	+0x0	00756950	cSTETerrainView3D::QueryInterface (thunk)	8	2	eax-or-void	high	sub ecx,0x14; jmp 00752730
+cSTETerrainView3D::vftable_2b	00ab43e8	1	+0x4	00756960	cSTETerrainView3D::AddRef (thunk)	0	0	eax-or-void	high	sub ecx,0x14; jmp 005be3e0
+cSTETerrainView3D::vftable_2b	00ab43e8	2	+0x8	00756970	cSTETerrainView3D::Release (thunk)	0	0	eax-or-void	high	sub ecx,0x14; jmp 005bcb30
+cSTETerrainView3D::vftable_2b	00ab43e8	3	+0xC	00752CD0	cSTETerrainView3D::LoadGridFlag	4	1	al	high	stream slot 18 (+0x48) test; writes operator<< into static 0x00B4C741; terrain.md 15.5.10
+cSTETerrainView3D::vftable_2b	00ab43e8	4	+0x10	007527D0	cSTETerrainView3D::SaveGridFlag	4	1	al	high	marks this+5 written; operator>> reads the flag back when stream version == 1
+cSTETerrainView3D::vftable_2b	00ab43e8	5	+0x14	007523E0	cSTETerrainView3D::GetGZCLSID	0	0	eax	high	EAX = 0xC9B84E10
