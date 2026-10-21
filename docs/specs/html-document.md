@@ -98,6 +98,28 @@ default table gives face size 14; a 3-entry table `{6,7,8}` leaves entry 3 uncha
   009006c0). Slots 3..6 and 12..15 are outside this owner's named inventory (gap functions).
 - Secondary vtable (00acd928): slot 3 is `DoMessage` (§9).
 
+### 1.6 Unnamed primary slots and teardown (round 3)
+
+- **Slot 3, deleting destructor** (009010e1): run the destructor body (009005ad), then free the object when
+  flag bit 0 is set; returns `this`. The body restores both vtables, calls **Shutdown** when the initialised
+  byte 0x18 is set, then destroys the members (attribute map, strings, critical section, tag-name map).
+- **Shutdown** (00900357; also called by `cGZWinHTML::InternalSetDocument` at 008fbf1f). Does nothing unless
+  byte 0x18 is set; then clears 0x18 and, in order: deletes the root (0x14) and nulls it; deletes the base URL
+  string (0xb8) and nulls it; deletes every element of the vectors 0xac..0xb0 and 0xbc..0xc0 (link records,
+  §7.13) and empties them; for every download-table entry (0x198): no image yet -> downloader (0x30) vtable
+  +0x58 with the entry's request value (+0x34), i.e. the pending request is withdrawn; image present ->
+  image Release (vtable +8); then clears the table; releases the image loader (0x1a4), the downloader (0x30)
+  and the owner window (0x2c), nulling each. Returns 1. A second call is a no-op until Init runs again.
+- **Slot 4** (009006b4): returns the address of the source text string (0x180).
+- **Slot 6, GetFontSizeTable(out, count)** (008fee66): n = min(count, 7); copy table entries 0..n-1 (0x1a8)
+  to `out`, then zero `out[n..count-1]`; return n. Inverse of slot 7 (§1.4).
+- **Slot 13, FindNamedAnchor(name)** (008fe89e): walk the named-anchor list (0xc8..0xcc, §7.11) in order; for
+  each anchor call the object at anchor +0x30 through its vtable +0x28 with (name, 1); return the first anchor
+  for which that returns true, else null.
+- **Slot 15** (009006c0): store the byte argument at 0x29 (the constructor zeroes it; nothing in this class reads it; the image request of §7.14 calls it
+  with 0 after a cached image was accepted).
+- Slots 5 (009006bb), 12 (009d4714) and 14 (00995e67) are shared stubs owned elsewhere (§10.3).
+
 ## 2. Input, tokens and the tag table
 
 ### 2.1 Character helpers (shared, not in this owner)
@@ -802,13 +824,14 @@ class has further methods the export left as `FUN_`. Classification:
 | Class | Functions (address, bytes) | Status |
 |---|---|---|
 | Unnamed owner methods, now specified | P 0090614f 141, PRE 00906a5d 112, DL 009066a3 177, DT 00905f63 138, DD 00905ed9 138, H1-6 00906754 331, list dispatch 00906f1d 31, UL 00907d6b 215, OL 0090689f 230, CENTER 00906d22 16, image request slot 16 009059fc 201 (§7.14); COLGROUP 00905ea7 50 (§7.8); style push 00902d28 19 / pop 00900e5f 50 (§8.2) | 1849 B specified, not in the named inventory |
-| Unnamed owner methods, not specified here | destructor slot 3 009010e1 28, slots 4 009006b4 7, 6 008fee66 82, 13 008fe89e 56, 15 009006c0 10 (single vtable reference each) | 183 B open |
+| Unnamed owner methods, specified in §1.6 | deleting destructor slot 3 009010e1 28, destructor body 009005ad 263, Shutdown 00900357 291, slots 4 009006b4 7, 6 008fee66 82, 13 008fe89e 56, 15 009006c0 10 | 737 B specified |
+| Member-teardown helpers (not owner logic) | 009001ff 23, 00900492 30 (string/list member destruction called from the destructor body) | no behaviour beyond freeing |
 | Shared / folded aliases (not owner) | slot 12 009d4714 (ICF stub, 83 refs), slot 14 00995e67 (owned by cGZWinIMEServer), slot 5 009006bb (4 refs) | not counted |
 | Template container instances (not owner) | hash map 008fead9 find, 0097c081 begin, 008ff7e7/008ff123 iterator, 008fea32/008fe87e hash, 00900f4c/00901149 insert, 009001c9 erase; download map 008feb1e find, 008ffd2d/00901191 insert, 008ff76c, 008ff785 vector push | behaviour given where used |
 | Element constructors (other classes) | 008fedd8 (kind 0x15), 008fed70 (2), 008fed48 (9), 008fed20 (10), 00908704 (list 6/7) | belong to cHTML* element classes |
 
-So whole-owner credit for the **named** 70/70 is unaffected; a coverage tool that adopts the unnamed methods
-into `cHTMLDocument` would find 183 B (the vtable-slot row) still unspecified.
+So whole-owner credit for the **named** 70/70 is unaffected, and the 21 unnamed owner methods found
+(2586 B) are specified too; nothing statically reachable from the class is left open.
 
 ### 10.1 Character entities (GetStringForEscape 00901222)
 
