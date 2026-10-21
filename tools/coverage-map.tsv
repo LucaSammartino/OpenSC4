@@ -207,6 +207,12 @@ cSC4PowerPoleOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4PowerLineOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4PipeOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4SubwayOccupant	network occupants	simulation	network-occupants.md	-	-	-
+cSC4PipeConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+cSC4SubwayConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+fn:GZCOM_CreatecSC4PipeOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+fn:GZCOM_CreatecSC4SubwayOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+fn:GZCOM_CreatecSC4PipeConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+fn:GZCOM_CreatecSC4SubwayConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
 cSC4PylonOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4NetworkTypeInfo	network occupants	simulation	network-occupants.md	-	-	-
 cSC4NetworkRoutines	network occupants	simulation	network-occupants.md	-	-	-
@@ -520,7 +526,25 @@ cGZMessageQueueManager2	framework services (GZ)	framework	framework-gz-services.
 cGZ*	framework services (GZ)	framework	-	-	-	-
 cRZFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-
 cRZIniFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-
+cRZIStream	streams	framework	output-streams.md	-	-	-
+cRZNullIStream	streams	framework	output-streams.md	-	-	-
+cRZPath	paths and directories	framework	paths.md	-	-	-
 cRZDirectory	framework services (RZ)	framework	framework-rz-files.md	-	-	-
+cSC4FeatureManager	feature manager	framework	feature-manager.md	-	-	-
+cRZDate	dates and times	framework	dates.md	-	-	-
+cGZDate	dates and times	framework	dates.md	-	-	-
+cRZTime	dates and times	framework	dates.md	-	-	-
+cRZTimer	timers	framework	timers.md	-	-	-
+cRZCallbackTimer	timers	framework	timers.md	-	-	-
+cRZCmdLine	command line	framework	command-line.md	-	-	-
+cGZCommandParameterSet	command system	framework	command-system.md	-	-	-
+cGZStringCommandGenerator	command system	framework	command-system.md	-	-	-
+cGZMessage2CommandDispatcher	command system	framework	command-system.md	-	-	-
+cGZMessage2CommandDispatcherMessage	command system	framework	command-system.md	-	-	-
+fn:RZParseDelimitedText	command system	framework	command-system.md	-	-	-
+cRZOStream	streams	framework	output-streams.md	-	-	-
+cRZTextOStream	streams	framework	output-streams.md	-	-	-
+cRZNullOStream	streams	framework	output-streams.md	-	-	-
 cRZOFStream	framework services (RZ)	framework	framework-rz-files.md	-	-	-
 cRZ*	framework services (RZ)	framework	-	-	-	-
 nGZ*	framework services (GZ)	framework	-	-	-	-
