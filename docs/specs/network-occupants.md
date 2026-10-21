@@ -438,9 +438,13 @@ The constructor `0x0065C0C0` (the GZCOM creator `0x0065C330` also serves as pipe
 | `+0x98`… | position inputs (§3.3) |
 | `+0x1FC`…`+0x238` | 3 × 4 float matrix (zeroed) |
 | `+0x23C`/`+0x240` | cell x/z (from city slot 0x17C `PositionToCell`) |
-| `+0x248`…`+0x258` | the four stored terrain heights (`GetTerrainHeights` slot 94 `0x00659DD0` reads `+0x24C…+0x258`; `SetTerrainHeights` slot 95 `0x0065B6B0` writes `+0x248…+0x258` and rebuilds) |
-| `+0x259`/`+0x25A` | bytes set to 1/0 by `Read` |
-| `+0x268` | pipe-only u32 (§3.5) |
+| `+0x248`…`+0x24A` | three saved bytes (§3.4 field 9) |
+| `+0x24C`…`+0x258` | the **four terrain heights**, f32 at `+0x24C`, `+0x250`, `+0x254`, `+0x258` (NO17 d): `GetTerrainHeights` slot 94 `0x00659DD0` copies these four out; `SetTerrainHeights` slot 95 `0x0065B6B0` stores exactly these four, then calls primary slot 80 (`+0x140`) with `(&box min +0x124, &box max +0x130)` and `ComputeModelYPosition` `0x0065AB50`; `GetPosition` (on the `+4` view) reads the same four as its view `+0x248`…`+0x254` |
+| `+0x25C` | saved f32 (§3.4 field 11) |
+| `+0x260` | byte set to 1 by the pipe and subway `Read` (code `+0x258`) |
+| `+0x261`/`+0x262` | bytes set to 1/0 by the underground `Read` (code `+0x259`/`+0x25A`) |
+| `+0x264` | the class ID (saved, §3.4 field 12) |
+| `+0x268` | saved u32 (§3.4 field 13), set by the one-parameter `Init` from primary slot 0x65; the pipe's own extra u32 is `+0x270` (§3.3) |
 | `+0x26C` | the per-class **class info** pointer (below) |
 
 The extended interface's underground slots (SDK indices continue past the shared 81):
@@ -488,11 +492,20 @@ through primary slot 0x194 (`GetClassInfo`) into `+0x26C` (per-class static info
   `+0xFC == 0x4B00`): finds the underground connection occupant at its cell (`FindUndergroundConnectionOccupant`
   `0x006585E0`), else the neighbours (`FindUndergroundOccupant` `0x006584D0`, offset tables
   `0x00B0CFE8`/`0x00B0CFEC`); the result is 0/1/2 plus an out byte.
-- **`IsImaginaryConnection`** `0x0065A640`: `FindUndergroundOccupant` at a neighbour; found → `!(bit 31 of its
-  flags)` (a draft neighbour means *not* imaginary).
-- **`GetPosition`** `0x0065A720`: `x = [+0x98]`, `z = [+0xA0]`, y = the **minimum** of the four stored terrain
-  heights `+0x248/+0x24C/+0x250/+0x254` (guarded against `FLT_MAX`, `0x00AAABB0`); then
-  `x += [+0xB0]+[+0xC8]+[+0xE0]+[+0xF8]`, `z += [+0xB8]+[+0xD0]+[+0xE8]+[+0x100]`.
+- **`IsImaginaryConnection(dir)`** `0x0065A640` (NO17 e): if the piece's own flags (primary slot 12, `+0x30`) have
+  bit 31 **clear** it returns false at once. Otherwise it looks for an underground occupant of its own class ID
+  (`+0x264`) at cell (`+0x23C` + dx[dir], `+0x240` + dz[dir]) with `FindUndergroundOccupant` `0x006584D0`; the
+  offset table `0x00B0CFE8` holds (dx, dz) pairs: dir 0 (−1, 0), 1 (0, −1), 2 (+1, 0), 3 (0, +1). **Not found →
+  false.** Found → true iff the neighbour's flags have bit 31 clear (the neighbour reference is released).
+  So: imaginary = "my bit 31 is set and the same-class neighbour in that direction has it clear".
+- **`GetPosition`** `0x0065A720` (on the `+4` view `0x00AAACB8` slot 8, so `this = object+4`; offsets below are
+  object offsets): the out vector starts as (0, `FLT_MAX`, 0). x and z are the **average of the four quad
+  vertices** (NO17 f): x = `((v0.x + v1.x) + v2.x) + v3.x` then `× 0.25` (constant `0x00A8821C`), z the same
+  with the z fields; vertex k is at object `+0x9C + 0x18·k` (x) and `+0xA4 + 0x18·k` (z), each partial sum stored
+  as f32. y = the minimum of the four terrain heights `+0x24C`, `+0x250`, `+0x254`, `+0x258`, compared in that
+  order with a strict `<` against the running value (seeded `FLT_MAX`, `0x00AAABB0`), so a NaN height never wins
+  and all-`FLT_MAX` heights give `FLT_MAX`. Example: vertex x 0/16/16/0, z 0/0/16/16, heights 3, 2.5, 4, 2.5 →
+  (8, 2.5, 8).
 - **Draw** `0x0065B290`: the underground view — walls and floor from the wall quads.
 - **No occupant type override**: the base ctor leaves the `cSC4Occupant` type (`0x74758925`) *[inferred — the
   demolition dispatcher never names an underground type, and consumers reach the piece through
@@ -508,8 +521,8 @@ Layout: `+0` primary `0x00AA97B8` (110 slots), `+4` `0x00AA9730`, `+8` serializa
 `0x00B46708…0x00B4672C`, ratio `d[i]/(d[i]+d[j])` pattern); `cSC4UndergroundOccupant::Init` (`0x0065C6B0`) with
 `(p, classID 0x49C05B9F, param4 0x00B0BED0)`; `+0x270 = 0`.
 
-Record: the base underground `Write` (§3.4) plus `SetUint32(+0x268)`; `Read` symmetric then `+0x258 = 1`. The
-meaning of `+0x268` is not established (NO6, §12).
+Record: u16 **3**, the underground record (§3.4, with its own u16 3), then u32 object `+0x270` (code `+0x268`); `Read` accepts exactly 3, reads the same and then sets the byte object `+0x260 = 1` (code `+0x258`). The
+meaning of `+0x270` is not established (NO6, §12).
 
 `Shutdown` is **shared with the subway**: both classes' slot 4 is `0x00652CF0` (5 bytes, tail to the underground
 `Shutdown`) *[quirk: one folded body for two classes]*.
@@ -520,17 +533,48 @@ it directly (plumbing.md §6.4).
 
 ### 3.4 The underground save record *[compat]*
 
-`Write` `0x0065B140` (v3) / `Read` `0x0065E510` (v3): the base network record (§2.3) with version **3**, then:
+`Write` `0x0065B140` / `Read` `0x0065E510`, in the `+8` vtable with `this = object+8` like the base record (§2.2
+"Offsets in the record"); the offsets below are **object** offsets (code offset + 8). The record is its **own
+u16 version 3 followed by the complete base network record** (§2.3, with its own u16 8), then the underground tail
+(NO17 a):
 
-u8 `+0x48`; u8 `+0x49`; u32 `+0x58`; u32 `+0x174`; six wall-quad writes (helper `FUN_0065B070` at `+0x68`, `+0x74`,
-`+0x80`, `+0x8C`, `+0x9C`, `+0xA8`); vec3 `+0x1F4`; u32 `+0x234`; u32 `+0x238`; 3 bytes `+0x240…+0x242`; 4 dwords
-`+0x244…+0x250`; u32 `+0x254`; u32 `+0x25C`; u32 `+0x260`. `Read` is symmetric and then sets `+0x259 = 1`,
-`+0x25A = 0`.
+| # | Field | Type | Object offset |
+|---|---|---|---|
+| 1 | version | u16 = **3** | `Read` accepts exactly 3; anything else returns 0 having read only the u16 |
+| 2 | the base network record | §2.3 | `cSC4NetworkOccupant::Write`/`Read`; on failure the tail is skipped |
+| 3 | two bytes | u8, u8 | `+0x50`, `+0x51` |
+| 4 | one float | f32 | `+0x60` |
+| 5 | one word | u32 | `+0x17C` |
+| 6 | six wall vertex lists | 6 × list | vectors (begin/end/capacity) at `+0x180`, `+0x18C`, `+0x198`, `+0x1A4`, `+0x1B4`, `+0x1C0` |
+| 7 | a 4 × 4 matrix | 16 × f32 | `+0x1FC`…`+0x23B`, row by row (`operator<<` `0x005DA6E0` / `operator>>` `0x005DA6B0`) |
+| 8 | the cell | s32, s32 | x `+0x23C`, z `+0x240` (`SetSint32`, slot `+0x20`) |
+| 9 | three bytes | u8 × 3 | `+0x248`, `+0x249`, `+0x24A` (`operator<<(u8)` `0x005D9FD0`) |
+| 10 | the four terrain heights | 4 × f32 | `+0x24C`, `+0x250`, `+0x254`, `+0x258` |
+| 11 | one float | f32 | `+0x25C` |
+| 12 | the class ID | u32 | `+0x264` (the field `GetZipperPieceType` and `IsImaginaryConnection` read) |
+| 13 | one word | u32 | `+0x268` |
+
+A **wall vertex list** (helper `0x0065B070` write / `0x006574A0` read, NO17 c) is a u32 count = `(end − begin) /
+0x18` (magic division `0x2AAAAAAB`, `SAR 2`) followed by `count` vertices in the quad-vertex form of §2.3 field 4:
+f32 x, y, z, u, v (element `+0`, `+4`, `+8`, `+0x10`, `+0x14`), then the colour bytes `+0xE`, `+0xD`, `+0xC`,
+`+0xF` (R, G, B, A); 24 bytes per vertex in the stream and in memory. The reader resizes the vector to `count`
+first (`0x005E1B30`) and does **not** force the alpha byte.
+
+After the tail `Read` sets the bytes `+0x261 = 1` and `+0x262 = 0` (code `+0x259`/`+0x25A`) and returns 1 iff the
+stream's error flag is clear. The tail after the base record is 2 + 4 + 4 + 6 × (4 + 24·n) + 64 + 8 + 3 + 16 + 4 + 4
++ 4 = 137 + 24·(total wall vertices) bytes.
+
+Worked example (the stream after the base record, little-endian): bytes `+0x50 = 1`, `+0x51 = 0`, `+0x60 = 2.0`,
+`+0x17C = 7`, six empty wall lists, an identity matrix, cell (12, 34), bytes 0/0/0, heights 1.0/1.5/1.0/1.5,
+`+0x25C = 0`, class `0x49C05B9F`, `+0x268 = 0` give
+`01 00 | 00 00 00 40 | 07 00 00 00 | 00 00 00 00` ×6 `| 00 00 80 3F, 00 00 00 00 ×3, ... (16 floats) | 0C 00 00 00
+22 00 00 00 | 00 00 00 | 00 00 80 3F 00 00 C0 3F 00 00 80 3F 00 00 C0 3F | 00 00 00 00 | 9F 5B C0 49 | 00 00 00 00`
+= 137 bytes.
 
 ### 3.5 `cSC4SubwayOccupant` *(0xCA16374F)*
 
 Layout: `+0` primary `0x00AAA3C8` (112 slots), `+4` `0x00AAA340`, `+8` `0x00AAA324` (Write `0x00653010` v2 / Read
-`0x00653040` v2 = the base underground `Read` then `+0x258 = 1`, **no** extra field), `+0xC` `0x00AAA2C0`.
+`0x00653040` v2: u16 **2**, the underground record (§3.4), **no** extra field; `Read` accepts exactly 2, then sets the byte object `+0x260 = 1`, code `+0x258`), `+0xC` `0x00AAA2C0`.
 
 `Init` `0x006537A0`: `StaticInit` `0x00653640` (ratios from `0x00B0C960`/`0x00B0CB58`/`0x00B0CB80` into
 `0x00B467F8…0x00B4681C`); `cSC4UndergroundOccupant::Init` with `(classID 0xCA16374F, param4 0x00B0CDC8)`.
@@ -969,7 +1013,7 @@ exemplar model to the corners; the quads and triangle soup of §2.2 are the fall
   model refs? shear inputs?
 - **NO5.** The `0x4835C6A7…AC` property-ID family (edge types `0xA7`, passage ceiling `0xA8`, one-way `0xAA`,
   anchor `0xAB`, retrofit `0xAC`) stored in the occupant's own property holder — SDK names unknown.
-- **NO6.** Pipe `Read`'s extra u32 → `+0x268` and `+0x258 = 1` (§3.3): meaning (funding state? watered?)
+- **NO6.** Pipe `Read`'s extra u32 → object `+0x270` and the byte `+0x260 = 1` (§3.3; code offsets `+0x268`/`+0x258`): meaning (funding state? watered?)
   unverified.
 - **NO7.** `GetSortValue`'s stored-field address (§3.2): the negative displacement (`−0x178`/`−0x274`) in the
   decomp is ambiguous; which field holds the sort value when flag `0x6000000` is set.
@@ -1013,8 +1057,10 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     high bits reads them cleared).
 12. **v4/v5/v6/v7 record reads** (§2.3). A hand-built v5 record with the legacy transform loads; a v6 record's
     flags go through `ConvertV5FlagsToCurrentFlags`; a v7 record skips the position recompute branch.
-13. **Underground record** (§3.4). A pipe occupant saves and reloads with `+0x268` and the wall quads identical;
-    after read `+0x259 = 1`, `+0x25A = 0`.
+13. **Underground record** (§3.4). A pipe occupant saves and reloads with object `+0x268`, `+0x270`, the four heights
+    `+0x24C`…`+0x258` and the six wall vertex lists identical; after read the bytes `+0x260 = 1`, `+0x261 = 1`,
+    `+0x262 = 0`. The stream is u16 3 (pipe), u16 3 (underground), u16 8 (base) in that order; the underground
+    tail with empty wall lists is 137 bytes.
 14. **Tunnel pairing** (§2.8). Two portals built across a hill save and reload with the `+0x1D0` references
     resolved to each other (traffic-network.md §4.8).
 15. **Connection occupants** (§3.6). A pipe connection saves as class `0xEA0A5ACF` with the seven wall writes and
