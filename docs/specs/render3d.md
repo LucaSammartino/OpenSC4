@@ -186,8 +186,7 @@ rebuilds the frustum from the rect, clears `+0x160`/`+0x174`, `SetClipRect`, `Cl
 
 Static models live in an `SC4QuadGrid` at `+0x120`, each wrapped in an `SC43DGridElement` that the model holds
 (`model+0x18` set, `+0x14` get). Changes to models drawn from the backing store are not applied at once: they are
-queued in the vector `+0x1C4`/`+0x1C8`/`+0x1CC` of **0x30-byte** items (model, kind byte at `+4`, bounding box)
-built by `0x007C2E50` and applied by `ProcessModelChangeQueue` (`0x007C9600`) at the next `Draw` (view3d.md §4.1
+queued in the vector `+0x1C4`/`+0x1C8`/`+0x1CC` of **0x30-byte** items built by `0x007C2E50` and applied by `ProcessModelChangeQueue` (`0x007C9600`) at the next `Draw` (view3d.md §4.1
 step 6) or earlier as below.
 
 Grid-element flag word at element `+6`:
@@ -203,6 +202,28 @@ Grid-element flag word at element `+6`:
 `ModelShouldGoIntoBackingStore` (`0x007C5540`): false if `0x100`; true only if `0x20` clear and `0x40` set and one
 of: `0x400` with draw-context `+0x14` < props `+0x1AC`; `0x1800` with `+0x14` < props `+0x184`; `0x2000` with
 `+0x14` < props `+0x1D4` (props = `*(*(+0x48)+0x18)`, signed compares).
+
+Queue item layout (`0x007C2E50`, a plain field copy, `RET 0x14`):
+
+| Offset | Size | Contents |
+|---|---|---|
+| `+0x00` | 4 | model (AddRef'd by the queuing method) |
+| `+0x04` | 1 | kind (table below) |
+| `+0x05` | 1 | byte argument, always 0 at the queuing sites seen (`MoveModel`, `InsertModel`, `RemoveModel`); never read |
+| `+0x08` | 16 | copied from a caller stack buffer that is not initialised in `MoveModel`; never read by processing |
+| `+0x18` | 12 | box minimum x, y, z (floats) |
+| `+0x24` | 12 | box maximum x, y, z (floats) |
+
+The box is the grid element's stored box (element `+0x1C`, 24 bytes) for kinds 1 and 2 (the **old** position), and
+the empty box min (1, 1, 1) / max (0, 0, 0) for `ChangeModel` kinds (`0x007C9408`–`0x007C9430`). Kinds 0 and 3–5
+take the model's current box (model slot `+0x20`) at processing time; kind 1 dirty-rects the stored old box
+(mode 2); kind 2 compares the stored old box with the current one (mode = element flag bit `0x0200`, for both rects).
+A replacement only needs model, kind and the 6-float box.
+
+Dirty-rectangle **mode** values (the first argument of `AddDirtyRectangle`, §6): 0 = draw this model into the
+backing store (`DoSingleModelStaticDrawAddition`, needs the model; flag bit `0x0200` clear), 1 = class bit `0x0200`
+set (partial update reason 8), 2 = removal, 3 = kind-4 change, 6 = merged area (§6.1); every mode except 0 ends as
+a `DoPartialViewUpdate` of the rect (reason 8 for mode 1, 7 for the others), §6.2.
 
 Queue item kinds and their processing:
 
@@ -247,7 +268,7 @@ equality test, so pushes 201+ do not re-trigger.
 ## 6. Dirty rectangles: entry points *[compat]*
 
 - `AddDirtyRectangle(mode, int rect[4], model, extra)` (`0x007C9540`): ignored while `+0x109` (full redraw pending)
-  is set; copies the rect, and if `0x007C2C70` accepts it (*[inferred]* clip to viewport / non-empty) forwards to
+  is set; copies the rect, and if the rect filter `0x007C2C70` (§6.1, end) accepts and clamps the copy forwards it to
   `AddDirtyRectangleInternal` (`0x007C8F30`).
 - `AddDirtyRectangle(mode, box_min, box_max, model, extra)` (`0x007C95B0`): projects the 3D box with
   `SC4ViewUtilities::ProjectBoundingBoxToViewportRectangle` and calls the first overload.
@@ -268,12 +289,39 @@ model reference at `+0x20`. `+0x1D8` counts nodes; `+0x1E0` accumulates their pi
 4. Append: `+0x1E0 += area`; if that is **≥ `+0x1E4`**, call `DoFullViewUpdate(4)` (§4) instead of queuing.
    Otherwise AddRef the kept model and append a node at the tail; `+0x1D8 += 1`.
 
-When the process-global byte `0x00B0DC18` is set and the queue is not empty, a **merge** step runs first
-(`0x007C8F9A`): `+0x1F8 −= delay`, every node's rect is unioned with the new one (`0x005DC980`) and the node with the
-best area saving is chosen; if the node count reaches the global `0x00B0DC14` or the best saving reaches the global
-float `0x00B0DC10`, the chosen node becomes the union with mode **6** (its model released), and if it grew while
-more than one node exists it is unlinked and re-added through this function as mode 6. The exact scoring is §7
-remaining work (R3D-3).
+**Merge step** (`0x007C8F9A`–`0x007C9172`). It runs only when the process-global byte `0x00B0DC18` is set (initial
+value 1 in `.data`; no instruction in the binary writes it) and the queue is **not empty**:
+
+1. `+0x1F8 −= delay` (the deadline base moves earlier by this request's delay).
+2. Scan every node in list order. For each: U = union of the node rect and the new rect (`0x005DC980`: min left,
+   min top, max right, max bottom); `nodeArea` = node's (bottom − top) × (right − left); `unionArea` likewise for U;
+   `newArea` from step 2 of the common path. All 32-bit signed ints.
+   - score = nodeArea + newArea − unionArea (the pixels saved by drawing U once instead of both).
+   - If the incoming mode is 0, **or** the node's mode (`+0xC`) is 0, subtract also min(newArea, nodeArea)
+     (strict `newArea < nodeArea` picks newArea, otherwise nodeArea). A pair with two non-zero modes keeps the full
+     score.
+   - The node is chosen when score **>** the best so far (strict, so the first of equal scores wins). The best
+     starts at −`+0x1E4` (−INT_MAX by default) and the remembered growth at 0; the growth of the chosen node is
+     unionArea − nodeArea.
+3. Merge is taken if `+0x1D8` (node count) **≥** the global dword `0x00B0DC14` (value **16**, unsigned compare),
+   **or** float(best) **≥** the global float `0x00B0DC10` (value **−2500.0**; x87 compare, so a best below −2500
+   means "keep separate"). Otherwise fall to the plain append (step 4 of the common path).
+4. Taken: `+0x1E0 += growth`; if that is **≥** `+0x1E4`, `DoFullViewUpdate(4)` and return. Otherwise U is
+   recomputed for the chosen node, the node's model is released and cleared. Then:
+   - growth **> 0** and node count **> 1**: unlink and free the chosen node, `+0x1D8 −= 1`, and call
+     `AddDirtyRectangleInternal(6, U, no model, delay 0)` recursively (so U can merge again with another node; the
+     recursion adds U's full area to `+0x1E0` again, nothing is subtracted, so `+0x1E0` over-counts and only
+     resets when the queue is processed or cleared);
+   - otherwise: the node keeps its place, its mode becomes **6** and its rect becomes U.
+   The new rect itself is never appended in the taken case, and its model (mode 0) is neither AddRef'd nor stored.
+
+Mode 6 is therefore "merged area": `ProcessDirtyRectangleQueue` treats it as any non-zero mode other than 1
+(reason 7, §6.2).
+
+**Rect filter `0x007C2C70`** (used by `AddDirtyRectangle` and by mode-0 nodes in `ProcessDirtyRectangleQueue`):
+rejects (returns false, rect untouched) unless right > 0, left < viewport width `+0x68`, bottom > 0 and
+top < viewport height `+0x6C` (signed). Otherwise clamps **in place** (left ≥ 0, right ≤ width, top ≥ 0,
+bottom ≤ height) and returns true. It does not test left < right: (5, 0, 3, 10) passes.
 
 ### 6.2 Processing, clearing, cleanup *[compat]*
 
@@ -328,8 +376,7 @@ Picking: `Pick` ×2 (`0x007C2220`, `0x007C6830`), `PickTerrain` ×2 (`0x007C35C0
 releases the globals `0x00B4E1EC`, `0x00B4E1F0`, `0x00B4E1F4` once, destroying the backing store first),
 destructor body `0x007CA020`. (Shake is complete: §6.3 and §10.)
 Backing store: `CreateBackingStore`, `DestroyBackingStore`, `SaveBackingStore`, `RestoreBackingStore` ×2,
-`ReevaluateBackingStoreObjectFlags`, `DoSingleModelStaticDrawAddition`. Dirty rects: the merge scoring inside
-`AddDirtyRectangleInternal` (§6.1), the rect filter `0x007C2C70`, the writer of `+0x1FD`. View updates:
+`ReevaluateBackingStoreObjectFlags`, `DoSingleModelStaticDrawAddition`. Dirty rects (merge scoring and the rect filter are now §6.1): the writer of `+0x1FD`. View updates:
 `DoTranslatedViewUpdate`, `DoViewZoomChange3`, `DoViewRotationChange2`, `AttemptTranslatedViewUpdate`,
 `UpdateVisibleTerrainMetrics`. Geometry: `WorldToContainerRect`, `Get{View,Draw}FrustumContainerRect`,
 `GetVisibleContainerRect`, `GetViewportRayContainerRect`, `GetModelContainerRect`, `RebuildQuadGrid`,
@@ -362,6 +409,21 @@ Backing store: `CreateBackingStore`, `DestroyBackingStore`, `SaveBackingStore`, 
 11. Areas whose running total reaches `+0x1E4` turn the add into `DoFullViewUpdate(4)`; after that, adds are ignored
     until the next `Draw` clears `+0x109`.
 12. With 199 queued items the next backing-store insert forces `DoFullViewUpdate(4)`; the 201st does not.
+
+Merge cases (§6.1), default globals (merge on, 16 nodes, −2500.0), limit `+0x1E4` = INT_MAX, all modes 1 unless said:
+
+- D1. Queue [A (0,0,100,100)], `+0x1E0` = 10000. Add (50,0,150,100): union area 15000, score 5000 ≥ −2500, growth
+  5000, one node → A becomes mode 6 (0,0,150,100); `+0x1E0` = 15000; no new node.
+- D2. Queue [A (0,0,10,10)]. Add (500,500,510,510): score 200 − 260100 = −259900 < −2500 and 1 < 16 → appended;
+  two nodes.
+- D3. Queue [A mode 0 with model m, (0,0,100,100)]. Add mode 1 (0,0,100,100): score 10000 + 10000 − 10000 − 10000
+  = 0 → merged, growth 0: A becomes mode 6, m released; at processing it is a reason-7 partial update.
+- D4. Queue [A (0,0,50,100), B (100,0,200,100)], `+0x1E0` = 15000. Add (40,0,110,100), area 7000: A scores
+  5000 + 7000 − 11000 = 1000 (growth 6000), B scores 10000 + 7000 − 16000 = 1000, tie → A (first). Growth > 0 and
+  2 nodes → A unlinked, `+0x1E0` = 21000, recursive add of mode 6 (0,0,110,100): against B score 1000, growth 10000,
+  one node → B becomes mode 6 (0,0,200,100), `+0x1E0` = 31000 (the true queued area is 20000).
+- D5. 16 nodes queued, any score: the 17th add always merges into the best-scoring node.
+- D6. Rect filter on 800×600: (−10, 590, 20, 700) → true, becomes (0, 590, 20, 600); (800, 0, 900, 10) → false.
 
 Questions: docs/specs/questions/render3d.md.
 

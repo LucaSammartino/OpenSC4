@@ -7,10 +7,6 @@
 - **R3D-2 - section 1.3:** byte `+0x60` defaults to 1 and, per view3d.md section 4.1 step 12, suppresses `ClearViewport`
   in `Draw`; `GetBackgroundPicture` returns it as the "enabled" out flag. Which writer clears it (candidate:
   `SetBackgroundPicture` `0x007C2610`/`0x007C26D0`)? Until settled a replacement keeps default 1.
-- **R3D-3 - section 5:** layout of the 0x30-byte `ModelChangeQueueItem` built by `0x007C2E50` (the bounding-box
-  offsets read at item `+0x14`..`+0x2C` in `ProcessModelChangeQueue`) and the semantics of the `AddDirtyRectangle`
-  mode argument (0/1 = class bit `0x200`, 2 = removal, 3 = kind 4, extra 8). Needs `0x007C2E50` and
-  `AddDirtyRectangleInternal` `0x007C8F30`.
 - **R3D-4 - section 10.1:** the `StartScreenShake` overload (slot 43, `0x007C6BC0`) never writes `P+0x04`, the
   fade-out length copied to node `+0x20` (stack slot frame+4 is not stored between `0x007C6BC0` and the slot-42 call at
   `0x007C6D4C`), so `StopScreenShake` on such a shake sees stack garbage. The spec has a replacement store 0.0

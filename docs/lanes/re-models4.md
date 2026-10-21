@@ -5,7 +5,8 @@
 ## Handoff
 
 - Goal round 3: close render3d.md §7 groups: dirty merge scoring (R3D-3) + rect filter 0x007C2C70, picking, backing store, view updates.
-- Next: dirty merge 0x007C8F30 asm, then picking 0x007C2220/0x007C6830.
+- Done: merge scoring + rect filter + R3D-3 answered (§5 item layout, §6.1, D1-D6).
+- Next: picking 0x007C2220/0x007C6830.
 
 ## Round 2 report
 
