@@ -43,7 +43,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CQ | crime |
 | CR | power |
 | CS | city-situation |
-| CT | city-tools-input |
+| CT | city-tools, city-tools-input |
 | DC | draw-context |
 | DG | building-development |
 | DM | demolition |
@@ -153,6 +153,7 @@ generated index: the questions live one file per spec, so read only the file for
 | camera | 1 | 1 | CA3 | questions/camera.md |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
+| city-tools | 2 | 0 | CT3 | questions/city-tools.md |
 | city-tools-input | 12 | 1 | CT14 | questions/city-tools-input.md |
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
@@ -249,4 +250,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **237** | **1118** | | |
+| **total** | **239** | **1118** | | |

@@ -1772,14 +1772,15 @@ va	name	source	confidence	note
 004b82a0	cSC4ViewInputControlCityScroll::Init	manual:view-input-controls.tsv	high	view-input-controls.md §2.2
 004b82f0	cSC4ViewInputControlCityScroll::SetMouseScroll	manual:view-input-controls.tsv	high	view-input-controls.md §2.2; anchor picture window 0x48E945B4
 004b8480	icf::cSC4ViewInputControlCitySituations::QueryInterface	folded	folded	3 names: cSC4ViewInputControlCitySituations::QueryInterface | cSC4ViewInputControlGameOfLife::QueryInterface | cSC4ViewInputControlPlayerDrive::QueryInterface
-004b84b0	cSC4ViewInputControlCitySituations::Init	auto:C	high	mac 0049102a score 1.0 support 1
-004b8550	cSC4ViewInputControlCitySituations::Shutdown	auto:C	high	mac 00490d3e score 1.0 support 1
-004b85b0	cSC4ViewInputControlCitySituations::DoMessage	auto:B5	medium	mac 00490e8a score 0.932 support 2.5
-004b8620	cSC4ViewInputControlCitySituations::OnMouseMove	auto:B7	medium	mac 00490f90 score 0.933 support 2.0
-004b8690	cSC4ViewInputControlCitySituations::cSC4ViewInputControlCitySituations	auto:A	high	mac 004910b2 score 1.0 support 0
-004b86d0	cSC4ViewInputControlCitySituations::~cSC4ViewInputControlCitySituations	auto:C	high	mac 007faea4 score 1.0 support 1
-004b8720	cSC4ViewInputControlCitySituations::OnMouseDownL	auto:C	high	mac 00490f14 score 1.0 support 1
-004b8790	cSC4ViewInputControlCitySituations::OnMouseUpL	auto:C	high	mac 00490ddc score 1.0 support 1
+004b84b0	cSC4ViewInputControlCitySituations::Init	manual:city-tools.tsv	high	city-tools.md §4
+004b8550	cSC4ViewInputControlCitySituations::Shutdown	manual:city-tools.tsv	high	city-tools.md §4
+004b85b0	cSC4ViewInputControlCitySituations::DoMessage	manual:city-tools.tsv	high	city-tools.md §4
+004b8620	cSC4ViewInputControlCitySituations::OnMouseMove	manual:city-tools.tsv	high	city-tools.md §4; lock and state 3
+004b8690	cSC4ViewInputControlCitySituations::cSC4ViewInputControlCitySituations	manual:city-tools.tsv	high	city-tools.md §4
+004b86d0	cSC4ViewInputControlCitySituations::~cSC4ViewInputControlCitySituations	manual:city-tools.tsv	high	city-tools.md §4
+004b86f0	cSC4ViewInputControlCitySituations::~cSC4ViewInputControlCitySituations (body)	manual:city-tools.tsv	high	city-tools.md descriptive name, no Mac match; §4
+004b8720	cSC4ViewInputControlCitySituations::OnMouseDownL	manual:city-tools.tsv	high	city-tools.md §4; view level 1, state 2
+004b8790	cSC4ViewInputControlCitySituations::OnMouseUpL	manual:city-tools.tsv	high	city-tools.md §4; InitiateSituationForOccupant
 004b8830	cSC4ViewInputControlDemolish::OnKeyDown	auto:C	high	mac 002e346c score 1.0 support 1
 004b8980	cSC4ViewInputControlDemolish::DoCellPick	auto:B0	medium	mac 002e3684 score 0.953 support 2.0
 004b8a00	cSC4ViewInputControlDemolish::PickDemolishableOccupant	auto:B2	medium	mac 002e34a6 score 0.946 support 2.0
@@ -1820,14 +1821,14 @@ va	name	source	confidence	note
 004bb360	cSC4ViewInputControlEffect::PlayTriggerEffect	auto:A	high	mac 002b67b8 score 1.0 support 0
 004bb410	cSC4ViewInputControlEffect::OnMouseDownL	auto:B0	medium	mac 002b68a8 score 0.919 support 1.5
 004bb590	cSC4ViewInputControlEffect::SetEffectName	auto:A	high	mac 002b60a4 score 1.0 support 0
-004bb900	cSC4ViewInputControlFlora::cSC4ViewInputControlFlora	auto:B2	medium	mac 002d0018 score 0.912 support 2.0
-004bb940	cSC4ViewInputControlFlora::Shutdown	auto:C	high	mac 002d00fe score 1.0 support 1
-004bb980	cSC4ViewInputControlFlora::OnMouseUpL	auto:C	high	mac 002d01e2 score 1.0 support 1
+004bb900	cSC4ViewInputControlFlora::cSC4ViewInputControlFlora	manual:city-tools.tsv	high	city-tools.md §1
+004bb940	cSC4ViewInputControlFlora::Shutdown	manual:city-tools.tsv	high	city-tools.md §1
+004bb980	cSC4ViewInputControlFlora::OnMouseUpL	manual:city-tools.tsv	high	city-tools.md §1
 004bb9e0	SFX::SoundManager	auto:B0	medium	mac 00637240 score 0.955 support 6.0
-004bba20	cSC4ViewInputControlFlora::Init	auto:A	high	mac 002d006c score 1.0 support 0
-004bbaa0	_IsWaterTerrain	auto:D	medium	mac 002d0174 score 0.5 support 2
-004bbaf0	cSC4ViewInputControlFlora::OnMouseDownL	auto:C	high	mac 002d0576 score 1.0 support 1
-004bbc80	cSC4ViewInputControlFlora::OnMouseMove	auto:C	high	mac 002d024c score 1.0 support 1
+004bba20	cSC4ViewInputControlFlora::Init	manual:city-tools.tsv	high	city-tools.md §1; price from the static data +0x160
+004bbaa0	_IsWaterTerrain	manual:city-tools.tsv	high	city-tools.md §1; vertex (x / 16, z / 16)
+004bbaf0	cSC4ViewInputControlFlora::OnMouseDownL	manual:city-tools.tsv	high	city-tools.md §1; funds of at least the price
+004bbc80	cSC4ViewInputControlFlora::OnMouseMove	manual:city-tools.tsv	high	city-tools.md §1; out-of-money byte +0x48
 004bbe70	cSC4ViewInputControlGameOfLife::OnMouseUpL	auto:B1	medium	mac 002382ae score 0.904 support 1.0
 004bbe90	cSC4GameOfLifeSimulator::RandomizeCells	auto:B1	medium	mac 00238580 score 0.984 support 3.0
 004bc190	cSC4ViewInputControlGameOfLife::Shutdown	auto:A	high	mac 00238660 score 1.0 support 0
@@ -2038,26 +2039,29 @@ va	name	source	confidence	note
 004d8730	cSC4ViewInputControlSignTool::OnMouseUpL	manual:view-input-controls.tsv	high	view-input-controls.md §5.2
 004d8830	cSC4ViewInputControlSignTool::OnCharacter	manual:view-input-controls.tsv	high	view-input-controls.md §5.3; multi-byte input
 004d89d0	cSC4ViewInputControlSignTool::OnKeyDown	manual:view-input-controls.tsv	high	view-input-controls.md §5.3; Escape, Ctrl+V, Delete
-004d8b20	cSC4ViewInputControlTerrainScrubber::RecordBrushApplication	auto:B0	medium	mac 002b4674 score 0.951 support 1.0
+004d8ac0	cSC4ViewInputControlTerrainScrubber::ApplyModifierKeys	manual:city-tools.tsv	high	city-tools.md descriptive name, no Mac match; §3.2; Ctrl pair, Shift pair
+004d8b20	cSC4ViewInputControlTerrainScrubber::RecordBrushApplication	manual:city-tools.tsv	high	city-tools.md §3.3; texture batches of N + 1
+004d8b70	cSC4ViewInputControlTerrainScrubber::ClearTuningFlag	manual:city-tools.tsv	high	city-tools.md descriptive name, no Mac match; §3.1; static-data callback
 004d8b90	cISTETerrain::tBrushParameters::tBrushParameters	auto:B1	medium	mac 006f3aee score 0.976 support 2.0
-004d8bc0	cSC4ViewInputControlTerrainScrubber::ReadTuningParameters	auto:A	high	mac 002b4500 score 0.862 support 0
-004d8cb0	cSC4ViewInputControlTerrainScrubber::SetCursorAnchor	auto:D	medium	mac 002b4454 score 0.5 support 1
-004d8d10	cSC4ViewInputControlTerrainScrubber::GetCursorPositionInWorld	auto:B0	medium	mac 002b46da score 0.937 support 4.0
-004d8dd0	cSC4ViewInputControlTerrainScrubber::Shutdown	auto:B1	medium	mac 002b47f0 score 0.94 support 3.0
-004d8f50	cSC4ViewInputControlTerrainScrubber::SetCursorEchoState	auto:B2	medium	mac 002b5028 score 0.95 support 1.0
-004d9080	cSC4ViewInputControlTerrainScrubber::Init	auto:B1	medium	mac 002b52b0 score 0.971 support 2.0
-004d9430	cSC4ViewInputControlTerrainScrubber::cSC4ViewInputControlTerrainScrubber	auto:A	high	mac 002b5846 score 0.73 support 0
-004d9560	cSC4ViewInputControlTerrainScrubber::~cSC4ViewInputControlTerrainScrubber	auto:B0	medium	mac 002b59c0 score 0.934 support 1.0
-004d95d0	cSC4ViewInputControlTerrainScrubber::OnKeyDown	auto:C	high	mac 002b4bea score 1.0 support 1
-004d96e0	cSC4ViewInputControlTerrainScrubber::OnKeyUp	auto:C	high	mac 002b4d58 score 1.0 support 1
-004d9720	cSC4ViewInputControlTerrainScrubber::OnMouseExit	auto:C	high	mac 002b4bb2 score 1.0 support 1
-004d9740	cSC4ViewInputControlTerrainScrubber::ProcessDelayedActions	auto:D	medium	mac 002b4de4 score 0.5 support 1
-004d9950	cSC4ViewInputControlTerrainScrubber::~cSC4ViewInputControlTerrainScrubber	auto:C	high	mac 002b5aba score 1.0 support 1
-004d9970	cSC4ViewInputControlTerrainScrubber::OnMouseUpL	auto:B3	medium	mac 002b51a2 score 0.917 support 2.0
-004d9a30	cSC4ViewInputControlTerrainScrubber::PushDelayedAction	auto:B0	medium	mac 002b53a8 score 0.923 support 3.0
-004d9ac0	cSC4ViewInputControlTerrainScrubber::DoMessage	auto:B0	medium	mac 002b573e score 0.949 support 2.5
-004d9b90	cSC4ViewInputControlTerrainScrubber::OnMouseDownL	auto:B3	medium	mac 002b54d6 score 0.955 support 2.0
-004d9d80	cSC4ViewInputControlTerrainScrubber::OnMouseMove	auto:C	high	mac 002b5404 score 1.0 support 1
+004d8bc0	cSC4ViewInputControlTerrainScrubber::ReadTuningParameters	manual:city-tools.tsv	high	city-tools.md §3.1; properties 0x69DB8D00-05
+004d8cb0	cSC4ViewInputControlTerrainScrubber::SetCursorAnchor	manual:city-tools.tsv	high	city-tools.md §3.2
+004d8d10	cSC4ViewInputControlTerrainScrubber::GetCursorPositionInWorld	manual:city-tools.tsv	high	city-tools.md §3.2
+004d8dd0	cSC4ViewInputControlTerrainScrubber::Shutdown	manual:city-tools.tsv	high	city-tools.md §3.4
+004d8f50	cSC4ViewInputControlTerrainScrubber::SetCursorEchoState	manual:city-tools.tsv	high	city-tools.md §3.4
+004d9080	cSC4ViewInputControlTerrainScrubber::Init	manual:city-tools.tsv	high	city-tools.md §3.1
+004d9160	cSC4ViewInputControlTerrainScrubber::SetCursorEchoPos	manual:city-tools.tsv	high	city-tools.md descriptive name, no Mac match; §3.4; the auto name sat on FreeType code at 0x008AE57B
+004d9430	cSC4ViewInputControlTerrainScrubber::cSC4ViewInputControlTerrainScrubber	manual:city-tools.tsv	high	city-tools.md §3.1
+004d9560	cSC4ViewInputControlTerrainScrubber::~cSC4ViewInputControlTerrainScrubber	manual:city-tools.tsv	high	city-tools.md §3.4
+004d95d0	cSC4ViewInputControlTerrainScrubber::OnKeyDown	manual:city-tools.tsv	high	city-tools.md §3.4; Shift+F1-F10, Shift+1-0
+004d96e0	cSC4ViewInputControlTerrainScrubber::OnKeyUp	manual:city-tools.tsv	high	city-tools.md §3.4
+004d9720	cSC4ViewInputControlTerrainScrubber::OnMouseExit	manual:city-tools.tsv	high	city-tools.md §3.4
+004d9740	cSC4ViewInputControlTerrainScrubber::ProcessDelayedActions	manual:city-tools.tsv	high	city-tools.md §3.3; ramp min(2, k s), ceil charge
+004d9950	cSC4ViewInputControlTerrainScrubber::~cSC4ViewInputControlTerrainScrubber	manual:city-tools.tsv	high	city-tools.md §3.4; deleting destructor
+004d9970	cSC4ViewInputControlTerrainScrubber::OnMouseUpL	manual:city-tools.tsv	high	city-tools.md §3.2
+004d9a30	cSC4ViewInputControlTerrainScrubber::PushDelayedAction	manual:city-tools.tsv	high	city-tools.md §3.3
+004d9ac0	cSC4ViewInputControlTerrainScrubber::DoMessage	manual:city-tools.tsv	high	city-tools.md §3.2; third tick repeats the last point
+004d9b90	cSC4ViewInputControlTerrainScrubber::OnMouseDownL	manual:city-tools.tsv	high	city-tools.md §3.2
+004d9d80	cSC4ViewInputControlTerrainScrubber::OnMouseMove	manual:city-tools.tsv	high	city-tools.md §3.2; one per animation tick
 004d9e50	cSC4ViewInputControlTollBooth::Init	auto:A	high	mac 004948bc score 1.0 support 0
 004d9e80	cSC4ViewInputControlTollBooth::cSC4ViewInputControlTollBooth	auto:B1	medium	mac 004950dc score 0.89 support 2.0
 004d9ea0	cSC4ViewInputControlTollBooth::Shutdown	auto:C	high	mac 00494bf8 score 1.0 support 1
@@ -3215,6 +3219,7 @@ va	name	source	confidence	note
 00565160	cSC4ViewInputControlPlayerDrive::EnterDrivingMode	auto:A	high	mac 004b5184 score 0.814 support 0
 00565430	std::_Rb_tree<unsigned_char,std::pair<unsigned_char_const,cSC4DispatchVehicleView::TrackInfo>,std::_Select1st<std::pair<unsigned_char_const,cSC4DispatchVehicleView::TrackInfo>>,std::less<unsigned_char>,std::allocator<std::pair<unsigned_char_const,cSC4DispatchVehicleView::TrackInfo>>>::find	auto:D	medium	mac 00801ba0 score 0.5 support 1
 00565480	cSC4ViewInputControlPlayerDrive::cSC4ViewInputControlPlayerDrive	auto:A	high	mac 004b70fa score 0.872 support 0
+00565570	cSC4ViewInputControlCitySituations::QueryInterface (thunk at +0x28)	manual:city-tools.tsv	high	city-tools.md descriptive name, no Mac match; §4
 005655d0	cSC4ViewInputControlPlayerDrive::OnMouseDownL	auto:A	high	mac 004b5dc4 score 0.611 support 0
 005657a0	SC4TrainJunctionView::Update	manual:network-overlay-views.tsv	high	network-overlay-views.md §2; four entry edges per occupant
 005658d0	cSC4DispatchVehicleView::UseAlternateModel	auto:B3	medium	mac 00801bfc score 0.991 support 1.0
@@ -3503,18 +3508,19 @@ va	name	source	confidence	note
 00580460	cSC4ViewInputControlEffectDisaster::SetDisasterManager	auto:B5	medium	mac 002d3e98 score 0.937 support 1.0
 005804b0	cSC4ViewInputControlEffectDisaster::~cSC4ViewInputControlEffectDisaster	auto:C	high	mac 002d3d60 score 1.0 support 1
 00580500	icf::cSC4ViewInputControlLabelTool::QueryInterface	folded	folded	2 names: cSC4ViewInputControlLabelTool::QueryInterface | cSC4ViewInputControlTorch::QueryInterface
-00580550	cSC4ViewInputControlTorch::SendTorchToolAudioMessage	auto:B0	medium	mac 002b71ae score 0.931 support 5.5
-005805c0	cSC4ViewInputControlTorch::cSC4ViewInputControlTorch	auto:B1	medium	mac 002b7116 score 0.937 support 2.0
-00580630	cSC4ViewInputControlTorch::~cSC4ViewInputControlTorch	auto:C	high	mac 006f3ce8 score 1.0 support 1
-00580660	cSC4ViewInputControlTorch::Init	auto:A	high	mac 002b771a score 0.832 support 0
-005806d0	cSC4ViewInputControlTorch::ActivateTorch	auto:A	high	mac 002b72f2 score 1.0 support 0
-00580760	cSC4ViewInputControlTorch::UpdateTorchEffect	auto:B2	medium	mac 002b70be score 0.914 support 2.0
-005807f0	cSC4ViewInputControlTorch::ShutdownTorchEffect	auto:B0	medium	mac 002b7266 score 0.894 support 2.5
-00580840	cSC4ViewInputControlTorch::Shutdown	auto:A	high	mac 002b7684 score 1.0 support 0
-005808b0	cSC4ViewInputControlTorch::OnMouseDownL	auto:B1	medium	mac 002b7554 score 0.98 support 2.0
-005809d0	cSC4ViewInputControlTorch::OnMouseUpL	auto:A	high	mac 002b74d0 score 1.0 support 0
-00580a30	cSC4ViewInputControlTorch::OnMouseMove	auto:A	high	mac 002b73ea score 1.0 support 0
-00580b00	cSC4ViewInputControlTorch::OnMouseExit	auto:C	high	mac 002b72da score 1.0 support 1
+00580510	cSC4ViewInputControlTorch::DoMessage	manual:city-tools.tsv	high	city-tools.md descriptive name, no Mac match; §2; animation tick 0x86AD10EE
+00580550	cSC4ViewInputControlTorch::SendTorchToolAudioMessage	manual:city-tools.tsv	high	city-tools.md §2
+005805c0	cSC4ViewInputControlTorch::cSC4ViewInputControlTorch	manual:city-tools.tsv	high	city-tools.md §2
+00580630	cSC4ViewInputControlTorch::~cSC4ViewInputControlTorch	manual:city-tools.tsv	high	city-tools.md §2
+00580660	cSC4ViewInputControlTorch::Init	manual:city-tools.tsv	high	city-tools.md §2; fire manager 0x621CDA33
+005806d0	cSC4ViewInputControlTorch::ActivateTorch	manual:city-tools.tsv	high	city-tools.md §2; torch_active, torch_inactive
+00580760	cSC4ViewInputControlTorch::UpdateTorchEffect	manual:city-tools.tsv	high	city-tools.md §2
+005807f0	cSC4ViewInputControlTorch::ShutdownTorchEffect	manual:city-tools.tsv	high	city-tools.md §2
+00580840	cSC4ViewInputControlTorch::Shutdown	manual:city-tools.tsv	high	city-tools.md §2
+005808b0	cSC4ViewInputControlTorch::OnMouseDownL	manual:city-tools.tsv	high	city-tools.md §2; IgniteCell(cell, false, true, 0)
+005809d0	cSC4ViewInputControlTorch::OnMouseUpL	manual:city-tools.tsv	high	city-tools.md §2
+00580a30	cSC4ViewInputControlTorch::OnMouseMove	manual:city-tools.tsv	high	city-tools.md §2; modifier bit 4 activates
+00580b00	cSC4ViewInputControlTorch::OnMouseExit	manual:city-tools.tsv	high	city-tools.md §2
 00580f10	cSC4AttractorDescription::cSC4AttractorDescription	auto:D	medium	mac 003e1dfe score 0.5 support 1
 005812c0	cSC4BrushEffect::Start	manual:effect-runtimes.tsv	high	effects.md §8.3; descriptive name, no Mac match; prev := cur, counters reset
 005812f0	cSC4BrushDescription::cSC4BrushDescription	auto:B0	medium	mac 003e277e score 0.966 support 2.0
