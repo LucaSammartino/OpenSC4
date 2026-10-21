@@ -2258,7 +2258,7 @@ and `DoMessage`. In order (`0x007490B0`–`0x0074912C`):
    (§7), it adds that entry's texture with a weight that fades with the counter (`0x00748AD0`–`0x00748C34`).
 8. `0x00740690(rect)`: normalise the weights (below).
 
-TR41 asks for the full selection and weight rules of steps 6 and 7.
+The full selection and weight rules of steps 1, 6 and 7 are §15.5.13.6 (TR41).
 
 **The record's texture layers (TR36).** Record bytes `+0x16..+0x21` hold three layers. Each layer is
 `{u16 id, u16 weight}` at `+0x16/+0x18`, `+0x1A/+0x1C` and `+0x1E/+0x20`. Id 0 marks an empty layer, and the used
@@ -2321,7 +2321,7 @@ build a fresh view in `DoPostCityInit` *[choice]*. The view's saved state is onl
 view's own record `Read` restores that flag whether or not the terrain keeps the object. If the replacement keeps
 the object, it must call `Init` on it exactly as for a new view. It must not construct a second view.
 
-#### 15.5.13.6 The exact rules of MarkCliff, the water-proximity grid and the base-texture pass (TR41) *[compat]*
+#### 15.5.13.6 The exact rules of MarkCliff, the water-proximity grid and the two texture passes (TR41) *[compat]*
 
 All facts here are from the instruction bytes (Ghidra's pseudocode inverts two of the compare polarities in
 MarkCliff and is not a reliable guide). `W` = `vertsX` (`+0x38`, the record row stride), `v = z·W + x`, `alt(v)` =
@@ -2420,6 +2420,34 @@ min(z+rad, cellsZ))` (low side signed, high side unsigned against `+0x28`/`+0x2C
 The splat reaches only vertices inside `R`, so the extra padding only adds sources whose splats reach into `R`.
 The order of all AddLayer calls is as above; it matters because AddLayer keeps the first three ids and replaces
 the lightest.
+
+**Brush/ash-texture pass `0x00748950(rect*)`** (thiscall, `ret 4`; `R` = the rectangle as passed, not modified).
+The list at `+0x1B0` is a `std::list` (head sentinel; node `+0 next`, `+4 prev`, `+0x08..+0x14` an inclusive
+rectangle `(x0, z0, x1, z1)`, `+0x18` u32 age counter, `+0x1C` a dword); its only other user in the terrain is
+`TickVolcanicAshRegions` (`0x00749AF0`), which ages it *[inferred: from the users of `+0x1B0`]*.
+1. If the list is empty, return. Look up hash node `id = 0xE0` exactly as the splat above; none: return.
+2. For each list entry `e`, head-to-tail:
+   1. `Pa = R` padded by `radius[zoom]` (node `+0x5C + 4·zoom`) with `PadRectangle` (clamped to `0..cellsX`,
+      `0..cellsZ`); `Pa = Pa ∩ e.rect` (`0x0048ED90`). Empty: next entry.
+   2. If `Pa` equals `e.rect` exactly, set `e+0x1C = 0`.
+   3. `fade = (1.0 − float(e.age) / float(0x00B0D624)) · strength` (both u32 converted with the +2³² fix-up; the
+      data value of `0x00B0D624` is 10 000 000; `strength` = node `+8`; one float32 store, `0x00748A5F`–`0x00748A99`).
+   4. For each source `(x, z)` in `Pa`, rows outer, columns inner, with `flags(v) & 0x0400` (byte `+0x23` bit 2, the
+      kind-7 brush mark, §9.4.2): `N` = the same clamped `±radius[zoom]` neighbourhood as the splat; `I = N ∩ R`;
+      for each target `(x', z')` in `I`, rows outer: `w = curve[zoom].GetOutputValue(float32(sqrt(dx·dx + float32(dz²))
+      · 16.0)) · fade` (`dz² = (z'−z)²` as an int converted and stored float32; `dx = x'−x` squared on the x87; sum,
+      sqrt, ×16.0 `0x00AB3B5C`); if `w > 0`, `AddLayer(v', 0xE0, w)`. No family variant, no depth, proximity or
+      altitude filter, and no `lim` distance cut-off (only the rectangle).
+
+**Where the tables come from.** `0x00B4B410/414/420`, the hash `0x00B4BCE0`, `0x00B4BC20`, `0x00B4BC48`,
+`0x00B4BC90` and `0x00B4BC9C` are process statics filled by `cSTETerrain::StaticInit` (`0x0074FE40`) and its
+readers (`ReadTuningParameters` reads `0x89A312C2` into `0x00B4BC90` and calls
+`DetermineTextureFamilyMembersForGridCells`; `0x00B4B410`/`0x00B4B414` are written by
+`ReadMiscTexturesForTerrainTypes` `0x0074C800`, called from `ReadTerrainIniFile`; the writers of `0x00B4B420` and of
+the hash nodes were not traced, so their file origin is not specified here). The per-level `0x00B4C670` tables are the view's (§15.5.12.2) and
+are refreshed by step 4 of the base pass. **Replacement rule:** a replacement that runs `StaticInit` (required
+anyway by §15.5.12.2) reads these statics in place and applies the rules above; it does not need to re-derive their
+contents. The two passes post nothing and touch only the texture layers of the records.
 
 ## 15.6 The slots §4–§10 left undefined (TR24, TR25) *[compat]*
 
