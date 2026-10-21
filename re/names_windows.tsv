@@ -3504,7 +3504,12 @@ va	name	source	confidence	note
 00580a30	cSC4ViewInputControlTorch::OnMouseMove	auto:A	high	mac 002b73ea score 1.0 support 0
 00580b00	cSC4ViewInputControlTorch::OnMouseExit	auto:C	high	mac 002b72da score 1.0 support 1
 00580f10	cSC4AttractorDescription::cSC4AttractorDescription	auto:D	medium	mac 003e1dfe score 0.5 support 1
+005812c0	cSC4BrushEffect::Start	manual:effect-runtimes.tsv	high	effects.md §8.3; descriptive name, no Mac match; prev := cur, counters reset
 005812f0	cSC4BrushDescription::cSC4BrushDescription	auto:B0	medium	mac 003e277e score 0.966 support 2.0
+00581530	cSC4BrushEffect::Stop	manual:effect-runtimes.tsv	high	effects.md §8.3; descriptive name, no Mac match; ends the long terrain operation
+00581560	cSC4BrushEffect::SetTransform	manual:effect-runtimes.tsv	high	effects.md §8.3; descriptive name, no Mac match; cur := (x, z)
+00581640	cSC4BrushEffect::Apply	manual:effect-runtimes.tsv	high	effects.md §8.3; descriptive name, no Mac match; n brush strokes from prev to cur
+005817f0	cSC4BrushEffect::Update	manual:effect-runtimes.tsv	high	effects.md §8.3; descriptive name, no Mac match; one-shot or stroke
 00581c10	cSC4CameraDescription::cSC4CameraDescription	auto:D	medium	mac 003df814 score 0.5 support 1
 00581d80	cSC4CameraEffect::Start	auto:B0	medium	mac 003dfbda score 0.934 support 1.5
 00581f20	std::vector<float,std::allocator<float>>::vector<int>	auto:B8	medium	mac 0075cb68 score 0.939 support 2.0
@@ -3809,8 +3814,17 @@ va	name	source	confidence	note
 005bbc10	cSC4RigidBodySimulator2D::AddObject	auto:B3	medium	mac 004bc8b8 score 0.94 support 2.0
 005bbfd0	cSC4RigidBodySimulator2D::AdvanceTime	auto:B1	medium	mac 004bc584 score 0.976 support 1.0
 005bc270	cSC4RigidBodySimulator2D::AdvanceTime	auto:D	medium	mac 004bc878 score 0.5 support 1
+005bc2b0	cSC4GameEffect::SetParameter	manual:effect-runtimes.tsv	high	effects.md §9.2; descriptive name, no Mac match; slot 6, parameter 13 only
+005bc310	cSC4GameEffect::cSC4GameEffect	manual:effect-runtimes.tsv	high	effects.md §9.2; descriptive name, no Mac match; the constructor
+005bc3b0	cSC4GameEffect::SetTransform	manual:effect-runtimes.tsv	high	effects.md §9.2; descriptive name, no Mac match; the cell, pending on change
 005bc9d0	cSC4ScrubberDescription::cSC4ScrubberDescription	auto:D	medium	mac 003e13f4 score 0.5 support 1
 005bcb30	cSC4Advice::Release	auto:D	low	mac 0032b942 score 0.5 support 2
+005bcbf0	cSC4GameEffect::Burn	manual:effect-runtimes.tsv	high	effects.md §9.3; descriptive name, no Mac match; IgniteCellRadius then SetCause(4)
+005bd070	cSC4GameEffect::Start	manual:effect-runtimes.tsv	high	effects.md §9.2; descriptive name, no Mac match; the pauses by flag
+005bd0f0	cSC4GameEffect::Demolish	manual:effect-runtimes.tsv	high	effects.md §9.3; descriptive name, no Mac match
+005bd340	cSC4GameEffect::Stop	manual:effect-runtimes.tsv	high	effects.md §9.2; descriptive name, no Mac match; the pauses undone
+005bd3c0	cSC4GameEffect::Apply	manual:effect-runtimes.tsv	high	effects.md §9.3; descriptive name, no Mac match; burn, toxic, demolish, ... in order
+005bd4d0	cSC4GameEffect::Update	manual:effect-runtimes.tsv	high	effects.md §9.2; descriptive name, no Mac match; single, or once per new cell
 005bdf10	cSC4SequenceDescription::cSC4SequenceDescription	auto:D	medium	mac 003e0796 score 0.5 support 1
 005be2e0	icf::cS3DMaterialManager::CreateMaterialVariant	folded	folded	7 names: cS3DMaterialManager::CreateMaterialVariant | cSC43DRender::GetModelsInVolume | cSC4ViewInputControl::OnMouseDownL | cSC4ViewInputControl::OnMouseDownR | cSC4ViewInputControl::OnMouseMove | cSC4ViewInputControl::OnMouseUpL | cSC4ViewInputControl::OnMouseUpR
 005be300	cSC4SoundDescription::cSC4SoundDescription	auto:D	medium	mac 003dfe90 score 0.5 support 1
@@ -4251,7 +4265,14 @@ va	name	source	confidence	note
 005e55e0	GlobalHeapAlloc	manual:m5path.tsv	high	allocators.md allocator C alloc (was ilist<cISC4Occupant*>::~ilist)
 005e5620	GlobalHeapFree	manual:m5path.tsv	high	allocators.md allocator C free (was cRZCellMap<bool>::~cRZCellMap)
 005e5e30	cRZFastAllocatorGeneralThreadSafe::cRZFastAllocatorGeneralThreadSafe	auto:D	medium	mac 0067918e score 0.5 support 1
-005e8320	cSC4ModelRegEffects::InitEffectsList	auto:B2	medium	mac 00160e6e score 0.961 support 4.0
+005e6160	cSC4ModelRegEffects::Update	manual:effect-runtimes.tsv	high	graphics-formats.md §3.11; descriptive name, no Mac match; slot 5, the record of the current frame
+005e6b40	cSC4ModelRegEffects::UpdateWithSpeed	manual:effect-runtimes.tsv	high	graphics-formats.md §3.11; descriptive name, no Mac match; slot 4, also parameter 15
+005e7660	cSC4ModelRegEffects::StartEffect	manual:effect-runtimes.tsv	high	graphics-formats.md §3.11; descriptive name, no Mac match; slot 12, by name, case-insensitive
+005e7750	cSC4ModelRegEffects::StopEffect	manual:effect-runtimes.tsv	high	graphics-formats.md §3.11; descriptive name, no Mac match; slot 13, by name, case-insensitive
+005e7a60	cSC4ModelRegEffects::FindEffect	manual:effect-runtimes.tsv	high	graphics-formats.md §3.11; descriptive name, no Mac match; slot 10, by REGP name
+005e8320	cSC4ModelRegEffects::InitEffectsList	manual:effect-runtimes.tsv	high	graphics-formats.md §3.11; slot 16, fx_ names in name order
+005e8670	cSC4ModelRegEffects::cSC4ModelRegEffects	manual:effect-runtimes.tsv	high	graphics-formats.md §3.11; descriptive name, no Mac match; the constructor
+005e8810	cSC4ModelRegEffects::AddEffect	manual:effect-runtimes.tsv	high	graphics-formats.md §3.11; descriptive name, no Mac match; slot 8, created by name, not started
 005e8980	cSC4Occupant::Shutdown	auto:A	high	mac 00088d88 score 1.0 support 0
 005e89b0	cSC4Occupant::AddRef	auto:B0	medium	mac 00088dc6 score 0.868 support 3.0
 005e89c0	cSC4Occupant::QueryInterface	auto:B0	medium	mac 00088e00 score 0.996 support 10.0
@@ -4296,29 +4317,29 @@ va	name	source	confidence	note
 005eba70	cSC4StringSpecificationOccupantFilter::BuildSpecification	auto:B2	medium	mac 0007b2ea score 0.987 support 2.0
 005ebb10	cSC4StringSpecificationOccupantFilter::cSC4StringSpecificationOccupantFilter	auto:B3	medium	mac 0007b4ae score 0.998 support 1.5
 005ebbd0	GZCOM_CreatecSC4StringSpecificationOccupantFilter	auto:B4	medium	mac 0007b5a8 score 0.896 support 1.0
-005ebbf0	cSC43DPlaceableObject::GetModelCount	auto:C	low	mac 000d5064 score 1.0 support 1
-005ebc00	cSC43DPlaceableObject::GetModels	auto:C	high	mac 000d5070 score 1.0 support 1
-005ebc50	cSC43DPlaceableObject::IsVisible	auto:C	low	mac 000d5176 score 1.0 support 1
-005ebc60	cSC43DPlaceableObject::ResizeModelInstanceArray	auto:D	medium	mac 000d50bc score 0.5 support 1
-005ebcc0	cSC43DPlaceableObject::AddRef	auto:C	low	mac 000d5186 score 1.0 support 1
-005ebcd0	cSC43DPlaceableObject::FinalRelease	auto:D	medium	mac 000d519a score 0.5 support 1
-005ebd20	cSC43DPlaceableObject::QueryInterface	auto:A	high	mac 000d5216 score 1.0 support 0
-005ebd50	cSC43DPlaceableObject::GetZoomLevelsCreatedFor	auto:C	low	mac 000d524e score 1.0 support 1
-005ebd60	cSC43DPlaceableObject::SetZoomLevelsCreatedFor	auto:C	high	mac 000d5260 score 1.0 support 1
-005ebd80	cSC43DPlaceableObject::GetRotationsCreatedFor	auto:C	low	mac 000d527a score 1.0 support 1
-005ebd90	cSC43DPlaceableObject::SetRotationsCreatedFor	auto:C	high	mac 000d528e score 1.0 support 1
-005ebe20	cSC43DPlaceableObject::AddModel	auto:C	high	mac 000d52aa score 1.0 support 1
-005ebe80	cSC43DPlaceableObject::RemoveModel	auto:C	high	mac 000d5316 score 1.0 support 1
-005ebf80	cSC43DPlaceableObject::DoOverlayVisibilityChange	auto:D	medium	mac 000d54ae score 0.5 support 2
-005ebff0	cSC43DPlaceableObject::AddModelsToRenderer	auto:D	medium	mac 000d5428 score 0.5 support 1
-005ec050	cSC43DPlaceableObject::RemoveModelsFromRenderer	auto:D	medium	mac 000d5118 score 0.5 support 1
-005ec0a0	cSC43DPlaceableObject::Release	auto:C	high	mac 000d51ec score 1.0 support 1
-005ec0c0	cSC43DPlaceableObject::SetVisibility	auto:C	high	mac 000d5584 score 1.0 support 1
-005ec110	cSC43DPlaceableObject::SetOverlaysVisible	auto:C	high	mac 000d553c score 1.0 support 1
-005ec190	cSC43DPlaceableObject::AddOverlay	auto:C	high	mac 000d5728 score 1.0 support 1
-005ec240	cSC43DPlaceableObject::RemoveAll	auto:C	high	mac 000d55e6 score 1.0 support 1
+005ebbf0	cSC43DPlaceableObject::GetModelCount	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 3
+005ebc00	cSC43DPlaceableObject::GetModels	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 4
+005ebc50	cSC43DPlaceableObject::IsVisible	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 10
+005ebc60	cSC43DPlaceableObject::ResizeModelInstanceArray	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; the array growth
+005ebcc0	cSC43DPlaceableObject::AddRef	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 1
+005ebcd0	cSC43DPlaceableObject::FinalRelease	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; FinalRelease
+005ebd20	cSC43DPlaceableObject::QueryInterface	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 0, IIDs 1 and 0xC6BB5EFA
+005ebd50	cSC43DPlaceableObject::GetZoomLevelsCreatedFor	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 12, bits 2-6
+005ebd60	cSC43DPlaceableObject::SetZoomLevelsCreatedFor	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 13
+005ebd80	cSC43DPlaceableObject::GetRotationsCreatedFor	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 14, bits 7-10
+005ebd90	cSC43DPlaceableObject::SetRotationsCreatedFor	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 15
+005ebe20	cSC43DPlaceableObject::AddModel	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 5
+005ebe80	cSC43DPlaceableObject::RemoveModel	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 6
+005ebf80	cSC43DPlaceableObject::DoOverlayVisibilityChange	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; overlay visibility
+005ebff0	cSC43DPlaceableObject::AddModelsToRenderer	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; adds to the renderer
+005ec050	cSC43DPlaceableObject::RemoveModelsFromRenderer	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; removes from the renderer
+005ec0a0	cSC43DPlaceableObject::Release	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 2
+005ec0c0	cSC43DPlaceableObject::SetVisibility	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 8, flag bit 1
+005ec110	cSC43DPlaceableObject::SetOverlaysVisible	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 9, flag bit 0
+005ec190	cSC43DPlaceableObject::AddOverlay	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 7
+005ec240	cSC43DPlaceableObject::RemoveAll	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 11
 005ec330	std::vector<cSC43DPlaceableObject::cQuadRec,std::allocator<cSC43DPlaceableObject::cQuadRec>>::~vector	auto:D	medium	mac 0064434a score 0.5 support 1
-005ec3b0	cSC43DPlaceableObject::~cSC43DPlaceableObject	auto:C	high	mac 000d58a2 score 1.0 support 1
+005ec3b0	cSC43DPlaceableObject::~cSC43DPlaceableObject	manual:effect-runtimes.tsv	high	prop-occupant.md §6.1; slot 16, destructor
 005ec4a0	cSC4PrimitivePool::RestartArrays	auto:B7	low	mac 0041b188 score 0.833 support 2.0
 005ec5d0	cSC4PrimitivePool::Draw	auto:B4	medium	mac 0041b2a4 score 0.954 support 3.0
 005ec850	cSC4PrimitivePool::GetPrimIndices	auto:B5	medium	mac 0041b3f8 score 0.953 support 2.0
