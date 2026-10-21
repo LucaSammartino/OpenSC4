@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**train53 landed e1949bc0bc:** Three-lane docs unblock: NR14 proves slot30 SetPiece before InsertOccupant; MySim MS11/MS12 input/import differences published. BW5 Alt bit proven and BW10 general initialization corrected; runtime BW11 and unproven selector-specific arrow bounds BW12 remain, no guessed full-owner credit. Native network ABI proposals archived for review, not applied to interfaces in this docs batch. No runtime/ABI changes, gate/regress skipped. Coverage45.4/34.5/16.4/17.8; rounds158 (open-ended).
+
 **train52 landed c22eaaa8aa:** Three-lane docs batch: HTML document contracts HD1-HD4 closed plus21 unnamed helper audit; exact document owner credited, other HTML elements excluded. Font/FontSys full slot/helper inventories complete; renderer excluded. EX46-EX49 answered with native DIFFERS; EX50 caller/action trace remains, no exemplar default promotion. No ABI/runtime changes, gate/regress skipped. Checkpoint150 recorded and pushed. Coverage45.4/34.5/16.4/17.8; rounds153 (open-ended).
 
 **Run4 checkpoint150 (recorded at153):**150 rounds milestone;26 trains landed. Coverage44.3/34.5/16.4/17.8, baseline delta+7.5/+6.2/+4.3/+1.9points. 16 lanes parked; DS46 blocks the unfinished disaster wrapper while its tested layer API is staged separately. Target10/max3glue; slot cap still binds after refills. Nextcheckpoint175.
@@ -30,11 +32,11 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target10 live lanes (user raised for CPU/memory headroom), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
-**Coverage after train52:**45.4/34.5/16.4/17.8; baseline36.8/28.3/12.1/15.9, delta+8.6/+6.2/+4.3/+1.9 points. 27 trains landed; 153 rounds used, no total cap. Next25-round checkpoint 175.
+**Coverage after train53:**45.4/34.5/16.4/17.8; baseline36.8/28.3/12.1/15.9, delta+8.6/+6.2/+4.3/+1.9 points. 28 trains landed; 158 rounds used, no total cap. Next25-round checkpoint 175.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`, `run4-launch.py` (saved guarded Workflow,maxRounds1,ctx150k,calls150). Never use direct/unguarded agents. After compaction/restart reread this section and run lanes.py guard before spawning. Fresh slots/check --touches required, --resume for an existing worktree; deps must be on main.
 
-**Train authority:** `build-runs/merge-train/state.json`; latest landed train52. Start next batch when2+ ready; guard and ancestry remain authoritative.
+**Train authority:** `build-runs/merge-train/state.json`; latest landed train53. Start next batch when2+ ready; guard and ancestry remain authoritative.
 
 **Parked at3/3, never fourth:** verify-netmgrfix4(aed635a8,2/73exact,21missing RNGdraw batches,ABIadditionsunreviewed), glue-exemplars4(581778a9,3/3candidateclean2032ref0 butEX46-EX50open; registry conflict waits), core-construction4(f6dddaa7,v4 NO15 reader fixed; OP13-OP16 remain; actual2/3; prior occprops phase landed; remains parked pending OP13-OP16), core-netocc-records4(c5e769ae,partial NO15-NO17 records; NO14/NO18-NO20 remain; logical3/3 with netocc4), re-view3dwin4(78a7bd7c,partial input/AddGUI specs;VW2-VW6/helpers remain;preserveWT/ABI proposals), re-legacycontrol4(603ed696,45/57functions;12interpreters andLC4/LC5/LC8 remain;partialdocs queued, preserveWT), re-rzservices4(File/INI/Directory/OFStream complete; CmdLine slot10/SysServPtr incomplete), glue-terrain3(97b1c237), re-driverdraw4(partial DX7, landed32), re-editors4(partial curves, landed30), re-particles4(partial drawing, landed30), re-widgets4(partial base, landed28), re-application4(partial57/322, landed27), re-terrain4(answers landed25). Preserve parked worktrees, even when supported portions landed.
 
