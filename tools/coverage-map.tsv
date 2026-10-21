@@ -359,13 +359,16 @@ cSC4StringTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSTETerrainView3D	3D scene and models	renderer	terrain.md, terrain-view.md	core/src/terrain	terrain_shadow	-
 cSTEOverlayManager	terrain overlays	renderer	overlay-manager.md	-	-	-
 cSTEWaterRipple	terrain ripples and selection	renderer	water-ripples.md	-	-	-
-cSTEVertBufExtn	3D scene and models	renderer	-	-	-	-
+cSTEVertBufExtn	overlay views	renderer	terrain-view.md, overlay-views.md	-	-	-
 cSTESelectedTerrainArea	terrain ripples and selection	renderer	water-ripples.md	-	-	-
 SC4ViewUtilities	view utilities	renderer	view-utilities.md	-	-	-
 fn:MinOfFourFloats	view utilities	renderer	view-utilities.md	-	-	-
 fn:MaxOfFourFloats	view utilities	renderer	view-utilities.md	-	-	-
 SC4GeometryUtilities	geometry utilities	renderer	geometry-utilities.md	-	-	-
+SC4MarkedCellView	overlay views	renderer	overlay-views.md	-	-	-
 SC4*View	3D scene and models	renderer	-	-	-	-
+cSC4PathView	overlay views	renderer	overlay-views.md	-	-	-
+cSC4PathView::PathInfo	overlay views	renderer	overlay-views.md	-	-	-
 cSC4PathView*	3D scene and models	renderer	-	-	-	-
 cSC4DispatchVehicleView	3D scene and models	renderer	-	-	-	-
 fn:GetPointsOnModel	fire flames	renderer	fire-flames.md	-	-	-

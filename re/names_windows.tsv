@@ -2929,7 +2929,7 @@ va	name	source	confidence	note
 0053c8a0	__ZThn4_N14cSC4Helicopter8ShutdownEv	auto:B0	low	mac 00800f70 score 0.96 support 1.0
 0053c8b0	__ZThn4_N14cSC4Helicopter4InitEv	auto:B0	low	mac 00800f7a score 0.96 support 1.0
 0053c8c0	cSC4Helicopter::~cSC4Helicopter	auto:C	high	mac 008010da score 1.0 support 1
-0053c940	cSC4PathView::Shutdown	auto:B1	low	mac 0051b1f0 score 0.924 support 2.0
+0053c940	cSC4PathView::Shutdown	manual:overlay-views.tsv	high	overlay-views.md §1
 0053cb30	cSC4MassTransitTrain::Write	auto:C	high	mac 004b1144 score 1.0 support 1
 0053cb50	cSC4MassTransitTrain::Read	auto:C	high	mac 004b1176 score 1.0 support 1
 0053cc30	cSC4MassTransitTrain::GetGZCLSID	auto:A	low	mac 00801224 score 1.0 support 0
@@ -7914,12 +7914,13 @@ va	name	source	confidence	note
 0075bfd0	cSTETerrainView3D::Update	manual:terrain-view.tsv	high	terrain-view.md §4.1; kRenderTerrain (boolean 15), depth offset -3, +0x50 selects the pass
 0075c0c0	cSTETerrainView3D::StaticInit	manual:terrain-view.tsv	high	terrain-view.md §2
 0075c420	cSTETerrainView3D::Init	manual:terrain-view.tsv	high	terrain-view.md §2; detailed in terrain.md §15.5.4
-0075c9f0	cSTEVertBufExtn::CreateBuffer	auto:B7	medium	mac 004f7b06 score 0.938 support 4.0
-0075ca90	cSTEVertBufExtn::ReleaseVertexBufferExtension	auto:B7	medium	mac 004f7cde score 0.937 support 2.0
-0075cab0	cSTEVertBufExtn::SetIndexBuffer	auto:B2	medium	mac 004f7d02 score 0.991 support 2.0
-0075cad0	cSTEVertBufExtn::FlushBuffer	auto:B6	medium	mac 004f7d18 score 0.874 support 2.5
-0075cb50	cSTEVertBufExtn::DrawPrimsIndexedUsingVertBuf	auto:B7	medium	mac 004f7f66 score 0.962 support 4.0
-0075cd40	cSTEVertBufExtn::GetVertexBufferExtension	auto:B7	medium	mac 004f7dfe score 0.948 support 2.5
+0075c9f0	cSTEVertBufExtn::CreateBuffer	manual:overlay-views.tsv	high	overlay-views.md §3
+0075ca30	cSTEVertBufExtn::CopyTerrainRow	manual:overlay-views.tsv	high	overlay-views.md descriptive name, no Mac match; §3; 32-byte vertices
+0075ca90	cSTEVertBufExtn::ReleaseVertexBufferExtension	manual:overlay-views.tsv	high	overlay-views.md §3
+0075cab0	cSTEVertBufExtn::SetIndexBuffer	manual:overlay-views.tsv	high	overlay-views.md §3
+0075cad0	cSTEVertBufExtn::FlushBuffer	manual:overlay-views.tsv	high	overlay-views.md §3; triangles, count rounded to 3
+0075cb50	cSTEVertBufExtn::DrawPrimsIndexedUsingVertBuf	manual:overlay-views.tsv	high	overlay-views.md §3; two rows per call
+0075cd40	cSTEVertBufExtn::GetVertexBufferExtension	manual:overlay-views.tsv	high	overlay-views.md §3; kUseVertexBuffers, format 11
 0075ce60	cSTEVolcanoLava::AssignSurfaceTextureCoordinates	auto:B7	medium	mac 004f8170 score 1.0 support 1.0
 0075ced0	cSTEVolcanoLava::DrawLavaSurfaceWithoutVertBufExtension	auto:B5	medium	mac 004f947e score 0.964 support 2.0
 0075d050	cSTEVolcanoLava::DrawLavaSurfaceWithVertBufExtension	auto:B6	medium	mac 004f8308 score 0.97 support 2.0
@@ -8961,26 +8962,32 @@ va	name	source	confidence	note
 007db6a0	cSC4LightingManager::Init	manual:lighting.tsv	high	lighting.md §1.3; slot 3; exemplar 0x6534284A/0xA9189CF0/1, maps 0x0917660C-0x0917660F, seven subscriptions
 007db840	cSC4LightingManager::DoZoomAndRotationChange	manual:lighting.tsv	high	lighting.md §3; lights, view rotation, fade, grid strides, height copy, sweep, cached axis colours
 007dbcf0	cSC4LightingManager::DoMessage	manual:lighting.tsv	high	lighting.md §6; slot 3 of 0x00ABB51C
-007dc1a0	SC4MarkedCellView::SetShouldIgnoreDepthBuffer	auto:B0	low	mac 0051a462 score 0.938 support 3.0
-007dc1b0	SC4MarkedCellView::SetShouldUseWaterAltitude	auto:D	low	mac 0051a470 score 0.5 support 3
-007dc1d0	SC4MarkedCellView::SetCellSize	auto:B5	medium	mac 0051a48c score 0.945 support 2.0
-007dc200	SC4MarkedCellView::Init	auto:B0	medium	mac 0051a2d4 score 0.881 support 2.5
-007dc2c0	SC4MarkedCellView::Shutdown	auto:B1	medium	mac 0051a434 score 0.951 support 2.0
-007dc3a0	SC4MarkedCellView::DrawCells	auto:B3	medium	mac 0051a50c score 0.935 support 3.5
-007dc9f0	SC4MarkedCellView::Update	auto:B2	medium	mac 0051ade0 score 0.983 support 2.0
-007dcb30	SC4MarkedCellView::SetCellColor	auto:B5	medium	mac 0051b182 score 0.796 support 2.0
-007dcc10	SC4MarkedCellView::SC4MarkedCellView	auto:B0	medium	mac 0051b05e score 0.946 support 3.0
-007dcd90	cSC4PathView::Init	auto:B2	medium	mac 0051b2b4 score 0.829 support 2.5
-007dce20	cSC4PathView::SetPathTexture	auto:D	medium	mac 0051b25c score 0.5 support 1
-007dd0d0	cSC4PathView::DrawArrowhead	auto:B6	medium	mac 0051b728 score 0.999 support 2.0
-007dd410	cSC4PathView::DrawPath	auto:B5	medium	mac 0051b9e4 score 0.99 support 4.0
-007dd9b0	cSC4PathView::Update	auto:B6	medium	mac 0051becc score 0.91 support 2.0
+007dc1a0	SC4MarkedCellView::SetShouldIgnoreDepthBuffer	manual:overlay-views.tsv	high	overlay-views.md §2
+007dc1b0	SC4MarkedCellView::SetShouldUseWaterAltitude	manual:overlay-views.tsv	high	overlay-views.md §2
+007dc1d0	SC4MarkedCellView::SetCellSize	manual:overlay-views.tsv	high	overlay-views.md §2; size and inverse
+007dc200	SC4MarkedCellView::Init	manual:overlay-views.tsv	high	overlay-views.md §2
+007dc2c0	SC4MarkedCellView::Shutdown	manual:overlay-views.tsv	high	overlay-views.md §2
+007dc3a0	SC4MarkedCellView::DrawCells	manual:overlay-views.tsv	high	overlay-views.md §2.1; batches of 1024 vertices
+007dc9f0	SC4MarkedCellView::Update	manual:overlay-views.tsv	high	overlay-views.md §2; second additive pass
+007dcb30	SC4MarkedCellView::SetCellColor	manual:overlay-views.tsv	high	overlay-views.md §2
+007dcc10	SC4MarkedCellView::SC4MarkedCellView	manual:overlay-views.tsv	high	overlay-views.md §2
+007dcc80	SC4MarkedCellView::~SC4MarkedCellView (thunk)	manual:overlay-views.tsv	high	overlay-views.md descriptive name, no Mac match; §2
+007dcc90	SC4MarkedCellView::~SC4MarkedCellView (deleting destructor)	manual:overlay-views.tsv	high	overlay-views.md descriptive name, no Mac match; §2
+007dcd90	cSC4PathView::Init	manual:overlay-views.tsv	high	overlay-views.md §1; two packed states
+007dce20	cSC4PathView::SetPathTexture	manual:overlay-views.tsv	high	overlay-views.md §1
+007dce60	cSC4PathView::GetEndOffsets	manual:overlay-views.tsv	high	overlay-views.md descriptive name, no Mac match; §1.1; +- t times the end segment's normal
+007dcf20	cSC4PathView::GetJointOffsets	manual:overlay-views.tsv	high	overlay-views.md descriptive name, no Mac match; §1.1; along the bisector, fallback below 0.0001
+007dd0d0	cSC4PathView::DrawArrowhead	manual:overlay-views.tsv	high	overlay-views.md §1.1
+007dd410	cSC4PathView::DrawPath	manual:overlay-views.tsv	high	overlay-views.md §1.1; one strip of 2n vertices
+007dd9b0	cSC4PathView::Update	manual:overlay-views.tsv	high	overlay-views.md §1; depth offset 15
 007ddaa0	std::deque<cS3DVector3,std::allocator<cS3DVector3>>::push_back	auto:B1	medium	mac 00825508 score 0.863 support 1.0
-007ddb30	cSC4PathView::AddPathVertex	auto:B0	medium	mac 0051b456 score 0.957 support 2.0
-007ddbe0	cSC4PathView::ClearPaths	auto:D	medium	mac 0051bfe6 score 0.5 support 1
+007ddb30	cSC4PathView::AddPathVertex	manual:overlay-views.tsv	high	overlay-views.md §1; drops near-duplicates
+007ddbe0	cSC4PathView::ClearPaths	manual:overlay-views.tsv	high	overlay-views.md §1
 007ddc30	cSC4ViewInputControlQuery::UpdatePaths	auto:D	medium	mac 0020e7e2 score 0.5 support 1
-007ddc50	cSC4PathView::NewPath	auto:D	medium	mac 0051bf62 score 0.5 support 1
-007ddd50	cSC4PathView::cSC4PathView	auto:B3	medium	mac 0051c054 score 0.981 support 2.5
+007ddc50	cSC4PathView::NewPath	manual:overlay-views.tsv	high	overlay-views.md §1; ordered by priority
+007ddd50	cSC4PathView::cSC4PathView	manual:overlay-views.tsv	high	overlay-views.md §1
+007dddb0	cSC4PathView::~cSC4PathView (thunk)	manual:overlay-views.tsv	high	overlay-views.md descriptive name, no Mac match; §1
+007dddc0	cSC4PathView::~cSC4PathView (deleting destructor)	manual:overlay-views.tsv	high	overlay-views.md descriptive name, no Mac match; §1; clears the paths
 007dde10	cSC4RenderProperties::GetBoolCount	manual:render-properties.tsv	high	render-properties.md §2; descriptive name, no Mac match; slot 3; (end - begin) / 0x20
 007dde20	cSC4RenderProperties::GetIntCount	manual:render-properties.tsv	high	render-properties.md §2; descriptive name, no Mac match; slot 4; / 0x28
 007dde40	cSC4RenderProperties::GetFloatCount	manual:render-properties.tsv	high	render-properties.md §2; descriptive name, no Mac match; slot 5
@@ -10686,7 +10693,7 @@ va	name	source	confidence	note
 008b6c80	cGZLua5Thread::IsValid	auto:C	high	mac 00469fd8 score 1.0 support 1
 008b6cf0	cGZLua5Thread::Destroy	auto:C	high	mac 00468d92 score 1.0 support 1
 008b6d70	cGZLua5Thread::Status	auto:B1	medium	mac 00468dda score 0.898 support 1.0
-008b6de0	cSC4PathView::SetThickness	auto:B3	low	mac 0051b202 score 0.938 support 2.0
+008b6de0	cSC4PathView::SetThickness	manual:overlay-views.tsv	high	overlay-views.md §1
 008b6df0	cGZLua5Thread::GetTop	auto:C	high	mac 00468e42 score 1.0 support 1
 008b6e30	cGZLua5Thread::SetTop	auto:C	high	mac 00468e54 score 1.0 support 1
 008b6e80	cGZLua5Thread::PushValue	auto:C	high	mac 00468e66 score 1.0 support 1
@@ -11396,7 +11403,7 @@ va	name	source	confidence	note
 008ea3b0	nSGLDX7::cGDriver::BitBltAlphaModulate	auto:C	high	mac 0041ed02 score 1.0 support 1
 008eae40	icf::nSGLDX7::cGDriver::StretchBltAlpha	folded	folded	2 names: nSGLDX7::cGDriver::StretchBltAlpha | nSGLDX7::cGDriver::StretchBltAlphaModulate
 008eba60	__gnu_cxx::hashtable<unsigned_long,unsigned_long,__gnu_cxx::hash<unsigned_long>,std::_Identity<unsigned_long>,std::equal_to<unsigned_long>,std::allocator<unsigned_long>>::~hashtable	auto:B0	medium	mac 006128d0 score 0.823 support 13.0
-008ebcd0	cSC4PathView::PathInfo::~PathInfo	auto:D	medium	mac 00825aae score 0.5 support 1
+008ebcd0	cSC4PathView::PathInfo::~PathInfo	manual:overlay-views.tsv	high	overlay-views.md §1
 008ebdf0	std::_List_base<cSC4PathView::PathInfo,std::allocator<cSC4PathView::PathInfo>>::_M_clear	auto:B0	medium	mac 00825af0 score 1.0 support 1.0
 008f673e	cGZWWWCOMDirector::cGZWWWCOMDirector	auto:B0	medium	mac 0070fa52 score 0.911 support 1.0
 008f6776	cGZWWWCOMDirector::GetDirectorID	auto:A	low	mac 0070fa48 score 1.0 support 0
