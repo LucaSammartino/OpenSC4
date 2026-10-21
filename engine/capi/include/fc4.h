@@ -12082,6 +12082,75 @@ int32_t fc4_span1555_blt(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32
                          int32_t stride, const uint8_t* src, uint32_t src_len, int64_t src_base, const uint32_t* rec,
                          const uint32_t* blit, uint32_t kind);
 
+/* ---- layer-only disaster layer (disasters.md §2.2-§2.8; engine/capi/src/disaster_layer.rs;
+ * glue-disasters-impl4). `enable = disasters` replaces only cSC4DisasterLayer: the native
+ * managers stay the game's (§2.8 DS44), this state holds none. Instances and occupants are
+ * opaque host tokens. Additive; no FC4_ABI_VERSION bump. */
+typedef struct fc4_dlayer fc4_dlayer;
+typedef struct fc4_dlayer_host {
+    uint32_t struct_size;
+    void* user;
+    uint64_t (*now_ms)(void* user);
+    void (*emergency_pause)(void* user);
+    void (*emergency_resume)(void* user);
+    void (*disable_save)(void* user);
+    void (*enable_save)(void* user);
+    void (*post_started)(void* user, uint32_t ongoing, int32_t x, int32_t z, uint64_t instance);
+    void (*post_ended)(void* user);
+    void (*subscribe)(void* user, bool on);
+    void (*add_ref)(void* user, uint64_t occupant);
+    void (*release)(void* user, uint64_t occupant);
+    bool (*follow_disasters)(void* user);
+    void (*go_to)(void* user, int32_t x, int32_t z, uint32_t zoom);
+    bool (*occupant_in_manager)(void* user, uint64_t occupant);
+    bool (*occupant_cell)(void* user, uint64_t occupant, int32_t* x, int32_t* z);
+    bool (*instance_location)(void* user, uint64_t instance, int32_t* x, int32_t* z);
+    bool (*dispatch_counts)(void* user, uint32_t* fire, uint32_t* police);
+} fc4_dlayer_host;
+typedef struct fc4_dlayer_record {
+    uint32_t building_count;
+    uint32_t special_count;
+    int64_t total_cost;
+    uint32_t kind_count[4];
+    int64_t kind_cost[4];
+    float fire_effectiveness;
+    float police_effectiveness;
+} fc4_dlayer_record;
+typedef struct fc4_dlayer_location {
+    uint64_t instance;
+    uint64_t occupant;
+    int32_t x, z;
+    uint32_t zoom;
+    uint32_t reserved;
+} fc4_dlayer_location;
+#define FC4_DLAYER_OCC_OTHER 0u
+#define FC4_DLAYER_OCC_BUILDING 1u
+#define FC4_DLAYER_OCC_NETWORK 2u
+fc4_dlayer* fc4_dlayer_create(const fc4_dlayer_host* host);
+void fc4_dlayer_destroy(fc4_dlayer* d);
+bool fc4_dlayer_init(fc4_dlayer* d);
+bool fc4_dlayer_initialised(fc4_dlayer* d);
+bool fc4_dlayer_shutdown(fc4_dlayer* d);
+bool fc4_dlayer_enable(fc4_dlayer* d, bool enable);
+bool fc4_dlayer_enabled(fc4_dlayer* d);
+bool fc4_dlayer_begun(fc4_dlayer* d, uint64_t instance);
+bool fc4_dlayer_ended(fc4_dlayer* d);
+uint32_t fc4_dlayer_ongoing(fc4_dlayer* d);
+bool fc4_dlayer_occupant_removed(fc4_dlayer* d, uint32_t kind, bool has_cost, int64_t cost, uint32_t flags);
+bool fc4_dlayer_dispatch(fc4_dlayer* d, uint32_t msg, int32_t dispatch_type, uint32_t id);
+bool fc4_dlayer_reset_cost(fc4_dlayer* d);
+bool fc4_dlayer_record(fc4_dlayer* d, fc4_dlayer_record* out);
+bool fc4_dlayer_register(fc4_dlayer* d, uint64_t instance, int32_t x, int32_t z, uint64_t occupant, uint32_t zoom,
+                         bool focus);
+bool fc4_dlayer_unregister(fc4_dlayer* d, uint64_t instance);
+bool fc4_dlayer_unregister_by_occupant(fc4_dlayer* d, uint64_t instance, uint64_t occupant);
+bool fc4_dlayer_most_recent(fc4_dlayer* d, uint64_t instance, int32_t* x, int32_t* z);
+int32_t fc4_dlayer_location_count(fc4_dlayer* d);
+bool fc4_dlayer_location_at(fc4_dlayer* d, int32_t index, fc4_dlayer_location* out);
+bool fc4_dlayer_go_to_next(fc4_dlayer* d);
+bool fc4_dlayer_assessing(fc4_dlayer* d);
+uint32_t fc4_dlayer_refused(fc4_dlayer* d);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
