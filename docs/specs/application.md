@@ -467,11 +467,88 @@ LoadCity(path, null regional city); on failure the generic notification dialog s
 ### 11.11 SaveCity(flag) (iface slot 16, `0x00454DA0`)
 
 No city open: false. Reads the city's file path (city slot +0x28); empty path: false; otherwise the
-result of SaveCity(path, flag) (iface slot 15, `0x00455E20`, 2611 bytes, open).
+result of SaveCity(path, flag) (iface slot 15, `0x00455E20`, section 11.16).
+
+Round 3 (2026-10-21), again from the instructions only (REA "No app is open"; decomp/ not used).
+"City blocks saving" below means a city is open and the city's slot +0x1A4 returns true (the same test
+as 11.3; its name is not known).
+
+### 11.12 RequestSaveCity(notify, flag) (iface slot 9, `0x00455AE0`)
+
+Scoped pause. Result starts false.
+1. No city open: return false.
+2. City blocks saving: show the generic notification dialog (group `0x6A231EAA`, instances
+   `0xAA666AFD` first argument, `0xCA666B15` second) and return false. No save is attempted.
+3. Read the city's file path (city slot +0x28). Empty path: return false, no dialog.
+4. result := SaveCity(path, flag) (iface slot 15). Read the path again and take its file-name part
+   (`cRZFile::GetPathName` with 1).
+5. Save succeeded: when notify is true, show the generic notification dialog with first argument
+   string `0x2A56CDA8` and second argument string `0x2A56CE36` followed by ` (` + file name + `)`.
+   When notify is false, no dialog.
+6. Save failed: always (whatever notify is) show the dialog with first argument `0x2A56CDA8` and
+   second argument string `0x4A56CE71` followed by ` (` + file name + `)`.
+7. Return result.
+
+Worked example: city file `C:\...\Regions\Timbuktu\City - New City.sc4`, notify true, save OK: the
+second string is the text of `0x2A56CE36` then ` (City - New City.sc4)` (assuming GetPathName(…, 1)
+yields name plus extension; the flag's exact meaning belongs to the file-utility spec).
+
+Callers seen: RequestCloseCity (11.2) passes (1, altDown); RequestGoToRegionView (11.3) and
+RequestQuit (11.13) pass (0, altDown), so leaving a city never shows the success dialog.
+
+### 11.13 RequestQuit(ask, saveWhenNotAsking) (iface slot 10, `0x004546B0`)
+
+Scoped pause. No direct callers (reached through the interface).
+1. City blocks saving (11.12): when ask is true, show the scripted modal dialog
+   (`0x4A89B3F2`, `0x2A96ED21`, the same pair as 11.3); result `0xEA57DA59` goes to Quit below,
+   anything else returns false. When ask is false go straight to Quit.
+2. Otherwise (no city, or the city does not block saving):
+   - ask true: scripted modal dialog (`0x0A55161D`, `0xAA921F4F`). Result `0x8A921F5B`: Save-and-quit.
+     Result `0x8A921F65`: Quit. Anything else: return false.
+   - ask false: saveWhenNotAsking true: Save-and-quit; false: Quit.
+3. Save-and-quit: pump both servers (11 intro), read the Alt key (virtual key `0x12`), call
+   RequestSaveCity(0, altDown) and ignore its result, then Quit. With no city open, RequestSaveCity
+   simply returns false.
+4. Quit: build a standard message of type `0x29A89B05` (UnilateralQuit) and hand it to message
+   server 2 (global `0x00B43CCC`) slot +0x1C with the app's message-target face (object +0x04) as the
+   target. Slot +0x1C (`0x0092EA00`) appends the (message, target) pair to the server's queue under its
+   lock, so the quit is delivered later by the pump to the app's v2 target (section 6.2 -> Quit,
+   section 5.2), not inside this call. Release the message, return true.
+
+### 11.14 RequestQuitFromRegion(ask) (iface slot 11, `0x00454800`)
+
+No direct callers. When ask is true: scoped pause around the scripted modal dialog
+(`0x4A551B4C`, `0xAA921F4F`); result `0x8A921F70` returns false (cancel); any other result continues.
+When ask is false there is no dialog. Then it queues UnilateralQuit exactly as 11.13 step 4 and returns
+true. There is no save step (a region view has no open city to save).
+
+### 11.15 Load-height-field dialog (`0x00455060`, export name `cSC4App::DoMessage`) and its window handler
+
+The export name is misleading: `0x00455060` takes one string out-parameter and returns a bool; it is
+the terrain import file picker.
+1. Open an INI file object. When the global app (`0x00B43C94`) exists, its path is
+   GetAppIniFilePath (iface slot 29, +0x74); read section `Settings`, key
+   `Terrain Load/Save Location` (default empty) as the starting folder.
+2. Create a `cSC4WinLoadHeightField` window (0xF0 bytes), set window flags `0x10000` and `0x100`
+   (window slot +0x110 with (flag, 1) each), set its initial directory to the INI value.
+3. When the window manager (`RZ::WM`) has a root window, centre the dialog in it:
+   x = (root width - dialog width) / 2, y = (root height - dialog height) / 2 (signed, truncating).
+4. Register it with the global at `0x00B43CE0` (slot +0x28 with (dialog, 1)) and run it modally
+   (window manager slot +0xA4).
+5. Non-zero modal result: write the dialog's current directory back to the same INI key; then, if the
+   dialog has a selection, copy the selected path into the out string and the result becomes true.
+6. Unregister (`0x00B43CE0` slot +0x18), release the dialog and the INI object; return the result.
+
+Its only caller is the +0x08 face's slot +0x0C (`0x004559E0`, partial AP4 evidence). That handler
+returns false unless the source window's slot +0xFC returns `0x27DF05BE` and the message words are
+(3, `0x287259F6`, code). Code `0x20`: window manager slot +0x24 with (`0xF`, window, `0x20`), return
+true. Code `0x30`: run the dialog above; on true copy the chosen path into the global app's
+GetNewCitySpecification (iface slot 39, +0x3B4), keeping at most the first 511 characters (a longer path
+is truncated by dropping its tail), return true. Any other code: return true. Meaning: the new-city
+terrain button sends 0x30 to pick a height-field image for the next NewCity.
 
 ## 12. Open (not specified here)
 
-SaveCity(path, flag) `0x00455E20`, RequestSaveCity `0x00455AE0`, RequestQuit `0x004546B0`,
-RequestQuitFromRegion `0x00454800`, the `0x00455060` DoMessage, SetupWinCtrlMgr, SetupFontSet, SetupResources, AddCodePlugins,
+SetupWinCtrlMgr, SetupFontSet, SetupResources, AddCodePlugins,
 AddDynamicLibrary*, ReadPreferences/SavePreferences/DoPreferencesChanged bodies, the DB segment
 callbacks, LoadRegistry. Questions: docs/specs/questions/application.md (AP1 to AP5).

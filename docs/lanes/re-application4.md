@@ -2,6 +2,12 @@
 |---|---|---|---|
 | re-application4: application framework spec, cSC4App lifecycle/services/messages/city path | `re-application4` / (RE spec lane) | ready (round 2): docs/specs/application.md sections 7.1, 8, 11 extended; AP2 answered, AP1 narrowed; partial owner spec (~52 of 322 cSC4App functions); no ABI, no game runs | 1. next RE round: SaveCity(path) 0x00455E20, RequestSaveCity 0x00455AE0, RequestQuit 0x004546B0, RequestQuitFromRegion 0x00454800, DoMessage 0x00455060. 2. AP1 remainder (ExceptionHandling, l, UserDir, CPUPriority, AutoZoomChange) |
 
+## Handoff (round 3, 2026-10-21)
+Goal: final round: SaveCity(path,flag) 0x00455E20, RequestSaveCity, RequestQuit, RequestQuitFromRegion, DoMessage; AP1 remainder.
+Done: round 3 commit 1 = sections 11.12-11.15 (RequestSaveCity, RequestQuit, RequestQuitFromRegion, 0x00455060 is the
+load-height-field dialog, not a message handler). REA still "No app is open"; all from re_query asm.
+Next: section 11.16 SaveCity(path,flag) from build-runs/a-save.txt (770 lines); then AP1 options in ReadCommandLine 0x0044EED0.
+
 ## Report (round 2, 2026-10-21)
 
 What changed (docs/specs/application.md):
