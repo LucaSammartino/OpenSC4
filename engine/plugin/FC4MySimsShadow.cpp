@@ -429,6 +429,8 @@ int32_t HStartYear(void*) {
 }
 bool HIsAnyPaused(void*) {
     cFC4ISC4Simulator* sim = CitySim(AppCity());
+    // [abi-ret] slot 18 (interfaces.tsv eax-or-void): the value only feeds
+    // the shadow core's paused branch; the compare treats it as a bool.
     return sim ? sim->IsAnyPaused() : false;
 }
 uint32_t HNowMs(void*) { return 0; }
@@ -503,7 +505,9 @@ size_t MDisasterLocations(void*, fc4_mysim_disaster_location* out, size_t cap) {
     for (int32_t i = 0; i < n; ++i) {
         cISC4DisasterInstance* inst = nullptr;
         int x = 0, y = 0;
-        if (!l->GetDisasterLocationByIndex(i, &inst, x, y)) continue;  // slot 17
+        // [abi-ret] slot 17 (interfaces.tsv eax-or-void): only whether a
+        // location was returned; the shadow counts what came back.
+        if (!l->GetDisasterLocationByIndex(i, &inst, x, y)) continue;
         if (out != nullptr && w < cap) {
             out[w].disaster_type = inst ? inst->GetID() : 0;  // GetID = the manager type (disasters.md §1)
             out[w].x = x;
@@ -524,6 +528,8 @@ bool MBuilding(void*, uint64_t t, fc4_mysim_building* out) {
     const SC4Percentage* p = b->GetCompletionPercent();  // slot 9 (pointer)
     out->completion = p ? p->percentage : 0.0f;
     cS3DVector3 pos{};
+    // [abi-ret] occupant slot 8 (interfaces.tsv eax-or-void): only the
+    // presence bit is read; the coordinates come from the out struct.
     if (occ->GetPosition(&pos)) { out->position[0] = pos.fX; out->position[1] = pos.fY; out->position[2] = pos.fZ; }
     else { out->position[0] = out->position[1] = out->position[2] = 0.0f; }
     if (cIGZString* name = b->GetBuildingName()) {
@@ -570,7 +576,9 @@ bool MOccupantPosition(void*, uint64_t t, float* out) {
     cISC4Occupant* occ = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(t));
     if (occ == nullptr || out == nullptr) return false;
     cS3DVector3 p{};
-    if (!occ->GetPosition(&p)) return false;  // slot 8
+    // [abi-ret] occupant slot 8 (interfaces.tsv eax-or-void): only the
+    // presence bit feeds the callback's Option.
+    if (!occ->GetPosition(&p)) return false;
     out[0] = p.fX; out[1] = p.fY; out[2] = p.fZ;
     return true;
 }
@@ -768,6 +776,8 @@ bool MGridAt(void*, uint32_t grid, uint32_t arg, float x, float z, int32_t* out)
         if (res == nullptr) return false;
         cISC4SimGrid<float>* g = nullptr;
         float mn = 0, mx = 0;
+        // [abi-ret] residential slots 21/22 (interfaces.tsv eax-or-void):
+        // only success feeds the Option; the grid travels via the out param.
         const bool ok = grid == FC4_MYSIM_GRID_AVERAGE_EQ ? res->GetAverageEQGrid(g, &mn, &mx)
                                                           : res->GetAverageHQGrid(g, &mn, &mx);
         if (!ok || g == nullptr) return false;
@@ -806,7 +816,8 @@ int32_t MWatered(void*, uint64_t t) {
     cISC4PlumbingSimulator* s = city ? city->GetPlumbingSimulator() : nullptr;
     if (s == nullptr) return -1;
     cISC4Occupant* occ = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(t));
-    return s->IsBuildingWatered(occ) ? 1 : 0;  // slot 9
+    // [abi-ret] plumbing slot 9 (interfaces.tsv via-call): read as bool.
+    return s->IsBuildingWatered(occ) ? 1 : 0;
 }
 
 // Police slot 21 (SC4List) / fire slot 22 (ilist): the same node layout; the
@@ -825,6 +836,8 @@ int64_t MStations(void*, bool police, fc4_mysim_station* out, size_t cap) {
         for (cISC4Occupant* st : list) {
             SC4Percentage pct{0.0f};
             int32_t cost = 0;
+            // [abi-ret] police slot 7 (interfaces.tsv eax-or-void): the
+            // funding value comes from the out param; the bool only gates.
             if (s->GetStationFunding(st, cost, pct)) {
                 if (out != nullptr && static_cast<size_t>(n) < cap) {
                     out[n].station = TokenOf(st);
@@ -841,6 +854,8 @@ int64_t MStations(void*, bool police, fc4_mysim_station* out, size_t cap) {
         for (cISC4Occupant* st : flist) {
             SC4Percentage pct{0.0f};
             int32_t cost = 0;
+            // [abi-ret] fire slot 8 (interfaces.tsv eax-or-void): the
+            // funding value comes from the out param; the bool only gates.
             if (s->GetStationFunding(st, cost, pct)) {
                 if (out != nullptr && static_cast<size_t>(n) < cap) {
                     out[n].station = TokenOf(st);
@@ -1510,7 +1525,9 @@ int CompareAgent(char (&date)[16], uint32_t& sims) {
     // caller (allocated with the framework allocator A).
     // A local SC4Vector of trivially-destructible pointers (FC4GameContainers).
     SC4Vector<cISC4MySim*> vec;
-    if (agent->GetActiveMySims(vec)) {  // slot 5
+    // [abi-ret] agent slot 5 (interfaces.tsv eax-or-void): the ids come
+    // from the vector; the bool only says any active sim exists.
+    if (agent->GetActiveMySims(vec)) {
         std::vector<int32_t> ids;
         for (cISC4MySim* s : vec) {
             ++sims;
