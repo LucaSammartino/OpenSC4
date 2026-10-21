@@ -7,5 +7,5 @@
   answer AP1 (ReadCommandLine 0x0044EED0 per-option effects) and AP2 (OnIdle 0x00449C70 300 ms gate/tail).
 - Done round 1: spec bf01cf8c, report 0b7971c7 (partial: ~35 of 322 cSC4App functions; sections 1-11).
 - Round 2: section 11.1-11.6 (acdec563), 11.7-11.11 NewCity/LoadCity/Read/RequestLoadCity/SaveCity(flag).
-- Next: RequestSaveCity 0x00455AE0, RequestQuit 0x004546B0, RequestQuitFromRegion 0x00454800, DoMessage 0x00455060; then AP2 OnIdle 0x00449C70, AP1 ReadCommandLine. SaveCity 0x00455E20 (2611 B) likely left open. Tool: build-runs/asmf.py ADDR.
+- Next: AP1 ReadCommandLine 0x0044EED0 (3986 B, per-option effects), RequestSaveCity 0x00455AE0, RequestQuit 0x004546B0. AP2 answered (7.1). Tool: build-runs/asmf.py ADDR, build-runs/mvq.py ID verdict.
 - Facts: REA may be unavailable; export asm is primary evidence. Round 1 report text is in git 0b7971c7.

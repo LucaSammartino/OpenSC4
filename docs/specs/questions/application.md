@@ -6,9 +6,6 @@
   and with which value? Section 8 lists only the option names and value words; the per-option effects
   (for example `f`/`w` full-screen versus windowed, `d` driver, `CPUCount`, `UserDir`) need a full read of the
   3986-byte body.
-- **AP2 - section 7.1:** in `OnIdle` (`0x00449C70`), what does the 300 ms gate (+0x390 against `0x12C`) do on
-  the path that sets the idle value to 60, and what does the tail that tests the paused byte +0x5D1 do? Are
-  the idle message data and the set-back exactly as section 7.1 states?
 - **AP3 - sections 2 and 9:** the export names for cISC4App slots +0xC8 (`GetCDAppDirectory`, which returns a
   byte), +0xE4, +0xE8 (`GetRegionsDirectory`) and +0xF0 do not match their use. Which slot returns which
   folder (user base, regions), and what is the byte at +0x668?

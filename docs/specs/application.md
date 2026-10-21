@@ -219,12 +219,27 @@ spec passes false (synchronous).
 
 ### 7.1 OnIdle (`0x00449C70`)
 
-Runs at most once per second (gate timer +0x360, strictly more than 1000 ms). Then: when the input
-idle time (+0x378) exceeds the threshold +0x3A8, the idle timer is set back by +0x3AC and
-`kMessageGameInIdleState` is posted with the idle time; when the autosave timer +0x320 exceeds +0x338
-it restarts and SavePreferences runs; when timer +0x340 exceeds +0x358 it restarts and the global
-manager at `0x00B43CA8` gets slot +0xAC. The 300 ms gate (+0x390) path and the tail that tests the
-paused flag are not fully traced (AP2).
+Runs on the `+0x0C` face; always returns false. Steps (traced in full in round 2, answers AP2):
+1. Gate: when timer +0x360 shows 1000 ms or less, skip to step 5. Otherwise restart it.
+2. Idle check. Let `t300` = elapsed time of timer +0x390.
+   - `t300 >= 300`: restart the input-idle timer +0x378 and use the value 60; go to step 3.
+   - `t300 < 300`: let `idle` = elapsed of +0x378. When `idle` > threshold +0x3A8, set the input-idle
+     timer's elapsed time to `threshold - (+0x3AC)` (not "subtract"; it is set to that value) and use
+     the value `idle`; go to step 3. Otherwise go to step 4 without a message.
+3. Restart +0x390. When message server 2 (`0x00B43CCC`) exists, queue GameInIdleState
+   (`0xBA44EB51`) with the value as its first data word.
+4. Autosave timer +0x320 above +0x338: restart it, SavePreferences (iface slot 17). Timer +0x340
+   above +0x358: restart it, resource manager (`0x00B43CA8`) slot +0xAC when present.
+5. Tail, on every call (also when the gate skipped): when the app-paused byte +0x5D1 is set, sleep the
+   current thread with argument 250000 (`0x3D090`; the unit of `cRZThread::SleepCurrentThread` is
+   not checked here).
+
+Consequence (worked): +0x390 is touched only by the constructor (start), the destructor and step 3
+(scan of all faces' offsets in 0x00448000-0x00459FFF). Since step 1 lets a pass through at most once
+per 1000 ms and step 3 restarts +0x390 on every message, `t300` is always at least 1000 on a pass, so
+the original takes the first branch every time: each pass restarts the input-idle timer and queues
+GameInIdleState with 60, about once per second; the threshold branch (+0x3A8/+0x3AC) is effectively
+unreachable. A clone that keeps the 300 ms branch gets the same observable rate.
 
 ### 7.2 Focus pause
 
