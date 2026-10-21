@@ -134,7 +134,10 @@ bool ReadRuleResource(cIGZPersistResourceManager* rm, uint32_t type, uint32_t gr
     out.clear();
     cGZPersistResourceKey key(type, group, instance);
     cIGZPersistDBRecord* rec = nullptr;
-    if (!rm->OpenDBRecord(key, &rec, false) || rec == nullptr) return false;
+    // [abi-ret] slot 37 OpenDBRecord: row says eax-or-void, so its bool is not
+    // trusted; the out-pointer alone decides whether a record was opened.
+    (void)rm->OpenDBRecord(key, &rec, false);
+    if (rec == nullptr) return false;
     const uint32_t size = rec->GetSize();
     out.resize(size);
     const bool ok = size == 0 || rec->GetFieldVoid(out.data(), size);
