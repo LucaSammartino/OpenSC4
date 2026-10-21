@@ -162,7 +162,50 @@ meaning is measured so far:
 
 ### 5.1 Lifecycle, area and wheel
 
-(round 1: pending detail beyond §2; see §A)
+- **Constructor(flags)** 0x009ABC95: builds the embedded `cGZWin`, then every field of §2; the three sparse
+  matrices at +0x19C, +0x1C0 and +0x1E4, the maps at +0x22C, +0x250, +0x25C, +0x2A8, +0x2B4 and the selection
+  list +0x194 start empty.
+- **Init()** 0x009AF121 always returns true. Only when the embedded window is not yet initialised: run
+  `cGZWin::Init`, store at +0xE0 the language manager's slot-7 value (1 when there is no language manager),
+  then SetDefaultFormatting 0x009A5CEE and RecalculateAll 0x009AEE63 (both pending). A second Init is a no-op.
+- **Shutdown()** 0x009ABED4: DisposeOfAllCellData (pending), then Release and null each of +0x164, +0x168,
+  +0x208, +0x2C0, +0x26C, +0x270, +0x274, +0x278 that is non-null (in that order), then `cGZWin::Shutdown`.
+- **Release()** 0x009A7650: the reference count is the window's (grid +0x10). Above 1 it is decremented and the
+  new count returned; at 1 or below FinalRelease 0x009A5CD7 runs and 0 is returned. FinalRelease calls Shutdown
+  (slot 4) and then the deleting destructor (window-view slot 148, argument 1).
+- **Destructor** 0x009AC24D / body 0x009ABF83: restores both vptrs, calls Shutdown again (harmless: everything
+  is already null), destroys the heading maps, the extra-data maps, the +0x22C map, the three matrices, the
+  selection list and the +0x170 object, then `~cGZWin`; frees the memory when bit 0 of the argument is set.
+- **SetArea(l, t, r, b)** 0x009A619F (window view): `cGZWin::SetArea`, then, only if the window is initialised,
+  recompute grid area and cell area and cache their sizes: +0x118 = grid width, +0x11C = grid height, +0x120 =
+  cell width, +0x124 = cell height; mark dirty and recalculate.
+- **GetGridArea(&rect)** 0x009A76DA: rect = (left gutter, top gutter, window width - right gutter, window
+  height - bottom gutter), using gutters +0xF0, +0xF4, +0xF8, +0xFC; returns true.
+- **GetCellArea(&rect)** 0x009A7734: the grid area, then top += +0x110 when flag 0x8 (column headers shown),
+  left += +0x114 when flag 0x10 (row headers shown), right -= the vertical scroll bar's width when +0x26C exists,
+  bottom -= the horizontal scroll bar's height when +0x270 exists. So +0x110 is the column-header height
+  (default 20) and +0x114 the row-header width (default 80); this answers half of WG2.
+- **SetFlag(flag, on)** 0x009A6224 (window view): for flag 2 (window visibility) the same SetFlag(2, on) is
+  first forwarded to both scroll bars when present; then `cGZWin::SetFlag`.
+- **SetFlags(newFlags)** 0x009A81BE (grid flag word): equal to the current word: nothing. Otherwise store it;
+  if bit 0x2 or 0x4 changed, call RemoveScrollBar(!(new & 0x4), !(new & 0x2)) 0x009A7178, mark dirty and
+  recalculate; if bit 0x40000 (drop-down) changed, take mouse capture when it became set and the window is not
+  already capturing, or release capture when it became clear and the window is capturing. The return register
+  is not set (callers must not use it). So 0x2 / 0x4 are the scroll-bar enable bits.
+- **DoMessage(msg)** 0x009A7665 (window view): for a type-3 message with id 0x887113A3 (scroll-bar position
+  change) from a scroll bar: sub-id 0x1A7C4511 with a vertical bar (+0x26C) present reads the bar's value
+  (slot 6) into +0x12C; sub-id 0x1A7C4510 with the horizontal bar (+0x270) reads it into +0x128. If the value
+  changed, set the recalc request byte (+0xE4... see note) and recalculate. Every message, handled or not, then
+  goes to `cGZWin::DoMessage`. So +0x128 / +0x12C are the horizontal / vertical scroll positions.
+  Note: the store is to grid +0xE4 (decomp `this+0xE0` in the window view), the same layout-dirty byte.
+- **GZOnMouseWheel(…, delta)** 0x009A5F7D: ScrollCellsVertically(delta / -100) (signed division, truncating
+  toward zero; wheel up = negative = scroll up), returns true.
+- **Scroll by step** 0x009A5F23 (up?) / 0x009A5F48: ScrollCellsVertically / ScrollCellsHorizontally by the
+  float step +0x134 / +0x130 (default 1.0) converted with truncation, negated when the argument is true.
+- **GZOnSetFocus** 0x009A7E0C / **GZOnKillFocus** 0x009A7E2F: when grid flag bit 0x1 is set, recalculate
+  (0x009A5FAA) first. SetFocus then runs `cGZWin::GZOnSetFocus`; KillFocus returns false directly (the shared
+  stub 0x0093878E).
+- **GZOnCharacter** 0x009A5F1E: returns false (same stub); the grid ignores character input.
 
 ### 5.2 Fonts, colours, gutters and outline
 
@@ -291,17 +334,17 @@ See `questions/win-grid.md`.
 | 009a5c4a | 37 | FUN_009a5c4a | 5.7 |
 | 009a5c9f | 22 | FUN_009a5c9f | 5.7 |
 | 009a5cb5 | 34 | QueryInterface | 1 |
-| 009a5cd7 | 23 | FinalRelease | pending |
+| 009a5cd7 | 23 | FinalRelease | 5.1 |
 | 009a5cee | 560 | SetDefaultFormatting | pending |
-| 009a5f1e | 5 | GZOnCharacter | pending |
-| 009a5f23 | 37 | FUN_009a5f23 | pending |
-| 009a5f48 | 40 | FUN_009a5f48 | pending |
+| 009a5f1e | 5 | GZOnCharacter | 5.1 |
+| 009a5f23 | 37 | FUN_009a5f23 | 5.1 |
+| 009a5f48 | 40 | FUN_009a5f48 | 5.1 |
 | 009a5f70 | 13 | MakeDropDown [slot 139] | 5.6 |
-| 009a5f7d | 28 | GZOnMouseWheel | pending |
+| 009a5f7d | 28 | GZOnMouseWheel | 5.1 |
 | 009a5fe3 | 216 | FUN_009a5fe3 | pending |
 | 009a60bb | 228 | FUN_009a60bb | pending |
-| 009a619f | 133 | SetArea | pending |
-| 009a6224 | 96 | SetFlag | pending |
+| 009a619f | 133 | SetArea | 5.1 |
+| 009a6224 | 96 | SetFlag | 5.1 |
 | 009a62cf | 33 | FUN_009a62cf | pending |
 | 009a62f0 | 67 | SetDefaultFont [slot 15] | 5.2 |
 | 009a6333 | 7 | GetDefaultFont [slot 16] | 5.2 |
@@ -345,18 +388,18 @@ See `questions/win-grid.md`.
 | 009a75cf | 65 | FUN_009a75cf | pending |
 | 009a7610 | 22 | FUN_009a7610 | pending |
 | 009a7626 | 42 | FUN_009a7626 | pending |
-| 009a7650 | 21 | Release | pending |
-| 009a7665 | 117 | DoMessage | pending |
-| 009a76da | 90 | GetGridArea [slot 8] | pending |
-| 009a7734 | 185 | GetCellArea [slot 9] | pending |
+| 009a7650 | 21 | Release | 5.1 |
+| 009a7665 | 117 | DoMessage | 5.1 |
+| 009a76da | 90 | GetGridArea [slot 8] | 5.1 |
+| 009a7734 | 185 | GetCellArea [slot 9] | 5.1 |
 | 009a77ed | 57 | GZOnKeyUp | pending |
 | 009a7826 | 448 | GZOnMouseUpL | pending |
 | 009a79e6 | 643 | GZOnMouseMove | pending |
 | 009a7c69 | 419 | DoCursorHitTest [slot 110] | pending |
-| 009a7e0c | 35 | GZOnSetFocus | pending |
-| 009a7e2f | 35 | GZOnKillFocus | pending |
+| 009a7e0c | 35 | GZOnSetFocus | 5.1 |
+| 009a7e2f | 35 | GZOnKillFocus | 5.1 |
 | 009a7e52 | 876 | FUN_009a7e52 | pending |
-| 009a81be | 144 | SetFlags | pending |
+| 009a81be | 144 | SetFlags | 5.1 |
 | 009a824e | 120 | GZOnCharacter [slot 141] | pending |
 | 009a82c6 | 308 | TestForPossibleScrollBarAdditionOrRemoval | pending |
 | 009a8446 | 45 | FUN_009a8446 | pending |
@@ -431,11 +474,11 @@ See `questions/win-grid.md`.
 | 009ab9ab | 26 | FUN_009ab9ab | pending |
 | 009ab9c5 | 26 | FUN_009ab9c5 | pending |
 | 009abaef | 116 | DisposeOfAllCellData | pending |
-| 009abc95 | 567 | cGZWinGrid | pending |
+| 009abc95 | 567 | cGZWinGrid | 5.1 |
 | 009abecc | 8 | __ZThn4_N10cGZWinGridD0Ev | 5.7 |
-| 009abed4 | 175 | Shutdown | pending |
-| 009abf83 | 172 | FUN_009abf83 | pending |
-| 009ac24d | 28 | ~cGZWinGrid | pending |
+| 009abed4 | 175 | Shutdown | 5.1 |
+| 009abf83 | 172 | FUN_009abf83 | 5.1 |
+| 009ac24d | 28 | ~cGZWinGrid | 5.1 |
 | 009ac43b | 111 | SetColumnWidth [slot 65] | pending |
 | 009ac4aa | 111 | SetRowHeight [slot 67] | pending |
 | 009ac519 | 552 | SetCellFormat | pending |
@@ -474,8 +517,8 @@ See `questions/win-grid.md`.
 | 009aecb7 | 428 | SetCellWindow [slot 116] | pending |
 | 009aee63 | 659 | RecalculateAll | pending |
 | 009af0f6 | 43 | GetRowHeight | 5.4 |
-| 009af121 | 71 | Init | pending |
+| 009af121 | 71 | Init | 5.1 |
 | 009af168 | 2813 | GZPaint | pending |
 
-Specified 53 of 198 functions, 1788 of 32735 bytes; remaining 145 functions, 30947 bytes.
+Specified 72 of 198 functions, 3790 of 32735 bytes; remaining 126 functions, 28945 bytes.
 <!-- END INVENTORY -->
