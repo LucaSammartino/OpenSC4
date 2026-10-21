@@ -284,9 +284,103 @@ user base folder (AP3).
 - Init's two failure returns are distinct: registry failure is silent, driver failure saves preferences
   and warns.
 
-## 11. Open (not specified here)
+## 11. City lifecycle (request, close, region view, obliteration)
 
-RequestNewCity/LoadCity/CloseCity/SaveCity/RequestSaveCity/DoCityObliteration (`0x00454370` to
-`0x00456910`, about 9 KB), SetupWinCtrlMgr, SetupFontSet, SetupResources, AddCodePlugins,
+Round 2 (2026-10-21), from the instructions only (REA unavailable, decomp/ fails on these bodies).
+The `cISC4App` methods run on the `+0x0C` face; the offsets below are object offsets.
+
+Fields used here: `+0x50` window owner (`cWinSC4App`), `+0x58` regional-city holder (a pointer to a
+reference slot whose first word is the current `cISC4RegionalCity`, or null), `+0x5C` current city
+(`cISC4City`, null when no city is open), `+0x5B8` template DB segment for NewCity (set only during
+obliteration), `+0x654` the registered city DB segment.
+
+Shared helpers:
+- **Scoped pause.** Every request below that shows a dialog first creates a scoped `cSC4AutoGamePause`
+  (arguments 0, 1, 1, 1) and releases it on every return path.
+- **Pump.** "Pump both servers" means cISC4App slot 4 then slot 5, each with (100, 500, 5000).
+- **PostCityMessage(city, type, d1, d2, post)** (`0x00449AF0`): when message server 2 (global
+  `0x00B43CCC`) exists, builds a standard message of the given type whose data carries the city, d1 and
+  d2; post true queues it (server slot +0x10 with 0), post false sends it at once (slot +0x0C).
+
+### 11.1 RequestNewCity(regionalCity) (iface slot 6, `0x00454370`)
+
+If a city is open, RequestCloseCity(true) runs first; if a city is still open afterwards the request
+returns false. Otherwise the argument is stored as the regional city (+0x58) and the result is
+NewCity (primary slot 13).
+
+### 11.2 RequestCloseCity(ask) (iface slot 8, `0x00454C10`)
+
+1. No city open: return false.
+2. ask false: return CloseCity().
+3. ask true: show the generic confirmation dialog with the two strings (group `0x6A231EAA`, instances
+   `0x2A56CDA8` first argument, `0x2A56CD9B` second). "No": return CloseCity(). "Yes": read whether
+   the Alt key (virtual key `0x12`) is down now, call RequestSaveCity(1, altDown); when that returns
+   false, return false (the city stays open); otherwise return CloseCity().
+
+### 11.3 RequestGoToRegionView(ask) (iface slot 12, `0x004543B0`)
+
+When ask is true (scoped pause):
+- If a city is open and the city's slot +0x1A4 returns true, show the scripted modal dialog
+  (`0x4A89B3F2`, `0x2A96ED21`); result `0xEA57DA59` continues without saving, anything else returns
+  false.
+- Otherwise show the scripted modal dialog (`0x6A553AA4`, `0xAA921F4F`). Result `0x8A921F5B`: pump both
+  servers, then RequestSaveCity(0, altDown) (result ignored) and continue. Result `0x8A921F65`: continue
+  without saving. Anything else: return false.
+
+Continue (also the whole path when ask is false): the RZ::GS service's slot +0x44 is called twice,
+then CloseCity(); if no city is open afterwards the window owner gets `DestroyCurrentScreen` then
+`CreateRegionScreen`. Returns true, also when the city did not close.
+
+### 11.4 CloseCity() (iface slot 14, `0x00455330`) and PartialCloseCity (`0x00454A60`)
+
+PartialCloseCity (returns whether a city was open):
+1. If a city is open: `SC4GamePause(1, 0, 1, 1, 1)`; pump both servers; send PreCityShutdown
+   (`0x26D31EC2`, d1 = d2 = 0, sent at once); city slot +0x10 (shutdown); post PostCityShutdown
+   (`0x26D31EC3`, d1 = d2 = 0, queued); release the city and clear +0x5C; unregister the city segment
+   (below).
+2. In all cases, the resource manager (global `0x00B43CA8`) gets slot +0xAC when it exists.
+
+CloseCity returns false when PartialCloseCity found no city (after the same resource-manager call).
+Otherwise, when a regional city is set, it refreshes the region (GetRegion, iface slot 35):
+- the regional city's slot +0x7C string is read; empty: `Region.RemoveCity(holder)`;
+- non-empty: take `Region.GetAllCities` and, for each listed city whose tile rectangle overlaps or
+  touches the closed city's rectangle (inclusive on both edges, so edge and corner neighbours count),
+  reload it: the closed city's own entry with `ReloadCity(holder)`, any other with
+  `ReloadCity(GetCity(x, y))` at its position. Positions and sizes come from regional-city slots
+  +0x14 and +0x1C.
+
+Worked example: the closed city occupies x 4..8 (x = 4, size 4) and a neighbour starts at x = 8 with
+size 4: 8 lies in [4 - 4, 4 + 4], so it is reloaded; one starting at x = 9 is not.
+CloseCity then returns true (and calls the resource manager's slot +0xAC once more).
+
+### 11.5 City DB segment (`0x00454B20` register, `0x00454A10` unregister)
+
+Register(path): create a `cSC4DBSegment`, initialise it, set its path, open it for reading; on
+success keep it at +0x654 and add it to the resource manager (slot +0x70); on failure shut it down
+and release it. Unregister: when +0x654 is set, remove it from the resource manager (slot +0x74),
+shut it down, close it, release it and clear +0x654.
+
+### 11.6 DoCityObliteration (`0x00454E50`, on CityObliterationSceneEnded, section 6.2)
+
+Rebuilds the open city through a save and reload:
+1. Busy cursor (id 15) for the whole call. Get a temporary file name; when that succeeds,
+   SaveCityForObliteration(temp) writes the city into a new DB segment opened for writing (the city's
+   slot +0x1B4 does the writing). Its result is the function's return value.
+2. Remember the view zoom and rotation (`SC4ViewUtilities::GetZoomAndRotation`, global
+   `0x00B43DD8`, when present).
+3. Read the city's file path (city slot +0x28), call city slot +0x5C(0), PartialCloseCity, and delete
+   the city's file when the path is non-empty.
+4. Open the temp file as a read segment. On success: set it as the template segment (+0x5B8),
+   NewCity(); on the new city call slot +0x5C(0) and give it the old path (slot +0x2C); clear +0x5B8;
+   close the segment; when a city is open, SaveCity(path, 0) (iface slot 15) writes it back to the
+   original path.
+5. Restore zoom (3D view global `0x00B43DC4`, slot +0x20) and rotation (slot +0x38) when the view
+   exists; shut down and release the segment; delete the temp file.
+
+## 12. Open (not specified here)
+
+LoadCity, NewCity, RequestLoadCity, DoLoadCityUI, RequestSaveCity, both SaveCity bodies, RequestQuit,
+RequestQuitFromRegion, the `0x00455060` DoMessage, Read/Write (`0x00454620`/`0x004545D0`, not
+referenced from any table in the export), SetupWinCtrlMgr, SetupFontSet, SetupResources, AddCodePlugins,
 AddDynamicLibrary*, ReadPreferences/SavePreferences/DoPreferencesChanged bodies, the DB segment
 callbacks, LoadRegistry. Questions: docs/specs/questions/application.md (AP1 to AP5).
