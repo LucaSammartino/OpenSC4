@@ -1054,10 +1054,71 @@ usually returns no value.
 | Rewards | `reward_instance_count(id)` | civic status building count; if no status, the CityPlanning landmark count for `id` |
 | | `get_reward_building_state(id)` | 1 if no status, 2 if status bit 2; **otherwise returns its argument** *[quirk]* |
 | | `unlock_reward_building(guid)` | status := 2 (whole byte), `UpdateConditionalBuildingStatus` |
-| UI | `camera_jump`, `camera_zoom`, `tool_plop_*`, `tool_button`, `window_*`, `window_query` | UI only |
+| UI | `tool_plop_network`, `tool_plop_zone`, `tool_plop_building`, `tool_plop_flora`, `tool_button`, `window_budget`, `window_map`, `window_graph`, `window_query` | the 9 entries of the UI collector, §8.3.1 |
+| Camera | `camera_jump`, `camera_zoom` | simulation-collector entries (`0x40AF90`, `0x40B1F0`), not UI-collector ones; behaviour not yet specified (question AD6) |
 
 Globals: `_combine_guids(a, b)` = `a XOR b` as a signed int32 (−1 on bad arguments); `_dofile_from_resource(name)`
 (Lua host); `print(...)` (no output).
+
+#### 8.3.1 The UI collector's 9 entries *[compat]*
+
+The UI collector (`cLUAExtensionsCollectorUI` constructor `0x40CAB0`, run by the static initializer `0xA6FF30`, after
+the simulation collector `0x40B8D0` from `0xA6FF20`) appends 12-byte records `{const char* name, function,
+bool isGlobal}` to the **same** vector as the simulation collector (begin/end/capacity `0x00B207CC` / `0x00B207D0` /
+`0x00B207D4`; growth helper `0x626240`). All 9 UI records have `isGlobal = false`, so they go into `game`. In
+vector order:
+
+| # | Name | Function | Item / window ID | Reads `0x00B207C0` |
+|---|---|---|---|---|
+| 1 | `tool_plop_network` | `0x40C720` | `0x4A2B2467` | no |
+| 2 | `tool_plop_zone` | `0x40C740` | `0x4A2B2466` | no |
+| 3 | `tool_plop_building` | `0x40C760` | `0x6A2B245F` | no |
+| 4 | `tool_plop_flora` | `0x40C780` | `0xEA5AD08D` | no |
+| 5 | `tool_button` | `0x40C8B0` | (message `0x287259F6`) | yes: slot 20 |
+| 6 | `window_budget` | `0x40C870` | `0xEA5BDFBC` | yes: slot 20 |
+| 7 | `window_map` | `0x40C850` | `0x6A5BDFCD` | yes: slot 20 |
+| 8 | `window_graph` | `0x40C890` | `0x6A720993` | yes: slot 20 |
+| 9 | `window_query` | `0x40C9B0` | — | yes: slots 20 and 22 |
+
+**ABI.** Each of the 9 is a plain Lua 5.0 `lua_CFunction`: cdecl, one stack argument `lua_State*`, the caller pops,
+`int` in EAX, and every path returns **0** (no Lua results). Rows 1–4 call the shared helper `0x40C680` and rows 6–8
+the helper `0x40C7A0`; both helpers are non-standard (`lua_State*` in EAX, the ID as one cdecl stack argument) and
+are never registered themselves. None calls `lua_*` directly: each takes the host from the 4 bytes before the state,
+QIs it for `cISCLua` `0xEA10C4A2` without checking the result (lua-host.md §1.3), uses `cISCLua` slots only and
+releases the host before returning. "The 3D view" is the global `0x00B43DC4` (`cISC4View3DWin*`); each entry skips
+its action when it is null. A "message" below is 16 bytes on the stack, four dwords at `+0`, `+4`, `+8`, `+0xC`.
+
+- **`tool_plop_*(n)`** (`0x40C680`): if `GetTop() ≠ 0`, `Type(-1) = 3` (number) and the 3D view is set: build the
+  message `{3, 0x49D993D4, item ID, trunc(ToNumber(-1))}` (x87 `_ftol2`, toward zero) and pass it to
+  `view.AsIGZWin()` (view slot 3) → `cIGZWin` slot 3 `DoMessage(msg)` (ui-windows.md). The result is ignored.
+- **`window_budget` / `window_map` / `window_graph(n)`** (`0x40C7A0`): first, unconditionally, call the advisor
+  system's slot 20 `GetContextAdvice` on the pointer in `0x00B207C0` (no null test) and discard the result. Then, if
+  `GetTop() ≠ 0`, `Type(-1) = 3` and the 3D view is set: message `{window ID, trunc(ToNumber(-1)), 0, 0}` to
+  `view.AsIGZWin()` → `DoMessage`, result ignored.
+- **`tool_button(n)`** (`0x40C8B0`): the same discarded slot 20 call on `0x00B207C0`. Then only if `GetTop() = 1`
+  **exactly**, `Type(-1) = 3`, `n = trunc(ToNumber(-1)) ≠ 0` and the 3D view is set: message `{3, 0x287259F6, n, 0}`;
+  QI `view.AsIGZWin()` for `0xC6AE7085`; if that succeeds, call its slot 3 with (`view.AsIGZWin()` fetched again,
+  `&message`) (the shape of a win proc's `DoWinProcMessage(cIGZWin*, cGZMessage&)` *[inferred]*), ignore the result
+  and release the interface.
+- **`window_query(subject)`** (`0x40C9B0`): load the system pointer from `0x00B207C0`, call its slot 20 and discard
+  the result. Then require, in order: `GetTop() ≠ 0`; `Type(-1) = 7` (userdata); `ToUserData(-1)` non-null; the
+  system's slot 22 `GetDataTag(0)` equal to `Tag(-1)` (the subject tag, §8.1); `ToUserTag(-1)` (the subject) non-null;
+  the subject's slot 8 `GetObjectA()` non-null. Then call `GetObjectA()` again, QI that object for `0x26BB767E` into a
+  holder and, on success, call the static `cSC4ViewInputControlQuery::DoQueryDialog` `0x4D3C30` (cdecl, one
+  argument: the QI'd pointer) and release the holder. Any failed test returns 0 with no effect.
+
+**Under a replacement system.** Rows 1–4 do not touch the advisor system. Rows 5–8 need a valid
+`cISC4AdvisorSystem*` in `0x00B207C0` (a null crashes) but no result from it; row 9 also needs slot 22 to return the
+tag the subject userdata carries. No row reads a system, advisor or advice member directly. So a shim may register
+the original addresses with `register_api`'s `game` table only if it also keeps a `cISC4AdvisorSystem*` in
+`0x00B207C0` (§14.2) *[choice]*; or it may reimplement them through the public interfaces above with the same
+messages. Neither the null/no-op route nor dropping an entry is the original.
+
+**Other registrars.** The vector is read only by the system's `register_api` `0x418940` (`0x41894F`, `0x418957`,
+`0x4189EC`) and freed by the atexit destructor `0xA79940`; a byte scan of the executable for the three vector
+addresses finds no other code (2026-10-21). The name strings of the 9 UI entries and of `camera_jump` /
+`camera_zoom` are referenced only by their collector constructor. So nothing else (app, tutorial, MySim) registers
+any of these entries into a Lua context.
 
 ### 8.4 What reads the variables
 
@@ -1291,6 +1352,36 @@ The win proc itself reads the advisors only through the system's slot 7 (`GetAdv
 window only by running the original constructor and `Init` (a *[choice]* of the shim); with "no window" the View3D
 advisor panel stays empty and slot 27 reports false.
 
+**Direct-call ABI of the five bodies** *[compat]*. All are `thiscall` with **ECX = the block base** (the pointer
+the allocator returned, vtable `0x00A83548` at `+0`; the message-target sub-object at `+4`, vtable `0x00A83538`, is
+used only for message subscription), **no stack arguments**, plain `RET` (callee pops 0 bytes):
+
+| Address | Role | Return channel | Notes |
+|---|---|---|---|
+| `0x41DB50` | constructor | EAX = `this` | Writes the vtables, zeroes members `+0x08`..`+0x50` (refcount `+0x08` = **0**), sets `+0x10` and `+0x14` to −1, bytes `+0x54`..`+0x56` and `+0x58`, `+0x5C` to 0, and allocates two empty containers with the global allocator `0x90CF54`: a 12-byte self-linked list head at `+0x60` and a 0x18-byte empty tree header at `+0x64` (count `+0x68` = 0). Reads no global. |
+| `0x41E320` | `Init` | none (EAX holds a stale pointer; slot 24 tail-jumps here, so slot 24's EAX is that same garbage) | Reads `0x00B43DC8` (main window); its `SetupAllAdvisorWinProcs` reads the city (below). |
+| `0x41D650` | show (slot 25) | none | |
+| `0x41D710` | `HideWindow` (slot 26) | none | |
+| `0x41D830` | teardown (slot 28) | EAX = the result of its final `Release` (tail jump) | AddRef self first and Release self last, so the net count is unchanged. |
+
+(a) The constructor takes only `this`, leaves the count at 0, and slot 24's `AddRef` (shared `AddRef` `0x4BDF00`:
+`+0x08` += 1) makes it 1, owned by system `+0x5C`. `Release` `0x41D460` decrements while the count is > 1; at a count
+of 1 **or 0** it calls the deleting destructor (vtable slot 5, argument 1) and returns 0. So the owner must AddRef once
+after construction and Release once after teardown (slot 28 does: teardown, then null `+0x5C`, then a tail-called
+`Release`). (b) `+0x5C` holds the block base, and the same pointer goes in ECX for `Init`, show, hide and teardown.
+(c) Callers ignore every return value. The win proc keeps **no** reference to the system or the city: it reads
+`0x00B43CEC` (city) → `+0x144` → system slot 7 fresh on every use. It does keep, until teardown, an AddRef'd
+`cISC4Advisor*` at `+0x0C` (the advisor shown in the individual window, from slot 7 in `SetIndividualAdvisorWindow`
+`0x41F2D0`) and, in the `+0x60` list (`AddMessage` `0x41D9B0`, called from `DoMessage`), the advices taken from messages *[inferred: held]*; it subscribes its `+4` sub-object
+with the message server `0x00B43CCC` for `0x8A09FA67`, `0x8A09FA65`, `0x8A09FA64`, `0x426841A1` and `0xCA09FA6C`
+(registered from `DoWinProcMessage` `0x41F877` / `0x41F89D`). So a replacement must run slot 28's sequence before its
+advisors are destroyed and while the message server exists; teardown does not touch the `+0x60` list (the destructor `0x41DC00` does *[inferred]*).
+(d) Besides system slot 7, the win proc calls: advisor slots 6 `GetName`, 8 `GetPersonalName`, 10/11
+`GetCurrentAdvices` (iterating the map in the layout of §12.2); advice slots 6 `GetMood`, 11 `GetAdvisorID` (compared
+with the shown advisor ID `+0x10` in `DoMessage` `0x41FD10`), 14 `SetFlags(0x20, false)`, 15 `CheckFlags(2)` and
+`CheckFlags(0x20)`, 18 `GetTextTitle`, 20 `GetTextMessage`; and it QIs message objects for `cISC4Advice`
+`0x8A09F5F5`. It reads no system, advisor or advice member directly and never reads `0x00B207C0`.
+
 ### 12.2 `cISC4Advisor` (`cSC4Advisor` iface vtable `0x00A811B0`, 21 slots)
 
 | Slot | Off | Method | Pop | Return | Address |
@@ -1484,7 +1575,8 @@ through `GetCellValue` (simgrid §6.4 applies to the traffic simulator, not to t
   `cSC4RewardAdvice::GetTrigger`, `cSC4Advisor` (`Shutdown`, `GetHeadAnimID`, `load_heads`, `Init`), the advisor
   subclasses' `update_variables` / `update_occupant_variables` / `DoMessage` (city planning, finance, HQ, safety,
   traffic, utility), the Lua extension functions `0x409A50`..`0x40C9B0` (registered by
-  `cLUAExtensionsCollector::cLUAExtensionsCollector`) and the Lua callback `0x418B50` (registered by the system's
+  `cLUAExtensionsCollector::cLUAExtensionsCollector`, plus the UI collector's helpers `0x40C7A0`, `0x40C8B0`,
+  `0x40C9B0`, §8.3.1) and the Lua callback `0x418B50` (registered by the system's
   `Init`). **None** is in the advisor UI win procs, the popup tracker, the city-situation manager, MySim
   (`cSC4MySim`, the agent simulator, the MySim win proc), the tutorial, View3D or the HTML link handler: those reach
   the system only through `cISC4City` `+0x144` (§12.1.1, §12.2). Every read whose first use could be traced calls an

@@ -1,10 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-advisor-ui4: advisors AD4 (window route direct-call ABI) and AD5 (9 UI Lua entries) | `re-advisor-ui4` / (RE lane) | in progress | see Handoff |
+| re-advisor-ui4: advisors AD4 (window route direct-call ABI) and AD5 (9 UI Lua entries) | `re-advisor-ui4` / (RE lane) | ready, docs only, no ABI change; AD4 MATCHES, AD5 DIFFERS answered and archived; AD6 filed | 1. glue lane: use advisors.md §12.1.1 "Direct-call ABI" and §8.3.1 for the replacement's window route and UI Lua entries. 2. RE lane: answer AD6 (camera_jump / camera_zoom, 0x40AF90 / 0x40B1F0). |
 
-## Handoff
-- Goal: answer AD4/AD5 in docs/specs/questions/advisors.md from bytes; write rules into advisors.md §12.1.1 and §8.2/8.3; archive answers.
-- Done: lane file.
-- AD4 facts (asm): ctor 0x41DB50 thiscall, no stack args, RET (pop 0), EAX=this, refcount +8 = 0; slot 24 AddRefs -> 1; +0x5C = block base (vtable 0xA83548; +4 = msg-target sub-object vtable 0xA83538). Init/Show/Hide/teardown: thiscall ECX=block base, no args, RET; Init returns void (EAX junk), slot 24 tail-jumps to it. Teardown 0x41D830 AddRef self..Release self tail (EAX=Release result). Release 0x41D460: count<=1 -> deleting dtor slot 5(1), EAX 0. Win proc reaches system only via city 0x00B43CEC +0x144 -> slot 7; holds advisor ref +0x0C; subscribes via msg server 0x00B43CCC.
-- AD5 facts: UI collector 0x40CAB0 vector 0xB207CC..D4, 9 entries all isGlobal=0: tool_plop_network 0x40C720, _zone 0x40C740, _building 0x40C760, _flora 0x40C780 (helper 0x40C680), tool_button 0x40C8B0, window_budget 0x40C870, _map 0x40C850, _graph 0x40C890 (helper 0x40C7A0), window_query 0x40C9B0. camera_jump/zoom are in the SIM collector 0x40B8D0. Reads of 0xB207C0: 0x40C7A0, 0x40C8B0, 0x40C9B0. REA down (no app open): asm only.
-- Next: decode helper bodies 0x40C680/0x40C7A0/0x40C8B0/0x40C9B0, then write spec §8.3 + §12.1.1 and archive AD4/AD5.
+## Report
+
+**What changed (docs/specs only).**
+- advisors.md §12.1.1: new "Direct-call ABI of the five bodies" table and answers (a)-(d) for `0x41DB50`, `0x41E320`,
+  `0x41D650`, `0x41D710`, `0x41D830`: thiscall, ECX = block base (= system `+0x5C`), no stack args, RET 0; ctor returns
+  this, refcount 0; slot 24 AddRef makes 1; Release `0x41D460` deletes at count <= 1; Init/show/hide return nothing;
+  teardown returns its tail Release. The win proc holds no system/city ref (city `0x00B43CEC` +0x144 each use), holds
+  an advisor ref at `+0x0C`, advices in its `+0x60` list, and 5 message subscriptions (server `0x00B43CCC`). Full list of
+  advisor/advice slots it calls.
+- advisors.md §8.3: the UI row now names the real 9 entries; `camera_jump`/`camera_zoom` are simulation-collector
+  entries (correction). New §8.3.1: names, addresses, IDs, ABI (cdecl lua_CFunction, return 0), behaviour (messages to
+  the 3D view `0x00B43DC4` via AsIGZWin/DoMessage, tool_button via QI `0xC6AE7085` slot 3, window_query via subject ->
+  QI `0x26BB767E` -> DoQueryDialog `0x4D3C30`), which read `0x00B207C0` (rows 5-9: slot 20 result discarded; row 9 also
+  slot 22), and that only `register_api` `0x418940` reads the shared collector vector `0x00B207CC` (byte scan).
+- advisors.md §14.2: the global's reader list names the UI helpers.
+- questions: AD4, AD5 moved to answered/advisors.md; AD6 filed (camera entries); QUESTIONS.md regenerated.
+
+**Evidence.** re_query.py asm (export) and decomp/ only; REA returned "No app is open" (target unavailable), so no REA
+pseudocode was used. Byte scan script: build-runs/scan.py (not committed; build-runs is scratch).
+
+**Open.** AD6. The `+0x60` list holding advice references and its release by the destructor are marked *[inferred]*.
