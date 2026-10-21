@@ -31,9 +31,11 @@
 //! child is also on the active list (EF9).
 
 pub mod brush;
+pub mod dilation;
 pub mod directory;
 pub mod game;
 mod manager;
+pub mod particles;
 pub mod shipped;
 
 #[cfg(test)]
