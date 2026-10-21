@@ -92,6 +92,16 @@ Offsets in a `cGZFont`; names are ours.
 | +0x104 | monoCache | `CachedBitmapData` used when aaMode == 1 |
 | +0x130 | greyCache | `CachedBitmapData` for every other aaMode |
 
+**Constructor defaults** (FN11; the class factory `0x00895F4C` allocates the object and runs the constructor
+`0x00899AAB`): initialised false, refCount 0, both strings empty, faceKind 0, **pointSize 16, charHeight 16**,
+styleFlags 0, foreground and background colour 0, **aaMode 1** (monochrome), **+0x50 = 2**, **aaGamma 1.0,
+aaSharpness 0.0**, aaTable empty, scaleX = scaleY = 1.0, advanceScale 1.0, charSpacing 0, lineSpacing 0,
+codePage 0, surfaceLockCount 0, ascent 0, descentRaw 0, renderer null, the six scratch vectors and the map vector
+empty, **defaultChar 0x20** (space) with glyph index 0, draw records empty, current palette null, MRU list empty,
+both caches empty. A FreeType holder (0x34 bytes, `0x00897FED`: face null, source type 0 at +0x24, u16 load flags
+0x000A at +0x20, an empty name map at +0x28) is created and stored at +0xEC (null if the allocation fails).
+Note pointSize 16 is non-zero, so Init always calls SetSize(16) unless a size was set before.
+
 ## 3. Lifetime
 
 - **Create.** Through the director (class `0x1AA404AC`) or `cGZFontSys::FontAcquire` (§12).
@@ -206,6 +216,18 @@ B = face+0x6C, C = face+0x74 (16.16 fixed):
 - descentRaw = A / 65536, ascent = (A + B) / 65536, charHeight = (A − C + B) / 65536 (signed integer division),
   charHeight 0 becomes 1;
 - for font source types 2 and 3 (§12) charHeight += 1, and += 1 again if it is then > 28.
+  Both tests are unsigned: only a quotient of exactly 0 becomes 1 (a negative quotient is stored as is).
+
+**Source type of a font** (FN10). It is the holder's +0x24, set when the face is opened (Init → `0x00898CD9`),
+from the file **contents**, not from the file name and not from the catalogue. The probe (`0x008A1BD8`) tries in
+this order: an sfnt header (first 4 bytes 00 01 00 00, 00 02 00 00 or "OTTO") whose table directory has a `DSIG`
+table → source type **4**; an sfnt header with a `loca` (or `sloc`) table → **1**; a PostScript file starting
+with "%!" (`0x008A1B75`) → **2**; otherwise 0, and the face is not opened (Init fails). Source type 3 maps a probe
+result of 0x16 that only arises together with an error, so on an opened font it never occurs. Consequence: a
+signed TrueType file (has `DSIG`) gets type 4 here although `GetFontSourceTypeFromFileName` (§12) would call a
+`.ttf` type 1; only type 2/3 changes behaviour (this section and §7). On a successful open the holder's u16 load
+flags (+0x20, 0x000A from the constructor) gain 0x80 for types 1 and 4 and 0x01 for types 2/3; AddCharData (§7)
+passes these flags to every glyph load. Before Init the type is 0.
 
 Returns true iff the char-size call reported no error.
 
@@ -262,9 +284,41 @@ first absent probe returns false). The table, read from the switch at `0x00898A7
   `FT_Get_Char_Index` (0 on error). On index 0: source types 2/3 with ch ≥ 0x20 try the font's own map
   (`0x00898EB2`); failing that, the default-char glyph (+0xE8) is used when non-zero. The glyph is loaded at
   2 grey levels (aaMode 1) or 256 levels (otherwise). xOffset = horizontal bearing / 64, yOffset =
-  (A + B) / 65536 − vertical bearing / 64; advance = (linear or metric advance) / 65536 when advanceScale == 1.0,
-  with U+200B and U+FEFF forced to advance 0. A glyph that cannot be loaded gets an empty box of width
-  charHeight/2 drawn as a filled block (U+200B/U+FEFF: an empty box, advance 0).
+  (A + B) / 65536 − vertical bearing / 64 (each term divided separately, signed truncation).
+- **Advance** (FN7, `0x00899176`..`0x00899225`). The unscaled 16.16 advance `adv` is face+0x80 when the face has
+  the fixed-size flag (face+0x5C ≠ 0, the same flag that makes faceKind 2), else face+0xD0 (the loaded glyph's
+  16.16 advance). With s = advanceScale (float at +0x70):
+  - s == 1.0: advance = adv / 65536 (signed integer division, truncation toward 0);
+  - 0.98 < s < 1.0 and ch == U+0020: v = ftol(adv · s · 2^-16) (x87: integer adv loaded exactly, times the float s,
+    times the float constant 1/65536 at `0x00AC276C`, truncated toward 0); if v + 1 > adv / 65536 then v − 1,
+    else v. (A space that would round to the full unscaled width is shortened by one pixel.)
+  - any other s (including s ≤ 0.98, s > 1.0, and non-space characters in the 0.98..1.0 band): advance =
+    ftol(adv · s · 2^-16) as above.
+  - The result is stored as s16. U+200B and U+FEFF then get advance 0 (not in the space branch, which cannot
+    apply to them).
+  Example: adv = 0x00058000 (5.5 px), s = 0.99, ch = space: v = trunc(5.445) = 5; 5 + 1 > 5 → advance 4.
+  Same with ch = 'a': advance 5. s = 1.0: advance 5.
+- **Missing or unloadable glyph** (FN7, `0x008992BD`). Reached when the font has no holder or no open face, when
+  the glyph load (or the glyph-done call `0x0089E29E`) reports an error, or when the index is 0 and neither the
+  name map nor the default glyph supplies one. With h = charHeight (unsigned) and w = h >> 1: the record's source
+  rectangle is (penX, 0)-(penX + w, w), i.e. a **w × w square**; xOffset 0, yOffset 0 (the square sits at the
+  line top); advance = ftol(w · advanceScale) (integer w times the float scale, no 1/65536 factor). The raster is
+  a **hollow outline**: w × w bytes, 0xFF on the first and last row and column, 0x00 inside (`0x008962D7`),
+  passed with 256 levels. U+200B/U+FEFF instead get an empty raster (no pixels, 2 levels) and advance 0.
+  Example: charHeight 15, advanceScale 1.0 → a 7×7 outline, advance 7. Edge: when the glyph loads but the
+  glyph-done call reports an error, the loaded record is already in the map; the box raster is still
+  appended to the source bitmap, but the map insert is unique (`0x00897CB2`), so the box record is dropped and the
+  returned record is the loaded glyph.
+- **Name map** `0x00898EB2` (FN9), used for source types 2/3: for ch ≥ 0x80 it replaces `FT_Get_Char_Index`
+  entirely; for 0x20 ≤ ch < 0x80 it is tried when that index is 0. Steps: (1) the holder's own map (+0x28,
+  u16 character → glyph index) is consulted first; a hit returns the cached index. (2) On a miss, a process-wide
+  table character → PostScript glyph name is built once (`0x008988F1`) from 479 static {u16 code, name} pairs at
+  `0x00B150F0` (Adobe-glyph-list style: 0x20 "space", 0x21 "exclam", ...; codes 0x20..0xFB02; insert is unique so
+  the first of two duplicates wins: 0xB7 → "periodcentered", 0x3A5 → "Upsilon"). If ch has a name and the face
+  resolves that glyph name (`0x0089F4F3`) to a code whose `FT_Get_Char_Index` is non-zero, that index is cached in
+  the holder's map and returned. (3) Otherwise the name `uniXXXX` (four upper-case hex digits of ch & 0xFFFF,
+  `sprintf "uni%04X"`) is tried the same way and cached on success. (4) Else 0, and nothing is cached (the next
+  request repeats the search).
 - **CopyGlyphToSourceData** (slot 62, `0x00897748`) appends the raster at the cache's pen x. With underline or
   strike style it widens the cell to max(raster width, advance) and folds a positive xOffset into the cell. It grows
   the source bitmap (slot 63) to width `cellWidth·32 + x` or to the needed height. 2-level rasters are unpacked MSB
@@ -272,6 +326,21 @@ first absent probe returns false). The table, read from the switch at `0x00898A7
   Underline: rows from `ascent − yOffset + uOffset` (`0x00896618`), strike: from `ascent − charHeight/4 − yOffset`
   (`0x00896636`), each filled with 0xFF for the line thickness, clipped to charHeight; srcBottom grows to include
   them.
+- **Underline and strike-through geometry** (FN8): both depend only on pointSize (+0x38, unsigned), not on face
+  data, and use different tables.
+
+  | Thickness | 1 | 2 | 3 | 4 |
+  |---|---|---|---|---|
+  | underline T_u (`0x00896618`) | pointSize 0..15 | 16..25 | 26..35 | ≥ 36 |
+  | strike T_s (`0x00896636`) | pointSize 0..23 | 24..47 | 48..71 | ≥ 72 |
+
+  That is, T_u = 1 below 16, 2 below 26, 3 below 36, else 4; T_s = 1 below 24, 2 below 48, 3 below 72, else 4.
+  Underline: the first row is r = ascent − yOffset + T_u (the "offset" **is** the thickness), and T_u rows are
+  filled. Strike: r = ascent − (charHeight >> 2) − yOffset, T_s rows filled. For each line: when r < 0 or
+  r ≥ charHeight nothing is drawn (and srcBottom is unchanged); otherwise rows r, r+1, ... are filled with 0xFF
+  across the cell width while row < charHeight, and srcBottom = max(srcBottom, r + rowsFilled). Underline is
+  drawn before strike. Example: pointSize 12, charHeight 15, ascent 12, yOffset 3: underline row 10 (1 row);
+  strike row 12 − 3 − 3 = 6 (1 row). pointSize 30: underline T_u 3 rows, strike T_s 2 rows.
 - `ReallocateSourceData(cache, w, h)` (`0x0089632D`) only grows: new block `(h + 4)·w` bytes, zeroed, data starts
   at offset 2·w, old rows copied, pitch = w.
 - `CachedBitmapData::Clear` (`0x008982BA`) empties the map and the bitmap.
@@ -294,12 +363,62 @@ first absent probe returns false). The table, read from the switch at `0x00898A7
 | 46 | CalculateTextArea(s, n, rect, wrap, fixWidth) | §8.2 |
 | 50 | FormatForEllipsis(text, ellipsis, rect, keepAll) | §8.3 |
 
-**8.1 Words to fit.** Text is converted (scratch 2, map vector cleared). Walk words (`UTF16GetWord`): CR or LF ends
-the line and is consumed; stop when the word's visible width plus the width so far exceeds w. If nothing fits:
-mode 1 takes whole words up to the first CR, LF, NUL or break character; mode 2 takes Thai clusters or single
-characters while the prefix width < w, backs off one, and steps past a duplicated map entry. A count > 1 that ends
-on a non-space followed by a space takes the space. The result is mapped back through the §11 map, converted to a
-source-unit length, and `width` = GetStringWidth of that prefix.
+**8.1 Words to fit.** n = 0 or w = 0 → returns 0 and width 0. Text is converted (scratch 2, map vector cleared).
+Walk words (`UTF16GetWord`, §8.4) from i = 0: if s[i] is CR (0x0D) or LF (0x0A), i += 1 and stop (the line end is
+consumed, one unit only); stop when VW(word) + sum > w (unsigned; VW = GetStringVisibleWidth, slot 49) — otherwise
+sum += GetStringWidth(word) and i += word length. Trailing spaces of a word therefore never count against w, but
+do count in the sum carried to the next word. If nothing fits (i = 0):
+- mode 1 takes whole words while the unit at the word start is not NUL, LF, CR or a §8.4 space (0x20,
+  U+2002..U+200B), up to n — in practice the rest of the line, overflowing w;
+- mode 2 repeats: prev = i; i += (Thai cluster length (§8.4) if s[i] is U+0E00..U+0E7F, else 1) until
+  GetStringWidth(s, i) ≥ w; then i = prev unless prev = 0. So at least one cluster is always taken, and otherwise
+  the prefix is strictly narrower than w. Then, if i < n, the map vector is non-empty and map[i−1] == map[i],
+  i += 1;
+- any other mode returns 0.
+Afterwards (all paths that took something): if i > 1 (signed), s[i−1] is not a §8.4 space, i < n and s[i] is a
+§8.4 space, i += 1. The result is mapped back through the §11 map (i = map[i] when the map is non-empty), converted
+to a source-unit length, and `width` = GetStringWidth of that prefix.
+
+**CR LF** counts as **two** line ends: a call starting at CR consumes only the CR, and the next call starts at LF,
+consumes it and returns 1 (an empty line). "ab\r\ncd" at a wide width gives the lines "ab\r", "\n", "cd", so
+CalculateNumberOfLines returns 3. CalculateNumberOfLines (`0x00896886`) has no progress guard: it trusts each
+call to return ≥ 1, which holds for n > 0 and w > 0 before the §11 map-back.
+
+**8.4 Words, clusters and whitespace** (FN13; shared UTF-16 helpers in `0x009100..0x00912700`).
+
+Character classes (each a fixed set built once into a hash set; "in" means set membership):
+
+| Class | Test | Members |
+|---|---|---|
+| HB hard break | `0x00911F42`, in set | U+000A, U+000D, U+0085, U+2028, U+2029 |
+| SB break-after | `0x00911FFE`, in set, or c ≤ 0x20 and c ∉ {0x0A, 0x0D} | 0020 002D 0082 2002-200B 2010 2012-2015 203E 3000 301C FE31-FE32 FE58 (plus every control ≤ 0x20 except LF, CR) |
+| NS no-start (closing) | `0x00911D4A` returns "can begin a line" = not in set | 223 distinct codes (u16 tables from `0x00ACE760`): 0021 0025 0029 002C 002E 003A-003B 003F 005D 007D 00A8 00B0-00B1 00B7 00F7 02C7 02C9 02CD 0394 039B 2015-2016 2019 201C-201D 2025-2027 2030 2032-2033 203B 2103 2190-2192 2196-2199 221F-2220 2225 222B 2234-2236 2252 2266-2267 2295 2299 22BF 2502 250C 2514 2518 2524 252C 253C 2551-2554 2558-255D 2561-2563 2565-2566 256A-256D 256F-2570 2595 25CB 25CF 25E2-25E5 2606 2640 2642 3001-3003 3005 3008-300B 300D 300F 3011 3015 3017 301D 3041 3043 3045 3047 3049 3063 3083 3085 3087 308E 309B-309E 30A1 30A3 30A5 30A7 30A9 30C3 30E3 30E5 30E7 30EE 30F5-30F6 30FB-30FE 311D 3121 3124 BCA0 C2A4 C774 D2B8 D3F0 FE31 FE33-FE38 FE3D-FE40 FE4B FE50-FE52 FE54 FE56 FE59-FE5C FE5F-FE60 FE62 FE64-FE65 FE69-FE6B FF01-FF0C FF0E FF10 FF12-FF13 FF15-FF1C FF1E-FF20 FF3D FF3F-FF40 FF5B-FF5E FF61 FF63-FF65 FF67-FF70 FF9E-FF9F FFE0 (the table data as stored, including the odd entries 3008-300B, 301D, BCA0 etc.) |
+| NE no-end (opening) | `0x00911E46` returns "can end a line" = not in set | 0024 0028 005B-005C 007B 00A3 00A5 2018 201C 2035 3008 300A 300C 300E 3010 3014 3016 301D FE5B FE5D FF04 FF08 FF3A-FF3B FF5B FF62 FFE1 FFE5 |
+| CJK | `0x0091009B` | 2E80-E000, F900-FAFF, FE30-FE4F, FF10-FFEE (inclusive) |
+| Thai | `0x009100DE` | 0E00-0E7F |
+| Thai decoration | `0x00911B3E` | 0E31, 0E34-0E3A, 0E47-0E4E |
+| space (visible width) | `0x00896254` | U+0020, U+2002..U+200B |
+
+**UTF16GetWord(s, n)** (`0x0091227B`) returns the length of the first word: 0 for n = 0, else at least 1. Walking
+pairs (p = previous unit, c = next unit), the word ends **before** c when any of: p is U+0E46; p is HB; c is HB;
+or (c can begin a line and p can end a line) and (p is CJK, or c is CJK, or p is SB and c is not SB). Otherwise c
+joins the word. So a word is a run of non-breaking characters **plus its trailing spaces/hyphens/controls**; a
+hard break is always a word of its own; every CJK character is its own word unless a closing mark follows it or an
+opening mark precedes the next. Examples: "foo  bar" → 5 ("foo  "); "  bar" → 2; "well-known" → 5 ("well-");
+"a\tb" → 2 ("a\t"); "ab\r\n" → 2, then "\r" → 1; "漢字。" → 1 ("漢"), then "字。" → 2.
+
+**Thai cluster length** (`UTF16ThaiCharGroupLength`, `0x00911CDE`) at s with n units: n = 0 → 0; n = 1 → 1;
+s[1] = U+0E33 → 2; s[1] not a decoration → 1; else (n < 3 → 2); s[2] = U+0E33 → 3; s[2] not a decoration → 2;
+else 3 + (s[3] == U+0E33) — s[3] is read even when n = 3 (no bound check).
+
+**Composed character** (GetStringWidth, `GetComposedCharLength` `0x00912588` with the code page forced to UTF-16):
+a Thai unit (U+0E00..U+0E7F) starts a Thai cluster as above; any other unit is 1 (surrogate pairs are not
+joined). GetStringWidth adds GetAdvanceWidth of the **first unit only** of each cluster: the decorations of a
+cluster add nothing.
+
+**GetStringVisibleWidth** drops trailing units of the space class only (U+0020, U+2002..U+200B); tab, CR, LF and
+U+00A0 are kept and measured. **GetAdvanceWidth** returns 0 (no charSpacing) when the font is uninitialised or
+GetCharData returns no record; a missing glyph normally still has a record (§7 box), so this is the null case.
 
 **8.2 Text area.** `CalculateTextArea(s, n, rect, wrap, fixWidth)` (slot 46, `0x00896957`, no return value),
 rect = {left, top, right, bottom}, lh = GetLineHeight (slot 35):
@@ -375,10 +494,48 @@ halves), right − lineWidth (2); trailing CR/LF are not drawn; y advances by li
 one. `Lock/UnlockSurfaceForFontUse` count nested locks; only the 0→1 and 1→0 edges call the renderer (+0x14/+0x18).
 
 **Palette** (`SetCurrentPalette(fg, bg)`, `0x0089838C`): reuse the current palette when its (fg, bg) matches; else
-search the MRU list and move a hit to the front. A miss builds 128 ARGB entries: 0..7 = bg, then for k = 0..14
-eight entries of bg + (fg − bg)·k / 16 per channel (signed integer division, split and composed by the graphic
-system, `RZ::GS()` +0x90/+0x8C), 120..127 = fg. Before inserting, a list holding more than 3 palettes drops its
-last one.
+search the MRU list and move a hit to the front ("matches" = entry 127 == fg and entry 0 == bg, full 32 bits). A
+miss builds 128 dword entries: 0..7 = bg (raw), then for k = 0..14 eight entries of a composed colour, then
+120..127 = fg (raw) — the fg fill overwrites the k = 14 block, so only k = 0..13 survive (entries 8 + 8k .. 15 + 8k).
+Before inserting, a list holding more than 3 palettes drops its last one.
+
+*Channel split and compose (FN12).* `RZ::GS()` (`0x00913C1A`) is the graphic-system service fetched with
+iid `0x0073283C`, which `QueryInterface` (`0x0098DEF0`) answers with the subobject at +0x1C (vtable `0x00ADAA58`).
+Its +0x90 (`0x0098EA00`) and +0x8C (`0x0098E9B0`) forward to the **screen buffer** (`cGZScreenBuffer`, graphic
+system +0x100, see `span-render-4444.md` §1.2): +0x90(c, &r, &g, &b) → buffer +0x7C (`0x00825F80`),
++0x8C(&out, r, g, b) → buffer +0x78 (`0x00825DA0`), *out = result. Both return false and write nothing when there
+is no screen buffer. So the format is **the screen buffer's colour type** (buffer +0xC): 7 (A4R4G4B4) when the
+display depth is ≤ 16, 9 (A8R8G8B8) otherwise; not a fixed ARGB format. Rules (r, g, b are bytes; the split
+returns false and leaves its outputs untouched for any other type; the compose returns 0 for any other type):
+
+| Colour type | split(c) → r, g, b | compose(r, g, b) |
+|---|---|---|
+| 4, 6 (1555) | r5·33 >> 2, g5·33 >> 2, b5·33 >> 2 (bits 10, 5, 0) | 0x8000 \| (r & 0xF8) << 7 \| (g & 0xF8) << 2 \| b >> 3 |
+| 5 (565) | r5·33 >> 2, g6·65 >> 4, b5·33 >> 2 (bits 11, 5, 0) | (r & 0xF8) << 8 \| (g & 0xFC) << 3 \| b >> 3 |
+| 7 (4444) | r4·17, g4·17, b4·17 (bits 8, 4, 0; the top nibble is ignored) | 0xF000 \| (r & 0xF0) << 4 \| (g & 0xF0) \| b >> 4 |
+| 8, 9 (8888) | bits 16..23, 8..15, 0..7 (bits 24..31 ignored) | 0xFF000000 \| r << 16 \| g << 8 \| b |
+
+The font calls the split with **only the low 16 bits** of fg and of bg (`MOVZX` at `0x00898414`, `0x00898433`).
+Per channel, value = bg_ch + (fg_ch − bg_ch)·k / 16 with signed division truncating toward zero (`IDIV` at
+`0x00898470` ..`0x008984A2`), always 0..255, passed as (r, g, b) to the compose; the result fills the eight
+entries (`memset32`, `0x008984BF`). Consequences: **alpha is not interpolated** — entries 8..119 get the compose's
+fixed alpha (0xF in type 7, 0xFF in type 9, none in 565/1555), whatever the alpha of fg and bg; k = 0 gives the
+compose of the split bg, not raw bg; with a 32-bit screen (type 9) **red is always 0** in entries 8..119 because
+bits 16..23 were cut before the split. Without a screen buffer, or with another type, the split leaves the stack
+bytes and the compose leaves the output dword uninitialised (entries 8..119 undefined; type 0..3 → compose 0).
+
+Vectors (`docs/specs/proofs/font_palette_fn12.py` runs `0x00825F80`/`0x00825DA0` under unicorn: 0 mismatches
+against the table over 9 363 inputs per type; columns are entries 0, 8 (k 0), 16 (k 1), 24 (k 2), 72 (k 8),
+112 (k 13), 120):
+
+| type | fg | bg | entries |
+|---|---|---|---|
+| 7 | 0000FFFF | 0000F000 | F000 F000 F000 F111 F777 FCCC FFFF |
+| 7 | 0000F000 | 0000FFFF | FFFF FFFF FFFF FEEE F888 F333 F000 |
+| 7 | 0000F84C | 00000000 | 0000 F000 F000 F101 F426 F63A F84C |
+| 9 | FFFFFFFF | FF000000 | FF000000 FF000000 FF000F0F FF001F1F FF007F7F FF00CFCF FFFFFFFF |
+| 9 | 00FF0000 | 00000000 | 00000000 FF000000 FF000000 FF000000 FF000000 FF000000 00FF0000 |
+| 9 | FF123456 | FF000000 | FF000000 FF000000 FF000305 FF00060A FF001A2B FF002A45 FF123456 |
 
 ## 10. Antialiasing lookup table
 
@@ -482,9 +639,22 @@ U+F70A (form 2); U+0E1B U+0E34 U+0E48 → U+0E1B U+F701 U+F713 (the vowel gets f
   Step 3 runs before Init, so familyName is still the freshly created font's empty name: only a range registered
   under the empty name can apply there (a conforming implementation keys the lookup by that pre-Init name, not by
   the face's family). With +0x18 = +0x1C = 0 the system range holds only size 0. Then Init; failure releases it
-  and returns null. With `cache` the font is recorded in the catalogue entry. Returns an AddRef'd font.
+  and returns null. With `cache` the font is recorded (FN14): when the catalogue map has an entry
+  for the path, the font is appended to that entry's font list; when it has **none**, a **new entry is created**
+  for the path: {font list = [font], family = GetName (slot 5, now the face's family), style = slot 7, kind =
+  faceKind (slot 9), source type 0}, inserted into the catalogue map, and the lower-cased family is added to the
+  family set — so a later family lookup can find a font that was only ever acquired by path. Without `cache` the
+  creator's reference is released after the AddRef (net refcount 1). Returns an AddRef'd font.
 - `FontAcquire(familyList, kind, size, style, cache)` (`0x00894ADF`, slot 11, 5 stack arguments):
   1. Split a lower-cased copy of familyList at ',' (`RZParseDelimitedText`, at most 32 names; n = count).
+     Splitting rules (FN14, `0x00910BD3`): leading blanks (space, tab) of the whole text are skipped and a text
+     that is empty or all blanks gives n = 0. Every unquoted ',' ends a field **even when the field is empty**,
+     so "Arial,,Tahoma" gives 3 names ("arial", "", "tahoma") and ",Arial" gives 2; the part after the last ','
+     becomes a field only when non-empty ("Arial," gives 1). Fields ended by ',' lose trailing blanks; blanks
+     after each ',' are skipped; the last field keeps its trailing blanks (the whole-text trailing trim at
+     `0x00910C0F` tests the first character instead of the last, so it never trims): "Arial , Tahoma " →
+     "arial", "tahoma ". A field that starts and ends with '"' loses both quotes, and ',' inside an odd number of
+     '"' does not split. An empty name is used like any other (it matches only a family whose name is empty).
   2. Substitution walk: for each name i from the last to the first, for each entry of the substitution map
      (+0x4C, in key order; key = substitute family, value = vector of alias strings), for each alias: if
      name i IsEqual alias (string slot 10, flag false) and name i, lower-cased, is not in the installed family
@@ -598,5 +768,5 @@ s = {"Tahoma", "Verdana"}; GetSubstitutions("arial", s, 2) → 0 (keys are exact
 
 ## 13. Open questions
 
-FN1-FN6 are answered (archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
+FN1-FN14 are answered (FN7-FN14 by re-font-core-answers4) (archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
 `docs/specs/questions/drawing-fonts.md`.
