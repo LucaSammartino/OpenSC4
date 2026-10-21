@@ -152,8 +152,8 @@ generated index: the questions live one file per spec, so read only the file for
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | terrain | 5 | 36 | TR42 | questions/terrain.md |
 | traffic-network | 0 | 29 | TN30 | - |
-| traffic-simulator | 1 | 92 | TG27, TS68 | questions/traffic-simulator.md |
+| traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **90** | **993** | | |
+| **total** | **89** | **994** | | |
