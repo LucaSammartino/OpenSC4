@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-citydetail4: validate cFC4CityDetail replacement (enable=citydetail) and its native shadow in game | Claude lane, .claude/worktrees/glue-citydetail4 | ready: gate PASS; cd4-shadow-a clean mismatches=0; cd4-repl-a clean, real reduce pass (removed=8496, 525 network lots) | coordinator: candidate union --add-replace citydetail before promotion; a reload of a city saved by ours needs a two-session harness run |
+| glue-citydetail4: validate cFC4CityDetail replacement (enable=citydetail) and its native shadow in game | Claude lane, .claude/worktrees/glue-citydetail4 | ready: gate PASS; cd4-shadow-a clean mismatches=0; cd4-repl-a clean, real reduce pass (removed=8496, 525 network lots); round 2: increase pass and two-session reload blocked on contract, CD6/CD7 filed | coordinator: candidate union --add-replace citydetail before promotion; regenerate QUESTIONS.md for CD6/CD7; answer CD6/CD7 (harness keys) to close the two gaps |
+
+## Round 2 (2026-10-21): the two validation gaps
+
+No code change, no new game run (each would repeat a run already done or give a zero value without a reason). Commit: questions + README fix.
+- **Increase pass (preference 3 vs saved level 1):** no public path exists. The harness has no request or `[ini]` key for the detail preference. The slot's preference is 1 and the city's record is 3, so only reduce can run.
+  Writing `SC4Preferences::videoPreferences.cityDetail` from the plugin is not a supported path. Spec §3.1 says the lot configuration manager filters its catalogue with d when it builds it, so a later write leaves the catalogue at d=1, and the increase pass would have nothing to create (created=0, the zero value the task rules out).
+  The write also risks the game saving the changed preference to the user's config at exit. Filed **CD6** (start-up preference key / ApplyVideoPreferences contract, catalogue rebuild timing).
+- **Reload in a second process:** harness.md says each slot starts from a fresh copy of the region, and `save_as` is refused by the script parser (the alias contract is undocumented). So a save by ours cannot be reloaded in a distinct process without a new harness feature. The baseline city stays untouched and no alias artifact exists to clean up.
+  Filed **CD7**. The evidence so far comes from one process: cd4-shadow-a shows the native Read accepts our record and both classes write identical bytes; cd4-repl-a traced Read/Init/Write x2/Shutdown, clean, ref_warnings=0.
+- engine/README.md: the citydetail entry's stale "question CD6" now cites §3.4. The code comment at cFC4CityDetail.cpp:243 still says CD6 "was never filed". It was left unchanged, because editing it would be a code change that needs a full gate. The next code round should drop that sentence.
+- QUESTIONS.md was not regenerated, because lanes may not run tools/. The coordinator runs `questions.py index`.
 
 ## Report
 
