@@ -29,6 +29,8 @@
 #include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
+#include "FC4HostGrid.h"
+#include "FC4Streams.h"
 #include "FC4PlumbingShadow.h"
 #include "FC4PollutionShadow.h"
 #include "FC4PowerShadow.h"
@@ -231,6 +233,30 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             }
             fc4::NeighborsTestSetApp(static_cast<cISC4App*>(a));
             return 1;
+        case kFC4SeamUnreadRefs: {  // glue-exemplars4 (FC4Streams.h NoteUnreadRef)
+            // `a` is a grid token that must never be dereferenced (the test
+            // passes an unmapped address). Bits: 1 noted, 2 empty geometry,
+            // 4 Get 0 without a call, 8 PreCityInit clears it, 16 PostLoad too.
+            static const fc4::HostGridContext ctx{"seam", fc4::Sw::AuraGridWrites};
+            const fc4_grid_api api = fc4::MakeGridApi(&ctx);
+            const uint64_t t = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(a));
+            intptr_t bits = 0;
+            fc4::NoteUnreadRef(t);
+            if (fc4::IsUnreadRef(t)) bits |= 1;
+            fc4_grid_geometry geo{};
+            geo.count_x = 7;
+            api.geometry(api.user, t, &geo);
+            if (geo.count_x == 0 && geo.count_z == 0 && geo.tract_size == 0) bits |= 2;
+            api.set(api.user, t, 0x49B9E603u, 1, 1, 5.0);  // dropped
+            api.fill(api.user, t, 0x49B9E603u, 5.0);       // dropped
+            if (api.get(api.user, t, 0x49B9E603u, 1, 1) == 0.0) bits |= 4;
+            fc4::ObserverTestMessage(0x26D31EC0u, 0);  // kSC4MessagePreCityInit
+            if (!fc4::IsUnreadRef(t)) bits |= 8;
+            fc4::NoteUnreadRef(t);
+            fc4::ObserverTestMessage(0x26C63342u, 0);  // kSC4MessagePostLoad
+            if (!fc4::IsUnreadRef(t)) bits |= 16;
+            return bits;
+        }
         case kFC4SeamFpuReference:
             if (a == nullptr) {
                 fc4::FpuSetReference("test seam");
