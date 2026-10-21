@@ -86,6 +86,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RG | residential-education-health |
 | RN | foundations |
 | RS | residential |
+| SP | span-render-4444 |
 | SR | span-render-1555, span-render-565 |
 | SV | foundations, ordinance |
 | TG | traffic-simulator |
@@ -110,7 +111,7 @@ generated index: the questions live one file per spec, so read only the file for
 | budget-window | 5 | 0 | BW6 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 0 | 5 | CD6 | - |
-| city-situation | 0 | 11 | CS12 | - |
+| city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools-input | 5 | 0 | CT6 | questions/city-tools-input.md |
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
@@ -119,7 +120,7 @@ generated index: the questions live one file per spec, so read only the file for
 | data-formats | 5 | 40 | EX46 | questions/data-formats.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
-| disasters | 1 | 40 | DS41 | questions/disasters.md |
+| disasters | 2 | 40 | DS42 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
 | drawing-fonts | 6 | 0 | FN7 | questions/drawing-fonts.md |
 | effects | 3 | 10 | EF14 | questions/effects.md |
@@ -137,9 +138,9 @@ generated index: the questions live one file per spec, so read only the file for
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
-| network-manager | 2 | 9 | NM12 | questions/network-manager.md |
+| network-manager | 0 | 11 | NM12 | questions/network-manager.md |
 | network-occupants | 17 | 0 | NO18 | questions/network-occupants.md |
-| network-rules | 2 | 7 | NR13 | questions/network-rules.md |
+| network-rules | 3 | 7 | NR14 | questions/network-rules.md |
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
 | occupant-manager | 0 | 5 | OM9 | - |
 | occupants-props | 12 | 0 | OP13 | questions/occupants-props.md |
@@ -160,6 +161,7 @@ generated index: the questions live one file per spec, so read only the file for
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | span-render-1555 | 1 | 3 | SR1556 | questions/span-render-1555.md |
+| span-render-4444 | 2 | 0 | SP3 | questions/span-render-4444.md |
 | span-render-565 | 1 | 0 | SR566 | questions/span-render-565.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | traffic-network | 0 | 29 | TN30 | - |
@@ -169,4 +171,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **126** | **1006** | | |
+| **total** | **130** | **1008** | | |

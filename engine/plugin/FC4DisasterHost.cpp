@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4DisasterHost.h"
+#include "FC4HarnessLogic.h"
 
 #include "FC4CoreProps.h"
 #include "FC4Interfaces.h"
@@ -620,20 +621,28 @@ std::shared_ptr<SC4List<cISC4Occupant*>> DisasterOccupantsIn(cISC4City* city, in
     return list;
 }
 
-uint8_t DisasterFireCoverage(cISC4City* city, cISC4Occupant* o) {
-    if (city == nullptr || o == nullptr) return 0;
+static SC4Rect<long> ClampedCityCells(cISC4City* city, cISC4Occupant* o);
+
+// §5.4 step 4.1 over the clamped rectangle. simgrid.md §4.1 / §8 item 2: grid
+// slot 8's last two parameters are a width and a height (the SDK's
+// "nBottomRightX/Z" names are wrong), so the inclusive corners become
+// w = x1 - x0 + 1, h = z1 - z0 + 1 (disasters.md §5.4: "rect=56,86..56,87 is a
+// 1x2 cell rectangle"). Passing the corners averaged a far larger area.
+static uint8_t FireCoverageOver(cISC4City* city, const SC4Rect<long>& r) {
     cISC4FireProtectionSimulator* f = city->GetFireProtectionSimulator();  // city slot 57
     cISC4SimGrid<uint8_t>* g = f ? AsGame(f)->GetFireProtectionGrid() : nullptr;  // slot 5
-    if (g == nullptr) return 0;
-    SC4Rect<long> r;
-    o->GetBoundingCityCells(r);
-    const int32_t mx = static_cast<int32_t>(city->CellCountX()) - 1;
-    const int32_t mz = static_cast<int32_t>(city->CellCountZ()) - 1;
-    // §5.4 step 4.1: the occupant's cell rectangle clamped to the city, grid slot 8.
-    return g->GetAverageValueInCellRect(Clamp(static_cast<int32_t>(r.topLeftX), 0, mx),
-                                        Clamp(static_cast<int32_t>(r.topLeftY), 0, mz),
-                                        Clamp(static_cast<int32_t>(r.bottomRightX), 0, mx),
-                                        Clamp(static_cast<int32_t>(r.bottomRightY), 0, mz));
+    const harness::GridCellRectArgs a =
+        harness::CellRectArgs(static_cast<int32_t>(r.topLeftX), static_cast<int32_t>(r.topLeftY),
+                              static_cast<int32_t>(r.bottomRightX), static_cast<int32_t>(r.bottomRightY));
+    // An empty rectangle (no overlap with the city) reads 0 here: the spec does
+    // not say what the original's average returns for w x h = 0 (question DS41).
+    if (g == nullptr || a.empty) return 0;
+    return g->GetAverageValueInCellRect(a.x, a.z, a.w, a.h);
+}
+
+uint8_t DisasterFireCoverage(cISC4City* city, cISC4Occupant* o) {
+    if (city == nullptr || o == nullptr) return 0;
+    return FireCoverageOver(city, ClampedCityCells(city, o));
 }
 
 // §5.4 step 4.1's clamped cell rectangle, shared with the coverage average.
@@ -669,11 +678,7 @@ DisasterIgniteInputs DisasterIgniteInputsOf(cISC4City* city, cISC4Occupant* o, b
     v.z0 = static_cast<int32_t>(r.topLeftY);
     v.x1 = static_cast<int32_t>(r.bottomRightX);
     v.z1 = static_cast<int32_t>(r.bottomRightY);
-    cISC4FireProtectionSimulator* f = city->GetFireProtectionSimulator();  // city slot 57
-    cISC4SimGrid<uint8_t>* g = f ? AsGame(f)->GetFireProtectionGrid() : nullptr;  // slot 5
-    v.coverage = (g != nullptr && v.x0 <= v.x1 && v.z0 <= v.z1)
-                     ? g->GetAverageValueInCellRect(v.x0, v.z0, v.x1, v.z1)
-                     : uint8_t{0};
+    v.coverage = FireCoverageOver(city, r);  // the same average as the core reads
     // The exits these inputs admit (§5.4 "The refusals, exactly"). Exit 4 is
     // not computed here: it needs the D9 curve, so read it from `coverage`.
     const bool burnable = v.type == kTypeBuilding || v.type == kTypeFlora || v.type == kTypeProp;

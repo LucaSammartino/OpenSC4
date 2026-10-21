@@ -19,7 +19,13 @@
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
+#include "FC4LotDevInterfaces.h"  // cFC4ISC4AnimationTickManager (lot-developer.md §6.7.8)
 
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
+
+#include "SC4Preferences.h"
 #include "GZServPtrs.h"
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
@@ -67,18 +73,22 @@ cISC4App* App() {
 
 // ---- host callbacks (fc4_citysit_host) -----------------------------------------------------------------
 //
-// Wired: the cheat registration, the ten subscriptions, the indicator view's
-// ShowAllIndicators, the animation tick, the preferences' reward list, the
-// AddRef / Release pair, the advice and automaton queries the core needs to
-// answer the interface, the aura's AddTransientEffect and the budget's
-// DepositFunds (the §4.5 outcome), and the messages of §3.
+// Wired: the debug flag, the ten subscriptions, the animation tick (§3,
+// glue-citysit4), the preferences' reward list and its save (§4.1 step 8,
+// §4.5 step 2, §4.6 slot 33; glue-citysit4), the AddRef / Release pair, the
+// advice and automaton queries the core needs to answer the interface, the
+// aura's AddTransientEffect and the budget's DepositFunds (the §4.5
+// outcome), and the messages of §3.
 //
-// NOT wired (NULL; a missing callback reads as 0 / false / none): the mission
-// gameplay — targets and their names, coverage cells, pursuit,
-// CheckForSuccess's steps 2-4, the countdown and outcome effects, the
-// player-drive mode, the joyride, the mission script, the Lua table and the
-// popup. city-situation.md §0 puts all of that out of a replacement's scope
-// and §8 sanctions answering "no situation" instead.
+// Stubs (a missing callback reads as 0 / false / none): the cheat (the cheat
+// code manager is not in this lane's interface set), the indicator view
+// (question CS12: the vehicle view's ShowAllIndicators / TrackAutomaton slots
+// are not specified), the `sitmgr` Lua table (question CS13: its registry
+// entries are not specified), and the mission gameplay — targets and their
+// names, coverage cells, pursuit, CheckForSuccess's steps 2-4, the countdown
+// and outcome effects, the player-drive mode, the joyride, the mission script
+// and the popup. city-situation.md §0 puts the gameplay out of a
+// replacement's scope and §8 sanctions answering "no situation" instead.
 
 bool DebugEnabled(void*) {
     // §4.1 step 1 and §4.6: the cheat exists only with the debug flag
@@ -116,12 +126,45 @@ bool AcquireIndicatorView(void*) {
 }
 void ReleaseIndicatorView(void*) {}
 
-void RegisterAnimationTick(void*) {
-    // §3: register the +4 sub-object with the animation tick manager
-    // (cISC4AnimationTickManager, slot 5, priority 0xFF). Without it the
-    // mission clock never advances, which is the minimal replacement's answer.
+// The animation-tick manager (framework service 0x86AD10EC, IID 0x86AD10ED;
+// lot-developer.md §6.7.8), held only for the call.
+cFC4ISC4AnimationTickManager* TickManager() {
+    cIGZFrameWork* fw = RZGetFrameWork();
+    void* p = nullptr;
+    if (fw == nullptr || !fw->GetSystemService(kFC4_SID_AnimationTickManager, kFC4_IID_AnimationTickManager, &p) ||
+        p == nullptr) {
+        return nullptr;
+    }
+    auto* m = static_cast<cFC4ISC4AnimationTickManager*>(p);
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(m), "GetSystemService");
+    return m;
 }
-void UnregisterAnimationTick(void*) {}
+
+// §3 / §4.1 step 2: register the +4 sub-object with the animation tick
+// manager (slot 5, priority 0xFF: bucket 0, every frame). With no mission
+// held the core's tick does nothing (§0).
+void RegisterAnimationTick(void* u) {
+    cFC4CitySituationManager* s = Self(u);
+    if (s->tickRegistered) return;
+    cFC4ISC4AnimationTickManager* m = TickManager();
+    if (m == nullptr) {
+        fc4::Log("citysit: no animation-tick manager; the mission clock does not run");
+        return;
+    }
+    m->AddTickableObject(s->Target(), 0xFF);  // slot 5
+    s->tickRegistered = true;
+    FC4_RELEASE(static_cast<cIGZUnknown*>(m));
+}
+// §4.1 Shutdown: slot 6 RemoveTickableObject with the same priority.
+void UnregisterAnimationTick(void* u) {
+    cFC4CitySituationManager* s = Self(u);
+    if (!s->tickRegistered) return;
+    if (cFC4ISC4AnimationTickManager* m = TickManager()) {
+        m->RemoveTickableObject(s->Target(), 0xFF);  // slot 6
+        FC4_RELEASE(static_cast<cIGZUnknown*>(m));
+    }
+    s->tickRegistered = false;
+}
 
 void AcquireAutomataManagers(void*, fc4_token_callback, void*) {}
 bool AcquireLotManager(void*) { return false; }
@@ -136,16 +179,39 @@ void ReleaseMissionResources(void*) {}
 
 void ShowAllIndicators(void*, uint32_t, bool) {}
 
-// §4.1 step 8 and §4.5 step 2: the user preferences' 64-entry reward list
-// (cISC4App slot 38) and saving it. Read only; the minimal replacement keeps
-// successCounts for Lua get_success_count and does not write the profile.
-size_t PreferencesRewards(void*, uint32_t* out, size_t capacity) {
-    if (out == nullptr || capacity == 0) return 0;
-    out[0] = 0;
-    return 0;
+// §4.1 step 8, §4.5 step 2 and §4.6 (slot 33): the user preferences'
+// 64-entry reward list at preferences +0x1334 (cISC4App slot 38, borrowed:
+// the app owns it) and saving it (cISC4App slot 17). The SDK's
+// SC4TutorialPreferences2 (+0xF34) holds it as field1_0x400.
+constexpr size_t kRewardSlots = 64;
+static_assert(offsetof(SC4Preferences, tutorialPreferences2) + 0x400 == 0x1334, "reward list at +0x1334");
+static_assert(sizeof(SC4TutorialPreferences2::field1_0x400) == kRewardSlots * 4, "64 u32 entries");
+
+uint32_t* RewardList() {
+    cISC4App* app = App();
+    if (app == nullptr) return nullptr;
+    SC4Preferences* p = app->GetPreferences();  // slot 38, borrowed
+    FC4_RELEASE(app);
+    return p != nullptr ? reinterpret_cast<uint32_t*>(p->tutorialPreferences2.field1_0x400) : nullptr;
 }
-void SetPreferencesReward(void*, uint32_t, uint32_t) {}
-void SavePreferences(void*) {}
+size_t PreferencesRewards(void*, uint32_t* out, size_t capacity) {
+    const uint32_t* list = RewardList();
+    if (list == nullptr) return 0;
+    if (out != nullptr) {
+        for (size_t i = 0; i < kRewardSlots && i < capacity; ++i) out[i] = list[i];
+    }
+    return kRewardSlots;
+}
+void SetPreferencesReward(void*, uint32_t index, uint32_t guid) {
+    if (index >= kRewardSlots) return;
+    if (uint32_t* list = RewardList()) list[index] = guid;
+}
+void SavePreferences(void*) {
+    if (cISC4App* app = App()) {
+        app->SavePreferences();  // slot 17
+        FC4_RELEASE(app);
+    }
+}
 
 void AddRefCb(void* u, uint64_t token) {
     if (token == 0) return;
@@ -197,6 +263,13 @@ bool IsAutomaton(void*, uint64_t object) {
     cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(object));
     void* p = nullptr;
     const bool ok = o->QueryInterface(0xA9B40F05, &p) && p != nullptr;  // cISC4Automaton (§3)
+    if (ok) {
+        // glue-citysit4: the QueryInterface reference was leaked here before
+        // (one per inserted automaton); the test needs none.
+        cIGZUnknown* q = static_cast<cIGZUnknown*>(p);
+        FC4_ACQUIRED(q, "QueryInterface");
+        FC4_RELEASE(q);
+    }
     return ok;
 }
 bool OccupantHasProperty(void*, uint64_t, uint32_t) { return false; }
@@ -360,6 +433,17 @@ fc4_citysit_host MakeHost(cFC4CitySituationManager* self) {
 
 }  // namespace
 
+// glue-citysit4: every §8 slot that reaches the core takes the object's lock
+// and counts the call (the trace that proves the game calls the replacement).
+#define FC4_CS_CALL(slot, name)                          \
+    std::lock_guard<std::recursive_mutex> csLock_(mu); \
+    Note(slot, name)
+
+void cFC4CitySituationManager::Note(int slot, const char* name) {
+    if (slot < 0 || slot >= 40) return;
+    if (slotCalls[slot].fetch_add(1) == 0) fc4::Log("citysit trace: first call of slot %d %s", slot, name);
+}
+
 cIGZMessageServer2* cFC4CitySituationManager::Server() { return msgServerHeld ? msgServer_ : nullptr; }
 void cFC4CitySituationManager::SetServer(cIGZMessageServer2* ms) { msgServer_ = ms; }
 cISC4City* cFC4CitySituationManager::City() { return city_; }
@@ -460,71 +544,85 @@ uint32_t cFC4CitySituationManager::Release() {
     return 0;
 }
 
-bool cFC4CitySituationManager::Init() {
+bool cFC4CitySituationManager::Init() { FC4_CS_CALL(3, "Init");
     FC4_TRACE("CitySituationManager::Init");
     const bool ok = fc4_citysit_init(core_);
     fc4_citysit_state st{};
     st.struct_size = sizeof(st);
     fc4_citysit_get_state(core_, &st);
-    fc4::Log("citysit Init: ok=%d city=%p server=%p; status=%u indicators=%u successes=%u", ok ? 1 : 0,
+    fc4::Log("citysit Init: ok=%d city=%p server=%p; status=%u indicators=%u successes=%u tick=%d", ok ? 1 : 0,
              static_cast<void*>(city_), static_cast<void*>(msgServer_), st.status, st.indicators_visible,
-             st.success_counts);
+             st.success_counts, tickRegistered ? 1 : 0);
     return true;  // §8 slot 3 returns AL (1)
 }
 
 bool cFC4CitySituationManager::Shutdown() {
     FC4_TRACE("CitySituationManager::Shutdown");
     if (!destroying_) AddRef();
-    fc4_citysit_shutdown(core_);
-    fc4_citysit_state st{};
-    st.struct_size = sizeof(st);
-    fc4_citysit_get_state(core_, &st);
-    fc4::Log("citysit Shutdown: status=%u indicators=%u successes=%u; %u sends/posts", st.status,
-             st.indicators_visible, st.success_counts, sends_.load());
+    {
+        // The lock is released before the Release below can destroy us.
+        FC4_CS_CALL(4, "Shutdown");
+        fc4_citysit_shutdown(core_);
+        fc4_citysit_state st{};
+        st.struct_size = sizeof(st);
+        fc4_citysit_get_state(core_, &st);
+        fc4::Log("citysit Shutdown: status=%u indicators=%u successes=%u; %u sends/posts", st.status,
+                 st.indicators_visible, st.success_counts, sends_.load());
+        // The trace summary: calls per §8 slot, ticks and other messages.
+        char buf[640];
+        size_t n = 0;
+        buf[0] = 0;
+        for (int i = 0; i < 40 && n + 24 < sizeof(buf); ++i) {
+            const uint32_t c = slotCalls[i].load();
+            if (c != 0) n += static_cast<size_t>(snprintf(buf + n, sizeof(buf) - n, " s%d=%u", i, c));
+        }
+        fc4::Log("citysit trace: ticks=%u messages=%u tick_registered=%d calls:%s", ticks.load(), messages.load(),
+                 tickRegistered ? 1 : 0, buf);
+    }
     if (!destroying_) Release();
     return true;
 }
 
 // ---- the interface, forwarded (§8) -------------------------------------------------------------------
 
-uint16_t cFC4CitySituationManager::GetMissionSuccessCount(uint32_t guid) {
+uint16_t cFC4CitySituationManager::GetMissionSuccessCount(uint32_t guid) { FC4_CS_CALL(5, "GetMissionSuccessCount");
     return fc4_citysit_get_success_count(core_, guid);  // slot 5 returns AX
 }
 
-cISC4CitySituationAdvice* cFC4CitySituationManager::GetActiveSituation() {
+cISC4CitySituationAdvice* cFC4CitySituationManager::GetActiveSituation() { FC4_CS_CALL(6, "GetActiveSituation");
     return reinterpret_cast<cISC4CitySituationAdvice*>(
         static_cast<uintptr_t>(fc4_citysit_active_situation(core_)));
 }
 
-uint32_t cFC4CitySituationManager::GetCurrentStatus() { return fc4_citysit_current_status(core_); }
+uint32_t cFC4CitySituationManager::GetCurrentStatus() { FC4_CS_CALL(7, "GetCurrentStatus"); return fc4_citysit_current_status(core_); }
 
-cISC4Automaton* cFC4CitySituationManager::GetActiveAuto() {
+cISC4Automaton* cFC4CitySituationManager::GetActiveAuto() { FC4_CS_CALL(8, "GetActiveAuto");
     return reinterpret_cast<cISC4Automaton*>(static_cast<uintptr_t>(fc4_citysit_active_auto(core_)));
 }
 
-cISC4Occupant* cFC4CitySituationManager::GetCurrentTarget() {
+cISC4Occupant* cFC4CitySituationManager::GetCurrentTarget() { FC4_CS_CALL(9, "GetCurrentTarget");
     return reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(fc4_citysit_current_target(core_)));
 }
 
-uint32_t cFC4CitySituationManager::GetCurrentTargetIndex() { return fc4_citysit_current_target_index(core_); }
-uint32_t cFC4CitySituationManager::GetNumTargets() { return fc4_citysit_num_targets(core_); }
-uint32_t cFC4CitySituationManager::GetNumTargetsRemaining() { return fc4_citysit_num_targets_remaining(core_); }
+uint32_t cFC4CitySituationManager::GetCurrentTargetIndex() { FC4_CS_CALL(10, "GetCurrentTargetIndex"); return fc4_citysit_current_target_index(core_); }
+uint32_t cFC4CitySituationManager::GetNumTargets() { FC4_CS_CALL(11, "GetNumTargets"); return fc4_citysit_num_targets(core_); }
+uint32_t cFC4CitySituationManager::GetNumTargetsRemaining() { FC4_CS_CALL(12, "GetNumTargetsRemaining"); return fc4_citysit_num_targets_remaining(core_); }
 
 // §8: slots 13-15 return float in ST0 (the C getters do too).
-float cFC4CitySituationManager::GetCurrentTimeLimitSeconds() { return fc4_citysit_time_limit_seconds(core_); }
-float cFC4CitySituationManager::GetCurrentSituationTime() { return fc4_citysit_situation_time(core_); }
-float cFC4CitySituationManager::GetCurrentTimeRemainingSeconds() {
+float cFC4CitySituationManager::GetCurrentTimeLimitSeconds() { FC4_CS_CALL(13, "GetCurrentTimeLimitSeconds"); return fc4_citysit_time_limit_seconds(core_); }
+float cFC4CitySituationManager::GetCurrentSituationTime() { FC4_CS_CALL(14, "GetCurrentSituationTime"); return fc4_citysit_situation_time(core_); }
+float cFC4CitySituationManager::GetCurrentTimeRemainingSeconds() { FC4_CS_CALL(15, "GetCurrentTimeRemainingSeconds");
     return fc4_citysit_time_remaining_seconds(core_);
 }
 
-void cFC4CitySituationManager::GetCurrentTargetName(cIGZString& out) {
+void cFC4CitySituationManager::GetCurrentTargetName(cIGZString& out) { FC4_CS_CALL(16, "GetCurrentTargetName");
     // Slot 16 fills the caller's string (EAX = the argument). The name comes
     // from the advice's target through the host, which this replacement does
     // not wire: the string is left as it is.
     (void)out;
 }
 
-bool cFC4CitySituationManager::GetSituationAura(float& radius, float& magnitude) {
+bool cFC4CitySituationManager::GetSituationAura(float& radius, float& magnitude) { FC4_CS_CALL(17, "GetSituationAura");
     float r = 0, m = 0;
     const bool ok = fc4_citysit_situation_aura(core_, &r, &m);
     if (ok) {
@@ -534,59 +632,59 @@ bool cFC4CitySituationManager::GetSituationAura(float& radius, float& magnitude)
     return ok;
 }
 
-bool cFC4CitySituationManager::GetSituationMoney(int64_t& money) {
+bool cFC4CitySituationManager::GetSituationMoney(int64_t& money) { FC4_CS_CALL(18, "GetSituationMoney");
     int64_t v = 0;
     const bool ok = fc4_citysit_situation_money(core_, &v);
     if (ok) money = v;
     return ok;
 }
 
-bool cFC4CitySituationManager::IsSituationAvailable(cISC4Automaton* automaton) {
+bool cFC4CitySituationManager::IsSituationAvailable(cISC4Automaton* automaton) { FC4_CS_CALL(19, "IsSituationAvailable");
     return fc4_citysit_is_situation_available(core_, fc4::TokenOf(automaton));
 }
-bool cFC4CitySituationManager::IsSituationAvailable(cISC4Occupant* occupant) {
+bool cFC4CitySituationManager::IsSituationAvailable(cISC4Occupant* occupant) { FC4_CS_CALL(20, "IsSituationAvailable");
     return fc4_citysit_is_situation_available(core_, fc4::TokenOf(occupant));
 }
 
-bool cFC4CitySituationManager::InitiateSituationByGuid(uint32_t guid, bool showBriefing, uint32_t group) {
+bool cFC4CitySituationManager::InitiateSituationByGuid(uint32_t guid, bool showBriefing, uint32_t group) { FC4_CS_CALL(21, "InitiateSituationByGuid");
     return fc4_citysit_initiate_situation_by_guid(core_, guid, showBriefing, group);
 }
-bool cFC4CitySituationManager::InitiateSituationForOccupant(cISC4Occupant* occ, cISC4CitySituationAdvice* a) {
+bool cFC4CitySituationManager::InitiateSituationForOccupant(cISC4Occupant* occ, cISC4CitySituationAdvice* a) { FC4_CS_CALL(22, "InitiateSituationForOccupant");
     return fc4_citysit_initiate_situation_for_occupant(core_, fc4::TokenOf(occ), fc4::TokenOf(a));
 }
-bool cFC4CitySituationManager::InitiateSituationByAutomataGroup(uint32_t group, bool showBriefing, bool search) {
+bool cFC4CitySituationManager::InitiateSituationByAutomataGroup(uint32_t group, bool showBriefing, bool search) { FC4_CS_CALL(23, "InitiateSituationByAutomataGroup");
     return fc4_citysit_initiate_situation_by_automata_group(core_, group, showBriefing, search);
 }
-void cFC4CitySituationManager::StartJoyride(cISC4Automaton* automaton, bool b, cIGZMessageTarget2* target) {
+void cFC4CitySituationManager::StartJoyride(cISC4Automaton* automaton, bool b, cIGZMessageTarget2* target) { FC4_CS_CALL(24, "StartJoyride");
     fc4_citysit_start_joyride(core_, fc4::TokenOf(automaton), b, fc4::TokenOf(target));
 }
-void cFC4CitySituationManager::TreatAutomatonAsGroup(cISC4Automaton* automaton, uint32_t group) {
+void cFC4CitySituationManager::TreatAutomatonAsGroup(cISC4Automaton* automaton, uint32_t group) { FC4_CS_CALL(25, "TreatAutomatonAsGroup");
     fc4_citysit_treat_automaton_as_group(core_, fc4::TokenOf(automaton), group);
 }
 
-void cFC4CitySituationManager::SetMaxCSI(uint8_t n) { fc4_citysit_set_max_csi(core_, n); }
-uint8_t cFC4CitySituationManager::GetMaxCSI() { return fc4_citysit_max_csi(core_); }
-int32_t cFC4CitySituationManager::GetTrackedAutomataCount() {
+void cFC4CitySituationManager::SetMaxCSI(uint8_t n) { FC4_CS_CALL(26, "SetMaxCSI"); fc4_citysit_set_max_csi(core_, n); }
+uint8_t cFC4CitySituationManager::GetMaxCSI() { FC4_CS_CALL(27, "GetMaxCSI"); return fc4_citysit_max_csi(core_); }
+int32_t cFC4CitySituationManager::GetTrackedAutomataCount() { FC4_CS_CALL(28, "GetTrackedAutomataCount");
     return static_cast<int32_t>(fc4_citysit_tracked_automata_count(core_));
 }
-void cFC4CitySituationManager::SetCSIVisible(bool visible) { fc4_citysit_set_csi_visible(core_, visible); }
-bool cFC4CitySituationManager::GetCSIVisible() { return fc4_citysit_csi_visible(core_); }
-bool cFC4CitySituationManager::HandleTuningParametersChanged() {
+void cFC4CitySituationManager::SetCSIVisible(bool visible) { FC4_CS_CALL(29, "SetCSIVisible"); fc4_citysit_set_csi_visible(core_, visible); }
+bool cFC4CitySituationManager::GetCSIVisible() { FC4_CS_CALL(30, "GetCSIVisible"); return fc4_citysit_csi_visible(core_); }
+bool cFC4CitySituationManager::HandleTuningParametersChanged() { FC4_CS_CALL(31, "HandleTuningParametersChanged");
     return fc4_citysit_handle_tuning_parameters_changed(core_);
 }
-uint32_t cFC4CitySituationManager::CountdownIsInProgress() {
+uint32_t cFC4CitySituationManager::CountdownIsInProgress() { FC4_CS_CALL(32, "CountdownIsInProgress");
     return fc4_citysit_countdown_in_progress(core_) ? 1u : 0u;  // §8: EAX 0 or 1
 }
-void cFC4CitySituationManager::ResetTutorials() { fc4_citysit_reset_tutorials(core_); }
-void cFC4CitySituationManager::InitiatePlayerDriveMode(bool on) { fc4_citysit_initiate_player_drive_mode(core_, on); }
+void cFC4CitySituationManager::ResetTutorials() { FC4_CS_CALL(33, "ResetTutorials"); fc4_citysit_reset_tutorials(core_); }
+void cFC4CitySituationManager::InitiatePlayerDriveMode(bool on) { FC4_CS_CALL(35, "InitiatePlayerDriveMode"); fc4_citysit_initiate_player_drive_mode(core_, on); }
 
 bool cFC4CitySituationManager::InitiateSituation(cISC4CitySituationAdvice* advice, cISC4Automaton* automaton,
-                                                 bool showBriefing) {
+                                                 bool showBriefing) { FC4_CS_CALL(36, "InitiateSituation");
     return fc4_citysit_initiate_situation(core_, fc4::TokenOf(advice), fc4::TokenOf(automaton), showBriefing);
 }
-void cFC4CitySituationManager::ActivateSituation() { fc4_citysit_activate_situation(core_); }
-void cFC4CitySituationManager::DeactivateSituation() { fc4_citysit_deactivate_situation(core_); }
-void cFC4CitySituationManager::EndSituation() { fc4_citysit_end_situation(core_); }
+void cFC4CitySituationManager::ActivateSituation() { FC4_CS_CALL(37, "ActivateSituation"); fc4_citysit_activate_situation(core_); }
+void cFC4CitySituationManager::DeactivateSituation() { FC4_CS_CALL(38, "DeactivateSituation"); fc4_citysit_deactivate_situation(core_); }
+void cFC4CitySituationManager::EndSituation() { FC4_CS_CALL(39, "EndSituation"); fc4_citysit_end_situation(core_); }
 
 // ---- messages (§3) ----------------------------------------------------------------------------------------
 
@@ -612,6 +710,17 @@ bool cFC4CitySituationManager::DoMessage(cIGZMessage2* pMessage) {
     // bit pattern (§3); the core's tick takes a float.
     // §3: the message may also carry void1 and a string (the target's
     // occupant and the advice's text). Neither is read here.
+    if (type == kMsgAnimationTick) {
+        if (ticks.fetch_add(1) == 0) fc4::Log("citysit trace: first animation tick (%.3f ms)", [&] {
+                float f;
+                std::memcpy(&f, &data3, sizeof(f));
+                return static_cast<double>(f);
+            }());
+    } else if (messages.fetch_add(1) < 16) {
+        fc4::Log("citysit trace: message %08X data1=%08X data2=%08X object=%s", type, data1, data2,
+                 object != 0 ? "yes" : "no");
+    }
+    std::lock_guard<std::recursive_mutex> lock(mu);
     return fc4_citysit_do_message(core_, type, data1, data2, data3, object, 0, nullptr, 0);
 }
 
@@ -624,6 +733,7 @@ bool cFC4CitySituationManager::DoMessage(cGZMessage& sMessage) {
 bool cFC4CitySituationManager::Write(cIGZOStream& s) {
     FC4_TRACE("CitySituationManager::Write");
     fc4::OStreamAdapter a(s);
+    std::lock_guard<std::recursive_mutex> lock(mu);
     const bool ok = fc4_citysit_write(core_, a.Get());
     fc4_citysit_state st{};
     st.struct_size = sizeof(st);
@@ -637,6 +747,7 @@ bool cFC4CitySituationManager::Write(cIGZOStream& s) {
 bool cFC4CitySituationManager::Read(cIGZIStream& s) {
     FC4_TRACE("CitySituationManager::Read");
     fc4::IStreamAdapter a(s);
+    std::lock_guard<std::recursive_mutex> lock(mu);
     const bool ok = fc4_citysit_read(core_, a.Get());
     fc4_citysit_state st{};
     st.struct_size = sizeof(st);

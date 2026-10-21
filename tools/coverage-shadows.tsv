@@ -17,8 +17,8 @@ shadow	label	clean	total	source	note
 citysit_shadow	citysit	73	73	docs/runs/glue17-shadows-5.md	glue17 lane run 5 (record-only shadow; every line roundtrip=same, mismatches=0)
 demolition_shadow	demolition	73	73	docs/runs/glue17-shadows-5.md	glue17 lane run 5 (record-only shadow; every line roundtrip=same, mismatches=0)
 dispatch_shadow	dispatch	73	73	docs/runs/glue17-shadows-5.md	glue17 lane run 5 (record-only shadow; every line roundtrip=same, mismatches=0)
-disasters_shadow	fire	211	263	docs/lanes/glue13.md	disaster layer run dis-final-11 (not exact: DS25-DS40)
-disasters_shadow	riot	2	354	docs/lanes/glue13.md	disaster layer run dis-final-11 (not exact: DS25-DS40)
+disasters_shadow	fire	124	124	docs/runs/train34-235.md	vd4-fix-2 same-cells exercised trace, ref0/resync0; historical riot baseline not reproduced
+disasters_shadow	riot	481	481	docs/runs/train34-235.md	vd4-fix-2 same-cells exercised trace, ref0/resync0; historical riot baseline not reproduced
 formats_shadow	formats_exemplar_own	8959	8959	docs/runs/train31-232.md	train31 same-process install package steps1/3/4; reads only, not factory replacement
 formats_shadow	formats_exemplar_effective	8959	8959	docs/runs/train31-232.md	train31 same-process install package steps1/3/4; reads only, not factory replacement
 formats_shadow	formats_cohort_own	388	388	docs/runs/train31-232.md	train31 same-process install package steps1/3/4; reads only, not factory replacement

@@ -566,5 +566,23 @@ private:
     size_t next_ = 0;
 };
 
+// The arguments of cISC4SimGrid slot 8 `GetAverageValueInCellRect` for an
+// inclusive cell rectangle x0..x1, z0..z1: simgrid.md §4.1 / §8 item 2, the last
+// two parameters are a width and a height (not the SDK's bottom-right corner).
+// `empty` when the rectangle has no cell (then w or h is 0).
+struct GridCellRectArgs {
+    int32_t x = 0, z = 0, w = 0, h = 0;
+    bool empty = true;
+};
+inline GridCellRectArgs CellRectArgs(int32_t x0, int32_t z0, int32_t x1, int32_t z1) {
+    GridCellRectArgs a;
+    a.x = x0;
+    a.z = z0;
+    a.empty = x1 < x0 || z1 < z0;
+    a.w = a.empty ? 0 : x1 - x0 + 1;
+    a.h = a.empty ? 0 : z1 - z0 + 1;
+    return a;
+}
+
 }  // namespace harness
 }  // namespace fc4

@@ -127,7 +127,7 @@ cSC4PropManager	prop / lot configuration managers	simulation	prop-lotconfig.md	c
 cSC4LotConfigurationManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/lot_config_manager	-	lotcfg
 cSC4LotConfiguration	lot configuration	simulation	lot-configuration.md	core/src/lot_config_manager	-	-
 cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	-	-
-cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/city_situation	citysit_shadow	-
+cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/city_situation	citysit_shadow	citysit
 cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolition_shadow	demolition
 cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
 cSC4DispatchManager	dispatch	simulation	dispatch.md	core/src/dispatch	dispatch_shadow	dispatch
@@ -345,7 +345,7 @@ cGZDraw*	2D drawing and fonts	renderer	-	-	-	-
 # tools/coverage-ranges.tsv land on the class whose colour format they convert. No spec has them as its subject.
 nGZDrawSoftRender::cSpanRender1555	2D drawing (span render 1555)	renderer	span-render-1555.md	-	-	-
 nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	span-render-565.md	-	-	-
-nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-render-4444.md	-	-	-
+nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-render-4444.md	core/src/span_render4444	-	-
 nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	-	-	-	-
 nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	-	-	-	-
 nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
@@ -431,6 +431,8 @@ SL	persistence and resources	framework	-	-	-	-
 nSCRes*	persistence and resources	framework	-	-	-	-
 cSCStringDetokenizer*	strings and language	framework	-	-	-	-
 fn:gAdviceDetokenizerFunction	strings and language	framework	-	-	-	-
+cRZLanguageUtility	strings and language	framework	language-utility.md	-	-	-
+cRZLanguageManager	strings and language	framework	strings-language.md	-	-	-
 cRZLanguage*	strings and language	framework	-	-	-	-
 cRZString	strings and language	framework	-	-	-	-
 fn:ConvertStringEncoding	strings and language	framework	-	-	-	-
@@ -448,6 +450,10 @@ cGZMessageServer2	framework services (GZ)	framework	framework-gz-services.md	-	-
 cGZMessageQueue2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageQueueManager2	framework services (GZ)	framework	framework-gz-services.md	core/src/gz_messages/manager.rs	-	-
 cGZ*	framework services (GZ)	framework	-	-	-	-
+cRZFile	framework services (RZ)	framework	framework-rz-files.md	-	-	-
+cRZIniFile	framework services (RZ)	framework	framework-rz-files.md	-	-	-
+cRZDirectory	framework services (RZ)	framework	framework-rz-files.md	-	-	-
+cRZOFStream	framework services (RZ)	framework	framework-rz-files.md	-	-	-
 cRZ*	framework services (RZ)	framework	-	-	-	-
 nGZ*	framework services (GZ)	framework	-	-	-	-
 cIGZ*	framework services (GZ)	framework	-	-	-	-
