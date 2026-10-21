@@ -1,6 +1,13 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-driverdraw4: RE spec follow-up of the DX7 driver (default device state, draw path, primitive manager) | `re-driverdraw4` / (RE lane) | ready: docs/specs/renderer-driver.md new §7 (RD2 answered) and §8 (DrawArrays/DrawElements/InterleavedArrays, cPrimitiveManager, slots 30-34); RD5 narrowed; no engine, no ABI change, no game runs | 1. follow-up RE lane: cTextureManager 0x0088A380-0x0088B2C0 and texture slots 24-29, 35-39, 58-61; 2. stage records (0x00884320/0x00884500, slots 51-57, 62); 3. blit/viewport slots 68-76 (RD3) |
+| re-driverdraw4: RE spec follow-up of the DX7 driver (default device state, draw path, primitive manager) | `re-driverdraw4` / (RE lane) | in progress (round 2): prior ready: docs/specs/renderer-driver.md new §7 (RD2 answered) and §8 (DrawArrays/DrawElements/InterleavedArrays, cPrimitiveManager, slots 30-34); RD5 narrowed; no engine, no ABI change, no game runs | 1. follow-up RE lane: cTextureManager 0x0088A380-0x0088B2C0 and texture slots 24-29, 35-39, 58-61; 2. stage records (0x00884320/0x00884500, slots 51-57, 62); 3. blit/viewport slots 68-76 (RD3) |
+
+## Handoff
+- goal (round 2): RD5 rest - cTextureManager 0x0088A380-0x0088B2C0, texture slots 24-29/35-39/58-61, stage records
+  0x00884320/0x00884500 + slots 51-57/62; then RD3 blit/viewport 68-76, RD4 frame end 0x00887260.
+- done round 1: 633d523d (§7), 594a88cb (§8), c52666f3 (report). §7/§8 must be preserved.
+- next: read slot table (docs/abi/vtables.tsv 0x00AC4660) for 24-29,35-39,51-62; asm per function; write §9 texture.
+- facts: spec §9 is "Open contracts" (renumber to §12 when adding sections). REA not used yet.
 
 ## Report
 
