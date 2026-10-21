@@ -51,6 +51,7 @@ pub mod ids;
 pub mod julian;
 pub mod landfill;
 pub mod landvalue;
+pub mod language;
 pub mod lot_config_manager;
 pub mod lot_developer;
 pub mod lot_records;
