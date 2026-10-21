@@ -1,12 +1,13 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-stream-core-answers4: output-streams OS3-OS6 (float ties, failed-open flush, failed byte/chunk, Skip(0), null-input flag) | `re-stream-core-answers4` / (RE lane) | in progress | see Handoff |
+| re-stream-core-answers4: output-streams OS3-OS6 (float ties, failed-open flush, failed byte/chunk, Skip(0), null-input flag) | `re-stream-core-answers4` / (RE lane) | ready, docs only, no ABI change; OS3, OS4, OS6b MATCH; OS5a/b, OS6a DIFFER; OS7 filed | 1. core streams: GetRZCharStr no Skip(0); GetGZStr append failed chunk from one reused zero-initialised buffer; conformance §9 tests 15-17. 2. OS7 (runtime %g sweep or ld12 emulation). |
 
-## Handoff
-- Goal: answer OS3-OS6 (docs/specs/questions/output-streams.md) from native bodies; write rules into output-streams.md §2.2, §4.2, §5; archive to answered/.
-- Done: lane file; all proofs read (static, re_query asm + decomp/lib.c; REA not needed).
-- Proof facts: OS3 MATCHES: _fltout2 0x00A0277B passes 17 (PUSH 0x11) to $I10_OUTPUT 0x00A04942 (18 digits from 80-bit-mantissa scaling, half-up on digit 18); __fptostr 0x00A0264A half-up (next digit > '4') to 6. 0.1234565 stored -> "0.123457" (double rounding), 1234565 -> 1.23457e+006, 100000.5 -> 100001, 12345.25 -> 12345.3.
-- OS4 MATCHES: Flush 0x0092BCF7 -> 0x0092BA02 rdbuf()->sync (filebuf vtbl 0x00AE4D6C +0x10 = 0x0092BF91) returns 0 unless out-mode byte +0x68 set; only switch-to-output 0x0092C327 sets it and needs is_open +0x60. Null ofstream ptr -> Flush faults.
-- OS5a DIFFERS: decoder 0x0092B85F ignores GetUint8 result; buffer = 8 stack bytes pre-filled by PUSH ECX x2 with `this` (bytes of the stream's own address), so unwritten byte = address byte, never "previous". OS5b DIFFERS: GetGZStr 0x0092B92D appends chunk (Append 0x0090F053, counted) BEFORE GetError check; buffer stale (first chunk: uninit stack; later: previous chunk bytes).
-- OS6a DIFFERS: Skip only if length-k != 0 (JZ 0x0092B908). OS6b MATCHES: ctor 0x0092BC80 inline, flag +8 := 0.
-- Next: write rules into output-streams.md §2.2/§4.2/§5/§7/§9, move OS3-6 to answered/, questions.py index.
+## Report
+Spec-only lane, static analysis (tools/re_query.py asm, decomp/lib.c); REA not needed. Commits 4e8c9c0a (proof facts), 1afc8966 (spec + questions).
+
+- OS3 (§2.2) MATCHES: %g = double rounding, half-up both times. `__fltout2` 0x00A0277B asks `$I10_OUTPUT` 0x00A04942 for 17 digits (18 generated, half-up on digit 18); `__fptostr` 0x00A0264A rounds half-up on the 7th. Ties go away from zero; 0.1234565 (stored below the tie) prints 0.123457 (correctly rounded %g would give 0.123456). Proof that exact 17-digit ties cannot reach the 6-digit output; the residual case (scaling error of 12-byte multiply) is OS7.
+- OS4 (§4.2) MATCHES: failed-open Flush leaves the state unchanged (filebuf sync 0x0092BF91 returns 0 outside output mode; output mode set only by 0x0092C327 on an open file). New quirk: null ofstream pointer makes Flush fault.
+- OS5 (§5) DIFFERS: (a) length decoder 0x0092B85F ignores read results; unwritten slots hold the bytes of the stream's own address (prologue PUSH ECX x2), so the outcome is unspecified natively; 0 kept as a [choice] that is one native outcome. (b) GetGZStr 0x0092B92D appends a failed chunk before testing the error; later chunks carry the previous chunk's bytes (specified), first-chunk stale bytes unspecified (choice: 0).
+- OS6 (§5): (a) DIFFERS, Skip only when length - k != 0; (b) MATCHES, ctor 0x0092BC80 sets flag false inline.
+- §7 quirks 14-16, §8 OS7, §9 tests 15-17 (float ties, failed-open flush, short reads). Questions archived in docs/specs/questions/answered/output-streams.md (new file); QUESTIONS.md regenerated.
+- Engine conformance: the current core behaviour differs from native on OS5b (no append) and OS6a (Skip(0) call); OS5a choice stays.
