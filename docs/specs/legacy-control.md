@@ -1,6 +1,6 @@
 # Legacy control (`cGZLegacyControl`): building widgets from `LEGACY` script blocks
 
-Status: partial, 42 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
+Status: partial, 43 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
 (Windows). Covered: object layout, COM surface, lifecycle, the shared vocabulary and its two lookup maps, the
 `SetParameters` build sequence, the property-list readers, and the full word tables of all 21 vocabulary
 functions. Per-control interpreter contracts (`InterpretProperties*`) are specified for the common pass (§8);
@@ -448,7 +448,8 @@ comment list, and parameter `0x3ACA6906` = {0, 0}; second pass `SetFlag(0x2, fal
 | GZWinTreeView | `0x009586B0` | 4857 | **specified** (§9.2) |
 | GZWinFileBrowser | `0x00954212` | 3761 | **specified** (§9.3) |
 | GZWinGrid | `0x0095A250` | 3537 | **specified** (§9.5) |
-| all other 15 | §4.1 | 465–3105 | open (LC4) |
+| GZWinFolders | `0x0094D17E` | 465 | **specified** (§9.6) |
+| all other 14 | §4.1 | 475–2629 | open (LC4) |
 
 Every per-type interpreter starts the same way: `QueryInterface` the control for its own IID (§4.1); on failure
 it does nothing at all; on success it works through that interface and releases it at the end.
@@ -688,6 +689,31 @@ with n = 0 after a successful image load; FileBrowser uses n = 0 for the backgro
 The font counterpart (`0x0094C222` Uint32 / `0x0094C255` String) stores the value as parameter
 `0xFAA3BE85 + n`.
 
+### 9.6 GZWinFolders (`0x0094D17E`)
+
+Interface `IGZWinFolders` `0xA13351B8`. It has no words of its own (§4.1); it reads two common words and the
+ListBox word `listelement`. Slot names on the folders interface are *[inferred]*.
+
+**First pass:**
+
+1. `font` (`0xF000`): if it reads as Uint32 (id): font = `RZ::WCM()` slot `+0x14` (id); call interface `+0x28`
+   (font); store the id as control parameter `0xFAA3BE85` (helper `0x0094C222`, index 0). Else if it reads as
+   String: only store the text as parameter `0xFAA3BE85` (helper `0x0094C255`); `+0x28` is not called.
+2. `image` (`0xF016`, String): scan `{%x,%x}` into (group, instance) **without checking the count**; load the
+   image buffer (helper `0x0094C4E0`, type `0x856DDBAC`); if it loads, interface `+0x2C` (buffer). Whether or
+   not it loaded, store parameter `0xDAA3B860` = 8-byte type-`0x8000` variant {group, instance} (the §9.4 key
+   rule, index 0); then release the buffer if any. Quirk Q11: an unparsed group keeps the value of the
+   variable it shares (the font id from step 1, else the window argument pointer) and an unparsed instance is
+   uninitialised; implementations use 0.
+
+**Second pass:** call interface `+0x1C` (no arguments; a reset/clear *[inferred]*) once, then for every pair with
+key `listelement` (`0x502`) and a string value (`0x800E`), in list order (repeats allowed), copy the text and
+call interface `+0x10` (text, 0).
+
+Worked example: `font=3, image={1abe787d,cafe0001}, listelement=A, listelement=B` → first pass `+0x28`(WCM
+font 3), parameter `0xFAA3BE85` = 3, `+0x2C`(buffer) if the image loads, parameter `0xDAA3B860` =
+{`0x1ABE787D`, `0xCAFE0001`}; second pass `+0x1C`(), `+0x10`("A", 0), `+0x10`("B", 0).
+
 ## 10. Quirks (keep for compatibility)
 
 - Q1. `SetParameters` overwrites `+0x10` with null without releasing a previous control; calling it twice on one
@@ -703,10 +729,11 @@ The font counterpart (`0x0094C222` Uint32 / `0x0094C255` String) stores the valu
 - Q7. Grid `wingridcol=a,b,w` sizes only column a; b is ignored (rows use the a..b range).
 - Q8. Script fragment: with only one of the class/interface parameters stored, the other comes from the first
   table row the control answers (§7.6).
+- Q9. Script fragment `fillcolor`: upper 24 bits of each component are uninitialised stack in the original (§7.6).
 - Q10. Grid cells: the "scan the data as a resource key" test reads bit `0x40000` of the shared style-word scratch
   (the value of the last present grid style word, `0x0095A932`), not of the cell's flags; style values are
   normally 0/1, so the scan effectively always runs. Uninitialised when no style word is present.
-- Q9. Script fragment `fillcolor`: upper 24 bits of each component are uninitialised stack in the original (§7.6).
+- Q11. Folders `image`: the `{%x,%x}` scan count is not checked; unparsed parts are stale or uninitialised (§9.6).
 
 ## 11. Open questions
 
@@ -726,7 +753,7 @@ Custom interpreter are shared bodies owned elsewhere).
 | `SetParameters` | 1 | specified (§6) |
 | `GetScriptFragment` | 1 | specified (§7.4; serialiser frame, class/interface and common words §7.6; per-type writer word sets are non-owner functions, LC8) |
 | `ControlVocabulary*` | 21 | specified (§4: every word, ID and map entry) |
-| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Grid (§9.5), Custom (shared stub) specified; 15 owned interpreters open (LC4) |
+| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Grid (§9.5), Folders (§9.6), Custom (shared stub) specified; 14 owned interpreters open (LC4) |
 
-Count: 42 of 57 owner functions complete (14 COM/lifecycle + `SetParameters` + `GetScriptFragment` + 21 vocabulary +
-Common, Slider, TreeView, FileBrowser, Grid); 15 interpreters open (LC4). No wildcard credit.
+Count: 43 of 57 owner functions complete (14 COM/lifecycle + `SetParameters` + `GetScriptFragment` + 21 vocabulary +
+Common, Slider, TreeView, FileBrowser, Grid, Folders); 14 interpreters open (LC4). No wildcard credit.
