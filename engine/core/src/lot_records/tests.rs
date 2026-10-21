@@ -16,7 +16,7 @@ pub(super) fn hex(s: &str) -> Vec<u8> {
 }
 
 /// References resolve to host tokens carrying the object ID.
-struct Tokens;
+pub(super) struct Tokens;
 
 impl RefResolver for Tokens {
     fn resolve(&mut self, class_id: u32, object_id: u32) -> Option<RefValue> {
@@ -28,7 +28,7 @@ impl RefResolver for Tokens {
 }
 
 /// Writes references back as the object ID and class they were read with.
-struct RawOut(ByteWriter);
+pub(super) struct RawOut(pub(super) ByteWriter);
 
 impl OutStream for RawOut {
     fn put_u8(&mut self, v: u8) -> bool {
@@ -85,7 +85,7 @@ pub(super) fn write_obj(o: &RefValue) -> Vec<u8> {
     w.0.into_bytes()
 }
 
-fn rec<R: OccupantRecord>(o: &RefValue) -> R {
+pub(super) fn rec<R: OccupantRecord>(o: &RefValue) -> R {
     o.object::<RecordObject<R>>().unwrap().rec.borrow().clone()
 }
 
@@ -95,7 +95,7 @@ fn entry_crc(id: u32, payload: &[u8]) -> u32 {
     crc32_mpeg2(&d)
 }
 
-fn token(r: &RefValue) -> Option<(u64, u32)> {
+pub(super) fn token(r: &RefValue) -> Option<(u64, u32)> {
     match r {
         RefValue::Host { token, class_id } => Some((*token, *class_id)),
         _ => None,
