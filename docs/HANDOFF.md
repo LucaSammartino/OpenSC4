@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**Parked at3/3: core-mysims-contractfix4.** MS11/MS12, literal congestion position and FailCommute corrections compile/fullgatePASS. Invented CheckCommute/pathfinder methods removed; real body needsMS15, withMS13/MS14 also open. No wholepool/dispatch credit or fourthround; preserve this worktree. Compiled documented fixes may land through the train.
+
 **train54 landed f1d0961050:** Three-lane docs batch. AD7-AD10 allDIFFERS resolved (47callback order, validshared RNG/DoLink, cheatGetVoid2, cdecl Lua reload and directory getters); AD11 runtime directory value remains. ModelMaker parked3/3 at20607/34705B,26functions remain; QueryTool parked3/3 at16046/76564B,183functions remain. Partial specs preserved, both WTs kept and no whole-owner credit. No ABI/runtime changes, gate/regress skipped. Coverage45.4/34.5/16.4/17.8; rounds162 (open-ended).
 
 **train53 landed e1949bc0bc:** Three-lane docs unblock: NR14 proves slot30 SetPiece before InsertOccupant; MySim MS11/MS12 input/import differences published. BW5 Alt bit proven and BW10 general initialization corrected; runtime BW11 and unproven selector-specific arrow bounds BW12 remain, no guessed full-owner credit. Native network ABI proposals archived for review, not applied to interfaces in this docs batch. No runtime/ABI changes, gate/regress skipped. Coverage45.4/34.5/16.4/17.8; rounds158 (open-ended).
