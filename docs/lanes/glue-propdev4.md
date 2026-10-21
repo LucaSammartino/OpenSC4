@@ -1,3 +1,5 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
 # Lane glue-propdev4 (finish/validate the cFC4PropDeveloper replacement, enable=propdev)
 
 | Lane | Worktree | State at stop | Next steps |
