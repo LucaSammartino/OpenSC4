@@ -7,5 +7,3 @@
 - **PT2 - §2 `+0x1CC`:** (narrowed 2026-10-21, re-particles4 round 3: the run-time readers are `0x005B84C0` and `0x005B8410`, §8.3: (name, age) events) still open: the exact name composition in `0x005B8290`, the script keyword that fills the list, and Which section version does the shipped `SimCity_1.dat` effect directory carry for the particle section (reader A or B)?
 <!-- from: re-particles4 (2026-10-21) -->
 - **PT3 - §2 defaults:** the constructor copies the globals `0x00B22D54` (colour `+0x7C`, force `+0xE0`, `+0xF4`, `preferDir` `+0x18C`), `0x00B22D70` (effect particle fields) and `0x00B22E20` as floats. Their file images are pointer-like (`0x00A25EC8`, `0x00A25EE0`, `0x00A261F2`), so they are set by static initialisers. What are their values once the program runs (a runtime read or the initialiser's instructions)?
-<!-- from: re-particles4 (2026-10-21) -->
-- **PT4 - §5 pools:** the block size and the particle record size of the refill `0x005A61B0` for the two free lists (`0x00B0A6A0`, `0x00B0A688`), and whether either pool is ever freed.

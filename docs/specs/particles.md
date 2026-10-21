@@ -203,7 +203,14 @@ the next update sweeps it (§7 step 5). **IsInDelayedStop** slot 9 is the shared
 ## 5. Particle records and pools *[compat]*
 
 Particles come from process-wide free lists, never from the general heap one by one; an empty list is refilled by
-`0x005A61B0` (a block allocation, the block size not traced: PT4).
+`0x005A61B0` (PT4). A pool is four words: record size, block
+bytes, block chain head, free-list head; their file images are the initial values. The refill allocates block
+bytes + 8 from the heap, links the block into the chain through its first word, and threads ⌊block bytes / record
+size⌋ records starting at block `+4` into the free list (the last link is null). Effect particles (`0x00B0A67C`,
+free head `0x00B0A688`): **68-byte** records, 8,704-byte blocks = 128 records per refill. Base particles
+(`0x00B0A694`, free head `0x00B0A6A0`): **28-byte** records, 3,584-byte blocks = 128 per refill. Records go back to
+the free head on `DestroyParticle` (`0x005B2240` and its base twin); blocks are never returned during play, only
+by the exit-time functions that walk each chain (`0x00A7B930` and `0x00A7B980`, the same shape as `0x00A7B900`).
 
 - Base particles (`cSCParticleSimulatorBase::CreateParticle` `0x005B9E20`): free list head `0x00B0A6A0` (pool
   object `0x00B0A694`). The particle's first 28 bytes are zeroed. *[quirk]* Three words at `+0x0C`, `+0x10`,
@@ -528,4 +535,4 @@ no simulation state depends on them except through the finish test, which depend
 
 ## 12. Open questions
 
-See [questions/particles.md](questions/particles.md): PT1 (narrowed), PT2, PT3, PT4 open; PT5, PT6, PT7 answered 2026-10-21 (§5.1, §6, §8.1).
+See [questions/particles.md](questions/particles.md): PT1, PT2 (narrowed), PT3 open; PT4 (§5), PT5, PT6, PT7 answered 2026-10-21 (§5.1, §6, §8.1).

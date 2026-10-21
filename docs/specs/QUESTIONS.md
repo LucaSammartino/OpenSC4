@@ -137,7 +137,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 10 | 0 | OP11 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | parks | 0 | 11 | PK12 | - |
-| particles | 4 | 3 | PT8 | questions/particles.md |
+| particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
@@ -156,4 +156,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **90** | **994** | | |
+| **total** | **89** | **995** | | |
