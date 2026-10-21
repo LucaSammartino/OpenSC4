@@ -1,3 +1,5 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
 | re-construction-answers4 (OP7 + OP13-OP16 answers, lot-records §9 / lot-developer §6.7) | `re-construction-answers4` / spec lane | ready + report (5 questions answered, all DIFFERS; spec text only, no engine/ABI change) | core lane: re-key `ConstructionScalars` to the §9.1 object-frame roles, resume the schedule from loaded #14 values, use 4 subscriptions + base Init + AddOccupantGroup(0x5007), sparks x/z extent, crane limits/T/k per ld §6.7.6 |
 
 ## Report
