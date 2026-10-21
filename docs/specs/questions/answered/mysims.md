@@ -27,3 +27,7 @@
 - **MS6 (§11.2.6, §4.7):** does the traffic pathfinder `CheckCommute` and `FindNewJob` run have any side effect on
   traffic data (a recorded trip)? [inferred: no]
   **ANSWERED 2026-10-21 (re-answers35):** MATCHES — neither CheckCommute (0x0042D9E0; pathfinder slots 5, 9, 18, 19, 20, 23, 26, then Release) nor FindNewJob (dispatch SetCurrentCommuteDestination 0x004350D0 -> validateCommuteLocation 0x00432F50) calls ApplyTraffic (cISC4PathFinder slot 29, +0x74) or another volume writer: no trip is recorded. Only the process-wide work-check interval/adaptation counter (pathfinder.md §4.11) is shared. Spec §9.
+
+- **MS7 (§11.2.7, §4.1, §4.6):** the "announce" check of `AnnounceMoveIn` (the class slot that passes on the
+  reload case), and the dispatch state numbering 4/5/6. [inferred: announce is skipped after a load]
+  **ANSWERED 2026-10-21 (re-answers35):** DIFFERS — the "announce" check is cISC4MySim slot 56 RequestToPlaySound (0x00424DE0), a sound throttle, not a reload test: true when state != 0 and the MySim's seconds timer (cRZTimer units 5, MySim+0x2A0) is more than 4 s past the last true reading (MySim+0x29C, initially 0), which it then stores; only MySimMovedIn is gated, UpdateVariables and MYSIM_MOVE_IN always run. States: 4 to work, 5 home (not when state 1), 6 elsewhere/pylon, set on dispatch trip start 0x4BB71A7E (0x0042D364); arrival sets 2 (AnnounceMoveIn if it was 1) or 3. Spec §2.2, §4.1.

@@ -113,7 +113,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landvalue | 0 | 5 | LV6 | - |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
-| mysims | 1 | 6 | MS8 | questions/mysims.md |
+| mysims | 0 | 7 | MS8 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
@@ -140,4 +140,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **21** | **980** | | |
+| **total** | **20** | **981** | | |

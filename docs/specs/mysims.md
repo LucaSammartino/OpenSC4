@@ -107,7 +107,7 @@ Most agent loops visit **indices 0–4 only**. Index 5 (My Street sim) is visite
 
 | Field | Initial | Persisted | Notes |
 |---|---|---|---|
-| state | 0 | yes (u8) | 0 none (slot empty), 1 moving in / going home, 2 at home, 3 at work, 4/5/6 trip states (§4.7) |
+| state | 0 | yes (u8) | 0 none (slot empty), 1 moving in, 2 at home, 3 at work, 4 travelling to work, 5 travelling home, 6 travelling elsewhere (a dispatch-tool pylon or other target). Set by `cSC4MySim::DoMessage` on dispatch notifications (§3.3): **trip start** (sub-id `0x4BB71A7E`, `0x0042D364`): destination = default destination (home) → 5 unless the state is 1 (a move-in keeps 1); else destination = commute destination → 4, otherwise 6. **Arrival** (`0x0042D5B3`): current location = home → state 2 (when it was 1, `AnnounceMoveIn` is called right after state := 2); = commute destination → 3; elsewhere unchanged. `DispatchToolLockPylon` sets 6 when the dispatch accepts the pylon `GoTo`; `QuitJob` sets 2 unless 5 |
 | slot | 0 | yes | the UI slot passed to `MoveIn` |
 | residence | null | ref | `cISC4BuildingOccupant` |
 | home lot | null | no | looked up from the residence |
@@ -238,9 +238,13 @@ The MySim subscribes (at its Init) to `0x0B6F3E27`, `0xAB6F3E2D`, `0x4B6F3EBF`, 
 3. Otherwise: the "tracking" flag := dispatch `CheckFlags(0x100)`.
 4. `UpdateVariables()` (§4.5).
 
-The **first arrival home** (dispatch notification, state 1 → 2) calls `AnnounceMoveIn` (slot 40): if the class's
-"announce" check passes *[inferred: not a reload]*, post `MySimMovedIn` `0xEA3ADA33` (void1 = home occupant,
+The **first arrival home** (dispatch notification, state 1 → 2) calls `AnnounceMoveIn` (slot 40): if `RequestToPlaySound()` (slot 56, `0x00424DE0`) returns true, post `MySimMovedIn` `0xEA3ADA33` (void1 = home occupant,
 data1 = is-male, data2 = wealth); then `UpdateVariables` and push the advisor event `MYSIM_MOVE_IN` `0xCA3E87A8`.
+`RequestToPlaySound` is a sound throttle, **not** a reload test: it is true only when state ≠ 0 and the MySim's
+wall-clock timer (`cRZTimer` in seconds, units 5, constructed with the MySim at `+0x2A0`) shows more than 4 whole seconds since the
+last time it returned true (initially 0; unsigned difference); when true it stores the current reading. So a
+move-in within 4 s of the previous announcement (or of the MySim's construction) posts no `MySimMovedIn`; the
+`UpdateVariables` and the `MYSIM_MOVE_IN` event happen in every case (`0x0042BFF2`).
 
 ### 4.2 Daily step (`simulate_day`, advisor `Simulate(0)`)
 
@@ -859,7 +863,7 @@ the MySims own no grid).
 4. *Answered (MS4, 2026-10-21):* groups `0x150A`/`0x150B` (landmarks and rewards), §4.9.
 5. *Answered (MS5, 2026-10-21):* traced on Windows, §4.5 (border ring only; agriculture jobs count as watered).
 6. *Answered (MS6, 2026-10-21):* no traffic-data side effect (§9).
-7. The "announce" check of `AnnounceMoveIn` (class slot) and the dispatch state numbering 4/5/6.
+7. *Answered (MS7, 2026-10-21):* the check is the `RequestToPlaySound` throttle (§4.1); states 4/5/6 in §2.2.
 
 ---
 
