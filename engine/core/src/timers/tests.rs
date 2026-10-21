@@ -316,9 +316,23 @@ struct Service {
     removed: Mutex<Vec<u32>>,
     next: AtomicU32,
     fail: std::sync::atomic::AtomicBool,
+    /// Net AddRef - Release calls made on it.
+    refs: AtomicI32,
+}
+
+impl Service {
+    fn refs(&self) -> i32 {
+        self.refs.load(Ordering::SeqCst)
+    }
 }
 
 impl TimerService for Service {
+    fn add_ref(&self) {
+        self.refs.fetch_add(1, Ordering::SeqCst);
+    }
+    fn release(&self) {
+        self.refs.fetch_sub(1, Ordering::SeqCst);
+    }
     fn add_timer(&self, timer: TimerKey, period: u32, one_shot: u32, fifth: u32) -> u32 {
         self.calls.lock().unwrap().push((timer, period, one_shot, fifth));
         if self.fail.load(Ordering::SeqCst) {
@@ -327,16 +341,51 @@ impl TimerService for Service {
             self.next.fetch_add(1, Ordering::SeqCst) + 1
         }
     }
-    fn remove_timer(&self, id: u32) {
+    fn remove_timer(&self, id: u32) -> bool {
         self.removed.lock().unwrap().push(id);
+        true
     }
 }
 
-struct Locator(Option<Arc<Service>>);
+/// The framework system service: owns `scheduler`, counts the lookups it
+/// handed out minus the releases.
+struct Framework {
+    scheduler: Arc<Service>,
+    refs: AtomicI32,
+    lookups: AtomicU32,
+}
+
+impl FrameworkTimerService for Framework {
+    fn scheduler(&self) -> Arc<dyn TimerService> {
+        self.scheduler.clone()
+    }
+    fn release(&self) {
+        self.refs.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+struct Locator(Option<Arc<Framework>>, Mutex<Vec<(u32, u32)>>);
+
+impl Locator {
+    fn new(scheduler: Option<Arc<Service>>) -> Arc<Self> {
+        let fw = scheduler.map(|scheduler| {
+            Arc::new(Framework {
+                scheduler,
+                refs: AtomicI32::new(0),
+                lookups: AtomicU32::new(0),
+            })
+        });
+        Arc::new(Locator(fw, Mutex::new(Vec::new())))
+    }
+}
 
 impl ServiceLocator for Locator {
-    fn timer_service(&self) -> Option<Arc<dyn TimerService>> {
-        self.0.clone().map(|s| s as Arc<dyn TimerService>)
+    fn system_service(&self, clsid: u32, iid: u32) -> Option<Arc<dyn FrameworkTimerService>> {
+        self.1.lock().unwrap().push((clsid, iid));
+        let fw = self.0.clone()?;
+        fw.refs.fetch_add(1, Ordering::SeqCst);
+        fw.lookups.fetch_add(1, Ordering::SeqCst);
+        Some(fw as Arc<dyn FrameworkTimerService>)
     }
 }
 
@@ -355,7 +404,7 @@ impl Counted for Obj {
 fn setup() -> (Arc<Service>, Arc<Service>, Arc<CallbackTimerSet>) {
     let fw = Arc::new(Service::default());
     let def = Arc::new(Service::default());
-    let set = CallbackTimerSet::new(def.clone(), Some(Arc::new(Locator(Some(fw.clone())))));
+    let set = CallbackTimerSet::new(def.clone(), Some(Locator::new(Some(fw.clone()))));
     (fw, def, set)
 }
 
@@ -451,7 +500,7 @@ fn failed_add_and_destroyed_fire() {
 fn use_timer_service() {
     // No framework service: the flag stays false with the default.
     let def = Arc::new(Service::default());
-    let set = CallbackTimerSet::new(def.clone(), Some(Arc::new(Locator(None))));
+    let set = CallbackTimerSet::new(def.clone(), Some(Locator::new(None)));
     let t = CallbackTimer::new(&set);
     assert!(!t.uses_timer_service());
     assert!(!t.use_timer_service(true));
@@ -475,4 +524,119 @@ fn use_timer_service() {
     let svc = t.timer_service();
     assert_eq!(svc.add_timer(0, 1, 0, 0), 1);
     assert_eq!(fw.calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn use_timer_service_ownership() {
+    let fw = Arc::new(Service::default());
+    let def = Arc::new(Service::default());
+    let loc = Locator::new(Some(fw.clone()));
+    let framework = loc.0.clone().unwrap();
+    let set = CallbackTimerSet::new(def.clone(), Some(loc.clone()));
+    // Construction: one lookup by ID/IID; the slot-3 scheduler differs from
+    // the default, so the default is released and the scheduler AddRef'd;
+    // the system service's own reference is given back.
+    let t = CallbackTimer::new(&set);
+    assert_eq!(
+        *loc.1.lock().unwrap(),
+        [(FRAMEWORK_TIMER_SERVICE_ID, FRAMEWORK_TIMER_SERVICE_IID)]
+    );
+    assert!(t.uses_timer_service() && !t.uses_default_service());
+    assert_eq!((fw.refs(), def.refs()), (1, -1));
+    assert_eq!(framework.refs.load(Ordering::SeqCst), 0);
+    // No change: true, no lookup, no reference traffic.
+    assert!(t.use_timer_service(true));
+    assert_eq!(framework.lookups.load(Ordering::SeqCst), 1);
+    assert_eq!((fw.refs(), def.refs()), (1, -1));
+    // Quirk 8: false drops the scheduler without releasing it.
+    assert!(t.use_timer_service(false));
+    assert!(!t.uses_timer_service() && t.uses_default_service());
+    assert_eq!((fw.refs(), def.refs()), (1, -1));
+    assert!(t.use_timer_service(false), "no change");
+    // Back on: a second lookup, the default released again, scheduler +1.
+    assert!(t.use_timer_service(true));
+    assert_eq!(framework.lookups.load(Ordering::SeqCst), 2);
+    assert_eq!((fw.refs(), def.refs()), (2, -2));
+    assert_eq!(framework.refs.load(Ordering::SeqCst), 0);
+    // The destructor releases the scheduler once: quirk 8's reference stays.
+    drop(t);
+    assert_eq!((fw.refs(), def.refs()), (1, -2));
+}
+
+#[test]
+fn use_timer_service_same_and_missing() {
+    // The framework's scheduler is the default itself: slot 3 equals
+    // `+0x20`, so no release and no AddRef, and the result is true.
+    let def = Arc::new(Service::default());
+    let set = CallbackTimerSet::new(def.clone(), Some(Locator::new(Some(def.clone()))));
+    let t = CallbackTimer::new(&set);
+    assert!(t.uses_timer_service() && t.uses_default_service());
+    assert_eq!(def.refs(), 0);
+    drop(t);
+    assert_eq!(def.refs(), -1, "the destructor releases the default too (TM3)");
+
+    // Not found, and no framework at all: false, flag false, the default
+    // (already in `+0x20`) is not released.
+    for loc in [Some(Locator::new(None) as Arc<dyn ServiceLocator>), None] {
+        let def = Arc::new(Service::default());
+        let set = CallbackTimerSet::new(def.clone(), loc);
+        let t = CallbackTimer::new(&set);
+        assert!(!t.uses_timer_service() && t.uses_default_service());
+        assert!(!t.use_timer_service(true));
+        assert!(!t.uses_timer_service());
+        assert_eq!(def.refs(), 0);
+        assert!(t.use_timer_service(false), "no change");
+    }
+}
+
+#[test]
+fn start_failure_and_object_refcounts() {
+    let (fw, _def, set) = setup();
+    let t = CallbackTimer::new(&set);
+    let (n, cb) = counter();
+    t.set_callback(Some(cb), 1);
+    let obj = Arc::new(Obj::default());
+    // Slot 5 failure: the period stays replaced, the object is released.
+    fw.fail.store(true, Ordering::SeqCst);
+    assert!(!t.start(77, Some(obj.clone())));
+    assert_eq!(t.period(), 77);
+    assert!(!t.is_running() && !t.has_object() && t.id() == 0);
+    assert_eq!(obj.0.load(Ordering::SeqCst), 0);
+    // Stop without an ID: no RemoveTimer, true.
+    assert!(t.stop());
+    assert!(fw.removed.lock().unwrap().is_empty());
+
+    // A restart whose re-add fails leaves the kept object on a stopped timer.
+    fw.fail.store(false, Ordering::SeqCst);
+    assert!(t.start(0, Some(obj.clone())));
+    fw.fail.store(true, Ordering::SeqCst);
+    assert!(t.set_period(5));
+    assert!(!t.is_running() && t.has_object());
+    assert_eq!(obj.0.load(Ordering::SeqCst), 1);
+    // Slot 6 with a null object keeps `+0x24`; its firing releases it.
+    fw.fail.store(false, Ordering::SeqCst);
+    assert!(t.start_once(0, None));
+    assert_eq!(*fw.calls.lock().unwrap().last().unwrap(), (t.key(), 5, 1, 0));
+    assert!(t.has_object());
+    set.fire(t.key());
+    assert_eq!(n.load(Ordering::SeqCst), 1);
+    assert!(!t.has_object() && !t.is_running());
+    assert_eq!(obj.0.load(Ordering::SeqCst), 0);
+
+    // Slot 5 with a null object overwrites a stale `+0x24` without a release.
+    assert!(t.start(0, Some(obj.clone())));
+    fw.fail.store(true, Ordering::SeqCst);
+    assert!(t.set_period(6));
+    assert_eq!(obj.0.load(Ordering::SeqCst), 1);
+    fw.fail.store(false, Ordering::SeqCst);
+    assert!(t.start(0, None));
+    assert!(!t.has_object());
+    assert_eq!(obj.0.load(Ordering::SeqCst), 1, "the stale reference leaks");
+
+    // The destructor of a running timer removes its ID and releases.
+    let id = t.id();
+    let refs = fw.refs();
+    drop(t);
+    assert_eq!(*fw.removed.lock().unwrap().last().unwrap(), id);
+    assert_eq!(fw.refs(), refs - 1);
 }

@@ -19,7 +19,7 @@ mod rz_timer;
 mod tests;
 
 pub use callback_timer::{
-    CallbackFn, CallbackTimer, CallbackTimerSet, Counted, ServiceLocator, TimerKey, TimerService,
-    FRAMEWORK_TIMER_SERVICE_ID, FRAMEWORK_TIMER_SERVICE_IID,
+    CallbackFn, CallbackTimer, CallbackTimerSet, Counted, FrameworkTimerService, ServiceLocator, TimerKey,
+    TimerService, FRAMEWORK_TIMER_SERVICE_ID, FRAMEWORK_TIMER_SERVICE_IID,
 };
 pub use rz_timer::{Calibration, CalibrationHost, RzTimer, TimerHost, TimerUnit};
