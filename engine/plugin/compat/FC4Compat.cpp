@@ -107,7 +107,12 @@ const ExecutableVersion kVersions[] = {
             {0x00A9E7C8, 9, 0x0057DA40},   // cSC4DisasterManagerRiot::LockNetworkOccupant
             {0x00A861B8, 8, 0x0043F650},   // cSC4TutorialSystem::IsTutorial
         },
-        0x00B207C0,  // the advisor system's private global (advisors.md §14.2, §8.3.1)
+        // glue-span4444-impl4: cSpanRender4444's shared static vtable and slots 1-5
+        // (span-render-4444.md §1, §1.1).
+        0x00AC185C,
+        {0x00847CE0, 0x00847D30, 0x00847E40, 0x00847F10, 0x008480C0,
+        0x00B207C0,  // the advisor system's private global (advisors.md §14.2, §8.3.1),
+},
     },
 };
 
@@ -740,6 +745,67 @@ bool PublishLimitTimers(float cyclesToMs, float msToCycles) {
 }
 
 uint64_t PublishCount() { return g_publishCount; }
+
+bool SpanRender4444Entries(void*** vtable, uintptr_t functions[5]) {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static void** entries = nullptr;
+    const ExecutableVersion* v = IdentifiedVersion();
+    if (state == 0) {
+        state = -1;
+        const uintptr_t va = v ? v->spanRender4444VtableVA : 0;
+        MEMORY_BASIC_INFORMATION mbi{};
+        // Entries 0..5 (24 bytes) inside one committed image region.
+        bool ok = v != nullptr && va != 0 && va % 4 == 0 &&
+                  VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)) &&
+                  va + 24 <= reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
+        for (unsigned i = 0; ok && i < 5; ++i) ok = CheckCode("span4444 slot function", v->spanRender4444SlotVA[i], v->imageBase);
+        if (ok) {
+            entries = reinterpret_cast<void**>(va);
+            state = 1;
+        } else {
+            Log("compat: span4444 vtable 0x%08lX NOT available (%s)", static_cast<unsigned long>(va),
+                v ? "address rejected" : "executable not identified");
+        }
+    }
+    if (state != 1) return false;
+    if (vtable != nullptr) *vtable = entries;
+    if (functions != nullptr) {
+        for (unsigned i = 0; i < 5; ++i) functions[i] = v->spanRender4444SlotVA[i];
+    }
+    return true;
+}
+
+bool Span1555SlotEntry(unsigned slot, void*** entry, uintptr_t* function) {
+    static const uintptr_t kVtable = 0x00AC182C;  // span-render-1555.md §1.1
+    static const uintptr_t kSlots[6] = {0x0082FF00, 0x008310B0, 0x00831100, 0x00831200, 0x008312D0, 0x00831470};
+    static int state[6] = {};  // 0 unknown, 1 available, -1 refused
+    if (slot >= 6) return false;
+    const ExecutableVersion* v = IdentifiedVersion();
+    if (state[slot] == 0) {
+        state[slot] = -1;
+        const uintptr_t slotVA = kVtable + 4u * slot;
+        MEMORY_BASIC_INFORMATION mbi{};
+        bool ok = v == &kVersions[0] &&
+                  VirtualQuery(reinterpret_cast<const void*>(slotVA), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        if (ok) ok = CheckCode("span1555 slot function", kSlots[slot], v->imageBase);
+        if (ok) {
+            state[slot] = 1;
+        } else {
+            Log("compat: span1555 vtable 0x%08lX slot %u NOT available (%s)", static_cast<unsigned long>(kVtable),
+                slot, v ? "address rejected" : "executable not identified");
+        }
+    }
+    if (state[slot] != 1) return false;
+    if (entry != nullptr) *entry = reinterpret_cast<void**>(kVtable + 4u * slot);
+    if (function != nullptr) *function = kSlots[slot];
+    return true;
+}
 
 }  // namespace compat
 }  // namespace fc4

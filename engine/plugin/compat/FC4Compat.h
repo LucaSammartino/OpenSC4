@@ -166,6 +166,12 @@ struct ExecutableVersion {
     uint32_t parkManagerVtableVA;
     // The disaster shadow's forwarder sites, indexed by DisasterHook.
     DisasterHookSite disasterHooks[static_cast<unsigned>(DisasterHook::Count)];
+    // glue-span4444-impl4: nGZDrawSoftRender::cSpanRender4444's one shared
+    // static vtable and the original functions of its slots 1-5 (RenderSolid,
+    // RenderGradient, RenderAlpha, RenderAlphaGradient, RenderBlt;
+    // span-render-4444.md §1, §1.1).
+    uint32_t spanRender4444VtableVA;
+    uint32_t spanRender4444SlotVA[5];
     // The advisor system's private global (advisors.md §14.2, §8.3.1): the cISC4AdvisorSystem* the original
     // Lua extensions read (a replacement system writes its own pointer there, [choice] of §14.2).
     uint32_t advisorSystemGlobalVA;
@@ -256,6 +262,13 @@ const void* ParkManagerVtable();
 // before it patches).
 bool DisasterHookEntry(DisasterHook which, void*** entry, uintptr_t* function);
 
+// The span4444 bridge (glue-span4444-impl4, span-render-4444.md §1.1): the
+// address of entry 0 of cSpanRender4444's shared vtable and the original
+// functions slots 1-5 must hold, or false (logged once) if the executable is
+// not identified, the entries are not committed, readable image memory, or a
+// function is not executable code inside the image. The entries' current
+// values are not checked here (the bridge compares them before it patches).
+bool SpanRender4444Entries(void*** vtable, uintptr_t functions[5]);
 // The advisor system's private global (advisors.md §14.2): the address of the cISC4AdvisorSystem* slot, or
 // nullptr (logged once) if the executable is not identified or the address is not aligned, committed,
 // writable memory inside its image.
@@ -275,6 +288,15 @@ bool PublishLimitTimers(float cyclesToMs, float msToCycles);
 
 // Number of successful publishes (diagnostics).
 uint64_t PublishCount();
+
+// glue-span1555-impl4: the cSpanRender1555 vtable (docs/specs/span-render-1555.md
+// §1.1): one static six-entry table at 0x00AC182C shared by every colour type 4/6
+// RenderToBuffer context; slot 0 the deleting destructor 0x0082FF00, slots 1-5
+// RenderSolid 0x008310B0, RenderGradient 0x00831100, RenderAlpha 0x00831200,
+// RenderAlphaGradient 0x008312D0, RenderBlt 0x00831470 (thiscall, callee pops
+// 16/16/20/16/24 bytes, no return value). For the identified build only: the
+// entry's address and the function it must hold; false otherwise.
+bool Span1555SlotEntry(unsigned slot, void*** entry, uintptr_t* function);
 
 }  // namespace compat
 }  // namespace fc4

@@ -491,6 +491,12 @@ if(FC4_IS_WIN32_X86)
         # The glue-exemplars4 lane: the exemplar/cohort factory replacement (FC4ExemplarFactory.h).
         plugin/FC4ExemplarFactory.cpp
         plugin/FC4ExemplarFactory.h
+        # The cSpanRender4444 native bridge (span-render-4444.md §1.1; glue-span4444-impl4): enable = span4444.
+        plugin/FC4SpanRender4444.cpp
+        plugin/FC4SpanRender4444.h
+        # The cSpanRender1555 native bridge (glue-span1555-impl4): enable = span1555.
+        plugin/FC4Span1555Shadow.cpp
+        plugin/FC4Span1555Shadow.h
         # The glue-advisors-final4 lane: the advisor window slots 23-28 (advisors.md §12.1.1, AD4).
         plugin/FC4AdvisorWindow.h
         plugin/FC4AdvisorWindowGame.cpp

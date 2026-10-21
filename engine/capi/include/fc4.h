@@ -12044,6 +12044,42 @@ bool fc4_exrec_parent(const fc4_exrec* p, uint32_t* key3);
 size_t fc4_exrec_count(const fc4_exrec* p);
 int32_t fc4_exrec_prop(const fc4_exrec* p, size_t index, uint32_t* id, uint16_t* mem_type, bool* is_array,
                        const uint8_t** data, size_t* count, uint32_t* key3);
+/* ---- span renderer A4R4G4B4 (docs/specs/span-render-4444.md §2-§7; engine/capi/src/span_render4444.rs) ----
+ * The plug-in's cSpanRender4444 bridge (glue-span4444-impl4). `spans` holds `count` (start, end) dword pairs.
+ * The destination is `dst_len` bytes with pixel (0, 0) at byte `origin` and a signed byte `stride`; every
+ * touched byte is checked before anything is written. `grad` is the 12-dword record (§5); `alpha_ramp`
+ * selects RenderAlphaGradient (§6). RenderBlt: the source image is `src_len` bytes with texel (0, 0) at
+ * `src_origin`; `desc` is the 32-byte §7 `src` record. Returns 0 rendered, 1 null pointer / zero count,
+ * 2 rejected by the core (nothing written). */
+int32_t fc4_span4444_solid(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                           int32_t stride, uint32_t colour);
+int32_t fc4_span4444_alpha(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                           int32_t stride, uint32_t colour, uint32_t alpha);
+int32_t fc4_span4444_gradient(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                              int32_t stride, const int32_t* grad, bool alpha_ramp);
+int32_t fc4_span4444_blt(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                         int32_t stride, const uint8_t* src, size_t src_len, size_t src_origin, int32_t src_stride,
+                         uint32_t src_width, uint32_t src_height, const uint8_t* desc, uint32_t mode);
+/* glue-span1555-impl4: the 1555 span renderer (docs/specs/span-render-1555.md
+ * §1.1-§7), the five methods of cSpanRender1555 over explicit memory windows:
+ * `dst`/`src` point at `*_len` bytes and `*_base` is the signed byte offset of
+ * the record's pixel (0, 0) from that pointer. `spans` holds n (start, end)
+ * dword pairs; `grad` the 12 dwords of §4.1; `rec` the 24-byte source record
+ * (its +0 pointer unread: the window replaces it); `blit` the 32-byte record.
+ * Returns 0 drawn, 1 n = 0, 2 invalid span, 3 destination outside the window,
+ * 4 source outside the window, 5 row >= 14, 6 kind >= 12, 7 empty tile,
+ * -1 a null pointer. See engine/capi/src/span1555.rs. */
+int32_t fc4_span1555_solid(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                           int32_t stride, uint32_t colour);
+int32_t fc4_span1555_alpha(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                           int32_t stride, uint32_t src, uint32_t argb);
+int32_t fc4_span1555_gradient(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                              int32_t stride, const int32_t* grad);
+int32_t fc4_span1555_alpha_gradient(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len,
+                                    int64_t dst_base, int32_t stride, const int32_t* grad);
+int32_t fc4_span1555_blt(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                         int32_t stride, const uint8_t* src, uint32_t src_len, int64_t src_base, const uint32_t* rec,
+                         const uint32_t* blit, uint32_t kind);
 
 #ifdef __cplusplus
 } /* extern "C" */
