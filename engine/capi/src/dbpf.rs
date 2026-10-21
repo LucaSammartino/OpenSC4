@@ -140,7 +140,11 @@ pub unsafe extern "C" fn fc4_dbpf_read_exemplar(
     let Some(pkg) = pkg_ref(p) else {
         return std::ptr::null_mut();
     };
-    let tgi = Tgi { type_id, group, instance };
+    let tgi = Tgi {
+        type_id,
+        group,
+        instance,
+    };
     let Some(ex) = guard(None, || {
         let data = pkg.read_tgi(&tgi).ok()?;
         Exemplar::parse_record(type_id, &data).ok()
@@ -155,8 +159,17 @@ pub unsafe extern "C" fn fc4_dbpf_read_exemplar(
         return props;
     }
     for prop in ex.properties() {
-        let Some((mem_type, bytes, count)) = typed(&prop.values) else { continue };
-        if !fc4_props_set_typed(props, prop.id, mem_type, prop.stored_as_array(), bytes.as_ptr().cast(), count) {
+        let Some((mem_type, bytes, count)) = typed(&prop.values) else {
+            continue;
+        };
+        if !fc4_props_set_typed(
+            props,
+            prop.id,
+            mem_type,
+            prop.stored_as_array(),
+            bytes.as_ptr().cast(),
+            count,
+        ) {
             fc4_props_destroy(props);
             return std::ptr::null_mut();
         }
@@ -175,11 +188,19 @@ mod tests {
     #[test]
     fn opens_a_package_and_reads_own_properties() {
         let mut ex = Exemplar::new(Kind::Exemplar);
-        ex.parent = Tgi { type_id: 0x0534_2861, group: 1, instance: 2 };
+        ex.parent = Tgi {
+            type_id: 0x0534_2861,
+            group: 1,
+            instance: 2,
+        };
         ex.set(Property::single(0x10, Values::Uint32(vec![7])));
         ex.set(Property::array(0x20, Values::Float32(vec![1.5, 2.5])));
         ex.set(Property::single(0x30, Values::Empty));
-        let key = Tgi { type_id: 0x6534_284A, group: 3, instance: 4 };
+        let key = Tgi {
+            type_id: 0x6534_284A,
+            group: 3,
+            instance: 4,
+        };
         let mut b = PackageBuilder::new();
         b.add(key, &ex.to_binary(), Compression::Always).unwrap();
         let dir = std::env::temp_dir().join(format!("fc4_dbpf_capi_{}.dat", std::process::id()));
