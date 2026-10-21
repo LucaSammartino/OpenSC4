@@ -1,6 +1,6 @@
 # Legacy control (`cGZLegacyControl`): building widgets from `LEGACY` script blocks
 
-Status: partial (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
+Status: partial, 38 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
 (Windows). Covered: object layout, COM surface, lifecycle, the shared vocabulary and its two lookup maps, the
 `SetParameters` build sequence, the property-list readers, and the full word tables of all 21 vocabulary
 functions. Per-control interpreter contracts (`InterpretProperties*`) are specified for the common pass (§8);
@@ -333,7 +333,37 @@ comment list, and parameter `0x3ACA6906` = {0, 0}; second pass `SetFlag(0x2, fal
 | Interpreter | Address | Size | State |
 |---|---|---|---|
 | GZWinCustom | `0x00A6D837` | 1 | **specified**: does nothing (a bare return, ICF-shared) |
-| all other 19 | §4.1 | 403–4857 | open (LC4) |
+| GZWinSlider | `0x00950218` | 403 | **specified** (§9.1), slot names on the slider interface *[inferred]* |
+| all other 18 | §4.1 | 465–4857 | open (LC4) |
+
+Every per-type interpreter starts the same way: `QueryInterface` the control for its own IID (§4.1); on failure
+it does nothing at all; on success it works through that interface and releases it at the end.
+
+### 9.1 GZWinSlider (`0x00950218`)
+
+Interface `IGZWinSlider` `0x21325207`, a sub-object at control `+0xD8` (vtable `0x00AE049C`; the export has no
+slot names, so the names below are inferred from the arguments and are marked so).
+
+First pass:
+
+1. `minmaxvalue` (`0xC00`, coordinate reader `(%d,%d)`, both numbers required): order the pair so that
+   `lo ≤ hi` (signed compare; equal values unchanged), then call slot `+0x20` with `hi` (*SetMaximum*) **before**
+   slot `+0x18` with `lo` (*SetMinimum*).
+2. `direction` (`0xC01`, Uint32): value `0xC03` (`vertical`) → slot `+0x28` with 2; **any other value**
+   (including `horizontal` `0xC02`) → 1.
+3. `image` (`0xF016`, String, pattern `{%x,%x}` → group, instance; both required): load the image buffer
+   (helper `0x0094C4E0`); if a buffer is returned: `imagerect` (`0xF018`, rectangle reader `0x0094D5CA`) gives a
+   rectangle or, when absent, null; call slot `+0x30` (*SetImage*) with (buffer, rect-or-null); store the
+   resource key as control parameter `0x6B4BCBD4` (type `0x856DDBAC`, group, instance; same helper as §8 step 7);
+   call helper `0x0094C1DA` (4 stack arguments, last pushed pair ends in 0; contract open, LC6); release the
+   buffer. No buffer → nothing.
+
+Second pass: `initvalue` (`0x40A`, read with the Sint32 reader, so it must still be a type-6 variant) → slot
+`+0x14` (*SetValue*). The initial value is applied after the range, so it is clamped by a range set in the
+first pass if the control clamps (control behaviour, not specified here).
+
+Worked example: `minmaxvalue=(100,0), direction=vertical, initvalue=30` → first pass `+0x20(100)`,
+`+0x18(0)`, `+0x28(2)`; second pass `+0x14(30)`.
 
 ## 10. Quirks (keep for compatibility)
 
@@ -349,17 +379,22 @@ comment list, and parameter `0x3ACA6906` = {0, 0}; second pass `SetFlag(0x2, fal
 - LC1. The `+0x04` sub-object vtable `0x00AD5344` (IID `0x5A356159`): slot targets not resolved in the export.
 - LC3. Serialiser `0x00965F73` used by `GetScriptFragment`: output format.
 - LC4. Interpreter effect tables (§8, §9).
+- LC6. Helper `0x0094C1DA` (`SetGZWinImage`, 4 stack arguments) called after an image is set.
 - LC5. Window manager slot 3 (`+0x0C`) used as the default parent: confirm it is the root/main window.
 
 ## 12. Coverage of owner functions (honest)
 
-Owner functions: 59 in `re/names_windows.tsv` (including the constructor; `ImplementInterface` is ICF-folded and
-`AddRef`/`GetControl` are shared bodies counted under other owners).
+Owner functions: 57 in `re/names_windows.tsv` (20 `InterpretProperties*`, 21 `ControlVocabulary*`, 16 others including
+the constructor, the `SetOwnControl` thunk and the ICF-folded `ImplementInterface`; `AddRef`/`GetControl` and the
+Custom interpreter are shared bodies owned elsewhere).
 
 | Group | Functions | State |
 |---|---|---|
-| COM surface, accessors, lifecycle (`QueryInterface`, `Release`, destructor, `GetControlVocabulary`, `SetOwnControl` + thunk, `SetParent`, `UseWinProc`, `ForceControl`, `GetID`, `SetID`, `DoExceptions`, constructor) | 14 | specified (§3, §5, §7) |
+| COM surface, accessors, lifecycle (`QueryInterface`, `Release`, destructor, `GetControlVocabulary`, `SetOwnControl` + thunk, `SetParent`, `UseWinProc`, `ForceControl`, `GetID`, `SetID`, `DoExceptions`, constructor, `ImplementInterface`) | 14 | specified (§3, §5, §7) |
 | `SetParameters` | 1 | specified (§6) |
 | `GetScriptFragment` | 1 | specified except the serialiser it calls (LC3) |
 | `ControlVocabulary*` | 21 | specified (§4: every word, ID and map entry) |
-| `InterpretProperties*` | 21 | GZWinCustom (shared stub) only; the 20 owned interpreters are open (LC4) |
+| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), Custom (shared stub) specified; 18 owned interpreters open (LC4) |
+
+Count: 38 of 57 owner functions specified (15 others + 21 vocabulary + Common + Slider); `GetScriptFragment`
+partial (LC3); 18 interpreters open (LC4). No wildcard credit.

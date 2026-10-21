@@ -58,6 +58,7 @@ generated index: the questions live one file per spec, so read only the file for
 | HG | foundations |
 | HW | history |
 | IN | commercial-industrial |
+| LC | legacy-control |
 | LD | lot-developer |
 | LF | landfill |
 | LG | landfill |
@@ -132,6 +133,7 @@ generated index: the questions live one file per spec, so read only the file for
 | history | 0 | 17 | HW18 | - |
 | landfill | 0 | 36 | LF7, LG31 | - |
 | landvalue | 0 | 5 | LV6 | - |
+| legacy-control | 5 | 0 | LC7 | questions/legacy-control.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | mysims | 3 | 7 | MS11 | questions/mysims.md |
@@ -172,4 +174,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **128** | **1013** | | |
+| **total** | **133** | **1013** | | |

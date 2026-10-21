@@ -1,10 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-legacycontrol4: spec cGZLegacyControl (new docs/specs/legacy-control.md) | Claude / .claude/worktrees/re-legacycontrol4 | in progress | see Handoff |
+| re-legacycontrol4: new spec docs/specs/legacy-control.md for owner cGZLegacyControl (38 of 57 fns specified) | Claude / .claude/worktrees/re-legacycontrol4 | ready (docs only) | LC4: specify the 18 open per-type interpreters, largest first (TreeView 4857, FileBrowser 3761, Grid 3537) |
 
-## Handoff
-- Goal: new docs/specs/legacy-control.md for owner cGZLegacyControl (59 fns, ~104 KB); docs only.
-- Done: spec v1 (layout, slots, lifecycle, vocab tables all 21 fns, SetParameters, readers) commit after 4274d299.
-- Next: §8 done; per-type interpreters small per-type interpreters (Slider 403, Folders 465, FlatRect 475, Outline 485, BMP 492).
-- Tools: build-runs/vocab2.py (asm word extractor), vocabmd.py (tables).
-- Facts: decomp/cGZLegacyControl.c (9338 lines); vtables 00ad5360 (11), 00ad5324 (8); ImplementInterface ICF-folded at 00935ea0.
+## Report
+- New docs/specs/legacy-control.md: object layout (0x20 bytes, three sub-objects), both slot tables with contracts,
+  lifecycle (ctor vocabulary bootstrap in fixed order, Release-at-count<=1, destructor detach/Shutdown when own-control),
+  shared vocabulary + interpreter map (IID -> fn) + class map (class -> IID), SetParameters 15-step build sequence
+  (fallback create chain, two interpreter passes around Init/ChildAdd/PullToFront, always returns false),
+  SetParent/UseWinProc/ForceControl/DoExceptions/GetScriptFragment, property-list readers (type 6 / 0x800E rules),
+  every word and ID of all 21 ControlVocabulary functions (asm-extracted, build-runs/vocab2.py), the common
+  interpreter's two passes (flag defaults, winflag words, id, area/pos/size, fillcolor, caption/captionres,
+  transparent, 8-slot comments list), and the Slider interpreter.
+- Measured: 38 of 57 owner functions specified; GetScriptFragment partial; 18 interpreters open.
+- Quirks recorded: SetParameters leaks a previous control (Q1), returns false always (Q2), stores the requested clsid
+  after a fallback create (Q3), Release at count 0 destroys (Q4).
+- Questions: docs/specs/questions/legacy-control.md LC1, LC3-LC6.
+- REA not used (export + decomp sufficed). No ABI rows proposed. No engine/ or game runs.
