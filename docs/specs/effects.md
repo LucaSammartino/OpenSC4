@@ -532,8 +532,9 @@ The bytes alone settle EF1 without a runtime trace. Three facts, all from instru
      description's flags A (`+0x00`) pick one of three emitters — `0x04` (`maintain`) → `0x005B3CF0` (a plain
      rate-integral emitter with **no** self-stop), otherwise `0x02` (`inject`) → `0x005B8B50` (loop-budget
      emitter: `+0x128` counts loops, compared with the description's `emit_loop_count` at `+0x18`; when the
-     budget is exhausted it calls `Stop(0)` at `0x005B8D67`), else `0x005B87B0` (duration-budget emitter: when
-     its accumulated duration runs out it calls `Stop(0)` at `0x005B8B29`).
+     budget is exhausted it calls `Stop(0)` at `0x005B8D67`), else `0x005B87B0` (the rate emitter: when
+     its loop counter `+0x128` reaches `emit_loop_count` it calls `Stop(0)` at `0x005B8B29`, unless flag A
+     `0x08` holds it at the last loop; there is no separate seconds budget, §7.1.1).
    - `cSC4GeometrySourcedParticlesEffect` (main vtable `0x00AA0B88`, installed by `0x005A8ED0`) → `0x005AA5D0`:
      when its emit state says the last loop is done (its `+0x18` count is 0) it calls `Stop(0)` (main slot 1,
      argument 0) on itself at `0x005AA6D4`/`0x005AA6EB`.
