@@ -17,4 +17,8 @@
 - Plan: cm host gets `user` = the manager; a `destroying_` flag around fc4_automata_cm_destroy; the cm
   release of a game object while destroying uses FC4_RELEASE_AT_DESTRUCTION (audit still requires the
   acquisition). Test via a seam op. File AT21: where the original drops controller refs at city close.
-- Next: implement, qbuild quick, game run with a copy of sg4-c1.req (label vam4-c1) and a no-save control.
+- Done: 7893f2db fix (CmHostRelease + destroying_), seam op 69 + plugin_load_test checks, question AT21.
+  Gate: baseline all PASS (cargo 3756, clippy 0, ctest 63/63); after fix all PASS (3756, 0, 63/63).
+- Outstanding: game request vam4-c1 (exact copy of sg4-c1.req, script build-runs/sg4-save-j1.txt).
+- Next: wait `qwait.py <WT>/build-runs/game-results/vam4-c1.verdict` (no --fresh); grep vam4-c1.log for
+  "released last" and "Release (at our destruction)"; then a no-save control vam4-n1.
