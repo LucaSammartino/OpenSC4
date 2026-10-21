@@ -168,8 +168,10 @@ extern "C" {
  * 74 = merge-train batch train8 (re-answers32, glue27, cores23, cores20): merged (no C ABI history entry of its own)
  * 75 = merge-train batch train10 (cores27): cores27: adds the network tools (fc4_nettool, network-tools.md §2-§11): the tool state, PlaceNetworkOccupants (slot 7), PlaceNetworkOccupantById (slot 8), the PlaceNetwork pipeline hand-off with the commit order, DestroyOccupantsAndResolve (slot 50) and the underground refit, over an fc4_nettool_host table (cores27 lane; taken as 75 on its lane; renumbered at merge; FC4_ABI_VERSION left at 74 for the train)
  * 76 = merge-train batch train31 (re-span4444-4, glue-formats4): merged (no C ABI history entry of its own)
- * 77 = merge-train batch train49 (core-construction4, glue-exemplars4): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 77u
+ * 77 = merge-train batch train49 (core-construction4, glue-exemplars4): merged (no C ABI history entry of its own)
+ * 78 = merge-train batch train56 (glue-span1555-impl4, glue-span4444-impl4, core-htmldocument4, glue-exemplar-contractfix4, core-fonts4, core-effects-fix4, verify-landvalue49): merged (no C ABI history entry of its own)
+ * 79 = merge-train batch train57 (glue-disasters-impl4, glue-netrules-apply4): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 79u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -12044,6 +12046,111 @@ bool fc4_exrec_parent(const fc4_exrec* p, uint32_t* key3);
 size_t fc4_exrec_count(const fc4_exrec* p);
 int32_t fc4_exrec_prop(const fc4_exrec* p, size_t index, uint32_t* id, uint16_t* mem_type, bool* is_array,
                        const uint8_t** data, size_t* count, uint32_t* key3);
+/* ---- span renderer A4R4G4B4 (docs/specs/span-render-4444.md §2-§7; engine/capi/src/span_render4444.rs) ----
+ * The plug-in's cSpanRender4444 bridge (glue-span4444-impl4). `spans` holds `count` (start, end) dword pairs.
+ * The destination is `dst_len` bytes with pixel (0, 0) at byte `origin` and a signed byte `stride`; every
+ * touched byte is checked before anything is written. `grad` is the 12-dword record (§5); `alpha_ramp`
+ * selects RenderAlphaGradient (§6). RenderBlt: the source image is `src_len` bytes with texel (0, 0) at
+ * `src_origin`; `desc` is the 32-byte §7 `src` record. Returns 0 rendered, 1 null pointer / zero count,
+ * 2 rejected by the core (nothing written). */
+int32_t fc4_span4444_solid(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                           int32_t stride, uint32_t colour);
+int32_t fc4_span4444_alpha(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                           int32_t stride, uint32_t colour, uint32_t alpha);
+int32_t fc4_span4444_gradient(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                              int32_t stride, const int32_t* grad, bool alpha_ramp);
+int32_t fc4_span4444_blt(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                         int32_t stride, const uint8_t* src, size_t src_len, size_t src_origin, int32_t src_stride,
+                         uint32_t src_width, uint32_t src_height, const uint8_t* desc, uint32_t mode);
+/* glue-span1555-impl4: the 1555 span renderer (docs/specs/span-render-1555.md
+ * §1.1-§7), the five methods of cSpanRender1555 over explicit memory windows:
+ * `dst`/`src` point at `*_len` bytes and `*_base` is the signed byte offset of
+ * the record's pixel (0, 0) from that pointer. `spans` holds n (start, end)
+ * dword pairs; `grad` the 12 dwords of §4.1; `rec` the 24-byte source record
+ * (its +0 pointer unread: the window replaces it); `blit` the 32-byte record.
+ * Returns 0 drawn, 1 n = 0, 2 invalid span, 3 destination outside the window,
+ * 4 source outside the window, 5 row >= 14, 6 kind >= 12, 7 empty tile,
+ * -1 a null pointer. See engine/capi/src/span1555.rs. */
+int32_t fc4_span1555_solid(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                           int32_t stride, uint32_t colour);
+int32_t fc4_span1555_alpha(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                           int32_t stride, uint32_t src, uint32_t argb);
+int32_t fc4_span1555_gradient(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                              int32_t stride, const int32_t* grad);
+int32_t fc4_span1555_alpha_gradient(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len,
+                                    int64_t dst_base, int32_t stride, const int32_t* grad);
+int32_t fc4_span1555_blt(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                         int32_t stride, const uint8_t* src, uint32_t src_len, int64_t src_base, const uint32_t* rec,
+                         const uint32_t* blit, uint32_t kind);
+
+/* ---- layer-only disaster layer (disasters.md §2.2-§2.8; engine/capi/src/disaster_layer.rs;
+ * glue-disasters-impl4). `enable = disasters` replaces only cSC4DisasterLayer: the native
+ * managers stay the game's (§2.8 DS44), this state holds none. Instances and occupants are
+ * opaque host tokens. Additive; no FC4_ABI_VERSION bump. */
+typedef struct fc4_dlayer fc4_dlayer;
+typedef struct fc4_dlayer_host {
+    uint32_t struct_size;
+    void* user;
+    uint64_t (*now_ms)(void* user);
+    void (*emergency_pause)(void* user);
+    void (*emergency_resume)(void* user);
+    void (*disable_save)(void* user);
+    void (*enable_save)(void* user);
+    void (*post_started)(void* user, uint32_t ongoing, int32_t x, int32_t z, uint64_t instance);
+    void (*post_ended)(void* user);
+    void (*subscribe)(void* user, bool on);
+    void (*add_ref)(void* user, uint64_t occupant);
+    void (*release)(void* user, uint64_t occupant);
+    bool (*follow_disasters)(void* user);
+    void (*go_to)(void* user, int32_t x, int32_t z, uint32_t zoom);
+    bool (*occupant_in_manager)(void* user, uint64_t occupant);
+    bool (*occupant_cell)(void* user, uint64_t occupant, int32_t* x, int32_t* z);
+    bool (*instance_location)(void* user, uint64_t instance, int32_t* x, int32_t* z);
+    bool (*dispatch_counts)(void* user, uint32_t* fire, uint32_t* police);
+} fc4_dlayer_host;
+typedef struct fc4_dlayer_record {
+    uint32_t building_count;
+    uint32_t special_count;
+    int64_t total_cost;
+    uint32_t kind_count[4];
+    int64_t kind_cost[4];
+    float fire_effectiveness;
+    float police_effectiveness;
+} fc4_dlayer_record;
+typedef struct fc4_dlayer_location {
+    uint64_t instance;
+    uint64_t occupant;
+    int32_t x, z;
+    uint32_t zoom;
+    uint32_t reserved;
+} fc4_dlayer_location;
+#define FC4_DLAYER_OCC_OTHER 0u
+#define FC4_DLAYER_OCC_BUILDING 1u
+#define FC4_DLAYER_OCC_NETWORK 2u
+fc4_dlayer* fc4_dlayer_create(const fc4_dlayer_host* host);
+void fc4_dlayer_destroy(fc4_dlayer* d);
+bool fc4_dlayer_init(fc4_dlayer* d);
+bool fc4_dlayer_initialised(fc4_dlayer* d);
+bool fc4_dlayer_shutdown(fc4_dlayer* d);
+bool fc4_dlayer_enable(fc4_dlayer* d, bool enable);
+bool fc4_dlayer_enabled(fc4_dlayer* d);
+bool fc4_dlayer_begun(fc4_dlayer* d, uint64_t instance);
+bool fc4_dlayer_ended(fc4_dlayer* d);
+uint32_t fc4_dlayer_ongoing(fc4_dlayer* d);
+bool fc4_dlayer_occupant_removed(fc4_dlayer* d, uint32_t kind, bool has_cost, int64_t cost, uint32_t flags);
+bool fc4_dlayer_dispatch(fc4_dlayer* d, uint32_t msg, int32_t dispatch_type, uint32_t id);
+bool fc4_dlayer_reset_cost(fc4_dlayer* d);
+bool fc4_dlayer_record(fc4_dlayer* d, fc4_dlayer_record* out);
+bool fc4_dlayer_register(fc4_dlayer* d, uint64_t instance, int32_t x, int32_t z, uint64_t occupant, uint32_t zoom,
+                         bool focus);
+bool fc4_dlayer_unregister(fc4_dlayer* d, uint64_t instance);
+bool fc4_dlayer_unregister_by_occupant(fc4_dlayer* d, uint64_t instance, uint64_t occupant);
+bool fc4_dlayer_most_recent(fc4_dlayer* d, uint64_t instance, int32_t* x, int32_t* z);
+int32_t fc4_dlayer_location_count(fc4_dlayer* d);
+bool fc4_dlayer_location_at(fc4_dlayer* d, int32_t index, fc4_dlayer_location* out);
+bool fc4_dlayer_go_to_next(fc4_dlayer* d);
+bool fc4_dlayer_assessing(fc4_dlayer* d);
+uint32_t fc4_dlayer_refused(fc4_dlayer* d);
 
 /* The 565 span renderer (span-render-565.md, glue-span565-impl4): the five
  * methods of the native vtable 0x00AC1844 on the native records, run by the

@@ -41,6 +41,7 @@
 #include "cGZPersistResourceKey.h"
 #include "cIGZPersistDBRecord.h"
 #include "cIGZPersistResourceManager.h"
+#include "compat/FC4Compat.h"
 
 #include <cstdio>
 #include <cstring>
@@ -440,11 +441,12 @@ void PlaceOccupant(NetToolContext* c, cISC4OccupantManager* om, cISC4NetworkOccu
 // §6.1 step 2.1 / §6.2: for each solved cell, insert the solved piece into
 // the city through the occupant manager. The run carries data4 (+0x208).
 // The per-cell piece choice (network-rules.md §11) comes from SolvePieces'
-// solved records (our rule solver). [choice] The occupant is created through
-// GZCOM class 0xC9C05C6E, and no public cISC4NetworkOccupant slot is specified
-// to write its piece id (+0xFC) and orientation (+0x104) (question NR14): the
-// chosen piece is logged and compared with what the occupant reports (slots
-// 23 / 26), not written. Cells without a record insert as before.
+// solved records (our rule solver). The occupant is created through GZCOM
+// class 0xC9C05C6E; its piece id and orientation are written by slot 30
+// SetPiece (§11.2, NR14; compat::NetworkOccupantSetPiece, which refuses an
+// occupant whose slot 30 is not the specified method) BEFORE the insert, and
+// read back through slots 23 / 26 before and after. Cells without a record
+// insert as before.
 void InsertOccupantsForSolvedCells(void* u, const fc4_nettool_run* run, bool preview_only) {
     NetToolContext* c = Ctx(u);
     if (c == nullptr || run == nullptr || preview_only) return;
@@ -457,8 +459,12 @@ void InsertOccupantsForSolvedCells(void* u, const fc4_nettool_run* run, bool pre
         const auto& p = g_pieces[i];
         byKey.emplace((static_cast<uint32_t>(p.z) << 16) + static_cast<uint32_t>(p.x), i);
     }
-    uint32_t chosen = 0, sameAsOccupant = 0;
-    char buf[512];
+    // [choice] Pipe (4) and Subway (7) are underground networks: §11.2 names no
+    // contract for their occupants' slot 30, so their pieces are not applied
+    // (counted as unsupported; question NR15).
+    const bool supportedType = run->type_id != 4 && run->type_id != 7;
+    uint32_t chosen = 0, applied = 0, unsupported = 0, freshZero = 0, preInsertSame = 0, sameAsOccupant = 0;
+    char buf[640];
     int len = 0;
     buf[0] = '\0';
     for (uint32_t i = 0; i < run->cell_count && i < FC4_NETTOOL_MAX_CELLS; ++i) {
@@ -468,24 +474,48 @@ void InsertOccupantsForSolvedCells(void* u, const fc4_nettool_run* run, bool pre
             continue;
         }
         const int32_t x = run->cells[i].x, z = run->cells[i].z;
-        PlaceOccupant(c, om, n, x, z, run->type_id, run->data4, true);
         const auto it = byKey.find((static_cast<uint32_t>(z) << 16) + static_cast<uint32_t>(x));
-        if (it != byKey.end()) {
-            const auto& p = g_pieces[it->second];
-            const uint32_t occPiece = n->PieceId();               // slot 23
-            const uint32_t occOrient = n->GetRotationAndFlip();   // slot 26 (+0x104)
+        const SolvedPiece* p = it != byKey.end() ? &g_pieces[it->second] : nullptr;
+        uint32_t prePiece = 0, preOrient = 0, setPiece = 0, setOrient = 0;
+        bool didApply = false;
+        if (p != nullptr) {
             ++chosen;
-            if (occPiece == p.id && occOrient == (p.orientation & 0xFF)) ++sameAsOccupant;
-            if (len < 400 && chosen <= 6) {
-                len += std::snprintf(buf + len, sizeof(buf) - len, " (%d,%d) ours=%08X/%02X occ=%08X/%02X", x, z,
-                                     p.id, p.orientation & 0xFF, occPiece, occOrient);
+            prePiece = n->PieceId();               // slot 23: a fresh occupant reads 0/0 (§11.2)
+            preOrient = n->GetRotationAndFlip();   // slot 26
+            if (prePiece == 0 && preOrient == 0) ++freshZero;
+            // §11.2: slot 30 on the new occupant before it enters the occupant
+            // manager, so the 0x99EF1142 listeners see the final piece. A
+            // connection node (flag 0x200000) is never new here.
+            if (supportedType && !n->HasNetworkFlag(0x200000u) &&
+                compat::NetworkOccupantSetPiece(n, p->id, static_cast<uint8_t>(p->orientation & 0xFF))) {
+                didApply = true;
+                ++applied;
+                setPiece = n->PieceId();
+                setOrient = n->GetRotationAndFlip();
+                if (setPiece == p->id && setOrient == (p->orientation & 0xFF)) ++preInsertSame;
+            } else {
+                ++unsupported;
+            }
+        }
+        PlaceOccupant(c, om, n, x, z, run->type_id, run->data4, true);
+        if (p != nullptr) {
+            const uint32_t occPiece = n->PieceId();               // slot 23 after the insert
+            const uint32_t occOrient = n->GetRotationAndFlip();   // slot 26 (+0x104)
+            if (occPiece == p->id && occOrient == (p->orientation & 0xFF)) ++sameAsOccupant;
+            if (len < 520 && chosen <= 6) {
+                len += std::snprintf(buf + len, sizeof(buf) - len,
+                                     " (%d,%d) ours=%08X/%02X pre=%08X/%02X set=%08X/%02X occ=%08X/%02X%s", x, z,
+                                     p->id, p->orientation & 0xFF, prePiece, preOrient, setPiece, setOrient,
+                                     occPiece, occOrient, didApply ? "" : " UNAPPLIED");
             }
         }
         FC4_RELEASE(n);
     }
     if (g_insertLogs < 32 || (g_insertLogs % 64) == 0) {
-        Log("netrules insert type=%u cells=%u chosen=%u same_as_occupant=%u (piece write: none, NR14):%s",
-            run->type_id, run->cell_count, chosen, sameAsOccupant, buf);
+        Log("netrules insert type=%u cells=%u chosen=%u fresh_zero=%u applied=%u unsupported=%u "
+            "set_before_insert=%u same_as_occupant=%u (piece write: slot30 SetPiece before InsertOccupant, NR14):%s",
+            run->type_id, run->cell_count, chosen, freshZero, applied, unsupported, preInsertSame, sameAsOccupant,
+            buf);
     }
     ++g_insertLogs;
     // Per-run lifetime: the records belong to the one ValidateAndSolve that

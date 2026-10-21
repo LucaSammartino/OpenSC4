@@ -951,12 +951,15 @@ time property.
 | serializable | vtable `0x00AA219C`, `Write` `0x005CD250`, `Read` `0x005CE770` (layout not specified, §6.7.10) |
 | size | 0x1A0 bytes (constructor `0x005D00F0`) |
 
-**`Init`**: subscribes (message server `0x00B43CCC`) to `0x66956814` (SimNewDay, the simulator's queued broadcast),
-`0xA6B79602`, `0x06CDB65B` and `0x26D31EC1`; registers with the animation-tick manager at priority **`0x80`**
-(every second frame, §6.7.8); runs the once-per-process `StaticInit` (`0x005CED80`, flag `0x00B22F60`).
+**`Init`** (lot-records §9.2 has the full order): skip if already initialised; run the occupant base `Init`
+(`0x005E8C90`, lot-records §2.4) unconditionally; the once-per-process `StaticInit` (`0x005CED80`, flag `0x00B22F60`);
+subscribe (message server `0x00B43CCC`) to `0x66956814` (SimNewDay, the simulator's queued broadcast), `0xA6B79602`,
+`0x06CDB65B` and `0x26D31EC1` (four; the tick is not subscribed); register with the animation-tick manager at
+priority **`0x80`** (every second frame, §6.7.8); last, `AddOccupantGroup(0x5007)` on itself (occupant slot 23,
+`0x005E9350`): occupant group `0x5007` is added to property `0xAA1DD396` if absent, posting `0xEBFF18A3`.
 
 `DoMessage` handling: SimNewDay → `DoDailySim` (§6.7.5; **data1 is not used**); `0x86AD10EE` → animation tick with
-`ms := data2 / 1000`; the other three are visual only (`0x26D31EC1` rebuilds the model, crane and renderer entry when a
+`ms := data2 / 1000` (data2 = the message dword at +0x14, the clamped µs of §6.7.8; unsigned, truncating); the other three are visual only (`0x26D31EC1` rebuilds the model, crane and renderer entry when a
 pending flag is set; `0x06CDB65B` adds / removes the occupant from the renderer `0x00B43DD0` (slots 28 / 29) and
 toggles occupant flag 2; `0xA6B79602` sets a byte flag at +0xFC) *[inferred: their names]*. All return true.
 
@@ -1066,8 +1069,24 @@ dividing by `E`]* *[inferred]*.
 
 `AnimateCrane` (`0x005CD570`): `acc += ms`; when `acc ≥ duration`, `acc := 0` and the crane advances: state 0 → 1
 with `duration := 1000 + Uniform(1000)`; 1 → 2 without draw; 2 → 0 with `mid := r24(r24(r24(max − min) · 0.5) + min)`,
-new target `RDRU(mid, max)` if the previous target is below `mid`, else `RDRU(min, mid)`, and a duration proportional
-to the angle change (`round(|Δ| · 6000 · k)`, `k` the constant at `0x00AA2098`). These draws use the **same** file RNG
+new target `RDRU(mid, max)` if the current target is below `mid` (`mid ≤ target` → `RDRU(min, mid)`), the previous
+target := the old target, and `duration := round_f32(T · |new − previous| · k)` (`0x005CD645…0x005CD669`: x87
+product `T · |Δ|`, times `k`, plus 12582912.0, stored as f32 and the bits minus `0x4B400000`, so round half to
+even), where `T` is the **tunable** sfCraneTimeOfFullRotation global `0x00B0A7EC` (§6.7.2, default 6000; not a
+literal) and `k` = f32 `0x3E22F983` = 0.15915494 = 1/(2π) at `0x00AA2098`. State 1 → 2 keeps `acc := 0` and leaves
+the duration as drawn by 0 → 1.
+
+Initial values (`SetLot`, `0x005D0B46…0x005D0B87`, only when a crane was created): target := min, previous := max,
+`acc := 1`, `duration := 0`, state 2, boom posed at min; the first tick with `ms ≥ 0` therefore runs 2 → 0 at once
+(`acc ≥ 0`), drawing the first target from `RDRU(mid, max)` (since min < mid).
+
+Swing limits (`AttemptAddOuterCrane` `0x005CD710`, after it picks the lot area side `s` 0…3 for the crane post):
+with `R` = the boom radius `0x00B22F70[type]` (type = record #14j) and the crane post at `(x, z)`, let `d` =
+`min(B.xmax − x, x − B.xmin)` for sides 0 / 2 and `min(B.zmax − z, z − B.zmin)` for sides 1 / 3, where `B` spans from
+DivideLot area 4's min corner (`+0x60`, `+0x68`) to area 6's max corner (`+0x9C`, `+0xA4`). The half-width
+`h := π/2` when `d ≥ R`, else `asin(d / R)` (x87, stored f32), and the limits are `[c − h, c + h]` with centre `c` =
+3π/2 (side 0), π/2 (side 2), 2π (side 3), π (side 1); the `d ≥ R` cases use the f32 constants π, 2π, 0, π, 3π/2,
+5π/2, π/2, 3π/2 directly (`0x005CDAB1…0x005CDC17`). These draws use the **same** file RNG
 as §6.7.7, at real-time moments.
 
 #### 6.7.7 Random draws
@@ -1114,8 +1133,8 @@ each reset refills the table with 0..n − 1 and shuffles it with `random_shuffl
    cell rectangle (lot slot 14), for cells inside the city and not water (terrain slot 34): `Uniform(4)` → texture
    instance `0xA990C100 + 0x100·r`.
 
-Daily, state 1 → 2, **scatter** (`0x005CFE20`): `CreateSparks` made 1, 2 or 3 spark effects (max box extent < 20,
-< 30, otherwise). A side iterator over 4 sides is reset first (3 `rand()`); per spark, with box min `(x0, y0, z0)`
+Daily, state 1 → 2, **scatter** (`0x005CFE20`): `CreateSparks` made 1, 2 or 3 spark effects (`ext := max(xmax − xmin, zmax − zmin)` of the
+scaffold box, record #7 at object `+0xC0`, **y excluded**: `ext < 20` → 1, `20 ≤ ext < 30` → 2, else 3). A side iterator over 4 sides is reset first (3 `rand()`); per spark, with box min `(x0, y0, z0)`
 and max `(x1, y1, z1)`:
 
 | Side | x | z | then y |

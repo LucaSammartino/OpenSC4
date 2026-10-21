@@ -4,16 +4,14 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! The particle component's start/stop protocol and the emitter's
-//! self-stop (`docs/specs/effects.md` §7, §7.1, re-answers34 EF1;
-//! conformance test 16).
+//! The particle component's start/stop protocol and its emitters
+//! (`docs/specs/effects.md` §7.1, §7.1.1; EF1, EF13; conformance test 16).
 //!
-//! Only the part the finish test (§7) observes is modelled: `started`, the
-//! delayed-stop request, the live particles' remaining lives, and the emit
-//! budget. Drawing, motion and the per-particle render data are the host's.
-//! The particle description is render data the core does not read (EF6 of
-//! the old pool: the render sections are located, not read), so the budget
-//! and the lives are given by the caller ([`EmitterParams`]).
+//! Only what the finish test (§7) observes is modelled: `started`, the
+//! delayed-stop request, the live particles and the emitter state (phase,
+//! loop counter, carry, countdown). Drawing, motion and the per-particle
+//! render data are the host's. A particle's own update (main slot 20) is not
+//! in the spec; it is modelled by a caller-given life ([`EmitterDesc::life`]).
 //!
 //! The protocol (§7.1):
 //! - base `Stop(mode1, _)` with `started` set: `delayed := mode1`; mode1 == 0
@@ -22,110 +20,264 @@
 //! - the component's `Stop(mode)` calls the base with `(mode == 0, 0)`, so
 //!   **`Stop(0)` is the delayed stop** and `Stop(1)`/`Stop(2)` are immediate;
 //! - `CheckForStop`, at the end of every draw-time update: live count 0 and a
-//!   delayed stop requested → base `Stop(0, 0)` (immediate), `started` clears;
-//! - the emitter calls the component's `Stop(0)` on itself when its loop or
-//!   duration budget is exhausted; the plain emitter (description flag bit 2)
-//!   never does.
+//!   delayed stop requested → base `Stop(0, 0)` (immediate), `started` clears.
+//!
+//! The emitters (§7.1.1): the loop-budget emitter (flag A `0x02`) makes one
+//! burst of `ceil(curve[0])` per loop; the rate emitter (neither `0x02` nor
+//! `0x04`) integrates the count curve in sub-steps of at most 1/15 s; both
+//! count loops of `D+0x14` seconds in `n` against `D+0x18` and call `Stop(0)`
+//! when it is reached. Random draws come from the global `cRZRandom`
+//! (`0x00B22DF8`), passed in by the caller.
 
-/// Particle description flag bits that pick the emitter (§7.1).
+use crate::rng::RzRandom;
+
+/// Particle description flag A bits (§7.1, §7.1.1).
 pub mod emitter_flag {
-    /// Bit 1 (`0x02`): the loop-budget emitter.
+    /// `0x02` (`inject`): the loop-budget emitter.
     pub const LOOP_BUDGET: u32 = 0x02;
-    /// Bit 2 (`0x04`): the plain rate-integral emitter (no self-stop); wins
-    /// over bit 1.
+    /// `0x04` (`maintain`): the plain rate-integral emitter (no self-stop);
+    /// wins over `0x02`.
     pub const PLAIN: u32 = 0x04;
+    /// `0x08`: a finite emitter may be restarted by `Start(arg != 0)`, and
+    /// the rate emitter holds at its last loop instead of stopping.
+    pub const HOLD: u32 = 0x08;
+    /// Bits 19 / 20 / 21: the rate scale `+0xC0` once, squared, cubed.
+    pub const SCALE_1: u32 = 1 << 19;
+    pub const SCALE_2: u32 = 1 << 20;
+    pub const SCALE_3: u32 = 1 << 21;
 }
 
-/// Which emitter path a model-based particle component takes (§7.1).
+/// The rate emitter's largest sub-step (`0x00AA0CF4`).
+pub const RATE_SUBSTEP: f32 = 1.0 / 15.0;
+
+/// Which emitter the dispatch picks (§7.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EmitterKind {
     /// `0x005B3CF0`: no self-stop.
     Plain,
-    /// `0x005B8B50`: counts loops against `emit_loop_count`.
+    /// `0x005B8B50`: one burst per loop, counts loops against `D+0x18`.
     LoopBudget,
-    /// `0x005B87B0`: self-stops when its accumulated duration runs out.
-    DurationBudget,
+    /// `0x005B87B0`: the rate emitter, counts loops against `D+0x18`.
+    Rate,
 }
 
 impl EmitterKind {
-    /// The model-based particle effect's choice by the description's flags:
-    /// bit 2 → plain, else bit 1 → loop budget, else duration budget.
+    /// By flag A: `0x04` → plain, else `0x02` → loop budget, else rate.
     pub fn from_flags(flags: u32) -> EmitterKind {
         if flags & emitter_flag::PLAIN != 0 {
             EmitterKind::Plain
         } else if flags & emitter_flag::LOOP_BUDGET != 0 {
             EmitterKind::LoopBudget
         } else {
-            EmitterKind::DurationBudget
+            EmitterKind::Rate
         }
     }
 }
 
-/// The caller-supplied emit parameters (render data, not read by the core).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct EmitterParams {
-    pub kind: EmitterKind,
-    /// The description's `emit_loop_count` (`+0x18`).
-    pub emit_loop_count: u32,
-    /// The loop interval (the countdown `+0x190`, seeded in `Start` from the
-    /// description's `+0x20..+0x2C` range; the caller resolves the range).
-    pub loop_interval: f32,
-    /// Particles emitted per loop [choice, EF13: the per-loop count and the
-    /// moment within a loop are not specified; one burst per loop is
-    /// modelled, at the moment the countdown expires].
-    pub per_loop: u32,
-    /// Each particle's life in effect-seconds.
+/// The particle description fields the emitters read (§7.1.1), plus the
+/// detail scales and the particle life the caller supplies.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EmitterDesc {
+    /// Flags A (`D+0x00`).
+    pub flags_a: u32,
+    /// `D+0x08`; bit 0 set: the burst is not scaled.
+    pub flags_b: u32,
+    /// Max burst age (`D+0x10`), seconds.
+    pub max_age: f32,
+    /// Period (`D+0x14`), seconds per loop.
+    pub period: f32,
+    /// Loop count (`D+0x18`), 0 = unlimited.
+    pub loop_count: u32,
+    /// Pre-roll (`D+0x1C`), seconds.
+    pub preroll: f32,
+    /// Start-delay range (`D+0x20..+0x24`).
+    pub start_delay: (f32, f32),
+    /// Interval range (`D+0x28..+0x2C`).
+    pub interval: (f32, f32),
+    /// Count curve (`D+0x88..+0x8C`).
+    pub curve: Vec<f32>,
+    /// The detail/density scales `*(+0x1E8)`, `+0x1E0`, `+0x1C4`.
+    pub scales: [f32; 3],
+    /// The rate scale `+0xC0`.
+    pub rate_scale: f32,
+    /// Each particle's life in effect-seconds (the slot-20 model).
     pub life: f32,
-    /// The duration budget of [`EmitterKind::DurationBudget`], seconds.
-    pub duration: f32,
 }
 
-/// One particle component's simulator (`cSCParticleSimulatorBase` with the
-/// emitter of `cSC4ParticlesEffect` / `cSC4ModelBasedParticlesEffect`).
+impl EmitterDesc {
+    /// A description with no scaling, no delays (both ranges negative), no
+    /// pre-roll, period 1 s, one loop, a one-entry curve.
+    pub fn new(flags_a: u32, count: f32, life: f32) -> EmitterDesc {
+        EmitterDesc {
+            flags_a,
+            flags_b: 0,
+            max_age: f32::MAX,
+            period: 1.0,
+            loop_count: 1,
+            preroll: 0.0,
+            start_delay: (-1.0, -1.0),
+            interval: (-1.0, -1.0),
+            curve: vec![count],
+            scales: [1.0; 3],
+            rate_scale: 1.0,
+            life,
+        }
+    }
+
+    fn kind(&self) -> EmitterKind {
+        EmitterKind::from_flags(self.flags_a)
+    }
+
+    /// `m`: the product of the three detail scales.
+    fn m(&self) -> f32 {
+        self.scales[0] * self.scales[1] * self.scales[2]
+    }
+
+    /// `m'`: `m` times `+0xC0` once, squared or cubed for bits 19/20/21.
+    /// [choice, EF14] With several bits set the lowest wins; with none the
+    /// rate scale is not applied.
+    fn m_rate(&self) -> f32 {
+        let k = self.rate_scale;
+        let f = if self.flags_a & emitter_flag::SCALE_1 != 0 {
+            k
+        } else if self.flags_a & emitter_flag::SCALE_2 != 0 {
+            k * k
+        } else if self.flags_a & emitter_flag::SCALE_3 != 0 {
+            k * k * k
+        } else {
+            1.0
+        };
+        self.m() * f
+    }
+
+    /// The rate at loop fraction `frac`: one entry → `curve[0]`, else linear
+    /// interpolation at `(len − 1)·frac`. [choice] An empty curve is 0.
+    fn rate_at(&self, frac: f64) -> f32 {
+        match self.curve.len() {
+            0 => 0.0,
+            1 => self.curve[0],
+            len => {
+                let pos = ((len - 1) as f64 * frac).max(0.0);
+                let i = (pos.floor() as usize).min(len - 2);
+                let t = (pos - i as f64) as f32;
+                self.curve[i] + t * (self.curve[i + 1] - self.curve[i])
+            }
+        }
+    }
+}
+
+/// One particle component (`cSCParticleSimulatorBase` with the emitter of
+/// `cSC4ParticlesEffect` / `cSC4ModelBasedParticlesEffect`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParticleSimulator {
-    params: EmitterParams,
+    desc: EmitterDesc,
     /// `+0x05`.
     started: bool,
     /// `+0x0C`: a delayed stop was requested.
     delayed_stop: bool,
     /// The live particles' remaining lives (`+0x14` is their count).
     live: Vec<f32>,
-    /// `+0x128`: loops emitted.
+    /// `P` (`+0x120`), in loops.
+    phase: f64,
+    /// `n` (`+0x128`).
     loops: u32,
-    /// `+0x190`: time to the next loop.
+    /// `ρ` (`+0x130`), loops per second.
+    rho: f64,
+    /// `c` (`+0x138`).
+    carry: f32,
+    /// `w` (`+0x190`), seconds.
     countdown: f32,
-    /// The duration emitter's remaining budget.
-    duration_left: f32,
+    /// `dt` (`+0x108`).
+    dt: f32,
+    /// Total age (`+0x110`).
+    age: f32,
+    /// Pre-roll pending (`+0x118`).
+    preroll_pending: bool,
+    /// Emission suppressed (`+0x21A`).
+    suppressed: bool,
+    /// `+0x188`: the last `Start` argument.
+    start_arg: u32,
+    /// `+0x18C`: the last component `Stop` mode.
+    stop_mode: u32,
+    /// Particles created over the component's life (diagnostics).
+    created: u64,
 }
 
 impl ParticleSimulator {
-    pub fn new(params: EmitterParams) -> ParticleSimulator {
-        ParticleSimulator {
-            params,
+    /// A component with its description set (`SetDescription`).
+    pub fn new(desc: EmitterDesc) -> ParticleSimulator {
+        let mut p = ParticleSimulator {
+            desc: EmitterDesc::new(0, 0.0, 0.0),
             started: false,
             delayed_stop: false,
             live: Vec::new(),
+            phase: 0.0,
             loops: 0,
+            rho: 1.0,
+            carry: 0.0,
             countdown: 0.0,
-            duration_left: 0.0,
-        }
+            dt: 0.0,
+            age: 0.0,
+            preroll_pending: false,
+            suppressed: false,
+            start_arg: 0,
+            stop_mode: 0,
+            created: 0,
+        };
+        p.set_description(desc);
+        p
     }
 
-    /// `Start`: `started` set, no stop pending, the budgets reset.
-    /// [choice, EF13] The first loop is due at once (countdown 0); the
-    /// interval applies between loops.
-    pub fn start(&mut self) {
+    /// `SetDescription` `0x005B7C90`: `ρ := 1 / D+0x14`, the period replaced
+    /// by `1e-6` unless greater; clears `+0x21A`. [choice, EF14] The
+    /// replacement is used for `ρ` only; the burst age and the gap still
+    /// use the description's period as stored.
+    pub fn set_description(&mut self, desc: EmitterDesc) {
+        let period = if desc.period > 1e-6 { desc.period } else { 1e-6 };
+        self.rho = 1.0 / f64::from(period);
+        self.suppressed = false;
+        self.desc = desc;
+    }
+
+    /// `+0x21A`: while set the emitter dispatch is skipped.
+    pub fn set_suppressed(&mut self, on: bool) {
+        self.suppressed = on;
+    }
+
+    /// `Start(arg)` `0x005B3000`. A finite emitter (`D+0x18 > 0`, flag A
+    /// `0x08` clear) is not restarted by `Start(arg != 0)`. Otherwise
+    /// `started` is set (no stop pending), `P`, `n`, `c` and the age reset,
+    /// the countdown seeded from the start-delay range if `D+0x20 ≥ 0`, else
+    /// the interval range if `D+0x28 ≥ 0`, else 0 (`rng` is the global
+    /// `cRZRandom`), and the pre-roll is pending only for `arg != 0`.
+    pub fn start(&mut self, arg: u32, rng: &mut RzRandom) {
+        let d = &self.desc;
+        if arg != 0 && d.loop_count > 0 && d.flags_a & emitter_flag::HOLD == 0 {
+            return;
+        }
         self.started = true;
         self.delayed_stop = false;
+        self.phase = 0.0;
         self.loops = 0;
-        self.countdown = 0.0;
-        self.duration_left = self.params.duration;
+        self.carry = 0.0;
+        self.age = 0.0;
+        let (sd, iv) = (d.start_delay, d.interval);
+        self.countdown = if sd.0 >= 0.0 {
+            rng.range_f64(f64::from(sd.0), f64::from(sd.1)) as f32
+        } else if iv.0 >= 0.0 {
+            rng.range_f64(f64::from(iv.0), f64::from(iv.1)) as f32
+        } else {
+            0.0
+        };
+        self.start_arg = arg;
+        self.stop_mode = 0;
+        self.preroll_pending = arg != 0;
     }
 
-    /// The component's `Stop(mode)`: mode 0 is the delayed stop, any other
-    /// mode immediate (§7.1). Nothing happens when not started.
+    /// The component's `Stop(mode)` `0x005B21E0`: stores the mode and calls
+    /// the base with `(mode == 0, 0)` — mode 0 is the delayed stop.
     pub fn stop(&mut self, mode: u32) {
+        self.stop_mode = mode;
         self.base_stop(mode == 0);
     }
 
@@ -155,72 +307,208 @@ impl ParticleSimulator {
         self.live.len()
     }
 
+    /// The live particles' remaining lives, in creation order.
+    pub fn live(&self) -> &[f32] {
+        &self.live
+    }
+
+    /// `n` (`+0x128`).
     pub fn loops_emitted(&self) -> u32 {
         self.loops
     }
 
-    /// The draw-time update (slot 9): age the live particles (a particle
-    /// dies when its remaining life reaches 0), emit (slot 15), then
-    /// `CheckForStop`. [choice, EF13] Ageing precedes emission, so a burst's
-    /// particles get their full life; once a delayed stop is requested the
-    /// emitter emits no more.
-    pub fn update(&mut self, dt: f32) {
+    /// `P` (`+0x120`).
+    pub fn phase(&self) -> f64 {
+        self.phase
+    }
+
+    /// `w` (`+0x190`).
+    pub fn countdown(&self) -> f32 {
+        self.countdown
+    }
+
+    /// `c` (`+0x138`).
+    pub fn carry(&self) -> f32 {
+        self.carry
+    }
+
+    /// Total age (`+0x110`).
+    pub fn age(&self) -> f32 {
+        self.age
+    }
+
+    pub fn particles_created(&self) -> u64 {
+        self.created
+    }
+
+    /// The draw-time update `0x005B8540` (only while started): the step
+    /// (plus the pending pre-roll once) is stored and added to the age;
+    /// every live particle is aged first, then the emitter dispatch runs
+    /// unless suppressed, then `CheckForStop`.
+    pub fn update(&mut self, dt: f32, rng: &mut RzRandom) {
         if !self.started {
             return;
         }
+        let mut t = dt;
+        if self.preroll_pending {
+            t += self.desc.preroll;
+            self.preroll_pending = false;
+        }
+        self.dt = t;
+        self.age += t;
+        // [choice] The slot-20 particle update is modelled as a remaining
+        // life: a particle whose life reaches 0 returns false and dies.
         for l in &mut self.live {
-            *l -= dt;
+            *l -= t;
         }
         self.live.retain(|&l| l > 0.0);
-        if !self.delayed_stop {
-            self.emit(dt);
+        if !self.suppressed {
+            self.dispatch(rng);
         }
         self.check_for_stop();
     }
 
-    fn emit(&mut self, dt: f32) {
-        let p = self.params;
-        match p.kind {
-            EmitterKind::Plain => self.emit_due_loops(dt),
-            EmitterKind::LoopBudget => {
-                self.emit_due_loops(dt);
-                if self.loops >= p.emit_loop_count {
-                    self.stop(0);
+    /// Creates one particle initialised (slot 20) with age `a`. [choice] Its
+    /// init fails (it is destroyed) when the age has used up its life.
+    fn create(&mut self, a: f32) {
+        self.created += 1;
+        let rest = self.desc.life - a;
+        if rest > 0.0 {
+            self.live.push(rest);
+        }
+    }
+
+    /// The dispatch `0x005B96E0`.
+    fn dispatch(&mut self, rng: &mut RzRandom) {
+        if self.delayed_stop {
+            return;
+        }
+        let mut e = if self.countdown > 0.0 {
+            self.countdown -= self.dt;
+            if self.countdown > 0.0 {
+                return;
+            }
+            -self.countdown
+        } else {
+            self.dt
+        };
+        let pre = f64::from(self.desc.preroll);
+        if pre > 0.0 && f64::from(e) > pre - 0.01 {
+            e = (pre - 0.01) as f32;
+        }
+        match self.desc.kind() {
+            EmitterKind::Plain => self.emit_plain(e),
+            EmitterKind::LoopBudget => self.emit_loop_budget(e, rng),
+            EmitterKind::Rate => self.emit_rate(e, rng),
+        }
+    }
+
+    /// The loop-budget emitter `0x005B8B50`: one burst per loop.
+    fn emit_loop_budget(&mut self, e: f32, rng: &mut RzRandom) {
+        self.phase = f64::from(self.phase as f32 + e * self.rho as f32);
+        if self.phase <= f64::from(self.loops) {
+            return;
+        }
+        let d = &self.desc;
+        let mut x = d.curve.first().copied().unwrap_or(0.0);
+        if x > 20.0 && d.flags_b & 1 == 0 {
+            x *= d.m();
+        }
+        // [choice] A negative count creates nothing.
+        let burst = x.ceil().max(0.0) as u32;
+        let (period, max_age, loop_count, iv) = (d.period, d.max_age, d.loop_count, d.interval);
+        while self.phase > f64::from(self.loops) {
+            let a = ((self.phase - f64::from(self.loops)) * f64::from(period)) as f32;
+            if a < max_age && burst != 0 {
+                for _ in 0..burst {
+                    self.create(a);
                 }
             }
-            EmitterKind::DurationBudget => {
-                self.emit_due_loops(dt);
-                self.duration_left -= dt;
-                if self.duration_left <= 0.0 {
-                    self.stop(0);
+            self.loops += 1;
+            if loop_count != 0 && self.loops >= loop_count {
+                self.stop(0);
+                return;
+            }
+            if iv.0 >= 0.0 {
+                let gap = rng.range_f64(f64::from(iv.0), f64::from(iv.1));
+                self.phase -= gap * self.rho;
+                if self.phase < f64::from(self.loops) {
+                    self.countdown = ((f64::from(self.loops) - self.phase) * f64::from(period)) as f32;
+                    self.phase = f64::from(self.loops);
+                    return;
                 }
             }
         }
     }
 
-    /// Emits every loop whose countdown expired within `dt` (the loop budget
-    /// caps the count).
-    fn emit_due_loops(&mut self, dt: f32) {
-        let p = self.params;
-        self.countdown -= dt;
-        while self.countdown <= 0.0 {
-            if p.kind == EmitterKind::LoopBudget && self.loops >= p.emit_loop_count {
-                break;
+    /// The rate emitter `0x005B87B0`: sub-steps of at most 1/15 s.
+    fn emit_rate(&mut self, mut e: f32, rng: &mut RzRandom) {
+        let (period, loop_count, iv, hold) = (
+            self.desc.period,
+            self.desc.loop_count,
+            self.desc.interval,
+            self.desc.flags_a & emitter_flag::HOLD != 0,
+        );
+        let m = self.desc.m_rate();
+        while e > 0.0 {
+            let mut s = e.min(RATE_SUBSTEP);
+            self.phase += f64::from(s) * self.rho;
+            let mut gap = false;
+            if self.phase > f64::from(self.loops) + 1.0 {
+                self.loops += 1;
+                if loop_count == 0 || self.loops != loop_count {
+                    if iv.0 >= 0.0 {
+                        s -= ((self.phase - f64::from(self.loops)) * f64::from(period)) as f32;
+                        self.phase = f64::from(self.loops);
+                        gap = true;
+                    }
+                } else if !hold {
+                    self.stop(0);
+                    return;
+                } else {
+                    self.loops = loop_count - 1;
+                    self.phase = f64::from(loop_count) - 1e-6;
+                }
             }
-            self.loops = self.loops.saturating_add(1);
-            let life = p.life;
-            self.live.extend((0..p.per_loop).map(|_| life));
-            if p.loop_interval <= 0.0 {
-                // [choice, EF13] A zero interval emits one loop per update.
-                self.countdown = 0.0;
-                break;
+            let r = self.desc.rate_at(self.phase - f64::from(self.loops));
+            let x = r * s * m + self.carry;
+            let n = x.floor();
+            self.carry = x - n;
+            let n = n.max(0.0) as u32;
+            for k in 0..n {
+                self.create(e - k as f32 * s / n as f32);
             }
-            self.countdown += p.loop_interval;
+            e -= s;
+            if gap {
+                e -= rng.range_f64(f64::from(iv.0), f64::from(iv.1)) as f32;
+                if e < 0.0 {
+                    self.countdown = -e;
+                    return;
+                }
+            }
         }
     }
 
-    /// `CheckForStop`: a requested delayed stop becomes immediate once no
-    /// particle is alive.
+    /// The plain emitter `0x005B3CF0`. [choice, EF14] Its body is not in the
+    /// spec beyond "a plain rate-integral emitter with no self-stop": the
+    /// rate emitter's integral over the whole step (`P += e·ρ`, wrapped to
+    /// the loop; `x := r·e·m' + c`, `N := floor(x)`, ages `e − k·e/N`)
+    /// without loop counting, gaps or a stop.
+    fn emit_plain(&mut self, e: f32) {
+        self.phase += f64::from(e) * self.rho;
+        self.phase -= self.phase.floor();
+        let r = self.desc.rate_at(self.phase);
+        let x = r * e * self.desc.m_rate() + self.carry;
+        let n = x.floor();
+        self.carry = x - n;
+        let n = n.max(0.0) as u32;
+        for k in 0..n {
+            self.create(e - k as f32 * e / n as f32);
+        }
+    }
+
+    /// `CheckForStop` `0x005B9D40`: a requested delayed stop becomes
+    /// immediate once no particle is alive.
     fn check_for_stop(&mut self) -> bool {
         if self.started && self.delayed_stop && self.live.is_empty() {
             self.base_stop(false);
@@ -231,105 +519,5 @@ impl ParticleSimulator {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn params(kind: EmitterKind) -> EmitterParams {
-        EmitterParams {
-            kind,
-            emit_loop_count: 1,
-            loop_interval: 1.0,
-            per_loop: 4,
-            life: 3.0,
-            duration: 2.0,
-        }
-    }
-
-    /// Steps until inactive; returns the update count (None: still active).
-    fn run(p: &mut ParticleSimulator, dt: f32, max: usize) -> Option<usize> {
-        for i in 1..=max {
-            p.update(dt);
-            if !p.is_active() {
-                return Some(i);
-            }
-        }
-        None
-    }
-
-    #[test]
-    fn emitter_choice_by_flags() {
-        assert_eq!(EmitterKind::from_flags(0x04), EmitterKind::Plain);
-        assert_eq!(EmitterKind::from_flags(0x06), EmitterKind::Plain);
-        assert_eq!(EmitterKind::from_flags(0x02), EmitterKind::LoopBudget);
-        assert_eq!(EmitterKind::from_flags(0x00), EmitterKind::DurationBudget);
-        assert_eq!(EmitterKind::from_flags(0x01), EmitterKind::DurationBudget);
-    }
-
-    #[test]
-    fn t16_loop_budget_self_stops_after_the_last_particle() {
-        // One loop of four particles (life 3 s): Stop(0) at once, inactive
-        // only when the last particle dies (3 s at 0.5 s per update).
-        let mut p = ParticleSimulator::new(params(EmitterKind::LoopBudget));
-        p.start();
-        p.update(0.5);
-        assert_eq!((p.loops_emitted(), p.live_count()), (1, 4));
-        assert!(p.delayed_stop_requested() && p.is_active());
-        assert_eq!(run(&mut p, 0.5, 100), Some(6));
-        assert_eq!((p.live_count(), p.loops_emitted()), (0, 1));
-        assert!(!p.delayed_stop_requested());
-    }
-
-    #[test]
-    fn t16_duration_budget_self_stops() {
-        // Duration 2 s, a loop per second: loops at 0, 1 (and the budget
-        // runs out at 2 s), then the last particle (emitted at 1 s) dies.
-        let mut p = ParticleSimulator::new(params(EmitterKind::DurationBudget));
-        p.start();
-        let n = run(&mut p, 0.25, 1000).expect("self-stops");
-        assert!(p.loops_emitted() >= 2);
-        assert!(n > 8, "not before the duration budget, got {n}");
-    }
-
-    #[test]
-    fn plain_emitter_never_self_stops() {
-        let mut p = ParticleSimulator::new(params(EmitterKind::Plain));
-        p.start();
-        assert_eq!(run(&mut p, 0.5, 1000), None);
-        // A delayed Stop(0) then plays the particles out.
-        p.stop(0);
-        assert!(p.is_active() && p.live_count() > 0);
-        assert!(run(&mut p, 0.5, 100).is_some());
-    }
-
-    #[test]
-    fn hard_stop_is_immediate_and_stop_needs_started() {
-        let mut p = ParticleSimulator::new(params(EmitterKind::Plain));
-        p.stop(0);
-        assert!(!p.is_active() && !p.delayed_stop_requested());
-        p.start();
-        p.update(0.5);
-        assert!(p.live_count() > 0);
-        p.stop(1);
-        assert!(!p.is_active());
-        assert_eq!(p.live_count(), 0);
-        p.start();
-        p.update(0.5);
-        p.stop(2);
-        assert!(!p.is_active());
-    }
-
-    #[test]
-    fn volcano_particle_ends_within_its_life() {
-        // §7.1: emit_loop_count 1, life 3-20 s: ends on its own, well before
-        // the crater decal's 50 s.
-        for life in [3.0f32, 20.0] {
-            let mut p = ParticleSimulator::new(EmitterParams {
-                life,
-                ..params(EmitterKind::LoopBudget)
-            });
-            p.start();
-            let n = run(&mut p, 1.0 / 30.0, 10_000).expect("ends") as f32 / 30.0;
-            assert!(n <= life + 0.1 && n < 50.0, "{life}: {n}");
-        }
-    }
-}
+#[path = "particles_tests.rs"]
+mod tests;

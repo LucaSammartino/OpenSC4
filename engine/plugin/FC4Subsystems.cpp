@@ -110,6 +110,7 @@
 #include "cFC4SimGrid.h"          // the glue-simgrids4 lane: simgrids
 #include "FC4ExemplarFactory.h"   // the glue-exemplars4 lane
 #include "FC4Span565Bridge.h"     // the glue-span565-impl4 lane
+#include "FC4Span1555Shadow.h"    // the glue-span1555-impl4 lane: span1555
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -538,6 +539,11 @@ const Subsystem kSubsystems[] = {
     // the glue-span565-impl4 lane: no GZCOM class; the 565 span renderer vtable
     // 0x00AC1844 is redirected at PostAppInit (FC4Span565Bridge.h). `enable = span565`.
     {"span565", nullptr, nullptr, 0, false},
+    // the glue-span4444-impl4 lane: no class; the cSpanRender4444 vtable bridge (FC4SpanRender4444.h)
+    {"span4444", nullptr, nullptr, 0, false},
+    // the glue-span1555-impl4 lane: no class is replaced; the key installs the cSpanRender1555
+    // vtable forwarders (FC4Span1555Shadow.h)
+    {"span1555", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -724,6 +730,8 @@ void Resolve() {
         Log("nettool: registry active - scripted 'network' action and zonedev street tools "
             "will use the fc4_nettool core");
     }
+    // The cSpanRender1555 native bridge (FC4Span1555Shadow.h; glue-span1555-impl4).
+    Span1555Startup(enabledKey("span1555"));
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
     ScriptReload();
 }
