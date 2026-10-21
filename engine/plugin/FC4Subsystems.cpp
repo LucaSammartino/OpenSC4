@@ -530,6 +530,8 @@ const Subsystem kSubsystems[] = {
     {"occmgr", nullptr, kOccMgrClasses, sizeof(kOccMgrClasses) / sizeof(kOccMgrClasses[0]), false},
     // the glue-simgrids4 lane
     {"simgrids", nullptr, kSimGridClasses, sizeof(kSimGridClasses) / sizeof(kSimGridClasses[0]), false},
+    // the glue-span4444-impl4 lane: no class; the cSpanRender4444 vtable bridge (FC4SpanRender4444.h)
+    {"span4444", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

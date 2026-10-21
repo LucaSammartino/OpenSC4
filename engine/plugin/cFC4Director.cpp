@@ -44,6 +44,7 @@
 #include "FC4TractShadow.h"
 #include "FC4DisasterShadow.h"
 #include "FC4PropLotShadow.h"  // the glue15 lane
+#include "FC4SpanRender4444.h"  // the glue-span4444-impl4 lane: enable = span4444
 #include "cFC4PropManager.h"  // the glue21 lane: fc4::PropManagerAppShutdown
 #include "cFC4LotConfigManager.h"  // the glue21 lane: fc4::LotConfigManagerAppShutdown
 #include "cFC4Simulator.h"
@@ -348,6 +349,7 @@ public:
         fc4::NetMgrShadowStart();        // netmgr_shadow (FC4NetMgrShadow.h): before any city subscribes
         fc4::TerrainShadowStart();       // terrain_shadow (FC4TerrainShadow.h)
         fc4::MySimsShadowStart();        // mysims_shadow (FC4MySimsShadow.h)
+        fc4::SpanRender4444Start();      // enable = span4444 (FC4SpanRender4444.h)
         fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }
@@ -370,6 +372,7 @@ public:
         fc4::PropManagerAppShutdown();  // the glue21 replacement's process prop catalogue
         fc4::LotConfigManagerAppShutdown();  // its process configuration catalogue (unload once)
         fc4::ClockProbeStop();
+        fc4::SpanRender4444Stop();  // enable = span4444: the original vtable entries back
         fc4::DialogsStop();  // close_dialogs (FC4Dialogs.h)
         fc4::ObserverStop();
         return true;

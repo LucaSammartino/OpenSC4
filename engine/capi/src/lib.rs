@@ -937,6 +937,8 @@ pub mod zonedev;
 pub mod zones;
 // glue-formats4: DBPF packages and exemplars for the plug-in's formats shadow.
 pub mod dbpf;
+// glue-span4444-impl4: the cSpanRender4444 bridge (span-render-4444.md §1.1-§7).
+pub mod span_render4444;
 
 #[cfg(test)]
 mod tests;

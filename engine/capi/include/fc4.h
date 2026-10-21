@@ -12032,6 +12032,23 @@ fc4_props* fc4_exstore_props(const fc4_exstore* p, size_t index, bool effective,
 size_t fc4_exstore_untyped_ids(const fc4_exstore* p, size_t index, bool effective, uint32_t* ids, size_t cap);
 bool fc4_exstore_failure(const fc4_exstore* p, size_t index, uint32_t* key3, uint8_t* buf, size_t cap);
 
+/* ---- span renderer A4R4G4B4 (docs/specs/span-render-4444.md §2-§7; engine/capi/src/span_render4444.rs) ----
+ * The plug-in's cSpanRender4444 bridge (glue-span4444-impl4). `spans` holds `count` (start, end) dword pairs.
+ * The destination is `dst_len` bytes with pixel (0, 0) at byte `origin` and a signed byte `stride`; every
+ * touched byte is checked before anything is written. `grad` is the 12-dword record (§5); `alpha_ramp`
+ * selects RenderAlphaGradient (§6). RenderBlt: the source image is `src_len` bytes with texel (0, 0) at
+ * `src_origin`; `desc` is the 32-byte §7 `src` record. Returns 0 rendered, 1 null pointer / zero count,
+ * 2 rejected by the core (nothing written). */
+int32_t fc4_span4444_solid(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                           int32_t stride, uint32_t colour);
+int32_t fc4_span4444_alpha(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                           int32_t stride, uint32_t colour, uint32_t alpha);
+int32_t fc4_span4444_gradient(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                              int32_t stride, const int32_t* grad, bool alpha_ramp);
+int32_t fc4_span4444_blt(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                         int32_t stride, const uint8_t* src, size_t src_len, size_t src_origin, int32_t src_stride,
+                         uint32_t src_width, uint32_t src_height, const uint8_t* desc, uint32_t mode);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
