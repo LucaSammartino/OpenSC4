@@ -155,5 +155,6 @@ generated index: the questions live one file per spec, so read only the file for
 | traffic-simulator | 1 | 92 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
+| web-network | 0 | 0 | - | questions/web-network.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
 | **total** | **90** | **993** | | |
