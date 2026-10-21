@@ -128,9 +128,11 @@ Names are matched case-insensitively because the word is upper-cased first.
 1. Loads Ingred.ini if not yet loaded (§2).
 2. If the window has no size yet it becomes 400×450 (0x190 × 0x1C2) and is centred in its parent
    ((parent − own) / 2 on each axis).
-3. Creates its controls: a `Done` button (text 0x00AAE61C, command 0x22DEC92D), a `Cancel` button, a help text area
-   initialised to `<help>`, and a list whose header reads `Property ID`. *[inferred: control-to-string pairing from
-   the order of the string references in Init]*
+3. Sets window flags 0x800 (cleared) and 0x10000 (set) and creates its controls: a `Done` button (text
+   0x00AAE61C, button ID 0x24C93018), a `Cancel` button (ID 0x24C93019), a help text area (child 0x87C30D17)
+   initialised to `<help>`, and the property list (child 0xFA12B77F) whose header reads `Property ID`.
+   *[inferred: control-to-string pairing from the order of the string references in Init; the IDs are proven by
+   §6.1]*
 4. `mapPropertiesToViews` (0x00672F70) empties the property-ID → value-editor map, then walks every known property
    definition in ID order; for each whose filter mask ANDs with the view filter it asks `GetValueEditor` for an
    editor and stores it under the property ID.
@@ -146,6 +148,40 @@ Names are matched case-insensitively because the word is upper-cased first.
 - For editor classes 0xA7847D6A (resource-key table, §8) and 0x281F7625 it also queries interface 0x0787ECC4 and,
   if the property ID has a stored parameter record, passes the record's +0x14 and +0x18 values to it.
 - It then initialises the editor with the property ID and the value.
+
+### 6.1 Commands, selection and write-back *[compat]*
+
+The view edits one target property object (field +0x114): the player picks a property ID from the list, edits its
+value in that property's editor, and `Done` writes the pair into the target. Rows of the list map, by index, to an
+ordered vector of property IDs (fields +0xDC..+0xE0); an index at or past the vector's end is ignored.
+
+`GZOnCommand` (0x0066F740):
+
+| Message | Parameter | Action |
+|---|---|---|
+| 0x287259F6 (button press) | button ID | `doButtonPress` (below); its result is the handler's result |
+| 0xE8711255 (list selection) | 0xFA12B77F (the property list) | select the row (below), then set the help area's text (child 0x87C30D17, text interface 0x212CDC1F) to `GetHelpText` of the row's property; returns 0 |
+| anything else | | not handled (returns 0) |
+
+Selecting a row: the list (interface 0x412CE496) reports the selected index; the editor shown so far (field +0xF4)
+is hidden (window vtable slot +0x118), the row's editor from the property-ID → editor map becomes the current one and
+is shown (+0x114). A property without an editor leaves no editor shown.
+
+`doButtonPress` (0x0066F530):
+
+- **Done, 0x24C93018**: performs the same row selection from the list's current index, then
+  `assignValuesToProperty` for that row's property ID, then ends the dialog with result 0.
+- **Cancel, 0x24C93019**: ends the dialog with result 1. Nothing is written.
+- Other IDs: not handled.
+
+`assignValuesToProperty` (0x0066EC80): if the property ID has an editor, reads the editor's value into a fresh
+variant (editor slot +0x1C), sets the target property's ID (target slot +0x10) and then its value from the variant
+(target slot +0x1C). With no editor nothing is written.
+
+Ending the dialog (helper 0x0066DE90, misnamed `std::vector::size` in the export): if the window has flag 0x1000
+(modal), it asks the window manager to end the modal loop (manager slot +0x24, arguments 0x0F, the window, the
+result); otherwise it takes the non-modal path (closes the window) *[inferred: else branch not read]*. The modal
+loop itself is modal-dialogs.md §2.
 
 ## 7. Values as text and default values
 
@@ -208,13 +244,13 @@ special-cases, is not registered by this director. *[inferred: registered elsewh
 Per-editor behaviour (Init layout, value parsing and range checks of each text editor, curve editors' point
 editing, colour sequence rows, resource-key table add/edit/delete and save status), `cSCEditValueDlg::doButtonPress`
 (0x00666D00, 1488 bytes), the `ResKeyTableEditorDefaults` and `ExemplarFilters` callbacks, and how edited values are
-written back to the exemplar (`assignValuesToProperty`, 0x0066EC80).
+written back to the exemplar (beyond §6.1).
 
 ## 10. Owner map (honest)
 
 | Owner | Bytes | Level after round 1 |
 |---|---|---|
-| cSCPropertyView | 17843 | INI loading, record format, type table, view build, value formatting: specified; button/command handling not yet |
+| cSCPropertyView | 17843 | INI loading, record format, type table, view build, commands and write-back, value formatting: specified; ResKeyTableEditorDefaults/ExemplarFilters callbacks and GetPropertyValueStr per-type detail partial |
 | fn:getDefaultValue, getUnquotedString, convertStringToFloatValue | 5164 | contract specified, item-level parsing inferred |
 | cSC*EntryView, cSCEditValueDlg | ~29700 | identity (class IDs, factories, base class) only |
 | cSCResourceCatalogView, cSCResCatBaseView, cSCResCatalogPickerView, cSCResKeyInputView | 16686 | identity only |
