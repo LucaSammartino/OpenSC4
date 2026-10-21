@@ -12017,6 +12017,20 @@ bool fc4_dbpf_key_of_type(const fc4_dbpf* p, uint32_t type_id, size_t index, uin
 fc4_props* fc4_dbpf_read_exemplar(const fc4_dbpf* p, uint32_t type_id, uint32_t group, uint32_t instance,
                                   uint32_t* parent);
 
+/* Packages combined as the resource manager combines them (data-formats §3,
+ * each added at the front) and resolved with parents and effective lists
+ * (§4.4) by the core's ExemplarStore. Keys are uint32_t[3] (type, group,
+ * instance). See engine/capi/src/dbpf.rs. */
+typedef struct fc4_exstore fc4_exstore;
+fc4_exstore* fc4_exstore_create(void);
+void fc4_exstore_destroy(fc4_exstore* p);
+bool fc4_exstore_add_package(fc4_exstore* p, const uint8_t* path, size_t len, uint32_t* counts3);
+size_t fc4_exstore_resolve(fc4_exstore* p, size_t* failed);
+int32_t fc4_exstore_key(const fc4_exstore* p, size_t index, uint32_t* key3);
+fc4_props* fc4_exstore_props(const fc4_exstore* p, size_t index, bool effective, size_t* total, uint32_t* parent3);
+size_t fc4_exstore_untyped_ids(const fc4_exstore* p, size_t index, bool effective, uint32_t* ids, size_t cap);
+bool fc4_exstore_failure(const fc4_exstore* p, size_t index, uint32_t* key3, uint8_t* buf, size_t cap);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
