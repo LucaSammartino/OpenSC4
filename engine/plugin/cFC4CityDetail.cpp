@@ -327,6 +327,10 @@ cFC4CityDetailManager::cFC4CityDetailManager() {
 }
 
 cFC4CityDetailManager::~cFC4CityDetailManager() {
+    // Diagnostic (verify-citydetail-final4): proves the last Release reached
+    // the deleting destructor (§1), i.e. the city's references were balanced.
+    fc4::Log("cFC4CityDetailManager(%p) destroyed (inits=%u, QueryInterface own=%u serializable=%u)",
+             static_cast<void*>(this), inits_.load(), qiOwn_.load(), qiSer_.load());
     fc4_city_detail_destroy(core_);
     core_ = nullptr;
     ctx_.pool.Drain();
