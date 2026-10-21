@@ -35,11 +35,11 @@ Values are what the constructor 0x009ABC95 stores. Size at least 0x2C4.
 | +0x0EC | u32 | 0 | *[unknown]* |
 | +0x0F0..+0x0FC | 4 x s32 | 5,5,5,5 | grid gutters (left, top, right, bottom order as passed) |
 | +0x100..+0x10C | 4 x s32 | 1,1,1,1 | cell gutters, same order |
-| +0x110 / +0x114 | s32 | 20 / 80 | default row height / default column width *[inferred from values; setters are outside the inventory]* |
+| +0x110 / +0x114 | s32 | 20 / 80 | column-header height / row-header width (§5.1 GetCellArea) |
 | +0x118 / +0x11C | s32 | 1 / 1 | grid-area width / height (§5.1) |
 | +0x120 / +0x124 | s32 | 1 / 1 | cell-area width / height (§5.1) |
-| +0x128 | s32 | 0 | *[unknown]* |
-| +0x12C / +0x130 / +0x134 | f32 | 0.0, 1.0, 1.0 | *[unknown floats]* |
+| +0x128 | s32 | 0 | horizontal scroll position (§5.1 DoMessage) |
+| +0x12C / +0x130 / +0x134 | s32, f32, f32 | 0, 1.0, 1.0 | vertical scroll position; horizontal and vertical scroll steps (§5.1) |
 | +0x138 / +0x13C | s32 | -1 / -1 | column / row cell limit; -1 = unlimited (§5.3) |
 | +0x140 / +0x144 | s32 | 100 / 20 | *[unknown]* |
 | +0x148 | u32 | 0 | outline colour (§5.2) |
@@ -143,7 +143,7 @@ only so the slot numbering is complete.
 | 67 | 009AC4AA own | SetRowHeight | | 138 | 009A6EDA own | SetSoundID |
 | 68 | 00459870 | GetDefaultColumnWidth | | 139 | 009A5F70 own | MakeDropDown |
 | 69 | 00472E70 | GetDefaultRowHeight | | 140 | 009A5F99 | scalar deleting destructor |
-| 70 | 009AE35C own | GetColumnWidth | | 141 | 009A824E own | *[Mac name GZOnCharacter does not fit; pending]* |
+| 70 | 009AE35C own | GetColumnWidth | | 141 | 009A824E own | PlaySound (§5.8) |
 
 ## 4. The grid flag word (+0xDC) *[compat]*
 
@@ -284,6 +284,43 @@ meaning is measured so far:
   +0x29C + 4*index and returns true. A negative index is **not** rejected (quirk: writes before the array).
 - **MakeDropDown()** 0x009A5F70 sets flag 0x40000 and returns true.
 
+### 5.8 Format matrices, explicit scrolling, cell windows, sounds
+
+The three sparse matrices hold 40-byte format records (copy rule 0x009A5C4A): +0x19C column formats keyed
+(col, 0), +0x1C0 row formats keyed (0, row), +0x1E4 per-cell formats keyed (col, row). Record +0x14 is the cell
+extra data, +0x24 (s16) the explicit size, +0x26 (s16) a cached actual size (both -1 = unset).
+
+- **SetColumnWidth(first, count, width)** 0x009AC43B: a negative width becomes 0. For each column in
+  [first, first+count) set the column record's +0x24 to the width truncated to 16 bits, inserting a default
+  record when the column has none. Returns true. **No** dirty mark or recalculation (the caller recalculates).
+  **SetRowHeight(first, count, height)** 0x009AC4AA: the same over the row matrix +0x1C0.
+- **ScrollToColumn(col)** 0x009A64EE, always returns true. If `col` equals the horizontal position +0x128,
+  nothing. Otherwise clamp the upper end only: when flag 0x8000 is set and the column limit +0x138 is > 0, the
+  maximum is limit-1; when flag 0x8000 is set and the limit is <= 0 (or -1), no clamp; when flag 0x8000 is
+  clear, the maximum is the used range's last column (GetCellUsedRange, slot 50) and `col` above it becomes it.
+  Negative values are stored unclamped. Store into +0x128 and recalculate (no dirty mark).
+  **ScrollToRow(row)** 0x009A6563: the same with +0x12C, row limit +0x13C, flag 0x10000 and the used range's
+  last row.
+- **GetSelection(&col, &row)** 0x009A87DC (slot 42): the first entry of the selection list (+0x194); false and
+  outputs untouched when the selection is empty.
+- **IsWindowACellWindow(win, id, &col, &row)** 0x009A8F16: walk the cell-window map +0x22C in key order; an
+  entry matches when `win` is non-null and is the entry's window, or `win` is null and the entry window's ID
+  (window slot 63) equals `id`. On the first match write the entry's column and row to the non-null out
+  pointers and return true; otherwise false.
+- **SetCellExtraDataObject(col, row, obj)** 0x009A6D87: false when IsCellWithinBounds (slot 54) fails.
+  Otherwise AddRef `obj`, Release the cell's previous extra data if non-null, then call SetCellExtraData(col,
+  row, **grid extra data +0x268**) and return true; the mode ends at 2. Quirk *[compat, see WG4]*: the object
+  passed in is AddRef'd but not stored; the cell receives the grid-level extra-data value instead.
+- **SetScrollBarImageVertical(image, unused)** 0x009A6EF7: AddRef new, Release old +0x274, store. When the
+  image is non-null and the vertical bar exists, hand it to the bar (bar slot 17) with a source rectangle: the
+  stored rectangle +0x27C if it is non-empty (test 0x007C1870), else the image's own area (image slot 12).
+  The second argument is ignored. Returns true. **SetScrollBarImageHorizontal** 0x009A6F67: same with +0x278,
+  the horizontal bar +0x270 and rectangle +0x28C.
+- **PlaySound(index)** 0x009A824E (slot 141; answers WG1): sound id = +0x29C + 4*index (index unchecked). If
+  the id is 0 or there is no sound system, false. Otherwise ask the sound system (slot 13) for an instance of
+  class 0x5B523BA4 with arguments (5, id, 0, 0, 0); if that fails or yields null, false; else play it (slot 8),
+  release the instance and return the play result.
+
 ### 5.7 Forwarding thunks and container helpers
 
 Pure forwarding (no behaviour of their own): the `cGZWin`-view thunks subtract 4 from `this` and jump to the
@@ -360,8 +397,8 @@ See `questions/win-grid.md`.
 | 009a64b3 | 24 | PauseRecalculations [slot 29] | 5.3 |
 | 009a64cb | 16 | ScrollPagesVertically [slot 33] | 5.3 |
 | 009a64db | 19 | ScrollPagesHorizontally [slot 34] | 5.3 |
-| 009a64ee | 117 | ScrollToColumn [slot 35] | pending |
-| 009a6563 | 117 | ScrollToRow [slot 36] | pending |
+| 009a64ee | 117 | ScrollToColumn [slot 35] | 5.8 |
+| 009a6563 | 117 | ScrollToRow [slot 36] | 5.8 |
 | 009a65d8 | 35 | ScrollToCell [slot 37] | 5.3 |
 | 009a65fb | 29 | GetSelectionRules [slot 38] | 5.3 |
 | 009a6618 | 33 | SetSelectionRules [slot 39] | 5.3 |
@@ -371,15 +408,15 @@ See `questions/win-grid.md`.
 | 009a6d2d | 22 | SetExtraData [slot 125] | 5.5 |
 | 009a6d43 | 7 | GetExtraData [slot 126] | 5.5 |
 | 009a6d4a | 61 | GetCellExtraDataObject [slot 127] | 5.5 |
-| 009a6d87 | 136 | SetCellExtraDataObject [slot 128] | pending |
+| 009a6d87 | 136 | SetCellExtraDataObject [slot 128] | 5.8 |
 | 009a6e0f | 19 | GetExtraDataObject [slot 129] | 5.5 |
 | 009a6e22 | 55 | SetExtraDataObject [slot 130] | 5.5 |
 | 009a6e59 | 55 | FUN_009a6e59 | pending |
 | 009a6e90 | 45 | SetOwnerDrawNotification [slot 134] | 5.6 |
 | 009a6ebd | 29 | GetBufferToDrawTo [slot 135] | 5.6 |
 | 009a6eda | 29 | SetSoundID [slot 138] | 5.6 |
-| 009a6ef7 | 112 | SetScrollBarImageVertical [slot 136] | pending |
-| 009a6f67 | 112 | SetScrollBarImageHorizontal [slot 137] | pending |
+| 009a6ef7 | 112 | SetScrollBarImageVertical [slot 136] | 5.8 |
+| 009a6f67 | 112 | SetScrollBarImageHorizontal [slot 137] | 5.8 |
 | 009a6fd7 | 417 | AddScrollBar | pending |
 | 009a7178 | 133 | RemoveScrollBar | pending |
 | 009a71fd | 520 | SetScrollBarValues | pending |
@@ -400,14 +437,14 @@ See `questions/win-grid.md`.
 | 009a7e2f | 35 | GZOnKillFocus | 5.1 |
 | 009a7e52 | 876 | FUN_009a7e52 | pending |
 | 009a81be | 144 | SetFlags | 5.1 |
-| 009a824e | 120 | GZOnCharacter [slot 141] | pending |
+| 009a824e | 120 | GZOnCharacter [slot 141] | 5.8 |
 | 009a82c6 | 308 | TestForPossibleScrollBarAdditionOrRemoval | pending |
 | 009a8446 | 45 | FUN_009a8446 | pending |
 | 009a8473 | 45 | FUN_009a8473 | pending |
 | 009a8574 | 29 | FUN_009a8574 | pending |
 | 009a8591 | 37 | FUN_009a8591 | pending |
 | 009a85b6 | 550 | DoArrowKey | pending |
-| 009a87dc | 45 | GetSelection [slot 42] | pending |
+| 009a87dc | 45 | GetSelection [slot 42] | 5.8 |
 | 009a8888 | 60 | FUN_009a8888 | pending |
 | 009a88df | 41 | FUN_009a88df | pending |
 | 009a8908 | 41 | FUN_009a8908 | pending |
@@ -418,7 +455,7 @@ See `questions/win-grid.md`.
 | 009a8c1e | 74 | FUN_009a8c1e | pending |
 | 009a8c68 | 261 | FUN_009a8c68 | pending |
 | 009a8d6d | 425 | GZOnKeyDown | pending |
-| 009a8f16 | 100 | IsWindowACellWindow [slot 117] | pending |
+| 009a8f16 | 100 | IsWindowACellWindow [slot 117] | 5.8 |
 | 009a8f7a | 68 | DoCellWindowMove | pending |
 | 009a8fbe | 23 | FUN_009a8fbe | pending |
 | 009a8fd5 | 23 | FUN_009a8fd5 | pending |
@@ -479,8 +516,8 @@ See `questions/win-grid.md`.
 | 009abed4 | 175 | Shutdown | 5.1 |
 | 009abf83 | 172 | FUN_009abf83 | 5.1 |
 | 009ac24d | 28 | ~cGZWinGrid | 5.1 |
-| 009ac43b | 111 | SetColumnWidth [slot 65] | pending |
-| 009ac4aa | 111 | SetRowHeight [slot 67] | pending |
+| 009ac43b | 111 | SetColumnWidth [slot 65] | 5.8 |
+| 009ac4aa | 111 | SetRowHeight [slot 67] | 5.8 |
 | 009ac519 | 552 | SetCellFormat | pending |
 | 009ac741 | 293 | SetCellFont [slot 90] | pending |
 | 009ac866 | 250 | SetCellColors [slot 91] | pending |
@@ -520,5 +557,5 @@ See `questions/win-grid.md`.
 | 009af121 | 71 | Init | 5.1 |
 | 009af168 | 2813 | GZPaint | pending |
 
-Specified 72 of 198 functions, 3790 of 32735 bytes; remaining 126 functions, 28945 bytes.
+Specified 82 of 198 functions, 4871 of 32735 bytes; remaining 116 functions, 27864 bytes.
 <!-- END INVENTORY -->
