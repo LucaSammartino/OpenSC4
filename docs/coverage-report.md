@@ -8,9 +8,9 @@ Game code, the denominator (every function outside the library and compiler buck
 
 | Status | Meaning | Bytes | % of game bytes | Functions | % of game functions |
 |---|---|---:|---:|---:|---:|
-| **specified** | a spec in docs/specs covers its owner | 1,993,435 | **35.7%** | 9,077 | 30.8% |
-| **implemented** | a clean-room module in engine/ implements its owner | 1,451,900 | **26.0%** | 6,623 | 22.5% |
-| **verified** | its same-process shadow is exact in the run that measured it | 628,568 | **11.3%** | 2,493 | 8.5% |
+| **specified** | a spec in docs/specs covers its owner | 1,993,163 | **35.7%** | 9,069 | 30.8% |
+| **implemented** | a clean-room module in engine/ implements its owner | 1,451,628 | **26.0%** | 6,615 | 22.4% |
+| **verified** | its same-process shadow is exact in the run that measured it | 628,296 | **11.2%** | 2,485 | 8.4% |
 | **replaced** | our class runs instead of the original in the regress replace run | 677,137 | **12.1%** | 2,615 | 8.9% |
 
 ## Whole executable
@@ -22,7 +22,7 @@ Game code, the denominator (every function outside the library and compiler buck
 | all functions (Ghidra auto-analysis) | 35,554 | 6,509,762 | 95.9% |
 | excluded: libraries and compiler-generated code | 6,073 | 923,344 | 13.6% |
 | **game code (the denominator)** | **29,481** | **5,586,418** | **82.3%** |
-| of which shared helpers (reached from several owners) | 2,238 | 206,377 | 3.0% |
+| of which shared helpers (reached from several owners) | 2,239 | 206,435 | 3.0% |
 | of which unattributed (no rule gives an owner) | 911 | 95,483 | 1.4% |
 
 ## By area
@@ -33,14 +33,14 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 |---|---:|---:|---:|---:|---:|---:|---:|
 | simulation | 8,299 | 1,928,261 | 34.5% | 84.2% (84.3%) | 68.1% (67.8%) | 30.5% (28.4%) | 35.1% (31.5%) |
 | framework | 4,935 | 648,694 | 11.6% | 20.9% (24.5%) | 14.1% (16.4%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| renderer | 5,093 | 1,206,975 | 21.6% | 18.5% (16.5%) | 3.9% (3.7%) | 3.3% (2.6%) | 0.0% (0.0%) |
+| renderer | 5,086 | 1,206,753 | 21.6% | 18.5% (16.4%) | 3.9% (3.5%) | 3.3% (2.5%) | 0.0% (0.0%) |
 | ui | 5,079 | 1,105,882 | 19.8% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | audio | 1,981 | 225,440 | 4.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | region | 414 | 111,697 | 2.0% | 9.8% (7.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| other | 531 | 57,609 | 1.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| shared | 2,238 | 206,377 | 3.7% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| other | 537 | 57,773 | 1.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| shared | 2,239 | 206,435 | 3.7% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | unattributed | 911 | 95,483 | 1.7% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| **all game code** | **29,481** | **5,586,418** | 100.0% | **35.7%** (30.8%) | **26.0%** (22.5%) | **11.3%** (8.5%) | **12.1%** (8.9%) |
+| **all game code** | **29,481** | **5,586,418** | 100.0% | **35.7%** (30.8%) | **26.0%** (22.4%) | **11.2%** (8.4%) | **12.1%** (8.9%) |
 
 ## By subsystem
 
@@ -112,7 +112,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | framework | strings and language | 12 | 225 | 43,131 | - | - | - | - | - |
 | framework | foundations | 1 | 126 | 10,680 | yes | yes | - | - | - |
 | framework | random numbers and seeding | 2 | 19 | 1,105 | yes | yes | - | - | - |
-| renderer | 3D scene and models | 132 | 1,654 | 446,714 | part | part | 93/93 | part | - |
+| renderer | 3D scene and models | 132 | 1,647 | 446,492 | part | part | 93/93 | part | - |
 | renderer | effects | 60 | 655 | 176,253 | yes | - | - | - | - |
 | renderer | 3D driver (DirectX 7) | 10 | 843 | 151,999 | - | - | - | - | - |
 | renderer | 2D drawing and fonts | 36 | 841 | 150,697 | - | - | - | - | - |
@@ -131,7 +131,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | region | region | 26 | 414 | 111,697 | part | - | - | - | - |
 | other | other free functions | 152 | 187 | 27,444 | - | - | - | - | - |
 | other | other SC4 classes | 60 | 193 | 17,439 | - | - | - | - | - |
-| other | other | 57 | 151 | 12,726 | - | - | - | - | - |
+| other | other | 58 | 157 | 12,890 | - | - | - | - | - |
 
 ## Excluded from the denominator
 
@@ -153,18 +153,18 @@ A library range overrides the names inside it. Game-looking names overridden thi
 
 ## Attribution rules applied
 
-Which rule gave each function its owner (COVERAGE.md, applied in this order). Edges: calls 67,492, code-references 3,598, data-tables 32,198, vtables 69,741; 101 registration hubs (functions referring to more than 64 functions) pass no owner on through their references.
+Which rule gave each function its owner (COVERAGE.md, applied in this order). Edges: calls 67,492, code-references 3,598, data-tables 32,178, vtables 69,761; 101 registration hubs (functions referring to more than 64 functions) pass no owner on through their references.
 
 | Rule | Functions | Bytes | % of all function bytes |
 |---|---:|---:|---:|
 | name-high | 6,750 | 1,968,981 | 30.2% |
 | name-medium | 4,932 | 1,532,726 | 23.5% |
-| reach | 7,989 | 1,107,169 | 17.0% |
+| reach | 7,981 | 1,106,804 | 17.0% |
 | library-range | 4,883 | 754,837 | 11.6% |
-| neighbour | 2,281 | 245,946 | 3.8% |
+| neighbour | 2,278 | 245,832 | 3.8% |
 | owner-range | 768 | 198,747 | 3.1% |
-| reach-shared | 1,700 | 182,678 | 2.8% |
-| vtable | 2,074 | 131,766 | 2.0% |
+| reach-shared | 1,701 | 182,736 | 2.8% |
+| vtable | 2,084 | 132,187 | 2.0% |
 | free-neighbour | 339 | 100,073 | 1.5% |
 | library-name | 873 | 97,078 | 1.5% |
 | unattributed | 911 | 95,483 | 1.5% |
@@ -248,8 +248,8 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | ghidra/export/windows/data-references.tsv | 6b5ec13c66dd96de | Ghidra 12.1.4 auto-analysis export |
 | ghidra/export/windows/instructions.asm | cbc5795d08d336cb | Ghidra 12.1.4 auto-analysis export |
 | re/names_windows.tsv | 7754934901dd9772 | |
-| docs/abi/vtables.tsv | ef50c21aa1f80ddd | |
-| docs/abi/interfaces.tsv | ebed6652e84d4d4b | |
+| docs/abi/vtables.tsv | d9c5824d144c54df | |
+| docs/abi/interfaces.tsv | e493120472c1b9c3 | |
 | tools/coverage-libs.tsv | de557a391ec04b04 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-map.tsv | d34713cd666631b5 | |
