@@ -89,7 +89,7 @@ cSC4PedestrianManager	automata (managers, records)	simulation	automata.md	core/s
 cSC4AircraftManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
 cSC4WatercraftManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
 cSC4TrafficAutomataManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-cSC4OccupantManager	occupant manager	simulation	occupant-manager.md	core/src/occupant_manager	occmgr_shadow	-
+cSC4OccupantManager	occupant manager	simulation	occupant-manager.md	core/src/occupant_manager	occmgr_shadow	occmgr
 cSC4NetworkManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	netmgr
 cSC4NetworkLotManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	netlot
 cSC4NetworkConstructionCrew	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	-

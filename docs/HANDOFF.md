@@ -7,9 +7,11 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
-**Train21 landed 9e5a0dd8e9:** gate/regress PASS; aura restored71/71, netmgr72/73 with NM10/NM11 filed, unknown-key warning fixed. Coverage36.8/28.3/12.4/15.9 (specified/implemented/verified/replaced), verified up0.3 points. Run224 normal pair exact73/73 each; run225 is the combined train. At this checkpoint8/20 rounds are dispatched: verify1 landed, occmgr2 ready awaiting union regress, glue21 round1 ready awaiting union regress, terrain engine1 blocked awaiting spec, terrain RE round3/3 in flight. Never spawn terrain RE round4.
+**Train22 landed 6df8889064:** occmgr replacement clean through2032, gate62/62 and union33-key regress PASS; default occmgr enabled only after landing (tools tests69 PASS). Coverage36.8/28.3/12.4/16.2, replaced +0.3 points. Terrain RE ready at its3-round cap (parked pending landing, never round4); five other lanes active, total13/60. Expanded budget recorded and pushed; finish batches at2+ ready.
 
-**Run 4 is authorized; STOP was lifted by the user.** Limits: 20 total lane rounds, 3 rounds per lane, 3 live lanes. A lane with 3 rounds and no landing is parked and recorded here; do not restart it. Every workflow launch is maxRounds=1, with slots and check (resume for an existing worktree) before each launch. The guard is authoritative; no denied lane continues. At the run limit set STOP with reason run4 round limit, land ready work, regenerate and push.
+**Train21 landed 9e5a0dd8e9:** gate/regress PASS; aura restored71/71, netmgr72/73 with NM10/NM11 filed, unknown-key warning fixed. Coverage36.8/28.3/12.4/15.9 (specified/implemented/verified/replaced), verified up0.3 points. Run224 normal pair exact73/73 each; run225 is the combined train. At the expanded checkpoint13/60 rounds are dispatched: verify1 landed; occmgr2 in train22 (gate62/62 PASS, union regress running); glue21 round2 resolving current-main integration; terrain engine1 blocked pending the ready terrain RE docs, capped at3 rounds. Four new lanes run: widget, panels and audio RE, effects core. Never spawn terrain RE round4.
+
+**Run 4 is authorized; STOP was lifted by the user.** Limits, expanded by the user: 60 total lane rounds, 3 rounds per lane, 5 live lanes, at most 3 glue lanes. Refill a returned slot in the same turn after slots/check with explicit subsystem touches; do not wait for trains to land. Run batches as soon as 2 or more lanes are ready. Every 15 rounds record rounds, landed trains and coverage delta here. A lane with 3 rounds and no landing is parked and recorded here; do not restart it. Every workflow launch is maxRounds=1, with slots and check (resume for an existing worktree) before each launch. The guard is authoritative; no denied lane continues. At 60 rounds set STOP with reason run4 round limit, land ready work, regenerate and push. A usage/rate limit pauses refills until it clears; running lanes finish.
 
 The live round ledger is build-runs/run4-coordinator-state.json; load it after compaction along with this section and lanes.py guard before any spawn. It records dispatched rounds and process IDs; do not infer the count from old guard totals. Main must remain clean; tool changes require pytest tools/tests and their own immediate commit.
 
@@ -18,7 +20,7 @@ The live round ledger is build-runs/run4-coordinator-state.json; load it after c
 2. glue25fix3 at 209ff7fc: replacement g1 corrupt 2028-04-01; shadow-only g2 is not replacement evidence. Diagnose from branch logs. After a clean replacement run: regress including occmgr, train; only after landing add occmgr to regress Replace and coverage-map replace key.
 3. glue-terrain3 at d112c328: gt3-repl-4 corrupt before game date; view/raw-record contract and slot96 Load already committed and gate 62/62. Diagnose crash; TR33-TR37 must be questions, never guessed.
 4. glue21 at 405da5f0: PL19 is answered on main; implement per-call slot9 AddRef on every returned pointer including cache hits, remove the PL18 extra add, then validate against its trace.
-Then other coverage-moving/unblocking open items if rounds remain. Skip glue26 and ABI reconciliation.
+Then choose work from coverage-report.md subsystem bytes, largest eligible first: spec yes/core absent gets core; core yes/replace absent gets glue after core lands; nonexact shadows get verify; absent spec gets RE. Use explicit subsystem touch keys on every check. Skip glue26 and ABI reconciliation.
 
 **Baseline:** main 29e22e21, queue empty, no lane running at start. Train19 gate and full regress PASS, MySims exact73/73; train20 landed MS/PL documentation. Coverage 36.8% specified /28.3% implemented /12.1% verified /15.9% replaced. WIP branches above are pushed.
 
@@ -27,7 +29,7 @@ Then other coverage-moving/unblocking open items if rounds remain. Skip glue26 a
 The previous stop note is preserved verbatim in [history/handoff-run3-stop-2026-10-21.md](history/handoff-run3-stop-2026-10-21.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 225 (train21 PASS, aura restored to 71/71, verified coverage 12.1 to 12.4 percent; netmgr differences documented); 223 (train19 PASS, MySims shadow exact 73/73 alongside the full regression, ref_warnings=0); 222 (MySims shadow exact 73/73 through 2032, including load, ref_warnings=0); 221 (the network-tool replacement places roads and streets in the real game (inserts=8..69, valid=solved, failure 0), 20/20 scripted placements ok, city runs to 2032 clean with ref_warnings=0.); 216 (component 53 / 11 save round trip, record53 equal at load and save). See `docs/manual-checks.md`.
+- **Latest in-game run:** 226 (train22 PASS, occupant-manager replacement promoted, replaced coverage15.9 to16.2 percent); 225 (train21 PASS, aura restored to 71/71, verified coverage 12.1 to 12.4 percent; netmgr differences documented); 223 (train19 PASS, MySims shadow exact 73/73 alongside the full regression, ref_warnings=0); 222 (MySims shadow exact 73/73 through 2032, including load, ref_warnings=0); 221 (the network-tool replacement places roads and streets in the real game (inserts=8..69, valid=solved, failure 0), 20/20 scripted placements ok, city runs to 2032 clean with ref_warnings=0.). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" font-family="Segoe UI, Helvetica, Arial, sans-serif">
 <rect width="1600" height="1000" fill="#f6f7f4"/>
 <text x="16" y="44" font-size="30" font-weight="700" fill="#1d2320">OpenSC4 coverage of SimCity 4.exe</text>
-<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 36.8% · implemented 28.3% · verified 12.4% · replaced in game 15.9%.</text>
-<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main 9e5a0dd8, regress-train21.out.</text>
+<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 36.8% · implemented 28.3% · verified 12.4% · replaced in game 16.2%.</text>
+<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main 7ca87e21, regress-train22.out.</text>
 <rect x="18.0" y="146.0" width="75.4" height="112.5" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="18.0" y="258.5" width="75.4" height="104.4" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="93.4" y="146.0" width="94.2" height="79.9" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -271,7 +271,7 @@
 <rect x="313.1" y="813.5" width="60.0" height="63.0" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="313.1" y="876.5" width="60.0" height="59.5" fill="#1f6b43" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="313.1" y="876.5" width="60.0" height="59.5" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
-<rect x="373.2" y="749.5" width="65.8" height="53.8" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="373.2" y="749.5" width="65.8" height="53.8" fill="#c97b2a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="373.2" y="749.5" width="65.8" height="53.8" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="439.0" y="749.5" width="60.3" height="53.8" fill="#1f6b43" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="499.3" y="749.5" width="4.2" height="48.8" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
