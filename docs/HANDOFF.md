@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**Run4 checkpoint100 (open-ended):**100 rounds;16 trains landed. Coverage44.3/34.3/16.1/17.6, delta since baseline+7.5/+6.0/+4.0/+1.7points. Parked: glue-terrain3, re-terrain4, re-widgets4, re-application4, re-particles4, re-editors4, re-driverdraw4, re-rzservices4, re-legacycontrol4, re-view3dwin4. Target6-8/max3glue; nextcheckpoint125.
+
 **train39 landed 88ee426b97:** 8888 and8 alpha-plane Rust cores added; NO15-NO17 record contracts corrected from bytes, no guessed offsets. Full gate and default union regression PASS. Core-only renderer credit; no shadow-exact or replacement claim. Coverage44.3/34.3/16.1/17.6; rounds98 (open-ended).
 
 **train38 landed f81962bbea:** External PRs3/4 integrated with both histories after conflict and security review. Preserved newer core/shadow/replace metadata, regenerated symbol tables byte-for-byte, tools81PASS. No executable contribution or blocking security findings; path-example ambiguity filedPA3. Full gate63/63PASS; game regression skipped for unchanged runtime after Windows elevation prevented launch. Specs only, no replacement/shadow claim. Coverage44.3/33.2/16.0/17.6; rounds88 (open-ended).
@@ -23,7 +25,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target6-8 live lanes (coordinator target8), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
-**Coverage after train39:**44.3/34.3/16.1/17.6; baseline36.8/28.3/12.1/15.9, delta+7.5/+6.0/+4.0/+1.7 points. 16 trains landed; 98 rounds used, no total cap. Next25-round checkpoint 100.
+**Coverage after train39:**44.3/34.3/16.1/17.6; baseline36.8/28.3/12.1/15.9, delta+7.5/+6.0/+4.0/+1.7 points. 16 trains landed; 98 rounds used, no total cap. Next25-round checkpoint 125.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`, `run4-launch.py` (saved guarded Workflow,maxRounds1,ctx150k,calls150). Never use direct/unguarded agents. After compaction/restart reread this section and run lanes.py guard before spawning. Fresh slots/check --touches required, --resume for an existing worktree; deps must be on main.
 
