@@ -7689,21 +7689,21 @@ va	name	source	confidence	note
 0074fdc0	cSTETerrain::ReadBrushDescriptions	auto:B1	medium	mac 004e2716 score 0.946 support 3.0
 0074fe40	cSTETerrain::StaticInit	auto:B0	medium	mac 004e5e36 score 0.943 support 4.0
 0074fea0	cSTETerrain::Init	auto:A	high	mac 004e96de score 0.826 support 0
-007505c0	cSTESelectedTerrainArea::Shutdown	auto:D	medium	mac 004ec89c score 0.5 support 1
-00750600	cSTESelectedTerrainArea::InitRenderState	auto:B0	medium	mac 004ec8ea score 0.799 support 2.5
+007505c0	cSTESelectedTerrainArea::Shutdown	manual:water-ripples.tsv	high	water-ripples.md §2; descriptive name
+00750600	cSTESelectedTerrainArea::InitRenderState	manual:water-ripples.tsv	high	water-ripples.md §2.3; four packed render states by kPreferOpaque
 007507a0	cS3DVector4::operator!=	auto:D	medium	mac 00817c08 score 0.5 support 1
-00750aa0	cSTESelectedTerrainArea::Init	auto:B1	medium	mac 004ed6d0 score 0.993 support 2.0
+00750aa0	cSTESelectedTerrainArea::Init	manual:water-ripples.tsv	high	water-ripples.md §2.1; terrain, cell counts, texture binding factory
 00750c30	__gnu_cxx::hashtable<std::pair<unsigned_long_const,unsigned_long>,unsigned_long,__gnu_cxx::hash<unsigned_long>,std::_Select1st<std::pair<unsigned_long_const,unsigned_long>>,std::equal_to<unsigned_long>,std::allocator<unsigned_long>>::find_or_insert	auto:D	medium	mac 00735486 score 0.5 support 1
-00750ca0	cSTESelectedTerrainArea::ClearCurrentSelections	auto:D	medium	mac 004ed66e score 0.5 support 1
-00750cf0	cSTESelectedTerrainArea::DrawTexturedSelections	auto:B3	medium	mac 004ed2e2 score 0.983 support 3.5
-00750fc0	cSTESelectedTerrainArea::DrawUntexturedSelections	auto:B2	medium	mac 004ecfe2 score 0.891 support 2.5
-007514f0	cSTESelectedTerrainArea::Update	auto:B3	medium	mac 004ed604 score 0.934 support 2.0
-007515e0	cSTESelectedTerrainArea::AddUntexturedSelection	auto:B1	medium	mac 004ed7a6 score 0.962 support 2.0
-00751650	cSTESelectedTerrainArea::AddTexturedSelection	auto:B1	medium	mac 004ed92e score 0.929 support 2.0
-007516d0	cSTESelectedTerrainArea::MarkSelected	auto:D	medium	mac 004ed8b4 score 0.5 support 1
-00751910	cSTESelectedTerrainArea::MarkSelected	auto:D	medium	mac 004ed7f6 score 0.5 support 1
-007519a0	cSTESelectedTerrainArea::MarkSelected	auto:D	medium	mac 004edacc score 0.5 support 1
-00751a70	cSTESelectedTerrainArea::MarkSelected	auto:D	medium	mac 004ed986 score 0.5 support 1
+00750ca0	cSTESelectedTerrainArea::ClearCurrentSelections	manual:water-ripples.tsv	high	water-ripples.md §2.2; both tables
+00750cf0	cSTESelectedTerrainArea::DrawTexturedSelections	manual:water-ripples.tsv	high	water-ripples.md §2.3
+00750fc0	cSTESelectedTerrainArea::DrawUntexturedSelections	manual:water-ripples.tsv	high	water-ripples.md §2.3
+007514f0	cSTESelectedTerrainArea::Update	manual:water-ripples.tsv	high	water-ripples.md §2.3; depth offset 4
+007515e0	cSTESelectedTerrainArea::AddUntexturedSelection	manual:water-ripples.tsv	high	water-ripples.md §2.1; vertex index to colour
+00751650	cSTESelectedTerrainArea::AddTexturedSelection	manual:water-ripples.tsv	high	water-ripples.md §2.1; removes the cell from the plain table
+007516d0	cSTESelectedTerrainArea::MarkSelected	manual:water-ripples.tsv	high	water-ripples.md §2.2; (cell list, colour, clear)
+00751910	cSTESelectedTerrainArea::MarkSelected	manual:water-ripples.tsv	high	water-ripples.md §2.2; (cell, colour, clear)
+007519a0	cSTESelectedTerrainArea::MarkSelected	manual:water-ripples.tsv	high	water-ripples.md §2.2; textured, palette 0x00AB4238, mode 2
+00751a70	cSTESelectedTerrainArea::MarkSelected	manual:water-ripples.tsv	high	water-ripples.md §2.2; textured, packed colour, mode 3 with kNoAddSigned to mode 1, alpha 0.5
 00751ed0	cSTETerrainView3D::ClearCurrentSelections	auto:C	high	mac 004ede58 score 1.0 support 1
 00751ee0	cSTETerrainView3D::ComputeMinimumVisibleHtAtDrawRows	auto:B0	medium	mac 004ede70 score 0.979 support 1.5
 00752100	cSTETerrainView3D::DrawTextureLessTerrainSurface	auto:B3	medium	mac 004ee20e score 0.955 support 2.0
@@ -7793,24 +7793,26 @@ va	name	source	confidence	note
 0075f4a0	cSTEVolcanoLava::DoLavaFlow	auto:B1	medium	mac 004fa176 score 0.968 support 2.0
 0075f9e0	cSTEVolcanoLava::DoAnimationTick	auto:B2	medium	mac 004fabae score 0.971 support 2.0
 0075fa70	cSTEVolcanoLava::DoMessage	auto:B3	medium	mac 004fac48 score 0.98 support 2.5
-0075fb40	cSTEWaterRipple::IntersectsRipple	auto:B1	medium	mac 004fb670 score 0.943 support 1.0
-0075fbb0	cSTEWaterRipple::Shutdown	auto:B1	medium	mac 004fad7e score 0.939 support 2.0
-0075fc40	cSTEWaterRipple::ComputeSplinePoints	auto:B5	medium	mac 004fb18e score 0.863 support 1.0
-0075fe70	cSTEWaterRipple::DrawRipple	auto:B6	medium	mac 004fb5d2 score 0.929 support 3.0
-0075fee0	cSTEWaterRipple::PrepareRippleForDisplay	auto:B4	medium	mac 004fb8ae score 0.943 support 2.0
-00760060	cSTEWaterRipple::ReadTuningParameters	auto:A	high	mac 004fae42 score 0.932 support 0
-00760330	cSTEWaterRipple::Init	auto:B1	medium	mac 004fb6fe score 0.961 support 2.5
-007607f0	cSTEWaterRipple::IntersectsRipples	auto:B0	medium	mac 004fbb0e score 0.963 support 1.0
-00760e10	cSTEWaterRipple::DoOnTerrainEdit	auto:B7	medium	mac 004fbbc2 score 0.946 support 1.0
-00760ee0	cSTEWaterRipple::StartNewRipple	auto:B2	medium	mac 004fc1a2 score 0.928 support 2.5
-00761140	cSTEWaterRipple::CreateRipplesForShore	auto:B3	medium	mac 004fc28c score 0.991 support 1.0
-00761790	cSTEWaterRipple::cSTEWaterRipple	auto:B1	medium	mac 004fbcc0 score 0.946 support 2.0
+0075fb40	cSTEWaterRipple::IntersectsRipple	manual:water-ripples.tsv	high	water-ripples.md §1.5; rectangle against a strip's box and its segment boxes
+0075fbb0	cSTEWaterRipple::Shutdown	manual:water-ripples.tsv	high	water-ripples.md §1; descriptive name
+0075fc40	cSTEWaterRipple::ComputeSplinePoints	manual:water-ripples.tsv	high	water-ripples.md §1.3; uniform cubic B-spline, outer P + (D + w sin phi) N, inner P - d N, phi += 0.1
+0075fe70	cSTEWaterRipple::DrawRipple	manual:water-ripples.tsv	high	water-ripples.md §1.4; frustum test, frame texture, one triangle strip
+0075fee0	cSTEWaterRipple::PrepareRippleForDisplay	manual:water-ripples.tsv	high	water-ripples.md §1.3; random frame and period, even count, end fades
+00760060	cSTEWaterRipple::ReadTuningParameters	manual:water-ripples.tsv	high	water-ripples.md §1.1; exemplar 0x6534284A/0x88CD66E9/2, properties 0x491C9C00-0x491C9C0D
+00760330	cSTEWaterRipple::Init	manual:water-ripples.tsv	high	water-ripples.md §1; city size, terrain, water level + 0x491C9C03, animation tick and messages 0x278E6003, 0x89171496
+007606b0	cSTEWaterRipple::RemoveLastRipple	manual:water-ripples.tsv	high	water-ripples.md §1.3; descriptive name, no Mac match; a strip shorter than 8 vertices
+007607f0	cSTEWaterRipple::IntersectsRipples	manual:water-ripples.tsv	high	water-ripples.md §1.5; removes the strips a rectangle touches
+00760e10	cSTEWaterRipple::DoOnTerrainEdit	manual:water-ripples.tsv	high	water-ripples.md §1.5; area sum past 0x491C9C0C, dirty rectangle over 400 cells
+00760ee0	cSTEWaterRipple::StartNewRipple	manual:water-ripples.tsv	high	water-ripples.md §1.3; the ripple FSH 0x7AB50E44/0x891B0E1A/0xE9A44A88, strips under 8 vertices reused
+00761140	cSTEWaterRipple::CreateRipplesForShore	manual:water-ripples.tsv	high	water-ripples.md §1.3; spacing, 0x491C9C0B turn limit, 0.2 m edge margin, 1000 pairs
+00761790	cSTEWaterRipple::cSTEWaterRipple	manual:water-ripples.tsv	high	water-ripples.md §1; descriptive name
 00761870	std::vector<cSTEWaterRipple::tShore,std::allocator<cSTEWaterRipple::tShore>>::clear	auto:B7	medium	mac 0081d2b0 score 0.905 support 2.0
-00761b70	cSTEWaterRipple::DetectShores	auto:B6	medium	mac 004fc7d4 score 0.96 support 3.0
-00761cf0	cSTEWaterRipple::CreateRipples	auto:B4	medium	mac 004fc92a score 0.945 support 1.0
-00761e70	cSTEWaterRipple::DoAnimationTick	auto:B6	medium	mac 004fcb20 score 0.968 support 2.5
-00761f80	cSTEWaterRipple::DoMessage	auto:B5	medium	mac 004fcc02 score 0.977 support 2.5
-00761ff0	cSTEWaterRipple::Update	auto:B5	medium	mac 004fccd8 score 0.9 support 3.5
+00761a00	cSTEWaterRipple::AddShore	manual:water-ripples.tsv	high	water-ripples.md §1.2; descriptive name, no Mac match; vertex indices to metres
+00761b70	cSTEWaterRipple::DetectShores	manual:water-ripples.tsv	high	water-ripples.md §1.2; vertex flag 0x10 set and 0x01 clear, more than 0x491C9C01 points
+00761cf0	cSTEWaterRipple::CreateRipples	manual:water-ripples.tsv	high	water-ripples.md §1.3; per-zoom alphas and wobble
+00761e70	cSTEWaterRipple::DoAnimationTick	manual:water-ripples.tsv	high	water-ripples.md §1.5; frame clocks, edit counter + 250, rebuild after 2,000,000
+00761f80	cSTEWaterRipple::DoMessage	manual:water-ripples.tsv	high	water-ripples.md §1.5; 0x278E6003, 0x86AD10EE, 0x89171496
+00761ff0	cSTEWaterRipple::Update	manual:water-ripples.tsv	high	water-ripples.md §1.4; kRenderWaterEffects (boolean 3), zoom change rebuild
 007623b0	cSTEWaterWave::GetMeanWaveOrientation	auto:B2	medium	mac 004fd106 score 0.932 support 1.0
 00762470	cSCResourceCatalogView::AddRef	auto:D	low	mac 00259e48 score 0.5 support 1
 00762480	cSCResourceCatalogView::Release	auto:D	low	mac 00259e56 score 0.5 support 1
@@ -16491,6 +16493,7 @@ va	name	source	confidence	note
 00aaa3c8	cSC4SubwayOccupant::vftable	manual:underground-occupants.tsv	high	underground-occupants.md §1; 107 slots; installed by 0x006530B0 and 0x006535A0
 00ab0840	kTaxTypeByPurposeAndWealth	manual:clock-budget-neighbors.tsv	high	s16[9][4] data table indexed purpose*4+wealth; read by ComputeTax
 00ab3480	cSC4TrafficSimulator::WorkOnSimCycle::kNextState (data, uint32[20])	manual:traffic.tsv	high	indexed by state in WorkOnSimCycle (mov edi,[edx*4+0xAB3480])
+00ab4238	cSTESelectedTerrainArea::sColorPalette (data, float[4][5])	manual:water-ripples.tsv	high	water-ripples.md §2.2; red, green, blue, (0.4, 0.3, 0), black
 00abaccc	cSC4CameraControl::sZoomPitch (data, float[5])	manual:camera.tsv	high	camera.md §2.2; 30, 35, 40, 45, 45 degrees in radians
 00abace0	cSC4CameraControl::sZoomCellPixels (data, int[5])	manual:camera.tsv	high	camera.md §2.2; 8, 16, 32, 73, 146
 00abad18	cSC4CameraControl::vftable	manual:camera.tsv	high	camera.md §2.1; 7 slots: QueryInterface, AddRef, Release, Write, Read, GetGZCLSID, deleting destructor

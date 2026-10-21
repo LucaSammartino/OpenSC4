@@ -515,6 +515,7 @@ va	name	slots	note
 00ab3b00	cSTESurfaceWater::vftable	15	paired with Mac __ZTV16cSTESurfaceWater#0, 13 agreeing slots
 00ab3cf0	cSTETerrain::vftable_2	6	paired with Mac __ZTV11cSTETerrain#2, 5 agreeing slots
 00ab3d18	cSTETerrain::vftable	98	paired with Mac __ZTV11cSTETerrain#0, 89 agreeing slots
+00ab4238	cSTESelectedTerrainArea::sColorPalette	0	water-ripples.md §2.2; red, green, blue, (0.4, 0.3, 0), black
 00ab4410	cSTETerrainView3D::vftable_2	22	paired with Mac __ZTV17cSTETerrainView3D#2, 20 agreeing slots
 00ab4480	cSTETerrainView3D::vftable	5	paired with Mac __ZTV17cSTETerrainView3D#0, 3 agreeing slots
 00ab46a0	cGZWinKnob::vftable_1	151	paired with Mac __ZTV10cGZWinKnob#1, 123 agreeing slots
