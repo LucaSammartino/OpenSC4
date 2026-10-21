@@ -8,9 +8,10 @@
 Goal: round 3/3 (final): specify physics 0x005B9BA0/0x005B9790, emitters 0x005B3CF0/0x005B8B50/0x005B87B0, draw
 0x005B3DA0/0x005B4B90, parsers 0x0059C280/0x0059A820; finish PT1, PT2-PT4 as far as bytes support. Keep Init/Start/
 identity corrections. cSC4ParticlesEffect uncredited until core fully specified; credit only range 0x005B9CC0-0x005B9FB7.
-Done: rounds 1-2 (see reports below), round 3 start 5297a6c1.
-Next: read 0x005B9BA0 (per-particle update) then emitters; write particles.md new sections; commit by call 30.
-Facts: REA allowed but shared; numbers from asm --bytes.
+Done: rounds 1-2 (reports below). Round 3: 5c82f711 §7.1 physics (both paths, exact); 9a53e220 §8.2 three emitters
+(exact), §8.3 age events (PT2 run-time reader 0x005B84C0/0x005B8410).
+Next: drawing 0x005B3DA0/0x005B4B90, then parsers 0x0059C280/0x0059A820 for PT1 keyword names; PT3/PT4; update §10, PT1/PT2.
+Facts: REA unavailable this round (no app open) - export+decomp only; helper build-runs/pe.py reads exe constants.
 
 ## Report (round 2, 2026-10-21)
 
