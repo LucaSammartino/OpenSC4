@@ -264,9 +264,25 @@ If already initialised, only the last step runs. Otherwise:
 ### 4.2 Script loading and reload (`reload_data`) *[compat]*
 
 1. Clear reloadPending. If the Lua global `_on_reload` is a function, call it (protected, no arguments).
-2. Override existing advisor scripts from loose files: for `<data directory>\advisors\` and then
-   `<plugin directory>\advisors\` (so **plugins win**), every `*.lua` file whose resource key `{0xCA63E2A3,
-   0x4A5E8EF6, 0xFF000000 | CRC24(basename)}` already exists replaces that script's data. New names are ignored.
+2. Override existing advisor scripts from loose files: for `<plugin directory>\advisors\` and then
+   `<SKU-specific directory>\advisors\` (so the **SKU-specific file wins**), every `*.lua` file whose resource key
+   `{0xCA63E2A3, 0x4A5E8EF6, 0xFF000000 | CRC24(basename)}` already exists replaces that script's data. New names are
+   ignored. The directories (AD10, verified at `0x0041A54E`–`0x0041A672`) come from the app (`0x00B43C94`, its
+   `cISC4App` interface, vtable `0x00A86AF0`): first `+0xD4` slot 53 `GetPluginDirectory(cIGZString& out, int32
+   language = −1)` (`0x0044BF90`; −1 skips the language sub-folder append; the field is defaulted by
+   `PreFrameWorkInit` to the data directory + `Plugins\`, `0x00452B7B`), then `+0xDC` slot 55
+   `GetSkuSpecificDirectory(cIGZString& out)` (`0x00449E20`); `advisors\` is appended to each. The data directory
+   (slot 51 `+0xCC`) is **not** used. The earlier "data directory, then plugin directory" wording **DIFFERS**.
+
+   **Native calls (AD10, verified):** a replacement may call the three helpers as they are. All are plain `cdecl`
+   (callee `RET` without pop, caller pops, no `this`):
+   `int32 UpdateResourcesFromDirectory(uint32 group, const char* dir)` (`0x005FC510`, 8 bytes; returns the file
+   count in EAX, ignored); `int32 LoadPackageScripts(cISCLua* lua, uint32 group, uint32 firstPackage)`
+   (`0x005FBA20`, 12 bytes; `reload_data` passes the system's Lua (`+0x58`), `0x4A5E8EF6`, 0 and ignores the EAX
+   result; `reload_data` pops 20 bytes at once for the second update call plus this one); `_dofile_from_resource`
+   (`0x005FC020`) is a Lua C function `int f(lua_State*)` (returns 1) and works only on a state owned by the game's
+   `cSCLua` host (it QIs the object stored 4 bytes before the state, lua-host.md §7.5), which is the case for the
+   advisor Lua. It is registered as entry 37 of §8.2 (global).
 3. Load the script **packages** of group `0x4A5E8EF6` in ascending package ID order (package headers `--#-package:<hex>`
    in the first bytes of the script). Shipped packages: `0x00000001` (system), `0x00002000`, `0x00003000` (advisors),
    `0x00004000`, `0x01001000` (expansion).
@@ -389,7 +405,20 @@ Consequences:
 | `PostCityInit` `0x26D31EC1` | If the city (message void1) is established: `tick_self()`; if lastDay < 1, monthly step. Then clear loadedFromSave. |
 | `CityEstablished` `0x26D31EC4` | `PushEvent(0xAA31A210 NEW_CITY, null)`; `tick_self()`; if lastDay < 1, monthly step. |
 | Cheat `0x230E27AC`, data `0xAAB7F42A` `DollyLlama` | toggle a global byte read only by advisor UI code. |
-| Cheat, data `0xA919D25E` `Adv <args>` | debug only. `guids on`/`guids off` → post `0xEA917750` (data1 1/0); `trigger <hex>` → post `0x4A91DD6E` (data1 = hex); `print` → post `0x4A92ECEF`; `refresh` → post `0x8A917759`; `reload` → `reload_data()` and `update_advisors()`. |
+| Cheat, data `0xA919D25E` `Adv <args>` | debug only. `guids on`/`guids off` → post `0xEA917750` (data1 1/0); `trigger <hex>` → post `0x4A91DD6E` (data1 = hex); `print` → post `0x4A92ECEF`; `refresh` → post `0x8A917759`; `reload` → `reload_data()` and `update_advisors()`. Payload (AD9, verified): see below the table. |
+
+**Cheat payload (AD9, verified).** The system receives cheats as a `cIGZMessage2` (its `DoMessage` `0x0041AAC0` is
+the message-target-2 entry), sent by `cGZCheatCodeManager::SendCheatNotifications(text, id)` (`0x00920ECE`, manager
+slot 20 `+0x50`): a new standard message with `SetType(0x230E27AC)`, `SetData1(id)` (`+0x2C`) and `SetVoid2(text)`
+(`+0x44`), delivered to every message-2 notification target registered for that ID or for 0, then released. So the
+cheat ID is **data1** (`GetData1`, `+0x24`) and the typed text is **data2 as a `cIGZString*`** (`GetVoid2`,
+`+0x3C`), a borrowed pointer (no AddRef). `DoDefaultCheatCodeProcessing` (`0x00921621`) passes the same string it
+was given (it trims/lower-cases only its own copy), so the text is the whole entered line as typed (e.g.
+`Adv reload`). For `0xA919D25E` the system takes `GetVoid2()` with **no null test** and calls its `ToChar`
+(`+0x14`), builds a `cRZCmdLine` from it (`0x00914E14`) and tests the switches `guids` / `trigger` / `print`
+(`IsSwitchPresent` with value, `0x009143CB`) and `refresh` / `reload` (`0x00913EC2`). The "only the cheat ID is
+passed" guess **DIFFERS**. (The older `cIGZMessageTarget` list at manager `+0x2C` gets a `cGZMessage {type,
+data1 = id, data2 = text}` instead; the advisor system is not on it.)
 
 ### 5.3 Advisor `Simulate(kind)` (iface slot 14) → true
 
@@ -1023,6 +1052,43 @@ Lua error outside any protected call, which goes to the panic path and ends the 
 `0x008BB830`, lua-host.md §4.2). Registration leaves the global `_tf_` pointing at the last function *[quirk]*
 (lua-host.md §8.2).
 
+**Vector order (AD7, verified).** The list is one process-wide vector (begin `0x00B207CC`, end `0x00B207D0`, capacity
+`0x00B207D4`), 12-byte entries `{name, function, isGlobal byte}`, appended by the two collector constructors. They run
+as C++ static initialisers from the CRT table: `0x00B07030` → `0x00A6FF20` → simulation collector `0x0040B8D0`, then
+`0x00B07034` → `0x00A6FF30` → UI collector `0x0040CAB0`. So the **simulation entries come first**, then the UI
+entries, each in its constructor's source order:
+
+| # | Simulation collector (38) | # | Simulation (cont.) | # | UI collector (9) |
+|---|---|---|---|---|---|
+| 1 | `advice_info` | 20 | `advice_subject` | 39 | `tool_plop_network` |
+| 2 | `trend_value` | 21 | `trigger_event` | 40 | `tool_plop_zone` |
+| 3 | `trend_slope` | 22 | `building_is_group` | 41 | `tool_plop_building` |
+| 4 | `trend_count` | 23 | `event_building_distance` | 42 | `tool_plop_flora` |
+| 5 | `camera_jump` | 24 | `mysim_distance_to_closest_building` | 43 | `tool_button` |
+| 6 | `camera_zoom` | 25 | `mysim_distance_to_closest_landmark_or_reward` | 44 | `window_budget` |
+| 7 | `ordinance_is_on` | 26 | `mysim_local_school_grade` | 45 | `window_map` |
+| 8 | `ordinance_set_off` | 27 | `mysim_local_hospital_grade` | 46 | `window_query` |
+| 9 | `ordinance_set_on` | 28 | `mysim_dispatch_tool` | 47 | `window_graph` |
+| 10 | `ordinance_is_available` | 29 | `event_disaster_distance` | | |
+| 11 | `ordinance_name` | 30 | `random_chance` | | |
+| 12 | `ordinance_description` | 31 | `nd_cancel` | | |
+| 13 | `ordinance_enact_fee` | 32 | `reward_instance_count` | | |
+| 14 | `ordinance_repeal_fee` | 33 | `unlock_reward_building` | | |
+| 15 | `ordinance_monthly_cost` | 34 | `get_reward_building_state` | | |
+| 16 | `difficulty_level` | 35 | `is_tutorial` | | |
+| 17 | `event_feedback` | 36 | `_combine_guids` (global) | | |
+| 18 | `expire_advice` | 37 | `_dofile_from_resource` (global, `0x005FC020`) | | |
+| 19 | `retire_advice` | 38 | `print` (global, `0x005FB850`) | | |
+
+Only entries 36–38 have isGlobal set. Note the UI order ends `window_query`, `window_graph` (the §8.3 table lists
+them in a different order). `register_api(g)` (`0x00418940`) walks the vector in this order; for each entry it
+pushes the target table (globals when g and isGlobal; the global `game` when neither; otherwise skips the entry,
+detected by an unchanged stack top), then sets `_tf_` to the function as a global, does `table[name] = _tf_` and
+pops the table. Consequences: after `Init`'s `register_api(true)` the global `_tf_` is `print` (`0x005FB850`); after
+every `reload_data`'s `register_api(false)` it is `window_graph` (`0x0040C890`, the UI collector's last entry).
+A replacement must register in this order, or at least leave `_tf_` = `window_graph` after each reload *[compat]*.
+Duplicate names cannot occur (all 47 differ).
+
 ### 8.3 `game.*` functions by subsystem *[compat]*
 
 "ctx" is the context advice (§6.7). Numbers are truncated toward zero where an integer is needed. A bad argument
@@ -1382,6 +1448,33 @@ Pop = callee-pop bytes (`abi_extract.py --check`). Return channels read from the
 SDK errors (checked): slot 9 returns a pointer to the system's `cRZRandom` (SDK `intptr_t`, harmless); slot 18
 returns nothing (SDK `bool`; a replacement should return true); slots 23–28 are missing from the SDK; slot 6 is spelled
 `RemoveAdivsor` in the SDK. The overload pair 12/13 is in reverse declaration order, as foundations §16 predicts.
+**Slot 9 `GetRandom()` contract (AD8, verified).** The only caller found (export and decomp) is
+`game.random_chance` (`0x0040A810`): it loads the system pointer from `0x00B207C0`, calls slot 9 (`+0x24`), and
+passes the result as `this` to the **non-virtual** `cRZRandom::RandomDoubleRangeUniform(0.0, 100.0)` (`0x00913761`,
+thiscall, two doubles, callee pops 16), which calls `RandomDoubleUniform` (`0x0091372E`). Those touch only the u32
+state at **returned pointer + 4**: if it is 0 it is first set to `clock()`; then `state = state × 0x278DDE6D`
+(wrapping) is stored and the draw is `int32(state) × f32 constant + 0.5`. Nothing reads offset 0 (no virtual call).
+So a replacement's slot 9 must return a non-null pointer to writable memory whose `+4` dword is the generator state
+(e.g. a real `cRZRandom`-shaped `{vtable, u32 seed}`), or it must also replace `random_chance`. Returning null
+(the parked wrapper's guess) **DIFFERS**: the first `random_chance` call faults.
+
+**Slot 11 `DoLink(const cIGZString& link)` (`0x0041B080`, AD8, verified).** No direct callers (reached through
+the interface by the advisor UI's hyperlink handling). Steps:
+
+1. Copy the link (`Data` slot 6 `+0x18`, `Strlen` slot 7 `+0x1C`) into a local string and trim it.
+2. `sscanf(text, "%08x%08x", &advisorID, &sessionID)`. If it does not return 2: return **false**.
+3. If advisorID ≠ `0x1D` and ≠ 0, and `GetAdvisor(advisorID)` (slot 7) is non-null, and sessionID ≠ 0, and that
+   advisor's `GetAdviceBySessionID(sessionID)` (advisor slot 13 `+0x34`) is non-null: set the local string to its
+   rightmost `len − 16` characters (the text after the 16 hex digits) and call the advice's `DoLink(&string)`
+   (advice slot 22 `+0x58`, `0x00407ED0`). Return **true**.
+4. Otherwise run Lua: `PushContextAdvice(null)` (slot 18), then the Lua host's `DoBuffer(p, strlen(p), p)`
+   (cISCLua slot 55 `+0xDC`, lua-host.md) with `p` = the text from character **16** when advisorID = `0x1D`, or
+   from character **8** in every other fallback case (ID 0, unknown advisor, session 0, unknown advice) *[quirk]*:
+   the second 8 hex digits are then part of the executed chunk. The chunk name is the chunk text itself. Then
+   `PopContextAdvice()` (slot 19). The `DoBuffer` status is ignored. Return **true**.
+
+A slot 11 that always returns false (the parked guess) **DIFFERS**.
+
 Slots 23–28 are UI (§12.1.1). The export's labels at `0x418840` ("IsAdvisorWindowVisible") and `0x4187B0`
 ("startAdvisorWindow") do not all match the bodies; the slot names in the table follow the bodies.
 
@@ -1766,3 +1859,16 @@ through `GetCellValue` (simgrid §6.4 applies to the traffic simulator, not to t
 22. **Lua functions**: `_combine_guids(0x0F0F0000, 0x00F0F0F0)` = 268431600 (`0x0FFFF0F0`);
     `_combine_guids(0x80000000, 0)` = −2147483648 (signed); one argument missing → −1;
     `trend_slope` with slope 1.0 → `f32(atan(1) × 63.6618f)` = 49.999863 (float32).
+23. **Registration order (§8.2)**: after `register_api(true)` the global `_tf_` is `print`; after `register_api(false)`
+    it is `game.window_graph`; the 47 names register in the §8.2 table order (simulation 1-38, then UI 39-47).
+24. **GetRandom (§12.1)**: slot 9 returns a non-null pointer P; with the u32 at P+4 set to 1, one
+    `game.random_chance(p)` advances it to `0x278DDE6D`; with P+4 = 0 it is first seeded from `clock()`.
+25. **DoLink (§12.1)**: `"0000001D00000000x=1"` runs the chunk `x=1` between PushContextAdvice(null) and
+    PopContextAdvice and returns true; `"00000000"` (one field) returns false; a valid advisor+session link calls the
+    advice's slot 22 with the text after character 16 and returns true; an unknown advisor ID runs the text from
+    character 8.
+26. **Cheat payload (§5.2)**: a message 2 of type `0x230E27AC`, data1 `0xA919D25E`, void2 = cIGZString `Adv reload`
+    runs `reload_data` and `update_advisors`; data1 `0xAAB7F42A` toggles the DollyLlama byte and ignores void2.
+27. **Reload directories (§4.2)**: a file `X.lua` overriding an existing advisor script in both the plugin and the
+    SKU-specific `advisors\` directories ends with the SKU-specific contents; one in the data directory only is not
+    read.

@@ -466,8 +466,9 @@ Lets loose files override packaged scripts:
 3. Files whose key does not already exist are **ignored**. Overrides cannot add new scripts.
 4. Return the count. Every caller ignores it.
 
-The advisor system calls it for `<data dir>\advisors\` and then `<plugin dir>\advisors\` (advisors.md §4.2), so a
-plugin file replaces a data-directory file of the same name.
+The advisor system calls it for `<plugin dir>\advisors\` (`cISC4App` `+0xD4` `GetPluginDirectory(out, -1)`) and then
+`<SKU-specific dir>\advisors\` (`+0xDC` `GetSkuSpecificDirectory(out)`) (advisors.md §4.2, AD10), so a SKU-specific
+file replaces a plugin file of the same name. Calling convention: `cdecl`, caller pops 8.
 
 ### 7.4 `LoadPackageScripts(lua, group, firstPackage)` (`0x005FBA20`) *[compat]*
 
@@ -748,7 +749,7 @@ such as `#city#`, `#mayor#`, `#link_id#`). Three texts use `%name%`, which the d
 | | 18 (`+0x48`) | `GetAvailableResourceListForType(list, type)` | | |
 | Lua script resource (`0xCA63D8E9`) | 3 (`+0x0C`) set data; 4 (`+0x10`)/5 (`+0x14`) data/size *[inferred]* | | | |
 | `cISC4GameDataRegistry` (foundations §17.7) | 9 `GetEntryID(cIGZUnknown*)`, 10 `GetNode`, 11 `GetValue`, 12 `IsValidEntry`, 13 `IsNodeEntry`, 15 `DoValueExchange`, 16 `DoValueCall`, 19 `CheckEntryFlags`, 23 `VisitImmediateChildren`, 25 `AddNotificationTarget(target*)`, 27 `RemoveNotificationTarget(target*)` | | | |
-| `cISC4App` | `+0xA8` GetStringDetokenizer, `+0xBC` GetLuaInterpreter, `+0xC4` GetTutorialRegistry, `+0xD4` GetDataDirectory, `+0xDC` GetPluginDirectory | | | |
+| `cISC4App` | `+0xA8` GetStringDetokenizer, `+0xBC` GetLuaInterpreter, `+0xC4` GetTutorialRegistry, `+0xCC` GetDataDirectory, `+0xD4` GetPluginDirectory(out, int32 language), `+0xDC` GetSkuSpecificDirectory (AD10: the earlier names for `+0xD4`/`+0xDC` were wrong) | | | |
 | `cRZPath` | ResolvePath, Splitpath, GetFileName (non-virtual framework code) | | | |
 | `cGZCommandParameterSet` | constructed by `Open` (§9.4) | | | |
 
