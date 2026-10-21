@@ -129,6 +129,73 @@ Offsets in a `cGZFont`; names are ours.
 | 33/34 | Get/SetSpacingAdjustment(char, line) | plain store |
 | 53/54 | Get/SetRenderer | §9 |
 
+### 4.1 `cGZFont` slot inventory (vtable `0x00AC55D8`, 64 slots)
+
+Every slot, read from the vtable in `bin/SimCity4.exe`. "Shared" marks a one-instruction accessor whose body the
+linker shares with other classes (the address is not a font-specific function). Families: **A** plain field
+getters, **B** setters/getters with rules in §4, **M** metrics (§5, §8), **D** drawing (§9), **C** glyph cache (§7).
+
+| Slot | Address | Method | Family | Rule / spec |
+|---|---|---|---|---|
+| 0 | `0x0089626E` | QueryInterface(id, &out) | — | id `0x10673960` or 1 → this, AddRef, true; else false, out untouched |
+| 1 | `0x0094C4B1` | AddRef (shared) | — | refCount (+0x08) += 1, returns it |
+| 2 | `0x008972A8` | Release | — | §3 |
+| 3 | `0x0089955C` | Init | — | §3 |
+| 4 | `0x008982E1` | Shutdown | — | §3 |
+| 5 | `0x008989E5` | GetName(&out) | A | out ← familyName (string assign) |
+| 6 | `0x00898A00` | GetStyle(mask) | B | §4 |
+| 7 | `0x009DB37A` | GetStyles (shared) | A | styleFlags (+0x40) |
+| 8 | `0x008962A9` | SetStyle(mask, on) | B | §4 |
+| 9 | `0x009DB800` | GetFaceKind (shared) | A | faceKind (+0x34): 1 scalable, 2 fixed-size, set by Init |
+| 10 | `0x00999165` | GetSize (shared) | A | pointSize (+0x38) |
+| 11 | `0x00897AB1` | SetSize | M | §5 |
+| 12 | `0x0097CE34` | GetFontColor (shared) | A | foreground (+0x44) |
+| 13 | `0x0099B7EE` | GetFontBackgroundColor (shared) | A | background (+0x48) |
+| 14 | `0x00898A13` | SetFontColor(fg, bg) | B | §4 |
+| 15 / 16 | `0x0099BE4C` / `0x00896654` | Get/SetAntialiasing | B | §4 |
+| 17 / 18 | `0x00896662` / `0x00899987` | Get/SetAntialiasingGammaCorrection | B | §4, §10 |
+| 19 / 20 | `0x00896666` / `0x008999CE` | Get/SetAntialiasingSharpness | B | §4, §10 |
+| 21 / 22 | `0x00898A24` / `0x00898A3F` | Get/SetFilePath | B | §4 |
+| 23 / 24 | `0x0089666A` / `0x00896678` | Get/SetCodePage(&cp / cp) | B | §4 (both return true) |
+| 25 | `0x00898A5A` | IsCodePageAvailable | B | §6 |
+| 26 | `0x00896684` | IsCharEncodingAvailable | B | §4 |
+| 27 | `0x00899CA7` | IsCharAvailable(s, n) | C | below |
+| 28 | `0x00899D2A` | PreloadChars(s, n) | C | below |
+| 29 / 30 | `0x00896692` / `0x0089854E` | Get/SetScaling | B | §4 |
+| 31 / 32 | `0x008966A7` / `0x0089865F` | Get/SetAdvanceScaling | B | §4 |
+| 33 / 34 | `0x008966BB` / `0x008966D0` | Get/SetSpacingAdjustment | B | §4 |
+| 35 | `0x008966EB` | GetLineHeight | M | §5 |
+| 36 | `0x008972BD` | CharWidth(ch) | M | §8 |
+| 37 | `0x008966F2` | CharHeight(a, b) | M | §5; both stack arguments are ignored (returns charHeight) |
+| 38 / 39 | `0x008966F8` / `0x00896702` | GetSizeAbove/BelowBaseline | M | §5 |
+| 40 | `0x00897348` | GetAdvanceWidth(ch) | M | §8 |
+| 41 | `0x00899D81` | CalculateWordsToFitInWidth | M | §8.1 |
+| 42 | `0x00896808` | CalculateCharsToFitInWidth | M | §8 |
+| 43 | `0x00896886` | CalculateNumberOfLines | M | §8 |
+| 44 | `0x008968EB` | CalculateWidthOfLines | M | §8.2 |
+| 45 | `0x008973D4` | CalculateTextArea (6 args) | M | §8.2 |
+| 46 | `0x00896957` | CalculateTextArea(s, n, rect, wrap, fixWidth) | M | §8.2 table |
+| 47 | `0x008969F2` | TextArea(s, n, rect) | M | rect = (0, 0, GetStringWidth(s, n), CharHeight) |
+| 48 / 49 | `0x00899F71` / `0x00899FF4` | GetStringWidth / GetStringVisibleWidth | M | §8 |
+| 50 | `0x00896A2D` | FormatForEllipsis | M | §8.3 |
+| 51 / 52 | `0x0089A099` / `0x0089A35B` | DrawTextLine / DrawTextParagraph | D | §9 |
+| 53 | `0x009C8F69` | GetRenderer (shared) | D | renderer (+0x8C), not AddRef'd |
+| 54 | `0x00896B45` | SetRenderer | D | §9 |
+| 55 / 56 | `0x00896B8E` / `0x00896BC2` | Lock/UnlockSurfaceForFontUse | D | §9 |
+| 57 | `0x00898FC0` | deleting destructor(flags) | — | destructor §3; flag bit 0 frees the 0x15C bytes |
+| 58 | `0x00897304` | GetXOffset(ch) | M | §8 |
+| 59 | `0x008962C4` | GetAppropriateCachedBitmapData | C | §7 |
+| 60 / 61 | `0x0089834C` / `0x00898FDC` | GetCharData / AddCharData | C | §7 |
+| 62 / 63 | `0x00897748` / `0x0089632D` | CopyGlyphToSourceData / ReallocateSourceData | C | §7 |
+
+- **IsCharAvailable(s, n)** (slot 27): n = 0 → true. Otherwise the text is converted (§6, scratch 0, using the
+  current codePage), and true iff every converted UTF-16 unit has a glyph in the open face (the same lookup as
+  IsCodePageAvailable, §6; the first absent unit returns false). codePage is set to 0x10 during the walk and
+  restored. It does not test `initialised`: callers must ask an initialised font (the original dereferences the
+  face handle).
+- **PreloadChars(s, n)** (slot 28): when initialised and n ≠ 0, converts the text (§6, scratch 0) and calls
+  GetCharData (slot 60) on every converted unit, filling the active cache. Returns `initialised`.
+
 ## 5. Size and vertical metrics
 
 `SetSize(size)` (`0x00897AB1`) fails for size 0 or while either cache holds glyphs (cache fields +0x12C, +0x158
@@ -221,7 +288,7 @@ first absent probe returns false). The table, read from the switch at `0x00898A7
 | 42 | CalculateCharsToFitInWidth(s, n, w, &width) | adds one character at a time; stops before the width exceeds w |
 | 41 | CalculateWordsToFitInWidth(s, n, w, &width, mode) | §8.1 |
 | 43 | CalculateNumberOfLines(s, n, w) | repeatedly takes CalculateWordsToFitInWidth(…, mode 2) and counts lines (w 0 treated as 1) |
-| 47 | TextArea(rect) | rect = (0, 0, GetStringWidth, CharHeight) |
+| 47 | TextArea(s, n, rect) | rect = (0, 0, GetStringWidth(s, n), CharHeight) (3 stack arguments, `RET 0xC`) |
 | 44 | CalculateWidthOfLines(s, n, height) | §8.2 |
 | 45 | CalculateTextArea(s, n, rect, minW, maxW, maxH) | §8.2 |
 | 46 | CalculateTextArea(s, n, rect, wrap, fixWidth) | §8.2 |
@@ -234,9 +301,18 @@ characters while the prefix width < w, backs off one, and steps past a duplicate
 on a non-space followed by a space takes the space. The result is mapped back through the §11 map, converted to a
 source-unit length, and `width` = GetStringWidth of that prefix.
 
-**8.2 Text area.** Empty text: rect.right = rect.left. With wrap and fixWidth: height = CalculateNumberOfLines ×
-line height measured against the rect's width; without wrap: right = left + GetStringWidth; bottom = top + line
-height. With wrap and no fixWidth: right = left + CalculateWidthOfLines(rect height).
+**8.2 Text area.** `CalculateTextArea(s, n, rect, wrap, fixWidth)` (slot 46, `0x00896957`, no return value),
+rect = {left, top, right, bottom}, lh = GetLineHeight (slot 35):
+
+| Case (tested in this order) | right | bottom |
+|---|---|---|
+| s null or n = 0 | left | top + lh |
+| wrap = false | left + GetStringWidth(s, n) | top + lh |
+| wrap, fixWidth = false | left + CalculateWidthOfLines(s, n, bottom − top) | unchanged |
+| wrap, fixWidth = true | unchanged | top + CalculateNumberOfLines(s, n, right − left) · lh |
+
+Example: rect (10, 20, 110, 70), lh 16, text of width 250 that wraps into 3 lines at width 100: wrap+fixWidth →
+bottom = 20 + 48 = 68; no wrap → right = 260, bottom = 36.
 
 `CalculateWidthOfLines(s, n, height)` (slot 44, `0x008968EB`) returns the narrowest width, in steps of 10 pixels
 from 20 to 4000, at which the text wraps into at most maxLines = height / lineHeight lines (unsigned division;
@@ -262,9 +338,15 @@ Signed compares except where marked:
 Worked example: aw 8, lh 16, minW = maxW = −1 (so 96, 256), maxH 100: width 60 → 60 × 16; width 150 → the
 two-line width (say 80) → 80 × 32; k never reaches maxH / lh = 6, so at most 5 lines are tried.
 
-**8.3 Ellipsis.** Unless keepAll: if the characters fitting the rect width are fewer than the text, and the
-ellipsis width < rect width, truncate to what fits in (width − ellipsis width), drop trailing spaces, append the
-ellipsis; otherwise truncate to what fits.
+**8.3 Ellipsis.** `FormatForEllipsis(text, ellipsis, rect, keepAll)` (slot 50, `0x00896A2D`) edits the string
+`text` in place and returns its original length L (string length, before any change). W = rect.right − rect.left.
+1. keepAll → nothing changes.
+2. fit = CalculateCharsToFitInWidth(text, L, W, null) (slot 42). If fit ≥ L (unsigned) the text fits: unchanged.
+3. E = GetStringWidth(ellipsis, its length). If E < W (signed): fit2 = CalculateCharsToFitInWidth(text, L, W − E,
+   null); truncate text to fit2; remove trailing ' ' (0x20 only) characters one by one; append the ellipsis.
+4. Otherwise (E ≥ W) the text is truncated to length 0: the result is the empty string, not the part that fits.
+Example: W 50, "Hello world" (L 11) fits 7 characters, ellipsis "..." 9 pixels: fit2 at width 41 is 6 → "Hello " →
+"Hello" → "Hello..."; returns 11. With W 8 the same call empties the text.
 
 ## 9. Drawing text
 
