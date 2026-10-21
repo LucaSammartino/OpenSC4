@@ -19,6 +19,7 @@
 #include "FC4Log.h"
 #include "FC4AdvisorApi.h"
 #include "FC4RefAudit.h"
+#include "cFC4AdvisorObjects.h"
 #include "FC4Interfaces.h"
 #include "FC4PropCityCommon.h"
 #include "FC4Streams.h"
@@ -422,11 +423,26 @@ void GlobalEffectCb(void*, uint32_t id, bool assert_) {
     fc4::propcity::Drop(reinterpret_cast<cIGZUnknown*>(v));
 }
 
-void SubscribeCb(void* u, uint32_t kind, int32_t, uint64_t, uint32_t type) {
-    if (kind == FC4_ADV_OBJ_SYSTEM) Self(u)->Subscribe(type, true);
+// An advisor subscribes its own front's message target (§5.4).
+void AdvisorNotification(uint64_t token, uint32_t type, bool on) {
+    cIGZUnknown* u = fc4::FromToken(token);
+    cIGZMessageTarget2* t = nullptr;
+    if (u == nullptr || !u->QueryInterface(kFC4_IID_cIGZMessageTarget2, reinterpret_cast<void**>(&t)) || t == nullptr) return;
+    FC4_ACQUIRED(t, "QueryInterface");
+    cIGZMessageServer2Ptr ms;
+    if (ms) {
+        if (on) ms->AddNotification(t, type);
+        else ms->RemoveNotification(t, type);
+    }
+    FC4_RELEASE(t);
 }
-void UnsubscribeCb(void* u, uint32_t kind, int32_t, uint64_t, uint32_t type) {
+void SubscribeCb(void* u, uint32_t kind, int32_t, uint64_t token, uint32_t type) {
+    if (kind == FC4_ADV_OBJ_SYSTEM) Self(u)->Subscribe(type, true);
+    else if (kind == FC4_ADV_OBJ_ADVISOR) AdvisorNotification(token, type, true);
+}
+void UnsubscribeCb(void* u, uint32_t kind, int32_t, uint64_t token, uint32_t type) {
     if (kind == FC4_ADV_OBJ_SYSTEM) Self(u)->Subscribe(type, false);
+    else if (kind == FC4_ADV_OBJ_ADVISOR) AdvisorNotification(token, type, false);
 }
 
 // fc4.h: obj_kind FC4_ADV_OBJ_HOST names a host object by token; advisor and
@@ -477,9 +493,30 @@ uint64_t ObjectCreated(void* u, uint32_t kind, uint32_t, fc4_adv_obj* handle) {
         auto* s = new cFC4AdviceSubject(handle, &NewSubjectHandle, u);
         return s->Token();
     }
-    // Advisor and advice objects need their GZCOM classes (not yet written).
+    if (kind == FC4_ADV_OBJ_ADVISOR) return (new cFC4Advisor(handle))->Token();  // §12.2
+    if (kind == FC4_ADV_OBJ_ADVICE) return (new cFC4Advice(handle))->Token();    // §12.3
     fc4_adv_obj_destroy(handle);
     return 0;
+}
+
+// The core object behind a front is gone (FC4AdvLife.h).
+void ObjectDroppedCb(void*, uint64_t token) { fc4::AdvFront::Dropped(token); }
+
+// §6.9: the text rebuild reads the advice entry's title and message.
+// [question AD12] the detokenizer pass (UI) is not run on them here.
+void RebuildTextCb(void* u, uint32_t, uint64_t token) {
+    cFC4ISC4Advice* a = FC4AdviceFront(token);
+    cISCLua* L = Self(u)->Lua();
+    if (a == nullptr || L == nullptr) return;
+    auto* f = static_cast<cFC4Advice*>(a);
+    std::string title, message;
+    // [choice] the table index is the 1-based `advices` index (as advice_entry)
+    if (PushEntry(L, "advices", static_cast<uint32_t>(f->TableIndex()))) {
+        FieldString(L, "title", &title);
+        FieldString(L, "message", &message);
+        L->Pop(1);
+    }
+    f->SetText(title.data(), title.size(), message.data(), message.size());
 }
 
 // ---- register_api (§8.2, lua-host.md §8.2) ---------------------------------------------------------------
@@ -667,6 +704,8 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     h.release = &ReleaseCb;
     h.resolve_ref = &ResolveRefCb;
     h.object_created = &ObjectCreated;
+    h.object_dropped = &ObjectDroppedCb;
+    h.rebuild_text = &RebuildTextCb;
     return h;
 }
 
@@ -711,7 +750,7 @@ cFC4AdvisorSystem::~cFC4AdvisorSystem() {
     if (self_ != nullptr) fc4_adv_obj_destroy(self_);
     fc4_advisors_destroy(core_);
     core_ = nullptr;
-    cFC4AdviceSubject::DestroyAll();  // the wrappers' core subjects may still call the host (this)
+    fc4::AdvFront::DestroyAll();  // fronts still referenced by the game; their core objects may call the host (this)
     ReleaseLua();
 }
 

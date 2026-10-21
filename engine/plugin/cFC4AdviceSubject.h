@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "FC4AdvLife.h"
 #include "FC4Streams.h"  // cIFC4CoreObject
 #include "cIGZSerializable.h"
 #include "cISC4AdviceSubject.h"
@@ -28,13 +29,12 @@ public:
     virtual bool Clone(cFC4ISC4AdviceSubject** out) = 0;  // 13 (+0x34)
 };
 
-class cFC4AdviceSubject final : public cFC4ISC4AdviceSubject, public cIGZSerializable, public cIFC4CoreObject {
+class cFC4AdviceSubject final : public cFC4ISC4AdviceSubject, public cIGZSerializable, public cIFC4CoreObject, public fc4::AdvFront {
 public:
-    // Takes over `handle` (destroyed with the wrapper). `cloneFn` builds a
+    // Takes over `handle` (FC4AdvLife.h). `cloneFn` builds a
     // new core subject for Clone (nullptr: Clone fails).
     using NewSubjectFn = fc4_adv_obj* (*)(void* ctx);
     cFC4AdviceSubject(fc4_adv_obj* handle, NewSubjectFn newSubject, void* ctx);
-    ~cFC4AdviceSubject();
 
     bool QueryInterface(uint32_t riid, void** ppvObj) override;
     uint32_t AddRef() override;
@@ -56,25 +56,20 @@ public:
     bool Read(cIGZIStream& in) override;
     uint32_t GetGZCLSID() override { return kFC4_CLSID_cSC4AdviceSubject; }
 
-    void* CoreHandle() override { return handle_; }
+    // [choice] the strong handle while referenced (a reference read hands
+    // the object over referenced), null otherwise.
+    void* CoreHandle() override { return StrongHandle(); }
     uint32_t CoreClass() override { return kFC4_CLSID_cSC4AdviceSubject; }
 
     // The token the core keeps for this object (its cIGZUnknown*).
     uint64_t Token() { return fc4::TokenOf(static_cast<cIGZUnknown*>(static_cast<cFC4ISC4AdviceSubject*>(this))); }
 
-    // [choice] Lifetime: the core keeps this wrapper's token without a GZCOM
-    // reference and the C ABI has no "core object dropped" callback, so a
-    // wrapper is never deleted on Release (as cFC4AutomatonObject); the
-    // system deletes every wrapper at its own destruction (DestroyAll).
-    static size_t LiveCount();
-    static void DestroyAll();
+    // Lifetime: fc4::AdvFront (the core says object_dropped; no leak).
 
 private:
     bool Get(struct fc4_adv_subject_state* out);
     bool Set(const struct fc4_adv_subject_state& v);
 
-    uint32_t refCount_ = 0;
-    fc4_adv_obj* handle_ = nullptr;
     NewSubjectFn newSubject_ = nullptr;
     void* ctx_ = nullptr;
 };

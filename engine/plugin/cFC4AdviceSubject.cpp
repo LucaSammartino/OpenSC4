@@ -11,38 +11,10 @@
 #include "FC4Log.h"
 #include "fc4.h"
 
-#include <mutex>
-#include <vector>
-
-namespace {
-std::mutex g_mu;
-std::vector<cFC4AdviceSubject*> g_live;
-}  // namespace
 
 cFC4AdviceSubject::cFC4AdviceSubject(fc4_adv_obj* handle, NewSubjectFn newSubject, void* ctx)
-    : handle_(handle), newSubject_(newSubject), ctx_(ctx) {
-    std::lock_guard<std::mutex> lock(g_mu);
-    g_live.push_back(this);
-}
-
-cFC4AdviceSubject::~cFC4AdviceSubject() {
-    if (handle_ != nullptr) fc4_adv_obj_destroy(handle_);
-    handle_ = nullptr;
-}
-
-size_t cFC4AdviceSubject::LiveCount() {
-    std::lock_guard<std::mutex> lock(g_mu);
-    return g_live.size();
-}
-
-void cFC4AdviceSubject::DestroyAll() {
-    std::vector<cFC4AdviceSubject*> all;
-    {
-        std::lock_guard<std::mutex> lock(g_mu);
-        all.swap(g_live);
-    }
-    if (!all.empty()) fc4::Log("advisors: %u advice subject wrapper(s) deleted at teardown", static_cast<unsigned>(all.size()));
-    for (cFC4AdviceSubject* s : all) delete s;
+    : fc4::AdvFront(handle), newSubject_(newSubject), ctx_(ctx) {
+    Register(Token());
 }
 
 bool cFC4AdviceSubject::QueryInterface(uint32_t riid, void** ppvObj) {
@@ -61,23 +33,22 @@ bool cFC4AdviceSubject::QueryInterface(uint32_t riid, void** ppvObj) {
     return true;
 }
 
-uint32_t cFC4AdviceSubject::AddRef() { return ++refCount_; }
+uint32_t cFC4AdviceSubject::AddRef() { return AddRefFront(); }
 
-// Never deletes (header: lifetime [choice]).
-uint32_t cFC4AdviceSubject::Release() {
-    if (refCount_ != 0) --refCount_;
-    return refCount_;
-}
+// May delete this (FC4AdvLife.h).
+uint32_t cFC4AdviceSubject::Release() { return ReleaseFront(); }
 
 bool cFC4AdviceSubject::Get(fc4_adv_subject_state* out) {
     *out = fc4_adv_subject_state{};
-    return handle_ != nullptr && fc4_adv_subject_get(handle_, out);
+    Pin h(*this);
+    return h && fc4_adv_subject_get(h.get(), out);
 }
 
 // The fields go back with has_location cleared, so only data1, data2 and the
 // object are written (fc4.h: SetLocation runs only when has_location).
 bool cFC4AdviceSubject::Set(const fc4_adv_subject_state& v) {
-    return handle_ != nullptr && fc4_adv_subject_set(handle_, &v);
+    Pin h(*this);
+    return h && fc4_adv_subject_set(h.get(), &v);
 }
 
 bool cFC4AdviceSubject::SetLocation(float x, float z) {
@@ -158,20 +129,22 @@ bool cFC4AdviceSubject::Clone(cFC4ISC4AdviceSubject** out) {
     if (h == nullptr) return false;
     fc4_adv_subject_set(h, &st);  // location already clamped; the object add_ref'd
     const uint64_t token = fc4_adv_obj_token(h);
+    auto* c = token != 0 ? static_cast<cFC4ISC4AdviceSubject*>(fc4::FromToken(token)) : nullptr;
+    if (c != nullptr) c->AddRef();  // before h goes: h may be the copy's only strong handle
     fc4_adv_obj_destroy(h);
-    if (token == 0) return false;
-    auto* c = static_cast<cFC4ISC4AdviceSubject*>(fc4::FromToken(token));
-    c->AddRef();
+    if (c == nullptr) return false;
     *out = c;
     return true;
 }
 
 bool cFC4AdviceSubject::Write(cIGZOStream& out) {
     fc4::OStreamAdapter a(out);
-    return handle_ != nullptr && fc4_adv_obj_write(handle_, a.Get());
+    Pin h(*this);
+    return h && fc4_adv_obj_write(h.get(), a.Get());
 }
 
 bool cFC4AdviceSubject::Read(cIGZIStream& in) {
     fc4::IStreamAdapter a(in);
-    return handle_ != nullptr && fc4_adv_obj_read(handle_, a.Get());
+    Pin h(*this);
+    return h && fc4_adv_obj_read(h.get(), a.Get());
 }

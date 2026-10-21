@@ -12321,7 +12321,7 @@ static_assert(sizeof(fc4_adv_lua_value) == (sizeof(void*) == 4 ? 32 : 40), "fc4_
 static_assert(sizeof(fc4_advisors_state) == 56, "fc4_advisors_state layout");
 static_assert(sizeof(fc4_advisor_state) == 88, "fc4_advisor_state layout");
 static_assert(sizeof(fc4_advice_state) == 96, "fc4_advice_state layout");
-static_assert(sizeof(fc4_advisor_host) == (sizeof(void*) == 4 ? 264 : 528), "fc4_advisor_host layout");
+static_assert(sizeof(fc4_advisor_host) == (sizeof(void*) == 4 ? 268 : 536), "fc4_advisor_host layout");
 static_assert(sizeof(fc4_mysim_field) == (sizeof(void*) == 4 ? 40 : 48), "fc4_mysim_field layout");
 static_assert(sizeof(fc4_mysim_disaster_location) == 12, "fc4_mysim_disaster_location layout");
 static_assert(sizeof(fc4_mysim_building) == (sizeof(void*) == 4 ? 40 : 56), "fc4_mysim_building layout");

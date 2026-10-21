@@ -2,6 +2,12 @@
 |---|---|---|---|
 | glue-advisors-activate4: activate cFC4AdvisorSystem with AD7-AD10 corrections | `glue-advisors-activate4` / (engine lane) | wip after round 2 (factory not registered; no activation credit) | advisor/advice GZCOM classes (12.2/12.3), remaining host cbs, then opt-in factory + 2032 run |
 
+## Handoff (round 3, final)
+Goal: advisor/advice fronts (12.2/12.3), subject leak fix, remaining host cbs; activation only if complete (it is not: providers 7.3-7.8 and AD12-AD15 open).
+Done r3: 79e99e94 core object_dropped + C ABI fc4_adv_weak, host.object_dropped, fc4_adv_advice_*/fc4_adv_advisor_* per-object calls, capi test.
+In progress: FC4AdvLife.h (AdvFront: strong handle only while referenced; object_dropped retires), cFC4AdvisorObjects.{h,cpp}, subject on AdvFront, system wiring (kinds 2/3, object_dropped, advisor subscribe, rebuild_text).
+Next: qbuild quick green, commit; file AD12-AD15 in docs/specs/questions/advisors.md; gate all; game run (no activation) with unique label; final report state wip (activation parked).
+
 ## Report (round 2)
 Goal: apply advisors.md 8.2/12.1/5.2/4.2 (AD7-AD10), fill host callbacks + advisor/advice/subject classes, register the factory opt-in, game run sim_turbo to 2032 clean.
 
