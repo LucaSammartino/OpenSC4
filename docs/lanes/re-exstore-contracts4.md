@@ -2,5 +2,6 @@
 
 ## Handoff
 - goal: answer EX41-EX45 in docs/specs/data-formats.md (§8, §3.1) from the exe; move to answered/; questions.py index.
-- done: worktree created.
-- next: RE cGZPersistResourceManager RegisterObjectFactory / GetResource path / Sku_Data scan.
+- done: §8.1 factory contract + §3.1 Sku_Data bullets written, EX41-EX45 moved to answered (commit after this file).
+- next: finish (report, merge-queue json).
+- facts: REA session had no binary open (target_unavailable); all evidence from re_query.py asm + decomp/.
