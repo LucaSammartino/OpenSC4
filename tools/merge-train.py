@@ -1168,8 +1168,9 @@ def candidate_shadows(extra):
     if extra is None:
         return None
     keys = [k.strip().lower() for k in extra.split(",") if k.strip()]
-    if not keys or any(not re.fullmatch(r"[a-z][a-z0-9_]*_shadow", k) for k in keys):
-        raise ValueError("--add-shadow needs comma-separated *_shadow keys")
+    if not keys or any(k != "occmgr_shadow_follow" and not re.fullmatch(r"[a-z][a-z0-9_]*_shadow", k)
+                       for k in keys):
+        raise ValueError("--add-shadow needs comma-separated *_shadow keys or occmgr_shadow_follow")
     return ",".join(dict.fromkeys(keys))
 
 
@@ -1565,7 +1566,7 @@ def main():
     profile = p.add_mutually_exclusive_group()
     profile.add_argument("--no-regress", action="store_true")
     profile.add_argument("--add-replace", help="test candidate keys in addition to every default replacement")
-    p.add_argument("--add-shadow", help="append candidate *_shadow keys to the full default shadow profile")
+    p.add_argument("--add-shadow", help="append candidate *_shadow keys or occmgr_shadow_follow to the full shadow profile")
     p = sub.add_parser("land")
     p.add_argument("--force", action="store_true")
     sub.add_parser("bisect")

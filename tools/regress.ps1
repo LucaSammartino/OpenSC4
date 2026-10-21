@@ -105,8 +105,8 @@ function Add-RegressShadowKeys([string]$Ini, [string]$Keys) {
     if (-not $Keys) { return $Ini }
     foreach ($item in ($Keys -split ',')) {
         $key = $item.Trim().ToLowerInvariant()
-        if ($key -cnotmatch '\A[a-z][a-z0-9_]*_shadow\z') {
-            throw "candidate shadows must be comma-separated *_shadow keys"
+        if ($key -cne 'occmgr_shadow_follow' -and $key -cnotmatch '\A[a-z][a-z0-9_]*_shadow\z') {
+            throw "candidate shadows must be comma-separated *_shadow keys or occmgr_shadow_follow"
         }
         if ($Ini -notmatch ("(?m)^\s*" + [regex]::Escape($key) + "\s*=")) {
             $Ini += [Environment]::NewLine + "$key = 1"

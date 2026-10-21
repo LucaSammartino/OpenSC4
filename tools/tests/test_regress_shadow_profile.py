@@ -23,9 +23,17 @@ class CandidateShadowTests(unittest.TestCase):
         self.assertIsNone(mt.candidate_shadows(None))
         self.assertEqual(mt.candidate_shadows(" Formats_Shadow, aura_shadow, formats_shadow "),
                          "formats_shadow,aura_shadow")
-        for value in ("", ",", "enable", "aura_shadow; exit", "formats_shadow\nenable=terrain"):
+        for value in ("", ",", "enable", "aura_shadow; exit", "formats_shadow\nenable=terrain",
+                      "occmgr_shadow_follow=0", "occmgr_shadow_follow\nenable=terrain", "aura_shadow_follow"):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 mt.candidate_shadows(value)
+
+    def test_followed_occupant_candidate_remains_gate_checked_and_audited(self):
+        record, run = self.invoke(extra="occmgr_shadow,occmgr_shadow_follow,occmgr_shadow_follow")
+        self.assertTrue(record["ok"])
+        self.assertEqual(record["extra_shadows"], "occmgr_shadow,occmgr_shadow_follow")
+        run.assert_called_once_with(Path("wt"), "trial", Path("gated.dll"), "aura,occmgr",
+                                    "occmgr_shadow,occmgr_shadow_follow")
 
     def invoke(self, extra="formats_shadow", gate_error=""):
         state = {"current": {"id": "trial", "worktree": "wt", "regress": {"ok": True, "verdict": "PASS"}}}
@@ -81,9 +89,9 @@ if ($errors.Count) { throw "regress.ps1 does not parse" }
 $node = $ast.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Add-RegressShadowKeys' }, $true)[0]
 . ([scriptblock]::Create($node.Extent.Text))
 $base = @('disable = budget', 'aura_shadow = 1', 'traffic_shadow_hypotheses = 7') -join [Environment]::NewLine
-$profile = Add-RegressShadowKeys $base 'aura_shadow,formats_shadow,formats_shadow'
+$profile = Add-RegressShadowKeys $base 'aura_shadow,formats_shadow,formats_shadow,occmgr_shadow,occmgr_shadow_follow,occmgr_shadow_follow'
 $rejected = 0
-foreach ($bad in @('enable', 'aura_shadow; exit', ('formats_shadow' + [Environment]::NewLine + 'enable = terrain'))) {
+foreach ($bad in @('enable', 'aura_shadow; exit', ('formats_shadow' + [Environment]::NewLine + 'enable = terrain'), 'occmgr_shadow_follow=0', 'aura_shadow_follow')) {
     try { $null = Add-RegressShadowKeys $base $bad } catch { $rejected++ }
 }
 @{ profile = $profile; rejected = $rejected } | ConvertTo-Json -Compress
@@ -95,5 +103,6 @@ foreach ($bad in @('enable', 'aura_shadow; exit', ('formats_shadow' + [Environme
                                     capture_output=True, text=True, check=True)
         actual = json.loads(result.stdout)
         self.assertEqual(actual["profile"].splitlines(), [
-            "disable = budget", "aura_shadow = 1", "traffic_shadow_hypotheses = 7", "formats_shadow = 1"])
-        self.assertEqual(actual["rejected"], 3)
+            "disable = budget", "aura_shadow = 1", "traffic_shadow_hypotheses = 7", "formats_shadow = 1",
+            "occmgr_shadow = 1", "occmgr_shadow_follow = 1"])
+        self.assertEqual(actual["rejected"], 5)
