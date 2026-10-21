@@ -1,8 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-terrain4 (run4 terrain unblocker: TR38/TR39/TR40 crash blockers, TR35) | `re-terrain4` / (docs lane) worktree `.claude/worktrees/re-terrain4` | **ready** (docs only): round 1 TR38/TR39/TR40/TR35; round 2 TR33/TR34/TR36/TR37 answered in terrain.md §15.5.13 (+ load path §15.5.13.5); TR41 filed | glue-terrain3: weather DoCompleteSimulation at step 6, step-7 normals + texture update, SetTriangleIndicesForCell(z,x) in flip/hide slots; RE: TR41 (texture/MarkCliff weights) |
+| re-terrain4 (run4 terrain unblocker: TR38/TR39/TR40 crash blockers, TR35) | `re-terrain4` / (docs lane) worktree `.claude/worktrees/re-terrain4` | in progress (round 3 TR41); round 1 TR38/TR39/TR40/TR35; round 2 TR33/TR34/TR36/TR37 answered in terrain.md §15.5.13 (+ load path §15.5.13.5); TR41 filed | glue-terrain3: weather DoCompleteSimulation at step 6, step-7 normals + texture update, SetTriangleIndicesForCell(z,x) in flip/hide slots; RE: TR41 (texture/MarkCliff weights) |
 
 
+
+## Handoff (round 3, TR41)
+
+- Goal: answer TR41 (MarkCliff 0x00742FC0, base pass 0x007482C0, brush pass 0x00748950) in terrain.md §15.5.13.6.
+- Done: MarkCliff, water proximity (0x007440C0 + FloodFillDistance), base pass written in §15.5.13.6 (commit below).
+- Next: brush pass 0x00748950 (asm dumped at build-runs/a_00748950.asm; decomp region_00740000.c:2110), then who
+  fills hash 0x00B4BCE0 nodes and 0x00B4B410/414/420 (cSTETerrain.c ~7900-7990), then move TR41 to answered.
+- Facts: build-runs/rd.py reads exe constants (`rd.py f 0xADDR`). Ghidra inverts MarkCliff compare polarity.
 
 ## Report (re-terrain4, 2026-10-21, run4 round 2)
 

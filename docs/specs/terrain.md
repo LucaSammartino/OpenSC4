@@ -2211,7 +2211,7 @@ Its other caller is `RedisplayTerrain` (`0x007498CD`, §8.1 step 2), which passe
    as float32. If `|y| < 0.3` (`0x00B0D620`) for either triangle, the function calls
    `MarkCliff(vertexIndex, cliff0, cliff1)` (`0x00742FC0`). MarkCliff tests the other diagonal. If that diagonal
    removes the cliff, it calls slot 93 for the cell and sets flag `0x0800`. It then sets flag `0x0008` on the
-   corners of the steep triangle or triangles. The exact rule is TR41.
+   corners of the steep triangle or triangles. The exact rule is §15.5.13.6.
 4. In the same row pass, once `z ≥ z0` (the ungrown top), compute the **vertex normals** of row `z` for
    `x = x0..x1`. Each one is the sum of the triangle normals of the triangles that touch vertex `(x, z)`, with each
    term present only when its cell exists:
@@ -2251,8 +2251,8 @@ and `DoMessage`. In order (`0x007490B0`–`0x0074912C`):
    `0x00B4B414 + 4·type` and `0x00B4B420 + 0x800·type`), sea level `+0x7C`, the surface-water depth
    (`[+0x24]+0x18`), the vertex altitude and normal, and response curves (`cSC4ResponseCurve::GetOutputValue`). For
    example, a vertex whose water depth is ≤ 30.0 and that has the cliff mark `0x0008` gets layer id
-   `[esp+0x84]` with weight argument 50.0 (`0x00748402`–`0x00748418`). A positive depth selects id `0x13`, or
-   `0x14` when the depth is ≥ 15.0 (`0x00748429`–`0x00748454`).
+   `0x00B4B414[type]` with weight argument 50.0 (`0x00748402`–`0x00748418`). A positive depth selects id `0x14`
+   when the depth is < 15.0, else `0x13` (`0x00748429`–`0x00748454`). Full rule: §15.5.13.6.
 7. `0x00748950(rect)`: adds the **brush-painted** layers. Each entry in the list at `+0x1B0` is a painted region
    with a fade counter. For every vertex inside an entry's padded rectangle that carries the brush mark `0x0400`
    (§7), it adds that entry's texture with a weight that fades with the counter (`0x00748AD0`–`0x00748C34`).
@@ -2320,6 +2320,106 @@ load path adds is the grid-display static. **Replacement rule:** a replacement m
 build a fresh view in `DoPostCityInit` *[choice]*. The view's saved state is only the static grid flag, and the
 view's own record `Read` restores that flag whether or not the terrain keeps the object. If the replacement keeps
 the object, it must call `Init` on it exactly as for a new view. It must not construct a second view.
+
+#### 15.5.13.6 The exact rules of MarkCliff, the water-proximity grid and the base-texture pass (TR41) *[compat]*
+
+All facts here are from the instruction bytes (Ghidra's pseudocode inverts two of the compare polarities in
+MarkCliff and is not a reliable guide). `W` = `vertsX` (`+0x38`, the record row stride), `v = z·W + x`, `alt(v)` =
+record `+0x00`, `depth(v)` = float at `[[+0x24]+0x18] + 0x24·v` (the surface-water record, same stride as the
+terrain records), `flags(v)` = record `+0x22` (u16). "Steep" means `|ny| < T`, where `T` = `0x00B0D620` (tuning
+`0x48CD7B65`, code default 0.3, shipped 0.5, §2.4) and `ny` is the y component of the normalised triangle normal.
+
+**MarkCliff `0x00742FC0`** (thiscall, `ret 0xC`; arguments `(u32 v, u8 steep0, u8 steep1)`, where `steep0` is
+triangle 0 = corners `(v, v+W, v+W+1)` and `steep1` is triangle 1 = corners `(v, v+1, v+W+1)` of cell `(x, z)`; the
+caller passes the two `|ny| < T` results and calls it only when at least one is set, `0x00743B60` §15.5.13.2 step 3):
+
+| `steep0` | `steep1` | what happens |
+|---|---|---|
+| 0 | 1 | set flag `0x0008` on `v`, `v+W+1`, `v+1` (triangle 1); no flip |
+| 1 | 0 | set flag `0x0008` on `v`, `v+W`, `v+W+1` (triangle 0); no flip |
+| 1 | 1 | test the other diagonal (below) |
+
+The other diagonal's triangles are A = `(v, v+1, v+W)` and B = `(v+1, v+W, v+W+1)`. With `c = alt(v+W)` as origin,
+`p = alt(v) − c`, `q = alt(v+1) − c`, `r = alt(v+W+1) − c` (float32 stores `0x00743007`/`0x00743010`):
+- A: `nx = q·(−16) − p·(−16)` (stored float32), `nz = p·16 − q·0`; A is steep when
+  `|1.0 / sqrt(nz² + nx² + 65536) · 256| < T` (sum in that order; `0x0074302C`–`0x0074306A`);
+- B: `nz = r·(−16) − q·0`, `nx = q·16 − r·16`; B is steep when `|1.0 / sqrt(nx² + nz² + 65536) · 256| < T`
+  (`0x0074307D`–`0x007430CA`).
+Constants: −16 `0x00A98FB0`, 16 `0x00AB3B5C`, 0 `0x00A81054`, 65536 `0x00AB3CAC`, 1.0 `0x00B0D684`, 256 `0x00A9422C`.
+A NaN result counts as not steep.
+
+- **A and B both steep:** no flip. Set flag `0x0008` on all four corners (both original triangles).
+- **Otherwise** (the flip removes at least one steep triangle): call the terrain's own slot 93
+  `FlipInternalTriangulation(x = v mod W, z = v div W, 1)` through the vtable (`+0x174`, unsigned divide), then set
+  flag `0x0800` on `v` (byte `+0x23` bit 3), then: if A is steep, flag `0x0008` on `v`, `v+W`, `v+1`; if B is steep,
+  flag `0x0008` on `v+1`, `v+W`, `v+W+1`. If neither is steep, no `0x0008` is set for this cell.
+
+Flags are only ever ORed in; the clears are §15.5.13.2 steps 1–2. The slot-93 call is virtual, so a replacement's
+own slot 93 runs (and with `+0xEC` set it reaches the view through the TR37 call, §15.5.13.4).
+
+**Water-proximity grid `+0x190`, `ComputeWaterProximityValues(rect*)` `0x007440C0`** (step 1 of §15.5.13.3).
+`+0x190` is a vector of `vertsZ` rows (12-byte vector entries, the first dword of each is the row's byte array of
+`vertsX` bytes). The function first widens a pending dirty rectangle at `+0xAC/+0xB0/+0xB4/+0xB8`
+(`x0 = min`, `z0 = min`, `x1 = max`, `z1 = max` with the argument). Only when `(z1−z0)·(x1−x0) ≥ 100` (signed,
+`0x00744132`) does it recompute; otherwise the grid stays as it was and the rectangle keeps growing. On a
+recompute: reset the pending rectangle to the empty sentinel `(INT_MAX, INT_MAX, INT_MIN, INT_MIN)`
+(`0x00B0D698..0x00B0D6A4`), set `+0xA8 = 0` and `+0xE4 = 0`; for every vertex of the **whole** grid write 0 if
+`depth > 0` (and count it in `+0xE4`) else `P + 2`, where `P` = u8 `0x00B0D58C` (tuning `0xA9C283D0`, code default
+4). If at least one vertex is wet, run `cSC4MapUtilities::FloodFillDistance(grid, 0, P + 1)` (`0x005E5180`): for
+`level = 0, 1, …, P` (stopping early when a pass changes nothing), every cell holding `level` lowers each of its
+4 neighbours (clamped at the grid border) to `level + 1` if that neighbour is larger (`Expand` `0x005E4C50`, row by
+row, in place). Result: `prox(v) = min(manhattanDistanceToNearestWetVertex, P + 1)`, with every vertex farther than
+`P + 1` left at `P + 2`; with no wet vertex every value is `P + 2`. Step 7 passes the whole city, so the first
+call always recomputes.
+
+**Base-texture pass `0x007482C0(rect*)`** (thiscall, `ret 4`; the rectangle is the one §15.5.13.3 step 2 already
+padded). Setup, in order:
+1. `L0 = 7.0 + seaLevel` (`0x00B0D590`, tuning `0xA9C283D1`; sea level `+0x7C`), float32.
+2. `cliffId = 0x00B4B414[type]` (`type` = `+0x18`).
+3. `span = (maxAllowedHeight − L0) · 0x00B4B400` (`0x00B0D5DC`, §2.4; `0x00B4B400` = tuning `0x48CD7B30`), float32.
+4. Keep a copy `R` of the rectangle as passed. Call `0x007574A0(type)` then `0x007571D0(zoom)` (cdecl, one argument
+   each; `zoom` = `+0xBC`): if the view's current terrain type `0x00B0D6FC` differs, `ChangeTerrainType`, store the
+   type and refill the per-level texture tables `0x00B4C670[level]` (§15.5.12.2); then refill them for `zoom`.
+5. Pad a second copy `Q` with `PadRectangle(P, 0x00B4BC48[zoom])` (the same per-zoom pad again, clamped to
+   `0..cellsX`, `0..cellsZ`).
+
+Then for each source vertex, `z = Q.z0..Q.z1` outer, `x = Q.x0..Q.x1` inner (inclusive, signed compares), with
+`v = z·W + x`:
+- if `depth(v) > 30.0` (`0x00B0D5D8`, tuning `0x69AC5641`): nothing.
+- else if `flags(v) & 0x0008`: `AddLayer(v, cliffId, 50.0)` (§15.5.13.3, `0x007405E0`). Nothing else.
+- else if `depth(v) > 0` (**water source**): `id = 0x14` if `depth(v) < 15.0` (`0x00B0D5D4`, tuning `0x69AC5640`),
+  else `id = 0x13`. (**Corrects** §15.5.13.3's earlier "0x14 when the depth is ≥ 15": shallow water is `0x14`.)
+  `full = (Family(v, id) << 12) + id`. Splat (below) with the water-only filter.
+- else if `prox(v) > P` (unsigned) **or** `alt(v) > L0` (**land source**): `band = 31` if `alt(v) ≤ L0`; else
+  `t = (alt(v) − seaLevel) / span · 30.0` (x87, unrounded) and `band = 31 − floor(t)` clamped to `0..31`
+  (`floor` is computed as round-to-nearest of `t − 0.5 + 12582912.0` stored float32, then +1 when `t` equals that
+  plus one exactly: `0x00748532`–`0x00748588`). `m = weather.GetMoistureType(x·16.0, z·16.0)` (slot 19, 0..15,
+  flora.md). `id = u32 0x00B4B420[type·0x200 + band·16 + m]`. `full = (Family(v, id) << 12) + id`. Splat with the
+  land-only filter.
+- else (**low dry source**: within `P` of water and not above `L0`): `id = 0x00B4B410[type]`,
+  `full = (Family(v, id) << 12) + id` (`0x00742F60`); if `(x, z)` lies inside `R`, `AddLayer(v, full, 1.0)`. Then
+  splat with no depth filter.
+
+`Family(v, id)` (`0x00742F60` and inline): `q = v div W`, `r = v mod W`, `D = (*(u32**)0x00B4BC90)[zoom]`
+(tuning `0x89A312C2`), `k = (q div D) · 0x00B4BC20[zoom] + (r div D)`, `f = u16 (*(u16**)(0x00B4BC9C + 12·zoom))[k]`
+(filled by `DetermineTextureFamilyMembersForGridCells`), result `f mod u32 [(0x00B4C670[zoom])[id] + 4]` (the
+texture's family size at that level). All unsigned.
+
+**Splat** (source `(x, z)`, base `id`, `full`): look `id` up in the hash table `0x00B4BCE0..0x00B4BCE4` (bucket
+`id mod bucketCount`, singly linked nodes `{+0 next, +4 id, +8 float strength, +0xC + 16·zoom cSC4ResponseCurve,
++0x5C + 4·zoom int radius, +0x70 + 4·zoom float reach}`). No node: done. Else `rad = radius[zoom]`,
+`lim = (0.0625 · reach[zoom])²` (float32), neighbourhood `N = (max(x−rad, 0), max(z−rad, 0), min(x+rad, cellsX),
+min(z+rad, cellsZ))` (low side signed, high side unsigned against `+0x28`/`+0x2C`), and `I = N ∩ R` (inclusive,
+`0x0048ED90`; empty: done). For each target `(x', z')` in `I`, rows outer, columns inner, `v' = z'·W + x'`:
+1. land-only filter: skip unless `depth(v') ≤ 0`; water-only filter: skip unless `depth(v') > 0`;
+2. skip unless `alt(v') > L0` **or** `prox(v') > P` **or** `depth(v') > 0`;
+3. `d2 = (z'−z)² + (x'−x)²` (int); skip unless `float(d2) < lim`;
+4. `w = curve[zoom].GetOutputValue(float32(sqrt(d2) · 16.0)) · strength` (stored float32; curve evaluation per
+   foundations.md, `0x005F4250`); if `w > 0`, `AddLayer(v', full, w)`.
+
+The splat reaches only vertices inside `R`, so the extra padding only adds sources whose splats reach into `R`.
+The order of all AddLayer calls is as above; it matters because AddLayer keeps the first three ids and replaces
+the lightest.
 
 ## 15.6 The slots §4–§10 left undefined (TR24, TR25) *[compat]*
 
