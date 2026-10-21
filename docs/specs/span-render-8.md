@@ -182,11 +182,141 @@ into the emulator and run the shipped bytes against the rules above (model: `spa
 
 ## 9. Open points
 
-- **SR8-1** (§2, §3, §6): what the solid colour byte is for a type-2 buffer — the result of the target buffer's
-  colour-mapping vfunc `+0x78` called by `SetColorTable` `0x0082FF70` (palette index, grey level or alpha) — and so
-  whether solid fills and the alpha-plane values of §4/§7 mean the same thing. Needs the type-2 buffer class.
-- **SR8-2** (whole spec): which shipped path, if any, creates a colour-type 2 render target (`Init` `0x00830710`
-  with an 8-bit buffer); no caller analysis was done here. The gradient paths additionally inherit SR565-1 (no
-  direct caller of `SetGradientTransform`).
+- **SR8-1** answered 2026-10-21 (§10.4): every shipped `cIGZBuffer` maps any RGB to **0** for colour type 2, so
+  through `SetColorTable` the solid byte is always `0x00`.
+- **SR8-2** (whole spec), narrowed by §10.6: the factory accepts any `cIGZBuffer`, and the only literal type-2
+  buffer creation found (`cSC4WinRegionScreen::MakeWholeRegion`) is never bound to a draw context. Still open: whether
+  any buffer whose type comes from data (resource loaders, screen buffer) reaches `CreateDrawContext` as type 2.
+  The gradient paths additionally inherit SR565-1 (no direct caller of `SetGradientTransform`).
 - Behaviour with records the caller never produces (stretch reads past the texture, `W = 0`, row 13, `n = 0`) is
   stated above for completeness but has no compatibility weight.
+
+## 10. Bridge: object, factory, target buffer, dispatch [exact]
+
+Read from the 8-bit path's own instructions (`Init` entry `0x008307D4`, vtable `0x00AC188C`, the type-2 arms of
+the buffer methods); no sibling renderer was used as evidence.
+
+### 10.1 The renderer object and its vtable
+
+The object is **4 bytes: the vtable pointer only**, no fields. `this` is used only by §3 and §5 to re-dispatch
+through the vtable (so a subclass overriding slot 1 or 2 would change them; nothing in the shipped program does).
+
+| Slot (offset) | Function | Arguments after `this` (`thiscall`, ECX = `this`) | Callee pops | Return |
+|---|---|---|---|---|
+| 0 (`+0x00`) | `0x0082FF00` deleting destructor | flags (dword; bit 0 = free) | 4 | `this` in EAX |
+| 1 (`+0x04`) | RenderSolid §2 | spans, n, dst*, colour | 0x10 | none (EAX undefined, never read) |
+| 2 (`+0x08`) | RenderGradient §4 | spans, n, dst*, g* | 0x10 | none |
+| 3 (`+0x0C`) | RenderAlpha §3 | spans, n, dst*, colour, argb | 0x14 | none |
+| 4 (`+0x10`) | RenderAlphaGradient §5 | spans, n, dst*, g* | 0x10 | none |
+| 5 (`+0x14`) | RenderBlt §6 | spans, n, dst*, src*, b*, kind | 0x18 | none |
+
+The destructor stores the base vtable `0x00AC17AC` (`cISpanRender`) into the object, then, if bit 0 of its
+argument is set, frees the 4 bytes with the global heap free (`0x005E5620`). Nothing else is released.
+
+### 10.2 Lifetime (owner: `cGZDrawContextRenderToBuffer`, `ctx+0xB0`)
+
+- **Created** only by the context's `Init` (`0x00830710`, ctx vtable `0x00AC17D0` slot 3), after the target is
+  queried and locked (§10.3): 4 bytes from the global heap (`0x005E55E0`), vtable `0x00AC188C` stored, pointer
+  stored in `ctx+0xB0`. If the allocation fails, `ctx+0xB0` = 0 and `Init` **still returns success**; the next draw
+  then calls through a null pointer. *[compat: crash in the original; a reimplementation may fail Init instead]*
+- **Destroyed** by `Shutdown` (`0x0082FF20`, ctx slot 4): `ctx+0xB0` deleted via slot 0 with flags 1 and set to 0;
+  then, if the target exists and the locked flag `ctx+0x75` is set, the target is unlocked with `0x8040`; then the
+  target reference is released and `ctx+8` = 0. `Init` calls `Shutdown` first, so re-initialising replaces the
+  renderer. The final `Release` (`0x008306C0`, refcount reaches 0) deletes `ctx+0xB0` the same way, releases the
+  texture `ctx+0x24` and the target `ctx+8`, **without unlocking** the target.
+- The constructor (`0x00830690`, not a Ghidra function) zeroes `+4` (refcount), `+8`, `+0x24`, `+0xB0` and the
+  bytes `+0x41`, `+0x43`, `+0x74`, `+0x75`; it is called only by the software context factory (§10.5).
+
+### 10.3 `Init(target)` and factory selection
+
+`Init` takes one argument (`ret 4`) and returns a bool in AL. Steps, in order:
+
+1. `Shutdown` (§10.2); release `ctx+8` again if still set (it never is after Shutdown).
+2. `target->QueryInterface(0x20732180 = cIGZBuffer, &ctx+8)`; failure → return false.
+3. `buffer->Lock(0x8040)` (vfunc `+0x18`); failure → release the buffer, `ctx+8` = 0, return false.
+4. `buffer->GetColorType` (vfunc `+0x3C`, writes the pair {colour type, bits per pixel}); the type selects the
+   renderer through the jump table `0x008308B0` (index `type − 2`, unsigned, valid 0–7):
+
+| Colour type | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | other |
+|---|---|---|---|---|---|---|---|---|---|
+| vtable | **`0x00AC188C` (this class)** | fail | `0x00AC182C` | `0x00AC1844` | `0x00AC182C` | `0x00AC185C` | `0x00AC1874` | `0x00AC1874` | fail |
+
+   The bits-per-pixel half is **not** consulted: a type-2 buffer gets the 8-bit renderer whatever its bpp says.
+   "fail" releases the buffer, sets `ctx+8` = 0 and returns false, but **leaves the buffer locked** (the lock of
+   step 3 is never undone). *[compat]*
+5. Copies the destination record `ctx+0x78` (§1 layout) from the buffer: `+0x78` = pixel pointer (vfunc `+0x88`),
+   `+0x7C` = stride (`+0x8C`), `+0x80` = width (`+0x24`), `+0x84` = height (`+0x28`), `+0x88` = colour type,
+   `+0x8C` = bytes per pixel (`+0x44`); also `ctx+0x0C` = width, `ctx+0x10` = height, `ctx+0x90` = bytes per pixel
+   (`+0x44` again), `ctx+0xA4` (tiling) = 0, `ctx+0x75` (locked) = 1; returns true.
+
+The pixel pointer and stride are captured **once**: the buffer stays locked for the whole life of the context, and
+the record is not refreshed per draw.
+
+### 10.4 The type-2 target buffer (`cGZBuffer`, CLSID `0xC470D325`, vtable `0x00AC1400`)
+
+- **Init** (vfunc `+0x0C`, `0x008269B0`; width, height, colour type, bits per pixel; `ret 0x10`): fails if already
+  initialised (byte `+8`) or width or height is 0; stores width `+0x1C`, height `+0x20`, type `+0x0C`, bpp `+0x10`,
+  then allocates storage (`0x00826A50`): row stride = `(width × (bpp >> 3) + 3) & ~3` (rows padded to 4 bytes),
+  `stride × height` bytes from the global heap, not cleared here; pointer `+0x3C`, stride `+0x40`, bytes per pixel
+  `bpp >> 3` (vfunc `+0x44` = `bpp >> 3` of `+0x10`). Example: Init(10, 3, 2, 8) → stride 12, 36 bytes, 1 byte per
+  pixel. A type-2 buffer is just this layout with 1 byte per pixel; the buffer itself attaches no palette.
+- **Lock** (`+0x18`, `0x00826AA0`, flags; `ret 4`): false if there is no storage; otherwise increments the 16-bit
+  lock count `+0x38`, ORs the flags into `+0x44`, and if flag bit 15 (`0x8000`) is set also increments the change
+  counter `+0x30`; true. **Unlock** (`+0x1C`, `0x00826490`): decrements the count, clears the flags; always true.
+  The context's `0x8040` therefore marks the buffer as modified once per `Init`, not per draw.
+- **Colour mapping** (`+0x78`, `0x00825DA0`, r, g, b as the low bytes of three dwords; `ret 0xC`): switch on the
+  colour type with table `0x00825E60` over types 4–9; any other type, **including 2**, returns **0**. The second
+  buffer class with the same interface (vtable `0x00AC1550`, mapping `0x0082AD30`, type at `+0x2C`) also returns 0
+  for type 2, and the screen-buffer vtable `0x00ADB418` reuses `0x00825DA0`. Hence (SR8-1) `SetColorTable`
+  (`0x0082FF70`: for each entry `i`, raw ARGB → `ctx+0xB4+4i`, `buffer->+0x78(argb>>16, argb>>8, argb)` →
+  `ctx+0xC4+4i`) always yields `ctx+0xC4 = 0`, and RenderSolid / RenderAlpha on a type-2 target store **`0x00`**,
+  whatever colour was set. Only the blit (§7, alpha from the source texel and `ctx+0xB4` byte 3) and gradient (§4)
+  paths can produce non-zero bytes. *[compat: solid fills on an 8-bit target clear to 0]*
+
+### 10.5 How a context reaches this renderer (COM route)
+
+1. `cGZDrawSystem::Init` (`0x0082BC90`) creates the software context factory (12 bytes, vtable `0x00AC162C`,
+   interface IID `0x6B2EA76C` per its QueryInterface `0x0082B850`) and appends it to its factory list
+   (`drawSystem+0x1C`).
+2. `cIGZDrawSystem::CreateDrawContext(target, &ctx)` (vtable `0x00AC1668` slot 4, `0x0082BAB0`) asks each factory
+   in list order (`+0x0C`), first success wins. The software factory (`0x0082B910`) succeeds for any target that
+   answers `cIGZBuffer`: it allocates `0xD4` bytes, constructs (§10.2), AddRefs and returns the context
+   **uninitialised** (no `Init` call; null allocation is dereferenced, *[compat: crash]*). The other registered
+   factory (vtable `0x00ADB4D8`, `0x00993270`) needs interface `0xE3094DC8` and builds a different context.
+3. The caller then calls `ctx->Init(target)` (§10.3); with a type-2 buffer this installs vtable `0x00AC188C`.
+4. Primitives: the context's `Draw` (`0x00831000`, ctx vtable `+0x54`) handles only antialiased primitives (types
+   6, 7, 8 with the antialias byte `ctx+0x43` set) through `FillAntialiasedPolygon` (`0x008308D0`), which writes the
+   target **directly** through the buffer's set-pixel vfunc `+0x58` (`0x00826560`; 1 byte per pixel → stores the low
+   byte of the value) and **never calls this renderer**; otherwise it returns 2 / 1 and the generic rasteriser
+   `cGZDrawContext` (`RasterizeFillTri` `0x0082E430`, `RasterizeFillQuad` `0x0082E5C0`,
+   `RasterizeFillPolygon` `0x0082E740`) produces clipped span lists and calls `DrawPreclippedSpanList` (ctx vtable `+0x58`,
+   `0x008302E0`, `thiscall`, spans and n, `ret 8`, no return value) on its render context (`drawContext+0x28`).
+   `DrawPreclippedSpanList` picks the renderer slot:
+
+| Context state | Slot called on `ctx+0xB0` | Extra arguments |
+|---|---|---|
+| no texture, gradient flag `+0x74` set, alpha flag `+0x41` set | 4 RenderAlphaGradient | `&ctx+0x78`, `&ctx+0x44` |
+| no texture, gradient, no alpha | 2 RenderGradient | `&ctx+0x78`, `&ctx+0x44` |
+| no texture, no gradient, alpha | 3 RenderAlpha | `&ctx+0x78`, `ctx+0xC4`, `ctx+0xB4` |
+| no texture, no gradient, no alpha | 1 RenderSolid | `&ctx+0x78`, `ctx+0xC4` |
+| texture `ctx+0x24` set and its `Lock(0x800)` succeeds | 5 RenderBlt | `&ctx+0x78`, src record, b record, kind |
+
+   The texture branch is the one of `span-render-565.md` §6.1 (format index, key masking, kind bits, tiling and
+   stretch origins), unchanged for this target; it unlocks the texture with `0x800` after the call. A texture of an
+   unsupported colour type, or a failed texture lock, draws nothing. `ctx+0xB0` is never null-checked.
+
+Worked route (constructed fixture): create a `cGZBuffer`, `Init(8, 2, 2, 8)` (stride 8); `CreateDrawContext` →
+`Init` → renderer `0x00AC188C`, destination record {pointer, 8, 8, 2, 2, 1}; `SetColorTable(0, 1, {0xFF336699})`
+gives `ctx+0xB4 = 0xFF336699`, `ctx+0xC4 = 0`; a solid span (0,0)–(5,0) writes `00 00 00 00 00` at bytes 0–4 of row
+0. With an 8-bit alpha texture (format 6) bound, plain kind 0, the same span writes per pixel the §7.2 alpha of each
+texel instead.
+
+### 10.6 Shipped producers of type-2 buffers (SR8-2, partial)
+
+- The only literal `Init(…, 2, 8)` call found is in `cSC4WinRegionScreen::MakeWholeRegion` (`0x007AEDD0`): a square
+  `0x100 >> (2 − size)` heightfield buffer filled pixel by pixel through the buffer's own set-pixel vfunc (`+0x58`)
+  under `Lock(0x8080)`; no draw context is created on it, so it never reaches this renderer.
+- Buffers whose type comes from data (`cGZBufferResource` loading with the factory's `SetColorType`, the persist
+  buffer factory, the screen buffer) were not traced to a `CreateDrawContext` call; that is what remains of SR8-2.
+- Distinguish: §8's proofs and the worked route above are **constructed fixtures**; no shipped draw into a type-2
+  target is known.
