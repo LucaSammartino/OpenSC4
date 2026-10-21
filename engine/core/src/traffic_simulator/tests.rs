@@ -3418,19 +3418,59 @@ fn ts44_ts45_phase_positions() {
     assert_eq!(s.read_state(|st| st.extras.phase_positions), [2, 2]);
 }
 
-/// §3.2 row 15 (TS67 open): entering FinishTripMap resets the lot iterator
-/// only, so the phase positions keep the last trip-phase source's cell until
-/// the first lot is taken (the literal reading; the original reads (0, 0)).
+/// §3.2 rows 16/17/18/15/1 (TS67): the phase positions are zeroed by the
+/// entry action of the state entered when a phase finishes: 16 -> 17,
+/// 17 -> 18 and 18 -> 15 all leave (0, 0) until the new phase takes its
+/// first source or lot; entering 1 does the same. The exhausted end of a
+/// trip phase writes nothing, and the re-route context is not reset.
 #[test]
-fn ts67_finish_trip_map_entry_keeps_phase_positions() {
+fn ts67_trip_phase_transitions_zero_phase_positions() {
     let w = World::new();
     w.add_lot(1, Lot::new(CellRect::new(1, 1, 1, 1), 11));
     let s = sim(&w);
-    s.update_state(|st| st.extras.phase_positions = [100, 128]);
-    s.enter_cycle_state(cycle_state::FINISH_TRIP_MAP);
-    assert_eq!(s.read_state(|st| st.extras.phase_positions), [100, 128]);
+    // A finished FullTrips moves to 15; its entry zeroes the last source's
+    // cell (the in-game record: orig (0, 0), the cell (100, 128) before).
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::FULL_TRIPS;
+        st.extras.phase_positions = [100, 128];
+    });
     assert!(s.work_on_sim_cycle());
+    assert_eq!(s.cycle_state(), cycle_state::FINISH_TRIP_MAP);
+    assert_eq!(s.read_state(|st| st.extras.phase_positions), [0, 0]);
+    // The entry also drops a stale resume point: the walk starts at the
+    // first lot and stores its location.
+    s.update_state(|st| {
+        st.extras.phase_positions = [7, 7];
+        st.finish_resume = Some(1);
+    });
+    s.enter_cycle_state(cycle_state::FINISH_TRIP_MAP);
+    assert_eq!(
+        s.read_state(|st| (st.extras.phase_positions, st.finish_resume)),
+        ([0, 0], None)
+    );
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(s.cycle_state(), cycle_state::CREATE_MAPS);
     assert_eq!(s.read_state(|st| st.extras.phase_positions), [1, 1]);
+    // 16 -> 17 and 17 -> 18: each finish enters the next trip phase, whose
+    // entry zeroes the positions again.
+    for (from, to) in [
+        (cycle_state::CONFIRM_TRIPS, cycle_state::REROUTE_TRIPS),
+        (cycle_state::REROUTE_TRIPS, cycle_state::FULL_TRIPS),
+    ] {
+        s.update_state(|st| {
+            st.cycle_state = from;
+            st.current = None;
+            st.extras.phase_positions = [5, 6];
+        });
+        s.enter_cycle_state(from);
+        assert!(s.work_on_sim_cycle(), "state {from}");
+        assert_eq!(s.cycle_state(), to);
+        assert_eq!(s.read_state(|st| st.extras.phase_positions), [0, 0], "{from} -> {to}");
+    }
+    // Entering the lot sweep (1) shares the arm of 15.
+    s.update_state(|st| st.extras.phase_positions = [3, 4]);
+    s.enter_cycle_state(cycle_state::LOT_SWEEP);
+    assert_eq!(s.read_state(|st| st.extras.phase_positions), [0, 0]);
 }
 
 /// §4.9 step 1 (TS40): the state-2 reset zeroes the working rows; a

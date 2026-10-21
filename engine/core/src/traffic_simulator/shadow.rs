@@ -1787,9 +1787,8 @@ impl TrafficShadow {
         self.copy.update_state(|st| st.shadow_finish_stop = finish_stop);
         // The original entered 15 in this delivery and its saved cell reads
         // (0, 0): it stopped at the test point before the first lot (TS63),
-        // having taken none. The copy stops on entry. (What leaves the
-        // positions at (0, 0) there, not at the last FullTrips source's
-        // cell, is open: lane question TS67; the record shows it.)
+        // having taken none. The copy stops on entry; its entry action
+        // zeroed the positions as the original's does (§3.2 row 15, TS67).
         let finish_on_entry = s0 != cs::FINISH_TRIP_MAP && finish_stop == Some([0, 0]);
         let mut steps = 0u32;
         let mut note = None;
