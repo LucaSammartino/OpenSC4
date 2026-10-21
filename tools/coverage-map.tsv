@@ -342,7 +342,7 @@ cSC4AnimationCoordinator	animation coordinator	renderer	animation-coordinator.md
 cSC4GlyphTextureManager	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSC4GlyphTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSC4StringTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
-cSTETerrainView3D	3D scene and models	renderer	terrain.md	core/src/terrain	terrain_shadow	-
+cSTETerrainView3D	3D scene and models	renderer	terrain.md, terrain-view.md	core/src/terrain	terrain_shadow	-
 cSTEOverlayManager	3D scene and models	renderer	-	-	-	-
 cSTEWaterRipple	terrain ripples and selection	renderer	water-ripples.md	-	-	-
 cSTEVertBufExtn	3D scene and models	renderer	-	-	-	-

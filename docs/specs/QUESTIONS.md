@@ -118,6 +118,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TR | terrain |
 | TS | traffic-simulator |
 | TU | tutorial |
+| TV | terrain-view |
 | UG | underground-occupants |
 | VU | view-utilities |
 | VW | view3d-window |
@@ -216,6 +217,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
+| terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
 | texture-bindings | 2 | 1 | TB4 | questions/texture-bindings.md |
 | timers | 0 | 2 | TM3 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
@@ -229,4 +231,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **221** | **1117** | | |
+| **total** | **224** | **1117** | | |

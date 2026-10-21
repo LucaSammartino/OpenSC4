@@ -103,13 +103,15 @@ texture key, two bytes, a byte, an RGB colour, an alpha, a mode). Putting a cell
 other. `Init` (`0x00750AA0`) takes the terrain, its cell counts and the texture binding factory, and builds the render
 states (§2.3).
 
-### 2.2 Marking (`MarkSelected`, four forms)
+### 2.2 Marking (`MarkSelected`, five forms)
 
-The last argument of each form clears both tables first.
+The last argument of each form clears both tables first (the rectangle form then also rebuilds the render states if
+`kPreferOpaque` changed).
 
 | VA | Arguments | Effect |
 |---|---|---|
 | `0x007516D0` | (cell list, colour, clear) | the cells become plain cells of that colour |
+| `0x00751780` | (rectangle, colour, clear) | every vertex of the inclusive rectangle becomes a plain cell of that colour |
 | `0x00751910` | (cell, colour, clear) | one plain cell |
 | `0x007519A0` | (cell, key, b1, b2, palette index, b3, clear) | a textured cell coloured from the palette `0x00AB4238` (0 red, 1 green, 2 blue, 3 (0.4, 0.3, 0), 4 black), alpha 1, mode 2 |
 | `0x00751A70` | (cell, key, b1, b2, packed colour `0xRRGGBBxx`, mode, clear) | a textured cell of that colour; mode 3 with `kNoAddSigned` becomes mode 1 with alpha 0.5 |
