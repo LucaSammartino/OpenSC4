@@ -315,9 +315,40 @@ branch `on_init` creates the four arrows with `add_image_button2` (up arrows ima
 | `0x454` B down | hidden when `+0x128 ≤ 9` (`0x00789714`); otherwise left as created |
 
 Hiding is `GetChild(id)` then `SetFlag(1, 0)`, as above. After this `+0x08 := 1` (`0x00789777`). The empty-group
-branch (§4, BW10b) creates no arrows at all. `initOrdinanceBudget` (`0x0077D620`–`0x0077D780`) and
-`initNeighborBudget` (`0x00781AD1`–`0x00781C4D`) have their own copies of the same create-then-hide sequence; their
-comparison bounds were not byte-checked here ([unsettled: BW12](questions/budget-window.md)).
+branch (§4, BW10b) creates no arrows at all.
+
+**Selector-specific initial arrow state** *[compat]* (BW12). The ordinance helper (selector 1,
+`initOrdinanceBudget` `0x0077C660`, called once from `on_init` at `0x00787C42`) and the neighbour helper (selector 2,
+`initNeighborBudget` `0x0077E600`, called at `0x00787D5D`) end with their own copy of the sequence: the same four
+`add_image_button2` calls, same IDs and images, each followed by setting the notification target, then the hides. Both
+read the same fields, `+0x124` (list A count) and `+0x128` (list B count), as unsigned 32-bit values compared with the
+constant 9. Up arrows `0x451` and `0x453` are hidden unconditionally in both. The down-arrow bounds differ:
+
+| Helper | `0x452` hidden when | `0x454` hidden when | Addresses (compare, branch) |
+|---|---|---|---|
+| group mode (`on_init`) | `+0x124 ≤ 9` | `+0x128 ≤ 9` | `0x007896D4` `JA`; `0x00789714` `JA` |
+| ordinance (selector 1) | `+0x124 < 9` (≤ 8) | `+0x128 < 9` (≤ 8) | `0x0077D73E` `JAE`; `0x0077D77C` `JAE` |
+| neighbour (selector 2) | `+0x124 ≤ 9` | `+0x128 ≤ 9` | `0x00781BEA` `JA`; `0x00781C28` `JA` |
+
+The ordinance helper is the odd one: it branches past the hide on `count ≥ 9` (carry clear), so with exactly 9 rows
+its down arrow stays as created even though every row fits; pressing it then does not move (`pos + 9 < len` is
+false), hides the down arrow (step 2, `pos + 9 ≥ len`) and shows the up arrow (step 3, unconditional), as in the table
+above. Where the counts come from: the ordinance helper only increments them, one per ordinance, into A or B by the
+ordinance's own test (`0x0077C734`/`0x0077C73C`), starting from the zeros the constructor writes (`0x007864AE`,
+`0x007864B4`) and not changing them later in the helper. The neighbour helper sets both to 0 itself (`0x0077E6A6`,
+`0x0077E6AC`) and then adds one per row plus one for the first row of each section, so its counts include those
+section header rows. In both, the hide is `GetChild(id)` then `SetFlag(1, 0)` with no null check; the helpers do not
+write `+0x08`, `on_init` sets it to 1 after each returns (`0x00787C4E`, `0x00787D69`).
+
+Worked boundary cases (count shown applies to either list; A drives `0x452`, B drives `0x454`):
+
+| Count | group mode down arrow | ordinance down arrow | neighbour down arrow |
+|---|---|---|---|
+| 0 | hidden | hidden | hidden |
+| 8 | hidden | hidden | hidden |
+| 9 | hidden | **as created** | hidden |
+| 10 | as created | as created | as created |
+| `0x80000000` (unsigned, not negative) | as created | as created | as created |
 
 Refresh after the move (no `UpdateValues` unless stated):
 
@@ -480,3 +511,5 @@ procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
     department, and no arrow `0x451`–`0x454` exists.
 17. Group mode with `+0x124 = 9`, `+0x128 = 10`: after `on_init` arrows `0x451`, `0x452`, `0x453` are hidden and
     `0x454` is in its created state.
+18. Selector 1 (ordinances) with `+0x124 = 9`, `+0x128 = 8`: after `on_init` arrows `0x451`, `0x453`, `0x454` are
+    hidden and `0x452` is in its created state. Same counts with selector 2 (neighbours): all four hidden.
