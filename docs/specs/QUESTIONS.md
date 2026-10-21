@@ -100,6 +100,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RG | residential-education-health |
 | RN | foundations |
 | RND | render3d |
+| RP | render-properties |
 | RS | residential |
 | RZ | framework-rz-files |
 | SG | simgrid |
@@ -194,6 +195,7 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-lotconfig | 6 | 8 | PL22 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
+| render-properties | 2 | 0 | RP3 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
 | renderer-driver | 4 | 1 | RD6 | questions/renderer-driver.md |
 | residential | 0 | 17 | RS18 | - |
@@ -217,4 +219,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **208** | **1115** | | |
+| **total** | **210** | **1115** | | |

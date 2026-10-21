@@ -324,7 +324,7 @@ cSC4LightingManager	lighting and shadows	renderer	lighting.md	-	-	-
 cImageARGB8	lighting and shadows	renderer	lighting.md	-	-	-
 fn:RotateLightingRectToWorld	lighting and shadows	renderer	lighting.md	-	-	-
 fn:BuildBasisFromDirection	lighting and shadows	renderer	lighting.md	-	-	-
-cSC4RenderProperties*	3D scene and models	renderer	-	-	-	-
+cSC4RenderProperties*	render properties	renderer	render-properties.md	-	-	-
 cSC4Model*	3D scene and models	renderer	-	-	-	-
 cSC4ConfigRuleManager	3D scene and models	renderer	-	-	-	-
 cSC4CellTextureModel	3D scene and models	renderer	-	-	-	-
