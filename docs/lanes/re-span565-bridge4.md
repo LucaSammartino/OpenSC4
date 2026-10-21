@@ -5,5 +5,7 @@
 ## Handoff
 - Goal: span-render-565.md native call boundary (vtable 0x00AC1844, 5 slots, lifetime, Init case 0x00830792,
   context fields, DrawPreclippedSpanList dispatch) + shipped-producer route, re-derived from 565 bytes.
-- Done: nothing yet.
-- Next: re_query vtable/asm for 0x00AC1844, 0x00830792, method epilogues.
+- Done: spec §1.1 (vtable/slots/RET/lifetime/Init/context fields/DPSL dispatch) and §1.2 (producer sweep, fixture
+  route), questions SR565-5/6; commit below.
+- Next: verify conformance examples with docs/specs/proofs harness if cheap; finish report + merge-queue.
+- Facts: build-runs/raw.py (dwords/occurrences), scan5.py (type-5 sweep: only 0x00826472).

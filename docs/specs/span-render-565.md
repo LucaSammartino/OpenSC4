@@ -32,6 +32,129 @@ weight (§7.4). Masks used by the code: `0x001F`, `0x07E0`, `0xF800`, the pair `
   ascending element-by-element copy (a texel already overwritten earlier in the same call is read in its new
   value). Proven for all 168 blit slots with aliased buffers (§8, `span565_alias.py`).
 
+### 1.1 Native call boundary (re-span565-bridge4) [exact]
+
+Every address and constant below was read from the shipped bytes (raw dwords and disassembly of this image); the
+context code is shared with the siblings and was re-read here for the 565 case, not copied.
+
+**Compiled vtable `0x00AC1844`** (6 dwords; the next dword `0x0082FF00` is slot 0 of the 4444 table `0x00AC185C`):
+
+| Slot | Entry | Target | Method | Arguments (dwords, pushed right to left) | Callee pops (RET at) | Returns |
+|---|---|---|---|---|---|---|
+| 0 | `0x00AC1844` | `0x0082FF00` | deleting destructor (shared by all five span tables) | `flags` | 4 (`0x0082FF1C`) | `this` |
+| 1 | `0x00AC1848` | `0x0083DE50` | RenderSolid | `spans, n, dst*, colour` | 0x10 (`0x0083DE93`) | nothing |
+| 2 | `0x00AC184C` | `0x0083DEA0` | RenderGradient | `spans, n, dst*, grad*` | 0x10 (`0x0083DFA5`) | nothing |
+| 3 | `0x00AC1850` | `0x0083DFB0` | RenderAlpha | `spans, n, dst*, colour, argb` | 0x14 (`0x0083E06D`) | nothing |
+| 4 | `0x00AC1854` | `0x0083E070` | RenderAlphaGradient | `spans, n, dst*, grad*` | 0x10 (`0x0083E20C`) | nothing |
+| 5 | `0x00AC1858` | `0x0083E210` | RenderBlt | `spans, n, dst*, src*, b*, kind` | 0x18 (`0x0083E29F`) | nothing |
+
+`*` = pointer; the others are values. Each method has exactly one `RET`. Each of the five method addresses occurs
+exactly once in the image as a dword (its own entry), and the immediate `0x00AC1844` occurs exactly once (the store
+at `0x008307A0`): the table is static, never copied, and patching entries 1–5 redirects every 565 context.
+
+**Calling convention.** MSVC thiscall. `this` (ECX) is never read: every method overwrites ECX before any use (the
+`LEA ECX,[ECX]` at `0x0083DFDD` is alignment padding with no effect). The object has no state. EBX, EBP, ESI, EDI
+are preserved (pushed and popped). No caller reads EAX after slots 1–5. RenderSolid calls the fill helper
+`0x0090FFC8` cdecl `(dest, colour, count)` and pops it itself (`ADD ESP,0xC`, `0x0083DE89`). RenderBlt reads
+`b+0x10`/`b+0x1C` first, copies `b` (32 bytes), `src` (24), `dst` (24) onto its stack, pushes `n`, `spans`, calls
+`rows[2·f + key][kind]` (the only other call it makes, `0x0083E297`) and pops 0x58 bytes itself (`0x0083E29A`).
+
+**Object and lifetime.** 4 bytes holding only the vtable pointer. Created only by
+`cGZDrawContextRenderToBuffer::Init` (`0x00830710`, thiscall `(buffer)`, `RET 4`, returns a byte), whose only
+reference is entry `0x00AC17DC` (slot 3) of the context vtable `0x00AC17D0`. In order, Init:
+
+1. calls its own slot 4 (`Shutdown`, `0x0082FF20`, entry `0x00AC17E0`) and releases `ctx+8` if still set;
+2. queries `buffer` for `cIGZBuffer` `0x20732180` into `ctx+8` (QueryInterface adds a reference); failure → return 0;
+3. locks it (`vfunc +0x18`, flags `0x8040`); failure → release `ctx+8`, clear it, return 0;
+4. reads the colour type (`vfunc +0x3C`, first dword of the type/bpp pair) and jumps through `0x008308B0` on
+   `type − 2` (8 entries; type 5 → entry 3 = `0x00830792`; types 3 and > 9 or < 2 → `0x0083087A`);
+5. type 5: `GlobalHeapAlloc(4)` (`0x00830794`), store `0x00AC1844` (`0x008307A0`); a null allocation stores 0
+   (`0x008307EA`) and Init continues and returns 1 — nothing tests `ctx+0xB0` before the next draw dereferences it;
+6. stores the renderer at `ctx+0xB0` (`0x008307EE`) and caches the destination (below), sets `ctx+0xA4 = 0`, `ctx+0x75 = 1`,
+   returns 1 (`0x00830866`).
+
+The type-3/other path (`0x0083087A`) releases `ctx+8`, clears it and returns 0 **without unlocking** (see SR565-6).
+
+Destruction: `Shutdown` calls slot 0 with flags 1 and clears `+0xB0`, then, if `ctx+0x75` is set, unlocks the buffer
+(`vfunc +0x1C`, flags `0x8040`) and releases `ctx+8`. The context's final `Release` (`0x008306C0`, on the count reaching
+0) calls slot 0 with flags 1, releases the texture `ctx+0x24` and the buffer `ctx+8` and frees the context, but
+**does not unlock** (SR565-6). Slot 0 sets the vtable to the base `0x00AC17AC` (whose slots 1–5 are the purecall stub
+`0x005D4A10`), frees `this` via `GlobalHeapFree` (`0x005E5620`) when bit 0 of `flags` is set, returns `this`.
+`cGZDrawContextRenderToBuffer`'s constructor (`0x00830690`) clears `+0x24`, `+0x74`, `+0x75`, `+0xB0`.
+
+**Destination record and context fields** written by Init (all from the locked buffer's interface):
+
+| Context field | Source | Meaning to this class |
+|---|---|---|
+| `+0x78` | `vfunc +0x88` | pixel (0, 0) — record `+0` |
+| `+0x7C` | `vfunc +0x8C` | row stride in bytes — record `+4` |
+| `+0x80`, also `+0x0C` | `vfunc +0x24` | width — record `+8`, not read here |
+| `+0x84`, also `+0x10` | `vfunc +0x28` | height — record `+0xC`, not read here |
+| `+0x88` | `vfunc +0x3C`, first dword | colour type (5) — record `+0x10`, not read here |
+| `+0x8C`, also `+0x90` | `vfunc +0x44` | bytes per pixel — record `+0x14`, not read here |
+
+For a `cGZBuffer` (vtable `0x00AC1400`): `+0x24`/`+0x28` return the fields `+0x1C`/`+0x20`, `+0x3C` copies the pair
+(`+0xC` type, `+0x10` bits) to the caller's record and returns that pointer, `+0x44` returns `bits >> 3`, `+0x88`
+returns `+0x3C` (pixels), `+0x8C` returns `+0x40` (stride). Its lock (`0x00826AA0`) fails only when the pixel pointer is
+null, otherwise ORs the flags into `+0x44`, bumps the word `+0x38` (and `+0x30` when bit 15 is set), returns 1; unlock
+(`0x00826490`) clears the flags and decrements `+0x38`. The pointer and stride are cached once: the class assumes
+2 bytes per pixel whatever `+0x8C` says.
+
+**The only native caller** is `DrawPreclippedSpanList` (`0x008302E0`, thiscall `(spans, n)`, `RET 8`, slot 22 /
+entry `0x00AC1828` of `0x00AC17D0`). It passes its own `spans`, `n` unchanged and `dst = ctx+0x78` always, and makes
+exactly one renderer call (§6.1 chooses which):
+
+| Path | Call site | Slot | Extra arguments |
+|---|---|---|---|
+| texture, tiled (`+0xA4`, `kind | 8` at `0x0083047F`) | `0x008304D1` | 5 | `src` = local copy of the texture record, `b` = local 32-byte record, `kind` |
+| texture, stretch (`+0x40`, `kind | 4` at `0x0083050F`) | `0x0083053B` | 5 | same |
+| texture, plain | `0x00830591` | 5 | same |
+| no texture, gradient `+0x74`, alpha `+0x41` | `0x008305E7` | 4 | `grad = ctx+0x44` |
+| no texture, gradient, no alpha | `0x008305FC` | 2 | `grad = ctx+0x44` |
+| no texture, alpha | `0x00830627` | 3 | `colour = ctx+0xC4`, `argb = ctx+0xB4` |
+| no texture, solid | `0x00830647` | 1 | `colour = ctx+0xC4` |
+
+Texture paths lock the texture `ctx+0x24` (`vfunc +0x18`, `0x800`, `0x008302FB`; failure → return, nothing drawn, no
+unlock) and unlock it (`vfunc +0x1C`, `0x800`) after the call or when its type selects nothing (`0x008305AA`). The
+untextured paths take no lock: the destination stays locked from Init to Shutdown.
+
+**Conformance examples (boundary).** (1) Slot 1, `spans = [{0x00010002, 0x00010005}]`, `n = 1`, `dst = {B, 12}`,
+`colour = 0x1234F81F`: words at `B+16`, `B+18`, `B+20` become `0xF81F`, nothing else changes, 16 bytes popped.
+(2) Slot 5, `b.+0x10 = 4` (A8888), `b.+0x1C = 0`, `kind = 0`, one one-pixel span, texel `0x00FF8040`: the word becomes
+`0xFC08` (§7.2), 24 bytes popped.
+
+### 1.2 Which buffers reach this class (re-span565-bridge4) [static; runtime open as SR565-5]
+
+A 565 renderer exists only for a buffer whose `vfunc +0x3C` reports type 5 at `RenderToBuffer::Init`. Static sweep
+of `.text` (`build-runs/scan5.py`: every `5` immediate next to a `0x10` immediate, every `PUSH 5` before the
+colour-pair constructor `0x0044A490` or before a `CALL [reg+0xC]` (`cIGZBuffer::Init` slot)):
+
+| Hit | What it is |
+|---|---|
+| `0x00826472` (type 5, bits 16) | the **only** type-5 producer: the cGZBuffer type resolver `0x00826390` (cGZBuffer vtable entry `0x00AC14B4`, screen-buffer entry `0x00ADB4CC`) |
+| `0x0055FC62`, `0x008F07F7`, `0x00A21865`, `0x0099F86D`, `0x0055B54A` | message construction, a byte field, CRT formatting, an icon-drawing call with four immediates, a vehicle-manager call: no buffer type |
+| colour-pair constructor | 0 calls with 5 |
+
+The resolver runs inside every `cGZBuffer::Init` (`0x008269B0`, slot 3: `(width, height, type, bits)`, `RET 0x10`;
+fails if already initialised or a dimension is 0; then slot `+0xA8` → `+0xAC` (`0x00826A50`) calls the resolver
+and allocates `stride·H` with `stride = (W·(bits>>3) + 3) & ~3`). It changes only types 1 and 3: with the cached
+`cIGZGraphicSystem` service (`RZ::GS`, `0x00913C1A`) answering `0xC47B747C`, display depth (low 6 bits of the first
+dword its `+0x3C` fills) `≤ 16` → **7**/16, else 9/32; when that query fails, the service's `+0x24` fills the pair;
+**only when no graphic-system service exists does a type-1/3 buffer become 5/16** (`0x00826472`). In a running
+game the service exists and 16-bit modes give A4444 (`span-render-4444.md` §1.2), so **no shipped path that draws
+spans into a type-5 RenderToBuffer target was found**. Not a proof: a buffer initialised before the graphic-system
+service is registered would become type 5, and types read from files or computed at run time are outside the sweep.
+
+**Original-vs-ours trace route (constructed fixture, not a game path).** Through GZCOM create `cGZBuffer` (CLSID
+`0xC470D325`), call slot 3 `Init(W, H, 5, 16)` (type 5 is kept, stride `(2W + 3) & ~3`, e.g. W = 5 → 12 bytes, so row
+padding is observable), get a context from `cIGZDrawSystem` slot 4 (`0x0082BAB0`, `(buffer, out)`; the RenderToBuffer
+factory `0x0082B910` accepts any `0x20732180` object, allocates 0xD4 bytes, constructs, AddRefs into `*out`, does not
+Init), call context slot 3 `Init(buffer)` (expect 1 and the vtable `0x00AC1844` at `[ctx+0xB0]`), set state through
+the context's public setters, call slot 22 `DrawPreclippedSpanList(spans, n)`, read the pixel words back through
+the buffer's `+0x88`/`+0x8C`, and finish with slot 4 `Shutdown` so the lock is undone. Run the same script against the
+original and ours and compare every byte of the buffer including the padding. A report must label this
+"constructed buffer"; a game-path claim needs SR565-5.
+
 ## 2. RenderSolid (`0x0083DE50`, slot 1) [exact, verified]
 
 Arguments: spans, n, destination, colour (dword); `ret 0x10`. Per span it calls the 16-bit fill helper
@@ -225,5 +348,9 @@ path). They load the PE image into the emulator and run the shipped bytes on ran
 
 - **SR565-1** (§4.1): no direct caller of `SetGradientTransform` exists, so whether any shipped path draws a
   gradient into a type-5 buffer (where the B drift of §4.2 would show) is unknown.
+- **SR565-5** (§1.2): runtime check that no shipped path creates a 565 renderer (static sweep found only the
+  no-graphic-system fallback `0x00826472`).
+- **SR565-6** (§1.1): whether the destination lock left behind by Init's type-3 exit and by Release without
+  Shutdown must be reproduced.
 - Behaviour with records the caller never produces (stretch reads past the texture, `W = 0` tiled, row 13) is
   specified only as far as the tables above say; no clipping exists to fall back on.
