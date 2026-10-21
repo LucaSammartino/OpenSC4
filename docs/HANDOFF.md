@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**train31 landed 1df42f9f9c:** Formats read shadow exact across8959 exemplar and388 cohort own/effective sets in full union regress; factory/package limitations remain EX41-EX45, no replacement. Complete4444 span specification mapped. Gate PASS after stale cached smoke object rebuilt, no source version mismatch. Coverage40.5/30.0/12.4/16.5; rounds54/80.
+
 **Run4 52/80:** six live lanes; train31 gate retry rebuilds a stale capi_smoke object before candidate formats-shadow regress. re-driverdraw4 parked3/3 at7dd9bea3: committed vertex/matrix/state specs, context-surface contract and drafted sections remain incomplete, no fourth round and no whole-driver credit. Terrain finalround3 passed fresh checks after train29/30 cleared blockers. Traffic TS67 corrective lane nowrunning. Coverage39.6/30.0/12.3/16.5; eight trains landed.
 
 **train30 landed 64c21d6b89:** Two-lane docs batch landed. Exact six completed value-editor owners and two small particle owners mapped; PropertyView, dialog folded methods, description-base reach functions, particle drawing and curves remain uncredited. Both lanes parked3/3, never fourth. Terrain particle overlap is landed; fresh slots/check required. Coverage39.6/30.0/12.3/16.5; rounds49/80.
@@ -42,7 +44,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 Runtime: six-slot game queue pid22296. Native CLI hosts need CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0; launcher sets it. RE guard preflight must GO. Export-first assembly is permitted by re-workspace.md even without a live REA binary; a workspace no-app diagnostic is separate from guard denial. Game labels unique; qwait without --fresh. Keep own output short. Previous checkpoint lines and train details: [run4 through30](history/handoff-run4-checkpoint30-2026-10-21.md); [run3 stop](history/handoff-run3-stop-2026-10-21.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 231 (train29 three-lane PASS; TS67 answered, partial occupant records); 230 (train28 five-lane PASS; exact-owner specs and partial networkoccupant core); 229 (train27 two lanes PASS; TS67 filed and partial application spec landed); 228 (train26 four lanes, effects core improvements and three focused spec families); 227 (train25 four-lane PASS, PL19 replacement promoted, terrain spec blockers answered, coverage38.7/28.3/12.4/16.5). See `docs/manual-checks.md`.
+- **Latest in-game run:** 232 (train31 PASS; formats read-shadow exact;4444 span spec complete); 231 (train29 three-lane PASS; TS67 answered, partial occupant records); 230 (train28 five-lane PASS; exact-owner specs and partial networkoccupant core); 229 (train27 two lanes PASS; TS67 filed and partial application spec landed); 228 (train26 four lanes, effects core improvements and three focused spec families). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
