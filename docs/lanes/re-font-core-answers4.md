@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-font-core-answers4: answer drawing-fonts FN7-FN14 | `re-font-core-answers4` / (RE spec lane) | ready: FN7-FN11, FN13, FN14 answered (all DIFFERS) in docs/specs/drawing-fonts.md §2, §5, §7, §8.1, §8.4, §12 (937f09df, 371bb523, 9e01312f), archived (0e74259c); FN12 (palette channel format) left open; REA not used | 1. Answer FN12 (RZ::GS() +0x90/+0x8C split/compose, §9). 2. core-fonts: replace the core defaults per the DIFFERS list below. |
+| re-font-core-answers4: answer drawing-fonts FN7-FN14 | `re-font-core-answers4` / (RE spec lane) | ready: FN7-FN14 all answered (all DIFFERS) in docs/specs/drawing-fonts.md §2, §5, §7, §8.1, §8.4, §9, §12 (937f09df, 371bb523, 9e01312f, FN12 412827fb, proof 52ac7052), archived; REA not used | 1. core-fonts: replace the core defaults per the DIFFERS list below (FN12: palette split/compose via screen colour type, low-16-bit cut, no alpha lerp). |
 
 ## Report
 
@@ -26,4 +26,13 @@ Answers (every one DIFFERS from the core-fonts4 default):
   RZParseDelimitedText keeps empty inner fields, drops an empty trailing one, "" → 0, last field keeps trailing
   blanks (trim bug at 0x00910C0F).
 
-Open: FN12 (not investigated for lack of budget). No new questions filed. No ABI rows.
+- FN12 (§9, round 2): `RZ::GS()` (iid 0x0073283C → subobject +0x1C, vtable 0x00ADAA58) +0x90/+0x8C (0x0098EA00 /
+  0x0098E9B0) forward to the screen buffer (graphic system +0x100) slots +0x7C split (0x00825F80) / +0x78 compose
+  (0x00825DA0); format = screen colour type: 7 (A4R4G4B4, depth <= 16) or 9 (A8R8G8B8). Per-type table in §9.
+  The font cuts fg and bg to their low 16 bits before the split (MOVZX 0x00898414 / 0x00898433): red is 0 in
+  entries 8..119 on a 32-bit screen. Alpha not interpolated (compose forces 0xF / 0xFF). Signed IDIV truncation.
+  k = 14 block overwritten by fg (only k = 0..13 survive). No screen buffer → entries 8..119 uninitialised.
+  Proof: docs/specs/proofs/font_palette_fn12.py (unicorn on the shipped bytes; 0 mismatches, vectors in §9;
+  needs unicorn+pefile, installed into build-runs/pylib for the run).
+
+All questions answered; none open. No new questions filed. No ABI rows. Static only (no REA).
