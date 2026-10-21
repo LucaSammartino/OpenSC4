@@ -472,8 +472,13 @@ returns 0.
 
 **`DistanceToClosest(g)`** (slot 50) → `map[g]`, or `0xFFFFFFFF` (−1) when state = 0, there is no map, or `g` is
 absent. **`DistanceToClosestSpecial(type)`** (slot 51) → minimum distance over the building development
-simulator's special-building list (slot 44 *[inferred: landmarks and rewards]*) of buildings whose
-`GetBuildingType()` equals `type`; `0xFFFFFFFF` when none.
+simulator's special-building list (`cISC4City` slot 53 → BDS slot 44 `GetSpecialBuildings`) of buildings whose
+`GetBuildingType()` equals `type`; `0xFFFFFFFF` when none. That list holds exactly the occupants in occupant group
+`0x150A` (landmark) or `0x150B` (reward), excluding previews (building-development.md §3, messages
+`0x99EF1142`/`0x99EF1143`), in insertion order. Per entry (`0x00426AE0`): query `cISC4BuildingOccupant`
+(`0x87DDA3A9`, entries that fail are skipped), compare its type, take its position, distance = float32
+`sqrt(dx² + dz²)` (x and z only, home position minus building position) truncated toward zero to an integer;
+the result is the **unsigned** minimum, starting from `0xFFFFFFFF`.
 
 **`LocalSchoolGrade(group)` / `LocalHospitalGrade(group)`** (slots 52/53): over the residential simulator's school
 (slot 47) / hospital (slot 49) building list (all groups, including pending), take the building in occupant group
@@ -847,7 +852,7 @@ the MySims own no grid).
 1. *Answered (MS1, 2026-10-21):* row 25 is dead data, row 30 is the pylon-locked flag (§2.2).
 2. *Answered (MS2, 2026-10-21):* window-manager slot 42 = "a modal window is running" (§4.2).
 3. *Answered (MS3, 2026-10-21):* yes, see §2.2.1.
-4. The building development simulator's slot 44 list used by `DistanceToClosestSpecial` (landmarks and rewards?).
+4. *Answered (MS4, 2026-10-21):* groups `0x150A`/`0x150B` (landmarks and rewards), §4.9.
 5. The exact clamp and neighbourhood of `local_traffic_congestion`, and the neighbour-job constants of
    `job_condition`/`job_has_power`/`job_has_water` (§4.5): taken from the Mac build, Windows not traced line by
    line.

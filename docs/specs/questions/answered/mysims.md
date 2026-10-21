@@ -14,3 +14,7 @@
 - **MS3 (§11.2.3, §2.2):** does MySim `Init` re-resolve the neighbour job city from the saved cell (the app's
   region lookup), and does it set `neighbor_job` true only when a city is found? [inferred: yes]
   **ANSWERED 2026-10-21 (re-answers35):** DIFFERS (in part) — yes, Init (0x0042CEF3-0x0042CF44, state != 0 only) re-resolves: if the MySim has no job and the saved neighbour cell is not (0,0), it calls cISC4App slot 35 then cISC4Region::GetCity(x, z) and stores a non-null result; there is no separate neighbor_job bool ("has neighbour job" = the city ref is non-null). What Init sets unconditionally in that branch is the commute-check flag, so the next day's CheckCommute validates the job. With a job or cell (0,0) the ref is released (quirk: cell (0,0) is never re-resolved). Spec §2.2.1.
+
+- **MS4 (§11.2.4, §4.9):** the building development simulator's slot 44 list used by `DistanceToClosestSpecial`
+  (§7.2): landmarks and rewards only, or every special building? [inferred: landmarks and rewards]
+  **ANSWERED 2026-10-21 (re-answers35):** MATCHES — DistanceToClosestSpecial (0x00426AE0) walks cISC4City slot 53 -> BDS slot 44 (0x00520080, the list at BDS+0x4C), which BDS fills from occupant inserted/removed messages only for occupant groups 0x150A (landmark) and 0x150B (reward), previews excluded (building-development.md §3). Distance is float32 sqrt(dx^2+dz^2) truncated, unsigned minimum from 0xFFFFFFFF; entries without cISC4BuildingOccupant skipped. Spec §4.9.
