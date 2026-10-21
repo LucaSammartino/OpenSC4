@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**Run4 checkpoint15/60:** trains21 and22 landed; coverage36.8/28.3/12.4/16.2 versus baseline36.8/28.3/12.1/15.9 (verified+0.3, replaced+0.3 points). Five live slots are refilled after checks; terrain RE is capped3/3 and ready awaiting a batch, never round4. Audio/panels returned supported-export specs but reported no live REA app; checking that workspace diagnostic separately from the guard before accepting their coverage.
+
 **Train22 landed 6df8889064:** occmgr replacement clean through2032, gate62/62 and union33-key regress PASS; default occmgr enabled only after landing (tools tests69 PASS). Coverage36.8/28.3/12.4/16.2, replaced +0.3 points. Terrain RE ready at its3-round cap (parked pending landing, never round4); five other lanes active, total13/60. Expanded budget recorded and pushed; finish batches at2+ ready.
 
 **Train21 landed 9e5a0dd8e9:** gate/regress PASS; aura restored71/71, netmgr72/73 with NM10/NM11 filed, unknown-key warning fixed. Coverage36.8/28.3/12.4/15.9 (specified/implemented/verified/replaced), verified up0.3 points. Run224 normal pair exact73/73 each; run225 is the combined train. At the expanded checkpoint13/60 rounds are dispatched: verify1 landed; occmgr2 in train22 (gate62/62 PASS, union regress running); glue21 round2 resolving current-main integration; terrain engine1 blocked pending the ready terrain RE docs, capped at3 rounds. Four new lanes run: widget, panels and audio RE, effects core. Never spawn terrain RE round4.
