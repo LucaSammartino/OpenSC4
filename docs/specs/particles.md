@@ -92,10 +92,10 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0xD4`, `+0xD5` | `u8`, `u8` | 0, 0 | `+0xD5` the alignment mode |
 | `+0xD8`, `+0xDC` | `f32`, `f32` | 0, 0 | |
 | `+0xE0` | `vec3` | the global at `0x00B22D54` | the constant force (gravity) |
-| `+0xEC` | `f32` | 0 | the wind gain (§7 step 3) |
-| `+0xF0` | `f32` | 0 | radial speed: added along the direction from the centre `+0xF4` to the new particle (§5.1) |
+| `+0xEC` | `f32` | 0 | the wind gain (`force -global_wind`, §7 step 3) |
+| `+0xF0` | `f32` | 0 | radial speed (`force -bomb`; the vector that follows it is the centre `+0xF4`): added along the direction from the centre `+0xF4` to the new particle (§5.1) |
 | `+0xF4` | `vec3` | the global at `0x00B22D54` | the radial centre (local space, §5.1) |
-| `+0x100`, `+0x104` | `f32`, `f32` | 0, 0 | `+0x100` the drag coefficient (§7.1); `+0x104` not traced |
+| `+0x100`, `+0x104` | `f32`, `f32` | 0, 0 | `+0x100` the drag coefficient (`force -drag`, §7.1); `+0x104` := `force -screw` value × 0.02 (`0x00AA02D8`; reader not traced) |
 | `+0x108` | `cTractorPoint[]`: `u32` count, each two `vec3` (reader `0x005B0930`) | empty | tractor points |
 | `+0x114` | `f32` | 0 | `wiggle` |
 | `+0x118` | `vec2` | 1.0, 0 | |
@@ -115,7 +115,7 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0x18C` | `vec3` | the global at `0x00B22D54` | random-walk `preferDir`; differs from the global `0x00B22D70` by ≥ 1e-4 in any component → the preferred direction is on (§6.1) |
 | `+0x198`, `+0x19C`, `+0x1A0` | 3 × `f32` | 0 | `windBank` and two alignment numbers |
 | `+0x1A4` | `f32[]` | empty | attractor curve; empty or `+0x1B0` ≤ 0 disables the attractor (§7 step 2) |
-| `+0x1B0` | `f32` | 1.0 | attractor range: the distance divisor of the attractor-point pull (§7.1) |
+| `+0x1B0` | `f32` | 1.0 | attractor range: the distance divisor of the attractor-point pull (§7.1); written by the value of `force -attractor`, `-motherDuck` or `-alphaAttractor` |
 | `+0x1B4` | `u32` | 0 | |
 | `+0x1B8` | `cWiggle[]`: `u32` count, each two `vec3` (reader `0x005B09D0`) | empty | wiggles |
 | `+0x1C4` | `f32` | 0 | |
@@ -144,7 +144,10 @@ field, in this order, to stay aligned.
 | `0x4` | `maintain` |
 | `0x8` | `emit … sustain`: allows a restart by `Start(1)` (§6) |
 | `0x20` | half-length lead at creation (§5.1 step 8) |
-| `0x10`, `0x4000000`, `0x8000000`, `0x10000000` | force modes (`force` command; attractor, tractor) — PT1 |
+| `0x10` | not set by the `force` parser (`0x0059A820`); not traced (PT1) |
+| `0x4000000` | `force -alphaAttractor` (also sets flags B `0x10`); its reader is not traced (PT1) |
+| `0x8000000` | `force -motherDuck`: the attractor-point pull of the stepped physics path (§7.1 step 2.3) |
+| `0x10000000` | `force -tractor`: the tractor replaces the position step (§7.1 step 2.1) |
 | `0x100`, `0x200`, `0x800` | `collide`; `sticky`; `killOutsideCity` |
 | `0x400` | `terrainRepel` |
 | `0x1000`, `0x2000` | source shape bits (`square`, `model` …); `0x2000` set → the city-side wind emission volume is recomputed each frame (`0x005B7030`) |
@@ -156,7 +159,7 @@ field, in this order, to stay aligned.
 | `0x2000000` | random-walk `preferSea` |
 | `0x80000000` | an extra pre-pass `0x005B8410` each frame (§7 step 4) |
 
-**Flags B** (`+0x08`, masked to 11 bits on load): bit `0x1` model/geometry source (§1); `0x80` `windBank`; `0x100`
+**Flags B** (`+0x08`, masked to 11 bits on load): bit `0x1` model/geometry source (§1); `0x10` `force -alphaAttractor`; `0x80` `windBank`; `0x100`
 `wiggle`/`warp`; `0x200` `resetIncoming`.
 
 ## 4. The simulator base (`cSCParticleSimulatorBase`, at `+4` of the component) *[compat]*
@@ -511,9 +514,9 @@ Slots 0–3 QueryInterface `0x0048C940`, AddRef `0x005A8FB0`, Release `0x005A8FC
 
 ## 10. Gaps (not specified here)
 
-Particle physics (`0x005B9BA0`, `0x005B9790`, terrain forces `0x005B8DC0`, building collision `0x005B8020`,
-tractor `0x005B6600`, height-based emission `0x005B71E0`), the parts of `SetDescription` `0x005B7C90` not listed in
-§6.1, the three emitters' rate integration (`0x005B3CF0`, `0x005B8B50`, `0x005B87B0`), and drawing (`0x005B3DA0`, `0x005B4B90`). These are visual only:
+The helpers the physics of §7.1 calls (terrain forces `0x005B8DC0`, building collision `0x005B8020`, tractor
+`0x005B6600`), height-based emission `0x005B71E0`, `UpdateAttractor` `0x005B6C40`, the parts of `SetDescription`
+`0x005B7C90` not listed in §6.1 and §8.2, and drawing (`0x005B3DA0`, `0x005B4B90`). These are visual only:
 no simulation state depends on them except through the finish test, which depends only on §4 and effects.md §7.1.
 
 ## 11. Quirks
