@@ -1055,7 +1055,7 @@ usually returns no value.
 | | `get_reward_building_state(id)` | 1 if no status, 2 if status bit 2; **otherwise returns its argument** *[quirk]* |
 | | `unlock_reward_building(guid)` | status := 2 (whole byte), `UpdateConditionalBuildingStatus` |
 | UI | `tool_plop_network`, `tool_plop_zone`, `tool_plop_building`, `tool_plop_flora`, `tool_button`, `window_budget`, `window_map`, `window_graph`, `window_query` | the 9 entries of the UI collector, §8.3.1 |
-| Camera | `camera_jump`, `camera_zoom` | simulation-collector entries (`0x40AF90`, `0x40B1F0`), not UI-collector ones; behaviour not yet specified (question AD6) |
+| Camera | `camera_jump`, `camera_zoom` | simulation-collector entries (`0x40AF90`, `0x40B1F0`), not UI-collector ones: move the camera to a subject / set the zoom, §8.3.2 |
 
 Globals: `_combine_guids(a, b)` = `a XOR b` as a signed int32 (−1 on bad arguments); `_dofile_from_resource(name)`
 (Lua host); `print(...)` (no output).
@@ -1119,6 +1119,80 @@ messages. Neither the null/no-op route nor dropping an entry is the original.
 addresses finds no other code (2026-10-21). The name strings of the 9 UI entries and of `camera_jump` /
 `camera_zoom` are referenced only by their collector constructor. So nothing else (app, tutorial, MySim) registers
 any of these entries into a Lua context.
+
+#### 8.3.2 `camera_jump` and `camera_zoom` *[compat]*
+
+**Registration.** Both are records of the **simulation** collector (constructor `0x40B8D0`), records 5 and 6 of that
+vector after `advice_info` and three others: `{"camera_jump" 0x00A80F80, 0x40AF90, isGlobal = false}` (`0x40BA53`)
+and `{"camera_zoom" 0x00A80F74, 0x40B1F0, false}` (`0x40BAAE`); the flag byte is `BL`, zero from `0x40B8E3` on. So
+they are `game.camera_jump` and `game.camera_zoom`. An earlier text of §8.3 put them in the UI collector; the bytes
+place them in the simulation one (AD5, AD6).
+
+**ABI and host.** The same as §8.3.1: cdecl `lua_CFunction`, one stack argument `lua_State*`, the caller pops,
+every path returns **0** in EAX (no Lua results, nothing pushed or popped: both only read index −1). The host is the
+pointer in the 4 bytes before the state, QI'd for `cISCLua` `0xEA10C4A2` into a holder without a result test, and
+released (slot 2) on every exit; all Lua access goes through `cISCLua` slots (lua-host.md §1.3). "The camera
+control" is the renderer global `0x00B43DD0` (`cISC43DRender`) slot 16 `GetCameraControl()` (view3d.md).
+
+**`camera_jump(subject)`** (`0x40AF90`, 608 bytes). In order:
+
+1. Load the advisor system from `0x00B207C0` (no null test) and call its slot 20 `GetContextAdvice`; the result is
+   discarded (as in §8.3.1 rows 5–9).
+2. Require: `GetTop() > 0` (signed, slot 6); `IsUserData(-1)` (slot 73); `ToUserData(-1)` non-null (slot 27); the
+   **same** system's slot 22 `GetDataTag(0)` equal to `Tag(-1)` (slot 17), i.e. the argument is advice-subject
+   userdata (§8.1); the renderer `0x00B43DD0` non-null; its `GetCameraControl()` non-null. Any failure goes to the
+   error box below.
+3. `s := ToUserTag(-1)` (slot 28), the boxed `cISC4AdviceSubject*` (§12.4). **Not** null-tested: a subject
+   userdata whose box holds null crashes.
+4. A local `vec3 p` is first filled with the float at `0x00B207C8` (0.0 in the image; nothing else is known to write
+   it) in all three components.
+5. If `s.HasLocation()` (slot 6): with the terrain `t` = `0x00B43CF4` (`cISTETerrain`, not null-tested):
+   `p.x := f32(t.CellWidth() × s.GetLocationX())`, `p.z := f32(t.CellWidth() × s.GetLocationZ())` (slots 6, 4 and
+   5; each product is one x87 `FMUL` of the two float results, stored as float), then
+   `p.y := t.GetAltitude(p.x, p.z)` (slot 13, terrain.md §4.1), stored as float. Call the camera control's
+   position routine `0x7CD810` with `&p` (below), release the host, return 0. CellWidth is 16.0, so a subject at
+   cell (10, 20) gives `p = (160, altitude(160, 320), 320)`.
+6. Else, if `s.GetObjectA()` (slot 8) is non-null: call `GetObjectA()` again and QI it for the occupant IID
+   `0x26BB767E` into a holder. On success: occupant slot 8 `GetPosition(&p)` (occupant-manager.md), then
+   `0x7CD810(&p)`, release the holder and the host, return 0. On QI failure: release the holder if set and take the
+   error box.
+7. Error box (every failed test of 2 and 6, and a subject with neither location nor object): build two `cRZString`s
+   (`0x407FA0`, from each literal's begin and end pointers), text **"The subject for camera jump is unknown..."** (`0x00A80B50`)
+   and caption **"game.LUAExtension_camera_jump()"** (`0x00A80B30`), and call `gAdviceMessageBox` `0x4179A0`
+   (cdecl, `(caption*, text*)`). That helper gets the window manager (framework service `0xA417445E`, IID `0x5A4`;
+   the holder is used without a null test) and calls its slot 44 (`+0xB0`) with `(text, caption, 0, 1, 0)`; the
+   modal-window meaning is *[inferred]* from the name and §6.8.1. It is **not** gated on a debug setting. Then free
+   the strings, release the host, return 0.
+
+The position routine `0x7CD810` (thiscall on the camera control, one argument `const vec3*`, an
+`cSC4CameraControl` method by its callees) returns with **no change** if any component is NaN, below −100000.0
+(`0x00ABAC9C`) or above 100000.0 (`0x00ABACA8`; both bounds inclusive-accepted); otherwise it stores the point at `+0x44..+0x4C`, zeroes
+`+0x50..+0x58` and, when `+0x0C` is set, calls `UpdateCameraPositionParams` `0x7CC290`, `SC4ViewUtilities::
+UpdateCameraPosition` `0x7F83F0` (when `0x00B43DD8` is set) and `UpdateScrollBounds` `0x7CCC60`, then posts camera
+messages (`0x4A9F2FFE`, `0xA6B79611`). Its full behaviour belongs to the view spec; for a caller it is "look at
+`p`".
+
+**`camera_zoom(level)`** (`0x40B1F0`, 317 bytes). In order:
+
+1. `0x00B207C0` slot 20 `GetContextAdvice`, result discarded (no null test).
+2. Require `GetTop() > 0`, `IsNumber(-1)` (slot 14), the renderer
+   non-null and `GetCameraControl()` non-null.
+3. Call `cSC4CameraControl::SetZoom` `0x7CDC50` (thiscall, one float stack argument) with `f32(ToNumber(-1))`: the
+   double from slot 23 rounded to float by `FSTP` (round to nearest). No truncation to an integer and **no range
+   check here**: the range handling is SetZoom's own (its first test compares with the control's `+0xF4`). Release
+   the host, return 0.
+4. Any failed test of 2: the error box as above with text **"'zoom_level' was not specified or valid range of
+   zooms."** (`0x00A80B9C`) and caption **"game.LUAExtension_camera_zoom()"** (`0x00A80B7C`).
+
+*[quirk]* The zoom message speaks of a "valid range", but an out-of-range number never shows it: only a missing
+or non-numeric argument, or a missing renderer or camera control, does.
+
+**Under a replacement system.** Neither entry reads a system, advisor, advice or city member. Both call slot 20 on
+the pointer in `0x00B207C0` with no null test, so a null there crashes; `camera_jump` also needs slot 22 to return
+the subject tag its userdata carries. So the original addresses may be registered under a replacement only if a
+`cISC4AdvisorSystem*` with working slots 20 and 22 stays in `0x00B207C0` (§14.2) *[choice]*; or the replacement
+reimplements both through the interfaces above (terrain, renderer, camera control, occupant, window manager). With
+no city view (renderer null) both show the error box rather than doing nothing.
 
 ### 8.4 What reads the variables
 

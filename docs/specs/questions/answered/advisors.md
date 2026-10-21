@@ -50,3 +50,9 @@
   register any of the 47 entries into the app's Lua context? [the replacement is not enabled until known; no entry
   is guessed or registered as a no-op]
   **ANSWERED 2026-10-21 (re-advisor-ui4):** DIFFERS — section 8.3.1: the 9 UI entries are tool_plop_network/zone/building/flora, tool_button, window_budget/map/graph, window_query (all in game, none global; camera_jump/zoom are simulation-collector entries, new AD6); each is a cdecl lua_CFunction returning 0; rows 5-9 call system slot 20 through 0x00B207C0 (row 9 also slot 22), rows 1-4 never; only register_api 0x418940 reads the shared collector vector 0x00B207CC.
+<!-- from: re-advisor-ui4 (2026-10-21) -->
+- **AD6 - section 8.3 (camera_jump / camera_zoom):** these two are simulation-collector entries (`0x40AF90`,
+  `0x40B1F0`), not UI ones, and §8.3 gives no behaviour. What are their arguments, results, the 3D-view / camera
+  calls they make and whether they read `0x00B207C0`? [found while answering AD5; a replacement registering all
+  47 entries needs them]
+  **ANSWERED 2026-10-21 (re-advisor-ui4):** DIFFERS — section 8.3.2: both are simulation-collector records 5 and 6 (game table, cdecl lua_CFunction, return 0, read index -1 only); both call 0x00B207C0 slot 20 (discarded, no null test). camera_jump(subject userdata, tag checked by slot 22) -> location: (CellWidth*x, GetAltitude, CellWidth*z), else object as occupant 0x26BB767E GetPosition -> camera control (renderer 0x00B43DD0 slot 16) 0x7CD810; camera_zoom(number) -> SetZoom 0x7CDC50 with f32(ToNumber), no range check; failures show a gAdviceMessageBox error box. Original addresses need a system with slots 20/22 in 0x00B207C0.
