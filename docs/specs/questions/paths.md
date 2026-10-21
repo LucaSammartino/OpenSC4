@@ -10,4 +10,4 @@
 - **PA2 - §3.5, §4:** which callers pass `includeTop` false to the recursive listing, and do mods rely on the plugin
   loader's directory order, which is the file system's find order (§4)?
 
-- **PA3 (PR integration review):** paths.md section 8 test 2 lists two outputs for the identical input `C:/`. Section 1.2 step 5 explains the doubled separator. Confirm which overload each vector exercises before implementation; do not guess.
+- **PA3 - section 8 (PR integration review):** paths.md section 8 test 2 lists two outputs for the identical input `C:/`. Section 1.2 step 5 explains the doubled separator. Confirm which overload each vector exercises before implementation; do not guess.
