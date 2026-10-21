@@ -1,6 +1,12 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-models4 (RE spec: exact cSC43DRender owner beyond view3d.md §3/§4, docs/specs/render3d.md) | `re-models4` / (RE spec lane) | ready, partial owner spec (no whole-owner credit): render3d.md §1-6 + §7 remaining list + 12 conformance cases; questions R3D-1..R3D-3 filed; no ABI change, no game runs | 1. Next round: Init 0x007C6410 / Shutdown 0x007C7070 / ReadProperties 0x007C5F40. 2. Picking group (Pick, PickTerrain, PickTerrainAlways, IsModelVisible, view-object list). 3. Shake fill 0x007C63A0 + SetShakeOffsets 0x007C86D0. 4. Backing store create/save/restore, translated/zoom/rotation view updates. 5. Then claim whole-owner credit. |
+| re-models4 (RE spec: exact cSC43DRender owner beyond view3d.md §3/§4, docs/specs/render3d.md) | `re-models4` / (RE spec lane) | in progress (round 2), partial owner spec (no whole-owner credit): render3d.md §1-6 + §7 remaining list + 12 conformance cases; questions R3D-1..R3D-3 filed; no ABI change, no game runs | 1. Next round: Init 0x007C6410 / Shutdown 0x007C7070 / ReadProperties 0x007C5F40. 2. Picking group (Pick, PickTerrain, PickTerrainAlways, IsModelVisible, view-object list). 3. Shake fill 0x007C63A0 + SetShakeOffsets 0x007C86D0. 4. Backing store create/save/restore, translated/zoom/rotation view updates. 5. Then claim whole-owner credit. |
+
+## Handoff
+
+- Goal (round 2): render3d.md lifecycle Init 0x007C6410 / Shutdown 0x007C7070 / ReadProperties 0x007C5F40, then shake fill 0x007C63A0 / StartScreenShake 0x007C6BC0 / SetShakeOffsets 0x007C86D0; close R3D-1..3 only with byte proof.
+- Done: round 1 at 79d420ac (sections 1-6, 7 remaining list, 8 cases).
+- Next: read Init asm/decomp, write section 9 lifecycle.
 
 ## Report
 
