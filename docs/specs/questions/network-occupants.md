@@ -79,3 +79,17 @@ implementer of the class tables and records.
 - **NO14 - conformance test 6's slot:** §13 test 6 says "`SetRotation(2)` then slot 24 returns 2", but §2.4 maps
   slot 24 to `GetFlip` (slots 26/24/25 = orientation/flip/rotation). Is the test's slot 25 (`GetRotation`)? The
   core tests `GetRotation`. [ambiguous]
+
+<!-- from: core-netocc-records4 (engine lane, 2026-10-21) -->
+- **NO18 - pipe/subway `Read` after a failed underground record:** §3.3 says pipe `Read` "reads the same and then
+  sets the byte `+0x260 = 1`"; when the inner underground `Read` returns 0 (wrong version, failed base), does the
+  pipe still read its u32 `+0x270` and set `+0x260`, or return at once? The core returns at once. [ambiguous]
+
+<!-- from: core-netocc-records4 (engine lane, 2026-10-21) -->
+- **NO19 - the v < 7 cell rounding:** §2.3's read tail computes `floor(((v0.x + v2.x) · 0.5 + dx) · 0.0625)` "in
+  x87 then rounded through f32". Is the sum `v0.x + v2.x` itself rounded to f32 before `· 0.5 + dx`, or only the
+  final product? The core keeps every step in f64 and rounds the product to f32 before the floor. [ambiguous]
+
+<!-- from: core-netocc-records4 (engine lane, 2026-10-21) -->
+- **NO20 - `IsImaginaryConnection` with dir > 3:** the offset table `0x00B0CFE8` has four (dx, dz) pairs; what does
+  a direction above 3 read (the bytes after the table, or a guard)? The core returns false. [missing]

@@ -216,7 +216,7 @@ pub fn write_pipe_record(rec: &UndergroundRecord, word_270: u32, out: &mut dyn O
 }
 
 /// Pipe `Read` (`0x00648840`): exactly v3; returns the record and `+0x270`.
-/// *[literal: §3.3 does not say whether a failed underground read skips the
+/// *[literal, NO18: §3.3 does not say whether a failed underground read skips the
 /// u32; here it does]*
 pub fn read_pipe_record(inp: &mut dyn InStream) -> Option<(UndergroundRecord, u32)> {
     if inp.get_u16()? != PIPE_RECORD_VERSION {
@@ -360,7 +360,7 @@ impl UndergroundPiece {
     /// `IsImaginaryConnection` (`0x0065A640`, NO17 e): false unless my bit
     /// 31 is set; then false when no same-class piece is at the neighbour
     /// cell, else true iff its bit 31 is clear. A direction above 3 is
-    /// outside the table: false *[literal: the table has four entries]*.
+    /// outside the table: false *[literal, NO20: the table has four entries]*.
     pub fn is_imaginary_connection(&self, dir: u32, host: &mut dyn UndergroundHost) -> bool {
         if self.piece.network_flags & FLAG_IMAGINARY == 0 {
             return false;

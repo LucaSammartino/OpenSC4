@@ -181,7 +181,7 @@ pub fn legacy_cell_value(x: i32, z: i32) -> u32 {
 }
 
 /// The v < 7 cell of one axis: `floor(((a + b) · 0.5 + d) · 0.0625)`.
-/// *[literal: computed in f64 (x87), rounded to f32, then floored; the
+/// *[literal, NO19: computed in f64 (x87), rounded to f32, then floored; the
 /// spec's "exact integers floor to themselves" fix-up is what `floor` does]*
 fn legacy_axis(a: f32, b: f32, d: f32) -> i32 {
     let s = ((a as f64 + b as f64) * 0.5 + d as f64) * 0.0625;
