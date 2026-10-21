@@ -139,9 +139,9 @@ void ViewRestoreCb(void* u) {
             fc4::Log("tutorial endTutorial: no 3D view, slots 60 / 59 not called");
             return;
         }
-        view->CloseTertiaryMenu();                       // slot 60
-        const bool sec = view->CloseSecondaryMenu();     // slot 59 (return unused)
-        fc4::Log("tutorial endTutorial: 3D view CloseTertiaryMenu, CloseSecondaryMenu (al=%d)", sec ? 1 : 0);
+        view->CloseTertiaryMenu();   // slot 60
+        view->CloseSecondaryMenu();  // slot 59: eax-or-void in docs/abi, the result is not read
+        fc4::Log("tutorial endTutorial: 3D view CloseTertiaryMenu, CloseSecondaryMenu");
         fc4::propcity::Drop(view);
     });
 }
