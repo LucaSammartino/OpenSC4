@@ -44,6 +44,7 @@ generated index: the questions live one file per spec, so read only the file for
 | EH | residential-education-health |
 | EX | data-formats |
 | FL | flammability |
+| FN | drawing-fonts |
 | FQ | flora |
 | FS | graphics-formats |
 | GF | graphics-formats |
@@ -105,6 +106,7 @@ generated index: the questions live one file per spec, so read only the file for
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 1 | 40 | DS41 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
+| drawing-fonts | 6 | 0 | FN7 | questions/drawing-fonts.md |
 | effects | 0 | 10 | EF11 | questions/effects.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
@@ -144,4 +146,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **52** | **982** | | |
+| **total** | **58** | **982** | | |
