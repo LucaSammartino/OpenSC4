@@ -708,8 +708,9 @@ Steps 2 and 3 run even when the cell has no network lot.
 
 *[compat]* The original's order is its hash set's order: ascending `key mod bucketCount`, and the latest insert first
 within a bucket. Only two things depend on it: which cell starts an avenue flood (§8.7) and the order of the random
-draws. The generator is seeded from the wall clock, so draws are not reproducible anyway. FreeCity4 processes keys in
-ascending key order *[choice]*.
+draws. The generator is seeded from the wall clock, so draws are not reproducible from a seed; they are reproducible
+from a capture of its state (§17.3), which makes the draw order observable. FreeCity4 processes keys in
+ascending key order *[choice]*; where two cells of one pass draw, this differs from the original (NM13).
 
 **Every path that changes network lots** (answers NM11; from the call and cross-reference graph of the
 executable, no data references to any of these functions):
@@ -1127,6 +1128,9 @@ The tools, models, remap tables and retrofit are presentation or legacy. A FreeC
   null reference is a successful read), NM7 (§7.10, every entry released once in the walk, the list always emptied),
   NM8 (§8.2, §8.4, §8.7, no range checks: out-of-range values read neighbouring data; the FreeCity4 choices are
   confirmed) and NM9 (§7.6, **DIFFERS**: each kind runs only when its occupant list is not empty).
+- ~~**NM12.** Can the configuration draw's input be captured before our step?~~ **Answered (re-netmgr-rng4):** yes,
+  by an in-process read of the generator's layout between network lot manager operations (§17.1–§17.3); the draw
+  is compared exactly, no resync. Open: **NM13**, the original's key order within one `ProcessUpdateList` pass.
 
 ---
 
@@ -1201,3 +1205,90 @@ props and flora and creates new ones, which may differ from the old ones. The pr
 state therefore change, while component 11 (the lot and its configuration) does not.
 
 The network manager draws nothing.
+
+### 17.1 Ownership and advance sites (answers NM12)
+
+The generator is a file-local static object of the Windows build, not a member of the manager. Its whole lifetime:
+
+| Site | Instruction | Effect |
+|---|---|---|
+| static initialiser `0x00A73BF0` | `MOV ECX,0xB44870` (`b9 70 48 b4 00`) at `0x00A73C01`, then the constructor `0x00913B74` | seeded once per process with `cRZTime() XOR 0x8C09C379` (foundations §6.3) |
+| `CreateLotObjects`, prop object | `0x0060D4A7` / call `0x00913A06` at `0x0060D4AC` | one `RandomUint32Uniform(n)` |
+| `CreateLotObjects`, flora object | `0x0060D50D` / call at `0x0060D512` | one `RandomUint32Uniform(n)` |
+| `DoNetworkOccupantInserted`, configuration | `0x0060DE54` / call at `0x0060DE59` | one `RandomUint32Uniform(count)`, skipped when `count = 0` (`0x0060DE4F`) |
+
+No other instruction of the executable holds the address `0x00B44870` or any address inside the object
+(`0x00B44870`–`0x00B45237`; the next static, at `0x00B45238`, belongs to other code), and the export has no data
+reference to it. The generator is never re-seeded, never saved and never loaded (foundations §6.2): its stream runs
+on across city loads within one process. So it advances **only** inside the three network lot manager draw sites,
+and those are reached only from:
+
+- `DoNetworkOccupantInserted`, through `UpdateLot` (§8.5 table: `ProcessUpdateList` on messages `0x07699455` and
+  `0xE8BDA2E7`, the usable-changed handler on `0x89D3E9F3`, and the avenue flood inside either);
+- `CreateLotObjects`, through `DoNetworkOccupantInserted`, `RedevelopLot` (slot 12; only caller the city detail
+  pass, city-detail.md §3.4) and message `0xA9B6C2D6` (`0x00610002`; never posted, §6).
+
+*[compat]* Between two of those operations the generator's state is constant.
+
+### 17.2 Layout (Windows build, image base `0x00400000`, relocations stripped, no ASLR)
+
+`cRZRandomSuper` has no vtable. Its 0x9C8 bytes, from the constructor (`0x00913B7B` `83 a6 c0 09 00 00 00`,
+`0x00913B82` `c7 86 c4 09 00 00 70 02 00 00`), the draw (`0x009139B9`) and the reload (`0x009138A9`, which ends with
+`left := 0x270`, `next := &state[0]` at `0x00913961`–`0x0091396B`):
+
+| Offset | Absolute (this generator) | Field |
+|---|---|---|
+| +0x000 | `0x00B44870`–`0x00B4522F` | `state[624]`, u32, the MT19937 words |
+| +0x9C0 | `0x00B45230` | `next`, a pointer to the next word to temper |
+| +0x9C4 | `0x00B45234` | `left`, signed i32 |
+
+One draw: `left := left − 1`; if `left < 0`: reload (standard twist of all 624 words, `left := 624`,
+`next := &state[0]`) and `left := left − 1` again; then temper `*next` and advance `next` by one word. Seeding ends
+with a reload, so a fresh generator holds `left = 624`. Between draws `0 ≤ left ≤ 624` and
+`next = 0x00B44870 + 4 × (624 − left)`. The **position** `k := 624 − left` is the index of the next word to temper;
+`k = 624` means the next draw reloads first. `(state[0..623], k)` is the complete state: the seed is neither stored nor
+needed.
+
+### 17.3 Capturing the draw input *[compat]* (for comparison and shadow harnesses)
+
+No interface slot (§11), message or saved record exposes the generator; the capture is an in-process read of the
+§17.2 layout of this build. It is sanctioned at any instant when no network lot manager function is executing
+(between message dispatches; never from inside a callback the manager is running). By §17.1, a capture taken after
+the last draw-performing operation and before the next one is exactly that operation's input, wherever between the
+two it is taken. A harness that runs its step after the original's (both answer the same message) therefore takes
+the **pre-state** of step n+1 at the end of its handling of step n, and must observe every trigger listed in §17.1
+(the three messages, the city detail pass's `RedevelopLot` calls, and `0xA9B6C2D6` should anything post it).
+
+Replay rule:
+
+1. Load the captured `(state, k)` into FreeCity4's generator as raw state (not as a seed: the seed is lost).
+2. Run the step. Every draw of §8.5 step 3.3 and §8.6 then sees the original's word; `cfg`, `pick` and the objects
+   become deterministic outputs and are compared like any other field of component 11 and the prop and flora state.
+3. After the step, FreeCity4's `(state, k)` must equal the original's, read the same way. This is a check, never a
+   copy: a difference means a different number or order of draws. The next capture is the next step's input.
+4. A capture that differs from FreeCity4's post-state of the previous step means a draw the harness did not
+   observe; it is reported, not absorbed.
+
+So the configuration draw is **not** outside exact comparison: with the capture, a cell whose configuration
+differs among `count ≥ 2` compatible candidates is a mismatch, and a resync after it is not specified behaviour.
+Exactness also needs the original's draw order. Within one `ProcessUpdateList` pass that order follows the hash
+set's iteration order (§8.5 *[compat]* note), which FreeCity4 currently replaces by ascending key order
+*[choice]*. The two orders agree whenever at most one cell of the pass draws; when several draw, the order rule
+is NM13.
+
+### 17.4 Worked vectors (from foundations §6.1; implementers compare their generator against these)
+
+Session seed `S = 0x12345678`, so the seed is `derive(0x8C09C379) = 0x9E3D9501`. After seeding, `state[0] =
+0x3508F7E2`, `state[623] = 0x06CD7FA3`, `left = 624`, `k = 0`.
+
+| Draw | Word (tempered) | Use | Result |
+|---|---|---|---|
+| k = 0 | `0xB0602CE4` | configuration, 3 candidates | `(w × 3) >> 32` = 2 → third candidate |
+| k = 1 | `0x88C93DBB` | prop object, 4 IDs | 2 |
+| k = 2 | `0xDD056A8E` | flora object, 2 IDs | 1 |
+
+Reload crossing, the reason `left` must be captured with the words: the same generator after 622 draws holds
+`k = 622`, `left = 2`, `next = 0x00B45228`. A lot with 3 candidates and two objects (4 IDs, then 2 IDs) draws
+`state[622]` → `0x902AFD71` → 1 (`left` 1), `state[623]` → `0xC2CB90BE` → 3 (`left` 0), then reloads and draws the
+new `state[0]` → `0xB7E822C6` → 1 (`left` 623, `k` 1). The captured words are the pre-reload words: the replayer
+must run the reload itself on them, and the words alone (without `left`) do not say which word is next.
