@@ -95,7 +95,7 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0xEC` | `f32` | 0 | the wind gain (§7 step 3) |
 | `+0xF0` | `f32` | 0 | radial speed: added along the direction from the centre `+0xF4` to the new particle (§5.1) |
 | `+0xF4` | `vec3` | the global at `0x00B22D54` | the radial centre (local space, §5.1) |
-| `+0x100`, `+0x104` | `f32`, `f32` | 0, 0 | |
+| `+0x100`, `+0x104` | `f32`, `f32` | 0, 0 | `+0x100` the drag coefficient (§7.1); `+0x104` not traced |
 | `+0x108` | `cTractorPoint[]`: `u32` count, each two `vec3` (reader `0x005B0930`) | empty | tractor points |
 | `+0x114` | `f32` | 0 | `wiggle` |
 | `+0x118` | `vec2` | 1.0, 0 | |
@@ -115,7 +115,7 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0x18C` | `vec3` | the global at `0x00B22D54` | random-walk `preferDir`; differs from the global `0x00B22D70` by ≥ 1e-4 in any component → the preferred direction is on (§6.1) |
 | `+0x198`, `+0x19C`, `+0x1A0` | 3 × `f32` | 0 | `windBank` and two alignment numbers |
 | `+0x1A4` | `f32[]` | empty | attractor curve; empty or `+0x1B0` ≤ 0 disables the attractor (§7 step 2) |
-| `+0x1B0` | `f32` | 1.0 | attractor strength |
+| `+0x1B0` | `f32` | 1.0 | attractor range: the distance divisor of the attractor-point pull (§7.1) |
 | `+0x1B4` | `u32` | 0 | |
 | `+0x1B8` | `cWiggle[]`: `u32` count, each two `vec3` (reader `0x005B09D0`) | empty | wiggles |
 | `+0x1C4` | `f32` | 0 | |
@@ -329,6 +329,59 @@ Nothing happens unless `started`. In order:
    `+0x1EC`) or slot 18 (a model), then the shade reset if self-lit.
 8. `CheckForStop` (§4). If it returned false and flags A `0x800000` is set, one random-walk step (`0x005B2730`)
    with this frame's `dt`.
+
+### 7.1 The per-particle update (main slot 20, `0x005B9BA0`; given the particle `P` and `dt`) *[compat]*
+
+Particle fields used here: `P+0x00` alive byte, `P+0x04` age, `P+0x08` life (§5.1), `P+0x0C..+0x14` position,
+`P+0x1C..+0x24` velocity (all `f32`). `F` is the component's force accumulator `+0x13C..+0x144` (§7 step 3), `D`
+the description. The result is the alive byte after the update (false → swept, §7 step 5).
+
+**Path choice.** If flags A has any bit of `0x18000D00` (the global mask `0x00B22E14`, set by the static
+initialiser `0x00A73050`: `collide` `0x100`, `terrainRepel` `0x400`, `killOutsideCity` `0x800`, the attractor
+point `0x8000000`, tractor `0x10000000`), the **stepped path** (`0x005B9790`) runs instead; otherwise the
+**simple path**:
+
+1. `age` += `dt` (stored `f32`). If not `age` < `life` (so also on equality), the alive byte := 0, result false.
+2. `v` := `v_old` + `dt` × `F`, per component, stored.
+3. Drag: `k` := 1.0 − `dt` × `D+0x100` (the **drag** coefficient); `v` := `v` × `k`, stored.
+4. Position: `p` += (`v` + `v_old`) × (`dt` × 0.5) (trapezoid rule; the 0.5 is the double `0x00A92D28`; the
+   sum `v + v_old` is rounded to `f32` before the multiply, `dt × 0.5` stays on the x87 stack). Result true.
+
+**Stepped path** (`0x005B9790`):
+
+1. `age` += `dt`; not `age` < `life` → alive := 0, result false (as above, before any stepping).
+2. Loop with `r` := `dt` (the remaining time): the step `h` := 1/15 (the `f32` 0.06666667 at `0x00AA0CF4`) when
+   1/15 < `r`, else `r`.
+   1. Position: if flags A `0x10000000` (tractor) is clear, `p` += `h` × `v` (explicit Euler: the *old*
+      velocity); otherwise `ApplyTractorForce` (`0x005B6600`, given `P` and `h`) moves the particle instead.
+   2. Velocity: `v` += `h` × `F`.
+   3. Attractor point (flags A `0x8000000`): `d` := `A` − `p` with `A` the component's attractor point
+      `+0x178..+0x180` (written by `UpdateAttractor`, §7 step 2). If |`d`|² > 0: `L` := √|`d`|², `u` := `d` ×
+      (1.0 / `L`), `t` := `L` / `D+0x1B0` capped at 1.0 (so `D+0x1B0` is the attractor's **range**), `s` := the
+      attractor curve `D+0x1A4` sampled at `t` (below), and `v` += `u` × `s`. The pull is added once per step,
+      not scaled by `h`.
+   4. Drag: `k` := 1.0 − **`r`** × `D+0x100`; `v` := `v` × `k`. Quirk: the factor uses the remaining time `r`, not
+      the step `h`, so a frame longer than 1/15 s damps several times with decreasing factors.
+   5. Bounds: `q` := the position in the component's `+0xC8` frame (§6 step 5): `q.x` := (`p.z`·`+0xD0` +
+      `p.y`·`+0xCC`) + `p.x`·`+0xC8`, `q.y` := (`p.x`·`+0xD4` + `p.z`·`+0xDC`) + `p.y`·`+0xD8`, `q.z` :=
+      (`p.z`·`+0xE8` + `p.y`·`+0xE4`) + `p.x`·`+0xE0`; each sum is rounded to `f32`, multiplied by the scale
+      `+0xF8` (rounded), then `+0xEC`, `+0xF0`, `+0xF4` are added. The particle is **inside** when `q.x` > 0,
+      `q.z` > 0, `q.x` < `+0x1F4` and `q.z` < `+0x1F8` (the city's extent in that frame, `f32`; any NaN is
+      outside).
+      - Outside: with `killOutsideCity` (`0x800`) alive := 0 and the result is false at once.
+      - Inside, with `collide` (`0x100`) or `terrainRepel` (`0x400`): `ApplyTerrainForces` (`0x005B8DC0`, given
+        `P`, `q` and `h`); if it returns false, alive := 0, result false.
+   6. `r` −= `h` (stored `f32`). If `r` > 0 (compared with the double 0.0 at `0x00A80990`), go to 2.
+3. If flags C (`D+0x04`) bit 0 (`destroyBuildings`) is set, `TestBuildingCollision` (`0x005B8020`, given `P`)
+   runs once. The result is the alive byte as it is now (the collision test may clear it).
+
+**Curve sampling** (here and wherever a description `f32[]` is read at a fraction `t` in [0, 1]): with `n`
+samples, `n` = 1 → sample 0. Otherwise `x` := `t` × (`n` − 1), `i` := ⌊`x`⌋; if `x` − `i` ≤ 0 the value is sample
+`i`, else sample `i` + (sample `i`+1 − sample `i`) × (`x` − `i`). (The floor is done with the 12582912 rounding
+trick at `0x005B995E`; for `x` ≥ 0 it equals the mathematical floor.)
+
+Worked example (simple path): `dt` = 0.1, `v_old` = (0, 10, 0), `F` = (0, −9.8, 0), drag 0.5 → `v` after step 2
+= (0, 9.02, 0); `k` = 0.95, `v` = (0, 8.569, 0); `p.y` += (8.569 + 10) × 0.05 = 0.92845.
 
 ## 8. Emission (correction to effects.md §7.1)
 
