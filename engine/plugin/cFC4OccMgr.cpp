@@ -435,7 +435,7 @@ bool cFC4OccMgr::FindOccupant(cISC4Occupant* occ, bool searchAll, int32_t* x, in
 
 // ---- slots 28-35: first-occupant queries ---------------------------------------------------------
 
-bool cFC4OccMgr::FirstOut(bool ok, uint64_t occ, cISC4Occupant*& out) {
+bool cFC4OccMgr::FirstOut(bool ok, const uint64_t& occ, cISC4Occupant*& out) {
     ++g_firstCalls;
     if (!ok || occ == 0) return false;
     ++g_firstHits;

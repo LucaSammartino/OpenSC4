@@ -169,7 +169,10 @@ private:
     };
     static bool IterThunk(void* ctx, uint64_t occ);
 
-    bool FirstOut(bool ok, uint64_t occ, cISC4Occupant*& out);
+    // `occ` by reference: the callers pass the out variable of the core call in
+    // the same argument list, and argument evaluation order is unspecified
+    // (MSVC reads a by-value copy before the core call writes it).
+    bool FirstOut(bool ok, const uint64_t& occ, cISC4Occupant*& out);
     bool FillList(bool ok, const ListOut& out, SC4List<cISC4Occupant*>& list);
 
     uint32_t refCount_ = 0;
