@@ -25,7 +25,7 @@ an implementation must reproduce it for byte-exact parity.
 | cGZWWWSystem (incl. the FTP client it reaches, ~30 KB) | 34049 | no (outline 4.1) |
 | cRZHTTPClient | 15133 | no (outline 4.2) |
 | cRZURL | 9498 | **yes, section 2** |
-| cRZCookieManager | 8137 | **yes, section 3** |
+| cRZCookieManager | 8137 | partly, section 3 (parse, add, lookup, eviction; file format and capacity open) |
 | NetworkFileCache | 6699 | no |
 | cRZNetSocket, cRZNetStreamSocket, cRZNetCommandGenerator, cRZNameLookup | 11671 | no |
 | HTTPMessage | 957 | no |
@@ -185,3 +185,108 @@ Applied to the joined path in 2.7 only, in this order:
 
 Example: base `http://h/docs/en/page.html`, new `../img/./x.png` -> joined `/docs/en/../img/./x.png` -> step 1
 `/docs/en/../img/x.png` -> step 3 `/docs/img/x.png`; result `http://h/docs/img/x.png`.
+
+## 3. cRZCookieManager — cookie store (RFC 2109 style)
+
+### 3.1 Cookie record (CookieData, 0x94 bytes)
+
+| Field | Default after parse | Set by attribute (name compared case-insensitively) |
+|---|---|---|
+| text | the Set-Cookie text as given | parse appends `;  domain=<d>` (two spaces) and `; path=<p>` when it derives them (3.2) |
+| pairs | list of (name, value) in text order | every `;`-separated item |
+| comment, commentURL | empty | `Comment`, `CommentURL` |
+| domain | empty | `Domain`; a value not starting with `.` gets a `.` inserted in front |
+| path | empty | `Path` (verbatim) |
+| version | 0 | `Version` = `atol(value)` |
+| expires (unsigned seconds since 1970) | **2 = session cookie** | `Discard` -> 1; `Expires` -> the HTTP date parsed by cRZHTTPClient::TimeStringToSeconds, or now + 86400 when that yields 0; `Max-Age` -> now + `atol(value)` (later attributes overwrite earlier ones) |
+| ports (up to 16, 0-terminated) | first entry 0 = any port | `Port` (3.2) |
+| secure | false | `Secure` -> true |
+
+### 3.2 Parse (ParseCookieText 008f94f9; arguments: cookie, optional request URL)
+
+Under the manager lock; now = `time(NULL)`. Reset every field to the defaults above. Split the text at `;` into at
+most 40 items with surrounding blanks trimmed; each item splits at its first `=` into name and value (no `=`: the item
+is the name, the value is empty). Then walk the pairs and apply the attribute column above. `Port`: split the value at
+`,` (at most 16); with no items the list becomes { request URL port, or 80 when there is no URL or its port is 0 };
+with n items the first **n-1** are stored as `atol` values and entry n-1 is set to 0 *[quirk or list-function
+convention, see Q1]*.
+
+Derived defaults, only when the attribute is absent:
+- domain: with a URL, take its server, then drop characters from the front one at a time until the text starts with
+  `.` or is empty (`www.simcity.com` -> `.simcity.com`, `localhost` -> empty). If the result is non-empty append
+  `;  domain=` + domain to the text.
+- path: with a URL, the URL's whole path (not cut to its directory: `/a/b.html` stays `/a/b.html`); without a URL,
+  `/`. If non-empty append `; path=` + path to the text.
+
+### 3.3 Add (AddCookie 008fa054; arguments: cookie, optional request URL)
+
+1. A cookie with no pairs: if its text is empty fail; else parse a copy (3.2, same URL) and add that copy instead.
+2. With a URL, reject (return false) unless all hold:
+   - the cookie path is non-empty and the URL path starts with it;
+   - the domain is longer than 2, does not end in `.`, contains a `.`, and if it starts with `.` has another `.`
+     after index 1;
+   - the URL server ends with the domain (the first occurrence of the domain in the server must be the suffix;
+     case-sensitive);
+   - the part of the server before the domain contains no `.` (RFC 2109 one-level rule);
+   - the port list is empty (first entry 0) or contains the URL port (80 when the URL has none), scanning at most 16
+     entries and stopping at a 0 (008f6813).
+3. Store: remove an existing record with the same first pair name, the same domain and the same path (exact byte
+   compare, both must have pairs; 008f6d93). Then, if the cookie is alive (now < expires, or expires = 2): when the
+   store holds at least its capacity, evict (3.5); append the cookie and return true. A cookie that is not alive is
+   not stored and the call returns false; that is how a server deletes a cookie (the old copy was removed above).
+
+### 3.4 Lookup (GetCookieDataForURL 008f6e9a, GetCookieTextForURL 008f7507)
+
+A stored cookie matches a URL when all hold, checked in store order:
+- alive: now < expires or expires = 2. *[quirk]* `Discard` sets expires to 1, so a discard cookie never matches.
+- secure is false, or the URL type is 3 (https). *[quirk]* https URLs parse as type 2 (2.3), so secure cookies never
+  match.
+- domain non-empty and the URL server ends with it (first-occurrence-is-suffix test as in 3.3);
+- path non-empty and the URL path starts with it;
+- port list empty, or the URL port (80 when 0) is among the first 16 entries (a miss skips the cookie *[inferred]*).
+
+GetCookieDataForURL(url, out, k) returns the k-th match (0-based). The string-URL overloads (008f71ff, 008f7240) build
+an allowRelative URL from the string first; 008f8947 copies the match out with CookieData assignment.
+
+Cookie header text (GetCookieTextForURL): clear the output; for k = 0..999 while a k-th match exists, for each of its
+pairs in order:
+- skip names `comment`, `commenturl`, `discard`, `expires`, `max-age`, `secure` (case-insensitive), and `version`
+  once the version flag is set;
+- unless this is the first pair of the first cookie, append `; `;
+- names `domain`, `path`, `port`: append `$`;
+- name `version`: if the output is non-empty, insert `$<name>=<value>; ` at the front, remove the last 2 characters
+  (the `; ` just appended) and go to the next pair, *[quirk]* without setting the flag (008f76c5..008f76f1), so every
+  later cookie's version is moved to the front again; if the output is empty, append `$` and set the flag;
+- append `<name>=<value>` (stored spelling).
+
+Return true when the output is non-empty. Example: stored `a=1; Version=1; Path=/` and `b=2; Path=/x`, both matching
+-> `$Version=1; a=1; $Path=/; b=2; $Path=/x`.
+
+### 3.5 Eviction (008f9a92, called as evict(4, no domain filter))
+
+First drop expired records (helper 008f9a07, returns the count removed *[inferred]*). While fewer than 4 were
+removed and records remain, remove the record with the smallest expiry, counting a session cookie (2) as expiring
+now *[inferred from the selection loop; the removal step was not re-read]*.
+
+### 3.6 Persistence and settings (not specified in this revision)
+
+WriteCookieDataFile / ReadCookieDataFile store records as `CookieData%05u` entries under a `CookieData` key with
+`Binary` and `Admin` settings (strings at 00accca4, 00accdc0, 00a86de8, 00accdb0); SetShouldEncryptCookieDataFile
+selects an encrypted form. The record layout on disk, the encryption and the store capacity set by Init are open
+(Q2, Q3).
+
+## 4. Owners not yet specified (outline only)
+
+### 4.1 cGZWWWSystem (34049 B)
+
+The service front end: Init/PostInit/Shutdown, cache and cookie usage switches, a default notification target, job
+IDs mapped to HTTP or FTP client jobs (HTTPClientJobIDFromWWWSystemJobID, FTPClientJobIDFromWWWSystemJobID),
+visited-URL set, URL handlers, document load status, job update notifications. About 30 KB of its bytes are an FTP
+client reached only from it (00811c90..0081e760): commands `USER`, `PASS`, `ACCT`, `SYST`, `TYPE A`, `TYPE I`,
+`PORT h1,h2,h3,h4,p1,p2`, `LIST`, `STOR`, anonymous login, and a directory-listing parser that recognises `<DIR>`,
+`<dir>`, ` DIR `, Unix `d` mode lines and a `Disk size` trailer (00812de0).
+
+### 4.2 cRZHTTPClient (15133 B)
+
+HTTP/1.x client jobs, TimeStringToSeconds (HTTP dates), DoJobFinalization (resolves redirects with
+cRZURL::ChangeURL), cookie send and receive through 3.3 and 3.4, disk cache through NetworkFileCache.
