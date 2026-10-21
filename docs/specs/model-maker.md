@@ -744,11 +744,25 @@ Round 2 cases (§6, §7, §9, §10):
   included; no holder → included.
 - M18 (§9.2): lot state message with slot `+0x24` = A and `+0x38` = B → `ApplyStateEffectToModels(o, t, B, A)`.
 - M19 (§10.1): oldZoom = newZoom and oldRot = newRot → no state change at all (`+0xC2` stays as it was).
+- M20 (§9.1): x = 4 uses binding `+0xE0` (k = 4) and x = 5 uses `+0xD8` (k = 2), not k = x - 2; x = 1 and
+  x = 7 both restore static textures; the result is true in every case.
+- M21 (§9.5): c = 0.4, model height 20 → instances at p.y - 12.6 with bit 0 set; c = 1.0 → p.y, bit 0 cleared;
+  c = NaN → treated as complete (p.y, bit 0 cleared, holder told false).
+- M22 (§11.1): stored colour (0.5, 0.5, 0.5), new (0.5, 0.5, 0.50009) → no rebuild; new (0.5, 0.5, 0.5002) →
+  all five dynamic textures rebuilt in order 0..4.
+- M23 (§10.4): loaded (4, 0), requested (4, 0) with zoom bit and rotation bit present → returns at step 1;
+  requested (3, 0) with equal id lists → nothing happens and the masks stay without bit 3.
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
 Specified: 20607 bytes; remainder (not yet specified or only outlined): 14098 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
+
+Remainder after round 3 (lane parked, 26 rows): model loading `AddModels` 0x494390, `AddModel` 0x4902E0,
+`LoadModelsCommon` 0x490C70, `LoadFoundationModels` 0x491040, `FindModelTransform` 0x48FA40,
+`CreatePlaceHolderModelInstance` 0x48F920; `CreateOccupantShadow` 0x491230; `DoTerrainHidingForCells` 0x491CD0;
+`RebuildDynamicTexture` 0x492CC0; and the out-of-class helpers 0x445F10..0x447B00 (10 rows) and
+0x8D08E0..0x8D0E10 (6 rows), not yet identified.
 
 | address | bytes | name | section |
 |---|---|---|---|
