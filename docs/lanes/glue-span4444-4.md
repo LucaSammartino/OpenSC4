@@ -20,3 +20,6 @@ interface); (d) the shipped code paths and a scripted action that reach slots 1-
 
 Gate (unchanged code): cargo test 3676 passed / 0 failed, clippy 0 diagnostics, CMake build 184/184, ctest 62/62.
 Game runs: none (nothing in the plugin changed; no boundary to shadow).
+
+## Coordinator docs disposition
+Queue only public SP3 and report; no engine code changed and no span replacement exists. This first round is blocked pending SP3; retain two remaining implementation rounds across later stages. No replacement/shadow credit.
