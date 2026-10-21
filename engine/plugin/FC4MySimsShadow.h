@@ -74,8 +74,6 @@ void MySimsShadowMonth(cISC4City* city, int32_t julian);
 // PreCityShutdown (FC4Observer.cpp): the core is dropped.
 void MySimsShadowCityShutdown();
 
-}  // namespace fc4
-
 // Test seam op 68 (FC4TestSeam.h).
 struct FC4MySimsShadowTestInput {
     uint32_t struct_size;  // sizeof(FC4MySimsShadowTestInput)
@@ -86,4 +84,6 @@ struct FC4MySimsShadowTestInput {
     uint32_t created, had_mysims, months, clean_months, last_mismatches, last_sims, compared;
     int32_t slots[6];
 };
-intptr_t MySimsShadowTest(FC4MySimsShadowTestInput* in);
+intptr_t MySimsShadowTest(FC4MySimsShadowTestInput* in);  // fc4::
+
+}  // namespace fc4

@@ -1787,6 +1787,33 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      city's Init phase faults at `SimCity 4.exe+0x0045BF1B` after all six records have read back, so `enable =
      automata` is inert until that is fixed (the lane report, question A4). The riot and fire host tables
      (`plugin/FC4AutomataHost.h`) and the U-Drive-It pause / resume are wired either way.
+   - **MySims shadow** (`mysims_shadow = 1`, env `FC4_MYSIMS_SHADOW`; off by default;
+     `plugin/FC4MySimsShadow.h`): a same-process differential of the original MySim agent simulator and its
+     advisors (mysims.md). Needs the **original** classes (there is no `enable = mysims`). At each city load the
+     five MySims (advisor ids 1-5) and the My Street sim (30) are captured read-only (each one's own
+     version-17 record via its own `Write`) and read into a shadow core (`fc4_advisors` with the MySim host, no
+     Lua), which then follows the original: the advisor system's ticker (advisors.md §5.1 daily/monthly) and the
+     agent's §3.2 messages are forwarded through the shadow's own message subscriptions. At load and each
+     SimNewMonth the decoded saved fields (state, slot, wealth, sign, is_male, age, birth_month, retired,
+     generation, home cell/position, neighbor/commute cells, jobless days, keys, bitmap, bio, portrait path,
+     last_local_disaster, last_player_trip_day, EQ/HQ rings at float32 bits), the advisor part (personal name,
+     month counter, current day, cursor, advice count), the agent slots (1-5, 30) and the getters
+     (`GetActiveMySims` ids + order, `MySimLivesHere` per residence) are compared field by field. Not compared
+     (named on the lines): `last_commute_time` (pathfinder timing), the pylon and dispatch tool (UI), the
+     unnamed pair/flag (question MS1), per-advice nextDay/expiry/active (no Lua in the shadow), the trip state,
+     and the active UI panel index (set only by the UI). Lines (always written):
+
+     ```
+     mysims shadow: ON (mysims_shadow from …): …                                          (game start)
+     mysims shadow yyyy-mm-dd load: sims=N … mismatches=N                                 (city load)
+     mysims shadow yyyy-mm-dd month: sims=N mismatches=N                                  (each month)
+     mysims shadow (cont.) id=N <date>: <field>=<orig>/<shadow>; …                        (details)
+     mysims shadow: city shutdown: months=N clean=M last_mismatches=K                     (city shutdown)
+     ```
+
+     Success is `mismatches=0` on every line. The core's per-MySim RNG derives from the session seed
+     (`derive(S, 0x4A1DBBBF ^ index)`), so its only draw (FindNewResidence's start position, mysims.md §8) is
+     deterministic in the shadow; the original's is wall-clock seeded and unreadable.
    - **Zone developer shadow** (`zonedev_shadow = 1`, env `FC4_ZONEDEV_SHADOW`; off by default;
      `plugin/FC4ZoneDevShadow.h`): a same-process differential of the lot manager. It needs the **original** zone
      developer (do not enable `zonedev`); otherwise it logs `zonedev shadow: requested … but INACTIVE`. At
