@@ -57,7 +57,7 @@ fn fpair(j: &Json, what: &str) -> R<(f32, f32)> {
         Json::Int(v) => Ok(*v as f32),
         _ => Err(format!("{what}: expected a number")),
     };
-    match &a[..] {
+    match a {
         [x, z] => Ok((f(x)?, f(z)?)),
         _ => Err(format!("{what}: expected [x, z]")),
     }

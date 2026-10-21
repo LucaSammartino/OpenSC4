@@ -345,9 +345,9 @@ impl<H: PoolHost + ?Sized> MySimPool<H> {
             name: ex.localized_name.or(ex.name).unwrap_or_default(),
             is_male: ex.is_male.unwrap_or(false),
             sign: ex.sign.unwrap_or(0),
-            indeterminate: u8::from(ex.bitmap_id.is_none()) * INDETERMINATE_BITMAP
-                | u8::from(ex.is_male.is_none()) * INDETERMINATE_MALE
-                | u8::from(ex.sign.is_none()) * INDETERMINATE_SIGN,
+            indeterminate: (u8::from(ex.bitmap_id.is_none()) * INDETERMINATE_BITMAP)
+                | (u8::from(ex.is_male.is_none()) * INDETERMINATE_MALE)
+                | (u8::from(ex.sign.is_none()) * INDETERMINATE_SIGN),
         })
     }
 
