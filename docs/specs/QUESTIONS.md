@@ -94,6 +94,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TR | terrain |
 | TS | traffic-simulator |
 | TU | tutorial |
+| VW | view3d-window |
 | WT | widget-toolkit |
 | ZG | zones |
 | ZQ | zones |
@@ -169,7 +170,8 @@ generated index: the questions live one file per spec, so read only the file for
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
+| view3d-window | 4 | 0 | VW5 | questions/view3d-window.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **128** | **1013** | | |
+| **total** | **132** | **1013** | | |
