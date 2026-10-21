@@ -21,10 +21,9 @@ Done:
 - Fix in the commit with this Handoff (UNBUILT): header reverted to main; solved pieces kept in file statics
   g_pieces/g_pieceCount/g_piecesOwner in FC4NetToolHost.cpp.
 
-Next: (1) `qbuild quick`, check FC4NetToolHost.cpp.obj + DLL timestamps fresh; (2) new game request label nrimpl4-a2
-(same build-runs/nr-impl4-a.txt script, turbo 1, end_date 2026-05-01, enable = netmgr, nettool), qwait without
---fresh, grep `netrules`; want verdict clean, ref_warnings=0; (3) append NR15 to docs/specs/questions/network-rules.md
-(no public cISC4NetworkOccupant slot to write piece id +0xFC / orientation +0x104 on a GZCOM-created 0xC9C05C6E
-occupant; SetQuadDraw slot 30 is alpha per network-occupants.md 2.4; current choice: log only); cannot run
-tools/questions.py (coordinator regenerates QUESTIONS.md); (4) qbuild all, fmt n/a (no .rs), report, merge-queue json.
+Round 2: aedfd10d filed NR14 (next free ID was NR14, not NR15). 0d7918d3 static_assert layout pin in
+FC4NetToolHost.h (both cFC4NetworkTool.cpp.obj and FC4NetToolHost.cpp.obj rebuilt 20:35:31 after header 20:35:20;
+quick PASS 148/148), solved pieces cleared after same-context insert.
+Next: game request nrimpl4-a2 queued; qwait (no --fresh) on build-runs/game-results/nrimpl4-a2.verdict, grep
+`netrules`; then qbuild all, final report (partial: choice logged, not applied, NR14), merge-queue json.
 Facts: native-vs-ours comparison not available (native tool runs only when nettool off; no hook into its solve).
