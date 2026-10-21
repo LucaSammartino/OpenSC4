@@ -298,6 +298,9 @@ va	name	slots	note
 00aa2898	cSC4FoundationOccupant::vftable_3	25	paired with Mac __ZTV22cSC4FoundationOccupant#3, 19 agreeing slots
 00aa28fc	cSC4FoundationOccupant::vftable_2	6	paired with Mac __ZTV22cSC4FoundationOccupant#2, 4 agreeing slots
 00aa2918	cSC4FoundationOccupant::vftable_1	34	paired with Mac __ZTV22cSC4FoundationOccupant#1, 24 agreeing slots
+00aa2a3c	cSC4GlyphTextureInfo::vftable	0	glyph-textures.md §2; 9 slots
+00aa2a60	cSC4StringTextureInfo::vftable	0	glyph-textures.md §3; descriptive name, no Mac match; 6 slots
+00aa2a78	cSC4GlyphTextureManager::vftable_3	0	glyph-textures.md §1.1; the message target at +0x20: 3 thunks, DoMessage
 00aa2a88	cSC4GlyphTextureManager::vftable_2	6	paired with Mac __ZTV23cSC4GlyphTextureManager#2, 4 agreeing slots
 00aa2aa0	cSC4GlyphTextureManager::vftable_1	13	paired with Mac __ZTV23cSC4GlyphTextureManager#1, 7 agreeing slots
 00aa2ad4	cSC4GlyphTextureManager::vftable	6	paired with Mac __ZTV23cSC4GlyphTextureManager#0, 5 agreeing slots
