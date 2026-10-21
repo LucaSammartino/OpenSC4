@@ -57,10 +57,14 @@ fn base_get_int<const N: usize>(s: &mut dyn GzIStream, cur: [u8; N]) -> (bool, [
 /// The length decoder (§5): bytes through the virtual `GetUint8` while bit 7
 /// is set, seven bits each, least significant group first.
 ///
-/// A failed `GetUint8` leaves its byte unwritten; we start each byte at 0, so
-/// a failed read ends the loop (OS5). Groups past the eighth byte overran the
-/// original's 8-byte buffer *[quirk]*; here they are consumed and ignored, as
-/// are bits beyond 32.
+/// Every `GetUint8` result is ignored, as natively. A failed `GetUint8` leaves
+/// its byte unwritten; natively that slot holds stale stack bytes (initially
+/// bytes of the stream object's address), so the resulting length and the
+/// number of further `GetUint8` calls are unspecified (OS5, *[compat-limit]*).
+/// *[choice]* We start each slot at 0, so a failed read ends the loop and adds
+/// nothing to the length: one of the native outcomes, not a native fact.
+/// Groups past the eighth byte overran the original's 8-byte buffer *[quirk]*;
+/// here they are consumed and ignored, as are bits beyond 32.
 pub fn decode_string_length(s: &mut dyn GzIStream) -> u32 {
     let mut len: u64 = 0;
     let mut i = 0u32;
@@ -79,11 +83,13 @@ pub fn decode_string_length(s: &mut dyn GzIStream) -> u32 {
 
 /// `GetRZCharStr(buf, max)` (§5): if `GetError()` or length 0, `buf[0] := 0`;
 /// else read `k = min(length, max)` bytes into `buf`, `buf[k] := 0` (one past
-/// `max` when truncated *[quirk]*), and `Skip(length - k)` if no error, also
-/// when that is 0 (literal reading, OS6). Returns `GetError() == 0`.
+/// `max` when truncated *[quirk]*), and, if no error and `length - k` is not
+/// 0, `Skip(length - k)`: `Skip(0)` is never called (OS6). `buf[k] := 0` is
+/// written even when `GetVoid` fails; `buf[0..k]` then holds what `GetVoid`
+/// wrote and elsewhere the caller's prior bytes. Returns `GetError() == 0`.
 ///
-/// In C a `buf` shorter than `k + 1` is overrun; here the bytes that do not
-/// fit are read and dropped.
+/// *[compat-limit]* In C a `buf` shorter than `k + 1` is overrun; here the
+/// bytes that do not fit are read and dropped.
 pub fn base_get_rz_char_str(s: &mut dyn GzIStream, buf: &mut [u8], max: u32) -> bool {
     let len = decode_string_length(s);
     if s.get_error() || len == 0 {
@@ -101,27 +107,40 @@ pub fn base_get_rz_char_str(s: &mut dyn GzIStream, buf: &mut [u8], max: u32) -> 
     if let Some(b) = buf.get_mut(k) {
         *b = 0;
     }
-    if !s.get_error() {
-        s.skip(len - k as u32);
+    let rest = len - k as u32;
+    if !s.get_error() && rest != 0 {
+        s.skip(rest);
     }
     !s.get_error()
 }
 
-/// `GetGZStr(out)` (§5): `out := ""`; the length; then chunks of at most 255
-/// bytes while no error. A chunk whose read leaves an error is not appended
-/// (our reading of "appended while no error", OS5). Returns `GetError() == 0`.
+/// `GetGZStr(out)` (§5): `out := ""`; the length; if no error, chunks of
+/// `k = min(remaining, 255)` bytes: `GetVoid` into one 256-byte buffer reused
+/// across chunks, `buf[k] := 0`, append the `k` bytes to `out` **before**
+/// testing the error (a failed chunk is appended), subtract `k`, stop on
+/// `GetError()` or 0 remaining. Returns `GetError() == 0`.
+///
+/// A failed chunk's unwritten bytes are the buffer's stale bytes: on a later
+/// chunk the previous chunk's bytes at those positions (specified, OS5); on
+/// the first chunk natively uninitialised stack (unspecified). *[choice]*
+/// The buffer starts zeroed, so those are 0 here (*[compat-limit]*, not a
+/// native fact).
 pub fn base_get_gz_str(s: &mut dyn GzIStream, out: &mut Vec<u8>) -> bool {
     out.clear();
     let mut rem = decode_string_length(s);
-    while rem > 0 && !s.get_error() {
-        let c = rem.min(255);
-        let mut tmp = vec![0u8; c as usize];
-        s.get_void(&mut tmp);
+    if s.get_error() {
+        return false;
+    }
+    let mut buf = [0u8; 256];
+    while rem > 0 {
+        let k = rem.min(255) as usize;
+        s.get_void(&mut buf[..k]);
+        buf[k] = 0;
+        out.extend_from_slice(&buf[..k]);
+        rem -= k as u32;
         if s.get_error() {
             break;
         }
-        out.extend_from_slice(&tmp);
-        rem -= c;
     }
     !s.get_error()
 }
@@ -244,8 +263,8 @@ impl ByteSource for NullSource {
 pub type RzNullIStream = RzIStream<NullSource>;
 
 impl RzNullIStream {
-    /// The constructor. §5 does not name its byte order; it inherits
-    /// `cRZIStream(bool)` and we pass false as `cRZNullOStream` does (OS6).
+    /// The constructor: count 0, user data null, byte-order flag false, error
+    /// byte 0 (§5, OS6).
     pub fn new_null() -> Self {
         RzIStream::new(false, NullSource::default())
     }
