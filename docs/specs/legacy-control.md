@@ -334,7 +334,8 @@ comment list, and parameter `0x3ACA6906` = {0, 0}; second pass `SetFlag(0x2, fal
 |---|---|---|---|
 | GZWinCustom | `0x00A6D837` | 1 | **specified**: does nothing (a bare return, ICF-shared) |
 | GZWinSlider | `0x00950218` | 403 | **specified** (§9.1), slot names on the slider interface *[inferred]* |
-| all other 18 | §4.1 | 465–4857 | open (LC4) |
+| GZWinTreeView | `0x009586B0` | 4857 | **specified** (§9.2) |
+| all other 17 | §4.1 | 465–3761 | open (LC4) |
 
 Every per-type interpreter starts the same way: `QueryInterface` the control for its own IID (§4.1); on failure
 it does nothing at all; on success it works through that interface and releases it at the end.
@@ -365,6 +366,88 @@ first pass if the control clamps (control behaviour, not specified here).
 Worked example: `minmaxvalue=(100,0), direction=vertical, initvalue=30` → first pass `+0x20(100)`,
 `+0x18(0)`, `+0x28(2)`; second pass `+0x14(30)`.
 
+### 9.2 GZWinTreeView (`0x009586B0`)
+
+Interface `IGZWinTreeView` `0x3AE8BAD2`. Slot names are inferred from arguments *[inferred]*; "colour(r,g,b)"
+below is the graphics-system colour constructor (`RZ::GS()` slot `+0x88`, three ints). A node handle of 0 is
+the root node. "Store parameter K = map" means: wrap the map pointer in a new 20-byte variant and call the
+control's `SetParameter(K, variant)` (`cIGZWin` `+0x1C8`); the map is handed over, not freed here.
+
+**First pass** (each only if present; flags are `value != 0`):
+
+| Word | ID | Reader | Effect |
+|---|---|---|---|
+| `displayroot` | `0x1401` | Uint32 | slot `+0x0C` (*SetStyleBit*) (2, flag) |
+| `displaynodeicons` | `0x1402` | Uint32 | `+0x0C` (4, flag) |
+| `displaytreelines` | `0x1403` | Uint32 | `+0x0C` (8, flag) |
+| `multiselect` | `0x1404` | Uint32 | `+0x0C` (0x10, flag) |
+| `icongutter` | `0x1405` | Uint32 | `+0x1C` (value) |
+| `rowheight` | `0x1336` | Uint32 | `+0x2C` (value) |
+| `minmaxboxsize` | `0x1406` | Uint32 | `+0x34` (value) |
+| `backgroundcolor` | `0x133F` | colour `(%d,%d,%d)` | `+0x3C` (colour) |
+| `highlightcolor` | `0x408` | colour | `+0x44` (colour) |
+
+`rowheight`, `backgroundcolor` and `highlightcolor` are words of other vocabularies (all words share one ID
+space, §4), read here by ID.
+
+**Second pass**, in this order:
+
+1. **Image table.** Create three empty maps: *NameToIcon* (string → icon index), *IconToName* (icon index →
+   string), *NameToKey* (string → resource key {group, instance}). For **every** property pair with key
+   `image` (`0xF016`) whose value is a string variant (`0x800E`), in list order (repeats allowed): split the
+   text at `:` into *name* `:` *key* `:` *rect* (the rect part is the rest of the text). *key* is parsed with
+   `{%x,%x}`; only if both numbers parse is the image buffer loaded (group, instance). Insert *name* →
+   {group, instance} into NameToKey **whether or not** it loaded (unparsed numbers 0). *rect* is parsed
+   with `(%d,%d,%d,%d)` into a zeroed rectangle (count not checked). If a buffer loaded: rectangle = the
+   parsed one, or, when all four fields are 0, the buffer's own full rectangle (buffer slot `+0x30`); call tree
+   slot `+0x50` (*AddIcon*) (buffer, rect) → icon index; insert *name* → index into NameToIcon and index →
+   *name* into IconToName; release the buffer. Then store parameters `0x46C207A5` = NameToIcon,
+   `0xC6C207C8` = IconToName, `0x66C20802` = NameToKey (always, even when empty).
+2. **Root node** (handle 0), each only if present:
+   - `roottext` `0x1407` (String) → `+0x80` (0, text).
+   - `rooticon` `0x1408`, `rooticonselected` `0x1409`, `rooticonexpanded` `0x140A`,
+     `rooticonexpandedselected` `0x140B` (String: an image name) → `+0x90` (0, state, index) with state
+     0, 1, 2, 3 respectively; index = NameToIcon[name], or **the state number itself** when the name is unknown.
+   - `rootcolorforeground` `0x140C`, `rootcolorbackground` `0x140D`, `rootcolorforegroundhilited` `0x140E`,
+     `rootcolorbackgroundhilited` `0x140F` (colour) → `+0xAC` (0, which, colour) with which 0, 1, 2, 3.
+   - `rootfont` `0x1410`: if it reads as Uint32 (type 6): font = window-class manager (`RZ::WCM()`) slot
+     `+0x14` (id); tree `+0x9C` (0, font); store the id as control parameter `0xFAA3BE85` (helper
+     `0x0094C222`, parameter = `0xFAA3BE85` + index 0). Else if it reads as String: **only** store the text as
+     parameter `0xFAA3BE85` (helper `0x0094C255`); the root font is not changed.
+   - `rootexpanded` `0x1411` (Uint32) → `+0xB4` (0, value == 1).
+   - `rootselected` `0x1412` (Uint32): only when value == 1 → `+0xE0` (0, 0).
+3. **Always**: `+0x24` (colour constructor called with (0, 0, 0, 1)).
+4. **Node records.** Create an empty map *NodeFont* (node id → font id). For every pair with key `node`
+   (`0x1102`, a word of the Outline vocabulary) whose value is a string, in list order, split at `:` into 15
+   fields:
+
+   | # | Field | Rule |
+   |---|---|---|
+   | 1 | id | text |
+   | 2 | text | text shown |
+   | 3 | parent | id of the parent node; `Root` (exact, case-sensitive) = the root |
+   | 4 | position | `first` → −2, `last` → −3, `sorted` → −4 (case-sensitive exact); **any other text leaves the field as the previous node record had it** (indeterminate for the first; quirk Q5) |
+   | 5–8 | icon normal, selected, expanded, expanded-selected | image names → NameToIcon, unknown → 0, 1, 2, 3 |
+   | 9–12 | fg, bg, fg hilited, bg hilited | `(%d,%d,%d)` (unparsed components 0) → colour |
+   | 13 | font | font name → WCM slot `+0x98` (name) = font id; WCM `+0x14` (id) = font; insert id → font id into NodeFont |
+   | 14 | expanded | exactly `yes` → true, else false |
+   | 15 | selected | the remaining text, exactly `yes` → true |
+
+   Records are appended to a pending list. Store parameter `0x86C21DA0` = NodeFont.
+5. **Tree build (depth-first).** Create *IdToHandle* (string → handle) and *HandleToId*. A stack starts with
+   one entry (`Root`, handle 0). Loop while the stack is not empty: look at the **top** entry (not popped); find
+   the first pending record (list order) whose *parent* equals the top's id; if none, pop and continue.
+   Otherwise: handle = tree `+0x60` (top handle, position, text, 0); then `+0x90` (handle, s, icon s) for s =
+   0..3; `+0x9C` (handle, font); `+0xAC` (handle, w, colour w) for w = 0..3; `+0xB4` (handle, expanded);
+   if selected, `+0xE0` (handle, 0); insert id → handle and handle → id; push (id, handle); remove the record
+   from the pending list. Records whose parent is never inserted are silently dropped. Store parameters
+   `0xE6C21D83` = IdToHandle and `0x26C21E35` = HandleToId.
+
+Worked example: `image=folder:{1234,1}:(0,0,0,0)`, `node=a:Alpha:Root:last:folder:::::::::no:no`,
+`node=b:Beta:a:first:::::::::::no:yes`: the image loads with its full rectangle and gets index *i*; node `a`
+is inserted under 0 at −3 with icons (*i*, 1, 2, 3), node `b` under `a` at −2 with icons (0, 1, 2, 3) and
+is selected. Listing `b` before `a` gives the same tree (the search restarts from the list head per step).
+
 ## 10. Quirks (keep for compatibility)
 
 - Q1. `SetParameters` overwrites `+0x10` with null without releasing a previous control; calling it twice on one
@@ -373,6 +456,8 @@ Worked example: `minmaxvalue=(100,0), direction=vertical, initvalue=30` → firs
 - Q3. A failed exact create falls back to the lowest-numbered registered class with the same interface, then to
   `GZWinCustom`; the stored `0xE85EEBDE` parameter still holds the requested class ID.
 - Q4. `Release` with a count of 0 destroys the object.
+- Q5. TreeView `node` records: a position field other than `first`/`last`/`sorted` is not reset, so it keeps the
+  previous record's value (stack garbage for the first record). Implementations: use −3 (`last`) for the first.
 
 ## 11. Open questions
 
