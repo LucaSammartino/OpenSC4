@@ -265,7 +265,7 @@ the same observable result):
 2. ScrollPagesVertically(2) scrolls exactly 8 rows from the top of a 100-row grid.
 3. SetSelectionRules clears an existing selection (GetSelectionCount becomes 0).
 4. EnableFixedRanges(false, true) after SetCellLimits(10, 10): GetCellLimits returns (-1, 10).
-5. PauseRecalculations(true) twice then (false) once returns 2, 1... i.e. 1, 2, 1.
+5. PauseRecalculations(true), (true), (false) return 1, 2, 1; a further (false), (false) return 0, -1.
 6. GetColumnExtraData(7) on a fresh grid returns 0 and SetColumnExtraData(7, x) on an out-of-bounds column
    returns false.
 

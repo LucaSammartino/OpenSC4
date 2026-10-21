@@ -112,6 +112,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TU | tutorial |
 | UG | underground-occupants |
 | VW | view3d-window |
+| WG | win-grid |
 | WT | widget-toolkit |
 | ZG | zones |
 | ZQ | zones |
@@ -208,5 +209,6 @@ generated index: the questions live one file per spec, so read only the file for
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
+| win-grid | 3 | 0 | WG4 | questions/win-grid.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **221** | **1090** | | |
+| **total** | **224** | **1090** | | |
