@@ -155,7 +155,7 @@ generated index: the questions live one file per spec, so read only the file for
 | renderer-driver | 5 | 0 | RD6 | questions/renderer-driver.md |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
-| span-render-1555 | 4 | 0 | SR1556 | questions/span-render-1555.md |
+| span-render-1555 | 1 | 3 | SR1556 | questions/span-render-1555.md |
 | terrain | 5 | 36 | TR42 | questions/terrain.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 1 | 92 | TG27, TS68 | questions/traffic-simulator.md |
@@ -164,4 +164,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **115** | **994** | | |
+| **total** | **112** | **997** | | |

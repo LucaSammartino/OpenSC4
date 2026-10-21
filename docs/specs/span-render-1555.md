@@ -5,8 +5,9 @@ span back end that `cGZDrawContextRenderToBuffer::Init` (`0x00830710`) creates i
 types **4 (`R5G5B5`) and 6 (`A1R5G5B5`)**: one class serves both, so nothing here distinguishes "X" from "A"
 1555 targets. The 4444, 565, 8888 and 8-bit siblings are specified elsewhere (4444: its own lane's file).
 
-Status legend used below: **[exact]** = every instruction of the function read and restated; **[table]** = the
-dispatch slot is identified but the instantiation's per-pixel body is not yet restated.
+Status legend used below: **[exact]** = every instruction of the function read and restated; **[verified]** = the
+rule was checked against the shipped bytes by emulation (§7.7); as of round 2 every one of the 172 functions is
+[exact] or [verified].
 
 Pixel layout (destination word, little-endian `u16`): bits 0–4 **B**, 5–9 **G**, 10–14 **R**, bit 15 **A**.
 Masks used by the code: `0x001F`, `0x03E0`, `0x7C00`, `0x8000`, and the paired `0x7C1F` (R+B) / `0x03E0` (G).
@@ -114,7 +115,11 @@ Arguments as §4 (`ret 0x10`). Per span starting at (x0, y), pixel k:
   zero-fraction 8-bit alpha `A` (`V_3 = A << 16`) the thresholds are 1:8 2:16 3:24 4:32 5:39 6:47 7:55 8:63 9:70
   10:78 11:86 12:94 13:101 14:109 15:117 16:125 17:132 18:140 19:148 20:156 21:163 22:171 23:179 24:187 25:194
   26:202 27:210 28:218 29:225 30:233 31:241 32:249 — **not** the §3 mapping (they differ from `A = 39` on).
-  `w` can exceed 32 only if `V_3` leaves 0…255.99 (bits ≥ 24); then the blend below is not a lerp. *[compat]*
+  `w` can exceed 32 only if `V_3` leaves 0…255.99 (bits ≥ 24); then the blend below is not a lerp but the
+  packed form is still exact (`0x008313D9`–`0x00831421`): with `Sp = S & 0x7C1F`, `Dp = D & 0x7C1F`,
+  `Sg = S & 0x03E0`, `Dg = D & 0x03E0`, `RB = ((Sp − Dp)·w + 32·Dp + 0x4010) mod 2³² >> 5`,
+  `G = ((Sg − Dg)·w + 32·(Dg + 0x10)) mod 2³² >> 5`, output = low 16 bits of `(RB | 0x83E0) & (G | 0xFC1F)`.
+  For `w ≤ 32` this equals the per-channel formula below. *[compat]*
 - blend: exactly §3 step 2 (`C_out = floor(((32 − w) D + w S + 16) / 32)`, same constants `0x4010`/`0x10`),
   and bit 15 = 1.
 
@@ -200,8 +205,8 @@ column (`0x00834050`, `0x00848160`).
 - **Row 3 col 0, A1555 → 1555 keyed `Blt`** (`0x00834050`): per pixel, if `(src & 0x7FFF) == key` (the key
   already masked `& 0x7FFF`) the destination is left untouched, else it gets the raw source word (bit 15
   included). The key test ignores the source alpha bit.
-- **Row 2 col 8** (`0x00842C50`) is folded with a 565 sibling, so A1555 → 1555 tiled copy is also a raw 16-bit
-  copy (body not restated here).
+- **Row 2 col 8** (`0x00842C50`) is folded with a 565 sibling: A1555 → 1555 tiled copy is a raw 16-bit copy
+  with the §7.6 addressing (emulated, §7.7).
 
 ### 7.3 Source → 1555 conversion (column 0, `Blt`, key off) [exact for each cited body]
 
@@ -215,31 +220,49 @@ column (`0x00834050`, `0x00848160`).
 | X888 | `0x0083A6D0` | as A8888, A = 1 |
 | 8-bit | `0x0083C370` | the byte is an **alpha** (Mac `RGBFormat<255,0,0,0,1,0>`), not a palette index: output `0x7FFF \| ((byte & 0x80) << 8)` — white, A = byte ≥ 128 |
 
-The keyed rows apply the same conversion after the key test of §7.2 (the test compares the **raw** source texel
-masked as in §6.1 against the key; shown for A1555; assumed for the other formats, question SR1555-3).
+**Keyed rows (odd rows), every column.** Before anything else, per pixel: if `(s & mask) == key` the
+destination pixel is left untouched (no blend, no write), else the key-off rule of the same column applies.
+`s` is the **raw** source texel and `mask` the caller's mask of §6.1 (A4444 `0x0FFF`, A1555 and X555 `0x7FFF`,
+R565 `0xFFFF`, A8888 and X888 `0xFFFFFF`), so the alpha bits never take part. The (unreachable) 8-bit keyed
+row 13 uses an empty mask: it compares 0 with the key, so `key == 0` hides every pixel and any other key
+draws every pixel as row 12. The key is `b.+0x18` as the caller left it (already masked).
 
-### 7.4 Modulate, ConstantAlpha, ModulateAlpha [exact for the X555 / A8888 bodies cited]
+### 7.4 Modulate, ConstantAlpha, ModulateAlpha [all 14 rows: §7.7]
 
-- **Expand** (Modulate paths, X555 `0x00834FF0`): the 1555 source is widened to 8888 with
-  `c8 = (c5 << 3) | (c5 >> 2)` and alpha `0xFF` (`+0x3FC0000` folded into the shift chain, then `+ ((x >> 5) &
-  0x070707)`).
+- **Expand** (Modulate and ModulateAlpha only): the source texel is widened to 8-bit A, R, G, B
+  (X555 `0x00834FF0` folds `+0x3FC0000` into the shift chain, then `+ ((x >> 5) & 0x070707)`):
+
+| Source | A8 | R8, G8, B8 |
+|---|---|---|
+| A4444 | `a4 × 17` | each `c4 × 17` (`(c4 << 4) \| c4`) |
+| A1555 | `0xFF` if bit 15 else `0x00` | each `(c5 << 3) \| (c5 >> 2)` |
+| X555 | `0xFF` | each `(c5 << 3) \| (c5 >> 2)` |
+| R565 | `0xFF` | R, B `(c5 << 3) \| (c5 >> 2)`; G `(g6 << 2) \| (g6 >> 4)` |
+| A8888 | bits 24–31 | the bytes verbatim |
+| X888 (4 bytes per texel) | `0xFF` | the bytes verbatim (bits 24–31 ignored) |
+| 8-bit | the byte | `0xFF` each (white) |
+
 - **Modulate** (column 2): each of the four 8-bit channels `c' = (c × m + 128) >> 8` with `m` the matching byte
   of `b.+0x14` (the ARGB draw colour; MMX `pmullw`/`paddw` with the constant `0x0080` words at `0x00AC1B80`,
   `psrlw 8`, `packuswb`; `(255·255 + 128) >> 8 = 254`, so the pack never saturates). The result is packed back by
   the A8888 rule of §7.3 (truncation; A = `c'_A ≥ 128`). No blend with the destination.
-- **ConstantAlpha** (column 1, X555 `0x00834F60`, A8888 `0x00838A60`): the source is converted as §7.3, then
-  blended with the destination by the helper `0x0083C490` with weight `w = b.+0x14 >> 27` (top 5 bits of the
-  draw colour's alpha, **0…31**, so never a full replace; source alpha is **not** used). The helper is the §3
-  formula `C = floor((w·S + (32 − w)·D + 16) / 32)` per channel with **A = 1** (it ORs bit 20 before `>> 5`).
-- **ModulateAlpha** (column 3, X555 `0x00835110`): Modulate as above, then `w = (modulated 8888) >> 27` (top
-  5 bits of `c'_A`), blend as ConstantAlpha, and A = 1 (`| 0x8000`). This is the only column family in which
-  a source's own alpha weights the blend.
+  The same for every source row (the expansion table above is the only per-row difference).
+- **ConstantAlpha** (column 1, every row; e.g. X555 `0x00834F60`, A8888 `0x00838A60`): the source is converted
+  as §7.3, then blended with the destination with weight `w = b.+0x14 >> 27` (top 5 bits of the draw colour's
+  alpha, **0…31**, so never a full replace). The **source alpha is not used** by any row, A4444, A1555, A8888
+  and 8-bit included: an A4444 texel with alpha 0 still blends its colour. The 14 column-1 bodies call the helper
+  `0x0083C490` (its only 14 call sites); columns 3, 5, 7, 9, 11 inline the same blend; either way it is the §3 formula
+  `C = floor((w·S + (32 − w)·D + 16) / 32)` per channel with **A = 1** (it ORs bit 20 before `>> 5`).
+- **ModulateAlpha** (column 3, every row; e.g. X555 `0x00835110`): Modulate as above, then
+  `w = c'_A >> 3` (top 5 bits of the modulated alpha, 0…31), blend as ConstantAlpha with `S` = the packed
+  modulated colour, and A = 1. This is the only column family in which a source's own alpha weights the blend;
+  for X555, R565 and X888 (A8 = `0xFF`) `w` = `((255·m_A + 128) >> 8) >> 3`, i.e. the draw colour's alpha.
 
 Worked example (ConstantAlpha, X555 source `0x7C00` red over destination `0x001F` blue, colour alpha `0x80`):
 `w = 0x80000000 >> 27 = 16`; R = `floor((16·31 + 16·0 + 16)/32) = 16`, B = `floor((0 + 16·31 + 16)/32) = 16`,
 G = 0 → `0x8000 | 16<<10 | 16 = 0xC010`.
 
-### 7.5 Stretch addressing (column 4, X555 `0x008352A0`) [exact for that body]
+### 7.5 Stretch addressing (columns 4–7) [exact for X555 `0x008352A0`; other rows: §7.7]
 
 `b.+0x00` = u0, `+0x04` = v0, `+0x08` = du, `+0x0C` = dv (16.16, used unsigned). For destination (x, y):
 source row `= (v0 + dv × y) >> 16`, source column `= (u0 + du × x) >> 16`, then `u += du` per pixel —
@@ -269,9 +292,30 @@ rectangle `L = ctx+0x94`, `T = +0x98`, `Rt = +0x9C`, `B = +0xA0` (stored verbati
 store as the matching column 0–3 body, then `sx += 1`; when `sx` reaches TW it resets to 0 (the pointer goes back
 to the start of the row). Net effect: destination (x, y) shows tile texel `((x − ox) mod TW, (y − oy) mod TH)`.
 
-All other bodies (columns 4–11 for the other rows, tiled addressing, keyed non-A1555 rows) are **[table]**:
-identified and named, per-pixel rule not yet restated (§8).
+### 7.7 The 168 slots as one rule, and how it was checked [verified, all slots]
+
+Every slot `(row, col)` computes, for each destination pixel of each span:
+`texel` = addressing of `col / 4` (0 plain §6.1, 1 stretch §7.5, 2 tiled §7.6) read at the row's texel width
+(2 bytes for rows 0–7, 4 for rows 8–11, 1 for rows 12–13); if the row is keyed and the key test of §7.3 hides
+it, skip; otherwise `col % 4` = 0 conversion §7.3, 1 ConstantAlpha, 2 Modulate, 3 ModulateAlpha (§7.4).
+
+**Check (round 2).** Each of the 168 slot addresses (the 166 bodies in the owner range plus the two folded
+slots `0x00848160`, `0x00842C50`) was executed from the shipped bytes under a CPU emulator (unicorn 2.1.4,
+`build-runs/emu1555.py` in this lane's worktree, which maps `bin/SimCity4.exe` and calls the slot with the
+records of §6) and its destination compared word for word with the rule above: **168/168 slots matched on
+3000 random cases each (504 168 cases)**: random 16-bit destinations, texture sizes 4–40 × 1–6 with padded
+strides, 1–4 spans, 25 % of texels forced to the key (bits outside the mask random), colours random plus
+`0xFFFFFFFF`, `0x80808080`, `0x00FFFFFF`, `0xFF……`; stretch `du, dv` in `0x4000…0x20000`, tiled `u0 < TW`.
+The five methods (`emu1555m.py`, §2–§6, RenderBlt checked to reach `rows[key + 2·fmt][kind]`) matched on 5000
+cases each, AlphaGradient including `w > 32`. The 172nd function, `0x0083C490`, runs inside the
+ConstantAlpha/ModulateAlpha slots that call it. Not covered by the check: `n = 0`, out-of-range stretch
+coordinates (§7.5: no clamp), 32-bit wrap of `u0 + du·x`, tiled `u0 ≥ TW`, and the instruction-level CFG
+(the check is behavioural: two slots that differ in register allocation but compute the same function pass
+alike, which is what an implementation needs). A raw normalised-instruction diff (`build-runs/norm.py`) finds
+no two slots byte-identical: rows differ in register use, so it gives no stronger evidence than the emulation.
 
 ## 8. Open points
 
-Questions are in `docs/specs/questions/span-render-1555.md` (SR1555-1 … SR1555-4).
+Open: SR1555-2 (`docs/specs/questions/span-render-1555.md`): whether any shipped path draws a gradient into a
+1555 buffer. SR1555-1, -3, -4 are answered (§4.1, §6.1, §7.3–§7.7). Every function of the owner range is
+[exact] or [verified]: 5 methods, 166 in-range slot bodies, the blend helper `0x0083C490`.
