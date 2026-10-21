@@ -1951,6 +1951,21 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      line had `mismatches=0`, `resyncs=0`, `refused=0` and every probed call on the main thread. OM1 was answered
      statically (re-answers18): the background model loader's thread calls slot 40, one standard cell at a time,
      when its filter flag is set; slot 40 is probed for that reason.
+   - **Simulation grids** (`enable = simgrids`; `plugin/FC4SimGridLogic.h`, `plugin/cFC4SimGrid.*`; glue-simgrids4):
+     factories for the grid classes `0x49B9E601`..`0x49B9E60B` (docs/specs/simgrid.md §2; `0x49B9E601` makes a
+     uint8 grid). simgrid.md §6.4.2 allows registering them only for layout-compatible grids: these keep the
+     STLport `vector<vector<T>>` (§6.3, rows by x) with every buffer from the game's STL node allocator B, count 0
+     on creation, the §4 slots and the v1 record (§5). With the switch, every grid the class store creates on load
+     (and every grid our glue creates through GZCOM) is ours; the original simulators' directly built grids stay
+     the game's. Lines: `simgrids: read|write clsid=… instance=… S=… count=XxZ iface_writes=N changed=-1|0|1`
+     (changed: values differ from the loaded ones; with iface_writes=0 the original wrote them through
+     `GetGridData`), and at the last release `simgrids: all grids released: created=… raw_changed=…`.
+     **Off by default.** Out-of-range reads return 0 and such writes are ignored [choice] (question SG1).
+     The read/write lines also carry `digest=` (FNV-1a 64 of the record bytes) and `nonzero=` (cells not 0).
+     Tooling `simgrids_probe = 1` (`plugin/FC4SimGridProbe.*`, works with or without `enable = simgrids`): every
+     grid a save hands to our glue (`IStreamAdapter::ReadRef`) is held until PostCityInit, then its own `Write`
+     is captured: `simgrids-probe: grid clsid=… instance=… digest=… nonzero=…` per grid and a summary line naming
+     the grid class (ours or the game's), so a save written by our grids can be checked after the game's reload.
    - **City situation manager** (`enable = citysit`; `plugin/cFC4CitySituation.*`, over the `fc4_citysit` core):
      the city's `cSC4CitySituationManager` (class `0x0BB14381`, city component 52, the slot 49 getter). It answers
      `cISC4CitySituationManager` (city-situation.md §8, 40 slots), `cIGZMessageTarget2`, the legacy
