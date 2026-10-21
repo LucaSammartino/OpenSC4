@@ -23,6 +23,7 @@
 #include "cISC4SimGrid.h"
 #include "cRZCOMDllDirector.h"
 
+#include <atomic>
 #include <cmath>
 
 namespace fc4 {
@@ -42,6 +43,18 @@ const HostGridContext* Ctx(void* u) { return static_cast<const HostGridContext*>
 template <class T>
 cISC4SimGrid<T>* As(uint64_t t) {
     return reinterpret_cast<cISC4SimGrid<T>*>(FromToken(t));
+}
+
+// A grid the class-object store has not read yet (FC4Streams.h NoteUnreadRef;
+// foundations §2.7: a Read may only keep the pointer). Such a grid is in no
+// specified state, so it reads as empty and writes to it are dropped.
+bool Unread(uint64_t t) {
+    if (!IsUnreadRef(t)) return false;
+    static std::atomic<uint32_t> logged{0};
+    if (logged.fetch_add(1) < 4)
+        Log("host grid: grid %p accessed before the store load read it (foundations 2.7); treated as empty",
+            static_cast<void*>(FromToken(t)));
+    return true;
 }
 
 bool Supported(uint32_t kind) {
@@ -75,6 +88,10 @@ uint32_t ClassOf(void*, uint64_t t) {
 void Geometry(void*, uint64_t t, fc4_grid_geometry* out) {
     cISC4SimGrid<uint8_t>* g = As<uint8_t>(t);
     if (g == nullptr || out == nullptr) return;
+    if (Unread(t)) {
+        *out = fc4_grid_geometry{};
+        return;
+    }
     out->tract_size = g->GetTractSize();
     out->shift = g->GetTractShift();
     out->count_x = g->GetTractCountX();
@@ -86,7 +103,7 @@ void Geometry(void*, uint64_t t, fc4_grid_geometry* out) {
 }
 
 double Get(void*, uint64_t t, uint32_t kind, int32_t x, int32_t z) {
-    if (t == 0) return 0.0;
+    if (t == 0 || Unread(t)) return 0.0;
     if (perf::On()) perf::Count(perf::kGridGet);  // tooling: perf_profile (FC4Perf.h)
     switch (kind) {
         case kClsI16: return As<int16_t>(t)->GetTractValue(x, z);
@@ -116,7 +133,7 @@ uint32_t ReadAll(uint64_t t, void* out, uint32_t count) {
 }
 
 uint32_t BulkRead(uint64_t t, uint32_t kind, void* out, uint32_t count) {
-    if (t == 0 || out == nullptr || count == 0) return 0;
+    if (t == 0 || out == nullptr || count == 0 || Unread(t)) return 0;
     if (perf::On()) perf::Count(perf::kGridBulk);  // tooling: perf_profile (FC4Perf.h)
     switch (kind) {
         case kClsI16: return ReadAll<int16_t>(t, out, count);
@@ -159,7 +176,7 @@ uint32_t WriteAll(uint64_t t, const uint32_t* index, const void* values, uint32_
 
 uint32_t BulkWrite(void* u, uint64_t t, uint32_t kind, const uint32_t* index, const void* values, uint32_t n) {
     // Writes switched off: none here (the core then sets tract by tract, and Set notes each skip).
-    if (t == 0 || index == nullptr || values == nullptr || n == 0 || !On(Ctx(u)->writes)) return 0;
+    if (t == 0 || index == nullptr || values == nullptr || n == 0 || !On(Ctx(u)->writes) || Unread(t)) return 0;
     if (perf::On()) perf::Count(perf::kGridBulk);  // tooling: perf_profile (FC4Perf.h)
     switch (kind) {
         case kClsI16: return WriteAll<int16_t>(t, index, values, n);
@@ -174,7 +191,7 @@ uint32_t BulkWrite(void* u, uint64_t t, uint32_t kind, const uint32_t* index, co
 }
 
 void Set(void* u, uint64_t t, uint32_t kind, int32_t x, int32_t z, double v) {
-    if (t == 0 || !WritesOn(u, "grid SetTractValue")) return;
+    if (t == 0 || Unread(t) || !WritesOn(u, "grid SetTractValue")) return;
     if (perf::On()) perf::Count(perf::kGridSet);  // tooling: perf_profile (FC4Perf.h)
     switch (kind) {
         case kClsI16: As<int16_t>(t)->SetTractValue(x, z, Narrow<int16_t>(v)); break;
@@ -189,7 +206,7 @@ void Set(void* u, uint64_t t, uint32_t kind, int32_t x, int32_t z, double v) {
 }
 
 void Fill(void* u, uint64_t t, uint32_t kind, double v) {
-    if (t == 0 || !WritesOn(u, "grid SetTractValues")) return;
+    if (t == 0 || Unread(t) || !WritesOn(u, "grid SetTractValues")) return;
     switch (kind) {
         case kClsI16: As<int16_t>(t)->SetTractValues(Narrow<int16_t>(v)); break;
         case kClsI8: As<int8_t>(t)->SetTractValues(Narrow<int8_t>(v)); break;
@@ -242,6 +259,7 @@ uint64_t CreateGameGrid(const char* tag, uint32_t kind, uint32_t instance, int32
 }
 
 uint32_t ReleaseGameGrid(uint64_t token) {
+    ForgetUnreadRef(token);
     // The token's reference is ours whichever way it came: GetClassObject in
     // CreateGameGrid, or a save's ReadGZSerializable (then QueryInterface'd to
     // cISC4SimGrid) in Read; both noted with FC4_ACQUIRED. So this may be the

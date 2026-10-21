@@ -108,6 +108,7 @@
 #include "cFC4CityDetail.h"       // the glue12b1 lane: citydetail
 #include "FC4FormatsShadow.h"     // the glue-formats4 lane
 #include "cFC4SimGrid.h"          // the glue-simgrids4 lane: simgrids
+#include "FC4ExemplarFactory.h"   // the glue-exemplars4 lane
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -530,6 +531,9 @@ const Subsystem kSubsystems[] = {
     {"occmgr", nullptr, kOccMgrClasses, sizeof(kOccMgrClasses) / sizeof(kOccMgrClasses[0]), false},
     // the glue-simgrids4 lane
     {"simgrids", nullptr, kSimGridClasses, sizeof(kSimGridClasses) / sizeof(kSimGridClasses[0]), false},
+    // the glue-exemplars4 lane: no GZCOM class; the resource factories are taken
+    // over at PostAppInit (data-formats §8.1, FC4ExemplarFactory.h). `enable = exemplars`.
+    {"exemplars", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -704,6 +708,8 @@ void Resolve() {
     MySimsShadowStartup();
     // The data-formats shadow (FC4FormatsShadow.h; glue-formats4): core DBPF/exemplar readers vs the game.
     FormatsShadowStartup();
+    // The exemplar/cohort factory replacement (FC4ExemplarFactory.h; glue-exemplars4).
+    ExemplarFactorySetEnabled(enabledKey("exemplars"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // The network tool registry (glue29): with `enable = nettool` the plugin's

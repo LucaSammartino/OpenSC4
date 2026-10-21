@@ -112,6 +112,22 @@ private:
 // AddRef it). Returns false, touching nothing, for objects that are not ours.
 bool OurObjectRef(cIGZSerializable* obj, uint32_t iid, fc4_ref* out);
 
+// Host objects that a Read received through ReadRef and that the class-object
+// store may not have read yet (foundations §2.7 point 4 and "Consequences":
+// the referenced object's own Read runs when the loader reaches its class
+// record, §3.5, and objects are read in ascending class ID). Until the store
+// load ends, such an object is in no specified state, so a Read may only keep
+// the pointer. ReadRef notes every host object it hands out; the observer
+// clears the set at kSC4MessagePostLoad / PreCityInit (§3.7 load steps 5,
+// after step 3) and at city shutdown. FC4HostGrid treats a noted grid as empty
+// (no geometry, no values, writes dropped). Thread-safe (getters run on a
+// second thread, lessons §5.1).
+void NoteUnreadRef(uint64_t token);
+bool IsUnreadRef(uint64_t token);
+void ForgetUnreadRef(uint64_t token);
+// Returns how many entries were dropped.
+uint32_t ClearUnreadRefs();
+
 // Reads through a game cIGZIStream. References need the segment stream.
 class IStreamAdapter {
 public:

@@ -488,6 +488,9 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4SimGrid.h
         plugin/FC4SimGridProbe.cpp
         plugin/FC4SimGridProbe.h
+        # The glue-exemplars4 lane: the exemplar/cohort factory replacement (FC4ExemplarFactory.h).
+        plugin/FC4ExemplarFactory.cpp
+        plugin/FC4ExemplarFactory.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
