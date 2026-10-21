@@ -4,7 +4,23 @@ A HANDOFF §0-style row for the coordinator's table, plus the knowledge the next
 
 | Lane | Worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue21 (`enable = propmgr` / `enable = lotcfg`; run4: PL19 closed) | `C:/Users/tlori/FreeCity4/.claude/worktrees/glue21`, branch `glue21` | ready: gate cargo 2860/0, clippy 0, ctest 58/58; glue21-r4-1/-2 (enable=propmgr,lotcfg, turbo to 2032) clean, ref_warnings=0, slot-9 adds = growth-pass releases (949608 each), 0 deletes; shadows over the originals (r4-3/-4/-5) lotcfg and tutorial exact, propmgr exact in r4-4, 1 intermittent GetLotProps sample in r4-3/r4-5 (PL21) | PL20 (confirm the pointer hasher v>>2), PL21; the shadows skip FreeCity4's own class, so the union regress checks the replacement |
+| glue21 (`enable = propmgr` / `enable = lotcfg`; run4: PL19 closed; integrated with main 96f9516d) | `C:/Users/tlori/FreeCity4/.claude/worktrees/glue21`, branch `glue21` | ready: merge ffedac59; gate cargo 3577/0, clippy 0, ctest 62/62; glue21-i1-1 (enable=propmgr,lotcfg, turbo to 2032) clean, ref_warnings=0; glue21-i1-2 (shadows over originals) clean, all propmgr/lotcfg/tutorial shadows mismatches=0 | coordinator: union regress + train; PL20 (confirm the pointer hasher v>>2), PL21; the shadows skip FreeCity4's own class, so the union regress checks the replacement |
+
+## Integration fix (2026-10-21, run4 round 2/3)
+
+- Merged main 96f9516d into the branch (ffedac59). Conflicts: `FC4Subsystems.cpp` (main's includes and
+  registrations kept, propmgr/lotcfg appended after them), `fc4.h` (main's side: ABI 75, the history comment
+  closes; the branch had no declaration changes), `city_detail_tests.rs` / `prop_developer_tests.rs` (one
+  `sweep_round_trip` each: main's, used by both `prop_city_sweep_tests.rs` and `save_sweep_tests.rs`; main's
+  `cd8_pass_count_per_handle` kept), `engine/README.md` (both bullets), open questions (PL19 dropped from the
+  open file since main archived it answered in `answered/prop-lotconfig.md`; PL15-PL18, PL20, PL21 stay open;
+  QUESTIONS.md row 6 open / 8 answered / next PL22, total 58).
+- The PL19 pointer hash (`PointerHashU32`) and the per-call AddRef in slot 9 are unchanged.
+- Main's aura / MySims / automata / network-manager shadow files: 0 lines of diff against main.
+- Gate (qbuild all): cargo test 3577 passed 0 failed, clippy 0, build 182/182, ctest 62/62.
+- glue21-i1-1: `enable = propmgr, lotcfg`, turbo to 2032-01-05, clean, ref_warnings=0, foreign exceptions 0.
+- glue21-i1-2: the three shadows over the originals, turbo to 2032-01-12, clean, ref_warnings=0; every
+  propmgr / lotcfg / tutorial shadow line mismatches=0 (PL21's intermittent sample did not recur this run).
 
 ## The refcount fixes (what was actually wrong)
 
