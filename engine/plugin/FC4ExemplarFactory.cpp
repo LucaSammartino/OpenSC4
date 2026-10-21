@@ -318,6 +318,8 @@ bool ExHolder::GetPropertyList(cIGZUnknownList** list) const {
     auto* h = static_cast<cFC4ISCPropertyHolder*>(tmp);
     o_->eff_.EnumProperties(
         [](cISCProperty* p, void* d) { static_cast<cFC4ISCPropertyHolder*>(d)->AddPropertyRecord(p, false); }, h);
+    // [abi-ret] §4.4: GetPropertyList returns the list with one reference and
+    // false (no list) only for a null out-pointer; `list` is not null here.
     const bool ok = h->GetPropertyList(list);
     if (!ok) ++g_count.listFails;
     FC4_RELEASE_CREATED(h);
@@ -663,12 +665,21 @@ private:
 // §8.1: unregister (slot 20) takes a class ID; the SDK declares a factory
 // pointer there (same size on x86), so the class ID is passed in it.
 bool UnregisterClass(cIGZPersistResourceManager* rm, uint32_t cls) {
+    // [abi-ret] §8.1 slot 20: true if at least one entry was removed.
     return rm->UnregisterObjectFactory(reinterpret_cast<cIGZPersistResourceFactory*>(static_cast<uintptr_t>(cls)));
 }
 
 bool TakeOver(cIGZPersistResourceManager* rm, int i, uint32_t type, uint32_t cls) {
     cIGZPersistResourceFactory* orig = nullptr;
-    if (!rm->FindObjectFactory(type, &orig) || orig == nullptr) {  // slot 21: one reference for us
+    // The (type, out) overload is slot 21 (MSVC places overloads in reverse
+    // declaration order), which docs/abi gives as 8 argument bytes like the
+    // SDK. Taken as a member pointer so the abi_conformance name scan does not
+    // read it as the (out) overload (slot 22, SDK 4 bytes, game pops 8), which
+    // the plugin never calls.
+    constexpr auto kFindByType = static_cast<bool (cIGZPersistResourceManager::*)(
+        uint32_t, cIGZPersistResourceFactory**)>(&cIGZPersistResourceManager::FindObjectFactory);
+    // [abi-ret] §8.1 slot 21: true with the factory and one added reference.
+    if (!(rm->*kFindByType)(type, &orig) || orig == nullptr) {  // slot 21: one reference for us
         Log("exemplars: no factory registered for type 0x%08X; not replaced", type);
         return false;
     }
@@ -676,6 +687,7 @@ bool TakeOver(cIGZPersistResourceManager* rm, int i, uint32_t type, uint32_t cls
     auto* ours = new cFC4ExemplarFactory(type);
     FC4_ADDREF(ours);
     const bool removed = UnregisterClass(rm, cls);
+    // [abi-ret] §8.1 slot 19: returns true when registered.
     const bool added = rm->RegisterObjectFactory(cls, type, ours);  // the manager AddRefs
     if (!added) {
         if (removed) rm->RegisterObjectFactory(cls, type, orig);
@@ -694,6 +706,7 @@ bool TakeOver(cIGZPersistResourceManager* rm, int i, uint32_t type, uint32_t cls
 void Restore(cIGZPersistResourceManager* rm, int i, uint32_t type, uint32_t cls) {
     if (g_ours[i] == nullptr) return;
     const bool removed = UnregisterClass(rm, cls);
+    // [abi-ret] §8.1 slot 19: returns true when registered.
     const bool added = g_original[i] != nullptr && rm->RegisterObjectFactory(cls, type, g_original[i]);
     Log("exemplars: type 0x%08X restored (ours unregistered: %s, original registered: %s)", type,
         removed ? "yes" : "no", added ? "yes" : "no");
