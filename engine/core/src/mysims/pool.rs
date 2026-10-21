@@ -20,6 +20,7 @@
 //! joined by plain concatenation (§4.12 "Path bytes").
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 
 /// Resource-key type of the built-in templates (`EnumKeysCallback`).
 pub const TEMPLATE_KEY_TYPE: u32 = 0x6A29_7266;
@@ -461,5 +462,90 @@ impl<H: PoolHost + ?Sized> MySimPool<H> {
         }
         self.host.delete_file(&ini_path);
         written
+    }
+}
+
+/// An in-memory [`PoolHost`] (tests, conformance): files, registry, ini
+/// files, directory listings; records conversions and deletions.
+#[derive(Default)]
+pub struct MemoryPoolHost {
+    pub keys: RefCell<Option<Vec<TemplateKey>>>,
+    /// By key instance.
+    pub exemplars: RefCell<HashMap<u32, TemplateExemplar>>,
+    pub dir: Vec<u8>,
+    pub files: RefCell<HashMap<Vec<u8>, Vec<u8>>>,
+    pub strings: RefCell<HashMap<(u32, u32), Vec<u8>>>,
+    pub registry: RefCell<HashMap<Vec<u8>, Vec<u8>>>,
+    pub dirs: RefCell<Vec<Vec<u8>>>,
+    pub converter: Cell<bool>,
+    pub output: RefCell<Option<(Vec<u8>, Vec<u8>)>>,
+    pub listings: RefCell<HashMap<Vec<u8>, Vec<Vec<u8>>>>,
+    pub inis: RefCell<HashMap<Vec<u8>, IniFile>>,
+    pub converted: RefCell<Vec<(Vec<u8>, Vec<u8>)>>,
+    pub deleted: RefCell<Vec<Vec<u8>>>,
+}
+
+impl PoolHost for MemoryPoolHost {
+    fn resource_keys(&self) -> Option<Vec<TemplateKey>> {
+        self.keys.borrow().clone()
+    }
+    fn template_exemplar(&self, key: TemplateKey) -> Option<TemplateExemplar> {
+        self.exemplars.borrow().get(&key.instance).cloned()
+    }
+    fn mysim_directory(&self) -> Vec<u8> {
+        self.dir.clone()
+    }
+    fn read_file(&self, path: &[u8]) -> Option<Vec<u8>> {
+        self.files.borrow().get(path).cloned()
+    }
+    fn localized_string(&self, group: u32, instance: u32) -> Option<Vec<u8>> {
+        self.strings.borrow().get(&(group, instance)).cloned()
+    }
+    fn registry_string(&self, key: &[u8], value: &[u8]) -> Option<Vec<u8>> {
+        if key != SIMS_REGISTRY_KEY {
+            return None;
+        }
+        self.registry.borrow().get(value).cloned()
+    }
+    fn directory_exists(&self, path: &[u8]) -> bool {
+        self.dirs.borrow().iter().any(|d| d == path)
+    }
+    fn create_directory(&self, path: &[u8]) {
+        self.dirs.borrow_mut().push(path.to_vec());
+    }
+    fn create_image_converter(&self) -> bool {
+        self.converter.get()
+    }
+    fn release_image_converter(&self) {}
+    fn create_output(&self, path: &[u8]) -> bool {
+        *self.output.borrow_mut() = Some((path.to_vec(), Vec::new()));
+        true
+    }
+    fn write_output(&self, bytes: &[u8]) {
+        if let Some((_, b)) = self.output.borrow_mut().as_mut() {
+            b.extend_from_slice(bytes);
+        }
+    }
+    fn close_output(&self) {
+        let Some((p, b)) = self.output.borrow_mut().take() else {
+            return;
+        };
+        self.files.borrow_mut().insert(p, b);
+    }
+    fn list_files(&self, dir: &[u8], pattern: &[u8]) -> Vec<Vec<u8>> {
+        if pattern != b"*.pub" {
+            return Vec::new();
+        }
+        self.listings.borrow().get(dir).cloned().unwrap_or_default()
+    }
+    fn read_ini(&self, path: &[u8]) -> Option<IniFile> {
+        self.inis.borrow().get(path).cloned()
+    }
+    fn convert_image(&self, src: &[u8], dst: &[u8]) -> bool {
+        self.converted.borrow_mut().push((src.to_vec(), dst.to_vec()));
+        true
+    }
+    fn delete_file(&self, path: &[u8]) {
+        self.deleted.borrow_mut().push(path.to_vec());
     }
 }

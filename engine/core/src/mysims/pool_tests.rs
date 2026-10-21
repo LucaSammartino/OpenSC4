@@ -6,93 +6,16 @@
 
 //! mysims.md §4.12 (the Sim template pool): the worked examples.
 
-use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::pool::*;
 
-/// A typed pool host: in-memory files, registry, ini files.
-#[derive(Default)]
-struct Host {
-    keys: RefCell<Option<Vec<TemplateKey>>>,
-    exemplars: RefCell<HashMap<u32, TemplateExemplar>>,
-    dir: Vec<u8>,
-    files: RefCell<HashMap<Vec<u8>, Vec<u8>>>,
-    strings: RefCell<HashMap<(u32, u32), Vec<u8>>>,
-    registry: RefCell<HashMap<Vec<u8>, Vec<u8>>>,
-    dirs: RefCell<Vec<Vec<u8>>>,
-    converter: Cell<bool>,
-    output: RefCell<Option<(Vec<u8>, Vec<u8>)>>,
-    listings: RefCell<HashMap<Vec<u8>, Vec<Vec<u8>>>>,
-    inis: RefCell<HashMap<Vec<u8>, IniFile>>,
-    converted: RefCell<Vec<(Vec<u8>, Vec<u8>)>>,
-    deleted: RefCell<Vec<Vec<u8>>>,
-}
-
-impl PoolHost for Host {
-    fn resource_keys(&self) -> Option<Vec<TemplateKey>> {
-        self.keys.borrow().clone()
-    }
-    fn template_exemplar(&self, key: TemplateKey) -> Option<TemplateExemplar> {
-        self.exemplars.borrow().get(&key.instance).cloned()
-    }
-    fn mysim_directory(&self) -> Vec<u8> {
-        self.dir.clone()
-    }
-    fn read_file(&self, path: &[u8]) -> Option<Vec<u8>> {
-        self.files.borrow().get(path).cloned()
-    }
-    fn localized_string(&self, group: u32, instance: u32) -> Option<Vec<u8>> {
-        self.strings.borrow().get(&(group, instance)).cloned()
-    }
-    fn registry_string(&self, key: &[u8], value: &[u8]) -> Option<Vec<u8>> {
-        assert_eq!(key, SIMS_REGISTRY_KEY);
-        self.registry.borrow().get(value).cloned()
-    }
-    fn directory_exists(&self, path: &[u8]) -> bool {
-        self.dirs.borrow().iter().any(|d| d == path)
-    }
-    fn create_directory(&self, path: &[u8]) {
-        self.dirs.borrow_mut().push(path.to_vec());
-    }
-    fn create_image_converter(&self) -> bool {
-        self.converter.get()
-    }
-    fn release_image_converter(&self) {}
-    fn create_output(&self, path: &[u8]) -> bool {
-        *self.output.borrow_mut() = Some((path.to_vec(), Vec::new()));
-        true
-    }
-    fn write_output(&self, bytes: &[u8]) {
-        self.output.borrow_mut().as_mut().unwrap().1.extend_from_slice(bytes);
-    }
-    fn close_output(&self) {
-        let (p, b) = self.output.borrow_mut().take().unwrap();
-        self.files.borrow_mut().insert(p, b);
-    }
-    fn list_files(&self, dir: &[u8], pattern: &[u8]) -> Vec<Vec<u8>> {
-        assert_eq!(pattern, b"*.pub");
-        self.listings.borrow().get(dir).cloned().unwrap_or_default()
-    }
-    fn read_ini(&self, path: &[u8]) -> Option<IniFile> {
-        self.inis.borrow().get(path).cloned()
-    }
-    fn convert_image(&self, src: &[u8], dst: &[u8]) -> bool {
-        self.converted.borrow_mut().push((src.to_vec(), dst.to_vec()));
-        true
-    }
-    fn delete_file(&self, path: &[u8]) {
-        self.deleted.borrow_mut().push(path.to_vec());
-    }
-}
-
 const DIR: &[u8] = b"C:\\U\\SimCity 4\\MySim\\";
 
-fn host() -> Rc<Host> {
-    Rc::new(Host {
+fn host() -> Rc<MemoryPoolHost> {
+    Rc::new(MemoryPoolHost {
         dir: DIR.to_vec(),
-        ..Host::default()
+        ..MemoryPoolHost::default()
     })
 }
 
@@ -210,7 +133,7 @@ fn p4_get_templates() {
 }
 
 /// A Sims installation with one family of two members in `UserData2`.
-fn sims_host() -> Rc<Host> {
+fn sims_host() -> Rc<MemoryPoolHost> {
     let h = host();
     h.registry
         .borrow_mut()
