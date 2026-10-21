@@ -17,7 +17,7 @@
 //! those are host callbacks that return what the dialog keeps.
 //!
 //! Spec contracts still open are filed as questions in
-//! `docs/specs/questions/budget-window.md` (BW5, BW10).
+//! `docs/specs/questions/budget-window.md` (BW11, BW13, BW14).
 
 pub mod dialog;
 pub mod ids;
@@ -27,8 +27,8 @@ pub mod panel;
 mod tests;
 
 pub use dialog::{
-    end_dialog, header_shown, line_item_shown, service_kind, slider_fraction, IndividualRestoreInfo, OrdinanceInit,
-    OrdinanceRow, ScrollList, ScrollView, SliderInfo, SubBudgetMode, SubBudgetMsg, SubBudgetWindow,
+    end_dialog, header_shown, line_item_shown, service_kind, slider_fraction, IndividualRestoreInfo, NeighborInit,
+    OrdinanceInit, OrdinanceRow, ScrollList, ScrollView, SliderInfo, SubBudgetMode, SubBudgetMsg, SubBudgetWindow,
 };
 pub use panel::{panel_command, BudgetPanel, CommandOutcome, PanelCommand};
 
@@ -84,8 +84,21 @@ pub trait BudgetWindowHost {
     /// QueryInterface `0x5386D516` on the window (§2 step 4); true = it
     /// answered and a reference was taken (released by `release_generator`).
     fn query_generator(&mut self, win: WinRef) -> bool;
-    /// Release the generator interface reference `query_generator` took.
+    /// Release the generator interface reference `query_generator` (or
+    /// `create_content_window`) took.
     fn release_generator(&mut self, win: WinRef);
+    /// §4 (BW10a): GZCOM create class `0x4386D516`, interface `0x5386D516`,
+    /// and return the object's `cIGZWin` (generator slot 3). The returned
+    /// handle carries the temporary generator reference, released by
+    /// `release_generator`; `None` = the create failed.
+    fn create_content_window(&mut self) -> Option<WinRef>;
+    /// `win.ChildAdd(child)` (dialog slot 14 `+0x38`).
+    fn child_add(&mut self, win: WinRef, child: WinRef);
+    /// `add_image_button2(win, id, image)` (§5.3, BW10c); returns the button.
+    /// Position and size are layout (§8, out of scope).
+    fn add_image_button2(&mut self, win: WinRef, id: u32, image: u32) -> WinRef;
+    /// The button's notification target := `target` (child slot 86 `+0x158`).
+    fn set_notification_target(&mut self, child: WinRef, target: WinRef);
     /// `cIGZWin::SetFlag`.
     fn set_win_flag(&mut self, win: WinRef, flag: u32, on: bool);
     /// `cIGZWin` flag test (window slot 67; `end_dialog` tests `0x1000`).
@@ -153,8 +166,10 @@ pub trait BudgetWindowHost {
     /// `NeighborsSimulator.SetUIDisableFlag`.
     fn set_neighbor_ui_disable(&mut self, on: bool);
     /// `initNeighborBudget` after the UI-disable call: `ProposeDeals(list,
-    /// true)` and the rows; returns the held deals (vector `+0x68`).
-    fn init_neighbor_budget(&mut self, win: WinRef) -> Vec<DealRef>;
+    /// true)` and the rows; returns the held deals (vector `+0x68`) and the
+    /// list counts it computed (BW12). The scroll arrows at its end are
+    /// built by the core.
+    fn init_neighbor_budget(&mut self, win: WinRef) -> NeighborInit;
     /// `updateNeighborBudget`.
     fn update_neighbor_budget(&mut self, win: WinRef, deals: &[DealRef], view: ScrollView);
     /// Combo box changed: rewrite the selected deal rows (vector `+0x50`).
@@ -195,7 +210,8 @@ pub trait BudgetWindowHost {
     fn set_empty_window(&mut self, win: WinRef) -> Option<WinRef>;
     /// `SetupWindowBig(win, rowsA, rowsB)` (`0x0077A6F0`).
     fn setup_window_big(&mut self, win: WinRef, rows_a: u32, rows_b: u32);
-    /// The department's current funding fraction (saved at init).
+    /// The f32 read through department slot 10 (`+0x28`, returns a
+    /// pointer): the funding fraction `on_init` saves in `+0x38` (BW10b).
     fn funding_percentage(&mut self, dept: DeptRef) -> f32;
     /// Department slot 11: `SetFundingPercentage(&fraction, arg)`.
     fn set_funding_percentage(&mut self, dept: DeptRef, fraction: f32, arg: u32);
