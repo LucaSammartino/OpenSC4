@@ -347,7 +347,9 @@ cSTEOverlayManager	3D scene and models	renderer	-	-	-	-
 cSTEWaterRipple	terrain ripples and selection	renderer	water-ripples.md	-	-	-
 cSTEVertBufExtn	3D scene and models	renderer	-	-	-	-
 cSTESelectedTerrainArea	terrain ripples and selection	renderer	water-ripples.md	-	-	-
-SC4ViewUtilities	3D scene and models	renderer	-	-	-	-
+SC4ViewUtilities	view utilities	renderer	view-utilities.md	-	-	-
+fn:MinOfFourFloats	view utilities	renderer	view-utilities.md	-	-	-
+fn:MaxOfFourFloats	view utilities	renderer	view-utilities.md	-	-	-
 SC4GeometryUtilities	3D scene and models	renderer	-	-	-	-
 SC4*View	3D scene and models	renderer	-	-	-	-
 cSC4PathView*	3D scene and models	renderer	-	-	-	-

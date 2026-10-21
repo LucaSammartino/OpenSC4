@@ -9123,41 +9123,47 @@ va	name	source	confidence	note
 007f6200	cSC4View3DWin::GZPaint	auto:B1	medium	mac 00523836 score 0.983 support 1.0
 007f6410	cSC4View3DWin::DoScrollBegin	auto:B1	medium	mac 00523a80 score 0.932 support 2.0
 007f64f0	cSC4View3DWin::SetScrolling	auto:B2	medium	mac 00523bb2 score 0.973 support 1.0
-007f6690	SC4ViewUtilities::ViewportUnitsToWorldUnits	auto:B0	medium	mac 00113aaa score 0.829 support 1.0
-007f66a0	SC4ViewUtilities::GetZoomAndRotation	auto:B0	medium	mac 00113aca score 0.974 support 3.0
-007f66c0	SC4ViewUtilities::ProjectPointFromViewCoordinatesToViewportCoordinates	auto:D	medium	mac 00113b86 score 0.5 support 1
-007f6710	SC4ViewUtilities::ProjectPointToFixedViewCoordinates	auto:B1	medium	mac 00113bec score 0.931 support 2.0
-007f6770	SC4ViewUtilities::IsBoundingBoxInViewFrustum	auto:B6	medium	mac 00114e9c score 1.0 support 2.0
-007f6910	SC4ViewUtilities::IsBoundingBoxInDrawFrustum	auto:D	medium	mac 00115038 score 0.5 support 2
-007f6ab0	SC4ViewUtilities::GetRayIntersectionWithGroundPlane	auto:D	medium	mac 00113cb4 score 0.5 support 1
-007f6af0	SC4ViewUtilities::TrianglePick	auto:B4	medium	mac 00113d08 score 0.956 support 1.0
-007f6b50	SC4ViewUtilities::RayIntersectsGroundPlane	auto:B0	medium	mac 00113c76 score 0.984 support 1.5
-007f6ba0	SC4ViewUtilities::GetCityCornerPosition	auto:D	medium	mac 00113df4 score 0.5 support 1
-007f6cb0	SC4ViewUtilities::GetObjectYRotationAngle	auto:B1	medium	mac 00113ee8 score 0.806 support 2.0
+007f6550	MinOfFourFloats	manual:view-utilities.tsv	high	view-utilities.md §6; descriptive name, no Mac match; starts from FLT_MAX (0x00ABCFC0)
+007f65b0	MaxOfFourFloats	manual:view-utilities.tsv	high	view-utilities.md §6; descriptive name, no Mac match; starts from -FLT_MAX (0x00ABCFBC)
+007f6620	SC4ViewUtilities::ClipPositionToCity2D	manual:view-utilities.tsv	high	view-utilities.md §4.2; descriptive name, no Mac match; [0, +0x20 - 1] x [0, +0x24 - 1]
+007f6690	SC4ViewUtilities::ViewportUnitsToWorldUnits	manual:view-utilities.tsv	high	view-utilities.md §2.1; v * +0x150
+007f66a0	SC4ViewUtilities::GetZoomAndRotation	manual:view-utilities.tsv	high	view-utilities.md §2.1; +0x0C, +0x10
+007f66c0	SC4ViewUtilities::ProjectPointFromViewCoordinatesToViewportCoordinates	manual:view-utilities.tsv	high	view-utilities.md §4; scales +0x458..+0x460
+007f6710	SC4ViewUtilities::ProjectPointToFixedViewCoordinates	manual:view-utilities.tsv	high	view-utilities.md §4; yaw then pitch rotation, no translation
+007f6770	SC4ViewUtilities::IsBoundingBoxInViewFrustum	manual:view-utilities.tsv	high	view-utilities.md §3.4; ground lines +0x208 / +0x218, planes +0x180 / +0x190, no near or far
+007f6910	SC4ViewUtilities::IsBoundingBoxInDrawFrustum	manual:view-utilities.tsv	high	view-utilities.md §3.4; draw lines +0x3BC / +0x3CC, planes +0x334 / +0x344
+007f6ab0	SC4ViewUtilities::GetRayIntersectionWithGroundPlane	manual:view-utilities.tsv	high	view-utilities.md §4.1; t = -o.y / d.y
+007f6af0	SC4ViewUtilities::TrianglePick	manual:view-utilities.tsv	high	view-utilities.md §7; nearest distance at pick +0x28
+007f6b50	SC4ViewUtilities::RayIntersectsGroundPlane	manual:view-utilities.tsv	high	view-utilities.md §4.1; plane (0, 1, 0, 0) via SC4GeometryUtilities::RayIntersectsPlane
+007f6ba0	SC4ViewUtilities::GetCityCornerPosition	manual:view-utilities.tsv	high	view-utilities.md §4.2; corner x rotation table, corner 2 rotation 1 uses +0x20 for z
+007f6cb0	SC4ViewUtilities::GetObjectYRotationAngle	manual:view-utilities.tsv	high	view-utilities.md §2.1; -rotation * pi/2
 007f6cc0	RotateVectorByViewRotation	manual:lighting.tsv	high	lighting.md §3; descriptive name, no Mac match; cdecl (vec3*, rotation): 1 (-z, x), 2 (-x, -z), 3 (z, -x)
-007f6d10	SC4ViewUtilities::GetVectorForEdge	auto:B5	medium	mac 00113faa score 0.945 support 2.5
-007f6d70	SC4ViewUtilities::RoundDownToNearestBlockBoundary	auto:D	medium	mac 00113d76 score 0.5 support 1
-007f6db0	SC4ViewUtilities::RoundUpToNearestBlockBoundary	auto:D	medium	mac 00113db4 score 0.5 support 1
-007f6df0	SC4ViewUtilities::SC4ViewUtilities	auto:B0	medium	mac 001149fc score 0.865 support 2.0
-007f7710	SC4ViewUtilities::ClipWorldPositionToCityPosition	auto:D	medium	mac 00115400 score 0.5 support 1
-007f7750	SC4ViewUtilities::GetVisibleEdges	auto:B3	medium	mac 00115552 score 0.923 support 1.5
-007f7780	SC4ViewUtilities::GetCameraViewAnglesForRotation	auto:D	medium	mac 00113ae2 score 0.5 support 1
-007f77d0	SC4ViewUtilities::ProjectPointToViewCoordinates	auto:B16	medium	mac 0011408e score 0.943 support 3.0
-007f7850	SC4ViewUtilities::ProjectPointToViewportCoordinates	auto:B17	medium	mac 00115462 score 0.902 support 2.0
-007f78a0	SC4ViewUtilities::ProjectPointToViewportZ	auto:B8	medium	mac 00114194 score 0.893 support 1.0
-007f78e0	SC4ViewUtilities::ProjectPointToViewportCoordinates2D	auto:B15	medium	mac 00114136 score 0.895 support 5.0
-007f7920	SC4ViewUtilities::UnProjectPointFromViewCoordinatesToWorldCoordinates	auto:B19	medium	mac 00114202 score 0.95 support 1.0
-007f79b0	SC4ViewUtilities::UnProjectPointFromViewportCoordinatesToWorldCoordinates	auto:B18	medium	mac 001154de score 0.921 support 2.0
-007f7a40	SC4ViewUtilities::ProjectBoundingBoxToViewportRectangle	auto:B21	medium	mac 00114434 score 0.994 support 2.0
-007f7e50	SC4ViewUtilities::IsPointInViewFrustum	auto:B4	medium	mac 001142f0 score 0.965 support 1.0
-007f7f60	SC4ViewUtilities::GetFrustumAABBCityClipped	auto:B2	medium	mac 00115c74 score 0.994 support 1.5
-007f8300	SC4ViewUtilities::GetCityWidthFromOrthoView	auto:B1	medium	mac 00114012 score 0.846 support 1.0
-007f8390	SC4ViewUtilities::ProjectPointFromViewportCoordinatesToFixedViewCoordinates	auto:B0	medium	mac 00115594 score 0.872 support 2.0
-007f83f0	SC4ViewUtilities::UpdateCameraPosition	auto:B3	medium	mac 00116bf6 score 0.993 support 2.5
-007f9080	SC4ViewUtilities::ViewportPositionToRay	auto:B0	medium	mac 00114950 score 0.954 support 3.0
-007f9160	SC4ViewUtilities::GetViewportPointIntersectionWithGroundPlane	auto:D	medium	mac 00115634 score 0.5 support 1
-007f9b40	SC4ViewUtilities::GetGroundPlaneVisibleAreaRectangle	auto:D	medium	mac 0011588e score 0.5 support 1
-007f9f50	SC4ViewUtilities::BuildDrawFrustumDataFromViewportRect	auto:B4	medium	mac 00115e74 score 0.977 support 3.0
+007f6d10	SC4ViewUtilities::GetVectorForEdge	manual:view-utilities.tsv	high	view-utilities.md §4.2; edge mod 4
+007f6d70	SC4ViewUtilities::RoundDownToNearestBlockBoundary	manual:view-utilities.tsv	high	view-utilities.md §4.2; _ftol2 truncation first
+007f6db0	SC4ViewUtilities::RoundUpToNearestBlockBoundary	manual:view-utilities.tsv	high	view-utilities.md §4.2; _ftol2 truncation first
+007f6df0	SC4ViewUtilities::SC4ViewUtilities	manual:view-utilities.tsv	high	view-utilities.md §1; 0x470 bytes, created by cSC43DRender 0x007C9B10
+007f7710	SC4ViewUtilities::ClipWorldPositionToCityPosition	manual:view-utilities.tsv	high	view-utilities.md §4.2; x and z through 0x007F6620
+007f7750	SC4ViewUtilities::GetVisibleEdges	manual:view-utilities.tsv	high	view-utilities.md §4.2; (rotation + 1) mod 4, (rotation + 2) mod 4
+007f7780	SC4ViewUtilities::GetCameraViewAnglesForRotation	manual:view-utilities.tsv	high	view-utilities.md §2.1; tables 0x00ABCFC4 / 0x00ABCFD8, atan(tan p / cos yawOffset)
+007f77d0	SC4ViewUtilities::ProjectPointToViewCoordinates	manual:view-utilities.tsv	high	view-utilities.md §4
+007f7850	SC4ViewUtilities::ProjectPointToViewportCoordinates	manual:view-utilities.tsv	high	view-utilities.md §4
+007f78a0	SC4ViewUtilities::ProjectPointToViewportZ	manual:view-utilities.tsv	high	view-utilities.md §4
+007f78e0	SC4ViewUtilities::ProjectPointToViewportCoordinates2D	manual:view-utilities.tsv	high	view-utilities.md §4; z left in view coordinates
+007f7920	SC4ViewUtilities::UnProjectPointFromViewCoordinatesToWorldCoordinates	manual:view-utilities.tsv	high	view-utilities.md §4
+007f79b0	SC4ViewUtilities::UnProjectPointFromViewportCoordinatesToWorldCoordinates	manual:view-utilities.tsv	high	view-utilities.md §4; inverse scales +0x464..+0x46C
+007f7a40	SC4ViewUtilities::ProjectBoundingBoxToViewportRectangle	manual:view-utilities.tsv	high	view-utilities.md §4; corner picks by rotation, round(v - 0.5) / round(v)
+007f7e50	SC4ViewUtilities::IsPointInViewFrustum	manual:view-utilities.tsv	high	view-utilities.md §3.4; view box test
+007f7f60	SC4ViewUtilities::GetFrustumAABBCityClipped	manual:view-utilities.tsv	high	view-utilities.md §3.3; ClipPolygonToPolygon2D against the city square
+007f8300	SC4ViewUtilities::GetCityWidthFromOrthoView	manual:view-utilities.tsv	high	view-utilities.md §2.1; width * (cos a + sin a)
+007f8390	SC4ViewUtilities::ProjectPointFromViewportCoordinatesToFixedViewCoordinates	manual:view-utilities.tsv	high	view-utilities.md §4
+007f83f0	SC4ViewUtilities::UpdateCameraPosition	manual:view-utilities.tsv	high	view-utilities.md §2; basis, corners, box, planes, ground lines
+007f9080	SC4ViewUtilities::ViewportPositionToRay	manual:view-utilities.tsv	high	view-utilities.md §4.1; cS3DCamera::GetEyeRay, direction normalised
+007f9160	SC4ViewUtilities::GetViewportPointIntersectionWithGroundPlane	manual:view-utilities.tsv	high	view-utilities.md §4.1; ray result unchecked
+007f91c0	SC4ViewUtilities::MeshPick	manual:view-utilities.tsv	high	view-utilities.md §7; descriptive name, no Mac match; triangle walk 0x0080B320 / 0x0080B3B0, transform kinds 0-6
+007f9a40	SC4ViewUtilities::ModelPick	manual:view-utilities.tsv	high	view-utilities.md §7; descriptive name, no Mac match; model slots 3 and 5, instance slot 9; called by 0x00801720
+007f9b40	SC4ViewUtilities::GetGroundPlaneVisibleAreaRectangle	manual:view-utilities.tsv	high	view-utilities.md §6; inner and outer rectangles, 64 m rounding, cache +0x444
+007f9ea0	SC4ViewUtilities::GetViewportRectGroundCorners	manual:view-utilities.tsv	high	view-utilities.md §4.1; descriptive name, no Mac match; four GetViewportPointIntersectionWithGroundPlane calls
+007f9f50	SC4ViewUtilities::BuildDrawFrustumDataFromViewportRect	manual:view-utilities.tsv	high	view-utilities.md §5; flag +0x228, rectangle +0x22C
 007fb1d0	cSC4Advice::GetEventSubject	auto:C	low	mac 0032b992 score 1.0 support 3
 007fc2d0	SC4DrawContext::DrawPrims	auto:B3	low	mac 00512580 score 0.831 support 2.0
 007fd2f0	cS3DModelInstanceAnimatedSprite::GetTextureResourceData	auto:D	medium	mac 00139294 score 0.5 support 1
