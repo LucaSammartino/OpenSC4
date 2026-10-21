@@ -3977,6 +3977,7 @@ va	name	source	confidence	note
 005d4e60	cSC4Demand::CalculateActiveDemand	manual:demand-rci.tsv	high	slot 35; identical clamp/cap/7% step logic and msg 0x426840A0
 005d5280	cSC4Demand::cSC4Demand	auto:B0	medium	mac 00174578 score 0.92 support 2.0
 005d52e0	GZCOM_CreatecSC4Demand	auto:B1	medium	mac 00174606 score 0.916 support 1.0
+005d5300	cSC4FoundationModel::~cSC4FoundationModel (body)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §2; releases the side and top bindings
 005d5420	cS3DModelInstanceBasic::AddRef	auto:C	high	mac 0009fac6 score 1.0 support 1
 005d5430	cS3DModelInstanceBasic::Release	auto:C	high	mac 0009fadc score 1.0 support 1
 005d5440	cS3DModelInstanceBasic::GetOwner	auto:C	high	mac 0009f996 score 1.0 support 1
@@ -3991,12 +3992,18 @@ va	name	source	confidence	note
 005d54d0	cS3DModelInstanceBasic::GetDrawAttributes	auto:C	high	mac 0009fa34 score 1.0 support 1
 005d54e0	cS3DModelInstanceBasic::SetDrawAttributes	auto:C	high	mac 0009fa7e score 1.0 support 1
 005d54f0	cS3DModelInstanceBasic::GetResModel	auto:C	high	mac 00620e24 score 1.0 support 1
-005d5530	cSC4FoundationModel::GetWorldBounds	auto:C	high	mac 0028b010 score 1.0 support 1
-005d5570	cSC4FoundationModel::GetSortValue	auto:A	high	mac 0028a306 score 1.0 support 0
-005d55c0	cSC4FoundationModel::SetupVertices	auto:B4	medium	mac 0028a4ae score 0.96 support 1.5
-005d5a90	cSC4FoundationModel::AdjustHeightToTerrain	auto:B3	medium	mac 0028aa4c score 0.965 support 1.0
-005d5d70	cSC4FoundationModel::cSC4FoundationModel	auto:B2	medium	mac 0028ae5c score 0.927 support 2.5
-005d5fc0	cSC4FoundationModel::Draw	auto:B6	medium	mac 0028acc6 score 0.967 support 3.0
+005d5530	cSC4FoundationModel::GetWorldBounds	manual:lot-models.tsv	high	lot-models.md §1
+005d5570	cSC4FoundationModel::GetSortValue	manual:lot-models.tsv	high	lot-models.md §1; texture ID | 0x2AB6, else 0xE9862AB6
+005d55c0	cSC4FoundationModel::SetupVertices	manual:lot-models.tsv	high	lot-models.md §2; four sides and a top, lit per face normal
+005d5a90	cSC4FoundationModel::AdjustHeightToTerrain	manual:lot-models.tsv	high	lot-models.md §2; base := top - 16 n
+005d5c70	cSC4FoundationModel::SetupTextures	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §2; fallbacks 0x69F20000 + zoom and 0x0912220F + zoom
+005d5d50	cSC4FoundationModel::GetWorldBounds (virtual thunk)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §1
+005d5d60	cSC4FoundationModel::GetSortValue (virtual thunk)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §1
+005d5d70	cSC4FoundationModel::cSC4FoundationModel	manual:lot-models.tsv	high	lot-models.md §2
+005d5e90	cSC4FoundationModel::DoZoomChange	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §2; the draw state made once
+005d5f60	cSC4FoundationModel::~cSC4FoundationModel (deleting destructor)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §1; back to the pool
+005d5fc0	cSC4FoundationModel::Draw	manual:lot-models.tsv	high	lot-models.md §2; two visible sides then the top, type 6 with four vertices
+005d6120	cSC4FoundationModel::Draw (virtual thunk)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §2
 005d6130	cSC4FoundationOccupant::GetGZCLSID	auto:C	low	mac 00663dbe score 1.0 support 1
 005d6160	cSC4FoundationOccupant::QueryInterface	auto:A	high	mac 0010fb8a score 1.0 support 0
 005d6220	cSC4FoundationOccupant::operator.new	auto:B1	medium	mac 0010fb5c score 0.821 support 1.0
@@ -4151,27 +4158,38 @@ va	name	source	confidence	note
 005dea50	cSC4PowerLineOccupant::Init	auto:C	low	mac 00254b0c score 1.0 support 1
 005dea60	cSC4LotBaseTextureOccupant::Shutdown	auto:C	high	mac 00082d1c score 1.0 support 1
 005dea80	cSC4LotBaseTextureOccupant::QueryInterface	auto:C	high	mac 00082d54 score 1.0 support 1
-005deb00	cSC4CellTextureModel::QueryInterface	auto:A	high	mac 00082e24 score 1.0 support 0
+005deab0	cSC4CellTextureModel::~cSC4CellTextureModel (body)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §4
+005deb00	cSC4CellTextureModel::QueryInterface	manual:lot-models.tsv	high	lot-models.md §1; IID 0xA9E2831D
 005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	folded	folded	7 names: cSC4AudioAmbienceLayer::CanHandleOccupant | cSC4FoundationModel::Pick | cSC4LotDeveloper::IsAreaDeveloped | cSC4LotRetainingWallModel::Pick | cSC4Occupant::GetLotTag | cSC4PropOccupant::GetLotTag | cSC4ViewInputControl::OnCharacter
-005dec00	__ZThn4_N20cSC4CellTextureModel14QueryInterfaceEmPPv	auto:B0	medium	mac 00620fc8 score 0.938 support 1.0
+005dec00	__ZThn4_N20cSC4CellTextureModel14QueryInterfaceEmPPv	manual:lot-models.tsv	high	lot-models.md §1; thunk
 005dec80	cSC4DecalEffect::Init	auto:B0	medium	mac 00412690 score 0.809 support 1.0
 005decf0	cSC4LotBaseTextureOccupant::operator.new	auto:B2	medium	mac 00083b18 score 0.821 support 1.0
 005ded20	cSC4LotBaseTextureOccupant::GetPosition	auto:C	high	mac 000830ce score 1.0 support 1
 005ded60	icf::cSC4LotBaseTextureOccupant::GetBoundingBox	folded	folded	2 names: cSC4LotBaseTextureOccupant::GetBoundingBox | cSC4PropOccupant::GetBoundingBox
 005ded90	cSC4LotBaseTextureOccupant::SetAllFlags	auto:B0	medium	mac 00083d8a score 0.902 support 1.0
 005dee00	cSC4LotBaseTextureOccupant::UnloadModels	auto:C	high	mac 00082dd4 score 1.0 support 1
-005df100	cSC4CellTextureModel::Init	auto:D	medium	mac 00083056 score 0.5 support 1
+005dee30	cSC4CellTextureModel::GetWorldBounds	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §4
+005dee70	cSC4CellTextureModel::GetSortValue	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §1; the texture ID
+005deea0	cSC4CellTextureModel::SetupTextureCorners	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §4; orientation and mirror
+005df020	cSC4CellTextureModel::SetupTexture	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §4; group 0x0986135E, key + zoom, else key
+005df100	cSC4CellTextureModel::Init	manual:lot-models.tsv	high	lot-models.md §4; three draw states and the combiner record
+005df1c0	cSC4CellTextureModel::GetWorldBounds (virtual thunk)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §4
+005df1d0	cSC4CellTextureModel::GetSortValue (virtual thunk)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §1
 005df1e0	cSC4LotBaseTextureOccupant::Write	auto:C	high	mac 00083c16 score 1.0 support 1
 005df310	cSC4LotBaseTextureOccupant::IsCellCovered	auto:C	high	mac 000837c4 score 1.0 support 1
 005df370	cSC4LotBaseTextureOccupant::CalculateBoundingBox	auto:B1	medium	mac 00083856 score 0.998 support 2.0
 005df640	cSC4LotBaseTextureOccupant::UpdateExistingModels	auto:A	high	mac 00083e52 score 1.0 support 0
 005df820	cSC4LotBaseTextureOccupant::UpdateVertexAltitudes	auto:B0	medium	mac 00084162 score 0.93 support 1.0
-005df880	cSC4CellTextureModel::cSC4CellTextureModel	auto:B0	medium	mac 00083b2a score 0.964 support 2.0
+005df880	cSC4CellTextureModel::cSC4CellTextureModel	manual:lot-models.tsv	high	lot-models.md §4
+005df9a0	cSC4CellTextureModel::SetTexture	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §4; the record, then texture and corners
+005df9e0	cSC4CellTextureModel::SetupVertices	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §4; flat lot or terrain corners
+005dfd40	cSC4CellTextureModel::DoZoomChange	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §4
 005dfdd0	std::vector<bool,std::allocator<bool>>::_M_insert_aux	auto:B4	medium	mac 0062267a score 0.959 support 1.0
 005dffe0	std::vector<bool,std::allocator<bool>>::push_back	auto:B3	medium	mac 006228f6 score 0.942 support 1.0
 005e0050	cSC4LotBaseTextureOccupant::LoadModels	auto:C	high	mac 00084c4e score 1.0 support 1
-005e0200	cSC4CellTextureModel::Draw	auto:B3	medium	mac 00084868 score 0.97 support 3.0
-005e0540	__ZThn4_N20cSC4CellTextureModel4DrawEP14SC4DrawContextb	auto:B4	low	mac 00622988 score 0.96 support 1.0
+005e01a0	cSC4CellTextureModel::~cSC4CellTextureModel (deleting destructor)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §1; back to the pool
+005e0200	cSC4CellTextureModel::Draw	manual:lot-models.tsv	high	lot-models.md §4; opaque, alpha or tinted; own strip or terrain view slot 15
+005e0540	__ZThn4_N20cSC4CellTextureModel4DrawEP14SC4DrawContextb	manual:lot-models.tsv	high	lot-models.md §4; thunk
 005e05b0	cSC4LotBaseTextureOccupant::cSC4LotBaseTextureOccupant	auto:B1	medium	mac 000842f2 score 0.951 support 2.5
 005e0620	cSC4LotBaseTextureOccupant::GetGZCLSID	auto:C	low	mac 00620e40 score 1.0 support 1
 005e0630	cSC4LotBaseTextureOccupant::GetUsage	auto:C	low	mac 00620e56 score 1.0 support 1
@@ -4183,21 +4201,26 @@ va	name	source	confidence	note
 005e0b20	cSC4LotBaseTextureOccupant::SetTextureSpecification	auto:B0	medium	mac 000845a0 score 0.875 support 1.0
 005e1020	std::vector<cISC4LotBaseTextureOccupant::LotBaseTextureSpecification,std::allocator<cISC4LotBaseTextureOccupant::LotBaseTextureSpecification>>::resize	auto:B0	medium	mac 0062260c score 0.896 support 1.0
 005e10b0	cSC4LotBaseTextureOccupant::Read	auto:C	high	mac 0008436e score 1.0 support 1
-005e14c0	cSC4LotRetainingWallModel::GetWorldBounds	auto:C	high	mac 0010957e score 1.0 support 1
-005e14f0	cSC4LotRetainingWallModel::GetSortValue	auto:A	high	mac 00109550 score 1.0 support 0
-005e1520	cSC4LotRetainingWallModel::SetupVerticesFromBBoxAndWallEdge	auto:B7	medium	mac 0010932a score 0.978 support 1.0
-005e1620	cSC4LotRetainingWallModel::SetupTextures	auto:B0	medium	mac 0010943c score 0.997 support 2.0
-005e1710	cSC4LotRetainingWallModel::DoZoomChange	auto:D	medium	mac 00109510 score 0.5 support 1
-005e17c0	cSC4LotRetainingWallModel::cSC4LotRetainingWallModel	auto:B0	medium	mac 0010959c score 0.917 support 2.0
-005e1940	cSC4LotRetainingWallModel::QueryInterface	auto:C	high	mac 00109180 score 1.0 support 1
-005e1950	cSC4LotRetainingWallModel::AddRef	auto:C	high	mac 0066298e score 1.0 support 1
-005e1960	cSC4LotRetainingWallModel::Release	auto:C	high	mac 006629a6 score 1.0 support 1
-005e1a40	__ZThn4_N25cSC4LotRetainingWallModel14GetWorldBoundsER15cS3DBoundingBox	auto:B0	low	mac 00662c54 score 0.96 support 1.0
-005e1a50	__ZThn4_NK25cSC4LotRetainingWallModel12GetSortValueERm	auto:B0	low	mac 00662c4a score 0.96 support 1.0
-005e1bc0	cSC4LotRetainingWallModel::SetupVertices	auto:B5	medium	mac 0010967c score 0.91 support 2.0
-005e2780	cSC4LotRetainingWallModel::Init	auto:B6	medium	mac 0010a8dc score 0.874 support 2.0
-005e27c0	cSC4LotRetainingWallModel::Draw	auto:B4	medium	mac 0010a956 score 0.94 support 3.5
-005e28b0	__ZThn4_N25cSC4LotRetainingWallModel4DrawEP14SC4DrawContextb	auto:B5	low	mac 00663248 score 0.96 support 1.0
+005e1200	cSC4LotRetainingWallModel::QueryInterface (body)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §1; IID 0xA9E2831E, else the basic interfaces
+005e1240	cSC4LotRetainingWallModel::IsNeighbouringLotFlat	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §3
+005e1400	cSC4LotRetainingWallModel::AreBoundsDifferent	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §3; per coordinate, tolerance 0.0001
+005e14c0	cSC4LotRetainingWallModel::GetWorldBounds	manual:lot-models.tsv	high	lot-models.md §1
+005e14f0	cSC4LotRetainingWallModel::GetSortValue	manual:lot-models.tsv	high	lot-models.md §1; texture ID | 0x2A86, else 0xC9862A86
+005e1520	cSC4LotRetainingWallModel::SetupVerticesFromBBoxAndWallEdge	manual:lot-models.tsv	high	lot-models.md §3; the cell range along side 0-3
+005e1620	cSC4LotRetainingWallModel::SetupTextures	manual:lot-models.tsv	high	lot-models.md §3; fallback 0x695C00C6 + zoom
+005e1710	cSC4LotRetainingWallModel::DoZoomChange	manual:lot-models.tsv	high	lot-models.md §3
+005e17c0	cSC4LotRetainingWallModel::cSC4LotRetainingWallModel	manual:lot-models.tsv	high	lot-models.md §3
+005e1940	cSC4LotRetainingWallModel::QueryInterface	manual:lot-models.tsv	high	lot-models.md §1
+005e1950	cSC4LotRetainingWallModel::AddRef	manual:lot-models.tsv	high	lot-models.md §1
+005e1960	cSC4LotRetainingWallModel::Release	manual:lot-models.tsv	high	lot-models.md §1
+005e1a40	__ZThn4_N25cSC4LotRetainingWallModel14GetWorldBoundsER15cS3DBoundingBox	manual:lot-models.tsv	high	lot-models.md §1; thunk
+005e1a50	__ZThn4_NK25cSC4LotRetainingWallModel12GetSortValueERm	manual:lot-models.tsv	high	lot-models.md §1; thunk
+005e1a60	cSC4LotRetainingWallModel::~cSC4LotRetainingWallModel (body)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §3
+005e1ad0	cSC4LotRetainingWallModel::~cSC4LotRetainingWallModel (deleting destructor)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §1; back to the pool
+005e1bc0	cSC4LotRetainingWallModel::SetupVertices	manual:lot-models.tsv	high	lot-models.md §3; segments between the lot level and the terrain
+005e2780	cSC4LotRetainingWallModel::Init	manual:lot-models.tsv	high	lot-models.md §3
+005e27c0	cSC4LotRetainingWallModel::Draw	manual:lot-models.tsv	high	lot-models.md §3; facing test +0x6A, one triangle list
+005e28b0	__ZThn4_N25cSC4LotRetainingWallModel4DrawEP14SC4DrawContextb	manual:lot-models.tsv	high	lot-models.md §3; thunk
 005e28c0	icf::cSC4LotRetainingWallOccupant::QueryInterface	folded	folded	2 names: cSC4LotRetainingWallOccupant::QueryInterface | cSC4PowerLineOccupant::QueryInterface
 005e28f0	icf::cSC4Automaton::AddRef	folded	folded	10 names: cSC4Automaton::AddRef | cSC4FireOccupant::AddRef | cSC4FloraOccupant::AddRef | cSC4FoundationOccupant::AddRef | cSC4LotBaseTextureOccupant::AddRef | cSC4LotRetainingWallOccupant::AddRef | cSC4NetworkOccupant::AddRef | cSC4PowerLineOccupant::AddRef | cSC4PropOccupant::AddRef | cSC4ToxicOccupant::AddRef
 005e2900	icf::cSC4Automaton::Release	folded	folded	10 names: cSC4Automaton::Release | cSC4FireOccupant::Release | cSC4FloraOccupant::Release | cSC4FoundationOccupant::Release | cSC4LotBaseTextureOccupant::Release | cSC4LotRetainingWallOccupant::Release | cSC4NetworkOccupant::Release | cSC4PowerLineOccupant::Release | cSC4PropOccupant::Release | cSC4ToxicOccupant::Release

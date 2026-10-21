@@ -339,9 +339,9 @@ cSC4RuleParser	graphics rules	renderer	graphics-rules.md	-	-	-
 _GLOBAL__N_*SC4RuleParser.cpp*	graphics rules	renderer	graphics-rules.md	-	-	-
 fn:GZCOM_CreatecSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	-	-	-
 fn:GZCOM_cSC4ConfigRuleManagerCLSID	graphics rules	renderer	graphics-rules.md	-	-	-
-cSC4CellTextureModel	3D scene and models	renderer	-	-	-	-
-cSC4FoundationModel	3D scene and models	renderer	-	-	-	-
-cSC4LotRetainingWallModel	3D scene and models	renderer	-	-	-	-
+cSC4CellTextureModel	lot models	renderer	lot-models.md	-	-	-
+cSC4FoundationModel	lot models	renderer	lot-models.md	-	-	-
+cSC4LotRetainingWallModel	lot models	renderer	lot-models.md	-	-	-
 cSC4AnimationCoordinator	animation coordinator	renderer	animation-coordinator.md	-	-	-
 cSC4GlyphTextureManager	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSC4GlyphTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-

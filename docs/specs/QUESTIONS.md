@@ -73,6 +73,7 @@ generated index: the questions live one file per spec, so read only the file for
 | LD | lot-developer |
 | LF | landfill |
 | LG | landfill |
+| LM | lot-models |
 | LR | lot-records |
 | LT | lighting |
 | LU | language-utility |
@@ -180,6 +181,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lighting | 4 | 0 | LT5 | questions/lighting.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
+| lot-models | 1 | 0 | LM2 | questions/lot-models.md |
 | lot-records | 0 | 5 | LR6 | questions/lot-records.md |
 | mysims | 0 | 12 | MS13 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
@@ -235,4 +237,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **229** | **1117** | | |
+| **total** | **230** | **1117** | | |
