@@ -1,13 +1,26 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-models4 (RE spec: exact cSC43DRender owner beyond view3d.md §3/§4, docs/specs/render3d.md) | `re-models4` / (RE spec lane) | in progress (round 3/3 FINAL), partial owner spec (no whole-owner credit): render3d.md §1-6, §9 lifecycle, §10 screen shake, §7 remaining list, 12+12 conformance cases; questions R3D-1..R3D-4 open; no ABI change, no game runs | 1. Picking group (Pick, PickTerrain, PickTerrainAlways, IsModelVisible, view-object list). 2. Backing store create/save/restore, translated/zoom/rotation view updates. 3. R3D-1/R3D-3 byte proof. 4. Then claim whole-owner credit. |
+| re-models4 (RE spec: exact cSC43DRender owner beyond view3d.md §3/§4, docs/specs/render3d.md) | `re-models4` / (RE spec lane) | parked after FINAL round 3/3, partial owner spec (no whole-owner credit): render3d.md §1-6, §9-12 (dirty merge scoring, picking, view objects, backing store added), §7 remaining list non-empty; R3D-3 answered, R3D-1/2/4 open; no ABI change, no game runs | 1. View updates (DoTranslatedViewUpdate, DoViewZoomChange3, DoViewRotationChange2, AttemptTranslatedViewUpdate, UpdateVisibleTerrainMetrics). 2. Geometry helpers + ClearViewport/draw helpers. 3. PickTerrainAlways ray clip numerics (0x007C7E20, 0x007C6EC0). 4. DoSingleModelStaticDrawAddition, SetGraphicSystem/SetGDriver/StaticShutdown/dtor. 5. Then whole-owner credit. |
 
-## Handoff
+## Round 3 report (FINAL 3/3, parked partial)
 
-- Goal round 3: close render3d.md §7 groups: dirty merge scoring (R3D-3) + rect filter 0x007C2C70, picking, backing store, view updates.
-- Done: merge scoring + rect filter + R3D-3 answered (§5 item layout, §6.1, D1-D6).
-- Done: §11 view objects, IsModelVisible, Pick x2, PickTerrain x2, PickTerrainAlways screen (ray one outline). REA unavailable (no binary open).
-- Next: backing store Create/Destroy/Save/Restore/Reevaluate, then view updates.
+- §6.1 merge step fully specified from 0x007C8F9A-0x007C9172: score = nodeArea + newArea - unionArea, minus
+  min(newArea, nodeArea) when either mode is 0; strict best (first wins ties) from -limit; merge when count >= 16
+  (global 0x00B0DC14) or float(best) >= -2500.0 (0x00B0DC10); growth accounting, recursive mode-6 re-add, area
+  over-count. Rect filter 0x007C2C70 (overlap test + in-place clamp, no left<right test). Cases D1-D6.
+- §5 queue item layout (0x007C2E50): model, kind, unused byte, unused 16 bytes, 6-float box; per-kind box source;
+  dirty-rect mode values. R3D-3 ANSWERED (MATCHES), moved to answered/render3d.md, QUESTIONS.md reindexed.
+- §11 view-object lists (4 sorted lists + terrain view +0x198), IsModelVisible x2, screen Pick/PickTerrain/
+  PickTerrainAlways, ray PickTerrain (QI 0x6771477D, +4.0 retry, ground fallback), ray Pick (candidate collection,
+  terrain distance limit, filter IID 0x26BB767E, model slot 11). Ray PickTerrainAlways only in outline. Cases P1-P6.
+- §12 backing store: Create (probe), Destroy, Save (shake-offset clipping, +0x64 rule), Restore x2,
+  ReevaluateBackingStoreObjectFlags. Cases B1-B4.
+- Evidence: re_query asm for every numeric/branch claim cited; data constants read from bin/SimCity4.exe by VA
+  (build-runs/va.py). REA unavailable this round ("No app is open"), fallback re_query + decomp/.
+- §7 remainder (not empty, so no whole-owner credit): view updates, geometry helpers, ClearViewport and draw
+  helpers, snapshot/stats, DoSingleModelStaticDrawAddition, SetGraphicSystem/SetGDriver/StaticSetGDriver/
+  StaticShutdown/destructor, +0x1FD writer, PickTerrainAlways ray clip numerics.
+- No ABI change, no game runs, no engine/tools edits.
 
 ## Round 2 report
 

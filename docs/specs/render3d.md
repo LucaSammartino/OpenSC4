@@ -376,8 +376,7 @@ insert helper `0x007C6EC0`) is outline only (§11.6); `GetViewportRayContainerRe
 `0x005F2C70` used by `Pick`. Lifecycle (`Init`, `Shutdown`, `ReadProperties` are §9): `SetGraphicSystem`, `SetGDriver`, `StaticSetGDriver`, `StaticShutdown` (outline:
 releases the globals `0x00B4E1EC`, `0x00B4E1F0`, `0x00B4E1F4` once, destroying the backing store first),
 destructor body `0x007CA020`. (Shake is complete: §6.3 and §10.)
-Backing store: `CreateBackingStore`, `DestroyBackingStore`, `SaveBackingStore`, `RestoreBackingStore` ×2,
-`ReevaluateBackingStoreObjectFlags`, `DoSingleModelStaticDrawAddition`. Dirty rects (merge scoring and the rect filter are now §6.1): the writer of `+0x1FD`. View updates:
+Backing store (§12 covers create, destroy, save, both restores, re-evaluation): `DoSingleModelStaticDrawAddition`. Dirty rects (merge scoring and the rect filter are now §6.1): the writer of `+0x1FD`. View updates:
 `DoTranslatedViewUpdate`, `DoViewZoomChange3`, `DoViewRotationChange2`, `AttemptTranslatedViewUpdate`,
 `UpdateVisibleTerrainMetrics`. Geometry: `WorldToContainerRect`, `Get{View,Draw}FrustumContainerRect`,
 `GetVisibleContainerRect`, `GetViewportRayContainerRect`, `GetModelContainerRect`, `RebuildQuadGrid`,
@@ -749,3 +748,41 @@ tries slot 61 on each segment p[k]→p[k+1] (direction p[k+1] − p[k], fallback
 hit, the hit is slid back onto the original ray at its own height: t = (hit.y − origin.y) / dir.y,
 hit.x = origin.x + t·dir.x, hit.z = origin.z + t·dir.z. Float precision and operation order of the clip are not
 verified against the instructions (§7).
+
+---
+
+## 12. Backing store *[compat]*
+
+Process globals: the backing-store service `0x00B4E1F0` (set by `StaticSetGDriver`, released by `StaticShutdown`),
+buffer handles `0x00B4E1E4` (kind 0) and `0x00B4E1E8` (kind 1), and the driver `0x00B4E1EC`. Service slots used:
+4 (`+0x10`) create buffer(kind) → handle, 5 (`+0x14`) free(handle), 6 (`+0x18`) save and 7 (`+0x1C`) restore, both
+(handle, srcX, srcY, w, h, dstX, dstY) → bool. All methods below are process-wide in effect (static buffers).
+
+- `CreateBackingStore` (`0x007C27A0`): no service → false. Creates each missing buffer (kind 0, kind 1). If only
+  one of the two exists it is freed and the call fails. With both: gets the viewport rect from the driver slot
+  `+0x130` and **probes** the full size: save buffer 0, restore buffer 0, save buffer 1, restore buffer 1, each
+  (0, 0, w, h, 0, 0); the first failure frees both (handles = 0). Returns handle 0 ≠ 0.
+- `DestroyBackingStore` (`0x007C2910`): no service → 0. Frees and zeroes each existing handle; returns 1.
+- `SaveBackingStore(x, y, w, h)` (`0x007C2960`), with the shake offsets sx = `+0x258`, sy = `+0x25C`
+  (§10.3):
+  1. When either offset is non-zero: srcX = x − sx; if srcX < 0 → dstX = x + sx, w −= sx, srcX = 0, and w ≤ 0
+     returns **1**; else if srcX + w > `+0x68` → w = `+0x68` − srcX, w ≤ 0 returns 1. Same for y with sy and
+     `+0x6C`. Without offsets src = dst = (x, y).
+  2. Returns 0 unless w > 0, h > 0, the service and both handles exist.
+  3. Returns 0 if byte `+0x64` (partial saves allowed) is clear and (w, h) is not exactly (`+0x68`, `+0x6C`).
+  4. Slot 6 on buffer 0 then buffer 1 with (srcX, srcY, w, h, dstX, dstY); returns 1 (results ignored).
+- `RestoreBackingStore(srcX, srcY, w, h, dstX, dstY)` (`0x007C2AC0`, pops 0x18): needs the service and both handles
+  (else AL = 0); slot 7 on buffer 0 then buffer 1 with the same six values; returns 1.
+- `RestoreBackingStore()` (`0x007C38D0`): no shake offsets → `Restore(0, 0, +0x68, +0x6C, 0, 0)`. Otherwise for
+  sx ≥ 0: srcX = 0, dstX = sx; sx < 0: srcX = −sx, dstX = 0; the same for y; w = `+0x68` − |sx|,
+  h = `+0x6C` − |sy|. Returns the inner result. The saved image is thus shifted by the shake offsets.
+- `ReevaluateBackingStoreObjectFlags` (`0x007C55C0`): with a quad grid `+0x120`, takes all its elements
+  (`SC4QuadGrid::GetAllElements` into a temporary array sized by the grid's element count) and sets element bit
+  `0x08` = `ModelShouldGoIntoBackingStore(element)` (§5). Then sets bit 0 of the 16-bit word at `+0xC` of every
+  16-byte cell record in every row vector of the grid (`+0x14`..`+0x18`, 12-byte rows) *[inferred: marks every cell
+  changed]*. No dirty rects, no redraw.
+
+Cases: B1. `SaveBackingStore(0, 0, 800, 600)` on 800×600, no shake → slot 6 twice with (0,0,800,600,0,0), returns 1.
+B2. `+0x64` clear, `Save(10, 10, 50, 50)` → 0, nothing copied. B3. Shake (3, −2): `Restore()` →
+`Restore(0, 2, 797, 598, 3, 0)`. B4. Shake sx = 5, `Save(2, 0, 10, 600)` with `+0x64` set: srcX = −3 <0 → dstX = 7,
+w = 5, srcX = 0.
