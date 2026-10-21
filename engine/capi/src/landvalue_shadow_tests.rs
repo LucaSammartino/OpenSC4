@@ -109,8 +109,13 @@ unsafe extern "C" fn terrain_cells(_: *mut c_void, x: *mut i32, z: *mut i32) {
 unsafe extern "C" fn is_land_vertex(_: *mut c_void, x: u32, _z: u32) -> bool {
     x > 2
 }
+thread_local! {
+    /// Metres added to the terrain from x = 128 on: a terrain change after
+    /// the original's pass read the inputs (input provenance tests).
+    static RAISE: Cell<f32> = const { Cell::new(0.0) };
+}
 unsafe extern "C" fn altitude(_: *mut c_void, x: f32, z: f32) -> f32 {
-    60.0 + x / 4.0 + z / 16.0
+    60.0 + x / 4.0 + z / 16.0 + if x >= 128.0 { RAISE.with(Cell::get) } else { 0.0 }
 }
 unsafe extern "C" fn min_h(_: *mut c_void) -> f32 {
     20.0
@@ -495,6 +500,62 @@ fn one_wrong_tract_and_one_wrong_scalar() {
             lines[2]
         );
         assert!(lines[2].contains("modeAlt orig/ours="), "{}", lines[2]);
+        fc4_landvalue_shadow_destroy(s);
+    }
+}
+
+#[test]
+fn input_changed_after_the_original_read_it() {
+    unsafe {
+        let g = Game::default();
+        let t = tuning(&SHIPPED);
+        let orig = Original::run(&g, &t);
+        let r = read(&g, &orig);
+        let ro = read_only(&g);
+        let s = fc4_landvalue_shadow_create(&ro, &t, 0);
+        g.changes.borrow_mut().clear();
+        let mut lines = Vec::new();
+        // No day runs before the first pass end (no geometries yet).
+        assert_eq!(fc4_landvalue_shadow_note_day(s), 0);
+        assert_eq!(compare(s, &r, &mut lines), 0, "{lines:?}");
+        assert!(!lines[0].contains("inputs:"), "{}", lines[0]);
+        // Day 1 has the inputs the original read; on day 2 the terrain has
+        // risen. The counts stay those of the pass-end inputs.
+        assert_eq!(fc4_landvalue_shadow_note_day(s), 0);
+        RAISE.with(|c| c.set(40.0));
+        assert_eq!(fc4_landvalue_shadow_note_day(s), 0);
+        let n = compare(s, &r, &mut lines);
+        assert!(n > 0, "{lines:?}");
+        let l = &lines[1];
+        println!("{l}");
+        assert!(l.contains(&format!("mismatches={n};")), "{l}");
+        assert!(l.contains("passes=2 clean=1"), "{l}");
+        assert!(
+            l.contains(
+                "; inputs: the original's intrinsic, modeAlt and meanAlt are exact with our pass on the inputs of \
+                 SimNewDay 1/2 since the previous pass end"
+            ),
+            "{l}"
+        );
+        // No day since that pass end: nothing to name.
+        let n = compare(s, &r, &mut lines);
+        assert!(n > 0);
+        assert!(
+            lines[2].ends_with("; inputs: no SimNewDay run since the previous pass end"),
+            "{}",
+            lines[2]
+        );
+        // A day with the risen terrain only: none reproduces the original.
+        assert_eq!(fc4_landvalue_shadow_note_day(s), 0);
+        assert!(compare(s, &r, &mut lines) > 0);
+        assert!(
+            lines[3].contains("; inputs: no SimNewDay of 1 since the previous pass end reproduces the original (closest: day 1, intrinsic differs in "),
+            "{}",
+            lines[3]
+        );
+        RAISE.with(|c| c.set(0.0));
+        // The day runs are read-only too.
+        assert!(g.changes.borrow().is_empty(), "{:?}", g.changes.borrow());
         fc4_landvalue_shadow_destroy(s);
     }
 }

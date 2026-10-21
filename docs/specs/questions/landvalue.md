@@ -1,0 +1,5 @@
+# landvalue: open questions
+<!-- Questions about [landvalue.md](../landvalue.md). Append new entries at the END; answered entries move to answered/landvalue.md. -->
+
+<!-- from: verify-landvalue49 coordinator review (2026-10-21) -->
+- **LV1 - input capture across a native pass:** train46 was72/72, train49 was70/72 and train51 was72/72 with no landvalue algorithm change. Diagnostic turbo/normal runs vlv49-a1 and vlv49-n1 were71/74 and71/73, zeroresync. Some mismatched outputs are reproduced bitwise by an earlier SimNewDay input snapshot; one pass is not reproduced by any captured day, and the first pass lacks an initial desirability snapshot. This is evidence consistent with input timing, not proof of a one-day shift. Exactly when does the original read each input (including mean/mode altitude and developer desirability) over its multi-frame pass, and which boundary permits an independent shadow to capture the same inputs? Specify startup snapshot timing and the unexplained pass before any scheduling/algorithm correction. Never choose a snapshot merely because its output matches. [open: independent input provenance]

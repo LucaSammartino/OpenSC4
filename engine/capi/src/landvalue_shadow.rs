@@ -50,7 +50,12 @@
 //! The inputs are read when the pass has ended, not at the moment each
 //! state read them. A change during the pass sets the original's dirty flag,
 //! so the record's byte 5 is 1 (`settled=0`) and a difference may be such a
-//! change. The growth developers' desirability maps are not covered by the
+//! change. To tell such a change from a formula difference, each SimNewDay
+//! after the first pass end also runs our pass on that day's live inputs;
+//! when a pass end's intrinsic grid or altitude scalars differ, the line
+//! ends with `inputs:`, naming the first of those days that reproduces them
+//! bitwise, or saying none does (diagnostic only: the counts are those of
+//! the pass-end inputs). The growth developers' desirability maps are not covered by the
 //! dirty flag: they are republished about once a month, near the month
 //! start, where passes start too. *[compat]* (§7.4, LV2): a developer's
 //! published map changes only in its state-17 call, in one piece, and at
@@ -370,12 +375,14 @@ impl LandValueHost for HostRef {
 
 // ---- the original's results ---------------------------------------------------------------------
 
+#[derive(Clone)]
 struct Record {
     flag: u8,
     average: u8,
     mean: f32,
 }
 
+#[derive(Clone)]
 struct Orig {
     intrinsic: (GridGeometry, Vec<u8>),
     total: (GridGeometry, Vec<u8>),
@@ -554,7 +561,23 @@ struct Shadow {
     max_cells: usize,
     maps: BTreeMap<u32, DMap>,
     stats: fc4_landvalue_shadow_stats,
+    /// Input provenance (diagnostic only, never counted): the original's
+    /// read at the last pass end (geometries and the intrinsic seed for our
+    /// day runs), and our pass at each SimNewDay since then.
+    last: Option<Orig>,
+    days: Vec<DayRun>,
 }
+
+/// Our pass on the live inputs of one SimNewDay between two pass ends.
+struct DayRun {
+    intrinsic: Vec<u8>,
+    total: Vec<u8>,
+    mean: f32,
+    mode: f32,
+}
+
+/// Day runs kept between two pass ends (a pass spans about a month).
+const MAX_DAY_RUNS: usize = 62;
 
 impl Shadow {
     /// The developer types our Init lists (§8 [choice]: min(count of IDs,
@@ -698,7 +721,80 @@ impl Shadow {
         pass
     }
 
+    /// SimNewDay: the desirability snapshots (LV2), then, once a pass end has
+    /// given the geometries, our pass on today's live inputs, kept for the
+    /// input provenance of the next comparison (diagnostic only).
+    fn note_day(&mut self) -> u32 {
+        let changed = self.note();
+        if self.days.len() < MAX_DAY_RUNS {
+            if let Some(o) = self.last.take() {
+                let p = self.run(&o, BTreeMap::new());
+                if p.finished && p.size_mismatches == 0 {
+                    self.days.push(DayRun {
+                        intrinsic: p.intrinsic,
+                        total: p.total,
+                        mean: p.mean,
+                        mode: p.mode,
+                    });
+                }
+                self.last = Some(o);
+            }
+        }
+        changed
+    }
+
+    /// Input provenance of a pass whose intrinsic grid or altitude scalars
+    /// differ (tooling, never counted; landvalue.md §6: states 1-4 read the
+    /// terrain and the zones some calls before the pass end, our pass reads
+    /// them at the pass end). Names the first SimNewDay since the previous
+    /// pass end whose inputs give the original's intrinsic grid and mode and
+    /// mean altitude bitwise, or says that none does.
+    fn provenance(o: &Orig, days: &[DayRun]) -> String {
+        let n = days.len();
+        if n == 0 {
+            return "; inputs: no SimNewDay run since the previous pass end".to_string();
+        }
+        let exact = |d: &DayRun| {
+            d.intrinsic == o.intrinsic.1
+                && same_f32(d.mode, o.mode)
+                && o.record.as_ref().map_or(true, |r| same_f32(r.mean, d.mean))
+        };
+        let differing = |a: &[u8], b: &[u8]| {
+            if a.len() == b.len() {
+                a.iter().zip(b).filter(|(x, y)| x != y).count()
+            } else {
+                a.len().max(b.len())
+            }
+        };
+        match days.iter().position(exact) {
+            Some(k) => format!(
+                "; inputs: the original's intrinsic, modeAlt and meanAlt are exact with our pass on the inputs of \
+                 SimNewDay {}/{n} since the previous pass end (an input changed after the original read it), total \
+                 there {}",
+                k + 1,
+                match differing(&days[k].total, &o.total.1) {
+                    0 => "exact".to_string(),
+                    t => format!("differs in {t} tract(s)"),
+                }
+            ),
+            None => {
+                let (k, best) = days
+                    .iter()
+                    .enumerate()
+                    .map(|(k, d)| (k, differing(&d.intrinsic, &o.intrinsic.1)))
+                    .min_by_key(|&(_, c)| c)
+                    .unwrap_or((0, 0));
+                format!(
+                    "; inputs: no SimNewDay of {n} since the previous pass end reproduces the original (closest: day \
+                     {}, intrinsic differs in {best} tract(s))",
+                    k + 1
+                )
+            }
+        }
+    }
+
     fn compare(&mut self, o: Result<Orig, String>, julian: i32) -> (i32, String) {
+        let days = std::mem::take(&mut self.days);
         self.stats.passes = self.stats.passes.wrapping_add(1);
         self.stats.last_mismatches = -1;
         let n = self.stats.passes;
@@ -855,6 +951,10 @@ impl Shadow {
         if !firsts.is_empty() {
             line += &format!("; first differing (x,z) orig/ours: {}", firsts.join("; "));
         }
+        if intrinsic.mismatched > 0 || !mode_same || !mean_same {
+            line += &Self::provenance(&o, &days);
+        }
+        self.last = Some(o);
         (self.stats.last_mismatches, line)
     }
 }
@@ -933,6 +1033,8 @@ pub unsafe extern "C" fn fc4_landvalue_shadow_create(
             tuning,
             max_cells,
             maps: BTreeMap::new(),
+            last: None,
+            days: Vec::new(),
             stats: fc4_landvalue_shadow_stats {
                 struct_size: std::mem::size_of::<fc4_landvalue_shadow_stats>() as u32,
                 last_mismatches: -1,
@@ -956,10 +1058,12 @@ pub unsafe extern "C" fn fc4_landvalue_shadow_destroy(s: *mut fc4_landvalue_shad
 
 /// SimNewDay: snapshots every listed developer's desirability map
 /// (read-only) while its slot 10 is true or unknown (LV2). Returns how many
-/// snapshots changed.
+/// snapshots changed. After the first pass end it also runs our pass on the
+/// day's live inputs, read-only, for the input provenance the next
+/// comparison logs when its intrinsic grid or altitude scalars differ.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_landvalue_shadow_note_day(s: *mut fc4_landvalue_shadow) -> u32 {
-    with_shadow(s, 0, Shadow::note)
+    with_shadow(s, 0, Shadow::note_day)
 }
 
 /// The end of one of the original's passes: our pass on its live inputs,

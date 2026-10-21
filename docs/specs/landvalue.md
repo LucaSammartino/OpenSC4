@@ -573,6 +573,8 @@ full pass); Intrinsic Max (`0x47E2C300[1]`) is never used; `GetModeAltitude` is 
 3. Whether any shipped content lists more than one desirability developer (only then does the address-order
    question of §7.4 matter).
 
+4. [LV1: native pass input capture and startup snapshots](questions/landvalue.md) remains unsettled; diagnostic matching an earlier day is not a contract.
+
 ## 16. Conformance tests (must exist in `engine/conformance`)
 
 Shipped tuning unless stated; S = 2.
