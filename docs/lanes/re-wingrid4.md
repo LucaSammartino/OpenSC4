@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-wingrid4: cGZWinGrid owner spec (198 functions, 32735 B) in docs/specs/win-grid.md | `re-wingrid4` / (RE lane) | in progress (round 2 of 3), docs only, no ABI change; 100/198 functions, 8546/32735 B specified (remaining 98 fn, 24189 B, listed in spec §A as `pending`); WG1 answered (DIFFERS: slot 141 is PlaySound), WG2-WG4 open | 1. Round 2: §5.9 selection/mouse/keys (AddCellToSelection, SetSelection, ActLikeAListbox, GZOnMouseDownL/UpL/Move, GZOnKeyDown/Up, DoArrowKey, DoCursorHitTest). 2. Round 3: cell data, scroll bars, layout/RecalculateAll, sort, copy/delete, GZPaint. |
+| re-wingrid4: cGZWinGrid owner spec (198 functions, 32735 B) in docs/specs/win-grid.md | `re-wingrid4` / (RE lane) | in progress (round 2 of 3), docs only, no ABI change; 127/198 functions, 11433/32735 B specified (remaining 71 fn, 21302 B, listed in spec §A as `pending`); WG1 answered (DIFFERS: slot 141 is PlaySound), WG2-WG4 open | 1. Round 2: §5.9 selection/mouse/keys (AddCellToSelection, SetSelection, ActLikeAListbox, GZOnMouseDownL/UpL/Move, GZOnKeyDown/Up, DoArrowKey, DoCursorHitTest). 2. Round 3: cell data, scroll bars, layout/RecalculateAll, sort, copy/delete, GZPaint. |
 
 ## Handoff
 

@@ -39,7 +39,7 @@ Values are what the constructor 0x009ABC95 stores. Size at least 0x2C4.
 | +0x118 / +0x11C | s32 | 1 / 1 | grid-area width / height (§5.1) |
 | +0x120 / +0x124 | s32 | 1 / 1 | cell-area width / height (§5.1) |
 | +0x128 | s32 | 0 | horizontal scroll position (§5.1 DoMessage) |
-| +0x12C / +0x130 / +0x134 | s32, f32, f32 | 0, 1.0, 1.0 | vertical scroll position; horizontal and vertical scroll steps (§5.1) |
+| +0x12C / +0x130 / +0x134 | s32, f32, f32 | 0, 1.0, 1.0 | vertical scroll position; visible column / row counts, possibly fractional (hit test, arrow keys and the step scrolls use them, §5.9) |
 | +0x138 / +0x13C | s32 | -1 / -1 | column / row cell limit; -1 = unlimited (§5.3) |
 | +0x140 / +0x144 | s32 | 100 / 20 | *[unknown]* |
 | +0x148 | u32 | 0 | outline colour (§5.2) |
@@ -47,7 +47,7 @@ Values are what the constructor 0x009ABC95 stores. Size at least 0x2C4.
 | +0x15C / +0x160 | s32 | -1 / -1 | *[unknown, cell coordinate pair]* |
 | +0x164 | IUnknown* | null | released in Shutdown *[purpose pending]* |
 | +0x168 | IUnknown* | null | owner-draw notification target (§5.6) |
-| +0x170 | sub-object | ctor(…,4) | embedded object *[unknown]* |
+| +0x170 | `cRZTimer` | ctor(…,4) | double-click timer (§5.9 mouse-down) |
 | +0x188 | u32 | 0 | extra-data mode: 1 = plain value, 2 = object (§5.5) |
 | +0x18C / +0x190 | u32 | 1 / 0x7FFFFFFF | selection rules: mode, maximum count (§5.3) |
 | +0x194 | std::list | empty | selection list of cell coordinates |
@@ -55,7 +55,7 @@ Values are what the constructor 0x009ABC95 stores. Size at least 0x2C4.
 | +0x1E4 | sparse matrix | | per-cell format-extra matrix; cell entry +0x14 = cell extra data (§5.5) |
 | +0x208 | IUnknown* | null | default font, ref-counted (§5.2) |
 | +0x20C..+0x220 | 6 x u32 | | default font colours, index 0..5 (§5.2) |
-| +0x238..+0x24C | | 0,-1,-1,0,-1,-1 | *[unknown]* |
+| +0x238 / +0x244 | 3 x s32 each | 0,-1,-1 / 0,-1,-1 | last click hit and last hover hit {region, col, row} (§5.9) |
 | +0x250 / +0x25C | map<u32,u32> | empty | row / column extra data (§5.5) |
 | +0x268 | u32 or IUnknown* | 0 | grid extra data (§5.5) |
 | +0x26C / +0x270 | IUnknown* | null | the two scroll bars (§pending) |
@@ -201,7 +201,7 @@ meaning is measured so far:
 - **GZOnMouseWheel(…, delta)** 0x009A5F7D: ScrollCellsVertically(delta / -100) (signed division, truncating
   toward zero; wheel up = negative = scroll up), returns true.
 - **Scroll by step** 0x009A5F23 (up?) / 0x009A5F48: ScrollCellsVertically / ScrollCellsHorizontally by the
-  float step +0x134 / +0x130 (default 1.0) converted with truncation, negated when the argument is true.
+  float visible row / column count +0x134 / +0x130 (default 1.0; one page, see §5.9) converted with truncation, negated when the argument is true.
 - **GZOnSetFocus** 0x009A7E0C / **GZOnKillFocus** 0x009A7E2F: when grid flag bit 0x1 is set, recalculate
   (0x009A5FAA) first. SetFocus then runs `cGZWin::GZOnSetFocus`; KillFocus returns false directly (the shared
   stub 0x0093878E).
@@ -346,6 +346,29 @@ the same observable result):
 | 0x009A8591 | `swap_ranges` over 4-byte elements |
 | 0x009A8446 / 0x009A8473 | recursive node erase of a `map<u32, cRZString>` subtree (two identical instances, used for the heading maps) |
 | 0x009A5C4A | copy-construct a 40-byte cell record: copies the first 36 bytes from the source, then the two 16-bit fields at +0x24 and +0x26 are -1 (not copied) |
+| 0x009A88DF / 0x009A8908 | `clear()` of a heading map (+0x2A8 / +0x2B4): when non-empty, erase every node (0x009A8446 / 0x009A8473), reset the header links and the size to 0 |
+| 0x009A8FBE / 0x009A8FD5 | destructor of the same two maps: clear, then free the header node |
+| 0x009A89AF | red-black tree node insert for the cell-window set +0x22C (`_Rb_tree::_Insert`): new node linked as the left child when the parent is the header, or the caller forces left, or the new key is below the parent's key (unsigned compare of the value's word +0xC against node +0x1C); rebalance (0x0040D5E0), size + 1, return the node |
+| 0x009A93A1 / 0x009A999D | `insert_unique` into the cell-window set: walk down by the unsigned key (value word +0xC = node +0x1C); an equal key returns (existing node, false), otherwise insert and return (new node, true); 0x009A999D is the wrapper that copies the pair out |
+| 0x009A90F8 | `equal_range` on a `map<u32, void*>`: (lower_bound 0x0066E2F0, upper_bound) |
+| 0x009A9A09 / 0x009A9A4C | begin / end iterator of one line of a sparse matrix: find the outer key (0x009A94A6); missing: iterator {matrix, null, null}; present: {matrix, inner map, first node} / {matrix, inner map, header} |
+
+**Stable-sort machinery** (SortColumn / SortRow, §pending, sort an array of 4-byte value pointers with a stable
+merge sort; an implementation may use any stable sort with the same predicate, the result is identical):
+
+| Address | Behaviour |
+|---|---|
+| 0x009A8888 | predicate object {compare function, pointer to the value-pointer array, ascending byte}: less(i, j) = compare(v[i], v[j]) < 0 when the byte is non-zero, compare(v[j], v[i]) < 0 when it is zero (descending); compare is 0x009A6E59 or a caller-supplied one |
+| 0x009A8A38 | temporary buffer for (first, last): count = (last - first) / 4, allocated by 0x009A75CF |
+| 0x009A8BA4 / 0x009A9D2E | unguarded linear insert / linear insert (an element less than the first goes to the front by copy_backward) |
+| 0x009A8BD4 / 0x009A963E | `lower_bound` with the predicate, and its wrapper |
+| 0x009A8C1E / 0x009A9665 | `upper_bound` with the predicate, and its wrapper |
+| 0x009A8C68 / 0x009A9D7C | in-place `rotate(first, middle, last)` by gcd cycles (gcd 0x007BFFA0; equal halves use swap_ranges); returns first + (last - middle) |
+| 0x009A968C | `merge` of two sorted runs into an output range; on ties the element of the first run goes first (stable); then copies what remains |
+| 0x009A96E2 | `copy_backward` wrapper (0x009A8574) |
+| 0x009A9D95 | one merge-sort pass: merge adjacent runs of `step` elements pairwise into the output, then the tail |
+| 0x009A9E59 | `merge_backward` (merge from the ends, used when the buffer holds the second run) |
+| 0x009A9EE3 | buffered rotate: when the shorter side fits the buffer, rotate by copying through it; otherwise the in-place rotate |
 
 ### 5.9 Selection, hit testing and mouse input
 
@@ -448,6 +471,36 @@ re-take capture for the grid and return the bar's result.
   capture: outside the window, nothing; bar routing (type 13); otherwise a hit in region 5 that differs from the
   click record +0x238 (region not 5 or another cell) runs ClearSelection then AddCellToSelection(cell, true), and
   the record becomes (5, col, row). So dragging in an open drop-down list moves the single selection.
+- **GZOnKeyDown(key, modifiers)** 0x009A8D6D. Window flag 2 clear: return true and nothing else. Otherwise by
+  virtual key:
+  - End 0x23: when flag 0x8000 or 0x10000 is clear, read GetCellUsedRange (slot 50; otherwise the range stays all
+    0). Column: flag 0x8000 clear: ScrollToColumn(used right); set: ScrollToColumn(column limit +0x138 - 1) only when
+    the limit is neither -1 nor 0. Row: the same with flag 0x10000, used bottom, ScrollToRow and +0x13C.
+  - Home 0x24: ScrollToCell(0, 0) (slot 37).
+  - PageUp 0x21 / PageDown 0x22: modifier 0x4 clear: vertical step scroll 0x009A5F23(up = true for PageUp);
+    set: horizontal 0x009A5F48. (Each scrolls by the visible count, see the hit-test note.)
+  - Left/Up/Right/Down 0x25..0x28: DoArrowKey(key, modifiers).
+  - Insert 0x2D: toggle flag 0x80 in the word directly.
+  - Escape 0x1B: send message {type 5, 0x1B, modifiers, 0} to the notification target (result ignored).
+  - Any other key: nothing.
+  Then, for every key (including unhandled ones), send 0x9A1552D5 with data = the key code itself (not a pointer)
+  and return true. Key-down never returns false, so the grid consumes all keys while enabled.
+- **DoArrowKey(key, modifiers)** 0x009A85B6. Current cell = the last selection entry, or **(0, 1)** when the
+  selection is empty (quirk: row 1, not 0). Read GetCellUsedRange (slot 50).
+  - Left: column < 1: PlaySound(2) (slot 141) and stop. Else column - 1. Up: the same on the row.
+  - Right: when flag 0x8000 is set and the column limit +0x138 is -1 or 0, column + 1 with no bound. Otherwise the
+    bound is the limit (flag 0x8000 set) or used right + 1 (clear); when column >= bound - 1: flag set: PlaySound(2)
+    and stop; flag clear: keep the column (no sound) and continue. Else column + 1.
+    Down: the same with flag 0x10000, row limit +0x13C and used bottom.
+  - Any other key: return at once.
+  Then: when the selection is non-empty and modifier 0x1 (Shift) is clear, empty the list directly (0x009A841F).
+  Send 0x9A1552D2 with a pointer to the new cell, **then** AddCellToSelection(col, row, true). Keep it visible:
+  Left: column < +0x128: ScrollToColumn(column). Up: row < +0x12C: ScrollToRow(row). Right: when (float)column >=
+  (float)+0x128 + +0x130: ScrollToColumn(truncate(column - +0x130 + 1.0)) (x87, single-precision operands; constant
+  1.0f at 0x00A81228). Down: the same with +0x12C, +0x134 and ScrollToRow. Finally SetScrollBarValues 0x009A71FD,
+  layout-dirty = 1, recalculate.
+  Worked example: a 3-column list, used range right = 2, flag 0x8000 clear, selection {(2, 4)}: Right keeps (2, 4),
+  sends 0x9A1552D2, clears and re-adds (2, 4) (AddCellToSelection returns true because the list was just emptied).
 - **GZOnKeyUp(key, modifiers)** 0x009A77ED: Escape (0x1B) sends message {type 6, 0x1B, modifiers, 0} to the
   notification target (window-view slot 145) and returns its result; any other key returns true.
 
@@ -555,39 +608,39 @@ See `questions/win-grid.md`.
 | 009a8473 | 45 | FUN_009a8473 | 5.7 |
 | 009a8574 | 29 | FUN_009a8574 | 5.7 |
 | 009a8591 | 37 | FUN_009a8591 | 5.7 |
-| 009a85b6 | 550 | DoArrowKey | pending |
+| 009a85b6 | 550 | DoArrowKey | 5.9 |
 | 009a87dc | 45 | GetSelection [slot 42] | 5.8 |
-| 009a8888 | 60 | FUN_009a8888 | pending |
-| 009a88df | 41 | FUN_009a88df | pending |
-| 009a8908 | 41 | FUN_009a8908 | pending |
-| 009a89af | 137 | FUN_009a89af | pending |
-| 009a8a38 | 28 | FUN_009a8a38 | pending |
-| 009a8ba4 | 48 | FUN_009a8ba4 | pending |
-| 009a8bd4 | 74 | FUN_009a8bd4 | pending |
-| 009a8c1e | 74 | FUN_009a8c1e | pending |
-| 009a8c68 | 261 | FUN_009a8c68 | pending |
-| 009a8d6d | 425 | GZOnKeyDown | pending |
+| 009a8888 | 60 | FUN_009a8888 | 5.7 |
+| 009a88df | 41 | FUN_009a88df | 5.7 |
+| 009a8908 | 41 | FUN_009a8908 | 5.7 |
+| 009a89af | 137 | FUN_009a89af | 5.7 |
+| 009a8a38 | 28 | FUN_009a8a38 | 5.7 |
+| 009a8ba4 | 48 | FUN_009a8ba4 | 5.7 |
+| 009a8bd4 | 74 | FUN_009a8bd4 | 5.7 |
+| 009a8c1e | 74 | FUN_009a8c1e | 5.7 |
+| 009a8c68 | 261 | FUN_009a8c68 | 5.7 |
+| 009a8d6d | 425 | GZOnKeyDown | 5.9 |
 | 009a8f16 | 100 | IsWindowACellWindow [slot 117] | 5.8 |
 | 009a8f7a | 68 | DoCellWindowMove | pending |
-| 009a8fbe | 23 | FUN_009a8fbe | pending |
-| 009a8fd5 | 23 | FUN_009a8fd5 | pending |
-| 009a90f8 | 42 | FUN_009a90f8 | pending |
-| 009a93a1 | 134 | FUN_009a93a1 | pending |
-| 009a963e | 39 | FUN_009a963e | pending |
-| 009a9665 | 39 | FUN_009a9665 | pending |
-| 009a968c | 86 | FUN_009a968c | pending |
-| 009a96e2 | 27 | FUN_009a96e2 | pending |
+| 009a8fbe | 23 | FUN_009a8fbe | 5.7 |
+| 009a8fd5 | 23 | FUN_009a8fd5 | 5.7 |
+| 009a90f8 | 42 | FUN_009a90f8 | 5.7 |
+| 009a93a1 | 134 | FUN_009a93a1 | 5.7 |
+| 009a963e | 39 | FUN_009a963e | 5.7 |
+| 009a9665 | 39 | FUN_009a9665 | 5.7 |
+| 009a968c | 86 | FUN_009a968c | 5.7 |
+| 009a96e2 | 27 | FUN_009a96e2 | 5.7 |
 | 009a9765 | 105 | SetSelection [slot 43] | 5.9 |
 | 009a9837 | 91 | DoWindowRemoval | pending |
 | 009a9892 | 267 | FindCellText [slot 133] | pending |
-| 009a999d | 35 | FUN_009a999d | pending |
-| 009a9a09 | 67 | FUN_009a9a09 | pending |
-| 009a9a4c | 61 | FUN_009a9a4c | pending |
-| 009a9d2e | 78 | FUN_009a9d2e | pending |
-| 009a9d7c | 25 | FUN_009a9d7c | pending |
-| 009a9d95 | 196 | FUN_009a9d95 | pending |
-| 009a9e59 | 138 | FUN_009a9e59 | pending |
-| 009a9ee3 | 135 | FUN_009a9ee3 | pending |
+| 009a999d | 35 | FUN_009a999d | 5.7 |
+| 009a9a09 | 67 | FUN_009a9a09 | 5.7 |
+| 009a9a4c | 61 | FUN_009a9a4c | 5.7 |
+| 009a9d2e | 78 | FUN_009a9d2e | 5.7 |
+| 009a9d7c | 25 | FUN_009a9d7c | 5.7 |
+| 009a9d95 | 196 | FUN_009a9d95 | 5.7 |
+| 009a9e59 | 138 | FUN_009a9e59 | 5.7 |
+| 009a9ee3 | 135 | FUN_009a9ee3 | 5.7 |
 | 009a9f6a | 1143 | GZOnMouseDownL | 5.9 |
 | 009aa3e1 | 150 | ActLikeAListbox | 5.9 |
 | 009aa477 | 293 | AddCellToSelection | 5.9 |
@@ -669,5 +722,5 @@ See `questions/win-grid.md`.
 | 009af121 | 71 | Init | 5.1 |
 | 009af168 | 2813 | GZPaint | pending |
 
-Specified 100 of 198 functions, 8546 of 32735 bytes; remaining 98 functions, 24189 bytes.
+Specified 127 of 198 functions, 11433 of 32735 bytes; remaining 71 functions, 21302 bytes.
 <!-- END INVENTORY -->
