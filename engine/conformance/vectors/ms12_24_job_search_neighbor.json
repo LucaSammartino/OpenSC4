@@ -68,8 +68,10 @@
         ],
         "destination": {
           "occupant": null,
-          "by_occupant": false,
-          "by_commute": true,
+          "world": [
+            -16.0,
+            -16.0
+          ],
           "cell": [
             0,
             37
@@ -77,6 +79,12 @@
           "neighbor_city": [
             3,
             4
+          ],
+          "in_city": false,
+          "by_commute": true,
+          "reserved": [
+            0,
+            0
           ]
         },
         "dispatch_flags": 128
@@ -144,13 +152,21 @@
         ],
         "destination": {
           "occupant": null,
-          "by_occupant": false,
-          "by_commute": true,
+          "world": [
+            -16.0,
+            -16.0
+          ],
           "cell": [
             63,
             63
           ],
           "neighbor_city": [
+            0,
+            0
+          ],
+          "in_city": false,
+          "by_commute": true,
+          "reserved": [
             0,
             0
           ]
@@ -216,13 +232,24 @@
         ],
         "destination": {
           "occupant": null,
-          "by_occupant": true,
-          "by_commute": false,
+          "world": [
+            -16.0,
+            -16.0
+          ],
           "cell": [
             -1,
             -1
           ],
-          "neighbor_city": null
+          "neighbor_city": [
+            -1,
+            -1
+          ],
+          "in_city": true,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
         },
         "dispatch_flags": 128
       }

@@ -49,6 +49,20 @@ fn pair(j: &Json, what: &str) -> R<(i32, i32)> {
     Ok((i64_of(&a[0], what)? as i32, i64_of(&a[1], what)? as i32))
 }
 
+/// `[x, z]` floats (an occupant's `GetPosition` x, z).
+fn fpair(j: &Json, what: &str) -> R<(f32, f32)> {
+    let a = arr(j, what)?;
+    let f = |e: &Json| match e {
+        Json::Float(v) => Ok(*v as f32),
+        Json::Int(v) => Ok(*v as f32),
+        _ => Err(format!("{what}: expected a number")),
+    };
+    match &a[..] {
+        [x, z] => Ok((f(x)?, f(z)?)),
+        _ => Err(format!("{what}: expected [x, z]")),
+    }
+}
+
 fn rect(j: &Json, what: &str) -> R<CellRect> {
     let a = arr(j, what)?;
     if a.len() != 4 {
@@ -77,7 +91,16 @@ struct World {
     home_lot: Option<CellRect>,
     lot: Cell<LotAt>,
     city: Cell<Option<(i32, i32)>>,
+    /// The found building's `GetPosition` x, z.
+    end_position: Cell<(f32, f32)>,
+    /// Occupant positions of `location` inputs.
+    positions: std::cell::RefCell<Vec<(u64, (f32, f32))>>,
+    /// The region city at a position and its connection types.
+    region: Option<((i32, i32), Vec<u32>)>,
 }
+
+/// The opaque handle of the one region city of a case.
+const REGION_CITY: u64 = 0xC1;
 
 const HOME_OCCUPANT: u64 = 0x500;
 const END_BUILDING: u64 = 0x900;
@@ -104,14 +127,32 @@ impl JobSearchWorld for World {
     fn city_across_connection(&self, _x: i32, _z: i32) -> Option<(i32, i32)> {
         self.city.get()
     }
+    fn occupant_position(&self, occupant: u64) -> (f32, f32) {
+        if occupant == END_BUILDING {
+            return self.end_position.get();
+        }
+        let p = self.positions.borrow();
+        p.iter().find(|(o, _)| *o == occupant).map_or((0.0, 0.0), |(_, xz)| *xz)
+    }
+    fn region_city(&self, x: i32, z: i32) -> Option<u64> {
+        self.region.as_ref().filter(|(p, _)| *p == (x, z)).map(|_| REGION_CITY)
+    }
+    fn connections_of_type_to_city(&self, connection_type: u32, city: u64) -> usize {
+        self.region.as_ref().map_or(0, |(_, types)| {
+            types.iter().filter(|t| city == REGION_CITY && **t == connection_type).count()
+        })
+    }
 }
 
 /// `mysim_job_search`: `cells?` ([64, 64]), `home` (`{"rect": [..]}` an
 /// occupant home with that lot, `{"cell": [x, z]}` no lot, null = flag
-/// `0x80` clear), `state?` (`+0x40`), `searches` (each `wealth`,
-/// `end_cell`, `find_result?` (1), `lot?` (`building` | `no_building` |
-/// `no_lot`), `city?` ([x, z]), `notify?` (true), `location?` (`default`
-/// or an occupant number: a valid location)); one recording pathfinder for
+/// `0x80` clear), `state?` (`+0x40`), `region?` (`{"city": [x, z],
+/// "connections": [types]}`), `searches` (each `wealth`, `end_cell`,
+/// `end_position?` (the found building's position, [0.0, 0.0]),
+/// `find_result?` (1), `lot?` (`building` | `no_building` | `no_lot`),
+/// `city?` ([x, z]), `notify?` (true), `location?` (`default`,
+/// `{"occupant": n, "position": [x, z]}` = `SetByOccupant`, or
+/// `{"neighbor_city": [x, z]}` = in-city flag clear)); one recording pathfinder for
 /// all searches. Result: `results`, `notifies`, `dest_flags` (after each
 /// search), `flags`, `filter`, `density`, `start_rect`, `travel`
 /// ([allowed, starting]), `find_path` (calls), `calls`, `destination`.
@@ -126,7 +167,8 @@ fn job_search(op: &Json) -> R<()> {
         st.flags |= FLAG_HAS_HOME;
         if let Some(r) = h.get("rect") {
             home_lot = Some(rect(r, "home.rect")?);
-            st.home = DispatchLocation::by_occupant(HOME_OCCUPANT);
+            // The home's position is not read by the search (its lot is).
+            st.home = DispatchLocation::by_occupant(Some((HOME_OCCUPANT, (0.0, 0.0))));
         } else {
             let (x, z) = pair(h.get("cell").ok_or("home: rect or cell")?, "home.cell")?;
             st.home = DispatchLocation::by_cell(x, z);
@@ -141,6 +183,18 @@ fn job_search(op: &Json) -> R<()> {
         home_lot,
         lot: Cell::new(LotAt::Building(END_BUILDING)),
         city: Cell::new(None),
+        end_position: Cell::new((0.0, 0.0)),
+        positions: std::cell::RefCell::new(Vec::new()),
+        region: match opt(op, "region") {
+            Some(r) => Some((
+                pair(r.get("city").ok_or("region.city")?, "region.city")?,
+                arr(r.get("connections").ok_or("region.connections")?, "region.connections")?
+                    .iter()
+                    .map(|t| u32_of(t, "region.connections"))
+                    .collect::<R<Vec<u32>>>()?,
+            )),
+            None => None,
+        },
     };
     let mut pf = RecordingJobPathfinder::default();
     let (mut results, mut notifies, mut dest) = (Vec::new(), Vec::new(), Vec::new());
@@ -164,13 +218,27 @@ fn job_search(op: &Json) -> R<()> {
             Some(o) => return Err(format!("lot: unknown '{o}'")),
         });
         w.city.set(opt(s, "city").map(|j| pair(j, "city")).transpose()?);
+        w.end_position.set(match opt(s, "end_position") {
+            Some(j) => fpair(j, "end_position")?,
+            None => (0.0, 0.0),
+        });
         let notify = match opt(s, "notify") {
             Some(j) => bool_of(j, "notify")?,
             None => true,
         };
         let loc = match opt(s, "location") {
             Some(Json::Str(d)) if d == "default" => DispatchLocation::default(),
-            Some(j) => DispatchLocation::by_occupant(u32_of(j, "location")? as u64),
+            Some(j) if j.get("occupant").is_some() => {
+                let o = u32_of(j.get("occupant").ok_or("location.occupant")?, "location.occupant")? as u64;
+                let pos = fpair(j.get("position").ok_or("location.position")?, "location.position")?;
+                w.positions.borrow_mut().push((o, pos));
+                DispatchLocation::by_occupant(Some((o, pos)))
+            }
+            Some(j) => DispatchLocation {
+                in_city: false,
+                neighbor_city: pair(j.get("neighbor_city").ok_or("location: default, occupant or neighbor_city")?, "location.neighbor_city")?,
+                ..DispatchLocation::default()
+            },
             None => DispatchLocation {
                 by_commute: true,
                 ..DispatchLocation::default()
@@ -184,14 +252,15 @@ fn job_search(op: &Json) -> R<()> {
     let d = st.commute_destination;
     let destination = obj(vec![
         ("occupant", d.occupant.map_or(Json::Null, |o| ji(o as i64))),
-        ("by_occupant", Json::Bool(d.by_occupant)),
-        ("by_commute", Json::Bool(d.by_commute)),
-        ("cell", Json::Array(vec![ji(d.cell.0), ji(d.cell.1)])),
         (
-            "neighbor_city",
-            d.neighbor_city
-                .map_or(Json::Null, |(x, z)| Json::Array(vec![ji(x), ji(z)])),
+            "world",
+            Json::Array(vec![Json::Float(f64::from(d.world.0)), Json::Float(f64::from(d.world.1))]),
         ),
+        ("cell", Json::Array(vec![ji(d.cell.0), ji(d.cell.1)])),
+        ("neighbor_city", Json::Array(vec![ji(d.neighbor_city.0), ji(d.neighbor_city.1)])),
+        ("in_city", Json::Bool(d.in_city)),
+        ("by_commute", Json::Bool(d.by_commute)),
+        ("reserved", Json::Array(vec![ji(d.reserved.0), ji(d.reserved.1)])),
     ]);
     let got = obj(vec![
         ("results", Json::Array(results)),

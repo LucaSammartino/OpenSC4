@@ -22,6 +22,10 @@
           "end_cell": [
             20,
             20
+          ],
+          "end_position": [
+            175.9,
+            32.0
           ]
         }
       ],
@@ -64,13 +68,24 @@
         ],
         "destination": {
           "occupant": 2304,
-          "by_occupant": true,
-          "by_commute": true,
+          "world": [
+            175.9,
+            32.0
+          ],
           "cell": [
+            10,
+            2
+          ],
+          "neighbor_city": [
             -1,
             -1
           ],
-          "neighbor_city": null
+          "in_city": true,
+          "by_commute": true,
+          "reserved": [
+            0,
+            0
+          ]
         },
         "dispatch_flags": 128
       }

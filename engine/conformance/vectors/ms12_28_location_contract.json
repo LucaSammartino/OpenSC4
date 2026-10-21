@@ -1,0 +1,516 @@
+{
+  "format": 1,
+  "name": "mysim_location_contract",
+  "spec": [
+    "mysims 4.7.1"
+  ],
+  "description": "The dispatch location contract (answers MS11): IsValid of a location outside the city needs a region city at the neighbour-city position with a connection of one of Highway, GroundHighway, Avenue, Road, DirtRoad, Rail, LightRail, Monorail, Subway (a Ferry 5 or power 4 one is not enough; no region city is invalid); IsValid in the city checks only the cells against the city size, not the occupant; SetByOccupant resets every field (byCommute 0, neighbour city -1) and takes the cell as floor(position / 16). notify false: a valid location is stored without any pathfinder call, an invalid one fails.",
+  "steps": [
+    {
+      "op": "mysim_job_search",
+      "home": null,
+      "searches": [
+        {
+          "location": {
+            "neighbor_city": [
+              2,
+              9
+            ]
+          },
+          "notify": false
+        }
+      ],
+      "region": {
+        "city": [
+          2,
+          9
+        ],
+        "connections": [
+          5,
+          4
+        ]
+      },
+      "expect": {
+        "results": [
+          false
+        ],
+        "notifies": [
+          false
+        ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
+        "calls": [],
+        "destination": {
+          "occupant": null,
+          "world": [
+            -16.0,
+            -16.0
+          ],
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": [
+            -1,
+            -1
+          ],
+          "in_city": true,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
+        },
+        "dispatch_flags": 0
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": null,
+      "searches": [
+        {
+          "location": {
+            "neighbor_city": [
+              2,
+              9
+            ]
+          },
+          "notify": false
+        }
+      ],
+      "region": {
+        "city": [
+          2,
+          9
+        ],
+        "connections": [
+          5,
+          6
+        ]
+      },
+      "expect": {
+        "results": [
+          true
+        ],
+        "notifies": [
+          false
+        ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
+        "calls": [],
+        "destination": {
+          "occupant": null,
+          "world": [
+            -16.0,
+            -16.0
+          ],
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": [
+            2,
+            9
+          ],
+          "in_city": false,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
+        },
+        "dispatch_flags": 0
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": null,
+      "searches": [
+        {
+          "location": {
+            "neighbor_city": [
+              2,
+              9
+            ]
+          },
+          "notify": false
+        }
+      ],
+      "region": {
+        "city": [
+          2,
+          8
+        ],
+        "connections": [
+          3
+        ]
+      },
+      "expect": {
+        "results": [
+          false
+        ],
+        "notifies": [
+          false
+        ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
+        "calls": [],
+        "destination": {
+          "occupant": null,
+          "world": [
+            -16.0,
+            -16.0
+          ],
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": [
+            -1,
+            -1
+          ],
+          "in_city": true,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
+        },
+        "dispatch_flags": 0
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": null,
+      "searches": [
+        {
+          "location": {
+            "neighbor_city": [
+              2,
+              9
+            ]
+          },
+          "notify": false
+        }
+      ],
+      "region": {
+        "city": [
+          2,
+          9
+        ],
+        "connections": [
+          12
+        ]
+      },
+      "expect": {
+        "results": [
+          true
+        ],
+        "notifies": [
+          false
+        ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
+        "calls": [],
+        "destination": {
+          "occupant": null,
+          "world": [
+            -16.0,
+            -16.0
+          ],
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": [
+            2,
+            9
+          ],
+          "in_city": false,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
+        },
+        "dispatch_flags": 0
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": null,
+      "searches": [
+        {
+          "location": {
+            "occupant": 102,
+            "position": [
+              -1.0,
+              64.0
+            ]
+          },
+          "notify": false
+        }
+      ],
+      "expect": {
+        "results": [
+          false
+        ],
+        "notifies": [
+          false
+        ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
+        "calls": [],
+        "destination": {
+          "occupant": null,
+          "world": [
+            -16.0,
+            -16.0
+          ],
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": [
+            -1,
+            -1
+          ],
+          "in_city": true,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
+        },
+        "dispatch_flags": 0
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": null,
+      "searches": [
+        {
+          "location": {
+            "occupant": 102,
+            "position": [
+              175.9,
+              32.0
+            ]
+          },
+          "notify": false
+        }
+      ],
+      "expect": {
+        "results": [
+          true
+        ],
+        "notifies": [
+          false
+        ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
+        "calls": [],
+        "destination": {
+          "occupant": 102,
+          "world": [
+            175.9,
+            32.0
+          ],
+          "cell": [
+            10,
+            2
+          ],
+          "neighbor_city": [
+            -1,
+            -1
+          ],
+          "in_city": true,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
+        },
+        "dispatch_flags": 0
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": null,
+      "searches": [
+        {
+          "location": {
+            "occupant": 102,
+            "position": [
+              1023.9,
+              0.0
+            ]
+          },
+          "notify": false
+        }
+      ],
+      "expect": {
+        "results": [
+          true
+        ],
+        "notifies": [
+          false
+        ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
+        "calls": [],
+        "destination": {
+          "occupant": 102,
+          "world": [
+            1023.9,
+            0.0
+          ],
+          "cell": [
+            63,
+            0
+          ],
+          "neighbor_city": [
+            -1,
+            -1
+          ],
+          "in_city": true,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
+        },
+        "dispatch_flags": 0
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": null,
+      "searches": [
+        {
+          "location": {
+            "occupant": 102,
+            "position": [
+              1024.0,
+              0.0
+            ]
+          },
+          "notify": false
+        }
+      ],
+      "expect": {
+        "results": [
+          false
+        ],
+        "notifies": [
+          false
+        ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
+        "calls": [],
+        "destination": {
+          "occupant": null,
+          "world": [
+            -16.0,
+            -16.0
+          ],
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": [
+            -1,
+            -1
+          ],
+          "in_city": true,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
+        },
+        "dispatch_flags": 0
+      }
+    }
+  ]
+}

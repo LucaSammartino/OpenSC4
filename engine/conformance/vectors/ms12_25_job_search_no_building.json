@@ -65,13 +65,24 @@
         ],
         "destination": {
           "occupant": null,
-          "by_occupant": true,
-          "by_commute": false,
+          "world": [
+            -16.0,
+            -16.0
+          ],
           "cell": [
             -1,
             -1
           ],
-          "neighbor_city": null
+          "neighbor_city": [
+            -1,
+            -1
+          ],
+          "in_city": true,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
         },
         "dispatch_flags": 128
       }
@@ -135,13 +146,24 @@
         ],
         "destination": {
           "occupant": null,
-          "by_occupant": true,
-          "by_commute": false,
+          "world": [
+            -16.0,
+            -16.0
+          ],
           "cell": [
             -1,
             -1
           ],
-          "neighbor_city": null
+          "neighbor_city": [
+            -1,
+            -1
+          ],
+          "in_city": true,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
         },
         "dispatch_flags": 128
       }
@@ -219,13 +241,24 @@
         ],
         "destination": {
           "occupant": null,
-          "by_occupant": true,
-          "by_commute": false,
+          "world": [
+            -16.0,
+            -16.0
+          ],
           "cell": [
             -1,
             -1
           ],
-          "neighbor_city": null
+          "neighbor_city": [
+            -1,
+            -1
+          ],
+          "in_city": true,
+          "by_commute": false,
+          "reserved": [
+            0,
+            0
+          ]
         },
         "dispatch_flags": 128
       }
@@ -286,13 +319,24 @@
         ],
         "destination": {
           "occupant": 2304,
-          "by_occupant": true,
-          "by_commute": true,
+          "world": [
+            0.0,
+            0.0
+          ],
           "cell": [
+            0,
+            0
+          ],
+          "neighbor_city": [
             -1,
             -1
           ],
-          "neighbor_city": null
+          "in_city": true,
+          "by_commute": true,
+          "reserved": [
+            0,
+            0
+          ]
         },
         "dispatch_flags": 128
       }

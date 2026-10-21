@@ -2492,7 +2492,7 @@ Dispatch job search and pool (§4.7.1, §4.12; no MySim vector needed, engine/co
 
 | op | Arguments | Result |
 |---|---|---|
-| `mysim_job_search` | `home` (`{"rect": [x0,z0,x1,z1]}`, `{"cell": [x,z]}` or null: flag 0x80 clear), `state?`, `searches` (each `wealth`, `notify?` (true), `location?` (occupant id or `"default"`), `end_cell?`, `city?` ([x,z]: a neighbour city across the connection), `lot?` (`no_building`, `no_lot`), `find_result?` (1)) on one dispatch and one long-lived recording pathfinder | `results`, `notifies` (0xEBA06BF4 due), `dest_flags` (after each search), `flags`, `filter`, `density`, `start_rect`, `travel` ([allowed, starting]), `find_path` (count), `calls` (pathfinder slot names), `destination` (`occupant`, `by_occupant`, `by_commute`, `cell`, `neighbor_city`), `dispatch_flags` |
+| `mysim_job_search` | `home` (`{"rect": [x0,z0,x1,z1]}`, `{"cell": [x,z]}` or null: flag 0x80 clear), `state?`, `region?` (`{"city": [x,z], "connections": [types]}`: the region city and its neighbour connection types for `IsValid`), `searches` (each `wealth`, `notify?` (true), `location?` (`"default"`, `{"occupant": n, "position": [x,z]}` = `SetByOccupant`, or `{"neighbor_city": [x,z]}` = in-city flag clear), `end_cell?`, `end_position?` (the found building's position, [0.0,0.0]), `city?` ([x,z]: a neighbour city across the connection), `lot?` (`no_building`, `no_lot`), `find_result?` (1)) on one dispatch and one long-lived recording pathfinder | `results`, `notifies` (0xEBA06BF4 due), `dest_flags` (after each search), `flags`, `filter`, `density`, `start_rect`, `travel` ([allowed, starting]), `find_path` (count), `calls` (pathfinder slot names), `destination` (`occupant`, `world`, `cell`, `neighbor_city`, `in_city`, `by_commute`, `reserved`: the §4.7.1 location fields), `dispatch_flags` |
 | `mysim_pool` | `mysim_dir`, `dat_hex?` (MySims.dat), `install?` (`registry`, `dirs`, `male_text`, `zodiac`, `families` with `export`, `ini`, `entries`), `steps` (`get`, `import`, `find`, `drop_families`) | `results` (per step), `loaded`, `cached`, `installation`, `file_hex` (MySims.dat after the steps, null: none), `converted` ([from, to]), `deleted` |
 | `mysim_portrait` | `mysim_dir`, `portrait`, `bitmap` | `{"file": path}` or `{"resource": id}` |
 | `mysim_gender` | `male_text`, `value` | bool |
@@ -4056,6 +4056,7 @@ Other behaviour: system Init and Shutdown (`ad04_01_system_init`), advisor re-In
 | §4.7.1 worked example: lot without building (and no lot, FindPath ≠ 1, home by cell) | `ms12_25_job_search_no_building` |
 | §4.12 MySims.dat records, wrong magic, portrait display path, gender text | `ms12_26_pool_records` |
 | §4.12 Import and the template cache reset | `ms12_27_pool_import_cache` |
+| §4.7.1 location contract: IsValid (neighbour connection types, Ferry excluded; cells only in the city), SetByOccupant | `ms12_28_location_contract` |
 
 Item 3: the `delta_eq` field is written by `UpdateVariables` (§4.3 step 3) before the ring moves (step 4), so the
 field after step k shows the delta of step k − 1; the vector checks both. Item 20 in its full-game form (every
