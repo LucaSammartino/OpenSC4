@@ -260,6 +260,71 @@ replacement must return a pointer to a record with this layout and keep it valid
 
 `ResetDisasterCost` zeroes the counts, the costs and the special-building records.
 
+#### 2.6.1 The special-building vector (record `+0x50`, instance `+0xA0`) *[compat]* (answers DS46)
+
+The decompiler's type name is `std::vector<cISC4DisasterLayer::tSpecialBldgInfo>`; the layout below is what the
+instructions do, not a guess from that name.
+
+**The vector** is 12 bytes, three pointers, ending exactly where the fire-effectiveness float starts:
+
+| Instance | Record | Contents |
+|---|---|---|
+| `+0xA0` | `+0x50` | `begin` (first element; null until the first insertion) |
+| `+0xA4` | `+0x54` | `finish` (one past the last element) |
+| `+0xA8` | `+0x58` | `end_of_storage` (one past the allocated capacity) |
+
+Element count is `(finish − begin) >> 5` (`0x00578940`). The storage is allocator **B** of
+`docs/abi/allocators.md` (`0x0090CF54` allocate / `0x0090CF63` free, the static object `0x00B62698`).
+
+**The element** (`tSpecialBldgInfo`) is **0x20 bytes** (stride `+0x20` at `0x00578B4E` and `0x00578756`):
+
+| Offset | Size | Contents |
+|---|---|---|
+| `+0x00` | 4 | `cRZString` vtable, `0x00A80810` |
+| `+0x04` | 4 | string `begin` (character buffer, allocator B) |
+| `+0x08` | 4 | string `finish` |
+| `+0x0C` | 4 | string `end_of_storage` |
+| `+0x10` | 4 | the `cRZString` reference count |
+| `+0x14` | 4 | padding, **never written** (uninitialised; do not compare it) |
+| `+0x18` | 8 | `int64` cost (low dword `+0x18`, high `+0x1C`) |
+
+The first 0x14 bytes are an ordinary embedded `cRZString` (0x14 bytes, the layout in
+`docs/abi/allocators.md` "cRZString"). The element owns its character buffer by value; nothing is shared or
+reference-counted across elements.
+
+**Life cycle** (all inside the layer; every helper has exactly one or two callers, all listed here):
+
+| Step | Address | What it does |
+|---|---|---|
+| construct the layer | `0x00578A10` (called once, from `0x00578B83`) | writes 0 to `+0xA0`, `+0xA4`, `+0xA8`: an empty vector, no buffer |
+| make a record | `0x00578CD1`–`0x00578D27` in `DoOnOccupantRemoval` | a stack `cRZString` is default-constructed (`0x00578390`: an 8-byte B buffer holding `""`, ref count 0), filled with `cRZString::Copy` (string vtable slot 13, `0x0090E20A`) from the `cIGZString` the building occupant returns from slot 12 (§2.5 step 2.3), the cost is copied beside it, the temp is pushed, then the temp's buffer is freed |
+| `push_back` | `0x00578B30` (one caller, `0x00578D0C`) | if `finish ≠ end_of_storage`, copy-construct at `finish` and add 0x20; else grow (`0x00578930`) |
+| copy-construct | `0x005785B0` (callers: push_back, grow) | deep-copies the string body (`0x004089B0`, the whole string), writes the vtable, sets the reference count to **0** (not copied), copies the two cost dwords; leaves `+0x14` untouched |
+| grow | `0x00578930` (one caller, push_back) | new capacity = size + max(size, 1) (so 1, 2, 4, 8 …), allocated as capacity × 0x20 from B; copies the old elements, appends the new one, destroys the old range and frees the old buffer |
+| destroy a range | `0x00578730` (callers: destructor, grow, `ResetDisasterCost`) | per element: write the `cRZString` vtable back, free the character buffer with `0x0090CF63` if non-null; no other teardown |
+| `ResetDisasterCost` | `0x00578DC7`–`0x00578DF7` | `erase(begin, finish)`: destroys every element and sets `finish := begin`; **the buffer and `end_of_storage` are kept** |
+| layer destructor | `0x0057884B`–`0x00578871` | destroys the range, then frees `begin` with `0x0090CF63` if non-null |
+
+**Readers.** No code outside these functions touches the vector. The only reader of the record (the safety
+advisor, `0x00416ED1`) reads record `+0x00`, `+0x08`, `+0x60` and `+0x5C` and nothing in `+0x50`–`+0x58`
+(re-checked in `cSC4AdvisorSafety::DoMessage` `0x004169E0`: no access to `[record + 0x50..0x58]`). The layer is not
+saved (§2.8), so the vector has **no serialization** callers. It is written but never read: an observable-behaviour
+dead store.
+
+**Conformance for a replacement** (the §2.8 boundary: the layer is replaced, the six concrete native managers keep
+their identities, DS42–DS44):
+
+- Keep the 12 bytes at record `+0x50` and any state the replacement chooses there must be a valid vector of the
+  above: the safe choice is the constructor's state, three null pointers, forever. No game code will read it.
+- If a host does fill it (for example to show the records in a future UI), the elements must be exactly 0x20
+  bytes as above, every buffer (vector and string) must come from allocator B, and `finish`/`end_of_storage` must
+  stay multiples of 0x20 from `begin`. Do not use a host-side `std::vector` or `std::string` layout: the
+  replacement's own compiler's STL is not this one.
+- `ResetDisasterCost` must leave `begin`/`end_of_storage` as they are (keep the buffer) and set `finish := begin`;
+  a replacement that never allocates satisfies this trivially.
+- A replacement must not free or reuse a native-built vector it did not build; with the layer replaced, the native
+  constructor `0x00578A10` never runs, so there is none.
+
 ### 2.7 Locations (slots 12–17, `GoToNextDisaster` slot 11)
 
 - **`RegisterDisasterLocation(instance, x, z, occupant, zoomLevel, focus)`** (slot 13, pop 24):

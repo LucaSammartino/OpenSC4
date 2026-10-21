@@ -20,10 +20,3 @@ numbers (its Q26-Q42) are given in parentheses; the current choice is in bracket
   simgrid §4.1 step 1's one-tract test with `x + w − 1 < x`) is not specified: what coverage byte does the original's
   step 4 (and §5.6's spread) read for such an occupant, and does it refuse? [the plugin reads 0 coverage, so it does
   not refuse at step 4; unreachable for an occupant inside the city]
-
-<!-- from: glue-disasters-impl4 (2026-10-21) -->
-- **DS46:** §2.6 gives record `+0x50` as "vector of special-building records {name, cost}" but not the vector's
-  layout (begin/end/capacity pointers?) nor the element's (the name's type, size, padding before the int64 cost).
-  Only the safety advisor reads the record and only at `+0x00/+0x08/+0x5C/+0x60` (§2.8 DS44). Does anything read
-  `+0x50`, and what is the element layout? [the replacement keeps the 12 bytes as an empty vector (three null
-  pointers) and keeps the special records' count and cost in its own state]
