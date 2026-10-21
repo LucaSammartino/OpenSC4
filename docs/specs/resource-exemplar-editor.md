@@ -230,7 +230,7 @@ The editors are GZCOM classes registered by `cSC4ResourceLibCOMDirector`'s const
 | 0x47C35AFC | 0x006644D0 | cSCBoolTextEntryView |
 | 0x0A09AC46 | 0x00687E20 | cSC16ColumnGridEntryView |
 | 0xA7847D6A | 0x00684260 | cSCResKeyTableEntryView |
-| 0xA73B81F0 | 0x00662730 | cSCEditValueDlg-family object, vtables 0x00AAB0D8/0x00AAB098 *[inferred]* |
+| 0xA73B81F0 | 0x00662730 | 16-byte ref-counted helper with three interfaces (0x00AAB0D8/0x00AAB0C8/0x00AAB0B8), not a window (§9) |
 | 0x67336285 | 0x006836E0 | resource-key input object, vtables 0x00AAF850/0x00AAF838 *[inferred]* |
 
 The same director also registers the exemplar resource factory (0x453429B3), the cohort factory (0x053429C8), the
@@ -260,14 +260,78 @@ converted and stored. For a list the conversion is RZAtoi64A per element into a 
 SINT64 above 2^31−1 or below −2^31 is not kept *[quirk]*; list elements keep the full 64 bits. The other text editors'
 GetValue bodies sit outside this subsystem's byte count and were not read this round.
 
-## 9. Open points for round 2
+## 9. The edit-value dialog `cSCEditValueDlg` *[compat]*
+
+A window (vtable 0x00AAB0F8, cGZWin-derived) that edits **one** property object. It holds the property at +0xD8
+(a cISCProperty: slot +0x0C property ID, +0x14 value, +0x1C set value) and its current value editor at +0xDC
+(a cISCValueEditView, IID 0x06C5FF7B, from `GetValueEditor` §6; its window comes from editor slot +0x0C, its value
+from editor slot +0x1C). Who opens the dialog was not found this round (no reference to the vtable in the export).
+
+Note: the class ID 0xA73B81F0 of §8 is **not** this dialog. Its factory 0x00662730 allocates a 16-byte reference
+counted object with three interface vtables (0x00AAB0D8, 0x00AAB0C8, 0x00AAB0B8); it is no window.
+
+### 9.1 Init (0x00667320, not decoded by Ghidra; read from the instructions)
+
+Runs once (window init flag; already initialised → returns true). The dialog keeps its current size (no default
+size is set). With W, H the dialog's width and height:
+
+1. Window flag 0x800 cleared, 0x10000 set.
+2. Buttons (helper `createButton` 0x0066E9F0, button class 0x22DEC92D), laid out right to left along the bottom with
+   a 5-pixel margin and gap. Each button keeps the size the helper gave it; with w its width and h the Okay
+   button's height, the row top is T = H − 5 − h.
+
+   | Order | Text | Command / button ID | Style arg | Left edge |
+   |---|---|---|---|---|
+   | 1 | `Okay` | 0x26C10A3B | 0x2001 | W − 5 − w |
+   | 2 | `Cancel` | 0x26C10A3C | 0x2007 | previous left − 5 − w |
+   | 3 | `Add Value` | 0x27C32AA4 | 0x2010 | previous left − 5 − w |
+   | 4 | `Remove Value` | 0xC7C32AA9 | 0x2011 | previous left − 5 − w |
+
+   All four sit at top T. Buttons 3 and 4 exist only when the property is a **variable-length list** (helper
+   0x0066E470): the property ID has an Ingred.ini record, its count field (§4 field 2) is below 1, and its editor
+   class is not 0xE8DDA013 (the general response curve). Unknown ID → no Add/Remove.
+3. Help label (`createLabel` 0x0066DDB0) with the record's help text (`GetHelpText` 0x0066E430), text colour from
+   `MakeFillColor(0, 0, 0)` (black), area left 5, top T, right = left edge of the leftmost button, bottom H − 5.
+4. Value editor: `GetValueEditor(property ID, the property's current value, 0x06C5FF7B, &editor)`. If that
+   succeeds the editor's window gets the area (5, 5)–(W − 5, T) and is added as a child.
+5. Finishes with the base window Init and returns its result.
+
+### 9.2 Buttons (`doButtonPress` 0x00666D00, slot +0x25C)
+
+`GZOnCommand` (0x0066B160) forwards message 0x287259F6 with its argument (the button ID) to `doButtonPress`; any
+other message returns false. `doButtonPress` returns true for every ID except as noted:
+
+- **Okay, 0x26C10A3B**: with an editor: reads the editor's value into a fresh variant, stores it into the property
+  (property slot +0x1C), then ends the dialog through the window manager (dialog slot +0x18, manager slot +0x24,
+  arguments 0x0F, the dialog, **1**) and returns that call's result. Without an editor: ends with **0**, nothing
+  written.
+- **Cancel, 0x26C10A3C**: ends the dialog with 0; returns that call's result.
+- **Add Value, 0x27C32AA4** (no editor → nothing): reads the editor's value; for element types BOOL, UINT8, SINT8,
+  UINT16, SINT16, UINT32, SINT32 and FLOAT32 (variant type with the array bit 0x8000 masked) it builds a new array
+  of count + 1 elements: the old elements copied in order, the new **last** element zero (false / 0 / 0.0).
+  For any other type (SINT64 code 9, code 8, STRING) no array is built and the new variant stays empty *[quirk]*.
+- **Remove Value, 0xC7C32AA9** (no editor → nothing): reads the editor's value; with **fewer than 2** elements
+  nothing happens at all. Otherwise, for the same eight types, the new value is the first count − 1 elements (the
+  last element is dropped); other types again leave the new variant empty *[quirk]*.
+- After Add or Remove the editor is **rebuilt**: the old editor window's left, top, right, bottom are read, the old
+  window is removed from the dialog (`ChildRemove`), `GetValueEditor(property ID, new value, 0x06C5FF7B, &editor)`
+  replaces the editor in +0xDC, the new editor's window gets the same four edges (`SetArea`) and is added
+  (`ChildAdd`), and one reference on the editor in +0xDC is released. Nothing is written to the property until
+  Okay. *[inferred: reference ownership of the replaced editor (the old pointer is overwritten by
+  GetValueEditor, the release goes to the new one)]*
+- Any other ID: returns true, does nothing.
+
+Worked example: a UINT32 list property (count 0) holding {0x10, 0x20}. Add Value → editor shows {0x10, 0x20, 0x0};
+Remove Value twice → {0x10}; a third Remove does nothing (fewer than 2); Okay writes {0x10} to the property.
+
+## 13. Open points for round 3
 
 Per-editor behaviour (Init layout, value parsing and range checks of each text editor, curve editors' point
 editing, colour sequence rows, resource-key table add/edit/delete and save status), `cSCEditValueDlg::doButtonPress`
 (0x00666D00, 1488 bytes), the `ResKeyTableEditorDefaults` and `ExemplarFilters` callbacks, and how edited values are
 written back to the exemplar (beyond §6.1).
 
-## 10. Owner map (honest)
+## 14. Owner map (honest)
 
 | Owner | Bytes | Level after round 1 |
 |---|---|---|
