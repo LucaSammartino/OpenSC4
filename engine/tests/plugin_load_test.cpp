@@ -13074,6 +13074,11 @@ int main(int argc, char** argv) {
             CHECK(world.demandBadIndex == 0);
             CheckCw("power budget path, observer month, our budget");
 
+            // glue-exemplars4 (foundations §2.7, §3.7): a grid reference read
+            // in a Read is not touched until the store load ends (PostLoad /
+            // PreCityInit). Address 0x10 is unmapped: any grid call would fault.
+            CHECK(seam(kFC4SeamUnreadRefs, reinterpret_cast<void*>(0x10), nullptr) == 31);
+
             // The always-on guard: the reference as PreAppInit takes it, a
             // quiet tick, then a 53-bit main thread is reported once.
             // (FpuTick alone: a full observer tick would start the watchdog,

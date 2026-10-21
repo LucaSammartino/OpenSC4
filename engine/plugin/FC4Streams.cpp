@@ -22,7 +22,9 @@
 #include "cRZBaseString.h"
 
 #include <cstring>
+#include <mutex>
 #include <string>
+#include <unordered_set>
 
 namespace fc4 {
 namespace {
@@ -191,6 +193,7 @@ bool IStreamAdapter::ReadRef(uint32_t iid, fc4_ref* out) {
     if (OurObjectRef(obj, iid, out)) return true;
     if (iid == 0 || iid == GZIID_cIGZSerializable) {
         out->token = TokenOf(static_cast<cIGZUnknown*>(obj));  // the caller owns this reference
+        NoteUnreadRef(out->token);
         return true;
     }
     void* typed = nullptr;
@@ -203,7 +206,45 @@ bool IStreamAdapter::ReadRef(uint32_t iid, fc4_ref* out) {
         return true;  // the stream itself stays good (foundations §2.7)
     }
     out->token = TokenOf(typed);  // the caller owns this reference
+    NoteUnreadRef(out->token);
     return true;
+}
+
+// ---- references not yet read by the class-object store (foundations §2.7) ----------------------
+
+namespace {
+std::mutex& UnreadMutex() {
+    static std::mutex m;
+    return m;
+}
+std::unordered_set<uint64_t>& UnreadSet() {
+    static std::unordered_set<uint64_t> s;
+    return s;
+}
+}  // namespace
+
+void NoteUnreadRef(uint64_t token) {
+    if (token == 0) return;
+    std::lock_guard<std::mutex> lock(UnreadMutex());
+    UnreadSet().insert(token);
+}
+
+bool IsUnreadRef(uint64_t token) {
+    if (token == 0) return false;
+    std::lock_guard<std::mutex> lock(UnreadMutex());
+    return UnreadSet().count(token) != 0;
+}
+
+void ForgetUnreadRef(uint64_t token) {
+    std::lock_guard<std::mutex> lock(UnreadMutex());
+    UnreadSet().erase(token);
+}
+
+uint32_t ClearUnreadRefs() {
+    std::lock_guard<std::mutex> lock(UnreadMutex());
+    const auto n = static_cast<uint32_t>(UnreadSet().size());
+    UnreadSet().clear();
+    return n;
 }
 
 }  // namespace fc4

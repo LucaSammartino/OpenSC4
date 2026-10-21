@@ -23,6 +23,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Streams.h"
 #include "FC4Popups.h"
 #include "FC4ProtectionShadow.h"
 #include "FC4Script.h"
@@ -106,9 +107,16 @@ constexpr uint32_t kMsgPreSave = 0x26C63343;  // foundations.md §3.7: the prop 
 // The city situation manager's activation message (city-situation.md 3): the
 // automata layer's U-Drive-It pause / resume rides on it (automata.md 9).
 constexpr uint32_t kMsgSituationActive = 0xABBBCA64;
+// foundations.md 3.7 load steps 3 and 5: the class-object store load (every
+// saved object's Read) ends before PostLoad and the synchronous PreCityInit, so
+// references read in a Read are readable from here on (FC4Streams.h
+// NoteUnreadRef). glue-exemplars4.
+constexpr uint32_t kMsgPostLoad = 0x26C63342;
+constexpr uint32_t kMsgPreCityInit = 0x26D31EC0;
 constexpr uint32_t kObserverMessages[] = {kMsgPostCityInit,     kMsgSimNewDay,       kMsgSimNewMonth,
                                          kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown,
-                                         kMsgAuraCycleCompleted, kMsgPreSave, kMsgSituationActive};
+                                         kMsgAuraCycleCompleted, kMsgPreSave, kMsgSituationActive,
+                                         kMsgPostLoad, kMsgPreCityInit};
 constexpr uint32_t kObserverServiceID = 0x5C7A43E2;  // random, FreeCity4's
 constexpr int32_t kObserverPriority = -1000000;      // [choice] tooling; any value works
 
@@ -659,7 +667,14 @@ public:
                 break;
             case kMsgPostCityShutdown:
                 AutotestOnCityShutdown(true);
+                ClearUnreadRefs();
                 break;
+            case kMsgPostLoad:
+            case kMsgPreCityInit: {
+                const uint32_t n = ClearUnreadRefs();
+                if (n != 0) Log("streams: store load done (message 0x%08X), %u references read in Read now readable", msg->GetType(), n);
+                break;
+            }
             case kMsgSimNewDay: {
                 bool ok = false;
                 const int64_t j = DataOf(msg, &ok);
