@@ -19,3 +19,9 @@
 <!-- from: core-lotrecords4 (2026-10-21) -->
 - **LR4 - section 3.2 field 2:** a lot that was read but never `Init`ed (the crime-only lot of section 14) holds no
   configuration object, only the ID read. Does its `Write` save 0 (no object) or the ID read? [the ID read]
+
+<!-- from: core-lotrecords4 (2026-10-21) -->
+- **LR5 - section 7 / lot-developer.md section 7.2 AddRetainingWallOccupant:** how does the add path compute the
+  wall type, edge mask, the four edge hashes, position and size of the new wall from the lot, and what does
+  `UpdateRetainingWalls(lot)` change on an existing wall? Without it a core can read and write walls but not build
+  them. [not implemented; record Write/Read and the T7 mask growth only]
