@@ -730,5 +730,5 @@ s = {"Tahoma", "Verdana"}; GetSubstitutions("arial", s, 2) → 0 (keys are exact
 
 ## 13. Open questions
 
-FN1-FN6 are answered (archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
+FN1-FN11, FN13 and FN14 are answered (FN7-FN14 by re-font-core-answers4; FN12, the palette channel format, stays open) (archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
 `docs/specs/questions/drawing-fonts.md`.
