@@ -10,7 +10,9 @@ with all the evidence, not proven; *[quirk]* original behaviour that looks unint
 
 Outline: §1 scope; §2 the base class `cSC4ViewInputControl` (identity, layout, slot table, lifecycle, cursor,
 capture, stack queries, result sound); §3 the place-lot tool `cSC4ViewInputControlPlaceLot` (construction, Init,
-Shutdown, messages, key, mouse); §4 quirks; §5 open questions; §6 conformance tests; §7 coverage.
+Shutdown, messages, key, mouse); §4 quirks; §5 open questions; §6 conformance tests; §7 coverage; §8 the query
+tool `cSC4ViewInputControlQuery` (creation, layout, slots, Init, Shutdown, mouse, messages, pick filters,
+inventory).
 
 ## 1. Scope
 
@@ -278,7 +280,7 @@ text (`0xE9C877FA`) and the cost indicator (false); return true.
 
 ## 5. Open questions
 
-See docs/specs/questions/city-tools-input.md (CT1-CT5).
+See docs/specs/questions/city-tools-input.md (CT1-CT12).
 
 ## 6. Conformance tests
 
@@ -290,9 +292,597 @@ See docs/specs/questions/city-tools-input.md (CT1-CT5).
 4. Rotation keys: four presses of `0x6A935CD5` return the rotation to its start; `0x6A935CD1` then `0x6A935CD5`
    is the identity.
 5. A failed left click plays `(0xEA451903, 0xAA62C9D5, 0, 0, 0)`; a successful one does not.
+6. Query tool (§8): mode 0 `Init` sets ID `0xC7AF928E` and cursor `0x816D7F74`, mode 1 `0xC7AF928F` and
+   `0xCB8D5B54`; both subscribe the six messages of §8.4 in order and `Shutdown` unsubscribes them; only mode 1
+   holds `+0x48`/`+0x4C`.
+7. Query tool hover filter: mode 0 accepts a power pole and rejects a prop without property `0x8A416A99`; mode 1
+   rejects a power line (network type 5) and a pipe (type 4) and accepts a road (type 0).
+8. Query tool: a mouse move that changes the hovered occupant restores the old occupant's saved highlight state
+   and sets state 7 on the new one; `OnMouseExit` leaves no occupant highlighted; message `0x26D31EC2` stops tip
+   text until the next mouse move restarts the timer.
+9. Query tool tips (§8.11): `Ratio(90, 100)` = 0.5, `Ratio(80, 100)` = 1.0, `Ratio(5, 0)` = 0.0; a terrain tip
+   on zone 0 has title `0xAA5BBDE4` and an empty body; a network tip on a road (type 0, not 2/8/12) has title
+   `0x6A5589D4`; a tip with icon 0 goes to the cursor text (3D view slot 40) and hides the callout; `SetTip` with
+   two empty strings hides the callout and clears the cursor text.
+10. Query click (§8.12): a click on a building whose exemplar has property `0x2A499F85` = V opens the UI script
+    {0, `0x96A006B0`, V} modally and plays the occupant query sound first; a click with no occupant on an airport
+    (zone 11), seaport (12) or landfill (14) cell opens the zone dialog, and on any other empty cell plays UI
+    sound `0xAA62C9D5` and opens nothing; the read-outs afterwards are `Query`, `Query extra: none`,
+    `Query extra2: none` before being overwritten, and on a building cell `extra2` = `[Building <name>] [Lot:
+    <cfg>_<id hex8>]\n`. In the dialog, a child with ID `0x1001` is filled from the fire simulator's station
+    efficiency; a child with ID `0x1005` (null slot) is not filled and its own children are walked; a child
+    without bit `0x1000` is skipped and walked. The coverage rings switch to the occupant's categories while the
+    dialog is open and the previous categories are restored on close; cancelling (result non-zero) applies no
+    set pass and `DoQueryDialog` returns false.
 
 ## 7. Coverage
 
 `cSC4ViewInputControl` (all 17 functions) is specified by §2. `cSC4ViewInputControlPlaceLot` is specified for its
 lifecycle and input dispatch (§3); the bodies of `PlaceLot`, `CanPlaceLot`, the facing/coverage helpers, the
 preview model and the visual feedback are not, so it is **not** claimed as specified.
+
+`cSC4ViewInputControlQuery` is specified for its creation, lifecycle, input dispatch, message dispatch and pick
+filters (§8; 19 of its 215 functions, 5,907 of 76,564 bytes). The description builders, the dialog fillers and the
+route/path code are not (§8.10), so it is **not** claimed as specified.
+
+## 8. The query tool `cSC4ViewInputControlQuery`
+
+Added 2026-10-21 (re-querytool4 lane). Byte counts and the function inventory are from
+`python tools/coverage.py --owners` at main `fd9beb23`: the owner has 215 functions, 76,564 bytes.
+
+### 8.1 Creation *[compat]*
+
+The 3D view's `ProcessCommand` (`0x007F1C10`) creates the tool for two commands; it first asks the current
+control (3D view slot 24) for its ID and does nothing when that tool is already active:
+
+| Command | Mode `+0x8C` | Skipped when the current ID is | Control ID | Cursor ID |
+|---|---|---|---|---|
+| `0x6A935CF3` | 0 (query) | `0xC7AF928E` | `0xC7AF928E` | `0x816D7F74` |
+| `0x6A935CF4` | 1 (route query) | `0xC7AF928F` | `0xC7AF928F` | `0xCB8D5B54` |
+
+The object is 0xA0 bytes; the constructor (`0x004C4590`) takes (mode, tip delay) and both call sites pass a tip
+delay of 50 (`0x32`). The 3D view then pushes it with `SetCurrentViewInputControl(control, 0)` (slot 25). Mode 1
+is the route-query tool: it alone shows the legend dialog, traces paths and uses the route filter (§8.8)
+*[inferred name]*.
+
+### 8.2 Layout *[compat]*
+
+Base fields `+0x00..+0x20` as §2.2.
+
+| Offset | Type | Constructor value | Meaning |
+|---|---|---|---|
+| `+0x28` | vtable | `0x00A90A78` | message-target sub-object (its `DoMessage` is §8.7; `this` is the object + 0x28) |
+| `+0x2C` | cISC4Occupant* | null | the highlighted (hovered) occupant, held |
+| `+0x40` | uint32 | 0 | that occupant's highlight state before it was highlighted (restored on un-highlight) |
+| `+0x44` | cSC4WinCalloutBox* | null | the hover tip window, held |
+| `+0x48`, `+0x4C` | cIGZWin* | null | mode 1: the legend dialog's full and minimised panes, held |
+| `+0x50` | cRZCallbackTimer | constructed | the hover-tip timer (0x28 bytes) |
+| `+0x78` | bool | true | tip allowed (cleared by message `0x26D31EC2`, set again by `Init` and each timer start) |
+| `+0x7C`, `+0x80`, `+0x84` | float x3 | the global default vector `0x00B21858` (all three from the same dword) | the last terrain point under the cursor |
+| `+0x88` | bool | false | something queriable is under the cursor |
+| `+0x89` | bool | false | a click is in progress (suppresses the tip timer restart) |
+| `+0x8C` | uint32 | mode | §8.1 |
+| `+0x90` | uint32 | tip delay | the timer period passed to the timer start (§8.5) |
+| `+0x94` | bool | false | the 3D view's `GetTerrainQueryEnabled()` (slot 39) at `Init` |
+| `+0x98` | uint32 | 3 | not read by the functions of §8 (Q CT6) |
+| `+0x9C` | cSC4PathView* | null | mode 1: the path view, held |
+
+### 8.3 Slot table (vtable `0x00AA6658`-shaped, at `0x00A90A88`) *[compat]*
+
+Same 30 slots as §2.3 with these overrides; every other slot is the base body (§2.3), including the
+`QueryInterface` shared with the place-lot tool (`0x004BDF10`).
+
+| Slot | Method | Body |
+|---|---|---|
+| 3 | Init | `0x004C57A0` (§8.4) |
+| 4 | Shutdown | `0x004CBA80` (§8.4) |
+| 16 | OnMouseDownL | `0x004D4D70` (§8.6) |
+| 18 | OnMouseUpL | `0x004C4C50` (§8.6) |
+| 20 | OnMouseMove | `0x004CBC70` (§8.5) |
+| 22 | OnMouseExit | `0x004CC0B0` (§8.5) |
+| 26 | deleting destructor | `0x004C5730`: the destructor body `0x004C5750` (release `+0x9C`, destroy the timer `+0x50`, release `+0x4C`, `+0x48`, `+0x44`, then the base destructor), free when `flags & 1` |
+
+Key, character, right-button and wheel input are not handled (base stubs return false).
+
+### 8.4 Init (`0x004C57A0`) and Shutdown (`0x004CBA80`) *[compat]*
+
+`Init`, only when not initialised:
+
+1. Set the control and cursor IDs for the mode (§8.1), then the base `Init` (§2.4).
+2. Subscribe `+0x28` on the message server (`0x00B43CCC`, slot 5), in order, to `0x0A456D95` (tip timer fired),
+   `0x0A456D96` (coverage ring refresh), `0x26D31EC2` (pre-city-shutdown), `0xA6B79602` (view change),
+   `0x66956814` (sim new day), `0x69247DC7`.
+3. Set the timer callback to `MouseTipCallback` (`0x004C4E70`) with this object as its context (timer slot 9);
+   set `+0x78`; store the 3D view's `GetTerrainQueryEnabled()` in `+0x94`.
+4. Create the callout box (0x1B4 bytes, `cSC4WinCalloutBox`), hold it in `+0x44`; set its two style IDs
+   `0xA85F1A83` (slot 11) and `0x0A52F5C6` (slot 10), its rectangle (-40, -40, 40, 40) (slot 17), hide its window
+   (window slot 70) and add that window as a child of the 3D view's window (window slot 14).
+5. Mode 1 only: build the legend dialog from a UI script (`SC4CreateWindowFromScript`, `0x005F9480`; the key
+   words `0x96A006B0` / `0xABB0120F`, child ID `0x6BB92BCB`) under the 3D view's window, with a
+   `cSC4LegendDialogWinProc` (vtable `0x00A90980`, `+0x08` = this tool); look up its child windows `0x0BB0F5E7`
+   (into `+0x48`) and `0x6BB92BCA` (into `+0x4C`) as interface `0x22BA0121` (window slot 36), attach the window
+   proc to each, add each to the 3D view's window and position it from the 3D view's size (window slots 41, 44,
+   45, 56) (Q CT7).
+6. Return true.
+
+`Shutdown`, only when initialised: clear the cursor text with key `0x2A456CB1` (3D view slot 41); remove the
+callout window from the 3D view's window (slot 16) and release `+0x44`; for each of `+0x48`, `+0x4C`: detach the
+window proc (window slot 7 with null, after a QI for `0x5386D516`), remove it from the 3D view's window and release
+it; if a path view is held, unregister it from the renderer (`0x00B43DD0` slot 33), shut it down and release it;
+if an occupant is highlighted, restore its state (`+0x40`, occupant slot 17), `SetHighlightState(0)`, release it
+and clear `+0x40`; unsubscribe the six messages of step 2; stop the timer if it is running (and clear `+0x78`);
+then the base `Shutdown`. Returns true.
+
+### 8.5 Hover: OnMouseMove (`0x004CBC70`) and OnMouseExit (`0x004CC0B0`) *[compat]*
+
+`OnMouseMove(x, z, modifiers)` always returns true. Steps:
+
+1. Clear `+0x88`. No 3D view: return.
+2. Build the mode's hover filter (§8.8) and pick an occupant at (x, z) through it (`PickQueriableOccupant`,
+   §8.8). On a hit set `+0x88`; when the occupant's boolean property `0x6A95E503` is true and the lot manager
+   (`0x00B43D08` slot 14) finds its lot and the lot has a building (lot slot 48), the building replaces the hit.
+3. No hit: pick the terrain (3D view slot 36) into a local point preset to the default vector. If it hits, turn
+   it into a cell (city `0x00B43CEC` slot 95 `PositionToCell`) and get the lot there (lot manager slot 6); if
+   there is a lot with a building, mode 1 takes the building when the route filter accepts it (and sets `+0x88`),
+   mode 0 takes it when it is in occupant group `0x1006` (park). In mode 0 `+0x88` is set whenever the terrain
+   pick hit. Then, when any coordinate differs from `+0x7C/+0x80/+0x84` by 0.0001 or more (float `0x00A9097C`),
+   store the point; with no occupant found, the tip is marked stale.
+   With a hit in step 2 and `+0x94` set, the terrain point is still picked straight into `+0x7C`.
+4. When the occupant differs from the highlighted one `+0x2C`: un-highlight the old one (§8.4 Shutdown wording)
+   and release it; store the new one; if non-null, save its state (occupant slot 16) in `+0x40`, set state 7
+   (slot 17, then `SetHighlightState(7)`) and hold it. A change, a stale tip or no occupant clears the cursor text
+   (key `0x2A456CB1`) and hides the callout.
+5. Unless a click is in progress (`+0x89`): stop the timer, set `+0x78`, start it with period `+0x90` and this
+   object as context (timer slot 6).
+6. If the callout window is visible (window slot 71), move the callout to (x, z) (callout slot 15).
+
+`OnMouseExit()`: stop the timer, clear the cursor text (`0x2A456CB1`), hide the callout, un-highlight and release
+the occupant (as step 4), clear `+0x88`; returns true.
+
+### 8.6 Clicks: OnMouseDownL (`0x004D4D70`) and OnMouseUpL (`0x004C4C50`) *[compat]*
+
+`OnMouseDownL(x, z, modifiers)` always returns true:
+
+1. Stop the timer, clear the cursor text (`0x2A456CB1`), hide the callout.
+2. Modifier bit `0x01` set (Q CT8):
+   - pick at (x, z) with the automaton filter (vtable `0x00A90A18`, `0x004C4D10`; interface `0xA9B40F05`); a hit
+     goes to the object at city slot 43, its slot 34 (Q CT9); a miss posts message `0x2ACD2CF3` with data (x, z)
+     (message server slot 3);
+   - then pick a stoplight prop (§8.8); a hit goes to city slot 40, its slot 37 (Q CT9).
+3. Modifier bit `0x02` set: pick the terrain at (x, z) (result not tested *[quirk]*), turn the point into a cell
+   and call the residential simulator (`0x00B43DA4`) slot 59 with (cellX / 4, cellZ / 4), C division rounding
+   toward zero (Q CT10).
+4. Set `+0x89`. Mode 1: `GetOccupantPaths` (`0x004CAC50`) and return; `+0x89` stays set until `OnMouseUpL`.
+5. Mode 0: clear `+0x89`; when step 2 did not run (bit `0x01` clear), `DescribePick(x, z, <three static strings
+   0x00B2185C, 0x00B21870, 0x00B21884>, IsDebugQueryEnabled())` (`0x004D4140`, the query dialog; §8.10);
+   then `PlayResultSound(0)` (slot 28, which does nothing, §2.8).
+
+`OnMouseUpL(x, z, modifiers)`: stop the timer, clear the cursor text, hide the callout, clear `+0x89`; returns
+true.
+
+### 8.7 Messages (`DoMessage`, `0x004D7160`, on the `+0x28` sub-object) *[compat]*
+
+Always returns false.
+
+| Message | Action |
+|---|---|
+| `0x0A456D95` (posted by the timer, §8.9) | when the tip is allowed (`+0x78`), build the tip text (below) |
+| `0x0A456D96` | recalculate the 3D view's coverage helper (slot 49, `RecalcCoverage`) |
+| `0x26D31EC2` | clear `+0x78` |
+| `0x66956814` | every tenth day *[inferred]* (`0x00B43D5C` slot 7, then its slot 26, mod 10 == 0), when the debug info window `0x00B2184C` and its flag `0x00B21848` are set, refresh its two strings `0x00B21840`, `0x00B21844` (window slot 32) |
+| `0xA6B79602` | read the cursor position (window manager slot 33) and run `OnMouseMove` there |
+| `0x69247DC7` | with a path view held: clear its paths (`UpdatePaths`, `0x007DDC30`) and `ShowAllRoutesThatIntersectCityRect` (§8.10) |
+
+Tip text (`0x0A456D95`), two strings (title, body):
+
+- An occupant is highlighted: mode 1 asks `GetBuildingOccupantTrafficInfo` (buildings `0x278128A0`) or
+  `GetNetworkOccupantTrafficInfo` (networks `0xC772BF98`); mode 0 dispatches on the type: flora `0x74758926` and
+  props `0xA823821E` give the exemplar's display name (§8.8 name rule), buildings `GetBuildingOccupantTipInfo`
+  (which may also return an icon), networks `GetNetworkOccupantSummaryInfo`, power poles `0x2890D4DE` and
+  landfill `0x6A11BD2B` a fixed localised title (group `0xEA5524EB`, instances `0x0A5BB9FD` and `0x4A5BBA21`).
+  Before the dispatch the locals are: title and body empty, icon 0, secondary icon 0, fraction 0.5 (`0x3F000000`).
+  Mode 1's building call also receives the icon; the network traffic call does not.
+- No occupant: when the terrain query is enabled (`+0x94`) `GetTerrainSummaryInfo` fills it.
+- With the terrain query enabled (`+0x94`, whatever was found): an empty title becomes the literal `Terrain`; the
+  line `x=%.1f y=%.1f z=%.1f\ncell x=%d cell z=%d` (from `+0x7C..+0x84` and the cell) is appended to the body,
+  after a `\n` when the body is non-empty.
+- Display: §8.11.3 (the choice between the callout and the cursor text is the icon, not the text).
+
+### 8.8 Pick filters and picks *[compat]*
+
+All picks go through the renderer (`0x00B43DD0`) slot 65 (x, z, filter, &hit); the hit object's slot 3 gives the
+occupant, which is QI'd for the wanted interface (the result is held by the caller).
+
+| Filter (vtable) | `IsOccupantIncluded` | Accepts |
+|---|---|---|
+| hover, mode 0 (`0x00A909B0`) | `0x004C37B0` | buildings, power poles, landfill, network occupants; flora and props only when their exemplar has property `0x8A416A99` |
+| route, mode 1 (`0x00A909E4`) | `0x004C39A0` | buildings; network occupants (interface `0xA821EF94`) of any of the network types 0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12 (not 4 or 5) |
+| stoplight (`0x00A90A4C`) | `0x004C3AD0` | props in occupant group `0x5002` or `0x5003` |
+| automaton (`0x00A90A18`) | `0x004BDF90` | (not in this owner; Q CT9) |
+
+`PickQueriableOccupant(x, z, &out, filter)` (`0x004C4C90`) wants `0x26BB767E` (cISC4Occupant);
+`PickStoplightProp(x, z, &out)` (`0x004C4DC0`) wants `0xE9793A65`; both return true on a hit, false (and null)
+otherwise or without a renderer.
+
+Display name of a flora/prop (`0x004C3810`): the exemplar's string property `0x899AFBAD`, else the localised
+string named by property `0x8A416A99`, else property `0x20` (the exemplar name) *[inferred order]*.
+
+### 8.9 Timer callbacks *[compat]*
+
+- `MouseTipCallback(context)` (`0x004C4E70`): with a message server, send a `cRZMessage2Standard` of type
+  `0x0A456D95` to the context's `+0x28` target (server slot 7) and release it.
+- `CoverageRingCallback` (`0x004C4EE0`): with a message server, post a `cRZMessage2Standard` of type
+  `0x0A456D96` to all (server slot 4) and release it.
+
+### 8.10 Inventory
+
+Covered by §8 (19 functions, 5,907 bytes): `004C4590` constructor, `004C5730` / `004C5750` destructors, `004C57A0`
+Init, `004CBA80` Shutdown, `004D4D70` OnMouseDownL, `004C4C50` OnMouseUpL, `004CBC70` OnMouseMove, `004CC0B0`
+OnMouseExit, `004D7160` DoMessage (dispatch; display tail §8.11.3), `004C4C90` PickQueriableOccupant,
+`004C4DC0` PickStoplightProp, `004C4D10` automaton pick, `004C4E70` MouseTipCallback, `004C4EE0`
+CoverageRingCallback, `004C39A0` / `004C3AD0` filter predicates, `004C3810` display name, `007DDC30` UpdatePaths.
+`004C37B0` (mode-0 predicate) is described but belongs to another owner.
+
+Added by §8.11 (round 2; 5 functions, 5,818 bytes): `004C5BA0` SetTip (229), `004CACC0` SetHighlightState (276),
+`004CF8A0` GetNetworkOccupantSummaryInfo (651), `004D6C70` GetTerrainSummaryInfo (1,197), `004D5E30`
+GetBuildingOccupantTipInfo (3,465); plus the DoMessage display tail (§8.11.3). Described there but not in this
+owner's rows: `004C3B10` Ratio, `004C3730` float greater-than, `004D5C90` lot headlines. Total covered: 24
+functions, 11,725 bytes.
+
+Added by §8.12 (round 3; 8 functions, 4,321 bytes): `004D4140` DescribePick (3,118), `004D3C30` DoQueryDialog
+(783), the walks `004D3AE0` (90), `004D3BD0` (90), `004D3A90` (71), `004C4340` (47), and the sample fillers
+`004C5180` (60), `004C67F0` (62). Total covered: 32 functions, 16,046 bytes. §8.12.3 also gives the exact
+control-ID dispatch of all 103 filler slots (93 distinct fillers, 89 in this owner, 12,323 bytes); their bodies,
+beyond the two samples, are not specified.
+
+Remainder after round 3 (183 functions, 60,518 bytes; the lane parked, Q CT12): the other dialogs
+(`DoZoneBasedQueryDialog` `0x004CCCB0`, `DoNeighborConnectionQueryDialog` `0x004CC6E0`), the refresh walk
+`0x004D3B40`, `EnumFuncClearFilter` `0x004C4370`, `PlayOccupantQuerySound` `0x004C4F40`, the 87 other filler
+bodies of §8.12.3 and their typed workers (`SetOrGetAirport*` `0x004C5280` and kin), the
+description writers (`WriteDetailedDebugInfo` `0x004D12A0`, `DescribeCell`, `DescribeBuilding`,
+`DescribePopulation`, `DescribeDemand`, `WriteBuildInfo`, `WriteDesirabilityEquation`, `WriteOutcomeStats`,
+`GetLotHeadlines`), the traffic-info pair (`0x004D0190`, `0x004D07C0`), the about fifty `SetOrGet*` dialog field fillers with
+`SetOrGetControlValue`, the `SetStaticControl*` / `SetSliderControlValue` helpers, the route code (`MakeRoutePath`,
+`GetOccupantPaths` and its building/network variants, `ShowAllRoutesThatIntersectCityRect`,
+`CalculateTripVolumeFromTrafficPaths`, `DoesRouteCrossCell`, `GetRouteTravelTypes`),
+`SetLegendMinimized`, `IsDebugQueryEnabled`, `PlayOccupantQuerySound`, the rating helpers, and 42
+reach-attributed helpers. The exact list is the owner's rows of `coverage.py --owners` minus the covered list.
+
+### 8.11 Tips: builders, display, `SetTip`, `SetHighlightState` *[compat]*
+
+All localised strings below are in group `0xEA5524EB`; only the instance is given. "Headlines" means: get the
+lot's headline list (`GetLotHeadlines`, `0x004D4FD0`) and append its first three entries (at most) to the body,
+each preceded by `\n` when the body is non-empty at that point.
+
+#### 8.11.1 `GetTerrainSummaryInfo(title, body)` (`0x004D6C70`)
+
+1. Turn `+0x7C`, `+0x84` into a cell (city slot 95). If the terrain (city slot 84) says the cell has water
+   (`CellHasWater`, terrain slot 34): return, both strings untouched.
+2. title := `0x6A5BBCA6`. zone := zone manager (`0x00B43D14`) slot 12 `GetZoneType(cellX, cellZ)`.
+3. By zone (zones above 15 change nothing; zones 1..14 set the body, zones 0 and 15 replace the title):
+
+| Zone | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| String | title `0xAA5BBDE4` | body `0x0A5BBDEF` | `0xAA5BBE08` | `0x8A5BBE12` | `0x6A5BBE1F` | `0x6A5BBE29` | `0xAA5BBE33` | `0x0A5BBE3C` |
+
+| Zone | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
+|---|---|---|---|---|---|---|---|---|
+| String | body `0xCA5BBE4A` | `0x0A5BBE51` | `0x6A5BBE61` | `0xAA5BBE69` | `0x2A5BBE6F` | `0xCA5BBE78` | `0x2A5BBE80` | title `0x2A5BBE85` |
+
+4. The lot at the cell (lot manager slot 6, `GetLot(x, z, false)`): when there is one, its headlines.
+
+#### 8.11.2 `GetNetworkOccupantSummaryInfo(title, body)` (`0x004CF8A0`)
+
+QI the highlighted occupant for `0xA821EF94` (network occupant); none: return. Test the network types (network
+occupant slot 22, true when the occupant carries the type) in this order and take the first match; the title
+gets the string:
+
+| Order | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Type | 2 | 8 | 12 | 0 | 1 | 10 | 11 | 9 | 3 | 4 | 7 | 6 |
+| Title | `0xAA5589FB` | `0x8B8C5CBD` | `0x2BE09C9E` | `0x6A5589D4` | `0x4A5589F3` | `0x4BD9FDD8` | `0xCBE09C9B` | `0x0BE09CA2` | `0x8A558A04` | `0x0A558A0A` | `0x8A558A10` | `0x8B8C5CD0` |
+
+Type 5 and no match leave both strings empty. Type 4 only, when `IsDebugQueryEnabled()`: body :=
+`Distressed Pipes: %d / %d\n` with plumbing simulator (`0x00B43D94`) slot 19 `GetNumDistressedPipes` and slot 18
+`GetNumPipes` (the format replaces the body, cIGZString slot 27 `Sprintf`).
+
+#### 8.11.3 Display (tail of message `0x0A456D95`) and `SetTip(title, body)` (`0x004C5BA0`)
+
+After the builders and the debug line (§8.7):
+
+1. Callout held (`+0x44`) **and** icon non-zero: set the callout's image (callout slot 4) to the resource key
+   (type `0x856DDBAC`, group `0x46A006B0`, instance icon) with the two values 12 and 10; then the secondary
+   image (callout slot 14): with a secondary icon, the key (same type and group, instance secondary) with the
+   value 5 and the fraction; without one, (null, 0, 0). Then `SetTip(title, body)` and clear the cursor text
+   (3D view slot 41, key `0x2A456CB1`).
+2. Otherwise (no callout, or icon 0): hide the callout's window when there is a callout (window slot 70), then
+   with a 3D view set the cursor text (3D view slot 40) with (key `0x2A456CB1`, 0, title, body, 0). So icon-less
+   tips (flora, props, networks, terrain, power poles, landfill, traffic info without an icon) appear as cursor
+   text, never in the callout.
+
+`SetTip(title, body)`: both empty (null or length 0): clear the cursor text (3D view slot 41, `0x2A456CB1`) and
+hide the callout window. Otherwise set the callout's title (callout slot 6) and body (slot 8); when the callout
+window is not visible (window slot 71), read the cursor position relative to the 3D view's window (window
+manager slot 34 with the window from 3D view slot 3), move the callout there (callout slot 15) and show its
+window (window slot 69). An already visible callout only changes its text (`OnMouseMove` step 6 moves it).
+
+#### 8.11.4 `GetBuildingOccupantTipInfo(title, body, &icon, &secondary, &fraction)` (`0x004D5E30`)
+
+Setup: the occupant's property holder (occupant slot 6) and its lot (lot manager slot 14, may be null).
+
+- `IsDebugQueryEnabled()`: icon := 0; title := the exemplar name (property `0x20`); body := `DescribeBuilding`
+  (`0x004CCF60`); with a lot, its centre cell (lot slot 15, city slot 95) feeds `DescribePopulation`
+  (`0x004CF2B0`), `DescribeDemand` (`0x004CD820`) and `DescribeCell` (`0x004CE8A0`, with the zone type from zone
+  manager slot 12). Return (no headlines). The description writers are §8.10 remainder.
+- Otherwise: name := the occupant's display name (interface `0x87DDA3A9`, its slot 19) or empty; title := name.
+  Read the exemplar's property `0xAA1DD396` (occupant groups; property holder slot 9). When it exists, is
+  interface `0x60FD4D2B` and has type `0x8006` (uint32 array), take the first group of the table below that the
+  array contains (each test scans the whole array) and run its row; every row sets the title to the name again.
+  A missing or mistyped property goes straight to the headlines.
+
+| Group (test order) | Icon | Secondary | Fraction / body |
+|---|---|---|---|
+| `0x1000` | `0x14416208` | - | wealth map R (below) |
+| `0x1001` | `0x14416202` | - | wealth map C |
+| `0x1002` | `0x14416206` | - | wealth map I |
+| `0x1003` | `0x14416209` | transport rule | transport rule |
+| `0x1004` | `0x1441620A` | utility rule | utility rule |
+| `0x1501` | `0x14416207` | `0x14416212` | `Ratio(trunc(N * V), N)`: V := the float at `*(police 0x00B43D98 slot 36 GetJailedPercentage())`, N := police slot 28 `GetJailCapacity(occupant)` (protection.md §13) |
+| `0x1500` | `0x14416207` | `0x14416212` | police (`0x00B43D98`) slot 25 `GetStationEfficiency(occupant)` (an `SC4Percentage` returned through a hidden pointer; its float) |
+| `0x1502` | `0x14416203` | `0x14416211` | fire protection (`0x00B43D78`) slot 10 `GetStationEfficiency(occupant)` (same shape) |
+| `0x1503`, `0x1504`, `0x1505`, `0x1506` | `0x14416201` | `0x14416210` | residential simulator (`0x00B43DA4`) slot 26(occupant, &query); on true, the query's float at `+0x28` |
+| `0x1507` | `0x14416201` | `0x14416216` | as above with slot 27 |
+| `0x150A`, `0x150B` | `0x1441620C` | - | - |
+| `0x1006` | `0x14416204` | - | - |
+| none of these | `0x14416200` | - | - |
+
+Rows that leave the fraction alone keep the caller's 0.5.
+
+Wealth maps (groups `0x1000..0x1002`; no lot: nothing): developer type := BDS (`0x00B43D68`) slot 30(purpose,
+`GetBuildingWealth(lot)`), purpose := `*(BDS slot 39(lot slot 46(0)))`; body := the string; other types leave
+the body.
+
+| Map | Developer type → body |
+|---|---|
+| R | `0x1010` → `0xCA95F27E`, `0x1020` → `0x6A95F2B0`, `0x1030` → `0xCA95F2B8` |
+| C | `0x3110` → `0x8A95F2BF`, `0x3120` → `0xAA95F2DC`, `0x3130` → `0x8A95F2E4`, `0x3320` → `0x0A95F39A`, `0x3330` → `0x6A95F3B3` |
+| I | `0x4100` → `0x4A95F2EB`, `0x4200` → `0x2A95F324`, `0x4300` → `0x6A95F313`, `0x4400` → `0xCA95F31C` |
+
+Transport rule (`0x1003`), first match:
+- `0x1508`: secondary `0x14416214`; with a lot, airport developer (city slot 77) slot 12(lot, &a, &b); on true
+  fraction := `Ratio(a, b)`.
+- `0x1509`: secondary `0x14416215`; the same with the seaport developer (city slot 76).
+- Otherwise: fraction := 0; the occupant's position (occupant slot 8) to a cell (city slot 95); traffic simulator
+  (`0x00B43DA8`) slot 35(cellX, cellZ, &rec); on true with `rec+0x00` non-zero: `rec+0x0C` zero gives 1.0, else
+  fraction := `rec+0x00 / rec+0x0C` (both unsigned, to float) clamped to at most 1.0. Then the secondary by
+  subgroup, first match: `0x1307` → `0x1441621C`, `0x1300` → `0x1441621B`, `0x1301` → `0x1441621A`, `0x1302` →
+  `0x1441621C`, `0x1303` → `0x1441621C`, `0x1304` → `0x14416215`, `0x130B` → `0x1441620F`; none: stays 0.
+
+Utility rule (`0x1004`), first match:
+- `0x1400`: fraction := the float returned by power simulator (`0x00B43DA0`) slot 45(occupant); secondary
+  `0x14416218`.
+- `0x1401`: secondary `0x14416219`; plumbing simulator slot 24(occupant, &f, &flag, 0, 0), f preset 0 and flag
+  false; fraction := f; flag true: body := `0x4A5FB66A`.
+- `0x1402`: secondary `0x14416217`; a := pollution simulator (`0x00B43D9C`) slot 54
+  `GetRecyclingCenterMaxCapacity(occupant, &a)`, b := slot 55 `GetRecyclingCenterCurrentCapacity(occupant, &b)`
+  (pollution.md slot table; floats, preset
+  0); fraction := 0; when b > the float at `0x00B21854` (zero-initialised data with no writer, so 0.0):
+  fraction := b / a, clamped to at most 1.0 *[quirk: the guard tests b while a is the divisor; a = 0 gives +inf,
+  clamped to 1.0]* (instructions from `0x004D6910`; Ghidra shows a division by 0.0).
+- None: icon and title only.
+
+`Ratio(a, b)` (`0x004C3B10`, unsigned a and b, float result, x87 with float constants): b = 0 → 0.0;
+a ≤ 0.8·b (float `0x00A9095C`) → 1.0; else (b − a, or 0 when a ≥ b) / (0.2·b), 0.2 being the float `0x00A90A68`
+(0.19999999). Worked: b = 100: a = 80 → 1.0; a = 90 → 10 / 20 = 0.5 (to float rounding); a = 120 → 0.0.
+
+Every non-debug path ends by appending the headlines of the occupant's lot (`0x004D5C90`).
+
+#### 8.11.5 `SetHighlightState(state)` (`0x004CACC0`)
+
+No highlighted occupant (`+0x2C`) or no lot for it (lot manager slot 14): nothing. Otherwise list the lot's
+occupants (lot slot 49, into a list whose nodes come from the allocator service `0x3AE4BEA3`/`0x3AE4BEAB`, cached
+in `0x00B207E4`); for each occupant whose boolean property `0x6A95E503` is true (default false) call occupant
+slot 17(state, 0); release the list (occupant manager `0x00B43D0C` slot 48). The highlighted occupant itself is
+changed only when it carries the property.
+
+### 8.12 The query click: `DescribePick` (`0x004D4140`) and `DoQueryDialog` (`0x004D3C30`) *[compat]*
+
+Added 2026-10-21 (re-querytool4 round 3), from the instructions (REA had no binary open; Ghidra's listing of
+`DescribePick` has a broken stack frame, so offsets below come from the instructions).
+
+#### 8.12.1 `DescribePick(x, z, text, extra, extra2, debug)` (`0x004D4140`, cdecl, 6 args)
+
+`text`, `extra`, `extra2` are three `cIGZString`s (the static ones of §8.6 step 5); `debug` is
+`IsDebugQueryEnabled()`. They are debug read-outs: nothing in this owner reads `0x00B2185C`/`0x00B21870`/
+`0x00B21884` back (no data references), so their only player-visible effect is none *[inferred]*; the dialogs and
+the sound are the visible effect.
+
+1. Reset the strings: `text` := `Query`, `extra` := `Query extra: none`, `extra2` := `Query extra2: none`.
+2. No 3D view (`0x00B43DC4`): return.
+3. Building name := `empty`. Build a plain occupant filter (`cSC4OccupantFilter`, 0x0C bytes, vtable `0x00A90B18`,
+   accepts everything) and `PickQueriableOccupant(x, z, &occ, filter)` (§8.8).
+   - Hit: if the lot manager (`0x00B43D08` slot 14) finds the occupant's lot and that lot has a building (lot
+     slot 48), the building's occupant (building slot 3) replaces the hit (no property test, unlike hover §8.5).
+   - Miss: pick the terrain (3D view slot 36); on a hit take the cell (`PositionToCell`, city slot 95), the lot
+     there (lot manager slot 6) and, when it has a building, that building's occupant.
+4. With an occupant: `type` := occupant slot 7; `PlayOccupantQuerySound(occ)` (`0x004C4F40`); then the dialog
+   choice, first match wins:
+
+| Test (in order) | Action | "dialog shown" |
+|---|---|---|
+| QI `0xA821EF94` (network occupant) succeeds | `DoNeighborConnectionQueryDialog(occ)` (`0x004CC6E0`), then continue with the next rows | no |
+| else QI `0xA8C86142` succeeds | `DoNeighborConnectionQueryDialog(occ)`; stop | yes |
+| exemplar property `0x2A499F85` readable (`cSCPropertyHelp::GetPropertyValue` true) | `DoQueryDialog(occ)` (§8.12.2) | yes |
+| else: zone type at the occupant's cell (position slot 8, `PositionToCell`, zone manager `0x00B43D14` slot 12) is 11, 12 or 14 | `DoZoneBasedQueryDialog(zone, cellX, cellZ)` (`0x004CCCB0`) | yes, and "zone dialog" |
+| else | UI sound: `0x00B43CB8` slot 11(1, `0xAA62C9D5`, 0, 0, 0) | no |
+
+5. Debug lines by type (only these two types set "described"):
+   - building `0x278128A0`: a `cISC4ResidentialSimulator::tQueryData` is built and dropped (no visible effect).
+   - network `0xC772BF98`: with QI `0x4A10AFC2`, `text` := `Query cell (%d, %d): Id %08lx, flip: %s, rotation:
+     %d, model Y Height %f, floor heights %f %f %f %f\n` (flip `yes`/`no`); else with QI `0xA821EF94`, `text` :=
+     `Query cell (%d, %d): Piece Id: %08lx, Rotation:%d, Flipped:%d \n` plus
+     `, traffic cap(%.0f) vol(%d) cong(%f)` where cap is traffic simulator (`0x00B43DA8`) slot 23(1), or slot 23(2)
+     when that is 0.0, vol = 10 x the low byte of the cell's volume, cong = vol / cap (float); and when `debug`,
+     `WriteDetailedDebugInfo` (`0x004D12A0`).
+   Release the occupant. A zone dialog was shown: return. Otherwise when not "described", pick the terrain at
+   (x, z) again (miss: return) and take its cell.
+6. Cell read-out (all debug text): when no dialog was shown and the cell's zone is 11, 12 or 14,
+   `DoZoneBasedQueryDialog` (so an occupant-less click on an airport, seaport or landfill zone opens it); when
+   `debug`, `WriteDetailedDebugInfo`; lot name := `no lot template`, or `%s_%08x` (lot configuration name, ID) for
+   the lot at the cell; find the first building in the cell (occupant manager `0x00B43D0C` slot 41, type
+   `0x278128A0`); with one: `DescribeBuilding`, `DescribePopulation`, `DescribeDemand`, `extra` := `%s %s\n`
+   (population, demand); without: `DescribeDemand` into `extra`, suffixed `: ` + lot name, or `: no lot`; then
+   ` EQ: %f HQ: %f` where HQ := residential simulator (`0x00B43DA4`) slot 36(x, z) and EQ := slot 35(x, z, HQ);
+   `DescribeCell`; `extra2` := `[Building %s] [Lot: %s] %s\n` (with `text`) when `text` is longer than 10
+   characters, else `[Building %s] [Lot: %s]\n`; `text` := `Query cell (%d, %d): %s\n` (cell, cell description).
+
+#### 8.12.2 `DoQueryDialog(occ)` (`0x004D3C30`) → bool
+
+1. Read the occupant's property `0x2A499F85` (the dialog's UI script instance); unreadable: return false.
+2. Create the dialog `SC4CreateWindowFromScript({type 0, group 0x96A006B0, instance = value}, null, 0x10000005)`;
+   none: return false.
+3. Coverage rings: save the 3D view's coverage helper's categories (helper `+0x14`, 3D view slot 49); categories :=
+   `GetCategoriesForOccupant(occ)`; when non-zero set them, `RecalcCoverage`, and start a local timer with
+   `CoverageRingCallback` (§8.9) at 330 ms (`0x14A`).
+4. If the dialog QIs to `0x5386D516` (window proc host), attach a 0x18-byte window proc (`0x004C5620`, built with
+   the dialog) holding the occupant.
+5. Make a 4-byte enumerator context (vtable `0x00A90B38`) and walk the dialog's children with `0x004C4340` (each
+   child's slot 116, recursive).
+6. Publish the refresh state used by message `0x66956814` (§8.7): `0x00B21848` := `0x004D3B40` (the refresh
+   walk), `0x00B21840` := occ (held), `0x00B21844` := the window proc, `0x00B2184C` := the dialog (held).
+7. Fill: walk the children with the get pass (§8.12.3, flag 1).
+8. Run it modally: `0x00B43CE0` slot 10(dialog, 1), window manager slot 41(dialog) = result, `0x00B43CE0`
+   slot 6(dialog). Clear `0x00B21848`, `0x00B21840`, `0x00B21844`, `0x00B2184C` (releasing the holds).
+9. Result 0 (accepted): walk again with the set pass (flag 0). Then `EnumFuncClearFilter` (`0x004C4370`) over the
+   children, detach the window proc (its slot 6 with null), window manager slot 23(dialog), release the dialog,
+   then window manager slot 37(the 3D view's window, 3D view slot 3) (focus back to the view *[inferred]*).
+10. If categories were set in step 3: restore the saved ones, `RecalcCoverage`, stop the timer.
+11. Return result == 0.
+
+#### 8.12.3 The control walk and the filler table (Q CT12)
+
+A walk visits each child window of the dialog (window slot 32, interface `0x22BA0121`). For a child whose
+control ID has bit `0x1000` set and whose `ID & 0xFFF` is below `0x7F` with a non-null entry in the table at
+`0x00A92488` (127 dwords), it calls `filler(window, ID, get, occ)` (cdecl); when there is no filler or it returns
+false, the walk descends into that child's own children. The get pass (`0x004D3AE0`) passes `get` = 1 (fill the
+control from the simulation), the set pass (`0x004D3BD0`) 0 (write the control's value back; most fillers do
+nothing and return true); the daily refresh (`0x004D3B40` via `0x004D3A90`) calls the same table.
+
+Two filler shapes, exact for the samples read:
+
+- Value fillers (e.g. index 1, `0x004C5180`, 60 B): get = 1 only; read a value from a simulator and display it
+  with `SetPerformanceMeterValue(window, ID, value)` (`0x004C3CA0`: child `0xC12CEA13`, property `0xEA563AB0`
+  set to a `cRZVariant`); index 1 is fire `GetStationEfficiency(occ)`; get = 0 returns true.
+- Forwarders (e.g. index 17, `0x004C67F0`, 62 B): with an occupant, occupant slot 11 writes two dwords v0, v1
+  and the call becomes `worker(window, ID, get, v0, v1)` (`SetOrGetAirportAirTrafficVolume`, `0x004C5280`); no
+  occupant: false.
+
+The per-index table (index = control ID & 0xFFF; ID = `0x1000 | index`), from the data at `0x00A92488`. Bytes
+from `decomp/index.tsv`; `own` = in this owner's coverage rows. Unlisted indexes are null.
+
+
+| Index | ID | Filler | Name | Bytes | Own | Family |
+|---|---|---|---|---|---|---|
+| 0 | `0x1000` | `0x004C70C0` | FUN_004c70c0 | 314 | own | unnamed |
+| 1 | `0x1001` | `0x004C5180` | FUN_004c5180 | 60 | own | unnamed |
+| 2 | `0x1002` | `0x004C7200` | FUN_004c7200 | 221 | own | unnamed |
+| 3 | `0x1003` | `0x004C72E0` | FUN_004c72e0 | 110 | own | unnamed |
+| 4 | `0x1004` | `0x004C7350` | FUN_004c7350 | 60 | own | unnamed |
+| 6 | `0x1006` | `0x004C51C0` | FUN_004c51c0 | 60 | own | unnamed |
+| 7 | `0x1007` | `0x004C7390` | FUN_004c7390 | 50 | own | unnamed |
+| 8 | `0x1008` | `0x004C73D0` | FUN_004c73d0 | 50 | own | unnamed |
+| 9 | `0x1009` | `0x004C7410` | FUN_004c7410 | 221 | own | unnamed |
+| 10 | `0x100A` | `0x004C74F0` | FUN_004c74f0 | 110 | own | unnamed |
+| 11 | `0x100B` | `0x004C7560` | FUN_004c7560 | 60 | own | unnamed |
+| 12 | `0x100C` | `0x004C5200` | FUN_004c5200 | 113 | own | unnamed |
+| 13 | `0x100D` | `0x004C75A0` | FUN_004c75a0 | 66 | own | unnamed |
+| 14 | `0x100E` | `0x004C75F0` | FUN_004c75f0 | 100 | own | unnamed |
+| 15 | `0x100F` | `0x004C7660` | FUN_004c7660 | 43 | own | unnamed |
+| 16 | `0x1010` | `0x004C9E50` | SetOrGetOccupantCost | 5 | own | Occupant |
+| 17 | `0x1011` | `0x004C67F0` | SetOrGetAirportOccupantAirTrafficVolume | 62 | own | Airport |
+| 18 | `0x1012` | `0x004CC120` | SetOrGetAirportOccupantNoisePollution | 62 | own | Airport |
+| 19 | `0x1013` | `0x004C9E60` | SetOrGetAirportOccupantMaintenanceCost | 62 | own | Airport |
+| 20 | `0x1014` | `0x004CDC80` | SetOrGetAirportOccupantLostLuggage | 62 | own | Airport |
+| 21 | `0x1015` | `0x004C5310` | FUN_004c5310 | 62 | own | unnamed |
+| 22 | `0x1016` | `0x004C7910` | FUN_004c7910 | 109 | own | unnamed |
+| 23 | `0x1017` | `0x004C7980` | FUN_004c7980 | 235 | own | unnamed |
+| 24 | `0x1018` | `0x004C7A70` | FUN_004c7a70 | 305 | own | unnamed |
+| 25 | `0x1019` | `0x004C7BB0` | FUN_004c7bb0 | 292 | own | unnamed |
+| 26 | `0x101A` | `0x004C8160` | FUN_004c8160 | 68 | own | unnamed |
+| 27 | `0x101B` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
+| 28 | `0x101C` | `0x004C7D30` | FUN_004c7d30 | 218 | own | unnamed |
+| 29 | `0x101D` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
+| 30 | `0x101E` | `0x004C7D30` | FUN_004c7d30 | 218 | own | unnamed |
+| 31 | `0x101F` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
+| 32 | `0x1020` | `0x004C7E10` | FUN_004c7e10 | 235 | own | unnamed |
+| 33 | `0x1021` | `0x004C7F00` | FUN_004c7f00 | 304 | own | unnamed |
+| 34 | `0x1022` | `0x004C8030` | FUN_004c8030 | 291 | own | unnamed |
+| 35 | `0x1023` | `0x004C8160` | FUN_004c8160 | 68 | own | unnamed |
+| 36 | `0x1024` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
+| 37 | `0x1025` | `0x004C81B0` | FUN_004c81b0 | 218 | own | unnamed |
+| 41 | `0x1029` | `0x004C3E70` | FUN_004c3e70 | 100 | own | unnamed |
+| 42 | `0x102A` | `0x004C8330` | FUN_004c8330 | 121 | own | unnamed |
+| 43 | `0x102B` | `0x004C83B0` | FUN_004c83b0 | 106 | own | unnamed |
+| 44 | `0x102C` | `0x004C8420` | FUN_004c8420 | 78 | own | unnamed |
+| 45 | `0x102D` | `0x004C5350` | FUN_004c5350 | 66 | own | unnamed |
+| 46 | `0x102E` | `0x004C9FE0` | thunk_FUN_004c8660 | 5 | own | unnamed |
+| 47 | `0x102F` | `0x004C86D0` | FUN_004c86d0 | 58 | own | unnamed |
+| 48 | `0x1030` | `0x004C8710` | FUN_004c8710 | 76 | own | unnamed |
+| 49 | `0x1031` | `0x004C9FF0` | FUN_004c9ff0 | 77 | own | unnamed |
+| 50 | `0x1032` | `0x004D3250` | thunk_FUN_004d10f0 | 5 | own | unnamed |
+| 51 | `0x1033` | `0x004C85F0` | FUN_004c85f0 | 106 | own | unnamed |
+| 52 | `0x1034` | `0x004C3F90` | FUN_004c3f90 | 63 | own | unnamed |
+| 53 | `0x1035` | `0x004C8660` | FUN_004c8660 | 98 | own | unnamed |
+| 54 | `0x1036` | `0x004C86D0` | FUN_004c86d0 | 58 | own | unnamed |
+| 55 | `0x1037` | `0x004C8710` | FUN_004c8710 | 76 | own | unnamed |
+| 56 | `0x1038` | `0x004C9FF0` | FUN_004c9ff0 | 77 | own | unnamed |
+| 57 | `0x1039` | `0x004D10F0` | FUN_004d10f0 | 156 | own | unnamed |
+| 58 | `0x103A` | `0x004C42F0` | FUN_004c42f0 | 79 | own | unnamed |
+| 59 | `0x103B` | `0x004C8880` | FUN_004c8880 | 113 | own | unnamed |
+| 60 | `0x103C` | `0x004C8900` | FUN_004c8900 | 71 | own | unnamed |
+| 61 | `0x103D` | `0x004C8950` | FUN_004c8950 | 71 | own | unnamed |
+| 62 | `0x103E` | `0x004C89A0` | FUN_004c89a0 | 71 | own | unnamed |
+| 63 | `0x103F` | `0x004D1190` | FUN_004d1190 | 150 | - | unnamed |
+| 64 | `0x1040` | `0x004CA090` | SetOrGetWaterBuildingPumpCondition | 159 | own | Water |
+| 65 | `0x1041` | `0x004C3FD0` | FUN_004c3fd0 | 223 | own | unnamed |
+| 66 | `0x1042` | `0x004C8A60` | FUN_004c8a60 | 204 | own | unnamed |
+| 67 | `0x1043` | `0x004C8B30` | FUN_004c8b30 | 141 | own | unnamed |
+| 68 | `0x1044` | `0x004C8BC0` | FUN_004c8bc0 | 139 | own | unnamed |
+| 69 | `0x1045` | `0x004C8C50` | FUN_004c8c50 | 139 | own | unnamed |
+| 70 | `0x1046` | `0x004C8CE0` | SetOrGetTransitStationGlobalFunding | 92 | own | TransitStation |
+| 71 | `0x1047` | `0x004C8D40` | FUN_004c8d40 | 97 | own | unnamed |
+| 73 | `0x1049` | `0x004C8DB0` | ? | ? | - | unnamed |
+| 74 | `0x104A` | `0x004CA130` | ? | ? | - | unnamed |
+| 81 | `0x1051` | `0x004C8FF0` | SetOrGetRCIBuildingCurrentOccupancy | 170 | own | RCIBuilding |
+| 82 | `0x1052` | `0x004C90A0` | SetOrGetRCIBuildingMaxOccupancy | 115 | own | RCIBuilding |
+| 83 | `0x1053` | `0x004D3500` | SetOrGetRCIBuildingWealthLevel | 554 | own | RCIBuilding |
+| 84 | `0x1054` | `0x004D3730` | FUN_004d3730 | 105 | own | unnamed |
+| 85 | `0x1055` | `0x004D3810` | FUN_004d3810 | 105 | own | unnamed |
+| 86 | `0x1056` | `0x004C9120` | SetOrGetRCIBuildingLandValue | 215 | own | RCIBuilding |
+| 87 | `0x1057` | `0x004D3880` | SetOrGetResidentialBuildingCommute | 190 | own | ResidentialBuilding |
+| 88 | `0x1058` | `0x004C9200` | SetOrGetResidentialBuildingMayorApproval | 156 | own | ResidentialBuilding |
+| 89 | `0x1059` | `0x004D39B0` | FUN_004d39b0 | 105 | own | unnamed |
+| 90 | `0x105A` | `0x004D3A20` | FUN_004d3a20 | 105 | own | unnamed |
+| 91 | `0x105B` | `0x004CDCC0` | SetOrGetResidentialBuildingMySimicon | 576 | own | ResidentialBuilding |
+| 92 | `0x105C` | `0x004C92A0` | SetOrGetCommercialServiceBuildingCustomers | 101 | own | CommercialServiceBuilding |
+| 94 | `0x105E` | `0x004C3EE0` | FUN_004c3ee0 | 167 | own | unnamed |
+| 95 | `0x105F` | `0x004C8470` | FUN_004c8470 | 217 | own | unnamed |
+| 96 | `0x1060` | `0x004C8550` | FUN_004c8550 | 157 | own | unnamed |
+| 97 | `0x1061` | `0x004CA040` | FUN_004ca040 | 70 | own | unnamed |
+| 98 | `0x1062` | `0x004CA040` | FUN_004ca040 | 70 | own | unnamed |
+| 99 | `0x1063` | `0x004C8760` | FUN_004c8760 | 276 | own | unnamed |
+| 107 | `0x106B` | `0x004CB880` | ? | ? | - | unnamed |
+| 108 | `0x106C` | `0x004C9310` | SetOrGetOccupantCost | 282 | own | Occupant |
+| 109 | `0x106D` | `0x004C42F0` | FUN_004c42f0 | 79 | own | unnamed |
+| 115 | `0x1073` | `0x004C89F0` | FUN_004c89f0 | 100 | own | unnamed |
+| 116 | `0x1074` | `0x004D3940` | FUN_004d3940 | 105 | own | unnamed |
+| 117 | `0x1075` | `0x004D37A0` | FUN_004d37a0 | 105 | own | unnamed |
+| 118 | `0x1076` | `0x004CA2C0` | FUN_004ca2c0 | 206 | own | unnamed |
+| 119 | `0x1077` | `0x004CA390` | FUN_004ca390 | 206 | own | unnamed |
+| 120 | `0x1078` | `0x004C9FA0` | FUN_004c9fa0 | 62 | own | unnamed |
+| 121 | `0x1079` | `0x004D0EE0` | SetOrGetWhyOccupantAbandoned | 490 | own | Why |
+| 122 | `0x107A` | `0x004C55A0` | SetOrGetOccupantIsHistorical | 124 | own | Occupant |
+| 123 | `0x107B` | `0x004C9EA0` | FUN_004c9ea0 | 62 | own | unnamed |
+| 124 | `0x107C` | `0x004C9EE0` | FUN_004c9ee0 | 62 | own | unnamed |
+| 125 | `0x107D` | `0x004C9F20` | FUN_004c9f20 | 62 | own | unnamed |
+| 126 | `0x107E` | `0x004C9F60` | FUN_004c9f60 | 62 | own | unnamed |
