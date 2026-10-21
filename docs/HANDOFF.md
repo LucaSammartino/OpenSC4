@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**Run4 checkpoint150 (recorded at153):**150 rounds milestone;26 trains landed. Coverage44.3/34.5/16.4/17.8, baseline delta+7.5/+6.2/+4.3/+1.9points. 16 lanes parked; DS46 blocks the unfinished disaster wrapper while its tested layer API is staged separately. Target10/max3glue; slot cap still binds after refills. Nextcheckpoint175.
+
 **train51 landed 8c5249f634:** Five-lane engine batch; span registry conflicts excluded. Full65-test gate and default38 replacement plus occupant-manager follow shadow union PASS/ref0. Occupant manager72/72 with zeroresync, zero native-driven silent moves, followed queries and native call tracking; follow mode added to house profile after actual candidate proof. Landvalue returned72/72 but prior70/72 remains under verify-landvalue49 investigation. Advisor/netrules/budget/MySim scopes partial, new contract questions published, no whole-owner credit. Tool candidate profile89tests PASS. Span conflict fixes prepared separately. Coverage44.3/34.5/16.4/17.8; rounds149 (open-ended).
 
 **train50 landed 1e932067a6:** Two-lane docs unblock: DS42-DS44 answered, native disaster managers must be preserved because consumers cast slot7 results; global is populated by SL before layer Init. FN1-FN6 answered, whole font-owner remainder still uncredited. No ABI/runtime changes, gate/regress skipped. Landvalue train49 dropped72/72->70/72 (intrinsic deltas1-2); verify-landvalue49 dispatched with both frozen evidence sets. Target10/max3glue; fresh checks resumed as slot activity aged out. Coverage44.3/34.5/16.0/17.8; rounds147 (open-ended).
