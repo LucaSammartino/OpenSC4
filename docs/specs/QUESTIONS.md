@@ -79,6 +79,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PO | prop-occupant |
 | PR | persistence, protection |
 | PS | plumbing |
+| PT | particles |
 | PV | prop-developer |
 | PW | power |
 | RD | renderer-driver |
@@ -143,6 +144,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 12 | 0 | OP13 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | parks | 0 | 11 | PK12 | - |
+| particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
 | persistence | 3 | 0 | PR4 | questions/persistence.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
@@ -164,4 +166,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **115** | **995** | | |
+| **total** | **118** | **999** | | |
