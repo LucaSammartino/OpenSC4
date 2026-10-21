@@ -1,3 +1,5 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
 | glue-advisors4: GZCOM glue for the advisor system (enable=advisors), scoping round | glue-advisors4 / .claude/worktrees/glue-advisors4 | blocked: scoped, no plugin code; questions AD1-AD3 filed | answers to AD1-AD3, then a multi-round glue program (stages below) |
 
 ## Report (run4, one round, 2026-10-21)
