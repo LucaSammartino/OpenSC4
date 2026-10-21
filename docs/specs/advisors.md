@@ -258,7 +258,8 @@ If already initialised, only the last step runs. Otherwise:
 8. If not loaded from a save: `load_advisors()`. Then mark initialised, `update_advisors()` and the popup thresholds
    (§6.8).
 9. Subscribe `PostCityInit` `0x26D31EC1`, `CityEstablished` `0x26D31EC4` and the **ticker** `0xCA5501F2`.
-10. Release any advisor window and call slot 24 (`startAdvisorWindow`, UI).
+10. Release any advisor window (member `+0x5C`: null it, then `Release` the old one) and call slot 24
+    (`startAdvisorWindow`) through the system's own vtable (`0x41B7DD`). Slot 24 builds the window proc (§12.1.1).
 
 ### 4.2 Script loading and reload (`reload_data`) *[compat]*
 
@@ -342,8 +343,9 @@ subclass `Shutdown`s unsubscribe their messages first and clear dirty.
 
 ### 4.6 System `Shutdown()` → true
 
-Unregister the detokenizer; unsubscribe `0x26D31EC1`, `0x26D31EC4`, `0xCA5501F2`; remove the advisor window
-(slot 28); `kill_advisors()`; unregister both cheat codes; set the Lua global `game` to nil and force a collection
+Unregister the detokenizer; unsubscribe `0x26D31EC1`, `0x26D31EC4`, `0xCA5501F2`; if member `+0x5C` is set,
+remove the advisor window (slot 28 through the own vtable, `0x41A423`; §12.1.1) and release `+0x5C` again if it is
+still set; `kill_advisors()`; unregister both cheat codes; set the Lua global `game` to nil and force a collection
 (`SetGCThreshold(0)`); release the Lua context; give the tutorial registry a null Lua context; clear initialised.
 
 ---
@@ -1245,7 +1247,49 @@ Pop = callee-pop bytes (`abi_extract.py --check`). Return channels read from the
 SDK errors (checked): slot 9 returns a pointer to the system's `cRZRandom` (SDK `intptr_t`, harmless); slot 18
 returns nothing (SDK `bool`; a replacement should return true); slots 23–28 are missing from the SDK; slot 6 is spelled
 `RemoveAdivsor` in the SDK. The overload pair 12/13 is in reverse declaration order, as foundations §16 predicts.
-Slots 23–28 are UI.
+Slots 23–28 are UI (§12.1.1). The export's labels at `0x418840` ("IsAdvisorWindowVisible") and `0x4187B0`
+("startAdvisorWindow") do not all match the bodies; the slot names in the table follow the bodies.
+
+#### 12.1.1 Slots 23–28: the advisor window proc *[compat]*
+
+Member `+0x5C` of the system holds one `cSC4AdvisorUIAdvisorWinProc*` (0x70 bytes, own reference, null until
+slot 24 runs). Bodies:
+
+| Slot | Body |
+|---|---|
+| 23 `GetAdvisorWinProc` | return `+0x5C` (no AddRef; null when there is no window). |
+| 24 `StartAdvisorWindow` | if `+0x5C` is set, return. Else allocate 0x70 bytes with the game heap (`0x5E55E0`) and run the win proc's constructor `0x41DB50` directly (not `CreateInstance`). If the new pointer differs from `+0x5C`: AddRef it, store it, release the old one. Then call the win proc's `Init` (`0x41E320`) on `+0x5C`, without a null check (an allocation failure crashes, quirk). |
+| 25 `ShowAdvisorWindow` | if `+0x5C` is set, `0x41D650`: in the window's parent, show the panel of the current layout (layout field `+0x58`: 0 → child `0x6A15C767`, 1 → `0xAA15EF06`, 2 → `0x2A1D96B1`); then show the one advisor sub-window whose id matches field `+0x10` in the 7-entry advisor-id table `0x00A83508` when field `+0x14` < 7, else all seven sub-windows (`+0x38`..`+0x50`); set visible byte `+0x56` = 1. |
+| 26 `HideAdvisorWindow` | if `+0x5C` is set, `HideWindow` `0x41D710`: hide the three layout panels, hide the same sub-window(s) as slot 25, visible byte `+0x56` = 0. |
+| 27 `IsAdvisorWindowVisible` | `+0x5C` set → the win proc's byte `+0x56`; else false. |
+| 28 `RemoveWinProcs` | if `+0x5C` is set: `0x41D830` (AddRef self; if its member `+0x5C` is set, call that object's slot `+0x1C`; `0x41D530`; if the script window has a parent, remove the three layout panels and the script window from it; if registered, unsubscribe `0x8A09FA67`, `0x8A09FA65`, `0x8A09FA64`, `0x426841A1`, `0xCA09FA6C`; release its members `+0x0C`, `+0x18` (the script window), `+0x5C` and the two 7-entry pointer arrays `+0x1C` and `+0x38`; Release self). Then, if `+0x5C` is still set, null it and Release the win proc (tail call). |
+
+Win proc `Init` (`0x41E320`): build the window from the UI script (group `0x96A006B0`, instance `0xCBC905CD`) under
+the main game window (global `0x00B43DC8`), child id `0x6A15C767`, into the win proc's `+0x18`; align it, clear the
+accept-focus flags of the three layout panels and hide them; install the win proc on the window; then
+`SetupAllAdvisorWinProcs`.
+
+**Creation route.** The win proc class is not registered with the COM director (no `AddCls` entry; it answers only
+`QueryInterface` for `0x22E85D8E`, `0x452294AA` and 1), and its constructor `0x41DB50` has exactly one caller (slot 24,
+`0x4187CC`). So no GZCOM interface creates it: only the original slot 24 code (or a direct call of the game's code at
+those addresses) can. A replacement that answers null / no-op / false is therefore **not** the literal original: the
+original always has a window after `Init`, and these UI callers use it through the city getter
+(`cISC4City` `+0x144` → system):
+
+| Caller | Slots |
+|---|---|
+| `cSC4View3DWin::ShowMayorSubPanel` `0x7E6F60` | 25 Show, 26 Hide |
+| `cSC4View3DWin::HandleAdviceLinkMessage` `0x7E7830` | 27 IsVisible, then 26 Hide (four pairs) |
+| `cSC4View3DWin::ShowPanel` `0x7E8B90` | 26 Hide |
+| `cSC4View3DWin::HidePanel` `0x7E8CA0`, `HandleButtonActivated` `0x7F4690` | 27, then 26 |
+
+No caller of slots 23, 24 or 28 was found outside the system (24 and 28 are called by §4.1 step 10 and §4.6 only).
+The win proc itself reads the advisors only through the system's slot 7 (`GetAdvisor`: `SetupSingleAdvisorWinProc`
+`0x41DCE0`, `SetupAllAdvisorWinProcs` `0x41DE20`, `SetAllMoods` `0x41DF90`, `SetIndividualAdvisorWindow` `0x41F2D0`,
+`SetLargeIndividualAdvisorWindow` `0x41F610`, `SetSmallIndividualAdvisorWindow` `0x41F720`) and the advisors'
+`GetCurrentAdvices` (§12.2); it never reads the private global (§14.2). A replacement can thus keep the original
+window only by running the original constructor and `Init` (a *[choice]* of the shim); with "no window" the View3D
+advisor panel stays empty and slot 27 reports false.
 
 ### 12.2 `cISC4Advisor` (`cSC4Advisor` iface vtable `0x00A811B0`, 21 slots)
 
@@ -1268,6 +1312,30 @@ Slots 23–28 are UI.
 | 18 | `+0x48` | `bool PushEvent(int32, cISC4AdviceSubject*)` | 8 | AL | `0x40EEC0` |
 | 19 | `+0x4C` | `bool CommandWouldTrigger(uint32)` | 4 | AL | `0x40D8A0` |
 | 20 | `+0x50` | `bool RetireAdvice(cISC4Advice*)` | 4 | AL | `0x40E9B0` (CitySituations `0x413730`) |
+
+**Container layout and consumers of slots 8 and 10–11** *[compat]*. Both maps are the game's SGI-style
+`std::_Rb_tree`: the map object is `{header node*, node count}`; the header's `+4` is the root, `+8` the leftmost,
+`+0xC` the rightmost node; a node is `{color byte +0, parent +4, left +8, right +0xC, key +0x10, value +0x14}`. The
+system's advisor map (slot 8) is at system `+0x4C` (key int32 advisor id, value `cISC4Advisor*` with a reference);
+an advisor's active map (slots 10/11) is at advisor `+0x70` (key `cISC4Advice*` with a reference, value int32).
+Consumers outside the family, all read-only:
+
+| Consumer | Access |
+|---|---|
+| `cSC4MySimAgentSimulator::Init` `0x42EC30` | slot 8: walks the advisor map in key order from the leftmost node; QIs each advisor for `cISC4MySim` `0x0A1DA42F`, keeps id 30 apart and the others in order |
+| `cSC4AdvisorUIAdvisorWinProc::GetMessageList` `0x41E000` | slot 10: copies the map into its own map (`+0x64`) with the game's `_Rb_tree::operator=` `0x40EB00`, then walks the copy |
+| `cSC4AdvisorUIAdvisorWinProc::get_advisor_mood` `0x41DC20` | slot 11: copy-constructs a local map (`0x40F0C0`), walks it, destroys it |
+| `cSC4MySimWinProc::GetMessageList` `0x76F260` | slot 10: as the advisor win proc, `operator=` into its own map |
+
+No code outside the advisor, advice and system classes calls an insert, erase or `operator[]` helper of either
+tree type (callers of `0x40DE90`, `0x40E440`, `0x40EFF0`, `0x418EE0`, `0x419230`, `0x419640` are all in the family;
+the outside callers of `clear` `0x40E050` clear their own copies). So no consumer mutates the original containers:
+a replacement may keep its state in its own core and rebuild the game-layout map whenever its content changes (before
+any of the four consumers can run), as long as the nodes and the header follow the layout above and the referenced
+objects stay alive while listed. No call of slot 8 or 10/11 was found in the city-situation manager, the tutorial,
+the popup tracker, the HTML link handler or View3D (every call through the city getter `+0x144` was traced; a
+consumer that caches the system pointer elsewhere would not be seen by that trace, but none of them calls a tree
+helper of these types either).
 
 SDK error (checked at `0x40D3D0`): `GetCurrentAdvices` returns a `std::map<advice, index>&`, not an
 `SC4List<pair<int32, advice>>&`. The subclasses override only slots 3, 4 and (CitySituations) 20.
@@ -1399,7 +1467,7 @@ through `GetCellValue` (simgrid §6.4 applies to the traffic simulator, not to t
 | Tutorial system / registry | shares the Lua context (`GetScriptingContext`, `SetLua`) |
 | Building development simulator, port developers | `PushEvent` / advisor `PushEvent` |
 | Civic building simulator | written by reward advices (§6.6); it does not call the advisors |
-| UI (advisor windows, popup tracker, View3D panels, HTML link handler) | window slots 23–28, `DoLink`, `GetAdvicePopupPriorityThreshold`, the advice messages |
+| UI (advisor windows, popup tracker, View3D panels, HTML link handler) | window slots 23–28, `DoLink`, `GetAdvicePopupPriorityThreshold`, the advice messages; by trace (§12.1.1): View3D slots 25–27, popup tracker `DoMessage` `0x763450` slot 21, `cSC4HTMLLinkHandler::DoURL` `0x78D140` slot 11, MySim balloon win proc slot 9, the advisor win proc slot 7 |
 | Lua scripts | `game.*` (§7, §8) |
 
 ### 14.2 Replaceability findings
@@ -1408,6 +1476,24 @@ through `GetCellValue` (simgrid §6.4 applies to the traffic simulator, not to t
   in the advisor classes, the advice classes, the neighbour-deal advice and the Lua extensions use that global, not
   the city getter. A replacement system class must either replace every advisor class, advice class and Lua extension
   as well, or write its own pointer there (a compatibility-table address, *[choice]* only in the shim).
+  **All accesses, by byte scan** (every 4-byte occurrence of `0x00B207C0` in `.text`: 66, all `MOV` encodings, none
+  takes the address): 3 writes, the constructor `0x41A9B5` (stores the object's primary `cISC4AdvisorSystem` pointer,
+  offset 0, vtable `0x00A82AC8`), `~cSC4AdvisorSystem` helper `0x41A1D1` and the base destructor `0x418A1E` (both store
+  null); 63 reads, all in: `cSC4Advice` (`Shutdown`, `DoLink`, `get_raw_trigger`, `Init`, `refresh_text`),
+  `cSC4AdviceNeghborDeal::Init`, `cSC4CitySituationAdvice::Init`, `cSC4MySimBalloonAdvice::Init` `0x42FE60`,
+  `cSC4RewardAdvice::GetTrigger`, `cSC4Advisor` (`Shutdown`, `GetHeadAnimID`, `load_heads`, `Init`), the advisor
+  subclasses' `update_variables` / `update_occupant_variables` / `DoMessage` (city planning, finance, HQ, safety,
+  traffic, utility), the Lua extension functions `0x409A50`..`0x40C9B0` (registered by
+  `cLUAExtensionsCollector::cLUAExtensionsCollector`) and the Lua callback `0x418B50` (registered by the system's
+  `Init`). **None** is in the advisor UI win procs, the popup tracker, the city-situation manager, MySim
+  (`cSC4MySim`, the agent simulator, the MySim win proc), the tutorial, View3D or the HTML link handler: those reach
+  the system only through `cISC4City` `+0x144` (§12.1.1, §12.2). Every read whose first use could be traced calls an
+  interface slot on the pointer (GetContextAdvice 29, SetGlobalValue(double) 13, GetScriptingContext 8,
+  PushContextAdvice 5, PushEvent 3, UnsubscribeFromEvent 1; 4 not traced past the load); no raw member read of the
+  system was seen. So when the whole family (system, advisors, advices including the city-situation, MySim balloon,
+  neighbour-deal and reward advices, and the Lua extensions) is replaced, nothing original reads the global and the
+  shim need not write it. If only part of it is replaced, the remaining original family code needs a
+  `cISC4AdvisorSystem*` there (interface calls only, by this evidence), not a layout-compatible object.
 - **Blocker: Lua.** Advices, the tutorial and MySim share the system's `cISCLua`. A replacement must provide a
   compatible Lua 4-style state (tags, `gc` tag methods, `game` table) before the original advice classes can run.
 - The advisor map, the active maps and the vectors are reached only through the interfaces, but `GetAdvisors` and
