@@ -273,7 +273,8 @@ fn xform_read_rules_no15() {
     t.legacy_load_into(&mut ByteReader::new(&lg), &mut c).unwrap();
     assert_eq!(t.mask, 0x15);
     let mut short = Xform::default();
-    assert!(short.legacy_load_into(&mut ByteReader::new(&lg[..55]), &mut c).is_none());
+    let mut cut = ByteReader::new(&lg[..55]);
+    assert!(short.legacy_load_into(&mut cut, &mut c).is_none());
 }
 
 #[test]
