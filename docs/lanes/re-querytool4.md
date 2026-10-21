@@ -1,15 +1,28 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-querytool4 | .claude/worktrees/re-querytool4 | in progress (round 3 of 3, final) | §8.12 DescribePick/DoQueryDialog, CT12/CT13 |
+| re-querytool4 | .claude/worktrees/re-querytool4 | parked (round 3 of 3, final): 32 / 215 functions specified, owner not claimed | new lane: 87 filler bodies, zone/neighbour dialogs, route code (CT12); callout slots (CT13) |
 
-## Handoff (round 3)
+## Report (round 3, final, 2026-10-21)
 
-Goal: §8.12 DescribePick 0x004D4140 + DoQueryDialog 0x004D3C30; SetOrGet filler / route family tables (CT12);
-gauge services B43D98/B43D78/B43D9C, callout slots 4/14 (CT13). Final round: PARK with exact remainder if not done.
-Done: §8.12 DescribePick, DoQueryDialog, control walk + 127-slot filler table 0x00A92488 (93 distinct fillers,
-89 owned, 12,323 B; build-runs/tbl.py, gentbl.py); CT13 services named in §8.11.4 (police/fire/pollution).
-Next: per-family semantics of fillers (sample read only: idx 1, 17), inventory §8.10 update, CT12/CT13 edits.
-Facts: owner rows in build-runs/qowner.tsv (215); covered 24 fns / 11,725 B before round 3. REA: static fallback.
+What changed (spec only): city-tools-input.md §8.12 (new): `DescribePick` 0x004D4140 (pick with the plain
+filter, lot-building substitution, dialog choice table: neighbour connection / property `0x2A499F85` query dialog
+/ zone 11-12-14 dialog / UI sound `0xAA62C9D5`; network and cell debug read-outs with their exact formats),
+`DoQueryDialog` 0x004D3C30 (UI script {0, `0x96A006B0`, property value}, coverage-ring categories swap with a
+330 ms timer, refresh globals `0x00B21840..4C`, modal run, get / set passes, return = result 0), the control walk
+(ID bit `0x1000`, index `ID & 0xFFF` < `0x7F`, filler(window, ID, get, occ), descend on false) and the exact
+103-slot filler table at `0x00A92488` (93 distinct, 89 owned, 12,323 B) with two sample bodies. §8.11.4 gauge
+services named (police slots 25/28/36, fire 10, pollution 54/55). §6 test 10; §8.10 inventory round 3.
+CT12 updated to the round-3 remainder; CT13 narrowed to the callout slots (services part resolved).
+
+Measured: covered 32 functions / 16,046 bytes of 215 / 76,564 (round 3 added 8 / 4,321); remainder
+183 functions / 60,518 bytes. Not claimed (coverage map untouched). REA had no binary open: static fallback
+(export asm + decomp/). Ghidra's DescribePick frame is broken; the spec follows the instructions.
+
+Parked (no fourth round): the 87 other filler bodies and their typed workers, `DoZoneBasedQueryDialog`,
+`DoNeighborConnectionQueryDialog`, the description writers, route code, refresh walk `0x004D3B40`,
+`EnumFuncClearFilter`, `PlayOccupantQuerySound`. Open: CT12 (remainder), CT13 (callout slots 4/14 shapes).
+
+Commits round 3: 43500a1f, d23f3f17, 984e6a26, then this report.
 
 ## Report (round 2, 2026-10-21)
 
