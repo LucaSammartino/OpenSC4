@@ -1678,29 +1678,94 @@ va	name	source	confidence	note
 004a6c80	cSC4Region::Init	auto:B0	medium	mac 001f01e8 score 0.942 support 1.0
 004a6cd0	cSC4Region::LoadConfig	auto:B1	medium	mac 001eee2e score 0.896 support 6.0
 004a7200	cSC4Region::MoveCity	auto:B2	medium	mac 001ee3f0 score 0.958 support 2.0
-004a74e0	cSC4RegionalCity::QueryInterface	auto:C	high	mac 002c8bda score 1.0 support 1
-004a7800	cSC4RegionalCity::Release	auto:C	high	mac 002c8c62 score 1.0 support 1
-004a7d10	cSC4RegionalCity::Write	auto:C	high	mac 002cb726 score 1.0 support 1
+004a74e0	cSC4RegionalCity::QueryInterface	manual:regional-city.tsv	high	regional-city.md §1; 1, 0x69D2BE1D, 0x452294AA (+4), 0xE4FDA3D4 (+8)
+004a7580	cSC4RegionalCity::GetTaxRate	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §4.2; 7.0 for other types
+004a7640	cSC4RegionalCity::GetBudget	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3; double
+004a7650	cSC4RegionalCity::SetBudget	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3; double
+004a7660	cSC4RegionalCity::GetIncome	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3; double
+004a7670	cSC4RegionalCity::SetIncome	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3; double
+004a7680	cSC4RegionalCity::GetCommodityBalance	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §5; (produced + imported) - (demanded + exported)
+004a76e0	cSC4RegionalCity::IsTutorial	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3; GetTutorialGUID() != -1
+004a7800	cSC4RegionalCity::Release	manual:regional-city.tsv	high	regional-city.md §1; Shutdown then the deleting destructor
+004a7830	cSC4RegionalCity::Init	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §4.1; five subscriptions
+004a78a0	cSC4RegionalCity::SetupPreferences	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §7.1
+004a78e0	cSC4RegionalCity::CompareConnectionChanges	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §6.2; west, north, east, south, then x, z
+004a7b40	cSC4RegionalCity::FindConnection	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §6.2
+004a7d10	cSC4RegionalCity::Write	manual:regional-city.tsv	high	regional-city.md §2; foundations.md §11.2
+004a8470	cSC4RegionalCity::Shutdown	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §4.1
+004a8500	cSC4RegionalCity::GetPopulation	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §4.3; by type
+004a8530	cSC4RegionalCity::GetExtrapolatedPopulation	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §4.3
 004a85a0	std::_Rb_tree<long,std::pair<long_const,cSC4RegionalCity::cCommodityStats>,std::_Select1st<std::pair<long_const,cSC4RegionalCity::cCommodityStats>>,std::less<long>,std::allocator<std::pair<long_const,cSC4RegionalCity::cCommodityStats>>>::insert_unique	auto:B1	medium	mac 006f62ae score 0.984 support 2.0
 004a86f0	std::list<cRZAutoRefCount<cISC4NeighborConnection>,cGZAllocatorServiceSTLAllocator<cRZAutoRefCount<cISC4NeighborConnection>>>::_M_insert_dispatch<std::_List_const_iterator<cRZAutoRefCount<cISC4NeighborConnection>>>	auto:B1	medium	mac 00607d70 score 0.808 support 1.0
-004a8960	cSC4RegionalCity::SetupCity	auto:B3	medium	mac 002c8c88 score 0.965 support 1.0
+004a8960	cSC4RegionalCity::SetupCity	manual:regional-city.tsv	high	regional-city.md §7.1
+004a8a40	cSC4RegionalCity::GetPointsOfInterest	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §7.3
 004a8a80	std::_Rb_tree<long,std::pair<long_const,cSC4RegionalCity::cCommodityStats>,std::_Select1st<std::pair<long_const,cSC4RegionalCity::cCommodityStats>>,std::less<long>,std::allocator<std::pair<long_const,cSC4RegionalCity::cCommodityStats>>>::insert_unique	auto:B2	medium	mac 006f6372 score 0.812 support 1.0
-004a8db0	cSC4RegionalCity::GetAllConnections	auto:B2	medium	mac 002c9510 score 0.944 support 1.0
-004a8df0	cSC4RegionalCity::ChangeSymmetricConnection	auto:B0	medium	mac 002c9b84 score 0.95 support 1.0
+004a8db0	cSC4RegionalCity::GetAllConnections	manual:regional-city.tsv	high	regional-city.md §6.2
+004a8df0	cSC4RegionalCity::ChangeSymmetricConnection	manual:regional-city.tsv	high	regional-city.md §6.2; pending record with the neighbour cell
+004a8ec0	cSC4RegionalCity::ExtractLocalDeals	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3; the claiming of foundations.md §11.3
+004a90d0	cSC4RegionalCity::SetLocalDeals	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3; foundations.md §11.3
+004a9110	cSC4RegionalCity::UpdateLocalDeals	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3; foundations.md §11.3
 004a9150	std::list<cRZAutoRefCount<cISC4NeighborDeal>,cGZAllocatorServiceSTLAllocator<cRZAutoRefCount<cISC4NeighborDeal>>>::operator=	auto:D	medium	mac 0060836a score 0.5 support 1
+004a9220	cSC4RegionalCity::TreatAllIncomingConnectionsAsNew	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §6.2; adjacent cities' connections, flag 1
+004a9580	cSC4RegionalCity::MarkConnectionsForRemoval	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §6.2; own connections to established cities, flag 0
+004a9720	cSC4RegionalCity::RepairConnections	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §6.1; connection slot 10 with this city
+004a9820	cSC4RegionalCity::GetAllowableExtrapolation	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §4.3; max(potential - extrapolated, 0)
+004a9860	cSC4RegionalCity::ExtrapolateGrowth	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §4.3
+004a9890	cSC4RegionalCity::ComputePotentialPopulation	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §4.3; max(1.1 p, 1000)
+004a9970	cSC4RegionalCity::ResetExtrapolatedPopulation	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §4.3
+004a99f0	cSC4RegionalCity::SetPosition	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §6.1; rearrange shifts the deals
 004a9b40	std::map<long,cSC4RegionalCity::cCommodityStats,std::less<long>,std::allocator<std::pair<long_const,cSC4RegionalCity::cCommodityStats>>>::operator[]	auto:B3	medium	mac 006f643c score 0.897 support 1.0
-004aa0c0	cSC4RegionalCity::GetLocalDeals	auto:B0	medium	mac 002c971e score 0.896 support 1.0
-004aa0e0	cSC4RegionalCity::UpdateImportExport	auto:B4	medium	mac 002c90e2 score 0.969 support 1.0
-004aa200	cSC4RegionalCity::UpdateImportExport	auto:B5	medium	mac 002c9208 score 0.934 support 1.0
-004aa4f0	cSC4RegionalCity::UpdateCityCache	auto:B1	medium	mac 002cab04 score 0.937 support 3.0
-004aa6d0	cSC4RegionalCity::CreateSymmetricConnections	auto:B1	medium	mac 002cc2d0 score 0.997 support 4.5
-004aba60	cSC4RegionalCity::GetGZCLSID	auto:C	low	mac 006f4b82 score 1.0 support 1
+004a9ee0	cSC4RegionalCity::GetExported	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §5
+004a9f00	cSC4RegionalCity::SetExported	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §5; negative -> 0
+004a9f40	cSC4RegionalCity::GetImported	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §5
+004a9f60	cSC4RegionalCity::SetImported	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §5; negative -> 0
+004a9fa0	cSC4RegionalCity::GetProduced	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §5
+004a9fc0	cSC4RegionalCity::SetProduced	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §5; negative -> 0
+004aa000	cSC4RegionalCity::GetDemanded	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §5
+004aa020	cSC4RegionalCity::SetDemanded	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §5; negative -> 0
+004aa060	cSC4RegionalCity::GetCostPerUnit	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §5
+004aa080	cSC4RegionalCity::SetCostPerUnit	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §5; negative -> 0
+004aa0c0	cSC4RegionalCity::GetLocalDeals	manual:regional-city.tsv	high	regional-city.md §3; foundations.md §11.3
+004aa0e0	cSC4RegionalCity::UpdateImportExport	manual:regional-city.tsv	high	regional-city.md §5; one deal, foundations.md §11.3
+004aa200	cSC4RegionalCity::UpdateImportExport	manual:regional-city.tsv	high	regional-city.md §3; foundations.md §11.3, slot 71
+004aa4f0	cSC4RegionalCity::UpdateCityCache	manual:regional-city.tsv	high	regional-city.md §7.1; from the new-city preferences, slot 25
+004aa6d0	cSC4RegionalCity::CreateSymmetricConnections	manual:regional-city.tsv	high	regional-city.md §6.2 (outline); posts 0x6AC284F3
+004ab7f0	cSC4RegionalCity::~cSC4RegionalCity (body)	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §1
+004aba60	cSC4RegionalCity::GetGZCLSID	manual:regional-city.tsv	high	regional-city.md §1; 0x6A037C24
+004aba70	cSC4RegionalCity::GetPosition	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004aba90	cSC4RegionalCity::GetCitySize	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abab0	cSC4RegionalCity::SetCitySize	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
 004abad0	icf::cSC4CatalogItem::GetCost	folded	folded	4 names: cSC4CatalogItem::GetCost | cSC4DispatchManager::GetActivePylon | cSC4WeatherSimulator::CellCountX | cSTETerrain::CellCountZ
+004abae0	cSC4RegionalCity::SetCitySerialNumber	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abaf0	cSC4RegionalCity::GetOriginalLanguageAndCountry	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abb10	cSC4RegionalCity::GetLastLanguageAndCountry	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abb30	cSC4RegionalCity::GetCitySaveFilePath	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abb50	cSC4RegionalCity::SetCitySaveFilePath	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abb60	cSC4RegionalCity::GetCityName	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abb80	cSC4RegionalCity::SetCityName	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abb90	cSC4RegionalCity::GetMayorName	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abbb0	cSC4RegionalCity::SetMayorName	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abbc0	cSC4RegionalCity::GetUtilityAdvisorName	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abbe0	cSC4RegionalCity::SetUtilityAdvisorName	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abbf0	cSC4RegionalCity::GetCityDescription	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abc10	cSC4RegionalCity::SetCityDescription	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abc20	cSC4RegionalCity::GetBirthDate	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abc30	cSC4RegionalCity::SetBirthDate	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abc40	cSC4RegionalCity::GetEstablished	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abc50	cSC4RegionalCity::SetEstablished	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abc60	cSC4RegionalCity::GetWorldPosition	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abc80	cSC4RegionalCity::SetWorldPosition	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abca0	cSC4RegionalCity::GetWorldBaseElevation	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abcb0	cSC4RegionalCity::SetWorldBaseElevation	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abcc0	cSC4RegionalCity::GetWorldHemisphere	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3; 1 when the latitude is above 0, else 2
 004abce0	cSC4City::GetCrimeSimulator	auto:C	low	mac 00030012 score 1.0 support 1
-004abd40	cSC4RegionalCity::DoMessage	auto:B2	medium	mac 002cd4f2 score 0.95 support 3.5
-004ac040	cSC4RegionalCity::cSC4RegionalCity	auto:A	high	mac 002cbe48 score 0.615 support 0
-004ac5b0	cSC4RegionalCity::Read	auto:B0	medium	mac 002cacd8 score 0.946 support 4.5
-004ad9a0	GZCOM_CreatecSC4RegionalCity	auto:B0	medium	mac 002cc294 score 0.919 support 1.0
+004abcf0	cSC4RegionalCity::SetTutorialGUID	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3
+004abd40	cSC4RegionalCity::DoMessage	manual:regional-city.tsv	high	regional-city.md §4.1; foundations.md §11.3, §11.6
+004ac040	cSC4RegionalCity::cSC4RegionalCity	manual:regional-city.tsv	high	regional-city.md §2; defaults: size 1x1, workforce 0.5, tax 7.0, tutorial -1
+004ac590	cSC4RegionalCity::~cSC4RegionalCity	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §1; deleting, slot 73
+004ac5b0	cSC4RegionalCity::Read	manual:regional-city.tsv	high	regional-city.md §2; foundations.md §11.2
+004ad290	cSC4RegionalCity::UpdateCityCache	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §7.2; from a live city, slot 24
+004ad9a0	GZCOM_CreatecSC4RegionalCity	manual:regional-city.tsv	high	regional-city.md §1; 0x1A0 bytes
 004ada10	cSC4ToxicOccupant::QueryInterface	auto:A	high	mac 004908a8 score 1.0 support 0
 004ada40	cSC4ToxicOccupant::GetGZCLSID	auto:A	low	mac 007facb6 score 1.0 support 0
 004adaa0	cSC4ToxicOccupant::Shutdown	auto:C	high	mac 00490af4 score 1.0 support 1
@@ -4179,7 +4244,7 @@ va	name	source	confidence	note
 005dbf30	SC4ReadAppLoadSaveVersion	auto:B0	medium	mac 001635b6 score 0.995 support 2.0
 005dbfa0	SC4WriteAppLoadSaveVersion	auto:B5	medium	mac 001632c0 score 0.954 support 2.0
 005dbfe0	SC4OpenSaveGame	auto:B1	medium	mac 00163626 score 0.958 support 3.0
-005dc070	SC4ReadRegionalCity	auto:A	high	mac 00163736 score 0.866 support 0
+005dc070	SC4ReadRegionalCity	manual:regional-city.tsv	high	regional-city.md §1; record 0xCA027EDB/0xCA027EE1/0
 005dc1a0	SC4WriteRegionalCity	auto:A	high	mac 00163308 score 0.765 support 0
 005dc220	SC4ReadRegionalCity	auto:B0	medium	mac 001638d4 score 0.843 support 2.0
 005dc2e0	SC4WriteRegionalCity	auto:B3	medium	mac 001636e4 score 0.843 support 2.0

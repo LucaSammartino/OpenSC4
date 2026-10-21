@@ -114,6 +114,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RND | render3d |
 | RP | render-properties |
 | RS | residential |
+| RY | regional-city |
 | RZ | framework-rz-files |
 | SG | simgrid |
 | SL | strings-language |
@@ -225,6 +226,7 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-lotconfig | 6 | 8 | PL22 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
+| regional-city | 2 | 0 | RY3 | questions/regional-city.md |
 | render-properties | 2 | 0 | RP3 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
 | renderer-driver | 4 | 1 | RD6 | questions/renderer-driver.md |
@@ -254,4 +256,4 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **241** | **1118** | | |
+| **total** | **243** | **1118** | | |
