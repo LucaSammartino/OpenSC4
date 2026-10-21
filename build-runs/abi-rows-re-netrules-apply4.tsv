@@ -1,3 +1,0 @@
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	30	+0x78	0061b490	cSC4NetworkOccupant::SetQuadDraw	8	2	eax-or-void	high	re-netrules-apply4 NR14: behaviour SetPiece(u32 pieceId, u32 orientation byte zero-extended): writes +0xFC and +0x104, ReleasePathInfo, SetTextureCoordinates; called before InsertOccupant; network-rules.md 11.2
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	24	+0x60	00604dc0	cSC4NetworkOccupant::GetRotation	0	0	eax	high	re-netrules-apply4: +0x104 & 0x7F; network-rules.md 11.2
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	25	+0x64	00604dd0	cSC4NetworkOccupant::GetFlip	0	0	eax	high	re-netrules-apply4: +0x104 >> 7; network-rules.md 11.2
