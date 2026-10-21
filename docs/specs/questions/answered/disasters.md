@@ -243,3 +243,11 @@ numbers (its Q6-Q25, continuing disasters.md §17) are given in parentheses; the
   target at `+0xC`) or another IID, or cast the interface to the concrete class and read fields directly (other than
   through the `GetDisasterCost` record pointer of §2.6)? [blocked with DS42]
   **ANSWERED 2026-10-21 (re-disasters-boundary4):** MATCHES — no outside code QIs the layer or reads its fields except the slot 18 record (safety advisor); but slot 7's result is cast to the concrete native manager (−8) by six instance `Init`s and plumbing, so slot 7 must return the native managers' `0x021E9CBF` pointers. Written into [disasters.md](../../disasters.md) §2.8.
+
+<!-- from: glue-disasters-impl4 (2026-10-21) -->
+- **DS46:** §2.6 gives record `+0x50` as "vector of special-building records {name, cost}" but not the vector's
+  layout (begin/end/capacity pointers?) nor the element's (the name's type, size, padding before the int64 cost).
+  Only the safety advisor reads the record and only at `+0x00/+0x08/+0x5C/+0x60` (§2.8 DS44). Does anything read
+  `+0x50`, and what is the element layout? [the replacement keeps the 12 bytes as an empty vector (three null
+  pointers) and keeps the special records' count and cost in its own state]
+  **ANSWERED 2026-10-21 (re-disasters46-4):** MATCHES — nothing outside the layer reads record `+0x50` (advisor reads only +0x00/+0x08/+0x5C/+0x60; layer not saved). It is a 12-byte {begin, finish, end_of_storage} vector, allocator B, of 0x20-byte elements {cRZString 0x14 bytes, 4 unwritten padding, int64 cost at +0x18}; ctor 0x00578A10 leaves three nulls, Reset keeps the buffer. Three null pointers forever is conforming (§2.6.1).
