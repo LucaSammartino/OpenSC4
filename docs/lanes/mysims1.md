@@ -2,7 +2,7 @@
 
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| mysims1 (the mysims shadow: FC4MySimsShadow + regress shadows list) | `mysims1` / `.claude/worktrees/mysims1` (branch `mysims1`, engine lane) | in progress — round 3: main merged clean (tip `a1a6d6d3`, tree clean); full design research DONE including the run_summary/regress line-format contract and all host-callback sources; no shadow code written yet | see Handoff |
+| mysims1 (the mysims shadow: FC4MySimsShadow + regress shadows list) | `mysims1` / `.claude/worktrees/mysims1` (branch `mysims1`, engine lane) | in progress — round 4: main re-merged (glue29, tip `c09e4226`, quick PASS); design complete + C ABI/SDK call map verified; next: write FC4MySimsShadow.cpp | see Handoff |
 
 ## Handoff
 
@@ -167,3 +167,164 @@
     ref_warnings=0; (5) report + build-runs/merge-queue/mysims1.json (abi=false).
 4c8d19c4 mysims1: handoff — design researched, baseline gate PASS
 93c9ca3e mysims1: lane file, handoff at the baseline
+- Round 4 (2026-10-21, main re-merged + design finished; next agent WRITES THE CODE):
+  - main merged AGAIN (tip `c09e4226`, glue29 landed; `qbuild quick` PASS; tree clean).
+    Wiring line numbers from THIS tree: FC4Subsystems.cpp Resolve() ends after the
+    NetToolRegistry block (~line 666, before `ScriptReload();` - insert
+    `MySimsShadowStartup();` there); FC4Observer.cpp PreCityShutdown case after line 651
+    (`NetToolRegistry::CityShutdown();`) add `MySimsShadowCityShutdown();`;
+    PostCityInit case (~line 602, after AutomataDriverCityLoaded) add
+    `MySimsShadowCityLoaded(CurrentCity());`; kMsgSimNewMonth case (~line 706, after
+    PropDevShadowMonth) add `MySimsShadowMonth(CurrentCity(), julian);`; PostAppInit
+    (cFC4Director.cpp ~line 346 after TerrainShadowStart()) add `MySimsShadowStart();`;
+    PreAppShutdown (~line 364) add `MySimsShadowStop();`. FC4Config.cpp kOtherKeys ends
+    line 320 `"ports_shadow"}};` - add `"mysims_shadow",` before the close with a
+    `// the mysims1 lane` comment. engine/CMakeLists.txt: after the nettool block
+    (lines ~403-409) add `plugin/FC4MySimsShadow.cpp/.h` with a comment. tools/regress.ps1
+    line 170 shadows string: append the mysims entry inside the quotes (additive at end).
+  - ABI call map VERIFIED (engine/capi/include/fc4.h): create
+    `fc4_advisors_create(&advisor_host, &mysim_host, SessionSeed())`,
+    `fc4_mysims_agent_init(p)`; messages `fc4_advisors_do_message(p, &fc4_adv_message)`
+    (msg_type/data1..4/void1/unknown) and `fc4_mysims_agent_do_message(p, &m)`;
+    PostCityInit + CityEstablished + TICKER all through `fc4_advisors_do_message`
+    (the core implements advisors.md 5.1 itself, system.rs on_ticker;
+    SYSTEM_SUBSCRIPTIONS = 0x26D31EC1 / 0x26D31EC4 / 0xCA5501F2). Read back:
+    `fc4_mysims_agent_get_state`, `fc4_mysims_active(p, out, cap)` (ids),
+    `fc4_mysim_get_state(p, id, out)`, `fc4_mysim_text(p, id, which 0=bio 1=path, buf,
+    cap)` (full-len return), `fc4_advisors_advisor_state(p, id, out)`
+    (month_counter/current_day/cursor/advice_count),
+    `fc4_advisors_advisor_text(p, id, 1, buf, cap)` (personal name),
+    `fc4_advisors_get_state(p, out)` (last_day, has_mysims). Destroy
+    `fc4_advisors_destroy(p)`. fc4_mysim_state field order (for the compare): state
+    slot wealth sign is_male age birth_month retired neighbor_job commute_check
+    lua_table unnamed_flag eq_index hq_index generation home_cell_x/z neighbor_cell[2]
+    commute_cell[2] jobless_days bitmap_id last_commute_time last_local_disaster
+    home_position[3] eq hq eq_delta hq_delta eq_ring[6] hq_ring[6] vehicle_key
+    car_key pedestrian_key unnamed_pair[2] last_player_trip_day last_trip_update_day
+    local_area_size pylon... local_group_count residence job dispatch dispatch_tool.
+  - fc4_advisor_host fields the shadow host NEEDS (rest NULL): advisor_count,
+    advisor_entry (hardcode the 7 shipped entries: 23 plain, MySims 1-5 class
+    0x4A1DBBBF, 30 class 0x0BF606A5; captions/names copied from the original's
+    GetAdvisor(id)->GetName()/GetPersonalName() at first city load), advice_count ->
+    from the captured advice list (see below), sim_date (city simulator slot 8 +
+    fc4_date_from_julian), start_year (simulator GetSimStartDate - CHECK the exact
+    SDK slot), has_city true, city_established (city +0x58 raw read with the vtable
+    guard, as the other raw reads), is_any_paused (simulator slot 19 IsAnyPaused),
+    now_ms 0, subscribe/unsubscribe (record; our target registers at Start()), post
+    no-op, post_ticker (push a TICKER message to our own forwarder target),
+    set_global no-op, register_api no-op, create_tags (1,2), compile_trigger -> None,
+    call_trigger -> OTHER, reload_scripts no-op, collect_garbage no-op, close_lua
+    no-op, advisor_window no-op, popup_priority -> None, debug_enabled false,
+    register_cheat no-op, object_created -> keep every handle in a std::vector (the
+    host owns them) and return an incrementing token; destroy all at
+    fc4_advisors_destroy time. fc4_mysim_host: create_table false, set_field = a
+    no-op counter, activate_lua false, tuning -> None (code defaults; mysims.md 4.11
+    matches), ui_blocked false (MS2), register_agent_lua no-op, cell_counts (city
+    slots 93/94), cell_center (slot 97), disaster_ongoing (layer slot 10),
+    disaster_locations (layer slots 16/17 + instance GetID), building (occupant QI
+    0x87DDA3A9: GetBuildingType slot 4 / GetCompletionPercent 9 (SC4Percentage*) /
+    GetBuildingProfile 11 (purpose, wealth) / GetPosition (occ slot 8) / name
+    GetBuildingName (slot 123 per cISC4BuildingOccupant.h) / groups
+    GetOccupantGroups (occ slot 68, std::set)), lot (lot mgr GetOccupantLot 14 +
+    GetLocation 21 / HasRoadAccess 28 / GetCondition 35 / GetOccupantWealth 41; rect
+    from the lot manager's GetLot(x,z) bounds - CHECK cISC4Lot for a bounds getter,
+    else the single-cell rect), occupant_position (occ 8), buildings_in_box /
+    all_buildings (occupant mgr: GetOccupantsByStandardCityCells with type
+    0x278128A0, GetOccupantsByBBox with min/max as FC4DemolitionHost.cpp:228 does;
+    one reference per element - ReleaseOccupantList slot 48 or hold until the
+    outermost call returns, cFC4Flora Hold pattern), lots_in_rect (lot mgr
+    GetLotsInCellRect slot 7, the GameList pattern FC4BudgetHost ScanLotList),
+    special / education buildings (BDS slot 44 GetSpecialBuildings; residential
+    slots 47/49 GetSchoolBuildings/GetHospitalBuildings), grade (residential
+    GetSchoolQueryData/GetHospitalQueryData slots 26/27 - CHECK the SDK slot numbers
+    before coding), job_title (building GetBuildingName), landmark_funding (budget
+    slot 51 GetBudgetItemForPurpose), average_age (residential GetAverageAgeMap
+    slot 41 -> grid GetCellValue), eq/hq_by_wealth (residential 37/38),
+    life_expectancy (29), new_age_by_wealth (42), grid/grid_at/coverage (crime slot
+    5, pollution 5 + arg, aura 12, congestion traffic 10, desirability via BDS
+    GetDeveloper(purpose, wealth) -> cISC4GrowthDeveloper GetDesirabilityMap;
+    coverage police GetPolicePowerGrid / fire GetFireProtectionGrid +
+    GetAverageValueInCellRect), powered (power IsOccupantPowered), watered (plumbing
+    IsBuildingWatered), stations (police GetPoliceStations SC4List / fire
+    GetFireStations ilist + GetStationFunding), travel_time_ratio (traffic 24),
+    trip_simulators true, dispatch -> None (no dispatch core in the shadow: trip
+    state unkept), find_new_job false FIRST CUT (if the original finds jobs the
+    `job`/`commute_cell` fields will mismatch and the line names them; a follow-up
+    can wire cores28's dispatch core), commute_time -> None, dispatch_command no-op,
+    post no-op, automata_trigger no-op, subscribe no-op, add_ref/release real
+    game refs (guarded, IsOurObject), object_ref Host{token}, resolve_ref identity
+    on the capture-token map.
+  - NO-LUA decision (final): the shadow core runs WITHOUT Lua (create_table false
+    => lua_table false). Saved fields are Lua-independent: bio/age/birth_month from
+    the record, eq/hq rings from grids, tuning from code defaults. VERIFY at code
+    time: update_trip_variables must no-op with lua_table false (read sim.rs
+    654-770 first; if it does not guard, guard it - a core change is in scope for
+    this lane and covered by the mysims tests).
+  - ADVICE LIST (the shadow's advice_count must match): at first city load walk the
+    original MySim's cISC4Advisor GetCurrentAdvices() (slot 10, SC4List of
+    {int32, cRZAutoRefCount<cISC4Advice>}; the StationList pattern
+    FC4ProtectionShadow.cpp:73; the list belongs to the advisor - borrow) and give
+    the shadow host advice_entry(i): guid (advice slot 6 GetGUID), class_id (the
+    advice's GetGZCLSID via cIGZSerializable QI), priority/frequency/timeout/mood
+    (advice slots per advisors.md 12.3 - CHECK the exact slot order there before
+    coding), event 0, command 0, trigger absent. The shadow's advices are then
+    structurally identical (all inactive, no triggers): advice_count matches, the
+    day pass advances the cursor over the same count, nothing activates
+    (compile_trigger None => GetTrigger false). nextDay/expiry/active NOT compared.
+  - DECODE-AND-DIFF (final): original per-MySim record (WriteCapture on its
+    cIGZSerializable) decoded in C++ with CaptureReader (version-17 layout
+    mysims.md 6.2; state==0 short-circuits to the advisor part) vs the shadow's
+    fc4_mysim_get_state + fc4_mysim_text + fc4_advisors_advisor_state. Refs compare
+    through the capture-id -> token map (WriteCapture::Object(id) -> TokenOf, no
+    references held; the original keeps its buildings alive while we compare inside
+    one month callback): the shadow's residence/job tokens come from resolve_ref
+    returning that token, so fc4_mysim_get_state's residence/job are DIRECTLY
+    comparable with the original's getters. The shadow core's add_ref/release take
+    real game references (guarded, IsOurObject) - released by the core through
+    release(); balance verified by ref_warnings=0 in mysims1-sh-2.
+  - INJECT at first city load: for each original MySim (ids 1-5, 30, from
+    GetAdvisorSystem -> GetAdvisor(id) QI 0x0A1DA42F non-null): capture its record,
+    decode, fc4_advisors_create_object(class from the record), fc4_adv_obj_read with
+    the CUSTOM istream whose get_ref (a) advice refs -> create a plain shadow advice
+    (fc4_advisors_create_object(0x8A09F5F4)) per orig object id (cached), (b)
+    subject refs -> fc4_advisors_new_subject per orig id (cached), (c) building refs
+    -> the captured token, (d) dispatch refs -> the game token (or null). Then
+    fc4_advisors_add_advisor(p, obj) (map[id], id from the decoded advisor part).
+    After all five + 30: fc4_mysims_agent_init(p) (slots rebuild from the map,
+    ascending id, 30 -> index 5 - same as the original). Then hand-deliver
+    POST_CITY_INIT (+ CITY_ESTABLISHED if established) to fc4_advisors_do_message
+    ONCE (flag): the shadow target's own subscription is recorded but NOT
+    registered with the game server for these two types, so the hand-delivery is
+    the only path (TICKER though IS registered and flows live).
+  - LATER MONTHS: no resync; the ticker keeps both sides in step (same day
+    counters); a mismatch does not rebuild the core (the next month line shows
+    whether the diff persists).
+  - COMPARED (final list): per MySim (ids 1-5 + 30): state byte, slot,
+    residence/job token (0 = null both sides), home cell, neighbor/commute cells,
+    jobless days, vehicle/car/ped keys, wealth, generation, sign, is_male, bio,
+    age, birth_month, bitmap_id, portrait path, retired, last_local_disaster,
+    home_position[3] (f32 bits), eq/hq/eq_delta/hq_delta/eq_index/hq_index/
+    eq_ring[6]/hq_ring[6] (f32 bits), last_player_trip_day, dispatch non-null-ness;
+    advisor part: personal name, month_counter, current_day, cursor, advice_count.
+    Agent: slots[6], last_disaster_type, active_ui_index. GetActiveMySims (ids +
+    order), MySimLivesHere per residence, GetActiveUIPanelSim index. NOT compared
+    (named on the line): last_commute_time (pathfinder timing), pylon /
+    dispatch-tool state (UI), unnamed pair/flag (MS1), per-advice
+    nextDay/expiry/active (no Lua in the shadow), the event queue.
+  - SEAM: kFC4SeamMySimsShadow = 68 (next free after 67) with events: 0 = one month
+    compare (returns the mismatch count, -1 not taken), 1 = state dump (out struct:
+    created, had_mysims, months, clean_months, last_mismatches, agent slots), 2 =
+    test city pointer install (like FC4ObserverTestSetCity). Plugin test mode
+    `--ini-mysims-shadow` (RUN_SERIAL): ON line, month line mismatches=0 with no
+    active MySims (ids 1-5 + 30 exist, state 0), agent slots = [1,2,3,4,5,30].
+  - GAME RUNS: mysims1-sh-1 (ini `mysims_shadow = 1`, turbo 1, end_date 2032-01-01):
+    ON line + a month line per month mismatches=0 (test city: no MySims placed).
+    mysims1-sh-2 (the full regress shadows string + mysims): no interference,
+    ref_warnings=0. Diagnose any diff to the field BEFORE further runs.
+  - QUESTIONS: none filed this round; MS8-MS10 stay open (not shadow-blocking);
+    MS11+ only if a shadow mismatch reveals a spec gap.
+  - NEXT: write engine/plugin/FC4MySimsShadow.{h,cpp} (~700 lines: hosts, target,
+    capture/decode, inject, ticker, compare, seam); wire the 7 call sites +
+    kOtherKeys + CMakeLists + regress.ps1 + engine/README.md (additive bullet after
+    the automata shadow bullet); `qbuild quick` then `all`; the 2 game runs; report
+    + build-runs/merge-queue/mysims1.json (abi=false).
