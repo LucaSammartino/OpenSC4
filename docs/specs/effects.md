@@ -543,6 +543,62 @@ The bytes alone settle EF1 without a runtime trace. Three facts, all from instru
    range. So every shipped volcano particle (all `emit_loop_count = 1`, `life` 3–20 s) emits one loop and
    then delays its stop; the last particle death clears `started`; the finish test then passes.
 
+#### 7.1.1 The emitter contract (EF13, re-effects-contracts4) *[compat]*
+
+Offsets are on the particle effect (main object); `D` is its description (`+0x24`). Fields: phase `P` (`+0x120`,
+`double`, in loops), loop counter `n` (`+0x128`, `u32`), rate `ρ` (`+0x130`, `double`, loops per second),
+fractional-particle carry `c` (`+0x138`, `float`), countdown `w` (`+0x190`, `float`, seconds), step `dt`
+(`+0x108`, `float`). Description fields: flags A `D+0x00`, period `D+0x14` (seconds per loop), max burst age
+`D+0x10`, loop count `D+0x18` (0 = unlimited), pre-roll `D+0x1C`, start-delay range `D+0x20..+0x24`, interval
+range `D+0x28..+0x2C`, count curve `D+0x88..+0x8C` (a `float` vector).
+
+- **`SetDescription`** `0x005B7C90`: `ρ := 1.0 / D+0x14`, with `D+0x14` replaced by `1e-6` unless it is greater than
+  `1e-6` (`0x005B7CF3`–`0x005B7D44`); clears the "emission suppressed" byte `+0x21A`.
+- **`Start(arg)`** `0x005B3000`: if `arg != 0`, `D+0x18 > 0` and flag A bit 3 (`0x08`) is clear, it returns
+  without starting (a finite emitter is never restarted by the zoom path's `Start(1)`). Otherwise, after the base
+  start: `P := 0`, `n := 0`, `c := 0`, total age `+0x110 := 0`; then `w :=` uniform `double` in `[D+0x20, D+0x24]`
+  if `D+0x20 ≥ 0`, else uniform in `[D+0x28, D+0x2C]` if `D+0x28 ≥ 0`, else `0` — both draws from the global
+  `cRZRandom` at `0x00B22DF8` (`RandomDoubleRangeUniform` `0x00913761`, `0x005B3399`–`0x005B33FD`), stored as
+  `float`. Last: `+0x188 := arg`, `+0x18C := 0`, pre-roll pending `+0x118 := (arg != 0)`.
+- **Draw-time update** `0x005B8540` (only while started): `t := dt`; if pre-roll is pending, `t += D+0x1C` once
+  and the flag clears; `dt := t` (stored), total age `+= t`. Then **every live particle is aged first**: each
+  particle whose alive byte is set is updated by main slot 20 (`+0x50`) with `dt`; a dead one or one whose update
+  returns false is unlinked, the live count decremented and the particle destroyed (`0x005B86A5`–`0x005B86F8`).
+  **Then**, unless `+0x21A` is set, the emitter dispatch (main slot 15) runs (`0x005B870A`); new particles are
+  never aged by the same step's slot-20 pass (they get their own initial age, below). `CheckForStop` comes last.
+- **Dispatch** `0x005B96E0`: nothing if a delayed stop was requested (`+0x10`, the simulator base's `+0x0C`;
+  `0x005B96E1`) — **(d): no emission after `Stop(0)`**, the existing particles just run out. If `w > 0`:
+  `w −= dt`; if still `> 0` return; else the emit time is `e := −w` (the overshoot only). If `w ≤ 0` on entry,
+  `e := dt` (and `w` stays where it is; only the emitters reseed it). If `D+0x1C > 0` and `e > D+0x1C − 0.01`
+  (`double`), `e := D+0x1C − 0.01`. Then by flags A: `0x04` → `0x005B3CF0`, else `0x02` → loop-budget, else the
+  rate emitter.
+
+**Loop-budget emitter** (`inject`, `0x005B8B50`), one **burst per loop**:
+1. `P := P + e·ρ` (in `float`, stored `double`). If `P ≤ n` return.
+2. Burst size `N`: `x := curve[0]`; if `x > 20` and `D+0x08` bit 0 is clear, `x := x · m` where `m` is the product
+   of the `float`s at `*(+0x1E8)`, `+0x1E0`, `+0x1C4` (detail/density scales); `N := ceil(x)` (the
+   `1.5·2^23` rounding trick).
+3. While `P > n`: the burst's age is `a := (P − n) · D+0x14` seconds; if `a < D+0x10` and `N ≠ 0`, create `N`
+   particles, each initialised by main slot 20 with age `a` (a particle failing its init is destroyed). Then
+   `n := n + 1`; **if `D+0x18 ≠ 0` and `n ≥ D+0x18`, `Stop(0)` (delayed, `0x005B8D67`) and return.** If
+   `D+0x28 ≥ 0`: `P −= RandomRange(D+0x28, D+0x2C) · ρ`; if now `P < n`, `w := (n − P)·D+0x14`, `P := n`, return.
+So (a): with `D+0x20 < 0` and `D+0x28 < 0` the first burst comes on the first update after `Start` (age = that
+step); otherwise after the seeded `w`. (b): one burst of `N` per loop, not a rate.
+
+**Rate emitter** (neither `0x02` nor `0x04`, `0x005B87B0`; the "duration-budget" emitter of item 2 above), sub-steps
+of at most `1/15` s (`0x00AA0CF4`) until the remaining `e` is used up:
+1. `s := min(e, 1/15)`; `P += s·ρ`. If `P > n + 1`: `n := n + 1`; if `D+0x18 = 0` or `n ≠ D+0x18`: when
+   `D+0x28 ≥ 0`, cut `s` back to the loop boundary (`s −= (P − n)·D+0x14`), `P := n`, and mark a gap. If
+   `n = D+0x18`: **flag A bit 3 clear → `Stop(0)` (delayed, `0x005B8B29`) and return; set → hold**
+   (`n := D+0x18 − 1`, `P := D+0x18 − 1e-6`, emission continues at the curve's end).
+2. Rate `r`: one curve entry → `curve[0]`; else linear interpolation at position `(len − 1)·(P − n)`.
+   `x := r·s·m' + c` where `m'` is the same three-scale product, further multiplied by the scale `+0xC0` once,
+   squared or cubed for flags A bits 19 / 20 / 21; `N := floor(x)`, `c := x − N`.
+3. Create `N` particles with initial ages `e, e − s/N, e − 2s/N, …` (oldest first).
+4. `e −= s`; if a gap was marked, `e −= RandomRange(D+0x28, D+0x2C)`; if that is negative, `w := −e` and return.
+So (c): the budget is **loops of `D+0x14` seconds, counted in `+0x128` against `D+0x18`** — the same counter and
+field as the loop-budget emitter; there is no separate seconds budget. The count curve gives particles per second.
+
 So `volcano_control`'s finish time stands as measured in §7: the **crater decal's 50 effect-seconds** binds,
 the particles end on their own loop budget (well before 50 s), the brush stroke ends at 2–4 s, and the meta
 parent needs one further draw-pass sweep. The wall-clock end depends only on the dilation of §6.
@@ -1113,7 +1169,8 @@ saves nothing).
 
 | Draw | Generator | When |
 |---|---|---|
-| select group `RandomUint32Uniform(0x10000)` | the manager's `cRZRandomSuper` at `+0x1C0`, seed `0x1105` | once per select group per component build (§5.3) |
+| select group `RandomUint32Uniform(0x10000)` | the manager's `cRZRandomSuper` at `+0x1C0`, seed `0x1105` | once per participating select group per component build: new build, reload, or a member entering the level-of-detail range (§5.3 rebuild test, EF12) |
+| particle emitter start countdown | global `cRZRandom` `0x00B22DF8` (`RandomDoubleRangeUniform`), at most one per `Start` that starts | §7.1.1 (EF13); render only |
 | brush strength, then radius | static `cRZRandom` `0x00B22BE8` (`RandomDoubleRangeUniform`, two per brush component) | when a brush component is created (§8.2) |
 | volcano random start | a throwaway `cRZRandom(−1)` | §10.1 |
 
