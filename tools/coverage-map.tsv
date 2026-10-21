@@ -103,7 +103,7 @@ cSC4NetworkLotConfiguration	network manager	simulation	network-manager.md	core/s
 cSTETerrain	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTESurfaceWater	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTEVolcanoLava	terrain	simulation	terrain.md	core/src/terrain	-	-
-cSC4CityDetailManager	city detail	simulation	city-detail.md	core/src/city_detail	-	-
+cSC4CityDetailManager	city detail	simulation	city-detail.md	core/src/city_detail	-	citydetail
 cSC4PortDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	-	-
 cSC4AirportDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	-	-
 cSC4SeaportDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	-	-
