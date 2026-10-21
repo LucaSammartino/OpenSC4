@@ -246,3 +246,144 @@ goes from positive to zero or below and the queue is not empty, `EnableDeferredO
 
 *[inferred]* that steps 1 and 2 visit every index (the decompiled loop heads are merged); the replacement visits
 all indices.
+
+### 8.8 Moved (op 5, `0x004937D0`)
+
+No type filter: only occupant types `0x74758926`, `0xA823821E` and `0x278128A0` are handled; others do nothing.
+Not deferring: p = occupant position (slot `+0x20`, three floats). For each model instance of the occupant's
+model holder (holder slot `+0x0C` count, slot `+0x10` fills a list; at most 10 on the stack, more on the heap):
+build a transform with an identity 3×3 rotation and translation p, read the instance's current transform record
+(instance slot `+0x24`), apply the new one (slot `+0x28`) with bit 0 of the record's flag byte set and its
+change counter incremented, and if the renderer `+0x14` holds the instance (slot `+0x6C`) re-queue it (slot
+`+0x78`; render3d.md §5). Release the holder. *[outline]* the exact transform-record layout is in the remainder
+(§20); the identity-plus-translation content is read from `0x0049388E`–`0x00493920`.
+
+## 19. Conformance cases
+
+| case | setup | expected |
+|---|---|---|
+| M1 QI | ask for `0xA9C741B3`, `1`, `0x452294AA`, `0xE4FDA3D4`, `0x12345678` | primary, primary, primary, primary+4, false (out untouched); count +1 per success |
+| M2 Release | count 2, Release twice | first returns 1; second runs Shutdown and frees, returns 0 |
+| M3 Read version | stream with version 1 | false; `+0x0A` set; nothing else read |
+| M4 Save round trip | fields of §4 set, Write then Read into a fresh object | every field of the table equal; references resolved by IID |
+| M5 Command line | `-backgroundLoader:OFF` / `:on` / `:maybe` | `+0xB8` = 0 / 1 / 1 (default kept) |
+| M6 Defer count | flags true, true, false, false with 2 queued entries | replay once, on the last message only |
+| M7 Created+destroyed | defer; queue Create(o), Shown(o), Destroy(o); release defer | nothing replayed for o |
+| M8 Destroy only | defer; queue Shown(o), Destroy(o) | only Destroy replayed |
+| M9 Insert covers change | defer; queue Insert(o, f=1), Changed(o) | only Insert replayed (as Shown) |
+| M10 Move filter | Move message for a type outside the three of §8.8 | no instance touched |
+| M11 Messages | each ID of §5 | DoMessage returns true; `0x4AB04CBE` has no effect |
+| M12 Detail option | option `0x16` returns 5, then -3, then 1 | `0x00B216FC` = 2, 0, 1 |
+
+## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
+
+Specified: 7336 bytes; remainder (not yet specified or only outlined): 27369 bytes. The remainder is **not empty**,
+so this spec does not yet claim the whole owner.
+
+| address | bytes | name | section |
+|---|---|---|---|
+| `0x00445F10` | 134 | FUN_00445f10 | remainder |
+| `0x004465A0` | 44 | FUN_004465a0 | remainder |
+| `0x004465D0` | 78 | FUN_004465d0 | remainder |
+| `0x00446760` | 52 | FUN_00446760 | remainder |
+| `0x004469B0` | 578 | FUN_004469b0 | remainder |
+| `0x00446D20` | 287 | FUN_00446d20 | remainder |
+| `0x00446EB0` | 399 | FUN_00446eb0 | remainder |
+| `0x00447750` | 86 | FUN_00447750 | remainder |
+| `0x00447A00` | 139 | FUN_00447a00 | remainder |
+| `0x00447B00` | 30 | FUN_00447b00 | remainder |
+| `0x0048C960` | 5 | FUN_0048c960 | §5 |
+| `0x0048C970` | 5 | FUN_0048c970 | §5 |
+| `0x0048EA00` | 36 | FUN_0048ea00 | remainder |
+| `0x0048EA30` | 36 | FUN_0048ea30 | remainder |
+| `0x0048EA60` | 6 | FUN_0048ea60 | §1 |
+| `0x0048EA70` | 92 | FUN_0048ea70 | §1 |
+| `0x0048EB50` | 462 | cSC4ModelMaker::DetermineLoadRadiusAroundVisibleArea | remainder |
+| `0x0048ED20` | 107 | cSC4ModelMaker::ComputeCityExclusionRects | remainder |
+| `0x0048ED90` | 123 | FUN_0048ed90 | remainder |
+| `0x0048EE10` | 59 | FUN_0048ee10 | remainder |
+| `0x0048EF20` | 55 | FUN_0048ef20 | §8.3 |
+| `0x0048EF60` | 301 | FUN_0048ef60 | §4 |
+| `0x0048F090` | 360 | cSC4ModelMaker::Read | §4 |
+| `0x0048F200` | 142 | FUN_0048f200 | remainder |
+| `0x0048F290` | 229 | cSC4ModelMaker::ChangeModels | remainder |
+| `0x0048F380` | 268 | FUN_0048f380 | remainder |
+| `0x0048F490` | 58 | FUN_0048f490 | remainder |
+| `0x0048F4D0` | 217 | cSC4ModelMaker::LoadNetworkModels | remainder |
+| `0x0048F5B0` | 169 | cSC4ModelMaker::LoadUndergroundConnectionModels | remainder |
+| `0x0048F660` | 689 | cSC4ModelMaker::UpdateModelLoadRect | remainder |
+| `0x0048F920` | 283 | cSC4ModelMaker::CreatePlaceHolderModelInstance | remainder |
+| `0x0048FA40` | 1295 | cSC4ModelMaker::FindModelTransform | remainder |
+| `0x0048FF50` | 65 | GZCOM_Interface<cISC4EffectsResource,cISC4EffectsCollection> | remainder |
+| `0x0048FFF0` | 730 | cSC4ModelMaker::DoBuildingCompletionChanged | remainder |
+| `0x004902E0` | 968 | cSC4ModelMaker::AddModel | remainder |
+| `0x004906B0` | 358 | FUN_004906b0 | remainder |
+| `0x00490820` | 565 | FUN_00490820 | remainder |
+| `0x00490A60` | 70 | FUN_00490a60 | remainder |
+| `0x00490AB0` | 68 | FUN_00490ab0 | remainder |
+| `0x00490B00` | 117 | FUN_00490b00 | remainder |
+| `0x00490B80` | 139 | FUN_00490b80 | remainder |
+| `0x00490C10` | 90 | FUN_00490c10 | remainder |
+| `0x00490C70` | 965 | cSC4ModelMaker::LoadModelsCommon | remainder |
+| `0x00491040` | 462 | cSC4ModelMaker::LoadFoundationModels | remainder |
+| `0x00491210` | 27 | FUN_00491210 | remainder |
+| `0x00491230` | 1979 | cSC4ModelMaker::CreateOccupantShadow | remainder |
+| `0x004919F0` | 63 | FUN_004919f0 | remainder |
+| `0x00491A30` | 76 | cSC4ModelMaker::LoadPropModels | remainder |
+| `0x00491A80` | 80 | FUN_00491a80 | §3.3 |
+| `0x00491AD0` | 421 | cSC4ModelMaker::cSC4ModelMaker | §2 |
+| `0x00491C80` | 8 | FUN_00491c80 | §1 |
+| `0x00491C90` | 60 | FUN_00491c90 | §3.4 |
+| `0x00491CD0` | 1874 | cSC4ModelMaker::DoTerrainHidingForCells | remainder |
+| `0x00492440` | 233 | cSC4ModelMaker::DoTerrainHidingForOccupantCells | remainder |
+| `0x00492530` | 584 | cSC4ModelMaker::UnloadUnnecessaryModels | remainder |
+| `0x00492780` | 311 | cSC4ModelMaker::RemoveModelsInappropriateForRotation | remainder |
+| `0x004928C0` | 232 | FUN_004928c0 | remainder |
+| `0x004929B0` | 27 | GZCOM_CreatecSC4ModelMaker | §1 |
+| `0x004929D0` | 30 | FUN_004929d0 | §3.4 |
+| `0x004929F0` | 718 | cSC4ModelMaker::Shutdown | §3.3 |
+| `0x00492CC0` | 1068 | cSC4ModelMaker::RebuildDynamicTexture | remainder |
+| `0x004930F0` | 585 | cSC4ModelMaker::DoLightingChanged | remainder |
+| `0x00493340` | 86 | cSC4ModelMaker::RemoveModels | remainder |
+| `0x004933A0` | 729 | FUN_004933a0 | remainder |
+| `0x004936A0` | 96 | FUN_004936a0 | §8 |
+| `0x00493700` | 25 | FUN_00493700 | remainder |
+| `0x00493720` | 40 | FUN_00493720 | remainder |
+| `0x00493750` | 124 | cSC4ModelMaker::DoOccupantDestroyed | §8.2 |
+| `0x004937D0` | 536 | cSC4ModelMaker::DoOccupantMoved | §8.8 (outline) |
+| `0x00493A00` | 386 | cSC4ModelMaker::DoOccupantHilighted | remainder |
+| `0x00493B90` | 232 | cSC4ModelMaker::DoOccupantShown | §8.4 |
+| `0x00493C80` | 221 | cSC4ModelMaker::ApplyStateEffectToModels | remainder |
+| `0x00493D60` | 346 | cSC4ModelMaker::DoLotStateChanged | remainder |
+| `0x00493EC0` | 37 | cSC4ModelMaker::FinalRelease | §1 |
+| `0x00493EF0` | 924 | cSC4ModelMaker::CreateOccupantFilters | remainder |
+| `0x00494290` | 113 | FUN_00494290 | §8.3 |
+| `0x00494310` | 126 | FUN_00494310 | §8.3 |
+| `0x00494390` | 1112 | cSC4ModelMaker::AddModels | remainder |
+| `0x004947F0` | 8 | FUN_004947f0 | §1 |
+| `0x00494800` | 248 | cSC4ModelMaker::Init | §3.1 |
+| `0x00494900` | 99 | cSC4ModelMaker::DoPropStateChanged | remainder |
+| `0x00494970` | 177 | cSC4ModelMaker::DoOccupantCreated | §8.1 |
+| `0x00494A30` | 241 | cSC4ModelMaker::DoOccupantChanged | §8.5 |
+| `0x00494B30` | 584 | cSC4ModelMaker::EnableDeferredOccupantOperations | §8.7 |
+| `0x00494DA0` | 1463 | cSC4ModelMaker::DoPostCityInit | §3.2 |
+| `0x00495360` | 193 | cSC4ModelMaker::OccupantFilterIterationFunction | remainder |
+| `0x00495430` | 1329 | cSC4ModelMaker::LoadOccupantModelsForZoomAndRotation | remainder |
+| `0x00495970` | 66 | FUN_00495970 | §8.6 |
+| `0x004959C0` | 313 | cSC4ModelMaker::DoViewFilterChange | remainder |
+| `0x00495B00` | 642 | cSC4ModelMaker::DoZoomAndRotationChange | remainder |
+| `0x00495D90` | 369 | cSC4ModelMaker::DoViewTranslationChange | remainder |
+| `0x00495F10` | 1653 | cSC4ModelMaker::DoMessage | §5 |
+| `0x005D5360` | 69 | FUN_005d5360 | remainder |
+| `0x005D53B0` | 20 | FUN_005d53b0 | remainder |
+| `0x005D5500` | 43 | FUN_005d5500 | remainder |
+| `0x005D5A60` | 42 | FUN_005d5a60 | remainder |
+| `0x005D7710` | 129 | FUN_005d7710 | remainder |
+| `0x005EA370` | 174 | FUN_005ea370 | remainder |
+| `0x005EA550` | 184 | FUN_005ea550 | remainder |
+| `0x008D08E0` | 219 | FUN_008d08e0 | remainder |
+| `0x008D09C0` | 160 | FUN_008d09c0 | remainder |
+| `0x008D0A60` | 244 | FUN_008d0a60 | remainder |
+| `0x008D0B60` | 247 | FUN_008d0b60 | remainder |
+| `0x008D0C60` | 417 | FUN_008d0c60 | remainder |
+| `0x008D0E10` | 442 | FUN_008d0e10 | remainder |
