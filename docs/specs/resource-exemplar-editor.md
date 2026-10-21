@@ -239,6 +239,27 @@ exemplar cache (0x252EA0DF) and the file parser; those belong to the formats/per
 All typed text editors share the base `cSCStandardTypeEntryView` (ctor 0x00687C20). Class 0x281F7625, which §6
 special-cases, is not registered by this director. *[inferred: registered elsewhere or unused]*
 
+### 8.1 The typed text editors *[compat]*
+
+`cSCUint8/Sint8/Uint32/Sint32/Sint64/Float32/BoolTextEntryView` and `cSCStringEntryView` share one shape (Init at
+0x006891D0, 0x00688E90, 0x00688510, 0x00688830, 0x006881D0, 0x00689510, 0x00688B50, 0x00688000):
+
+- Init runs once (window init flag); it clears window flag 0x800, sets 0x10000 and adds the base class's background
+  fill control (`AddBackgroundFillControl`, 0x00687960).
+- If the value is a single scalar of the editor's type, the editor creates one line input at (5, 5) holding the
+  value's text. If it is a list, it creates one line input per element at x = 5, y = 5 + 20·i, element i's child ID
+  being the base ID + i. An empty list creates no input.
+- The text of a number is `GetPropertyValueStr` of that one element (§7), so integers start as hex text.
+  The BOOL editor writes `true` (0x00AAEDD4) or `false` (0x00A86DE0), lower case, instead.
+- Base child IDs: 0x5A293904 for UINT8, SINT8, UINT32 and SINT32; 0xDA4FB6F6 for FLOAT32; 0x67C35A67 for BOOL;
+  0xF9E2E9E4 for STRING; 0x490E039A for SINT64.
+
+Reading back (`GetValue`, proven for SINT64 at 0x00688370): each input's text (text interface 0x231A1C57) is
+converted and stored. For a list the conversion is RZAtoi64A per element into a new array of the same length. For a
+**single** SINT64 the text goes through the C runtime `atol` and is sign-extended (CDQ at 0x0068841B), so a scalar
+SINT64 above 2^31−1 or below −2^31 is not kept *[quirk]*; list elements keep the full 64 bits. The other text editors'
+GetValue bodies sit outside this subsystem's byte count and were not read this round.
+
 ## 9. Open points for round 2
 
 Per-editor behaviour (Init layout, value parsing and range checks of each text editor, curve editors' point
@@ -252,7 +273,7 @@ written back to the exemplar (beyond §6.1).
 |---|---|---|
 | cSCPropertyView | 17843 | INI loading, record format, type table, view build, commands and write-back, value formatting: specified; ResKeyTableEditorDefaults/ExemplarFilters callbacks and GetPropertyValueStr per-type detail partial |
 | fn:getDefaultValue, getUnquotedString, convertStringToFloatValue | 5164 | contract specified, item-level parsing inferred |
-| cSC*EntryView, cSCEditValueDlg | ~29700 | identity (class IDs, factories, base class) only |
+| cSC*EntryView, cSCEditValueDlg | ~29700 | typed text editors (8 classes, ~3700 bytes): layout and Init specified, SINT64 read-back specified; curve, colour, grid, combo, res-key table editors and cSCEditValueDlg: identity only |
 | cSCResourceCatalogView, cSCResCatBaseView, cSCResCatalogPickerView, cSCResKeyInputView | 16686 | identity only |
 
 Proposed coverage-map entry: `spec` = `resource-exemplar-editor.md` for `cSCPropertyView` and the three free
