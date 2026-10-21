@@ -171,7 +171,7 @@ extern "C" {
  * 77 = merge-train batch train49 (core-construction4, glue-exemplars4): merged (no C ABI history entry of its own)
  * 78 = merge-train batch train56 (glue-span1555-impl4, glue-span4444-impl4, core-htmldocument4, glue-exemplar-contractfix4, core-fonts4, core-effects-fix4, verify-landvalue49): merged (no C ABI history entry of its own)
  * 79 = merge-train batch train57 (glue-disasters-impl4, glue-netrules-apply4): merged (no C ABI history entry of its own)
- * 80 = merge-train batch train62 (glue-span565-impl4, glue-lotcfg-detail4): merged (no C ABI history entry of its own) */
+ * 80 = merge-train batch train63 (glue-lotcfg-detail4, glue-span565-impl4): glue-lotcfg-detail4: merge-train batch train62 (glue-span565-impl4, glue-lotcfg-detail4): merged (no C ABI history entry of its own) | glue-span565-impl4: merge-train batch train62 (glue-span565-impl4, glue-lotcfg-detail4): merged (no C ABI history entry of its own) */
 #define FC4_ABI_VERSION 80u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
