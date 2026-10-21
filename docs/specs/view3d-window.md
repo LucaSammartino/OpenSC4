@@ -274,7 +274,7 @@ Every message is first offered to `nsSC4TutorialSystem::FilterUICommandMessage` 
 | `0x14` (mouse leave) | hover byte `+0x118` := 0, `Update24HourClockHover`, base | base |
 | `0x0D` | `Update24HourClockHover`, base | base |
 | `0x10` (focus lost) | only when global `0x00B43CEC` is non-zero: the four scroll-velocity dwords `+0x348`…`+0x354` are zeroed (`0x007F4087`–`0x007F4099`; the handler's `this` is `+0x0C`), `RecalcScrollVelocity`, `ScrollStop` (slot 34), and a `cGZWin` slot 142 call (`GZOnMouseExit`) | true |
-| `0x1B` with sub-type 5 / 6 | key down / up: `ProcessKeyDown` / `ProcessKeyUp`; if neither consumes it, the key goes to the key-binding helper (`+0x114`, slot 9) and, if bound, a command is posted through the command dispatcher `0x00B43CB0` | false only when unbound |
+| `0x1B` with sub-type 5 / 6 | key down / up: `ProcessKeyDown` / `ProcessKeyUp`; if neither consumes it, the key goes to the key-binding helper (`+0x120`, slot 9; `0x007F3F39` reads it as `+0x114` from the handler's `this` = `+0x0C`; the key record supplies key code `+4` and modifiers `+8`, §6c) and, if bound, a command is posted through the command dispatcher `0x00B43CB0` | false only when unbound |
 | `0xE4A85D91` (link) | `cSC4HTMLLinkHandler::DoURL(data2)` | true when DoURL **failed** *[quirk]* |
 | `0x6A5BDFCD`, `0x6A720993`, `0xEA5BDFBC` | `HandleAdviceLinkMessage`, then base | base |
 | anything else | base `cGZWin::DoMessage` | base |
@@ -393,6 +393,100 @@ field := null. Each step is skipped when its field is null.
 A replacement must leave no window created by `AddGUI` alive after `RemoveGUI` and must remove the message filter
 from every panel before destroying it.
 
+## 6c. Input handlers: keys, characters and the mouse *[compat]*
+
+All offsets are from the start of the object. The mouse and character handlers are `cIGZWin` slots (§1.1), so the
+code's `this` is `+0x0C` and its displacements are 0xC smaller; `ProcessKeyDown`/`ProcessKeyUp` are called from the
+window `DoMessage` with `this` = object start (`0x007F3F14`).
+
+**State the handlers use.**
+
+| Field | Meaning | Written by |
+|---|---|---|
+| `+0x11C` | modifier flags of the last input event | every key and mouse handler, first thing (`0x007E66DB`, `0x007E68D9`, ...) |
+| `+0x134`/`+0x138` | the view input control **stack** (begin/end of a vector of control pointers; the top is the last element; `GetCurrentViewInputControl` returns it, null when empty, no reference added, `0x007E65E0`) | `SetCurrentViewInputControl` / `Remove...` |
+| `+0x140`/`+0x144` | the **persistent** view input controls (vector; `AddPersistentViewInputControl` appends, `0x007EBED1`) | `Add/RemovePersistentViewInputControl` |
+| `+0x348`, `+0x34C` | keyboard scroll velocity pair; `KillKeyboardScrolling` (`0x007E7F90`) zeroes both and calls `RecalcScrollVelocity` | key scroll commands |
+| `+0x350`, `+0x354` | edge-scroll direction X / Z, each −1, 0 or +1 | `GZOnMouseMove`, `GZOnMouseExit`, focus loss (§6) |
+| `+0x358`, `+0x35C` | client x, z of the last right-button press | `GZOnMouseDownR` |
+| `+0x360` (byte) | "moved since the right press" flag: 0 at the press, 1 once the pointer is more than 3 pixels away on either axis | `GZOnMouseDownR` (0), `GZOnMouseMove` (1) |
+
+Control slots used below are the view-input-control table of city-tools-input.md §2: 13 `OnCharacter`, 14/15
+`OnKeyDown`/`OnKeyUp(key, modifiers)`, 16–19 `OnMouseDownL/DownR/UpL/UpR(x, z, modifiers)`, 20 `OnMouseMove`, 21
+`OnMouseWheel(x, z, modifiers, delta)`, 22 `OnMouseExit`, 11 `IsSelfScrollingView`, 25 `AmCapturing`. Every visit
+of a control is bracketed by AddRef and Release. Lists are walked **from the last element to the first**.
+Two visiting modes appear:
+
+- *first-taker*: stop at the first control that returns true;
+- *broadcast*: call every control, ignore the results.
+
+**Dispatch order per handler.**
+
+| Handler (address) | Before the controls | Controls, in order | After | Returns |
+|---|---|---|---|---|
+| `ProcessKeyDown(key, mods)` (`0x007E66D0`) | store mods | stack first-taker (slot 14), then persistent **broadcast** (slot 14) — the persistent pass runs even when a stack control took the key | — | true when any stack control **or any persistent control** returned true (`0x007E6747`, `0x007E67A6`) |
+| `ProcessKeyUp(key, mods)` (`0x007E67D0`) | same, slot 15 | same | — | same (`0x007E6847`, `0x007E68A6`) |
+| `GZOnCharacter(ch)` (`0x007E6600`) | — | stack first-taker (slot 13); only when none took it, persistent first-taker with a bounds quirk (below) | — | always true |
+| `GZOnMouseDownL(x, z, mods)` (`0x007E68D0`) | store mods; tutorial filter (below), mode `-1` | persistent first-taker (slot 16), then stack first-taker | — | always true |
+| `GZOnMouseDownR(x, z, mods)` (`0x007E6A00`) | store mods; **take mouse capture** (`GZSetCapture`) | persistent first-taker (slot 17), then stack first-taker | if nobody took it: start a mouse scroll (below) | always true |
+| `GZOnMouseUpL(x, z, mods)` (`0x007E8170`) | store mods; scroll re-check (below); tutorial filter, mode `1` | persistent first-taker (slot 18), then stack first-taker | — | always true |
+| `GZOnMouseUpR(x, z, mods)` (`0x007E82E0`) | store mods; **release capture** if the window holds it; click-to-centre (below) | persistent first-taker (slot 19), then stack first-taker | — | always true |
+| `GZOnMouseMove(x, z, mods)` (`0x007E9460`) | store mods; tutorial filter, mode `0`; drag flag; `UpdateCursorTextPositions(x, z)` (`0x007E9090`) | persistent **broadcast** (slot 20), then stack first-taker | edge scrolling (below) | always true |
+| `GZOnMouseWheel(x, z, mods, delta)` (`0x007E6B50`) | store mods | **stack first-taker first** (slot 21); if one took it, return | else persistent broadcast, then `ZoomIn` (view slot 9) when `delta > 0`, `ZoomOut` (slot 10) when `delta ≤ 0` (`0x007E6C1F`) | always true |
+| `GZOnMouseExit()` (`0x007E96E0`) | edge directions := 0, `RecalcScrollVelocity`; `UpdateCursorTextPositions(−10000, −10000)` | slot 22 on the **top stack control only** (no AddRef), then persistent broadcast | — | always true |
+
+So the persistent controls see mouse buttons before the tool on the stack, but keys and the wheel after it.
+`GZOnMouseDownL` does not take capture and `GZOnMouseUpL` does not release it; only the right button does.
+
+**Tutorial filter** (`DownL`, `UpL`, `Move`). When the city (`0x00B43CEC`) exists and its tutorial system (city
+slot 82) reports `IsTutorial` (slot 8), the handler calls `FilterLeftMouseClick(&x, &z, mode)` (slot 16; mode `-1`
+down, `1` up, `0` move; tutorial.md). False: the handler returns true at once, no control sees the event (and on a
+move nothing below runs, not even the drag flag). True: the event continues with the possibly rewritten x, z. On a
+move, the result of `IsEdgeScrollingAllowed` (tutorial slot 9) then gates edge scrolling; without a tutorial edge
+scrolling is allowed.
+
+**Mouse scroll start** (`DownR`, `0x007E6AD5`–`0x007E6B3B`). Only when no control took the press: store x, z at
+`+0x358`/`+0x35C`, clear the drag flag `+0x360`, create a `cSC4ViewInputControlCityScroll` (0x48 bytes, constructor
+`0x004B7DC0`), AddRef it, make it the current control with `SetCurrentViewInputControl(control, 0)` (view slot 25),
+call its `SetMouseScroll(x, z)` (`0x004B82F0`), then Release it (the stack keeps its own reference).
+
+**Scroll re-check on left release** (`0x007E8188`–`0x007E81B4`). When the window holds capture and the current
+control exists, is not self-scrolling (slot 11 false) and reports `AmCapturing` (slot 25 true):
+`RecalcScrollVelocity`. Nothing else changes.
+
+**Click-to-centre on right release** (`0x007E8303`–`0x007E8428`). Only when the drag flag `+0x360` is 0 and
+`mods & 7` is 0 (no modifier key):
+
+1. `Pick(x, z, 0, &occupant)` on the renderer `+0xF4` (renderer slot 65). On a hit: ask the occupant (slot 8) for its
+   bounding box into a box preset to min (1, 1, 1), max (0, 0, 0); take the box centre; call the terrain
+   (`0x00B43CF4`) `GetAltitude` and `GetWaterLevel` at the centre's x, z and **discard both results** *[quirk]*; then
+   jump the camera control `+0xF0` to the box centre (`0x007CD810`, the routine the Lua `camera_jump` uses).
+2. No occupant: `PickTerrain(x, z, &point, 0, 1)` (renderer slot 60), point preset to the value at `0x00B4E43C` in
+   all three components; on a hit jump the camera to `point`; on a miss nothing.
+3. A picked occupant reference is released.
+
+Then the controls see the release as in the table. A right *drag* (more than 3 pixels on either axis since the press)
+never recentres.
+
+**Drag flag** (`0x007E94BD`–`0x007E94E9`). On every move that passes the tutorial filter: if |`+0x358` − x| > 3
+or |`+0x35C` − z| > 3, `+0x360` := 1. It is set whether or not a button is held; only `DownR` clears it.
+
+**Edge scrolling** (`0x007E95C3`–`0x007E96CD`), after the controls, with `c` = the current control:
+
+1. Not allowed (tutorial said no, or the preference byte `+0xF09` of the object at `0x00B43CD8` is 0): directions :=
+   0, `RecalcScrollVelocity`.
+2. Else, when `c` is null or not self-scrolling, **and** (global `0x00B43C9C` slot 12 returns true, or `c` exists and
+   `AmCapturing`): X := −1 if x ≤ 1, +1 if x ≥ width − 1, else 0 (width = window slot 41); Z the same with z and
+   height (slot 42); `RecalcScrollVelocity`. *[inferred]* `0x00B43C9C` is a framework object whose slot 12 means "the
+   application is active"; its identity is open.
+3. Otherwise: if `0x00B43C9C` slot 12 is true, keep the directions; else, if either direction is non-zero, zero both
+   and `RecalcScrollVelocity`.
+
+**`GZOnCharacter` bounds quirk** (`0x007E665B`–`0x007E66A7`). The persistent pass starts at index (persistent count −
+1) but checks each index against the **stack's** count: it stops as soon as the index is not below the stack size.
+With more persistent controls than stack controls the pass does nothing; with fewer, it is a normal top-down
+first-taker pass. A replacement that wants identical character routing must keep this bound *[quirk]*.
+
 ## 7. Conformance tests
 
 - VW-T1: QI on the five IIDs of §1 returns the documented sub-object offsets; any other IID returns false.
@@ -401,6 +495,9 @@ from every panel before destroying it.
 - VW-T4: a link message whose URL opens returns false from the window `DoMessage` (§6 quirk).
 - VW-T5: `SizeOf` with arguments `100`, `0.5`, `abc`, `5` hands the camera control 64.0, 0.9, 0.9, 5.0; `SizeOf` alone returns false and changes nothing (§3.1).
 - VW-T6: `TastyZots` twice in a row restores the filter flag `+0xD`; each `TastyZots`/`Zoneria` message returns false; `TerrainQuery OFF` leaves `GetTerrainQueryEnabled` false, `TerrainQuery` alone makes it true (§3.1).
+- VW-T7: with a stack control that takes key-down and a persistent control that does not, `ProcessKeyDown` returns true and the persistent control was still called once; with neither taking it, a persistent control returning true alone makes the result true (§6c).
+- VW-T8: right press at (100, 100) on empty controls, move to (102, 103), release with mods 0: the camera jumps to the picked point; the same with a move to (104, 100) or with mods 1: no jump (§6c).
+- VW-T9: wheel delta 0 with no control taking it calls `ZoomOut`; a stack control that takes the wheel suppresses zoom and the persistent controls are not called (§6c).
 
 ## 8. Open questions
 
