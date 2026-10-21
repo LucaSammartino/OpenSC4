@@ -429,7 +429,7 @@ AA1 (§9).
    stop(`o+0x0A4C13CB` value, only if present), start loop `o+c`, start loop `o+r` (§3.4). Inserting the same
    building on a condition-0 lot starts only `o+c`.
 8. Condition 7 (or any value above 6) posts no event; condition 2 stops `o+c` and starts `o+a`.
-9. A layer whose exemplar is missing keeps loop id 0, `+0x1E0 = +0x1E1 = 0x1F`, ease times 0.1 / 4.0 s; with
+9. A layer whose exemplar is missing leaves loop id `+0x1D0` as constructed, `+0x1E0 = +0x1E1 = 0x1F`, ease times 0.1 / 4.0 s; with
    the exemplar present but those keys absent, `+0x1E0 = +0x1E1 = 0` (§8.2).
 10. Two layers listing the same filter class id share one filter object; each layer's kind counter counts it
     once per listing (§8.3).
