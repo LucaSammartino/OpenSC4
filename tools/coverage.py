@@ -497,9 +497,18 @@ SHADOW_LABEL_ALIAS = {"clock24": "clock"}  # the regress summary names a shadow 
 
 def read_map(path):
     rows = []
+    seen = {}
     for i, r in enumerate(read_tsv(path)):
         if r["area"] not in AREAS:
             sys.exit(f"coverage: {path}: row {i + 1} ({r['pattern']}): unknown area {r['area']!r}")
+        # A union merge can glue two rows onto one line or paste a block twice; the first match wins, so either
+        # silently drops a row's statuses (train16 left 17 duplicates and one glued row).
+        if r.get(None):
+            sys.exit(f"coverage: {path}: row {i + 1} ({r['pattern']}): {len(r[None])} extra columns (two rows glued?)")
+        if r["pattern"] in seen:
+            sys.exit(f"coverage: {path}: row {i + 1}: pattern {r['pattern']!r} repeats row {seen[r['pattern']]}; "
+                     "merge the two")
+        seen[r["pattern"]] = i + 1
         rows.append({k: (r[k] or "-").strip() for k in ("pattern", "subsystem", "area", "spec", "core", "shadow",
                                                           "replace")})
     return rows
@@ -680,6 +689,11 @@ def newest_regress():
     except (OSError, subprocess.CalledProcessError):
         log = ""
     for line in log.splitlines():
+        # A merge-train batch records its regress under the batch tag ("Merge glue29 into integration/17
+        # (merge-train batch train17)" -> regress-train17.out), not the lane's.
+        b = re.search(r"merge-train batch (train\d+)", line)
+        if b and b.group(1) in usable:
+            return usable[b.group(1)]
         m = re.match(r"Merge (?:branch ')?([A-Za-z0-9_.-]+?)'?(?::| into |$)", line)
         if m and m.group(1) in usable:
             return usable[m.group(1)]

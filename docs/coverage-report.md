@@ -8,9 +8,9 @@ Game code, the denominator (every function outside the library and compiler buck
 
 | Status | Meaning | Bytes | % of game bytes | Functions | % of game functions |
 |---|---|---:|---:|---:|---:|
-| **specified** | a spec in docs/specs covers its owner | 1,991,943 | **35.7%** | 9,064 | 30.7% |
+| **specified** | a spec in docs/specs covers its owner | 2,058,197 | **36.8%** | 9,517 | 32.3% |
 | **implemented** | a clean-room module in engine/ implements its owner | 1,578,400 | **28.3%** | 6,932 | 23.5% |
-| **verified** | its same-process shadow is exact in the run that measured it | 628,094 | **11.2%** | 2,483 | 8.4% |
+| **verified** | its same-process shadow is exact in the run that measured it | 692,838 | **12.4%** | 2,731 | 9.3% |
 | **replaced** | our class runs instead of the original in the regress replace run | 676,935 | **12.1%** | 2,613 | 8.9% |
 
 ## Whole executable
@@ -31,45 +31,45 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 
 | Area | Functions | Bytes | % of game | Specified | Implemented | Verified | Replaced |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| simulation | 8,295 | 1,928,043 | 34.5% | 84.2% (84.2%) | 74.7% (71.7%) | 30.5% (28.4%) | 35.1% (31.5%) |
+| simulation | 8,297 | 1,928,328 | 34.5% | 87.6% (89.7%) | 74.7% (71.6%) | 33.9% (31.4%) | 35.1% (31.5%) |
 | framework | 4,935 | 648,694 | 11.6% | 20.9% (24.5%) | 14.1% (16.4%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | 5,086 | 1,206,753 | 21.6% | 18.4% (16.4%) | 3.9% (3.5%) | 3.3% (2.5%) | 0.0% (0.0%) |
 | ui | 5,079 | 1,105,882 | 19.8% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | audio | 1,981 | 225,440 | 4.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | region | 414 | 111,697 | 2.0% | 9.8% (7.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| other | 531 | 57,609 | 1.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| other | 529 | 57,324 | 1.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | shared | 2,249 | 206,817 | 3.7% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | unattributed | 911 | 95,483 | 1.7% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| **all game code** | **29,481** | **5,586,418** | 100.0% | **35.7%** (30.7%) | **28.3%** (23.5%) | **11.2%** (8.4%) | **12.1%** (8.9%) |
+| **all game code** | **29,481** | **5,586,418** | 100.0% | **36.8%** (32.3%) | **28.3%** (23.5%) | **12.4%** (9.3%) | **12.1%** (8.9%) |
 
 ## By subsystem
 
-One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Status columns: `yes` when every map row of the subsystem has the status, `part` when some do, `-` when none does. Shadow: clean/total lines in `regress-voidbool.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run (`lane run`, or `lane run, not exact` when a compared set differs).
+One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Status columns: `yes` when every map row of the subsystem has the status, `part` when some do, `-` when none does. Shadow: clean/total lines in `regress-train17.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run (`lane run`, or `lane run, not exact` when a compared set differs).
 
 | Area | Subsystem | Owners | Functions | Bytes | Specified | Implemented | Shadow | Verified | Replaced |
 |---|---|---:|---:|---:|---|---|---|---|---|
 | simulation | automata (vehicles, animation) | 25 | 695 | 215,336 | part | part | - | - | - |
-| simulation | traffic | 9 | 441 | 162,124 | yes | yes | 61/83 | - | yes |
+| simulation | traffic | 9 | 441 | 162,124 | yes | yes | 43/101 | - | yes |
 | simulation | network tools | 12 | 398 | 152,017 | yes | part | - | - | - |
 | simulation | network occupants | 18 | 754 | 114,523 | yes | - | - | - | - |
 | simulation | automata (managers, records) | 10 | 392 | 103,607 | yes | yes | - | - | - |
-| simulation | terrain | 3 | 321 | 84,327 | yes | yes | 93/93 | part | - |
+| simulation | terrain | 3 | 321 | 84,327 | yes | yes | 94/94 | part | - |
 | simulation | mysims | 8 | 347 | 80,570 | yes | part | - | - | - |
 | simulation | advisors | 16 | 280 | 71,334 | yes | yes | - | - | - |
-| simulation | occupants and props | 33 | 453 | 66,254 | - | - | - | - | - |
+| simulation | occupants and props | 33 | 453 | 66,254 | yes | - | - | - | - |
 | simulation | development | 2 | 215 | 50,083 | yes | yes | 913/913 | yes | yes |
 | simulation | disasters | 17 | 334 | 46,983 | yes | yes | fire 211/263, riot 2/354 (lane run, not exact) | - | - |
 | simulation | city situation | 1 | 155 | 41,919 | yes | yes | citysit 73/73 (lane run) | yes | - |
 | simulation | zone developer / lot manager | 1 | 102 | 41,866 | yes | yes | 365/365 | yes | yes |
-| simulation | network manager | 5 | 166 | 41,793 | yes | yes | no lines | - | - |
-| simulation | residential | 1 | 117 | 40,477 | yes | yes | 1137/1137 | yes | yes |
+| simulation | network manager | 5 | 166 | 41,793 | yes | yes | 73/73 | yes | - |
+| simulation | residential | 1 | 117 | 40,477 | yes | yes | 1136/1136 | yes | yes |
 | simulation | lot developer | 1 | 149 | 40,458 | yes | yes | 73/73 | yes | yes |
 | simulation | tract developer | 1 | 116 | 36,573 | yes | yes | 145/145 | yes | yes |
 | simulation | city and save file | 11 | 308 | 35,152 | part | part | - | - | - |
 | simulation | budget | 3 | 171 | 30,911 | yes | yes | 72/72 | yes | yes |
-| simulation | demand | 2 | 102 | 29,577 | yes | yes | 2238/2238 | yes | yes |
+| simulation | demand | 2 | 102 | 29,577 | yes | yes | 2236/2236 | yes | yes |
 | simulation | neighbours | 3 | 127 | 27,064 | yes | yes | 71/71 | yes | yes |
-| simulation | power | 1 | 81 | 26,475 | yes | yes | 392/392 | yes | yes |
+| simulation | power | 1 | 81 | 26,475 | yes | yes | 385/385 | yes | yes |
 | simulation | lots and lot records | 5 | 174 | 24,736 | yes | - | - | - | - |
 | simulation | pollution | 1 | 103 | 23,272 | yes | yes | 71/71 | yes | yes |
 | simulation | protection | 3 | 150 | 23,130 | yes | yes | 288/288 | yes | yes |
@@ -81,18 +81,18 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | simulation | prop developer | 2 | 58 | 17,553 | yes | yes | - | - | - |
 | simulation | tutorial | 3 | 98 | 17,450 | part | yes | - | - | - |
 | simulation | sim grids | 4 | 107 | 17,176 | yes | yes | - | - | - |
-| simulation | aura | 1 | 55 | 16,240 | yes | yes | 70/71 | - | yes |
+| simulation | aura | 1 | 55 | 16,240 | yes | yes | 71/71 | yes | yes |
 | simulation | occupant manager | 1 | 77 | 16,082 | yes | yes | not in regress | - | - |
 | simulation | flora | 3 | 79 | 15,743 | yes | yes | 72/72 | part | part |
 | simulation | port developers | 4 | 109 | 12,650 | yes | yes | - | - | - |
 | simulation | crime | 1 | 56 | 12,064 | yes | yes | 71/71 | yes | yes |
 | simulation | demolition | 2 | 29 | 10,968 | yes | yes | demolition 73/73 (lane run) | part | - |
+| simulation | other simulation | 3 | 71 | 9,797 | - | - | - | - | - |
 | simulation | lot configuration | 1 | 37 | 9,580 | yes | yes | - | - | - |
-| simulation | other simulation | 2 | 69 | 9,512 | - | - | - | - | - |
 | simulation | simulator | 1 | 76 | 9,360 | yes | yes | - | - | yes |
 | simulation | ordinance | 8 | 78 | 8,924 | yes | yes | - | - | yes |
 | simulation | dispatch | 1 | 40 | 7,425 | yes | yes | dispatch 73/73 (lane run) | yes | - |
-| simulation | landvalue | 1 | 27 | 6,711 | yes | yes | 71/72 | - | yes |
+| simulation | landvalue | 1 | 27 | 6,711 | yes | yes | 72/72 | yes | yes |
 | simulation | zones | 1 | 33 | 6,513 | yes | yes | 292/292 | yes | yes |
 | simulation | history | 2 | 42 | 6,285 | yes | yes | 79/79 | yes | yes |
 | simulation | flammability | 1 | 28 | 6,001 | yes | yes | 54/54 | yes | yes |
@@ -100,7 +100,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | simulation | 24-hour clock | 1 | 55 | 3,682 | yes | yes | 73/73 | yes | yes |
 | simulation | parks | 1 | 19 | 3,006 | yes | yes | 72/72 | yes | yes |
 | simulation | city detail | 1 | 13 | 2,081 | yes | yes | - | - | - |
-| simulation | commercial/industrial | 2 | 26 | 2,022 | yes | yes | 26/26 | part | yes |
+| simulation | commercial/industrial | 2 | 26 | 2,022 | yes | yes | 24/24 | part | yes |
 | simulation | foundations | 1 | 7 | 918 | yes | yes | - | - | - |
 | framework | application | 15 | 935 | 184,210 | - | - | - | - | - |
 | framework | web and network | 10 | 437 | 86,144 | - | - | - | - | - |
@@ -112,7 +112,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | framework | strings and language | 12 | 225 | 43,131 | - | - | - | - | - |
 | framework | foundations | 1 | 126 | 10,680 | yes | yes | - | - | - |
 | framework | random numbers and seeding | 2 | 19 | 1,105 | yes | yes | - | - | - |
-| renderer | 3D scene and models | 132 | 1,647 | 446,492 | part | part | 93/93 | part | - |
+| renderer | 3D scene and models | 132 | 1,647 | 446,492 | part | part | 94/94 | part | - |
 | renderer | effects | 60 | 654 | 175,251 | yes | - | - | - | - |
 | renderer | 3D driver (DirectX 7) | 10 | 843 | 151,999 | - | - | - | - | - |
 | renderer | 2D drawing and fonts | 36 | 841 | 150,697 | - | - | - | - | - |
@@ -130,7 +130,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | audio | audio | 56 | 1,981 | 225,440 | - | - | - | - | - |
 | region | region | 26 | 414 | 111,697 | part | - | - | - | - |
 | other | other free functions | 152 | 187 | 27,444 | - | - | - | - | - |
-| other | other SC4 classes | 60 | 193 | 17,439 | - | - | - | - | - |
+| other | other SC4 classes | 59 | 191 | 17,154 | - | - | - | - | - |
 | other | other | 57 | 151 | 12,726 | - | - | - | - | - |
 
 ## Excluded from the denominator
@@ -153,18 +153,18 @@ A library range overrides the names inside it. Game-looking names overridden thi
 
 ## Attribution rules applied
 
-Which rule gave each function its owner (COVERAGE.md, applied in this order). Edges: calls 67,492, code-references 3,598, data-tables 32,126, vtables 69,813; 101 registration hubs (functions referring to more than 64 functions) pass no owner on through their references.
+Which rule gave each function its owner (COVERAGE.md, applied in this order). Edges: calls 67,492, code-references 3,598, data-tables 32,096, vtables 69,843; 101 registration hubs (functions referring to more than 64 functions) pass no owner on through their references.
 
 | Rule | Functions | Bytes | % of all function bytes |
 |---|---:|---:|---:|
 | name-high | 6,750 | 1,968,981 | 30.2% |
 | name-medium | 4,932 | 1,532,726 | 23.5% |
-| reach | 7,978 | 1,105,786 | 17.0% |
+| reach | 7,977 | 1,105,743 | 17.0% |
 | library-range | 4,883 | 754,837 | 11.6% |
 | neighbour | 2,278 | 245,832 | 3.8% |
 | owner-range | 768 | 198,747 | 3.1% |
 | reach-shared | 1,701 | 182,736 | 2.8% |
-| vtable | 2,077 | 132,823 | 2.0% |
+| vtable | 2,078 | 132,866 | 2.0% |
 | free-neighbour | 339 | 100,073 | 1.5% |
 | library-name | 873 | 97,078 | 1.5% |
 | unattributed | 911 | 95,483 | 1.5% |
@@ -249,36 +249,13 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | ghidra/export/windows/instructions.asm | cbc5795d08d336cb | Ghidra 12.1.4 auto-analysis export |
 | re/names_windows.tsv | 7754934901dd9772 | |
 | docs/abi/vtables.tsv | 3c064d371f43bff8 | |
-| docs/abi/interfaces.tsv | 3813b38eb34de5dd | |
+| docs/abi/interfaces.tsv | e7507f340528a6ef | |
 | tools/coverage-libs.tsv | de557a391ec04b04 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
-| tools/coverage-map.tsv | 0d581e28848d0955 | |
+| tools/coverage-map.tsv | 84894ad6eff0bbba | |
 | tools/coverage-shadows.tsv | 9559bafe0136e8c5 | |
 | tools/regress.ps1 | 138cae90b2d15a09 | |
 | engine/plugin/FC4Subsystems.cpp | 4db31680aa1957e9 | |
-| build-runs/regress-voidbool.out | 08052938525d100a | regress voidbool (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time)); replace run clean |
+| build-runs/regress-train17.out | 57b9a46fe4687a76 | regress train17 (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time)); replace run clean |
 
 Read from tools/regress.ps1: 27 replace keys, 28 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
-
-## Warnings
-
-- map row `cSC4*OccupantFilter` matches no owner
-- map row `cSC4*Occupant` matches no owner
-- map row `cSC4*Occupant`: replace key `-cSC4GameOfLifeSimulator` is not an enable key in FC4Subsystems.cpp
-- map row `cSC4ConstructionOccupant` matches no owner
-- map row `cSC4Network*Occupant*` matches no owner
-- map row `cSC4Network*` matches no owner
-- map row `cSC4NetworkRoutines` matches no owner
-- map row `cSC4NetworkTypeInfo` matches no owner
-- map row `cSC4Occupant*` matches no owner
-- map row `cSC4PipeOccupant` matches no owner
-- map row `cSC4PowerLineOccupant` matches no owner
-- map row `cSC4PowerPoleOccupant` matches no owner
-- map row `cSC4PropOccupant*` matches no owner
-- map row `cSC4PylonOccupant` matches no owner
-- map row `cSC4SignpostOccupant` matches no owner
-- map row `cSC4SubwayOccupant` matches no owner
-- map row `cSC4TextDecalOccupant` matches no owner
-- map row `cSC4UndergroundConnectionOccupant` matches no owner
-- map row `cSC4UndergroundOccupant` matches no owner
-- shadow `netmgr_shadow` is in the regress list but `regress-voidbool.out` has no `netmgr` lines
