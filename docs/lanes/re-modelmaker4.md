@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-modelmaker4 (RE spec: exact cSC4ModelMaker owner, docs/specs/model-maker.md) | `re-modelmaker4` / (RE spec lane) | in progress (round 1/3 done, partial: 8163 of 34705 bytes specified, inventory §20 lists 69 remainder rows) | see Handoff |
+| re-modelmaker4 (RE spec: exact cSC4ModelMaker owner, docs/specs/model-maker.md) | `re-modelmaker4` / (RE spec lane) | in progress (round 2/3: 12051 of 34705 bytes specified, §20 lists 56 remainder rows) | see Handoff |
 
 ## Handoff
 - Goal: docs/specs/model-maker.md specifying the whole cSC4ModelMaker owner (105 functions, 34705 bytes per
@@ -8,7 +8,7 @@
 - Done (round 1): e1f9e323 §1-5 (identity/QI/vtables, state layout, Init/DoPostCityInit/Shutdown/dtor, save
   record v2, DoMessage table of 28 IDs); a9b2c5eb §8 occupant handlers + deferred queue (ops 1-8, coalescing);
   b487f840 §8.8 Moved outline, §19 conformance M1-M12, §20 inventory; ca743ee8 §9.4 prop state, §12.1-12.3.
-- Next (round 2), in this order, updating §20 rows from "remainder" to the section and recomputing the totals
+- Round 2: b791dd7c §6 filters + §7 load radius/rect/unload (14 rows). Next (round 2 rest), in this order, updating §20 rows from "remainder" to the section and recomputing the totals
   line (§8.9 Hilighted done in round 1): §6 filters (CreateOccupantFilters 0x493EF0,
   OccupantFilterIterationFunction 0x495360, 0x5EA370/0x5EA550, 0x5D5xxx); §7 DetermineLoadRadius 0x48EB50,
   UpdateModelLoadRect 0x48F660, UnloadUnnecessaryModels 0x492530, RemoveModelsInappropriateForRotation 0x492780,
