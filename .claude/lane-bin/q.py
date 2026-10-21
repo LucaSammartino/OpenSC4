@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Run any command quietly: the full output goes to a log file, the console gets a capped tail and the exit code.
 
-Usage: python q.py [--lines N] [--bytes N] [--width N] [--head] [--full] [--log FILE] [--] <cmd> [args...]
+Usage: python q.py [--wt DIR] [--lines N] [--bytes N] [--width N] [--head] [--full] [--log FILE] [--] <cmd> [args...]
   One argument is a shell command line (run with bash -c, so pipes and && work); several are run as they are.
+  --wt DIR    run the command in DIR (relative paths then work) and keep the log in DIR/build-runs/q/
   --lines N   lines shown (default 40), the last ones unless --head
   --bytes N   bytes shown at most (default 4096); each line is also cut to --width characters (default 200)
   --head      show the first lines instead of the last (for listings; a log's verdict is usually at the end)
@@ -24,9 +25,10 @@ import time
 KEEP_LOGS = 50
 
 
-def default_log():
+def default_log(wt=None):
     """build-runs/q/<time>-<pid>.log (one per run: lanes share a checkout's build-runs); the oldest are pruned."""
-    d = os.path.join("build-runs" if os.path.isdir("build-runs") else tempfile.gettempdir(), "q")
+    runs = os.path.join(wt or ".", "build-runs")
+    d = os.path.join(runs if wt or os.path.isdir(runs) else tempfile.gettempdir(), "q")
     os.makedirs(d, exist_ok=True)
     old = sorted(n for n in os.listdir(d) if n.endswith(".log"))
     for n in old[:max(0, len(old) - KEEP_LOGS + 1)]:
@@ -63,6 +65,7 @@ def main(argv=None):
     ap.add_argument("--head", action="store_true")
     ap.add_argument("--full", action="store_true")
     ap.add_argument("--log")
+    ap.add_argument("--wt")
     ap.add_argument("cmd", nargs=argparse.REMAINDER)
     a = ap.parse_args(argv)
     cmd = a.cmd[1:] if a.cmd[:1] == ["--"] else a.cmd
@@ -71,11 +74,12 @@ def main(argv=None):
     if len(cmd) == 1:
         bash = shutil.which("bash")
         cmd = [bash, "-c", cmd[0]] if bash else cmd[0]
-    log = os.path.abspath(a.log or default_log())
+    log = os.path.abspath(a.log or default_log(a.wt))
     os.makedirs(os.path.dirname(log), exist_ok=True)
     with open(log, "wb") as f:
         try:
-            rc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, shell=isinstance(cmd, str)).returncode
+            rc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, cwd=a.wt,
+                                shell=isinstance(cmd, str)).returncode
         except OSError as e:
             f.write(f"q: cannot run {cmd!r}: {e}\n".encode())
             rc = 127

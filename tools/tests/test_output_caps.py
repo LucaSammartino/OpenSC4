@@ -131,6 +131,14 @@ class QTest(unittest.TestCase):
             self.assertIn(os.path.join("build-runs", "q"), out[-1])
             self.assertEqual(len(os.listdir(os.path.join(d, "build-runs", "q"))), 1)
 
+    def test_wt_runs_there_and_logs_there(self):
+        with tempfile.TemporaryDirectory() as wt, tempfile.TemporaryDirectory() as elsewhere:
+            Path(wt, "marker.txt").write_text("here\n")
+            rc, out = run("q.py", "--wt", wt, sys.executable, "-c", "print(open('marker.txt').read().strip())",
+                          cwd=elsewhere)
+            self.assertEqual((rc, out[0]), (0, "here"))
+            self.assertEqual(len(os.listdir(os.path.join(wt, "build-runs", "q"))), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
