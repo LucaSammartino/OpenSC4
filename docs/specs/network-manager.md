@@ -710,7 +710,31 @@ Steps 2 and 3 run even when the cell has no network lot.
 within a bucket. Only two things depend on it: which cell starts an avenue flood (§8.7) and the order of the random
 draws. The generator is seeded from the wall clock, so draws are not reproducible from a seed; they are reproducible
 from a capture of its state (§17.3), which makes the draw order observable. FreeCity4 processes keys in
-ascending key order *[choice]*; where two cells of one pass draw, this differs from the original (NM13).
+ascending key order *[choice]*; where two cells of one pass draw, this differs from the original (NM13). The
+original's order, exactly (answers NM13):
+
+- `pending` is an SGI `hash_set<u16>`: hashtable object at manager `+0x74`, bucket vector begin `+0x78`, end
+  `+0x7C`, element count `+0x84`. The hash is the key itself; a key's bucket is `key mod B`, `B` the bucket count.
+- The constructor (`0x0060EE50`, `PUSH 0x64` at `0x0060EF0D`, call `0x00829BC0` at `0x0060EF12`) asks for 100
+  buckets, so `B` starts at **193**: the first entry not below the request in the 28-entry prime list at
+  `0x00A829B0` (53, 97, 193, 389, 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, … , 4294967291).
+- Insert (`0x0060E210`) first calls resize (`0x00710DD0`) with `count + 1`, even when the key is already present.
+  If `B < count + 1`, `B` becomes the first prime not below `count + 1` and every node moves: old buckets in
+  ascending order, each from its head, each node pushed to the **head** of its new bucket. Then a new key is pushed
+  to the head of its bucket; an existing key is left where it is.
+- Erase never shrinks `B`; nothing else touches the bucket vector (Shutdown does not). `B` therefore depends on the
+  manager's history (it passes 193 only once some message has queued more than 193 keys at once, for example a zoning rect of
+  more than 193 cells after growing it by one)
+  and is part of the §17.3 capture: `B = (dword[+0x7C] − dword[+0x78]) / 4`, read on the cISC4NetworkLotManager
+  pointer (the object, vtable `0x00AA7958` at +0).
+- Iteration (`ProcessUpdateList` takes `begin()` each time): buckets ascending, each from its head. So with no
+  resize during the pass, keys run by ascending `key mod B`, and within one bucket the latest inserted first.
+
+Example (`B = 193`): a lot-state message queues, in this order, keys `0x0102` (258, bucket 65), `0x0201` (513,
+bucket 127), `0x0143` (323, bucket 130) and `0x00C3` (195, bucket 2). Processing order: `0x00C3`, `0x0102`,
+`0x0201`, `0x0143`. Ascending key order would give `0x00C3`, `0x0102`, `0x0143`, `0x0201`, so if `0x0201` and
+`0x0143` both create a lot, their configuration draws are swapped. With keys 2 (bucket 2) inserted before 195
+(bucket 2), the order is 195 then 2.
 
 **Every path that changes network lots** (answers NM11; from the call and cross-reference graph of the
 executable, no data references to any of these functions):
@@ -1130,7 +1154,9 @@ The tools, models, remap tables and retrofit are presentation or legacy. A FreeC
   confirmed) and NM9 (§7.6, **DIFFERS**: each kind runs only when its occupant list is not empty).
 - ~~**NM12.** Can the configuration draw's input be captured before our step?~~ **Answered (re-netmgr-rng4):** yes,
   by an in-process read of the generator's layout between network lot manager operations (§17.1–§17.3); the draw
-  is compared exactly, no resync. Open: **NM13**, the original's key order within one `ProcessUpdateList` pass.
+  is compared exactly, no resync.
+- ~~**NM13.** The original's key order within one `ProcessUpdateList` pass.~~ **Answered (re-netmgr-rng4):**
+  **DIFFERS** from FreeCity4's ascending key order: hash order `key mod B`, latest first, `B` from 193 up (§8.5).
 
 ---
 
@@ -1272,9 +1298,9 @@ Replay rule:
 So the configuration draw is **not** outside exact comparison: with the capture, a cell whose configuration
 differs among `count ≥ 2` compatible candidates is a mismatch, and a resync after it is not specified behaviour.
 Exactness also needs the original's draw order. Within one `ProcessUpdateList` pass that order follows the hash
-set's iteration order (§8.5 *[compat]* note), which FreeCity4 currently replaces by ascending key order
-*[choice]*. The two orders agree whenever at most one cell of the pass draws; when several draw, the order rule
-is NM13.
+set's iteration order (§8.5 *[compat]* note, NM13), which FreeCity4 currently replaces by ascending key order
+*[choice]*. The two orders agree whenever at most one cell of the pass draws. For exact replay when several draw,
+the capture also takes `pending`'s bucket count `B` (§8.5) and the step processes keys in the original's order.
 
 ### 17.4 Worked vectors (from foundations §6.1; implementers compare their generator against these)
 

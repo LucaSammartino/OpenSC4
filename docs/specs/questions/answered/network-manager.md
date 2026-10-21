@@ -140,3 +140,12 @@ readings has been checked in game. The current choice is in brackets.
   sanctioned capture point? (b) If not, is the draw officially outside exact comparison ("exact except section 17
   draws", resync specified)? [current: no capture; 4 resyncs in vnmf4-turbo2032-a, 2 in vnmf4-normal-a]
   **ANSWERED 2026-10-21 (re-netmgr-rng4):** DIFFERS — (a) yes, an in-process read of the §17.2 layout (`state[624]` at `0x00B44870`, `next` `0x00B45230`, `left` `0x00B45234`, position `k = 624 − left`; no vtable, fixed image base), sanctioned whenever no network lot manager function runs: the generator advances only at three draw sites (`0x0060D4AC`, `0x0060D512`, `0x0060DE59`), so a capture after the previous draw-performing operation is the next one's input (§17.1, §17.3). Load it as raw state, replay, and check (not copy) the post-state. (b) No: the configuration draw is compared exactly and a resync after a draw-only difference is not specified; the remaining exactness gap is the draw order inside one `ProcessUpdateList` pass (NM13). Vectors in §17.4.
+
+<!-- from: re-netmgr-rng4 (2026-10-21) -->
+- **NM13 - section 8.5 *[compat]* note and section 17.3 (draw order within one `ProcessUpdateList` pass):** exact
+  replay of the §17 draws needs the original's key order when two or more cells of one pass draw. `pending` is a hash
+  set at manager `+0x74` (bucket vector begin `+0x78`, end `+0x7C`, element count `+0x84`, read at
+  `0x0060FA14`–`0x0060FA3E`). Needed: its initial bucket count, the growth rule (prime list, when it grows), the
+  order of nodes within a bucket after insert and after a rehash, and whether the bucket count (which persists after
+  the set empties) must itself be part of the §17.3 capture. [current: ascending key order *[choice]*]
+  **ANSWERED 2026-10-21 (re-netmgr-rng4):** DIFFERS — the original iterates `pending` (SGI hash_set at `+0x74`) by ascending `key mod B`, latest insert first within a bucket; `B` starts at 193 (ctor asks 100, prime list `0x00A829B0`), grows on insert to the first prime not below `count + 1` with a head-pushing rehash (`0x00710DD0`), never shrinks, and is captured with the generator (§8.5 *[compat]*, §17.3). FreeCity4's ascending-key *[choice]* differs when two cells of one pass draw.
