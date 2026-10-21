@@ -324,6 +324,65 @@ The message must answer `0x65297976`; otherwise return 0.
 22–24 `Insert`/`Move`/`RemoveOccupant`, 25 `BeginUpdate`, 26 `Update`, 27 `EndUpdate`, 28 `Pause`.
 The manager uses 4, 17, 20, 25–28 directly and 21 through the cell walk.
 
+### 8.1 Layer `Init` (`0x004E8180`)
+
+Runs once per layer (byte `+0x04` set on the first call; later calls do nothing). A process-wide layer count
+(`0x00B21944`) is incremented; the layer that takes it from 0 to 1 first runs `_StaticInit` (`0x004E4EB0`),
+and if that fails `Init` returns its result without doing anything else. Then, in this order:
+`_ReadTuningValues(layerId)` (layer id `+0x1F8`, §8.2; its result is ignored); subscribe this layer to
+`0xC53D10AA` on the message server (`0x652294C7`); `_CreateFilters` (`0x004E78E0`); `_CreateLayers`
+(`0x004E4F60`); own slot 14 `LoadFreshnessScore`; own slot 12 `AddAmbienceLoop(+0x1D0)` (the loop sound id
+read from `0x6A3FBDDA`, §8.2).
+
+### 8.2 Layer tuning (`_ReadTuningValues` `0x004E7A90`)
+
+**Defaults, written first, before the exemplar is looked up** (so a missing exemplar leaves exactly these):
+ease object `+0xE8` gets `+0x108 := 100 × 0.001 = 0.1` and `+0x10C := 4000 × 0.001 = 4.0` (setter
+`0x004F7BF0`: each argument times the f32 constant 0.001 at `0x00A867A4`); name `+0x188 :=
+"Noname_0x%08x"` of the layer id; `+0x1E1 := 0x1F`, `+0x1E0 := 0x1F`, `+0x1EC := 1024`, `+0x1E8 := 1024`,
+`+0x1F0 := 100`, `+0x34 := 1`, `+0x38 := 5`, `+0x20 := 50.0`, `+0x24 := 50.0`, `+0x200 := 1.0`; `+0x204 :=` the
+u32 at `+0x314` of the object at `[0x00B43CC4] + 0x18`; three response curves with two points each:
+
+| Curve | Default points (x, y) | Tuning key |
+|---|---|---|
+| `+0x1A0` | (0, 100), (20, 100) | `0xCA4132E9` |
+| `+0x1B0` | (0, 0), (20, 1024) | `0x6A4132F3` |
+| `+0x1C0` | (0, 1024), (20, 1024) | `0x6A4132F6` |
+
+**Exemplar**: type `0x6534284A`, group `0xCA25875D`, instance = the layer id, through the resource manager
+(`0x00B21950` slot 3, IID `0xA52160F5`). Missing → log "Failed to get resource", return 0 (defaults stay).
+Present → read, in this order (each reader leaves the destination unchanged when the property is absent, except
+where "cleared" says the destination is zeroed just before the read):
+
+| Key | Reader | Destination | Absent value |
+|---|---|---|---|
+| `0x00000020` | string (`0x005FD570`) | name `+0x188` | `Noname_0x…` |
+| `0xEA3FBDD7` | vec<u32> (`0x005FF510`) | vector `+0x1D4` (emptied first) | empty |
+| `0x2A3FBDE1` | vec<u32> | vector `+0x208` (emptied first) | empty |
+| `0x2A3FBDE5` | vec<u32> | vector `+0x224` (emptied first) | empty |
+| `0x0A410BA0` | vec<u32> | vector `+0x240` (emptied first) | empty |
+| `0x6A3FBDDA` | u32 (`0x005FD480`) | `+0x1D0`, the layer's ambience-loop sound id (§8.1) | 0 (cleared) |
+| `0x0A25896B` | u8 (`0x005FD3C0`) | `+0x1E0` | 0 (cleared; the `0x1F` default is lost) |
+| `0xAA3FBDDE` | u8 | `+0x1E1` | 0 (cleared) |
+| `0xEA3FC42A` | u32 | `+0x1EC` | 1024 |
+| `0xAA3FC48E` | u32 | `+0x1E8` | 1024 |
+| `0x6A3FC4C7` | u32 | `+0x1F0` | 100 |
+| `0x8A552758` | u32 | `+0x34` | 1 |
+| `0x8A70B1A2` | u32 | `+0x38` | 5 |
+| `0x8A3FC5DD` | f32 (`0x005FD4F0`) | `+0x200` | 1.0 |
+| `0xCA4132E9`, `0x6A4132F3`, `0x6A4132F6` | response curve (`0x005F4700`) | curves `+0x1A0`, `+0x1B0`, `+0x1C0` | the defaults above |
+| `0x0A4168E1` | f32 | `+0x20` | 50.0 |
+| `0x0A56212A` | f32 | `+0x24`, which is first set to the new `+0x20` | `+0x20` |
+| `0x8AA039B7`, `0x4AA03DB1` | u32 into locals (defaults 100, 4000) | ease `+0x108`, `+0x10C` := float(u32) × 0.001 | 0.1, 4.0 |
+
+The two ease values are converted **unsigned** (`FILD` plus 2^32 when negative, `0x004E8105`–`0x004E8130`);
+the call is the same setter as the default, so a missing `0x8AA039B7` still yields 0.1 s. The function returns 1
+on success. The roles of `+0x20`/`+0x24`, `+0x34`/`+0x38`, `+0x1E0`–`+0x1F0`, `+0x200`, `+0x204` and the
+four vectors belong to the scoring and loop code (still AA1, §9).
+
+Worked example: an exemplar with only `0x6A3FBDDA = 0x1234` and `0x0A4168E1 = 30.0` gives loop sound
+`0x1234`, `+0x20 = +0x24 = 30.0`, `+0x1E0 = +0x1E1 = 0`, every other value its default.
+
 ## 9. Open items
 
 | # | Question | What would settle it |
