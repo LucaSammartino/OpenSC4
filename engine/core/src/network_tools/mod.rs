@@ -18,6 +18,8 @@
 //! - [`resolve`]: `DestroyOccupantsAndResolve` (§10) and the underground
 //!   refit (§11).
 //! - [`host`]: the [`ToolHost`] seam.
+//! - [`power_line`]: the power-line tool's own slots (§9, network-geometry
+//!   §11).
 //!
 //! # Division of labour with the network geometry core
 //!
