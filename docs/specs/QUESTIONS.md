@@ -32,6 +32,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AU | aura |
 | BQ | budget |
 | BW | budget-window |
+| CA | camera |
 | CB | civic-buildings |
 | CD | city-detail |
 | CK | clock24 |
@@ -128,6 +129,7 @@ generated index: the questions live one file per spec, so read only the file for
 | budget | 0 | 8 | BQ9 | - |
 | budget-window | 1 | 13 | BW15 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
+| camera | 2 | 0 | CA3 | questions/camera.md |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools-input | 12 | 1 | CT14 | questions/city-tools-input.md |
@@ -209,4 +211,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **197** | **1115** | | |
+| **total** | **199** | **1115** | | |

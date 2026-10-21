@@ -302,11 +302,15 @@ nSGLDX7*	3D driver (DirectX 7)	renderer	-	-	-	-
 nRZSimGL*	3D driver (DirectX 7)	renderer	-	-	-	-
 cGZBufferSimGLCache	3D driver (DirectX 7)	renderer	-	-	-	-
 cSC4GDriversCOMDirector	3D driver (DirectX 7)	renderer	-	-	-	-
+cS3DCamera	camera and projection	renderer	camera.md	-	-	-
+fn:GZCOM_CreatecS3DCamera	camera and projection	renderer	camera.md	-	-	-
+fn:GZCOM_CreatecSC4CameraControl	camera and projection	renderer	camera.md	-	-	-
+fn:IntersectWithGroundPlane	camera and projection	renderer	camera.md	-	-	-
 cS3D*	3D scene and models	renderer	-	-	-	-
 nS3D*	3D scene and models	renderer	-	-	-	-
 cSC43D*	3D scene and models	renderer	-	-	-	-
 cSC4View3DWin	3D scene and models	renderer	-	-	-	-
-cSC4CameraControl	3D scene and models	renderer	-	-	-	-
+cSC4CameraControl	camera and projection	renderer	camera.md	-	-	-
 cSC4LightingManager	3D scene and models	renderer	-	-	-	-
 cSC4RenderProperties*	3D scene and models	renderer	-	-	-	-
 cSC4Model*	3D scene and models	renderer	-	-	-	-

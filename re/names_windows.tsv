@@ -7791,7 +7791,7 @@ va	name	source	confidence	note
 00762480	cSCResourceCatalogView::Release	auto:D	low	mac 00259e56 score 0.5 support 1
 00762490	cGZWinKnob::QueryInterface	auto:A	high	mac 004fd21c score 1.0 support 0
 007624c0	cSC4PollutionSimulator::GetAverageAirValue	auto:C	low	mac 00069752 score 1.0 support 1
-007624e0	cSC4CameraControl::GetCustomMagnification	auto:B8	low	mac 0050caf6 score 0.874 support 2.0
+007624e0	cSC4CameraControl::GetCustomMagnification	manual:camera.tsv	high	camera.md §2.6; +0xF0
 007624f0	cSC4City::GetWorldBaseElevation	auto:C	low	mac 0002fe38 score 1.0 support 1
 00762570	cGZWinKnob::Init	auto:C	high	mac 004fd268 score 1.0 support 1
 00762630	cGZWinKnob::Shutdown	auto:C	high	mac 004fd326 score 1.0 support 1
@@ -8607,32 +8607,44 @@ va	name	source	confidence	note
 007cb0b0	cSC43DRender::DoMessage	auto:B0	medium	mac 0050be0e score 0.99 support 7.0
 007cb530	cSC43DRender::Draw	auto:B3	medium	mac 0050b252 score 0.955 support 3.5
 007cb920	cSC4OccupantTypesFilter::cSC4OccupantTypesFilter	auto:B7	medium	mac 0061ebe2 score 0.831 support 2.0
-007cb990	cSC4CameraControl::GetViewportSize	auto:B18	medium	mac 0050cb06 score 0.98 support 2.0
-007cb9b0	cSC4CameraControl::SetViewportSize	auto:B4	medium	mac 0050cb24 score 0.976 support 3.0
-007cb9f0	cSC4CameraControl::GetDistancesToClipPlanes	auto:D	medium	mac 0050cb60 score 0.5 support 1
-007cba90	IntersectWithGroundPlane	auto:B1	medium	mac 0050d13e score 0.998 support 2.0
-007cbc40	cSC4CameraControl::GetVirtualZoom	auto:D	medium	mac 0050d0aa score 0.5 support 5
-007cbc60	cSC4CameraControl::SetViewTargetVelocity	auto:D	medium	mac 0050cd2a score 0.5 support 1
-007cbce0	cSC4CameraControl::ConvertWorldPointToCameraPlanePoint	auto:B0	medium	mac 0050d0d4 score 0.958 support 2.0
-007cbd70	cSC4CameraControl::ConvertCameraPlanePointToWorldPoint	auto:B1	medium	mac 0050cd68 score 0.89 support 2.0
-007cbe40	cSC4CameraControl::UpdateCameraZoomAndRotationParams	auto:A	high	mac 0050cddc score 0.557 support 0
-007cc0b0	cSC4CameraControl::SendPostViewChangeMessage	auto:B1	medium	mac 0050cb80 score 0.985 support 4.5
-007cc290	cSC4CameraControl::UpdateCameraPositionParams	auto:D	medium	mac 0050dcc2 score 0.5 support 1
-007cc650	cSC4CameraControl::ClampScrollToBounds	auto:D	medium	mac 0050d1b4 score 0.5 support 1
-007cc990	cSC4CameraControl::cSC4CameraControl	auto:B0	medium	mac 0050d78a score 0.986 support 6.0
-007ccc00	GZCOM_CreatecSC4CameraControl	auto:B1	medium	mac 0050da0a score 0.939 support 1.0
-007ccc60	cSC4CameraControl::UpdateScrollBounds	auto:B1	medium	mac 0050da30 score 0.964 support 2.0
-007cd000	cSC4CameraControl::ClampTargetToScrollBounds	auto:B0	medium	mac 0050e0f4 score 0.876 support 3.0
-007cd200	cSC4CameraControl::AttachToCamera	auto:B5	medium	mac 0050e5ba score 0.812 support 1.0
-007cd330	cSC4CameraControl::ScrollByViewportAngle	auto:B2	medium	mac 0050e462 score 0.918 support 3.0
+007cb940	cSC4CameraControl::QueryInterface	manual:camera.tsv	high	camera.md §2.1; descriptive name; slot 0 of 0x00ABAD18; IIDs 1, 0xC9C628EC and 0xE4FDA3D4
+007cb970	cSC4CameraControl::DetachFromCamera	manual:camera.tsv	high	camera.md §2.6; descriptive name, no Mac match; releases +0xC; callers 0x007AC3F0, 0x007F15C2
+007cb990	cSC4CameraControl::GetViewportSize	manual:camera.tsv	high	camera.md §2.6; +0x12C, +0x130
+007cb9b0	cSC4CameraControl::SetViewportSize	manual:camera.tsv	high	camera.md §2.6; also cS3DCamera::SetViewport
+007cb9f0	cSC4CameraControl::GetDistancesToClipPlanes	manual:camera.tsv	high	camera.md §2.6; near +0x124, far +0x128
+007cba10	cSC4CameraControl::GetRotationCorner	manual:camera.tsv	high	camera.md §2.3; descriptive name, no Mac match; rotation 0-3 -> (0,0,0), (W,0,0), (W,0,H), (0,0,H) from +0x158 / +0x15C
+007cba90	IntersectWithGroundPlane	manual:camera.tsv	high	camera.md §2.4; fastcall (direction, origin), result through ESI; false when |dir.y| < 0.0001 or t < 0
+007cbb10	cSC4CameraControl::Write	manual:camera.tsv	high	camera.md §2.8; descriptive name; slot 3; u16 1, the view target +0x44, six u32 +0x100..+0x114
+007cbba0	cSC4CameraControl::Read	manual:camera.tsv	high	camera.md §2.8; descriptive name; slot 4; version 1 only, sets +5
+007cbc40	cSC4CameraControl::GetVirtualZoom	manual:camera.tsv	high	camera.md §2.6; zoom +0x108, +1 above magnification 1.5 (0x00ABA6B8)
+007cbc60	cSC4CameraControl::SetViewTargetVelocity	manual:camera.tsv	high	camera.md §2.6; stored when no component is a NaN
+007cbce0	cSC4CameraControl::ConvertWorldPointToCameraPlanePoint	manual:camera.tsv	high	camera.md §2.4; view rows 0 and 1 times the view scale, relative to +0x10
+007cbd70	cSC4CameraControl::ConvertCameraPlanePointToWorldPoint	manual:camera.tsv	high	camera.md §2.4; the inverse
+007cbe40	cSC4CameraControl::UpdateCameraZoomAndRotationParams	manual:camera.tsv	high	camera.md §2.2; cell pixels 0x00ABACE0 (8, 16, 32, 73, 146), pitch 0x00ABACCC (30, 35, 40, 45, 45 deg), yaw (r + 1) pi/2 - pi/4, near 0.95, far 1.5
+007cc000	cSC4CameraControl::SendViewZRChange1Message	manual:camera.tsv	high	camera.md §2.7; descriptive name, no Mac match; kind 2 only: 0xA6B79600 with the previous and new (zoom, rotation)
+007cc0b0	cSC4CameraControl::SendPostViewChangeMessage	manual:camera.tsv	high	camera.md §2.7; kinds 0 (PostViewInit), 2 (zoom/rotation), 3 (target), 4 (PostViewRefresh)
+007cc200	std::copy (8-byte elements)	manual:camera.tsv	high	camera.md §2.5; descriptive name; an unrolled copy of 2-float points, used to empty the bounds vector
+007cc290	cSC4CameraControl::UpdateCameraPositionParams	manual:camera.tsv	high	camera.md §2.3; eye := target + k o, look-at, pixel snapping of the rotation corner (1.5*2^23 rounding, 0x00ABACF8)
+007cc5b0	cSC4CameraControl::SendPostViewInitMessage	manual:camera.tsv	high	camera.md §2.7; descriptive name, no Mac match; 0xA6B79620
+007cc650	cSC4CameraControl::ClampScrollToBounds	manual:camera.tsv	high	camera.md §2.5; cut at the first crossed edge, slide along it, at most one step per edge
+007cc990	cSC4CameraControl::cSC4CameraControl	manual:camera.tsv	high	camera.md §2.1; scroll steps 100..6.25 at +0xB8, yaw -pi/4, pitch pi/6, distance 8192, viewport 800x600, city 4096x4096
+007ccbf0	cSC4CameraControl::GetGZCLSID	manual:camera.tsv	high	camera.md §2.1; descriptive name; slot 5; returns 0xC9C628EC
+007ccc00	GZCOM_CreatecSC4CameraControl	manual:camera.tsv	high	camera.md §2.1; GlobalHeapAlloc(0x160) then the constructor
+007ccc20	cSC4CameraControl::~cSC4CameraControl (deleting destructor)	manual:camera.tsv	high	camera.md §2.1; descriptive name; slot 6; frees the bounds vector +0x14C, then the object on flag bit 0
+007ccc60	cSC4CameraControl::UpdateScrollBounds	manual:camera.tsv	high	camera.md §2.5; six camera-plane points from the city corners, widened by 500 m (0x00ABAC98) and raised by o.y * 0.48 / row1.y - half the viewport
+007cd000	cSC4CameraControl::ClampTargetToScrollBounds	manual:camera.tsv	high	camera.md §2.5; re-intersects the ground plane when the target moved by 0.0001 or more
+007cd200	cSC4CameraControl::AttachToCamera	manual:camera.tsv	high	camera.md §2.6; counted camera +0xC, viewport, then the updates and PostViewInit when initialised
+007cd330	cSC4CameraControl::ScrollByViewportAngle	manual:camera.tsv	high	camera.md §2.6; step +0xB8[zoom], clamp, terrain view slot 3 ray cast, else the ground plane
+007cd540	cSC4CameraControl::SetRotation	manual:camera.tsv	high	camera.md §2.6; descriptive name, no Mac match; 0-3; messages as SetZoomAndRotation
 007cd6a0	cSC4CameraControl::RotateLeft	auto:D	medium	mac 0050e42c score 0.5 support 1
 007cd6c0	cSC4CameraControl::RotateRight	auto:D	medium	mac 0050e3f8 score 0.5 support 1
-007cd6e0	cSC4CameraControl::UpdateCameraPosition	auto:B4	medium	mac 0050e05c score 0.871 support 3.0
-007cda20	cSC4CameraControl::SetCameraPositionTweakAdd	auto:D	medium	mac 0050e248 score 0.5 support 1
-007cdaa0	cSC4CameraControl::SetCitySize	auto:B5	medium	mac 0050e202 score 0.904 support 2.0
-007cdb20	cSC4CameraControl::Init	auto:B6	medium	mac 0050e62c score 0.811 support 3.0
-007cdc50	cSC4CameraControl::SetZoom	auto:B0	medium	mac 0050e6a2 score 0.911 support 2.0
-007cde60	cSC4CameraControl::SetZoomAndRotation	auto:D	medium	mac 0050e8b4 score 0.5 support 1
+007cd6e0	cSC4CameraControl::SetCustomMagnification	manual:camera.tsv	high	camera.md §2.6; was cSC4CameraControl::UpdateCameraPosition; stores +0xF0 when it differs and the old value is in (0, 1000)
+007cd810	cSC4CameraControl::SetViewTarget	manual:camera.tsv	high	camera.md §2.6; descriptive name, no Mac match; each component finite and within +-100000 (0x00ABAC9C, 0x00ABACA8)
+007cda20	cSC4CameraControl::SetCameraPositionTweakAdd	manual:camera.tsv	high	camera.md §2.6; +0xB0, +0xB4
+007cdaa0	cSC4CameraControl::SetCitySize	manual:camera.tsv	high	camera.md §2.6; +0x158, +0x15C; empties and rebuilds the bounds
+007cdb20	cSC4CameraControl::Init	manual:camera.tsv	high	camera.md §2.6; once; loaded zoom/rotation or the given target
+007cdc50	cSC4CameraControl::SetZoom	manual:camera.tsv	high	camera.md §2.6; 4 < z < 5 gives magnification pow(2, z - 4) (0x009EFC60) at zoom 4
+007cde60	cSC4CameraControl::SetZoomAndRotation	manual:camera.tsv	high	camera.md §2.6; zoom 0-4 and rotation 0-3; ViewZRChange1, CameraUpdated, ViewZRChange2, ViewZRChange3
 007ce080	cSC4CameraControl::ZoomIn	auto:D	medium	mac 0050e84c score 0.5 support 1
 007ce0e0	cSC4CameraControl::ZoomOut	auto:D	medium	mac 0050e7f0 score 0.5 support 1
 007ce130	GZCOM_cSC4ConfigRuleManagerCLSID	auto:A	low	mac 0050ea0c score 1.0 support 0
@@ -9075,25 +9087,35 @@ va	name	source	confidence	note
 007fed50	GetMeshAnimFromResourceKey	auto:D	medium	mac 00138656 score 0.5 support 1
 007fede0	GetAnimatedModelFromResourceKey	auto:B0	medium	mac 00139f80 score 0.907 support 4.0
 007fee90	__ZThn4_N31cS3DModelInstanceAnimatedSprite4DrawEP14SC4DrawContextb	auto:B3	low	mac 0067858c score 0.96 support 1.0
-007ff070	cS3DCamera::SetDepthSize	auto:B0	medium	mac 001064c0 score 0.948 support 2.0
-007ff080	cS3DCamera::SetSubview	auto:B3	medium	mac 001064d6 score 0.978 support 1.0
+007ff010	cS3DCamera::GetGZCLSID	manual:camera.tsv	high	camera.md §1.2; descriptive name; returns 0xE9C6262A; called by the COM director 0x0046029D
+007ff020	cS3DCamera::Release	manual:camera.tsv	high	camera.md §1.2; descriptive name; slot 2 of 0x00ABD2C4; slot 3 with 1 at a count of 1 or less
+007ff040	cS3DCamera::QueryInterface	manual:camera.tsv	high	camera.md §1.2; descriptive name; slot 0; IIDs 1 and 0xE9C6262A
+007ff070	cS3DCamera::SetDepthSize	manual:camera.tsv	high	camera.md §1.2; +0x10, projection counter +0x17C += 1
+007ff080	cS3DCamera::SetSubview	manual:camera.tsv	high	camera.md §1.2; +0x18..+0x24, in use +0x14, counter += 1
 007ff0b0	cSC43DRender::UnsetClipRect	auto:B6	medium	mac 00502ba6 score 0.884 support 2.0
-007ff0e0	cS3DCamera::LocalXform	auto:B8	low	mac 00106502 score 0.825 support 2.0
-007ff110	cS3DCamera::GetProjectionType	auto:B5	low	mac 0010654e score 0.874 support 2.0
+007ff0e0	cS3DCamera::LocalXform	manual:camera.tsv	high	camera.md §1.2; returns the local transform +0x28
+007ff110	cS3DCamera::GetProjectionType	manual:camera.tsv	high	camera.md §1.2; +0x180 (2 perspective)
 007ff120	cSC4City::GetFloraSimulator	auto:C	low	mac 0003004a score 1.0 support 1
-007ff150	cS3DCamera::SetViewport	auto:B3	medium	mac 00107032 score 1.0 support 2.0
-007ff230	cS3DCamera::GetPosition	auto:D	medium	mac 0010667c score 0.5 support 1
-007ff280	cS3DCamera::GetLookAt	auto:D	medium	mac 0010659c score 0.5 support 1
-007ff2e0	cS3DCamera::SetOrtho	auto:B0	medium	mac 00106ae2 score 0.993 support 3.0
-007ff340	cS3DCamera::GetViewVolume	auto:B8	medium	mac 001065e0 score 0.959 support 2.0
-007ff3c0	cS3DCamera::GetViewState	auto:D	low	mac 001065d4 score 0.5 support 1
-007ff3d0	operator*	auto:B1	medium	mac 0065fcbc score 0.878 support 2.0
-007ff580	cS3DCamera::_UpdateProjection	auto:B3	medium	mac 001066c8 score 0.986 support 1.5
-007ffed0	cS3DCamera::ViewXform	auto:B0	medium	mac 00106b6c score 0.88 support 2.0
-007ffef0	cS3DCamera::ProjectionMatrix	auto:B2	medium	mac 00106ab6 score 0.898 support 3.0
-007fff10	cS3DCamera::Project	auto:B0	medium	mac 00106ec2 score 0.856 support 2.0
-00800120	cS3DCamera::UnProject	auto:B0	medium	mac 00106b94 score 0.91 support 2.0
-00800340	cS3DCamera::GetEyeRay	auto:D	medium	mac 00106cd0 score 0.5 support 2
+007ff130	cS3DCamera::~cS3DCamera (deleting destructor)	manual:camera.tsv	high	camera.md §1.2; descriptive name; slot 3; GlobalHeapFree on flag bit 0
+007ff150	cS3DCamera::SetViewport	manual:camera.tsv	high	camera.md §1.2; viewport and full subview, counter += 2
+007ff190	cS3DCamera::ResetXforms	manual:camera.tsv	high	camera.md §1.2; descriptive name, no Mac match; flagged local (+0x28) and view (+0x60) transforms become the identity
+007ff230	cS3DCamera::GetPosition	manual:camera.tsv	high	camera.md §1.2; +0x50..+0x58
+007ff250	cS3DCamera::SetPosition	manual:camera.tsv	high	camera.md §1.2; descriptive name, no Mac match; +0x50..+0x58, flag 1, counter += 1
+007ff280	cS3DCamera::GetLookAt	manual:camera.tsv	high	camera.md §1.2; the target remembered by SetLookAt (+0x160)
+007ff2c0	cS3DCamera::SetPixelOffset	manual:camera.tsv	high	camera.md §1.2; descriptive name, no Mac match; +0x19C, +0x1A0; projection counter += 1
+007ff2e0	cS3DCamera::SetOrtho	manual:camera.tsv	high	camera.md §1.2; (l, r, b, t, n, f) into +0x18C, +0x190, +0x198, +0x194, +0x184, +0x188; type 1
+007ff340	cS3DCamera::GetViewVolume	manual:camera.tsv	high	camera.md §1.2; the box shifted by the pixel offset
+007ff3c0	cS3DCamera::GetViewState	manual:camera.tsv	high	camera.md §1.2; the local transform counter
+007ff3d0	cS3DCamera::UpdateViewXform	manual:camera.tsv	high	camera.md §1.3; was operator*; view transform := inverse of the local one (transposed rotation, -R^T p, 1/s)
+007ff580	cS3DCamera::_UpdateProjection	manual:camera.tsv	high	camera.md §1.4; the glOrtho / glFrustum matrix at +0x9C with the pixel offset (-2 per pixel, 0x00ABD2D4) and the subview, plus its inverse at +0x11C
+007ff930	cS3DCamera::cS3DCamera	manual:camera.tsv	high	camera.md §1.1; descriptive name; vtable 0x00ABD2C4, viewport 100x100, depth 65536, identity transforms; 5 call sites
+007ffd60	cS3DCamera::SetLookAt	manual:camera.tsv	high	camera.md §1.3; descriptive name, no Mac match; back = normalize(pos - target), right = normalize(up x back), up = back x right
+007ffed0	cS3DCamera::ViewXform	manual:camera.tsv	high	camera.md §1.2; rebuilds the view transform when its counter differs
+007ffef0	cS3DCamera::ProjectionMatrix	manual:camera.tsv	high	camera.md §1.4; rebuilds the matrix when the counters differ
+007fff10	cS3DCamera::Project	manual:camera.tsv	high	camera.md §1.5; false when |w| < 0.0001 (0x00ABD2BC); y down inside the subview
+00800120	cS3DCamera::UnProject	manual:camera.tsv	high	camera.md §1.5; the inverse matrix, then the inverse view transform
+00800320	GZCOM_CreatecS3DCamera	manual:camera.tsv	high	camera.md §1.2; descriptive name; GlobalHeapAlloc(0x1A8) then the constructor 0x007FF930
+00800340	cS3DCamera::GetEyeRay	manual:camera.tsv	high	camera.md §1.6; orthographic: from one far distance behind the unprojected point; perspective: from the position
 00800580	cS3DFSHTextureFactory::~cS3DFSHTextureFactory	auto:C	high	mac 00722d1e score 1.0 support 1
 008005e0	GZCOM_cS3DFSHTextureFactoryCLSID	auto:A	low	mac 0034d8a8 score 1.0 support 0
 00800640	icf::cSC4Advice::GetTextTitle	folded	folded	3 names: cSC4Advice::GetTextTitle | cSC4Advisor::GetPersonalName | cSC4AdvisorSystem::GetRandom
@@ -15453,6 +15475,7 @@ va	name	source	confidence	note
 009efb9f	lib::_rand	library	medium	Function ID
 009efbc1	lib::__vsnprintf	library	medium	Function ID
 009efc20	lib::_pow	library	medium	Function ID
+009efc60	_CIpow	manual:camera.tsv	high	camera.md §2.6; descriptive name; the CRT x87 pow (SSE2 path __CIpow_pentium4 0x009F9B80)
 009efeb0	cSC4BudgetSimulator::PostBondMessage	auto:B0	medium	mac 0018ccd2 score 0.947 support 2.0
 009f0090	cS3DTransform::TransformDirection	auto:B14	medium	mac 0063eb4a score 0.787 support 2.0
 009f00ad	lib::start	library	medium	Function ID
@@ -16370,6 +16393,10 @@ va	name	source	confidence	note
 00aaa3c8	cSC4SubwayOccupant::vftable	manual:underground-occupants.tsv	high	underground-occupants.md §1; 107 slots; installed by 0x006530B0 and 0x006535A0
 00ab0840	kTaxTypeByPurposeAndWealth	manual:clock-budget-neighbors.tsv	high	s16[9][4] data table indexed purpose*4+wealth; read by ComputeTax
 00ab3480	cSC4TrafficSimulator::WorkOnSimCycle::kNextState (data, uint32[20])	manual:traffic.tsv	high	indexed by state in WorkOnSimCycle (mov edi,[edx*4+0xAB3480])
+00abaccc	cSC4CameraControl::sZoomPitch (data, float[5])	manual:camera.tsv	high	camera.md §2.2; 30, 35, 40, 45, 45 degrees in radians
+00abace0	cSC4CameraControl::sZoomCellPixels (data, int[5])	manual:camera.tsv	high	camera.md §2.2; 8, 16, 32, 73, 146
+00abad18	cSC4CameraControl::vftable	manual:camera.tsv	high	camera.md §2.1; 7 slots: QueryInterface, AddRef, Release, Write, Read, GetGZCLSID, deleting destructor
+00abd2c4	cS3DCamera::vftable	manual:camera.tsv	high	camera.md §1.1; 4 slots
 00ac17ac	nGZDrawSoftRender::cISpanRender::vftable	manual:gzdraw-softrender.tsv	high	installed by the deleting destructor 0082FF00
 00ac17d0	cGZDrawContextRenderToBuffer::vftable	manual:gzdraw-softrender.tsv	high	23 slots, installed by Release 008306C0; slot 21 = Draw 00831000 (symport B1), slot 3 = Init (Mac constant 0x20732180)
 00ac182c	nGZDrawSoftRender::cSpanRender1555::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color types 4 R5G5B5 and 6 A1R5G5B5; Mac __ZTVN17nGZDrawSoftRender15cSpanRender1555E
