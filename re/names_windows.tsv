@@ -2538,7 +2538,7 @@ va	name	source	confidence	note
 00504bf0	cSC4Ambulance::Write	auto:C	high	mac 0049d760 score 1.0 support 1
 00504c10	cSC4Ambulance::Read	auto:C	high	mac 0049d792 score 1.0 support 1
 00504e30	cSC4Pedestrian::~cSC4Pedestrian	auto:D	medium	mac 00633980 score 0.5 support 1
-00504e70	cSC4Vehicle::~cSC4Vehicle	auto:D	medium	mac 006d36f0 score 0.5 support 1
+00504e70	cSC4Vehicle::~cSC4Vehicle	manual:vehicles.tsv	high	vehicles.md §3
 00504f70	cSC4City::GetTerrain	auto:C	low	mac 0002feb4 score 1.0 support 1
 00505060	cSC4Ambulance::GetGZCLSID	auto:A	low	mac 007fbe68 score 1.0 support 0
 00505090	__ZThn4_N20cSC4EmergencyVehicle4InitEv	auto:B1	low	mac 006d3638 score 0.96 support 1.0
@@ -2811,9 +2811,9 @@ va	name	source	confidence	note
 00523f20	cSC4Blimp::Init	auto:B2	medium	mac 0049d810 score 0.918 support 1.0
 00523f50	cSC4Blimp::GetModelResourceInstance	auto:A	low	mac 0049d864 score 1.0 support 0
 00523fd0	__ZThn4_N9cSC4Blimp4InitEv	auto:B3	low	mac 007fbf60 score 0.96 support 1.0
-00524160	cSC4Bus::Write	auto:C	high	mac 003914f0 score 1.0 support 1
-00524180	cSC4Bus::DoStopAtStationTick	auto:B2	medium	mac 0039155e score 0.985 support 3.0
-005243b0	cSC4Bus::GetGZCLSID	auto:A	low	mac 0074b2f6 score 1.0 support 0
+00524160	cSC4Bus::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00524180	cSC4Bus::DoStopAtStationTick	manual:vehicles.tsv	high	vehicles.md §8
+005243b0	cSC4Bus::GetGZCLSID	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 005243d0	__ZThn4_N13cSC4MayorLimo8ShutdownEv	auto:B0	low	mac 008013d6 score 0.96 support 1.0
 00524410	icf::cSC4Bus::~cSC4Bus	folded	folded	2 names: cSC4Bus::~cSC4Bus | cSC4GetawayVan::~cSC4GetawayVan
 00524440	cSC4CarjackedVehicle::PostInit	auto:A	high	mac 0049d9a8 score 0.585 support 0
@@ -2933,19 +2933,19 @@ va	name	source	confidence	note
 0052e750	cSC4CitySituationManager::InitiateSituation	auto:A	high	mac 004a92cc score 1.0 support 0
 0052e910	cSC4CitySituationManager::ShowSituationPopup	auto:A	high	mac 004a05cc score 0.738 support 0
 0052eb80	cSC4CitySituationManager::DoMessage	auto:A	high	mac 004a870a score 0.657 support 0
-0052f130	cSC4EmergencyVehicle::Init	auto:B0	medium	mac 00234978 score 0.932 support 1.5
-0052f380	cSC4EmergencyVehicle::Shutdown	auto:B0	medium	mac 00235218 score 0.941 support 1.5
-0052f490	cSC4EmergencyVehicle::DoStateTick	auto:B13	medium	mac 00235632 score 0.967 support 1.0
-0052f780	cSC4EmergencyVehicle::HandlePlayerDriveCommand	auto:B5	medium	mac 002355de score 0.919 support 1.0
-0052f870	cSC4EmergencyVehicle::ValidateNetworkOccupant	auto:B1	medium	mac 00235522 score 0.954 support 1.0
-0052f910	cSC4EmergencyVehicle::SendPathBlockedMessage	auto:A	high	mac 00234d9e score 1.0 support 0
-0052fa60	cSC4EmergencyVehicle::Write	auto:D	medium	mac 00235cea score 0.5 support 3
-0052fae0	cSC4EmergencyVehicle::Read	auto:D	medium	mac 00235c26 score 0.5 support 3
+0052f130	cSC4EmergencyVehicle::Init	manual:vehicles.tsv	high	vehicles.md §7.1
+0052f380	cSC4EmergencyVehicle::Shutdown	manual:vehicles.tsv	high	vehicles.md §7.1
+0052f490	cSC4EmergencyVehicle::DoStateTick	manual:vehicles.tsv	high	vehicles.md §7.1
+0052f780	cSC4EmergencyVehicle::HandlePlayerDriveCommand	manual:vehicles.tsv	high	vehicles.md §7.1
+0052f870	cSC4EmergencyVehicle::ValidateNetworkOccupant	manual:vehicles.tsv	high	vehicles.md §7.1
+0052f910	cSC4EmergencyVehicle::SendPathBlockedMessage	manual:vehicles.tsv	high	vehicles.md §7.1
+0052fa60	cSC4EmergencyVehicle::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+0052fae0	cSC4EmergencyVehicle::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 0052fbe0	std::__copy_aux<std::_Deque_iterator<cISC4PathFinder::RouteData,cISC4PathFinder::RouteData_const&,cISC4PathFinder::RouteData_const*>,std::_Deque_iterator<cISC4PathFinder::RouteData,cISC4PathFinder::RouteData&,cISC4PathFinder::RouteData*>>	auto:B1	medium	mac 006419d8 score 0.953 support 1.0
 0052fcb0	std::deque<cISC4PathFinder::RouteData,std::allocator<cISC4PathFinder::RouteData>>::_M_new_elements_at_back	auto:B1	medium	mac 0063fdf8 score 0.881 support 1.0
-0052fd50	cSC4EmergencyVehicle::DoEnRouteTick	auto:B2	medium	mac 0023571c score 0.945 support 1.0
-0052fe50	cSC4EmergencyVehicle::DoRepathingTick	auto:B0	medium	mac 00235abe score 0.941 support 1.0
-0052ff60	cSC4EmergencyVehicle::SetDispatchState	auto:A	high	mac 00234e62 score 0.501 support 0
+0052fd50	cSC4EmergencyVehicle::DoEnRouteTick	manual:vehicles.tsv	high	vehicles.md §7.1
+0052fe50	cSC4EmergencyVehicle::DoRepathingTick	manual:vehicles.tsv	high	vehicles.md §7.1
+0052ff60	cSC4EmergencyVehicle::SetDispatchState	manual:vehicles.tsv	high	vehicles.md §7.1
 00530180	std::__copy_normal<false,false>::copy_n<std::_Deque_iterator<cISC4PathFinder::RouteData,cISC4PathFinder::RouteData_const&,cISC4PathFinder::RouteData_const*>,std::_Deque_iterator<cISC4PathFinder::RouteData,cISC4PathFinder::RouteData&,cISC4PathFinder::RouteData*>>	auto:B0	medium	mac 00641a7c score 0.941 support 1.0
 00530530	std::copy<std::_Deque_iterator<cISC4PathFinder::RouteData,cISC4PathFinder::RouteData_const&,cISC4PathFinder::RouteData_const*>,std::_Deque_iterator<cISC4PathFinder::RouteData,cISC4PathFinder::RouteData&,cISC4PathFinder::RouteData*>>	auto:D	medium	mac 00641b20 score 0.5 support 1
 00530630	std::deque<cISC4PathFinder::RouteData,std::allocator<cISC4PathFinder::RouteData>>::_M_reserve_elements_at_back	auto:B0	medium	mac 0063fe8e score 0.977 support 4.0
@@ -2959,29 +2959,29 @@ va	name	source	confidence	note
 00532040	std::deque<cISC4PathFinder::RouteData,std::allocator<cISC4PathFinder::RouteData>>::_M_insert_dispatch<std::_Deque_iterator<cISC4PathFinder::RouteData,cISC4PathFinder::RouteData_const&,cISC4PathFinder::RouteData_const*>>	auto:B5	medium	mac 00643116 score 0.928 support 1.0
 005320b0	std::deque<cISC4PathFinder::RouteData,std::allocator<cISC4PathFinder::RouteData>>::insert<std::_Deque_iterator<cISC4PathFinder::RouteData,cISC4PathFinder::RouteData&,cISC4PathFinder::RouteData*>>	auto:D	medium	mac 006d4758 score 0.5 support 1
 00532120	std::deque<cISC4PathFinder::RouteData,std::allocator<cISC4PathFinder::RouteData>>::insert<std::_Deque_iterator<cISC4PathFinder::RouteData,cISC4PathFinder::RouteData_const&,cISC4PathFinder::RouteData_const*>>	auto:B6	medium	mac 006431b4 score 0.928 support 2.0
-00532240	cSC4Vehicle::GetGZCLSID	auto:C	low	mac 0062cc6e score 1.0 support 2
+00532240	cSC4Vehicle::GetGZCLSID	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 00532270	icf::cSC4Ambulance::~cSC4Ambulance	folded	folded	2 names: cSC4Ambulance::~cSC4Ambulance | cSC4EmergencyVehicle::~cSC4EmergencyVehicle
-00532290	cSC4EmergencyVehicle::GetDebugExtraText	auto:A	high	mac 00235fc0 score 1.0 support 0
+00532290	cSC4EmergencyVehicle::GetDebugExtraText	manual:vehicles.tsv	high	vehicles.md §7.1
 00532430	std::deque<cISC4PathFinder::RouteData,std::allocator<cISC4PathFinder::RouteData>>::operator=	auto:D	medium	mac 00643252 score 0.5 support 1
-00532660	cSC4EmergencyVehicle::AppendRouteToNearbyRoad	auto:B7	medium	mac 0023622c score 0.962 support 2.0
-005329b0	cSC4EmergencyVehicle::HandleDispatched	auto:B8	medium	mac 00236668 score 0.979 support 1.5
-00532ae0	cSC4FireTruck::GetToxicSpillCount	auto:A	high	mac 0039837c score 1.0 support 0
-00532c40	cSC4FireTruck::CreateFireCrew	auto:B2	medium	mac 003984cc score 0.991 support 2.0
-00532d30	cSC4FireTruck::ReleaseFireCrew	auto:B4	medium	mac 00398202 score 0.945 support 2.0
-00532d80	cSC4FireTruck::HandlePlayerDriveCommand	auto:B3	medium	mac 003985dc score 0.954 support 1.0
-00532e90	cSC4FireTruck::GetStreamTargetPoint	auto:D	medium	mac 0039831e score 0.5 support 1
-00532ee0	cSC4FireTruck::Write	auto:C	high	mac 003980d6 score 1.0 support 1
-00532f20	cSC4FireTruck::Read	auto:C	high	mac 00398124 score 1.0 support 1
-00533090	cSC4FireTruck::TranslatePlayerDriveCommands	auto:B5	medium	mac 00398aca score 0.997 support 1.0
-00533410	cSC4FireTruck::GetFireCount	auto:B1	medium	mac 003986f0 score 0.977 support 3.0
-005335f0	cSC4FireTruck::DoHandlingEventTick	auto:B1	medium	mac 003988ae score 0.974 support 1.0
-005336c0	cSC4FireTruck::SetDispatchState	auto:B0	medium	mac 0039898a score 0.992 support 2.0
-005338e0	cSC4FireTruck::GetGZCLSID	auto:A	low	mac 0074c9ae score 1.0 support 0
-00533930	cSC4FireTruck::~cSC4FireTruck	auto:C	high	mac 0074cb26 score 1.0 support 1
-005339b0	cSC4GetawayVan::PostInit	auto:B1	medium	mac 0039189c score 0.965 support 2.5
-00533b00	cSC4GetawayVan::Write	auto:C	high	mac 003917dc score 1.0 support 1
-00533b40	cSC4GetawayVan::Read	auto:C	high	mac 00391838 score 1.0 support 1
-00533bf0	cSC4GetawayVan::GetGZCLSID	auto:A	low	mac 0074b416 score 1.0 support 0
+00532660	cSC4EmergencyVehicle::AppendRouteToNearbyRoad	manual:vehicles.tsv	high	vehicles.md §7.1
+005329b0	cSC4EmergencyVehicle::HandleDispatched	manual:vehicles.tsv	high	vehicles.md §7.1
+00532ae0	cSC4FireTruck::GetToxicSpillCount	manual:vehicles.tsv	high	vehicles.md §7.2
+00532c40	cSC4FireTruck::CreateFireCrew	manual:vehicles.tsv	high	vehicles.md §7.2
+00532d30	cSC4FireTruck::ReleaseFireCrew	manual:vehicles.tsv	high	vehicles.md §7.2
+00532d80	cSC4FireTruck::HandlePlayerDriveCommand	manual:vehicles.tsv	high	vehicles.md §7.2
+00532e90	cSC4FireTruck::GetStreamTargetPoint	manual:vehicles.tsv	high	vehicles.md §7.2
+00532ee0	cSC4FireTruck::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00532f20	cSC4FireTruck::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00533090	cSC4FireTruck::TranslatePlayerDriveCommands	manual:vehicles.tsv	high	vehicles.md §7.2
+00533410	cSC4FireTruck::GetFireCount	manual:vehicles.tsv	high	vehicles.md §7.2
+005335f0	cSC4FireTruck::DoHandlingEventTick	manual:vehicles.tsv	high	vehicles.md §7.2
+005336c0	cSC4FireTruck::SetDispatchState	manual:vehicles.tsv	high	vehicles.md §7.2
+005338e0	cSC4FireTruck::GetGZCLSID	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00533930	cSC4FireTruck::~cSC4FireTruck	manual:vehicles.tsv	high	vehicles.md §7.2
+005339b0	cSC4GetawayVan::PostInit	manual:vehicles.tsv	high	vehicles.md §8
+00533b00	cSC4GetawayVan::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00533b40	cSC4GetawayVan::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00533bf0	cSC4GetawayVan::GetGZCLSID	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 00533c30	cSC4Helicopter::GetModelResourceInstance	auto:A	low	mac 004a96de score 1.0 support 0
 00533dc0	cSC4Helicopter::SetHelicopterState	auto:B3	medium	mac 004aaa50 score 0.977 support 3.0
 005340a0	cSC4Helicopter::LoadDriveParameters	auto:B2	medium	mac 004aaf88 score 0.972 support 1.0
@@ -3088,15 +3088,15 @@ va	name	source	confidence	note
 00542f90	SC4PathInfoView::~SC4PathInfoView (thunk)	manual:network-overlay-views.tsv	high	network-overlay-views.md descriptive name, no Mac match; §1
 00542fa0	SC4PathInfoView::~SC4PathInfoView (deleting destructor)	manual:network-overlay-views.tsv	high	network-overlay-views.md descriptive name, no Mac match; §1
 00542fc0	SC4PathInfoView::Update	manual:network-overlay-views.tsv	high	network-overlay-views.md §1; coloured line strips, arrowheads, end bars
-00543b40	cSC4PatrolCar::DoStateTick	auto:B14	medium	mac 00397912 score 0.937 support 1.0
-00543c70	cSC4PatrolCar::CreateRiotPolice	auto:B6	medium	mac 00397e04 score 0.991 support 2.0
-00543d60	cSC4PatrolCar::ReleaseRiotPolice	auto:B7	medium	mac 003979b2 score 0.945 support 1.0
-00543db0	cSC4PatrolCar::Write	auto:C	high	mac 00397840 score 1.0 support 1
-00543df0	cSC4PatrolCar::Read	auto:C	high	mac 0039788e score 1.0 support 1
-00543f60	cSC4PatrolCar::SetDispatchState	auto:B0	medium	mac 00397f14 score 0.918 support 2.0
-00544060	cSC4PatrolCar::DoArrestTick	auto:B1	medium	mac 00397b62 score 0.933 support 2.5
-00544280	cSC4PatrolCar::GetGZCLSID	auto:A	low	mac 0074c75a score 1.0 support 0
-005442d0	cSC4PatrolCar::~cSC4PatrolCar	auto:C	high	mac 0074c8ae score 1.0 support 1
+00543b40	cSC4PatrolCar::DoStateTick	manual:vehicles.tsv	high	vehicles.md §7.3
+00543c70	cSC4PatrolCar::CreateRiotPolice	manual:vehicles.tsv	high	vehicles.md §7.3
+00543d60	cSC4PatrolCar::ReleaseRiotPolice	manual:vehicles.tsv	high	vehicles.md §7.3
+00543db0	cSC4PatrolCar::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00543df0	cSC4PatrolCar::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00543f60	cSC4PatrolCar::SetDispatchState	manual:vehicles.tsv	high	vehicles.md §7.3
+00544060	cSC4PatrolCar::DoArrestTick	manual:vehicles.tsv	high	vehicles.md §7.3
+00544280	cSC4PatrolCar::GetGZCLSID	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+005442d0	cSC4PatrolCar::~cSC4PatrolCar	manual:vehicles.tsv	high	vehicles.md §7.3
 00544300	cSC4PedestrianManager::HandleNewBuilding	auto:A	high	mac 000b15a4 score 1.0 support 0
 005444f0	cSC4Pedestrian::Init	auto:B3	medium	mac 000b182a score 0.91 support 2.0
 00544520	cSC4Pedestrian::Shutdown	auto:C	low	mac 000b1860 score 1.0 support 2
@@ -3133,17 +3133,17 @@ va	name	source	confidence	note
 00546bc0	cSC4Pedestrian::DoStateTick	auto:B2	medium	mac 000b4050 score 0.933 support 1.0
 00546cb0	cSC4SimFireCrew::SetCompetence	auto:B6	medium	mac 0038eb7c score 0.955 support 1.0
 00546d20	cSC4SimFireCrew::SendFireCrewMessage	auto:B2	medium	mac 0038ed90 score 0.948 support 3.0
-00546db0	cSC4RiotPolice::Write	auto:C	high	mac 0038dec8 score 1.0 support 1
-00546e20	cSC4RiotPolice::Read	auto:C	high	mac 0038df54 score 1.0 support 1
-00546ef0	cSC4RiotPolice::Shutdown	auto:C	high	mac 0038e17e score 1.0 support 1
-00546f30	cSC4RiotPolice::SetupRiotPolice	auto:B7	medium	mac 0038e618 score 0.948 support 2.0
-00547530	cSC4RiotPolice::DoAnimationTick	auto:B1	medium	mac 0038e4ba score 0.933 support 2.5
-00547630	cSC4RiotPolice::Init	auto:A	high	mac 0038e274 score 0.711 support 0
-00547800	cSC4RiotPolice::cSC4RiotPolice	auto:B7	medium	mac 0038eace score 0.953 support 2.0
-00547880	cSC4RiotPolice::GetGZCLSID	auto:A	low	mac 0074ab88 score 1.0 support 0
+00546db0	cSC4RiotPolice::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00546e20	cSC4RiotPolice::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00546ef0	cSC4RiotPolice::Shutdown	manual:vehicles.tsv	high	vehicles.md §7.3
+00546f30	cSC4RiotPolice::SetupRiotPolice	manual:vehicles.tsv	high	vehicles.md §7.3
+00547530	cSC4RiotPolice::DoAnimationTick	manual:vehicles.tsv	high	vehicles.md §7.3
+00547630	cSC4RiotPolice::Init	manual:vehicles.tsv	high	vehicles.md §7.3
+00547800	cSC4RiotPolice::cSC4RiotPolice	manual:vehicles.tsv	high	vehicles.md §7.3
+00547880	cSC4RiotPolice::GetGZCLSID	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 005478c0	__ZThn4_N14cSC4RiotPolice8ShutdownEv	auto:B0	low	mac 0074ac9e score 0.96 support 1.0
 005478d0	__ZThn4_N14cSC4RiotPolice4InitEv	auto:B0	low	mac 0074aca8 score 0.96 support 1.0
-005478e0	cSC4RiotPolice::~cSC4RiotPolice	auto:C	high	mac 0074acc6 score 1.0 support 1
+005478e0	cSC4RiotPolice::~cSC4RiotPolice	manual:vehicles.tsv	high	vehicles.md §7.3
 00547920	icf::cSC4RiotPolice::QueryInterface	folded	folded	2 names: cSC4RiotPolice::QueryInterface | cSC4SimFireCrew::QueryInterface
 00547ad0	cRZAutoRefCount<cISC4FireOccupant>::operator=	auto:D	medium	mac 0074ae02 score 0.5 support 1
 00547b50	cS3DVector3::Normalize	auto:D	medium	mac 0062c712 score 0.5 support 1
@@ -3162,107 +3162,107 @@ va	name	source	confidence	note
 0054a500	cSC4SimFireCrew::~cSC4SimFireCrew	auto:C	high	mac 0074b14c score 1.0 support 1
 0054a660	cSC4SituationUIImageWinProc::DoPaint	auto:B1	medium	mac 004b1820 score 0.971 support 2.0
 0054a700	cSC4SituationUIImageWinProc::Init	auto:B0	medium	mac 004b1780 score 0.997 support 2.0
-0054a780	cSC4Tank::HandleEnterState	auto:B1	medium	mac 004b18e2 score 0.971 support 2.0
-0054a850	cSC4Tank::Shutdown	auto:C	high	mac 004b1ad6 score 1.0 support 1
-0054a8e0	cSC4Tank::Read	auto:C	high	mac 004b2076 score 1.0 support 1
-0054aa30	cSC4Tank::Write	auto:C	high	mac 004b1fbc score 1.0 support 1
-0054aae0	cSC4Tank::DoPlayerDriveTick	auto:B1	medium	mac 004b2f5c score 0.911 support 1.0
-0054b030	cSC4Tank::TranslatePlayerDriveCommands	auto:B5	medium	mac 004b2372 score 0.991 support 2.5
-0054c880	cSC4Tank::Init	auto:B0	medium	mac 004b20f0 score 0.976 support 2.5
-0054caa0	cSC4Tank::GetDebugExtraText	auto:A	high	mac 004b1b66 score 1.0 support 0
-0054ce30	cSC4Tank::GetGZCLSID	auto:A	low	mac 008014ec score 1.0 support 0
+0054a780	cSC4Tank::HandleEnterState	manual:vehicles.tsv	high	vehicles.md §6
+0054a850	cSC4Tank::Shutdown	manual:vehicles.tsv	high	vehicles.md §6
+0054a8e0	cSC4Tank::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+0054aa30	cSC4Tank::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+0054aae0	cSC4Tank::DoPlayerDriveTick	manual:vehicles.tsv	high	vehicles.md §6
+0054b030	cSC4Tank::TranslatePlayerDriveCommands	manual:vehicles.tsv	high	vehicles.md §6
+0054c880	cSC4Tank::Init	manual:vehicles.tsv	high	vehicles.md §6
+0054caa0	cSC4Tank::GetDebugExtraText	manual:vehicles.tsv	high	vehicles.md §6
+0054ce30	cSC4Tank::GetGZCLSID	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 0054ce50	__ZThn4_N8cSC4Tank8ShutdownEv	auto:B0	low	mac 008014f6 score 0.96 support 1.0
 0054ce80	__ZThn4_N8cSC4Tank4InitEv	auto:B1	low	mac 0080154e score 0.96 support 1.0
-0054ce90	cSC4Tank::~cSC4Tank	auto:C	high	mac 00801732 score 1.0 support 1
-0054cec0	cSC4Tank::~cSC4Tank	auto:B0	medium	mac 0080156c score 0.916 support 2.0
+0054ce90	cSC4Tank::~cSC4Tank	manual:vehicles.tsv	high	vehicles.md §6
+0054cec0	cSC4Tank::~cSC4Tank	manual:vehicles.tsv	high	vehicles.md §6
 0054d150	cSC4TrafficAutomataManager::IsTrafficAutomaton	auto:B2	medium	mac 0063e71e score 0.975 support 2.0
-0054d790	cSC4TrafficAutomaton::Init	auto:B4	medium	mac 000ca7fa score 0.946 support 2.0
-0054d7f0	cSC4TrafficAutomaton::QueryInterface	auto:C	high	mac 000ca878 score 1.0 support 2
+0054d790	cSC4TrafficAutomaton::Init	manual:vehicles.tsv	high	vehicles.md §2
+0054d7f0	cSC4TrafficAutomaton::QueryInterface	manual:vehicles.tsv	high	vehicles.md §2
 0054db10	cRZAutoRefCount<cIGZBuffer>::operator=	auto:B1	medium	mac 005edfc4 score 0.993 support 4.0
-0054e050	cSC4TrafficAutomaton::DoAnimationTick	auto:B0	medium	mac 000cad9e score 0.948 support 1.0
-0054e1a0	cSC4TrafficAutomaton::UpdateCollision	auto:A	high	mac 000cb730 score 0.564 support 0
-0054e3d0	cSC4TrafficAutomaton::DoStopAtStationTick	auto:B9	medium	mac 000ca8bc score 0.927 support 1.0
-0054fc30	cSC4TrafficAutomaton::FindLeaderInTile	auto:B0	medium	mac 000d0ffe score 0.997 support 1.0
-00550090	cSC4TrafficAutomaton::DoStateTick	auto:B11	medium	mac 000cc2a4 score 0.824 support 2.0
-00550190	cSC4TrafficAutomaton::DoStraightLineTick	auto:B4	medium	mac 000d2c62 score 0.989 support 1.5
+0054e050	cSC4TrafficAutomaton::DoAnimationTick	manual:vehicles.tsv	high	vehicles.md §2
+0054e1a0	cSC4TrafficAutomaton::UpdateCollision	manual:vehicles.tsv	high	vehicles.md §2
+0054e3d0	cSC4TrafficAutomaton::DoStopAtStationTick	manual:vehicles.tsv	high	vehicles.md §2
+0054fc30	cSC4TrafficAutomaton::FindLeaderInTile	manual:vehicles.tsv	high	vehicles.md §2
+00550090	cSC4TrafficAutomaton::DoStateTick	manual:vehicles.tsv	high	vehicles.md §2
+00550190	cSC4TrafficAutomaton::DoStraightLineTick	manual:vehicles.tsv	high	vehicles.md §2
 00551730	cSC4TrafficAutomataManager::Dispatch	auto:B1	medium	mac 000ce2f6 score 0.945 support 1.0
-00551c20	cSC4TrafficAutomaton::FindLeader	auto:A	high	mac 000d1188 score 0.687 support 0
-00551de0	cSC4TrafficAutomaton::Write	auto:C	high	mac 000ce714 score 1.0 support 1
+00551c20	cSC4TrafficAutomaton::FindLeader	manual:vehicles.tsv	high	vehicles.md §2
+00551de0	cSC4TrafficAutomaton::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 00551f70	std::deque<cISC4PathFinder::RouteData,std::allocator<cISC4PathFinder::RouteData>>::pop_front	auto:B1	medium	mac 0063f918 score 0.884 support 1.0
 00552b80	cSC4TrafficEffectManager::StopEffect	auto:D	medium	mac 000cd034 score 0.5 support 1
-005535d0	cSC4TrafficAutomaton::HandleExitState	auto:B10	medium	mac 000cf1b4 score 0.93 support 1.0
+005535d0	cSC4TrafficAutomaton::HandleExitState	manual:vehicles.tsv	high	vehicles.md §2
 00553830	std::list<cRZAutoRefCount<cISC4NeighborConnection>,cGZAllocatorServiceSTLAllocator<cRZAutoRefCount<cISC4NeighborConnection>>>::_M_insert_dispatch<std::_List_iterator<cRZAutoRefCount<cISC4NeighborConnection>>>	auto:D	medium	mac 0063f9a2 score 0.5 support 1
-00553cf0	cSC4TrafficAutomaton::GetDebugExtraText	auto:A	high	mac 000cc326 score 1.0 support 0
+00553cf0	cSC4TrafficAutomaton::GetDebugExtraText	manual:vehicles.tsv	high	vehicles.md §2
 00554040	cSC4TrafficEffectManager::CreateAccident	auto:B1	medium	mac 000ce1da score 0.963 support 1.0
 00554280	std::deque<cSC4TrafficAutomaton::tLookaheadNode,std::allocator<cSC4TrafficAutomaton::tLookaheadNode>>::clear	auto:B0	medium	mac 00640d66 score 0.986 support 2.0
 00554400	cSC4TrafficAutomataManager::CreateAccident	auto:B0	low	mac 000ce2e2 score 0.888 support 2.0
-005544d0	cSC4TrafficAutomaton::cSC4TrafficAutomaton	auto:B5	medium	mac 000d06b8 score 0.992 support 2.0
+005544d0	cSC4TrafficAutomaton::cSC4TrafficAutomaton	manual:vehicles.tsv	high	vehicles.md §2
 005545d0	__ZThn4_N20cSC4TrafficAutomaton4InitEv	auto:B5	low	mac 0063e77c score 0.96 support 1.0
-00554640	cSC4TrafficAutomaton::ClearLookaheadDeque	auto:D	medium	mac 000d07ee score 0.5 support 1
-005546e0	cSC4TrafficAutomaton::HandleEnterState	auto:A	high	mac 000cf390 score 0.682 support 0
-00554ab0	cSC4TrafficAutomaton::BeginRoute	auto:B0	medium	mac 000d1c32 score 0.965 support 1.5
-00554d20	cSC4TrafficAutomaton::Read	auto:B5	medium	mac 000ce994 score 0.991 support 2.0
-00554ea0	cSC4TrafficAutomaton::FindBestNeighborConnection	auto:B2	medium	mac 000d01b6 score 0.981 support 1.5
-005552f0	cSC4TrafficAutomaton::~cSC4TrafficAutomaton	auto:C	high	mac 006410aa score 1.0 support 1
-00555310	cSC4TrafficAutomaton::Shutdown	auto:C	high	mac 000d0852 score 1.0 support 1
+00554640	cSC4TrafficAutomaton::ClearLookaheadDeque	manual:vehicles.tsv	high	vehicles.md §2
+005546e0	cSC4TrafficAutomaton::HandleEnterState	manual:vehicles.tsv	high	vehicles.md §2
+00554ab0	cSC4TrafficAutomaton::BeginRoute	manual:vehicles.tsv	high	vehicles.md §2
+00554d20	cSC4TrafficAutomaton::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00554ea0	cSC4TrafficAutomaton::FindBestNeighborConnection	manual:vehicles.tsv	high	vehicles.md §2
+005552f0	cSC4TrafficAutomaton::~cSC4TrafficAutomaton	manual:vehicles.tsv	high	vehicles.md §2
+00555310	cSC4TrafficAutomaton::Shutdown	manual:vehicles.tsv	high	vehicles.md §2
 005553f0	__ZThn4_N20cSC4TrafficAutomaton8ShutdownEv	auto:B0	low	mac 00641252 score 0.96 support 1.0
-005559d0	cSC4TrafficAutomaton::SetRouteInfo	auto:B0	medium	mac 000d0b06 score 0.953 support 1.0
-00555a30	cSC4TrailerVehicle::Init	auto:C	high	mac 00391a90 score 1.0 support 1
-00555a60	cSC4TrailerVehicle::QueryInterface	auto:C	high	mac 00391adc score 1.0 support 2
-00555b10	cSC4TrailerVehicle::SetAutomataGroup	auto:B5	medium	mac 00391d80 score 0.95 support 1.0
-005560d0	cSC4TrailerVehicle::FindPointOnPathSegment	auto:B1	medium	mac 00392372 score 0.986 support 2.0
-005562a0	cSC4TrailerVehicle::Write	auto:B0	medium	mac 00391dcc score 0.94 support 2.0
-005563c0	cSC4TrailerVehicle::Shutdown	auto:C	high	mac 00391f16 score 1.0 support 1
-00556c30	cSC4TrailerVehicle::Read	auto:B0	medium	mac 00391fae score 0.991 support 3.0
-00556e50	cSC4TrailerVehicle::GetGZCLSID	auto:C	low	mac 0074b522 score 1.0 support 1
+005559d0	cSC4TrafficAutomaton::SetRouteInfo	manual:vehicles.tsv	high	vehicles.md §2
+00555a30	cSC4TrailerVehicle::Init	manual:vehicles.tsv	high	vehicles.md §4
+00555a60	cSC4TrailerVehicle::QueryInterface	manual:vehicles.tsv	high	vehicles.md §4
+00555b10	cSC4TrailerVehicle::SetAutomataGroup	manual:vehicles.tsv	high	vehicles.md §4
+005560d0	cSC4TrailerVehicle::FindPointOnPathSegment	manual:vehicles.tsv	high	vehicles.md §4
+005562a0	cSC4TrailerVehicle::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+005563c0	cSC4TrailerVehicle::Shutdown	manual:vehicles.tsv	high	vehicles.md §4
+00556c30	cSC4TrailerVehicle::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00556e50	cSC4TrailerVehicle::GetGZCLSID	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 00556e70	__ZThn4_N18cSC4TrailerVehicle4InitEv	auto:B0	low	mac 0074b52c score 0.96 support 1.0
 00556f00	__ZThn4_N18cSC4TrailerVehicle8ShutdownEv	auto:B0	low	mac 0074ba60 score 0.96 support 1.0
-00556f20	cSC4TrailerVehicle::~cSC4TrailerVehicle	auto:C	high	mac 0074bc30 score 1.0 support 1
-00556f80	cSC4TrainCar::Init	auto:B1	medium	mac 003930be score 0.924 support 2.5
-00557010	cSC4Bus::Read	auto:C	high	mac 00391522 score 1.0 support 1
-00557040	cSC4TrainCar::QueryInterface	auto:B0	medium	mac 003931fc score 0.9 support 1.5
-00557220	cSC4Train::QueryInterface	auto:C	high	mac 003933a0 score 1.0 support 2
-00557680	cSC4Train::PlayerDriveCheckForDerail	auto:B2	medium	mac 00394abe score 0.92 support 2.5
-00557930	cSC4Train::Write	auto:C	high	mac 00393c3e score 1.0 support 1
-005579e0	cSC4Vehicle::operator.delete	auto:D	medium	mac 000a058a score 0.5 support 1
-00557a20	cSC4Train::Init	auto:B0	medium	mac 003940b2 score 0.958 support 2.5
-00557bf0	cSC4Train::DoAnimationTick	auto:B2	medium	mac 00394646 score 0.801 support 2.5
-005588d0	cSC4Train::StartTrip	auto:B1	medium	mac 00395f54 score 0.981 support 1.5
-00558e00	cSC4Train::HandleCollision	auto:A	high	mac 00393a4a score 0.616 support 0
-005591a0	cSC4Train::DoPlayerDriveTick	auto:B1	medium	mac 00396432 score 0.949 support 5.0
-00559e70	cSC4Train::Shutdown	auto:C	high	mac 00393e62 score 1.0 support 1
-0055aad0	cSC4Train::Read	auto:C	high	mac 00393d30 score 1.0 support 1
+00556f20	cSC4TrailerVehicle::~cSC4TrailerVehicle	manual:vehicles.tsv	high	vehicles.md §4
+00556f80	cSC4TrainCar::Init	manual:vehicles.tsv	high	vehicles.md §5
+00557010	cSC4Bus::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+00557040	cSC4TrainCar::QueryInterface	manual:vehicles.tsv	high	vehicles.md §5
+00557220	cSC4Train::QueryInterface	manual:vehicles.tsv	high	vehicles.md §5
+00557680	cSC4Train::PlayerDriveCheckForDerail	manual:vehicles.tsv	high	vehicles.md §5
+00557930	cSC4Train::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+005579e0	cSC4Vehicle::operator.delete	manual:vehicles.tsv	high	vehicles.md §3
+00557a20	cSC4Train::Init	manual:vehicles.tsv	high	vehicles.md §5
+00557bf0	cSC4Train::DoAnimationTick	manual:vehicles.tsv	high	vehicles.md §5
+005588d0	cSC4Train::StartTrip	manual:vehicles.tsv	high	vehicles.md §5
+00558e00	cSC4Train::HandleCollision	manual:vehicles.tsv	high	vehicles.md §5
+005591a0	cSC4Train::DoPlayerDriveTick	manual:vehicles.tsv	high	vehicles.md §5
+00559e70	cSC4Train::Shutdown	manual:vehicles.tsv	high	vehicles.md §5
+0055aad0	cSC4Train::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 0055b260	__ZThn4_N12cSC4TrainCar4InitEv	auto:B2	low	mac 0074be2c score 0.96 support 1.0
-0055b2c0	cSC4Bus::~cSC4Bus	auto:C	high	mac 0074b364 score 1.0 support 1
-0055b390	cSC4Train::GetGZCLSID	auto:A	low	mac 0074bdf0 score 1.0 support 0
+0055b2c0	cSC4Bus::~cSC4Bus	manual:vehicles.tsv	high	vehicles.md §8
+0055b390	cSC4Train::GetGZCLSID	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 0055b480	cSC4VehicleManager::HandleNewBuilding	auto:A	high	mac 000a039a score 1.0 support 0
-0055b660	cSC4Vehicle::QueryInterface	auto:C	high	mac 000a0740 score 1.0 support 9
-0055b6d0	cSC4Vehicle::HandleEnterState	auto:B0	medium	mac 000a35e8 score 0.989 support 1.5
-0055b750	cSC4Vehicle::SkipTown	auto:A	high	mac 000a0864 score 1.0 support 0
-0055b9b0	cSC4Vehicle::Init	auto:B5	medium	mac 000a0626 score 0.917 support 2.0
-0055ba20	cSC4Vehicle::DoAnimationTick	auto:B1	medium	mac 000a0c52 score 0.975 support 1.0
-0055bcf0	cSC4Vehicle::Read	auto:D	medium	mac 000a3bc4 score 0.5 support 3
-0055c030	cSC4Vehicle::PlayerDriveGetNetwork	auto:A	high	mac 000a1006 score 0.616 support 0
-0055c600	cSC4Vehicle::TranslatePlayerDriveCommands	auto:B4	medium	mac 000a336c score 0.983 support 3.0
-0055c8c0	cSC4Vehicle::HandleCollision	auto:A	high	mac 000a091e score 0.74 support 0
-0055ca90	cSC4Vehicle::DoStateTick	auto:B12	medium	mac 000a0e40 score 0.874 support 1.0
-0055caf0	cSC4Vehicle::DoPathTick	auto:B3	medium	mac 000a4450 score 0.979 support 2.0
-0055dd50	cSC4Vehicle::UpdateMotionBlur	auto:B0	medium	mac 000a31a2 score 0.984 support 2.5
-0055e1f0	cSC4Vehicle::DoPlummetTick	auto:A	high	mac 000a2e16 score 0.851 support 0
-0055e550	cSC4Vehicle::DoPullOverTick	auto:A	high	mac 000a2978 score 0.82 support 0
-0055ea20	cSC4Vehicle::PlayerDriveUpdateSpeed	auto:D	medium	mac 000a3e1a score 0.5 support 1
-0055ed10	cSC4Vehicle::DoPlayerDriveOffRoadTick	auto:B1	medium	mac 000a6bb0 score 0.994 support 1.0
-0055f3f0	cSC4Vehicle::UpdateAfterDamage	auto:A	high	mac 000a2730 score 0.502 support 0
-0055f640	cSC4Vehicle::Write	auto:D	medium	mac 000a25f4 score 0.5 support 2
-0055f7b0	cSC4Vehicle::ResolveCollision	auto:B0	medium	mac 000a5552 score 0.896 support 1.0
-0055f930	cSC4Vehicle::ChooseNewPlayerDriveDestination	auto:B1	medium	mac 000a18a0 score 0.923 support 2.0
-005602f0	cSC4Vehicle::Shutdown	auto:D	medium	mac 000a3654 score 0.5 support 1
-005603f0	cSC4Vehicle::DoPlayerDriveTick	auto:B0	medium	mac 000a577c score 0.969 support 4.5
+0055b660	cSC4Vehicle::QueryInterface	manual:vehicles.tsv	high	vehicles.md §3
+0055b6d0	cSC4Vehicle::HandleEnterState	manual:vehicles.tsv	high	vehicles.md §3
+0055b750	cSC4Vehicle::SkipTown	manual:vehicles.tsv	high	vehicles.md §3
+0055b9b0	cSC4Vehicle::Init	manual:vehicles.tsv	high	vehicles.md §3
+0055ba20	cSC4Vehicle::DoAnimationTick	manual:vehicles.tsv	high	vehicles.md §3
+0055bcf0	cSC4Vehicle::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+0055c030	cSC4Vehicle::PlayerDriveGetNetwork	manual:vehicles.tsv	high	vehicles.md §3
+0055c600	cSC4Vehicle::TranslatePlayerDriveCommands	manual:vehicles.tsv	high	vehicles.md §3
+0055c8c0	cSC4Vehicle::HandleCollision	manual:vehicles.tsv	high	vehicles.md §3
+0055ca90	cSC4Vehicle::DoStateTick	manual:vehicles.tsv	high	vehicles.md §3
+0055caf0	cSC4Vehicle::DoPathTick	manual:vehicles.tsv	high	vehicles.md §3
+0055dd50	cSC4Vehicle::UpdateMotionBlur	manual:vehicles.tsv	high	vehicles.md §3
+0055e1f0	cSC4Vehicle::DoPlummetTick	manual:vehicles.tsv	high	vehicles.md §3
+0055e550	cSC4Vehicle::DoPullOverTick	manual:vehicles.tsv	high	vehicles.md §3
+0055ea20	cSC4Vehicle::PlayerDriveUpdateSpeed	manual:vehicles.tsv	high	vehicles.md §3
+0055ed10	cSC4Vehicle::DoPlayerDriveOffRoadTick	manual:vehicles.tsv	high	vehicles.md §3
+0055f3f0	cSC4Vehicle::UpdateAfterDamage	manual:vehicles.tsv	high	vehicles.md §3
+0055f640	cSC4Vehicle::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
+0055f7b0	cSC4Vehicle::ResolveCollision	manual:vehicles.tsv	high	vehicles.md §3
+0055f930	cSC4Vehicle::ChooseNewPlayerDriveDestination	manual:vehicles.tsv	high	vehicles.md §3
+005602f0	cSC4Vehicle::Shutdown	manual:vehicles.tsv	high	vehicles.md §3
+005603f0	cSC4Vehicle::DoPlayerDriveTick	manual:vehicles.tsv	high	vehicles.md §3
 00561500	cSC4VehicleManager::HandleFundsChanged	auto:A	high	mac 000a1fd0 score 0.792 support 0
-005620e0	cSC4Vehicle::DoCollisionCheck	auto:B0	medium	mac 000a7a40 score 0.996 support 3.5
+005620e0	cSC4Vehicle::DoCollisionCheck	manual:vehicles.tsv	high	vehicles.md §3
 00562620	cSC4VehicleManager::DoMessage	auto:A	high	mac 000a22e2 score 0.607 support 0
-00562a90	cSC4Vehicle::~cSC4Vehicle	auto:C	high	mac 0062e498 score 1.0 support 1
-00562ac0	cSC4Vehicle::GetDebugExtraText	auto:A	high	mac 000a1488 score 1.0 support 0
+00562a90	cSC4Vehicle::~cSC4Vehicle	manual:vehicles.tsv	high	vehicles.md §3
+00562ac0	cSC4Vehicle::GetDebugExtraText	manual:vehicles.tsv	high	vehicles.md §3
 00562c90	cAutomataOccupantFilter::IsOccupantIncluded	auto:A	high	mac 006909da score 0.761 support 0
 00562da0	cRZAutoRefCount<cIGZLua5>::operator=	auto:D	medium	mac 007a89e4 score 0.5 support 1
 00562e1a	lib::Catch@00562e1a	library	medium	Function ID

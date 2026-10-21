@@ -171,19 +171,20 @@ cSC4Aircraft	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4Airplane	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4Helicopter	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4Watercraft	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4Vehicle	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4Train	automata (vehicles, animation)	simulation	-	-	-	-
+cSC4Vehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
+cSC4TrainCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md	-	-	-
+cSC4Train	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
 cSC4Pedestrian	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4TrafficAutomaton	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4EmergencyVehicle	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4FireTruck	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4PatrolCar	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4Tank	automata (vehicles, animation)	simulation	-	-	-	-
+cSC4TrafficAutomaton	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
+cSC4EmergencyVehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
+cSC4FireTruck	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
+cSC4PatrolCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
+cSC4Tank	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
 cSC4SimFireCrew	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4RiotPolice	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4TrailerVehicle	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4Bus	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4GetawayVan	automata (vehicles, animation)	simulation	-	-	-	-
+cSC4RiotPolice	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
+cSC4TrailerVehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
+cSC4Bus	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
+cSC4GetawayVan	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
 # the generator (class 0x4A1628C5) and attractor (0x6A1628BA) controller records of automata.md §3.5, specified as
 # records (Write / Read addresses and fields) and implemented by core/src/automata (controller.rs). Only these two of
 # the vehicle-side classes are specified: automata.md §0 says the short form covers the records and the hooks, not
