@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**Run4 checkpoint60/80:** nine trains landed(21,22,25,26,27,28,29,30,31); coverage40.5/30.0/12.4/16.5, baseline delta+3.7/+1.7/+0.3/+0.6 points. Six live, max3glue; train32 gatePASS/regress pending. Terrain parked3/3 and TR42/TR43 filed, nofourth. Traffic TS67 lane exact72/72turbo and23/23normal(ref0,resync0), awaits combinedtrain before credit. Complete565 spec ready. RZ finalround3 owns Directory/OFStream/CmdLine/SysServPtr; stringsround2 reconciles utility overlap before anylanguagecredit. Target80 remains, nextcheckpoint75.
+
 **Run4 56/80 terrain PARKED3/3 at97b1c237:** final diagnostics identify missing TerrainReconciliation/ConnectionsReady, leaving popup dialogs enabled; no behavior fix/full gate. Auto-close diagnostic d8 reaches2032 with refwarning1 and is NOT a pass. Texture step7part2/TR37/Save remain incomplete. TR42/TR43 filed for preference width and edge-comparison contract. No fourth round or terrain replacement credit. Slot refilled with core-span4444-4; six live. Train32 gatePASS, full regress running. Coverage40.5/30.0/12.4/16.5; nine trains landed.
 
 **train31 landed 1df42f9f9c:** Formats read shadow exact across8959 exemplar and388 cohort own/effective sets in full union regress; factory/package limitations remain EX41-EX45, no replacement. Complete4444 span specification mapped. Gate PASS after stale cached smoke object rebuilt, no source version mismatch. Coverage40.5/30.0/12.4/16.5; rounds54/80.
