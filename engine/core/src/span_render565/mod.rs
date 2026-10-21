@@ -290,7 +290,10 @@ pub fn render_blt(
 /// empty). Validates the list exactly like the methods (§1). Touches no
 /// memory: the native bridge sizes its window with it.
 pub fn dest_extent(spans: &[Span], dst: &Dest) -> Result<Option<(i64, i64)>, SpanError> {
-    let at = Dest { base: 0, stride: dst.stride };
+    let at = Dest {
+        base: 0,
+        stride: dst.stride,
+    };
     let mut ext: Option<(i64, i64)> = None;
     for (x, y, count) in rows(spans)? {
         if count == 0 {

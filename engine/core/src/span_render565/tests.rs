@@ -623,13 +623,24 @@ fn extents_are_the_exact_hull_of_every_access() {
                 Span::new(x0, x0 + (r.next() % 6) as u16, (r.next() % 4) as u16)
             })
             .collect();
-        let src0 = Source { base: 0, stride: 48, width: 1 + r.next() % 7, height: 1 + r.next() % 5 };
-        let dst0 = Dest { base: 0, stride: if r.next() & 1 == 0 { 40 } else { -40 } };
+        let src0 = Source {
+            base: 0,
+            stride: 48,
+            width: 1 + r.next() % 7,
+            height: 1 + r.next() % 5,
+        };
+        let dst0 = Dest {
+            base: 0,
+            stride: if r.next() & 1 == 0 { 40 } else { -40 },
+        };
         let d = dest_extent(&spans, &dst0).unwrap();
         let s = blt_source_extent(&spans, &src0, &b, kind).unwrap();
         let Some((dlo, dhi)) = d else { continue };
         // dst hull at [0, dhi-dlo), src hull after it with a 16-byte gap.
-        let dst = Dest { base: -dlo, stride: dst0.stride };
+        let dst = Dest {
+            base: -dlo,
+            stride: dst0.stride,
+        };
         let (src, len) = match s {
             Some((slo, shi)) => {
                 let at = dhi - dlo + 16;
@@ -643,7 +654,10 @@ fn extents_are_the_exact_hull_of_every_access() {
         if !slot(row, kind).unwrap().keyed {
             let mut short = vec![0x5Au8; len - 1];
             assert!(render_blt(&mut short, &spans, &dst, &src, &b, kind).is_err());
-            let low_dst = Dest { base: dst.base - 1, ..dst };
+            let low_dst = Dest {
+                base: dst.base - 1,
+                ..dst
+            };
             assert!(render_blt(&mut short, &spans, &low_dst, &src, &b, kind).is_err());
             checked += 1;
         }
