@@ -3418,6 +3418,21 @@ fn ts44_ts45_phase_positions() {
     assert_eq!(s.read_state(|st| st.extras.phase_positions), [2, 2]);
 }
 
+/// §3.2 row 15 (TS67 open): entering FinishTripMap resets the lot iterator
+/// only, so the phase positions keep the last trip-phase source's cell until
+/// the first lot is taken (the literal reading; the original reads (0, 0)).
+#[test]
+fn ts67_finish_trip_map_entry_keeps_phase_positions() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(1, 1, 1, 1), 11));
+    let s = sim(&w);
+    s.update_state(|st| st.extras.phase_positions = [100, 128]);
+    s.enter_cycle_state(cycle_state::FINISH_TRIP_MAP);
+    assert_eq!(s.read_state(|st| st.extras.phase_positions), [100, 128]);
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(s.read_state(|st| st.extras.phase_positions), [1, 1]);
+}
+
 /// §4.9 step 1 (TS40): the state-2 reset zeroes the working rows; a
 /// separate comparison value starts at −1.0. A slot whose only record has
 /// a NaN ratio never beats it, so its max fields stay 0 (not −1.0), and
