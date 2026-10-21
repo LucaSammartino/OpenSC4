@@ -937,6 +937,8 @@ pub mod zonedev;
 pub mod zones;
 // glue-formats4: DBPF packages and exemplars for the plug-in's formats shadow.
 pub mod dbpf;
+// glue-span1555-impl4: the 1555 span renderer for the plug-in's native bridge.
+pub mod span1555;
 
 #[cfg(test)]
 mod tests;
@@ -1099,3 +1101,6 @@ mod zonedev_tests;
 
 #[cfg(test)]
 mod audio_tests;
+
+#[cfg(test)]
+mod span1555_tests;

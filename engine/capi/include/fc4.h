@@ -12032,6 +12032,27 @@ fc4_props* fc4_exstore_props(const fc4_exstore* p, size_t index, bool effective,
 size_t fc4_exstore_untyped_ids(const fc4_exstore* p, size_t index, bool effective, uint32_t* ids, size_t cap);
 bool fc4_exstore_failure(const fc4_exstore* p, size_t index, uint32_t* key3, uint8_t* buf, size_t cap);
 
+/* glue-span1555-impl4: the 1555 span renderer (docs/specs/span-render-1555.md
+ * §1.1-§7), the five methods of cSpanRender1555 over explicit memory windows:
+ * `dst`/`src` point at `*_len` bytes and `*_base` is the signed byte offset of
+ * the record's pixel (0, 0) from that pointer. `spans` holds n (start, end)
+ * dword pairs; `grad` the 12 dwords of §4.1; `rec` the 24-byte source record
+ * (its +0 pointer unread: the window replaces it); `blit` the 32-byte record.
+ * Returns 0 drawn, 1 n = 0, 2 invalid span, 3 destination outside the window,
+ * 4 source outside the window, 5 row >= 14, 6 kind >= 12, 7 empty tile,
+ * -1 a null pointer. See engine/capi/src/span1555.rs. */
+int32_t fc4_span1555_solid(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                           int32_t stride, uint32_t colour);
+int32_t fc4_span1555_alpha(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                           int32_t stride, uint32_t src, uint32_t argb);
+int32_t fc4_span1555_gradient(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                              int32_t stride, const int32_t* grad);
+int32_t fc4_span1555_alpha_gradient(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len,
+                                    int64_t dst_base, int32_t stride, const int32_t* grad);
+int32_t fc4_span1555_blt(const uint32_t* spans, uint32_t n, uint8_t* dst, uint32_t dst_len, int64_t dst_base,
+                         int32_t stride, const uint8_t* src, uint32_t src_len, int64_t src_base, const uint32_t* rec,
+                         const uint32_t* blit, uint32_t kind);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
