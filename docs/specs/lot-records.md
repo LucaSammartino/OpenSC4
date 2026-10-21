@@ -432,8 +432,15 @@ by `AddRetainingWallOccupant(lot, …)`, a static member called by the lot devel
 So `h[i] = 0` means no wall on edge `i` (no neighbour row, or every neighbour cell is a terrain-locked lot), and
 otherwise the hash mixes which neighbour cells hold non-state-6 lots with the rounded vertex altitudes. `top` is the
 highest edge vertex (at least `a + 0.1`), so the wall is `top − a` high. A wall built with `t = 0` has the type the
-constructor gives (not observed in saves: every saved wall has one of the three types). `add = false` (removal)
-and `UpdateRetainingWalls(lot)` (`0x005E37F0`) are not specified yet (LR5 stays open for them).
+constructor gives (not observed in saves: every saved wall has one of the three types).
+
+**`AddRetainingWallOccupant(lot, add = false)`** (removal, `0x005E3270`–`0x005E32CB`): `(x, z) :=
+lot.GetLocation()` (slot 21, the corner cell of §3.2 field 5); `w := null`; if occupant manager slot 33
+`GetFirstOccupantByStandardCityCell(&w, x, z, 0x895D1169)` returns true and `w` is non-null: occupant manager slot
+21 `RemoveOccupant(w, 1, 0)`, Release `w`, result := 1. Then **always** `lot.SetFlags(lot.GetFlags() & ~4)`. Return
+AL = result (0 or 1). Only the first wall found at the location cell is removed; any other wall of the lot stays.
+
+`UpdateRetainingWalls(lot)` (`0x005E37F0`) is not specified yet (LR5 stays open for it).
 
 ---
 
