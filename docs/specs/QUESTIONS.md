@@ -33,6 +33,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AT | automata |
 | AU | aura |
 | BQ | budget |
+| BT | bulldozer-tool |
 | BW | budget-window |
 | CA | camera |
 | CB | civic-buildings |
@@ -151,6 +152,7 @@ generated index: the questions live one file per spec, so read only the file for
 | budget | 0 | 8 | BQ9 | - |
 | budget-window | 1 | 13 | BW15 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
+| bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
 | camera | 1 | 1 | CA3 | questions/camera.md |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
@@ -252,4 +254,4 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **240** | **1118** | | |
+| **total** | **241** | **1118** | | |

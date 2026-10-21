@@ -1781,20 +1781,23 @@ va	name	source	confidence	note
 004b86f0	cSC4ViewInputControlCitySituations::~cSC4ViewInputControlCitySituations (body)	manual:city-tools.tsv	high	city-tools.md descriptive name, no Mac match; §4
 004b8720	cSC4ViewInputControlCitySituations::OnMouseDownL	manual:city-tools.tsv	high	city-tools.md §4; view level 1, state 2
 004b8790	cSC4ViewInputControlCitySituations::OnMouseUpL	manual:city-tools.tsv	high	city-tools.md §4; InitiateSituationForOccupant
-004b8830	cSC4ViewInputControlDemolish::OnKeyDown	auto:C	high	mac 002e346c score 1.0 support 1
-004b8980	cSC4ViewInputControlDemolish::DoCellPick	auto:B0	medium	mac 002e3684 score 0.953 support 2.0
-004b8a00	cSC4ViewInputControlDemolish::PickDemolishableOccupant	auto:B2	medium	mac 002e34a6 score 0.946 support 2.0
-004b8ab0	cSC4ViewInputControlDemolish::Init	auto:A	high	mac 002e3a8c score 0.736 support 0
-004b8d10	cSC4ViewInputControlDemolish::DoLotPick	auto:B1	medium	mac 002e386e score 0.957 support 1.5
-004b8ed0	cSC4ViewInputControlDemolish::ClearSelectedRegion	auto:B1	medium	mac 002e3598 score 0.937 support 1.0
-004b8f30	cSC4ViewInputControlDemolish::Shutdown	auto:B2	medium	mac 002e3724 score 0.932 support 2.0
-004b9020	cSC4ViewInputControlDemolish::OnMouseExit	auto:B3	medium	mac 002e3654 score 0.888 support 1.0
-004b9040	cSC4ViewInputControlDemolish::EndInput	auto:B2	medium	mac 002e3614 score 0.913 support 2.0
-004b91c0	cSC4ViewInputControlDemolish::~cSC4ViewInputControlDemolish	auto:C	high	mac 006fab2a score 1.0 support 1
-004b93b0	cSC4ViewInputControlDemolish::UpdateSelectedRegion	auto:B0	medium	mac 002e3d62 score 0.983 support 3.5
-004b9ae0	cSC4ViewInputControlDemolish::OnMouseDownL	auto:A	high	mac 002e493c score 1.0 support 0
-004b9b70	cSC4ViewInputControlDemolish::OnMouseMove	auto:B1	medium	mac 002e4748 score 0.982 support 2.0
-004b9c50	cSC4ViewInputControlDemolish::OnMouseUpL	auto:A	high	mac 002e4564 score 1.0 support 0
+004b8830	cSC4ViewInputControlDemolish::OnKeyDown	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §3; Escape
+004b8880	cSC4DemolishFilter::IsOccupantIncluded	manual:bulldozer-tool.tsv	high	bulldozer-tool.md descriptive name, no Mac match; §1.1; flora, building, pole, network, signpost
+004b8980	cSC4ViewInputControlDemolish::DoCellPick	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §2
+004b8a00	cSC4ViewInputControlDemolish::PickDemolishableOccupant	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §2; signpost flag +0x94
+004b8ab0	cSC4ViewInputControlDemolish::Init	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §1; id 0x46DDB5F1, marked-cell view
+004b8d10	cSC4ViewInputControlDemolish::DoLotPick	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §2
+004b8ed0	cSC4ViewInputControlDemolish::ClearSelectedRegion	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §4
+004b8f30	cSC4ViewInputControlDemolish::Shutdown	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §1
+004b9020	cSC4ViewInputControlDemolish::OnMouseExit	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §3
+004b9040	cSC4ViewInputControlDemolish::EndInput	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §3
+004b91c0	cSC4ViewInputControlDemolish::~cSC4ViewInputControlDemolish	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §1
+004b91e0	cSC4ViewInputControlDemolish::~cSC4ViewInputControlDemolish (body)	manual:bulldozer-tool.tsv	high	bulldozer-tool.md descriptive name, no Mac match; §1
+004b9250	SC4MarkedCellView::AddRegionCells	manual:bulldozer-tool.tsv	high	bulldozer-tool.md descriptive name, no Mac match; §4; appends the region's set cells
+004b93b0	cSC4ViewInputControlDemolish::UpdateSelectedRegion	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §4; whole multi-cell lots
+004b9ae0	cSC4ViewInputControlDemolish::OnMouseDownL	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §3; press sound always
+004b9b70	cSC4ViewInputControlDemolish::OnMouseMove	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §3
+004b9c50	cSC4ViewInputControlDemolish::OnMouseUpL	manual:bulldozer-tool.tsv	high	bulldozer-tool.md §3; charge the previewed cost, then demolish
 004b9d60	cSC4ViewInputControlDispatch::OnKeyDown	auto:C	high	mac 002da570 score 1.0 support 1
 004b9de0	icf::cSC4MySimInputControlDispatch::QueryInterface	folded	folded	2 names: cSC4MySimInputControlDispatch::QueryInterface | cSC4ViewInputControlDispatch::QueryInterface
 004b9e20	icf::cSC4MySimInputControlDispatch::Release	folded	folded	5 names: cSC4MySimInputControlDispatch::Release | cSC4ViewInputControl::Release | cSC4ViewInputControlDispatch::Release | cSC4ViewInputControlPlaceLot::Release | cSC4ViewInputControlQuery::Release
@@ -8987,12 +8990,14 @@ va	name	source	confidence	note
 007dc1d0	SC4MarkedCellView::SetCellSize	manual:overlay-views.tsv	high	overlay-views.md §2; size and inverse
 007dc200	SC4MarkedCellView::Init	manual:overlay-views.tsv	high	overlay-views.md §2
 007dc2c0	SC4MarkedCellView::Shutdown	manual:overlay-views.tsv	high	overlay-views.md §2
+007dc2f0	SC4MarkedCellView::SetOutlineColor	manual:bulldozer-tool.tsv	high	bulldozer-tool.md descriptive name, no Mac match; §4; packs the colour and turns the outline on
 007dc3a0	SC4MarkedCellView::DrawCells	manual:overlay-views.tsv	high	overlay-views.md §2.1; batches of 1024 vertices
 007dc9f0	SC4MarkedCellView::Update	manual:overlay-views.tsv	high	overlay-views.md §2; second additive pass
 007dcb30	SC4MarkedCellView::SetCellColor	manual:overlay-views.tsv	high	overlay-views.md §2
 007dcc10	SC4MarkedCellView::SC4MarkedCellView	manual:overlay-views.tsv	high	overlay-views.md §2
 007dcc80	SC4MarkedCellView::~SC4MarkedCellView (thunk)	manual:overlay-views.tsv	high	overlay-views.md descriptive name, no Mac match; §2
 007dcc90	SC4MarkedCellView::~SC4MarkedCellView (deleting destructor)	manual:overlay-views.tsv	high	overlay-views.md descriptive name, no Mac match; §2
+007dcd00	SC4MarkedCellView::ClearCells	manual:bulldozer-tool.tsv	high	bulldozer-tool.md descriptive name, no Mac match; §4
 007dcd90	cSC4PathView::Init	manual:overlay-views.tsv	high	overlay-views.md §1; two packed states
 007dce20	cSC4PathView::SetPathTexture	manual:overlay-views.tsv	high	overlay-views.md §1
 007dce60	cSC4PathView::GetEndOffsets	manual:overlay-views.tsv	high	overlay-views.md descriptive name, no Mac match; §1.1; +- t times the end segment's normal
