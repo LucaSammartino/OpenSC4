@@ -13,13 +13,17 @@
 //! them by class ID ([`create`]).
 //!
 //! Not here (partial family, see the lane report): the lot's after-load work
-//! (§3.5 `Init` / `PostCityInit`), the construction occupant (§9), signpost and
+//! (§3.5 `Init` / `PostCityInit`), the visual parts of the construction
+//! occupant (§9, see [`construction`]), signpost and
 //! text decal (§10.3, §10.4), and the occupant manager's cell-rect rule (§16 Q1).
 
+pub mod construction;
 pub mod lot;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_construction;
 
 use std::any::Any;
 use std::cell::RefCell;
@@ -192,6 +196,7 @@ pub fn create(class_id: u32) -> Option<RefValue> {
         CLSID_BASE_TEXTURE_OCCUPANT => RecordObject::new(BaseTextureRecord::new()),
         CLSID_RETAINING_WALL_OCCUPANT => RecordObject::new(RetainingWallRecord::new()),
         CLSID_FOUNDATION_OCCUPANT => RecordObject::new(FoundationRecord::new()),
+        construction::CLSID_CONSTRUCTION_OCCUPANT => RecordObject::new(construction::ConstructionRecord::new()),
         _ => return None,
     };
     Some(RefValue::Object(o))
