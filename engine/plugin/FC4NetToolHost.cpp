@@ -37,9 +37,16 @@
 #include "cISC4OccupantManager.h"
 #include "FC4TerrainInterfaces.h"  // cFC4ISTETerrain: the compiled terrain slots
 #include "cS3DVector3.h"
+#include "GZServPtrs.h"
+#include "cGZPersistResourceKey.h"
+#include "cIGZPersistDBRecord.h"
+#include "cIGZPersistResourceManager.h"
 
+#include <cstdio>
 #include <cstring>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace fc4 {
 
@@ -89,6 +96,160 @@ uint32_t TypeOfFlags(uint32_t flags) {
         if (bits & (1u << t)) return t;
     }
     return 0xFFFFFFFFu;
+}
+
+// ---- the piece solver (network-rules.md §2, §6, §11) -----------------------------------------------
+
+// The rule database (§2.1), process-wide like the original's tables, loaded
+// on the first solve (main thread: tool calls only). [choice] Loaded once per
+// process; the original reloads after the application's static-data cleanup
+// (§2.4.2), which this plugin does not observe.
+fc4_network_rules* g_rules = nullptr;
+bool g_rulesTried = false;
+uint32_t g_solveLogs = 0;
+uint32_t g_insertLogs = 0;
+
+// One raw resource through the resource manager's DB record (SDK
+// cIGZPersistResourceManager::OpenDBRecord / CloseDBRecord, cIGZPersistDBRecord
+// GetSize / GetFieldVoid). [choice] The third OpenDBRecord argument is unnamed
+// in the SDK; false (read access) is the literal reading. The record is closed
+// through CloseDBRecord, never Released here (we did not AddRef it).
+bool ReadRuleResource(cIGZPersistResourceManager* rm, uint32_t type, uint32_t group, uint32_t instance,
+                      std::vector<uint8_t>& out) {
+    out.clear();
+    cGZPersistResourceKey key(type, group, instance);
+    cIGZPersistDBRecord* rec = nullptr;
+    if (!rm->OpenDBRecord(key, &rec, false) || rec == nullptr) return false;
+    const uint32_t size = rec->GetSize();
+    out.resize(size);
+    const bool ok = size == 0 || rec->GetFieldVoid(out.data(), size);
+    rm->CloseDBRecord(key, &rec);
+    if (!ok) out.clear();
+    return ok;
+}
+
+// §2.1's load order: per type its tile files (§2.3, inside step 1), the INI
+// (tile verifiers, §9.2), then 0x10000001, 0x10000002, 0x10000000.
+fc4_network_rules* Rules() {
+    if (g_rulesTried) return g_rules;
+    g_rulesTried = true;
+    cIGZPersistResourceManagerPtr rm;
+    if (!rm) {
+        Log("netrules: WARNING no resource manager; the piece solver stays off");
+        return nullptr;
+    }
+    g_rules = fc4_network_rules_create();
+    if (g_rules == nullptr) return nullptr;
+    constexpr uint32_t kType = 0x0A5BCF4Bu, kGroup = 0xAA5BCF57u;
+    std::vector<uint8_t> bytes;
+    uint32_t tiles = 0, missing = 0, rules = 0;
+    for (uint32_t t = 0; t < 13; ++t) {
+        uint32_t inst[4] = {};
+        const uint32_t n = fc4_network_rules_tile_instances(t, inst, 4);
+        for (uint32_t i = 0; i < n && i < 4; ++i) {
+            const bool found = ReadRuleResource(rm, kType, kGroup, inst[i], bytes);
+            fc4_network_rules_report rep{};
+            rep.struct_size = sizeof(rep);
+            // A missing file still appends an evaluator that never matches (§2.3).
+            fc4_network_rules_load(g_rules, inst[i], found ? bytes.data() : nullptr, found ? bytes.size() : 0, &rep);
+            ++tiles;
+            if (!found) ++missing;
+            rules += rep.rules;
+        }
+    }
+    // The network INI: type 0, group 0x8A5971C5, instance 0x8A5993B9 (§2.1 step 1).
+    const bool ini = ReadRuleResource(rm, 0u, 0x8A5971C5u, FC4_NR_NETWORK_INI, bytes);
+    if (ini) fc4_network_rules_load(g_rules, FC4_NR_NETWORK_INI, bytes.data(), bytes.size(), nullptr);
+    const uint32_t rul[3] = {0x10000001u, 0x10000002u, 0x10000000u};
+    uint32_t rulFound = 0;
+    for (uint32_t r : rul) {
+        if (ReadRuleResource(rm, kType, kGroup, r, bytes)) {
+            fc4_network_rules_load(g_rules, r, bytes.data(), bytes.size(), nullptr);
+            ++rulFound;
+        }
+    }
+    Log("netrules: rules loaded tile_files=%u missing=%u tile_rules=%u ini=%d rul=%u/3 intersection_rules=%u",
+        tiles, missing, rules, ini ? 1 : 0, rulFound, fc4_network_rules_intersection_count(g_rules));
+    // §2.4.3 point 2: the original cIntRule map is filled only by the original
+    // tools' Init; this database is ours and is not published to the original
+    // puzzle-piece control, whose catalogue command this plugin does not own.
+    Log("netrules: note the original puzzle-piece control reads only the original cIntRule map "
+        "(not filled by this plugin; network-rules.md 2.4.3 point 2)");
+    return g_rules;
+}
+
+void ToRulesCell(const fc4_netgeom_cell_info& gi, fc4_network_rules_cell& rc) {
+    std::memset(&rc, 0, sizeof(rc));
+    rc.struct_size = sizeof(rc);
+    rc.x = gi.x;
+    rc.z = gi.z;
+    rc.flags = gi.flags;
+    std::memcpy(rc.edges, gi.edges, sizeof(rc.edges));
+    rc.in_run = gi.in_run;
+    rc.intersection = gi.intersection;
+    rc.fixed = gi.fixed;
+    rc.node = gi.connection_node;
+    // [choice] fc4_netgeom_cell_info carries no one-way byte and no occupant
+    // fields (piece, orientation, node edges, anchor): they stay 0 / absent.
+    rc.step = gi.step;
+    rc.solved = -1;
+}
+
+// §6.1 over the geometry's set of cells to be solved (S) and the cell infos
+// in their pad-2 square (§6.2). The solved records go to the context for
+// InsertOccupantsForSolvedCells (§11). [choice] The solver's result (§6.1
+// step 7) is logged next to the geometry's valid count but not adopted.
+void SolvePieces(NetToolContext* c, const fc4_nettool_run* run, uint32_t geomValid) {
+    fc4_network_rules* r = Rules();
+    if (r == nullptr || c->geom == nullptr || c->city == nullptr) return;
+    static fc4_netgeom_cell s[FC4_NETTOOL_MAX_CELLS];  // main thread only
+    const uint32_t n = fc4_netgeom_get_solved(c->geom, s, FC4_NETTOOL_MAX_CELLS);
+    if (n == 0) return;
+    fc4_network_rules_grid* g = fc4_network_rules_grid_create(c->city->CellCountX(), c->city->CellCountZ());
+    if (g == nullptr) return;
+    uint32_t infos = 0;
+    for (uint32_t i = 0; i < n && i < FC4_NETTOOL_MAX_CELLS; ++i) {
+        for (int32_t dz = -2; dz <= 2; ++dz) {
+            for (int32_t dx = -2; dx <= 2; ++dx) {
+                fc4_netgeom_cell_info gi{};
+                gi.struct_size = sizeof(gi);
+                fc4_network_rules_cell have{};
+                have.struct_size = sizeof(have);
+                const int32_t x = s[i].x + dx, z = s[i].z + dz;
+                if (fc4_network_rules_grid_get_cell(g, x, z, &have)) continue;
+                if (!fc4_netgeom_get_cell_info(c->geom, x, z, &gi)) continue;
+                fc4_network_rules_cell rc;
+                ToRulesCell(gi, rc);
+                if (fc4_network_rules_grid_set_cell(g, &rc)) ++infos;
+            }
+        }
+    }
+    for (uint32_t i = 0; i < n && i < FC4_NETTOOL_MAX_CELLS; ++i) fc4_network_rules_grid_add_to_solve(g, s[i].x, s[i].z);
+    int32_t result = 0;
+    const bool ok = fc4_network_rules_solve(r, g, run->type_id, false, &result);
+    static fc4_network_rules_solved recs[NetToolContext::kMaxSolvedPieces];
+    const uint32_t total = fc4_network_rules_grid_solved(g, recs, NetToolContext::kMaxSolvedPieces);
+    const uint32_t kept = total < NetToolContext::kMaxSolvedPieces ? total : NetToolContext::kMaxSolvedPieces;
+    for (uint32_t i = 0; i < kept; ++i) {
+        c->solvedPieces[i] = NetToolContext::SolvedPiece{recs[i].x, recs[i].z, recs[i].id, recs[i].orientation};
+    }
+    c->solvedPieceCount = kept;
+    const uint32_t unsolved = fc4_network_rules_grid_unsolved(g, nullptr, 0);
+    fc4_network_rules_grid_destroy(g);
+    ++c->ruleSolves;
+    c->ruleSolvedCells += kept;
+    if (g_solveLogs < 32 || (g_solveLogs % 64) == 0) {
+        char buf[512];
+        int len = 0;
+        for (uint32_t i = 0; i < kept && i < 8 && len < 400; ++i) {
+            len += std::snprintf(buf + len, sizeof(buf) - len, " (%d,%d)=%08X/%02X", recs[i].x, recs[i].z,
+                                 recs[i].id, recs[i].orientation & 0xFF);
+        }
+        buf[len < 0 ? 0 : len] = '\0';
+        Log("netrules solve #%u type=%u ok=%d S=%u infos=%u solved=%u unsolved=%u result=%d geom_valid=%u pieces:%s",
+            c->ruleSolves, run->type_id, ok ? 1 : 0, n, infos, total, unsolved, result, geomValid, buf);
+    }
+    ++g_solveLogs;
 }
 
 // ---- the drag and the pipeline (§3.2, §5) ----------------------------------------------------------
@@ -147,6 +308,10 @@ bool ValidateAndSolve(void* u, fc4_nettool_run* run, bool real, fc4_nettool_pass
         }
         run->valid_count = valid;
     }
+    // The piece solver (network-rules.md §6, a component of this tool per
+    // §2.4.3 point 1): the rule stages over the cell infos the geometry built.
+    c->solvedPieceCount = 0;
+    if (valid > 0) SolvePieces(c, run, valid);
     return valid > 0;
 }
 
@@ -255,24 +420,55 @@ void PlaceOccupant(NetToolContext* c, cISC4OccupantManager* om, cISC4NetworkOccu
 
 // §6.1 step 2.1 / §6.2: for each solved cell, insert the solved piece into
 // the city through the occupant manager. The run carries data4 (+0x208).
-// [choice] The per-cell piece choice (network-rules.md §11) is not wired
-// here: every solved cell inserts one ordinary network occupant whose piece
-// id stays 0 (the plain textured-cell class). The piece solver is a
-// follow-up; the §3/§5/§6 state machine and the message order are the goal.
+// The per-cell piece choice (network-rules.md §11) comes from SolvePieces'
+// solved records (our rule solver). [choice] The occupant is created through
+// GZCOM class 0xC9C05C6E, and no public cISC4NetworkOccupant slot is specified
+// to write its piece id (+0xFC) and orientation (+0x104) (question NR15): the
+// chosen piece is logged and compared with what the occupant reports (slots
+// 23 / 26), not written. Cells without a record insert as before.
 void InsertOccupantsForSolvedCells(void* u, const fc4_nettool_run* run, bool preview_only) {
     NetToolContext* c = Ctx(u);
     if (c == nullptr || run == nullptr || preview_only) return;
     cISC4OccupantManager* om = OMgr(u);
     if (om == nullptr) return;
+    std::unordered_map<uint32_t, uint32_t> byKey;  // (z << 16) + x -> solved index
+    byKey.reserve(c->solvedPieceCount * 2 + 1);
+    for (uint32_t i = 0; i < c->solvedPieceCount; ++i) {
+        const auto& p = c->solvedPieces[i];
+        byKey.emplace((static_cast<uint32_t>(p.z) << 16) + static_cast<uint32_t>(p.x), i);
+    }
+    uint32_t chosen = 0, sameAsOccupant = 0;
+    char buf[512];
+    int len = 0;
+    buf[0] = '\0';
     for (uint32_t i = 0; i < run->cell_count && i < FC4_NETTOOL_MAX_CELLS; ++i) {
         cISC4NetworkOccupant* n = NewNetworkOccupant();
         if (n == nullptr) {
             ++c->insertsRefused;
             continue;
         }
-        PlaceOccupant(c, om, n, run->cells[i].x, run->cells[i].z, run->type_id, run->data4, true);
+        const int32_t x = run->cells[i].x, z = run->cells[i].z;
+        PlaceOccupant(c, om, n, x, z, run->type_id, run->data4, true);
+        const auto it = byKey.find((static_cast<uint32_t>(z) << 16) + static_cast<uint32_t>(x));
+        if (it != byKey.end()) {
+            const auto& p = c->solvedPieces[it->second];
+            const uint32_t occPiece = n->PieceId();               // slot 23
+            const uint32_t occOrient = n->GetRotationAndFlip();   // slot 26 (+0x104)
+            ++chosen;
+            if (occPiece == p.id && occOrient == (p.orientation & 0xFF)) ++sameAsOccupant;
+            if (len < 400 && chosen <= 6) {
+                len += std::snprintf(buf + len, sizeof(buf) - len, " (%d,%d) ours=%08X/%02X occ=%08X/%02X", x, z,
+                                     p.id, p.orientation & 0xFF, occPiece, occOrient);
+            }
+        }
         FC4_RELEASE(n);
     }
+    c->piecesChosen += chosen;
+    if (g_insertLogs < 32 || (g_insertLogs % 64) == 0) {
+        Log("netrules insert type=%u cells=%u chosen=%u same_as_occupant=%u (piece write: none, NR15):%s",
+            run->type_id, run->cell_count, chosen, sameAsOccupant, buf);
+    }
+    ++g_insertLogs;
 }
 
 // §6.3 MarkOccupantsUsable(set, release): the inserts above already marked
