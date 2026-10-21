@@ -1,0 +1,301 @@
+{
+  "format": 1,
+  "name": "mysim_job_search_no_building",
+  "spec": [
+    "mysims 4.7.1"
+  ],
+  "description": "End cell in the city on a lot without a building: false. Also no lot, and FindPath results 0 and 2. A home by cell without a lot starts from the single cell.",
+  "steps": [
+    {
+      "op": "mysim_job_search",
+      "home": {
+        "rect": [
+          10,
+          10,
+          12,
+          11
+        ]
+      },
+      "searches": [
+        {
+          "wealth": 2,
+          "end_cell": [
+            5,
+            5
+          ],
+          "lot": "no_building"
+        }
+      ],
+      "expect": {
+        "results": [
+          false
+        ],
+        "notifies": [
+          false
+        ],
+        "dest_flags": [
+          2
+        ],
+        "flags": 17,
+        "filter": 0,
+        "density": 1,
+        "start_rect": [
+          10,
+          10,
+          12,
+          11
+        ],
+        "travel": [
+          463,
+          463
+        ],
+        "find_path": 1,
+        "calls": [
+          "Reset",
+          "ClearAllTravelTypeFlags",
+          "SetRouteInfo",
+          "SetFlag",
+          "SetFlag",
+          "SetTripDestinationFilter",
+          "SetDestinationFlag",
+          "SetTrafficDensity",
+          "SetStartRect",
+          "SetTravelTypeFlag",
+          "FindPath"
+        ],
+        "destination": {
+          "occupant": null,
+          "by_occupant": true,
+          "by_commute": false,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": {
+        "rect": [
+          10,
+          10,
+          12,
+          11
+        ]
+      },
+      "searches": [
+        {
+          "wealth": 2,
+          "end_cell": [
+            5,
+            5
+          ],
+          "lot": "no_lot"
+        }
+      ],
+      "expect": {
+        "results": [
+          false
+        ],
+        "notifies": [
+          false
+        ],
+        "dest_flags": [
+          2
+        ],
+        "flags": 17,
+        "filter": 0,
+        "density": 1,
+        "start_rect": [
+          10,
+          10,
+          12,
+          11
+        ],
+        "travel": [
+          463,
+          463
+        ],
+        "find_path": 1,
+        "calls": [
+          "Reset",
+          "ClearAllTravelTypeFlags",
+          "SetRouteInfo",
+          "SetFlag",
+          "SetFlag",
+          "SetTripDestinationFilter",
+          "SetDestinationFlag",
+          "SetTrafficDensity",
+          "SetStartRect",
+          "SetTravelTypeFlag",
+          "FindPath"
+        ],
+        "destination": {
+          "occupant": null,
+          "by_occupant": true,
+          "by_commute": false,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": {
+        "rect": [
+          10,
+          10,
+          12,
+          11
+        ]
+      },
+      "searches": [
+        {
+          "wealth": 2,
+          "find_result": 0
+        },
+        {
+          "wealth": 2,
+          "find_result": 2
+        }
+      ],
+      "expect": {
+        "results": [
+          false,
+          false
+        ],
+        "notifies": [
+          false,
+          false
+        ],
+        "dest_flags": [
+          2,
+          2
+        ],
+        "flags": 17,
+        "filter": 0,
+        "density": 1,
+        "start_rect": [
+          10,
+          10,
+          12,
+          11
+        ],
+        "travel": [
+          463,
+          463
+        ],
+        "find_path": 2,
+        "calls": [
+          "Reset",
+          "ClearAllTravelTypeFlags",
+          "SetRouteInfo",
+          "SetFlag",
+          "SetFlag",
+          "SetTripDestinationFilter",
+          "SetDestinationFlag",
+          "SetTrafficDensity",
+          "SetStartRect",
+          "SetTravelTypeFlag",
+          "FindPath",
+          "Reset",
+          "ClearAllTravelTypeFlags",
+          "SetRouteInfo",
+          "SetFlag",
+          "SetFlag",
+          "SetTripDestinationFilter",
+          "SetDestinationFlag",
+          "SetTrafficDensity",
+          "SetStartRect",
+          "SetTravelTypeFlag",
+          "FindPath"
+        ],
+        "destination": {
+          "occupant": null,
+          "by_occupant": true,
+          "by_commute": false,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
+      }
+    },
+    {
+      "op": "mysim_job_search",
+      "home": {
+        "cell": [
+          30,
+          31
+        ]
+      },
+      "searches": [
+        {
+          "wealth": 2,
+          "end_cell": [
+            5,
+            5
+          ]
+        }
+      ],
+      "expect": {
+        "results": [
+          true
+        ],
+        "notifies": [
+          true
+        ],
+        "dest_flags": [
+          2
+        ],
+        "flags": 17,
+        "filter": 0,
+        "density": 1,
+        "start_rect": [
+          30,
+          31,
+          30,
+          31
+        ],
+        "travel": [
+          463,
+          463
+        ],
+        "find_path": 1,
+        "calls": [
+          "Reset",
+          "ClearAllTravelTypeFlags",
+          "SetRouteInfo",
+          "SetFlag",
+          "SetFlag",
+          "SetTripDestinationFilter",
+          "SetDestinationFlag",
+          "SetTrafficDensity",
+          "SetStartRect",
+          "SetTravelTypeFlag",
+          "FindPath"
+        ],
+        "destination": {
+          "occupant": 2304,
+          "by_occupant": true,
+          "by_commute": true,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
+      }
+    }
+  ]
+}
