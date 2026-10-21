@@ -1,12 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-advisors-activate4: activate cFC4AdvisorSystem with AD7-AD10 corrections | `glue-advisors-activate4` / (engine lane) | wip after round 2 (factory not registered; no activation credit) | advisor/advice GZCOM classes (12.2/12.3), remaining host cbs, then opt-in factory + 2032 run |
+| glue-advisors-activate4: activate cFC4AdvisorSystem with AD7-AD10 corrections | `glue-advisors-activate4` / (engine lane) | wip, parked after round 3/3 (factory not registered; AD12-AD15 open, 7.3-7.8 providers not written) | answer AD12-AD15, write the 7.3-7.8 value/list providers, then opt-in factory + 2032 advisor run |
 
-## Handoff (round 3, final)
-Goal: advisor/advice fronts (12.2/12.3), subject leak fix, remaining host cbs; activation only if complete (it is not: providers 7.3-7.8 and AD12-AD15 open).
-Done r3: 79e99e94 core object_dropped + C ABI fc4_adv_weak, host.object_dropped, fc4_adv_advice_*/fc4_adv_advisor_* per-object calls, capi test.
-In progress: FC4AdvLife.h (AdvFront: strong handle only while referenced; object_dropped retires), cFC4AdvisorObjects.{h,cpp}, subject on AdvFront, system wiring (kinds 2/3, object_dropped, advisor subscribe, rebuild_text).
-Next: qbuild quick green, commit; file AD12-AD15 in docs/specs/questions/advisors.md; gate all; game run (no activation) with unique label; final report state wip (activation parked).
+## Report (round 3, final)
+Done:
+- 79e99e94: core AdvisorHost::object_dropped (Drop of Advisor/Advice/AdviceSubject); C ABI fc4_advisor_host.object_dropped (appended, struct asserts 65 ptrs / 268 / 536), fc4_adv_weak (downgrade/upgrade/destroy), 26 per-object fc4_adv_advice_* / fc4_adv_advisor_* calls; capi test weak_handles_and_object_dropped. FC4_ABI_VERSION not bumped (lane rule).
+- d554f738: FC4AdvLife.h AdvFront (strong handle only while GZCOM-referenced, retired on object_dropped: the subject leak is fixed, no DestroyAll-only lifetime); cFC4AdvisorObjects.{h,cpp}: cISC4Advisor 12.2 (21 slots, active map mirror through AdvisorGameMap, serializable, message target with its own subscriptions) and cISC4Advice 12.3 (31 slots, slot 12 returns this, slot 29 dtor, 30 rebuild); object_created kinds 2/3 bound; rebuild_text reads advices[i].title/message.
+Measured: qbuild quick PASS (cargo capi+core 2636/0, plugin build). Full gate and game run not done in round 3 (context budget).
+Questions: AD12 (text GUIDs / detokenize), AD13 (advice DoLink), AD14 (advisor QI set), AD15 (head anims) in docs/specs/questions/advisors.md.
+Not done (blocks activation): popup_priority, call_condition, register_detokenizer, set_tutorial_lua, post_update_self host cbs; 7.3-7.8 value/list/history/ordinance/occupant/deal providers (the spec gives the sources; this is unwritten work, not a question); system Write/Read (11.1); CreateFC4AdvisorSystem stays unregistered, so no game run exercises it.
+Next: qbuild all; a game smoke run (non-regression only); then the providers and host cbs above.
 
 ## Report (round 2)
 Goal: apply advisors.md 8.2/12.1/5.2/4.2 (AD7-AD10), fill host callbacks + advisor/advice/subject classes, register the factory opt-in, game run sim_turbo to 2032 clean.
