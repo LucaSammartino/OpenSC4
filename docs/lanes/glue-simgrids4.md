@@ -33,6 +33,7 @@ test, not yet by a game round-trip); answer SG1.
 
 ## Handoff
 - goal (run4): (1) joint run, evidence-run4/run4-simgrids-joint.ini (36 replacements + simgrids), turbo to 2032, clean/ref0, 136 grid traces + save; (2) original grid factory (simgrids off, other 36 on) reloads a city saved by ours, with per-grid record digests.
-- done: merged main (17cc9565).
-- next: add record digest (FNV-1a 64 over the v1 record bytes) to our read/write trace; add `simgrids_probe = 1` (tooling): grids read through IStreamAdapter::ReadRef are held and at PostCityInit each one's own Write is captured (WriteCapture) and its digest logged; then gate, joint run sg4-j1, capture slot city after save, reload run sg4-r1 via FC4 Test alias City - FC4SGReload-run4-<label>.sc4.
-- facts: slot city mirrored before each run, not restored after; copy it during own run after script save. Never overwrite Konradshohe.
+- done: merged main (17cc9565); digests + simgrids_probe (7edf7923); gate all PASS (cargo 3676, clippy 0, ctest 63/63); simgrids_probe known key (next commit).
+- joint run sg4-j1: clean to 2032-01-01 BUT ref_warnings=238: 100 lines 'released last reference to game object [class 0x4A1628C5/0x6A1628BA] at HostRelease:53' = cFC4Automata.cpp at city shutdown (not grid code). Grids: reads 136, writes 136 at the 2031-06-01 save (+117 probe captures), created=248 destroyed=248, read_failures 0, alloc_failures 0.
+- saved city captured: build-runs/sg-artifacts/sg4-j1-saved.sc4 (1314158 B, sha256 df7a9ca2...).
+- next: reload run sg4-r1: copy to Documents/.../FC4 Test/City - FC4SGReload-run4-r1.sc4 (alias, remove afterwards), request city=FC4SGReload-run4-r1, 36 profile without simgrids, simgrids_probe=1; compare probe digests with sg4-j1 save writes (lines 14018-14317); see if automata warnings recur without simgrids.
