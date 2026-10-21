@@ -6,19 +6,14 @@
 //! The base network-occupant save record (`network-occupants.md` §2.3,
 //! `Write` `0x0061A190` v8 / `Read` `0x0061CC00` v ≥ 4).
 //!
-//! The record is kept in **stream order** as a literal field list: §2.3 and
-//! §2.2 disagree on several offsets (the quad block, the triangle row, the
-//! bounding box pairs), so the live-object ↔ record mapping is not made here
-//! (question NO16).
-//!
-//! Blocked parts (each a numbered question):
-//! - records below v5 use `S3DTransformLegacyLoad`, whose layout is not
-//!   specified (NO15): [`read_network_record`] fails on them;
-//! - `ConvertV5FlagsToCurrentFlags` (records below v6) is not specified
-//!   (NO16): the flags are kept raw (then masked) and
-//!   [`NetworkBaseRecord::flags_need_v5_conversion`] reports it;
-//! - the `Read` tail's position fix is reported as a [`LoadFixup`] decision
-//!   only; the floats it passes are not identified (NO16).
+//! The record runs with `this = object+8`; every field here is named by its
+//! **object** offset (§2.2, NO16 c / NO17 b). Implemented per the answers to
+//! NO15/NO16: one quad of four 24-byte vertices, the four scalars after it,
+//! the cell-info sub-record, 76-byte triangles (alpha forced on read), the
+//! interleaved bounding box, `ConvertV5FlagsToCurrentFlags` below v6, the
+//! v < 7 / v < 8 read tail (as [`LoadEffects`]) and the reference + int64
+//! in every version. The final render-state alpha fix-up needs the model
+//! instance and is [`NetworkBaseRecord::finish_read_alpha`].
 
 use super::xform::Xform;
 use crate::automata::OccupantBase;
@@ -30,72 +25,119 @@ pub const NETWORK_RECORD_VERSION: u16 = 8;
 pub const NETWORK_RECORD_MIN_VERSION: u16 = 4;
 /// `Read` masks the saved flags with this, every version.
 pub const SAVED_FLAGS_MASK: u32 = 0xFFFF_1FFF;
-/// The `+0x100` sub-record's only accepted version.
-pub const SUB100_VERSION: u16 = 2;
-/// The IID `Write` QIs the `+0x138` reference for (segment-o-stream QI).
+/// The cell-info sub-record's only accepted version.
+pub const CELL_INFO_VERSION: u16 = 2;
+/// The IID `Write` QIs the `+0x140` reference for (segment-o-stream QI).
 pub const IID_OWNED_REF_WRITE: u32 = 0x6999_A8FB;
-/// The IID `Read` reads the `+0x138` reference as.
+/// The IID `Read` reads the `+0x140` reference as.
 pub const IID_OWNED_REF_READ: u32 = 0xA966_7793;
+/// The property the v < 7 tail sets to `(z << 16) + x` (slot 72).
+pub const PROP_LEGACY_CELL: u32 = 0x4835_C6AB;
+/// The empty property every v < 8 tail adds (slot 7 with 1).
+pub const PROP_LEGACY_MARK: u32 = 0x4835_C6AC;
 
-/// Field 4: one road quad, five u32s then four bytes in stream order
-/// (the spec's `+0xA`, `+0x9`, `+0x8`, `+0xB`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct QuadRecord {
-    pub words: [u32; 5],
-    pub bytes: [u8; 4],
-}
-
-/// Field 5: u32 `+0xF4`, u8 `+0xFD`, u32 `+0xF8`, u8 `+0xFC`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct QuadTail {
-    pub word_f4: u32,
-    pub byte_fd: u8,
-    pub word_f8: u32,
-    pub byte_fc: u8,
-}
-
-/// Field 6: the `+0x100` sub-record (helper `0x00619C10` / `0x00619C90`):
-/// u16 version 2, u8, u8, u32.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Sub100 {
-    pub a: u8,
-    pub b: u8,
-    pub c: u32,
-}
-
-/// Field 8: one triangle entry. The spec's type column is used literally
-/// (u32 + 3 floats + 3 floats + u32 + u32 + 4 × u8, 40 bytes); its notes
-/// column names fewer fields (NO16).
+/// One quad/triangle/wall vertex (0x18 bytes in memory): f32 x, y, z
+/// `+0/+4/+8`, the little-endian ARGB colour dword `+0xC`, f32 u `+0x10`,
+/// v `+0x14`. Stream form: x, y, z, u, v, then R, G, B, A (24 bytes).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct TriangleRecord {
-    pub word0: u32,
-    pub p: [f32; 3],
-    pub q: [f32; 3],
-    pub word1: u32,
-    pub word2: u32,
-    pub bytes: [u8; 4],
+pub struct Vertex {
+    pub pos: [f32; 3],
+    /// `0xAARRGGBB`.
+    pub color: u32,
+    pub u: f32,
+    pub v: f32,
 }
 
-/// The base network record in stream order.
+impl Vertex {
+    /// The alpha byte (`+0xF`).
+    pub fn alpha(&self) -> u8 {
+        (self.color >> 24) as u8
+    }
+
+    /// Force the alpha byte to `0xFF`.
+    pub fn force_alpha(&mut self) {
+        self.color |= 0xFF00_0000;
+    }
+
+    /// The 24-byte stream form.
+    pub fn write(&self, out: &mut dyn OutStream) {
+        for &f in &self.pos {
+            out.put_f32(f);
+        }
+        out.put_f32(self.u);
+        out.put_f32(self.v);
+        let c = self.color;
+        out.put_u8((c >> 16) as u8);
+        out.put_u8((c >> 8) as u8);
+        out.put_u8(c as u8);
+        out.put_u8((c >> 24) as u8);
+    }
+
+    /// The 24-byte stream form (no alpha forcing).
+    pub fn read(inp: &mut dyn InStream) -> Option<Vertex> {
+        let pos = [inp.get_f32()?, inp.get_f32()?, inp.get_f32()?];
+        let u = inp.get_f32()?;
+        let v = inp.get_f32()?;
+        let (r, g, b, a) = (inp.get_u8()?, inp.get_u8()?, inp.get_u8()?, inp.get_u8()?);
+        let color = (a as u32) << 24 | (r as u32) << 16 | (g as u32) << 8 | b as u32;
+        Some(Vertex { pos, color, u, v })
+    }
+}
+
+/// Field 6: the cell-info block at `+0x108` (helper `0x00619C10` /
+/// `0x00619C90`): u16 2, u8 count, u8 `+0x10C`, u32 `+0x110`, then
+/// `count` × {u8, u32}.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CellInfo {
+    pub byte_10c: u8,
+    pub word_110: u32,
+    /// The `+0x114` array (its length is the saved u8 count).
+    pub entries: Vec<(u8, u32)>,
+}
+
+/// One `+0x118` triangle (0x4C bytes): u32 `+0`, three vertices.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Triangle {
+    pub word0: u32,
+    pub verts: [Vertex; 3],
+}
+
+/// The base network record, fields by object offset.
 #[derive(Clone, Debug)]
 pub struct NetworkBaseRecord {
     /// The version read (written as [`NETWORK_RECORD_VERSION`]).
     pub version: u16,
     pub base: OccupantBase,
+    /// `+0x64` transform.
     pub transform: Xform,
-    pub quads: [QuadRecord; 4],
-    pub quad_tail: QuadTail,
-    pub sub100: Sub100,
-    pub triangles: Vec<TriangleRecord>,
-    /// Field 9: the bounding box as three u32 pairs, in stream order.
-    pub bbox_words: [u32; 6],
-    /// Field 10, already masked with [`SAVED_FLAGS_MASK`] after a read.
-    pub saved_flags: u32,
-    /// Field 11 (`+0x15C`).
-    pub word_15c: u32,
-    /// Field 12 (v8 only; `Null` below).
+    /// `+0x9C…+0xFB`: the road quad.
+    pub quad: [Vertex; 4],
+    /// `+0xFC`.
+    pub word_fc: u32,
+    /// `+0x105` rotation.
+    pub rotation: u8,
+    /// `+0x100` variation.
+    pub variation: u32,
+    /// `+0x104` orientation + flip bit.
+    pub orientation: u8,
+    /// `+0x108` cell info.
+    pub cell_info: CellInfo,
+    /// `+0x118` triangles.
+    pub triangles: Vec<Triangle>,
+    /// `+0x124/+0x128/+0x12C`.
+    pub bbox_min: [f32; 3],
+    /// `+0x130/+0x134/+0x138`.
+    pub bbox_max: [f32; 3],
+    /// `+0x13C`; after a read converted (v < 6) and masked.
+    pub network_flags: u32,
+    /// `+0x164` path-id override.
+    pub path_id: u32,
+    /// The two f32 offsets of a v < 7 record with a non-zero path id
+    /// (never written by the current writer).
+    pub legacy_offsets: Option<[f32; 2]>,
+    /// `+0x140`.
     pub owned_ref: RefValue,
-    /// Field 13 (v8 only; 0 below).
+    /// `+0x170` (low) / `+0x174` (high).
     pub int64: i64,
 }
 
@@ -105,54 +147,127 @@ impl Default for NetworkBaseRecord {
             version: NETWORK_RECORD_VERSION,
             base: OccupantBase::default(),
             transform: Xform::default(),
-            quads: [QuadRecord::default(); 4],
-            quad_tail: QuadTail::default(),
-            sub100: Sub100::default(),
+            quad: [Vertex::default(); 4],
+            word_fc: 0,
+            rotation: 0,
+            variation: 0,
+            orientation: 0,
+            cell_info: CellInfo::default(),
             triangles: Vec::new(),
-            bbox_words: [0; 6],
-            saved_flags: 0,
-            word_15c: 0,
+            bbox_min: [0.0; 3],
+            bbox_max: [0.0; 3],
+            network_flags: 0,
+            path_id: 0,
+            legacy_offsets: None,
             owned_ref: RefValue::Null,
             int64: 0,
         }
     }
 }
 
-/// What `Read`'s tail does with the loaded position (§2.3).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LoadFixup {
-    /// v < 7 and `+0x15C` ≠ 0: recompute the occupied cell (§2.4 formula)
-    /// and call the `+0x34` object's slot 0x48.
-    RecomputeCell,
-    /// v ≥ 7: call the `+0x34` object's slot 0x120 with two floats (which
-    /// two is NO16).
-    ApplyAltitude,
-    /// v < 7 and `+0x15C` = 0. *[literal: §2.3 names no action]*
-    None,
+/// What `Read`'s tail does to the live object after field 11 (§2.3).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LoadEffects {
+    /// v < 7, path id ≠ 0: slot 72 with this cell `(x, z)`, which sets
+    /// [`PROP_LEGACY_CELL`] to [`legacy_cell_value`].
+    pub legacy_cell: Option<(i32, i32)>,
+    /// v < 8, path id ≠ 0: slot 7 with 1 adds [`PROP_LEGACY_MARK`].
+    pub add_legacy_mark: bool,
+}
+
+/// Slot 72's property value: `(z << 16) + x` (32-bit wrapping).
+pub fn legacy_cell_value(x: i32, z: i32) -> u32 {
+    ((z as u32) << 16).wrapping_add(x as u32)
+}
+
+/// The v < 7 cell of one axis: `floor(((a + b) · 0.5 + d) · 0.0625)`.
+/// *[literal: computed in f64 (x87), rounded to f32, then floored; the
+/// spec's "exact integers floor to themselves" fix-up is what `floor` does]*
+fn legacy_axis(a: f32, b: f32, d: f32) -> i32 {
+    let s = ((a as f64 + b as f64) * 0.5 + d as f64) * 0.0625;
+    (s as f32).floor() as i32
+}
+
+/// The old → new bit pairs of `ConvertV5FlagsToCurrentFlags` (§2.3 table).
+const V5_FLAG_MAP: [(u32, u32); 24] = [
+    (0x1, 0x1),
+    (0x2, 0x2),
+    (0x4, 0x4),
+    (0x8, 0x8),
+    (0x10, 0x10),
+    (0x20, 0x40000),
+    (0x40, 0x80000),
+    (0x200, 0x80_0000),
+    (0x400, 0x100_0000),
+    (0x800, 0x200_0000),
+    (0x1000, 0x400_0000),
+    (0x2000, 0x40),
+    (0x4000, 0x20),
+    (0x8000, 0x40_0000),
+    (0x1_0000, 0x1000_0000),
+    (0x4_0000, 0x2000_0000),
+    (0x8_0000, 0x4000_0000),
+    (0x10_0000, 0x80),
+    (0x20_0000, 0x100),
+    (0x40_0000, 0x1_0000),
+    (0x80_0000, 0x2_0000),
+    (0x100_0000, 0x10_0000),
+    (0x400_0000, 0x8000_0000),
+    (0x2000_0000, 0x20_0000),
+];
+
+/// `ConvertV5FlagsToCurrentFlags` (`0x006191A0`, NO16 d): map each old bit,
+/// then, when old bit `0x80` is clear, drop `0x6000000` and add `0x8000000`.
+pub fn convert_v5_flags(old: u32) -> u32 {
+    let mut new = 0;
+    for &(o, n) in &V5_FLAG_MAP {
+        if old & o != 0 {
+            new |= n;
+        }
+    }
+    if old & 0x80 == 0 {
+        new = (new & !0x0600_0000) | 0x0800_0000;
+    }
+    new
 }
 
 impl NetworkBaseRecord {
-    /// True when the record predates v6 and its flags would need
-    /// `ConvertV5FlagsToCurrentFlags` (not specified, NO16).
-    pub fn flags_need_v5_conversion(&self) -> bool {
-        self.version < 6
+    /// The tail effects of the read that produced this record.
+    pub fn load_effects(&self) -> LoadEffects {
+        if self.path_id == 0 {
+            return LoadEffects::default();
+        }
+        let legacy_cell = match (self.version < 7, self.legacy_offsets) {
+            (true, Some([dx, dz])) => Some((
+                legacy_axis(self.quad[0].pos[0], self.quad[2].pos[0], dx),
+                legacy_axis(self.quad[0].pos[2], self.quad[2].pos[2], dz),
+            )),
+            _ => None,
+        };
+        LoadEffects {
+            legacy_cell,
+            add_legacy_mark: self.version < 8,
+        }
     }
 
-    /// The tail decision of `Read` (§2.3).
-    pub fn load_fixup(&self) -> LoadFixup {
-        if self.version < 7 {
-            if self.word_15c != 0 {
-                LoadFixup::RecomputeCell
-            } else {
-                LoadFixup::None
+    /// The end of `Read`: if vertex 0's alpha is not `0xFF` or the model's
+    /// render-state bit 2 is set, all four quad alphas become `0xFF`; returns
+    /// true when the caller must then clear bit 2 and store alpha 1.0 in the
+    /// render-state block (slot `+0x40`).
+    pub fn finish_read_alpha(&mut self, render_bit2: bool) -> bool {
+        if self.quad[0].alpha() != 0xFF || render_bit2 {
+            for v in self.quad.iter_mut() {
+                v.force_alpha();
             }
+            true
         } else {
-            LoadFixup::ApplyAltitude
+            false
         }
     }
 }
 
-/// `Write` (`0x0061A190`): always version 8; true when the stream has no
+/// `Write` (`0x0061A190`): always version 8; false (and nothing after it)
+/// when the occupant base record fails; else true when the stream has no
 /// error afterwards.
 pub fn write_network_record(rec: &NetworkBaseRecord, out: &mut dyn OutStream) -> bool {
     out.put_u16(NETWORK_RECORD_VERSION);
@@ -160,128 +275,106 @@ pub fn write_network_record(rec: &NetworkBaseRecord, out: &mut dyn OutStream) ->
         return false;
     }
     rec.transform.write(out);
-    for q in &rec.quads {
-        for &w in &q.words {
-            out.put_u32(w);
-        }
-        for &b in &q.bytes {
-            out.put_u8(b);
-        }
+    for v in &rec.quad {
+        v.write(out);
     }
-    out.put_u32(rec.quad_tail.word_f4);
-    out.put_u8(rec.quad_tail.byte_fd);
-    out.put_u32(rec.quad_tail.word_f8);
-    out.put_u8(rec.quad_tail.byte_fc);
-    out.put_u16(SUB100_VERSION);
-    out.put_u8(rec.sub100.a);
-    out.put_u8(rec.sub100.b);
-    out.put_u32(rec.sub100.c);
+    out.put_u32(rec.word_fc);
+    out.put_u8(rec.rotation);
+    out.put_u32(rec.variation);
+    out.put_u8(rec.orientation);
+    out.put_u16(CELL_INFO_VERSION);
+    out.put_u8(rec.cell_info.entries.len() as u8);
+    out.put_u8(rec.cell_info.byte_10c);
+    out.put_u32(rec.cell_info.word_110);
+    for &(b, w) in &rec.cell_info.entries {
+        out.put_u8(b);
+        out.put_u32(w);
+    }
     out.put_u32(rec.triangles.len() as u32);
     for t in &rec.triangles {
         out.put_u32(t.word0);
-        for &v in t.p.iter().chain(t.q.iter()) {
-            out.put_f32(v);
-        }
-        out.put_u32(t.word1);
-        out.put_u32(t.word2);
-        for &b in &t.bytes {
-            out.put_u8(b);
+        for v in &t.verts {
+            v.write(out);
         }
     }
-    for &w in &rec.bbox_words {
-        out.put_u32(w);
+    for i in 0..3 {
+        out.put_f32(rec.bbox_min[i]);
+        out.put_f32(rec.bbox_max[i]);
     }
-    out.put_u32(rec.saved_flags);
-    out.put_u32(rec.word_15c);
+    out.put_u32(rec.network_flags);
+    out.put_u32(rec.path_id);
     out.put_ref(&rec.owned_ref);
     out.put_i64(rec.int64);
     out.error() == 0
 }
 
-/// `Read` (`0x0061CC00`). `None` for a version below 4 (nothing more read),
-/// for v4 (legacy transform, NO15), for a `+0x100` sub-record version other
-/// than 2, and on a short stream.
+/// `Read` (`0x0061CC00`) into a fresh record. `None` for a version below 4
+/// (only the u16 read), a failed occupant base, a short stream or a stream
+/// error. A cell-info version other than 2 consumes only its u16 and the
+/// read **continues** (the caller ignores that result; the stream is then
+/// misaligned), leaving the cell info as it was.
 pub fn read_network_record(inp: &mut dyn InStream) -> Option<NetworkBaseRecord> {
-    let version = inp.get_u16()?;
-    if version < NETWORK_RECORD_MIN_VERSION {
-        return None;
-    }
-    let base = OccupantBase::read(inp)?;
-    if version < 5 {
-        // S3DTransformLegacyLoad: layout not specified (NO15).
-        return None;
-    }
-    let transform = Xform::read(inp)?;
-    let mut quads = [QuadRecord::default(); 4];
-    for q in quads.iter_mut() {
-        for w in q.words.iter_mut() {
-            *w = inp.get_u32()?;
-        }
-        for b in q.bytes.iter_mut() {
-            *b = inp.get_u8()?;
-        }
-    }
-    let quad_tail = QuadTail {
-        word_f4: inp.get_u32()?,
-        byte_fd: inp.get_u8()?,
-        word_f8: inp.get_u32()?,
-        byte_fc: inp.get_u8()?,
+    let mut rec = NetworkBaseRecord {
+        version: inp.get_u16()?,
+        ..NetworkBaseRecord::default()
     };
-    if inp.get_u16()? != SUB100_VERSION {
+    if rec.version < NETWORK_RECORD_MIN_VERSION {
         return None;
     }
-    let sub100 = Sub100 {
-        a: inp.get_u8()?,
-        b: inp.get_u8()?,
-        c: inp.get_u32()?,
-    };
+    rec.base = OccupantBase::read(inp)?;
+    if rec.version >= 5 {
+        rec.transform.read_into(inp)?;
+    } else {
+        rec.transform.legacy_load_into(inp)?;
+    }
+    for v in rec.quad.iter_mut() {
+        *v = Vertex::read(inp)?;
+    }
+    rec.word_fc = inp.get_u32()?;
+    rec.rotation = inp.get_u8()?;
+    rec.variation = inp.get_u32()?;
+    rec.orientation = inp.get_u8()?;
+    if inp.get_u16()? == CELL_INFO_VERSION {
+        let count = inp.get_u8()?;
+        rec.cell_info.byte_10c = inp.get_u8()?;
+        rec.cell_info.word_110 = inp.get_u32()?;
+        let mut entries = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            entries.push((inp.get_u8()?, inp.get_u32()?));
+        }
+        rec.cell_info.entries = entries;
+    }
     let count = inp.get_u32()?;
     // No capacity from the stream's count: a corrupt count fails on the
     // first short read instead of allocating.
-    let mut triangles = Vec::new();
     for _ in 0..count {
-        let word0 = inp.get_u32()?;
-        let mut p = [0.0; 3];
-        let mut q = [0.0; 3];
-        for v in p.iter_mut().chain(q.iter_mut()) {
-            *v = inp.get_f32()?;
+        let mut t = Triangle {
+            word0: inp.get_u32()?,
+            ..Triangle::default()
+        };
+        for v in t.verts.iter_mut() {
+            *v = Vertex::read(inp)?;
+            v.force_alpha();
         }
-        triangles.push(TriangleRecord {
-            word0,
-            p,
-            q,
-            word1: inp.get_u32()?,
-            word2: inp.get_u32()?,
-            bytes: [inp.get_u8()?, inp.get_u8()?, inp.get_u8()?, inp.get_u8()?],
-        });
+        rec.triangles.push(t);
     }
-    let mut bbox_words = [0u32; 6];
-    for w in bbox_words.iter_mut() {
-        *w = inp.get_u32()?;
+    for i in 0..3 {
+        rec.bbox_min[i] = inp.get_f32()?;
+        rec.bbox_max[i] = inp.get_f32()?;
     }
-    // Below v6 the game converts first (NO16); the mask applies always.
-    let saved_flags = inp.get_u32()? & SAVED_FLAGS_MASK;
-    let word_15c = inp.get_u32()?;
-    let (owned_ref, int64) = if version >= 8 {
-        (inp.get_ref_as(IID_OWNED_REF_READ)?, inp.get_i64()?)
-    } else {
-        (RefValue::Null, 0)
-    };
+    let mut flags = inp.get_u32()?;
+    if rec.version < 6 {
+        flags = convert_v5_flags(flags);
+    }
+    rec.network_flags = flags & SAVED_FLAGS_MASK;
+    rec.path_id = inp.get_u32()?;
+    if rec.path_id != 0 && rec.version < 7 {
+        rec.legacy_offsets = Some([inp.get_f32()?, inp.get_f32()?]);
+    }
+    rec.owned_ref = inp.get_ref_as(IID_OWNED_REF_READ)?;
+    rec.int64 = inp.get_i64()?;
     if inp.error() != 0 {
         return None;
     }
-    Some(NetworkBaseRecord {
-        version,
-        base,
-        transform,
-        quads,
-        quad_tail,
-        sub100,
-        triangles,
-        bbox_words,
-        saved_flags,
-        word_15c,
-        owned_ref,
-        int64,
-    })
+    Some(rec)
 }
