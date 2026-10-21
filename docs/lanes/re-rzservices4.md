@@ -1,14 +1,30 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-rzservices4: round 3: cRZDirectory, cRZOFStream, cRZCmdLine specs (framework-rz-files.md ext / framework-rz-services.md) | Claude / .claude/worktrees/re-rzservices4 | in progress | see Handoff |
+| re-rzservices4: framework RZ specs: round 3 cRZDirectory, cRZOFStream, cRZCmdLine (framework-rz-files.md §6-8); round 2 cRZFile + cRZIniFile; round 1 cRZLanguageUtility | Claude / .claude/worktrees/re-rzservices4 | ready: docs/specs/framework-rz-files.md | engine lane may implement §6-8; RE: Q5 (%lld CRT), Q6 (cmdline slot 10 pseudocode), cRZSysServPtr not started |
 
-## Handoff (round 3, 2026-10-21)
-- Goal: specify cRZDirectory, cRZOFStream, cRZCmdLine (then cRZSysServPtr if time); exact byte-supported contracts.
-- Done: rounds 1-2 (language-utility.md, framework-rz-files.md §1-5).
-- Done r3: §6 cRZDirectory (commit below). REA unavailable again (No app is open).
-- Done r3: §7 cRZOFStream. Next: cRZCmdLine §8 (decomp/cRZCmdLine.c, vtable 0x00A82A20).
-- Facts: language-utility.md untouched (strings lane). No ABI edits.
+## Report (round 3, 2026-10-21)
 
+- docs/specs/framework-rz-files.md extended (outline and title updated):
+  - §6 cRZDirectory (commit c08f877b), COMPLETE: layout (+0 list, +4 count, +8 path, +0x1C filter,
+    +0x30/+0x31 dot flags), separators `\` and `/`, setters, ReadDirectoryEntries order (OS order,
+    attribute 0x10 only, hidden/system listed), dot-entry keep/synthesise rules (front order `.`,`..`,
+    only with filter `*`), string-list readers (append, flags 8/4/1/2), case-sensitive byte sort,
+    recursive listing (pre-order, global depth counter, missing-separator quirk), DoesDirectoryExist,
+    CreateDirectory (UNC skip, rollback in creation order), SplitDirectoryPath table.
+  - §7 cRZOFStream (commit 92058d08), COMPLETE: layout, ctor mode bits (out | app/trunc | binary),
+    24-slot vtable, binary byte order (+0x08; floats always native little-endian), text formats
+    %d %u %lld %llu %g with no separators, auto-flush only through SetRZCharStr, Release/close lifetime.
+  - §8 cRZCmdLine (commit e9ffbe54), COMPLETE except slot 10 (partial, skeleton only): tokeniser
+    (space/tab/LF, double-quote parity, outer quote strip), join rule, 17-slot vtable, switch chars
+    `/ - \`, name/letter switch lookup, `/name:value` with optional quote stripping, first match wins,
+    Insert/Erase clamps.
+- Instruction-verified: separator test 0x005F8FE0, byte compare 0x00418A40, push_front/push_back
+  helpers, CreateDirectory rollback order (0x00457250), recursive path concat, binary swaps 16/64,
+  float raw writes, text format pointers and MOVZX/MOVSX, cmdline value length rule (+3 at 0x0091444A).
+- REA unavailable ("No app is open"); used re_query.py, decomp/ and exe bytes.
+- Not done: cRZSysServPtr / cRZSystemService (no claim on GZ1 refcount layout).
+- Questions (spec §5, RE-side, none filed): Q5 %lld CRT support, Q6 cmdline slot 10.
+- Language spec untouched.
 
 ## Report (round 2, 2026-10-21)
 

@@ -401,6 +401,10 @@ Volume = 80 ; loud
 - Q4: the cRZIniFile constructors from a path or a file (0x0091CEE3, 0x0091CF46) do not write +0x38
   (checked in the instructions; only the default constructor clears it). WriteEntry reads it (§3.6 step 2) to
   decide whether an open file must be reopened for writing; a reimplementation should start it at 0. Does the allocator zero memory?
+- Q5 (round 3): the C runtime the exe links decides whether the text-mode `%lld` / `%llu` formats of
+  cRZOFStream (§7.3) print 64-bit values; confirm with a runtime write of 2^40.
+- Q6 (round 3): §8.4 slot 10 (letter switch value) is read from the instruction skeleton only; confirm
+  the value offsets with a pseudocode pass when REA is available.
 
 ## 6. cRZDirectory (round 3)
 
