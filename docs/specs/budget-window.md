@@ -222,10 +222,58 @@ Net: each pair in `+0x38` owns exactly one reference to its department. Every pa
   department of every element still present and frees the storage. After an `on_shutdown` the vector is empty, so
   the destructor releases nothing more; a window destroyed without `on_shutdown` releases its pairs here.
 
-No other code path writes `+0x38` (callers of `0x0077C420`; `RestoreStartSettings` only reads it). The slider-row
-vector `+0x2C` (`SliderInfo` = {ID, department}) uses the same element layout and the same routines (`0x0077C420`
-at `0x00788376` and `0x0077E45F`, `0x005FF0C0` at `0x0077C59A`), so its department is Released the same way; the
-slider-row append that should pair with it was not byte-checked by this lane.
+No other code path writes `+0x38` (callers of `0x0077C420`; `RestoreStartSettings` only reads it).
+
+**Slider rows `+0x2C`: what a `SliderInfo` owns** *[compat]* (BW15, byte-audited): an element is 8 bytes,
+{`+0` the slider's 32-bit window ID, `+4` the department, a counted reference}. The ID is a plain integer: the
+element holds **no** reference to the slider window. The slider is made by `FUN_007794E0` (thiscall, 9 stack
+arguments, `RET 0x24`): it creates the slider through the window factory (`RZ::WCM`), configures it, inserts it with
+`ChildAdd` (slot 14 `+0x38`, at `0x00779585`) into its **first argument**, which at both call sites is the dialog
+`win` itself (the `on_init` argument, `PUSH EBP` at `0x00788D24` and `0x00789173`), not the content window
+`+0x10`, and then Releases its own creation reference (`0x0077958C`). The slider is therefore owned by the dialog's
+child list, and `§4.4` finds it again by ID. The window ID passed to `FUN_007794E0` is the same value stored in the
+element.
+
+Only two places append to `+0x2C`, both in `on_init`'s group branch, both in the expense-list (B) build loop
+(`0x00788A30`–`0x00789282`), both keyed to the **department** of the current outer iteration (the department list
+from `GetDepartmentBudgetsInGroup`, element `[EBX]`), never to a line item. The income-list (A) loop creates no
+sliders. The only append routine is `FUN_0077E550` (push_back, callers `0x00788D6E` and `0x007891BD` only); nothing
+else in `on_init` writes `+0x2C..+0x34`.
+
+| Step | Address (header row / item row) | Department refcount |
+|---|---|---|
+| temporary `SliderInfo` {ID, null} built, then the department stored and AddRef'd if non-null | `0x00788D39`–`0x00788D5C` / `0x00789188`–`0x007891AB` | +1 |
+| push_back fast path (end ≠ capacity): ID and department copied, department AddRef'd if non-null, end += 8 | `0x0077E553`–`0x0077E576` | +1 |
+| push_back grow path (end = capacity): `FUN_0077D7E0` with count 1 (`0x0077E58F`), the same grow routine as `+0x38` (BW14 table): new element +1, moved old elements net 0 | `0x0077E57E`–`0x0077E594` | +1 (net) |
+| end of that row's block: the temporary's department Released if non-null | `0x00788EC2`–`0x00788ED6` / `0x00789241`–`0x00789263` | −1 |
+
+Every path from each push_back reaches its Release before the loop's next iteration (all branches between
+`0x00788D6E` and `0x00788EC2`, and between `0x007891BD` and `0x00789241`, jump forward inside that range). Net:
+**each `+0x2C` element owns exactly one reference to its department.** A department can own several elements:
+one for its B header row and one per shown B item row, within the 9 B rows that are built (§4.1; the row counter
+`[ESP+0x14]` is shared by all departments of the group, and a header that would be the 10th row gets no slider,
+path `0x00788EDB`). A department with no shown expense row has no `+0x2C` element.
+
+When the window's references are taken and dropped, in order:
+
+| Event | `+0x2C` | `+0x38` |
+|---|---|---|
+| `on_init`, group mode, `+0x08` clear | emptied at `0x00788376`, **only in the non-empty branch** (after `SetupWindowBig`, before the first row), then filled by the B loop | emptied at `0x00787F8B`, then filled in the counting loop (BW14) — so `+0x38` is filled **before** any `+0x2C` element |
+| `on_init`, empty group branch | untouched (stays empty) | filled (BW14) |
+| `on_init` with `+0x08` set | untouched | untouched |
+| `on_shutdown` with `+0x08` set | erased first (`0x0077E45F`) | erased second (`0x0077E46F`) |
+| destructor `0x0077C4C0` | released **second** (`0x0077C59A`) | released **first** (`0x0077C592`) |
+
+Erasing (`0x0077C420`, called with begin and end) Releases the department of each removed element front to back
+(`0x0077C450`–`0x0077C463`), skipping nulls, and sets end := begin, keeping the capacity. The destructor's
+`0x005FF0C0` Releases each remaining element's department front to back (`0x005FF0D0`–`0x005FF0E1`), then frees the
+block. In the destructor both vectors are released after `+0x50` and `+0x44` (`0x0077C582`, `0x0077C58A`) and
+before the interface references `+0x1C`, `+0x18`, `+0x14`, `+0x10`, `+0x0C` (`0x0077C59F`–`0x0077C5DD`).
+
+Failed content creation (BW13) and `+0x2C`: in the native program the first `add_text` into the missing `+0x10`
+(`0x0078837B`, right after the `+0x2C` erase at `0x00788376`) faults before any slider is appended, so at the fault
+`+0x2C` is empty and `+0x38` already holds its pairs. Under the no-fault rule of BW13 the sliders are still
+created (their parent is `win`, not `+0x10`) and appended exactly as on success, with the same counts.
 
 ### 4.1 Group mode: the two lists and the special groups *[compat]* (BW1, BW7a)
 
