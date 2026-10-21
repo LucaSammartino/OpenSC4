@@ -141,7 +141,7 @@ generated index: the questions live one file per spec, so read only the file for
 | dates | 3 | 0 | DT4 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
-| disasters | 2 | 43 | DS45 | questions/disasters.md |
+| disasters | 3 | 43 | DS47 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
 | drawing-fonts | 8 | 6 | FN15 | questions/drawing-fonts.md |
 | effects | 1 | 13 | EF15 | questions/effects.md |
@@ -167,7 +167,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
 | network-occupants | 17 | 3 | NO21 | questions/network-occupants.md |
-| network-rules | 2 | 9 | NR15 | questions/network-rules.md |
+| network-rules | 3 | 9 | NR16 | questions/network-rules.md |
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **217** | **1075** | | |
+| **total** | **219** | **1075** | | |

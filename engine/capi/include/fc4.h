@@ -169,8 +169,9 @@ extern "C" {
  * 75 = merge-train batch train10 (cores27): cores27: adds the network tools (fc4_nettool, network-tools.md §2-§11): the tool state, PlaceNetworkOccupants (slot 7), PlaceNetworkOccupantById (slot 8), the PlaceNetwork pipeline hand-off with the commit order, DestroyOccupantsAndResolve (slot 50) and the underground refit, over an fc4_nettool_host table (cores27 lane; taken as 75 on its lane; renumbered at merge; FC4_ABI_VERSION left at 74 for the train)
  * 76 = merge-train batch train31 (re-span4444-4, glue-formats4): merged (no C ABI history entry of its own)
  * 77 = merge-train batch train49 (core-construction4, glue-exemplars4): merged (no C ABI history entry of its own)
- * 78 = merge-train batch train56 (glue-span1555-impl4, glue-span4444-impl4, core-htmldocument4, glue-exemplar-contractfix4, core-fonts4, core-effects-fix4, verify-landvalue49): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 78u
+ * 78 = merge-train batch train56 (glue-span1555-impl4, glue-span4444-impl4, core-htmldocument4, glue-exemplar-contractfix4, core-fonts4, core-effects-fix4, verify-landvalue49): merged (no C ABI history entry of its own)
+ * 79 = merge-train batch train57 (glue-disasters-impl4, glue-netrules-apply4): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 79u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
