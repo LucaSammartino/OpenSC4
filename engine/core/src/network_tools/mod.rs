@@ -38,11 +38,14 @@
 
 pub mod host;
 pub mod place;
+pub mod power_line;
 pub mod resolve;
 pub mod state;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_power_line;
 
 pub use host::{place_network_occupant_by_id, Neighbour, NullHost, PassResult, ToolHost, ToolRun};
 pub use place::{place_network, place_network_occupants};
