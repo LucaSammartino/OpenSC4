@@ -17,6 +17,7 @@
 #include "cFC4Terrain.h"
 
 #include "FC4Config.h"
+#include "compat/FC4Compat.h"
 #include "FC4Diag.h"
 #include "FC4Fpu.h"
 #include "FC4GameList.h"
@@ -82,6 +83,11 @@ constexpr uint32_t kMsgViewWindow = 0x470BD214;     // §12.1
 constexpr uint32_t kMsgReconcile = 0x2A612643;      // §12.1
 constexpr uint32_t kMsgSimNewDay = 0x66956814;      // §10.3
 
+// §15.5.1 step 3: the 3D view is created by CLSID 0xC9B84E10 for this IID; the pointer the factory
+// returns is view base + 0x0C, and slot 66 hands that same pointer back (§15.5.6).
+constexpr uint32_t kIID_cISTETerrainView3D = 0x6771477D;
+constexpr uintptr_t kViewInterfaceOffset = 0x0C;
+
 // What the original's terrain subscribes to (§12.1), minus the render-only
 // notifications and the script commands we do not implement.
 constexpr uint32_t kSubscribed[] = {kMsgPostCityInit, kMsgPreCityShutdown, kMsgViewUpdate,
@@ -101,6 +107,7 @@ constexpr uint16_t kFlagFlipExternal = 0x2000;
 std::atomic<fc4_terrain*> g_activeCore{nullptr};
 std::atomic<uint32_t> g_cellsX{0};
 std::atomic<uint32_t> g_cellsZ{0};
+std::atomic<bool> g_mirrorDirty{false};  // set by HostPost, consumed at the outermost Leave()
 
 // ---- the host context -----------------------------------------------------------------------------
 
@@ -236,6 +243,7 @@ void HostPost(void* u, const fc4_terrain_post* p) {
     auto* c = static_cast<HostContext*>(u);
     if (c == nullptr || p == nullptr) return;
     c->posts.fetch_add(1, std::memory_order_relaxed);
+    g_mirrorDirty.store(true, std::memory_order_release);  // §15.5.8: refresh the raw arrays first
     if (c->testMode) return;
     cIGZMessageServer2Ptr ms;
     if (!ms) return;
@@ -288,6 +296,8 @@ cISC4City* CurrentCity() {
     return city;
 }
 
+void MirrorFlags(uint32_t x, uint32_t z, uint16_t flags);  // the raw vertex mirror, below
+
 uint16_t VertexFlags(uint32_t x, uint32_t z) {
     fc4_terrain* core = g_activeCore.load(std::memory_order_acquire);
     return core != nullptr ? fc4_terrain_vertex_flags(core, static_cast<int32_t>(x), static_cast<int32_t>(z))
@@ -300,6 +310,106 @@ void SetFlagBit(uint32_t x, uint32_t z, uint16_t bit, bool on) {
     uint16_t f = fc4_terrain_vertex_flags(core, static_cast<int32_t>(x), static_cast<int32_t>(z));
     f = on ? static_cast<uint16_t>(f | bit) : static_cast<uint16_t>(f & ~bit);
     fc4_terrain_set_vertex_flags(core, static_cast<int32_t>(x), static_cast<int32_t>(z), f);
+    MirrorFlags(x, z, f);
+}
+
+// ---- the raw arrays the 3D view reads directly (terrain.md §15.5.5, §15.5.11 items 12-14) --------
+//
+// The game's terrain view walks terrain +0x6C (0x24-byte vertex records, altitude +0x00, flags +0x22,
+// surface texture id +0x16) and water +0x18 (0x24-byte records, depth +0x00) without going through any
+// slot. The core owns the real state; these are mirrors of it, refreshed at the outermost Leave() after
+// anything posted a redisplay (the only channel the view rebuilds from, §15.5.8), and once in
+// DoPostCityInit before the view's Init.
+#pragma pack(push, 1)
+struct VertexRecord {
+    float altitude;         // +0x00
+    float normal[3];        // +0x04..+0x0F: the view does not read it (§15.5.5); left 0
+    uint8_t pad10[6];       // +0x10..+0x15
+    uint16_t texture;       // +0x16: [choice] 0; the spec names no source for it (question TR36)
+    uint8_t pad18[0x0A];    // +0x18..+0x21
+    uint16_t flags;         // +0x22: §7 flags
+};
+struct WaterRecord {
+    float depth;            // +0x00
+    uint8_t pad[0x20];
+};
+#pragma pack(pop)
+static_assert(sizeof(VertexRecord) == 0x24 && offsetof(VertexRecord, texture) == 0x16 &&
+                  offsetof(VertexRecord, flags) == 0x22,
+              "§15.5.5: 0x24-byte vertex records, texture +0x16, flags +0x22");
+static_assert(sizeof(WaterRecord) == 0x24, "§15.5.5: 0x24-byte water records");
+
+// Flag bits the view itself writes into the mirror (slot 16 LevelCell ORs 0x60, slot 17 clears them,
+// §15.5.11 item 13). A mirror word that differs from what we last wrote only in these bits is the
+// view's edit, and is pushed into the core rather than overwritten.
+constexpr uint16_t kViewWrittenFlags = kFlagEvenHidden | kFlagOddHidden;
+
+struct RawMirror {
+    std::vector<VertexRecord> vertices;
+    std::vector<WaterRecord> water;
+    std::vector<uint16_t> lastFlags;
+    std::vector<float> scratch;
+    uint32_t vertsX = 0;
+    uint32_t viewFlagEdits = 0;
+    uint32_t syncs = 0;
+    const void* owner = nullptr;  // the terrain the arrays belong to (one city at a time)
+};
+RawMirror g_mirror;
+
+void MirrorFlags(uint32_t x, uint32_t z, uint16_t flags) {
+    if (g_mirror.vertsX == 0 || x >= g_mirror.vertsX) return;
+    const size_t i = static_cast<size_t>(z) * g_mirror.vertsX + x;
+    if (i >= g_mirror.vertices.size()) return;
+    g_mirror.vertices[i].flags = flags;
+    g_mirror.lastFlags[i] = flags;
+}
+
+// The water objects alive in the process: each one exposes the water mirror at +0x18.
+std::vector<void**> g_waterRecordSlots;
+
+void PointWatersAtMirror() {
+    void* p = g_mirror.water.empty() ? nullptr : g_mirror.water.data();
+    for (void** slot : g_waterRecordSlots) *slot = p;
+}
+
+void AllocateMirror(const void* owner, uint32_t vertsX, uint32_t vertexCount) {
+    g_mirror.owner = owner;
+    g_mirror.vertices.assign(vertexCount, VertexRecord{});
+    g_mirror.water.assign(vertexCount, WaterRecord{});
+    g_mirror.lastFlags.assign(vertexCount, 0);
+    g_mirror.scratch.assign(vertexCount, 0.0f);
+    g_mirror.vertsX = vertsX;
+    PointWatersAtMirror();
+}
+
+void FreeMirror(const void* owner) {
+    if (g_mirror.owner != owner) return;
+    g_mirror = RawMirror{};
+    PointWatersAtMirror();
+}
+
+void SyncMirror(fc4_terrain* core) {
+    if (core == nullptr || g_mirror.vertices.empty() || g_mirror.vertsX == 0) return;
+    const size_t n = g_mirror.vertices.size();
+    const size_t got = fc4_terrain_altitudes(core, g_mirror.scratch.data(), n);
+    const uint32_t vx = g_mirror.vertsX;
+    for (size_t i = 0; i < n; ++i) {
+        VertexRecord& r = g_mirror.vertices[i];
+        const int32_t x = static_cast<int32_t>(i % vx), z = static_cast<int32_t>(i / vx);
+        uint16_t coreFlags = fc4_terrain_vertex_flags(core, x, z);
+        const uint16_t changed = static_cast<uint16_t>(r.flags ^ g_mirror.lastFlags[i]);
+        if (changed != 0 && (changed & ~kViewWrittenFlags) == 0) {
+            // §15.5.11 item 13: the view's LevelCell / RemoveCellLevelling write.
+            coreFlags = static_cast<uint16_t>((coreFlags & ~changed) | (r.flags & changed));
+            fc4_terrain_set_vertex_flags(core, x, z, coreFlags);
+            ++g_mirror.viewFlagEdits;
+        }
+        r.flags = coreFlags;
+        g_mirror.lastFlags[i] = coreFlags;
+        if (i < got) r.altitude = g_mirror.scratch[i];
+        g_mirror.water[i].depth = fc4_terrain_water_depth_at_index(core, static_cast<uint32_t>(i));
+    }
+    ++g_mirror.syncs;
 }
 
 }  // namespace
@@ -325,7 +435,12 @@ bool WriteNullRef(cIGZOStream& out) { return out.SetUint32(0); }
 
 class cFC4STESurfaceWater final : public cFC4ISTESurfaceWater, public cIGZSerializable {
 public:
-    cFC4STESurfaceWater() = default;
+    // §15.5.11 item 14: the view reads water +0x18 directly; keep it pointing at the water mirror.
+    cFC4STESurfaceWater() {
+        static_assert(sizeof(void*) == 4, "the +0x18 layout is the 32-bit game's");
+        g_waterRecordSlots.push_back(&raw_.records);
+        PointWatersAtMirror();
+    }
 
     bool QueryInterface(uint32_t riid, void** ppvObj) override {
         if (ppvObj == nullptr) return false;
@@ -388,8 +503,28 @@ public:
     }
 
 private:
-    ~cFC4STESurfaceWater() = default;
+    ~cFC4STESurfaceWater() {
+        for (size_t i = 0; i < g_waterRecordSlots.size(); ++i) {
+            if (g_waterRecordSlots[i] == &raw_.records) {
+                g_waterRecordSlots.erase(g_waterRecordSlots.begin() + static_cast<std::ptrdiff_t>(i));
+                break;
+            }
+        }
+    }
 
+    // First data member, after the two vptrs (+0x00, +0x04): records lands at +0x18 (§15.5.5).
+    struct WaterFields {
+        uint8_t pad[0x10];  // +0x08..+0x17
+        void* records = nullptr;  // +0x18: the 0x24-byte water array
+    } raw_{};
+
+public:
+    static void CheckLayout() {
+        static_assert(offsetof(cFC4STESurfaceWater, raw_) + offsetof(WaterFields, records) == 0x18,
+                      "§15.5.11 item 14: water +0x18");
+    }
+
+private:
     uint32_t refCount_ = 0;
     bool destroying_ = false;
     mutable std::vector<uint16_t> bodyMap_;              // slot 9's backing grid
@@ -538,7 +673,11 @@ public:
     bool GetUIElementsForBrush(uint32_t, uint32_t*) const override { return false; }  // 63
     void UpdateWaveProducers() override {}                                     // 64  render
     bool IsGoodWaveProducerLocation(float, float, float) const override { return false; }  // 65  render
-    cISTETerrainView* GetView() override { return static_cast<cISTETerrainView*>(f_.view); }  // 66
+    cISTETerrainView* GetView() override {  // 66: *(T+0xE8) + 0x0C, never the base (§15.5.6)
+        return f_.view == nullptr ? nullptr
+                                  : reinterpret_cast<cISTETerrainView*>(static_cast<uint8_t*>(f_.view) +
+                                                                        kViewInterfaceOffset);
+    }
     void DoLighting(SC4Rect<int32_t> const&) override {}                       // 67  render
     void RedisplayTerrainRect(bool terrain, bool water, SC4Rect<int32_t> const& r,
                               uint32_t data4) override;                        // 68
@@ -651,11 +790,14 @@ cFC4STETerrain::cFC4STETerrain() {
 cFC4STETerrain::~cFC4STETerrain() {
     DestroyCore();
     if (f_.view != nullptr) {
-        // The view came from GZCOM()->GetClassObject: its QI took one reference.
-        static_cast<cIGZUnknown*>(f_.view)->Release();
+        // The view came from GZCOM()->GetClassObject: its QI took one reference, on base + 0x0C.
+        // [choice] its Shutdown (0x007560F0) is not called: the spec gives no caller (question TR35).
+        FC4_RELEASE_CREATED(reinterpret_cast<cIGZUnknown*>(static_cast<uint8_t*>(f_.view) + kViewInterfaceOffset));
         f_.view = nullptr;
         f_.renderObject = nullptr;
     }
+    f_.vertices = nullptr;
+    FreeMirror(this);
     if (water_ != nullptr) {
         f_.surfaceWater = nullptr;
         water_->Release();
@@ -672,6 +814,9 @@ bool cFC4STETerrain::Enter() const {
 }
 
 void cFC4STETerrain::Leave() const {
+    // Outermost exit: anything that posted a redisplay changed what the view will copy when the posted
+    // message arrives (§15.5.8), so refresh the raw arrays now, before the message pump delivers it.
+    if (depth_ == 1 && g_mirrorDirty.exchange(false, std::memory_order_acq_rel)) SyncMirror(core_);
     --depth_;
     LeaveCriticalSection(&lock_);
 }
@@ -744,6 +889,9 @@ bool cFC4STETerrain::CreateCore(uint32_t cellsX, uint32_t cellsZ) {
     f_.neighbourOffset[5] = vsx + 1;
     f_.neighbourOffset[6] = vsx;
     f_.neighbourOffset[7] = vsx - 1;
+    // §15.5.11 item 12: T+0x6C is a live 0x24-byte vertex array before anything draws.
+    AllocateMirror(this, vx, vx * vz);
+    f_.vertices = g_mirror.vertices.data();
     g_activeCore.store(core_, std::memory_order_release);
     g_cellsX.store(cellsX, std::memory_order_release);
     g_cellsZ.store(cellsZ, std::memory_order_release);
@@ -753,6 +901,8 @@ bool cFC4STETerrain::CreateCore(uint32_t cellsX, uint32_t cellsZ) {
 void cFC4STETerrain::DestroyCore() {
     if (core_ == nullptr) return;
     g_activeCore.store(nullptr, std::memory_order_release);
+    // The raw arrays stay allocated (and T+0x6C live) until the terrain object itself goes: the view
+    // reads T+0x6C through its own terrain reference and may still draw after PreCityShutdown.
     fc4_terrain_destroy(core_);
     core_ = nullptr;
     g_cellsX.store(0, std::memory_order_release);
@@ -835,39 +985,72 @@ void cFC4STETerrain::Unsubscribe() {
     subscribed_ = false;
 }
 
+// terrain.md §15.5.1 / §15.5.7 / §15.5.11: DoPostCityInit (slot 40) creates and Inits the game's own 3D
+// terrain view, and must finish before any other PostCityInit consumer calls slot 66 (item 17). The
+// terrain subscribes to PostCityInit in its Init, before the zone developer does (§15.5.1).
 void cFC4STETerrain::DoPostCityInit() {
     Enter();
-    if (core_ != nullptr) {
-        // TR9 (§2.3): the original copies the 3D camera's zoom (global
-        // 0x00B43DD8, +0xC) into +0xBC here. The plugin has no camera
-        // interface, so the level keeps its constructor value 0 until the
-        // first view-update message 0xA6B79602 arrives - which is also what a
-        // harness with no view sees (conformance test 20).
+    do {
+        // Step 1: once (the guard byte at terrain +0x14, struct offset 0x08).
+        if (f_._p01[0x07] != 0) break;
+        f_._p01[0x07] = 1;
+        if (core_ == nullptr) break;
+        // Step 2 (TR9, §2.3): the original copies the 3D camera's zoom (global 0x00B43DD8, +0xC) into
+        // +0xBC here. The plugin has no camera interface, so the level keeps its constructor value 0
+        // until the first view-update message 0xA6B79602 arrives (conformance test 20).
         fc4_terrain_set_default_brush_level(core_, f_.defaultBrushLevel);
-        fc4_terrain_post_city_init(core_);
-        f_.viewReady = 1;  // §8.1 gate
-        // §2.3 (+0xE8) / §15.1 slot 66: the 3D terrain view (class 0xC9B84E10),
-        // which the original's DoPostCityInit creates. zones.md §5.2: the zone
-        // developer's PostCityInit handler takes the terrain view from slot 66
-        // and dereferences it, so a null one faults there. Drawing is out of the
-        // terrain spec's scope, but the object itself is not optional: it is
-        // created through the game's own class factory, never hand-built.
+        // The view's Init and its first message handlers copy from T+0x6C / W+0x18: fill them first.
+        g_mirrorDirty.store(false, std::memory_order_release);
+        SyncMirror(core_);
+        bool viewInited = false;
         if (f_.view == nullptr) {
+            // Step 3: the GZCOM class factory, CLSID 0xC9B84E10, IID 0x6771477D; store out - 0x0C.
+            // Step 4 (operator new + the ctor) is not taken: the factory is the game's own and the
+            // plugin does not construct game objects by hand. A failure is logged, not faked.
             cIGZCOM* com = GZCOM();
-            void* view = nullptr;
-            if (com != nullptr && com->GetClassObject(kFC4_CLSID_cSTETerrainView, GZIID_cIGZUnknown, &view) &&
-                view != nullptr) {
-                f_.view = view;
-                f_.renderObject = view;
-                Log("terrain: created the terrain 3D view (class 0x%08X) at DoPostCityInit",
-                    kFC4_CLSID_cSTETerrainView);
+            void* out = nullptr;
+            if (com != nullptr && com->GetClassObject(kFC4_CLSID_cSTETerrainView, kIID_cISTETerrainView3D, &out) &&
+                out != nullptr) {
+                f_.view = static_cast<uint8_t*>(out) - kViewInterfaceOffset;
+                Log("terrain: created the terrain 3D view (class 0x%08X, IID 0x%08X) at DoPostCityInit",
+                    kFC4_CLSID_cSTETerrainView, kIID_cISTETerrainView3D);
             } else {
                 Log("terrain: WARNING the terrain 3D view (class 0x%08X) could not be created; the zone "
-                    "developer's PostCityInit path reads it (zones.md §5.2)",
+                    "developer's PostCityInit path reads it (§15.5.1)",
                     kFC4_CLSID_cSTETerrainView);
             }
+            // Step 5: view->Init(terrain), thiscall on the view base, one stack argument (§15.5.4).
+            // Init dereferences the surface water global (filled from city slot 83) without a check:
+            // refuse to call it when the city has no surface water. The preferences global 0x00B43CD8
+            // is the game's own app object and is not reachable through an interface (§15.5.4).
+            cISC4City* city = static_cast<cISC4City*>(f_.city);
+            const uintptr_t init = compat::DirectCall(compat::Direct::TerrainView3DInit);
+            if (f_.view != nullptr && init != 0 && city != nullptr && city->GetSurfaceWater() != nullptr) {
+                using ViewInitFn = uint32_t(__fastcall*)(void* viewBase, void* edx, void* terrain);
+                const uint32_t r = reinterpret_cast<ViewInitFn>(init)(f_.view, nullptr, Primary());
+                FC4_X87_CHECK("terrain view Init");
+                viewInited = r != 0;
+                Log("terrain: terrain 3D view Init(terrain) -> %u (1 ok, 0 already, §15.5.4)", r);
+            } else if (f_.view != nullptr) {
+                Log("terrain: WARNING terrain 3D view Init NOT called (init=%d city=%d water=%d)", init != 0 ? 1 : 0,
+                    city != nullptr ? 1 : 0, (city != nullptr && city->GetSurfaceWater() != nullptr) ? 1 : 0);
+            }
         }
-    }
+        // Step 6: the view-ready flag +0xEC (the §8.1 gate). [choice] the +0x100 object's slot 5 is not
+        // called: TerrainFields has no such object (the spec does not say what it is; question TR34).
+        fc4_terrain_post_city_init(core_);
+        f_.viewReady = 1;
+        // Step 7: 0x00743B60 and 0x007490B0 on the whole-city vertex rect are not named by the spec.
+        // [choice] the literal effect the view needs is its heights and water copied in (§15.5.8: the
+        // posts are its only channel), so redisplay the whole city once (question TR33).
+        if (viewInited) {
+            fc4_terrain_rect r{0, 0, f_.cityRect[2], f_.cityRect[3]};
+            fc4_terrain_redisplay(core_, true, true, r, 0);
+        }
+        // Steps 8-9 (+0xF0/+0xF4 := view +0x70/+0x74, +0xF8 := the overlay manager) are not kept:
+        // those fields are not part of TerrainFields and nothing the replacement exports reads them.
+        // renderObject (+0xE4, slot 54) stays the city: Init sets it so on purpose (in-game evidence).
+    } while (false);
     Leave();
 }
 
@@ -1378,6 +1561,7 @@ bool cFC4STETerrain::SetTerrainCellFlags(uint32_t x, uint32_t z, uint32_t flags)
     if ((flags & 4u) != 0) f = static_cast<uint16_t>(f | kFlagCell4);
     if ((flags & 8u) != 0) f = static_cast<uint16_t>(f | kFlagFlipExternal);
     fc4_terrain_set_vertex_flags(core, static_cast<int32_t>(x), static_cast<int32_t>(z), f);
+    MirrorFlags(x, z, f);
     return true;
 }
 

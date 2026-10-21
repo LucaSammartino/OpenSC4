@@ -281,3 +281,13 @@ null (docs/specs/neighbors.md §15.4 NG35).
 | Return | AL: true only when the dialog was closed with the Yes button (ID `0x8A8DFD4E`) |
 | Popups off | returns false at once (gate a, `SC4GetPopupModalDialogsEnabled`, NG36) |
 | Popups on | takes the hidden pause (simulator and clock) and runs the dialog modally: the caller must not hold a lock the game's other threads or the dialog's own callers need |
+
+## cSTETerrainView3D::Init `0x0075C420` (terrain.md §15.5.4, §15.5.11 item 3)
+
+`uint32_t Init(cISTETerrain* terrain)`: `__thiscall`, `this` = the view **object base** (the factory's
+`CreateInstance(0xC9B84E10, 0x6771477D)` pointer minus `0x0C`), one stack argument = the terrain's primary
+`cISTETerrain*`; `ret 4`; EAX 1 on success, 0 when already initialised (`+0x18`). The plugin calls it as
+`__fastcall(viewBase, edx unused, terrain)`, which is the same register/stack contract. Caller: the replacement
+terrain's `DoPostCityInit` (`cFC4Terrain.cpp`, `enable = terrain`), only when the city's surface water (slot 83) is
+non-null, because `Init` dereferences the surface water global unchecked (§15.5.4). It reads terrain slots 1, 7, 8
+and 42, subscribes the view to six messages and registers its draw callbacks.

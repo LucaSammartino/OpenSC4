@@ -57,6 +57,7 @@ const ExecutableVersion kVersions[] = {
             0x005E37F0,  // cSC4LotRetainingWallOccupant::UpdateRetainingWalls
             0x005E3960,  // cSC4LotRetainingWallOccupant::UpdateSurroundingRetainingWalls
             0x005EEB70,  // cSC4PropOccupantBurntBuilding::SetBoundsFromOccupant (direct-calls.md; LD14)
+            0x0075C420,  // terrain 3D view Init (direct-calls.md; terrain.md §15.5.4)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -487,7 +488,8 @@ uintptr_t DirectCall(Direct which) {
                                          "lot pool allocate",     "lot constructor",
                                          "GenericConfirmationDialog",
                                          "AddRetainingWallOccupant", "UpdateRetainingWalls",
-                                         "UpdateSurroundingRetainingWalls", "burnt building SetBoundsFromOccupant"};
+                                         "UpdateSurroundingRetainingWalls", "burnt building SetBoundsFromOccupant",
+                                         "terrain 3D view Init"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};

@@ -51,6 +51,9 @@ enum class Direct : unsigned {
     RetainingWallsUpdateSurrounding,  // UpdateSurroundingRetainingWalls: void (cISC4Lot*), pops 4
     BurntBuildingSetBounds,           // cSC4PropOccupantBurntBuilding::SetBoundsFromOccupant: thiscall on the
                                       //   base (cISC4Occupant* source), pop 4, void (direct-calls.md; LD14)
+    TerrainView3DInit,                // the terrain 3D view's Init: fastcall (ECX = view base, EDX unused,
+                                      //   stack cISTETerrain* primary), pop 4, EAX 1 ok / 0 already
+                                      //   (direct-calls.md; terrain.md §15.5.4)
     Count
 };
 
