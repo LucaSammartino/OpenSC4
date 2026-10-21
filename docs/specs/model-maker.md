@@ -661,6 +661,34 @@ swapped texture instance, `+0x24` counted texture binding, `+0x28..+0x2B` four s
   12-byte entries each (v, v, v) with v the dword at `0x00B216F8`. `0x00491210`: destructor freeing the buffer at
   `+0x0C`, then the base destructor `0x005E95C0`.
 
+### 12.6 `LoadNetworkModels(o, zoom, rot)` (`0x0048F4D0`) and `LoadUndergroundConnectionModels(o, zoom, rot)` (`0x0048F5B0`) *[compat]*
+
+Both RET 0xC and share one tail. A local list of up to 10 model instances and a count (0) are filled by the
+occupant itself, with the arguments (zoom, rot, list, 10, &count):
+
+| function | occupant type (o slot `+0x1C`) | filled by |
+|---|---|---|
+| network | `0x2890D4DE` | the object at o - 8 (the occupant's primary base), slot `+0x44` |
+| network | any other | o's interface `0xA821EF94` (when o answers), slot `+0x84`; the interface is released |
+| network | other, no `0xA821EF94` | nothing (count 0) |
+| underground | `0x2A183167` or `0x8A13918A` | o slot `+0x90` |
+| underground | any other | nothing (count 0) |
+
+Tail: h = o's model holder (slot `+0x4C`, AddRef'd when present); for each filled instance in order: h slot
+`+0x14(inst)` (add it to the holder), then release the list's reference. Release h. Returns count > 0. (A
+holder-less occupant that fills instances is not guarded in the original.)
+
+## 13. Terrain hiding (partial)
+
+### 13.1 `DoTerrainHidingForOccupantCells(o, t, flag)` (`0x00492440`) *[compat]*
+
+RET 0xC, returns a bool. r = o's cell rect (slot `+0x2C`: x0, z0, x1, z1, inclusive). If x0 > x1 or z0 > z1:
+false. Clip r to the city cell rect `+0x30` with the intersection of §7.3 (`0x0048ED90`); empty: false.
+mode = false, except when t = `0x68FD0C69` and flag is true and o answers `0xC8FCE101`: mode = (that interface's
+slot `+0x24` = 2) (released after). If `DoTerrainHidingForCells(r, mode)` (`0x00491CD0`, remainder) is false,
+return false. Otherwise make r end-exclusive (x1 + 1, z1 + 1) and ask the terrain (`+0x70`) to refresh it: slot
+`+0x110(0, 0, &r, 0)`; return true. `RemoveModels` (§12.1) passes flag 0, so removal always uses mode false.
+
 ## 19. Conformance cases
 
 | case | setup | expected |
@@ -694,7 +722,7 @@ Round 2 cases (§6, §7, §9, §10):
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
-Specified: 19403 bytes; remainder (not yet specified or only outlined): 15302 bytes. The remainder is **not empty**,
+Specified: 20022 bytes; remainder (not yet specified or only outlined): 14683 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
 
 | address | bytes | name | section |
@@ -726,8 +754,8 @@ so this spec does not yet claim the whole owner.
 | `0x0048F290` | 229 | cSC4ModelMaker::ChangeModels | §12.4 |
 | `0x0048F380` | 268 | FUN_0048f380 | §12.4 |
 | `0x0048F490` | 58 | FUN_0048f490 | §12.3 |
-| `0x0048F4D0` | 217 | cSC4ModelMaker::LoadNetworkModels | remainder |
-| `0x0048F5B0` | 169 | cSC4ModelMaker::LoadUndergroundConnectionModels | remainder |
+| `0x0048F4D0` | 217 | cSC4ModelMaker::LoadNetworkModels | §12.6 |
+| `0x0048F5B0` | 169 | cSC4ModelMaker::LoadUndergroundConnectionModels | §12.6 |
 | `0x0048F660` | 689 | cSC4ModelMaker::UpdateModelLoadRect | §7.2 |
 | `0x0048F920` | 283 | cSC4ModelMaker::CreatePlaceHolderModelInstance | remainder |
 | `0x0048FA40` | 1295 | cSC4ModelMaker::FindModelTransform | remainder |
@@ -752,7 +780,7 @@ so this spec does not yet claim the whole owner.
 | `0x00491C80` | 8 | FUN_00491c80 | §1 |
 | `0x00491C90` | 60 | FUN_00491c90 | §3.4 |
 | `0x00491CD0` | 1874 | cSC4ModelMaker::DoTerrainHidingForCells | remainder |
-| `0x00492440` | 233 | cSC4ModelMaker::DoTerrainHidingForOccupantCells | remainder |
+| `0x00492440` | 233 | cSC4ModelMaker::DoTerrainHidingForOccupantCells | §13.1 |
 | `0x00492530` | 584 | cSC4ModelMaker::UnloadUnnecessaryModels | §7.4 |
 | `0x00492780` | 311 | cSC4ModelMaker::RemoveModelsInappropriateForRotation | §7.5 |
 | `0x004928C0` | 232 | FUN_004928c0 | §12.5 |
