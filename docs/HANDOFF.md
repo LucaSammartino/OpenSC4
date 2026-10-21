@@ -7,6 +7,9 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**Assigned outside work** ([assignments.tsv](assignments.tsv)): the `region` subsystem is assigned to LucaSammartino
+(RE specs, by PR) until 2026-11-21. `lanes.py check` refuses a lane that names `region`. Do not spawn region work.
+
 **train47 landed aec5f2810b:** Five-lane docs-only unblock batch: MS8-MS10 allinferences resolved; BW1-BW4/BW6-BW9 contracts answered with explicit coreDIFFERS (BW5 runtime modifier test open); EF11-EF13 tick/select/emitter corrections;1555 nativebridge and r24 confirmed, constructedpixel route labelled and shippedproducerquestions open. Render3D spec stillpartial at actual3/3, parked; no wholeowner credit. No ABI/runtime changes, gate/regress skipped. Checkpoint125 committed; successful prior landed phases do not consume newlane caps. Coverage44.3/34.5/16.1/17.8; rounds130 (open-ended).
 
 **train46 landed 58f47b0eb2:** Two-lane engine batch; exemplar registry conflict excluded instead of holding the batch. SimGrid factory promoted after clean current37+simgrids joint2032/ref0,136read/write grids and original-class reload116/116digestsref0; full64-test gate and candidate union regress PASS. SG1 remains open; no helper or shadow credit. Trip/base-texture cores credited only; lot/business-unit/retaining-wall owners withheld pendingLR1-LR5. Per-lane counters corrected for advisor/audio follow-ups: prior landed setup phases do not consume these lanes'3-round caps; no fourth round or guard override. Coverage44.3/34.5/16.1/17.8; rounds128 (open-ended).

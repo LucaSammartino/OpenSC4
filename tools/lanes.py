@@ -488,6 +488,21 @@ def cmd_check(ctx, a):
             if (base / "docs" / "lanes" / f"{lane}.md").exists():
                 reasons.append(f"docs/lanes/{lane}.md already exists")
                 break
+    # 2b. work assigned to an outside contributor (docs/assignments.tsv) until its date
+    res_file = ctx.main / "docs" / "assignments.tsv"
+    if res_file.exists():
+        today = datetime.date.today().isoformat()
+        keys_l = {k.strip().lower() for k in (a.touches or "").split(",") if k.strip()}
+        for row in res_file.read_text(encoding="utf-8").splitlines():
+            if not row.strip() or row.startswith("#"):
+                continue
+            spec, who, until = (row.split("\t") + ["", "", ""])[:3]
+            spec = spec.strip().lower()
+            if until.strip() < today:
+                continue
+            if spec in keys_l or spec in lane.lower():
+                reasons.append(f"{spec} is assigned to {who.strip()} until {until.strip()} "
+                               f"(docs/assignments.tsv): pick other work")
     # 3. possible duplicate work: another unmerged lane mentions a --touches key
     try:
         keys = split_touch_keys(a.touches)
