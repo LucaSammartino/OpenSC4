@@ -292,6 +292,14 @@ See docs/specs/questions/city-tools-input.md (CT1-CT12).
 4. Rotation keys: four presses of `0x6A935CD5` return the rotation to its start; `0x6A935CD1` then `0x6A935CD5`
    is the identity.
 5. A failed left click plays `(0xEA451903, 0xAA62C9D5, 0, 0, 0)`; a successful one does not.
+6. Query tool (§8): mode 0 `Init` sets ID `0xC7AF928E` and cursor `0x816D7F74`, mode 1 `0xC7AF928F` and
+   `0xCB8D5B54`; both subscribe the six messages of §8.4 in order and `Shutdown` unsubscribes them; only mode 1
+   holds `+0x48`/`+0x4C`.
+7. Query tool hover filter: mode 0 accepts a power pole and rejects a prop without property `0x8A416A99`; mode 1
+   rejects a power line (network type 5) and a pipe (type 4) and accepts a road (type 0).
+8. Query tool: a mouse move that changes the hovered occupant restores the old occupant's saved highlight state
+   and sets state 7 on the new one; `OnMouseExit` leaves no occupant highlighted; message `0x26D31EC2` stops tip
+   text until the next mouse move restarts the timer.
 
 ## 7. Coverage
 
