@@ -315,9 +315,6 @@ Swedish Monday abbreviation `M\xE5` + U+0006 + `E`, Polish `[U+008C]r` and `Pa[U
   `style` / `format` values was not traced; this spec covers the service's outputs only.
 - **Q3 - negative zero:** step 4 of §4.4 prints the negated value for `value <= 0`, so 0.0 is printed from
   −0.0; whether the game's C runtime prints `-0.00` (making `$-0.00`) or `0.00` was not measured.
-- **Q4 - case length:** the case converters pass the **output** string's length on entry to the Windows call
-  (as read from the pseudocode at `0x00927E7E` / `0x00927EDF`, not instruction-verified); if the caller
-  passes the same object as in and out this is the text length, otherwise it may map too few or too many
-  bytes. Instruction check pending.
-- **Q5 - formatted number:** slot 19 forwards to the out string's format slot (+0x6C) with the format text and
-  the double; the varargs order was taken from the pseudocode, not checked against the instructions.
+- Q4 and Q5 were checked against the instructions and are rules, not questions: the case converters take
+  the length from the **out** string on entry (`0x00927EA9`, slot +0x1C of out) and `MakeFormattedNumberString`
+  makes one varargs call to out's slot +0x6C with (format text, double) (`0x00927C0A`).
