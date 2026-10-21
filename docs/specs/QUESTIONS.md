@@ -66,6 +66,7 @@ generated index: the questions live one file per spec, so read only the file for
 | LD | lot-developer |
 | LF | landfill |
 | LG | landfill |
+| LR | lot-records |
 | LU | language-utility |
 | LV | landvalue |
 | MS | mysims |
@@ -96,6 +97,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RN | foundations |
 | RS | residential |
 | RZ | framework-rz-files |
+| SG | simgrid |
 | SL | strings-language |
 | SP | span-render-4444 |
 | SR | span-render-1555, span-render-565, span-render-8, span-render-8888 |
@@ -155,6 +157,7 @@ generated index: the questions live one file per spec, so read only the file for
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
+| lot-records | 5 | 0 | LR6 | questions/lot-records.md |
 | mysims | 3 | 7 | MS11 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
@@ -184,6 +187,7 @@ generated index: the questions live one file per spec, so read only the file for
 | renderer-driver | 4 | 1 | RD6 | questions/renderer-driver.md |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
+| simgrid | 1 | 0 | SG2 | questions/simgrid.md |
 | span-render-1555 | 2 | 3 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 1 | SP5 | questions/span-render-4444.md |
 | span-render-565 | 4 | 0 | SR566 | questions/span-render-565.md |
@@ -201,4 +205,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **201** | **1028** | | |
+| **total** | **207** | **1028** | | |
