@@ -1,8 +1,13 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-disasters-impl4 (`enable = disasters`: cFC4DisasterLayer replacement per disasters.md §2.8) | `glue-disasters-impl4` / (engine lane) | in progress | see Handoff |
+| glue-disasters-impl4 (`enable = disasters`: cFC4DisasterLayer replacement per disasters.md §2.8) | `glue-disasters-impl4` / (engine lane) | in progress: capi layer-only state done (5c469cc3, 6 Rust tests pass), fc4.h decls; C++ class not started; no game run | see Handoff |
 
 ## Handoff
-- Goal: layer-only cFC4DisasterLayer (class 0x61F6ABF5, IID 0x29B02A2C), native managers via slot 7, §2.8 boundary, conformance 23/24, game run clean.
-- Done: (none yet)
-- Next: read disasters.md §1/§2/§2.8/§3/§15/§18 tests 23-24; FC4Subsystems.cpp ClassEntry; core layer.rs; capi disasters.
+- Goal: layer-only cFC4DisasterLayer (CLSID 0x61F6ABF5, IID 0x29B02A2C), native managers kept, §2.8 boundary, conformance 23/24, clean game run with an actual disaster.
+- Done: 5c469cc3 engine/capi/src/disaster_layer.rs (+_tests.rs, lib.rs mod): fc4_dlayer_* (init/shutdown/enable/begun/ended/occupant_removed/dispatch/record/register/unregister/most_recent/location_at/go_to_next) over an fc4_dlayer_host table; Mutex state, same-thread re-entry refused. Next commit: fc4.h declarations (inserted before the extern "C" close).
+- Next: write engine/plugin/cFC4DisasterLayer.{h,cpp}: own interface class with the 19 slots (SDK header's DisasterHasEnded takes an arg but spec/ABI says pop 0: declare `bool DisasterHasEnded()`); GetDisasterCost returns pointer to a member record laid out per §2.6 (record offsets 0x00 u32,0x08 i64, kind pairs 0x10..0x48, 0x50 12-byte vector left zero, 0x5C/0x60 floats); refcount starts 0 (director QI adds the 1 ref, test 23); cIGZMessageTarget2 sub-object for the 5 assessment messages (0x99EF1143, 0xE94671EC, 0xE94671EB, 0x894671F6, 0xE94671ED).
+- Init: if fc4_dlayer_init first time: GZCOM CreateInstance(class, 0x021E9CBF) for the 7 (type,class) of §1 in table order, map by GetID, Init each in ascending type; slot 7 returns the stored pointer, no AddRef. Shutdown: managers slot 4 (re-entrant 9/14 arrive), Release, clear, then fc4_dlayer_shutdown. City from cISC4AppPtr->GetCity() (hold no ref).
+- Host callbacks: copy patterns from engine/plugin/FC4DisasterHost.cpp lines 118-325 (EmergencyPause sim slot 11, DisableSave city 104, dispatch counts via AsGame(...)->GetTotalDispatchCount, PropI64, InManager IsFlagSet(1), DisasterOccupantCell). BuildingTypeFlags/FollowDisasters stay 0/false as the existing host does ([question Q31]).
+- Register: FC4Subsystems.cpp new `kDisasterLayerClasses` + `{"disasters", ...}` at end of kSubsystems (check key not already used: grep '"disasters"'); CMakeLists add cpp. Check FC4DisasterShadow does not hook our layer when enabled.
+- Conformance 23/24: plugin_load_test or engine/conformance (find where other replacement ref tests live); script action `disaster fire auto` (FC4Script `disaster` op) for the game trace; riot holds the emergency pause (use seconds).
+- Facts: ctx tool reported 119k at the first commit, budget 150k: keep calls small. Baseline qbuild all output in build-runs/baseline-all.txt (started with the capi change partly present).
