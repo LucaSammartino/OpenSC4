@@ -16,6 +16,7 @@ pub mod font;
 pub mod fontsys;
 pub mod layout;
 pub mod thai;
+pub mod words;
 
 #[cfg(test)]
 mod tests;
@@ -96,14 +97,7 @@ pub trait FontFace: Send {
         None
     }
     /// Set the char size to `size` points at `dpi_x` × `dpi_y` with the scaling transform.
-    fn set_char_size(
-        &mut self,
-        size: u32,
-        dpi_x: u32,
-        dpi_y: u32,
-        scale_x: f32,
-        scale_y: f32,
-    ) -> Option<SizeMetrics>;
+    fn set_char_size(&mut self, size: u32, dpi_x: u32, dpi_y: u32, scale_x: f32, scale_y: f32) -> Option<SizeMetrics>;
     /// Load and render glyph `index` with the holder's u16 load flags (§5: 0x000A, plus 0x80 for
     /// source types 1/4, 0x01 for 2/3); `None` when the load reports an error.
     fn load_glyph(&mut self, index: u32, levels: GreyLevels, load_flags: u16) -> Option<GlyphRaster>;

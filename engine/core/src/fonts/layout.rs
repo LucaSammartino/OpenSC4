@@ -1,25 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Measuring and layout of `cGZFont` (drawing-fonts.md §8) and DrawTextParagraph (§9).
-//!
-//! The spec leaves `UTF16GetWord`, the "break characters", Thai clusters and "composed characters"
-//! unspecified (question FN13). Literal reading used here: a composed character is one converted
-//! UTF-16 unit; a word is a run of units other than space (U+0020), tab, CR and LF, followed by its
-//! run of spaces/tabs; the break characters are space and tab; a Thai cluster is one unit.
+//! Measuring and layout of `cGZFont` (drawing-fonts.md §8) and DrawTextParagraph (§9). Words,
+//! clusters and the space class (§8.4, FN13) are in `words.rs`.
 
 use super::encoding::Converted;
 use super::font::GzFont;
+use super::words;
 use super::SurfaceId;
 
 const CR: u16 = 0x0D;
 const LF: u16 = 0x0A;
-
-fn is_blank(u: u16) -> bool {
-    u == 0x20 || u == 0x09
-}
-/// Whitespace dropped by GetStringVisibleWidth (FN13: the set is not listed).
-fn is_space(u: u16) -> bool {
-    u == 0x20 || (0x09..=0x0D).contains(&u)
-}
 
 /// Rectangle {left, top, right, bottom}.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -42,32 +31,50 @@ impl GzFont {
     pub fn get_x_offset(&mut self, ch: u32) -> i32 {
         self.get_char_data(ch).map_or(0, |g| g.x_offset as i32)
     }
-    /// Slot 40, GetAdvanceWidth(ch): advance + charSpacing (0 without a glyph, FN13).
+    /// Slot 40, GetAdvanceWidth(ch): advance + charSpacing; 0 (no charSpacing) when uninitialised
+    /// or without a glyph record (§8.4).
     pub fn get_advance_width(&mut self, ch: u32) -> i32 {
+        if !self.initialised {
+            return 0;
+        }
         match self.get_char_data(ch) {
             Some(g) => g.advance as i32 + self.char_spacing,
             None => 0,
         }
     }
 
-    fn units_width(&mut self, units: &[u16]) -> i32 {
-        units.iter().map(|&u| self.get_advance_width(u as u32)).sum()
+    /// GetStringWidth over the first `n` units of `buf` (§8.4): the advance of the first unit of
+    /// each composed character.
+    fn units_width(&mut self, buf: &[u16], n: usize) -> i32 {
+        let mut w = 0i32;
+        let mut i = 0;
+        while i < n {
+            w = w.wrapping_add(self.get_advance_width(buf[i] as u32));
+            i += words::composed_len(&buf[i..], n - i).max(1);
+        }
+        w
+    }
+
+    /// Units left after dropping trailing units of the space class (§8.4).
+    fn visible_len(units: &[u16]) -> usize {
+        let mut k = units.len();
+        while k > 0 && words::is_space(units[k - 1]) {
+            k -= 1;
+        }
+        k
     }
 
     /// Slot 48, GetStringWidth(s, n).
     pub fn get_string_width(&mut self, s: &[u8]) -> i32 {
         let c = self.convert(s);
-        self.units_width(&c.units)
+        self.units_width(&c.units, c.units.len())
     }
 
     /// Slot 49, GetStringVisibleWidth(s, n, &len): (width, len).
     pub fn get_string_visible_width(&mut self, s: &[u8]) -> (i32, u32) {
         let c = self.convert(s);
-        let mut k = c.units.len();
-        while k > 0 && is_space(c.units[k - 1]) {
-            k -= 1;
-        }
-        let w = self.units_width(&c.units[..k]);
+        let k = Self::visible_len(&c.units);
+        let w = self.units_width(&c.units, k);
         (w, c.src_len_of(k))
     }
 
@@ -87,71 +94,78 @@ impl GzFont {
         (c.src_len_of(k), width)
     }
 
-    /// End (exclusive) of the word starting at `pos`.
-    fn word_end(units: &[u16], pos: usize) -> (usize, usize) {
-        let mut e = pos;
-        while e < units.len() && !is_blank(units[e]) && units[e] != CR && units[e] != LF {
-            e += 1;
-        }
-        let vis_end = e;
-        while e < units.len() && is_blank(units[e]) {
-            e += 1;
-        }
-        (vis_end, e)
-    }
-
-    fn words_count(&mut self, c: &Converted, w: i32, mode: u32) -> usize {
+    /// §8.1 on converted text: the unit count before the §11 map-back.
+    fn words_count(&mut self, c: &Converted, w: i32, mode: u32) -> Option<usize> {
         let u = &c.units;
-        let mut pos = 0usize;
-        let mut width = 0i32;
-        while pos < u.len() {
-            if u[pos] == CR || u[pos] == LF {
-                pos += 1;
+        let n = u.len();
+        let mut i = 0usize;
+        let mut sum = 0i32;
+        while i < n {
+            if u[i] == CR || u[i] == LF {
+                i += 1;
                 break;
             }
-            let (vis_end, end) = Self::word_end(u, pos);
-            let vis = self.units_width(&u[pos..vis_end]);
-            if width + vis > w {
+            let wl = words::get_word(&u[i..]);
+            let word = &u[i..i + wl];
+            let vw = self.units_width(word, Self::visible_len(word));
+            if vw.wrapping_add(sum) as u32 > w as u32 {
                 break;
             }
-            width += self.units_width(&u[vis_end..end]) + vis;
-            pos = end;
+            sum = sum.wrapping_add(self.units_width(word, wl));
+            i += wl;
         }
-        if pos == 0 && !u.is_empty() {
-            if mode == 1 {
-                while pos < u.len() && !matches!(u[pos], CR | LF | 0) && !is_blank(u[pos]) {
-                    pos += 1;
+        if i == 0 {
+            match mode {
+                1 => {
+                    while i < n && !matches!(u[i], 0 | LF | CR) && !words::is_space(u[i]) {
+                        i += words::get_word(&u[i..]);
+                    }
                 }
-            } else {
-                let mut k = 0usize;
-                let mut pw = 0;
-                while k < u.len() && pw < w {
-                    pw += self.get_advance_width(u[k] as u32);
-                    k += 1;
+                2 => {
+                    let mut prev;
+                    loop {
+                        prev = i;
+                        i += if words::is_thai(u[i]) {
+                            words::thai_cluster_len(&u[i..], n - i)
+                        } else {
+                            1
+                        };
+                        // The original has no end bound here; it cannot be reached with
+                        // non-negative advances (the first word is already wider than w).
+                        if i >= n || self.units_width(u, i) >= w {
+                            break;
+                        }
+                    }
+                    i = i.min(n);
+                    if prev != 0 && self.units_width(u, i) >= w {
+                        i = prev;
+                    }
+                    if i < n && c.substituted && c.src[i - 1] == c.src[i] {
+                        i += 1;
+                    }
                 }
-                if pw >= w && k > 0 {
-                    k -= 1;
-                }
-                // At least one unit, so line counting always advances (FN13).
-                k = k.max(1);
-                if k < u.len() && c.src[k] == c.src[k - 1] {
-                    k += 1;
-                }
-                pos = k;
+                _ => return None,
             }
         }
-        if pos > 1 && pos < u.len() && !is_blank(u[pos - 1]) && u[pos] == 0x20 {
-            pos += 1;
+        if i > 1 && !words::is_space(u[i - 1]) && i < n && words::is_space(u[i]) {
+            i += 1;
         }
-        pos
+        Some(i)
     }
 
     /// Slot 41, CalculateWordsToFitInWidth(s, n, w, &width, mode): (source length, width).
     pub fn words_to_fit(&mut self, s: &[u8], w: i32, mode: u32) -> (u32, i32) {
+        if s.is_empty() || w == 0 {
+            return (0, 0);
+        }
         self.glyph_map.clear();
         let c = self.convert(s);
-        self.glyph_map = c.src.clone();
-        let k = self.words_count(&c, w, mode);
+        if c.substituted {
+            self.glyph_map = c.src.clone();
+        }
+        let Some(k) = self.words_count(&c, w, mode) else {
+            return (0, 0);
+        };
         let len = c.src_len_of(k);
         let width = self.get_string_width(&s[..len as usize]);
         (len, width)

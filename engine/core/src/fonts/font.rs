@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use super::cache::{CachedBitmapData, GlyphRecord};
 use super::encoding::{self, Converted, CP_UTF16};
 use super::{
-    aa, CodePageConverter, DrawColour, FontFace, FontLibrary, FontRenderer, GlyphRaster, GreyLevels,
-    ScreenFormat, SizeMetrics, SurfaceId,
+    aa, CodePageConverter, DrawColour, FontFace, FontLibrary, FontRenderer, GlyphRaster, GreyLevels, ScreenFormat,
+    SizeMetrics, SurfaceId,
 };
 
 /// Class ID of `cGZFont` (§1).
@@ -29,14 +29,11 @@ pub const STYLE_STRIKE: u32 = 0x08;
 /// records from byte 12, tag first). An sfnt with neither table falls through to the "%!" test.
 pub fn probe_source_type(lib: &dyn FontLibrary, path: &str) -> u32 {
     let head = lib.read_head(path, 12);
-    let sfnt = head.len() >= 12
-        && (head[..4] == [0, 1, 0, 0] || head[..4] == [0, 2, 0, 0] || &head[..4] == b"OTTO");
+    let sfnt = head.len() >= 12 && (head[..4] == [0, 1, 0, 0] || head[..4] == [0, 2, 0, 0] || &head[..4] == b"OTTO");
     if sfnt {
         let n = u16::from_be_bytes([head[4], head[5]]) as usize;
         let dir = lib.read_head(path, 12 + 16 * n);
-        let tags: Vec<&[u8]> = (0..n)
-            .filter_map(|i| dir.get(12 + 16 * i..16 + 16 * i))
-            .collect();
+        let tags: Vec<&[u8]> = (0..n).filter_map(|i| dir.get(12 + 16 * i..16 + 16 * i)).collect();
         if tags.iter().any(|t| *t == b"DSIG") {
             return 4;
         }
@@ -120,7 +117,11 @@ pub fn split_colour(screen: ScreenFormat, c: u32) -> Option<[u8; 3]> {
     match t {
         4 | 6 => Some([x5(c >> 10), x5(c >> 5), x5(c)]),
         5 => Some([x5(c >> 11), ((((c >> 5) & 63) * 65) >> 4) as u8, x5(c)]),
-        7 => Some([(((c >> 8) & 15) * 17) as u8, (((c >> 4) & 15) * 17) as u8, ((c & 15) * 17) as u8]),
+        7 => Some([
+            (((c >> 8) & 15) * 17) as u8,
+            (((c >> 4) & 15) * 17) as u8,
+            ((c & 15) * 17) as u8,
+        ]),
         8 | 9 => Some([(c >> 16) as u8, (c >> 8) as u8, c as u8]),
         _ => None,
     }
@@ -809,7 +810,8 @@ impl GzFont {
             if self.palettes.len() > 3 {
                 self.palettes.pop();
             }
-            self.palettes.insert(0, Palette::build(fg, bg, self.lib.screen_format()));
+            self.palettes
+                .insert(0, Palette::build(fg, bg, self.lib.screen_format()));
         }
         self.current_palette = Some(self.palettes[0].clone());
     }
@@ -894,7 +896,11 @@ impl GzFont {
             if !self.records.is_empty() {
                 if let Some(r) = &self.renderer {
                     let colour = if self.aa_mode == 2 {
-                        DrawColour::Palette(self.current_palette.clone().unwrap_or_else(|| Palette::build(fg, bg, self.lib.screen_format())))
+                        DrawColour::Palette(
+                            self.current_palette
+                                .clone()
+                                .unwrap_or_else(|| Palette::build(fg, bg, self.lib.screen_format())),
+                        )
                     } else {
                         DrawColour::Colour(fg)
                     };

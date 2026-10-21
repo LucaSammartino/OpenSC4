@@ -36,6 +36,9 @@ impl FontFace for MockFace {
     fn fixed_advance(&self) -> i32 {
         9 << 16
     }
+    fn glyph_name_to_code(&self, name: &str) -> Option<u32> {
+        (name == "uni4E00").then_some(0x41)
+    }
     fn load_glyph(&mut self, index: u32, levels: GreyLevels, _flags: u16) -> Option<GlyphRaster> {
         let a = *self.adv.get(&index)?;
         let w = a.max(0) as u32;
@@ -297,7 +300,7 @@ fn text_area_rules() {
 fn words_to_fit_modes() {
     let mut f = font();
     assert_eq!(f.words_to_fit(b"ab cd\nef", 1000, 2).0, 6);
-    assert_eq!(f.words_to_fit(b"abcdef gh", 20, 1).0, 7);
+    assert_eq!(f.words_to_fit(b"abcdef gh", 20, 1).0, 9); // mode 1 takes the rest of the line (§8.1)
     assert_eq!(f.words_to_fit(b"abcdef gh", 20, 2).0, 2);
     let (w, len) = f.get_string_visible_width(b"ab  ");
     assert_eq!((w, len), (15, 2));
@@ -307,12 +310,61 @@ fn words_to_fit_modes() {
 fn palette_rule() {
     // §9 FN12 vectors (entries 0, 8, 16, 24, 72, 112, 120), proved under unicorn.
     let cases: [(u32, u32, u32, [u32; 7]); 6] = [
-        (7, 0xFFFF, 0xF000, [0xF000, 0xF000, 0xF000, 0xF111, 0xF777, 0xFCCC, 0xFFFF]),
-        (7, 0xF000, 0xFFFF, [0xFFFF, 0xFFFF, 0xFFFF, 0xFEEE, 0xF888, 0xF333, 0xF000]),
+        (
+            7,
+            0xFFFF,
+            0xF000,
+            [0xF000, 0xF000, 0xF000, 0xF111, 0xF777, 0xFCCC, 0xFFFF],
+        ),
+        (
+            7,
+            0xF000,
+            0xFFFF,
+            [0xFFFF, 0xFFFF, 0xFFFF, 0xFEEE, 0xF888, 0xF333, 0xF000],
+        ),
         (7, 0xF84C, 0, [0, 0xF000, 0xF000, 0xF101, 0xF426, 0xF63A, 0xF84C]),
-        (9, 0xFFFF_FFFF, 0xFF00_0000, [0xFF00_0000, 0xFF00_0000, 0xFF00_0F0F, 0xFF00_1F1F, 0xFF00_7F7F, 0xFF00_CFCF, 0xFFFF_FFFF]),
-        (9, 0x00FF_0000, 0, [0, 0xFF00_0000, 0xFF00_0000, 0xFF00_0000, 0xFF00_0000, 0xFF00_0000, 0x00FF_0000]),
-        (9, 0xFF12_3456, 0xFF00_0000, [0xFF00_0000, 0xFF00_0000, 0xFF00_0305, 0xFF00_060A, 0xFF00_1A2B, 0xFF00_2A45, 0xFF12_3456]),
+        (
+            9,
+            0xFFFF_FFFF,
+            0xFF00_0000,
+            [
+                0xFF00_0000,
+                0xFF00_0000,
+                0xFF00_0F0F,
+                0xFF00_1F1F,
+                0xFF00_7F7F,
+                0xFF00_CFCF,
+                0xFFFF_FFFF,
+            ],
+        ),
+        (
+            9,
+            0x00FF_0000,
+            0,
+            [
+                0,
+                0xFF00_0000,
+                0xFF00_0000,
+                0xFF00_0000,
+                0xFF00_0000,
+                0xFF00_0000,
+                0x00FF_0000,
+            ],
+        ),
+        (
+            9,
+            0xFF12_3456,
+            0xFF00_0000,
+            [
+                0xFF00_0000,
+                0xFF00_0000,
+                0xFF00_0305,
+                0xFF00_060A,
+                0xFF00_1A2B,
+                0xFF00_2A45,
+                0xFF12_3456,
+            ],
+        ),
     ];
     for (t, fg, bg, want) in cases {
         let p = Palette::build(fg, bg, ScreenFormat::Screen(t));
@@ -330,9 +382,18 @@ fn palette_rule() {
     assert_eq!(ScreenFormat::from_depth(16), ScreenFormat::Screen(7));
     assert_eq!(ScreenFormat::from_depth(32), ScreenFormat::Screen(9));
     // Split/compose rules of the §9 table for 1555 and 565.
-    assert_eq!(super::font::split_colour(ScreenFormat::Screen(5), 0xFFFF), Some([255, 255, 255]));
-    assert_eq!(super::font::compose_colour(ScreenFormat::Screen(6), 0x17, 0x88, 0xF9), 0x8000 | (0x10 << 7) | (0x88 << 2) | (0xF9 >> 3));
-    assert_eq!(super::font::compose_colour(ScreenFormat::Screen(5), 0x107, 0x2FF, 0x380), (0xFC << 3) | 0x10);
+    assert_eq!(
+        super::font::split_colour(ScreenFormat::Screen(5), 0xFFFF),
+        Some([255, 255, 255])
+    );
+    assert_eq!(
+        super::font::compose_colour(ScreenFormat::Screen(6), 0x17, 0x88, 0xF9),
+        0x8000 | (0x10 << 7) | (0x88 << 2) | (0xF9 >> 3)
+    );
+    assert_eq!(
+        super::font::compose_colour(ScreenFormat::Screen(5), 0x107, 0x2FF, 0x380),
+        (0xFC << 3) | 0x10
+    );
     let mut f = font();
     for i in 0..5 {
         f.set_current_palette(i, 0);
@@ -449,4 +510,179 @@ fn substitutions_worked_example() {
     assert!(s.shutdown());
     assert!(s.catalogue.is_empty() && s.font_names.is_empty());
     assert_eq!(director::class_for(0x1AA404AC), Some(director::FontClass::Font));
+}
+
+// ---- FN7-FN14 answers ----------------------------------------------------------------------
+
+struct HeadLib(Vec<u8>);
+
+impl FontLibrary for HeadLib {
+    fn file_exists(&self, _: &str) -> bool {
+        true
+    }
+    fn open(&self, _: &str) -> Option<Box<dyn FontFace>> {
+        None
+    }
+    fn read_head(&self, _: &str, n: usize) -> Vec<u8> {
+        self.0[..n.min(self.0.len())].to_vec()
+    }
+    fn system_fonts_dir(&self) -> String {
+        String::new()
+    }
+    fn list_files(&self, _: &str, _: &str) -> Vec<String> {
+        Vec::new()
+    }
+    fn screen_format(&self) -> ScreenFormat {
+        ScreenFormat::NoScreen { stale_out: 0 }
+    }
+}
+
+fn sfnt(version: &[u8; 4], tags: &[&[u8; 4]]) -> Vec<u8> {
+    let mut v = version.to_vec();
+    v.extend_from_slice(&(tags.len() as u16).to_be_bytes());
+    v.extend_from_slice(&[0; 6]);
+    for t in tags {
+        v.extend_from_slice(*t);
+        v.extend_from_slice(&[0; 12]);
+    }
+    v
+}
+
+#[test]
+fn fn10_content_probe() {
+    use super::font::probe_source_type as probe;
+    let p = |b: Vec<u8>| probe(&HeadLib(b), "x");
+    assert_eq!(p(sfnt(&[0, 1, 0, 0], &[b"cmap", b"DSIG", b"loca"])), 4);
+    assert_eq!(p(sfnt(&[0, 2, 0, 0], &[b"glyf", b"loca"])), 1);
+    assert_eq!(p(sfnt(b"OTTO", &[b"sloc"])), 1);
+    assert_eq!(p(sfnt(b"OTTO", &[b"CFF "])), 0);
+    assert_eq!(p(b"%!PS-AdobeFont".to_vec()), 2);
+    assert_eq!(p(b"ttcf\0\0\0\0\0\0\0\0".to_vec()), 0);
+    // Init fails when the probe gives 0; the mock's sfnt with `loca` opens as type 1, flags 0x8A.
+    let f = font();
+    assert_eq!((f.source_type, f.load_flags), (1, 0x008A));
+}
+
+#[test]
+fn fn11_constructor_defaults() {
+    let f = GzFont::new(lib_with(&[]), Arc::new(Latin1Converter));
+    assert_eq!((f.point_size, f.char_height, f.aa_mode, f.field_50), (16, 16, 1, 2));
+    assert_eq!(
+        (f.aa_gamma, f.aa_sharpness, f.scale_x, f.scale_y, f.advance_scale),
+        (1.0, 0.0, 1.0, 1.0, 1.0)
+    );
+    assert_eq!(
+        (f.default_char, f.default_glyph, f.code_page, f.fg, f.bg),
+        (0x20, 0, 0, 0, 0)
+    );
+    assert_eq!((f.source_type, f.load_flags), (0, 0x000A));
+}
+
+#[test]
+fn fn7_advance_and_missing_glyph() {
+    let adv = 0x0005_8000;
+    assert_eq!(GzFont::scaled_advance(adv, 0.99, 0x20), 4);
+    assert_eq!(GzFont::scaled_advance(adv, 0.99, 'a' as u32), 5);
+    assert_eq!(GzFont::scaled_advance(adv, 1.0, 0x20), 5);
+    assert_eq!(GzFont::scaled_advance(adv, 0.98, 0x20), 5); // s ≤ 0.98: no shortening
+    assert_eq!(GzFont::scaled_advance(adv, 2.0, 0x20), 11);
+    assert_eq!(GzFont::scaled_advance(-adv, 1.0, 'a' as u32), -5);
+    // charHeight 15 -> a 7x7 hollow square at the line top, advance 7.
+    let mut f = font();
+    f.default_glyph = 0;
+    let g = f.get_char_data(0x4E00).unwrap();
+    assert_eq!(
+        (g.width(), g.src_bottom - g.src_top, g.advance, g.x_offset, g.y_offset),
+        (7, 7, 7, 0, 0)
+    );
+    let row = |f: &GzFont, y: u32| {
+        let o = f.mono_cache.offset(g.src_left as u32, y);
+        f.mono_cache.block[o..o + 7].to_vec()
+    };
+    assert_eq!(row(&f, 0), vec![0xFF; 7]);
+    assert_eq!(row(&f, 3), vec![0xFF, 0, 0, 0, 0, 0, 0xFF]);
+    assert_eq!(row(&f, 6), vec![0xFF; 7]);
+    let z = f.get_char_data(0xFEFF).unwrap();
+    assert_eq!((z.width(), z.advance), (0, 0));
+    f.advance_scale = 1.5;
+    assert_eq!(f.get_char_data(0x4E01).unwrap().advance, 10);
+}
+
+#[test]
+fn fn8_line_thickness() {
+    use super::font::line_thickness;
+    assert_eq!(line_thickness(12), (1, 1));
+    assert_eq!(line_thickness(16), (2, 1));
+    assert_eq!(line_thickness(30), (3, 2));
+    assert_eq!(line_thickness(35), (3, 2));
+    assert_eq!(line_thickness(36), (4, 2));
+    assert_eq!(line_thickness(72), (4, 4));
+    // pointSize 12, ascent 13, yOffset 3: underline row 13 - 3 + 1 = 11 (1 row); srcBottom 12.
+    let mut f = font();
+    f.set_style(0x04, true);
+    let g = f.get_char_data('H' as u32).unwrap();
+    assert_eq!(g.src_bottom, 12);
+    let o = f.mono_cache.offset(g.src_left as u32, 11);
+    assert_eq!(f.mono_cache.block[o], 0xFF);
+}
+
+#[test]
+fn fn9_name_map() {
+    let mut f = font();
+    f.source_type = 2;
+    f.default_glyph = 0;
+    // The mock face resolves "uni4E00" to 'A' (0x41).
+    let g = f.get_char_data(0x4E00).unwrap();
+    assert_eq!(g.advance, 7);
+    assert_eq!(f.name_map.get(&0x4E00), Some(&0x41));
+    // No name: nothing cached, the box is used.
+    f.get_char_data(0x4E02);
+    assert!(!f.name_map.contains_key(&0x4E02));
+}
+
+#[test]
+fn fn14_parse_and_new_entry() {
+    use super::fontsys::parse_delimited as p;
+    assert_eq!(p("arial,,tahoma", 32), ["arial", "", "tahoma"]);
+    assert_eq!(p(",arial", 32), ["", "arial"]);
+    assert_eq!(p("arial,", 32), ["arial"]);
+    assert_eq!(p("arial , tahoma ", 32), ["arial", "tahoma "]);
+    assert_eq!(p("  \"a,b\",c", 32), ["a,b", "c"]);
+    assert!(p("", 32).is_empty() && p(" \t ", 32).is_empty());
+    assert_eq!(p("a,b,c", 2), ["a", "b"]);
+    let mut s = GzFontSys::new(lib_with(&[("a.ttf", "Arial", 1)]), Arc::new(Latin1Converter), 0);
+    let f = s.font_acquire_path("a.ttf", 12, 0x04, true).unwrap();
+    let e = &s.catalogue["a.ttf"];
+    assert_eq!(
+        (e.family.as_str(), e.style, e.kind, e.source_type),
+        ("Arial", 0x05, 1, 0)
+    );
+    assert!(s.families.contains("arial"));
+    assert_eq!(f.ref_count(), 2);
+    let again = s.font_acquire_family("Arial", 0, 12, 0x04, true).unwrap();
+    assert!(Arc::ptr_eq(&f, &again));
+}
+
+#[test]
+fn fn13_words_and_lines() {
+    use super::words::*;
+    let u = |s: &str| s.encode_utf16().collect::<Vec<u16>>();
+    assert_eq!(ns_count(), 223);
+    assert_eq!(get_word(&u("foo  bar")), 5);
+    assert_eq!(get_word(&u("  bar")), 2);
+    assert_eq!(get_word(&u("well-known")), 5);
+    assert_eq!(get_word(&u("a\tb")), 2);
+    assert_eq!(get_word(&u("ab\r\n")), 2);
+    assert_eq!(get_word(&u("\r\n")), 1);
+    assert_eq!(get_word(&u("漢字。")), 1);
+    assert_eq!(get_word(&u("字。")), 2);
+    assert_eq!(get_word(&[]), 0);
+    assert_eq!(thai_cluster_len(&[0x0E01, 0x0E33], 2), 2);
+    assert_eq!(thai_cluster_len(&[0x0E01, 0x0E34, 0x0E48, 0x0E33], 3), 4);
+    assert_eq!(thai_cluster_len(&[0x0E01, 0x0E34, 0x0E01], 3), 2);
+    let mut f = font();
+    assert_eq!(f.number_of_lines(b"ab\r\ncd", 1000), 3);
+    assert_eq!(f.words_to_fit(b"\ncd", 1000, 2).0, 1);
+    // The visible width keeps tab but drops trailing U+0020.
+    assert_eq!(f.get_string_visible_width(b"ab \t").1, 4);
 }
