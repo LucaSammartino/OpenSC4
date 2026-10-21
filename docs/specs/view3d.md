@@ -342,6 +342,9 @@ go to other subscribers (the model maker, the terrain view, the lighting manager
 far as other specs need it (modal-dialogs.md `0xAA5CF1E3`, automata.md `0x06CDB65A` `kSC4MessagePreViewFilterChange`
 via `SetCurrentViewFilterInfo` `0x007E6435`). The drawing layer is not on that path.
 
+The owner methods outside the draw pass (QI/refs, construction defaults, the `Write`/`Read` record, accessors,
+camera mode, model change queue, dirty rectangles, shake stop) are specified in **render3d.md**.
+
 **Save.** The renderer's `cIGZSerializable` sub-object at `+0x08` exposes `Write` `0x007C30F0` (slot 3),
 `Read` `0x007C3180` (slot 4) and `GetGZCLSID` `0x007C9F90` (slot 5). Which save record carries them is V3D-7.
 

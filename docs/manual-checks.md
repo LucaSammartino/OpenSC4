@@ -249,6 +249,7 @@ every harness run rewrites the ini and stages its own DLL.
 | train39-237 | 237 | 2026-10-21 | core-span8888-4,core-span8-4 | train39 88ee426b97 | turbo | PASS | all37default replacements and fullhouse shadows to2032 | Default union PASS. 8888 and8 pureRust renderer cores; native caller glue/shadow not claimed. NO15-NO17 save record contracts answered; core-netocc follow-up still needed. |
 | train43-238 | 238 | 2026-10-21 | core-dates4,core-commands4,verify-automatarefs4,glue-tutorial4,glue-citydetail4 | train43 5bcb01545b | turbo | PASS | all37default replacements plus opt-in tutorial,citydetail and fullhouse shadows to2032 | Candidate union PASS; no exemplar candidate or incomplete-owner promotion. Dates/commands pureRust cores, automata controller ownership fix. |
 | train45-239 | 239 | 2026-10-21 | core-cmdline4,core-url4,core-netocc-records4 | train45 f21518bafa | turbo | PASS | all37default replacements and fullhouse shadows to2032 | Default union PASS; cRZCmdLine core complete. URL/network-occupant records partial, construction conflict held independently. |
+| train46-240 | 240 | 2026-10-21 | glue-simgrids4,core-lotrecords4 | train46 58f47b0eb2 | turbo | PASS | current37 defaults plus simgrids, fullhouse shadows to2032 | Simgrid factory joint2032/ref0;136gridsRead/Write, original-class reload116/116equalref0; candidate union PASS. Partial lotrecords owners not overcredited. |
 <!-- END GENERATED -->
 
 - The history that used to follow this table (the budget bisection and differential, the run-23/26 `RefCell`

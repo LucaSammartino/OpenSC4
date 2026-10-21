@@ -31,3 +31,18 @@
 - **MS7 (§11.2.7, §4.1, §4.6):** the "announce" check of `AnnounceMoveIn` (the class slot that passes on the
   reload case), and the dispatch state numbering 4/5/6. [inferred: announce is skipped after a load]
   **ANSWERED 2026-10-21 (re-answers35):** DIFFERS — the "announce" check is cISC4MySim slot 56 RequestToPlaySound (0x00424DE0), a sound throttle, not a reload test: true when state != 0 and the MySim's seconds timer (cRZTimer units 5, MySim+0x2A0) is more than 4 s past the last true reading (MySim+0x29C, initially 0), which it then stores; only MySimMovedIn is gated, UpdateVariables and MYSIM_MOVE_IN always run. States: 4 to work, 5 home (not when state 1), 6 elsewhere/pylon, set on dispatch trip start 0x4BB71A7E (0x0042D364); arrival sets 2 (AnnounceMoveIn if it was 1) or 3. Spec §2.2, §4.1.
+
+<!-- from: re-mysims-contracts4 (2026-10-21) -->
+- **MS8 (§1.1, §4.7):** the job-search pathfinder's exact setup — mysims.md says "destination mask `0x1CF`" but
+  `0x1CF` is a travel-type mask (Walk/Car/Bus/PassengerTrain/Subway/ElevatedTrain/Monorail) in traffic-simulator.md,
+  not a destination bitmask; the core uses it as the travel-type mask with filter 3, flags 1|2, density 0. Which is
+  it? [inferred: 0x1CF is the travel-type mask]
+  **ANSWERED 2026-10-21 (re-mysims-contracts4):** DIFFERS — travel mask 0x1CF (allowed and starting), filter 0 (not 3), flags 1|0x10 (not 1|2), destination flags by wealth (1->0x1, 2->0x2, 3->0x4, else 0x1; OR-accumulated), density 1 (not 0), start rect = home lot rect; mysims.md §4.7.1
+- **MS9 (§4.7):** does the dispatch re-run the pathfinder once per candidate lot until one succeeds, or a single
+  FindPath with filter 0 (nearest standard destination) that picks the lot itself? [inferred: single run, filter 3]
+  **ANSWERED 2026-10-21 (re-mysims-contracts4):** DIFFERS — a single FindPath with filter 0 picks the nearest lot or neighbour pool with free job capacity; no per-candidate loop; mysims.md §4.7.1
+- **MS10 (§1.1, cSC4MySimPool):** the Sim-template record layout — where templates come from (installation files?
+  which paths?), their fields (name/sign/bio/portrait?) and what `Import`/`FindTheSimsInstallation` actually read.
+  Core models only name/portrait/bio fields. [inferred]
+  **ANSWERED 2026-10-21 (re-mysims-contracts4):** DIFFERS — templates = exemplars (type 0x6A297266, ExemplarType 0x26) plus MySim\MySims.dat records (magic 0x4A32E4AA; u8-length name, u8 male, u8 sign, u8-length portrait); Import reads The Sims UserData[i]\Export *.pub/.ini families; registry SIMS_DATA then InstallPath; mysims.md §4.12
+  **CLOSED 2026-10-21 (re-mysims-contracts4, round 2):** the three items left inferred are now byte-read: gender IsEqual flag 0 = ASCII case-insensitive via MakeLower + memcmp (0x0090EC57, call 0x0043CDC2); portrait = record bytes + `.bmp` with no directory, joined to GetMySimDirectory() only at display (PickHead 0x007757F0); after Import with count > 0 and the cache loaded, 0x0043BB90 clears the cache and the loaded flag is reset (0x0043D006). Template offsets corrected (+0x00 bitmap, +0x04 portrait, +0x18 name, +0x2C male, +0x2D sign). mysims.md §4.12

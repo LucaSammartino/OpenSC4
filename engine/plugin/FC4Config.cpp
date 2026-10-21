@@ -327,7 +327,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "formats_shadow", "formats_shadow_max", "formats_shadow_lines",
                                   // the occupant manager shadow (FC4OccMgrShadow.h; read there, never
                                   // registered before verify-occmgr4)
-                                  "occmgr_shadow", "occmgr_shadow_samples", "occmgr_shadow_probe"};
+                                  "occmgr_shadow", "occmgr_shadow_samples", "occmgr_shadow_probe",
+                                  // the glue-simgrids4 lane (FC4SimGridProbe.h)
+                                  "simgrids_probe"};
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 

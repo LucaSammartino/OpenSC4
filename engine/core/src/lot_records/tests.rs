@@ -7,7 +7,7 @@ use crate::store::crc32_mpeg2;
 use crate::stream::{ByteReader, ByteWriter, RefResolver};
 use crate::traffic_simulator::{write_trip, TripData};
 
-fn hex(s: &str) -> Vec<u8> {
+pub(super) fn hex(s: &str) -> Vec<u8> {
     let c: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
     (0..c.len())
         .step_by(2)
@@ -68,7 +68,7 @@ impl OutStream for RawOut {
 }
 
 /// Reads `bytes` into a fresh object of `class`: (object, result, remaining).
-fn read_obj(class: u32, bytes: &[u8]) -> (RefValue, bool, usize) {
+pub(super) fn read_obj(class: u32, bytes: &[u8]) -> (RefValue, bool, usize) {
     let o = create(class).expect("class");
     let RefValue::Object(so) = &o else { unreachable!() };
     let mut t = Tokens;
@@ -78,7 +78,7 @@ fn read_obj(class: u32, bytes: &[u8]) -> (RefValue, bool, usize) {
     (o, ok, rem)
 }
 
-fn write_obj(o: &RefValue) -> Vec<u8> {
+pub(super) fn write_obj(o: &RefValue) -> Vec<u8> {
     let RefValue::Object(so) = o else { unreachable!() };
     let mut w = RawOut(ByteWriter::new());
     assert!(so.write(&mut w));
@@ -102,7 +102,7 @@ fn token(r: &RefValue) -> Option<(u64, u32)> {
     }
 }
 
-const T1: &str = "08 00 00 00 00 00 10 49 64 49 64 49 64 4C FE 99 43 80 5F 03 40 80 5F 03 40
+pub(super) const T1: &str = "08 00 00 00 00 00 10 49 64 49 64 49 64 4C FE 99 43 80 5F 03 40 80 5F 03 40
 01 01 01 01 00 08 00 74 68 25 00 00 00 00 00 CD 00 00 00 00 00 00 00 00 00 00
 00 00 00 00 00 00 00 00 00 00 00 00
 02 00 01 00 00 00 00 41 0B 8A 00 41 0B 8A 00 00 00 00 02 80 00 00 0C 00 00 00

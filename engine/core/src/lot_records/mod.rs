@@ -12,12 +12,20 @@
 //! [`lot::BusinessUnit`]) so the class-object store can create, write and read
 //! them by class ID ([`create`]).
 //!
-//! Not here (partial family, see the lane report): the lot's after-load work
-//! (§3.5 `Init` / `PostCityInit`), the construction occupant (§9), signpost and
-//! text decal (§10.3, §10.4), and the occupant manager's cell-rect rule (§16 Q1).
+//! The lot's after-load work (§3.5 `Init` / `SetFlags` / `PostCityInit` /
+//! `Shutdown`) and business-unit membership (`Add` / `Remove`) are in
+//! [`lifecycle`].
+//!
+//! Not here (partial family, see the lane report): the construction occupant
+//! (§9), signpost and text decal (§10.3, §10.4), retaining-wall
+//! `AddRetainingWallOccupant` / `UpdateSurroundingRetainingWalls` (§7, §15: not
+//! specified here), and the occupant manager's cell-rect rule (§16 Q1).
 
+pub mod lifecycle;
 pub mod lot;
 
+#[cfg(test)]
+mod lifecycle_tests;
 #[cfg(test)]
 mod tests;
 

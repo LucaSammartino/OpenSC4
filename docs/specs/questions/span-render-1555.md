@@ -7,10 +7,9 @@
   G/R start values, unlike the 565 sibling `0x0083DEA0`; if a path exists, an in-game capture of such a gradient
   would confirm the quirk is visible.
 
-<!-- from: core-span1555-4 (2026-10-21) -->
-- **SR1555-5 - sections 4.1 and 7.3/7.4:** two points the spec leaves implicit. (a) A4444 (colour type 7): the
-  spec fixes A in bits 12-15 (key mask `0x0FFF`, "A = bit 15") but not the order of the other nibbles; the
-  core assumes R bits 8-11, G 4-7, B 0-3 (A-R-G-B like A8R8G8B8). Please confirm. (b) SetGradientTransform's
-  `c_i = trunc(s_i - (dx_i*x0 + dy_i*y0))` on the x87 stack: under which precision control (the game's 24-bit
-  one of foundations section 18, or 53/64-bit)? The core rounds every operation to 24 bits; with 24-bit
-  precision the subtraction loses low bits of `c_i` once `|s_i|` exceeds 2^24.
+<!-- from: re-span1555-bridge4 (2026-10-21) -->
+- **SR1555-6 - section 1.2:** does any shipped path create a colour-type 4 or 6 buffer that gets a
+  `cGZDrawContextRenderToBuffer` (vtable store `0x0083078A` executes), and does `DrawPreclippedSpanList` then call
+  `0x008310B0`/`0x00831100`/`0x00831200`/`0x008312D0`/`0x00831470` in a normal session (title screen, city load,
+  menus, region view)? The static sweep of section 1.2 found none. A runtime hit counter on these six addresses
+  decides it; until then only the constructed-buffer test of section 1.2 exercises the class.

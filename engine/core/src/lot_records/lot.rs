@@ -306,6 +306,9 @@ impl LotRecord {
 pub struct Lot {
     pub rec: RefCell<LotRecord>,
     pub initialised: Cell<bool>,
+    /// The configuration object `Init` looked up (§3.5 step 3), held as its
+    /// ID (`GetID`, configuration slot 3). Not saved; `Write` saves its ID.
+    pub configuration: Cell<Option<u32>>,
 }
 
 impl Lot {
@@ -313,6 +316,16 @@ impl Lot {
         Rc::new(Lot {
             rec: RefCell::new(rec),
             initialised: Cell::new(false),
+            configuration: Cell::new(None),
+        })
+    }
+
+    /// A lot as the constructor leaves it: every field zero except the
+    /// strategy byte `0xFF` that `Init` replaces with one draw (§3.5 step 2).
+    pub fn constructed() -> Rc<Lot> {
+        Lot::new(LotRecord {
+            strategy: super::lifecycle::STRATEGY_UNSET,
+            ..LotRecord::default()
         })
     }
 }
@@ -321,8 +334,20 @@ impl SaveObject for Lot {
     fn class_id(&self) -> u32 {
         CLSID_LOT
     }
+    /// Field 2 is the held configuration's ID. A lot that was read but not
+    /// `Init`ed holds no object yet; the spec does not say what it writes
+    /// (LR4), so the ID read is written back (round-trips the crime-only lot
+    /// of §14).
     fn write(&self, out: &mut dyn OutStream) -> bool {
-        self.rec.borrow().write(out)
+        let r = self.rec.borrow();
+        match self.configuration.get() {
+            Some(id) if r.configuration_id != id => {
+                let mut c = r.clone();
+                c.configuration_id = id;
+                c.write(out)
+            }
+            _ => r.write(out),
+        }
     }
     /// `Read` (`0x006C35F0`, §3.4).
     fn read(&self, inp: &mut dyn InStream) -> bool {

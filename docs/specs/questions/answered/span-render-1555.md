@@ -15,3 +15,10 @@
   per-pixel source address and wrap rule, and the stretch caller's `b` values (`0x008304EA`, centre `>> 1`
   terms).
   **ANSWERED 2026-10-21 (re-span1555-4):** MATCHES — sections 7.5, 7.6, 6.1: tiled: pointer += L*bpp + T*stride, size = tile, u0 = (M - M mod TW - ox) mod TW, texel ((x+u0) mod TW, (y+v0) mod TH); stretch: unbiased pointer, b = {(du>>1)-ox, (dv>>1)-oy, du, dv} with ox, oy pre-scaled 16.16 by SetBltSource 0x0082FFD0.
+- **SR1555-5 - sections 4.1 and 7.3/7.4:** two points the spec leaves implicit. (a) A4444 (colour type 7): the
+  spec fixes A in bits 12-15 (key mask `0x0FFF`, "A = bit 15") but not the order of the other nibbles; the
+  core assumes R bits 8-11, G 4-7, B 0-3 (A-R-G-B like A8R8G8B8). Please confirm. (b) SetGradientTransform's
+  `c_i = trunc(s_i - (dx_i*x0 + dy_i*y0))` on the x87 stack: under which precision control (the game's 24-bit
+  one of foundations section 18, or 53/64-bit)? The core rounds every operation to 24 bits; with 24-bit
+  precision the subtraction loses low bits of `c_i` once `|s_i|` exceeds 2^24.
+  **ANSWERED 2026-10-21 (re-span1555-bridge4):** MATCHES — (a) section 7.3: A4444 nibbles are bits 0-3 B, 4-7 G, 8-11 R, 12-15 alpha (masks 0x0F00/0x00F0/0x000F at 0x00831566-0x0083157A; 0xF8C3 -> 0xC726). (b) section 4.1: 0x0082FDB0 never sets the control word and runs at the caller's precision, 24-bit on the main thread: the product p*K, dx*x0, dy*y0, their sum and s-sum are each rounded to 24 bits (nearest-even), FILD loads exact, then _ftol truncates; worked examples in 4.1.
