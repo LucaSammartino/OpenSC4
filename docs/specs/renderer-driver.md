@@ -228,10 +228,50 @@ even), take `v = bits(s) - 0x47400000` (that is `round(x·256)`), then `q = (v -
 0.5 → 128, 0.0 → 0, 0.998 → 255 (v = 255.488 rounded to 255; 255 - 0). Inputs outside [0, 1] wrap modulo 256.
 `TranslateColor(r, g, b, a)` packs `q(a)<<24 | q(r)<<16 | q(g)<<8 | q(b)`.
 
-## 6. Video-mode and viewport slots (outline)
+## 6. Video modes (slots 63-65)
 
-Slots 63 `CountVideoModes`, 64/65 `GetVideoModeInfo`, 74/75 `SetViewport`, 76 `GetViewport` are named in the ABI
-table; their contracts are open (RD3).
+### 6.1 The mode list (`CountVideoModes` slot 63, `0x008885F0`; enumerator `0x008882F0`)
+
+The list is built lazily: `CountVideoModes` returns the stored count when it is non-zero. When it is zero it loads
+`DDRAW.DLL`, creates a temporary DirectDraw object through `DirectDrawCreateEx`, enumerates the display modes
+(no filter: every mode the display reports, every bit depth, in the order reported), releases the object, unloads
+the library and returns the new count. If the library or the entry point is missing, or creation fails, the count
+stays 0 and is retried on the next call. `Init` and `Shutdown` reset the count to 0, so the list is rebuilt after
+each initialisation.
+
+Each reported display mode appends **two** consecutive records *[compat: indices are stable for the session]*:
+
+| Index | Width, height, bits per pixel | Full-screen flag |
+|---|---|---|
+| 2k | as reported | 1 |
+| 2k+1 | the same | 0 (windowed) |
+
+Worked example: a display reporting 640×480×16 then 800×600×32 gives four modes: 0 = 640×480×16 full screen,
+1 = 640×480×16 windowed, 2 = 800×600×32 full screen, 3 = 800×600×32 windowed; `CountVideoModes` returns 4.
+
+### 6.2 The mode record
+
+A record is 13 dwords (52 bytes) as copied out by the getters; the list stores them 56 bytes apart. Known fields:
+
+| Offset | Field | Set by the enumerator |
+|---|---|---|
+| +0x00 | mode index | the record's own index |
+| +0x04 | width (pixels) | display mode width |
+| +0x08 | height (pixels) | display mode height |
+| +0x0C | bits per pixel | display mode RGB bit count |
+| +0x20 (byte) | full screen (1) or windowed (0) | per §6.1 |
+| +0x21 (byte) | has stencil buffer (read by §5.2, §5.3) | 0; filled later *[inferred: when the environment is set up, from the device properties; RD3]* |
+| +0x22 (byte) | unknown | 1 |
+| +0x10..+0x1F, +0x23..+0x33 | unknown | 0 |
+
+### 6.3 Getters
+
+* `GetVideoModeInfo(index, out)` (slot 65, `0x00887680`): index ≥ count → error 2 and `out` untouched; else
+  copies record `index` (13 dwords) to `out`. It does **not** build the list: call `CountVideoModes` first.
+* `GetVideoModeInfo(out)` (slot 64, `0x00886E10`): copies the **current** mode record (13 dwords); its index is
+  -1 when no mode is set.
+
+Viewport slots 74/75 `SetViewport` and 76 `GetViewport` are open (RD3).
 
 ## 9. Open contracts
 
