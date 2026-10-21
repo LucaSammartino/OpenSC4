@@ -760,7 +760,8 @@ bool ExCore::WriteBinary(cIGZPersistDBSerialRecord* record) {
         }
         if (cFC4IGZVariant* v = fc4::AsGame(p->GetPropertyValue())) {
             void* res = nullptr;
-            if (v->GetValUnknownAs(kIIDResource, &res) && res != nullptr) {
+            // Only an IGZUnknown value (type 0x10) holds an object pointer.
+            if (v->GetType() == cIGZVariant::IGZUnknown && v->GetValUnknownAs(kIIDResource, &res) && res != nullptr) {
                 auto* pr = static_cast<cIGZPersistResource*>(res);
                 FC4_ACQUIRED(pr, "GetValUnknownAs");
                 pr->GetKey(rk);
