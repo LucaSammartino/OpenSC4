@@ -13,5 +13,8 @@
   Name getters read only the low byte of the index (MOVZX at 00925a53, 009265df): theirs right, mine silent.
   Charset selector tries 1251 twice (00925780, 0092578c) - harmless detail, mine. MakeTimeString: second>=0
   prints H:M:S even with negative minute (theirs; my prose wrong, my table right).
-- Next: rewrite strings-language.md §3-§8 as cross-reference to language-utility.md plus a reconciliation
-  table; then §manager, §cRZString.
+- Done round 2: 6de91727 reconciliation §3 (utility tables removed, canonical = language-utility.md) and
+  §4 cRZLanguageManager (all 47 owner fns covered; tables via build-runs/vm.py concrete interpreter).
+- Next: §5..§8 cRZString (vtable 00a80810, 82 fns 8640 B; slots: FromChar +0xC/+0x10, ToChar, Strlen +0x1C,
+  IsEqual, CompareTo, Copy, Resize, Append, Insert, Replace, Erase, Find, RFind, Sprintf +0x6C). decomp/cRZString.c.
+- REA unavailable this round (no app open); export + decomp used.
