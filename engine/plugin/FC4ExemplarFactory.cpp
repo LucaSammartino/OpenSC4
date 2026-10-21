@@ -251,7 +251,7 @@ private:
     bool InsertList(cIGZUnknownList const& other, bool front) {
         auto& o = const_cast<cIGZUnknownList&>(other);
         std::vector<cIGZUnknown*> add;
-        const size_t n = o.GetSize();
+        const size_t n = o.GetSize();  // [abi-ret] probed: data-formats 8.2 / EX51
         for (size_t i = 0; i < n; ++i) {
             void* p = nullptr;
             if (o.GetElement(static_cast<uint32_t>(i), kIIDUnknown, &p) && p != nullptr)
@@ -379,7 +379,7 @@ public:
         eff_.Clear();
         if (cFC4ISCPropertyHolder* ph = ParentHolder()) {
             cIGZUnknownList* list = nullptr;
-            if (ph->GetPropertyList(&list) && list != nullptr) {
+            if (ph->GetPropertyList(&list) && list != nullptr) {  // [abi-ret] probed: data-formats 8.2 / EX51
                 FC4_ACQUIRED(list, "GetPropertyList");
                 for (size_t n = list->GetSize(); n > 0; --n) {
                     void* p = nullptr;
@@ -389,7 +389,7 @@ public:
                     eff_.AddPropertyRecord(prop, false);  // the holder keeps its own reference
                     FC4_RELEASE(prop);
                 }
-                FC4_RELEASE(list);
+                FC4_RELEASE_CREATED(list);  // made for us by GetPropertyList
             }
         }
         own_.EnumProperties(&AddTo, &eff_);
@@ -1063,7 +1063,7 @@ void Add(std::string& s, const char* fmt, unsigned long v) {
 
 std::string ListIds(Holder* h) {
     cIGZUnknownList* l = nullptr;
-    if (!h->GetPropertyList(&l) || l == nullptr) return "nolist";
+    if (!h->GetPropertyList(&l) || l == nullptr) return "nolist";  // [abi-ret] probed: data-formats 8.2 / EX51
     FC4_ACQUIRED(l, "GetPropertyList");
     std::string s;
     Add(s, "n=%lu:", static_cast<unsigned long>(l->GetSize()));
@@ -1076,7 +1076,7 @@ std::string ListIds(Holder* h) {
         FC4_RELEASE(prop);
     }
     Add(s, " left=%lu", static_cast<unsigned long>(l->GetSize()));
-    FC4_RELEASE(l);
+    FC4_RELEASE_CREATED(l);  // made for us by GetPropertyList (lessons §5.1b)
     return s;
 }
 
@@ -1086,50 +1086,58 @@ Fn Slot(void* obj, int i) {
 }
 
 // The four scenarios on one side (fe / fc: exemplar / cohort factory).
-void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std::string out[4]) {
+void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std::string out[5]) {
     auto* c = Make<cISCResExemplarCohort>(fc, kTypeCohort, kIIDCohort);
     auto* e1 = Make<cISCResExemplar>(fe, kTypeExemplar, kIIDExemplar);
     auto* e2 = Make<cISCResExemplar>(fe, kTypeExemplar, kIIDExemplar);
     auto* e3 = Make<cISCResExemplar>(fe, kTypeExemplar, kIIDExemplar);
     auto* e4 = Make<cISCResExemplar>(fe, kTypeExemplar, kIIDExemplar);
     if (c == nullptr || e1 == nullptr || e2 == nullptr || e3 == nullptr || e4 == nullptr) {
-        for (int i = 0; i < 4; ++i) out[i] = "create failed";
+        for (int i = 0; i < 5; ++i) out[i] = "create failed";
     } else {
+        // Setup: properties go in through holder slot 13 (own list), then the
+        // documented rebuild (slot 15 with null, or SetCohort) builds the
+        // effective list. Whether slot 13 itself updates the effective list
+        // is open (EX51 b) and only reported in out[4]; so are return values
+        // the spec does not give (SetCohort, slot 15: EX51 c).
+        using Re = bool(__thiscall*)(void*, void*);
         Holder* hc = HolderOf(c);
         hc->AddPropertyU32(0x10, 2, false);
-        // 1. list order (+ EX51 probe: a slot-13 add after the parent is set).
+        Slot<Re>(c, 15)(c, nullptr);
+        // 1. list order.
         Holder* h1 = HolderOf(e1);
         h1->AddPropertyU32(0x20, 5, false);
         h1->AddPropertyU32(0x27812870, 1, false);
-        Add(out[0], "set=%lu ", e1->SetCohort(c, false));
+        Add(out[4], "set=%lu", e1->SetCohort(c, false));  // [abi-ret] probed: data-formats 8.2 / EX51
         out[0] += ListIds(h1);
         h1->AddPropertyU32(0x30, 9, false);
-        Add(out[0], " add13_has=%lu", h1->HasProperty(0x30));
-        Add(out[0], " local=%lu", e1->IsPropertyLocal(0x30));
-        out[0] += " after: " + ListIds(h1);
+        Add(out[4], " add13_has=%lu", h1->HasProperty(0x30));
+        Add(out[0], " local=%lu", e1->IsPropertyLocal(0x30));  // [abi-ret] probed: data-formats 8.2 / EX51
+        Add(out[4], " s15=%lu", Slot<Re>(e1, 15)(e1, nullptr));
+        out[0] += " after_rebuild: " + ListIds(h1);
         // 2. removal reveals the parent.
         Holder* h2 = HolderOf(e2);
         h2->AddPropertyU32(0x10, 7, false);
         e2->SetCohort(c, false);
         uint32_t v = 0;
-        Add(out[1], "pre=%lu", h2->GetPropertyU32(0x10, v) ? v : 999);
+        Add(out[1], "pre=%lu", h2->GetPropertyU32(0x10, v) ? v : 999);  // [abi-ret] probed: data-formats 8.2 / EX51
         Add(out[1], " rm=%lu", h2->RemoveProperty(0x10, false));
         v = 0;
-        Add(out[1], " get=%lu", h2->GetPropertyU32(0x10, v) ? v : 999);
-        Add(out[1], " local=%lu", e2->IsPropertyLocal(0x10));
+        Add(out[1], " get=%lu", h2->GetPropertyU32(0x10, v) ? v : 999);  // [abi-ret] probed: data-formats 8.2 / EX51
+        Add(out[1], " local=%lu", e2->IsPropertyLocal(0x10));  // [abi-ret] probed: data-formats 8.2 / EX51
         Add(out[1], " rm2=%lu", h2->RemoveProperty(0x10, false));
         h2->AddPropertyU32(0x40, 1, false);
-        Add(out[1], " rmall=%lu ", h2->RemoveAllProperties(false));
-        out[1] += ListIds(h2);
+        Add(out[4], " rmall=%lu", h2->RemoveAllProperties(false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        out[1] += " " + ListIds(h2);
         // 3. SetCohort references (counts relative to the start).
         const uint32_t r0 = RefsOf(c);
-        Add(out[2], "set=%lu", e3->SetCohort(c, false));
+        Add(out[4], " set3=%lu", e3->SetCohort(c, false));  // [abi-ret] probed: data-formats 8.2 / EX51
         Add(out[2], " d_set=%ld", static_cast<long>(RefsOf(c) - r0));
         Add(out[2], " get_same=%lu", e3->GetCohort() == c);
         Add(out[2], " d_get=%ld", static_cast<long>(RefsOf(c) - r0));
-        Add(out[2], " set_again=%lu", e3->SetCohort(c, false));
+        Add(out[4], " set_again=%lu", e3->SetCohort(c, false));  // [abi-ret] probed: data-formats 8.2 / EX51
         Add(out[2], " d_again=%ld", static_cast<long>(RefsOf(c) - r0));
-        Add(out[2], " set_null=%lu", e3->SetCohort(nullptr, false));
+        Add(out[4], " set_null=%lu", e3->SetCohort(nullptr, false));  // [abi-ret] probed: data-formats 8.2 / EX51
         Add(out[2], " d_null=%ld", static_cast<long>(RefsOf(c) - r0));
         Add(out[2], " has10=%lu", HolderOf(e3)->HasProperty(0x10));
         Add(out[2], " cohort_null=%lu", e3->GetCohort() == nullptr);
@@ -1138,7 +1146,7 @@ void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std
         Add(out[3], "w=%lu", e4->Write(*reinterpret_cast<cIGZOStream*>(dummy)));
         Add(out[3], " r=%lu", e4->Read(*reinterpret_cast<cIGZIStream*>(dummy)));
         Add(out[3], " cls=%lX", e4->GetGZCLSID());
-        Add(out[3], " cw=%lu", c->Write(*reinterpret_cast<cIGZOStream*>(dummy)));
+        Add(out[3], " cw=%lu", c->Write(*reinterpret_cast<cIGZOStream*>(dummy)));  // [abi-ret] probed: data-formats 8.2 / EX51
         Add(out[3], " ccls=%lX", c->GetGZCLSID());
         Holder* h4 = HolderOf(e4);
         using B1 = bool(__thiscall*)(void*, uint32_t);
@@ -1147,6 +1155,7 @@ void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std
         h4->AddPropertyU32(0x10, 0, false);
         cRZBaseString nm("Fc4Test");
         h4->AddPropertyString(0x20, nm, false);
+        Slot<Re>(e4, 15)(e4, nullptr);
         using Tag = bool(__thiscall*)(void*, cIGZString&);
         cRZBaseString t1, t2, t3;
         Add(out[3], " tag=%lu", Slot<Tag>(e4, 14)(e4, t1));
@@ -1155,18 +1164,15 @@ void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std
         out[3] += std::string(" [") + t2.ToChar() + "]";
         Slot<Tag>(e1, 14)(e1, t3);
         out[3] += std::string(" inh[") + t3.ToChar() + "]";
-        using Re = bool(__thiscall*)(void*, void*);
-        Add(out[3], " s15=%lu ", Slot<Re>(e1, 15)(e1, nullptr));
-        out[3] += ListIds(h1);
     }
     for (cIGZUnknown* u : {static_cast<cIGZUnknown*>(e4), static_cast<cIGZUnknown*>(e3),
                            static_cast<cIGZUnknown*>(e2), static_cast<cIGZUnknown*>(e1), static_cast<cIGZUnknown*>(c)})
-        if (u != nullptr) FC4_RELEASE(u);
+        if (u != nullptr) FC4_RELEASE_CREATED(u);  // made for us by CreateInstance
 }
 
 void ContractTest() {
     static const char* kNames[4] = {"list_order", "remove_reveals_parent", "setcohort_refs", "stubs_tag_rebuild"};
-    std::string nat[4], ours[4];
+    std::string nat[5], ours[5];
     RunSide(g_original[0], g_original[1], nat);
     RunSide(g_ours[0], g_ours[1], ours);
     int match = 0;
@@ -1176,6 +1182,9 @@ void ContractTest() {
         Log("exemplars: contract %s %s native={%s} ours={%s}", kNames[i], same ? "MATCH" : "DIFF", nat[i].c_str(),
             ours[i].c_str());
     }
+    // Not compared: return values the spec does not give and the slot-13
+    // effective-list probe (EX51 b/c).
+    Log("exemplars: contract unspecified (EX51) native={%s} ours={%s}", nat[4].c_str(), ours[4].c_str());
     Log("exemplars: contract native-vs-ours %d/4 match", match);
 }
 
