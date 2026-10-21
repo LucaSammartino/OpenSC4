@@ -166,8 +166,9 @@ extern "C" {
  * 72 = merge-train batch train5 (re-answers31, re-specs21, cores24, coverage3, glue23): merged (no C ABI history entry of its own);
  * 73 = merge-train batch train6 (glue17, apply15b, cores17, cores19, glue15, apply15terrain, glue12b1, glue12b2): adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane; taken as 63, then 64-68 on its lane; renumbered at merge). | adds the effects manager (fc4_effects, fc4_effects_directory; effects.md): the effect directory parser, creation, LOD and select groups, the tick, finishing (the hook or the draw-pass compat mode), the brush and game effects through host callbacks (renumbered at merge). | The lot configuration manager's opaque handle is fc4_lot_config_manager (the glue15 lane renamed it; the entry points keep their fc4_lot_config_* names, so the ABI surface is unchanged). | terrain round 2 (re-answers17, apply15terrain lane): fc4_terrain_lerped_water_level, fc4_terrain_flooding_altitude, fc4_terrain_water_velocity, fc4_terrain_sediment_at, fc4_terrain_brush_angles, fc4_terrain_set_brush_angles, fc4_terrain_talus_angle and fc4_terrain_set_talus_angle; fc4_terrain_brush_angle returns the stroke angle and fc4_terrain_add_brush's angle is the walk angle's start; set_water_display_state posts only on a change (taken as 64, then 65, 66 and 68 on its lane; renumbered at merge). | adds fc4_port_developer_required_budget and fc4_port_developer_funding_ratio (the port glue's shadow; glue12b2 lane, taken as 66 on the lane, renumbered at merge).
  * 74 = merge-train batch train8 (re-answers32, glue27, cores23, cores20): merged (no C ABI history entry of its own)
- * 75 = merge-train batch train10 (cores27): cores27: adds the network tools (fc4_nettool, network-tools.md §2-§11): the tool state, PlaceNetworkOccupants (slot 7), PlaceNetworkOccupantById (slot 8), the PlaceNetwork pipeline hand-off with the commit order, DestroyOccupantsAndResolve (slot 50) and the underground refit, over an fc4_nettool_host table (cores27 lane; taken as 75 on its lane; renumbered at merge; FC4_ABI_VERSION left at 74 for the train) */
-#define FC4_ABI_VERSION 75u
+ * 75 = merge-train batch train10 (cores27): cores27: adds the network tools (fc4_nettool, network-tools.md §2-§11): the tool state, PlaceNetworkOccupants (slot 7), PlaceNetworkOccupantById (slot 8), the PlaceNetwork pipeline hand-off with the commit order, DestroyOccupantsAndResolve (slot 50) and the underground refit, over an fc4_nettool_host table (cores27 lane; taken as 75 on its lane; renumbered at merge; FC4_ABI_VERSION left at 74 for the train)
+ * 76 = merge-train batch train31 (re-span4444-4, glue-formats4): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 76u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -11996,6 +11997,40 @@ bool fc4_nettool_update_underground_heights(fc4_nettool* t, const fc4_nettool_un
                                             uint32_t count, uint32_t network_type);
 /* Diagnostics. */
 bool fc4_nettool_get_state(const fc4_nettool* t, fc4_nettool_state* out);
+
+/* ---- DBPF packages and exemplars (data-formats §2, §4; glue-formats4) ---------
+ * A package opened and parsed by the core's fc4_formats, for the plug-in's
+ * formats shadow (FC4FormatsShadow.h). Additive; no FC4_ABI_VERSION bump. */
+typedef struct fc4_dbpf fc4_dbpf;
+/* `path`: UTF-8 bytes, no terminator. NULL when unreadable or the header or
+ * index fail data-formats §2.1-§2.3. */
+fc4_dbpf* fc4_dbpf_open(const uint8_t* path, size_t len);
+void fc4_dbpf_close(fc4_dbpf* p);
+/* Index entries of `type_id` (duplicates included, index order). */
+size_t fc4_dbpf_count_type(const fc4_dbpf* p, uint32_t type_id);
+/* Group and instance of the index-th entry of `type_id`; false out of range. */
+bool fc4_dbpf_key_of_type(const fc4_dbpf* p, uint32_t type_id, size_t index, uint32_t* group, uint32_t* instance);
+/* Entry (type, group, instance), first in index order (Q3), parsed as an
+ * exemplar or cohort (§4): a new fc4_props with its OWN properties in the
+ * game's variant types and shapes (Empty and kind-1 resource properties left
+ * out); `parent` (3 words, may be NULL) gets the parent cohort key. NULL when
+ * absent, undecodable or not an exemplar of that type. Caller destroys. */
+fc4_props* fc4_dbpf_read_exemplar(const fc4_dbpf* p, uint32_t type_id, uint32_t group, uint32_t instance,
+                                  uint32_t* parent);
+
+/* Packages combined as the resource manager combines them (data-formats §3,
+ * each added at the front) and resolved with parents and effective lists
+ * (§4.4) by the core's ExemplarStore. Keys are uint32_t[3] (type, group,
+ * instance). See engine/capi/src/dbpf.rs. */
+typedef struct fc4_exstore fc4_exstore;
+fc4_exstore* fc4_exstore_create(void);
+void fc4_exstore_destroy(fc4_exstore* p);
+bool fc4_exstore_add_package(fc4_exstore* p, const uint8_t* path, size_t len, uint32_t* counts3);
+size_t fc4_exstore_resolve(fc4_exstore* p, size_t* failed);
+int32_t fc4_exstore_key(const fc4_exstore* p, size_t index, uint32_t* key3);
+fc4_props* fc4_exstore_props(const fc4_exstore* p, size_t index, bool effective, size_t* total, uint32_t* parent3);
+size_t fc4_exstore_untyped_ids(const fc4_exstore* p, size_t index, bool effective, uint32_t* ids, size_t cap);
+bool fc4_exstore_failure(const fc4_exstore* p, size_t index, uint32_t* key3, uint8_t* buf, size_t cap);
 
 #ifdef __cplusplus
 } /* extern "C" */

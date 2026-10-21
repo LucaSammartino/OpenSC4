@@ -322,7 +322,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "mysims_shadow",
                                   // the netmgr shadow (FC4NetMgrShadow.h; read there, never registered
                                   // before verify-regress4)
-                                  "netmgr_shadow", "netmgr_shadow_order", "netmgr_shadow_wide"};
+                                  "netmgr_shadow", "netmgr_shadow_order", "netmgr_shadow_wide",
+                                  // the glue-formats4 lane (FC4FormatsShadow.h)
+                                  "formats_shadow", "formats_shadow_max", "formats_shadow_lines"};
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 
