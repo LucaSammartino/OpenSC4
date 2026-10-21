@@ -11,7 +11,8 @@ seek, §2.5 read buffer, §2.6 write buffer, §2.7 close, length, flush, §2.8 e
 operations, §2.10 static helpers). §3 cRZIniFile (§3.1 layout and ownership, §3.2 vtable, §3.3 file
 syntax as read, §3.4 open and lifetime, §3.5 reads and types, §3.6 writeback, §3.7 enumeration).
 §4 worked examples. §5 open questions. Round 3: §6 cRZDirectory (§6.1 layout, §6.2 separators,
-§6.3 setters, §6.4 enumeration, §6.5 string lists and sort, §6.6 recursive listing, §6.7 path helpers).
+§6.3 setters, §6.4 enumeration, §6.5 string lists and sort, §6.6 recursive listing, §6.7 path helpers); §7 cRZOFStream (§7.1 layout and lifetime, §7.2 vtable,
+§7.3 number writers, §7.4 strings and flushing).
 
 ## 1. Owners and identity
 
@@ -537,3 +538,89 @@ SplitDirectoryPath(last, parent) splits this object's path with the C helper Spl
 
 Each part gets a backslash appended unless it already ends in a separator; a part longer than 254
 bytes fails the whole call (false, outputs unchanged).
+
+## 7. cRZOFStream (round 3)
+
+A `cIGZOStream` (iid 0xC51B11CB; QueryInterface 0x0092B2A3 also accepts iid 1 and AddRefs on
+success) that writes to a C++ file stream, either as raw bytes ("binary") or as printf text ("text").
+vtable 0x00AD19F8, 24 slots. Two call sites: SC4CreateGZLog (0x005C6EFF, path from a cIGZString) and
+cSC4ViewInputControlQuery::WriteDetailedDebugInfo (0x004D12BD, `Query.txt`, binary, big-endian, no
+auto-flush, truncate).
+
+### 7.1 Layout and lifetime
+
+| Offset | Field |
+|---|---|
+| +0x00 | vtable |
+| +0x04 | reference count (cRZRefCount), starts 0 |
+| +0x08 | bool littleEndian (cRZOStream byte order), default 1, then set from the constructor |
+| +0x0C | user-data pointer (slot 19 SetUserData assigns it as a ref-counted pointer, slot 20 returns it); starts null |
+| +0x10 | owned std::ofstream (0x118 bytes, heap) |
+| +0x14 | bool binary |
+| +0x15 | bool autoFlush |
+
+Constructors (path as `const char*` 0x0092CEF6, or as `cIGZString` 0x0092CE7B, which takes its char
+pointer from string slot 5): (path, binary, littleEndian, autoFlush, append). The file stream is
+opened at once with mode out | (append ? app : trunc) | (binary ? binary : 0) (mode word bits app 1,
+binary 4, out 0x10, trunc 0x20). An open failure is not reported by the constructor; it shows as the
+stream's error state.
+
+Release 0x0092B2C8: a count above 1 is decremented and returned; at 1 (or 0) the object is destroyed
+(deleting destructor, slot 21) and 0 returned. The destructor destroys the owned file stream, which
+flushes pending output and closes the file. That is the only close: there is no explicit Close.
+
+### 7.2 vtable 0x00AD19F8
+
+| Slot | Function | Behaviour |
+|---|---|---|
+| 0-2 | QueryInterface, AddRef, Release | above |
+| 3 | Flush 0x0092BCF7 | std::ostream::flush on the file stream |
+| 4-9 | SetSint8 .. SetUint32 | §7.3 |
+| 10-11 | SetSint64, SetUint64 | §7.3 |
+| 12-13 | SetFloat32, SetFloat64 | §7.3 |
+| 14 | SetRZCharStr(const char*) 0x0092C757 | §7.4 |
+| 15 | SetGZStr(cIGZString) 0x0092B355 | the string's char pointer (its slot 5) passed to slot 14, both modes |
+| 16 | SetGZSerializable(obj) 0x0092B294 | calls obj slot 3 (Write) with this stream; returns its result |
+| 17 | SetVoid(data, size) 0x0092C1EE | std::ostream::write of size raw bytes; returns true when the stream state is clean |
+| 18 | GetError 0x0092B9EE | true when any stream state bit (bad, fail, eof) is set |
+| 19 / 20 | SetUserData / GetUserData | +0x0C |
+| 21 | deleting destructor 0x0092BCDB | |
+| 22 | Init(littleEndian) 0x0092B25B | sets +0x08, returns true |
+| 23 | Shutdown 0x00949ADE | no-op, returns true (the file stays open) |
+
+### 7.3 Number writers
+
+Binary mode (+0x14 set): the value is written with SetVoid in its natural size.
+
+| Writer | Bytes | Byte order |
+|---|---|---|
+| Sint8 / Uint8 | 1 | n/a |
+| Sint16 / Uint16 | 2 | little-endian when +0x08 is set, else big-endian (byte swap 0x0092B640) |
+| Sint32 / Uint32 | 4 | same rule |
+| Sint64 / Uint64 | 8 | same rule, full 8-byte reversal when big-endian (0x0092B55B) |
+| Float32 / Float64 | 4 / 8 | ALWAYS the native little-endian IEEE bytes; +0x08 is ignored (0x0092B276, 0x0092B285) |
+
+Text mode (+0x14 clear): the value is printed into a temporary string with the framework sprintf and
+the text is passed to slot 14 (so auto-flush applies). Formats (pointers 0x00B169B0..0x00B169C0):
+
+| Writer | Format | Notes |
+|---|---|---|
+| Sint8, Sint16, Sint32 | `%d` | sign-extended |
+| Uint8, Uint16, Uint32 | `%u` | zero-extended |
+| Sint64 / Uint64 | `%lld` / `%llu` | |
+| Float32, Float64 | `%g` | Float32 widened to double first |
+
+No separator, space or newline is ever added: writing Sint32 12 then Sint32 34 produces `1234`.
+Callers add their own separators through slot 14. Text mode opens the file without the binary flag,
+so the C runtime translates each `\n` written into CR LF on Windows.
+
+### 7.4 Strings and flushing
+
+SetRZCharStr(s): text mode writes the C string with the stream's `<<` (bytes up to the NUL) and
+returns true when the stream state is clean; binary mode writes strlen(s) raw bytes through slot 17
+(no terminator, no length prefix) and returns slot 17's result. Then, in both modes, when autoFlush
+(+0x15) is set, slot 3 (Flush) runs. Auto-flush happens ONLY here: binary number writers and direct
+SetVoid calls never auto-flush (text number writers do, because they go through slot 14).
+
+Example: binary, big-endian (+0x08 = 0): SetUint16(0x1234), SetFloat32(1.0), SetRZCharStr("ab") writes
+`12 34 00 00 80 3F 61 62`. Text: SetSint16(-5), SetRZCharStr(","), SetFloat64(0.1) writes `-5,0.1`.
