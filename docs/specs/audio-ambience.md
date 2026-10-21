@@ -406,8 +406,75 @@ its id count (all false) and calls `_AddFilter(id, kind)` for each id in list or
    (`0x004E71E0`–`0x004E7247`). Another kind value appends nothing.
 
 The same class id listed twice, or by two layers, yields the same filter object in each list *[compat]*.
-Which interface or kind a filter must have for `CanHandle`/`HandleCell`/`HandleOccupant` to use it is still
-AA1 (§9).
+How the kinds and interfaces are used is §8.4.
+
+### 8.4 Filtering: `CanHandle`, `HandleCell`, `HandleOccupant`
+
+**Filter interfaces.** A filter object may answer any of three interfaces; each has its test at slot 5
+(`+0x14`), returning a bool:
+
+| IID | Stage | Test arguments | Used by |
+|---|---|---|---|
+| `0xEA40074F` | global | none | `CanHandle` |
+| `0xCA400757` | cell | (cell x, cell z), two ints | `HandleCell` |
+| `0xCA400753` | occupant | (occupant `cISC4Occupant*`) | `HandleOccupant` |
+
+**Kinds** (the three lists of §8.3) combine the tests of one stage the same way in all three functions. Each
+list is walked in order; a filter that does not answer the stage's interface is skipped (not counted):
+
+- kind 1 (**all**, list `+0x214`): a filter whose test is false rejects at once; true sets its bit in
+  `+0x144`.
+- kind 2 (**none**, list `+0x230`): a test that is true rejects at once; false sets its bit in `+0x158`.
+- kind 3 (**any**, list `+0x24C`): the first true test sets its bit in `+0x16C` and ends the walk.
+
+The item **passes** when nothing rejected, at least one filter of any kind answered the stage's interface
+("answered" counter), and either the kind-3 list is empty or one of its filters passed. *[compat]* A kind-3 list
+whose filters all lack the stage's interface (or all test false) makes every item fail without counting it as
+a reject. The bit vectors only accumulate (they are cleared by `BeginUpdate`); nothing in the layer reads them.
+
+**`CanHandle`** (slot 19, `0x004E5110`, no arguments): first, the audio preferences object (application
+`0x00B43C94` slot `+0x98`) byte `+4` clear → return false, touching nothing. Otherwise the answer is cached
+per update cycle: byte `+0x12D` set → return byte `+0x12C`. Else set `+0x12D := 1`, run the global stage;
+pass → `+0x12C := 1` and return 1; fail → return 0 (`+0x12C` keeps the 0 `BeginUpdate` gave it, so the
+cached answer is also false).
+
+**`HandleCell(x, z)`** (slot 20, `0x004E5370`, pop 8, always returns 0): own `CanHandle` (vtable slot 19)
+false → nothing. Run the cell stage. Rejected → `+0x134 += 1` (cell rejects). Pass → `+0x128 += 1` (cells
+accepted), then the cell's world position: if (x, z) differs from a one-entry process-wide cache
+(`0x00B09810`/`0x00B09814`), city (`0x00B43CEC`) slot `+0x184` `CellCenterToPosition(x, z, &px, &pz)`, then
+terrain (`0x00B43CF4`) slot `+0x34` altitude at (px, pz) → py (stored as f32), and the cache keys become
+(x, z); the cached (px, py, pz) is used either way. That point is inserted into group layer `+0x2C`
+(below) with extra radius 0. Neither cache is reset between updates or layers.
+
+**`HandleOccupant(occ)`** (slot 21, `0x004E5670`, pop 4, always returns 0): `CanHandle` false or `occ` null →
+nothing. Run the occupant stage. Rejected → `+0x130 += 1` (occupant rejects). Pass → `+0x124 += 1`
+(occupants accepted), occupant slot 8 (`+0x20`) fills its position (x, y, z), inserted into group layer
+`+0x28` with extra radius 0.
+
+Worked example: kind 1 = [A (global + occupant)], kind 3 = [B (cell)], kind 2 empty. `CanHandle`: A's global
+test true, but kind 3 has B, which lacks the global interface → fail; the layer never handles anything
+(compat case above). Move B to kind 1: `CanHandle` passes on A; `HandleCell` asks only B; `HandleOccupant`
+asks only A.
+
+**Group layers** (`cGroupLayer`, ctor `0x004F12E0(radius)`, vtable `0x00A94200`): created by `_CreateLayers`
+(`0x004E4F60`, from `Init`) from the tuning:
+
+| Field | Radius | When `+0x34` (tuning `0x8A552758`) = 1 |
+|---|---|---|
+| `+0x28` occupant groups | `+0x20` (`0x0A4168E1`) | same |
+| `+0x2C` cell groups | `+0x24` (`0x0A56212A`) | `+0x2C` is `+0x28` (one shared layer) |
+| `+0x30` | `+0x24` when `+0x34 = 2`, else `+0x20` | not created |
+
+A group layer holds a list of groups; a group has a centre (3 floats), a radius (the layer's), a count and a
+peak. Inserting point p with extra radius r (`_AddPositionToGroup` `0x004F0C20`): walk the groups in creation
+order; the first whose distance from its centre to p, computed in x87 extended precision as
+sqrt(dz² + dy² + dx²), is **strictly less** than r + group radius takes it: count += 1, peak := max(peak,
+count). No group → append a new one with centre p (never moved later), count 1, peak 1. `BeginUpdate`
+(`0x004E4CE0`) copies its 16-byte argument (the attention rectangle) to `+0x10`–`+0x1C`, calls `Clear(1)` on
+`+0x28` and on `+0x2C` when distinct (every group: peak := count, count := 0; groups stay), zeroes
+`+0x124`–`+0x134` and the two `CanHandle` bytes, and clears every bit of the three bit vectors. `EndUpdate`
+(`0x004E4E80`) removes groups whose count is still 0 from the same layer(s). So after an update a group's count
+is the number of points it took this cycle and its peak is the larger of that and last cycle's count.
 
 ## 9. Open items
 
