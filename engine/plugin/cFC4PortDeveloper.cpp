@@ -1183,6 +1183,20 @@ std::string PortScriptBuild(uint32_t kind, uint32_t type, int32_t x, int32_t z, 
     uint32_t w = 0;
     uint32_t d = 0;
     cfg->GetSize(w, d);  // lot configuration slot 7
+    // [choice] tooling: a script lists several candidate sites; one port of
+    // each kind per session, and a site with any lot on it is skipped
+    // (lot manager slot 6, borrowed).
+    static bool s_built[2] = {false, false};
+    if (s_built[kind]) return "skipped: a port of this kind was built already";
+    for (uint32_t i = 0; i < w; ++i) {
+        for (uint32_t j = 0; j < d; ++j) {
+            if (lm->GetLot(x + static_cast<int32_t>(i), z + static_cast<int32_t>(j), false) != nullptr) {
+                std::snprintf(b, sizeof(b), "skipped: cell (%u, %u) of the %ux%u site at (%d, %d) has a lot",
+                              x + i, z + j, w, d, x, z);
+                return b;
+            }
+        }
+    }
     cISC4Lot* lot = nullptr;
     if (!lm->CreateLot(x, z, static_cast<int32_t>(w), static_cast<int32_t>(d), static_cast<int32_t>(facing), lot) ||
         lot == nullptr) {
@@ -1194,9 +1208,13 @@ std::string PortScriptBuild(uint32_t kind, uint32_t type, int32_t x, int32_t z, 
     l->SetLotConfiguration(cfg);  // slot 10
     l->UpdateZoneType();          // slot 32
     const bool built = ld->ConstructDefaultLot(lot, cfg, 0, true);  // slot 7
+    s_built[kind] = built;
     std::snprintf(b, sizeof(b), "ok=%d: cfg 0x%08X (type 0x%08X) lot %ux%u at (%d, %d) facing %u", built ? 1 : 0,
                   cfgId, types[type], w, d, x, z, facing);
-    // CreateLot's reference is the caller's (zones.md §8.5): ours to drop.
-    FC4_RELEASE_CREATED(reinterpret_cast<cIGZUnknown*>(lot));
+    // CreateLot's reference is the caller's (zones.md §8.5): acquired by us
+    // (as the swap's CreateLot host above), dropped here; the lot manager
+    // keeps its own.
+    if (!fc4::IsOurObject(lot)) FC4_ACQUIRED(reinterpret_cast<cIGZUnknown*>(lot), "CreateLot");
+    FC4_RELEASE(reinterpret_cast<cIGZUnknown*>(lot));
     return b;
 }
