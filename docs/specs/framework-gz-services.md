@@ -18,6 +18,7 @@ messages, §4.6 message creation, §4.7 service lifecycle). §5 worked example. 
 | `cGZMessageServer2` | 2,780 | 38 | service id `0x04FA845B`, interface `cIGZMessageServer2` iid `0x652294C7`, tick priority 5,000,000 |
 | `cGZMessageQueue2` | 1,941 | 30 | queue object, 0x1C bytes, vtable `0x00AD1AD0`, 25 slots |
 | `cGZMessageQueueManager2` | 951 | 17 | service id `0x64FA8434`, iid `0x652294BC`, tick priority 5,000,000 |
+| `cGZMessageServer` | 5,796 | 81 | service id `0x64063387`, interface `cIGZMessageServer` iid `0xC1085722` (§4A) |
 
 Owner bytes are from `tools/coverage.py --owners` (subsystem "framework services (GZ)") at main
 `ab23a7fa`. The messages themselves are `cRZMessage2Standard` (RZ side, not in this spec); a message
@@ -182,6 +183,39 @@ and leaves `out` untouched.
 
 Destructor `0x0092E42D` (deleting wrapper `0x0092E779`): under the registry lock sets depth 0 and
 frees every type list with its references, then the pending list, deque, queue and locks.
+
+## 4A. Message server 1 (`cGZMessageServer`, 5,796 bytes)
+
+The first-generation server has the same structure and algorithms as §4 with these exact
+differences. Constructor `0x0093035D`: system-service base at +0 (service id `0x64063387`, priority
+5,000,000, vtables `0x00AD1D20` / `0x00AD1D08`), interface `cIGZMessageServer` at **+0x1C** (vtable
+`0x00AD1CD8`, iid `0xC1085722`, QI `0x0092ED0D`); locks +0x20 / +0x28 / +0x30, an embedded
+first-generation queue `cGZMessageQueue` at +0x38, counter +0x58, registry depth **+0x60**, drain-all
+flag **+0x64** (default true), pending list +0x68, registry map +0x6C, directed countdown +0x80,
+directed deque +0x84. Interface slots (addresses take the +0x1C interface pointer):
+
+| Slot | Address | Behaviour |
+|---|---|---|
+| 3 | `0x009302AC` | MessageSend(msg) |
+| 4 | `0x0092ED37` | MessagePost(msg, toFront), as §4.4 |
+| 5 / 6 | `0x00930030` / `0x0092FC2E` | AddNotification / RemoveNotification(target, type), as §4.2 (flush `0x0092F88A`, apply pending `0x00930121`) |
+| 7 / 8 | `0x00930273` / `0x0092FF6F` | Post directed (msg, target) / cancel for target, as §4.5 (delivery `0x0092F90C`) |
+| 9 | `0x00472FC0` -> `0x0092F9AC` | OnTick, as §4.4 |
+| 10 | `0x0092ED70` | Posted-message count |
+| 11 | `0x0092ED9B` | Set drain-all flag |
+
+Differences that matter:
+- **Messages are values.** A first-generation message is a 16-byte record whose first dword is the
+  type; the queue stores copies, OnTick takes the front record into a zeroed local copy and sends a
+  pointer to it, and nothing is reference counted for the message.
+- **Send has no wildcard and ignores type 0.** MessageSend reads the type from the record; type 0
+  delivers to nobody; otherwise only the targets registered for exactly that type receive it, in
+  registration order. There is no second pass over type 0 listeners.
+- **Fixed snapshot size.** The target snapshot is a stack array of 0x608 bytes (386 slots, one used
+  as the null terminator), filled without a bound check: the original supports at most 385 targets
+  per type; behaviour beyond that is undefined (stack overflow), so an implementation may treat 385
+  as the limit. Delivery stops at the first null slot; each target is AddRef'd in the snapshot and
+  released right after its `DoMessage` call (+0x0C).
 
 ## 5. Worked example
 
