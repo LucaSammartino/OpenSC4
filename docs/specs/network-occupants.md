@@ -1003,8 +1003,10 @@ and a `cS3DModelProcessor` at `+0x9C`. The "Prelight" name is wrong; §10.3 give
    - Last step: when `a1 != byte +0x1C0`, it calls `UpdateShadow(1)` and stores `a1` in `+0x1C0`.
 3. **Ownership.** The model instance is **a separate heap object**, not the `+0x38`/`+0x68` sub-object of §2.1/§2.2.
    The piece owns it only through the `+0x1C4`/`+0x1C8` cache. Each draw query replaces the instance, so the
-   deformation always starts from the flat model (§10.3). Not shown yet: whether the destructor or `Shutdown`
-   releases the two caches (NO26).
+   deformation always starts from the flat model (§10.3). **Release (NO26):** the prebuilt `Shutdown`
+   (`0x0061D0D0`) first asks the `+4` view's slot 5 (`+0x14`). When that answers true, it clears and releases
+   `+0x1C4`, then `+0x1C8`, and tail-calls the base `Shutdown`. When it answers false, it returns 1 and touches
+   nothing. `+0x1C0` is not reset. The destructor's handling of the two caches was not examined.
 
 **Transform written to each model instance** (before the passes; the instance's slot `+0x24` reads its transform
 into a local, slot `+0x28` writes it back):

@@ -100,5 +100,3 @@ implementer of the class tables and records.
   and the pole is skipped? The core returns no position. [ambiguous]
 <!-- from: re-networkmodel-answers4 (2026-10-22) -->
 - **NO25 - §10.3 `Clip` 0x00618B00 kept side and cut:** with lo = (−FLT_MAX, h, −FLT_MAX), hi = +FLT_MAX, mode 1, is the geometry above h kept (inside the box) or below; how are cut-edge vertices interpolated (position, uv, colour) per format 2/0x80004001/10; exact early-out test on the bounds? [not proved]
-<!-- from: re-networkmodel-answers4 (2026-10-22) -->
-- **NO26 - §10.1 cache release:** do the prebuilt destructor and `Shutdown` release the +0x1C4/+0x1C8 instance caches, and is +0x1C0 reset? [not proved]
