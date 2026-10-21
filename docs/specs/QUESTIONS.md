@@ -50,6 +50,7 @@ generated index: the questions live one file per spec, so read only the file for
 | DM | demolition |
 | DP | dispatch |
 | DQ | demand, demolition |
+| DR | drive-tool |
 | DS | disasters |
 | DT | dates |
 | EF | effects |
@@ -174,6 +175,7 @@ generated index: the questions live one file per spec, so read only the file for
 | dispatch | 0 | 9 | DP10 | - |
 | draw-context | 2 | 0 | DC3 | questions/draw-context.md |
 | drawing-fonts | 0 | 14 | FN15 | questions/drawing-fonts.md |
+| drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 2 | 0 | FM3 | questions/feature-manager.md |
 | fire-flames | 1 | 0 | FF2 | questions/fire-flames.md |
@@ -258,4 +260,4 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **245** | **1118** | | |
+| **total** | **247** | **1118** | | |

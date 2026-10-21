@@ -3266,44 +3266,47 @@ va	name	source	confidence	note
 00562c90	cAutomataOccupantFilter::IsOccupantIncluded	auto:A	high	mac 006909da score 0.761 support 0
 00562da0	cRZAutoRefCount<cIGZLua5>::operator=	auto:D	medium	mac 007a89e4 score 0.5 support 1
 00562e1a	lib::Catch@00562e1a	library	medium	Function ID
-00562e20	cSC4ViewInputControlPlayerDrive::DoWinProcMessage	auto:A	high	mac 004b3daa score 0.924 support 0
-00562ed0	cSC4ViewInputControlPlayerDrive::IsDriveAutoValid	auto:B0	medium	mac 004b398a score 0.912 support 4.5
-00562f00	cSC4ViewInputControlPlayerDrive::PauseEverything	auto:D	medium	mac 004b3fc2 score 0.5 support 1
-00562fd0	cSC4ViewInputControlPlayerDrive::StopTracking	auto:A	high	mac 004b3a96 score 0.611 support 0
-005630c0	cSC4ViewInputControlPlayerDrive::PickNetworkOccupant	auto:D	medium	mac 004b3c5a score 0.5 support 1
-00563140	cSC4ViewInputControlPlayerDrive::PickAutomaton	auto:B0	medium	mac 004b3d02 score 0.934 support 2.5
-005631c0	cSC4ViewInputControlPlayerDrive::OnMouseMove	auto:C	high	mac 004b4310 score 1.0 support 1
-00563310	cSC4ViewInputControlPlayerDrive::AutomatonRemoved	auto:B0	medium	mac 004b3bea score 0.913 support 2.0
+00562e20	cSC4ViewInputControlPlayerDrive::DoWinProcMessage	manual:drive-tool.tsv	high	drive-tool.md §6; dashboard buttons to commands
+00562ed0	cSC4ViewInputControlPlayerDrive::IsDriveAutoValid	manual:drive-tool.tsv	high	drive-tool.md §5; no flags 0x8000000 and 1
+00562f00	cSC4ViewInputControlPlayerDrive::PauseEverything	manual:drive-tool.tsv	high	drive-tool.md §3
+00562fd0	cSC4ViewInputControlPlayerDrive::StopTracking	manual:drive-tool.tsv	high	drive-tool.md §4
+005630c0	cSC4ViewInputControlPlayerDrive::PickNetworkOccupant	manual:drive-tool.tsv	high	drive-tool.md §2; IID 0xA821EF94
+00563140	cSC4ViewInputControlPlayerDrive::PickAutomaton	manual:drive-tool.tsv	high	drive-tool.md §2; renderer Pick, IID 0xA9B40F05
+005631c0	cSC4ViewInputControlPlayerDrive::OnMouseMove	manual:drive-tool.tsv	high	drive-tool.md §2
+00563310	cSC4ViewInputControlPlayerDrive::AutomatonRemoved	manual:drive-tool.tsv	high	drive-tool.md §4
+00563330	cSC4ViewInputControlPlayerDrive::HideUI	manual:drive-tool.tsv	high	drive-tool.md descriptive name, no Mac match; §6; removes the two dashboard windows
 005633c0	SC4TrainJunctionView::Init	manual:network-overlay-views.tsv	high	network-overlay-views.md §2; direction table, six arrow pictures, two marker models
+00563730	SC4TrainJunctionView::Shutdown	manual:drive-tool.tsv	high	drive-tool.md descriptive name, no Mac match; §1; releases the pictures and models
 005637e0	SC4TrainJunctionView::GetArrowBitmapQuad	manual:network-overlay-views.tsv	high	network-overlay-views.md §2; 12 m in from the entry edge
-00563970	cSC4ViewInputControlPlayerDrive::Shutdown	auto:B0	medium	mac 004b446e score 0.989 support 2.0
-00563d40	cSC4ViewInputControlPlayerDrive::HandleDriveCommandKeyDown	auto:D	medium	mac 004b5aca score 0.5 support 1
-00564060	cSC4ViewInputControlPlayerDrive::HandleDriveCommandKeyUp	auto:D	medium	mac 004b604e score 0.5 support 1
-00564300	cSC4ViewInputControlPlayerDrive::OnMouseUpL	auto:C	high	mac 004b62c8 score 1.0 support 1
-00564390	cSC4ViewInputControlPlayerDrive::OnMouseDownR	auto:C	high	mac 004b3a36 score 1.0 support 1
-005643f0	cSC4ViewInputControlPlayerDrive::OnMouseUpR	auto:C	high	mac 004b39d6 score 1.0 support 1
-00564450	cSC4ViewInputControlPlayerDrive::EnterChoosingMode	auto:B1	medium	mac 004b4100 score 0.787 support 2.0
-005644e0	cSC4ViewInputControlPlayerDrive::SendCallbackMessage	auto:A	high	mac 004b3e82 score 1.0 support 0
-00564570	cSC4ViewInputControlPlayerDrive::ShowUI	auto:A	high	mac 004b4b1c score 0.712 support 0
+00563970	cSC4ViewInputControlPlayerDrive::Shutdown	manual:drive-tool.tsv	high	drive-tool.md §1 (outline)
+00563d40	cSC4ViewInputControlPlayerDrive::HandleDriveCommandKeyDown	manual:drive-tool.tsv	high	drive-tool.md §5
+00564060	cSC4ViewInputControlPlayerDrive::HandleDriveCommandKeyUp	manual:drive-tool.tsv	high	drive-tool.md §5
+00564300	cSC4ViewInputControlPlayerDrive::OnMouseUpL	manual:drive-tool.tsv	high	drive-tool.md §5; command 7 off
+00564390	cSC4ViewInputControlPlayerDrive::OnMouseDownR	manual:drive-tool.tsv	high	drive-tool.md §5; command 8 on
+005643f0	cSC4ViewInputControlPlayerDrive::OnMouseUpR	manual:drive-tool.tsv	high	drive-tool.md §5; command 8 off
+00564450	cSC4ViewInputControlPlayerDrive::EnterChoosingMode	manual:drive-tool.tsv	high	drive-tool.md §2; pauses the simulator and the managers
+005644e0	cSC4ViewInputControlPlayerDrive::SendCallbackMessage	manual:drive-tool.tsv	high	drive-tool.md §7; message 0x0BB324BD
+00564570	cSC4ViewInputControlPlayerDrive::ShowUI	manual:drive-tool.tsv	high	drive-tool.md §6 (outline)
+005649d0	SC4TrainJunctionView::SC4TrainJunctionView	manual:drive-tool.tsv	high	drive-tool.md descriptive name, no Mac match; §1; network-overlay-views.md §2
 00564a60	SC4TrainJunctionView::GetPathBitmap	manual:network-overlay-views.tsv	high	network-overlay-views.md §2; c below -0.25, up to 0.25, above
 00564be0	SC4TrainJunctionView::DrawTrainJunction	manual:network-overlay-views.tsv	high	network-overlay-views.md §2; 0.8 or 0.5 transparency
 005650a0	std::list<int,std::allocator<int>>::push_back	auto:B12	medium	mac 00649a90 score 0.858 support 2.0
-005650e0	cSC4ViewInputControlPlayerDrive::EndInput	auto:B0	medium	mac 004b3f32 score 0.965 support 2.0
-00565160	cSC4ViewInputControlPlayerDrive::EnterDrivingMode	auto:A	high	mac 004b5184 score 0.814 support 0
+005650e0	cSC4ViewInputControlPlayerDrive::EndInput	manual:drive-tool.tsv	high	drive-tool.md §4
+00565160	cSC4ViewInputControlPlayerDrive::EnterDrivingMode	manual:drive-tool.tsv	high	drive-tool.md §3
 00565430	std::_Rb_tree<unsigned_char,std::pair<unsigned_char_const,cSC4DispatchVehicleView::TrackInfo>,std::_Select1st<std::pair<unsigned_char_const,cSC4DispatchVehicleView::TrackInfo>>,std::less<unsigned_char>,std::allocator<std::pair<unsigned_char_const,cSC4DispatchVehicleView::TrackInfo>>>::find	auto:D	medium	mac 00801ba0 score 0.5 support 1
-00565480	cSC4ViewInputControlPlayerDrive::cSC4ViewInputControlPlayerDrive	auto:A	high	mac 004b70fa score 0.872 support 0
+00565480	cSC4ViewInputControlPlayerDrive::cSC4ViewInputControlPlayerDrive	manual:drive-tool.tsv	high	drive-tool.md §1; id 0x2B709676
 00565570	cSC4ViewInputControlCitySituations::QueryInterface (thunk at +0x28)	manual:city-tools.tsv	high	city-tools.md descriptive name, no Mac match; §4
-005655d0	cSC4ViewInputControlPlayerDrive::OnMouseDownL	auto:A	high	mac 004b5dc4 score 0.611 support 0
+005655d0	cSC4ViewInputControlPlayerDrive::OnMouseDownL	manual:drive-tool.tsv	high	drive-tool.md §2
 005657a0	SC4TrainJunctionView::Update	manual:network-overlay-views.tsv	high	network-overlay-views.md §2; four entry edges per occupant
 005658d0	cSC4DispatchVehicleView::UseAlternateModel	auto:B3	medium	mac 00801bfc score 0.991 support 1.0
-00565910	cSC4ViewInputControlPlayerDrive::~cSC4ViewInputControlPlayerDrive	auto:C	high	mac 00801fae score 1.0 support 1
-00565a10	cSC4ViewInputControlPlayerDrive::Init	auto:B0	medium	mac 004b72f4 score 0.97 support 4.5
-00565fa0	cSC4ViewInputControlPlayerDrive::AddCallbackTarget	auto:D	medium	mac 004b487c score 0.5 support 1
-00566000	cSC4ViewInputControlPlayerDrive::Update	auto:A	high	mac 004b63ca score 0.897 support 0
-00566890	cSC4ViewInputControlPlayerDrive::DoMessage	auto:A	high	mac 004b6ed4 score 0.812 support 0
-00566a70	cSC4ViewInputControlPlayerDrive::HandleKeyEffects	auto:D	medium	mac 004b48ca score 0.5 support 2
-00566c60	cSC4ViewInputControlPlayerDrive::OnKeyDown	auto:C	high	mac 004b5fb2 score 1.0 support 1
-00566cf0	cSC4ViewInputControlPlayerDrive::OnKeyUp	auto:C	high	mac 004b6344 score 1.0 support 1
+00565910	cSC4ViewInputControlPlayerDrive::~cSC4ViewInputControlPlayerDrive	manual:drive-tool.tsv	high	drive-tool.md §1
+00565a10	cSC4ViewInputControlPlayerDrive::Init	manual:drive-tool.tsv	high	drive-tool.md §1
+00565fa0	cSC4ViewInputControlPlayerDrive::AddCallbackTarget	manual:drive-tool.tsv	high	drive-tool.md §7
+00566000	cSC4ViewInputControlPlayerDrive::Update	manual:drive-tool.tsv	high	drive-tool.md §6 (outline); the gauges
+00566890	cSC4ViewInputControlPlayerDrive::DoMessage	manual:drive-tool.tsv	high	drive-tool.md §7
+00566a70	cSC4ViewInputControlPlayerDrive::HandleKeyEffects	manual:drive-tool.tsv	high	drive-tool.md §5
+00566c60	cSC4ViewInputControlPlayerDrive::OnKeyDown	manual:drive-tool.tsv	high	drive-tool.md §4, §5; Escape ends the input
+00566cf0	cSC4ViewInputControlPlayerDrive::OnKeyUp	manual:drive-tool.tsv	high	drive-tool.md §5
 00566e30	cSC4WatercraftManager::QueryInterface	auto:C	high	mac 0038025c score 1.0 support 1
 00566ee0	cSC4Watercraft::Write	auto:C	high	mac 003803fc score 1.0 support 2
 00566f00	cSC4Watercraft::Read	auto:B0	medium	mac 0038042e score 0.956 support 1.0
