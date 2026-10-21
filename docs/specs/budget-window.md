@@ -34,8 +34,23 @@ Input: one 32-bit **selector**. Only the budget panel's button handler calls it 
    `WinLocationSaver.RestoreWindowLocation(win, 1)` (app slot 43 service, `+0x28`), **run the window modally**
    (`DoModalWin`, window manager `+0xA4`, `0x00768598`), hand focus back to the 3D view window (manager `+0x94`), and
    `WinLocationSaver.SaveWindowLocation(win)` (`+0x18`). The dialog's position therefore persists per window ID.
-5. Always: `DestroySubBudgetWindow` (§6), drop the held object (`+0x18 := null`, Release), then
-   `UpdateBalanceSheetInfo` (`0x00767990`) so the main panel shows any changed funding.
+   Then **Release `win`** (the `*out` reference, `0x007685DB`) and the generator interface reference (`0x007685E8`).
+5. Always (also when step 3 failed): `DestroySubBudgetWindow` (§6), drop the held object (`+0x18 := null`, Release),
+   then `UpdateBalanceSheetInfo` (`0x00767990`) so the main panel shows any changed funding. The modal loop's result
+   (`DoModalWin`'s return) is not read.
+
+References *[compat]* (BW6a): the sub-budget object starts at count 0 (constructor `0x007862B0` zeroes `+0x04`) and the
+panel's `+0x18` is its only reference taken here, so the Release in step 5 runs the destructor unless something else
+holds it. The window has two references from `CreateSubBudgetWindow`: `*out` (released by the panel in step 4) and
+`+0x0C` (released by `on_shutdown` (§4) if the window was initialised, else by the destructor's base cleanup
+`0x0077C4C0`, which releases `+0x1C`, `+0x18`, `+0x14`, `+0x10`, `+0x0C` in that order). On failure `*out` is null and
+nothing is released by the panel.
+
+**Nested individual dialog** (`DoIndividualBudgetWindow` `0x00786530`, from a group row `0x0ABCE6xx`, §5): the same
+steps on the parent sub-budget object's `+0x1C` (re-entry: nothing if already held), with `CreateSubBudgetWindow(out,
+0, parent +0x28, department)`, the same show/flag sequence and modal run, but **no** window-location restore/save,
+**no** focus hand-back and **no** balance-sheet refresh; then Release `win`, the generator reference,
+`DestroySubBudgetWindow`, `+0x1C := null` and Release. The parent's rows are not refreshed on return.
 
 ### 2.1 Selector table (from the panel's command IDs) *[compat]*
 
@@ -55,9 +70,13 @@ The `0xAA3AC4xx` set is the compact panel, the `0xAA3AC5xx` set the expanded one
 command first passes `nsSC4TutorialSystem::FilterUICommandMessage`; a filtered command is swallowed (returns 1).
 
 Other panel commands seen in the same handler, for completeness: `0xAA3AC400`/`0xAA3AC500` → `DisplayTaxesWindow`;
-`0xAA3AC40D`/`0xAA3AC50D` → `DisplayLoanWindow`; `0xAA3AC40E`/`0xAA3AC50E` and `0x4A8879CB` set `+0x18C := 1` then
-call the proc's own slot 6 (`+0x18`); `0xAA3AC40F`/`0xAA3AC50F` and `0x4A8879DB` set `+0x18C := 0` then the same
-slot; `0x0A4C3354` → `RemoveLoanWindow`; `0x2A4C33A6` / `0xAA4C339C` scroll the loan list by 2 (bounded below by 0 and
+`0xAA3AC40D`/`0xAA3AC50D` → `DisplayLoanWindow`; `0xAA3AC40E`/`0xAA3AC50E` and `0x4A8879CB` set the tab byte
+`+0x194 := 1` then call the proc's own slot 6, which is `ShowWindow` (`0x00768670`, §1); `0xAA3AC40F`/`0xAA3AC50F` and
+`0x4A8879DB` set `+0x194 := 0` then the same call; both return 0 (BW4: `DoWinProcMessage` runs on the
+`cIGZWinProc` sub-object at primary `+8`, so its `[ESI+0x18C]` at `0x00768DB8`/`0x00768DD4` is primary `+0x194`).
+`ShowWindow` with `+0x194 = 1` hides tab `0xAA3AC000` and shows `0xAA3AC001`; with 0 the reverse; the shown tab also
+gets `SetFlag(0x800, 0)`; then `UpdateBalanceSheetInfo` (`0x00768670`–`0x00768712`). Which tab is "compact" is not
+read from the bytes; `0x0A4C3354` → `RemoveLoanWindow`; `0x2A4C33A6` / `0xAA4C339C` scroll the loan list by 2 (bounded below by 0 and
 above by count − 4); `0xAA4C33E6` takes the loan (§5.2).
 
 ## 3. `CreateSubBudgetWindow` (`0x00779E50`, thiscall, 4 args, returns bool) *[compat]*
@@ -87,8 +106,25 @@ The window is empty until the window manager delivers the init message (§4).
 | 5 (key down), key `0x1B` (Esc) | close: remove the child held at `+0x14` (window `+0x3C`), drop it, `end_dialog(win, 0x42B7C353)`, return 1 |
 | 5, key `0x0D` or `0x73` | the same close, **only** when modifier bit `0x4` is set; otherwise ignored |
 
+Return values *[compat]* (BW9, `0x0078BCA0`–`0x0078C1FA`): init returns `on_init`'s result; shutdown returns
+`on_shutdown`'s (always 1); a button returns `on_button_activated`'s (§5); the slider message returns **0** on every
+path (also when the slider lookup fails); the combo message returns 0; the closing keys return 1; an ignored key
+(any other key, or `0x0D`/`0x73` without bit `0x4`) and every other message return 0. For message type 5 the key
+code is the message's first data word and the modifier mask the second (`[ESP+0xCC]`, `[ESP+0xD0]`).
+
+`on_init(win)` (`0x007876B0`): `win` null → return 0 and do nothing. If the initialised byte `+0x08` is already set →
+return 1 and do **nothing** (no second pause). Otherwise take the hidden pause, build the mode, set `+0x08 := 1` (at
+the end of each mode branch: `0x00787C4E`, `0x00787D69`, `0x007882B0`, `0x00789777`) and return 1.
+
+`on_shutdown(win)` (`0x0077E440`, BW9): if `+0x08` is 0 → return 1 with no effect. Otherwise `+0x08 := 0`; empty the
+vectors `+0x2C` (slider rows), `+0x38` (group restore pairs), `+0x44` (individual restore records), `+0x50` (deal
+rows), `+0x5C`, `+0x68` (held deals; emptied without a per-deal Release), `+0x74` (ordinance row map); free the
+ordinance ID array `+0xA4` (then `+0xA4 := null`) and the byte-pair array `+0xA8` (the pointer is **not** cleared,
+and the count `+0xA0` is not reset); AddRef itself; Release `+0x0C` and `+0x10` (each nulled first); Release itself;
+return 1. It does not touch the pause. After it, `DestroySubBudgetWindow` finds `+0x0C` null and skips `end_dialog`.
+
 `on_init` first takes a **hidden simulator pause** (`cISC4Simulator::HiddenPause`, slot 10, at `0x007878C0`);
-`DestroySubBudgetWindow` releases it (`HiddenResume`, slot 13). The date does not advance while any sub-budget dialog
+`DestroySubBudgetWindow` releases it (`HiddenResume`, slot 13; the pause is a counter, see §6). The date does not advance while any sub-budget dialog
 is open. It then branches on the selector (`+0x20`, `0x00787BE7`):
 
 - **1 → ordinances**: load the background image (type `0x856DDBAC`, group `0x46A006B0`, instance `0x140155F2`), then
@@ -315,12 +351,27 @@ Return 0, no refresh. The dialog stays open.
 
 ## 6. Closing (`end_dialog` `0x00779850`, `DestroySubBudgetWindow` `0x0077A1A0`) *[compat]*
 
-`end_dialog(win)`: null → false. If the window has flag `0x1000` (modal), ask its parent to end the modal loop
-(parent `+0x24` with code `0xF` and the window twice); otherwise remove it from its parent (`+0x38`). Returns true.
+`end_dialog(win, code)` (thiscall, `RET 8`; BW9): `win` null → false. `parent := win.GetParent()` (window slot 6
+`+0x18`). If `win` has flag `0x1000` (window slot 67 `+0x10C`; the modal flag), call `parent` slot 9 (`+0x24`) with
+`(0xF, win, code)`: **`code` is the modal result** handed to the loop that `DoModalWin` runs; the panel ignores that
+result (§2 step 5), so every caller's `0x42B7C353` has no further effect. Otherwise call `win` slot 11 (`+0x2C`) with
+first argument 1 and pass its result, with `win`, to `parent` slot 14 (`+0x38`) (`0x0077988C`–`0x007798A0`; `code`
+unused). Returns true in both cases.
 
-`DestroySubBudgetWindow`: if mode 2, for each held neighbour deal (vector `+0x68..+0x6C`, 8 bytes each): AddRef; if
-the deal's flags (slot 36) have bit 0 set, call deal slot 34; Release. Then `NeighborsSimulator.SetUIDisableFlag(false)`
-and `MarkDealsDirty()`. In every mode: `Simulator.HiddenResume()`; then `end_dialog` on the held window if any.
+`DestroySubBudgetWindow` (`0x0077A1A0`): if selector 2, for each held neighbour deal (vector `+0x68..+0x6C`, 8 bytes
+each): AddRef; if the deal's flags (slot 36) have bit 0 set, call deal slot 34; Release. Then
+`NeighborsSimulator.SetUIDisableFlag(false)` and `MarkDealsDirty()`. In every mode: `Simulator.HiddenResume()`
+(`0x0077A22C`, **unguarded**); then if `+0x0C` is non-null, `end_dialog(+0x0C, 0x42B7C353)` and return its result,
+else return true. `+0x0C` is neither released nor cleared here (§2 references).
+
+Pause balance *[compat]* (BW6b): the simulator's pause is a signed counter (`+0x34`). `HiddenPause` (`0x00702200`)
+increments it and posts message `0x4A7FB7E2` with 1 only on the 0→1 step; `HiddenResume` (`0x00702240`) decrements it
+with no floor and posts `0x4A7FB7E2` with 0 only when it reaches 0; `IsHiddenPaused` (`0x00703D60`) is `counter > 0`.
+`on_init` pauses once per window (guarded by `+0x08`), `DestroySubBudgetWindow` resumes once per call. When
+`CreateSubBudgetWindow` fails (no window, so no `on_init`), the resume still runs: the counter drops by one with no
+matching pause. Worked case: counter 0, create fails → counter −1, no message, not paused; the next dialog's
+`HiddenPause` brings it to 0, posts nothing, and the simulation is **not** paused while that dialog is open. A nested
+individual dialog (§2) pauses on top (1 → 2) and resumes back to 1 on close, with no message.
 
 Order matters *[compat]*: the pause ends **before** the window is ended, and the panel refreshes its balance sheet
 only after both (§2 step 5).
@@ -331,10 +382,13 @@ Messages `0x08DAC3E7` and `0x08DAC3E8` set a dirty byte (`+0x192`); message `0x8
 the byte is set, clears it and runs `UpdateBalanceSheetInfo`. So the panel refreshes at most once per tick however
 many money messages arrive. `ShowWindow` (`0x00768670`) refreshes immediately and sets `+0x19D := 1`.
 
-## 8. Open work (filed as questions BW1–BW5, docs/specs/questions/budget-window.md)
+## 8. Open work (docs/specs/questions/budget-window.md)
 
-Row layout of the four populate routines; the special-case groups in §4; `FUN_0077AB40` (button `0xCF`);
-the `0x0ABCDExx` occupant controls; the meaning of panel slot 6 (`+0x18`) toggled by `+0x18C`.
+BW1–BW4 and BW6–BW9 are answered (re-budgetwindow4, 2026-10-21; archive `questions/answered/budget-window.md`).
+Still open: **BW5**, the meaning of key-message modifier bit `0x4` (Alt is the guess; the bytes only show the test at
+`0x0078BCF0`), which needs a game check. Not covered: pixel layout of the four populate routines, the fill point of
+the individual restore records in `initIndividualBudget` (`0x00786690`), and whether the generator's window
+procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
 
 ## 9. Conformance tests
 
@@ -344,4 +398,17 @@ the `0x0ABCDExx` occupant controls; the meaning of panel slot 6 (`+0x18`) toggle
 3. Group mode, move one slider to 30, press Cancel: every department in the group is back to its starting fraction.
 4. Ordinances: toggle two rows, press `0xCD`: exactly two `SetOrdinanceOn` calls; toggle and press `0x6D`: none.
 5. Neighbour mode: `uiDisabled` is 1 while open, 0 after close, and deals are marked dirty on close.
-6. Esc closes; Enter without modifier bit `0x4` does not.
+6. Esc closes; Enter without modifier bit `0x4` does not (returns 0).
+7. Pause counter: with the counter at 0, open and close a dialog: it reads 1 while open (one `0x4A7FB7E2` message
+   with 1), 0 after (one message with 0). Force `CreateSubBudgetWindow` to fail: after the call the counter is −1,
+   `IsHiddenPaused()` is false and no message was posted.
+8. Nested individual dialog: the counter is 2 while it is open and 1 after it closes; no pause message on either
+   step; the panel balance sheet is not refreshed by the nested close.
+9. `DoWinMsg` returns: slider message 0, combo 0, Esc 1, unknown message 0, a second init 1 with no second pause.
+10. `on_shutdown` on an uninitialised window returns 1 and leaves `+0x0C` set; on an initialised one it clears
+    `+0x0C`, after which `DestroySubBudgetWindow` calls no `end_dialog` and returns true.
+11. Panel commands `0xAA3AC40E`/`0xAA3AC40F`: tab byte `+0x194` becomes 1/0, tab `0xAA3AC001`/`0xAA3AC000` is shown
+    and the other hidden, the balance sheet is refreshed, and the command returns 0.
+12. Scrolling list A with `len = 12`: positions 0 → 2 → 4, a fourth down press stays at 4; scrolling down on `len = 5`
+    stays at 0 and shows the up arrow.
+13. Group slider at position 30 passes `0x3E999999` (f32 product) to `SetFundingPercentage`.

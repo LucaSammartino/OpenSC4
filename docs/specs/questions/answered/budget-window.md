@@ -39,3 +39,29 @@
   to f32: 59 of positions 0-200 differ, e.g. 30 gives `0x3E999999`. The level is **f32** in percent
   (`f32(position)`, unscaled), and `IndividualRestoreInfo` holds two f32 levels (12-byte records). §4.4, §5.1, §5.5.
   The fill point of the restore records (`initIndividualBudget`) is not re-checked here.
+
+<!-- from: re-panels4 (2026-10-21) -->
+- ~~**BW4 - section 2.1 panel slot 6:** commands `0xAA3AC40E`/`0xAA3AC40F` (and `0x4A8879CB`/`0x4A8879DB`) set `+0x18C` to 1/0 and call the budget proc's slot 6 (`+0x18`). Which method is it?~~
+  **ANSWERED 2026-10-21 (re-budgetwindow4):** slot 6 is `ShowWindow` (`0x00768670`). The byte is primary `+0x194`
+  (the handler runs on the sub-object at `+8`), the tab flag `ShowWindow` reads: 1 shows tab `0xAA3AC001` and hides
+  `0xAA3AC000`, 0 the reverse; then the balance sheet is refreshed; the command returns 0. Which tab is compact is
+  not in the bytes. budget-window.md §2.1.
+
+<!-- from: core-budgetwindow4 (2026-10-21) -->
+- ~~**BW6 - sections 2, 3, 6 references and pause balance:** (a) who releases `*out` and `+0x0C`? (b) is `HiddenResume` guarded when `CreateSubBudgetWindow` failed? [core implements: no Release of either; resume always]~~
+  **ANSWERED 2026-10-21 (re-budgetwindow4):** (a) DIFFERS — the panel Releases `*out` right after the modal run and
+  location save (`0x007685DB`); `+0x0C` is released by `on_shutdown` (nulled first) when the window was initialised,
+  else by the destructor's base cleanup (`0x0077C4C0`); `DestroySubBudgetWindow` releases neither. (b) MATCHES —
+  the resume is unguarded (`0x0077A22C`); the pause is a counter with no floor, so a failed create leaves it one
+  lower (worked case and tests in budget-window.md §6, §9 tests 7-8). The nested individual dialog has its own
+  pause/resume pair.
+
+<!-- from: core-budgetwindow4 (2026-10-21) -->
+- ~~**BW9 - sections 4, 5 unspecified routing:** `on_shutdown`; `DoWinMsg` return values; `end_dialog`'s second argument; who creates the child at `+0x14`; ordinance check IDs; `SetOrdinanceOn` arguments. [core takes child and toggles as typed host input and returns "unspecified"]~~
+  **ANSWERED 2026-10-21 (re-budgetwindow4):** DIFFERS (core left these unspecified) — `on_shutdown` empties the
+  dialog's vectors, frees the ordinance arrays, releases `+0x0C` and `+0x10`, returns 1, and does nothing when not
+  initialised (§4). Returns: init/shutdown/button pass through their handler's result; slider, combo, ignored keys
+  and other messages 0; close keys 1 (§4). `end_dialog`'s second argument is the modal result code passed to the
+  parent's end-modal call, ignored by the panel (§6). `+0x14` is set by the ordinance info popup (`500 + r`) and by
+  `SetEmptyWindow` (§5.6). Check boxes are IDs 300-499, info buttons 500-699 (§5 table, §5.6). `SetOrdinanceOn`
+  takes (ordinance ID from `+0xA4`, edited byte zero-extended) only for rows whose edited byte differs (§5 table).
