@@ -1943,6 +1943,19 @@ Text lines below go into a record shaped like test 37, with `PropCount` set to m
     `GetProperty(id, uint32&)` gives true and 0. Read with slot 5 and `length` 8, it copies `31 32` and sets
     `length` to 2.
 
+### 10.8 Exemplar object slots (§8.2)
+
+1. **List order.** Cohort C has `0x10` = 2; exemplar E has `0x20` and `0x27812870`, parent C. E's
+   `GetPropertyList` count is 3; popping from the front gives `0x27812870`, `0x20`, `0x10`.
+2. **Remove restores the parent.** C has `0x10` = 2, E has `0x10` = 7, parent C. After E's
+   `RemoveProperty(0x10, false)` → true, `GetProperty(0x10)` on E gives 2 and `IsPropertyLocal(0x10)` false. A
+   second `RemoveProperty(0x10, false)` → false. `RemoveAllProperties(false)` leaves exactly C's effective list.
+3. **SetCohort references.** `SetCohort(C, false)` adds one reference to C; `GetCohort` adds none; `SetCohort(C,
+   false)` again changes nothing; `SetCohort(null, false)` releases it and leaves the own list as the effective
+   list. With `false` no message is posted.
+4. **Stubs.** Exemplar and cohort slots 3 and 4 return false for any stream and slot 5 returns 0; holder slots 23
+   and 24 return false; slot 14 appends text and returns true.
+
 ---
 
 ## 11. Original versus engine/formats
