@@ -44,3 +44,6 @@ any advisor callback; the meaningful 2032/ref0 trace needs the enabled family (r
    `enable = advisors` for the whole family incl. MySim/city-situation/reward/neighbour-deal class ids.
 4. Game run `sim_turbo = 1` to 2032 with traced PostCityInit, ticker, Simulate, triggers, popups, window slots 25-27;
    then normal speed; then candidate union regress.
+
+## Coordinator staged disposition
+Queue only the tested map-building scaffolding and public AD4/AD5 questions; the advisor system remains disabled and blocked. Gate63/63 passed; no behavior/replacement credit and no real-game advisor validation claimed. One original scoping round plus this implementation round used2 total; only ONE final implementation round remains after AD4/AD5 land. Landing this prerequisite stage permits a dependent RE answer lane; it does not reset the budget.
