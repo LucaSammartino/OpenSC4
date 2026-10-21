@@ -329,8 +329,9 @@ or `a ≥ 256.0` (`0x00AA20C8`) the fade ends: the period parameter is set to 0 
 Worked example: period 500 (the default `+0x94`), `CLOCKS_PER_SEC` 1000 *[inferred]*: show at t=0 → alpha 0; t=100 →
 51; t=250 → 127 (127.5 truncated); t=502 → 256.02 ≥ 256 → fade ends, alpha 0xFF.
 
-Hide uses `set_fade_state(0xFF, 0)`: alpha 0xFF at once and period 0, so **there is no fade-out**; `+0x98` is never
-used by `ShowWindow`, `HideWindow` or `SetFlag`.
+Hide uses `set_fade_state(0xFF, 0)`: alpha 0xFF at once and period 0, so the window itself does not fade out;
+`+0x98` is not used by `ShowWindow`, `HideWindow` or `SetFlag` directly. The visible fade-out comes from destroying the
+private buffer: a temporary `cGZFadeTmpWin` takes it and fades it down over `+0x98` (§14.7).
 
 ## 9. Quirks (keep for compatibility)
 
@@ -341,7 +342,11 @@ used by `ShowWindow`, `HideWindow` or `SetFlag`.
 5. `IsPointInWindowParentCoordinates` skips the per-pixel test the other two point tests apply (§5.2).
 6. `GetChildWindowFromIDRecursive` prefers a descendant over the window itself (§5.3).
 7. The wheel message passes x/y as full dwords, other mouse messages as sign-extended 16-bit values (§7.3).
-8. No fade-out; the second fade period is dead state (§8.2).
+8. The window never fades itself out; the fade-out is a temporary window that steals the private buffer and uses
+   the second period `+0x98` as a negative period (§14.7).
+9. A clean window (`+0x70` = 0) repaints nothing of its own or of its non-overlay descendants; only windows with a
+   private buffer and a parent ever become clean (§14.3).
+10. `PrivateBuffer(1)` sets bit `0x10000` but `PrivateBuffer(0)` never clears it (§14.5).
 
 ## 10. Conformance tests
 
@@ -425,3 +430,142 @@ Worked example: a window with an accelerator binding `code = 0x4E | (0x0 << 16)`
 `{type T}`: a key-down message `{5, 0x4E, 0x0}` that the window's `GZOnKeyDown` does not handle sends `{T,0,0,0}`
 through the message server and `DoMessage` returns true; the matching key-up `{6, 0x4E, 0x0}` builds code
 `0x1000004E`, finds nothing, and returns false.
+
+## 14. Painting: `Plot`, `PlotComposite`, `PlotPresent` and the private buffer *[compat]*
+
+### 14.1 State used by painting
+
+| Field / bit | Meaning for painting |
+|---|---|
+| `+0x64` | the window's own **private buffer** (off-screen surface; interface `0x86D72B57` gives its colour) |
+| `+0x68` | **buffer to draw to**: own private buffer, else the nearest ancestor's, else the screen buffer (§14.6) |
+| `+0x6C` | draw context of `+0x68` (from the buffer's interface `0xAB300B2B`, its slot 4) |
+| `+0x70` | **dirty** byte: set by `InvalidateSelf` (slot 91, `0x0099BECC`), by construction (1) and by the two area setters; cleared by `PlotComposite` only for a window that has a private buffer **and** a parent |
+| `+0x71` | 1 when `+0x68` is a private buffer (own or ancestor's), 0 when it is the screen buffer |
+| `+0xB8..+0xC4` | blit rectangle used by `PlotPresent` when presenting into the parent's buffer (computed by `recalc_blt_area` `0x0099C7BA`, *[inferred]*) |
+| `0x4` | passed to draw-context slots 22/23 (a draw-mode switch, *[inferred]*) |
+| `0x8` | draw/present with the shade colour `+0xD0` (else white `0xFFFFFFFF`) |
+| `0x40000` | clear the private buffer to its transparent colour before each repaint (needs `0x20000` too) |
+| `0x400000` | "private buffer holds a painted image": set by `PlotComposite` after `GZPaint` when a private buffer exists; cleared at the end of every visibility `SetFlag` (§3.1) |
+| `0x4000000` | "present straight to the screen": set on a child just before it is queued on the manager's deferred plot list; cleared by its `PlotPresent` |
+| `0x8000000` | **overlay** window: drawn through the manager's deferred queue, after the normal tree (§14.3) |
+
+### 14.2 `Plot()` (slot 89, `0x0099BA07`)
+
+`ok = PlotComposite() && PlotPresent()` (slots 123, 124; `PlotPresent` is skipped when `PlotComposite` returns false).
+Then, if `+0x71` is 0 (this window draws to the screen), manager slot 8 (`0x009DBD68`) **flushes the deferred plot
+queue**. Returns `ok`.
+
+Manager deferred plot queue (list at manager `+0x184`, enabled by byte `+0x188`): slot 7 (`0x009DC225`) appends a
+non-null window and returns true (false for a null window or a disabled queue); slot 8 pops windows from the front and
+calls each one's `Plot` until the queue is empty (windows queued during the flush are flushed too); returns true
+(false when disabled).
+
+### 14.3 `PlotComposite()` (slot 123, `0x0099E62D`)
+
+In order:
+
+1. **Visibility / fade gate.** Bit `0x20` clear: return false when invisible. Bit `0x20` set: return false when
+   invisible **and** no fade is running (`fade_in_progress` `0x0099C20D`: `0x20` and `0x10000` set and the period
+   parameter non-zero); otherwise advance the fade (`fade_advance`, §8.2), also for an invisible window whose fade
+   still runs.
+2. **Paint filters.** A record `{type 0x16, 0, 0, 0}` is offered to the `+0x88` filter list exactly as `DoMessage`
+   does (§7.2, with the `+0x90` nesting flag and the deferred-removal pass over `+0x8C` when not nested). If a filter
+   returns true: return **true** without painting.
+3. **Clean-window shortcut.** If `+0x70` is 0: `EnumChildren(0x22BA0121, cb, winMgr)` (slot 32) with callback
+   `0x0099B9AC`, then return true. Per child the callback skips an invisible child; for an overlay child
+   (`0x8000000`) sets its `0x4000000` and queues it (manager slot 7); otherwise **recurses** with the same callback into
+   that child's children. A clean window repaints none of its own pixels and none of its non-overlay descendants: its
+   private buffer is reused and only overlays are refreshed.
+4. **Prepare.** If a private buffer exists: with a parent, clear `+0x70`; if `0x20000` and `0x40000` are both set,
+   `fill_private_buffer_with_transparent_color` (`0x0099BA3E`).
+5. **Draw-context setup** (only when `+0x6C` is non-null; AddRef'd for the duration): context slots 3, 8 (`&+0x34`),
+   6 (`&+0x34`), 4, 15, 10, 19; slots 22 and 23 with `m = GetFlag(4) && !GetFlag(0x10000)`; slot 21 with the shade
+   `+0xD0` if `GetFlag(8) && !GetFlag(0x10000)`, else `0xFFFFFFFF`; slot 43.
+6. **`GZPaint()`** (slot 88): the subclass's own drawing.
+7. If a private buffer exists, set bit `0x400000`.
+8. **Draw-context teardown** (when present): slots 42, 11, 9, then Release.
+9. **Children, back to front.** The child list is read-locked (§4.1) and walked from the **tail** (backmost) to the
+   head (frontmost): painter's order. Two modes:
+   - *This window is an overlay* (`0x8000000`): every child, visible or not, gets `0x4000000` and is queued (manager
+     slot 7); none is plotted directly.
+   - *Normal window*: a local list of rectangles starts empty. For each **visible** child: an overlay child gets
+     `0x4000000`, is queued, and its absolute area (slot 50) is added to the list. A non-overlay child, when the list
+     is non-empty, has its absolute area tested against each listed rectangle (`0x0099C1E1`); on the first hit its area
+     is added to the list, it gets `0x4000000` and is queued instead of plotted. Otherwise the child is plotted now
+     (`Plot`, slot 89). Invisible children are skipped.
+10. Unlock the child list, return true.
+
+Consequence: a child that comes after (is in front of) an overlapping overlay sibling is deferred too, so overlays and
+everything above them reach the screen in back-to-front order after the rest of the tree.
+
+### 14.4 `PlotPresent()` (slot 124, `0x0099C498`)
+
+Copies the private buffer to its destination; always returns true.
+
+1. No private buffer: return true (the window drew straight into `+0x68` during `GZPaint`).
+2. Destination and rectangle:
+   - bit `0x4000000` set and a parent exists: the **screen buffer** (graphics system slot 8) with the **absolute**
+     rectangle `+0x14..+0x20`; the bit is then cleared (`SetFlag(0x4000000, 0)`).
+   - otherwise: the parent's buffer-to-draw-to (parent slot 94) with the blit rectangle `+0xB8..+0xC4`; with no parent
+     or no parent buffer, the screen buffer (graphics-system pointer cached once in global `0x00BAC058`), still with
+     `+0xB8..`.
+3. If the destination answers interface `0xAB300B2B` (draw context from that interface's slot 5): context slots 4,
+   8 (a zeroed 8-byte value), 10; slots 22 and 23 with `GetFlag(4)` (not masked by `0x10000`, unlike §14.3); slot 21
+   with shade-or-white (here `GetFlag(8)` alone decides). Then, if the private buffer yields its colour
+   `(c1, c2, c3, a)` through interface `0x86D72B57` slot 4, slot 21 again with `a<<24 | c1<<16 | c2<<8 | c3`, or, with
+   bit `0x8`, with the shade dword whose top byte is replaced by `a` (`0x0099C63D`). This carries the fade alpha
+   (§8.2) to the screen. Then context slot 38 blits `(privateBuffer, &+0x24, &rect)`, context slot 11, interface slot 6.
+4. Otherwise: `dest.slot6(0x8010)` (lock); on success `dest.slot29(privateBuffer, &+0x24, &rect, 0)` and
+   `dest.slot7(0x8010)` (unlock). No colour or alpha is applied on this path.
+
+### 14.5 `PrivateBuffer(on)` (slot 100, `0x0099EA70`)
+
+`on` is tested as a byte.
+
+**Create** (`on` true): forced to the destroy path if **any ancestor is invisible** (walk of `GetParentWin`, slot 11,
+testing `IsVisible`). Otherwise bit `0x10000` is **set**, then:
+- a buffer whose size (its slot 12 rectangle, right−left by bottom−top) equals the area size (`+0xB0−+0xA8` by
+  `+0xB4−+0xAC`) is kept;
+- else `CreatePrivateBuffer(w, h)` (concrete slot 150): on failure the function returns **false** (the common tail
+  still runs); on success, with `0x20000` set, `set_private_buffer_transparency(1)` (`0x0099BA92`), then `SetArea`
+  (slot 55) with the current area.
+
+**Destroy** (`on` false, or forced), only when a buffer exists:
+- if the buffer's slot 39 returns true *[inferred: "holds content"]*, bit `0x20` is set and bit `0x400000` is set,
+  then `0x400000` is cleared; if moreover the window has no parameter `0xE6E998FE` (it is not itself a fade-out
+  window, §14.7) and every ancestor is visible, a **fade-out window** takes the buffer (§14.7);
+- otherwise, when slot 39 returned true, the buffer's slot 4 is called (release the surface); when slot 39 returned
+  false, slot 4 is not called;
+- the window then Releases its reference and `+0x64` becomes null. Bit `0x10000` is **not** cleared. Returns true.
+
+Common tail: `SetBufferToDrawToRecursive` (slot 96), `child_private_buffers(IsVisible())` (`0x0099D645`),
+`InvalidateSelfAndParents` (slot 92).
+
+### 14.6 `SetBufferToDrawTo()` (slot 95, `0x0099C6F8`)
+
+`+0x68` = own private buffer (slot 101), `+0x71` = 1. If none: walk the parents (slot 11); the first with a private
+buffer supplies it; when **this** window has `0x8000000` the walk stops after the first parent (the child's bit is
+tested, not the parent's). If still none: the graphics system's screen buffer (slot 8) and `+0x71` = 0. Then `+0x6C`
+= the buffer's draw context (interface `0xAB300B2B`, slot 4) or 0, and finally vtable slot 98 is called.
+
+### 14.7 Fade-out window `cGZFadeTmpWin` (ctor `0x0099EA30`, size `0xD8`)
+
+A plain `cGZWin` subclass whose constructor stores parameter `0xE6E998FE` (a 0x14-byte variant). Created only by the
+destroy path of §14.5: the new window gets `SetFlag(4, 1)`, then `StealBuffer(src)` (`0x0099CBB0`):
+1. If `src` has a parent: parent `ChildAdd(tmp)` (slot 14), `tmp.SetArea(src.GetArea())`, `tmp.MoveRelativeTo(src,
+   0)` (slot 30). Otherwise the main window (slot 10) adopts it and it gets `src`'s **absolute** area.
+2. Flags: clear `0x40000`, set `0x230021` (visible, fade, private buffer, transparency, `0x200000`).
+3. `+0x64` = `src`'s private buffer, AddRef'd; `SetBufferToDrawTo`.
+4. `set_fade_state(0xFF, −p2)`, `p2` = `src`'s **second** fade period `+0x98` (`GetFadeEffectPeriod` `0x0099C276`
+   returns `+0x94` then `+0x98`).
+
+With a negative period `fade_advance` (§8.2) runs the alpha **down**: `a = 255 + elapsed×255/(−p2)`; the fade ends
+when `a < 0` (alpha 0, period 0). Worked example, default `p2` 500: elapsed 250 → 127; 500 → 0; 501 → −0.51, fade ends.
+
+`cGZFadeTmpWin::Plot` (`0x0099C291`): while the fade runs, `cGZWin::Plot` then `InvalidateSelfAndParents`; once it
+has ended, it calls manager slot 23 `DestroyWindow(this)` (`0x0099C2BC`, call through `+0x5C`) and returns true.
+
+This corrects §8.2: **there is a fade-out**, but only for a window with bit `0x20` whose private buffer is destroyed
+(for example hidden by `SetFlag(1, false)` with `0x10000` set, §3.1) while it holds a painted image; it uses the second
+period `+0x98`.
