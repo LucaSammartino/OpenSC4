@@ -485,6 +485,8 @@ if(FC4_IS_WIN32_X86)
         # The glue-advisors-final4 lane: the advisor window slots 23-28 (advisors.md §12.1.1, AD4).
         plugin/FC4AdvisorWindow.h
         plugin/FC4AdvisorWindowGame.cpp
+        plugin/cFC4AdvisorSystem.h
+        plugin/cFC4AdvisorSystem.cpp
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
