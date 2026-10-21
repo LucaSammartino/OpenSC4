@@ -8,7 +8,7 @@
   HandleOccupant 0x004E5670, _UpdateAmbienceScores 0x004E5920, _UpdateAmbienceLoops 0x004E5D50,
   Update 0x004E6340; field roles +0x20/+0x24, +0x1E0-+0x204; AA4 class 0x005628F0 / vtable 0x00A9D488 if cheap.
 - Done earlier: 71582dec, 917e998f, f296193c, f05b37e9, 51785d04 (AA2/AA3 answered, 8.1-8.3, tests 7-10).
-- Next: 8.4 filtering done (CanHandle/HandleCell/HandleOccupant, group layers); now _UpdateAmbienceScores 0x004E5920 via asm (REA down again).
+- Next: 8.4 filtering (4a549f1f) and 8.5 Update done; now 8.6 _UpdateAmbienceScores 0x004E5920, 8.7 _UpdateAmbienceLoops 0x004E5D50 via asm (REA down).
 - Facts: REA was unavailable in round 2; use re_query.py asm --bytes for numerics.
 
 ## Report

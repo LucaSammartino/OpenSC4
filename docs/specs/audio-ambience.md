@@ -476,6 +476,61 @@ count). No group → append a new one with centre p (never moved later), count 1
 (`0x004E4E80`) removes groups whose count is still 0 from the same layer(s). So after an update a group's count
 is the number of points it took this cycle and its peak is the larger of that and last cycle's count.
 
+### 8.5 `Update(e, &P, &Q)` (slot 26, `0x004E6340`, pop 12)
+
+Called after every `_DoStageUpdate` (§5) with the elapsed ms `e` and the manager's two listener vectors
+(P = `&listenerPos`, Q = `&listenerVector`; both 3 floats).
+
+1. Copy P to `+0xB0`–`+0xB8` and Q to `+0xBC`–`+0xC4`.
+2. (A walk over the three bit vectors writes byte `+0x0C`, but step 3 overwrites it: no effect.)
+3. `+0x0C :=` own `CanHandle` (slot 19). False → skip to step 8.
+4. **Groups**, by `+0x34` (tuning `0x8A552758`): 1 → layer L = `+0x28`; 2 or 3 → `+0x30.Intersect(+0x28,
+   +0x2C, swap = (+0x34 = 2))`, L = `+0x30`; any other value → no group step (the list stays empty and the
+   group count `+0xA8` keeps its previous value). For L: `GetPositions` (`0x004F0B40`, rectangle test off)
+   appends every group centre to a temporary list in group order, sets `+0xA8 :=` number of groups and
+   `peaks :=` the sum of their peaks.
+   `Intersect(A, B, swap)` (`0x004F0EA0`): inner := A, outer := B (swapped when `swap`); delete every group of
+   the target; mark every inner group unused; `left :=` inner group count; for each outer group o, for each
+   inner group i, while `left > 0`: if i is unused and the distance between the centres is strictly less than
+   o.radius + i.radius, append a new target group with i's centre and radius, count 1, peak 1, mark i used,
+   `left -= 1`. So with `+0x34 = 3` the result is the occupant groups lying near some cell group, with 2 the cell
+   groups lying near some occupant group; every result group has peak 1.
+5. **Score value** `+0xAC`, by `+0x38` (tuning `0x8A70B1A2`, default 5); integers are converted with `FILD`
+   and stored as f32:
+
+| `+0x38` | `+0xAC` |
+|---|---|
+| 1 | `peaks` |
+| 2 | residential population (`0x00B43DA4` slot 16 `GetPopulation`); 0 when that global is null |
+| 3 | `FLT_MAX` (`0x7F7FFFFF`) |
+| 4 | the zoom index (`[0x00B43DD8] + 0x0C`) |
+| 5 | `peaks / +0xA8` (`FILD` then `FIDIV`, `0x004E659C`); 0.0 when `+0xA8 = 0` |
+| 6 | the u32 at `+0x11C` of the audio director's `+0x54` member (`0x004E82A0`), converted unsigned |
+| other | unchanged |
+
+   When `+0x34` takes no group step, modes 1 and 5 read an uninitialised `peaks` *[compat: treat as 0]*.
+6. **Sample positions** (only when `+0xA8 ≠ 0`; `_GetEquallyDistributedPositions` `0x004E6070`) into the array
+   `+0x3C` (9 × 3 floats), count back into `+0xA8`. Up to 9 group centres → all of them, in list order.
+   10 or more → a 3 × 3 grid over the attention rectangle `+0x10` (floats x0, z0, x1, z1): `sx := trunc((x1 −
+   x0) × 0.33333334)`, `sz := trunc((z1 − z0) × 0.33333334)` (`0x00A92480`; integers); for each centre c in
+   list order `ix := trunc((c.x − x0) / sx)`, `iz := trunc((c.z − z0) / sz)`, each clamped to 0..2, and the
+   first centre to land in cell `ix + 3·iz` is kept. A zero `sx`/`sz` divides by zero (x87 masked: ±inf or NaN,
+   `trunc` gives `0x80000000`, clamped to 0) *[compat]*.
+7. **Average position** `+0xC8`–`+0xD0` (only when `+0xA8 ≠ 0` after step 6; read by `GetAveragePosition`,
+   slot 10). With `d := P − Q` and `n := d × (1.0 / |d|)` (`0x00B09818` = 1.0; the factor stored as f32, each
+   component stored f32), for each kept position p: `v := p − Q` (components f32), `a := |v · n| / |v|`
+   (x87 extended, computed as `(v.z·k)·n.z + (v.y·k)·n.y + (v.x·k)·n.x` with `k = 1/|v|`, then stored f32),
+   `w := a × (1.0 / (+0x200 − a))` (`+0x200` = tuning `0x8A3FC5DD`, default 1.0), `W += w`, `S += w·p`.
+   Result `S × (1.0 / W)` (the factor stored f32). The sums start at 0.0 (`0x00A81054`, and the zero vector
+   `0x00B2194C`). The loop also tracks the smallest |v| but never uses it. A position exactly on the view
+   line with `+0x200 = 1.0` gives w = ±inf *[compat]*.
+8. Free the temporary list; then `_UpdateAmbienceScores(e)` (§8.6) and `_UpdateAmbienceLoops(e)` (§8.7),
+   whether or not step 3 passed.
+
+Worked example: `+0x34 = 1`, two occupant groups with peaks 3 and 1, `+0x38 = 5` → `+0xAC = 4 / 2 = 2.0`; both
+centres are kept (fewer than 10), and the average weights each by how close it lies to the P–Q line as seen
+from Q (|cos| of the angle), sharpened by `a / (m − a)`.
+
 ## 9. Open items
 
 | # | Question | What would settle it |
