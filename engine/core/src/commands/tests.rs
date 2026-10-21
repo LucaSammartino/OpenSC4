@@ -59,7 +59,7 @@ fn t01_empty_set() {
     assert_eq!(p.get_parameter_count(), 0);
     assert_eq!(p.get_first_parameter_id(), NO_PARAMETER_ID);
     assert!(p.get_parameter(0).is_none());
-    assert_eq!(*p.index(0), Variant::Empty);
+    assert_eq!(*p.get_or_fallback(0), Variant::Empty);
     assert_eq!(p.get_parameter_count(), 0);
 }
 
@@ -124,10 +124,10 @@ fn t04_iteration() {
 #[test]
 fn t05_fallback() {
     let mut p = CommandParameterSet::new();
-    *p.index_mut(99) = i32v(4);
-    assert_eq!(*p.index(98), i32v(4));
+    *p.get_or_fallback_mut(99) = i32v(4);
+    assert_eq!(*p.get_or_fallback(98), i32v(4));
     p.set_parameter_count(0);
-    assert_eq!(*p.index(98), i32v(4));
+    assert_eq!(*p.get_or_fallback(98), i32v(4));
     assert!(p.get_parameter(98).is_none());
 }
 

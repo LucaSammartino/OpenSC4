@@ -121,7 +121,7 @@ impl CommandParameterSet {
 
     /// Slot 5, `operator[]`: the value under `id`, or the shared writable `fallback` (never
     /// null; nothing is inserted) *[quirk]*.
-    pub fn index_mut(&mut self, id: u32) -> &mut Variant {
+    pub fn get_or_fallback_mut(&mut self, id: u32) -> &mut Variant {
         match self.map.get_mut(&id) {
             Some(v) => v,
             None => &mut self.fallback,
@@ -129,7 +129,7 @@ impl CommandParameterSet {
     }
 
     /// Slot 5 for readers.
-    pub fn index(&self, id: u32) -> &Variant {
+    pub fn get_or_fallback(&self, id: u32) -> &Variant {
         self.map.get(&id).unwrap_or(&self.fallback)
     }
 
