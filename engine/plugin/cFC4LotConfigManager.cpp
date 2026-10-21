@@ -72,6 +72,8 @@ cISC4LotConfiguration* Cfg(uint64_t t) {
 }
 
 // The three query kinds of fc4_lot_config_ids / _configurations.
+// The game's hash_set<cISC4LotConfiguration*> (allocators.md; hasher PL20).
+using LotConfigSet = fc4::GameHashSetU32<fc4::StlNodeAllocator, fc4::PointerHashU32>;
 constexpr uint32_t kByFilter = 0;
 constexpr uint32_t kByFamily = 1;
 constexpr uint32_t kBySize = 2;
@@ -608,34 +610,14 @@ uint32_t cFC4LotConfigManager::GetLotConfigurationsByFilter(
                                       static_cast<std::vector<uint64_t>*>(ctx)->push_back(t);
                                   },
                                   &v);
-    auto* s = reinterpret_cast<fc4::GameHashSetU32<>*>(&configs);
-    for (uint64_t t : v) {
-        // PL18 (measured ledger, glue21fix2-isoref-3/-4): the game's growth
-        // pass releases FOUR references per configuration per SimNewDay
-        // (release site ILT 0x00709798), independent of how many slot-9
-        // queries matched it. The references no query owns are the
-        // catalogue's (creation, net +1) and the slot-20 scratch map's
-        // (InsertConfig, +1): 2. With one §B5.2 add per matched query, a
-        // no-lot configuration reached 2 + 2×1 = 4 given and 4 released:
-        // 0, and the wrapper deleted under the catalogue. So this loop
-        // adds a SECOND reference per matched configuration (the core's
-        // with_refs took the first): 2 + 2×2 = 6 given, 4 released, net
-        // +2, and the next day repeats (+4/-4) - stable. The original
-        // leaks the same direction (quirk 12: duplicates keep references
-        // slot 12 never releases). The core stays §B5.2-exact; this is the
-        // measured accommodation. Known side effect: our own tract host
-        // (ConfigurationsByFilter) also gets 2 per config and releases one
-        // in TractReleaseHeld, +1 per config per Grow pass, invisible to
-        // the shadows (they compare outcomes, not refcounts).
-        if (s != nullptr) {
-            // Both query references are taken even when the value is
-            // already in the set (the quirk of §B5.2): the game releases
-            // once per element per pass, and a skipped duplicate's
-            // references are the original's leak.
-            cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
-            if (o != nullptr) FC4_ADDREF(o);
-            s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
-        }
+    // §B5.2 slot 9 reference rule (PL19): the core took exactly one
+    // reference per returned configuration on this call, cache hit or not
+    // (with_refs); the game's growth pass releases each set element once.
+    // No second add here. The set is the game's hash_set<cISC4LotConfiguration*>,
+    // so values go to the buckets of its pointer hasher (PointerHashU32, PL20).
+    auto* s = reinterpret_cast<LotConfigSet*>(&configs);
+    if (s != nullptr) {
+        for (uint64_t t : v) s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
     }
     return static_cast<uint32_t>(v.size());
 }
@@ -650,14 +632,10 @@ uint32_t cFC4LotConfigManager::GetLotConfigurationsByFamily(void* configs, uint3
                                       static_cast<std::vector<uint64_t>*>(ctx)->push_back(t);
                                   },
                                   &v);
-    auto* s = reinterpret_cast<fc4::GameHashSetU32<>*>(configs);
-    for (uint64_t t : v) {
-        // §B5.2 + the PL18 second reference (see GetLotConfigurationsByFilter).
-        if (s != nullptr) {
-            cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
-            if (o != nullptr) FC4_ADDREF(o);
-            s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
-        }
+    // §B5.2: one reference per match, taken by the core (see slot 9).
+    auto* s = reinterpret_cast<LotConfigSet*>(configs);
+    if (s != nullptr) {
+        for (uint64_t t : v) s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
     }
     return static_cast<uint32_t>(v.size());
 }
@@ -672,14 +650,10 @@ uint32_t cFC4LotConfigManager::GetLotConfigurationsBySize(void* configs, uint32_
                                       static_cast<std::vector<uint64_t>*>(ctx)->push_back(t);
                                   },
                                   &v);
-    auto* s = reinterpret_cast<fc4::GameHashSetU32<>*>(configs);
-    for (uint64_t t : v) {
-        // §B5.2 + the PL18 second reference (see GetLotConfigurationsByFilter).
-        if (s != nullptr) {
-            cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t));
-            if (o != nullptr) FC4_ADDREF(o);
-            s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
-        }
+    // §B5.2: one reference per match, taken by the core (see slot 9).
+    auto* s = reinterpret_cast<LotConfigSet*>(configs);
+    if (s != nullptr) {
+        for (uint64_t t : v) s->insert(static_cast<uint32_t>(t & 0xFFFFFFFFu));
     }
     return static_cast<uint32_t>(v.size());
 }
@@ -693,7 +667,7 @@ void cFC4LotConfigManager::ClearLotConfigurationSet(void* configs) {
     // are freed here (to the same allocator the game's set uses) and every
     // bucket head is nulled, so the game's own destructor afterwards finds
     // empty chains and only frees the bucket buffer - no double free.
-    auto* s = reinterpret_cast<fc4::GameHashSetU32<>*>(configs);
+    auto* s = reinterpret_cast<LotConfigSet*>(configs);
     if (s == nullptr) return;
     s->ForEach(&cFC4LotConfigurationReleaseWalk);
     s->ClearNodes();

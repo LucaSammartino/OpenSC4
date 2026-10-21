@@ -72,3 +72,16 @@ gate-11 reaches PostCityInit with all three ON and no INCOMPLETE lines before th
 1. **PL15** (the shadow-over-a-replacement comparison) and **PL16** (the B7 slot 5/6 renames) — filed in
    `docs/specs/questions/prop-lotconfig.md` with the answers bracketed.
 2. **PL17** (the network-lot `CreateLotObjects` fault) — filed open; see the table row's next steps.
+## Handoff
+- State: in progress (run4 round 1). Goal: lotcfg/propmgr replacements game-clean (enable=propmgr,lotcfg,
+  turbo to 2032, ref_warnings=0, propmgr/lotcfg/tutorial shadows exact), then the full gate.
+- Diagnosis (from glue21fix2-pin-1.log, `build-runs/wave_walk.py <log> 11922`): PL19's "drain" is NOT a
+  reference deficit; the growth pass's walk over our slot-9 set CYCLES (8 distinct releases, then 6 nodes
+  round-robin forever). Our insert placed nodes at v mod 193; the game's increment recomputes the bucket as
+  (v >> 2) mod n (26/26 chain-end jumps fit; identity 0/26). Filed PL20 (questions/prop-lotconfig.md).
+- Fix (uncommitted -> see commits): FC4GameList.h gets a Hash policy (IdentityHashU32 default,
+  PointerHashU32 = v>>2); cFC4LotConfigManager slots 9/10/11/12 use LotConfigSet (pointer hash); the PL18
+  second AddRef in slots 9-11 is dropped (core with_refs = exactly one add per element per call, cache hit
+  included, per §B5.2 slot 9 rule). quick build PASS.
+- Next: commit, `qbuild all` baseline, game run label glue21-r4-1 (enable=propmgr,lotcfg, sim_turbo=1,
+  end_date 2032), check wave releases == slot-9 adds per query in the trace, shadows, then report.

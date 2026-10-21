@@ -74,3 +74,16 @@
   evidently never released)? Until this is answered from the exe, no FreeCity4 reading of slot 9 /
   slot 20 can make the lotcfg replacement game-clean; the double-add is kept (it strictly improves
   the ledger) and the fault stands between the run and a clean verdict.
+
+- **PL20:** (§B5.2, §B7 slots 9-12; docs/abi/allocators.md row 81 and *hash_set*) which hash function does
+  the game's `hash_set<cISC4LotConfiguration*>` use to place a value in a bucket (the one the growth pass's
+  iterator increment at `0x0047C1A0` recomputes when a chain ends, and insert `0x0048A170` uses)?
+  allocators.md specifies only `hash_set<uint32_t>` (identity, v mod n). Measured (glue21fix2-pin-1, per-op
+  trace, `build-runs/wave_walk.py` in the glue21 worktree): our slot 9 put 89 configurations into the
+  growth pass's 193-bucket set at v mod 193; the walk released 8 of them once and then cycled over 6
+  forever (05397290, 037CF900, 037CD8F0, 05397878, 037CDFB0, 05397A28 = buckets 10, 10, 101, 171, 92,
+  24), which is PL19's "drain to zero". Every chain-end jump of that walk (26 of 26) matches an increment
+  that recomputes the bucket as (v >> 2) mod n; identity matches 0. FreeCity4 now inserts with
+  (v >> 2) mod n for slots 9-11 and walks slot 12 in bucket order (`PointerHashU32`, engine/plugin/
+  FC4GameList.h). Please confirm the hasher (and whether resize rehashes with the same function), and
+  add it to allocators.md.
