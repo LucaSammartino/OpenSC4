@@ -178,3 +178,71 @@ data4.
 | `0x4AB04CBE`, `0x4AB04CBF` | | subscribed but not handled |
 
 *[quirk]* In `0xA6B79601` with `+0x44` set, only q is stored; p is dropped.
+
+## 8. Occupant handlers and the deferred queue *[compat]*
+
+All handlers take (occupant o, flag f, type t) as built in §5. Each first asks the type filter `+0x5C` (slot
+`+0x10`, argument t); a rejected type does nothing. While the defer count `+0xF0` is non-zero, a handler does not
+act: it appends {o (AddRef), op} to the queue `+0xE4` (`0x004936A0`) and returns. Op codes:
+
+| op | handler | address |
+|---|---|---|
+| 1 | created | `DoOccupantCreated` `0x00494970` |
+| 2 | destroyed | `DoOccupantDestroyed` `0x00493750` |
+| 3 | shown | `DoOccupantShown` `0x00493B90` |
+| 4 | changed | `DoOccupantChanged` `0x00494A30` |
+| 5 | moved | `DoOccupantMoved` `0x004937D0` |
+| 6 | highlighted (entry bytes +5, +6 keep its two arguments) | `DoOccupantHilighted` `0x00493A00` |
+| 7 | inserted (queued only when f is set) | `0x00494290` |
+| 8 | removed | `0x00494310` |
+
+Entry layout: {counted occupant, op byte at +4, two argument bytes at +5/+6}; op 0 marks a cancelled entry.
+
+### 8.1 Created (op 1)
+
+Not deferring: call occupant slot `+0x50`, copy `+0x20` to `+0x10C`, then if the occupant has no model holder
+(occupant slot `+0x4C` null) or the holder's slot `+0x0C` returns 0, `AddModels(o, zoom +0x20, rotation +0x24,
+t, false)` (§12).
+
+### 8.2 Destroyed (op 2)
+
+Not deferring: `RemoveModels(o, t)` (§12).
+
+### 8.3 Inserted (op 7) and removed (op 8)
+
+Inserted: only when f is set; not deferring, it is `DoOccupantShown(o, f, t)`. Removed: not deferring, it is
+`DoOccupantShown(o, false, t)`.
+
+### 8.4 Shown (op 3)
+
+Not deferring: when f is set, ask the View3D object `+0x58` (slot `+0x0C`, argument o) whether o is visible and
+clear f when it is not, then set occupant flag 2 (slot `+0x74`); when f is clear, clear occupant flag 2 (slot
+`+0x7C`). If the terrain-hiding filter `+0x60` (slot `+0x10`, t) accepts, `DoTerrainHidingForOccupantCells(o, t,
+f)` (§13). Then the occupant's model holder (slot `+0x4C`), when present, gets slot `+0x20(f)` and is released.
+Finally `SetOccupantAnimation(o, f)` on the animation coordinator `+0x74`.
+
+### 8.5 Changed (op 4)
+
+Not deferring, and only when occupant flag 1 is set (slot `+0x80(1)`): when f is clear, the model holder (if any)
+gets slot `+0x20(0)` (hidden); when f is set, `RemoveModels(o, type)`, then if `+0x58` slot `+0x0C(o)` is true,
+`AddModels(o, zoom, rotation, type, true)`.
+
+### 8.6 Defer count (`0x00495970`, message `0x49D968C4`)
+
+The message's flag (slot `+0x24` != 0) increments `+0xF0` when true and decrements it when false. When the count
+goes from positive to zero or below and the queue is not empty, `EnableDeferredOccupantOperations` runs.
+*[quirk]* Unbalanced decrements make the count negative; handlers then queue again until it returns to 0.
+
+### 8.7 Replaying the queue (`EnableDeferredOccupantOperations` `0x00494B30`)
+
+1. **Destroy cancels earlier work.** For each entry D with op 2, from the last entry backwards, every earlier entry
+   with the same occupant is cancelled (op 0, reference released); if one of those was a Create (op 1), D is
+   cancelled too (created and destroyed while deferred: nothing to do).
+2. **Insert covers a change.** For each op 4 entry C, if an earlier entry with the same occupant has op 7, C is
+   cancelled.
+3. Replay the remaining entries in queue order: f = occupant `IsFlagSet(4)` (slot `+0x80`), t = `GetType()`
+   (slot `+0x1C`), each calling the op's handler (op 6 with the two stored bytes instead).
+4. Release every entry and empty the queue.
+
+*[inferred]* that steps 1 and 2 visit every index (the decompiled loop heads are merged); the replacement visits
+all indices.
