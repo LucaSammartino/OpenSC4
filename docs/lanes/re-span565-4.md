@@ -1,10 +1,32 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-span565-4 | workflow / `re-span565-4` | in progress | write docs/specs/span-render-565.md |
+| re-span565-4 | workflow / `re-span565-4` | **ready** (specs only, no ABI rows): `docs/specs/span-render-565.md` complete — all 145 owner functions [exact] or [verified]; 168/168 blit slots verified by emulation (random, via-RenderBlt, texel sweep, aliased overlap); SR565-1 filed | SR565-1 (is a 565 gradient ever drawn) needs an indirect-call trace or in-game capture |
 
-## Handoff
-- Goal: spec nGZDrawSoftRender::cSpanRender565 (5 methods 0083DE50..0083E210 + its blit table) in docs/specs/span-render-565.md, verified by unicorn emulation (harness in docs/specs/proofs/).
-- Done: lane file 61e826f2; proofs harness 2b48399d + alias (this commit): span565_methods 5/5 PASS 500; span565_blt 168/168 PASS 300 (also `via` RenderBlt 100); span565_sweep 168/168 (4 colours, all 16-bit texels); span565_alias 168/168 (200).
-- Next: write docs/specs/span-render-565.md (sections: common, Solid, Alpha, Gradient, AlphaGradient, RenderBlt+6.1 caller, table, model 7.x, proofs, open points); file SR565-1 (gradient reachability).
-- Facts: table rows 0x00AC1E28 (row i = 0x00AC1DF8-0x30i); 141 distinct bodies (139 in range + 0x00848160, 0x00833730); helper 0x00845450 = blend; REA unavailable (no app open), used decomp/ + asm.
-- Facts (old): sibling lanes re-span1555-4 / re-span4444-4 have a unicorn harness on their branches (build-runs/emu1555*.py); reuse approach only, verify every 565 formula from bytes.
+## Report
+
+**What changed.** Commits `2b48399d` (unicorn proof harness: loader, methods, blit slots, texel sweep), `b9ee7227`
+(aliased-overlap harness), `f54a4b2c` (spec `docs/specs/span-render-565.md`, question SR565-1, QUESTIONS.md index).
+Harness lives in `docs/specs/proofs/span565_*.py` (RE-only, no game behaviour; needs unicorn + bin/SimCity4.exe).
+
+**Spec content.** §1 span/record/stride/no-clip/overlap rules; §2 RenderSolid (low 16 bits verbatim); §3
+RenderAlpha weight `(a8·0x818180)>>26` and the packed blend of helper `0x00845450`; §4 gradient record, its producer
+`0x0082FDB0` (re-read from bytes) and the 565 per-pixel rule (R/G exact top bits, B start SHR 3 + step SAR 3 drift,
+worked example); §5 AlphaGradient (`w = (V3·0x84)>>26`, up to 63 out of range); §6 RenderBlt dispatch (table
+`0x00AC1E28`) and the caller's fill (format/key tables `0x00830654`/`0x00830674`, kind, plain bias, stretch
+half-pixel origin, tiled `K_W` origin) re-read from `0x008302E0`; §7 table of 168 slots (141 distinct bodies, folds
+listed), per-source conversion, ConstantAlpha (`w = ca>>3`, never full), Modulate/ModulateAlpha, key rule, stretch
+(logical shifts, 156 checked) and tiled addressing.
+
+**Measured results (2026-10-21).** `span565_methods.py 500`: 5/5 PASS. `span565_blt.py 300`: 168/168.
+`span565_blt.py via 100`: 168/168. `span565_sweep.py 4`: 168/168 (all 16-bit texels). `span565_alias.py 200`:
+168/168 (a snapshot-read model fails 148 slots, so the test discriminates).
+
+**Notes.** REA was unavailable (no app open in the shared session); used decomp/ region files, re_query asm and
+direct emulation. 1555/4444 harness ideas were reused for structure only; every 565 formula was derived from 565
+bytes and passes only against them (e.g. the 565 gradient differs from 1555's).
+
+**Questions.** SR565-1 filed in `docs/specs/questions/span-render-565.md`. The question tool parses `SR565` as prefix
+`SR` + number (next free shows SR566), the same as the sibling SR1555/SR4444 entries; the index will need a
+regenerate when the three lanes merge.
+
+**Next.** SR565-1: trace indirect calls to `cGZDrawContext` vtable slot `+0x6C` or capture an in-game gradient.
