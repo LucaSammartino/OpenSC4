@@ -40,7 +40,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 **Runtime:** game queue6slots(pid22296); native CLI BG_WAIT_CEILING_MS=0. qwait without--fresh, unique labels. RE preflight must GO; export-first allowed even if no REA binary open. Gate verdicts never set by hand. Train32 generated QUESTIONS conflict resolved by regeneration from merged sources, questioncheckPASS.
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 235 (train34 PASS; citysit replacement, disaster exacttrace,4444core,RZ/language specs); 234 (train33 PASS; traffic TS67 corrected,565 complete, advisor blockers answered); 233 (train32 three-lane PASS;1555 spec and GZ queue-manager core); 232 (train31 PASS; formats read-shadow exact;4444 span spec complete); 231 (train29 three-lane PASS; TS67 answered, partial occupant records). See `docs/manual-checks.md`.
+- **Latest in-game run:** 236 (train37 PASS; propdev replacement and four core modules); 235 (train34 PASS; citysit replacement, disaster exacttrace,4444core,RZ/language specs); 234 (train33 PASS; traffic TS67 corrected,565 complete, advisor blockers answered); 233 (train32 three-lane PASS;1555 spec and GZ queue-manager core); 232 (train31 PASS; formats read-shadow exact;4444 span spec complete). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
