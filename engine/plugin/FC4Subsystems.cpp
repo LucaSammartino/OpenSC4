@@ -430,6 +430,7 @@ const ClassEntry kNetworkLotClasses[] = {
 // netmgr replacement's own create_tool callback hands out the real tool.
 const ClassEntry kNetToolClasses[] = {
     {kFC4_CLSID_cFC4NetworkTool, "cFC4NetworkTool", &CreateFC4NetworkToolEntry},
+};
 
 // docs/specs/occupant-manager.md §1, CLSID 0x098F964D. Off by default
 // (glue25): `enable = occmgr`. The city component table's #4 (foundations
