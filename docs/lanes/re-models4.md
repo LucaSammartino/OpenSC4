@@ -1,6 +1,11 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-models4 (RE spec: exact cSC43DRender owner beyond view3d.md §3/§4, docs/specs/render3d.md) | `re-models4` / (RE spec lane) | ready, partial owner spec (no whole-owner credit): render3d.md §1-6, §9 lifecycle, §10 screen shake, §7 remaining list, 12+12 conformance cases; questions R3D-1..R3D-4 open; no ABI change, no game runs | 1. Picking group (Pick, PickTerrain, PickTerrainAlways, IsModelVisible, view-object list). 2. Backing store create/save/restore, translated/zoom/rotation view updates. 3. R3D-1/R3D-3 byte proof. 4. Then claim whole-owner credit. |
+| re-models4 (RE spec: exact cSC43DRender owner beyond view3d.md §3/§4, docs/specs/render3d.md) | `re-models4` / (RE spec lane) | in progress (round 3/3 FINAL), partial owner spec (no whole-owner credit): render3d.md §1-6, §9 lifecycle, §10 screen shake, §7 remaining list, 12+12 conformance cases; questions R3D-1..R3D-4 open; no ABI change, no game runs | 1. Picking group (Pick, PickTerrain, PickTerrainAlways, IsModelVisible, view-object list). 2. Backing store create/save/restore, translated/zoom/rotation view updates. 3. R3D-1/R3D-3 byte proof. 4. Then claim whole-owner credit. |
+
+## Handoff
+
+- Goal round 3: close render3d.md §7 groups: dirty merge scoring (R3D-3) + rect filter 0x007C2C70, picking, backing store, view updates.
+- Next: dirty merge 0x007C8F30 asm, then picking 0x007C2220/0x007C6830.
 
 ## Round 2 report
 
