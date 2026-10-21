@@ -385,43 +385,86 @@ the lot is in state 2. Field names after #12 are not known; their grouping follo
 The class embeds the occupant base at `+0x08` (constructor `0x005D00F0`: `cSC4Occupant::cSC4Occupant` `0x005E9220`
 with ECX = this+8), so base fields are at object +0x2C onward. Object size `0x1A0`; GZCOM creator `0x005D0BC0`
 passes argument 1, which selects the per-instance-table vtable pair (`+0x3C` = `0x00AA211C`, `+0x40` = `0x00AA2264`,
-and `+0x19C` = `0x00AA1F38`); argument 0 leaves them shared. The saved field addresses, in Write order:
+and `+0x19C` = `0x00AA1F38`); argument 0 leaves them shared.
 
-| Offset | Type | Role, observed | Record field |
+**Three `this` frames** *[compat]* (answers OP13/OP14, 2026-10-21). The class's methods run on different
+sub-objects, so the same field has three offsets in the binary. Every offset in this section and in §9.2 is given
+in the **object frame** (the address the GZCOM creator returns, main vtable `0x00AA2250` at +0):
+
+| Methods | `this` | Object offset = |
+|---|---|---|
+| `SetLot`, `DoDailySim`, `DoAnimationTick`, `AnimateCrane`, `RebuildModel`, `CreateSparks`, the `Attempt*Crane` steps | object + 0 | the offset as coded |
+| `DoMessage` `0x005D1090` (message-target vtable `0x00AA2240` at +4) | object + 4 | coded + 4 |
+| `Init` `0x005D1300`, `Shutdown`, `GetPosition`, `GetBoundingBox` (occupant vtable `0x00AA21B8` at +8) | object + 8 | coded + 8 |
+| `Write` `0x005CD250`, `Read` `0x005CE770` (serializable vtable `0x00AA219C` at +0xC) | object + 0xC | coded + 0xC |
+
+Earlier revisions of this table used the Write-frame offsets (12 lower than the object frame), which made the
+saved lot / building references look like separate copies of the live ones and shifted every #14 role by three
+fields. The saved fields, in Write order (object frame; the Write-coded offset in brackets):
+
+| Offset [Write] | Type | Role, observed | Record field |
 |---|---|---|---|
-| `+0x5C`/`+0x60` | 2 × ref | the saved lot / building references (`SC4WriteGZSerializable`, IID `0xE818FCED` / `0x87DDA3A9`); live copies held at `+0x68`/`+0x6C` | 3, 4 |
-| `+0x64` | xform | `operator<<` `0x005DA8C0`, read with `0x005DA930` (v4) or `0x005DA710` (v5) | 5 |
-| `+0x9C`, `+0xB4` | 2 × box | world / local bounds (`0x005DA600`) | 6, 7 |
-| `+0xCC` | bool | written as `(+0xF8 != 0)` — "a crane model exists" | 8 |
-| `+0xFC` | vec3 | crane position (`0x005DA580`) | 9 |
-| `+0x11C`, `+0x120` | ground / roof-prop lists | `std::list`, nodes at +8 hold the prop ref (IID `0xE9793A65`); count then refs | 10, 11 |
-| `+0x124`/`+0x128` | effect vector | `vector<cRZAutoRefCount<…>>` begin/end; count then one ref per entry (pointer `+0x10` of each element, IID `0x2977AA49`) | 12 |
-| `+0x130` | current effect | written as (pointer + 0x10) or 0; read into `+0x130` (IID `0x2977AA49`) | 13 |
-| `+0x134` | s8 | unnamed *[inferred: effect-selection index]* | 14a |
-| `+0x138…+0x148` | 5 × u32 | daily-progress state (§9.2) | 14b |
-| `+0x14C`, `+0x150` | 2 × f32 | next segment day and segment length (§9.2) | 14c |
-| `+0x154…+0x164` | 5 × u32 | scaffold/placement progress state (§9.2) | 14d |
-| `+0x168` | s8 | unnamed | 14e |
-| `+0x16C`, `+0x170` | 2 × f32 | crane interpolation (§9.2) | 14f |
-| `+0x174` | bool | crane exists flag (drives `+0xCC` on Write) | 14g |
-| `+0x178`, `+0x17C` | 2 × u32 | unnamed | 14h |
-| `+0x180`, `+0x184` | 2 × f32 | crane swing phase (§9.2) | 14i |
-| `+0x118` | u8 | unnamed (written via `SetUint8` slot 0x14, last scalar before the crew) | 14j |
-| `+0x188` | crew list | `std::list`, each node {u8 at +8, u8 at +9, 16-byte sub-object at +0xC…}; count then {bool, bool, ref} per entry | 15 |
+| `+0x68`/`+0x6C` [`+0x5C`/`+0x60`] | 2 × ref | the **live** lot / building references that `SetLot` holds (there is no separate saved copy); `Read` releases the old ones and reads into the same fields | 3, 4 |
+| `+0x70` [`+0x64`] | xform | `operator<<` `0x005DA8C0`, read with `0x005DA930` (v4) or `0x005DA710` (v5) | 5 |
+| `+0xA8` [`+0x9C`] | box | world bounds; the box `GetPosition` / `GetBoundingBox` read (their frame offset `+0xA0` = object `+0xA8`) | 6 |
+| `+0xC0` [`+0xB4`] | box | the scaffold box `RebuildModel` stores (x / z = building footprint ∓/± 1.0, constant `0x00B0A7D0`); used by `CreateConstructionCrew`, `AddRoofProps`, `CreateSparks` | 7 |
+| `+0x104` [`+0xF8`] → `+0xD8` [`+0xCC`] | bool | written as (live crane model pointer `+0x104` != 0; `CreateCrane` sets it); read into the load-only flag `+0xD8`, never into `+0x104`. `Read` also sets `+0xD9` = 1 (refresh pending, §9.2) | 8 |
+| `+0x108` [`+0xFC`] | vec3 | crane position (`0x005DA580`) | 9 |
+| `+0x128`, `+0x12C` [`+0x11C`, `+0x120`] | ground / roof-prop lists | `std::list`, nodes at +8 hold the prop ref (IID `0xE9793A65`); count then refs | 10, 11 |
+| `+0x130`/`+0x134` [`+0x124`/`+0x128`] | spark-effect vector | `vector<cRZAutoRefCount<…>>` begin/end; count then one ref per entry (pointer + 4 of each element, IID `0x2977AA49`) | 12 |
+| `+0x13C` [`+0x130`] | scaffold effect | written as (pointer + 0x10) or 0 (IID `0x2977AA49`); `DoDailySim` switches it to removal (its slot 8, argument 1) | 13 |
+| `+0x140` [`+0x134`] | s8 | **state** (ld §6.7.5, 0…4); stored as int32, written as its low byte, read sign-extended | 14a |
+| `+0x144` [`+0x138`] | u32 | `T0` (sim day of `SetLot`) | 14b |
+| `+0x148` [`+0x13C`] | u32 | unused: 0 from the constructor, only written and read *[inferred: no other access in the class]* | 14b |
+| `+0x14C` [`+0x140`] | u32 | `nextDay` | 14b |
+| `+0x150` [`+0x144`] | u32 | `N` (segments, ≥ 1; `RebuildModel`) | 14b |
+| `+0x154` [`+0x148`] | u32 | `counter` (current segment) | 14b |
+| `+0x158` [`+0x14C`] | f32 | scaffold span `N · segH` (`RebuildModel`) | 14c |
+| `+0x15C` [`+0x150`] | f32 | `startY` (grown height + 0.1, `RebuildModel`) | 14c |
+| `+0x160`…`+0x16C` [`+0x154`…`+0x160`] | 4 × u32 | `A`, `B`, `C`, `E` (ld §6.7.4) | 14d |
+| `+0x170` [`+0x164`] | u32 | `msAcc` (animation milliseconds since the last phase change) | 14d |
+| `+0x174` [`+0x168`] | s8 | crane state (0 swing, 1 pause, 2 pick target; ld §6.7.6); int32 in memory, read sign-extended | 14e |
+| `+0x178`, `+0x17C` [`+0x16C`, `+0x170`] | 2 × f32 | crane swing limits min / max (radians, `AttemptAddOuterCrane`, ld §6.7.6) | 14f |
+| `+0x180` [`+0x174`] | bool | unused: false from the constructor, only written and read *[inferred: no other access in the class]* | 14g |
+| `+0x184`, `+0x188` [`+0x178`, `+0x17C`] | 2 × u32 | crane accumulator and duration (ms) | 14h |
+| `+0x18C`, `+0x190` [`+0x180`, `+0x184`] | 2 × f32 | crane target angle and previous target angle (radians) | 14i |
+| `+0x124` [`+0x118`] | u8 | crane type index (into the boom-radius table `0x00B22F70`; set at `0x005CDC32`, passed to `CreateCrane`) | 14j |
+| `+0x194` [`+0x188`] | crew list | `std::list`, each node {u8 at +8, u8 at +9, 16-byte sub-object at +0xC…}; count then {bool, bool, ref} per entry | 15 |
 
 The Write writes the crew count from the `+0x188` list, then per node reads two bytes (`operator>> bool`
 `0x005D9FA0` on Read) and one `SC4ReadGZSerializable` reference with IID `0xA9B40F05`.
 
 ### 9.2 Life cycle (`0x005D1300` Init, `0x005D0890` SetLot, `0x005D0680` DoDailySim)
 
-- **Messages** (subscribed in `Init` `0x005D1300` through the message server `0x00B43CCC` slot 0x14, target = the
-  `cIGZMessageTarget2` view at `+0x4`): `0x66956814` → `DoDailySim`; `0x86AD10EE` (time-tick) → `DoAnimationTick`
-  `0x005CE110` with the message's data3 ÷ 1000 (`MUL 0x10624DD3; SHR 6`); `0x06CDB65B` (visibility test) → the
-  common flag-2 dance (§10.3); `0xA6B79602` (model availability) → sets `+0xFC` = 1; `0x26D31EC1` (view refresh)
-  → rebuild / crane / re-add-to-renderer as measured. `Init` also registers the object with the animation tick
-  manager (service `cRZSysServPtr<cISC4AnimationTickManager, 2259489005, 2259489004>` `0x00602600`, slot 0x14,
-  tag `0x80`) and pre-sizes 20 `cISC4SimGrid<float>*` slots from the service table `0x00AA1E30…0x00AA1E48`.
-  `Shutdown` (`0x005D0CE0`) unsubscribes all five, unregisters the tick, sends `SendConstructionMessage(0xC9E7B1E8, 0)`
+- **`Init`** (`0x005D1300`, occupant frame; answers OP15 / OP7, 2026-10-21), in this order: return true at once if
+  the occupant's own `IsInitialized` (occupant slot 5) is true; run the occupant base `Init` (`0x005E8C90`, §2.4)
+  **unconditionally**; `StaticInit` once per process (flag `0x00B22F60`); subscribe **four** messages through the
+  message server `0x00B43CCC` slot 0x14, target = the message-target sub-object at object `+0x4`: `0x66956814`,
+  `0xA6B79602`, `0x06CDB65B`, `0x26D31EC1` (`0x86AD10EE` is **not** subscribed: the animation-tick manager calls
+  `DoMessage` directly, lot-developer §6.7.8); register with the animation-tick manager (service
+  `0x00602600`, slot 0x14, priority `0x80`); fill 6 × 5 `cISC4SimGrid<float>*` slots from the framework
+  (`0x1AC0E11A`/`0xFAC0E219` service, table `0x00AA1E30…0x00AA1E48`); pack the render state at object `+0xF8`
+  (`0x007D2B50`); finally call **occupant slot 23 `AddOccupantGroup(0x5007)`** on itself (`CALL [EAX+0x5C]` at
+  `0x005D1505`, `ECX` = the occupant sub-object, vtable `0x00AA21B8` slot 23 = `0x005E9350`, one stack argument,
+  callee pops 4). Its compiled body (`0x005E9350`): read the occupant's u32-array property `0xAA1DD396` (the
+  property of §9 #2), and if `0x5007` is not in it (`std::find` `0x004696C0`), append it, write the property back
+  (`0x005FE6B0`) and post the queued message `0xEBFF18A3` (occupant slot 15 `0x005E9010`, carrying the occupant and
+  the group ID); if it is already present nothing happens. The return value is not used. So a construction occupant
+  always carries occupant group `0x5007` in property `0xAA1DD396`; a loaded one already has it from its base record
+  and gets no second entry and no message.
+- **`DoMessage`** (`0x005D1090`, object `+0x4` frame): `0x66956814` → `DoDailySim`; `0x86AD10EE` →
+  `DoAnimationTick(ms)` with `ms` = the message's dword at `+0x14` (message slot 14 getter; the field the tick
+  manager fills with the clamped **µs**, called data2 in lot-developer §6.7.8) divided by 1000, unsigned and
+  truncating (`MUL 0x10624DD3; SHR 6`); `0x06CDB65B` → the common flag-2 renderer dance (§10.3); `0xA6B79602` → sets
+  byte object `+0x100` = 1 when the dwords at +4 of the two objects returned by message slots 10 and 15 differ; `0x26D31EC1` → the refresh below. All
+  return true.
+- **Refresh after a load** (`0x26D31EC1`, `0x005D10C7…0x005D1155`): only when the refresh-pending byte `+0xD9` is set
+  (`Read` sets it, nothing else does): `RebuildModel`; if the load-only has-crane byte `+0xD8` (record #8) is set,
+  `CreateCrane(position x +0x108, position z +0x110, crane type +0x124)`; `AddToRenderer`; then `DoAnimationTick(0)`,
+  with `state` temporarily set from 2 to 1 around the call when it is 2 (so a state-2 load redraws the scaffold at
+  the state-1 height instead of re-setting the building completion), and clear `+0xD9`. The crane model therefore
+  exists only after this refresh; a `Write` before it saves record #8 = false *[quirk]*.
+- `Shutdown` (`0x005D0CE0`) unsubscribes the four, unregisters the tick, sends `SendConstructionMessage(0xC9E7B1E8, 0)`
   first, and releases the lot/building/props/effects/crew.
 - **`SendConstructionMessage(type, data3)`** `0x005CBD20`: posts a `cRZMessage2Standard` (0x2C bytes) with type =
   arg1, void1/data2 = this, data3 byte = arg2, through the message server slot 0x10 (queued).
@@ -433,28 +476,24 @@ The Write writes the crew count from the `+0x188` list, then per node reads two 
   `CreateLotTexture` `0x005CF380`. It then reads the sim day (`0x00B43D5C` slot 0x20/4=8) into `+0x144`, computes
   the segment schedule into `+0x150…+0x164` from the lot's growth rate (`0x00B0A7D8`), resets state `+0x140` = 0,
   sets completion 0 (building slots 9/10 + a queued `0x2977AE2F` message), sets the scaffold height to
-  ground + 0.001 (`0x005CC020`), and if a crane exists sets `+0x174` = 2, `+0x184` = 1, `+0x188` = 0 and calls
-  `FUN_005CBE10(height)`. Finally `SendConstructionMessage(0x49E7B1E2, 1)` (segment-start), then
+  ground + 0.001 (`0x005CC020`), and if a crane exists (`+0x104` != 0, `0x005D0B46`): target `+0x18C` := min
+  `+0x178`, previous `+0x190` := max `+0x17C`, accumulator `+0x184` := 1, duration `+0x188` := 0, crane state
+  `+0x174` := 2, and `FUN_005CBE10(min)` poses the boom at the min angle (`0x005D0B4E…0x005D0B87`). Finally `SendConstructionMessage(0x49E7B1E2, 1)` (segment-start), then
   `SendConstructionMessage(0xC9E7B1E8, 1)` and `AddToRenderer` `0x005CA960`.
 - **`DoDailySim`** `0x005D0680` matches lot-developer.md §6.7.5 (segment state machine at `+0x140`; sends
   `SendConstructionMessage(0x49E7B1E2, 1)` at segment starts, completion at `0x5D0723`–`0x5D0790` fires the sparks
   iterator over the `+0x12C` list and the effect slot 9/7 dance). This class's copy adds the day-stamp
   bookkeeping: state 0/2 path at `0x005D0701`, and the completion path walks the effect list and drives
   `SendConstructionMessage(0xC9E7B1E8, …)`.
-- **`GetPosition`** `0x005CA7D0` / **`GetBoundingBox`** `0x005CA820` read the live world box at `+0xA0…+0xB4`
-  (min at `+0xA0…+0xA8`, max at `+0xAC…+0xB4`); `GetPosition` returns the box centre (each coordinate
-  `(min + max) * 0.5f`, constant `0x00A84D2C`). These are copies of the building's box maintained by
-  `RebuildModel`/`SetLot`, not the saved `+0x9C` box.
-- **`DoAnimationTick`** `0x005CE110` drives the crane/scaffold animation from `+0x178…+0x184` and is also called
-  directly by the `0x26D31EC1` refresh path when `+0x13C` == 2 (it toggles `+0x13C` 2→1→2 around the call and
-  clears `+0xD5`).
-- Unnamed-field roles measured in `DoDailySim` (decompiler `cSC4ConstructionOccupant.c`): `+0x140` = segment
-  state (0…2), `+0x144` = segment start day, `+0x148` = segment end day, `+0x14C` = next-day f32, `+0x150` =
-  segments-per-completion u32 (min 1), `+0x154` = current segment (1-based), `+0x158`/`+0x15C` = scaffold target
-  and current height f32 (target = grown height + 0.1), `+0x160`/`+0x164` = per-state day counts, `+0x168` = s8
-  flag, `+0x16C`/`+0x170` = crane interpolation f32 pair (accumulated tick time / duration), `+0x174` = crane
-  phase bool, `+0x178`/`+0x17C` = crane swing u32 pair, `+0x180`/`+0x184` = crane swing phase f32 pair,
-  `+0x118` = u8 (read last via slot 0x14; role unmeasured — Q3).
+- **`GetPosition`** `0x005CA7D0` / **`GetBoundingBox`** `0x005CA820` (occupant frame) read the saved world box,
+  record #6 at object `+0xA8…+0xBC` (their coded `+0xA0…+0xB4`); `GetPosition` returns the box centre (each
+  coordinate `(min + max) * 0.5f`, constant `0x00A84D2C`).
+- **`DoAnimationTick`** `0x005CE110` (lot-developer §6.7.6) adds `ms` to `msAcc` `+0x170` and interpolates by
+  `state` `+0x140`; it is also called with 0 by the refresh above.
+- The life-cycle fields (state, `T0`, `nextDay`, `N`, `counter`, span, `startY`, `A`, `B`, `C`, `E`, `msAcc`, the
+  crane fields) all sit in record #14 as tabled in §9.1, so a loaded construction resumes its schedule from the
+  saved values with no recomputation: `DoDailySim` reads only `state`, `nextDay`, `counter`, `N`, `B`, `C`, `E`;
+  `RebuildModel` (refresh) recomputes `N`, span and `startY` from the building as before the save.
 
 ---
 
