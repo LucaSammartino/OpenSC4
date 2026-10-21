@@ -538,12 +538,12 @@ the editor reach the property on the dialog's Okay even when `Save Table` was ne
 Worked example: value (0x1000, 0x6534284A, 0x2000) → one key (0x6534284A, 0x1000, 0x2000) in the table; its
 row shows `<property name> (L)` and the three hex words 0x1000, 0x6534284A, 0x2000; Okay returns the same list.
 
-## 13. Open points for round 3
+## 13. Open points
 
-16-column grid editor (0x0A09AC46), colour sequence editor (0xCA0CB10F), happiness and general response curve
-editors (0x071E971B, 0xE8DDA013), resource-key table editor (0xA7847D6A: rows, add/edit/delete, the 0x0787ECC4
-defaults interface of §3.4), the other text editors' GetValue range checks, who opens `cSCEditValueDlg` and who
-reads the ExemplarFilters map (0x00B46924), and the 0xA73B81F0 helper object's role.
+Happiness and general response curve editors (0x071E971B, 0xE8DDA013): identity and method names only. Also open:
+the other text editors' GetValue range checks, who opens `cSCEditValueDlg`, who reads the ExemplarFilters map
+(0x00B46924), the 0xA73B81F0 helper's role, the grid control's own slot semantics (§11.2), the res-key list's
+column-0 property ID source (+0xEC vs +0xF4, §12).
 
 ## 14. Owner map (honest)
 
@@ -554,10 +554,12 @@ reads the ExemplarFilters map (0x00B46924), and the 0xA73B81F0 helper object's r
 | cSCEditValueDlg | 1650 named (+ Init 0x00667320 ≈1165 unnamed) | Init, doButtonPress, GZOnCommand specified (§9); folded GZPaint and the misnamed shared Release not read |
 | cSCUint32ComboBoxEntryView, cSCUint8ComboBoxEntryView | 1177 + 1133 named (+ GetValue 0x00687AE0, 0x00687CA0 unnamed) | specified (§10), identity of 0x87C34EDA proven |
 | typed text editors (8 classes) | ~3700 | layout and Init specified, SINT64 read-back specified (§8.1) |
-| cSC16ColumnGridEntryView, cSCColorSequenceEntryView, cSCHappinessCurveEntryView, cSCGeneralResponseCurveEntryView, cSCResKeyTableEntryView, cSCUint32SpinnerEntryView | rest of the ~29700 | identity only |
+| cSCUint32SpinnerEntryView, cSC16ColumnGridEntryView, cSCColorSequenceEntryView, cSCResKeyTableEntryView | named Init/GetValue/handlers | specified round 3 (§11.1-11.3, §12) incl. unnamed SetValue/GetValue/DoMessage slots |
+| cSCHappinessCurveEntryView, cSCGeneralResponseCurveEntryView | ~8000 | identity only |
 | cSCResourceCatalogView, cSCResCatBaseView, cSCResCatalogPickerView, cSCResKeyInputView | 16686 | identity only |
 
 Proposed coverage-map entries (exact owners, no wildcard credit): `spec` = `resource-exemplar-editor.md` for
 `cSCPropertyView`, the three free functions, `cSCEditValueDlg`, `cSCUint32ComboBoxEntryView` and
-`cSCUint8ComboBoxEntryView`. Leave the `cSC*EntryView` and `cSC*View` wildcards at `-`: the grid, colour, curve,
-spinner and resource-key table editors and the catalog views are identity only.
+`cSCUint8ComboBoxEntryView`, plus (round 3) `cSCUint32SpinnerEntryView`, `cSC16ColumnGridEntryView`,
+`cSCColorSequenceEntryView`, `cSCResKeyTableEntryView`. Leave the `cSC*EntryView` and `cSC*View` wildcards at `-`: the two curve editors
+and the catalog views are identity only.

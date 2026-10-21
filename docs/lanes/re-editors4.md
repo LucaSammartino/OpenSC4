@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-editors4 (RE spec: resource and exemplar editor, cSCPropertyView + value editors + edit-value dialog) | `re-editors4` / (RE spec lane) | in progress (round 3): resource-exemplar-editor.md rounds 1+2 (round 2 commits 27651b80, e3192315, 14c28703, c7da5d1d); no ABI, no questions, no game runs; export + decomp + exe bytes only, REA not used | 1. coverage-map: `spec` for cSCPropertyView, 3 free functions, cSCEditValueDlg, cSCUint32ComboBoxEntryView, cSCUint8ComboBoxEntryView (exact owners, no wildcard); 2. round 3: grid, colour, curve, spinner, res-key table editors (spec §13) |
+| re-editors4 (RE spec: resource and exemplar editor, cSCPropertyView + value editors + edit-value dialog) | `re-editors4` / (RE spec lane) | ready: resource-exemplar-editor.md rounds 1-3 (round 3: cbff4988, d32f7c46, 3690b34d) (round 2 commits 27651b80, e3192315, 14c28703, c7da5d1d); no ABI, no questions, no game runs; export + decomp + exe bytes only, REA not used | 1. coverage-map: `spec` for cSCPropertyView, 3 free functions, cSCEditValueDlg, cSCUint32ComboBoxEntryView, cSCUint8ComboBoxEntryView (exact owners, no wildcard); 2. round 3: grid, colour, curve, spinner, res-key table editors (spec §13) |
 
 ## Report
 
@@ -34,9 +34,11 @@ slot roles, meaning of the ResKeyTableEditorDefaults values.
 
 Questions: none filed. ABI: none proposed. REA: not used (export, decomp and exe bytes via build-runs/rd.py).
 
-## Handoff
+## Round 3 report
 
-Goal (round 3, final): spec the 16-column grid, colour sequence, curve, spinner and res-key table editors (§11/§12 of resource-exemplar-editor.md), from export instructions.
-Done: rounds 1+2 up to 0b222b44.
-Next: find each class's vtable/methods via re_query.py (search cSC16ColumnGrid etc.), write §11 (grid, spinner), §12 (colour, curves, res-key table), update §13/§14.
-Facts: no REA needed so far; no ABI, no questions.
+- §11.1 spinner (cbff4988): range 0..255 quirk, IDs 0xBA293DA4+i, GetValue 0x00689940.
+- §11.2 16-column grid (cbff4988): rows = count/16, %u/%d/%.3g cells, in-place truncating write-back, float 3-digit rounding quirk.
+- §12 res-key table (d32f7c46): SetValue/GetValue/Save/Revert/Refresh slots, Add/Edit/Delete/Save Table buttons, picker 575x475, words 0/1 swap; 0x67336285 proven cSCResKeyTable (§8 corrected).
+- §11.3 colour sequence (3690b34d): pairs, Add/Delete/Refresh, Pick color, GetValue from vector only (typed edits need Refresh).
+- §13/§14 updated: curve editors (0x071E971B, 0xE8DDA013) and catalog views remain identity only; no wildcard credit.
+REA unavailable (no app open); export + capstone (build-runs/cdis.py) used. No questions, no ABI rows, no game runs.
