@@ -33,9 +33,9 @@ contract, not part of this spec.
 | Owner | Identity | Bytes (coverage.py --owners) | This spec |
 |---|---|---|---|
 | `cFontCOMDirector` | registers 3 classes (below); director ID `0x5AA40BD3` | 220 | complete |
-| `cGZFontSys` | class `0x20673960`, object 0x70 bytes, interface asked as `0x287FB697` at OnStart | 8 358 | partial (FN3, FN4) |
-| `cGZFontSys::FontFixedInfo` | catalogue record (§12) | 105 | partial (fields only) |
-| `cGZFont` | class `0x1AA404AC`, object 0x15C bytes, interface `0x10673960` (QI also answers 1), vtable `0x00AC55D8`, 64 slots | 16 187 | partial (FN1, FN2, FN5, FN6) |
+| `cGZFontSys` | class `0x20673960`, object 0x70 bytes, interface asked as `0x287FB697` at OnStart | 8 358 | partial: FN3/FN4 answered (§12); slots 0, 2, 4, 12, 17-19, 21-24 unaudited |
+| `cGZFontSys::FontFixedInfo` | catalogue record (§12) | 105 | fields complete (§12: +0 font list, +4 family, +0x18 style, +0x1C kind, +0x20 source type) |
+| `cGZFont` | class `0x1AA404AC`, object 0x15C bytes, interface `0x10673960` (QI also answers 1), vtable `0x00AC55D8`, 64 slots | 16 187 | partial: FN1/FN2/FN5/FN6 answered; 64-slot audit not done |
 | `cGZFont::CachedBitmapData` | two glyph caches inside the font (§7) | 56 | complete with §7 |
 | `cGZDrawFontRenderer` | class `0x08CDA30B`, object 8 bytes from the director factory `0x00895F65`; vtable `0x00AC14BC` | 4 444 | identity only, uncredited |
 
@@ -44,8 +44,12 @@ contract, not part of this spec.
 renderer`. `OnStart` creates class `0x20673960` with interface `0x287FB697` and, if that succeeds, registers it with
 the framework (framework vtable +0x0C) and releases its own reference.
 
-Coverage claim (precise): exact owners are `cFontCOMDirector` and `cGZFont::CachedBitmapData`. `cGZFont`,
-`cGZFontSys` and `FontFixedInfo` stay partial until FN1-FN6 are answered. Map proposal: the
+Coverage claim (precise): exact owners are `cFontCOMDirector` and `cGZFont::CachedBitmapData`; FN1-FN6 are
+answered (re-fontanswers4, 2026-10-21) and no longer block a font core. `cGZFont` and `cGZFontSys` stay partial
+until their remaining methods are audited: `cGZFontSys` vtable `0x00AC5488` slots 0 `0x00893D2C`, 2 `0x00893DD7`,
+4 `0x00894F8D`, 12 `0x00893F22`, 17 `0x00894A3A`, 18 `0x00893E5B`, 19 `0x00893ECB`, 21 `0x00894198`,
+22 `0x008944B2`, 23 `0x0089423C`, 24 `0x0089538D` and AddSubstitution (slot 20 `0x0089595D`) are not specified
+here; for `cGZFont` the slot tables of §4 and §8 do not yet list every one of the 64 slots. Map proposal: the
 `cGZFont*` and `cFontCOMDirector` rows of `tools/coverage-map.tsv` (subsystem "2D drawing and fonts") may name
 spec `drawing-fonts.md`; do not credit the whole subsystem.
 
@@ -117,6 +121,7 @@ Offsets in a `cGZFont`; names are ours.
 | 19/20 | Get/SetAntialiasingSharpness | clamp [-1, 1]; on change rebuild §10 |
 | 21/22 | Get/SetFilePath | string copy |
 | 23/24 | Get/SetCodePage | Get always returns true |
+| 25 | IsCodePageAvailable(cp) | §6 probe table |
 | 26 | IsCharEncodingAvailable(e) | `e == 2` |
 | 29/30 | Get/SetScaling(x, y) | clamp each to [0.01, 1000]; on change clear both caches and re-apply the char size at 72×72 dpi |
 | 31/32 | Get/SetAdvanceScaling | Get returns (advanceScale, 1.0); Set clamps [0.1, 10], on change clears both caches |
@@ -156,6 +161,28 @@ when it needs Thai substitution, else the input is used as is), then applies §1
 characters that need it. Measuring functions temporarily set codePage to 0x10 while they walk the converted text
 and restore it afterwards.
 
+`IsCodePageAvailable(cp)` (slot 25, `0x00898A5A`) builds a list of probe characters, then returns true iff every
+probe has a glyph in the open face (`0x0089F538` on the face handle at font +0xEC → +8, non-zero = present; the
+first absent probe returns false). The table, read from the switch at `0x00898A7E`..`0x00898C05`:
+
+| cp | probes |
+|---|---|
+| 8, 0x10 | none probed: true at once |
+| 0, 1252 | U+0061 |
+| 874 | U+0E01, U+0E2C |
+| 932 | U+3061, U+30A4 |
+| 936 | U+70A7, U+7535 |
+| 949 | U+C2B9, U+C9D1 |
+| 950 | U+6F54, U+70B5 |
+| 1250 | U+0142 |
+| 1251 | U+0401 |
+| 1253 | U+0370, U+0393 |
+| 1254 | U+011E |
+| 1255 | U+05D0, U+05E2 |
+| 1256 | U+0621, U+0641 |
+| 1257 | U+0160 |
+| any other | empty list: true (no probe) |
+
 ## 7. Glyph cache and glyph rasters
 
 - `GetAppropriateCachedBitmapData` (slot 59): monoCache when aaMode == 1, else greyCache.
@@ -194,6 +221,8 @@ and restore it afterwards.
 | 41 | CalculateWordsToFitInWidth(s, n, w, &width, mode) | §8.1 |
 | 43 | CalculateNumberOfLines(s, n, w) | repeatedly takes CalculateWordsToFitInWidth(…, mode 2) and counts lines (w 0 treated as 1) |
 | 47 | TextArea(rect) | rect = (0, 0, GetStringWidth, CharHeight) |
+| 44 | CalculateWidthOfLines(s, n, height) | §8.2 |
+| 45 | CalculateTextArea(s, n, rect, minW, maxW, maxH) | §8.2 |
 | 46 | CalculateTextArea(s, n, rect, wrap, fixWidth) | §8.2 |
 | 50 | FormatForEllipsis(text, ellipsis, rect, keepAll) | §8.3 |
 
@@ -206,7 +235,31 @@ source-unit length, and `width` = GetStringWidth of that prefix.
 
 **8.2 Text area.** Empty text: rect.right = rect.left. With wrap and fixWidth: height = CalculateNumberOfLines ×
 line height measured against the rect's width; without wrap: right = left + GetStringWidth; bottom = top + line
-height. With wrap and no fixWidth: right = left + CalculateWidthOfLines(rect height) (FN5).
+height. With wrap and no fixWidth: right = left + CalculateWidthOfLines(rect height).
+
+`CalculateWidthOfLines(s, n, height)` (slot 44, `0x008968EB`) returns the narrowest width, in steps of 10 pixels
+from 20 to 4000, at which the text wraps into at most maxLines = height / lineHeight lines (unsigned division;
+lineHeight 0 is not guarded). Binary search on lo = 2, hi = 400: mid = (lo + hi) >> 1; lines =
+CalculateNumberOfLines(s, n, mid·10); if lines > maxLines, lo = mid + 1; otherwise, if lo == hi return lo·10,
+else hi = mid; repeat while lo ≤ hi. Leaving the loop (even 4000 does not fit) returns 0. Height below one line
+gives maxLines 0 and so 0 for any text that has a line.
+
+`CalculateTextArea(s, n, rect, minW, maxW, maxH)` (slot 45, `0x008973D4`, 6 stack arguments, returns bool) fits
+the text into a box no taller than maxH; rect is {left, top, right, bottom} and only right and bottom are written.
+Signed compares except where marked:
+1. lh = GetLineHeight; maxH = max(maxH, lh).
+2. If minW or maxW is −1: aw = CharWidth('a'); minW −1 → 12·aw; maxW −1 → 32·aw; then if maxW ≤ minW,
+   maxW = 2·minW (this repair runs only in this branch).
+3. w = 1. If the text contains no U+000A (`Find(s, n, 10)` `0x0089738F` = −1): w = GetStringWidth(s, n), and
+   a. if w < minW: one line {w, lh} (right = left + w, bottom = top + lh), true;
+   b. if w < 2·minW: W2 = CalculateWidthOfLines(s, n, 2·lh); if W2 < maxW (unsigned) and 2·lh ≤ maxH:
+      {W2, 2·lh}, true;
+   c. if w < maxW: one line {w, lh}, true.
+4. For k = w / maxW + 1 while k < maxH / lh (k = 1 when the text has a newline): H = k·lh;
+   W = CalculateWidthOfLines(s, n, H); if W ≠ 0, W < maxW (unsigned) and H ≤ maxH: {W, H}, true.
+5. Nothing fits: right = left, bottom = top, false.
+Worked example: aw 8, lh 16, minW = maxW = −1 (so 96, 256), maxH 100: width 60 → 60 × 16; width 150 → the
+two-line width (say 80) → 80 × 32; k never reaches maxH / lh = 6, so at most 5 lines are tried.
 
 **8.3 Ellipsis.** Unless keepAll: if the characters fitting the rect width are fewer than the text, and the
 ellipsis width < rect width, truncate to what fits in (width − ellipsis width), drop trailing spaces, append the
@@ -248,8 +301,12 @@ last one.
 
 `BuildAntialiasingLookupArray` (`0x008993BB`, constants at `0x00A80AC8` 2.0, `0x00A90BBC` 1/255, `0x00A84D2C` 0.5,
 `0x00A9D8B0` 255.0): when gamma == 1.0 and sharpness == 0.0 the table is emptied (no remap). Otherwise it is
-resized to 256 and the grey cache is cleared. k = pow(sharpness + 1, 1 / L(2)) in double, stored as float (FN1
-names L). For i = 0..255: v = float(i) · (1/255); if gamma ≠ 1, v = powf(v, gamma); if sharpness ≠ 0: v = min(v, 1),
+resized to 256 and the grey cache is cleared. k = pow(sharpness + 1, 1 / log10(2)) in double, stored as float:
+the routine at `0x009F2160` is the CRT **log10** (x87 path `FLDLG2; FYL2X` at `0x009F221F`; SSE2 path
+`0x009FE548` scales the exponent by log10(2) = 0.30102999566 at `0x00AEAE60`), so 1/log10(2) = 3.321928… and
+k = (sharpness + 1)^3.321928 (k = 1 at sharpness 0, k = 10 at sharpness 1, k = 0 at sharpness −1). Call
+order (`0x0089942A`..`0x00899456`): L(2.0), 1.0 / L, then pow(float(sharpness) + 1.0, that), FSTP to float.
+For i = 0..255: v = float(i) · (1/255); if gamma ≠ 1, v = powf(v, gamma); if sharpness ≠ 0: v = min(v, 1),
 then v = powf(2v, k)·0.5 for i ≤ 127, else 1 − powf(2(1 − v), k)·0.5; entry = truncate(v · 255) (`__ftol`).
 
 ## 11. Thai presentation forms
@@ -271,7 +328,43 @@ then v = powf(2v, k)·0.5 for i ≤ 127, else 1 − powf(2(1 − v), k)·0.5; en
 
 `MakeSubstitutedString` (`0x00899665`) first splits SARA AM (U+0E33) into NIKHAHIT (U+0E4D) + SARA AA (U+0E32),
 recording the source index of each output unit in the map vector, then chooses form 1/2/3 per character from the
-Thai character classes of its neighbours. The exact class rules are FN2.
+Thai character classes of its neighbours, as follows.
+
+`UTF16GetThaiCharType(ch)` (`0x0091169F`, a lazily built map) returns 0 outside U+0E00..U+0E7F and for any
+unlisted code point, else:
+
+| class | code points |
+|---|---|
+| 1 | U+0E01..0E23, 0E25, 0E27..0E2E (consonants) |
+| 2 | U+0E40..0E44 |
+| 3 | U+0E30, 0E32, 0E33 |
+| 4 | U+0E45 |
+| 5 | U+0E24, 0E26 |
+| 6 / 7 / 8 | U+0E38 / U+0E39 / U+0E3A (below vowels) |
+| 9 | U+0E48..0E4B (tone marks) |
+| 10 | U+0E4C, 0E4D |
+| 11 | U+0E47 |
+| 12 | U+0E4E |
+| 13 | U+0E34 |
+| 14 | U+0E31, 0E36 |
+| 15 | U+0E35, 0E37 |
+| 16 | U+0E50..0E59 (digits) |
+| 17 | U+0E2F, 0E3F, 0E46, 0E4F, 0E5A, 0E5B |
+
+Second loop (`0x0089980B`..`0x0089997A`), over the split string in place; every decision uses the original
+characters (prev, cur, next; prev = 0 with class 0 at the start, next = 0 with class 0 at the end). "Tall" means
+prev ∈ {U+0E1B, U+0E1D, U+0E1F, U+0E2C}. A one-step carry holds the form value chosen for the previous character
+(0 when it was copied unchanged, except as noted in rule 2). For each character, in this order:
+1. cur = U+0E0D and class(next) ∈ 6..8: output GetSubstitutionChar(U+0E0D, 1) = U+F70F; carry := 0.
+2. class(cur) ∈ 6..7: copied unchanged, but carry := 1 when prev is tall (else 0). Class 8 is copied, carry 0.
+3. class(cur) ∈ 9..11 or 13..15: form = 1 if carry = 1 or prev is tall, else 0; then, if class(cur) = 9 or
+   cur = U+0E4C, add 2 when class(prev) < 10 (compiled test at `0x0089990E`: the 13..15 and 10..12 range checks
+   reduce to "class(prev) < 10"). Form ≠ 0: output GetSubstitutionChar(cur, form); form 0: copy. carry := form.
+4. Any other class (0..5, 12, 16, 17): copied unchanged, carry := 0.
+Worked examples: U+0E1B U+0E48 (tall consonant, tone mark) → U+0E1B U+F705 (form 3); U+0E01 U+0E48 → U+0E01
+U+F70A (form 2); U+0E1B U+0E34 U+0E48 → U+0E1B U+F701 U+F713 (the vowel gets form 1, the carry gives the tone form
+1, class 13 ≥ 10 adds nothing); U+0E1B U+0E38 U+0E48 → U+0E1B U+0E38 U+F705 (carry through the below vowel, then
++2).
 
 ## 12. Font catalogue (`cGZFontSys`)
 
@@ -286,15 +379,48 @@ Thai character classes of its neighbours. The exact class rules are FN2.
 - `AddFont(path)`: once per path; relative names fall back to `<Windows>\Fonts\`. The file is opened with FreeType;
   a non-empty family name records FontFixedInfo {family, style flags, kind (2 if fixed-size else 1), source
   type} under the path and adds the lower-case family to the family set.
+- System antialiasing settings (vtable `0x00AC5488`; all zero after construction `0x0089529A`..`0x008952A6`):
+  slot 5 `SetCodePage(cp)` (`0x00893D7B`) stores +0x20 and returns true; slot 7 `SetDefaultAntialiasing(mode)`
+  (`0x00893D87`) stores +0x14; slot 8 `SetRenderer(r)` (`0x00893D91`) AddRefs r, releases the old one, stores +0x24.
+  Slot 9 `SetMonochromeSizeRange(min, max, family)` (`0x008954CB`): with family null it stores the system range
+  +0x18 = min, +0x1C = max. With a family name: if min < max (signed) it inserts family → {min, max} into the
+  per-family range map +0x64 (insert-unique `0x008950A5`: an existing entry for that name is kept, not
+  overwritten); otherwise (min ≥ max) it erases the name from the map (`0x00894E0C`). Names are stored as given
+  (no lower-casing).
 - `FontAcquire(path, size, style, cache)` (`0x00895A1C`): with `cache`, reuse a font already made for the same path,
-  size and style. Otherwise create class `0x1AA404AC` (or `new cGZFont`), set path, size, style (SetStyle(style,
-  on)), codePage and renderer, then aaMode: 1 (monochrome) when size lies inside the system's mono size range
-  (+0x18..+0x1C), or outside it but inside the catalogue entry's own range (entry words 9..10); else the system
-  default (+0x14) (FN4). Then Init; failure releases it and returns null. With `cache` the
-  font is recorded in the catalogue entry. Returns an AddRef'd font.
-- `FontAcquire(familyList, …)` by comma-separated family names with substitutions and a best-match score:
-  FN3.
+  size and style. Otherwise create class `0x1AA404AC` (or `new cGZFont`), set path (slot 22), size (slot 11),
+  SetStyle(style, on), codePage (+0x20) and renderer (+0x24), then the aaMode (slot 16), unsigned compares
+  (`0x00895C07`..`0x00895C53`):
+  1. mode = system default +0x14;
+  2. if +0x18 ≤ size ≤ +0x1C, mode = 1 (monochrome);
+  3. otherwise look the font's GetName (slot 5, the familyName field) up in the map +0x64; if found and
+     min ≤ size ≤ max, mode = 1.
+  Step 3 runs before Init, so familyName is still the freshly created font's empty name: only a range registered
+  under the empty name can apply there (a conforming implementation keys the lookup by that pre-Init name, not by
+  the face's family). With +0x18 = +0x1C = 0 the system range holds only size 0. Then Init; failure releases it
+  and returns null. With `cache` the font is recorded in the catalogue entry. Returns an AddRef'd font.
+- `FontAcquire(familyList, kind, size, style, cache)` (`0x00894ADF`, slot 11, 5 stack arguments):
+  1. Split a lower-cased copy of familyList at ',' (`RZParseDelimitedText`, at most 32 names; n = count).
+  2. Substitution walk: for each name i from the last to the first, for each entry of the substitution map
+     (+0x4C, in key order; key = substitute family, value = vector of alias strings), for each alias: if
+     name i IsEqual alias (string slot 10, flag false) and name i, lower-cased, is not in the installed family
+     set (+0x28), name i becomes the entry's key, lower-cased, and that entry's alias loop ends; the walk
+     continues with the next map entries using the new name.
+  3. masked = style with bits 0x3C cleared (user styles removed). best = none, bestScore = 1000.
+  4. For every catalogue entry (+0x40, path → FontFixedInfo, in path order) score it:
+     - n > 0: find the first p with name p == lower(entry.family) (case-exact after both are lower-cased);
+       p = 0 → 0, p > 0 → 2, no match → 0x20;
+     - n = 0: 0 if entry.kind (FontFixedInfo +0x1C) == kind, else 4;
+     - then style: entry.style == masked → +0; (entry.style & ~masked) == 0 → +8 (subset); else +0x10.
+     If score < bestScore (strict) the entry becomes best: ties keep the earlier path.
+  5. No catalogue entries → return null. Otherwise, with `cache`, return the best entry's cached font whose
+     size (font slot 10) == size and whose recorded style == style (unmasked), AddRef'd; else return
+     `FontAcquire(bestPath, size, style, cache)` (slot 10).
+  Because every score is below 1000, a non-empty catalogue always yields a candidate even when no name
+  matches. Worked example: list "Arial,Tahoma", request style 0x05 (masked 0x01): an "arial" entry with style 0
+  scores 0 + 8 = 8; a "tahoma" entry with style 1 scores 2 + 0 = 2 and wins; an unrelated family scores ≥ 0x20.
 
 ## 13. Open questions
 
-See `docs/specs/questions/drawing-fonts.md` (FN1-FN6).
+FN1-FN6 are answered (archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
+`docs/specs/questions/drawing-fonts.md`.
