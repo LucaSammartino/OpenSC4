@@ -253,7 +253,7 @@ The editors are GZCOM classes registered by `cSC4ResourceLibCOMDirector`'s const
 | 0x0A09AC46 | 0x00687E20 | cSC16ColumnGridEntryView |
 | 0xA7847D6A | 0x00684260 | cSCResKeyTableEntryView |
 | 0xA73B81F0 | 0x00662730 | 16-byte ref-counted helper with three interfaces (0x00AAB0D8/0x00AAB0C8/0x00AAB0B8), not a window (§9) |
-| 0x67336285 | 0x006836E0 | resource-key input object, vtables 0x00AAF850/0x00AAF838 *[inferred]* |
+| 0x67336285 | 0x006836E0 | `cSCResKeyTable`, the ordered resource-key list used by §12 (`GetGZCLSID` 0x00683260 returns this ID; interface 0x273362A2; vtables 0x00AAF850/0x00AAF838) |
 
 The same director also registers the exemplar resource factory (0x453429B3), the cohort factory (0x053429C8), the
 exemplar cache (0x252EA0DF) and the file parser; those belong to the formats/persistence subsystem.
@@ -441,6 +441,68 @@ so opening and confirming the editor rounds every float of the shown rows to 3 s
 
 Worked example: UINT8 list of 35 elements 0..34 → 2 rows (elements 0..31), elements 32..34 not shown. Typing
 `300` in cell (0, 1) and confirming stores element 16 = 300 mod 256 = 44; elements 32..34 keep their values.
+
+## 12. Resource-key table editor `cSCResKeyTableEntryView` (class 0xA7847D6A) *[compat]*
+
+Not on the standard base: a 0x120-byte object (Create 0x00684260, ctor 0x006841B0) whose value interface is at +0
+(vtable 0x00AAFB58), a second interface at +4 and the window at +8. The ctor creates its own `cSCResKeyTable`
+(class 0x67336285, §8) at +0x104; the held value (a cRZVariant) is at +0x108; a dirty flag at +0x11D.
+
+**Value format**: a UINT32 list of 3·n words, one resource key per triple. Table key words (k0, k1, k2) map to
+value words (k1, k0, k2): the first two words are **swapped** both ways (load, GetValue, Save Table, the picker
+variant), consistent with the v1/v2 swap of §3.4.
+
+**SetValue** (slot +0x18, 0x00683F50): copies the property value into +0x108, clears the table, then for
+i = 0, 3, 6, … while i < count appends key (v[i+1], v[i], v[i+2]). A count not divisible by 3 reads up to two
+words past the end for the last key *[quirk]*.
+
+**Init** (0x00684F10), once (init flag): records a window colour, clears flag 0x800, sets 0x10000, adds a
+background fill control of class 0xC2AFA76E (interface 0xC2AFA76F) covering the window. Unless the read-only
+byte at +0x114 is set *[inferred: role]*, four buttons are placed right to left along the bottom edge, each
+5 px left of the previous, bottom 5 px above the window bottom:
+
+| Order (from right) | Label | Button ID | Action (`doButtonPress` 0x00684720, via GZOnCommand message 0x287259F6) |
+|---|---|---|---|
+| 1 | `Save Table` | 0xDA0ADBAA | slot +0x2C then refresh |
+| 2 | `Add Key` | 0xDA0ADBA8 | addKey 0x00684280 |
+| 3 | `Edit Selected Key` | 0xDA0ADBAD | editKey 0x00684480 |
+| 4 | `Delete Selected Key` | 0xDA0ADBA9 | deleteKey 0x00684030 |
+
+Labels: `ResKey Table` at x = 5 (top), `Debug Name` at (5, label height + 3) and `ResKey` at
+(width/2 + 10, label height + 3). Below them a two-column list control (class 0xDAA6B9BF, interface 0xDAA6B9BE,
+child ID 0x3A0F0F21), columns width/2 each, spanning x 5..width − 5 from just below the header labels to 30 px
+above the buttons, background (0xF0, 0xF0, 0xF0); its selection mode differs with the read-only byte
+*[inferred: slots +0x28/+0x30]*. Rows: one per table key in table order (`addKeyToListBox` 0x00684DC0 through the
+table's for-each slot +0x30): a temporary property with the editor's property ID and value UINT32[3]
+(k1, k0, k2); column 0 = that property's name (`GetPropertyNameStr`) followed by ` (L)`, column 1 =
+`GetPropertyValueStr` of the value (§7, so hex words). Finally the dirty flag is cleared and `Save Table` is
+disabled (button flag 2 off).
+
+**Buttons**:
+
+- **Add Key**: opens a modal `cSCResCatalogPickerView` (300-byte object), 575 × 475, centred on the main window,
+  initialised with UINT32[3] = (defaults +0xFC, +0xF8, +0x100), the §3.4 `ResKeyTableEditorDefaults` values.
+  If the modal returns 0 (accepted), the picked UINT32[3] (p0, p1, p2) is appended as key (p1, p0, p2); the
+  dirty flag is set, `Save Table` enabled, the list refreshed. Any other result: nothing.
+- **Edit Selected Key**: needs a list selection (first selected row r ≥ 0, at least one row selected) with
+  r < table count. Opens the same picker initialised with the key at r (as value words). On accept the picked
+  key replaces entry r; only if it differs from the old key (key compare 0x00431180) are the dirty flag set,
+  `Save Table` enabled and the list refreshed.
+- **Delete Selected Key**: with a selection r ≥ 0, removes entry r if r < table count; then dirty flag, `Save Table`
+  enabled, refresh (also when r was out of range).
+- **Save Table** (0x00684A00): flattens the table into the held value as UINT32 (k1, k0, k2) triples, clears the
+  dirty flag, disables `Save Table`, refreshes.
+
+**Refresh** (slot +0x34, 0x00684E70): deletes the list's rows and refills them from the table as in Init.
+**Revert** (slot +0x30, 0x006840E0): reloads the table from the held value (as SetValue), clears the dirty flag and
+disables `Save Table`. Slot +0x24 (0x00683FF0) replaces the table object and refreshes *[inferred]*.
+
+**GetValue** (slot +0x1C, 0x00684790): builds a UINT32 list (k1, k0, k2) per table key **from the table, not from
+the saved value**, stores it in the held value (slot +0x198) and copies it to the destination. So keys added in
+the editor reach the property on the dialog's Okay even when `Save Table` was never pressed.
+
+Worked example: value (0x1000, 0x6534284A, 0x2000) → one key (0x6534284A, 0x1000, 0x2000) in the table; its
+row shows `<property name> (L)` and the three hex words 0x1000, 0x6534284A, 0x2000; Okay returns the same list.
 
 ## 13. Open points for round 3
 
