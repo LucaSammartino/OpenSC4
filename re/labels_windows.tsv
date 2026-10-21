@@ -587,6 +587,7 @@ va	name	slots	note
 00abb6c0	cSC4RenderProperties::vftable	0	render-properties.md §2; 18 slots
 00abbea0	_GLOBAL__N__AspyrBuild_depot_SC4RH_RH_Merge_SC4000_SC4000App_source_SC4RuleParser.cpp_00000000_1AEDF898::cRuleCommand::vftable	7	paired with Mac __ZTVN103_GLOBAL__N__AspyrBuild_depot_SC4RH_RH_Merge_SC4000_SC4000App_source_SC4RuleParser.cpp_00000000_1AEDF89812cRuleCommandE#0, 2 agreeing slots
 00abbebc	_GLOBAL__N__AspyrBuild_depot_SC4RH_RH_Merge_SC4000_SC4000App_source_SC4RuleParser.cpp_00000000_1AEDF898::cOptionGroupCommand::vftable	7	paired with Mac __ZTVN103_GLOBAL__N__AspyrBuild_depot_SC4RH_RH_Merge_SC4000_SC4000App_source_SC4RuleParser.cpp_00000000_1AEDF89819cOptionGroupCommandE#0, 4 agreeing slots
+00abbef8	(anonymous_namespace)::cVendorCommand::vftable	0	graphics-rules.md §4.4; descriptive name, no Mac match; 7 slots
 00abcb60	cSC4ToolTipManager::vftable	6	paired with Mac __ZTV18cSC4ToolTipManager#0, 4 agreeing slots
 00abcbc0	cSC4View3DWin::vftable_3	151	paired with Mac __ZTV13cSC4View3DWin#3, 133 agreeing slots
 00abce40	cSC4View3DWin::vftable	61	paired with Mac __ZTV13cSC4View3DWin#0, 55 agreeing slots

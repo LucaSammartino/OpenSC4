@@ -326,7 +326,15 @@ fn:RotateLightingRectToWorld	lighting and shadows	renderer	lighting.md	-	-	-
 fn:BuildBasisFromDirection	lighting and shadows	renderer	lighting.md	-	-	-
 cSC4RenderProperties*	render properties	renderer	render-properties.md	-	-	-
 cSC4Model*	3D scene and models	renderer	-	-	-	-
-cSC4ConfigRuleManager	3D scene and models	renderer	-	-	-	-
+cSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	-	-	-
+cSC4RuleParser	graphics rules	renderer	graphics-rules.md	-	-	-
+(anonymous_namespace)::cRuleCommand	graphics rules	renderer	graphics-rules.md	-	-	-
+(anonymous_namespace)::cOptionGroupCommand	graphics rules	renderer	graphics-rules.md	-	-	-
+(anonymous_namespace)::cVendorCommand	graphics rules	renderer	graphics-rules.md	-	-	-
+(anonymous_namespace)::AddOptionToSet	graphics rules	renderer	graphics-rules.md	-	-	-
+_GLOBAL__N_*SC4RuleParser.cpp*	graphics rules	renderer	graphics-rules.md	-	-	-
+fn:GZCOM_CreatecSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	-	-	-
+fn:GZCOM_cSC4ConfigRuleManagerCLSID	graphics rules	renderer	graphics-rules.md	-	-	-
 cSC4CellTextureModel	3D scene and models	renderer	-	-	-	-
 cSC4FoundationModel	3D scene and models	renderer	-	-	-	-
 cSC4LotRetainingWallModel	3D scene and models	renderer	-	-	-	-

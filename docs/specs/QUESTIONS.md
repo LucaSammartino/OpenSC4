@@ -59,6 +59,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GC | command-system |
 | GF | graphics-formats |
 | GLUE | lot-configuration, prop-developer |
+| GR | graphics-rules |
 | GT | glyph-textures |
 | GZ | framework-gz-services |
 | HD | html-document |
@@ -159,6 +160,7 @@ generated index: the questions live one file per spec, so read only the file for
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
+| graphics-rules | 3 | 0 | GR4 | questions/graphics-rules.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
 | landfill | 0 | 36 | LF7, LG31 | - |
@@ -219,4 +221,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **210** | **1115** | | |
+| **total** | **213** | **1115** | | |

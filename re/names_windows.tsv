@@ -8538,6 +8538,7 @@ va	name	source	confidence	note
 007c2740	icf::cSC43DRender::EnableTransparentBackground	folded	folded	2 names: cSC43DRender::EnableTransparentBackground | cSC4PropOccupant::SetRandomChance
 007c2750	cSC43DRender::GetBackingStoreEnabled	auto:C	low	mac 005038ec score 1.0 support 1
 007c2760	cSC43DRender::SetBackingStoreEnabled	auto:C	high	mac 005038f8 score 1.0 support 1
+007c2790	HasBackingStore	manual:graphics-rules.tsv	high	graphics-rules.md §2; descriptive name, no Mac match; global 0x00B4E1E4 non-null; the backingStore flag
 007c27a0	cSC43DRender::CreateBackingStore	auto:B0	medium	mac 00503924 score 0.895 support 1.0
 007c2910	cSC43DRender::DestroyBackingStore	auto:B0	medium	mac 00502a76 score 0.943 support 1.0
 007c2960	cSC43DRender::SaveBackingStore	auto:B4	medium	mac 00502d86 score 0.969 support 2.0
@@ -8672,26 +8673,32 @@ va	name	source	confidence	note
 007cde60	cSC4CameraControl::SetZoomAndRotation	manual:camera.tsv	high	camera.md §2.6; zoom 0-4 and rotation 0-3; ViewZRChange1, CameraUpdated, ViewZRChange2, ViewZRChange3
 007ce080	cSC4CameraControl::ZoomIn	auto:D	medium	mac 0050e84c score 0.5 support 1
 007ce0e0	cSC4CameraControl::ZoomOut	auto:D	medium	mac 0050e7f0 score 0.5 support 1
-007ce130	GZCOM_cSC4ConfigRuleManagerCLSID	auto:A	low	mac 0050ea0c score 1.0 support 0
-007ce140	cSC4ConfigRuleManager::QueryInterface	auto:A	high	mac 0050ea16 score 1.0 support 0
+007ce130	GZCOM_cSC4ConfigRuleManagerCLSID	manual:graphics-rules.tsv	high	graphics-rules.md §1; returns 0x0A1D8285
+007ce140	cSC4ConfigRuleManager::QueryInterface	manual:graphics-rules.tsv	high	graphics-rules.md §1; slot 0 of 0x00ABB34C; 0x0A1D8284, else the cRZUnknown base
 007ce1ea	lib::Catch@007ce1ea	library	medium	Function ID
-007ce260	cSC4ConfigRuleManager::LogOptions	auto:A	high	mac 0050ead6 score 0.959 support 0
-007ce870	cSC4ConfigRuleManager::ApplyOptionGroupSetting	auto:C	high	mac 0050f9ae score 1.0 support 1
-007ce8d0	cSC4ConfigRuleManager::GetOptionGroupAutoSetting	auto:C	high	mac 0050fa2a score 1.0 support 1
-007cef40	cSC4ConfigRuleManager::LogConfigInfo	auto:A	high	mac 0050f2ca score 0.91 support 0
-007cf780	cSC4ConfigRuleManager::GatherInformation	auto:A	high	mac 00510ab8 score 0.535 support 0
-007cfe10	cSC4ConfigRuleManager::ParseConfigFile	auto:A	high	mac 00510718 score 1.0 support 0
+007ce1f0	cSC4ConfigRuleManager::ApplyPropertySet	manual:graphics-rules.tsv	high	graphics-rules.md §1; descriptive name, no Mac match; render properties slots 9, 10, 11 per list
+007ce260	cSC4ConfigRuleManager::LogOptions	manual:graphics-rules.tsv	high	graphics-rules.md §6; the current and recommended option lines
+007ce870	cSC4ConfigRuleManager::ApplyOptionGroupSetting	manual:graphics-rules.tsv	high	graphics-rules.md §6; slot 6 (group, option); out of range does nothing
+007ce8d0	cSC4ConfigRuleManager::GetOptionGroupAutoSetting	manual:graphics-rules.tsv	high	graphics-rules.md §6; slot 7; 0 out of range
+007ce900	cSC4ConfigRuleManager::RuleMatchesAll	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; descriptive name, no Mac match; flags, atLeast, atMost, stringMatch, stringNotMatch
+007cea80	cSC4ConfigRuleManager::RuleMatchesAny	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; descriptive name, no Mac match; -any: one condition is enough, none never matches
+007cef40	cSC4ConfigRuleManager::LogConfigInfo	manual:graphics-rules.tsv	high	graphics-rules.md §6; name = value with %s, %d, %g
+007cf780	cSC4ConfigRuleManager::GatherInformation	manual:graphics-rules.tsv	high	graphics-rules.md §2; flags, numbers and strings
+007cfe10	cSC4ConfigRuleManager::ParseConfigFile	manual:graphics-rules.tsv	high	graphics-rules.md §3; Graphics Rules.sgr, Graphics Options.sgr, prefsFirstTime, card IDs from cardVersion
 007d0410	cSC4ResponseCurve::cSC4ResponseCurve	auto:B0	medium	mac 0007db60 score 0.834 support 12.0
-007d0420	cSC4ConfigRuleManager::LogConfigurationToFile	auto:B0	medium	mac 0051137e score 0.935 support 2.0
+007d0420	cSC4ConfigRuleManager::LogConfigurationToFile	manual:graphics-rules.tsv	high	graphics-rules.md §1; slot 5
 007d0500	cSC4ConfigRule::cSC4ConfigRule	auto:B0	medium	mac 0051039a score 0.923 support 2.5
 007d0c70	std::vector<cSC4ConfigRule,std::allocator<cSC4ConfigRule>>::clear	auto:D	medium	mac 00768124 score 0.5 support 1
-007d0cc0	cSC4ConfigRuleManager::cSC4ConfigRuleManager	auto:B4	medium	mac 005113ea score 0.969 support 2.0
-007d0da0	__ZThn4_N21cSC4ConfigRuleManager14QueryInterfaceEmPPv	auto:B0	low	mac 008217dc score 0.96 support 1.0
-007d1030	GZCOM_CreatecSC4ConfigRuleManager	auto:B5	medium	mac 0051155e score 0.919 support 1.0
-007d10b0	cSC4ConfigRuleManager::ApplyRules	auto:A	high	mac 0050fd20 score 1.0 support 0
-007d13c0	cSC4ConfigRuleManager::SetFallbackRules	auto:A	high	mac 0051159a score 1.0 support 0
-007d1890	cSC4ConfigRuleManager::Init	auto:B0	medium	mac 005118d2 score 0.986 support 3.0
-007d18e0	cSC4ConfigRuleManager::SetOptionsFromConfiguration	auto:A	high	mac 00510576 score 1.0 support 0
+007d0cc0	cSC4ConfigRuleManager::cSC4ConfigRuleManager	manual:graphics-rules.tsv	high	graphics-rules.md §1; vtable 0x00ABB34C
+007d0da0	cSC4ConfigRuleManager::QueryInterface (thunk)	manual:graphics-rules.tsv	high	graphics-rules.md §1; was __ZThn4_N21cSC4ConfigRuleManager14QueryInterfaceEmPPv; this - 4
+007d0db0	cSC4ConfigRuleManager::~cSC4ConfigRuleManager (thunk)	manual:graphics-rules.tsv	high	graphics-rules.md §1; descriptive name; this - 4 to the deleting destructor
+007d0dc0	cSC4ConfigRuleManager::~cSC4ConfigRuleManager	manual:graphics-rules.tsv	high	graphics-rules.md §1; descriptive name; the destructor body
+007d1030	GZCOM_CreatecSC4ConfigRuleManager	manual:graphics-rules.tsv	high	graphics-rules.md §1; allocates and constructs
+007d1050	cSC4ConfigRuleManager::~cSC4ConfigRuleManager (deleting destructor)	manual:graphics-rules.tsv	high	graphics-rules.md §1; descriptive name; 0x007D0DC0 then GlobalHeapFree on bit 0
+007d10b0	cSC4ConfigRuleManager::ApplyRules	manual:graphics-rules.tsv	high	graphics-rules.md §5; depth stack, first matching non-partial sibling wins, option recommendations
+007d13c0	cSC4ConfigRuleManager::SetFallbackRules	manual:graphics-rules.tsv	high	graphics-rules.md §7; standard software, standard hardware, two stages
+007d1890	cSC4ConfigRuleManager::Init	manual:graphics-rules.tsv	high	graphics-rules.md §3; slot 3; gather, parse, fallback on failure
+007d18e0	cSC4ConfigRuleManager::SetOptionsFromConfiguration	manual:graphics-rules.tsv	high	graphics-rules.md §6; slot 4; -writeLog:off, <computerName>-config-log.txt
 007d1ab0	cSC4CoverageRadiusEffectHelper::GetCategoriesForOccupant	auto:A	high	mac 00511918 score 1.0 support 0
 007d1d10	cSC4CoverageRadiusEffectHelper::SetCategories	auto:B0	medium	mac 00511bde score 0.938 support 2.0
 007d1e40	cSC4CoverageRadiusEffectHelper::UpdateEffectForOccupant	auto:B0	medium	mac 005119de score 0.941 support 1.0
@@ -8913,15 +8920,32 @@ va	name	source	confidence	note
 007e3210	cSC4RenderProperties::cProperties::cProperties	manual:render-properties.tsv	high	render-properties.md §1.3; the 77 registrations in index order per type
 007e3650	cSC4RenderProperties::cSC4RenderProperties	manual:render-properties.tsv	high	render-properties.md §1.3; copies the three static tables, strips the k, short name, lower case
 007e3b10	icf::nSCRes::cBlockCommandT<cSC4EffectsParser>::Parse	folded	folded	3 names: nSCRes::cBlockCommandT<cSC4EffectsParser>::Parse | nSCRes::cBlockCommandT<cSC4RuleParser>::Parse | nSCRes::cBlockCommandT<nSCRes::cCommandParser>::Parse
-007e3b50	(anonymous_namespace)::cOptionGroupCommand::Parse	auto:C	high	mac 007673c2 score 1.0 support 1
-007e3b70	(anonymous_namespace)::cOptionGroupCommand::RegisterCommands	auto:A	high	mac 007662a2 score 1.0 support 0
+007e3b50	(anonymous_namespace)::cOptionGroupCommand::EndBlock	manual:graphics-rules.tsv	high	graphics-rules.md §4.1; was (anonymous_namespace)::cOptionGroupCommand::Parse; slot 6; group := -1
+007e3b70	(anonymous_namespace)::cOptionGroupCommand::RegisterCommands	manual:graphics-rules.tsv	high	graphics-rules.md §4.1; option, property
+007e3c00	(anonymous_namespace)::cVendorCommand::RegisterCommands	manual:graphics-rules.tsv	high	graphics-rules.md §4.4; descriptive name, no Mac match; card
 007e3c40	icf::(anonymous_namespace)::cDecalEffectCommand::~cDecalEffectCommand	folded	folded	9 names: (anonymous_namespace)::cDecalEffectCommand::~cDecalEffectCommand | (anonymous_namespace)::cDynamicParticleEffectCommand::~cDynamicParticleEffectCommand | (anonymous_namespace)::cGroupEffectCommand::~cGroupEffectCommand | (anonymous_namespace)::cLightEffectCommand::~cLightEffectCommand | (anonymous_namespace)::cOptionGroupCommand::~cOptionGroupCommand | (anonymous_namespace)::cParticleEffectCommand::~cParticleEffectCommand | (anonymous_namespace)::cRuleCommand::~cRuleCommand | (anonymous_namespace)::cShakeEffectCommand::~cShakeEffectCommand | nSCRes::cNamespaceCommand::~cNamespaceCommand
-007e3c60	(anonymous_namespace)::cRuleCommand::RegisterCommands	auto:A	high	mac 0076606c score 1.0 support 0
-007e3df0	cSC4RuleParser::RegisterCommands	auto:A	high	mac 003df230 score 1.0 support 0
-007e4050	(anonymous_namespace)::AddOptionToSet	auto:B1	medium	mac 003df39c score 0.926 support 2.0
-007e4550	(anonymous_namespace)::cRuleCommand::Parse	auto:A	high	mac 00768144 score 0.697 support 0
-007e54c0	(anonymous_namespace)::cOptionGroupCommand::EndBlock	auto:C	high	mac 007632d6 score 1.0 support 1
-007e5580	cSC4RuleParser::ParseBegin	auto:B0	medium	mac 003df79e score 0.954 support 1.0
+007e3c60	(anonymous_namespace)::cRuleCommand::RegisterCommands	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; property, option, has, hasNo, stringMatch, stringNotMatch, atLeast, atMost
+007e3dd0	(anonymous_namespace)::cRuleCommand::EndBlock	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; descriptive name; slot 6 of 0x00ABBEA0; depth - 1
+007e3df0	cSC4RuleParser::RegisterCommands	manual:graphics-rules.tsv	high	graphics-rules.md §4; rule, partialRule, optionGroup, vendor
+007e3ed0	(anonymous_namespace)::cRuleCommand::DoHas	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; descriptive name, no Mac match; flag bit set in required and mask
+007e3f90	(anonymous_namespace)::cRuleCommand::DoHasNo	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; descriptive name, no Mac match; flag bit cleared in required, set in mask
+007e4050	(anonymous_namespace)::AddOptionToSet	manual:graphics-rules.tsv	high	graphics-rules.md §4; boolean, then integer, then float by name
+007e4180	(anonymous_namespace)::cRuleCommand::DoOption	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; descriptive name, no Mac match; (group, option) pair
+007e4250	(anonymous_namespace)::cRuleCommand::DoProperty	manual:graphics-rules.tsv	high	graphics-rules.md §4.3; descriptive name, no Mac match; Unknown render property
+007e4300	(anonymous_namespace)::cRuleCommand::DoAtLeast	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; descriptive name, no Mac match; numeric variable >= value
+007e43b0	(anonymous_namespace)::cRuleCommand::DoAtMost	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; descriptive name, no Mac match; numeric variable <= value
+007e4490	(anonymous_namespace)::cOptionGroupCommand::DoProperty	manual:graphics-rules.tsv	high	graphics-rules.md §4.1; descriptive name, no Mac match
+007e4550	(anonymous_namespace)::cRuleCommand::Parse	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; name or predecessor + '>', partialRule or -partial, -any, depth
+007e4730	(anonymous_namespace)::cVendorCommand::DoCard	manual:graphics-rules.tsv	high	graphics-rules.md §4.4; descriptive name, no Mac match; device ID, found flag and name
+007e4800	(anonymous_namespace)::cVendorCommand::Parse	manual:graphics-rules.tsv	high	graphics-rules.md §4.4; descriptive name, no Mac match; slot 5 of 0x00ABBEF8; vendor IDs
+007e4910	(anonymous_namespace)::cOptionGroupCommand::DoOption	manual:graphics-rules.tsv	high	graphics-rules.md §4.1; descriptive name, no Mac match; the option number
+007e4de0	cSC4RuleParser::cSC4RuleParser	manual:graphics-rules.tsv	high	graphics-rules.md §3; descriptive name; vtable 0x00ABBFEC, built by ParseConfigFile
+007e5030	cSC4RuleParser::~cSC4RuleParser	manual:graphics-rules.tsv	high	graphics-rules.md §3; descriptive name; frees the rules, option groups and strings
+007e5160	(anonymous_namespace)::cRuleCommand::DoStringMatch	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; descriptive name, no Mac match; string variable and pattern
+007e5400	(anonymous_namespace)::cRuleCommand::DoStringNotMatch	manual:graphics-rules.tsv	high	graphics-rules.md §4.2; descriptive name, no Mac match
+007e54c0	(anonymous_namespace)::cOptionGroupCommand::Parse	manual:graphics-rules.tsv	high	graphics-rules.md §4.1; was (anonymous_namespace)::cOptionGroupCommand::EndBlock; slot 5 of 0x00ABBEBC; the group number
+007e5580	cSC4RuleParser::ParseBegin	manual:graphics-rules.tsv	high	graphics-rules.md §4; takes the render properties, empties the rules and option groups
+007e5620	cSC4RuleParser::ParseBegin (thunk)	manual:graphics-rules.tsv	high	graphics-rules.md §4; descriptive name; virtual-base adjustment
 007e5630	cSC4View3DWin::QueryInterface	auto:C	high	mac 0051c108 score 1.0 support 2
 007e56d0	cSC4View3DWin::AddRef	auto:C	low	mac 0051c166 score 1.0 support 1
 007e56e0	cSC4View3DWin::Release	auto:C	low	mac 0051c174 score 1.0 support 1
@@ -16472,6 +16496,7 @@ va	name	source	confidence	note
 00abad18	cSC4CameraControl::vftable	manual:camera.tsv	high	camera.md §2.1; 7 slots: QueryInterface, AddRef, Release, Write, Read, GetGZCLSID, deleting destructor
 00abb6a8	cSC4RenderProperties::vftable_1	manual:render-properties.tsv	high	render-properties.md §1.1; the cRZUnknown at +4: 3 thunks and the deleting destructor
 00abb6c0	cSC4RenderProperties::vftable	manual:render-properties.tsv	high	render-properties.md §2; 18 slots
+00abbef8	(anonymous_namespace)::cVendorCommand::vftable	manual:graphics-rules.tsv	high	graphics-rules.md §4.4; descriptive name, no Mac match; 7 slots
 00abd2c4	cS3DCamera::vftable	manual:camera.tsv	high	camera.md §1.1; 4 slots
 00abd774	cS3DTextureBindingFactory::sBitsPerTexel (data, u32[8])	manual:texture-bindings.tsv	high	texture-bindings.md §1.4; 16, 24, 16, 16, 32, 4, 8, 8
 00abd85c	cS3DTextureBindingFactory::vftable_4	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; the message target at +0x24: 3 thunks, DoMessage
