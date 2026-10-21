@@ -12,6 +12,130 @@ numbering), §6 [docs/ops/coordinating.md](../ops/coordinating.md), §8
 
 ## Stop notes
 
+### Stop 2026-10-21 (wind-down after run 2): HANDOFF §0a, §0z and §0 as they stood
+
+Moved verbatim on 2026-10-21 when the HANDOFF was cut back to its current state. Headings are two levels down.
+
+#### 0a. Since the pause: efficiency work landed (2026-10-20 evening) - read before restarting lanes
+
+The user wants to restart at full throttle on these changes. Why: the day's $184.71 OpenRouter bill was 85% agents
+re-reading cached context (lanes started every call at 172k tokens and grew to 450-970k). See
+[ops/efficiency-log.md](ops/efficiency-log.md).
+
+**Landed on main:**
+- **`3975a42e`:** main builds again (train10's two merge breaks). The automata sweep's pin is now 0, per spec §12
+  quirk 10: Read keeps the streamed `+0x0C`. **This resolves train11's gate failure in item 1 below:** 14 -> 0 is
+  the correct result. Re-cut integration/11 on main and re-gate it.
+- **Lean lanes (`0e1ebcca`):**
+  - Agent types `fc4-lane` and `fc4-lane-re` with a minimal tool list (probe: first call 7.4k tokens vs 39k for a
+    default subagent, subscription route).
+  - Stateless lanes: a `## Handoff` section in docs/lanes/<lane>.md, a restart in a fresh agent past 150k context
+    or after an API error.
+  - Quiet wrappers in `.claude/lane-bin/`: `qbuild`, `qgrep`, `qwait` (one blocking wait, no polling).
+- **Forge (`b8628bfe`):** `tools/forge.py` writes a class from its spec in a scripted loop with no agent. The
+  pilot did History, Parks and Dispatch for $0.41 in total; History and Parks passed their class tests, and Parks
+  ran clean in game. See [ops/forge-pilot.md](ops/forge-pilot.md). Use it for classes that have class tests.
+  Backends: `openrouter` (key in `%USERPROFILE%\.config\fc4-forge\openrouter.key`, a test key) or `claude-code`
+  (the user's subscription through the `claude` CLI, about 1.3k tokens of overhead).
+- **Build and gate (`445ed0ac`, `4c601fac`):**
+  - sccache for C++ and Rust, /Z7 debug info. A fresh-worktree build + ctest went from 304 s to 168 s.
+  - `fc4verify.py quick` for lane checks, reached as `qbuild.py quick`; a one-line plugin edit is checked in 3 s.
+  - The train's `land` now requires a parsed post-merge gate record for the exact head. A hand-set `gate.ok` no
+    longer lands anything.
+  - `engine/tests/abi_entries.inc` is untracked again.
+
+**Restart checklist:**
+1. **Start a NEW coordinator session in the main checkout.** Agent types load only at session start; an old
+   session's lanes fall back to every tool and 172k context (fc4-lane.js logs it).
+2. **Check the first lane's first-call context** in its transcript, or with `.claude/lane-bin/ctx.py`. On the GLM
+   route it should be far below 172k. If it is still near 172k, turn off the Chrome, computer-use and browser
+   connectors for the coordinator session (docs/ops/coordinating.md "Lane context").
+3. **Re-gate train11** on the new main (item 1 below); `land` refuses without the gate record.
+4. **Track the day:** `python tools/spend.py <openrouter csv> --coverage-delta <pts>` adds a row to
+   ops/efficiency-log.md. The baseline is $46 per implemented point.
+5. The "no new lanes" rule (item 5 below) was the pause rule. The user said to restart at full throttle once
+   back: confirm with them, then fill the slots.
+
+**Restart state (2026-10-20 ~21:45, new coordinator session in the main checkout):** checklist done: new session
+started; first-call context of the first lanes measured **7.8k tokens** (`ctx.py glue21fix2 --first`), the lean
+harness works; the "no new lanes" rule is lifted by the user's restart order (full throttle). Done: re-answers34's
+stale tip fixed (queue file now points at `0eb16695`), train10 re-cut as **cores27 only** (batch seq 10;
+`3975a42e`'s automata-pin fix made the old train11 gate failure moot; glue21 re-queues when PL17 is fixed) —
+gate PASS (clippy, build, ctest), regress running. Spawned 8 lanes: glue21fix2 (PL17, on the glue21 branch),
+glue24fix2 (the tick-5500 int3, on the glue24 branch), re-netocc (the network occupants spec, 754 fns —
+re-specs22's work is NOT recoverable: its branch had no commits and no queue file; re-do it), re-terrain3d
+(TR21, terrain.md §15.5), devperf2 (UpdatePopulation 7.7x → target 2x), re-occprops (specify the occupants and
+props pool, 453 fns), cores28 (MySimPool + MySimDispatch cores), glue29 (the cSC4NetworkTool replacement glue
+over cores27's fc4_nettool ABI). Pending after train10 lands: land, gen_handoff_tables, coverage, push;
+re-answers34 merges in the next batch.
+
+#### 0z. WIND-DOWN (2026-10-20 ~23:00): the user said "no more new work creation, winding down only"
+
+No new lanes spawn from here. The 8 lanes still running (glue21fix2, re-terrain3d, devperf2, cores28, glue29,
+re-occprops, re-answers35, mysims1) finish their current task; when each enqueues, the coordinator merges,
+gates, regresses and lands it as usual, then stops. Landed since the restart: **train10** (cores27, the
+network-tools core, ABI 75), **train11** (re-answers34, effects EF1-EF10), **train12** (glue24fix2: the
+network managers glue `enable = netmgr,netlot` with the tick-5500 int3 DISARMED — a Debug build compiles
+/RTC1 with no RTC error func; the handler is now installed in every build; a/b/save all clean), **train13**
+(re-netocc: the network-occupants spec, 14 classes) + the coverage map wired → **specified 35.0%**
+(32.9 → 35.0), implemented 25.3%, verified 10.5%. Main is `98662e3b`, pushed. Lane states at wind-down
+(see docs/lanes/<lane>.md for each): glue21fix2 mid-PL17 (slot 27 GetObjectIDArray fix landed on the branch;
+isolation runs at `exited -1`, gate runs corrupt — diagnosing, its queue entry stays `wip`), devperf2
+measured UP 3.52 us/call at baseline and its fix3 run clean (63.96 days/s), cores28/glue29/re-terrain3d/
+re-occprops/re-answers35/mysims1 in progress. The next coordinator: merge whatever enqueues, land, stop;
+do NOT spawn.
+
+#### 0. Current state: pause 2026-10-20 ~19:10 (user closing the session)
+
+Main is `12e79cfc`, pushed. Today landed: train6 (8 lanes), train8 (6), train9 (cores26), train10 (glue19),
+re-answers27/32/33 doc merges, 25 measured ABI rows applied to interfaces.tsv (the sdk-errata slot-14 x87 claim
+is wrong), and ~10 union-glue land mines fixed (see the operator notes below). Coverage: **implemented 25.3%,
+verified 10.5%** (from 21.3/9.5 this morning). Token ledger: docs/token-ledger.md.
+
+**Open state to resume (in this order):**
+
+1. **train11 is mid-batch**: integration/11 (a23223be) = glue21's refcount fixes merged (operator-resolved),
+   built on main's tip. Its gate FAILED once on the stale-`+0x0C` corpus count (14 -> 0,
+   `formats/tests/automata_records.rs` asserts 14) - the same failure train10's first gate had; it was a
+   real ordering difference there. Diagnose before landing: either glue21's branch regressed the
+   renormalisation path or the merged tree mixed versions. State: current=train11, head a23223be,
+   gate ok=False.
+2. **glue21's lane result arrived** (tip `1c637e99`): the refcount chain fixed (QI AddRefs, the creation
+   reference handed over, slot 20/21 rebuilt); its gate-11 run found a NEW fault (PL17, the game's own
+   CreateLotObjects AV at SimCity 4.exe+0x60D4B5, ecx=0) - filed in
+   docs/specs/questions/prop-lotconfig.md. Its queue entry (build-runs/merge-queue/glue21.json in the
+   worktree) is still `wip`: PL17 must be fixed or accepted-as-question before it lands.
+3. **glue24** (tip `b2e676f9`): runs clean to 2032 (tools=13 configs=543) and the save round trip clean;
+   one intermittent debug-CRT int3 at tick ~5500 in 3 of 5 runs, no stack. Two fix rounds died on API
+   errors mid-chase (a symbolizer tool is in its worktree's build-runs/). Resume the fix round or
+   accept NM11 as a filed question and land as-is with the int3 documented.
+4. **Finished, waiting to land (paid, not counted in coverage yet)**: re-specs22 (the network-occupants
+   spec, 754 fns), cores27 (the network-tools core, ABI 75 - its queue entry says the train bumps the ABI
+   once and takes history line 75), re-answers34 (EF1-EF10). Check each worktree's
+   build-runs/merge-queue/*.json and merge through the train.
+5. **No new lanes** unless the user says so; glue28 was halted (zero output, worktree clean at main's tip).
+6. After every landing: `gen_handoff_tables.py`, `coverage.py` + `coverage_treemap.py`, push; check
+   `git merge-base --is-ancestor <lane> main` for every lane the train lists as landed.
+
+**Operator notes for union glue** (this session's list, all found the hard way): the resolver's unions can
+swallow the ABI history's closing `*/` (check the line before `#define FC4_ABI_VERSION` ends with `*/`);
+duplicate fc4.h's asserts tail (diff the tail against main's before gating); two lanes can take the same
+seam op (grep `kFC4Seam.* = n` for duplicates); `#include` pairs, runner exec chains, and switch statements
+can glue onto comment lines; conformance modules can duplicate; the gate must run with the worktree checked
+out at the batch's head. A flaky plugin_autotest_test under parallel ctest passes standalone. A lane whose
+transcript grows but writes no files for 45+ min is exploring, not working - kill it.
+
+**Coverage** (`python tools/coverage.py`, on main): 29,481 functions / 5,586,418 bytes; **32.9% specified /
+25.3% implemented / 10.5% verified / 12.1% replaced**. Never let it go down.
+
+**Open items, ranked:**
+1. `enable = automata` - LANDED (train10); the riot/fire host tables and U-Drive-It are wired; AT20 filed.
+2. `enable = propmgr`/`lotcfg` (glue21): refcounts fixed, PL17 open, then lands.
+3. `enable = netmgr`/`netlot` (glue24): clean runs + save round trip done; the int3 question open.
+4. `enable = terrain`: needs TR21's terrain 3D view contract (`terrain.md` §15.5).
+5. Performance: glue27 measured the development glue at 0.75x the original's cost per game day; UpdatePopulation
+   is still 7.7x (glue27's report).
+
 ### Stop 2026-10-16 ~21:05 (user halted): how to resume
 
 **The merge train is built and working** — `tools/merge-train.py`, contract in [docs/merge-train.md](../merge-train.md).

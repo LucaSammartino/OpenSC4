@@ -170,6 +170,32 @@ Learned the hard way on 2026-10-16:
 - Disk: build caches are ~10-19 GB per worktree. `C:` hit ENOSPC twice mid-gate. Free
   `engine/target` and `engine/build-x86` of **merged, clean, 0-commits-ahead** worktrees only.
 
+Learned 2026-10-20 and 2026-10-21:
+
+- Union-glue land mines (moved from the 2026-10-20 HANDOFF):
+  - The resolver's unions can swallow the ABI history's closing `*/`; check that the line before
+    `#define FC4_ABI_VERSION` ends with `*/`.
+  - They can duplicate `fc4.h`'s asserts tail; diff the tail against main's before gating.
+  - Two lanes can take the same seam op; grep `kFC4Seam.* = n` for duplicates.
+  - `#include` pairs, runner exec chains and switch statements can glue onto comment lines, and conformance modules
+    can duplicate.
+  - The gate must run with the worktree checked out at the batch's head.
+  - A flaky `plugin_autotest_test` under parallel ctest passes when run alone.
+- **`docs/abi/interfaces.tsv` is not docs-only.** CMake generates `abi_conformance_test` from it
+  (`engine/CMakeLists.txt`, `gen_abi_entries.py`). Gate every change to it, including ABI-row batches committed
+  straight to main: train18 and `ce3d44c0` were not gated, and a recovered row later broke the test.
+- **Applying a lane's ABI rows:** match on the key (interface, game_class, vtable, slot). Add only keys that main lacks.
+  A row whose key main already has is a judgment call: the proposal is not always the newer answer (`c1689949` undid
+  an older proposal applied over a later one). Disagreeing proposals wait in `docs/abi/unreconciled-rows.tsv`. Lanes
+  leave rows in `build-runs/pending-abi/` or `build-runs/abi-rows-*.tsv`, which git ignores: apply them when the lane
+  lands, or they are lost with the worktree. 145 rows from 2026-10-15/16 sat there until `91854dbb`.
+- **A lane that makes calls but writes nothing is exploring, not working.** re-answers35 made 2,789 calls for about $16
+  with no output (REA was down). Kill such a lane and check REA before starting an RE lane; the HANDOFF's "45 min with
+  no file" rule is not enforced by anything.
+- **A wind-down order must survive compaction.** Run 2's coordinator wrote the user's "no more new work" into the
+  HANDOFF, then started three lanes after its context was compacted (it cited a ">5 agents" target). The stop rule
+  outranks any parallelism target in any document.
+
 ## Build cache, lane checks and the gate
 
 Added 2026-10-20 after the day's audit (lanes: ~5 h in tools, 1.7 h of it builds/verify; train10 landed a main that

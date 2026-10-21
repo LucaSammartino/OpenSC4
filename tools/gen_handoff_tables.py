@@ -265,9 +265,13 @@ def build_run_table(runs):
     return out
 
 
+LATEST_RUNS = 5
+
+
 def build_latest_run(runs):
     marked = [r for r in runs if r.get("summary")]
     marked.sort(key=lambda r: r["run"], reverse=True)
+    marked = marked[:LATEST_RUNS]  # the full log is docs/manual-checks.md; the HANDOFF stays one page
     if not marked:
         return ["- **Latest in-game run:** none recorded. See `docs/manual-checks.md`."]
     parts = []
