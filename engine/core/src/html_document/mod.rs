@@ -1168,6 +1168,15 @@ impl<H: HtmlHost> HtmlDocument<H> {
     }
 }
 
+/// Destructor body (009005ad): Shutdown when the initialised byte is set.
+impl<H: HtmlHost> Drop for HtmlDocument<H> {
+    fn drop(&mut self) {
+        if self.initialised {
+            self.shutdown();
+        }
+    }
+}
+
 /// MakeOutputStyle (§8.1): LEFT 0, RIGHT 2, CENTER 1, anything else 0.
 pub fn make_output_style(v: &[u8]) -> u32 {
     match v.to_ascii_uppercase().as_slice() {
