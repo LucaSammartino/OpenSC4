@@ -11,8 +11,8 @@ and the decomp/ pseudocode; every name table below was produced by walking the i
 every language ID 0..0x2d and every index, and every string is quoted from the bytes stored in the program. Every
 address is SimCity 4.exe GOG 1.1.641. No modern Unicode semantics are implied: strings are byte strings.
 
-Outline: §1 language IDs; §2 framework encoding; §3 the language utility object; §4 calendar names; §5 currency and
-number punctuation; §6 per-language flags; §7 case conversion and comparison; §8 not yet specified.
+Outline: §1 language IDs; §2 framework encoding; §3 the language utility object; §4 calendar names; §5 currency,
+separators, number and time strings; §6 per-language flags; §7 case conversion and comparison; §8 not yet specified.
 
 ## 1. Language IDs
 
@@ -58,6 +58,14 @@ is not specified yet (§8).
   `Init` (00928fdd) re-assigns the separator to C2 A0, runs the no-op conversion of §2 and returns true.
 - `SetLanguage(id)` (009b2970) stores the ID with no validation; every query below reads the stored ID.
 - Who sets the country and the currency flag is not specified yet (§8).
+- Interface slot order (vtable 4-byte slots from +0x00): QueryInterface, AddRef, Release, Init, Shutdown (shared
+  trivial body), GetDayName, GetAbbrDayName, GetMonthName, GetAbbrMonthName, MakeTimeString, MakeDateString,
+  GetCurrencySymbol, DoesCurrencySymbolPrecedeAmount, IsSpaceBetweenCurrencySymbolAndAmount, GetThousandSeparator,
+  GetDecimalSeparator, MakeMoneyString, MakeFormattedMoneyString, MakeNumberString, MakeFormattedNumberString,
+  ConvertToLowerCase, ConvertToUpperCase, CompareStrings, GetCharacterSetFromLanguage, DoesLanguageUseCharacterSet,
+  GetLanguageRoadDrivingSide, GetMeasurementSystem, AreFirstAndLastNamesReversed, DoesLanguageUseInputMethodEditing,
+  DoesLanguageUseMultiByteCharacters, destructor (+0x78), SetLanguage (+0x7C), SetCountry (+0x80). Functions that
+  call a sibling (the character-set selector, the number formatter) go through these slots *[compat]*.
 
 ## 4. Calendar names
 
@@ -207,6 +215,46 @@ Then the common rule of §4 (empty → `Untranslated`, false; otherwise true).
 `MakeFormattedNumberString(value, out, format)` (00927bee) ignores the language: it formats the 64-bit floating value
 with the caller's format string through the string object's printf-style formatter and returns true.
 
+### 5.4 `MakeNumberString(value, out)` (00929379)
+
+`value` is a signed 64-bit integer. Always returns true.
+
+1. If `value` is negative it is negated and remembered as negative.
+2. The magnitude is printed in decimal (`%lld`, no padding).
+3. The group separator is fetched with `GetThousandSeparator` (§5.3, through the object's own slot, so the result
+   depends on the language; for unknown languages it is `,`).
+4. Digits are grouped in threes from the left: the first group has `len mod 3` digits (3 if that is 0), each group
+   but the last is followed by the separator. Examples (English): 7 → `7`; 1234 → `1,234`; 1234567 → `1,234,567`;
+   German 1234567 → `1.234.567`; Polish 12345 → `12` C2 A0 `345`.
+5. Sign, by language:
+
+| languages | negative result |
+|---|---|
+| 1..0x0a, 0x0c, 0x0d, 0x0f..0x14 | `-` then the grouped digits |
+| 0x0b (Finnish) | the grouped digits then `-` |
+| 0, 0x0e, 0x15 and above (including 0x23) | **empty string** *[quirk]* |
+
+Non-negative values ignore the language for the sign. *[quirk]* The most negative 64-bit value stays negative after
+negation; its printed form begins with `-`, which the grouping then treats as a digit.
+
+### 5.5 `MakeTimeString(hour, minute, second, out)` (009284ba)
+
+All three are signed 32-bit integers. Values above the range are reduced: hour > 23 → hour mod 24; minute or
+second > 59 → mod 60. A **negative** minute or second means "omit it"; there is no check on a negative hour. Always
+returns true. The first matching row of the table applies (`H` = `%u`, `HH` = `%.2u`, unsigned two-digit pad):
+
+| languages | second ≥ 0 | second < 0, minute ≥ 0 | both < 0 |
+|---|---|---|---|
+| 1, 0x2a (12-hour) | `h:MM:SS ap` | `h:MM ap` | `h ap` |
+| 2, 3, 4, 0x0a, 0x10, 0x1d | `HH:MM:SS` | `HH:MM` | `HH:00` |
+| 5, 0x1c | `H.MM.SS` | `H.MM` | `H:00` (colon) *[quirk]* |
+| 8, 9, 0x24, 0x27, 0x28 | `HH.MM.SS` | `HH.MM` | `HH:00` (colon) *[quirk]* |
+| any other | `H:MM:SS` | `H:MM` | `H:00` |
+
+12-hour rows: `ap` is `am` for hours 0..11 and `pm` for 12..23 (lower case, one ASCII space before it); `h` is 12 for
+hour 0, hour − 12 for hours 13..23, the hour itself otherwise. Example: English (14, 5, −1) → `2:05 pm`; German
+(14, 5, −1) → `14:05`; Italian (9, 5, 7) → `9.05.07`.
+
 ## 6. Per-language flags
 
 | query (address) | true for | otherwise |
@@ -243,6 +291,6 @@ States (imperial units); the values themselves are exact.
 
 ## 8. Not yet specified
 
-`MakeNumberString` (00929379), `MakeMoneyString` (0092901a), `MakeFormattedMoneyString` (00928c55), `MakeDateString`
-(00928699), `MakeTimeString` (009284ba); the rest of `cRZLanguageManager`; `cRZString` (formatting, search, compare);
+`MakeMoneyString` (0092901a), `MakeFormattedMoneyString` (00928c55), `MakeDateString` (00928699); `SetCountry`
+(00894f6d) and the country-ID table; the rest of `cRZLanguageManager`; `cRZString` (formatting, search, compare);
 `ConvertStringEncoding` and the UTF-16 / Thai helpers; `cSCStringDetokenizer` and `gAdviceDetokenizerFunction`.
