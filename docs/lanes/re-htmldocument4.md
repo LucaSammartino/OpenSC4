@@ -1,12 +1,27 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-htmldocument4 (RE spec of exact owner cHTMLDocument, 70 fns / 38220 B) | `re-htmldocument4` / (RE spec lane) | wip, round 1 of max 3: docs/specs/html-document.md §1-9 cover 48 of 70 owner functions (24100 of 38220 B); 22 functions (14120 B) remain, so no whole-owner credit. Questions HD1-HD4 filed. Tip 6c7bec5a + report commit. No engine/ABI/tool edits. | 1. Spec ParseBODY, ParseTABLE/TR/TD/TH, ParseLI, ParseDL(BLOCKQUOTE), ParseHR, CreateBullet. 2. ParseFONTSTYLE, ParsePHRASE, ParseA, ParseIMG, ParseMAP, ParseAREA, ParseSPAN, ParseBLINK, ParseMETA, ParseLINK. 3. GetStringForEscape entity table (script it like build-runs/tags.py), 2 hashtable helpers. 4. Then whole-owner credit. |
+| re-htmldocument4 (RE spec of exact owner cHTMLDocument, 70 fns / 38220 B) | `re-htmldocument4` / (RE spec lane) | ready, round 2: docs/specs/html-document.md now covers all 70 owner functions (38220 B); §10 remainder empty, whole-owner credit claimable. Questions HD1-HD4 still open (none new). No engine/ABI/tool edits. | 1. Answer HD1-HD4 (game/debugger evidence). 2. Optional: spec gap functions P 0090614f, PRE 00906a5d, DL 009066a3, headings 00906754, lists 00906f1d/0090689f/00907d6b, CENTER 00906d22, table-section helpers, image request slot 16 009059fc (separate inventory). |
 
-## Handoff (round 2, in progress)
-- Goal: spec the 22 remaining cHTMLDocument functions (14120 B) in docs/specs/html-document.md; whole-owner credit only when §10 remainder is empty.
-- Done round 2: §7.7-7.10 (21332e72); §7.11 inline styles, §7.12 IMG/MAP/AREA, §7.13 META/LINK (next commit).
-- Next: GetStringForEscape 00901222 entity table (script it), hashtable helpers 008ffdc8/009001e7, then §10 empty -> report.
-- Facts: REA unused this round (asm + decomp suffice). build-runs/s.py <va>... prints exe strings (prefix d for dword).
+## Report (round 2)
+
+What changed: `docs/specs/html-document.md` §7.7-7.13 and §10.1-10.2 (commits 21332e72, e95bcfae, 67bffccd).
+
+Specified this round (all 22 remaining functions, 14120 B): ParseBODY (§7.7); ParseTABLE, ParseTR, ParseTD,
+ParseTH (§7.8, incl. the fixed CAPTION/COL/THEAD/TFOOT/TBODY order and the `</colgroup>` row-loss edge case);
+ParseLI, CreateBullet (§7.9, bullet cache and surface geometry); ParseDL (= BLOCKQUOTE), ParseHR (§7.10);
+ParseFONTSTYLE, ParsePHRASE, ParseSPAN, ParseBLINK, ParseA (§7.11); ParseIMG, ParseMAP, ParseAREA (§7.12);
+ParseMETA, ParseLINK (§7.13); GetStringForEscape (§10.1, 100-entry table extracted by build-runs/esc.py and
+checked equal to HTML 4 Latin-1 + quot/amp/lt/gt); hashtable clear/destructor (§10.2).
+
+Measured: owner remainder list in §10 is empty -> 70/70 functions, 38220/38220 bytes specified.
+
+Notable exact behaviours: FONT SIZE plain n is a 0-based table index; SPAN `font-size` never changes size
+(searches px/pt in the property name); SPAN `color:#hex` stores the raw number; IMG without SRC returns false
+and ends ParseBODY's loop; TD without ALIGN resets alignment to LEFT; ParseA appends NAME anchors before they
+may be deleted (dangling entry); HR ALIGN uses the vertical-placement mapping.
+
+Evidence: re_query asm/callers/callees, decomp/cHTMLDocument.c, exe bytes (build-runs/s.py). REA not used.
+Questions: HD1-HD4 open from round 1; none new.
 
 ## Report (round 1)
 
