@@ -171,7 +171,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
-| occupants-props | 16 | 0 | OP17 | questions/occupants-props.md |
+| occupants-props | 11 | 5 | OP17 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 2 | 0 | OS3 | questions/output-streams.md |
 | parks | 0 | 11 | PK12 | - |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **202** | **1075** | | |
+| **total** | **197** | **1080** | | |
