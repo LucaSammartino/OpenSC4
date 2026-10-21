@@ -2,7 +2,7 @@
 
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| mysims1 (the mysims shadow: FC4MySimsShadow + regress shadows list) | `mysims1` / `.claude/worktrees/mysims1` (branch `mysims1`, engine lane) | in progress — round 6: FC4MySimsShadow.cpp landed (~1750 lines), wired, qbuild all PASS; game runs pending | see Handoff |
+| mysims1 (the mysims shadow: FC4MySimsShadow + regress shadows list) | `mysims1` / `.claude/worktrees/mysims1` (branch `mysims1`, engine lane) | merged by ancestry in train19 via mysims1fix3; MySims exact 73/73, run 223, gate/regress PASS | See mysims1fix3 report; future MS3/MS5/MS7 implementation |
 
 ## Handoff
 

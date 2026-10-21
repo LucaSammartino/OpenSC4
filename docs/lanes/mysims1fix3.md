@@ -2,7 +2,7 @@
 
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| mysims1fix3 (MySims shadow and validation repair) | `mysims1fix3` / (engine lane) | ready: cargo 3576/0, clippy clean, ctest 62/62; run 222 clean to 2032, mysims 73/73 exact, ref_warnings=0; regress mysims1fix3-r3 PASS, 0 problems (3 worse vs train17) | Train gate and regress with mysims_shadow enabled; future engine work for MS3/MS5/MS7 answers |
+| mysims1fix3 (MySims shadow and validation repair) | `mysims1fix3` / (engine lane) | merged train19 (832c7238e0): cargo 3576/0, clippy clean, ctest 62/62; run 222 clean to 2032, mysims 73/73 exact, ref_warnings=0; regress mysims1fix3-r3 PASS, 0 problems (3 worse vs train17) | Train19 gate and combined regress PASS, mysims 73/73; future engine work for MS3/MS5/MS7 |
 
 ## Report
 

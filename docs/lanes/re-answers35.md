@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-answers35 (RE answers: mysims questions MS1-MS7, docs only) | `re-answers35` / `C:\Users\tlori\FreeCity4\.claude\worktrees\re-answers35` (branch `re-answers35`, RE lane) | **ready** — MS1-MS7 answered (docs only) | merge (docs); implementers: mysims core changes listed in the report |
+| re-answers35 (RE answers: mysims questions MS1-MS7, docs only) | `re-answers35` / `C:\Users\tlori\FreeCity4\.claude\worktrees\re-answers35` (branch `re-answers35`, RE lane) | **merged train19 (832c7238e0)** — MS1-MS7 answered (docs only) | Implementers: future mysims changes listed in the report |
 
 ## Report
 
