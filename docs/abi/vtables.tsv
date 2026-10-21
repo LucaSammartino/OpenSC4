@@ -28779,3 +28779,13 @@ cSTETerrainView3D::vftable_2b	00ab43e8	2	+0x8	00756970	cSTETerrainView3D::Releas
 cSTETerrainView3D::vftable_2b	00ab43e8	3	+0xC	00752CD0	cSTETerrainView3D::LoadGridFlag	4	1	al	high	stream slot 18 (+0x48) test; writes operator<< into static 0x00B4C741; terrain.md 15.5.10
 cSTETerrainView3D::vftable_2b	00ab43e8	4	+0x10	007527D0	cSTETerrainView3D::SaveGridFlag	4	1	al	high	marks this+5 written; operator>> reads the flag back when stream version == 1
 cSTETerrainView3D::vftable_2b	00ab43e8	5	+0x14	007523E0	cSTETerrainView3D::GetGZCLSID	0	0	eax	high	EAX = 0xC9B84E10
+cSC4EmergencyVehicle::vftable	00a981e0	25	+0x64	0052ff60	cSC4EmergencyVehicle::SetDispatchState	4	1	void	high	state at +0x2CC; ignored when unchanged or slot 57(0x10) != 0; sends event 7 (dispatch.md 4.3)
+cSC4EmergencyVehicle::vftable	00a981e0	26	+0x68	00505020	cSC4Automaton::GetDispatchState	0	0	eax	high	returns +0x2CC
+cSC4EmergencyVehicle::vftable	00a981e0	29	+0x74	0052f330	cSC4EmergencyVehicle::GoHome	0	0	void	medium	name inferred; sets dispatch state 6 (dispatch.md 4.3)
+cSC4FireTruck::vftable	00a986f8	25	+0x64	005336c0	cSC4FireTruck::SetDispatchState	4	1	void	high	calls 0x0052FF60 first
+cSC4FireTruck::vftable	00a986f8	26	+0x68	00505020	cSC4Automaton::GetDispatchState	0	0	eax	high	
+cSC4Helicopter::vftable	00a991e0	25	+0x64	0053a360	cSC4Helicopter::SetDispatchState	4	1	void	high	state at +0x274; gate slot 57(0x36)
+cSC4Helicopter::vftable	00a991e0	26	+0x68	0053c860	cSC4Helicopter::GetDispatchState	0	0	eax	high	returns +0x274
+cSC4PatrolCar::vftable	00a9a0c0	25	+0x64	00543f60	cSC4PatrolCar::SetDispatchState	4	1	void	high	calls 0x0052FF60 first
+cSC4PatrolCar::vftable	00a9a0c0	26	+0x68	00505020	cSC4Automaton::GetDispatchState	0	0	eax	high	
+unnamed_emergency_vehicle::vftable	00a94fb0	25	+0x64	0052ff60	cSC4EmergencyVehicle::SetDispatchState	4	1	void	high	same slots 25/26/29 as 00a981e0
