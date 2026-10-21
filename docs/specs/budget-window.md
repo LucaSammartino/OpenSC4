@@ -317,7 +317,7 @@ branch `on_init` creates the four arrows with `add_image_button2` (up arrows ima
 Hiding is `GetChild(id)` then `SetFlag(1, 0)`, as above. After this `+0x08 := 1` (`0x00789777`). The empty-group
 branch (§4, BW10b) creates no arrows at all. `initOrdinanceBudget` (`0x0077D620`–`0x0077D780`) and
 `initNeighborBudget` (`0x00781AD1`–`0x00781C4D`) have their own copies of the same create-then-hide sequence; their
-comparison bounds were not byte-checked here.
+comparison bounds were not byte-checked here ([unsettled: BW12](questions/budget-window.md)).
 
 Refresh after the move (no `UpdateValues` unless stated):
 
