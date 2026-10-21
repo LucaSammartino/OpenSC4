@@ -25,3 +25,8 @@
   of the game (callers QueryInterface it for `cISCResExemplar` slots 3-5, 8-15 and for the 25-slot
   `cISCPropertyHolder`); are those slots' contracts (§8 table) the full set a non-game implementation must provide?
   [not implemented: no replacement factory]
+<!-- from: glue-formats4 (2026-10-21) -->
+- **EX45 - section 3.1 step 3, Sku_Data file set:** the multi-package segment of `<install>\Sku_Data\` (recursive)
+  is not said to hold only `.dat` files, as step 4b says for Plugins. Which files does it take: every file that
+  opens as a DBPF package, only `*.dat`, or every file? And is a file without the DBPF magic in any multi segment
+  skipped silently? [*.dat only; files without the magic skipped]

@@ -329,7 +329,11 @@ pub unsafe extern "C" fn fc4_exstore_untyped_ids(
         return 0;
     };
     let list = if effective { l.properties() } else { l.own_properties() };
-    let untyped: Vec<u32> = list.iter().filter(|q| typed(&q.values).is_none()).map(|q| q.id).collect();
+    let untyped: Vec<u32> = list
+        .iter()
+        .filter(|q| typed(&q.values).is_none())
+        .map(|q| q.id)
+        .collect();
     if !ids.is_null() {
         let n = untyped.len().min(cap);
         std::slice::from_raw_parts_mut(ids, n).copy_from_slice(&untyped[..n]);
@@ -452,7 +456,12 @@ mod tests {
             assert_eq!(counts, [2, 1, 0]);
             let pb = b.to_str().unwrap().as_bytes();
             assert!(fc4_exstore_add_package(s, pb.as_ptr(), pb.len(), std::ptr::null_mut()));
-            assert!(!fc4_exstore_add_package(s, b"no/such.dat".as_ptr(), 11, std::ptr::null_mut()));
+            assert!(!fc4_exstore_add_package(
+                s,
+                b"no/such.dat".as_ptr(),
+                11,
+                std::ptr::null_mut()
+            ));
             let mut failed = 0;
             assert_eq!(fc4_exstore_resolve(s, &mut failed), 2);
             assert_eq!(failed, 1);
@@ -480,7 +489,13 @@ mod tests {
             assert!(fc4_exstore_failure(s, 0, key.as_mut_ptr(), buf.as_mut_ptr(), buf.len()));
             assert_eq!(key, [0x6534_284A, 3, 5]);
             assert!(buf[0] != 0 && buf.contains(&0));
-            assert!(!fc4_exstore_failure(s, 1, key.as_mut_ptr(), buf.as_mut_ptr(), buf.len()));
+            assert!(!fc4_exstore_failure(
+                s,
+                1,
+                key.as_mut_ptr(),
+                buf.as_mut_ptr(),
+                buf.len()
+            ));
             fc4_exstore_destroy(s);
         }
         let _ = std::fs::remove_file(a);
