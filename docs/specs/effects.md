@@ -592,13 +592,69 @@ of at most `1/15` s (`0x00AA0CF4`) until the remaining `e` is used up:
    `D+0x28 ≥ 0`, cut `s` back to the loop boundary (`s −= (P − n)·D+0x14`), `P := n`, and mark a gap. If
    `n = D+0x18`: **flag A bit 3 clear → `Stop(0)` (delayed, `0x005B8B29`) and return; set → hold**
    (`n := D+0x18 − 1`, `P := D+0x18 − 1e-6`, emission continues at the curve's end).
-2. Rate `r`: one curve entry → `curve[0]`; else linear interpolation at position `(len − 1)·(P − n)`.
+2. Rate `r`: one curve entry → `curve[0]`; else linear interpolation at position `(len − 1)·(P − n)` (no clamp; edges below).
    `x := r·s·m' + c` where `m'` is the same three-scale product, further multiplied by the scale `+0xC0` once,
-   squared or cubed for flags A bits 19 / 20 / 21; `N := floor(x)`, `c := x − N`.
+   squared or cubed for flags A bits 19 / 20 / 21 (the lowest set bit wins; none set → no `+0xC0` factor; details below); `N := floor(x)`, `c := x − N`.
 3. Create `N` particles with initial ages `e, e − s/N, e − 2s/N, …` (oldest first).
 4. `e −= s`; if a gap was marked, `e −= RandomRange(D+0x28, D+0x2C)`; if that is negative, `w := −e` and return.
 So (c): the budget is **loops of `D+0x14` seconds, counted in `+0x128` against `D+0x18`** — the same counter and
 field as the loop-budget emitter; there is no separate seconds budget. The count curve gives particles per second.
+
+**Plain emitter** (`maintain`, flag A `0x04`, `0x005B3CF0`; EF14 (a), re-effects14-4): it keeps the live count at
+a fixed target. It does not sub-step, never advances `n`, never wraps `P`, never reads or writes `w` or `c`,
+never calls `Stop`, and never ages new particles.
+1. `P := P + e·ρ` (`float` `e` times `double` `ρ` plus `P`, in x87 extended precision, stored `double`;
+   `0x005B3CF0`–`0x005B3D08`). If `P ≤ n` (unsigned `n`, which stays at the 0 that `Start` wrote) return. So
+   nothing happens until the first dispatch with `e > 0`. After that, every dispatch tops up, because `P` only grows.
+2. Target `T := ceil(curve[0])` (the same `+0.5`, `1.5·2^23` rounding trick as the loop-budget burst, with the
+   "equals `k−1`" correction, `0x005B3D30`–`0x005B3D65`). **No detail/density scale `m`, no `+0xC0` scale.**
+3. `d := T − live`, where live is the simulator's live count (main `+0x18`). If `d = 0` return. Otherwise run `d`
+   iterations, counted as an unsigned 32-bit number. Each one calls `CreateParticle` (simulator slot 15 `0x005B7C20`). That
+   function gives the particle age 0 and a fresh life (below). The particle goes to `AddParticle`
+   (simulator slot 11) if its alive byte is set, which `InitEffectsParticle` always does; otherwise it goes to
+   `DestroyParticle` (slot 16). Main slot 20 is **not** called, and flag A bit 31's birth hook (`0x005B84C0`,
+   used by the other two emitters) is not run either. New particles therefore start at age 0 at the emitter
+   origin, and the next step's aging pass is their first update.
+4. Unguarded case: if `live > T`, or if `T` is negative, `d` wraps around and the loop runs about `2^32` times. The
+   loop does not stop when a creation fails. This cannot happen with shipped data unless a description with a smaller
+   `curve[0]` replaces the running one. A conforming implementation creates nothing when `T ≤ live` `[choice]`.
+Example: `curve[0] = 2.3`, `D+0x14 = 1`, with no start delay. On the first update with `dt = 0.05`, `P = 0.05 > 0`
+and `T = 3`, so 3 particles are created. Two of them die in a later aging pass (live 1), and the next dispatch
+creates 2 more.
+
+**Emitter details** (EF14 (b)–(e), re-effects14-4; from instruction bytes):
+- **Rate scale `+0xC0`** (`0x005B87BD`–`0x005B8828`): `m' := ((*(+0x1E8)) · (+0x1E0)) · (+0x1C4)`, rounded to `float`.
+  The bits of flags A are tested in the order 19, 20, 21, and **the first set bit wins**: bit 19 → `m' := m' · k`, bit 20 →
+  `m' := (k·k) · m'`, bit 21 → `m' := (k·k·k) · m'` (with `k = +0xC0`, each stored as `float`). If none is set, `k`
+  is not applied. Only the rate emitter uses `k`. `SetDescription` resets `+0x1E0` (and `+0x1CC`, `+0x1D0`,
+  `+0x1E4`) to 1.0.
+- **Period floor** (`0x005B7CF3`–`0x005B7D44`): the `1e-6` is a local `float`. The code compares `1e-6 < D+0x14`
+  and, on false or NaN, divides by the local instead. **`D+0x14` itself is never written.** Only `ρ` sees the
+  floor. The burst age `(P − n)·D+0x14`, the gap cut-back `(P − n)·D+0x14` and `w := (n − P)·D+0x14` all use the
+  raw field, so with `D+0x14 = 0` every burst age is 0.
+- **Particle life and main slot 20** (`UpdateParticlePhysics` `0x005B9BA0`). `InitEffectsParticle` (`0x005B7580`,
+  called from `CreateParticle`) sets alive := 1, age (`+0x04`) := 0, and life (`+0x08`) := a uniform `double` in
+  `[D+0x0C, D+0x10]` from the global `cRZRandom`, stored as `float`. This is the first random draw for each particle. The life is therefore drawn per
+  particle, not passed in by the caller. Slot 20 `(particle, t)` does `age := age + t` (`float`, stored first). If `age < life` is
+  false (`age ≥ life`), it clears the alive byte and **returns false**. Otherwise it integrates the motion over `t`
+  and returns true. The loop-budget and rate emitters "initialise with age `a`" by calling slot 20 with `t = a`
+  on a fresh particle, so **init fails exactly when `a ≥ life`**. The aging pass calls it with `dt`, so a particle
+  dies on the first step where its accumulated age reaches `life`. Exception: when flags A `& 0x18000D00` (the
+  global mask at `0x00B22E14`, set at startup) is nonzero, slot 20 goes to `UpdateParticlePhysicsExtra`
+  `0x005B9790`. That function makes the same age test first, then sub-steps the motion in pieces of at most 1/15 s, and can also return false
+  through `ApplyTerrainForces` `0x005B8DC0`. That happens below the water level `+0x1FC` with kill chance `D+0x154`,
+  or under the terrain with kill chance `D+0x150` (1.0 means always; otherwise the particle dies when a uniform draw ≤ the
+  chance). Both cases clear the alive byte.
+- **Curve lookup** (rate emitter, `0x005B891B`–`0x005B89D3`). With `L := len − 1`: if `L = 0`, `r := curve[0]`.
+  Otherwise `x := (P − n)·L` (extended precision), `i := floor(x)` (the rounding trick with the "equals `k+1`"
+  correction), and `f := x − i`. If `f > 0`, `r := curve[i] + f·(curve[i+1] − curve[i])`; otherwise
+  (`f ≤ 0`, including NaN) `r := curve[i]`. **There is no clamp.** For `P − n` in `[0, 1]`, the only values
+  the counters normally produce, this is exact (at `P − n = 1`, `f = 0` and `r = curve[L]`). `P − n > 1` is reachable
+  in the original when one sub-step adds more than one loop (`ρ > 15`, period below 1/15 s, with no gap). The
+  original then reads past the end of the vector, which is undefined. A conforming implementation clamps
+  `P − n` to `[0, 1]` `[choice]`. **An empty curve is not guarded either.** The plain and loop-budget emitters read
+  `curve[0]` unconditionally, and the rate emitter takes `L` as the unsigned `0xFFFFFFFF`. Treating an empty curve as
+  0 is `[choice]`.
 
 So `volcano_control`'s finish time stands as measured in §7: the **crater decal's 50 effect-seconds** binds,
 the particles end on their own loop budget (well before 50 s), the brush stroke ends at 2–4 s, and the meta

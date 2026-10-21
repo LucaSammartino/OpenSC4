@@ -144,7 +144,7 @@ generated index: the questions live one file per spec, so read only the file for
 | disasters | 3 | 43 | DS47 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
 | drawing-fonts | 8 | 6 | FN15 | questions/drawing-fonts.md |
-| effects | 1 | 13 | EF15 | questions/effects.md |
+| effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 2 | 0 | FM3 | questions/feature-manager.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **207** | **1090** | | |
+| **total** | **206** | **1091** | | |
