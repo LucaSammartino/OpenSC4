@@ -39,8 +39,7 @@ mod tests;
 
 pub use blend::{alpha_weight, blend, ALPHA_WEIGHT_MUL};
 pub use blit::{
-    body_address, slot, texel_to_565, BltOp, Addressing, SourceFormat, Slot, SLOT_BODY,
-    TABLE_COLUMNS, TABLE_ROWS,
+    body_address, slot, texel_to_565, Addressing, BltOp, Slot, SourceFormat, SLOT_BODY, TABLE_COLUMNS, TABLE_ROWS,
 };
 
 /// Why a call was rejected (preconditions of the core, see the module docs).
@@ -79,7 +78,7 @@ impl Span {
     fn row(self) -> Option<(u32, u32, u32)> {
         let (x0, y0) = (self.start & 0xFFFF, self.start >> 16);
         let (x1, y1) = (self.end & 0xFFFF, self.end >> 16);
-        (y0 == y1 && x1 >= x0).then_some((x0, y0, x1 - x0))
+        (y0 == y1 && x1 >= x0).then(|| (x0, y0, x1 - x0))
     }
 }
 

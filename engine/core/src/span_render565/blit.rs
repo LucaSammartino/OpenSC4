@@ -18,6 +18,7 @@ pub const TABLE_COLUMNS: u32 = 12;
 /// Body address of every slot, `0x008xxxxx` as listed in §7 (identity
 /// only: slots with the same address run the same body). Used to check
 /// that the parameterised bodies agree wherever the original folds them.
+#[rustfmt::skip]
 pub const SLOT_BODY: [[u32; 12]; 14] = [
     [0x846CD0, 0x83EF00, 0x846D80, 0x83EFD0, 0x846E70, 0x83F140, 0x846F30, 0x83F280, 0x847040, 0x83F420, 0x847110, 0x83F570],
     [0x847240, 0x83F710, 0x847310, 0x83F800, 0x847420, 0x83F990, 0x8474F0, 0x83FAE0, 0x847610, 0x83FC90, 0x8476F0, 0x83FE10],
