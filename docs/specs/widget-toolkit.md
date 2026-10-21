@@ -174,6 +174,10 @@ WT5).
 | `ChildToBack(child)` | 27 (`0x0099E457`) | If valid, present (`ChildExists`, slot 20) and flag `0x800`: move it to the back, return true. No ancestor effect. |
 | `PullToFront()` | 23 (`0x0099B856`) | `parent->ChildToFront(this)`; false (low byte 0) without a parent. |
 | `SendToBack()` | 24 (`0x0099B86B`) | `parent->ChildToBack(this)`; false without a parent. |
+| `ChildStepFront(child)` | 28 (`0x0099E4B7`) | Valid (manager slot 24) and present: swap it with the window directly in front of it (one step toward the front); already front-most → true, no change. Not present or invalid → false. **No `0x800` check and no ancestor effect** (round 3). |
+| `ChildStepBack(child)` | 29 (`0x0099E525`) | Mirror image: move it behind the window directly behind it; already back-most → true, no change. Same checks. |
+| `ChildMoveRelative(a, b, before)` | 31 (`0x0099E594`) | Both `a` and `b` must be children (`ChildExists`, slot 20) else false. `before` ≠ 0: put `a` directly **in front of** `b`; `before` = 0: directly **behind** `b`. If `a` is already there (or `a` = `b`), nothing moves. True. No `0x800` check. `MoveRelativeTo(a, b)` (slot 30) is the child-side form, §17.4. |
+| `IsWinInChildChain(w)` | 22 (`0x0099E03E`) | Depth-first over the children in list order: true at the first child equal to `w` or whose own slot 22 is true; false otherwise (a window is not in its own chain). |
 
 Reordering never invalidates or repaints by itself.
 
@@ -407,7 +411,7 @@ Filed in `docs/specs/questions/widget-toolkit.md`: WT1 (own vtable rows), WT2 (u
 
 | Owner pattern (`tools/coverage-map.tsv`) | State after this slice |
 |---|---|
-| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade in and out, accelerator wiring (§13.4), painting (`Plot`, `PlotComposite`, `PlotPresent`, `PrivateBuffer`, `SetBufferToDrawTo`, §14), mouse routing and `UpdateCursor` (§15), key equivalents (§16), and (round 3, §17) the draw rectangles `+0x24`/`+0x34`/`+0xB8` (`SetAreaToDrawTo`, `SetAreaToDrawToRecursive`, `SetBufferToDrawToRecursive`, `recalc_blt_area`), `child_private_buffers`, the invalidation trio, coordinate converters and parent-chain forwarders (`WindowToWindowCoordinates`, `IsWinInParentChain`, `MoveRelativeTo`, `ChildToFront(id)`, `PullToFront`, `SetFocus`), parameters (`GetParam`/`SetParam`/`EnumParams`), `EnumChildren`, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion and the two private-buffer transparency helpers. **Still open, so the class is not complete:** the meanings of the draw-context, buffer, graphics-system and colour-manager slots (cited by number only), `ChildMoveRelative`/`ChildStepFront`/`ChildStepBack` (slots 31, 28, 29), `IsWinInChildChain` (slot 22), `GZOnSetFocus`/`GZOnMouseWheel` defaults, `create_private_buffer` internals, fields `+0xA0..+0xA4` (WT2), and the questions WT1-WT3, WT5, WT6 |
+| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade in and out, accelerator wiring (§13.4), painting (`Plot`, `PlotComposite`, `PlotPresent`, `PrivateBuffer`, `SetBufferToDrawTo`, §14), mouse routing and `UpdateCursor` (§15), key equivalents (§16), and (round 3, §17) the draw rectangles `+0x24`/`+0x34`/`+0xB8` (`SetAreaToDrawTo`, `SetAreaToDrawToRecursive`, `SetBufferToDrawToRecursive`, `recalc_blt_area`), `child_private_buffers`, the invalidation trio, coordinate converters and parent-chain forwarders (`WindowToWindowCoordinates`, `IsWinInParentChain`, `MoveRelativeTo`, `ChildToFront(id)`, `PullToFront`, `SetFocus`), `ChildStepFront`/`ChildStepBack`/`ChildMoveRelative`/`IsWinInChildChain` (§4.3), the `GZOnSetFocus`/`GZOnMouseWheel` defaults, parameters (`GetParam`/`SetParam`/`EnumParams`), `EnumChildren`, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion and the two private-buffer transparency helpers. **Still open, so the class is not complete:** the meanings of the draw-context, buffer, graphics-system and colour-manager slots (cited by number only), `create_private_buffer` internals, fields `+0xA0..+0xA4` (WT2), and the questions WT1-WT3, WT5, WT6 |
 | `cGZFadeTmpWin` (not an owner pattern of this lane; listed for completeness) | constructor, `StealBuffer`, `Plot` specified (§14.7); destructor not |
 | `cGZWin*` (everything else: `cGZWinGen`, widgets, managers) | not specified |
 | `cRZWinKeyAccelerator*` | `cRZWinKeyAccelerator` (all 16 functions) **specified** in §13; `cRZWinKeyAcceleratorRes` (4 functions, the text resource parser `SerialRead` `0x00984587`) not specified |
@@ -758,9 +762,11 @@ its ancestors, because it is composited through the manager's deferred queue rat
 | `ScreenToWindowCoordinates(&x, &y)` | 59 (`0x0099BD73`) | converts `(0,0)` through slot 60 (virtual, so an override applies) and subtracts the result from `x` and `y` |
 | `WindowToWindowCoordinates(other, &x, &y)` | 61 (`0x0099B8F5`) | `other` null: false, point untouched. Else this window's slot 60, then `other`'s slot 59 on the same point; true. Converts from this window's coordinates to `other`'s |
 | `IsWinInParentChain(w)` | 21 (`0x0099B929`) | true if `w` is a strict ancestor (the walk starts at the parent; a window is not in its own chain) |
-| `MoveRelativeTo(a, b)` | 30 (`0x0099B880`) | with a parent: `parent.ChildMoveRelative(this, a, b)` (slot 31) and its result; without: false |
+| `MoveRelativeTo(other, before)` | 30 (`0x0099B880`) | with a parent: `parent.ChildMoveRelative(this, other, before)` (slot 31, §4.3) and its result; without: false |
 | `ChildToFront(id)` | 25 (`0x0099B83B`) | `ChildToFront(GetChildWindowFromID(id))` (slots 34 then 26): the ID form of §4.3 |
 | `SetFocus()` | `0x0099BDE4` | returns the manager's slot 37 result for this window (§6) |
+| `GZOnSetFocus(x)` (default handler) | 132 (`0x0099CF49`) | if this window is **not visible** (`GetFlag(1)` false), `SetFocusTo(+0x4C)` passes focus on to the notification target; returns false (not handled) either way |
+| `GZOnMouseWheel(…)` (default handler) | 139 (`0x00938789`, shared stub, four dword arguments) | returns false |
 
 ### 17.5 Parameters (`+0x7C`)
 
