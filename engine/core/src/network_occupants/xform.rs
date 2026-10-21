@@ -14,17 +14,15 @@
 //! | 3 × f32 | `mask & 1` | the translation x, y, z |
 //! | 1 × f32 | `mask & 2` | the uniform scale |
 //!
-//! The in-memory field order (pollution.md, the visual-effect `SetTransform`: `cS3DTransform` is 0x38 bytes:
-//! revision byte `+0`, flags byte `+1`, matrix `+0x04`, translation `+0x28`,
-//! scale `+0x34`) is kept only as documentation; the core stores the parts.
+//! In the object the transform is 0x38 bytes (network-occupants.md §2.2):
+//! u8 change counter `+0`, u8 part mask `+1`, 9 f32 rotation, 3 f32
+//! translation, f32 scale. The writer emits the live mask unchanged (NO15).
 //!
-//! Not specified (question NO15): which mask `operator<<` writes for a given
-//! live transform, and what an absent part holds after a read. The codec
-//! keeps the mask as data and, literally, leaves an absent part at the
-//! identity value (matrix identity, translation 0, scale 1).
-//!
-//! The legacy form `S3DTransformLegacyLoad` (`0x005DA930`, records below v5)
-//! has no byte layout in the specs (question NO15); it is not implemented.
+//! Read rules (§2.3 "Transform read rules", NO15): [`Xform::read_into`]
+//! resets to identity only when the live mask is non-zero, ORs each present
+//! bit, increments the counter per reset and per part, and sets the scale
+//! bit only when the scale read differs from 1.0. [`Xform::legacy_load_into`]
+//! is the 56-byte `S3DTransformLegacyLoad` of v4 records.
 
 use crate::stream::{InStream, OutStream};
 
@@ -41,7 +39,9 @@ pub const IDENTITY_MATRIX: [f32; 9] = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1
 /// A transform as stored in a record.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Xform {
-    /// The mask byte, written as stored (NO15).
+    /// `+0`: the change counter (not saved, except by the legacy form).
+    pub counter: u8,
+    /// `+1`: the mask byte, written as stored (NO15).
     pub mask: u8,
     pub matrix: [f32; 9],
     pub translation: [f32; 3],
@@ -51,6 +51,7 @@ pub struct Xform {
 impl Default for Xform {
     fn default() -> Self {
         Xform {
+            counter: 0,
             mask: 0,
             matrix: IDENTITY_MATRIX,
             translation: [0.0; 3],
@@ -95,25 +96,78 @@ impl Xform {
         out.error() == 0
     }
 
-    /// The current-form read (`0x005DA710`).
+    /// Back to identity (rotation identity, translation 0, scale 1.0),
+    /// mask 0, counter + 1.
+    pub fn reset(&mut self) {
+        self.matrix = IDENTITY_MATRIX;
+        self.translation = [0.0; 3];
+        self.scale = 1.0;
+        self.mask = 0;
+        self.counter = self.counter.wrapping_add(1);
+    }
+
+    /// Store a scale with the 1.0 test: bit 2 set when it differs from 1.0
+    /// (a NaN differs), cleared when equal.
+    fn set_scale_bit(&mut self, scale: f32) {
+        self.scale = scale;
+        if scale == 1.0 {
+            self.mask &= !XFORM_SCALE;
+        } else {
+            self.mask |= XFORM_SCALE;
+        }
+    }
+
+    /// `operator>>` (`0x005DA710`) into a live transform (NO15).
+    pub fn read_into(&mut self, inp: &mut dyn InStream) -> Option<()> {
+        let mask = inp.get_u8()?;
+        if self.mask != 0 {
+            self.reset();
+        }
+        if mask & XFORM_MATRIX != 0 {
+            for v in self.matrix.iter_mut() {
+                *v = inp.get_f32()?;
+            }
+            self.mask |= XFORM_MATRIX;
+            self.counter = self.counter.wrapping_add(1);
+        }
+        if mask & XFORM_TRANSLATION != 0 {
+            for v in self.translation.iter_mut() {
+                *v = inp.get_f32()?;
+            }
+            self.mask |= XFORM_TRANSLATION;
+            self.counter = self.counter.wrapping_add(1);
+        }
+        if mask & XFORM_SCALE != 0 {
+            let s = inp.get_f32()?;
+            self.set_scale_bit(s);
+            self.counter = self.counter.wrapping_add(1);
+        }
+        Some(())
+    }
+
+    /// The current-form read into a fresh (identity, mask 0) transform.
     pub fn read(inp: &mut dyn InStream) -> Option<Xform> {
-        let mut x = Xform {
-            mask: inp.get_u8()?,
-            ..Xform::default()
-        };
-        if x.mask & XFORM_MATRIX != 0 {
-            for v in x.matrix.iter_mut() {
-                *v = inp.get_f32()?;
-            }
-        }
-        if x.mask & XFORM_TRANSLATION != 0 {
-            for v in x.translation.iter_mut() {
-                *v = inp.get_f32()?;
-            }
-        }
-        if x.mask & XFORM_SCALE != 0 {
-            x.scale = inp.get_f32()?;
-        }
+        let mut x = Xform::default();
+        x.read_into(inp)?;
         Some(x)
+    }
+
+    /// `S3DTransformLegacyLoad` (`0x005DA930`, v4 records), 56 bytes: 9 f32
+    /// rotation (mask |= 4), 3 f32 translation (mask |= 1), f32 scale (bit 2
+    /// by the 1.0 test), u32 whose low byte replaces the counter. The mask is
+    /// never reset first (NO15).
+    pub fn legacy_load_into(&mut self, inp: &mut dyn InStream) -> Option<()> {
+        for v in self.matrix.iter_mut() {
+            *v = inp.get_f32()?;
+        }
+        self.mask |= XFORM_MATRIX;
+        for v in self.translation.iter_mut() {
+            *v = inp.get_f32()?;
+        }
+        self.mask |= XFORM_TRANSLATION;
+        let s = inp.get_f32()?;
+        self.set_scale_bit(s);
+        self.counter = inp.get_u32()? as u8;
+        Some(())
     }
 }

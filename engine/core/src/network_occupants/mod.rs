@@ -10,7 +10,10 @@
 //! - [`power_line`]: §5, `cSC4PowerLineOccupant` slots and its v2 record.
 //! - [`power_pole`]: §4.3, the pole's static control variables only.
 //!
-//! Not here: the underground family (§3), the pole object (§4.1–§4.4), the
+//! - [`record`], [`xform`]: the §2.3 base record v4-v8 and the transform.
+//! - [`underground`]: §3.2 behaviour and the §3.3-§3.5 records.
+//!
+//! Not here: the underground connection occupants (§3.6), the pole object (§4.1–§4.4), the
 //! pylon (§6), the type-info tables and routines (§8, §9), the model side
 //! (§10).
 
@@ -31,6 +34,9 @@ pub use identity::{is_of_type, query_interface, NetOccClass, QiAnswer};
 pub use piece::{world_to_cell, NetworkPiece, PieceHost};
 pub use power_line::{PowerLine, PowerLineRecord};
 pub use power_pole::PowerLineControl;
-pub use record::{read_network_record, write_network_record, LoadFixup, NetworkBaseRecord};
-pub use underground::{UndergroundHost, UndergroundModel, UndergroundPiece};
+pub use record::{read_network_record, write_network_record, LoadEffects, NetworkBaseRecord, Vertex};
+pub use underground::{
+    read_underground_record, write_underground_record, UndergroundHost, UndergroundModel, UndergroundPiece,
+    UndergroundRecord,
+};
 pub use xform::Xform;
