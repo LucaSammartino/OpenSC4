@@ -9267,20 +9267,44 @@ va	name	source	confidence	note
 007f9b40	SC4ViewUtilities::GetGroundPlaneVisibleAreaRectangle	manual:view-utilities.tsv	high	view-utilities.md §6; inner and outer rectangles, 64 m rounding, cache +0x444
 007f9ea0	SC4ViewUtilities::GetViewportRectGroundCorners	manual:view-utilities.tsv	high	view-utilities.md §4.1; descriptive name, no Mac match; four GetViewportPointIntersectionWithGroundPlane calls
 007f9f50	SC4ViewUtilities::BuildDrawFrustumDataFromViewportRect	manual:view-utilities.tsv	high	view-utilities.md §5; flag +0x228, rectangle +0x22C
+007fb180	cS3DModelInstanceAnimatedSprite::SetView	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 8, zoom and rotation bytes
+007fb1c0	cS3DModelInstanceAnimatedSprite::GetFrame	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 11, byte +0x9F
 007fb1d0	cSC4Advice::GetEventSubject	auto:C	low	mac 0032b992 score 1.0 support 3
+007fb1e0	cS3DModelInstanceAnimatedSprite::NextFrame	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §4; without an animation table, by the play mode
+007fb310	cS3DModelInstanceAnimatedSprite::SetRate	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §4; slot 14, +0xA0
+007fb330	cS3DModelInstanceAnimatedSprite::SetPlayMode	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §4; slot 16, 3 loop, 2 ping-pong
+007fb340	cS3DModelInstanceAnimatedSprite::SetFade	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 18, flag 2
+007fb3b0	cS3DModelInstanceAnimatedSprite::SetHighlight	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 19, flag 1
+007fb410	cS3DModelInstanceAnimatedSprite::SetSelfLit	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 20, flag 4
 007fc2d0	SC4DrawContext::DrawPrims	manual:draw-context.tsv	high	draw-context.md §9.1; DrawArrays
-007fd2f0	cS3DModelInstanceAnimatedSprite::GetTextureResourceData	auto:D	medium	mac 00139294 score 0.5 support 1
-007fd3d0	cS3DModelInstanceAnimatedSprite::GetTextureData	auto:D	medium	mac 00138400 score 0.5 support 1
-007fd710	cS3DModelInstanceAnimatedSprite::Pick	auto:B5	medium	mac 001388ba score 0.975 support 1.0
-007fd7d0	GetSpriteAnimFromResourceKey	auto:D	medium	mac 00139f04 score 0.5 support 1
-007fdcba	cS3DModelInstanceAnimatedSprite::cS3DModelInstanceAnimatedSprite	auto:B2	medium	mac 00139c28 score 0.984 support 3.5
-007fe230	__ZThn4_N31cS3DModelInstanceAnimatedSprite4PickEP15cSC4PickContext	auto:B6	low	mac 006784ce score 0.96 support 1.0
-007fe390	cS3DModelInstanceAnimatedSprite::GetTextureData	auto:D	medium	mac 001393aa score 0.5 support 1
-007fe400	cS3DModelInstanceAnimatedSprite::UpdateView	auto:B7	medium	mac 00138d20 score 0.916 support 1.0
-007fea90	cS3DModelInstanceAnimatedSprite::Draw	auto:B2	medium	mac 00139438 score 0.98 support 2.0
-007fed50	GetMeshAnimFromResourceKey	auto:D	medium	mac 00138656 score 0.5 support 1
-007fede0	GetAnimatedModelFromResourceKey	auto:B0	medium	mac 00139f80 score 0.907 support 4.0
-007fee90	__ZThn4_N31cS3DModelInstanceAnimatedSprite4DrawEP14SC4DrawContextb	auto:B3	low	mac 0067858c score 0.96 support 1.0
+007fc320	cS3DModelInstanceAnimatedSprite::SetZoomResource	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §2; frame count, N directions, 2pi / N
+007fc480	cS3DModelInstanceAnimatedSprite::SetPosition	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 1
+007fc4b0	cS3DModelInstanceAnimatedSprite::SetOrientation	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3.1; slot 3, -100 = unset
+007fcc90	cS3DModelInstanceAnimatedSprite::TransformPoint	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3.1; slot 5
+007fcea0	cS3DModelInstanceAnimatedSprite::SetAnimation	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 9, a sequence of the animation table
+007fcf00	cS3DModelInstanceAnimatedSprite::SetFrame	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 10
+007fcf60	cS3DModelInstanceAnimatedSprite::AdvanceFrame	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §4; slot 13
+007fcfb0	cS3DModelInstanceAnimatedSprite::Tick	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §4; slot 15
+007fd0c0	cS3DModelInstanceAnimatedSprite::Load	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §2; slot 22, the resource of type 0x29A5D1EC
+007fd120	cS3DModelInstanceAnimatedSprite::LoadFromResource	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §2; slot 21, per-zoom records of type 0x69B6F01C
+007fd2f0	cS3DModelInstanceAnimatedSprite::GetTextureResourceData	manual:animated-sprite.tsv	high	animated-sprite.md §4.1; direction bucket round(N((yaw + pi) - base) / 2pi) mod N
+007fd3d0	cS3DModelInstanceAnimatedSprite::GetTextureData	manual:animated-sprite.tsv	high	animated-sprite.md §4.1; frames left to right, then down, in 2^k pages
+007fd710	cS3DModelInstanceAnimatedSprite::Pick	manual:animated-sprite.tsv	high	animated-sprite.md §6; two TrianglePick tests
+007fd7d0	GetSpriteAnimFromResourceKey	manual:animated-sprite.tsv	high	animated-sprite.md §2; the resource manager lookup for type 0x5AD0E817
+007fdcba	cS3DModelInstanceAnimatedSprite::cS3DModelInstanceAnimatedSprite	manual:animated-sprite.tsv	high	animated-sprite.md §1; the constructor body, alpha-tested packed state
+007fdfc0	cS3DModelInstanceAnimatedSprite::~cS3DModelInstanceAnimatedSprite (deleting destructor, thunk at +8)	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §1
+007fe0f0	cS3DModelInstanceAnimatedSprite::GetTransform	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3.1
+007fe190	cS3DModelInstanceAnimatedSprite::SetTransform	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3.1
+007fe230	__ZThn4_N31cS3DModelInstanceAnimatedSprite4PickEP15cSC4PickContext	manual:animated-sprite.tsv	high	animated-sprite.md §1; the Pick thunk at +4
+007fe250	cS3DModelInstanceAnimatedSprite::LookAt	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3.1; slot 2
+007fe390	cS3DModelInstanceAnimatedSprite::GetTextureData	manual:animated-sprite.tsv	high	animated-sprite.md §4.1; the frame entry, then its texture data
+007fe400	cS3DModelInstanceAnimatedSprite::UpdateView	manual:animated-sprite.tsv	high	animated-sprite.md §5; corners from frame pixels x metres per pixel along the camera axes
+007fea90	cS3DModelInstanceAnimatedSprite::Draw	manual:animated-sprite.tsv	high	animated-sprite.md §5; zoom 2 or closer, one triangle fan of four vertices
+007fed50	GetMeshAnimFromResourceKey	manual:animated-sprite.tsv	high	animated-sprite.md §2; builds a sprite instance and loads the key (type 0x29A5D1EC)
+007fede0	GetAnimatedModelFromResourceKey	manual:animated-sprite.tsv	high	animated-sprite.md §2; dispatch on the key type 0x29A5D1EC / 0x5AD0E817
+007fee90	__ZThn4_N31cS3DModelInstanceAnimatedSprite4DrawEP14SC4DrawContextb	manual:animated-sprite.tsv	high	animated-sprite.md §1; the Draw thunk at +4
+007feef0	cS3DModelInstanceAnimatedSprite::~cS3DModelInstanceAnimatedSprite (body)	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §1; releases the per-zoom resources
+007fefe0	cS3DModelInstanceAnimatedSprite::~cS3DModelInstanceAnimatedSprite (deleting destructor)	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §1
 007ff010	cS3DCamera::GetGZCLSID	manual:camera.tsv	high	camera.md §1.2; descriptive name; returns 0xE9C6262A; called by the COM director 0x0046029D
 007ff020	cS3DCamera::Release	manual:camera.tsv	high	camera.md §1.2; descriptive name; slot 2 of 0x00ABD2C4; slot 3 with 1 at a count of 1 or less
 007ff040	cS3DCamera::QueryInterface	manual:camera.tsv	high	camera.md §1.2; descriptive name; slot 0; IIDs 1 and 0xE9C6262A

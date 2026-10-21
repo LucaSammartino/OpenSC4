@@ -29,6 +29,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AO | foundations |
 | AP | application |
 | AQ | flora, residential-education-health |
+| AS | animated-sprite |
 | AT | automata |
 | AU | aura |
 | BQ | budget |
@@ -133,6 +134,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | advisors | 1 | 10 | AD12 | questions/advisors.md |
+| animated-sprite | 2 | 0 | AS3 | questions/animated-sprite.md |
 | animation-coordinator | 2 | 0 | AC3 | questions/animation-coordinator.md |
 | application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 1 | 8 | AA10 | questions/audio-ambience.md |
@@ -233,4 +235,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **227** | **1117** | | |
+| **total** | **229** | **1117** | | |

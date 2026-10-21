@@ -315,6 +315,10 @@ fn:GZCOM_cS3DTextureBindingFactoryCLSID	textures and materials	renderer	texture-
 fn:GZCOM_CreatecS3DMaterialManager	textures and materials	renderer	texture-bindings.md	-	-	-
 fn:GZCOM_cS3DMaterialManagerCLSID	textures and materials	renderer	texture-bindings.md	-	-	-
 fn:NextPowerOfTwo	textures and materials	renderer	texture-bindings.md	-	-	-
+cS3DModelInstanceAnimatedSprite	animated sprites	renderer	animated-sprite.md	-	-	-
+fn:GetAnimatedModelFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
+fn:GetMeshAnimFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
+fn:GetSpriteAnimFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
 cS3D*	3D scene and models	renderer	-	-	-	-
 nS3D*	3D scene and models	renderer	-	-	-	-
 cSC43D*	3D scene and models	renderer	-	-	-	-
