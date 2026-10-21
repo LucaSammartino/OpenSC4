@@ -273,6 +273,76 @@ A record is 13 dwords (52 bytes) as copied out by the getters; the list stores t
 
 Viewport slots 74/75 `SetViewport` and 76 `GetViewport` are open (RD3).
 
+## 7. The default device state (`SetDefaultD3DDeviceState`, `0x008872A0`)
+
+Called at the end of `SetupViewport` (§4.3, after the primitive manager is initialised, `0x00888EF5`) and from
+`Flush` (§4.4, `0x00884C59`) when the device has been restored. It issues a fixed sequence of Direct3D 7 device
+calls, **in this order**, ignoring every result *[compat]* (the order matters only to a device that rejects some
+states; keep it):
+
+| # | Render state (D3D7 number) | Value |
+|---|---|---|
+| 1 | cull mode (22) | 1 = no culling |
+| 2 | dither enable (26) | on |
+| 3 | colour-key enable (41) | off |
+| 4 | specular enable (29) | off |
+| 5 | alpha-blend enable (27) | off |
+| 6 | texture perspective (4) | on |
+| 7 | depth-write enable (14) | on |
+| 8 | depth function (23) | 4 = less-or-equal |
+| 9 | alpha-test enable (15) | off |
+| 10 | fog enable (28) | off |
+| 11 | fill mode (8) | 3 = solid |
+| 12 | stencil enable (52) | off |
+| 13-15 | stencil fail (53) / depth-fail (54) / pass (55) | 1 = keep / **6 = invert** / 1 = keep |
+| 16 | stencil function (56) | 8 = always |
+| 17-19 | stencil reference (57) / read mask (58) / write mask (59) | 1 / 1 / 1 |
+| 20 | texture factor (60) | `0xFFFFFFFF` (opaque white) |
+| 21 | ambient light colour (139) | 0 |
+| 22 | lighting (137) | off |
+| 23 | ambient material source (147) | 1 = vertex colour 1 (diffuse) |
+| 24 | diffuse material source (145) | 1 = vertex colour 1 |
+| 25 | specular material source (146) | 0 = material |
+| 26 | colour vertex (141) | on |
+
+The stencil defaults (depth-fail inverts, masks 1) are the original's *[quirk]*; they are not what `StencilOp`
+(§5.2) would produce from any "keep everything" request, so a renderer that relies on them must get them from here.
+
+Then four driver flags are reset (object bytes `+0x2DC`..`+0x2DF`): "lighting forced on by a multiplier" := false
+(`+0x2DC`, see §8.6), "clear colour at scene start" := false (`+0x2DD`), and the two vertex-colour flags of
+`EnableVertexColors` (§8.6) := true (`+0x2DE` "ambient from vertex colour", `+0x2DF` "diffuse from vertex
+colour"). These flags are reset **without** re-issuing the matching device states; rows 22-26 above are what
+makes them true.
+
+Then texture stage 0 is set (D3D7 texture-stage-state numbers):
+
+| # | Stage state | Value |
+|---|---|---|
+| 27 | stage 0 colour op (1) | 2 = select argument 1 |
+| 28 | stage 0 address mode (12) | 1 = wrap (both axes) |
+| 29 | stage 0 texture-coordinate index (11) | 0 |
+| 30-32 | stage 0 magnification (16) / minification (17) / mip filter (18) | 1 = point / 1 = point / 1 = no mip-mapping |
+| 33-34 | stage 0 colour argument 1 (2) / argument 2 (3) | 2 = texture / 0 = diffuse |
+| 35 | stage 0 alpha op (4) | 2 = select argument 1 |
+| 36-37 | stage 0 alpha argument 1 (5) / argument 2 (6) | 2 = texture / 0 = diffuse |
+| 38 | stage 1 colour op (1) | 1 = disable (this ends the cascade) |
+| 39 | bound texture of stage 0 | none |
+
+Finally the driver's own texture-stage cache is invalidated: the "stages dirty" byte (`+0x134`) := true and the
+"dirty" byte (offset 0) of every per-stage record is set (the records are 0x80 bytes each, array at `+0x128`,
+count at `+0x124`, one per hardware stage), so the next draw re-sends every stage (§8.5).
+
+Consequence *[compat]*: after any device restore the device is in exactly this state, **not** in the state the
+game last requested through the state slots of §5; nothing re-applies the game's depth, blend, alpha or stencil
+choices. A replacement must reproduce that (a renderer change of state after a restore depends on it re-issuing
+its own state each frame, which `cSC43DRender` does).
+
+The word at object `+0x138` (set to 7 by the constructor `0x00886026` and by `Init`) has **no reader** in the
+driver (`0x00881A00`-`0x0088B400` reads neither `+0x138` from the object nor `+0x12C` from the interface pointer,
+which is the same field); it is write-only *[inferred: a leftover]*. A replacement may keep it as an unused field.
+Likewise the "clear colour at scene start" flag `+0x2DD` is only ever written false (constructor and here), so the
+colour clear `BeginScene` performs when it is set (§4.4, `Clear(0x4000)`) never happens *[inferred]*.
+
 ## 9. Open contracts
 
 See [questions/renderer-driver.md](questions/renderer-driver.md).
