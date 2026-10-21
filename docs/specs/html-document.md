@@ -382,9 +382,9 @@ it is non-empty. Returns true.
 
 | Token | Handler |
 |---|---|
-| P 101 | 0090614f (gap function, not in this owner's inventory) |
-| PRE 103 | 00906a5d (gap) |
-| DL 109 | 009066a3 (gap) |
+| P 101 | 0090614f (unnamed in the export; §7.14) |
+| PRE 103 | 00906a5d (§7.14) |
+| DL 109 | 009066a3 (§7.14) |
 | DIV 111 | ParseDIV |
 | NOSCRIPT 113 | SkipUntilToken(/NOSCRIPT 114): content dropped |
 | BLOCKQUOTE 115 | the method exported as `ParseDL` (00906c6b) |
@@ -392,9 +392,9 @@ it is non-empty. Returns true.
 | HR 119 | ParseHR |
 | TABLE 120 | ParseTABLE |
 | FIELDSET 122, ADDRESS 124, DIR 128, MENU 130 | SkipUntilToken of the close tag (123, 125, 129, 131): content dropped |
-| CENTER 126 | 00906d22 (gap, 16 bytes) |
-| H1..H6 | 00906754 (gap) |
-| UL, OL | 00906f1d (gap) |
+| CENTER 126 | 00906d22 (§7.14) |
+| H1..H6 | 00906754 (§7.14) |
+| UL, OL | 00906f1d (§7.14) |
 | anything else | false |
 
 Naming note: the export's auto-matched names `ParseP` and `ParseDL` do not match the tokens they serve (the
@@ -666,6 +666,57 @@ with a base URL, +0x28 = heap copy of the resolved absolute URL; byte +0x20 = 1 
 present (REL is not read); TITLE -> heap copy at +0x1c; append the record to the document's link list (0xbc).
 No unhandled dump. Always returns true (also without HREF).
 
+### 7.14 Block helpers the export left unnamed (round 3)
+
+These are `cHTMLDocument` methods (`this` = document, reached only from ParseBLOCK / each other) that the
+export did not attribute to the class (§10.3). "Push back" = set byte 0x28 so the next GetToken returns the
+current token again. "Add" = parent vtable +4; "delete" = element vtable 0 with flag 1. "Has children" = the
+element's child vector (+0x1c..+0x20) is non-empty. None of them reads attributes or calls the unhandled dump.
+
+- **P** (0090614f): create a container element (0x28 bytes, ctor 008fedd8: kind 0x15, vtable 00acd824).
+  `GetToken(false)`; while the token is in INLINE: ParseINLINE(p), `GetToken(false)`. If the stopping token is
+  not `/P` (102) push it back (so `<p>a<p>b` gives two paragraphs and any block tag closes a P). Always add
+  (also when empty); return true.
+- **PRE** (00906a5d): **no element**; content goes straight into the parent. Push the style (§8.2), face
+  selector 0x144 = 2, byte 0x154 = 1 (preformatted, §5.4). `GetToken(false)`; while INLINE: ParseINLINE(parent),
+  `GetToken(false)`. Not `/PRE` (104) -> SkipUntilToken(/PRE) (unlike P, the rest up to `</pre>` is dropped).
+  Pop the style; return true.
+- **DL** (009066a3): create a container (0x28, kind 8). Loop `GetToken(true)`: DT 151 -> DT helper; DD 153 ->
+  DD helper (their results are ignored); a BLOCK token -> ParseBLOCK(dl); anything else ends the loop. Then
+  `ok` = true when the token is `/DL` (110), else the result of SkipUntilToken(/DL). Add when `ok` and has
+  children, else delete; return `ok`.
+- **DT** (00905f63) / **DD** (00905ed9): create a container (0x28; DT kind 9 via 008fed48, DD kind 10 via
+  008fed20). `GetToken(false)`; while the token is INLINE: `ok` = ParseINLINE(e), `GetToken(false)`, and stop
+  early when `ok` is false (`ok` starts true). Not `/DT` (152) / `/DD` (154) -> push back. Add when `ok`, else
+  delete (even when empty, unlike DL); return `ok`.
+- **H1..H6** (00906754): tokens 89, 91, 93, 95, 97, 99 give level index 0..5 (any other token returns false
+  at once); close = token + 1. Create a container (0x2c bytes, ctor 008fed70: kind 2, vtable 00acd748). Push
+  the style, then **overwrite** (not OR) face selector 0x144 = 9, size 0x148 = pixels from {40, 32, 28, 24, 20,
+  16} (00acd4d4; the font-size table of §1.4 is bypassed), flags 0x150 = 1 (bold only: an enclosing `<i>` or
+  `<u>` is cancelled inside the heading). Loop `GetToken(false)`: INLINE -> ParseINLINE(h); else BLOCK ->
+  ParseBLOCK(h); else stop. Not the close -> SkipUntilToken(close). Pop the style. Add when it has children,
+  else delete; return true. Example: `<h2>Title</h2>` -> bold 32-px text in a kind-2 container.
+- **List dispatch** (00906f1d): UL 105 -> UL helper; OL 107 -> OL helper; else false.
+- **UL** (00907d6b) / **OL** (0090689f): create a list container (0x2c bytes, ctor 00908704(kind, serial):
+  UL kind 6, OL kind 7; serial stored at +0x28). The serial is a per-document running count, UL 0x12c / OL
+  0x128, post-incremented on each list; the constructor zeroes them and **Init does not**, so they keep
+  counting across documents parsed by the same object. `ok` = true. Loop `GetToken(false)`: LI 149 -> `ok` =
+  ParseLI(list, number) (UL number -1; OL numbers 1, 2, 3, ... incremented after every LI, success or not);
+  else BLOCK -> `ok` = ParseBLOCK(list); else INLINE -> `ok` = ParseINLINE(list); else stop. A false `ok` does
+  not stop the loop; only the last call's result counts. Not `/UL` (106) / `/OL` (108) -> SkipUntilToken
+  (result ignored). Add and return true when `ok` and has children; else delete and return false.
+- **CENTER** (00906d22): ParseDIVActual(parent, closeId = /CENTER 127, alignment 1 = center). So a CENTER is a
+  `cHTMLDIV` like `<div align=center>`.
+- **Image request, primary vtable slot 16** (009059fc; args `waiter`, `url`): under the critical section
+  (0x34) look `url` up in the download table (0x198).
+  - Missing: build an empty entry (image null, empty waiter list) for `url` (008ffd2d/00901191 insert); when
+    the insert created it, append `waiter` to its list (008ff785). Unlock, then ask the downloader at 0x30
+    (its vtable +0x44) for `url` with the document's secondary base (this+4, the DoMessage target of §9) and
+    the constants 3, 0, 1. The download answer arrives later through DoMessage -> ResourceHasBeenDownloaded.
+  - Present with no image yet (download pending): append `waiter`; unlock. No second download is started.
+  - Present with an image: call `waiter`'s slot 0 with the image at once; when it returns true call the
+    document's own slot 15 (009006c0) with 0. Unlock.
+
 ## 8. Alignment and style state
 
 ### 8.1 Alignment keywords
@@ -740,9 +791,24 @@ Round 2 (cont.): ParseFONTSTYLE, ParsePHRASE, ParseSPAN, ParseBLINK, ParseA (§7
 ParseAREA (§7.12), ParseMETA, ParseLINK (§7.13).
 
 Round 2 (end): GetStringForEscape (§10.1) and the two attribute-map helpers (§10.2). **No function of the
-70-function owner remains unspecified.** Gap functions reached from this owner but outside its inventory (P 0090614f, PRE
-00906a5d, DL 009066a3, headings 00906754, lists 00906f1d, CENTER 00906d22, style push/pop, tag lookup
-008fead9) are not counted toward the owner.
+70-function owner remains unspecified.**
+
+### 10.3 Round 3 audit: methods outside the 70-function inventory
+
+The 70-function inventory is the export's *named* `cHTMLDocument::` set. Static evidence (thiscall on the
+document, single caller or single vtable reference inside this class, document fields used) shows the
+class has further methods the export left as `FUN_`. Classification:
+
+| Class | Functions (address, bytes) | Status |
+|---|---|---|
+| Unnamed owner methods, now specified | P 0090614f 141, PRE 00906a5d 112, DL 009066a3 177, DT 00905f63 138, DD 00905ed9 138, H1-6 00906754 331, list dispatch 00906f1d 31, UL 00907d6b 215, OL 0090689f 230, CENTER 00906d22 16, image request slot 16 009059fc 201 (§7.14); COLGROUP 00905ea7 50 (§7.8); style push 00902d28 19 / pop 00900e5f 50 (§8.2) | 1849 B specified, not in the named inventory |
+| Unnamed owner methods, not specified here | destructor slot 3 009010e1 28, slots 4 009006b4 7, 6 008fee66 82, 13 008fe89e 56, 15 009006c0 10 (single vtable reference each) | 183 B open |
+| Shared / folded aliases (not owner) | slot 12 009d4714 (ICF stub, 83 refs), slot 14 00995e67 (owned by cGZWinIMEServer), slot 5 009006bb (4 refs) | not counted |
+| Template container instances (not owner) | hash map 008fead9 find, 0097c081 begin, 008ff7e7/008ff123 iterator, 008fea32/008fe87e hash, 00900f4c/00901149 insert, 009001c9 erase; download map 008feb1e find, 008ffd2d/00901191 insert, 008ff76c, 008ff785 vector push | behaviour given where used |
+| Element constructors (other classes) | 008fedd8 (kind 0x15), 008fed70 (2), 008fed48 (9), 008fed20 (10), 00908704 (list 6/7) | belong to cHTML* element classes |
+
+So whole-owner credit for the **named** 70/70 is unaffected; a coverage tool that adopts the unnamed methods
+into `cHTMLDocument` would find 183 B (the vtable-slot row) still unspecified.
 
 ### 10.1 Character entities (GetStringForEscape 00901222)
 

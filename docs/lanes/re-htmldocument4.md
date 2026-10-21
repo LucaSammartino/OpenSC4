@@ -5,7 +5,7 @@
 ## Handoff
 - Goal round 3: close HD1-HD4 statically; audit gap helpers (owner aliases vs unattributed owner methods).
 - Done: HD1-HD4 answered (spec §3, §5.4, §9; answered/html-document.md; QUESTIONS.md reindexed).
-- Next: classify gap functions 0090614f P, 00906a5d PRE, 009066a3 DL, 00906754 H1-6, 00906f1d/0090689f/00907d6b
+- Done: §7.14 spec of unnamed block helpers + slot 16; §10.3 audit table (commit r3b).
   lists, 00906d22 CENTER, 009059fc (slot 16?) as unattributed cHTMLDocument methods; spec them in §7.14; then report.
 - Facts: build-runs/off.py <regex> lo hi greps export instructions.asm. 0x154 = style record +0x24 (record 0x130..0x157).
 
