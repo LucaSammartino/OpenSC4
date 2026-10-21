@@ -406,9 +406,15 @@ fn city_shutdown_stops_ticking_and_clears() {
     o.alarm_times = Some(vec![7.0]);
     o.one_shot_alarm_sound = Some(3);
     ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
+    let before = m.alarms.clone();
+    assert_eq!(before.len(), 1);
+    h.take();
+    // §10.24 (AA9c): returns 1, layers shut down and released, alarms kept.
     assert!(m.do_message(&mut h, true, &AmbienceMessage::PreCityShutdown));
-    assert!(!m.ticking && m.layers.is_empty() && m.alarms.is_empty());
-    assert!(h.take().contains(&Call::TickRemove));
+    assert!(!m.ticking && m.layers.is_empty());
+    assert_eq!(m.alarms, before);
+    assert_eq!(m.tracked_count, 1);
+    assert_eq!(h.take(), vec![Call::TickRemove, Call::Layer(1, "shutdown", 0, 0)]);
     m.on_tick(&mut h, 5, || true);
     assert!(h.take().is_empty());
 }
@@ -497,12 +503,18 @@ fn on_off_alarm_22_to_6() {
     m.update_alarms(&mut h);
     assert_eq!(
         h.posts(),
-        vec![SndRequest::Start {
-            sound_id: 0x55,
-            instance_id: iid,
-            looping: true,
-            position: [10, 2, -3]
-        }]
+        vec![
+            SndRequest::Start {
+                sound_id: 0x55,
+                instance_id: iid,
+                looping: true,
+                position: [10, 2, -3]
+            },
+            SndRequest::SetPosition {
+                instance_id: iid,
+                position: [10, 2, -3]
+            }
+        ]
     );
     for hr in [23, 0, 3] {
         h.clock = Some((hr, 30));
@@ -598,22 +610,24 @@ fn insert_move_remove_sounds() {
                 }
             ),
             Call::Cond(0x5001, None),
+            Call::Cond(0x5001, Some((0, 0))),
         ]
     );
     assert_eq!(m.tracked_count, 1);
     ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
     assert_eq!(m.tracked_count, 1, "a second insert does not count twice");
     h.take();
+    // §10.20 (AA8b): the bare occupant address, not `o + id`.
     ins(&mut m, &mut h, &o, MSG_MOVE_OCCUPANT);
     assert_eq!(
         h.posts(),
         vec![
             SndRequest::SetPosition {
-                instance_id: 0x5010,
+                instance_id: 0x5000,
                 position: p
             },
             SndRequest::SetPosition {
-                instance_id: 0x5030,
+                instance_id: 0x5000,
                 position: p
             },
         ]
@@ -696,7 +710,8 @@ fn condition_changed_needs_lot() {
         values: (1, 2),
     };
     m.do_message(&mut h, true, &msg);
-    assert_eq!(h.take(), vec![Call::Cond(9, Some((1, 2)))]);
+    // new = 2 >= 0: the lot condition is not read; the occupants are.
+    assert_eq!(h.take(), vec![Call::Cond(9, Some((0, 0)))]);
 }
 
 #[test]
@@ -981,7 +996,8 @@ fn events_master_volume_and_fresh_player() {
         fresh_player: fresh,
         score_tgi: Some((1, 2, 3)),
     };
-    assert!(m.do_event(&mut h, &ev(EVT_MASTER_VOLUME, 42, false)));
+    // §10.24 (AA9b): the master volume returns 0 after setting volumes.
+    assert!(!m.do_event(&mut h, &ev(EVT_MASTER_VOLUME, 42, false)));
     assert_eq!(
         h.take(),
         vec![Call::Layer(1, "volume", 42, 0), Call::Layer(2, "volume", 42, 0)]
@@ -1027,6 +1043,11 @@ fn events_master_volume_and_fresh_player() {
         h.take(),
         vec![Call::Load(1, 2, 3), Call::Log(score_load_failure_message(1, 2, 3))]
     );
+    // §10.24 (AA9b): an event that does not answer 0x65297976 → 1, no load.
+    let mut no_payload = ev(EVT_FRESH_LOAD_SCORE, 0, true);
+    no_payload.score_tgi = None;
+    assert!(m.do_event(&mut h, &no_payload));
+    assert!(h.take().is_empty());
     assert_eq!(
         score_load_failure_message(1, 2, 0xABC),
         "Error: cSC4AudioAmbienceLayer::DoEvent : Failed to load freshness score (00000001:00000002:00000abc)\n"
@@ -1038,8 +1059,38 @@ fn focus_pauses_layers_and_exemplar_rereads_tuning() {
     let mut h = Host::new();
     h.tuning.layer_ids = Some(vec![1]);
     let mut m = ready(&mut h);
-    assert!(m.do_message(&mut h, true, &AmbienceMessage::AppFocus { flag: true }));
+    // §10.23 (AA9a): focus lost → stage 4, Pause(1), result 1; no walk.
+    assert!(m.do_message(&mut h, true, &AmbienceMessage::AppFocus { flag: false }));
     assert_eq!(h.take(), vec![Call::Layer(1, "pause", 1, 0)]);
+    assert_eq!(m.stage, Stage::Unfocused);
+    m.on_tick(&mut h, 5, || true);
+    assert!(h.take().is_empty());
+    // Focus regained → stage 1, Pause(0); the next tick begins a walk.
+    assert!(m.do_message(&mut h, true, &AmbienceMessage::AppFocus { flag: true }));
+    assert_eq!(h.take(), vec![Call::Layer(1, "pause", 0, 0)]);
+    assert_eq!(m.stage, Stage::Begin1);
+    m.on_tick(&mut h, 5, || false);
+    let r = m.current;
+    assert_eq!(h.take()[0], Call::Layer(1, "begin", r.x0 as i64, r.x1 as i64));
+    // AA6: absent properties keep the vectors; present ones give n values.
+    let saved = h.tuning.clone();
+    h.tuning = AmbienceTuning {
+        margins: Some(vec![3.0; 7]),
+        layer_ids: None,
+    };
+    m.read_tuning(&mut h);
+    assert_eq!(m.margins.len(), 7);
+    h.tuning.margins = None;
+    m.read_tuning(&mut h);
+    assert_eq!(m.margins, vec![70.0, 70.0, 70.0, 70.0, 70.0, 3.0, 3.0]);
+    assert_eq!(m.layer_ids, vec![1]);
+    h.tuning.margins = Some(vec![9.0, 8.0]);
+    h.tuning.layer_ids = Some(vec![]);
+    m.read_tuning(&mut h);
+    assert_eq!(m.margins, vec![9.0, 8.0, 70.0, 70.0, 70.0]);
+    assert!(m.layer_ids.is_empty());
+    h.tuning = saved;
+
     h.tuning.margins = Some(vec![1.0; 5]);
     h.tuning.layer_ids = Some(vec![5, 6]);
     assert!(m.do_message(&mut h, true, &AmbienceMessage::ExemplarChanged));
