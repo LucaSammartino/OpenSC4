@@ -122,7 +122,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-manager | 0 | 9 | NM10 | - |
 | network-occupants | 8 | 0 | NO9 | questions/network-occupants.md |
 | network-rules | 2 | 7 | NR13 | questions/network-rules.md |
-| network-tools | 8 | 0 | NT14 | questions/network-tools.md |
+| network-tools | 11 | 0 | NT18 | questions/network-tools.md |
 | occupant-manager | 0 | 5 | OM9 | - |
 | occupants-props | 10 | 0 | OP11 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
@@ -144,4 +144,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **53** | **974** | | |
+| **total** | **56** | **974** | | |
