@@ -1161,7 +1161,17 @@ def replacement_union(extra, script=None):
     return ",".join(dict.fromkeys(defaults + keys))
 
 
-def run_regress(wt, tag, dll, replace=None):
+def candidate_shadows(extra):
+    """Extra verification keys append to, rather than replace, the house profile."""
+    if extra is None:
+        return None
+    keys = [k.strip().lower() for k in extra.split(",") if k.strip()]
+    if not keys or any(not re.fullmatch(r"[a-z][a-z0-9_]*_shadow", k) for k in keys):
+        raise ValueError("--add-shadow needs comma-separated *_shadow keys")
+    return ",".join(dict.fromkeys(keys))
+
+
+def run_regress(wt, tag, dll, replace=None, shadows=None):
     """Submit the two regress runs through the game queue and wait for the verdict."""
     log(f"regress {tag}: submitting to the game queue (about 10-20 min)")
     command = [
@@ -1170,6 +1180,8 @@ def run_regress(wt, tag, dll, replace=None):
     ]
     if replace is not None:
         command += ["-Replace", replace]
+    if shadows is not None:
+        command += ["-AddShadows", shadows]
     p = sh(command, check=False, timeout=7200)
     out = (p.stdout or "") + (p.stderr or "")
     (LOG_DIR / f"regress-{tag}.out").write_text(out, encoding="utf-8")
@@ -1316,6 +1328,7 @@ def cmd_regress(args):
         return 1
     try:
         replace = replacement_union(getattr(args, "add_replace", None))
+        shadows = candidate_shadows(getattr(args, "add_shadow", None))
     except ValueError as exc:
         cur["regress"] = {"ok": False, "verdict": "REFUSED", "why": str(exc), "head": head}
         save_state(st)
@@ -1325,8 +1338,13 @@ def cmd_regress(args):
     cur["regress"] = {"ok": False, "verdict": "RUNNING", "head": head}
     if replace is not None:
         cur["regress"]["replace"] = replace
+    if shadows is not None:
+        cur["regress"]["extra_shadows"] = shadows
     save_state(st)
-    verdict, tail = run_regress(wt, cur["id"], dll, replace)
+    if shadows is None:
+        verdict, tail = run_regress(wt, cur["id"], dll, replace)
+    else:
+        verdict, tail = run_regress(wt, cur["id"], dll, replace, shadows)
     cur["regress"].update(ok=verdict == "PASS", verdict=verdict)
     save_state(st)
     log(f"regress {cur['id']}: {verdict}")
@@ -1545,6 +1563,7 @@ def main():
     profile = p.add_mutually_exclusive_group()
     profile.add_argument("--no-regress", action="store_true")
     profile.add_argument("--add-replace", help="test candidate keys in addition to every default replacement")
+    p.add_argument("--add-shadow", help="append candidate *_shadow keys to the full default shadow profile")
     p = sub.add_parser("land")
     p.add_argument("--force", action="store_true")
     sub.add_parser("bisect")
@@ -1556,6 +1575,8 @@ def main():
     p.add_argument("--land", action="store_true")
     p.add_argument("--no-regress", action="store_true")
     args = ap.parse_args()
+    if args.cmd == "regress" and args.no_regress and args.add_shadow is not None:
+        ap.error("--add-shadow cannot be combined with --no-regress")
     return {"status": cmd_status, "plan": cmd_plan, "enqueue": cmd_enqueue,
             "merge-batch": cmd_merge_batch, "gate": cmd_gate, "regress": cmd_regress,
             "land": cmd_land, "bisect": cmd_bisect, "fail": cmd_fail, "run": cmd_run}[args.cmd](args)
