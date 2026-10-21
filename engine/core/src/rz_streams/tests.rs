@@ -718,6 +718,55 @@ fn null_istream() {
     assert!(!r.skip(1));
 }
 
+/// Conformance test 15 (§9) plus the other §2.2 vectors: double rounding,
+/// half-up both times (OS3).
+#[test]
+fn t15_float_ties() {
+    let mut s = text();
+    for d in [1234565.0, 0.1234565, 100000.5, 12345.25, -12345.25] {
+        s.set_float64(d);
+    }
+    s.set_float32(0.5);
+    for d in [123456.5, 1234575.0, 0.0001234565] {
+        s.set_float64(d);
+    }
+    assert_eq!(
+        texts(&s),
+        [
+            "1.23457e+006",
+            "0.123457",
+            "100001",
+            "12345.3",
+            "-12345.3",
+            "0.5",
+            "123457",
+            "1.23458e+006",
+            "0.000123457"
+        ]
+    );
+}
+
+/// Conformance test 16 (§9): a failed open, then `Flush()`: the state stays
+/// failbit only (OS4), `GetError()` true before and after.
+#[test]
+fn t16_failed_open_flush() {
+    struct NoOpen;
+    impl OfFileOpener for NoOpen {
+        type File = MemFile;
+        fn open(&mut self, _path: &[u8], _mode: OfOpenMode) -> Option<MemFile> {
+            None
+        }
+    }
+    for binary in [true, false] {
+        let mut f = RzOFStream::open(&mut NoOpen, b"x", binary, false, true, false);
+        assert_eq!(f.state(), file::FAILBIT);
+        assert!(f.get_error());
+        f.flush();
+        assert_eq!(f.state(), file::FAILBIT, "Flush leaves the state");
+        assert!(f.get_error());
+    }
+}
+
 /// Conformance test 17 (§9), over an atomic source (writes nothing on failure).
 #[test]
 fn t17_short_reads() {
