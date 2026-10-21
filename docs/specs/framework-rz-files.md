@@ -1,4 +1,4 @@
-# Framework services (RZ): files and INI files
+# Framework services (RZ): files, INI files, directories, file streams, command lines
 
 Behaviour spec for the RZ framework's file object (`cRZFile`, the `cIGZFile` implementation) and the
 INI reader/writer built on it (`cRZIniFile`). Written from the exe (SimCity 4 Deluxe 1.1.641) by lane
@@ -12,7 +12,8 @@ operations, §2.10 static helpers). §3 cRZIniFile (§3.1 layout and ownership, 
 syntax as read, §3.4 open and lifetime, §3.5 reads and types, §3.6 writeback, §3.7 enumeration).
 §4 worked examples. §5 open questions. Round 3: §6 cRZDirectory (§6.1 layout, §6.2 separators,
 §6.3 setters, §6.4 enumeration, §6.5 string lists and sort, §6.6 recursive listing, §6.7 path helpers); §7 cRZOFStream (§7.1 layout and lifetime, §7.2 vtable,
-§7.3 number writers, §7.4 strings and flushing).
+§7.3 number writers, §7.4 strings and flushing); §8 cRZCmdLine (§8.1 layout, §8.2 tokenising, §8.3 vtable,
+§8.4 switch values).
 
 ## 1. Owners and identity
 
@@ -624,3 +625,93 @@ SetVoid calls never auto-flush (text number writers do, because they go through 
 
 Example: binary, big-endian (+0x08 = 0): SetUint16(0x1234), SetFloat32(1.0), SetRZCharStr("ab") writes
 `12 34 00 00 80 3F 61 62`. Text: SetSint16(-5), SetRZCharStr(","), SetFloat64(0.1) writes `-5,0.1`.
+
+## 8. cRZCmdLine (round 3)
+
+The `cIGZCmdLine` implementation (iid 0xA31E539C; QueryInterface 0x00913E16 also accepts iid 1).
+vtable 0x00A82A20, 17 slots. Used for the program command line and, through the parsing constructor
+0x00914E14 (22 call sites), for cheat and message argument strings (advisors, tutorial, clock).
+
+### 8.1 Layout
+
+| Offset | Field |
+|---|---|
+| +0x00 | vtable |
+| +0x04 | reference count |
+| +0x08..+0x10 | std::vector of cRZString arguments (begin, end, capacity; element 0x14 bytes); argc = size |
+| +0x14 | the whole command line, cRZString |
+| +0x28 | an always-empty cRZString (returned for out-of-range argv) |
+
+Constructors: from a string (0x00914E14) keeps the text at +0x14 and parses it (§8.2); from another
+cIGZCmdLine (0x00914A30) copies its command line text (source slot 5) and its arguments one by one
+(source slots 3 and 4) without re-parsing.
+
+### 8.2 Tokenising (0x00914C70)
+
+Whitespace is exactly space, tab and LF (CR is an ordinary character).
+
+1. The argument list is cleared; trailing, then leading whitespace is trimmed; an empty result gives
+   argc 0.
+2. Scanning left to right, a double quote toggles "inside quotes" (a running count, odd = inside).
+   Whitespace outside quotes ends the current token; the whole following whitespace run is skipped.
+   Whitespace inside quotes is part of the token. Single quotes are ordinary characters.
+3. Each token (including the last, which ends at the end of the text) is post-processed: when its
+   first AND last bytes are `"`, the last byte is removed and then, if anything is left, the first.
+   Inner quotes stay: `a"b c"d` is one argument `a"b c"d`; `"x y"` is `x y`; `""` is an empty argument;
+   a lone unbalanced quote swallows the rest of the line into one token.
+4. No escape characters, no empty tokens between separators (runs collapse), no limit on count.
+
+Example: `  -w   /CustomResolution:enabled "C:\My Plugins\x" ""  ` gives 4 arguments: `-w`,
+`/CustomResolution:enabled`, `C:\My Plugins\x`, `` (empty).
+
+Rebuilding the text (0x00914174, after Insert/Erase): +0x14 is cleared and the arguments are joined
+with single spaces; an argument containing a space, tab or LF is wrapped in double quotes; nothing is
+escaped (an argument holding a quote does not round-trip), and an empty argument contributes nothing
+(it disappears on re-parse).
+
+### 8.3 vtable 0x00A82A20
+
+Switch prefix characters are `/`, `-` and backslash (string 0x00ACECC8). Name comparisons lower-case
+both sides with cRZString::MakeLower; character comparisons fold ASCII A-Z/a-z only.
+
+| Slot | Function | Behaviour |
+|---|---|---|
+| 0-2 | QueryInterface, AddRef, Release | standard ref counting |
+| 3 | argc 0x00913E8A | number of arguments |
+| 4 | argv(i) 0x00913E62 | char pointer of argument i; for i >= argc the empty string at +0x28 (negative i is not checked: do not pass it) |
+| 5 | GetCommandLine(out) 0x0093E536 | copies +0x14 into the cIGZString, returns true |
+| 6 | Find(text, caseSensitive) 0x009145A5 | index of the first argument equal to text (both lower-cased when not caseSensitive), else -1 |
+| 7 | FindSubString(text, caseSensitive) 0x00914691 | index of the first argument containing text, else -1; an empty text matches the first non-empty argument |
+| 8 | GetSwitchValue(name, out, stripQuotes) 0x009143CB | §8.4 |
+| 9 | IsSwitchPresent(name) 0x00913EC2 | true when slot 11 finds `/name` from index 0, or slot 8 (stripQuotes 1) finds `/name:value` |
+| 10 | GetSwitchValue(letter, out, stripQuotes) 0x00914240 | §8.4 (partial) |
+| 11 | GetIndexOfSwitch(name, start) 0x00914001 | first index >= start (negative start = 0) of an argument whose first byte is a switch character and whose remaining bytes equal name case-insensitively (exact length: `/name:x` does not match), else -1 |
+| 12 | GetIndexOfSwitch(letter, start) 0x00913F1A | first index >= start of a 2-byte argument: switch character + letter (ASCII case-insensitive), else -1 |
+| 13 | InsertArgument(text, index) 0x00914BAE | index clamped to 0..argc (0 when empty or negative); inserts, rebuilds +0x14, returns true |
+| 14 | EraseArgument(index) 0x00914C25 | an index >= argc erases the LAST argument; erases, rebuilds +0x14, returns true. Not checked: negative index, or argc 0 (erases at -1); a reimplementation should return false there |
+| 15 | destructor 0x00419500 | |
+| 16 | GetArgument(i, out) 0x00913E3B | for 0 <= i < argc (signed compare) copies argument i into the cIGZString |
+
+Duplicates: every lookup returns the FIRST match in argument order; later repeats are ignored.
+
+### 8.4 Switch values
+
+GetSwitchValue(name, out, stripQuotes) (slot 8): an empty name returns false. The first argument
+that (a) starts with a switch character, (b) is at least len(name) + 3 bytes long, (c) has `:` at
+offset len(name) + 1 and (d) has bytes 1..len(name) equal to name after lower-casing, wins. The value is
+everything after the colon (at least one byte, so `/name:` alone never matches). With stripQuotes, a
+value whose first byte is `"` or `'` AND whose last byte is `"` or `'` (not necessarily the same) loses
+its first and last byte. The value is copied into out; returns true. No match: false, out unchanged.
+
+| Arguments | Call | Result |
+|---|---|---|
+| `-Lang:'de'` | slot 8 (`lang`, strip) | true, `de` |
+| `/x:"a'` | slot 8 (`x`, strip) | true, `a` |
+| `/x:` | slot 8 (`x`) | false; slot 9 (`x`) also false |
+| `/W`, `-w:1` | slot 9 (`w`) | true (index 0 via slot 11) |
+
+GetSwitchValue(letter, out, stripQuotes) (slot 10, from the instruction skeleton only: partial): finds
+the first argument starting with a switch character followed by letter (ASCII case-insensitive, same
+test as slot 12 but without the 2-byte length limit); the value is the bytes after those two (empty
+when the argument is exactly 2 bytes); with stripQuotes and an argument of at least 4 bytes whose byte 2
+and last byte are both `"`, the value is bytes 3..len-2. Returns true when found.
