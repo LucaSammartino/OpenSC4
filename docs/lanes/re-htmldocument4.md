@@ -4,10 +4,8 @@
 
 ## Handoff (round 2, in progress)
 - Goal: spec the 22 remaining cHTMLDocument functions (14120 B) in docs/specs/html-document.md; whole-owner credit only when §10 remainder is empty.
-- Done round 2: §7.7 BODY, §7.8 TABLE/TR/TD/TH, §7.9 LI/CreateBullet, §7.10 BLOCKQUOTE(ParseDL)/HR (commit below).
-- Next: FONTSTYLE 0090727d, PHRASE 00906985, A 00907a47, IMG 00900a58, MAP 009074d3, AREA 0090083a, SPAN 009075fd,
-  BLINK 009079a8, META 00900d78, LINK 00900c31 (decomp/cHTMLDocument.c line numbers via grep '^// ---- '), then
-  GetStringForEscape 00901222 entity table (script it), hashtable helpers 008ffdc8/009001e7.
+- Done round 2: §7.7-7.10 (21332e72); §7.11 inline styles, §7.12 IMG/MAP/AREA, §7.13 META/LINK (next commit).
+- Next: GetStringForEscape 00901222 entity table (script it), hashtable helpers 008ffdc8/009001e7, then §10 empty -> report.
 - Facts: REA unused this round (asm + decomp suffice). build-runs/s.py <va>... prints exe strings (prefix d for dword).
 
 ## Report (round 1)

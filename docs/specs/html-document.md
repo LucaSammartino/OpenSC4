@@ -525,6 +525,120 @@ Returns true. Same shape as FORM (§7.6) except a nested BLOCKQUOTE is parsed no
 Returns true. Example: `<hr width=50% size=2>` -> width 50, percent 1, size 2; `<hr width=300>` -> width 300,
 percent 0.
 
+### 7.11 Inline style elements (FONTSTYLE 0090727d, PHRASE 00906985, SPAN 009075fd, BLINK 009079a8, A 00907a47)
+
+Style-record fields used below (the current record at 0x130, §8.2): face string 0x130 (a `cRZString`), face
+selector 0x144 (Init 1; 10 = fixed-pitch face; 0 = use the face string), size 0x148 (pixels from the size
+table), colour 0x14c, flags 0x150 (1 bold, 2 italic, 4 underline, 8 strike-through), byte 0x155 (1 while the
+colour is a link colour). "Fixed" below means: clear the face string and set the selector to 10.
+
+**ParseFONTSTYLE(parent).** Push the style (00902d28). Close id = token + 1. By token:
+
+| Token | Change |
+|---|---|
+| TT 18 | fixed |
+| I 20 / B 22 / STRIKE 24 / U 30 | flags \|= 2 / 1 / 8 / 4 |
+| BIG 26 / SMALL 28 | size = size-table entry 4 (0x1b8) / entry 2 (0x1b0), absolute, not relative to the current size |
+| FONT 32 | attributes below, then DumpUnhandledAttributes("ParseFONT", "FONT") |
+
+FONT attributes: SIZE: `+n` -> index n+3 capped at 6; `-n` -> index 3-n, floored at 0; plain `n` -> index n
+capped at 6 (signed compare at 0090738d; note that a plain `n` is used as a **0-based** index, so `size=3`
+selects entry 3 = 14 px, the same as `+0`). Size = table[index]. Numbers are read by `RZConvertToUint32A`
+(non-numeric -> 0). COLOR: `cHTMLShared::SetColor` + GS +0x88 into 0x14c, byte 0x155 = 0. FACE: face string =
+value, selector = 0.
+
+Content: `GetToken(false)`; loop while INLINE (ParseINLINE(**parent**)) or BLOCK (ParseBLOCK(parent)), reading
+the next token after each. The element creates no node: its content goes straight into the parent with the
+changed style. On the stopping token: when it is not the close id, result = SkipUntilToken(close id). Pop the
+style. Return the result (true, or false when the close tag never comes).
+
+Consequence (exact): mis-nested or stray tags discard text. `<b>x</i>y</b>z` gives bold `x`, then the `/I`
+stops the loop, the skip drops `y` and consumes `/B`, and `z` follows in the old style. `<b>x` at the end of the
+input returns false.
+
+**ParsePHRASE(parent).** Push the style; close id = token + 1. EM 34, DFN 38, CITE 48 -> italic (2); STRONG 36
+-> bold (1); CODE 40, SAMP 42, KBD 44, VAR 46 -> fixed; ABBR 50, ACRONYM 52 -> no change. Loop `GetToken(false)`
+while INLINE: ParseINLINE(parent). A block token also ends the loop (unlike FONTSTYLE). When the stop is not the
+close id, SkipUntilToken(close id) (result ignored). Pop. Returns true. Example: `<em>a<p>b</p></em>c` -> italic
+`a`; the `P` stops the loop and the skip discards the paragraph, `c` normal.
+
+**ParseSPAN(parent).** Create a `cHTMLSPAN` (0x28 bytes); push the style. STYLE attribute: walk `name:value`
+pairs: from start s, find `:` (none -> stop), find `;` after it; name = text[s, colon), value = (colon,
+semicolon) or to the end; trim both and lower-case them. Then by exact name:
+- `color`: value `#hex` (`sscanf "#%lx"`) -> colour = the parsed number **as is** (no GS conversion);
+  else `rgb(r,g,b)` (`sscanf "rgb(%ld,%ld,%ld)"`, all three) -> GS +0x88 (r,g,b); else unchanged. Byte 0x155
+  is not touched.
+- `text-decoration`: `none` clears flag 4; `underline` sets 4; `line-through` sets 8.
+- `font-family`: face string = value, selector 0.
+- `font-size`: **has no effect on a valid size**: the shipping code searches `px` / `pt` in the property
+  *name* (always `font-size`), so the `atol` never runs; it only resets a current size of 0 or above 255 to 14.
+- other names: ignored.
+Continue after the `;` (stop when there is none or it is the last character). DumpUnhandledAttributes
+("ParseSPAN", "SPAN"). Content loop as for A below, into the span; close id `/SPAN` 71; when not seen,
+result = SkipUntilToken(/SPAN). Pop. Result true -> add the span to the parent, return true; false -> delete it,
+return false. Example: `style="color:#ff0000; text-decoration:underline"` -> colour 0x00ff0000, underline.
+
+**ParseBLINK(parent).** Create a `cHTMLBLINK` (0x28 bytes). Loop `GetToken(false)`: INLINE -> ParseINLINE(blink),
+BLOCK -> ParseBLOCK(blink), else stop. Set the document byte 0x2a = 1 (the page contains blinking content), even
+when the element is later deleted. Token `/BLINK` 75, or SkipUntilToken(/BLINK) succeeds -> add the blink element
+(also when empty), return true; else delete it, return false. Attributes are ignored; no style push.
+
+**ParseA(parent).** Create a `cHTMLAnchor` (0x34 bytes).
+- HREF: `SetHREF(value)`; with a base URL also `SetHREFAbsolute(ChangeURL(value, base).GetFullURL())` (anchor
+  +0x2c). Marks the anchor as a link.
+- NAME: `SetNAME(value)` and append the anchor to the document's named-anchor list (0xc8). The pointer is
+  appended before the anchor's fate is known, so a deleted anchor (below) leaves a dangling entry; a
+  reimplementation should append only kept anchors (no observable difference in valid pages).
+- DumpUnhandledAttributes("ParseA", "A"). Push the style; byte 0x155 = 1.
+- For a link: visited test = the extra interface (0x30) exists, the absolute URL exists, and its vtable +0x60
+  (URL) returns true. Visited -> colour = body VLINK (+0x34) or the default 100,32,164 without a body; otherwise
+  body LINK (+0x30) or the default 0,0,255. Flags \|= 4 (underline). A NAME-only anchor keeps the colour and
+  flags.
+- Loop `GetToken(false)`: INLINE -> ParseINLINE(anchor), BLOCK -> ParseBLOCK(anchor), else stop. When the stop
+  is not `/A` 55, result = SkipUntilToken(/A). Pop the style. Result true -> add the anchor to the parent, true;
+  false -> delete, false.
+
+Example: `<a href="faq.htm">FAQ</a>` with base `http://h/help/` -> anchor href `faq.htm`, absolute
+`http://h/help/faq.htm`, one underlined text segment "FAQ" in the link colour.
+
+### 7.12 Images and image maps (ParseIMG 00900a58, ParseMAP 009074d3, ParseAREA 0090083a)
+
+**ParseIMG(parent).** Without SRC: nothing is created, return false. ParseSPECIAL tail-calls ParseIMG
+(00907c80), so the false reaches the content loop: in body content an `<img>` without SRC ends ParseBODY's loop
+(§7.7), and the token after it is pushed back. With SRC:
+create a `cHTMLIMG` (0x3c bytes); the image URL = SRC resolved against the base URL, or **empty** when there is
+no base URL. ALT -> heap string at +0x28 (00900519); WIDTH -> `RZConvertToUint32A` at +0x2c; HEIGHT -> at
++0x30; ALIGN -> MakeRelativeToTextAlignmentStyle at +0x34 (default from the constructor); +0x38 = the current
+alignment 0x158. DumpUnhandledAttributes("ParseIMG", "IMG") (so USEMAP, BORDER, HSPACE ... are ignored). Add
+the image to the parent, then request it: primary vtable slot 16 (009059fc) with (image+0x20, the image's
+waiter interface; URL). Returns true.
+
+**ParseMAP(parent).** Create a `cHTMLMAP` (0x2c bytes); NAME -> heap string at +0x28. DumpUnhandledAttributes
+("ParseMAP", "MAP"). `GetToken(false)`:
+- AREA 155: loop ParseAREA(map) then `GetToken(false)` while the token is AREA (result true);
+- else BLOCK: loop ParseBLOCK(map) then `GetToken(false)` while BLOCK (result = the last ParseBLOCK);
+- else result false.
+When the token is not `/MAP` 63, SkipUntilToken(/MAP) (its result is ignored). Result true -> add the map to
+the parent, true; false -> delete, false. Areas and blocks cannot be mixed: `<map><area><p>x</p></map>` keeps the
+area and discards the paragraph. `<map name=m></map>` (empty) is deleted. The map is not registered by name
+in this owner.
+
+**ParseAREA(map).** Create a `cHTMLAREA` (0x2c bytes). SHAPE, upper-cased, exact: DEFAULT 1, RECT 2, CIRCLE 3,
+POLY 4 -> +0x28; other values keep the constructor default. COORDS, HREF and ALT are **not** read by the
+document (DumpUnhandledAttributes("ParseAREA", "AREA") only). Add to the map, return true.
+
+### 7.13 META and LINK (ParseMETA 00900d78, ParseLINK 00900c31)
+
+**ParseMETA.** Create a meta record (0x28 bytes, ctor 009085a7). NAME -> `cHTMLMETA::SetNAME` (+0x1c), CONTENT
+-> `SetCONTENT` (+0x20), HTTP-EQUIV -> `SetHTTPEQUIV` (+0x24), each a heap copy. DumpUnhandledAttributes
+("ParseMETA", "META"). Without CONTENT: delete, return false. Otherwise append to the document's meta list
+(0xac) and return true. The tree is not touched.
+
+**ParseLINK.** Only with HREF: create a link record (0x2c bytes, ctor 0090856d); +0x24 = heap copy of HREF;
+with a base URL, +0x28 = heap copy of the resolved absolute URL; byte +0x20 = 1 when REV is **absent**, 0 when
+present (REL is not read); TITLE -> heap copy at +0x1c; append the record to the document's link list (0xbc).
+No unhandled dump. Always returns true (also without HREF).
+
 ## 8. Alignment and style state
 
 ### 8.1 Alignment keywords
@@ -586,8 +700,10 @@ ResourceHasBeenDownloaded (HD4 open on the temp-file source).
 Round 2: ParseBODY (§7.7), ParseTABLE, ParseTR, ParseTD, ParseTH (§7.8), ParseLI, CreateBullet (§7.9),
 ParseDL (BLOCKQUOTE), ParseHR (§7.10).
 
-Remaining (not yet specified; whole-owner credit withheld): ParseMETA, ParseLINK, ParseFONTSTYLE, ParsePHRASE, ParseA,
-ParseIMG, ParseMAP, ParseAREA, ParseSPAN, ParseBLINK, CreateBullet, GetStringForEscape (entity table,
+Round 2 (cont.): ParseFONTSTYLE, ParsePHRASE, ParseSPAN, ParseBLINK, ParseA (§7.11), ParseIMG, ParseMAP,
+ParseAREA (§7.12), ParseMETA, ParseLINK (§7.13).
+
+Remaining (not yet specified; whole-owner credit withheld): GetStringForEscape (entity table,
 6918 bytes), the two hashtable helpers (008ffdc8
 clear, 009001e7 destructor). Gap functions reached from this owner but outside its inventory (P 0090614f, PRE
 00906a5d, DL 009066a3, headings 00906754, lists 00906f1d, CENTER 00906d22, style push/pop, tag lookup
