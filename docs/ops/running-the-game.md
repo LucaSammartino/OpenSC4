@@ -5,9 +5,9 @@ tooling lanes that touch the harness. Switch and ini key details are in `engine/
 itself is [docs/harness.md](../harness.md).
 
 - **Regression after every merge that touches the plugin** (run detached):
-  `tools/regress.ps1 -Tag <tag> -Dll <dll> -Queue` submits a shadows run and a replace run (27 replacement keys,
-  `development`, `tract`, `history`, `clock24`, `commercial`, `industrial`, `civic`, `parks`, `lotdev`, `zonedev` and
-  `traffic` among them; every exact shadow, including `zonedev_shadow`, `lotdev_shadow` (since run 132, exact after
+  `tools/regress.ps1 -Tag <tag> -Dll <dll> -Queue` submits a shadows run and a replace run (32 replacement keys,
+  `development`, `tract`, `history`, `clock24`, `commercial`, `industrial`, `civic`, `parks`, `lotdev`, `zonedev`, `traffic`,
+  `automata`, `netmgr`, `netlot`, `nettool` and `demolition` among them; every exact shadow, including `zonedev_shadow`, `lotdev_shadow` (since run 132, exact after
   apply13's LD29), `history_shadow`, `clock24_shadow`, `commercial_shadow`, `civic_shadow` and `parks_shadow`, plus
   `traffic_shadow` with `traffic_shadow_hypotheses = 7` as a **known difference**: not exact to 2032 (TS63 state-15
   stop, TS64 scanning iterator; 43 of 72 month lines clean in run 121, the share moves with the pacing), so compare

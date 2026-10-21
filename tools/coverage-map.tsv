@@ -80,18 +80,18 @@ cSC4DisasterInstance*	disasters	simulation	disasters.md	core/src/disasters	disas
 cSC4FireOccupant	disasters	simulation	disasters.md	core/src/disasters	-	-
 cSC4ToxicOccupant	disasters	simulation	disasters.md	core/src/disasters	-	-
 cSC4AutomataManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-cSC4AutomataControllerManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-cSC4AutomataScriptSystem	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
+cSC4AutomataControllerManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
+cSC4AutomataScriptSystem	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
 cSC4AutomataController	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4Automaton	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-cSC4VehicleManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-cSC4PedestrianManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-cSC4AircraftManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-cSC4WatercraftManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
+cSC4VehicleManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
+cSC4PedestrianManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
+cSC4AircraftManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
+cSC4WatercraftManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
 cSC4TrafficAutomataManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4OccupantManager	occupant manager	simulation	occupant-manager.md	core/src/occupant_manager	occmgr_shadow	-
-cSC4NetworkManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	-
-cSC4NetworkLotManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	-
+cSC4NetworkManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	netmgr
+cSC4NetworkLotManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	netlot
 cSC4NetworkConstructionCrew	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	-
 # the network lot and its configuration object, each a section of network-manager.md (§2.3 vtable 0x00AA78E0,
 # IID 0x89A5BA66; §2.4 vtable 0x00AA7998), implemented by core/src/network_manager (lots.rs, config.rs). They are
@@ -108,7 +108,7 @@ cSC4SeaportDeveloper	port developers	simulation	port-developers.md	core/src/port
 cPortTypeConfig	port developers	simulation	port-developers.md	core/src/port_developer	-	-
 cSC4PropDeveloper	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	-
 cSC4WealthRequester	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	-
-cSC4NetworkTool	network tools	simulation	network-tools.md,network-geometry.md,network-bridges.md	core/src/network_tools,core/src/network_geometry,core/src/network_bridge	-	-
+cSC4NetworkTool	network tools	simulation	network-tools.md,network-geometry.md,network-bridges.md	core/src/network_tools,core/src/network_geometry,core/src/network_bridge	-	nettool
 cSC4PowerLineTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4UndergroundNetworkTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4PipeTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
@@ -128,7 +128,7 @@ cSC4LotConfigurationManager	prop / lot configuration managers	simulation	prop-lo
 cSC4LotConfiguration	lot configuration	simulation	lot-configuration.md	core/src/lot_config_manager	-	-
 cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	-	-
 cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/city_situation	citysit_shadow	-
-cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolition_shadow	-
+cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolition_shadow	demolition
 cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
 cSC4DispatchManager	dispatch	simulation	dispatch.md	core/src/dispatch	dispatch_shadow	dispatch
 cSC4Advisor*WinProc	windows and panels	ui	-	-	-	-
