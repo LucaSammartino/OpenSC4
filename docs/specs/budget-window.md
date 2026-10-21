@@ -569,7 +569,9 @@ many money messages arrive. `ShowWindow` (`0x00768670`) refreshes immediately an
 
 BW1–BW10 are answered (re-budgetwindow4 and re-budgetwindow-answers4, 2026-10-21; archive
 `questions/answered/budget-window.md`). Still open: **BW11**, whether Alt+Enter / Alt+F4 actually reach the dialog
-at runtime (§4.0). Not covered: pixel layout of the four populate routines, the fill point of
+at runtime (§4.0), and **BW16**, the direction of the row-visibility ID test in §4.1 (the bytes read by BW15 show
+ID ≤ 100 always shown, ID > 100 shown only with a non-zero amount; §4.1 states the reverse). `+0x2C` ownership
+(BW15) is settled from bytes. Not covered: pixel layout of the four populate routines, the fill point of
 the individual restore records in `initIndividualBudget` (`0x00786690`), and whether the generator's window
 procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
 
@@ -612,3 +614,23 @@ procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
     count + 1 for its `+0x38` pair (all rows hidden, both row counts 0, so no `+0x2C` rows), including across a vector grow; after `on_shutdown` every count is back to its start value; a window destroyed without
     `on_shutdown` also returns every count to its start value. An implementation that holds the department as an
     uncounted handle fails this test.
+21. (BW15) Empty groups. (a) `GetDepartmentBudgetsInGroup` returns no departments: after `on_init`, `+0x2C` and
+    `+0x38` are empty and no department was touched. (b) Departments whose rows are all hidden: `+0x2C` is empty,
+    each department's count is start + 1 (only its `+0x38` pair), as in test 20.
+22. (BW15) Non-empty group `0x4A357EAF`, refcounted fakes; every line item has display flag bit 0 set and a non-zero
+    amount (shown under any reading of the ID test). Department X has only one income item; Y has two expense items;
+    Z has twelve expense items, Y before Z. After `on_init`: X count start + 1 (pair only, no slider); Y start + 4
+    (pair + header slider + 2 item sliders); Z start + 7 (pair + header + 5 items: Y used rows 1–3 of B, Z gets rows
+    4–9, so the cap of 9 stops it). `+0x2C` holds 9 elements in build order {Y, Y, Y, Z, Z, Z, Z, Z, Z}, each with a
+    distinct slider ID matching a child of `win`. The slider windows' own refcounts do not depend on `+0x2C`. With a
+    capacity-growing vector the counts are the same.
+23. (BW15) Repeated `on_init`: a second `on_init` while `+0x08` is set changes no count and no vector. `on_shutdown`
+    then `on_init` again: after the shutdown every count is at its start; after the second `on_init` the deltas are
+    those of test 22 again (not doubled).
+24. (BW15) Shutdown then drop: after `on_shutdown` all counts are at start; destroying the window afterwards Releases
+    nothing (no count goes below start). Release order, seen by a logging fake: `on_shutdown` Releases all `+0x2C`
+    elements front to back, then all `+0x38` pairs front to back; a destructor without `on_shutdown` Releases the
+    `+0x38` pairs first, then the `+0x2C` elements, each front to back, and every count ends at start.
+25. (BW15, BW13) Content-window creation fails in the case of test 22: the implementation does not fault, sliders
+    are still created as children of `win`, and the counts and `+0x2C` contents equal test 22. (The native program
+    faults at `0x0078837B` with `+0x2C` empty and the `+0x38` pairs taken; this test does not reproduce that.)
