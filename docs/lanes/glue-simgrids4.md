@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-simgrids4: layout-compatible cSC4SimGrid<T> family (enable=simgrids) | glue-simgrids4 / .claude/worktrees/glue-simgrids4 | in progress: round3 merged main f45e6b91 (automata fix aeaca0e2 in); gate + joint sg4-j2 (37 current + simgrids) pending | read sg4-j2 verdict; reload proof sg4-r1 (116/116) stands, grid code unchanged since |
+| glue-simgrids4: layout-compatible cSC4SimGrid<T> family (enable=simgrids) | glue-simgrids4 / .claude/worktrees/glue-simgrids4 | ready: round3 joint sg4-j2 (37 current + simgrids) clean 2032-01-01 ref_warnings=0; original-class reload sg4-r1 116/116 digests ref0 | answer SG1 (structural use of raw vectors, out-of-range) |
 
 ## Report
 
@@ -55,3 +55,20 @@ Game runs (evidence copied to build-runs/evidence-run4/):
 
 Not ready: the joint ref0 requirement fails for a reason outside this lane. Next: automata lane fixes the shutdown
 release in cFC4Automata.cpp HostRelease; rerun sg4-j1's request (game-queue/done/sg4-j1.req); SG1 still open.
+
+## Round3 validation (2026-10-21)
+
+- Merged main f45e6b91 (automata teardown fix aeaca0e2 in); one conflict in engine/CMakeLists.txt resolved
+  additively (main's advisor_maps_test, then simgrid_test). Grid code unchanged since run4 (empty diff of
+  FC4SimGrid*, cFC4SimGrid*, simgrid_test.cpp vs daa0869b).
+- Gate on merged tip: cargo test 3896 passed 0 failed, clippy 0, fc4verify build 144/144, ctest 64/64.
+- Game sg4-j2 (evidence-run4/sg4-j2.{req,log,verdict}; profile = run4-simgrids-final.ini: 37 current
+  replacements incl. propdev + simgrids, turbo to 2032-01-01, script save 2031-06-01 -> SaveCity ok=1, probe):
+  verdict clean, ref_warnings=0, date 2032-01-01, 0 "released last reference" lines (sg4-j1 had 238 from automata).
+  subsystem 'simgrids': enabled (11 classes replaced). Grids: created=248 destroyed=248, reads=136
+  read_failures=0, writes=253 (136 at the save + 117 probe captures), resizes=124, alloc_failures=0,
+  iface_writes=26143801, grid_data_calls=2, raw_changed=0. Reads by class: 0x49B9E602 46, 603 5, 604 27,
+  605 39, 606 1, 60A 18; every read/write line carries digest= and nonzero= (real content, e.g. 3505/4391 nonzero).
+- Reload proof: sg4-r1 (original grid class reloading the save our class wrote, 116/116 record digests equal,
+  ref0) stands; not repeated because no grid code changed.
+- SG1 still open: no structural mutation / out-of-range behaviour invented beyond the marked [choice].
