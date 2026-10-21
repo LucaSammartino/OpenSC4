@@ -248,8 +248,12 @@ last one.
 
 `BuildAntialiasingLookupArray` (`0x008993BB`, constants at `0x00A80AC8` 2.0, `0x00A90BBC` 1/255, `0x00A84D2C` 0.5,
 `0x00A9D8B0` 255.0): when gamma == 1.0 and sharpness == 0.0 the table is emptied (no remap). Otherwise it is
-resized to 256 and the grey cache is cleared. k = pow(sharpness + 1, 1 / L(2)) in double, stored as float (FN1
-names L). For i = 0..255: v = float(i) · (1/255); if gamma ≠ 1, v = powf(v, gamma); if sharpness ≠ 0: v = min(v, 1),
+resized to 256 and the grey cache is cleared. k = pow(sharpness + 1, 1 / log10(2)) in double, stored as float:
+the routine at `0x009F2160` is the CRT **log10** (x87 path `FLDLG2; FYL2X` at `0x009F221F`; SSE2 path
+`0x009FE548` scales the exponent by log10(2) = 0.30102999566 at `0x00AEAE60`), so 1/log10(2) = 3.321928… and
+k = (sharpness + 1)^3.321928 (k = 1 at sharpness 0, k = 10 at sharpness 1, k = 0 at sharpness −1). Call
+order (`0x0089942A`..`0x00899456`): L(2.0), 1.0 / L, then pow(float(sharpness) + 1.0, that), FSTP to float.
+For i = 0..255: v = float(i) · (1/255); if gamma ≠ 1, v = powf(v, gamma); if sharpness ≠ 0: v = min(v, 1),
 then v = powf(2v, k)·0.5 for i ≤ 127, else 1 − powf(2(1 − v), k)·0.5; entry = truncate(v · 255) (`__ftol`).
 
 ## 11. Thai presentation forms
@@ -286,14 +290,46 @@ Thai character classes of its neighbours. The exact class rules are FN2.
 - `AddFont(path)`: once per path; relative names fall back to `<Windows>\Fonts\`. The file is opened with FreeType;
   a non-empty family name records FontFixedInfo {family, style flags, kind (2 if fixed-size else 1), source
   type} under the path and adds the lower-case family to the family set.
+- System antialiasing settings (vtable `0x00AC5488`; all zero after construction `0x0089529A`..`0x008952A6`):
+  slot 5 `SetCodePage(cp)` (`0x00893D7B`) stores +0x20 and returns true; slot 7 `SetDefaultAntialiasing(mode)`
+  (`0x00893D87`) stores +0x14; slot 8 `SetRenderer(r)` (`0x00893D91`) AddRefs r, releases the old one, stores +0x24.
+  Slot 9 `SetMonochromeSizeRange(min, max, family)` (`0x008954CB`): with family null it stores the system range
+  +0x18 = min, +0x1C = max. With a family name: if min < max (signed) it inserts family → {min, max} into the
+  per-family range map +0x64 (insert-unique `0x008950A5`: an existing entry for that name is kept, not
+  overwritten); otherwise (min ≥ max) it erases the name from the map (`0x00894E0C`). Names are stored as given
+  (no lower-casing).
 - `FontAcquire(path, size, style, cache)` (`0x00895A1C`): with `cache`, reuse a font already made for the same path,
-  size and style. Otherwise create class `0x1AA404AC` (or `new cGZFont`), set path, size, style (SetStyle(style,
-  on)), codePage and renderer, then aaMode: 1 (monochrome) when size lies inside the system's mono size range
-  (+0x18..+0x1C), or outside it but inside the catalogue entry's own range (entry words 9..10); else the system
-  default (+0x14) (FN4). Then Init; failure releases it and returns null. With `cache` the
-  font is recorded in the catalogue entry. Returns an AddRef'd font.
-- `FontAcquire(familyList, …)` by comma-separated family names with substitutions and a best-match score:
-  FN3.
+  size and style. Otherwise create class `0x1AA404AC` (or `new cGZFont`), set path (slot 22), size (slot 11),
+  SetStyle(style, on), codePage (+0x20) and renderer (+0x24), then the aaMode (slot 16), unsigned compares
+  (`0x00895C07`..`0x00895C53`):
+  1. mode = system default +0x14;
+  2. if +0x18 ≤ size ≤ +0x1C, mode = 1 (monochrome);
+  3. otherwise look the font's GetName (slot 5, the familyName field) up in the map +0x64; if found and
+     min ≤ size ≤ max, mode = 1.
+  Step 3 runs before Init, so familyName is still the freshly created font's empty name: only a range registered
+  under the empty name can apply there (a conforming implementation keys the lookup by that pre-Init name, not by
+  the face's family). With +0x18 = +0x1C = 0 the system range holds only size 0. Then Init; failure releases it
+  and returns null. With `cache` the font is recorded in the catalogue entry. Returns an AddRef'd font.
+- `FontAcquire(familyList, kind, size, style, cache)` (`0x00894ADF`, slot 11, 5 stack arguments):
+  1. Split a lower-cased copy of familyList at ',' (`RZParseDelimitedText`, at most 32 names; n = count).
+  2. Substitution walk: for each name i from the last to the first, for each entry of the substitution map
+     (+0x4C, in key order; key = substitute family, value = vector of alias strings), for each alias: if
+     name i IsEqual alias (string slot 10, flag false) and name i, lower-cased, is not in the installed family
+     set (+0x28), name i becomes the entry's key, lower-cased, and that entry's alias loop ends; the walk
+     continues with the next map entries using the new name.
+  3. masked = style with bits 0x3C cleared (user styles removed). best = none, bestScore = 1000.
+  4. For every catalogue entry (+0x40, path → FontFixedInfo, in path order) score it:
+     - n > 0: find the first p with name p == lower(entry.family) (case-exact after both are lower-cased);
+       p = 0 → 0, p > 0 → 2, no match → 0x20;
+     - n = 0: 0 if entry.kind (FontFixedInfo +0x1C) == kind, else 4;
+     - then style: entry.style == masked → +0; (entry.style & ~masked) == 0 → +8 (subset); else +0x10.
+     If score < bestScore (strict) the entry becomes best: ties keep the earlier path.
+  5. No catalogue entries → return null. Otherwise, with `cache`, return the best entry's cached font whose
+     size (font slot 10) == size and whose recorded style == style (unmasked), AddRef'd; else return
+     `FontAcquire(bestPath, size, style, cache)` (slot 10).
+  Because every score is below 1000, a non-empty catalogue always yields a candidate even when no name
+  matches. Worked example: list "Arial,Tahoma", request style 0x05 (masked 0x01): an "arial" entry with style 0
+  scores 0 + 8 = 8; a "tahoma" entry with style 1 scores 2 + 0 = 2 and wins; an unrelated family scores ≥ 0x20.
 
 ## 13. Open questions
 
