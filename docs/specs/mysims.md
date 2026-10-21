@@ -400,6 +400,51 @@ A default location is invalid (occupant flag set, cells −1), so:
    unvalidated (no search). Otherwise run **`validateCommuteLocation`** (below); false → return false.
 3. Store the location; if `notify`, notify the MySim with `0xEBA06BF4` (§4.7 handler); return true.
 
+The caller's location is copied first (the copy holds its own reference on the occupant); step 3 assigns the copy
+to `+0xD4` (the old destination's occupant is released, the new one referenced) and the copy is released on every
+exit. A valid location with `notify` true still notifies. (answers MS11)
+
+**Dispatch location (`cLocation`, 0x28 bytes) contract** *[compat]*:
+
+| Offset | Field | Default (`0x00431320`) |
+|---|---|---|
+| `+0x00` | occupant (referenced) | null |
+| `+0x04`, `+0x08` | world x, z (float) | −16.0, −16.0 (= 16 × cell) |
+| `+0x0C`, `+0x10` | cell x, z | −1, −1 |
+| `+0x14`, `+0x18` | neighbour city's region position x, z | **−1, −1** |
+| `+0x1C` | "in this city" flag (the "occupant flag" above) | 1 |
+| `+0x1D` | byCommute | 0 |
+| `+0x20`, `+0x24` | (copied, never read here) | 0, 0 |
+
+- **`IsValid`** (`0x00434F90`): flag `+0x1C` set → valid iff `0 ≤ cellX < cellCountX` and `0 ≤ cellZ <
+  cellCountZ` (city `+0x174` / `+0x178`); **the occupant is not consulted** (a location with an occupant and cells
+  −1 is invalid; cells in range without an occupant are valid). Flag clear → valid iff the region (app slot 35,
+  `GetCity(+0x14, +0x18)` slot 11) returns a city **and** the neighbours simulator (`0x00B43D8C`, slot 18
+  `+0x48`, `GetConnectionsOfTypeToCity(type, city, list)`) returns a non-empty list for at least one of the types,
+  tried in this order with a stop at the first hit: Highway 3, GroundHighway 12, Avenue 8, Road 2, DirtRoad 10,
+  Rail 1, LightRail 7, Monorail 11, Subway 6 (table `0x00B07DD0`, terminator 13). Ferry, power and pipe
+  connections never make a neighbour location valid.
+- **`SetByOccupant(o)`** (`0x00431430`): first resets **every** field to the default above (so byCommute becomes 0
+  and `+0x14`/`+0x18` −1), then flag `+0x1C` := 1, holds `o` (reference the new, release the old); if `o` is
+  non-null: world x, z := `o.GetPosition()` (cISC4Occupant slot 8) x and z, and cell := `floor(world / 16)` per
+  axis (single precision, `0x00431370`). A null `o` leaves cells −1 (invalid). Returns true. Callers that need
+  byCommute set it again afterwards: `ChangeJob` and `validateCommuteLocation` (which restores the byCommute it had
+  before the call, i.e. 1).
+- **`+0x40` is the dispatch's trip state**: written only by dispatch `setState(s)` (`0x00431C10`): old := `+0x40`
+  (kept at `+0x44`), `+0x40` := s; s = 3 also ORs `2` into dispatch flags `+0x48` (notification `0x4BB2D020`
+  when they change); if old ≠ s, notification `0x4BB2CFC0(old, s)`, which is how §4.6 receives `newTripState` /
+  `oldTripState`. So the value tested in step 2 (= 2) is the same trip state §4.6 sees, owned by the dispatch;
+  the MySim only learns it through the notification.
+
+**Callers of `SetCurrentCommuteDestination`** (all pass `notify = true`):
+
+| Caller | Location passed | Effect |
+|---|---|---|
+| `FindNewJob` (`0x00425A30`) | default, byCommute 1 | invalid → search (or stored as is when trip state = 2) |
+| `ChangeJob(b)` (`0x00425D70`) | `SetByOccupant(b.slot3())` (cISC4BuildingOccupant slot 3 `+0x0C`, an ICF-folded getter returning `b`'s cISC4Occupant), then byCommute 1 | `b` inside the city → valid → stored **without search**, `0xEBA06BF4` sent; null occupant → invalid → a normal job search runs instead |
+| `FailCommute` (`0x0042C8E0`) | default, byCommute 1 (after `QuitJob` and the event) | the same as `FindNewJob`: a **new job search**, not a plain reset; only at trip state 2 is the default (empty) destination stored |
+| `SetResidence` (`0x0042E020`, call `0x0042E28B`) | default, byCommute 1 | the same search, then `DispatchCommute` |
+
 **`validateCommuteLocation(loc)`** (`0x00432F50`) uses the dispatch's own pathfinder (created once in dispatch
 `Init` with the traffic simulator's `CreatePathFinder`, kept for the dispatch's lifetime). In this order:
 
@@ -445,12 +490,18 @@ Worked examples (conformance):
 | no home (flag `0x80` clear) | — | no pathfinder configuration beyond `resetPath`; `FindNewJob` false; no `0xEBA06BF4` |
 | end cell (−1, 37), neighbour city found, city 64×64 | — | location cell (0, 37), no occupant; true |
 | end cell in city, lot without building | — | false |
+| `IsValid` of default location | — | false (cells −1) |
+| `IsValid`, flag 1, no occupant, cell (3, 4), city 64×64 | — | true |
+| `IsValid`, flag 1, cell (64, 0), city 64×64 | — | false |
+| `IsValid`, flag 0, region city at (+0x14,+0x18) with only a Ferry connection | — | false; with a Subway one → true |
+| `SetByOccupant(o)`, o at world (175.9, y, 32.0) | — | cell (10, 2), byCommute 0, `+0x14`/`+0x18` −1 |
+| `ChangeJob(b)`, b in city, trip state any | — | stored, no pathfinder call, one `0xEBA06BF4`, true |
 
 **`ChangeJob(b)`** (slot 8): set the dispatch commute destination to building `b`; result of the dispatch.
 
 **`CheckCommute()`**: creates a pathfinder from the home lot rectangle to the job lot rectangle (or the
 neighbour cell), runs it, and on success stores `lastCommuteTime := uint(trunc(max(0, totalTime)))`. On failure
-→ **`FailCommute`**: `QuitJob()`, push event `MYSIM_COMMUTE_FAILED` `0xCA4553B7`, reset the commute destination.
+→ **`FailCommute`**: `QuitJob()`, push event `MYSIM_COMMUTE_FAILED` `0xCA4553B7`, then `SetCurrentCommuteDestination(default, notify = true)`: a new job search (callers table above), which leaves the destination empty only when the search fails or trip state is 2.
 The pathfinder's slot use is in §7.2.
 
 **`QuitJob()`** (state ≠ 0): drop the job (or the neighbour city and its cells); if state ≠ 5, state := 2;

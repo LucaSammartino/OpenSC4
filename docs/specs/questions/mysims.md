@@ -5,13 +5,6 @@
 <!-- from: the cores28 lane (2026-10-20): implementing the cSC4MySimDispatch and cSC4MySimPool cores -->
 
 <!-- from: core-mysims-pool4 (2026-10-21) -->
-- **MS11 - section 4.7.1:** dispatch location details the job-search core needs: (a) when is a location "valid"
-  for `SetCurrentCommuteDestination` step 1 beyond "the default (occupant flag set, cells -1) is invalid"?
-  [occupant flag set: valid iff an occupant is held; flag clear: valid iff both cells >= 0]; (b) the default bytes of
-  the neighbour-city fields `+0x14`/`+0x18` [not written; modelled as absent]; (c) what cell `SetByOccupant`
-  stores (the lot cell reported with `0xEBA06BF4`) [the search's end cell]; (d) is dispatch `+0x40` the trip state of
-  section 4.6 [kept as its own field]; (e) the `notify` argument `ChangeJob(b)` passes [false: no `0xEBA06BF4`].
-<!-- from: core-mysims-pool4 (2026-10-21) -->
 - **MS12 - section 4.12:** pool details left open: (a) the template fields when an exemplar property is absent
   (`0xEA296F8D`, `0xEA296F8F`, `0xEA296F91`, `0xEA296F90`) [0 / empty / false / 0]; (b) the ini reader's section and
   key matching (case) and its integer parse for `sims_family_nummembers` / `_guid` [exact bytes; atoi-like decimal];
