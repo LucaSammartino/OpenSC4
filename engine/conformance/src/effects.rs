@@ -395,6 +395,17 @@ fn call(w: &World, op: &Json) -> R<()> {
             "finish_hook" => w.with(|m, h| Ok(Json::Bool(m.finish_hook(h))))?,
             "draw_pass" => w.with(|m, h| Ok(Json::Bool(m.draw_pass(h))))?,
             "effects_tick" => w.with(|m, h| Ok(ji(m.effects_tick(h) as i64)))?,
+            "queue_effect_files" => w.with(|m, _| {
+                m.queue_effect_files();
+                Ok(Json::Null)
+            })?,
+            "render_properties_changed" => {
+                let p = u32_of(arg(op, 0)?, "priority")?;
+                w.with(|m, h| {
+                    m.render_properties_changed(p, h);
+                    Ok(Json::Null)
+                })?
+            }
             "shutdown" => w.with(|m, h| {
                 m.shutdown(h);
                 Ok(Json::Null)

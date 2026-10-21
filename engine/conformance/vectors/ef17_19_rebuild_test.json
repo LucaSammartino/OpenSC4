@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "effects_rebuild_test",
+  "spec": ["effects 5.3", "effects 6.1", "EF12"],
+  "description": "UpdateVisualEffect's rebuild test (EF12): a description takes part in a select draw only when it enters the range (in at L, not at L_prev), on a new build, or on a reload. A (lod 4-6, weight 0xFFFF) and B (lod 1-6, weight 0) share group 1. The new build at L = 1 draws and picks A, out of range: nothing is created. Zoom L 1 -> 5: only A enters, draws again and is created. L 5 -> 4: nothing enters. A queued-file reload on the effects tick destroys and redraws (third draw); without one the tick draws nothing. A changed detail option reloads too.",
+  "steps": [
+    {"op": "ef_create", "directory": {"effects": [{"name": "g", "components": [
+      {"type": "brush", "index": 0, "group": 1, "weight": 65535, "lod": [4, 6]},
+      {"type": "brush", "index": 1, "group": 1, "weight": 0, "lod": [1, 6]}]}]}},
+    {"op": "ef_effect", "name": "g", "as": "G", "expect": true},
+    {"op": "ef_expect", "effect": "G", "state": {"components": 0}},
+    {"op": "ef_expect_manager", "state": {"select_draws": 1}},
+    {"op": "ef_call", "method": "set_zoom", "args": [0, 0]},
+    {"op": "ef_expect_manager", "state": {"select_draws": 1}},
+    {"op": "ef_call", "method": "set_zoom", "args": [4, 0]},
+    {"op": "ef_expect", "effect": "G", "state": {"components": 1}},
+    {"op": "ef_expect_manager", "state": {"select_draws": 2}},
+    {"op": "ef_call", "method": "set_zoom", "args": [3, 0]},
+    {"op": "ef_expect_manager", "state": {"select_draws": 2}},
+    {"op": "ef_call", "method": "effects_tick", "repeat": 3, "expect": 0},
+    {"op": "ef_expect_manager", "state": {"select_draws": 2}},
+    {"op": "ef_call", "method": "queue_effect_files"},
+    {"op": "ef_call", "method": "effects_tick", "expect": 0},
+    {"op": "ef_expect", "effect": "G", "state": {"components": 1}},
+    {"op": "ef_expect_manager", "state": {"select_draws": 3}},
+    {"op": "ef_call", "method": "render_properties_changed", "args": [5]},
+    {"op": "ef_expect_manager", "state": {"select_draws": 3}},
+    {"op": "ef_call", "method": "render_properties_changed", "args": [4]},
+    {"op": "ef_expect_manager", "state": {"select_draws": 4}}
+  ]
+}
