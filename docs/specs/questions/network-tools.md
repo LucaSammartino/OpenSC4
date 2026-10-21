@@ -51,3 +51,10 @@
   `GetClassObject` (run 218: clean, ref_warnings=0). Is there any caller of slot 3 that receives an
   owned reference (a QI-like AddRef inside the folded body), or is the folded view always borrowed?
   [borrowed *[inferred]* — game code treats the views as one object]
+- **NT17 - §3.2, a diagonal PlaceNetworkOccupants with mask 0 (the in-game crash, glue29 run 219):** the spec's
+  quirk 1 covers diagonal + mask ≠ 0 (places nothing, returns true). With mask 0 the run goes through §3.2's
+  straight path; the passes refuse it (0xF0000001), but in glue29's game run the process then crashed inside
+  the game's own code (SimCity 4.exe+0x9F0FA, reading 0x100) while walking the run's pieces — plausibly the
+  plain un-modelled pieces the replacement inserts (the piece solver NG5 is the declared follow-up) reaching
+  the game's vertex-array draw path. Does the original reject a diagonal mask-0 run before the commit (and
+  with which code), or does it also reach the piece/draw path? [refused by the passes *[inferred]*]
