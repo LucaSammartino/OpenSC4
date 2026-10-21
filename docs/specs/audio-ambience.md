@@ -14,9 +14,9 @@ Scope. **`cSC4AudioAmbienceManager`** (CLSID `0x6A12F51C`, factory `0x004EB0C0`,
 `kGZGUID_AudioAmbienceManagerSystemServiceId` `0xAA12F911`; [audio.md](audio.md) §1.2, §1.3): the city-side
 service that turns occupants into positional sounds, runs the occupant alarm clock, keeps the listener's
 "attention rectangle", and drives the ambience layers once per tick. The layers themselves
-(`cSC4AudioAmbienceLayer`) are specified here **only as the interface the manager calls** (§6); their score
-and loop algorithms (`_UpdateAmbienceScores` `0x004E5920`, `_UpdateAmbienceLoops` `0x004E5D50`,
-`_ReadTuningValues` `0x004E7A90`) are left to a later section (§9, **AA1**). The sound-system events the
+(`cSC4AudioAmbienceLayer`) are specified here as the interface the manager calls (§8) plus their `Init`,
+tuning and filter creation (§8.1–8.3); their score and loop algorithms (`_UpdateAmbienceScores` `0x004E5920`,
+`_UpdateAmbienceLoops` `0x004E5D50`) are left to a later section (§9, **AA1**). The sound-system events the
 manager posts are the ones `cSC4AudioSoundManager::DoEvent` handles ([audio.md](audio.md) §8.3).
 
 ---
@@ -234,9 +234,10 @@ For each time `a[i]` (with `next` = `a[i+1]`, or `a[0]` for the last entry):
   `0x2A53BE13` and: on an "on" index start the looping sound if `+0x24` is 0 and set it; on an "off" index
   stop it if `+0x24` is set and clear it.
 
-Then `last := t`, a raw 32-bit copy of the f32 (`0x004E91B0`; no integer conversion) *[inferred: the
-copied local is `t`]*. Because the "fire" tests are `last < a[i] <= t`, an alarm at time 0 never fires
-after midnight (`last` = 23, `t` = 0) *[quirk, inferred]*.
+Then `last := t`, a raw 32-bit copy of the f32 (`0x004E91B0`; no integer conversion) (stack trace: `t` is stored at `0x004E8F12` at depth 0x4C, i.e. frame slot
+entry − 0x34; after `PUSH EBX` at `0x004E8F20` that slot is `[ESP+0x1C]`, which `0x004E91AC` reads; the
+loop's `[ESP+0x18]` is the different slot entry − 0x38 holding `a[i]`). Because the "fire" tests are `last < a[i] <= t`, an alarm at time 0 never fires
+after midnight (`last` = 23, `t` = 0) *[quirk]*.
 
 ## 4. Tuning and the attention rectangle
 
@@ -383,12 +384,35 @@ four vectors belong to the scoring and loop code (still AA1, §9).
 Worked example: an exemplar with only `0x6A3FBDDA = 0x1234` and `0x0A4168E1 = 30.0` gives loop sound
 `0x1234`, `+0x20 = +0x24 = 30.0`, `+0x1E0 = +0x1E1 = 0`, every other value its default.
 
+### 8.3 Layer filters (`_CreateFilters` `0x004E78E0`, `_AddFilter` `0x004E7010`)
+
+The three tuning id lists are **filter class ids** of three kinds: kind 1 from `0x2A3FBDE1` (`+0x208`), kind 2
+from `0x2A3FBDE5` (`+0x224`), kind 3 from `0x0A410BA0` (`+0x240`). `_CreateFilters` first resets three bit
+vectors (`+0x144`, `+0x158`, `+0x16C`), then for each kind in the order 1, 2, 3 sizes that kind's bit vector to
+its id count (all false) and calls `_AddFilter(id, kind)` for each id in list order.
+
+`_AddFilter(id, kind)` (pop 8):
+
+1. Look `id` up in a **process-wide** filter cache (a hash map class id → filter, buckets `0x00B2195C`–
+   `0x00B21960`, index `id mod bucket count`), shared by every layer. Found → use that filter.
+2. Not found → create it through GZCOM `CreateInstance(id, IID 0x4A40074C)`. Failure → log "Failed to create
+   class object filter", return (nothing counted). Then call the filter's `Init` (slot 3, `+0x0C`); false → log
+   "Failed to init filter", release it, return. Success → the cache takes one reference and stores it.
+3. Count the filter's interfaces on the layer: answers `0xCA400757` → `+0x138 += 1`; `0xCA400753` → `+0x13C
+   += 1`; `0xEA40074F` → `+0x140 += 1` (the query references are released at the end).
+4. Append the filter pointer (no reference of its own; the cache owns it) to the kind's list and bump its count:
+   kind 1 → list `+0x214`, count `+0x220`; kind 2 → `+0x230`, `+0x23C`; kind 3 → `+0x24C`, `+0x258`
+   (`0x004E71E0`–`0x004E7247`). Another kind value appends nothing.
+
+The same class id listed twice, or by two layers, yields the same filter object in each list *[compat]*.
+Which interface or kind a filter must have for `CanHandle`/`HandleCell`/`HandleOccupant` to use it is still
+AA1 (§9).
+
 ## 9. Open items
 
 | # | Question | What would settle it |
 |---|---|---|
-| **AA1** | The layer's own behaviour: scores, loops, filters and per-layer tuning (`0x004E5110`–`0x004E8230`). | a follow-up section of this spec |
-| **AA3** | Confirm the stack slot copied into `+0x10` at `0x004E91B0` is `t` (the listing reuses `[ESP+0x18]` for `a[i]`). | trace the stack depth at `0x004E91AC` |
+| **AA1** | The layer's own behaviour: scores, loops and filter use (`CanHandle`, `HandleCell`, `HandleOccupant`, `Update`; `0x004E5110`–`0x004E6910`). Init, tuning and filter creation are §8.1–8.3. | a follow-up section of this spec |
 | **AA4** | Types `0xA823821E`, `0xC7CC75F1` of the init walk are unnamed. | the occupant type table |
 
 ## 10. Conformance tests

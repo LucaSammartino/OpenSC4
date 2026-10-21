@@ -5,8 +5,6 @@
 - **AA1 - section 8:** the ambience layer's own behaviour (scores, loops, filters, per-layer tuning,
   `0x004E5110`-`0x004E8230`) is unspecified; only the interface the manager calls is. Needed before
   `cSC4AudioAmbienceLayer` can count as specified.
-- **AA3 - section 3.6:** confirm the stack slot copied into the alarm entry `+0x10` at `0x004E91B0` is the time
-  of day `t` (the listing reuses `[ESP+0x18]` for `a[i]`).
 - **AA4 - section 3.1:** name occupant types `0xA823821E` and `0xC7CC75F1` of the init walk.
 
 <!-- from: core-audioambience4 (2026-10-21) -->
