@@ -87,7 +87,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RN | foundations |
 | RS | residential |
 | SP | span-render-4444 |
-| SR | span-render-1555, span-render-565 |
+| SR | span-render-1555, span-render-565, span-render-8 |
 | SV | foundations, ordinance |
 | TG | traffic-simulator |
 | TN | traffic-network |
@@ -163,6 +163,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-1555 | 1 | 3 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 2 | 0 | SP3 | questions/span-render-4444.md |
 | span-render-565 | 1 | 0 | SR566 | questions/span-render-565.md |
+| span-render-8 | 2 | 0 | SR9 | questions/span-render-8.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
@@ -171,4 +172,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **130** | **1008** | | |
+| **total** | **132** | **1008** | | |
