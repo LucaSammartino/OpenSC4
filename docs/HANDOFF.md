@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**train51 landed 8c5249f634:** Five-lane engine batch; span registry conflicts excluded. Full65-test gate and default38 replacement plus occupant-manager follow shadow union PASS/ref0. Occupant manager72/72 with zeroresync, zero native-driven silent moves, followed queries and native call tracking; follow mode added to house profile after actual candidate proof. Landvalue returned72/72 but prior70/72 remains under verify-landvalue49 investigation. Advisor/netrules/budget/MySim scopes partial, new contract questions published, no whole-owner credit. Tool candidate profile89tests PASS. Span conflict fixes prepared separately. Coverage44.3/34.5/16.4/17.8; rounds149 (open-ended).
+
 **train50 landed 1e932067a6:** Two-lane docs unblock: DS42-DS44 answered, native disaster managers must be preserved because consumers cast slot7 results; global is populated by SL before layer Init. FN1-FN6 answered, whole font-owner remainder still uncredited. No ABI/runtime changes, gate/regress skipped. Landvalue train49 dropped72/72->70/72 (intrinsic deltas1-2); verify-landvalue49 dispatched with both frozen evidence sets. Target10/max3glue; fresh checks resumed as slot activity aged out. Coverage44.3/34.5/16.0/17.8; rounds147 (open-ended).
 
 **train49 landed 07da738603:** Held construction/exemplar interaction reconciled against current main: canonical transform counter retained; both registry entries preserved and EX seam renumbered70 to avoid automata69. Full64-test gate and current38-default-plus-exemplars candidate union regress PASS, ref0. EX remains opt-in, EX46-EX50 open, replacement-side comparison earns no native-exact credit. Construction OP13-OP16 still open; no whole-owner credit. Target10; slot guard currently blocks refills. Coverage44.3/34.5/16.0/17.8; rounds142 (open-ended).
@@ -24,11 +26,11 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target10 live lanes (user raised for CPU/memory headroom), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
-**Coverage after train50:**44.3/34.5/16.0/17.8; baseline36.8/28.3/12.1/15.9, delta+7.5/+6.2/+3.9/+1.9 points. 25 trains landed; 147 rounds used, no total cap. Next25-round checkpoint 150.
+**Coverage after train51:**44.3/34.5/16.4/17.8; baseline36.8/28.3/12.1/15.9, delta+7.5/+6.2/+4.3/+1.9 points. 26 trains landed; 149 rounds used, no total cap. Next25-round checkpoint 150.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`, `run4-launch.py` (saved guarded Workflow,maxRounds1,ctx150k,calls150). Never use direct/unguarded agents. After compaction/restart reread this section and run lanes.py guard before spawning. Fresh slots/check --touches required, --resume for an existing worktree; deps must be on main.
 
-**Train authority:** `build-runs/merge-train/state.json`; train46 landed58f47b0eb2, gate64/64 and candidate union PASS. Next batch: ready RE answers first to unblock core/glue; repair held integration conflicts separately.
+**Train authority:** `build-runs/merge-train/state.json`; latest landed train51. Start next batch when2+ ready; guard and ancestry remain authoritative.
 
 **Parked at3/3, never fourth:** verify-netmgrfix4(aed635a8,2/73exact,21missing RNGdraw batches,ABIadditionsunreviewed), glue-exemplars4(581778a9,3/3candidateclean2032ref0 butEX46-EX50open; registry conflict waits), core-construction4(f6dddaa7,v4 NO15 reader fixed; OP13-OP16 remain; actual2/3; prior occprops phase landed; remains parked pending OP13-OP16), core-netocc-records4(c5e769ae,partial NO15-NO17 records; NO14/NO18-NO20 remain; logical3/3 with netocc4), re-view3dwin4(78a7bd7c,partial input/AddGUI specs;VW2-VW6/helpers remain;preserveWT/ABI proposals), re-legacycontrol4(603ed696,45/57functions;12interpreters andLC4/LC5/LC8 remain;partialdocs queued, preserveWT), re-rzservices4(File/INI/Directory/OFStream complete; CmdLine slot10/SysServPtr incomplete), glue-terrain3(97b1c237), re-driverdraw4(partial DX7, landed32), re-editors4(partial curves, landed30), re-particles4(partial drawing, landed30), re-widgets4(partial base, landed28), re-application4(partial57/322, landed27), re-terrain4(answers landed25). Preserve parked worktrees, even when supported portions landed.
 
@@ -40,12 +42,12 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **After every train:** gen_handoff_tables.py, coverage.py, coverage_treemap.py; one status line here, commit/push. `run4-post-train.py` applies explicit tested maps and question-index upkeep after actual PASS+land. Remove landed nonparked worktrees only after verifying lane ancestor of main and clean state; keep branches and ignored evidence. Never remove active, unlanded or parked worktrees. C:>85% stops spawning until cleanup. Keep this section about60lines; archive older status lines to [today's history](history/handoff-2026-10-21.md).
 
-**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest88PASS. Candidate union supports --add-shadow and --add-replace.37 default replacement keys includepropdev,citysit,occmgr,propmgr,lotcfg; ports andsimgrids not defaults.
+**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest89PASS. Candidate union supports --add-shadow and --add-replace.38 default replacement keys include simgrids,propdev,citysit,occmgr,propmgr,lotcfg; ports remain candidate-only.
 
 **Runtime:** elevated game queue6slots(pid23444) restarted after Windows elevation blocked non-elevated launches. Native CLI BG_WAIT_CEILING_MS=0; qwait without--fresh, unique labels. RE preflight must GO. Never set gate verdicts by hand.
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 240 (train46 PASS; simgrid replacement promoted, trip/base-texture cores); 239 (train45 PASS; command-line core and partial URL/network records); 238 (Dates/commands cores, automata teardown ownership, opt-in tutorial/citydetail union; no exemplar candidate or default promotion); 237 (train39 PASS;8888/8 cores and network-occupant contract answers); 236 (train37 PASS; propdev replacement and four core modules). See `docs/manual-checks.md`.
+- **Latest in-game run:** 241 (Five lanes; gate65PASS; both game profiles2032/ref0. OCC72/72, resync0, independent followed core; Landvalue72/72 (prior49 mismatch under investigation). Partial advisor/netrules/budget/MySim, no whole-owner credit.); 240 (train46 PASS; simgrid replacement promoted, trip/base-texture cores); 239 (train45 PASS; command-line core and partial URL/network records); 238 (Dates/commands cores, automata teardown ownership, opt-in tutorial/citydetail union; no exemplar candidate or default promotion); 237 (train39 PASS;8888/8 cores and network-occupant contract answers). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
