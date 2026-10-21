@@ -6,8 +6,9 @@
 
 Goal: §8.12 DescribePick 0x004D4140 + DoQueryDialog 0x004D3C30; SetOrGet filler / route family tables (CT12);
 gauge services B43D98/B43D78/B43D9C, callout slots 4/14 (CT13). Final round: PARK with exact remainder if not done.
-Done: (round 3 start) nothing yet.
-Next: read DescribePick asm/decomp, write §8.12.
+Done: §8.12 DescribePick, DoQueryDialog, control walk + 127-slot filler table 0x00A92488 (93 distinct fillers,
+89 owned, 12,323 B; build-runs/tbl.py, gentbl.py); CT13 services named in §8.11.4 (police/fire/pollution).
+Next: per-family semantics of fillers (sample read only: idx 1, 17), inventory §8.10 update, CT12/CT13 edits.
 Facts: owner rows in build-runs/qowner.tsv (215); covered 24 fns / 11,725 B before round 3. REA: static fallback.
 
 ## Report (round 2, 2026-10-21)

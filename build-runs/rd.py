@@ -28,10 +28,16 @@ if sys.argv[1] == 'imm':
         if i < 0: break
         hits.append('%08x' % va(i)); i += 1
     print(len(hits), ' '.join(hits[:40]))
+elif mode == 's':
+    for a in sys.argv[1].split(','):
+        o = off(int(a, 16)); print(a, repr(data[o:data.index(b'\0', o)].decode('latin1')))
 else:
     v = int(sys.argv[1], 16); n = int(sys.argv[2]) if len(sys.argv) > 2 else 8
     o = off(v)
-    if mode == 'b':
+    if mode == 's':
+        for a in sys.argv[1].split(','):
+            o = off(int(a, 16)); print(a, repr(data[o:data.index(b'\0', o)].decode('latin1')))
+    elif mode == 'b':
         print(data[o:o + n].hex(' '))
     else:
         print(' '.join('%08x' % x for x in struct.unpack_from('<%dI' % n, data, o)))

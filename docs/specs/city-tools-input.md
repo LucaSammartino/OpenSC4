@@ -609,9 +609,9 @@ Setup: the occupant's property holder (occupant slot 6) and its lot (lot manager
 | `0x1002` | `0x14416206` | - | wealth map I |
 | `0x1003` | `0x14416209` | transport rule | transport rule |
 | `0x1004` | `0x1441620A` | utility rule | utility rule |
-| `0x1501` | `0x14416207` | `0x14416212` | `Ratio(trunc(N * V), N)`: V := the float at `*(0x00B43D98 slot 36)`, N := `0x00B43D98` slot 28(occupant) |
-| `0x1500` | `0x14416207` | `0x14416212` | the float returned by `0x00B43D98` slot 25(occupant) |
-| `0x1502` | `0x14416203` | `0x14416211` | the float returned by `0x00B43D78` slot 10(occupant) |
+| `0x1501` | `0x14416207` | `0x14416212` | `Ratio(trunc(N * V), N)`: V := the float at `*(police 0x00B43D98 slot 36 GetJailedPercentage())`, N := police slot 28 `GetJailCapacity(occupant)` (protection.md §13) |
+| `0x1500` | `0x14416207` | `0x14416212` | police (`0x00B43D98`) slot 25 `GetStationEfficiency(occupant)` (an `SC4Percentage` returned through a hidden pointer; its float) |
+| `0x1502` | `0x14416203` | `0x14416211` | fire protection (`0x00B43D78`) slot 10 `GetStationEfficiency(occupant)` (same shape) |
 | `0x1503`, `0x1504`, `0x1505`, `0x1506` | `0x14416201` | `0x14416210` | residential simulator (`0x00B43DA4`) slot 26(occupant, &query); on true, the query's float at `+0x28` |
 | `0x1507` | `0x14416201` | `0x14416216` | as above with slot 27 |
 | `0x150A`, `0x150B` | `0x1441620C` | - | - |
@@ -645,7 +645,9 @@ Utility rule (`0x1004`), first match:
   `0x14416218`.
 - `0x1401`: secondary `0x14416219`; plumbing simulator slot 24(occupant, &f, &flag, 0, 0), f preset 0 and flag
   false; fraction := f; flag true: body := `0x4A5FB66A`.
-- `0x1402`: secondary `0x14416217`; a := `0x00B43D9C` slot 54(occupant), b := slot 55(occupant) (floats, preset
+- `0x1402`: secondary `0x14416217`; a := pollution simulator (`0x00B43D9C`) slot 54
+  `GetRecyclingCenterMaxCapacity(occupant, &a)`, b := slot 55 `GetRecyclingCenterCurrentCapacity(occupant, &b)`
+  (pollution.md slot table; floats, preset
   0); fraction := 0; when b > the float at `0x00B21854` (zero-initialised data with no writer, so 0.0):
   fraction := b / a, clamped to at most 1.0 *[quirk: the guard tests b while a is the divisor; a = 0 gives +inf,
   clamped to 1.0]* (instructions from `0x004D6910`; Ghidra shows a division by 0.0).
@@ -664,3 +666,205 @@ occupants (lot slot 49, into a list whose nodes come from the allocator service 
 in `0x00B207E4`); for each occupant whose boolean property `0x6A95E503` is true (default false) call occupant
 slot 17(state, 0); release the list (occupant manager `0x00B43D0C` slot 48). The highlighted occupant itself is
 changed only when it carries the property.
+
+### 8.12 The query click: `DescribePick` (`0x004D4140`) and `DoQueryDialog` (`0x004D3C30`) *[compat]*
+
+Added 2026-10-21 (re-querytool4 round 3), from the instructions (REA had no binary open; Ghidra's listing of
+`DescribePick` has a broken stack frame, so offsets below come from the instructions).
+
+#### 8.12.1 `DescribePick(x, z, text, extra, extra2, debug)` (`0x004D4140`, cdecl, 6 args)
+
+`text`, `extra`, `extra2` are three `cIGZString`s (the static ones of §8.6 step 5); `debug` is
+`IsDebugQueryEnabled()`. They are debug read-outs: nothing in this owner reads `0x00B2185C`/`0x00B21870`/
+`0x00B21884` back (no data references), so their only player-visible effect is none *[inferred]*; the dialogs and
+the sound are the visible effect.
+
+1. Reset the strings: `text` := `Query`, `extra` := `Query extra: none`, `extra2` := `Query extra2: none`.
+2. No 3D view (`0x00B43DC4`): return.
+3. Building name := `empty`. Build a plain occupant filter (`cSC4OccupantFilter`, 0x0C bytes, vtable `0x00A90B18`,
+   accepts everything) and `PickQueriableOccupant(x, z, &occ, filter)` (§8.8).
+   - Hit: if the lot manager (`0x00B43D08` slot 14) finds the occupant's lot and that lot has a building (lot
+     slot 48), the building's occupant (building slot 3) replaces the hit (no property test, unlike hover §8.5).
+   - Miss: pick the terrain (3D view slot 36); on a hit take the cell (`PositionToCell`, city slot 95), the lot
+     there (lot manager slot 6) and, when it has a building, that building's occupant.
+4. With an occupant: `type` := occupant slot 7; `PlayOccupantQuerySound(occ)` (`0x004C4F40`); then the dialog
+   choice, first match wins:
+
+| Test (in order) | Action | "dialog shown" |
+|---|---|---|
+| QI `0xA821EF94` (network occupant) succeeds | `DoNeighborConnectionQueryDialog(occ)` (`0x004CC6E0`), then continue with the next rows | no |
+| else QI `0xA8C86142` succeeds | `DoNeighborConnectionQueryDialog(occ)`; stop | yes |
+| exemplar property `0x2A499F85` readable (`cSCPropertyHelp::GetPropertyValue` true) | `DoQueryDialog(occ)` (§8.12.2) | yes |
+| else: zone type at the occupant's cell (position slot 8, `PositionToCell`, zone manager `0x00B43D14` slot 12) is 11, 12 or 14 | `DoZoneBasedQueryDialog(zone, cellX, cellZ)` (`0x004CCCB0`) | yes, and "zone dialog" |
+| else | UI sound: `0x00B43CB8` slot 11(1, `0xAA62C9D5`, 0, 0, 0) | no |
+
+5. Debug lines by type (only these two types set "described"):
+   - building `0x278128A0`: a `cISC4ResidentialSimulator::tQueryData` is built and dropped (no visible effect).
+   - network `0xC772BF98`: with QI `0x4A10AFC2`, `text` := `Query cell (%d, %d): Id %08lx, flip: %s, rotation:
+     %d, model Y Height %f, floor heights %f %f %f %f\n` (flip `yes`/`no`); else with QI `0xA821EF94`, `text` :=
+     `Query cell (%d, %d): Piece Id: %08lx, Rotation:%d, Flipped:%d \n` plus
+     `, traffic cap(%.0f) vol(%d) cong(%f)` where cap is traffic simulator (`0x00B43DA8`) slot 23(1), or slot 23(2)
+     when that is 0.0, vol = 10 x the low byte of the cell's volume, cong = vol / cap (float); and when `debug`,
+     `WriteDetailedDebugInfo` (`0x004D12A0`).
+   Release the occupant. A zone dialog was shown: return. Otherwise when not "described", pick the terrain at
+   (x, z) again (miss: return) and take its cell.
+6. Cell read-out (all debug text): when no dialog was shown and the cell's zone is 11, 12 or 14,
+   `DoZoneBasedQueryDialog` (so an occupant-less click on an airport, seaport or landfill zone opens it); when
+   `debug`, `WriteDetailedDebugInfo`; lot name := `no lot template`, or `%s_%08x` (lot configuration name, ID) for
+   the lot at the cell; find the first building in the cell (occupant manager `0x00B43D0C` slot 41, type
+   `0x278128A0`); with one: `DescribeBuilding`, `DescribePopulation`, `DescribeDemand`, `extra` := `%s %s\n`
+   (population, demand); without: `DescribeDemand` into `extra`, suffixed `: ` + lot name, or `: no lot`; then
+   ` EQ: %f HQ: %f` where HQ := residential simulator (`0x00B43DA4`) slot 36(x, z) and EQ := slot 35(x, z, HQ);
+   `DescribeCell`; `extra2` := `[Building %s] [Lot: %s] %s\n` (with `text`) when `text` is longer than 10
+   characters, else `[Building %s] [Lot: %s]\n`; `text` := `Query cell (%d, %d): %s\n` (cell, cell description).
+
+#### 8.12.2 `DoQueryDialog(occ)` (`0x004D3C30`) → bool
+
+1. Read the occupant's property `0x2A499F85` (the dialog's UI script instance); unreadable: return false.
+2. Create the dialog `SC4CreateWindowFromScript({type 0, group 0x96A006B0, instance = value}, null, 0x10000005)`;
+   none: return false.
+3. Coverage rings: save the 3D view's coverage helper's categories (helper `+0x14`, 3D view slot 49); categories :=
+   `GetCategoriesForOccupant(occ)`; when non-zero set them, `RecalcCoverage`, and start a local timer with
+   `CoverageRingCallback` (§8.9) at 330 ms (`0x14A`).
+4. If the dialog QIs to `0x5386D516` (window proc host), attach a 0x18-byte window proc (`0x004C5620`, built with
+   the dialog) holding the occupant.
+5. Make a 4-byte enumerator context (vtable `0x00A90B38`) and walk the dialog's children with `0x004C4340` (each
+   child's slot 116, recursive).
+6. Publish the refresh state used by message `0x66956814` (§8.7): `0x00B21848` := `0x004D3B40` (the refresh
+   walk), `0x00B21840` := occ (held), `0x00B21844` := the window proc, `0x00B2184C` := the dialog (held).
+7. Fill: walk the children with the get pass (§8.12.3, flag 1).
+8. Run it modally: `0x00B43CE0` slot 10(dialog, 1), window manager slot 41(dialog) = result, `0x00B43CE0`
+   slot 6(dialog). Clear `0x00B21848`, `0x00B21840`, `0x00B21844`, `0x00B2184C` (releasing the holds).
+9. Result 0 (accepted): walk again with the set pass (flag 0). Then `EnumFuncClearFilter` (`0x004C4370`) over the
+   children, detach the window proc (its slot 6 with null), window manager slot 23(dialog), release the dialog,
+   then window manager slot 37(the 3D view's window, 3D view slot 3) (focus back to the view *[inferred]*).
+10. If categories were set in step 3: restore the saved ones, `RecalcCoverage`, stop the timer.
+11. Return result == 0.
+
+#### 8.12.3 The control walk and the filler table (Q CT12)
+
+A walk visits each child window of the dialog (window slot 32, interface `0x22BA0121`). For a child whose
+control ID has bit `0x1000` set and whose `ID & 0xFFF` is below `0x7F` with a non-null entry in the table at
+`0x00A92488` (127 dwords), it calls `filler(window, ID, get, occ)` (cdecl); when there is no filler or it returns
+false, the walk descends into that child's own children. The get pass (`0x004D3AE0`) passes `get` = 1 (fill the
+control from the simulation), the set pass (`0x004D3BD0`) 0 (write the control's value back; most fillers do
+nothing and return true); the daily refresh (`0x004D3B40` via `0x004D3A90`) calls the same table.
+
+Two filler shapes, exact for the samples read:
+
+- Value fillers (e.g. index 1, `0x004C5180`, 60 B): get = 1 only; read a value from a simulator and display it
+  with `SetPerformanceMeterValue(window, ID, value)` (`0x004C3CA0`: child `0xC12CEA13`, property `0xEA563AB0`
+  set to a `cRZVariant`); index 1 is fire `GetStationEfficiency(occ)`; get = 0 returns true.
+- Forwarders (e.g. index 17, `0x004C67F0`, 62 B): with an occupant, occupant slot 11 writes two dwords v0, v1
+  and the call becomes `worker(window, ID, get, v0, v1)` (`SetOrGetAirportAirTrafficVolume`, `0x004C5280`); no
+  occupant: false.
+
+The per-index table (index = control ID & 0xFFF; ID = `0x1000 | index`), from the data at `0x00A92488`. Bytes
+from `decomp/index.tsv`; `own` = in this owner's coverage rows. Unlisted indexes are null.
+
+
+| Index | ID | Filler | Name | Bytes | Own | Family |
+|---|---|---|---|---|---|---|
+| 0 | `0x1000` | `0x004C70C0` | FUN_004c70c0 | 314 | own | unnamed |
+| 1 | `0x1001` | `0x004C5180` | FUN_004c5180 | 60 | own | unnamed |
+| 2 | `0x1002` | `0x004C7200` | FUN_004c7200 | 221 | own | unnamed |
+| 3 | `0x1003` | `0x004C72E0` | FUN_004c72e0 | 110 | own | unnamed |
+| 4 | `0x1004` | `0x004C7350` | FUN_004c7350 | 60 | own | unnamed |
+| 6 | `0x1006` | `0x004C51C0` | FUN_004c51c0 | 60 | own | unnamed |
+| 7 | `0x1007` | `0x004C7390` | FUN_004c7390 | 50 | own | unnamed |
+| 8 | `0x1008` | `0x004C73D0` | FUN_004c73d0 | 50 | own | unnamed |
+| 9 | `0x1009` | `0x004C7410` | FUN_004c7410 | 221 | own | unnamed |
+| 10 | `0x100A` | `0x004C74F0` | FUN_004c74f0 | 110 | own | unnamed |
+| 11 | `0x100B` | `0x004C7560` | FUN_004c7560 | 60 | own | unnamed |
+| 12 | `0x100C` | `0x004C5200` | FUN_004c5200 | 113 | own | unnamed |
+| 13 | `0x100D` | `0x004C75A0` | FUN_004c75a0 | 66 | own | unnamed |
+| 14 | `0x100E` | `0x004C75F0` | FUN_004c75f0 | 100 | own | unnamed |
+| 15 | `0x100F` | `0x004C7660` | FUN_004c7660 | 43 | own | unnamed |
+| 16 | `0x1010` | `0x004C9E50` | SetOrGetOccupantCost | 5 | own | Occupant |
+| 17 | `0x1011` | `0x004C67F0` | SetOrGetAirportOccupantAirTrafficVolume | 62 | own | Airport |
+| 18 | `0x1012` | `0x004CC120` | SetOrGetAirportOccupantNoisePollution | 62 | own | Airport |
+| 19 | `0x1013` | `0x004C9E60` | SetOrGetAirportOccupantMaintenanceCost | 62 | own | Airport |
+| 20 | `0x1014` | `0x004CDC80` | SetOrGetAirportOccupantLostLuggage | 62 | own | Airport |
+| 21 | `0x1015` | `0x004C5310` | FUN_004c5310 | 62 | own | unnamed |
+| 22 | `0x1016` | `0x004C7910` | FUN_004c7910 | 109 | own | unnamed |
+| 23 | `0x1017` | `0x004C7980` | FUN_004c7980 | 235 | own | unnamed |
+| 24 | `0x1018` | `0x004C7A70` | FUN_004c7a70 | 305 | own | unnamed |
+| 25 | `0x1019` | `0x004C7BB0` | FUN_004c7bb0 | 292 | own | unnamed |
+| 26 | `0x101A` | `0x004C8160` | FUN_004c8160 | 68 | own | unnamed |
+| 27 | `0x101B` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
+| 28 | `0x101C` | `0x004C7D30` | FUN_004c7d30 | 218 | own | unnamed |
+| 29 | `0x101D` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
+| 30 | `0x101E` | `0x004C7D30` | FUN_004c7d30 | 218 | own | unnamed |
+| 31 | `0x101F` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
+| 32 | `0x1020` | `0x004C7E10` | FUN_004c7e10 | 235 | own | unnamed |
+| 33 | `0x1021` | `0x004C7F00` | FUN_004c7f00 | 304 | own | unnamed |
+| 34 | `0x1022` | `0x004C8030` | FUN_004c8030 | 291 | own | unnamed |
+| 35 | `0x1023` | `0x004C8160` | FUN_004c8160 | 68 | own | unnamed |
+| 36 | `0x1024` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
+| 37 | `0x1025` | `0x004C81B0` | FUN_004c81b0 | 218 | own | unnamed |
+| 41 | `0x1029` | `0x004C3E70` | FUN_004c3e70 | 100 | own | unnamed |
+| 42 | `0x102A` | `0x004C8330` | FUN_004c8330 | 121 | own | unnamed |
+| 43 | `0x102B` | `0x004C83B0` | FUN_004c83b0 | 106 | own | unnamed |
+| 44 | `0x102C` | `0x004C8420` | FUN_004c8420 | 78 | own | unnamed |
+| 45 | `0x102D` | `0x004C5350` | FUN_004c5350 | 66 | own | unnamed |
+| 46 | `0x102E` | `0x004C9FE0` | thunk_FUN_004c8660 | 5 | own | unnamed |
+| 47 | `0x102F` | `0x004C86D0` | FUN_004c86d0 | 58 | own | unnamed |
+| 48 | `0x1030` | `0x004C8710` | FUN_004c8710 | 76 | own | unnamed |
+| 49 | `0x1031` | `0x004C9FF0` | FUN_004c9ff0 | 77 | own | unnamed |
+| 50 | `0x1032` | `0x004D3250` | thunk_FUN_004d10f0 | 5 | own | unnamed |
+| 51 | `0x1033` | `0x004C85F0` | FUN_004c85f0 | 106 | own | unnamed |
+| 52 | `0x1034` | `0x004C3F90` | FUN_004c3f90 | 63 | own | unnamed |
+| 53 | `0x1035` | `0x004C8660` | FUN_004c8660 | 98 | own | unnamed |
+| 54 | `0x1036` | `0x004C86D0` | FUN_004c86d0 | 58 | own | unnamed |
+| 55 | `0x1037` | `0x004C8710` | FUN_004c8710 | 76 | own | unnamed |
+| 56 | `0x1038` | `0x004C9FF0` | FUN_004c9ff0 | 77 | own | unnamed |
+| 57 | `0x1039` | `0x004D10F0` | FUN_004d10f0 | 156 | own | unnamed |
+| 58 | `0x103A` | `0x004C42F0` | FUN_004c42f0 | 79 | own | unnamed |
+| 59 | `0x103B` | `0x004C8880` | FUN_004c8880 | 113 | own | unnamed |
+| 60 | `0x103C` | `0x004C8900` | FUN_004c8900 | 71 | own | unnamed |
+| 61 | `0x103D` | `0x004C8950` | FUN_004c8950 | 71 | own | unnamed |
+| 62 | `0x103E` | `0x004C89A0` | FUN_004c89a0 | 71 | own | unnamed |
+| 63 | `0x103F` | `0x004D1190` | FUN_004d1190 | 150 | - | unnamed |
+| 64 | `0x1040` | `0x004CA090` | SetOrGetWaterBuildingPumpCondition | 159 | own | Water |
+| 65 | `0x1041` | `0x004C3FD0` | FUN_004c3fd0 | 223 | own | unnamed |
+| 66 | `0x1042` | `0x004C8A60` | FUN_004c8a60 | 204 | own | unnamed |
+| 67 | `0x1043` | `0x004C8B30` | FUN_004c8b30 | 141 | own | unnamed |
+| 68 | `0x1044` | `0x004C8BC0` | FUN_004c8bc0 | 139 | own | unnamed |
+| 69 | `0x1045` | `0x004C8C50` | FUN_004c8c50 | 139 | own | unnamed |
+| 70 | `0x1046` | `0x004C8CE0` | SetOrGetTransitStationGlobalFunding | 92 | own | TransitStation |
+| 71 | `0x1047` | `0x004C8D40` | FUN_004c8d40 | 97 | own | unnamed |
+| 73 | `0x1049` | `0x004C8DB0` | ? | ? | - | unnamed |
+| 74 | `0x104A` | `0x004CA130` | ? | ? | - | unnamed |
+| 81 | `0x1051` | `0x004C8FF0` | SetOrGetRCIBuildingCurrentOccupancy | 170 | own | RCIBuilding |
+| 82 | `0x1052` | `0x004C90A0` | SetOrGetRCIBuildingMaxOccupancy | 115 | own | RCIBuilding |
+| 83 | `0x1053` | `0x004D3500` | SetOrGetRCIBuildingWealthLevel | 554 | own | RCIBuilding |
+| 84 | `0x1054` | `0x004D3730` | FUN_004d3730 | 105 | own | unnamed |
+| 85 | `0x1055` | `0x004D3810` | FUN_004d3810 | 105 | own | unnamed |
+| 86 | `0x1056` | `0x004C9120` | SetOrGetRCIBuildingLandValue | 215 | own | RCIBuilding |
+| 87 | `0x1057` | `0x004D3880` | SetOrGetResidentialBuildingCommute | 190 | own | ResidentialBuilding |
+| 88 | `0x1058` | `0x004C9200` | SetOrGetResidentialBuildingMayorApproval | 156 | own | ResidentialBuilding |
+| 89 | `0x1059` | `0x004D39B0` | FUN_004d39b0 | 105 | own | unnamed |
+| 90 | `0x105A` | `0x004D3A20` | FUN_004d3a20 | 105 | own | unnamed |
+| 91 | `0x105B` | `0x004CDCC0` | SetOrGetResidentialBuildingMySimicon | 576 | own | ResidentialBuilding |
+| 92 | `0x105C` | `0x004C92A0` | SetOrGetCommercialServiceBuildingCustomers | 101 | own | CommercialServiceBuilding |
+| 94 | `0x105E` | `0x004C3EE0` | FUN_004c3ee0 | 167 | own | unnamed |
+| 95 | `0x105F` | `0x004C8470` | FUN_004c8470 | 217 | own | unnamed |
+| 96 | `0x1060` | `0x004C8550` | FUN_004c8550 | 157 | own | unnamed |
+| 97 | `0x1061` | `0x004CA040` | FUN_004ca040 | 70 | own | unnamed |
+| 98 | `0x1062` | `0x004CA040` | FUN_004ca040 | 70 | own | unnamed |
+| 99 | `0x1063` | `0x004C8760` | FUN_004c8760 | 276 | own | unnamed |
+| 107 | `0x106B` | `0x004CB880` | ? | ? | - | unnamed |
+| 108 | `0x106C` | `0x004C9310` | SetOrGetOccupantCost | 282 | own | Occupant |
+| 109 | `0x106D` | `0x004C42F0` | FUN_004c42f0 | 79 | own | unnamed |
+| 115 | `0x1073` | `0x004C89F0` | FUN_004c89f0 | 100 | own | unnamed |
+| 116 | `0x1074` | `0x004D3940` | FUN_004d3940 | 105 | own | unnamed |
+| 117 | `0x1075` | `0x004D37A0` | FUN_004d37a0 | 105 | own | unnamed |
+| 118 | `0x1076` | `0x004CA2C0` | FUN_004ca2c0 | 206 | own | unnamed |
+| 119 | `0x1077` | `0x004CA390` | FUN_004ca390 | 206 | own | unnamed |
+| 120 | `0x1078` | `0x004C9FA0` | FUN_004c9fa0 | 62 | own | unnamed |
+| 121 | `0x1079` | `0x004D0EE0` | SetOrGetWhyOccupantAbandoned | 490 | own | Why |
+| 122 | `0x107A` | `0x004C55A0` | SetOrGetOccupantIsHistorical | 124 | own | Occupant |
+| 123 | `0x107B` | `0x004C9EA0` | FUN_004c9ea0 | 62 | own | unnamed |
+| 124 | `0x107C` | `0x004C9EE0` | FUN_004c9ee0 | 62 | own | unnamed |
+| 125 | `0x107D` | `0x004C9F20` | FUN_004c9f20 | 62 | own | unnamed |
+| 126 | `0x107E` | `0x004C9F60` | FUN_004c9f60 | 62 | own | unnamed |
