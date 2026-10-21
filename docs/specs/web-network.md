@@ -50,6 +50,27 @@ Lazy parse. GetURLType, GetScheme, GetServer, GetAbsolutePath (the path), IsURLR
 MakeURLStringFromComponents first check `parsed`; when it is false they parse a copy of `full` (2.3) and then read the
 field. A URL that does not parse is therefore reparsed on every getter call, with the same result.
 
+**Method inventory (audit re-url-contracts4, 2026-10-21).** Every cRZURL method in 008128a0 and 008216c0..00823ef3:
+
+| Method | Address | Behaviour |
+|---|---|---|
+| default constructor | 008216e0 | allowRelative false, parsed false, type 0, port 0, all strings empty. No parse. |
+| construct from text | 00821c60 (body continues at 00821c69) | full = the text; allowRelative **true**, parsed false, type 0, port 0, other strings empty. **No parse at construction**: the first lazy getter parses. |
+| destructor | 008128a0 | releases the strings; no other effect. |
+| assignment | 00821e20 | copies allowRelative, parsed, type, all nine strings (full, scheme, user, password, server, path, params, query, fragment) and port verbatim. No reparse. |
+| GetFullURL | 008216c0 | returns full as stored. **Not lazy**, never parses. |
+| GetPort | 008216d0 | returns the port field as stored. **Not lazy**: on a URL that no getter has parsed yet it returns 0 (or the stale value, see 2.7), even when full names a port. Call a lazy getter first if the port matters. |
+| lazy getters | GetURLType 008236a0, GetScheme 00823710, GetUser 00823780, GetPassword 008237f0, GetServer 00823860, GetAbsolutePath 008238d0, GetParams 00823940, GetQuery 008239b0, GetFragment 00823a20 | parse `full` if parsed is false (2.3), then return the field. |
+| component setters | scheme 00822000, user 00822030, password 00822060, server 00822090, path 008220c0, params 008220f0, query 00822120, fragment 00822150 | plain copy into the field. They change neither `parsed`, `type`, `port` nor `full`; `full` is only brought in line by MakeURLStringFromComponents (2.6). |
+| SetFullURL (text, invalidate) | 00821fc0 | if invalidate is true, parsed = false; then full = text. Type, port and components are left as they were (a later lazy getter reparses only when parsed is false). The only caller (ParseCookieText 008f955f) passes invalidate = true. |
+| IsURLRelative, IsURLRelative(text) | 008235f0, 00823660 | 2.2 |
+| ParseScheme, ParseURL | 00822180, 008231b0 | 2.3, 2.4 |
+| MakeURLStringFromComponents | 008233d0 | 2.6 |
+| ChangeURL (new text, base text), ChangeURL (new text, base URL) | 00823a90, 00823ed0 | 2.7 |
+
+There is no network, file or cache access in cRZURL and no error reporting beyond the boolean results of ParseURL and
+ChangeURL; no method allocates beyond its strings.
+
 ### 2.2 Type codes
 
 | Code | Scheme | Parse route after the scheme step (ParseURL 008231b0) |
@@ -83,7 +104,12 @@ Work on a copy of the input, called *rest*. Clear scheme, type = 0.
    -> 6; `news` at 0 -> 7; `nntp` at 0 -> 7; `irc` at 0 -> 8. *[quirk]* Because `http` is tested first and is a prefix
    of `https`, an `https://` URL gets type **2**; type 3 is never produced. Any scheme starting with `http` (for
    example `httpx`) is also 2.
-5. If a type was set, stop (success).
+5. If a type was set, stop (success). A `://` scheme that matches none of the prefixes (for example `gopher`) is
+   **kept** in the scheme field: the scheme field is cleared only once, at the start of this step (00822187..0082219b),
+   and steps 6/7 never touch it except to overwrite it in step 7's type-1 case. So `gopher://h/x` with allowRelative
+   true ends as type 9, scheme `gopher`, server `h`, path `/x` (rest is `//h/x`, which has no `:`, so step 7 keeps type
+   9); ChangeURL (2.7) then treats it as "N has a scheme". In guess mode the same input is type 0 (rest `//h/x` matches
+   no guess prefix; `//` is inserted in front again) and ParseURL fails.
 6. allowRelative false (guess mode): look at the start of rest — `www.` -> 2, `ftp.` -> 5, `news.` -> 7, `nntp.` -> 7,
    `irc.` -> 8, otherwise type stays 0. In every guess-mode outcome (also type 0) insert `//` at the front of rest, so
    the host becomes the server in the next step. Stop.
@@ -103,10 +129,16 @@ is cut to user[0,c). Consequence: since the `//` went into user, the server step
 
 **Server and port (008227e0)** — clears server, port = 0. Only if rest starts with `//`: erase the 2 characters. Then,
 unless type is 4 (file, which stops here with server empty), let n = length, c = first `:`, s = first `/`:
-- If c exists and c < s (or no `/`): the port is the run of characters after c for which the C classification
-  call at 008228b9 (one-argument CRT classifier 009ef61d; decimal digits *[inferred]*) holds, at most 15 kept
-  (a longer run overflows a 16-byte buffer in the original: undefined, do not rely on it); if that run is non-empty, port = `atol` of it.
-  server = rest[0,c); erase rest[0, c + run length + 1).
+- If c exists and c < s (or no `/`): the port run is the maximal run of ASCII decimal digits `0`-`9` right after c
+  (the classifier at 008228b9 is CRT `isdigit`: 009ef61d tests ctype mask 4, `_DIGIT`, C locale). The run is
+  counted in full, but only its first 15 characters are copied into a 16-byte buffer (008228c5: copy only while the
+  count is below 15). If the run is non-empty, port = `atol` of the buffer. server = rest[0,c); then rest[0, c + 1 +
+  **whole run length**) is erased (00822914), so no digit of the run is left in rest even past the 15th.
+  `atol` (009ef7c2) accumulates value = value * 10 + digit in 32 bits with **no overflow check**: the result wraps
+  modulo 2^32 and is stored as the unsigned 32-bit port (`:4294967296` gives port 0, `:4294967297` gives 1,
+  `:99999` gives 99999; no range check against 65535 anywhere in cRZURL). A run of 16 or more digits is undefined in
+  the original (buffer byte 15 is left unwritten and the terminator lands past the buffer); implementers use the
+  first 15 digits, which is what the original yields whenever that stale byte is not a digit.
 - Else if s exists: server = rest[0,s); erase rest[0,s) (the `/` stays in rest).
 - Else (no `/`): for type 2 or 3 only, cut at the first `;`, then (if server still empty) the first `?`, then (if still
   empty) the first `#`: server = rest before it, rest keeps the delimiter onward. If server is still empty after that,
@@ -164,12 +196,37 @@ Clears parsed, type, port and full/scheme/password/server/path.
   - N has a scheme: full = new (unparsed); return true.
   - N has no scheme: N inherits from B each of scheme, server, user, password and port (port when N's is 0) that is
     empty in N. Then the path:
-    - N path empty: take B's path; then, only if N's params are empty, B's params; only if those are empty too,
-      B's query; only if that is empty too, B's fragment (a chain, each step inside the previous one).
+    - N path empty: N path = B's path. Then a chain, each test on **N's own field** and each step only reached when
+      the previous test found it empty (00823d6c..00823deb):
+      1. if N's params are non-empty, stop; else N params = B params;
+      2. if N's query is non-empty, stop; else N query = B query;
+      3. if N's fragment is non-empty, stop; else N fragment = B fragment.
+      A non-empty N field is never overwritten. Examples (base `http://a/b;p?old#f`): new `?new` -> params `;p`,
+      query `?new`, fragment empty (stops at 2) -> `http://a/b;p?new`; new `#g` -> `http://a/b;p?old#g`; new `;q` ->
+      `http://a/b;q` (stops at 1: B's query and fragment are not inherited).
     - N path not starting with `/`: start from B's path, cut after its last `/` (keep the `/`; if B's path has no `/`
       keep it whole), append N's path, normalise (2.8), and use that.
     - N path starting with `/`: kept.
     Rebuild N's text (2.6), then copy N into this object (full, components, parsed, allowRelative). Return true.
+
+Details (re-url-contracts4, 00823a90 and 00823ed0):
+- The clear at entry covers parsed, type, port, full, scheme, password, server and path only. **user, params, query
+  and fragment keep their old values** on the two early-return paths below; they are harmless for lazy getters (a
+  reparse clears every component first, 2.4) but GetPort returns 0 until some lazy getter has run.
+- A null base text is treated as empty. "Base empty" parses with **this object's own allowRelative** (not forced
+  true) and returns that parse result; nothing else is reset.
+- "New empty, base non-empty" and "N has a scheme": full is set (to base, resp. to new) and the call returns true
+  with parsed false and type 0; the next lazy getter parses full with this object's own allowRelative, which is left
+  unchanged on these paths.
+- The parse results of N and B are not checked. "N has a scheme" is GetScheme on N being non-empty, so it includes
+  type-1 schemes (`about:`), unrecognised `xyz://` schemes (2.3 step 5) and `mailto:` (type 0, scheme `mailto`).
+- Inheritance: B's scheme is copied whenever N's scheme is empty (always true on this branch); server, user and
+  password each only when N's is empty; port only when N's port is 0.
+- On the full-resolve path this object ends with allowRelative **true** and parsed as N's (true when N parsed; N's
+  type kept, so a relative N stays type 9 even after inheriting `http` from B).
+- Overload 00823ed0 (new text, base URL object): if the base object is null or its stored full text (GetFullURL, not
+  rebuilt, not parsed) is empty, it calls 00823a90 with a null base; otherwise with the base's full text. Its only
+  caller is cGZWinHTML::SetURL (008fb25c).
 
 ### 2.8 Path normalisation (00821890)
 

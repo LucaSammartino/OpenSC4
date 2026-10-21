@@ -5,5 +5,5 @@
 ## Handoff
 - Goal: answer web-network Q4-Q6 (ChangeURL chain, port run/atol, unknown scheme) from asm; audit cRZURL methods not
   yet in §2 (ctor/dtor/copy/assign, setters, other getters) so core-url4 can become the whole owner.
-- Done: lane file.
-- Next: asm of ChangeURL 00823a90 empty-path branch; server step 008227e0 port run; ParseScheme 00822180 steps 4/5.
+- Done: lane file; Q4 DIFFERS, Q5/Q6 MATCHES answered, §2.1 method inventory, §2.3 step 5, §2.4 port, §2.7 details.
+- Next: finish (report, merge-queue json).
