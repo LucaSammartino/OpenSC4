@@ -5491,3 +5491,18 @@ cSC4EffectComponent	cSC4VisualEffect-as-component	00aa1148	0	+0x0	005c0520	cSC4E
 cSC4EffectComponent	cSC4VisualEffect-as-component	00aa1148	1	+0x4	005c0530	cSC4EffectComponent::Stop(uint32)	4	1	none	high	re-answers29: thunk sub ecx,4 -> 0x005BEBA0; mode 0 = soft stop, else hard
 cSC4EffectComponent	cSC4VisualEffect-as-component	00aa1148	2	+0x8	005c04f0	cSC4EffectComponent::IsActive	0	0	al	high	re-answers29 RETURN CHANNEL: AL. Thunk sub ecx,4 -> 0x007D6680 -> *(u8*)(obj+0x24) started. The finish test 0x005BFD70 calls this slot
 cSC4EffectComponent	cSC4VisualEffect-as-component	00aa1148	6	+0x18	005c0540	cSC4EffectComponent::SetVoidParams(uint32, void const*, uint32)	12	3	eax	high	re-answers29 (EF3): thunk sub ecx,4 -> 0x005BFC20 (ForwardParameter) - RECURSIVE into the child's components. Index 13 is the opaque pointer channel
+cISC4FireOccupant	cSC4FireOccupant	00a88460	0	+0x0	0046fe30	cSC4FireOccupant::QueryInterface(iid, void**)	8	2	al	high	re-answers23 (disasters.md 5.11): 0x69D25C60 -> this; else cSC4Occupant QI
+cISC4FireOccupant	cSC4FireOccupant	00a88460	1	+0x4	005e28f0	cSC4FireOccupant::AddRef	0	0	eax	high	re-answers23 (disasters.md 5.11)
+cISC4FireOccupant	cSC4FireOccupant	00a88460	2	+0x8	005e2900	cSC4FireOccupant::Release	0	0	eax	high	re-answers23 (disasters.md 5.11)
+cISC4FireOccupant	cSC4FireOccupant	00a88460	3	+0xC	005fd7e0	cSC4FireOccupant::AsOccupant	0	0	eax	high	re-answers23 (disasters.md 5.11): returns this+4 (cISC4Occupant, vtable 00a883d8)
+cISC4FireOccupant	cSC4FireOccupant	00a88460	4	+0x10	00471900	cSC4FireOccupant::SetTarget(cISC4Occupant*)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): maxStage from 0x49BEDA31 (2); flames; target 0x69DBEBE1 := 1; target SetRemovalFlags(2); building: fire_occupant controllers
+cISC4FireOccupant	cSC4FireOccupant	00a88460	5	+0x14	006aaeb0	cSC4FireOccupant::GetTarget	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x54
+cISC4FireOccupant	cSC4FireOccupant	00a88460	6	+0x18	00820250	cSC4FireOccupant::GetStage	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x44, initially -1
+cISC4FireOccupant	cSC4FireOccupant	00a88460	7	+0x1C	00698cf0	cSC4FireOccupant::GetMaxStage	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x48
+cISC4FireOccupant	cSC4FireOccupant	00a88460	8	+0x20	004728b0	cSC4FireOccupant::SetStage(int)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): rebuilds flame visuals
+cISC4FireOccupant	cSC4FireOccupant	00a88460	9	+0x24	0068d1b0	cSC4FireOccupant::GetCounter	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x40
+cISC4FireOccupant	cSC4FireOccupant	00a88460	10	+0x28	007b62d0	cSC4FireOccupant::SetCounter(int)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): +0x40
+cISC4FireOccupant	cSC4FireOccupant	00a88460	11	+0x2C	0068d1c0	cSC4FireOccupant::GetHosed	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x4C
+cISC4FireOccupant	cSC4FireOccupant	00a88460	12	+0x30	0046fdd0	cSC4FireOccupant::AddHosed(int delta)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): result clamped at 0
+cISC4FireOccupant	cSC4FireOccupant	00a88460	13	+0x34	0068d1d0	cSC4FireOccupant::GetFireID	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x68
+cISC4FireOccupant	cSC4FireOccupant	00a88460	14	+0x38	006d6e00	cSC4FireOccupant::SetFireID(uint32)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): +0x68
