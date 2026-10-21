@@ -98,6 +98,7 @@
 #include <cstdio>
 #include <cstring>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -204,6 +205,8 @@ cISC4City* AppCity() {
     if (app == nullptr || !app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) || sc4 == nullptr) {
         return nullptr;
     }
+    // Our QueryInterface added the reference we drop: record it so the audit pairs the release.
+    FC4_ACQUIRED(reinterpret_cast<cIGZUnknown*>(sc4), "QueryInterface");
     cISC4City* city = sc4->GetCity();
     FC4_RELEASE(sc4);
     return city;
@@ -1081,6 +1084,12 @@ public:
                 default: {
                     auto it = tokens_.find(id);
                     if (it != tokens_.end()) r.token = it->second;
+                    // Diagnostic: a class the shadow cannot resolve to a core object (each class once).
+                    static std::set<uint32_t> s_reported;
+                    if (s_reported.insert(cls).second) {
+                        Log("mysims shadow (cont.) inject: ref class 0x%08X (iid 0x%08X) resolves to a host token only",
+                            cls, iid);
+                    }
                     break;
                 }
             }
@@ -1500,10 +1509,16 @@ int Compare(int32_t id, int32_t julian, char (&date)[16], uint32_t& sims) {
             const size_t nameLen = fc4_advisors_advisor_text(g_core, id, 1, name, sizeof(name));
             std::string pname(name, nameLen < sizeof(name) - 1 ? nameLen : sizeof(name) - 1);
             if (pname != d.personalName) { ++mismatches; addDiff("personal_name"); }
-            if (st.month_counter != d.monthCounter) { ++mismatches; addDiff("month_counter"); }
-            if (st.current_day != d.currentDay) { ++mismatches; addDiff("current_day"); }
-            if (st.cursor != d.cursor) { ++mismatches; addDiff("cursor"); }
-            if (st.advice_count != d.adviceCount) { ++mismatches; addDiff("advice_count"); }
+            // The differing values are named (orig/shadow) so a mismatch can be diagnosed from the log.
+            auto addVal = [&addDiff](const char* f, long long o, long long s) {
+                char b[96];
+                snprintf(b, sizeof(b), "%s(orig=%lld shadow=%lld)", f, o, s);
+                addDiff(b);
+            };
+            if (st.month_counter != d.monthCounter) { ++mismatches; addVal("month_counter", d.monthCounter, st.month_counter); }
+            if (st.current_day != d.currentDay) { ++mismatches; addVal("current_day", d.currentDay, st.current_day); }
+            if (st.cursor != d.cursor) { ++mismatches; addVal("cursor", d.cursor, st.cursor); }
+            if (st.advice_count != d.adviceCount) { ++mismatches; addVal("advice_count", d.adviceCount, st.advice_count); }
         }
     } while (false);
     if (mismatches != 0) {
@@ -1601,6 +1616,20 @@ int CompareAgent(char (&date)[16], uint32_t& sims) {
 }
 
 // One comparison pass over all captured sims + agent.
+// Diagnostic: the shadow's month counter / day / advice count per MySim at one load stage.
+void TraceAdvisorPart(const char* stage) {
+    std::string line;
+    for (int32_t id : kMySimIds) {
+        fc4_advisor_state st{};
+        st.struct_size = sizeof(st);
+        if (g_core == nullptr || !fc4_advisors_advisor_state(g_core, id, &st)) continue;
+        char b[80];
+        snprintf(b, sizeof(b), " id=%d mc=%d day=%d advices=%u", id, st.month_counter, st.current_day, st.advice_count);
+        line += b;
+    }
+    Log("mysims shadow (cont.) load trace %s:%s", stage, line.c_str());
+}
+
 int RunCompare(int32_t julian, uint32_t event, char (&date)[16]) {
     DateText(julian, date, sizeof(date));
     uint32_t sims = 0;
@@ -1716,6 +1745,7 @@ void MySimsShadowCityLoaded(cISC4City* city) {
     if (!fc4_mysims_agent_init(g_core)) {
         Log("mysims shadow %s: WARNING agent init false", date);
     }
+    TraceAdvisorPart("after inject");
     // ONE hand-delivered PostCityInit (+ CityEstablished) — the shadow target
     // subscribed for the ticker but PostCityInit arrives via the observer's
     // path only once; the core needs it to run the first update_variables.
@@ -1724,11 +1754,13 @@ void MySimsShadowCityLoaded(cISC4City* city) {
         m.msg_type = kMsgPostCityInit;
         fc4_advisors_do_message(g_core, &m);
         g_state.postCityInitDelivered = true;
+        TraceAdvisorPart("after PostCityInit");
         if (CityEstablished(city)) {
             fc4_adv_message e{};
             e.msg_type = kMsgCityEstablished;
             fc4_advisors_do_message(g_core, &e);
             g_state.cityEstablishedDelivered = true;
+            TraceAdvisorPart("after CityEstablished");
         }
     }
     char loadDate[16];
@@ -1741,6 +1773,9 @@ void MySimsShadowCityLoaded(cISC4City* city) {
 
 void MySimsShadowMonth(cISC4City* city, int32_t julian) {
     if (!g_enabled || !g_started || g_core == nullptr || city == nullptr) return;
+    // Re-capture the original now: the comparison is against the original's current
+    // records, not the ones captured at load (the shadow core is not re-injected).
+    CaptureSims(city);
     char date[16];
     const int mismatches = RunCompare(julian, 1, date);
     Log("mysims shadow %s month: sims=%u mismatches=%d", date, g_state.lastSims, mismatches);
