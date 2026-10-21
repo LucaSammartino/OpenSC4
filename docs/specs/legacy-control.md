@@ -1,6 +1,6 @@
 # Legacy control (`cGZLegacyControl`): building widgets from `LEGACY` script blocks
 
-Status: partial, 41 of 57 owner functions complete, 1 partial (Grid) (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
+Status: partial, 42 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
 (Windows). Covered: object layout, COM surface, lifecycle, the shared vocabulary and its two lookup maps, the
 `SetParameters` build sequence, the property-list readers, and the full word tables of all 21 vocabulary
 functions. Per-control interpreter contracts (`InterpretProperties*`) are specified for the common pass (§8);
@@ -447,7 +447,7 @@ comment list, and parameter `0x3ACA6906` = {0, 0}; second pass `SetFlag(0x2, fal
 | GZWinSlider | `0x00950218` | 403 | **specified** (§9.1), slot names on the slider interface *[inferred]* |
 | GZWinTreeView | `0x009586B0` | 4857 | **specified** (§9.2) |
 | GZWinFileBrowser | `0x00954212` | 3761 | **specified** (§9.3) |
-| GZWinGrid | `0x0095A250` | 3537 | **specified** (§9.5; cell branch nesting partial, LC7) |
+| GZWinGrid | `0x0095A250` | 3537 | **specified** (§9.5) |
 | all other 15 | §4.1 | 465–3105 | open (LC4) |
 
 Every per-type interpreter starts the same way: `QueryInterface` the control for its own IID (§4.1); on failure
@@ -647,13 +647,28 @@ missing → (0,0,0)) → **always** `+0xE8` (column colour, row colour). Nothing
     Fields: 1 column, 2 row (decimal), 3 cell flags (hex), 4–5 data (rejoined as `f4,f5`), 6 font name
     (→ WCM `+0x98` font id), 7–11 five numbers (cell style values). Before the first accepted cell, a
     cell-notifier object (16 bytes, vtable `0x00AD538C`, wrapping a new 36-byte object from `0x009ABB63`) is
-    stored as parameter `0x287A7136`. Effects by cell flags: without `0x40000` the data is read as
-    `%08x,%08x` (group, instance): with `0x2000` the image buffer is loaded and set with `+0x1C8` (col, row,
-    buffer, 1); else with `0x10000` the string resource is loaded and set as text with `+0x1C0` (col, row,
-    text). With `0x40000` the data itself is the text (`+0x1C0`). With `0x1000` a cell-data record (font
-    from the font id when non-zero, the five style numbers, alignment byte 1 when flag `0x100000` else −1) is
-    set with `+0x154` (col, row, &record). Finally helper `0x0095A0F3` (col, row, &key, 0) is called. The
-    branch nesting of this step is from pseudocode and is *[partial]* (LC7).
+    stored as parameter `0x287A7136`. Per accepted cell, with F = field 3 (byte-checked against the
+    instructions `0x0095AA02`–`0x0095AC59`; answers LC7):
+    1. Data scan: if bit `0x40000` of the **style-word scratch** is clear (Q10), the data text is scanned as
+       `%08x,%08x` into (group, instance). The two values are not reset per cell: fields that do not parse keep
+       the previous cell's values.
+    2. A fresh cell descriptor is built each cell (all zero, empty text) and its third word is set to F.
+    3. If F has `0x40000`: the data text itself is the cell text; call `+0x1C0` (col, row, text, length,
+       1, wrap) with wrap = 1 when F has `0x80000`, else 0. Steps 4–5 are skipped; the descriptor's group and
+       instance stay 0.
+    4. Else the descriptor takes (group, instance). If F has `0x2000`: load the image buffer of key
+       (type `0x856DDBAC`, group, instance) (helper `0x0094C4E0`); if it loads, `+0x1C8` (col, row, buffer, 1),
+       then release the buffer. A failed load sets nothing.
+    5. Else (no `0x2000`) if F has `0x10000`: load the string resource (group, instance) (helper `0x0094C58D`);
+       if it loads, `+0x1C0` (col, row, text, its length, 1, wrap as in 3). Neither `0x2000` nor `0x10000`:
+       no content call.
+    6. Independently of 3–5, if F has `0x1000`: a cell-data record is built from its default constructor
+       (`0x009A5BF2`): font slot `+0x00` = WCM `+0x14` (field 6 font id) only when that id is non-zero; `+0x04` =
+       field 7 (32-bit); `+0x14` = alignment byte, 1 when F has `0x100000`, else −1 (`0xFF`); `+0x15`, `+0x16`,
+       `+0x17` = low bytes of fields 8, 9, 10; `+0x18` = field 11 (32-bit); then `+0x154` (col, row, &record).
+    7. Always: helper `0x0095A0F3` on the cell notifier (col, row, &descriptor, 0).
+    Col and row are fields 1 and 2 in that argument order. The meaning of record fields 7–11 beyond these
+    offsets belongs to the grid control spec.
 12. Columns: every `wingridcol` `0x1626` string `%d,%d,%d` (all three required; else skipped): before the
     first, a notifier (vtable `0x00AD5398`) is stored as parameter `0xC88CCB6D`; helper `0x009583C5`
     (first, 0, …) then `+0x104` (first, **1**, third): only one column is sized, the second number is
@@ -688,13 +703,15 @@ The font counterpart (`0x0094C222` Uint32 / `0x0094C255` String) stores the valu
 - Q7. Grid `wingridcol=a,b,w` sizes only column a; b is ignored (rows use the a..b range).
 - Q8. Script fragment: with only one of the class/interface parameters stored, the other comes from the first
   table row the control answers (§7.6).
+- Q10. Grid cells: the "scan the data as a resource key" test reads bit `0x40000` of the shared style-word scratch
+  (the value of the last present grid style word, `0x0095A932`), not of the cell's flags; style values are
+  normally 0/1, so the scan effectively always runs. Uninitialised when no style word is present.
 - Q9. Script fragment `fillcolor`: upper 24 bits of each component are uninitialised stack in the original (§7.6).
 
 ## 11. Open questions
 
 - LC8. Word sets of the 19 per-type script-fragment writers (§7.6 table; not owner functions).
 - LC4. Interpreter effect tables (§8, §9).
-- LC7. Grid `wingridcell` (§9.5 step 11): exact branch nesting of the cell flags and the meaning of fields 7-11.
 - LC5. Window manager slot 3 (`+0x0C`) used as the default parent: confirm it is the root/main window.
 
 ## 12. Coverage of owner functions (honest)
@@ -709,7 +726,7 @@ Custom interpreter are shared bodies owned elsewhere).
 | `SetParameters` | 1 | specified (§6) |
 | `GetScriptFragment` | 1 | specified (§7.4; serialiser frame, class/interface and common words §7.6; per-type writer word sets are non-owner functions, LC8) |
 | `ControlVocabulary*` | 21 | specified (§4: every word, ID and map entry) |
-| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Custom (shared stub) specified; Grid (§9.5) partial (cell branch nesting, LC7); 15 owned interpreters open (LC4) |
+| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Grid (§9.5), Custom (shared stub) specified; 15 owned interpreters open (LC4) |
 
-Count: 41 of 57 owner functions complete (14 COM/lifecycle + `SetParameters` + `GetScriptFragment` + 21 vocabulary +
-Common, Slider, TreeView, FileBrowser); 1 partial (Grid, LC7); 15 interpreters open (LC4). No wildcard credit.
+Count: 42 of 57 owner functions complete (14 COM/lifecycle + `SetParameters` + `GetScriptFragment` + 21 vocabulary +
+Common, Slider, TreeView, FileBrowser, Grid); 15 interpreters open (LC4). No wildcard credit.

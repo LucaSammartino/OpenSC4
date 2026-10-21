@@ -10,3 +10,6 @@
 - **LC3 - section 7.4:** what text does serialiser 0x00965F73 (called by GetScriptFragment) write for a control? [unknown; return false until specified]
   **ANSWERED 2026-10-21 (re-legacycontrol4):** DIFFERS — it writes `<LEGACY clsid=.. iid=.. ` + common words (id, area, fillcolor, caption, captionres, comments, 13 yes/no flags) + per-type words + `>
 ` and always succeeds; see section 7.6 (per-type word sets open as LC8).
+<!-- from: re-legacycontrol4 (2026-10-21) -->
+- **LC7 - section 9.5:** exact branch nesting of the GZWinGrid `wingridcell` flags (0x40000/0x2000/0x10000/0x1000) and the meaning of cell fields 7-11 (parser 0x00956464). [inferred from pseudocode; see 9.5 step 11]
+  **ANSWERED 2026-10-21 (re-legacycontrol4):** DIFFERS — 0x40000 text branch excludes image/string-resource; 0x2000 image else 0x10000 string resource; 0x1000 record independent; the key scan tests the stale style-word scratch (Q10); record offsets in section 9.5 step 11.
