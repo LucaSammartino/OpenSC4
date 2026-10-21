@@ -58,3 +58,19 @@
   plain un-modelled pieces the replacement inserts (the piece solver NG5 is the declared follow-up) reaching
   the game's vertex-array draw path. Does the original reject a diagonal mask-0 run before the commit (and
   with which code), or does it also reach the piece/draw path? [refused by the passes *[inferred]*]
+
+<!-- from: core-powerline4 (engine lane, 2026-10-21) -->
+- **NT18 - §9 step 2, `DeterminePolePositions` (`0x00650840`) and `PlacePoles(1)` (`0x00651560`):** the spec names
+  them but gives no body: how pole cells are chosen along the drag (spacing, corners, reuse of existing poles), what
+  the 48-byte pole record holds besides the cell, how `+0x384` (wire cells) is counted, what `PlacePoles`' argument
+  means, and where slot 81 `CheckForReservedTiles` is called on this path (it is the only source of the power-line
+  codes, and §9 step 4 reads the valid count and the code after step 2). The core keeps them as host hooks. [missing]
+- **NT19 - network-geometry §11, the power-line parameter defaults:** only `+0x3A4` has a stated default (20). What
+  are the defaults of `+0x3A8` (`0x098B27D0`), `+0x3AC` (`0x4A5F5953`) and `+0x3B0` (`0x0A5F596B`) when the exemplar
+  lacks them, and what do `+0x3A4`/`+0x3A8` control? The core uses 0. [missing]
+- **NT20 - §9 step 4 and §11 NT3, two literal readings:** (a) "When `real`, `AttemptNeighborConnections` is followed
+  by `PlaceNeighborConnections`": does `AttemptNeighborConnections` also run in draft mode, and does
+  `PlaceNeighborConnections` depend on its result? The core runs Attempt whenever the conditions hold and Place
+  after it when real, regardless of the result. (b) In `CheckForReservedTiles`, a zoned (1) or road (3) last cell
+  leaves `last` at the previous clear cell, so a line ending on a zoned cell loses that cell (v = last + 1); is that
+  the original's behaviour, and what does a `CellIsOKForPlacement` result above 3 do (the core ignores it)? [ambiguous]
