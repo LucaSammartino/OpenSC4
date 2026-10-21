@@ -12,12 +12,13 @@
 //!
 //! - [`record`], [`xform`]: the §2.3 base record v4-v8 and the transform.
 //! - [`underground`]: §3.2 behaviour and the §3.3-§3.5 records.
+//! - [`model`]: §10, `cSC4NetworkOccupantModelInstance` (deform, passes, fallback).
 //!
 //! Not here: the underground connection occupants (§3.6), the pole object (§4.1–§4.4), the
-//! pylon (§6), the type-info tables and routines (§8, §9), the model side
-//! (§10).
+//! pylon (§6), the type-info tables and routines (§8, §9).
 
 pub mod identity;
+pub mod model;
 pub mod piece;
 pub mod power_line;
 pub mod power_pole;
@@ -28,9 +29,12 @@ pub mod xform;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_model;
+#[cfg(test)]
 mod tests_record;
 
 pub use identity::{is_of_type, query_interface, NetOccClass, QiAnswer};
+pub use model::{NetworkModelInstance, PieceRender};
 pub use piece::{world_to_cell, NetworkPiece, PieceHost};
 pub use power_line::{PowerLine, PowerLineRecord};
 pub use power_pole::PowerLineControl;
