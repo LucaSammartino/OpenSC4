@@ -231,7 +231,10 @@ cSC4AnimationTickManager	other simulation	simulation	-	-	-	-
 cSC4Nation	region	region	nation.md	-	-	-
 cSC4RegionalCity	region	region	regional-city.md, foundations.md	-	-	-
 fn:GZCOM_CreatecSC4RegionalCity	region	region	regional-city.md	-	-	-
-fn:SC4ReadRegionalCity	region	region	regional-city.md, foundations.md	-	-	-
+fn:SC4ReadRegionalCity	region	region	regional-city.md, region.md, foundations.md	-	-	-
+fn:SC4WriteRegionalCity	region	region	region.md	-	-	-
+fn:SC4CreateCitySerialNumber	region	region	region.md	-	-	-
+cSC4Region	region	region	region.md	-	-	-
 cSC4Region*	region	region	-	-	-	-
 cSC4WinRegion*	region	region	-	-	-	-
 cSC4NewRegionDialog	region	region	-	-	-	-

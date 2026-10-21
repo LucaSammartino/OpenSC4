@@ -1644,40 +1644,43 @@ va	name	source	confidence	note
 004a4310	cSC4PropManager::StaticInit	auto:D	medium	mac 0012d7fc score 0.5 support 1
 004a4360	cSC4PropManager::GetPropName	auto:C	high	mac 0012e588 score 1.0 support 1
 004a4380	cSC4PropManager::Init	auto:A	high	mac 0012d846 score 0.508 support 0
-004a44e0	cSC4Region::QueryInterface	auto:A	high	mac 001ee158 score 1.0 support 0
-004a4510	cSC4Region::SetName	auto:C	low	mac 001ee1ea score 1.0 support 1
-004a4520	cSC4Region::SetDirectoryName	auto:C	low	mac 001ee20a score 1.0 support 1
-004a4570	cSC4Region::Release	auto:C	high	mac 001ee1c4 score 1.0 support 1
-004a45a0	cSC4Region::GetBoundingRect	auto:C	high	mac 001ee286 score 1.0 support 1
+004a44e0	cSC4Region::QueryInterface	manual:region.tsv	high	region.md §1; 1, 0x89D2BE26
+004a4510	cSC4Region::SetName	manual:region.tsv	high	region.md §1; slot 4
+004a4520	cSC4Region::SetDirectoryName	manual:region.tsv	high	region.md §1; slot 6
+004a4570	cSC4Region::Release	manual:region.tsv	high	region.md §1; Shutdown then the deleting destructor
+004a45a0	cSC4Region::GetBoundingRect	manual:region.tsv	high	region.md §7; tile corners only
 004a4660	std::set<cISC4RegionalCity*,std::less<cISC4RegionalCity*>,std::allocator<cISC4RegionalCity*>>::set	auto:D	medium	mac 00607972 score 0.5 support 1
 004a46a0	__gnu_cxx::hashtable<std::pair<SC4Point<long>const,cRZAutoRefCount<cISC4RegionalCity>*>,SC4Point<long>,cSC4Region::RegionalCellHashFunction,std::_Select1st<std::pair<SC4Point<long>const,cRZAutoRefCount<cISC4RegionalCity>*>>,std::equal_to<SC4Point<long>>,std::allocator<cRZAutoRefCount<cISC4RegionalCity>*>>::find	auto:D	medium	mac 006c6f38 score 0.5 support 1
 004a4760	__gnu_cxx::hashtable<std::pair<SC4Point<long>const,cRZAutoRefCount<cISC4RegionalCity>*>,SC4Point<long>,cSC4Region::RegionalCellHashFunction,std::_Select1st<std::pair<SC4Point<long>const,cRZAutoRefCount<cISC4RegionalCity>*>>,std::equal_to<SC4Point<long>>,std::allocator<cRZAutoRefCount<cISC4RegionalCity>*>>::erase	auto:B0	medium	mac 006c73c2 score 0.98 support 1.0
 004a4830	__gnu_cxx::hashtable<std::pair<SC4Point<long>const,cRZAutoRefCount<cISC4RegionalCity>*>,SC4Point<long>,cSC4Region::RegionalCellHashFunction,std::_Select1st<std::pair<SC4Point<long>const,cRZAutoRefCount<cISC4RegionalCity>*>>,std::equal_to<SC4Point<long>>,std::allocator<cRZAutoRefCount<cISC4RegionalCity>*>>::find_or_insert	auto:B0	medium	mac 006c7ece score 0.908 support 1.0
-004a4930	cSC4Region::GetCity	auto:C	high	mac 001ee80e score 1.0 support 1
+004a4930	cSC4Region::GetCity	manual:region.tsv	high	region.md §5
+004a4970	cSC4Region::IsCityAreaOccupied	manual:region.tsv	high	region.md descriptive name, no Mac match; §4; any cell of the city's rectangle in the map
 004a4ad0	__gnu_cxx::hash_map<SC4Point<long>,cRZAutoRefCount<cISC4RegionalCity>*,cSC4Region::RegionalCellHashFunction,std::equal_to<SC4Point<long>>,std::allocator<cRZAutoRefCount<cISC4RegionalCity>*>>::operator[]	auto:D	medium	mac 006c7f68 score 0.5 support 1
-004a4b50	cSC4Region::RemoveCity	auto:C	high	mac 001efdfc score 1.0 support 1
-004a4c20	cSC4Region::GetCityLocations	auto:C	high	mac 001ee83e score 1.0 support 1
-004a4ca0	cSC4Region::GetBaseTerrainHeight	auto:C	low	mac 006c6b4c score 1.0 support 1
-004a4cb0	cSC4Region::SetBaseTerrainType	auto:C	low	mac 006c6b5e score 1.0 support 1
-004a4cc0	cSC4Region::GetWaterPrefs	auto:C	high	mac 006c6b6c score 1.0 support 1
-004a4ce0	cSC4Region::GetAllCities	auto:C	high	mac 001efd16 score 1.0 support 1
-004a4f00	cSC4Region::InsertCity	auto:C	high	mac 001eed84 score 1.0 support 1
-004a5030	cSC4Region::ReloadCity	auto:B3	medium	mac 001efee6 score 0.972 support 1.0
-004a5120	cSC4Region::DeleteCity	auto:C	high	mac 001effd0 score 1.0 support 1
-004a51c0	cSC4Region::MoveOverflowCitiesToDownloadDirectory	auto:B1	medium	mac 001f0056 score 0.901 support 2.0
-004a53e0	cSC4Region::~cSC4Region	auto:C	high	mac 001eebf2 score 1.0 support 1
-004a5400	cSC4Region::ResetTutorialCity	auto:A	high	mac 001ee66c score 0.569 support 0
-004a58d0	cSC4Region::LoadCitiesFromDirectory	auto:B1	medium	mac 001ef98c score 0.943 support 4.0
-004a5b30	cSC4Region::cSC4Region	auto:B5	medium	mac 001eecc8 score 0.95 support 2.0
-004a5be0	cSC4Region::Shutdown	auto:B0	medium	mac 001ef650 score 0.813 support 3.5
-004a6330	cSC4Region::LoadCities	auto:B2	medium	mac 001efb9c score 0.886 support 2.0
-004a65a0	cSC4Region::Delete	auto:A	high	mac 001ef1c6 score 1.0 support 0
-004a67b0	cSC4Region::CreateRegion	auto:A	high	mac 001ef36a score 0.857 support 0
-004a6ac0	cSC4Region::CreateStarterRegion	auto:B1	medium	mac 001ef60e score 0.956 support 2.0
-004a6b00	cSC4Region::LoadCityLocations	auto:A	high	mac 001eea28 score 0.814 support 0
-004a6c80	cSC4Region::Init	auto:B0	medium	mac 001f01e8 score 0.942 support 1.0
-004a6cd0	cSC4Region::LoadConfig	auto:B1	medium	mac 001eee2e score 0.896 support 6.0
-004a7200	cSC4Region::MoveCity	auto:B2	medium	mac 001ee3f0 score 0.958 support 2.0
+004a4b50	cSC4Region::RemoveCity	manual:region.tsv	high	region.md §5; frees the holder
+004a4c20	cSC4Region::GetCityLocations	manual:region.tsv	high	region.md §7
+004a4c30	cSC4Region::~cSC4Region (body)	manual:region.tsv	high	region.md descriptive name, no Mac match; §1
+004a4ca0	cSC4Region::GetBaseTerrainHeight	manual:region.tsv	high	region.md §7; table 0x00B217B0
+004a4cb0	cSC4Region::SetBaseTerrainType	manual:region.tsv	high	region.md §7
+004a4cc0	cSC4Region::GetWaterPrefs	manual:region.tsv	high	region.md §7
+004a4ce0	cSC4Region::GetAllCities	manual:region.tsv	high	region.md §5; each city once, address order
+004a4f00	cSC4Region::InsertCity	manual:region.tsv	high	region.md §5; one holder for all cells
+004a5030	cSC4Region::ReloadCity	manual:region.tsv	high	region.md §5; neighbors.md §14.1
+004a5120	cSC4Region::DeleteCity	manual:region.tsv	high	region.md §5; deletes the file
+004a51c0	cSC4Region::MoveOverflowCitiesToDownloadDirectory	manual:region.tsv	high	region.md §4
+004a53e0	cSC4Region::~cSC4Region	manual:region.tsv	high	region.md §1; deleting, slot 25
+004a5400	cSC4Region::ResetTutorialCity	manual:region.tsv	high	region.md §6; record 0x6A5B7BF5/0x6A5B7B57/id
+004a5640	cSC4Region::ReadCityLocations	manual:region.tsv	high	region.md descriptive name, no Mac match; §3; red 1, green 2, blue 4
+004a58d0	cSC4Region::LoadCitiesFromDirectory	manual:region.tsv	high	region.md §4; *.sc4
+004a5b30	cSC4Region::cSC4Region	manual:region.tsv	high	region.md §1; water 60, 100
+004a5be0	cSC4Region::Shutdown	manual:region.tsv	high	region.md §2; writes region.ini back
+004a6330	cSC4Region::LoadCities	manual:region.tsv	high	region.md §4; exact tile match
+004a65a0	cSC4Region::Delete	manual:region.tsv	high	region.md §6
+004a67b0	cSC4Region::CreateRegion	manual:region.tsv	high	region.md §6; random built-in config.bmp
+004a6ac0	cSC4Region::CreateStarterRegion	manual:region.tsv	high	region.md §6
+004a6b00	cSC4Region::LoadCityLocations	manual:region.tsv	high	region.md §3; config.bmp or the built-in layout
+004a6c80	cSC4Region::Init	manual:region.tsv	high	region.md §4
+004a6cd0	cSC4Region::LoadConfig	manual:region.tsv	high	region.md §2; region.ini [Regional Settings]
+004a7200	cSC4Region::MoveCity	manual:region.tsv	high	region.md §6; rename, rewrite the record, Init again
 004a74e0	cSC4RegionalCity::QueryInterface	manual:regional-city.tsv	high	regional-city.md §1; 1, 0x69D2BE1D, 0x452294AA (+4), 0xE4FDA3D4 (+8)
 004a7580	cSC4RegionalCity::GetTaxRate	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §4.2; 7.0 for other types
 004a7640	cSC4RegionalCity::GetBudget	manual:regional-city.tsv	high	regional-city.md descriptive name, no Mac match; §3; double
@@ -4237,7 +4240,7 @@ va	name	source	confidence	note
 005dbae0	operator>>	auto:B5	medium	mac 00098592 score 0.947 support 2.0
 005dbc10	SC4CloseSaveGame	auto:B3	medium	mac 001630c8 score 0.94 support 3.0
 005dbc40	SC4ReadBinaryRecord	auto:B2	medium	mac 00163106 score 0.971 support 2.0
-005dbd40	SC4CreateCitySerialNumber	auto:B1	medium	mac 001633d8 score 0.956 support 2.0
+005dbd40	SC4CreateCitySerialNumber	manual:region.tsv	high	region.md §8
 005dbdc0	SC4ReadBinaryRecord	auto:B1	medium	mac 00163240 score 0.982 support 3.0
 005dbe20	SC4ReadStringRecord	auto:B0	medium	mac 0016346e score 0.952 support 3.0
 005dbea0	SC4WriteStringRecord	auto:B0	medium	mac 00163510 score 0.953 support 2.0
@@ -4246,8 +4249,8 @@ va	name	source	confidence	note
 005dbfe0	SC4OpenSaveGame	auto:B1	medium	mac 00163626 score 0.958 support 3.0
 005dc070	SC4ReadRegionalCity	manual:regional-city.tsv	high	regional-city.md §1; record 0xCA027EDB/0xCA027EE1/0
 005dc1a0	SC4WriteRegionalCity	auto:A	high	mac 00163308 score 0.765 support 0
-005dc220	SC4ReadRegionalCity	auto:B0	medium	mac 001638d4 score 0.843 support 2.0
-005dc2e0	SC4WriteRegionalCity	auto:B3	medium	mac 001636e4 score 0.843 support 2.0
+005dc220	SC4ReadRegionalCity	manual:region.tsv	high	region.md §8; from a path, save version 62-65
+005dc2e0	SC4WriteRegionalCity	manual:region.tsv	high	region.md §8; to a path, save version 62-65
 005dc400	SC4CreateSavePathForCity	auto:A	high	mac 001639a6 score 1.0 support 0
 005dc790	SC4CreateSavePathForCity	auto:B2	medium	mac 00163c8a score 0.897 support 1.0
 005dc910	SC4ReadCityRegionViewThumbnailBitmapFile	auto:D	medium	mac 00156c96 score 0.5 support 1
@@ -6775,7 +6778,7 @@ va	name	source	confidence	note
 006d4740	cSC4NeighborConnection::SetVisitedThisCycle	auto:C	high	mac 00606e9c score 1.0 support 1
 006d4760	cSC4NeighborConnection::GetIsActive	auto:C	low	mac 00606eb4 score 1.0 support 1
 006d4770	cSC4NeighborConnection::SetIsActive	auto:C	high	mac 00606ec8 score 1.0 support 1
-006d4790	cSC4Region::GetDirectoryName	auto:C	low	mac 006c6b34 score 1.0 support 1
+006d4790	cSC4Region::GetDirectoryName	manual:region.tsv	high	region.md §1; slot 5
 006d47e0	__ZThn8_N22cSC4NeighborConnectionD0Ev	auto:B0	low	mac 00608006 score 0.96 support 1.0
 006d4860	cSC4NeighborsSimulator::CreateConnection	auto:A	high	mac 00051cf0 score 1.0 support 0
 006d4b90	GZCOM_CreatecSC4NeighborConnection	auto:B6	medium	mac 0004d374 score 0.896 support 1.0
