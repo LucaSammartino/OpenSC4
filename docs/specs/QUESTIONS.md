@@ -35,6 +35,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CB | civic-buildings |
 | CD | city-detail |
 | CK | clock24 |
+| CL | command-line |
 | CM | commercial-industrial |
 | CQ | crime |
 | CR | power |
@@ -45,13 +46,16 @@ generated index: the questions live one file per spec, so read only the file for
 | DP | dispatch |
 | DQ | demand, demolition |
 | DS | disasters |
+| DT | dates |
 | EF | effects |
 | EH | residential-education-health |
 | EX | data-formats |
 | FL | flammability |
+| FM | feature-manager |
 | FN | drawing-fonts |
 | FQ | flora |
 | FS | graphics-formats |
+| GC | command-system |
 | GF | graphics-formats |
 | GLUE | lot-configuration, prop-developer |
 | GZ | framework-gz-services |
@@ -70,8 +74,11 @@ generated index: the questions live one file per spec, so read only the file for
 | NO | network-occupants |
 | NR | network-rules |
 | NT | network-tools |
+| OG | occupant-groups |
 | OM | occupant-manager |
 | OP | occupants-props |
+| OS | output-streams |
+| PA | paths |
 | PD | port-developers |
 | PF | pathfinder |
 | PG | pollution |
@@ -93,10 +100,12 @@ generated index: the questions live one file per spec, so read only the file for
 | SR | span-render-1555, span-render-565, span-render-8 |
 | SV | foundations, ordinance |
 | TG | traffic-simulator |
+| TM | timers |
 | TN | traffic-network |
 | TR | terrain |
 | TS | traffic-simulator |
 | TU | tutorial |
+| UG | underground-occupants |
 | WT | widget-toolkit |
 | ZG | zones |
 | ZQ | zones |
@@ -118,15 +127,19 @@ generated index: the questions live one file per spec, so read only the file for
 | city-tools-input | 5 | 0 | CT6 | questions/city-tools-input.md |
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
+| command-line | 1 | 0 | CL2 | questions/command-line.md |
+| command-system | 4 | 0 | GC5 | questions/command-system.md |
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 0 | 45 | EX46 | questions/data-formats.md |
+| dates | 1 | 0 | DT2 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 40 | DS42 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
 | drawing-fonts | 6 | 0 | FN7 | questions/drawing-fonts.md |
 | effects | 3 | 10 | EF14 | questions/effects.md |
+| feature-manager | 2 | 0 | FM3 | questions/feature-manager.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
@@ -147,12 +160,15 @@ generated index: the questions live one file per spec, so read only the file for
 | network-occupants | 17 | 0 | NO18 | questions/network-occupants.md |
 | network-rules | 3 | 7 | NR14 | questions/network-rules.md |
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
+| occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
 | occupants-props | 12 | 0 | OP13 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
+| output-streams | 2 | 0 | OS3 | questions/output-streams.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
+| paths | 3 | 0 | PA4 | questions/paths.md |
 | persistence | 3 | 0 | PR4 | questions/persistence.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
@@ -171,11 +187,13 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8 | 2 | 0 | SR9 | questions/span-render-8.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
+| timers | 1 | 0 | TM2 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 0 | 2 | TU6 | - |
+| underground-occupants | 4 | 0 | UG5 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **147** | **1013** | | |
+| **total** | **167** | **1013** | | |

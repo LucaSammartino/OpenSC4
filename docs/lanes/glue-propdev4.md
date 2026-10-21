@@ -1,8 +1,6 @@
-| Lane | Agent/worktree | State at stop | Next steps |
-|---|---|---|---|
 # Lane glue-propdev4 (finish/validate the cFC4PropDeveloper replacement, enable=propdev)
 
-| Lane | Worktree | State at stop | Next steps |
+| Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
 | glue-propdev4: validate cFC4PropDeveloper (enable=propdev); fix its deterministic-pacing idle cadence | .claude/worktrees/glue-propdev4, branch glue-propdev4 | **ready** (engine/plugin only, no C ABI change; gate PASS; game r1/sh1/r2 clean ref0, shadow 24/24 mismatches=0) | coordinator: union regress `--add-replace propdev` before promoting it to the default replace set |
 
