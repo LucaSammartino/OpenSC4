@@ -937,6 +937,8 @@ pub mod zonedev;
 pub mod zones;
 // glue-formats4: DBPF packages and exemplars for the plug-in's formats shadow.
 pub mod dbpf;
+// glue-disasters-impl4: the layer-only disaster layer (`enable = disasters`).
+pub mod disaster_layer;
 
 #[cfg(test)]
 mod tests;
@@ -1099,3 +1101,6 @@ mod zonedev_tests;
 
 #[cfg(test)]
 mod audio_tests;
+
+#[cfg(test)]
+mod disaster_layer_tests;
