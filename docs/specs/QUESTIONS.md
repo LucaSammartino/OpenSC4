@@ -126,7 +126,7 @@ generated index: the questions live one file per spec, so read only the file for
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 2 | 8 | BW11 | questions/budget-window.md |
+| budget-window | 1 | 10 | BW12 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
@@ -161,13 +161,13 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | lot-records | 5 | 0 | LR6 | questions/lot-records.md |
-| mysims | 2 | 10 | MS13 | questions/mysims.md |
+| mysims | 0 | 12 | MS13 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
 | network-occupants | 17 | 3 | NO21 | questions/network-occupants.md |
-| network-rules | 3 | 8 | NR15 | questions/network-rules.md |
+| network-rules | 2 | 9 | NR15 | questions/network-rules.md |
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **200** | **1064** | | |
+| **total** | **196** | **1069** | | |
