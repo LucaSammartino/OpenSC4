@@ -398,6 +398,19 @@ two stored bytes, so h and c above 255 replay truncated.
 
 ## 9. State-change handlers (partial)
 
+### 9.1 State effect on one occupant (`0x004933A0(o, t, x, y)`, message `0x09D8E0B6`) — outline only
+
+Returns a bool (RET 0x10). Observed so far, not yet a contract: h = o's model holder (slot `+0x4C`, AddRef'd); if
+o's exemplar (slot `+0x18`) has property `0x09F00E59` true (read through `0x005FD3C0`) the state is not applied.
+Otherwise x selects a case 0..6 through the jump table at `0x0049367C` (x > 6 goes to the default at
+`0x00493647`, which calls `0x0048F380` on h). Five cases take texture binding k = 0..4 (`+0xD0` + 4k, built by
+`RebuildDynamicTexture(k)` when null, §11), apply it to h through `0x004906B0(h, 2, 0)` and then call
+`ChangeModels(o, 0x278128A0, 2)`. One case queries o for `0x87DDA3A9`, `0xA821EF94` and `0xE9793A65` (the last
+via property `0x4A9F188B` of the exemplar and the lot manager `+0x68` at the centre cell of the rect it returns)
+and, when the queried object reports true (slot `+0x40`), calls `0x00490820(h, 0x8000, 2, 1)` and on success
+`ChangeModels(o, 0x278128A0, 2)`. The case-to-value mapping, the tail after `0x0049364E` and the meaning of y are
+not traced (remainder, §20).
+
 ### 9.2 Lot state (`DoLotStateChanged(lot, a, b)` `0x00493D60`, message `0xE99B3D4D`) *[compat]*
 
 a = message slot `+0x24`, b = message slot `+0x38` (§5). Take the lot's cell rect (lot slot `+0x38`, four int32)
@@ -590,7 +603,7 @@ so this spec does not yet claim the whole owner.
 | `0x00492CC0` | 1068 | cSC4ModelMaker::RebuildDynamicTexture | remainder |
 | `0x004930F0` | 585 | cSC4ModelMaker::DoLightingChanged | remainder |
 | `0x00493340` | 86 | cSC4ModelMaker::RemoveModels | §12.1 |
-| `0x004933A0` | 729 | FUN_004933a0 | remainder |
+| `0x004933A0` | 729 | FUN_004933a0 | §9.1 (outline) |
 | `0x004936A0` | 96 | FUN_004936a0 | §8 |
 | `0x00493700` | 25 | FUN_00493700 | §6.2 |
 | `0x00493720` | 40 | FUN_00493720 | §6.2 |
