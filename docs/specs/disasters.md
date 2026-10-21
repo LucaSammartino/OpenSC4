@@ -53,8 +53,8 @@ coverage grids), [weather.md](weather.md) (wind), [INVENTORY.md](INVENTORY.md) (
 
 ## 1. Identity
 
-The layer is a city sub-object, not a saved component. The city creates it in `CreateCityComponents`
-(`0x0045B01C`), keeps it at city `+0x1C4`, returns it from city slot 72 (`GetDisasterLayer`, `+0x120`), and calls
+The layer is a city sub-object, not a saved component. The city creates it through GZCOM in `CreateCityComponents`
+(`0x0045B01C`; §2.8), keeps it at city `+0x1C4`, returns it from city slot 72 (`GetDisasterLayer`, `+0x120`), and calls
 its `Init` after the civic building simulator's (foundations §3.7).
 
 | Object | Manager type (`GetID`) | Class (CLSID) | Notes |
@@ -317,7 +317,141 @@ replacement must return a pointer to a record with this layout and keep it valid
 
 The "zoom level" is the tuning byte `0xCA821B8C` of each disaster (3 for fire, riot and pipe burst; §5.1).
 
-## 3. The manager framework
+### 2.8 Replacement boundary *[compat]* (answers DS42–DS44)
+
+Evidence is static: the instructions cited below, a raw byte scan of the whole executable for the global's address
+and for `0x61F6ABF5` / `0x29B02A2C`, and an audit of all 119 call sites through slot 72 (`+0x120`), each followed
+until its result dies.
+
+**Creation (DS42).** The layer is created only through GZCOM, so a factory a plugin registers for `0x61F6ABF5`
+replaces it, as for any city component (foundations §3.6, "What a replacement subsystem must do").
+
+- `cSC4City::Init` (`0x0045BD20`) calls `CreateCityComponents` (`0x0045AA10`, call at `0x0045BEBF`). If city
+  `+0x1C4` is null, that calls `GZCOM()->GetClassObject(0x61F6ABF5, 0x29B02A2C, &city[+0x1C4])` (GZCOM slot 3,
+  `0x0045B004`–`0x0045B023`). The IID is `cISC4DisasterLayer`. The result is not checked.
+- The layer is created after the civic building simulator (`+0x1B0`) and before the demolition utility (`+0x120`).
+- The game's COM director registers the class in its constructor: CLSID from `GetGZCLSID` (`0x005773A0`), factory
+  `0x00578B70`, registered at `0x00460B57`–`0x00460B64`. The factory allocates `0xD8` bytes and runs the constructor
+  (`0x00578A10`), which writes no global. It returns the `+0x08` sub-object without an AddRef. The director's
+  `QueryInterface` adds the one reference, so the city holds **exactly one reference**.
+- Nothing else in the executable names the class.
+- The layer is **not saved**. `cSC4City::Read` / `Write` run with `this` = city `+8`, and their reference list has
+  no entry for city `+0x1C4`. City `+0x1CC` (tutorial system, foundations §3.6 row 48) is a different slot.
+  `CreateCityComponents` therefore creates a fresh layer in every city, new or loaded.
+- `cSC4City` slot 72 (`GetDisasterLayer`, `0x00459830`) returns city `+0x1C4` **without AddRef**.
+- The city's constructor zeroes `+0x1C4` (`0x0045A298`). Nothing else in the city writes it.
+
+**Order inside `cSC4City::Init`:**
+
+1. `CreateCityComponents`.
+2. `SL::OnCityInit` (`0x0045BEC4`), which fills the cached globals, including `0x00B43D3C` (below).
+3. Later, the component `Init`s: the civic building simulator, then the **layer `Init`** (slot 3, `0x0045C0CD`),
+   then the demolition utility.
+
+So, between steps 2 and 3, the global points at a layer whose `Init` has not run yet.
+
+**Teardown.** `cSC4City::Shutdown` (`0x0045B1D0`) does the following, in order:
+
+1. First, `SL::OnCityShutdown` (`0x0045B1E1`). It sets the global to 0 (`0x00602056`), together with the other
+   cached city globals.
+2. It shuts down and releases these components, in order: tutorial (`+0x1CC`), city situation manager (`+0x1EC`),
+   advisor (`+0x1C8`), the four automata managers (`+0x1DC`, `+0x1D8`, `+0x1D4`, `+0x1D0`), traffic network map
+   (`+0x1E8`), automata controller (`+0x1E0`), automata script system (`+0x1E4`), demolition (`+0x120`).
+3. Then the layer (`0x0045B346`–`0x0045B360`): if non-null, `Shutdown` (slot 4), then `Release` (slot 2), then
+   `+0x1C4` := 0.
+4. Then the civic building simulator (`+0x1B0`), MySim (`+0x1AC`), weather, and the remaining simulators.
+
+The city's destructor does not touch `+0x1C4`.
+
+While the layer's `Shutdown` runs, the managers shut their instances down (§2.2). The effect and toxic instances
+then call back into the layer (slots 9 and 14) and `Release` the references they hold (below). Those calls arrive
+while the city still holds its own reference. A replacement must accept these re-entrant calls during its own
+`Shutdown`. The global is already null at that point.
+
+**The cached global `0x00B43D3C` (DS43).**
+
+- One writer: `SL::OnCityInit` (`0x00601D79`) stores city slot 72's result. It does not AddRef.
+- One clearer: `SL::OnCityShutdown` (`0x00602056`).
+- No other byte sequence in the executable contains the address.
+- Readers (8 instructions in 7 functions). All of them only make virtual calls through the `cISC4DisasterLayer`
+  vtable:
+
+| Site | Function | Layer slots | Null check |
+|---|---|---|---|
+| `0x004283A7` | `cSC4MySim::UpdateTripVariables` | 16 `GetDisasterLocationCount`, 17 `GetDisasterLocationByIndex` | no |
+| `0x0043DD61` | `cSC4MyStreetSim::update_trip_variables` | 16, 17 | no |
+| `0x0044455D` | tutorial step (`FUN_00444552`, inside `0x00444480`) | 7 `GetDisasterManager(0x621CDA33)` | **yes** |
+| `0x0050499C` | `cSC4Airplane::DoAnimationTick` | 10 `IsADisasterOngoing` | no |
+| `0x005572D3` | `FUN_005572D0` (automaton tick) | 10 | no |
+| `0x00561306`, `0x00561319` | `cSC4Vehicle::DoPlayerDriveTick` | 10, then 7 `(0xC4C90997)` | no |
+| `0x00693578` | `cSC4BudgetSimulator::DoMessage` | 7 `(0x42963812)` | no |
+
+So a replacement layer must be the object that city slot 72 returns **at the moment `SL::OnCityInit` runs**,
+which is right after `CreateCityComponents`. It must stay valid until the city's `Shutdown`, and must answer slots
+7, 10, 16 and 17 from then on. The global is null from the start of the city's `Shutdown`. Of the readers, only the
+tutorial checks it, so no reader may run after that point. In the original, none does.
+
+**Layer pointers kept by instances (DS43).** Only the effect and toxic-spill instances keep one. Every other
+instance and manager asks city slot 72 at each use and keeps nothing (the 119-site audit). Both instances do the
+same thing:
+
+| Instance | Field | Taken | Calls | Released |
+|---|---|---|---|---|
+| effect (`0x6A7B3E9C`) | `+0x20` | `Init` (`0x00577054`): city slot 72, then **AddRef** (`0x00577069`) | `Init`: 7 (`0x6A7B4397`), 8 `DisasterHasBegun`. `Shutdown` (`0x005770E0`): 9 `DisasterHasEnded`, 14 `UnregisterDisasterLocations(instance)` | `Shutdown`: `Release`, field := 0 (`0x00577170`) |
+| toxic spill (`0xEBFB0403`) | `+0x14` | `Init` (`0x0057ED2E`): city slot 72, then **AddRef** (`0x0057ED3B`) | `Init`: 7 (`0xEBFB0404`), 8. `Shutdown` (`0x0057EB80`): 9, 14 | `Shutdown`: `Release`, field := 0 (`0x0057EBD5`) |
+
+A replacement's reference count must therefore cover one extra reference per live effect or toxic instance.
+These references are always released inside the layer's own `Shutdown` (through the managers), before the city's
+`Release`. The disaster menu's input control asks city slot 72 at each use.
+
+**Consumers and concrete layout (DS44).**
+
+1. Nobody outside the layer asks it for an interface: there is no `QueryInterface`, through slot 0, on a pointer
+   obtained from slot 72, the global or an instance field.
+   - Every `push 0x452294AA` in the executable belongs to a call on another object: the animation coordinator
+     helper `0x00446150`, the automaton at `0x005072E0`, serializable reads at `0x00448B0C` / `0x0050E28C`, and the
+     Lua script view at `0x008AF795`.
+   - The other hits of `0x452294AA` are `cmp` instructions inside `QueryInterface` implementations.
+   - The layer's `+0x0C` (`cIGZMessageTarget2`) is reached only by the message server, through the layer's own
+     subscriptions (§2.5).
+2. No code outside the layer reads or writes a layer field. The only exception is the statistics record that
+   slot 18 returns (§2.6), read by the safety advisor (`0x00416ED1`, its only caller).
+3. The `cISC4DisasterLayer` slots called from outside, with their callers:
+
+| Slots | Callers |
+|---|---|
+| 5 | U-Drive-It |
+| 7 | 22 sites through slot 72, plus the global's readers |
+| 8, 9, 13, 14, 15 | the native instances |
+| 10 | police dispatch, patrol car, `0x0042E880`, `0x00543C10`, the alert border, and the global's readers |
+| 11 | disaster coping menu (`0x007E716D`) |
+| 16, 17 | MySim |
+| 18 | safety advisor |
+
+4. **What slot 7 must return.** These callers take the `GetDisasterManager` result and subtract 8 to get the
+   **concrete native manager**:
+   - the volcano, earthquake, pipe-burst, riot, effect and toxic instances' `Init` (`0x005800B2`, `0x00576C3A`,
+     `0x0057C93D`, `0x0057E7D3`, `0x00577071`, `0x0057ED43`);
+   - `cSC4PlumbingSimulator::ApplyPipeFunding` (`0x006DD309`). It adds 8 back and calls slot 6 of the manager's
+     interface.
+
+   The fire callers instead `QueryInterface` the manager for `0x49B43F57`. So slot 7 must return exactly the
+   `cISC4DisasterManager` pointer that `CreateInstance(class, 0x021E9CBF)` gave for the native class of §1, or
+   null. A replacement layer that keeps the native managers satisfies this by building its map as §2.2 does. A
+   replacement that also replaces managers must replace the instances above as well (out of scope here).
+
+**Contract for a replacement layer** (`enable = disasters`):
+
+1. Register a GZCOM factory for `0x61F6ABF5`. It returns an object with one reference held by the caller and
+   answers `QueryInterface(0x29B02A2C)`.
+2. Implement the 19 slots of `cISC4DisasterLayer` (`docs/abi/interfaces.tsv`, vtable `0x00A9E390`) with the
+   behaviour of §2.2–§2.7. Slot 18 returns the record of §2.6.
+3. Expect `Init` (slot 3) after the global has already been set, and `Shutdown` (slot 4) then one `Release` from
+   the city. During `Shutdown`, accept re-entrant slots 9 and 14 and the instances' `Release`s.
+4. Hold no reference to the city.
+5. No outside caller asks it for `0x452294AA`. The replacement needs a message target only for its own
+   subscriptions (§2.5).
+
 
 ### 3.1 The base manager (`cSC4DisasterManager`)
 
@@ -1533,3 +1667,12 @@ The glue13 lane's questions (QUESTIONS.md DS25–DS40; the lane's own numbers Q2
     starts on the street.
 22. **Burning blocks the bulldozer.** While a fire burns on a building, `CanRemove(2)` is false; after `KillFire` it
     is true again.
+23. **Boundary references (§2.8).**
+    - The factory for `0x61F6ABF5` followed by `QueryInterface(0x29B02A2C)` gives reference count 1.
+    - City slot 72 returns the same pointer without changing the count.
+    - Starting one effect disaster raises the count to 2. Ending it brings the count back to 1.
+    - With one effect instance and one toxic instance live, `Shutdown` (slot 4) leaves count 1, and the
+      instances' slot 9 and 14 calls during it are accepted. Then one `Release` destroys the layer.
+24. **Manager identity (§2.8).** For each of the seven types of §1, slot 7 returns the pointer that
+    `CreateInstance(class, 0x021E9CBF)` produced. For an unknown type it returns null. Repeated calls give the same
+    pointer and do not change its reference count.

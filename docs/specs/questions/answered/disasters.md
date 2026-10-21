@@ -222,3 +222,24 @@ numbers (its Q6-Q25, continuing disasters.md §17) are given in parentheses; the
   out on its own; `coverage=1` is exactly exit 4's input. A spread target is a cell the fire has already
   covered, so `round(D9(average coverage)) > 0` refuses it unless forced. The earlier guess that it was the
   burning test (exit 5) is ruled out by `burning=0`. Written into [disasters.md](../../disasters.md) §5.4.
+
+<!-- from: glue-disasters4 (2026-10-21) -->
+- **DS42:** §1 says the city creates the layer in `CreateCityComponents` (`0x0045B01C`) and gives its class
+  `0x61F6ABF5`, but not how. Is it created through GZCOM (`GetClassObject` / `CreateInstance(0x61F6ABF5, iid)`), so
+  that a class factory a plugin registers for `0x61F6ABF5` replaces it (as flammability.md §1 states for its class),
+  or by a direct constructor? If through GZCOM: which IID is requested, how many references the city holds at
+  `+0x1C4`, and what the city calls at teardown (`Shutdown` slot 4, `Release`), in which order relative to the other
+  components (the managers' `Shutdown` releases instances that post messages and touch other subsystems).
+  [blocked: an `enable = disasters` layer replacement needs this boundary; nothing implemented]
+  **ANSWERED 2026-10-21 (re-disasters-boundary4):** MATCHES (GZCOM) — `CreateCityComponents` calls `GetClassObject(0x61F6ABF5, 0x29B02A2C, &city[+0x1C4])` only if the slot is null (`0x0045B004`); the factory `0x00578B70` is registered by the COM director, so a plugin factory replaces it; the city holds exactly one reference; city `Shutdown` calls layer `Shutdown` then `Release` after the demolition utility and before the civic building simulator; not saved. Written into [disasters.md](../../disasters.md) §2.8.
+- **DS43:** §2.3 names a cached layer pointer `0x00B43D3C`. Who writes it (the layer's constructor or `Init`, the
+  city, a getter), when, and who clears it? Which code outside the layer's own functions reads it, and which layer
+  slots does it call through it? Likewise the layer pointers kept by the effect and toxic instances: taken from city
+  slot 72 or handed over by the layer, and AddRef'd or not? A replacement layer cannot know whether native readers of
+  the global would see null or a stale pointer. [blocked with DS42]
+  **ANSWERED 2026-10-21 (re-disasters-boundary4):** DIFFERS (from both guesses: neither the layer nor a getter) — `SL::OnCityInit` writes the global from city slot 72 without AddRef right after `CreateCityComponents`, before the layer's `Init`; `SL::OnCityShutdown` clears it first thing in the city's `Shutdown`; 8 readers call only slots 7, 10, 16, 17 (one null check). The effect (`+0x20`) and toxic (`+0x14`) instances take city slot 72 and AddRef in `Init`, and call 9, 14 then Release in `Shutdown`. Written into [disasters.md](../../disasters.md) §2.8.
+- **DS44:** Is the `cISC4DisasterLayer` interface (§15) the whole boundary to the native managers, instances and
+  other consumers? That is: does any code outside the layer `QueryInterface` the layer for `0x452294AA` (its message
+  target at `+0xC`) or another IID, or cast the interface to the concrete class and read fields directly (other than
+  through the `GetDisasterCost` record pointer of §2.6)? [blocked with DS42]
+  **ANSWERED 2026-10-21 (re-disasters-boundary4):** MATCHES — no outside code QIs the layer or reads its fields except the slot 18 record (safety advisor); but slot 7's result is cast to the concrete native manager (−8) by six instance `Init`s and plumbing, so slot 7 must return the native managers' `0x021E9CBF` pointers. Written into [disasters.md](../../disasters.md) §2.8.
