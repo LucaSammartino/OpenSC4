@@ -21,7 +21,7 @@ The game draws through an abstract "graphics driver" interface with an OpenGL-li
 
 | Interface table | Implementation | Covered here |
 |---|---|---|
-| `0x00AC4660` | `nSGLDX7::cGDriver` (DirectX 7 hardware driver; slots named in `docs/abi/vtables.tsv`) | yes, §2-§10 |
+| `0x00AC4660` | `nSGLDX7::cGDriver` (DirectX 7 hardware driver; slots named in `docs/abi/vtables.tsv`) | yes, §2-§11 |
 | `0x00AC36D0` | an OpenGL driver (slot bodies at `0x0087C330`-`0x0087ED20` call the `gl*` imports) *[inferred]*; the export files some of its bodies (`GetBoolean 0x0087CEE0`, `GetFloat 0x0087CF20`, `QueryInterface 0x0087D670`, `VertexFormatElementOffset 0x0087C4C0`) under `nSGLDX7::cGDriver` | no |
 | `0x00ACC4D8` | a third driver (bodies `0x008DA8C0`-`0x008E1140`, near `nRZSimGL`) *[inferred: software / null driver]* | no |
 
@@ -30,9 +30,9 @@ scene lifecycle), `nSGLDX7::TranslateColorToD3D` (`0x00881AB0`), the default dev
 `nSGLDX7::cPrimitiveManager` (`0x00889B60`-`0x0088A380`, §8.3) with slots 3-5 and 30-34 (§8),
 `nSGLDX7::cTextureManager` (`0x0088A380`-`0x0088B2C0`, §9; the internal-format selection `0x0088F8D0` and the
 pixel converters stay open) with slots 24-26, 35-39, 48, 58-61, and the texture-stage records with slots 27-29,
-51-57 and 62 (§10). Named but **not yet specified** (open, §11): `cVertexBuffer`, `D3DLight`, `nRZSimGL`
+51-57 and 62 (§10). Named but **not yet specified** (open, §12): `cVertexBuffer`, `D3DLight`, `nRZSimGL`
 (vertex-format helpers and colour-key blitters), `cGZBufferSimGLCache`, `cSC4GDriversCOMDirector`, and slots
-6-10, 40-42, 67-76.
+6-10 and 40-42; slots 67-76 are §11.
 
 The driver object exposes four COM-style interface pointers at object offsets `+0x0`, `+0x4`, `+0x8` and `+0xC`
 plus a reference-counted sub-object at `+0x10`; the 83-slot graphics interface is the one at `+0xC`. Slots 0-2
@@ -145,7 +145,7 @@ otherwise not, and the error code follows §3. It then resets every texture-stag
 `Flush` is the frame boundary:
 
 * **Device available, not lost**: the primitive manager's queued geometry is submitted (error per §3), the scene
-  is ended and the frame presented (`0x00887260`, details open), the context's per-frame update is called, the
+  is ended (`0x00887260`, §11.1; it does not present), the context's per-frame update is called *[inferred: this presents]*, the
   vertex buffer is recreated if it was lost (`0x00889260`), and a new scene is begun.
 * **Device just lost** (the cooperative-level test fails and the driver was not already lost): the driver marks
   itself lost, posts message `0xAACB92A3` (*[unlisted]*) through the message server, drops its texture surfaces
@@ -692,6 +692,34 @@ code 2, else current stage := `i`.
 | 5 | dot product 3 |
 | other | disable |
 
-## 11. Open contracts
+## 11. Viewport, polygon offset and blits (slots 67-76)
+
+The driver keeps the full-window device viewport (D3D7 layout: x, y, width, height, min z, max z) at object
+`+0x238`..`+0x24C`, set up with the environment (§4.3). Viewport rectangles in the interface are **bottom-up**
+(origin at the lower-left corner); the device's are top-down.
+
+- `SetViewport(x, y, w, h)` (74, `0x008837E0`): flushes the queue (error by §3). Clamps as unsigned values
+  against the full width `W` (`+0x240`) and height `H` (`+0x244`): x := min(x, W), y := min(y, H), then
+  w := W − x when x + w > W, h := H − y when y + h > H (negative inputs therefore clamp to the edge). Sends the
+  device viewport (x, H − y − h, w, h) with the full viewport's min/max z (error by §3). Then re-loads the
+  stored matrix at `+0x150` through `LoadMatrix` (slot 41) with the word `+0x214` forced to 1 for the call and
+  restored afterwards *[inferred: re-applies the projection; slots 40-42 are still open]*.
+  Example: window 800×600, `SetViewport(100, 50, 200, 100)` → device viewport (100, 450, 200, 100).
+- `SetViewport()` (75, `0x00883760`): flushes, sends the stored full viewport, then the same matrix re-load.
+- `GetViewport(out[4])` (76, `0x008838D0`): when the byte `+0x261` is set *[open: its writer]*, writes four
+  zeros. Otherwise reads the device viewport (result ignored) and writes (x, H − y − h, x + w, H − y), i.e.
+  left, bottom, right, top in bottom-up coordinates; with the example above: (100, 50, 300, 150).
+- `PolygonOffset(v)` (67, `0x00883710`): flushes, then render state 47 (z-bias) := `v` as an integer; errors by §3.
+- `BitBlt` (68), `StretchBlt` (69), `BitBltAlpha` (70, 72) and `StretchBltAlpha` (71, 73) are unsupported:
+  each sets error code 3 and returns, popping 9, 11, 10 and 12 argument dwords respectively (`0x00882050`,
+  `0x00882060`, `0x00882070`, `0x00882080`; 72 and 73 share 70 and 71's bodies).
+
+### 11.1 Ending the scene (`0x00887260`)
+
+When a scene is open (`+0x260`) and there is a device: end the device scene (error by §3) and mark the scene
+closed. It does not present; in `Flush` (§4.4) the presentation is the context's per-frame update that follows
+*[inferred]*.
+
+## 12. Open contracts
 
 See [questions/renderer-driver.md](questions/renderer-driver.md).

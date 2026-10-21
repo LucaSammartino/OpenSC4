@@ -1,16 +1,33 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-driverdraw4: RE spec follow-up of the DX7 driver (default device state, draw path, primitive manager) | `re-driverdraw4` / (RE lane) | in progress (round 2): prior ready: docs/specs/renderer-driver.md new §7 (RD2 answered) and §8 (DrawArrays/DrawElements/InterleavedArrays, cPrimitiveManager, slots 30-34); RD5 narrowed; no engine, no ABI change, no game runs | 1. follow-up RE lane: cTextureManager 0x0088A380-0x0088B2C0 and texture slots 24-29, 35-39, 58-61; 2. stage records (0x00884320/0x00884500, slots 51-57, 62); 3. blit/viewport slots 68-76 (RD3) |
+| re-driverdraw4: RE spec follow-up of the DX7 driver (device state, draw path, primitive manager, textures, stages, viewport) | `re-driverdraw4` / (RE lane) | ready: docs/specs/renderer-driver.md §7-§8 (round 1), §9 textures, §10 texture stages, §11 viewport/blits/scene end (round 2); RD2 answered, RD3/RD4/RD5 narrowed; no engine, no ABI change, no game runs | 1. internal-format selection 0x0088F8D0 and pixel converters; 2. slots 6-10, 40-42 (vertex formats, matrices); 3. writers of bytes +0x209/+0x261/+0x263; 4. RD3 mode-record fields |
 
-## Handoff
-- goal (round 2): RD5 rest - cTextureManager 0x0088A380-0x0088B2C0, texture slots 24-29/35-39/58-61, stage records
-  0x00884320/0x00884500 + slots 51-57/62; then RD3 blit/viewport 68-76, RD4 frame end 0x00887260.
-- done round 1: 633d523d (§7), 594a88cb (§8), c52666f3 (report). §7/§8 must be preserved.
-- done round 2: §9 textures + §10 stages (commit after this edit); open contracts now §11.
-- next: RD3 blit/viewport slots 67-76 (0x00882050.., 0x00883710/60/7E0/8D0) as §12; RD4 0x00887260; then RD5 move/narrow.
-- facts: absolute offset = decomp interface offset + 0xC. REA not used. build-runs/rd.py reads exe data.
+## Report (round 2, 2026-10-21)
 
-## Report
+What changed (spec only, `docs/specs/renderer-driver.md`; §7-§8 from round 1 preserved, §8.2 step 2 corrected:
+`0x00884500` sends the texture environment, not a texture transform; dangling §8.5/§8.6 references fixed):
+- §9 `cTextureManager`: object layout, 48-byte texture record with defaults, LIFO name reuse, validity rule,
+  HasAlpha (internal format not 0/1), SetPriority 0.95f marks dynamic, Init / name 0 (1x1 white), device loss and
+  InitDevice re-creation, surface creation (DDSD 0x21007, caps 0x401008, caps2 0x20000/0x20004/0x20080, 1..4096),
+  (format, type) → 15 source formats with bit counts (DXT1/3/5 inferred), LoadTextureLevel lock/copy rules;
+  driver slots 24-26, 35-39, 48, 58-61 with error codes and quirks.
+- §10 stage records: 0x80-byte layout, slots 27-29, 51-57, 62; draw-time application `0x00884320` (filters: GL
+  min-filter 5 falls through to 6, quirk from the jump table 0x008844DC) and `0x00884500` (env modes 0-5, combine
+  ops via `0x00882100`/`0x00882300`, source table 0x00AC4604).
+- §11 viewport (74-76, bottom-up rectangles, worked example), PolygonOffset (67), unsupported blits 68-73
+  (error 3), scene end `0x00887260` (EndScene only, no present).
+
+Questions: RD3, RD4, RD5 narrowed in place (none fully answered); QUESTIONS.md regenerated.
+Still open: `0x0088F8D0` internal-format selection and converters, slots 6-10 and 40-42, writers of bytes
+`+0x209`, `+0x261`, `+0x263`, the `0xAACB92A3` handler, mode-record fields. cGDriver is still partial (about 75 of
+83 slots specified), not complete.
+
+Sources: re_query.py asm (numbers checked: 0.95f at 0x00A9BEF8, jump tables 0x008844DC/0x008846AC/0x0088D088,
+tables 0x00AC45F4/0x00AC4604 read from the exe), decomp/ for structure. REA not used.
+
+Commits round 2: 4a6823ce (handoff), 8e755b89 (§9-§10), then §11 + this report.
+
+## Report (round 1)
 
 What changed (spec only, `docs/specs/renderer-driver.md`; §1-§6 kept as they were apart from the §1 scope list):
 - §7 `SetDefaultD3DDeviceState` (0x008872A0), from the instructions: 26 render states in a fixed order (cull none,
