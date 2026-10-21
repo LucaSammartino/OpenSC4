@@ -326,6 +326,8 @@ cSC4ScrubberDescription	effects	renderer	effects.md	core/src/effects	-	-
 EffectsParser	effects	renderer	effects.md	-	-	-
 EffectsBootstrap	effects	renderer	effects.md	-	-	-
 (anonymous_namespace)::c*Command	effects	renderer	effects.md	-	-	-
+cSC4EffectsParticle	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4ParticlesDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4*Effect	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4*Particle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSCParticle*	effects (particles, decals, visuals)	renderer	-	-	-	-
@@ -390,6 +392,12 @@ cRZWinKeyAccelerator*	widget toolkit	ui	-	-	-	-
 cRZCursorManager	widget toolkit	ui	-	-	-	-
 cGZClipboardManager*	widget toolkit	ui	-	-	-	-
 cGZCheatCodeManager	widget toolkit	ui	-	-	-	-
+cSCUint32ComboBoxEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
+cSCUint8ComboBoxEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
+cSCUint32SpinnerEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
+cSC16ColumnGridEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
+cSCColorSequenceEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
+cSCResKeyTableEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
 cSC*EntryView	resource and exemplar editor	ui	-	-	-	-
 cSC*View	resource and exemplar editor	ui	-	-	-	-
 cSCEditValueDlg	resource and exemplar editor	ui	-	-	-	-
