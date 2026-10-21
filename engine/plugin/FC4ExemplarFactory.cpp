@@ -316,6 +316,11 @@ bool ExHolder::GetPropertyList(cIGZUnknownList** list) const {
         return false;
     }
     auto* h = static_cast<cFC4ISCPropertyHolder*>(tmp);
+    // CreateInstance hands the caller the new object's one reference (§8.1);
+    // noted so that FC4_RELEASE_CREATED below is the audited, expected free
+    // (lessons §5.1b). Missing in round 2: every in-game call (first seen in
+    // the round-3 union run gex4-r5-union-b) logged 2 ref warnings.
+    FC4_ACQUIRED(h, "CreateInstance");
     o_->eff_.EnumProperties(
         [](cISCProperty* p, void* d) { static_cast<cFC4ISCPropertyHolder*>(d)->AddPropertyRecord(p, false); }, h);
     // [abi-ret] §4.4: GetPropertyList returns the list with one reference and
