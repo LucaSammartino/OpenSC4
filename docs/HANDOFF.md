@@ -5,16 +5,18 @@ before it stops and moves the stop note it replaces, verbatim, to [docs/history/
 lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-10.md](history/handoff-2026-10.md).
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
-## 0. Current state (2026-10-21, wind-down)
+## 0. Current state (2026-10-21, run 3 starting)
 
-**Wind-down in effect** (the user, 2026-10-20 21:49 and again 2026-10-21): start no new work. That means no lanes,
-no continuation or fix rounds, and no slot refills, whatever any other document says about parallelism, until the
-user lifts the rule. Allowed: landing work that is already finished, docs, coverage, pushing main.
+**The wind-down is lifted for run 3** (the user, 2026-10-21). The harness now enforces what was prompt text before:
+`.claude/lane-bin/laneguard.py` runs before every lane tool call and enforces the context budget, a cap on calls
+between commits, the STOP flag and parking. The RE gate checks that REA is reachable. See
+[ops/coordinating.md](ops/coordinating.md) "Lane guard". Lane output is capped (`q.py`, `qgrep.py`, `re_query.py`).
+A lane denied by the guard returns; do not route around it. To wind down: `python tools/lanes.py stop "<reason>"`,
+then land what is on disk.
 
 **Main** is pushed, the merge queue is empty, and no lane is running. The gate on main passes (clippy clean, build,
-ctest 62/62). Coverage: **35.7% specified / 28.3% implemented / 11.2% verified / 12.1% replaced** (implemented went
-from 26.0 to 28.3 when the network-tool cores were wired into the map, `de72a3a1`). Run 2 (the lean-lane GLM run,
-2026-10-20 20:31 → 10-21 08:24) landed trains 10-18. Its cost and what it bought are in
+ctest 62/62). Coverage: **36.8% specified / 28.3% implemented / 12.4% verified / 12.1% replaced**. Run 2 (the
+lean-lane GLM run, 2026-10-20 20:31 → 10-21 08:24) landed trains 10-18. Its cost and what it bought are in
 [ops/efficiency-log.md](ops/efficiency-log.md).
 
 **Parked work** (every branch is on origin; every other worktree branch is fully in main):
@@ -35,9 +37,8 @@ from 26.0 to 28.3 when the network-tool cores were wired into the map, `de72a3a1
 4. The MySims shadow (mysims1 above).
 5. ABI: 63 lane proposals disagree with main's row for the same key: [abi/unreconciled-rows.tsv](abi/unreconciled-rows.tsv).
    Decide each one; don't apply in bulk.
-6. Efficiency, before the next full-throttle run: see "Next levers" in [ops/efficiency-log.md](ops/efficiency-log.md).
-   Enforce the lane context budget and stall kill in the harness, and fix the provider routing (the DigitalOcean pin
-   did not hold).
+6. Efficiency: the context budget and stall kill are now enforced (laneguard). Still open: the provider routing (the
+   DigitalOcean pin did not hold in run 2). See "Next levers" in [ops/efficiency-log.md](ops/efficiency-log.md).
 
 After every landing: `python tools/gen_handoff_tables.py`, `python tools/coverage.py` and
 `python tools/coverage_treemap.py`, then push. Check `git merge-base --is-ancestor <lane> main` for each landed lane.
