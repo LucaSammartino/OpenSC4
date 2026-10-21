@@ -1,8 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-particles4: particle component spec (cSC4ParticlesEffect family) | `re-particles4` / (RE spec lane) | ready: new spec docs/specs/particles.md (af2d5684), 12 sections; fully specified cSCParticleSimulatorBase (0x005B9xxx only), cSC4EffectsParticle, cSC4ParticlesDescription; cSC4ParticlesDescriptionBase specified (layout/defaults/file order, meanings partly open); cSC4ParticlesEffect, cTractorPoint, cWiggle partial; questions PT1-PT7; REA unavailable, export-only evidence | 1. Answer PT1/PT5/PT6 (InitEffectsParticle, Start tail, field names) to credit cSC4ParticlesEffect. 2. Apply the coverage proposal below at the next train. 3. Correct effects.md §7.1 item 2 class attribution (particles.md §8). |
+| re-particles4: particle component spec (cSC4ParticlesEffect family) | `re-particles4` / (RE spec lane) | in progress (round 2: PT1/PT5/PT6, effects.md §7.1 fix) | 1. Answer PT1/PT5/PT6 (InitEffectsParticle, Start tail, field names) to credit cSC4ParticlesEffect. 2. Apply the coverage proposal below at the next train. 3. Correct effects.md §7.1 item 2 class attribution (particles.md §8). |
 
-## Report
+## Handoff
+
+Goal (round 2): answer PT1/PT5/PT6 from InitEffectsParticle 0x005B7580 and Start 0x005B3000 tail; correct effects.md §7.1 item 2; list cSCParticleSimulatorBase misnamed owners exactly.
+Done: round 1 d6a8e75e (spec particles.md).
+Next: read asm of 0x005B7580 and 0x005B3000 tail.
+
+## Report (round 1)
 
 **Scope chosen.** The uncovered "effects (particles, decals, visuals)" subsystem is 71,568 bytes (tools/coverage.py
 --owners, 2026-10-21, base ab23a7fa). The largest coherent family is the particle component: cSC4ParticlesEffect
