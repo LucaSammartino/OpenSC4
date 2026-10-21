@@ -42,7 +42,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **Terrain:** crash fixed earlier, final diagnostics trace apparent stall to missing TerrainReconciliation/ConnectionsReady leaving dialogs enabled. Auto-close d8 reached2032 with refwarning1, NOT a pass. Tick/reconcile behavior, texture step7part2/TR37/Save unfinished. TR42/TR43 filed (preference width, edge comparison); no replacement credit or fourth round.
 
-**Other pending:** advisor activation and MySim contract fixes queued for round2; network model core and font/URL answers running. HTML/font/EX/effects/landvalue follow-up questions queued. NetRule setter and disaster layer API staged in train57; unfinished native disaster wrapper parked on DS46. Span traces are constructed-buffer proof, with no shipped dispatch credit. Partial owners remain uncredited.
+**Other pending:** follow the current guarded refill queue and lane reports. Complete published owner methods before credit; contract gaps remain questions. Prior merged construction/disaster branches were denied resume and remain stopped with worktrees preserved.
 
 **Choosing work:** unblocked parked lanes with answered causes first (within3-round cap), then work one validation step from landing, then coverage-report subsystem bytes descending: coreyes/replaceabsent glue; specyes/coreabsent core; nonexact shadow verify (contract gap becomes a question); specabsent RE. Max3glue. Keep earlier skip of glue26 and abi/unreconciled-rows.tsv.
 
