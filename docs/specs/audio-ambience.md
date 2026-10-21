@@ -156,10 +156,51 @@ alarm entry (`_RemoveAlarmOccupant` `0x004EA080`). The stop is posted even when 
 
 ### 3.4 Condition and state changes
 
-`0xE99B3D4D` ConditionChanged: if the message's object answers the lot IID `0xE818FCED`, run
-`_UpdateLotOccupantsForConditionChange` (`0x004E9DA0`) for that lot with the message's two values.
+`0xE99B3D4D` ConditionChanged: if the message's object (void1) answers the lot IID `0xE818FCED`, run
+`_UpdateLotOccupantsForConditionChange` (`0x004E9DA0`) for that lot with `old := data1` (message slot `+0x24`,
+reads `+0x10`) and `new := data2` (slot `+0x38`, reads `+0x14`) (`0x004EAEC5`–`0x004EAEDE`). The poster is
+`cSC4Lot::SetCondition` (`0x006C26D0`): void1 is a **copy** of the lot, data1 the previous condition byte,
+data2 the new one, data3 the lot's `+0x3C` (unused here); it is posted only when the condition changes.
 `0xE8BDA2E7` StateChanged is subscribed and routed to the occupant handler but has no case there: it does
-nothing *[quirk]*. The per-lot update itself is **AA2** (§9).
+nothing *[quirk]*.
+
+**The per-lot update `U(lot, old, new)`** (`0x004E9DA0`, pop 12). Insert and the init walk (§3.1 step 5)
+call it as `U(lot, −1, −1)`.
+
+1. `lot` null → return. If `new < 0` (signed), `new := lot.GetCondition()` (lot slot `+0x8C`, byte
+   zero-extended) (`0x004E9DBB`).
+2. `L := lot.GetLotOccupants()` (lot slot `+0xC4`, `0x006BFF70`: the occupant manager's occupants inside the
+   lot's cell rectangle, any type, through an inside-lot filter) into a fresh list.
+3. For each occupant `o` of `L`, in list order: `o` qualifies when it answers `cISC4BuildingOccupant`
+   (`0x87DDA3A9`) **or**, failing that, `cISC4PropOccupant` (`0xE9793A65`), and its property holder (slot
+   `+0x18`) is non-null. Both interface references are released after the occupant (they gate only). No
+   preview check is made here *[compat]*. For a qualifying `o`, with `A := 0x0A4C13CB`, `C := 0xCA19D7CA`,
+   `R := 0x4A4C132E` (each read as u32, `0x005FD480`; "absent" means the read fails), apply in this order:
+
+| `new` | step (only for properties present) |
+|---|---|
+| 0, 5 or 6 | stop `A`; start `C` looping |
+| 2 or 3 | stop `C`; start `A` looping |
+| 1 or 4 | stop `A`; stop `C` |
+| 0, and `old` = 1 | additionally start `R` looping (after the row above) |
+| any other value (7 and up) | nothing |
+
+   "Start" is `_AddOccupantSndInstance(o, id, loop = 1)` (start event, set-position, automaton link, §3.1)
+   and "stop" is `_RemoveOccupantSndInstance(o, id)` (§3.3); the instance id is `o` + the property value. No
+   test is made whether the sound is already running: a repeated condition 0 re-posts the `C` start
+   *[compat]*.
+4. Release the list through the occupant manager (`0x00B43D0C` slot `+0xC0`, `ReleaseOccupantList`), then
+   free its nodes and head.
+
+Consequences *[compat]*: `R` (the "repowered" sound, by its trigger) starts only on a real condition change 1 →
+0, never on insert or init (old = −1); it is never stopped by this function, only by `HandleRemoveOccupant`
+— which stops `A`, `C` and `0x6A36AFAC` but **not** `R` (§3.3) *[quirk]*. The lot condition values are those
+of lot-developer.md §5.5 (0 normal, 1 unpowered, 2–3 run down, abandoned lots step up to 4); 5 and 6 share
+row 0 *[compat; no producer of 5 or 6 is specified]*.
+
+Worked example: a lot with one building carrying `C = 0x1111` and `A = 0x2222`. Insert (lot condition 0):
+start `0x1111` looping, instance `o + 0x1111`. Power is lost (0 → 1): stop `o + 0x2222` (not running; the
+sound manager ignores it), stop `o + 0x1111`. Run down (1 → 2): stop `o + 0x1111`, start `o + 0x2222`.
 
 ### 3.5 Automata
 
@@ -288,7 +329,6 @@ The manager uses 4, 17, 20, 25–28 directly and 21 through the cell walk.
 | # | Question | What would settle it |
 |---|---|---|
 | **AA1** | The layer's own behaviour: scores, loops, filters and per-layer tuning (`0x004E5110`–`0x004E8230`). | a follow-up section of this spec |
-| **AA2** | `_UpdateLotOccupantsForConditionChange` (`0x004E9DA0`): which sounds start or stop per lot condition. | its instructions with the three condition properties |
 | **AA3** | Confirm the stack slot copied into `+0x10` at `0x004E91B0` is `t` (the listing reuses `[ESP+0x18]` for `a[i]`). | trace the stack depth at `0x004E91AC` |
 | **AA4** | Types `0xA823821E`, `0xC7CC75F1` of the init walk are unnamed. | the occupant type table |
 
