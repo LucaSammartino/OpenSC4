@@ -1,6 +1,6 @@
 # Legacy control (`cGZLegacyControl`): building widgets from `LEGACY` script blocks
 
-Status: partial, 44 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
+Status: partial, 45 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
 (Windows). Covered: object layout, COM surface, lifecycle, the shared vocabulary and its two lookup maps, the
 `SetParameters` build sequence, the property-list readers, and the full word tables of all 21 vocabulary
 functions. Per-control interpreter contracts (`InterpretProperties*`) are specified for the common pass (§8);
@@ -450,7 +450,8 @@ comment list, and parameter `0x3ACA6906` = {0, 0}; second pass `SetFlag(0x2, fal
 | GZWinGrid | `0x0095A250` | 3537 | **specified** (§9.5) |
 | GZWinFolders | `0x0094D17E` | 465 | **specified** (§9.6) |
 | GZWinFlatRect | `0x0094E33B` | 475 | **specified** (§9.7) |
-| all other 13 | §4.1 | 485–2629 | open (LC4) |
+| GZWinOutline | `0x00951084` | 485 | **specified** (§9.8) |
+| all other 12 | §4.1 | 492–2629 | open (LC4) |
 
 Every per-type interpreter starts the same way: `QueryInterface` the control for its own IID (§4.1); on failure
 it does nothing at all; on success it works through that interface and releases it at the end.
@@ -733,6 +734,25 @@ QueryInterface/Release. Slot names *[inferred]*.
 Worked example: `style=top, style=bottom, style=sunken, colortop=(10,20,30)` → `+0x30`(`0x2A`), `+0x28`(1, 10,
 20, 30).
 
+### 9.8 GZWinOutline (`0x00951084`)
+
+Interface `IGZWinOutline` `0xE303E5AE`. **First pass only**; the second pass does nothing beyond the
+QueryInterface/Release. Slot names *[inferred]*.
+
+1. Style: start at 0; for every `style` (`0xF005`) pair with a non-null type-6 value, OR in: `flat` `0xF009` →
+   `0x1`, `sunken` `0xF00B` → `0x2`, `raised` `0xF00C` → `0x4`, `fill` `0xF00D` → `0x20`; other values add
+   nothing. Only if the result is non-zero, call interface `+0x0C` (style). (Unlike FlatRect, no call for 0.)
+2. `colordark` `0x1100`, then `colorlight` `0x1101`: colour reader of §8 step 5; when it parses, interface
+   `+0x14` (which, r, g, b) with which = 1 for dark, 2 for light.
+3. Points: every `node` (`0x1102`) pair with a non-null string value (`0x800E`), in list order, is scanned as
+   `(%d,%d)` into one (x, y) pair of a 32-entry array; **at most 32** are taken (later `node` pairs are
+   ignored). The scan count is not checked: unparsed numbers keep the previous values of the two shared
+   variables (the last colour components read in step 2, else uninitialised; Q12; implementations use 0).
+   If at least one point was taken, call interface `+0x34` (count, &points, 1, 1).
+
+Worked example: `style=raised, style=fill, colordark=(0,0,0), node=(0,0), node=(10,0), node=(10,10)` →
+`+0x0C`(`0x24`), `+0x14`(1, 0, 0, 0), `+0x34`(3, [(0,0),(10,0),(10,10)], 1, 1).
+
 ## 10. Quirks (keep for compatibility)
 
 - Q1. `SetParameters` overwrites `+0x10` with null without releasing a previous control; calling it twice on one
@@ -753,6 +773,7 @@ Worked example: `style=top, style=bottom, style=sunken, colortop=(10,20,30)` →
   (the value of the last present grid style word, `0x0095A932`), not of the cell's flags; style values are
   normally 0/1, so the scan effectively always runs. Uninitialised when no style word is present.
 - Q11. Folders `image`: the `{%x,%x}` scan count is not checked; unparsed parts are stale or uninitialised (§9.6).
+- Q12. Outline `node`: the `(%d,%d)` scan count is not checked; unparsed numbers are stale (§9.8).
 
 ## 11. Open questions
 
@@ -772,7 +793,7 @@ Custom interpreter are shared bodies owned elsewhere).
 | `SetParameters` | 1 | specified (§6) |
 | `GetScriptFragment` | 1 | specified (§7.4; serialiser frame, class/interface and common words §7.6; per-type writer word sets are non-owner functions, LC8) |
 | `ControlVocabulary*` | 21 | specified (§4: every word, ID and map entry) |
-| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Grid (§9.5), Folders (§9.6), FlatRect (§9.7), Custom (shared stub) specified; 13 owned interpreters open (LC4) |
+| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Grid (§9.5), Folders (§9.6), FlatRect (§9.7), Outline (§9.8), Custom (shared stub) specified; 12 owned interpreters open (LC4) |
 
-Count: 44 of 57 owner functions complete (14 COM/lifecycle + `SetParameters` + `GetScriptFragment` + 21 vocabulary +
-Common, Slider, TreeView, FileBrowser, Grid, Folders, FlatRect); 13 interpreters open (LC4). No wildcard credit.
+Count: 45 of 57 owner functions complete (14 COM/lifecycle + `SetParameters` + `GetScriptFragment` + 21 vocabulary +
+Common, Slider, TreeView, FileBrowser, Grid, Folders, FlatRect, Outline); 12 interpreters open (LC4). No wildcard credit.
