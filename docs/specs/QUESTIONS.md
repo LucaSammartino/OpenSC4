@@ -199,7 +199,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
-| timers | 2 | 0 | TM3 | questions/timers.md |
+| timers | 0 | 2 | TM3 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 4 | 2 | TU10 | questions/tutorial.md |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **221** | **1090** | | |
+| **total** | **219** | **1092** | | |
