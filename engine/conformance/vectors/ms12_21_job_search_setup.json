@@ -32,11 +32,11 @@
         "notifies": [
           true
         ],
-        "flags": 17,
-        "filter": 0,
         "dest_flags": [
           2
         ],
+        "flags": 17,
+        "filter": 0,
         "density": 1,
         "start_rect": [
           10,
@@ -65,8 +65,14 @@
         "destination": {
           "occupant": 2304,
           "by_occupant": true,
-          "by_commute": true
-        }
+          "by_commute": true,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
       }
     }
   ]

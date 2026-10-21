@@ -26,7 +26,11 @@
           ]
         ],
         "loaded": true,
-        "cached": 1
+        "cached": 1,
+        "installation": "",
+        "file_hex": "aae4324a08426f62204e657762010509426f625f3161326233",
+        "converted": [],
+        "deleted": []
       }
     },
     {
@@ -39,7 +43,13 @@
       "expect": {
         "results": [
           []
-        ]
+        ],
+        "loaded": true,
+        "cached": 0,
+        "installation": "",
+        "file_hex": "aae4324a",
+        "converted": [],
+        "deleted": []
       }
     },
     {
@@ -52,7 +62,13 @@
       "expect": {
         "results": [
           []
-        ]
+        ],
+        "loaded": true,
+        "cached": 0,
+        "installation": "",
+        "file_hex": "0000000008426f62204e657762010509426f625f3161326233",
+        "converted": [],
+        "deleted": []
       }
     },
     {
@@ -66,11 +82,20 @@
         "results": [
           [
             {
-              "portrait": "BOB_FF.bmp",
-              "male": false
+              "name": "X",
+              "male": false,
+              "sign": 0,
+              "bitmap": 0,
+              "portrait": "BOB_FF.bmp"
             }
           ]
-        ]
+        ],
+        "loaded": true,
+        "cached": 1,
+        "installation": "",
+        "file_hex": "aae4324a0158000006424f425f4646",
+        "converted": [],
+        "deleted": []
       }
     },
     {

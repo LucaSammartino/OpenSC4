@@ -112,13 +112,15 @@
               "name": "Betty Newb",
               "male": false,
               "sign": 0,
+              "bitmap": 0,
               "portrait": "Betty_ff.bmp"
             }
           ]
         ],
         "loaded": true,
-        "file_hex": "aae4324a08426f62204e657762010409426f625f31613332620a4265747479204e65776200000842657474795f6666",
+        "cached": 2,
         "installation": "D:\\Sims",
+        "file_hex": "aae4324a08426f62204e657762010409426f625f31613332620a4265747479204e65776200000842657474795f6666",
         "converted": [
           [
             "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family1_face.jpg",
@@ -229,7 +231,22 @@
           2
         ],
         "loaded": false,
-        "cached": 0
+        "cached": 0,
+        "installation": "D:\\Sims",
+        "file_hex": "aae4324a08426f62204e657762010409426f625f31613332620a4265747479204e65776200000842657474795f6666",
+        "converted": [
+          [
+            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family1_face.jpg",
+            "C:\\U\\SimCity 4\\MySim\\Bob_1a32b.bmp"
+          ],
+          [
+            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family2_face.jpg",
+            "C:\\U\\SimCity 4\\MySim\\Betty_ff.bmp"
+          ]
+        ],
+        "deleted": [
+          "D:\\Sims\\UserData2\\Export\\F.ini"
+        ]
       }
     },
     {
@@ -329,26 +346,56 @@
           2,
           [
             {
-              "name": "Bob Newb"
+              "name": "Bob Newb",
+              "male": true,
+              "sign": 4,
+              "bitmap": 0,
+              "portrait": "Bob_1a32b.bmp"
             },
             {
-              "name": "Betty Newb"
+              "name": "Betty Newb",
+              "male": false,
+              "sign": 0,
+              "bitmap": 0,
+              "portrait": "Betty_ff.bmp"
             }
           ],
           null,
           0,
           [
             {
-              "name": "Bob Newb"
+              "name": "Bob Newb",
+              "male": true,
+              "sign": 4,
+              "bitmap": 0,
+              "portrait": "Bob_1a32b.bmp"
             },
             {
-              "name": "Betty Newb"
+              "name": "Betty Newb",
+              "male": false,
+              "sign": 0,
+              "bitmap": 0,
+              "portrait": "Betty_ff.bmp"
             }
           ]
         ],
         "loaded": true,
         "cached": 2,
-        "file_hex": "aae4324a"
+        "installation": "D:\\Sims",
+        "file_hex": "aae4324a",
+        "converted": [
+          [
+            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family1_face.jpg",
+            "C:\\U\\SimCity 4\\MySim\\Bob_1a32b.bmp"
+          ],
+          [
+            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family2_face.jpg",
+            "C:\\U\\SimCity 4\\MySim\\Betty_ff.bmp"
+          ]
+        ],
+        "deleted": [
+          "D:\\Sims\\UserData2\\Export\\F.ini"
+        ]
       }
     },
     {
@@ -441,11 +488,26 @@
           [
             {
               "name": "Bob Newb",
-              "sign": 4
+              "male": true,
+              "sign": 4,
+              "bitmap": 0,
+              "portrait": "Bob_1a32b.bmp"
             }
           ]
         ],
-        "loaded": true
+        "loaded": true,
+        "cached": 1,
+        "installation": "D:\\Sims",
+        "file_hex": "aae4324a08426f62204e657762010409426f625f3161333262",
+        "converted": [
+          [
+            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family1_face.jpg",
+            "C:\\U\\SimCity 4\\MySim\\Bob_1a32b.bmp"
+          ]
+        ],
+        "deleted": [
+          "D:\\Sims\\UserData2\\Export\\F.ini"
+        ]
       }
     },
     {
@@ -460,7 +522,12 @@
           0,
           false
         ],
-        "file_hex": null
+        "loaded": false,
+        "cached": 0,
+        "installation": "",
+        "file_hex": null,
+        "converted": [],
+        "deleted": []
       }
     }
   ]

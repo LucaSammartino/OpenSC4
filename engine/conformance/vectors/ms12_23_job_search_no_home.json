@@ -25,16 +25,34 @@
         "notifies": [
           false
         ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
         "calls": [
           "Reset",
           "ClearAllTravelTypeFlags",
           "SetRouteInfo"
         ],
-        "flags": 0,
-        "dest_flags": [
-          0
-        ],
-        "find_path": 0
+        "destination": {
+          "occupant": null,
+          "by_occupant": true,
+          "by_commute": false,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 0
       }
     },
     {
@@ -57,7 +75,33 @@
         "results": [
           false
         ],
-        "calls": []
+        "notifies": [
+          false
+        ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
+        "calls": [],
+        "destination": {
+          "occupant": null,
+          "by_occupant": true,
+          "by_commute": false,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
       }
     },
     {
@@ -83,6 +127,18 @@
         "notifies": [
           true
         ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
         "calls": [],
         "destination": {
           "occupant": null,
@@ -91,8 +147,10 @@
           "cell": [
             -1,
             -1
-          ]
-        }
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
       }
     },
     {
@@ -118,10 +176,30 @@
         "notifies": [
           false
         ],
+        "dest_flags": [
+          0
+        ],
+        "flags": 0,
+        "filter": 0,
+        "density": 0,
+        "start_rect": null,
+        "travel": [
+          0,
+          0
+        ],
+        "find_path": 0,
         "calls": [],
         "destination": {
-          "occupant": 66
-        }
+          "occupant": 66,
+          "by_occupant": true,
+          "by_commute": false,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
       }
     }
   ]

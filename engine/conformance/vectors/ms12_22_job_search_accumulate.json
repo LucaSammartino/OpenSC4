@@ -37,12 +37,63 @@
           true,
           true
         ],
+        "notifies": [
+          true,
+          true
+        ],
         "dest_flags": [
           1,
           5
         ],
         "flags": 17,
-        "find_path": 2
+        "filter": 0,
+        "density": 1,
+        "start_rect": [
+          10,
+          10,
+          12,
+          11
+        ],
+        "travel": [
+          463,
+          463
+        ],
+        "find_path": 2,
+        "calls": [
+          "Reset",
+          "ClearAllTravelTypeFlags",
+          "SetRouteInfo",
+          "SetFlag",
+          "SetFlag",
+          "SetTripDestinationFilter",
+          "SetDestinationFlag",
+          "SetTrafficDensity",
+          "SetStartRect",
+          "SetTravelTypeFlag",
+          "FindPath",
+          "Reset",
+          "ClearAllTravelTypeFlags",
+          "SetRouteInfo",
+          "SetFlag",
+          "SetFlag",
+          "SetTripDestinationFilter",
+          "SetDestinationFlag",
+          "SetTrafficDensity",
+          "SetStartRect",
+          "SetTravelTypeFlag",
+          "FindPath"
+        ],
+        "destination": {
+          "occupant": 2304,
+          "by_occupant": true,
+          "by_commute": true,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
       }
     },
     {
@@ -65,9 +116,53 @@
         }
       ],
       "expect": {
+        "results": [
+          true
+        ],
+        "notifies": [
+          true
+        ],
         "dest_flags": [
           1
-        ]
+        ],
+        "flags": 17,
+        "filter": 0,
+        "density": 1,
+        "start_rect": [
+          10,
+          10,
+          12,
+          11
+        ],
+        "travel": [
+          463,
+          463
+        ],
+        "find_path": 1,
+        "calls": [
+          "Reset",
+          "ClearAllTravelTypeFlags",
+          "SetRouteInfo",
+          "SetFlag",
+          "SetFlag",
+          "SetTripDestinationFilter",
+          "SetDestinationFlag",
+          "SetTrafficDensity",
+          "SetStartRect",
+          "SetTravelTypeFlag",
+          "FindPath"
+        ],
+        "destination": {
+          "occupant": 2304,
+          "by_occupant": true,
+          "by_commute": true,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
       }
     },
     {
@@ -90,9 +185,53 @@
         }
       ],
       "expect": {
+        "results": [
+          true
+        ],
+        "notifies": [
+          true
+        ],
         "dest_flags": [
           1
-        ]
+        ],
+        "flags": 17,
+        "filter": 0,
+        "density": 1,
+        "start_rect": [
+          10,
+          10,
+          12,
+          11
+        ],
+        "travel": [
+          463,
+          463
+        ],
+        "find_path": 1,
+        "calls": [
+          "Reset",
+          "ClearAllTravelTypeFlags",
+          "SetRouteInfo",
+          "SetFlag",
+          "SetFlag",
+          "SetTripDestinationFilter",
+          "SetDestinationFlag",
+          "SetTrafficDensity",
+          "SetStartRect",
+          "SetTravelTypeFlag",
+          "FindPath"
+        ],
+        "destination": {
+          "occupant": 2304,
+          "by_occupant": true,
+          "by_commute": true,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
       }
     }
   ]
