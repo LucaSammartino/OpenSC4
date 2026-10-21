@@ -78,3 +78,13 @@
   §2 flat default instead of its saved altitudes. Is slot 96 called by `cSC4City` (which function, which
   interface pointer), or does the original terrain call `Load` itself from `Init` with a segment it obtains (from
   where)? [choice: the replacement only answers slot 96] What settles it: the call sites of `0x00747800`.
+- **TR40 - §15.5.5 slot 67 / §15.5.9:** who initialises the view's city-edge layer state (`0x00B4C760`,
+  `0x00B4C790`, `InitializeCityEdgeLayerHeights` `0x00757300`) for a city, and what the terrain's slot 67
+  `DoLighting` (`0x00742930`, called once from `DrawTerrainLayers` with `V+0x34`) must do. Runtime evidence
+  (gt3-repl-5, the TR33 whole-city post switched off, slot 67 a no-op, no other change): the first draw faults at
+  `0x007540A5` (ACCESS_VIOLATION reading `0x00000008`; edx 8, esi 0, ebx `0x81`; `0x00B4C760` twice on the
+  stack; called from `0x0075BFA3` in `DrawTerrainLayers` under `Update` `0x0075C07E`). Together with TR38 this
+  says the edge-layer state is not set up when a replacement terrain is in place: is it set by §15.5.1 step 7's
+  `0x00743B60` / `0x007490B0` (TR33), by the original slot 67, or by a terrain field the view reads that §2.3 does
+  not list? [choice: slot 67 a no-op, as §15 calls it render] What settles it: the callers of `0x00757300` and a
+  description of `0x00742930`, `0x00743B60` and `0x007490B0`.

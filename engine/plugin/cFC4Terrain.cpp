@@ -1056,7 +1056,12 @@ void cFC4STETerrain::DoPostCityInit() {
         // Step 7: 0x00743B60 and 0x007490B0 on the whole-city vertex rect are not named by the spec.
         // [choice] the literal effect the view needs is its heights and water copied in (§15.5.8: the
         // posts are its only channel), so redisplay the whole city once (question TR33).
-        if (viewInited) {
+        // gt3-repl-4: this redisplay's 0x278E6003 faults in the view's edge-layer refresh (TR38).
+        // gt3-repl-5 (the post switched off): the view's first DrawTerrainLayers faults instead, on a
+        // null pointer next to the edge-layer statics (TR40). Either way something the original sets
+        // up before the view draws is missing; the choice stays as filed until TR33/TR38/TR40 answer.
+        constexpr bool kTR33WholeCityRedisplay = true;
+        if (viewInited && kTR33WholeCityRedisplay) {
             fc4_terrain_rect r{0, 0, f_.cityRect[2], f_.cityRect[3]};
             fc4_terrain_redisplay(core_, true, true, r, 0);
         }
