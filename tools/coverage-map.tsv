@@ -123,8 +123,8 @@ cSC4TileRule	network rules	simulation	network-rules.md	core/src/network_rules	-	
 cSC4TileInfo	network rules	simulation	network-rules.md	core/src/network_rules	-	-
 nSC4Networks*	network rules	simulation	network-rules.md	core/src/network_rules	-	-
 fn:ReadIntersection*	network rules	simulation	network-rules.md	core/src/network_rules	-	-
-cSC4PropManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/prop_manager	-	-
-cSC4LotConfigurationManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/lot_config_manager	-	-
+cSC4PropManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/prop_manager	-	propmgr
+cSC4LotConfigurationManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/lot_config_manager	-	lotcfg
 cSC4LotConfiguration	lot configuration	simulation	lot-configuration.md	core/src/lot_config_manager	-	-
 cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	-	-
 cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/city_situation	citysit_shadow	-
@@ -269,6 +269,10 @@ fn:lua_extension_*	Lua host	framework	lua-host.md	-	-	-
 # host, not what each one does
 fn:LUAExtension_*	Lua host	framework	-	-	-	-
 # ---- audio
+cSC4AudioAmbienceManager	audio	audio	audio-ambience.md	-	-	-
+cSC4AudioEventHandler	audio	audio	audio.md	-	-	-
+cSC4AudioSoundManager	audio	audio	audio.md	-	-	-
+cGZSndEventStd	audio	audio	audio.md	-	-	-
 cSC4Audio*	audio	audio	-	-	-	-
 cGZSnd*	audio	audio	-	-	-	-
 cGZSound*	audio	audio	-	-	-	-
@@ -278,7 +282,7 @@ cFresh*	audio	audio	-	-	-	-
 cRZRadio	audio	audio	-	-	-	-
 cRZDiskRadioStation	audio	audio	-	-	-	-
 cGZPlayList	audio	audio	-	-	-	-
-cSC4SoundDescription	audio	audio	-	-	-	-
+cSC4SoundDescription	audio	audio	audio.md	-	-	-
 tSound	audio	audio	-	-	-	-
 cSC4MadCowPlayerWin	audio	audio	-	-	-	-
 # cGroupLayer: the sound group layer under the ambience layer (every caller is cSC4AudioAmbienceLayer)
@@ -358,7 +362,7 @@ fn:Draw*	2D drawing and fonts	renderer	-	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	-	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
-cSC4SubBudgetWindow	windows and panels	ui	-	-	-	-
+cSC4SubBudgetWindow	windows and panels	ui	budget-window.md	-	-	-
 cSC4BudgetUI*	windows and panels	ui	-	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
 cSC4Win*	windows and panels	ui	-	-	-	-
