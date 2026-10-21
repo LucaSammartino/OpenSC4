@@ -95,7 +95,7 @@ implementer of the class tables and records.
   a direction above 3 read (the bytes after the table, or a guard)? The core returns false. [missing]
 
 <!-- from: core-powerline4 (engine lane, 2026-10-21) -->
-- **NO21 - §5.2, `ComputePolePosition` "guarded against `-FLT_MAX`":** what happens when the terrain answers
+- **NO24 - §5.2, `ComputePolePosition` "guarded against `-FLT_MAX`":** what happens when the terrain answers
   `-FLT_MAX` (`0x00AA9F0C`): is y left at `-FLT_MAX`, replaced by a value (0? the previous y?), or does the call fail
   and the pole is skipped? The core returns no position. [ambiguous]
 <!-- from: core-networkmodel4 (2026-10-21) -->

@@ -251,7 +251,7 @@ pub fn check_for_reserved_tiles(
 /// `ComputePolePosition` (`0x0064EFE0`, network-occupants.md §5.2):
 /// `x = (cell + 0.5) × 16`, `z` likewise, `y` = the terrain height.
 /// "Guarded against `-FLT_MAX`": [literal] a terrain answer of `-FLT_MAX`
-/// (no height) gives no position (question NO21).
+/// (no height) gives no position (question NO24).
 pub fn compute_pole_position(x: i32, z: i32, terrain: impl Fn(f32, f32) -> f32) -> Option<[f32; 3]> {
     let (wx, wz) = (pole_position_axis(x), pole_position_axis(z));
     let y = terrain(wx, wz);

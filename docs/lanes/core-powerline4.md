@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-powerline4 (cSC4PowerLineTool core: slot 53 FSM, slot 81 reserved tiles, cost, pole position, pole reuse) | `core-powerline4` / (engine lane) | ready: core `7ef2c0b8`; gate cargo 3997/0, clippy 0, ctest 65/65; no ABI, no game run (core only); questions NT18-NT20, NO21 | 1. answer NT18 (DeterminePolePositions/PlacePoles bodies), then implement them behind `PowerLineHost`; 2. a glue lane binds the core to slot 53/81 |
+| core-powerline4 (cSC4PowerLineTool core: slot 53 FSM, slot 81 reserved tiles, cost, pole position, pole reuse) | `core-powerline4` / (engine lane) | ready: core `7ef2c0b8`; gate cargo 3997/0, clippy 0, ctest 65/65; no ABI, no game run (core only); questions NT18-NT20, NO24 | 1. answer NT18 (DeterminePolePositions/PlacePoles bodies), then implement them behind `PowerLineHost`; 2. a glue lane binds the core to slot 53/81 |
 
 ## Report
 
@@ -42,4 +42,4 @@ What is still missing, and why:
 - NT18: the pole placement algorithm, and where slot 81 is called.
 - NT19: the parameter defaults, and the meanings of `+0x3A4`/`+0x3A8`.
 - NT20: the Attempt/Place pairing, the trailing zoned or road cell, and results above 3.
-- NO21: the `-FLT_MAX` guard in ComputePolePosition.
+- NO24: the `-FLT_MAX` guard in ComputePolePosition.
