@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-lot-record-answers4 (spec answers LR1-LR5 for lot-records.md) | `re-lot-record-answers4` / (spec lane) | ready, docs only: LR1-LR4 answered (LR1 MATCHES, LR2 MATCHES, LR3 DIFFERS, LR4 DIFFERS) in lot-records.md 3.2/3.5/4, tests T17-T21; LR5 partial (new 7.1: wall add + removal paths, GetLotWallEdgeFlags), stays open for UpdateRetainingWalls; no code, no ABI, game=false | 1. LR5 rest: spec `UpdateRetainingWalls(lot)` `0x005E37F0` (356 bytes) and `UpdateSurroundingRetainingWalls` `0x005E3960`, then move LR5 to answered. 2. Engine: conform `lot_records::lifecycle` to LR3 (Remove has no defined return; always SetUnit(0)+SetTravelDesignate(0)) and LR4 (Write never writes the ID read: un-Inited lot writes 0). |
+| re-lot-record-answers4 (spec answers LR1-LR5 for lot-records.md) | `re-lot-record-answers4` / (spec lane) | ready, docs only: LR1-LR4 answered (LR1 MATCHES, LR2 MATCHES, LR3 DIFFERS, LR4 DIFFERS) in lot-records.md 3.2/3.5/4, tests T17-T25; LR5 answered (7.1 wall add/removal, 7.2 UpdateRetainingWalls 0x005E37F0, AddRetainingWallModel mask rules, UpdateSurroundingRetainingWalls 0x005E3960); no code, no ABI, game=false | 1. Engine: implement 7.2 (hash-diff model refresh, mask only via model build, keep all-zero walls) with T22-T25. 2. Engine: conform `lot_records::lifecycle` to LR3 (Remove has no defined return; always SetUnit(0)+SetTravelDesignate(0)) and LR4 (Write never writes the ID read: un-Inited lot writes 0). |
 
 ## Report
 
@@ -21,9 +21,15 @@
 - 7.1 (LR5 partial): `AddRetainingWallOccupant` add path (edge hashes, mask, position, size, type, insertion,
   flag bit 2; AL is 0 even on success, `0x005E325B`), `GetLotWallEdgeFlags` `0x005E2CE0` (neighbour-cell bits,
   vertex altitude hash with round-to-nearest-even), removal path (location cell, first wall, flag bit 2 cleared).
-- 17.3: tests T17-T21.
+- 7.2 (LR5 rest, round 2, static RE: REA still had no binary open): `UpdateRetainingWalls` `0x005E37F0` order
+  (flag bit 0; location-cell wall lookup; missing wall or failed QI `0x295D1162` -> `AddRetainingWallOccupant(lot,
+  true)`; recompute hashes, ignore AL and `top`; per edge remove-then-add model when the hash changed; one
+  `SetEdgeHashes` `0x005E2930` plain copy; Release W then w). Never changes position/size/type/flags; keeps a wall
+  whose hashes all go to 0; null `w` not tested. `AddRetainingWallModel` `0x005E3400`: AL = 1 always; mask bit set
+  on model build success, cleared on failure, untouched on removal. `UpdateSurroundingRetainingWalls` `0x005E3960`:
+  ring lots (slot 9, flags 0xF) in order, not the lot itself, each released.
+- 17.3: tests T17-T25.
 
-**Questions:** LR1-LR4 moved to docs/specs/questions/answered/lot-records.md; QUESTIONS.md regenerated. LR5 open
-(UpdateRetainingWalls only).
+**Questions:** LR1-LR5 moved to docs/specs/questions/answered/lot-records.md (LR5 MATCHES add path / DIFFERS update); QUESTIONS.md regenerated; none open.
 
-**Commits:** a1051b84 (LR1-LR4 spec), 72fe4661 (answers moved), 3d543072 (7.1 add path), ab3f54cf (removal path).
+**Commits:** a1051b84 (LR1-LR4 spec), 72fe4661 (answers moved), 3d543072 (7.1 add path), ab3f54cf (removal path), b5ce7dd5 (7.2, LR5 answered).
