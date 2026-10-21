@@ -1023,6 +1023,43 @@ Lua error outside any protected call, which goes to the panic path and ends the 
 `0x008BB830`, lua-host.md §4.2). Registration leaves the global `_tf_` pointing at the last function *[quirk]*
 (lua-host.md §8.2).
 
+**Vector order (AD7, verified).** The list is one process-wide vector (begin `0x00B207CC`, end `0x00B207D0`, capacity
+`0x00B207D4`), 12-byte entries `{name, function, isGlobal byte}`, appended by the two collector constructors. They run
+as C++ static initialisers from the CRT table: `0x00B07030` → `0x00A6FF20` → simulation collector `0x0040B8D0`, then
+`0x00B07034` → `0x00A6FF30` → UI collector `0x0040CAB0`. So the **simulation entries come first**, then the UI
+entries, each in its constructor's source order:
+
+| # | Simulation collector (38) | # | Simulation (cont.) | # | UI collector (9) |
+|---|---|---|---|---|---|
+| 1 | `advice_info` | 20 | `advice_subject` | 39 | `tool_plop_network` |
+| 2 | `trend_value` | 21 | `trigger_event` | 40 | `tool_plop_zone` |
+| 3 | `trend_slope` | 22 | `building_is_group` | 41 | `tool_plop_building` |
+| 4 | `trend_count` | 23 | `event_building_distance` | 42 | `tool_plop_flora` |
+| 5 | `camera_jump` | 24 | `mysim_distance_to_closest_building` | 43 | `tool_button` |
+| 6 | `camera_zoom` | 25 | `mysim_distance_to_closest_landmark_or_reward` | 44 | `window_budget` |
+| 7 | `ordinance_is_on` | 26 | `mysim_local_school_grade` | 45 | `window_map` |
+| 8 | `ordinance_set_off` | 27 | `mysim_local_hospital_grade` | 46 | `window_query` |
+| 9 | `ordinance_set_on` | 28 | `mysim_dispatch_tool` | 47 | `window_graph` |
+| 10 | `ordinance_is_available` | 29 | `event_disaster_distance` | | |
+| 11 | `ordinance_name` | 30 | `random_chance` | | |
+| 12 | `ordinance_description` | 31 | `nd_cancel` | | |
+| 13 | `ordinance_enact_fee` | 32 | `reward_instance_count` | | |
+| 14 | `ordinance_repeal_fee` | 33 | `unlock_reward_building` | | |
+| 15 | `ordinance_monthly_cost` | 34 | `get_reward_building_state` | | |
+| 16 | `difficulty_level` | 35 | `is_tutorial` | | |
+| 17 | `event_feedback` | 36 | `_combine_guids` (global) | | |
+| 18 | `expire_advice` | 37 | `_dofile_from_resource` (global, `0x005FC020`) | | |
+| 19 | `retire_advice` | 38 | `print` (global, `0x005FB850`) | | |
+
+Only entries 36–38 have isGlobal set. Note the UI order ends `window_query`, `window_graph` (the §8.3 table lists
+them in a different order). `register_api(g)` (`0x00418940`) walks the vector in this order; for each entry it
+pushes the target table (globals when g and isGlobal; the global `game` when neither; otherwise skips the entry,
+detected by an unchanged stack top), then sets `_tf_` to the function as a global, does `table[name] = _tf_` and
+pops the table. Consequences: after `Init`'s `register_api(true)` the global `_tf_` is `print` (`0x005FB850`); after
+every `reload_data`'s `register_api(false)` it is `window_graph` (`0x0040C890`, the UI collector's last entry).
+A replacement must register in this order, or at least leave `_tf_` = `window_graph` after each reload *[compat]*.
+Duplicate names cannot occur (all 47 differ).
+
 ### 8.3 `game.*` functions by subsystem *[compat]*
 
 "ctx" is the context advice (§6.7). Numbers are truncated toward zero where an integer is needed. A bad argument
