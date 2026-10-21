@@ -10,29 +10,9 @@
   Gimex factory (IID 0x02FFBB60) LoadFromFile slot 4 arg3 = target type; 13 IID sites; seen literal targets 1,2,9.
   Buffer resources v1/v2 carry the colour type in the file header (persistence.md 6.2); factory defaults 3 / 1.
   FUN_00604920 (lot editor) maps textures to type 8/9. REA session unavailable (no app open): bytes only.
-- Next: check type-1 buffers never reach Init; finish gimex/resource sweeps; write spec 1.2 + update SP4.
-
-## Report (2026-10-21)
-
-**What changed**
-- `docs/specs/span-render-4444.md` new §1.1 "Native call boundary": 4-byte per-context object (GlobalHeapAlloc,
-  vptr only) pointing at one shared static vtable `0x00AC185C` (immediate occurs once; slot entries 1-5 each occur
-  once in the image), so patching entries 1-5 covers every A4R4G4B4 instance. Slots 1-5 are MSVC thiscall, `this`
-  ignored, callee pops 16/16/20/16/24 bytes (4/4/5/4/6 dwords), no return value, EBX/EBP/ESI/EDI preserved; slot 0
-  thiscall(flags) `RET 4`, frees via GlobalHeapFree `0x005E5620`. Lifetime: Shutdown `0x0082FF20` / Release
-  `0x008306C0`. Only native caller: `DrawPreclippedSpanList` `0x008302E0` (slot selection table by context bytes
-  `+0x74`/`+0x41`, argument sources `+0x78`, `+0x44`, `+0xB4`, `+0xC4`; blit sites `0x008304D1`, `0x0083053B`,
-  `0x00830591`). No interface exposes `+0xB0`; the context is created only by factory `0x0082B910` (vtable
-  `0x00AC162C`, registered by `cGZDrawSystem::Init`, reached via `cIGZDrawSystem` `0x00AC1668` slot 4 `0x0082BAB0`);
-  `0xAB300B20` is not on that path. §7 and §11 cross-reference it.
-- Questions: SP3 archived to `docs/specs/questions/answered/span-render-4444.md` (MATCHES); SP4 filed (which shipped
-  path builds a type-7 RenderToBuffer target; static sweeps found no literal 7 at the 34 colour-pair constructor
-  calls or at draw-system CreateBuffer calls). `docs/specs/QUESTIONS.md` regenerated.
-- Proposed ABI rows (not reconciled into docs/abi): `build-runs/abi-rows-re-spanbridge4444-4.tsv` (6 rows,
-  `docs/abi/vtables.tsv` format, vtable `0x00AC185C`).
-
-**Method**: all from bytes (`re_query.py asm --bytes`) and a raw image scanner `build-runs/scan.py` (immediate,
-call-target, disp32 and push-imm sweeps). REA was not needed.
-
-**Next**: SP4 by a runtime breakpoint on `0x008307A8` (Init, type-7 branch) in a scripted UI session; then a shadow
-could forward the five slots by patching `0x00AC1860`-`0x00AC1870`.
+- FOUND producer: cGZGraphicSystemW32::OnCanvasInit 0x0098B3C7..0x0098B40F: if object+0x41 (ctor default 1)
+  type = 7 when screen depth (GDriver slot 0x100 struct +0xC, default 32) <= 16 else 9; calls cGZScreenBuffer
+  (+0x100, ctor 0x00991DA0, iface +0x4C vtable 0x00ADB388 slot 4) Init 0x00991EC0 -> type stored at buffer +0xC;
+  also a 4x4 aux buffer (+0x30) same type. ScreenBuffer Init registers cGZDrawContextRenderToSimGLFactory (0x00991E50)
+  with draw system slot 3, creates 0xAB300B20. Draw-system slot 4 0x0082BAB0 = first factory accepting the buffer.
+- Next: does SimGL factory claim the screen buffer before RenderToBuffer (list order, accept rule)? then spec 1.2.
