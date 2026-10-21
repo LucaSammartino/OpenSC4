@@ -301,7 +301,7 @@ it, skip; otherwise `col % 4` = 0 conversion §7.3, 1 ConstantAlpha, 2 Modulate,
 
 **Check (round 2).** Each of the 168 slot addresses (the 166 bodies in the owner range plus the two folded
 slots `0x00848160`, `0x00842C50`) was executed from the shipped bytes under a CPU emulator (unicorn 2.1.4,
-`build-runs/emu1555.py` in this lane's worktree, which maps `bin/SimCity4.exe` and calls the slot with the
+`build-runs/emu1555.py`, committed with this spec, which maps `bin/SimCity4.exe` and calls the slot with the
 records of §6) and its destination compared word for word with the rule above: **168/168 slots matched on
 3000 random cases each (504 168 cases)**: random 16-bit destinations, texture sizes 4–40 × 1–6 with padded
 strides, 1–4 spans, 25 % of texels forced to the key (bits outside the mask random), colours random plus
