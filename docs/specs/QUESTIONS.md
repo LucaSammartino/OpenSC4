@@ -109,6 +109,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PT | particles |
 | PV | prop-developer |
 | PW | power |
+| QV | map-view |
 | RD | renderer-driver |
 | RG | residential-education-health |
 | RN | foundations |
@@ -199,6 +200,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | lot-models | 1 | 0 | LM2 | questions/lot-models.md |
 | lot-records | 0 | 5 | LR6 | questions/lot-records.md |
+| map-view | 4 | 0 | QV5 | questions/map-view.md |
 | model-instances | 2 | 0 | MI3 | questions/model-instances.md |
 | mysims | 0 | 12 | MS13 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
@@ -260,4 +262,4 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **247** | **1118** | | |
+| **total** | **251** | **1118** | | |

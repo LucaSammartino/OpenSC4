@@ -450,6 +450,7 @@ cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
 cSC4SubBudgetWindow	windows and panels	ui	budget-window.md	-	-	-
 cSC4BudgetUI*	windows and panels	ui	-	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
+cSC4WinMapView	windows and panels	ui	map-view.md	-	-	-
 cSC4Win*	windows and panels	ui	-	-	-	-
 cSC4*Dialog	windows and panels	ui	-	-	-	-
 cSC4TiledScrollingCanvas	windows and panels	ui	-	-	-	-
