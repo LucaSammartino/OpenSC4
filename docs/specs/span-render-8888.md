@@ -20,6 +20,100 @@ folded into another owner) and one blend helper `0x008576B0`. Out of scope: `cGZ
   dereferenced in slots 1-5. Slots 1-5 are `thiscall` with callee-cleaned stacks (`RET 0x10`, `0x10`, `0x14`, `0x10`,
   `0x18`); all five preserve EBX, ESI, EDI, EBP.
 
+### 1.1 Native call boundary (re-span8888-bridge4) [exact]
+
+Read from the bytes at the cited addresses for this class (`re_query.py asm`, raw dword reads of the image). The
+shared context code (`Init`, `DrawPreclippedSpanList`, factory) is the code `span-render-1555.md` §1.1 and
+`span-render-4444.md` §1.1 cite; it was re-read here for the 8888 case.
+
+**Vtable.** `0x00AC1874` holds exactly `0x0082FF00 0x00854E10 0x00854E60 0x00854F70 0x00855040 0x008551D0`. Each
+of the five method addresses occurs exactly once in the image as a dword (its own entry `0x00AC1878`…`0x00AC1888`),
+and the immediate `0x00AC1874` occurs exactly once, in the Init store at `0x008307CC`. Patching entries 1-5
+therefore redirects every type-8 and type-9 RenderToBuffer context; nothing copies the table. The kernel row array
+`0x00AC23D8` is referenced only by RenderBlt (`0x008551E2`).
+
+| Slot | Offset | Method | Arguments (dwords, pushed right to left) | Callee pops (address of `RET`) | Saved registers |
+|---|---|---|---|---|---|
+| 0 | +0x00 | deleting destructor `0x0082FF00` | `flags` | `RET 4` (`0x0082FF1C`) | ESI |
+| 1 | +0x04 | RenderSolid `0x00854E10` | `spans, n, surface, colour` | `RET 0x10` (`0x00854E53`) | EBX EBP ESI EDI |
+| 2 | +0x08 | RenderGradient `0x00854E60` | `spans, n, surface, grad` | `RET 0x10` (`0x00854F64`) | EBX EBP ESI EDI |
+| 3 | +0x0C | RenderAlpha `0x00854F70` | `spans, n, surface, colour, alpha` | `RET 0x14` (`0x00855035`) | EBX EBP ESI EDI |
+| 4 | +0x10 | RenderAlphaGradient `0x00855040` | `spans, n, surface, grad` | `RET 0x10` (`0x008551CB`) | EBX EBP ESI EDI |
+| 5 | +0x14 | RenderBlt `0x008551D0` | `spans, n, surface, src, b, kind` | `RET 0x18` (`0x0085525F`) | ESI EDI |
+
+MSVC thiscall: `this` in ECX and never read (the first use of ECX in every method is a write: `0x00854E26`,
+`0x00854E63`, `0x00854F92`, `0x0085504C`, `0x008551D5`), no return value (no caller reads EAX after these calls;
+`DrawPreclippedSpanList` returns right after each). `spans`, `surface`, `grad`, `src` (slot 5) and `b` are
+pointers; `n`, `colour`, `alpha` and `kind` are values. RenderSolid's helper `memset32` `0x00910003` is cdecl
+`(dest, value, count)`, popped by the caller (`ADD ESP,0xC` at `0x00854E49`). RenderBlt indexes the row array with
+`b.byte(+0x1C) + 2 × b.dword(+0x10)` (`0x008551D5`-`0x008551DC`), copies `b` (32 bytes), `src` (24) and `surface`
+(24) by value, calls `rows[…][kind]` (cdecl, 22 dwords, `CALL [EAX+ECX*4]` at `0x00855257`) and pops them itself
+(`ADD ESP,0x58` at `0x0085525A`). Slot 0 is thiscall `(flags)`: it stores the base vtable `0x00AC17AC`, frees
+`this` with `GlobalHeapFree` `0x005E5620` when bit 0 is set, returns `this` in EAX.
+
+**Creation (factory selection).** `cGZDrawContextRenderToBuffer::Init` (`0x00830710`, thiscall `(buffer)`,
+`RET 4` at `0x00830877`/`0x00830892`/`0x008308AB`, returns AL): calls its own `Shutdown` (vfunc `+0x10`, which
+destroys any previous renderer and clears `+0xB0`), releases the buffer held at `+0x08`, QueryInterfaces `buffer`
+for `cIGZBuffer` `0x20732180` into `+0x08` (failure → return 0), locks it (`vfunc +0x18`, flags `0x8040`;
+failure → release, return 0) and switches on `GetColorType` (`vfunc +0x3C`, first dword) minus 2 through the
+table at `0x008308B0` = `008307D4 0083087A 0083077C 00830792 0083077C 008307A8 008307BE 008307BE`. Types **8 and 9
+share case `0x008307BE`**: `GlobalHeapAlloc(4)` (`0x005E55E0`, call `0x008307C0`), store `0x00AC1874` at
+`0x008307CC`, pointer stored at `ctx+0xB0` (`0x008307EE`). A failed allocation stores 0 and Init still returns 1;
+the four slot loads in `DrawPreclippedSpanList` (`0x008304AD`, `0x00830529`, `0x00830583`, `0x008305C2`) do not
+test it, so the next draw would fault *[compat: an implementation may fail Init instead]*. Types 3, 1, 0 and
+anything above 9 release the buffer and return 0 (`0x0083087A`). On success Init caches `ctx+0x78` = pixel
+pointer (`vfunc +0x88`), `+0x7C` = stride (`+0x8C`), `+0x80` = width (`+0x24`), `+0x84` = height (`+0x28`),
+`+0x88` = colour type, `+0x8C`/`+0x90` = `vfunc +0x44` (bytes per pixel), clip `+0x0C`/`+0x10` = width/height,
+clears `+0xA4` (tiling), sets `+0x75` = 1, returns 1. The buffer stays locked until `Shutdown`/`Release`. The
+renderer never reads the colour type: type 8 and type 9 targets are drawn identically (the alpha byte written is
+per operation, §2-§9), and every method assumes 4 bytes per pixel and the stride the buffer reported.
+
+**Lifetime.** One renderer per Init; `Shutdown` (`0x0082FF20`) and `Release` (`0x008306C0`) call slot 0 with flags
+1 and clear `+0xB0`. The object is 4 bytes (only the vtable pointer) and holds no state, so a successor may
+share one stateless instance (nothing observes the identity).
+
+**The only native caller** of slots 1-5 is `DrawPreclippedSpanList` (`0x008302E0`, thiscall `(spans, n)`, `RET 8`,
+slot 22 of the context vtable `0x00AC17D0`). It passes its own `spans`, `n` unchanged and `surface = ctx+0x78`
+always, and calls exactly one slot per call:
+
+| Condition (context fields) | Slot, call site | Extra arguments |
+|---|---|---|
+| texture `+0x24` set, lock (`vfunc +0x18`, `0x800`, `0x008302FB`) succeeds, colour type mapped | 5 at `0x008304D1` / `0x0083053B` / `0x00830591` (tiled / plain / stretched set-ups) | `src` = 24-byte texture record on the stack, `b` = 32-byte blit record, `kind` |
+| no texture, gradient `+0x74`, alpha `+0x41` | 4 at `0x008305E7` | `grad = ctx+0x44` |
+| no texture, gradient, no alpha | 2 at `0x008305FC` | `grad = ctx+0x44` |
+| no texture, no gradient, alpha | 3 at `0x00830627` | `colour = [ctx+0xC4]`, `alpha = [ctx+0xB4]` |
+| no texture, no gradient, no alpha | 1 at `0x00830647` | `colour = [ctx+0xC4]` |
+
+Texture path (the rules of `span-render-1555.md` §6.1, re-read here for the values this class sees): source
+format `b.+0x10` from the texture colour type through the table `0x00830654`: 7 → 0, 6 → 1, 4 → 2, 5 → 3,
+**9 → 4, 8 → 5**, 2 → 6; type 3 or outside 2..9 → unlock, nothing drawn (`0x008305AA`). Key flag `b.+0x1C` = the
+byte `vfunc +0x68` returns, key into `b.+0x18`, then masked by format through `0x00830674`: 0 `& 0x0FFF`, 1 and
+2 `& 0x7FFF`, 3 `& 0xFFFF`, 4 and 5 `& 0x00FFFFFF`, 6 → flag forced to 0 (`0x008303FF`), so **row 13 (keyed A8) is
+unreachable** from this caller. For a `cGZBuffer` texture `vfunc +0x68` is `0x00826620`: returns 1 and the key
+`+0x24` if bit 1 of `+0x28` is set, else 0, so the flag is 0 or 1. `b.+0x14` = `[ctx+0xB4]`; `kind` = alpha
+`+0x41` + 2 × modulate `+0x42`, `+8` if tiling `+0xA4`, else `+4` if stretching `+0x40`. The texture is unlocked
+(`vfunc +0x1C`) after the call.
+
+**Supported COM boundary.** No interface slot returns or sets `+0xB0`. A RenderToBuffer context is made only by
+`cIGZDrawSystem` slot 4 (`0x0082BAB0`, entry `0x00AC1678`, thiscall `(buffer, out)`, `RET 8`), which asks each
+registered factory's slot 3 in list order and stops at the first success. The RenderToBuffer factory
+(`0x0082B910`) accepts any object answering `cIGZBuffer` `0x20732180`, allocates 0xD4 bytes, constructs
+(`0x00830690`) and AddRefs into `*out` (a failed allocation faults at `0x0082B950`); it does not call Init. The
+native producer of that call is `cGZDrawContext` slot 17 (`0x0082C830`, entry `0x00AC170C`, the front-end
+draw context's set-target method): it releases the previous engine (`+0x10` then Release), AddRefs the new
+target into `+0x24`, copies its area (`target vfunc +0x30`) to `+0x34`, gets the draw system (IID `0x4B2EA3B3`,
+`0x0082C8CC`), calls slot 4 `(target, &ctx+0x28)` (`0x0082C8F6`), then calls the engine's `Init(target)`
+(`+0x0C`, `0x0082C907`) and pushes its state to it (`+0x18` clip `&ctx+0x34`, `+0x1C`, `+0x20`, `+0x24`, …).
+Neither slot 4's nor Init's result is tested there.
+
+**Original-vs-ours trace (one solid span, constructed buffer).** Original: `cGZBuffer` (CLSID `0xC470D325`)
+`Init`-ed with (9, 32) → `cGZDrawContext` set-target `0x0082C830` → draw system slot 4 → factory `0x0082B910`
+→ context `Init` → case `0x008307BE`, `+0xB0` = 8888 renderer → a fill through the front end reaches
+`DrawPreclippedSpanList` → slot 1 `0x00854E10(spans, 1, ctx+0x78, colour)` → `memset32`. Ours: the same span list,
+`n`, surface record (base, stride) and colour into the RenderSolid rule of §3. Example: `spans =
+[{0x00010002, 0x00010005}]`, surface `{B, 16}`, colour `0x12345678`: dwords at `B+24`, `B+28`, `B+32` become
+`0x12345678`, nothing else changes, 16 bytes popped.
+
 ## 2. Shared conventions
 
 **Pixel.** 32 bits, A in bits 24-31, R 16-23, G 8-15, B 0-7. All writes are whole dwords. The renderer treats
