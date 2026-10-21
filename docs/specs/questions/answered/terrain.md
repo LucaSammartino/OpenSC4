@@ -220,3 +220,43 @@ lane numbered these TR21-TR27.
   **DIFFERS** on §10.3: the SimNewDay `0x66956814` trigger is **unreachable** — the handler exists (`0x0074019A`)
   but `Init` never subscribes to it and there is no wildcard — so the dirty flag `+0x50` is set by the power-pole
   handlers (`0x007402A4`) and never read. `0x26D31EC5` is subscribed and its handler does nothing.
+- **TR38 - §15.5.8 / TR30:** the precondition of the edge-layer refresh `FUN_00755B60` that a replacement terrain
+  breaks. Runtime evidence (gt3-repl-4): the first queued `0x278E6003` after `DoPostCityInit` (whole-city rect
+  `(0, 0, 128, 128)`, data1 = data2 = `0x80`, a flat 300 m terrain, sea 250, 128 x 128 cells, `T+0x6C` a live
+  `0x24`-byte array) faults in the view at `0x00755C2B` (ACCESS_VIOLATION writing `0x16B23FF8`; caller
+  `0x00756AAC` in `FUN_007569F0`, under the view `DoMessage` `0x007575DE`). Registers: ecx `0x16B84C24`, edx
+  `0xFFF9F3D0`, esi `0xFFF9FFE8` (edx - esi = -24 x 129), edi `0x4102`, ebx 2, eax 6, ebp `0x437A0000` (250.0f).
+  The game itself posts whole-city heights redisplays (`SetSeaLevel`, `0x470BD214`, the grid toggle), so a
+  whole-city rect alone is not the fault. Which input does `FUN_00755B60` index with (terrain altitudes, slot 29,
+  terrain fields beyond §2.3, the edge records `0x64 + side`, or state set by §15.5.1 step 7's pair `0x00743B60` /
+  `0x007490B0`, TR33), and what range must it be in? The replacement keeps the TR33 whole-city redisplay; it is
+  the fault's trigger [choice: unchanged until answered]. What settles it: a byte walk of `0x00755B60`-`0x00755C47`
+  naming the array written at `0x00755C2B` and the source of its index.
+  **ANSWERED 2026-10-21 (re-terrain4):** DIFFERS — the fault is not a missing precondition of `FUN_00755B60`; the
+  delivered message rectangle was out of range. `FUN_007569F0` loops `x = x0…x1`, `z = z0…z1` straight from
+  data1/data2 with no clamp and calls `FUN_00755B60(side, k, alt, sea)` with `k = x`, `cellsZ − z`, `cellsX − x`, `z`
+  for sides 0–3; the arrays hold `2n` elements and need `0 ≤ k < n`. The fault registers give `x = 0x4102`, `z = 0`,
+  `side = 2`, `k = −16514`, `n = 129`: the view's statics were right and the loop ran to `x = 16642`, so the received
+  data1 low half was ≥ `0x4102`, not 128. `Init` already copies `{0, 0, cellsX, cellsZ}` itself. Rule (terrain.md
+  §15.5.12.1, §15.5.11 item 19): post each message on a fresh `cRZMessage2Standard` as helper `0x00743380` does,
+  never reuse or rewrite a posted object, and keep every rectangle inside `[0, cellsX] × [0, cellsZ]`; the TR33
+  whole-city post may stay.
+- **TR40 - §15.5.5 slot 67 / §15.5.9:** who initialises the view's city-edge layer state (`0x00B4C760`,
+  `0x00B4C790`, `InitializeCityEdgeLayerHeights` `0x00757300`) for a city, and what the terrain's slot 67
+  `DoLighting` (`0x00742930`, called once from `DrawTerrainLayers` with `V+0x34`) must do. Runtime evidence
+  (gt3-repl-5, the TR33 whole-city post switched off, slot 67 a no-op, no other change): the first draw faults at
+  `0x007540A5` (ACCESS_VIOLATION reading `0x00000008`; edx 8, esi 0, ebx `0x81`; `0x00B4C760` twice on the
+  stack; called from `0x0075BFA3` in `DrawTerrainLayers` under `Update` `0x0075C07E`). Together with TR38 this
+  says the edge-layer state is not set up when a replacement terrain is in place: is it set by §15.5.1 step 7's
+  `0x00743B60` / `0x007490B0` (TR33), by the original slot 67, or by a terrain field the view reads that §2.3 does
+  not list? [choice: slot 67 a no-op, as §15 calls it render] What settles it: the callers of `0x00757300` and a
+  description of `0x00742930`, `0x00743B60` and `0x007490B0`.
+  **ANSWERED 2026-10-21 (re-terrain4):** DIFFERS — the gt3-repl-5 fault is not the edge-layer state and not slot 67.
+  `DrawSideCliffs` binds texture id `0x11` from `table[level]` (`0x00B4C670[0x00B4C70C]`, per detail level); the
+  table is `0x00B4BC44` entries long and filled for the ids in `0x00B4BCD8[terrainType]`. Those two statics are
+  written only by `cSTETerrain::StaticInit` (`0x0074FE40`, from `cSTETerrain::Init` `0x0074FEAF`: `ReadTextureInfos`,
+  `ReadTerrainIniFile` → `ReadMiscTexturesForTerrainTypes`, `ReadTuningParameters`, `ReadBrushDescriptions`). Without
+  it `0x00B4BC44` = 0, the view allocates zero-length tables and reads past them. Rule (terrain.md §15.5.12.2,
+  §15.5.11 item 18): run `0x0074FE40` (no `this`, idempotent) or reproduce those statics before the first view
+  `Init`. The edge-layer arrays and depths are the view's own (§15.5.12.3). Slot 67 `DoLighting` lights record
+  `+0x04` normals into `+0x10` through the lighting object `0x00B43DDC` slot 28 (§15.5.12.4).

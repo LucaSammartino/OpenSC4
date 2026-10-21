@@ -1892,11 +1892,11 @@ contract:
 | `0x00B4C7A0`/`0x00B4C7A4`/`0x00B4C7A8` | the colour/level LUT object and its level range (from the functor pair `0xC9EFB727`/`0x69EFB6F8`, queried through `0x00B4C738`) | `StaticInit` `0x0075C2AC`–`0x0075C336` |
 | `0x00B4C704` | the texture-binding factory (`cS3DTextureBindingFactory`, class `0x1AC0E11A`, IID `0xFAC0E219`) | `StaticInit` `0x0075C160`–`0x0075C18C`; released in `FUN_00758BC0` `0x00758CC9`–`0x00758CCE` |
 | `0x00B4C708`/`0x00B4C70C` | the current texture set pair (Init sets 4/5, `0x0075C4FD`–`0x0075C507`) | `FUN_007566C0`/`FUN_007574D0` on a draw-context change |
-| `0x00B4C670`..`0x00B4C698` | per-terrain-type texture-binding arrays (5 types × the `0xB4BC44` count), filled from group `0x7AB50E44`/`0x891B0E1A` ids `0x09187400..0x09187404` | `StaticInit` `0x0075C240`–`0x0075C281` |
+| `0x00B4C670`..`0x00B4C680` | five texture-binding tables, one per texture-detail **level** `0x00B4C70C` (not per terrain type; corrected by TR40, §15.5.12.2), each `0xB4BC44` entries, zeroed here and filled per terrain type by `FUN_007571D0`; `0x00B4C684`..`0x00B4C698` are separate bindings loaded here from ids `0x09187400..0x09187404` | `StaticInit` `0x0075C240`–`0x0075C281` |
 | `0x00B4C7B4`, `0x00B4C7B8` | two more bindings (grey ramp `0x0912220F`; water `0x69EFB7DA`) | `StaticInit` `0x0075C336`–`0x0075C348`, `FUN_0075253A` `0x00752638`–`0x0075264B` |
 | `0x00B4C7BC`/`0x00B4C800` | the packed render state + its built flag | `Update` `0x0075C025`–`0x0075C054` |
 | `0x00B0D6FC` | the last-seen terrain type (drives `ChangeTerrainType`) | `Init`/`DrawTerrainLayers` |
-| `0x00B4BC44`/`0x00B4BC48` | the terrain-type count and per-type cell-quad size (written by `cSTETerrain::ReadTextureInfo` `0x0074F180`) | read-only here |
+| `0x00B4BC44`/`0x00B4BC48` | `0x00B4BC44` = the terrain-texture table length (highest texture-info instance id + 1, §15.5.12.2; not a terrain-type count); `0x00B4BC48` = five per-curve maxima (written by `cSTETerrain::ReadTextureInfos` `0x0074F410` / `ReadTextureInfo` `0x0074F180`, only inside `cSTETerrain::StaticInit` `0x0074FE40`) | read-only here |
 | `0x00B0D708..0x00B0D719`, `0x00B4C808`, `0x00B4BE00..0x00B4BE08`, `0x00B4C618..0x00B4C620` | the view's own ini (`0x6534284A/0x88CD66E9/1`) properties `0x89A312C0`, `0x29AB15C0`–`C7` (water colours, the render toggles `0x00B0D718`/`0x00B0D719`, the edge-layer heights source) | `ReadTuningParameters` `0x00758990`–`0x00758B09` |
 
 **`cSTEVertBufExtn`** (`0x0075C9F0` create, `0x0075CA90` release, `0x0075CB50` draw, `0x0075CAD0` flush) is the
@@ -2009,6 +2009,144 @@ host; with `0x00B43DD0` null the draw-callback registrations of §15.5.4 step 12
 
 17. The whole chain — view created, `Init`ed, `+0xEC` set, slot 66 answerable — must complete before any
     `PostCityInit` consumer calls terrain slot 66 (§15.5.1); the zone developer faults otherwise.
+18. **The terrain's per-process static init must have run before the first `V->Init`** (§15.5.12.2, TR40):
+    `cSTETerrain::StaticInit` (`0x0074FE40`) fills the texture-id count `0x00B4BC44` and the per-terrain-type
+    texture-id lists `0x00B4BCD8[type]` that the view's own `StaticInit` and `FUN_007571D0` size and fill their
+    texture tables from.
+19. **Every `0x278E6003` / `0x678E6E3A` rectangle must lie inside `[0, cellsX] × [0, cellsZ]` with `x0 ≤ x1`,
+    `z0 ≤ z1`, as delivered** (§15.5.12.1, TR38): the view clamps nothing.
+
+### 15.5.12 Two replacement crashes, explained (TR38, TR40) *[compat]*
+
+Both faults seen with a replacement terrain (glue-terrain3 runs gt3-repl-4, gt3-repl-5) are explained below from
+the instruction bytes. Neither is caused by missing "edge-layer state": the view sets its edge-layer state up
+itself (§15.5.12.3), and the original game reaches the same code with the same view state.
+
+#### 15.5.12.1 The heights-message copy `FUN_007569F0` and the edge-layer refresh `FUN_00755B60` (TR38)
+
+`FUN_007569F0` (`__thiscall` on view `base+0x10`'s owner pointer `ECX = base`, one stack argument = pointer to an
+inclusive vertex rectangle `{x0, z0, x1, z1}` as four int32, `ret 4`) is the whole body of the `0x278E6003`
+handler (`0x007575C3`–`0x007575D9`; the rectangle is unpacked by `FUN_007523F0`: `x0 = data1 >> 16`,
+`x1 = data1 & 0xFFFF`, `z0 = data2 >> 16`, `z1 = data2 & 0xFFFF`, data1 = message slot 9 = field `+0x10`, data2 =
+slot 14 = field `+0x14` of the `cRZMessage2Standard`). `Init` runs the same function once itself on
+`{0, 0, cellsX, cellsZ}` (`0x0075C6EC`–`0x0075C70E`), followed by the water copy `FUN_00756B00` on the same
+rectangle, so the view already holds a whole-city copy right after `Init`.
+
+What it does, in order (`0x007569F0`–`0x00756AF5`):
+
+1. `T = V+0x20`; `recs = T+0x6C`; `sea = T->slot 29()` (x87 float in `st0`, stored as float).
+2. For `z = z0 … z1` (outer, inclusive), `x = x0 … x1` (inner, inclusive), with `i = z × vertsX + x`
+   (`vertsX` = the static `0x00B4C74C`): copy the dword at `recs[i] + 0x00` (altitude) to the vertex draw buffer
+   `0x00B4C758 + i × 0x20 + 4`; then refresh the city-edge layers for each edge the vertex lies on:
+
+   | condition | side | edge index passed |
+   |---|---|---|
+   | `z == cellsZ` (`0x00B4C748`) | 0 | `x` |
+   | `x == cellsX` (`0x00B4C744`) | 1 | `cellsZ − z` |
+   | `z == 0` | 2 | `cellsX − x` |
+   | `x == 0` | 3 | `z` |
+
+   The re-read of `cellsZ`/`cellsX` after each call is only register reuse; corners hit two sides.
+3. Neither `x` nor `z` is clamped against the grid anywhere: the loop bound is the rectangle as delivered.
+
+`FUN_00755B60(side, k, alt, sea)` (`__cdecl`, four stack arguments, the caller pops 16; floats passed as raw
+dwords) writes, with `n = vertsX` for sides 0 and 2 and `n = vertsZ` (`0x00B4C750`) for sides 1 and 3, and the
+three 24-byte-element arrays `L0 = 0x00B4C760[3·side]`, `L1 = …[3·side+1]`, `L2 = …[3·side+2]` (each `2n`
+elements) plus the 16-byte-element array `E = 0x00B4C790[side]` (`2n` elements):
+
+- `E[n + k] + 4` := the smaller of `alt` and `sea` (as a dword copy of the chosen argument);
+- `L0[k] + 4` := `alt`; `a1 = max(alt − D0[k], c)` with `D0` = the float array `0x00B4BE10` and `c` = the float
+  at `0x00A81054`; `L0[n + k] + 4` := `a1`; `L1[k] + 4` := `a1`;
+- `a2 = max(a1 − D1[k], c)` with `D1` = the float array `0x00B4C214`; `L1[n + k] + 4` := `a2`;
+  `L2[k] + 4` := `a2`; `L2[k] + 0x14` := `a2 × s` with `s` = the float `0x00B4BE08`.
+
+(`max` here is the x87 `fcom`/`test ah,5`/`jp` pattern: the constant replaces the value only when the value is
+smaller; for `E`, a tie keeps `alt`.) So the arrays are indexed by `k` and `n + k` only, and `k` must be in `[0, n − 1]`; the sizes
+are fixed at `Init` (§15.5.12.3).
+
+**The gt3-repl-4 fault.** At `0x00755C2B` (the `L2[k] + 4` store) the stacked arguments were `side = 2`,
+`k = 0xFFFFBF7E` (−16514), `alt = 0.0`, `sea = 250.0`; the caller's restored registers gave `x = EDI = 0x4102`
+(16642) and `z = 0`, and `ESI − EDX` gives `n = 129`, so `cellsX = 128` and the view's statics were correct. The
+inner loop had run `x` from `x0` up to 16642 on row 0, which needs the delivered `x1 = data1 & 0xFFFF ≥ 0x4102`:
+the message the view received did **not** carry `data1 = (0 << 16) + 128`. Before faulting the loop also wrote
+past the vertex draw buffer (`i` up to 16642 ≥ 129 × 129) and below the edge arrays, so heap damage precedes the
+fault. The whole-city redisplay itself is not the problem: the original posts the same rectangle (§8.1, from
+`SetSeaLevel`, the grid toggle) and `Init` copies it unharmed.
+
+**Rule for a replacement terrain** (what the original's helper `0x00743380` does for each post): allocate a
+**fresh** `cRZMessage2Standard` (`operator new(0x2C)` at `0x0074338E`, constructor `0x009134D6`), `AddRef`
+(slot 1), `SetType` (slot 5, `+0x14`), `SetData1` (slot 11, `+0x2C`), `SetData2` (slot 16, `+0x40`), data3
+(slot 21, `+0x54`), data4 (slot 26, `+0x68`), `MessagePost(msg, 0)` on the message server `0x00B43CCC`
+(slot 4, `+0x10`; queued), then `Release` (slot 2, tail jump). The data fields are read only when the queue is
+pumped, so a message object must never be reused or rewritten after it is posted, and data1/data2 must be the
+§8.1 packing of a rectangle inside the grid. A replacement that checks its rectangle before posting and gets a
+fresh object per post cannot reach this fault.
+
+#### 15.5.12.2 The side-cliff texture table read in `DrawSideCliffs` (TR40)
+
+`DrawTerrainLayers` (`0x0075BEE0`) calls, after the slot-67 hook, `DrawSideCliffs` (`0x00753E00`, `__thiscall`,
+one argument = the draw context). For each of the four sides it draws three layers whose texture ids are the
+constants `0x11`, `0x10`, `0x15` (stored at `0x00753E1E`–`0x00753E2E`), and binds each layer's texture as
+`*(*(0x00B4C670[level] + id × 4))`, `level` = the static `0x00B4C70C` (`0x00754092`–`0x007540A7`). The gt3-repl-5
+fault (`0x007540A5`, reading `0x8`): `EAX = level = 1`, `ECX = 0x00B4C670[1]` a valid heap pointer, and the table
+entry for id `0x11` held `8` — not a texture binding and not 0.
+
+The five tables `0x00B4C670[0..4]` are **per texture-detail level**, not per terrain type (correcting the
+§15.5.9 row): `level` comes from the draw context `+0x14` (`FUN_007574D0`, `0x0075BF3F`–`0x0075BF4D`; `Init`
+sets the sentinel 5 so the first draw reloads) *[decomp only for the sentinel]*. The view's `StaticInit` allocates each
+table as `0x00B4BC44 × 4` bytes and zeroes it; `FUN_007571D0(level)` then loads, for every texture id in the
+sorted list `0x00B4BCD8[terrainType]` (sentinel-headed doubly linked list, node = `{next, prev, id}`,
+`terrainType` = `0x00B0D6FC` from slot 42), the binding for group `0x7AB50E44`/`0x891B0E1A`, instance
+`id + level × 0x100` (falling back to instance `id`) into `table[level][id]`.
+
+Both inputs are **written only by the original terrain**:
+
+- `0x00B4BC44` — `cSTETerrain::ReadTextureInfos` (`0x0074F410`) sets it to 0, sweeps the exemplars of type
+  `0x6534284A` group `0x89C2A517`, raises it to each record's instance id (`ReadTextureInfo` `0x0074F180`), then
+  adds 1: the table length = highest terrain-texture id + 1;
+- `0x00B4BCD8[type]` — filled (ids inserted in ascending order, no duplicates, including the fixed id `0x13`)
+  by `cSTETerrain::ReadMiscTexturesForTerrainTypes` (`0x0074C800`), called from `ReadTerrainIniFile`
+  (`0x0074DC30`).
+
+Both run only inside **`cSTETerrain::StaticInit` (`0x0074FE40`)**: guarded once per process by the byte
+`0x00B4BC3C`; registers `cSTETerrain::StaticShutdown` (`0x0074FC20`) through `0x00B43C94` slot 69 (`+0x114`);
+stores `0x00B43CA8` (AddRef'd) into `0x00B4BC40`; then calls `ReadTextureInfos`, `ReadTerrainIniFile`,
+`ReadTuningParameters` (`0x0074B6A0`), `ReadBrushDescriptions` (`0x0074FDC0`); returns 1 in AL. Its only caller
+is `cSTETerrain::Init` (`0x0074FEAF`), i.e. at city init, before `DoPostCityInit` creates the view.
+
+With a replacement terrain that never runs it, `0x00B4BC44` stays 0: the view's `StaticInit` allocates
+zero-length tables, `FUN_007571D0` walks empty lists, and `DrawSideCliffs` reads past the allocation — the
+gt3-repl-5 fault. **Rule:** before the first `V->Init`, `0x00B4BC44` and `0x00B4BCD8[0..4]` must hold what
+`cSTETerrain::StaticInit` puts there. A replacement either calls `0x0074FE40` (no `this`, no arguments, idempotent)
+from its own `Init`, as the original does, or reproduces those two statics from the same exemplars and ini file —
+the view's `StaticInit` runs **once per process**, so they must be right at the first city's view `Init`.
+The slot-67 hook is not involved in this fault (§15.5.12.4).
+
+#### 15.5.12.3 Who sets up the view's edge-layer state
+
+All of it belongs to the view; nothing comes from the terrain except `cellsX`/`cellsZ` (slots 8/7) and the
+records read in §15.5.12.1:
+
+- the per-edge-index layer depths `0x00B4BE10` / `0x00B4C214` (`D0`, `D1`) — `InitializeCityEdgeLayerHeights`
+  (`0x00757300`), called only from the view's `ReadTuningParameters` (`0x00758AD3`), itself called once per
+  process from the view's `StaticInit` (`0x0075C157`); its inputs are the tuning object `0x00B4C738`;
+- the scale `0x00B4BE08` (`0x3C800000` = 1/64) — set by `FUN_007558B0`, the once-per-process reset that
+  `DrawTerrainLayers` runs right after the slot-67 hook (0 before the first draw; it only scales `L2[k] + 0x14`)
+  *[decomp only]*;
+- the arrays `0x00B4C760[12]` and `0x00B4C790[4]` — allocated by `FUN_00758EA0` (sizes `n × 0x30` and `n × 0x20`
+  per side, `n` as above), called from `FUN_007595A0(cellsX, cellsZ)` at `Init` `0x0075C4C1`; that helper returns
+  early when the size is unchanged, so they are reallocated only on a size change and freed by the view's static
+  shutdown `FUN_00758BC0`;
+- their contents — the whole-city `FUN_007569F0` at `Init` and every later `0x278E6003`.
+
+#### 15.5.12.4 Slot 67 `DoLighting` (`0x00742930`)
+
+`__thiscall`, one argument (a pointer to an inclusive vertex rectangle `{x0, z0, x1, z1}`), `ret 4`. For each row
+`z = z0 … z1` it calls slot 28 (`+0x70`) of the global lighting object `0x00B43DDC` with seven stack arguments
+`(z, x0, x1 − x0 + 1, &rec(x0, z) + 0x04, 0x24, &rec(x0, z) + 0x10, 0x24)`, `rec(x, z) = T+0x6C + (z × T+0x38 + x)
+× 0x24`: it lights a row of vertex normals (record `+0x04`) into record `+0x10`. It touches no view static. The
+view calls it once per session with `V+0x34`; what the view stores in those 16 bytes is not settled here (§15.5.2
+lists `+0x34` as zero at construction and `+0x40` as the water-colour rectangle). A replacement may implement it as that loop; a no-op leaves record `+0x10` as the replacement wrote it.
 
 ## 15.6 The slots §4–§10 left undefined (TR24, TR25) *[compat]*
 
