@@ -72,3 +72,14 @@
   per-lot prop list hold a prop that its saved record (§A8) does not carry at the moment of a SimNewMonth
   Write (for example a prop added to a lot but not yet in the city's prop table, or a timed prop that the
   record skips)? If so, which props, so the shadow can exclude them.
+
+<!-- from: glue-lotcfg-detail4 (2026-10-22) -->
+- **PL22 - §B3.1 steps 1-2, in-game catalogue reload on a detail change:** the lotcfg host now reads `d` from the
+  preferences (`videoPreferences.cityDetail`) at each `StaticInit` and each slot-5 load. A harness slot runs one city
+  in one process at the slot's fixed preference (1), so only step 3 (first load at d = 1) can be observed in game:
+  no published script action or harness key changes the preference, and no action opens a second city in the same
+  process, so step 2 (unload at another level; the family set kept) is covered only by the core and C ABI tests
+  (`t8_rebuild_on_detail_change`, `the_catalogue_and_its_rebuild_on_a_detail_change`). Is there a sanctioned way
+  (a harness key for the slot's preference, or a script action that changes the preference and reopens or
+  re-initialises the city) to exercise the reload in game? [none known; reload verified only offline] Also: is a
+  preference byte outside 1..3 possible? [passed through unclamped, as the spec names only 1..3]
