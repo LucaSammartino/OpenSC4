@@ -98,6 +98,8 @@
 #include "cFC4Tutorial.h"    // the glue15 lane: tutorial
 #include "FC4PortsShadow.h"    // the glue12b2 lane: ports
 #include "cFC4PortDeveloper.h"  // the glue12b2 lane: ports
+#include "cFC4PropManager.h"  // the glue21 lane: propmgr
+#include "cFC4LotConfigManager.h"  // the glue21 lane: lotcfg
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 #include "FC4PropDevShadow.h"     // the glue12b1 lane: propdev_shadow
@@ -364,6 +366,18 @@ const ClassEntry kZoneDevClasses[] = {
 const ClassEntry kTutorialClasses[] = {
     {kFC4_CLSID_cSC4TutorialSystem, "cSC4TutorialSystem", &CreateFC4TutorialSystem},
 };
+// docs/specs/prop-lotconfig.md Part A: the prop manager (city component 5).
+// Off by default (the glue21 lane): `enable = propmgr`. Replaces the game's
+// cSC4PropManager; propmgr_shadow still compares the live class against the
+// core over a read-only host (FC4PropLotShadow.h).
+const ClassEntry kPropMgrClasses[] = {
+    {kFC4_CLSID_cSC4PropManager, "cSC4PropManager", &CreateFC4PropManager},
+};
+// docs/specs/prop-lotconfig.md Part B: the lot configuration manager (city
+// component 9). Off by default (the glue21 lane): `enable = lotcfg`.
+const ClassEntry kLotCfgClasses[] = {
+    {kFC4_CLSID_cSC4LotConfigManager, "cSC4LotConfigManager", &CreateFC4LotConfigManager},
+};
 
 // docs/specs/dispatch.md §1. Off by default (glue17): `enable = dispatch`.
 // The protection simulators and the air sources register with it (§8), and the
@@ -490,6 +504,9 @@ const Subsystem kSubsystems[] = {
     {"netmgr", nullptr, kNetworkManagerClasses, sizeof(kNetworkManagerClasses) / sizeof(kNetworkManagerClasses[0]),
      false},
     {"netlot", nullptr, kNetworkLotClasses, sizeof(kNetworkLotClasses) / sizeof(kNetworkLotClasses[0]), false},
+    // the glue21 lane
+    {"propmgr", nullptr, kPropMgrClasses, sizeof(kPropMgrClasses) / sizeof(kPropMgrClasses[0]), false},
+    {"lotcfg", nullptr, kLotCfgClasses, sizeof(kLotCfgClasses) / sizeof(kLotCfgClasses[0]), false},
     {"occmgr", nullptr, kOccMgrClasses, sizeof(kOccMgrClasses) / sizeof(kOccMgrClasses[0]), false},
 };
 
