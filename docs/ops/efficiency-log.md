@@ -83,6 +83,31 @@ the coordinator started after its context was compacted.
 mostly fix rounds, perf and replacement glue that the coverage metric does not count, and a third of its spend went
 to lanes that never landed.
 
+## What fills the context (run 2, measured 2026-10-21)
+
+Each tool result is weighted by the number of later calls that re-send it, which is what the bill counts. Thinking is
+excluded: it is not re-sent (context grows by 1.45× the tool args and results per call, and by 0.3× once thinking is
+added). Script: split each agent transcript into tool results by tool and target, then weight each by its remaining
+calls.
+
+| Share of re-sent lane context | |
+|---|---:|
+| Exploration output: `re_query` 20%, grep 17%, ad-hoc bash 14% | ~50% |
+| The lane's own tool-call arguments (inline heredoc scripts, whole-file writes) | ~18% |
+| Engine source reads (`fc4.h` alone 4%) | ~8% |
+| Specs and docs, the behaviour source | ~14% |
+| Instructions and process prose (lane prompt, HANDOFF, ops docs, lane files) | ~2.6% |
+| Fixed preamble (system prompt and tool schemas, 7.8k per call) | ~4% |
+
+The coordinator differs. Its preamble is 49.8k per call: the desktop harness's tool descriptions, the skill and
+plugin listings (including the unrelated teya-pm plugin), and the deferred MCP tool names. That is 11% of its tokens.
+Its own tool-call arguments are about 30%, and git output about 20%.
+
+**Reading:** instruction prose is not where the tokens go. The bill comes from command output that stays resident for
+hundreds of calls. The levers are to keep output short (cap `re_query`/grep/build output in the `lane-bin` wrappers;
+print counts and paths, not dumps), to keep it short-lived (the enforced context budget), and to move inline scripts
+into files. Prose costs in another way: instructions that contradict each other or have gone stale.
+
 ## Next levers, ranked by measured $
 
 1. **Enforce the context budget in the harness**, not the prompt: stop a lane round at N context tokens and restart
