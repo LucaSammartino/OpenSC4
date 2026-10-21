@@ -471,6 +471,32 @@ Let o = (message object) slot `+0x0C` (its occupant). If o's exemplar (o slot `+
 `AddModels(o, zoom +0x20, rotation +0x24, t, true)`. *[quirk]* The state byte the message carries (second
 argument) is never read (`0x00494900`–`0x00494960`); `ChangeModels` always gets the constants 0 and 2.
 
+### 9.5 Building completion (`DoBuildingCompletionChanged(msg)` `0x0048FFF0`, message `0x2977AE2F`) *[compat]*
+
+Lowers a building under construction into the ground in proportion to how much is left to build. RET 4.
+
+1. o = msg slot `+0x0C`; h = o's model holder (slot `+0x4C`); null: return. AddRef h; n = h slot `+0x0C`.
+2. c = the float at msg slot `+0x24` (completion, 1.0 = complete). Tell the holder h slot `+0x24(c >= 1.0)`
+   (a NaN gives false).
+3. If n > 0: fill the instance array (h slot `+0x10`, inline below 10, else heap); p = o's position (o slot
+   `+0x20`, three floats). For each instance:
+   - Bounding box: a record (min x, y, z, max x, y, z) pre-set to (1, 1, 1, 0, 0, 0) filled by instance slot
+     `+0x20`.
+   - y = p.y; only when c < 1.0 (not for NaN): y = p.y - ((maxY - minY) * (1.0 - c)) * 1.05f, evaluated in that
+     order (`0x00A8EDA0` = 1.05f, `0x00A81228` = 1.0f), rounded to float once.
+   - Read the instance's transform record (slot `+0x24`, record pre-set to identity with header bytes 0), set its
+     translation to (p.x, y, p.z), OR 1 into header byte 1, increment header byte 0, write it back (slot `+0x28`).
+     The 3×3 part read back is kept.
+   - Flags m = instance slot `+0x34`. When c < 1.0 and bit 0 of m is clear: instance slot `+0x38(m | 1)`. When
+     c >= 1.0 (or NaN) and bit 0 is set: slot `+0x38(m & ~1)`. In both changing cases, if the renderer (`+0x14`)
+     slot `+0x6C(inst)` is true, renderer slot `+0x7C(inst, 5)`.
+   - Always: if renderer slot `+0x6C(inst)`, renderer slot `+0x78(inst)`.
+4. Free the array, release h.
+
+Example: a building whose model is 20 units tall at 40 % completion: c = 0.4, every instance is placed at
+p.y - 20 × 0.6 × 1.05 = p.y - 12.6, bit 0 is set on each instance; at c = 1.0 the instances return to p.y and
+bit 0 is cleared.
+
 ## 10. View changes *[compat]*
 
 "Reload pass over list L" below means: if L is non-empty, set `+0x50`; run the per-occupant step on each occupant
@@ -642,7 +668,7 @@ Round 2 cases (§6, §7, §9, §10):
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
-Specified: 17420 bytes; remainder (not yet specified or only outlined): 17285 bytes. The remainder is **not empty**,
+Specified: 18150 bytes; remainder (not yet specified or only outlined): 16555 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
 
 | address | bytes | name | section |
@@ -680,7 +706,7 @@ so this spec does not yet claim the whole owner.
 | `0x0048F920` | 283 | cSC4ModelMaker::CreatePlaceHolderModelInstance | remainder |
 | `0x0048FA40` | 1295 | cSC4ModelMaker::FindModelTransform | remainder |
 | `0x0048FF50` | 65 | GZCOM_Interface<cISC4EffectsResource,cISC4EffectsCollection> | remainder |
-| `0x0048FFF0` | 730 | cSC4ModelMaker::DoBuildingCompletionChanged | remainder |
+| `0x0048FFF0` | 730 | cSC4ModelMaker::DoBuildingCompletionChanged | §9.5 |
 | `0x004902E0` | 968 | cSC4ModelMaker::AddModel | remainder |
 | `0x004906B0` | 358 | FUN_004906b0 | §12.4 |
 | `0x00490820` | 565 | FUN_00490820 | §12.4 |
