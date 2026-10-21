@@ -1,6 +1,13 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-rzservices4: specs for framework RZ files: cRZFile + cRZIniFile (round 2); round 1 cRZLanguageUtility kept for the strings lane | Claude / .claude/worktrees/re-rzservices4 | ready: docs/specs/framework-rz-files.md | engine lane may implement cRZFile/cRZIniFile; RE: Q2 error-field readers, Q3 runtime INI round trip; remaining owners cRZDirectory, cRZOFStream, cRZCmdLine, cRZSparseMatrix, cRZSysServPtr, cRZTimer |
+| re-rzservices4: round 3: cRZDirectory, cRZOFStream, cRZCmdLine specs (framework-rz-files.md ext / framework-rz-services.md) | Claude / .claude/worktrees/re-rzservices4 | in progress | see Handoff |
+
+## Handoff (round 3, 2026-10-21)
+- Goal: specify cRZDirectory, cRZOFStream, cRZCmdLine (then cRZSysServPtr if time); exact byte-supported contracts.
+- Done: rounds 1-2 (language-utility.md, framework-rz-files.md §1-5).
+- Next: cRZDirectory from decomp/cRZDirectory.c -> framework-rz-files.md §6.
+- Facts: language-utility.md untouched (strings lane). No ABI edits.
+
 
 ## Report (round 2, 2026-10-21)
 
