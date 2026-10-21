@@ -300,6 +300,10 @@ See docs/specs/questions/city-tools-input.md (CT1-CT12).
 8. Query tool: a mouse move that changes the hovered occupant restores the old occupant's saved highlight state
    and sets state 7 on the new one; `OnMouseExit` leaves no occupant highlighted; message `0x26D31EC2` stops tip
    text until the next mouse move restarts the timer.
+9. Query tool tips (§8.11): `Ratio(90, 100)` = 0.5, `Ratio(80, 100)` = 1.0, `Ratio(5, 0)` = 0.0; a terrain tip
+   on zone 0 has title `0xAA5BBDE4` and an empty body; a network tip on a road (type 0, not 2/8/12) has title
+   `0x6A5589D4`; a tip with icon 0 goes to the cursor text (3D view slot 40) and hides the callout; `SetTip` with
+   two empty strings hides the callout and clears the cursor text.
 
 ## 7. Coverage
 
@@ -504,21 +508,26 @@ string named by property `0x8A416A99`, else property `0x20` (the exemplar name) 
 
 Covered by §8 (19 functions, 5,907 bytes): `004C4590` constructor, `004C5730` / `004C5750` destructors, `004C57A0`
 Init, `004CBA80` Shutdown, `004D4D70` OnMouseDownL, `004C4C50` OnMouseUpL, `004CBC70` OnMouseMove, `004CC0B0`
-OnMouseExit, `004D7160` DoMessage (dispatch; the tip display tail is Q CT11), `004C4C90` PickQueriableOccupant,
+OnMouseExit, `004D7160` DoMessage (dispatch; display tail §8.11.3), `004C4C90` PickQueriableOccupant,
 `004C4DC0` PickStoplightProp, `004C4D10` automaton pick, `004C4E70` MouseTipCallback, `004C4EE0`
 CoverageRingCallback, `004C39A0` / `004C3AD0` filter predicates, `004C3810` display name, `007DDC30` UpdatePaths.
 `004C37B0` (mode-0 predicate) is described but belongs to another owner.
 
-Remainder (196 functions, 70,657 bytes; the next rounds, Q CT12): the query dialogs (`DoQueryDialog`
+Added by §8.11 (round 2; 5 functions, 5,818 bytes): `004C5BA0` SetTip (229), `004CACC0` SetHighlightState (276),
+`004CF8A0` GetNetworkOccupantSummaryInfo (651), `004D6C70` GetTerrainSummaryInfo (1,197), `004D5E30`
+GetBuildingOccupantTipInfo (3,465); plus the DoMessage display tail (§8.11.3). Described there but not in this
+owner's rows: `004C3B10` Ratio, `004C3730` float greater-than, `004D5C90` lot headlines. Total covered: 24
+functions, 11,725 bytes.
+
+Remainder (191 functions, 64,839 bytes; the next rounds, Q CT12): the query dialogs (`DoQueryDialog`
 `0x004D3C30`, `DescribePick` `0x004D4140`, `DoZoneBasedQueryDialog`, `DoNeighborConnectionQueryDialog`), the
 description writers (`WriteDetailedDebugInfo` `0x004D12A0`, `DescribeCell`, `DescribeBuilding`,
 `DescribePopulation`, `DescribeDemand`, `WriteBuildInfo`, `WriteDesirabilityEquation`, `WriteOutcomeStats`,
-`GetLotHeadlines`), the tip builders (`GetBuildingOccupantTipInfo`, `GetNetworkOccupantSummaryInfo`,
-`GetTerrainSummaryInfo`, the traffic-info pair), the about fifty `SetOrGet*` dialog field fillers with
+`GetLotHeadlines`), the traffic-info pair (`0x004D0190`, `0x004D07C0`), the about fifty `SetOrGet*` dialog field fillers with
 `SetOrGetControlValue`, the `SetStaticControl*` / `SetSliderControlValue` helpers, the route code (`MakeRoutePath`,
 `GetOccupantPaths` and its building/network variants, `ShowAllRoutesThatIntersectCityRect`,
-`CalculateTripVolumeFromTrafficPaths`, `DoesRouteCrossCell`, `GetRouteTravelTypes`), `SetHighlightState`,
-`SetTip`, `SetLegendMinimized`, `IsDebugQueryEnabled`, `PlayOccupantQuerySound`, the rating helpers, and 42
+`CalculateTripVolumeFromTrafficPaths`, `DoesRouteCrossCell`, `GetRouteTravelTypes`),
+`SetLegendMinimized`, `IsDebugQueryEnabled`, `PlayOccupantQuerySound`, the rating helpers, and 42
 reach-attributed helpers. The exact list is the owner's rows of `coverage.py --owners` minus the covered list.
 
 ### 8.11 Tips: builders, display, `SetTip`, `SetHighlightState` *[compat]*
