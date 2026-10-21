@@ -301,6 +301,84 @@ loop on the current token, reading the next with `GetToken(true)` after each han
 
 So `<html><body>` without a head works: BODY is pushed back and ParseHTMLElements' next GetToken returns it.
 
+## 7. Element parsers
+
+Common pattern: a parser allocates its element, hands it to the parent through the parent's vtable +4
+(add-child; ownership passes to the parent) and returns true. "Delete" below means the element's vtable slot 0
+with flag 1 (deleting destructor). Parsers are called with their token current and read further tokens
+themselves.
+
+### 7.1 Head helpers
+
+- **ParseTITLE** (00906476): `GetToken(false)`; when it is text, the title string (0x98) = the pending text.
+  Then `GetToken(true)` (normally `/TITLE`, consumed without a check).
+- **ParseBASE** (0090092d): `FindAttribute("HREF", remove)`; when present, `SetBaseURL(value)`. Returns 1.
+- **ParseSCRIPT** (00906acd): `SkipUntilToken(/SCRIPT 61)`; script bodies are discarded (also in the body,
+  through ParseSPECIAL).
+
+### 7.2 Dispatchers
+
+- **ParseFORMCTRL** (00906e59): INPUT -> ParseINPUT; SELECT -> ParseSELECT; TEXTAREA -> SkipUntilToken(/TEXTAREA);
+  LABEL -> SkipUntilToken(/LABEL); BUTTON -> SkipUntilToken(/BUTTON); else false. Text inside TEXTAREA,
+  LABEL and BUTTON is dropped.
+- **ParseSPECIAL** (00907c3e): A -> ParseA; IMG -> ParseIMG; BR -> ParseBR; SCRIPT -> ParseSCRIPT;
+  MAP -> ParseMAP; SPAN -> ParseSPAN; BLINK -> ParseBLINK; OBJECT, Q, SUB, SUP, BDO -> SkipUntilToken of the
+  matching close tag (58, 65, 67, 69, 73); else false. Skipped elements lose their content
+  (`x<sup>2</sup>` renders `x`).
+
+### 7.3 Void and form elements
+
+- **ParseBR** (008ff725): add a new `cHTMLBR` (0x1c bytes) to the parent; attributes are ignored. Returns 1.
+- **ParseINPUT** (008ff82e): DumpUnhandledAttributes (every attribute is "unhandled"), then add a new
+  `cHTMLINPUT` (0x1c bytes) to the parent. Returns 1.
+- **ParseSELECT** (00906aff): create a `cHTMLSELECT`. Loop `GetToken(true)`: OPTION -> ParseOPTION(select);
+  OPTGROUP -> SkipUntilToken(/OPTGROUP) (its options are lost); anything else ends the loop. Then, when the
+  token is `/SELECT` or SkipUntilToken(/SELECT) succeeds, **and** the select has at least one child, add it to
+  the parent; otherwise delete it.
+- **ParseOPTION** (009060df): create a `cHTMLOPTION`; `GetToken(false)`. Text -> insert it as a text segment
+  into the option and add the option to the select; otherwise delete the option. Finally, when the current
+  token is not `/OPTION`, set push-back. Example: `<select><option>One<option>Two</select>` gives two options
+  "One" and "Two"; `<select><option></option></select>` adds nothing at all.
+
+### 7.4 DIV (ParseDIV 00906d32, ParseDIVActual 009065fd)
+
+ParseDIV: alignment = the current alignment (0x158); `ALIGN` present -> MakeOutputStyle(value). Then
+ParseDIVActual(parent, closeId = /DIV 112, alignment).
+
+ParseDIVActual(parent, closeId, alignment): add a new `cHTMLDIV` (0x28 bytes) to the parent; push the current
+alignment onto the alignment stack (vector 0x168..0x170) and make `alignment` current; loop `GetToken(false)`
+while the token is in FLOW, calling ParseFLOW(div); when the stopping token is not `closeId`,
+SkipUntilToken(closeId) (everything up to the close tag is discarded); pop the alignment stack into 0x158 when
+it is non-empty. Returns true.
+
+## 8. Alignment and style state
+
+### 8.1 Alignment keywords
+
+Both upper-case the argument in place first, then compare with exact string equality (00418a40).
+
+| Keyword | MakeOutputStyle (008fe8d6) | MakeRelativeToTextAlignmentStyle (008fe92b) |
+|---|---|---|
+| LEFT | 0 | 0 |
+| RIGHT | 2 | 1 |
+| CENTER | 1 | 4 (default) |
+| TOP | 0 | 2 |
+| MIDDLE | 0 | 3 |
+| BOTTOM | 0 | 4 |
+| anything else | 0 | 4 |
+
+MakeOutputStyle values are the horizontal output-style codes stored as the current alignment (0x158);
+MakeRelativeToTextAlignmentStyle gives the vertical placement code for inline objects (images, §10).
+
+### 8.2 Text segments and the style stack
+
+`InsertTextSegment(text, parent)` (008fe6e2): allocate a `cHTMLTextSegment` (0x58 bytes) constructed with
+(document, text, current style record 0x130, current alignment 0x158) and add it to the parent through vtable
++4. The text is passed as-is.
+
+Style stack: push (00902d28) copies the current style record (0x130) onto the vector at 0x15c; pop (00900e5f)
+does nothing on an empty stack, otherwise restores the last 0x28-byte record into 0x130 and removes it.
+
 ## 10. Per-method remainder
 
 Specified above (complete): constructor, Init, SetBaseURL, QueryInterface (+ thunk 009006da),
@@ -308,12 +386,12 @@ SetFontSizeTable, InitTagList, BuildFirstSets, AppendSet, IsInSet,
 ParseCDATA, GetToken, SkipUntilToken, SkipDocumentWhitespace, SplitTag, StripWhiteSpace,
 ParseAttributeList, FindAttribute, DumpUnhandledAttributes (HD1), ParseFLOW, ParseINLINE,
 ParseSGMLElements, ParseHTMLDocument, ParseSGMLDocumentType, ParseTextDocument, ParseHTMLElements,
-ParseHEAD, InsertTextSegment (§8).
+ParseHEAD, InsertTextSegment, ParseTITLE, ParseBASE, ParseSCRIPT, ParseFORMCTRL, ParseSPECIAL,
+ParseBR, ParseINPUT, ParseSELECT, ParseOPTION, ParseDIV, ParseDIVActual, MakeOutputStyle,
+MakeRelativeToTextAlignmentStyle.
 
-Remaining (not yet specified; whole-owner credit withheld): ParseTITLE, ParseBASE, ParseMETA, ParseLINK,
-ParseSCRIPT, ParseBODY, ParseBLOCK, ParseP, ParseDIV, ParseDIVActual, ParseDL, ParseLI, ParseTABLE, ParseTR,
-ParseTD, ParseTH, ParseHR, ParseFONTSTYLE, ParsePHRASE, ParseSPECIAL, ParseA, ParseIMG, ParseMAP, ParseAREA,
-ParseBR, ParseSPAN, ParseBLINK, ParseFORMCTRL, ParseINPUT, ParseSELECT, ParseOPTION, CreateBullet,
-MakeOutputStyle, MakeRelativeToTextAlignmentStyle, GetStringForEscape (entity table, 6918 bytes),
-LoadFromImageFile, ResourceHasBeenDownloaded, DoMessage, the two hashtable helpers (008ffdc8 clear,
-009001e7 destructor).
+Remaining (not yet specified; whole-owner credit withheld): ParseMETA, ParseLINK, ParseBODY, ParseBLOCK,
+ParseP, ParseDL, ParseLI, ParseTABLE, ParseTR, ParseTD, ParseTH, ParseHR, ParseFONTSTYLE, ParsePHRASE, ParseA,
+ParseIMG, ParseMAP, ParseAREA, ParseSPAN, ParseBLINK, CreateBullet, GetStringForEscape (entity table,
+6918 bytes), LoadFromImageFile, ResourceHasBeenDownloaded, DoMessage, the two hashtable helpers (008ffdc8
+clear, 009001e7 destructor).
