@@ -112,6 +112,7 @@ const ExecutableVersion kVersions[] = {
         0x00AC185C,
         {0x00847CE0, 0x00847D30, 0x00847E40, 0x00847F10, 0x008480C0},
         0x00B207C0,  // the advisor system's private global (advisors.md §14.2, §8.3.1),
+        0x0061B490,  // cISC4NetworkOccupant slot 30 SetPiece (network-rules.md §11.2, NR14)
     },
 };
 
@@ -803,6 +804,32 @@ bool Span1555SlotEntry(unsigned slot, void*** entry, uintptr_t* function) {
     if (state[slot] != 1) return false;
     if (entry != nullptr) *entry = reinterpret_cast<void**>(kVtable + 4u * slot);
     if (function != nullptr) *function = kSlots[slot];
+    return true;
+}
+
+bool NetworkOccupantSetPiece(void* occupant, uint32_t pieceId, uint8_t orientation) {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static uintptr_t fn = 0;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        if (v == nullptr) {
+            Log("compat: network occupant SetPiece (slot 30) NOT available (executable not identified)");
+        } else if (v->networkOccupantSetPieceVA == 0 ||
+                   !CheckCode("cISC4NetworkOccupant slot 30 SetPiece", v->networkOccupantSetPieceVA, v->imageBase)) {
+            Log("compat: network occupant SetPiece (slot 30) NOT available (address rejected)");
+        } else {
+            fn = v->networkOccupantSetPieceVA;
+            state = 1;
+        }
+    }
+    if (state != 1 || occupant == nullptr) return false;
+    // The occupant's own slot 30 must be the specified method: another class (or a vtable we have no
+    // contract for) is refused, not called.
+    const uintptr_t* vtbl = *reinterpret_cast<const uintptr_t* const*>(occupant);
+    if (vtbl == nullptr || vtbl[30] != fn) return false;
+    using SetPieceFn = void(__thiscall*)(void* self, uint32_t id, uint32_t orientation);
+    reinterpret_cast<SetPieceFn>(fn)(occupant, pieceId, static_cast<uint32_t>(orientation));
     return true;
 }
 
