@@ -4,11 +4,12 @@ Subject: the game's application object `cSC4App` (SimCity 4 Deluxe 1.1.641). It 
 the framework services it registers, the app-wide lifecycle messages, the idle and focus-pause logic,
 the command-line and startup-resolution rules, and the per-user directory layout. Written by RE lane
 re-application4 (2026-10-21) from the instructions (Ghidra export via tools/re_query.py; REA was not
-available this round). Not covered yet (see section 11): city load/save/new/close bodies, window/font/
-resource setup, code-plugin loading.
+available this round). Not covered yet (see section 12): SaveCity(path)/RequestSaveCity/RequestQuit bodies,
+window/font/resource setup, code-plugin loading.
 
-Coverage status: partial owner spec. The sections below cover about 35 of cSC4App's 322 functions
-(the vtable surface and the lifecycle path); the large setup bodies listed in section 11 are open.
+Coverage status: partial owner spec. After round 2 the sections below cover about 52 of cSC4App's 322
+functions (vtable surface, lifecycle, city request/load/close/obliteration path, OnIdle, part of
+ReadCommandLine); section 12 lists what is still open. This is not a complete owner spec.
 
 ## 1. Object layout (multiple inheritance)
 
@@ -253,8 +254,26 @@ when p differs from +0x5D1, store it and call `SC4GamePause(p, 1, 1, 1, 1)`.
 and `off`/`disabled` are synonyms where a switch takes them): `ExceptionHandling` (also `verbose`),
 `IME`, `f`, `w`, `g`, `d` (driver: `soft`, `dx`/`directx`, `opengl`), `l`, `audio`, `sound`, `radio`,
 `music`, `sim`, `RDD`, `UserDir`, `CPUCount`, `CPUPriority` (value `low` recognised), `AutoZoomChange`;
-a resolution value is parsed with the pattern `%ux%ux%u` (width x height x depth). The effect of each
-option on fields is not traced yet (AP1).
+a resolution value is parsed with the pattern `%ux%ux%u` (width x height x depth).
+
+Per-option effects traced in round 2 ("prefs" = the preferences object at +0x3B0; on = `on` or
+`enabled`, off = `off` or `disabled`, value lower-cased first):
+
+| Option | Effect |
+|---|---|
+| `IME` | off: prefs byte +0x4EF := 0; on: := 1 |
+| `r` (character switch `0x72`) | value `WxHxD` via `%ux%ux%u`, defaults from prefs; after FixStartupResolutionValuesIfNeeded (section 8 below) prefs +0xF1C width, +0xF20 height, +0xF24 depth (exact acceptance checks at `0x0044F21E`..`0x0044F253` not detailed) |
+| `f` / `w` | prefs byte +0xF17 := 1 (full screen) / := 0 (windowed) |
+| `g` | value starting with `p` or `P`: prefs byte +0x4A4 := 1 (the pause-on-focus-loss byte, section 2 slot 18) |
+| `d` | app +0x65C (driver id) := 0 first; then `opengl`/`gl` -> `0xC4554841`, `soft` -> `0x7ACA35C6`, `dx` or `directx` -> `0xBADB6906`; any other value is stored as parsed (hex parser present in the body) |
+| `audio` or `sound` | both names are looked up before one shared value test; on: prefs byte +0x04 := 1 (off path not detailed) |
+| `radio` or `music` | same pattern; on: prefs dword +0x10 := 1 (off path not detailed) |
+| `sim` | value parsed as an English-locale float into prefs float +0x470 |
+| `RDD` | on: prefs byte +0x498 := 1; off: := 0 |
+| `CPUCount` | value parsed with `atol` and passed to `0x005F8CD0` |
+
+Still open (AP1, narrowed): `ExceptionHandling`/`verbose`, `l`, `UserDir`, `CPUPriority`,
+`AutoZoomChange` targets, and the off paths of audio/sound and radio/music.
 
 **IsStartupResolutionOK(w, h)** (`0x0044BA80`, called by FixStartupResolutionValuesIfNeeded):
 true when the `CustomResolution` option is `on` or `enabled`. Otherwise true only for these

@@ -2,10 +2,10 @@
 <!-- Questions about [application.md](../application.md). Append new entries at the END; when one is answered, move it to answered/application.md. Rules: README.md. -->
 
 <!-- from: re-application4 (2026-10-21) -->
-- **AP1 - section 8:** which field or preference does each `ReadCommandLine` option (`0x0044EED0`) write,
-  and with which value? Section 8 lists only the option names and value words; the per-option effects
-  (for example `f`/`w` full-screen versus windowed, `d` driver, `CPUCount`, `UserDir`) need a full read of the
-  3986-byte body.
+- **AP1 - section 8:** (narrowed 2026-10-21, re-application4: IME, r, f, w, g, d, audio/sound on, radio/music on, sim,
+  RDD, CPUCount are now in section 8) which field or call does each remaining `ReadCommandLine` option
+  (`0x0044EED0`) write: `ExceptionHandling`/`verbose`, `l`, `UserDir`, `CPUPriority`,
+  `AutoZoomChange`, and the off paths of audio/sound and radio/music?
 - **AP3 - sections 2 and 9:** the export names for cISC4App slots +0xC8 (`GetCDAppDirectory`, which returns a
   byte), +0xE4, +0xE8 (`GetRegionsDirectory`) and +0xF0 do not match their use. Which slot returns which
   folder (user base, regions), and what is the byte at +0x668?
