@@ -51,6 +51,28 @@ enum class Direct : unsigned {
     RetainingWallsUpdateSurrounding,  // UpdateSurroundingRetainingWalls: void (cISC4Lot*), pops 4
     BurntBuildingSetBounds,           // cSC4PropOccupantBurntBuilding::SetBoundsFromOccupant: thiscall on the
                                       //   base (cISC4Occupant* source), pop 4, void (direct-calls.md; LD14)
+    // The advisor window proc (advisors.md §12.1.1 "Direct-call ABI", AD4): thiscall, ECX = the 0x70 block
+    // base from GlobalHeapAllocate, no stack arguments, callee pops 0.
+    AdvisorWinProcConstruct,  // constructor: EAX = this, refcount left at 0
+    AdvisorWinProcInit,       // Init: void
+    AdvisorWinProcShow,       // show (slot 25 body): void
+    AdvisorWinProcHide,       // HideWindow (slot 26 body): void
+    AdvisorWinProcTeardown,   // teardown (slot 28 body): AddRef/Release self, result ignored
+    // The original advisor Lua extensions a replacement registers as they are (advisors.md §8.3.1 UI
+    // collector rows 1-9, §8.3.2 camera_jump / camera_zoom; AD5, AD6): cdecl lua_CFunction, one lua_State*,
+    // the caller pops, EAX = 0. Rows 5-11 call the cISC4AdvisorSystem* in AdvisorSystemGlobal() (slot 20,
+    // window_query / camera_jump also slot 22).
+    LuaToolPlopNetwork,
+    LuaToolPlopZone,
+    LuaToolPlopBuilding,
+    LuaToolPlopFlora,
+    LuaToolButton,
+    LuaWindowBudget,
+    LuaWindowMap,
+    LuaWindowGraph,
+    LuaWindowQuery,
+    LuaCameraJump,
+    LuaCameraZoom,
     Count
 };
 
@@ -144,6 +166,9 @@ struct ExecutableVersion {
     uint32_t parkManagerVtableVA;
     // The disaster shadow's forwarder sites, indexed by DisasterHook.
     DisasterHookSite disasterHooks[static_cast<unsigned>(DisasterHook::Count)];
+    // The advisor system's private global (advisors.md §14.2, §8.3.1): the cISC4AdvisorSystem* the original
+    // Lua extensions read (a replacement system writes its own pointer there, [choice] of §14.2).
+    uint32_t advisorSystemGlobalVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -231,6 +256,10 @@ const void* ParkManagerVtable();
 // before it patches).
 bool DisasterHookEntry(DisasterHook which, void*** entry, uintptr_t* function);
 
+// The advisor system's private global (advisors.md §14.2): the address of the cISC4AdvisorSystem* slot, or
+// nullptr (logged once) if the executable is not identified or the address is not aligned, committed,
+// writable memory inside its image.
+void** AdvisorSystemGlobal();
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);
 
