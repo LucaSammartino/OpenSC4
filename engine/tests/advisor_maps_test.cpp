@@ -68,6 +68,27 @@ std::vector<uint32_t> Keys(Map& m) {
     return out;
 }
 
+// WalkGameMap checks unsigned key order; the signed advisor map is checked
+// by a plain in-order walk from the root with parent links verified.
+void InOrder(const fc4::GameMapNode* n, const fc4::GameMapNode* parent, std::vector<uint32_t>& out) {
+    if (n == nullptr) return;
+    CHECK(n->parent == parent);
+    InOrder(n->left, n, out);
+    out.push_back(n->key);
+    InOrder(n->right, n, out);
+}
+
+std::vector<uint32_t> SignedKeys(Map& m) {
+    std::vector<uint32_t> out;
+    const fc4::GameMapNode* h = m.Object()->header;
+    InOrder(h->parent, h, out);
+    CHECK(out.size() == m.Object()->count);
+    if (!out.empty()) {
+        CHECK(h->left->key == out.front() && h->right->key == out.back());
+    }
+    return out;
+}
+
 uint32_t P(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 
 }  // namespace
@@ -82,7 +103,7 @@ int main() {
         CHECK(advisors.Object()->header->left == advisors.Object()->header);
         // signed order: -1 before 2 before 30, not the unsigned order
         CHECK(advisors.Rebuild({{30u, P(&c), &c}, {static_cast<uint32_t>(-1), P(&a), &a}, {2u, P(&b), &b}}));
-        CHECK(Keys(advisors) == (std::vector<uint32_t>{static_cast<uint32_t>(-1), 2u, 30u}));
+        CHECK(SignedKeys(advisors) == (std::vector<uint32_t>{static_cast<uint32_t>(-1), 2u, 30u}));
         CHECK(a.refs == 1 && b.refs == 1 && c.refs == 1);
         CHECK(advisors.Object()->header->left->value == P(&a));
         // unchanged content: same tree, no extra references
