@@ -1,16 +1,28 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-terrain4 (run4 terrain unblocker: TR38/TR39/TR40 crash blockers, TR35) | `re-terrain4` / (docs lane) worktree `.claude/worktrees/re-terrain4` | in progress (round 3 TR41); round 1 TR38/TR39/TR40/TR35; round 2 TR33/TR34/TR36/TR37 answered in terrain.md §15.5.13 (+ load path §15.5.13.5); TR41 filed | glue-terrain3: weather DoCompleteSimulation at step 6, step-7 normals + texture update, SetTriangleIndicesForCell(z,x) in flip/hide slots; RE: TR41 (texture/MarkCliff weights) |
+| re-terrain4 (run4 terrain unblocker: TR38/TR39/TR40 crash blockers, TR35) | `re-terrain4` / (docs lane) worktree `.claude/worktrees/re-terrain4` | **ready** (docs only): round 3 TR41 answered (terrain.md §15.5.13.6); round 1 TR38/TR39/TR40/TR35; round 2 TR33/TR34/TR36/TR37 answered in terrain.md §15.5.13 (+ load path §15.5.13.5); TR41 filed | glue-terrain3: weather DoCompleteSimulation at step 6, step-7 normals + texture update, SetTriangleIndicesForCell(z,x) in flip/hide slots; glue-terrain3: implement step 7 per §15.5.13.6 (read StaticInit statics in place) |
 
 
 
-## Handoff (round 3, TR41)
+## Report (re-terrain4, 2026-10-21, run4 round 3)
 
-- Goal: answer TR41 (MarkCliff 0x00742FC0, base pass 0x007482C0, brush pass 0x00748950) in terrain.md §15.5.13.6.
-- Done: MarkCliff, water proximity (0x007440C0 + FloodFillDistance), base pass written in §15.5.13.6 (commit below).
-- Next: brush pass 0x00748950 (asm dumped at build-runs/a_00748950.asm; decomp region_00740000.c:2110), then who
-  fills hash 0x00B4BCE0 nodes and 0x00B4B410/414/420 (cSTETerrain.c ~7900-7990), then move TR41 to answered.
-- Facts: build-runs/rd.py reads exe constants (`rd.py f 0xADDR`). Ghidra inverts MarkCliff compare polarity.
+Sources: re_query.py export (instruction bytes), exe data constants and decomp/ for structure; REA not needed.
+Ghidra's pseudocode inverts two compare polarities in MarkCliff; every compare was read from the bytes.
+Commits 1bc85dba (MarkCliff, proximity, base pass), 678a66ae (brush pass, table origins, TR41 moved).
+
+- **TR41, DIFFERS** (terrain.md §15.5.13.6). MarkCliff 0x00742FC0 flips the cell (slot 93 (x, z, 1), then flag
+  0x800) only when both triangles are steep and the other diagonal is not steep on both sides. It then marks the
+  steep alternative triangles. Otherwise it marks the corners of the steep original triangles with 0x8.
+  ComputeWaterProximityValues 0x007440C0: a dirty-rectangle area gate of 100 or more, then a 4-neighbour distance
+  to water capped at P+1 (P = 4). Base pass 0x007482C0: cliff id B414[type] weight 50; water 0x14 below depth 15,
+  else 0x13; land B420[type][31-floor(30t)][moisture type]; low dry ground B410 weight 1. Each id is splatted by
+  its hash node: response curve, radius and reach per zoom. Family variant ids: (variant<<12)+id. Brush pass
+  0x00748950: id 0xE0 splatted around flag-0x400 vertices of each +0x1B0 entry, faded by (1 - age/10000000).
+- **Correction:** §15.5.13.3 had 0x13/0x14 swapped; shallow water (< 15) is 0x14.
+- Not traced: which reader fills 0x00B4B420 and the hash nodes. The replacement reads those statics in place
+  after StaticInit (already required by §15.5.12.2), so step 7 needs no guess.
+
+Next: glue-terrain3 implements step 7 from §15.5.13.2/§15.5.13.3/§15.5.13.6.
 
 ## Report (re-terrain4, 2026-10-21, run4 round 2)
 
