@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-lotrecords4 (lot records: lot life cycle, business unit membership, trip data, base texture, retaining wall) | `core-lotrecords4` / (engine lane) | ready at `TIP` + report: `lot_records::lifecycle` (lr §3.5, §3.6, §4 + lot-developer §5.7 Add/Remove), core only, no C ABI / plugin / CMake change, game=false; gate cargo 3817/0, clippy 0, build 56/56, ctest 63/63; questions LR1-LR5 | 1. Answer LR1-LR5 (LR5 blocks building retaining walls). 2. Regenerate docs/specs/QUESTIONS.md (`tools/questions.py index`, not run: tools/ off-limits to engine lanes). 3. Wire `lifecycle` into the zone developer core's Init / PostCityInit walk. |
+| core-lotrecords4 (lot records: lot life cycle, business unit membership, trip data, base texture, retaining wall) | `core-lotrecords4` / (engine lane) | ready at `e5421918` (code `38f2d8d5`) + report: `lot_records::lifecycle` (lr §3.5, §3.6, §4 + lot-developer §5.7 Add/Remove), core only, no C ABI / plugin / CMake change, game=false; gate cargo 3817/0, clippy 0, build 56/56, ctest 63/63; questions LR1-LR5 | 1. Answer LR1-LR5 (LR5 blocks building retaining walls). 2. Regenerate docs/specs/QUESTIONS.md (`tools/questions.py index`, not run: tools/ off-limits to engine lanes). 3. Wire `lifecycle` into the zone developer core's Init / PostCityInit walk. |
 
 ## Report
 
