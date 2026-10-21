@@ -337,6 +337,14 @@ the same observable result):
 | 0x007BFFA0 | greatest common divisor by Euclid on signed ints: `gcd(a, 0) = a`; otherwise repeat `(a, b) = (b, a mod b)` (C remainder, sign of the dividend) until b = 0 |
 | 0x008940CD | `std::list<CellCoordinates>::insert(pos, first, last)` wrapper |
 | 0x009A5C20 / 0x009A5C9F | return a node to a free-list pool (heads at 0x00B17BF8 / 0x00B17C18); null is ignored |
+| 0x009A62CF | window-view SetFillColor(colour): `cGZWin::SetFillColor`, then recalculate when grid flag 0x100 is set; the return value is not defined by the grid |
+| 0x009A6E59 | sort comparator for two cell values {type +0x0, payload +0xC}: when both types are equal, both payloads non-null and the type is 2 (text), returns the case-insensitive compare (`_stricmp`) of the payloads' strings (+0x4); every other pair compares equal (0) |
+| 0x009A75A3 | equality of two 3-word records on words 1 and 2: true when word 1 is 0 in both (word 2 ignored), otherwise true only when words 1 and 2 both match |
+| 0x009A75CF | temporary-buffer allocation for stable sorting: request capped at 0x1FFFFFFF 4-byte elements; on allocation failure halve the request and retry until it reaches 0 (buffer then null) |
+| 0x009A7610 | placement copy of a 28-byte record (no-op when the destination is null) |
+| 0x009A7626 / 0x009A8574 | `copy_backward` over 4-byte elements; returns the new start of the destination |
+| 0x009A8591 | `swap_ranges` over 4-byte elements |
+| 0x009A8446 / 0x009A8473 | recursive node erase of a `map<u32, cRZString>` subtree (two identical instances, used for the heading maps) |
 | 0x009A5C4A | copy-construct a 40-byte cell record: copies the first 36 bytes from the source, then the two 16-bit fields at +0x24 and +0x26 are -1 (not copied) |
 
 ## 6. Conformance (planned vectors)
@@ -382,7 +390,7 @@ See `questions/win-grid.md`.
 | 009a60bb | 228 | FUN_009a60bb | pending |
 | 009a619f | 133 | SetArea | 5.1 |
 | 009a6224 | 96 | SetFlag | 5.1 |
-| 009a62cf | 33 | FUN_009a62cf | pending |
+| 009a62cf | 33 | FUN_009a62cf | 5.7 |
 | 009a62f0 | 67 | SetDefaultFont [slot 15] | 5.2 |
 | 009a6333 | 7 | GetDefaultFont [slot 16] | 5.2 |
 | 009a633a | 29 | SetDefaultFontColor [slot 17] | 5.2 |
@@ -411,7 +419,7 @@ See `questions/win-grid.md`.
 | 009a6d87 | 136 | SetCellExtraDataObject [slot 128] | 5.8 |
 | 009a6e0f | 19 | GetExtraDataObject [slot 129] | 5.5 |
 | 009a6e22 | 55 | SetExtraDataObject [slot 130] | 5.5 |
-| 009a6e59 | 55 | FUN_009a6e59 | pending |
+| 009a6e59 | 55 | FUN_009a6e59 | 5.7 |
 | 009a6e90 | 45 | SetOwnerDrawNotification [slot 134] | 5.6 |
 | 009a6ebd | 29 | GetBufferToDrawTo [slot 135] | 5.6 |
 | 009a6eda | 29 | SetSoundID [slot 138] | 5.6 |
@@ -421,10 +429,10 @@ See `questions/win-grid.md`.
 | 009a7178 | 133 | RemoveScrollBar | pending |
 | 009a71fd | 520 | SetScrollBarValues | pending |
 | 009a7405 | 370 | SetScrollBarPositions | pending |
-| 009a75a3 | 44 | FUN_009a75a3 | pending |
-| 009a75cf | 65 | FUN_009a75cf | pending |
-| 009a7610 | 22 | FUN_009a7610 | pending |
-| 009a7626 | 42 | FUN_009a7626 | pending |
+| 009a75a3 | 44 | FUN_009a75a3 | 5.7 |
+| 009a75cf | 65 | FUN_009a75cf | 5.7 |
+| 009a7610 | 22 | FUN_009a7610 | 5.7 |
+| 009a7626 | 42 | FUN_009a7626 | 5.7 |
 | 009a7650 | 21 | Release | 5.1 |
 | 009a7665 | 117 | DoMessage | 5.1 |
 | 009a76da | 90 | GetGridArea [slot 8] | 5.1 |
@@ -439,10 +447,10 @@ See `questions/win-grid.md`.
 | 009a81be | 144 | SetFlags | 5.1 |
 | 009a824e | 120 | GZOnCharacter [slot 141] | 5.8 |
 | 009a82c6 | 308 | TestForPossibleScrollBarAdditionOrRemoval | pending |
-| 009a8446 | 45 | FUN_009a8446 | pending |
-| 009a8473 | 45 | FUN_009a8473 | pending |
-| 009a8574 | 29 | FUN_009a8574 | pending |
-| 009a8591 | 37 | FUN_009a8591 | pending |
+| 009a8446 | 45 | FUN_009a8446 | 5.7 |
+| 009a8473 | 45 | FUN_009a8473 | 5.7 |
+| 009a8574 | 29 | FUN_009a8574 | 5.7 |
+| 009a8591 | 37 | FUN_009a8591 | 5.7 |
 | 009a85b6 | 550 | DoArrowKey | pending |
 | 009a87dc | 45 | GetSelection [slot 42] | 5.8 |
 | 009a8888 | 60 | FUN_009a8888 | pending |
@@ -557,5 +565,5 @@ See `questions/win-grid.md`.
 | 009af121 | 71 | Init | 5.1 |
 | 009af168 | 2813 | GZPaint | pending |
 
-Specified 82 of 198 functions, 4871 of 32735 bytes; remaining 116 functions, 27864 bytes.
+Specified 92 of 198 functions, 5288 of 32735 bytes; remaining 106 functions, 27447 bytes.
 <!-- END INVENTORY -->
