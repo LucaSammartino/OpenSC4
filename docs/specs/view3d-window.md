@@ -324,6 +324,75 @@ message (`cSC4BudgetSimulator::PostBondMessage`); refreshes the mayor rating bar
 *[inferred: the branch condition was not read]*; finally it builds a `cSC4ResponseCurve` from properties
 `0x6A6564F4`/`0x6A6564F6` (`0x007ED5B5`–`0x007ED5DB`).
 
+## 6b. The city-screen GUI: `AddGUI` (`0x007EDEB0`) and `RemoveGUI` (`0x007EF200`) *[compat]*
+
+**Pairing.** `AddGUI` has one caller, the end of `DoPreCityInit` (`0x007F4665`, after the progress message and before
+`UpdateProgressMessage`); it has no guard against a second run. `RemoveGUI` has one caller, `Shutdown` (`0x007F14B5`,
+§4). *[inferred]* the window object lives for one city, so the two run once each per city.
+
+In this section "script window *I*" means `SC4CreateWindowFromScript` with key `{type 0, group 0x96A006B0, instance
+I}` and the city window (`+0x0C`) as parent. The two variants are `(key, parent, window ID)` → window (`0x005F9390`)
+and `(key, parent, window ID, IID, out)` (`0x005F9480`), the second querying the new window for the IID into *out*.
+
+**`AddGUI`, in order** (fields are absolute object offsets; `this` = object `+0`):
+
+1. **Main panel**: script window `0xC973B411`, ID `0x0987B48F`, stored at `+0x18C` (`0x007EDEF2`); queried for
+   `cIGZWinGen` (`0x5386D516`); the window's message filter (`+0x08`) is added to it (`cIGZWin` slot 116,
+   `+0x1D0`); it is placed at the bottom of the parent (y = parent height − its height + 11, `0x007EDF87`–`0x007EDFAC`);
+   flag `0x800` is set (slot 68); `ClearAcceptFocusFlagRecursive` is applied to it.
+2. **Five tab panels**, a loop `i = 0..4` (jump table `0x007EF1D8`):
+
+| i | Script instance | Window ID | Extra |
+|---|---|---|---|
+| 0 | `0x69E3D347` | `0xC991EDA8` | — |
+| 1 | `0x2BC90671` | `0x69E40A1F` | its child `0xE9889775` (as `cIGZWinGen`) is also kept in the lists `+0x198` and `+0x1B0` |
+| 2 | `0xAA1F1F57` | `0xCA1F1D9C` | its child `0xABB26B0E` is also kept in `+0x198` and `+0x1BC` |
+| 3 | `0x49889894` | `0xC98F49F1` | a `cSC4MySimWinProc` is created, stored at `+0x2E4` and `Init`ed (`0x007EE3D6`) |
+| 4 | `0xAA53E3EA` | `0x0A78827A` | — |
+
+   Each panel window is appended (one reference) to the window list `+0x198` (begin/end/capacity `+0x198`/`+0x19C`/
+   `+0x1A0`) and to panel *i*'s own list at `+0x1A4 + 12·i`; its `cIGZWinGen` pointer goes to `+0x1E0 + 4·i`; the
+   message filter is added to it; it is given the object at `+0x2D8` (generator slot 7). Flag `0x800` and
+   `ClearAcceptFocusFlagRecursive` are applied as in step 1, and the panel is aligned to the main panel
+   (`AlignWindowSetToWindow`). Before the loop, two helper objects are made: `+0x2D8` (`0x00774550`) and a
+   `cSC4NewsTickerWinProc` at `+0x2DC`.
+3. **Text fields** (`GetChildAs`, slot 37, text IID `0x212CDC1F`): main panel child ID 1 → `+0x310`; city-window
+   children `0x09E418FE` → `+0x314` and `0xC9E41918` → `+0x318`.
+4. **News ticker**: script window `0x2A2AED99`, ID `0xCA2AEDC0`, as `cIGZWinGen`, handed to
+   `cSC4NewsTickerWinProc::Init` (`0x007EE6C1`), then aligned and appended to `+0x198`.
+5. **Four more script windows**, each queried as `cIGZWin` (`0x22BA0121`), aligned, and kept in its own field:
+
+| Script instance | Window ID | Field | Winproc created after it |
+|---|---|---|---|
+| `0x4BC906B5` | `0x6A64E3C0` | `+0x30C` | — |
+| `0x2BC9060F` | `0x00004200` | `+0x300` | — |
+| `0x6BC9065A` | `0x0A4A8176` | `+0x304` | `cSC4GraphsViewWinProc` at `+0x2F8` (`Init` `0x0076CA60`) |
+| `0x6BC61F19` | `0xABC619D2` | `+0x308` | `cSC4BuildingSelectWinProc` at `+0x2FC` (`Init` `0x00769420`) |
+
+6. `cSC4BudgetUIWinProc` (0x1A0 bytes) at `+0x2E8`, `Init`ed; a `cSC4WinCalloutBox` (0x1B4 bytes) at `+0x3D8`; a
+   `cGZWinBMP` at `+0x3D4` (flag `0x200000`); objects at `+0x3E0`, `+0x31C` (`0x00762E70`) and `+0x1F4`
+   (`0x00769E90`).
+7. Ends with `ShowPanel` (`0x007E8B90`) and `nsGZWinUtils::SetWindowEnabled` for windows `0x99887766` and
+   `0x8B96B73E`. Steps 6–7's arguments are not specified here (VW6).
+
+**`RemoveGUI`, in order.** "Destroy *w*" means: the window manager (`cGZWin` member `+0x10` of the object, i.e. the
+city window's manager) `DestroyWindow(w)` (manager slot 23), then `w->Shutdown()` (slot 5), then release, then the
+field := null. Each step is skipped when its field is null.
+
+1. Destroy the main panel `+0x18C`; release `+0x190`; destroy `+0x194`.
+2. For every window in the list `+0x198`: remove the message filter `+0x08` from it (slot 117, `+0x1D4`), then
+   `DestroyWindow` and `Shutdown` (the list's references are dropped when the list is cleared).
+3. Shut down and release the winprocs: news ticker `+0x2DC` (`0x00772A70`), MySim `+0x2E4`, then release `+0x2D8`,
+   `+0x2EC` (after its slot 5), `+0x2F0`.
+4. Destroy `+0x30C`, `+0x300`, `+0x304`, `+0x308`; shut down and release Graphs `+0x2F8`, BuildingSelect `+0x2FC`,
+   Budget UI `+0x2E8` (`0x00764B70`).
+5. Destroy the three text fields `+0x310`, `+0x314`, `+0x318` (through their `cIGZWin` interface, slot 3).
+6. The callout box `+0x3D8` is removed from the city window (window slot 16, `+0x40`) and released; release `+0x3D0`,
+   `+0x3D4`; clear `+0x3DC` (`0x007EDE50`); release `+0x3E0`; `+0x31C` gets its slot 6 then is released.
+
+A replacement must leave no window created by `AddGUI` alive after `RemoveGUI` and must remove the message filter
+from every panel before destroying it.
+
 ## 7. Conformance tests
 
 - VW-T1: QI on the five IIDs of §1 returns the documented sub-object offsets; any other IID returns false.
@@ -334,4 +403,4 @@ message (`cSC4BudgetSimulator::PostBondMessage`); refreshes the mayor rating bar
 ## 8. Open questions
 
 See [questions/view3d-window.md](questions/view3d-window.md): VW1 answered (§3.1); VW2
-(identity of the two GZCOM helpers in `Init`), VW3 (length of the command-name table), VW4 (filter branches), VW5 (the `+0xEC` helper and the established/obliterated branch).
+(identity of the two GZCOM helpers in `Init`), VW3 (length of the command-name table), VW4 (filter branches), VW5 (the `+0xEC` helper and the established/obliterated branch), VW6 (`AddGUI` tail objects and fields `RemoveGUI` releases).
