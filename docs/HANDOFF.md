@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**Run4 checkpoint30/60:** four trains landed (21,22,25,26); coverage38.7/30.0/12.4/16.5, delta fromrun4 baseline+1.9/+1.7/+0.3/+0.6 percentagepoints. Five lanes active, atmost2 glue; train27 two-lane regress running. Widgets/application capped3/3 and parked pending their ready-docs landings, never fourthround. Terrain remains held for the explicit touches conflict until application lands; do not route around it.
+
 **Run4 guard checkpoint27/60:** re-widgets4 parked at3/3, ready docs (complete cRZWinKeyAccelerator, cGZWin stillpartial); never round4. Terrain round2 removed the crash but stallsJune2026, notready; round3 was NOT started because touches terrain conflicts with unmerged re-application4. Resume only after that cause lands and checks pass. A second refill was denied CPUbusy; three lanes run until slots clears. No denied lane continues.
 
 **train26 landed 615a163a92:** Four-lane batch: effects tick/dilation/particle-stop core plus DX7, city-input and font specs. Full gate/regress PASS. Credit only four implemented effects owners, the specified input base, font director and bitmap helper; partial DX7/font classes remain uncredited. re-application4 parked at3/3 beforelanding: ready partial57/322 cSC4App spec, AP1/AP2 answered, AP3-AP5 open; nofourthround. Coverage38.7/30.0/12.4/16.5; rounds27/60.
