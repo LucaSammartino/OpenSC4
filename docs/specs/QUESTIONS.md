@@ -22,6 +22,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Prefix | Spec |
 |---|---|
 | A | automata |
+| AA | audio-ambience |
 | AM | automata |
 | AO | foundations |
 | AQ | flora, residential-education-health |
@@ -90,6 +91,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
+| audio-ambience | 4 | 0 | AA5 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 1 | 37 | A5, AM13, AT21 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -144,4 +146,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **52** | **982** | | |
+| **total** | **56** | **982** | | |
