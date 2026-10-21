@@ -392,6 +392,49 @@ non-zero hash i**. In 949 of the 1,735 saved walls the stored mask lacks bits of
 does not round-trip these records: after a load and save the mask grows *[quirk]* (test T7). The walls are created
 by `AddRetainingWallOccupant(lot, …)`, a static member called by the lot developer (`AddLotFoundation`).
 
+### 7.1 Building a wall: `AddRetainingWallOccupant(lot, add = true)` (`0x005E3070`, `__cdecl`, 8 bytes)
+
+1. If `lot.GetFlags() & 1 = 0` (slot 12): return AL = 0, nothing created.
+2. `R := lot.GetBoundingRect()` (slot 14, 4 × s32 x1, z1, x2, z2); `a := lot.GetAltitude()` (slot 16, stored as
+   float); `top := 0`.
+3. `found := GetLotWallEdgeFlags(lot, a, R, h[4], &top)` (`0x005E2CE0`, below). If false: return AL = 0, nothing
+   created.
+4. Create the wall (0x6C bytes, constructor `0x005E2F40`) and AddRef it. `t := GetRetainingWallType(lot)`
+   (`0x005E2ED0`, lot-configuration.md: one uniform draw on `0x00B230C8` from the configuration's list, 0 when the
+   lot has no configuration or the list is empty). If `t ≠ 0` and BDS (`0x00B43D68`) slot 29
+   `LoadLotRetainingWallProperties(wall, t)` returns false: Release the wall, return AL = 0. (`t = 0` skips that
+   call and builds the wall anyway.)
+5. Edge mask (wall slot 8) := `(h[0] ≠ 0) | (h[1] ≠ 0) << 1 | (h[2] ≠ 0) << 2 | (h[3] ≠ 0) << 3`.
+6. Position (wall interface at `+4`, slot 9) := `(f32(16·(x1 + x2 + 1)) × 0.5, a, f32(16·(z1 + z2 + 1)) × 0.5)`
+   (the rect centre in metres, as `GetCenter`, §3.5). Size (wall slot 4) := `(16·(x2 − x1 + 1), top − a,
+   16·(z2 − z1 + 1))`, the middle one a float subtraction of the two stored floats.
+7. Wall slot 6 := `lot` (the lot reference); wall slot 10 := `h` (the four edge hashes); wall slot 12 := `t` (the wall
+   type; 0 when `t = 0`); wall `+4` slot 3; insert into the occupant manager (`0x00B43D0C` slot 20, with the
+   wall's slot 3 (0) result); `lot.SetFlags(lot.GetFlags() | 4)`; Release the creation reference.
+8. Return AL = **0** even on success: the result byte (`[esp+0xF]` of the frame) is set to 0 at entry and never
+   written again (`0x005E325B`) *[quirk; LD3 callers ignore it]*.
+
+**`GetLotWallEdgeFlags(lot, a, R, h[4], &top)`** (`0x005E2CE0`): `top := f32(a + 0.1)` (float 0.1 at
+`0x00A8C950`); `found := false`. For each edge `i` = 0, 1, 2, 3 (flag `1 << i`, sides as in zones.md slot 10):
+1. `h[i] := 0`; `need := false`; `bits := 0`; `b := 0x80000000`.
+2. If lot manager (`0x00B43D08`) slot 12 `GetNeighborCellsAtEdgeOfLot(R, 1 << i, C)` returns false: next edge.
+3. For each cell of `C`, x outer, z inner, ascending inclusive: `L := lotManager.GetLot(x, z, false)` (slot 6). If
+   `L` is null or `L.GetFlags() & 1 = 0`: `need := true`. If `L` is non-null and `L.GetState() ≠ 6` (slot 33):
+   `bits |= b`. Then `b >>= 1`, and `b := 0x80000000` when it reaches 0 (so the 33rd cell reuses bit 31).
+4. If `need`: `h[i] := bits`; `V :=` slot 11 `GetVerticesAtEdgeOfLot(R, 1 << i, V)` (its return is not tested); for
+   each vertex of `V`, x outer, z inner, ascending inclusive: `found := true`; `y := terrain.GetAltitudeAtVertex(x,
+   z)` (`0x00B43CF4` slot 14, terrain.md); if `y > top` (x87 compare; NaN no): `top := f32(y)`; then
+   `h[i] += round(y) · x · z + 1` in 32-bit wrap-around arithmetic, where `round(y)` is
+   `bits(f32(y + 12582912.0)) − 0x4B400000` (`0x005E2E6A`–`0x005E2E87`): round to nearest, ties to even, exact for
+   |y| < 2^22.
+5. Return `found` in AL (true when at least one edge needing a wall had a vertex).
+
+So `h[i] = 0` means no wall on edge `i` (no neighbour row, or every neighbour cell is a terrain-locked lot), and
+otherwise the hash mixes which neighbour cells hold non-state-6 lots with the rounded vertex altitudes. `top` is the
+highest edge vertex (at least `a + 0.1`), so the wall is `top − a` high. A wall built with `t = 0` has the type the
+constructor gives (not observed in saves: every saved wall has one of the three types). `add = false` (removal)
+and `UpdateRetainingWalls(lot)` (`0x005E37F0`) are not specified yet (LR5 stays open for them).
+
 ---
 
 ## 8. Foundation occupant (`cSC4FoundationOccupant`, `0x49C05C8F`) *[compat]*
@@ -1060,3 +1103,7 @@ writes `0F 00 00 00` at payload offset 40. A conforming writer of an unmodified 
   [A, B, C].
 - **T20** Lot read with configuration ID `0x12345678` and never `Init`ed: `Write` emits field 2 as `00 00 00 00`.
   After `Init` with the configuration manager answering that ID: `Write` emits `78 56 34 12`; answering null: 0.
+- **T21** `AddRetainingWallOccupant(lot, true)` for a lot with flags bit 0 clear: no wall, no RNG draw, AL = 0.
+  With bit 0 set, rect (10, 20, 10, 20), altitude 100.0, edge 0 neighbour row = one cell holding no lot and its
+  edge vertices (10, 20) and (11, 20) at 102.4 and 103.6: the cell has no lot, so `bits = 0` and `h[0] = (102·10·20 + 1) + (104·11·20 + 1) = 43,282`; `top = 103.6`; mask bit 0 set; size y = 3.6
+  (float); AL = 0.
