@@ -1,16 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-advisors-activate4: activate cFC4AdvisorSystem with AD7-AD10 corrections | `glue-advisors-activate4` / (engine lane) | in progress (round 1/3) | see Handoff |
+| glue-advisors-activate4: activate cFC4AdvisorSystem with AD7-AD10 corrections | `glue-advisors-activate4` / (engine lane) | wip after round 2 (factory not registered; no activation credit) | advisor/advice GZCOM classes (12.2/12.3), remaining host cbs, then opt-in factory + 2032 run |
 
-## Handoff
-- Goal: apply advisors.md §8.2/§12.1/§5.2/§4.2 (AD7-AD10), fill host callbacks + advisor/advice/subject classes, register factory opt-in (never default), game run sim_turbo to 2032 clean (ref_warnings 0).
-- Baseline gate (main d68b254a): cargo 3980/0, clippy 0, ctest 65/65.
-- Done 55ccc744: register_api walks the 47-entry §8.2 vector (random_chance/_dofile_from_resource/print = originals via new compat Directs 0x0040A810/0x005FC020/0x005FB850); slot 9 returns cRZRandom-shaped member (+4 mul, Seed(-1) form); slot 11 DoLink per §12.1; cheats via AddNotification2 + GetVoid2 text; reload_scripts host cb: _on_reload, app +0xD4(out,-1)/+0xDC dirs + "advisors\", cdecl UpdateResourcesFromDirectory(0x005FC510)/LoadPackageScripts(0x005FBA20) group 0x4A5E8EF6; dirs logged (AD11).
-- Done 49281c4c: engine/plugin/FC4AdvisorApi.h (table, link parse, VCall, cheat payload, dirs) + tests/advisor_api_test.cpp (cases 23-27 plugin parts), quick build PASS.
-- Not done (blocks activation): advisor/advice/subject GZCOM classes over fc4_advisors_advisor_object/advice_object (ObjectCreated kinds 2-4), AddAdvisor/RemoveAdvisor/Subscribe/PushContextAdvice/GetContextAdvice/SetLocalValue/Read/Write; host callbacks still unset: call_condition, detokenize, set_tutorial_lua, create_tags, register_detokenizer, popup_priority, set_local, city_established, difficulty, cell_counts, sim_date, start_year, is_any_paused, post_update_self, post_ticker, global_effect, rebuild_text, value, list, history/ordinance/occupant/deal/tutorial cbs.
-- Gate at 49281c4c: qbuild all PASS (cargo 3980/0, clippy 0, ctest 66/66 incl. new advisor_api_test).
-- Round 2 done 87dc9249: host cbs city_established/difficulty/cell_counts/sim_date (+0x1C GetSimDate obj)/start_year (+0x14)/is_any_paused, post_ticker, global_effect (View3D +0xBC/+0xC0).
-- Round 2 done 489ff4de: cFC4AdviceSubject (12.4 14 slots incl. Clone, 11.4 via fc4_adv_obj_write/read) made in object_created kind 4; set_global/_string now write game[name] (7.1, was a Lua global); set_local + create_tags + tag-gc (8.1).
-- Decision: wrappers never deleted on Release (core keeps tokens without refs, no C ABI drop callback); DestroyAll at system destruction.
-- Next: qbuild all gate, one game run (label adv-act4-r2a), then advisor/advice classes (12.2/12.3), call_condition, detokenize, popup_priority, value/list.
-- No game requests sent yet.
+## Report (round 2)
+Goal: apply advisors.md 8.2/12.1/5.2/4.2 (AD7-AD10), fill host callbacks + advisor/advice/subject classes, register the factory opt-in, game run sim_turbo to 2032 clean.
+
+Done:
+- 55ccc744, 49281c4c (round 1): AD7-AD10 in cFC4AdvisorSystem (47-entry 8.2 register_api, slot 9 shared RNG, slot 11 DoLink, cheats via message 2, reload_scripts with AD11 dirs logged); FC4AdvisorApi.h + advisor_api_test.
+- 87dc9249: host callbacks city_established (+0x58), difficulty (+0x60), cell_counts (+0x174/+0x178), sim_date (simulator +0x1C GetSimDate object), start_year (+0x14 into a local cFC4Date), is_any_paused (+0x48), post_ticker (0xCA5501F2, 10), global_effect (View3D +0xBC/+0xC0, 6.9).
+- 489ff4de: engine/plugin/cFC4AdviceSubject.{h,cpp}: cSC4AdviceSubject 0x6A26D049 / IID 0x6A26D050, all 14 slots (Clone added; SetData1/2 return true per 12.4), cIGZSerializable (11.4 via fc4_adv_obj_write/read), cIFC4CoreObject; built in object_created kind 4. set_global/set_global_string now write game[name] (7.1; they wrote a Lua global before). set_local (game[name], game[name.."_subject"] = subject-tag userdata, AddRef'd), create_tags + tag-gc (8.1, 4.1 step 3).
+- e0b38242: [abi-ret] notes; gate PASS.
+
+Measured: qbuild all PASS (cargo 3980/0, clippy 0, ctest 66/66). Game adv-act4-r2a (turbo to 2027-01-01, default ini): clean, ref_warnings 0. This run does not exercise the advisor code: CreateFC4AdvisorSystem is still not registered anywhere, so it only shows the DLL is not regressed.
+
+Decision ([choice], in cFC4AdviceSubject.h): wrappers are never deleted on Release, because the core keeps their tokens without GZCOM references and the C ABI has no "core object dropped" callback. DestroyAll runs when the system is destroyed. A C ABI weak handle or drop callback would fix this; that is a capi change, not a spec question.
+
+Still missing before activation: advisor (12.2, 21 slots + serializable + message target) and advice (12.3, 31 slots) GZCOM classes over fc4_advisors_advisor_object/advice_object (object_created kinds 2/3 still return 0); AddAdvisor/RemoveAdvisor/Subscribe/PushContextAdvice/GetContextAdvice/SetLocalValue/Read/Write system slots; host cbs call_condition, detokenize, set_tutorial_lua, register_detokenizer, popup_priority, post_update_self, rebuild_text, value, list, history/ordinance/occupant/deal/tutorial/conditional cbs. Questions: none filed (AD11 dirs are passed opaque and logged).
+
+Next: (1) advisor + advice classes, wired in object_created; (2) popup_priority (tuning_constants.ADVICE_POPUP_PRIORITIES_BY_SKILL_LEVEL), call_condition, register_detokenizer; (3) value/list sources (7.3-7.8); (4) opt-in factory switch, then a turbo run to 2032 with the advisor action trace.
