@@ -430,7 +430,8 @@ fn tiled_wraps_and_origin() {
         ..Default::default()
     };
     render_blt(&mut mem, &[Span::new(0, 1, 1)], &DST, &src, &b, 8).unwrap();
-    assert_eq!(px(&mem, 0, 1), ((u32::MAX % 3) + 1 + 16) as u16);
+    // 0xFFFFFFFF mod 3 = 0 (a true -1 mod 3 would be 2): texel (0, 1).
+    assert_eq!(px(&mem, 0, 1), 17);
     src.width = 0;
     assert_eq!(
         render_blt(&mut mem, &[Span::new(0, 1, 0)], &DST, &src, &b, 8),
