@@ -103,6 +103,9 @@ impl NetworkPiece {
                 flags |= FLAG_PREBUILT;
                 flags = (flags & !TUNNEL_CTOR_CLEAR) | TUNNEL_CTOR_SET;
             }
+            // §3.1: the underground ctor (also the pipe/subway base ctor)
+            // builds on this base; §3 names no extra ctor flags.
+            NetOccClass::Underground | NetOccClass::Pipe | NetOccClass::Subway => {}
             other => panic!("{other:?} is not a §2 network piece"),
         }
         NetworkPiece {

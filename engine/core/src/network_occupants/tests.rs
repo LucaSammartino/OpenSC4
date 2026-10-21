@@ -243,8 +243,9 @@ fn constructor_flags() {
 
 #[test]
 #[should_panic]
-fn underground_is_not_a_section2_piece() {
-    let _ = NetworkPiece::new(NetOccClass::Pipe);
+fn connection_is_not_a_network_piece() {
+    // §3.6: the connection occupants derive directly from cSC4Occupant.
+    let _ = NetworkPiece::new(NetOccClass::PipeConnection);
 }
 
 // Conformance 9.

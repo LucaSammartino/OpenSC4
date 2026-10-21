@@ -18,11 +18,19 @@ pub mod identity;
 pub mod piece;
 pub mod power_line;
 pub mod power_pole;
+pub mod record;
+pub mod underground;
+pub mod xform;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_record;
 
 pub use identity::{is_of_type, query_interface, NetOccClass, QiAnswer};
 pub use piece::{world_to_cell, NetworkPiece, PieceHost};
 pub use power_line::{PowerLine, PowerLineRecord};
 pub use power_pole::PowerLineControl;
+pub use record::{read_network_record, write_network_record, LoadFixup, NetworkBaseRecord};
+pub use underground::{UndergroundHost, UndergroundModel, UndergroundPiece};
+pub use xform::Xform;
