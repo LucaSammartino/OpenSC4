@@ -13,14 +13,14 @@
 //! them by class ID ([`create`]).
 //!
 //! The lot's after-load work (§3.5 `Init` / `SetFlags` / `PostCityInit` /
-//! `Shutdown`) and business-unit membership (`Add` / `Remove`) are in
-//! [`lifecycle`].
+//! `Shutdown`) and business-unit membership are in [`lifecycle`]. The
+//! construction record and supported lifecycle are in [`construction`].
 //!
-//! Not here (partial family, see the lane report): the construction occupant
-//! (§9), signpost and text decal (§10.3, §10.4), retaining-wall
-//! `AddRetainingWallOccupant` / `UpdateSurroundingRetainingWalls` (§7, §15: not
-//! specified here), and the occupant manager's cell-rect rule (§16 Q1).
+//! Not here (partial family): the construction visual/schedule contracts
+//! OP13-OP16, signpost and text decal (§10.3, §10.4), retaining-wall
+//! construction (§7, §15), and the occupant-manager cell-rect rule (§16 Q1).
 
+pub mod construction;
 pub mod lifecycle;
 pub mod lot;
 
@@ -28,6 +28,8 @@ pub mod lot;
 mod lifecycle_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_construction;
 
 use std::any::Any;
 use std::cell::RefCell;
@@ -200,6 +202,7 @@ pub fn create(class_id: u32) -> Option<RefValue> {
         CLSID_BASE_TEXTURE_OCCUPANT => RecordObject::new(BaseTextureRecord::new()),
         CLSID_RETAINING_WALL_OCCUPANT => RecordObject::new(RetainingWallRecord::new()),
         CLSID_FOUNDATION_OCCUPANT => RecordObject::new(FoundationRecord::new()),
+        construction::CLSID_CONSTRUCTION_OCCUPANT => RecordObject::new(construction::ConstructionRecord::new()),
         _ => return None,
     };
     Some(RefValue::Object(o))
