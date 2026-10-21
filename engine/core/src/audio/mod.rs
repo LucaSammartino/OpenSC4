@@ -27,6 +27,7 @@
 //! - [`data`]: `Sound.dat`, the audio configuration record, AEMS banks and
 //!   tuning (§10).
 //! - [`save`]: nothing in the audio layer is saved (§12).
+//! - [`ambience`]: `cSC4AudioAmbienceManager` (audio-ambience.md).
 //!
 //! # Choices made where the spec is open (`[choice]`)
 //!
@@ -82,6 +83,8 @@ pub mod pool;
 pub mod save;
 pub mod snd_event;
 pub mod sound_manager;
+/// `cSC4AudioAmbienceManager` (`docs/specs/audio-ambience.md`).
+pub mod ambience;
 
 // ---- class ids (§1.2) -------------------------------------------------------
 
