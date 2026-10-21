@@ -279,6 +279,7 @@ bool MakeBuffer(uint32_t w, uint32_t h, uint32_t type, uint32_t bits, uint32_t l
         return false;
     }
     out->b = static_cast<cIGZBuffer*>(p);
+    FC4_ACQUIRED(out->b, "GetClassObject");  // the new buffer's one reference is ours
     if (!out->b->Init(w, h, static_cast<cGZBufferColorType::eColorType>(type), bits) || !out->b->Lock(lockFlags)) {
         Log("span1555: fixture: cGZBuffer Init/Lock (type %u, %u bpp) failed", type, bits);
         FC4_RELEASE_CREATED(out->b);
