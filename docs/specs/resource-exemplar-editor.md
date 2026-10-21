@@ -71,7 +71,7 @@ it get a value editor (§6).
 
 Each entry of a `Uint8ValueMap_0x…` / `Uint32ValueMap_0x…` section binds one numeric value of that property to a
 display name; the maps are read back by `GetPropertyValueMap` (0x006750F0 for UINT8, 0x00675170 for UINT32) and
-feed the combo-box editors (§8). *[inferred: entry direction, value = key, not checked on the instructions]*
+feed the combo-box editors (§10). The map key is the numeric value and the entry its display name (proven by the combo editors, §10).
 
 ## 4. A `[Properties]` entry *[compat]*
 
@@ -215,7 +215,7 @@ The editors are GZCOM classes registered by `cSC4ResourceLibCOMDirector`'s const
 | 0x1A368ED8 | 0x00664280 | cSCResourceCatalogView |
 | 0x671E9725 | 0x00664750 | cSCResCatalogPickerView (catalog view + picker vtables) |
 | 0x8739DFC1 | 0x00687F40 | cSCUint32ComboBoxEntryView |
-| 0x87C34EDA | 0x00687FA0 | cSCUint8ComboBoxEntryView *[inferred: vtable 0x00AB0428 not in docs/abi]* |
+| 0x87C34EDA | 0x00687FA0 | cSCUint8ComboBoxEntryView (proven §10; vtable 0x00AB0428 not in docs/abi) |
 | 0xCA0CB10F | 0x00665C80 | cSCColorSequenceEntryView |
 | 0x071E971B | 0x006648F0 | cSCHappinessCurveEntryView |
 | 0xE8DDA013 | 0x006642A0 | cSCGeneralResponseCurveEntryView |
@@ -323,6 +323,48 @@ other message returns false. `doButtonPress` returns true for every ID except as
 
 Worked example: a UINT32 list property (count 0) holding {0x10, 0x20}. Add Value → editor shows {0x10, 0x20, 0x0};
 Remove Value twice → {0x10}; a third Remove does nothing (fewer than 2); Okay writes {0x10} to the property.
+
+## 10. Combo-box editors (`cSCUint32ComboBoxEntryView`, `cSCUint8ComboBoxEntryView`) *[compat]*
+
+Identity (proven): class 0x8739DFC1 → factory 0x00687F40 → vtables 0x00AB01A8 / 0x00AB0184 (UINT32); class
+0x87C34EDA → factory 0x00687FA0 → vtables 0x00AB0428 / 0x00AB0404 (UINT8). Vtable 0x00AB0428 slot +0x10 is
+0x0068AE30, the entry of `cSCUint8ComboBoxEntryView::Init` (Ghidra split the body off at 0x0068AE46; the entry is
+the init-flag test), and that Init calls `cSCUint8ComboBoxEntryView::createComboBox` 0x00689C70. Both objects are
+0x10C bytes on the `cSCStandardTypeEntryView` base (ctor 0x00687C20), which also sets three colours: +0xF0 black
+(0,0,0), +0xF4 (0,0,0x80) navy, +0xF8 white; the property ID is at +0xFC and a value vector at +0x100..+0x108.
+
+**Item list** (`populateIndexValue` 0x0068AA70 / 0x0068AB90, run at the start of Init): the property's value map
+(§3.3, `GetPropertyValueMap`) is copied into the value vector in ascending numeric order (map order). No value
+map → empty vector, empty combos. This proves the value-map direction: the map key is the numeric value, the
+entry text its name.
+
+**Init** (0x0068ACB0 UINT32, 0x0068AE30 UINT8): runs once; clears flag 0x800, sets 0x10000, adds the background
+fill control (§8.1). Then:
+
+| Value held | Combos created | Child IDs | Position |
+|---|---|---|---|
+| a single scalar of the editor's type (UINT32 type 6 / UINT8 type 2) | one | 0x46C60DBF (UINT32), 0xC7C34B1A (UINT8) | (5, 5) |
+| anything else: one per element i of the list | count | base + i | (5, 5 + 20·i) |
+
+Each combo (`createComboBox` 0x00689A80 / 0x00689C70) is a GZCOM object of class 0x59B queried for interface
+0x412CE496. Its area is first set to (0, 0)–(editor width, 18) and then moved to the position above, so its right
+edge overhangs the editor by 5 pixels *[quirk]*. It is emptied, then gets one item per vector entry, in vector
+order, whose text is `GetPropertyValueStr(property ID, that value)` (§7). The selected item is the **first** entry
+equal to the element's current value; with no equal entry item 0 is selected. The combo is added as a child,
+gets text colour black (+0xF0) and the navy (+0xF4) second colour; the UINT32 combo also gets background
+(0xE0, 0xE0, 0xE0), the UINT8 combo does not. *[inferred: roles of combo slots +0x30/+0x40 (colours) and the style
+read from framework service 0xC416025C]*
+
+**GetValue** (value interface slot +0x1C: 0x00687AE0 UINT32, 0x00687CA0 UINT8): for a scalar, the combo with the
+first child ID gives its selected index and the value becomes vector[index] (scalar of the editor's type). For a
+list, a new array of the same count is built: element i = vector[selected index of combo base + i]; a missing
+combo leaves that element uninitialised *[quirk]*. The UINT8 editor counts list elements with an 8-bit counter,
+so a list longer than 255 elements never ends the loop *[quirk; unreachable from Ingred.ini data in practice]*;
+UINT8 item indices in `createComboBox` are 8-bit too, so a value map over 256 entries wraps the selection index.
+
+Worked example: UINT32 property with value map {1 → `Low`, 2 → `Mid`, 5 → `High`} and current value 5: one combo
+at (5, 5), child 0x46C60DBF, items in order 1, 2, 5 (texts from §7), item 2 selected. Choosing item 0 and reading
+back gives the scalar UINT32 1. A current value 7 (not in the map) shows item 0 selected.
 
 ## 13. Open points for round 3
 
