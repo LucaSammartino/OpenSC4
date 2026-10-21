@@ -496,6 +496,9 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4AdvisorWindowGame.cpp
         plugin/cFC4AdvisorSystem.h
         plugin/cFC4AdvisorSystem.cpp
+        # The glue-advisors-activate4 lane: the advice subject class (advisors.md §12.4).
+        plugin/cFC4AdviceSubject.h
+        plugin/cFC4AdviceSubject.cpp
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"

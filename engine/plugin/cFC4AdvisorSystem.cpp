@@ -22,6 +22,7 @@
 #include "FC4Interfaces.h"
 #include "FC4PropCityCommon.h"
 #include "FC4Streams.h"
+#include "cFC4AdviceSubject.h"
 #include "cFC4Date.h"
 #include "cFC4Message2Standard.h"
 #include "compat/FC4Compat.h"
@@ -263,18 +264,53 @@ void CallTrigger(void* u, int32_t ref, fc4_adv_lua_result* out) {
     L->SetTop(top);
 }
 
+// §7.1: slots 12-14 write fields of the global `game` table and assume it
+// exists. [choice] A missing `game` drops the write (the stack is left
+// balanced) instead of raising a Lua error.
+bool PushGame(cISCLua* L) {
+    L->GetGlobal("game");
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 72): the value is used as a bool
+    if (L->IsTable(-1)) return true;
+    L->Pop(1);
+    return false;
+}
+
 void SetGlobal(void* u, const char* name, double value) {
-    if (cISCLua* L = Self(u)->Lua()) {
-        L->PushNumber(value);
-        L->SetGlobal(name);
-    }
+    cISCLua* L = Self(u)->Lua();
+    if (L == nullptr || !PushGame(L)) return;
+    L->PushString(name);
+    L->PushNumber(value);
+    L->SetTable(-3);
+    L->Pop(1);
 }
 
 void SetGlobalString(void* u, const char* name, const uint8_t* value, size_t len) {
-    if (cISCLua* L = Self(u)->Lua()) {
-        L->PushLString(reinterpret_cast<const char*>(value), len);
-        L->SetGlobal(name);
-    }
+    cISCLua* L = Self(u)->Lua();
+    if (L == nullptr || !PushGame(L)) return;
+    L->PushString(name);
+    L->PushLString(reinterpret_cast<const char*>(value), len);
+    L->SetTable(-3);
+    L->Pop(1);
+}
+
+// §8.1: the two tags (subject, string), made by create_tags at Init.
+int32_t g_tags[2] = {-1, -1};
+
+// §7.1 slot 14: game[name] = value; game[name .. "_subject"] = the subject as
+// subject-tag userdata holding one reference (a null subject: null userdata).
+void SetLocal(void* u, const char* name, double value, const fc4_adv_subject_state*, uint64_t token) {
+    cISCLua* L = Self(u)->Lua();
+    if (L == nullptr || !PushGame(L)) return;
+    L->PushString(name);
+    L->PushNumber(value);
+    L->SetTable(-3);
+    const std::string key = std::string(name) + "_subject";
+    L->PushString(key.c_str());
+    cIGZUnknown* subject = fc4::FromToken(token);
+    if (subject != nullptr) FC4_ADDREF(subject);
+    L->PushUserTag(subject, g_tags[0]);
+    L->SetTable(-3);
+    L->Pop(1);
 }
 
 void CollectGarbage(void* u) {
@@ -424,12 +460,22 @@ uint64_t ResolveRefCb(void*, uint64_t t, uint32_t iid) {
     return fc4::TokenOf(out);  // one reference for the core
 }
 
+fc4_adv_obj* NewSubjectHandle(void* u) {
+    fc4_advisors* core = Self(u)->Core();
+    return core != nullptr ? fc4_advisors_new_subject(core) : nullptr;
+}
+
 uint64_t ObjectCreated(void* u, uint32_t kind, uint32_t, fc4_adv_obj* handle) {
     if (kind == FC4_ADV_OBJ_SYSTEM) {
         fc4_adv_obj_destroy(handle);
         return fc4::TokenOf(Self(u)->Primary());
     }
-    // Advisor, advice and subject objects need their GZCOM classes (next round).
+    if (kind == FC4_ADV_OBJ_SUBJECT) {
+        // §1.1, §12.4: the subject's GZCOM front owns the handle.
+        auto* s = new cFC4AdviceSubject(handle, &NewSubjectHandle, u);
+        return s->Token();
+    }
+    // Advisor and advice objects need their GZCOM classes (not yet written).
     fc4_adv_obj_destroy(handle);
     return 0;
 }
@@ -461,6 +507,32 @@ cISCLua* HostOf(lua_State* state) {
     void* lua = nullptr;
     if (thread == nullptr || !thread->QueryInterface(kIID_cISCLua, &lua)) return nullptr;
     return static_cast<cISCLua*>(lua);  // one reference, released by the caller
+}
+
+// §8.1 tag-gc: on the system's Lua state, userdata of tag 0 or 1 releases the
+// pointer it holds.
+int32_t TagGc(lua_State* state) {
+    cISCLua* L = HostOf(state);
+    if (L == nullptr || g_live == nullptr || L != g_live->Lua()) return 0;
+    if (!L->IsUserData(1)) return 0;
+    const int32_t tag = L->ToUserTag(1);
+    if (tag != g_tags[0] && tag != g_tags[1]) return 0;
+    if (auto* p = static_cast<cIGZUnknown*>(L->ToUserData(1))) FC4_RELEASE(p);
+    return 0;
+}
+
+// §4.1 step 3: NewTag twice, each with tag-gc as its "gc" method.
+void CreateTags(void* u, int32_t* subjectTag, int32_t* stringTag) {
+    cISCLua* L = Self(u)->Lua();
+    for (int i = 0; i < 2; ++i) {
+        g_tags[i] = -1;
+        if (L == nullptr) continue;
+        g_tags[i] = L->NewTag();
+        L->PushCClosure(&TagGc, 0);
+        L->SetTagMethod(g_tags[i], "gc");
+    }
+    if (subjectTag != nullptr) *subjectTag = g_tags[0];
+    if (stringTag != nullptr) *stringTag = g_tags[1];
 }
 
 int32_t Dispatch(size_t index, lua_State* state) {
@@ -581,6 +653,8 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     h.start_year = &StartYearCb;
     h.is_any_paused = &IsAnyPausedCb;
     h.post_ticker = &PostTickerCb;
+    h.set_local = &SetLocal;
+    h.create_tags = &CreateTags;
     h.global_effect = &GlobalEffectCb;
     h.subscribe = &SubscribeCb;
     h.unsubscribe = &UnsubscribeCb;
@@ -634,6 +708,7 @@ cFC4AdvisorSystem::~cFC4AdvisorSystem() {
     if (self_ != nullptr) fc4_adv_obj_destroy(self_);
     fc4_advisors_destroy(core_);
     core_ = nullptr;
+    cFC4AdviceSubject::DestroyAll();  // the wrappers' core subjects may still call the host (this)
     ReleaseLua();
 }
 
