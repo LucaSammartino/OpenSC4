@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**Train21 landed 9e5a0dd8e9:** gate/regress PASS; aura restored71/71, netmgr72/73 with NM10/NM11 filed, unknown-key warning fixed. Coverage36.8/28.3/12.4/15.9 (specified/implemented/verified/replaced), verified up0.3 points. Run224 normal pair exact73/73 each; run225 is the combined train. At this checkpoint8/20 rounds are dispatched: verify1 landed, occmgr2 ready awaiting union regress, glue21 round1 ready awaiting union regress, terrain engine1 blocked awaiting spec, terrain RE round3/3 in flight. Never spawn terrain RE round4.
+
 **Run 4 is authorized; STOP was lifted by the user.** Limits: 20 total lane rounds, 3 rounds per lane, 3 live lanes. A lane with 3 rounds and no landing is parked and recorded here; do not restart it. Every workflow launch is maxRounds=1, with slots and check (resume for an existing worktree) before each launch. The guard is authoritative; no denied lane continues. At the run limit set STOP with reason run4 round limit, land ready work, regenerate and push.
 
 The live round ledger is build-runs/run4-coordinator-state.json; load it after compaction along with this section and lanes.py guard before any spawn. It records dispatched rounds and process IDs; do not infer the count from old guard totals. Main must remain clean; tool changes require pytest tools/tests and their own immediate commit.
@@ -25,7 +27,7 @@ Then other coverage-moving/unblocking open items if rounds remain. Skip glue26 a
 The previous stop note is preserved verbatim in [history/handoff-run3-stop-2026-10-21.md](history/handoff-run3-stop-2026-10-21.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 223 (train19 PASS, MySims shadow exact 73/73 alongside the full regression, ref_warnings=0); 222 (MySims shadow exact 73/73 through 2032, including load, ref_warnings=0); 221 (the network-tool replacement places roads and streets in the real game (inserts=8..69, valid=solved, failure 0), 20/20 scripted placements ok, city runs to 2032 clean with ref_warnings=0.); 216 (component 53 / 11 save round trip, record53 equal at load and save); 215 (devperf2 shadows over the replacement exact after the cell-walk host change). See `docs/manual-checks.md`.
+- **Latest in-game run:** 225 (train21 PASS, aura restored to 71/71, verified coverage 12.1 to 12.4 percent; netmgr differences documented); 223 (train19 PASS, MySims shadow exact 73/73 alongside the full regression, ref_warnings=0); 222 (MySims shadow exact 73/73 through 2032, including load, ref_warnings=0); 221 (the network-tool replacement places roads and streets in the real game (inserts=8..69, valid=solved, failure 0), 20/20 scripted placements ok, city runs to 2032 clean with ref_warnings=0.); 216 (component 53 / 11 save round trip, record53 equal at load and save). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

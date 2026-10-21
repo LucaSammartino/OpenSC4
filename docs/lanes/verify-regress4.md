@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-regress4 (train17 vs train19 shadow regression: netmgr 73->71/73, aura 71->70/71, netmgr_shadow ini warning) | `verify-regress4` / (engine lane) | **ready** (plugin + capi, no C ABI export change; gate at 28971497: cargo 3577/0, clippy 0, ctest 62/62; game vr4-a1 clean, ref_warnings=0, aura 14/14 exact, netmgr 11/13 with every difference under NM10/NM11, no unknown-key warning) | answers to NM10, NM11, AU16; a normal-speed netmgr run; coordinator regress to confirm aura and netmgr counts |
+| verify-regress4 (train17 vs train19 shadow regression: netmgr 73->71/73, aura 71->70/71, netmgr_shadow ini warning) | `verify-regress4` / (engine lane) | **merged train21 (9e5a0dd8e9)** (plugin + capi, no C ABI export change; gate at 28971497: cargo 3577/0, clippy 0, ctest 62/62; game vr4-a1 clean, ref_warnings=0, aura 14/14 exact, netmgr 11/13 with every difference under NM10/NM11, no unknown-key warning) | answers to NM10, NM11, AU16; a normal-speed netmgr run; coordinator regress to confirm aura and netmgr counts |
 
 ## Report
 
