@@ -82,10 +82,6 @@ uint64_t QueryToken(uint64_t t, uint32_t iid) {
     return TokenOf(q);
 }
 
-void HoldToken(NetToolContext* ctx, uint64_t t) {
-    if (t != 0) ctx->held.push_back(FromToken(t));
-}
-
 // The lowest network type bit shared by `flags` and the mask (0-12), or 0xFFFF_FFFF.
 uint32_t TypeOfFlags(uint32_t flags) {
     uint32_t bits = flags & 0x1FFFu;
@@ -173,7 +169,6 @@ uint32_t GetNetworkOccupant(void* u, int32_t x, int32_t z, uint32_t mask) {
     cISC4NetworkOccupant* n = nullptr;
     if (o->QueryInterface(kIID_cISC4NetworkOccupant, reinterpret_cast<void**>(&n)) && n != nullptr) {
         FC4_ACQUIRED(n, "QueryInterface");
-        HoldToken(c, TokenOf(n));
         if ((n->GetNetworkFlag() & mask) != 0) {
             answer = TypeOfFlags(n->GetNetworkFlag() & mask);
         }
@@ -278,7 +273,6 @@ void InsertOccupantsForSolvedCells(void* u, const fc4_nettool_run* run, bool pre
         PlaceOccupant(c, om, n, run->cells[i].x, run->cells[i].z, run->type_id, run->data4, true);
         FC4_RELEASE(n);
     }
-    NetToolReleaseHeld(c);
 }
 
 // §6.3 MarkOccupantsUsable(set, release): the inserts above already marked
@@ -309,7 +303,6 @@ void InsertNetworkOccupantById(void* u, const fc4_nettool_run* run, int32_t x, i
     n->SetQuadDraw(piece, 0);  // slot 30: the requested piece id (0x100 for connection nodes)
     PlaceOccupant(c, om, n, x, z, type_id, run->data4, usable);
     FC4_RELEASE(n);
-    NetToolReleaseHeld(c);
 }
 
 // ---- §10 DestroyOccupantsAndResolve ----------------------------------------------------------------
@@ -342,7 +335,6 @@ uint32_t CellNetworkOccupants(NetToolContext* c, cISC4OccupantManager* om, int32
         FC4_ACQUIRED(n, "QueryInterface");
         const uint32_t flags = n->GetNetworkFlag();
         if ((flags & mask) != 0) {
-            HoldToken(c, TokenOf(n));
             if (written < capacity && out != nullptr) {
                 out[written] = TokenOf(n);
                 if (immovable) immovable[written] = (flags & 0x400000u) != 0 ? 1 : 0;    // §10: flag 0x400000
@@ -711,7 +703,6 @@ bool FindUndergroundSolved(void* u, int32_t x, int32_t z, fc4_nettool_solved* ou
     if (o->QueryInterface(kIID_cISC4NetworkOccupant, reinterpret_cast<void**>(&n)) && n != nullptr) {
         FC4_ACQUIRED(n, "QueryInterface");
         out->occ = TokenOf(n);
-        HoldToken(c, TokenOf(n));
         if (c->geom != nullptr) {
             // The cell's four vertices in the geometry's satisfier (§11.1
             // step 4.1: cSC4VertexHtConstraintSatisfier::GetHeight).
@@ -859,15 +850,6 @@ fc4_netgeom_host MakeNetGeomHost(NetToolContext* ctx) {
     h.update_occupant_highlights = &GeomUpdateOccupantHighlights;
     h.bridge_type_count = &GeomBridgeTypeCount;
     return h;
-}
-
-void NetToolReleaseHeld(NetToolContext* ctx) {
-    if (ctx == nullptr) return;
-    std::vector<cIGZUnknown*> held;
-    held.swap(ctx->held);
-    for (cIGZUnknown* o : held) {
-        if (o != nullptr) FC4_RELEASE(o);
-    }
 }
 
 }  // namespace fc4

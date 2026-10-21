@@ -22,9 +22,9 @@
 //
 // Tokens: an occupant token is its cISC4NetworkOccupant pointer (QI
 // 0xA821EF94); a callback-tool token is its cIGZUnknown pointer. Tokens
-// handed to the core are BORROWED unless a callback documents a reference
-// transfer; references taken by the queries are kept in the context until
-// the outermost core call returns (NetToolReleaseHeld). Main thread.
+// handed to the core are BORROWED; every query's own QI reference is
+// released at its scope end (run 220: the held-list released references the
+// callers had already released — a double release per query hit). Main thread.
 #pragma once
 
 #include "fc4.h"
@@ -32,7 +32,6 @@
 #include "SC4List.h"
 
 #include <cstdint>
-#include <vector>
 
 class cIGZMessageServer2;
 class cISC4Occupant;
@@ -52,9 +51,6 @@ struct NetToolContext {
     // tool of §3.3 step 6.2 (joins) and the §10 RemoveOrReplaceOccupant.
     void* self = nullptr;
 
-    // References the queries gave (FC4_ACQUIRED), released by
-    // NetToolReleaseHeld.
-    std::vector<cIGZUnknown*> held;
 
     // Observability: the counters the log line reports.
     uint32_t draws = 0;            // draw_network_line replays on the geom core
@@ -73,9 +69,6 @@ fc4_nettool_host MakeNetToolHost(NetToolContext* ctx);
 // The netgeom host table (the geometry core's own view: terrain via the
 // city's cISTETerrain, world via the occupant manager).
 fc4_netgeom_host MakeNetGeomHost(NetToolContext* ctx);
-
-// Drops the references the queries gave since the last call.
-void NetToolReleaseHeld(NetToolContext* ctx);
 
 // ---- verified-order game interfaces (docs/abi/interfaces.tsv) ------------------------------------
 

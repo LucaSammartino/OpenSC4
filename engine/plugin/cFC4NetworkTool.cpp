@@ -87,7 +87,6 @@ cFC4NetworkTool::~cFC4NetworkTool() {
         FC4_RELEASE(ctx_.msgServer);
         ctx_.msgServer = nullptr;
     }
-    fc4::NetToolReleaseHeld(&ctx_);
 }
 
 void cFC4NetworkTool::SetCity(cISC4City* city) { ctx_.city = city; }
@@ -182,7 +181,6 @@ bool cFC4NetworkTool::Shutdown() {
     if (!live_) return true;  // the stand-in
     LogStatus("Shutdown");
     const bool ok = core_ != nullptr && fc4_nettool_reset(core_);
-    fc4::NetToolReleaseHeld(&ctx_);
     return ok;
 }
 
