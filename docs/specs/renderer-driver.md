@@ -28,11 +28,13 @@ The game draws through an abstract "graphics driver" interface with an OpenGL-li
 Owner patterns covered: `nSGLDX7::cGDriver::*` bodies in `0x00881DF0`-`0x00889260` (the device, window, state and
 scene lifecycle), `nSGLDX7::TranslateColorToD3D` (`0x00881AB0`), the default device state (§7),
 `nSGLDX7::cPrimitiveManager` (`0x00889B60`-`0x0088A380`, §8.3) with slots 3-5 and 30-34 (§8),
-`nSGLDX7::cTextureManager` (`0x0088A380`-`0x0088B2C0`, §9; the internal-format selection `0x0088F8D0` and the
-pixel converters stay open) with slots 24-26, 35-39, 48, 58-61, and the texture-stage records with slots 27-29,
-51-57 and 62 (§10). Named but **not yet specified** (open, §12): `cVertexBuffer`, `D3DLight`, `nRZSimGL`
-(vertex-format helpers and colour-key blitters), `cGZBufferSimGLCache`, `cSC4GDriversCOMDirector`, and slots
-6-10 and 40-42; slots 67-76 are §11.
+`nSGLDX7::cTextureManager` (`0x0088A380`-`0x0088B2C0`, §9, including the internal-format selection
+`0x0088F8D0` and the converter table, §9.6; the per-routine pixel arithmetic is only sampled) with slots 24-26,
+35-39, 48, 58-61, the texture-stage records with slots 27-29, 51-57 and 62 (§10), the vertex-format slots 6-10
+(§8.5) and the matrix slots 40-42 (§8.6); slots 67-76 are §11. Named but **not yet specified** (open, §12):
+`cVertexBuffer`, `D3DLight`, `nRZSimGL` colour-key blitters, `cGZBufferSimGLCache`, `cSC4GDriversCOMDirector`,
+and the presentation context's surface creation and restore (`0x0088BF50`, `0x0088BFC0`; §4.4 names what is
+known).
 
 The driver object exposes four COM-style interface pointers at object offsets `+0x0`, `+0x4`, `+0x8` and `+0xC`
 plus a reference-counted sub-object at `+0x10`; the 83-slot graphics interface is the one at `+0xC`. Slots 0-2
@@ -42,8 +44,9 @@ are the usual `QueryInterface`/`AddRef`/`Release`. Slot 78 `GetGZCLSID`, slot 77
 
 A new driver owns one texture manager (object of 0x348 bytes) and one primitive manager (0x40 bytes), created in
 the constructor. Everything else starts empty: no window, no DirectDraw / Direct3D / device objects, no current
-video mode, error code 0, "initialised" false, "device lost" false, "scene open" false. Four global per-stage
-scale factors (`0x00B542F8`, `0x00B5430C`, `0x00B54320`, `0x00B54334`) are set to 1.0. *[inferred]* the 13-dword
+video mode, error code 0, "initialised" false, "device lost" false, "scene open" false. The diagonal of a static
+4×4 matrix at `0x00B542F8` (elements at `0x00B542F8`, `0x00B5430C`, `0x00B54320`, `0x00B54334`) is set to 1.0;
+the rest of it is zero, so it is the identity used by `LoadIdentity` (§8.6). *[inferred]* the 13-dword
 current-mode record (§4) starts with mode index -1.
 
 ## 3. The error channel (`GetError`, slot 50)
@@ -274,7 +277,7 @@ A record is 13 dwords (52 bytes) as copied out by the getters; the list stores t
 * `GetVideoModeInfo(out)` (slot 64, `0x00886E10`): copies the **current** mode record (13 dwords); its index is
   -1 when no mode is set.
 
-Viewport slots 74/75 `SetViewport` and 76 `GetViewport` are open (RD3).
+Viewport slots 74/75 `SetViewport` and 76 `GetViewport` are §11.
 
 ## 7. The default device state (`SetDefaultD3DDeviceState`, `0x008872A0`)
 
@@ -452,6 +455,68 @@ All flush the queue first.
   error code 3. Otherwise 0 → vertex fog mode := table `0x00AC45F8`[v] (0 → exponential, 1 → exponential
   squared, 2 → linear, 3 → exponential squared); 1-4 → error code 1; others ignored.
 
+### 8.5 Vertex-format slots (6-10)
+
+All five are stateless forwards to the shared `nRZSimGL` vertex-format helpers of
+[graphics-formats.md §3.5](graphics-formats.md) (packed layout, standard numbers, strides); they touch no driver
+state and never set the error code.
+
+| Slot | Name | Forwards to | Behaviour |
+|---|---|---|---|
+| 6 (`0x008DA980`) | `MakeVertexFormat(standard)` | `PackStandardVertexFormat` `0x008D01F0` | standard number → packed format (0 for an unknown number) |
+| 7 (`0x00881F30`) | `MakeVertexFormat(count, kinds[])` | `MakeStandardVertexFormat` `0x008D02C0` | builds a packed format from a list of element kinds (below) |
+| 8 (`0x008DA990`) | `VertexFormatStride(format)` | `StandardVFStride` `0x008D0370` | stride in bytes |
+| 9 (`0x0087C4C0`) | `VertexFormatElementOffset(format, kind, index)` | `StandardVFElementOffset` `0x008D04A0` | byte offset of an element (with the shifted-mask quirk of graphics-formats.md §3.5) |
+| 10 (`0x00881F50`) | `VertexFormatNumElements(format, kind)` | `0x008D04F0` | count of elements of `kind` |
+
+`MakeVertexFormat(count, kinds[])`: counts how often each kind 0-9 occurs in the first `count` entries of
+`kinds` (count 0 gives all zeros), then packs the ten counts into the fields of graphics-formats.md §3.5
+(kind 0 at bit 0, 1 at bit 2, 2 at bit 5, 3 at bit 6, 4 at bit 7, 5 at bit 8, 6 at bit 10, 7 at bit 14, 8 at
+bit 18, 9 at bit 22) and sets bit 31. The counts are shifted and OR-ed **without masking**: a count larger than
+its field (for example three positions, field width 2) spills into the next field *[quirk]*. Kinds outside 0-9
+are not checked (they corrupt the routine's locals); callers must pass 0-9.
+Example: kinds (0, 5, 7) → `0x80004101` (standard format 10, position, colour, uv).
+
+`VertexFormatNumElements(format, kind)`: a format below `0x80000000` (a standard number) is packed first; the
+result is `(format >> shift[kind]) & mask[kind]` with the arithmetic shifts 0, 2, 5, 6, 7, 8, 10, 14, 18, 22 and
+masks 3, 7, 1, 1, 1, 3, 15, 15, 15, 15 (tables `0x00ACC0D4`, `0x00ACC0FC`, read from the exe). `kind` is not
+range-checked. Example: (`0x80008101`, 7) → 2.
+
+### 8.6 Matrices (slots 40-42)
+
+The driver keeps a **matrix mode** word (object `+0x214`; 0 = model-view, 1 = projection) and a copy of the last
+projection as given by the caller (16 floats at `+0x150`). Matrices are 16 floats, row-major with the row-vector
+convention of Direct3D (element `m[r*4+c]`, translation in row 3).
+
+- `MatrixMode(mode)` (40, `0x00881EA0`): stores `mode`; nothing else (no flush, no check).
+- `LoadMatrix(m)` (41, `0x00882AC0`): first flushes the primitive manager's queue (§8.3; its result is not
+  checked here), then by mode:
+  - **0 (model-view)**: device world transform := `m`, then device view transform := the fixed matrix
+    diag(1, 1, −1, 1) (`0x00AC4618`, read from the exe).
+  - **1 (projection)**: copies `m` to `+0x150`, reads the device viewport (width `W`, height `H` as unsigned
+    integers) and sends as the device projection the matrix `P` built from `m` as follows, with
+    `a = −0.5 / (W × 0.5)` and `b = 0.5 / (H × 0.5)` (constants 0.5 `0x00A84D2C`, −0.5 `0x00A949FC`): for every
+    row r, `P[r][0] = m[r][0] + m[r][3] × a`, `P[r][1] = m[r][1] + m[r][3] × b`,
+    `P[r][2] = (m[r][2] + m[r][3]) × 0.5`, `P[r][3] = m[r][3]`; then row 2 of `P` is negated (all four entries).
+    The arithmetic is x87 extended precision with every `P` entry rounded to a single float when stored, rows
+    in order 0-3.
+  - **any other mode**: nothing after the flush.
+  The three adjustments are the usual OpenGL-to-Direct3D conversion: a shift of half a pixel left and up
+  (`a`, `b`: Direct3D 7 samples pixel centres at integer coordinates), depth range [−1, 1] → [0, 1], and the
+  handedness flip. The view matrix's z flip of mode 0 and the negated row 2 of the projection cancel, so a
+  caller's model-view × projection pair maps vertices to the same clip coordinates as in OpenGL apart from the
+  depth remap and the half-pixel shift.
+  Worked example: the initial pixel-space projection of §4.3 for an 800×600 viewport (row 3 = (−1, +1, 0, 1),
+  `m[r][3]` = 0 for rows 0-2) gives `a` = −1/800 and `b` = 1/600, so row 3 of `P` becomes
+  (−1.00125, 1.0016667, 0.5, 1) and row 2 becomes (0, 0, +0.5, 0): the caller's pixel corner (0, 0) lands at
+  Direct3D screen position (−0.5, −0.5), the outer corner of the pixel whose centre Direct3D 7 puts at (0, 0).
+- `LoadIdentity()` (42, `0x00881EB0`): `LoadMatrix` (through the interface, slot 41) with the static identity
+  matrix at `0x00B542F8`, whose diagonal the constructor sets to 1.0 (§2); it therefore applies to the current
+  mode with the same side effects.
+
+`SetViewport` (slots 74-75, §11) re-sends the stored projection through `LoadMatrix` with the mode forced to 1, so
+the half-pixel shift follows the new viewport size.
+
 ## 9. Textures (`nSGLDX7::cTextureManager`, object `+0x18`, `0x0088A380`-`0x0088B2C0`; slots 24-26, 35-39, 58-61)
 
 Textures are named by small integers ("names") that index a table of 48-byte records. Name 0 is a built-in 1×1
@@ -561,8 +626,9 @@ Source formats 11 and 13 have 0 bits and are never produced. Any other pair fail
 Below, "current stage" is the stage selected by `TexStage` (§10.1) and "the stage record" its 0x80-byte record.
 
 - `GenTextures(n, out)` (35, `0x00883450`): `n` new names (§9.1) written to `out[0..n-1]`.
-- `DeleteTextures(n, names)` (36, `0x00883480`): only when the driver byte `+0x263` is set *[open: what sets
-  it]*; frees every non-zero name. Name 0 is skipped.
+- `DeleteTextures(n, names)` (36, `0x00883480`): only when the "environment ready" byte `+0x263` is set
+  (set to 1 at the end of `SetupViewport` `0x00888F26`, cleared at the end of `DestroyViewport` `0x0088829F`,
+  0 at construction); otherwise it does nothing. Frees every non-zero name. Name 0 is skipped.
 - `IsTexture(name)` (37, `0x008834C0`): true when the name is below the record count and in use (no surface
   needed).
 - `PrioritizeTextures(n, names, priorities)` (38, `0x008834D0`): `SetPriority` per name (§9.1).
@@ -634,8 +700,9 @@ code 2, else current stage := `i`.
   set; texture-transform flags := `count`, plus projected (`0x100`) when flag bit 1 is set; texture transform
   of stage `i` (transform state 16 + `i`) := the copy. Device results are ignored.
 - Slots 54-57 set combine fields of the current stage, then mark the record and the set dirty and reset the
-  applied-environment cache. Slots 54, 55 and 57 first require the combine capability byte `+0x209` *[open:
-  no writer found in the driver; probably filled from the device description]*: without it → error code 2.
+  applied-environment cache. Slots 54, 55 and 57 first require the combine capability byte `+0x209`, which is
+  byte `+0x29` of the current mode record (§6.2): 0 until the 3D environment has been set up, then always 1
+  (`0x00886E80`, no device capability is tested): without it → error code 2.
   Slot 56 has no such check.
   - 57 (`0x00885130`): `(which, f)`: 0 → colour function, 1 → alpha function.
   - 56 (`0x00885190`): `(which, s)`: 0-2 → colour source 0-2, 4-6 → alpha source 0-2.
@@ -703,10 +770,11 @@ The driver keeps the full-window device viewport (D3D7 layout: x, y, width, heig
   w := W − x when x + w > W, h := H − y when y + h > H (negative inputs therefore clamp to the edge). Sends the
   device viewport (x, H − y − h, w, h) with the full viewport's min/max z (error by §3). Then re-loads the
   stored matrix at `+0x150` through `LoadMatrix` (slot 41) with the word `+0x214` forced to 1 for the call and
-  restored afterwards *[inferred: re-applies the projection; slots 40-42 are still open]*.
+  restored afterwards: the projection is re-sent with the half-pixel shift for the new size (§8.6).
   Example: window 800×600, `SetViewport(100, 50, 200, 100)` → device viewport (100, 450, 200, 100).
 - `SetViewport()` (75, `0x00883760`): flushes, sends the stored full viewport, then the same matrix re-load.
-- `GetViewport(out[4])` (76, `0x008838D0`): when the byte `+0x261` is set *[open: its writer]*, writes four
+- `GetViewport(out[4])` (76, `0x008838D0`): while the device is lost (byte `+0x261`, written only by `Flush`: 1 when the
+  loss is detected `0x00884DCD`, 0 once the surfaces are restored `0x00884BE6`; 0 at construction), writes four
   zeros. Otherwise reads the device viewport (result ignored) and writes (x, H − y − h, x + w, H − y), i.e.
   left, bottom, right, top in bottom-up coordinates; with the example above: (100, 50, 300, 150).
 - `PolygonOffset(v)` (67, `0x00883710`): flushes, then render state 47 (z-bias) := `v` as an integer; errors by §3.
