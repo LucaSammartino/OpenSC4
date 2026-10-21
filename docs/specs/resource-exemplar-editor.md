@@ -73,6 +73,28 @@ Each entry of a `Uint8ValueMap_0x…` / `Uint32ValueMap_0x…` section binds one
 display name; the maps are read back by `GetPropertyValueMap` (0x006750F0 for UINT8, 0x00675170 for UINT32) and
 feed the combo-box editors (§10). The map key is the numeric value and the entry its display name (proven by the combo editors, §10).
 
+### 3.4 `[ExemplarFilters]` and `[ResKeyTableEditorDefaults]` *[compat]*
+
+The loader enumerates these sections, when present, in the order Aliases, ExemplarFilters, Properties,
+ResKeyTableEditorDefaults.
+
+- **ExemplarFilters** (callback 0x00672CD0): each entry `key=value`; the key is converted with RZConvertToUint32A,
+  the value is a filter field (§3.2, `getFilter`), and the global map at 0x00B46924 gets key → mask (map
+  assignment, the last entry for a key wins). No reader of that map was found by data reference this round
+  *[inferred: exemplar type → filter mask for choosing the view filter]*.
+- **ResKeyTableEditorDefaults** (callback 0x00671140): the key is a property ID (RZConvertToUint32A). The value is
+  left-trimmed; an empty value is skipped. Otherwise it is parsed as four UINT32 items by the UINT32 default-value
+  parser (0x0066FBC0, §7), giving v0 v1 v2 v3, and the global map at 0x00B46930 gets property ID → record
+  {v0, v2, v1, v3} (v1 and v2 **swapped** in storage; last entry wins). *[inferred: the parse result is not
+  checked; a short value leaves the missing items as parsed]*
+- Use (`GetValueEditor` 0x00672EDC, §6): for editor classes 0xA7847D6A and 0x281F7625, when the property ID has a
+  record, the editor's interface 0x0787ECC4 receives v0 (slot +0x10, one dword) and then a pointer to the three
+  dwords {v2, v1, v3} (slot +0x0C). *[inferred: the three dwords are a resource key {type, group, instance} default
+  for new table rows, i.e. the line reads `v0 group type instance`]*
+
+Worked example: `0x12345678=0x1 0x2 0x3 0x4` stores {1, 3, 2, 4}; a resource-key table editor for property
+0x12345678 receives 1 and then {3, 2, 4}.
+
 ## 4. A `[Properties]` entry *[compat]*
 
 The entry key is the property ID (converted as a number). The value is a comma-separated record (separator byte
@@ -146,7 +168,7 @@ Names are matched case-insensitively because the word is upper-cased first.
 - It creates an instance of the definition's editor class (+0x38) through the GZCOM class factory, asking for the
   value-editor interface IID 0x06C5FF7B (cISCValueEditView). If creation fails there is no editor.
 - For editor classes 0xA7847D6A (resource-key table, §8) and 0x281F7625 it also queries interface 0x0787ECC4 and,
-  if the property ID has a stored parameter record, passes the record's +0x14 and +0x18 values to it.
+  if the property ID has a `[ResKeyTableEditorDefaults]` record (§3.4), passes it to that interface.
 - It then initialises the editor with the property ID and the value.
 
 ### 6.1 Commands, selection and write-back *[compat]*
