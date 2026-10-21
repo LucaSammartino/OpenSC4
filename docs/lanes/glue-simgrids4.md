@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-simgrids4: layout-compatible cSC4SimGrid<T> family (enable=simgrids) | glue-simgrids4 / .claude/worktrees/glue-simgrids4 | blocked: run4 validation done; reload byte-exact, joint run clean but ref_warnings=238 from cFC4Automata (also without simgrids) | automata lane fixes its shutdown release; then rerun joint; answer SG1 |
+| glue-simgrids4: layout-compatible cSC4SimGrid<T> family (enable=simgrids) | glue-simgrids4 / .claude/worktrees/glue-simgrids4 | in progress: round3 merged main f45e6b91 (automata fix aeaca0e2 in); gate + joint sg4-j2 (37 current + simgrids) pending | read sg4-j2 verdict; reload proof sg4-r1 (116/116) stands, grid code unchanged since |
 
 ## Report
 
