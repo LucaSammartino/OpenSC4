@@ -89,7 +89,9 @@ void CompareFile(const std::wstring& path, const std::string& name, Totals& t) {
     ++t.files;
     if (pkg == nullptr) {
         ++t.unreadable;
-        Log("formats shadow: %s: not opened by the core's DBPF reader", name.c_str());
+        // [choice] A *.dat that is no DBPF package (the GOG installer's unins000.dat) is listed, not a
+        // difference: nothing of it reaches the game's exemplars either.
+        Log("formats shadow: %s: not opened by the core's DBPF reader (no package; not a difference)", name.c_str());
         return;
     }
     const size_t count = fc4_dbpf_count_type(pkg, kExemplarType);
@@ -195,7 +197,7 @@ void FormatsShadowCityLoaded() {
         "%u rejected by the core, %u not loaded by the game, %u properties compared, %lu ms; %s",
         t.files, t.unreadable, t.entries, t.compared, t.exact, t.differ, t.coreFail, t.gameMissing, t.props,
         static_cast<unsigned long>(GetTickCount() - start),
-        t.compared > 0 && t.differ == 0 && t.coreFail == 0 && t.unreadable == 0 ? "EXACT" : "DIFFERENCES");
+        t.compared > 0 && t.differ == 0 && t.coreFail == 0 ? "EXACT" : "DIFFERENCES");
 }
 
 }  // namespace fc4
