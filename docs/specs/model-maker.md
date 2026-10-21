@@ -168,7 +168,7 @@ data4.
 | `0xE6E85114` | occupant highlighted | `DoOccupantHilighted(occupant, slot +0x38 value, value)` (§8.7) |
 | `0xE99B3D4D` | lot state | if the message object (slot `+0x80`) answers `0xE818FCED`: `DoLotStateChanged(lot, slot +0x24, slot +0x38)`, release the lot (§9.2) |
 | `0x09D8E0B6` | building visual state | §9.1 |
-| `0x2977AE2F` | building completion | `DoBuildingCompletionChanged(slot +0x28)` (§9.3) |
+| `0x2977AE2F` | building completion | `DoBuildingCompletionChanged(slot +0x28)` (§9.5) |
 | `0xE9C86DDB` | prop state | `DoPropStateChanged(slot +0x28, low byte of slot +0x38)` (§9.4) |
 | `0x06CDB65B` | view filter | `DoViewFilterChange(slot +0x28, slot +0x3C)` (§10.3) |
 | `0x49D968C4` | defer occupant operations | `0x00495970(slot +0x24 != 0)` (§8.8) |
@@ -398,6 +398,29 @@ two stored bytes, so h and c above 255 replay truncated.
 
 ## 9. State-change handlers (partial)
 
+### 9.2 Lot state (`DoLotStateChanged(lot, a, b)` `0x00493D60`, message `0xE99B3D4D`) *[compat]*
+
+a = message slot `+0x24`, b = message slot `+0x38` (§5). Take the lot's cell rect (lot slot `+0x38`, four int32)
+and list the occupants in it by standard city cells (manager slot `+0xA0`: list, min, max, **no filter**, -1). For
+each listed occupant o that has a model holder (slot `+0x4C` non-null; it is not released here):
+`ApplyStateEffectToModels(o, o.GetType(), b, a)`. Release each occupant; free the list. Returns nothing.
+
+*[quirk]* The two state arguments reach `ApplyStateEffectToModels` swapped (pushed a first, so the callee's third
+argument is b and its fourth is a).
+
+### 9.3 `ApplyStateEffectToModels(o, t, x, y)` (`0x00493C80`) *[compat]*
+
+Returns a bool.
+
+| t | action |
+|---|---|
+| `0x278128A0` building, `0xA823821E` prop, `0xC772BF98` network, `0x2A183167` pipe connection, `0x8A13918A` subway connection | return `0x004933A0(o, t, x, y)` (§9.1) |
+| `0x68FD0C69` foundation | QueryInterface o for `0xC8FCE101` (the foundation interface); if its slot `+0x24` returns 1: r = `0x004933A0(o, 0x68FD0C69, x, y)`, release, return r; otherwise release and return true |
+| any other | return true |
+
+*[quirk]* The foundation interface is used without a null check: a foundation-typed occupant that fails the
+QueryInterface faults (`0x00493CDC`).
+
 ### 9.4 Prop state (`DoPropStateChanged` `0x00494900`, message `0xE9C86DDB`) *[compat]*
 
 Let o = (message object) slot `+0x0C` (its occupant). If o's exemplar (o slot `+0x18`) has property
@@ -499,7 +522,7 @@ Then the occupant's model holder (slot `+0x4C`), when present, is AddRef'd, clea
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
-Specified: 13375 bytes; remainder (not yet specified or only outlined): 21330 bytes. The remainder is **not empty**,
+Specified: 13942 bytes; remainder (not yet specified or only outlined): 20763 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
 
 | address | bytes | name | section |
@@ -575,8 +598,8 @@ so this spec does not yet claim the whole owner.
 | `0x004937D0` | 536 | cSC4ModelMaker::DoOccupantMoved | §8.8 (outline) |
 | `0x00493A00` | 386 | cSC4ModelMaker::DoOccupantHilighted | §8.9 |
 | `0x00493B90` | 232 | cSC4ModelMaker::DoOccupantShown | §8.4 |
-| `0x00493C80` | 221 | cSC4ModelMaker::ApplyStateEffectToModels | remainder |
-| `0x00493D60` | 346 | cSC4ModelMaker::DoLotStateChanged | remainder |
+| `0x00493C80` | 221 | cSC4ModelMaker::ApplyStateEffectToModels | §9.3 |
+| `0x00493D60` | 346 | cSC4ModelMaker::DoLotStateChanged | §9.2 |
 | `0x00493EC0` | 37 | cSC4ModelMaker::FinalRelease | §1 |
 | `0x00493EF0` | 924 | cSC4ModelMaker::CreateOccupantFilters | §6.1 |
 | `0x00494290` | 113 | FUN_00494290 | §8.3 |
