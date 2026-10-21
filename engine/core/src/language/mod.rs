@@ -18,8 +18,10 @@ mod utility;
 #[cfg(test)]
 mod tests;
 
-pub use manager::{LanguageManager, ManagerInterface};
-pub use utility::{LanguageUtility, Released};
+pub use manager::{
+    LanguageManager, ManagerInterface, IID_LANGUAGE_MANAGER, IID_SYSTEM_SERVICE, SERVICE_ID, SERVICE_PRIORITY,
+};
+pub use utility::{LanguageUtility, Released, IID_LANGUAGE_UTILITY, IID_UNKNOWN};
 
 /// Language IDs (strings-language.md §1).
 pub mod lang {
