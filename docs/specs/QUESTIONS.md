@@ -52,6 +52,7 @@ generated index: the questions live one file per spec, so read only the file for
 | FS | graphics-formats |
 | GF | graphics-formats |
 | GLUE | lot-configuration, prop-developer |
+| GZ | framework-gz-services |
 | HG | foundations |
 | HW | history |
 | IN | commercial-industrial |
@@ -118,6 +119,7 @@ generated index: the questions live one file per spec, so read only the file for
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
+| framework-gz-services | 4 | 0 | GZ5 | questions/framework-gz-services.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | history | 0 | 17 | HW18 | - |
 | landfill | 0 | 36 | LF7, LG31 | - |
@@ -154,4 +156,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **86** | **991** | | |
+| **total** | **90** | **991** | | |
