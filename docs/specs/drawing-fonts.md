@@ -33,9 +33,9 @@ contract, not part of this spec.
 | Owner | Identity | Bytes (coverage.py --owners) | This spec |
 |---|---|---|---|
 | `cFontCOMDirector` | registers 3 classes (below); director ID `0x5AA40BD3` | 220 | complete |
-| `cGZFontSys` | class `0x20673960`, object 0x70 bytes, interface asked as `0x287FB697` at OnStart | 8 358 | partial: FN3/FN4 answered (§12); slots 0, 2, 4, 12, 17-19, 21-24 unaudited |
+| `cGZFontSys` | class `0x20673960`, object 0x70 bytes, interface asked as `0x287FB697` at OnStart | 8 358 | complete: all 25 slots of vtable `0x00AC5488` (§12.1 inventory) |
 | `cGZFontSys::FontFixedInfo` | catalogue record (§12) | 105 | fields complete (§12: +0 font list, +4 family, +0x18 style, +0x1C kind, +0x20 source type) |
-| `cGZFont` | class `0x1AA404AC`, object 0x15C bytes, interface `0x10673960` (QI also answers 1), vtable `0x00AC55D8`, 64 slots | 16 187 | partial: FN1/FN2/FN5/FN6 answered; 64-slot audit not done |
+| `cGZFont` | class `0x1AA404AC`, object 0x15C bytes, interface `0x10673960` (QI also answers 1), vtable `0x00AC55D8`, 64 slots | 16 187 | complete: all 64 slots (§4.1 inventory) |
 | `cGZFont::CachedBitmapData` | two glyph caches inside the font (§7) | 56 | complete with §7 |
 | `cGZDrawFontRenderer` | class `0x08CDA30B`, object 8 bytes from the director factory `0x00895F65`; vtable `0x00AC14BC` | 4 444 | identity only, uncredited |
 
@@ -44,14 +44,15 @@ contract, not part of this spec.
 renderer`. `OnStart` creates class `0x20673960` with interface `0x287FB697` and, if that succeeds, registers it with
 the framework (framework vtable +0x0C) and releases its own reference.
 
-Coverage claim (precise): exact owners are `cFontCOMDirector` and `cGZFont::CachedBitmapData`; FN1-FN6 are
-answered (re-fontanswers4, 2026-10-21) and no longer block a font core. `cGZFont` and `cGZFontSys` stay partial
-until their remaining methods are audited: `cGZFontSys` vtable `0x00AC5488` slots 0 `0x00893D2C`, 2 `0x00893DD7`,
-4 `0x00894F8D`, 12 `0x00893F22`, 17 `0x00894A3A`, 18 `0x00893E5B`, 19 `0x00893ECB`, 21 `0x00894198`,
-22 `0x008944B2`, 23 `0x0089423C`, 24 `0x0089538D` and AddSubstitution (slot 20 `0x0089595D`) are not specified
-here; for `cGZFont` the slot tables of §4 and §8 do not yet list every one of the 64 slots. Map proposal: the
-`cGZFont*` and `cFontCOMDirector` rows of `tools/coverage-map.tsv` (subsystem "2D drawing and fonts") may name
-spec `drawing-fonts.md`; do not credit the whole subsystem.
+Coverage claim (precise): exact owners are `cFontCOMDirector`, `cGZFont::CachedBitmapData`,
+`cGZFontSys::FontFixedInfo`, `cGZFont` and `cGZFontSys`. FN1-FN6 are answered (re-fontanswers4); the owner audit
+(re-fontowners4, 2026-10-21) read every vtable slot from `bin/SimCity4.exe`: §4.1 lists all 64 `cGZFont` slots and
+§12.1 all 25 `cGZFontSys` slots, each with the section that specifies it. Remainder for these five owners: empty.
+Non-virtual helpers reached only from those slots (catalogue/map node helpers, the deleting-destructor bodies, the
+string converters of §6, the palette builder of §9) are specified through their callers. Out of scope and
+uncredited: `cGZDrawFontRenderer` (its 4 444 bytes stay a separate owner). Map proposal: the `cGZFont*`,
+`cGZFontSys*` and `cFontCOMDirector` rows of `tools/coverage-map.tsv` (subsystem "2D drawing and fonts") may name
+spec `drawing-fonts.md`; do not credit `cGZDrawFontRenderer` or the rest of the subsystem.
 
 ## 2. Font object state
 
@@ -375,14 +376,15 @@ U+F70A (form 2); U+0E1B U+0E34 U+0E48 → U+0E1B U+F701 U+F713 (the vowel gets f
   `.pfb` → 2; otherwise sniff the first 32 bytes: contains "%!PS" → 2, starts 00 01 00 00 → 1, starts "ttcf" → 4,
   else 0.
 - `AddAllFontsFromDirectory(dir)`: empty dir means `<Windows>\Fonts\`; for each pattern, every matching file is
-  passed to AddFont (slot 14); returns the count added (files matching `.PFB` count as well).
+  passed to AddFont(path) (slot 14); returns the count added (files matching `.PFB` count as well).
 - `AddFont(path)`: once per path; relative names fall back to `<Windows>\Fonts\`. The file is opened with FreeType;
   a non-empty family name records FontFixedInfo {family, style flags, kind (2 if fixed-size else 1), source
   type} under the path and adds the lower-case family to the family set.
 - System antialiasing settings (vtable `0x00AC5488`; all zero after construction `0x0089529A`..`0x008952A6`):
   slot 5 `SetCodePage(cp)` (`0x00893D7B`) stores +0x20 and returns true; slot 7 `SetDefaultAntialiasing(mode)`
-  (`0x00893D87`) stores +0x14; slot 8 `SetRenderer(r)` (`0x00893D91`) AddRefs r, releases the old one, stores +0x24.
-  Slot 9 `SetMonochromeSizeRange(min, max, family)` (`0x008954CB`): with family null it stores the system range
+  (`0x00893D87`) stores +0x14; slot 6 `SetRenderer(r)` (`0x00893D91`) AddRefs r (if non-null), releases the old
+  one (if non-null), stores +0x24 (no same-pointer check: setting the current renderer again is AddRef then Release).
+  Slot 8 `SetMonochromeSizeRange(min, max, family)` (`0x008954CB`): with family null it stores the system range
   +0x18 = min, +0x1C = max. With a family name: if min < max (signed) it inserts family → {min, max} into the
   per-family range map +0x64 (insert-unique `0x008950A5`: an existing entry for that name is kept, not
   overwritten); otherwise (min ≥ max) it erases the name from the map (`0x00894E0C`). Names are stored as given
@@ -419,6 +421,98 @@ U+F70A (form 2); U+0E1B U+0E34 U+0E48 → U+0E1B U+F701 U+F713 (the vowel gets f
   Because every score is below 1000, a non-empty catalogue always yields a candidate even when no name
   matches. Worked example: list "Arial,Tahoma", request style 0x05 (masked 0x01): an "arial" entry with style 0
   scores 0 + 8 = 8; a "tahoma" entry with style 1 scores 2 + 0 = 2 and wins; an unrelated family scores ≥ 0x20.
+
+### 12.1 `cGZFontSys` state and slot inventory (vtable `0x00AC5488`, 25 slots)
+
+State (offsets ours to name): +0x04 second interface (vtable `0x00AC5454`); +0x08 initialised (bool); +0x0C
+refCount; +0x14 default aaMode; +0x18/+0x1C system monochrome range; +0x20 codePage; +0x24 renderer; +0x28 installed
+family set (lower-case names); +0x34 font-name map (ID → name, `FontSetName`); +0x40 catalogue (path →
+FontFixedInfo, entry count +0x44, iterated in path order); +0x4C substitution map (substitute family → vector of
+aliases); +0x64 per-family monochrome ranges. Each catalogue entry's FontFixedInfo +0 is its **cache list**: a list
+of {font, recorded style} pairs, one per font made or registered for that path, each holding one reference.
+
+| Slot | Address | Method (names ours where the export has none) | Spec |
+|---|---|---|---|
+| 0 | `0x00893D2C` | QueryInterface(id, &out) | below |
+| 1 | `0x0094C47C` | AddRef: refCount += 1, returns it (shared) | — |
+| 2 | `0x00893DD7` | Release | below |
+| 3 | `0x00895E68` | Init | §12 |
+| 4 | `0x00894F8D` | Shutdown | below |
+| 5 | `0x00893D7B` | SetCodePage | §12 |
+| 6 | `0x00893D91` | SetRenderer | §12 |
+| 7 | `0x00893D87` | SetDefaultAntialiasing | §12 |
+| 8 | `0x008954CB` | SetMonochromeSizeRange | §12 |
+| 9 | `0x008942E3` | FontAcquireByKind(kind, size, style, colour, cache) | below |
+| 10 | `0x00895A1C` | FontAcquire(path, size, style, cache) | §12 |
+| 11 | `0x00894ADF` | FontAcquire(familyList, kind, size, style, cache) | §12 |
+| 12 | `0x00893F22` | FontRelease(font) | below |
+| 13 | `0x008957D6` | AddFont(font) | below |
+| 14 | `0x00895564` | AddFont(path) | §12 |
+| 15 | `0x00894864` | AddAllFontsFromDirectory(dir) | §12 |
+| 16 | `0x0093878E` | one ignored argument, returns false (shared stub) | — |
+| 17 | `0x00894A3A` | RemoveFontsByFamily(name) | below |
+| 18 | `0x00893E5B` | GetFontInfoList(records, max) | below |
+| 19 | `0x00893ECB` | GetCachedFonts(fonts, max) | below |
+| 20 | `0x0089595D` | AddSubstitution(family, alias) | below |
+| 21 | `0x00894198` | GetSubstitutions(family, strings, max) | below |
+| 22 | `0x008944B2` | IsFamilyAvailable(name, unused, style) | below |
+| 23 | `0x0089423C` | GetAvailableSubstitution(family, &out) | below |
+| 24 | `0x0089538D` | deleting destructor(flags) | below |
+
+- **QueryInterface** (slot 0): id 1 or `0x00673960` → this; id `0x287FB697` → the second interface (this + 4);
+  then AddRef and return true. Any other id returns false and leaves `out` untouched.
+- **Release** (slot 2): refCount > 1 → decrement and return the new count. Otherwise Shutdown (slot 4), then the
+  deleting destructor (slot 24, flag 1), return 0.
+- **Shutdown** (slot 4) returns true; it acts only when initialised: for every catalogue entry, every cached font
+  is Released once (a font still referenced elsewhere is left alive, nothing else happens), and the cache list is
+  emptied; then the catalogue, the font-name map, the family set and the substitution map are cleared, the
+  renderer is Released and set to null, and initialised is cleared. Kept: default aaMode, both monochrome range
+  stores, codePage, file patterns. A later Init runs again (it tests the flag) and re-registers the four names.
+- **FontAcquireByKind** (slot 9): calls slot 11 with an empty family list (so entries are scored by kind, §12
+  step 4 n = 0), kind, size, style and cache; on a non-null result it calls the font's SetFontColor(colour,
+  `0x08000000`) (font slot 14; bg = the "use default" sentinel of §9) and returns the font. With `cache` this
+  recolours the shared cached font.
+- **FontRelease(font)** (slot 12): every catalogue entry's cache list is searched for the pointer. On a hit the
+  font is Released; when that Release returned 1 (only the cache's reference remains) it is Released again and
+  its list node is removed. The search moves on to the next entry. Returns the result of the last Release made
+  (0 when the pointer was not found; normally 0 after the cache let go, else the caller-visible count).
+- **AddFont(font)** (slot 13): null → false. key = font's GetFilePath (font slot 21). Key not in the catalogue: a
+  new entry {family = GetName (slot 5), style = GetStyles (slot 7), kind = faceKind (slot 9), source type 0
+  (FontFixedInfo default)}, the font AddRef'd into its cache list with recorded style = GetStyles, and the
+  lower-cased family added to the family set; true. Key present: if a font in its cache list has the same size
+  (font slot 10) → false, nothing added; else the font is AddRef'd and appended with recorded style = GetStyles;
+  true. The family set is not touched on that path.
+- **RemoveFontsByFamily(name)** (slot 17): every catalogue entry whose family string IsEqual(name) (string slot
+  10, flag false) has each cached font Released once and is erased. The family set is not updated (so slot 22
+  and the §12 step 2 test still see the name). Always returns false.
+- **GetFontInfoList(records, max)** (slot 18): n = catalogue count; max 0 → return n, nothing written. Otherwise
+  writes min(n, max) records of 0x88 bytes in path order and returns that count. Record: bytes 0..0x7F zero-filled,
+  then the family copied for at most 127 bytes (always NUL-terminated); +0x80 style (u32); +0x84 kind (u32).
+- **GetCachedFonts(fonts, max)** (slot 19): walks entries in path order and each cache list in list order. max 0 →
+  returns the total number of cached fonts, nothing written; otherwise writes the first max pointers and returns
+  min(total, max). The pointers are not AddRef'd.
+- **AddSubstitution(family, alias)** (slot 20): key = family exactly as given (no lower-casing; map keys order
+  byte-wise, case-sensitive: compare of the common prefix, then the shorter string first, `0x004B5CA0`). Missing key → insert
+  it with an empty alias vector. Append alias (as given; duplicates are kept). Returns true.
+- **GetSubstitutions(family, strings, max)** (slot 21): exact key lookup; missing → 0. Else returns
+  m = min(aliasCount, max) and, for i = 0 .. max − 1, assigns alias i into strings[i] (string slot 3, chars +
+  length) when strings[i] is non-null. The loop bound is max, not m: the original reads past the alias vector
+  when max > aliasCount (undefined). A conforming implementation assigns only the first m entries and leaves the
+  rest untouched; callers pass max ≤ aliasCount.
+- **IsFamilyAvailable(name, unused, style)** (slot 22): lower(name) must be in the family set, else false. Then true
+  iff some catalogue entry has style == (style & 3) and lower(entry family) == lower(name) (byte compare after
+  lower-casing). The second argument is ignored.
+- **GetAvailableSubstitution(family, &out)** (slot 23): exact key lookup; for each alias in order, the first with
+  IsFamilyAvailable(alias, 0, 0) (slot 22, so style 0) is assigned to out (string slot 3) and true is returned.
+  Missing key or no available alias → false, out untouched.
+- **Deleting destructor** (slot 24): the destructor (`0x00894F2C`) restores both vtables and destroys the
+  containers (no Release of cached fonts or renderer: Release calls Shutdown first); flag bit 0 frees the 0x70
+  bytes.
+
+Worked example (slots 20-23): AddSubstitution("Arial", "Tahoma"), AddSubstitution("Arial", "Verdana"), installed
+families {"verdana"} with a regular (style 0) catalogue entry for Verdana. GetSubstitutions("Arial", s, 2) → 2,
+s = {"Tahoma", "Verdana"}; GetSubstitutions("arial", s, 2) → 0 (keys are exact); GetAvailableSubstitution("Arial")
+→ true, "Verdana" ("tahoma" is not in the family set).
 
 ## 13. Open questions
 
