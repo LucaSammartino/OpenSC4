@@ -39,3 +39,7 @@
   compiled-in LUT classes? [unnamed] What settles it: a resource sweep for the two GUIDs in the DATs, or the Mac
   symbol table.
 <!-- from: glue-terrain3 (game run gt3-repl-4, enable = terrain, 2026-10-21) -->
+
+<!-- from: glue-terrain3 final run4 round, coordinator transcribed committed Handoff 97b1c237 (2026-10-21) -->
+- **TR42 - section 12.1 reconciliation preference:** what is the exact width, signedness and access contract of the preference at `cISC4App::GetPreferences()+0x4EC` (default 1)? The final diagnostic round found the animation-tick reconciliation path missing but did not establish this field's width. Do not infer a byte or dword read from its default value.
+- **TR43 - section 12.1 / slot 89 ReconcileEdgesWithNeighboringCities:** specify `ComputeEdgeVerticesToReconcile`: arguments, neighboring-city inputs, comparison and tolerance, output edge vertices, ownership and side effects. How does its result control reconciliation and the queued `TerrainReconciliation` message `0xCA63D517`? Final diagnostics show that missing reconciliation leaves `ConnectionsReady` absent and dialogs enabled; treating the unknown comparison as "no mismatch" is unverified.

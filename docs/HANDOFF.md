@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**Run4 56/80 terrain PARKED3/3 at97b1c237:** final diagnostics identify missing TerrainReconciliation/ConnectionsReady, leaving popup dialogs enabled; no behavior fix/full gate. Auto-close diagnostic d8 reaches2032 with refwarning1 and is NOT a pass. Texture step7part2/TR37/Save remain incomplete. TR42/TR43 filed for preference width and edge-comparison contract. No fourth round or terrain replacement credit. Slot refilled with core-span4444-4; six live. Train32 gatePASS, full regress running. Coverage40.5/30.0/12.4/16.5; nine trains landed.
+
 **train31 landed 1df42f9f9c:** Formats read shadow exact across8959 exemplar and388 cohort own/effective sets in full union regress; factory/package limitations remain EX41-EX45, no replacement. Complete4444 span specification mapped. Gate PASS after stale cached smoke object rebuilt, no source version mismatch. Coverage40.5/30.0/12.4/16.5; rounds54/80.
 
 **Run4 52/80:** six live lanes; train31 gate retry rebuilds a stale capi_smoke object before candidate formats-shadow regress. re-driverdraw4 parked3/3 at7dd9bea3: committed vertex/matrix/state specs, context-surface contract and drafted sections remain incomplete, no fourth round and no whole-driver credit. Terrain finalround3 passed fresh checks after train29/30 cleared blockers. Traffic TS67 corrective lane nowrunning. Coverage39.6/30.0/12.3/16.5; eight trains landed.
