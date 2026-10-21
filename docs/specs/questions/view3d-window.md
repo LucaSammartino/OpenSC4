@@ -25,3 +25,9 @@
 - **VW4 - §6.3:** the branches of the message filter `0x007F58E0` (968 bytes) for IDs `0x287259F7`, `0x8988BC94`,
   `0x2988BC85` and `0x4988BC6A` (the last pushes `0x8810`), and which window message types besides 3 and `0x12`
   it inspects. What settles it: a walk of `0x007F58E0` from `0x007F591A`.
+
+<!-- from: the cSC4View3DWin window lane (re-view3dwin4, 2026-10-21) -->
+- **VW5 - §6a step 2:** identity of GZCOM class `0xE9C6262A` (constructor `0x007FF930`, 1068 bytes) that
+  `DoPreCityInit` stores at `+0xEC` and hands to the renderer; and the condition by which `DoPostCityInit` picks
+  `DoCityEstablished` or `DoCityObliterated` (`0x007ED320`–`0x007ED33A`). What settles it: the class ID table entry
+  for `0xE9C6262A` and the compare before `0x007ED333`.

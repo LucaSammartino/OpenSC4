@@ -230,6 +230,39 @@ runs the tutorial filter, then handles window message `3` (and `0x12`): a `0x287
 `HandleButtonActivated` (`0x007F4690`); IDs `0x287259F7`, `0x8988BC94`, `0x2988BC85` and `0x4988BC6A` have their
 own branches (not specified here, VW4).
 
+## 6a. City init: what the window builds per city *[compat]*
+
+The window exists before any city; the city-scoped objects are built by the PreCityInit notification and torn down
+before the next city.
+
+**`DoPreCityInit` (`0x007F41B0`)**, in order:
+
+1. Reads the window's client width and height (`cGZWin` slots 41/42, `+0xA4`/`+0xA8`).
+2. Creates the object of GZCOM class `0xE9C6262A` (constructor `0x007FF930`) and stores it at `+0xEC`
+   (`0x007F4224`). *[inferred]* a view-side helper; identity open (VW5).
+3. Creates the **camera control** (GZCOM class `0xC9C628EC`, `cSC4CameraControl`, `0x007CC990`), stores it at
+   `+0xF0` (`0x007F427C`), sets its viewport to the client size (`SetViewportSize`) and calls
+   `cSC4CameraControl::Init` with the start focus **(512.0, 0, 512.0)** (`0x007F42A0`–`0x007F42B0`, two `0x44000000`
+   floats). The real city size is applied later (PostCityInit step 2).
+4. If no occupant filter exists at `+0x320`, a 16-byte one is created and stored there (`0x007F4307`).
+5. Creates the **renderer** (GZCOM class `0xE9C622D8`, IID `0x681BD529`, `cSC43DRender`, `0x007C9B10`) and stores
+   it at `+0xF4`, the field `GetRenderer` (slot 4, `0x0043FD00`) returns. It is wired to the camera control and the
+   `+0xEC` helper through its slots 6, 7, 12 (view3d.md §3.2).
+6. Looks up GZCOM `0xA2FFB5D3`/`0x02FFBB60`, then `AddBackgroundImageToRenderer` (`0x007F1640`).
+7. Registers script hooks (`cSLString` with `0x6A231EAA`/`0xAA765647`, `0xAA76563A`) and reports progress to the
+   progress screen (`0x00777640`).
+
+The model maker is held at `+0xF8` (`GetModelMaker`, slot 5, `0x007F0FE0`).
+
+**`DoPostCityInit` (`0x007ED0F0`)**, in order: updates the progress message; sets the camera control's city size
+(`cSC4CameraControl::SetCitySize`, `0x007ED17F`) from the city; refreshes `Update24HourClock` and
+`UpdateAmbientLightLevel`; enables the two child windows `0x4992046A` and `0xE9920494`
+(`nsGZWinUtils::SetWindowEnabled`); refreshes the simulation clock, population and day/night buttons; posts the bond
+message (`cSC4BudgetSimulator::PostBondMessage`); refreshes the mayor rating bar; then runs either
+`DoCityEstablished` or `DoCityObliterated` (`0x007ED333`/`0x007ED33A`) according to the city's established state
+*[inferred: the branch condition was not read]*; finally it builds a `cSC4ResponseCurve` from properties
+`0x6A6564F4`/`0x6A6564F6` (`0x007ED5B5`–`0x007ED5DB`).
+
 ## 7. Conformance tests
 
 - VW-T1: QI on the five IIDs of §1 returns the documented sub-object offsets; any other IID returns false.
@@ -240,4 +273,4 @@ own branches (not specified here, VW4).
 ## 8. Open questions
 
 See [questions/view3d-window.md](questions/view3d-window.md): VW1 (per-cheat effects of `ProcessCheatCode`), VW2
-(identity of the two GZCOM helpers in `Init`), VW3 (length of the command-name table), VW4 (filter branches).
+(identity of the two GZCOM helpers in `Init`), VW3 (length of the command-name table), VW4 (filter branches), VW5 (the `+0xEC` helper and the established/obliterated branch).
