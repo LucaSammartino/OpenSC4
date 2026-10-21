@@ -42,6 +42,7 @@
 #include "FC4CityDetailShadow.h"  // the glue12b1 lane
 #include "cFC4PropDeveloper.h"    // the glue12b1 lane: the propdev month line
 #include "FC4AutomataShadow.h"  // the glue19 lane
+#include "FC4SimGridProbe.h"    // the glue-simgrids4 lane
 #include "FC4MySimsShadow.h"    // the mysims1 lane: mysims_shadow
 #include "FC4AutomataDriver.h"  // the glue19 lane: the riot / fire driver
 #include "FC4DisasterShadow.h"
@@ -581,6 +582,7 @@ public:
                 AutotestOnCityLoaded();
                 AutoloadOnCityLoaded();
                 PopupDialogsOnCityLoad();
+                SimGridProbeAtCityLoaded();  // glue-simgrids4 tooling (simgrids_probe)
                 AuraShadowCityLoaded(CurrentCity());  // aura_shadow = 1 only
                 ZonesShadowCityLoaded(CurrentCity());  // zones_shadow = 1 only
                 TractShadowCityLoaded(CurrentCity());  // tract_shadow = 1 only

@@ -58,7 +58,8 @@ struct TestHost {
         if (g_haveCity) c = g_city;
         return g_haveCity;
     }
-    static void Trace(const char* what, uint32_t, uint32_t, int32_t, int32_t, int32_t, uint32_t, int changed) {
+    static void Trace(const char* what, uint32_t, uint32_t, int32_t, int32_t, int32_t, uint32_t, int changed, uint64_t,
+                      uint32_t) {
         g_trace.push_back(std::string(what) + ":" + std::to_string(changed));
     }
 };
@@ -247,6 +248,12 @@ void TestRecordRoundTrip(T a, T b, size_t elemBytes, uint32_t clsid) {
     OStream o;
     CHECK(g->Write(o));
     CHECK(o.bytes.size() == 2 + 1 + 4 * 10 + 16 * elemBytes);
+    {  // tooling: the record digest is FNV-1a 64 of exactly the written bytes
+        uint32_t nonzero = 0;
+        const uint64_t d = g->RecordDigest(&nonzero);
+        CHECK(d == fc4::SimGridFnv(fc4::kSimGridFnvBasis, o.bytes.data(), o.bytes.size()));
+        CHECK(nonzero == (a != T{} ? 1u : 0u) + (b != T{} ? 1u : 0u));
+    }
     uint16_t ver = 0;
     std::memcpy(&ver, o.bytes.data(), 2);
     uint32_t cls = 0;

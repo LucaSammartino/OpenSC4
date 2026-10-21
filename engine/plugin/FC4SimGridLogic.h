@@ -32,7 +32,8 @@
 //   Dims:  static bool Get(SimGridCity&) (false without a city), and
 //          static void Trace(const char* what, uint32_t clsid, uint32_t instance,
 //                            int32_t s, int32_t countX, int32_t countZ,
-//                            uint32_t ifaceWrites, int changed) for Read/Write
+//                            uint32_t ifaceWrites, int changed, uint64_t digest,
+//                            uint32_t nonzero) for Read/Write (digest: RecordDigest)
 #pragma once
 
 #include "cIGZIStream.h"
@@ -51,6 +52,14 @@ namespace fc4 {
 constexpr uint32_t kSimGridIID = 0xC9BD939A;     // §2, all T
 constexpr uint32_t kSimGridClsidBool = 0x49B9E601;  // creates a uint8 grid (§2)
 constexpr uint16_t kSimGridVersion = 1;          // §5
+
+// FNV-1a 64 (tooling: the record digest of the trace and the probe).
+inline uint64_t SimGridFnv(uint64_t h, const void* p, size_t n) {
+    const unsigned char* b = static_cast<const unsigned char*>(p);
+    for (size_t i = 0; i < n; ++i) h = (h ^ b[i]) * 1099511628211ull;
+    return h;
+}
+constexpr uint64_t kSimGridFnvBasis = 1469598103934665603ull;
 // [choice] The largest tract count per axis Read accepts (a hostile save
 // cannot make it allocate more); SC4's largest city is 256 cells.
 constexpr int32_t kSimGridMaxCount = 4096;
@@ -277,7 +286,7 @@ public:
         FreeAll();
         SimGridStats& st = GetSimGridStats();
         if (st.destroyed.fetch_add(1, std::memory_order_relaxed) + 1 == st.created.load(std::memory_order_relaxed)) {
-            Dims::Trace("all-released", clsid_, instance_, tractSize_, 0, 0, 0, -1);
+            Dims::Trace("all-released", clsid_, instance_, tractSize_, 0, 0, 0, -1, 0, 0);
         }
     }
 
@@ -302,7 +311,9 @@ public:
         // changed: -1 not loaded from a save, 0 same values as loaded, 1 changed
         const int changed = readSumValid_ ? (Checksum() != readSum_ ? 1 : 0) : -1;
         if (changed == 1 && ifaceWrites_ == 0) GetSimGridStats().rawChanged.fetch_add(1, std::memory_order_relaxed);
-        Dims::Trace("write", clsid_, instance_, tractSize_, countX_, countZ_, ifaceWrites_, changed);
+        uint32_t nonzero = 0;
+        const uint64_t digest = RecordDigest(&nonzero);
+        Dims::Trace("write", clsid_, instance_, tractSize_, countX_, countZ_, ifaceWrites_, changed, digest, nonzero);
         return true;  // §5: always true
     }
     bool Read(cIGZIStream& s) override {
@@ -340,7 +351,9 @@ public:
         readSum_ = Checksum();
         readSumValid_ = true;
         GetSimGridStats().reads.fetch_add(1, std::memory_order_relaxed);
-        Dims::Trace("read", clsid_, instance_, tractSize_, countX_, countZ_, 0, -1);
+        uint32_t nonzero = 0;
+        const uint64_t digest = RecordDigest(&nonzero);
+        Dims::Trace("read", clsid_, instance_, tractSize_, countX_, countZ_, 0, -1, digest, nonzero);
         return true;
     }
     uint32_t GetGZCLSID() override { return clsid_; }
@@ -351,6 +364,39 @@ public:
     bool InitFlag() const { return initFlag_; }
     uint32_t InterfaceWrites() const { return ifaceWrites_; }
     // FNV-1a over the values, x outer, z inner.
+    // Tooling: FNV-1a 64 over the bytes Write puts into a little-endian
+    // stream (the §5 record, header then x-major cells), so the digest of a
+    // record captured from any grid's Write is comparable; `nonzero`: cells
+    // whose value bytes are not all zero.
+    uint64_t RecordDigest(uint32_t* nonzero) const {
+        uint64_t h = kSimGridFnvBasis;
+        const uint16_t version = kSimGridVersion;
+        const uint8_t init = initFlag_ ? 1 : 0;
+        h = SimGridFnv(h, &version, 2);
+        h = SimGridFnv(h, &init, 1);
+        h = SimGridFnv(h, &clsid_, 4);
+        h = SimGridFnv(h, &instance_, 4);
+        h = SimGridFnv(h, &tractSize_, 4);
+        h = SimGridFnv(h, &shift_, 4);
+        h = SimGridFnv(h, &countX_, 4);
+        h = SimGridFnv(h, &countZ_, 4);
+        h = SimGridFnv(h, &widthX_, 4);
+        h = SimGridFnv(h, &widthZ_, 4);
+        h = SimGridFnv(h, &invWidthX_, 4);
+        h = SimGridFnv(h, &invWidthZ_, 4);
+        uint32_t nz = 0;
+        static const unsigned char kZero[sizeof(T)] = {};
+        for (int32_t x = 0; x < countX_; ++x) {
+            for (int32_t z = 0; z < countZ_; ++z) {
+                const T& v = data_.begin[x].begin[z];
+                h = SimGridFnv(h, &v, sizeof(T));
+                if (std::memcmp(&v, kZero, sizeof(T)) != 0) ++nz;
+            }
+        }
+        if (nonzero != nullptr) *nonzero = nz;
+        return h;
+    }
+
     uint64_t Checksum() const {
         uint64_t h = 1469598103934665603ull;
         for (const Row* r = data_.begin; r != data_.end; ++r) {

@@ -486,6 +486,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4SimGridLogic.h
         plugin/cFC4SimGrid.cpp
         plugin/cFC4SimGrid.h
+        plugin/FC4SimGridProbe.cpp
+        plugin/FC4SimGridProbe.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"

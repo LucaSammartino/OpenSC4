@@ -1959,6 +1959,11 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      (changed: values differ from the loaded ones; with iface_writes=0 the original wrote them through
      `GetGridData`), and at the last release `simgrids: all grids released: created=… raw_changed=…`.
      **Off by default.** Out-of-range reads return 0 and such writes are ignored [choice] (question SG1).
+     The read/write lines also carry `digest=` (FNV-1a 64 of the record bytes) and `nonzero=` (cells not 0).
+     Tooling `simgrids_probe = 1` (`plugin/FC4SimGridProbe.*`, works with or without `enable = simgrids`): every
+     grid a save hands to our glue (`IStreamAdapter::ReadRef`) is held until PostCityInit, then its own `Write`
+     is captured: `simgrids-probe: grid clsid=… instance=… digest=… nonzero=…` per grid and a summary line naming
+     the grid class (ours or the game's), so a save written by our grids can be checked after the game's reload.
    - **City situation manager** (`enable = citysit`; `plugin/cFC4CitySituation.*`, over the `fc4_citysit` core):
      the city's `cSC4CitySituationManager` (class `0x0BB14381`, city component 52, the slot 49 getter). It answers
      `cISC4CitySituationManager` (city-situation.md §8, 40 slots), `cIGZMessageTarget2`, the legacy

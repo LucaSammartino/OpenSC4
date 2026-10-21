@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4Streams.h"
+#include "FC4SimGridProbe.h"  // glue-simgrids4 tooling
 
 #include "FC4Checked.h"
 #include "FC4Log.h"
@@ -188,6 +189,7 @@ bool IStreamAdapter::ReadRef(uint32_t iid, fc4_ref* out) {
     // GetClassObject's reference (the table keeps another), one that resolves
     // a known object AddRefs it for the destination; either way +1 for us.
     out->class_id = obj->GetGZCLSID();
+    SimGridProbeNoteRead(static_cast<cIGZUnknown*>(obj), out->class_id);  // glue-simgrids4 tooling
     if (OurObjectRef(obj, iid, out)) return true;
     if (iid == 0 || iid == GZIID_cIGZSerializable) {
         out->token = TokenOf(static_cast<cIGZUnknown*>(obj));  // the caller owns this reference

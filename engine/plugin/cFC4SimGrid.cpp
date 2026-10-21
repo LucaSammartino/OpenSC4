@@ -68,7 +68,7 @@ struct GameSimGridHost {
     static constexpr uint32_t kTraceCap = 400;
 
     static void Trace(const char* what, uint32_t clsid, uint32_t instance, int32_t s, int32_t countX,
-                      int32_t countZ, uint32_t ifaceWrites, int changed) {
+                      int32_t countZ, uint32_t ifaceWrites, int changed, uint64_t digest, uint32_t nonzero) {
         static std::atomic<uint32_t> lines{0};
         SimGridStats& st = GetSimGridStats();
         if (what[0] == 'a') {  // all-released
@@ -81,8 +81,8 @@ struct GameSimGridHost {
         }
         if (lines.fetch_add(1) >= kTraceCap) return;
         Log("simgrids: %s clsid=0x%08X instance=0x%08X S=%d count=%dx%d iface_writes=%u changed=%d "
-            "(live=%u grid_data_calls=%u)",
-            what, clsid, instance, s, countX, countZ, ifaceWrites, changed,
+            "digest=%016llX nonzero=%u (live=%u grid_data_calls=%u)",
+            what, clsid, instance, s, countX, countZ, ifaceWrites, changed, static_cast<unsigned long long>(digest), nonzero,
             st.created.load() - st.destroyed.load(), st.gridDataCalls.load());
     }
 };
