@@ -1,15 +1,24 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-models4 (RE spec: exact cSC43DRender owner beyond view3d.md §3/§4, docs/specs/render3d.md) | `re-models4` / (RE spec lane) | in progress (round 2), partial owner spec (no whole-owner credit): render3d.md §1-6 + §7 remaining list + 12 conformance cases; questions R3D-1..R3D-3 filed; no ABI change, no game runs | 1. Next round: Init 0x007C6410 / Shutdown 0x007C7070 / ReadProperties 0x007C5F40. 2. Picking group (Pick, PickTerrain, PickTerrainAlways, IsModelVisible, view-object list). 3. Shake fill 0x007C63A0 + SetShakeOffsets 0x007C86D0. 4. Backing store create/save/restore, translated/zoom/rotation view updates. 5. Then claim whole-owner credit. |
+| re-models4 (RE spec: exact cSC43DRender owner beyond view3d.md §3/§4, docs/specs/render3d.md) | `re-models4` / (RE spec lane) | ready, partial owner spec (no whole-owner credit): render3d.md §1-6, §9 lifecycle, §10 screen shake, §7 remaining list, 12+12 conformance cases; questions R3D-1..R3D-4 open; no ABI change, no game runs | 1. Picking group (Pick, PickTerrain, PickTerrainAlways, IsModelVisible, view-object list). 2. Backing store create/save/restore, translated/zoom/rotation view updates. 3. R3D-1/R3D-3 byte proof. 4. Then claim whole-owner credit. |
 
-## Handoff
+## Round 2 report
 
-- Goal (round 2): render3d.md lifecycle + shake, close R3D-1..3 only with byte proof.
-- Done: round 1 at 79d420ac; round 2: section 9 (Init/ReadProperties/Shutdown, cases L1-L6), section 10 (shake node,
-  both StartScreenShake overloads, pattern tables, SetShakeOffsets, GetShakeOffsets, cases S1-S6), 6.3 corrected
-  (+0x08 is start time, new nodes are prepended), 7 list trimmed, R3D-4 filed (overload never writes fade length).
-- Constants read from bin/SimCity4.exe with build-runs/rdconst.py (PE VA reader).
-- Next: R3D-1 (stream slot 8 name from docs/abi/interfaces.tsv), R3D-3 (0x007C2E50 item layout); then finish.
+- render3d.md §9: `Init` (14 ordered steps: once-per-process StaticShutdown registration, quad grid, 8 per-rotation
+  margins = scale x float constants read from the binary, prefs AddRef, 11 message registrations, lighting manager,
+  2D camera ortho with 32767.0f far, transposed projection copy to +0x98, draw-context wiring, +0x1F4 = 40000),
+  `ReadProperties` (exemplar 0x6534284A/0x690F693F/0x4A639EF2, properties 0xEA639FB1..BB, exactly-4-values rule,
+  draw-context +0x54 16-byte entries), `Shutdown` (12 ordered steps, 12 unregistrations incl. 0x4348B111, what it
+  does not touch). Cases L1-L6.
+- §10: shake node table, slot 42 prepends and returns the handle, slot 43 overload block ([a,0] amplitude, [0,60,0]
+  rate, k 1, pattern 0), random table (seed 88, 64 pairs in [-10,10]) and sine table (10 sin(i pi/32)),
+  `SetShakeOffsets` full per-frame rule (distance falloff R = cc+0x134 x 640, curve sampling, phase += F min(t,dt),
+  0.6^(4-zoom), round half to even), `GetShakeOffsets`. Cases S1-S6.
+- §6.3 corrected: node +0x08 is the start time; Stop pulls it back so the shake plays its fade.
+- Evidence: re_query asm for every numeric path; data constants read from bin/SimCity4.exe by VA. REA not used.
+- Questions: R3D-4 filed (overload never writes the fade length). R3D-1..3 still open (no byte proof this round;
+  interfaces.tsv has no cIGZIStream/cIGZOStream slot 8 row).
+- No ABI change, no game runs, no engine/tools edits.
 
 ## Report
 
