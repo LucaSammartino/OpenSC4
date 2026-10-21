@@ -44,6 +44,7 @@ pub mod flammability;
 pub mod flora;
 pub mod grid;
 pub mod growth_developer;
+pub mod gz_messages;
 pub mod history;
 pub mod host;
 pub mod ids;
