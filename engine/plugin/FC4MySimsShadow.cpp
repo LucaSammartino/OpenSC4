@@ -194,7 +194,22 @@ uint32_t g_handleCounter = 0;
 struct ShadowState {
     uint32_t created = 0, hadMysims = 0, months = 0, cleanMonths = 0, lastMismatches = 0, lastSims = 0, compared = 0;
     bool injected = false, postCityInitDelivered = false, cityEstablishedDelivered = false;
+    bool postCityInitPending = false;  // deferred to the next forwarded message (MySimsShadowCityLoaded)
 } g_state;
+
+void TraceAdvisorPart(const char* stage);
+
+// The load's PostCityInit, once, after the game's own PostCityInit dispatch
+// (see MySimsShadowCityLoaded).
+void DeliverPendingPostCityInit() {
+    if (!g_state.postCityInitPending || g_core == nullptr) return;
+    g_state.postCityInitPending = false;
+    fc4_adv_message m{};
+    m.msg_type = kMsgPostCityInit;
+    fc4_advisors_do_message(g_core, &m);
+    g_state.postCityInitDelivered = true;
+    TraceAdvisorPart("after PostCityInit");
+}
 
 // ---- helpers -----------------------------------------------------------------------------------
 
@@ -299,6 +314,7 @@ public:
 
     bool DoMessage(cIGZMessage2* msg) override {
         if (g_core == nullptr) return true;
+        DeliverPendingPostCityInit();
         cIGZMessage2Standard* m = nullptr;
         if (msg == nullptr || !msg->QueryInterface(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&m)) ||
             m == nullptr) {
@@ -1242,6 +1258,7 @@ void DropCore() {
     g_state.injected = false;
     g_state.postCityInitDelivered = false;
     g_state.cityEstablishedDelivered = false;
+    g_state.postCityInitPending = false;
 }
 
 // ---- comparison ---------------------------------------------------------------------------------
@@ -1753,20 +1770,18 @@ void MySimsShadowCityLoaded(cISC4City* city) {
         Log("mysims shadow %s: WARNING agent init false", date);
     }
     TraceAdvisorPart("after inject");
-    // ONE hand-delivered PostCityInit (+ CityEstablished) — the shadow target
-    // subscribed for the ticker but PostCityInit arrives via the observer's
-    // path only once; the core needs it to run the first update_variables.
-    if (!g_state.postCityInitDelivered) {
-        fc4_adv_message m{};
-        m.msg_type = kMsgPostCityInit;
-        fc4_advisors_do_message(g_core, &m);
-        g_state.postCityInitDelivered = true;
-        TraceAdvisorPart("after PostCityInit");
-        // No hand-delivered CityEstablished: the game sends it only when a city
-        // becomes established (budget.md resets the funds on it), never on a load;
-        // a real one reaches the core through the forwarder. Delivering it here ran
-        // a second monthly step (advisors.md §5.2) the original never ran.
-    }
+    // ONE hand-delivered PostCityInit, deferred (DeliverPendingPostCityInit): this
+    // runs inside the game's PostCityInit dispatch BEFORE the original advisor system
+    // handles it (measured mysims1fix3-sh-5: original month counter 316 at this point,
+    // 317 from the next month on). The load comparisons (here and the observer's
+    // immediate MySimsShadowMonth) therefore compare the shadow before its PostCityInit
+    // against the original before its own; the core's PostCityInit (monthly step when
+    // lastDay < 1, advisors.md §5.2) runs at the next forwarded message, ahead of the
+    // first ticker the original posts from its PostCityInit.
+    // No hand-delivered CityEstablished: the game sends it only when a city becomes
+    // established (budget.md resets the funds on it), never on a load; a real one
+    // reaches the core through the forwarder.
+    g_state.postCityInitPending = !g_state.postCityInitDelivered;
     char loadDate[16];
     const int mismatches = RunCompare(julian, 0, loadDate);
     Log("mysims shadow %s load: sims=%u injected=%u compared=load mismatches=%d; "
