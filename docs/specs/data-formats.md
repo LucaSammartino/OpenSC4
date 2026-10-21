@@ -557,12 +557,25 @@ parent chain is **not** walked at lookup time, because the vector already holds 
 **Correction (DG29): `EnumProperties` lists the own properties only.** Exemplars and cohorts do not override the
 base `cSCPropertyHolder::EnumProperties` (slots 19 and 20, `0x005FDA80` / `0x005FDA50`), which walks the own list
 (`+0x08`). An earlier version of this section listed it with the effective lookups. The **effective enumerator is
-`GetPropertyList`**: it creates a new `cIGZUnknownList` (`0x0090DC0F`), adds every property of the effective list in
-ascending ID order (list slot 7), and returns it with one reference, which the caller releases; it returns false
-(and no list) for a null out-pointer. Occupants differ: an occupant's holder (`cSCExemplarPropertyHolder`, e.g. a
+`GetPropertyList`**: it creates a new unknown list (§8.2), walks the effective list in ascending ID order and
+adds each property with list slot 7, which inserts at the **front**, and returns it with one reference, which the
+caller releases; it returns false (and no list) for a null out-pointer. **The list therefore runs in descending ID
+order** from front to back (EX49). Occupants differ: an occupant's holder (`cSCExemplarPropertyHolder`, e.g. a
 building's `+0x0C`, building-development §4.9.1) answers `GetProperty` from its own list, then from its default
-exemplar's effective list, and its `EnumProperties` (`0x005FEE10` / `0x005FEF00`) visits its own properties, then
-the exemplar's `GetPropertyList` minus the IDs it overrides.
+exemplar's effective list, and its `EnumProperties` (`0x005FEE10` / `0x005FEF00`) visits its own properties
+(ascending), then pops the exemplar's `GetPropertyList` from the front (descending ID) and visits each one it
+does not override.
+
+**Who calls `GetPropertyList` on a resource-factory object** (EX50; a scan of every decompiled call through
+holder slot 4 right after holder access, plus the instructions of the callers): (1) the occupant holders'
+`EnumProperties` above, on the occupant's default exemplar; (2) the rebuild of §8.2 (exemplar slot 15
+`0x0067DDC0`, cohort slot 15 `0x0067DAE0`), on the **parent cohort**, every time a parent is set, so every
+original load of an exemplar or cohort that has a parent calls it once on the parent; (3) the developer exemplar
+editor `cSCExemplarResourceView` (delete / revert / edit / update view, `0x006697D0`..`0x0066AB50`), created only
+from the resource-catalog windows (`0x00669C50`, called from `cSCResourceCatalogView::registerTypesFromIni`). Who
+calls the occupant `EnumProperties` (slots 19/20 of about 80 occupant vtables) was **not** traced, so the in-city
+action that reaches path (1) stays *[unknown]*; path (2) is internal to the original classes and does not run on
+objects a replacement factory makes.
 
 Worked example: an exemplar E whose record holds only a name and a capacity, with parent cohort C holding
 `ExemplarType` = 2 and a family list `0x27812870`. `GetProperty(0x10)` on E finds 2 and E's `GetPropertyList`
@@ -1562,9 +1575,9 @@ Call sites in the catalogued reader functions (007025B0, 00692210, 006A8790, ...
 
 | Interface | Class | Vtable | Slots | Notes |
 |---|---|---|---|---|
-| `cISCResExemplar` | `cSCResExemplar` | `0x00AAF0D0` | 16 | foundations §17.5 lists 14; slots 14 `0x0067E5B0` and 15 `0x0067DDC0` (rebuild the effective list from the parent, §4.4) follow |
-| `cISCPropertyHolder` | `cSCResExemplar` | `0x00AAF038` | 25 | §17.2 layout; slot 15 `AddProperty(property, bool)` `0x0067DCE0` also updates the effective list and, when the bool is true, posts message `0xC53D10AA` |
-| cohort interface (IID `0x452160FB`) | `cSCResExemplarCohort` | `0x00AAEFF8` | 16 | slot 7 `SetCohort(cohort, bool)` `0x0067C430` (posts `0x853D11F1` when the bool is true), slot 9 returns the property holder, slot 15 `0x0067DAE0` rebuild |
+| `cISCResExemplar` | `cSCResExemplar` | `0x00AAF0D0` | 16 | foundations §17.5 lists 14; slot 14 `0x0067E5B0` `DebugInstanceTag`, slot 15 `0x0067DDC0` rebuild (§8.2) |
+| `cISCPropertyHolder` | `cSCResExemplar` | `0x00AAF038` | 25 | §17.2 layout; slot 15 `AddProperty(property, bool)` `0x0067DCE0` also updates the effective list; slots 17/18 remove (§8.2); with the bool true, slots 15/17/18 post `0xC53D10AA` (§8.2) |
+| cohort interface (IID `0x452160FB`) | `cSCResExemplarCohort` | `0x00AAEFF8` | 16 | slot 6 `GetParent` (borrowed), slot 7 `SetCohort(cohort, bool)` `0x0067C430` (posts `0x853D11F1` when the bool is true), slot 9 returns the property holder, slot 14 `0x0067E3E0` `DebugInstanceTag`, slot 15 `0x0067DAE0` rebuild |
 | `cISCPropertyHolder` | `cSCResExemplarCohort` | `0x00AAEF60` | 25 | as the exemplar's |
 | resource factory | `cSCResExemplarFactory` | `0x00AAEEF8` | 13 | `CreateInstance` `0x0067D820` (type `0x6534284A`), `SerialRead` `0x0067F1E0`, `SerialWrite` `0x00680030` |
 | resource factory | `cSCResExemplarCohortFactory` | `0x00AAEF2C` | 13 | `CreateInstance` `0x0067D8D0` (type `0x05342861`), `SerialRead` `0x0067F7D0`, `SerialWrite` `0x006804D0` |
@@ -1666,6 +1679,94 @@ resource slot 4 (set key); it never checks the class. Readers of exemplars reach
 `cISCResExemplar` and `cISCPropertyHolder` (table above). A replacement object must therefore answer those IIDs with
 the contracts of §4, §5 and the table above; that no reader goes past these interfaces stays *[inferred]* (the
 callers were not audited one by one).
+
+### 8.2 Remaining exemplar, cohort and factory slots *[compat]*
+
+Answers EX46–EX49 from the instructions (REA was unavailable; static export and decompile only). "Not found"
+below means no direct caller and no decompiled indirect call with that shape; indirect calls are not exhaustive.
+
+**Serializable slots 3–5 (exemplar and cohort).** Slots 3 `Write(stream)` and 4 `Read(stream)` are the shared
+body `0x005DEB40`: one argument, return **false**, touch nothing. Slot 5 `GetGZCLSID` is `0x004E13E0`: returns
+**0**. They exist because the primary object is handed to messages as a `cIGZSerializable` (`SetExtra`, below).
+
+**Slot 14 `DebugInstanceTag(cIGZString& out)`** (`0x0067E5B0` exemplar, `0x0067E3E0` cohort): one argument,
+returns true, appends text only: the base resource tag (`0x0093878E`), then `" Exemplar "`; if `ExemplarType`
+(`0x10`) exists, `"(Other)"` when its uint value is 0 and `"(Unknown)"` otherwise; if `ExemplarName` (`0x20`)
+exists, ` '<name>'`. It does **not** rebuild anything (the EX47 guess was wrong).
+
+**Slot 15 rebuild(vector* dest)** (`0x0067DDC0` / `0x0067DAE0`): one argument, a pointer to a `{id, property}`
+vector; null means the object's own effective list (`+0x34`). It clears the destination, then, if a parent is set,
+takes the parent's holder (cohort slot 9), calls its `GetPropertyList`, and pops every property from the front
+(list slot 3 count, slot 12 `PopFront(0x452160EC, &p)`), inserting by binary search; then it merges the own
+list on top (own wins). Its only found caller is `SetCohort` with null.
+
+**Parent ownership (EX48).** `GetCohort` (exemplar slot 9) and `GetParent` (cohort slot 6) are both `0x006AAC50`,
+which returns `+0x30` **borrowed** (no AddRef). `SetCohort(parent, bool)` (exemplar slot 10 `0x0067C510`, cohort
+slot 7 `0x0067C430`): if `parent` equals the current one, nothing happens (no rebuild, no message). Otherwise it
+AddRefs the new parent (if not null), releases the old one, stores it, calls slot 15 with null, and, if the bool is
+true, posts the change message. A null parent is allowed: the effective list becomes the own list.
+
+**Removal (EX47).** Holder slot 17 `RemoveProperty(id, bool)` (`0x0067C8C0`; cohort `0x0067C6C0`): removes from
+the **own** list (base `cSCPropertyHolder::RemoveProperty`); if that removed nothing it returns false and posts
+nothing. Otherwise, in the effective list, if the parent's holder has the ID (holder slot 3) the entry is
+**replaced by the parent's property** (holder slot 9), so the inherited value becomes visible again; if not, the
+entry is erased. Returns true; posts when the bool is true. Slot 18 `RemoveAllProperties(bool)` (`0x0067C9B0`;
+cohort `0x0067C7B0`) clears the own list, then walks the effective list: entries whose ID the parent has get the
+parent's property, all others are erased; posts when the bool is true. The game itself never removes exemplar
+properties outside the developer editor *[inferred]*.
+
+**Holder slots 22–24** (exemplar `0x00AAF038`; cohort `0x00AAEF60`): slot 22 is a thunk (`this − 0x1C`) to the
+**deleting destructor** (`0x0067D9A0` / `0x0067D940`: releases the parent, frees both lists); slots 23 and 24 are
+thunks to `0x005DEB40` (one argument, return false). Nothing calls them through the holder that was found.
+
+**Change messages (EX48).** Posted by holder slots 15/17/18 and `SetCohort` when their bool is true: exemplars
+post `0xC53D10AA`, cohorts `0x853D11F1` (`0x0067C380`). The poster creates a standard message
+(`GZCOM` `CreateInstance(0x46DF45E7, 0x65297976)`, foundations §5.1), sets type, **data1 = key word +4, data2 = key
+word +8** of the object's own resource key (slot 11), and **`SetExtra(object)`** (message slot 36, an added
+reference to the exemplar or cohort itself), then `MessagePost(msg, false)` on the message server
+(`0x4FA845B` / `0x652294C7`) and releases its reference. If the message cannot be created nothing is posted.
+**No found caller passes true**: both `SerialRead`s pass false to every `AddProperty` and `SetCohort`, and so does
+the editor's `assignCohort` / `addProperty`. 49 code locations mention `0xC53D10AA` (listeners), 8 mention
+`0x853D11F1`; they were not audited.
+
+**The unknown list (EX49).** `GetPropertyList` builds a 12-byte object (vtable `0x00ACE650`, constructor
+`0x0090DC0F`: vtable, `std::list` head, reference count 0), made only by direct construction (6 call sites
+plus its own `Clone`); it has **no GZCOM class ID**, so a plug-in cannot obtain one through `GetClassObject`.
+QueryInterface answers only IIDs `0x0000012E` and `1`. A count of 1 or 0 at `Release` destroys it, releasing
+every element. Each element holds one added reference.
+
+| Slot | Address | Behaviour |
+|---|---|---|
+| 3 | `0x0090DB0B` | count |
+| 4 | `0x0090DB1C` | `(index, iid, out)`: QueryInterface of the element at index; false past the end |
+| 5, 17 | `0x0090DA48` | `(visitor, a, b)`: for each element front to back, visitor slot 3 `(element, a, b)`; true |
+| 6 / 8 | `0x0090DC6A` / `0x0090DD36` | insert every element of another list at the front / back |
+| 7 / 9 | `0x0090DC3D` / `0x0090DD09` | insert one element at the **front** / back (AddRef); true |
+| 10 / 11 | `0x0090DA78` / `0x0090DA8D` | `(iid, out)`: QueryInterface of the front / back element; false if empty |
+| 12 / 13 | `0x0090DB64` / `0x0090DB98` | `(iid, out)`: as 10 / 11, then remove it if the QueryInterface succeeded |
+| 14 | `0x0090DAA3` | clear; true |
+| 15 | `0x0090D9EA` | clear, then slot 6 with the other list |
+| 16 | `0x0090DDA0` | clone into a new list (one reference) |
+| 18 | `0x0090DDD5` | deleting destructor |
+
+Readers of a `GetPropertyList` result (occupant `EnumProperties`, the rebuild) use only slots 3, 12 (IID
+`0x452160EC`, `cISCProperty`) and 2. A replacement may return any object that keeps those three slots and the
+descending order.
+
+**Factory slot 8** (`0x0093FF03`, shared by eleven resource factories): `(record, iid, out)` → slot 3 with the
+two trailing values 0, returning its result. No direct caller.
+
+**Factory slot 11 `SerialWrite(resource, serial record)`** (`0x00680030` exemplar, `0x006804D0` cohort), reached
+through factory slot 6 `Write(resource, record)` (`0x009754E8`, QueryInterface of the record for `0xC56B8F08`),
+which the resource manager's save (slot 13 `0x00972C24`, slot 12 by key) calls. It returns false unless the
+resource's type (resource slot 5) is the factory's own. Factory slot 12 `SetWriteMode(bool)` (`0x0067CB10`,
+byte `+0x10`) picks the form: **false (binary)**: the 8-byte signature at `0x00AAF390`, the parent's key (parent
+slot 11; nothing filled when there is no parent), a u32 count and, for each **own** property (not the effective
+list) in ascending ID: its ID, then kind byte 0 and the variant, or kind byte 1 and the key of the held resource
+when the property answers `0xE52184AB`; **true (text)**: `EQZT1###\r\n`, a `ParentCohort` entry, a `PropCount`
+entry, then one entry per own property named by `GetPropertyReadableName` (`0x0067FE80`) or `unknown`. It stops
+at the first failed write. Which game paths call the manager's save on an exemplar was **not** traced *[unknown]*;
+none is part of loading or simulating a city as far as the load path (§8.1) shows.
 
 ---
 

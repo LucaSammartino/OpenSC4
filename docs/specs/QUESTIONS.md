@@ -136,7 +136,7 @@ generated index: the questions live one file per spec, so read only the file for
 | command-system | 7 | 0 | GC8 | questions/command-system.md |
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 5 | 45 | EX51 | questions/data-formats.md |
+| data-formats | 1 | 49 | EX51 | questions/data-formats.md |
 | dates | 3 | 0 | DT4 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
@@ -207,4 +207,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **205** | **1047** | | |
+| **total** | **201** | **1051** | | |
