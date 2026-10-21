@@ -32,8 +32,8 @@ its methods see `this + 4`; offsets quoted for `Read`/`Write` are converted to o
 
 **QueryInterface** (`0x0048EA70`): IIDs `0xA9C741B3`, `1` (cIGZUnknown) and `0x452294AA` give the primary
 pointer; `0xE4FDA3D4` (cIGZSerializable) gives `this + 4`; each success AddRefs and returns true. Any other IID
-returns false and leaves the out pointer untouched. *[quirk]* A null `this` on the `0xE4FDA3D4` path writes null
-and returns false (`0x0048EABA`).
+returns false and leaves the out pointer untouched. *[quirk]* On the `0xE4FDA3D4` path a null `this` stores null
+and then still calls AddRef through it (`0x0048EABA`–`0x0048EAC4`), a crash; unreachable through a live object.
 
 ## 2. State *[compat]*
 
@@ -258,6 +258,34 @@ change counter incremented, and if the renderer `+0x14` holds the instance (slot
 `+0x78`; render3d.md §5). Release the holder. *[outline]* the exact transform-record layout is in the remainder
 (§20); the identity-plus-translation content is read from `0x0049388E`–`0x00493920`.
 
+## 9. State-change handlers (partial)
+
+### 9.4 Prop state (`DoPropStateChanged` `0x00494900`, message `0xE9C86DDB`) *[compat]*
+
+Let o = (message object) slot `+0x0C` (its occupant). If o's exemplar (o slot `+0x18`) has property
+`0x4A70D491`: `ChangeModels(o, 0, 2)` and return. Otherwise `RemoveModels(o, t)` with t = o.GetType(), then
+`AddModels(o, zoom +0x20, rotation +0x24, t, true)`. *[quirk]* The state byte the message carries (second
+argument) is never read (`0x00494900`–`0x00494960`); `ChangeModels` always gets the constants 0 and 2.
+
+## 12. Model loading (partial)
+
+### 12.1 `RemoveModels(o, t)` (`0x00493340`) *[compat]*
+
+If `+0x50` is clear and the terrain-hiding filter `+0x60` accepts t: `DoTerrainHidingForOccupantCells(o, t, 0)`.
+Then the occupant's model holder (slot `+0x4C`), when present, is AddRef'd, cleared (slot `+0x2C`) and released.
+
+### 12.2 `LoadPropModels` (`0x00491A30`) and the shadow wrapper (`0x004919F0`) *[compat]*
+
+`LoadPropModels(o, a, b, c)`: only when `OccupantUsesBuildingStyleModels(o)` (graphics-formats §4.2):
+`LoadModelsCommon(o, a, b, c)`, and when that succeeds `CreateOccupantShadow(o, a, b)`; returns the
+`LoadModelsCommon` result (false when the style test fails). `0x004919F0` is the same without the style test.
+
+### 12.3 Small helpers *[compat]*
+
+- `0x0048EE10`: assignment of a counted texture-binding reference (AddRef new, then release old; self-assignment
+  and same-pointer do nothing).
+- `0x0048F490`: if the object answers `0x097F6D98` (lot base texture occupant), call its slot `+0x28(0)`; release.
+
 ## 19. Conformance cases
 
 | case | setup | expected |
@@ -277,7 +305,7 @@ change counter incremented, and if the renderer `+0x14` holds the instance (slot
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
-Specified: 7336 bytes; remainder (not yet specified or only outlined): 27369 bytes. The remainder is **not empty**,
+Specified: 7777 bytes; remainder (not yet specified or only outlined): 26928 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
 
 | address | bytes | name | section |
@@ -301,14 +329,14 @@ so this spec does not yet claim the whole owner.
 | `0x0048EB50` | 462 | cSC4ModelMaker::DetermineLoadRadiusAroundVisibleArea | remainder |
 | `0x0048ED20` | 107 | cSC4ModelMaker::ComputeCityExclusionRects | remainder |
 | `0x0048ED90` | 123 | FUN_0048ed90 | remainder |
-| `0x0048EE10` | 59 | FUN_0048ee10 | remainder |
+| `0x0048EE10` | 59 | FUN_0048ee10 | §12.3 |
 | `0x0048EF20` | 55 | FUN_0048ef20 | §8.3 |
 | `0x0048EF60` | 301 | FUN_0048ef60 | §4 |
 | `0x0048F090` | 360 | cSC4ModelMaker::Read | §4 |
 | `0x0048F200` | 142 | FUN_0048f200 | remainder |
 | `0x0048F290` | 229 | cSC4ModelMaker::ChangeModels | remainder |
 | `0x0048F380` | 268 | FUN_0048f380 | remainder |
-| `0x0048F490` | 58 | FUN_0048f490 | remainder |
+| `0x0048F490` | 58 | FUN_0048f490 | §12.3 |
 | `0x0048F4D0` | 217 | cSC4ModelMaker::LoadNetworkModels | remainder |
 | `0x0048F5B0` | 169 | cSC4ModelMaker::LoadUndergroundConnectionModels | remainder |
 | `0x0048F660` | 689 | cSC4ModelMaker::UpdateModelLoadRect | remainder |
@@ -328,8 +356,8 @@ so this spec does not yet claim the whole owner.
 | `0x00491040` | 462 | cSC4ModelMaker::LoadFoundationModels | remainder |
 | `0x00491210` | 27 | FUN_00491210 | remainder |
 | `0x00491230` | 1979 | cSC4ModelMaker::CreateOccupantShadow | remainder |
-| `0x004919F0` | 63 | FUN_004919f0 | remainder |
-| `0x00491A30` | 76 | cSC4ModelMaker::LoadPropModels | remainder |
+| `0x004919F0` | 63 | FUN_004919f0 | §12.2 |
+| `0x00491A30` | 76 | cSC4ModelMaker::LoadPropModels | §12.2 |
 | `0x00491A80` | 80 | FUN_00491a80 | §3.3 |
 | `0x00491AD0` | 421 | cSC4ModelMaker::cSC4ModelMaker | §2 |
 | `0x00491C80` | 8 | FUN_00491c80 | §1 |
@@ -344,7 +372,7 @@ so this spec does not yet claim the whole owner.
 | `0x004929F0` | 718 | cSC4ModelMaker::Shutdown | §3.3 |
 | `0x00492CC0` | 1068 | cSC4ModelMaker::RebuildDynamicTexture | remainder |
 | `0x004930F0` | 585 | cSC4ModelMaker::DoLightingChanged | remainder |
-| `0x00493340` | 86 | cSC4ModelMaker::RemoveModels | remainder |
+| `0x00493340` | 86 | cSC4ModelMaker::RemoveModels | §12.1 |
 | `0x004933A0` | 729 | FUN_004933a0 | remainder |
 | `0x004936A0` | 96 | FUN_004936a0 | §8 |
 | `0x00493700` | 25 | FUN_00493700 | remainder |
@@ -362,7 +390,7 @@ so this spec does not yet claim the whole owner.
 | `0x00494390` | 1112 | cSC4ModelMaker::AddModels | remainder |
 | `0x004947F0` | 8 | FUN_004947f0 | §1 |
 | `0x00494800` | 248 | cSC4ModelMaker::Init | §3.1 |
-| `0x00494900` | 99 | cSC4ModelMaker::DoPropStateChanged | remainder |
+| `0x00494900` | 99 | cSC4ModelMaker::DoPropStateChanged | §9.4 |
 | `0x00494970` | 177 | cSC4ModelMaker::DoOccupantCreated | §8.1 |
 | `0x00494A30` | 241 | cSC4ModelMaker::DoOccupantChanged | §8.5 |
 | `0x00494B30` | 584 | cSC4ModelMaker::EnableDeferredOccupantOperations | §8.7 |
