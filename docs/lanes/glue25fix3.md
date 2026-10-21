@@ -4,16 +4,26 @@ Per-lane row for the regenerated `HANDOFF.md` 0 table (see `docs/lanes/README.md
 
 | Lane | Worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue25fix3 | `.claude/worktrees/glue25fix3` | in progress | finish `enable = occmgr`, gate, game run, regress |
+| glue25fix3 | `.claude/worktrees/glue25fix3` | ready | coordinator: union regress with occmgr in the replace list, then train; after landing update Replace/coverage map |
 
-## Handoff
+## Report (run4 round2, 2026-10-21)
 
-Run4 round2 (2026-10-21): ROOT CAUSE FIXED in fdd2a5ef. FirstOut(fc4_occmgr_first_*(..., &occ), occ, out) took occ
-by value; MSVC evaluates args right-to-left, so occ was 0 -> every slot 28-35 query missed (and leaked a ref).
-g7 recheck proved the core hits. g8 (fdd2a5ef, enable=occmgr, Konradshohe to 2026-03): CLEAN, ref_warnings 0,
-first 28315 calls / 12676 hits, lots with building 736/741, tax 4059 (= shadow g2), no shutdown AV.
-51f91c0c: sampler off (kSampleFirstQueries), shutdown trace via FC4_LOGV. Outstanding: glue25fix3-g9 (g1 req to 2032).
-Next: wait g9 verdict, then qbuild all, fmt, finish report + merge-queue json.
+- Root cause of the `enable = occmgr` tax 0 / bankruptcy (fdd2a5ef): `FirstOut(fc4_occmgr_first_*(..., &occ), occ, out)`
+  in engine/plugin/cFC4OccMgr.cpp took `occ` by value; MSVC evaluates arguments right to left, so `occ` was read as 0
+  before the core call wrote it. Every first-occupant query (slots 28-35) returned false (g3: 0 hits / 42874 calls)
+  and the core's AddRef leaked. Now `const uint64_t&`. The core was correct (g7 recheck of the same calls hit).
+- The shutdown AV (g1, g3-g7) is gone with the fix: it was a consequence, not a separate bug.
+- 51f91c0c: first-query sampler kept but off (`kSampleFirstQueries`), shutdown trace lines via FC4_LOGV (were 19k lines).
+- Game: glue25fix3-g8 (fdd2a5ef, enable=occmgr, to 2026-03) clean, ref_warnings 0; first 28315 calls / 12676 hits,
+  lots with building 736/741, tax 4059 (= shadow run g2). glue25fix3-g9 (51f91c0c, enable=occmgr, to 2032-01-05)
+  CLEAN, foreign_exceptions 0, ref_warnings 0; first 395268 calls / 379230 hits; funds 45201 at the end, lots with
+  building 677/680. The occmgr shadow is inactive under replacement (by design); shadow evidence is g2 (clean to 2032).
+- Gate (qbuild all on 51f91c0c): cargo 3577/0, clippy 0, ctest 62/62. fmt clean on tests.rs.
+- Questions: none filed. ABI unchanged.
+- Next: union regress of all replacements including occmgr; diagnostics (budget lot-scan tallies in FC4BudgetHost.cpp,
+  query counters) are one line per scan / one at shutdown and may be trimmed later.
+
+## History
 
 Run4 round1 diagnosis (2026-10-21):
 - g1 log: the city was NOT killed by the exception first. From the first month budget tax income was 0 (g2: ~4059/month),
