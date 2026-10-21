@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-driverdraw4: RE spec follow-up of the DX7 driver (device state, draw path, primitive manager, textures, stages, viewport) | `re-driverdraw4` / (RE lane) | in progress (round 3); prior: docs/specs/renderer-driver.md §7-§8 (round 1), §9 textures, §10 texture stages, §11 viewport/blits/scene end (round 2); RD2 answered, RD3/RD4/RD5 narrowed; no engine, no ABI change, no game runs | 1. internal-format selection 0x0088F8D0 and pixel converters; 2. slots 6-10, 40-42 (vertex formats, matrices); 3. writers of bytes +0x209/+0x261/+0x263; 4. RD3 mode-record fields |
+| re-driverdraw4: RE spec follow-up of the DX7 driver (device state, draw path, primitive manager, textures, stages, viewport) | `re-driverdraw4` / (RE lane) | partial ready for docs train; PARKED3/3, no fourth round; committed round3 vertex/matrix/writers, pending drafts NOT included; prior: docs/specs/renderer-driver.md §7-§8 (round 1), §9 textures, §10 texture stages, §11 viewport/blits/scene end (round 2); RD2 answered, RD3/RD4/RD5 narrowed; no engine, no ABI change, no game runs | 1. internal-format selection 0x0088F8D0 and pixel converters; 2. slots 6-10, 40-42 (vertex formats, matrices); 3. writers of bytes +0x209/+0x261/+0x263; 4. RD3 mode-record fields |
 
 ## Handoff (round 3, 2026-10-21)
 Goal: final round 3/3: slots 6-10, 40-42; 0x0088F8D0 internal-format selection + converter table; writers of
@@ -88,3 +88,6 @@ Coverage: not credited as a full owner. `nSGLDX7::cPrimitiveManager` (7 function
 0x008891C0-0x00889A90) is now fully described; cGDriver is still partial (about 50 of 83 slots).
 
 Commits: 89803b0d (lane file), 633d523d (§7), 594a88cb (§8, RD2), then this report.
+
+## Coordinator disposition
+Final guarded round returned at7dd9bea3 after context budget. Parked3/3. Queue only supported committed specs (including fcc9230d); drafts in ignored build-runs remain pending and RD3/RD4/RD5 are not marked answered. cGDriver partial, no whole-owner credit. No additional analysis round authorized.
