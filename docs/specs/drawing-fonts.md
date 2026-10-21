@@ -363,12 +363,62 @@ first absent probe returns false). The table, read from the switch at `0x00898A7
 | 46 | CalculateTextArea(s, n, rect, wrap, fixWidth) | §8.2 |
 | 50 | FormatForEllipsis(text, ellipsis, rect, keepAll) | §8.3 |
 
-**8.1 Words to fit.** Text is converted (scratch 2, map vector cleared). Walk words (`UTF16GetWord`): CR or LF ends
-the line and is consumed; stop when the word's visible width plus the width so far exceeds w. If nothing fits:
-mode 1 takes whole words up to the first CR, LF, NUL or break character; mode 2 takes Thai clusters or single
-characters while the prefix width < w, backs off one, and steps past a duplicated map entry. A count > 1 that ends
-on a non-space followed by a space takes the space. The result is mapped back through the §11 map, converted to a
-source-unit length, and `width` = GetStringWidth of that prefix.
+**8.1 Words to fit.** n = 0 or w = 0 → returns 0 and width 0. Text is converted (scratch 2, map vector cleared).
+Walk words (`UTF16GetWord`, §8.4) from i = 0: if s[i] is CR (0x0D) or LF (0x0A), i += 1 and stop (the line end is
+consumed, one unit only); stop when VW(word) + sum > w (unsigned; VW = GetStringVisibleWidth, slot 49) — otherwise
+sum += GetStringWidth(word) and i += word length. Trailing spaces of a word therefore never count against w, but
+do count in the sum carried to the next word. If nothing fits (i = 0):
+- mode 1 takes whole words while the unit at the word start is not NUL, LF, CR or a §8.4 space (0x20,
+  U+2002..U+200B), up to n — in practice the rest of the line, overflowing w;
+- mode 2 repeats: prev = i; i += (Thai cluster length (§8.4) if s[i] is U+0E00..U+0E7F, else 1) until
+  GetStringWidth(s, i) ≥ w; then i = prev unless prev = 0. So at least one cluster is always taken, and otherwise
+  the prefix is strictly narrower than w. Then, if i < n, the map vector is non-empty and map[i−1] == map[i],
+  i += 1;
+- any other mode returns 0.
+Afterwards (all paths that took something): if i > 1 (signed), s[i−1] is not a §8.4 space, i < n and s[i] is a
+§8.4 space, i += 1. The result is mapped back through the §11 map (i = map[i] when the map is non-empty), converted
+to a source-unit length, and `width` = GetStringWidth of that prefix.
+
+**CR LF** counts as **two** line ends: a call starting at CR consumes only the CR, and the next call starts at LF,
+consumes it and returns 1 (an empty line). "ab\r\ncd" at a wide width gives the lines "ab\r", "\n", "cd", so
+CalculateNumberOfLines returns 3. CalculateNumberOfLines (`0x00896886`) has no progress guard: it trusts each
+call to return ≥ 1, which holds for n > 0 and w > 0 before the §11 map-back.
+
+**8.4 Words, clusters and whitespace** (FN13; shared UTF-16 helpers in `0x009100..0x00912700`).
+
+Character classes (each a fixed set built once into a hash set; "in" means set membership):
+
+| Class | Test | Members |
+|---|---|---|
+| HB hard break | `0x00911F42`, in set | U+000A, U+000D, U+0085, U+2028, U+2029 |
+| SB break-after | `0x00911FFE`, in set, or c ≤ 0x20 and c ∉ {0x0A, 0x0D} | 0020 002D 0082 2002-200B 2010 2012-2015 203E 3000 301C FE31-FE32 FE58 (plus every control ≤ 0x20 except LF, CR) |
+| NS no-start (closing) | `0x00911D4A` returns "can begin a line" = not in set | 223 distinct codes (u16 tables from `0x00ACE760`): 0021 0025 0029 002C 002E 003A-003B 003F 005D 007D 00A8 00B0-00B1 00B7 00F7 02C7 02C9 02CD 0394 039B 2015-2016 2019 201C-201D 2025-2027 2030 2032-2033 203B 2103 2190-2192 2196-2199 221F-2220 2225 222B 2234-2236 2252 2266-2267 2295 2299 22BF 2502 250C 2514 2518 2524 252C 253C 2551-2554 2558-255D 2561-2563 2565-2566 256A-256D 256F-2570 2595 25CB 25CF 25E2-25E5 2606 2640 2642 3001-3003 3005 3008-300B 300D 300F 3011 3015 3017 301D 3041 3043 3045 3047 3049 3063 3083 3085 3087 308E 309B-309E 30A1 30A3 30A5 30A7 30A9 30C3 30E3 30E5 30E7 30EE 30F5-30F6 30FB-30FE 311D 3121 3124 BCA0 C2A4 C774 D2B8 D3F0 FE31 FE33-FE38 FE3D-FE40 FE4B FE50-FE52 FE54 FE56 FE59-FE5C FE5F-FE60 FE62 FE64-FE65 FE69-FE6B FF01-FF0C FF0E FF10 FF12-FF13 FF15-FF1C FF1E-FF20 FF3D FF3F-FF40 FF5B-FF5E FF61 FF63-FF65 FF67-FF70 FF9E-FF9F FFE0 (the table data as stored, including the odd entries 3008-300B, 301D, BCA0 etc.) |
+| NE no-end (opening) | `0x00911E46` returns "can end a line" = not in set | 0024 0028 005B-005C 007B 00A3 00A5 2018 201C 2035 3008 300A 300C 300E 3010 3014 3016 301D FE5B FE5D FF04 FF08 FF3A-FF3B FF5B FF62 FFE1 FFE5 |
+| CJK | `0x0091009B` | 2E80-E000, F900-FAFF, FE30-FE4F, FF10-FFEE (inclusive) |
+| Thai | `0x009100DE` | 0E00-0E7F |
+| Thai decoration | `0x00911B3E` | 0E31, 0E34-0E3A, 0E47-0E4E |
+| space (visible width) | `0x00896254` | U+0020, U+2002..U+200B |
+
+**UTF16GetWord(s, n)** (`0x0091227B`) returns the length of the first word: 0 for n = 0, else at least 1. Walking
+pairs (p = previous unit, c = next unit), the word ends **before** c when any of: p is U+0E46; p is HB; c is HB;
+or (c can begin a line and p can end a line) and (p is CJK, or c is CJK, or p is SB and c is not SB). Otherwise c
+joins the word. So a word is a run of non-breaking characters **plus its trailing spaces/hyphens/controls**; a
+hard break is always a word of its own; every CJK character is its own word unless a closing mark follows it or an
+opening mark precedes the next. Examples: "foo  bar" → 5 ("foo  "); "  bar" → 2; "well-known" → 5 ("well-");
+"a\tb" → 2 ("a\t"); "ab\r\n" → 2, then "\r" → 1; "漢字。" → 1 ("漢"), then "字。" → 2.
+
+**Thai cluster length** (`UTF16ThaiCharGroupLength`, `0x00911CDE`) at s with n units: n = 0 → 0; n = 1 → 1;
+s[1] = U+0E33 → 2; s[1] not a decoration → 1; else (n < 3 → 2); s[2] = U+0E33 → 3; s[2] not a decoration → 2;
+else 3 + (s[3] == U+0E33) — s[3] is read even when n = 3 (no bound check).
+
+**Composed character** (GetStringWidth, `GetComposedCharLength` `0x00912588` with the code page forced to UTF-16):
+a Thai unit (U+0E00..U+0E7F) starts a Thai cluster as above; any other unit is 1 (surrogate pairs are not
+joined). GetStringWidth adds GetAdvanceWidth of the **first unit only** of each cluster: the decorations of a
+cluster add nothing.
+
+**GetStringVisibleWidth** drops trailing units of the space class only (U+0020, U+2002..U+200B); tab, CR, LF and
+U+00A0 are kept and measured. **GetAdvanceWidth** returns 0 (no charSpacing) when the font is uninitialised or
+GetCharData returns no record; a missing glyph normally still has a record (§7 box), so this is the null case.
 
 **8.2 Text area.** `CalculateTextArea(s, n, rect, wrap, fixWidth)` (slot 46, `0x00896957`, no return value),
 rect = {left, top, right, bottom}, lh = GetLineHeight (slot 35):
