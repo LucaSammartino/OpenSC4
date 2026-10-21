@@ -1,25 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-modelmaker4 (RE spec: exact cSC4ModelMaker owner, docs/specs/model-maker.md) | `re-modelmaker4` / (RE spec lane) | in progress (round 2/3: 12051 of 34705 bytes specified, §20 lists 56 remainder rows) | see Handoff |
+| re-modelmaker4 (RE spec: exact cSC4ModelMaker owner, docs/specs/model-maker.md) | `re-modelmaker4` / (RE spec lane) | partial after round 2/3: 13942 of 34705 bytes specified, §20 lists 51 remainder/outline rows (20763 bytes); no whole-owner credit; no questions, no ABI rows, no game runs | 1. §10.4 LoadOccupantModelsForZoomAndRotation from asm 2. §9.1 0x4933A0 jump table 3. §9.5 DoBuildingCompletionChanged 4. round-3 list below |
 
-## Handoff
-- Goal: docs/specs/model-maker.md specifying the whole cSC4ModelMaker owner (105 functions, 34705 bytes per
-  tools/coverage.py --owners) with the §20 inventory remainder empty; only then claim whole-owner credit.
-- Done (round 1): e1f9e323 §1-5 (identity/QI/vtables, state layout, Init/DoPostCityInit/Shutdown/dtor, save
-  record v2, DoMessage table of 28 IDs); a9b2c5eb §8 occupant handlers + deferred queue (ops 1-8, coalescing);
-  b487f840 §8.8 Moved outline, §19 conformance M1-M12, §20 inventory; ca743ee8 §9.4 prop state, §12.1-12.3.
-- Round 2: b791dd7c §6 filters + §7 load radius/rect/unload (14 rows). Next (round 2 rest), in this order, updating §20 rows from "remainder" to the section and recomputing the totals
-  line (§8.9 Hilighted done in round 1): §6 filters (CreateOccupantFilters 0x493EF0,
-  OccupantFilterIterationFunction 0x495360, 0x5EA370/0x5EA550, 0x5D5xxx); §7 DetermineLoadRadius 0x48EB50,
-  UpdateModelLoadRect 0x48F660, UnloadUnnecessaryModels 0x492530, RemoveModelsInappropriateForRotation 0x492780,
-  ComputeCityExclusionRects 0x48ED20; §9.1-9.3 (0x9D8E0B6 path 0x4933A0, DoLotStateChanged 0x493D60,
-  ApplyStateEffectToModels 0x493C80, DoBuildingCompletionChanged 0x48FFF0); §10 view changes (0x495B00, 0x495D90,
-  0x4959C0, LoadOccupantModelsForZoomAndRotation 0x495430); round 3: §11 DoLightingChanged/RebuildDynamicTexture,
-  §12 AddModel(s)/LoadModelsCommon/Foundation/Network/Underground/FindModelTransform/placeholder/ChangeModels,
-  §13 CreateOccupantShadow, DoTerrainHiding*, 0x445F10-0x447B00 and 0x8D08E0-0x8D0E10 reach helpers.
-- Facts: REA down all round ("No app is open"); fallback re_query asm + decomp/. Read/Write run on this+4 (their
-  Ghidra field labels are ECX-relative: add 4). Decomp of DoMessage/handlers is garbled (args, returns): verify
-  with `re_query.py asm --full --max 2000`. Helpers (gitignored, recreate if lost): build-runs/fn.py <addr>
-  prints a decomp body; vt.py vt <va> <n> dumps a vtable; ids.py <hex...> finds doc mentions of IDs.
-  Owner list: `python tools/coverage.py --owners <WT>/build-runs/owners.tsv`, filter column 3 == cSC4ModelMaker.
-- No questions filed, no ABI rows, no game runs. Not done: coverage-map spec column (tools/, not ours to edit).
+## Report (round 2)
+
+- Commits: b791dd7c §6 occupant filters (types filter class incl. its Write/Read 0x5EA370/0x5EA550, zoom/rotation
+  filter mask contract, OccupantFilterIterationFunction) and §7 (fast F/C rounding, DetermineLoadRadius per-zoom
+  radii from system memory, UpdateModelLoadRect, exclusion rects, rect intersect 0x48ED90, UnloadUnnecessaryModels,
+  RemoveModelsInappropriateForRotation, mask helpers); c06500c1 §10.1-10.3 view changes (+ §10.4 outline);
+  9e7631a1 §9.2 DoLotStateChanged, §9.3 ApplyStateEffectToModels; d1b72a80 §9.1 outline; e024a65c §19 M13-M19.
+- §2 corrected: +0x78..+0x88 are per-zoom load radii (not budgets); added +0x50, +0x8C..+0xAC, +0xC2; +0xB0/+0xB4
+  are constant all-zoom/all-rotation masks.
+- Quirks recorded: unload body only runs at <= 32 MiB reported memory (§7.4); lot-state args swapped (§9.2);
+  foundation QI unchecked (§9.3); city-cell load rect passed to the manager-cell query in DoViewTranslationChange
+  (§10.2); filter Read accepts a bad second version (§6.2); 0x48EAE0 is a model-maker method despite its export name.
+- Measured: tools inventory §20 = 105 rows; specified 13942 B, remainder 20763 B in 51 rows (round 1: 8163 / 69).
+- REA unavailable all round ("No app is open"); everything from re_query asm + decomp/ (static fallback).
+- Next (round 3): §10.4 0x495430 (1329 B, decomp unusable: trace asm, uses 0x48EA00/0x48EA30); §9.1 0x4933A0 case
+  mapping of table 0x49367C and tail; §9.5 DoBuildingCompletionChanged 0x48FFF0; §11 DoLightingChanged/
+  RebuildDynamicTexture; §12 AddModel(s)/LoadModelsCommon/Foundation (0x5D5xxx helpers)/Network/Underground/
+  FindModelTransform (0x5D7710)/placeholder/ChangeModels/0x4906B0/0x490820/0x48F380; §13 CreateOccupantShadow,
+  DoTerrainHiding*, 0x445F10-0x447B00 and 0x8D08E0-0x8D0E10.
+- Helpers (gitignored): build-runs/ca.py (compact asm), inv.py ADDR=SECTION (updates §20 rows and totals), fn.py,
+  vt.py, ids.py, rd.py.
