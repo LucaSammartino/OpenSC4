@@ -27,10 +27,10 @@ The game draws through an abstract "graphics driver" interface with an OpenGL-li
 
 Owner patterns covered: `nSGLDX7::cGDriver::*` bodies in `0x00881DF0`-`0x00889260` (the device, window, state and
 scene lifecycle), `nSGLDX7::TranslateColorToD3D` (`0x00881AB0`), the default device state (§7),
-`nSGLDX7::cPrimitiveManager` (`0x00889B60`-`0x0088A380`, §8.3) with slots 3, 5 and 30-34 (§8). Named but **not
+`nSGLDX7::cPrimitiveManager` (`0x00889B60`-`0x0088A380`, §8.3) with slots 3-5 and 30-34 (§8). Named but **not
 yet specified** (open, §9): `nSGLDX7::cTextureManager` (`0x0088A380`-`0x0088B2C0`), `cTextureStageData` (only its
 dirty byte, §7), `cVertexBuffer`, `D3DLight`, `nRZSimGL` (vertex-format helpers and colour-key blitters),
-`cGZBufferSimGLCache`, `cSC4GDriversCOMDirector`, and slots 4, 6-10, 24-29, 35-42, 47-49, 51-62, 68-76.
+`cGZBufferSimGLCache`, `cSC4GDriversCOMDirector`, and slots 6-10, 24-29, 35-42, 47-49, 51-62, 68-76.
 
 The driver object exposes four COM-style interface pointers at object offsets `+0x0`, `+0x4`, `+0x8` and `+0xC`
 plus a reference-counted sub-object at `+0x10`; the 83-slot graphics interface is the one at `+0xC`. Slots 0-2
@@ -344,7 +344,7 @@ which is the same field); it is write-only *[inferred: a leftover]*. A replaceme
 Likewise the "clear colour at scene start" flag `+0x2DD` is only ever written false (constructor and here), so the
 colour clear `BeginScene` performs when it is set (§4.4, `Clear(0x4000)`) never happens *[inferred]*.
 
-## 8. Drawing (slots 3, 5, 30-34) and the primitive manager
+## 8. Drawing (slots 3-5, 30-34) and the primitive manager
 
 ### 8.1 Vertex arrays: `InterleavedArrays(format, stride, pointer)` (slot 5, `0x00881EC0`)
 
@@ -377,6 +377,15 @@ The index count is truncated to 16 bits; strips and fans with `count < 3` (and q
 a negative count truncated to a huge one *[quirk; callers must not do it]*. Indices are taken from the manager's
 index scratch (`GetIndices`, §8.3). The queue result, when it is a failure, sets the error code by the §3 rule.
 Modes 0-5 use the table at `0x00AC44CC` (`4 5 6 1 2 3 4 4`); entries 1, 2, 6, 7 are never read.
+
+`DrawElements(mode, count, type, indices)` (slot 4, `0x00885A00`) does steps 1-3 the same way, then copies the
+caller's `count` indices into the index scratch as 16-bit values (`type` 1: 8-bit source, 3: 16-bit, 5:
+32-bit, truncated; any other type leaves the scratch unfilled *[quirk; callers must not]*), tracking their minimum
+and maximum. Modes 0, 3, 4, 5 are queued indexed with the table primitive; modes 1, 2, 6, 7 are expanded to a
+triangle list with the index counts and patterns of §8.2 applied to the caller's index list *[inferred: helpers
+`0x008824F0`-`0x00882890` not traced one by one]*. The queue receives the base pointer, minimum index = the
+minimum, vertex count = maximum − minimum + 1, so only the vertices in that range are copied. Failures set the
+error code by §3.
 
 ### 8.3 The primitive manager (`nSGLDX7::cPrimitiveManager`, object `+0x1C`, `0x00889B60`-`0x0088A380`)
 

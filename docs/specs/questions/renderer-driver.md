@@ -13,6 +13,6 @@
   `cTextureManager` / `cPrimitiveManager` contracts behind them (queueing, batch limits, when a queued batch is
   submitted besides state changes and `Flush`).
   *Partly answered 2026-10-21 (re-driverdraw4): `DrawArrays` (slot 3), `InterleavedArrays` (5) and the whole
-  `cPrimitiveManager` queue / batch / flush contract are now §8.2-§8.3. Still open: `DrawElements` (4, `0x00885A00`),
+  `cPrimitiveManager` queue / batch / flush contract are now §8.2-§8.3. `DrawElements` (4) is §8.2 too. Still open:
   slots 6-10, 24-29, 35-42, 51-62, 68-76, the per-stage record contents (`0x00884320`, `0x00884500`) and
   `cTextureManager` (`0x0088A380`-`0x0088B2C0`).*
