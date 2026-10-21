@@ -423,6 +423,14 @@ fn:RZDraw*	2D drawing and fonts	renderer	-	-	-	-
 fn:Draw*	2D drawing and fonts	renderer	-	-	-	-
 # ---- ui
 cSC4ViewInputControl	city tools and input	ui	city-tools-input.md	-	-	-
+cSC4ViewInputControlCityScroll	city tools and input	ui	view-input-controls.md	-	-	-
+cSC4ViewInputControlLevelTerrain	city tools and input	ui	view-input-controls.md	-	-	-
+cSC4ViewInputControlLabelTool	city tools and input	ui	view-input-controls.md	-	-	-
+cSC4ViewInputControlSignTool	city tools and input	ui	view-input-controls.md	-	-	-
+cSC4ViewInputControlSignLabelDemolish	city tools and input	ui	view-input-controls.md	-	-	-
+cSC4LabelFilter	city tools and input	ui	view-input-controls.md	-	-	-
+cSC4SignFilter	city tools and input	ui	view-input-controls.md	-	-	-
+cSC4SignOrLabelFilter	city tools and input	ui	view-input-controls.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	-	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-

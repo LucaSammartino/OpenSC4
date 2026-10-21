@@ -128,6 +128,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TU | tutorial |
 | TV | terrain-view |
 | UG | underground-occupants |
+| VIC | view-input-controls |
 | VU | view-utilities |
 | VW | view3d-window |
 | WR | water-ripples |
@@ -241,10 +242,11 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 4 | 2 | TU10 | questions/tutorial.md |
 | underground-occupants | 4 | 0 | UG5 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
+| view-input-controls | 2 | 0 | VIC3 | questions/view-input-controls.md |
 | view-utilities | 2 | 1 | VU4 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | water-ripples | 3 | 0 | WR4 | questions/water-ripples.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **235** | **1118** | | |
+| **total** | **237** | **1118** | | |

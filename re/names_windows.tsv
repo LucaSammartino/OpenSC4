@@ -1762,15 +1762,15 @@ va	name	source	confidence	note
 004b6f60	cSC4TutorialRegistry::GetTutorialRegionDefaultDirName	auto:B3	medium	mac 0045222e score 0.898 support 2.0
 004b7720	cSC4TutorialRegistry::Init	auto:A	high	mac 004526f8 score 0.807 support 0
 004b7d70	cSC4TutorialRegistry::SetLua	auto:B0	medium	mac 00452f2e score 0.997 support 2.0
-004b7dc0	cSC4ViewInputControlCityScroll::cSC4ViewInputControlCityScroll	auto:B3	medium	mac 002063d6 score 0.924 support 2.0
-004b7e00	cSC4ViewInputControlCityScroll::Shutdown	auto:B1	medium	mac 00206428 score 0.947 support 2.5
-004b7e70	cSC4ViewInputControlCityScroll::EndInput	auto:B2	medium	mac 002064ba score 0.931 support 1.5
-004b7ec0	cSC4ViewInputControlCityScroll::OnMouseUpR	auto:C	low	mac 0020651c score 1.0 support 1
+004b7dc0	cSC4ViewInputControlCityScroll::cSC4ViewInputControlCityScroll	manual:view-input-controls.tsv	high	view-input-controls.md §2.2; thresholds 12 and 80
+004b7e00	cSC4ViewInputControlCityScroll::Shutdown	manual:view-input-controls.tsv	high	view-input-controls.md §2.4
+004b7e70	cSC4ViewInputControlCityScroll::EndInput	manual:view-input-controls.tsv	high	view-input-controls.md §2.4
+004b7ec0	cSC4ViewInputControlCityScroll::OnMouseUpR	manual:view-input-controls.tsv	high	view-input-controls.md §2.3; EndInput, true
 004b7ed0	icf::cSC4ViewInputControlCityScroll::~cSC4ViewInputControlCityScroll	folded	folded	3 names: cSC4ViewInputControlCityScroll::~cSC4ViewInputControlCityScroll | cSC4ViewInputControlFlora::~cSC4ViewInputControlFlora | cSC4ViewInputControlLevelTerrain::~cSC4ViewInputControlLevelTerrain
-004b7ef0	cSC4ViewInputControlCityScroll::OnMouseMove	auto:A	high	mac 0020687a score 0.672 support 0
-004b8220	cSC4ViewInputControlCityScroll::ReadTunableValues	auto:A	high	mac 00206534 score 0.613 support 0
-004b82a0	cSC4ViewInputControlCityScroll::Init	auto:A	high	mac 002065dc score 1.0 support 0
-004b82f0	cSC4ViewInputControlCityScroll::SetMouseScroll	auto:B1	medium	mac 00206630 score 0.928 support 4.0
+004b7ef0	cSC4ViewInputControlCityScroll::OnMouseMove	manual:view-input-controls.tsv	high	view-input-controls.md §2.3; nine cursors, SetScrolling(on, angle, speed)
+004b8220	cSC4ViewInputControlCityScroll::ReadTunableValues	manual:view-input-controls.tsv	high	view-input-controls.md §2.2; properties 0xE90F5DE4, 0xA90F5DEC
+004b82a0	cSC4ViewInputControlCityScroll::Init	manual:view-input-controls.tsv	high	view-input-controls.md §2.2
+004b82f0	cSC4ViewInputControlCityScroll::SetMouseScroll	manual:view-input-controls.tsv	high	view-input-controls.md §2.2; anchor picture window 0x48E945B4
 004b8480	icf::cSC4ViewInputControlCitySituations::QueryInterface	folded	folded	3 names: cSC4ViewInputControlCitySituations::QueryInterface | cSC4ViewInputControlGameOfLife::QueryInterface | cSC4ViewInputControlPlayerDrive::QueryInterface
 004b84b0	cSC4ViewInputControlCitySituations::Init	auto:C	high	mac 0049102a score 1.0 support 1
 004b8550	cSC4ViewInputControlCitySituations::Shutdown	auto:C	high	mac 00490d3e score 1.0 support 1
@@ -1839,31 +1839,34 @@ va	name	source	confidence	note
 004bc7d0	cSC4ViewInputControlGameOfLife::OnKeyDown	auto:B0	medium	mac 002387b6 score 0.953 support 1.0
 004bc870	cSC4ViewInputControlGameOfLife::OnMouseDownL	auto:B2	medium	mac 00238a0c score 0.936 support 2.0
 004bc900	cSC4ViewInputControlGameOfLife::OnMouseMove	auto:B3	medium	mac 00238aca score 0.904 support 1.0
-004bc980	cSC4ViewInputControlLabelTool::Init	auto:A	high	mac 0049110c score 1.0 support 0
-004bca10	cSC4ViewInputControlLabelTool::DoMessage	auto:A	high	mac 00491154 score 0.744 support 0
-004bcb00	cSC4ViewInputControlLabelTool::FindRoadCenterAndOrientation	auto:B0	medium	mac 004916cc score 0.995 support 1.0
-004bcdc0	cSC4ViewInputControlLabelTool::GetDecalOccupantAt	auto:B1	medium	mac 004912fc score 0.998 support 1.5
-004bce80	cSC4ViewInputControlLabelTool::SetSelection	auto:B0	medium	mac 0049126e score 0.996 support 2.0
-004bcee0	cSC4ViewInputControlLabelTool::FindAvenueCenterAndOrientation	auto:A	high	mac 004913f0 score 1.0 support 0
+004bc980	cSC4ViewInputControlLabelTool::Init	manual:view-input-controls.tsv	high	view-input-controls.md §4.1
+004bc9b0	cSC4LabelFilter::IsOccupantIncluded	manual:view-input-controls.tsv	high	view-input-controls.md descriptive name, no Mac match; §4.1; props answering 0x2B3B7D86
+004bca10	cSC4ViewInputControlLabelTool::DoMessage	manual:view-input-controls.tsv	high	view-input-controls.md §4.5; OK, Cancel, Enter
+004bcb00	cSC4ViewInputControlLabelTool::FindRoadCenterAndOrientation	manual:view-input-controls.tsv	high	view-input-controls.md §4.4; offsets of 4 m
+004bcdc0	cSC4ViewInputControlLabelTool::GetDecalOccupantAt	manual:view-input-controls.tsv	high	view-input-controls.md §4.1
+004bce80	cSC4ViewInputControlLabelTool::SetSelection	manual:view-input-controls.tsv	high	view-input-controls.md §4.1; alpha 0.7 and 0.5
+004bcee0	cSC4ViewInputControlLabelTool::FindAvenueCenterAndOrientation	manual:view-input-controls.tsv	high	view-input-controls.md §4.4; offsets of 8 m
+004bd230	cSC4ViewInputControlLabelTool::cSC4ViewInputControlLabelTool	manual:view-input-controls.tsv	high	view-input-controls.md descriptive name, no Mac match; §4.1
 004bd280	icf::cSC4ObliterateCity::AddRef	folded	folded	10 names: cSC4ObliterateCity::AddRef | cSC4ViewInputControlCitySituations::AddRef | cSC4ViewInputControlGameOfLife::AddRef | cSC4ViewInputControlLabelTool::AddRef | cSC4ViewInputControlNetworkTool::AddRef | cSC4ViewInputControlPlayerDrive::AddRef | cSC4ViewInputControlSignTool::AddRef | cSC4ViewInputControlTerrainScrubber::AddRef | cSC4ViewInputControlTorch::AddRef | cSC4ViewInputControlZone::AddRef
 004bd290	icf::cSC4ObliterateCity::Release	folded	folded	10 names: cSC4ObliterateCity::Release | cSC4ViewInputControlCitySituations::Release | cSC4ViewInputControlGameOfLife::Release | cSC4ViewInputControlLabelTool::Release | cSC4ViewInputControlNetworkTool::Release | cSC4ViewInputControlPlayerDrive::Release | cSC4ViewInputControlSignTool::Release | cSC4ViewInputControlTerrainScrubber::Release | cSC4ViewInputControlTorch::Release | cSC4ViewInputControlZone::Release
-004bd2b0	cSC4ViewInputControlLabelTool::~cSC4ViewInputControlLabelTool	auto:C	high	mac 007fb0a4 score 1.0 support 1
-004bd2e0	cSC4ViewInputControlLabelTool::Shutdown	auto:C	high	mac 004912c8 score 1.0 support 1
-004bd320	cSC4ViewInputControlLabelTool::UpdateTextDecal	auto:A	high	mac 00491972 score 0.642 support 0
-004bd4b0	cSC4ViewInputControlLabelTool::OnKeyDown	auto:B2	medium	mac 00491dc8 score 0.983 support 1.0
-004bd5a0	cSC4ViewInputControlLabelTool::OnMouseMove	auto:B1	medium	mac 00492224 score 0.951 support 2.0
-004bd6b0	cSC4ViewInputControlLabelTool::DoEditLabelUI	auto:A	high	mac 00491b3e score 0.785 support 0
-004bd890	cSC4ViewInputControlLabelTool::OnMouseDownL	auto:A	high	mac 00491edc score 0.573 support 0
-004bda40	cSC4ViewInputControlLabelTool::OnMouseUpL	auto:B0	medium	mac 0049212a score 0.962 support 2.0
-004bdb00	cSC4ViewInputControlLevelTerrain::ComputeAndMarkSelectedArea	auto:D	medium	mac 002d0854 score 0.5 support 2
-004bdb50	cSC4ViewInputControlLevelTerrain::LevelTerrain	auto:D	medium	mac 002d091c score 0.5 support 1
+004bd2a0	cSC4ViewInputControlLabelTool::QueryInterface (thunk at +0x28)	manual:view-input-controls.tsv	high	view-input-controls.md descriptive name, no Mac match; §4.5
+004bd2b0	cSC4ViewInputControlLabelTool::~cSC4ViewInputControlLabelTool	manual:view-input-controls.tsv	high	view-input-controls.md §4.1
+004bd2e0	cSC4ViewInputControlLabelTool::Shutdown	manual:view-input-controls.tsv	high	view-input-controls.md §4.5
+004bd320	cSC4ViewInputControlLabelTool::UpdateTextDecal	manual:view-input-controls.tsv	high	view-input-controls.md §4.3; colour, height, snapping
+004bd4b0	cSC4ViewInputControlLabelTool::OnKeyDown	manual:view-input-controls.tsv	high	view-input-controls.md §4.5; Delete, Home, End
+004bd5a0	cSC4ViewInputControlLabelTool::OnMouseMove	manual:view-input-controls.tsv	high	view-input-controls.md §4.2
+004bd6b0	cSC4ViewInputControlLabelTool::DoEditLabelUI	manual:view-input-controls.tsv	high	view-input-controls.md §4.5; UI script 0x6B704690
+004bd890	cSC4ViewInputControlLabelTool::OnMouseDownL	manual:view-input-controls.tsv	high	view-input-controls.md §4.2
+004bda40	cSC4ViewInputControlLabelTool::OnMouseUpL	manual:view-input-controls.tsv	high	view-input-controls.md §4.2
+004bdb00	cSC4ViewInputControlLevelTerrain::ComputeAndMarkSelectedArea	manual:view-input-controls.tsv	high	view-input-controls.md §3; MarkSelected(rect, 2, true)
+004bdb50	cSC4ViewInputControlLevelTerrain::LevelTerrain	manual:view-input-controls.tsv	high	view-input-controls.md §3; SetAltitude(rect, h, true, true)
 004bdbe0	icf::cSC4ViewInputControlEffect::OnKeyDown	folded	folded	5 names: cSC4ViewInputControlEffect::OnKeyDown | cSC4ViewInputControlFlora::OnKeyDown | cSC4ViewInputControlGameOfLife::OnKeyUp | cSC4ViewInputControlLevelTerrain::OnKeyDown | cSC4ViewInputControlTorch::OnKeyDown
-004bdc00	cSC4ViewInputControlLevelTerrain::Shutdown	auto:B0	medium	mac 002d09da score 0.948 support 2.0
-004bdc60	cSC4ViewInputControlLevelTerrain::cSC4ViewInputControlLevelTerrain	auto:A	high	mac 002d0a46 score 1.0 support 0
-004bdc90	cSC4ViewInputControlLevelTerrain::Init	auto:C	high	mac 002d08b6 score 1.0 support 1
-004bdce0	cSC4ViewInputControlLevelTerrain::OnMouseDownL	auto:B3	medium	mac 002d0b3e score 0.983 support 1.0
-004bdd80	cSC4ViewInputControlLevelTerrain::OnMouseUpL	auto:B1	medium	mac 002d0a84 score 0.975 support 1.0
-004bde30	cSC4ViewInputControlLevelTerrain::OnMouseMove	auto:C	high	mac 002d0bde score 1.0 support 1
+004bdc00	cSC4ViewInputControlLevelTerrain::Shutdown	manual:view-input-controls.tsv	high	view-input-controls.md §3
+004bdc60	cSC4ViewInputControlLevelTerrain::cSC4ViewInputControlLevelTerrain	manual:view-input-controls.tsv	high	view-input-controls.md §3
+004bdc90	cSC4ViewInputControlLevelTerrain::Init	manual:view-input-controls.tsv	high	view-input-controls.md §3
+004bdce0	cSC4ViewInputControlLevelTerrain::OnMouseDownL	manual:view-input-controls.tsv	high	view-input-controls.md §3; true even on a miss
+004bdd80	cSC4ViewInputControlLevelTerrain::OnMouseUpL	manual:view-input-controls.tsv	high	view-input-controls.md §3
+004bde30	cSC4ViewInputControlLevelTerrain::OnMouseMove	manual:view-input-controls.tsv	high	view-input-controls.md §3
 004bdf00	cSCParticleSimulatorBase::AddRef	auto:D	low	mac 004bcb80 score 0.5 support 1
 004bdf10	icf::cSC4ViewInputControlPlaceLot::QueryInterface	folded	folded	2 names: cSC4ViewInputControlPlaceLot::QueryInterface | cSC4ViewInputControlQuery::QueryInterface
 004be0a0	cSC4ViewInputControlPlaceLot::DoPlopRingEffectFinished	auto:B1	medium	mac 002d417c score 0.921 support 2.0
@@ -2004,31 +2007,37 @@ va	name	source	confidence	note
 004d5e30	cSC4ViewInputControlQuery::GetBuildingOccupantTipInfo	auto:A	high	mac 0021d276 score 0.936 support 0
 004d6c70	cSC4ViewInputControlQuery::GetTerrainSummaryInfo	auto:A	high	mac 0021cace score 0.959 support 0
 004d7160	cSC4ViewInputControlQuery::DoMessage	auto:B0	medium	mac 0021e464 score 0.963 support 16.0
-004d7680	cSC4SignOrLabelFilter::IsOccupantIncluded	auto:A	high	mac 007fb300 score 0.549 support 0
-004d7710	cSC4ViewInputControlSignLabelDemolish::Init	auto:A	high	mac 004933c4 score 1.0 support 0
-004d7790	cSC4ViewInputControlSignLabelDemolish::Shutdown	auto:C	high	mac 00493448 score 1.0 support 1
-004d77c0	cSC4ViewInputControlSignLabelDemolish::OnMouseUpL	auto:A	high	mac 0049347e score 0.589 support 0
-004d7820	cSC4ViewInputControlSignLabelDemolish::PickSignOrLabel	auto:B1	medium	mac 004936dc score 0.945 support 1.5
-004d7950	cSC4ViewInputControlSignLabelDemolish::SetSelection	auto:A	high	mac 0049350c score 0.714 support 0
-004d7aa0	cSC4ViewInputControlSignLabelDemolish::~cSC4ViewInputControlSignLabelDemolish	auto:C	high	mac 007fb242 score 1.0 support 1
-004d7ac0	cSC4ViewInputControlSignLabelDemolish::OnMouseMove	auto:B0	medium	mac 00493884 score 0.906 support 1.0
-004d7af0	cSC4ViewInputControlSignTool::QueryInterface	auto:C	high	mac 004938bc score 1.0 support 1
+004d7680	cSC4SignOrLabelFilter::IsOccupantIncluded	manual:view-input-controls.tsv	high	view-input-controls.md §6; prop types 0xAB72FBB3, 0xCB79919B
+004d76f0	cSC4ViewInputControlSignLabelDemolish::cSC4ViewInputControlSignLabelDemolish	manual:view-input-controls.tsv	high	view-input-controls.md descriptive name, no Mac match; §6
+004d7710	cSC4ViewInputControlSignLabelDemolish::Init	manual:view-input-controls.tsv	high	view-input-controls.md §6
+004d7790	cSC4ViewInputControlSignLabelDemolish::Shutdown	manual:view-input-controls.tsv	high	view-input-controls.md §6
+004d77c0	cSC4ViewInputControlSignLabelDemolish::OnMouseUpL	manual:view-input-controls.tsv	high	view-input-controls.md §6; sound 0x8A5EC047
+004d7820	cSC4ViewInputControlSignLabelDemolish::PickSignOrLabel	manual:view-input-controls.tsv	high	view-input-controls.md §6
+004d7950	cSC4ViewInputControlSignLabelDemolish::SetSelection	manual:view-input-controls.tsv	high	view-input-controls.md §6
+004d7aa0	cSC4ViewInputControlSignLabelDemolish::~cSC4ViewInputControlSignLabelDemolish	manual:view-input-controls.tsv	high	view-input-controls.md §6
+004d7ac0	cSC4ViewInputControlSignLabelDemolish::OnMouseMove	manual:view-input-controls.tsv	high	view-input-controls.md §6
+004d7af0	cSC4ViewInputControlSignTool::QueryInterface	manual:view-input-controls.tsv	high	view-input-controls.md §5.4; 0xE98B2F57 gives +0x28
 004d7b30	cRZSysServPtr<cIGZClipboardManager,132907024ul,669777917ul>::cRZSysServPtr	auto:A	high	mac 006b1f02 score 1.0 support 0
 004d7b60	cRZSysServPtr<cIGZMessageServer,3238549282ul,1678128007ul>::~cRZSysServPtr	auto:B1	medium	mac 005f956c score 0.803 support 7.0
 004d7baa	lib::Catch@004d7baa	library	medium	Function ID
 004d7bb0	cRZSysServPtr<cIGZMessageServer,3238549282ul,1678128007ul>::cRZSysServPtr	auto:A	high	mac 005f952e score 1.0 support 0
-004d7be0	cSC4ViewInputControlSignTool::Init	auto:B1	medium	mac 00493b60 score 0.954 support 3.5
+004d7be0	cSC4ViewInputControlSignTool::Init	manual:view-input-controls.tsv	high	view-input-controls.md §5.1
+004d7cc0	cSC4SignFilter::IsOccupantIncluded	manual:view-input-controls.tsv	high	view-input-controls.md descriptive name, no Mac match; §5.1; props answering 0x4B44FBE2
+004d7d20	cSC4ViewInputControlSignTool::GetGroundOrSeaHeight	manual:view-input-controls.tsv	high	view-input-controls.md descriptive name, no Mac match; §5.2; max(altitude, sea level)
+004d7d70	cSC4ViewInputControlSignTool::DoMessage	manual:view-input-controls.tsv	high	view-input-controls.md descriptive name, no Mac match; §5.4; message 0x0BE10A20
 004d7ed0	cRZString::cRZString	auto:B6	medium	mac 005fe374 score 0.851 support 7.0
-004d7fb0	__ZThn40_N28cSC4ViewInputControlSignTool14QueryInterfaceEmPPv	auto:B0	low	mac 007fb43c score 0.96 support 1.0
-004d7fc0	cSC4ViewInputControlSignTool::SetSelection	auto:B0	medium	mac 00493c86 score 0.968 support 2.0
-004d80a0	cSC4ViewInputControlSignTool::~cSC4ViewInputControlSignTool	auto:C	high	mac 007fb50c score 1.0 support 1
-004d8130	cSC4ViewInputControlSignTool::Shutdown	auto:B1	medium	mac 00493eb0 score 0.981 support 2.5
-004d81d0	cSC4ViewInputControlSignTool::OnMouseDownL	auto:A	high	mac 00494308 score 0.791 support 0
-004d84b0	cSC4ViewInputControlSignTool::OnMouseMove	auto:A	high	mac 004946b8 score 1.0 support 0
-004d8670	cSC4ViewInputControlSignTool::AppendText	auto:B3	medium	mac 00493910 score 0.976 support 2.0
-004d8730	cSC4ViewInputControlSignTool::OnMouseUpL	auto:B2	medium	mac 00494156 score 0.986 support 2.0
-004d8830	cSC4ViewInputControlSignTool::OnCharacter	auto:B2	medium	mac 00493f4c score 0.962 support 2.0
-004d89d0	cSC4ViewInputControlSignTool::OnKeyDown	auto:B3	medium	mac 00493d58 score 0.949 support 1.0
+004d7f00	cSC4ViewInputControlSignTool::cSC4ViewInputControlSignTool	manual:view-input-controls.tsv	high	view-input-controls.md descriptive name, no Mac match; §5.1
+004d7fb0	__ZThn40_N28cSC4ViewInputControlSignTool14QueryInterfaceEmPPv	manual:view-input-controls.tsv	high	view-input-controls.md §5.4
+004d7fc0	cSC4ViewInputControlSignTool::SetSelection	manual:view-input-controls.tsv	high	view-input-controls.md §5.1; an empty sign is removed
+004d80a0	cSC4ViewInputControlSignTool::~cSC4ViewInputControlSignTool	manual:view-input-controls.tsv	high	view-input-controls.md §5.4
+004d80c0	cSC4ViewInputControlSignTool::~cSC4ViewInputControlSignTool (body)	manual:view-input-controls.tsv	high	view-input-controls.md descriptive name, no Mac match; §5.4
+004d8130	cSC4ViewInputControlSignTool::Shutdown	manual:view-input-controls.tsv	high	view-input-controls.md §5.4
+004d81d0	cSC4ViewInputControlSignTool::OnMouseDownL	manual:view-input-controls.tsv	high	view-input-controls.md §5.2
+004d84b0	cSC4ViewInputControlSignTool::OnMouseMove	manual:view-input-controls.tsv	high	view-input-controls.md §5.2
+004d8670	cSC4ViewInputControlSignTool::AppendText	manual:view-input-controls.tsv	high	view-input-controls.md §5.3; glyph limit
+004d8730	cSC4ViewInputControlSignTool::OnMouseUpL	manual:view-input-controls.tsv	high	view-input-controls.md §5.2
+004d8830	cSC4ViewInputControlSignTool::OnCharacter	manual:view-input-controls.tsv	high	view-input-controls.md §5.3; multi-byte input
+004d89d0	cSC4ViewInputControlSignTool::OnKeyDown	manual:view-input-controls.tsv	high	view-input-controls.md §5.3; Escape, Ctrl+V, Delete
 004d8b20	cSC4ViewInputControlTerrainScrubber::RecordBrushApplication	auto:B0	medium	mac 002b4674 score 0.951 support 1.0
 004d8b90	cISTETerrain::tBrushParameters::tBrushParameters	auto:B1	medium	mac 006f3aee score 0.976 support 2.0
 004d8bc0	cSC4ViewInputControlTerrainScrubber::ReadTuningParameters	auto:A	high	mac 002b4500 score 0.862 support 0
@@ -2053,6 +2062,7 @@ va	name	source	confidence	note
 004d9e80	cSC4ViewInputControlTollBooth::cSC4ViewInputControlTollBooth	auto:B1	medium	mac 004950dc score 0.89 support 2.0
 004d9ea0	cSC4ViewInputControlTollBooth::Shutdown	auto:C	high	mac 00494bf8 score 1.0 support 1
 004d9ee0	cSC4ViewInputControlTollBooth::PickLotAndState	auto:B0	medium	mac 004948f4 score 0.962 support 1.0
+004da180	cSC4ViewInputControlSignLabelDemolish::~cSC4ViewInputControlSignLabelDemolish (body)	manual:view-input-controls.tsv	high	view-input-controls.md descriptive name, no Mac match; §6
 004da1b0	cSC4ViewInputControlTollBooth::OnMouseMove	auto:A	high	mac 00494c4c score 0.629 support 0
 004da5a0	cSC4ViewInputControlZone::Shutdown	auto:A	high	mac 002db752 score 1.0 support 0
 004da6c0	cSC4ViewInputControlZone::Init	auto:A	high	mac 002db880 score 1.0 support 0
@@ -2464,7 +2474,7 @@ va	name	source	confidence	note
 00505580	cSC4Automaton::GetBoundingBox	auto:C	high	mac 000bcac6 score 1.0 support 12
 005055f0	cSC4Automaton::DoPlopJumpTick	auto:A	high	mac 000bbc3c score 1.0 support 0
 00505b50	cSC4Automaton::StopSFX	auto:A	high	mac 000bb6b8 score 1.0 support 0
-00505be0	cSC4ViewInputControl::IsKeyToBePassed	auto:D	low	mac 0007bc04 score 0.5 support 2
+00505be0	cSC4ViewInputControl::IsKeyToBePassed	manual:view-input-controls.tsv	high	city-tools-input.md §2; true
 00505d80	cSC4Automaton::QueryInterface	auto:C	high	mac 000bb892 score 1.0 support 2
 005061e0	cRZFastSTLAllocator<cGZPersistResourceKey>::construct	auto:B0	medium	mac 006dc982 score 0.987 support 1.0
 00506200	std::vector<__gnu_cxx::_Hashtable_node<std::pair<unsigned_long_const,cISC4PathInfo::tPath>>*,std::allocator<__gnu_cxx::_Hashtable_node<std::pair<unsigned_long_const,cISC4PathInfo::tPath>>*>>::operator[]	auto:B0	medium	mac 0066077a score 0.815 support 1.0
@@ -4606,25 +4616,25 @@ va	name	source	confidence	note
 005f9bf0	SC4SanitizeFileName	auto:B1	medium	mac 000246f2 score 0.885 support 3.0
 005f9d70	SC4GetUserDataDirectory	auto:B1	medium	mac 00023f5c score 0.986 support 3.5
 005f9f10	SC4DoPopupStringListMenu	auto:B0	medium	mac 00024e90 score 0.952 support 7.0
-005fafc0	cSC4ViewInputControl::~cSC4ViewInputControl	auto:B0	low	mac 0007b7e4 score 0.874 support 4.0
-005fafd0	cSC4ViewInputControl::Shutdown	auto:B0	medium	mac 0007b8c2 score 0.924 support 7.0
-005fb020	cSC4ViewInputControl::SetCursor	auto:C	high	mac 0007b94a score 1.0 support 16
-005fb070	cSC4ViewInputControl::SetCursor	auto:C	high	mac 0007b9aa score 1.0 support 16
-005fb0b0	cSC4ViewInputControl::SetWindow	auto:C	low	mac 0007b9fe score 1.0 support 16
-005fb0c0	cSC4ViewInputControl::EndInput	auto:B1	medium	mac 0007ba0c score 0.867 support 1.0
+005fafc0	cSC4ViewInputControl::~cSC4ViewInputControl	manual:view-input-controls.tsv	high	city-tools-input.md §2
+005fafd0	cSC4ViewInputControl::Shutdown	manual:view-input-controls.tsv	high	city-tools-input.md §2; the window pointer is kept
+005fb020	cSC4ViewInputControl::SetCursor	manual:view-input-controls.tsv	high	city-tools-input.md §2; slot 9, by cursor
+005fb070	cSC4ViewInputControl::SetCursor	manual:view-input-controls.tsv	high	city-tools-input.md §2; slot 8, by cursor id
+005fb0b0	cSC4ViewInputControl::SetWindow	manual:view-input-controls.tsv	high	city-tools-input.md §2; slot 10, not held
+005fb0c0	cSC4ViewInputControl::EndInput	manual:view-input-controls.tsv	high	city-tools-input.md §2; slot 27, RemoveCurrentViewInputControl(false)
 005fb0e0	icf::cSC4MySimInputControlDispatch::FinalRelease	folded	folded	3 names: cSC4MySimInputControlDispatch::FinalRelease | cSC4ViewInputControl::FinalRelease | cSC4ViewInputControlDispatch::FinalRelease
-005fb100	cSC4ViewInputControl::QueryInterface	auto:A	high	mac 0007bb28 score 1.0 support 0
-005fb130	cSC4ViewInputControl::SetCapture	auto:B0	medium	mac 0007bb60 score 0.866 support 4.0
-005fb150	cSC4ViewInputControl::ReleaseCapture	auto:B0	medium	mac 0007bb88 score 0.866 support 2.0
-005fb170	cSC4ViewInputControl::AmCapturing	auto:C	high	mac 0007bbb0 score 1.0 support 16
-005fb190	cSC4ViewInputControl::IsOnTop	auto:B0	medium	mac 0007bbe0 score 0.91 support 2.0
-005fb1b0	cSC4ViewInputControl::~cSC4ViewInputControl	auto:C	high	mac 0007b800 score 1.0 support 1
-005fb1d0	cSC4ViewInputControl::Init	auto:B0	medium	mac 0007b816 score 0.946 support 17.0
-005fb260	cSC4ViewInputControl::PlayResultSound	auto:C	high	mac 0007ba7e score 1.0 support 16
+005fb100	cSC4ViewInputControl::QueryInterface	manual:view-input-controls.tsv	high	city-tools-input.md §2; IIDs 1 and 0xC6BB8345
+005fb130	cSC4ViewInputControl::SetCapture	manual:view-input-controls.tsv	high	city-tools-input.md §2; window manager slot 29
+005fb150	cSC4ViewInputControl::ReleaseCapture	manual:view-input-controls.tsv	high	city-tools-input.md §2; window manager slot 30
+005fb170	cSC4ViewInputControl::AmCapturing	manual:view-input-controls.tsv	high	city-tools-input.md §2; slot 25
+005fb190	cSC4ViewInputControl::IsOnTop	manual:view-input-controls.tsv	high	city-tools-input.md §2; the city view's current control
+005fb1b0	cSC4ViewInputControl::~cSC4ViewInputControl	manual:view-input-controls.tsv	high	city-tools-input.md §2; slot 26, deleting destructor
+005fb1d0	cSC4ViewInputControl::Init	manual:view-input-controls.tsv	high	city-tools-input.md §2
+005fb260	cSC4ViewInputControl::PlayResultSound	manual:view-input-controls.tsv	high	city-tools-input.md §2; slot 28, sound event 1
 005fb290	cSC4LocalGridHelper::cSC4LocalGridHelper	auto:B1	low	mac 0007be8c score 0.919 support 3.0
 005fb2a0	cSC4LocalGridHelper::Shutdown	auto:B1	medium	mac 0007bc56 score 0.922 support 3.0
 005fb2d0	cSC4LocalGridHelper::ShowEffect	auto:B2	medium	mac 0007bc9c score 0.933 support 5.0
-005fb320	cSC4ViewInputControl::cSC4ViewInputControl	auto:B0	medium	mac 0007b7a4 score 0.831 support 8.0
+005fb320	cSC4ViewInputControl::cSC4ViewInputControl	manual:view-input-controls.tsv	high	city-tools-input.md §2
 005fb340	cSC4LocalGridHelper::Init	auto:A	high	mac 0007bc28 score 1.0 support 0
 005fb360	cSC4LocalGridHelper::SetPosition	auto:B4	medium	mac 0007bd06 score 0.991 support 3.0
 005fb4e0	SCLuaHelp::ReadTableField	auto:B1	medium	mac 00161516 score 0.949 support 8.0
@@ -5286,7 +5296,7 @@ va	name	source	confidence	note
 00648bf0	cSC4PipeOccupant::Init	manual:underground-occupants.tsv	high	underground-occupants.md §2.2; main slot 3, pop 4: StaticInit once, unless IsInitialized the base Init 0x0065C6B0(arg, 0x49C05B9F, 0x00B0BED0), watered := 0
 00648cc0	cSC4WaterOccupantFilter::IsPropertyHolderIncluded	auto:A	high	mac 0012cb26 score 1.0 support 0
 00648ec0	cSC4PipeTool::cSC4PipeTool	auto:D	medium	mac 0012cb84 score 0.5 support 1
-00648ef0	cSC4ViewInputControl::OnMouseExit	auto:D	low	mac 0007ba6e score 0.5 support 1
+00648ef0	cSC4ViewInputControl::OnMouseExit	manual:view-input-controls.tsv	high	city-tools-input.md §2; false
 00648f00	operator.new	auto:B0	low	mac 00c7399f score 0.861 support 4.0
 00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	auto:D	low	mac 00316258 score 0.5 support 1
 00648f40	icf::cSC4PipeOccupant::GetGZCLSID	folded	folded	2 names: cSC4PipeOccupant::GetGZCLSID | cSC4UndergroundConnectionOccupant::Init
