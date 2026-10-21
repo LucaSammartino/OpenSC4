@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 3 starting)
 
+**Run 3 train19 landed (832c7238e0):** MySims shadow exact 73/73 in the combined regress, gate and regress PASS, ref_warnings=0; MS1-MS7 answered. Coverage now 36.8% specified / 28.3% implemented / 12.1% verified / 15.9% replaced (the current regress remains the authority). STOP is set at 8/8 rounds; PL19 docs are queued for the final docs train.
+
 **The wind-down is lifted for run 3** (the user, 2026-10-21). The harness now enforces what was prompt text before:
 `.claude/lane-bin/laneguard.py` runs before every lane tool call and enforces the context budget, a cap on calls
 between commits, the STOP flag and parking. The RE gate checks that REA is reachable. See
@@ -45,7 +47,7 @@ Operator notes (union glue, ABI rows, stalls) are in [ops/coordinating.md](ops/c
 operator notes".
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 222 (MySims shadow exact 73/73 through 2032, including load, ref_warnings=0); 221 (the network-tool replacement places roads and streets in the real game (inserts=8..69, valid=solved, failure 0), 20/20 scripted placements ok, city runs to 2032 clean with ref_warnings=0.); 216 (component 53 / 11 save round trip, record53 equal at load and save); 215 (devperf2 shadows over the replacement exact after the cell-walk host change); 214 (regress-style netmgr shadow, exact 72/73 to 2032 (the one difference is NM10)). See `docs/manual-checks.md`.
+- **Latest in-game run:** 223 (train19 PASS, MySims shadow exact 73/73 alongside the full regression, ref_warnings=0); 222 (MySims shadow exact 73/73 through 2032, including load, ref_warnings=0); 221 (the network-tool replacement places roads and streets in the real game (inserts=8..69, valid=solved, failure 0), 20/20 scripted placements ok, city runs to 2032 clean with ref_warnings=0.); 216 (component 53 / 11 save round trip, record53 equal at load and save); 215 (devperf2 shadows over the replacement exact after the cell-walk host change). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
