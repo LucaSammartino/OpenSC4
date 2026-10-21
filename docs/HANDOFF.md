@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**train28 landed 9aa960b0af:** Five-lane batch: widget, URL, GZmessaging and persistence specs plus partial network-occupant core/records. Full gate/regress PASS. Exact specified-owner maps only; cGZWin/cookie and networkoccupant partialowners get no new implementation credit. Widget3-round cap remains nofourth. Terrain touches blocker core-netocc4 nowlanded, freshchecks required. Pending GZ ABI proposals are not applied. Coverage39.3/30.0/12.4/16.5; rounds39/60.
+
 **train27 landed 66465215fd:** Two-lane batch: application lifecycle/city/save/CLI spec (partial57/322 functions, no whole-class map credit) and traffic TS67 diagnosis/question/test. No traffic behavior change or mismatch suppression; traffic remains nonexact. Application3-round cap stays, nofourth; its landed branch clears the terrain touches blocker subject to fresh checks. Coverage38.7/30.0/12.4/16.5; rounds32/60.
 
 **User limits:** 60 total lane rounds, 3 rounds per lane, target **6 live lanes**, at most **3 glue lanes**. Refill returned slots in the same turn after `lanes.py slots` and `lanes.py check --touches <keys>` pass (`--resume` for the original worktree). Never bypass a denial or unpark without fixing its cause. At 3 rounds without landing park and record the state; never a fourth round. At 60 set STOP with reason `run4 round limit`, land ready work, push and end. A usage/rate limit pauses refills until it clears. User STOP: set STOP immediately, land what is ready, push and end.
@@ -32,7 +34,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 Runtime: six-slot game queue pid22296. Native CLI hosts need CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0; launcher sets it. RE guard preflight must GO. Export-first assembly is permitted by re-workspace.md even without a live REA binary; a workspace no-app diagnostic is separate from guard denial. Game labels unique; qwait without --fresh. Keep own output short. Previous checkpoint lines and train details: [run4 through30](history/handoff-run4-checkpoint30-2026-10-21.md); [run3 stop](history/handoff-run3-stop-2026-10-21.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 229 (train27 two lanes PASS; TS67 filed and partial application spec landed); 228 (train26 four lanes, effects core improvements and three focused spec families); 227 (train25 four-lane PASS, PL19 replacement promoted, terrain spec blockers answered, coverage38.7/28.3/12.4/16.5); 226 (train22 PASS, occupant-manager replacement promoted, replaced coverage15.9 to16.2 percent); 225 (train21 PASS, aura restored to 71/71, verified coverage 12.1 to 12.4 percent; netmgr differences documented). See `docs/manual-checks.md`.
+- **Latest in-game run:** 230 (train28 five-lane PASS; exact-owner specs and partial networkoccupant core); 229 (train27 two lanes PASS; TS67 filed and partial application spec landed); 228 (train26 four lanes, effects core improvements and three focused spec families); 227 (train25 four-lane PASS, PL19 replacement promoted, terrain spec blockers answered, coverage38.7/28.3/12.4/16.5); 226 (train22 PASS, occupant-manager replacement promoted, replaced coverage15.9 to16.2 percent). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
