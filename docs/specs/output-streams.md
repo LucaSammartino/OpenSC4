@@ -183,6 +183,21 @@ minus sign itself. That gives the standard results:
   `0x009F692D`) *[compat]*. Negative values get `-`; the comparison is with 0.0, so −0.0 is formatted by the runtime
   itself *[inferred: "-0"]*. Infinities and NaNs use the runtime's `1.#INF`, `1.#QNAN`, `1.#IND` forms (strings at
   `0x00AECFF0`–`0x00AED008`) *[inferred]*.
+- Rounding to 6 digits is a **double rounding, half-up both times** *[compat]* (OS3). The runtime first makes a
+  17-digit string (`__fltout2` `0x00A0277B` asks `$I10_OUTPUT` `0x00A04942` for 17 digits): it scales the value,
+  widened exactly to an 80-bit long double, with 12-byte arithmetic, generates 18 digits and rounds them to 17 by
+  the 18th digit alone (≥ 5 rounds up, carrying), dropping trailing zeros. `%g` then rounds that string to 6 digits
+  (`__fptostr` `0x00A0264A`): it looks only at the 7th digit of the 17-digit string and rounds up when it is ≥ 5.
+  So an exact tie at the 6th digit rounds **away from zero** (not half-even), and a value just below a tie whose
+  17-digit string already reads as the tie rounds up too. Model: take the value's 17 significant digits correctly
+  rounded, then round half-up on the 7th digit. The model equals the runtime for every double except where the
+  runtime's 18th scaled digit is off by the scaling error of the 12-byte power-of-ten multiply (far below one unit of the 18th digit, size not
+measured); an exact 17-digit tie cannot change
+  the 6-digit result (a double with exactly 18 significant digits ending in `…4999999999 5` does not exist), so the
+  only residual is OS7 *[compat-limit]*. Vectors (C locale): `1234565` → `1.23457e+006`; `0.1234565` (stored as
+  0.12345649999999999680…, 17 digits `12345650000000000`) → `0.123457` (a correctly rounded `%g` gives
+  `0.123456`); `100000.5` → `100001`; `123456.5` → `123457`; `12345.25` → `12345.3`; `-12345.25` → `-12345.3`;
+  `1234575` → `1.23458e+006`; `0.0001234565` → `0.000123457`.
 - The decimal point is the C runtime's current one (`0x00B19C60`). The game changes the runtime locale with
   `setlocale(LC_ALL, …)`: to the user's default the first time a code-page query finds `"C"` (`0x00910014`), and to
   the language's locale in `cRZLanguageManager::SetCurrentLanguage` (`0x00928021`). In a locale with a decimal comma
@@ -256,7 +271,7 @@ Slots 0–2, 16 and 19–23 are `cRZOStream`'s; slot 15 is `cRZTextOStream`'s (�
 
 | Slot | Method | Address | Behaviour / return |
 |---|---|---|---|
-| 3 | `Flush()` | `0x0092BCF7` | `ofstream.flush()`; a failed sync sets badbit; EAX not a status |
+| 3 | `Flush()` | `0x0092BCF7` | `ofstream.flush()` (`0x0092BA02`): the file buffer's `sync` (`0x0092BF91`); a sync result of −1 sets badbit; EAX not a status. On a stream whose open failed the state is **unchanged** (OS4): `sync` returns 0 unless the buffer is in output mode, and only the switch to output mode (`0x0092C327`) sets that, which requires an open file. With a null `ofstream` pointer (§4.1, allocation failed) `Flush` dereferences null *[quirk: crash]* |
 | 4–11 | the integer writes | `0x0092CB3F`, `0x0092CB4F`, `0x0092CB5F`, `0x0092CB6F`, `0x0092CB7F`, `0x0092CB8F`, `0x0092CB9F`, `0x0092CBBC` | `binary`: `cRZOStream`'s (§1.4); else `cRZTextOStream`'s (§2.2) |
 | 12, 13 | `SetFloat32`, `SetFloat64` | `0x0092CBD9`, `0x0092CBF6` | the same choice |
 | 14 | `SetRZCharStr(s)` | `0x0092C757` | `binary`: `SetVoid(s, strlen(s))`, **no length prefix and no terminator**; text: `ofstream << s`. Result: AL = the stream state is good. Then, if `autoFlush`, `Flush()` (its outcome is not in the result) |
@@ -291,16 +306,38 @@ destructor `0x0092B79F`, deleting destructor `0x0092BC2E`, vtable `0x00AD1878` (
 | 8, 9 | 32-bit | `0x0092B7F1` | as above, 4 bytes |
 | 10, 11 | 64-bit | `0x0092B82B` | as above, 8 bytes (helper `0x0092B55B`) |
 | 12, 13 | `GetFloat32`, `GetFloat64` | `0x0092B2ED`, `0x0092B2FB` | `GetVoid(&out, 4 / 8)`, never reversed |
-| 14 | `GetRZCharStr(buf, max)` | `0x0092B8BC` | length as §1.5; if `GetError()` or length 0: `buf[0] := 0`; else read `k = min(length, max)` bytes into `buf`, `buf[k] := 0` (**one past `max` when truncated**) *[quirk]*, and `Skip(length − k)` if no error. Returns `GetError() = 0` (EAX 0 / 1) |
-| 15 | `GetGZStr(out&)` | `0x0092B92D` | `out.FromChar("")`; length; then chunks of at most 255 bytes appended to `out` while no error. Returns `GetError() = 0` |
+| 14 | `GetRZCharStr(buf, max)` | `0x0092B8BC` | length as §1.5; if `GetError()` or length 0: `buf[0] := 0`; else read `k = min(length, max)` bytes into `buf`, `buf[k] := 0` (**one past `max` when truncated**) *[quirk]*, and, if no error **and `length − k` is not 0**, `Skip(length − k)`: `Skip(0)` is never called (OS6). `buf[k] := 0` is written even when the `GetVoid` fails; `buf[0 … k−1]` then hold what `GetVoid` wrote, the rest the caller's prior bytes. Returns `GetError() = 0` (EAX 0 / 1) |
+| 15 | `GetGZStr(out&)` | `0x0092B92D` | `out.FromChar("")`; length; if no error, chunks of `k` = min(remaining, 255) bytes: `GetVoid` into a 256-byte stack buffer, `buf[k] := 0`, **append the `k` bytes to `out` (counted, `cRZString::Append` `0x0090F053`) before testing the error**, subtract `k`, stop on `GetError()` or 0 remaining. Returns `GetError() = 0` |
 | 16 | `GetGZSerializable(o&)` | `0x0092B309` | `o.Read(*this)` (the object's slot 4) |
 
 The length decoder (`0x0092B85F`) reads bytes with `GetUint8` while bit 7 is set and combines the groups as in
 §1.5; it collects them in an 8-byte buffer, so a malformed length of more than 8 bytes (8 continuation bytes and
 more) writes past it *[quirk]*.
 
+**Failed reads inside the length and chunk loops** (OS5). The native bodies read **unwritten bytes, not zero**:
+
+- The length decoder sets the length to 0, then ignores every `GetUint8` result: it continues or stops on bit 7 of
+  the buffer slot it just asked for, written or not. Its 8-byte buffer is not cleared; the prologue reserves it by
+  pushing the stream pointer twice (`0x0092B862`–`0x0092B863`), so an unwritten slot `i` (0–7) holds byte `i mod
+  4` of the stream object's own address (little-endian), slots from 8 on hold the saved frame. It is never "the
+  previous byte" (each index has its own slot). If slot 0 reads 0 the length is 0; if it has bit 7 clear the length
+  is that byte; otherwise the loop asks for further bytes while the stale slots have bit 7 set. The resulting length
+  and the number of extra `GetUint8` calls after a failure therefore depend on the object's address: **unspecified
+  natively** *[compat-limit]*. Both callers test `GetError()` right after decoding and use the length only when it
+  is false, so with a source whose `GetError` reports the failure the length is unobservable; only the count of
+  extra `GetUint8` calls is. *[choice]* FreeCity4 treats an unwritten byte as 0 (the loop ends after the failing
+  call, length unchanged by it): one of the native outcomes (an address whose tested byte is 0), not a specified
+  value.
+- `GetGZStr` appends the failing chunk: `out` gains `k` bytes even though the read failed. Those bytes are what the
+  failing `GetVoid` wrote, and elsewhere the stale stack buffer: on the first chunk uninitialised stack (unspecified
+  natively), on a later chunk the previous chunk's bytes at the same positions (the previous full chunk wrote 255
+  bytes and a 0 at index 255). Then the loop stops. Conforming: one 256-byte buffer reused across chunks, so a
+  later failed chunk carries the previous chunk's bytes (specified); *[choice]* the buffer starts zeroed, so the
+  unwritten bytes of a failed **first** chunk are 0 (natively unspecified).
+
 `cRZNullIStream` (vtable `0x00AD1938`, 20 bytes, constructor `0x0092BC80`, deleting destructor `0x0092BC97`) adds
-an error byte at `+0x10` (0 at construction): `Skip` (`0x0092B33F`) and `GetVoid` (`0x0092B348`) set it to 1 and
+an error byte at `+0x10` (0 at construction). The constructor does not call `cRZIStream(bool)`; it stores the
+fields itself: count 0, user data null, the byte-order flag `+0x08` **false** (OS6), the vtable, the error byte 0. `Skip` (`0x0092B33F`) and `GetVoid` (`0x0092B348`) set it to 1 and
 return false, `GetError` (`0x0092B351`) returns it. Every read therefore fails and leaves its output unwritten.
 
 ## 6. Users
@@ -342,6 +379,11 @@ return false, `GetError` (`0x0092B351`) returns it. Every read therefore fails a
 12. A binary file stream writes `SetRZCharStr` without length or terminator, unlike the base class (§4.2).
 13. `cRZIStream::GetRZCharStr` writes its terminator at `buf[max]` when the string is truncated, and the length
     decoder overruns its buffer on a length of more than 8 bytes (§5).
+14. `%g` rounds twice, half-up both times: an exact tie at the 6th digit rounds away from zero, and a value whose
+    17-digit form is a tie rounds up (`0.1234565` → `0.123457`) (§2.2).
+15. The length decoder ignores read failures and tests unwritten stack bytes, initially the bytes of the stream's
+    own address (§5).
+16. `GetGZStr` appends a failed chunk, stale buffer bytes included, before it stops (§5).
 
 ## 8. Open questions
 
@@ -351,6 +393,9 @@ return false, `GetError` (`0x0092B351`) returns it. Every read therefore fails a
 - **OS2:** (§2.2, §4.1) only for a text-mode file stream, which the game never creates: does the STLport file
   buffer translate `\n` to CR LF in text mode, and which decimal point is in effect when such a stream would write
   a float (the C runtime locale after `0x00910014` and `SetCurrentLanguage`)?
+- **OS7:** (§2.2) is there a double whose `%g` text differs from the model (17 correctly rounded digits, then
+  half-up at the 7th) because the runtime's 12-byte power-of-ten scaling moves its 18th digit across 5? Needs an
+  emulation of `___multtenpow12` / `___ld12mul` or a runtime sweep.
 
 ## 9. Conformance tests
 
@@ -399,3 +444,16 @@ returns a scripted result (true unless stated):
     `GetRZCharStr(buf, 2)` on the encoded `"abcde"` gives `buf = "ab\0"` (3 bytes written) and consumes all 6 bytes;
     `GetGZStr` of a 300-byte string returns it whole; a read from a null input stream returns false, leaves the output
     unchanged and makes `GetError()` 1.
+15. **Float ties** (text, C locale): `SetFloat64(1234565)` → `"1.23457e+006"`; `SetFloat64(0.1234565)` →
+    `"0.123457"`; `SetFloat64(100000.5)` → `"100001"`; `SetFloat64(12345.25)` → `"12345.3"`;
+    `SetFloat64(-12345.25)` → `"-12345.3"`; `SetFloat32(0.5)` unchanged `"0.5"`.
+16. **Failed-open flush**: a file stream whose open failed: `Flush()` leaves the state as it was (failbit only),
+    `GetError()` true before and after.
+17. **Short reads** (reader over a recording source that fails a scripted call, writes nothing on failure, and
+    reports the failure in `GetError` from then on): `GetRZCharStr(buf, 8)` on `03 61 62 63` makes no `Skip` call
+    (`length − k` = 0); on `05 61 62 63 64 65` with `max` 3 it calls `Skip(2)` once; a `GetVoid` failure leaves
+    `buf[0 … k−1]` as the caller had them and `buf[k]` = 0, returns 0, and makes no `Skip`. `GetGZStr` on a
+    300-byte string whose second chunk read fails: `out` holds 255 + 45 bytes, the last 45 being the first 45 of
+    the first chunk (native: the reused buffer), and the call returns 0. A failure of the length byte: the length
+    and the number of further `GetUint8` calls are unspecified natively (§5); with the FreeCity4 choice, one call
+    and an empty result. `cRZNullIStream`: every `Get*` returns false; `GetGZStr` leaves `out` empty.
