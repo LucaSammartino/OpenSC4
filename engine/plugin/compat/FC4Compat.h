@@ -169,6 +169,10 @@ struct ExecutableVersion {
     // The advisor system's private global (advisors.md §14.2, §8.3.1): the cISC4AdvisorSystem* the original
     // Lua extensions read (a replacement system writes its own pointer there, [choice] of §14.2).
     uint32_t advisorSystemGlobalVA;
+    // cISC4NetworkOccupant slot 30 (vtable +0x78) of the game's ordinary network occupant (network-rules.md
+    // §11.2, NR14): SetPiece(u32 id, orientation byte zero-extended), thiscall, ret 8, no result. The SDK
+    // header names this slot SetQuadDraw.
+    uint32_t networkOccupantSetPieceVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -275,6 +279,13 @@ bool PublishLimitTimers(float cyclesToMs, float msToCycles);
 
 // Number of successful publishes (diagnostics).
 uint64_t PublishCount();
+
+// network-rules.md §11.2 (NR14): apply a solved piece to a network occupant through its slot 30. Only when the
+// executable is identified, the table's slot-30 address is executable code inside its image (checked once,
+// logged), and the occupant's own vtable +0x78 holds exactly that address; else nothing is called and the
+// result is false (an occupant of another class has no contract here). `occupant` is the
+// cISC4NetworkOccupant* view; the orientation is passed zero-extended (only its low byte is used).
+bool NetworkOccupantSetPiece(void* occupant, uint32_t pieceId, uint8_t orientation);
 
 }  // namespace compat
 }  // namespace fc4
