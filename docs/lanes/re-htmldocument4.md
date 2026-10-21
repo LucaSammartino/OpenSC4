@@ -1,6 +1,13 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-htmldocument4 (RE spec of exact owner cHTMLDocument, 70 fns / 38220 B) | `re-htmldocument4` / (RE spec lane) | ready, round 2: docs/specs/html-document.md now covers all 70 owner functions (38220 B); §10 remainder empty, whole-owner credit claimable. Questions HD1-HD4 still open (none new). No engine/ABI/tool edits. | 1. Answer HD1-HD4 (game/debugger evidence). 2. Optional: spec gap functions P 0090614f, PRE 00906a5d, DL 009066a3, headings 00906754, lists 00906f1d/0090689f/00907d6b, CENTER 00906d22, table-section helpers, image request slot 16 009059fc (separate inventory). |
+| re-htmldocument4 (RE spec of exact owner cHTMLDocument, 70 fns / 38220 B) | `re-htmldocument4` / (RE spec lane) | in progress, round 3 | see Handoff |
+
+## Handoff
+- Goal round 3: close HD1-HD4 statically; audit gap helpers (owner aliases vs unattributed owner methods).
+- Done: HD1-HD4 answered (spec §3, §5.4, §9; answered/html-document.md; QUESTIONS.md reindexed).
+- Next: classify gap functions 0090614f P, 00906a5d PRE, 009066a3 DL, 00906754 H1-6, 00906f1d/0090689f/00907d6b
+  lists, 00906d22 CENTER, 009059fc (slot 16?) as unattributed cHTMLDocument methods; spec them in §7.14; then report.
+- Facts: build-runs/off.py <regex> lo hi greps export instructions.asm. 0x154 = style record +0x24 (record 0x130..0x157).
 
 ## Report (round 2)
 

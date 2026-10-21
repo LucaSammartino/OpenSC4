@@ -202,19 +202,30 @@ Skipped entirely when the token is 2 (`!DOCTYPE`): the attribute text then stays
      a value starting with the space) and ends before the first whitespace that follows at least one
      character; the scan resumes at that whitespace.
 5. No `=`: the value is empty and the scan resumes at the non-space character found.
-6. The name is upper-cased; the value keeps its case. Insert-unique into the map: **the first occurrence of a
-   repeated attribute wins** (00900f4c returns the existing entry and does not overwrite).
-7. The attribute text is cleared at the end.
+6. Quote clean-up, **name only** (009058c5-009058ef; the value is never touched here): when the name's first
+   and last characters are both `"`, delete the character at index 1 (not 0) and then the last character.
+   Because a name is one arbitrary character followed only by letters, `-` and `/` (step 3), this fires only
+   for the one-character name `"`, which becomes empty. (Index 1 does not exist then; nothing is deleted
+   by the first step.)
+7. The name is upper-cased; the value keeps its case. **An empty name is not inserted** (00905902), so a
+   stray `"` in the attribute text produces no entry, even with `="..."` after it. Otherwise insert-unique into
+   the map: **the first occurrence of a repeated attribute wins** (00900f4c returns the existing entry and
+   does not overwrite).
+8. The attribute text is cleared at the end.
 
 `FindAttribute(name, out, remove)` (0090072c): look `name` up (exact, so callers pass upper-case names). Found:
 copy the value to `out`, erase the entry when `remove` is true (009001c9), return 1. Missing: clear `out`,
 return 0. Parsers pass `remove = true` for attributes they consume, so what remains afterwards is "unhandled".
 
-`DumpUnhandledAttributes` (008ff7fd): when the map is non-empty it walks it (008ff7e7 per entry); the walk has
-no state change visible to the document (diagnostic in the shipping build; HD1).
+`DumpUnhandledAttributes(a, b)` (008ff7fd, 11 callers, two stack arguments it never reads): **a no-op**.
+When the entry count (0x124) is non-zero it takes the map's begin iterator (0097c081) and advances it to the
+end (008ff7e7: next node, else the next non-empty bucket via 008ff123, which only rehashes the current key with
+the byte-sum hash 008fe87e). Nothing is printed, written or erased; the map is left as it was (the next
+ParseAttributeList clears it). Reimplement as an empty function.
 
-Worked example: attribute text `HREF=foo.htm target='_x' href="bar" NOWRAP` gives
-{HREF: `foo.htm`, TARGET: `_x`, NOWRAP: ``}; the second `href` is dropped.
+Worked examples: attribute text `HREF=foo.htm target='_x' href="bar" NOWRAP` gives
+{HREF: `foo.htm`, TARGET: `_x`, NOWRAP: ``}; the second `href` is dropped. `A=1 " ="x" B` gives {A: `1`,
+B: ``}: the lone `"` is a name that the quote clean-up empties, so its value `x` is discarded.
 
 ## 4. Grammar sets and dispatch
 
@@ -270,8 +281,24 @@ strips a trailing `//` pair (the result is a local and has no lasting effect), t
 ### 5.4 ParseTextDocument (00905985, vtable 11): plain text
 
 Delete the existing root (vtable slot 0 with flag 1), allocate a new `cHTMLBODY(link, vlink, alink colours)`
-as root, push the style (00902d28, §8), set byte 0x154 = 1 (preformatted mode, HD2), insert the whole source
+as root, push the style (00902d28, §8), set byte 0x154 = 1 (see below), insert the whole source
 text as one text segment under the root, set position = length, pop the style (00900e5f). Returns 1.
+
+**Byte 0x154 is the "preformatted" flag of the current style record** (record 0x130..0x157, field +0x24).
+Direct stores: Init 0 (00900826), ParseTextDocument 1 (009059d4), the PRE handler 1 (00906a74, §7.5); no
+instruction reads 0x154 through the document pointer. It acts through the style record: push/pop (§8.2)
+save and restore it with the other 0x28 bytes, so it is 1 only inside plain text and inside `<PRE>` (the pop
+at the end of each handler restores the outer value), and every text segment created meanwhile receives it.
+The text-segment constructor (00908ca6) copies record +0x24 into its own byte +0x3c (00908ce2) and passes it
+to its whitespace normaliser (009089b0, called at 00908ea5), which builds the segment text as follows:
+
+| Flag | Rule |
+|---|---|
+| 0 (normal) | each run of whitespace (HTMLIsSpace) becomes one space `' '`; other characters are kept. Leading and trailing runs also give one space. |
+| 1 (PRE / plain text) | every character is kept; each line break `\r\n`, lone `\r` or lone `\n` becomes one `\n` (0x0a). |
+
+Examples: `a  \t\r\n b` gives `a b` normally and `a  \t\n b` when preformatted; `x\r\ry` preformatted gives
+`x\n\ny`.
 
 ### 5.5 ParseHTMLElements (009080a2)
 
@@ -678,9 +705,18 @@ does nothing on an empty stack, otherwise restores the last 0x28-byte record int
   fails, return without touching `outImage`. Then call loader vtable +0x10 (path, outImage, 1).
 - **ResourceHasBeenDownloaded(record)** (008ffbfc), under the document's critical section (0x34):
   1. Find the record's URL (record +8) in the download table (end sentinel 0x198). Not found -> nothing.
-  2. When the record's "is a file" byte (+0x2c) is 0, the downloaded bytes are written to a temporary file
-     (`cRZFile::MakeTempPathName`) first; otherwise the record's own path is used (HD4).
-  3. LoadFromImageFile(path, &entry.image (+0x24)); remove the temporary file if one was made.
+  2. Before the lookup a local string `path` is copy-constructed from the record's string at +0x30
+     (00408b90). The record byte +0x2c selects what that string holds:
+     - **+0x2c != 0**: +0x30 is a file path; `path` is used unchanged, no file is written or removed.
+     - **+0x2c == 0**: +0x30 holds the downloaded bytes themselves. `path`'s buffer is moved into a local
+       `data` string (0096edf7 is a plain swap of the three string pointers, so `path` becomes empty and `data`
+       holds an exact copy of +0x30), then `cRZFile::MakeTempPathName(path, 0)` fills `path` with a fresh
+       temporary file name (generic cRZFile temp name in the temp directory; no image extension is chosen
+       here). The file is opened with 00919b00(access 2 = write only, creation 1 = create always / truncate,
+       share 0 = exclusive); on success exactly `data.length` bytes (end - begin of the +0x30 string; no
+       terminator, no header) are written and the file is closed. An open failure writes nothing but the
+       steps below still run on that path.
+  3. LoadFromImageFile(path, &entry.image (+0x24)); then, only when +0x2c == 0, `cRZFile::Remove(path)`.
   4. When the image is non-null, call slot 0 of every waiter in the entry's list (+0x28..+0x2c) with the
      image, then clear the list. Entries stay in the table (later requests for the same URL reuse it).
   Unlock.
@@ -690,12 +726,12 @@ does nothing on an empty stack, otherwise restores the last 0x28-byte record int
 Specified above (complete): constructor, Init, SetBaseURL, QueryInterface (+ thunk 009006da),
 SetFontSizeTable, InitTagList, BuildFirstSets, AppendSet, IsInSet,
 ParseCDATA, GetToken, SkipUntilToken, SkipDocumentWhitespace, SplitTag, StripWhiteSpace,
-ParseAttributeList, FindAttribute, DumpUnhandledAttributes (HD1), ParseFLOW, ParseINLINE,
+ParseAttributeList, FindAttribute, DumpUnhandledAttributes (no-op), ParseFLOW, ParseINLINE,
 ParseSGMLElements, ParseHTMLDocument, ParseSGMLDocumentType, ParseTextDocument, ParseHTMLElements,
 ParseHEAD, InsertTextSegment, ParseTITLE, ParseBASE, ParseSCRIPT, ParseFORMCTRL, ParseSPECIAL,
 ParseBR, ParseINPUT, ParseSELECT, ParseOPTION, ParseDIV, ParseDIVActual, MakeOutputStyle,
 MakeRelativeToTextAlignmentStyle, ParseBLOCK, ParseP (FORM), DoMessage, LoadFromImageFile,
-ResourceHasBeenDownloaded (HD4 open on the temp-file source).
+ResourceHasBeenDownloaded (temp-file source closed in round 3).
 
 Round 2: ParseBODY (§7.7), ParseTABLE, ParseTR, ParseTD, ParseTH (§7.8), ParseLI, CreateBullet (§7.9),
 ParseDL (BLOCKQUOTE), ParseHR (§7.10).
