@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**Run4 checkpoint175 (recorded at182):** 182 rounds, 32 trains landed; coverage45.4/34.5/16.4/17.8, baseline delta+8.6/+6.2/+4.3/+1.9 points; 18 lanes parked. Target10/max3glue; reviewed guarded refills continue, activity-based slot cap currently binds. Nextcheckpoint200.
+
 **train57 landed 0683520f22:** Two-lane engine batch: native SetPiece NR14 applied before insertion with typed executable/vtable check; layer-only disaster Rust API staged with six tests. Unbuilt native disaster wrapper remains parkedDS46, original WT preserved. Full65-test gate and house regression PASS; no new default keys or incomplete owner coverage credit. Coverage45.4/34.5/16.4/17.8; rounds180 (open-ended).
 
 **train56 landed 31d43eb53a:** Seven-lane engine batch PASS after compatibility initializer repair. Fullgate and default38+exemplars+span4444+span1555 union2032/ref0. Span4444 constructed198/198 and1555 realCOM-buffer158/158 exact; native-context/shipped dispatch stillunproved, no defaultpromotion. EXnative contract3/4 with EX51 open; no exact/defaultcredit. HTML HD5/HD6 and fontFN7-FN14 prevent whole-core credit. EF12/13 core fixes landed; effects-shadow no-load reproduces frozen baseline51, EF14 open. Landvalue input diagnostics plusLV1, no algorithm/sampling/golden change. NetRule setter and layer-only disaster API conflicts excluded and separately repaired. Coverage45.4/34.5/16.4/17.8; rounds177 (open-ended).
@@ -20,7 +22,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target10 live lanes (user raised for CPU/memory headroom), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
-**Coverage after train57:**45.4/34.5/16.4/17.8; baseline36.8/28.3/12.1/15.9, delta+8.6/+6.2/+4.3/+1.9 points. 32 trains landed; 180 rounds used, no total cap. Next25-round checkpoint 175.
+**Coverage after train57:**45.4/34.5/16.4/17.8; baseline36.8/28.3/12.1/15.9, delta+8.6/+6.2/+4.3/+1.9 points. 32 trains landed; 180 rounds used, no total cap. Next25-round checkpoint 200.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`; `run4-refill.py` launches reviewed briefs from `run4-refill-queue.json` through serialized `run4-launch.py` and the saved guarded Workflow. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
 
@@ -30,7 +32,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **Terrain:** crash fixed earlier, final diagnostics trace apparent stall to missing TerrainReconciliation/ConnectionsReady leaving dialogs enabled. Auto-close d8 reached2032 with refwarning1, NOT a pass. Tick/reconcile behavior, texture step7part2/TR37/Save unfinished. TR42/TR43 filed (preference width, edge comparison); no replacement credit or fourth round.
 
-**Other pending:** simgrids landed46 after current37-key joint2032/ref0, original reload116/116 and candidate union PASS; coverage upkeep now promoting key. Netmgr finalparked2/73 despitezeroresync. Advisor final implementation and audio follow-up caps corrected: prior successfully landed phases remain in total, but do not consume this lane's3-round cap. Advisor round2, audio round3, netrules implementation round2 and occupant-manager verification active. EX registry conflict and construction transform conflict remain separate; no whole-owner credit for partial specs.
+**Other pending:** advisor activation and MySim contract fixes queued for round2; network model core and font/URL answers running. HTML/font/EX/effects/landvalue follow-up questions queued. NetRule setter and disaster layer API staged in train57; unfinished native disaster wrapper parked on DS46. Span traces are constructed-buffer proof, with no shipped dispatch credit. Partial owners remain uncredited.
 
 **Choosing work:** unblocked parked lanes with answered causes first (within3-round cap), then work one validation step from landing, then coverage-report subsystem bytes descending: coreyes/replaceabsent glue; specyes/coreabsent core; nonexact shadow verify (contract gap becomes a question); specabsent RE. Max3glue. Keep earlier skip of glue26 and abi/unreconciled-rows.tsv.
 
