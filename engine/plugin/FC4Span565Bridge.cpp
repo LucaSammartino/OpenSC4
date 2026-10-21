@@ -135,6 +135,7 @@ cIGZBuffer* MakeBuffer(uint32_t w, uint32_t h, uint32_t type, uint32_t bits) {
     if (!GZCOM()->GetClassObject(0xC470D325, GZIID_cIGZBuffer, reinterpret_cast<void**>(&b)) || b == nullptr) {
         return nullptr;
     }
+    FC4_ACQUIRED(b, "GetClassObject cGZBuffer");
     if (!b->Init(w, h, static_cast<cGZBufferColorType::eColorType>(type), bits)) {
         FC4_RELEASE_CREATED(b);
         return nullptr;
@@ -189,6 +190,7 @@ void Trace() {
             static_cast<unsigned long>(VEntry(ds, 4)));
     } else {
         VSlot<MakeCtxFn>(ds, 4)(ds, nullptr, buf, &ctx);
+        if (ctx != nullptr) FC4_ACQUIRED(static_cast<cIGZUnknown*>(ctx), "draw system slot 4 context");
     }
     FC4_RELEASE(ds);
     if (ctx == nullptr || *reinterpret_cast<uintptr_t*>(ctx) != 0x00AC17D0 || VEntry(ctx, 3) != 0x00830710 ||

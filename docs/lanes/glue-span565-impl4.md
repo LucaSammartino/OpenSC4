@@ -10,5 +10,7 @@
   Questions SR565-7 (fixture conventions/setters), SR565-8 (texture record) appended.
 - quick gate PASS (cargo 2642/0 capi+core, build 144/144). Baseline `all` before work: cargo 3980/0, ctest PASS (tree
   changed during run), clippy 2 errors in my own new test (fixed).
-- Next: game request label span565-t1 (enable = span565, span565_trace = 1, turbo, end_date 2032-01-01);
+- span565-t1: clean, trace EXACT 20/20 cases, shipped 0 calls, but ref_warnings=6 (missing FC4_ACQUIRED for
+  created buffer/context; fixed in next commit). Next: game label span565-t2 same request; then qbuild all; finish.
+- Old next: game request label span565-t1 (enable = span565, span565_trace = 1, turbo, end_date 2032-01-01);
   grep log for "span565"; then qbuild all; then finish (lane file report, merge-queue json).
