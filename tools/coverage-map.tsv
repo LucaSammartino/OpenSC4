@@ -77,7 +77,8 @@ cSC4ResponseCurve	foundations	simulation	foundations.md	core/src/curve.rs	-	-
 cSC4DisasterLayer	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	-
 cSC4DisasterManager*	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	-
 cSC4DisasterInstance*	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	-
-cSC4FireOccupant	disasters	simulation	disasters.md	core/src/disasters	-	-
+cSC4FireOccupant	disasters	simulation	disasters.md, fire-flames.md	core/src/disasters	-	-
+cSC4Flame	fire flames	renderer	fire-flames.md	-	-	-
 cSC4ToxicOccupant	disasters	simulation	disasters.md	core/src/disasters	-	-
 cSC4AutomataManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4AutomataControllerManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
@@ -365,7 +366,7 @@ SC4GeometryUtilities	geometry utilities	renderer	geometry-utilities.md	-	-	-
 SC4*View	3D scene and models	renderer	-	-	-	-
 cSC4PathView*	3D scene and models	renderer	-	-	-	-
 cSC4DispatchVehicleView	3D scene and models	renderer	-	-	-	-
-fn:GetPointsOnModel	3D scene and models	renderer	-	-	-	-
+fn:GetPointsOnModel	fire flames	renderer	fire-flames.md	-	-	-
 cSC4EffectsManager	effects	renderer	effects.md	core/src/effects	-	-
 cSC4EffectsResource	effects	renderer	effects.md	core/src/effects	-	-
 cSC4EffectsParser	effects	renderer	effects.md	-	-	-

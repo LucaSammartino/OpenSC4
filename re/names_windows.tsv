@@ -1139,26 +1139,26 @@ va	name	source	confidence	note
 0046fe60	lib::fill<void**,void*>	library	medium	Function ID
 0046ffc0	cS3DBoundingBox::Center	auto:B0	medium	mac 00660b5e score 0.965 support 3.0
 00470010	cRZTime::cRZTime (date, hour, minute, second)	manual:dates.tsv	high	dates.md §2.1; ((day - 2415386) * 24 + h - 1) * 3600 + m * 60 + s, + _timezone, DST adjustment, gap hour gives 0
-004700a0	cSC4Flame::Read	auto:B0	medium	mac 00348fb8 score 0.987 support 3.0
+004700a0	cSC4Flame::Read	manual:fire-flames.tsv	high	fire-flames.md §1; version 2+, transform from version 3
 00470130	cSC4FireOccupant::Write	auto:C	high	mac 00348ed8 score 1.0 support 2
 00470210	cSC4FireOccupant::GetPosition	auto:C	high	mac 003487d0 score 1.0 support 1
 00470230	cSC4FireOccupant::GetBoundingBox	auto:C	high	mac 00348734 score 1.0 support 1
 00470250	cSC4FireOccupant::SetVisible	auto:B5	medium	mac 003489bc score 0.95 support 1.0
 00470b50	cRZTime::cRZTime	manual:dates.tsv	high	dates.md §2, crime.md §9; now, from localtime(time())
 00470bc0	std::vector<cSC4Flame*,std::allocator<cSC4Flame*>>::resize	auto:B1	medium	mac 007210fa score 0.838 support 1.0
-00470ca0	cSC4Flame::UpdateTransform	auto:B4	medium	mac 00348c6c score 0.904 support 2.0
+00470ca0	cSC4Flame::UpdateTransform	manual:fire-flames.tsv	high	fire-flames.md §1; yaw side x 90 taken as radians
 00470dc0	cSC4FireOccupant::Shutdown	auto:B1	medium	mac 00349f44 score 0.986 support 2.5
-004710d0	cSC4Flame::Update	auto:B5	medium	mac 00348d16 score 0.939 support 2.0
-00471170	cSC4FireOccupant::Init	auto:B6	medium	mac 00348ddc score 0.883 support 2.0
+004710d0	cSC4Flame::Update	manual:fire-flames.tsv	high	fire-flames.md §1; fire_N / wfire_N by stage
+00471170	cSC4FireOccupant::Init	manual:fire-flames.tsv	high	fire-flames.md §4; group 0x5005, every flame updated
 004711c0	cSC4FireOccupant::cSC4FireOccupant	auto:A	high	mac 00349870 score 1.0 support 0
 004715e0	GZCOM_CreatecSC4FireOccupant	auto:B0	medium	mac 0034990a score 0.896 support 1.0
 00471600	cSC4FireOccupant::~cSC4FireOccupant	auto:C	high	mac 00349788 score 1.0 support 1
 00471900	cSC4FireOccupant::SetTarget	auto:A	high	mac 00348a7a score 0.68 support 0
 00471a70	cSC4FireOccupant::Read	auto:B1	medium	mac 00349948 score 0.997 support 2.5
-00471cf0	GetPointsOnModel	auto:B2	medium	mac 0034908a score 0.97 support 2.0
-00472380	cSC4FireOccupant::CreateFlames	auto:B3	medium	mac 00349a60 score 0.982 support 2.5
-00472790	cSC4FireOccupant::ViewUpdate	auto:B3	medium	mac 00349664 score 0.996 support 1.0
-004728b0	cSC4FireOccupant::SetStage	auto:B4	medium	mac 00349ec8 score 0.894 support 1.0
+00471cf0	GetPointsOnModel	manual:fire-flames.tsv	high	fire-flames.md §2; area-weighted points 1 m out along the normal, clock seed
+00472380	cSC4FireOccupant::CreateFlames	manual:fire-flames.tsv	high	fire-flames.md §3; on the model, else T + S + 1 on the box
+00472790	cSC4FireOccupant::ViewUpdate	manual:fire-flames.tsv	high	fire-flames.md §4; model flames placed afresh
+004728b0	cSC4FireOccupant::SetStage	manual:fire-flames.tsv	high	fire-flames.md §4
 00472900	cSC4FloraOccupant::GetGZCLSID	auto:C	low	mac 00626000 score 1.0 support 1
 00472910	cSC4FloraOccupant::QueryInterface	auto:A	high	mac 00094e5c score 1.0 support 0
 00472940	cSC4FloraOccupant::GetLotTag	auto:C	high	mac 00094eac score 1.0 support 1
