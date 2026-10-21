@@ -27,7 +27,7 @@ vertex-buffer drawing of particles (§10 gaps). The emitter self-stop is in effe
 | `cSC4ParticlesDescription` (`0x005B1660`, `0x005B1CB0`) | **fully specified** | §2 |
 | `cSC4ParticlesDescriptionBase` (constructor `0x005B0FE0`, copy `0x005B17F0`) | **specified** (layout, defaults, file order); meanings partly open (PT1) | §2, §3 |
 | `cSC4ParticlesDescriptionBase::cTractorPoint`, `::cWiggle` | **partial** (element shape only) | §2 |
-| `cSC4ParticlesEffect` | **partial**: identity, factory, `Start`, `Stop`, update order, pool, slots; open: physics, forces, rendering, emitters' rates | §1, §6, §7, §9, §10 |
+| `cSC4ParticlesEffect` | **partial**: specified identity, factory, `Start` (complete), `SetDescription` (the fields §5.1 and `Start` read), `InitEffectsParticle` (complete), `Stop`, update order, emitter dispatch, pool, slots; open: physics, forces, height-based emission, the three emitters' rate integration, rendering (§10) | §1, §5.1, §6, §7, §8, §9, §10 |
 
 ## 1. Identity *[compat]*
 
@@ -73,17 +73,17 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0x00` | `u32` | 0 | **flags A** (§3) |
 | `+0x04` | **B only**: `u32 & 0xFF` | 0 | **flags C**; bit 0 `destroyBuildings` (collision) |
 | `+0x08` | `u32 & 0x7FF` | 0 | **flags B** (§3) |
-| `+0x0C` | `vec2` | 2.0, 2.0 | particle life range in seconds (`life a b` gives a−b, a+b) |
+| `+0x0C` | `vec2` | 2.0, 2.0 | particle life range in seconds (`life a b` gives a−b, a+b); each particle's life is a uniform draw in it (§5.1) |
 | `+0x14` | `f32` | 1.0 | |
 | `+0x18` | `u32` | 0 | emit loop count (effects.md §7.1); 0 = endless |
-| `+0x1C` | `f32` | 0 | `preroll` seconds |
-| `+0x20` | `vec2` | −1, −1 | `maintain … delay` range: the loop interval |
-| `+0x28` | `vec2` | −1, −1 | |
-| `+0x30` | `box` | min (0,1,0), max (0,1,0) | the random-walk start box (§6) |
-| `+0x48` | `vec2` | 0, 0 | |
-| `+0x50` | `box` | min (−1,−1,−1), max (1,1,1) | the emission volume (`source`) |
-| `+0x68`..`+0x78` | 5 × `f32` | 0 | `+0x70` rotation, `+0x74` rotation `offset` |
-| `+0x7C` | `vec3` | three copies of the global at `0x00B22D54` (PT3) | base colour |
+| `+0x1C` | `f32` | 0 | `preroll` seconds; also caps the emitted time of one frame at `preroll − 0.01` when > 0 (§8.1) |
+| `+0x20` | `vec2` | −1, −1 | `maintain … delay` range: the loop interval; a min ≥ 0 seeds the start countdown (§6 step 6) |
+| `+0x28` | `vec2` | −1, −1 | the second interval range: seeds the start countdown when `+0x20` min < 0 and this min ≥ 0 (§6 step 6) |
+| `+0x30` | `box` | min (0,1,0), max (0,1,0) | the direction box: each particle's initial velocity direction (§5.1) and the random-walk start vector (§6) |
+| `+0x48` | `vec2` | 0, 0 | the initial speed range (§5.1) |
+| `+0x50` | `box` | min (−1,−1,−1), max (1,1,1) | the emission volume (`source`); copied to the component's `+0x200..+0x214` by `SetDescription` (§6.1) |
+| `+0x68`..`+0x78` | 5 × `f32` | 0 | variance amounts (§5.1): `+0x68` size, `+0x6C` the particle's `+0x2C` factor, `+0x70` rotation range, `+0x74` rotation `offset` (not read by §5.1), `+0x78` the particle's `+0x34` factor |
+| `+0x7C` | `vec3` | three copies of the global at `0x00B22D54` (PT3) | colour; at particle creation each component is read as a variance amount for the particle's `+0x38..+0x40` factors (§5.1) |
 | `+0x88` | `f32[]` | `[30.0]` | the emission rate curve (`rate`, `inject`, `maintain`) |
 | `+0x94` | `vec3[]` | one entry (the vector at `0x00B0A5D4`) | the colour curve |
 | `+0xA0`, `+0xAC`, `+0xB8` | `f32[]` each | `[1.0]` each | three further curves (size/alpha family, PT1) |
@@ -93,8 +93,8 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0xD8`, `+0xDC` | `f32`, `f32` | 0, 0 | |
 | `+0xE0` | `vec3` | the global at `0x00B22D54` | the constant force (gravity) |
 | `+0xEC` | `f32` | 0 | the wind gain (§7 step 3) |
-| `+0xF0` | `f32` | 0 | |
-| `+0xF4` | `vec3` | the global at `0x00B22D54` | |
+| `+0xF0` | `f32` | 0 | radial speed: added along the direction from the centre `+0xF4` to the new particle (§5.1) |
+| `+0xF4` | `vec3` | the global at `0x00B22D54` | the radial centre (local space, §5.1) |
 | `+0x100`, `+0x104` | `f32`, `f32` | 0, 0 | |
 | `+0x108` | `cTractorPoint[]`: `u32` count, each two `vec3` (reader `0x005B0930`) | empty | tractor points |
 | `+0x114` | `f32` | 0 | `wiggle` |
@@ -106,13 +106,13 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0x14C` | `f32` | −1.0e9 | `killHeight` |
 | `+0x150`, `+0x154` | `f32`, `f32` | 0, 1.0 | collision `death` / `deathByWater` |
 | `+0x158` | `vec2` | −10000, 10000 | the height window (`aboveHeight`, `belowHeight`, `heightRange`) |
-| `+0x160` | `string` | empty | a name written by the particle block header (`0x0059D8F0`); *[inferred]* the block's own name (PT1) |
+| `+0x160` | `string` | empty | the block's own name (written by the particle block header `0x0059D8F0`); with `collide` (flags A `0x100`) `SetDescription` looks up `<name>_terrain` and `<name>_water` (§6.1) |
 | `+0x16C`, `+0x16E` | `u16`, `u16` | 0, 1 | |
 | `+0x170` | `f32` | 1.0 | |
 | `+0x174` | `vec2` | 5.0, 5.0 | random-walk `delay` range |
 | `+0x17C` | `vec2` | 50.0, 50.0 | random-walk `strength` range |
 | `+0x184`, `+0x188` | `f32`, `f32` | 0.1, 0.2 | random-walk parameters |
-| `+0x18C` | `vec3` | the global at `0x00B22D54` | random-walk `preferDir` |
+| `+0x18C` | `vec3` | the global at `0x00B22D54` | random-walk `preferDir`; differs from the global `0x00B22D70` by ≥ 1e-4 in any component → the preferred direction is on (§6.1) |
 | `+0x198`, `+0x19C`, `+0x1A0` | 3 × `f32` | 0 | `windBank` and two alignment numbers |
 | `+0x1A4` | `f32[]` | empty | attractor curve; empty or `+0x1B0` ≤ 0 disables the attractor (§7 step 2) |
 | `+0x1B0` | `f32` | 1.0 | attractor strength |
@@ -143,6 +143,7 @@ field, in this order, to stay aligned.
 | `0x2` | `inject` / `rate … inject` |
 | `0x4` | `maintain` |
 | `0x8` | `emit … sustain`: allows a restart by `Start(1)` (§6) |
+| `0x20` | half-length lead at creation (§5.1 step 8) |
 | `0x10`, `0x4000000`, `0x8000000`, `0x10000000` | force modes (`force` command; attractor, tractor) — PT1 |
 | `0x100`, `0x200`, `0x800` | `collide`; `sticky`; `killOutsideCity` |
 | `0x400` | `terrainRepel` |
@@ -212,6 +213,52 @@ Particles come from process-wide free lists, never from the general heap one by 
 
 Byte 0 of a particle is the alive byte: an update sweep frees every particle whose byte 0 is 0.
 
+### 5.1 Filling a new effect particle (`InitEffectsParticle` `0x005B7580`) *[compat]* (PT5)
+
+Every random draw is `RandomDoubleRangeUniform(lo, hi)` = `lo + u × (hi − lo)` (`0x00913761`, arguments as
+doubles) on the particle generator `cRZRandom` at `0x00B22DF8` (seed `0xEC09C261`, foundations.md, the
+`cRZRandom` instance table); the result is stored as `f32`. Below, `D` is the description (`+0x24` of the
+component), `P` the particle, and *draw(a, b)* one such draw. The draws happen in exactly this order:
+
+1. `P+0x00` (alive) := 1; `P+0x08` (life) := draw(`D+0x0C`, `D+0x10`); `P+0x04` (age) := 0.
+2. **Local position** `P+0x0C..+0x14`: draw x, then y, then z, each between the component's emission box min
+   `+0x200/+0x204/+0x208` and max `+0x20C/+0x210/+0x214` (§6.1).
+3. **Direction** `P+0x1C..+0x24`: draw x (`D+0x30`, `D+0x3C`), y (`D+0x34`, `D+0x40`), z (`D+0x38`, `D+0x44`).
+4. **Speed** `s` := draw(`D+0x48`, `D+0x4C`) × the component's `+0x1CC` (set to 1.0 by `SetDescription`). If the
+   direction's squared length (x² + y² + z², in that order) is > 0, the direction is scaled by `s / length`; a
+   zero direction stays zero.
+5. **Radial push** (only if `D+0xF0` > 0): `d` := local position − `D+0xF4`; `q` := dx² + dz² + dy² rounded to
+   `f32`. If `q` ≥ 0 and |q| ≥ 1e-4 (`0x00AA0D00`): velocity += `d × (D+0xF0 / √q)`.
+6. **To world**: position := `R·p × k + t`, velocity := `R·v + w`, where `R` is the 3×3 matrix at the component's
+   `+0x90..+0xB0` (row-major: x' = `+0x90`·x + `+0x94`·y + `+0x98`·z, y' from `+0x9C..+0xA4`, z' from
+   `+0xA8..+0xB0`), `k` the scale `+0xC0`, `t` the translation `+0xB4..+0xBC` and `w` the component velocity
+   `+0xFC..+0x104` (zeroed by `SetDescription`). The position is rotated, then scaled, then translated. Each row
+   is summed as (z term + y term) + x term on the x87 stack (`0x005B77DD`–`0x005B7920`), the stored results rounded
+   to `f32`.
+7. **Height-based placement**: if flags A has any of `0x7C000` (the global mask `0x00B22E18`, set by the static
+   initialiser `0x00A73060`: `pinToTerrain`, `pinToWater`, height window, `seaOnly`, `lakeOnly`),
+   `DoHeightBasedEmit` (`0x005B71E0`, given the particle) runs; if it returns false the fill stops here (no draw
+   of step 9 onwards happens, so the generator advances by 8 draws instead of 14 or 15).
+8. **Half-length lead** (flags A `0x20`): `f` := 1.0, or, when `D+0xDC` ≠ 0, `√(b² + a²) / D+0xDC` with
+   `a` = v·(`+0x7C`,`+0x80`,`+0x84`) and `b` = v·(`+0x70`,`+0x74`,`+0x78`) (two axis vectors held by the
+   component). Then for each component: position += ((v × 0.5) × f) × `c` × (1.0 / `s`), where `c` is the first
+   element of the curve `D+0xAC`. *[quirk]* `s` is the step-4 speed, not the final velocity length; a zero speed
+   divides by zero.
+9. `P+0x18` := 0. Then five variance factors, each draw(1 − `V`, 1 + `V`) for the variance amount `V`, in this order:
+   `P+0x28` (size) := draw(`D+0x68`) × component `+0x1E4` × component `+0x1C8`; `P+0x2C` := draw(`D+0x6C`);
+   `P+0x34` := draw(`D+0x78`); `P+0x38` := draw(`D+0x7C`); `P+0x3C` := draw(`D+0x80`); `P+0x40` :=
+   draw(`D+0x84`).
+10. **Rotation** `P+0x30`: if `D+0x70` ≤ 0 it is 1.0 (no draw); else draw(−`D+0x70`, `D+0x70`).
+11. Size adjustments: if flags B bit 0 is clear, `P+0x28` ×= the `f32` at `+0x04` of the object at the
+    component's `+0x1E8` (the object whose `+0x08..+0x10` is the wind, §7 step 3); then if flags A `0x400000`
+    (`scaleParticles`), `P+0x28` ×= the scale `+0xC0`.
+12. If the alignment byte `D+0xD5` is 1: `P+0x30` += atan2(−`+0xA8`, `+0x90`) × 1/(2π) (`0x00B0A660` =
+    0.15915494): the emitter's heading in turns.
+
+Example: a description with life (3, 5), direction box (0,1,0)–(0,1,0), speed (2, 2), no radial push, an identity
+transform at the origin and no flags gives a particle with age 0, life in [3, 5], velocity (0, 2, 0), size factor
+draw(1 ± `D+0x68`) × `+0x1E4` × `+0x1C8`, and rotation 1.0 when `D+0x70` = 0.
+
 ## 6. Starting a particle component (`Start(mode)`, slot 0, `0x005B3000`) *[compat]*
 
 1. **Restart filter.** The start proceeds only if `mode` is 0, or the description's emit loop count is 0, or flags A
@@ -226,8 +273,40 @@ Byte 0 of a particle is the alive byte: an update sweep frees every particle who
    random-walk step runs at once (`0x005B2730`). With `turn`: the vector is rescaled to a length drawn from the
    `strength` range `+0x17C`/`+0x180` (left unchanged if its length is 0), and the delay `+0x148` := a draw from the
    `delay` range `+0x174`/`+0x178`.
-5. `preferSea` (`0x2000000`): sets `+0x15C` and asks the global at `0x00B43CEC` (slot `0x17C`) for a direction.
-   The rest of `Start` (emission volume, loop interval countdown `+0x190` from `+0x20`, preroll) is PT6.
+   The draws use the same generator as §5.1 (`0x00B22DF8`), in the order walk x, y, z, then (with `turn`) the
+   strength, then the delay.
+5. **`preferSea`** (`0x2000000`; without it go to step 6 and the preferred-direction state of §6.1 is kept as
+   is). `+0x15C` := 1. The city (`0x00B43CEC`) converts the component position x `+0x194`, z `+0x19C` to a cell
+   (`PositionToCell`, slot `0x17C`); its seaport developer (`GetSeaportDeveloper`, slot `0x130`) answers
+   `GetCellSeaAccess(cellX, cellZ)` (slot `0x40`, port-developers.md). The first set bit of the answer, tested in
+   the order `0x1`, `0x2`, `0x8`, `0x4`, picks the preferred direction `+0x160..+0x168`: `0x1` → (0, 0, −1),
+   `0x2` → (−1, 0, 0), `0x8` → (0, 0, 1), `0x4` → (1, 0, 0); no bit → `+0x15C` := 0 and the direction is left
+   unchanged. If `+0x15C` is then set, the direction is taken into the component's frame and divided by its
+   scale: v' = `M`·v × (1.0 / `+0xF8`), with `M` the 3×3 at `+0xC8..+0xE8` stored by columns (x' = `+0xC8`·x +
+   `+0xD4`·y + `+0xE0`·z, y' from `+0xCC/+0xD8/+0xE4`, z' from `+0xD0/+0xDC/+0xE8`).
+6. **Loop-interval countdown** `+0x190`: if `D+0x20` ≥ 0 (compared as a double with 0.0), draw(`D+0x20`,
+   `D+0x24`); else if `D+0x28` ≥ 0, draw(`D+0x28`, `D+0x2C`); else 0. (−1, the default, therefore means "no
+   countdown".) This is the last random draw of `Start`.
+7. `+0x188` := `mode`; `+0x18C` := 0; the pending-preroll byte `+0x118` := (`mode` ≠ 0). So the preroll of §7
+   step 1 is added on the first frame only after `Start(1)` (a restart inside a running effect, effects.md §5.2),
+   never after a first `Start(0)`. *[quirk, from `0x005B3403`–`0x005B3417`]*
+
+Example (PT6): a description with loop count 1, interval (−1, −1), second range (2, 4), no random walk: `Start(0)`
+resets the counters, sets the force to the constant force, clears the walk vector, makes one draw in [2, 4] for
+`+0x190`, and leaves `+0x118` = 0.
+
+### 6.1 What `SetDescription` (`0x005B7C90`) prepares for `Start` and §5.1 *[compat]*
+
+- The emission box `+0x200..+0x214` := the description's `+0x50` box (min x, y, z then max x, y, z); the
+  component velocity `+0xFC..+0x104` := 0; `+0x1CC`, `+0x1D0`, `+0x1E0`, `+0x1E4` := 1.0; `+0x194..+0x1B4` := 0.
+- With flags A `0x1000`: unless `pinToTerrain`/`pinToWater` (`0x4000`/`0x8000`), the box y range is raised by the
+  value of the object at `+0x1F0` (its slot `0x74`); then, without `0x2000`, the box's x range becomes 0..`+0x1F4`
+  and its z range 0..`+0x1F8` (min x and min z := 0, max x := `+0x1F4`, max z := `+0x1F8`; a square source); with `0x2000`, the city-side volume
+  `0x005B7030` fills it.
+- **Preferred direction**: `+0x15C` := 1 when any component of `preferDir` `D+0x18C..+0x194` differs from the
+  global `0x00B22D70` by at least 1e-4, and then `+0x160..+0x168` := `preferDir`; else `+0x15C` := 0.
+- With `collide` (flags A `0x100`): the names `<D+0x160>_terrain` and `<D+0x160>_water` are looked up through the
+  global `0x00B43D1C` (its slot `0x14`) and the results kept in the bytes `+0x218`, `+0x219`.
 
 ## 7. The frame update (main slot 9, `0x005B8540`; called with `dt` seconds and the draw context) *[compat]*
 
@@ -253,13 +332,25 @@ Nothing happens unless `started`. In order:
 
 ## 8. Emission (correction to effects.md §7.1)
 
-The three-way emitter `0x005B96E0` of effects.md §7.1 item 2 is slot 15 of **both** `cSC4ParticlesEffect` (main
-vtable `0x00AA0EA0`, installed by the base constructor `0x005B2B50`) and `cSC4ModelBasedParticlesEffect`
-(`0x00AA0C58`, inherited). The slot-15 function `0x005AA5D0`, which §7.1 gives to `cSC4ParticlesEffect`, belongs
-to the vtable `0x00AA0B88` that `0x005A8ED0` installs: **`cSC4GeometrySourcedParticlesEffect`**. So a plain
-particle component (flags B bit 0 clear, §1) uses the three emitters keyed by the description's flag bits
-(`0x04` rate-integral, else `0x02` loop budget, else duration budget). The self-stop protocol of §7.1 (budget
-exhausted → `Stop(0)`, delayed) is unchanged.
+Proof from the vtable images (each slot 15 is at vtable `+0x3C`): the data word `0x00AA0EDC` (= `0x00AA0EA0` +
+`0x3C`) and `0x00AA0C94` (= `0x00AA0C58` + `0x3C`) hold `0x005B96E0`; the word `0x00AA0BC4` (= `0x00AA0B88` +
+`0x3C`) holds `0x005AA5D0`, and those are the only references to either function. So the three-way emitter
+`0x005B96E0` is slot 15 of the main vtable of **both** `cSC4ParticlesEffect` (`0x00AA0EA0`, installed by the
+base constructor `0x005B2B50`) and `cSC4ModelBasedParticlesEffect` (`0x00AA0C58`, inherited), and `0x005AA5D0`
+is slot 15 of `0x00AA0B88`, the vtable `0x005A8ED0` installs: **`cSC4GeometrySourcedParticlesEffect`**. The `+4`
+simulator vtable `0x00AA0E58` is not involved: its slot 15 is `CreateParticle` `0x005B7C20` (§9.2). The
+self-stop protocol of effects.md §7.1 (budget exhausted → `Stop(0)`, delayed) is unchanged; `0x005AA5D0` also
+self-stops, through main slot 1 with argument 0 at `0x005AA6D4` when its `+0x18` count is 0.
+
+### 8.1 The emitter dispatch (`0x005B96E0`, main slot 15) *[compat]* (PT7)
+
+1. If the byte `+0x10` is set, nothing happens.
+2. `e` := this frame's `dt` (`+0x108`, §7 step 1). If the countdown `+0x190` > 0: `+0x190` −= `dt` (stored as
+   `f32`); if it is still > 0, nothing is emitted this frame; otherwise `e` := −`+0x190` (the time past expiry).
+3. If `preroll` `D+0x1C` > 0 and `e` > `preroll` − 0.01 (the double `0x00A92688`), `e` := `preroll` − 0.01.
+4. The emitter is chosen by **flags A** (`D+0x00`): `0x4` (`maintain`) → `0x005B3CF0` (rate integral, no
+   self-stop); else `0x2` (`inject`) → `0x005B8B50` (loop budget); else `0x005B87B0` (duration budget); each is
+   given `e`.
 
 ## 9. Slot tables *[compat]*
 
@@ -296,8 +387,8 @@ Slots 0–3 QueryInterface `0x0048C940`, AddRef `0x005A8FB0`, Release `0x005A8FC
 ## 10. Gaps (not specified here)
 
 Particle physics (`0x005B9BA0`, `0x005B9790`, terrain forces `0x005B8DC0`, building collision `0x005B8020`,
-tractor `0x005B6600`, height-based emission `0x005B71E0`), `InitEffectsParticle` `0x005B7580`, `SetDescription`
-`0x005B7C90`, the three emitters' rate integration, and drawing (`0x005B3DA0`, `0x005B4B90`). These are visual only:
+tractor `0x005B6600`, height-based emission `0x005B71E0`), the parts of `SetDescription` `0x005B7C90` not listed in
+§6.1, the three emitters' rate integration (`0x005B3CF0`, `0x005B8B50`, `0x005B87B0`), and drawing (`0x005B3DA0`, `0x005B4B90`). These are visual only:
 no simulation state depends on them except through the finish test, which depends only on §4 and effects.md §7.1.
 
 ## 11. Quirks
