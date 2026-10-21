@@ -33,9 +33,9 @@ contract, not part of this spec.
 | Owner | Identity | Bytes (coverage.py --owners) | This spec |
 |---|---|---|---|
 | `cFontCOMDirector` | registers 3 classes (below); director ID `0x5AA40BD3` | 220 | complete |
-| `cGZFontSys` | class `0x20673960`, object 0x70 bytes, interface asked as `0x287FB697` at OnStart | 8 358 | partial (FN3, FN4) |
-| `cGZFontSys::FontFixedInfo` | catalogue record (§12) | 105 | partial (fields only) |
-| `cGZFont` | class `0x1AA404AC`, object 0x15C bytes, interface `0x10673960` (QI also answers 1), vtable `0x00AC55D8`, 64 slots | 16 187 | partial (FN1, FN2, FN5, FN6) |
+| `cGZFontSys` | class `0x20673960`, object 0x70 bytes, interface asked as `0x287FB697` at OnStart | 8 358 | partial: FN3/FN4 answered (§12); slots 0, 2, 4, 12, 17-19, 21-24 unaudited |
+| `cGZFontSys::FontFixedInfo` | catalogue record (§12) | 105 | fields complete (§12: +0 font list, +4 family, +0x18 style, +0x1C kind, +0x20 source type) |
+| `cGZFont` | class `0x1AA404AC`, object 0x15C bytes, interface `0x10673960` (QI also answers 1), vtable `0x00AC55D8`, 64 slots | 16 187 | partial: FN1/FN2/FN5/FN6 answered; 64-slot audit not done |
 | `cGZFont::CachedBitmapData` | two glyph caches inside the font (§7) | 56 | complete with §7 |
 | `cGZDrawFontRenderer` | class `0x08CDA30B`, object 8 bytes from the director factory `0x00895F65`; vtable `0x00AC14BC` | 4 444 | identity only, uncredited |
 
@@ -44,8 +44,12 @@ contract, not part of this spec.
 renderer`. `OnStart` creates class `0x20673960` with interface `0x287FB697` and, if that succeeds, registers it with
 the framework (framework vtable +0x0C) and releases its own reference.
 
-Coverage claim (precise): exact owners are `cFontCOMDirector` and `cGZFont::CachedBitmapData`. `cGZFont`,
-`cGZFontSys` and `FontFixedInfo` stay partial until FN1-FN6 are answered. Map proposal: the
+Coverage claim (precise): exact owners are `cFontCOMDirector` and `cGZFont::CachedBitmapData`; FN1-FN6 are
+answered (re-fontanswers4, 2026-10-21) and no longer block a font core. `cGZFont` and `cGZFontSys` stay partial
+until their remaining methods are audited: `cGZFontSys` vtable `0x00AC5488` slots 0 `0x00893D2C`, 2 `0x00893DD7`,
+4 `0x00894F8D`, 12 `0x00893F22`, 17 `0x00894A3A`, 18 `0x00893E5B`, 19 `0x00893ECB`, 21 `0x00894198`,
+22 `0x008944B2`, 23 `0x0089423C`, 24 `0x0089538D` and AddSubstitution (slot 20 `0x0089595D`) are not specified
+here; for `cGZFont` the slot tables of §4 and §8 do not yet list every one of the 64 slots. Map proposal: the
 `cGZFont*` and `cFontCOMDirector` rows of `tools/coverage-map.tsv` (subsystem "2D drawing and fonts") may name
 spec `drawing-fonts.md`; do not credit the whole subsystem.
 
@@ -324,7 +328,43 @@ then v = powf(2v, k)·0.5 for i ≤ 127, else 1 − powf(2(1 − v), k)·0.5; en
 
 `MakeSubstitutedString` (`0x00899665`) first splits SARA AM (U+0E33) into NIKHAHIT (U+0E4D) + SARA AA (U+0E32),
 recording the source index of each output unit in the map vector, then chooses form 1/2/3 per character from the
-Thai character classes of its neighbours. The exact class rules are FN2.
+Thai character classes of its neighbours, as follows.
+
+`UTF16GetThaiCharType(ch)` (`0x0091169F`, a lazily built map) returns 0 outside U+0E00..U+0E7F and for any
+unlisted code point, else:
+
+| class | code points |
+|---|---|
+| 1 | U+0E01..0E23, 0E25, 0E27..0E2E (consonants) |
+| 2 | U+0E40..0E44 |
+| 3 | U+0E30, 0E32, 0E33 |
+| 4 | U+0E45 |
+| 5 | U+0E24, 0E26 |
+| 6 / 7 / 8 | U+0E38 / U+0E39 / U+0E3A (below vowels) |
+| 9 | U+0E48..0E4B (tone marks) |
+| 10 | U+0E4C, 0E4D |
+| 11 | U+0E47 |
+| 12 | U+0E4E |
+| 13 | U+0E34 |
+| 14 | U+0E31, 0E36 |
+| 15 | U+0E35, 0E37 |
+| 16 | U+0E50..0E59 (digits) |
+| 17 | U+0E2F, 0E3F, 0E46, 0E4F, 0E5A, 0E5B |
+
+Second loop (`0x0089980B`..`0x0089997A`), over the split string in place; every decision uses the original
+characters (prev, cur, next; prev = 0 with class 0 at the start, next = 0 with class 0 at the end). "Tall" means
+prev ∈ {U+0E1B, U+0E1D, U+0E1F, U+0E2C}. A one-step carry holds the form value chosen for the previous character
+(0 when it was copied unchanged, except as noted in rule 2). For each character, in this order:
+1. cur = U+0E0D and class(next) ∈ 6..8: output GetSubstitutionChar(U+0E0D, 1) = U+F70F; carry := 0.
+2. class(cur) ∈ 6..7: copied unchanged, but carry := 1 when prev is tall (else 0). Class 8 is copied, carry 0.
+3. class(cur) ∈ 9..11 or 13..15: form = 1 if carry = 1 or prev is tall, else 0; then, if class(cur) = 9 or
+   cur = U+0E4C, add 2 when class(prev) < 10 (compiled test at `0x0089990E`: the 13..15 and 10..12 range checks
+   reduce to "class(prev) < 10"). Form ≠ 0: output GetSubstitutionChar(cur, form); form 0: copy. carry := form.
+4. Any other class (0..5, 12, 16, 17): copied unchanged, carry := 0.
+Worked examples: U+0E1B U+0E48 (tall consonant, tone mark) → U+0E1B U+F705 (form 3); U+0E01 U+0E48 → U+0E01
+U+F70A (form 2); U+0E1B U+0E34 U+0E48 → U+0E1B U+F701 U+F713 (the vowel gets form 1, the carry gives the tone form
+1, class 13 ≥ 10 adds nothing); U+0E1B U+0E38 U+0E48 → U+0E1B U+0E38 U+F705 (carry through the below vowel, then
++2).
 
 ## 12. Font catalogue (`cGZFontSys`)
 
@@ -382,4 +422,5 @@ Thai character classes of its neighbours. The exact class rules are FN2.
 
 ## 13. Open questions
 
-See `docs/specs/questions/drawing-fonts.md` (FN1-FN6).
+FN1-FN6 are answered (archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
+`docs/specs/questions/drawing-fonts.md`.
