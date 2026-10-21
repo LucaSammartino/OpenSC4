@@ -320,6 +320,12 @@ fn:GetAnimatedModelFromResourceKey	animated sprites	renderer	animated-sprite.md	
 fn:GetMeshAnimFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
 fn:GetSpriteAnimFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
 cS3DMeshBuilder	geometry utilities	renderer	geometry-utilities.md	-	-	-
+cS3DModelInstanceBasic	model instances	renderer	model-instances.md	-	-	-
+cS3DModelInstance	model instances	renderer	model-instances.md	-	-	-
+cS3DModelInstanceAnimated	model instances	renderer	model-instances.md	-	-	-
+cS3DModelProcessor	model instances	renderer	model-instances.md	-	-	-
+cS3DResSpriteAnim*	model instances	renderer	model-instances.md	-	-	-
+cS3DTransform	model instances	renderer	model-instances.md	-	-	-
 cS3D*	3D scene and models	renderer	-	-	-	-
 nS3D*	geometry utilities	renderer	geometry-utilities.md	-	-	-
 cSC43D*	3D scene and models	renderer	-	-	-	-

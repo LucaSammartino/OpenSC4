@@ -79,6 +79,7 @@ generated index: the questions live one file per spec, so read only the file for
 | LT | lighting |
 | LU | language-utility |
 | LV | landvalue |
+| MI | model-instances |
 | MS | mysims |
 | NB | neighbors, network-bridges |
 | NG | neighbors, network-geometry |
@@ -185,6 +186,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | lot-models | 1 | 0 | LM2 | questions/lot-models.md |
 | lot-records | 0 | 5 | LR6 | questions/lot-records.md |
+| model-instances | 2 | 0 | MI3 | questions/model-instances.md |
 | mysims | 0 | 12 | MS13 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
@@ -239,4 +241,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **230** | **1118** | | |
+| **total** | **232** | **1118** | | |

@@ -3978,20 +3978,20 @@ va	name	source	confidence	note
 005d5280	cSC4Demand::cSC4Demand	auto:B0	medium	mac 00174578 score 0.92 support 2.0
 005d52e0	GZCOM_CreatecSC4Demand	auto:B1	medium	mac 00174606 score 0.916 support 1.0
 005d5300	cSC4FoundationModel::~cSC4FoundationModel (body)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; §2; releases the side and top bindings
-005d5420	cS3DModelInstanceBasic::AddRef	auto:C	high	mac 0009fac6 score 1.0 support 1
-005d5430	cS3DModelInstanceBasic::Release	auto:C	high	mac 0009fadc score 1.0 support 1
-005d5440	cS3DModelInstanceBasic::GetOwner	auto:C	high	mac 0009f996 score 1.0 support 1
-005d5450	cS3DModelInstanceBasic::SetOwner	auto:C	high	mac 0009f9a2 score 1.0 support 1
-005d5460	cS3DModelInstanceBasic::GetCustomData	auto:C	high	mac 0009f9da score 1.0 support 1
-005d5470	cS3DModelInstanceBasic::SetCustomData	auto:C	high	mac 0009f9e6 score 1.0 support 1
-005d5480	cS3DModelInstanceBasic::GetBounds	auto:C	high	mac 0009f9f4 score 1.0 support 1
-005d5490	cS3DModelInstanceBasic::GetTransform	auto:C	high	mac 0009fb40 score 1.0 support 1
-005d54a0	cS3DModelInstanceBasic::SetTransform	auto:C	high	mac 0009fa02 score 1.0 support 1
-005d54b0	cS3DModelInstanceBasic::GetProperties	auto:C	high	mac 0009fa1a score 1.0 support 1
-005d54c0	cS3DModelInstanceBasic::SetProperties	auto:C	high	mac 0009fa26 score 1.0 support 1
-005d54d0	cS3DModelInstanceBasic::GetDrawAttributes	auto:C	high	mac 0009fa34 score 1.0 support 1
-005d54e0	cS3DModelInstanceBasic::SetDrawAttributes	auto:C	high	mac 0009fa7e score 1.0 support 1
-005d54f0	cS3DModelInstanceBasic::GetResModel	auto:C	high	mac 00620e24 score 1.0 support 1
+005d5420	cS3DModelInstanceBasic::AddRef	manual:model-instances.tsv	high	model-instances.md §1; slot 1, the foundation model's thunk to the basic slot
+005d5430	cS3DModelInstanceBasic::Release	manual:model-instances.tsv	high	model-instances.md §1; slot 2, the foundation model's thunk to the basic slot
+005d5440	cS3DModelInstanceBasic::GetOwner	manual:model-instances.tsv	high	model-instances.md §1; slot 3, the foundation model's thunk to the basic slot
+005d5450	cS3DModelInstanceBasic::SetOwner	manual:model-instances.tsv	high	model-instances.md §1; slot 4, the foundation model's thunk to the basic slot
+005d5460	cS3DModelInstanceBasic::GetCustomData	manual:model-instances.tsv	high	model-instances.md §1; slot 5, the foundation model's thunk to the basic slot
+005d5470	cS3DModelInstanceBasic::SetCustomData	manual:model-instances.tsv	high	model-instances.md §1; slot 6, the foundation model's thunk to the basic slot
+005d5480	cS3DModelInstanceBasic::GetBounds	manual:model-instances.tsv	high	model-instances.md §1; slot 7, the foundation model's thunk to the basic slot
+005d5490	cS3DModelInstanceBasic::GetTransform	manual:model-instances.tsv	high	model-instances.md §1; slot 9, the identity
+005d54a0	cS3DModelInstanceBasic::SetTransform	manual:model-instances.tsv	high	model-instances.md §1; slot 10, ignored
+005d54b0	cS3DModelInstanceBasic::GetProperties	manual:model-instances.tsv	high	model-instances.md §1; slot 13, the foundation model's thunk to the basic slot
+005d54c0	cS3DModelInstanceBasic::SetProperties	manual:model-instances.tsv	high	model-instances.md §1; slot 14, the foundation model's thunk to the basic slot
+005d54d0	cS3DModelInstanceBasic::GetDrawAttributes	manual:model-instances.tsv	high	model-instances.md §1; slot 15, the foundation model's thunk to the basic slot
+005d54e0	cS3DModelInstanceBasic::SetDrawAttributes	manual:model-instances.tsv	high	model-instances.md §1; slot 16, the foundation model's thunk to the basic slot
+005d54f0	cS3DModelInstanceBasic::GetResModel	manual:model-instances.tsv	high	model-instances.md §1; slot 18, null
 005d5530	cSC4FoundationModel::GetWorldBounds	manual:lot-models.tsv	high	lot-models.md §1
 005d5570	cSC4FoundationModel::GetSortValue	manual:lot-models.tsv	high	lot-models.md §1; texture ID | 0x2AB6, else 0xE9862AB6
 005d55c0	cSC4FoundationModel::SetupVertices	manual:lot-models.tsv	high	lot-models.md §2; four sides and a top, lit per face normal
@@ -9291,6 +9291,8 @@ va	name	source	confidence	note
 007f9b40	SC4ViewUtilities::GetGroundPlaneVisibleAreaRectangle	manual:view-utilities.tsv	high	view-utilities.md §6; inner and outer rectangles, 64 m rounding, cache +0x444
 007f9ea0	SC4ViewUtilities::GetViewportRectGroundCorners	manual:view-utilities.tsv	high	view-utilities.md §4.1; descriptive name, no Mac match; four GetViewportPointIntersectionWithGroundPlane calls
 007f9f50	SC4ViewUtilities::BuildDrawFrustumDataFromViewportRect	manual:view-utilities.tsv	high	view-utilities.md §5; flag +0x228, rectangle +0x22C
+007faf90	cS3DModelInstanceAnimated::GetFrame	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §3; slot 11
+007fafc0	cS3DModelInstanceAnimated::SetAnimMode	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §3; slot 16, graphics-formats.md 3.9
 007fb180	cS3DModelInstanceAnimatedSprite::SetView	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 8, zoom and rotation bytes
 007fb1c0	cS3DModelInstanceAnimatedSprite::GetFrame	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 11, byte +0x9F
 007fb1d0	cSC4Advice::GetEventSubject	auto:C	low	mac 0032b992 score 1.0 support 3
@@ -9300,7 +9302,11 @@ va	name	source	confidence	note
 007fb340	cS3DModelInstanceAnimatedSprite::SetFade	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 18, flag 2
 007fb3b0	cS3DModelInstanceAnimatedSprite::SetHighlight	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 19, flag 1
 007fb410	cS3DModelInstanceAnimatedSprite::SetSelfLit	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 20, flag 4
+007fc150	cS3DModelInstanceAnimated::GetFrameCount	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §3; slot 12
+007fc170	cS3DModelInstanceAnimated::SetSpeed	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §3; slot 14, graphics-formats.md 3.9
+007fc1c0	cS3DModelInstanceAnimated::Advance	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §3; slot 15, graphics-formats.md 3.9
 007fc2d0	SC4DrawContext::DrawPrims	manual:draw-context.tsv	high	draw-context.md §9.1; DrawArrays
+007fc2e0	cS3DModelInstanceAnimated::BuildFrame	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §3; model slot 8 unless current
 007fc320	cS3DModelInstanceAnimatedSprite::SetZoomResource	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §2; frame count, N directions, 2pi / N
 007fc480	cS3DModelInstanceAnimatedSprite::SetPosition	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3; slot 1
 007fc4b0	cS3DModelInstanceAnimatedSprite::SetOrientation	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3.1; slot 3, -100 = unset
@@ -9315,6 +9321,10 @@ va	name	source	confidence	note
 007fd3d0	cS3DModelInstanceAnimatedSprite::GetTextureData	manual:animated-sprite.tsv	high	animated-sprite.md §4.1; frames left to right, then down, in 2^k pages
 007fd710	cS3DModelInstanceAnimatedSprite::Pick	manual:animated-sprite.tsv	high	animated-sprite.md §6; two TrianglePick tests
 007fd7d0	GetSpriteAnimFromResourceKey	manual:animated-sprite.tsv	high	animated-sprite.md §2; the resource manager lookup for type 0x5AD0E817
+007fd870	cS3DModelInstanceAnimated::cS3DModelInstanceAnimated	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §3; playback in graphics-formats.md 3.9
+007fda90	cS3DModelInstanceAnimated::SetAnimation	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §3; slot 9, the sub-range table
+007fdaf0	cS3DModelInstanceAnimated::SetFrame	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §3; slot 10, graphics-formats.md 3.9
+007fdb80	cS3DModelInstanceAnimated::Step	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §3; slot 13, graphics-formats.md 3.9
 007fdcba	cS3DModelInstanceAnimatedSprite::cS3DModelInstanceAnimatedSprite	manual:animated-sprite.tsv	high	animated-sprite.md §1; the constructor body, alpha-tested packed state
 007fdfc0	cS3DModelInstanceAnimatedSprite::~cS3DModelInstanceAnimatedSprite (deleting destructor, thunk at +8)	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §1
 007fe0f0	cS3DModelInstanceAnimatedSprite::GetTransform	manual:animated-sprite.tsv	high	animated-sprite.md descriptive name, no Mac match; §3.1
@@ -9392,22 +9402,60 @@ va	name	source	confidence	note
 00801380	cS3DMeshBuilder::AddVertex	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.1; colour x (0.3 + 0.7 L.n), bytes wrap
 008014d0	nS3D::AddBoxMesh	manual:geometry-utilities.tsv	high	geometry-utilities.md §6.2; six lit quads, 24 vertices
 00801660	cS3DMeshBuilder::Reset	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.1; no vertices, no primitives
-00801750	cS3DModelInstance::Draw	auto:B5	medium	mac 0009f85a score 0.996 support 1.0
-00801940	cS3DModelInstanceBasic::QueryInterface	auto:B0	medium	mac 0009fb08 score 0.913 support 4.0
-00801b00	cS3DModelInstance::operator.new	auto:D	medium	mac 0009f7c6 score 0.5 support 1
-00801cf0	cS3DModelInstanceBasic::cS3DModelInstanceBasic	auto:B1	medium	mac 0009fd64 score 0.962 support 3.5
-00801dc0	cS3DTransform::MakeIdentity	auto:D	medium	mac 0061a566 score 0.5 support 1
+008016b0	cS3DModelInstance::Release (mesh container)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2
+008016d0	cS3DModelInstance::QueryInterface (mesh container)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; IIDs 1 and 0x26A68448
+00801700	cS3DModelInstance::GetCustomData	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 5
+00801710	cS3DModelInstance::SetCustomData	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 6
+00801720	cS3DModelInstance::Pick	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 11, view-utilities 7
+00801750	cS3DModelInstance::Draw	manual:model-instances.tsv	high	model-instances.md §2; slot 12, RenderModelInstance
+00801790	cS3DModelInstance::GetProperties	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 13, 16 bits
+008017a0	cS3DModelInstance::SetProperties	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 14
+008017b0	cS3DModelInstance::QueryInterface	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; 0x26A68449 the basic part, 1 and 0x26A68448 the container
+00801850	cS3DModelInstanceBasic::GetOwner (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1
+00801860	cS3DModelInstanceBasic::SetOwner (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1; counted
+00801890	cS3DModelInstanceBasic::GetCustomData (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1
+008018a0	cS3DModelInstanceBasic::SetCustomData (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1
+008018b0	cS3DModelInstanceBasic::GetBounds (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1; the most-derived slot 8
+008018d0	cS3DModelInstanceBasic::Draw	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1; slot 12, nothing
+008018e0	cS3DModelInstanceBasic::GetProperties (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1
+008018f0	cS3DModelInstanceBasic::SetProperties (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1
+00801900	cS3DModelInstanceBasic::AddRef (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1; 16-bit count
+00801910	cS3DModelInstanceBasic::Release (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1; the last release deletes
+00801940	cS3DModelInstanceBasic::QueryInterface	manual:model-instances.tsv	high	model-instances.md §1; IIDs 1 and 0x26A68449
+00801ad0	cS3DModelInstance::GetMeshCount	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; container slot 3
+00801af0	cS3DModelInstance::GetMesh	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; container slots 4 and 5
+00801b00	cS3DModelInstance::operator.new	manual:model-instances.tsv	high	model-instances.md §2; 0xA4-byte pool
+00801b40	cS3DModelInstance::GetOwner	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 3
+00801b50	cS3DModelInstance::SetOwner	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 4, counted
+00801b80	cS3DModelInstance::GetTransform	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 9, 56 bytes
+00801be0	cS3DModelInstance::SetTransform	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 10, bumps the change counter
+00801c40	cS3DModelInstance::SetModel	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; first-material translucency
+00801cd0	cS3DModelInstance::UpdateBounds	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2
+00801cf0	cS3DModelInstanceBasic::cS3DModelInstanceBasic	manual:model-instances.tsv	high	model-instances.md §1; the virtual base
+00801dc0	cS3DTransform::MakeIdentity	manual:model-instances.tsv	high	model-instances.md §1; only when the dirty byte is set
+00801e10	cS3DModelInstanceBasic::GetDrawAttributes (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1; 20 bytes
+00801e50	cS3DModelInstanceBasic::SetDrawAttributes (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §1
+00801ec0	cS3DModelInstance::GetMaterial	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; container slots 6 and 7, 52-byte records
+00801f00	cS3DModelInstance::GetDrawAttributes	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 15
+00801f40	cS3DModelInstance::SetDrawAttributes	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 16
+00801f80	cS3DModelInstance::GetSortValue	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 17, the first material's first texture ID
+00801fc0	cS3DModelInstance::GetBounds	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 7, refreshed from the model
+00802010	cS3DModelInstance::GetWorldBounds	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; slot 8, transformed
+008020f0	cS3DModelInstance::operator.delete	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; the 0xA4-byte pool
 008021f0	std::vector<cS3DMaterial,std::allocator<cS3DMaterial>>::erase	auto:D	medium	mac 007270e8 score 0.5 support 1
 008022e0	std::vector<cS3DMaterial,std::allocator<cS3DMaterial>>::size	auto:D	medium	mac 0062bb40 score 0.5 support 1
-00802950	cS3DModelInstance::cS3DModelInstance	auto:B3	medium	mac 000a01e2 score 0.817 support 1.5
-00802b30	cS3DModelProcessor::ReleaseModel	auto:D	medium	mac 0010822a score 0.5 support 1
+00802620	cS3DModelInstance::~cS3DModelInstance (body)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2
+00802920	cS3DModelInstance::~cS3DModelInstance (mesh container, deleting)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2
+00802950	cS3DModelInstance::cS3DModelInstance	manual:model-instances.tsv	high	model-instances.md §2
+00802b00	cS3DModelInstance::~cS3DModelInstance (deleting destructor)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §2; back to the pool
+00802b30	cS3DModelProcessor::ReleaseModel	manual:model-instances.tsv	high	model-instances.md §4
 00802c00	std::vector<float,std::allocator<float>>::insert	auto:B0	medium	mac 00661dd2 score 0.952 support 2.0
-00802db0	cS3DModelProcessor::SortMeshes	auto:B0	medium	mac 0010825a score 0.939 support 1.0
-00803060	cS3DModelProcessor::cS3DModelProcessor	auto:B1	medium	mac 00108a1c score 0.863 support 3.0
-008030a0	cS3DModelProcessor::~cS3DModelProcessor	auto:B3	medium	mac 00108bf2 score 0.95 support 2.0
-00803370	cS3DModelProcessor::CreateVertexNormals	auto:B4	medium	mac 00108398 score 0.961 support 2.0
-008038d0	cS3DModelProcessor::SetModel	auto:A	high	mac 00108d58 score 0.8 support 0
-00803e10	cS3DModelProcessor::LightModel	auto:B2	medium	mac 0010881a score 0.951 support 3.0
+00802db0	cS3DModelProcessor::SortMeshes	manual:model-instances.tsv	high	model-instances.md §4; by box centre . direction, largest first
+00803060	cS3DModelProcessor::cS3DModelProcessor	manual:model-instances.tsv	high	model-instances.md §4; target format 10
+008030a0	cS3DModelProcessor::~cS3DModelProcessor	manual:model-instances.tsv	high	model-instances.md §4; restores the original vertex blocks
+00803370	cS3DModelProcessor::CreateVertexNormals	manual:model-instances.tsv	high	model-instances.md §4; sum of Newell normals / sum of their lengths
+008038d0	cS3DModelProcessor::SetModel	manual:model-instances.tsv	high	model-instances.md §4; format 2 only, single-frame only
+00803e10	cS3DModelProcessor::LightModel	manual:model-instances.tsv	high	model-instances.md §4; lighting manager GetVertexColors
 00804080	GZCOM_cS3DResModelFactoryCLSID	auto:A	low	mac 0034de54 score 1.0 support 0
 0080426a	lib::Catch@0080426a	library	medium	Function ID
 00804c80	std::vector<cS3DMaterial,std::allocator<cS3DMaterial>>::_M_fill_insert	auto:D	medium	mac 0072715a score 0.5 support 1
@@ -9416,14 +9464,20 @@ va	name	source	confidence	note
 00805ff0	__gnu_cxx::operator-	auto:B0	medium	mac 0062babc score 0.897 support 1.0
 00806ad0	std::vector<cS3DMesh,std::allocator<cS3DMesh>>::size	auto:D	medium	mac 0062bb18 score 0.5 support 1
 00806c40	cS3DResModel::GetModelFrame	auto:B1	medium	mac 0034f662 score 0.975 support 2.0
+008085c0	cS3DResSpriteAnim::QueryInterface	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §6; IID 0x29A5D1EC
 008085f0	cSC4PathInfo::GetPathMap	auto:C	low	mac 0071df34 score 1.0 support 1
 00808620	cSC4SimGrid<T>::GetTractShift	manual:grid-sims.tsv	high	vtable slot 11; mov eax,[ecx+0x1c]
-00808630	cS3DResSpriteAnimTable::QueryInterface	auto:A	high	mac 003c87e6 score 1.0 support 0
-00808660	cS3DResSpriteAnimFactory::ReadAnim	auto:B1	medium	mac 003c8826 score 0.933 support 2.0
-00808920	cS3DResSpriteAnimFactory::ReadTable	auto:A	high	mac 003c8a62 score 1.0 support 0
-008089c0	__ZThn4_N22cS3DResSpriteAnimTable14QueryInterfaceEmPPv	auto:B0	low	mac 0075ae94 score 0.96 support 1.0
-00808b20	cS3DResSpriteAnimFactory::SerialRead	auto:B0	medium	mac 003c8af0 score 0.957 support 2.0
-00808b70	cS3DResSpriteAnimFactory::~cS3DResSpriteAnimFactory	auto:C	high	mac 003c8a3c score 1.0 support 1
+00808630	cS3DResSpriteAnimTable::QueryInterface	manual:model-instances.tsv	high	model-instances.md §6; IID 0x69B6F01C
+00808660	cS3DResSpriteAnimFactory::ReadAnim	manual:model-instances.tsv	high	model-instances.md §6.1; five keys, the zoom sharing and scales
+00808920	cS3DResSpriteAnimFactory::ReadTable	manual:model-instances.tsv	high	model-instances.md §6.2; size 32 + 8 n
+008089c0	__ZThn4_N22cS3DResSpriteAnimTable14QueryInterfaceEmPPv	manual:model-instances.tsv	high	model-instances.md §6; thunk
+00808a00	cS3DResSpriteAnim::~cS3DResSpriteAnim (deleting destructor)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §6
+00808a30	cS3DResSpriteAnim::CreateModelInstance	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §6; a sprite instance loaded from the resource
+00808ad0	cS3DResSpriteAnimTable::~cS3DResSpriteAnimTable (deleting destructor)	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §6; frees the block
+00808b20	cS3DResSpriteAnimFactory::SerialRead	manual:model-instances.tsv	high	model-instances.md §6; by type 0x09ADCD75 / 0x29A5D1EC
+00808b70	cS3DResSpriteAnimFactory::~cS3DResSpriteAnimFactory	manual:model-instances.tsv	high	model-instances.md §6
+00808ba0	cS3DResSpriteAnimTable::cS3DResSpriteAnimTable	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §6
+00808bd0	cS3DResSpriteAnimFactory::CreateInstance	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §6; type 0x29A5D1EC or 0x09ADCD75
 00808c90	cS3DShapeFile::GetNumFrames	auto:B0	low	mac 003502ac score 0.874 support 1.0
 00808ca0	cS3DShapeFile::Close	auto:D	medium	mac 003502ba score 0.5 support 1
 00808ce0	cS3DShapeFile::SetCurrentFrameByIndex	auto:B0	medium	mac 0035045c score 0.974 support 2.0
@@ -9490,6 +9544,7 @@ va	name	source	confidence	note
 0080a7c0	nS3D::CreateTextureFromSurface	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.4; plain BGRA upload, factory slot 4
 0080a910	nS3D::CreateCompressedTextureFromSurface	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.4; DXT3, white, 4-bit alpha
 0080ab90	nS3D::CreateTextureFromText	manual:geometry-utilities.tsv	high	geometry-utilities.md §6.4; W x H powers of two >= size + 2, cleared border
+0080b490	cS3DModelProcessor::GetTriangleNormal	manual:model-instances.tsv	high	model-instances.md descriptive name, no Mac match; §4; Newell's formula, length twice the area
 0080b680	nS3D::RandomDirection2	manual:geometry-utilities.tsv	high	geometry-utilities.md §6.3; two draws, the rejection loop never repeats
 0080b730	nS3D::RandomDirection3	manual:geometry-utilities.tsv	high	geometry-utilities.md §6.3; rejection in the unit ball
 0080b9f0	BuildBasisFromDirection	manual:lighting.tsv	high	lighting.md §5.6; descriptive name, no Mac match; rows normalize(dz, 0, -dx), d x row0, d; vertical d gives (0,0,1), (1,0,0)
