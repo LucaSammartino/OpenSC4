@@ -153,7 +153,7 @@ A library range overrides the names inside it. Game-looking names overridden thi
 
 ## Attribution rules applied
 
-Which rule gave each function its owner (COVERAGE.md, applied in this order). Edges: calls 67,492, code-references 3,598, data-tables 32,178, vtables 69,761; 101 registration hubs (functions referring to more than 64 functions) pass no owner on through their references.
+Which rule gave each function its owner (COVERAGE.md, applied in this order). Edges: calls 67,492, code-references 3,598, data-tables 32,170, vtables 69,769; 101 registration hubs (functions referring to more than 64 functions) pass no owner on through their references.
 
 | Rule | Functions | Bytes | % of all function bytes |
 |---|---:|---:|---:|
@@ -249,7 +249,7 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | ghidra/export/windows/instructions.asm | cbc5795d08d336cb | Ghidra 12.1.4 auto-analysis export |
 | re/names_windows.tsv | 7754934901dd9772 | |
 | docs/abi/vtables.tsv | d9c5824d144c54df | |
-| docs/abi/interfaces.tsv | e493120472c1b9c3 | |
+| docs/abi/interfaces.tsv | 1271a0d6023e10ce | |
 | tools/coverage-libs.tsv | de557a391ec04b04 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-map.tsv | d34713cd666631b5 | |

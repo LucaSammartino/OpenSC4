@@ -4651,7 +4651,82 @@ cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	9	+0x24	00445b00	cSC424H
 cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	10	+0x28	0091559a	cRZSystemService::OnTick	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; AL = 1, nothing else
 cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	11	+0x2C	00445820	cSC424HourClock::OnIdle	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); AL = 1
 cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	12	+0x30	009d4714	cRZSystemService::GetServiceTickPriority	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; -2,000,000
-cISC43DRender	cSC43DRender	00abab60	8	+0x20	007c9fb0	cSC43DRender::GetViewUtilities	0	0	eax	high	re-answers9 LG21: borrowed, not a GZCOM object; view rotation int32 at +0x10
+cISC43DRender	cSC43DRender	00abab60	8	+0x20	007c9fb0	icf::cSC43DRender::GetViewUtilities	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	0	+0x0	007c1890	cSC43DRender::QueryInterface	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	2	+0x8	007c3060	cSC43DRender::Release	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	3	+0xC	007c6410	cSC43DRender::Init	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	4	+0x10	007c7070	cSC43DRender::Shutdown	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	5	+0x14	007c9fa0	cSC43DRender::SetMapScaleFactor	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	6	+0x18	007c5d00	cSC43DRender::SetGraphicSystem	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	7	+0x1C	007c3be0	cSC43DRender::SetGDriver	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	9	+0x24	007c1910	icf::cSC43DRender::GetLightingManager	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	10	+0x28	004e82a0	icf::cSC43DRender::GetDrawContext	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	11	+0x2C	007c1920	cSC43DRender::GetViewportSize	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	12	+0x30	007c1940	cSC43DRender::SetViewportSize	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	13	+0x34	007c1960	cSC43DRender::SetSubpixelImageBias	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	14	+0x38	007c9fc0	cSC43DRender::GetCamera	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	15	+0x3C	007c1980	cSC43DRender::SetCamera	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	16	+0x40	007c9fd0	icf::cSC43DRender::GetCameraControl	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	17	+0x44	007c1a00	cSC43DRender::SetCameraControl	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	18	+0x48	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	19	+0x4C	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	20	+0x50	007c7dd0	cSC43DRender::ForceFullRedraw	0	0	edx:eax?	low	re-specs21 (view3d.md); extracted: tail->007c6d80
+cISC43DRender	cSC43DRender	00abab60	21	+0x54	007cb530	cSC43DRender::Draw	0	0	al	high	re-specs21 (view3d.md); re-specs21 view3d.md 4.1: body writes AL on both exits (xor al,al 0x007CB57B, mov al,1 0x007CB914); vtables.tsv said eax-or-void
+cISC43DRender	cSC43DRender	00abab60	22	+0x58	007c2570	cSC43DRender::TakeSnapshot	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	23	+0x5C	007c2530	cSC43DRender::TakeSnapshot	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	24	+0x60	007c1a50	cSC43DRender::Set3DCameraView	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	25	+0x64	007c1a90	cSC43DRender::Set2DCameraView	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	26	+0x68	007c1ac0	cSC43DRender::SetUICameraView	0	0	unknown	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	27	+0x6C	007ca180	cSC43DRender::IsModelInserted	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	28	+0x70	007ca200	cSC43DRender::InsertModel	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	29	+0x74	007ca3d0	cSC43DRender::RemoveModel	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	30	+0x78	007c9220	cSC43DRender::MoveModel	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	31	+0x7C	007c9320	cSC43DRender::ChangeModel	8	2	eax-or-void	medium	re-specs21 (view3d.md); extracted: indirect-jump dword ptr [ebp*4 + 0x7c94b0]
+cISC43DRender	cSC43DRender	00abab60	32	+0x80	007c5d90	cSC43DRender::AddViewObject	12	3	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	33	+0x84	007c5ac0	cSC43DRender::RemoveViewObject	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	34	+0x88	007c52f0	cSC43DRender::FindViewObject	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	35	+0x8C	007c22b0	cSC43DRender::SetZoom	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	36	+0x90	007c22d0	cSC43DRender::ZoomIn	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007ce080
+cISC43DRender	cSC43DRender	00abab60	37	+0x94	007c22e0	cSC43DRender::ZoomOut	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007ce0e0
+cISC43DRender	cSC43DRender	00abab60	38	+0x98	007c22f0	cSC43DRender::SetRotation	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	39	+0x9C	007c2300	cSC43DRender::RotateLeft	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007cd6a0
+cISC43DRender	cSC43DRender	00abab60	40	+0xA0	007c2310	cSC43DRender::RotateRight	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007cd6c0
+cISC43DRender	cSC43DRender	00abab60	41	+0xA4	007c2320	cSC43DRender::SetZoomAndRotation	8	2	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007cde60
+cISC43DRender	cSC43DRender	00abab60	42	+0xA8	007cacd0	cSC43DRender::StartScreenShake	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	43	+0xAC	007c6bc0	cSC43DRender::StartScreenShake	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	44	+0xB0	007c8630	cSC43DRender::StopScreenShake	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	45	+0xB4	007c2330	cSC43DRender::GetShakeOffsets	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	46	+0xB8	007c2350	cSC43DRender::SetViewportClearColor	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	47	+0xBC	007c3f80	cSC43DRender::ClearViewport	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	48	+0xC0	007c3350	cSC43DRender::ClearViewportWithSolidColor	12	3	via-call	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	49	+0xC4	007c3400	cSC43DRender::DrawViewportRectangle	16	4	unknown	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	50	+0xC8	007c2400	cSC43DRender::DrawTexturedViewportRectangle	20	5	unknown	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	51	+0xCC	007c25e0	cSC43DRender::EnableBackgroundPicture	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	52	+0xD0	007c25f0	cSC43DRender::GetBackgroundPicture	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	53	+0xD4	007c26d0	cSC43DRender::SetBackgroundPicture	16	4	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	54	+0xD8	007c2610	cSC43DRender::SetBackgroundPicture	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	55	+0xDC	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	56	+0xE0	007c2750	cSC43DRender::GetBackingStoreEnabled	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	57	+0xE4	007c2760	cSC43DRender::SetBackingStoreEnabled	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	58	+0xE8	007c2cd0	cSC43DRender::BorrowRenderSystem	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	59	+0xEC	007c2ce0	cSC43DRender::ReturnRenderSystem	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	60	+0xF0	007c5000	cSC43DRender::PickTerrain	20	5	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	61	+0xF4	007c35c0	cSC43DRender::PickTerrain	20	5	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	62	+0xF8	007c50f0	cSC43DRender::PickTerrainAlways	16	4	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	63	+0xFC	007c7e20	cSC43DRender::PickTerrainAlways	16	4	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	64	+0x100	007c6830	cSC43DRender::Pick	24	6	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	65	+0x104	007c2220	cSC43DRender::Pick	16	4	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	66	+0x108	005be2e0	icf::cS3DMaterialManager::CreateMaterialVariant	12	3	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	67	+0x10C	007c5260	cSC43DRender::IsModelVisible	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	68	+0x110	007c51d0	cSC43DRender::IsModelVisible	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	69	+0x114	007c2c00	cSC43DRender::GetViewFogEnabled	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	70	+0x118	007c2c10	cSC43DRender::SetViewFogEnabled	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	71	+0x11C	007c2c30	cSC43DRender::GetLightingEnabled	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	72	+0x120	007c2c40	cSC43DRender::SetLightingEnabled	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	73	+0x124	007c2d50	cSC43DRender::GetStatsString1	4	1	via-call	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	74	+0x128	007c2db0	cSC43DRender::GetStatsString2	4	1	via-call	low	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	75	+0x12C	007cb090	cSC43DRender::~cSC43DRender	4	1	eax-or-void	medium	re-specs21 (view3d.md)
 cISC4App	cSC4App	00a86af0	37	+0x94	0081f910	cSC4App::GetCity	0	0	eax	high	re-answers9 NB19: borrowed app+0x5C; same pointer as global 0x00B43CEC until the city's Shutdown
 cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	0	+0x0	005246b0	cSC4CitySituationManager::QueryInterface	8	2	eax-or-void	high	QueryInterface(iid, void); ret AL; city-situation.md §8; re-specs10
 cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	1	+0x4	00524750	cSC4CitySituationManager::AddRef	0	0	eax-or-void	high	AddRef(); ret EAX; city-situation.md §8; re-specs10
@@ -4912,6 +4987,7 @@ cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	5	+0x14	00575610	c
 cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	6	+0x18	0062c980	cSC4DisasterInstanceEarthquake::GetLocation(int&, int&) = false	8	2	eax-or-void	medium	re-answers14; disasters.md §3.1, §7
 cISC4DisasterInstance	cSC4DisasterInstanceEarthquake	00a9e140	7	+0x1C	008cd450	cSC4DisasterInstanceEarthquake::GetPhase() = 1 (constant)	0	0	eax-or-void	medium	re-answers14; disasters.md §3.1, §7
 cIGZMessageTarget2	cSC4DisasterInstanceFire	00a9e580	3	+0xC	00579600	cSC4DisasterInstanceFire::DoMessage	4	1	AL	medium	0x86AD10EE, 0x66956813, 0x06CDB65B, 0xA6B79602 (disasters.md §5.3, §5.8)
+cIGZMessageTarget2	cSC43DRender	00abab50	3	+0xC	007cb0b0	cSC43DRender::DoMessage(cIGZMessage*)	4	1	al	high	re-specs21 (view3d.md 3.4): sub-object at renderer+0x04 (ctor 0x007C9B2A), vtable 00ABAB50 (4 slots; tail-merges with 00ABAB38 slot 9 at 0x00ABAB5C); this = main+4, recovered with lea ecx,[edi-4] at 0x007CB226; ret 4; returns al=1 when handled; handles 0x4A9F2FFE CameraUpdated, 0x26D31EC1 PostCityInit, 0x4C8D1E8B (unlisted), 0x6ACB92A9 (unlisted, -> slot 20 ForceFullRedraw), 0x870BC918 RedisplayTerrain, 0x8ACAA95F RestoreTextures, 0xA6B79601 ViewZRChange2
 cIGZMessageTarget2	00aa48f0	3
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	0	+0x0	0057ec10	cSC4DisasterManagerToxic::QueryInterface	8	2	eax-or-void	medium	disasters.md §9
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	1	+0x4	00429ce0	cSC4DisasterManagerToxic::AddRef	0	0	eax-or-void	medium	disasters.md §9
@@ -5252,3 +5328,31 @@ cISTETerrainView	cSTETerrainView3D	00ab4410	18	+0x48	007558A0	cSTETerrainView3D:
 cISTETerrainView	cSTETerrainView3D	00ab4410	19	+0x4C	0075A770	cSTETerrainView3D::HandleCheatCommand	4	1	al	high	"level x z amount" (3 args) -> own slot 16 LevelCell; "unlevel x z" (2 args) -> own slot 17; AL=1 iff matched; terrain.md 15.5.10
 cISTETerrainView	cSTETerrainView3D	00ab4410	20	+0x50	00752AE0	cSTETerrainView3D::GetDisplayGridFlag	0	0	al	high	AL = the STATIC 0x00B4C741, not a field
 cISTETerrainView	cSTETerrainView3D	00ab4410	21	+0x54	00755E80	cSTETerrainView3D::SetDisplayGridFlag	4	1	void	high	on change stores the static and calls terrain slot 68 RedisplayTerrain(1,1,&wholeCity,0) via terrain at base+0x20 (00755EC2)
+cISC4EffectsManagerDraw	cSC4EffectsManager	00a9f250	3	+0xC	00593120	cSC4EffectsManager::Update(SC4DrawContext*)	4	1	al	high	re-specs21 (view3d.md 8): draw interface sub-object at manager+0x04 (dtor 0x0058FA74); this = manager+4, recovered with lea ecx,[esi-4] at 0x00593958/0x0059397A/0x00593982; body ends mov al,1 (0x00593997) then ret 4 (0x0059399D); vtables.tsv row said eax-or-void/medium; exact call sites inside Update: DrawScreenFlashes 0x0059395B, 0x0058EC40 0x0059397D, DeactivateUnusedVisualEffects 0x00593985
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	0	+0x0	00756910	(unnamed)	8	2	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->00752730
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	1	+0x4	00761850	(unnamed)	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->005be3e0
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	2	+0x8	00761860	(unnamed)	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->005bcb30
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	3	+0xC	0075a230	cSTETerrainView3D::Pick	20	5	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	4	+0x10	007526e0	cSTETerrainView3D::MarkSelected	28	7	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->00751a70
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	5	+0x14	007526c0	cSTETerrainView3D::MarkSelected	28	7	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007519a0
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	6	+0x18	007526a0	cSTETerrainView3D::MarkSelected	12	3	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->00751910
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	7	+0x1C	00752680	cSTETerrainView3D::MarkSelected	12	3	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	8	+0x20	00752660	cSTETerrainView3D::MarkSelected	12	3	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->007516d0
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	9	+0x24	00751ed0	cSTETerrainView3D::ClearCurrentSelections	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->00750ca0
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	10	+0x28	00752860	cSTETerrainView3D::SetAutomaticCellCursorUpdateStatus	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	11	+0x2C	007568e0	cSTETerrainView3D::IsWaterGlareEnabled	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	12	+0x30	00756080	cSTETerrainView3D::SetWaterGlareStatus	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	13	+0x34	00755f30	cSTETerrainView3D::SetLightingUpdateRect	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	14	+0x38	00752870	cSTETerrainView3D::DrawTerrainQuad	12	3	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	15	+0x3C	00752940	cSTETerrainView3D::DrawTexturedTerrainQuad	24	6	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	16	+0x40	00759750	cSTETerrainView3D::LevelCell	12	3	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	17	+0x44	00758620	cSTETerrainView3D::RemoveCellLevelling	8	2	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	18	+0x48	007558a0	cSTETerrainView3D::GetOverlayManager	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	19	+0x4C	0075a770	cSTETerrainView3D::HandleCheatCommand	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	20	+0x50	00752ae0	cSTETerrainView3D::GetDisplayGridFlag	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4410	21	+0x54	00755e80	cSTETerrainView3D::SetDisplayGridFlag	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4480	0	+0x0	00752730	cSTETerrainView3D::QueryInterface	8	2	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->009457c6
+cISTETerrainView3D	cSTETerrainView3D	00ab4480	1	+0x4	005be3e0	std::vector<cRZAutoRefCount<cIGZBuffer>,std::allocator<cRZAutoRefCount<cIGZBuffer>>>::operator[]	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->00968b60
+cISTETerrainView3D	cSTETerrainView3D	00ab4480	2	+0x8	005bcb30	cSC4Advice::Release	0	0	eax-or-void	medium	re-specs21 (view3d.md); extracted: tail->0090d997
+cISTETerrainView3D	cSTETerrainView3D	00ab4480	3	+0xC	0075bfd0	cSTETerrainView3D::Update	4	1	eax-or-void	medium	re-specs21 (view3d.md)
+cISTETerrainView3D	cSTETerrainView3D	00ab4480	4	+0x10	00752700	cSTETerrainView3D::Pick	16	4	via-call	low	re-specs21 (view3d.md)
