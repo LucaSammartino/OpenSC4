@@ -35,6 +35,8 @@
 #pragma once
 
 #include "SC4Percentage.h"
+#include "SC4Point.h"   // glue29: cFC4ISC4NetworkToolFull usa SC4Point<uint32_t>
+#include "SC4Vector.h"  // glue29: idem, SC4Vector<SC4Point<uint32_t>>
 #include "cIGZUnknown.h"
 #include "SC4Rect.h"
 #include "cISC4BudgetSimulator.h"
@@ -46,6 +48,8 @@
 #include "cISC4SimGrid.h"
 #include "cISC4ZoneManager.h"
 #include "FC4GameList.h"
+// glue29: cFC4ISC4NetworkToolFull usa cISC4NetworkOccupant::eNetworkType
+#include "cISC4NetworkOccupant.h"
 
 #include <cstdint>
 #include <map>
@@ -1128,6 +1132,91 @@ public:
     virtual uint32_t ToolSlot08(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e) = 0;  // 8
     virtual uint32_t ToolSlot09(uint32_t a, uint32_t b, uint32_t c, uint32_t d) = 0;  // 9
     virtual void UpdateOnZoneChange(FC4Int32Quad rect, uint32_t data3) = 0;      // 10
+};
+
+// cISC4NetworkTool in full compiled order (interfaces.tsv, base vtable
+// 0x00AA8748, slots 0-50; glue29 implements it as cFC4NetworkTool). The SDK's
+// declaration matches the compiled order slot for slot except:
+//   - slot 10 UpdateOnZoneChange: the game takes (SC4Rect by value, uint32) and
+//     pops 20 (foundations.md M3 errata; the power-line override 0x006522F0
+//     pops 20 too). The SDK declares no parameters — a game caller pushing the
+//     rectangle through an SDK-typed pointer would unbalance its stack.
+//   - slot 33 GetBridgeAltitudeOverride returns a float in ST0
+//     (network-bridges.md 1.1; SDK: void).
+//   - slot 35 GetBridgeName takes (index, string) (network-bridges.md 1.1; the
+//     SDK declares (string, index); pop 8 either way).
+// Slots 16/17: the SDK header says the Windows binary has ClearOccupant-
+// Highlights before ClearCellPreviews; network-geometry.md §1.1's Mac-name note
+// puts them the other way round (question NT15). Both pop 0 and the replacement
+// no-ops them, so the layout question only names the bodies.
+// The compiled GetFailureReasonString of network-tools.md §14 (slot 52, pop 8)
+// is the tool's own class method; the interface's slot 15 is the SDK's
+// GetFailureReasonString(cIGZString&) (pop 4, unnamed in the table). Slots
+// 51-80 are cSC4NetworkTool's own class methods past the interface
+// (network-geometry.md §1.1): not declared here — the concrete replacement is
+// final and nothing outside the tool's own class calls them in the specs (a
+// kReviewedSlotCounts entry covers the shorter declaration), [choice] like the
+// lot developer's class slots.
+class NeighborConnectionInfo;
+struct tPlacementParams;
+class cISC4NetworkToolUI;
+class cFC4ISC4NetworkToolFull : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                     // 3
+    virtual bool Shutdown() = 0;                                                 // 4
+    virtual void Reset() = 0;                                                    // 5
+    virtual uint32_t GetUITool(cISC4NetworkToolUI** outUi) = 0;                  // 6  (4)
+    virtual uint32_t PlaceNetworkOccupants(uint32_t startX, uint32_t startZ, uint32_t endX, uint32_t endZ,
+                                           unsigned long networkMask, cFC4ISC4NetworkToolFull* toolCallback,
+                                           bool bUseWorldCache,
+                                           cISC4NetworkOccupant::eNetworkType networkType) = 0;  // 7  (32)
+    virtual void PlaceNetworkOccupantById(int x, int z, unsigned long occupantId, bool bSelect,
+                                          cISC4NetworkOccupant::eNetworkType networkType) = 0;  // 8  (20)
+    virtual uint32_t OccupantExists(uint32_t x, uint32_t z, unsigned long networkMask,
+                                    unsigned long& outOccupantId) = 0;           // 9  (16)
+    virtual void UpdateOnZoneChange(FC4Int32Quad rect, uint32_t data3) = 0;      // 10 (20; SDK: ())
+    virtual void ForceReload() = 0;                                              // 11 (0)
+    virtual void SetTraceFinal(bool enable) = 0;                                 // 12 (4)
+    virtual void ClearFailureReason() = 0;                                       // 13 (0)
+    virtual uint32_t GetFailureState() const = 0;                                // 14 (0)
+    virtual void GetFailureReasonString(cIGZString& outStr) = 0;                 // 15 (4; unnamed in the table)
+    virtual void ClearOccupantHighlights() = 0;                                  // 16 (0)
+    virtual void ClearCellPreviews() = 0;                                        // 17 (0)
+    virtual uint32_t DrawNetworkLine(const SC4Point<uint32_t>& start, const SC4Point<uint32_t>& end, bool useWorldCache,
+                                     cISC4NetworkOccupant::eNetworkType networkType) = 0;       // 18 (16)
+    virtual void PlaceAllSegments(bool commit, bool previewOnly, bool allowDemolition,
+                                  cISC4NetworkOccupant::eNetworkType networkType) = 0;          // 19 (16)
+    virtual int GetCostOfSolution() const = 0;                                   // 20 (0)
+    virtual void EnablePreviewUpdate(bool enable) = 0;                           // 21 (4)
+    virtual void SetAnchorPoints(const SC4Vector<SC4Point<uint32_t>>& points) = 0;  // 22 (4)
+    virtual void GetDraggedCells(SC4Vector<SC4Point<uint32_t>>& outCells) const = 0;  // 23 (4)
+    virtual void SetValidStepCount(uint32_t count) = 0;                          // 24 (4)
+    virtual uint32_t GetValidStepCount() const = 0;                              // 25 (0)
+    virtual uint32_t GetStraightStepCount() const = 0;                           // 26 (0)
+    virtual uint32_t GetTotalStepCount() const = 0;                              // 27 (0)
+    virtual bool IsRegularStep(uint32_t stepIndex) const = 0;                    // 28 (4)
+    virtual void GetLastValidPoint(SC4Point<uint32_t>& outPoint) const = 0;      // 29 (4)
+    virtual bool GetPossibleBridges(SC4Vector<int32_t>& outBridgeInstanceIds) const = 0;  // 30 (4)
+    virtual int GetPreferredBridge() const = 0;                                  // 31 (0)
+    virtual void SetPreferredBridge(int bridgeId) = 0;                           // 32 (4)
+    virtual float GetBridgeAltitudeOverride() = 0;                               // 33 (0, ST0; SDK: void)
+    virtual void SetBridgeAltitudeOverride(float altitude) = 0;                  // 34 (4)
+    virtual void GetBridgeName(int bridgeIndex, cIGZString& outStr) = 0;         // 35 (8; SDK: (string, index))
+    virtual int GetMajorBridge() const = 0;                                      // 36 (0)
+    virtual bool GetMajorBridgeAltitude(float& outAltitude) const = 0;           // 37 (4)
+    virtual bool GetMajorBridgeReferenceAltitude(float& outAltitude) const = 0;  // 38 (4)
+    virtual bool IsMajorBridgeLandBridge() const = 0;                            // 39 (0)
+    virtual bool GetBridgeBitmapKey(long bridgeId, unsigned long& outGroup, unsigned long& outInstance) const = 0;  // 40 (12)
+    virtual bool GetPossibleNeighborConnection(NeighborConnectionInfo& outInfo) const = 0;  // 41 (4)
+    virtual uint32_t ViewInputControlId() const = 0;                             // 42 (0)
+    virtual uint32_t CursorId() const = 0;                                       // 43 (0)
+    virtual uint32_t DirectionalCursorBase() const = 0;                          // 44 (0)
+    virtual void PenWidth(int& outWidthX, int& outWidthZ) const = 0;             // 45 (8)
+    virtual uint32_t StopPickAtWater() const = 0;                                // 46 (0)
+    virtual uint32_t GetToolViewId() const = 0;                                  // 47 (0)
+    virtual void GetPlacementParams(tPlacementParams& outParams) const = 0;      // 48 (4)
+    virtual void QueryUserForPotentialIntersections() = 0;                       // 49 (0)
+    virtual void DestroyOccupantsAndResolve(const SC4Vector<cISC4NetworkOccupant*>& occupants) = 0;  // 50 (4)
 };
 
 class cISC4Simulator;

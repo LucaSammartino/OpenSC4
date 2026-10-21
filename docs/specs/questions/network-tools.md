@@ -39,3 +39,22 @@
   and the solve is retried, a retry failure — does the original keep the first attempt's failure code or
   overwrite it with the retry's? Implemented as: the retry's code overwrites (the same `validate_and_solve`
   path). [the retry's *[inferred]*]
+- **NT15 - §14, the interface slot order at 16/17 (ClearOccupantHighlights / ClearCellPreviews):** the SDK
+  header says "In the Windows binary, ClearOccupantHighlights is defined before ClearCellPreviews" (its
+  note on slots 16/17), while network-geometry.md §1.1's Mac-name note reads the table as
+  ClearCellPreviews (16) before ClearOccupantHighlights (17). The compiled table gives both slots pop 0,
+  so the replacement's layout is unaffected; cFC4ISC4NetworkToolFull (glue29) declares the SDK's Windows
+  order. Which of the two methods sits at slot 16 in the Windows binary? [the SDK's order *[inferred]*]
+- **NT16 - §6.2 step 3 (the insert), `AsOccupant` and the reference:** the plain piece's `cISC4Occupant`
+  view (slot 3) is folded — it returns `this + 8` (network-occupants.md §4.2), i.e. the same object with
+  no AddRef. glue29's insert therefore releases only the `cISC4NetworkOccupant` reference from
+  `GetClassObject` (run 218: clean, ref_warnings=0). Is there any caller of slot 3 that receives an
+  owned reference (a QI-like AddRef inside the folded body), or is the folded view always borrowed?
+  [borrowed *[inferred]* — game code treats the views as one object]
+- **NT17 - §3.2, a diagonal PlaceNetworkOccupants with mask 0 (the in-game crash, glue29 run 219):** the spec's
+  quirk 1 covers diagonal + mask ≠ 0 (places nothing, returns true). With mask 0 the run goes through §3.2's
+  straight path; the passes refuse it (0xF0000001), but in glue29's game run the process then crashed inside
+  the game's own code (SimCity 4.exe+0x9F0FA, reading 0x100) while walking the run's pieces — plausibly the
+  plain un-modelled pieces the replacement inserts (the piece solver NG5 is the declared follow-up) reaching
+  the game's vertex-array draw path. Does the original reject a diagonal mask-0 run before the commit (and
+  with which code), or does it also reach the piece/draw path? [refused by the passes *[inferred]*]

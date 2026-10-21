@@ -59,6 +59,7 @@
 #include "cFC4Dispatch.h"        // the glue17 lane: enable = dispatch
 #include "cFC4CitySituation.h"    // the glue17 lane: enable = citysit
 #include "cFC4Demolition.h"       // the glue23 lane: enable = demolition
+#include "cFC4NetworkTool.h"      // the glue29 lane: enable = nettool
 #include "cFC4Terrain.h"        // the glue18 lane: the terrain replacement
 #include "cFC4NetworkManager.h"    // the glue24 lane: enable = netmgr
 #include "cFC4NetworkLotManager.h" // the glue24 lane: enable = netlot
@@ -407,13 +408,28 @@ const ClassEntry kEffectsClasses[] = {
 
 // docs/specs/network-manager.md §1: the network manager (city component 53)
 // and the network lot manager (component 11). Off by default (glue24):
-// `enable = netmgr` / `enable = netlot`. The network tools and the network
-// occupants stay whoever the city runs (§13).
+// `enable = netmgr` / `enable = netlot`. The network tools stay the game's
+// unless `enable = nettool` also turns the tool replacement on (glue29):
+// §13 sends the tools to their own subsystem, and the manager's own factory
+// creates the stand-ins (cFC4NetworkTool.h) that glue29's real tools replace
+// when the key is on.
 const ClassEntry kNetworkManagerClasses[] = {
     {kFC4_CLSID_cSC4NetworkManager, "cSC4NetworkManager", &CreateFC4NetworkManager},
 };
 const ClassEntry kNetworkLotClasses[] = {
     {kFC4_CLSID_cSC4NetworkLotManager, "cSC4NetworkLotManager", &CreateFC4NetworkLotManager},
+};
+// docs/specs/network-tools.md §1: the network tools (glue29). The tool
+// classes have no GZCOM class ID of their own (question NM11: the manager's
+// factory builds them directly), so the replacement is registered as one
+// synthetic class and reaches the simulation through the registry: with
+// `enable = nettool` the plugin's own callers (the scripted `network`
+// action, the zone developer's street tools) take their tools from
+// NetToolRegistry::Take instead of the network manager's factory, and the
+// netmgr replacement's own create_tool callback hands out the real tool.
+const ClassEntry kNetToolClasses[] = {
+    {kFC4_CLSID_cFC4NetworkTool, "cFC4NetworkTool", &CreateFC4NetworkToolEntry},
+
 };
 
 const Subsystem kSubsystems[] = {
@@ -459,6 +475,7 @@ const Subsystem kSubsystems[] = {
     {"citydetail", nullptr, kCityDetailClasses, sizeof(kCityDetailClasses) / sizeof(kCityDetailClasses[0]), false},
     {"ports", nullptr, kPortClasses, sizeof(kPortClasses) / sizeof(kPortClasses[0]), false},
     {"effects", nullptr, kEffectsClasses, sizeof(kEffectsClasses) / sizeof(kEffectsClasses[0]), false},
+    {"nettool", nullptr, kNetToolClasses, sizeof(kNetToolClasses) / sizeof(kNetToolClasses[0]), false},
     {"terrain", nullptr, kTerrainClasses, sizeof(kTerrainClasses) / sizeof(kTerrainClasses[0]), false},
     {"automata", nullptr, kAutomataClasses, sizeof(kAutomataClasses) / sizeof(kAutomataClasses[0]),
      false},  // the automata layer (glue19); off by default: `enable = automata`
@@ -636,6 +653,13 @@ void Resolve() {
     // The automata shadow (FC4AutomataShadow.h; it compares the original automata components).
     AutomataShadowStartup(enabledKey("automata"));    // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
+    // The network tool registry (glue29): with `enable = nettool` the plugin's
+    // own tool callers take replacement tools instead of the manager's.
+    NetToolRegistry::SetEnabled(enabledKey("nettool"));
+    if (NetToolRegistry::Enabled()) {
+        Log("nettool: registry active - scripted 'network' action and zonedev street tools "
+            "will use the fc4_nettool core");
+    }
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
     ScriptReload();
 }
