@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**Run4 52/80:** six live lanes; train31 gate retry rebuilds a stale capi_smoke object before candidate formats-shadow regress. re-driverdraw4 parked3/3 at7dd9bea3: committed vertex/matrix/state specs, context-surface contract and drafted sections remain incomplete, no fourth round and no whole-driver credit. Terrain finalround3 passed fresh checks after train29/30 cleared blockers. Traffic TS67 corrective lane nowrunning. Coverage39.6/30.0/12.3/16.5; eight trains landed.
+
 **train30 landed 64c21d6b89:** Two-lane docs batch landed. Exact six completed value-editor owners and two small particle owners mapped; PropertyView, dialog folded methods, description-base reach functions, particle drawing and curves remain uncredited. Both lanes parked3/3, never fourth. Terrain particle overlap is landed; fresh slots/check required. Coverage39.6/30.0/12.3/16.5; rounds49/80.
 
 **train29 landed f9aba9d095:** Three-lane batch gate and full35-key regress PASS. TS67 phase-entry reset contract answered; partial occupant records landed without whole-owner credit. Advisors AD1-AD3 block glue and are filed. Terrain occupant-record overlap landed; particle overlap still requires its docs train. re-editors4 parked3/3 with completed value/grid/colour/res-key specs and incomplete curves; never fourth round. Coverage39.3/30.0/12.3/16.5; rounds49/80.
