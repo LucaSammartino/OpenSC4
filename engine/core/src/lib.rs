@@ -84,6 +84,7 @@ pub mod seeding;
 pub mod simgrid;
 pub mod simulator;
 pub mod span_render4444;
+pub mod span_render8888;
 pub mod stl;
 pub mod store;
 pub mod stream;
