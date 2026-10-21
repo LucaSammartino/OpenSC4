@@ -1207,6 +1207,14 @@ fn empty_group_keeps_saved_pairs() {
     assert!(h.count("button ") == 0 && arrows(&h).is_empty());
     // A later restore writes each saved fraction back unchanged.
     d.restore_start_settings(&mut h);
+    let fund: Vec<_> = h.log.iter().filter(|s| s.starts_with("fund ")).cloned().collect();
+    assert_eq!(
+        fund,
+        [
+            format!("fund 1 {:#x} 0", 0.25f32.to_bits()),
+            format!("fund 2 {:#x} 0", 0.5f32.to_bits())
+        ]
+    );
     // A group with no departments has no pairs.
     let mut h = Rec::default();
     let d = open(&mut h, GROUP_CIVIC, 0);
