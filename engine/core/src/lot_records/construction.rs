@@ -13,14 +13,16 @@
 //! Not owned (host callbacks, the spec leaves them open, §6.7.10): the crane
 //! fit geometry (`AttemptAddCrane`), `DivideLot`, ground / roof props, the
 //! construction crew, dust clouds, the scaffold model and the animation's
-//! scaffold / completion interpolation. Questions OP13–OP16 cover the gaps
-//! that touch this module (`docs/specs/questions/occupants-props.md`).
+//! scaffold / completion interpolation. OP13–OP16 are answered (lr §9.1
+//! object-frame roles); OP17 (`docs/specs/questions/occupants-props.md`)
+//! covers who writes the world box #6.
 
 use crate::automata::OccupantBase;
 use crate::network_occupants::Xform;
 use crate::props::round_half_even_f64;
 use crate::rng::{CrtRand, RzRandom};
 use crate::stream::{InStream, OutStream, RefValue};
+use crate::variant::{mem, Elem, Variant};
 use crate::x87::r24;
 
 use super::{get_box, get_vec3, put_box, put_vec3, Bounds, OccupantRecord, IID_BUILDING_OCCUPANT, IID_LOT};
@@ -54,17 +56,25 @@ pub const MSG_CONSTRUCTION: u32 = 0xC9E7_B1E8;
 /// The building's completion changed (IGZUnknown = the building).
 pub const MSG_COMPLETION_CHANGED: u32 = 0x2977_AE2F;
 
-/// The message-server subscriptions of `Init`, in the order lr §9.2 lists
-/// them. ld §6.7.1 lists four (without the tick, which the tick manager
-/// delivers directly); the core follows lr's five, which `Shutdown`
-/// unsubscribes ("all five") — question OP15.
-pub const SUBSCRIPTIONS: [u32; 5] = [
+/// The four message-server subscriptions of `Init`, in lr §9.2 order
+/// (answers OP15): the animation tick `0x86AD10EE` is **not** subscribed;
+/// the tick manager calls `DoMessage` directly. `Shutdown` unsubscribes
+/// the same four.
+pub const SUBSCRIPTIONS: [u32; 4] = [
     MSG_SIM_NEW_DAY,
-    MSG_ANIMATION_TICK,
-    MSG_VISIBILITY_TEST,
     MSG_MODEL_AVAILABLE,
+    MSG_VISIBILITY_TEST,
     MSG_VIEW_REFRESH,
 ];
+
+/// Occupant group property (§9 #2) and the group `Init` adds to it.
+pub const PROP_OCCUPANT_GROUPS: u32 = 0xAA1D_D396;
+pub const OCCUPANT_GROUP_CONSTRUCTION: u32 = 0x5007;
+/// Posted (queued) by `AddOccupantGroup` when it appends a group.
+pub const MSG_OCCUPANT_GROUP_ADDED: u32 = 0xEBFF_18A3;
+
+/// `k` of `AnimateCrane`'s duration: f32 `0x3E22F983` = 1/(2π) (`0x00AA2098`).
+pub const CRANE_K_BITS: u32 = 0x3E22_F983;
 
 /// Animation-tick manager priority (ld §6.7.1): bucket 1, every second frame.
 pub const ANIMATION_TICK_PRIORITY: u32 = 0x80;
@@ -77,32 +87,54 @@ pub const LOT_TEXTURE_BASE: u32 = 0xA990_C100;
 
 // ---- record (§9, §9.1) ------------------------------------------------------------------------------
 
-/// The 19 unnamed scalars of §9 #14, in Write order (§9.1 offsets). Their
-/// roles are only partly known (§16 Q3); they are kept as data. The `u32`
-/// groups are written as the stored bits, so a field the life cycle treats
-/// as f32 (§9.2 `+0x158`/`+0x15C`) round-trips unchanged.
+/// The 19 scalars of §9 #14 in Write order, with their lr §9.1 roles
+/// (object-frame offsets; answers OP13/OP14). These are the occupant's live
+/// life-cycle and crane fields: there is no separate unsaved copy, so a
+/// loaded construction resumes from them (lr §9.2, last bullet).
+///
+/// `state` and `crane_state` are int32 in memory, written as their low byte
+/// and read sign-extended. `a`, `b`, `c` hold the signed timing values
+/// (ld §6.7.4) as their u32 bits.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ConstructionScalars {
-    /// 14a `+0x134` s8.
-    pub effect_index: i8,
-    /// 14b `+0x138…+0x148`.
-    pub progress: [u32; 5],
-    /// 14c `+0x14C`, `+0x150`.
-    pub segment: [f32; 2],
-    /// 14d `+0x154…+0x164`.
-    pub placement: [u32; 5],
-    /// 14e `+0x168` s8.
-    pub flag: i8,
-    /// 14f `+0x16C`, `+0x170`.
-    pub crane_interp: [f32; 2],
-    /// 14g `+0x174` bool.
-    pub crane_flag: bool,
-    /// 14h `+0x178`, `+0x17C`.
-    pub crane_swing: [u32; 2],
-    /// 14i `+0x180`, `+0x184`.
-    pub crane_phase: [f32; 2],
-    /// 14j `+0x118` u8.
-    pub tail: u8,
+    /// 14a `+0x140` daily state (ld §6.7.5, 0…4).
+    pub state: i32,
+    /// 14b `+0x144` `T0`, the sim day of `SetLot`.
+    pub t0: u32,
+    /// 14b `+0x148` unused: 0 from the constructor, only written and read.
+    pub unused_148: u32,
+    /// 14b `+0x14C` `nextDay`.
+    pub next_day: u32,
+    /// 14b `+0x150` `N` (segments, ≥ 1 once `RebuildModel` ran).
+    pub segments: u32,
+    /// 14b `+0x154` `counter` (current segment).
+    pub counter: u32,
+    /// 14c `+0x158` scaffold span `N · segH`.
+    pub span: f32,
+    /// 14c `+0x15C` `startY`.
+    pub start_y: f32,
+    /// 14d `+0x160…+0x16C` `A`, `B`, `C`, `E`.
+    pub a: u32,
+    pub b: u32,
+    pub c: u32,
+    pub e: u32,
+    /// 14d `+0x170` `msAcc`.
+    pub ms_acc: u32,
+    /// 14e `+0x174` crane state (0 swing, 1 pause, 2 pick target).
+    pub crane_state: i32,
+    /// 14f `+0x178`, `+0x17C` crane swing limits min / max (radians).
+    pub swing_min: f32,
+    pub swing_max: f32,
+    /// 14g `+0x180` unused: false from the constructor, only written and read.
+    pub unused_180: bool,
+    /// 14h `+0x184`, `+0x188` crane accumulator / duration (ms).
+    pub crane_acc: u32,
+    pub crane_duration: u32,
+    /// 14i `+0x18C`, `+0x190` crane target / previous target angle.
+    pub crane_target: f32,
+    pub crane_previous: f32,
+    /// 14j `+0x124` crane type (boom-radius table index).
+    pub crane_type: u8,
 }
 
 /// One crew entry (§9 #15): two bytes and the automaton reference.
@@ -117,18 +149,26 @@ pub struct CrewEntry {
 #[derive(Clone, Debug)]
 pub struct ConstructionRecord {
     pub base: OccupantBase,
-    /// #3 / #4: the **saved** lot and building references (`+0x5C`/`+0x60`);
-    /// the live copies (`+0x68`/`+0x6C`) are [`ConstructionOccupant::lot`] /
-    /// `building`. Which code fills the saved pair is not specified (OP14).
+    /// #3 / #4: the **live** lot and building references `SetLot` holds
+    /// (`+0x68`/`+0x6C`, lr §9.1; there is no separate saved copy). `Read`
+    /// replaces them.
     pub lot: RefValue,
     pub building: RefValue,
     /// #5.
     pub transform: Xform,
-    /// #6, #7.
+    /// #6 `+0xA8`: world bounds, the box `GetPosition` reads.
     pub world_bounds: Bounds,
+    /// #7 `+0xC0`: the scaffold box `RebuildModel` stores (used by the
+    /// crew, roof props and sparks).
     pub local_bounds: Bounds,
-    /// #8: written from the live "crane model exists" state.
+    /// `+0x104` != 0: a live crane model exists (`CreateCrane`). #8 is
+    /// written from this; it is never read back into it.
     pub has_crane: bool,
+    /// `+0xD8`: the load-only has-crane flag `Read` stores #8 into.
+    pub loaded_has_crane: bool,
+    /// `+0xD9`: refresh pending; `Read` sets it, the `0x26D31EC1` refresh
+    /// clears it (lr §9.2).
+    pub refresh_pending: bool,
     /// #9.
     pub crane_position: [f32; 3],
     /// #10, #11, #12.
@@ -180,35 +220,38 @@ impl ConstructionRecord {
         }
         self.world_bounds = get_box(inp)?;
         self.local_bounds = get_box(inp)?;
-        self.has_crane = inp.get_bool()?;
+        // #8 goes to the load-only flag `+0xD8`, never to the live crane
+        // (`+0x104`); `Read` marks the refresh pending (`+0xD9`, lr §9.1).
+        self.loaded_has_crane = inp.get_bool()?;
+        self.refresh_pending = true;
         self.crane_position = get_vec3(inp)?;
         self.ground_props = get_ref_list(inp, IID_PROP)?;
         self.roof_props = get_ref_list(inp, IID_PROP)?;
         self.effects = get_ref_list(inp, IID_EFFECT_PROP)?;
         self.current_effect = inp.get_ref_as(IID_EFFECT_PROP)?;
         let s = &mut self.scalars;
-        s.effect_index = inp.get_i8()?;
-        for v in &mut s.progress {
-            *v = inp.get_u32()?;
-        }
-        for v in &mut s.segment {
-            *v = inp.get_f32()?;
-        }
-        for v in &mut s.placement {
-            *v = inp.get_u32()?;
-        }
-        s.flag = inp.get_i8()?;
-        for v in &mut s.crane_interp {
-            *v = inp.get_f32()?;
-        }
-        s.crane_flag = inp.get_bool()?;
-        for v in &mut s.crane_swing {
-            *v = inp.get_u32()?;
-        }
-        for v in &mut s.crane_phase {
-            *v = inp.get_f32()?;
-        }
-        s.tail = inp.get_u8()?;
+        s.state = i32::from(inp.get_i8()?);
+        s.t0 = inp.get_u32()?;
+        s.unused_148 = inp.get_u32()?;
+        s.next_day = inp.get_u32()?;
+        s.segments = inp.get_u32()?;
+        s.counter = inp.get_u32()?;
+        s.span = inp.get_f32()?;
+        s.start_y = inp.get_f32()?;
+        s.a = inp.get_u32()?;
+        s.b = inp.get_u32()?;
+        s.c = inp.get_u32()?;
+        s.e = inp.get_u32()?;
+        s.ms_acc = inp.get_u32()?;
+        s.crane_state = i32::from(inp.get_i8()?);
+        s.swing_min = inp.get_f32()?;
+        s.swing_max = inp.get_f32()?;
+        s.unused_180 = inp.get_bool()?;
+        s.crane_acc = inp.get_u32()?;
+        s.crane_duration = inp.get_u32()?;
+        s.crane_target = inp.get_f32()?;
+        s.crane_previous = inp.get_f32()?;
+        s.crane_type = inp.get_u8()?;
         let n = inp.get_u32()?;
         let mut crew = Vec::new();
         for _ in 0..n {
@@ -239,6 +282,8 @@ impl OccupantRecord for ConstructionRecord {
             world_bounds: ([0.0; 3], [0.0; 3]),
             local_bounds: ([0.0; 3], [0.0; 3]),
             has_crane: false,
+            loaded_has_crane: false,
+            refresh_pending: false,
             crane_position: [0.0; 3],
             ground_props: Vec::new(),
             roof_props: Vec::new(),
@@ -269,28 +314,24 @@ impl OccupantRecord for ConstructionRecord {
         put_ref_list(out, &self.effects);
         out.put_ref(&self.current_effect);
         let s = &self.scalars;
-        out.put_i8(s.effect_index);
-        s.progress.iter().for_each(|&v| {
+        out.put_i8(s.state as i8);
+        for v in [s.t0, s.unused_148, s.next_day, s.segments, s.counter] {
             out.put_u32(v);
-        });
-        s.segment.iter().for_each(|&v| {
-            out.put_f32(v);
-        });
-        s.placement.iter().for_each(|&v| {
+        }
+        out.put_f32(s.span);
+        out.put_f32(s.start_y);
+        for v in [s.a, s.b, s.c, s.e, s.ms_acc] {
             out.put_u32(v);
-        });
-        out.put_i8(s.flag);
-        s.crane_interp.iter().for_each(|&v| {
-            out.put_f32(v);
-        });
-        out.put_bool(s.crane_flag);
-        s.crane_swing.iter().for_each(|&v| {
-            out.put_u32(v);
-        });
-        s.crane_phase.iter().for_each(|&v| {
-            out.put_f32(v);
-        });
-        out.put_u8(s.tail);
+        }
+        out.put_i8(s.crane_state as i8);
+        out.put_f32(s.swing_min);
+        out.put_f32(s.swing_max);
+        out.put_bool(s.unused_180);
+        out.put_u32(s.crane_acc);
+        out.put_u32(s.crane_duration);
+        out.put_f32(s.crane_target);
+        out.put_f32(s.crane_previous);
+        out.put_u8(s.crane_type);
         out.put_u32(self.crew.len() as u32);
         for c in &self.crew {
             out.put_bool(c.first);
@@ -525,11 +566,11 @@ pub fn timing(
 
 // ---- draws (ld §6.7.7) ------------------------------------------------------------------------------
 
-/// `CreateSparks`: 1, 2 or 3 sparks for a maximum box extent < 20, < 30,
-/// otherwise. The extent is taken over the scaffold box's x, y and z (the
-/// spec does not name the box or the axes: OP16).
+/// `CreateSparks`: 1, 2 or 3 sparks for `ext < 20`, `< 30`, otherwise, with
+/// `ext := max(xmax − xmin, zmax − zmin)` of the scaffold box (record #7);
+/// y is excluded (ld §6.7.7, answers OP16).
 pub fn spark_count(bbox: &Bounds) -> usize {
-    let e = (0..3).map(|i| bbox.1[i] - bbox.0[i]).fold(f32::MIN, f32::max);
+    let e = f32::max(bbox.1[0] - bbox.0[0], bbox.1[2] - bbox.0[2]);
     if e < 20.0 {
         1
     } else if e < 30.0 {
@@ -589,66 +630,61 @@ pub fn lot_texture(
 
 // ---- the crane's animation state (ld §6.7.6) --------------------------------------------------------
 
-/// The swing limits and the duration constant of state 2 → 0. The angle
-/// range and the constant `k` (`0x00AA2098`) are not given by any spec
-/// (OP16); the caller supplies them.
+/// What `AttemptAddCrane` produced when it created a crane model. The fit
+/// itself (sizes, sides, `DivideLot` areas, `asin`) is host geometry; the
+/// core stores the results in the record: type → #14j `+0x124`, position →
+/// #9 `+0x108`, swing limits `[c − h, c + h]` → #14f `+0x178`/`+0x17C`.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CraneSwing {
-    pub min: f32,
-    pub max: f32,
-    pub k: f64,
+pub struct CraneFit {
+    pub crane_type: u8,
+    pub position: [f32; 3],
+    pub swing_min: f32,
+    pub swing_max: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CraneAnim {
-    pub state: u32,
-    pub acc: u32,
-    pub duration: u32,
-    /// The current swing target. Its value before the first 2 → 0 step is
-    /// not specified; 0 [choice].
-    pub target: f32,
+/// `duration := round_f32(T · |Δ| · k)` (`0x005CD645…0x005CD669`): the x87
+/// product `T · |Δ|`, times `k` (f32 `0x3E22F983`), plus 12582912.0 stored
+/// as f32, then the bits minus `0x4B400000` (round half to even). The x87
+/// extended product is taken in f64 here.
+pub fn crane_duration(t: f32, delta: f64) -> u32 {
+    let k = f64::from(f32::from_bits(CRANE_K_BITS));
+    let q = f64::from(t) * delta * k;
+    ((q + 12_582_912.0) as f32).to_bits().wrapping_sub(0x4B40_0000)
 }
 
-impl CraneAnim {
-    /// `SetLot`'s crane reset: state 2, accumulator 1, duration 0.
-    pub fn after_set_lot() -> Self {
-        CraneAnim {
-            state: 2,
-            acc: 1,
-            duration: 0,
-            target: 0.0,
-        }
+/// `AnimateCrane(ms)` (`0x005CD570`) on the record's crane fields (#14e,
+/// #14f, #14h, #14i). `t` is the tunable sfCraneTimeOfFullRotation.
+pub fn animate_crane(s: &mut ConstructionScalars, ms: u32, rng: &mut RzRandom, t: f32) {
+    s.crane_acc = s.crane_acc.wrapping_add(ms);
+    if s.crane_acc < s.crane_duration {
+        return;
     }
-
-    /// `AnimateCrane(ms)`.
-    pub fn animate(&mut self, ms: u32, rng: &mut RzRandom, swing: &CraneSwing) {
-        self.acc = self.acc.wrapping_add(ms);
-        if self.acc < self.duration {
-            return;
+    s.crane_acc = 0;
+    match s.crane_state {
+        0 => {
+            s.crane_state = 1;
+            s.crane_duration = 1000 + rng.uniform_u32(1000);
         }
-        self.acc = 0;
-        match self.state {
-            0 => {
-                self.state = 1;
-                self.duration = 1000 + rng.uniform_u32(1000);
-            }
-            // 1 → 2 without a draw; the duration is not changed (literal).
-            1 => self.state = 2,
-            _ => {
-                let (mn, mx) = (f64::from(swing.min), f64::from(swing.max));
-                let mid = r24(r24(r24(mx - mn) * 0.5) + mn);
-                let prev = self.target;
-                let t = if f64::from(prev) < mid {
-                    rng.range_f64(mid, mx)
-                } else {
-                    rng.range_f64(mn, mid)
-                } as f32;
-                self.target = t;
-                let delta = (f64::from(t) - f64::from(prev)).abs();
-                self.duration = round_half_even_f64(delta * 6000.0 * swing.k) as u32;
-                self.state = 0;
-            }
+        // 1 → 2 without a draw; the duration drawn by 0 → 1 stays.
+        1 => s.crane_state = 2,
+        2 => {
+            let (mn, mx) = (f64::from(s.swing_min), f64::from(s.swing_max));
+            let mid = r24(r24(r24(mx - mn) * 0.5) + mn);
+            let old = s.crane_target;
+            let new = if f64::from(old) < mid {
+                rng.range_f64(mid, mx)
+            } else {
+                rng.range_f64(mn, mid)
+            } as f32;
+            s.crane_previous = old;
+            s.crane_target = new;
+            let delta = (f64::from(new) - f64::from(s.crane_previous)).abs();
+            s.crane_duration = crane_duration(t, delta);
+            s.crane_state = 0;
         }
+        // ld §6.7.6 names states 0…2 only; another (loaded) value is left
+        // as is [literal].
+        _ => {}
     }
 }
 
@@ -658,12 +694,19 @@ impl CraneAnim {
 /// interfaces in the original). Visual steps the spec leaves open are
 /// delegated whole.
 pub trait ConstructionHost {
-    /// Message server slot 0x14 / its unsubscribe.
+    /// The occupant base `Init` (`0x005E8C90`, lr §2.4), run unconditionally
+    /// by `Init` once its own `IsInitialized` is false.
+    fn occupant_base_init(&mut self);
+    /// Message server slot 0x14 / its unsubscribe (target = the `+4`
+    /// message-target sub-object).
     fn subscribe(&mut self, msg: u32);
     fn unsubscribe(&mut self, msg: u32);
     /// Animation-tick manager `AddTickableObject(this, priority)` / removal.
     fn add_tickable(&mut self, priority: u32);
     fn remove_tickable(&mut self);
+    /// Occupant slot 15: posts `0xEBFF18A3` queued with the occupant and the
+    /// group ID (`AddOccupantGroup`, lr §9.2).
+    fn post_occupant_group_added(&mut self, group: u32);
     /// `SendConstructionMessage(type, data1)`: queued, IGZUnknown = this.
     fn post_construction_message(&mut self, msg: u32, data1: u8);
     /// Simulator slot 8 `GetSimDateNumber`.
@@ -690,16 +733,22 @@ pub trait ConstructionHost {
     /// One construction lot-texture cell.
     fn set_lot_texture(&mut self, x: i32, z: i32, instance: u32);
     /// The visual placement steps of `SetLot` the spec leaves open, in
-    /// order; the host makes their draws on `st`. `AttemptAddCrane`'s result
-    /// is whether a crane model exists.
+    /// order; the host makes their draws on `st`. `AttemptAddCrane` returns
+    /// the crane it created, if any.
     fn divide_lot(&mut self, st: &mut ConstructionStatics);
-    fn attempt_add_crane(&mut self, st: &mut ConstructionStatics) -> bool;
+    fn attempt_add_crane(&mut self, st: &mut ConstructionStatics) -> Option<CraneFit>;
     fn add_ground_props(&mut self, st: &mut ConstructionStatics);
     fn create_construction_crew(&mut self, st: &mut ConstructionStatics, scaffold: &Bounds);
     fn add_roof_props(&mut self, st: &mut ConstructionStatics, scaffold: &Bounds);
     fn create_dust_clouds(&mut self);
-    /// `CreateSparks`: create `count` spark effects.
-    fn create_sparks(&mut self, count: usize);
+    /// `CreateSparks`: create `count` spark effects; their references form
+    /// the effect vector (record #12).
+    fn create_sparks(&mut self, count: usize) -> Vec<RefValue>;
+    /// `FUN_005CBE10(angle)`: poses the crane boom (only that is specified).
+    fn pose_crane(&mut self, angle: f32);
+    /// `CreateCrane(x, z, type)` of the refresh after a load; true when the
+    /// crane model exists afterwards (`+0x104` != 0).
+    fn create_crane(&mut self, x: f32, z: f32, crane_type: u8) -> bool;
     /// Spark effect `i`: slot 8(v).
     fn spark_slot8(&mut self, i: usize, v: u32);
     /// Spark effect `i`: slot 9(&pos) then slot 7(1).
@@ -713,125 +762,156 @@ pub trait ConstructionHost {
     fn remove_from_renderer(&mut self);
     /// Occupant manager slot 21 `RemoveOccupant(this + 8, 0, 0)`.
     fn remove_from_occupant_manager(&mut self);
-    /// The crane's swing limits, when a crane exists.
-    fn crane_swing(&mut self) -> CraneSwing;
 }
 
 /// Daily state (ld §6.7.5).
-pub const STATE_DONE: u32 = 4;
+pub const STATE_DONE: i32 = 4;
 
-/// The live construction occupant: the record plus the unsaved life-cycle
-/// state. Where the life-cycle values live in the record's scalars is only
-/// partly specified (§9.2 vs §9.1 types, OP13), so they are kept apart and a
-/// loaded occupant does not resume its schedule.
+/// The live construction occupant. The saved fields are the live ones
+/// (lr §9.1): lot / building (#3/#4), boxes (#6/#7), the crane flag and
+/// position, the effect vector and every life-cycle value (#14) live in
+/// [`ConstructionRecord`], so a loaded occupant resumes its schedule. Only
+/// `RebuildModel`'s unsaved values (`ground`, `topY`) and the renderer bit
+/// are kept here.
 #[derive(Clone, Debug)]
 pub struct ConstructionOccupant {
     pub rec: ConstructionRecord,
+    /// The occupant's own `IsInitialized` (occupant slot 5).
     pub initialised: bool,
-    /// Live lot / building (`+0x68`/`+0x6C`).
-    pub lot: RefValue,
-    pub building: Option<RefValue>,
-    /// Live world box (`+0xA0…+0xB4`), the building's box.
-    pub live_bounds: Bounds,
     pub geometry: Option<ConstructionGeometry>,
-    pub timing: Option<ConstructionTiming>,
-    pub t0: u32,
-    pub state: u32,
-    pub counter: u32,
-    pub next_day: u32,
-    pub ms_acc: u32,
     pub scaffold_height: f32,
-    pub crane: Option<CraneAnim>,
-    pub sparks: usize,
     /// Byte +0x37 bit 0x02, "in the renderer".
     pub in_renderer: bool,
 }
 
 impl Default for ConstructionOccupant {
     fn default() -> Self {
-        ConstructionOccupant {
-            rec: ConstructionRecord::new(),
-            initialised: false,
-            lot: RefValue::Null,
-            building: None,
-            live_bounds: ([0.0; 3], [0.0; 3]),
-            geometry: None,
-            timing: None,
-            t0: 0,
-            state: 0,
-            counter: 0,
-            next_day: 0,
-            ms_acc: 0,
-            scaffold_height: 0.0,
-            crane: None,
-            sparks: 0,
-            in_renderer: false,
-        }
+        Self::from_record(ConstructionRecord::new())
     }
 }
 
 impl ConstructionOccupant {
-    /// `Init` (`0x005D1300`): subscribes, registers the tick at `0x80`.
-    /// `StaticInit` is the caller's [`ConstructionStatics`]. The 20 sim-grid
-    /// slots it pre-sizes are not used by anything specified here.
+    /// An occupant around a (possibly loaded) record; `Init` has not run.
+    pub fn from_record(rec: ConstructionRecord) -> Self {
+        ConstructionOccupant {
+            rec,
+            initialised: false,
+            geometry: None,
+            scaffold_height: 0.0,
+            in_renderer: false,
+        }
+    }
+
+    /// `Init` (`0x005D1300`, lr §9.2): true at once when already
+    /// initialised; the occupant base `Init` unconditionally; `StaticInit` is
+    /// the caller's [`ConstructionStatics`]; the four subscriptions; the tick
+    /// at `0x80`; last `AddOccupantGroup(0x5007)`. The 6 × 5 sim-grid slots
+    /// and the render-state pack are not used by anything specified here.
     pub fn init(&mut self, host: &mut dyn ConstructionHost) -> bool {
         if self.initialised {
             return true;
         }
+        host.occupant_base_init();
+        // Literal: the base Init is what makes IsInitialized true (lr §2.4).
         self.initialised = true;
         for m in SUBSCRIPTIONS {
             host.subscribe(m);
         }
         host.add_tickable(ANIMATION_TICK_PRIORITY);
+        self.add_occupant_group(host, OCCUPANT_GROUP_CONSTRUCTION);
+        true
+    }
+
+    /// `AddOccupantGroup(group)` (occupant slot 23, `0x005E9350`): appends
+    /// `group` to the u32-array property `0xAA1DD396` when absent, writes the
+    /// property back and posts `0xEBFF18A3`; otherwise nothing. Returns
+    /// whether it appended (the caller ignores it). An absent property reads
+    /// as an empty array, and the write goes to the occupant's own holder
+    /// [literal].
+    pub fn add_occupant_group(&mut self, host: &mut dyn ConstructionHost, group: u32) -> bool {
+        let holder = &mut self.rec.base.holder;
+        let mut items = holder.get(PROP_OCCUPANT_GROUPS).map(|v| v.items()).unwrap_or_default();
+        if items.iter().any(|e| e.as_i64() as u32 == group) {
+            return false;
+        }
+        items.push(Elem::U32(group));
+        holder.own.add(PROP_OCCUPANT_GROUPS, Variant::array(mem::UINT32, items));
+        host.post_occupant_group_added(group);
         true
     }
 
     /// `SetBuildingCompletion(p)` (`0x005CA8D0`).
     pub fn set_building_completion(&mut self, host: &mut dyn ConstructionHost, p: f32) {
-        if let Some(b) = &self.building {
-            if host.building_completion(b) != p {
-                host.set_building_completion(b, p);
-                host.post_completion_changed(b);
-            }
+        let b = self.rec.building.clone();
+        if !b.is_null() && host.building_completion(&b) != p {
+            host.set_building_completion(&b, p);
+            host.post_completion_changed(&b);
         }
     }
 
-    /// `SetLot(lot)` (ld §6.7.4).
+    /// `RebuildModel` (ld §6.7.3) into the record: scaffold box #7, `N`,
+    /// span `r24(N · segH)`, `startY`. The world box #6 is set to the
+    /// building's box *[literal; who writes `+0xA8` is not specified: OP17]*.
+    fn rebuild_model(&mut self, host: &mut dyn ConstructionHost, st: &ConstructionStatics) -> ConstructionGeometry {
+        let bbox = host.building_bounds(&self.rec.building);
+        let geom = rebuild_model(&bbox, &st.tuning, |x, z| host.altitude(x, z));
+        self.rec.world_bounds = bbox;
+        self.rec.local_bounds = geom.scaffold;
+        let s = &mut self.rec.scalars;
+        s.segments = geom.segments;
+        s.span = r24(f64::from(geom.segments) * f64::from(st.tuning.segment_height)) as f32;
+        s.start_y = geom.start_y;
+        self.geometry = Some(geom);
+        geom
+    }
+
+    /// `SetLot(lot)` (ld §6.7.4, lr §9.2).
     pub fn set_lot(&mut self, host: &mut dyn ConstructionHost, st: &mut ConstructionStatics, lot: RefValue) {
         self.init(host);
-        self.building = None;
-        self.lot = lot;
-        let Some(b) = host.lot_building(&self.lot) else { return };
-        self.building = Some(b.clone());
-        // RebuildModel.
-        let bbox = host.building_bounds(&b);
-        self.live_bounds = bbox;
-        let geom = rebuild_model(&bbox, &st.tuning, |x, z| host.altitude(x, z));
-        self.geometry = Some(geom);
+        self.rec.building = RefValue::Null;
+        self.rec.lot = lot;
+        let Some(b) = host.lot_building(&self.rec.lot) else {
+            return;
+        };
+        self.rec.building = b.clone();
+        let geom = self.rebuild_model(host, st);
         host.divide_lot(st);
-        let crane = host.attempt_add_crane(st);
+        if let Some(fit) = host.attempt_add_crane(st) {
+            self.rec.has_crane = true;
+            self.rec.crane_position = fit.position;
+            self.rec.scalars.crane_type = fit.crane_type;
+            self.rec.scalars.swing_min = fit.swing_min;
+            self.rec.scalars.swing_max = fit.swing_max;
+        }
         host.add_ground_props(st);
         host.create_construction_crew(st, &geom.scaffold);
         host.add_roof_props(st, &geom.scaffold);
         host.create_dust_clouds();
-        self.sparks = spark_count(&geom.scaffold);
-        host.create_sparks(self.sparks);
-        let rect = host.lot_cell_rect(&self.lot);
+        self.rec.effects = host.create_sparks(spark_count(&geom.scaffold));
+        let rect = host.lot_cell_rect(&self.rec.lot);
         for (x, z, inst) in lot_texture(&mut st.rng, rect, |x, z| host.cell_usable(x, z)) {
             host.set_lot_texture(x, z, inst);
         }
-        self.t0 = host.sim_date();
-        let days = host.construction_days(&b);
-        let t = timing(&geom, &st.tuning, days);
-        self.timing = Some(t);
-        self.state = 0;
-        self.counter = 0;
-        self.ms_acc = 0;
-        self.next_day = (i64::from(self.t0) + t.a) as u32;
+        let t0 = host.sim_date();
+        let t = timing(&geom, &st.tuning, host.construction_days(&b));
+        let s = &mut self.rec.scalars;
+        s.t0 = t0;
+        (s.a, s.b, s.c, s.e) = (t.a as i32 as u32, t.b as i32 as u32, t.c as i32 as u32, t.e);
+        s.state = 0;
+        s.counter = 0;
+        s.ms_acc = 0;
+        s.next_day = t0.wrapping_add(s.a);
         self.set_building_completion(host, 0.0);
         self.scaffold_height = r24(f64::from(geom.ground) + 0.001) as f32;
-        self.crane = crane.then(CraneAnim::after_set_lot);
-        self.rec.has_crane = crane;
+        if self.rec.has_crane {
+            let s = &mut self.rec.scalars;
+            s.crane_target = s.swing_min;
+            s.crane_previous = s.swing_max;
+            s.crane_acc = 1;
+            s.crane_duration = 0;
+            s.crane_state = 2;
+            host.pose_crane(s.swing_min);
+        }
         host.post_construction_message(MSG_SEGMENT_START, 1);
         host.post_construction_message(MSG_CONSTRUCTION, 1);
         host.add_to_renderer();
@@ -839,75 +919,82 @@ impl ConstructionOccupant {
     }
 
     /// `DoDailySim` (ld §6.7.5); the date comes from the simulator, never
-    /// from the message.
+    /// from the message. Reads only `state`, `nextDay`, `counter`, `N`, `B`,
+    /// `C`, `E` and the saved scaffold box / effects, so a loaded occupant
+    /// resumes without a recomputation (lr §9.2).
     pub fn do_daily_sim(&mut self, host: &mut dyn ConstructionHost, st: &mut ConstructionStatics) {
-        let (Some(_), Some(geom), Some(t)) = (&self.building, self.geometry, self.timing) else {
-            return;
-        };
-        if self.state == STATE_DONE {
+        if self.rec.building.is_null() || self.rec.scalars.state == STATE_DONE {
             return;
         }
         let today = host.sim_date();
-        if today < self.next_day {
+        let s = &mut self.rec.scalars;
+        if today < s.next_day {
             return;
         }
-        self.ms_acc = 0;
-        match self.state {
+        s.ms_acc = 0;
+        let sparks = self.rec.effects.len();
+        match s.state {
             0 | 2 => {
-                self.counter += 1;
-                let removal = self.counter > geom.segments;
+                s.counter = s.counter.wrapping_add(1);
+                let removal = s.counter > s.segments;
                 if removal {
                     host.remove_roof_props();
                     host.start_scaffold_removal();
                 } else {
                     host.post_construction_message(MSG_SEGMENT_START, 1);
                 }
-                for i in 0..self.sparks {
+                for i in 0..sparks {
                     host.spark_slot8(i, 1);
                 }
+                let s = &mut self.rec.scalars;
                 if removal {
-                    self.state = 3;
-                    self.next_day = (i64::from(today) + t.c) as u32;
+                    s.state = 3;
+                    s.next_day = today.wrapping_add(s.c);
                 } else {
-                    self.state = 1;
-                    self.next_day = (i64::from(today) + t.b) as u32;
+                    s.state = 1;
+                    s.next_day = today.wrapping_add(s.b);
                 }
             }
             1 => {
-                for (i, p) in scatter_sparks(st, &geom.scaffold, self.sparks).into_iter().enumerate() {
+                s.state = 2;
+                s.next_day = today.wrapping_add(s.e);
+                let scaffold = self.rec.local_bounds;
+                for (i, p) in scatter_sparks(st, &scaffold, sparks).into_iter().enumerate() {
                     host.place_spark(i, p);
                 }
-                self.state = 2;
-                self.next_day = today.wrapping_add(t.e);
             }
-            _ => self.complete(host),
+            3 => self.complete(host),
+            // ld §6.7.5 lists 0…4 only; another (loaded) value does nothing
+            // [literal].
+            _ => {}
         }
     }
 
     /// Completion (ld §6.7.5), then `Shutdown`.
     fn complete(&mut self, host: &mut dyn ConstructionHost) {
-        self.state = STATE_DONE;
+        self.rec.scalars.state = STATE_DONE;
         self.set_building_completion(host, 1.0);
         if self.in_renderer {
             host.remove_from_renderer();
             self.in_renderer = false;
         }
         host.remove_from_occupant_manager();
-        host.set_lot_state(&self.lot, LOT_STATE_GROWN, 0, 0);
+        let lot = self.rec.lot.clone();
+        host.set_lot_state(&lot, LOT_STATE_GROWN, 0, 0);
         self.shutdown(host);
     }
 
-    /// `Shutdown` (`0x005D0CE0`): posts `0xC9E7B1E8` (0) first, unsubscribes,
-    /// unregisters the tick, releases the lot, building, props, effects and
-    /// crew.
+    /// `Shutdown` (`0x005D0CE0`): posts `0xC9E7B1E8` (0) first, unsubscribes
+    /// the four, unregisters the tick, releases the lot, building, props,
+    /// effects and crew.
     pub fn shutdown(&mut self, host: &mut dyn ConstructionHost) {
         host.post_construction_message(MSG_CONSTRUCTION, 0);
         for m in SUBSCRIPTIONS {
             host.unsubscribe(m);
         }
         host.remove_tickable();
-        self.lot = RefValue::Null;
-        self.building = None;
+        self.rec.lot = RefValue::Null;
+        self.rec.building = RefValue::Null;
         self.rec.ground_props.clear();
         self.rec.roof_props.clear();
         self.rec.effects.clear();
@@ -915,22 +1002,50 @@ impl ConstructionOccupant {
         self.rec.crew.clear();
     }
 
-    /// `DoAnimationTick(ms)`: accumulates `msAcc` and runs the crane in
-    /// states 0–2. The scaffold / completion interpolation is visual and not
-    /// specified to the formula; it is not done here.
-    pub fn do_animation_tick(&mut self, host: &mut dyn ConstructionHost, st: &mut ConstructionStatics, ms: u32) {
-        self.ms_acc = self.ms_acc.wrapping_add(ms);
-        if self.state <= 2 {
-            if let Some(c) = &mut self.crane {
-                let swing = host.crane_swing();
-                c.animate(ms, &mut st.rng, &swing);
-            }
+    /// `DoAnimationTick(ms)`: accumulates `msAcc` and runs `AnimateCrane` in
+    /// states 0–2 when a crane model exists. The scaffold / completion
+    /// interpolation is visual and not specified to the formula; it is not
+    /// done here.
+    pub fn do_animation_tick(&mut self, st: &mut ConstructionStatics, ms: u32) {
+        let s = &mut self.rec.scalars;
+        s.ms_acc = s.ms_acc.wrapping_add(ms);
+        if self.rec.has_crane && (0..=2).contains(&s.state) {
+            animate_crane(s, ms, &mut st.rng, st.tuning.crane_rotation_ms);
         }
     }
 
-    /// `DoMessage`: SimNewDay → `DoDailySim` (data1 unused); the tick with
-    /// `ms := data2 / 1000` (ld §6.7.1; lr §9.2 says data3, OP15). The
-    /// visual messages are not handled here. Returns true for all.
+    /// The `0x26D31EC1` refresh after a load (lr §9.2): only when `Read` set
+    /// the pending flag. `RebuildModel`; `CreateCrane` from the saved
+    /// position x / z and type when the load-only flag (#8) is set;
+    /// `AddToRenderer`; `DoAnimationTick(0)` with state 2 shown as 1 around
+    /// the call; clear the flag. The crane model exists only afterwards.
+    pub fn refresh(&mut self, host: &mut dyn ConstructionHost, st: &mut ConstructionStatics) {
+        if !self.rec.refresh_pending {
+            return;
+        }
+        self.rebuild_model(host, st);
+        if self.rec.loaded_has_crane {
+            let p = self.rec.crane_position;
+            self.rec.has_crane = host.create_crane(p[0], p[2], self.rec.scalars.crane_type);
+        }
+        host.add_to_renderer();
+        self.in_renderer = true;
+        let was2 = self.rec.scalars.state == 2;
+        if was2 {
+            self.rec.scalars.state = 1;
+        }
+        self.do_animation_tick(st, 0);
+        if was2 {
+            self.rec.scalars.state = 2;
+        }
+        self.rec.refresh_pending = false;
+    }
+
+    /// `DoMessage` (object `+4` frame): SimNewDay → `DoDailySim` (data1
+    /// unused); the tick (delivered directly by the tick manager) with
+    /// `ms := data2 / 1000`, unsigned and truncating; `0x26D31EC1` → the
+    /// refresh. `0x06CDB65B` / `0xA6B79602` are visual and not handled
+    /// here. Returns true for all.
     pub fn do_message(
         &mut self,
         host: &mut dyn ConstructionHost,
@@ -940,15 +1055,17 @@ impl ConstructionOccupant {
     ) -> bool {
         match msg {
             MSG_SIM_NEW_DAY => self.do_daily_sim(host, st),
-            MSG_ANIMATION_TICK => self.do_animation_tick(host, st, data2 / 1000),
+            MSG_ANIMATION_TICK => self.do_animation_tick(st, data2 / 1000),
+            MSG_VIEW_REFRESH => self.refresh(host, st),
             _ => {}
         }
         true
     }
 
-    /// `GetPosition`: the live box centre, `(min + max) * 0.5f` per axis.
+    /// `GetPosition`: the saved world box (#6) centre, `(min + max) * 0.5f`
+    /// per axis.
     pub fn position(&self) -> [f32; 3] {
-        let (a, b) = self.live_bounds;
+        let (a, b) = self.rec.world_bounds;
         [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5, (a[2] + b[2]) * 0.5]
     }
 }

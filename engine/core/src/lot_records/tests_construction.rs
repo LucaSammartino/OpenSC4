@@ -7,6 +7,8 @@ use super::*;
 use crate::network_occupants::Xform;
 use crate::rng::{CrtRand, FixedSeeds, RzRandom};
 use crate::stream::{ByteReader, ByteWriter, RefValue};
+use crate::variant::{mem, Elem, Variant};
+use crate::x87::r24;
 
 fn host_ref(id: u64, class_id: u32) -> RefValue {
     RefValue::Host { token: id, class_id }
@@ -21,23 +23,35 @@ fn sample() -> ConstructionRecord {
     r.transform = Xform::default();
     r.world_bounds = ([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]);
     r.local_bounds = ([-1.5, 0.0, -2.5], [1.5, 3.0, 2.5]);
-    r.has_crane = true;
+    r.has_crane = false;
     r.crane_position = [10.0, 20.0, 30.0];
     r.ground_props = vec![host_ref(11, 0x2977_AA47), host_ref(12, 0x2977_AA47)];
     r.roof_props = vec![host_ref(13, 0x2977_AA47)];
     r.effects = vec![host_ref(14, 0x2977_AA49)];
     r.current_effect = host_ref(14, 0x2977_AA49);
     r.scalars = ConstructionScalars {
-        effect_index: -1,
-        progress: [1, 2, 3, 2_451_545, 2_451_560],
-        segment: [0.25, 6.0],
-        placement: [4, 0x42C8_3333, 0x42C8_0000, 6, 7],
-        flag: 3,
-        crane_interp: [12.5, 1000.0],
-        crane_flag: true,
-        crane_swing: [9, 10],
-        crane_phase: [0.5, 1.0],
-        tail: 0xAB,
+        state: -1,
+        t0: 1,
+        unused_148: 2,
+        next_day: 3,
+        segments: 2_451_545,
+        counter: 2_451_560,
+        span: 0.25,
+        start_y: 6.0,
+        a: 4,
+        b: 0x42C8_3333,
+        c: 0x42C8_0000,
+        e: 6,
+        ms_acc: 7,
+        crane_state: 3,
+        swing_min: 12.5,
+        swing_max: 1000.0,
+        unused_180: true,
+        crane_acc: 9,
+        crane_duration: 10,
+        crane_target: 0.5,
+        crane_previous: 1.0,
+        crane_type: 0xAB,
     };
     r.crew = vec![
         CrewEntry {
@@ -74,7 +88,25 @@ fn record_layout_and_round_trip() {
     assert_eq!(r.crew.len(), 2);
     assert!(r.crew[0].first && !r.crew[0].second && r.crew[1].automaton.is_null());
     assert_eq!(r.scalars, sample().scalars);
+    // #8 is read into the load-only flag (+0xD8) and marks the refresh
+    // pending; the live crane flag stays false, so a Write before the
+    // refresh saves #8 = false [quirk, lr §9.2] and nothing else changes.
+    assert!(!r.loaded_has_crane && r.refresh_pending && !r.has_crane);
     assert_eq!(write_obj(&o), b);
+    let mut live = sample();
+    live.has_crane = true;
+    let bc = write_obj(&RefValue::Object(RecordObject::new(live)));
+    let (o, ok, _) = read_obj(construction::CLSID_CONSTRUCTION_OCCUPANT, &bc);
+    assert!(ok);
+    let r: ConstructionRecord = rec(&o);
+    assert!(r.loaded_has_crane && r.refresh_pending && !r.has_crane);
+    let w = write_obj(&o);
+    let diff: Vec<usize> = (0..bc.len()).filter(|&i| w[i] != bc[i]).collect();
+    assert_eq!((w.len(), diff.len()), (bc.len(), 1));
+    assert_eq!(
+        (bc[diff[0]], w[diff[0]], &w[..diff[0]], &w[diff[0] + 1..]),
+        (1, 0, &b[..diff[0]], &b[diff[0] + 1..])
+    );
     // The tail: u8 0xAB, crew count 2, {1, 0, ref 21}, {0, 1, null}.
     let tail = &b[b.len() - sample_tail_len()..];
     assert_eq!(tail[0], 0xAB);
@@ -165,7 +197,7 @@ fn v4_legacy_transform_record() {
     assert_eq!(r.transform.counter, 0x78);
     assert_eq!(token(&r.building), Some((8, CLSID_BUILDING_OCCUPANT)));
     assert_eq!(r.ground_props.len(), 2);
-    assert_eq!(r.scalars.tail, 0xAB);
+    assert_eq!(r.scalars.crane_type, 0xAB);
     // Written back as v5: mask 5, 9 + 3 floats; the tail identical.
     let w = write_obj(&o);
     assert_eq!(w[0], 5);
@@ -462,9 +494,14 @@ impl ConstructionHost for Host {
     fn divide_lot(&mut self, _: &mut ConstructionStatics) {
         self.say("divide".into());
     }
-    fn attempt_add_crane(&mut self, _: &mut ConstructionStatics) -> bool {
+    fn attempt_add_crane(&mut self, _: &mut ConstructionStatics) -> Option<CraneFit> {
         self.say("crane?".into());
-        self.crane
+        self.crane.then_some(CraneFit {
+            crane_type: 2,
+            position: [1.0, 2.0, 3.0],
+            swing_min: 0.0,
+            swing_max: 1.0,
+        })
     }
     fn add_ground_props(&mut self, _: &mut ConstructionStatics) {
         self.say("ground props".into());
@@ -478,8 +515,9 @@ impl ConstructionHost for Host {
     fn create_dust_clouds(&mut self) {
         self.say("dust".into());
     }
-    fn create_sparks(&mut self, n: usize) {
+    fn create_sparks(&mut self, n: usize) -> Vec<RefValue> {
         self.say(format!("sparks {n}"));
+        (0..n as u64).map(|i| host_ref(40 + i, IID_EFFECT_PROP)).collect()
     }
     fn spark_slot8(&mut self, i: usize, v: u32) {
         self.say(format!("spark {i} slot8 {v}"));
@@ -503,12 +541,18 @@ impl ConstructionHost for Host {
     fn remove_from_occupant_manager(&mut self) {
         self.say("occupant manager remove".into());
     }
-    fn crane_swing(&mut self) -> CraneSwing {
-        CraneSwing {
-            min: 0.0,
-            max: 1.0,
-            k: 1.0,
-        }
+    fn occupant_base_init(&mut self) {
+        self.say("base init".into());
+    }
+    fn post_occupant_group_added(&mut self, g: u32) {
+        self.say(format!("group+ {g:X}"));
+    }
+    fn pose_crane(&mut self, a: f32) {
+        self.say(format!("pose {a}"));
+    }
+    fn create_crane(&mut self, x: f32, z: f32, t: u8) -> bool {
+        self.say(format!("create crane {x} {z} {t}"));
+        true
     }
 }
 
@@ -534,7 +578,7 @@ fn run(mut h: Host, first: u32) -> (Host, ConstructionOccupant) {
         h.day = day;
         // data2 of SimNewDay is not used; pass junk.
         c.do_message(&mut h, &mut st, MSG_SIM_NEW_DAY, 0xDEAD_BEEF);
-        if c.state == STATE_DONE {
+        if c.rec.scalars.state == STATE_DONE {
             break;
         }
     }
@@ -555,7 +599,7 @@ fn test21_construction_schedule() {
     assert_eq!(days_of(&h, "post 49E7B1E2"), vec![1, 8, 15, 22]);
     assert_eq!(days_of(&h, "roof props removed"), vec![29]);
     assert_eq!(days_of(&h, "lot state 3 0 0"), vec![30]);
-    assert_eq!(c.state, STATE_DONE);
+    assert_eq!(c.rec.scalars.state, STATE_DONE);
     let (h, _) = run(Host::new(110.0, None, None), 0);
     assert_eq!(days_of(&h, "lot state 3 0 0"), vec![29]);
     let cases: [(f32, Option<f32>, Option<u8>, u32); 8] = [
@@ -589,27 +633,29 @@ fn set_lot_order_and_completion_order() {
     c.set_lot(&mut h, &mut st, host_ref(1, CLSID_LOT));
     let l = h.log.join("|");
     assert!(l.starts_with(
-        "sub 66956814|sub 86AD10EE|sub 06CDB65B|sub A6B79602|sub 26D31EC1|tick+ 80|divide|crane?|ground props|crew|roof props|dust|sparks 1|completion 0|post 2977AE2F|post 49E7B1E2 1 day 5|post C9E7B1E8 1 day 5|render+"
+        "base init|sub 66956814|sub A6B79602|sub 06CDB65B|sub 26D31EC1|tick+ 80|group+ 5007|divide|crane?|ground props|crew|roof props|dust|sparks 1|completion 0|post 2977AE2F|post 49E7B1E2 1 day 5|post C9E7B1E8 1 day 5|render+"
     ), "{l}");
-    assert_eq!((c.t0, c.next_day, c.state, c.counter), (5, 5, 0, 0));
+    let s = c.rec.scalars;
+    assert_eq!((s.t0, s.next_day, s.state, s.counter), (5, 5, 0, 0));
+    assert_eq!(c.rec.effects.len(), 1);
     assert_eq!(c.scaffold_height.to_bits(), (100.001f32).to_bits());
-    assert!(c.crane.is_none() && !c.rec.has_crane);
+    assert!(!c.rec.has_crane && s.crane_state == 0);
     // Completion order on the last day.
     let mut last = Vec::new();
     for day in 6..60 {
         h.day = day;
         h.log.clear();
         c.do_daily_sim(&mut h, &mut st);
-        if c.state == STATE_DONE {
+        if c.rec.scalars.state == STATE_DONE {
             last = h.log.clone();
             break;
         }
     }
     assert_eq!(
         last.join("|"),
-        "completion 1|post 2977AE2F|render-|occupant manager remove|lot state 3 0 0 day 35|post C9E7B1E8 0 day 35|unsub 66956814|unsub 86AD10EE|unsub 06CDB65B|unsub A6B79602|unsub 26D31EC1|tick-"
+        "completion 1|post 2977AE2F|render-|occupant manager remove|lot state 3 0 0 day 35|post C9E7B1E8 0 day 35|unsub 66956814|unsub A6B79602|unsub 06CDB65B|unsub 26D31EC1|tick-"
     );
-    assert!(c.lot.is_null() && c.building.is_none());
+    assert!(c.rec.lot.is_null() && c.rec.building.is_null());
     // Done: further days change nothing.
     h.log.clear();
     h.day = 100;
@@ -623,19 +669,17 @@ fn no_building_means_no_schedule() {
     let mut st = statics();
     let mut c = ConstructionOccupant::default();
     c.set_lot(&mut h, &mut st, RefValue::Null);
-    assert_eq!(h.log.len(), 6); // Init only
+    assert_eq!(h.log.len(), 7); // Init only
     h.day = 10;
     c.do_daily_sim(&mut h, &mut st);
-    assert_eq!(h.log.len(), 6);
+    assert_eq!(h.log.len(), 7);
 }
 
 #[test]
 fn set_building_completion_posts_only_on_change() {
     let mut h = Host::new(110.0, None, None);
-    let mut c = ConstructionOccupant {
-        building: Some(host_ref(2, CLSID_BUILDING_OCCUPANT)),
-        ..ConstructionOccupant::default()
-    };
+    let mut c = ConstructionOccupant::default();
+    c.rec.building = host_ref(2, CLSID_BUILDING_OCCUPANT);
     c.set_building_completion(&mut h, 0.0);
     assert!(h.log.is_empty());
     c.set_building_completion(&mut h, 0.25);
@@ -686,34 +730,51 @@ fn test24_spark_scatter() {
 fn spark_counts() {
     assert_eq!(spark_count(&([0.0; 3], [19.9, 5.0, 3.0])), 1);
     assert_eq!(spark_count(&([0.0; 3], [20.0, 5.0, 3.0])), 2);
-    assert_eq!(spark_count(&([0.0; 3], [2.0, 30.0, 3.0])), 3);
+    assert_eq!(spark_count(&([0.0; 3], [2.0, 5.0, 30.0])), 3);
+    // y is excluded (ld §6.7.7, OP16).
+    assert_eq!(spark_count(&([0.0; 3], [2.0, 30.0, 3.0])), 1);
 }
 
 #[test]
 fn test25_crane_pause() {
     let mut st = statics();
-    let mut c = CraneAnim {
-        state: 0,
-        acc: 0,
-        duration: 0,
-        target: 0.0,
+    let mut s = ConstructionScalars {
+        swing_min: 0.0,
+        swing_max: 1.0,
+        ..ConstructionScalars::default()
     };
-    let swing = CraneSwing {
-        min: 0.0,
-        max: 1.0,
-        k: 1.0,
+    animate_crane(&mut s, 16, &mut st.rng, 6000.0);
+    assert_eq!((s.crane_state, s.crane_duration, s.crane_acc), (1, 1048, 0));
+    animate_crane(&mut s, 1000, &mut st.rng, 6000.0);
+    assert_eq!(s.crane_state, 1);
+    animate_crane(&mut s, 48, &mut st.rng, 6000.0);
+    assert_eq!((s.crane_state, s.crane_duration), (2, 1048));
+    // SetLot's initial values (ld §6.7.6): target min, previous max, acc 1,
+    // duration 0, state 2: the first tick swings at once, from RDRU(mid, max).
+    let mut s = ConstructionScalars {
+        swing_min: 0.0,
+        swing_max: 1.0,
+        crane_target: 0.0,
+        crane_previous: 1.0,
+        crane_acc: 1,
+        crane_duration: 0,
+        crane_state: 2,
+        ..ConstructionScalars::default()
     };
-    c.animate(16, &mut st.rng, &swing);
-    assert_eq!((c.state, c.duration, c.acc), (1, 1048, 0));
-    c.animate(1000, &mut st.rng, &swing);
-    assert_eq!(c.state, 1);
-    c.animate(48, &mut st.rng, &swing);
-    assert_eq!((c.state, c.duration), (2, 1048));
-    // SetLot's reset swings on the first tick (acc 1 ≥ duration 0).
-    let mut c = CraneAnim::after_set_lot();
-    c.animate(0, &mut st.rng, &swing);
-    assert_eq!(c.state, 0);
-    assert!(c.target >= 0.5 && c.target <= 1.0);
+    animate_crane(&mut s, 0, &mut st.rng, 6000.0);
+    assert_eq!(s.crane_state, 0);
+    assert!(s.crane_target >= 0.5 && s.crane_target <= 1.0);
+    assert_eq!(s.crane_previous, 0.0);
+    assert_eq!(s.crane_duration, crane_duration(6000.0, f64::from(s.crane_target)));
+}
+
+#[test]
+fn crane_duration_uses_tunable_t_and_k() {
+    assert_eq!(f32::from_bits(CRANE_K_BITS), 0.159_154_94);
+    assert_eq!(crane_duration(6000.0, std::f64::consts::PI), 3000);
+    assert_eq!(crane_duration(6000.0, 0.5), 477);
+    assert_eq!(crane_duration(12000.0, 0.5), 955);
+    assert_eq!(crane_duration(6000.0, 0.0), 0);
 }
 
 #[test]
@@ -725,6 +786,144 @@ fn animation_tick_message_divides_by_1000() {
     c.set_lot(&mut h, &mut st, host_ref(1, CLSID_LOT));
     assert!(c.rec.has_crane);
     assert!(c.do_message(&mut h, &mut st, MSG_ANIMATION_TICK, 16_700));
-    assert_eq!(c.ms_acc, 16);
-    assert_eq!(c.crane.unwrap().state, 0);
+    assert_eq!(c.rec.scalars.ms_acc, 16);
+    assert_eq!(c.rec.scalars.crane_state, 0);
+    assert!(!SUBSCRIPTIONS.contains(&MSG_ANIMATION_TICK));
+}
+
+#[test]
+fn set_lot_crane_initial_values() {
+    let mut h = Host::new(110.0, None, None);
+    h.crane = true;
+    let mut st = statics();
+    let mut c = ConstructionOccupant::default();
+    c.set_lot(&mut h, &mut st, host_ref(1, CLSID_LOT));
+    let s = c.rec.scalars;
+    assert_eq!(
+        (s.crane_type, s.swing_min, s.swing_max, s.crane_target, s.crane_previous),
+        (2, 0.0, 1.0, 0.0, 1.0)
+    );
+    assert_eq!((s.crane_acc, s.crane_duration, s.crane_state), (1, 0, 2));
+    assert_eq!(c.rec.crane_position, [1.0, 2.0, 3.0]);
+    let l = h.log.join("|");
+    assert!(l.contains("|sparks 1|pose 0|post 49E7B1E2 1 day 0|"), "{l}");
+    // RebuildModel's saved values: N, span N·segH, startY, scaffold box #7.
+    let g = c.geometry.unwrap();
+    assert_eq!((s.segments, s.start_y), (g.segments, g.start_y));
+    assert_eq!(
+        s.span,
+        r24(f64::from(g.segments) * f64::from(st.tuning.segment_height)) as f32
+    );
+    assert_eq!(c.rec.local_bounds, g.scaffold);
+    assert_eq!(c.position(), [5.0, 105.0, 5.0]);
+}
+
+#[test]
+fn init_adds_occupant_group_once() {
+    let mut h = Host::new(110.0, None, None);
+    let mut c = ConstructionOccupant::default();
+    c.rec.base.holder.own.add(
+        PROP_OCCUPANT_GROUPS,
+        Variant::array(mem::UINT32, vec![Elem::U32(0x1234)]),
+    );
+    assert!(c.init(&mut h));
+    assert_eq!(
+        h.log.join("|"),
+        "base init|sub 66956814|sub A6B79602|sub 06CDB65B|sub 26D31EC1|tick+ 80|group+ 5007"
+    );
+    let groups = c.rec.base.holder.get(PROP_OCCUPANT_GROUPS).unwrap().items();
+    assert_eq!(groups, vec![Elem::U32(0x1234), Elem::U32(0x5007)]);
+    // Already initialised: nothing; already present: no second entry or post.
+    h.log.clear();
+    assert!(c.init(&mut h));
+    assert!(!c.add_occupant_group(&mut h, OCCUPANT_GROUP_CONSTRUCTION));
+    assert!(h.log.is_empty());
+}
+
+#[test]
+fn loaded_construction_resumes_schedule() {
+    let (href, _) = run(Host::new(110.0, None, Some(0)), 1);
+    let want = days_of(&href, "post 49E7B1E2");
+    let done = days_of(&href, "lot state 3 0 0");
+    let mut h = Host::new(110.0, None, Some(0));
+    let mut st = statics();
+    let mut c = ConstructionOccupant::default();
+    c.set_lot(&mut h, &mut st, host_ref(1, CLSID_LOT));
+    h.log.clear();
+    for day in 1..5 {
+        h.day = day;
+        c.do_message(&mut h, &mut st, MSG_SIM_NEW_DAY, 0);
+    }
+    assert_eq!(c.rec.scalars.state, 2);
+    let bytes = write_obj(&RefValue::Object(RecordObject::new(c.rec.clone())));
+    let (o, ok, rem) = read_obj(CLSID_CONSTRUCTION_OCCUPANT, &bytes);
+    assert!(ok && rem == 0);
+    let r: ConstructionRecord = rec(&o);
+    assert_eq!(r.scalars, c.rec.scalars);
+    assert_eq!(r.effects.len(), 1);
+    let mut c2 = ConstructionOccupant::from_record(r);
+    let mut h2 = Host::new(110.0, None, Some(0));
+    h2.log = h.log.clone();
+    // Read before Init: the loaded base already carries 0x5007.
+    c2.init(&mut h2);
+    assert!(!h2.log.iter().any(|l| l.starts_with("group+")));
+    for day in 5..400 {
+        h2.day = day;
+        c2.do_message(&mut h2, &mut st, MSG_SIM_NEW_DAY, 0);
+        if c2.rec.scalars.state == STATE_DONE {
+            break;
+        }
+    }
+    assert_eq!(days_of(&h2, "post 49E7B1E2"), want);
+    assert_eq!(days_of(&h2, "lot state 3 0 0"), done);
+}
+
+#[test]
+fn refresh_after_load_recreates_crane_once() {
+    let mut h = Host::new(110.0, None, None);
+    h.crane = true;
+    let mut st = statics();
+    let mut c = ConstructionOccupant::default();
+    c.set_lot(&mut h, &mut st, host_ref(1, CLSID_LOT));
+    c.rec.scalars.state = 2;
+    let bytes = write_obj(&RefValue::Object(RecordObject::new(c.rec.clone())));
+    let (o, ok, _) = read_obj(CLSID_CONSTRUCTION_OCCUPANT, &bytes);
+    assert!(ok);
+    let mut c2 = ConstructionOccupant::from_record(rec(&o));
+    c2.init(&mut h);
+    assert!(!c2.rec.has_crane && c2.rec.loaded_has_crane && c2.rec.refresh_pending);
+    // The tick before the refresh does not animate: no crane model yet.
+    c2.do_message(&mut h, &mut st, MSG_ANIMATION_TICK, 5_000);
+    assert_eq!((c2.rec.scalars.ms_acc, c2.rec.scalars.crane_state), (5, 2));
+    h.log.clear();
+    assert!(c2.do_message(&mut h, &mut st, MSG_VIEW_REFRESH, 0));
+    let seen: Vec<&String> = h
+        .log
+        .iter()
+        .filter(|l| l.starts_with("create crane") || l.starts_with("render"))
+        .collect();
+    assert_eq!(seen, vec!["create crane 1 3 2", "render+"]);
+    let s = c2.rec.scalars;
+    // DoAnimationTick(0) with state 2 shown as 1: the crane swung (acc 1 ≥ 0).
+    assert_eq!((s.state, s.ms_acc, s.crane_state), (2, 5, 0));
+    assert!(c2.rec.has_crane && !c2.rec.refresh_pending);
+    h.log.clear();
+    c2.do_message(&mut h, &mut st, MSG_VIEW_REFRESH, 0);
+    assert!(h.log.is_empty());
+}
+
+#[test]
+fn live_refs_released_by_set_lot_read_and_shutdown() {
+    let a = RecordObject::new(sample());
+    let b = RecordObject::new(sample());
+    let mut h = Host::new(110.0, None, None);
+    let mut st = statics();
+    let mut c = ConstructionOccupant::default();
+    c.set_lot(&mut h, &mut st, RefValue::Object(a.clone()));
+    assert_eq!(std::rc::Rc::strong_count(&a), 2);
+    c.set_lot(&mut h, &mut st, RefValue::Object(b.clone()));
+    assert_eq!((std::rc::Rc::strong_count(&a), std::rc::Rc::strong_count(&b)), (1, 2));
+    c.shutdown(&mut h);
+    assert_eq!(std::rc::Rc::strong_count(&b), 1);
+    assert!(c.rec.effects.is_empty() && c.rec.building.is_null());
 }

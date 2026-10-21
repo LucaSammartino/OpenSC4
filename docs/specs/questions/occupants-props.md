@@ -65,3 +65,10 @@
   the records beyond the failure left as constructor defaults (five `0xFF` bytes, the other fields?) and what are
   the defaults of the texture instance, cell, orientation, configuration byte and frame? The core pads with
   0 / `0xFF`×5 / 0 up to 65,536 records and leaves larger counts unpadded.
+
+<!-- from: core-construction-contractfix4 (2026-10-22) -->
+- **OP17:** lot-records.md §9.1 / §9.2: which code writes the world box (record #6, object `+0xA8…+0xBC`) that
+  `GetPosition` / `GetBoundingBox` read — `RebuildModel` (from the building's box, as `bbox` of ld §6.7.3), `SetLot`,
+  or only `Read`? And is it the building's box unchanged or a box derived from the scaffold? The core sets it to the
+  building's bounding box in `RebuildModel` (literal reading of "the building's bounding box" being the only box
+  `RebuildModel` reads), also on the refresh after a load.
