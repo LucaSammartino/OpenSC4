@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-simgrids4: layout-compatible cSC4SimGrid<T> family (enable=simgrids) | glue-simgrids4 / .claude/worktrees/glue-simgrids4 | in progress: run4 validation (joint 36+simgrids run, original-factory reload) | see Handoff |
+| glue-simgrids4: layout-compatible cSC4SimGrid<T> family (enable=simgrids) | glue-simgrids4 / .claude/worktrees/glue-simgrids4 | blocked: run4 validation done; reload byte-exact, joint run clean but ref_warnings=238 from cFC4Automata (also without simgrids) | automata lane fixes its shutdown release; then rerun joint; answer SG1 |
 
 ## Report
 
@@ -31,9 +31,27 @@ Next: coordinator union run (enable=simgrids with the grid-owning replacements: 
 come from these factories); a save written with simgrids reloaded by the original (format is byte-identical by
 test, not yet by a game round-trip); answer SG1.
 
-## Handoff
-- goal (run4): (1) joint run, evidence-run4/run4-simgrids-joint.ini (36 replacements + simgrids), turbo to 2032, clean/ref0, 136 grid traces + save; (2) original grid factory (simgrids off, other 36 on) reloads a city saved by ours, with per-grid record digests.
-- done: merged main (17cc9565); digests + simgrids_probe (7edf7923); gate all PASS (cargo 3676, clippy 0, ctest 63/63); simgrids_probe known key (next commit).
-- joint run sg4-j1: clean to 2032-01-01 BUT ref_warnings=238: 100 lines 'released last reference to game object [class 0x4A1628C5/0x6A1628BA] at HostRelease:53' = cFC4Automata.cpp at city shutdown (not grid code). Grids: reads 136, writes 136 at the 2031-06-01 save (+117 probe captures), created=248 destroyed=248, read_failures 0, alloc_failures 0.
-- saved city captured: build-runs/sg-artifacts/sg4-j1-saved.sc4 (1314158 B, sha256 df7a9ca2...).
-- next: reload run sg4-r1: copy to Documents/.../FC4 Test/City - FC4SGReload-run4-r1.sc4 (alias, remove afterwards), request city=FC4SGReload-run4-r1, 36 profile without simgrids, simgrids_probe=1; compare probe digests with sg4-j1 save writes (lines 14018-14317); see if automata warnings recur without simgrids.
+## Run4 validation (2026-10-21)
+
+Changes (tooling only, no behaviour change, no C ABI change): merged main (17cc9565); read/write trace lines carry
+`digest=` (FNV-1a 64 of the v1 record bytes, `RecordDigest`, unit-tested against the written bytes) and `nonzero=`;
+`simgrids_probe = 1` (`engine/plugin/FC4SimGridProbe.*`, hooks in IStreamAdapter::ReadRef and the observer's
+PostCityInit, known key in FC4Config.cpp) logs the digest of each save-read grid's own Write (7edf7923, f4d3f703).
+Gate: cargo test 3676 passed, clippy 0, ctest 63/63.
+
+Game runs (evidence copied to build-runs/evidence-run4/):
+- sg4-j1 joint (evidence-run4/run4-simgrids-joint.ini = 36 replacements + simgrids, turbo to 2032-01-01, script save
+  2031-06-01, probe): verdict clean, date 2032-01-01, BUT ref_warnings=238. Grids: 136 read (0 failures), 136 written
+  at the save (+117 probe captures), created=248 destroyed=248, alloc_failures 0. Saved slot city captured during
+  the run after SaveCity returned: sg4-j1-saved.sc4, 1314158 B, sha256 df7a9ca2f03a5d18...
+- sg4-r1 reload by the ORIGINAL grid class (same 36, simgrids off, probe; city = alias City - FC4SGReload-run4-r1.sc4
+  in FC4 Test, removed once the run started; Konradshohe untouched; LoadCity on the slot1 alias -> true; DIGESTs from
+  2031-07-01): clean, ref_warnings=0. Probe: 116 grids from the save, all captured, grid class "the game's";
+  116/116 record digests equal the digests our class wrote at the save (0 diff), 98 non-blank (77566 nonzero cells):
+  persisted grids, not regenerated blanks. The other 20 saved grids do not pass through our ReadRef (not probed).
+- sg4-c1 control = sg4-j1 without simgrids: the same ref_warnings=238, the same 100 lines `released last reference to
+  game object [class 0x4A1628C5 x92, 0x6A1628BA x8] at HostRelease:53` (cFC4Automata.cpp, city shutdown).
+  So the joint run's warnings belong to the automata replacement in the 36 profile, not to simgrids.
+
+Not ready: the joint ref0 requirement fails for a reason outside this lane. Next: automata lane fixes the shutdown
+release in cFC4Automata.cpp HostRelease; rerun sg4-j1's request (game-queue/done/sg4-j1.req); SG1 still open.
