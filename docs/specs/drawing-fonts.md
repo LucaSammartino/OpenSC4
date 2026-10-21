@@ -92,6 +92,16 @@ Offsets in a `cGZFont`; names are ours.
 | +0x104 | monoCache | `CachedBitmapData` used when aaMode == 1 |
 | +0x130 | greyCache | `CachedBitmapData` for every other aaMode |
 
+**Constructor defaults** (FN11; the class factory `0x00895F4C` allocates the object and runs the constructor
+`0x00899AAB`): initialised false, refCount 0, both strings empty, faceKind 0, **pointSize 16, charHeight 16**,
+styleFlags 0, foreground and background colour 0, **aaMode 1** (monochrome), **+0x50 = 2**, **aaGamma 1.0,
+aaSharpness 0.0**, aaTable empty, scaleX = scaleY = 1.0, advanceScale 1.0, charSpacing 0, lineSpacing 0,
+codePage 0, surfaceLockCount 0, ascent 0, descentRaw 0, renderer null, the six scratch vectors and the map vector
+empty, **defaultChar 0x20** (space) with glyph index 0, draw records empty, current palette null, MRU list empty,
+both caches empty. A FreeType holder (0x34 bytes, `0x00897FED`: face null, source type 0 at +0x24, u16 load flags
+0x000A at +0x20, an empty name map at +0x28) is created and stored at +0xEC (null if the allocation fails).
+Note pointSize 16 is non-zero, so Init always calls SetSize(16) unless a size was set before.
+
 ## 3. Lifetime
 
 - **Create.** Through the director (class `0x1AA404AC`) or `cGZFontSys::FontAcquire` (§12).
@@ -206,6 +216,18 @@ B = face+0x6C, C = face+0x74 (16.16 fixed):
 - descentRaw = A / 65536, ascent = (A + B) / 65536, charHeight = (A − C + B) / 65536 (signed integer division),
   charHeight 0 becomes 1;
 - for font source types 2 and 3 (§12) charHeight += 1, and += 1 again if it is then > 28.
+  Both tests are unsigned: only a quotient of exactly 0 becomes 1 (a negative quotient is stored as is).
+
+**Source type of a font** (FN10). It is the holder's +0x24, set when the face is opened (Init → `0x00898CD9`),
+from the file **contents**, not from the file name and not from the catalogue. The probe (`0x008A1BD8`) tries in
+this order: an sfnt header (first 4 bytes 00 01 00 00, 00 02 00 00 or "OTTO") whose table directory has a `DSIG`
+table → source type **4**; an sfnt header with a `loca` (or `sloc`) table → **1**; a PostScript file starting
+with "%!" (`0x008A1B75`) → **2**; otherwise 0, and the face is not opened (Init fails). Source type 3 maps a probe
+result of 0x16 that only arises together with an error, so on an opened font it never occurs. Consequence: a
+signed TrueType file (has `DSIG`) gets type 4 here although `GetFontSourceTypeFromFileName` (§12) would call a
+`.ttf` type 1; only type 2/3 changes behaviour (this section and §7). On a successful open the holder's u16 load
+flags (+0x20, 0x000A from the constructor) gain 0x80 for types 1 and 4 and 0x01 for types 2/3; AddCharData (§7)
+passes these flags to every glyph load. Before Init the type is 0.
 
 Returns true iff the char-size call reported no error.
 
@@ -262,9 +284,41 @@ first absent probe returns false). The table, read from the switch at `0x00898A7
   `FT_Get_Char_Index` (0 on error). On index 0: source types 2/3 with ch ≥ 0x20 try the font's own map
   (`0x00898EB2`); failing that, the default-char glyph (+0xE8) is used when non-zero. The glyph is loaded at
   2 grey levels (aaMode 1) or 256 levels (otherwise). xOffset = horizontal bearing / 64, yOffset =
-  (A + B) / 65536 − vertical bearing / 64; advance = (linear or metric advance) / 65536 when advanceScale == 1.0,
-  with U+200B and U+FEFF forced to advance 0. A glyph that cannot be loaded gets an empty box of width
-  charHeight/2 drawn as a filled block (U+200B/U+FEFF: an empty box, advance 0).
+  (A + B) / 65536 − vertical bearing / 64 (each term divided separately, signed truncation).
+- **Advance** (FN7, `0x00899176`..`0x00899225`). The unscaled 16.16 advance `adv` is face+0x80 when the face has
+  the fixed-size flag (face+0x5C ≠ 0, the same flag that makes faceKind 2), else face+0xD0 (the loaded glyph's
+  16.16 advance). With s = advanceScale (float at +0x70):
+  - s == 1.0: advance = adv / 65536 (signed integer division, truncation toward 0);
+  - 0.98 < s < 1.0 and ch == U+0020: v = ftol(adv · s · 2^-16) (x87: integer adv loaded exactly, times the float s,
+    times the float constant 1/65536 at `0x00AC276C`, truncated toward 0); if v + 1 > adv / 65536 then v − 1,
+    else v. (A space that would round to the full unscaled width is shortened by one pixel.)
+  - any other s (including s ≤ 0.98, s > 1.0, and non-space characters in the 0.98..1.0 band): advance =
+    ftol(adv · s · 2^-16) as above.
+  - The result is stored as s16. U+200B and U+FEFF then get advance 0 (not in the space branch, which cannot
+    apply to them).
+  Example: adv = 0x00058000 (5.5 px), s = 0.99, ch = space: v = trunc(5.445) = 5; 5 + 1 > 5 → advance 4.
+  Same with ch = 'a': advance 5. s = 1.0: advance 5.
+- **Missing or unloadable glyph** (FN7, `0x008992BD`). Reached when the font has no holder or no open face, when
+  the glyph load (or the glyph-done call `0x0089E29E`) reports an error, or when the index is 0 and neither the
+  name map nor the default glyph supplies one. With h = charHeight (unsigned) and w = h >> 1: the record's source
+  rectangle is (penX, 0)-(penX + w, w), i.e. a **w × w square**; xOffset 0, yOffset 0 (the square sits at the
+  line top); advance = ftol(w · advanceScale) (integer w times the float scale, no 1/65536 factor). The raster is
+  a **hollow outline**: w × w bytes, 0xFF on the first and last row and column, 0x00 inside (`0x008962D7`),
+  passed with 256 levels. U+200B/U+FEFF instead get an empty raster (no pixels, 2 levels) and advance 0.
+  Example: charHeight 15, advanceScale 1.0 → a 7×7 outline, advance 7. Edge: when the glyph loads but the
+  glyph-done call reports an error, the loaded record is already in the map; the box raster is still
+  appended to the source bitmap, but the map insert is unique (`0x00897CB2`), so the box record is dropped and the
+  returned record is the loaded glyph.
+- **Name map** `0x00898EB2` (FN9), used for source types 2/3: for ch ≥ 0x80 it replaces `FT_Get_Char_Index`
+  entirely; for 0x20 ≤ ch < 0x80 it is tried when that index is 0. Steps: (1) the holder's own map (+0x28,
+  u16 character → glyph index) is consulted first; a hit returns the cached index. (2) On a miss, a process-wide
+  table character → PostScript glyph name is built once (`0x008988F1`) from 479 static {u16 code, name} pairs at
+  `0x00B150F0` (Adobe-glyph-list style: 0x20 "space", 0x21 "exclam", ...; codes 0x20..0xFB02; insert is unique so
+  the first of two duplicates wins: 0xB7 → "periodcentered", 0x3A5 → "Upsilon"). If ch has a name and the face
+  resolves that glyph name (`0x0089F4F3`) to a code whose `FT_Get_Char_Index` is non-zero, that index is cached in
+  the holder's map and returned. (3) Otherwise the name `uniXXXX` (four upper-case hex digits of ch & 0xFFFF,
+  `sprintf "uni%04X"`) is tried the same way and cached on success. (4) Else 0, and nothing is cached (the next
+  request repeats the search).
 - **CopyGlyphToSourceData** (slot 62, `0x00897748`) appends the raster at the cache's pen x. With underline or
   strike style it widens the cell to max(raster width, advance) and folds a positive xOffset into the cell. It grows
   the source bitmap (slot 63) to width `cellWidth·32 + x` or to the needed height. 2-level rasters are unpacked MSB
@@ -272,6 +326,21 @@ first absent probe returns false). The table, read from the switch at `0x00898A7
   Underline: rows from `ascent − yOffset + uOffset` (`0x00896618`), strike: from `ascent − charHeight/4 − yOffset`
   (`0x00896636`), each filled with 0xFF for the line thickness, clipped to charHeight; srcBottom grows to include
   them.
+- **Underline and strike-through geometry** (FN8): both depend only on pointSize (+0x38, unsigned), not on face
+  data, and use different tables.
+
+  | Thickness | 1 | 2 | 3 | 4 |
+  |---|---|---|---|---|
+  | underline T_u (`0x00896618`) | pointSize 0..15 | 16..25 | 26..35 | ≥ 36 |
+  | strike T_s (`0x00896636`) | pointSize 0..23 | 24..47 | 48..71 | ≥ 72 |
+
+  That is, T_u = 1 below 16, 2 below 26, 3 below 36, else 4; T_s = 1 below 24, 2 below 48, 3 below 72, else 4.
+  Underline: the first row is r = ascent − yOffset + T_u (the "offset" **is** the thickness), and T_u rows are
+  filled. Strike: r = ascent − (charHeight >> 2) − yOffset, T_s rows filled. For each line: when r < 0 or
+  r ≥ charHeight nothing is drawn (and srcBottom is unchanged); otherwise rows r, r+1, ... are filled with 0xFF
+  across the cell width while row < charHeight, and srcBottom = max(srcBottom, r + rowsFilled). Underline is
+  drawn before strike. Example: pointSize 12, charHeight 15, ascent 12, yOffset 3: underline row 10 (1 row);
+  strike row 12 − 3 − 3 = 6 (1 row). pointSize 30: underline T_u 3 rows, strike T_s 2 rows.
 - `ReallocateSourceData(cache, w, h)` (`0x0089632D`) only grows: new block `(h + 4)·w` bytes, zeroed, data starts
   at offset 2·w, old rows copied, pitch = w.
 - `CachedBitmapData::Clear` (`0x008982BA`) empties the map and the bitmap.

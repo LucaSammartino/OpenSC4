@@ -4,5 +4,5 @@
 
 ## Handoff
 - Goal: answer docs/specs/questions/drawing-fonts.md FN7-FN14 into docs/specs/drawing-fonts.md, archive, questions.py index.
-- Done: lane file.
+- Done: lane file; FN7 FN8 FN9 FN10 FN11 written into spec §2 §5 §7 (commit below), not yet archived.
 - Next: FN10/FN11 (ctor, Init), then FN7/FN8 (AddCharData), FN13, FN14, FN9, FN12.
