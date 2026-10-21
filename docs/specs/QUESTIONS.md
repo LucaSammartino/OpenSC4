@@ -59,6 +59,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GF | graphics-formats |
 | GLUE | lot-configuration, prop-developer |
 | GZ | framework-gz-services |
+| HD | html-document |
 | HG | foundations |
 | HW | history |
 | IN | commercial-industrial |
@@ -119,13 +120,13 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
-| advisors | 0 | 6 | AD7 | questions/advisors.md |
+| advisors | 4 | 6 | AD11 | questions/advisors.md |
 | application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 6 | 3 | AA10 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 1 | 8 | BW10 | questions/budget-window.md |
+| budget-window | 2 | 10 | BW13 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
@@ -136,7 +137,7 @@ generated index: the questions live one file per spec, so read only the file for
 | command-system | 7 | 0 | GC8 | questions/command-system.md |
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 5 | 45 | EX51 | questions/data-formats.md |
+| data-formats | 1 | 49 | EX51 | questions/data-formats.md |
 | dates | 3 | 0 | DT4 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
@@ -152,6 +153,7 @@ generated index: the questions live one file per spec, so read only the file for
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | history | 0 | 17 | HW18 | - |
+| html-document | 0 | 4 | HD5 | questions/html-document.md |
 | landfill | 0 | 36 | LF7, LG31 | - |
 | landvalue | 0 | 5 | LV6 | - |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
@@ -159,13 +161,13 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | lot-records | 5 | 0 | LR6 | questions/lot-records.md |
-| mysims | 0 | 10 | MS11 | questions/mysims.md |
+| mysims | 0 | 12 | MS13 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
 | network-occupants | 17 | 3 | NO21 | questions/network-occupants.md |
-| network-rules | 2 | 8 | NR14 | questions/network-rules.md |
+| network-rules | 2 | 9 | NR15 | questions/network-rules.md |
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
@@ -207,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **196** | **1056** | | |
+| **total** | **197** | **1069** | | |

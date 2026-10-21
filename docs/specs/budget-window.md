@@ -104,7 +104,7 @@ The window is empty until the window manager delivers the init message (§4).
 | 3 / `0x887113A4` (slider moved) | §4.4 |
 | 3 / `0xE8711255` (combo box changed) | neighbour mode: rewrite the selected deal rows (vector `+0x50..+0x54`, 24-byte entries), then `updateNeighborBudget` |
 | 5 (key down), key `0x1B` (Esc) | close: remove the child held at `+0x14` (window `+0x3C`), drop it, `end_dialog(win, 0x42B7C353)`, return 1 |
-| 5, key `0x0D` or `0x73` | the same close, **only** when modifier bit `0x4` is set; otherwise ignored |
+| 5, key `0x0D` or `0x73` | the same close, **only** when modifier bit `0x4` (Alt held, §4.0) is set; otherwise ignored |
 
 Return values *[compat]* (BW9, `0x0078BCA0`–`0x0078C1FA`): init returns `on_init`'s result; shutdown returns
 `on_shutdown`'s (always 1); a button returns `on_button_activated`'s (§5); the slider message returns **0** on every
@@ -112,9 +112,44 @@ path (also when the slider lookup fails); the combo message returns 0; the closi
 (any other key, or `0x0D`/`0x73` without bit `0x4`) and every other message return 0. For message type 5 the key
 code is the message's first data word and the modifier mask the second (`[ESP+0xCC]`, `[ESP+0xD0]`).
 
+### 4.0 Where the key message and its modifier mask come from *[compat]* (BW5)
+
+The GZ window manager's Win32 message translator (`FUN_0098D230`, two jump tables at `0x0098D71C`/`0x0098D748` and
+`0x0098D848`/`0x0098D860`) routes **both** `WM_KEYDOWN` (`0x100`) and `WM_SYSKEYDOWN` (`0x104`) to the same key-down
+builder (`0x0098D537` → `FUN_0098C400`); `WM_KEYUP`/`WM_SYSKEYUP` go to the key-up path. The builder ignores
+`VK_PROCESSKEY` (`0xE5`) and does nothing while its owner's `+0x60` is non-zero; otherwise it posts message type **5**
+with data words {virtual-key code (`wParam`), modifier mask, repeat count (`lParam & 0xFFFF`)}. The mask comes from
+`FUN_0098B6E0(lParam)`, which samples `GetKeyState` (high bit = down) at translation time:
+
+| Bit | Meaning | Source |
+|---|---|---|
+| `0x1` | Shift down | `GetKeyState(VK_SHIFT 0x10)` |
+| `0x2` | Ctrl down | `GetKeyState(VK_CONTROL 0x11)` |
+| `0x4` | **Alt down** | `GetKeyState(VK_MENU 0x12)` (`0x0098B702`–`0x0098B70A`) |
+| `0x10` / `0x20` / `0x40` | left / right / middle mouse button down | `GetKeyState(1 / 2 / 4)` |
+| `0x40000000` | key was already down (auto-repeat) | `lParam` bit 30 |
+
+The mouse-message helper `FUN_0098B750` uses the same layout (`MK_SHIFT`→1, `MK_CONTROL`→2, Alt via
+`GetKeyState(VK_MENU)`→4, buttons→`0x10`/`0x20`/`0x40`). So the dialog closes on **Alt+Enter** and **Alt+F4**
+(any other modifier bits may also be set) and ignores plain Enter and plain F4. Not proven statically: whether a
+filter earlier in the translator (the hook loop at `0x0098D2B6`–`0x0098D2F9`), a keyboard accelerator, or the
+system's own Alt+F4 handling consumes these keystrokes before the dialog sees them; that is a runtime question
+(questions/budget-window.md BW11).
+
 `on_init(win)` (`0x007876B0`): `win` null → return 0 and do nothing. If the initialised byte `+0x08` is already set →
 return 1 and do **nothing** (no second pause). Otherwise take the hidden pause, build the mode, set `+0x08 := 1` (at
 the end of each mode branch: `0x00787C4E`, `0x00787D69`, `0x007882B0`, `0x00789777`) and return 1.
+
+**Content window `+0x10`** *[compat]* (BW10a, `0x00787A9E`–`0x00787BD5`): after the pause and the string loads and
+**before** the selector branch (so in every mode), `on_init` asks GZCOM for a new object of class `0x4386D516`,
+interface `0x5386D516` (the same generic window class as the dialog, §1). If that fails, `+0x10` stays null and
+nothing below runs. Otherwise `+0x10 := ` the object's `cIGZWin` (generator slot 3 `+0x0C`), stored with a
+reference (`cRZAutoRefCount<cIGZWin>::operator=`); then, in this order, generator flags `1:=0`, `2:=0`, `0x10000:=0`,
+`0x20:=0`, `0x40:=0`, `0x1000:=1`, `0x2000:=1`, `0x4000:=1` (generator slot 6 `+0x18`); window flags `0x100:=1`,
+`0x10000:=1`, `0x200000:=0`, `0x800:=0`, `0x8000:=0`, `4:=1` (`SetFlag`, slot 68 `+0x110`); `SetID(0x0423278E)`
+(slot 64 `+0x100`); and `win.ChildAdd(+0x10)` (dialog slot 14 `+0x38`). The temporary generator reference is then
+released (`0x00787BE4`). `+0x10` is the container the mode builders lay their background segments and rows into
+(`SetupWindow` and the other populate routines read it). `on_shutdown` and the destructor release it.
 
 `on_shutdown(win)` (`0x0077E440`, BW9): if `+0x08` is 0 → return 1 with no effect. Otherwise `+0x08 := 0`; empty the
 vectors `+0x2C` (slider rows), `+0x38` (group restore pairs), `+0x44` (individual restore records), `+0x50` (deal
@@ -138,6 +173,15 @@ is open. It then branches on the selector (`+0x20`, `0x00787BE7`):
   starting funding fraction of each department saved (vector `+0x38..+0x3C`, 8 bytes each), totals with
   `SC4MakeMoneyString`. Groups `0x6A357B96`, `0xEA597195`, `0x0A5A72D1` differ only in which department header rows
   are shown (§4.1).
+- **Order and the empty group** *[compat]* (BW10b): `+0x38` is emptied (`0x00787F8B`) and then filled **inside the
+  row-counting loop**, one pair per department returned by `GetDepartmentBudgetsInGroup`, before any visibility test:
+  {the f32 read through department slot 10 (`+0x28`, which returns a pointer), the department with a reference}
+  (`0x00787FDB`–`0x00788045`). The empty test comes after the loop (`0x0078822C`–`0x00788242`): when both row counts
+  `+0x124` and `+0x128` are 0, `on_init` calls `SetEmptyWindow` (`0x0077BEC0`, which touches neither vector) and
+  skips the slider rows: `+0x2C` stays empty, but `+0x38` **keeps** one saved pair per group department (a group
+  whose departments are all hidden still has pairs; only a group with no departments has none). A later
+  `RestoreStartSettings` on such a window writes each saved fraction back unchanged. The empty branch also creates no
+  scroll arrows (they are built at the end of the non-empty branch, below).
 
 ### 4.1 Group mode: the two lists and the special groups *[compat]* (BW1, BW7a)
 
@@ -258,6 +302,22 @@ visible), with no null check of the child.
 So the largest position is the first even value with `pos + 9 ≥ len` (for `len = 12`: 0 → 2 → 4, and 4 shows rows
 4–12, one past the end; the row builders skip missing rows). A down press on a list that fits (`len ≤ 9`) does not move
 but **shows** the up arrow. Nothing hides the arrows at open time in this routine; `on_init` sets their initial state.
+
+**Initial arrow state** *[compat]* (BW10c, group mode, `0x007895A0`–`0x0078973A`): at the end of the non-empty group
+branch `on_init` creates the four arrows with `add_image_button2` (up arrows image `0x140155CB`, down arrows
+`0x140155CC`), sets each one's notification target to the dialog (child slot 86 `+0x158`), then:
+
+| Arrow | Initial state |
+|---|---|
+| `0x451` A up | hidden, always |
+| `0x452` A down | hidden when `+0x124 ≤ 9` (unclamped count, `0x007896C9`); otherwise left as created |
+| `0x453` B up | hidden, always |
+| `0x454` B down | hidden when `+0x128 ≤ 9` (`0x00789714`); otherwise left as created |
+
+Hiding is `GetChild(id)` then `SetFlag(1, 0)`, as above. After this `+0x08 := 1` (`0x00789777`). The empty-group
+branch (§4, BW10b) creates no arrows at all. `initOrdinanceBudget` (`0x0077D620`–`0x0077D780`) and
+`initNeighborBudget` (`0x00781AD1`–`0x00781C4D`) have their own copies of the same create-then-hide sequence; their
+comparison bounds were not byte-checked here ([unsettled: BW12](questions/budget-window.md)).
 
 Refresh after the move (no `UpdateValues` unless stated):
 
@@ -384,9 +444,9 @@ many money messages arrive. `ShowWindow` (`0x00768670`) refreshes immediately an
 
 ## 8. Open work (docs/specs/questions/budget-window.md)
 
-BW1–BW4 and BW6–BW9 are answered (re-budgetwindow4, 2026-10-21; archive `questions/answered/budget-window.md`).
-Still open: **BW5**, the meaning of key-message modifier bit `0x4` (Alt is the guess; the bytes only show the test at
-`0x0078BCF0`), which needs a game check. Not covered: pixel layout of the four populate routines, the fill point of
+BW1–BW10 are answered (re-budgetwindow4 and re-budgetwindow-answers4, 2026-10-21; archive
+`questions/answered/budget-window.md`). Still open: **BW11**, whether Alt+Enter / Alt+F4 actually reach the dialog
+at runtime (§4.0). Not covered: pixel layout of the four populate routines, the fill point of
 the individual restore records in `initIndividualBudget` (`0x00786690`), and whether the generator's window
 procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
 
@@ -412,3 +472,11 @@ procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
 12. Scrolling list A with `len = 12`: positions 0 → 2 → 4, a fourth down press stays at 4; scrolling down on `len = 5`
     stays at 0 and shows the up arrow.
 13. Group slider at position 30 passes `0x3E999999` (f32 product) to `SetFundingPercentage`.
+14. Key message type 5 with key `0x0D` and mask `0x4` (or `0x5`, `0x40000004`) closes and returns 1; mask `0x1`,
+    `0x2` or `0` returns 0 with no effect. The same for key `0x73`.
+15. After `on_init` in any mode with a working GZCOM, `+0x10` is non-null, has ID `0x0423278E` and is a child of the
+    dialog; after `on_shutdown` it is null.
+16. Group with departments but both row counts 0: after `on_init`, `+0x2C` is empty, `+0x38` holds one pair per
+    department, and no arrow `0x451`–`0x454` exists.
+17. Group mode with `+0x124 = 9`, `+0x128 = 10`: after `on_init` arrows `0x451`, `0x452`, `0x453` are hidden and
+    `0x454` is in its created state.

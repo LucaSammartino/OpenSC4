@@ -360,7 +360,7 @@ nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
 cGZAlphaBlt	2D drawing and fonts	renderer	-	-	-	-
 cGZCanvas*	2D drawing and fonts	renderer	-	-	-	-
 CachedBitmapData	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
-cGZFont*	2D drawing and fonts	renderer	-	-	-	-
+cGZFont*	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
 cFontCOMDirector	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
 cRZTileSetup	2D drawing and fonts	renderer	-	-	-	-
 cRZSpanList	2D drawing and fonts	renderer	-	-	-	-
@@ -394,6 +394,7 @@ fn:script_tag_*	widget toolkit	ui	-	-	-	-
 fn:GetGZWinFont	widget toolkit	ui	-	-	-	-
 cGZGraph	widget toolkit	ui	-	-	-	-
 cGZ*Graph	widget toolkit	ui	-	-	-	-
+cHTMLDocument	widget toolkit	ui	html-document.md	-	-	-
 cHTML*	widget toolkit	ui	-	-	-	-
 cGZUIScript*	widget toolkit	ui	-	-	-	-
 cSC4ScriptedWindowCOMDirector	widget toolkit	ui	-	-	-	-

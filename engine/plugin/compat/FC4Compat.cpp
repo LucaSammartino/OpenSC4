@@ -57,6 +57,22 @@ const ExecutableVersion kVersions[] = {
             0x005E37F0,  // cSC4LotRetainingWallOccupant::UpdateRetainingWalls
             0x005E3960,  // cSC4LotRetainingWallOccupant::UpdateSurroundingRetainingWalls
             0x005EEB70,  // cSC4PropOccupantBurntBuilding::SetBoundsFromOccupant (direct-calls.md; LD14)
+            0x0041DB50,  // advisor win proc constructor (advisors.md §12.1.1 Direct-call ABI; AD4)
+            0x0041E320,  // advisor win proc Init
+            0x0041D650,  // advisor win proc show (slot 25)
+            0x0041D710,  // advisor win proc HideWindow (slot 26)
+            0x0041D830,  // advisor win proc teardown (slot 28)
+            0x0040C720,  // game.tool_plop_network (advisors.md §8.3.1 row 1; AD5)
+            0x0040C740,  // game.tool_plop_zone
+            0x0040C760,  // game.tool_plop_building
+            0x0040C780,  // game.tool_plop_flora
+            0x0040C8B0,  // game.tool_button
+            0x0040C870,  // game.window_budget
+            0x0040C850,  // game.window_map
+            0x0040C890,  // game.window_graph
+            0x0040C9B0,  // game.window_query
+            0x0040AF90,  // game.camera_jump (advisors.md §8.3.2; AD6)
+            0x0040B1F0,  // game.camera_zoom
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -94,7 +110,9 @@ const ExecutableVersion kVersions[] = {
         // glue-span4444-impl4: cSpanRender4444's shared static vtable and slots 1-5
         // (span-render-4444.md §1, §1.1).
         0x00AC185C,
-        {0x00847CE0, 0x00847D30, 0x00847E40, 0x00847F10, 0x008480C0},
+        {0x00847CE0, 0x00847D30, 0x00847E40, 0x00847F10, 0x008480C0,
+        0x00B207C0,  // the advisor system's private global (advisors.md §14.2, §8.3.1),
+},
     },
 };
 
@@ -491,7 +509,14 @@ uintptr_t DirectCall(Direct which) {
                                          "lot pool allocate",     "lot constructor",
                                          "GenericConfirmationDialog",
                                          "AddRetainingWallOccupant", "UpdateRetainingWalls",
-                                         "UpdateSurroundingRetainingWalls", "burnt building SetBoundsFromOccupant"};
+                                         "UpdateSurroundingRetainingWalls", "burnt building SetBoundsFromOccupant",
+                                         "advisor win proc constructor", "advisor win proc Init",
+                                         "advisor win proc show", "advisor win proc hide",
+                                         "advisor win proc teardown", "lua tool_plop_network",
+                                         "lua tool_plop_zone", "lua tool_plop_building", "lua tool_plop_flora",
+                                         "lua tool_button", "lua window_budget", "lua window_map",
+                                         "lua window_graph", "lua window_query", "lua camera_jump",
+                                         "lua camera_zoom"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};
@@ -666,6 +691,25 @@ const void* ParkManagerVtable() {
         }
     }
     return state == 1 ? vtable : nullptr;
+}
+
+void** AdvisorSystemGlobal() {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static void** slot = nullptr;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        if (v == nullptr) {
+            Log("compat: advisor system global NOT available (executable not identified)");
+        } else if (v->advisorSystemGlobalVA == 0 || v->advisorSystemGlobalVA % 4 != 0 ||
+                   !CheckAddress("advisor system global", v->advisorSystemGlobalVA, v->imageBase)) {
+            Log("compat: advisor system global NOT available (address rejected)");
+        } else {
+            slot = reinterpret_cast<void**>(static_cast<uintptr_t>(v->advisorSystemGlobalVA));
+            state = 1;
+        }
+    }
+    return state == 1 ? slot : nullptr;
 }
 
 const ExecutableVersion* SupportedVersions(int* count) {

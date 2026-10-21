@@ -44,6 +44,8 @@ mod sim;
 #[cfg(test)]
 mod dispatch_tests;
 #[cfg(test)]
+mod pool_tests;
+#[cfg(test)]
 mod tests;
 
 pub use agent::{AgentState, MySimAgent};

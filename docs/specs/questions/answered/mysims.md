@@ -46,3 +46,21 @@
   Core models only name/portrait/bio fields. [inferred]
   **ANSWERED 2026-10-21 (re-mysims-contracts4):** DIFFERS — templates = exemplars (type 0x6A297266, ExemplarType 0x26) plus MySim\MySims.dat records (magic 0x4A32E4AA; u8-length name, u8 male, u8 sign, u8-length portrait); Import reads The Sims UserData[i]\Export *.pub/.ini families; registry SIMS_DATA then InstallPath; mysims.md §4.12
   **CLOSED 2026-10-21 (re-mysims-contracts4, round 2):** the three items left inferred are now byte-read: gender IsEqual flag 0 = ASCII case-insensitive via MakeLower + memcmp (0x0090EC57, call 0x0043CDC2); portrait = record bytes + `.bmp` with no directory, joined to GetMySimDirectory() only at display (PickHead 0x007757F0); after Import with count > 0 and the cache loaded, 0x0043BB90 clears the cache and the loaded flag is reset (0x0043D006). Template offsets corrected (+0x00 bitmap, +0x04 portrait, +0x18 name, +0x2C male, +0x2D sign). mysims.md §4.12
+<!-- from: core-mysims-pool4 (2026-10-21) -->
+- **MS11 - section 4.7.1:** dispatch location details the job-search core needs: (a) when is a location "valid"
+  for `SetCurrentCommuteDestination` step 1 beyond "the default (occupant flag set, cells -1) is invalid"?
+  [occupant flag set: valid iff an occupant is held; flag clear: valid iff both cells >= 0]; (b) the default bytes of
+  the neighbour-city fields `+0x14`/`+0x18` [not written; modelled as absent]; (c) what cell `SetByOccupant`
+  stores (the lot cell reported with `0xEBA06BF4`) [the search's end cell]; (d) is dispatch `+0x40` the trip state of
+  section 4.6 [kept as its own field]; (e) the `notify` argument `ChangeJob(b)` passes [false: no `0xEBA06BF4`].
+  **ANSWERED 2026-10-21 (re-mysims-pool-answers4):** DIFFERS — (a) IsValid 0x00434F90: flag +0x1C set → valid iff 0 ≤ cell < city cell count on both axes (occupant not consulted); flag clear → region GetCity(+0x14,+0x18) non-null and a non-empty GetConnectionsOfTypeToCity for one of Highway, GroundHighway, Avenue, Road, DirtRoad, Rail, LightRail, Monorail, Subway (no Ferry). (b) default +0x14/+0x18 = −1/−1 (ctor 0x00431320), +0x20/+0x24 = 0, world −16.0. (c) SetByOccupant 0x00431430 resets to default (byCommute 0) then cell = floor(occupant GetPosition x,z / 16). (d) +0x40 IS the trip state: setState 0x00431C10 sends 0x4BB2CFC0(old,new) that feeds §4.6. (e) ChangeJob passes notify = true (0x00425D99): 0xEBA06BF4 is sent. Rules in mysims.md §4.7.1 "Dispatch location contract".
+<!-- from: core-mysims-pool4 (2026-10-21) -->
+- **MS12 - section 4.12:** pool details left open: (a) the template fields when an exemplar property is absent
+  (`0xEA296F8D`, `0xEA296F8F`, `0xEA296F91`, `0xEA296F90`) [0 / empty / false / 0]; (b) the ini reader's section and
+  key matching (case) and its integer parse for `sims_family_nummembers` / `_guid` [exact bytes; atoi-like decimal];
+  (c) the exact bytes of the picture folder ("install path, `Web Pages` and `FamilyGFX` with that value") and of the
+  `family<k>_face.jpg` source [`<install>\Web Pages\FamilyGFX\<value>\family<k>_face.jpg`]; (d) `F.ini` directory
+  [the `Export` directory of `F.pub`]; (e) `Import` record strings longer than 255 bytes [cut to 255];
+  (f) `<path>\UserData` when the registry path already ends in `\` [plain concatenation, double separator kept];
+  (g) the "male" text or a zodiac name failing to load [empty string].
+  **ANSWERED 2026-10-21 (re-mysims-pool-answers4):** DIFFERS — (a) absent props write nothing and the template ctor 0x008B5E70 leaves bitmap/is-male/sign uninitialised: name and portrait empty, the other three indeterminate in the original (reimplement as 0/false/0). (b) cRZIniFile ReadEntry/ReadNumber: ASCII case-insensitive section/key, sscanf("%ld") decimal; nummembers result untested, unsigned k ≤ n loop. (c) picture folder = <ud>\Web Pages\<value>\FamilyGFX\ under the UserData dir (not install path); source cRZPath name family<k>_face ext .jpg. (d) F.ini = Export dir + name minus last 4 bytes + .ini (MATCHES). (e) length byte = len mod 256, that many bytes written (not cut to 255). (f) "%s%sUserData" with "\" always inserted: double separator kept (MATCHES). (g) cSLString miss → empty string (MATCHES). Rules in mysims.md §4.12.

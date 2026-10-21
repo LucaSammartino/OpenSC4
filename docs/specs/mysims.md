@@ -400,6 +400,51 @@ A default location is invalid (occupant flag set, cells −1), so:
    unvalidated (no search). Otherwise run **`validateCommuteLocation`** (below); false → return false.
 3. Store the location; if `notify`, notify the MySim with `0xEBA06BF4` (§4.7 handler); return true.
 
+The caller's location is copied first (the copy holds its own reference on the occupant); step 3 assigns the copy
+to `+0xD4` (the old destination's occupant is released, the new one referenced) and the copy is released on every
+exit. A valid location with `notify` true still notifies. (answers MS11)
+
+**Dispatch location (`cLocation`, 0x28 bytes) contract** *[compat]*:
+
+| Offset | Field | Default (`0x00431320`) |
+|---|---|---|
+| `+0x00` | occupant (referenced) | null |
+| `+0x04`, `+0x08` | world x, z (float) | −16.0, −16.0 (= 16 × cell) |
+| `+0x0C`, `+0x10` | cell x, z | −1, −1 |
+| `+0x14`, `+0x18` | neighbour city's region position x, z | **−1, −1** |
+| `+0x1C` | "in this city" flag (the "occupant flag" above) | 1 |
+| `+0x1D` | byCommute | 0 |
+| `+0x20`, `+0x24` | (copied, never read here) | 0, 0 |
+
+- **`IsValid`** (`0x00434F90`): flag `+0x1C` set → valid iff `0 ≤ cellX < cellCountX` and `0 ≤ cellZ <
+  cellCountZ` (city `+0x174` / `+0x178`); **the occupant is not consulted** (a location with an occupant and cells
+  −1 is invalid; cells in range without an occupant are valid). Flag clear → valid iff the region (app slot 35,
+  `GetCity(+0x14, +0x18)` slot 11) returns a city **and** the neighbours simulator (`0x00B43D8C`, slot 18
+  `+0x48`, `GetConnectionsOfTypeToCity(type, city, list)`) returns a non-empty list for at least one of the types,
+  tried in this order with a stop at the first hit: Highway 3, GroundHighway 12, Avenue 8, Road 2, DirtRoad 10,
+  Rail 1, LightRail 7, Monorail 11, Subway 6 (table `0x00B07DD0`, terminator 13). Ferry, power and pipe
+  connections never make a neighbour location valid.
+- **`SetByOccupant(o)`** (`0x00431430`): first resets **every** field to the default above (so byCommute becomes 0
+  and `+0x14`/`+0x18` −1), then flag `+0x1C` := 1, holds `o` (reference the new, release the old); if `o` is
+  non-null: world x, z := `o.GetPosition()` (cISC4Occupant slot 8) x and z, and cell := `floor(world / 16)` per
+  axis (single precision, `0x00431370`). A null `o` leaves cells −1 (invalid). Returns true. Callers that need
+  byCommute set it again afterwards: `ChangeJob` and `validateCommuteLocation` (which restores the byCommute it had
+  before the call, i.e. 1).
+- **`+0x40` is the dispatch's trip state**: written only by dispatch `setState(s)` (`0x00431C10`): old := `+0x40`
+  (kept at `+0x44`), `+0x40` := s; s = 3 also ORs `2` into dispatch flags `+0x48` (notification `0x4BB2D020`
+  when they change); if old ≠ s, notification `0x4BB2CFC0(old, s)`, which is how §4.6 receives `newTripState` /
+  `oldTripState`. So the value tested in step 2 (= 2) is the same trip state §4.6 sees, owned by the dispatch;
+  the MySim only learns it through the notification.
+
+**Callers of `SetCurrentCommuteDestination`** (all pass `notify = true`):
+
+| Caller | Location passed | Effect |
+|---|---|---|
+| `FindNewJob` (`0x00425A30`) | default, byCommute 1 | invalid → search (or stored as is when trip state = 2) |
+| `ChangeJob(b)` (`0x00425D70`) | `SetByOccupant(b.slot3())` (cISC4BuildingOccupant slot 3 `+0x0C`, an ICF-folded getter returning `b`'s cISC4Occupant), then byCommute 1 | `b` inside the city → valid → stored **without search**, `0xEBA06BF4` sent; null occupant → invalid → a normal job search runs instead |
+| `FailCommute` (`0x0042C8E0`) | default, byCommute 1 (after `QuitJob` and the event) | the same as `FindNewJob`: a **new job search**, not a plain reset; only at trip state 2 is the default (empty) destination stored |
+| `SetResidence` (`0x0042E020`, call `0x0042E28B`) | default, byCommute 1 | the same search, then `DispatchCommute` |
+
 **`validateCommuteLocation(loc)`** (`0x00432F50`) uses the dispatch's own pathfinder (created once in dispatch
 `Init` with the traffic simulator's `CreatePathFinder`, kept for the dispatch's lifetime). In this order:
 
@@ -445,12 +490,18 @@ Worked examples (conformance):
 | no home (flag `0x80` clear) | — | no pathfinder configuration beyond `resetPath`; `FindNewJob` false; no `0xEBA06BF4` |
 | end cell (−1, 37), neighbour city found, city 64×64 | — | location cell (0, 37), no occupant; true |
 | end cell in city, lot without building | — | false |
+| `IsValid` of default location | — | false (cells −1) |
+| `IsValid`, flag 1, no occupant, cell (3, 4), city 64×64 | — | true |
+| `IsValid`, flag 1, cell (64, 0), city 64×64 | — | false |
+| `IsValid`, flag 0, region city at (+0x14,+0x18) with only a Ferry connection | — | false; with a Subway one → true |
+| `SetByOccupant(o)`, o at world (175.9, y, 32.0) | — | cell (10, 2), byCommute 0, `+0x14`/`+0x18` −1 |
+| `ChangeJob(b)`, b in city, trip state any | — | stored, no pathfinder call, one `0xEBA06BF4`, true |
 
 **`ChangeJob(b)`** (slot 8): set the dispatch commute destination to building `b`; result of the dispatch.
 
 **`CheckCommute()`**: creates a pathfinder from the home lot rectangle to the job lot rectangle (or the
 neighbour cell), runs it, and on success stores `lastCommuteTime := uint(trunc(max(0, totalTime)))`. On failure
-→ **`FailCommute`**: `QuitJob()`, push event `MYSIM_COMMUTE_FAILED` `0xCA4553B7`, reset the commute destination.
+→ **`FailCommute`**: `QuitJob()`, push event `MYSIM_COMMUTE_FAILED` `0xCA4553B7`, then `SetCurrentCommuteDestination(default, notify = true)`: a new job search (callers table above), which leaves the destination empty only when the search fails or trip state is 2.
 The pathfinder's slot use is in §7.2.
 
 **`QuitJob()`** (state ≠ 0): drop the job (or the neighbour city and its cells); if state ≠ 5, state := 2;
@@ -602,6 +653,14 @@ property `0x10` (exemplar type) = `0x26`. Fields: bitmap ID := property `0xEA296
 named by property `0xCA416B3F` (`SC4LoadExemplarString` with the key's group/instance), else property
 `0xEA296F8F`; is-male := property `0xEA296F91`; sign := property `0xEA296F90`. Appended.
 
+Absent properties (answers MS12 a): every `cSCPropertyHelp::GetPropertyValue` (`0x005FD480` u32, `0x005FD570`
+string, `0x005FD390` bool, `0x005FD3C0` u8) returns false and **writes nothing** when the property is missing, and
+`SC4LoadExemplarString` writes the name only on success (crime.md §7). The template constructor (`0x008B5E70`)
+initialises only the two strings (empty) and `+0x28`; bitmap ID `+0x00`, is-male `+0x2C` and sign `+0x2D` are
+**not initialised** (stack bytes of the callback frame). So: name absent (no LTEXT and no `0xEA296F8F`) → empty;
+portrait name of a built-in → always empty; bitmap ID / is-male / sign absent → indeterminate in the original
+*[compat-undefined]*; a reimplementation uses 0 / false / 0 (shipped MySim exemplars carry all four).
+
 **`LoadImports`**: open `<GetMySimDirectory()>MySims.dat` with access read, creation "open existing", share read (framework-rz-files.md §2.3). Missing file or first 4 bytes
 ≠ `0x4A32E4AA` (little-endian `AA E4 32 4A`) → nothing added. Then records until any read fails (a truncated
 record is dropped):
@@ -641,25 +700,47 @@ result is false. No value → false. Otherwise true.
 image converter (GZCOM class `0xA2FFB5D3`, interface `0x02FFBB60`); none → return. Open `MySims.dat` for **write,
 create-always (truncate), share read** and write the 4 magic bytes; failure → return. Then for `i` = 1…99:
 
-1. Directory `<path>\UserData` for `i` = 1, `<path>\UserData<i>` otherwise; missing → next `i`.
-2. List `<dir>\Export\*.pub`. For each file `F.pub`: `F.ini` must exist (open read / open existing) and parse as an
-   ini file, else skip the file.
-3. `[WebPages] FamilyDescription` is required (else skip the file); a trailing `/` is cut. The family's picture
-   folder is built from the install path, `Web Pages` and `FamilyGFX` with that value.
+1. Directory = `Sprintf("%s%sUserData", path, "\")` for `i` = 1, `Sprintf("%s%sUserData%d", path, "\", i)`
+   otherwise (`0x0043C04F` / `0x0043C072`; `path` = pool `+0x18`, `i` plain decimal): the `\` is **always**
+   inserted, so a path already ending in `\` gives `...\\UserData` (double separator kept, passed as is to
+   `DoesDirectoryExist`); missing → next `i`. Call this `<ud>` below. (answers MS12 f)
+2. List `<ud>\Export\` (`<ud>` + `\` + `Export` + `\`) with filter `*.pub`. For each entry: `F.ini` = that
+   directory + the entry name with its **last 4 bytes** dropped (`Left(len − 4)`, `0x0043C3CA`) + `.ini` — the
+   `.ini` sits next to the `.pub` in the `Export` directory (answers MS12 d). It must exist (open read / open
+   existing) and parse as an ini file, else skip the file.
+3. `[WebPages] FamilyDescription` is required (else skip the file); its encoding is converted, then **one**
+   trailing `/` is cut (`EndsWith("/")` → length − 1; `\` is not cut). The family's picture folder is, byte for
+   byte, `<ud>` + `\` + `Web Pages` + `\` + value + `\` + `FamilyGFX` + `\` (`0x0043C5AD`–`0x0043C64E`): it
+   lies under the **UserData directory**, not under the install path (answers MS12 c).
 4. `[FamilyInfo]`: `sims_family_nummembers` (integer), `sims_family_name`. For member `k` = 1…n:
    `sims_familymember<k>_name`, `_gender`, `_zodiac` (lower-cased), `_guid` (integer; missing → skip member).
-   Portrait: convert `family<k>_face.jpg` in the picture folder to `<first>_<guid in lower hex>.bmp` in the MySim
-   directory (`0x0043ABE0`); failure → skip member.
+   Portrait: convert the source `cRZPath(<picture folder>)` with extension `.jpg` and file name
+   `Sprintf("family%d_face", k)` (paths.md §2: `GetPath` = resolved folder + name + `.jpg`, e.g.
+   `<ud>\Web Pages\<value>\FamilyGFX\family2_face.jpg`) to the destination `cRZPath(GetMySimDirectory())` with
+   extension `.bmp` and file name `Sprintf("%s_%x", first, guid)` (`0x0043ABE0`); failure → skip member.
+   Ini reads (answers MS12 b) use `cRZIniFile` `ReadEntry` (slot 6) and `ReadNumber` (slot 7) of
+   framework-rz-files.md §3.5: section and key match ASCII case-insensitively; numbers are `sscanf("%ld")`
+   (leading blanks, optional sign, decimal only, stops at the first non-digit; a miss writes nothing).
+   `_guid` uses the `ReadNumber` result (false → skip member). `sims_family_nummembers`'s result is **not
+   tested**; the member loop runs `k = 1` while `k ≤ n` **unsigned** (`0x0043C84D`, `0x0043CE8A`), so n = 0 → no
+   members and a negative n would loop over 2^32 − |n| keys (each failing `_name` and skipping).
 5. Write one record (table above): name `"<first> <family>"`, is male := gender equals the "male" text
    (`cRZString::IsEqual` `0x0090EC57` called at `0x0043CDC2` with the case-sensitive flag = 0; see "Gender test"
    below), sign := zodiac index
-   (below), portrait name `<first>_<guid>`; `count += 1`.
+   (below), portrait name `<first>_<guid>`; `count += 1`. Each string is written as a u8 length = **byte length
+   mod 256** followed by that many bytes (`0x0043CD79`, `0x0043CE0C`): a 300-byte name is stored as length 44 and
+   its first 44 bytes, not cut to 255 (answers MS12 e). The record stays readable by `LoadImports`.
 6. Close and delete `F.ini`.
 
 Zodiac index: compare the lower-cased value with the 12 localized names (group `0x6A231EAA`, instances
 `0xEA822E90 0xCA822E93 0xCA822E97 0xAA822E9B 0xCA822EA4 0xAA822EA8 0xCA822EAC 0xCA822EAF 0xCA822EB3
 0x6A822EB6 0x6A822EB9 0xEA822EBD`, table `0x00A85AA4`), each lower-cased; first exact match → its index 0–11; none
 → 0 (a debug text "Unknown zodiac symbol" is formatted, nothing shown).
+
+Text that fails to load (answers MS12 g): the "male" text and the zodiac names are `cSLString` objects
+(`0x00603580`, neighbors.md: a missing LTEXT leaves the string **empty**). An empty "male" text makes exactly the
+members with an empty `_gender` male; an empty zodiac name matches an empty `_zodiac` value (first such index
+wins), and no longer matches anything else.
 
 **Gender test** (`IsEqual(const cIGZString&, bool caseSensitive)` `0x0090EC57`; the flag pushed at `0x0043CDB2` is
 `EBX`, zeroed at `0x0043BC48` and never written again in `Import`): lengths differ → false. Flag ≠ 0 would compare
@@ -690,6 +771,12 @@ Examples (conformance):
 | cache, count 2, loaded | `GetMySimTemplates` called before `Import` | cache cleared, flag 0; next call returns built-ins + 2 new imports |
 | cache, count 0, loaded | as above, no family found | flag stays 1; next call still returns the old imports |
 | cache, not loaded | `Import` before any `GetMySimTemplates` | nothing cleared; first call reads the new file |
+| UserData path | path `D:\Sims\`, i = 1 / 3 | `D:\Sims\\UserData` / `D:\Sims\\UserData3` (double `\` kept) |
+| ini next to pub | `<ud>\Export\Smith.pub` | `<ud>\Export\Smith.ini` |
+| picture folder | FamilyDescription `smith1/` | `<ud>\Web Pages\smith1\FamilyGFX\`, source `...\FamilyGFX\family1_face.jpg` |
+| long name | first+family = 300 bytes | record length byte 44, 44 name bytes |
+| ini number | `sims_familymember1_guid = 0x1F` / ` 42abc` / missing | 0 / 42 / member skipped |
+| missing "male" LTEXT | gender `` / `Male` | male / not male |
 
 ## 5. Messages and events posted
 
