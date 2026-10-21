@@ -1013,3 +1013,64 @@ fn shutdown_stops_without_posting() {
     assert_eq!(m.effect_count(), 0);
     assert!(h.events.contains(&Ev::EndLong));
 }
+
+// ---- re-answers34 (EF1, EF4, EF5) -------------------------------------------------------------
+
+#[test]
+fn t17_dilation_table() {
+    use super::dilation::{animation_time_dilation, SimTimeState};
+    let s = |emergency_paused, driving, paused, hidden_paused, speed| SimTimeState {
+        emergency_paused,
+        driving,
+        paused,
+        hidden_paused,
+        speed,
+    };
+    assert_eq!(animation_time_dilation(&s(false, false, true, false, 2)), 0.0);
+    assert_eq!(animation_time_dilation(&s(true, false, true, false, 2)), 1.0);
+    assert_eq!(animation_time_dilation(&s(false, true, true, false, 1)), 1.0);
+    assert_eq!(animation_time_dilation(&s(false, false, false, false, 0)), 1.0);
+    assert_eq!(animation_time_dilation(&s(false, false, false, false, 1)), 1.5);
+    assert_eq!(animation_time_dilation(&s(false, false, false, false, 2)), 2.0);
+    // A hidden pause changes nothing (EF5).
+    for speed in 0..3 {
+        assert_eq!(
+            animation_time_dilation(&s(false, false, false, true, speed)),
+            animation_time_dilation(&s(false, false, false, false, speed))
+        );
+    }
+}
+
+#[test]
+fn paused_tick_runs_with_zero_dt() {
+    // Paused: dilation 0.0, the tick still counts but nothing advances.
+    let dir = one_effect("stroke", vec![ComponentRecord::new(component_type::BRUSH, 2)]);
+    let mut m = manager(dir);
+    let mut h = Host::new();
+    h.dilation = Some(0.0);
+    let id = started(&mut m, &mut h, "stroke", 100.0, 100.0);
+    let before = brush_of(&m, id);
+    for _ in 0..10 {
+        m.tick(33_333, &mut h);
+    }
+    assert_eq!(m.total_time().0, 0);
+    assert_eq!(m.stats().ticks, 10);
+    assert_eq!(brush_of(&m, id).t, before.t);
+    assert!(m.effect(id).unwrap().active);
+}
+
+#[test]
+fn effects_tick_activates_the_leftover_new_list() {
+    // §6.1 / EF4: the per-animation-tick DoEffectsTick runs the activation.
+    let dir = one_effect("loop", vec![ComponentRecord::meta("loop")]);
+    let mut m = manager(dir);
+    let mut h = Host::new();
+    m.create("loop").unwrap();
+    assert_eq!((m.effect_count(), m.active_list().len()), (11, 10));
+    assert_eq!(m.effects_tick(&mut h), 10);
+    assert_eq!((m.effect_count(), m.active_list().len()), (21, 20));
+    let dir = one_effect("stroke", vec![ComponentRecord::new(component_type::BRUSH, 2)]);
+    let mut m = manager(dir);
+    m.create("stroke").unwrap();
+    assert_eq!(m.effects_tick(&mut h), 0);
+}

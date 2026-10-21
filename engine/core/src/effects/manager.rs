@@ -389,6 +389,27 @@ impl EffectsManager {
         self.activate_new(Some(host));
     }
 
+    /// The internal message `0x697D01ED` (`DoEffectsTick`, §6.1, §12,
+    /// EF4): posted by the callback the manager registers with the
+    /// animation-tick manager, so it arrives once per animation tick in any
+    /// session that ticks. Its simulation-visible part is
+    /// `ActivateNewVisualEffects` (§5.1): effects created since the last
+    /// activation are moved to the active list and built. In the core that
+    /// is a meta chain deeper than one activation's 10 rounds; the original
+    /// also defers effects created during a draw-pass sweep (`+0x1B4`),
+    /// which the core's sweep cannot create. Returns how many effects were activated.
+    ///
+    /// [choice, EF12] Only the activation runs here: the spec names the
+    /// route `UpdateActiveVisualEffects` → `ActivateNewVisualEffects` but
+    /// also says a select group draws only when a component is created
+    /// (§5.3, once per effect), so the active effects are not rebuilt per
+    /// tick. The render parts (queued effect files, snowline) are the host's.
+    pub fn effects_tick(&mut self, host: &mut dyn EffectsHost) -> usize {
+        let before = self.active.len();
+        self.activate_new(Some(host));
+        self.active.len() - before
+    }
+
     // ---- references ---------------------------------------------------------------------------
 
     pub fn add_ref(&mut self, id: EffectId) -> bool {
@@ -627,19 +648,11 @@ impl EffectsManager {
     /// `DoAnimationTick` (§6): `dt' := trunc(r24(µs × dilation))` (µs
     /// without a simulator), added to the total; every started effect on the
     /// active list, in list order, is updated with `dt = r24(dt' × 1e-6)`
-    /// seconds. Runs while the game is paused.
+    /// seconds. Runs while the game is paused, but the shipped dilation is
+    /// then 0.0 ([`super::dilation`]), so every update runs with `dt = 0`
+    /// (§6 quirk, quirk 3, re-answers34).
     pub fn tick(&mut self, us: u32, host: &mut dyn EffectsHost) {
-        let dtp: u64 = match host.simulator() {
-            Some(d) => {
-                let v = r24(f64::from(us) * f64::from(d));
-                if v.is_nan() || v <= 0.0 {
-                    0
-                } else {
-                    (v.trunc() as u64).min(u64::from(u32::MAX))
-                }
-            }
-            None => u64::from(us),
-        };
+        let dtp: u64 = super::dilation::dilated_us(us, host.simulator());
         self.total_us = self.total_us.wrapping_add(dtp);
         self.total_seconds = r24(self.total_us as f64 * 1e-6) as f32;
         let dt = r24(dtp as f64 * 1e-6) as f32;

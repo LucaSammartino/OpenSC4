@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "effects_dilation_table",
+  "spec": ["effects 6", "effects 17"],
+  "description": "Test 17: the shipped dilation table. Paused 0.0 (dt' 0), emergency-paused or U-Drive-It driving 1.0, speed 0 1.0, speed 1 1.5, speed 2 2.0; a hidden pause changes nothing.",
+  "steps": [
+    {"op": "ef_dilation", "paused": true, "speed": 2, "expect": 0.0, "us": 33333, "expect_us": 0},
+    {"op": "ef_dilation", "paused": true, "emergency_paused": true, "expect": 1.0},
+    {"op": "ef_dilation", "paused": true, "driving": true, "speed": 1, "expect": 1.0},
+    {"op": "ef_dilation", "speed": 0, "expect": 1.0, "us": 33333, "expect_us": 33333},
+    {"op": "ef_dilation", "speed": 1, "expect": 1.5, "us": 33333, "expect_us": 49999},
+    {"op": "ef_dilation", "speed": 2, "expect": 2.0, "us": 33333, "expect_us": 66666},
+    {"op": "ef_dilation", "speed": 2, "hidden_paused": true, "expect": 2.0},
+    {"op": "ef_dilation", "speed": 0, "hidden_paused": true, "expect": 1.0}
+  ]
+}

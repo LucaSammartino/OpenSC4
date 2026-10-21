@@ -10,7 +10,11 @@
 //! the dilated animation tick, finishing and the end message
 //! ([`EffectsManager`]), the brush effect ([`brush`]) and the game effect
 //! ([`game`]), and the shipped records and disaster mapping as data
-//! ([`shipped`]).
+//! ([`shipped`]). After re-answers34: the shipped animation time dilation
+//! table ([`dilation`], §6, EF5), the particle component's stop protocol
+//! and emitter self-stop ([`particles`], §7.1, EF1) and the per-tick
+//! activation ([`EffectsManager::effects_tick`], §6.1, EF4); the open
+//! choices there are EF11-EF13.
 //!
 //! Out of scope (the host's): drawing, particles, decals, sounds, the
 //! effect maps and the automata attractors. Their components exist in the
@@ -31,9 +35,11 @@
 //! child is also on the active list (EF9).
 
 pub mod brush;
+pub mod dilation;
 pub mod directory;
 pub mod game;
 mod manager;
+pub mod particles;
 pub mod shipped;
 
 #[cfg(test)]

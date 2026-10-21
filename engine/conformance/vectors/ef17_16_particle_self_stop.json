@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "effects_particle_self_stop",
+  "spec": ["effects 7.1", "effects 17"],
+  "description": "Test 16: a particle component started with Start(0) goes inactive on its own. The loop-budget emitter (flag bit 1) emits its one loop, calls Stop(0) (the delayed stop) on itself, and CheckForStop clears started when the last particle dies: life 3 s at 0.5 s per update ends on update 7 (6 ageing updates after the burst). The duration emitter (no bits) ends after its budget and the last particle. The plain emitter (bit 2) never self-stops; a delayed Stop(0) lets its particles play out, a hard Stop(1) ends it at once.",
+  "steps": [
+    {"op": "ef_particles", "flags": 2, "emit_loop_count": 1, "per_loop": 4, "life": 3.0, "dt": 0.5, "expect_updates": 7},
+    {"op": "ef_particles", "flags": 2, "emit_loop_count": 3, "loop_interval": 1.0, "per_loop": 1, "life": 0.5, "dt": 0.5, "expect_updates": 5},
+    {"op": "ef_particles", "flags": 0, "duration": 2.0, "loop_interval": 1.0, "per_loop": 1, "life": 1.0, "dt": 0.5, "expect_updates": 6},
+    {"op": "ef_particles", "flags": 4, "life": 1.0, "dt": 0.5, "max": 1000, "expect_updates": null},
+    {"op": "ef_particles", "flags": 4, "life": 1.5, "loop_interval": 1.0, "dt": 0.5, "stop_after": 4, "stop_mode": 0, "expect_updates": 7},
+    {"op": "ef_particles", "flags": 4, "life": 1.5, "dt": 0.5, "stop_after": 4, "stop_mode": 1, "expect_updates": 4}
+  ]
+}

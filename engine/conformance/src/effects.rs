@@ -188,6 +188,8 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "expect_game" => expect_game(&w, op),
         "expect_manager" => expect_manager(&w, op),
         "select" => select(op),
+        "dilation" => dilation(op),
+        "particles" => particles(op),
         "expect_events" => w.events.expect_events(op),
         "expect_event_count" => w.events.expect_count(op),
         "clear_events" => {
@@ -392,6 +394,7 @@ fn call(w: &World, op: &Json) -> R<()> {
             }
             "finish_hook" => w.with(|m, h| Ok(Json::Bool(m.finish_hook(h))))?,
             "draw_pass" => w.with(|m, h| Ok(Json::Bool(m.draw_pass(h))))?,
+            "effects_tick" => w.with(|m, h| Ok(ji(m.effects_tick(h) as i64)))?,
             "shutdown" => w.with(|m, h| {
                 m.shutdown(h);
                 Ok(Json::Null)
@@ -658,6 +661,81 @@ fn select(op: &Json) -> R<()> {
         if !scalar::matches(&got, mm, false) {
             return Err(format!("members {}, expected {}", scalar::show(&got), scalar::show(mm)));
         }
+    }
+    Ok(())
+}
+
+/// `ef_dilation` (§6, test 17): `GetAnimationTimeDilation` of a simulator
+/// state with the shipped tunables, and optionally the dilated step.
+fn dilation(op: &Json) -> R<()> {
+    use fc4_core::effects::dilation::{animation_time_dilation, dilated_us, SimTimeState};
+    let flag = |k: &str| opt(op, k).map_or(Ok(false), |v| bool_of(v, k));
+    let s = SimTimeState {
+        emergency_paused: flag("emergency_paused")?,
+        driving: flag("driving")?,
+        paused: flag("paused")?,
+        hidden_paused: flag("hidden_paused")?,
+        speed: opt(op, "speed").map_or(Ok(0), |v| u32_of(v, "speed"))?,
+    };
+    let d = animation_time_dilation(&s);
+    let want = field(op, "expect")?;
+    if !scalar::matches(&jf(d), want, false) {
+        return Err(format!("dilation {d}, expected {}", scalar::show(want)));
+    }
+    if let Some(us) = opt(op, "us") {
+        let got = dilated_us(u32_of(us, "us")?, Some(d));
+        let want = field(op, "expect_us")?;
+        if !scalar::matches(&ji(got as i64), want, false) {
+            return Err(format!("dt' {got}, expected {}", scalar::show(want)));
+        }
+    }
+    Ok(())
+}
+
+/// `ef_particles` (§7.1, test 16): a particle component's simulator run
+/// from `Start` with fixed updates; checks when it went inactive.
+fn particles(op: &Json) -> R<()> {
+    use fc4_core::effects::particles::{EmitterKind, EmitterParams, ParticleSimulator};
+    let f = |k: &str, d: f32| opt(op, k).and_then(scalar::num).map_or(d, |v| v as f32);
+    let kind = EmitterKind::from_flags(opt(op, "flags").map_or(Ok(0), |v| u32_of(v, "flags"))?);
+    let mut p = ParticleSimulator::new(EmitterParams {
+        kind,
+        emit_loop_count: opt(op, "emit_loop_count").map_or(Ok(1), |v| u32_of(v, "emit_loop_count"))?,
+        loop_interval: f("loop_interval", 1.0),
+        per_loop: opt(op, "per_loop").map_or(Ok(1), |v| u32_of(v, "per_loop"))?,
+        life: f("life", 1.0),
+        duration: f("duration", 1.0),
+    });
+    p.start();
+    let dt = f("dt", 1.0 / 30.0);
+    let max = opt(op, "max").map_or(Ok(10_000), |v| u32_of(v, "max"))?;
+    let stop_at = opt(op, "stop_after").map(|v| u32_of(v, "stop_after")).transpose()?;
+    let stop_mode = opt(op, "stop_mode").map_or(Ok(0), |v| u32_of(v, "stop_mode"))?;
+    let mut ended: Option<u32> = None;
+    for i in 1..=max {
+        if stop_at == Some(i - 1) {
+            p.stop(stop_mode);
+            if !p.is_active() {
+                ended = Some(i - 1);
+                break;
+            }
+        }
+        p.update(dt);
+        if !p.is_active() {
+            ended = Some(i);
+            break;
+        }
+    }
+    let got = ended.map_or(Json::Null, |n| ji(i64::from(n)));
+    let want = field(op, "expect_updates")?;
+    if !scalar::matches(&got, want, false) {
+        return Err(format!(
+            "inactive after {}, expected {} (loops {}, live {})",
+            scalar::show(&got),
+            scalar::show(want),
+            p.loops_emitted(),
+            p.live_count()
+        ));
     }
     Ok(())
 }
