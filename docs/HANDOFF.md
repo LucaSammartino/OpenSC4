@@ -15,7 +15,7 @@ A lane denied by the guard returns; do not route around it. To wind down: `pytho
 then land what is on disk.
 
 **Main** is pushed, the merge queue is empty, and no lane is running. The gate on main passes (clippy clean, build,
-ctest 62/62). Coverage: **36.8% specified / 28.3% implemented / 12.4% verified / 12.1% replaced**. Run 2 (the
+ctest 62/62). Coverage: **36.8% specified / 28.3% implemented / 12.4% verified / 15.9% replaced** (replaced was 12.1% until the replace list caught up with the landed replacements, `regresslists6`). Run 2 (the
 lean-lane GLM run, 2026-10-20 20:31 → 10-21 08:24) landed trains 10-18. Its cost and what it bought are in
 [ops/efficiency-log.md](ops/efficiency-log.md).
 
@@ -31,8 +31,7 @@ lean-lane GLM run, 2026-10-20 20:31 → 10-21 08:24) landed trains 10-18. Its co
 
 **Open items, ranked:**
 1. `enable = propmgr`/`lotcfg`: PL19 (glue21 above).
-2. `enable = nettool` landed (glue29, train17; run 221 clean in game). Run a regress replace run with it on, so the
-   network tool counts as replaced.
+2. `enable = occmgr`: glue25 (parked above), now that the occupant specs have landed. Rebase it in one fix round.
 3. `enable = terrain`: the terrain 3D view contract (TR21, `terrain.md` §15.5) landed in train14. The glue is next.
 4. The MySims shadow (mysims1 above).
 5. ABI: 63 lane proposals disagree with main's row for the same key: [abi/unreconciled-rows.tsv](abi/unreconciled-rows.tsv).

@@ -151,7 +151,9 @@ their working directory would remove most of the absolute paths (~2.7% of the to
    that REA is reachable before starting an RE lane.
 3. **Fix the provider routing.** The pin did not hold. Test OpenInference/Relace, which were 2.5-4x cheaper per prompt
    token in run 2, for errors and cache behaviour before pinning.
-4. **Collect the uncounted points**: a regress replace run with `nettool` on makes glue29's work count as replaced.
+4. ~~**Collect the uncounted points**~~ done 2026-10-21 (`regresslists6`): the replace list and map keys now cover
+   automata, netmgr, netlot, nettool and demolition, and the regress passed. Replaced 12.1 → **15.9%** (+3.8), for no
+   lane spend. Run 2's glue29 and earlier landed cores produced most of it.
 5. **Model comparisons**: run the same lane brief on each model and compare with
    `spend.py --since/--until/--model` plus the per-lane split above.
 6. **A lean coordinator**: its preamble is 49.8k tokens per call in the desktop app (11% of its spend). Run a GLM
