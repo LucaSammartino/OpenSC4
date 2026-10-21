@@ -236,6 +236,8 @@ cGZDBWriteRecord*	data formats (DBPF, exemplars)	framework	data-formats.md	forma
 cGZPersistDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cGZPersistResourceManager	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cRZFastCompression*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/qfs.rs	-	-
+cSCResExemplar	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
+cSCResExemplarCohort	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
 cSCResExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
 cSCExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
 cSCPropertyHolder	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
@@ -343,7 +345,7 @@ cGZDraw*	2D drawing and fonts	renderer	-	-	-	-
 # tools/coverage-ranges.tsv land on the class whose colour format they convert. No spec has them as its subject.
 nGZDrawSoftRender::cSpanRender1555	2D drawing (span render 1555)	renderer	-	-	-	-
 nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	-	-	-	-
-nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	-	-	-	-
+nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-render-4444.md	-	-	-
 nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	-	-	-	-
 nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	-	-	-	-
 nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
