@@ -71,3 +71,24 @@
   the records beyond the failure left as constructor defaults (five `0xFF` bytes, the other fields?) and what are
   the defaults of the texture instance, cell, orientation, configuration byte and frame? The core pads with
   0 / `0xFF`×5 / 0 up to 65,536 records and leaves larger counts unpadded.
+- **OP13:** lot-records.md §9.1 / §9.2, construction occupant: where do the life-cycle values of lot-developer.md
+  §6.7.4 / §6.7.5 (state, counter, `T0`, `nextDay`, `msAcc`, N, A, B, C, E, scaffold height) sit in the saved
+  scalars (§9 #14), and with which type? §9.1 gives `+0x14C`/`+0x150` as 2 × f32 and `+0x154…+0x164` as 5 × u32,
+  while §9.2 calls `+0x150` a u32 segment count and `+0x158`/`+0x15C` f32 heights; `+0x148` "segment end day" vs
+  `nextDay`. The core keeps the scalars as raw data (bit-exact round trip) and the life cycle apart, so a loaded
+  construction does not resume its schedule until this is answered.
+- **OP14:** lot-records.md §9.1, construction occupant: which code fills the **saved** lot / building references
+  (`+0x5C`/`+0x60`, record #3/#4) from the live ones (`+0x68`/`+0x6C`) that `SetLot` holds? And record #8 is "written
+  as `(+0xF8 != 0)`" while #14g `+0x174` is the "crane exists flag (drives `+0xCC` on Write)", yet `SetLot` sets
+  `+0x174 = 2` (a crane state, ld §6.7.4): which field is written for #8 and #14g? The core writes the saved refs as
+  stored and #8 from its own "crane model exists" result of `AttemptAddCrane`.
+- **OP15:** construction occupant `Init` / `DoMessage`: lot-records §9.2 lists five message-server subscriptions
+  including `0x86AD10EE`; lot-developer §6.7.1 lists four (the tick is delivered directly by the tick manager,
+  §6.7.8). Which is right? The tick's `ms` is `data2 / 1000` in ld §6.7.1 and "data3 ÷ 1000" in lr §9.2 (data3 holds
+  float bits, ld §6.7.8). Does `Init` (`0x005D1300`) also run the occupant base `Init` (§2.4, CreateOccupant
+  message)? The core subscribes lr's five, uses data2, and does not run §2.4.
+- **OP16:** construction visuals with simulation-visible draws (ld §6.7.6 / §6.7.7): (a) `CreateSparks`' "max box
+  extent": which box (building / scaffold) and which axes? The core uses the scaffold box over x, y, z. (b)
+  `AnimateCrane` 2 → 0: the swing limits min / max, the constant `k` at `0x00AA2098`, the target before the first
+  swing, whether "6000" is sfCraneTimeOfFullRotation, and the duration kept by 1 → 2. The core takes min / max / k
+  from the caller, starts the target at 0, uses the literal 6000 and keeps the duration.
