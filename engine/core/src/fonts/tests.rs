@@ -27,11 +27,11 @@ impl FontFace for MockFace {
     fn is_fixed_size(&self) -> bool {
         self.fixed
     }
-    fn char_index(&self, ch: u32) -> Result<u32, ()> {
-        Ok(if self.adv.contains_key(&ch) { ch } else { 0 })
+    fn char_index(&self, ch: u32) -> Option<u32> {
+        Some(if self.adv.contains_key(&ch) { ch } else { 0 })
     }
-    fn set_char_size(&mut self, _: u32, _: u32, _: u32, _: f32, _: f32) -> Result<SizeMetrics, ()> {
-        Ok(self.metrics)
+    fn set_char_size(&mut self, _: u32, _: u32, _: u32, _: f32, _: f32) -> Option<SizeMetrics> {
+        Some(self.metrics)
     }
     fn load_glyph(&mut self, index: u32, levels: GreyLevels) -> Option<GlyphRaster> {
         let a = *self.adv.get(&index)?;

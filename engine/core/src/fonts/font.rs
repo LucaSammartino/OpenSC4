@@ -368,7 +368,7 @@ impl GzFont {
             return true;
         };
         match face.set_char_size(size, 72, 72, sx, sy) {
-            Ok(m) => {
+            Some(m) => {
                 self.metrics = m;
                 self.descent_raw = m.a / 65536;
                 self.ascent = m.a.wrapping_add(m.b) / 65536;
@@ -385,7 +385,7 @@ impl GzFont {
                 self.char_height = ch;
                 true
             }
-            Err(()) => false,
+            None => false,
         }
     }
     pub fn get_line_height(&self) -> i32 {

@@ -70,8 +70,8 @@ pub trait FontFace: Send {
     fn style_flags(&self) -> u32;
     /// The face's fixed-size flag (face+0x5C != 0).
     fn is_fixed_size(&self) -> bool;
-    /// `FT_Get_Char_Index`: `Err` when the lookup reports an error.
-    fn char_index(&self, ch: u32) -> Result<u32, ()>;
+    /// `FT_Get_Char_Index`: `None` when the lookup reports an error.
+    fn char_index(&self, ch: u32) -> Option<u32>;
     /// The source-type 2/3 fallback map (`0x00898EB2`, §7). Unspecified by the spec (FN9): a provider
     /// without one returns 0.
     fn fallback_char_index(&self, _ch: u32) -> u32 {
@@ -85,12 +85,12 @@ pub trait FontFace: Send {
         dpi_y: u32,
         scale_x: f32,
         scale_y: f32,
-    ) -> Result<SizeMetrics, ()>;
+    ) -> Option<SizeMetrics>;
     /// Load and render glyph `index`; `None` when it cannot be loaded.
     fn load_glyph(&mut self, index: u32, levels: GreyLevels) -> Option<GlyphRaster>;
     /// The probe lookup used by IsCodePageAvailable / IsCharAvailable (`0x0089F538`): glyph present.
     fn has_glyph(&self, unit: u16) -> bool {
-        matches!(self.char_index(unit as u32), Ok(i) if i != 0)
+        matches!(self.char_index(unit as u32), Some(i) if i != 0)
     }
 }
 
