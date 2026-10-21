@@ -313,7 +313,7 @@ impl RzUrl {
         let colon = find_byte(rest, b':');
         let slash = find_byte(rest, b'/');
         match (colon, slash) {
-            (Some(c), s) if s.is_none_or(|s| c < s) => {
+            (Some(c), s) if s.map_or(true, |s| c < s) => {
                 let run = rest[c + 1..].iter().take_while(|b| b.is_ascii_digit()).count();
                 // Literal reading: at most 15 digits feed atol; the whole run is erased
                 // (longer runs are undefined in the original, question web-network Q5).
@@ -330,7 +330,7 @@ impl RzUrl {
             }
             _ => {
                 if self.url_type == HTTP || self.url_type == HTTPS {
-                    for d in [b';', b'?', b'#'] {
+                    for &d in b";?#" {
                         if !self.server.is_empty() {
                             break;
                         }
@@ -362,7 +362,7 @@ impl RzUrl {
         let q = find_byte(rest, b'?');
         let h = find_byte(rest, b'#');
         if let Some(sc) = find_byte(rest, b';') {
-            if q.is_none_or(|q| sc < q) && h.is_none_or(|h| sc < h) {
+            if q.map_or(true, |q| sc < q) && h.map_or(true, |h| sc < h) {
                 let end = q.or(h).unwrap_or(rest.len());
                 self.path = rest[..sc].to_vec();
                 self.params = rest[sc..end].to_vec();
@@ -372,7 +372,7 @@ impl RzUrl {
         let q = find_byte(rest, b'?');
         let h = find_byte(rest, b'#');
         if let Some(q) = q {
-            if h.is_none_or(|h| q < h) {
+            if h.map_or(true, |h| q < h) {
                 let end = h.unwrap_or(rest.len());
                 if self.path.is_empty() {
                     self.path = rest[..q].to_vec();
