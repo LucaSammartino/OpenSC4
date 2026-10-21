@@ -27,6 +27,7 @@
 #include "FC4Turbo.h"
 #include "FC4Watchdog.h"
 #include "cFC4NetworkTool.h"  // the glue29 lane: NetToolRegistry
+#include "cFC4PortDeveloper.h"  // the glue-portdev4 lane: the port action
 #include "cFC4ZoneManager.h"
 
 #include "SC4Rect.h"
@@ -337,6 +338,10 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             break;
         case ScriptOp::Terrain: result = RunTerrain(a, julian, city); break;
         case ScriptOp::Disaster: result = DisasterScriptAction(city, a.disaster, a.x0, a.z0); break;
+        case ScriptOp::Port:
+            result = PortScriptBuild(static_cast<uint32_t>(a.kind), static_cast<uint32_t>(a.type), a.x0, a.z0,
+                                     static_cast<uint32_t>(a.facing));
+            break;
     }
     std::string late;
     if (julian != a.julian) late = " (run on " + harness::FormatDate(harness::CivilFromJulian(julian)) + ")";

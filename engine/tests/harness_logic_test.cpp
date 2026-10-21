@@ -219,6 +219,15 @@ void ScriptParseTests() {
         CHECK(a.disaster == kDisasterSurvey);
         CHECK(ParseScriptLine("2026-02-01 disaster fire AUTO", 10, &a, &has, &error) && has);
         CHECK(a.disaster == kDisasterFire && a.x0 == -1 && a.z0 == -1);
+        // The glue-portdev4 lane: port airport|seaport x z [facing [type]].
+        CHECK(ParseScriptLine("2026-02-01 port airport 10 20", 11, &a, &has, &error) && has);
+        CHECK(a.op == ScriptOp::Port && a.kind == 0 && a.x0 == 10 && a.z0 == 20 && a.facing == 0 && a.type == 0);
+        CHECK(ParseScriptLine("2026-02-01 port Seaport 1 2 3 1", 12, &a, &has, &error) && has);
+        CHECK(a.kind == 1 && a.x0 == 1 && a.z0 == 2 && a.facing == 3 && a.type == 1);
+        CHECK(ErrorIs("2026-02-01 port heliport 1 2", "port 'heliport' is not airport or seaport"));
+        CHECK(ErrorIs("2026-02-01 port airport 1", "port takes 3 to 5 argument(s) (airport|seaport x z [facing [type]])"));
+        CHECK(ErrorIs("2026-02-01 port airport 1 2 4", "port facing '4' is not 0..3"));
+        CHECK(ErrorIs("2026-02-01 port airport 4096 2", "x '4096' is not a cell coordinate 0..4095"));
     }
 
     // Every error, with the message the log shows.
@@ -229,7 +238,7 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01   # just a date", "a date with no action"));
     CHECK(ErrorIs("2000-01-01 plop 1 2",
                   "unknown action 'plop' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, "
-                  "save, terrain, disaster)"));
+                  "save, terrain, disaster, port)"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 4"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4 1 9", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 6"));
     CHECK(ErrorIs("2000-01-01 pricezone 1 2 3", "pricezone takes 5 argument(s) (x0 z0 x1 z1 type), not 3"));
