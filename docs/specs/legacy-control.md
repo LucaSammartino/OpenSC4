@@ -1,0 +1,320 @@
+# Legacy control (`cGZLegacyControl`): building widgets from `LEGACY` script blocks
+
+Status: partial (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
+(Windows). Covered: object layout, COM surface, lifecycle, the shared vocabulary and its two lookup maps, the
+`SetParameters` build sequence, the property-list readers, and the full word tables of all 21 vocabulary
+functions. Per-control interpreter contracts (`InterpretProperties*`) are specified for the common pass (§8);
+the per-type interpreters are listed in §9 with their state.
+
+Related specs: `widget-toolkit.md` (`cGZWin`, the windows this object builds), `ui-windows.md` (`cIGZWin`,
+`cIGZWinGen`, the script loader). Interface slot names below come from `docs/abi/interfaces.tsv`.
+
+## 1. Identity
+
+| Item | Value |
+|---|---|
+| Object size | `0x20` bytes (factory `cGZUIScriptCOMDirector::CreateLegacyControl` `0x0094AF90` allocates `0x20` and runs the constructor `0x0095B8C4`) |
+| Primary vtable | `0x00AD5360`, 11 slots |
+| Second sub-object (`+0x04`) | vtable `0x00AD5344` (no slot targets labelled in the export; open LC1) |
+| Third sub-object (`+0x08`), the legacy-control interface | vtable `0x00AD5324`, 8 slots |
+| IIDs answered by `QueryInterface` `0x0094C431` | `0x00000001` and `0x1A356083` → the object itself; `0x5A356159` → `this+4`; `0x9A4527CB` → `this+8` |
+
+`QueryInterface` stores the pointer, calls `AddRef` on the primary object, and returns true; any other IID returns
+false without touching the out-pointer. For the `+4`/`+8` cases a null object would yield null (the code masks
+the adjusted pointer by "this is non-null"); the result is otherwise identical.
+
+## 2. Object layout *[compat]*
+
+| Offset | Size | Meaning | Constructor value |
+|---|---|---|---|
+| `+0x00` | 4 | primary vtable | `0x00AD5360` |
+| `+0x04` | 4 | second vtable | `0x00AD5344` |
+| `+0x08` | 4 | legacy-control interface vtable | `0x00AD5324` |
+| `+0x0C` | 4 | reference count | 0 |
+| `+0x10` | 4 | **the control**: the `cIGZWin` this object builds (owned reference) | null |
+| `+0x14` | 4 | **pending parent** window (owned reference), consumed by `SetParameters` | null |
+| `+0x18` | 4 | **window procedure** object (owned reference), set by `UseWinProc` (§7.2), handed to the generator and dropped by `DoExceptions` (§7.3) | null |
+| `+0x1C` | 1 | **own-control** flag: when set, destruction detaches and shuts the control down (§5.2) | 0 |
+
+## 3. Slot tables *[compat]*
+
+Primary vtable `0x00AD5360`:
+
+| Slot | Offset | Target | Method | Contract |
+|---|---|---|---|---|
+| 0 | `+0x00` | `0x0094C431` | `QueryInterface(iid, out)` | §1 |
+| 1 | `+0x04` | `0x0094C47C` | `AddRef` (shared with `cGZWin::AddRef`) | `++[+0x0C]`, returns the new count |
+| 2 | `+0x08` | `0x0094C483` | `Release` | §5.3 |
+| 3 | `+0x0C` | `0x00957A9B` | `SetParameters(props)` | §6; returns false always |
+| 4 | `+0x10` | `0x0094C30E` | `GetControlVocabulary()` | returns the shared vocabulary pointer (no `AddRef`) |
+| 5 | `+0x14` | `0x0094C3CD` | `GetID()` | control null → 0; else the control's `GetID` (`cIGZWin` `+0xFC`), tail-called |
+| 6 | `+0x18` | `0x0094C3E1` | `SetID(id)` | control null → nothing; else the control's `SetID` (`+0x100`) with the same argument |
+| 7 | `+0x1C` | `0x0094C314` | `SetOwnControl(bool)` | writes the byte at `+0x1C` |
+| 8 | `+0x20` | `0x00935EA0` | `ImplementInterface(4 args)` | returns true, ignores all four arguments (ICF-shared body) |
+| 9 | `+0x24` | `0x0094C31E` | `SetParent(obj)` | §7.1; returns true always |
+| 10 | `+0x28` | `0x0094C761` | scalar deleting destructor | §5.2 |
+
+Legacy-control interface vtable `0x00AD5324` (sub-object at `+0x08`; slots 0–2 and 4 are `this − 8` thunks):
+
+| Slot | Offset | Target | Method | Contract |
+|---|---|---|---|---|
+| 0 | `+0x00` | `0x0094C4C8` | `QueryInterface` | thunk to `0x0094C431` |
+| 1 | `+0x04` | `0x009359D5` | `AddRef` | thunk to `0x0094C47C` |
+| 2 | `+0x08` | `0x0094C4D0` | `Release` | thunk to `0x0094C483` |
+| 3 | `+0x0C` | `0x009C32AC` | `GetControl()` | returns the control at object `+0x10` (no `AddRef`; ICF-shared 4-byte getter) |
+| 4 | `+0x10` | `0x0094C4D8` | `SetOwnControl(bool)` | thunk to `0x0094C314` |
+| 5 | `+0x14` | `0x0094C3A1` | `ForceControl(ptr)` | §7.2, stores into **`+0x10`** (object-relative, see §7.2) |
+| 6 | `+0x18` | `0x0094C375` | `UseWinProc(win)` | §7.2, stores into the control slot |
+| 7 | `+0x1C` | `0x0096638D` | `GetScriptFragment(out)` | §7.4 |
+
+## 4. The shared vocabulary *[compat]*
+
+One vocabulary object and two lookup maps are shared by every legacy control in the process.
+
+| Global | What |
+|---|---|
+| `0x00B63588` | the vocabulary (a GZCOM object created from class `0xBA2E7954`, interface `0x1A2BDEBB`); refcounted |
+| `0x00B6358C` | **interpreter map**: IID → interpreter function `(cIGZWin*, props, bool firstPass)` |
+| `0x00B63598` | **class map**: class ID → IID |
+
+Both maps are ordered maps keyed by unsigned 32-bit value (ascending order matters for §6 step 4).
+
+**Construction** (`0x0095B8C4`): fields as in §2. If the vocabulary global is null, create it through
+GZCOM (`CreateInstance(0xBA2E7954, 0x1A2BDEBB, &global)`); if that succeeded, run the 21 vocabulary
+functions in this exact order: Common, FlatRect, Text, TextEdit, ListBox, Combo, Btn, BMP, Slider, Scrollbar,
+LineInput, OptGrp, Spinner, Outline, TextTicker, FileBrowser, TreeView, Folders, Grid, Custom, SC3WinGen. If the
+global was already set, `AddRef` it instead (vocabulary slot 1). Creation failure leaves the global null and the
+object usable (lookups then find nothing).
+
+**A vocabulary function** registers each word with vocabulary slot 3 (`+0x0C`, `Add(name, id)`; the name is a
+temporary string). Every per-type function (all but Common) first adds the class name and the interface name
+(SC3WinGen adds two class names, `SC3WinGen` and `GZWinGen`, both `0x4386D516`), then its property words, and
+finally inserts `IID → interpreter` into the interpreter map and `class ID → IID` into the class map (unique
+insert: a second registration of the same key keeps the first). Common adds its words only and registers no
+map entries; its interpreter is called directly (§6).
+
+**Release** (in the destructor, §5.2): call vocabulary `Release`; if it returns 0, null the global. The maps
+are never cleared, so a re-created vocabulary re-inserts into maps that already hold the keys (no change).
+
+### 4.1 Registered classes
+
+The interpreter map key equals the interface ID in every row (verified per function from the map-insert
+arguments).
+
+| Vocabulary fn | Class name = class ID | Interface name = IID | Interpreter | Property words |
+|---|---|---|---|---|
+| `0x0094D641` | (none: common words) | | called directly | 64 |
+| `0x00951269` | `GZWinTextTicker` = `0xE32F0B31` | `IGZWinTextTicker` = `0x32F0B3C` | `0x0094CE28` | 3 |
+| `0x009518A8` | `GZWinFolders` = `0x78E8055` | `IGZWinFolders` = `0xA13351B8` | `0x0094D17E` | 0 |
+| `0x0095195E` | `GZWinCustom` = `0x478D1E6F` | `IGZWinCustom` = `0x678D1E84` | `0x00A6D837` | 0 |
+| `0x00951A14` | `GZWinFlatRect` = `0xC2AFA76E` | `IGZWinFlatRect` = `0xC2AFA76F` | `0x0094E33B` | 9 |
+| `0x00951C9F` | `GZWinText` = `0x592` | `IGZWinText` = `0x212CDC1F` | `0x0094E516` | 15 |
+| `0x00952046` | `GZWinTextEdit` = `0x231A1C58` | `IGZWinTextEdit` = `0x231A1C57` | `0x0094E7C8` | 26 |
+| `0x00952645` | `GZWinListBox` = `0x598` | `IGZWinListBox` = `0x4132242B` | `0x0094EE39` | 7 |
+| `0x00952868` | `GZWinCombo` = `0x59B` | `IGZWinCombo` = `0x412CE496` | `0x0094F36D` | 4 |
+| `0x009529EF` | `GZWinBtn` = `0x22ECFC47` | `IGZWinBtn` = `0x8810` | `0x0094F757` | 28 |
+| `0x00953056` | `GZWinBMP` = `0x82FE68C4` | `IGZWinBMP` = `0xC12CEA13` | `0x0095002C` | 3 |
+| `0x009531A9` | `GZWinSlider` = `0x21325208` | `IGZWinSlider` = `0x21325207` | `0x00950218` | 4 |
+| `0x00953330` | `GZWinScrollbar` = `0x61325A2E` | `IGZWinScrollbar` = `0x61325A2D` | `0x009503AB` | 3 |
+| `0x00953483` | `GZWinLineInput` = `0x21335C5A` | `IGZWinLineInput` = `0x21335C59` | `0x009505B6` | 12 |
+| `0x009537AA` | `GZWinSpinner` = `0x612CE0C4` | `IGZWinSpinner` = `0x612CE0C3` | `0x00950AF6` | 11 |
+| `0x00953A9D` | `GZWinOutline` = `0x4303E5B6` | `IGZWinOutline` = `0xE303E5AE` | `0x00951084` | 3 |
+| `0x00953BF0` | `SC3WinGen` / `GZWinGen` = `0x4386D516` | `IGZWinGen` = `0x5386D516` | `0x009513BC` | 18 |
+| `0x009552BE` | `GZWinFileBrowser` = `0x1AA52EA4` | `IGZWinFileBrowser` = `0x3AA52E64` | `0x00954212` | 66 |
+| `0x00957C88` | `GZWinOptGrp` = `0xA1336CC1` | `IGZWinOptGrp` = `0xA1336CC0` | `0x00956C46` | 19 |
+| `0x009599D2` | `GZWinTreeView` = `0x3AE8BAE1` | `IGZWinTreeView` = `0x3AE8BAD2` | `0x009586B0` | 18 |
+| `0x0095B021` | `GZWinGrid` = `0xDAA6B9BF` | `IGZWinGrid` = `0xDAA6B9BE` | `0x0095A250` | 39 |
+
+### 4.2 Word tables
+
+Word IDs per vocabulary function, in registration order. The words `yes`/`true`/`on` = 1 and
+`no`/`false`/`off` = 0 are registered by Common; style words (`left`, `flat`, `sunken`, ...) are registered with
+IDs in the `0xF000` range and are compared as values, not as property keys.
+
+**common** (`0x0094D641`): `clsid` 0xFFFFFFFF, `iid` 0xFFFFFFFE, `yes` 0x1, `true` 0x1, `no` 0x0, `false` 0x0, `on` 0x1, `off` 0x0, `GZWin` 0xE2BA00EE, `id` 0x100, `area` 0x101, `pos` 0x102, `size` 0x103, `fillcolor` 0x104, `caption` 0x105, `captionres` 0x106, `transparent` 0x107, `font` 0xF000, `bkgcolor` 0xF001, `forecolor` 0xF002, `notify` 0xF003, `gutters` 0xF004, `style` 0xF005, `left` 0xF006, `right` 0xF007, `center` 0xF008, `flat` 0xF009, `normal` 0xF00A, `sunken` 0xF00B, `raised` 0xF00C, `fill` 0xF00D, `nofill` 0xF00E, `colorfontnormal` 0xF00F, `colorfontdisabled` 0xF010, `colorfonthilited` 0xF011, `colorfontnormalbkg` 0xF012, `colorfontdisabledbkg` 0xF013, `colorfonthilitedbkg` 0xF014, `align` 0xF015, `image` 0xF016, `imagetype` 0xF017, `imagerect` 0xF018, `outline` 0xF019, `comments` 0x108, `commentslmd` 0x109, `commentsrmd` 0x10A, `commentslmu` 0x10B, `commentsrmu` 0x10C, `commentsmm` 0x10D, `commentsku` 0x10E, `commentskd` 0x10F, `winflag_visible` 0xF01A, `winflag_enabled` 0xF01B, `winflag_moveable` 0xF01C, `winflag_sizeable` 0xF01D, `winflag_sortable` 0xF01E, `winflag_pbuff` 0xF01F, `winflag_pbufftrans` 0xF020, `winflag_pbufferase` 0xF021, `winflag_pbuffvid` 0xF022, `winflag_alphablend` 0xF026, `winflag_mousetrans` 0xF023, `winflag_ignoremouse` 0xF024, `winflag_acceptfocus` 0xF025
+
+**IGZWinTextTicker** (`0x00951269`): `speed` 0x1200, `frequency` 0x1201, `message` 0x1202
+
+**IGZWinFlatRect** (`0x00951A14`): `colorleft` 0x200, `colortop` 0x201, `colorright` 0x202, `colorbottom` 0x203, `top` 0x204, `bottom` 0x205, `all` 0x206, `lrb` 0x207, `trb` 0x208
+
+**IGZWinText** (`0x00951C9F`): `wrapped` 0x300, `opaque` 0x301, `defcolor` 0x302, `dbgdrawarea` 0x303, `autofit` 0x304, `lefttop` 0x0, `leftcenter` 0x1, `leftbottom` 0x2, `centertop` 0x3, `center` 0x4, `centerbottom` 0x5, `righttop` 0x6, `rightcenter` 0x7, `rightbottom` 0x8, `textoffsets` 0x305
+
+**IGZWinTextEdit** (`0x00952046`): `editable` 0x400, `hscrollbar` 0x401, `vscrollbar` 0x402, `caretvisible` 0x403, `allowinsert` 0x404, `allowundo` 0x405, `singleline` 0x406, `caretcolor` 0x407, `highlightcolor` 0x408, `maxtext` 0x409, `initvalue` 0x40A, `outlinecolor` 0x40B, `overwrite` 0x40C, `insertindex` 0x40D, `insertpos` 0x40E, `caretperiod` 0x40F, `maxundo` 0x410, `hscrollimage` 0x413, `hscrollimageRect` 0x414, `vscrollimage` 0x411, `vscrollimageRect` 0x412, `notifyonreturn` 0x415, `notifyonchange` 0x416, `notifyonlostfocus` 0x417, `enableclipboard` 0x418, `passwordmode` 0x419
+
+**IGZWinListBox** (`0x00952645`): `scrollbargutters` 0x500, `initselection` 0x501, `sort` 0x503, `drop` 0x504, `setlinevisible` 0x505, `setlineontop` 0x506, `listelement` 0x502
+
+**IGZWinCombo** (`0x00952868`): `combodownarrowimage` 0x800, `combodownarrowrect` 0x801, `combodowncolor` 0x802, `buttongutter` 0x803
+
+**IGZWinBtn** (`0x009529EF`): `toggle` 0xA00, `triggerondown` 0xA01, `showcaption` 0xA02, `autosize` 0xA03, `wrapcaption` 0xA04, `shiftcaption` 0xA05, `tips` 0xA06, `tipsdelay` 0xA07, `tipstimeout` 0xA08, `label` 0xA09, `standard` 0xA0A, `standardfixed` 0xA0B, `togglebtn` 0xA0C, `togglebtnfixed` 0xA0D, `checkbox` 0xA0E, `radiobtn` 0xA0F, `tiptext` 0xA10, `tipoffsets` 0xA11, `tipres` 0xA12, `noimage` 0xA13, `standardhilite` 0xA14, `standardhilitefixed` 0xA15, `radiocheckall` 0xA16, `radio` 0xA17, `tipflag` 0xA18, `btnclicksnd` 0xA19, `btnupsnd` 0xA1A, `radiocheck` 0xA1B
+
+**IGZWinBMP** (`0x00953056`): `alpha` 0xB00, `transparentbkg` 0xB01, `edgeimage` 0xB02
+
+**IGZWinSlider** (`0x009531A9`): `minmaxvalue` 0xC00, `direction` 0xC01, `horizontal` 0xC02, `vertical` 0xC03
+
+**IGZWinScrollbar** (`0x00953330`): `pagesize` 0xD00, `linesize` 0xD01, `linepagecount` 0xD02
+
+**IGZWinLineInput** (`0x00953483`): `filled` 0xE00, `outline3d` 0xE01, `outline3dex` 0xE02, `colorlt` 0xE03, `colorrb` 0xE04, `colorltinside` 0xE05, `colorrbinside` 0xE06, `fillcolorhilite` 0xE07, `fillalphahilite` 0xE08, `caretpos` 0xE09, `charlimit` 0xE0A, `selection` 0xE0B
+
+**IGZWinSpinner** (`0x009537AA`): `digits` 0x1000, `autonumber` 0x1001, `autonumbercomma` 0x1002, `autonumbercurrency` 0x1003, `minmax` 0x1004, `stepsize` 0x1005, `coloroutline` 0x1006, `coloroutlinel` 0x1007, `coloroutlinet` 0x1008, `coloroutliner` 0x1009, `coloroutlineb` 0x100A
+
+**IGZWinOutline** (`0x00953A9D`): `colordark` 0x1100, `colorlight` 0x1101, `node` 0x1102
+
+**IGZWinGen** (`0x00953BF0`): `userdata` 0x10000, `blttype` 0x10001, `tiled` 0x0, `edge` 0x2, `divider` 0x10002, `bluebar` 0x10003, `moveable` 0x10004, `sizeable` 0x10005, `defaultkeys` 0x10006, `closevisible` 0x10007, `gobackvisible` 0x10008, `minmaxvisible` 0x10009, `closedisabled` 0x1000A, `gobackdisabled` 0x1000B, `minmaxdisabled` 0x1000C, `titlebar` 0x1000D, `paint` 0x1000E, `sidebar` 0x1000F
+
+**IGZWinFileBrowser** (`0x009552BE`): `defaultpath` 0x1301, `backdir` 0x1302, `dir` 0x1303, `file` 0x1304, `defaultselectiontype` 0x1305, `defaultselectionname` 0x1306, `defaultselectionextension` 0x1307, `bynameascending` 0x1308, `bynamedescending` 0x1309, `byextensionascending` 0x130A, `byextensiondescending` 0x130B, `filesortprimary` 0x130C, `filesortsecondary` 0x130D, `topascending` 0x130E, `topdescending` 0x130F, `bottomascending` 0x1310, `bottomdescending` 0x1311, `directorysort` 0x1312, `icon` 0x1313, `name` 0x1314, `extension` 0x1315, `empty` 0x1316, `unused` 0x1317, `default` 0x1318, `column1data` 0x1319, `column2data` 0x131A, `column3data` 0x131B, `filenamefont` 0x131C, `filenameforegroundcolor` 0x131D, `filenamebackgroundcolor` 0x131E, `filenameforegroundcolordisabled` 0x131F, `filenamebackgroundcolordisabled` 0x1320, `filenameforegroundcolorhilited` 0x1321, `filenamebackgroundcolorhilited` 0x1322, `filenamealignment` 0x1323, `fileextensionfont` 0x1324, `fileextensionforegroundcolor` 0x1325, `fileextensionbackgroundcolor` 0x1326, `fileextensionforegroundcolordisabled` 0x1327, `fileextensionbackgroundcolordisabled` 0x1328, `fileextensionforegroundcolorhilited` 0x1329, `fileextensionbackgroundcolorhilited` 0x132A, `fileextensionalignment` 0x132B, `drivenamefont` 0x132C, `drivenameforegroundcolor` 0x132D, `drivenamebackgroundcolor` 0x132E, `drivenameforegroundcolordisabled` 0x132F, `drivenamebackgroundcolordisabled` 0x1330, `drivenameforegroundcolorhilited` 0x1331, `drivenamebackgroundcolorhilited` 0x1332, `drivenamealignment` 0x1333, `iconcolumnwidth` 0x1334, `extensioncolumnwidth` 0x1335, `rowheight` 0x1336, `linegridenabled` 0x1337, `linegridcolor` 0x1338, `columngridenabled` 0x1339, `columngridcolor` 0x133A, `highlightcolorforeground` 0x133B, `highlightcolorbackground` 0x133C, `backdirtext` 0x133D, `drivelistsize` 0x133E, `backgroundcolor` 0x133F, `backgroundimage` 0x1340, `backgroundtransparent` 0x1341, `filter` 0x1342
+
+**IGZWinOptGrp** (`0x00957C88`): `maincaption` 0xF00, `itemcaption` 0xF01, `drawfill` 0xF02, `labelfont` 0xF03, `buttonfont` 0xF04, `labelfontcolornormal` 0xF05, `labelfontcolordisabled` 0xF06, `buttonfontcolornormal` 0xF07, `buttonfontcolorhilited` 0xF08, `buttonfontcolordisabled` 0xF09, `captiontextresid` 0xF0A, `backimage` 0xF0B, `autofilltype` 0xF0C, `option` 0xF0D, `automatic` 0xF0E, `manual` 0xF0F, `autofillsize` 0xF10, `optionmoveto` 0xF11, `optionsetsize` 0xF12
+
+**IGZWinTreeView** (`0x009599D2`): `displayroot` 0x1401, `displaynodeicons` 0x1402, `displaytreelines` 0x1403, `multiselect` 0x1404, `icongutter` 0x1405, `minmaxboxsize` 0x1406, `roottext` 0x1407, `rooticon` 0x1408, `rooticonselected` 0x1409, `rooticonexpanded` 0x140A, `rooticonexpandedselected` 0x140B, `rootcolorforeground` 0x140C, `rootcolorbackground` 0x140D, `rootcolorforegroundhilited` 0x140E, `rootcolorbackgroundhilited` 0x140F, `rootfont` 0x1410, `rootexpanded` 0x1411, `rootselected` 0x1412
+
+**IGZWinGrid** (`0x0095B021`): `fontcolor` 0x1601, `textalign` 0x1602, `textwrapping` 0x1603, `olinecolor` 0x1604, `selrule` 0x1605, `maxselcount` 0x1606, `dcolwidth` 0x1607, `drowheight` 0x1608, `enablehdr` 0x1609, `colhdrsz` 0x160A, `rowhdrsz` 0x160B, `fnone` 0x160C, `fedit` 0x160D, `fhscroll` 0x160E, `fvscroll` 0x160F, `fcolheading` 0x1610, `frowheading` 0x1611, `fcolgrid` 0x1612, `frowgrid` 0x1613, `finsmode` 0x1614, `fopqbkgnd` 0x1615, `fdoutline` 0x1616, `fdgridoutline` 0x1617, `fcellwrap` 0x1618, `fallownosel` 0x1619, `ffixcolcnt` 0x161A, `ffixrowcnt` 0x161B, `fdpastlastcol` 0x161C, `fdpastlastrow` 0x161D, `fcelloverlap` 0x161E, `fdrpdnmenu` 0x161F, `fhlcelldata` 0x1620, `fdefault` 0x1621, `fall` 0x1622, `colgridclr` 0x1623, `rowgridclr` 0x1624, `wingridcell` 0x1625, `wingridrow` 0x1627, `wingridcol` 0x1626
+
+## 5. Lifecycle *[compat]*
+
+### 5.1 Reference count
+
+`AddRef` increments `+0x0C`. `Release` (`0x0094C483`): if the count is greater than 1, decrement and return the
+new count; otherwise (count 1 **or 0**) call the deleting destructor (slot 10 with 1) and return 0. The count
+is not decremented to 0 first.
+
+### 5.2 Destruction (`0x0094C761`, body `0x0094C288`)
+
+In order:
+
+1. Restore the three vtables.
+2. If the control (`+0x10`) is non-null:
+   1. if own-control (`+0x1C`) is set: `parent = control->GetParentWin()` (`cIGZWin` `+0x2C`); if non-null,
+      `parent->ChildRemove(control)` (`+0x3C`); then `control->Shutdown()` (`+0x14`) whether or not there was a
+      parent;
+   2. `control->Release()`; `+0x10 := null`.
+3. If the pending parent (`+0x14`) is non-null: release it, null it.
+4. Vocabulary: if the global is non-null, release it; a 0 result nulls the global.
+5. If `+0x18` is non-null: release it, null it.
+6. Free the `0x20` bytes when the deleting flag bit 0 is set.
+
+Without own-control the control is only released: it stays attached to its parent, which holds its own
+reference (§6 step 9).
+
+## 6. `SetParameters(props)` — building the control *[compat]*
+
+`props` is the property list of one `LEGACY` block: an array of `(key, cIGZVariant*)` pairs (8 bytes each,
+`begin`/`end` at `+0`/`+4`), already translated from words to IDs by the script reader. Keys are 32-bit IDs from
+§4.2. Readers are in §7.5.
+
+Steps (`0x00957A9B`):
+
+1. `clsid := Uint32(props, 0xFFFFFFFF)` (`clsid`). Missing, wrong type, or 0 → **return false**, nothing changed.
+2. `iid := Uint32(props, 0xFFFFFFFE)` (`iid`); if missing, `iid := classMap[clsid]` when present, else 0.
+3. `+0x10 := null` (any previous control pointer is overwritten **without release**; quirk Q1).
+4. Create the control: `GZCOM CreateInstance(clsid, 0x22BA0121 cIGZWin, &[+0x10])`. On failure, walk the class map
+   in ascending class-ID order to the **first** entry whose IID equals `iid` and try that class once (on its
+   failure, stop walking); if still no control, create class `0x478D1E6F` (`GZWinCustom`). If that fails,
+   **return false** with `+0x10` as the GZCOM call left it.
+5. `control->SetParam(0xE85EEBDE, new variant(uint32 clsid))` (`cIGZWin` `+0x1C8`; the 20-byte variant is
+   allocated here and handed over). If `iid != 0`, also `SetParam(0x08D6E462, new variant(uint32 iid))`. Note the
+   **requested** `clsid` is stored even when a fallback class was created.
+6. `+0x1C := 1` (the object now owns the control).
+7. `interp := interpreterMap[iid]` (null if absent). If non-null: `interp(control, props, true)`.
+8. `InterpretPropertiesGZWinCommon(control, props, true)` (§8).
+9. `DoExceptions(control, true)` (§7.3).
+10. `control->Init()` (`+0x10`).
+11. Attach: if the pending parent is null, `RZ::WM()` slot 3 (`+0x0C`, returns the manager's top window,
+    *[inferred]*) `->ChildAdd(control)` (`+0x38`); else `pendingParent->ChildAdd(control)`, then release the
+    pending parent and null `+0x14`.
+12. `control->PullToFront()` (`+0x5C`).
+13. If `interp`: `interp(control, props, false)`.
+14. `InterpretPropertiesGZWinCommon(control, props, false)`.
+15. **Return false** (the epilogue clears AL unconditionally, `0x00957C81`). Callers cannot detect success from
+    the return value; they read the control through `GetControl`.
+
+So every interpreter runs twice: once before `Init`/attach (`firstPass = true`) and once after attach and
+`PullToFront` (`firstPass = false`). The type interpreter always runs before the common one in each pass.
+
+Worked example: block `clsid=0x592` (GZWinText) with no `iid`. Step 2 gives `iid = 0x212CDC1F`. If GZCOM can
+create `0x592`, the control gets params `0xE85EEBDE = 0x592`, `0x08D6E462 = 0x212CDC1F`, the Text interpreter
+`0x0094E516` and then Common run with `true`, the control is initialised and added to the pending parent (or the
+manager's window), pulled to front, then Text and Common run again with `false`.
+
+## 7. Small methods *[compat]*
+
+### 7.1 `SetParent(obj)` (`0x0094C31E`)
+
+Release and null any pending parent. If `obj` is non-null, ask it for interface `0x9A4527CB` (the legacy-control
+interface of §3); on success take its `GetControl()` result, `AddRef` it into `+0x14` (null stays null), and
+release the temporary interface. An `obj` that is not a legacy control leaves the pending parent null. Returns
+true in every case. So the parent of a nested `LEGACY` block is the **control** of the enclosing legacy object.
+
+### 7.2 `UseWinProc(win)` / `ForceControl(ptr)`
+
+Both are reached through the `+0x08` sub-object, so their `this` is object `+8`. `UseWinProc` (`0x0094C375`)
+writes `this+0x10` = object `+0x18`; `ForceControl` (`0x0094C3A1`) writes `this+0x08` = object `+0x10`, the
+control. Both do the same thing to their slot: if the new pointer differs from the stored one, `AddRef` the new
+one (if non-null), release the old one (if non-null), store the new one. Equal pointers: nothing. `ForceControl` does not set own-control.
+
+### 7.3 `DoExceptions(win, flag)` (`0x0094C77D`)
+
+Only when `flag` is true: ask `win` for `cIGZWinGen` (`0x5386D516`). If that succeeds **and** object `+0x18` is
+non-null, call generator slot 7 (`+0x1C`) with `+0x18`, release `+0x18` and null it. Release the generator
+interface if obtained. So a window procedure set by `UseWinProc` is handed to the generated window once and then
+dropped by this object.
+
+### 7.4 `GetScriptFragment(out)` (`0x0096638D`)
+
+Calls `GetControl()`; null → return false. Otherwise allocate a new empty `cRZString` (20 bytes), `AddRef` it,
+and run the serialiser `0x00965F73` (1050 bytes, not owned here; open LC3) to fill it from the control. On
+success store the string in `*out` (the caller receives the reference) and return true; on failure release the
+string and return false.
+
+### 7.5 Property-list readers (shared helpers, used by every interpreter)
+
+All take the property list in a register (not a stack argument) and scan it **linearly from the start**.
+
+| Helper | Address | Rule |
+|---|---|---|
+| `HasProperty(key)` | `0x0094C64E` | true if any pair has the key (the value is not checked, may be null) |
+| `Uint32(key, out)` | `0x0094C675` | first pair with the key, a non-null value and variant type 6 → `*out` = its 32-bit value, true. Pairs with the key but another type are skipped and the scan continues. None → false, `*out` untouched |
+| `Sint32(key, out)` | `0x0094C6C7` | same scan and the same type test (6) |
+| `String(key, out)` | `0x0094CCD9` | first clears `out`; then the first pair with a non-null value of variant type `0x800E` → copies its text, true |
+
+Callers pre-initialise the out value, so "missing" means "keep the default".
+
+## 8. The common interpreter (`0x0095660D`)
+
+Open: the per-key effect table of the common pass (`id`, `area`, `pos`, `size`, colours, caption, comments,
+`winflag_*`) is the next section to write (LC4).
+
+## 9. Per-type interpreters
+
+| Interpreter | Address | Size | State |
+|---|---|---|---|
+| GZWinCustom | `0x00A6D837` | 1 | **specified**: does nothing (a bare return, ICF-shared) |
+| all other 19 | §4.1 | 403–4857 | open (LC4) |
+
+## 10. Quirks (keep for compatibility)
+
+- Q1. `SetParameters` overwrites `+0x10` with null without releasing a previous control; calling it twice on one
+  object leaks the first control (and its own-control detach is lost).
+- Q2. `SetParameters` always returns false.
+- Q3. A failed exact create falls back to the lowest-numbered registered class with the same interface, then to
+  `GZWinCustom`; the stored `0xE85EEBDE` parameter still holds the requested class ID.
+- Q4. `Release` with a count of 0 destroys the object.
+
+## 11. Open questions
+
+- LC1. The `+0x04` sub-object vtable `0x00AD5344` (IID `0x5A356159`): slot targets not resolved in the export.
+- LC3. Serialiser `0x00965F73` used by `GetScriptFragment`: output format.
+- LC4. Interpreter effect tables (§8, §9).
+- LC5. Window manager slot 3 (`+0x0C`) used as the default parent: confirm it is the root/main window.
+
+## 12. Coverage of owner functions (honest)
+
+Owner functions: 59 in `re/names_windows.tsv` (including the constructor; `ImplementInterface` is ICF-folded and
+`AddRef`/`GetControl` are shared bodies counted under other owners).
+
+| Group | Functions | State |
+|---|---|---|
+| COM surface, accessors, lifecycle (`QueryInterface`, `Release`, destructor, `GetControlVocabulary`, `SetOwnControl` + thunk, `SetParent`, `UseWinProc`, `ForceControl`, `GetID`, `SetID`, `DoExceptions`, constructor) | 14 | specified (§3, §5, §7) |
+| `SetParameters` | 1 | specified (§6) |
+| `GetScriptFragment` | 1 | specified except the serialiser it calls (LC3) |
+| `ControlVocabulary*` | 21 | specified (§4: every word, ID and map entry) |
+| `InterpretProperties*` | 21 | GZWinCustom (shared stub) only; the 20 owned interpreters are open (LC4) |
