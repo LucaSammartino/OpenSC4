@@ -399,6 +399,8 @@ from every panel before destroying it.
 - VW-T2: after `Shutdown`, no cheat ID of §3 is registered, and no view input control (normal or persistent) remains.
 - VW-T3: `0xAA5CF1E3` while modal popups are unsafe is queued once; a second identical message does not add a copy.
 - VW-T4: a link message whose URL opens returns false from the window `DoMessage` (§6 quirk).
+- VW-T5: `SizeOf` with arguments `100`, `0.5`, `abc`, `5` hands the camera control 64.0, 0.9, 0.9, 5.0; `SizeOf` alone returns false and changes nothing (§3.1).
+- VW-T6: `TastyZots` twice in a row restores the filter flag `+0xD`; each `TastyZots`/`Zoneria` message returns false; `TerrainQuery OFF` leaves `GetTerrainQueryEnabled` false, `TerrainQuery` alone makes it true (§3.1).
 
 ## 8. Open questions
 

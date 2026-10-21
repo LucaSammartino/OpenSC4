@@ -1,15 +1,28 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-view3dwin4: cSC4View3DWin window spec (view3d-window.md) | `re-view3dwin4` / (RE spec lane) | in progress (round 2): docs/specs/view3d-window.md §1-§6a, questions VW1-VW5 filed, ABI rows proposed in build-runs/abi-rows-re-view3dwin4.tsv (8 rows); docs-only, no gate, no game runs | 1. Answer VW1 (per-cheat effects of ProcessCheatCode 0x007F3510). 2. Spec AddGUI/RemoveGUI (0x007EDEB0/0x007EF200) and the input handlers. 3. Land the 8 ABI rows for vtables 0x00ABCE2C/0x00ABCE1C. |
+| re-view3dwin4: cSC4View3DWin window spec (view3d-window.md) | `re-view3dwin4` / (RE spec lane) | ready (round 2): §3.1 per-cheat contracts (VW1 answered), §6b AddGUI/RemoveGUI structure, VW6 filed, tests VW-T5/T6; docs-only, no gate, no game runs | 1. Spec the input handlers (ProcessKeyDown/Up, mouse). 2. VW6: AddGUI tail 0x007EEDB0-0x007EF1B6. 3. VW2-VW5 unchanged. 4. 8 ABI rows stay proposals (build-runs/abi-rows-re-view3dwin4.tsv). |
 
-## Handoff
+## Round 2 report
 
-Goal (round 2): VW1 per-cheat contracts, then AddGUI 0x007EDEB0 / RemoveGUI 0x007EF200 and the input handlers in
-view3d-window.md; keep round-1 facts (§1-§6a, below as "Round 1 report").
-Done: §3.1 ProcessCheatCode per-cheat table + filter cheats + SizeOf camera store + Recorder; VW1 answered (commit: this one).
-Next: spec AddGUI/RemoveGUI as §6b (re_query asm into build-runs/, read by offset), then ProcessKeyDown/Up, mouse handlers.
-Facts: build-runs/peread.py va:n:f|s|x reads exe data; ProcessCheatCode this = obj+0; cmdline slot3 argc, slot16 arg(i).
-Do not apply the 8 ABI rows (build-runs/abi-rows-re-view3dwin4.tsv); no game gate; docs only.
+What changed (docs/specs/view3d-window.md):
+
+- §3.1 `ProcessCheatCode` (`0x007F3510`), walked on the instructions: call path (window message `0x230E27AC` →
+  `cRZCmdLine` from data2 → `this − 0xC`; result = message consumed), per-cheat table for all 13 IDs with argument
+  rules and return values; the two filter cheats (`TastyZots` toggles realistic-filter `+0xD`, `Zoneria` toggles `+0xC`
+  and clears `+0xE`, both return false *[quirk]*); `SizeOf` clamp [0.9, 64] and the camera control store at
+  `0x007CD6E0` (bounds test the old value); `RenderProp`/`RP` argument forms and the usage text through an empty slot
+  45 stub; `Recorder` = `AddWinAnimationRecorder` (child `0xA802B4EB`, `<UserData>RecordedAnimations\`).
+- VW1 answered DIFFERS (round-1 notes said the byte-flag cheats return IDs; they return true; 0.9/64 are SizeOf's
+  clamp). Moved to questions/answered/view3d-window.md.
+- §6b `AddGUI`/`RemoveGUI`: caller pairing (DoPreCityInit end / Shutdown), main panel, the five tab panels with
+  script instances and window IDs, per-panel lists and generator slots, text fields, news ticker, four more script
+  windows and their winprocs, and the RemoveGUI teardown order. VW6 filed for the AddGUI tail and the fields RemoveGUI
+  releases but AddGUI's first part does not create.
+- Tests VW-T5 (SizeOf), VW-T6 (filter cheats, TerrainQuery).
+- Commits: 01f83a9c (§3.1, VW1), ee4cf05a (§6b, VW6), this one (tests, report).
+
+REA not used: all reads from tools/re_query.py, decomp/ and exe data bytes (build-runs/peread.py).
+Not covered: input handlers (ProcessKeyDown/Up, mouse), VW2-VW6. ABI rows not applied (task rule).
 
 ## Round 1 report
 
