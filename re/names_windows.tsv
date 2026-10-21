@@ -8715,55 +8715,57 @@ va	name	source	confidence	note
 007d1d10	cSC4CoverageRadiusEffectHelper::SetCategories	auto:B0	medium	mac 00511bde score 0.938 support 2.0
 007d1e40	cSC4CoverageRadiusEffectHelper::UpdateEffectForOccupant	auto:B0	medium	mac 005119de score 0.941 support 1.0
 007d20e0	cSC4CoverageRadiusEffectHelper::RecalcCoverage	auto:A	high	mac 00511cb4 score 0.582 support 0
-007d2750	SC4DrawContext::SetModelViewTransformChanged	auto:B4	low	mac 00512174 score 0.885 support 1.0
-007d2760	SC4DrawContext::EnableColorMaskFlag	auto:B4	medium	mac 00512184 score 0.933 support 4.0
-007d27b0	SC4DrawContext::EnableDepthTestFlag	auto:B3	medium	mac 005121e2 score 0.938 support 4.0
-007d2800	SC4DrawContext::EnableDepthMaskFlag	auto:B1	medium	mac 00512246 score 0.933 support 2.0
-007d2850	SC4DrawContext::EnableCullFaceFlag	auto:B4	medium	mac 005122a4 score 0.938 support 2.0
-007d28a0	SC4DrawContext::SetDepthFunc	auto:B2	medium	mac 00512308 score 0.962 support 3.0
-007d28f0	SC4DrawContext::SetBlendFunc	auto:A	high	mac 00512358 score 1.0 support 0
-007d2970	SC4DrawContext::SetVertexBuffer	auto:B2	medium	mac 005124fe score 0.9 support 4.0
-007d2980	SC4DrawContext::SetIndexBuffer	auto:D	medium	mac 0051251a score 0.5 support 5
-007d2990	SC4DrawContext::DrawPrims	auto:B0	medium	mac 0051252c score 0.886 support 2.0
-007d29c0	SC4DrawContext::DrawPrimsIndexed	auto:D	medium	mac 00512594 score 0.5 support 6
-007d29f0	SC4DrawContext::DrawPrimsIndexed	auto:B1	medium	mac 005125d6 score 0.883 support 3.0
+007d2750	SC4DrawContext::SetModelViewTransformChanged	manual:draw-context.tsv	high	draw-context.md §3; +0x138 := 0
+007d2760	SC4DrawContext::EnableColorMaskFlag	manual:draw-context.tsv	high	draw-context.md §3; state bit 0, driver slot 15
+007d27b0	SC4DrawContext::EnableDepthTestFlag	manual:draw-context.tsv	high	draw-context.md §3; bit 2, capability 1
+007d2800	SC4DrawContext::EnableDepthMaskFlag	manual:draw-context.tsv	high	draw-context.md §3; bit 1, driver slot 17
+007d2850	SC4DrawContext::EnableCullFaceFlag	manual:draw-context.tsv	high	draw-context.md §3; bit 6, capability 3
+007d28a0	SC4DrawContext::SetDepthFunc	manual:draw-context.tsv	high	draw-context.md §3; bits 7-9, driver slot 16
+007d28f0	SC4DrawContext::SetBlendFunc	manual:draw-context.tsv	high	draw-context.md §3; bits 13-20, driver slot 21
+007d2970	SC4DrawContext::SetVertexBuffer	manual:draw-context.tsv	high	draw-context.md §9.1; InterleavedArrays with stride 0
+007d2980	SC4DrawContext::SetIndexBuffer	manual:draw-context.tsv	high	draw-context.md §9.1; index base +0x1FC
+007d2990	SC4DrawContext::DrawPrims	manual:draw-context.tsv	high	draw-context.md §9.1; InterleavedArrays then DrawArrays
+007d29c0	SC4DrawContext::DrawPrimsIndexed	manual:draw-context.tsv	high	draw-context.md §9.1; DrawElements from the index base
+007d29f0	SC4DrawContext::DrawPrimsIndexed	manual:draw-context.tsv	high	draw-context.md §9.1; DrawElements with an index pointer
 007d2a10	cSC4OrdinanceSimple::IsIncomeOrdinance	auto:C	low	mac 00827aba score 1.0 support 5
-007d2a20	SC4DrawContext::SetTransparency	auto:B4	low	mac 0051261a score 0.861 support 7.0
-007d2a30	SC4DrawContext::ResetTransparency	auto:B3	medium	mac 00512632 score 0.873 support 2.5
-007d2b50	cSC4PackedRenderState::PackRenderState	auto:A	high	mac 00512e94 score 0.822 support 0
-007d2d20	SC4DrawContext::SetModelTransform	auto:B6	medium	mac 0051299a score 0.809 support 3.0
-007d2f50	SC4DrawContext::SetAlphaFunc	auto:A	high	mac 005123e8 score 0.569 support 0
-007d3030	SC4DrawContext::SetTexCombiner	auto:B2	medium	mac 005128da score 0.981 support 2.5
-007d30b0	SC4DrawContext::SetTexColor	auto:B4	medium	mac 005124d0 score 0.843 support 4.0
+007d2a20	SC4DrawContext::SetTransparency	manual:draw-context.tsv	high	draw-context.md §3; AlphaMultiplier
+007d2a30	SC4DrawContext::ResetTransparency	manual:draw-context.tsv	high	draw-context.md §3; AlphaMultiplier 1.0
+007d2b50	cSC4PackedRenderState::PackRenderState	manual:draw-context.tsv	high	draw-context.md §5.1; 14 arguments, -1 clears a field from the mask
+007d2d20	SC4DrawContext::SetModelTransform	manual:draw-context.tsv	high	draw-context.md §8; the view transform as a column-major 4x4, +0x138 valid
+007d2f50	SC4DrawContext::SetAlphaFunc	manual:draw-context.tsv	high	draw-context.md §3; bits 10-12, reference round(ref x 15) in bits 21-24
+007d3030	SC4DrawContext::SetTexCombiner	manual:draw-context.tsv	high	draw-context.md §7; driver slot 62, mode bits := 4
+007d30b0	SC4DrawContext::SetTexColor	manual:draw-context.tsv	high	draw-context.md §7; TexEnv slot 27
 007d30d0	cSC43DRender::TurnOnLighting	auto:D	medium	mac 00503368 score 0.5 support 2
-007d3140	SC4DrawContext::SetShade	auto:B5	medium	mac 00513072 score 0.975 support 4.0
-007d31b0	SC4DrawContext::SetSelfLitShade	auto:B6	medium	mac 005127e8 score 0.924 support 7.0
-007d31e0	SC4DrawContext::SetModelShade	auto:B5	medium	mac 00512a6e score 0.952 support 5.0
-007d3290	SC4DrawContext::ResetShade	auto:B1	medium	mac 00512826 score 0.928 support 2.0
+007d3140	SC4DrawContext::SetShade	manual:draw-context.tsv	high	draw-context.md §8; times the default shade +0x94
+007d31b0	SC4DrawContext::SetSelfLitShade	manual:draw-context.tsv	high	draw-context.md §8
+007d31e0	SC4DrawContext::SetModelShade	manual:draw-context.tsv	high	draw-context.md §8; lighting manager +0x44 slot 11 GetModelLight
+007d3290	SC4DrawContext::ResetShade	manual:draw-context.tsv	high	draw-context.md §8; override flag +0x1F8
 007d32d0	cSC43DRender::TurnOnFog	auto:B0	medium	mac 00503df4 score 0.805 support 2.0
-007d3d80	SC4DrawContext::SetCamera	auto:B3	medium	mac 00512ce0 score 0.948 support 2.0
-007d3e90	SC4DrawContext::EnableAlphaTestFlag	auto:B5	medium	mac 0051346a score 0.934 support 3.0
-007d3ef0	SC4DrawContext::EnableTextureStateFlag	auto:B0	medium	mac 005134ec score 0.921 support 2.0
-007d4010	SC4DrawContext::EnableBlendStateFlag	auto:B2	medium	mac 0051368e score 0.934 support 3.0
-007d4070	SC4DrawContext::SetTexture	auto:B2	medium	mac 00513710 score 0.912 support 5.0
-007d4180	SC4DrawContext::SetTexCoord	auto:B5	medium	mac 00513876 score 0.911 support 2.0
-007d41e0	SC4DrawContext::SetTexWrapModes	auto:B3	medium	mac 0051399c score 0.874 support 10.0
-007d4280	SC4DrawContext::SetTexFiltering	auto:B4	medium	mac 00513ac6 score 0.861 support 13.0
-007d4340	SC4DrawContext::SetTexTransform4	auto:B4	medium	mac 00513c44 score 0.982 support 5.0
-007d4420	SC4DrawContext::ClearTexTransform	auto:B4	medium	mac 00513908 score 0.894 support 6.0
-007d4480	SC4DrawContext::SetDepthOffset	auto:B1	medium	mac 00512dae score 0.942 support 2.0
-007d4530	SC4DrawContext::SetRenderState	auto:A	high	mac 00513ec8 score 0.808 support 0
-007d47e0	SC4DrawContext::SetTexEnvMode	auto:A	high	mac 00513774 score 0.726 support 0
-007d4a80	SC4DrawContext::RenderMesh	auto:B5	medium	mac 00514cda score 0.958 support 5.0
-007d4fb0	SC4DrawContext::SetRenderStateHighlight	auto:B6	medium	mac 00514302 score 0.955 support 1.0
-007d5030	SC4DrawContext::DrawBoundingBox	auto:B5	medium	mac 00514e08 score 0.905 support 4.5
-007d5200	SC4DrawContext::SetDefaultRenderState	auto:B4	medium	mac 005144cc score 0.922 support 3.0
-007d5230	SC4DrawContext::SetDefaultRenderStateUnilaterally	auto:B3	medium	mac 005143fe score 0.997 support 2.0
-007d5310	SC4DrawContext::SetRenderState	auto:B3	medium	mac 0051450c score 0.978 support 3.0
-007d5670	SC4DrawContext::SetRenderStateHighlight	auto:B7	medium	mac 0051435c score 0.991 support 4.0
-007d5710	SC4DrawContext::RenderModelInstance	auto:B4	medium	mac 0051500c score 0.984 support 2.5
-007d5f10	SC4DrawContext::SC4DrawContext	auto:B0	medium	mac 0051313e score 0.933 support 2.0
-007d6320	SC4DrawContext::Init	auto:B0	medium	mac 005148cc score 0.866 support 5.5
+007d3400	SC4DrawContext::SetModelTransform	manual:draw-context.tsv	high	draw-context.md §8; descriptive name, no Mac match; the overload with a model transform: view then model, model-view invalid
+007d3d80	SC4DrawContext::SetCamera	manual:draw-context.tsv	high	draw-context.md §8; projection then model-view
+007d3e90	SC4DrawContext::EnableAlphaTestFlag	manual:draw-context.tsv	high	draw-context.md §3; bit 3, kForceNoAlphaTest (boolean 8)
+007d3ef0	SC4DrawContext::EnableTextureStateFlag	manual:draw-context.tsv	high	draw-context.md §3; bits 5 and 28, kUseSecondStage (boolean 11)
+007d4010	SC4DrawContext::EnableBlendStateFlag	manual:draw-context.tsv	high	draw-context.md §3; bit 4, kForceNoAlphaBlend (boolean 7)
+007d4070	SC4DrawContext::SetTexture	manual:draw-context.tsv	high	draw-context.md §7; driver slot 58
+007d40b0	SC4DrawContext::SetTexEnvModeForStage	manual:draw-context.tsv	high	draw-context.md §7; descriptive name, no Mac match; bits 25-27 / 29-31, TexEnv slot 28
+007d4180	SC4DrawContext::SetTexCoord	manual:draw-context.tsv	high	draw-context.md §7; TexStageCoord slot 52
+007d41e0	SC4DrawContext::SetTexWrapModes	manual:draw-context.tsv	high	draw-context.md §7; TexParameter 2 and 3, kForceTextureRepeat
+007d4280	SC4DrawContext::SetTexFiltering	manual:draw-context.tsv	high	draw-context.md §7; TexParameter 0 and 1, kForcePointSampling / kForceBilinear
+007d4340	SC4DrawContext::SetTexTransform4	manual:draw-context.tsv	high	draw-context.md §7; coordinate set 16, TexStageMatrix slot 53
+007d4420	SC4DrawContext::ClearTexTransform	manual:draw-context.tsv	high	draw-context.md §7
+007d4480	SC4DrawContext::SetDepthOffset	manual:draw-context.tsv	high	draw-context.md §8; camera depth bias := kDepthOffset (int 16) x n
+007d4530	SC4DrawContext::SetRenderState	manual:draw-context.tsv	high	draw-context.md §5.2; the packed form: (value ^ word) & mask, then the stage-0 defaults
+007d47e0	SC4DrawContext::SetTexEnvMode	manual:draw-context.tsv	high	draw-context.md §7.1; Mac name kept; prepares the emulated second-stage pass
+007d4a80	SC4DrawContext::RenderMesh	manual:draw-context.tsv	high	draw-context.md §9.1; DrawArrays or DrawElements per group
+007d4fb0	SC4DrawContext::SetRenderStateHighlight	manual:draw-context.tsv	high	draw-context.md §5.2; highlight state +0xCC, colour from +0x54, combiner +0xD4
+007d5030	SC4DrawContext::DrawBoundingBox	manual:draw-context.tsv	high	draw-context.md §9.3; packed state 0x020A8197 / 0x1E1FE3FF
+007d5200	SC4DrawContext::SetDefaultRenderState	manual:draw-context.tsv	high	draw-context.md §5.2; top of the stack +0x1EC or the default +0x88
+007d5230	SC4DrawContext::SetDefaultRenderStateUnilaterally	manual:draw-context.tsv	high	draw-context.md §5.2; every stage reset, then the default
+007d5310	SC4DrawContext::SetRenderState	manual:draw-context.tsv	high	draw-context.md §6; the material form with the draw flags
+007d5670	SC4DrawContext::SetRenderStateHighlight	manual:draw-context.tsv	high	draw-context.md §6; the material form
+007d5710	SC4DrawContext::RenderModelInstance	manual:draw-context.tsv	high	draw-context.md §9.2; kShowBoundingBoxes (26), boolean 30 size cull, second pass
+007d5f10	SC4DrawContext::SC4DrawContext	manual:draw-context.tsv	high	draw-context.md §1; 0x200 bytes, created by cSC43DRender
+007d6320	SC4DrawContext::Init	manual:draw-context.tsv	high	draw-context.md §1.1; driver slot 64, max(stages, 2), highlight colours, packed defaults
 007d6540	RotateLightingRectToWorld	manual:lighting.tsv	high	lighting.md §6; descriptive name, no Mac match; fastcall (stored rect ECX, vertex count z EDX, rotation, vertex count x), result through EAX; called twice by DoMessage
 007d65e0	cSC4LightingManager::QueryInterface	manual:lighting.tsv	high	lighting.md §1.1; slot 0 of 0x00ABB530; IIDs 1, 0x681BD52A, 0x452294AA (this + 4)
 007d6650	cSC4LightingManager::Release	manual:lighting.tsv	high	lighting.md §1.1; slot 2; count +0x0C, deleting destructor at 1 or below
@@ -9165,7 +9167,7 @@ va	name	source	confidence	note
 007f9ea0	SC4ViewUtilities::GetViewportRectGroundCorners	manual:view-utilities.tsv	high	view-utilities.md §4.1; descriptive name, no Mac match; four GetViewportPointIntersectionWithGroundPlane calls
 007f9f50	SC4ViewUtilities::BuildDrawFrustumDataFromViewportRect	manual:view-utilities.tsv	high	view-utilities.md §5; flag +0x228, rectangle +0x22C
 007fb1d0	cSC4Advice::GetEventSubject	auto:C	low	mac 0032b992 score 1.0 support 3
-007fc2d0	SC4DrawContext::DrawPrims	auto:B3	low	mac 00512580 score 0.831 support 2.0
+007fc2d0	SC4DrawContext::DrawPrims	manual:draw-context.tsv	high	draw-context.md §9.1; DrawArrays
 007fd2f0	cS3DModelInstanceAnimatedSprite::GetTextureResourceData	auto:D	medium	mac 00139294 score 0.5 support 1
 007fd3d0	cS3DModelInstanceAnimatedSprite::GetTextureData	auto:D	medium	mac 00138400 score 0.5 support 1
 007fd710	cS3DModelInstanceAnimatedSprite::Pick	auto:B5	medium	mac 001388ba score 0.975 support 1.0
@@ -9185,6 +9187,7 @@ va	name	source	confidence	note
 007ff080	cS3DCamera::SetSubview	manual:camera.tsv	high	camera.md §1.2; +0x18..+0x24, in use +0x14, counter += 1
 007ff0b0	cSC43DRender::UnsetClipRect	auto:B6	medium	mac 00502ba6 score 0.884 support 2.0
 007ff0e0	cS3DCamera::LocalXform	manual:camera.tsv	high	camera.md §1.2; returns the local transform +0x28
+007ff0f0	cS3DCamera::SetDepthBias	manual:draw-context.tsv	high	draw-context.md §8; descriptive name, no Mac match; +0x1A4 := b, +0x17C bumped (camera.md §1.2)
 007ff110	cS3DCamera::GetProjectionType	manual:camera.tsv	high	camera.md §1.2; +0x180 (2 perspective)
 007ff120	cSC4City::GetFloraSimulator	auto:C	low	mac 0003004a score 1.0 support 1
 007ff130	cS3DCamera::~cS3DCamera (deleting destructor)	manual:camera.tsv	high	camera.md §1.2; descriptive name; slot 3; GlobalHeapFree on flag bit 0

@@ -395,7 +395,8 @@ cRZSpanList	2D drawing and fonts	renderer	-	-	-	-
 cRZRGBColorConverter	2D drawing and fonts	renderer	-	-	-	-
 cGZGimexFactory	2D drawing and fonts	renderer	-	-	-	-
 cWinBMPView	2D drawing and fonts	renderer	-	-	-	-
-SC4DrawContext	2D drawing and fonts	renderer	-	-	-	-
+SC4DrawContext	3D draw context	renderer	draw-context.md	-	-	-
+cSC4PackedRenderState	3D draw context	renderer	draw-context.md	-	-	-
 fn:*Blt*	2D drawing and fonts	renderer	-	-	-	-
 fn:RZDraw*	2D drawing and fonts	renderer	-	-	-	-
 fn:Draw*	2D drawing and fonts	renderer	-	-	-	-

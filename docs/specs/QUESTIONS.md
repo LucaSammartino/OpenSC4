@@ -43,6 +43,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CR | power |
 | CS | city-situation |
 | CT | city-tools-input |
+| DC | draw-context |
 | DG | building-development |
 | DM | demolition |
 | DP | dispatch |
@@ -138,7 +139,7 @@ generated index: the questions live one file per spec, so read only the file for
 | budget | 0 | 8 | BQ9 | - |
 | budget-window | 1 | 13 | BW15 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
-| camera | 2 | 0 | CA3 | questions/camera.md |
+| camera | 1 | 1 | CA3 | questions/camera.md |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools-input | 12 | 1 | CT14 | questions/city-tools-input.md |
@@ -154,6 +155,7 @@ generated index: the questions live one file per spec, so read only the file for
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
+| draw-context | 2 | 0 | DC3 | questions/draw-context.md |
 | drawing-fonts | 0 | 14 | FN15 | questions/drawing-fonts.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 2 | 0 | FM3 | questions/feature-manager.md |
@@ -214,7 +216,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
-| texture-bindings | 3 | 0 | TB4 | questions/texture-bindings.md |
+| texture-bindings | 2 | 1 | TB4 | questions/texture-bindings.md |
 | timers | 0 | 2 | TM3 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
@@ -227,4 +229,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **221** | **1115** | | |
+| **total** | **221** | **1117** | | |

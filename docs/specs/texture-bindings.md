@@ -200,7 +200,9 @@ returns true.
   first byte := 1 and its reference count (`+0x02`) := 1; true.
 - Default texture slot (constructor): no binding, wrap S and T 3 (repeat), mag and min 1 (linear), slot byte `+0x0C`
   1, bytes `+0x0D` and `+0x0E` 0, a float 1.0 at `+0x10`; the ID is left unset (`CreateMaterial` writes it for
-  the used slots).
+  the used slots). The 3D draw context reads them as the stage's texture-environment mode (`+0x0C`), its
+  texture-coordinate set (`+0x0D`), a texture-transform switch (`+0x0E` bit 0) and that transform's scale
+  divisor (`+0x10`) (draw-context.md §6); slots past T are never read, so their `0xFF` is only a marker.
 - Slot 4 (a shared body) always returns false; `GetStatsString` (slot 5, `0x00800C50`) formats "Nothing to report".
 
 ## 4. Users
@@ -220,8 +222,8 @@ The model frame resolution of graphics-formats §4.1 (slots 5 and 6); code that 
 
 ## 6. Open questions
 
-See QUESTIONS.md TB1–TB3: the interface `0x088CEB67` at `+0x04`, who sets the bit depth and the LOD offset (and with
-what), and the meaning of the material slot byte `+0x0C` and the float `+0x10`.
+See QUESTIONS.md TB1–TB2: the interface `0x088CEB67` at `+0x04`, and who sets the bit depth and the LOD offset (and
+with what). TB3 (the material slot bytes) is answered in §3.
 
 ## 7. Conformance tests
 

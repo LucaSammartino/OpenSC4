@@ -48,7 +48,7 @@ World coordinates: x and z on the ground (metres, a cell is 16 m), y up. Screen 
 | `+0x184`, `+0x188` | near, far | 1, 2 *[inferred]* |
 | `+0x18C`, `+0x190`, `+0x198`, `+0x194` | left, right, bottom, top | a unit box *[inferred]* |
 | `+0x19C`, `+0x1A0` | pixel offset x, y | 0, 0 |
-| `+0x1A4` | depth bias | 0 |
+| `+0x1A4` | depth bias, set by `SetDepthBias` (§1.2) | 0 |
 
 ### 1.2 Methods
 
@@ -58,6 +58,7 @@ World coordinates: x and z on the ground (metres, a cell is 16 m), y up. Screen 
 | `QueryInterface(iid, out)` (slot 0) | `0x007FF040` | IIDs 1 and `0xE9C6262A` |
 | `Release` (slot 2) | `0x007FF020` | count ≤ 1: slot 3 with 1 and return 0; else decrement |
 | deleting destructor (slot 3) | `0x007FF130` | frees to the global heap on flag bit 0 |
+| `SetDepthBias(b)` | `0x007FF0F0` | `+0x1A4 := b` and the projection change counter `+0x17C` is bumped; the 3D draw context's `SetDepthOffset(n)` passes `kDepthOffset` × n (draw-context.md §8) |
 | constructor / factory | `0x007FF930` / `0x00800320` | the defaults of §1.1 (0x1A8 bytes from the global heap) |
 | `SetViewport(w, h)` | `0x007FF150` | viewport := (w, h); subview := (0, 0, w, h), not in use; projection counter += 2 |
 | `SetSubview(x, y, w, h)` | `0x007FF080` | subview := (x, y, w, h), in use; projection counter += 1 |
@@ -269,7 +270,7 @@ stream reports an error.
 ## 5. Open questions
 
 - **CA1:** (§2.5) the geometric meaning of the 0.48 factor and of `lift` in the scroll polygon.
-- **CA2:** (§1.1) the depth bias `+0x1A4`: nothing in this lane sets it; which caller does?
+- **CA2** (answered 2026-10-20 by re-drawcontext): `SetDepthBias` (§1.2), from the draw context's depth offset.
 
 ## 6. Conformance tests
 
