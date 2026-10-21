@@ -45,6 +45,7 @@
 #include <cstdio>
 #include <cstring>
 #include <map>
+#include <utility>
 #include <string>
 #include <mutex>
 #include <vector>
@@ -1366,9 +1367,7 @@ void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std
     } else {
         // Setup: properties go in through holder slot 13 (own list), then the
         // documented rebuild (slot 15 with null, or SetCohort) builds the
-        // effective list. Whether slot 13 itself updates the effective list
-        // is open (EX51 b) and only reported in out[4]; so are return values
-        // the spec does not give (SetCohort, slot 15: EX51 c).
+        // effective list (EX51 b: slot 13 alone does not).
         using Re = bool(__thiscall*)(void*, void*);
         Holder* hc = HolderOf(c);
         hc->AddPropertyU32(0x10, 2, false);
@@ -1377,12 +1376,14 @@ void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std
         Holder* h1 = HolderOf(e1);
         h1->AddPropertyU32(0x20, 5, false);
         h1->AddPropertyU32(0x27812870, 1, false);
-        Add(out[4], "set=%lu", e1->SetCohort(c, false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        // EX51 c: SetCohort, RemoveAllProperties and slot 15 have no return
+        // value in the original; their results are not compared.
+        e1->SetCohort(c, false);
         out[0] += ListIds(h1);
         h1->AddPropertyU32(0x30, 9, false);
-        Add(out[4], " add13_has=%lu", h1->HasProperty(0x30));
+        Add(out[0], " add13_has=%lu", h1->HasProperty(0x30));  // EX51 b: own list only, expect 0
         Add(out[0], " local=%lu", e1->IsPropertyLocal(0x30));  // [abi-ret] probed: data-formats 8.2 / EX51
-        Add(out[4], " s15=%lu", Slot<Re>(e1, 15)(e1, nullptr));
+        Slot<Re>(e1, 15)(e1, nullptr);
         out[0] += " after_rebuild: " + ListIds(h1);
         // 2. removal reveals the parent.
         Holder* h2 = HolderOf(e2);
@@ -1396,17 +1397,17 @@ void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std
         Add(out[1], " local=%lu", e2->IsPropertyLocal(0x10));  // [abi-ret] probed: data-formats 8.2 / EX51
         Add(out[1], " rm2=%lu", h2->RemoveProperty(0x10, false));
         h2->AddPropertyU32(0x40, 1, false);
-        Add(out[4], " rmall=%lu", h2->RemoveAllProperties(false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        h2->RemoveAllProperties(false);
         out[1] += " " + ListIds(h2);
         // 3. SetCohort references (counts relative to the start).
         const uint32_t r0 = RefsOf(c);
-        Add(out[4], " set3=%lu", e3->SetCohort(c, false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        e3->SetCohort(c, false);
         Add(out[2], " d_set=%ld", static_cast<long>(RefsOf(c) - r0));
         Add(out[2], " get_same=%lu", e3->GetCohort() == c);
         Add(out[2], " d_get=%ld", static_cast<long>(RefsOf(c) - r0));
-        Add(out[4], " set_again=%lu", e3->SetCohort(c, false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        e3->SetCohort(c, false);
         Add(out[2], " d_again=%ld", static_cast<long>(RefsOf(c) - r0));
-        Add(out[4], " set_null=%lu", e3->SetCohort(nullptr, false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        e3->SetCohort(nullptr, false);
         Add(out[2], " d_null=%ld", static_cast<long>(RefsOf(c) - r0));
         Add(out[2], " has10=%lu", HolderOf(e3)->HasProperty(0x10));
         Add(out[2], " cohort_null=%lu", e3->GetCohort() == nullptr);
@@ -1439,22 +1440,232 @@ void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std
         if (u != nullptr) FC4_RELEASE_CREATED(u);  // made for us by CreateInstance
 }
 
+// A recording serial record for the SerialWrite scenario: the write slots
+// data-formats §8.2 EX51 d names (28 raw, 29 u8, 37 u32, 49 key, 50 variant)
+// append text; QueryInterface / AddRef / Release are inert; any other slot
+// appends "?N" (taken as argument-free).
+std::string* g_recLog = nullptr;
+struct FakeRec {
+    void** vtbl;
+};
+void RecAdd(const char* fmt, unsigned long a, unsigned long b = 0, unsigned long c = 0) {
+    char t[96];
+    snprintf(t, sizeof t, fmt, a, b, c);
+    if (g_recLog != nullptr) *g_recLog += t;
+}
+bool __fastcall RecQI(FakeRec*, void*, uint32_t, void**) { return false; }
+uint32_t __fastcall RecRef(FakeRec*, void*) { return 1; }
+bool __fastcall RecRaw(FakeRec*, void*, const void* p, uint32_t n) {
+    RecAdd(" raw%lu:", n, 0);
+    for (uint32_t i = 0; i < n && i < 16; ++i) RecAdd("%02lX", static_cast<const uint8_t*>(p)[i]);
+    return true;
+}
+bool __fastcall RecU8(FakeRec*, void*, uint8_t v) {
+    RecAdd(" u8:%lX", v);
+    return true;
+}
+bool __fastcall RecU32(FakeRec*, void*, uint32_t v) {
+    RecAdd(" u32:%lX", v);
+    return true;
+}
+bool __fastcall RecKey(FakeRec*, void*, const cGZPersistResourceKey* k) {
+    if (k == nullptr) RecAdd(" key:null", 0);
+    else RecAdd(" key:%lX,%lX,%lX", k->type, k->group, k->instance);
+    return true;
+}
+bool __fastcall RecVar(FakeRec*, void*, const cIGZVariant* v) {
+    if (v == nullptr) {
+        RecAdd(" var:null", 0);
+        return true;
+    }
+    auto* g = const_cast<cFC4IGZVariant*>(fc4::AsGame(v));
+    RecAdd(" var:t%lX,c%lu,w%lX", g->GetType(), g->GetCount(), g->AsUint32Ref());
+    return true;
+}
+template <int N>
+bool __fastcall RecOther(FakeRec*, void*) {
+    RecAdd(" ?%lu", N);
+    return false;
+}
+template <int... N>
+void FillOthers(void** t, std::integer_sequence<int, N...>) {
+    ((t[N] = reinterpret_cast<void*>(&RecOther<N>)), ...);
+}
+FakeRec* MakeRec() {
+    static void* vt[64];
+    static FakeRec rec{vt};
+    FillOthers(vt, std::make_integer_sequence<int, 64>{});
+    vt[0] = reinterpret_cast<void*>(&RecQI);
+    vt[1] = vt[2] = reinterpret_cast<void*>(&RecRef);
+    vt[28] = reinterpret_cast<void*>(&RecRaw);
+    vt[29] = reinterpret_cast<void*>(&RecU8);
+    vt[37] = reinterpret_cast<void*>(&RecU32);
+    vt[49] = reinterpret_cast<void*>(&RecKey);
+    vt[50] = reinterpret_cast<void*>(&RecVar);
+    return &rec;
+}
+
+cIGZPersistResource* ResOf(cIGZUnknown* u) {
+    void* r = nullptr;
+    if (!u->QueryInterface(kIIDResource, &r) || r == nullptr) return nullptr;
+    FC4_ACQUIRED(static_cast<cIGZPersistResource*>(r), "QueryInterface");
+    return static_cast<cIGZPersistResource*>(r);
+}
+
+// The EX51 scenarios (data-formats §8.2 as answered): 0 holder add slots
+// (b), 1 slot 15 into a native vector (a), 2 SerialWrite bytes (d), 3 tag
+// text (e/f). Only bool false is passed.
+void RunSide2(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std::string out[4]) {
+    using Re = void(__thiscall*)(void*, void*);
+    using Tag = bool(__thiscall*)(void*, cIGZString&);
+    using SW = bool(__thiscall*)(void*, cIGZPersistResource*, void*);
+    auto* c = Make<cISCResExemplarCohort>(fc, kTypeCohort, kIIDCohort);
+    auto* c2 = Make<cISCResExemplarCohort>(fc, kTypeCohort, kIIDCohort);
+    cISCResExemplar* e[5] = {};
+    for (auto*& x : e) x = Make<cISCResExemplar>(fe, kTypeExemplar, kIIDExemplar);
+    bool all = c != nullptr && c2 != nullptr;
+    for (auto* x : e) all = all && x != nullptr;
+    if (!all) {
+        for (int i = 0; i < 4; ++i) out[i] = "create failed";
+    } else {
+        Holder* hc = HolderOf(c);
+        hc->AddPropertyU32(0x10, 2, false);
+        Slot<Re>(c, 15)(c, nullptr);
+        uint32_t v = 0;
+        // 0. add slots.
+        Holder* h = HolderOf(e[0]);
+        e[0]->SetCohort(c, false);
+        h->AddPropertyU32(0x10, 7, false);
+        Add(out[0], "s13_new_inherited=%lu", h->GetPropertyU32(0x10, v) ? v : 999);  // [abi-ret] probed: data-formats 8.2 / EX51
+        h->AddPropertyU32(0x50, 1, false);
+        Add(out[0], " s13_new_has=%lu", h->HasProperty(0x50));
+        h->AddPropertyU32(0x60, 3, false);
+        Slot<Re>(e[0], 15)(e[0], nullptr);
+        h->AddPropertyU32(0x60, 4, false);
+        v = 0;
+        Add(out[0], " s13_inplace=%lu", h->GetPropertyU32(0x60, v) ? v : 999);  // [abi-ret] probed: data-formats 8.2 / EX51
+        cISCProperty* p60 = h->GetProperty(0x60);
+        Add(out[0], " s14=%lu", p60 != nullptr ? h->AddPropertyVariant(0x10, fc4::AsGame(p60->GetPropertyValue()), false)
+                                               : 999);  // [abi-ret] probed: data-formats 8.2 / EX51
+        v = 0;
+        Add(out[0], " s14_get=%lu", h->GetPropertyU32(0x10, v) ? v : 999);  // [abi-ret] probed: data-formats 8.2 / EX51
+        Add(out[0], " s14_has50=%lu", h->HasProperty(0x50));
+        HolderOf(e[1])->AddPropertyU32(0x20, 1, false);
+        e[1]->SetCohort(c, false);
+        cISCProperty* p10 = hc->GetProperty(0x10);
+        Add(out[0], " s16=%lu", HolderOf(e[1])->CopyAddProperty(p10, false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        cISCProperty* q10 = HolderOf(e[1])->GetProperty(0x10);
+        Add(out[0], " s16_copy=%lu", q10 != nullptr && q10 != p10);
+        Add(out[0], " s16_local=%lu", e[1]->IsPropertyLocal(0x10));  // [abi-ret] probed: data-formats 8.2 / EX51
+        // 1. slot 15 into a vector {begin, end, capacity} of {id, property}.
+        struct Elem {
+            uint32_t id;
+            cISCProperty* p;
+        };
+        struct Vec {
+            Elem* b;
+            Elem* e;
+            Elem* c;
+        } vec = {nullptr, nullptr, nullptr};
+        Holder* h2 = HolderOf(e[2]);
+        h2->AddPropertyU32(0x20, 5, false);
+        h2->AddPropertyU32(0x10, 9, false);
+        e[2]->SetCohort(c, false);
+        const std::string before = ListIds(h2);
+        const uint32_t r10 = RefsOf(p10);
+        for (int round = 0; round < 2; ++round) {
+            Slot<Re>(e[2], 15)(e[2], &vec);
+            Add(out[1], " r%lu:", static_cast<unsigned long>(round));
+            Add(out[1], "n=%lu", static_cast<unsigned long>(vec.e - vec.b));
+            for (Elem* x = vec.b; x != nullptr && x != vec.e; ++x) {
+                Add(out[1], " %lX", x->id);
+                Add(out[1], "=%lu", x->p != nullptr && x->id == x->p->GetPropertyID());
+            }
+            Add(out[1], " d_parent10=%ld", static_cast<long>(RefsOf(p10) - r10));  // the own 0x10 wins: 0
+            Add(out[1], " d_own20=%lu", static_cast<unsigned long>(vec.b != nullptr && vec.e != vec.b));
+        }
+        Add(out[1], " eff_same=%lu", before == ListIds(h2));
+        for (Elem* x = vec.b; x != nullptr && x != vec.e; ++x) {
+            if (x->p == nullptr) continue;
+            FC4_ACQUIRED(x->p, "slot 15 vector element");  // the vector's reference, now ours
+            FC4_RELEASE(x->p);
+        }
+        // The buffer is left allocated: which game allocator 0x0067CB20 uses
+        // is question EX52, so it is not freed here (a few bytes, once).
+        // 2. SerialWrite (factory slot 11) into the recording record.
+        FakeRec* rec = MakeRec();
+        g_recLog = &out[2];
+        Holder* h3 = HolderOf(e[3]);
+        h3->AddPropertyU32(0x30, 9, false);
+        h3->AddPropertyU32(0x20, 5, false);
+        if (cIGZPersistResource* r = ResOf(e[3])) {
+            Add(out[2], "ex:", 0);
+            Add(out[2], " ret=%lu", Slot<SW>(fe, 11)(fe, r, rec));  // [abi-ret] probed: data-formats 8.2 / EX51
+            FC4_RELEASE(r);
+        }
+        if (cIGZPersistResource* rc = ResOf(c)) {
+            rc->SetKey(cGZPersistResourceKey(kTypeCohort, 0x11, 0x22));
+            Add(out[2], " wrongtype:", 0);
+            Add(out[2], " ret=%lu", Slot<SW>(fe, 11)(fe, rc, rec));  // [abi-ret] probed: data-formats 8.2 / EX51
+            Add(out[2], " co:", 0);
+            Add(out[2], " ret=%lu", Slot<SW>(fc, 11)(fc, rc, rec));  // [abi-ret] probed: data-formats 8.2 / EX51
+            FC4_RELEASE(rc);
+        }
+        Holder* h4 = HolderOf(e[4]);
+        h4->AddPropertyU32(0x40, 1, false);
+        e[4]->SetCohort(c, false);
+        if (cIGZPersistResource* r = ResOf(e[4])) {
+            Add(out[2], " child:", 0);
+            Add(out[2], " ret=%lu", Slot<SW>(fe, 11)(fe, r, rec));  // [abi-ret] probed: data-formats 8.2 / EX51
+            FC4_RELEASE(r);
+        }
+        g_recLog = nullptr;
+        // 3. tag text: cohort 0x10 = 1 and 0x20 = Uint32 5; an inheriting
+        // child; a string name; an add since the last rebuild (not shown).
+        Holder* hc2 = HolderOf(c2);
+        hc2->AddPropertyU32(0x10, 1, false);
+        hc2->AddPropertyU32(0x20, 5, false);
+        Slot<Re>(c2, 15)(c2, nullptr);
+        cRZBaseString t1, t2, t3, t4;
+        Slot<Tag>(c2, 14)(c2, t1);
+        out[3] += std::string("c[") + t1.ToChar() + "]";
+        e[3]->SetCohort(c2, false);  // own 0x20 = 5, 0x30; inherits 0x10 = 1
+        Slot<Tag>(e[3], 14)(e[3], t2);
+        out[3] += std::string(" e[") + t2.ToChar() + "]";
+        cRZBaseString abc("abc");
+        h4->AddPropertyString(0x20, abc, false);  // since the rebuild: not in the effective list
+        Slot<Tag>(e[4], 14)(e[4], t3);
+        out[3] += std::string(" pending[") + t3.ToChar() + "]";
+        Slot<Re>(e[4], 15)(e[4], nullptr);
+        Slot<Tag>(e[4], 14)(e[4], t4);
+        out[3] += std::string(" str[") + t4.ToChar() + "]";
+    }
+    for (int i = 4; i >= 0; --i)
+        if (e[i] != nullptr) FC4_RELEASE_CREATED(e[i]);  // made for us by CreateInstance
+    if (c2 != nullptr) FC4_RELEASE_CREATED(c2);
+    if (c != nullptr) FC4_RELEASE_CREATED(c);
+}
+
 void ContractTest() {
-    static const char* kNames[4] = {"list_order", "remove_reveals_parent", "setcohort_refs", "stubs_tag_rebuild"};
-    std::string nat[5], ours[5];
+    static const char* kNames[8] = {"list_order",    "remove_reveals_parent", "setcohort_refs", "stubs_tag_rebuild",
+                                    "add_slots_b",   "rebuild_dest_a",        "serialwrite_d",  "tag_text_ef"};
+    std::string nat[5], ours[5], nat2[4], ours2[4];
+    t_fixture = true;  // EX50: our calls from here are the fixture's
     RunSide(g_original[0], g_original[1], nat);
     RunSide(g_ours[0], g_ours[1], ours);
+    RunSide2(g_original[0], g_original[1], nat2);
+    RunSide2(g_ours[0], g_ours[1], ours2);
+    t_fixture = false;
     int match = 0;
-    for (int i = 0; i < 4; ++i) {
-        const bool same = nat[i] == ours[i];
+    for (int i = 0; i < 8; ++i) {
+        const std::string& a = i < 4 ? nat[i] : nat2[i - 4];
+        const std::string& b = i < 4 ? ours[i] : ours2[i - 4];
+        const bool same = a == b;
         match += same ? 1 : 0;
-        Log("exemplars: contract %s %s native={%s} ours={%s}", kNames[i], same ? "MATCH" : "DIFF", nat[i].c_str(),
-            ours[i].c_str());
+        Log("exemplars: contract %s %s native={%s} ours={%s}", kNames[i], same ? "MATCH" : "DIFF", a.c_str(),
+            b.c_str());
     }
-    // Not compared: return values the spec does not give and the slot-13
-    // effective-list probe (EX51 b/c).
-    Log("exemplars: contract unspecified (EX51) native={%s} ours={%s}", nat[4].c_str(), ours[4].c_str());
-    Log("exemplars: contract native-vs-ours %d/4 match", match);
+    Log("exemplars: contract native-vs-ours %d/8 match", match);
 }
 
 }  // namespace
