@@ -26,10 +26,11 @@ The game draws through an abstract "graphics driver" interface with an OpenGL-li
 | `0x00ACC4D8` | a third driver (bodies `0x008DA8C0`-`0x008E1140`, near `nRZSimGL`) *[inferred: software / null driver]* | no |
 
 Owner patterns covered: `nSGLDX7::cGDriver::*` bodies in `0x00881DF0`-`0x00889260` (the device, window, state and
-scene lifecycle), `nSGLDX7::TranslateColorToD3D` (`0x00881AB0`). Named but **not yet specified** (open, §9):
-`nSGLDX7::cTextureManager` (`0x0088A380`-`0x0088B2C0`), `nSGLDX7::cPrimitiveManager` (`0x00889B60`-`0x0088A2B0`),
-`cTextureStageData`, `cVertexBuffer`, `D3DLight`, `nRZSimGL` (vertex-format helpers and colour-key blitters),
-`cGZBufferSimGLCache`, `cSC4GDriversCOMDirector`, and the texture / draw / blit / video-mode slots.
+scene lifecycle), `nSGLDX7::TranslateColorToD3D` (`0x00881AB0`), the default device state (§7),
+`nSGLDX7::cPrimitiveManager` (`0x00889B60`-`0x0088A380`, §8.3) with slots 3, 5 and 30-34 (§8). Named but **not
+yet specified** (open, §9): `nSGLDX7::cTextureManager` (`0x0088A380`-`0x0088B2C0`), `cTextureStageData` (only its
+dirty byte, §7), `cVertexBuffer`, `D3DLight`, `nRZSimGL` (vertex-format helpers and colour-key blitters),
+`cGZBufferSimGLCache`, `cSC4GDriversCOMDirector`, and slots 4, 6-10, 24-29, 35-42, 47-49, 51-62, 68-76.
 
 The driver object exposes four COM-style interface pointers at object offsets `+0x0`, `+0x4`, `+0x8` and `+0xC`
 plus a reference-counted sub-object at `+0x10`; the 83-slot graphics interface is the one at `+0xC`. Slots 0-2
@@ -342,6 +343,103 @@ driver (`0x00881A00`-`0x0088B400` reads neither `+0x138` from the object nor `+0
 which is the same field); it is write-only *[inferred: a leftover]*. A replacement may keep it as an unused field.
 Likewise the "clear colour at scene start" flag `+0x2DD` is only ever written false (constructor and here), so the
 colour clear `BeginScene` performs when it is set (§4.4, `Clear(0x4000)`) never happens *[inferred]*.
+
+## 8. Drawing (slots 3, 5, 30-34) and the primitive manager
+
+### 8.1 Vertex arrays: `InterleavedArrays(format, stride, pointer)` (slot 5, `0x00881EC0`)
+
+Stores the current vertex format, its standard stride (`StandardVFStride`, [graphics-formats.md §3.5](graphics-formats.md)),
+the stride to use (the given stride, or the standard stride when the given one is 0) and the base pointer. It
+sets an "arrays given" byte that nothing reads. No flush, no validation, no error code.
+
+### 8.2 `DrawArrays(mode, first, count)` (slot 3, `0x008857E0`)
+
+1. If the primitive manager has not been started (no device, §8.3), return without doing anything.
+2. If the "stages dirty" byte (§7) is set: flush the queue (§8.3), then for every hardware stage whose record is
+   marked dirty, clear the mark and send the stage's states to the device (`0x00884320`), then its texture
+   transform (`0x00884500`) when that changed; clear "stages dirty". *[inferred: the stage-record contents are
+   the texture-stage slots 51-57, still open]*
+3. If `count < 1`, return (after step 2).
+4. The source is `base + stride × first`. Modes and what is queued:
+
+| `mode` | Meaning | Queued as (D3D7 primitive) | Generated indices (per primitive, relative to `first`) |
+|---|---|---|---|
+| 0 | triangles | triangle list (4), unindexed | - |
+| 1 | triangle strip | triangle list, indexed, 3·(count−2) indices | triangle k: (k, k+1, k+2) for even k, (k+1, k, k+2) for odd k |
+| 2 | triangle fan | triangle list, indexed, 3·(count−2) indices | triangle k: (0, k+1, k+2) |
+| 3 | points | point list (1), unindexed | - |
+| 4 | lines | line list (2), unindexed | - |
+| 5 | line strip | line strip (3), unindexed | - |
+| 6 | quads | triangle list, indexed, 3·⌊count/2⌋ indices | quad q (base b = 4q): (b, b+1, b+2), (b, b+2, b+3) |
+| 7 | quad strip | triangle list, indexed, 3·count−6 indices | for i = 0, 2, 4, … < count−2: (i, i+1, i+3), (i, i+3, i+2) |
+
+The index count is truncated to 16 bits; strips and fans with `count < 3` (and quad strips with `count < 2`) give
+a negative count truncated to a huge one *[quirk; callers must not do it]*. Indices are taken from the manager's
+index scratch (`GetIndices`, §8.3). The queue result, when it is a failure, sets the error code by the §3 rule.
+Modes 0-5 use the table at `0x00AC44CC` (`4 5 6 1 2 3 4 4`); entries 1, 2, 6, 7 are never read.
+
+### 8.3 The primitive manager (`nSGLDX7::cPrimitiveManager`, object `+0x1C`, `0x00889B60`-`0x0088A380`)
+
+The manager batches draws into one 64 KiB Direct3D vertex buffer and submits them later.
+
+**Init** (`0x0088A2B0`, from `SetupViewport` with the DirectDraw, Direct3D and device objects) asks the device
+for its capabilities: the vertex buffer is created write-only when the device has hardware transform and lighting
+(`D3DDEVCAPS_HWTRANSFORMANDLIGHT`), else write-only in system memory (flags `0x10000` / `0x10800`). It records one
+vertex-buffer descriptor for standard vertex format 11 with that format's stride. The buffer itself is created when
+the manager is started (`0x008898D0`, a virtual): capacity = ⌊65536 / stride⌋ vertices, flexible format built from
+the vertex format: position → XYZ, a colour element → DIFFUSE, two-component texture coordinates: one set → TEX1,
+two or more → TEX2 (`0x008891C0`; normals and other kinds are not carried) *[compat]*.
+
+**Queue** (`QueueVersionA`, `0x00889E00`; arguments: vertex format, D3D primitive, stride, minimum index,
+vertex count, source pointer, index count, index pointer):
+
+1. Not started: return failure (`0x80004005`), nothing queued.
+2. Stride above 32 bytes: the draw is **not** batched. It is sent at once from the caller's memory (plain or
+   strided `DrawPrimitive` / `DrawIndexedPrimitive`, `0x00889450`), **without first flushing the queue**, so it
+   can overtake earlier queued draws *[quirk]*.
+3. Otherwise reserve `count` vertices in the buffer. When the queue is empty or the reservation does not fit
+   behind the cursor, flush the queue (§ below), then reserve again allowing a wrap: the cursor restarts at 0 and
+   the next lock discards the old contents. A request larger than the whole buffer, or a failed lock, drops the
+   draw silently (result 0). Locks use wait + write-only + no-overwrite (discard after a wrap); a lock that
+   reports a lost surface restores all surfaces, re-creates the buffer and retries.
+4. Copy the vertices into the reserved space, converting from the source stride to the compact layout
+   (`0x00889280`). Supported packed formats: position; position+colour; position+1 or 2 UV sets;
+   position+colour+1 UV set; position+colour+2 UV sets (straight copy, only at stride 32). A stride that is not a
+   multiple of 4 or any other format fails: the reservation is released and the queue returns `0x80004005`.
+5. Subtract the minimum index from each index. If the last queued entry has the same primitive and that
+   primitive is a triangle, line or point **list**, merge: both unindexed → add the vertex count; both indexed →
+   add vertex and index counts and rebase the new indices onto the merged entry's first vertex (this assumes the
+   new indices follow the previous ones in memory, which holds for the index scratch). Otherwise append a new
+   entry (primitive, first vertex in the buffer, vertex count, index pointer, index count).
+
+**Flush** (`0x00889DE0`, called by every state slot before it changes state): submit every entry in order as
+`DrawPrimitiveVB` (unindexed) or `DrawIndexedPrimitiveVB` from the buffer, clear the queue, reset the index
+scratch. Not started with a non-empty queue: returns failure and **keeps** the queue.
+
+**Index scratch** (`GetIndices(n)`, `0x0088A240`): a growable array of 16-bit indices handed out sequentially;
+when `n` more would exceed its allocated capacity, the queue is flushed first (queued entries point into it),
+then the array grows. **Stop** (`0x00889B60`) clears the queue and releases the buffer.
+
+### 8.4 Colour and alpha multipliers, vertex colours, fog (slots 30-34)
+
+All flush the queue first.
+
+- `ColorMultiplier(r, g, b)` (32, `0x00883240`): on first use since the last default-state reset (§7 flag
+  `+0x2DC`) turn lighting on (error code by §3 on failure); set the material's ambient colour to (1, 1, 1) and
+  send the material; ambient light := `TranslateColor(r, g, b, 1.0)` (§5.5). The multiplier is thus applied by
+  fixed-function lighting with ambient taken from the vertex colour (§7 row 23).
+- `AlphaMultiplier(a)` (33, `0x00883310`): same lighting step; material diffuse alpha := `a`, send the material;
+  then if `a < 1.0` (compared as a double with `0x00A80AB0` = 1.0): diffuse source := material (so alpha comes
+  from the material); else (also NaN), only when the "diffuse from vertex colour" flag is set: diffuse source :=
+  vertex colour 1.
+- `EnableVertexColors(ambient, diffuse)` (34, `0x008833E0`): stores both flags (§7), colour-vertex on, ambient
+  source := vertex colour 1 if `ambient` else material, diffuse source likewise from `diffuse`.
+- `Fog(pname, const float* v)` (30, `0x00883180`): 0 → error code 1; 1 → fog colour := `TranslateColor(v[0..3])`;
+  2 → fog density := `v[0]`; 3 → fog start := `v[0]`; 4 → fog end := `v[0]`; others ignored. A failing device
+  call sets the error code by §3.
+- `Fog(pname, int v)` (31, `0x00883100`): without the device fog capability (the bit tested by cap 6, §5.4):
+  error code 3. Otherwise 0 → vertex fog mode := table `0x00AC45F8`[v] (0 → exponential, 1 → exponential
+  squared, 2 → linear, 3 → exponential squared); 1-4 → error code 1; others ignored.
 
 ## 9. Open contracts
 
