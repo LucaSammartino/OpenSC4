@@ -59,3 +59,22 @@
   directly for the touched cell. Its calling convention and arguments (view base or `+0x0C`; `(x, z)` order) are
   not given, so the replacement does not call it [choice] and the view's index buffers only follow those slots
   at its next whole-grid rebuild. What settles it: the call at `0x007411E1` and the prologue of `0x00752AF0`.
+<!-- from: glue-terrain3 (game run gt3-repl-4, enable = terrain, 2026-10-21) -->
+- **TR38 - §15.5.8 / TR30:** the precondition of the edge-layer refresh `FUN_00755B60` that a replacement terrain
+  breaks. Runtime evidence (gt3-repl-4): the first queued `0x278E6003` after `DoPostCityInit` (whole-city rect
+  `(0, 0, 128, 128)`, data1 = data2 = `0x80`, a flat 300 m terrain, sea 250, 128 x 128 cells, `T+0x6C` a live
+  `0x24`-byte array) faults in the view at `0x00755C2B` (ACCESS_VIOLATION writing `0x16B23FF8`; caller
+  `0x00756AAC` in `FUN_007569F0`, under the view `DoMessage` `0x007575DE`). Registers: ecx `0x16B84C24`, edx
+  `0xFFF9F3D0`, esi `0xFFF9FFE8` (edx - esi = -24 x 129), edi `0x4102`, ebx 2, eax 6, ebp `0x437A0000` (250.0f).
+  The game itself posts whole-city heights redisplays (`SetSeaLevel`, `0x470BD214`, the grid toggle), so a
+  whole-city rect alone is not the fault. Which input does `FUN_00755B60` index with (terrain altitudes, slot 29,
+  terrain fields beyond §2.3, the edge records `0x64 + side`, or state set by §15.5.1 step 7's pair `0x00743B60` /
+  `0x007490B0`, TR33), and what range must it be in? The replacement keeps the TR33 whole-city redisplay; it is
+  the fault's trigger [choice: unchanged until answered]. What settles it: a byte walk of `0x00755B60`-`0x00755C47`
+  naming the array written at `0x00755C2B` and the source of its index.
+- **TR39 - §13.1 slot 96:** who calls the terrain's `Load` (slot 96, `0x00747800`) on a city load, with which
+  segment, and when relative to `Read`, `Init` and `PostCityInit`. In gt3-repl-4 the replacement's slot 96 was
+  never called with a non-null segment (no Load log line; `Read` ran, then `Init`), so the replaced city ran on the
+  §2 flat default instead of its saved altitudes. Is slot 96 called by `cSC4City` (which function, which
+  interface pointer), or does the original terrain call `Load` itself from `Init` with a segment it obtains (from
+  where)? [choice: the replacement only answers slot 96] What settles it: the call sites of `0x00747800`.

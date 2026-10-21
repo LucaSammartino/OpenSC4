@@ -1647,7 +1647,11 @@ bool ReadRecord(cISC4DBSegment* db, uint32_t type, uint32_t instance, std::vecto
 }  // namespace
 
 bool cFC4STETerrain::Load(cIGZPersistDBSegment* segment) {
-    if (segment == nullptr) return false;
+    if (segment == nullptr) {
+        Log("terrain: Load: called with a null segment; starting from the city grid (question TR39)");
+        return false;
+    }
+    Log("terrain: Load: slot 96 called (segment %p)", static_cast<void*>(segment));
     cISC4DBSegment* db = nullptr;
     if (!segment->QueryInterface(GZIID_cISC4DBSegment, reinterpret_cast<void**>(&db)) || db == nullptr) {
         Log("terrain: Load: the segment is not a cISC4DBSegment; starting from the city grid");
