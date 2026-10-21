@@ -227,8 +227,7 @@ Argument o; always returns true. Same body as §8.4 with f computed rather than 
    models), `AddModels(o, +0x20, +0x24, t, false)` (§12); h slot `+0x20(f)`; Release at the end.
 4. `SetOccupantAnimation(o, f)` on the animation coordinator `+0x74`.
 
-The address has no direct caller or data reference in the export; it is used as a callback
-(DoViewFilterChange, §10.3).
+Its one caller is `DoViewFilterChange` (`0x00495A96`, §10.3).
 
 ### 6.4 The zoom/rotation filter
 
@@ -406,6 +405,62 @@ Let o = (message object) slot `+0x0C` (its occupant). If o's exemplar (o slot `+
 `AddModels(o, zoom +0x20, rotation +0x24, t, true)`. *[quirk]* The state byte the message carries (second
 argument) is never read (`0x00494900`–`0x00494960`); `ChangeModels` always gets the constants 0 and 2.
 
+## 10. View changes *[compat]*
+
+"Reload pass over list L" below means: if L is non-empty, set `+0x50`; run the per-occupant step on each occupant
+in list order, releasing each; clear `+0x50`; `DoTerrainHidingForCells((0, 0, X−1, Z−1), 0)` over the whole city
+(§13; X = `+0x28`, Z = `+0x2C`); terrain `+0x70` slot `+0x110(0, 0, &city rect +0x30, 0)`. An empty L skips all of
+it. Lists come from manager slot `+0x98` (GetOccupantsByOccupantManagerCells: list, min, max, filter, -1); "whole
+city" passes null min and max.
+
+### 10.1 `DoZoomAndRotationChange(oldZoom, oldRot, newZoom, newRot)` (`0x00495B00`)
+
+1. Hold an input-queue auto-flusher (1000) for the whole call.
+2. If oldZoom ≠ newZoom: null the five texture bindings `+0xD0`..`+0xE0` (`0x0048EEA0`, release each). Else if
+   oldRot = newRot: return.
+3. `+0xC2` = 1. If the occupant manager `+0x54` is null: return.
+4. Wait cursor (id 0xF) and a second flusher (1000). `+0x104` = oldZoom, `+0x108` = oldRot, `+0x10C` = newZoom,
+   `+0x110` = newRot. `SC4ViewUtilities::GetCameraViewAnglesForRotation(newRot, newZoom, &+0xF4, &+0xFC, &+0x100)`
+   (`0x007F7780`); `+0xF8` = (`+0x18` object) `+0x1C`.
+5. Background loader enabled (`+0xB8`):
+   - not saving (`+0xC0` clear): if oldRot ≠ newRot, `RemoveModelsInappropriateForRotation(newRot)` (§7.5); `+0xA4`
+     = 1; loader `StartLoadingForZoomAndRotation(newZoom, newRot, &+0x8C, &+0x9C)` (`0x0048DAE0`); `+0xA8`/`+0xAC`
+     = `+0x9C`/`+0xA0`; go to step 7.
+   - saving: loader `CancelAllLoadTasks` (`0x0048CD60`), `+0xA4` = 0, then step 6.
+6. Loader disabled (or saving): the zoom/rotation filter `+0x64` gets `SetZoomAndRotation(newZoom, newRot)`
+   (§6.4); reload pass over the whole-city list for filter `+0x64`, the step being
+   `LoadOccupantModelsForZoomAndRotation(o, newZoom, newRot)` (§10.4).
+7. `SC4FlushInputMessageQueue` (`0x005F8610`), then drop the cursor and flushers.
+
+### 10.2 `DoViewTranslationChange` (`0x00495D90`)
+
+If a translation is in progress (`+0xC3`): return. Set `+0xC2`. Then:
+
+- Loader enabled and not saving: if `+0xA4` is set, the refocus step `0x0048EAE0` (a model-maker method despite
+  its export name `cSC4ModelBackgroundLoader::RefocusLoadToNewViewLocation`): when `+0xB8` is set and
+  |`+0xA0` − `+0xAC`| + |`+0x9C` − `+0xA8`| > 4, loader `0x0048CB40(&+0x8C, &+0x9C)` and `+0xA8`/`+0xAC` =
+  `+0x9C`/`+0xA0`. If `+0xA4` is clear: `StartLoadingForZoomAndRotation(+0x10C, +0x110, &+0x8C, &+0x9C)`, copy
+  the focus to `+0xA8`/`+0xAC`, `+0xA4` = 1.
+- Otherwise: list the occupants in the load rect (min (`+0x8C`, `+0x90`), max (`+0x94`, `+0x98`), filter `+0x5C`)
+  and call `LoadOccupantModelsForZoomAndRotation(o, +0x10C, +0x110)` on each, releasing each. No `+0x50`, no
+  terrain pass.
+
+*[quirk]* The load rect is in 16 m city cells but goes to the manager's occupant-manager-cell query (slot
+`+0x98`, occupant-manager §3), not the city-cell one (slot `+0xA0`) that §7.4 uses.
+
+### 10.3 `DoViewFilterChange(arg1, filter)` (`0x004959C0`, message `0x06CDB65B`)
+
+Only the second argument is read. If filter = `+0x58`: return. Otherwise AddRef filter, release the old one, store
+it in `+0x58`. Then, if `+0x44` is clear and the occupant manager exists: reload pass over the whole-city list for
+the type filter `+0x5C`, the step being `OccupantFilterIterationFunction(o)` (§6.3).
+
+### 10.4 `LoadOccupantModelsForZoomAndRotation(o, zoom, rot)` (`0x00495430`) — outline only
+
+Reads o's exemplar (slot `+0x18`), zbit = 1 << zoom, rbit = 1 << rot, the model holder (slot `+0x4C`) and the type,
+and `cSC4ModelMakerUtility::GetOccupantModelClass(o)` (compared with `0xAA123BF9`); uses the mask helpers of §7.6.
+Not yet specified: the decompiler output is unusable and the 1329-byte body has not been traced from the
+instructions (remainder, §20).
+
 ## 12. Model loading (partial)
 
 ### 12.1 `RemoveModels(o, t)` (`0x00493340`) *[compat]*
@@ -444,7 +499,7 @@ Then the occupant's model holder (slot `+0x4C`), when present, is AddRef'd, clea
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
-Specified: 12051 bytes; remainder (not yet specified or only outlined): 22654 bytes. The remainder is **not empty**,
+Specified: 13375 bytes; remainder (not yet specified or only outlined): 21330 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
 
 | address | bytes | name | section |
@@ -535,11 +590,11 @@ so this spec does not yet claim the whole owner.
 | `0x00494B30` | 584 | cSC4ModelMaker::EnableDeferredOccupantOperations | §8.7 |
 | `0x00494DA0` | 1463 | cSC4ModelMaker::DoPostCityInit | §3.2 |
 | `0x00495360` | 193 | cSC4ModelMaker::OccupantFilterIterationFunction | §6.3 |
-| `0x00495430` | 1329 | cSC4ModelMaker::LoadOccupantModelsForZoomAndRotation | remainder |
+| `0x00495430` | 1329 | cSC4ModelMaker::LoadOccupantModelsForZoomAndRotation | §10.4 (outline) |
 | `0x00495970` | 66 | FUN_00495970 | §8.6 |
-| `0x004959C0` | 313 | cSC4ModelMaker::DoViewFilterChange | remainder |
-| `0x00495B00` | 642 | cSC4ModelMaker::DoZoomAndRotationChange | remainder |
-| `0x00495D90` | 369 | cSC4ModelMaker::DoViewTranslationChange | remainder |
+| `0x004959C0` | 313 | cSC4ModelMaker::DoViewFilterChange | §10.3 |
+| `0x00495B00` | 642 | cSC4ModelMaker::DoZoomAndRotationChange | §10.1 |
+| `0x00495D90` | 369 | cSC4ModelMaker::DoViewTranslationChange | §10.2 |
 | `0x00495F10` | 1653 | cSC4ModelMaker::DoMessage | §5 |
 | `0x005D5360` | 69 | FUN_005d5360 | remainder |
 | `0x005D53B0` | 20 | FUN_005d53b0 | remainder |
