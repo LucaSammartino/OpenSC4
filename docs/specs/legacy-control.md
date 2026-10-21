@@ -1,6 +1,6 @@
 # Legacy control (`cGZLegacyControl`): building widgets from `LEGACY` script blocks
 
-Status: partial, 43 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
+Status: partial, 44 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
 (Windows). Covered: object layout, COM surface, lifecycle, the shared vocabulary and its two lookup maps, the
 `SetParameters` build sequence, the property-list readers, and the full word tables of all 21 vocabulary
 functions. Per-control interpreter contracts (`InterpretProperties*`) are specified for the common pass (§8);
@@ -449,7 +449,8 @@ comment list, and parameter `0x3ACA6906` = {0, 0}; second pass `SetFlag(0x2, fal
 | GZWinFileBrowser | `0x00954212` | 3761 | **specified** (§9.3) |
 | GZWinGrid | `0x0095A250` | 3537 | **specified** (§9.5) |
 | GZWinFolders | `0x0094D17E` | 465 | **specified** (§9.6) |
-| all other 14 | §4.1 | 475–2629 | open (LC4) |
+| GZWinFlatRect | `0x0094E33B` | 475 | **specified** (§9.7) |
+| all other 13 | §4.1 | 485–2629 | open (LC4) |
 
 Every per-type interpreter starts the same way: `QueryInterface` the control for its own IID (§4.1); on failure
 it does nothing at all; on success it works through that interface and releases it at the end.
@@ -714,6 +715,24 @@ Worked example: `font=3, image={1abe787d,cafe0001}, listelement=A, listelement=B
 font 3), parameter `0xFAA3BE85` = 3, `+0x2C`(buffer) if the image loads, parameter `0xDAA3B860` =
 {`0x1ABE787D`, `0xCAFE0001`}; second pass `+0x1C`(), `+0x10`("A", 0), `+0x10`("B", 0).
 
+### 9.7 GZWinFlatRect (`0x0094E33B`)
+
+Interface `IGZWinFlatRect` `0xC2AFA76F`. **First pass only**; the second pass does nothing beyond the
+QueryInterface/Release. Slot names *[inferred]*.
+
+1. Style byte: start at 0; for every pair with key `style` (`0xF005`), a non-null value and variant type 6, in
+   list order, OR in the bits of its value (byte-checked at `0x0094E3DF`–`0x0094E428`): `left` `0xF006` → `0x01`,
+   `top` `0x204` → `0x02`, `right` `0xF007` → `0x04`, `bottom` `0x205` → `0x08`, `all` `0x206` → `0x0F`, `lrb`
+   `0x207` → `0x0D`, `trb` `0x208` → `0x0E`, `raised` `0xF00C` → `0x10`, `sunken` `0xF00B` → `0x20`, `nofill`
+   `0xF00E` → `0x40`; any other value adds nothing. Then **always** call interface `+0x30` (style byte,
+   zero-extended), even with no `style` pair.
+2. Edge colours, each with the colour reader of §8 step 5 and only when it parses: `colorleft` `0x200`,
+   `colortop` `0x201`, `colorright` `0x202`, `colorbottom` `0x203` → interface `+0x28` (edge, r, g, b) with edge
+   0, 1, 2, 3 respectively.
+
+Worked example: `style=top, style=bottom, style=sunken, colortop=(10,20,30)` → `+0x30`(`0x2A`), `+0x28`(1, 10,
+20, 30).
+
 ## 10. Quirks (keep for compatibility)
 
 - Q1. `SetParameters` overwrites `+0x10` with null without releasing a previous control; calling it twice on one
@@ -753,7 +772,7 @@ Custom interpreter are shared bodies owned elsewhere).
 | `SetParameters` | 1 | specified (§6) |
 | `GetScriptFragment` | 1 | specified (§7.4; serialiser frame, class/interface and common words §7.6; per-type writer word sets are non-owner functions, LC8) |
 | `ControlVocabulary*` | 21 | specified (§4: every word, ID and map entry) |
-| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Grid (§9.5), Folders (§9.6), Custom (shared stub) specified; 14 owned interpreters open (LC4) |
+| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Grid (§9.5), Folders (§9.6), FlatRect (§9.7), Custom (shared stub) specified; 13 owned interpreters open (LC4) |
 
-Count: 43 of 57 owner functions complete (14 COM/lifecycle + `SetParameters` + `GetScriptFragment` + 21 vocabulary +
-Common, Slider, TreeView, FileBrowser, Grid, Folders); 14 interpreters open (LC4). No wildcard credit.
+Count: 44 of 57 owner functions complete (14 COM/lifecycle + `SetParameters` + `GetScriptFragment` + 21 vocabulary +
+Common, Slider, TreeView, FileBrowser, Grid, Folders, FlatRect); 13 interpreters open (LC4). No wildcard credit.
