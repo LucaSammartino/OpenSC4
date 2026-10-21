@@ -1,14 +1,18 @@
 {
   "format": 1,
   "name": "effects_particle_self_stop",
-  "spec": ["effects 7.1", "effects 17"],
-  "description": "Test 16: a particle component started with Start(0) goes inactive on its own. The loop-budget emitter (flag bit 1) emits its one loop, calls Stop(0) (the delayed stop) on itself, and CheckForStop clears started when the last particle dies: life 3 s at 0.5 s per update ends on update 7 (6 ageing updates after the burst). The duration emitter (no bits) ends after its budget and the last particle. The plain emitter (bit 2) never self-stops; a delayed Stop(0) lets its particles play out, a hard Stop(1) ends it at once.",
+  "spec": ["effects 7.1", "effects 7.1.1", "effects 17", "EF13"],
+  "description": "Test 16 with the EF13 emitter contract. Loop budget (flag A 0x02): one burst of ceil(curve[0]) per loop, aged by its burst age; Stop(0) (delayed) when n reaches the loop count; inactive when the last particle dies (life 3 s at 0.5 s: burst age 0.5, ends on update 6). Count 2.2 makes 3. A Start(1) that does not start reads inactive after update 1. A start delay of 0.375 s at 0.25 s delays the burst to update 2 (age 0.125). Rate emitter (no bits): 8/s at 1/16 s, loop count 1: 8 particles, Stop(0) on update 17 when P passes 1, inactive when the last dies. Flag 0x08 holds the rate emitter at its last loop. Plain (0x04) never self-stops; a delayed Stop(0) plays out, Stop(1) ends at once. Start(1) does not restart a finite emitter.",
   "steps": [
-    {"op": "ef_particles", "flags": 2, "emit_loop_count": 1, "per_loop": 4, "life": 3.0, "dt": 0.5, "expect_updates": 7},
-    {"op": "ef_particles", "flags": 2, "emit_loop_count": 3, "loop_interval": 1.0, "per_loop": 1, "life": 0.5, "dt": 0.5, "expect_updates": 5},
-    {"op": "ef_particles", "flags": 0, "duration": 2.0, "loop_interval": 1.0, "per_loop": 1, "life": 1.0, "dt": 0.5, "expect_updates": 6},
-    {"op": "ef_particles", "flags": 4, "life": 1.0, "dt": 0.5, "max": 1000, "expect_updates": null},
-    {"op": "ef_particles", "flags": 4, "life": 1.5, "loop_interval": 1.0, "dt": 0.5, "stop_after": 4, "stop_mode": 0, "expect_updates": 7},
-    {"op": "ef_particles", "flags": 4, "life": 1.5, "dt": 0.5, "stop_after": 4, "stop_mode": 1, "expect_updates": 4}
+    {"op": "ef_particles", "flags": 2, "count": 4, "life": 3.0, "dt": 0.5, "expect_updates": 6, "expect_created": 4, "expect_loops": 1},
+    {"op": "ef_particles", "flags": 2, "count": 2.2, "life": 0.5, "dt": 0.25, "expect_updates": 2, "expect_created": 3},
+    {"op": "ef_particles", "flags": 2, "count": 1, "life": 0.25, "dt": 0.25, "start_delay": [0.375, 0.375], "expect_updates": 3, "expect_created": 1},
+    {"op": "ef_particles", "flags": 2, "count": 1, "life": 0.5, "dt": 0.5, "loop_count": 3, "start_delay": [0, 0], "expect_updates": 5, "expect_loops": 3},
+    {"op": "ef_particles", "flags": 0, "count": 8, "life": 0.25, "dt": 0.0625, "loop_count": 1, "expect_updates": 19, "expect_created": 8, "expect_loops": 1},
+    {"op": "ef_particles", "flags": 8, "count": 8, "life": 0.5, "dt": 0.1, "loop_count": 1, "max": 200, "expect_updates": null, "expect_loops": 0},
+    {"op": "ef_particles", "flags": 4, "count": 4, "life": 1.0, "dt": 0.5, "max": 1000, "expect_updates": null},
+    {"op": "ef_particles", "flags": 4, "count": 4, "life": 1.5, "dt": 0.5, "stop_after": 4, "stop_mode": 0, "expect_updates": 7},
+    {"op": "ef_particles", "flags": 4, "count": 4, "life": 1.5, "dt": 0.5, "stop_after": 4, "stop_mode": 1, "expect_updates": 4},
+    {"op": "ef_particles", "flags": 2, "count": 1, "life": 1.0, "start_arg": 1, "max": 5, "expect_updates": 1, "expect_created": 0}
   ]
 }

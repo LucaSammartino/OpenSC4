@@ -703,25 +703,64 @@ fn dilation(op: &Json) -> R<()> {
     Ok(())
 }
 
-/// `ef_particles` (§7.1, test 16): a particle component's simulator run
-/// from `Start` with fixed updates; checks when it went inactive.
+/// `ef_particles` (§7.1, §7.1.1, test 16): a particle component's simulator
+/// run from `Start` with fixed updates; checks when it went inactive and,
+/// optionally, how many particles it created and loops it counted.
 fn particles(op: &Json) -> R<()> {
-    use fc4_core::effects::particles::{EmitterKind, EmitterParams, ParticleSimulator};
+    use fc4_core::effects::particles::{EmitterDesc, ParticleSimulator};
+    use fc4_core::rng::{FixedSeeds, RzRandom};
     let f = |k: &str, d: f32| opt(op, k).and_then(scalar::num).map_or(d, |v| v as f32);
-    let kind = EmitterKind::from_flags(opt(op, "flags").map_or(Ok(0), |v| u32_of(v, "flags"))?);
-    let mut p = ParticleSimulator::new(EmitterParams {
-        kind,
-        emit_loop_count: opt(op, "emit_loop_count").map_or(Ok(1), |v| u32_of(v, "emit_loop_count"))?,
-        loop_interval: f("loop_interval", 1.0),
-        per_loop: opt(op, "per_loop").map_or(Ok(1), |v| u32_of(v, "per_loop"))?,
-        life: f("life", 1.0),
-        duration: f("duration", 1.0),
-    });
-    p.start();
+    let u = |k: &str, d: u32| opt(op, k).map_or(Ok(d), |v| u32_of(v, k));
+    let pair = |k: &str| -> R<(f32, f32)> {
+        match opt(op, k) {
+            None => Ok((-1.0, -1.0)),
+            Some(v) => {
+                let a = arr(v, k)?;
+                let n = |i: usize| {
+                    a.get(i)
+                        .and_then(scalar::num)
+                        .map(|x| x as f32)
+                        .ok_or(format!("{k}[{i}]"))
+                };
+                Ok((n(0)?, n(1)?))
+            }
+        }
+    };
+    let mut d = EmitterDesc::new(u("flags", 0)?, f("count", 1.0), f("life", 1.0));
+    d.flags_b = u("flags_b", 0)?;
+    d.period = f("period", 1.0);
+    d.loop_count = u("loop_count", 1)?;
+    d.preroll = f("preroll", 0.0);
+    d.max_age = f("max_age", f32::MAX);
+    d.start_delay = pair("start_delay")?;
+    d.interval = pair("interval")?;
+    d.rate_scale = f("rate_scale", 1.0);
+    if let Some(c) = opt(op, "curve") {
+        d.curve = arr(c, "curve")?
+            .iter()
+            .filter_map(scalar::num)
+            .map(|x| x as f32)
+            .collect();
+    }
+    if let Some(s) = opt(op, "scales") {
+        let s: Vec<f32> = arr(s, "scales")?
+            .iter()
+            .filter_map(scalar::num)
+            .map(|x| x as f32)
+            .collect();
+        d.scales = [s[0], s[1], s[2]];
+    }
+    let seeds = FixedSeeds {
+        wall_clock: 0,
+        process_clock: 7,
+    };
+    let mut r = RzRandom::new(u("seed", 0x1234)?, &seeds);
+    let mut p = ParticleSimulator::new(d);
+    p.start(u("start_arg", 0)?, &mut r);
     let dt = f("dt", 1.0 / 30.0);
-    let max = opt(op, "max").map_or(Ok(10_000), |v| u32_of(v, "max"))?;
+    let max = u("max", 10_000)?;
     let stop_at = opt(op, "stop_after").map(|v| u32_of(v, "stop_after")).transpose()?;
-    let stop_mode = opt(op, "stop_mode").map_or(Ok(0), |v| u32_of(v, "stop_mode"))?;
+    let stop_mode = u("stop_mode", 0)?;
     let mut ended: Option<u32> = None;
     for i in 1..=max {
         if stop_at == Some(i - 1) {
@@ -731,7 +770,7 @@ fn particles(op: &Json) -> R<()> {
                 break;
             }
         }
-        p.update(dt);
+        p.update(dt, &mut r);
         if !p.is_active() {
             ended = Some(i);
             break;
@@ -741,12 +780,23 @@ fn particles(op: &Json) -> R<()> {
     let want = field(op, "expect_updates")?;
     if !scalar::matches(&got, want, false) {
         return Err(format!(
-            "inactive after {}, expected {} (loops {}, live {})",
+            "inactive after {}, expected {} (loops {}, live {}, created {})",
             scalar::show(&got),
             scalar::show(want),
             p.loops_emitted(),
-            p.live_count()
+            p.live_count(),
+            p.particles_created()
         ));
+    }
+    for (k, v) in [
+        ("expect_created", p.particles_created() as i64),
+        ("expect_loops", i64::from(p.loops_emitted())),
+    ] {
+        if let Some(w) = opt(op, k) {
+            if !scalar::matches(&ji(v), w, false) {
+                return Err(format!("{k}: {v}, expected {}", scalar::show(w)));
+            }
+        }
     }
     Ok(())
 }
