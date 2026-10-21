@@ -52,8 +52,14 @@ fn tz_of(op: &Json) -> R<TimeZone> {
     match opt(op, "tz") {
         None => Ok(TimeZone::UTC),
         Some(t) => Ok(TimeZone {
-            timezone: opt(t, "timezone").map(|v| u32_of(v, "timezone")).transpose()?.unwrap_or(0) as i32,
-            daylight: opt(t, "daylight").map(|v| u32_of(v, "daylight")).transpose()?.unwrap_or(0) as i32,
+            timezone: opt(t, "timezone")
+                .map(|v| u32_of(v, "timezone"))
+                .transpose()?
+                .unwrap_or(0) as i32,
+            daylight: opt(t, "daylight")
+                .map(|v| u32_of(v, "daylight"))
+                .transpose()?
+                .unwrap_or(0) as i32,
         }),
     }
 }
@@ -109,7 +115,11 @@ fn new(w: &World, op: &Json) -> R<()> {
     let name = obj_name(op)?;
     let g = if let Some(m) = opt(op, "mdy") {
         let v = scalar::arr(m, "mdy")?;
-        let f = |i: usize| v.get(i).ok_or("'mdy' needs 3 numbers".to_string()).and_then(|j| u32_of(j, "mdy"));
+        let f = |i: usize| {
+            v.get(i)
+                .ok_or("'mdy' needs 3 numbers".to_string())
+                .and_then(|j| u32_of(j, "mdy"))
+        };
         GzDate::from_mdy(f(0)?, f(1)?, f(2)?)
     } else {
         GzDate::from_day(opt(op, "day").map(|v| u32_of(v, "day")).transpose()?.unwrap_or(0))
@@ -142,7 +152,9 @@ fn call(w: &World, op: &Json) -> R<()> {
     let name = obj_name(op)?;
     let method = str_of(op.get("method").ok_or("missing 'method'")?, "method")?;
     let tz = tz_of(op)?;
-    let out_name = opt(op, "out").map(|o| str_of(o, "out").map(str::to_string)).transpose()?;
+    let out_name = opt(op, "out")
+        .map(|o| str_of(o, "out").map(str::to_string))
+        .transpose()?;
     // Resolve date arguments before borrowing the object mutably.
     let date_args: Vec<u32> = match method {
         "between" => vec![d(w, op, 0)?, d(w, op, 1)?],
