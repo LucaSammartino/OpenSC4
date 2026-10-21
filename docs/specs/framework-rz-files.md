@@ -10,7 +10,8 @@ Outline: §1 owners and identity. §2 cRZFile (§2.1 layout, §2.2 vtable, §2.3
 seek, §2.5 read buffer, §2.6 write buffer, §2.7 close, length, flush, §2.8 errors, §2.9 path-level
 operations, §2.10 static helpers). §3 cRZIniFile (§3.1 layout and ownership, §3.2 vtable, §3.3 file
 syntax as read, §3.4 open and lifetime, §3.5 reads and types, §3.6 writeback, §3.7 enumeration).
-§4 worked examples. §5 open questions.
+§4 worked examples. §5 open questions. Round 3: §6 cRZDirectory (§6.1 layout, §6.2 separators,
+§6.3 setters, §6.4 enumeration, §6.5 string lists and sort, §6.6 recursive listing, §6.7 path helpers).
 
 ## 1. Owners and identity
 
@@ -19,7 +20,7 @@ syntax as read, §3.4 open and lifetime, §3.5 reads and types, §3.6 writeback,
 | `cRZFile` | 8,216 | vtable `0x00ABFED0`, 33 slots, object 0x80 bytes, interface `cIGZFile` iid `0xE020364F` (QueryInterface also accepts iid 1, the base) |
 | `cRZIniFile` | 6,617 | vtable `0x00ACF150`, 20 slots, no QueryInterface (slot 0 is the deleting destructor); `cHitIniFile` (vtable `0x00AD23B8`) derives from it |
 
-Not in this spec: `cRZDirectory`, `cRZOFStream`, `cRZCmdLine`, `cRZSparseMatrix`, `cRZSysServPtr`,
+Not in this spec yet: `cRZSparseMatrix`, `cRZSysServPtr`,
 `cRZTimer` (same subsystem, later rounds); the language utility (docs/specs/language-utility.md, owned
 by the strings lane).
 
@@ -398,3 +399,141 @@ Volume = 80 ; loud
 - Q4: the cRZIniFile constructors from a path or a file (0x0091CEE3, 0x0091CF46) do not write +0x38
   (checked in the instructions; only the default constructor clears it). WriteEntry reads it (§3.6 step 2) to
   decide whether an open file must be reopened for writing; a reimplementation should start it at 0. Does the allocator zero memory?
+
+## 6. cRZDirectory (round 3)
+
+A non-COM helper (no vtable, no reference count; callers keep it on the stack or embed it; 28 call
+sites of the constructor 0x0091BD31: plug-in, region, music and Lua-resource scans). Evidence:
+instructions of every member 0x0091AD3E..0x0091BF90 and the find helpers RZFileFindFirst 0x0091B0A1,
+find-next 0x0091B21D, RZFileFindFinish 0x0091AE66.
+
+### 6.1 Layout
+
+| Offset | Field |
+|---|---|
+| +0x00 | entry list (std::list sentinel pointer); node = next, prev, then the entry at node+8 |
+| +0x04 | entry count (maintained by ReadDirectoryEntries only) |
+| +0x08 | directory path, cRZString (0x14 bytes), ends in a separator after every setter |
+| +0x1C | entry filter (wildcard pattern), cRZString, default `*` |
+| +0x30 | bool: synthesise / keep the `..` entry |
+| +0x31 | bool: synthesise / keep the `.` entry |
+
+Entry (`cRZDirectoryEntry`, 0x18 bytes): name cRZString at +0, type dword at +0x14: 4 = directory,
+8 = file. Names are the bare names the OS returns (no path), converted to the framework encoding.
+
+### 6.2 Separators and path normalisation
+
+A separator is the byte 0x5C (backslash) or 0x2F (slash) (test 0x005F8FE0). "Ensure trailing
+separator" (MakeSurePathEndsWithSeparator 0x0091AE31) appends a backslash when the path is empty or
+its last byte is not a separator, so an empty path becomes a lone backslash (the root of the current
+drive). Mixed separators are kept as given; nothing else is normalised (no case folding, no `.`/`..`
+collapsing, no trimming).
+
+### 6.3 Construction, setters, destruction
+
+- Constructor (path, readNow, keepParent, keepSelf): count 0, path copied then given a trailing
+  separator, filter `*`, +0x30 = keepParent, +0x31 = keepSelf; when readNow, ReadDirectoryEntries.
+- ChangeDirectory(path, readNow) 0x0091BCAD: replaces the path, ensures the separator, reads when
+  readNow; always returns true (the read result is discarded, so a missing directory still "succeeds"
+  with an empty list).
+- SetNewDirectoryEntryFilter(filter, readNow) 0x0091BCD7: an empty filter becomes `*`; reads when
+  readNow. The filter is matched by the OS (Win32 FindFirstFile wildcard rules), never by the framework.
+- Setters without readNow leave the old entries and count in place.
+- Destructor: destroys filter, path, then the entry list.
+
+### 6.4 Enumeration (ReadDirectoryEntries 0x0091BA22)
+
+1. Pattern = path + filter (plain concatenation; the path already ends in a separator).
+2. The list is emptied and the count set to 0 before the search. If the first find fails (missing
+   directory, nothing matches) the call returns false with an empty list.
+3. Order is the OS enumeration order (no sort). Each match is appended (push_back) with type 8 when
+   the OS attribute bit 0x10 (directory) is clear, type 4 when it is set. No other attribute is
+   consulted: hidden, system and read-only entries are listed like any other.
+4. Directories named exactly `.` / `..` (byte-equal, 0x00418A40) are special: the first `.` is kept
+   only when +0x31 is set, the first `..` only when +0x30 is set; each is remembered as seen either
+   way. A second entry of the same name would be listed as a plain directory.
+5. After the search (handle closed): if +0x30 is set, `..` was not seen and the filter is exactly `*`
+   (byte compare), a `..` directory entry is pushed to the FRONT unless an entry of that name is
+   already listed (byte-equal, 0x0091AD3E); then the same for `.` with +0x31. When both are
+   synthesised the front order is `.`, `..`, then the OS entries (the drive-root case, where the OS
+   reports neither). A filter other than `*` never synthesises them.
+6. Each kept or synthesised entry increments the count; returns true.
+
+GetNthEntry(n) 0x0091AD83 walks from the front and returns the n-th entry (0-based), or null when
+n >= count.
+
+### 6.5 Reading into a caller's string list
+
+ReadDirectorySpecificEntriesIntoStringList(list, flags) 0x0091B36E uses this object's path and
+filter but never touches its entry list or count. It APPENDS names to the caller's list (no clear).
+Flags: 8 = files, 4 = directories, 1 = `.`, 2 = `..`.
+
+- File (attribute 0x10 clear): appended when flag 8.
+- Directory: skipped without flag 4; with flag 4 the first `.` is appended only with flag 1, the first
+  `..` only with flag 2, any other directory is appended.
+- After the search, when the filter is exactly `*`: flag 2 and no `..` seen: push_front `..`; then
+  flag 1 and no `.` seen: push_front `.`. No duplicate check here (unlike §6.4). Front order `.`, `..`.
+- Returns false (list unchanged) when the first find fails, else true.
+
+Wrappers: ReadDirectoryFileEntriesIntoStringList(list) 0x0091B9C7 = flags 8 (files only).
+ReadDirectoryDirectoryEntriesIntoStringList(list, dotFlags) 0x0091B9D5 = (dotFlags & 3) | 4.
+
+AlphabetizeEntryList(list) 0x0091AE1E sorts a caller's string list (not the entry list) in place with
+a stable merge sort (std::list::sort 0x007B75F0), ascending by unsigned byte comparison of the common
+prefix, the shorter string first when one is a prefix of the other. Case-sensitive: `Zoo` sorts before
+`apple`. Only caller: cGZWinFileBrowser::UpdateFileList.
+
+### 6.6 Recursive file listing (0x0091BD88)
+
+ReadDirectoryFileEntriesIntoStringListRecursive(path, outList, includeTopLevelFiles):
+
+1. A process-wide depth counter (0x00B62914, not thread-safe) is incremented, then
+   ChangeDirectory(path, readNow = true) on this object, so its path and entries are overwritten at
+   every level.
+2. Files: when includeTopLevelFiles is true or the depth is above 1, this directory's files (§6.5 flags
+   8, current filter) are appended to outList as full paths: the path argument as given, plus a
+   backslash if it does not end in a separator, plus the name.
+3. Subdirectories: the filter is saved, set to `*`, the directory names (no dot names) are read into a
+   fresh list, and the filter is restored. For each, in OS order, recurse with path = the path
+   argument AS GIVEN + name + backslash. No separator is inserted between the argument and the name:
+   called with `C:\Plugins` (no trailing separator) the first-level children become `C:\PluginsSub\`.
+   Deeper levels are well formed because their paths end in a backslash.
+4. Depth decremented; always returns true. Output order is pre-order: this directory's files, then
+   each subdirectory's output depth-first, all in OS order. Afterwards this object points at the last
+   directory visited, with the original filter.
+
+### 6.7 Path helpers
+
+| Function | Behaviour |
+|---|---|
+| DoesAnyEntryExistThatMatchesPattern(pattern) 0x0091B312 (static) | true when the OS find on the pattern returns anything; the find is closed at once |
+| DoesDirectoryExist(path) 0x0091B6CA (static) | path + backslash (when empty or not ending in a separator) + `*`, then the pattern test. True for an existing directory (its `.` entry matches); false for a file path or a missing path |
+| CreateDirectory(path) 0x0091B738 (static) | creates every missing level, below |
+| SplitDirectoryPath(last, parent) 0x0091B017 (member, reads +0x08) | splits at the last separator, below |
+
+CreateDirectory(path):
+
+1. Empty path: false. A backslash is appended when the last byte is not a separator.
+2. UNC prefix: when the path is longer than 2 bytes, starts with two backslashes and the third byte is
+   not a backslash, everything up to and including the third backslash (the `\\server\` part) is
+   taken as existing and never tested.
+3. The remaining bytes are scanned left to right; at every separator the prefix so far (including the
+   separator) is tested with DoesDirectoryExist and, when missing, created (CreateDirectoryW with no
+   security attributes when the wide API was found at start-up, else `_mkdir` on the OS-encoded path).
+   Each created prefix is remembered in creation order.
+4. On a create failure every remembered directory is removed (RemoveDirectoryW or `_rmdir`) in creation
+   order, outermost first; a parent that still holds a created child cannot be removed and stays. The
+   call returns false. Otherwise it returns true (also when nothing had to be created).
+
+SplitDirectoryPath(last, parent) splits this object's path with the C helper SplitDirectory
+0x00917D1A asked for 2 parts, scanning back from the end (a trailing separator is skipped):
+
+| Path (+0x08) | last | parent | Result |
+|---|---|---|---|
+| `C:\A\B\` | `B\` | `C:\A\` | true |
+| `C:\A\B` | `B\` | `C:\A\` | true |
+| `C:\` | `C:\` | not produced (the original then copies an unwritten 260-byte stack buffer; return empty) | true |
+| empty | unchanged | unchanged | false |
+
+Each part gets a backslash appended unless it already ends in a separator; a part longer than 254
+bytes fails the whole call (false, outputs unchanged).

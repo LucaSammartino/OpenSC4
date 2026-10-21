@@ -5,7 +5,8 @@
 ## Handoff (round 3, 2026-10-21)
 - Goal: specify cRZDirectory, cRZOFStream, cRZCmdLine (then cRZSysServPtr if time); exact byte-supported contracts.
 - Done: rounds 1-2 (language-utility.md, framework-rz-files.md §1-5).
-- Next: cRZDirectory from decomp/cRZDirectory.c -> framework-rz-files.md §6.
+- Done r3: §6 cRZDirectory (commit below). REA unavailable again (No app is open).
+- Next: cRZOFStream (decomp/cRZOFStream.c, vtable 0x00AD19F8) -> spec §7; then cRZCmdLine §8 (vtable 0x00A82A20).
 - Facts: language-utility.md untouched (strings lane). No ABI edits.
 
 
