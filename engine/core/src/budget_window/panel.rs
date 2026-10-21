@@ -153,11 +153,9 @@ impl BudgetPanel {
     pub fn do_message<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, msg: u32) {
         match msg {
             PANEL_MSG_MONEY_A | PANEL_MSG_MONEY_B => self.dirty = true,
-            PANEL_MSG_TICK => {
-                if self.dirty {
-                    self.dirty = false;
-                    host.update_balance_sheet();
-                }
+            PANEL_MSG_TICK if self.dirty => {
+                self.dirty = false;
+                host.update_balance_sheet();
             }
             _ => {}
         }

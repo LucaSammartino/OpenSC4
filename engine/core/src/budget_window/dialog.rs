@@ -457,11 +457,9 @@ impl SubBudgetWindow {
                     host.do_individual_budget_window(w, id);
                 }
             }
-            BTN_OCCUPANT_CONTROL_FIRST..=BTN_OCCUPANT_CONTROL_LAST => {
-                if self.occupant.is_some() {
-                    if let Some(w) = self.window {
-                        host.occupant_control(w, id);
-                    }
+            BTN_OCCUPANT_CONTROL_FIRST..=BTN_OCCUPANT_CONTROL_LAST if self.occupant.is_some() => {
+                if let Some(w) = self.window {
+                    host.occupant_control(w, id);
                 }
             }
             // Literal reading of "after any other handled button": every
