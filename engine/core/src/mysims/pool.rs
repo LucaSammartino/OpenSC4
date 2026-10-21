@@ -190,8 +190,7 @@ pub fn parse_mysims_dat(bytes: &[u8]) -> Vec<MySimTemplate> {
         pos += n;
         Some(s)
     };
-    loop {
-        let Some(n) = take(1).map(|b| b[0] as usize) else { break };
+    while let Some(n) = take(1).map(|b| b[0] as usize) {
         let Some(name) = take(n).map(<[u8]>::to_vec) else { break };
         let Some(male) = take(1).map(|b| b[0] != 0) else { break };
         let Some(sign) = take(1).map(|b| b[0]) else { break };
