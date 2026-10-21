@@ -138,7 +138,7 @@ lot's bounding rect (with an "inside lot" filter) each time *[compat]*. The occu
 | # | Field | Type | Meaning, observed values (12,986 lots) |
 |---|---|---|---|
 | 1 | version | u16 | 8 |
-| 2 | lot configuration ID | u32 | `GetID()` (configuration slot 3) of the lot's configuration object; 0 when it has none (692 lots: the 691 empty zoned lots and one more) |
+| 2 | lot configuration ID | u32 | `GetID()` (configuration slot 3) of the lot's configuration object; 0 when it has none (692 lots: the 691 empty zoned lots and one more). A lot read but never `Init`ed has no object and writes 0, not the ID it read (§3.5) |
 | 3 | lot flags | u8 | bit 0 terrain locked flat at the lot's altitude; bits 0+1 together = foundation lot (lot developer `AddLotFoundation` sets `(f & ~4) | 3`); bit 2 retaining walls present *[inferred: set by `AddRetainingWallOccupant`; cleared with bits 0–1 by `StartConstruction`]*; bit 3 needs power; bit 4 has power; bit 5 historical; bit 6 vertices locked; bit 7 traffic mark, cleared by the traffic simulator's `FinishTripMap` (`traffic-simulator.md` §4.7), setter not identified. Observed: 0x50, 0x58, 0x5B, 0x10, 0xD8, 0x5F, 0x53, 0xDB, 0xDF, 0xD0, 0x57 |
 | 4 | bounding rect | 4 × u8 | x1, z1, x2, z2 in cells, inclusive; x1 ≤ x2, z1 ≤ z2 always |
 | 5 | location | 2 × u8 | x, z: always one of the four corners of the rect |
@@ -217,9 +217,25 @@ The zone developer's `Init` calls `lot.Init()` for every lot on its map, once pe
 
 `Init` (`0x006BF490`, slot 5):
 
-1. If the lot is **not** initialised (a new lot): travel jobs := 0, 0, 0; `altitude := terrain.GetAltitude(center)`
-   via `SetAltitude` (which also sets both slopes); initialised := true. A loaded lot skips this (step 1 of §3.4),
-   so its saved altitude and slopes are kept.
+1. If the lot is **not** initialised (a new lot): travel jobs := 0, 0, 0; `c := GetCenter()` (slot 15);
+   `a := terrain.GetAltitude(c.x, c.z)` (terrain `0x00B43CF4`, `cISTETerrain` slot 13, terrain.md §4.1, result in
+   ST0); `SetAltitude(a)` (slot 17, `a` stored to a float argument); initialised := true. A loaded lot skips this
+   (step 1 of §3.4), so its saved altitude and slopes are kept.
+
+   **`GetCenter(out vec3)`** (slot 15, `0x006BF560`, pop 4) — the centre of the rect in metres, cell size 16:
+   `x := (f32(16·x1) + f32(16·(x2 + 1))) × 0.5`, `y := altitude` (the stored float, copied), `z :=
+   (f32(16·z1) + f32(16·(z2 + 1))) × 0.5`. The rect bytes are zero-extended, the products are integers converted
+   exactly (`FILD`), the sum is one x87 add and the factor is the float 0.5 at `0x00A84D2C`; every value is exact.
+   Example: rect (10, 20, 12, 21) gives x = (160 + 208) / 2 = 184.0, z = (320 + 352) / 2 = 336.0.
+
+   **`SetAltitude(a)`** (slot 17, `0x006BF5C0`, pop 4): if `|a − altitude| > 0.001` (float `a` minus the stored
+   float, `FABS`, compared with the **double** 0.001 at `0x00AA2270`; equal or NaN → no change): `altitude := a`,
+   then `s := lotDeveloper.GetLotSlope(lot, false)` (BDS `0x00B43D68` slot 36 `GetLotDeveloper`, then lot developer
+   slot 30, which is `GetAreaSlope(rect, false)`, lot-developer.md §11.3; it runs after the altitude is stored and
+   does not depend on it) and **both** slope fields := `f32(s)`: field 7 (slope at altitude change, `+0x2C`) and
+   field 8 (current slope, `+0x28`) get the same value. Otherwise nothing changes, including the slopes. Because the
+   constructor zeroes the altitude, a new lot whose terrain altitude is within 0.001 of 0 keeps altitude 0 and both
+   slopes 0 *[quirk]*. `UpdateSlope` (slot 20, `0x006BF610`) sets only field 8 to `GetLotSlope(lot, false)`.
 2. If the strategy byte is `0xFF` (constructor value): `RandomUint32Uniform(100)` on the lot file's `cRZRandomSuper`
    `0x00B49120` (foundations §6.2), one draw. Saved lots have 0…99, so no draw on load.
 3. Release the current configuration object. If the configuration ID is non-zero: look it up with the lot
@@ -228,9 +244,27 @@ The zone developer's `Init` calls `lot.Init()` for every lot on its map, once pe
    configuration and its next save writes 0 *[compat]*.
 4. Return true.
 
+**The ID read is never written back.** The lot keeps two members: the configuration **ID** read by `Read` (`+0x30`,
+the `Read` at `0x006C3621` stores into it) and the configuration **object** (`+0x34`). `Write` (`0x006C0080`)
+writes only `object ? object.GetID() : 0` (`0x006C0093`); it never reads `+0x30`. So a lot that was read but never
+`Init`ed (the crime-only lot of §14) saves field 2 as **0**, whatever ID it read, and a loaded lot that `Init`
+resolved writes the ID of the object found *[compat]*. A writer that round-trips such a lot byte for byte only
+does so when the ID read was 0 (the observed crime-only lot is an empty zoned lot, so it read 0).
+
 `PostCityInit` (`0x006BF200`, slot 8): `f := flags; flags := 0; SetFlags(f)`. `SetFlags` acts on a change of bit 0:
 when bit 0 becomes set, each cell of the rect is locked in the terrain view at the lot's altitude; when it becomes
 clear, each cell is unlocked. So a loaded lot with bit 0 re-locks its terrain *[compat]*.
+
+**`SetFlags(f)`** (slot 13, `0x006BF220`, pop 4), exactly: `old := flags; flags := f` (stored first, always). If
+`(old XOR f) & 1 = 0`, return. `v := SL::TerrainView()` (`0x00602160`, terrain.md); if null, return (the flags stay
+stored, no cell is touched). Then walk the rect **x outer, z inner**, both inclusive and ascending: for `x` from x1
+to x2, for `z` from z1 to z2 (bytes zero-extended; an empty range when x1 > x2 or z1 > z2, which no lot has):
+- bit 0 now set: `v.LevelCell(x, z, altitude)` (terrain view slot 16, terrain.md, pop 12; its return is ignored)
+  with the lot's stored altitude float as given, re-read for every cell;
+- bit 0 now clear: `v.RemoveCellLevelling(x, z)` (terrain view slot 17, pop 8).
+
+Example: rect (10, 20, 11, 21), bit 0 set → LevelCell (10,20), (10,21), (11,20), (11,21) in that order. No other
+bit has an effect here; nothing is returned.
 
 `Shutdown` (`0x006C3060`): if initialised: initialised := false; clear the population vector and the
 travel-population map; release the configuration and the travel designate; `unit.Remove(lot)` (business unit
@@ -269,6 +303,27 @@ All holders are in ascending ID order with key = ID. No object-valued property o
 `Write` returns in AL, `Read` in AL. The lot developer creates units and adds lots (`lot-developer.md` §5.7); each
 member lot refers back to its unit (§3.2 field 18). In every save the two directions agree: 7,746 lot → unit
 references and 7,746 unit → lot references.
+
+**Membership slots** (`cISC4BusinessUnit`, vtable `0x00AB18DC`; the member list is a `std::list` of AddRef'd lot
+pointers whose head is at unit `+0x1C`):
+
+| Slot | Address | Behaviour | Return |
+|---|---|---|---|
+| 3 `Add(lot)` | `0x006C0940`, pop 4 | Search the list for the pointer `lot` (temporary AddRef/Release around the search). Only if absent: append it at the **back** (one AddRef held by the node). Then **always** `lot.SetUnit(this)` (lot slot 26), also when the lot was already a member | none defined: AL is whatever `SetUnit` left in EAX |
+| 4 `Remove(lot)` | `0x006C08B0`, pop 4 | AddRef `lot` (if non-null); erase **every** node equal to `lot` (`0x006C0900`, each erase releases the node's reference; nothing happens when the lot is absent); Release the temporary reference. Then **always**, without a null test and whether or not the lot was a member: `lot.SetUnit(0)` (slot 26) and `lot.SetTravelDesignate(0)` (slot 60) | none defined: AL is the low byte of `SetTravelDesignate`'s EAX, i.e. 0 when the lot had no travel designate, else the low byte of the old designate's `Release()` result |
+| 5 `GetMembers()` | `0x008085F0` | the address of the member list (unit `+0x1C`) | EAX |
+
+`SetUnit(u)` (`0x006C20B0`): if `u` differs from the current unit, Release the old one **first**, store `u`, AddRef
+it. So `Remove` on the unit's last member drops the unit's last reference inside `Remove` (`Release`
+`0x006BFE40` destroys it at a count ≤ 1); `Remove` touches only the lot after that point. `Remove(lot)` on a unit
+the lot does not belong to still clears the lot's unit and travel designate (releasing its real unit without
+removing it from that unit's list) *[quirk; no caller does this]*. `SetTravelDesignate(0)` (`0x006BF660`) releases
+the old designate if there was one.
+
+Neither return value is used: `Shutdown` (`0x006C30F3`) and the lot developer's `RemoveLotFromItsBusinessUnit`
+(`0x006C7320`: `lot.GetUnit().Remove(lot)` with no null test, then its unit-changed flag `+0x5E := 1`) ignore
+AL. `Shutdown` releases the travel designate before it calls `Remove`, then stores 0 into the unit pointer without
+a release (`Remove` already released it through `SetUnit(0)`); it returns AL = 1.
 
 ---
 
@@ -994,3 +1049,14 @@ writes `0F 00 00 00` at payload offset 40. A conforming writer of an unmodified 
   view at the lot altitude (bit 0 changed); with flags `0x50` nothing is locked.
 - **T15** Trip `Read` of version 1: no travel-types field is read and it becomes 0.
 - **T16** `bytes` read with count `0x000F4240`: no further bytes consumed, the route keeps its previous contents.
+- **T17** New lot (not read) with rect (10, 20, 12, 21), terrain altitude 300.0 at (184.0, 336.0) and
+  `GetAreaSlope(rect, false)` = 2.5: after `Init`, altitude 300.0, fields 7 and 8 both 2.5, travel jobs 0, 0, 0.
+  With terrain altitude 0.0005 instead: altitude stays 0 and no slope query is made (§3.5 `SetAltitude`).
+- **T18** `SetFlags(0x01)` from 0 on rect (10, 20, 11, 21), altitude 310.5: the terrain view sees exactly
+  `LevelCell(10,20,310.5)`, `(10,21)`, `(11,20)`, `(11,21)`; then `SetFlags(0x00)` gives `RemoveCellLevelling` on the
+  same four cells in the same order; `SetFlags(0x03)` from `0x01` makes no terrain-view call.
+- **T19** Unit with members [A, B]: `Remove(C)` for a lot C not in the list leaves [A, B] and still calls
+  `C.SetUnit(0)` and `C.SetTravelDesignate(0)`; `Add(A)` leaves [A, B] and calls `A.SetUnit(unit)`; `Add(C)` gives
+  [A, B, C].
+- **T20** Lot read with configuration ID `0x12345678` and never `Init`ed: `Write` emits field 2 as `00 00 00 00`.
+  After `Init` with the configuration manager answering that ID: `Write` emits `78 56 34 12`; answering null: 0.
