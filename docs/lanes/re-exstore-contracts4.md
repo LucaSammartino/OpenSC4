@@ -1,3 +1,5 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
 | re-exstore-contracts4 | re | data-formats EX41-EX45: resource-manager factory contract (§8.1), Sku_Data file set (§3.1) | ready |
 
 ## Report
