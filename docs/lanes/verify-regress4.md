@@ -4,11 +4,17 @@
 
 ## Handoff
 
-- Goal: explain netmgr 73/73 -> 71/73 and aura 71/71 -> 70/71 between train17 (fed3a354) and train19 (832c7238);
-  fix the `unknown key 'netmgr_shadow'` config warning; fix from specs or file numbered questions.
-- Evidence: build-runs/evidence-run4/regress-train1{7,9}{.out,-shadows.log}.
-- Facts so far: netmgr differences are all near lot-state first-row cells (FC4NetMgrShadow.cpp g_nm10Cells, the
-  code calls it "NM10 (open)" but NM10 was never filed: QUESTIONS.md next free NM is NM10). train19 mismatches:
-  2026-04 lot 20,103 original-only (cfg 0x4A7F8609), 2026-05 lot 16,93 ours-only (cfg 0x4A7F8606); in train17 the
-  same 16,93 lot difference was classified NM10 (cell already in the set). train17's previous run was 72/73: flaky.
-- Next: confirm cause (cell-set timing), read aura diff line, config key registration.
+- Goal: explain netmgr 73->71/73 and aura 71->70/71 (train17 fed3a354 vs train19 832c7238), fix the
+  netmgr_shadow ini warning; fix from specs or file questions. Evidence: build-runs/evidence-run4/.
+- Done: 28971497 (aura state-3 lockstep + capi test; FC4Config registers netmgr_shadow/_order/_wide; netmgr NM11
+  lot-difference diagnostics; questions NM10, NM11 in questions/network-manager.md, AU16 in questions/aura.md).
+  Gate `all` at 28971497: cargo 3577/0, clippy 0, ctest 62/62.
+- Diagnosis: no engine code delta for netmgr/aura between the heads; both differences are timing of the game run
+  (aura cycle 2 took 11 days vs 9; netmgr lot-state order). Aura: the shadow ran all of state 3 at the 3->4 move,
+  the original reads one department per call; a landfill pair inserted in between = 208 tracts / 188 (spec 5.3
+  example). Fixed (plugin reads departmentCursor +0x7C, core 3->3 step). Netmgr: lot diffs at 20,103 / 16,93 fell
+  outside the NM10 first-row cell set because the lot state message on those cells came later in train19
+  (train17 classified the same cells under NM10). Not suppressed: filed NM11, added diagnostics.
+- Outstanding game request: vr4-a1 (turbo to 2027-01-01, simulator + aura_shadow + netmgr_shadow).
+- Next: qwait build-runs/game-results/vr4-a1.verdict --fresh; grep vr4-a1.log for "aura shadow 20", "netmgr shadow
+  (month)", "unknown key"; then finish (lane report, merge-queue json).
