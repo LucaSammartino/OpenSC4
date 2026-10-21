@@ -25,10 +25,5 @@
   for `0xE9C6262A` and the compare before `0x007ED333`.
 
 <!-- from: the cSC4View3DWin window lane (re-view3dwin4, 2026-10-21) -->
-- **VW6 - §6b steps 6-7:** in `AddGUI` (`0x007EEDB0`-`0x007EF1B6`), the arguments and roles of the objects stored at
-  `+0x3E0`, `+0x3D4` (`cGZWinBMP`), `+0x31C` (`0x00762E70`, with GZCOM `0xCA5D3290`/`0xCA5D3294`, `0x6A5E44B6`) and
-  `+0x1F4` (`0x00769E90`, window `0xEA8CAD14`), the `ShowPanel` argument, and who creates `+0x190`, `+0x194`, `+0x2EC`,
-  `+0x2F0` and `+0x3D0` that `RemoveGUI` releases (not created in `AddGUI`'s first part). Also the per-panel extras of
-  the five-panel loop between `0x007EE39B` and `0x007EE610` (flag `0x800` slots 23/24 calls). What settles it: a walk
-  of those ranges.
+- **VW6 - §6b:** (narrowed 2026-10-21, re-view3dwin4: the `AddGUI` tail `0x007EED41`-`0x007EF1B6` and `+0x190`/`+0x194`/`+0x3D0` are now in §6b) still open: who creates `+0x2EC` and `+0x2F0` (no direct store in any `cSC4View3DWin` method; `RemoveGUI` releases them), the identity of the framework object `0x00B43C9C` (slot 3 makes the `+0x3D0` surface, slot 12 gates edge scrolling, §6c), and the per-panel extras of the five-panel loop between `0x007EE39B` and `0x007EE610` (flag `0x800` slots 23/24 calls). What settles it: a walk of `0x007EE39B`-`0x007EE610` and a search for indirect stores to `+0x2EC`/`+0x2F0`.
 

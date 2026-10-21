@@ -337,9 +337,16 @@ and `(key, parent, window ID, IID, out)` (`0x005F9480`), the second querying the
 **`AddGUI`, in order** (fields are absolute object offsets; `this` = object `+0`):
 
 1. **Main panel**: script window `0xC973B411`, ID `0x0987B48F`, stored at `+0x18C` (`0x007EDEF2`); queried for
-   `cIGZWinGen` (`0x5386D516`); the window's message filter (`+0x08`) is added to it (`cIGZWin` slot 116,
+   `cIGZWinGen` (`0x5386D516`) into `+0x190` (`0x007EDF00`); the window's message filter (`+0x08`) is added to it (`cIGZWin` slot 116,
    `+0x1D0`); it is placed at the bottom of the parent (y = parent height − its height + 11, `0x007EDF87`–`0x007EDFAC`);
    flag `0x800` is set (slot 68); `ClearAcceptFocusFlagRecursive` is applied to it.
+   **Then a hidden button at `+0x194`** (`0x007EDFE3`–`0x007EE193`): GZCOM class `0x22ECFC47`, IID `0x22BA0121`,
+   into `+0x194`; when that succeeds and the object answers IID `0x8810` (a button interface, held only for this
+   step): image `{0x856DDBAC, 0x46A006B0, 0x53244588}` with colour key (255, 0, 255) (city window `MakeFillColor`,
+   slot 108), set with mode 2 (button slot 12); button slot 5 `(0x20, 1)`; flag 4 on; tooltip string
+   `{0x6A231EAA, 0x8A51545D}` (button slot 35); notification target = the main panel (`SetNotificationTarget`, slot
+   86); ID `0x43`; moved to (12, city-window height − 28) (`GZWinMoveTo`, slot 56); added to the city window, then
+   hidden (slot 70); `ClearAcceptFocusFlagRecursive`.
 2. **Five tab panels**, a loop `i = 0..4` (jump table `0x007EF1D8`):
 
 | i | Script instance | Window ID | Extra |
@@ -370,10 +377,34 @@ and `(key, parent, window ID, IID, out)` (`0x005F9480`), the second querying the
 | `0x6BC61F19` | `0xABC619D2` | `+0x308` | `cSC4BuildingSelectWinProc` at `+0x2FC` (`Init` `0x00769420`) |
 
 6. `cSC4BudgetUIWinProc` (0x1A0 bytes) at `+0x2E8`, `Init`ed; a `cSC4WinCalloutBox` (0x1B4 bytes) at `+0x3D8`; a
-   `cGZWinBMP` at `+0x3D4` (flag `0x200000`); objects at `+0x3E0`, `+0x31C` (`0x00762E70`) and `+0x1F4`
-   (`0x00769E90`).
-7. Ends with `ShowPanel` (`0x007E8B90`) and `nsGZWinUtils::SetWindowEnabled` for windows `0x99887766` and
-   `0x8B96B73E`. Steps 6–7's arguments are not specified here (VW6).
+   `cGZWinBMP` at `+0x3D4` with its surface `+0x3D0`; an image at `+0x3E0`; an object at `+0x31C` (`0x00762E70`);
+   an unstored overlay window and a winproc for window `0xEA8CAD14` (`0x00769E90`). (Round 2 listed `+0x1F4` here:
+   corrected, `AddGUI` only clears it, step 7.)
+   In detail (`0x007EED41`–`0x007EF108`):
+   - **Callout box `+0x3D8`**: style IDs `0xA85F1A83` (its slot 11) and `0xE9C86C9D` (slot 10), each looked up
+     through `RZ::WCM` and kept by the box; hidden (`HideWindow` on its `cIGZWin` at box `+4`); background image
+     `{0x856DDBAC, 0x46A006B0, 0x14416190}` set with corners `(-1, -1)` (box slot 4; −1 selects 8) only when the
+     image loads; the image `{0x856DDBAC, 0x46A006B0, 0x14416160}` is kept at `+0x3E0` (assign: AddRef new,
+     release old); the box is added to the city window (`ChildAdd`, slot 14).
+   - **`cGZWinBMP` (0xFC bytes) `+0x3D4`**, its `cIGZWinBMP` (object `+0xD8`): `SetWinBMPFlag(6, 1)`; window flags
+     `0x200000` and `4` on; hidden. A drawing surface is requested from the framework object at `0x00B43C9C` (slot 3,
+     out = `+0x3D0`, the old one released first); when it succeeds the surface is set up 128 × 32 (its slot 3,
+     `(0x80, 0x20, {1, 0})`), becomes the BMP's image (`SetBMP`), and the image area is the surface rectangle moved
+     to the origin, `(0, 0, w, h)` (`SetImageArea`). The BMP window is added to the city window either way.
+   - **`+0x31C`**: a 0x18-byte object (`0x00762E70`), AddRef, its slot 5 (`Init`).
+   - **A full-size overlay window** (not stored): GZCOM `GetClassObject(0xCA5D3294, IID 0xCA5D3290)`; when it
+     succeeds its `cIGZWin` gets `SetArea(0, 0, client width, client height)` (width/height from the city window's
+     rectangle `+0xB4`..`+0xC0`), ID `0x6A5E44B6`, flag `0x10000` **off**, flags `0x200000` and `4` on, and is added
+     to the city window; the class-object reference is released.
+   - **Window `0xEA8CAD14`**: the city window looks it up recursively as `cIGZWinGen` (`GetChildAsRecursive`, slot 37,
+     IID `0x5386D516`); when found it gets a new 0x14-byte object (`0x00769E90`) through its slot 7 *[inferred]* a
+     winproc; nothing is stored in this object.
+7. When the city is **not** established (city slot 22 false, `0x007EF11D`): `+0x1F4` := 0, `ShowPanel(0)`
+   (`0x007E8B90`), and `nsGZWinUtils::SetWindowEnabled(main panel, 0x99887766, false)` and `(…, 0x8B96B73E, false)`.
+   For an established city none of this runs. The rest (`0x007EF159`–`0x007EF1B6`) frees AddGUI's locals.
+
+   Not created by `AddGUI`: `+0x2EC` and `+0x2F0` (zeroed in the constructor, released by `RemoveGUI`); no
+   `cSC4View3DWin` method stores them directly (VW6).
 
 **`RemoveGUI`, in order.** "Destroy *w*" means: the window manager (`cGZWin` member `+0x10` of the object, i.e. the
 city window's manager) `DestroyWindow(w)` (manager slot 23), then `w->Shutdown()` (slot 5), then release, then the

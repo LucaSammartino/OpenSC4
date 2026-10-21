@@ -8,7 +8,9 @@ Goal: round 3/3 of the cSC4View3DWin spec: input handlers, then VW6 AddGUI tail 
 extras 0x007EE39B-0x007EE610; VW2-5 only if budget allows. Owner stays partial.
 Done: §6c input handlers (keys, character, all mouse slots), §6 key-helper offset fixed to +0x120, tests VW-T7..T9
 (commit: see git log, "§6c").
-Next: VW6 AddGUI tail (re_query.py asm 0x007EEDB0 pages), write into §6b steps 6-7, answer VW6 if complete.
+Done 2: §6b AddGUI tail 0x007EED41-0x007EF1B6 (callout, BMP+surface +0x3D0, +0x31C, overlay 0xCA5D3294,
+0xEA8CAD14 winproc, not-established step 7), +0x190/+0x194 creators; +0x1F4 correction; VW6 narrowed (still open).
+Next: per-panel extras 0x007EE39B-0x007EE610 (build-runs/arange.sh 0x007edeb0 007ee39b 007ee610), then final report.
 Facts: mouse/char handlers this = obj+0xC; stack +0x134, persistent +0x140; build-runs/casm.sh ADDR SKIP MAX prints
 compact asm. REA not used.
 
