@@ -72,6 +72,18 @@ Units 2–6 convert raw ticks with a float factor `ticks × f[unit]`, where `f` 
 (at least one tick per interval; clock24.md §4.3). Unit 0 uses the same `o`, measured on the performance counter
 *[quirk]*.
 
+All three `GetElapsedTime` forms (TM2, confirmed on the instructions):
+
+- On a running unit-0 timer the open interval's "now" is the **cycle counter** (`cpuid`+`rdtsc` at `0x008901C5`,
+  `0x008902A7`, `0x008903A4`), as in `Start`; units 1–6 read `QueryPerformanceCounter`. Only `Stop` mixes the
+  two clocks.
+- "Running" is the whole 64-bit `start` being non-zero. `d = now − start` is a 64-bit wrapping subtraction and the
+  test `d > o` is **unsigned** 64-bit (`0x008901EC`–`0x008901F8`).
+- For units 2–6 `t` is loaded as a **signed** 64-bit integer (`fild qword`, `0x00890233` …) and multiplied by the
+  float `f[unit]`; the float form loads `t` the same signed way for units 0–1 (`0x00890449`). A `t` of 2⁶³ or more
+  is therefore read as negative.
+- A negative `unit` reports 0 (0.0), like any unit above 6.
+
 `g[unit]` is the stored reciprocal `1 / f[unit]` (§1.5). `trunc` is the CRT's float-to-integer truncation toward
 zero to 64 bits, `_ftol2` (`0x009EEF04`, which other specs call `_ftol`); the 32-bit `GetElapsedTime` returns its
 low half. The products run on the x87 unit at the caller's precision (24-bit on the game's main thread,
@@ -110,7 +122,7 @@ A heap object (vtable `0x00AD1F14`) that asks a timer service to call it back.
 
 | Offset | Field | Initial |
 |---|---|---|
-| `+0x04` | uses the framework service (bool) | true after construction (§2.3) |
+| `+0x04` | uses the framework service (bool) | false before the constructor's `UseTimerService(true)`, then true only if the framework service was found (§2.3) |
 | `+0x08` / `+0x0C` | callback function / its argument | 0 / 0 |
 | `+0x10` | `delay` (u32) | 100 |
 | `+0x14` | `period` (u32) | 1000 |
@@ -133,11 +145,11 @@ constructor adds it, the destructor removes it.
 | 3 | `SetPeriod(v)` | `0x009329AE` | `period := v`; a running timer is restarted (below); true |
 | 4 | `GetPeriod(out)` | `0x00932A04` (shared getter) | `out := period`; true |
 | 5 | `Start(period, object)` | `0x00932CB8` | refused (false) when running or when no callback is set. Keeps `object` (AddRef) in `+0x24`; a non-zero `period` replaces `period`; running := true; `ID := service.AddTimer(handler, this, period, 0, 0)` (service slot 3). An ID of 0 undoes it (not running, object released) and returns false; else true |
-| 6 | `StartOnce(delay, object)` | `0x00932D21` | as slot 5 but one-shot: the delay is the argument, or `period` when it is 0; one-shot := true; the service is called with 1 in place of the first 0 |
+| 6 | `StartOnce(delay, object)` | `0x00932D21` | as slot 5 but one-shot: the delay is the argument, or `period` when it is 0, and it is stored in **neither** `delay` nor `period` (only passed on); `+0x24 :=` object only when it is non-null; running := true, one-shot := true; `ID := service.AddTimer(handler, this, delay, 1, 0)`. An ID of 0 clears running **and** one-shot, releases the object, `+0x24 := null`, false |
 | 7 | `Stop()` | `0x00932A12` | if it has an ID: `service.RemoveTimer(ID)` (service slot 4), release `+0x24`; ID, running and one-shot := 0. True |
 | 8 | `IsRunning()` | `0x00932B83` (shared) | `+0x18` |
 | 9, 10 | `SetCallback(fn, arg)` | `0x00932A4A` (shared) | `+0x08 := fn`, `+0x0C := arg`; true |
-| 11 | `UseTimerService(bool)` | `0x00932A5D` | on a change: true looks up the framework system service `0xA76C78E7` (interface `0x276C784B`) and keeps it; if there is none, the flag stays false and the default is kept (returns false); false switches to the default object |
+| 11 | `UseTimerService(bool)` | `0x00932A5D` | unchanged flag: nothing, **true**. Otherwise `+0x04 :=` the argument. True: ask the framework for system service `0xA76C78E7` (interface `0x276C784B`); if found, call its slot 3 (the scheduler it owns, §2.5), and if that differs from `+0x20` release the old one, store it and AddRef it; release the system service; true. Not found (or no framework): `+0x04 := false`; unless `+0x20` is already the default, release it and store the default; **false**. False: `+0x20 :=` the default **without releasing** the old service, true *[quirk]* |
 | 12 | `GetTimerService()` | `0x009D8564` (shared getter) | `+0x20` |
 
 **Restart** (slots 1 and 3): keep a reference on `+0x24`, call `Stop` (slot 7), then call slot 5 or 6 by the
@@ -149,8 +161,9 @@ other effect in this class *[quirk]*.
 
 ### 2.3 Construction (`0x00932C23`)
 
-Sets the initial values of §2.1, joins the global set, takes the default service, then calls slot 11 with true:
-with a framework timer service present it uses that one.
+Sets the initial values of §2.1, joins the global set, takes the default service and sets `+0x04 := false`
+(`0x00932C8D`; an earlier store of 1 is overwritten), then calls `UseTimerService(true)` directly (not through the
+vtable): the flag differs, so the lookup always runs, and with a framework timer service present it uses that one.
 
 ### 2.4 When the service fires (handler `0x00932B87`)
 
@@ -159,7 +172,44 @@ callback and its argument, take a reference on `+0x24`, and for a **one-shot** t
 ID := 0, running := false, one-shot := false). Leave the lock, then call `fn(arg)` (cdecl, one argument) if `fn` is
 set, then release the reference taken. A periodic timer stays registered and keeps firing until `Stop`.
 
-How often the service calls back, and on which thread, is the service's behaviour (TM1).
+How often the service calls back, and on which thread, is the scheduler's behaviour (§2.5).
+
+### 2.5 The timer scheduler (TM1)
+
+Both services are the same class: a scheduler with its own worker thread (constructor `0x009335F4`, vtable
+`0x00AD1F6C`, runnable vtable `0x00AD1F68`, 0x50 bytes). The **default** is a static instance at `0x00B62AB0`
+(static initialiser `0x00A7933E`). The **framework service** `0xA76C78E7` (constructor `0x009304A6`, added by
+`cSC4App::AddSystemServices`, priority 2,999,999) owns a heap instance of it and returns it from its slot 3
+(`0x009D8564`). Its own clock is a `cRZTimer` of unit 4 (milliseconds), started at construction; every time below
+is that clock's 32-bit `GetElapsedTime`.
+
+Entries (in a vector, in insertion order): ID, function, argument, one-shot, `period`, `due`, fixed-rate.
+
+| Slot | Method | Address | Behaviour |
+|---|---|---|---|
+| 3 | `AddTimer(fn, arg, ms, oneShot, fixedRate)` | `0x009337F9` | 0 if the scheduler is not enabled (`+0x08`, set at construction). Under its lock: ID := a counter starting at 1 (incremented per call, never 0 in practice); `period := ms`; `due := now + ms`, saturated to `0xFFFFFFFF` on overflow **only when the list was empty**; append. If the list was empty: start the worker thread if it is not alive, and `ResumeThread` it. Always queue a no-op APC to the thread (wakes its alertable sleep). Returns the ID |
+| 4 | `RemoveTimer(id)` | `0x0093357B` | under the lock, erase the first entry with that ID: true; none: false (also false when not enabled) |
+
+The 4th argument is the **one-shot** flag; the 5th selects **fixed-rate** rescheduling (`due += period`) instead of
+the default `due := now + period`. `cRZCallbackTimer` always passes 0, so its periodic timers drift by the
+callback-dispatch latency.
+
+**Worker loop** (`0x009338C2`), while the scheduler is enabled and the list is not empty:
+
+1. Under the lock read `now` once. Walk the list in order; an entry with `due ≤ now` (unsigned) is **copied** to a
+   fire list, then a one-shot entry is erased and a periodic one gets `due := now + period` (fixed-rate:
+   `due += period`); if the new `due < now`, `due := 0xFFFFFFFF` *[quirk: a fixed-rate entry that falls more than one
+   period behind stops firing]*. Every remaining entry contributes `due − now` to the minimum wait `m`.
+2. Leave the lock, then call each copied `fn(arg)` in list order **on the worker thread**. A timer removed after the
+   copy still fires this once; `cRZCallbackTimer`'s handler (§2.4) checks the live set for that reason.
+3. If the list is now empty, the thread suspends itself (`SuspendThread`) until the next `AddTimer` into an empty
+   list resumes it. Otherwise with `e = now' − now`: sleep `m − e` ms if `e < m`, else **10 ms**, in an alertable
+   `SleepEx` (the time passes through `cRZThread::SleepCurrentThread` as `ms × 1000` in 32 bits, so a wait over
+   4,294,967 ms wraps *[quirk]*).
+
+So every `cRZCallbackTimer` callback runs on the scheduler's worker thread, never on the caller's or the main thread
+*[compat]*; FreeCity4 may use any single dispatch thread with the same ordering, and tests drive the loop with an
+injected millisecond clock.
 
 ## 3. Users
 
@@ -180,12 +230,13 @@ How often the service calls back, and on which thread, is the service's behaviou
 5. Conversions truncate at the caller's x87 precision (§1.3).
 6. `cRZCallbackTimer`'s `delay` is never passed to the service (§2.2).
 7. `SetDelay` or `SetPeriod` on a running one-shot timer makes it periodic (§2.2).
+8. `UseTimerService(false)` drops the framework service without releasing it (§2.2).
+9. The scheduler sleeps 10 ms when an entry is already overdue, saturates a fixed-rate entry that lags, and wraps
+   waits over 4,294,967 ms (§2.5).
 
 ## 5. Open questions
 
-- **TM1:** the framework timer service (`0xA76C78E7` / `0x276C784B`) and the built-in default object at
-  `0x00B62AB0` (constructed by `0x009335F4`): their callback thread and the meaning of `AddTimer`'s last two
-  arguments (the one-shot flag and the always-0 fifth).
+None (TM1 answered in §2.5, TM2 in §1.3 / §2.2 / §2.3).
 
 ## 6. Conformance tests
 
