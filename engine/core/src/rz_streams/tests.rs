@@ -249,7 +249,7 @@ fn t7_counting_interfaces_user_data() {
         assert_eq!(v.0.load(Ordering::SeqCst), 1);
         assert_eq!(w.0.load(Ordering::SeqCst), 2);
         let got = s2.core().user_data().unwrap();
-        assert!(std::ptr::addr_eq(Arc::as_ptr(got), Arc::as_ptr(&w)));
+        assert!(Arc::as_ptr(got) as *const () == Arc::as_ptr(&w) as *const ());
         assert_eq!(w.0.load(Ordering::SeqCst), 2, "GetUserData adds no reference");
         s2
     };

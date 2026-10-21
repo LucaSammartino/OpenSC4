@@ -104,7 +104,7 @@ impl StreamCore {
     /// AddRef the new one, store it, release the old one.
     pub fn set_user_data(&mut self, p: Option<Arc<dyn CountedRef>>) {
         let same = match (&p, &self.user_data) {
-            (Some(a), Some(b)) => std::ptr::addr_eq(Arc::as_ptr(a), Arc::as_ptr(b)),
+            (Some(a), Some(b)) => Arc::as_ptr(a) as *const () == Arc::as_ptr(b) as *const (),
             (None, None) => true,
             _ => false,
         };
