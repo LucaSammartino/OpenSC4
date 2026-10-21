@@ -635,6 +635,32 @@ swapped texture instance, `+0x24` counted texture binding, `+0x28..+0x2B` four s
   reference is released afterwards. Returns true iff at least one load succeeded (a material whose load fails is
   left static with no texture). The only caller passes delta `0x8000`, a = 2, b = 1.
 
+### 12.5 Lookup, geometry and container helpers *[compat]*
+
+- `LotAtOccupant(o, &out)` (`0x0048F200`, RET 8): p = o's position (slot `+0x20`); the global `0x00B43CEC` slot
+  `+0x17C(p.x, p.z, &cx, &cz)` converts it to a cell. When cx is in [`+0x30`, `+0x38`] and cz in
+  [`+0x34`, `+0x3C`] (the city cell rect, inclusive, signed) and the lot manager (`+0x68`) slot
+  `+0x18(cx, cz, 0)` returns a lot: out = that lot's slot `+0x8C`, return true. Otherwise out = null, false.
+- `0x0048FF50(out, src, iid)`: interface pointer constructor. out = src's QueryInterface(iid) result (null on
+  failure); the result ends up held once by out (the temporary's AddRef/Release pair cancels). out's previous
+  value is not released (it is a constructor). Returns out.
+- `RotateAboutAxis(c, p, angle, axis, out)` (`0x005D7710`, cdecl, used by `FindModelTransform`): picks the plane
+  (i, j) = (1, 2) for axis 0, (0, 2) for axis 1, (0, 1) otherwise; du = p[i] - c[i], dv = p[j] - c[j];
+  out[i] = float(float(cos a·du - sin a·dv) + c[i]); out[j] = float((sin a·du + cos a·dv) + c[j]) (the second
+  sum is not rounded before the add). The third component of out is not written.
+- `0x005D53B0(a, b)`: this `+0x58` = a, `+0x1F4` = b. `0x005D5360(a, b)`: for k = 0..4, this `+0x5C + 4k` =
+  a[k] when a is non-null, this `+0x1F8 + 4k` = b[k] when b is non-null. `0x005D5A60(src)`: this `+0x30..+0x38`
+  = src[0..2], `+0x3C..+0x44` = src[3..5] (a box). These three are setters of the object built by
+  `LoadFoundationModels` (§12).
+- `0x005D5500`: take one node from the free-list pool at `0x00B0A824` (pool header `0x00B0A828`: `+0x8` head,
+  `+0xC` use count; an empty pool is refilled through `0x0090CF9A`), pop it and increment the count; returns it.
+- Containers of 8-byte entries {counted reference, 3 bytes} (the `+0xE4` vector, §2): `0x00490A60` copy-construct
+  a range, `0x00490AB0` construct n copies, `0x00490B00` assign a range (counted assignment, then the 3 bytes),
+  `0x004928C0` grow-and-insert n copies (new capacity = old size + max(old size, n); prefix, the copies, suffix;
+  a single copy for n = 1). `0x00490C10(n)`: vector of n zeroed 8-byte pairs. `0x00490B80(n)`: vector of n
+  12-byte entries each (v, v, v) with v the dword at `0x00B216F8`. `0x00491210`: destructor freeing the buffer at
+  `+0x0C`, then the base destructor `0x005E95C0`.
+
 ## 19. Conformance cases
 
 | case | setup | expected |
@@ -668,7 +694,7 @@ Round 2 cases (§6, §7, §9, §10):
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
-Specified: 18150 bytes; remainder (not yet specified or only outlined): 16555 bytes. The remainder is **not empty**,
+Specified: 19403 bytes; remainder (not yet specified or only outlined): 15302 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
 
 | address | bytes | name | section |
@@ -696,7 +722,7 @@ so this spec does not yet claim the whole owner.
 | `0x0048EF20` | 55 | FUN_0048ef20 | §8.3 |
 | `0x0048EF60` | 301 | FUN_0048ef60 | §4 |
 | `0x0048F090` | 360 | cSC4ModelMaker::Read | §4 |
-| `0x0048F200` | 142 | FUN_0048f200 | remainder |
+| `0x0048F200` | 142 | FUN_0048f200 | §12.5 |
 | `0x0048F290` | 229 | cSC4ModelMaker::ChangeModels | §12.4 |
 | `0x0048F380` | 268 | FUN_0048f380 | §12.4 |
 | `0x0048F490` | 58 | FUN_0048f490 | §12.3 |
@@ -705,19 +731,19 @@ so this spec does not yet claim the whole owner.
 | `0x0048F660` | 689 | cSC4ModelMaker::UpdateModelLoadRect | §7.2 |
 | `0x0048F920` | 283 | cSC4ModelMaker::CreatePlaceHolderModelInstance | remainder |
 | `0x0048FA40` | 1295 | cSC4ModelMaker::FindModelTransform | remainder |
-| `0x0048FF50` | 65 | GZCOM_Interface<cISC4EffectsResource,cISC4EffectsCollection> | remainder |
+| `0x0048FF50` | 65 | GZCOM_Interface<cISC4EffectsResource,cISC4EffectsCollection> | §12.5 |
 | `0x0048FFF0` | 730 | cSC4ModelMaker::DoBuildingCompletionChanged | §9.5 |
 | `0x004902E0` | 968 | cSC4ModelMaker::AddModel | remainder |
 | `0x004906B0` | 358 | FUN_004906b0 | §12.4 |
 | `0x00490820` | 565 | FUN_00490820 | §12.4 |
-| `0x00490A60` | 70 | FUN_00490a60 | remainder |
-| `0x00490AB0` | 68 | FUN_00490ab0 | remainder |
-| `0x00490B00` | 117 | FUN_00490b00 | remainder |
-| `0x00490B80` | 139 | FUN_00490b80 | remainder |
-| `0x00490C10` | 90 | FUN_00490c10 | remainder |
+| `0x00490A60` | 70 | FUN_00490a60 | §12.5 |
+| `0x00490AB0` | 68 | FUN_00490ab0 | §12.5 |
+| `0x00490B00` | 117 | FUN_00490b00 | §12.5 |
+| `0x00490B80` | 139 | FUN_00490b80 | §12.5 |
+| `0x00490C10` | 90 | FUN_00490c10 | §12.5 |
 | `0x00490C70` | 965 | cSC4ModelMaker::LoadModelsCommon | remainder |
 | `0x00491040` | 462 | cSC4ModelMaker::LoadFoundationModels | remainder |
-| `0x00491210` | 27 | FUN_00491210 | remainder |
+| `0x00491210` | 27 | FUN_00491210 | §12.5 |
 | `0x00491230` | 1979 | cSC4ModelMaker::CreateOccupantShadow | remainder |
 | `0x004919F0` | 63 | FUN_004919f0 | §12.2 |
 | `0x00491A30` | 76 | cSC4ModelMaker::LoadPropModels | §12.2 |
@@ -729,7 +755,7 @@ so this spec does not yet claim the whole owner.
 | `0x00492440` | 233 | cSC4ModelMaker::DoTerrainHidingForOccupantCells | remainder |
 | `0x00492530` | 584 | cSC4ModelMaker::UnloadUnnecessaryModels | §7.4 |
 | `0x00492780` | 311 | cSC4ModelMaker::RemoveModelsInappropriateForRotation | §7.5 |
-| `0x004928C0` | 232 | FUN_004928c0 | remainder |
+| `0x004928C0` | 232 | FUN_004928c0 | §12.5 |
 | `0x004929B0` | 27 | GZCOM_CreatecSC4ModelMaker | §1 |
 | `0x004929D0` | 30 | FUN_004929d0 | §3.4 |
 | `0x004929F0` | 718 | cSC4ModelMaker::Shutdown | §3.3 |
@@ -765,11 +791,11 @@ so this spec does not yet claim the whole owner.
 | `0x00495B00` | 642 | cSC4ModelMaker::DoZoomAndRotationChange | §10.1 |
 | `0x00495D90` | 369 | cSC4ModelMaker::DoViewTranslationChange | §10.2 |
 | `0x00495F10` | 1653 | cSC4ModelMaker::DoMessage | §5 |
-| `0x005D5360` | 69 | FUN_005d5360 | remainder |
-| `0x005D53B0` | 20 | FUN_005d53b0 | remainder |
-| `0x005D5500` | 43 | FUN_005d5500 | remainder |
-| `0x005D5A60` | 42 | FUN_005d5a60 | remainder |
-| `0x005D7710` | 129 | FUN_005d7710 | remainder |
+| `0x005D5360` | 69 | FUN_005d5360 | §12.5 |
+| `0x005D53B0` | 20 | FUN_005d53b0 | §12.5 |
+| `0x005D5500` | 43 | FUN_005d5500 | §12.5 |
+| `0x005D5A60` | 42 | FUN_005d5a60 | §12.5 |
+| `0x005D7710` | 129 | FUN_005d7710 | §12.5 |
 | `0x005EA370` | 174 | FUN_005ea370 | §6.2 |
 | `0x005EA550` | 184 | FUN_005ea550 | §6.2 |
 | `0x008D08E0` | 219 | FUN_008d08e0 | remainder |
