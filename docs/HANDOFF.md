@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**train30 landed 64c21d6b89:** Two-lane docs batch landed. Exact six completed value-editor owners and two small particle owners mapped; PropertyView, dialog folded methods, description-base reach functions, particle drawing and curves remain uncredited. Both lanes parked3/3, never fourth. Terrain particle overlap is landed; fresh slots/check required. Coverage39.6/30.0/12.3/16.5; rounds49/80.
+
 **train29 landed f9aba9d095:** Three-lane batch gate and full35-key regress PASS. TS67 phase-entry reset contract answered; partial occupant records landed without whole-owner credit. Advisors AD1-AD3 block glue and are filed. Terrain occupant-record overlap landed; particle overlap still requires its docs train. re-editors4 parked3/3 with completed value/grid/colour/res-key specs and incomplete curves; never fourth round. Coverage39.3/30.0/12.3/16.5; rounds49/80.
 
 **Run4 checkpoint45/80:** six trains landed (21,22,25,26,27,28); coverage39.3/30.0/12.4/16.5, baseline delta+2.5/+1.7/+0.3/+0.6 points. Train29 gatePASS, three-lane regress running. Target6live, max3glue. re-particles4 parked3/3 with readyphysics/emitter specs but drawing/emitparser incomplete; neverfourthround. Terrain stillDENIED for core-occprops4 and re-particles4 overlaps, no round3 launched. Candidate-shadow option committed6efdac02 after75 tests; no verification credit before measuredunionrun.

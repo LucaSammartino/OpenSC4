@@ -8,7 +8,7 @@ Game code, the denominator (every function outside the library and compiler buck
 
 | Status | Meaning | Bytes | % of game bytes | Functions | % of game functions |
 |---|---|---:|---:|---:|---:|
-| **specified** | a spec in docs/specs covers its owner | 2,197,539 | **39.3%** | 10,132 | 34.4% |
+| **specified** | a spec in docs/specs covers its owner | 2,211,114 | **39.6%** | 10,181 | 34.5% |
 | **implemented** | a clean-room module in engine/ implements its owner | 1,677,485 | **30.0%** | 7,290 | 24.7% |
 | **verified** | its same-process shadow is exact in the run that measured it | 687,387 | **12.3%** | 2,723 | 9.2% |
 | **replaced** | our class runs instead of the original in the regress replace run | 923,107 | **16.5%** | 3,434 | 11.6% |
@@ -33,14 +33,14 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 |---|---:|---:|---:|---:|---:|---:|---:|
 | simulation | 8,297 | 1,928,328 | 34.5% | 87.6% (89.7%) | 74.7% (71.6%) | 33.6% (31.3%) | 47.9% (41.4%) |
 | framework | 4,935 | 648,694 | 11.6% | 26.4% (31.8%) | 14.1% (16.4%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| renderer | 5,086 | 1,206,753 | 21.6% | 18.4% (16.5%) | 12.1% (10.6%) | 3.3% (2.5%) | 0.0% (0.0%) |
-| ui | 5,079 | 1,105,882 | 19.8% | 6.8% (1.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| renderer | 5,086 | 1,206,753 | 21.6% | 18.4% (16.6%) | 12.1% (10.6%) | 3.3% (2.5%) | 0.0% (0.0%) |
+| ui | 5,079 | 1,105,882 | 19.8% | 8.0% (2.6%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | audio | 1,981 | 225,440 | 4.0% | 12.7% (8.3%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | region | 414 | 111,697 | 2.0% | 9.8% (7.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | other | 529 | 57,324 | 1.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | shared | 2,249 | 206,817 | 3.7% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | unattributed | 911 | 95,483 | 1.7% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| **all game code** | **29,481** | **5,586,418** | 100.0% | **39.3%** (34.4%) | **30.0%** (24.7%) | **12.3%** (9.2%) | **16.5%** (11.6%) |
+| **all game code** | **29,481** | **5,586,418** | 100.0% | **39.6%** (34.5%) | **30.0%** (24.7%) | **12.3%** (9.2%) | **16.5%** (11.6%) |
 
 ## By subsystem
 
@@ -116,7 +116,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | renderer | effects | 60 | 654 | 175,251 | yes | part | - | - | - |
 | renderer | 3D driver (DirectX 7) | 10 | 843 | 151,999 | - | - | - | - | - |
 | renderer | 2D drawing and fonts | 36 | 841 | 150,697 | part | - | - | - | - |
-| renderer | effects (particles, decals, visuals) | 25 | 255 | 71,568 | - | - | - | - | - |
+| renderer | effects (particles, decals, visuals) | 25 | 255 | 71,568 | part | - | - | - | - |
 | renderer | 2D drawing (span render 4444) | 1 | 172 | 51,809 | - | - | - | - | - |
 | renderer | 2D drawing (span render 1555) | 1 | 172 | 50,817 | - | - | - | - | - |
 | renderer | 2D drawing (span render 565) | 1 | 145 | 39,051 | - | - | - | - | - |
@@ -126,7 +126,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | ui | widget toolkit | 112 | 3,203 | 463,273 | part | - | - | - | - |
 | ui | windows and panels | 58 | 1,007 | 391,158 | part | - | - | - | - |
 | ui | city tools and input | 28 | 635 | 182,466 | part | - | - | - | - |
-| ui | resource and exemplar editor | 26 | 234 | 68,985 | - | - | - | - | - |
+| ui | resource and exemplar editor | 26 | 234 | 68,985 | part | - | - | - | - |
 | audio | audio | 56 | 1,981 | 225,440 | part | - | - | - | - |
 | region | region | 26 | 414 | 111,697 | part | - | - | - | - |
 | other | other free functions | 152 | 187 | 27,444 | - | - | - | - | - |
@@ -252,7 +252,7 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | docs/abi/interfaces.tsv | e7507f340528a6ef | |
 | tools/coverage-libs.tsv | de557a391ec04b04 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
-| tools/coverage-map.tsv | 5c64577e38e8e90e | |
+| tools/coverage-map.tsv | e58df402d198949b | |
 | tools/coverage-shadows.tsv | 9559bafe0136e8c5 | |
 | tools/regress.ps1 | 7b250f8f9bd98f21 | |
 | engine/plugin/FC4Subsystems.cpp | 5e35939f9d249a86 | |
