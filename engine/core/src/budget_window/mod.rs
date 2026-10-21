@@ -10,15 +10,14 @@
 //! references (`§n`) point at that spec.
 //!
 //! The core is host-independent: every window, simulator, budget, ordinance,
-//! neighbour and occupant call goes through [`BudgetWindowHost`] with typed
-//! arguments, in the order the spec gives. The per-row layout routines
-//! (`initNeighborBudget`, `updateNeighborBudget`, `initOrdinanceBudget`, the
-//! `add_*` helpers) are specified by contract only (§8, BW1); they are host
-//! callbacks here that receive the data the dialog owns and return what the
-//! dialog keeps (slider IDs, ordinance states, restore records).
+//! neighbour, deal and occupant call goes through [`BudgetWindowHost`] with
+//! typed arguments, in the order the spec gives. The pixel layout of the four
+//! populate routines (`initOrdinanceBudget`, `initNeighborBudget`,
+//! `initIndividualBudget`, the group rows) is out of the spec's scope (§8), so
+//! those are host callbacks that return what the dialog keeps.
 //!
-//! What is not modelled because the spec leaves it open is listed in
-//! `docs/lanes/core-budgetwindow4.md` and filed as questions BW6 onwards.
+//! Spec contracts still open are filed as questions in
+//! `docs/specs/questions/budget-window.md` (BW5, BW10).
 
 pub mod dialog;
 pub mod ids;
@@ -28,8 +27,8 @@ pub mod panel;
 mod tests;
 
 pub use dialog::{
-    end_dialog, IndividualRestoreInfo, OrdinanceRow, ScrollList, ScrollView, SliderInfo, SubBudgetMode, SubBudgetMsg,
-    SubBudgetWindow,
+    end_dialog, header_shown, line_item_shown, service_kind, slider_fraction, IndividualRestoreInfo, OrdinanceInit,
+    OrdinanceRow, ScrollList, ScrollView, SliderInfo, SubBudgetMode, SubBudgetMsg, SubBudgetWindow,
 };
 pub use panel::{panel_command, BudgetPanel, CommandOutcome, PanelCommand};
 
@@ -37,16 +36,37 @@ pub use panel::{panel_command, BudgetPanel, CommandOutcome, PanelCommand};
 pub type WinRef = u64;
 /// An opaque handle to a `cISC4DepartmentBudget`.
 pub type DeptRef = u64;
-/// An opaque handle to an ordinance row's ordinance.
-pub type OrdRef = u64;
-/// An opaque handle to a neighbour deal (`cISC4NeighborDeal`-like object).
+/// An ordinance ID (the array at `+0xA4`).
+pub type OrdId = u32;
+/// An opaque handle to a neighbour deal (`cISC4NeighborDeal`).
 pub type DealRef = u64;
-/// An opaque handle to an occupant (individual-budget mode, `+0x24`).
-pub type OccRef = u64;
+/// An opaque handle to a row item (`get_window_indiv_item`'s object, a
+/// `cIGZUnknown` that may answer the occupant IID `0x26BB767E`).
+pub type ItemRef = u64;
 
-/// Everything the budget window family calls outside itself. Method order in
-/// the spec is preserved by the callers; implementations only perform the
-/// call they are named after.
+/// One department line item as `on_init` reads it (§4.1): `GetType()`,
+/// `GetID()`, `GetDisplayFlags()`, `GetIncome()`, `GetFullExpenses()`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LineItem {
+    pub kind: u32,
+    pub id: u32,
+    pub display_flags: u32,
+    pub income: i64,
+    pub full_expenses: i64,
+}
+
+/// The two f32 funding values of a hospital / school query record that
+/// `SetOccupantFundingLevel` rewrites (§5.5: `rec+0x2C` staff, `rec+0x34`
+/// vehicle).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct FundingPair {
+    pub staff: f32,
+    pub vehicle: f32,
+}
+
+/// Everything the budget window family calls outside itself. Callers keep
+/// the spec's order; implementations only perform the call they are named
+/// after.
 pub trait BudgetWindowHost {
     // ---- §3 window generator and window (cIGZWin) ----
     /// Create the window generator (class `0x4386D516`, interface
@@ -55,17 +75,20 @@ pub trait BudgetWindowHost {
     fn create_window_generator(&mut self) -> Option<WinRef>;
     /// `AddRef` on a window (the `*out` reference of `CreateSubBudgetWindow`).
     fn add_ref_win(&mut self, win: WinRef);
-    /// Release a window reference held by the core (the inner child at `+0x14`).
+    /// Release a window reference.
     fn release_win(&mut self, win: WinRef);
     /// Set a generator flag (generator interface `0x5386D516`).
     fn set_generator_flag(&mut self, win: WinRef, flag: u32, on: bool);
     /// Set the generator's window procedure (generator `+0x1C`) to the dialog.
     fn set_generator_win_proc(&mut self, win: WinRef);
-    /// Whether the window answers interface `0x5386D516` (§2 step 4).
+    /// QueryInterface `0x5386D516` on the window (§2 step 4); true = it
+    /// answered and a reference was taken (released by `release_generator`).
     fn query_generator(&mut self, win: WinRef) -> bool;
+    /// Release the generator interface reference `query_generator` took.
+    fn release_generator(&mut self, win: WinRef);
     /// `cIGZWin::SetFlag`.
     fn set_win_flag(&mut self, win: WinRef, flag: u32, on: bool);
-    /// Read a `cIGZWin` flag (`end_dialog` tests `0x1000`).
+    /// `cIGZWin` flag test (window slot 67; `end_dialog` tests `0x1000`).
     fn win_flag(&mut self, win: WinRef, flag: u32) -> bool;
     /// `cIGZWin::SetID` (slot 64).
     fn set_win_id(&mut self, win: WinRef, id: u32);
@@ -73,17 +96,18 @@ pub trait BudgetWindowHost {
     fn show_win(&mut self, win: WinRef);
     /// `PullToFront` (§2 step 4).
     fn pull_to_front(&mut self, win: WinRef);
-    /// `end_dialog`, modal branch: ask the window's parent to end the modal
-    /// loop (parent `+0x24`, code `0xF`, the window twice).
-    fn end_modal_via_parent(&mut self, win: WinRef);
-    /// `end_dialog`, modeless branch: remove the window from its parent (`+0x38`).
+    /// `end_dialog` modal branch: `parent` slot 9 with `(0xF, win, code)`.
+    fn end_modal_via_parent(&mut self, win: WinRef, code: u32);
+    /// `end_dialog` modeless branch: `win` slot 11 with 1, its result and
+    /// `win` to `parent` slot 14.
     fn remove_from_parent(&mut self, win: WinRef);
-    /// Remove the inner child held at `+0x14` from the dialog window.
-    fn remove_child(&mut self, win: WinRef, child: WinRef);
-    /// Show or hide one of the scroll arrow buttons `0x451`..`0x454`.
-    fn set_arrow_visible(&mut self, win: WinRef, button: u32, visible: bool);
+    /// `win.RemoveChild(child)` (window slot 15). `None` is the null
+    /// argument the `0x68` / `0x384` buttons pass when `+0x14` is empty.
+    fn remove_child(&mut self, win: WinRef, child: Option<WinRef>);
+    /// `win.GetChild(id)` then `SetFlag(1, on)` (§5.3, no null check).
+    fn set_child_visible(&mut self, win: WinRef, id: u32, on: bool);
 
-    // ---- §2 the panel's modal run ----
+    // ---- §2 the panel ----
     /// `WinLocationSaver.RestoreWindowLocation(win, 1)`.
     fn restore_window_location(&mut self, win: WinRef);
     /// `WinLocationSaver.SaveWindowLocation(win)`.
@@ -97,8 +121,12 @@ pub trait BudgetWindowHost {
     fn update_balance_sheet(&mut self);
     /// `nsSC4TutorialSystem::FilterUICommandMessage`: true = swallow.
     fn filter_ui_command(&mut self, command: u32) -> bool;
+    /// `ShowWindow` (`0x00768670`): show or hide a panel tab window.
+    fn set_panel_tab_visible(&mut self, tab: u32, visible: bool);
+    /// `ShowWindow`: `SetFlag` on the shown panel tab.
+    fn set_panel_tab_flag(&mut self, tab: u32, flag: u32, on: bool);
 
-    // ---- §4 simulator ----
+    // ---- §4, §6 simulator ----
     /// `cISC4Simulator::HiddenPause` (slot 10).
     fn hidden_pause(&mut self);
     /// `cISC4Simulator::HiddenResume` (slot 13).
@@ -106,63 +134,109 @@ pub trait BudgetWindowHost {
     /// Load the mode's background image (type, group, instance).
     fn load_background(&mut self, win: WinRef, type_id: u32, group: u32, instance: u32);
 
-    // ---- §4.1 ordinances ----
-    /// `initOrdinanceBudget` contract: build one row per ordinance and return
-    /// each row's ordinance and its current on/off state.
-    fn init_ordinance_budget(&mut self, win: WinRef) -> Vec<(OrdRef, bool)>;
+    // ---- ordinances (§4, §5.6) ----
+    /// `initOrdinanceBudget` (`0x0077C660`) layout: the rows, their
+    /// ordinance IDs and states (`+0xA4`, `+0xA8`) and the row map `+0x74`.
+    fn init_ordinance_budget(&mut self, win: WinRef) -> OrdinanceInit;
     /// `updateOrdinanceBudget`: redraw the rows from the dialog's state.
     fn update_ordinance_budget(&mut self, win: WinRef, rows: &[OrdinanceRow], view: ScrollView);
-    /// `OrdinanceSimulator.SetOrdinanceOn` (slot 13).
-    fn set_ordinance_on(&mut self, ordinance: OrdRef, on: bool);
+    /// `OrdinanceSimulator.SetOrdinanceOn(id, edited)` (slot 13).
+    fn set_ordinance_on(&mut self, ordinance: OrdId, on: u32);
+    /// Child `id`'s check-box interface `0x8810`: its state's low byte, or
+    /// `None` when the child does not answer.
+    fn check_box_state(&mut self, win: WinRef, id: u32) -> Option<u8>;
+    /// Build the ordinance info popup for row index `k` (§5.6) and return
+    /// the full-dialog child the dialog holds at `+0x14`.
+    fn open_ordinance_info(&mut self, win: WinRef, k: Option<u32>, ordinance: Option<OrdId>) -> Option<WinRef>;
 
-    // ---- §4.2 neighbour deals ----
+    // ---- neighbour deals (§4, §5.4, §6) ----
     /// `NeighborsSimulator.SetUIDisableFlag`.
     fn set_neighbor_ui_disable(&mut self, on: bool);
-    /// `initNeighborBudget` contract after the UI-disable call:
-    /// `ProposeDeals(list, true)` and the rows; returns the held deals
-    /// (vector `+0x68`).
+    /// `initNeighborBudget` after the UI-disable call: `ProposeDeals(list,
+    /// true)` and the rows; returns the held deals (vector `+0x68`).
     fn init_neighbor_budget(&mut self, win: WinRef) -> Vec<DealRef>;
     /// `updateNeighborBudget`.
     fn update_neighbor_budget(&mut self, win: WinRef, deals: &[DealRef], view: ScrollView);
-    /// Combo box changed in neighbour mode: rewrite the selected deal rows
-    /// (vector `+0x50`, 24-byte entries; content is §8 open work).
+    /// Combo box changed: rewrite the selected deal rows (vector `+0x50`).
     fn rewrite_selected_deal_rows(&mut self, win: WinRef, combo: u32);
     fn add_ref_deal(&mut self, deal: DealRef);
     fn release_deal(&mut self, deal: DealRef);
-    /// Deal slot 36: flags.
+    /// Deal slot 36.
     fn deal_flags(&mut self, deal: DealRef) -> u32;
-    /// Deal slot 34 (called when flag bit 0 is set at close).
-    fn deal_slot34(&mut self, deal: DealRef);
+    /// Deal slot 34 (`Cancel`).
+    fn deal_cancel(&mut self, deal: DealRef);
+    /// Deal slot 35 (`Activate`).
+    fn deal_activate(&mut self, deal: DealRef) -> bool;
+    /// Deal slot 11.
+    fn deal_set_amount(&mut self, deal: DealRef, v: i32);
+    /// Deal slot 12.
+    fn deal_last_amount(&mut self, deal: DealRef) -> i32;
+    /// Deal slot 13.
+    fn deal_set_last_amount(&mut self, deal: DealRef, v: i32);
+    /// Deal slot 14.
+    fn deal_set_inc_amount(&mut self, deal: DealRef, v: i32);
+    /// Deal slot 15.
+    fn deal_set_last_inc_amount(&mut self, deal: DealRef, v: i32);
+    /// Deal slot 17.
+    fn deal_last_inc_amount(&mut self, deal: DealRef) -> i32;
     /// `NeighborsSimulator.MarkDealsDirty`.
     fn mark_deals_dirty(&mut self);
 
-    // ---- §4 group mode ----
+    // ---- group mode (§4, §4.1) ----
     /// `budget.GetDepartmentBudgetsInGroup(group, list)` (budget slot 31).
     fn department_budgets_in_group(&mut self, group: u32) -> Vec<DeptRef>;
+    /// Department slot 21: the line items, in order.
+    fn department_line_items(&mut self, dept: DeptRef) -> Vec<LineItem>;
+    /// Department slot 16 `GetTotalIncome()`.
+    fn department_total_income(&mut self, dept: DeptRef) -> i64;
+    /// Department slot 14 `GetIdealMonthlyFunding()`.
+    fn department_ideal_monthly_funding(&mut self, dept: DeptRef) -> i64;
+    /// `SetEmptyWindow` (`0x0077BEC0`): the message window, held at `+0x14`.
+    fn set_empty_window(&mut self, win: WinRef) -> Option<WinRef>;
+    /// `SetupWindowBig(win, rowsA, rowsB)` (`0x0077A6F0`).
+    fn setup_window_big(&mut self, win: WinRef, rows_a: u32, rows_b: u32);
     /// The department's current funding fraction (saved at init).
     fn funding_percentage(&mut self, dept: DeptRef) -> f32;
-    /// Department slot 11: `SetFundingPercentage(fraction, arg)`.
+    /// Department slot 11: `SetFundingPercentage(&fraction, arg)`.
     fn set_funding_percentage(&mut self, dept: DeptRef, fraction: f32, arg: u32);
     /// Build one department's slider row; returns its slider window ID.
     fn add_department_row(&mut self, win: WinRef, group: u32, dept: DeptRef) -> u32;
-    /// `UpdateValues` (`0x007898A0`): refresh every row's text.
+    /// `UpdateValues` (`0x007898A0`).
     fn update_values(&mut self, win: WinRef);
 
-    // ---- §4 individual (occupant) mode ----
-    /// `initIndividualBudget` contract: build the rows and return the
-    /// restore records (vector `+0x44`).
-    fn init_individual_budget(&mut self, win: WinRef, occupant: OccRef) -> Vec<IndividualRestoreInfo>;
-    /// `get_window_indiv_item`: the occupant a slider belongs to.
-    fn indiv_item_for_slider(&mut self, slider: u32) -> Option<OccRef>;
-    /// `SetOccupantFundingLevel(occupant, which, level)` (`0x0077BC90`).
-    fn set_occupant_funding_level(&mut self, occupant: OccRef, which: u32, level: i32);
-    /// `updateIndividualBudget`.
-    fn update_individual_budget(&mut self, win: WinRef);
-    /// Buttons `0x0ABCDE00`..`0x0ABCDEFF` in occupant mode (BW3, open).
-    fn occupant_control(&mut self, win: WinRef, button: u32);
-    /// `DoIndividualBudgetWindow` (`0x00786530`) for an occupant row button
-    /// `0x0ABCE600`..`0x0ABCE6FF` (the nested dialog; its own steps are not
-    /// specified beyond "a second `cSC4SubBudgetWindow` through
-    /// `CreateSubBudgetWindow`").
-    fn do_individual_budget_window(&mut self, win: WinRef, button: u32);
+    // ---- individual mode (§4.4, §5.5, §5.7) ----
+    /// `initIndividualBudget` (`0x00786690`) layout for a department; returns
+    /// the restore records (vector `+0x44`).
+    fn init_individual_budget(&mut self, win: WinRef, department: u32) -> Vec<IndividualRestoreInfo>;
+    /// §4.4: the slider child by control ID (window slot 37, IID
+    /// `0x21325207`); false = the lookup failed.
+    fn find_slider(&mut self, win: WinRef, control: u32) -> bool;
+    /// The slider's position (slider slot 4).
+    fn slider_value(&mut self, win: WinRef, control: u32) -> i32;
+    /// `get_window_indiv_item(win, id)` (`0x00779600`).
+    fn indiv_item(&mut self, win: WinRef, id: u32) -> Option<ItemRef>;
+    /// The item's `GetID()` (slot 3): a department ID.
+    fn item_id(&mut self, item: ItemRef) -> u32;
+    /// `updateIndividualBudget(win, arg)` (`0x00785740`).
+    fn update_individual_budget(&mut self, win: WinRef, arg: u32);
+    /// QueryInterface the occupant IID `0x26BB767E` into a holder.
+    fn query_occupant(&mut self, item: ItemRef) -> bool;
+    /// Release the holder `query_occupant` filled.
+    fn release_occupant(&mut self, item: ItemRef);
+    /// `ResidentialSimulator.GetHospitalQueryData` (slot 27).
+    fn hospital_query_data(&mut self, occ: ItemRef) -> Option<FundingPair>;
+    /// `ResidentialSimulator.GetSchoolQueryData` (slot 26).
+    fn school_query_data(&mut self, occ: ItemRef) -> Option<FundingPair>;
+    /// `ResidentialSimulator.SetOccupantFundingPercentages` (slot 19).
+    fn set_occupant_funding_percentages(&mut self, occ: ItemRef, rec: FundingPair, is_school: bool);
+    /// `PoliceSimulator.SetStationFunding` (slot 8).
+    fn police_set_station_funding(&mut self, occ: ItemRef, p: f32);
+    /// `FireProtectionSimulator.SetStationFunding` (slot 9).
+    fn fire_set_station_funding(&mut self, occ: ItemRef, p: f32);
+    /// `PowerSimulator.SetPowerPlantFundingPercentage` (slot 51).
+    fn power_set_plant_funding(&mut self, occ: ItemRef, p: f32);
+    /// `occupant.GetPosition(&v)` (slot 8), `v` pre-filled.
+    fn occupant_position(&mut self, occ: ItemRef, v: [f32; 3]) -> [f32; 3];
+    /// The renderer camera control's jump (`0x007CD810`).
+    fn camera_jump(&mut self, v: [f32; 3]);
 }

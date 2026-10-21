@@ -75,3 +75,14 @@
   (engine/plugin/FC4NetToolHost.cpp `InsertOccupantsForSolvedCells`, today piece id 0, active under
   `enable = netmgr`), with no separate `enable = netrules` key? [blocks: glue for nr owners; no interception invented]
   **ANSWERED 2026-10-21 (re-netrules-boundary4):** MATCHES — no boundary of its own: the evaluator is a 0x10-byte plain object (one-slot vtable 0x00AA8338, deleting destructor only, no RTTI) made only by LoadEvaluator; the rule is a stack struct, cSC4TileInfo free functions, cIntRule an image-global map; every caller is a direct call in the network tool or the puzzle-piece input control, and no image pointer refers to them. Hosts: the rule resources (data) or the whole network tool (reachable only via a replacement network manager 0xC990BD46). Wire network_rules as a component of our own network tool, no separate enable key. Written into [network-rules.md](../../network-rules.md) §2.4, §12, §14.
+
+<!-- from: glue-netrules-impl4 (2026-10-21) -->
+- **NR14:** network-rules.md §11 (from a solved cell to an occupant) says the solved piece ID and orientation become the
+  occupant's piece and rotation/flip, but no public contract (docs/abi, SDK `cISC4NetworkOccupant`) names a slot that
+  writes a piece ID or orientation onto an occupant the game created (`0xC9C05C6E`); only readbacks (`PieceId()`,
+  `GetRotationAndFlip()`) are public. Which interface/slot applies a solved `(piece id, rotation, flip)` to an occupant,
+  and when relative to insertion? Evidence (run nrimpl4-a1): our solver chose road (4,4)..(14,4) end piece `0x200`/03,
+  straight `0x2600`/03 (street `0x05000200`/`0x05002600`); occupants read back 0/0. That run also crashed (AV) after
+  insert and at Shutdown; cause was our own context-layout bug (stale object), not a write. Current choice: the solver
+  result is logged only, never applied; no replacement credit. [not specified]
+  **ANSWERED 2026-10-21 (re-netrules-apply4):** MATCHES — network occupant slot 30 (+0x78, 0x0061B490, docs/abi name SetQuadDraw) is SetPiece(u32 id, orientation byte zero-extended), thiscall ret 8: unless flag 0x200000, set 0x2000000 and 0x4000000; ReleasePathInfo (slot 50); clear 0x2000; +0xFC := id, +0x104 := orientation; SetTextureCoordinates; vertex alphas 0xFF; no message. InsertNetworkOccupant (slot 72) calls it on the occupant slot 54 just created (0x0062797F) with the 12-byte solved record {+0 id, +4 orientation, +8 key}, before AddSupportStructures, ClearNetworkOccsFromCell and occupantManager.InsertOccupant (0x00627A38); slot 54 never writes the fields (fresh occupant reads 0/0). Written into [network-rules.md](../../network-rules.md) §11, §11.2, §15 tests 30-31.

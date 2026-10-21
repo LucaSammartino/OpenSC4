@@ -27,6 +27,9 @@ use crate::scalar::{arr, bool_of, check_expect, check_state, f32_of, i64_of, jf,
 
 pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
     let rest = name.strip_prefix("mysim_")?;
+    if let Some(r) = crate::mysims_pool::exec(rest, op) {
+        return Some(r);
+    }
     let w = advisors::world(host);
     Some(match rest {
         "create" => create(&w, op),

@@ -1,13 +1,15 @@
 {
   "format": 1,
   "name": "effects_tick_activation",
-  "spec": ["effects 5.1", "effects 6.1"],
-  "description": "DoEffectsTick (0x697D01ED, once per animation tick, EF4) runs ActivateNewVisualEffects. An effect that nests itself gets ten levels per activation: creation leaves 11 effects, 10 active; the next effects tick activates ten more (21, 20). With an empty new list it activates none.",
+  "spec": ["effects 5.1", "effects 6.1", "EF12"],
+  "description": "DoEffectsTick (0x697D01ED, EF4) activates and rebuilds nothing on an ordinary tick (EF12): only a queued-file reload runs UpdateActiveVisualEffects. The draw-pass sweep ends in ActivateNewVisualEffects (0x00592A01). An effect that nests itself gets ten levels per activation: creation leaves 11 effects, 10 active; the effects tick activates none; the sweep activates ten more (21, 20).",
   "steps": [
     {"op": "ef_create", "directory": {"effects": [{"name": "loop", "components": [{"type": "meta", "name": "loop"}]}]}},
     {"op": "ef_effect", "name": "loop", "as": "L", "expect": true},
     {"op": "ef_expect_manager", "state": {"effect_count": 11, "active_count": 10}},
-    {"op": "ef_call", "method": "effects_tick", "expect": 10},
+    {"op": "ef_call", "method": "effects_tick", "expect": 0},
+    {"op": "ef_expect_manager", "state": {"effect_count": 11, "active_count": 10}},
+    {"op": "ef_call", "method": "finish_hook", "expect": true},
     {"op": "ef_expect_manager", "state": {"effect_count": 21, "active_count": 20}},
     {"op": "ef_create", "directory": {"effects": [{"name": "stroke", "components": [{"type": "brush", "index": 2}]}]}},
     {"op": "ef_effect", "name": "stroke", "as": "S", "expect": true},

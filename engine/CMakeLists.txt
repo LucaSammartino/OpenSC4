@@ -491,6 +491,17 @@ if(FC4_IS_WIN32_X86)
         # The glue-exemplars4 lane: the exemplar/cohort factory replacement (FC4ExemplarFactory.h).
         plugin/FC4ExemplarFactory.cpp
         plugin/FC4ExemplarFactory.h
+        # The cSpanRender4444 native bridge (span-render-4444.md §1.1; glue-span4444-impl4): enable = span4444.
+        plugin/FC4SpanRender4444.cpp
+        plugin/FC4SpanRender4444.h
+        # The cSpanRender1555 native bridge (glue-span1555-impl4): enable = span1555.
+        plugin/FC4Span1555Shadow.cpp
+        plugin/FC4Span1555Shadow.h
+        # The glue-advisors-final4 lane: the advisor window slots 23-28 (advisors.md §12.1.1, AD4).
+        plugin/FC4AdvisorWindow.h
+        plugin/FC4AdvisorWindowGame.cpp
+        plugin/cFC4AdvisorSystem.h
+        plugin/cFC4AdvisorSystem.cpp
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -895,6 +906,11 @@ if(FC4_IS_WIN32_X86)
     target_compile_definitions(fc4_simgrid_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
     target_compile_options(fc4_simgrid_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME simgrid_test COMMAND fc4_simgrid_test)
+    # The advisor window slots 23-28 (FC4AdvisorWindow.h, advisors.md §12.1.1; glue-advisors-final4).
+    add_executable(fc4_advisor_window_test tests/advisor_window_test.cpp)
+    target_include_directories(fc4_advisor_window_test PRIVATE plugin)
+    target_compile_options(fc4_advisor_window_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME advisor_window_test COMMAND fc4_advisor_window_test)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

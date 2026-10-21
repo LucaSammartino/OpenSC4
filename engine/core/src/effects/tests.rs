@@ -1060,17 +1060,121 @@ fn paused_tick_runs_with_zero_dt() {
 }
 
 #[test]
-fn effects_tick_activates_the_leftover_new_list() {
-    // §6.1 / EF4: the per-animation-tick DoEffectsTick runs the activation.
+fn effects_tick_activates_nothing_without_a_queued_reload() {
+    // §6.1 / EF12: DoEffectsTick neither activates nor rebuilds on an
+    // ordinary tick; the draw-pass sweep ends in ActivateNewVisualEffects.
     let dir = one_effect("loop", vec![ComponentRecord::meta("loop")]);
     let mut m = manager(dir);
     let mut h = Host::new();
     m.create("loop").unwrap();
     assert_eq!((m.effect_count(), m.active_list().len()), (11, 10));
-    assert_eq!(m.effects_tick(&mut h), 10);
+    assert_eq!(m.effects_tick(&mut h), 0);
+    assert_eq!((m.effect_count(), m.active_list().len()), (11, 10));
+    assert!(m.finish_hook(&mut h));
     assert_eq!((m.effect_count(), m.active_list().len()), (21, 20));
     let dir = one_effect("stroke", vec![ComponentRecord::new(component_type::BRUSH, 2)]);
     let mut m = manager(dir);
     m.create("stroke").unwrap();
     assert_eq!(m.effects_tick(&mut h), 0);
+}
+
+fn grouped(kind: u8, index: u32, group: u16, weight: u16, lod: (u8, u8)) -> ComponentRecord {
+    let mut c = ComponentRecord::new(kind, index);
+    c.select_group = group;
+    c.select_weight = weight;
+    c.lod_min = lod.0;
+    c.lod_max = lod.1;
+    c
+}
+
+#[test]
+fn queued_reload_destroys_and_redraws_every_group() {
+    // EF12: only a queued-file reload rebuilds on the effects tick: every
+    // component is hard-stopped and released, every group redrawn.
+    let comps = vec![
+        grouped(component_type::BRUSH, 0, 1, 0x8000, (1, 6)),
+        grouped(component_type::BRUSH, 1, 1, 0x7FFF, (1, 6)),
+    ];
+    let mut m = manager(one_effect("g", comps));
+    let mut h = Host::new();
+    let id = started(&mut m, &mut h, "g", 0.0, 0.0);
+    assert_eq!((m.stats().select_draws, m.effect(id).unwrap().components), (1, 1));
+    for _ in 0..3 {
+        assert_eq!(m.effects_tick(&mut h), 0);
+    }
+    assert_eq!(m.stats().select_draws, 1);
+    m.queue_effect_files();
+    assert_eq!(m.effects_tick(&mut h), 0);
+    assert_eq!((m.stats().select_draws, m.effect(id).unwrap().components), (2, 1));
+    // Recreated while started and not stopping: Start(1).
+    assert!(m.effect(id).unwrap().active);
+    // The pending flag is consumed.
+    assert_eq!(m.effects_tick(&mut h), 0);
+    assert_eq!(m.stats().select_draws, 2);
+    // DoRenderPropertiesChanged reloads only on a change.
+    m.render_properties_changed(5, &mut h);
+    assert_eq!(m.stats().select_draws, 2);
+    m.render_properties_changed(4, &mut h);
+    assert_eq!((m.max_priority(), m.stats().select_draws), (4, 3));
+}
+
+#[test]
+fn zoom_draws_only_for_members_entering_the_range() {
+    // §5.3 rebuild test (EF12). A (4..6) takes the whole weight, B (1..6)
+    // none. New build at L = 1 draws; the draw lands on A, out of range, so
+    // nothing in the group is created (B is skipped after the pick).
+    let comps = vec![
+        grouped(component_type::BRUSH, 0, 1, 0xFFFF, (4, 6)),
+        grouped(component_type::BRUSH, 1, 1, 0, (1, 6)),
+    ];
+    let mut m = manager(one_effect("g", comps));
+    let mut h = Host::new();
+    let id = started(&mut m, &mut h, "g", 0.0, 0.0);
+    assert_eq!((m.stats().select_draws, m.effect(id).unwrap().components), (1, 0));
+    assert_eq!(m.previous_level_of_detail(), -1);
+    // L 1 -> 1: nothing enters, no draw.
+    m.set_zoom(0, 0, &mut h);
+    assert_eq!((m.stats().select_draws, m.effect(id).unwrap().components), (1, 0));
+    // L 1 -> 5: A enters and draws alone; B (in range at both) does not
+    // take part.
+    m.set_zoom(4, 0, &mut h);
+    assert_eq!(m.previous_level_of_detail(), 1);
+    assert_eq!((m.stats().select_draws, m.effect(id).unwrap().components), (2, 1));
+    assert!(m.components(id).unwrap()[0].is_some());
+    // L 5 -> 4: A stays (in range), nothing enters.
+    m.set_zoom(3, 0, &mut h);
+    assert_eq!((m.stats().select_draws, m.effect(id).unwrap().components), (2, 1));
+    // L 4 -> 3: A leaves (hard stop); L 3 -> 4: A enters again and redraws.
+    m.set_zoom(2, 0, &mut h);
+    assert_eq!(m.effect(id).unwrap().components, 0);
+    m.set_zoom(3, 0, &mut h);
+    assert_eq!((m.stats().select_draws, m.effect(id).unwrap().components), (3, 1));
+}
+
+#[test]
+fn a_group_summing_past_ffff_creates_a_second_member() {
+    // §5.3: after a pick r := 0x10000, unsigned "sum >= r".
+    let comps = vec![
+        grouped(component_type::BRUSH, 0, 1, 0xFFFF, (1, 6)),
+        grouped(component_type::BRUSH, 1, 1, 0xFFFF, (1, 6)),
+    ];
+    let mut m = manager(one_effect("g", comps));
+    let id = m.create("g").unwrap();
+    assert_eq!(m.effect(id).unwrap().components, 2);
+}
+
+#[test]
+fn services_gate_blocks_update_active() {
+    // §6.1: UpdateActiveVisualEffects is a no-op while +0x1AD is clear.
+    let mut far = ComponentRecord::new(component_type::BRUSH, 0);
+    far.lod_min = 4;
+    far.lod_max = 6;
+    let mut m = manager(one_effect("z", vec![far]));
+    let mut h = Host::new();
+    m.set_services_ready(false);
+    let id = m.create("z").unwrap();
+    m.set_zoom(4, 0, &mut h);
+    assert_eq!(m.effect(id).unwrap().components, 0);
+    m.post_app_services_init_complete(&mut h);
+    assert_eq!(m.effect(id).unwrap().components, 1);
 }

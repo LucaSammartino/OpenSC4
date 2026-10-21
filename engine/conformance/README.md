@@ -2486,6 +2486,16 @@ fields (inline): `flags`, `demolish`, `demolish_flags`, `min_size`, `max_size`, 
 
 MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_post` (`type`, `data1`, `data2`,
 `void1`, `sim`), `dispatch` (`sim`, `what`), `trigger` (`name`, `position`), `mysim_subscribe` (`type`, `on`).
+
+Dispatch job search and pool (§4.7.1, §4.12; no MySim vector needed, engine/conformance/src/mysims_pool.rs). Each
+`expect` is the complete result object (every key, compared exactly):
+
+| op | Arguments | Result |
+|---|---|---|
+| `mysim_job_search` | `home` (`{"rect": [x0,z0,x1,z1]}`, `{"cell": [x,z]}` or null: flag 0x80 clear), `state?`, `searches` (each `wealth`, `notify?` (true), `location?` (occupant id or `"default"`), `end_cell?`, `city?` ([x,z]: a neighbour city across the connection), `lot?` (`no_building`, `no_lot`), `find_result?` (1)) on one dispatch and one long-lived recording pathfinder | `results`, `notifies` (0xEBA06BF4 due), `dest_flags` (after each search), `flags`, `filter`, `density`, `start_rect`, `travel` ([allowed, starting]), `find_path` (count), `calls` (pathfinder slot names), `destination` (`occupant`, `by_occupant`, `by_commute`, `cell`, `neighbor_city`), `dispatch_flags` |
+| `mysim_pool` | `mysim_dir`, `dat_hex?` (MySims.dat), `install?` (`registry`, `dirs`, `male_text`, `zodiac`, `families` with `export`, `ini`, `entries`), `steps` (`get`, `import`, `find`, `drop_families`) | `results` (per step), `loaded`, `cached`, `installation`, `file_hex` (MySims.dat after the steps, null: none), `converted` ([from, to]), `deleted` |
+| `mysim_portrait` | `mysim_dir`, `portrait`, `bitmap` | `{"file": path}` or `{"resource": id}` |
+| `mysim_gender` | `male_text`, `value` | bool |
 ## Network geometry ops
 
 The network geometry vectors (`ng18_…`, the §18 tests of `docs/specs/network-geometry.md`) drive
@@ -2542,7 +2552,7 @@ fields (inline): `flags`, `demolish`, `demolish_flags`, `min_size`, `max_size`, 
 
 | op | Arguments | Effect / check |
 |---|---|---|
-| `ef_call` | `method`, `effect?` (a label), `args?`, `repeat?`, `expect?` (the last result) | the manager: `tick` ([us]), `effects_tick` (DoEffectsTick §6.1: the activation of the new list; returns how many were activated), `frame` ([us]: the tick, then the finishing hook, then the draw pass), `finish_hook`, `draw_pass` (whether the sweep ran), `shutdown`, `set_zoom` ([zoom, offset]), `set_max_priority`, `has` ([name]); an effect: `start` / `stop` ([mode?], 0 by default), `set_position` ([x, y, z]), `set_end_message` ([type, data1]), `forward_parameter` ([index, value]), `add_ref`, `release`, `is_started`, `is_stopping` |
+| `ef_call` | `method`, `effect?` (a label), `args?`, `repeat?`, `expect?` (the last result) | the manager: `tick` ([us]), `effects_tick` (DoEffectsTick §6.1, EF12: nothing unless effect files are queued, then a reload; returns how many the reload activated), `queue_effect_files` (marks files queued for the next `effects_tick`), `render_properties_changed` ([priority]: a changed detail option reloads), `frame` ([us]: the tick, then the finishing hook, then the draw pass), `finish_hook`, `draw_pass` (whether the sweep ran), `shutdown`, `set_zoom` ([zoom, offset]), `set_max_priority`, `has` ([name]); an effect: `start` / `stop` ([mode?], 0 by default), `set_position` ([x, y, z]), `set_end_message` ([type, data1]), `forward_parameter` ([index, value]), `add_ref`, `release`, `is_started`, `is_stopping` |
 | `ef_run_stroke` | `effect`, `us`, `max?` (10000), `ticks?`, `applications?`, `first?` (the brush calls of the first ticks), `every?` (the brush calls of every tick) | ticks until the effect's brush is inactive |
 | `ef_child` | `effect`, `n?` (0), `name?`, `as?` | the child of the effect's `n`-th built meta component |
 | `ef_expect` | `effect`, `state` (partial: `exists`, `name`, `index`, `refs`, `started`, `stopping`, `components` (built), `active`) | an effect |
@@ -2551,7 +2561,7 @@ fields (inline): `flags`, `demolish`, `demolish_flags`, `min_size`, `max_size`, 
 | `ef_expect_manager` | `state` (partial: `select_draws`, `end_posts`, `recycled`, `effect_count`, `active_count`, `total_us`, `lod`, `max_priority`) | the manager |
 | `ef_select` | `first_word?`, `draws?`, `weights` + `members?` (1-based) | a fresh select generator (seed `0x1105`): its first word, its first `RandomUint32Uniform(0x10000)` draws and the members they pick |
 | `ef_dilation` | `paused?`, `emergency_paused?`, `driving?`, `hidden_paused?`, `speed?` (0), `expect` (the dilation), `us?` + `expect_us?` (the dilated step) | `effects::dilation`: the shipped table (§6, test 17) |
-| `ef_particles` | `flags?` (0: duration, 2: loop budget, 4: plain), `emit_loop_count?` (1), `loop_interval?` (1.0), `per_loop?` (1), `life?` (1.0), `duration?` (1.0), `dt?` (1/30), `max?` (10000), `stop_after?` + `stop_mode?` (0) (a Stop before that update number + 1), `expect_updates` (the update on which it went inactive, or null) | `effects::particles::ParticleSimulator` from `Start` (§7.1, test 16) |
+| `ef_particles` | `flags?` (flag A: 0 rate, 2 loop budget, 4 plain, 8 hold), `flags_b?`, `count?` (curve[0], 1) or `curve?`, `life?` (1.0), `period?` (1.0), `loop_count?` (1), `preroll?`, `max_age?`, `start_delay?`/`interval?` ([a, b]; absent = negative), `scales?` ([3]), `rate_scale?`, `seed?` (0x1234, the global generator), `start_arg?` (0), `dt?` (1/30), `max?` (10000), `stop_after?` + `stop_mode?` (0) (a Stop before that update number + 1), `expect_updates` (the update on which it was inactive, or null), `expect_created?`, `expect_loops?` | `effects::particles::ParticleSimulator` from `Start` (§7.1, §7.1.1, test 16) |
 | `ef_expect_events` / `ef_expect_event_count` / `ef_clear_events` | see the shared conventions | host calls |
 
 Effects events: `brush` (`brush`, `from`, `to`, `level`, `strength`, `radius`, `redisplay`, `data4`, `target`),
@@ -4039,6 +4049,13 @@ Other behaviour: system Init and Shutdown (`ad04_01_system_init`), advisor re-In
 | 18 persistence round trip | `ms12_18_record` |
 | 19 old version (14) | `ms12_19_version_14` |
 | 20 no feedback | `ms12_20_no_feedback` |
+| §4.7.1 worked example: wealth 2, first search | `ms12_21_job_search_setup` |
+| §4.7.1 worked examples: wealth 1 then 3 (accumulation), wealth 0 and out of range | `ms12_22_job_search_accumulate` |
+| §4.7.1 worked example: no home (flag 0x80 clear); notify false, state 2, valid location | `ms12_23_job_search_no_home` |
+| §4.7.1 worked example: end cell out of bounds, neighbour city (and the clamp, no city) | `ms12_24_job_search_neighbor` |
+| §4.7.1 worked example: lot without building (and no lot, FindPath ≠ 1, home by cell) | `ms12_25_job_search_no_building` |
+| §4.12 MySims.dat records, wrong magic, portrait display path, gender text | `ms12_26_pool_records` |
+| §4.12 Import and the template cache reset | `ms12_27_pool_import_cache` |
 
 Item 3: the `delta_eq` field is written by `UpdateVariables` (§4.3 step 3) before the ring moves (step 4), so the
 field after step k shows the delta of step k − 1; the vector checks both. Item 20 in its full-game form (every

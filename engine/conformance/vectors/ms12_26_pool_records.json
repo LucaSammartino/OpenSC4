@@ -1,0 +1,156 @@
+{
+  "format": 1,
+  "name": "mysim_pool_records",
+  "spec": [
+    "mysims 4.12"
+  ],
+  "description": "MySims.dat records: one template 'Bob Newb', male, sign 5, bitmap 0, portrait Bob_1a2b3.bmp; magic only and wrong magic give no imports; portrait bytes keep their case; display path = MySim dir + portrait, no separator; gender equals the male text ignoring ASCII case, same length.",
+  "steps": [
+    {
+      "op": "mysim_pool",
+      "mysim_dir": "C:\\U\\SimCity 4\\MySim\\",
+      "dat_hex": "aae4324a08426f62204e657762010509426f625f3161326233",
+      "steps": [
+        "get"
+      ],
+      "expect": {
+        "results": [
+          [
+            {
+              "name": "Bob Newb",
+              "male": true,
+              "sign": 5,
+              "bitmap": 0,
+              "portrait": "Bob_1a2b3.bmp"
+            }
+          ]
+        ],
+        "loaded": true,
+        "cached": 1,
+        "installation": "",
+        "file_hex": "aae4324a08426f62204e657762010509426f625f3161326233",
+        "converted": [],
+        "deleted": []
+      }
+    },
+    {
+      "op": "mysim_pool",
+      "mysim_dir": "C:\\U\\SimCity 4\\MySim\\",
+      "dat_hex": "aae4324a",
+      "steps": [
+        "get"
+      ],
+      "expect": {
+        "results": [
+          []
+        ],
+        "loaded": true,
+        "cached": 0,
+        "installation": "",
+        "file_hex": "aae4324a",
+        "converted": [],
+        "deleted": []
+      }
+    },
+    {
+      "op": "mysim_pool",
+      "mysim_dir": "C:\\U\\SimCity 4\\MySim\\",
+      "dat_hex": "0000000008426f62204e657762010509426f625f3161326233",
+      "steps": [
+        "get"
+      ],
+      "expect": {
+        "results": [
+          []
+        ],
+        "loaded": true,
+        "cached": 0,
+        "installation": "",
+        "file_hex": "0000000008426f62204e657762010509426f625f3161326233",
+        "converted": [],
+        "deleted": []
+      }
+    },
+    {
+      "op": "mysim_pool",
+      "mysim_dir": "C:\\U\\SimCity 4\\MySim\\",
+      "dat_hex": "aae4324a0158000006424f425f4646",
+      "steps": [
+        "get"
+      ],
+      "expect": {
+        "results": [
+          [
+            {
+              "name": "X",
+              "male": false,
+              "sign": 0,
+              "bitmap": 0,
+              "portrait": "BOB_FF.bmp"
+            }
+          ]
+        ],
+        "loaded": true,
+        "cached": 1,
+        "installation": "",
+        "file_hex": "aae4324a0158000006424f425f4646",
+        "converted": [],
+        "deleted": []
+      }
+    },
+    {
+      "op": "mysim_portrait",
+      "mysim_dir": "C:\\U\\SimCity 4\\MySim\\",
+      "portrait": "Bob_1a2b3.bmp",
+      "bitmap": 0,
+      "expect": {
+        "file": "C:\\U\\SimCity 4\\MySim\\Bob_1a2b3.bmp"
+      }
+    },
+    {
+      "op": "mysim_portrait",
+      "mysim_dir": "C:\\U\\SimCity 4\\MySim\\",
+      "portrait": "",
+      "bitmap": 4660,
+      "expect": {
+        "resource": 4660
+      }
+    },
+    {
+      "op": "mysim_gender",
+      "male_text": "Male",
+      "value": "male",
+      "expect": true
+    },
+    {
+      "op": "mysim_gender",
+      "male_text": "Male",
+      "value": "MALE",
+      "expect": true
+    },
+    {
+      "op": "mysim_gender",
+      "male_text": "Male",
+      "value": "Male",
+      "expect": true
+    },
+    {
+      "op": "mysim_gender",
+      "male_text": "Male",
+      "value": "Male ",
+      "expect": false
+    },
+    {
+      "op": "mysim_gender",
+      "male_text": "Male",
+      "value": "m",
+      "expect": false
+    },
+    {
+      "op": "mysim_gender",
+      "male_text": "Male",
+      "value": "female",
+      "expect": false
+    }
+  ]
+}

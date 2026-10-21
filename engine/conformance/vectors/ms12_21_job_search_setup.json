@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "name": "mysim_job_search_setup",
+  "spec": [
+    "mysims 4.7.1"
+  ],
+  "description": "Wealth 2, first search, home lot rect (10,10)-(12,11): resetPath, flags 0x11, filter 0, destination flags 0x2, density 1, start rect (10,10,12,11), travel 0x1CF allowed and starting, one FindPath; the end lot's building becomes the commute destination (occupant, by commute) and 0xEBA06BF4 is due.",
+  "steps": [
+    {
+      "op": "mysim_job_search",
+      "home": {
+        "rect": [
+          10,
+          10,
+          12,
+          11
+        ]
+      },
+      "searches": [
+        {
+          "wealth": 2,
+          "end_cell": [
+            20,
+            20
+          ]
+        }
+      ],
+      "expect": {
+        "results": [
+          true
+        ],
+        "notifies": [
+          true
+        ],
+        "dest_flags": [
+          2
+        ],
+        "flags": 17,
+        "filter": 0,
+        "density": 1,
+        "start_rect": [
+          10,
+          10,
+          12,
+          11
+        ],
+        "travel": [
+          463,
+          463
+        ],
+        "find_path": 1,
+        "calls": [
+          "Reset",
+          "ClearAllTravelTypeFlags",
+          "SetRouteInfo",
+          "SetFlag",
+          "SetFlag",
+          "SetTripDestinationFilter",
+          "SetDestinationFlag",
+          "SetTrafficDensity",
+          "SetStartRect",
+          "SetTravelTypeFlag",
+          "FindPath"
+        ],
+        "destination": {
+          "occupant": 2304,
+          "by_occupant": true,
+          "by_commute": true,
+          "cell": [
+            -1,
+            -1
+          ],
+          "neighbor_city": null
+        },
+        "dispatch_flags": 128
+      }
+    }
+  ]
+}

@@ -20,3 +20,16 @@
 - **SR565-4 - section 6.1 / 7.2 (X888 texel size):** the core reads an `f = 5` (colour type 8, R8G8B8) texel as
   4 bytes, inferred from rows 10/11 sharing every non-alpha body with A8888 and from the 32-bit key mask and
   example. Please confirm the bytes per texel the f = 5 bodies step by (plain `x·bpp`, stretch, tiled).
+
+<!-- from: re-span565-bridge4 (2026-10-21) -->
+- **SR565-5 - section 1.2 (shipped producer):** in a normal session (startup, region view, city load, 16-bit and
+  32-bit display modes), is either of these addresses ever executed: `0x00826472` (cGZBuffer type resolver
+  falling back to type 5 because `RZ::GS` returned null) and `0x008307A0` (RenderToBuffer::Init storing the 565
+  vtable)? Count hits per address with a breakpoint/counter; also count the five method entries `0x0083DE50`,
+  `0x0083DEA0`, `0x0083DFB0`, `0x0083E070`, `0x0083E210`. Zero everywhere confirms that only constructed fixtures
+  reach this class.
+- **SR565-6 - section 1.1 (destination lock leak):** RenderToBuffer::Init locks the buffer with `0x8040`
+  (`0x00830750`) but its type-3/other exit (`0x0083087A`) releases it without unlocking, and the context's final
+  Release (`0x008306C0`) releases it without unlocking when Shutdown was not called first. In both cases a
+  cGZBuffer keeps flags `0x8040` in `+0x44` and its lock word `+0x38` stays incremented. Must an implementation
+  reproduce the leaked lock (observable through a later lock count / flag read), or may it unlock on those exits?

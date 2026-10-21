@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use super::ids::*;
-use super::{BudgetWindowHost, DealRef, DeptRef, OccRef, OrdRef, WinRef};
+use super::{BudgetWindowHost, DealRef, DeptRef, FundingPair, ItemRef, LineItem, OrdId, WinRef};
 
 /// One group-mode slider row (`SliderInfo`, vector `+0x2C`).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -19,26 +19,33 @@ pub struct SliderInfo {
     pub dept: DeptRef,
 }
 
-/// One ordinance row: the original and the edited on/off state (the byte
-/// pairs at `+0xA8`, count `+0xA0`).
+/// One ordinance: its ID (`+0xA4`) and its byte pair (`+0xA8`: `[2k]`
+/// original, `[2k+1]` edited).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OrdinanceRow {
-    pub ordinance: OrdRef,
-    pub original: bool,
-    pub edited: bool,
+    pub ordinance: OrdId,
+    pub original: u8,
+    pub edited: u8,
 }
 
-/// `IndividualRestoreInfo` (12 bytes: occupant, level0, level1; vector `+0x44`).
-/// The level type is not given by the spec; it is carried as the slider
-/// position type `SetOccupantFundingLevel` receives in §4.4 (BW8).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// What `initOrdinanceBudget` leaves in the dialog: the ordinances (count
+/// `+0xA0`) and the row map `+0x74` (button `300 + r` / `500 + r` → `k`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OrdinanceInit {
+    pub rows: Vec<OrdinanceRow>,
+    pub row_map: Vec<u32>,
+}
+
+/// `IndividualRestoreInfo` (12 bytes: item, level0 f32, level1 f32, in
+/// percent; vector `+0x44`; §5.1, BW8).
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct IndividualRestoreInfo {
-    pub occupant: OccRef,
-    pub level0: i32,
-    pub level1: i32,
+    pub occupant: ItemRef,
+    pub level0: f32,
+    pub level1: f32,
 }
 
-/// A scrolled row list (§5 `0x451`..`0x454`): position and length.
+/// A scrolled row list (§5.3): position and row count, both u32.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScrollList {
     pub pos: u32,
@@ -57,7 +64,8 @@ pub struct ScrollView {
 pub enum SubBudgetMode {
     Ordinances,
     Neighbors,
-    Individual(OccRef),
+    /// `+0x24 ≠ 0`: the department ID.
+    Individual(u32),
     Group(u32),
 }
 
@@ -67,42 +75,117 @@ pub enum SubBudgetMsg {
     Init,
     Shutdown,
     Button(u32),
-    Slider { slider: u32, position: i32 },
+    /// Slider moved: the control ID (the position is read from the slider).
+    Slider(u32),
     Combo(u32),
-    KeyDown { key: u32, modifiers: u32 },
+    KeyDown {
+        key: u32,
+        modifiers: u32,
+    },
     Other(u32),
 }
 
-/// `end_dialog` (`0x00779850`, §6): null → false; a modal window (flag
-/// `0x1000`) asks its parent to end the modal loop, any other is removed from
-/// its parent. Returns true.
-pub fn end_dialog<H: BudgetWindowHost + ?Sized>(host: &mut H, win: Option<WinRef>) -> bool {
+/// §4.4: the group-mode fraction, `f32(position) × 0.01f` rounded once. On
+/// the x87 the product of the integer and the f32 constant is exact before the
+/// single store; the f64 product here is exact too for `|position| < 2^29`.
+pub fn slider_fraction(position: i32) -> f32 {
+    (f64::from(position) * f64::from(FUNDING_SCALE)) as f32
+}
+
+/// §5.5: the service kind `+0x134` `initIndividualBudget` sets from the
+/// department ID `+0x24`.
+pub fn service_kind(department: u32) -> u32 {
+    match department {
+        DEPT_HEALTH | DEPT_HEALTH_B => KIND_HOSPITAL,
+        DEPT_EDUCATION | DEPT_SCHOOLS => KIND_SCHOOL,
+        DEPT_POLICE | DEPT_JAIL => KIND_POLICE,
+        DEPT_FIRE => KIND_FIRE,
+        DEPT_POWER => KIND_POWER,
+        _ => 0,
+    }
+}
+
+/// §4.1: whether a department's header row is added to list A (income) or
+/// B (expense). Only the three special groups test the department.
+pub fn header_shown<H: BudgetWindowHost + ?Sized>(host: &mut H, group: u32, dept: DeptRef, income: bool) -> bool {
+    if !matches!(group, GROUP_PARKS_LANDMARKS | GROUP_CIVIC2 | GROUP_CIVIC) {
+        return true;
+    }
+    if income {
+        host.department_total_income(dept) != 0
+    } else {
+        host.department_ideal_monthly_funding(dept) != 0
+    }
+}
+
+/// §4.1: whether a line item adds a row to its list.
+pub fn line_item_shown(item: &LineItem) -> bool {
+    let amount = if item.kind == LINE_ITEM_INCOME {
+        item.income
+    } else {
+        item.full_expenses
+    };
+    item.display_flags & LINE_ITEM_SHOW != 0 && (item.id > LINE_ITEM_ALWAYS_ID_ABOVE || amount != 0)
+}
+
+/// `end_dialog(win, code)` (`0x00779850`, §6): null → false; a modal window
+/// (flag `0x1000`) hands `code` to its parent's end-modal call, any other is
+/// removed from its parent (`code` unused). Returns true.
+pub fn end_dialog<H: BudgetWindowHost + ?Sized>(host: &mut H, win: Option<WinRef>, code: u32) -> bool {
     let Some(win) = win else { return false };
     if host.win_flag(win, WIN_FLAG_MODAL) {
-        host.end_modal_via_parent(win);
+        host.end_modal_via_parent(win, code);
     } else {
         host.remove_from_parent(win);
     }
     true
 }
 
+/// §2 step 4 up to the generator flags: returns whether the window answered
+/// the generator interface (a reference the caller releases after the run).
+pub(crate) fn show_sequence<H: BudgetWindowHost + ?Sized>(host: &mut H, win: WinRef) -> bool {
+    host.show_win(win);
+    host.set_win_flag(win, 0x800, true);
+    host.pull_to_front(win);
+    host.set_win_flag(win, 0x800, false);
+    host.set_win_flag(win, 0x100, true);
+    let gen = host.query_generator(win);
+    if gen {
+        host.set_generator_flag(win, 0x1000, true);
+        host.set_generator_flag(win, 0x2000, true);
+        host.set_generator_flag(win, 0x4000, true);
+    }
+    gen
+}
+
 /// `cSC4SubBudgetWindow`.
 #[derive(Debug)]
 pub struct SubBudgetWindow {
+    /// `+0x08`: initialised.
+    initialised: bool,
     /// `+0x0C`: the dialog window.
     window: Option<WinRef>,
-    /// `+0x14`: the inner child popup.
+    // `+0x10` is released by on_shutdown and the destructor too; who sets it
+    // is not in the spec (BW10), so the core holds nothing there.
+    /// `+0x14`: the child (ordinance info popup or empty-group window).
     inner_child: Option<WinRef>,
+    /// `+0x1C`: the nested individual dialog.
+    nested: Option<Box<SubBudgetWindow>>,
     /// `+0x20`.
     selector: u32,
-    /// `+0x24`: the occupant (individual mode), null from the panel.
-    occupant: Option<OccRef>,
-    /// `+0x28`: the panel's `+0x198` value (meaning not specified).
+    /// `+0x24`: department ID (individual mode when non-zero).
+    department: u32,
+    /// `+0x28`: the panel's `+0x198` value.
     context: u32,
+    /// `+0x134`.
+    service_kind: u32,
     sliders: Vec<SliderInfo>,
     saved_fractions: Vec<(f32, DeptRef)>,
     restore: Vec<IndividualRestoreInfo>,
     ordinances: Vec<OrdinanceRow>,
+    /// `+0xA0`: not reset by on_shutdown (§4).
+    ordinance_count: u32,
+    row_map: Vec<u32>,
     deals: Vec<DealRef>,
     list_a: ScrollList,
     list_b: ScrollList,
@@ -125,15 +208,20 @@ impl SubBudgetWindow {
 
     pub fn with_slider_guard(slider_guard: Arc<AtomicBool>) -> Self {
         Self {
+            initialised: false,
             window: None,
             inner_child: None,
+            nested: None,
             selector: 0,
-            occupant: None,
+            department: 0,
             context: 0,
+            service_kind: 0,
             sliders: Vec::new(),
             saved_fractions: Vec::new(),
             restore: Vec::new(),
             ordinances: Vec::new(),
+            ordinance_count: 0,
+            row_map: Vec::new(),
             deals: Vec::new(),
             list_a: ScrollList::default(),
             list_b: ScrollList::default(),
@@ -141,20 +229,29 @@ impl SubBudgetWindow {
         }
     }
 
+    pub fn is_initialised(&self) -> bool {
+        self.initialised
+    }
     pub fn window(&self) -> Option<WinRef> {
         self.window
     }
     pub fn selector(&self) -> u32 {
         self.selector
     }
-    pub fn occupant(&self) -> Option<OccRef> {
-        self.occupant
+    pub fn department(&self) -> u32 {
+        self.department
     }
     pub fn context(&self) -> u32 {
         self.context
     }
+    pub fn service_kind(&self) -> u32 {
+        self.service_kind
+    }
     pub fn inner_child(&self) -> Option<WinRef> {
         self.inner_child
+    }
+    pub fn nested(&self) -> Option<&SubBudgetWindow> {
+        self.nested.as_deref()
     }
     pub fn sliders(&self) -> &[SliderInfo] {
         &self.sliders
@@ -162,8 +259,14 @@ impl SubBudgetWindow {
     pub fn saved_fractions(&self) -> &[(f32, DeptRef)] {
         &self.saved_fractions
     }
+    pub fn restore_records(&self) -> &[IndividualRestoreInfo] {
+        &self.restore
+    }
     pub fn ordinances(&self) -> &[OrdinanceRow] {
         &self.ordinances
+    }
+    pub fn ordinance_count(&self) -> u32 {
+        self.ordinance_count
     }
     pub fn deals(&self) -> &[DealRef] {
         &self.deals
@@ -176,57 +279,36 @@ impl SubBudgetWindow {
     }
 
     /// The mode in `on_init`'s test order (§4): selector 1, selector 2,
-    /// occupant non-null, otherwise a department group.
+    /// `+0x24` non-zero, otherwise a department group.
     pub fn mode(&self) -> SubBudgetMode {
-        match (self.selector, self.occupant) {
+        match (self.selector, self.department) {
             (SELECTOR_ORDINANCES, _) => SubBudgetMode::Ordinances,
             (SELECTOR_NEIGHBORS, _) => SubBudgetMode::Neighbors,
-            (_, Some(o)) => SubBudgetMode::Individual(o),
-            (g, None) => SubBudgetMode::Group(g),
+            (_, 0) => SubBudgetMode::Group(self.selector),
+            (_, d) => SubBudgetMode::Individual(d),
         }
     }
 
-    /// Host input: the inner popup child held at `+0x14`. Which code opens
-    /// it is not specified (BW9); the reference given here is the one the
-    /// dialog releases when it closes the child.
-    pub fn set_inner_child(&mut self, child: Option<WinRef>) {
-        self.inner_child = child;
-    }
-
-    /// Host input: an ordinance row's check toggled. The check-button IDs
-    /// are not specified (BW9), so the edit arrives as typed input.
-    pub fn set_ordinance_edited(&mut self, row: usize, on: bool) -> bool {
-        match self.ordinances.get_mut(row) {
-            Some(r) => {
-                r.edited = on;
-                true
-            }
-            None => false,
-        }
-    }
-
-    /// Host input: the length of scroll list A or B, set by the row-layout
-    /// routines (§8 open work). The position is clamped to the new range.
+    /// Host input: the row count of list A or B in ordinance and neighbour
+    /// modes, which their populate routines set (layout out of scope, §8).
+    /// The position is not touched (no clamp in §5.3).
     pub fn set_list_len(&mut self, list_b: bool, len: u32) {
-        let l = if list_b { &mut self.list_b } else { &mut self.list_a };
-        l.len = len;
-        l.pos = l.pos.min(Self::max_pos(len));
+        if list_b {
+            self.list_b.len = len;
+        } else {
+            self.list_a.len = len;
+        }
     }
 
-    /// The largest first row: `len - page`, 0 when the list fits. The spec
-    /// says "page = 9 rows" only; this bound is its literal reading (BW7).
-    fn max_pos(len: u32) -> u32 {
-        len.saturating_sub(SCROLL_PAGE)
-    }
-
-    /// `CreateSubBudgetWindow` (`0x00779E50`, §3). Returns the window (the
-    /// `*out` reference, AddRef'd) or `None` on failure.
+    /// `CreateSubBudgetWindow(out, selector, arg3, department)`
+    /// (`0x00779E50`, §3). Returns the window (the `*out` reference, AddRef'd)
+    /// or `None` on failure.
     pub fn create<H: BudgetWindowHost + ?Sized>(
         &mut self,
         host: &mut H,
         selector: u32,
         context: u32,
-        occupant: Option<OccRef>,
+        department: u32,
     ) -> Option<WinRef> {
         let win = host.create_window_generator()?;
         host.add_ref_win(win);
@@ -241,256 +323,467 @@ impl SubBudgetWindow {
         host.set_win_id(win, DIALOG_WIN_ID);
         self.selector = selector;
         self.context = context;
-        self.occupant = occupant;
+        self.department = department;
         Some(win)
     }
 
-    /// `DoWinMsg` (`0x0078BCA0`, §4). `Some(result)` where the spec gives
-    /// the return value, `None` where it does not (init, shutdown, slider,
-    /// combo, an ignored key, other messages).
-    pub fn do_win_msg<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, msg: SubBudgetMsg) -> Option<bool> {
+    /// `DoWinMsg` (`0x0078BCA0`, §4) for window `win`: returns the message
+    /// result (BW9).
+    pub fn do_win_msg<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, msg: SubBudgetMsg) -> bool {
         match msg {
-            SubBudgetMsg::Init => {
-                self.on_init(host);
-                None
-            }
-            // on_shutdown (0x0077E440) is named but not specified (BW9).
-            SubBudgetMsg::Shutdown => None,
-            SubBudgetMsg::Button(id) => Some(self.on_button_activated(host, id)),
-            SubBudgetMsg::Slider { slider, position } => {
-                self.on_slider(host, slider, position);
-                None
+            SubBudgetMsg::Init => self.on_init(host, Some(win)),
+            SubBudgetMsg::Shutdown => self.on_shutdown(host),
+            SubBudgetMsg::Button(id) => self.on_button_activated(host, win, id),
+            SubBudgetMsg::Slider(control) => {
+                self.on_slider(host, win, control);
+                false
             }
             SubBudgetMsg::Combo(id) => {
                 if self.mode() == SubBudgetMode::Neighbors {
-                    if let Some(w) = self.window {
-                        host.rewrite_selected_deal_rows(w, id);
-                    }
-                    self.refresh_mode(host);
+                    host.rewrite_selected_deal_rows(win, id);
+                    host.update_neighbor_budget(win, &self.deals, self.view());
                 }
-                None
+                false
             }
             SubBudgetMsg::KeyDown { key, modifiers } => {
+                // BW5 (open): what sets modifier bit 0x4 is not known; only
+                // the raw bit test is implemented.
                 let close =
                     key == KEY_ESC || ((key == KEY_ENTER || key == KEY_0X73) && modifiers & KEY_CLOSE_MODIFIER != 0);
                 if !close {
-                    return None;
+                    return false;
                 }
-                self.close_inner_child(host);
-                // The spec writes `end_dialog(win, 0x42B7C353)`; end_dialog
-                // (§6) takes the window only, so the code is not passed (BW9).
-                end_dialog(host, self.window);
-                Some(true)
+                self.close_child(host, win);
+                end_dialog(host, Some(win), END_CODE);
+                true
             }
-            SubBudgetMsg::Other(_) => None,
+            SubBudgetMsg::Other(_) => false,
         }
     }
 
-    /// `on_init` (`0x007876B0`, §4): the hidden pause, then the mode's rows.
-    fn on_init<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
+    fn view(&self) -> ScrollView {
+        ScrollView {
+            a: self.list_a.pos,
+            b: self.list_b.pos,
+        }
+    }
+
+    /// `on_init(win)` (`0x007876B0`, §4).
+    pub fn on_init<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: Option<WinRef>) -> bool {
+        let Some(win) = win else { return false };
+        if self.initialised {
+            return true;
+        }
         host.hidden_pause();
-        let Some(win) = self.window else { return };
         match self.mode() {
             SubBudgetMode::Ordinances => {
                 host.load_background(win, BG_TYPE, BG_GROUP, BG_ORDINANCES);
-                self.ordinances = host
-                    .init_ordinance_budget(win)
-                    .into_iter()
-                    .map(|(ordinance, on)| OrdinanceRow {
-                        ordinance,
-                        original: on,
-                        edited: on,
-                    })
-                    .collect();
+                let init = host.init_ordinance_budget(win);
+                self.ordinance_count = init.rows.len() as u32;
+                self.ordinances = init.rows;
+                self.row_map = init.row_map;
             }
             SubBudgetMode::Neighbors => {
                 host.load_background(win, BG_TYPE, BG_GROUP, BG_NEIGHBORS);
                 host.set_neighbor_ui_disable(true);
                 self.deals = host.init_neighbor_budget(win);
             }
-            SubBudgetMode::Individual(occ) => {
-                // When the restore records are filled is not stated; they
-                // are taken from initIndividualBudget's contract (BW8).
-                self.restore = host.init_individual_budget(win, occ);
+            SubBudgetMode::Individual(dept) => {
+                // The kind is set inside initIndividualBudget; where in it,
+                // and when the restore records are filled, is not specified
+                // (§8): both are in place before any message after init.
+                self.service_kind = service_kind(dept);
+                self.restore = host.init_individual_budget(win, dept);
             }
-            SubBudgetMode::Group(group) => {
-                for dept in host.department_budgets_in_group(group) {
-                    let slider = host.add_department_row(win, group, dept);
-                    self.sliders.push(SliderInfo { slider, dept });
-                    let f = host.funding_percentage(dept);
-                    self.saved_fractions.push((f, dept));
+            SubBudgetMode::Group(group) => self.init_group(host, win, group),
+        }
+        self.initialised = true;
+        true
+    }
+
+    /// §4, §4.1: group mode.
+    fn init_group<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, group: u32) {
+        let depts = host.department_budgets_in_group(group);
+        let (mut a, mut b) = (0u32, 0u32);
+        for &dept in &depts {
+            let (mut first_a, mut first_b) = (true, true);
+            for item in host.department_line_items(dept) {
+                let income = item.kind == LINE_ITEM_INCOME;
+                let first = if income { &mut first_a } else { &mut first_b };
+                if std::mem::replace(first, false) && header_shown(host, group, dept, income) {
+                    if income {
+                        a += 1;
+                    } else {
+                        b += 1;
+                    }
+                }
+                if line_item_shown(&item) {
+                    if income {
+                        a += 1;
+                    } else {
+                        b += 1;
+                    }
                 }
             }
+        }
+        self.list_a.len = a;
+        self.list_b.len = b;
+        host.load_background(win, BG_TYPE, BG_GROUP, BG_GROUP_MODE);
+        if a == 0 && b == 0 {
+            // "No list is built": no slider rows and no saved fractions are
+            // taken (literal reading; BW10).
+            self.inner_child = host.set_empty_window(win);
+            return;
+        }
+        host.setup_window_big(win, a.min(LIST_ROWS_VISIBLE), b.min(LIST_ROWS_VISIBLE));
+        for dept in depts {
+            let slider = host.add_department_row(win, group, dept);
+            self.sliders.push(SliderInfo { slider, dept });
+            let f = host.funding_percentage(dept);
+            self.saved_fractions.push((f, dept));
         }
     }
 
+    /// `on_shutdown` (`0x0077E440`, §4).
+    pub fn on_shutdown<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) -> bool {
+        if !self.initialised {
+            return true;
+        }
+        self.initialised = false;
+        self.sliders.clear();
+        self.saved_fractions.clear();
+        self.restore.clear();
+        // Held deals are emptied without a per-deal Release.
+        self.deals.clear();
+        self.row_map.clear();
+        // +0xA4 and +0xA8 freed; the count +0xA0 is kept.
+        self.ordinances.clear();
+        // The AddRef/Release of the object itself around this is a
+        // lifetime guard of the native object; nothing to model.
+        if let Some(w) = self.window.take() {
+            host.release_win(w);
+        }
+        true
+    }
+
     /// §4.4: slider moved.
-    fn on_slider<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, slider: u32, position: i32) {
+    fn on_slider<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, control: u32) {
+        if !host.find_slider(win, control) {
+            return;
+        }
         if self.slider_guard.swap(true, Ordering::AcqRel) {
             return;
         }
-        match self.occupant {
-            None => {
-                // "position x 0.01" (BW8: the precision of the product is
-                // not given; computed in double, stored as float).
-                let fraction = (f64::from(position) * 0.01) as f32;
-                for s in self.sliders.clone() {
-                    if s.slider == slider {
-                        host.set_funding_percentage(s.dept, fraction, 0);
-                    }
-                }
-                if let Some(w) = self.window {
-                    host.update_values(w);
+        let position = host.slider_value(win, control);
+        if self.department == 0 {
+            let p = slider_fraction(position);
+            for s in self.sliders.clone() {
+                if s.slider == control {
+                    host.set_funding_percentage(s.dept, p, 0);
                 }
             }
-            Some(_) => {
-                if let Some(occ) = host.indiv_item_for_slider(slider) {
-                    let which = u32::from(slider >= OCCUPANT_LEVEL1_SLIDER_MIN);
-                    host.set_occupant_funding_level(occ, which, position);
-                    if let Some(w) = self.window {
-                        host.update_individual_budget(w);
-                    }
-                }
-            }
+            host.update_values(win);
+        } else if let Some(item) = host.indiv_item(win, control) {
+            let which = control >= OCCUPANT_LEVEL1_SLIDER_MIN;
+            self.set_occupant_funding_level(host, item, which, position as f32);
+            host.update_individual_budget(win, 0);
         }
         self.slider_guard.store(false, Ordering::Release);
     }
 
-    /// Remove and drop the inner child at `+0x14`, if any.
-    fn close_inner_child<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
-        if let Some(child) = self.inner_child.take() {
-            if let Some(w) = self.window {
-                host.remove_child(w, child);
+    /// `SetOccupantFundingLevel(item, which, level)` (`0x0077BC90`, §5.5).
+    pub fn set_occupant_funding_level<H: BudgetWindowHost + ?Sized>(
+        &self,
+        host: &mut H,
+        item: ItemRef,
+        which: bool,
+        level: f32,
+    ) -> bool {
+        if !host.query_occupant(item) {
+            return false;
+        }
+        let p = level * FUNDING_SCALE;
+        let ok = match (self.service_kind, which) {
+            (KIND_HOSPITAL | KIND_SCHOOL, _) => {
+                let school = self.service_kind == KIND_SCHOOL;
+                let rec = if school {
+                    host.school_query_data(item)
+                } else {
+                    host.hospital_query_data(item)
+                };
+                match rec {
+                    Some(mut r) => {
+                        if which {
+                            r.vehicle = p;
+                        } else {
+                            r.staff = p;
+                        }
+                        host.set_occupant_funding_percentages(item, FundingPair { ..r }, school);
+                        true
+                    }
+                    None => false,
+                }
             }
+            (KIND_POLICE, false) => {
+                host.police_set_station_funding(item, p);
+                true
+            }
+            (KIND_FIRE, false) => {
+                host.fire_set_station_funding(item, p);
+                true
+            }
+            (KIND_POWER, false) => {
+                host.power_set_plant_funding(item, p);
+                true
+            }
+            _ => false,
+        };
+        host.release_occupant(item);
+        ok
+    }
+
+    /// "Close the child" with the null test first (§5).
+    fn close_child<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef) {
+        if let Some(child) = self.inner_child.take() {
+            host.remove_child(win, Some(child));
+            host.release_win(child);
+        }
+    }
+
+    /// Buttons `0x68` / `0x384`: `RemoveChild(+0x14)` without a null check,
+    /// then the test (§5.6).
+    fn close_child_unchecked<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef) {
+        host.remove_child(win, self.inner_child);
+        if let Some(child) = self.inner_child.take() {
             host.release_win(child);
         }
     }
 
     /// `RestoreStartSettings` (`0x0077C5E0`, §5.1).
     pub fn restore_start_settings<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
-        match self.occupant {
-            None => {
-                for &(f, dept) in &self.saved_fractions {
-                    host.set_funding_percentage(dept, f, 0);
-                }
+        if self.department == 0 {
+            for &(f, dept) in &self.saved_fractions {
+                host.set_funding_percentage(dept, f, 0);
             }
-            Some(_) => {
-                for r in &self.restore {
-                    host.set_occupant_funding_level(r.occupant, 0, r.level0);
-                    host.set_occupant_funding_level(r.occupant, 1, r.level1);
-                }
+        } else {
+            for r in self.restore.clone() {
+                self.set_occupant_funding_level(host, r.occupant, false, r.level0);
+                self.set_occupant_funding_level(host, r.occupant, true, r.level1);
             }
         }
     }
 
-    fn scroll<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, list_b: bool, down: bool) {
+    /// `ApplyDealEdits` (`0x0077AB40`, §5.4).
+    pub fn apply_deal_edits<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
+        for &d in &self.deals {
+            host.add_ref_deal(d);
+            if host.deal_flags(d) & DEAL_ACTIVE != 0 {
+                let last = host.deal_last_amount(d);
+                if last != 0 {
+                    host.deal_set_amount(d, last);
+                    let inc = host.deal_last_inc_amount(d);
+                    host.deal_set_inc_amount(d, inc);
+                } else {
+                    host.deal_cancel(d);
+                    host.deal_set_last_amount(d, 0);
+                    host.deal_set_last_inc_amount(d, 0);
+                }
+            }
+            if host.deal_flags(d) & DEAL_CANCELLED != 0 && host.deal_last_amount(d) != 0 {
+                let _ = host.deal_activate(d);
+                let last = host.deal_last_amount(d);
+                host.deal_set_amount(d, last);
+                let inc = host.deal_last_inc_amount(d);
+                host.deal_set_inc_amount(d, inc);
+            }
+            host.release_deal(d);
+        }
+    }
+
+    /// §5.3: scroll buttons `0x451`..`0x454`, then the per-mode refresh.
+    fn scroll<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, id: u32) {
+        let list_b = id >= BTN_LIST_B_UP;
+        let down = id == BTN_LIST_A_DOWN || id == BTN_LIST_B_DOWN;
+        let (up_id, down_id) = if list_b {
+            (BTN_LIST_B_UP, BTN_LIST_B_DOWN)
+        } else {
+            (BTN_LIST_A_UP, BTN_LIST_A_DOWN)
+        };
         let l = if list_b { &mut self.list_b } else { &mut self.list_a };
-        let max = Self::max_pos(l.len);
-        l.pos = if down {
-            (l.pos + SCROLL_STEP).min(max)
+        let fits_after = |l: &ScrollList| l.pos.wrapping_add(SCROLL_PAGE) >= l.len;
+        if down {
+            if !fits_after(l) {
+                l.pos = l.pos.wrapping_add(SCROLL_STEP);
+            }
+            let hide_down = fits_after(l);
+            if hide_down {
+                host.set_child_visible(win, down_id, false);
+            }
+            host.set_child_visible(win, up_id, true);
         } else {
-            l.pos.saturating_sub(SCROLL_STEP)
-        };
-        let (pos, up_id, down_id) = if list_b {
-            (l.pos, BTN_LIST_B_UP, BTN_LIST_B_DOWN)
-        } else {
-            (l.pos, BTN_LIST_A_UP, BTN_LIST_A_DOWN)
-        };
-        if let Some(w) = self.window {
-            host.set_arrow_visible(w, up_id, pos > 0);
-            host.set_arrow_visible(w, down_id, pos < max);
+            if l.pos > 0 {
+                l.pos = l.pos.wrapping_sub(SCROLL_STEP);
+            }
+            let (at_top, more) = (l.pos == 0, !fits_after(l));
+            if at_top {
+                host.set_child_visible(win, up_id, false);
+            }
+            if more {
+                host.set_child_visible(win, down_id, true);
+            }
+        }
+        match self.selector {
+            SELECTOR_ORDINANCES => host.update_ordinance_budget(win, &self.ordinances, self.view()),
+            SELECTOR_NEIGHBORS => host.update_neighbor_budget(win, &self.deals, self.view()),
+            _ if list_b && self.department != 0 => host.update_individual_budget(win, 0),
+            _ => host.update_values(win),
         }
     }
 
-    /// The mode's row refresh (ordinances, neighbours, occupant).
-    fn refresh_mode<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
-        let Some(w) = self.window else { return };
-        let view = ScrollView {
-            a: self.list_a.pos,
-            b: self.list_b.pos,
-        };
-        match self.mode() {
-            SubBudgetMode::Ordinances => host.update_ordinance_budget(w, &self.ordinances, view),
-            SubBudgetMode::Neighbors => host.update_neighbor_budget(w, &self.deals, view),
-            SubBudgetMode::Individual(_) => host.update_individual_budget(w),
-            SubBudgetMode::Group(_) => {}
-        }
-    }
-
-    /// `on_button_activated` (`0x0078B120`, §5).
-    pub fn on_button_activated<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, id: u32) -> bool {
+    /// `on_button_activated(win, id)` (`0x0078B120`, §5). No common tail.
+    pub fn on_button_activated<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, id: u32) -> bool {
         match id {
             BTN_OK | BTN_OK_ALT | BTN_END | BTN_END_ALT => {
-                end_dialog(host, self.window);
-                return true;
+                end_dialog(host, Some(win), END_CODE);
+                true
             }
             BTN_CANCEL => {
                 self.restore_start_settings(host);
-                end_dialog(host, self.window);
-                return true;
+                end_dialog(host, Some(win), END_CODE);
+                true
             }
-            BTN_CLOSE_CHILD | BTN_CLOSE_CHILD_ALT => self.close_inner_child(host),
+            BTN_CLOSE_CHILD | BTN_CLOSE_CHILD_ALT => {
+                self.close_child_unchecked(host, win);
+                false
+            }
             BTN_ORDINANCE_APPLY => {
-                for r in &self.ordinances {
-                    if r.edited != r.original {
-                        host.set_ordinance_on(r.ordinance, r.edited);
+                for i in 0..self.ordinance_count as usize {
+                    // After on_shutdown the count outlives the freed arrays;
+                    // missing rows are skipped here.
+                    if let Some(r) = self.ordinances.get(i) {
+                        if r.edited != r.original {
+                            host.set_ordinance_on(r.ordinance, u32::from(r.edited));
+                        }
                     }
                 }
-                self.close_inner_child(host);
-                end_dialog(host, self.window);
+                self.close_child(host, win);
+                end_dialog(host, Some(win), END_CODE);
+                false
             }
             BTN_CE => {
-                self.close_inner_child(host);
-                end_dialog(host, self.window);
+                self.close_child(host, win);
+                end_dialog(host, Some(win), END_CODE);
+                false
             }
             BTN_CF => {
-                // FUN_0077AB40 runs first; what it does is BW2 (open).
-                self.close_inner_child(host);
-                end_dialog(host, self.window);
+                self.apply_deal_edits(host);
+                self.close_child(host, win);
+                end_dialog(host, Some(win), END_CODE);
+                false
             }
-            BTN_LIST_A_UP => self.scroll(host, false, false),
-            BTN_LIST_A_DOWN => self.scroll(host, false, true),
-            BTN_LIST_B_UP => self.scroll(host, true, false),
-            BTN_LIST_B_DOWN => self.scroll(host, true, true),
-            BTN_OCCUPANT_ROW_FIRST..=BTN_OCCUPANT_ROW_LAST => {
-                if let Some(w) = self.window {
-                    host.do_individual_budget_window(w, id);
+            BTN_LIST_A_UP..=BTN_LIST_B_DOWN => {
+                self.scroll(host, win, id);
+                false
+            }
+            BTN_NESTED_ROW_FIRST..=BTN_NESTED_ROW_LAST => {
+                if let Some(item) = host.indiv_item(win, id) {
+                    let dept = host.item_id(item);
+                    self.do_individual_budget_window(host, dept);
                 }
+                false
             }
-            BTN_OCCUPANT_CONTROL_FIRST..=BTN_OCCUPANT_CONTROL_LAST if self.occupant.is_some() => {
-                if let Some(w) = self.window {
-                    host.occupant_control(w, id);
+            BTN_CAMERA_JUMP_FIRST..=BTN_CAMERA_JUMP_LAST if self.department != 0 => {
+                if let Some(item) = host.indiv_item(win, id) {
+                    if host.query_occupant(item) {
+                        let v = host.occupant_position(item, [CAMERA_JUMP_FILL; 3]);
+                        host.camera_jump(v);
+                        host.release_occupant(item);
+                    }
                 }
+                false
             }
-            // Literal reading of "after any other handled button": every
-            // button not returning 1 above, unlisted IDs included, takes the
-            // common tail (BW7).
-            _ => {}
+            BTN_ORDINANCE_CHECK_FIRST..=BTN_ORDINANCE_CHECK_LAST => {
+                let k = self.row_map.get((id - BTN_ORDINANCE_CHECK_FIRST) as usize).copied();
+                if let Some(state) = host.check_box_state(win, id) {
+                    // A row outside the map is outside the native arrays;
+                    // no edit is made for it here.
+                    if let Some(r) = k.and_then(|k| self.ordinances.get_mut(k as usize)) {
+                        r.edited = state;
+                    }
+                }
+                host.update_ordinance_budget(win, &self.ordinances, self.view());
+                false
+            }
+            BTN_ORDINANCE_INFO_FIRST..=BTN_ORDINANCE_INFO_LAST => {
+                self.close_child(host, win);
+                let k = self.row_map.get((id - BTN_ORDINANCE_INFO_FIRST) as usize).copied();
+                let ord = k.and_then(|k| self.ordinances.get(k as usize)).map(|r| r.ordinance);
+                self.inner_child = host.open_ordinance_info(win, k, ord);
+                false
+            }
+            _ => false,
         }
-        self.refresh_mode(host);
-        if let Some(w) = self.window {
-            host.update_values(w);
-        }
-        false
     }
 
-    /// `DestroySubBudgetWindow` (`0x0077A1A0`, §6). The pause ends before
-    /// the window is ended.
-    pub fn destroy<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
+    /// `DoIndividualBudgetWindow(department)` (`0x00786530`, §2): the nested
+    /// dialog at `+0x1C`; no location save, no focus, no balance refresh.
+    pub fn do_individual_budget_window<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, department: u32) {
+        if self.nested.is_some() {
+            return;
+        }
+        let context = self.context;
+        let n = self
+            .nested
+            .insert(Box::new(SubBudgetWindow::with_slider_guard(self.slider_guard.clone())));
+        if let Some(win) = n.create(host, 0, context, department) {
+            let gen = show_sequence(host, win);
+            host.do_modal_win(win, n);
+            host.release_win(win);
+            if gen {
+                host.release_generator(win);
+            }
+        }
+        n.destroy(host);
+        if let Some(mut n) = self.nested.take() {
+            n.release_final(host);
+        }
+    }
+
+    /// `DestroySubBudgetWindow` (`0x0077A1A0`, §6). The pause ends before the
+    /// window is ended; `+0x0C` is neither released nor cleared.
+    pub fn destroy<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) -> bool {
         if self.selector == SELECTOR_NEIGHBORS {
             for &deal in &self.deals {
                 host.add_ref_deal(deal);
-                if host.deal_flags(deal) & 1 != 0 {
-                    host.deal_slot34(deal);
+                if host.deal_flags(deal) & DEAL_PROPOSED_BIT != 0 {
+                    host.deal_cancel(deal);
                 }
                 host.release_deal(deal);
             }
             host.set_neighbor_ui_disable(false);
             host.mark_deals_dirty();
         }
-        // "In every mode": also when CreateSubBudgetWindow failed and no
-        // init (so no HiddenPause) ran; literal reading (BW6).
+        // Unguarded (BW6b): also when CreateSubBudgetWindow failed and no
+        // on_init paused, so the counter can go below zero.
         host.hidden_resume();
-        end_dialog(host, self.window);
+        match self.window {
+            Some(w) => end_dialog(host, Some(w), END_CODE),
+            None => true,
+        }
+    }
+
+    /// The last Release: the destructor's base cleanup (`0x0077C4C0`)
+    /// releases `+0x1C`, `+0x18`, `+0x14`, `+0x10`, `+0x0C` when non-null.
+    /// Of these the core holds `+0x1C`, `+0x14` and `+0x0C`.
+    pub fn release_final<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
+        if let Some(mut n) = self.nested.take() {
+            n.release_final(host);
+        }
+        if let Some(c) = self.inner_child.take() {
+            host.release_win(c);
+        }
+        if let Some(w) = self.window.take() {
+            host.release_win(w);
+        }
     }
 }
