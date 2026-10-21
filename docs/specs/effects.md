@@ -473,16 +473,20 @@ The bytes alone settle EF1 without a runtime trace. Three facts, all from instru
    every draw-time update `0x005B8540+0x23E`) returns true only when the live count `+0x14` is 0 *and* a
    delayed stop was requested (`+0x0C` != 0); it then calls base `Stop(0,0)` — the immediate form — which
    clears `started`, so `IsActive` goes false.
-2. **The emitter self-stops through the same `Stop(0)`.** The three per-class emitter paths are all reached
-   from the draw-time update (`0x005B8540` slot 9 → slot 15 of the main vtable `0x00AA0B88` → `0x005AA5D0`):
-   - `cSC4ParticlesEffect` (slot 15 `0x005AA5D0`): when its emit state says the last loop is done it calls
-     `Stop(0)` on itself at `0x00AA6D4`/`0x00AA6EB`.
-   - `cSC4ModelBasedParticlesEffect` (slot 15 of the `+4` sub-object vtable `0x00AA0E58` → `0x005B96E0`):
-     the description's flag bits pick one of three emitters — bit 2 (`0x04`) → `0x005B3CF0` (a plain
-     rate-integral emitter with **no** self-stop), otherwise bit 1 (`0x02`) → `0x005B8B50` (loop-budget
+2. **The emitter self-stops through the same `Stop(0)`.** The emitter paths are reached from the draw-time
+   update (`0x005B8540` slot 9 → slot 15 of the component's main vtable). Slot 15 (vtable `+0x3C`) differs by class
+   (vtable words `0x00AA0EDC`, `0x00AA0C94`, `0x00AA0BC4`; corrected 2026-10-21 by re-particles4, particles.md §8):
+   - `cSC4ParticlesEffect` (main vtable `0x00AA0EA0`) and `cSC4ModelBasedParticlesEffect` (`0x00AA0C58`,
+     inherited) → `0x005B96E0`: after the loop-interval countdown `+0x190` (particles.md §8.1), the
+     description's flags A (`+0x00`) pick one of three emitters — `0x04` (`maintain`) → `0x005B3CF0` (a plain
+     rate-integral emitter with **no** self-stop), otherwise `0x02` (`inject`) → `0x005B8B50` (loop-budget
      emitter: `+0x128` counts loops, compared with the description's `emit_loop_count` at `+0x18`; when the
-     budget is exhausted it calls `Stop(0)` at `0x005B8D67`), else `0x005B87B0` (duration-budget emitter:
-     when its accumulated duration runs out it calls `Stop(0)` at `0x005B8B29`).
+     budget is exhausted it calls `Stop(0)` at `0x005B8D67`), else `0x005B87B0` (duration-budget emitter: when
+     its accumulated duration runs out it calls `Stop(0)` at `0x005B8B29`).
+   - `cSC4GeometrySourcedParticlesEffect` (main vtable `0x00AA0B88`, installed by `0x005A8ED0`) → `0x005AA5D0`:
+     when its emit state says the last loop is done (its `+0x18` count is 0) it calls `Stop(0)` (main slot 1,
+     argument 0) on itself at `0x005AA6D4`/`0x005AA6EB`.
+   The `+4` simulator vtable `0x00AA0E58` plays no part (its slot 15 is `CreateParticle` `0x005B7C20`).
 3. **The budget fields.** `emit_loop_count` is the particle description's `+0x18` (`u32`); the loop-interval
    countdown is the effect's `+0x190`, seeded in `Start` `0x005B3000` from the description's `+0x20..+0x2C`
    range. So every shipped volcano particle (all `emit_loop_count = 1`, `life` 3–20 s) emits one loop and
