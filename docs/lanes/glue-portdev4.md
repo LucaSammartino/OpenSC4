@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-portdev4 | `C:\Users\tlori\FreeCity4\.claude\worktrees\glue-portdev4` (branch `glue-portdev4`) | **ready.** No ABI change. Validated the existing glue12b2 airport/seaport classes (`enable = ports`) on a real port scenario: new tooling script action `port airport\|seaport x z [facing [type]]` builds a stage-0 port lot through the game's interfaces; both developers adopt it. Ports shadow 144/144 exact (portdev4-shd-2), replacement clean ref 0 to 2032 (portdev4-rep-3) and at normal speed with a save (portdev4-rep-4n). Gate: cargo 3676/0, clippy 0, ctest 62/62. Question PD12 (seaport prop switch). | coordinator: union `--add-replace ports` candidate run; regenerate QUESTIONS.md for PD12; a Read-of-saved-ports run. |
+| glue-portdev4 | `C:\Users\tlori\FreeCity4\.claude\worktrees\glue-portdev4` (branch `glue-portdev4`) | **ready.** No ABI change. Validated the existing glue12b2 airport/seaport classes (`enable = ports`) on a real port scenario: new tooling script action `port airport or seaport x z [facing [type]]` builds a stage-0 port lot through the game's interfaces; both developers adopt it. Ports shadow 144/144 exact (portdev4-shd-2), replacement clean ref 0 to 2032 (portdev4-rep-3) and at normal speed with a save (portdev4-rep-4n). Gate: cargo 3676/0, clippy 0, ctest 62/62. Question PD12 (seaport prop switch). | coordinator: union `--add-replace ports` candidate run; regenerate QUESTIONS.md for PD12; a Read-of-saved-ports run. |
 
 ## Report
 
