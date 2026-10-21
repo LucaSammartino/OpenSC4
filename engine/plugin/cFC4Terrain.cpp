@@ -17,6 +17,7 @@
 #include "cFC4Terrain.h"
 
 #include "FC4Config.h"
+#include "FC4Streams.h"
 #include "compat/FC4Compat.h"
 #include "FC4Diag.h"
 #include "FC4Fpu.h"
@@ -38,6 +39,9 @@
 #include "cIGZOStream.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
+#include "cISC4DBSegment.h"
+#include "cIGZPersistDBSegment.h"
+#include "cGZPersistResourceKey.h"
 #include "cISC4Lot.h"
 #include "cISC4LotManager.h"
 #include "cISC4NetworkOccupant.h"
@@ -739,6 +743,7 @@ private:
     bool Enter() const;
     void Leave() const;
     bool CreateCore(uint32_t cellsX, uint32_t cellsZ);
+    bool InstallCore(fc4_terrain* created);
     void DestroyCore();
     void Subscribe();
     void Unsubscribe();
@@ -855,11 +860,19 @@ bool cFC4STETerrain::CreateCore(uint32_t cellsX, uint32_t cellsZ) {
         tuning = fc4_terrain_tuning{};
         tuning.struct_size = sizeof(tuning);
     }
-    core_ = fc4_terrain_create(&hostTable_, &tuning, cellsX, cellsZ);
-    if (core_ == nullptr) {
+    fc4_terrain* created = fc4_terrain_create(&hostTable_, &tuning, cellsX, cellsZ);
+    if (created == nullptr) {
         Log("terrain: could not create the terrain core (%u x %u cells)", cellsX, cellsZ);
         return false;
     }
+    return InstallCore(created);
+}
+
+// Takes ownership of a fresh core (created or loaded) and fills the §2.3 fields from it.
+bool cFC4STETerrain::InstallCore(fc4_terrain* created) {
+    if (created == nullptr) return false;
+    core_ = created;
+    const uint32_t cellsX = fc4_terrain_cell_count(core_, 0), cellsZ = fc4_terrain_cell_count(core_, 1);
     fc4_terrain_set_default_brush_level(core_, f_.defaultBrushLevel);
     // §2.3: the grid fields the game reads directly.
     const uint32_t vx = cellsX + 1, vz = cellsZ + 1;
@@ -1606,14 +1619,79 @@ void cFC4STETerrain::DeletingDestructor(uint32_t flags) {
 
 // ---- persistence (§13) ----------------------------------------------------------------------------
 
-bool cFC4STETerrain::Load(cIGZPersistDBSegment*) {
-    // §13.1: the misc, altitude and vertex property records (the edges are
-    // read on demand by the region code). The plugin's stream layer does not
-    // yet reach a DB segment, so the records cannot arrive here; Init builds
-    // the terrain from the city grid instead and the water is rebuilt from the
-    // sea level either way (§10.1; quirk 15: the sea level is not saved).
-    Log("terrain: Load (records) is not wired; starting from the city grid");
-    return false;
+// §13.1: slot 96 reads the misc (instance 3), altitude (1) and vertex property (2) records of the
+// terrain's own class (group 0xE98F9525) from the DB segment, and the core rebuilds itself from them
+// (the water from the sea level, §10.1). The stream has no size query, so a record is read byte by byte
+// until the stream refuses [choice]; the core checks every length itself.
+namespace {
+constexpr uint32_t kRecordGroup = 0xE98F9525;
+constexpr uint32_t kTypeMisc = 0x8A91E7E3, kTypeAltitudes = 0xA9DD6FF4, kTypeProperties = 0x8A91E7E0;
+constexpr size_t kRecordCap = 2 + 4 * 4097u * 4097u;
+
+bool ReadRecord(cISC4DBSegment* db, uint32_t type, uint32_t instance, std::vector<uint8_t>& out) {
+    out.clear();
+    cISC4DBSegmentIStream* s = nullptr;
+    const cGZPersistResourceKey key(type, kRecordGroup, instance);
+    const bool opened = db->OpenIStream(key, &s);  // slot 5
+    if (s == nullptr) return false;
+    auto* in = reinterpret_cast<cFC4ISC4DBSegmentIStream*>(s);
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(in), opened ? "OpenIStream" : "OpenIStream (false)");
+    if (opened) {
+        uint8_t b = 0;
+        while (out.size() < kRecordCap && in->GetUint8(b)) out.push_back(b);
+        db->CloseIStream(s);  // slot 6
+    }
+    FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(in));
+    return opened && !out.empty();
+}
+}  // namespace
+
+bool cFC4STETerrain::Load(cIGZPersistDBSegment* segment) {
+    if (segment == nullptr) return false;
+    cISC4DBSegment* db = nullptr;
+    if (!segment->QueryInterface(GZIID_cISC4DBSegment, reinterpret_cast<void**>(&db)) || db == nullptr) {
+        Log("terrain: Load: the segment is not a cISC4DBSegment; starting from the city grid");
+        return false;
+    }
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(db), "QueryInterface");
+    std::vector<uint8_t> misc, alt, props;
+    const bool haveMisc = ReadRecord(db, kTypeMisc, 3, misc);
+    const bool haveAlt = ReadRecord(db, kTypeAltitudes, 1, alt);
+    const bool haveProps = ReadRecord(db, kTypeProperties, 2, props);
+    FC4_RELEASE(static_cast<cIGZUnknown*>(db));
+    if (!haveMisc || !haveAlt || !haveProps) {
+        Log("terrain: Load: records missing (misc=%u alt=%u props=%u bytes); starting from the city grid",
+            static_cast<unsigned>(misc.size()), static_cast<unsigned>(alt.size()),
+            static_cast<unsigned>(props.size()));
+        return false;
+    }
+    Enter();
+    fc4_terrain_tuning tuning{};
+    tuning.struct_size = sizeof(tuning);
+    if (!fc4_terrain_tuning_shipped(&tuning)) {
+        tuning = fc4_terrain_tuning{};
+        tuning.struct_size = sizeof(tuning);
+    }
+    int32_t error = 0;
+    fc4_terrain* loaded = fc4_terrain_load(&hostTable_, &tuning, misc.data(), misc.size(), alt.data(), alt.size(),
+                                           props.data(), props.size(), &error);
+    bool ok = false;
+    if (loaded == nullptr) {
+        Log("terrain: Load: the core refused the records (error %d; misc=%u alt=%u props=%u bytes)", error,
+            static_cast<unsigned>(misc.size()), static_cast<unsigned>(alt.size()),
+            static_cast<unsigned>(props.size()));
+    } else {
+        DestroyCore();
+        ok = InstallCore(loaded);
+        Log("terrain: Load: %u x %u cells from the saved records (misc=%u alt=%u props=%u bytes), sea=%.9g, "
+            "altitude checksum=%.9g",
+            f_.cellsX, f_.cellsZ, static_cast<unsigned>(misc.size()), static_cast<unsigned>(alt.size()),
+            static_cast<unsigned>(props.size()), fc4_terrain_sea_level(core_),
+            static_cast<double>(fc4_terrain_altitude_checksum(
+                core_, fc4_terrain_rect{0, 0, static_cast<int32_t>(f_.cellsX), static_cast<int32_t>(f_.cellsZ)})));
+    }
+    Leave();
+    return ok;
 }
 
 bool cFC4STETerrain::Save(cIGZPersistDBSegment*) {
