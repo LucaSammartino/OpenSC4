@@ -119,6 +119,9 @@ into files. Prose costs in another way: instructions that contradict each other 
 4. **Collect the uncounted points**: a regress replace run with `nettool` on makes glue29's work count as replaced.
 5. **Model comparisons**: run the same lane brief on each model and compare with
    `spend.py --since/--until/--model` plus the per-lane split above.
+6. **A lean coordinator**: its preamble is 49.8k tokens per call in the desktop app (11% of its spend). Run a GLM
+   coordinator from the `claude` CLI with only the tools it uses (Bash, Read, Edit, Write, Workflow), with no
+   connectors and no unrelated plugins, and restart it after each train lands.
 
 ## Changes in effect
 
