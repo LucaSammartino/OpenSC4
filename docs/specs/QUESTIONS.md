@@ -61,6 +61,7 @@ generated index: the questions live one file per spec, so read only the file for
 | LD | lot-developer |
 | LF | landfill |
 | LG | landfill |
+| LU | language-utility |
 | LV | landvalue |
 | MS | mysims |
 | NB | neighbors, network-bridges |
@@ -86,6 +87,8 @@ generated index: the questions live one file per spec, so read only the file for
 | RG | residential-education-health |
 | RN | foundations |
 | RS | residential |
+| RZ | framework-rz-files |
+| SL | strings-language |
 | SP | span-render-4444 |
 | SR | span-render-1555, span-render-565, span-render-8 |
 | SV | foundations, ordinance |
@@ -102,7 +105,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
-| advisors | 0 | 3 | AD4 | questions/advisors.md |
+| advisors | 2 | 3 | AD6 | questions/advisors.md |
 | application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 4 | 0 | AA5 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
@@ -128,10 +131,12 @@ generated index: the questions live one file per spec, so read only the file for
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
 | framework-gz-services | 7 | 0 | GZ8 | questions/framework-gz-services.md |
+| framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | history | 0 | 17 | HW18 | - |
 | landfill | 0 | 36 | LF7, LG31 | - |
 | landvalue | 0 | 5 | LV6 | - |
+| language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | mysims | 3 | 7 | MS11 | questions/mysims.md |
@@ -151,7 +156,7 @@ generated index: the questions live one file per spec, so read only the file for
 | persistence | 3 | 0 | PR4 | questions/persistence.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
-| port-developers | 0 | 11 | PD12 | - |
+| port-developers | 1 | 11 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 14 | GLUE22, PV14 | - |
 | prop-lotconfig | 6 | 8 | PL22 | questions/prop-lotconfig.md |
@@ -160,10 +165,11 @@ generated index: the questions live one file per spec, so read only the file for
 | renderer-driver | 4 | 1 | RD6 | questions/renderer-driver.md |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
-| span-render-1555 | 1 | 3 | SR1556 | questions/span-render-1555.md |
+| span-render-1555 | 2 | 3 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 0 | SP4 | questions/span-render-4444.md |
-| span-render-565 | 1 | 0 | SR566 | questions/span-render-565.md |
+| span-render-565 | 4 | 0 | SR566 | questions/span-render-565.md |
 | span-render-8 | 2 | 0 | SR9 | questions/span-render-8.md |
+| strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
@@ -172,4 +178,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **128** | **1013** | | |
+| **total** | **147** | **1013** | | |
