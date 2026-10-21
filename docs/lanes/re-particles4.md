@@ -1,17 +1,29 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-particles4: particle component spec (cSC4ParticlesEffect family) | `re-particles4` / (RE spec lane) | in progress (round 3 from 5297a6c1): particles.md §5.1 InitEffectsParticle, §6 Start complete, §6.1 SetDescription inputs, §8/§8.1 emitter proof+dispatch; effects.md §7.1 item 2 corrected; PT5/PT6/PT7 answered, PT1 narrowed; cSC4ParticlesEffect still partial (physics, rates, drawing) | 1. Physics 0x005B9BA0/0x005B9790 + emitters 0x005B3CF0/0x005B8B50/0x005B87B0 to finish cSC4ParticlesEffect. 2. Coverage rows per report (train owner). 3. PT1 rest, PT2-PT4. |
+| re-particles4: particle component spec (cSC4ParticlesEffect family) | `re-particles4` / (RE spec lane) | ready (round 3, final): particles.md §7.1 per-particle physics, §8.2 three emitters, §8.3 age events, §5 pools, force keywords; PT4 answered, PT1/PT2 narrowed; cSC4ParticlesEffect still partial (drawing, terrain/collision/tractor helpers) | 1. Drawing 0x005B3DA0/0x005B4B90. 2. Helpers 0x005B8DC0/0x005B8020/0x005B6600/0x005B6C40. 3. PT1 rest, PT3, emit parser 0x0059C280. |
 
 
-## Handoff (round 3, 2026-10-21)
+## Report (round 3, 2026-10-21, final)
 
-Goal: round 3/3 (final): specify physics 0x005B9BA0/0x005B9790, emitters 0x005B3CF0/0x005B8B50/0x005B87B0, draw
-0x005B3DA0/0x005B4B90, parsers 0x0059C280/0x0059A820; finish PT1, PT2-PT4 as far as bytes support. Keep Init/Start/
-identity corrections. cSC4ParticlesEffect uncredited until core fully specified; credit only range 0x005B9CC0-0x005B9FB7.
-Done: rounds 1-2 (reports below). Round 3: 5c82f711 §7.1 physics (both paths, exact); 9a53e220 §8.2 three emitters
-(exact), §8.3 age events (PT2 run-time reader 0x005B84C0/0x005B8410).
-Next: drawing 0x005B3DA0/0x005B4B90, then parsers 0x0059C280/0x0059A820 for PT1 keyword names; PT3/PT4; update §10, PT1/PT2.
-Facts: REA unavailable this round (no app open) - export+decomp only; helper build-runs/pe.py reads exe constants.
+**Changed.** docs/specs/particles.md: §7.1 per-particle update 0x005B9BA0 (simple path: trapezoid position,
+drag D+0x100) and stepped path 0x005B9790 (path mask 0x18000D00 from static init 0x00A73050, 1/15 s substeps,
+tractor/attractor-point pull, drag-uses-remaining-time quirk, +0xC8-frame city bounds, killOutsideCity, terrain
+and building-collision hooks), the shared curve sampling rule (5c82f711); §8.2 emitters 0x005B3CF0 (maintain:
+top up to ceil(rate[0])), 0x005B8B50 (inject bursts, pre-aged, Stop(0) at loop count, pause via D+0x28),
+0x005B87B0 (rate x density x scale^1..3 per second, carry +0x138, loop clock +0x120/+0x128 at 1/D+0x14, sustain
+pin, pause), §8.3 particle age events D+0x1CC (readers 0x005B84C0, 0x005B8410) (9a53e220); force-parser keywords
+from 0x0059A820 (drag, screw x0.02, bomb, global_wind, attractor/motherDuck/alphaAttractor, tractor, terrainRepel)
+in §2/§3 (8d0f1d9c); §5 pools: 68 B x128 and 28 B x128 per block, freed only at exit (this tip). PT4 answered;
+PT1, PT2 narrowed; QUESTIONS.md regenerated.
+
+**Evidence.** REA unavailable (no app open: target_unavailable); export asm + decomp + exe image constants
+(1/15 0x00AA0CF4, 0.5 0x00A92D28, 20.0 0x00AA0F1C, 1e-6 0x00A86510/0x00A9F190, 0.02 0x00AA02D8). All numeric
+claims checked against instructions (double clock, strict compares, ceil/floor tricks).
+
+**Not done.** Drawing 0x005B3DA0 (3,557 B) and 0x005B4B90 (6,079 B), emit parser 0x0059C280, PT3, helpers
+0x005B8DC0/0x005B8020/0x005B6600/0x005B6C40/0x005B71E0. So cSC4ParticlesEffect stays **partial / uncredited**.
+Credit only the proven range 0x005B9CC0-0x005B9FB7 (485 B, cSCParticleSimulatorBase rows listed in round 2), never
+the class name (13 unrelated functions share it). No attribution files changed, no ABI rows.
 
 ## Report (round 2, 2026-10-21)
 
