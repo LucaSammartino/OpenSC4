@@ -4,5 +4,5 @@
 
 ## Handoff
 - Goal: answer EX51 (a)-(f) and EX50 in docs/specs/data-formats.md (§4.4, §8.2) from static RE; move answered entries.
-- Done: worktree created from main 0a0c009d.
-- Next: locate exemplar/cohort vtables in decomp/, read slots 13/14/15/18, SetCohort, SerialWrite.
+- Done: worktree from main 0a0c009d; §8.2 EX51 a-f spec text written (this commit).
+- Next: move EX51 to answered, EX50 update with runtime follow-up, questions.py index, finish.

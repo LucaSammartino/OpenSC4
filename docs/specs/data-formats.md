@@ -1690,9 +1690,21 @@ body `0x005DEB40`: one argument, return **false**, touch nothing. Slot 5 `GetGZC
 **0**. They exist because the primary object is handed to messages as a `cIGZSerializable` (`SetExtra`, below).
 
 **Slot 14 `DebugInstanceTag(cIGZString& out)`** (`0x0067E5B0` exemplar, `0x0067E3E0` cohort): one argument,
-returns true, appends text only: the base resource tag (`0x0093878E`), then `" Exemplar "`; if `ExemplarType`
-(`0x10`) exists, `"(Other)"` when its uint value is 0 and `"(Unknown)"` otherwise; if `ExemplarName` (`0x20`)
-exists, ` '<name>'`. It does **not** rebuild anything (the EX47 guess was wrong).
+returns true, appends text only: the base resource tag (`0x0093878E`), then `" Exemplar "` (exemplar, string
+`0x00AAF2F0`) or `" Exemplar Cohort "` (cohort, `0x00AAF2DC`); if `ExemplarType` (`0x10`) exists,
+`"(Other)"` when its uint value is 0 and `"(Unknown)"` otherwise; if `ExemplarName` (`0x20`) exists,
+` '<name>'`. It does **not** rebuild anything (the EX47 guess was wrong). Details (EX51 e/f):
+
+- Both lookups use the object's own holder (exemplar slot 7 / cohort slot 9) and holder slot 9 `GetProperty(id)`,
+  which searches the **effective** list, so an inherited `ExemplarType` or `ExemplarName` is shown, and an ID
+  added through holder slots 10–13 since the last rebuild is not (see "Holder add slots" below).
+- The type test reads the first 4 bytes of the variant's value storage with no conversion (variant slot 73, the
+  folded `AsX` reinterpret, Q12): `"(Other)"` when that word is 0. A Uint32 2 gives `"(Unknown)"`.
+- The name is converted with `GetValString` (variant slot 55, `0x00917ADB`), the converting getter of §5.1, then
+  formatted with `" '%s'"`. Any stored type gives its text: a Uint32 5 gives ` '5'`, a Float32 1.5 gives
+  ` '1.5'`, a string `abc` gives ` 'abc'`. The getter's return value is not tested; an Empty value gives ` ''`.
+- Worked example: cohort with `0x10` = 1 and `0x20` = Uint32 5 appends `<base tag> Exemplar Cohort (Unknown) '5'`.
+  Without `0x10` the type part is absent but the `" Exemplar Cohort "` text is still appended.
 
 **Slot 15 rebuild(vector* dest)** (`0x0067DDC0` / `0x0067DAE0`): one argument, a pointer to a `{id, property}`
 vector; null means the object's own effective list (`+0x34`). It clears the destination, then, if a parent is set,
@@ -1700,11 +1712,51 @@ takes the parent's holder (cohort slot 9), calls its `GetPropertyList`, and pops
 (list slot 3 count, slot 12 `PopFront(0x452160EC, &p)`), inserting by binary search; then it merges the own
 list on top (own wins). Its only found caller is `SetCohort` with null.
 
+*Destination layout (EX51 a).* `dest` is a 12-byte `{begin, end, capacity}` vector of **8-byte elements**
+`{uint32 id, cISCProperty* property}` in ascending ID; each element holds **one added reference** to its property
+(the vector owns it). The object's own list (`+0x24`) and effective list (`+0x34`) have the same layout; the
+parent pointer sits between them at `+0x30`. A non-null `dest` is treated exactly like the null case: its
+elements are erased (each releasing its reference), its buffer is reserved to the own-list count with the game's
+allocator (`0x0067CB20`; growth by the game's `std::vector` insert `0x005FF5D0`), the parent's properties are
+inserted (one reference each, taken from the popped list reference), then the own properties: an equal ID
+**replaces** the pointer (new one AddRef'd, old one released), otherwise it is inserted. The caller therefore
+owns the references and must release them; the buffer must come from the game's heap (or be empty). The
+object's own effective list is **not** touched when `dest` is non-null. The slot has **no return value**
+(`RET 4` with nothing loaded into `EAX`: callers see whatever was left there, e.g. 108 in the gecf4 contract
+test). FreeCity4 may return any value; nothing tests it.
+
+**Holder add slots (EX51 b).** On exemplars and cohorts holder slots 10–14 and 16 are the base
+`cSCPropertyHolder` bodies (holder vtables `0x00AAF038`/`0x00AAEF60`); only slot 15 `AddProperty(property, bool)`
+is overridden (`0x0067DCE0` exemplar, `0x0067DA00` cohort: base add to the own list, then the same insert or
+replace in the effective list, then the change message when the bool is true).
+
+| Slot | Body | Effective list | Posts |
+|---|---|---|---|
+| 10 `AddProperty(id, data, len, bool)` | `0x005FFA40` | see below | never |
+| 11 `AddProperty(id, cIGZUnknown*, bool)` | `0x005FF950` | see below | never |
+| 12 `AddProperty(id, string, bool)` | `0x005FF860` | see below | never |
+| 13 `AddProperty(id, uint32, bool)` | `0x005FF770` | see below | never |
+| 14 `AddProperty(id, variant*, bool)` | `0x005FDEF0` | updated (calls slot 15 virtually) | when bool |
+| 16 `CopyAddProperty(property, bool)` | `0x005FDFD0` | updated (calls slot 15 virtually) | when bool |
+
+Slots 10–13 ignore their bool. If the **own** list already has the ID they set the existing property's value in
+place (variant `SetValVoid` / `SetValIGZUnknown` / `SetValString` / `SetValUint32`) and return that setter's
+result; the effective list holds the same property object (own wins), so the new value is visible at once. If
+the own list lacks the ID they create a new property, insert it into the **own list only** and return the
+property's `Release` result (non-zero, *[inferred]* 1). The effective list then does not hold the ID until the
+next rebuild (a `SetCohort` to a different parent): `GetProperty`, `HasProperty` and `DebugInstanceTag` miss it,
+and if the parent has the ID they keep returning the parent's value. Worked example: E with parent C, C has
+`0x10` = 2, E has no `0x10`; slot 13 `(0x10, 7, true)` → E's effective `0x10` is still 2, no message; slot 14
+with a Uint32 7 → effective 7 and `0xC53D10AA` posted. Slot 14 builds a new property with the ID and sets its value from the variant (property slot 7);
+slot 16 a property with the source's ID and a copy of its value; both then call slot 15 with their bool.
+
 **Parent ownership (EX48).** `GetCohort` (exemplar slot 9) and `GetParent` (cohort slot 6) are both `0x006AAC50`,
 which returns `+0x30` **borrowed** (no AddRef). `SetCohort(parent, bool)` (exemplar slot 10 `0x0067C510`, cohort
 slot 7 `0x0067C430`): if `parent` equals the current one, nothing happens (no rebuild, no message). Otherwise it
 AddRefs the new parent (if not null), releases the old one, stores it, calls slot 15 with null, and, if the bool is
 true, posts the change message. A null parent is allowed: the effective list becomes the own list.
+`SetCohort` has **no return value** in either path (EX51 c: `RET 8`, `EAX` not loaded; the gecf4 contract test
+read 0 on the no-op). FreeCity4 may return true; a caller must not rely on it.
 
 **Removal (EX47).** Holder slot 17 `RemoveProperty(id, bool)` (`0x0067C8C0`; cohort `0x0067C6C0`): removes from
 the **own** list (base `cSCPropertyHolder::RemoveProperty`); if that removed nothing it returns false and posts
@@ -1712,7 +1764,10 @@ nothing. Otherwise, in the effective list, if the parent's holder has the ID (ho
 **replaced by the parent's property** (holder slot 9), so the inherited value becomes visible again; if not, the
 entry is erased. Returns true; posts when the bool is true. Slot 18 `RemoveAllProperties(bool)` (`0x0067C9B0`;
 cohort `0x0067C7B0`) clears the own list, then walks the effective list: entries whose ID the parent has get the
-parent's property, all others are erased; posts when the bool is true. The game itself never removes exemplar
+parent's property, all others are erased. It posts only when the bool is true **and the own list was non-empty
+before the call** (`0x0067C9C4` records `begin != end` first); on an exemplar with no own properties nothing is
+posted even with true. Like `SetCohort` it has **no return value** (EX51 c: `RET 4`, the gecf4 contract test read
+208). Cohort `0x0067C7B0` is the same. The game itself never removes exemplar
 properties outside the developer editor *[inferred]*.
 
 **Holder slots 22–24** (exemplar `0x00AAF038`; cohort `0x00AAEF60`): slot 22 is a thunk (`this − 0x1C`) to the
@@ -1765,7 +1820,26 @@ slot 11; nothing filled when there is no parent), a u32 count and, for each **ow
 list) in ascending ID: its ID, then kind byte 0 and the variant, or kind byte 1 and the key of the held resource
 when the property answers `0xE52184AB`; **true (text)**: `EQZT1###\r\n`, a `ParentCohort` entry, a `PropCount`
 entry, then one entry per own property named by `GetPropertyReadableName` (`0x0067FE80`) or `unknown`. It stops
-at the first failed write. Which game paths call the manager's save on an exemplar was **not** traced *[unknown]*;
+at the first failed write.
+
+*Binary form in detail (EX51 d).* The writes go to the serial record (`cGZPersistDBSerialRecord`, vtable
+`0x00AD7CF0`; persistence §3) and mirror the §4.2 reader exactly:
+
+| Step | Record slot | Bytes |
+|---|---|---|
+| signature | 28 raw write, 8 bytes | `45 51 5A 42 31 23 23 23` `EQZB1###` (exemplar, `0x00AAF390`); `CQZB1###` (cohort, built on the stack) |
+| parent key | 49 `SetFieldResKey` | type, group, instance as 3 × u32; **all zero** when there is no parent |
+| count | 37 `SetFieldUint32` | number of own properties |
+| per property: ID | 37 `SetFieldUint32` | the property ID (property slot 3) |
+| kind 1 (property answers `0xE52184AB`) | 29 `SetFieldUint8(1)`, then 49 `SetFieldResKey` | `01`, then the held resource's key (3 × u32) |
+| kind 0 (all others) | 29 `SetFieldUint8(0)`, then 50 `SetFieldVariant` | `00`, then the u32 disk tag and the value (persistence §3.6) |
+
+There is no other header: no marker word, no length, no padding. The text signatures are `EQZT1###\r\n` and
+`CQZT1###\r\n`. Worked example: exemplar, no parent, one property `0x20` = Uint32 5 gives (little-endian record)
+`45 51 5A 42 31 23 23 23 | 00×12 | 01 00 00 00 | 20 00 00 00 | 00 | 03 00 00 00 | 05 00 00 00` (tag `0x03` =
+Uint32, foundations §9.2). A kind-0 variant whose tag has no writer (IGZUnknown, VoidPtr) writes its tag and
+fails the whole write (persistence §3.6). The return value is the last write's result; with 0 properties it is
+the count write's result. Which game paths call the manager's save on an exemplar was **not** traced *[unknown]*;
 none is part of loading or simulating a city as far as the load path (§8.1) shows.
 
 ---
