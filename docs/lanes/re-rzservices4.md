@@ -2,6 +2,13 @@
 |---|---|---|---|
 | re-rzservices4: spec cRZLanguageUtility (RZ locale service: names, separators, currency, number/money/time/date formatting, attributes, lifetime) | Claude / .claude/worktrees/re-rzservices4 | ready: docs/specs/language-utility.md | engine lane may implement from the spec; RE: answer Q1 (currency flag writer), trace callers (Q2) |
 
+## Handoff (round 2, 2026-10-21)
+
+- goal: docs/specs/framework-rz-files.md for cRZFile + cRZIniFile (open/read/write/seek/error/ownership; INI syntax, duplicates, defaults, types, encoding, writeback). Language spec (language-utility.md) preserved, no new claims on it.
+- done: docs/specs/framework-rz-files.md written (cRZFile §2, cRZIniFile §3, examples §4, Q2-Q4 §5); commit below.
+- next: finish (report, merge-queue json). Optional: Q2 error-field readers, Q3 runtime round trip.
+- facts: decomp files 1489 / 1406 lines. Round-1 report kept below.
+
 ## Report
 
 - Owner chosen: `cRZLanguageUtility` (vtable 0x00AD1250, 33 slots; the largest RZ class with no spec, 106 KB
