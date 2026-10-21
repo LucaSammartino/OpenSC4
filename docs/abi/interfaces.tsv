@@ -4651,7 +4651,7 @@ cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	9	+0x24	00445b00	cSC424H
 cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	10	+0x28	0091559a	cRZSystemService::OnTick	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; AL = 1, nothing else
 cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	11	+0x2C	00445820	cSC424HourClock::OnIdle	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); AL = 1
 cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	12	+0x30	009d4714	cRZSystemService::GetServiceTickPriority	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; -2,000,000
-cISC43DRender	cSC43DRender	00abab60	8	+0x20	007c9fb0	icf::cSC43DRender::GetViewUtilities	0	0	eax-or-void	medium	re-specs21 (view3d.md)
+cISC43DRender	cSC43DRender	00abab60	8	+0x20	007c9fb0	cSC43DRender::GetViewUtilities	0	0	eax	high	re-answers9 LG21: borrowed, not a GZCOM object; view rotation int32 at +0x10
 cISC43DRender	cSC43DRender	00abab60	0	+0x0	007c1890	cSC43DRender::QueryInterface	8	2	eax-or-void	medium	re-specs21 (view3d.md)
 cISC43DRender	cSC43DRender	00abab60	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	re-specs21 (view3d.md)
 cISC43DRender	cSC43DRender	00abab60	2	+0x8	007c3060	cSC43DRender::Release	0	0	eax-or-void	medium	re-specs21 (view3d.md)
