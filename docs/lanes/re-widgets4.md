@@ -1,15 +1,31 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-widgets4 (widget toolkit spec: cGZWin base window + cRZWinKeyAccelerator) | `re-widgets4` / (RE lane) | in progress (round 3): widget-toolkit.md section 17 (draw rectangles, child_private_buffers, invalidation, converters, params, EnumChildren, SortChildren, placement, colours) | 1. cRZWinKeyAcceleratorRes parser 0x00984587. 2. remaining cGZWin gaps in section 12. |
+| re-widgets4 (widget toolkit spec: cGZWin base window + cRZWinKeyAccelerator) | `re-widgets4` / (RE lane) | ready (round 3, final): widget-toolkit.md section 17 + 4.3 rows (draw rectangles, child_private_buffers, invalidation, converters, params, EnumChildren, SortChildren, placement, colours, reordering steps); commits 5559eedf, c4b9b64f; no engine/ABI change; REA not used | 1. cRZWinKeyAcceleratorRes::SerialRead 0x00984587 (2579 bytes, not started). 2. cGZWin slot meanings of draw context/buffer/GS/WCM, create_private_buffer internals, +0xA0..+0xA4 (WT2). 3. cGZWinGen, then widgets. |
 
-## Handoff (round 3)
+## Report (round 3, final)
 
-- Goal: finish the section 12 cGZWin gaps, then cRZWinKeyAcceleratorRes parser 0x00984587.
-- Done: section 17 (17.1 draw/origin/blit rectangles with worked example, 17.2 child_private_buffers, 17.3
-  invalidation, 17.4 converters/forwarders, 17.5 params, 17.6 EnumChildren/SortChildren, 17.7 Center/Fit,
-  17.8 colours/transparency); quirks 11-14; tests 17-21; section 2 rows +0x24/+0x34/+0xB8; section 12 row updated.
-- Next: parser 0x00984587 (only if budget allows), then final report + merge-queue file.
-- Facts: all evidence from re_query.py asm; REA not used. Draw-system service 0x4B2EA3B3 cached at 0x00BAC060/05C.
+What changed (docs/specs/widget-toolkit.md only; no engine/ABI change):
+- 5559eedf: section 17. 17.1 the three rectangles: draw area +0x24, draw origin rectangle +0x34 (feeds draw-context
+  slots 8/6), blit rectangle +0xB8 (recalc_blt_area 0x0099C7BA); SetAreaToDrawTo 0x0099CF6A two cases incl. the
+  once-cached service 0x4B2EA3B3 that moves the draw area to (0,0,W,H), overlay absolute-position rule, worked example;
+  the two Recursive walkers. 17.2 child_private_buffers 0x0099D645 table. 17.3 InvalidateSelf/SelfAndParents/
+  AllParents (overlay stops). 17.4 converters and forwarders. 17.5 GetParam (AddRefs), SetParam (release before
+  AddRef; null removes), EnumParams. 17.6 EnumChildren (empty -> false, IID 0x22BA0121 path), SortChildren
+  (restarting stable insertion sort, default unsigned-ID comparator 0x0099BC0E, flag 0x800 windows not moved unless
+  moveAll). 17.7 CenterWindowInRect (truncating /2) and FitRectToWindow (asymmetric clamp) with examples. 17.8 colour
+  conversion and the transparency helpers. Section 2 rows +0x24/+0x34/+0xB8; quirks 11-14; tests 17-21.
+- c4b9b64f: 4.3 rows ChildStepFront/Back, ChildMoveRelative, IsWinInChildChain; MoveRelativeTo argument order;
+  GZOnSetFocus/GZOnMouseWheel defaults; section 12 coverage row.
+Painting, cursor, key-equivalent and WT4 text from rounds 1-2 untouched.
+
+Evidence: re_query.py asm of every cited function (addresses in the spec); REA not queried.
+
+Owner coverage (honest): cGZWin specified for everything listed in section 12 except: draw-context/buffer/graphics-
+system/colour-manager slot meanings (cited by number), create_private_buffer internals, +0xA0..+0xA4 (WT2), open
+questions WT1-WT3, WT5, WT6. So cGZWin is NOT complete. cRZWinKeyAccelerator 16/16; cRZWinKeyAcceleratorRes parser
+SerialRead 0x00984587 (2579 bytes) not started. cGZWin* widgets, cGZLegacyControl, cGZUIScript*, cHTML*, cGZGraph,
+cGZ*Graph, cSC4ScriptedWindowCOMDirector: not specified.
+Questions: none new; none answered this round.
 
 ## Report (round 2)
 
