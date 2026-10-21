@@ -533,6 +533,20 @@ Then the occupant's model holder (slot `+0x4C`), when present, is AddRef'd, clea
 | M11 Messages | each ID of §5 | DoMessage returns true; `0x4AB04CBE` has no effect |
 | M12 Detail option | option `0x16` returns 5, then -3, then 1 | `0x00B216FC` = 2, 0, 1 |
 
+Round 2 cases (§6, §7, §9, §10):
+
+- M13 (§7.1): memory 512 MiB → radii 256, 128, 64, 32, 16; memory 8 MiB → 8, 8, 6, 6, 6 (minimums).
+- M14 (§7): F(2.5) = 2, F(3.0) = 2 (odd integer), F(4.0) = 4; C(2.5) = 3, C(3.0) = 4, C(4.0) = 4.
+- M15 (§7.2): visible rect (100, 40, 300, 200) m, zoom 2, radius 64, city 256 × 256, loader off → before growth
+  (6, 2, 19, 13) (100/16 = 6.25, 40/16 = 2.5, 300/16 = 18.75, 200/16 = 12.5); after growth and clamping
+  (0, 0, 83, 77).
+- M16 (§7.3): city 64 × 64, L = (10, 20, 30, 40) → (0, 0, 63, 19), (0, 41, 63, 63), (0, 20, 9, 40),
+  (31, 20, 63, 40).
+- M17 (§6.4): zoom 2, rotation 1 → mask 0x110; a holder word 0x110 (or 0x7FC) is excluded, 0x10 or 0x100 is
+  included; no holder → included.
+- M18 (§9.2): lot state message with slot `+0x24` = A and `+0x38` = B → `ApplyStateEffectToModels(o, t, B, A)`.
+- M19 (§10.1): oldZoom = newZoom and oldRot = newRot → no state change at all (`+0xC2` stays as it was).
+
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
 Specified: 13942 bytes; remainder (not yet specified or only outlined): 20763 bytes. The remainder is **not empty**,
