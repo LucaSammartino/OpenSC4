@@ -6,7 +6,8 @@
 
 - Goal round 3: close render3d.md §7 groups: dirty merge scoring (R3D-3) + rect filter 0x007C2C70, picking, backing store, view updates.
 - Done: merge scoring + rect filter + R3D-3 answered (§5 item layout, §6.1, D1-D6).
-- Next: picking 0x007C2220/0x007C6830.
+- Done: §11 view objects, IsModelVisible, Pick x2, PickTerrain x2, PickTerrainAlways screen (ray one outline). REA unavailable (no binary open).
+- Next: backing store Create/Destroy/Save/Restore/Reevaluate, then view updates.
 
 ## Round 2 report
 

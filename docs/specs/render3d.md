@@ -370,9 +370,10 @@ overloads and the per-frame `SetShakeOffsets` are §10. Fields used here: `+0x08
 
 ## 7. Remaining owner methods (not specified here or in view3d.md)
 
-Picking: `Pick` ×2 (`0x007C2220`, `0x007C6830`), `PickTerrain` ×2 (`0x007C35C0`, `0x007C5000`), `PickTerrainAlways` ×2
-(`0x007C50F0`, `0x007C7E20`), `IsModelVisible` ×2, `FindViewObject`, `AddViewObject`, `RemoveViewObject`,
-`InsertIntoViewObjectList`, `FindInViewObjectList`. Lifecycle (`Init`, `Shutdown`, `ReadProperties` are §9): `SetGraphicSystem`, `SetGDriver`, `StaticSetGDriver`, `StaticShutdown` (outline:
+Picking (§11 covers view objects, `IsModelVisible`, both `Pick`, both `PickTerrain` and the screen
+`PickTerrainAlways`): the ray `PickTerrainAlways` (`0x007C7E20`) clip arithmetic (precision, order, the point
+insert helper `0x007C6EC0`) is outline only (§11.6); `GetViewportRayContainerRect` and the quad-grid cell query
+`0x005F2C70` used by `Pick`. Lifecycle (`Init`, `Shutdown`, `ReadProperties` are §9): `SetGraphicSystem`, `SetGDriver`, `StaticSetGDriver`, `StaticShutdown` (outline:
 releases the globals `0x00B4E1EC`, `0x00B4E1F0`, `0x00B4E1F4` once, destroying the backing store first),
 destructor body `0x007CA020`. (Shake is complete: §6.3 and §10.)
 Backing store: `CreateBackingStore`, `DestroyBackingStore`, `SaveBackingStore`, `RestoreBackingStore` ×2,
@@ -634,3 +635,117 @@ Cases (shake):
 - S4. Zoom 3 (`steps` = 1): offsets are scaled by 0.6; zoom 4 or 5: unscaled; zoom 1: 0.216.
 - S5. Sum 2.5 → offset 2; 3.5 → 4; −2.5 → −2 (half to even).
 - S6. Preference byte `+0x2DC` clear: `Draw` writes zero offsets and never advances phases or removes nodes.
+
+---
+
+## 11. View objects, visibility and picking *[compat]*
+
+Evidence: decomp/cSC43DRender.c cross-checked with re_query asm at the cited addresses. REA was unavailable this
+round (no binary open), so nothing here comes from it.
+
+### 11.1 View-object lists
+
+Four circular doubly linked lists of **16-byte** nodes {next, prev, object, key}, sorted by key, plus one
+special object pointer:
+
+| Field | `AddViewObject` type | Notes |
+|---|---|---|
+| `+0x190` | 0 | adding or removing clears `+0x65` (backing store must be saved again) |
+| `+0x194` | 2 | same, clears `+0x65` |
+| `+0x188` | 3 | |
+| `+0x18C` | 5 | |
+| `+0x198` | none | terrain view object: set from the global `0x00B43CF4` (AddRef) by the PostCityInit message `0x26D31EC1` when still null |
+
+- `AddViewObject(object, type, key)` (slot 32, `0x007C5D90`): types 3, 5, 0, 2 as in the table (tested in that
+  order); any other type returns 0 and does nothing. Otherwise inserts and returns 1.
+- `InsertIntoViewObjectList(list, object, key)` (`0x007C5C80`): AddRefs the object, walks from the head and inserts
+  the new node **before the first node whose key is greater** (unsigned compare); none → append at the tail. Equal
+  keys keep insertion order. Duplicates are not checked: the same object can be inserted twice.
+- `FindInViewObjectList(list, object)` (`0x007C3B30`): true when any node holds the object.
+- `FindViewObject(object)` (slot 34, `0x007C52F0`): true if object equals `+0x198` (so `FindViewObject(null)` is
+  true while no terrain view is set); else searches `+0x18C`, `+0x188`, `+0x194`, `+0x190` in that order.
+- `RemoveViewObject(object)` (slot 33, `0x007C5AC0`): if it equals `+0x198`, releases it (when non-null), sets
+  `+0x198` = null, result 1. Then removes the **first** matching node from each of `+0x18C`, `+0x188`, `+0x194`,
+  `+0x190` (one per list), releasing the object once per removed node; a removal from `+0x194` or `+0x190` clears
+  `+0x65`. Returns 1 if anything matched, else 0.
+
+### 11.2 `IsModelVisible`
+
+Both overloads (slot 67 `0x007C5260`, slot 68 `0x007C51D0`) take (x, frustumKind). Slot 68 takes the model itself;
+slot 67 takes an object whose `+0x18` holds the model (a grid element). The box starts as the empty box min
+(1, 1, 1) / max (0, 0, 0) and is filled by model slot `+0x20` (world bounding box). frustumKind **2** →
+`SC4ViewUtilities::IsBoundingBoxInViewFrustum` (`0x007F6770`), any other value →
+`IsBoundingBoxInDrawFrustum` (`0x007F6910`), both on the view-utilities object `+0x114`; the result is returned in
+AL (`0x007C52A7`).
+
+### 11.3 Screen-point overloads
+
+All three convert the screen point (x, y) to floats (`FILD`) and ask the 3D camera `+0x88` for the eye ray
+(`cS3DCamera::GetEyeRay` `0x00800340`, origin and direction both pre-set to the zero vector `0x00B4E1F8`).
+
+| Overload | Needs | Ray handling | Forwards to |
+|---|---|---|---|
+| `Pick(x, y, filter, out)` slot 65 `0x007C2220` | camera | GetEyeRay result **ignored** | slot 64 `Pick(x, y, origin, dir, filter, out)` |
+| `PickTerrain(x, y, out, fallback, extra)` slot 60 `0x007C5000` | camera and `+0x198` | GetEyeRay false → 0 | slot 61 with dir normalised |
+| `PickTerrainAlways(x, y, out, extra)` slot 62 `0x007C50F0` | camera and `+0x198` | GetEyeRay false → 0 | slot 63 with dir normalised |
+
+Normalisation (`0x007C506C`–`0x007C50C7`): s = 1.0 (float `0x00B0DC20`) / sqrt(dy² + dx² + dz²), all in x87
+extended precision (no intermediate float rounding); each component = component × s rounded to float on store. No
+camera: all three return 0.
+
+Cases:
+
+- P1. `AddViewObject(o, 3, 5)`, `(p, 3, 2)`, `(q, 3, 5)` → list `+0x188` order p, o, q; each AddRef'd once.
+- P2. `AddViewObject(o, 1, 0)` → returns 0, no AddRef. `AddViewObject(o, 0, 0)` → `+0x65` = 0.
+- P3. o added as type 3 and type 0: `RemoveViewObject(o)` removes both nodes, releases twice, clears `+0x65`,
+  returns 1; a second call returns 0.
+- P4. `PickTerrain` ray: terrain misses at origin y = 100 and hits at y = 104 → result 1 from the second call;
+  both miss with fallback 0 → 0 without the ground-plane test.
+- P5. `Pick` ray with no candidates and a terrain hit → returns 0, `*out` null.
+- P6. Screen `PickTerrain` with eye-ray direction (0, −3, 4) passes (0, −0.6, 0.8).
+
+### 11.4 `PickTerrain(origin, dir, out, fallback, extra)` (slot 61, `0x007C35C0`)
+
+Returns 0 at once when `+0x198` is null. Queries `+0x198` for IID `0x6771477D` (`cISTETerrainView3D2`).
+
+1. Attempt with the ray as given: with the interface, its slot 3 (`+0xC`)(origin, dir, drawContext `+0x11C`, out,
+   extra); without, `+0x198` slot 4 (`+0x10`)(origin, dir, drawContext, out) (extra dropped). Both get copies.
+2. Miss → the same call again with the origin raised by **4.0** (float add of `0x00A8E17C` to y), direction
+   unchanged.
+3. Miss and the byte `fallback` is non-zero → `SC4ViewUtilities::RayIntersectsGroundPlane` (`0x007F6B50`) on `+0x114`
+   with the **original** origin, dir and out.
+4. Releases the interface if it was obtained; returns the hit flag in AL.
+
+### 11.5 `Pick(x, y, origin, dir, filter, out)` (slot 64, `0x007C6830`)
+
+1. `*out` = null; the candidate vector `+0x128..+0x12C` is emptied; maximum distance = FLT_MAX (3.4028235e38).
+2. `GetViewportRayContainerRect(x, y)` gives a quad-grid rect; with a quad grid `+0x120`, its cell lists for that
+   rect (`0x005F2C70`, at most 6) are walked and each element not yet marked (element byte `+6` bit `0x02`) is
+   marked and appended to the candidate vector (each element once).
+3. Terrain occluder, only with `+0x198`: `+0x198` slot 4 (origin, dir, drawContext, hit). Hit → maximum distance =
+   |hit − origin| (x87 sqrt, stored float). Miss → retry with origin.y + 4.0; a hit there measures the distance from
+   the **raised** origin; origin.y is then lowered by 4.0 again (`0x007C6ADA`, float subtract, so y returns to its
+   value up to float rounding).
+4. For each candidate element in vector order, model = element `+0x18`:
+   - with a filter: model slot 3 (`+0xC`) must return an object that answers IID `0x26BB767E`, and the filter's
+     slot 3 (`+0xC`) on that interface must return true (the interface is released after the call); otherwise
+     skip;
+   - model slot 11 (`+0x2C`) is called with the pick record {origin xyz, dir xyz, x, y, filter, max distance}
+     (record at `ESP+0x64`). True → result = 1, the previous `*out` is released, `*out` = model, AddRef.
+   - clears the element mark bit `0x02`.
+   The model's hit test is expected to shrink the record's distance on a hit, so the last model that reports a hit
+   is the closest one; the renderer itself does not compare distances.
+5. Returns 1 if any model hit, else 0 (the terrain hit only limits the distance; it is not a result).
+
+### 11.6 `PickTerrainAlways(origin, dir, out, extra)` (slot 63, `0x007C7E20`) *[outline]*
+
+Returns 0 when `+0x19C` is null. A hit from slot 61 (origin, dir, out, fallback 0, extra) returns 1 unchanged.
+Otherwise, when dir.y > −1e-5 (ray not pointing down) returns 0. Else it builds a polyline of homogeneous points
+(w = 1.0) from the origin to the ray's y = 0 point (origin − dir × origin.y / dir.y), clips it against the four city
+edges at 0.01 inside the map (x ≥ 0.01, z ≥ 0.01, x ≤ 16·W − 0.01, z ≤ 16·D − 0.01, with W, D from `+0x19C` slots
+`+0x1C` and `+0x20`), projecting outside points onto the edge and inserting a point where the line crosses, then
+tries slot 61 on each segment p[k]→p[k+1] (direction p[k+1] − p[k], fallback 0), accepting a hit only when
+(hit − p[k+1])·(p[k+1] − p[k]) ≤ 0 (not beyond the segment end); the last segment is tried with fallback 1. On a
+hit, the hit is slid back onto the original ray at its own height: t = (hit.y − origin.y) / dir.y,
+hit.x = origin.x + t·dir.x, hit.z = origin.z + t·dir.z. Float precision and operation order of the clip are not
+verified against the instructions (§7).
