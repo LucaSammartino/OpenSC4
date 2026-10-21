@@ -179,6 +179,7 @@ into the emulator and run the shipped bytes against the rules above (model: `spa
 | `span8_blt.py via 100` | the same through RenderBlt with records by pointer | 168/168 |
 | `span8_sweep.py 4` | every 16-bit texel (256 for 8-bit, 65 536 random 32-bit with alpha 0/255) per slot, 4 colours | 168/168 |
 | `span8_alias.py 200` | source aliased onto the destination (§1 overlap rule) | 168/168 |
+| `span8_bridge.py` | §10 on a constructed type-2 fixture: buffer Init stride/size, colour map = 0 (both classes), context Init renderer per type 0–11 (fail paths leave the lock), destination record, SetColorTable, DrawPreclippedSpanList solid/alpha writes 0 (heap alloc/free stubbed) | PASS |
 
 ## 9. Open points
 
@@ -259,7 +260,9 @@ the record is not refreshed per draw.
   then allocates storage (`0x00826A50`): row stride = `(width × (bpp >> 3) + 3) & ~3` (rows padded to 4 bytes),
   `stride × height` bytes from the global heap, not cleared here; pointer `+0x3C`, stride `+0x40`, bytes per pixel
   `bpp >> 3` (vfunc `+0x44` = `bpp >> 3` of `+0x10`). Example: Init(10, 3, 2, 8) → stride 12, 36 bytes, 1 byte per
-  pixel. A type-2 buffer is just this layout with 1 byte per pixel; the buffer itself attaches no palette.
+  pixel. A type-2 buffer is just this layout with 1 byte per pixel and **no palette**: the storage set-up
+  (`0x00826390`, vfunc `+0xB4`) fetches a palette service only for types 1 and 3, so type 3 is the paletted 8-bit
+  format (rejected by the context, §10.3) and type 2 the unpaletted one.
 - **Lock** (`+0x18`, `0x00826AA0`, flags; `ret 4`): false if there is no storage; otherwise increments the 16-bit
   lock count `+0x38`, ORs the flags into `+0x44`, and if flag bit 15 (`0x8000`) is set also increments the change
   counter `+0x30`; true. **Unlock** (`+0x1C`, `0x00826490`): decrements the count, clears the flags; always true.
