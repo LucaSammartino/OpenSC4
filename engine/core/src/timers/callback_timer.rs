@@ -69,6 +69,9 @@ struct State {
 
 type Shared = Arc<Mutex<State>>;
 
+/// The last key handed out and the live timers by key.
+type Members = (TimerKey, HashMap<TimerKey, Weak<Mutex<State>>>);
+
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
@@ -77,7 +80,7 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// (`0x00B62A9C` / `0x00B62AA8`), with the built-in default service and the
 /// framework lookup.
 pub struct CallbackTimerSet {
-    timers: Mutex<(TimerKey, HashMap<TimerKey, Weak<Mutex<State>>>)>,
+    timers: Mutex<Members>,
     default_service: Arc<dyn TimerService>,
     locator: Option<Arc<dyn ServiceLocator>>,
 }
