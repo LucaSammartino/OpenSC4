@@ -6,11 +6,15 @@ line per event instead of re-reading status (monitor), no spawn when the machine
 not landed (slots, check), measured cost per lane (ledger) and a ready-made context pack per lane (brief).
 
   python tools/lanes.py slots   [--game-slots N] [-v]
-  python tools/lanes.py check   <lane> [--deps a,b] [--touches k1,k2]
+  python tools/lanes.py check   <lane> [--deps a,b] [--touches k1,k2] [--kind engine|re|tool|mech]
   python tools/lanes.py wait    (--verdict <label> | --file <path> [--pattern <regex>]) [--timeout 540]
   python tools/lanes.py monitor [--interval 30]
   python tools/lanes.py ledger  [--out build-runs/lane-ledger.tsv] [--md docs/token-ledger.md]
   python tools/lanes.py brief   <subsystem-or-key> [--kind engine|re]
+  python tools/lanes.py stop    "<reason>"      (the STOP flag: no lane starts or restarts, running lanes hand off)
+  python tools/lanes.py go                       (clears it)
+  python tools/lanes.py unpark  <lane>           (release a lane the guard parked)
+  python tools/lanes.py guard   [<lane>]         (lane-guard state: calls since commit, trips, parked lanes)
 
 Global option --repo <main checkout> reads another checkout's build-runs, worktrees and docs (read-only use from a
 lane or from a test); without it the checkout that holds this file is used, and the main checkout is found through
@@ -39,6 +43,16 @@ GIT_ENV = dict(os.environ, GIT_OPTIONAL_LOCKS="0")
 PRUNE = {".git", "target", "node_modules", "__pycache__", "dlls", "sc4slots"}
 STALL_MIN = 60          # monitor: minutes without a file change before a lane is called stalled
 ACTIVE_MIN = 30         # slots: a worktree with a file changed within this many minutes is working
+
+
+def laneguard():
+    """.claude/lane-bin/laneguard.py (the PreToolUse lane guard): the STOP flag, parking and the REA pre-flight live
+    there so the hook, the workflow's gate agent and this tool read the same files."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("laneguard", SCRIPT_ROOT / ".claude" / "lane-bin" / "laneguard.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -325,6 +339,8 @@ def active_lanes(ctx):
 
 
 def cmd_slots(ctx, a):
+    lg = laneguard()
+    stop = lg.read_stop(str(ctx.main))
     cpus = os.cpu_count() or 4
     gs, gsrc = game_slots(ctx, a.game_slots)
     cap = min(16, cpus * 3 // 4, gs * 2 + 4)
@@ -332,7 +348,9 @@ def cmd_slots(ctx, a):
     load = cpu_load()
     lanes = active_lanes(ctx)
     n = len(lanes)
-    if free_gb < a.min_free_gb:
+    if stop:
+        word = f"STOP: {stop['reason']} (since {stop['since']}; lanes.py go clears it)"
+    elif free_gb < a.min_free_gb:
         word = "low disk"
     elif n >= cap:
         word = "at cap"
@@ -346,7 +364,42 @@ def cmd_slots(ctx, a):
             f"cpu load {'?' if load is None else f'{load:.0f}%'} (busy at {a.busy_pct:.0f}%)")
         for r in lanes:
             out(f"  {r['name']}  branch {r['branch']}  last change {fmt_age(r['age'])} ago")
+        for line in lg.status_lines(str(ctx.main))[1:]:
+            out(f"  guard: {line}")
     return 0 if word == "spawn ok" else 1
+
+
+def cmd_stop(ctx, a):
+    lg = laneguard()
+    lg.write_stop(str(ctx.main), a.reason)
+    out(f"STOP set: {a.reason}")
+    out("  the fc4-lane workflow refuses to start or restart a round; running lanes are told by the lane guard to "
+        "commit their Handoff and return. The merge train still lands what is queued. Clear with: lanes.py go")
+    return 0
+
+
+def cmd_go(ctx, a):
+    lg = laneguard()
+    st = lg.read_stop(str(ctx.main))
+    if lg.clear_stop(str(ctx.main)):
+        out(f"STOP cleared (was: {st['reason']}, since {st['since']})")
+    else:
+        out("no STOP flag was set")
+    return 0
+
+
+def cmd_unpark(ctx, a):
+    lg = laneguard()
+    pr = lg.park_reason(str(ctx.main), a.lane)
+    lg.unpark(str(ctx.main), a.lane, a.note or "")
+    out(f"{a.lane}: released" + (f" (was parked: {pr})" if pr else " (it was not parked)"))
+    return 0
+
+
+def cmd_guard(ctx, a):
+    for line in laneguard().status_lines(str(ctx.main), a.lane):
+        out(line)
+    return 0
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -368,6 +421,19 @@ def queue_json_files(ctx, include_merged=False):
 def cmd_check(ctx, a):
     lane = a.lane
     reasons = []
+    # 0. the lane guard's gates: the STOP flag, a parked lane, and for RE lanes a reachable REA server
+    lg = laneguard()
+    stop = lg.read_stop(str(ctx.main))
+    if stop:
+        reasons.append(f"STOP flag set: {stop['reason']} (since {stop['since']}; lanes.py go clears it)")
+    pr = lg.park_reason(str(ctx.main), lane)
+    if pr:
+        reasons.append(f"lane parked: {pr} (lanes.py unpark {lane})")
+    kind = a.kind or ("re" if lane.startswith("re-") else "engine")
+    if kind == "re":
+        ok, line = lg.rea_check(handshake=not a.no_rea_handshake)
+        if not ok:
+            reasons.append(line + " (an RE lane without REA explores without output: re-answers35, 2,789 calls)")
     allb, merged = branch_sets(ctx)
     # 1. dependencies must be on main
     for dep in [d.strip() for d in (a.deps or "").split(",") if d.strip()]:
@@ -718,18 +784,18 @@ def analyse_run(j):
         if pre == "merge":
             r["merge_tok"] += tok
             r["is_lane_run"] = True
-        elif pre in ("lane", "re"):
+        elif pre in ("lane", "re", "gate"):     # gate: the fc4-lane pre-flight agent, part of the lane's cost
             r["lane_tok"] += tok
             r["is_lane_run"] = True
         else:
             r["other_tok"] += tok
-        if pre in ("lane", "re", "merge") and nm:
-            L = r["lanes"].setdefault(nm, {"lane_tok": 0, "merge_tok": 0, "calls": 0, "ms": 0, "pre": pre,
-                                           "mc": ""})
+        if pre in ("lane", "re", "merge", "gate") and nm:
+            L = r["lanes"].setdefault(nm, {"lane_tok": 0, "merge_tok": 0, "calls": 0, "ms": 0,
+                                           "pre": "lane" if pre == "gate" else pre, "mc": ""})
             L["merge_tok" if pre == "merge" else "lane_tok"] += tok
             L["calls"] += e.get("toolCalls") or 0
             L["ms"] += e.get("durationMs") or 0
-            if pre != "merge":
+            if pre in ("lane", "re"):
                 L["pre"] = pre
             if pre == "merge":
                 L["mc"] = merge_commit_of(e) or L["mc"]
@@ -1354,6 +1420,18 @@ def main(argv=None):
     p.add_argument("--deps", help="comma-separated branches that must already be on main")
     p.add_argument("--touches", help="comma-separated keys other unmerged lanes must not mention")
     p.add_argument("--stale-days", type=float, default=3, help="an unmerged lane idle longer than this is ignored")
+    p.add_argument("--kind", choices=("engine", "re", "tool", "mech"),
+                   help="lane kind (default: re for lanes named re-*, else engine); re adds the REA pre-flight")
+    p.add_argument("--no-rea-handshake", action="store_true", help="re: skip starting a probe REA server")
+
+    p = sub.add_parser("stop", help="set the STOP flag: no lane starts or restarts until 'go'")
+    p.add_argument("reason")
+    sub.add_parser("go", help="clear the STOP flag")
+    p = sub.add_parser("unpark", help="release a lane the guard parked (two rounds blocked on the same thing)")
+    p.add_argument("lane")
+    p.add_argument("--note", default="")
+    p = sub.add_parser("guard", help="lane-guard state: STOP, calls since commit, trips, parked lanes, guard errors")
+    p.add_argument("lane", nargs="?")
 
     p = sub.add_parser("wait", help="block until a game verdict or a file appears (one call instead of polling)")
     p.add_argument("--verdict", help="game label: waits for build-runs/game-results/<label>.verdict")
@@ -1385,7 +1463,7 @@ def main(argv=None):
         pass
     ctx = Ctx(a.repo)
     fn = {"slots": cmd_slots, "check": cmd_check, "wait": cmd_wait, "monitor": cmd_monitor, "ledger": cmd_ledger,
-          "brief": cmd_brief}[a.cmd]
+          "brief": cmd_brief, "stop": cmd_stop, "go": cmd_go, "unpark": cmd_unpark, "guard": cmd_guard}[a.cmd]
     try:
         return fn(ctx, a)
     except KeyboardInterrupt:
