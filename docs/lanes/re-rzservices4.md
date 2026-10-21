@@ -69,3 +69,6 @@
 - Questions: Q1 currency flag writer, Q2 callers/styles, Q3 C runtime output for -0.0 (spec §6; none filed in
   docs/specs/questions/, they are RE-side).
 - Commits: cf0401c7 spec; final commit adds the verified Q4/Q5 rules and this report.
+
+## Coordinator cap
+Parked3/3; no fourth round. File, INI, Directory, OFStream contracts supported; CmdLine slot10 and SysServPtr remain partial/unstarted. Preserve this parked worktree after supported docs land.
