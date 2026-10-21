@@ -7,7 +7,8 @@ Goal: final round: SaveCity(path,flag) 0x00455E20, RequestSaveCity, RequestQuit,
 Done: c6228104 = sections 11.12-11.15 (RequestSaveCity, RequestQuit, RequestQuitFromRegion, 0x00455060 is the
 load-height-field dialog, not a message handler). REA still "No app is open"; all from re_query asm.
 Done: commit 2 = 11.16 SaveCity(path,flag) (temp file, backup `_`, rename), load messages named in 11.9.
-Next: AP1 options in ReadCommandLine 0x0044EED0.
+Done: commit 3 = AP1 answered (section 8 rows), AP4 partial note.
+Next: final report + merge-queue.
 
 ## Report (round 2, 2026-10-21)
 

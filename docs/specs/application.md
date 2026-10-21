@@ -266,14 +266,19 @@ Per-option effects traced in round 2 ("prefs" = the preferences object at +0x3B0
 | `f` / `w` | prefs byte +0xF17 := 1 (full screen) / := 0 (windowed) |
 | `g` | value starting with `p` or `P`: prefs byte +0x4A4 := 1 (the pause-on-focus-loss byte, section 2 slot 18) |
 | `d` | app +0x65C (driver id) := 0 first; then `opengl`/`gl` -> `0xC4554841`, `soft` -> `0x7ACA35C6`, `dx` or `directx` -> `0xBADB6906`; any other value is stored as parsed (hex parser present in the body) |
-| `audio` or `sound` | both names are looked up before one shared value test; on: prefs byte +0x04 := 1 (off path not detailed) |
-| `radio` or `music` | same pattern; on: prefs dword +0x10 := 1 (off path not detailed) |
+| `audio` or `sound` | both names are looked up before one shared value test (`audio` first, `sound` only when `audio` is absent); on: prefs bytes +0x04 and +0x69 := 1; off: both := 0; any other value: no change |
+| `radio` or `music` | same pattern; on: prefs dword +0x10 := 1; off: := 0; other: no change |
+| `ExceptionHandling` | value lower-cased, then three independent tests on the exception-handler object embedded at app +0x1E8 (the object section 2 lists under GetGlyphTextureManager; that export name does not fit this use): `off`/`disabled` -> its enable(0) (`0x0091DF5C`); `on`/`enabled` -> enable(1); `verbose` -> enable(1) and option byte 6 := 1 (`0x0091DEFE`, byte +0x118+index). enable(1) when not yet enabled sets byte +0x120, installs a process-wide unhandled-exception filter (import `0x00A80264`, *[inferred]* SetUnhandledExceptionFilter) and keeps the previous filter at +0x128; enable(0) when enabled restores the previous filter |
+| `l` | the language/locale value as typed: a leading `:` is removed, then a leading `"`, then a trailing `"`; the result is cut to at most 63 characters and copied (NUL-terminated) into the prefs char buffer +0x4AC. Example: `-l:"French"` gives `French` |
+| `UserDir` | value lower-cased for the test only. `off`/`disabled`: the user base folder (section 9, slot +0xE8, string at +0x118/+0x11C) := the folder held at +0xA0/+0xA4 (the base GetPluginDirectory starts from). Otherwise, when the path test `0x00918080` accepts the value as typed (it starts with a letter and passes further checks, not traced), the user base folder := the value; a rejected value changes nothing |
+| `CPUPriority` | only the value `low` (exactly 3 characters after lower-casing) acts: the process priority class is set to `0x40` (idle) through two imports (`0x00A800A0` then `0x00A8009C`, *[inferred]* GetCurrentProcess / SetPriorityClass); any other value: nothing |
+| `AutoZoomChange` | off/disabled -> render properties (app +0x630, section 2 GetRenderProperties) slot +0x24 with (`0x25`, 0); on/enabled -> (`0x25`, 1); other: nothing |
 | `sim` | value parsed as an English-locale float into prefs float +0x470 |
 | `RDD` | on: prefs byte +0x498 := 1; off: := 0 |
 | `CPUCount` | value parsed with `atol` and passed to `0x005F8CD0` |
 
-Still open (AP1, narrowed): `ExceptionHandling`/`verbose`, `l`, `UserDir`, `CPUPriority`,
-`AutoZoomChange` targets, and the off paths of audio/sound and radio/music.
+All options of `ReadCommandLine` are now traced (AP1 answered 2026-10-21). Value matching: `off` and `on`
+are compared as exact 3- and 2-byte strings after lower-casing, `disabled`/`enabled` as whole strings.
 
 **IsStartupResolutionOK(w, h)** (`0x0044BA80`, called by FixStartupResolutionValuesIfNeeded):
 true when the `CustomResolution` option is `on` or `enabled`. Otherwise true only for these
