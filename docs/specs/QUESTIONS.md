@@ -28,6 +28,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AT | automata |
 | AU | aura |
 | BQ | budget |
+| BW | budget-window |
 | CB | civic-buildings |
 | CD | city-detail |
 | CK | clock24 |
@@ -93,6 +94,7 @@ generated index: the questions live one file per spec, so read only the file for
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 1 | 37 | A5, AM13, AT21 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
+| budget-window | 5 | 0 | BW6 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 0 | 5 | CD6 | - |
 | city-situation | 0 | 11 | CS12 | - |
@@ -144,4 +146,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **52** | **982** | | |
+| **total** | **57** | **982** | | |
