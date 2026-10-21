@@ -2,7 +2,8 @@
 
 Status: RE spec, lane re-span4444-4, 2026-10-21. Source: SimCity 4 Deluxe GOG 1.1.641 Windows image, Ghidra export
 (`re_query.py asm`) and raw table reads from the image. Every numeric rule below was read from the instructions at the
-cited addresses; nothing is inferred from "usual" RGBA maths.
+cited addresses; nothing is inferred from "usual" RGBA maths. Round 2 (same lane, same day) verified all 168 blit
+kernels by executing their bytes against the model (section 9.5).
 
 Scope: the owner range `0x00847CE0`-`0x00854E10` (172 functions, 51,809 bytes, `tools/coverage-ranges.tsv:21`): the
 five vtable methods, the 166 blit kernels of its `RenderBlt` table that live in the range, and one helper.
@@ -175,11 +176,42 @@ R = G = B = 0xFF; 8888 unchanged. Verified at column 2 of rows 0, 2, 4, 6, 8, 10
   The key compare is present in every column of the keyed rows sampled (rows 1, 3, 13; columns 0-3, 5, 9).
 
 ### 9.5 Verification level
-Fully read: the five methods, the helper, row 0 columns 0-5 and 8, the Blt kernel of every format, the key test
-of column 0 in all seven keyed rows (mask per format; X8R8G8B8 `0x008524C0` masks `0xFFFFFF`), the 8888 widening
-of every unkeyed row. The remaining kernels are covered by the feature
-sweep only (each kernel's column signature - stretch shifts, DIV, MMX multiply, alpha nibble shift - matches its
-column in all 14 rows), not by a line-by-line read; see U4.
+Fully read (round 1): the five methods, the helper, row 0 columns 0-5 and 8, the Blt kernel of every format, the
+key test of column 0 in all seven keyed rows (mask per format; X8R8G8B8 `0x008524C0` masks `0xFFFFFF`), the 8888
+widening of every unkeyed row.
+
+All 168 table entries (round 2) were then checked by **executing the image bytes** against the model of 9.1-9.4,
+which closes the old feature-sweep gap (U4). Method and criteria, so a successor can repeat it:
+1. Byte identity. Each kernel's bytes were disassembled independently of Ghidra (Capstone, from
+   `bin/SimCity4.exe`) and compared with the export's instruction list: 168 functions, 0 mismatches in
+   bytes or mnemonic (Ghidra `JZ/JNZ/JC` = `je/jne/jb`); the only bytes the export omits are 91 alignment
+   fillers inside loops (`lea r,[r]`, `nop`, `mov edi,edi`), which have no effect.
+2. Text normalization is not enough. With in-function branch targets renamed to ordinal labels and all
+   immediates, displacements and widths kept, no two kernels are textually identical, and kernels of one column
+   differ from row 0 by 5-91 lines (difflib, longer side of each hunk): register allocation, instruction scheduling and stack offsets (one more or one
+   fewer saved register) differ between rows, so a textual "same template, different conversion" proof fails.
+   The constant inventory (AND/CMP/TEST immediates) does follow the row: 4444 rows `0xF..0xF000`, 1555/X555 add
+   `0x1F 0x3E0 0x7C00` and the replication mask `0x70707`, 565 `0x7E0 0xF800` and `0x70007`, keyed rows add
+   their key mask (`0xFFF`, `0x7FFF`, `0xFFFFFF`; the 565 key uses all 16 bits and A8 has no mask, so neither adds
+   a constant), and only the 1555 rows hold `0x1`/`0xFF000000` (the alpha bit).
+3. Execution. A small x86-32 interpreter covering exactly the 35 mnemonics the kernels use (integer ALU with
+   ZF/CF, `DIV`, `IMUL`, the MMX `MOVD/MOVQ/PUNPCKLBW/PXOR/PMULLW/PADDW/PSRLW/PACKUSWB/EMMS`) runs each kernel
+   with the RenderBlt argument block (cdecl, 88 bytes) and random contents: 1-4 spans of 1-25 pixels, random
+   destination pixels, random texels (10 % forced to all-zero or all-one), constant colour random or one of
+   `0xFFFFFFFF, 0, 0x80808080, 0xF0FFFFFF`, keys equal to a masked texel 80 % of the time (A8: key 0 half the
+   time), random entry registers, random values in every field the spec calls unread (U6). Images 5x3, 37x11
+   and 64x16 with row padding; stretch with u0 < 2.0, du/dv < 1.0 texel; tiled with offsets 0..999 and random
+   du/dv (which tiled kernels must ignore). The result is compared pixel by pixel with 9.1-9.4, including the
+   untouched pixel either side of each span.
+   Result: 150 trials per kernel, **168/168 kernels, 747,927 pixels, 0 mismatches**; every kernel returns with
+   ESP restored and EBX/ESI/EDI/EBP preserved. Exhaustive texel sweep (all 65,536 16-bit texels, all 256 A8
+   bytes) for columns 0-3 of rows 0, 2, 4, 6, 12 and column 0 of rows 1, 3, 5, 7, 13: EXHRESULT.
+4. Sensitivity. The same harness with one rule of the model changed fails at once: blend rounding `+7`
+   instead of `+8` (78 kernels fail at 4 trials), constant-alpha weight `a+1` (39), modulate without `+128` (71),
+   4444 key mask `0xFFFF` (all 12 keyed 4444 kernels at 40 trials), tiled start without `u0` (52).
+
+So every rule in 9.1-9.4 is verified on all 168 kernels for the input ranges above. What execution does not
+cover is listed in U5 and U7.
 
 ## 10. Unknowns
 
@@ -188,16 +220,22 @@ column in all 14 rows), not by a line-by-line read; see U4.
 - U2. RenderGradient with R outside 0..255 along a span corrupts the alpha nibble (section 5); whether callers
   ever produce such ramps is not checked.
 - U3. RenderBlt does not validate `src.format`, `src.flag` or `mode`.
-- U4. Kernels not read line by line (section 9.5): stretch/tiled forms of ops 1-3 for every row, and ops 1-3
-  for rows 3, 5, 7, 9, 11 beyond the key test. They are expected to compose 9.1 with 9.2-9.4 but that is not
-  proven instruction by instruction.
+- U4. (Closed in round 2.) The 144 kernels that were only feature-swept are now verified by execution against
+  9.1-9.4 (section 9.5); none differs from the model.
 - U5. Whether the stretch walk ever lets `u >> 16` or `v` run past the source (no clamp in the kernel) depends
   on the caller's u0/du; not checked here.
 - U6. Fields `rectA+8..+0x14`, `rectB+0x10..+0x14` and the bytes of `src` beyond those listed are unread by the
-  examined kernels; their meaning belongs to the caller (`cGZDrawContextRenderToBuffer`).
+  examined kernels; their meaning belongs to the caller (`cGZDrawContextRenderToBuffer`). Round 2: randomizing
+  them (and u0/v0/du/dv for direct kernels, du/dv for tiled kernels, `src+0x10` and bytes `src+0x1D..0x1F`)
+  never changed any kernel's output.
+- U7. Not covered by the execution check: spans wider than 25 pixels or beyond x, y = 65,535; stretch steps of
+  1.0 texel or more and u/v accumulators that wrap 2^32; tiled `x + u0` wrapping 2^32; zero width or height in
+  tiled kernels (the `DIV` would fault); negative strides. The model's formulas are expected to hold there, but
+  only by the reading of 9.1.
 
 ## 11. Coverage proposal
 
-- specified: `nGZDrawSoftRender::cSpanRender4444` (whole owner range, 172 functions, 51,809 bytes), with U4 as
-  the explicit gap: 5 methods + helper + 22 kernels read in full, 144 kernels by signature sweep.
+- specified: `nGZDrawSoftRender::cSpanRender4444` (whole owner range, 172 functions, 51,809 bytes): 5 methods +
+  helper + ~24 kernels read in full; all 168 table entries (166 in range + 2 folded) verified by execution
+  against 9.1-9.4 (section 9.5); remaining limits U1-U3, U5-U7.
 - No ABI rows proposed: the class is internal to `cGZDrawContextRenderToBuffer` and has no `docs/abi` rows.
