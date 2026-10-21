@@ -137,14 +137,14 @@ generated index: the questions live one file per spec, so read only the file for
 | command-system | 7 | 0 | GC8 | questions/command-system.md |
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 1 | 49 | EX51 | questions/data-formats.md |
+| data-formats | 2 | 49 | EX52 | questions/data-formats.md |
 | dates | 3 | 0 | DT4 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 43 | DS45 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
-| drawing-fonts | 0 | 6 | FN7 | questions/drawing-fonts.md |
-| effects | 0 | 13 | EF14 | questions/effects.md |
+| drawing-fonts | 8 | 6 | FN15 | questions/drawing-fonts.md |
+| effects | 1 | 13 | EF15 | questions/effects.md |
 | feature-manager | 2 | 0 | FM3 | questions/feature-manager.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
@@ -153,9 +153,9 @@ generated index: the questions live one file per spec, so read only the file for
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | history | 0 | 17 | HW18 | - |
-| html-document | 0 | 4 | HD5 | questions/html-document.md |
+| html-document | 2 | 4 | HD7 | questions/html-document.md |
 | landfill | 0 | 36 | LF7, LG31 | - |
-| landvalue | 0 | 5 | LV6 | - |
+| landvalue | 1 | 5 | LV6 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
@@ -192,8 +192,8 @@ generated index: the questions live one file per spec, so read only the file for
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | simgrid | 1 | 0 | SG2 | questions/simgrid.md |
-| span-render-1555 | 2 | 4 | SR1556 | questions/span-render-1555.md |
-| span-render-4444 | 3 | 1 | SP5 | questions/span-render-4444.md |
+| span-render-1555 | 3 | 4 | SR1556 | questions/span-render-1555.md |
+| span-render-4444 | 4 | 1 | SP6 | questions/span-render-4444.md |
 | span-render-565 | 6 | 0 | SR566 | questions/span-render-565.md |
 | span-render-8 | 3 | 0 | SR9 | questions/span-render-8.md |
 | span-render-8888 | 5 | 0 | SR8889 | questions/span-render-8888.md |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **202** | **1075** | | |
+| **total** | **217** | **1075** | | |
