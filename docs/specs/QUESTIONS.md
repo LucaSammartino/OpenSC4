@@ -24,6 +24,7 @@ generated index: the questions live one file per spec, so read only the file for
 | A | automata |
 | AM | automata |
 | AO | foundations |
+| AP | application |
 | AQ | flora, residential-education-health |
 | AT | automata |
 | AU | aura |
@@ -90,6 +91,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
+| application | 5 | 0 | AP6 | questions/application.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 1 | 37 | A5, AM13, AT21 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -144,4 +146,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **52** | **982** | | |
+| **total** | **57** | **982** | | |
