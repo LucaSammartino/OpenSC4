@@ -601,9 +601,22 @@ U+F70A (form 2); U+0E1B U+0E34 U+0E48 → U+0E1B U+F701 U+F713 (the vowel gets f
   Step 3 runs before Init, so familyName is still the freshly created font's empty name: only a range registered
   under the empty name can apply there (a conforming implementation keys the lookup by that pre-Init name, not by
   the face's family). With +0x18 = +0x1C = 0 the system range holds only size 0. Then Init; failure releases it
-  and returns null. With `cache` the font is recorded in the catalogue entry. Returns an AddRef'd font.
+  and returns null. With `cache` the font is recorded (FN14): when the catalogue map has an entry
+  for the path, the font is appended to that entry's font list; when it has **none**, a **new entry is created**
+  for the path: {font list = [font], family = GetName (slot 5, now the face's family), style = slot 7, kind =
+  faceKind (slot 9), source type 0}, inserted into the catalogue map, and the lower-cased family is added to the
+  family set — so a later family lookup can find a font that was only ever acquired by path. Without `cache` the
+  creator's reference is released after the AddRef (net refcount 1). Returns an AddRef'd font.
 - `FontAcquire(familyList, kind, size, style, cache)` (`0x00894ADF`, slot 11, 5 stack arguments):
   1. Split a lower-cased copy of familyList at ',' (`RZParseDelimitedText`, at most 32 names; n = count).
+     Splitting rules (FN14, `0x00910BD3`): leading blanks (space, tab) of the whole text are skipped and a text
+     that is empty or all blanks gives n = 0. Every unquoted ',' ends a field **even when the field is empty**,
+     so "Arial,,Tahoma" gives 3 names ("arial", "", "tahoma") and ",Arial" gives 2; the part after the last ','
+     becomes a field only when non-empty ("Arial," gives 1). Fields ended by ',' lose trailing blanks; blanks
+     after each ',' are skipped; the last field keeps its trailing blanks (the whole-text trailing trim at
+     `0x00910C0F` tests the first character instead of the last, so it never trims): "Arial , Tahoma " →
+     "arial", "tahoma ". A field that starts and ends with '"' loses both quotes, and ',' inside an odd number of
+     '"' does not split. An empty name is used like any other (it matches only a family whose name is empty).
   2. Substitution walk: for each name i from the last to the first, for each entry of the substitution map
      (+0x4C, in key order; key = substitute family, value = vector of alias strings), for each alias: if
      name i IsEqual alias (string slot 10, flag false) and name i, lower-cased, is not in the installed family
