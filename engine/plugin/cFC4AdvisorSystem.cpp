@@ -19,7 +19,10 @@
 #include "FC4Log.h"
 #include "FC4AdvisorApi.h"
 #include "FC4RefAudit.h"
+#include "FC4Interfaces.h"
+#include "FC4PropCityCommon.h"
 #include "FC4Streams.h"
+#include "cFC4Date.h"
 #include "cFC4Message2Standard.h"
 #include "compat/FC4Compat.h"
 
@@ -33,6 +36,7 @@
 #include "cIGZString.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
+#include "cISC4View3DWin.h"
 #include "cISCLua.h"
 #include "cRZBaseString.h"
 
@@ -299,6 +303,87 @@ bool HasCity(void*) {
 
 uint32_t NowMs(void*) { return static_cast<uint32_t>(GetTickCount()); }  // [choice] the wall clock in ms
 
+// ---- city and simulator reads (§5.1, §13) ------------------------------------------------------------------
+
+// The city the app holds (no reference: GetCity does not AddRef).
+cISC4City* AppCity() {
+    cISC4App* app = App();
+    cISC4City* city = app != nullptr ? app->GetCity() : nullptr;
+    if (app != nullptr) FC4_RELEASE(app);
+    return city;
+}
+
+cFC4ISC4Simulator* CitySimulator() {
+    cISC4City* city = AppCity();
+    return city != nullptr ? fc4::AsGame(city->GetSimulator()) : nullptr;  // borrowed
+}
+
+bool CityEstablishedCb(void*) {
+    cISC4City* city = AppCity();
+    return city != nullptr && city->GetEstablished();  // cISC4City +0x58
+}
+
+bool DifficultyCb(void*, int32_t* out) {
+    cISC4City* city = AppCity();
+    if (city == nullptr || out == nullptr) return false;
+    *out = static_cast<int32_t>(city->GetDifficultyLevel());  // +0x60
+    return true;
+}
+
+void CellCountsCb(void*, uint32_t* x, uint32_t* z) {
+    cISC4City* city = AppCity();
+    if (x != nullptr) *x = city != nullptr ? city->CellCountX() : 0;  // +0x174
+    if (z != nullptr) *z = city != nullptr ? city->CellCountZ() : 0;  // +0x178
+}
+
+// §5.1 step 2: the simulator date, cISC4Simulator +0x1C GetSimDate() (the
+// simulator's own object: no reference is taken or dropped).
+void SimDateCb(void*, fc4_adv_date* out) {
+    if (out == nullptr) return;
+    *out = fc4_adv_date{};
+    cFC4ISC4Simulator* sim = CitySimulator();
+    cFC4IGZDate* d = sim != nullptr ? sim->GetSimDate() : nullptr;
+    if (d == nullptr) return;
+    out->day_number = static_cast<int32_t>(d->DayNumber());
+    out->year = static_cast<int32_t>(d->Year());
+    out->month = static_cast<int32_t>(d->Month());
+    out->day = static_cast<int32_t>(d->DayOfMonth());
+}
+
+// §5.1 step 2.3: the year of the simulator's start date (+0x14 GetSimStartDate
+// into a local date).
+int32_t StartYearCb(void*) {
+    cFC4ISC4Simulator* sim = CitySimulator();
+    if (sim == nullptr) return 0;
+    cFC4Date start;
+    if (!sim->GetSimStartDate(start)) return 0;
+    return static_cast<int32_t>(start.Year());
+}
+
+bool IsAnyPausedCb(void*) {
+    cFC4ISC4Simulator* sim = CitySimulator();
+    return sim != nullptr && sim->IsAnyPaused();  // +0x48
+}
+
+void Deliver(const fc4_adv_out_message* m, bool sync);
+
+// §5.1 tick_self / §10: the ticker 0xCA5501F2 is posted with no target.
+void PostTickerCb(void*) {
+    fc4_adv_out_message m{};
+    m.msg_type = 0xCA5501F2;
+    Deliver(&m, false);
+}
+
+// §6.9: View3D +0xBC AssertGlobalEffectTrigger(id) / +0xC0 Retract (the
+// returned status is not read). No city view: nothing to notify.
+void GlobalEffectCb(void*, uint32_t id, bool assert_) {
+    cISC4View3DWin* v = fc4::propcity::View3D();
+    if (v == nullptr) return;
+    if (assert_) v->AssertGlobalEffectTrigger(id);
+    else v->RetractGlobalEffectTrigger(id);
+    fc4::propcity::Drop(reinterpret_cast<cIGZUnknown*>(v));
+}
+
 void SubscribeCb(void* u, uint32_t kind, int32_t, uint64_t, uint32_t type) {
     if (kind == FC4_ADV_OBJ_SYSTEM) Self(u)->Subscribe(type, true);
 }
@@ -489,6 +574,14 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     h.advisor_window = &AdvisorWindow;
     h.has_city = &HasCity;
     h.now_ms = &NowMs;
+    h.city_established = &CityEstablishedCb;
+    h.difficulty = &DifficultyCb;
+    h.cell_counts = &CellCountsCb;
+    h.sim_date = &SimDateCb;
+    h.start_year = &StartYearCb;
+    h.is_any_paused = &IsAnyPausedCb;
+    h.post_ticker = &PostTickerCb;
+    h.global_effect = &GlobalEffectCb;
     h.subscribe = &SubscribeCb;
     h.unsubscribe = &UnsubscribeCb;
     h.post = &PostCb;
