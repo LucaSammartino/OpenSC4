@@ -86,6 +86,7 @@ generated index: the questions live one file per spec, so read only the file for
 | LV | landvalue |
 | MI | model-instances |
 | MS | mysims |
+| MW | mysim-windows |
 | NB | neighbors, network-bridges |
 | NG | neighbors, network-geometry |
 | NM | network-manager |
@@ -125,6 +126,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RZ | framework-rz-files |
 | SG | simgrid |
 | SL | strings-language |
+| SN | snapshots |
 | SP | span-render-4444 |
 | SR | span-render-1555, span-render-565, span-render-8, span-render-8888 |
 | SV | foundations, ordinance |
@@ -211,6 +213,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-records | 0 | 5 | LR6 | questions/lot-records.md |
 | map-view | 4 | 0 | QV5 | questions/map-view.md |
 | model-instances | 2 | 0 | MI3 | questions/model-instances.md |
+| mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 0 | 12 | MS13 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
@@ -250,6 +253,7 @@ generated index: the questions live one file per spec, so read only the file for
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | simgrid | 1 | 0 | SG2 | questions/simgrid.md |
+| snapshots | 2 | 0 | SN3 | questions/snapshots.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 2 | SP6 | questions/span-render-4444.md |
 | span-render-565 | 6 | 0 | SR566 | questions/span-render-565.md |
@@ -275,4 +279,4 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **266** | **1118** | | |
+| **total** | **270** | **1118** | | |

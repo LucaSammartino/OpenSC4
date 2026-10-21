@@ -4802,7 +4802,7 @@ va	name	source	confidence	note
 005f8690	cSC4WinGameDelay::GZPaint	auto:C	high	mac 005f6100 score 1.0 support 1
 005f88c0	cSC4AutoDisableAppSwitching::~cSC4AutoDisableAppSwitching	auto:D	low	mac 000246ec score 0.5 support 1
 005f88d0	SC4LimitStringLength	auto:B0	medium	mac 00023e08 score 0.965 support 2.0
-005f8970	cSC4WinSnapshotAlbum::CityNameToAlbumName	auto:B3	medium	mac 002b7d18 score 0.838 support 3.0
+005f8970	cSC4WinSnapshotAlbum::CityNameToAlbumName	manual:snapshots.tsv	high	snapshots.md §1.1
 005f8bb0	SC4GetResourceIDFromString	auto:B2	medium	mac 00024344 score 0.919 support 2.5
 005f8d40	SC4DisplayResourceError	auto:A	high	mac 0002456c score 1.0 support 0
 005f8f20	cRZSysServPtr<cISC4AnimationTickManager,2259489005ul,2259489004ul>::~cRZSysServPtr	auto:B1	medium	mac 005f61a8 score 0.803 support 3.0
@@ -8297,33 +8297,33 @@ va	name	source	confidence	note
 0076e470	cSC4GraphsViewWinProc::HideWindow	auto:D	medium	mac 00224008 score 0.5 support 1
 0076e4b0	cSC4GraphsViewWinProc::ShowGraphType	auto:B0	medium	mac 002240e0 score 0.986 support 4.0
 0076e500	cSC4GraphsViewWinProc::DoWinProcMessage	auto:A	high	mac 00224176 score 0.69 support 0
-0076e710	s_sim_select_car	auto:A	high	mac 0024d7e4 score 1.0 support 0
-0076e760	s_sim_select_pedestrian	auto:A	high	mac 0024d86e score 1.0 support 0
-0076e7b0	cSC4MySimWinProc::SetDialogState	auto:A	high	mac 0024d8f8 score 1.0 support 0
-0076e830	cSC4MySimWinProc::AddSim	auto:A	high	mac 0024da0c score 1.0 support 0
-0076e8e0	cSC4MySimWinProc::Hide	auto:B1	medium	mac 0024db0c score 0.945 support 3.0
+0076e710	s_sim_select_car	manual:mysim-windows.tsv	high	mysim-windows.md §1.6
+0076e760	s_sim_select_pedestrian	manual:mysim-windows.tsv	high	mysim-windows.md §1.6
+0076e7b0	cSC4MySimWinProc::SetDialogState	manual:mysim-windows.tsv	high	mysim-windows.md §1.2
+0076e830	cSC4MySimWinProc::AddSim	manual:mysim-windows.tsv	high	mysim-windows.md §1.3
+0076e8e0	cSC4MySimWinProc::Hide	manual:mysim-windows.tsv	high	mysim-windows.md §1.1
 0076e9b0	std::_Rb_tree<int,std::pair<int_const,cISCResExemplar*>,std::_Select1st<std::pair<int_const,cISCResExemplar*>>,std::less<int>,std::allocator<std::pair<int_const,cISCResExemplar*>>>::~_Rb_tree	auto:D	medium	mac 006d8c48 score 0.5 support 1
-0076e9f0	cSC4MySimWinProc::Init	auto:A	high	mac 0024e23c score 0.745 support 0
-0076ed10	cSC4MySimWinProc::Shutdown	auto:B0	medium	mac 0024dba2 score 0.973 support 4.0
-0076ee90	cSC4MySimWinProc::SetTransportButtonImage	auto:A	high	mac 0024dd5e score 0.571 support 0
-0076ef40	cSC4MySimWinProc::AddMessage	auto:D	medium	mac 0024de66 score 0.5 support 1
-0076efb0	cSC4MySimWinProc::RemoveMessage	auto:D	medium	mac 00251a74 score 0.5 support 1
-0076f160	cSC4MySimWinProc::cSC4MySimWinProc	auto:D	medium	mac 00251da6 score 0.5 support 1
-0076f260	cSC4MySimWinProc::GetMessageList	auto:B1	medium	mac 00250bea score 0.892 support 2.0
-0076f450	cSC4MySimWinProc::SetMySimStatWindow	auto:A	high	mac 0024dede score 0.689 support 0
-0076f7c0	cSC4MySimWinProc::GetCurrentSims	auto:A	high	mac 0024f1b2 score 0.679 support 0
-0076fce0	cSC4MySimWinProc::Show	auto:B0	medium	mac 0024f834 score 0.951 support 2.5
-0076fdb0	cSC4MySimWinProc::DisplayVehicleIcons	auto:A	high	mac 0024e630 score 0.809 support 0
-00770420	cSC4MySimWinProc::ShowChooseTransportDialog	auto:A	high	mac 0024ed30 score 0.813 support 0
-00770740	cSC4MySimWinProc::updateBodyTextCtrl	auto:B0	medium	mac 0024f8ce score 0.959 support 15.5
-00771440	cSC4MySimWinProc::SetMySimSmallWindow	auto:B0	medium	mac 00250e1c score 0.977 support 2.5
-00771550	cSC4MySimWinProc::SetMySimLargeWindow	auto:B0	medium	mac 00250d1c score 0.977 support 2.5
-00771660	cSC4MySimWinProc::SetMySimModeWindow	auto:B0	medium	mac 00250f1c score 0.986 support 6.0
-00771940	cSC4MySimWinProc::SetCurrentSim	auto:B0	medium	mac 00251224 score 0.919 support 4.0
-007719f0	cSC4MySimWinProc::SetMySimMainWindow	auto:B0	medium	mac 0025132c score 0.969 support 6.5
-00771b40	cSC4MySimWinProc::BootSim	auto:A	high	mac 00251458 score 1.0 support 0
-00771b90	cSC4MySimWinProc::DoWinProcMessage	auto:A	high	mac 002514c0 score 0.9 support 0
-007721a0	cSC4MySimWinProc::DoMessage	auto:A	high	mac 00251ae8 score 0.74 support 0
+0076e9f0	cSC4MySimWinProc::Init	manual:mysim-windows.tsv	high	mysim-windows.md §1.1
+0076ed10	cSC4MySimWinProc::Shutdown	manual:mysim-windows.tsv	high	mysim-windows.md §1.1
+0076ee90	cSC4MySimWinProc::SetTransportButtonImage	manual:mysim-windows.tsv	high	mysim-windows.md §1.3
+0076ef40	cSC4MySimWinProc::AddMessage	manual:mysim-windows.tsv	high	mysim-windows.md §1.4
+0076efb0	cSC4MySimWinProc::RemoveMessage	manual:mysim-windows.tsv	high	mysim-windows.md §1.4
+0076f160	cSC4MySimWinProc::cSC4MySimWinProc	manual:mysim-windows.tsv	high	mysim-windows.md §1.1
+0076f260	cSC4MySimWinProc::GetMessageList	manual:mysim-windows.tsv	high	mysim-windows.md §1.5
+0076f450	cSC4MySimWinProc::SetMySimStatWindow	manual:mysim-windows.tsv	high	mysim-windows.md §1.2
+0076f7c0	cSC4MySimWinProc::GetCurrentSims	manual:mysim-windows.tsv	high	mysim-windows.md §1.3
+0076fce0	cSC4MySimWinProc::Show	manual:mysim-windows.tsv	high	mysim-windows.md §1.1
+0076fdb0	cSC4MySimWinProc::DisplayVehicleIcons	manual:mysim-windows.tsv	high	mysim-windows.md §1.6
+00770420	cSC4MySimWinProc::ShowChooseTransportDialog	manual:mysim-windows.tsv	high	mysim-windows.md §1.6
+00770740	cSC4MySimWinProc::updateBodyTextCtrl	manual:mysim-windows.tsv	high	mysim-windows.md §1.5
+00771440	cSC4MySimWinProc::SetMySimSmallWindow	manual:mysim-windows.tsv	high	mysim-windows.md §1.2
+00771550	cSC4MySimWinProc::SetMySimLargeWindow	manual:mysim-windows.tsv	high	mysim-windows.md §1.2
+00771660	cSC4MySimWinProc::SetMySimModeWindow	manual:mysim-windows.tsv	high	mysim-windows.md §1.2
+00771940	cSC4MySimWinProc::SetCurrentSim	manual:mysim-windows.tsv	high	mysim-windows.md §1.3
+007719f0	cSC4MySimWinProc::SetMySimMainWindow	manual:mysim-windows.tsv	high	mysim-windows.md §1.2
+00771b40	cSC4MySimWinProc::BootSim	manual:mysim-windows.tsv	high	mysim-windows.md §1.3
+00771b90	cSC4MySimWinProc::DoWinProcMessage	manual:mysim-windows.tsv	high	mysim-windows.md §1.6
+007721a0	cSC4MySimWinProc::DoMessage	manual:mysim-windows.tsv	high	mysim-windows.md §1.4
 007723f0	icf::cSC4GraphsViewWinProc::QueryInterface	folded	folded	2 names: cSC4GraphsViewWinProc::QueryInterface | cSC4NewsTickerWinProc::QueryInterface
 007724c0	cSC4NewsTickerWinProc::Init	auto:A	high	mac 002528e0 score 0.94 support 0
 00772760	cSC4NewsTickerWinProc::RegisterMessageNotification	auto:B0	medium	mac 0025232a score 0.932 support 3.0
@@ -8336,20 +8336,20 @@ va	name	source	confidence	note
 00774450	cSC4PanelUIWinProc::~cSC4PanelUIWinProc	auto:C	high	mac 002849c8 score 1.0 support 1
 00774470	cSC4PanelUIWinProc::DoWinProcMessage	auto:A	high	mac 00284a4e score 0.853 support 0
 00774560	icf::cSC4BudgetUIExpenseWinProc::QueryInterface	folded	folded	4 names: cSC4BudgetUIExpenseWinProc::QueryInterface | cSC4BudgetUIIncomeWinProc::QueryInterface | cSC4BudgetUIWinProc::QueryInterface | cSC4PickSimWinProc::QueryInterface
-007745c0	cSC4PickSimWinProc::EndDialog	auto:B1	medium	mac 00281d7e score 0.915 support 2.0
-00774620	cSC4PickSimWinProc::TickSelf	auto:B1	medium	mac 00282868 score 0.989 support 2.5
-00774690	cSC4PickSimWinProc::SetScrollButtons	auto:A	high	mac 00281f1c score 1.0 support 0
-00774fc0	cSC4PickSimWinProc::ValidateText	auto:A	high	mac 00281dfc score 0.739 support 0
-007750d0	cSC4PickSimWinProc::DoMessage	auto:B0	medium	mac 002828ec score 0.954 support 1.5
-007751a0	cSC4PickSimWinProc::SetupPickSims	auto:B0	medium	mac 00282c3c score 0.972 support 4.5
-007754b0	cSC4PickSimWinProc::SortByName	auto:B1	medium	mac 00282ed2 score 0.967 support 3.0
-007755a0	cSC4PickSimWinProc::MoveIn	auto:A	high	mac 0028313e score 0.664 support 0
-007757f0	cSC4PickSimWinProc::PickHead	auto:A	high	mac 002833fa score 0.709 support 0
-00775be0	SC4InsertNumberIntoString	auto:B1	medium	mac 00281c60 score 0.942 support 2.0
-00775cc0	cSC4PickSimWinProc::Init	auto:A	high	mac 00283db8 score 0.836 support 0
-00776560	cSC4PickSimWinProc::cSC4PickSimWinProc	auto:D	medium	mac 002829d8 score 0.5 support 1
-007766a0	cSC4PickSimWinProc::Shutdown	auto:D	medium	mac 00282b5e score 0.5 support 1
-00776760	cSC4PickSimWinProc::DoWinProcMessage	auto:A	high	mac 002838c8 score 0.764 support 0
+007745c0	cSC4PickSimWinProc::EndDialog	manual:mysim-windows.tsv	high	mysim-windows.md §2
+00774620	cSC4PickSimWinProc::TickSelf	manual:mysim-windows.tsv	high	mysim-windows.md §2
+00774690	cSC4PickSimWinProc::SetScrollButtons	manual:mysim-windows.tsv	high	mysim-windows.md §2
+00774fc0	cSC4PickSimWinProc::ValidateText	manual:mysim-windows.tsv	high	mysim-windows.md §2
+007750d0	cSC4PickSimWinProc::DoMessage	manual:mysim-windows.tsv	high	mysim-windows.md §2
+007751a0	cSC4PickSimWinProc::SetupPickSims	manual:mysim-windows.tsv	high	mysim-windows.md §2
+007754b0	cSC4PickSimWinProc::SortByName	manual:mysim-windows.tsv	high	mysim-windows.md §2
+007755a0	cSC4PickSimWinProc::MoveIn	manual:mysim-windows.tsv	high	mysim-windows.md §2
+007757f0	cSC4PickSimWinProc::PickHead	manual:mysim-windows.tsv	high	mysim-windows.md §2
+00775be0	SC4InsertNumberIntoString	manual:mysim-windows.tsv	high	mysim-windows.md §2
+00775cc0	cSC4PickSimWinProc::Init	manual:mysim-windows.tsv	high	mysim-windows.md §2
+00776560	cSC4PickSimWinProc::cSC4PickSimWinProc	manual:mysim-windows.tsv	high	mysim-windows.md §2
+007766a0	cSC4PickSimWinProc::Shutdown	manual:mysim-windows.tsv	high	mysim-windows.md §2
+00776760	cSC4PickSimWinProc::DoWinProcMessage	manual:mysim-windows.tsv	high	mysim-windows.md §2
 00776f50	cRZAutoRefCount<cIGZDrawContextEngine>::operator=	auto:B2	medium	mac 007aa884 score 0.97 support 1.0
 00776f90	cSC4ProgressScreen::cSC4ProgressScreen	auto:B1	medium	mac 0025e62a score 0.969 support 1.0
 007770b0	cSC4ProgressScreen::DoMessage	auto:A	high	mac 0025e01a score 0.725 support 0
@@ -8774,72 +8774,73 @@ va	name	source	confidence	note
 007b6380	cWinBMPViewGVExtra::SetShouldFitImageAtSizeIn	auto:B1	medium	mac 002b7b28 score 0.97 support 2.0
 007b63d0	cWinBMPViewGVExtra::SetSizeInOut	auto:A	high	mac 002b78c2 score 1.0 support 0
 007b6500	cWinBMPViewGVExtra::DoMessage	auto:C	low	mac 002b7b84 score 1.0 support 1
-007b6510	cSC4WinSnapshotAlbum::end_dialog	auto:B0	medium	mac 002b7c12 score 0.908 support 2.0
-007b6570	cSC4WinSnapshotTaker::Shutdown	auto:C	high	mac 002b7e6a score 1.0 support 1
-007b65d0	cSC4WinSnapshotTaker::RemoveSelf	auto:B0	medium	mac 002b7ed4 score 0.937 support 2.0
-007b6610	cSC4WinSnapshotTaker::GZOnMouseDownL	auto:C	high	mac 002b7f36 score 1.0 support 1
-007b6630	cSC4WinSnapshotTaker::GZOnMouseDownR	auto:C	high	mac 002b7f5e score 1.0 support 1
-007b6680	cSC4WinSnapshotTaker::AdjustPosition	auto:B1	medium	mac 002b7d52 score 0.976 support 2.0
+007b6510	cSC4WinSnapshotAlbum::end_dialog	manual:snapshots.tsv	high	snapshots.md §3.2
+007b6570	cSC4WinSnapshotTaker::Shutdown	manual:snapshots.tsv	high	snapshots.md §2
+007b65d0	cSC4WinSnapshotTaker::RemoveSelf	manual:snapshots.tsv	high	snapshots.md §2
+007b6610	cSC4WinSnapshotTaker::GZOnMouseDownL	manual:snapshots.tsv	high	snapshots.md §2
+007b6630	cSC4WinSnapshotTaker::GZOnMouseDownR	manual:snapshots.tsv	high	snapshots.md §2
+007b6680	cSC4WinSnapshotTaker::AdjustPosition	manual:snapshots.tsv	high	snapshots.md §2
 007b6780	__ZThn228_N11cWinBMPView14QueryInterfaceEmPPv	auto:B0	medium	mac 006fa126 score 0.969 support 1.0
-007b67a0	cSC4WinSnapshotTaker::TakeSnapshot	auto:A	high	mac 002be706 score 0.599 support 0
+007b67a0	cSC4WinSnapshotTaker::TakeSnapshot	manual:snapshots.tsv	high	snapshots.md §2
 007b6870	cWinBMPViewGVExtra::cWinBMPViewGVExtra	auto:D	medium	mac 002b86de score 0.5 support 1
 007b68f0	cWinBMPViewGVExtra::~cWinBMPViewGVExtra	auto:C	high	mac 002b7862 score 1.0 support 1
 007b6940	cWinBMPViewGVExtra::Init	auto:B2	medium	mac 002b7ae0 score 0.885 support 1.0
 007b6970	cWinBMPViewGVExtra::GZOnMouseDownL	auto:B1	medium	mac 002b7a5e score 0.952 support 3.0
-007b69e0	cSC4WinSnapshotAlbum::DoModalWin	auto:B2	medium	mac 002bd5b0 score 0.944 support 2.0
-007b6ad0	cSC4WinSnapshotTaker::GZOnMouseMove	auto:B2	medium	mac 002b7f76 score 0.909 support 1.0
-007b6b30	cSC4WinSnapshotTaker::GZPaint	auto:C	high	mac 002b8010 score 1.0 support 1
-007b6cf0	cSC4WinSnapshotAlbum::convert_album_directory_name_to_album_index	auto:D	medium	mac 002b8c16 score 0.5 support 1
-007b6d90	cSC4WinSnapshotTaker::GoToSizeIndex	auto:B0	medium	mac 002b8444 score 0.992 support 2.0
+007b69e0	cSC4WinSnapshotAlbum::DoModalWin	manual:snapshots.tsv	high	snapshots.md §3.1
+007b6ad0	cSC4WinSnapshotTaker::GZOnMouseMove	manual:snapshots.tsv	high	snapshots.md §2
+007b6b30	cSC4WinSnapshotTaker::GZPaint	manual:snapshots.tsv	high	snapshots.md §2
+007b6cf0	cSC4WinSnapshotAlbum::convert_album_directory_name_to_album_index	manual:snapshots.tsv	high	snapshots.md §3.3
+007b6d90	cSC4WinSnapshotTaker::GoToSizeIndex	manual:snapshots.tsv	high	snapshots.md §2
 007b6ef0	std::list<cRZString,std::allocator<cRZString>>::remove	auto:D	medium	mac 006f42a2 score 0.5 support 1
 007b6f80	std::list<cRZString,std::allocator<cRZString>>::erase	auto:B5	medium	mac 006d3554 score 0.92 support 1.0
-007b6ff0	cSC4WinSnapshotTaker::GZOnKeyDown	auto:A	high	mac 002b857a score 1.0 support 0
-007b7230	cSC4WinSnapshotAlbum::set_image_count_text	auto:A	high	mac 002b7ca2 score 1.0 support 0
-007b72d0	cSC4WinSnapshotAlbum::set_to_no_image_file	auto:A	high	mac 002b8248 score 0.594 support 0
-007b7480	cSC4WinSnapshotTaker::cSC4WinSnapshotTaker	auto:B1	medium	mac 002b8886 score 0.983 support 1.0
-007b7530	cSC4WinSnapshotTaker::CreateWinSnapshotTaker	auto:A	high	mac 002b8948 score 1.0 support 0
+007b6ff0	cSC4WinSnapshotTaker::GZOnKeyDown	manual:snapshots.tsv	high	snapshots.md §2
+007b7230	cSC4WinSnapshotAlbum::set_image_count_text	manual:snapshots.tsv	high	snapshots.md §3.2
+007b72d0	cSC4WinSnapshotAlbum::set_to_no_image_file	manual:snapshots.tsv	high	snapshots.md §3.2
+007b7480	cSC4WinSnapshotTaker::cSC4WinSnapshotTaker	manual:snapshots.tsv	high	snapshots.md §2
+007b7530	cSC4WinSnapshotTaker::CreateWinSnapshotTaker	manual:snapshots.tsv	high	snapshots.md §2
 007b75f0	std::list<cRZString,std::allocator<cRZString>>::sort	auto:B3	medium	mac 005f563c score 0.915 support 2.0
-007b78b0	cSC4WinSnapshotAlbum::set_image_count_text	auto:B1	medium	mac 002b83d6 score 0.948 support 3.0
-007b7910	cSC4WinSnapshotTaker::~cSC4WinSnapshotTaker	auto:C	high	mac 002b878e score 1.0 support 1
-007b7970	cSC4WinSnapshotAlbum::~cSC4WinSnapshotAlbum	auto:C	high	mac 002b8a26 score 1.0 support 1
-007b7990	cSC4WinSnapshotAlbum::AlbumExists	auto:A	high	mac 002b8c84 score 1.0 support 0
-007b7a80	cSC4WinSnapshotTaker::Init	auto:A	high	mac 002b8d08 score 0.899 support 0
-007b7f20	cSC4WinSnapshotAlbum::ObfuscateData	auto:D	medium	mac 002b9d66 score 0.5 support 1
-007b7f90	cSC4WinSnapshotAlbum::GetNewTempFileName	auto:B2	medium	mac 002b990a score 0.937 support 4.0
-007b8330	cSC4WinSnapshotTaker::GetGraphicInfoForCurrentCity	auto:A	high	mac 002b925e score 1.0 support 0
-007b8c70	cSC4WinSnapshotAlbum::cSC4WinSnapshotAlbum	auto:B1	medium	mac 002bb01e score 0.923 support 2.0
-007b8fb0	cSC4WinSnapshotAlbum::album_directory_has_album_entries	auto:B2	medium	mac 002baf2e score 0.877 support 3.5
-007b9140	cSC4WinSnapshotAlbum::get_path_for_info_file	auto:B2	medium	mac 002ba20c score 0.875 support 3.0
-007b9280	cSC4WinSnapshotAlbum::get_path_for_description_file	auto:B0	medium	mac 002b9df6 score 0.875 support 2.0
-007b93c0	cSC4WinSnapshotAlbum::GetInformationOfStandardFile	auto:A	high	mac 002ba3e6 score 0.885 support 0
-007ba030	cSC4WinSnapshotAlbum::SaveInformationOfStandardFile	auto:B3	medium	mac 002ba2c6 score 0.936 support 2.0
-007ba180	cSC4WinSnapshotAlbum::GetDescriptionOfFile	auto:A	high	mac 002ba0c8 score 0.605 support 0
-007ba300	cSC4WinSnapshotAlbum::SaveDescriptionOfFile	auto:B1	medium	mac 002b9eb0 score 0.962 support 2.0
-007ba420	cSC4WinSnapshotAlbum::GetNewTempFileNameForCurrentAlbum	auto:B3	medium	mac 002b9bfa score 0.863 support 1.0
-007ba580	cSC4WinSnapshotAlbum::SaveDescriptionOfFile	auto:B0	medium	mac 002b9fba score 0.931 support 2.0
+007b78b0	cSC4WinSnapshotAlbum::set_image_count_text	manual:snapshots.tsv	high	snapshots.md §3.2
+007b7910	cSC4WinSnapshotTaker::~cSC4WinSnapshotTaker	manual:snapshots.tsv	high	snapshots.md §2
+007b7970	cSC4WinSnapshotAlbum::~cSC4WinSnapshotAlbum	manual:snapshots.tsv	high	snapshots.md §3.1
+007b7990	cSC4WinSnapshotAlbum::AlbumExists	manual:snapshots.tsv	high	snapshots.md §1.1
+007b7a80	cSC4WinSnapshotTaker::Init	manual:snapshots.tsv	high	snapshots.md §2
+007b7f20	cSC4WinSnapshotAlbum::ObfuscateData	manual:snapshots.tsv	high	snapshots.md §1.2
+007b7f90	cSC4WinSnapshotAlbum::GetNewTempFileName	manual:snapshots.tsv	high	snapshots.md §1.2
+007b8330	cSC4WinSnapshotTaker::GetGraphicInfoForCurrentCity	manual:snapshots.tsv	high	snapshots.md §1.3
+007b8c70	cSC4WinSnapshotAlbum::cSC4WinSnapshotAlbum	manual:snapshots.tsv	high	snapshots.md §1.2
+007b8fb0	cSC4WinSnapshotAlbum::album_directory_has_album_entries	manual:snapshots.tsv	high	snapshots.md §1.1
+007b9140	cSC4WinSnapshotAlbum::get_path_for_info_file	manual:snapshots.tsv	high	snapshots.md §1.2
+007b9280	cSC4WinSnapshotAlbum::get_path_for_description_file	manual:snapshots.tsv	high	snapshots.md §1.2
+007b93c0	cSC4WinSnapshotAlbum::GetInformationOfStandardFile	manual:snapshots.tsv	high	snapshots.md §1.3
+007ba030	cSC4WinSnapshotAlbum::SaveInformationOfStandardFile	manual:snapshots.tsv	high	snapshots.md §1.3
+007ba180	cSC4WinSnapshotAlbum::GetDescriptionOfFile	manual:snapshots.tsv	high	snapshots.md §1.2
+007ba300	cSC4WinSnapshotAlbum::SaveDescriptionOfFile	manual:snapshots.tsv	high	snapshots.md §1.2
+007ba420	cSC4WinSnapshotAlbum::GetNewTempFileNameForCurrentAlbum	manual:snapshots.tsv	high	snapshots.md §1.2
+007ba580	cSC4WinSnapshotAlbum::SaveDescriptionOfFile	manual:snapshots.tsv	high	snapshots.md §1.2
 007ba6d0	std::list<cRZString,std::allocator<cRZString>>::operator=	auto:B6	medium	mac 006f42ee score 0.938 support 2.0
-007ba780	cSC4WinSnapshotAlbum::GoToGraphic	auto:B0	medium	mac 002bb2fe score 0.908 support 2.0
-007ba9d0	cSC4WinSnapshotAlbum::SetCurrentFile	auto:A	high	mac 002bb48e score 1.0 support 0
-007bad30	cSC4WinSnapshotAlbum::on_shutdown	auto:B0	medium	mac 002bdeee score 0.955 support 2.0
-007baea0	cSC4WinSnapshotAlbum::update_list_of_album_directories	auto:B0	medium	mac 002bb75e score 0.984 support 5.0
-007bb320	cSC4WinSnapshotAlbum::CreateAlbum	auto:A	high	mac 002bccb2 score 1.0 support 0
-007bb5c0	cSC4WinSnapshotAlbum::DeleteAlbum	auto:B1	medium	mac 002bbbee score 0.858 support 3.5
-007bbd70	cSC4WinSnapshotAlbum::RefreshGraphicList	auto:B0	medium	mac 002bc05a score 0.992 support 3.0
-007bc120	cSC4WinSnapshotAlbum::SetInitialFile	auto:B1	medium	mac 002bc428 score 0.94 support 4.0
-007bc350	cSC4WinSnapshotAlbum::on_init	auto:A	high	mac 002bd710 score 0.854 support 0
-007bc820	cSC4WinSnapshotAlbum::GoToAlbum	auto:B0	medium	mac 002bc922 score 0.995 support 4.0
-007bc910	cSC4WinSnapshotAlbum::GoToNextGraphic	auto:B0	medium	mac 002bc5e6 score 0.996 support 4.0
-007bca60	cSC4WinSnapshotAlbum::GoToPreviousGraphic	auto:B1	medium	mac 002bc73c score 0.934 support 5.0
-007bcbb0	cSC4WinSnapshotAlbum::DeleteCurrentGraphic	auto:A	high	mac 002bca0a score 0.852 support 0
-007bce40	cSC4WinSnapshotAlbum::CreateSnapshotAlbumWindow	auto:A	high	mac 002bdcf8 score 0.751 support 0
-007bcfc0	cSC4WinSnapshotAlbum::on_button_activated	auto:A	high	mac 002be0d0 score 0.916 support 0
-007bd200	cSC4WinSnapshotAlbum::GoToAlbum	auto:B1	medium	mac 002bce66 score 0.905 support 3.5
-007bd3d0	cSC4WinSnapshotAlbum::AddNewGraphic	auto:B1	medium	mac 002bcfa2 score 0.905 support 6.5
-007bd9a0	cSC4WinSnapshotTaker::AddNewGraphicForCurrentCity	auto:B0	medium	mac 002bd3cc score 0.957 support 1.5
-007bdae0	cSC4WinSnapshotAlbum::DoWinMsg	auto:A	high	mac 002be3a2 score 0.677 support 0
-007bdc90	cSC4WinSnapshotAlbum::GoToAlbumForCurrentCity	auto:B2	medium	mac 002bd4fa score 0.961 support 3.5
-007bdd60	cSC4WinSnapshotTaker::ShowSnapshotAlbum	auto:A	high	mac 002be596 score 1.0 support 0
-007be0e0	cSC4WinSnapshotTaker::DoMessage	auto:A	high	mac 002bea72 score 1.0 support 0
+007ba780	cSC4WinSnapshotAlbum::GoToGraphic	manual:snapshots.tsv	high	snapshots.md §3.2
+007ba9d0	cSC4WinSnapshotAlbum::SetCurrentFile	manual:snapshots.tsv	high	snapshots.md §3.2
+007bad30	cSC4WinSnapshotAlbum::on_shutdown	manual:snapshots.tsv	high	snapshots.md §3.1
+007baea0	cSC4WinSnapshotAlbum::update_list_of_album_directories	manual:snapshots.tsv	high	snapshots.md §1.1
+007bb320	cSC4WinSnapshotAlbum::CreateAlbum	manual:snapshots.tsv	high	snapshots.md §1.1
+007bb5c0	cSC4WinSnapshotAlbum::DeleteAlbum	manual:snapshots.tsv	high	snapshots.md §3.2
+007bbd70	cSC4WinSnapshotAlbum::RefreshGraphicList	manual:snapshots.tsv	high	snapshots.md §3.2
+007bc120	cSC4WinSnapshotAlbum::SetInitialFile	manual:snapshots.tsv	high	snapshots.md §3.2
+007bc350	cSC4WinSnapshotAlbum::on_init	manual:snapshots.tsv	high	snapshots.md §3.1
+007bc820	cSC4WinSnapshotAlbum::GoToAlbum	manual:snapshots.tsv	high	snapshots.md §3.3
+007bc910	cSC4WinSnapshotAlbum::GoToNextGraphic	manual:snapshots.tsv	high	snapshots.md §3.2
+007bca60	cSC4WinSnapshotAlbum::GoToPreviousGraphic	manual:snapshots.tsv	high	snapshots.md §3.2
+007bcbb0	cSC4WinSnapshotAlbum::DeleteCurrentGraphic	manual:snapshots.tsv	high	snapshots.md §3.2
+007bce40	cSC4WinSnapshotAlbum::CreateSnapshotAlbumWindow	manual:snapshots.tsv	high	snapshots.md §3.1
+007bcfc0	cSC4WinSnapshotAlbum::on_button_activated	manual:snapshots.tsv	high	snapshots.md §3.2
+007bd200	cSC4WinSnapshotAlbum::GoToAlbum	manual:snapshots.tsv	high	snapshots.md §3.3
+007bd3d0	cSC4WinSnapshotAlbum::AddNewGraphic	manual:snapshots.tsv	high	snapshots.md §3.3
+007bd9a0	cSC4WinSnapshotTaker::AddNewGraphicForCurrentCity	manual:snapshots.tsv	high	snapshots.md §2
+007bdae0	cSC4WinSnapshotAlbum::DoWinMsg	manual:snapshots.tsv	high	snapshots.md §3.2
+007bdc90	cSC4WinSnapshotAlbum::GoToAlbumForCurrentCity	manual:snapshots.tsv	high	snapshots.md §3.3
+007bdd60	cSC4WinSnapshotTaker::ShowSnapshotAlbum	manual:snapshots.tsv	high	snapshots.md §3.1
+007bde90	cSC4WinSnapshotTaker::DoCapture	manual:snapshots.tsv	high	snapshots.md §2
+007be0e0	cSC4WinSnapshotTaker::DoMessage	manual:snapshots.tsv	high	snapshots.md §2
 007be160	icf::cSC4WinAdviceList::AddRef	folded	folded	13 names: cSC4WinAdviceList::AddRef | cSC4WinIntroVideoScreen::AddRef | cSC4WinMiniMap::AddRef | cSC4WinRegionScreen::AddRef | cSC4WinRegionView::AddRef | cSC4WinSplashScreen::AddRef | cSCGeneralResponseCurveEntryView::AddRef | cSCHappinessCurveEntryView::AddRef | cSCPropertyView::AddRef | cSCResCatBaseView::AddRef | cSCResKeyInputView::AddRef | cSCStandardTypeEntryView::AddRef | cWinSC4App::AddRef
 007be170	icf::cSC4WinAdviceList::Release	folded	folded	13 names: cSC4WinAdviceList::Release | cSC4WinIntroVideoScreen::Release | cSC4WinMiniMap::Release | cSC4WinRegionScreen::Release | cSC4WinRegionView::Release | cSC4WinSplashScreen::Release | cSCGeneralResponseCurveEntryView::Release | cSCHappinessCurveEntryView::Release | cSCPropertyView::Release | cSCResCatBaseView::Release | cSCResKeyInputView::Release | cSCStandardTypeEntryView::Release | cWinSC4App::Release
 007be180	cSC4WinSplashScreen::QueryInterface	auto:A	high	mac 001cf4f6 score 0.631 support 0
