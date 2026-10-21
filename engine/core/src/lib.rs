@@ -107,6 +107,7 @@ pub mod variant;
 pub mod weather;
 pub mod x87;
 pub mod zones;
+pub mod rzurl;
 
 pub use calibration::Calibration;
 pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message, TimerSource};
