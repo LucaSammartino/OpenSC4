@@ -1,7 +1,7 @@
 # render3d: answered questions (archive)
 <!-- Archive for [render3d.md](../../render3d.md). Lanes do not read this file. Open questions are in ../render3d.md. -->
 
-- **R3D-3 - section 5:** layout of the 0x30-byte `ModelChangeQueueItem` built by `0x007C2E50` (the bounding-box
+- **RND3 - section 5:** layout of the 0x30-byte `ModelChangeQueueItem` built by `0x007C2E50` (the bounding-box
   offsets read at item `+0x14`..`+0x2C` in `ProcessModelChangeQueue`) and the semantics of the `AddDirtyRectangle`
   mode argument (0/1 = class bit `0x200`, 2 = removal, 3 = kind 4, extra 8). Needs `0x007C2E50` and
   `AddDirtyRectangleInternal` `0x007C8F30`.

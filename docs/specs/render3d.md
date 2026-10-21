@@ -574,7 +574,7 @@ counter starts at the constructor's value and is never reset.
 The **overload** (slot 43, `0x007C6BC0`) takes two 32-bit arguments `(a, d)`, both floats by use, and calls slot
 42 with `pos = null` and the block: duration = `d`; amplitude curve = `[a, 0.0]`; rate curve = `[0.0, 60.0, 0.0]`
 (`0x42700000`, `0x007C6CC8`); `k = 1.0`; pattern 0. It returns slot 42's handle. **`P+0x04` (fade-out length) is never
-written** — it is whatever the stack held (see question R3D-4); a replacement stores 0.0, so `StopScreenShake`
+written** — it is whatever the stack held (see question RND4); a replacement stores 0.0, so `StopScreenShake`
 removes such a shake at once.
 
 ### 10.2 The two pattern tables (built once)

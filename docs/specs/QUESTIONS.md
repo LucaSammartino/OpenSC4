@@ -92,10 +92,10 @@ generated index: the questions live one file per spec, so read only the file for
 | PT | particles |
 | PV | prop-developer |
 | PW | power |
-| R | render3d |
 | RD | renderer-driver |
 | RG | residential-education-health |
 | RN | foundations |
+| RND | render3d |
 | RS | residential |
 | RZ | framework-rz-files |
 | SG | simgrid |
@@ -185,7 +185,7 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-lotconfig | 6 | 8 | PL22 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
-| render3d | 3 | 1 | R4 | questions/render3d.md |
+| render3d | 3 | 1 | RND5 | questions/render3d.md |
 | renderer-driver | 4 | 1 | RD6 | questions/renderer-driver.md |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |

@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-models4 (RE spec: exact cSC43DRender owner beyond view3d.md §3/§4, docs/specs/render3d.md) | `re-models4` / (RE spec lane) | parked after FINAL round 3/3, partial owner spec (no whole-owner credit): render3d.md §1-6, §9-12 (dirty merge scoring, picking, view objects, backing store added), §7 remaining list non-empty; R3D-3 answered, R3D-1/2/4 open; no ABI change, no game runs | 1. View updates (DoTranslatedViewUpdate, DoViewZoomChange3, DoViewRotationChange2, AttemptTranslatedViewUpdate, UpdateVisibleTerrainMetrics). 2. Geometry helpers + ClearViewport/draw helpers. 3. PickTerrainAlways ray clip numerics (0x007C7E20, 0x007C6EC0). 4. DoSingleModelStaticDrawAddition, SetGraphicSystem/SetGDriver/StaticShutdown/dtor. 5. Then whole-owner credit. |
+| re-models4 (RE spec: exact cSC43DRender owner beyond view3d.md §3/§4, docs/specs/render3d.md) | `re-models4` / (RE spec lane) | parked after FINAL round 3/3, partial owner spec (no whole-owner credit): render3d.md §1-6, §9-12 (dirty merge scoring, picking, view objects, backing store added), §7 remaining list non-empty; RND3 answered, RND1/2/4 open; no ABI change, no game runs | 1. View updates (DoTranslatedViewUpdate, DoViewZoomChange3, DoViewRotationChange2, AttemptTranslatedViewUpdate, UpdateVisibleTerrainMetrics). 2. Geometry helpers + ClearViewport/draw helpers. 3. PickTerrainAlways ray clip numerics (0x007C7E20, 0x007C6EC0). 4. DoSingleModelStaticDrawAddition, SetGraphicSystem/SetGDriver/StaticShutdown/dtor. 5. Then whole-owner credit. |
 
 ## Round 3 report (FINAL 3/3, parked partial)
 
@@ -9,7 +9,7 @@
   (global 0x00B0DC14) or float(best) >= -2500.0 (0x00B0DC10); growth accounting, recursive mode-6 re-add, area
   over-count. Rect filter 0x007C2C70 (overlap test + in-place clamp, no left<right test). Cases D1-D6.
 - §5 queue item layout (0x007C2E50): model, kind, unused byte, unused 16 bytes, 6-float box; per-kind box source;
-  dirty-rect mode values. R3D-3 ANSWERED (MATCHES), moved to answered/render3d.md, QUESTIONS.md reindexed.
+  dirty-rect mode values. RND3 ANSWERED (MATCHES), moved to answered/render3d.md, QUESTIONS.md reindexed.
 - §11 view-object lists (4 sorted lists + terrain view +0x198), IsModelVisible x2, screen Pick/PickTerrain/
   PickTerrainAlways, ray PickTerrain (QI 0x6771477D, +4.0 retry, ground fallback), ray Pick (candidate collection,
   terrain distance limit, filter IID 0x26BB767E, model slot 11). Ray PickTerrainAlways only in outline. Cases P1-P6.
@@ -36,7 +36,7 @@
   0.6^(4-zoom), round half to even), `GetShakeOffsets`. Cases S1-S6.
 - §6.3 corrected: node +0x08 is the start time; Stop pulls it back so the shake plays its fade.
 - Evidence: re_query asm for every numeric path; data constants read from bin/SimCity4.exe by VA. REA not used.
-- Questions: R3D-4 filed (overload never writes the fade length). R3D-1..3 still open (no byte proof this round;
+- Questions: RND4 filed (overload never writes the fade length). RND1..3 still open (no byte proof this round;
   interfaces.tsv has no cIGZIStream/cIGZOStream slot 8 row).
 - No ABI change, no game runs, no engine/tools edits.
 
@@ -65,7 +65,7 @@
 SetZoom/SetRotation, fog/lighting, Write/Read offsets, ChangeModel table bytes, StopScreenShake compare). REA not
 used.
 
-**Questions.** docs/specs/questions/render3d.md: R3D-1 stream slot 8 name; R3D-2 writer of `+0x60`; R3D-3 queue item
+**Questions.** docs/specs/questions/render3d.md: RND1 stream slot 8 name; RND2 writer of `+0x60`; RND3 queue item
 layout and dirty-rect merge scoring / mode semantics.
 
 **Not done.** Init/Shutdown/ReadProperties, picking, shake fill and `SetShakeOffsets`, backing-store create/save/restore,
