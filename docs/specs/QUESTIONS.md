@@ -25,6 +25,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AA | audio-ambience |
 | AM | automata |
 | AO | foundations |
+| AP | application |
 | AQ | flora, residential-education-health |
 | AT | automata |
 | AU | aura |
@@ -95,6 +96,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
+| application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 4 | 0 | AA5 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 1 | 37 | A5, AM13, AT21 | questions/automata.md |
@@ -150,8 +152,8 @@ generated index: the questions live one file per spec, so read only the file for
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | terrain | 5 | 36 | TR42 | questions/terrain.md |
 | traffic-network | 0 | 29 | TN30 | - |
-| traffic-simulator | 0 | 92 | TG27, TS67 | - |
+| traffic-simulator | 1 | 92 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **86** | **991** | | |
+| **total** | **90** | **993** | | |

@@ -398,6 +398,14 @@ impl Run<'_, '_> {
                 let riders = self.cx.begin_ferry_pass();
                 self.st.ferry_total = self.st.ferry_total.wrapping_add(riders);
             }
+            // FinishTripMap (15): §3.2 names only the lot iterator reset
+            // (the walk starts at the first lot in `finish_trip_map`). The
+            // phase positions are NOT reset here, the literal reading: they
+            // keep the last FullTrips source's cell until the first lot is
+            // taken. In game the original reads (0, 0) at a stop before the
+            // first lot (regress-train22, 13 of 13 differences); open as
+            // traffic-simulator TS67.
+            cs::FINISH_TRIP_MAP => {}
             _ => {}
         }
     }
