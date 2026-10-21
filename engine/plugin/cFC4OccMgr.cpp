@@ -29,7 +29,9 @@
 #include "SC4List.h"
 #include "SC4Point.h"
 
+#include <cstdio>
 #include <cstring>
+#include <vector>
 
 namespace {
 
@@ -92,6 +94,59 @@ namespace {
 bool g_traceShutdown = false;
 uint32_t g_traceN = 0;
 uint64_t g_firstCalls = 0, g_firstHits = 0, g_listCalls = 0, g_listItems = 0, g_iterItems = 0;
+uint32_t g_samples = 0, g_sampleCalls = 0;
+fc4_occmgr* g_sampleCore = nullptr;
+void SampleSink(void* ctx, uint64_t occ) { static_cast<std::vector<uint64_t>*>(ctx)->push_back(occ); }
+bool Sample(const char* slot, double a, double b, bool hit, uint32_t type = 0, int32_t c = 0, int32_t d = 0) {
+    if (g_samples < 40 && (g_sampleCalls++ % 397) == 0) {
+        ++g_samples;
+        char extra[512] = "";
+        // For a standard-cell miss: what a null-filter list query of that cell holds.
+        if (!hit && g_sampleCore != nullptr && (slot[1] == '2' || slot[1] == '3') && slot[0] == '3') {
+            const int32_t p[2] = {static_cast<int32_t>(a), static_cast<int32_t>(b)};
+            fc4_occ_filter all{};
+            all.kind = FC4_OCC_FILTER_ALL;
+            std::vector<uint64_t> got;
+            fc4_occmgr_occupants_by_standard_cells(g_sampleCore, p, p, &all, -1, &SampleSink, &got);
+            uint64_t f1 = 0, f2 = 0;
+            const bool r1 = fc4_occmgr_first_by_standard_cell(g_sampleCore, p[0], p[1], &all, &f1);
+            int32_t wx = 0, wz = 0;
+            fc4_occ_position_to_world_cell(p[0] * 16.0f + 8.0f, p[1] * 16.0f + 8.0f, &wx, &wz);
+            const bool r2 = fc4_occmgr_first_in_cell(g_sampleCore, wx, wz, &all, &f2);
+            if (type != 0) {
+                uint64_t f3 = 0, f4 = 0;
+                fc4_occ_filter tf{};
+                tf.kind = FC4_OCC_FILTER_TYPE;
+                tf.occ_type = type;
+                const bool r3 = fc4_occmgr_first_by_standard_cell_typed(g_sampleCore, p[0], p[1], type, &f3);
+                const bool r4 = fc4_occmgr_first_by_standard_cell(g_sampleCore, p[0], p[1], &tf, &f4);
+                fc4::Log("occmgr first-query recheck typed %d (%p) type-filter %d (%p) first-all %p", r3 ? 1 : 0,
+                         reinterpret_cast<void*>(static_cast<uintptr_t>(f3)), r4 ? 1 : 0,
+                         reinterpret_cast<void*>(static_cast<uintptr_t>(f4)),
+                         reinterpret_cast<void*>(static_cast<uintptr_t>(f1)));
+                if (f3 != 0) FC4_RELEASE(reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(f3)));
+                if (f4 != 0) FC4_RELEASE(reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(f4)));
+            }
+            if (f1 != 0) FC4_RELEASE(reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(f1)));
+            if (f2 != 0) FC4_RELEASE(reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(f2)));
+            int n = std::snprintf(extra, sizeof(extra), " | all-filter slot32 %d, slot30(%d,%d) %d, empty %d | cell holds %u:",
+                                  r1 ? 1 : 0, wx, wz, r2 ? 1 : 0, fc4_occmgr_is_cell_empty(g_sampleCore, wx, wz) ? 1 : 0,
+                                  static_cast<unsigned>(got.size()));
+            for (size_t i = 0; i < got.size(); ++i) {
+                cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(got[i]));
+                cS3DVector3 mn(0, 0, 0), mx(0, 0, 0);
+                o->GetBoundingBox(&mn, &mx);
+                if (i < 4 && n > 0 && n < 400)
+                    n += std::snprintf(extra + n, sizeof(extra) - n, " %08X [%.1f,%.1f..%.1f,%.1f]",
+                                       static_cast<uint32_t>(o->GetType()), mn.fX, mn.fZ, mx.fX, mx.fZ);
+                FC4_RELEASE(o);
+            }
+        }
+        fc4::Log("occmgr first-query sample #%u slot %s args %.2f %.2f type %08X max %d %d -> %s%s", g_samples, slot,
+                 a, b, type, c, d, hit ? "hit" : "miss", extra);
+    }
+    return hit;
+}
 void TraceStep(const char* step, uint64_t t) {
     if (!g_traceShutdown) return;
     fc4::Log("occmgr shutdown trace #%u %s occ %p", g_traceN, step, reinterpret_cast<void*>(static_cast<uintptr_t>(t)));
@@ -249,6 +304,7 @@ uint32_t cFC4OccMgr::Release() {
 // ---- slots 3-19: lifecycle and conversions -------------------------------------------------------
 
 bool cFC4OccMgr::Init() {
+    g_sampleCore = core_;
     const bool ok = fc4_occmgr_init(core_);
     fc4::Log("occmgr Init -> %d", ok ? 1 : 0);
     return ok;
@@ -391,31 +447,31 @@ bool cFC4OccMgr::GetFirstOccupantByPositionFilter(cISC4Occupant*& out, float fx,
                                                   cISC4OccupantFilter* filter) {
     const fc4_occ_filter f = FilterOf(filter);
     uint64_t occ = 0;
-    return FirstOut(fc4_occmgr_first_by_position(core_, fx, fz, &f, &occ), occ, out);
+    return Sample("28", fx, fz, FirstOut(fc4_occmgr_first_by_position(core_, fx, fz, &f, &occ), occ, out));
 }
 bool cFC4OccMgr::GetFirstOccupantByPositionTyped(cISC4Occupant*& out, float fx, float fz, uint32_t occType) {
     uint64_t occ = 0;
-    return FirstOut(fc4_occmgr_first_by_position_typed(core_, fx, fz, occType, &occ), occ, out);
+    return Sample("29", fx, fz, FirstOut(fc4_occmgr_first_by_position_typed(core_, fx, fz, occType, &occ), occ, out), occType);
 }
 bool cFC4OccMgr::GetFirstOccupantFilter(cISC4Occupant*& out, int32_t x, int32_t z, cISC4OccupantFilter* filter) {
     const fc4_occ_filter f = FilterOf(filter);
     uint64_t occ = 0;
-    return FirstOut(fc4_occmgr_first_in_cell(core_, x, z, &f, &occ), occ, out);
+    return Sample("30", x, z, FirstOut(fc4_occmgr_first_in_cell(core_, x, z, &f, &occ), occ, out));
 }
 bool cFC4OccMgr::GetFirstOccupantTyped(cISC4Occupant*& out, int32_t x, int32_t z, uint32_t occType) {
     uint64_t occ = 0;
-    return FirstOut(fc4_occmgr_first_in_cell_typed(core_, x, z, occType, &occ), occ, out);
+    return Sample("31", x, z, FirstOut(fc4_occmgr_first_in_cell_typed(core_, x, z, occType, &occ), occ, out), occType);
 }
 bool cFC4OccMgr::GetFirstOccupantByStandardCityCellFilter(cISC4Occupant*& out, int32_t x, int32_t z,
                                                           cISC4OccupantFilter* filter) {
     const fc4_occ_filter f = FilterOf(filter);
     uint64_t occ = 0;
-    return FirstOut(fc4_occmgr_first_by_standard_cell(core_, x, z, &f, &occ), occ, out);
+    return Sample("32", x, z, FirstOut(fc4_occmgr_first_by_standard_cell(core_, x, z, &f, &occ), occ, out));
 }
 bool cFC4OccMgr::GetFirstOccupantByStandardCityCellTyped(cISC4Occupant*& out, int32_t x, int32_t z,
                                                          uint32_t occType) {
     uint64_t occ = 0;
-    return FirstOut(fc4_occmgr_first_by_standard_cell_typed(core_, x, z, occType, &occ), occ, out);
+    return Sample("33", x, z, FirstOut(fc4_occmgr_first_by_standard_cell_typed(core_, x, z, occType, &occ), occ, out), occType);
 }
 
 namespace {
@@ -447,7 +503,7 @@ bool cFC4OccMgr::GetFirstOccupantByStandardCityCellsFilter(cISC4Occupant*& out, 
     // was null - which is why the two are resolved below.
     const int32_t* loP = min != nullptr ? lo : nullptr;
     const int32_t* hiP = max != nullptr ? hi : nullptr;
-    return FirstOut(fc4_occmgr_first_by_standard_cells(core_, loP, hiP, &f, &occ), occ, out);
+    return Sample("34", lo[0], lo[1], FirstOut(fc4_occmgr_first_by_standard_cells(core_, loP, hiP, &f, &occ), occ, out), 0, hi[0], hi[1]);
 }
 bool cFC4OccMgr::GetFirstOccupantByStandardCityCellsTyped(cISC4Occupant*& out, SC4Point<int> const* min,
                                                           SC4Point<int> const* max, uint32_t occType) {
@@ -457,7 +513,7 @@ bool cFC4OccMgr::GetFirstOccupantByStandardCityCellsTyped(cISC4Occupant*& out, S
     const int32_t* loP = min != nullptr ? lo : nullptr;
     const int32_t* hiP = max != nullptr ? hi : nullptr;
     uint64_t occ = 0;
-    return FirstOut(fc4_occmgr_first_by_standard_cells_typed(core_, loP, hiP, occType, &occ), occ, out);
+    return Sample("35", lo[0], lo[1], FirstOut(fc4_occmgr_first_by_standard_cells_typed(core_, loP, hiP, occType, &occ), occ, out), occType, hi[0], hi[1]);
 }
 
 // ---- slots 36-41: list queries -------------------------------------------------------------------
