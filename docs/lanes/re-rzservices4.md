@@ -1,15 +1,27 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-rzservices4: spec cRZLanguageUtility (RZ locale service: names, separators, currency, number/money/time/date formatting, attributes, lifetime) | Claude / .claude/worktrees/re-rzservices4 | ready: docs/specs/language-utility.md | engine lane may implement from the spec; RE: answer Q1 (currency flag writer), trace callers (Q2) |
+| re-rzservices4: specs for framework RZ files: cRZFile + cRZIniFile (round 2); round 1 cRZLanguageUtility kept for the strings lane | Claude / .claude/worktrees/re-rzservices4 | ready: docs/specs/framework-rz-files.md | engine lane may implement cRZFile/cRZIniFile; RE: Q2 error-field readers, Q3 runtime INI round trip; remaining owners cRZDirectory, cRZOFStream, cRZCmdLine, cRZSparseMatrix, cRZSysServPtr, cRZTimer |
 
-## Handoff (round 2, 2026-10-21)
+## Report (round 2, 2026-10-21)
 
-- goal: docs/specs/framework-rz-files.md for cRZFile + cRZIniFile (open/read/write/seek/error/ownership; INI syntax, duplicates, defaults, types, encoding, writeback). Language spec (language-utility.md) preserved, no new claims on it.
-- done: docs/specs/framework-rz-files.md written (cRZFile §2, cRZIniFile §3, examples §4, Q2-Q4 §5); commit below.
-- next: finish (report, merge-queue json). Optional: Q2 error-field readers, Q3 runtime round trip.
-- facts: decomp files 1489 / 1406 lines. Round-1 report kept below.
+- New spec docs/specs/framework-rz-files.md (commit 193d6a74): cRZFile vtable 0x00ABFED0 (33 slots
+  mapped), layout, Open modes/creation/share and .lnk resolution, logical vs physical position, read and
+  write buffers (sizes, clamps 4..0x1F4000), Seek/Length/SetLength/Flush/Close, error codes
+  (5 -> 0x20000002, 183 -> 0x20000001), path operations and static helpers; cRZIniFile vtable 0x00ACF150
+  (20 slots), ownership of the cIGZFile, line reader (CR/LF runs collapse, blank lines invisible), syntax
+  (; comments, first '=', space/tab trim, case-insensitive via ASCII or UTF-16 lower), duplicates (first
+  section header and first key win; enumeration lists all keys), sscanf %ld numbers, upper-case hex
+  binary, open retry (250 ms, 3 s), writeback rules (replace in place, insert before next header, append
+  without newline fix-up, new section separators), worked examples.
+- Instruction-verified: sleep unit (/1000 at 0x009205A6), retry compare (cmp 3 at 0x0091C681), buffer
+  clamps (0x00919081), +0x38 not set by two ctors, format strings ("=", "%ld", "%s = %s%s", "[%s]%s",
+  CR LF) read from exe bytes.
+- REA: unavailable ("No app is open"); used re_query.py, decomp/ and exe bytes.
+- Questions (spec §5, RE-side, none filed): Q2 readers of cRZFile +0x30, Q3 runtime INI round trip,
+  Q4 allocator zeroing for +0x38.
+- Language spec (language-utility.md, round 1) untouched, no new claims on its owner.
 
-## Report
+## Report (round 1)
 
 - Owner chosen: `cRZLanguageUtility` (vtable 0x00AD1250, 33 slots; the largest RZ class with no spec, 106 KB
   decomp, only an INVENTORY-M6 F6 mention), plus the parts of `cRZLanguageManager` that create, hold and
