@@ -25,3 +25,6 @@ ctest 62/62). ABI unchanged, no C ABI / plugin / CMake edits. Game: none (core h
 
 Questions: SR1555-5 (docs/specs/questions/span-render-1555.md): A4444 R/G/B nibble positions (core assumes
 A-R-G-B), and the x87 precision for the c_i expression (core uses 24-bit per op).
+
+## Coordinator core-only scope
+The task explicitly sets game=false and no runtime consumer exists; core readiness uses full build/test gate. No game or shadow verification is claimed. SR1555-5 remains open.
