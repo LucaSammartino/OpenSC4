@@ -465,13 +465,14 @@ Tip text (`0x0A456D95`), two strings (title, body):
   `GetNetworkOccupantTrafficInfo` (networks `0xC772BF98`); mode 0 dispatches on the type: flora `0x74758926` and
   props `0xA823821E` give the exemplar's display name (§8.8 name rule), buildings `GetBuildingOccupantTipInfo`
   (which may also return an icon), networks `GetNetworkOccupantSummaryInfo`, power poles `0x2890D4DE` and
-  landfill `0x6A11BD2B` a fixed localised string.
+  landfill `0x6A11BD2B` a fixed localised title (group `0xEA5524EB`, instances `0x0A5BB9FD` and `0x4A5BBA21`).
+  Before the dispatch the locals are: title and body empty, icon 0, secondary icon 0, fraction 0.5 (`0x3F000000`).
+  Mode 1's building call also receives the icon; the network traffic call does not.
 - No occupant: when the terrain query is enabled (`+0x94`) `GetTerrainSummaryInfo` fills it.
-- With the terrain query enabled the body gets a debug line `x=%.1f y=%.1f z=%.1f\ncell x=%d cell z=%d` from
-  `+0x7C..+0x84` and the cell; an empty title becomes a fixed string first.
-- A non-empty result is shown: the callout gets the text (style group `0x46A006B0`, instance `0x856DDBAC`, plus
-  the icon when there is one), `SetTip` (`0x004C5BA0`, §8.10) and the cursor text is updated; an empty result
-  hides the callout (Q CT11 for the exact display calls).
+- With the terrain query enabled (`+0x94`, whatever was found): an empty title becomes the literal `Terrain`; the
+  line `x=%.1f y=%.1f z=%.1f\ncell x=%d cell z=%d` (from `+0x7C..+0x84` and the cell) is appended to the body,
+  after a `\n` when the body is non-empty.
+- Display: §8.11.3 (the choice between the callout and the cursor text is the icon, not the text).
 
 ### 8.8 Pick filters and picks *[compat]*
 
@@ -519,3 +520,138 @@ description writers (`WriteDetailedDebugInfo` `0x004D12A0`, `DescribeCell`, `Des
 `CalculateTripVolumeFromTrafficPaths`, `DoesRouteCrossCell`, `GetRouteTravelTypes`), `SetHighlightState`,
 `SetTip`, `SetLegendMinimized`, `IsDebugQueryEnabled`, `PlayOccupantQuerySound`, the rating helpers, and 42
 reach-attributed helpers. The exact list is the owner's rows of `coverage.py --owners` minus the covered list.
+
+### 8.11 Tips: builders, display, `SetTip`, `SetHighlightState` *[compat]*
+
+All localised strings below are in group `0xEA5524EB`; only the instance is given. "Headlines" means: get the
+lot's headline list (`GetLotHeadlines`, `0x004D4FD0`) and append its first three entries (at most) to the body,
+each preceded by `\n` when the body is non-empty at that point.
+
+#### 8.11.1 `GetTerrainSummaryInfo(title, body)` (`0x004D6C70`)
+
+1. Turn `+0x7C`, `+0x84` into a cell (city slot 95). If the terrain (city slot 84) says the cell has water
+   (`CellHasWater`, terrain slot 34): return, both strings untouched.
+2. title := `0x6A5BBCA6`. zone := zone manager (`0x00B43D14`) slot 12 `GetZoneType(cellX, cellZ)`.
+3. By zone (zones above 15 change nothing; zones 1..14 set the body, zones 0 and 15 replace the title):
+
+| Zone | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| String | title `0xAA5BBDE4` | body `0x0A5BBDEF` | `0xAA5BBE08` | `0x8A5BBE12` | `0x6A5BBE1F` | `0x6A5BBE29` | `0xAA5BBE33` | `0x0A5BBE3C` |
+
+| Zone | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
+|---|---|---|---|---|---|---|---|---|
+| String | body `0xCA5BBE4A` | `0x0A5BBE51` | `0x6A5BBE61` | `0xAA5BBE69` | `0x2A5BBE6F` | `0xCA5BBE78` | `0x2A5BBE80` | title `0x2A5BBE85` |
+
+4. The lot at the cell (lot manager slot 6, `GetLot(x, z, false)`): when there is one, its headlines.
+
+#### 8.11.2 `GetNetworkOccupantSummaryInfo(title, body)` (`0x004CF8A0`)
+
+QI the highlighted occupant for `0xA821EF94` (network occupant); none: return. Test the network types (network
+occupant slot 22, true when the occupant carries the type) in this order and take the first match; the title
+gets the string:
+
+| Order | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Type | 2 | 8 | 12 | 0 | 1 | 10 | 11 | 9 | 3 | 4 | 7 | 6 |
+| Title | `0xAA5589FB` | `0x8B8C5CBD` | `0x2BE09C9E` | `0x6A5589D4` | `0x4A5589F3` | `0x4BD9FDD8` | `0xCBE09C9B` | `0x0BE09CA2` | `0x8A558A04` | `0x0A558A0A` | `0x8A558A10` | `0x8B8C5CD0` |
+
+Type 5 and no match leave both strings empty. Type 4 only, when `IsDebugQueryEnabled()`: body :=
+`Distressed Pipes: %d / %d\n` with plumbing simulator (`0x00B43D94`) slot 19 `GetNumDistressedPipes` and slot 18
+`GetNumPipes` (the format replaces the body, cIGZString slot 27 `Sprintf`).
+
+#### 8.11.3 Display (tail of message `0x0A456D95`) and `SetTip(title, body)` (`0x004C5BA0`)
+
+After the builders and the debug line (§8.7):
+
+1. Callout held (`+0x44`) **and** icon non-zero: set the callout's image (callout slot 4) to the resource key
+   (type `0x856DDBAC`, group `0x46A006B0`, instance icon) with the two values 12 and 10; then the secondary
+   image (callout slot 14): with a secondary icon, the key (same type and group, instance secondary) with the
+   value 5 and the fraction; without one, (null, 0, 0). Then `SetTip(title, body)` and clear the cursor text
+   (3D view slot 41, key `0x2A456CB1`).
+2. Otherwise (no callout, or icon 0): hide the callout's window when there is a callout (window slot 70), then
+   with a 3D view set the cursor text (3D view slot 40) with (key `0x2A456CB1`, 0, title, body, 0). So icon-less
+   tips (flora, props, networks, terrain, power poles, landfill, traffic info without an icon) appear as cursor
+   text, never in the callout.
+
+`SetTip(title, body)`: both empty (null or length 0): clear the cursor text (3D view slot 41, `0x2A456CB1`) and
+hide the callout window. Otherwise set the callout's title (callout slot 6) and body (slot 8); when the callout
+window is not visible (window slot 71), read the cursor position relative to the 3D view's window (window
+manager slot 34 with the window from 3D view slot 3), move the callout there (callout slot 15) and show its
+window (window slot 69). An already visible callout only changes its text (`OnMouseMove` step 6 moves it).
+
+#### 8.11.4 `GetBuildingOccupantTipInfo(title, body, &icon, &secondary, &fraction)` (`0x004D5E30`)
+
+Setup: the occupant's property holder (occupant slot 6) and its lot (lot manager slot 14, may be null).
+
+- `IsDebugQueryEnabled()`: icon := 0; title := the exemplar name (property `0x20`); body := `DescribeBuilding`
+  (`0x004CCF60`); with a lot, its centre cell (lot slot 15, city slot 95) feeds `DescribePopulation`
+  (`0x004CF2B0`), `DescribeDemand` (`0x004CD820`) and `DescribeCell` (`0x004CE8A0`, with the zone type from zone
+  manager slot 12). Return (no headlines). The description writers are §8.10 remainder.
+- Otherwise: name := the occupant's display name (interface `0x87DDA3A9`, its slot 19) or empty; title := name.
+  Read the exemplar's property `0xAA1DD396` (occupant groups; property holder slot 9). When it exists, is
+  interface `0x60FD4D2B` and has type `0x8006` (uint32 array), take the first group of the table below that the
+  array contains (each test scans the whole array) and run its row; every row sets the title to the name again.
+  A missing or mistyped property goes straight to the headlines.
+
+| Group (test order) | Icon | Secondary | Fraction / body |
+|---|---|---|---|
+| `0x1000` | `0x14416208` | - | wealth map R (below) |
+| `0x1001` | `0x14416202` | - | wealth map C |
+| `0x1002` | `0x14416206` | - | wealth map I |
+| `0x1003` | `0x14416209` | transport rule | transport rule |
+| `0x1004` | `0x1441620A` | utility rule | utility rule |
+| `0x1501` | `0x14416207` | `0x14416212` | `Ratio(trunc(N * V), N)`: V := the float at `*(0x00B43D98 slot 36)`, N := `0x00B43D98` slot 28(occupant) |
+| `0x1500` | `0x14416207` | `0x14416212` | the float returned by `0x00B43D98` slot 25(occupant) |
+| `0x1502` | `0x14416203` | `0x14416211` | the float returned by `0x00B43D78` slot 10(occupant) |
+| `0x1503`, `0x1504`, `0x1505`, `0x1506` | `0x14416201` | `0x14416210` | residential simulator (`0x00B43DA4`) slot 26(occupant, &query); on true, the query's float at `+0x28` |
+| `0x1507` | `0x14416201` | `0x14416216` | as above with slot 27 |
+| `0x150A`, `0x150B` | `0x1441620C` | - | - |
+| `0x1006` | `0x14416204` | - | - |
+| none of these | `0x14416200` | - | - |
+
+Rows that leave the fraction alone keep the caller's 0.5.
+
+Wealth maps (groups `0x1000..0x1002`; no lot: nothing): developer type := BDS (`0x00B43D68`) slot 30(purpose,
+`GetBuildingWealth(lot)`), purpose := `*(BDS slot 39(lot slot 46(0)))`; body := the string; other types leave
+the body.
+
+| Map | Developer type → body |
+|---|---|
+| R | `0x1010` → `0xCA95F27E`, `0x1020` → `0x6A95F2B0`, `0x1030` → `0xCA95F2B8` |
+| C | `0x3110` → `0x8A95F2BF`, `0x3120` → `0xAA95F2DC`, `0x3130` → `0x8A95F2E4`, `0x3320` → `0x0A95F39A`, `0x3330` → `0x6A95F3B3` |
+| I | `0x4100` → `0x4A95F2EB`, `0x4200` → `0x2A95F324`, `0x4300` → `0x6A95F313`, `0x4400` → `0xCA95F31C` |
+
+Transport rule (`0x1003`), first match:
+- `0x1508`: secondary `0x14416214`; with a lot, airport developer (city slot 77) slot 12(lot, &a, &b); on true
+  fraction := `Ratio(a, b)`.
+- `0x1509`: secondary `0x14416215`; the same with the seaport developer (city slot 76).
+- Otherwise: fraction := 0; the occupant's position (occupant slot 8) to a cell (city slot 95); traffic simulator
+  (`0x00B43DA8`) slot 35(cellX, cellZ, &rec); on true with `rec+0x00` non-zero: `rec+0x0C` zero gives 1.0, else
+  fraction := `rec+0x00 / rec+0x0C` (both unsigned, to float) clamped to at most 1.0. Then the secondary by
+  subgroup, first match: `0x1307` → `0x1441621C`, `0x1300` → `0x1441621B`, `0x1301` → `0x1441621A`, `0x1302` →
+  `0x1441621C`, `0x1303` → `0x1441621C`, `0x1304` → `0x14416215`, `0x130B` → `0x1441620F`; none: stays 0.
+
+Utility rule (`0x1004`), first match:
+- `0x1400`: fraction := the float returned by power simulator (`0x00B43DA0`) slot 45(occupant); secondary
+  `0x14416218`.
+- `0x1401`: secondary `0x14416219`; plumbing simulator slot 24(occupant, &f, &flag, 0, 0), f preset 0 and flag
+  false; fraction := f; flag true: body := `0x4A5FB66A`.
+- `0x1402`: secondary `0x14416217`; a := `0x00B43D9C` slot 54(occupant), b := slot 55(occupant) (floats, preset
+  0); fraction := 0; when b > the float at `0x00B21854` (zero-initialised data with no writer, so 0.0):
+  fraction := b / a, clamped to at most 1.0 *[quirk: the guard tests b while a is the divisor; a = 0 gives +inf,
+  clamped to 1.0]* (instructions from `0x004D6910`; Ghidra shows a division by 0.0).
+- None: icon and title only.
+
+`Ratio(a, b)` (`0x004C3B10`, unsigned a and b, float result, x87 with float constants): b = 0 → 0.0;
+a ≤ 0.8·b (float `0x00A9095C`) → 1.0; else (b − a, or 0 when a ≥ b) / (0.2·b), 0.2 being the float `0x00A90A68`
+(0.19999999). Worked: b = 100: a = 80 → 1.0; a = 90 → 10 / 20 = 0.5 (to float rounding); a = 120 → 0.0.
+
+Every non-debug path ends by appending the headlines of the occupant's lot (`0x004D5C90`).
+
+#### 8.11.5 `SetHighlightState(state)` (`0x004CACC0`)
+
+No highlighted occupant (`+0x2C`) or no lot for it (lot manager slot 14): nothing. Otherwise list the lot's
+occupants (lot slot 49, into a list whose nodes come from the allocator service `0x3AE4BEA3`/`0x3AE4BEAB`, cached
+in `0x00B207E4`); for each occupant whose boolean property `0x6A95E503` is true (default false) call occupant
+slot 17(state, 0); release the list (occupant manager `0x00B43D0C` slot 48). The highlighted occupant itself is
+changed only when it carries the property.
