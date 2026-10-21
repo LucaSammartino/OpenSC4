@@ -110,3 +110,69 @@ The Mac build names the instantiations `cBlitter<SrcFormat, DstFormat, bool>::<m
 there are exactly 7 source formats × 2 bools = 14 rows and 12 non-`BltRect` methods = 12 columns
 ({`Blt`, `BltConstantAlpha`, `BltModulate`, `BltModulateAlpha`} × {plain, `Stretch`, `Tiled`}). The row/column
 ↔ name assignment is §7.
+
+### 6.1 How the caller fills the indices (`DrawPreclippedSpanList`, `0x008302E0`) [exact]
+
+The context (`this`) calls the span renderer once per span list. With **no texture** (`+0x24` null):
+gradient flag `+0x74` set → `RenderAlphaGradient` if alpha flag `+0x41` else `RenderGradient`, record `this+0x44`;
+otherwise `RenderAlpha(…, src = this+0xC4, argb = this+0xB4)` if `+0x41` else `RenderSolid(…, this+0xC4)`. The
+surface record is always `this+0x78`. (`+0x41` = `SetAlphaBlend(v)` stores `v > 0`, `0x0082FEA0`.)
+
+With a texture it locks it (`vfunc +0x18`, flag `0x800`; failure → nothing drawn) and calls `RenderBlt(spans, n,
+this+0x78, src, b, kind)`:
+
+- `src` (24 bytes): `+0` pixel pointer (texture vfunc `+0x88`, pre-biased by the caller so the per-pixel code
+  addresses source texel (x, y) for destination (x, y) in the plain case), `+4` stride (`+0x8C`), `+8` width
+  (`+0x24`), `+0xC` height (`+0x28`), `+0x10` colour type (`+0x3C`), `+0x14` (`+0x44`, the palette for 8-bit).
+- `b.+0x10` **source-format index** from the texture colour type: 7 (A4444) → 0, 6 (A1R5G5B5) → 1, 4 (R5G5B5) → 2,
+  5 (R5G6B5) → 3, 9 (A8R8G8B8) → 4, 8 (R8G8B8) → 5, 2 (8-bit) → 6; type 3 and any type outside 2…9 → **nothing
+  drawn** (unlock and return).
+- `b.+0x1C` **colour-key flag** (texture vfunc `+0x68` returns it and the key into `b.+0x18`), and the key is
+  masked by source format: idx 0 `& 0x0FFF`, idx 1 and 2 `& 0x7FFF`, idx 3 `& 0xFFFF`, idx 4 and 5 `& 0xFFFFFF`;
+  for idx 6 the flag is forced to 0, so row 13 is **unreachable**.
+- `b.+0x14` = `this+0xB4` (the ARGB draw colour, used by the Modulate / ConstantAlpha bodies); `b.+0x00…+0x0C` the
+  stretch or tiling parameters.
+- `kind` = `alpha + 2 × modulate` (alpha = `+0x41`, modulate = `+0x42`, `SetBltModulate` `0x0082FEB0`), then
+  `+8` if tiling is set (`+0xA4`, `SetBltTiling` `0x0082FE70`), else `+4` if stretching is set (`+0x40`); tiling
+  wins over stretching.
+
+## 7. The 1555 dispatch table (row = `2 × format + key`, column = `kind`)
+
+Columns 0–11: `Blt`, `BltConstantAlpha`, `BltModulate`, `BltModulateAlpha`, the same four `Stretch`, the same four
+`Tiled` (names from the Mac build; the column ↔ flag mapping of §6.1 is exact, the name per column is inferred
+from that mapping). `*` = the slot points **outside** this range (identical-code folding with a sibling).
+
+| Row | Source, key | Columns 0–11 (`0x008…`) |
+|---|---|---|
+| 0 | A4444, off | 31510 315B0 31680 317A0 31940 31A10 31B50 31CB0 31E80 31F50 320A0 32200 |
+| 1 | A4444, on | 323D0 32490 32570 326B0 32870 32950 32AB0 32C20 32E00 32EF0 33070 331F0 |
+| 2 | A1555, off | 48160* 333E0 33470 33590 33730 337C0 338D0 33A30 42C50* 33C00 33D20 33E80 |
+| 3 | A1555, on | 34050 340D0 34170 342B0 34470 34510 34630 347A0 34980 34A30 34B70 34CF0 |
+| 4 | X555, off | 34EE0 34F60 34FF0 35110 352A0 35330 35450 355A0 35760 35810 35940 35AA0 |
+| 5 | X555, on | 35C70 35CF0 35D90 35ED0 36080 36130 36260 363C0 36590 36650 36790 36900 |
+| 6 | R565, off | 36AF0 36B80 36C40 36D70 36F10 36FD0 37110 37270 37440 37510 37650 377C0 |
+| 7 | R565, on | 379A0 37A50 37B30 37C80 37E40 37F10 38060 381D0 383C0 384C0 38630 387B0 |
+| 8 | A8888, off | 389B0 38A60 38B30 38C20 38D90 38E60 38FB0 390D0 39270 39350 394C0 395F0 |
+| 9 | A8888, on | 39790 39860 39960 39A70 39BF0 39CF0 39E60 39F90 3A140 3A240 3A3D0 3A510 |
+| 10 | X888, off | 3A6D0 3A770 3A830 3A930 3AAB0 3AB80 3ACC0 3ADF0 3AF90 3B060 3B1B0 3B2E0 |
+| 11 | X888, on | 3B490 3B550 3B640 3B750 3B8D0 3B9B0 3BB10 3BC50 3BE00 3BF00 3C070 3C1B0 |
+| 12 | 8-bit, off | 3C370 3C3F0 3C500 3C5F0 3C760 3C800 3C930 3CA60 3CC00 3CCA0 3CDE0 3CF10 |
+| 13 | 8-bit, on (unreachable) | 3D0B0 3D130 3D1D0 3D2E0 3D470 3D520 3D650 3D790 3D940 3DA00 3DB50 3DC90 |
+
+### 7.1 Instantiation calling convention [exact for the bodies cited]
+
+Each body is cdecl `(spans, n, dst, src, b)` with the three records by value (§6). Per span it walks the
+destination pixels exactly as §1, and reads the source at `src.+0 + y × src.+4 + x × srcBytes` in the plain
+column (`0x00834050`, `0x00848160`).
+
+### 7.2 Verified bodies
+
+- **Row 2 col 0, A1555 → 1555 `Blt`** (`0x00848160`, folded with a 4444 sibling): a raw 16-bit copy — every
+  destination word = source word, **bit 15 included**.
+- **Row 3 col 0, A1555 → 1555 keyed `Blt`** (`0x00834050`): per pixel, if `(src & 0x7FFF) == key` (the key
+  already masked `& 0x7FFF`) the destination is left untouched, else it gets the raw source word (bit 15
+  included). The key test ignores the source alpha bit.
+- **Row 2 col 8** (`0x00842C50`) is folded with a 565 sibling, so A1555 → 1555 tiled copy is also a raw 16-bit
+  copy (body not restated here).
+
+All other bodies are **[table]**: identified and named, per-pixel rule not yet restated (§8).
