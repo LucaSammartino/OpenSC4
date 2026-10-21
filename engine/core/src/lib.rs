@@ -52,6 +52,7 @@ pub mod landfill;
 pub mod landvalue;
 pub mod lot_config_manager;
 pub mod lot_developer;
+pub mod lot_records;
 pub mod mysims;
 pub mod neighbors;
 pub mod network_bridge;

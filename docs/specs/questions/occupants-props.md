@@ -61,3 +61,13 @@
   (slot 0x24 → `0x14` → `+0x19C`/`+0x10` walk). What interface is `0xA52160F5` here (the same IID is the
   persist-resource manager per audio.md §...1145) and what does the walk return — group names or templates?
   [unresolved; both overloads fill the caller's set]
+
+<!-- from: core-occprops4 (2026-10-21) -->
+- **OP11:** lot-records.md §3.2 (u8 map counts *[quirk]*): when a lot population map (#21) or the travel-population
+  map (#22) has more than 255 entries, the u8 count is truncated. Does `Write` (`0x006C0080`) then still write
+  every entry (the loop runs over the map, so the record desyncs on read), or only the `count & 0xFF` first
+  entries? Same for the u8 P (#20) over the vector of maps. The core writes every entry (literal reading).
+- **OP12:** lot-records.md §6 base-texture `Read` resizes the record vector to n "no bound": on a short read, are
+  the records beyond the failure left as constructor defaults (five `0xFF` bytes, the other fields?) and what are
+  the defaults of the texture instance, cell, orientation, configuration byte and frame? The core pads with
+  0 / `0xFF`×5 / 0 up to 65,536 records and leaves larger counts unpadded.
