@@ -197,8 +197,10 @@ fn queue_release_destroys_at_one_or_zero() {
 
 #[test]
 fn queue_blocking_get_waits_until_filled() {
-    let mut h = Host::default();
-    h.pushes_on_wait = vec![2, 1];
+    let mut h = Host {
+        pushes_on_wait: vec![2, 1],
+        ..Host::default()
+    };
     let mut q = MessageQueue2::new();
     assert_eq!(q.blocking_get_front(&mut h), 1);
     assert_eq!(h.waits, 1);
