@@ -878,6 +878,13 @@ if(FC4_IS_WIN32_X86)
     # window, nested dialogs, SC4GameDelay, a late subscription; off: nothing.
     add_test(NAME plugin_ini_dialogs_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-dialogs)
     set_tests_properties(plugin_ini_dialogs_test PROPERTIES RUN_SERIAL TRUE)
+    # The advisor family's game-layout map mirrors (FC4AdvisorMaps.h,
+    # advisors.md §12.2; the glue-advisors-impl4 lane): signed / pointer order,
+    # references held while listed, a duplicate refused, Clear.
+    add_executable(fc4_advisor_maps_test tests/advisor_maps_test.cpp)
+    target_include_directories(fc4_advisor_maps_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_options(fc4_advisor_maps_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME advisor_maps_test COMMAND fc4_advisor_maps_test)
     # The layout-compatible grid family (plugin/FC4SimGridLogic.h, simgrid.md
     # §3-§6): slots, averages, record, the vector<vector<T>> layout and allocator.
     add_executable(fc4_simgrid_test tests/simgrid_test.cpp)
