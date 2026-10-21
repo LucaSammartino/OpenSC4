@@ -97,7 +97,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RZ | framework-rz-files |
 | SL | strings-language |
 | SP | span-render-4444 |
-| SR | span-render-1555, span-render-565, span-render-8 |
+| SR | span-render-1555, span-render-565, span-render-8, span-render-8888 |
 | SV | foundations, ordinance |
 | TG | traffic-simulator |
 | TM | timers |
@@ -157,7 +157,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 11 | NM12 | questions/network-manager.md |
-| network-occupants | 17 | 0 | NO18 | questions/network-occupants.md |
+| network-occupants | 14 | 3 | NO18 | questions/network-occupants.md |
 | network-rules | 3 | 7 | NR14 | questions/network-rules.md |
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
@@ -184,7 +184,8 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-1555 | 2 | 3 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 0 | SP4 | questions/span-render-4444.md |
 | span-render-565 | 4 | 0 | SR566 | questions/span-render-565.md |
-| span-render-8 | 2 | 0 | SR9 | questions/span-render-8.md |
+| span-render-8 | 3 | 0 | SR9 | questions/span-render-8.md |
+| span-render-8888 | 5 | 0 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | timers | 1 | 0 | TM2 | questions/timers.md |
@@ -196,4 +197,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **167** | **1013** | | |
+| **total** | **170** | **1016** | | |
