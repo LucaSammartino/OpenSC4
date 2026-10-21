@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-terrain4 (run4 terrain unblocker: TR38/TR39/TR40 crash blockers, TR35) | `re-terrain4` / (docs lane) worktree `.claude/worktrees/re-terrain4` | **ready** (docs only): TR38, TR39, TR40, TR35 answered (all DIFFERS) in terrain.md §15.5.12, §15.5.11 items 15a/18/19, §13.2; TR33, TR34, TR36, TR37 still open | glue-terrain3: fresh message per post + run 0x0074FE40 + Load from Read, then gt3-repl-6; RE: TR33, TR37, TR34, TR36 |
+| re-terrain4 (run4 terrain unblocker: TR38/TR39/TR40 crash blockers, TR35) | `re-terrain4` / (docs lane) worktree `.claude/worktrees/re-terrain4` | **in progress** (round 2: TR33/TR34/TR36/TR37 + Read-view lifecycle; round 1 ready): TR38, TR39, TR40, TR35 answered (all DIFFERS) in terrain.md §15.5.12, §15.5.11 items 15a/18/19, §13.2; TR33, TR34, TR36, TR37 still open | glue-terrain3: fresh message per post + run 0x0074FE40 + Load from Read, then gt3-repl-6; RE: TR33, TR37, TR34, TR36 |
+
+
+## Handoff (round 2, 2026-10-21)
+- Goal: answer TR33, TR34, TR36, TR37; reconcile §15.5.1 with Read storing the view at +0xE8. REA denied (dont-ask mode): export + decomp only.
+- Done round 1: a65deae2, 7c33c5a3, a9e0b498, f54e5c94.
+- Findings so far (not yet in spec): TR34 +0x100 = city slot 70 GetWeatherSimulator (Init 0x00750064-0x00750079, AddRef'd); slot 5 = DoCompleteSimulation 0x007296F0.
+  Read: SC4ReadGZSerializable QIs the stream (0x4999A8F5), stream slot 26 returns the deserialized object, QI(0xC9B84E10) -> view base AddRef'd;
+  DoPostCityInit skips creation when +0xE8 is set (0x0074956D) and calls Init on the loaded view. View Read 0x007527D0 restores static 0x00B4C741.
+  TR33: 0x00743B60 = clear flag 8 in rect, normals + cliff marks (rect grown by 1); 0x007490B0 = ComputeWaterProximityValues, PadRectangle(rect, 0xB4BC48[+0xBC]) in place,
+  0x00743840 weather UpdateMoisture(rect*16 m), 0x00740890 zero rec +0x16/+0x1A/+0x1E, view 0x00755ED0(z0-1,z1+1) if +0xEC, 0x007482C0, 0x00748950, 0x00740690 (TR36 writers likely there).
+- Next: read build-runs/f_007482c0.asm, f_00748950.asm, f_00740690.asm, f_00755ed0.asm; then TR37 0x007411E1; write spec §15.5.1 + answers.
 
 ## Report (re-terrain4, 2026-10-21, run4 round 1)
 
