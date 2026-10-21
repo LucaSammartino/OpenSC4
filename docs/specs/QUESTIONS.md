@@ -23,6 +23,7 @@ generated index: the questions live one file per spec, so read only the file for
 |---|---|
 | A | automata |
 | AA | audio-ambience |
+| AD | advisors |
 | AM | automata |
 | AO | foundations |
 | AP | application |
@@ -98,6 +99,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
+| advisors | 3 | 0 | AD4 | questions/advisors.md |
 | application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 4 | 0 | AA5 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
@@ -138,7 +140,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-rules | 2 | 7 | NR13 | questions/network-rules.md |
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
 | occupant-manager | 0 | 5 | OM9 | - |
-| occupants-props | 10 | 0 | OP11 | questions/occupants-props.md |
+| occupants-props | 12 | 0 | OP13 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | parks | 0 | 11 | PK12 | - |
 | pathfinder | 0 | 15 | PF16 | - |
@@ -156,10 +158,10 @@ generated index: the questions live one file per spec, so read only the file for
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | terrain | 5 | 36 | TR42 | questions/terrain.md |
 | traffic-network | 0 | 29 | TN30 | - |
-| traffic-simulator | 1 | 92 | TG27, TS68 | questions/traffic-simulator.md |
+| traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **111** | **994** | | |
+| **total** | **115** | **995** | | |
