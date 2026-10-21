@@ -86,6 +86,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RG | residential-education-health |
 | RN | foundations |
 | RS | residential |
+| SR | span-render-1555 |
 | SV | foundations, ordinance |
 | TG | traffic-simulator |
 | TN | traffic-network |
@@ -125,7 +126,7 @@ generated index: the questions live one file per spec, so read only the file for
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
-| framework-gz-services | 4 | 0 | GZ5 | questions/framework-gz-services.md |
+| framework-gz-services | 7 | 0 | GZ8 | questions/framework-gz-services.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | history | 0 | 17 | HW18 | - |
 | landfill | 0 | 36 | LF7, LG31 | - |
@@ -155,9 +156,10 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-lotconfig | 6 | 8 | PL22 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
-| renderer-driver | 5 | 0 | RD6 | questions/renderer-driver.md |
+| renderer-driver | 4 | 1 | RD6 | questions/renderer-driver.md |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
+| span-render-1555 | 1 | 3 | SR1556 | questions/span-render-1555.md |
 | terrain | 5 | 36 | TR42 | questions/terrain.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
@@ -166,4 +168,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **123** | **999** | | |
+| **total** | **126** | **1003** | | |
