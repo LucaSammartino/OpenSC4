@@ -48,6 +48,7 @@
 #include "FC4FlammabilityShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4AutomataShadow.h"  // the glue19 lane
+#include "FC4MySimsShadow.h"  // the mysims1 lane: mysims_shadow
 #include "cFC4Automata.h"  // the glue19 lane
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
@@ -651,7 +652,10 @@ void Resolve() {
     EffectsShadowStartup(enabledKey("effects"));
     TerrainShadowStartup();
     // The automata shadow (FC4AutomataShadow.h; it compares the original automata components).
-    AutomataShadowStartup(enabledKey("automata"));    // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
+    AutomataShadowStartup(enabledKey("automata"));
+    // The MySims shadow (FC4MySimsShadow.h; it compares the original MySim agent + advisors).
+    MySimsShadowStartup();
+    // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // The network tool registry (glue29): with `enable = nettool` the plugin's
     // own tool callers take replacement tools instead of the manager's.

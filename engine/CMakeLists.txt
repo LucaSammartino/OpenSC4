@@ -406,6 +406,9 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4NetworkTool.h
         plugin/FC4NetToolHost.cpp
         plugin/FC4NetToolHost.h
+        # The MySims shadow (mysims.md): mysims_shadow (no replacement).
+        plugin/FC4MySimsShadow.cpp
+        plugin/FC4MySimsShadow.h
         # The occupant manager shadow (occupant-manager.md): occmgr_shadow (no replacement).
         plugin/FC4OccMgrShadow.cpp
         plugin/FC4OccMgrShadow.h

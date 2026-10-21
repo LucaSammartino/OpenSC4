@@ -32,6 +32,7 @@
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
+#include "FC4MySimsShadow.h"  // the mysims1 lane: mysims_shadow
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4Fpu.h"
 #include "FC4GrowthProbe.h"
@@ -344,6 +345,7 @@ public:
         fc4::Clock24ShadowStart();       // clock24_shadow (FC4Clock24Shadow.h)
         fc4::NetMgrShadowStart();        // netmgr_shadow (FC4NetMgrShadow.h): before any city subscribes
         fc4::TerrainShadowStart();       // terrain_shadow (FC4TerrainShadow.h)
+        fc4::MySimsShadowStart();        // mysims_shadow (FC4MySimsShadow.h)
         fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }
@@ -352,6 +354,7 @@ public:
         FC4_LOGV("hook PreAppShutdown");
         fc4::FpuLog("hook PreAppShutdown");
         fc4::NetMgrShadowStop();
+        fc4::MySimsShadowStop();  // mysims_shadow (FC4MySimsShadow.h)
         fc4::EffectsShadowStop();  // effects_shadow: the summary line
         fc4::TerrainShadowStop();
         fc4::Clock24ShadowStop();
