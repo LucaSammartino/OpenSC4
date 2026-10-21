@@ -251,6 +251,7 @@ every harness run rewrites the ini and stages its own DLL.
 | train45-239 | 239 | 2026-10-21 | core-cmdline4,core-url4,core-netocc-records4 | train45 f21518bafa | turbo | PASS | all37default replacements and fullhouse shadows to2032 | Default union PASS; cRZCmdLine core complete. URL/network-occupant records partial, construction conflict held independently. |
 | train46-240 | 240 | 2026-10-21 | glue-simgrids4,core-lotrecords4 | train46 58f47b0eb2 | turbo | PASS | current37 defaults plus simgrids, fullhouse shadows to2032 | Simgrid factory joint2032/ref0;136gridsRead/Write, original-class reload116/116equalref0; candidate union PASS. Partial lotrecords owners not overcredited. |
 | train51-241 | 241 | 2026-10-21 | train51 | 8c5249f6 gated FreeCity4.dll | turbo to2032 | clean | default38 replacement; native shadows plus occmgr_shadow=1,occmgr_shadow_follow=1 | PASS |
+| train56-242 | 242 | 2026-10-21 | train56 | 31d43eb5 gated FreeCity4.dll | turbo to2032 | clean | default38 plus exemplars,span4444,span1555; standard shadows incl occmgrfollow | PASS |
 <!-- END GENERATED -->
 
 - The history that used to follow this table (the budget bisection and differential, the run-23/26 `RefCell`
