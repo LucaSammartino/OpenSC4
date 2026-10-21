@@ -137,7 +137,7 @@ generated index: the questions live one file per spec, so read only the file for
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
-| network-manager | 2 | 9 | NM12 | questions/network-manager.md |
+| network-manager | 0 | 11 | NM12 | questions/network-manager.md |
 | network-occupants | 17 | 0 | NO18 | questions/network-occupants.md |
 | network-rules | 2 | 7 | NR13 | questions/network-rules.md |
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
@@ -168,4 +168,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **128** | **1003** | | |
+| **total** | **126** | **1005** | | |

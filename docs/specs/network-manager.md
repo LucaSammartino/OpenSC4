@@ -325,12 +325,52 @@ the underground pipe and subway occupants answer false. Only bridges answer true
 | `0x89D3E9F3` usable changed (§5) | `n := IGZUnknown.QueryInterface(0xA821EF94)`; none → done. Unless `n.HasAnyNetworkFlag(0x1F4F)` and not `n.HasNetworkFlag(0x200000)`, just release. If data1 ≠ 0: cell := `city.PositionToCell(n.AsOccupant().GetPosition())`; `UpdateRoadsInCell(x, z)` (§8.5). Else `DoNetworkOccupantRemoved(n)` (§8.4). Release `n`. |
 | `0x99EF1143` occupant removed | `n := void1.QueryInterface(0xA821EF94)`; with the same flag filter: `DoNetworkOccupantRemoved(n)`. Release `n`. |
 | `0x07699455` zoning changed | rect := `*data2` (a cell rect) grown by one cell on every side. For every cell of it, row by row, inside the city: add its key to `pending`. Then `ProcessUpdateList()` (§8.5). |
-| `0xE8BDA2E7` lot state changed | `lot := IGZUnknown.QueryInterface(0xE818FCED)`; none → done. rect := `lot.GetBoundingRect()` (lot slot 14) grown by one cell. For every cell of the rect's **border** (BoundaryIterator, simgrid.md §7.4) inside the city: add its key to `pending`. `ProcessUpdateList()`. Release the lot. The data fields (old and new state) are not read. |
+| `0xE8BDA2E7` lot state changed | `lot := IGZUnknown.QueryInterface(0xE818FCED)`; none → done. rect := `lot.GetBoundingRect()` (lot slot 14) grown by one cell. For every cell of the **boundary walk** of §6.3 (not the rect's border: the walk starts at cell (0, 0)) inside the city: add its key to `pending`. `ProcessUpdateList()`. Release the lot. The data fields (old and new state) are not read. *[quirk]* (answers NM10, NM11) |
 | `0x69247DC8` road damage changed (traffic-simulator.md §3.6) | `DoRoadDamageChange(x = data1, z = data2, damaged = data3 low byte)` (§8.8). |
 | `0xA9B6C2D6` | `CreateLotObjects(void1)` (§8.6). *[quirk]* No code in the executable posts this message. |
 
 There is no handler for occupant **inserted**: a network lot appears when the piece becomes usable, not when it is
 placed.
+
+### 6.3 The lot-state boundary walk (answers NM10, NM11)
+
+The `0xE8BDA2E7` handler builds its boundary iterator on the stack with a constructor (`0x0060C930`) that sets the
+current cell to **(0, 0)**, the state to fresh and the step to 1, and then sets only the rectangle (`0x0060C960`:
+x0, z0, x1, z1 from the grown rect, then `x1 := max(x1, x0)`, `z1 := max(z1, z0)`). Nothing moves the current
+cell to (x0, z0) (the zoning handler, by contrast, does: `0x0060FD9B`). `GetNext` (`0x0060CEE0`) then works from
+(0, 0) *[quirk]*:
+
+1. Fresh: return the current cell, state := running. The first cell is always (0, 0).
+2. Running: `x += step`. If `x ≤ x1`: return (x, z).
+3. Otherwise, if `z ≥ z1`: state := done, return false. Otherwise `x := x0`, `z += 1`, and
+   `step := max(x1 − x0, 1)` if `z < z1`, else `step := 1`; return (x0, z).
+
+So for a grown rect {x0, z0, x1, z1} with z1 ≥ 1 the visited cells are, in this order:
+
+| Part | Cells |
+|---|---|
+| row 0 | (0, 0), (1, 0), …, (x1, 0) (step 1; (0, 0) even if x1 < 0) |
+| rows 1 … z1 − 1 | (x0, z), then (x1, z) if x1 > x0 |
+| row z1 | (x0, z1), (x0 + 1, z1), …, (x1, z1) |
+
+Each visited cell with `0 ≤ x < width` and `0 ≤ z < height` (city slots 93/94, `0x174`/`0x178`) puts key
+`x << 8 | z` in `pending` (`0x0060FF90`–`0x0060FFBF`). Consequences:
+
+- **The first row's inner cells are never visited** when 1 ≤ z0 < z1: row z0 gets only (x0, z0) and (x1, z0).
+  (When z0 ≤ 0, row 0 is the full walk from x = 0 to x1, so the inner cells of a first row at z = 0 are visited.)
+- **Columns x0 and x1 are visited from row 1 down to the rect**, and row 0 from x = 0 to x1, so a lot state
+  message re-evaluates cells far north of the lot: any cell (c, r) with r ≥ 1 is visited by every message whose
+  grown rect has x0 = c or x1 = c and z1 > r; every cell (c, 0) with c ≤ x1 is visited. Cell (0, 0) is visited by
+  every message.
+- With the full rect row z1 the walk still covers the left, right and bottom sides of the border; only the top
+  side is replaced by row 0.
+
+Example: lot cells 15..16 × 94..96, grown rect {14, 93, 17, 97}. Visited: (0..17, 0); (14, z) and (17, z) for
+z = 1..96; (14..17, 97). Cells (15, 93) and (16, 93) (the top border's inner cells) are not visited; (14, 40) and
+(17, 40) are.
+
+The walk does not change which keys `ProcessUpdateList` drains, only which keys are added; keys already in
+`pending` are not duplicated (hash set).
 
 ---
 
@@ -670,6 +710,24 @@ Steps 2 and 3 run even when the cell has no network lot.
 within a bucket. Only two things depend on it: which cell starts an avenue flood (§8.7) and the order of the random
 draws. The generator is seeded from the wall clock, so draws are not reproducible anyway. FreeCity4 processes keys in
 ascending key order *[choice]*.
+
+**Every path that changes network lots** (answers NM11; from the call and cross-reference graph of the
+executable, no data references to any of these functions):
+
+| Entry | Reached from | Effect |
+|---|---|---|
+| key into `pending` | only `0x0060FE45` (zoning changed, full grown rect) and `0x0060FFBF` (lot state changed, §6.3 walk) | `ProcessUpdateList` |
+| `UpdateRoadsInCell` | only `ProcessUpdateList` (`0x0060FA68`) and the usable-changed handler (`0x0060FD19`, the piece's own cell) | §8.5 |
+| `UpdateLot` | only `UpdateRoadsInCell` and `UpdateAvenueStyle` (`0x0060F424`, every cell of the avenue flood, §8.7) | keep, replace or create |
+| `DoNetworkOccupantRemoved` | only `UpdateLot` and the occupant-removed handler (`0x0060FEAF`) | remove |
+| `DoNetworkOccupantInserted` | only `UpdateLot` | create |
+
+`RedevelopLot` (slot 12) only rebuilds a lot's objects (§8.6); `pending` is written nowhere else (the traffic
+simulator's `DoRoadChanged` inserts into its own set at `+0x7B8`; the avenue flood into a local set). The traffic
+network's piece updates reach this manager only as `0x89D3E9F3` (usable changed) and `0x99EF1143`; a neighbour's
+style change does not enqueue anything except through the avenue flood. So a lot appears or disappears outside the
+six messages' own cells only through the §6.3 walk (cells north of the lot along columns x0 and x1, and row 0) and
+the avenue flood.
 
 ### 8.6 Lot objects
 
@@ -1027,6 +1085,7 @@ The tools, models, remap tables and retrofit are presentation or legacy. A FreeC
 12. A pothole's height is taken at the cell centre (§8.8). An object's height is taken before the mirror (§8.6).
 13. The riot lock: the edge quirk, the inverted counter, and no unlock until the last riot ends (§10).
 14. A construction crew that does not unregister hangs PreCityShutdown (§7.12).
+15. The lot-state walk starts at (0, 0): row 0, columns x0/x1 north of the lot, no inner top row (§6.3).
 
 ---
 
@@ -1121,8 +1180,11 @@ Each test names its section. "City" means a fresh 64 × 64 city unless stated ot
 22. **Usable message** (§5). `SetNetworkFlag(0x10000000)` on a placed piece → one `0x89D3E9F3` (data1 = 1); setting it
     again → none; `ClearNetworkFlag(0x10000000)` → one with data1 = 0. On a piece not in the city: set → none; clear
     → one.
-23. **Lot state ring** (§6.2). A 2 × 3 lot at x 10..11, z 20..22 changes state → `pending` gets the 14 border cells
-    of x 9..12, z 19..23 (not the lot's own 6 cells).
+23. **Lot state walk** (§6.2, §6.3). A 2 × 3 lot at x 10..11, z 20..22 changes state (grown rect {9, 19, 12, 23},
+    city at least 24 × 24, `pending` empty) → `pending` gets 61 keys: (0..12, 0); (9, z) and (12, z) for
+    z = 1..22; (9..12, 23). Not (10, 19), (11, 19) nor the lot's own 6 cells.
+24. **Walk at the top edge** (§6.3). A 1 × 1 lot at (5, 0) (grown {4, −1, 6, 1}) → keys (0..6, 0) and (4..6, 1):
+    row 0 is walked in full from x = 0, so it includes the lot's own cell (5, 0).
 
 ---
 
