@@ -102,3 +102,32 @@ readings has been checked in game. The current choice is in brackets.
   pipes at `0x00613E53`–`0x00613E59`, subways at `0x00613E9B`–`0x00613EA1`. A kind with no occupant in `dirty` gets no
   `GetNetworkTool`, `Init`, `UpdateUndergroundOccupantTerrainHeights` or `Shutdown`. Also: a failed query (occupant
   manager slot 40 returning false) skips the split and both kinds. Vector `nm16_10` needs updating.
+<!-- from: verify-regress4 (2026-10-21) -->
+- **NM10 - section 6 (`0xE8BDA2E7` lot state changed), section 8.5, simgrid.md section 7.4:** in game, after a lot
+  state message whose grown rect is {x0, z0, x1, z1}, the original never changes the road style variation of the
+  first row's inner cells (x0 < x < x1, z = z0), while the spec adds every border cell to `pending` and
+  `UpdateRoadsInCell` restyles them (ours moves such cells 5 -> 6 or 4 -> 5 where the original keeps them;
+  examples: runs regress-train17/19, rect 14,93..17,97 at 16,93; rect at 20..22,103). Rarely the original restyles
+  such a cell later, during another message, as if its key had stayed pending. Does the BoundaryIterator skip
+  (or postpone) the first row's inner cells, or does `ProcessUpdateList` stop early? The network lot of such a cell
+  then differs too (§8.5: a lot is kept only while compatible with the style). [the whole border, as written;
+  the netmgr shadow counts differences at such cells under NM10, not as mismatches. The code has cited "NM10" since
+  an earlier lane, but it was never filed: this is the entry.]
+  **ANSWERED 2026-10-21 (re-netmgr-contracts4):** DIFFERS — the lot-state walk starts at cell (0, 0), not at the rect's corner (network-manager.md §6.3): row 0 from x = 0 to x1, then (x0, z) and (x1, z) for z = 1..z1−1, then the full row z1. The first row's inner cells (x0 < x < x1, z = z0 ≥ 1) are never added; a later restyle of such a cell comes from another message's walk (§6.3, §8.5 table). `ProcessUpdateList` does not stop early.
+<!-- from: verify-regress4 (2026-10-21) -->
+- **NM11 - section 8.5, section 9:** in run regress-train19 the shadow saw network lot differences at cells that
+  were not (yet) in any lot state message's first row: 2026-04 lot at 20,103 (config 0x4A7F8609) held by the
+  original only, with no style difference that month; 2026-05 lot at 16,93 (config 0x4A7F8606) held by ours only,
+  one month before the first-row message on 16,93. In regress-train17 the same cells differed only after such a
+  message (both under NM10). Which messages, other than the six of §6, create or remove a network lot (for example
+  a lot created through `UpdateLot` from a pending key of a neighbouring cell whose road style changed, or from the
+  traffic network's own piece updates)? [only the six messages of §6.1 reach the lot core in the shadow; the
+  verify-regress4 plugin now logs, for each such lot difference, the network occupant's variation, rotation,
+  flip, zone, wealth and both sides' compatibility, so the next run can say which input differs]
+  Run vr4-a1 (verify-regress4, turbo, 2026-03-01) repeats both cells with those inputs: 20,103 held by the
+  original only, variation 6, rotation 3, usable, config compatible now, zone/wealth 3/3 on both sides; 16,93 held
+  by ours only, variation 4 (the original's write), config no longer compatible. So the original ran
+  `UpdateRoadsInCell` on both cells (creating one lot, removing the other) at moments when no followed message put
+  their keys in ours' `pending`. 2026-02-01 shows the same pattern at 48,83, 50,81 and 51,110 (original only,
+  compatible, same zone/wealth). What else adds keys to `pending`?
+  **ANSWERED 2026-10-21 (re-netmgr-contracts4):** DIFFERS — no seventh message: `pending` is written only by the zoning and lot-state handlers, `UpdateRoadsInCell` is called only by `ProcessUpdateList` and usable changed, and `UpdateLot` also by the avenue flood (network-manager.md §8.5 table). The extra cells come from the §6.3 walk: every lot-state message adds columns x0 and x1 of its grown rect from row 1 down to the lot, and row 0 up to x1. So 20,103 and 16,93 are re-evaluated by any lot-state message whose grown rect has x0 or x1 = 20 (resp. 16) and z1 > 103 (resp. 93). Traffic piece updates arrive only as 0x89D3E9F3/0x99EF1143; a neighbour's style change enqueues nothing outside the avenue flood.
