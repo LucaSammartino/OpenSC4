@@ -22,3 +22,9 @@
   traffic network's own piece updates)? [only the six messages of §6.1 reach the lot core in the shadow; the
   verify-regress4 plugin now logs, for each such lot difference, the network occupant's variation, rotation,
   flip, zone, wealth and both sides' compatibility, so the next run can say which input differs]
+  Run vr4-a1 (verify-regress4, turbo, 2026-03-01) repeats both cells with those inputs: 20,103 held by the
+  original only, variation 6, rotation 3, usable, config compatible now, zone/wealth 3/3 on both sides; 16,93 held
+  by ours only, variation 4 (the original's write), config no longer compatible. So the original ran
+  `UpdateRoadsInCell` on both cells (creating one lot, removing the other) at moments when no followed message put
+  their keys in ours' `pending`. 2026-02-01 shows the same pattern at 48,83, 50,81 and 51,110 (original only,
+  compatible, same zone/wealth). What else adds keys to `pending`?
