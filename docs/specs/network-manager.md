@@ -1215,6 +1215,12 @@ Each test names its section. "City" means a fresh 64 × 64 city unless stated ot
     z = 1..22; (9..12, 23). Not (10, 19), (11, 19) nor the lot's own 6 cells.
 24. **Walk at the top edge** (§6.3). A 1 × 1 lot at (5, 0) (grown {4, −1, 6, 1}) → keys (0..6, 0) and (4..6, 1):
     row 0 is walked in full from x = 0, so it includes the lot's own cell (5, 0).
+25. **Raw-state replay** (§17.2–§17.4). Load the generator from seed `0x9E3D9501` and draw 3, 4, 2 → 2, 2, 1.
+    Load it raw at `k = 622` (the words of that seed after 622 draws) and draw 3, 4, 2 → 1, 3, 1, ending at
+    `left = 623`, `k = 1` after a reload. The post-state equals that of the seeded generator after 625 draws.
+26. **Pending order** (§8.5, NM13). `B = 193`, keys queued `0x0102`, `0x0201`, `0x0143`, `0x00C3` → processed
+    `0x00C3`, `0x0102`, `0x0201`, `0x0143`. Keys 2 then 195 (same bucket) → 195 first. 194 distinct keys queued
+    from empty → `B = 389` after the 194th insert.
 
 ---
 
