@@ -577,7 +577,7 @@ because the last values were reset to 0; a later tick with `CanHandle` false pos
 
 | # | Question | What would settle it |
 |---|---|---|
-| **AA1** | The layer's own behaviour: scores, loops and filter use (`CanHandle`, `HandleCell`, `HandleOccupant`, `Update`; `0x004E5110`–`0x004E6910`). Init, tuning and filter creation are §8.1–8.3. | a follow-up section of this spec |
+| **AA1** | Remaining layer behaviour: `_UpdateAmbienceScores` (`0x004E5920`, §8.6, with `_UpdateFreshnessParameters` `0x004E4AA0` and the freshness-score list), the ease time step `0x004F8650` (§8.7), and the role of the audio director's `+0x54` member `+0x11C` (§8.5 mode 6). Init, tuning, filters, filtering, group layers, `Update` and the loops are §8.1–8.5, §8.7. | a follow-up section of this spec |
 | **AA4** | Type `0xC7CC75F1` of the init walk: which automaton class (vehicle?) owns it. `0xA823821E` is props. | the occupant type table |
 
 ## 10. Conformance tests
@@ -597,3 +597,11 @@ because the last values were reset to 0; a later tick with `CanHandle` false pos
    the exemplar present but those keys absent, `+0x1E0 = +0x1E1 = 0` (§8.2).
 10. Two layers listing the same filter class id share one filter object; each layer's kind counter counts it
     once per listing (§8.3).
+11. A layer whose kind-3 list holds only cell filters never passes `CanHandle`, so it inserts nothing and posts
+    stop for a playing loop (§8.4, §8.7).
+12. Two occupant points 10 apart with occupant radius 10: the second is **not** joined (distance must be
+    strictly less than 0 + 10 is false at exactly 10); at 9.99 it joins and the group's count becomes 2 (§8.4).
+13. Update with 12 group centres all in one third of the rectangle keeps at most 3 sample positions (one per
+    occupied grid cell); with 9 centres it keeps all 9 (§8.5 step 6).
+14. `+0x38 = 5` with no groups (`+0xA8 = 0`) gives `+0xAC = 0.0`, target volume 0, and no start event (§8.5,
+    §8.7).
