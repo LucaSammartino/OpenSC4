@@ -29,6 +29,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AT | automata |
 | AU | aura |
 | BQ | budget |
+| BW | budget-window |
 | CB | civic-buildings |
 | CD | city-detail |
 | CK | clock24 |
@@ -95,6 +96,7 @@ generated index: the questions live one file per spec, so read only the file for
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 1 | 37 | A5, AM13, AT21 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
+| budget-window | 5 | 0 | BW6 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 0 | 5 | CD6 | - |
 | city-situation | 0 | 11 | CS12 | - |
@@ -135,15 +137,15 @@ generated index: the questions live one file per spec, so read only the file for
 | port-developers | 0 | 11 | PD12 | - |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 14 | GLUE22, PV14 | - |
-| prop-lotconfig | 0 | 8 | PL20 | questions/prop-lotconfig.md |
+| prop-lotconfig | 6 | 8 | PL22 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
-| terrain | 5 | 27 | TR33 | questions/terrain.md |
+| terrain | 5 | 36 | TR42 | questions/terrain.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 92 | TG27, TS67 | - |
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **56** | **982** | | |
+| **total** | **67** | **991** | | |
