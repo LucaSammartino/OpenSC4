@@ -1,6 +1,6 @@
 # Legacy control (`cGZLegacyControl`): building widgets from `LEGACY` script blocks
 
-Status: partial, 41 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
+Status: partial, 41 of 57 owner functions complete, 1 partial (Grid) (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
 (Windows). Covered: object layout, COM surface, lifecycle, the shared vocabulary and its two lookup maps, the
 `SetParameters` build sequence, the property-list readers, and the full word tables of all 21 vocabulary
 functions. Per-control interpreter contracts (`InterpretProperties*`) are specified for the common pass (§8);
@@ -15,7 +15,7 @@ Related specs: `widget-toolkit.md` (`cGZWin`, the windows this object builds), `
 |---|---|
 | Object size | `0x20` bytes (factory `cGZUIScriptCOMDirector::CreateLegacyControl` `0x0094AF90` allocates `0x20` and runs the constructor `0x0095B8C4`) |
 | Primary vtable | `0x00AD5360`, 11 slots |
-| Second sub-object (`+0x04`) | vtable `0x00AD5344` (no slot targets labelled in the export; open LC1) |
+| Second sub-object (`+0x04`) | vtable `0x00AD5344`, 8 slots: the control-area interface (§3, answers LC1) |
 | Third sub-object (`+0x08`), the legacy-control interface | vtable `0x00AD5324`, 8 slots |
 | IIDs answered by `QueryInterface` `0x0094C431` | `0x00000001` and `0x1A356083` → the object itself; `0x5A356159` → `this+4`; `0x9A4527CB` → `this+8` |
 
@@ -53,6 +53,24 @@ Primary vtable `0x00AD5360`:
 | 8 | `+0x20` | `0x00935EA0` | `ImplementInterface(4 args)` | returns true, ignores all four arguments (ICF-shared body) |
 | 9 | `+0x24` | `0x0094C31E` | `SetParent(obj)` | §7.1; returns true always |
 | 10 | `+0x28` | `0x0094C761` | scalar deleting destructor | §5.2 |
+
+Control-area interface vtable `0x00AD5344` (sub-object at `+0x04`, IID `0x5A356159`; no name in the export, the
+interface name is *[inferred]*). Raw slot words read from the image at `0x00AD5344`–`0x00AD535F`; the next word,
+`0x00AD5360`, starts the primary vtable. Slots 0–2 are `this − 4` thunks.
+
+| Slot | Offset | Target | Method | Contract |
+|---|---|---|---|---|
+| 0 | `+0x00` | `0x0094C4B8` | `QueryInterface` | thunk to `0x0094C431` |
+| 1 | `+0x04` | `0x009359BD` | `AddRef` | thunk to `0x0094C47C` |
+| 2 | `+0x08` | `0x0094C4C0` | `Release` | thunk to `0x0094C483` |
+| 3 | `+0x0C` | `0x0091559A` | (one argument) | returns true, argument ignored (ICF-shared `mov al,1; ret 4`) |
+| 4 | `+0x10` | `0x0091559A` | (one argument) | same body as slot 3 |
+| 5 | `+0x14` | `0x0094C3F5` | `SetArea(rect)` *[inferred name]* | control (object `+0x10`) null → false; else control `SetArea(rect)` (`cIGZWin` `+0xD8`), true |
+| 6 | `+0x18` | `0x0094C413` | `GetArea(rect)` *[inferred name]* | control null → false; else control `GetArea(rect)` (`cIGZWin` `+0xBC`), true |
+| 7 | `+0x1C` | `0x0092B33A` | (two arguments) | returns true, both arguments ignored (ICF-shared `mov al,1; ret 8`) |
+
+Slots 5 and 6 pass the caller's rectangle pointer through unchanged and return true even though the window
+call's own result is discarded.
 
 Legacy-control interface vtable `0x00AD5324` (sub-object at `+0x08`; slots 0–2 and 4 are `this − 8` thunks):
 
@@ -261,9 +279,10 @@ dropped by this object.
 ### 7.4 `GetScriptFragment(out)` (`0x0096638D`)
 
 Calls `GetControl()`; null → return false. Otherwise allocate a new empty `cRZString` (20 bytes), `AddRef` it,
-and run the serialiser `0x00965F73` (1050 bytes, not owned here; open LC3) to fill it from the control. On
+and run the serialiser `0x00965F73` (1050 bytes, not owned here; §7.6) to fill it from the control. On
 success store the string in `*out` (the caller receives the reference) and return true; on failure release the
-string and return false.
+string and return false. The serialiser always reports success, so with a non-null control the method always
+returns true with a filled string.
 
 ### 7.5 Property-list readers (shared helpers, used by every interpreter)
 
@@ -277,6 +296,98 @@ All take the property list in a register (not a stack argument) and scan it **li
 | `String(key, out)` | `0x0094CCD9` | first clears `out`; then the first pair with a non-null value of variant type `0x800E` → copies its text, true |
 
 Callers pre-initialise the out value, so "missing" means "keep the default".
+
+### 7.6 Script fragment format (serialiser `0x00965F73`) (answers LC3)
+
+The serialiser appends to the string it is given (it does not clear it; `GetScriptFragment` passes a new empty
+string). Every item below is written as `word=value` followed by **one space**. Output, in order:
+
+1. The literal `<LEGACY ` (with its trailing space).
+2. Class and interface (helper `0x00965D01`), see below: `clsid=<class text> ` then `iid=<interface text> `.
+3. The common words (helper `0x00962FC2`), see below.
+4. The per-type words: the resolved interface ID selects a writer (table below). The serialiser asks the control
+   for that interface; on success it calls the writer with it and releases it; if the control does not answer
+   it, or the ID has no writer (`IGZWinCustom` `0x678D1E84`, base `IGZWin` `0x22BA0121`, anything else), no
+   per-type words are written.
+5. The literal `>` and a line feed (`0x3E 0x0A`, string at `0x00AD7028`). No carriage return; the text before
+   `>` ends with the space of the last item.
+
+It always returns true.
+
+**Class and interface resolution** (`0x00965D01`). The class table at `0x00B16FA8` has 21 rows of
+(class ID, interface ID, name), in this order: GZWinFlatRect, GZWinText, GZWinTextEdit, GZWinListBox,
+GZWinLineInput, GZWinCombo, GZWinBtn, GZWinBMP, GZWinScrollbar, GZWinSlider, GZWinOptGrp, GZWinSpinner,
+GZWinOutline, GZWinTextTicker, GZWinGen, GZWinFileBrowser, GZWinTreeView, GZWinFolders, GZWinGrid, GZWinCustom
+(the IDs of §4.1; note row 14 is named `GZWinGen`, not `SC3WinGen`), and last `GZWin` = class `0xE2BA00EE`,
+interface `0x22BA0121`.
+
+1. Class ID = the control's parameter `0xE85EEBDE`, interface ID = its parameter `0x08D6E462` (both stored by
+   `SetParameters`, §6 step 5); a missing parameter or a zero value counts as 0.
+2. If either is 0: for **every** row in table order, ask the control for the row's interface (and release it
+   on success). The first row that answers fills whichever of the two IDs is still 0 (class from the row's class
+   column, interface from its interface column); later rows change nothing. After the scan, an interface ID still
+   0 becomes `0x22BA0121`. (When both parameters exist the scan is skipped.)
+3. A class ID still 0 becomes `0xE2BA00EE`.
+4. Class text: the name of the row whose class ID matches, else `0x` and the ID as 8 lowercase hex digits
+   (`0x%08lx`). Interface text: `I` + the name of the row whose interface ID matches, else the same hex form.
+5. Write `clsid=<class text> `; the interface ID is non-zero by now, so `iid=<interface text> ` is always written.
+
+Quirk Q8: with only one of the two parameters present, the other comes from the first answering table row, so the
+pair can disagree (a stored class with the interface of an earlier-listed class the control also answers).
+
+**Common words** (`0x00962FC2`), in this order:
+
+| Word | Written when | Value format | Source |
+|---|---|---|---|
+| `id` | `GetID()` (`+0xFC`) is non-zero | `0x%08x` (8 lowercase hex digits) | the window ID |
+| `area` | always | `(%d,%d,%d,%d)`, no spaces | `GetL` `+0xAC`, `GetT` `+0xB0`, `GetR` `+0xB4`, `GetB` `+0xB8` |
+| `fillcolor` | always | `(%u,%u,%u)` | `GetFillColor(&r,&g,&b)` (`+0x1A0`) |
+| `caption` | the caption (`+0x124`) has length > 0 | `"text"`, no escaping of quotes | the caption text |
+| `captionres` | parameter `0x0B31771A` reads as a 12-byte resource key and its group or instance is non-zero | `{%08x,%08x}` = group, instance (no `0x`) | stored by §8 step 7 |
+| `comments` … `commentskd` | parameter `0xBACA6879` exists, its variant type has bit `0x10`, the comment list is obtained, and that string is non-empty | `"text"` | the 8-string list of §8 step 9, same word order |
+| 13 flag words | always | `yes` / `no` | `GetFlag(mask)` (`+0x10C`) |
+
+Flag words, in order: `winflag_visible` `0x1`, `winflag_enabled` `0x2`, `winflag_moveable` `0x100`,
+`winflag_sizeable` `0x200`, `winflag_sortable` `0x800`, `winflag_pbuff` `0x10000`, `winflag_pbufftrans`
+`0x20000`, `winflag_pbufferase` `0x40000`, `winflag_pbuffvid` `0x100000`, `winflag_alphablend` `0x4`,
+`winflag_acceptfocus` `0x8000`, `winflag_mousetrans` `0x80000`, `winflag_ignoremouse` `0x200000`.
+
+Quirk Q9: `GetFillColor` (`0x0099BFC9`) writes one byte into each of three 32-bit locals the writer never
+initialised (`0x00963065`–`0x00963084`), so the original can print stack garbage in the upper 24 bits.
+Implementations print the byte values 0–255.
+
+Not written by the common part: `pos`, `size` (the `area` form is always used), `transparent`, and every word
+§8 does not read.
+
+**Per-type writers** (dispatch at `0x00965FCA`–`0x0096634C`; not owner functions, their word sets are
+outside this spec and stay open as LC8):
+
+| Interface | Writer | Size | | Interface | Writer | Size |
+|---|---|---|---|---|---|---|
+| Slider `0x21325207` | `0x0095F4EC` | 375 | | FlatRect `0xC2AFA76F` | `0x0095C211` | 841 |
+| Text `0x212CDC1F` | `0x0095C55A` | 1789 | | BMP `0xC12CEA13` | `0x0095F2CA` | 546 |
+| TextTicker `0x032F0B3C` | `0x00960C31` | 214 | | Scrollbar `0x61325A2D` | `0x0095F663` | 536 |
+| Btn `0x00008810` | `0x0095E6F0` | 3034 | | Spinner `0x612CE0C3` | `0x0096017E` | 2115 |
+| LineInput `0x21335C59` | `0x0095DB1A` | 1736 | | Gen `0x5386D516` | `0x00960D07` | 1767 |
+| Combo `0x412CE496` | `0x0095E1E2` | 1294 | | OptGrp `0xA1336CC0` | `0x0095F9B0` | 1998 |
+| TreeView `0x3AE8BAD2` | `0x00963688` | 4467 | | Folders `0xA13351B8` | `0x00962E9F` | 291 |
+| FileBrowser `0x3AA52E64` | `0x009613EE` | 6833 | | Outline `0xE303E5AE` | `0x009609C1` | 624 |
+| TextEdit `0x231A1C57` | `0x0095CC7B` | 1982 | | Grid `0xDAA6B9BE` | `0x009647FB` | 5382 |
+| ListBox `0x4132242B` | `0x0095D439` | 1761 | | | | |
+
+Value helpers the writers share (each appends `word=` + value + space): hex `0x0095BE2E` (`0x%08x`), quad
+`0x0095BF21` (`(%d,%d,%d,%d)`), colour `0x0095BC92` (`(%u,%u,%u)`), resource key `0x0095BE7D`
+(`{%08x,%08x}`), quoted text `0x0095C028` (`"%s"`), yes/no `0x0095BFCB` (`yes` when the byte argument is
+non-zero, else `no`).
+
+Worked example: a `GZWinText` built by `SetParameters` (parameters `0xE85EEBDE = 0x592`,
+`0x08D6E462 = 0x212CDC1F`), ID `0x1234`, area (0,0,100,20), fill (255,255,255), caption `OK`, no `captionres`,
+empty comments, `GetFlag` true for `0x1` and `0x2` only, gives
+
+`<LEGACY clsid=GZWinText iid=IGZWinText id=0x00001234 area=(0,0,100,20) fillcolor=(255,255,255) caption="OK" winflag_visible=yes winflag_enabled=yes winflag_moveable=no winflag_sizeable=no winflag_sortable=no winflag_pbuff=no winflag_pbufftrans=no winflag_pbufferase=no winflag_pbuffvid=no winflag_alphablend=no winflag_acceptfocus=no winflag_mousetrans=no winflag_ignoremouse=no ` + the Text writer's words + `>` + LF.
+
+A control with neither parameter that answers only `IGZWin` gives `clsid=GZWin iid=IGZWin `; one whose stored
+class is `0x12345678` (not in the table) gives `clsid=0x12345678 `.
 
 ## 8. The common interpreter (`0x0095660D`)
 
@@ -575,11 +686,13 @@ The font counterpart (`0x0094C222` Uint32 / `0x0094C255` String) stores the valu
 - Q6. Grid `enablehdr` shares its variable with `dcolwidth`: when absent, the header mode is the column width
   (100 by default → (0, 0)).
 - Q7. Grid `wingridcol=a,b,w` sizes only column a; b is ignored (rows use the a..b range).
+- Q8. Script fragment: with only one of the class/interface parameters stored, the other comes from the first
+  table row the control answers (§7.6).
+- Q9. Script fragment `fillcolor`: upper 24 bits of each component are uninitialised stack in the original (§7.6).
 
 ## 11. Open questions
 
-- LC1. The `+0x04` sub-object vtable `0x00AD5344` (IID `0x5A356159`): slot targets not resolved in the export.
-- LC3. Serialiser `0x00965F73` used by `GetScriptFragment`: output format.
+- LC8. Word sets of the 19 per-type script-fragment writers (§7.6 table; not owner functions).
 - LC4. Interpreter effect tables (§8, §9).
 - LC7. Grid `wingridcell` (§9.5 step 11): exact branch nesting of the cell flags and the meaning of fields 7-11.
 - LC5. Window manager slot 3 (`+0x0C`) used as the default parent: confirm it is the root/main window.
@@ -594,9 +707,9 @@ Custom interpreter are shared bodies owned elsewhere).
 |---|---|---|
 | COM surface, accessors, lifecycle (`QueryInterface`, `Release`, destructor, `GetControlVocabulary`, `SetOwnControl` + thunk, `SetParent`, `UseWinProc`, `ForceControl`, `GetID`, `SetID`, `DoExceptions`, constructor, `ImplementInterface`) | 14 | specified (§3, §5, §7) |
 | `SetParameters` | 1 | specified (§6) |
-| `GetScriptFragment` | 1 | specified except the serialiser it calls (LC3) |
+| `GetScriptFragment` | 1 | specified (§7.4; serialiser frame, class/interface and common words §7.6; per-type writer word sets are non-owner functions, LC8) |
 | `ControlVocabulary*` | 21 | specified (§4: every word, ID and map entry) |
-| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Grid (§9.5), Custom (shared stub) specified; 15 owned interpreters open (LC4) |
+| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Custom (shared stub) specified; Grid (§9.5) partial (cell branch nesting, LC7); 15 owned interpreters open (LC4) |
 
-Count: 41 of 57 owner functions specified (15 others + 21 vocabulary + Common, Slider, TreeView, FileBrowser, Grid); `GetScriptFragment`
-partial (LC3); 15 interpreters open (LC4). No wildcard credit.
+Count: 41 of 57 owner functions complete (14 COM/lifecycle + `SetParameters` + `GetScriptFragment` + 21 vocabulary +
+Common, Slider, TreeView, FileBrowser); 1 partial (Grid, LC7); 15 interpreters open (LC4). No wildcard credit.
