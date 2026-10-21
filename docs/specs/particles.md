@@ -74,7 +74,7 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0x04` | **B only**: `u32 & 0xFF` | 0 | **flags C**; bit 0 `destroyBuildings` (collision) |
 | `+0x08` | `u32 & 0x7FF` | 0 | **flags B** (§3) |
 | `+0x0C` | `vec2` | 2.0, 2.0 | particle life range in seconds (`life a b` gives a−b, a+b); each particle's life is a uniform draw in it (§5.1) |
-| `+0x14` | `f32` | 1.0 | |
+| `+0x14` | `f32` | 1.0 | the loop duration in seconds (§8.2; values ≤ 1e-6 act as 1e-6) |
 | `+0x18` | `u32` | 0 | emit loop count (effects.md §7.1); 0 = endless |
 | `+0x1C` | `f32` | 0 | `preroll` seconds; also caps the emitted time of one frame at `preroll − 0.01` when > 0 (§8.1) |
 | `+0x20` | `vec2` | −1, −1 | `maintain … delay` range: the loop interval; a min ≥ 0 seeds the start countdown (§6 step 6) |
@@ -119,7 +119,7 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0x1B4` | `u32` | 0 | |
 | `+0x1B8` | `cWiggle[]`: `u32` count, each two `vec3` (reader `0x005B09D0`) | empty | wiggles |
 | `+0x1C4` | `f32` | 0 | |
-| `+0x1CC` | **B only**: a string list (reader `0x005B1D60`) | empty | PT2 |
+| `+0x1CC` | **B only**: a string list (reader `0x005B1D60`) | empty | particle age events: (name, age) pairs fired at birth or when a particle crosses the age (§8.3) |
 | `+0x1D8` | `f32` | 0 | the source scale; picks the derived class (§1) |
 | `+0x1DC` | `f32` | 0 | |
 | `+0x1E0` | `u32[]` | empty | |
@@ -404,6 +404,78 @@ self-stops, through main slot 1 with argument 0 at `0x005AA6D4` when its `+0x18`
 4. The emitter is chosen by **flags A** (`D+0x00`): `0x4` (`maintain`) → `0x005B3CF0` (rate integral, no
    self-stop); else `0x2` (`inject`) → `0x005B8B50` (loop budget); else `0x005B87B0` (duration budget); each is
    given `e`.
+
+### 8.2 The three emitters (given the emitted time `e`, §8.1) *[compat]*
+
+State: the emission clock `+0x120` (double, in **loops**: one loop = `D+0x14` seconds), the completed-loop
+counter `+0x128` (`u32`, read as unsigned), the clock rate `+0x130` (double) := 1.0 / `D+0x14` set by
+`SetDescription` (`D+0x14` is used only when 1e-6 < `D+0x14`, else 1e-6 (`0x00A86510`); so `D+0x14` is the
+**loop duration** in seconds, default 1.0), the fractional emission carry `+0x138` (`f32`). `Start` zeroes
+`+0x120`, `+0x128`, `+0x138` (§6 step 2). The **density** `s0` := (`E+0x00` × `+0x1E0`) × `+0x1C4` (`f32`), where
+`E` is the environment object at `+0x1E8` (set by main slot 13 `0x005B2220`; its `+0x04` is the size factor of
+§5.1 step 11 and `+0x08..+0x10` the wind), `+0x1E0` is `SetParameter` (slot 5, `0x005B2490`) index 2 (1.0 after
+`SetDescription`), and `+0x1C4` is the first value of `SetParameter` index `0x102`. `k` is the scale `+0xC0`.
+
+**Emitting one particle** (all three): `P` := `CreateParticle` (`+4` slot 15). A null `P` is skipped. If `P`'s
+alive byte is 0 → `DestroyParticle` (`+4` slot 16). Otherwise (`0x005B8B50`, `0x005B87B0` only) the per-particle
+update (main slot 20, §7.1) runs on `P` with an age offset `a` (pre-ageing: the particle is simulated forward by
+`a` seconds at birth); false → `DestroyParticle`; true → if flags A bit 31 is set, the birth events of §8.3 fire,
+then `AddParticle` (`+4` slot 11). `0x005B3CF0` adds without the update and without the bit-31 events.
+
+**`maintain` (`0x005B3CF0`).** `t` := `+0x120` + `e` × `+0x130` (double, stored). Only when `t` > `+0x128`
+(strict; `+0x128` stays 0 here, so every frame with a positive clock): `n` := ⌈`rate[0]`⌉ (the first sample of the
+rate curve `D+0x88`, rounded up by the 12582912 trick at `0x005B3D33`) minus the live count (§4); that many
+particles are emitted. No density, no scale, no loop counting, no self-stop. *Quirk:* the difference is
+unsigned; a live count above `n` (unreachable with a fixed description) would wrap.
+
+**`inject` (`0x005B8B50`, bursts).** `t` := `+0x120` + `e` × `+0x130` (double, stored). If not `t` > `c` (`c` =
+`+0x128`) nothing happens. `n0` := `rate[0]`; if `n0` > 20.0 (`0x00AA0F1C`) and flags B bit 0 is clear, `n0` :=
+((`E+0x00` × `+0x1E0`) × `+0x1C4`) × `n0`; `n` := ⌈`n0`⌉. Then loop:
+1. `a` := (`t` − `c`) × `D+0x14` (`f32`: seconds since the burst was due). If `a` < `D+0x10` (the life range's
+   upper end) and `n` ≠ 0, `n` particles are emitted, each pre-aged by the same `a`.
+2. `c` += 1 (stored). If the loop count `D+0x18` ≠ 0 and `c` ≥ it: main slot 1 `Stop(0)` (the delayed stop of
+   effects.md §7.1) and return.
+3. If `D+0x28` ≥ 0: `t` −= RandomRange(`D+0x28`, `D+0x2C`) × `+0x130` (the pause between bursts, in seconds,
+   converted to loops; stored). If now `t` < `c`: the countdown `+0x190` := (`c` − `t`) × `D+0x14` (`f32`),
+   `+0x120` := `c`, return (§8.1 then waits out the pause).
+4. Repeat from 1 while `c` < `t` (double).
+
+**Default (`0x005B87B0`, a rate over a duration).** `s` := `s0`, times `k` with `emit … scale` (`0x80000`),
+else `k`² with `areaScale` (`0x100000`), else `k`³ with `volumeScale` (`0x200000`) (first bit that is set wins;
+products `k·k·s0`, `(k·k)·k·s0`). A flag `w` := false. Loop, with `r` := `e`:
+1. Step `h` := 1/15 if 1/15 < `r`, else `r` (as §7.1). `c1` := `+0x128` + 1; `t` := `+0x120` + `h` × `+0x130`
+   (double, stored).
+2. **Loop end** when `t` > `c1` (strict): `+0x128` := `c1`. If `D+0x18` ≠ 0 and `c1` = `D+0x18`: without `sustain`
+   (`0x8`) → main slot 1 `Stop(0)`, return; with `sustain` → `+0x128` := `D+0x18` − 1 and `+0x120` := `D+0x18` −
+   1e-6 (the clock is pinned at the end of the last loop, so the last rate value repeats for ever). Otherwise, if
+   `D+0x28` ≥ 0: `w` := true, `h` −= (`t` − `c1`) × `D+0x14` (the step is cut at the loop end) and `+0x120` :=
+   `c1`. With `D+0x28` < 0 the clock simply runs on into the next loop.
+3. **Rate**: the rate curve `D+0x88` sampled (§7.1 sampling) at the loop phase `+0x120` − `+0x128` (in [0, 1)).
+   `acc` := `rate` × `h` × `s` + `+0x138`; `m` := ⌊`acc`⌋; `+0x138` := `acc` − `m`. So `rate` is particles per
+   second.
+4. If `m` > 0: `m` particles are emitted with age offsets `a` = `r`, `r` − `h`/`m`, `r` − 2`h`/`m`, … (`r` is the
+   remaining frame time at the start of this step, not `h`; `h`/`m` is computed once as `f32`).
+5. `r` −= `h`. If `w`: `r` −= RandomRange(`D+0x28`, `D+0x2C`) (the pause between loops); if `r` < 0 the
+   countdown `+0x190` := −`r` and return.
+6. Repeat from 1 while `r` > 0.
+
+Worked example (default emitter): `D+0x14` = 2 s, rate curve `[10]`, density 1, no scale bits, one 0.1 s frame
+from a fresh `Start`: one step `h` = 0.1, `t` = 0.05 (no loop end), `acc` = 10 × 0.1 = 1.0 → `m` = 1, one particle
+pre-aged by 0.1 s, carry 0.
+
+### 8.3 Particle age events (`D+0x1CC`, flags A bit 31) *[compat]* (PT2)
+
+`D+0x1CC` (reader B only) is a list of 16-byte elements: a name and, at element `+0x0C`, an age `T` (`f32`).
+- **At birth** (`0x005B84C0`, from the inject and default emitters when flags A bit 31 is set, §8.2): if the
+  particle is alive, the elements are visited in order while their `T` is exactly 0.0; each fires (below). The
+  first element with `T` ≠ 0 ends the visit, so zero-age events must come first in the list.
+- **Each frame** (the pre-pass `0x005B8410`, §7 step 4, before the sweep): for every live particle that is alive
+  and every element: the element fires when `P.age` − `T` ≤ 0 and `P.age` − `T` + `dt` > 0 (this frame's `dt`,
+  `+0x108`), i.e. when the particle's age is about to cross `T` in this frame's update.
+- **Firing** (`0x005B8290`, given the element's name and the particle position `P+0x0C`): the name is combined with
+  the description's own name `D+0x160`, an effect is looked up by it and, when found, started at the particle's
+  position with an identity orientation. *[inferred from damaged pseudocode; the composition of the name is not
+  byte-verified]*
 
 ## 9. Slot tables *[compat]*
 
