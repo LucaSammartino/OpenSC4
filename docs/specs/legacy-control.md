@@ -280,8 +280,53 @@ Callers pre-initialise the out value, so "missing" means "keep the default".
 
 ## 8. The common interpreter (`0x0095660D`)
 
-Open: the per-key effect table of the common pass (`id`, `area`, `pos`, `size`, colours, caption, comments,
-`winflag_*`) is the next section to write (LC4).
+`InterpretPropertiesGZWinCommon(win, props, firstPass)`. `SetFlag(mask, bool)` is `cIGZWin` `+0x110`; flag
+bits are those of `widget-toolkit.md` §3. A "flag word" below is read with `Uint32` and applied as
+`value != 0`.
+
+**First pass (`firstPass = true`)**, in this order:
+
+1. Defaults: `SetFlag(0x1, 1)`, `SetFlag(0x10000, 1)`, `SetFlag(0x800, 0)`, `SetFlag(0x20000, 1)`,
+   `SetFlag(0x40000, 1)`, `SetFlag(0x4, 0)`, `SetFlag(0x8000, 1)`.
+2. Flag words, each only if present: `winflag_visible` (`0xF01A`) → `0x1`; `winflag_moveable` (`0xF01C`) →
+   `0x100`; `winflag_sizeable` (`0xF01D`) → `0x200`; `winflag_sortable` (`0xF01E`) → `0x800`;
+   `winflag_acceptfocus` (`0xF025`) → `0x8000`; `winflag_alphablend` (`0xF026`) → `0x4`; `winflag_mousetrans`
+   (`0xF023`) → `0x80000`; `winflag_ignoremouse` (`0xF024`) → `0x200000`.
+3. `id` (`0x100`, Uint32) → `SetID(id)` (`+0x100`).
+4. Geometry. If `area` (`0x101`, String) is present: parse it with the pattern `( %d, %d, %d, %d)` into a
+   4-int rectangle and call `SetArea(&rect)` (`+0xD8`). The parse count is **not checked**: fields the text
+   does not supply keep indeterminate values (implementations: use 0 and file a question if a script relies on
+   it). If `area` is absent: `pos` (`0x102`) and then `size` (`0x103`), each parsed by the coordinate reader
+   (String, pattern `(%d,%d)`, accepted only when both numbers parse), call `GZWinMoveTo(x, y)` (`+0xE0`) and
+   `SetSize(w, h)` (`+0xD4`) respectively. With `area` present, `pos` and `size` are ignored.
+5. `fillcolor` (`0x104`): colour reader (String, pattern `(%d,%d,%d)`, accepted only when all three parse;
+   each component truncated to its low byte) → `SetFillColor(r, g, b)` (`+0x1AC`).
+6. `caption` (`0x105`, String) → `SetCaption(text)` (`+0x128`).
+7. `captionres` (`0x106`, String, pattern `{%x,%x}` → group, instance; unparsed parts stay 0): load the string
+   resource (helper `0x0094C58D`, through the UI-script service and the resource manager); if it loads,
+   `SetCaption(loaded)` (overriding step 6). Whether or not it loaded, store the resource key as parameter
+   `0x0B31771A` (a 12-byte variant of type `0x8000` holding type `0x2026960B`, group, instance; helper
+   `0x0094C1A4`). Then, **always** (with or without `captionres`), store parameter `0x3ACA6906` = an 8-byte
+   variant (type `0x8000`) holding group, instance ({0, 0} when `captionres` is absent).
+8. `transparent` (`0x107`): if the key is present at all (any value, `HasProperty`), `SetFlag(0x20000, 1)`.
+9. Comments: always (even when none are given) build a comment list of exactly 8 strings, in this order:
+   `comments` `0x108`, `commentslmd` `0x109`, `commentsrmd` `0x10A`, `commentslmu` `0x10B`, `commentsrmu`
+   `0x10C`, `commentsmm` `0x10D`, `commentsku` `0x10E`, `commentskd` `0x10F` (missing → empty string). The list
+   object (20 bytes, vtable `0x00AD5420`) is wrapped in a new variant (variant slot `+0xF4`) and stored as
+   parameter `0xBACA6879`; this function then drops its own references to both.
+
+**Second pass (`firstPass = false`)**: only five flag words, each if present: `winflag_enabled` (`0xF01B`) →
+`0x2`; `winflag_pbuff` (`0xF01F`) → `0x10000`; `winflag_pbufftrans` (`0xF020`) → `0x20000`;
+`winflag_pbufferase` (`0xF021`) → `0x40000`; `winflag_pbuffvid` (`0xF022`) → `0x100000`. Nothing else.
+
+Consequences: the private-buffer flags and `enabled` are applied after `Init`, attach and `PullToFront`
+(§6 steps 10–12); everything else before. The common words `bkgcolor`, `forecolor`, `notify`, `gutters`,
+`style`, `font`, the alignment and image words and the `colorfont*` words are **not** read by the common
+interpreter; they are read (if at all) by the per-type interpreters (§9).
+
+Worked example: `winflag_visible=no, area=(0,0,100,20), caption=OK, winflag_enabled=no` gives, first pass,
+the seven defaults, then `SetFlag(0x1, false)`, `SetArea(0,0,100,20)`, `SetCaption("OK")`, the 8-empty-string
+comment list, and parameter `0x3ACA6906` = {0, 0}; second pass `SetFlag(0x2, false)`.
 
 ## 9. Per-type interpreters
 
