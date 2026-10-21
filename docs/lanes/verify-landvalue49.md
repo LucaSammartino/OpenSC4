@@ -21,6 +21,9 @@ the mismatch counting. Then a game run (unique label) to show the differing pass
 
 Done: baseline `all` PASS (cargo 3961, clippy 0, ctest 64/64). 2792626b: provenance implemented
 (Shadow::note_day/provenance, test input_changed_after_the_original_read_it); quick PASS (capi 490).
-Outstanding game request: vlv49-a1 (landvalue_shadow=1, turbo to 2032-01-01). Wait with
+vlv49-a1 DONE: clean, ref_warnings=0, landvalue 71/74 exact (resync none). p1 total 391 (startup map, intrinsic 0);
+p2 intrinsic 6 meanAlt 270.05667/270.05804 "no SimNewDay of 9 reproduces (closest day 1, 3 tracts)"; p3 intrinsic 5
+meanAlt 270.05804/270.05667 "exact with inputs of SimNewDay 1/28, total there exact". Same signature as train49 p20.
+Outstanding: vlv49-n1 (normal speed, landvalue_shadow=1, to 2032-01-01). Old request label: vlv49-a1 (landvalue_shadow=1, turbo to 2032-01-01). Wait with
 `qwait.py <WT>/build-runs/game-results/vlv49-a1.verdict` (no --fresh); a finished verdict is valid.
 Next: grep vlv49-a1.log for "landvalue shadow 20" lines with "inputs:"; then full gate `all`, report.
