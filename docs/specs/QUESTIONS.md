@@ -121,7 +121,7 @@ generated index: the questions live one file per spec, so read only the file for
 |---|---:|---:|---|---|
 | advisors | 0 | 6 | AD7 | questions/advisors.md |
 | application | 3 | 2 | AP6 | questions/application.md |
-| audio-ambience | 9 | 0 | AA10 | questions/audio-ambience.md |
+| audio-ambience | 6 | 3 | AA10 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -140,7 +140,7 @@ generated index: the questions live one file per spec, so read only the file for
 | dates | 3 | 0 | DT4 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
-| disasters | 2 | 40 | DS42 | questions/disasters.md |
+| disasters | 5 | 40 | DS45 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
 | drawing-fonts | 6 | 0 | FN7 | questions/drawing-fonts.md |
 | effects | 0 | 13 | EF14 | questions/effects.md |
@@ -207,4 +207,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **196** | **1044** | | |
+| **total** | **196** | **1047** | | |
