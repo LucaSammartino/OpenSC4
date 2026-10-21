@@ -497,6 +497,7 @@ pub struct fc4_advisor_host {
     pub release: Option<unsafe extern "C" fn(U, u64)>,
     pub resolve_ref: Option<unsafe extern "C" fn(U, u64, u32) -> u64>,
     pub object_created: Option<unsafe extern "C" fn(U, u32, u32, *mut fc4_adv_obj) -> u64>,
+    pub object_dropped: Option<unsafe extern "C" fn(U, u64)>,
 }
 
 /// What the MySims need from the game (fc4.h `fc4_mysim_host`).
@@ -783,7 +784,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_mysim_post>() == 24);
     assert!(std::mem::size_of::<fc4_mysims_agent_state>() == 40);
     assert!(std::mem::size_of::<fc4_mysim_state>() == 240);
-    assert!(std::mem::size_of::<fc4_advisor_host>() == 2 * p + 64 * p);
+    assert!(std::mem::size_of::<fc4_advisor_host>() == 2 * p + 65 * p);
     assert!(std::mem::size_of::<fc4_mysim_host>() == 2 * p + 47 * p);
 };
 
@@ -1319,6 +1320,11 @@ impl AdvisorHost for CHost {
         let (kind, class) = (h.kind(), o.class_id());
         // SAFETY: valid callback; the handle is the host's from here on.
         unsafe { f(self.h.user, kind, class, h.into_raw()) }
+    }
+    fn object_dropped(&self, token: u64) {
+        if token != 0 {
+            cb!(self, object_dropped, (), token)
+        }
     }
 }
 
@@ -2569,4 +2575,310 @@ pub unsafe extern "C" fn fc4_mysim_distance_to_closest_special(
 #[no_mangle]
 pub unsafe extern "C" fn fc4_mysim_local_grade(p: *const fc4_advisors, id: i32, group: u32, hospital: bool) -> f32 {
     with_sim(p, id, 0.0, |m| m.local_grade(group, hospital))
+}
+
+// ---- weak handles and per-object calls (glue-advisors-activate4) ----------------------------------------
+//
+// A host wrapper keeps a strong `fc4_adv_obj` only while the game holds a
+// GZCOM reference on it and an `fc4_adv_weak` otherwise; `object_dropped`
+// tells it when the core object is gone (advisors.md §12.2-§12.4 fronts).
+
+#[repr(C)]
+pub struct fc4_adv_weak {
+    _private: [u8; 0],
+}
+
+enum WeakObj {
+    System(std::rc::Weak<AdvisorSystem>),
+    Advisor(std::rc::Weak<Advisor>),
+    Advice(std::rc::Weak<Advice>),
+    Subject(std::rc::Weak<AdviceSubject>),
+}
+
+/// A new weak handle on the object (NULL for NULL); does not keep it alive.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_obj_downgrade(o: *const fc4_adv_obj) -> *mut fc4_adv_weak {
+    let Some(x) = obj_ref(o) else { return std::ptr::null_mut() };
+    let w = match x {
+        Obj::System(s) => WeakObj::System(Rc::downgrade(s)),
+        Obj::Advisor(a) => WeakObj::Advisor(Rc::downgrade(a)),
+        Obj::Advice(a) => WeakObj::Advice(Rc::downgrade(a)),
+        Obj::Subject(s) => WeakObj::Subject(Rc::downgrade(s)),
+    };
+    Box::into_raw(Box::new(w)) as *mut fc4_adv_weak
+}
+
+/// A new strong handle on the object, NULL once it was dropped.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_weak_upgrade(w: *const fc4_adv_weak) -> *mut fc4_adv_obj {
+    let Some(w) = (w as *const WeakObj).as_ref() else { return std::ptr::null_mut() };
+    let o = match w {
+        WeakObj::System(s) => s.upgrade().map(Obj::System),
+        WeakObj::Advisor(a) => a.upgrade().map(Obj::Advisor),
+        WeakObj::Advice(a) => a.upgrade().map(Obj::Advice),
+        WeakObj::Subject(s) => s.upgrade().map(Obj::Subject),
+    };
+    o.map_or(std::ptr::null_mut(), Obj::into_raw)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_weak_destroy(w: *mut fc4_adv_weak) {
+    if !w.is_null() {
+        guard((), || drop(Box::from_raw(w as *mut WeakObj)));
+    }
+}
+
+unsafe fn advice_of<'a>(o: *const fc4_adv_obj) -> Option<&'a Rc<Advice>> {
+    match obj_ref(o) {
+        Some(Obj::Advice(a)) => Some(a),
+        _ => None,
+    }
+}
+
+unsafe fn advisor_of<'a>(o: *const fc4_adv_obj) -> Option<&'a Rc<Advisor>> {
+    match obj_ref(o) {
+        Some(Obj::Advisor(a)) => Some(a),
+        _ => None,
+    }
+}
+
+unsafe fn subject_of(o: *const fc4_adv_obj) -> Option<Rc<AdviceSubject>> {
+    match obj_ref(o) {
+        Some(Obj::Subject(s)) => Some(s.clone()),
+        _ => None,
+    }
+}
+
+/// An advice's state (next_day, expiry and last_month are the owning
+/// advisor's and read 0 here).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_get(o: *const fc4_adv_obj, out: *mut fc4_advice_state) -> bool {
+    let (Some(a), Some(o)) = (advice_of(o), out.as_mut()) else { return false };
+    guard(false, || {
+        let s = a.state();
+        *o = fc4_advice_state {
+            struct_size: std::mem::size_of::<fc4_advice_state>() as u32,
+            guid: s.guid,
+            class_id: a.class_id(),
+            flags: s.flags,
+            advisor_id: s.advisor_id,
+            table_index: s.table_index,
+            priority: s.priority,
+            frequency: s.frequency,
+            timeout: s.timeout,
+            mood: s.mood,
+            event_id: s.event_id,
+            command_id: s.command_id,
+            trigger: s.trigger,
+            nd_type: s.nd_type,
+            serial: a.serial(),
+            effect_count: s.effects.len() as u32,
+            loaded: s.loaded.into(),
+            active: a.is_active().into(),
+            has_subject: s.subject.is_some().into(),
+            has_trigger_text: s.trigger_text.is_some().into(),
+            next_day: 0,
+            expiry: 0,
+            last_month: 0,
+            reserved: 0,
+            reserved2: 0,
+            token: a.host_token(),
+        };
+        true
+    })
+}
+
+/// Slot 3 `Init(tableIndex)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_init(o: *const fc4_adv_obj, table_index: i32) -> bool {
+    advice_of(o).is_some_and(|a| guard(false, || a.init(table_index)))
+}
+
+/// Slot 4 `Shutdown`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_shutdown(o: *const fc4_adv_obj) -> bool {
+    advice_of(o).is_some_and(|a| guard(false, || a.shutdown()))
+}
+
+/// Slot 5 `Clone`: a new handle on the copy (its wrapper came through
+/// `object_created`).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_clone(o: *const fc4_adv_obj) -> *mut fc4_adv_obj {
+    advice_of(o).map_or(std::ptr::null_mut(), |a| {
+        guard(std::ptr::null_mut(), || Obj::Advice(a.clone_advice()).into_raw())
+    })
+}
+
+/// Slot 8 `GetTrigger`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_get_trigger(o: *const fc4_adv_obj) -> bool {
+    advice_of(o).is_some_and(|a| guard(false, || a.get_trigger()))
+}
+
+/// Slot 12 `SetAdvisorID`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_set_advisor_id(o: *const fc4_adv_obj, id: i32) -> bool {
+    advice_of(o).is_some_and(|a| guard(false, || {
+        a.set_advisor_id(id);
+        true
+    }))
+}
+
+/// Slot 14 `SetFlags(mask, on)` (§6.9).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_set_flags(o: *const fc4_adv_obj, mask: u32, on: bool) -> bool {
+    advice_of(o).is_some_and(|a| guard(false, || a.set_flags(mask, on)))
+}
+
+/// Slot 23 `NotifyGlobalEffectTriggerChanged`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_notify_global_effects(o: *const fc4_adv_obj) -> bool {
+    advice_of(o).is_some_and(|a| guard(false, || {
+        a.notify_global_effects();
+        true
+    }))
+}
+
+/// Slot 24 `SetEventSubject` (`subject` NULL = none).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_set_event_subject(o: *const fc4_adv_obj, subject: *const fc4_adv_obj) -> bool {
+    let s = subject_of(subject);
+    advice_of(o).is_some_and(|a| guard(false, || a.set_event_subject(s)))
+}
+
+/// Slot 25 `GetEventSubject`: a new handle, NULL for none.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_event_subject(o: *const fc4_adv_obj) -> *mut fc4_adv_obj {
+    advice_of(o).map_or(std::ptr::null_mut(), |a| {
+        guard(std::ptr::null_mut(), || {
+            a.event_subject().map_or(std::ptr::null_mut(), |s| Obj::Subject(s).into_raw())
+        })
+    })
+}
+
+/// Slot 28 `UpdateText` (the text rebuild goes to the host's `rebuild_text`).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_update_text(o: *const fc4_adv_obj) -> bool {
+    advice_of(o).is_some_and(|a| guard(false, || a.update_text()))
+}
+
+/// The trigger text (slot 9), NUL-terminated; the full length, 0 for none.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advice_trigger_text(o: *const fc4_adv_obj, out: *mut c_char, capacity: usize) -> usize {
+    advice_of(o).map_or(0, |a| guard(0, || copy_text(&a.trigger_text().unwrap_or_default(), out, capacity)))
+}
+
+/// An advisor's state (as `fc4_advisors_advisor_state`).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_id(o: *const fc4_adv_obj) -> i32 {
+    advisor_of(o).map_or(0, |a| guard(0, || a.id()))
+}
+
+/// Slot 3 `Init(tableIndex)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_init(o: *const fc4_adv_obj, table_index: i32) -> bool {
+    advisor_of(o).is_some_and(|a| guard(false, || a.init(table_index)))
+}
+
+/// Slot 4 `Shutdown`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_shutdown(o: *const fc4_adv_obj) -> bool {
+    advisor_of(o).is_some_and(|a| guard(false, || a.shutdown()))
+}
+
+/// The caption (`which` 0, slot 6) or personal name (1, slot 8),
+/// NUL-terminated; the full length.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_text(o: *const fc4_adv_obj, which: u32, out: *mut c_char, capacity: usize) -> usize {
+    advisor_of(o).map_or(0, |a| {
+        guard(0, || {
+            let t = if which == 0 { a.caption() } else { a.personal_name() };
+            copy_text(&t, out, capacity)
+        })
+    })
+}
+
+/// Slots 7 / 9 `SetName` / `SetPersonalName`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_set_text(o: *const fc4_adv_obj, which: u32, text: *const u8, len: usize) -> bool {
+    let Some(a) = advisor_of(o) else { return false };
+    let v: &[u8] = if text.is_null() || len == 0 { &[] } else { std::slice::from_raw_parts(text, len) };
+    guard(false, || {
+        if which == 0 {
+            a.set_caption(v);
+        } else {
+            a.set_personal_name(v);
+        }
+        true
+    })
+}
+
+/// Slots 10/11: the active map's entries in key order are the host's (it
+/// orders by its own advice pointers); this returns entry `i` of the core's
+/// list as a new handle and its value (the advice's index), NULL past the end.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_current_advice(o: *const fc4_adv_obj, i: u32, value: *mut i32) -> *mut fc4_adv_obj {
+    advisor_of(o).map_or(std::ptr::null_mut(), |a| {
+        guard(std::ptr::null_mut(), || match a.current_advices().into_iter().nth(i as usize) {
+            Some((adv, idx)) => {
+                if let Some(v) = value.as_mut() {
+                    *v = idx as i32;
+                }
+                Obj::Advice(adv).into_raw()
+            }
+            None => std::ptr::null_mut(),
+        })
+    })
+}
+
+/// Slot 12 `GetAdviceByGUID`: a new handle, NULL for none.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_advice_by_guid(o: *const fc4_adv_obj, guid: u32) -> *mut fc4_adv_obj {
+    advisor_of(o).map_or(std::ptr::null_mut(), |a| {
+        guard(std::ptr::null_mut(), || a.advice_by_guid(guid).map_or(std::ptr::null_mut(), |x| Obj::Advice(x).into_raw()))
+    })
+}
+
+/// Slot 13 `GetAdviceBySessionID`: a new handle, NULL for none.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_advice_by_session(o: *const fc4_adv_obj, session: i32) -> *mut fc4_adv_obj {
+    advisor_of(o).map_or(std::ptr::null_mut(), |a| {
+        guard(std::ptr::null_mut(), || {
+            a.advice_by_session(session).map_or(std::ptr::null_mut(), |x| Obj::Advice(x).into_raw())
+        })
+    })
+}
+
+/// Slot 14 `Simulate(kind)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_simulate(o: *const fc4_adv_obj, kind: i32) -> bool {
+    advisor_of(o).is_some_and(|a| guard(false, || a.simulate(kind)))
+}
+
+/// Slot 18 `PushEvent` (`subject` NULL = none).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_push_event(o: *const fc4_adv_obj, event_id: u32, subject: *const fc4_adv_obj) -> bool {
+    let s = subject_of(subject);
+    advisor_of(o).is_some_and(|a| guard(false, || a.push_event(event_id, s)))
+}
+
+/// Slot 19 `CommandWouldTrigger`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_command_would_trigger(o: *const fc4_adv_obj, command: u32) -> bool {
+    advisor_of(o).is_some_and(|a| guard(false, || a.command_would_trigger(command)))
+}
+
+/// Slot 20 `RetireAdvice` (`advice` NULL = none).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_retire_advice(o: *const fc4_adv_obj, advice: *const fc4_adv_obj) -> bool {
+    let x = advice_of(advice).cloned();
+    advisor_of(o).is_some_and(|a| guard(false, || a.retire_advice(x.as_ref())))
+}
+
+/// The advisor's `DoMessage` (§5.4).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_advisor_do_message(o: *const fc4_adv_obj, m: *const fc4_adv_message) -> bool {
+    let (Some(a), Some(m)) = (advisor_of(o), m.as_ref()) else { return false };
+    let m = msg_in(m);
+    guard(false, || a.do_message(&m))
 }

@@ -1121,6 +1121,15 @@ impl Advisor {
     }
 }
 
+impl Drop for Advisor {
+    fn drop(&mut self) {
+        let token = self.token.get();
+        if token != 0 {
+            self.shared.host.object_dropped(token);
+        }
+    }
+}
+
 impl SaveObject for Advisor {
     fn class_id(&self) -> u32 {
         self.kind.class_id()

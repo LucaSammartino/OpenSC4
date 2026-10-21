@@ -1199,6 +1199,11 @@ pub trait AdvisorHost {
     fn object_created(&self, _obj: &crate::stream::RefValue) -> u64 {
         0
     }
+    /// The advisor, advice or subject with this token (from
+    /// `object_created`, non-zero) is being dropped: the core will never hand
+    /// the token out again. Lets the host free a wrapper that holds no
+    /// strong handle on the object.
+    fn object_dropped(&self, _token: u64) {}
 }
 
 /// The behaviour of an advisor class this module does not implement

@@ -165,6 +165,10 @@ impl Drop for AdviceSubject {
         if let Some(o) = self.s.get_mut().object.take() {
             self.shared.host.release(o);
         }
+        let token = self.token.get();
+        if token != 0 {
+            self.shared.host.object_dropped(token);
+        }
     }
 }
 
