@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**Train25 landed bc937e312e (4 lanes):** PL19 replacement gate62/62 and union35-key regress PASS, both clean/ref0; aura71/71 and MySims73/73 remain exact, netmgr72/73 remains questioned. Terrain TR33-TR41 answers now landed; glue-terrain3 may resume after slots/check, with2 run4 rounds left. Audio and budget-window specs landed with export/asm evidence; default propmgr/lotcfg and exact-owner map promoted after69 tools tests. Coverage38.7/28.3/12.4/16.5 (run4 deltas+1.9/+0.0/+0.3/+0.6). Total21/60; five lanes active. The old noncanonical glue21 run narrative moved to history so run-table generation works.
+
 **Run4 checkpoint15/60:** trains21 and22 landed; coverage36.8/28.3/12.4/16.2 versus baseline36.8/28.3/12.1/15.9 (verified+0.3, replaced+0.3 points). Five live slots are refilled after checks; terrain RE is capped3/3 and ready awaiting a batch, never round4. Audio/panels returned supported-export specs but reported no live REA app; checking that workspace diagnostic separately from the guard before accepting their coverage.
 
 **Train22 landed 6df8889064:** occmgr replacement clean through2032, gate62/62 and union33-key regress PASS; default occmgr enabled only after landing (tools tests69 PASS). Coverage36.8/28.3/12.4/16.2, replaced +0.3 points. Terrain RE ready at its3-round cap (parked pending landing, never round4); five other lanes active, total13/60. Expanded budget recorded and pushed; finish batches at2+ ready.
