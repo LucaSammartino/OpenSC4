@@ -5,8 +5,9 @@
 ## Handoff
 - Goal (round 2): resolve U4 (144 sweep-only kernels) by normalized structural comparison of export instructions.
 - Done round 1: 62184d4d spec sections 1-11 (see git log). Round 2 started at 62184d4d.
-- Next: build-runs/norm.py (normalize kernels, diff vs fully-read references), then spec 9.5/U4 update.
-- Facts: table rows at 0x00AC2100, kernels from instructions.asm; cls.py = old feature sweep (weak).
+- Done round 2: 935fc914 spec 9.5 execution verification, U4 closed, U7 added (EXHRESULT placeholder in 9.5).
+- Next: wait build-runs/run-exh.txt (exhaustive texel sweep, rerun with dstr fix), fill EXHRESULT, finish report.
+- Facts: table rows at 0x00AC2100, kernels from instructions.asm; cls.py = old feature sweep (weak); norm.py (byte identity + normalized diff), emu.py (x86 interp), check.py (model vs kernels; MUT=n mutations, EXH=1 exhaustive).
 
 ## Report
 
