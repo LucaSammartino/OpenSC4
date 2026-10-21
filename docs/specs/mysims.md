@@ -131,10 +131,10 @@ Most agent loops visit **indices 0–4 only**. Index 5 (My Street sim) is visite
 | EQ ring index, EQ 6-month delta, EQ ring[6] | 0 | yes | float32 |
 | HQ ring index, HQ delta, HQ ring[6] | 0 | yes | float32 |
 | car key, pedestrian key | 0 | yes (res keys) | automata |
-| two unnamed s32 | 0 | yes (version ≥ 17) | *[inferred: idle offset]* |
+| reserved s32 pair | 0 | yes (version ≥ 17) | **dead data**: zeroed by the constructor, written and read, never otherwise used by any MySim method (all 69 scanned; Windows ctor `0x00429A9E`) — carry the read values and write them back |
 | dispatch | null | ref (`0xEB8B6F9A`) | automata |
 | pylon timer, dispatch tool | — | yes | UI |
-| unnamed bool | false | yes (version ≥ 14) | UI *[inferred]* |
+| pylon locked | false | yes (version ≥ 14) | set to the argument of `DispatchToolLockPylon` (`0x0042728E`); cleared by `DispatchToolDestroyPylon`, `LeaveCity`, `DispatchToolBegin`, `DeleteFromGame`, `Shutdown`; while false `is_pylon_location` is false, and `DispatchToolEnd` (`0x004264C0`) destroys the pylon of a still-active dispatch tool; the pylon timer (§3.3) and `UpdateTripVariables` (§4.6) only act on a locked pylon |
 | last player trip day | 0 | yes (s32, version ≥ 16) | |
 | commute check pending | false | no | set by neighbour-connection removal |
 | last trip-update day | 0 | no | |
@@ -574,12 +574,12 @@ Version **17** (`0x11`). All integers little-endian; "ref" is foundations §2.7;
 | 22 | u8, f32, f32 × 6 | EQ ring index, EQ delta, EQ ring |
 | 23 | u8, f32, f32 × 6 | HQ ring index, HQ delta, HQ ring |
 | 24 | key, key | car key, pedestrian key |
-| 25 | s32, s32 | unnamed pair |
+| 25 | s32, s32 | reserved pair (dead data, §2.2) |
 | 26 | ref | dispatch (`0xEB8B6F9A`) |
 | 27 | u8, u64, u8 | pylon timer: units, elapsed, running |
 | 28 | bool | has dispatch tool (tool exists and its slot `+0x40` is false) |
 | 29 | ref | dispatch tool (`0xC9B6D7D6`), only if row 28 is true |
-| 30 | bool | unnamed flag |
+| 30 | bool | pylon locked (§2.2) |
 | 31 | s32 | last player trip day |
 | 32 | — | the `cSC4Advisor` record (advisors.md §11): advices, personal name, … |
 
@@ -828,7 +828,7 @@ the MySims own no grid).
 
 ### 11.2 Open questions
 
-1. The unnamed pair and bool in the record (rows 25, 30).
+1. *Answered (MS1, 2026-10-21):* row 25 is dead data, row 30 is the pylon-locked flag (§2.2).
 2. The exact meaning of UI service `0xA417445E` slot `+0xA8` that pauses MySims (§4.2).
 3. Whether MySim `Init` re-resolves the neighbour job city from the saved cell (§2.2) — the Init code calls the
    app's region lookup, details not traced.
