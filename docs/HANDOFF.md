@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**train29 landed f9aba9d095:** Three-lane batch gate and full35-key regress PASS. TS67 phase-entry reset contract answered; partial occupant records landed without whole-owner credit. Advisors AD1-AD3 block glue and are filed. Terrain occupant-record overlap landed; particle overlap still requires its docs train. re-editors4 parked3/3 with completed value/grid/colour/res-key specs and incomplete curves; never fourth round. Coverage39.3/30.0/12.3/16.5; rounds49/80.
+
 **Run4 checkpoint45/80:** six trains landed (21,22,25,26,27,28); coverage39.3/30.0/12.4/16.5, baseline delta+2.5/+1.7/+0.3/+0.6 points. Train29 gatePASS, three-lane regress running. Target6live, max3glue. re-particles4 parked3/3 with readyphysics/emitter specs but drawing/emitparser incomplete; neverfourthround. Terrain stillDENIED for core-occprops4 and re-particles4 overlaps, no round3 launched. Candidate-shadow option committed6efdac02 after75 tests; no verification credit before measuredunionrun.
 
 **train28 landed 9aa960b0af:** Five-lane batch: widget, URL, GZmessaging and persistence specs plus partial network-occupant core/records. Full gate/regress PASS. Exact specified-owner maps only; cGZWin/cookie and networkoccupant partialowners get no new implementation credit. Widget3-round cap remains nofourth. Terrain touches blocker core-netocc4 nowlanded, freshchecks required. Pending GZ ABI proposals are not applied. Coverage39.3/30.0/12.4/16.5; rounds39/60.
@@ -36,7 +38,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 Runtime: six-slot game queue pid22296. Native CLI hosts need CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0; launcher sets it. RE guard preflight must GO. Export-first assembly is permitted by re-workspace.md even without a live REA binary; a workspace no-app diagnostic is separate from guard denial. Game labels unique; qwait without --fresh. Keep own output short. Previous checkpoint lines and train details: [run4 through30](history/handoff-run4-checkpoint30-2026-10-21.md); [run3 stop](history/handoff-run3-stop-2026-10-21.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 230 (train28 five-lane PASS; exact-owner specs and partial networkoccupant core); 229 (train27 two lanes PASS; TS67 filed and partial application spec landed); 228 (train26 four lanes, effects core improvements and three focused spec families); 227 (train25 four-lane PASS, PL19 replacement promoted, terrain spec blockers answered, coverage38.7/28.3/12.4/16.5); 226 (train22 PASS, occupant-manager replacement promoted, replaced coverage15.9 to16.2 percent). See `docs/manual-checks.md`.
+- **Latest in-game run:** 231 (train29 three-lane PASS; TS67 answered, partial occupant records); 230 (train28 five-lane PASS; exact-owner specs and partial networkoccupant core); 229 (train27 two lanes PASS; TS67 filed and partial application spec landed); 228 (train26 four lanes, effects core improvements and three focused spec families); 227 (train25 four-lane PASS, PL19 replacement promoted, terrain spec blockers answered, coverage38.7/28.3/12.4/16.5). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
