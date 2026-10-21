@@ -22,6 +22,7 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
+#include "cFC4CityDetail.h"
 #include "cFC4LotConfiguration.h"
 #include "cFC4LotDeveloper.h"
 
@@ -46,6 +47,7 @@
 #include "cISC4PropManager.h"
 #include "cRZCOMDllDirector.h"
 
+#include <atomic>
 #include <new>
 #include <vector>
 
@@ -81,9 +83,19 @@ constexpr uint32_t kBySize = 2;
 // ---- the host callbacks (the read-only half: the shapes of FC4PropLotShadow.cpp's LcmHost) ------------
 
 uint32_t DetailLevel(void*) {
-    // §B3.1: the catalogue is built at the city's detail level.
-    return 3;
+    // §B3.1/§B3.2: d := the city detail preference (city-detail.md §2: the
+    // byte at +0xF16, SDK SC4Preferences::videoPreferences.cityDetail), read
+    // at this moment through the published cISC4App::GetPreferences (slot 38,
+    // borrowed), the same reader the city detail manager uses. The value is
+    // passed through unclamped (the spec names only 1..3); 3 only when the
+    // application or its preferences are unavailable.
+    return fc4::CityDetailSetting();
 }
+
+// Instrumentation (glue-lotcfg-detail4): process-wide counts of Init calls
+// that ran StaticInit and of catalogue reloads (loaded at another level).
+std::atomic<uint32_t> g_lcmInits{0};
+std::atomic<uint32_t> g_lcmReloads{0};
 
 bool ForEachExemplarKey(void*, fc4_key_visitor visit, void* ctx) {
     // The exemplar keys of type 0x6534284A (fc4.h), the same list the prop
@@ -564,8 +576,24 @@ cFC4LotConfigManager::cFC4LotConfigManager() {
 bool cFC4LotConfigManager::Init() {
     if (initialised_) return true;
     if (core_ == nullptr) return false;
+    fc4_lot_config_catalogue* cat = fc4::LotConfigCatalogueProcess();
+    fc4_lot_config_catalogue_state before{};
+    before.struct_size = sizeof(before);
+    const bool hadBefore = cat != nullptr && fc4_lot_config_catalogue_get_state(cat, &before);
+    const uint32_t pref = fc4::CityDetailSetting();
     const bool ok = fc4_lot_config_init(core_);
     initialised_ = ok;
+    fc4_lot_config_catalogue_state after{};
+    after.struct_size = sizeof(after);
+    const bool hadAfter = cat != nullptr && fc4_lot_config_catalogue_get_state(cat, &after);
+    const uint32_t inits = ++g_lcmInits;
+    const bool reload = hadBefore && before.loaded != 0 && hadAfter && after.detail != before.detail;
+    const uint32_t reloads = reload ? ++g_lcmReloads : g_lcmReloads.load();
+    fc4::Log("lotcfg Init: pref cityDetail=%u catalogue loaded %u->%u level %u->%u configurations %u->%u "
+             "families %u->%u reload=%s (inits=%u reloads=%u) ok=%d",
+             pref, hadBefore ? before.loaded : 0u, hadAfter ? after.loaded : 0u, before.detail, after.detail,
+             before.configurations, after.configurations, before.families, after.families, reload ? "yes" : "no",
+             inits, reloads, ok ? 1 : 0);
     return ok;
 }
 

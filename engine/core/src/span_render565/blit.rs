@@ -257,3 +257,51 @@ pub(crate) fn run(
     }
     Ok(())
 }
+
+/// The byte range `[lo, hi)`, relative to `src.base`, of every texel `run`
+/// reads for this slot and span list (same addressing as `run`), or `None`
+/// when the slot reads no texel or no span has a pixel. Used by the native
+/// bridge to size its memory window; it touches no memory.
+pub(crate) fn texel_extent(
+    s: Slot,
+    list: &[(u32, u32, u32)],
+    src: &Source,
+    b: &BltParams,
+) -> Result<Option<(i64, i64)>, SpanError> {
+    if s.addressing == Addressing::Tiled && (src.width == 0 || src.height == 0) {
+        return Err(SpanError::TiledZeroSize);
+    }
+    if !reads_texel(&s) {
+        return Ok(None);
+    }
+    let bpp = s.format.bytes() as i64;
+    let stride = src.stride as i64;
+    let mut ext: Option<(i64, i64)> = None;
+    for &(x, y, count) in list {
+        let (ty, mut sx) = match s.addressing {
+            Addressing::Plain => (y, x),
+            Addressing::Stretch => (b.v0.wrapping_add(b.dv.wrapping_mul(y)) >> 16, 0),
+            Addressing::Tiled => (y.wrapping_add(b.v0) % src.height, x.wrapping_add(b.u0) % src.width),
+        };
+        for k in 0..count {
+            let px = x + k;
+            let tx = match s.addressing {
+                Addressing::Plain => px,
+                Addressing::Stretch => b.u0.wrapping_add(b.du.wrapping_mul(px)) >> 16,
+                Addressing::Tiled => sx,
+            };
+            if s.addressing == Addressing::Tiled {
+                sx += 1;
+                if sx == src.width {
+                    sx = 0;
+                }
+            }
+            let a = ty as i64 * stride + tx as i64 * bpp;
+            ext = Some(match ext {
+                None => (a, a + bpp),
+                Some((lo, hi)) => (lo.min(a), hi.max(a + bpp)),
+            });
+        }
+    }
+    Ok(ext)
+}
