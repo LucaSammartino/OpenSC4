@@ -19,4 +19,8 @@ Plan: add input-provenance diagnostics to capi/src/landvalue_shadow.rs (each Sim
 intrinsic + meanAlt; at a differing pass end, report which day's inputs reproduce the original exactly). Do NOT change
 the mismatch counting. Then a game run (unique label) to show the differing passes match an in-window day.
 
-Next: implement the day-snapshot provenance in Shadow::note / compare, unit test, qbuild quick.
+Done: baseline `all` PASS (cargo 3961, clippy 0, ctest 64/64). 2792626b: provenance implemented
+(Shadow::note_day/provenance, test input_changed_after_the_original_read_it); quick PASS (capi 490).
+Outstanding game request: vlv49-a1 (landvalue_shadow=1, turbo to 2032-01-01). Wait with
+`qwait.py <WT>/build-runs/game-results/vlv49-a1.verdict` (no --fresh); a finished verdict is valid.
+Next: grep vlv49-a1.log for "landvalue shadow 20" lines with "inputs:"; then full gate `all`, report.
