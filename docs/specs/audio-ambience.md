@@ -508,7 +508,8 @@ Called after every `_DoStageUpdate` (§5) with the elapsed ms `e` and the manage
 | 6 | the u32 at `+0x11C` of the audio director's `+0x54` member (`0x004E82A0`), converted unsigned |
 | other | unchanged |
 
-   When `+0x34` takes no group step, modes 1 and 5 read an uninitialised `peaks` *[compat: treat as 0]*.
+   `peaks` starts at 0 (`0x004E6511`), so with no group step mode 1 gives 0 and mode 5 gives 0 over the stale
+   `+0xA8`.
 6. **Sample positions** (only when `+0xA8 ≠ 0`; `_GetEquallyDistributedPositions` `0x004E6070`) into the array
    `+0x3C` (9 × 3 floats), count back into `+0xA8`. Up to 9 group centres → all of them, in list order.
    10 or more → a 3 × 3 grid over the attention rectangle `+0x10` (floats x0, z0, x1, z1): `sx := trunc((x1 −
@@ -530,6 +531,47 @@ Called after every `_DoStageUpdate` (§5) with the elapsed ms `e` and the manage
 Worked example: `+0x34 = 1`, two occupant groups with peaks 3 and 1, `+0x38 = 5` → `+0xAC = 4 / 2 = 2.0`; both
 centres are kept (fewer than 10), and the average weights each by how close it lies to the P–Q line as seen
 from Q (|cos| of the angle), sharpened by `a / (m − a)`.
+
+### 8.6 `_UpdateAmbienceScores(e)` (`0x004E5920`)
+
+Not yet specified (AA1, §9). Known so far: it first calls `_UpdateFreshnessParameters` (`0x004E4AA0`), then
+walks the freshness-score list `+0x180`, starting/stopping score events through the sound-event system
+`0x00B21954` (ids `0xEA2D827C`, `0xEA2C0390`, `0x2A2C0393`, IID `0x5B523BA4`) by `+0xDC`, `+0xE0`, byte `+0x0D`
+and per-entry bytes `+8`/`+9`; tuning `+0x1F0` enters as `float(u32) × 0.01`.
+
+### 8.7 `_UpdateAmbienceLoops(e)` (`0x004E5D50`)
+
+**Target volume** (`0x004E4B60`): `+0xE4 := 0`; when `+0x0C` (this update's `CanHandle`) is set and `+0xAC ≠
+0.0` (`FUCOMPP`; a NaN counts as unequal), `+0xE4 := trunc(curve +0x1C0 (tuning `0x6A4132F6`) at x =
++0xAC)` (`_ftol2`).
+
+**The ease object `+0xE8`** holds a vector (target `+0x00`, current `+0x0C`), a scalar (target `+0x18`, current
+`+0x1C`), a flag byte `+0x38` and the two ease times of §8.2. `SetTarget(v, snap)` (`0x004F8240` vector,
+`0x004F7BD0` scalar) stores the target and, when `snap` is set or the flag `+0x38` is clear, also the current;
+the getters (`0x004F8280`, `0x00808620`) return the current. The time step `0x004F8650` (316 bytes) is not
+yet specified (§9).
+
+Each loop entry of the list `+0x184` (filled by `AddAmbienceLoop`, §8.1) has the sound id `+0x08`, the
+instance id `+0x0C` (0 = not playing), the last sent position `+0x10`–`+0x18` and the last sent volume `+0x1C`.
+For each entry in list order, with `ev` = the sound-event system `0x00B21954` (create slot 13 `+0x34` with the
+id and IID `0x5B523BA4`, then post slot 12 `+0x30`):
+
+1. `+0xE4 = 0`: if playing, post stop `0x6A451908(instance, 0, 0, 0)` and set the instance to 0.
+   Otherwise, if not playing: `SetTarget(+0xC8, snap)` and `SetTarget(+0xE4, snap)`, last volume := 0, last
+   position := (0, 0, 0), instance := `GenerateNewInstanceId` (`0x004F7BB0`), post start
+   `0xEA451903(sound id, instance, 1, +0xE4)`.
+2. `SetTarget(+0xC8, no snap)`, `+0xC8 :=` current vector; `SetTarget(+0xE4, no snap)`, `+0xE4 :=` current
+   scalar. (So from the second entry on, step 1 sees the eased volume, not the target.)
+3. `+0xE4 ≠` last volume: last volume := `+0xE4`; if playing, post `0x4A451915(instance, +0xE4, 0, 0)`.
+4. Any component of the last position differing from `+0xC8`–`+0xD0` by **at least** 0.0001 (`0x00A9332C`,
+   f32) and playing: post `0xCA45190F(instance, trunc x, trunc y, trunc z)` (`_ftol2` of each float), then last
+   position := `+0xC8`–`+0xD0` (the floats).
+
+After the walk, the ease time step with `float(e)` (e converted unsigned).
+
+Worked example: one loop, `+0xAC` 0 then 2.0 with curve `+0x1C0` giving 512 at 2.0: tick 1 posts nothing;
+tick 2 starts the loop at volume 512 (snapped), then posts volume 512 and the average position (truncated)
+because the last values were reset to 0; a later tick with `CanHandle` false posts stop.
 
 ## 9. Open items
 
