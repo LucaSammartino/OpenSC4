@@ -1,12 +1,39 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-particles4: particle component spec (cSC4ParticlesEffect family) | `re-particles4` / (RE spec lane) | in progress (round 2: PT1/PT5/PT6, effects.md §7.1 fix) | 1. Answer PT1/PT5/PT6 (InitEffectsParticle, Start tail, field names) to credit cSC4ParticlesEffect. 2. Apply the coverage proposal below at the next train. 3. Correct effects.md §7.1 item 2 class attribution (particles.md §8). |
+| re-particles4: particle component spec (cSC4ParticlesEffect family) | `re-particles4` / (RE spec lane) | ready (round 2, 688f34c9): particles.md §5.1 InitEffectsParticle, §6 Start complete, §6.1 SetDescription inputs, §8/§8.1 emitter proof+dispatch; effects.md §7.1 item 2 corrected; PT5/PT6/PT7 answered, PT1 narrowed; cSC4ParticlesEffect still partial (physics, rates, drawing) | 1. Physics 0x005B9BA0/0x005B9790 + emitters 0x005B3CF0/0x005B8B50/0x005B87B0 to finish cSC4ParticlesEffect. 2. Coverage rows per report (train owner). 3. PT1 rest, PT2-PT4. |
 
-## Handoff
+## Report (round 2, 2026-10-21)
 
-Goal (round 2): answer PT1/PT5/PT6 from InitEffectsParticle 0x005B7580 and Start 0x005B3000 tail; correct effects.md §7.1 item 2; list cSCParticleSimulatorBase misnamed owners exactly.
-Done: round 1 d6a8e75e (spec particles.md).
-Next: read asm of 0x005B7580 and 0x005B3000 tail.
+**Changed.** docs/specs/particles.md (b59b3c3a, 688f34c9): new §5.1 (InitEffectsParticle 0x005B7580: every field,
+draw order, 8 vs 14/15 draws, transforms, quirks), §6 steps 4-7 (draw order, preferSea via PositionToCell /
+GetSeaportDeveloper / GetCellSeaAccess and the +0xC8 frame, countdown +0x190 from +0x20 or +0x28, mode/preroll
+byte), §6.1 (SetDescription 0x005B7C90 inputs: emission box +0x200 from desc +0x50, preferDir, collide names),
+§8 vtable-word proof, §8.1 dispatch 0x005B96E0 (countdown, preroll−0.01 cap, flags A 0x4/0x2), §2 meanings for
+13 fields, flags A 0x20. effects.md §7.1 item 2 rewritten (behaviour contract unchanged: same three emitters, same
+Stop(0) sites; only class/vtable identity fixed). Questions: PT5, PT6, PT7 answered (answered/particles.md),
+PT1 narrowed; QUESTIONS.md regenerated.
+
+**Evidence.** Export + decomp only (REA not used). Numbers from instructions: constants 0.0 0x00A81054,
+1e-4 0x00AA0D00, 1.0 0x00A81228/0x00B0A664, 0.5 0x00A84D2C, 1/(2π) 0x00B0A660, 0.01 0x00A92688; mask 0x7C000
+from static init 0x00A73060; RandomDoubleRangeUniform 0x00913761 = lo + u(hi−lo), generator 0x00B22DF8.
+Slot proofs: data words 0x00AA0EDC, 0x00AA0C94 → 0x005B96E0; 0x00AA0BC4 → 0x005AA5D0; 0x00AA0E58 slot 15 =
+0x005B7C20.
+
+**Exact owners vs gaps.** cSC4ParticlesEffect: Start 0x005B3000 (1,062 B), InitEffectsParticle 0x005B7580
+(1,683 B), dispatch 0x005B96E0 (175 B) now fully specified; SetDescription 0x005B7C90 partial (§6.1). Still open:
+physics 0x005B9BA0/0x005B9790, terrain 0x005B8DC0, collision 0x005B8020, tractor 0x005B6600, attractor
+0x005B6C40, DoHeightBasedEmit 0x005B71E0, city volume 0x005B7030, the three emitters, drawing 0x005B3DA0/0x005B4B90.
+So cSC4ParticlesEffect stays **partial**: do not map it yet.
+
+**cSCParticleSimulatorBase owner rows (tools/coverage.py --owners, this tip): 23 functions, 1,703 B.** Particle
+code (credit with particles.md): 0x005B9CC0 33, 0x005B9CF0 34, 0x005B9D40 59, 0x005B9D80 10, 0x005B9D90 24,
+0x005B9DD0 19, 0x005B9E20 76, 0x005B9E70 136, 0x005B9F50 39, 0x005B9F80 55 = **485 B**. Not particle code (13
+functions, 1,218 B; do not credit): 0x0048C920 23 (FUN_, vtable words 0x00A8ED64/0x00ABFCB0), 0x0048C940 28
+(QueryInterface, shared: 7 vtable words incl. 0x00A8ED5C), 0x0048CDE0 299 (FUN_, only from 0x0048DAC0),
+0x0048DAC0 30 (destructor name, vtable 0x00A8ED68), 0x004BDF00 8 (AddRef name; shared stub, 65+ callers, 96 data
+refs), 0x00724BF0 96 (FUN_, only from 0x00725130), 0x00725130 59 (vtable 0x00AB3504), 0x00811CB0 28 (5 vtable
+words), and the chain 0x0081CBA0 99 ← 0x0081CCD0 101 ← 0x0081CD40 81 ← 0x0081CEE0 336 ← 0x0081D030 30 (vtable
+0x00ABFCB4/0x00ABFCBC). Any future row must be an address range 0x005B9CC0-0x005B9FB7, not the class name.
 
 ## Report (round 1)
 
