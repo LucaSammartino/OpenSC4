@@ -478,7 +478,7 @@ cSC4FeatureManager	feature manager	framework	feature-manager.md	-	-	-
 cRZDate	dates and times	framework	dates.md	core/src/dates	-	-
 cGZDate	dates and times	framework	dates.md	core/src/dates	-	-
 cRZTime	dates and times	framework	dates.md	core/src/dates	-	-
-cRZTimer	timers	framework	timers.md	-	-	-
+cRZTimer	timers	framework	timers.md	core/src/timers/rz_timer.rs	-	-
 cRZCallbackTimer	timers	framework	timers.md	-	-	-
 cRZCmdLine	command line	framework	command-line.md	core/src/cmdline.rs	-	-
 cGZCommandParameterSet	command system	framework	command-system.md	core/src/commands	-	-
