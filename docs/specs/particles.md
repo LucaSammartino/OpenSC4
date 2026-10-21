@@ -400,4 +400,4 @@ no simulation state depends on them except through the finish test, which depend
 
 ## 12. Open questions
 
-See [questions/particles.md](questions/particles.md): PT1–PT7.
+See [questions/particles.md](questions/particles.md): PT1 (narrowed), PT2, PT3, PT4 open; PT5, PT6, PT7 answered 2026-10-21 (§5.1, §6, §8.1).
