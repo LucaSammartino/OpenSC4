@@ -126,7 +126,7 @@ generated index: the questions live one file per spec, so read only the file for
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 2 | 10 | BW13 | questions/budget-window.md |
+| budget-window | 1 | 11 | BW13 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
@@ -194,7 +194,7 @@ generated index: the questions live one file per spec, so read only the file for
 | simgrid | 1 | 0 | SG2 | questions/simgrid.md |
 | span-render-1555 | 2 | 4 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 1 | SP5 | questions/span-render-4444.md |
-| span-render-565 | 4 | 0 | SR566 | questions/span-render-565.md |
+| span-render-565 | 6 | 0 | SR566 | questions/span-render-565.md |
 | span-render-8 | 3 | 0 | SR9 | questions/span-render-8.md |
 | span-render-8888 | 5 | 0 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **201** | **1074** | | |
+| **total** | **202** | **1075** | | |
