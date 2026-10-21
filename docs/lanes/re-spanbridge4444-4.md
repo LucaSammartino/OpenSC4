@@ -1,6 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-spanbridge4444-4 | workflow / `re-spanbridge4444-4` | **ready** (spec only): SP3 answered in `docs/specs/span-render-4444.md` §1.1 (native call boundary of `cSpanRender4444`); SP4 filed (type-7 producer) | SP4 needs a runtime breakpoint on `0x008307A8`; reconcile the proposed vtable rows |
+| re-spanbridge4444-4 | workflow / `re-spanbridge4444-4` | in progress (round 2: SP4). Round 1: SP3 answered in `docs/specs/span-render-4444.md` §1.1 (native call boundary of `cSpanRender4444`); SP4 filed (type-7 producer) | SP4 needs a runtime breakpoint on `0x008307A8`; reconcile the proposed vtable rows |
+
+## Handoff
+- Goal (round 2): answer or sharpen SP4 (which shipped path builds a colour-type-7 RenderToBuffer target).
+- Facts so far (bytes): Init 0x00830710 fails (releases buffer, returns 0) for types outside 2..9 (default 0x0083087A).
+  cGZBuffer (CLSID 0xC470D325, creator 0x008298F0, ctor 0x008272E0 default type 3/16bpp, vtable 0x00AC1400) Init
+  slot 3 0x008269B0 stores the colour type unchanged. Draw-system CreateBuffer 0x0082B980 forwards caller type.
+  Gimex factory (IID 0x02FFBB60) LoadFromFile slot 4 arg3 = target type; 13 IID sites; seen literal targets 1,2,9.
+  Buffer resources v1/v2 carry the colour type in the file header (persistence.md 6.2); factory defaults 3 / 1.
+  FUN_00604920 (lot editor) maps textures to type 8/9. REA session unavailable (no app open): bytes only.
+- Next: check type-1 buffers never reach Init; finish gimex/resource sweeps; write spec 1.2 + update SP4.
 
 ## Report (2026-10-21)
 
