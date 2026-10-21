@@ -398,18 +398,48 @@ two stored bytes, so h and c above 255 replay truncated.
 
 ## 9. State-change handlers (partial)
 
-### 9.1 State effect on one occupant (`0x004933A0(o, t, x, y)`, message `0x09D8E0B6`) — outline only
+### 9.1 State effect on one occupant (`0x004933A0(o, t, x, y)`, message `0x09D8E0B6`) *[compat]*
 
-Returns a bool (RET 0x10). Observed so far, not yet a contract: h = o's model holder (slot `+0x4C`, AddRef'd); if
-o's exemplar (slot `+0x18`) has property `0x09F00E59` true (read through `0x005FD3C0`) the state is not applied.
-Otherwise x selects a case 0..6 through the jump table at `0x0049367C` (x > 6 goes to the default at
-`0x00493647`, which calls `0x0048F380` on h). Five cases take texture binding k = 0..4 (`+0xD0` + 4k, built by
-`RebuildDynamicTexture(k)` when null, §11), apply it to h through `0x004906B0(h, 2, 0)` and then call
-`ChangeModels(o, 0x278128A0, 2)`. One case queries o for `0x87DDA3A9`, `0xA821EF94` and `0xE9793A65` (the last
-via property `0x4A9F188B` of the exemplar and the lot manager `+0x68` at the centre cell of the rect it returns)
-and, when the queried object reports true (slot `+0x40`), calls `0x00490820(h, 0x8000, 2, 1)` and on success
-`ChangeModels(o, 0x278128A0, 2)`. The case-to-value mapping, the tail after `0x0049364E` and the meaning of y are
-not traced (remainder, §20).
+Returns a bool (RET 0x10) and always returns true; t and y are not read. Steps:
+
+1. h = o's model holder (slot `+0x4C`), AddRef'd when present (h may be null; every later use of h passes it on
+   unchecked, see the quirk below).
+2. If o's exemplar (slot `+0x18`) has property `0x09F00E59` true (read through `0x005FD3C0`; missing = false):
+   release h and return true, nothing else.
+3. Otherwise dispatch on x through the 7-entry table at `0x0049367C`; x > 6 (unsigned) takes the default.
+
+| x | target | effect |
+|---|---|---|
+| 0 | `0x004934C8` | "lit" test, below; on success swap to the +0x8000 textures, else default |
+| 1 | `0x00493647` | default |
+| 2 | `0x00493406` | dynamic texture 0 (`+0xD0`) |
+| 3 | `0x0049345E` | dynamic texture 1 (`+0xD4`) |
+| 4 | `0x004934AC` | dynamic texture 4 (`+0xE0`) |
+| 5 | `0x00493477` | dynamic texture 2 (`+0xD8`) |
+| 6 | `0x00493490` | dynamic texture 3 (`+0xDC`) |
+
+- **Dynamic texture k** (x = 2..6): if the binding at `+0xD0 + 4k` is null, `RebuildDynamicTexture(k)` (§11). If it
+  is still null, take the default. Otherwise `ApplyTextureToModels(h, binding, 2, 0)` (`0x004906B0`, §12.4), then
+  `ChangeModels(o, 0x278128A0, 2)` (§12.4), release h, return true.
+- **Lit test** (x = 0): o is asked for three interfaces in order and the first that answers decides:
+  1. `0x87DDA3A9`: the answer is its slot `+0x40` (bool).
+  2. else `0xA821EF94`: the answer is its slot `+0xF0` (bool).
+  3. else `0xE9793A65` (a lot-attached occupant): the answer is false unless o's exemplar has property
+     `0x4A9F188B` whose value (property slot `+0x14`, then value slot `+0xFC`) points to a non-zero byte. Then
+     the interface's slot `+0x0C` gives an object whose slot `+0x2C` fills a cell rect (x1, z1, x2, z2); the lot
+     manager (`+0x68`) slot `+0x18((x1 + x2) >> 1, (z1 + z2) >> 1, 0)` gives the lot at the rect centre
+     (arithmetic shift, so it rounds towards minus infinity); null lot = false; the lot's slot `+0xC0` gives an
+     object (null = false) whose slot `+0x40` is the answer.
+  4. none of the three: false.
+  When the answer is true, `SwapTexturesByOffset(h, 0x8000, 2, 1)` (`0x00490820`, §12.4); if that reports a
+  change, `ChangeModels(o, 0x278128A0, 2)`. Then the queried interfaces are released and the function releases h
+  and returns true **without** running the default. When the answer is false (or no interface answers), the
+  interfaces are released and the default runs.
+- **Default** (x = 1, x > 6, failed lit test, missing dynamic texture): `RestoreStaticTextures(h)` (`0x0048F380`,
+  §12.4); if it reports a change, `ChangeModels(o, 0x278128A0, 2)`. Release h, return true.
+
+Quirk: with a null h the dispatch still calls the texture helpers on it (they call through h's vtable), so an
+occupant without a model holder must not reach steps 3+ in a conforming caller; the original never guards it.
 
 ### 9.2 Lot state (`DoLotStateChanged(lot, a, b)` `0x00493D60`, message `0xE99B3D4D`) *[compat]*
 
@@ -516,6 +546,37 @@ Then the occupant's model holder (slot `+0x4C`), when present, is AddRef'd, clea
   and same-pointer do nothing).
 - `0x0048F490`: if the object answers `0x097F6D98` (lot base texture occupant), call its slot `+0x28(0)`; release.
 
+### 12.4 Model change notification and material texture swaps *[compat]*
+
+All four walk the instances of a model holder h the same way: n = h slot `+0x0C`; when n > 0 an array of n
+pointers (inline for n < 10, else `GlobalHeapAlloc(4n)`, freed at the end) is filled by h slot `+0x10(array, &n)`.
+For each instance the material list is obtained by asking the instance for `0x26A68448` (skipped when it does not
+answer; released after use); its slot `+0x0C` is the material count and slot `+0x18(j)` returns material j.
+Material fields used: `+0x0B` texture state byte (0 none, 1 static, 2 swapped), `+0x10` texture name id, `+0x20`
+swapped texture instance, `+0x24` counted texture binding, `+0x28..+0x2B` four sampler bytes, `+0x2C`, `+0x2D`,
+`+0x2E` bytes, `+0x30` a dword.
+
+- `ChangeModels(o, flag, mode)` (`0x0048F290`): mode 0 means 3. If flag is 0, call o slot `+0x1C` first (result
+  ignored). h = o slot `+0x4C`; null: return false. Otherwise AddRef h, and for every instance for which the
+  renderer (`+0x14`) slot `+0x6C(inst)` is true call renderer slot `+0x7C(inst, mode)`; release h; return true
+  (also when h has no instances). Every caller in this owner passes flag `0x278128A0` and mode 2.
+- `RestoreStaticTextures(h)` (`0x0048F380`, EAX = h): every material whose state is > 1 is set to state 1 and its
+  binding `+0x24` is cleared (released when non-null). Returns true iff at least one material changed state.
+- `ApplyTextureToModels(h, tex, a, b)` (`0x004906B0`, EAX = h, EBX = tex): for every material of every instance,
+  unconditionally: state = 2; binding = tex (AddRef new, release old, nothing when equal); `+0x2C` = a; `+0x2E` = 1;
+  `+0x30` = the current frame counter (`[[0x00B43CC4] + 0x24] + 0x44`, read once at entry); sampler bytes
+  `+0x28..+0x2B` = (2, 2, 0, 0) when b is true, else (3, 3, 1, 1). No return value. The only caller passes a = 2,
+  b = 0.
+- `SwapTexturesByOffset(h, delta, a, b)` (`0x00490820`, EAX = h): needs the resource service (framework slot
+  `+0x14`, class `0x1AC0E11A`, interface `0xFAC0E219`); without it returns false at once. For each material with
+  state > 0 and name id `+0x10` != 0: state = 1 and the binding is released; the service's slot
+  `+0x20(nameId, &pair)` maps the name to (group, instance); when the instance is 0 the material stays static.
+  Otherwise the texture key (type `0x7AB50E44`, group, instance + delta) is loaded through service slot
+  `+0x18(&key, &tex)`. On success: `+0x20` = instance + delta, state = 2, binding = tex (counted assignment
+  `0x0048EE10`), `+0x2C` = a, `+0x2D` = 0, `+0x2E` = 0, `+0x30` = 1.0f, sampler bytes as above by b. The loaded
+  reference is released afterwards. Returns true iff at least one load succeeded (a material whose load fails is
+  left static with no texture). The only caller passes delta `0x8000`, a = 2, b = 1.
+
 ## 19. Conformance cases
 
 | case | setup | expected |
@@ -549,7 +610,7 @@ Round 2 cases (§6, §7, §9, §10):
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
-Specified: 13942 bytes; remainder (not yet specified or only outlined): 20763 bytes. The remainder is **not empty**,
+Specified: 16091 bytes; remainder (not yet specified or only outlined): 18614 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
 
 | address | bytes | name | section |
@@ -578,8 +639,8 @@ so this spec does not yet claim the whole owner.
 | `0x0048EF60` | 301 | FUN_0048ef60 | §4 |
 | `0x0048F090` | 360 | cSC4ModelMaker::Read | §4 |
 | `0x0048F200` | 142 | FUN_0048f200 | remainder |
-| `0x0048F290` | 229 | cSC4ModelMaker::ChangeModels | remainder |
-| `0x0048F380` | 268 | FUN_0048f380 | remainder |
+| `0x0048F290` | 229 | cSC4ModelMaker::ChangeModels | §12.4 |
+| `0x0048F380` | 268 | FUN_0048f380 | §12.4 |
 | `0x0048F490` | 58 | FUN_0048f490 | §12.3 |
 | `0x0048F4D0` | 217 | cSC4ModelMaker::LoadNetworkModels | remainder |
 | `0x0048F5B0` | 169 | cSC4ModelMaker::LoadUndergroundConnectionModels | remainder |
@@ -589,8 +650,8 @@ so this spec does not yet claim the whole owner.
 | `0x0048FF50` | 65 | GZCOM_Interface<cISC4EffectsResource,cISC4EffectsCollection> | remainder |
 | `0x0048FFF0` | 730 | cSC4ModelMaker::DoBuildingCompletionChanged | remainder |
 | `0x004902E0` | 968 | cSC4ModelMaker::AddModel | remainder |
-| `0x004906B0` | 358 | FUN_004906b0 | remainder |
-| `0x00490820` | 565 | FUN_00490820 | remainder |
+| `0x004906B0` | 358 | FUN_004906b0 | §12.4 |
+| `0x00490820` | 565 | FUN_00490820 | §12.4 |
 | `0x00490A60` | 70 | FUN_00490a60 | remainder |
 | `0x00490AB0` | 68 | FUN_00490ab0 | remainder |
 | `0x00490B00` | 117 | FUN_00490b00 | remainder |
@@ -617,7 +678,7 @@ so this spec does not yet claim the whole owner.
 | `0x00492CC0` | 1068 | cSC4ModelMaker::RebuildDynamicTexture | remainder |
 | `0x004930F0` | 585 | cSC4ModelMaker::DoLightingChanged | remainder |
 | `0x00493340` | 86 | cSC4ModelMaker::RemoveModels | §12.1 |
-| `0x004933A0` | 729 | FUN_004933a0 | §9.1 (outline) |
+| `0x004933A0` | 729 | FUN_004933a0 | §9.1 |
 | `0x004936A0` | 96 | FUN_004936a0 | §8 |
 | `0x00493700` | 25 | FUN_00493700 | §6.2 |
 | `0x00493720` | 40 | FUN_00493720 | §6.2 |
