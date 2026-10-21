@@ -1,4 +1,4 @@
-# Spec: strings and language (`cRZLanguageUtility`, language IDs, framework string encoding)
+# Spec: strings and language (language IDs, framework string encoding, `cRZLanguageManager`, `cRZString`)
 
 Status: **behaviour spec, partial**, clean-room input. This document describes *behaviour*, not code. It was written
 by the analysis team from observing the original program and its data files. Implementers must work from this spec,
@@ -11,8 +11,9 @@ and the decomp/ pseudocode; every name table below was produced by walking the i
 every language ID 0..0x2d and every index, and every string is quoted from the bytes stored in the program. Every
 address is SimCity 4.exe GOG 1.1.641. No modern Unicode semantics are implied: strings are byte strings.
 
-Outline: §1 language IDs; §2 framework encoding; §3 the language utility object; §4 calendar names; §5 currency,
-separators, number and time strings; §6 per-language flags; §7 case conversion and comparison; §8 not yet specified.
+Outline: §1 language IDs; §2 framework encoding; §3 the language utility (canonical contract in
+[language-utility.md](language-utility.md), reconciliation notes here); §4 the language manager; §5..§8 the string
+object `cRZString`; §9 not yet specified.
 
 ## 1. Language IDs
 
@@ -32,14 +33,13 @@ A language is a 32-bit ID. The English names the language manager reports (`GetL
 | 0x0a | Norwegian | 0x15 | Hindi | 0x20 | Slovak | 0x2b | Tagalog |
 | 0x0b | Finnish | 0x16 | Arabic | 0x21 | Albanian | 0x2c | Vietnamese |
 
-The rest of the language manager (system-language mapping, ISO codes, country tables, directory names, switching)
-is not specified yet (§8).
+IDs 0x2D and above have no name (§4.4). The rest of the language manager is §4.
 
 ## 2. Framework string encoding
 
 - The framework's current code page (00940da8) is the constant **UTF-8** in this build. Encoding codes used by the
   string converter (`ConvertStringEncoding`, 00910e18): 8 = UTF-8, 0x10 = UTF-16, 0xFFFFFFFE = "the framework
-  encoding" (treated as 8), 0xFFFFFFFF = "the system ANSI code page". The converter's full behaviour is §8.
+  encoding" (treated as 8), 0xFFFFFFFF = "the system ANSI code page". The converter's full behaviour is §9.
 - Every name/symbol getter in §4 and §5 ends with a "convert UTF-8 to the destination format" step (00923d58). With
   the framework code page fixed at UTF-8 that step returns immediately: **the stored bytes are delivered unchanged**
   *[compat]*. (If the framework code page were neither UTF-8 nor UTF-16, the step would convert the string from
@@ -49,248 +49,219 @@ is not specified yet (§8).
   are double-encoded. Because the conversion is a no-op those raw bytes reach the caller. This spec writes such bytes
   as `\xNN`; an implementation must return exactly those bytes, not a "corrected" UTF-8 form.
 
-## 3. The language utility object (`cRZLanguageUtility`)
+## 3. The language utility (`cRZLanguageUtility`): see language-utility.md
 
-- Interface: answers QueryInterface for ID 0x1054B7D5 and for 1 (the base unknown); AddRef/Release are ordinary
-  reference counting, Release destroying the object when the count would drop below 1 (00927c2a, 00927c4f).
-- State: language ID (initially 1, English), a country ID (initially 0x36), a "local currency" flag (initially false)
-  and a "group separator" string (initially the two bytes C2 A0, UTF-8 no-break space). Constructor 0092847c;
-  `Init` (00928fdd) re-assigns the separator to C2 A0, runs the no-op conversion of §2 and returns true.
-- `SetLanguage(id)` (009b2970) stores the ID with no validation; every query below reads the stored ID.
-- Who sets the country and the currency flag is not specified yet (§8).
-- Interface slot order (vtable 4-byte slots from +0x00): QueryInterface, AddRef, Release, Init, Shutdown (shared
-  trivial body), GetDayName, GetAbbrDayName, GetMonthName, GetAbbrMonthName, MakeTimeString, MakeDateString,
-  GetCurrencySymbol, DoesCurrencySymbolPrecedeAmount, IsSpaceBetweenCurrencySymbolAndAmount, GetThousandSeparator,
-  GetDecimalSeparator, MakeMoneyString, MakeFormattedMoneyString, MakeNumberString, MakeFormattedNumberString,
-  ConvertToLowerCase, ConvertToUpperCase, CompareStrings, GetCharacterSetFromLanguage, DoesLanguageUseCharacterSet,
-  GetLanguageRoadDrivingSide, GetMeasurementSystem, AreFirstAndLastNamesReversed, DoesLanguageUseInputMethodEditing,
-  DoesLanguageUseMultiByteCharacters, destructor (+0x78), SetLanguage (+0x7C), SetCountry (+0x80). Functions that
-  call a sibling (the character-set selector, the number formatter) go through these slots *[compat]*.
+The canonical contract for every one of the 33 slots of `cRZLanguageUtility` (identity and lifetime, attribute
+queries, currency, separators, `MakeNumberString`, `MakeMoneyString`, `MakeFormattedMoneyString`,
+`MakeFormattedNumberString`, `MakeTimeString`, `MakeDateString`, `SetLanguage`, `SetCountry`, case conversion,
+comparison and the four day/month name tables) is [language-utility.md](language-utility.md). This spec does not
+repeat it. The two specs were written independently from the same bytes; they were compared row by row on
+2026-10-21 (all 79 (table, language) rows of the four name tables, the currency, separator, flag, number and time
+tables). Every disagreement was settled from the bytes in favour of language-utility.md; nothing in it is
+contradicted. The rows below record those checks and the details it does not state (they add to it, they do not
+replace it):
 
-## 4. Calendar names
-
-`GetDayName(day, out)` (00925a26), `GetAbbrDayName` (00925f69), `GetMonthName(month, out)` (009265b2),
-`GetAbbrMonthName` (009270b2). Days are 1 = Monday .. 7 = Sunday; months 1 = January .. 12 = December.
-
-Common rule for all four *[compat]*: if the (language, index) pair has a table entry, `out` is set to it. Otherwise
-`out` is not touched. Then, if `out` is empty, it is set to `Untranslated` and the function returns **false**;
-in every other case it returns **true**. So an unsupported language or an out-of-range index (0, 8+, 13+) leaves a
-caller's non-empty string as it was and reports success *[quirk]*.
-
-Languages with no entry in any of the four functions: 0, 0x15..0x22, 0x24..0x2d (and any larger ID). Below, "EN" is
-the English row.
-
-### 4.1 Day names
-
-| languages | Mon .. Sun |
+| Point | Rule (checked in the program) |
 |---|---|
-| 1, 2, 9, 0x0c, 0x0d, 0x10, 0x13 (EN) | Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday |
-| 3 | Lundi, Mardi, Mercredi, Jeudi, Vendredi, Samedi, Dimanche |
-| 4 | Montag, Dienstag, Mittwoch, Donnerstag, Freitag, Samstag, Sonntag |
-| 5 | Lunedì, Martedì, Mercoledì, Giovedì, Venerdì, Sabato, Domenica (UTF-8) |
-| 6 | Lunes, Martes, Miércoles, Jueves, Viernes, Sábado, Domingo (UTF-8) |
-| 7 | Maandag, Dinsdag, Woensdag, Donderdag, Vrijdag, Zaterdag, Zondag |
-| 8, 0x0a | Mandag, Tirsdag, Onsdag, Torsdag, Fredag, Lørdag, Søndag (UTF-8) |
-| 0x0b | Maanantai, Tiistai, Keskiviikko, Torstai, Perjantai, Lauantai, Sunnuntai |
-| 0x0e, 0x23 | Segunda-feira, `Ter\xE7a-feira`, Quarta-feira, Quinta-feira, Sexta-feira, `S\xE1bado`, Domingo |
-| 0x0f | 月曜日 火曜日 水曜日 木曜日 金曜日 土曜日 日曜日 (UTF-8) |
-| 0x11, 0x12 | 星期一 星期二 星期三 星期四 星期五 星期六 星期天 (UTF-8) |
-| 0x14 | 월요일 화요일 수요일 목요일 금요일 토요일 일요일 (UTF-8) |
+| Swedish abbreviated Monday (`GetAbbrDayName`, ID 9, day 1) | the stored bytes are `4D E5 06 45` (`M`, `\xE5`, U+0006, `E`); language-utility.md §5.2 is right. |
+| Index width in the four name getters | only the low byte of the day/month index is read (00925a53, 009265df): index 0x101 behaves as 1. |
+| `MakeTimeString` with second ≥ 0 and minute < 0 | hour, minute and second are all printed (the minute as a large unsigned number); a negative minute only drops the minute when the second is also negative. |
+| `GetCharacterSetFromLanguage` order | asks 1252, 1250, 874, 932, 936, 950, 949, 1251, 1251 again (00925780, 0092578c), 1253, 1254, 1255, 1256, 1257; the repeated query changes nothing, and the result is as language-utility.md §2 states. |
+| `MakeNumberString` with the most negative 64-bit value | negation leaves it negative, so the printed magnitude starts with `-`, which the grouping counts as a digit: `-9,223,372,036,854,775,808` gets an extra `-` in front for the `-` + grouped languages (`--9,223,...`) *[quirk]*. |
+| Who sets the country | `cRZLanguageManager`: its constructor (0x36) and `SetCurrentCountry` (§4.2); `GetNewLanguageUtility` leaves it at 0x36. |
+| Who sets the currency flag (+0x10; language-utility.md Q1) | in the code of both language classes (00923ded..0092960f) the only write is the utility constructor's store of 0 (0092849f); neither vtable has a setter, so through the manager every currency symbol is `$`. Writes from outside these classes were not searched. |
 
-Swedish (9), Hebrew, Russian, Polish and Thai get the English names; Danish and Norwegian share one row; Portuguese
-"Domingo" is the same stored string as Spanish.
+## 4. The language manager (`cRZLanguageManager`)
 
-### 4.2 Abbreviated day names
+Data-formats §6.2 says which language folder and LTEXT group the game uses; this section is the manager's own
+contract. Language IDs are §1; country IDs are §4.6. All tables below were produced by running the original
+instructions of each function concretely for every input (languages 0..0x2f, countries 0..0x3f, Windows LANGIDs
+0..0xFFFF) and are quoted from the stored bytes.
 
-| languages | Mon .. Sun |
+### 4.1 Identity, state and lifetime *[compat]*
+
+| Item | Rule |
 |---|---|
-| 1, 2 | Mon, Tue, Wed, Thur, Fri, Sat, Sun |
-| 3 | lun, mar, mer, jeu, ven, sam, dim |
-| 4 | Mo, Di, Mi, Do, Fr, Sa, So |
-| 5 | Lun, Mar, Mer, Gio, Ven, Sab, Dom |
-| 6 | L, M, X, J, V, S, D |
-| 7 | Ma, Di, Wo, Do, Vr, Za, Zo |
-| 9 | `M\xE5E`, Tis, Ons, Tor, Fre, `L\xF6r`, `S\xF6n` |
-| 0x0b | ma, ti, ke, to, pe, la, su |
-| 0x0d | `\xCF\xED`, `\xC4\xF2`, `\xD1\xF0`, `\xD7\xF2`, `\xCF\xF2`, `\xD1\xE1`, `\xC4\xF1` (cp1251) |
-| 0x0e, 0x23 | Seg, Ter, Qua, Qui, Sex, Sab, Dom |
-| 0x0f | same strings as the full Japanese day names |
-| 0x10 | Pn, Wt, `\xC2\x8Cr`, Cz, Pt, So, N |
-| 0x11, 0x12 | same strings as the full Chinese day names |
-| 0x13 | `\xA8`, `\xCD`, `\xBE`, `\xBE\xC4`, `\xC9`, `\xCA`, `\xCD\xD2` (cp874) |
-| 0x14 | same strings as the full Korean day names |
+| Service | a framework system service with service ID `0x441E5070` (`kGZLanguageManagerSysServiceID`) and priority `0xFFD23940`. `Init` and `Shutdown` (slots 3, 4) do nothing and return true. |
+| QueryInterface (00923ded) | iid `0x0054B7D5` (the language-manager interface): stores the object itself. iid `0x287FB697` (the system-service interface): stores the service sub-object (the object + 4; null stays null). Both AddRef the object and return true. Any other iid, **including 1** (the unknown interface): false, out untouched. AddRef/Release are the shared framework bodies. |
+| State | current language (starts 1), current country (starts 0x36), a set of "available" language IDs (starts empty), and one embedded language utility. |
+| Constructor (00928afe) | builds the embedded utility, calls its `Init`, `SetLanguage(1)`, `SetCountry(0x36)`. |
+| `GetCurrentLanguage` (slot 7) / `GetCurrentCountry` (slot 28) | return the stored IDs. |
+| `GetLanguageUtility(id)` (slot 38, 00924b50) | id 0 means the current language. Returns the embedded utility when id equals the current language, otherwise null. No reference is added. |
+| `GetNewLanguageUtility(id)` (slot 39, 00928beb) | a new utility with reference count 1 (the caller owns it), `SetLanguage(id)`; `Init` is not called and the country stays 0x36. |
 
-*[quirk]* Unlike the full names, Danish (8), Norwegian (0x0a) and Hebrew (0x0c) have **no** abbreviated day names
-(they fall to the common rule: `Untranslated`/false on an empty string). Swedish has its own row here although its
-full names are English. The Polish Wednesday is the three bytes C2 8C 72 (a cp1250 "Ś" double-encoded).
+### 4.2 Switching language and country *[compat]*
 
-### 4.3 Month names
+- `SetCurrentLanguage(id)` (slot 8, 00928021). id 0 means 1. If id equals the current language: return true,
+  nothing else happens. Otherwise, if `CanSwitchToLanguage(id)` is false: return false, nothing changes.
+  Otherwise the manager stores id, calls the embedded utility's `SetLanguage(id)`, then asks
+  `GetLanguageRuntimeLibraryName(id)` (§4.5). When that succeeds, the C runtime locale is set with
+  `setlocale(LC_ALL, name)` and, if that call succeeds, the multibyte code page is set to the ANSI code page
+  (`_setmbcp(_MB_CP_ANSI)`); the result is true. When the name lookup fails (IDs 0x2D and above), the result is
+  **false although the language has already been switched** *[quirk]*.
+- `SetCurrentCountry(id)` (slot 29, 0092832a): id 0 means 0x36. Stores it, calls the utility's `SetCountry(id)`,
+  returns true. No validation.
+- `CanSwitchToLanguage(id)` (slot 9, 00927db5): true when the available set is **empty**, or when it contains id;
+  false otherwise. So with no `AddAvailableLanguage` call every ID, even an unknown one, is accepted.
+- `AddAvailableLanguage(id)` (slot 5, 00927e04): adds id to the set when id ≤ 0x2C (unsigned); larger IDs are
+  ignored. `RemoveAvailableLanguage(id)` (slot 6, 00928bd2) removes it (no effect when absent).
+- `GetNextAvailableLanguage(&id)` (slot 14, 00924652): repeat: if id > 0x2C, add 1 to id and return false; else
+  add 1 to id and stop with true when `CanSwitchToLanguage(id)` is true. Start with id 0 to get the first one.
+  *[quirk]*: from id 0x2C with an empty set it returns true with id 0x2D.
+- `GetAllAvailableLanguagesIntoStringList(list)` (slot 47, 00927e28): empties the caller's list of IDs and
+  appends every ID in the set in ascending order (an empty set gives an empty list, although every language is
+  then switchable).
+- Slot 46 (00929609, the export calls it a destructor; it is not) takes a list of strings: empties it, then
+  for id = 1 while id ≤ 0x2C: `GetNextAvailableLanguage(&id)` (which itself advances id); when true, append
+  `GetLanguageEnglishName(id)`; then add 1 to id. The double advance **skips every other available language**
+  *[quirk]*: with an empty set the list is the names of 2, 4, 6, …, 0x2C (UK English, German, Spanish, …), and
+  English (1) is never listed.
 
-| languages | Jan .. Dec |
+### 4.3 System language mapping *[compat]*
+
+`GetCurrentSystemLanguage` (slot 10, 00923e28) = `GetLanguageFromSystemLanguage(GetUserDefaultLCID() & 0xFFFF)`.
+
+`GetSystemLanguageFromLanguage(id)` (slot 11, 00923e3e), id 0 meaning the current language, returns a Windows
+LANGID: 1 0x409, 2 0x809, 3 0x40C, 4 0x407, 5 0x410, 6 0x40A, 7 0x413, 8 0x406, 9 0x41D, 0x0A 0x414, 0x0B 0x40B,
+0x0C 0x40D, 0x0D 0x419, 0x0E 0x816, 0x0F 0x411, 0x10 0x415, 0x11 0x804, 0x12 0x404, 0x13 0x41E, 0x14 0x412,
+0x15 0x439, 0x16 0x401, 0x17 0x402, 0x19 0x422, 0x1A 0x405, 0x1B 0x408, 0x1C 0x40E, 0x1D 0x40F, 0x1E 0x418,
+0x20 0x41B, 0x21 0x41C, 0x22 0x41F, 0x23 0x416, 0x2A 0x80A, 0x2C 0x42A. Every other ID (0x18, 0x1F, 0x24..0x29,
+0x2B, 0x2D and above) returns **1** (not a valid LANGID) *[quirk]*.
+
+`GetLanguageFromSystemLanguage(langid)` (slot 12, 00924038) uses the low 16 bits only and returns:
+
+| Language | LANGIDs |
 |---|---|
-| 1, 2, 0x0c, 0x0d, 0x13 (EN) | January, February, March, April, May, June, July, August, September, October, November, December |
-| 3 | janvier, `F\xE9vrier`, mars, avril, mai, juin, juillet, `Ao\xFBt`, septembre, octobre, novembre, `D\xE9cembre` |
-| 4 | Januar, Februar, `M\xE4rz`, April, Mai, Juni, Juli, August, September, Oktober, November, Dezember |
-| 5 | Gennaio, Febbraio, Marzo, Aprile, Maggio, Giugno, Luglio, Agosto, Settembre, Ottobre, Novembre, Dicembre |
-| 6 | Enero, Febrero, Marzo, Abril, Mayo, Junio, Julio, Agosto, Septiembre, Octubre, Noviembre, Diciembre |
-| 7 | Januari, Februari, Maart, April, Mei, Juni, Juli, Augustus, September, Oktober, November, December |
-| 8 | januar, februar, marts, april, maj, juni, juli, august, september, oktober, november, december |
-| 9 | Januari, Februari, Mars, April, Maj, Juni, Juli, Augusti, September, Oktober, November, December |
-| 0x0b | tamikuu, helmikuu, maaliskuu, huhtikuu, toukokuu, `kes\xE4kuu`, `hein\xE4kuu`, elokuu, syyskuu, lokakuu, marraskuu, joulukuu |
-| 0x0e, 0x23 | Janeiro, Fevereiro, `Mar\xE7o`, Abril, Maio, Junho, Julho, Agosto, Setembro, Outubro, Novembro, Dezembro |
-| 0x0f | "1 月", **none**, "3 月" .. "12 月" (number, ASCII space, 月 in UTF-8) |
-| 0x10 | `Stycze\xF1`, Luty, Marzec, `Kwiecie\xF1`, Maj, Czerwiec, Lipiec, `Sierpie\xF1`, `Wrzesie\xF1`, Padziernik, Listopad, `Grudzie\xF1` |
-| 0x11, 0x12 | "1月" .. "12月" (no space) |
-| 0x14 | 1월, 이월, 3월, 4월, 오월, 유월, 칠월, 팔월, 9월, 10월, 11월, 십이월 |
+| 2 | 0x809, 0xC09, 0x1409, 0x1809, 0x1C09, 0x2009, 0x2409, 0x2809, 0x2C09, 0x3009, 0x3409 |
+| 3 | 0x40C, 0x80C, 0xC0C, 0x100C, 0x140C, 0x180C |
+| 4 | 0x407, 0x807, 0xC07, 0x1007, 0x1407 |
+| 5 / 7 / 9 / 0x0A / 0x14 | 0x410, 0x810 / 0x413, 0x813 / 0x41D, 0x81D / 0x414, 0x814 / 0x412, 0x812 |
+| 6 | 0x40A and 0xC0A, 0x100A, 0x140A, …, 0x500A (every 0x400 step from 0xC0A to 0x500A) |
+| 0x11 / 0x12 | 0x804, 0x1004, 0x1404 / 0x404, 0xC04 |
+| 0x16 | 0x401, 0x801, 0xC01, …, 0x4001 (every 0x400 step) |
+| 8, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x13, 0x15, 0x17, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x20, 0x21, 0x22, 0x23, 0x2A, 0x2C | the single LANGID listed for that ID above (e.g. 0x0E only from 0x816, 0x23 only from 0x416, 0x2A only from 0x80A) |
+| 1 | everything else, including 0x409 and 0 |
 
-*[quirk]* Japanese February has no full-name entry (the common rule applies), although "2 月" exists in the abbreviated
-table. Norwegian (0x0a) has no month names at all. Strings that are the same text in two rows (for example "Maj",
-"April", "May") may be one stored string; only the bytes matter.
+So the mapping is not a round trip: 0x80A (Mexican Spanish) goes to 0x2A but 0xC0A (modern Spanish) to 6, and
+Portuguese (Portugal) 0x816 to 0x0E but Brazilian 0x416 to 0x23.
 
-### 4.4 Abbreviated month names
+`GetCurrentSystemCountry` (slot 32, 009253d7) always returns 0xFFFFFFFF.
 
-| languages | Jan .. Dec |
-|---|---|
-| 1, 2, 8, 0x0b, 0x0c, 0x0d, 0x13 | Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec |
-| 3 | jan, `F\xE9v`, mar, Avr, mai, juin, juil, `Ao\xFBt`, sept, oct, nov, `D\xE9c` |
-| 4 | Jan, Feb, `M\xE4r`, Apr, Mai, Jun, Jul, Aug, Sep, Okt, Nov, Dez |
-| 5 | Gen, Feb, Mar, Apr, Mag, Giu, Lug, Ago, Set, Ott, Nov, Dic |
-| 6 | En, Feb, Mar, Abr, Mayo, Jun, Jul, Ag, Sep, Oct, Nov, Dic |
-| 7 | Jan, Feb, Mrt, Apr, Mei, Jun, Jul, Aug, Sep, Okt, Nov, Dec |
-| 9 | Jan, Feb, Mar, Apr, Maj, Jun, Jul, Aug, Sep, Okt, Nov, Dec |
-| 0x0e, 0x23 | Jan, Fev, Mar, Abr, Mai, Jun, Jul, Ago, Set, Out, Nov, Dez |
-| 0x0f | "1 月" .. "12 月" (all twelve) |
-| 0x10 | Sty, Lut, Mar, Kwi, Maj, Cze, Lip, Sie, Wrz, `Pa\x9F`, Lis, Gru |
-| 0x11, 0x12 | "1月" .. "12月" |
-| 0x14 | same strings as the full Korean month names |
+### 4.4 Language names and codes *[compat]*
 
-Danish and Finnish use the English abbreviations; Norwegian again has none.
+Common shape: id 0 means the current language. The getter replaces `out` with the entry and returns true; IDs
+with no entry get the stated fallback and false. All names are byte strings (§2).
 
-## 5. Currency and number punctuation
+- `GetLanguageEnglishName(out, id)` (slot 16, 00924798): §1 for 1..0x2C; others: `out` = empty, false.
+  `GetLanguageEnglishNameFromLanguageID` (slot 21) is the same call.
+- `GetLanguageLocalName(out, id)` (slot 17, 00924a02): entries 1, 2 `English`; 3 `Fran` C3 87 `ais` (the stored
+  byte pair is capital `Ç`) *[quirk]*; 4 `Deutsch`; 5 `Italiano`; 6 `Español` (UTF-8); 7 `Nederlands`; 8 `Dansk`;
+  9 `Svensk`; 0x0B `Suomi`; 0x0E, 0x23 `Portugues`; 0x0A, 0x0C, 0x0D, 0x0F..0x14 `Untranslated`; other IDs:
+  `out` untouched. **Then**, if `out` is non-empty, it is replaced by `Untranslated` and the result is false;
+  if it is empty the result is true (the test is inverted compared with the utility's name getters)
+  *[quirk]*. Net effect: every call yields `Untranslated`/false except an empty `out` passed for an ID with no
+  entry, which stays empty with true. `GetLanguageLocalNameFromLanguageID` (slot 22) is the same call.
+- `GetLanguageDirectoryName(out, id)` (slot 15, 0092467e): the folder name. Special names: 2 `UKEnglsh`,
+  0x0A `Norwgian`, 0x0E `Portuges`, 0x11 `SChinese`, 0x12 `TChinese`, 0x17 `Blgarian`, 0x1C `Hngarian`,
+  0x1D `Icelandc`, 0x23 `Portgese`, 0x24 `SFrench`, 0x25 `CFrench`, 0x26 `BFrench`, 0x27 `SGerman`,
+  0x28 `SItalian`, 0x29 `BDutch`, 0x2A `MSpanish`, 0x2C `Vietnmse`; every other ID uses
+  `GetLanguageEnglishName` (so `English`, `French`, `Thai`, `Ukranian`, `Tagalog`, …; empty for 0x2D+). Returns
+  true when `out` is then non-empty.
+- `GetLanguageIDAlias(id)` (slot 23, 00924aef): id 0 means current; 2 → 1; 0x24, 0x25, 0x26 → 3; 0x27 → 4;
+  0x28 → 5; 0x29 → 7; 0x2A → 6; 0x17, 0x18, 0x19 → 0x0D; any other id is returned unchanged.
+- `GetISO639LanguageCodeFromLanguageID(out, id)` (slot 24, 00924bbd): 1 `en`, 2 `uk`, 3 `fr`, 4 `de`, 5 `it`,
+  6 `es`, 7 `nl`, 8 `da`, 9 `sv`, 0x0A `no`, 0x0B `fi`, 0x0C `iw`, 0x0D `ru`, 0x0E `pt`, 0x0F `ja`, 0x10 `pl`,
+  0x11 `zh`, 0x12 `zh`, 0x13 `th`, 0x14 `ko`, 0x15 `hi`, 0x16 `ar`, 0x17 `bg`, 0x18 `ru`, 0x19 `uk`, 0x1A `cs`,
+  0x1B `el`, 0x1C `hu`, 0x1D `is`, 0x1E `ro`, 0x1F `la`, 0x20 `sk`, 0x21 `al`, 0x22 `tr`, 0x23 `pt`, 0x24..0x26
+  `fr`, 0x27 `gr`, 0x28 `it`, 0x29 `nl`, 0x2A `sp`, 0x2B `tl`, 0x2C `vi`; 0x2D+: empty, false. *[quirk]* UK
+  English reports `uk` (the Ukrainian code), Albanian `al`, Swiss German `gr`, Mexican Spanish `sp`.
 
-### 5.1 `GetCurrencySymbol(out)` (009279b0)
+### 4.5 Runtime locale names *[compat]*
 
-If the local-currency flag is false, the symbol is `$` for every language. Otherwise:
+`GetLanguageRuntimeLibraryName(out, id)` (slot 13, 0092440f), id 0 meaning current: 1 `english-us`,
+2 `english-uk`, 3 `french`, 4 `german`, 5 `italian`, 6 `spanish`, 7 `dutch`, 8 `danish`, 9 `swedish`,
+0x0A `norwegian`, 0x0B `finnish`, 0x0C `hebrew`, 0x0E and 0x23 `portuguese`, 0x0F `japanese`, 0x10 `polish`,
+0x11 `chinese-simplified`, 0x12 `chinese-traditional`, 0x13 `thai`, 0x14 `korean`, 0x15 `hindi`, 0x16 `arabic`,
+0x1A `czech`, 0x1B `greek`, 0x1C `hungarian`, 0x1D `icelandic`, 0x1E `romanian`, 0x1F `latin`, 0x20 `slovak`,
+0x21 `albanian`, 0x22 `turkish`, 0x24 `french-swiss`, 0x25 `french-canadian`, 0x26 `french-belgian`,
+0x27 `german-swiss`, 0x28 `italian-swiss`, 0x29 `dutch-belgian`, 0x2A `spanish-mexican`, 0x2B `tagalog`,
+0x2C `vietnamese`; 0x0D, 0x17, 0x18, 0x19 `russian`. Returns true for 1..0x2C; for 0x2D and above `out` is
+untouched and the result is false. These strings are what `SetCurrentLanguage` passes to `setlocale`; names
+the C runtime does not know (e.g. `latin`) make that call fail, which `SetCurrentLanguage` ignores.
 
-| languages | stored bytes | reads as |
-|---|---|---|
-| 1, 0x11, 0x12 | 24 | `$` |
-| 2 | C2 A3 | £ |
-| 3, 4, 5, 6, 7, 8, 0x0a, 0x0b, 0x0e, 0x1b, 0x26 | E2 2C 82 2C AC | *[quirk]* five bytes: the UTF-8 euro sign with commas between its bytes |
-| 9, 0x1d | 6B 72 | kr |
-| 0x0c | E2 82 AA | ₪ |
-| 0x0d | D0 B1 | б |
-| 0x0f | C2 A5 | ¥ |
-| 0x10 | C5 82 | ł |
-| 0x13 | E0 B8 BF | ฿ |
-| 0x14 | 5C | `\` (the won sign in Korean code pages) |
-| 0x1a | 4B C4 8D 7B | `Kč{` *[quirk]* trailing brace stored |
-| 0x1c | 46 54 | FT |
-| 0x1e | 4C 65 69 | Lei |
-| 0x21 | 4C 65 6B | Lek |
-| 0x22 | 54 4C | TL |
-| 0x23 | 45 73 63 2E | Esc. |
-| any other | (not set) | |
+### 4.6 Countries *[compat]*
 
-Then the common rule of §4 (empty → `Untranslated`, false; otherwise true).
+Country IDs 1..0x38 with `GetCountryEnglishName(out, id)` (slot 34, 009253db) and
+`GetISO3166CountryCodeFromCountryID(out, id)` (slot 26, 00924dcd); id 0 means the current country:
 
-### 5.2 Currency placement
+| ID | name | code | ID | name | code | ID | name | code | ID | name | code |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | Albania | al | 0x0F | Egypt | eg | 0x1D | Israel | il | 0x2B | Slovakia | sk |
+| 2 | Argentina | ar | 0x10 | Finland | fi | 0x1E | Italy | it | 0x2C | Slovenia | si |
+| 3 | Australia | au | 0x11 | France | fr | 0x1F | Japan | jp | 0x2D | Spain | es |
+| 4 | Austria | at | 0x12 | Georgia | ge | 0x20 | Korea | kr | 0x2E | Sweden | se |
+| 5 | Belgium | be | 0x13 | Germany | de | 0x21 | Mexico | mx | 0x2F | Switzerland | ch |
+| 6 | Brazil | br | 0x14 | Greece | gr | 0x22 | Netherlands | nl | 0x30 | Syria | sy |
+| 7 | Bulgaria | bg | 0x15 | Holy See | (none) | 0x23 | New Zealand | nz | 0x31 | Taiwan | tw |
+| 8 | Canada | ca | 0x16 | Hong Kong | hk | 0x24 | Norway | no | 0x32 | Thailand | th |
+| 9 | Chile | cl | 0x17 | `Hungray` (sic) | hu | 0x25 | Philippines | ph | 0x33 | Turkey | tr |
+| 0x0A | China | cn | 0x18 | Iceland | is | 0x26 | Poland | pl | 0x34 | Ukraine | ua |
+| 0x0B | Colombia | co | 0x19 | India | in | 0x27 | Portugal | pt | 0x35 | United Kingdom | gb |
+| 0x0C | Cuba | cu | 0x1A | Iran | ir | 0x28 | Romania | ro | 0x36 | United States | us |
+| 0x0D | Czech Republic | cz | 0x1B | Iraq | iq | 0x29 | Russia | ru | 0x37 | Vietnam | vn |
+| 0x0E | Denmark | dk | 0x1C | Ireland | ie | 0x2A | Singapore | sg | 0x38 | Yugoslavia | yu |
 
-- `DoesCurrencySymbolPrecedeAmount` (00927ae3) is true for 1, 2, 5, 7, 8, 0x0a, 0x0c, 0x0f, 0x11, 0x12, 0x13, 0x14,
-  0x22, 0x23; false for every other ID.
-- `IsSpaceBetweenCurrencySymbolAndAmount` (00927b2f) is false for 1, 2, 0x0a, 0x0c, 0x0f, 0x11, 0x12, 0x13, 0x14;
-  true for every other ID (including unknown ones).
+Fallbacks (result false): the name getter writes `UnitedStates` (no space) for IDs above 0x38; the code getter
+writes an empty string for 0x15 and IDs above 0x38. `GetCountryLocalName` (slot 35) is the English name call.
 
-### 5.3 Separators
+`GetPrimaryLanguageForCountry(country)` (slot 30, 009250d5), country 0 meaning current, returns a language ID:
+8, 0x0F, 0x19, 0x2C, 0x30,
+0x36 → 1; 2, 9, 0x0B, 0x0C, 0x2D → 6; 3, 0x1C, 0x23, 0x2F, 0x35 → 2; 4, 0x13 → 4; 5 → 0x26; 6 → 0x23;
+7 → 0x17; 0x0A, 0x2A → 0x11; 0x0D → 0x1A; 0x0E → 8; 0x10 → 0x0B; 0x12, 0x29 → 0x0D; 0x14 → 0x1B; 0x16, 0x31 →
+0x12; 0x17 → 0x1C; 0x18 → 0x1D; 0x1A, 0x1B → 0x16; 0x1D → 0x0C; 0x1E → 5; 0x1F → 0x0F; 0x20 → 0x14;
+0x21 → 0x2A; 0x22 → 7; 0x24 → 0x0A; 0x25 → 0x2B; 0x26 → 0x10; 0x27 → 0x0E; 0x28 → 0x1E; 0x2B, 0x38 → 0x20;
+0x2E → 9; 0x32 → 0x13; 0x34 → 0x19; 0x37 → 0x2C; every other country (1, 0x11, 0x15, 0x33, above 0x38) → 0.
+*[quirk]* Canada → English, Switzerland and Australia → UK English, France → 0 (none), Georgia → Russian.
 
-`GetDecimalSeparator(out)` (00927b7b) and `GetThousandSeparator(out)` (00927c66) always write `out` and return a flag:
+`GetDefaultCountryForLanguage(language)` (slot 31, 0092525a), 0 meaning current: 2 → 0x35, 3 → 0x11, 4 → 0x13,
+5 and 0x1F → 0x1E, 6 → 0x2D, 7 → 0x22, 8 → 0x0E, 9 → 0x2E, 0x0A → 0x24, 0x0B → 0x10, 0x0C → 0x1D, 0x0D and
+0x18 → 0x29, 0x0E → 0x27, 0x0F → 0x1F, 0x10 → 0x26, 0x11 → 0x0A, 0x12 → 0x16, 0x13 → 0x32, 0x14 → 0x20,
+0x15 → 0x19, 0x16 → 0x1A, 0x17 → 7, 0x19 → 0x34, 0x1A → 0x0D, 0x1B → 0x14, 0x1C → 0x17, 0x1D → 0x18,
+0x1E → 0x28, 0x20 → 0x2B, 0x21 → 1, 0x22 → 0x33, 0x23 → 6, 0x24, 0x27, 0x28 → 0x2F, 0x25 → 8, 0x26 and
+0x29 → 5, 0x2A → 0x21, 0x2B → 0x25, 0x2C → 0x37; everything else (1, 0x2D and above) → 0x36.
 
-| languages | decimal | thousand | returns |
+### 4.7 Reverse lookups *[compat]*
+
+Each walks the IDs upward, asks the getter, skips IDs whose getter returns false, and compares with the
+embedded utility's `CompareStrings(text, entry, caseSensitive = false)` (language-utility.md §4.8): the first
+equal entry wins and its ID is stored, result true. No match: the fallback ID is stored, result false.
+
+| Function (slot) | IDs walked | getter | fallback |
 |---|---|---|---|
-| 1, 2, 0x0c, 0x0f, 0x11, 0x12, 0x13, 0x14 | `.` | `,` | true |
-| 3, 4, 5, 6, 7, 8, 9, 0x0d, 0x0e, 0x23 | `,` | `.` | true |
-| 0x0a, 0x0b, 0x10 | `,` | the group-separator string of §3 (C2 A0) | true |
-| any other | `.` | `,` | **false** |
+| `GetLanguageIDFromLanguageEnglishName(text, &id)` (18, 009280b8) | 1..0x2C | English name | 1 |
+| `GetLanguageIDFromLanguageLocalName` (19, 0092813e) | 1..0x2C | local name (§4.4) | 1 |
+| `GetISO639LanguageIDFromLanguageCode` (25, 0092821e) | 1..0x2C | ISO 639 code | 1 |
+| `GetISO3166CountryIDFromCountryCode` (27, 009282a4) | 1..0x39 | ISO 3166 code | 0x36 |
+| `GetCountryIDFromCountryEnglishName` / `…LocalName` (36, 37; 0092836a, 009283f3) | 1..0x39 | country name | 0x36 |
 
-`MakeFormattedNumberString(value, out, format)` (00927bee) ignores the language: it formats the 64-bit floating value
-with the caller's format string through the string object's printf-style formatter and returns true.
+Consequences *[quirk]*: the local-name lookup never matches (§4.4 makes every local-name call false), so it
+always gives 1/false; `uk` finds 2 (UK English), `fr` 3, `pt` 0x0E, `zh` 0x11, `ru` 0x0D; `us` finds 0x36.
 
-### 5.4 `MakeNumberString(value, out)` (00929379)
+`GetLanguageIDFromEitherEnglishOrLocalName(text, &id)` (slot 20, 009281c4) copies `text` and calls **its own slot
+20** again with the copy, so it recurses until the stack is exhausted; the original never returns from it
+*[quirk]*. No caller was found. *[choice]* An implementation should try the English-name lookup, then the
+local-name lookup, and on success write the matched name back into `text` (what the code after the call does).
 
-`value` is a signed 64-bit integer. Always returns true.
+### 4.8 Money conversion stubs *[compat]*
 
-1. If `value` is negative it is negated and remembered as negative.
-2. The magnitude is printed in decimal (`%lld`, no padding).
-3. The group separator is fetched with `GetThousandSeparator` (§5.3, through the object's own slot, so the result
-   depends on the language; for unknown languages it is `,`).
-4. Digits are grouped in threes from the left: the first group has `len mod 3` digits (3 if that is 0), each group
-   but the last is followed by the separator. Examples (English): 7 → `7`; 1234 → `1,234`; 1234567 → `1,234,567`;
-   German 1234567 → `1.234.567`; Polish 12345 → `12` C2 A0 `345`.
-5. Sign, by language:
+`GetExchangeRateForLocale(locale)` (slot 40) returns 1.0 (float). The four `ConvertMoney…` slots (42..45:
+64-bit and 32-bit forms of base-to-locale and locale-to-locale) copy the input amount unchanged into the output
+and return true. Slot 33 takes one argument and returns true; slot 41 takes two and does nothing (both
+folded no-op bodies whose names are not known).
 
-| languages | negative result |
-|---|---|
-| 1..0x0a, 0x0c, 0x0d, 0x0f..0x14 | `-` then the grouped digits |
-| 0x0b (Finnish) | the grouped digits then `-` |
-| 0, 0x0e, 0x15 and above (including 0x23) | **empty string** *[quirk]* |
+## 9. Not yet specified
 
-Non-negative values ignore the language for the sign. *[quirk]* The most negative 64-bit value stays negative after
-negation; its printed form begins with `-`, which the grouping then treats as a digit.
-
-### 5.5 `MakeTimeString(hour, minute, second, out)` (009284ba)
-
-All three are signed 32-bit integers. Values above the range are reduced: hour > 23 → hour mod 24; minute or
-second > 59 → mod 60. A **negative** minute or second means "omit it"; there is no check on a negative hour. Always
-returns true. The first matching row of the table applies (`H` = `%u`, `HH` = `%.2u`, unsigned two-digit pad):
-
-| languages | second ≥ 0 | second < 0, minute ≥ 0 | both < 0 |
-|---|---|---|---|
-| 1, 0x2a (12-hour) | `h:MM:SS ap` | `h:MM ap` | `h ap` |
-| 2, 3, 4, 0x0a, 0x10, 0x1d | `HH:MM:SS` | `HH:MM` | `HH:00` |
-| 5, 0x1c | `H.MM.SS` | `H.MM` | `H:00` (colon) *[quirk]* |
-| 8, 9, 0x24, 0x27, 0x28 | `HH.MM.SS` | `HH.MM` | `HH:00` (colon) *[quirk]* |
-| any other | `H:MM:SS` | `H:MM` | `H:00` |
-
-12-hour rows: `ap` is `am` for hours 0..11 and `pm` for 12..23 (lower case, one ASCII space before it); `h` is 12 for
-hour 0, hour − 12 for hours 13..23, the hour itself otherwise. Example: English (14, 5, −1) → `2:05 pm`; German
-(14, 5, −1) → `14:05`; Italian (9, 5, 7) → `9.05.07`.
-
-## 6. Per-language flags
-
-| query (address) | true for | otherwise |
-|---|---|---|
-| `DoesLanguageUseCharacterSet(cs)` (0092580a), cs = 1252 | the 1252 list below | false |
-| same, cs = 1250 | 0x10, 0x0d, 0x21, 0x1a, 0x1c, 0x1e, 0x20 | false |
-| same, cs = 932 / 936 / 950 / 949 / 874 | 0x0f / 0x11 / 0x12 / 0x14 / 0x13 respectively | false |
-| same, cs = 1251 | 0x0d, 0x18, 0x17 | false |
-| same, cs = 1253 / 1254 / 1255 / 1256 | 0x1b / 0x22 / 0x0c / 0x16 | false |
-| same, any other cs | | false |
-| `GetCharacterSetFromLanguage` (009256f5) | the first of 1252, 1250, 874, 932, 936, 950, 949, 1251, 1253, 1254, 1255, 1256 for which the query above is true; 1252 if none | |
-| `AreFirstAndLastNamesReversed` (0092599b) | 0x0f, 0x11, 0x12, 0x14 | false |
-| `DoesLanguageUseInputMethodEditing` (009259b8) | 0x0f, 0x11, 0x12, 0x14 | false |
-| `DoesLanguageUseMultiByteCharacters` (009259d6) | every ID except 1 and 2 (because the framework code page is UTF-8, §2) | false for 1, 2 |
-| `GetLanguageRoadDrivingSide` (00927c17) | returns 0 for 2 (UK English) and 0x0f (Japanese), 1 for every other ID | |
-| `GetMeasurementSystem` (00925991) | returns false when the country ID is 0x36, true otherwise (reads the country, not the language) | |
-
-The 1252 list exactly: 1, 2, 3, 4, 5, 6, 7, 8, 9, 0x0a, 0x0b, 0x0e, 0x1c, 0x1d, 0x1e, 0x1f, 0x23, 0x24, 0x25, 0x26,
-0x27, 0x28, 0x29, 0x2a. Because 1252 is tried first, Hungarian (0x1c) and Romanian (0x1e) report 1252 although
-they also match 1250, and Russian (0x0d) reports **1250**, not 1251, because it is in the 1250 list *[quirk]*.
-The selector also tries 1251 twice and finally 1257, which no language matches, so it cannot return 1257. *[inferred]*: road-side 0 means left-hand traffic and the 0x36 country is the United
-States (imperial units); the values themselves are exact.
-
-## 7. Case conversion and comparison
-
-- `ConvertToLowerCase(in, out)` / `ConvertToUpperCase(in, out)` (00927e7e, 00927edf): convert `in` from the framework
-  encoding to the system ANSI code page, change case of the converted bytes in place with the operating system's
-  ANSI lower/upper-case routine for a byte count equal to the **current length of `out`** (not of the converted
-  text) *[quirk]*, then convert the buffer back to the framework encoding into `out`. Implementations should pass
-  the converted length when `out` already holds the same text, which is how the callers use it *[choice]*.
-- `CompareStrings(a, b, caseSensitive)` (00927f40): convert both to the system ANSI code page, compare them with the
-  operating system's locale comparison for the user default locale, ignoring case when `caseSensitive` is false.
-  Returns -1, 0 or 1 (a < b, equal, a > b). *[quirk]* If the system comparison fails, the result is 0 ("equal").
-
-## 8. Not yet specified
-
-`MakeMoneyString` (0092901a), `MakeFormattedMoneyString` (00928c55), `MakeDateString` (00928699); `SetCountry`
-(00894f6d) and the country-ID table; the rest of `cRZLanguageManager`; `cRZString` (formatting, search, compare);
-`ConvertStringEncoding` and the UTF-16 / Thai helpers; `cSCStringDetokenizer` and `gAdviceDetokenizerFunction`.
+`ConvertStringEncoding` beyond the codes of §2 and the UTF-16 / Thai helpers; `cSCStringDetokenizer` and
+`gAdviceDetokenizerFunction`; which game code calls the language manager and how the startup language is chosen
+(`cSC4App::DoPreferencesChanged` reads the registry values `HKEY_LOCAL_MACHINE\Software\Maxis\SimCity 4 Deluxe\1.0\Language`,
+then `...\SimCity 4\1.0\Language`; data-formats §6.2 question 1).
