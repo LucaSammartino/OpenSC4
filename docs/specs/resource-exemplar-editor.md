@@ -442,6 +442,40 @@ so opening and confirming the editor rounds every float of the shown rows to 3 s
 Worked example: UINT8 list of 35 elements 0..34 → 2 rows (elements 0..31), elements 32..34 not shown. Typing
 `300` in cell (0, 1) and confirming stores element 16 = 300 mod 256 = 44; elements 32..34 keep their values.
 
+### 11.3 `cSCColorSequenceEntryView` (class 0xCA0CB10F; vtables 0x00AAD6A8 / 0x00AAD684)
+
+A UINT32 list read as (position, colour) pairs. The editor keeps its own vector of 8-byte pairs at +0x100.
+
+**SetValue** (value slot +0x18, 0x006662F0): base copy of the value, then the vector is rebuilt from the UINT32
+array: pair k = (word 2k, word 2k+1) for k < count/2 (rounded down; an odd last word is dropped *[quirk]*).
+
+**Init** (0x006663A0), once: flags and background fill as §8.1. Three buttons (GZCOM class 0x8810, interface
+0x22ECFC47) in a row along the top, y = 5: `Add` (ID 0xEA0CB68D) at x = 5, `Delete` (0x4A0CB691) and `Refresh`
+(0x2A0DBDEE) each 5 px right of the previous one's right edge. Below them a grid control as §11.2 (class
+0xDAA6B9BF, child 0xAA09AAF3, same colours and style values), area (5, button bottom)–(width − 5, height − 23),
+three columns headed `Position`, `Value`, `Color`; the editor registers itself as the grid's notification target.
+Row r (`RefreshGridRow` 0x00666140) shows `%d` of the position, `%08lx` of the colour word (8 lower-case hex
+digits) and an empty third cell whose background is the colour (R = bits 16..23, G = bits 8..15, B = bits 0..7;
+the top byte is ignored for display).
+
+**Messages** (window DoMessage override 0x00666900):
+
+| Message | Effect |
+|---|---|
+| command 3, button `Add` | index = selected row clamped to count − 1 (no selection: count − 1); a copy of pair[index] is inserted after it; rows index+1..end redrawn. With an empty list index is −1 and the copied pair is read from before the vector *[quirk]* |
+| command 3, button `Delete` | with a selected row r < count and count ≥ 2, pair r is erased and grid row r removed. The last remaining pair cannot be deleted |
+| command 3, button `Refresh` | the grid rows are sorted by `atol` of the Position text (comparator 0x00666060), then every row is read back: position = `atol(column 0)`, colour = `strtoul(column 1, base 16)`, row redrawn. Typed edits reach the vector **only** through Refresh |
+| 0x9A1552D3 (grid cell activation) | on column 2 of row r < count, and only when count ≥ 2 *[quirk]*: opens the modal `Pick color` window (0x00665E80, GZCOM class 0x4386D516) on the current colour; its result replaces colour r and the row is redrawn |
+| 0xFA785CB2 (grid cell paint) | for column 2 of an existing row, fills the cell rectangle shrunk by 1 px with the row's colour (0x00664C90) |
+
+**GetValue** (value slot +0x1C, 0x00665CE0): flattens the vector into a UINT32 list (position, colour, position,
+colour, …), stores it and copies it to the destination. Edits typed into the grid without pressing `Refresh` are
+lost on Okay *[quirk]*.
+
+Worked example: value (0, 0xFF0000, 100, 0x00FF00) → two rows `0 | 00ff0000 | red swatch`, `100 | 0000ff00 |
+green swatch`. Typing `50` over `100` and pressing Refresh sorts (0, 50) and stores position 50; Okay gives
+(0, 0xFF0000, 50, 0x00FF00).
+
 ## 12. Resource-key table editor `cSCResKeyTableEntryView` (class 0xA7847D6A) *[compat]*
 
 Not on the standard base: a 0x120-byte object (Create 0x00684260, ctor 0x006841B0) whose value interface is at +0
