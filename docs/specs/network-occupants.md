@@ -268,7 +268,9 @@ to 0 and increments the counter `+0x64`; then for each mask bit present it reads
 and increments the counter. A part the stream omits keeps its value from before the call (identity after the
 reset; untouched when the live mask was already 0). The scale is stored as read, but bit 2 is set only when the
 scale differs from 1.0 (constant `0x00A81228`; a NaN counts as different) and cleared when it equals 1.0. So a
-written mask of 7 with scale 1.0 reads back as mask 5.
+written mask of 7 with scale 1.0 reads back as mask 5. Worked example: a transform with mask `0x01` and translation (8, 2.5, 8) writes the 13
+bytes `01 | 00 00 00 41 | 00 00 20 40 | 00 00 00 41`; mask `0x07`, identity rotation, translation 0 and scale
+2.0 writes 1 + 36 + 12 + 4 = 53 bytes ending `00 00 00 40`.
 `S3DTransformLegacyLoad` (v 4) is fixed-size, 56 bytes: 9 f32 rotation (rows, → `+0x68`…`+0x88`, mask `|= 4`),
 3 f32 translation (→ `+0x8C`…`+0x94`, mask `|= 1`), 1 f32 scale (→ `+0x98`, bit 2 by the 1.0 test as above), then
 a u32 whose **low byte replaces the counter `+0x64`** (the three increments are overwritten). It never resets the
