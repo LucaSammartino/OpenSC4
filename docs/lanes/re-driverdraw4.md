@@ -5,8 +5,28 @@
 ## Handoff (round 3, 2026-10-21)
 Goal: final round 3/3: slots 6-10, 40-42; 0x0088F8D0 internal-format selection + converter table; writers of
 +0x209, +0x261, +0x263; RD3 mode-record fields; RD4 per-frame context update and 0xAACB92A3 handler.
-Done: rounds 1-2 (tip 1b8ad5ac, §7-§11). Round 3: (none yet).
-Next: query slots 6-10/40-42 via vtable, then 0x0088F8D0.
+Done: rounds 1-2 (tip 1b8ad5ac, §7-§11). Round 3: fcc9230d §8.5 slots 6-10, §8.6 slots 40-42 (LoadMatrix
+half-pixel/depth/handedness), §2 identity matrix 0xB542F8, +0x209 (=mode rec +0x29, const 1 at 0x00886E80),
++0x261 (device lost, Flush), +0x263 (env ready, SetupViewport/DestroyViewport) written into §10.2/§11/§9.5.
+Next (exact): 1) `python build-runs/ins.py build-runs/sec96.md "## 10. Texture stages"` (sec96.md is §9.6
+internal-format selection + converters, written and checked, NOT yet inserted; first append to its converter
+table the line "(The decode targets are named from the destination key *[inferred]*.)"); commit.
+2) §6.2 mode record table (renderer-driver.md ~line 262): +0x10..+0x1C = alpha,R,G,B masks of the render target
+(+0x22C = device GetRenderTarget), set by GetDeviceProperties 0x008886E0 into list[cur]; +0x21 = StencilCaps!=0,
++0x24 dword = wMaxSimultaneousTextures, +0x28 = that >1, +0x29 = 1, +0x2A/+0x2D/+0x2E = 0, +0x2B = RasterCaps
+bit 7 (FOGVERTEX), +0x2C = DXT formats seen, +0x2F = TextureCaps bit0 (PERSPECTIVE), +0x30 = 1 (all by
+0x00886E30 from D3DDEVICEDESC7 at obj+0x20); +0x22 = 1 (enumerator); +0x34 = obj+0x274 copy, passed unused to
+0x00888590; list stride 0x38, SetupViewport copies 13 dwords to obj+0x1E0. 0x00887D80 = vector grow-insert
+(capacity size+max(size,n)) i.e. plain append. Then move RD3 to answered (MATCHES).
+3) §4.4 Flush: per-frame update = context vt[10] 0x0088C400 ShowFrame(0): full screen (ctx+0x2C) primary
+(ctx+0x18)->Flip(NULL,0); windowed (ctx+0x2E): client rect of hwnd ctx+0x28, empty → returns 0x887601C2 no blit,
+else ClientToScreen, primary->Blt(screenRect, backbuffer ctx+0x1C, whole, ASYNC|WAIT 0x1000200), on failure
+retry WAIT 0x1000000; result ignored by Flush. Restore failure path calls ctx vt[9] 0x0088C3A0 (releases ctx
+surfaces +0x14,+0x1C,+0x18,+0x20). Context = 0x48-byte object, vtable 0xAC5060, made by 0x0088C5F0 in SetupD3DX
+(+0x25F RD1 byte passed as its 3rd arg - lead for RD1). 0xAACB92A3: occurs once in the whole exe (the PUSH at
+0x00884E25): no listener in SimCity4.exe. Then move RD4 to answered; narrow RD5 (slots 6-10/40-42, 0x0088F8D0
+done) -> answered if nothing left; `python tools/questions.py index`; final report + merge-queue json.
+REA was unavailable (no app open); used re_query/decomp/exe reads (build-runs/rd.py, conv.py, win.py).
 
 
 ## Report (round 2, 2026-10-21)
