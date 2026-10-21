@@ -71,6 +71,8 @@
 //! publishes a snapshot behind a `Mutex` for the getters, exactly as the other
 //! cores do.
 
+/// `cSC4AudioAmbienceManager` (`docs/specs/audio-ambience.md`).
+pub mod ambience;
 pub mod automaton;
 pub mod data;
 pub mod director;
@@ -83,8 +85,6 @@ pub mod pool;
 pub mod save;
 pub mod snd_event;
 pub mod sound_manager;
-/// `cSC4AudioAmbienceManager` (`docs/specs/audio-ambience.md`).
-pub mod ambience;
 
 // ---- class ids (§1.2) -------------------------------------------------------
 
