@@ -65,7 +65,7 @@ slots this spec calls, with Windows targets and argument/return channels re-chec
 | `ChildDelete` | `cIGZWin` | 16 | `+0x40` | `0x0099B833` | `cIGZWin* child` | **none** (tail call, §4.1) |
 | `GetChildWindowFromID` | `cIGZWin` | 34 | `+0x88` | `0x0099DE74` | `uint32 id` | `cIGZWin*` or null |
 | `GetFlag` | `cIGZWin` | 67 | `+0x10C` | `0x0099BDBB` | `uint32 mask` | 0/1 in EAX (`(flags & mask) != 0`) |
-| `SetFlag` | `cIGZWin` | 68 | `+0x110` | `0x0099DB6B` | `uint32 mask, bool` | 0/1 in EAX |
+| `SetFlag` | `cIGZWin` | 68 | `+0x110` | `0x0099DB6B` | `uint32 mask, bool` | the whole new flag word in EAX (single exit `0x0099DCD9` loads `+0xC8`; see widget-toolkit.md §3.1) |
 | `ShowWindow` | `cIGZWin` | 69 | `+0x114` | `0x0099D1AA` | — | none useful |
 | `HideWindow` | `cIGZWin` | 70 | `+0x118` | `0x0099D1EA` | — | none useful |
 | `GetParam` | `cIGZWin` | 113 | `+0x1C4` | `0x0099D388` | `uint32 key, void** out` | bool, `AL` only |

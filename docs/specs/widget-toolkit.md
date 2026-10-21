@@ -104,8 +104,8 @@ is exactly one of these values**, runs a side effect:
 A combined mask (for example `0x3`) changes the bits but runs **no** side effect.
 
 **Return value: the whole new flag word in EAX** (`0x0099DCD9` loads `[ESI+0xC8]` before `RET 8`), not 0/1. Callers
-that test `AL` see the low byte of the flags. (ui-windows.md §2.2 lists the return as "0/1 in EAX"; that is wrong
-for this target — WT4 records the correction.)
+that test `AL` see the low byte of the flags. Every branch leaves through that single exit. (ui-windows.md §2.2 row 68 now says the same; WT4 answered
+2026-10-21.)
 
 ### 3.2 `ShowWindow` / `HideWindow` (slots 69/70, `0x0099D1AA`/`0x0099D1EA`)
 
@@ -360,7 +360,7 @@ used by `ShowWindow`, `HideWindow` or `SetFlag`.
 ## 11. Open questions
 
 Filed in `docs/specs/questions/widget-toolkit.md`: WT1 (own vtable rows), WT2 (unset fields), WT3 (bits `0x100`,
-`0x8000`), WT4 (ui-windows §2.2 `SetFlag` return), WT5 (`ChildDeleteAll` termination), WT6 (instance-ID counter start).
+`0x8000`), WT5 (`ChildDeleteAll` termination), WT6 (instance-ID counter start).
 
 ## 12. Coverage of owner patterns (honest)
 
