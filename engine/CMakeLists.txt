@@ -488,6 +488,9 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4SimGrid.h
         plugin/FC4SimGridProbe.cpp
         plugin/FC4SimGridProbe.h
+        # The cSpanRender1555 native bridge (glue-span1555-impl4): enable = span1555.
+        plugin/FC4Span1555Shadow.cpp
+        plugin/FC4Span1555Shadow.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"

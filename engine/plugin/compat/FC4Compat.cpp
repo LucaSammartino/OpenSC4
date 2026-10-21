@@ -698,5 +698,34 @@ bool PublishLimitTimers(float cyclesToMs, float msToCycles) {
 
 uint64_t PublishCount() { return g_publishCount; }
 
+bool Span1555SlotEntry(unsigned slot, void*** entry, uintptr_t* function) {
+    static const uintptr_t kVtable = 0x00AC182C;  // span-render-1555.md §1.1
+    static const uintptr_t kSlots[6] = {0x0082FF00, 0x008310B0, 0x00831100, 0x00831200, 0x008312D0, 0x00831470};
+    static int state[6] = {};  // 0 unknown, 1 available, -1 refused
+    if (slot >= 6) return false;
+    const ExecutableVersion* v = IdentifiedVersion();
+    if (state[slot] == 0) {
+        state[slot] = -1;
+        const uintptr_t slotVA = kVtable + 4u * slot;
+        MEMORY_BASIC_INFORMATION mbi{};
+        bool ok = v == &kVersions[0] &&
+                  VirtualQuery(reinterpret_cast<const void*>(slotVA), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        if (ok) ok = CheckCode("span1555 slot function", kSlots[slot], v->imageBase);
+        if (ok) {
+            state[slot] = 1;
+        } else {
+            Log("compat: span1555 vtable 0x%08lX slot %u NOT available (%s)", static_cast<unsigned long>(kVtable),
+                slot, v ? "address rejected" : "executable not identified");
+        }
+    }
+    if (state[slot] != 1) return false;
+    if (entry != nullptr) *entry = reinterpret_cast<void**>(kVtable + 4u * slot);
+    if (function != nullptr) *function = kSlots[slot];
+    return true;
+}
+
 }  // namespace compat
 }  // namespace fc4

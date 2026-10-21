@@ -108,6 +108,7 @@
 #include "cFC4CityDetail.h"       // the glue12b1 lane: citydetail
 #include "FC4FormatsShadow.h"     // the glue-formats4 lane
 #include "cFC4SimGrid.h"          // the glue-simgrids4 lane: simgrids
+#include "FC4Span1555Shadow.h"    // the glue-span1555-impl4 lane: span1555
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -530,6 +531,9 @@ const Subsystem kSubsystems[] = {
     {"occmgr", nullptr, kOccMgrClasses, sizeof(kOccMgrClasses) / sizeof(kOccMgrClasses[0]), false},
     // the glue-simgrids4 lane
     {"simgrids", nullptr, kSimGridClasses, sizeof(kSimGridClasses) / sizeof(kSimGridClasses[0]), false},
+    // the glue-span1555-impl4 lane: no class is replaced; the key installs the cSpanRender1555
+    // vtable forwarders (FC4Span1555Shadow.h)
+    {"span1555", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -713,6 +717,8 @@ void Resolve() {
         Log("nettool: registry active - scripted 'network' action and zonedev street tools "
             "will use the fc4_nettool core");
     }
+    // The cSpanRender1555 native bridge (FC4Span1555Shadow.h; glue-span1555-impl4).
+    Span1555Startup(enabledKey("span1555"));
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
     ScriptReload();
 }
