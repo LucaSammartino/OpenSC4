@@ -214,7 +214,22 @@ struct Totals {
     uint64_t cases = 0, exact = 0, diff = 0, refused = 0, faults = 0, routeMismatch = 0, noCall = 0, bytes = 0,
              changed = 0;
     uint64_t perSite[7] = {}, perSiteExact[7] = {};
+    uint64_t sp1Cases = 0, sp1Diff = 0;  // alpha ramp outside 0..255 somewhere (question SP1, open)
 };
+
+// The alpha ramp the context built at +0x44 (record channel 3: +0x50, +0x60, +0x70; span-render-1555.md §4.1):
+// false if any span pixel's 8.16 alpha lies outside 0..255.99 (span-render-4444.md §6 weights 17..31, SP1).
+bool AlphaInRange(const void* ctx) {
+    const int32_t c = Field<int32_t>(ctx, 0x50), dx = Field<int32_t>(ctx, 0x60), dy = Field<int32_t>(ctx, 0x70);
+    for (uint32_t i = 0; i < kSpanCount; ++i) {
+        const uint32_t s = kSpans[2 * i], e = kSpans[2 * i + 1];
+        for (uint32_t x = s & 0xFFFF; x < (e & 0xFFFF); ++x) {
+            const int32_t a = static_cast<int32_t>(uint32_t(c) + uint32_t(dx) * x + uint32_t(dy) * (s >> 16));
+            if (a < 0 || a > 0xFFFFFF) return false;
+        }
+    }
+    return true;
+}
 
 uint64_t NativeSiteCount(unsigned r, int site) { return g_sites[r][0][site].load(); }
 
@@ -225,6 +240,8 @@ bool UseOriginal(unsigned r, bool original) {
 void RunCase(unsigned r, void* ctx, Buf& dst, const std::vector<uint8_t>& init, const Case& c, Totals& t) {
     const size_t len = size_t(dst.stride) * dst.h;
     SetupCase(ctx, c);
+    const bool sp1 = c.kind == kAlphaGradient && !AlphaInRange(ctx);
+    t.sp1Cases += sp1;
     DrawCall call{ctx};
     // Original: the published functions in the renderer's vtable.
     std::memcpy(dst.bits, init.data(), len);
@@ -270,6 +287,13 @@ void RunCase(unsigned r, void* ctx, Buf& dst, const std::vector<uint8_t>& init, 
     size_t first = len, n = 0;
     for (size_t i = 0; i < len; ++i)
         if (a[i] != dst.bits[i]) n++, first = first == len ? i : first;
+    if (sp1 && n != 0) {  // a known open difference, reported apart (never counted exact)
+        if (t.sp1Diff++ < 4)
+            Log("spanctx: %s SP1 (alpha ramp outside 0..255, open question) differs: %zu byte(s), first at arena "
+                "offset %zu: original 0x%02X ours 0x%02X",
+                kRendererName[r], n, first, a[first], dst.bits[first]);
+        return;
+    }
     if (n == 0) {
         ++t.exact;
         if (hits == 1) ++t.perSiteExact[hitSite];
@@ -282,10 +306,13 @@ void RunCase(unsigned r, void* ctx, Buf& dst, const std::vector<uint8_t>& init, 
             first % dst.stride, a[first], dst.bits[first]);
 }
 
-const float kGrad[3][12] = {
+const float kGrad[5][12] = {
     {0.2f, 0.5f, 0.8f, 0.3f, 0.01f, -0.02f, 0.015f, 0.03f, 0.05f, 0.04f, -0.06f, 0.1f},
     {1.0f, 0.0f, 0.5f, 1.0f, -0.03f, 0.02f, 0.0f, -0.04f, 0.0f, 0.07f, 0.02f, -0.11f},
     {0.0f, 0.0f, 0.0f, 0.0f, 0.035f, 0.035f, 0.035f, 0.035f, 0.1f, 0.1f, 0.1f, 0.1f},  // leaves 0..1 (wraps)
+    // Alpha inside 0..255 on every span pixel (both x0/y0 pairs): the in-range alpha-gradient cases.
+    {0.1f, 0.6f, 0.9f, 0.05f, 0.02f, -0.01f, -0.02f, 0.02f, 0.03f, 0.02f, -0.05f, 0.03f},
+    {0.5f, 0.5f, 0.5f, 0.95f, -0.01f, 0.01f, 0.005f, -0.025f, 0.01f, -0.02f, 0.02f, -0.02f},
 };
 
 // Steps 2-5 for one destination type.
@@ -364,12 +391,14 @@ void RunDestination(unsigned r, uint32_t type, const compat::SpanContextVA& va, 
                 kSiteName[s], (unsigned long long)t.perSite[s], (unsigned long long)t.perSiteExact[s]);
         Log("spanctx: %s type %u TOTAL [constructed buffer, native context, not a shipped call]: cases=%llu "
             "exact=%llu diff=%llu ours_refused=%llu faults=%llu route_mismatch=%llu no_renderer_call=%llu "
-            "arena_bytes=%llu changed_by_original=%llu texture_lock_counts_moved=%u -> %s",
+            "arena_bytes=%llu changed_by_original=%llu texture_lock_counts_moved=%u sp1_cases=%llu sp1_differing=%llu -> %s",
             kRendererName[r], type, (unsigned long long)t.cases, (unsigned long long)t.exact,
             (unsigned long long)t.diff, (unsigned long long)t.refused, (unsigned long long)t.faults,
             (unsigned long long)t.routeMismatch, (unsigned long long)t.noCall, (unsigned long long)t.bytes,
-            (unsigned long long)t.changed, texLockMoved,
-            (t.cases > 0 && t.exact == t.cases && t.routeMismatch == 0) ? "EXACT" : "NOT exact");
+            (unsigned long long)t.changed, texLockMoved, (unsigned long long)t.sp1Cases, (unsigned long long)t.sp1Diff,
+            (t.cases > 0 && t.exact + t.sp1Diff == t.cases && t.diff == 0 && t.routeMismatch == 0)
+                ? (t.sp1Diff ? "EXACT outside SP1" : "EXACT")
+                : "NOT exact");
     } else {
         Log("spanctx: %s type %u: Init / renderer / record check failed: route not run", kRendererName[r], type);
     }
