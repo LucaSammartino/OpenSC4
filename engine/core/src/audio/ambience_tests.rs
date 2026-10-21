@@ -1103,3 +1103,216 @@ fn focus_pauses_layers_and_exemplar_rereads_tuning() {
 fn instance_id_wraps() {
     assert_eq!(occupant_instance_id(0xFFFF_FFF0, 0x20), 0x10);
 }
+
+// §10.19 (AA5): created at 14:37 → last = 14.0; 14:xx fires nothing, the
+// first 15:00 tick fires once.
+#[test]
+fn alarm_created_at_current_hour() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    h.clock = Some((14, 37));
+    let mut o = occ(0x2100);
+    o.alarm_times = Some(vec![14.0, 15.0]);
+    o.one_shot_alarm_sound = Some(9);
+    ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
+    assert_eq!(m.alarms.len(), 1);
+    assert_eq!(m.alarms[0].last, 14.0);
+    assert!(!m.alarms[0].on);
+    h.take();
+    for min in [37, 59] {
+        h.clock = Some((14, min));
+        m.update_alarms(&mut h);
+        assert!(h.posts().is_empty());
+    }
+    h.clock = Some((15, 0));
+    m.update_alarms(&mut h);
+    let starts = h
+        .posts()
+        .into_iter()
+        .filter(|r| matches!(r, SndRequest::Start { sound_id: 9, .. }))
+        .count();
+    assert_eq!(starts, 1);
+    h.clock = Some((15, 30));
+    m.update_alarms(&mut h);
+    assert!(h.posts().is_empty());
+}
+
+// AA5: refused without flags 1+4 or with flag 0x10; appended at the tail.
+#[test]
+fn alarm_creation_flags_and_order() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    h.clock = Some((3, 0));
+    let mk = |id: u32, f14: bool, f10: bool| {
+        let mut o = occ(id);
+        o.flags_1_and_4 = f14;
+        o.flag_0x10 = f10;
+        o.alarm_times = Some(vec![5.0]);
+        o.one_shot_alarm_sound = Some(1);
+        o.on_off_alarm_sound = Some(2);
+        o
+    };
+    for o in [
+        mk(1, false, false),
+        mk(2, true, true),
+        mk(3, true, false),
+        mk(4, true, false),
+    ] {
+        ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
+    }
+    let got: Vec<_> = m.alarms.iter().map(|a| (a.occupant, a.kind, a.last)).collect();
+    assert_eq!(
+        got,
+        vec![
+            (3, AlarmKind::OneShot, 3.0),
+            (3, AlarmKind::OnOff, 3.0),
+            (4, AlarmKind::OneShot, 3.0),
+            (4, AlarmKind::OnOff, 3.0)
+        ]
+    );
+}
+
+// §3 `_AddOccupantSndInstance`: no flags 1+4 → nothing posted, no link.
+#[test]
+fn snd_instance_needs_flags() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    let mut o = occ(0x40);
+    o.flags_1_and_4 = false;
+    o.is_automaton = true;
+    o.ambient_sound = Some(1);
+    ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
+    assert!(h.take().is_empty());
+    assert_eq!(m.tracked_count, 1);
+}
+
+// §10.22 (AA7): rectangle (0,0)-(8,6) → 20 blocks, step 7, first (2,1),
+// last (0,0); the second walk repeats the order.
+#[test]
+fn prime_step_block_order() {
+    let mut h = Host::new();
+    h.tuning.layer_ids = Some(vec![1]);
+    let mut m = ready(&mut h);
+    m.current = CellRect {
+        x0: 0,
+        z0: 0,
+        x1: 8,
+        z1: 6,
+    };
+    m.stage = Stage::Begin1;
+    let walk = |m: &mut M, h: &mut Host| {
+        m.on_tick(h, 1, || true);
+        let blocks: Vec<(i64, i64)> = h
+            .take()
+            .into_iter()
+            .filter_map(|c| match c {
+                Call::Layer(_, "cell", x, z) if x % 2 == 0 && z % 2 == 0 => Some((x / 2, z / 2)),
+                _ => None,
+            })
+            .collect();
+        blocks
+    };
+    let first = walk(&mut m, &mut h);
+    assert_eq!((m.iterator.count, m.iterator.step), (20, 7));
+    let cur: Vec<i64> = first.iter().map(|(x, z)| z * 5 + x).collect();
+    assert_eq!(
+        cur,
+        vec![7, 14, 1, 8, 15, 2, 9, 16, 3, 10, 17, 4, 11, 18, 5, 12, 19, 6, 13, 0]
+    );
+    assert_eq!(first[0], (2, 1));
+    assert_eq!(first[19], (0, 0));
+    assert_eq!(m.stage, Stage::Begin1);
+    let second = walk(&mut m, &mut h);
+    assert_eq!(second, first);
+}
+
+// AA7: `current` carries over (Reset(0) does not reseed) when the count
+// changes; inclusive halved bounds, x1 raised to x0.
+#[test]
+fn iterator_current_carries_over() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    m.current = CellRect {
+        x0: 0,
+        z0: 0,
+        x1: 4,
+        z1: 0,
+    };
+    m.stage = Stage::Begin1;
+    m.on_tick(&mut h, 1, || true);
+    assert_eq!(m.iterator.count, 3);
+    let after_first = m.iterator.current;
+    m.current = CellRect {
+        x0: 6,
+        z0: 2,
+        x1: 2,
+        z1: 2,
+    };
+    m.on_tick(&mut h, 1, || false);
+    let it = &m.iterator;
+    assert_eq!((it.x0, it.z0, it.x1, it.z1, it.count), (3, 1, 3, 1, 1));
+    assert_eq!(it.current, after_first, "Reset(0) keeps current");
+}
+
+// §10.7 / §10.8 (§3.4): lot condition rows.
+#[test]
+fn lot_condition_update_rows() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    let mut b = occ(0x9000);
+    b.condition_sound_a = Some(0x10); // C = 0xCA19D7CA
+    b.condition_sound_b = Some(0x20); // A = 0x0A4C13CB
+    b.condition_sound_c = Some(0x30); // R = 0x4A4C132E
+    let lo = LotOccupant {
+        building_or_prop: true,
+        has_holder: true,
+        info: b.clone(),
+    };
+    let other = LotOccupant {
+        building_or_prop: false,
+        has_holder: true,
+        info: b.clone(),
+    };
+    h.lot_occ = vec![other, lo];
+    let cond = |old, new| AmbienceMessage::ConditionChanged {
+        lot: Some(7),
+        values: (old, new),
+    };
+    let p = [1, 2, -3];
+    let start = |iid, sid| SndRequest::Start {
+        sound_id: sid,
+        instance_id: iid,
+        looping: true,
+        position: p,
+    };
+    let setp = |iid| SndRequest::SetPosition {
+        instance_id: iid,
+        position: p,
+    };
+    let stop = |iid| SndRequest::Stop { instance_id: iid };
+    // 1 → 0: stop A, start C, start R.
+    m.do_message(&mut h, true, &cond(1, 0));
+    assert_eq!(
+        h.posts(),
+        vec![
+            stop(0x9020),
+            start(0x9010, 0x10),
+            setp(0x9010),
+            start(0x9030, 0x30),
+            setp(0x9030)
+        ]
+    );
+    // 2: stop C, start A.
+    m.do_message(&mut h, true, &cond(0, 2));
+    assert_eq!(h.posts(), vec![stop(0x9010), start(0x9020, 0x20), setp(0x9020)]);
+    // 1 or 4: stop A, stop C.
+    m.do_message(&mut h, true, &cond(2, 4));
+    assert_eq!(h.posts(), vec![stop(0x9020), stop(0x9010)]);
+    // 7: nothing.
+    m.do_message(&mut h, true, &cond(1, 7));
+    assert!(h.posts().is_empty());
+    // Insert: U(lot, -1, -1) reads the lot condition (0): only C starts.
+    h.lot_cond = 0;
+    ins(&mut m, &mut h, &b, MSG_INSERT_OCCUPANT);
+    assert_eq!(h.posts(), vec![stop(0x9020), start(0x9010, 0x10), setp(0x9010)]);
+}

@@ -1092,7 +1092,12 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
 
     /// `_PlayOccupantSound(o, start)` (`0x004E8720`, §3.5, AA8c): start flag
     /// 1, no automaton link.
-    fn play_occupant_sound<H: AmbienceHost<Layer = L>>(&mut self, host: &mut H, occ: Option<&OccupantInfo>, start: bool) {
+    fn play_occupant_sound<H: AmbienceHost<Layer = L>>(
+        &mut self,
+        host: &mut H,
+        occ: Option<&OccupantInfo>,
+        start: bool,
+    ) {
         let Some(o) = occ else {
             return;
         };
