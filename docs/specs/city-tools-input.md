@@ -304,6 +304,16 @@ See docs/specs/questions/city-tools-input.md (CT1-CT12).
    on zone 0 has title `0xAA5BBDE4` and an empty body; a network tip on a road (type 0, not 2/8/12) has title
    `0x6A5589D4`; a tip with icon 0 goes to the cursor text (3D view slot 40) and hides the callout; `SetTip` with
    two empty strings hides the callout and clears the cursor text.
+10. Query click (§8.12): a click on a building whose exemplar has property `0x2A499F85` = V opens the UI script
+    {0, `0x96A006B0`, V} modally and plays the occupant query sound first; a click with no occupant on an airport
+    (zone 11), seaport (12) or landfill (14) cell opens the zone dialog, and on any other empty cell plays UI
+    sound `0xAA62C9D5` and opens nothing; the read-outs afterwards are `Query`, `Query extra: none`,
+    `Query extra2: none` before being overwritten, and on a building cell `extra2` = `[Building <name>] [Lot:
+    <cfg>_<id hex8>]\n`. In the dialog, a child with ID `0x1001` is filled from the fire simulator's station
+    efficiency; a child with ID `0x1005` (null slot) is not filled and its own children are walked; a child
+    without bit `0x1000` is skipped and walked. The coverage rings switch to the occupant's categories while the
+    dialog is open and the previous categories are restored on close; cancelling (result non-zero) applies no
+    set pass and `DoQueryDialog` returns false.
 
 ## 7. Coverage
 
@@ -519,8 +529,16 @@ GetBuildingOccupantTipInfo (3,465); plus the DoMessage display tail (§8.11.3). 
 owner's rows: `004C3B10` Ratio, `004C3730` float greater-than, `004D5C90` lot headlines. Total covered: 24
 functions, 11,725 bytes.
 
-Remainder (191 functions, 64,839 bytes; the next rounds, Q CT12): the query dialogs (`DoQueryDialog`
-`0x004D3C30`, `DescribePick` `0x004D4140`, `DoZoneBasedQueryDialog`, `DoNeighborConnectionQueryDialog`), the
+Added by §8.12 (round 3; 8 functions, 4,321 bytes): `004D4140` DescribePick (3,118), `004D3C30` DoQueryDialog
+(783), the walks `004D3AE0` (90), `004D3BD0` (90), `004D3A90` (71), `004C4340` (47), and the sample fillers
+`004C5180` (60), `004C67F0` (62). Total covered: 32 functions, 16,046 bytes. §8.12.3 also gives the exact
+control-ID dispatch of all 103 filler slots (93 distinct fillers, 89 in this owner, 12,323 bytes); their bodies,
+beyond the two samples, are not specified.
+
+Remainder after round 3 (183 functions, 60,518 bytes; the lane parked, Q CT12): the other dialogs
+(`DoZoneBasedQueryDialog` `0x004CCCB0`, `DoNeighborConnectionQueryDialog` `0x004CC6E0`), the refresh walk
+`0x004D3B40`, `EnumFuncClearFilter` `0x004C4370`, `PlayOccupantQuerySound` `0x004C4F40`, the 87 other filler
+bodies of §8.12.3 and their typed workers (`SetOrGetAirport*` `0x004C5280` and kin), the
 description writers (`WriteDetailedDebugInfo` `0x004D12A0`, `DescribeCell`, `DescribeBuilding`,
 `DescribePopulation`, `DescribeDemand`, `WriteBuildInfo`, `WriteDesirabilityEquation`, `WriteOutcomeStats`,
 `GetLotHeadlines`), the traffic-info pair (`0x004D0190`, `0x004D07C0`), the about fifty `SetOrGet*` dialog field fillers with

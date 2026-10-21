@@ -28,11 +28,15 @@
   37 (select an automaton, toggle a stoplight)? What does the automaton filter `0x004BDF90` accept? [unknown]
 - **CT10 - §8.6 step 3:** what is residential simulator slot 59 called with the quarter-resolution cell (a debug
   commute or travel test)? [unknown]
-- **CT12 - §8.10, the query tool remainder:** 191 functions, 64,839 bytes after round 2 (dialogs, description writers, tip
-  builders, `SetOrGet*` fillers, route code). Needed before the owner can be claimed. [next RE round]
+- **CT12 - §8.10, the query tool remainder:** 183 functions, 60,518 bytes after round 3 (zone and neighbour
+  dialogs, description writers, 87 filler bodies of the §8.12.3 table and their typed workers, route code, rating
+  helpers). The lane parked after its third round; needed before the owner can be claimed. [next RE lane]
 
 <!-- from: the re-querytool4 lane (2026-10-21, round 2) -->
 - **CT13 - §8.11.3/§8.11.4, the tip gauge data:** the meaning of callout slot 4's values (12, 10) and slot 14's
-  value 5 with the fraction (an icon size and a gauge bar?), and the services `0x00B43D98` (slots 25, 28, 36),
-  `0x00B43D78` (slot 10) and `0x00B43D9C` (slots 54, 55) whose floats fill the fraction (police, fire, health or
-  education?). [unknown; the data flow is exact, only names are missing]
+  value 5 with the fraction (an icon size and a gauge bar?). Round 3 named the services in §8.11.4 (police
+  `0x00B43D98`, fire `0x00B43D78`, pollution `0x00B43D9C`, slots per protection.md / pollution.md), so only the
+  callout slots remain. On the callout's primary vtable `0x00AB69D0`, slot 4 (`0x007982C0`) takes one held pointer
+  (`+0x130`) and slot 14 (`0x007984D0`) a held pointer (`+0x140`) and a float clamped to [0, 1]; the integer
+  arguments (12, 10) and (5) of §8.11.3 do not fit those shapes, so the interface the tip display calls through
+  must be checked again. [unknown; callout slots only]
