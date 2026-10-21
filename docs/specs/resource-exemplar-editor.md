@@ -390,19 +390,24 @@ back gives the scalar UINT32 1. A current value 7 (not in the map) shows item 0 
 
 ## 13. Open points for round 3
 
-Per-editor behaviour (Init layout, value parsing and range checks of each text editor, curve editors' point
-editing, colour sequence rows, resource-key table add/edit/delete and save status), `cSCEditValueDlg::doButtonPress`
-(0x00666D00, 1488 bytes), the `ResKeyTableEditorDefaults` and `ExemplarFilters` callbacks, and how edited values are
-written back to the exemplar (beyond §6.1).
+16-column grid editor (0x0A09AC46), colour sequence editor (0xCA0CB10F), happiness and general response curve
+editors (0x071E971B, 0xE8DDA013), resource-key table editor (0xA7847D6A: rows, add/edit/delete, the 0x0787ECC4
+defaults interface of §3.4), the other text editors' GetValue range checks, who opens `cSCEditValueDlg` and who
+reads the ExemplarFilters map (0x00B46924), and the 0xA73B81F0 helper object's role.
 
 ## 14. Owner map (honest)
 
-| Owner | Bytes | Level after round 1 |
+| Owner | Bytes | Level after round 2 |
 |---|---|---|
-| cSCPropertyView | 17843 | INI loading, record format, type table, view build, commands and write-back, value formatting: specified; ResKeyTableEditorDefaults/ExemplarFilters callbacks and GetPropertyValueStr per-type detail partial |
+| cSCPropertyView | 17843 | INI loading (all four section kinds incl. ExemplarFilters and ResKeyTableEditorDefaults), record format, type table, view build, commands and write-back, value formatting: specified; GetPropertyValueStr per-type detail partial |
 | fn:getDefaultValue, getUnquotedString, convertStringToFloatValue | 5164 | contract specified, item-level parsing inferred |
-| cSC*EntryView, cSCEditValueDlg | ~29700 | typed text editors (8 classes, ~3700 bytes): layout and Init specified, SINT64 read-back specified; curve, colour, grid, combo, res-key table editors and cSCEditValueDlg: identity only |
+| cSCEditValueDlg | 1650 named (+ Init 0x00667320 ≈1165 unnamed) | Init, doButtonPress, GZOnCommand specified (§9); folded GZPaint and the misnamed shared Release not read |
+| cSCUint32ComboBoxEntryView, cSCUint8ComboBoxEntryView | 1177 + 1133 named (+ GetValue 0x00687AE0, 0x00687CA0 unnamed) | specified (§10), identity of 0x87C34EDA proven |
+| typed text editors (8 classes) | ~3700 | layout and Init specified, SINT64 read-back specified (§8.1) |
+| cSC16ColumnGridEntryView, cSCColorSequenceEntryView, cSCHappinessCurveEntryView, cSCGeneralResponseCurveEntryView, cSCResKeyTableEntryView, cSCUint32SpinnerEntryView | rest of the ~29700 | identity only |
 | cSCResourceCatalogView, cSCResCatBaseView, cSCResCatalogPickerView, cSCResKeyInputView | 16686 | identity only |
 
-Proposed coverage-map entry: `spec` = `resource-exemplar-editor.md` for `cSCPropertyView` and the three free
-functions only; leave `cSC*EntryView`, `cSC*View` and `cSCEditValueDlg` at `-` until their behaviour is written.
+Proposed coverage-map entries (exact owners, no wildcard credit): `spec` = `resource-exemplar-editor.md` for
+`cSCPropertyView`, the three free functions, `cSCEditValueDlg`, `cSCUint32ComboBoxEntryView` and
+`cSCUint8ComboBoxEntryView`. Leave the `cSC*EntryView` and `cSC*View` wildcards at `-`: the grid, colour, curve,
+spinner and resource-key table editors and the catalog views are identity only.
