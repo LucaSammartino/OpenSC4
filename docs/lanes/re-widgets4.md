@@ -1,14 +1,38 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-widgets4 (widget toolkit spec: cGZWin base window + cRZWinKeyAccelerator) | `re-widgets4` / (RE lane) | in progress (round 2): painting, cursor, key equivalents, WT4. Round 1 was ready: new docs/specs/widget-toolkit.md (sections 1-13), questions WT1-WT6 filed; commits 20b38bdb, 17919733; no engine/ABI change; REA NO-GO (no binary open), evidence from decomp + re_query asm + raw image reads | 1. cGZWin painting slice (PlotComposite 0x0099E62D, PlotPresent, PrivateBuffer 0x0099EA70). 2. cursors (ProcessCursorMessage 0x0099D40B), key equivalents. 3. cRZWinKeyAcceleratorRes text parser 0x00984587. 4. cGZWinGen, then widgets. |
+| re-widgets4 (widget toolkit spec: cGZWin base window + cRZWinKeyAccelerator) | `re-widgets4` / (RE lane) | ready (round 2): widget-toolkit.md sections 14-16 (painting, fade-out window, mouse routing, key equivalents), WT4 answered (ui-windows 2.2 row 68 corrected); commits 00672ce4, d4923d75, 3d73228a; no engine/ABI change; REA not used (export asm + decomp) | 1. cGZWin remaining gaps listed in widget-toolkit.md section 12 (draw-area recursion, recalc_blt_area, child_private_buffers, coordinate converters, PullToFront/SetFocus, params). 2. cRZWinKeyAcceleratorRes parser 0x00984587. 3. cGZWinGen, then widgets. |
 
-## Handoff
+## Report (round 2)
 
-- Goal (round 2): extend docs/specs/widget-toolkit.md with cGZWin painting (PlotComposite 0x0099E62D, PlotPresent,
-  PrivateBuffer 0x0099EA70), cursor (ProcessCursorMessage 0x0099D40B), key equivalents; verify WT4 (SetFlag return)
-  against bytes and correct ui-windows.md §2.2 only; answer WT4.
-- Done: round 1 = 20b38bdb, 17919733, 7116ce89.
-- Next: read those bodies with re_query.py func/asm; write new spec sections 14+.
+What changed (all in docs/specs, no engine/ABI change):
+- WT4 answered DIFFERS: SetFlag 0x0099DB6B has a single exit (every branch jumps to 0x0099DCD9, MOV EAX,[ESI+0xC8];
+  RET 8) so it returns the whole flag word; ui-windows.md section 2.2 row 68 corrected (only that row); entry moved to
+  questions/answered/widget-toolkit.md; QUESTIONS.md regenerated. Commit 00672ce4.
+- widget-toolkit.md section 14 painting (d4923d75): Plot = PlotComposite && PlotPresent then manager deferred-plot
+  flush when drawing to the screen; PlotComposite steps (fade gate, paint filters type 0x16, clean-window shortcut via
+  +0x70 dirty byte, draw-context setup by slot, GZPaint, back-to-front child walk with overlay 0x8000000 deferral and
+  rectangle-overlap propagation); PlotPresent destinations (parent buffer with +0xB8 rect, or screen with absolute rect
+  when 0x4000000), colour/alpha packing verified at 0x0099C63D; PrivateBuffer create/destroy rules; SetBufferToDrawTo;
+  cGZFadeTmpWin fade-out (negative second period +0x98), which corrects the round-1 claim "no fade-out" (section 8.2,
+  quirk 8 rewritten). Manager slots 7/8 (deferred plot queue at +0x184/+0x188) measured.
+- Sections 15-16 (3d73228a): ProcessCursorMessage routing (front-to-back, 0x200000 skip, disabled children get only
+  moves, PullToFront+SetFocus on types 7/8/9, in-place ScreenToWindowCoordinates, UpdateCursor on moves), manager slot
+  26 SetMouseWindow (enter 19 / exit 20 sent synchronously), UpdateCursor (+0x74 added to layout), key equivalents
+  (slots 78-82, exact packing, 0/1 return). Conformance tests 11-16 added.
+
+Evidence: re_query.py asm (PlotComposite fully paged, PrivateBuffer, PlotPresent colour block, ProcessCursorMessage,
+StealBuffer, manager slots 7/8/26) plus decomp/cGZWin.c; REA not queried.
+
+Owner coverage (honest):
+- cRZWinKeyAccelerator: specified 16/16 (unchanged); cRZWinKeyAcceleratorRes parser still open.
+- cGZWin: specified for layout, flags, children, geometry, hit test, dispatch, lifecycle, fade in/out, painting, mouse
+  routing, key equivalents. NOT complete: gaps enumerated in widget-toolkit.md section 12 (draw-area recursion and the
+  +0x24/+0x34/+0xB8 rectangles, recalc_blt_area, child_private_buffers, transparency helpers, Invalidate*,
+  coordinate converters, PullToFront, SetFocus, EnumChildren, params, SortChildren, Center/Fit, colour conversion,
+  draw-context/buffer slot meanings).
+- cGZWin* (widgets), cGZLegacyControl, cGZUIScript*, cHTML*, cGZGraph, cGZ*Graph, cSC4ScriptedWindowCOMDirector and
+  the rest: not specified.
+Questions: WT4 answered; WT1-WT3, WT5, WT6 open; none new (a WT7 draft was resolved from bytes at 0x0099C2BC before filing).
 
 ## Report (round 1)
 
