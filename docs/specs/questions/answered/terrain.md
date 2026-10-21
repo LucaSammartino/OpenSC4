@@ -272,3 +272,12 @@ lane numbered these TR21-TR27.
   `SC4GetIGZDBSegment(stream)` (`0x0045BA70`) and calls `base->Load(segment)` (slot 96, `0x007453C7`), returning its
   AL. The only other entry is slot 95 `LoadObliterated`, a tail jump to slot 96. So the records load during `Read`,
   before `Init` and `PostCityInit` (terrain.md §13.2).
+- **TR35 - §15.5.8 / §15.5.11 item 15:** who calls the view's `Shutdown` (`0x007560F0`, which unsubscribes the six
+  messages) and when: the terrain's own `Shutdown` / `PreCityShutdown`, the view's last `Release`, or the app.
+  The replacement only `Release`s its factory reference in the terrain's destructor [choice]. What settles it: the
+  call sites of `0x007560F0`.
+  **ANSWERED 2026-10-21 (re-terrain4):** DIFFERS — the terrain's own slot-4 `Shutdown` (`0x007435C0`, gated by
+  `+0x0C`) calls the view's `Shutdown` (`0x007560F0`, `ECX` = view base, no arguments, `0x007437BE`) when `+0xE8` is
+  set, then `Release`s the view (base slot 2), clears `+0xE8` and `+0xEC`. The view destructor `FUN_00756980` also
+  calls it when the view's `+0x18` init byte is still set. A replacement does those steps in its `Shutdown`, not only
+  a `Release` in its destructor (terrain.md §15.5.11 item 15a).

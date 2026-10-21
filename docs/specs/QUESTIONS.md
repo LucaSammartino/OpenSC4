@@ -138,10 +138,10 @@ generated index: the questions live one file per spec, so read only the file for
 | protection | 0 | 20 | PR21 | - |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
-| terrain | 10 | 30 | TR41 | questions/terrain.md |
+| terrain | 9 | 31 | TR41 | questions/terrain.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 92 | TG27, TS67 | - |
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **54** | **985** | | |
+| **total** | **53** | **986** | | |

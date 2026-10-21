@@ -46,10 +46,6 @@
 - **TR34 - §15.5.1 step 6:** what object terrain `+0x100` holds and what its slot 5 (`+0x14`) does. §2.3's field
   table does not list `+0x100`, so the replacement does not call it [choice]. What settles it: the writer of
   terrain `+0x100`.
-- **TR35 - §15.5.8 / §15.5.11 item 15:** who calls the view's `Shutdown` (`0x007560F0`, which unsubscribes the six
-  messages) and when: the terrain's own `Shutdown` / `PreCityShutdown`, the view's last `Release`, or the app.
-  The replacement only `Release`s its factory reference in the terrain's destructor [choice]. What settles it: the
-  call sites of `0x007560F0`.
 - **TR36 - §15.5.11 item 12:** the source of the vertex record's `+0x16` surface texture id that
   `ComputeTextureSpansForRow` and `DrawTerrainSurfaceRows` read. §2.2 gives the record layout but no writer of
   `+0x16`; the replacement leaves it 0 [choice]. Which terrain function computes it (from altitude/slope, the

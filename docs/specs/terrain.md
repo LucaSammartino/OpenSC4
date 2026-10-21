@@ -2008,6 +2008,14 @@ replacement terrain, `W` = the replacement surface water.
     `Shutdown`; the terrain's `RedisplayTerrain` posts (`0x278E6003`, `0x678E6E3A`, `0x870BC918`, §8.1) are the
     only channel that moves terrain edits into the view's draw buffers. A replacement terrain must keep posting
     them with the §8.1 packing, and a replacement view must unpack `(x0<<16)+x1` / `(z0<<16)+z1` the same way.
+15a. **Who calls the view's `Shutdown`** (TR35): the terrain's own `Shutdown` (slot 4, `0x007435C0`, gated by the
+    terrain init byte `+0x0C`, which it clears). After releasing `+0xF4` and `+0xF0` it does, when `+0xE8` is
+    non-null: `cSTETerrainView3D::Shutdown` (`0x007560F0`, direct `__thiscall` with `ECX` = the view **base**,
+    no arguments, `0x007437BE`), then `Release` through the view base vtable slot 2 (`+0x08`), then `+0xE8 := 0`
+    and the view-ready byte `+0xEC := 0` (`0x007437B4`–`0x007437D4`). The view's destructor (`FUN_00756980`)
+    also calls `Shutdown` itself when its `+0x18` initialised byte is still set (`0x007569AE`–`0x007569B0`), so
+    a final `Release` alone is safe but unsubscribes only when the last reference goes. A replacement terrain
+    does the same three steps in its slot-4 `Shutdown`.
 16. The view sets its own `+0xB8` dirty byte on every accepted message; `DrawTerrainLayers` clears it after one
     rebuild. Anything else the view caches is rebuilt only through that path.
 
