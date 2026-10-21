@@ -534,6 +534,8 @@ const Subsystem kSubsystems[] = {
     // the glue-exemplars4 lane: no GZCOM class; the resource factories are taken
     // over at PostAppInit (data-formats §8.1, FC4ExemplarFactory.h). `enable = exemplars`.
     {"exemplars", nullptr, nullptr, 0, false},
+    // the glue-span4444-impl4 lane: no class; the cSpanRender4444 vtable bridge (FC4SpanRender4444.h)
+    {"span4444", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

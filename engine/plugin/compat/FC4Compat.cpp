@@ -91,6 +91,10 @@ const ExecutableVersion kVersions[] = {
             {0x00A9E7C8, 9, 0x0057DA40},   // cSC4DisasterManagerRiot::LockNetworkOccupant
             {0x00A861B8, 8, 0x0043F650},   // cSC4TutorialSystem::IsTutorial
         },
+        // glue-span4444-impl4: cSpanRender4444's shared static vtable and slots 1-5
+        // (span-render-4444.md §1, §1.1).
+        0x00AC185C,
+        {0x00847CE0, 0x00847D30, 0x00847E40, 0x00847F10, 0x008480C0},
     },
 };
 
@@ -697,6 +701,38 @@ bool PublishLimitTimers(float cyclesToMs, float msToCycles) {
 }
 
 uint64_t PublishCount() { return g_publishCount; }
+
+bool SpanRender4444Entries(void*** vtable, uintptr_t functions[5]) {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static void** entries = nullptr;
+    const ExecutableVersion* v = IdentifiedVersion();
+    if (state == 0) {
+        state = -1;
+        const uintptr_t va = v ? v->spanRender4444VtableVA : 0;
+        MEMORY_BASIC_INFORMATION mbi{};
+        // Entries 0..5 (24 bytes) inside one committed image region.
+        bool ok = v != nullptr && va != 0 && va % 4 == 0 &&
+                  VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)) &&
+                  va + 24 <= reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
+        for (unsigned i = 0; ok && i < 5; ++i) ok = CheckCode("span4444 slot function", v->spanRender4444SlotVA[i], v->imageBase);
+        if (ok) {
+            entries = reinterpret_cast<void**>(va);
+            state = 1;
+        } else {
+            Log("compat: span4444 vtable 0x%08lX NOT available (%s)", static_cast<unsigned long>(va),
+                v ? "address rejected" : "executable not identified");
+        }
+    }
+    if (state != 1) return false;
+    if (vtable != nullptr) *vtable = entries;
+    if (functions != nullptr) {
+        for (unsigned i = 0; i < 5; ++i) functions[i] = v->spanRender4444SlotVA[i];
+    }
+    return true;
+}
 
 }  // namespace compat
 }  // namespace fc4

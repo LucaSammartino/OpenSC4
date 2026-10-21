@@ -491,6 +491,9 @@ if(FC4_IS_WIN32_X86)
         # The glue-exemplars4 lane: the exemplar/cohort factory replacement (FC4ExemplarFactory.h).
         plugin/FC4ExemplarFactory.cpp
         plugin/FC4ExemplarFactory.h
+        # The cSpanRender4444 native bridge (span-render-4444.md §1.1; glue-span4444-impl4): enable = span4444.
+        plugin/FC4SpanRender4444.cpp
+        plugin/FC4SpanRender4444.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"

@@ -144,6 +144,12 @@ struct ExecutableVersion {
     uint32_t parkManagerVtableVA;
     // The disaster shadow's forwarder sites, indexed by DisasterHook.
     DisasterHookSite disasterHooks[static_cast<unsigned>(DisasterHook::Count)];
+    // glue-span4444-impl4: nGZDrawSoftRender::cSpanRender4444's one shared
+    // static vtable and the original functions of its slots 1-5 (RenderSolid,
+    // RenderGradient, RenderAlpha, RenderAlphaGradient, RenderBlt;
+    // span-render-4444.md §1, §1.1).
+    uint32_t spanRender4444VtableVA;
+    uint32_t spanRender4444SlotVA[5];
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -230,6 +236,14 @@ const void* ParkManagerVtable();
 // The entry's current value is not checked here (the shadow compares it
 // before it patches).
 bool DisasterHookEntry(DisasterHook which, void*** entry, uintptr_t* function);
+
+// The span4444 bridge (glue-span4444-impl4, span-render-4444.md §1.1): the
+// address of entry 0 of cSpanRender4444's shared vtable and the original
+// functions slots 1-5 must hold, or false (logged once) if the executable is
+// not identified, the entries are not committed, readable image memory, or a
+// function is not executable code inside the image. The entries' current
+// values are not checked here (the bridge compares them before it patches).
+bool SpanRender4444Entries(void*** vtable, uintptr_t functions[5]);
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);
