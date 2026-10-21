@@ -6,10 +6,12 @@ docs/abi/vtables.tsv) is parsed once into a pickle under build-runs/re-query-cac
 temp file and os.replace'd, so concurrent first runs at worst build the same file twice. A cache file is rebuilt when
 the size or mtime of a source changes. Nothing is written outside the cache directory.
 
-Usage: python tools/re_query.py [--repo DIR] [--limit N] <command> ...
+Usage: python tools/re_query.py [--repo DIR] [--limit N] [--full] [--count] <command> ...
+Output is capped at 60 lines / 4 KB per call, ending in one "... N more lines" footer; --full lifts the cap, an
+explicit --limit or --max raises it to fit. --count prints counts only (list commands: rows; asm: instructions).
   func <addr|name>...          containing function: start+offset, size, name (source/confidence), owner class, proto
   asm <addr|name> [--max N] [--skip N]  the function's instructions (instructions.asm), call/jump targets and
-                               strings named; 120 lines per call by default, --skip N pages on;
+                               strings named; 56 lines per call by default, --skip N pages on;
                                an address outside every function prints N lines from there (capstone if undecoded)
   callers <addr|name>          direct calls to the function (calls.tsv): callsite, caller+offset
   callees <addr|name>          direct calls made by the function, in address order
@@ -43,6 +45,8 @@ EXPORT_REL = Path("ghidra/export/windows")
 CACHE_VERSION = 1
 IMAGE_BASE = 0x400000
 ASM_STRIDE = 32  # one index entry per 32 instruction lines
+ASM_PAGE = 56  # asm lines per call by default: a page plus its header and footer fits the output cap
+CAP_LINES, CAP_BYTES = 60, 4096  # output cap per call; --full lifts it, an explicit --limit/--max raises it
 HEX8 = re.compile(r"[0-9a-fA-F]{8}")
 
 
@@ -398,8 +402,48 @@ def regex(text, case):
 
 
 def more(n, limit):
-    if n > limit:
+    if limit == 0:
+        print(f"{n} rows (--limit N to list them)")
+    elif n > limit:
         print(f"... {n - limit} more (--limit N)")
+
+
+class CappedStdout:
+    """stdout that passes the first `lines` lines / `nbytes` bytes, counts the rest and ends with one footer line."""
+
+    def __init__(self, out, lines, nbytes):
+        self.out, self.lines, self.nbytes = out, lines, nbytes
+        self.shown = self.size = self.hidden = self.hidden_size = 0
+        self.partial = ""
+
+    def write(self, s):
+        self.partial += s
+        *done, self.partial = self.partial.split("\n")
+        for line in done:
+            self._line(line)
+        return len(s)
+
+    def _line(self, line):
+        n = len(line.encode("utf-8", "replace")) + 1
+        if not self.hidden and self.shown < self.lines and self.size + n <= self.nbytes:
+            self.out.write(line + "\n")
+            self.shown += 1
+            self.size += n
+        else:
+            self.hidden += 1
+            self.hidden_size += n
+
+    def flush(self):
+        self.out.flush()
+
+    def finish(self):
+        if self.partial:
+            self._line(self.partial)
+            self.partial = ""
+        if self.hidden:
+            self.out.write(f"... {self.hidden} more lines ({self.hidden_size / 1024:.1f} KB) not shown; "
+                           "rerun with --full or narrow the query\n")
+        self.out.flush()
 
 
 def cmd_func(db, args):
@@ -481,7 +525,13 @@ def annotate(db, text, here_fn):
 
 def cmd_asm(db, args):
     va, s = db.func_of(args.target)
-    limit = args.max + args.skip
+    if args.count:
+        if s is None:
+            sys.exit(f"re_query: {va:08x} is not inside a function")
+        n = sum(len(asm_lines(db, lo, hi, 1 << 30)) for lo, hi, fn in db.f["rng"] if fn == s)
+        print(f"; {s:08x} {db.fname(s)}  size={db.f['size'].get(s, 0)}  {n} instructions")
+        return
+    limit = (args.max or ASM_PAGE) + args.skip
     if s is not None:
         rngs = [(lo, hi) for lo, hi, fn in db.f["rng"] if fn == s]
         print(f"; {s:08x} {db.fname(s)}  size={db.f['size'].get(s, 0)}  ranges=" +
@@ -638,10 +688,15 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="re_query.py", description=__doc__.split("\n")[0])
     ap.add_argument("--repo", help="checkout holding ghidra/export/windows (default: this one, its main checkout, "
                                    f"{DEFAULT_MAIN})")
-    ap.add_argument("--limit", type=int, default=40, help="max lines for list commands (default 40)")
-    common = argparse.ArgumentParser(add_help=False)  # --limit / --repo also accepted after the command
+    ap.add_argument("--limit", type=int, default=None, help="max lines for list commands (default 40)")
+    ap.add_argument("--full", action="store_true", help=f"no output cap (default {CAP_LINES} lines / {CAP_BYTES} B)")
+    ap.add_argument("--count", action="store_true", help="counts only: list commands print the row count, "
+                                                         "asm the instruction count")
+    common = argparse.ArgumentParser(add_help=False)  # global flags also accepted after the command
     common.add_argument("--limit", type=int, default=argparse.SUPPRESS)
     common.add_argument("--repo", default=argparse.SUPPRESS)
+    common.add_argument("--full", action="store_true", default=argparse.SUPPRESS)
+    common.add_argument("--count", action="store_true", default=argparse.SUPPRESS)
     sub = ap.add_subparsers(dest="cmd", required=True)
     _add = sub.add_parser
     sub.add_parser = lambda name, **kw: _add(name, parents=[common], **kw)
@@ -649,7 +704,7 @@ def main(argv=None):
     p.add_argument("targets", nargs="+")
     p = sub.add_parser("asm")
     p.add_argument("target")
-    p.add_argument("--max", type=int, default=120)
+    p.add_argument("--max", type=int, default=None, help=f"lines per page (default {ASM_PAGE})")
     p.add_argument("--skip", type=int, default=0, help="lines to skip (paging)")
     p.add_argument("--bytes", action="store_true", help="also print the instruction bytes")
     for c in ("callers", "callees"):
@@ -666,14 +721,26 @@ def main(argv=None):
     sub.add_parser("vtable").add_argument("target")
     sub.add_parser("warm", help="build every cache table now")
     args = ap.parse_args(argv)
+    # an explicit --limit / --max is a request for that many rows: the cap grows to fit it
+    asked = max(args.limit or 0, getattr(args, "max", None) or 0)
+    args.limit = 0 if args.count else (40 if args.limit is None else args.limit)
     db = DB(Paths(args.repo))
     if args.cmd == "warm":
         for t in ("f", "calls", "drefs", "strings", "symbols", "asmidx", "vtables"):
             getattr(db, t)
         print(f"re_query: cache ready in {db.p.cache}")
         return 0
-    {"func": cmd_func, "asm": cmd_asm, "callers": cmd_callers, "callees": cmd_callees, "xrefs": cmd_xrefs,
-     "strings": cmd_strings, "search": cmd_search, "vtable": cmd_vtable}[args.cmd](db, args)
+    out = None
+    if not args.full:
+        lines = max(CAP_LINES, asked + 8)
+        out = sys.stdout = CappedStdout(sys.stdout, lines, max(CAP_BYTES, asked * 120))
+    try:
+        {"func": cmd_func, "asm": cmd_asm, "callers": cmd_callers, "callees": cmd_callees, "xrefs": cmd_xrefs,
+         "strings": cmd_strings, "search": cmd_search, "vtable": cmd_vtable}[args.cmd](db, args)
+    finally:
+        if out is not None:
+            sys.stdout = out.out
+            out.finish()
     return 0
 
 
