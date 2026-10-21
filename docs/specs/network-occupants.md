@@ -964,8 +964,146 @@ paired `0x00AA7C70`, `+0x20` `0x00AA7CE0`, processor at `+0x2C+0x70`) with four 
 | `Clip` | `0x00618B00` | the underground/clipping view |
 | `Prelight` | `0x00614350` | the pre-light pass |
 
-`GetModelInstances` (primary slot 33, `0x0061AF90`) returns it. A replacement renders the piece by deforming the
-exemplar model to the corners; the quads and triangle soup of §2.2 are the fallback path when there is no model.
+**Correction (NO22, NO23; re-networkmodel-answers4, from the bytes).** None of the four bodies is a virtual
+override: no vtable or data reference points at any of them. They are ordinary members called only from
+`cSC4NetworkOccupantWithPreBuiltModel::GetModelInstances` (`0x0061E8A0`). The instance's own vtables (`0x00AA7CBC`,
+9 slots, and `0x00AA7C70`, 19 adjustor thunks) are the plain `cS3DModelInstance` ones plus a destructor
+`0x00614830`. The instance is 0xE4 bytes: `new` at `0x0061E9xx`, ctor `0x00614A30` with the virtual-base flag 1,
+and a `cS3DModelProcessor` at `+0x9C`. The "Prelight" name is wrong; §10.3 gives the real role of `0x00614350`.
+
+### 10.1 Who builds the instances, and what `GetModelInstances` returns *(NO23)*
+
+`GetModelInstances(a1, a2, outArray, a4, outCount)` (5 stack arguments, `RET 0x14`):
+
+1. **Plain piece (`0x0061AF90`, every class).** It sets `*outCount = 0`, reads the piece position (the `+4` view's
+   slot 8, `+0x20`) into the transform translation `+0x8C/+0x90/+0x94`, sets part-mask bit 1 at `+0x65`, and
+   increments the change counter `+0x64`. It then stores **the piece's own embedded `cS3DModelInstanceBasic`**
+   (the virtual base at `+0x38`, reached through the vbtable at `+0x3C`) in `outArray[0]`, sets the count to 1
+   and AddRefs it. So the call never returns zero instances and never returns null: a piece with no exemplar
+   model still returns this embedded instance, which draws the §2.2 quad and triangle list. The ctor `0x00614A30`
+   is not involved.
+2. **Prebuilt piece (`0x0061E8A0`).** It calls step 1 first, so `outArray[0]` is the embedded instance. It then
+   appends up to two new `cSC4NetworkOccupantModelInstance` objects:
+   - **Main model.** `cSC4ModelMakerUtility::GetModelInstanceID` (`0x00497180`) takes the `+4` view, the
+     rotation (primary slot 24), and a bool that is the negation of option `0x27812821`. A zero ID **returns at
+     once**: no model instance, and the shadow update of the last step is skipped. Otherwise the resource
+     manager (`0x00B45254`, IID `0x9AD0E7E3`) loads the model. On success a fresh instance is built **on every
+     call** (`new 0xE4`, ctor, AddRef) and bound to the model by `0x00614890`. That function stores the model
+     ref at instance `+0x28`, stores the LOD word 0 at `+0x94`, has the model fill the instance's mesh vector
+     `+0x04`, and copies the model bounds to `+0x64`. Then the transform, the passes of §10.2 and the alpha are
+     set. The instance is AddRef'd into `outArray[count++]`, passed to primary slot 81 (the prebuilt appendix,
+     §2.8), and **cached in the AutoRef at `+0x1C4`**, which releases the previous instance. The model resource
+     ref and the construction ref are then released. Net result: one reference for the caller and one in the
+     cache. If the allocation fails or `0x00614890` fails, `+0x1C4` is cleared (and its old instance released)
+     and nothing is appended. If the resource load fails, `+0x1C4` keeps its old instance and nothing is
+     appended.
+   - **Second model.** Built only when `+0x19C` is not zero, from the key {type `0x5AD0E817`, group
+     `0xBADB57F1`, instance `+0x19C`}, in the same way. It is cached at `+0x1C8`. Its yaw adds f32 `+0x1A0`, its
+     translation adds `+0x1A4/+0x1A8/+0x1AC` (on top of `+0x178…`), and it gets no `Deform` or `Clip`.
+   - Last step: when `a1 != byte +0x1C0`, it calls `UpdateShadow(1)` and stores `a1` in `+0x1C0`.
+3. **Ownership.** The model instance is **a separate heap object**, not the `+0x38`/`+0x68` sub-object of §2.1/§2.2.
+   The piece owns it only through the `+0x1C4`/`+0x1C8` cache. Each draw query replaces the instance, so the
+   deformation always starts from the flat model (§10.3). Not shown yet: whether the destructor or `Shutdown`
+   releases the two caches (NO26).
+
+**Transform written to each model instance** (before the passes; the instance's slot `+0x24` reads its transform
+into a local, slot `+0x28` writes it back):
+- the rotation starts from identity;
+- yaw = `SC4ViewUtilities::GetObjectYRotationAngle` when the position query's flag byte is set, otherwise
+  −(view global `0x00B43DD8` `+0x1C`), plus `+0x1A0` for the second model;
+- the 3×3 rotation is built from that yaw (pitch and roll 0), and the mask gets bit `0x400`;
+- **flip** (primary slot 25 true): the **first rotation row is negated** (a mirror);
+- translation = position + (`+0x178`, `+0x17C`, `+0x180`), and the mask gets bit `0x100`.
+
+When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (constant 0.003921569) and flag bit 2.
+
+### 10.2 Pass order *(NO22)*
+
+| Path (main model) | Condition | Calls, in order |
+|---|---|---|
+| options skip | option `0x6A845768` true (its byte is saved at `0x0061E97B`) | none: the instance draws the shared flat model |
+| surface | network-flag test (primary slot 8) `0x40000` false | `Bind` `0x00614350`, then `Deform` `0x00614A90`, then `FlipAndLight` `0x00616800` |
+| clipped | `0x40000` true | `Clip` `0x00618B00` **first** (it runs even when the option is set), then `Bind`, then `FlipAndLight` (no `Deform`) |
+| second model | option false | `Bind`, then `FlipAndLight` |
+
+`Clip` is called at `0x0061EE60` as `Clip(&lo, &hi, 1)` with
+- lo = (−FLT_MAX, h, −FLT_MAX) and hi = (FLT_MAX, FLT_MAX, FLT_MAX);
+- h = (lowest of the four terrain heights at the piece's cell corners) − position y (`0x0061EE07`);
+- the corner heights come from the terrain at `0x00B43CF4`: slot `+0x38` per integer vertex, or, when slot
+  `+0x14C` answers true, slot `+0x78` at world (16·x, 16·z) and (16·x+16, 16·z+16).
+
+### 10.3 The four bodies *(NO21, NO22)*
+
+- **`Bind` (`0x00614350`, misnamed "Prelight").** It calls `cS3DModelProcessor::SetModel` (`0x008038D0`) on the
+  processor at `+0x9C`, passing the instance's `+0x20` virtual-base view. SetModel keeps the shared vertex arrays
+  (refcounted) and replaces each mesh's array with a **private copy** in the processor's vertex format. The copy
+  takes x, y, z, u and v from the source and fills colour with the constant at `0x00B0E37C`; the bounds are
+  copied too. A mesh whose source format is not `PackStandardVertexFormat(2)` makes SetModel drop the model.
+  Every later pass edits only this private copy.
+- **`Deform(rot, flip, P0, P1, origin, diag)` (`0x00614A90`).** The arguments are:
+  - `rot` = primary slot 24 & 0xFF;
+  - `flip` = slot 25;
+  - `P0` = prebuilt `+0x184`, `P1` = `+0x190`, each three f32 {a, b, c};
+  - `origin` = (0, 0, 0), or (−f32 `+0x168`, 0, −f32 `+0x16C`) when `+0x164` ≠ 0;
+  - `diag` = the network-flag test `0x1000000`.
+
+  It resets the instance bounds `+0x64…+0x78` to the empty sentinel (min 1, 1, 1; max 0, 0, 0). Then, for every
+  vertex of every mesh (count u16 at array `+6`, stride u16 at `+4`, data at `+8`; position x, y, z at `+0/+4/+8`):
+  1. Rotate the model x, z with the jump table `0x00614CE4`:
+     - rot 0 (and any value > 3): x′ = x, z′ = z
+     - rot 1: x′ = −z, z′ = x
+     - rot 2: x′ = −x, z′ = −z
+     - rot 3: x′ = z, z′ = −x
+  2. If `flip` is set, x′ = −x′.
+  3. Subtract the origin: x′ −= origin.x, z′ −= origin.z.
+  4. Compute s = x′ + z′ when `diag` is set, otherwise s = x′ − z′. Use P1 when s ≥ 0 (also when s is NaN),
+     otherwise P0 (`0x00614B87`, compared with 0.0 at `0x00A81054`).
+  5. Set **y ← ((z′·b + x′·a) + c) + y**, summed on the x87 stack and rounded to f32 once at the store
+     (`0x00614B9C…0x00614BAC`).
+
+  Then it recomputes the bounds from all mesh vertices. The first mesh seeds them when max.x < min.x.
+
+  **The planes** come from `RecomputeShearTransform` (`0x0061D230`). Write y0…y3 for the y values of quad
+  vertices 0…3 (`+0xA0/+0xB8/+0xD0/+0xE8`) and Y for the piece position y. The constants are 0.5 (`0x00A84D2C`)
+  and 0.0625 (`0x00AA81E4`).
+
+  | `0x1000000` | c (both planes) | P0 {a, b} | P1 {a, b} |
+  |---|---|---|---|
+  | clear | (y0 + y2)·0.5 − Y | ((y2 − y1)·0.0625, (y1 − y0)·0.0625) | ((y3 − y0)·0.0625, (y2 − y3)·0.0625) |
+  | set | (y1 + y3)·0.5 − Y | ((y3 − y0)·0.0625, (y1 − y0)·0.0625) | ((y2 − y1)·0.0625, (y2 − y3)·0.0625) |
+
+  These two planes reproduce all three corner heights of their triangles only with the corners at x′, z′ =
+  v0 (−8, −8), v1 (−8, +8), v2 (+8, +8), v3 (+8, −8). So the frame is **centred on the piece position with
+  extent −8…+8**.
+  - Diagonal: v0–v2 (x′ = z′) when the flag is clear, v1–v3 (x′ = −z′) when it is set.
+  - **Shape: two triangles, not bilinear.**
+  - **The bend is added to the flat y**, relative to Y, and always starts from a fresh private copy of the flat
+    model.
+  - **Nothing is clamped**: a vertex outside ±8 takes the plane of its side of the diagonal, extrapolated.
+
+  Worked example (flag clear, y = (0, 4, 8, 0), Y = 0): P0 = (0.25, 0.25, 4), P1 = (0, 0.5, 4). Results:
+  - vertex (8, 8, flat y 0): s = 0 picks P1, y = 8 (corner v2);
+  - (−8, 8): P0, y = 4 (v1);
+  - (8, −8): P1, y = 0 (v3);
+  - (12, 0): P1, y = 4 (extrapolated);
+  - with flip set, model (8, −8) maps to x′ = −8 and gets P0, y = 0.
+- **`FlipAndLight(flip)` (`0x00616800`).** When `flip` (slot 25) is set, every mesh gets a new index list, which
+  **reverses the winding**:
+  - the old indices are copied in reverse order;
+  - each primitive range's start becomes N − start − count, where N is the index count (or the vertex count when
+    the mesh has no index list);
+  - a mesh with no index list gets a synthesized descending list (max − 1 … min) and its ranges are rebased by −min.
+
+  It moves no vertex and changes no UV: the mirror itself is the negated transform row of §10.1. Whether or not
+  `flip` is set, it then calls `cS3DModelProcessor::LightModel(*0x00B43DDC, flip)` (`0x00803E10`). LightModel
+  builds vertex normals (`0x00803370`) when the processor has none and lights the copy through the instance
+  transform; when `flip` is set it negates all nine rotation entries. FlipAndLight then calls `ReleaseModel`
+  (`0x00802B30`), which drops the processor's references.
+- **`Clip(lo, hi, mode)` (`0x00618B00`).** A null `lo` returns at once. It reads the instance bounds (slot
+  `+0x1C`) and, with `mode` 1, compares only y; when the bounds need no cut it returns unchanged. Otherwise, for
+  each mesh, it builds new vertex and index arrays clipped against the box [lo, hi]. It supports three vertex
+  formats, 2, `0x80004001` and 10, and uses the scratch globals `0x00B45240`/`0x00B45244`. Not shown yet: which
+  side is kept and how the cut edges interpolate (NO25).
 
 ---
 

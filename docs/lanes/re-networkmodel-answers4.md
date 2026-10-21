@@ -14,5 +14,7 @@
   0x00614350 "Prelight" = processor(+0x9C).SetModel(instance's +0x20 virtual-base view).
   Plain GetModelInstances 0x0061AF90: emits the piece's own +0x38 cS3DModelInstanceBasic, AddRef'd.
   Two cached instances: prebuilt +0x1C4 (main model) and +0x1C8 (from +0x19C, second model).
-- Next: asm of Deform 0x00614A90, FlipAndLight 0x00616800, Clip 0x00618B00, the call site args.
+- DONE (commit 2): §10.1-10.3 written; NO21/NO22/NO23 answered DIFFERS, moved to answered/; new NO25 (Clip
+  kept side/interp) and NO26 (cache release in dtor/Shutdown) filed; questions.py index run.
+- Next: optional NO26 (prebuilt dtor/Shutdown release of +0x1C4/+0x1C8), then finish report + merge-queue.
 - Helper: build-runs/dd.py VA count [f] dumps exe dwords/floats.

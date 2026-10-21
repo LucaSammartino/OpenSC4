@@ -98,9 +98,7 @@ implementer of the class tables and records.
 - **NO24 - §5.2, `ComputePolePosition` "guarded against `-FLT_MAX`":** what happens when the terrain answers
   `-FLT_MAX` (`0x00AA9F0C`): is y left at `-FLT_MAX`, replaced by a value (0? the previous y?), or does the call fail
   and the pole is skipped? The core returns no position. [ambiguous]
-<!-- from: core-networkmodel4 (2026-10-21) -->
-- **NO21 - §10 `Deform` details:** (a) is the corner bend bilinear over the four corners, or a two-triangle split (which diagonal)? (b) is the deformed y the flat model's y plus the interpolated height, or replaced by it, and does each call start from the flat model? (c) the model's local x/z frame: does corner (x, z) sit at local (0, 0) with a 16 m extent, or is the model centred (−8…8)? (d) are vertices outside the cell clamped or extrapolated? [bilinear; flat y + height; recomputed from the flat model; origin (0, 0), extent 16; extrapolated]
-<!-- from: core-networkmodel4 (2026-10-21) -->
-- **NO22 - §10 `FlipAndLight`, `Clip`, `Prelight` bodies:** what does the flip (bit 7 of `+0x104`) do to the model (mirror axis, winding, UVs), what inputs and outputs do the lighting, the underground/clipping and the pre-light passes have, and in what order does the renderer call the four overrides? [core hands the three passes to a renderer provider with the flip bit; no order imposed]
-<!-- from: core-networkmodel4 (2026-10-21) -->
-- **NO23 - §10 model-instance lifetime:** (a) when is the `cSC4NetworkOccupantModelInstance` created (ctor `0x00614A30` called from `Init`, the prebuilt `SetModel`, or the first draw) and released (`Shutdown`)? (b) is it the `+0x38`/`+0x68` `cS3DModelInstanceBasic` sub-object of §2.1/§2.2 or a separate object? (c) what does `GetModelInstances` (slot 33) return for a piece with no model (null, or an instance over the §2.2 quads)? [created from the exemplar model when there is one, owned by the piece; null with no model, which renders the §2.2 fallback]
+<!-- from: re-networkmodel-answers4 (2026-10-22) -->
+- **NO25 - §10.3 `Clip` 0x00618B00 kept side and cut:** with lo = (−FLT_MAX, h, −FLT_MAX), hi = +FLT_MAX, mode 1, is the geometry above h kept (inside the box) or below; how are cut-edge vertices interpolated (position, uv, colour) per format 2/0x80004001/10; exact early-out test on the bounds? [not proved]
+<!-- from: re-networkmodel-answers4 (2026-10-22) -->
+- **NO26 - §10.1 cache release:** do the prebuilt destructor and `Shutdown` release the +0x1C4/+0x1C8 instance caches, and is +0x1C0 reset? [not proved]
