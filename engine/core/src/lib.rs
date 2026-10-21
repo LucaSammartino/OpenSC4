@@ -87,6 +87,7 @@ pub mod simgrid;
 pub mod simulator;
 pub mod span_render4444;
 pub mod span_render1555;
+pub mod span_render565;
 pub mod stl;
 pub mod store;
 pub mod stream;
