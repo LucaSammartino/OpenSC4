@@ -59,9 +59,3 @@
   not given, so the replacement does not call it [choice] and the view's index buffers only follow those slots
   at its next whole-grid rebuild. What settles it: the call at `0x007411E1` and the prologue of `0x00752AF0`.
 <!-- from: glue-terrain3 (game run gt3-repl-4, enable = terrain, 2026-10-21) -->
-- **TR39 - §13.1 slot 96:** who calls the terrain's `Load` (slot 96, `0x00747800`) on a city load, with which
-  segment, and when relative to `Read`, `Init` and `PostCityInit`. In gt3-repl-4 the replacement's slot 96 was
-  never called with a non-null segment (no Load log line; `Read` ran, then `Init`), so the replaced city ran on the
-  §2 flat default instead of its saved altitudes. Is slot 96 called by `cSC4City` (which function, which
-  interface pointer), or does the original terrain call `Load` itself from `Init` with a segment it obtains (from
-  where)? [choice: the replacement only answers slot 96] What settles it: the call sites of `0x00747800`.

@@ -1387,6 +1387,17 @@ The terrain's serializable record (type `0xE98F9525`, group `0x299B2D1B`): u16 v
 a reference to the terrain view (class `0xC9B84E10`, whose own record is u16 1 + one byte, 0 or 1 in the corpus;
 render only). This settles the "unnamed `0xC9B84E10` (3 bytes)" of save-records.md §3.2.
 
+**`Read` loads the records itself (TR39).** `Read` is slot 4 of the serializable interface at terrain `base+0x08`
+(`0x00745380`, vtable `0x00AB3CF0`; `__thiscall` with `this = base+8`, one argument = the input stream, `ret 4`,
+result in AL). In order: read the u16 version through stream slot 7 (`+0x1C`); if it is above 2 return 0;
+`SC4ReadGZSerializable(stream, 0xC9B84E10, &base[+0xE8], 0)` (`0x005D9730`, cdecl) — the saved view reference
+lands in the view field `+0xE8`; `segment = SC4GetIGZDBSegment(stream)` (`0x0045BA70`, cdecl, the DB segment the
+stream reads from); then `base->Load(segment)` (slot 96 through the primary vtable, `0x007453C7`) and return
+its AL. No other code calls slot 96 directly: its only other entry is slot 95 `LoadObliterated` (`0x00742170`), a
+tail jump to slot 96. So on a city load the records of §13.1 are read **during `Read`**, before `Init` and
+`PostCityInit`, from the same segment as the class record. A replacement whose `Read` only parses the class
+record never loads the altitudes.
+
 ### 13.3 Surface water
 
 The surface water (CLSID `0x0B8DA7DB`) writes u16 1 and a reference (read with IID `0xC70BD37E`, the terrain).

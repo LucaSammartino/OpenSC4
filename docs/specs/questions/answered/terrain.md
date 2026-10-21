@@ -260,3 +260,15 @@ lane numbered these TR21-TR27.
   §15.5.11 item 18): run `0x0074FE40` (no `this`, idempotent) or reproduce those statics before the first view
   `Init`. The edge-layer arrays and depths are the view's own (§15.5.12.3). Slot 67 `DoLighting` lights record
   `+0x04` normals into `+0x10` through the lighting object `0x00B43DDC` slot 28 (§15.5.12.4).
+- **TR39 - §13.1 slot 96:** who calls the terrain's `Load` (slot 96, `0x00747800`) on a city load, with which
+  segment, and when relative to `Read`, `Init` and `PostCityInit`. In gt3-repl-4 the replacement's slot 96 was
+  never called with a non-null segment (no Load log line; `Read` ran, then `Init`), so the replaced city ran on the
+  §2 flat default instead of its saved altitudes. Is slot 96 called by `cSC4City` (which function, which
+  interface pointer), or does the original terrain call `Load` itself from `Init` with a segment it obtains (from
+  where)? [choice: the replacement only answers slot 96] What settles it: the call sites of `0x00747800`.
+  **ANSWERED 2026-10-21 (re-terrain4):** DIFFERS — nobody outside the terrain calls slot 96. The terrain's own `Read`
+  (`0x00745380`, serializable slot 4 at `base+8`) reads the u16 version (> 2 fails), reads the view reference with
+  `SC4ReadGZSerializable(stream, 0xC9B84E10, &base[+0xE8], 0)`, gets the stream's segment with
+  `SC4GetIGZDBSegment(stream)` (`0x0045BA70`) and calls `base->Load(segment)` (slot 96, `0x007453C7`), returning its
+  AL. The only other entry is slot 95 `LoadObliterated`, a tail jump to slot 96. So the records load during `Read`,
+  before `Init` and `PostCityInit` (terrain.md §13.2).
