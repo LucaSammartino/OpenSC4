@@ -7,6 +7,6 @@
 ## Handoff
 
 - Goal: answer MS11 (a)-(e) and MS12 (a)-(g) from the binary, write rules into mysims.md §4.7.1 / §4.12, move entries to answered/.
-- Done: MS11 answered (§4.7.1 Dispatch location contract, callers table, conformance rows).
-- Next: MS12 pool (vtable 0x00A85B14, §4.12): template defaults, ini reader, picture path, F.ini dir, Import cut, UserData, male/zodiac text.
+- Done: MS11 answered 85e83546; MS12 answered (§4.12 template defaults, ini reads, picture path, record length mod 256).
+- Next: finish (lane report, merge-queue json).
 - Facts: trip automaton / CheckCommute gaps stay separate (not in scope).

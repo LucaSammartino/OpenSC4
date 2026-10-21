@@ -653,6 +653,14 @@ property `0x10` (exemplar type) = `0x26`. Fields: bitmap ID := property `0xEA296
 named by property `0xCA416B3F` (`SC4LoadExemplarString` with the key's group/instance), else property
 `0xEA296F8F`; is-male := property `0xEA296F91`; sign := property `0xEA296F90`. Appended.
 
+Absent properties (answers MS12 a): every `cSCPropertyHelp::GetPropertyValue` (`0x005FD480` u32, `0x005FD570`
+string, `0x005FD390` bool, `0x005FD3C0` u8) returns false and **writes nothing** when the property is missing, and
+`SC4LoadExemplarString` writes the name only on success (crime.md §7). The template constructor (`0x008B5E70`)
+initialises only the two strings (empty) and `+0x28`; bitmap ID `+0x00`, is-male `+0x2C` and sign `+0x2D` are
+**not initialised** (stack bytes of the callback frame). So: name absent (no LTEXT and no `0xEA296F8F`) → empty;
+portrait name of a built-in → always empty; bitmap ID / is-male / sign absent → indeterminate in the original
+*[compat-undefined]*; a reimplementation uses 0 / false / 0 (shipped MySim exemplars carry all four).
+
 **`LoadImports`**: open `<GetMySimDirectory()>MySims.dat` with access read, creation "open existing", share read (framework-rz-files.md §2.3). Missing file or first 4 bytes
 ≠ `0x4A32E4AA` (little-endian `AA E4 32 4A`) → nothing added. Then records until any read fails (a truncated
 record is dropped):
@@ -692,25 +700,47 @@ result is false. No value → false. Otherwise true.
 image converter (GZCOM class `0xA2FFB5D3`, interface `0x02FFBB60`); none → return. Open `MySims.dat` for **write,
 create-always (truncate), share read** and write the 4 magic bytes; failure → return. Then for `i` = 1…99:
 
-1. Directory `<path>\UserData` for `i` = 1, `<path>\UserData<i>` otherwise; missing → next `i`.
-2. List `<dir>\Export\*.pub`. For each file `F.pub`: `F.ini` must exist (open read / open existing) and parse as an
-   ini file, else skip the file.
-3. `[WebPages] FamilyDescription` is required (else skip the file); a trailing `/` is cut. The family's picture
-   folder is built from the install path, `Web Pages` and `FamilyGFX` with that value.
+1. Directory = `Sprintf("%s%sUserData", path, "\")` for `i` = 1, `Sprintf("%s%sUserData%d", path, "\", i)`
+   otherwise (`0x0043C04F` / `0x0043C072`; `path` = pool `+0x18`, `i` plain decimal): the `\` is **always**
+   inserted, so a path already ending in `\` gives `...\\UserData` (double separator kept, passed as is to
+   `DoesDirectoryExist`); missing → next `i`. Call this `<ud>` below. (answers MS12 f)
+2. List `<ud>\Export\` (`<ud>` + `\` + `Export` + `\`) with filter `*.pub`. For each entry: `F.ini` = that
+   directory + the entry name with its **last 4 bytes** dropped (`Left(len − 4)`, `0x0043C3CA`) + `.ini` — the
+   `.ini` sits next to the `.pub` in the `Export` directory (answers MS12 d). It must exist (open read / open
+   existing) and parse as an ini file, else skip the file.
+3. `[WebPages] FamilyDescription` is required (else skip the file); its encoding is converted, then **one**
+   trailing `/` is cut (`EndsWith("/")` → length − 1; `\` is not cut). The family's picture folder is, byte for
+   byte, `<ud>` + `\` + `Web Pages` + `\` + value + `\` + `FamilyGFX` + `\` (`0x0043C5AD`–`0x0043C64E`): it
+   lies under the **UserData directory**, not under the install path (answers MS12 c).
 4. `[FamilyInfo]`: `sims_family_nummembers` (integer), `sims_family_name`. For member `k` = 1…n:
    `sims_familymember<k>_name`, `_gender`, `_zodiac` (lower-cased), `_guid` (integer; missing → skip member).
-   Portrait: convert `family<k>_face.jpg` in the picture folder to `<first>_<guid in lower hex>.bmp` in the MySim
-   directory (`0x0043ABE0`); failure → skip member.
+   Portrait: convert the source `cRZPath(<picture folder>)` with extension `.jpg` and file name
+   `Sprintf("family%d_face", k)` (paths.md §2: `GetPath` = resolved folder + name + `.jpg`, e.g.
+   `<ud>\Web Pages\<value>\FamilyGFX\family2_face.jpg`) to the destination `cRZPath(GetMySimDirectory())` with
+   extension `.bmp` and file name `Sprintf("%s_%x", first, guid)` (`0x0043ABE0`); failure → skip member.
+   Ini reads (answers MS12 b) use `cRZIniFile` `ReadEntry` (slot 6) and `ReadNumber` (slot 7) of
+   framework-rz-files.md §3.5: section and key match ASCII case-insensitively; numbers are `sscanf("%ld")`
+   (leading blanks, optional sign, decimal only, stops at the first non-digit; a miss writes nothing).
+   `_guid` uses the `ReadNumber` result (false → skip member). `sims_family_nummembers`'s result is **not
+   tested**; the member loop runs `k = 1` while `k ≤ n` **unsigned** (`0x0043C84D`, `0x0043CE8A`), so n = 0 → no
+   members and a negative n would loop over 2^32 − |n| keys (each failing `_name` and skipping).
 5. Write one record (table above): name `"<first> <family>"`, is male := gender equals the "male" text
    (`cRZString::IsEqual` `0x0090EC57` called at `0x0043CDC2` with the case-sensitive flag = 0; see "Gender test"
    below), sign := zodiac index
-   (below), portrait name `<first>_<guid>`; `count += 1`.
+   (below), portrait name `<first>_<guid>`; `count += 1`. Each string is written as a u8 length = **byte length
+   mod 256** followed by that many bytes (`0x0043CD79`, `0x0043CE0C`): a 300-byte name is stored as length 44 and
+   its first 44 bytes, not cut to 255 (answers MS12 e). The record stays readable by `LoadImports`.
 6. Close and delete `F.ini`.
 
 Zodiac index: compare the lower-cased value with the 12 localized names (group `0x6A231EAA`, instances
 `0xEA822E90 0xCA822E93 0xCA822E97 0xAA822E9B 0xCA822EA4 0xAA822EA8 0xCA822EAC 0xCA822EAF 0xCA822EB3
 0x6A822EB6 0x6A822EB9 0xEA822EBD`, table `0x00A85AA4`), each lower-cased; first exact match → its index 0–11; none
 → 0 (a debug text "Unknown zodiac symbol" is formatted, nothing shown).
+
+Text that fails to load (answers MS12 g): the "male" text and the zodiac names are `cSLString` objects
+(`0x00603580`, neighbors.md: a missing LTEXT leaves the string **empty**). An empty "male" text makes exactly the
+members with an empty `_gender` male; an empty zodiac name matches an empty `_zodiac` value (first such index
+wins), and no longer matches anything else.
 
 **Gender test** (`IsEqual(const cIGZString&, bool caseSensitive)` `0x0090EC57`; the flag pushed at `0x0043CDB2` is
 `EBX`, zeroed at `0x0043BC48` and never written again in `Import`): lengths differ → false. Flag ≠ 0 would compare
@@ -741,6 +771,12 @@ Examples (conformance):
 | cache, count 2, loaded | `GetMySimTemplates` called before `Import` | cache cleared, flag 0; next call returns built-ins + 2 new imports |
 | cache, count 0, loaded | as above, no family found | flag stays 1; next call still returns the old imports |
 | cache, not loaded | `Import` before any `GetMySimTemplates` | nothing cleared; first call reads the new file |
+| UserData path | path `D:\Sims\`, i = 1 / 3 | `D:\Sims\\UserData` / `D:\Sims\\UserData3` (double `\` kept) |
+| ini next to pub | `<ud>\Export\Smith.pub` | `<ud>\Export\Smith.ini` |
+| picture folder | FamilyDescription `smith1/` | `<ud>\Web Pages\smith1\FamilyGFX\`, source `...\FamilyGFX\family1_face.jpg` |
+| long name | first+family = 300 bytes | record length byte 44, 44 name bytes |
+| ini number | `sims_familymember1_guid = 0x1F` / ` 42abc` / missing | 0 / 42 / member skipped |
+| missing "male" LTEXT | gender `` / `Male` | male / not male |
 
 ## 5. Messages and events posted
 
