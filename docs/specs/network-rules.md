@@ -1122,10 +1122,12 @@ Every piece of one intersection gets the same anchor, the rule's position `(x, z
 
 ## 11. From a solved cell to an occupant
 
-A solved record `{piece id, orientation, key}` becomes an occupant at commit (`InsertOccupantsForSolvedCells`, slot
-55, `0x006258C0`; network-tools.md §6.2). The record's piece id becomes the occupant's **piece id** (network occupant
-slot 23, occupant `+0xFC`) and its orientation byte the occupant's rotation and flip (slot 26 returns it, occupant
-byte `+0x104`; §9 reads it back).
+A solved record is 12 bytes, `{u32 piece id at +0, u8 orientation at +4, u32 cell key at +8}` (the solved list is a
+vector of them; `InsertOccupantsForSolvedCells`, slot 55, `0x006258C0`, steps 12 bytes and looks the cell up by
+`+8`). It becomes an occupant at commit (network-tools.md §6.2). The record's piece id becomes the occupant's **piece
+id** (network occupant slot 23, occupant `+0xFC`) and its orientation byte the occupant's rotation and flip (slot 26
+returns it, occupant byte `+0x104`; §9 reads it back). Both are written by exactly one method, network occupant
+**slot 30** (§11.2), which the tool calls on the new occupant **before** it is inserted (NR14).
 
 - An **ordinary** network occupant (`CreateNetworkOccupant`, slot 54, `0x00624210`, with no class id) is a textured
   cell: its piece id names the cell's texture. The multi-type solutions file calls the field `textureId`. The texture
@@ -1167,6 +1169,50 @@ it in the occupant (`+0x140`):
 The orientation byte therefore turns the paths through step 5. The texture an ordinary piece id selects, and how the
 orientation turns it, is drawing only; it is left to the renderer specs. What the path resource holds and exactly what
 slots 25, 26, 27, 29 and 40 do is NR6. The path-info slots are listed in traffic-network.md §7.3.
+
+### 11.2 Applying a piece: network occupant slot 30 (NR14)
+
+`cISC4NetworkOccupant` slot 30 (vtable `+0x78`, `0x0061B490`; docs/abi names it `SetQuadDraw`, an automatic Mac
+match; by behaviour it is **SetPiece(id, orientation)**) is how every tool path found writes `+0xFC` and `+0x104`
+(loading a saved occupant restores them from its record instead, network-occupants.md record field 5). It is a public vtable slot of the interface the game's occupants already implement (`0xC9C05C6E`); no private
+bridge is involved. Calling convention: thiscall, two dword arguments, `ret 8`, no result. Argument 1 is the u32 piece
+id, argument 2 the orientation byte **zero-extended** to a dword (callers load the record's `+4` byte with
+`XOR EAX,EAX; MOV AL,[rec+4]`); only its low byte is used. In order:
+
+1. If the occupant does **not** have all of network flag `0x200000` (slot 8; not a connection node): `SetNetworkFlag
+   (0x2000000)`, then `SetNetworkFlag(0x4000000)` (slot 10; network-manager.md §5).
+2. `ReleasePathInfo` (slot 50): the cached path info (`+0x140`) is dropped, so the next `GetPathInfo` (§11.1) rebuilds
+   it from the new piece id and orientation.
+3. `ClearNetworkFlag(0x2000)` (slot 11: path connections no longer known).
+4. `+0xFC := id`; `+0x104 := orientation` (one byte).
+5. `SetTextureCoordinates(orientation)` (`0x00619550`): the four quad corners' texture coordinates are turned by
+   `orientation & 3` quarter turns and mirrored when `orientation >= 0x80`. Drawing only.
+6. The alpha byte of each of the four quad vertices (`+0xAB`, `+0xC3`, `+0xDB`, `+0xF3`) `:= 0xFF`.
+
+There is no "unchanged" short cut and no message is posted. (Slots 27, `0x0061B7F0`, and 29, `0x0061B880`, are
+different setters: slot 27 writes the byte `+0x105` and slot 29 the u32 `+0x100`, each only when the value changes,
+and each posts `0x99EF1145`; neither is the solved orientation.) Readbacks: slot 23 = `+0xFC`; slot 26 = the whole
+byte `+0x104`; slot 24 (`0x00604DC0`) = `+0x104 & 0x7F` (rotation); slot 25 (`0x00604DD0`) = `+0x104 >> 7` (flip).
+
+**Callers and order relative to insertion.** No ownership changes hands: slot 30 copies two values and takes no
+references.
+
+| Caller (call site) | Occupant | Arguments | Relative to insertion |
+|---|---|---|---|
+| `InsertNetworkOccupant`, slot 72 (`0x0062797F`) | the one slot 54 `CreateNetworkOccupant(cell, &n, quad, 0)` has just created (`0x00627963`) | record `+0`, record `+4` | immediately after creation; before `AddSupportStructures`, clearing `0x400000`, `ClearNetworkOccsFromCell` (`0x00627A0A`) and `occupantManager.InsertOccupant(n, +0x208)` (`0x00627A38`) |
+| `InsertOccupantsForSolvedCells`, connection-node branch (`0x00625A5D`) | the cell's existing occupant (cell record `+0x0C`, flag `0x200000`), already in the world | record `+0`; the orientation is the occupant's own slot 26 when its slot 15 (`0x00619150`) returns non-zero, else record `+4` | after its models are refreshed; then `0x8000000` set, `0x2000000`/`0x4000000` cleared, `RemoveOccupant` and `InsertOccupant(n, 0)` (`0x00625AC6`, `0x00625AEE`), so the listeners see the new piece at the re-insert |
+| `InsertHighwayIntersectionPiece` (`0x00627757`) | the prebuilt-model occupant slot 54 created (`0x006276F9`) | its piece and orientation arguments | after `SetExemplarForOccupant(…, 0xA8434037)` (`0x0062774A`) |
+| `InsertBridgePiece` (`0x0062EF61`, `0x0062F1FF`) | the occupant slot 54 created (`0x0062EEE2`) | the bridge piece | before insertion *[inferred]* |
+
+So in the ordinary path the occupant never enters the occupant manager without its piece: the `0x99EF1142` insert
+listeners (traffic-network.md §3) already see the final piece id and orientation, and the first `GetPathInfo` uses
+them. `CreateNetworkOccupant` (slot 54, `0x00624210`) itself never writes `+0xFC` or `+0x104`: a freshly created
+occupant reads back piece 0, orientation 0 until slot 30 is called.
+
+**A replacement solver** that keeps the game's occupants therefore applies a solved cell by: create the occupant
+(slot 54, or the game's own path through slot 72, which reads the 12-byte record), call slot 30 with
+`(piece id, orientation)` on it, and only then insert it. It must not write `+0xFC`/`+0x104` directly (step 2's path
+info release and step 5's texture turn would be skipped).
 
 ---
 
@@ -1367,3 +1413,11 @@ and the evaluator; the others drive the named function directly.
 29. **Preview piece** (§8.3). With the evaluator of test 11 and Road `0x02000200` at (5, 5) and (5, 6),
     `SolveMultiTypeSeparation((5, 5), Road)` returns true with id `0x100`, rot 0, flip 0, and the solved list stays
     empty. A Road cell `0x00000002` (no rule) returns false.
+30. **Applying a piece** (§11.2, NR14). On a game-created ordinary network occupant (slot 54, class 0) that is not a
+    connection node, slot 30 `(0x2600, 0x03)` makes slot 23 return `0x2600`, slot 26 `0x03`, slot 24 `3`, slot 25 `0`;
+    flags `0x2000000` and `0x4000000` become set and `0x2000` clear. `(0x200, 0x81)` gives slot 26 `0x81`, slot 24 `1`,
+    slot 25 `1`. Before the call the new occupant reads back 0/0.
+31. **Order at commit** (§11.2). Trace `InsertNetworkOccupant` for the road (4,4)..(14,4): for each cell, slot 30 on
+    the new occupant (`0x0062797F`) comes before `occupantManager.InsertOccupant` (`0x00627A38`), and the
+    `0x99EF1142` listener sees slot 23 = the record's piece id (end `0x200`, straight `0x2600`, orientation `0x03` for
+    the east-west road of run nrimpl4-a1). A replacement that inserts first and applies later fails this test.

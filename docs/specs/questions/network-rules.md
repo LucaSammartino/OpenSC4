@@ -16,15 +16,3 @@ Spec: [network-rules.md](network-rules.md) §14. RE-side follow-ups; nothing her
 - **NR7:** the constraint layout's codes 1–8 as `InsertIntersectionConstraints` (`0x00644710`) applies them: which
   vertex heights each code makes equal and which slope limits it sets (network-rules.md §10.3; network-geometry.md
   §9.4 step 4). [not specified]
-
-## From the network rules implementation (glue-netrules-impl4 lane, 2026-10-21)
-
-<!-- from: glue-netrules-impl4 (2026-10-21) -->
-- **NR14:** network-rules.md §11 (from a solved cell to an occupant) says the solved piece ID and orientation become the
-  occupant's piece and rotation/flip, but no public contract (docs/abi, SDK `cISC4NetworkOccupant`) names a slot that
-  writes a piece ID or orientation onto an occupant the game created (`0xC9C05C6E`); only readbacks (`PieceId()`,
-  `GetRotationAndFlip()`) are public. Which interface/slot applies a solved `(piece id, rotation, flip)` to an occupant,
-  and when relative to insertion? Evidence (run nrimpl4-a1): our solver chose road (4,4)..(14,4) end piece `0x200`/03,
-  straight `0x2600`/03 (street `0x05000200`/`0x05002600`); occupants read back 0/0. That run also crashed (AV) after
-  insert and at Shutdown; cause was our own context-layout bug (stale object), not a write. Current choice: the solver
-  result is logged only, never applied; no replacement credit. [not specified]
