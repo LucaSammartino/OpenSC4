@@ -34,6 +34,21 @@ pub struct OrdinanceRow {
 pub struct OrdinanceInit {
     pub rows: Vec<OrdinanceRow>,
     pub row_map: Vec<u32>,
+    /// How many ordinances the helper counted into list A / list B by the
+    /// ordinance's own test (`0x0077C734`/`0x0077C73C`, BW12). The helper
+    /// only increments `+0x124` / `+0x128`; it never resets them.
+    pub added_a: u32,
+    pub added_b: u32,
+}
+
+/// What `initNeighborBudget` leaves in the dialog: the held deals (vector
+/// `+0x68`) and the list counts it wrote (it zeroes `+0x124` / `+0x128`
+/// itself, then counts rows and section headers; BW12).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NeighborInit {
+    pub deals: Vec<DealRef>,
+    pub count_a: u32,
+    pub count_b: u32,
 }
 
 /// `IndividualRestoreInfo` (12 bytes: item, level0 f32, level1 f32, in
@@ -165,8 +180,8 @@ pub struct SubBudgetWindow {
     initialised: bool,
     /// `+0x0C`: the dialog window.
     window: Option<WinRef>,
-    // `+0x10` is released by on_shutdown and the destructor too; who sets it
-    // is not in the spec (BW10), so the core holds nothing there.
+    /// `+0x10`: the content window `on_init` creates (BW10a).
+    content: Option<WinRef>,
     /// `+0x14`: the child (ordinance info popup or empty-group window).
     inner_child: Option<WinRef>,
     /// `+0x1C`: the nested individual dialog.
@@ -210,6 +225,7 @@ impl SubBudgetWindow {
         Self {
             initialised: false,
             window: None,
+            content: None,
             inner_child: None,
             nested: None,
             selector: 0,
@@ -246,6 +262,9 @@ impl SubBudgetWindow {
     }
     pub fn service_kind(&self) -> u32 {
         self.service_kind
+    }
+    pub fn content(&self) -> Option<WinRef> {
+        self.content
     }
     pub fn inner_child(&self) -> Option<WinRef> {
         self.inner_child
@@ -346,8 +365,9 @@ impl SubBudgetWindow {
                 false
             }
             SubBudgetMsg::KeyDown { key, modifiers } => {
-                // BW5 (open): what sets modifier bit 0x4 is not known; only
-                // the raw bit test is implemented.
+                // §4.0 (BW5): bit 0x4 is Alt, so Alt+Enter / Alt+F4 close;
+                // other bits are ignored. Whether those keystrokes reach the
+                // dialog at runtime is BW11, outside the core.
                 let close =
                     key == KEY_ESC || ((key == KEY_ENTER || key == KEY_0X73) && modifiers & KEY_CLOSE_MODIFIER != 0);
                 if !close {
@@ -375,6 +395,9 @@ impl SubBudgetWindow {
             return true;
         }
         host.hidden_pause();
+        // The string loads between the pause and the content window are
+        // layout (§8); nothing the core keeps.
+        self.create_content(host, win);
         match self.mode() {
             SubBudgetMode::Ordinances => {
                 host.load_background(win, BG_TYPE, BG_GROUP, BG_ORDINANCES);
@@ -382,11 +405,20 @@ impl SubBudgetWindow {
                 self.ordinance_count = init.rows.len() as u32;
                 self.ordinances = init.rows;
                 self.row_map = init.row_map;
+                // Increments only, from whatever the fields hold (BW12).
+                self.list_a.len = self.list_a.len.wrapping_add(init.added_a);
+                self.list_b.len = self.list_b.len.wrapping_add(init.added_b);
+                // The helper's own arrow copy: strict bound (`JAE`).
+                self.create_scroll_arrows(host, win, false);
             }
             SubBudgetMode::Neighbors => {
                 host.load_background(win, BG_TYPE, BG_GROUP, BG_NEIGHBORS);
                 host.set_neighbor_ui_disable(true);
-                self.deals = host.init_neighbor_budget(win);
+                let init = host.init_neighbor_budget(win);
+                self.deals = init.deals;
+                self.list_a.len = init.count_a;
+                self.list_b.len = init.count_b;
+                self.create_scroll_arrows(host, win, true);
             }
             SubBudgetMode::Individual(dept) => {
                 // The kind is set inside initIndividualBudget; where in it,
@@ -401,11 +433,73 @@ impl SubBudgetWindow {
         true
     }
 
+    /// §4 (BW10a): the content window `+0x10`, in every mode, before the
+    /// selector branch.
+    fn create_content<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef) {
+        // Literal reading of "if that fails, +0x10 stays null and nothing
+        // below runs": the flag/ID/ChildAdd steps are skipped and on_init
+        // goes on to the mode branch (BW13).
+        let Some(c) = host.create_content_window() else { return };
+        // cRZAutoRefCount<cIGZWin>::operator=: the reference +0x10 holds.
+        host.add_ref_win(c);
+        self.content = Some(c);
+        for (flag, on) in CONTENT_GENERATOR_FLAGS {
+            host.set_generator_flag(c, flag, on);
+        }
+        for (flag, on) in CONTENT_WIN_FLAGS {
+            host.set_win_flag(c, flag, on);
+        }
+        host.set_win_id(c, CONTENT_WIN_ID);
+        host.child_add(win, c);
+        host.release_generator(c);
+    }
+
+    /// §5.3 (BW10c, BW12): the four scroll arrows and their initial state.
+    /// `inclusive`: hide a down arrow when its count is `<= 9` (group and
+    /// neighbour modes); otherwise when `< 9` (the ordinance helper). Up
+    /// arrows are always hidden; a down arrow not hidden is left as created.
+    fn create_scroll_arrows<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, inclusive: bool) {
+        for (id, image) in [
+            (BTN_LIST_A_UP, ARROW_UP_IMAGE),
+            (BTN_LIST_A_DOWN, ARROW_DOWN_IMAGE),
+            (BTN_LIST_B_UP, ARROW_UP_IMAGE),
+            (BTN_LIST_B_DOWN, ARROW_DOWN_IMAGE),
+        ] {
+            let button = host.add_image_button2(win, id, image);
+            host.set_notification_target(button, win);
+        }
+        // Unsigned u32 compares with 9 (a count of 0x80000000 is large).
+        let hide = |len: u32| {
+            if inclusive {
+                len <= LIST_ROWS_VISIBLE
+            } else {
+                len < LIST_ROWS_VISIBLE
+            }
+        };
+        // Hide order 0x451, 0x452, 0x453, 0x454 follows the compare
+        // addresses (0x452 before 0x454); the spec lists no other order.
+        host.set_child_visible(win, BTN_LIST_A_UP, false);
+        if hide(self.list_a.len) {
+            host.set_child_visible(win, BTN_LIST_A_DOWN, false);
+        }
+        host.set_child_visible(win, BTN_LIST_B_UP, false);
+        if hide(self.list_b.len) {
+            host.set_child_visible(win, BTN_LIST_B_DOWN, false);
+        }
+    }
+
     /// §4, §4.1: group mode.
     fn init_group<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, group: u32) {
         let depts = host.department_budgets_in_group(group);
         let (mut a, mut b) = (0u32, 0u32);
+        // BW10b: +0x38 is emptied, then one pair per department is saved
+        // inside the counting loop, before any visibility test. The pair
+        // holds the department "with a reference"; DeptRef is an opaque
+        // host handle and the matching release is not specified (BW14).
+        self.saved_fractions.clear();
         for &dept in &depts {
+            let f = host.funding_percentage(dept);
+            self.saved_fractions.push((f, dept));
             let (mut first_a, mut first_b) = (true, true);
             for item in host.department_line_items(dept) {
                 let income = item.kind == LINE_ITEM_INCOME;
@@ -430,8 +524,7 @@ impl SubBudgetWindow {
         self.list_b.len = b;
         host.load_background(win, BG_TYPE, BG_GROUP, BG_GROUP_MODE);
         if a == 0 && b == 0 {
-            // "No list is built": no slider rows and no saved fractions are
-            // taken (literal reading; BW10).
+            // BW10b: no slider rows, no arrows; +0x38 keeps its pairs.
             self.inner_child = host.set_empty_window(win);
             return;
         }
@@ -439,9 +532,9 @@ impl SubBudgetWindow {
         for dept in depts {
             let slider = host.add_department_row(win, group, dept);
             self.sliders.push(SliderInfo { slider, dept });
-            let f = host.funding_percentage(dept);
-            self.saved_fractions.push((f, dept));
         }
+        // BW10c: unclamped counts, inclusive bound.
+        self.create_scroll_arrows(host, win, true);
     }
 
     /// `on_shutdown` (`0x0077E440`, §4).
@@ -460,8 +553,12 @@ impl SubBudgetWindow {
         self.ordinances.clear();
         // The AddRef/Release of the object itself around this is a
         // lifetime guard of the native object; nothing to model.
+        // Release +0x0C, then +0x10 (each nulled first).
         if let Some(w) = self.window.take() {
             host.release_win(w);
+        }
+        if let Some(c) = self.content.take() {
+            host.release_win(c);
         }
         true
     }
@@ -774,12 +871,16 @@ impl SubBudgetWindow {
 
     /// The last Release: the destructor's base cleanup (`0x0077C4C0`)
     /// releases `+0x1C`, `+0x18`, `+0x14`, `+0x10`, `+0x0C` when non-null.
-    /// Of these the core holds `+0x1C`, `+0x14` and `+0x0C`.
+    /// Of these the core holds all but `+0x18`, which nothing in the spec
+    /// sets.
     pub fn release_final<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
         if let Some(mut n) = self.nested.take() {
             n.release_final(host);
         }
         if let Some(c) = self.inner_child.take() {
+            host.release_win(c);
+        }
+        if let Some(c) = self.content.take() {
             host.release_win(c);
         }
         if let Some(w) = self.window.take() {

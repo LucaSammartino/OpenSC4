@@ -135,3 +135,28 @@ pub const FUNDING_SCALE: f32 = 0.01;
 pub const CAMERA_JUMP_FILL: f32 = 0.0;
 /// §2.1: `ShowWindow`'s flag cleared on the shown tab.
 pub const PANEL_TAB_SHOWN_FLAG: u32 = 0x800;
+/// §4 (BW10a): the content window `+0x10`'s ID.
+pub const CONTENT_WIN_ID: u32 = 0x0423_278E;
+/// §4 (BW10a): content window generator flags (generator slot 6), in order.
+pub const CONTENT_GENERATOR_FLAGS: [(u32, bool); 8] = [
+    (1, false),
+    (2, false),
+    (0x10000, false),
+    (0x20, false),
+    (0x40, false),
+    (0x1000, true),
+    (0x2000, true),
+    (0x4000, true),
+];
+/// §4 (BW10a): content window `SetFlag` calls (slot 68), in order.
+pub const CONTENT_WIN_FLAGS: [(u32, bool); 6] = [
+    (0x100, true),
+    (0x10000, true),
+    (0x20_0000, false),
+    (0x800, false),
+    (0x8000, false),
+    (4, true),
+];
+/// §5.3 (BW10c): `add_image_button2` image instances of the scroll arrows.
+pub const ARROW_UP_IMAGE: u32 = 0x1401_55CB;
+pub const ARROW_DOWN_IMAGE: u32 = 0x1401_55CC;

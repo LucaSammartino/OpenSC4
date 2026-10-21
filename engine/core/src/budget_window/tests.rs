@@ -13,6 +13,7 @@ use super::*;
 
 const WIN: WinRef = 77;
 const NESTED_WIN: WinRef = 78;
+const CONTENT: WinRef = 900;
 
 #[derive(Clone, Copy, Debug, Default)]
 struct Deal {
@@ -50,6 +51,8 @@ struct Rec {
     query: Option<FundingPair>,
     slider_missing: bool,
     slider_pos: i32,
+    content_fails: bool,
+    nb_counts: (u32, u32),
     paused: i32,
     pause_msgs: Vec<bool>,
     paused_in_modal: Vec<i32>,
@@ -127,6 +130,23 @@ impl BudgetWindowHost for Rec {
     fn remove_child(&mut self, _: WinRef, c: Option<WinRef>) {
         self.l(format!("remove_child {c:?}"));
     }
+    fn create_content_window(&mut self) -> Option<WinRef> {
+        self.l("content_create".into());
+        if self.content_fails {
+            return None;
+        }
+        Some(CONTENT)
+    }
+    fn child_add(&mut self, w: WinRef, c: WinRef) {
+        self.l(format!("child_add {w} {c}"));
+    }
+    fn add_image_button2(&mut self, _: WinRef, id: u32, image: u32) -> WinRef {
+        self.l(format!("button {id:#x} {image:#x}"));
+        1000 + id as WinRef
+    }
+    fn set_notification_target(&mut self, c: WinRef, t: WinRef) {
+        self.l(format!("target {c} {t}"));
+    }
     fn set_child_visible(&mut self, _: WinRef, id: u32, on: bool) {
         self.l(format!("arrow {id:#x} {on}"));
     }
@@ -201,8 +221,12 @@ impl BudgetWindowHost for Rec {
         self.ui_disabled = on;
         self.l(format!("uidisable {on}"));
     }
-    fn init_neighbor_budget(&mut self, _: WinRef) -> Vec<DealRef> {
-        self.deal_list.clone()
+    fn init_neighbor_budget(&mut self, _: WinRef) -> NeighborInit {
+        NeighborInit {
+            deals: self.deal_list.clone(),
+            count_a: self.nb_counts.0,
+            count_b: self.nb_counts.1,
+        }
     }
     fn update_neighbor_budget(&mut self, _: WinRef, _: &[DealRef], v: ScrollView) {
         self.l(format!("upd_nb {} {}", v.a, v.b));
@@ -668,6 +692,7 @@ fn ordinance_apply_calls_only_changed_rows() {
             },
         ],
         row_map: vec![2, 0, 1],
+        ..Default::default()
     };
     h.checks.extend([(300, 1u8), (301, 1), (302, 0)]);
     let mut d = open(&mut h, 1, 0);
@@ -860,14 +885,17 @@ fn on_shutdown_releases_window_once_initialised() {
                 edited: 1,
             }],
             row_map: vec![0],
+            ..Default::default()
         },
         ..Default::default()
     };
     let mut d = open(&mut h, 1, 0);
     h.log.clear();
     assert!(d.do_win_msg(&mut h, WIN, SubBudgetMsg::Shutdown));
-    assert_eq!(h.log, ["release 77"]);
+    // +0x0C, then +0x10 (BW9, BW10a).
+    assert_eq!(h.log, ["release 77", "release 900"]);
     assert_eq!(d.window(), None);
+    assert_eq!(d.content(), None);
     assert!(!d.is_initialised());
     assert_eq!(d.ordinance_count(), 1);
     assert!(d.ordinances().is_empty());
@@ -1078,4 +1106,199 @@ fn panel_refreshes_at_most_once_per_tick() {
     p.do_message(&mut h, PANEL_MSG_TICK);
     p.do_message(&mut h, PANEL_MSG_TICK);
     assert_eq!(h.count("balance"), 1);
+}
+
+fn arrows(h: &Rec) -> Vec<String> {
+    h.log.iter().filter(|s| s.starts_with("arrow ")).cloned().collect()
+}
+
+/// §9 test 14: Alt (bit 0x4) with Enter / F4 closes; other masks do not.
+#[test]
+fn alt_enter_and_alt_f4_close() {
+    for key in [KEY_ENTER, KEY_0X73] {
+        for (mask, closes) in [
+            (0x4, true),
+            (0x5, true),
+            (0x4000_0004, true),
+            (0x1, false),
+            (0x2, false),
+            (0, false),
+        ] {
+            let mut h = group_host();
+            let mut d = open(&mut h, GROUP_UTILITIES, 0);
+            let before = h.log.len();
+            let r = d.do_win_msg(&mut h, WIN, SubBudgetMsg::KeyDown { key, modifiers: mask });
+            assert_eq!(r, closes, "key {key:#x} mask {mask:#x}");
+            assert_eq!(h.log.len() > before, closes, "key {key:#x} mask {mask:#x}");
+        }
+    }
+}
+
+/// §9 test 15 (BW10a): the content window `+0x10` in every mode.
+#[test]
+fn content_window_created_in_every_mode() {
+    for (selector, dept) in [
+        (SELECTOR_ORDINANCES, 0),
+        (SELECTOR_NEIGHBORS, 0),
+        (GROUP_UTILITIES, 0),
+        (0, 0x2B),
+    ] {
+        let mut h = group_host();
+        let mut d = open(&mut h, selector, dept);
+        assert_eq!(d.content(), Some(CONTENT));
+        let start = h.pos("content_create");
+        let mut want = vec!["content_create".to_string(), format!("addref {CONTENT}")];
+        want.extend(
+            CONTENT_GENERATOR_FLAGS
+                .iter()
+                .map(|(f, on)| format!("genflag {f:#x} {on}")),
+        );
+        want.extend(CONTENT_WIN_FLAGS.iter().map(|(f, on)| format!("winflag {f:#x} {on}")));
+        want.extend([
+            "id 0x423278e".to_string(),
+            format!("child_add {WIN} {CONTENT}"),
+            format!("release_gen {CONTENT}"),
+        ]);
+        assert_eq!(h.log[start..start + want.len()], want[..], "selector {selector}");
+        // Before the selector branch.
+        if let Some(bg) = h.log.iter().position(|s| s.starts_with("bg ")) {
+            assert!(start < bg);
+        }
+        assert!(d.on_shutdown(&mut h));
+        assert_eq!(d.content(), None);
+        assert!(h.pos(&format!("release {WIN}")) < h.pos(&format!("release {CONTENT}")));
+    }
+    // Create fails: +0x10 stays null, no ChildAdd, the mode is still built
+    // (literal reading, BW13).
+    let mut h = group_host();
+    h.content_fails = true;
+    let d = open(&mut h, GROUP_UTILITIES, 0);
+    assert_eq!(d.content(), None);
+    assert!(h.count("child_add") == 0 && h.count("id 0x423278e") == 0);
+    assert!(d.is_initialised() && h.has("bg 0x140155d2"));
+}
+
+/// The destructor releases `+0x14`, `+0x10`, `+0x0C` in that order.
+#[test]
+fn release_final_releases_content() {
+    let mut h = group_host();
+    let mut d = open(&mut h, GROUP_UTILITIES, 0);
+    let start = h.log.len();
+    d.release_final(&mut h);
+    assert_eq!(h.log[start..], [format!("release {CONTENT}"), format!("release {WIN}")]);
+}
+
+/// §9 test 16 (BW10b): an all-hidden group keeps one saved pair per
+/// department, no slider rows and no arrows.
+#[test]
+fn empty_group_keeps_saved_pairs() {
+    let mut h = Rec {
+        group: vec![1, 2],
+        ..Default::default()
+    };
+    h.funding.extend([(1, 0.25f32), (2, 0.5)]);
+    for d in 1..=2 {
+        h.items.insert(d, vec![item(2, 5, 1, 0, 0)]);
+    }
+    let mut d = open(&mut h, GROUP_CIVIC, 0);
+    assert_eq!((d.list_a().len, d.list_b().len), (0, 0));
+    assert!(d.sliders().is_empty());
+    assert_eq!(d.saved_fractions(), &[(0.25f32, 1), (0.5, 2)]);
+    assert!(h.count("button ") == 0 && arrows(&h).is_empty());
+    // A later restore writes each saved fraction back unchanged.
+    d.restore_start_settings(&mut h);
+    // A group with no departments has no pairs.
+    let mut h = Rec::default();
+    let d = open(&mut h, GROUP_CIVIC, 0);
+    assert!(d.saved_fractions().is_empty());
+}
+
+/// §9 test 17 (BW10c): group mode, A = 9, B = 10.
+#[test]
+fn group_initial_arrows() {
+    let mut h = Rec {
+        group: vec![1],
+        ..Default::default()
+    };
+    h.funding.insert(1, 0.5);
+    let mut items: Vec<_> = (0..8).map(|i| item(1, 200 + i, 1, 0, 0)).collect();
+    items.extend((0..9).map(|i| item(2, 300 + i, 1, 0, 0)));
+    h.items.insert(1, items);
+    let d = open(&mut h, GROUP_UTILITIES, 0);
+    assert_eq!((d.list_a().len, d.list_b().len), (9, 10));
+    let mut want = Vec::new();
+    for (id, img) in [
+        (0x451u32, 0x140155cbu32),
+        (0x452, 0x140155cc),
+        (0x453, 0x140155cb),
+        (0x454, 0x140155cc),
+    ] {
+        want.push(format!("button {id:#x} {img:#x}"));
+        want.push(format!("target {} {WIN}", 1000 + id));
+    }
+    let start = h.pos("button 0x451 0x140155cb");
+    assert_eq!(h.log[start..start + 8], want[..]);
+    assert_eq!(
+        arrows(&h),
+        ["arrow 0x451 false", "arrow 0x452 false", "arrow 0x453 false"]
+    );
+}
+
+/// §9 test 18 (BW12) and the boundary table: ordinance bound `< 9`,
+/// group and neighbour `<= 9`, unsigned counts.
+#[test]
+fn selector_initial_arrows() {
+    let ord = |a: u32, b: u32| {
+        let mut h = Rec {
+            ord: OrdinanceInit {
+                added_a: a,
+                added_b: b,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let d = open(&mut h, SELECTOR_ORDINANCES, 0);
+        assert_eq!((d.list_a().len, d.list_b().len), (a, b));
+        arrows(&h)
+    };
+    let nb = |a: u32, b: u32| {
+        let mut h = Rec {
+            nb_counts: (a, b),
+            ..Default::default()
+        };
+        let d = open(&mut h, SELECTOR_NEIGHBORS, 0);
+        assert_eq!((d.list_a().len, d.list_b().len), (a, b));
+        assert_eq!(h.count("button "), 4);
+        arrows(&h)
+    };
+    assert_eq!(
+        ord(9, 8),
+        ["arrow 0x451 false", "arrow 0x453 false", "arrow 0x454 false"]
+    );
+    assert_eq!(
+        nb(9, 8),
+        [
+            "arrow 0x451 false",
+            "arrow 0x452 false",
+            "arrow 0x453 false",
+            "arrow 0x454 false"
+        ]
+    );
+    let all = [
+        "arrow 0x451 false",
+        "arrow 0x452 false",
+        "arrow 0x453 false",
+        "arrow 0x454 false",
+    ];
+    let ups = ["arrow 0x451 false", "arrow 0x453 false"];
+    for (n, ord_hidden, nb_hidden) in [
+        (0u32, true, true),
+        (8, true, true),
+        (9, false, true),
+        (10, false, false),
+        (0x8000_0000, false, false),
+    ] {
+        assert_eq!(ord(n, n), if ord_hidden { &all[..] } else { &ups[..] }, "ordinance {n}");
+        assert_eq!(nb(n, n), if nb_hidden { &all[..] } else { &ups[..] }, "neighbour {n}");
+    }
 }
