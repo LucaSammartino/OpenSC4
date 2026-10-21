@@ -306,6 +306,15 @@ cS3DCamera	camera and projection	renderer	camera.md	-	-	-
 fn:GZCOM_CreatecS3DCamera	camera and projection	renderer	camera.md	-	-	-
 fn:GZCOM_CreatecSC4CameraControl	camera and projection	renderer	camera.md	-	-	-
 fn:IntersectWithGroundPlane	camera and projection	renderer	camera.md	-	-	-
+cS3DTextureBindingFactory	textures and materials	renderer	texture-bindings.md	-	-	-
+cS3DTextureBinding	textures and materials	renderer	texture-bindings.md	-	-	-
+cS3DMaterialManager	textures and materials	renderer	texture-bindings.md	-	-	-
+cS3DMaterial	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:GZCOM_CreatecS3DTextureBindingFactory	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:GZCOM_cS3DTextureBindingFactoryCLSID	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:GZCOM_CreatecS3DMaterialManager	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:GZCOM_cS3DMaterialManagerCLSID	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:NextPowerOfTwo	textures and materials	renderer	texture-bindings.md	-	-	-
 cS3D*	3D scene and models	renderer	-	-	-	-
 nS3D*	3D scene and models	renderer	-	-	-	-
 cSC43D*	3D scene and models	renderer	-	-	-	-

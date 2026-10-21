@@ -9127,15 +9127,18 @@ va	name	source	confidence	note
 00800650	cGZPersistResourceFactory::CreateInstance	auto:C	high	mac 00259c14 score 1.0 support 1
 00800860	cS3DFSHTextureFactory::SerialRead	auto:A	high	mac 0034db0e score 0.589 support 0
 00800b80	cGZPersistResourceFactory::CreateInstance	auto:C	high	mac 00259abc score 1.0 support 1
-00800bf0	GZCOM_cS3DMaterialManagerCLSID	auto:A	low	mac 003dd240 score 1.0 support 0
-00800c00	cS3DMaterialManager::QueryInterface	auto:A	high	mac 003dd32c score 1.0 support 0
+00800bf0	GZCOM_cS3DMaterialManagerCLSID	manual:texture-bindings.tsv	high	texture-bindings.md §3; returns 0x9AC0E23D
+00800c00	cS3DMaterialManager::QueryInterface	manual:texture-bindings.tsv	high	texture-bindings.md §3; slot 0 of 0x00ABD3F4; 0xFAC0E21A, else the system service at +4
 00800c30	icf::cGZDrawSystem::AddRef	folded	folded	2 names: cGZDrawSystem::AddRef | cS3DMaterialManager::AddRef
 00800c40	icf::cGZDrawSystem::Release	folded	folded	2 names: cGZDrawSystem::Release | cS3DMaterialManager::Release
-00800c50	cS3DMaterialManager::GetStatsString	auto:A	high	mac 003dd3a0 score 1.0 support 0
-00800ce0	cS3DMaterialManager::~cS3DMaterialManager	auto:C	high	mac 003dd2f6 score 1.0 support 1
-00800d20	cS3DMaterial::cS3DMaterial	auto:D	medium	mac 0062c366 score 0.5 support 1
-00800d70	cS3DMaterialManager::CreateMaterial	auto:C	high	mac 003dd3bc score 1.0 support 1
-00800e30	cS3DMaterialManager::cS3DMaterialManager	auto:A	high	mac 003dd24a score 1.0 support 0
+00800c50	cS3DMaterialManager::GetStatsString	manual:texture-bindings.tsv	high	texture-bindings.md §3; slot 5; "Nothing to report"
+00800c70	cS3DMaterialManager::QueryInterface (thunk at +4)	manual:texture-bindings.tsv	high	texture-bindings.md §3; descriptive name; this - 4; slot 0 of 0x00ABD3C0
+00800ca0	cS3DMaterialManager::QueryInterface (thunk at +8)	manual:texture-bindings.tsv	high	texture-bindings.md §3; descriptive name; this - 8; slot 0 of 0x00ABD3A8
+00800cd0	cS3DMaterialManager::~cS3DMaterialManager (thunk)	manual:texture-bindings.tsv	high	texture-bindings.md §3; descriptive name; this - 8 to the deleting destructor; slot 3 of 0x00ABD3A8
+00800ce0	cS3DMaterialManager::~cS3DMaterialManager (deleting destructor)	manual:texture-bindings.tsv	high	texture-bindings.md §3; was cS3DMaterialManager::~cS3DMaterialManager; GlobalHeapFree on bit 0
+00800d20	cS3DMaterial::cS3DMaterial	manual:texture-bindings.tsv	high	texture-bindings.md §3; two texture slots: wrap 3, 3, filters 1, 1, slot byte 1, float 1.0
+00800d70	cS3DMaterialManager::CreateMaterial	manual:texture-bindings.tsv	high	texture-bindings.md §3; slot 3; 0x34-byte material, flags | 0x180, slots past T marked 0xFF, count 1
+00800e30	GZCOM_CreatecS3DMaterialManager	manual:texture-bindings.tsv	high	texture-bindings.md §3; was cS3DMaterialManager::cS3DMaterialManager; GlobalHeapAlloc(0x20), service 0x1AC0E11B; registered by the COM director 0x0046059E
 00800e80	cS3DVertexArray::cS3DVertexArray	auto:D	medium	mac 00660e72 score 0.5 support 1
 00800ec0	cS3DMesh::~cS3DMesh	auto:D	medium	mac 0062bef4 score 0.5 support 1
 00801140	cS3DMeshBuilder::Mesh	auto:B6	medium	mac 0015127c score 0.919 support 2.0
@@ -9178,46 +9181,63 @@ va	name	source	confidence	note
 00808ce0	cS3DShapeFile::SetCurrentFrameByIndex	auto:B0	medium	mac 0035045c score 0.974 support 2.0
 00808f00	cS3DShapeFile::Open	auto:D	medium	mac 003504d0 score 0.5 support 1
 00808fd0	cS3DShapeFile::OpenInfoOnly	auto:D	medium	mac 003505e2 score 0.5 support 1
-008090c0	cS3DTextureBinding::cS3DTextureBinding	auto:B0	medium	mac 000a0290 score 1.0 support 1.0
-008090e0	cS3DTextureBinding::Release	auto:B1	medium	mac 000a02c2 score 0.944 support 6.0
-00809120	GZCOM_cS3DTextureBindingFactoryCLSID	auto:A	low	mac 00240914 score 1.0 support 0
-00809130	cS3DTextureBindingFactory::QueryInterface	auto:C	high	mac 002409bc score 1.0 support 1
-008091b0	cS3DTextureBindingFactory::AddRef	auto:C	low	mac 00240a14 score 1.0 support 2
-008091c0	cS3DTextureBindingFactory::Release	auto:C	low	mac 00240a22 score 1.0 support 2
-008091d0	cS3DTextureBindingFactory::Shutdown	auto:C	high	mac 0024091e score 1.0 support 1
+008090c0	cS3DTextureBinding::cS3DTextureBinding	manual:texture-bindings.tsv	high	texture-bindings.md §2; handles, frame count, factory, count 0
+008090e0	cS3DTextureBinding::Release	manual:texture-bindings.tsv	high	texture-bindings.md §2; at a count of 1 with a factory: factory slot 18 FreeBinding
+00809120	GZCOM_cS3DTextureBindingFactoryCLSID	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; returns 0x9AC0E23C
+00809130	cS3DTextureBindingFactory::QueryInterface	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; slot 0 of 0x00ABD8C8; 1, 0xFAC0E219 this; 0x088CEB67 +4; 0x287FB697 +8
+008091b0	cS3DTextureBindingFactory::AddRef	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; slot 1; the system service's at +8
+008091c0	cS3DTextureBindingFactory::Release	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; slot 2; the system service's at +8
+008091d0	cS3DTextureBindingFactory::Shutdown	manual:texture-bindings.tsv	high	texture-bindings.md §1.3; system-service slot 9; FlushAll, releases, unsubscribes 0x8ACAA95F
 00809240	icf::cS3DTextureBindingFactory::GetResGroup	folded	folded	4 names: cS3DTextureBindingFactory::GetResGroup | cSC4PowerSimulator::GetUnpoweredConsumerCount | cSC4PylonOccupant::GetDispatchState | cSC4ResidentialSimulator::GetSchoolAverageGradeMap
 00809250	icf::cGZBufferSimGLCache::GetLastAccess	folded	folded	3 names: cGZBufferSimGLCache::GetLastAccess | cS3DTextureBindingFactory::GetFreePoolMax | cSC4OrdinanceSimple::GetYearFirstAvailable
-00809260	cS3DTextureBindingFactory::GetStatsString	auto:A	high	mac 00240b60 score 1.0 support 0
-008092f0	cS3DTextureBindingFactory::SetGDriver	auto:C	high	mac 00240c30 score 1.0 support 1
-00809330	cS3DTextureBindingFactory::FindBindingParams	auto:D	medium	mac 00240cb8 score 0.5 support 1
-008093a0	cS3DTextureBindingFactory::Init	auto:C	high	mac 00240a30 score 1.0 support 1
-008094c0	cS3DTextureBindingFactory::GetBinding	auto:C	high	mac 00240c7a score 1.0 support 1
+00809260	cS3DTextureBindingFactory::GetStatsString	manual:texture-bindings.tsv	high	texture-bindings.md §1.10; slot 17; in use, awaiting reuse, total, MB = bytes * 2^-20
+008092f0	cS3DTextureBindingFactory::SetGDriver	manual:texture-bindings.tsv	high	texture-bindings.md §1.3; slot 3; FlushAll before the swap
+00809330	cS3DTextureBindingFactory::FindBindingParams	manual:texture-bindings.tsv	high	texture-bindings.md §1.4; internal format 0-7 from the image format, alpha bits and bit depth +0x68
+008093a0	cS3DTextureBindingFactory::Init	manual:texture-bindings.tsv	high	texture-bindings.md §1.3; system-service slot 8; resource manager 0x056B906E, graphic system 0xC47B747C, message server 0x04FA845B
+008094c0	cS3DTextureBindingFactory::GetBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; slot 5 (ID): key (0x7AB50E44, 0x1ABE787D, ID) to slot 6
+008094f0	cS3DTextureBindingFactory::FindBindingDimensions	manual:texture-bindings.tsv	high	texture-bindings.md §1.4; descriptive name, no Mac match; powers of two, levels and sizes less the LOD offset +0x6C
 00809580	std::list<cS3DTextureBindingFactory::cBindingRec*,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::remove	auto:D	medium	mac 006d63fa score 0.5 support 1
 008095c0	__gnu_cxx::hashtable<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>,cS3DTextureBindingFactory::tResTextureKey,cS3DTextureBindingFactory::ResTextureKeyHash,std::_Select1st<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>>,std::equal_to<cS3DTextureBindingFactory::tResTextureKey>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::find	auto:D	medium	mac 006d5f5c score 0.5 support 1
 00809600	__gnu_cxx::hashtable<std::pair<cS3DTextureBinding*const,cS3DTextureBindingFactory::cBindingRec*>,cS3DTextureBinding*,cS3DTextureBindingFactory::cS3DTextureBindingHash,std::_Select1st<std::pair<cS3DTextureBinding*const,cS3DTextureBindingFactory::cBindingRec*>>,std::equal_to<cS3DTextureBinding*>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::erase	auto:B2	medium	mac 006d6056 score 0.939 support 1.0
+00809690	cS3DTextureBindingFactory::EraseKeyEntry	manual:texture-bindings.tsv	high	texture-bindings.md §1.9; descriptive name, no Mac match; removes one node of the key table; called by SetResGroup
 00809710	__gnu_cxx::hashtable<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>,cS3DTextureBindingFactory::tResTextureKey,cS3DTextureBindingFactory::ResTextureKeyHash,std::_Select1st<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>>,std::equal_to<cS3DTextureBindingFactory::tResTextureKey>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::erase	auto:B1	medium	mac 006d619e score 0.929 support 2.0
 008097b0	__gnu_cxx::hashtable<std::pair<cS3DTextureBinding*const,cS3DTextureBindingFactory::cBindingRec*>,cS3DTextureBinding*,cS3DTextureBindingFactory::cS3DTextureBindingHash,std::_Select1st<std::pair<cS3DTextureBinding*const,cS3DTextureBindingFactory::cBindingRec*>>,std::equal_to<cS3DTextureBinding*>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::find_or_insert	auto:B0	medium	mac 006d7118 score 0.931 support 1.0
 00809820	__gnu_cxx::hashtable<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>,cS3DTextureBindingFactory::tResTextureKey,cS3DTextureBindingFactory::ResTextureKeyHash,std::_Select1st<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>>,std::equal_to<cS3DTextureBindingFactory::tResTextureKey>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::find_or_insert	auto:B0	medium	mac 006d6aac score 0.931 support 1.0
-00809890	cS3DTextureBindingFactory::~cS3DTextureBindingFactory	auto:B0	medium	mac 0024148c score 0.977 support 1.0
-00809910	cS3DTextureBindingFactory::SetLodOffset	auto:C	low	mac 006d55ee score 1.0 support 1
-00809b00	cS3DTextureBindingFactory::SetResGroup	auto:C	high	mac 00240dca score 1.0 support 1
-00809b90	cS3DTextureBindingFactory::SetBindingImageData	auto:C	high	mac 0024123a score 1.0 support 1
-00809cd0	cS3DTextureBindingFactory::GetFreeBinding	auto:B4	medium	mac 00240f7a score 0.925 support 1.0
-00809e10	cS3DTextureBindingFactory::GetBindingInfo	auto:C	high	mac 00241372 score 1.0 support 1
-00809eb0	cS3DTextureBindingFactory::DestroyBinding	auto:B0	medium	mac 00240d3e score 0.959 support 2.0
+00809890	cS3DTextureBindingFactory::~cS3DTextureBindingFactory	manual:texture-bindings.tsv	high	texture-bindings.md §1.3; Shutdown, then the tables
+00809910	cS3DTextureBindingFactory::SetLodOffset	manual:texture-bindings.tsv	high	texture-bindings.md §1.9; slot 9; +0x6C
+00809920	cS3DTextureBindingFactory::QueryInterface (thunk at +4)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 4; slot 0 of 0x00ABD8B8
+00809930	cS3DTextureBindingFactory::AddRef (thunk at +4)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 4
+00809940	cS3DTextureBindingFactory::Release (thunk at +4)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 4
+00809950	cS3DTextureBindingFactory::QueryInterface (thunk at +8)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 8; slot 0 of 0x00ABD884
+00809960	cS3DTextureBindingFactory::AddRef (thunk at +8)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 8
+00809970	cS3DTextureBindingFactory::Release (thunk at +8)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 8
+00809980	cS3DTextureBindingFactory::QueryInterface (thunk at +0xC)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0xC; slot 0 of 0x00ABD86C
+00809990	cS3DTextureBindingFactory::AddRef (thunk at +0xC)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0xC
+008099a0	cS3DTextureBindingFactory::Release (thunk at +0xC)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0xC
+008099b0	cS3DTextureBindingFactory::~cS3DTextureBindingFactory (thunk)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0xC to the deleting destructor; slot 3 of 0x00ABD86C
+008099c0	cS3DTextureBindingFactory::QueryInterface (thunk at +0x24)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0x24; slot 0 of 0x00ABD85C
+008099d0	cS3DTextureBindingFactory::AddRef (thunk at +0x24)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0x24
+008099e0	cS3DTextureBindingFactory::Release (thunk at +0x24)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0x24
+008099f0	cS3DTextureBindingFactory::DoMessage	manual:texture-bindings.tsv	high	texture-bindings.md §1.8; descriptive name; slot 3 of 0x00ABD85C; kSGLMessage_RestoreTextures 0x8ACAA95F reloads keyed textures
+00809b00	cS3DTextureBindingFactory::SetResGroup	manual:texture-bindings.tsv	high	texture-bindings.md §1.9; slot 12; a new group un-keys every record
+00809b90	cS3DTextureBindingFactory::SetBindingImageData	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; slot 7; driver slot 61 per frame and level
+00809cd0	cS3DTextureBindingFactory::GetFreeBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; oldest matching record of the free pool; drops its key
+00809e10	cS3DTextureBindingFactory::GetBindingInfo	manual:texture-bindings.tsv	high	texture-bindings.md §1.10; slot 8
+00809eb0	cS3DTextureBindingFactory::DestroyBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.6; key and binding entries, driver slot 36, frees
 00809f30	__gnu_cxx::hash_map<cS3DTextureBinding*,cS3DTextureBindingFactory::cBindingRec*,cS3DTextureBindingFactory::cS3DTextureBindingHash,std::equal_to<cS3DTextureBinding*>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::operator[]	auto:D	medium	mac 006d71ac score 0.5 support 1
 00809fa0	__gnu_cxx::hash_map<cS3DTextureBindingFactory::tResTextureKey,cS3DTextureBindingFactory::cBindingRec*,cS3DTextureBindingFactory::ResTextureKeyHash,std::equal_to<cS3DTextureBindingFactory::tResTextureKey>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::operator[]	auto:D	medium	mac 006d6b46 score 0.5 support 1
-00809ff0	cS3DTextureBindingFactory::~cS3DTextureBindingFactory	auto:C	high	mac 002413e4 score 1.0 support 1
-0080a010	cS3DTextureBindingFactory::FlushAll	auto:C	high	mac 00240f2c score 1.0 support 1
-0080a0a0	cS3DTextureBindingFactory::AdjustFreePoolSize	auto:D	medium	mac 00240e28 score 0.5 support 2
-0080a110	cS3DTextureBindingFactory::CreateNewBinding	auto:B3	medium	mac 00241678 score 0.933 support 2.0
-0080a320	cS3DTextureBindingFactory::GetBinding	auto:B4	medium	mac 00241ada score 0.954 support 2.0
-0080a380	cS3DTextureBindingFactory::GetBinding	auto:A	high	mac 00241964 score 1.0 support 0
-0080a4d0	cS3DTextureBindingFactory::FreeBinding	auto:C	high	mac 00240e8a score 1.0 support 1
-0080a580	cS3DTextureBindingFactory::SetFreePoolMax	auto:C	high	mac 00240f16 score 1.0 support 1
-0080a590	cS3DTextureBindingFactory::FlushFreePool	auto:C	high	mac 00240eee score 1.0 support 1
-0080a5b0	cS3DTextureBindingFactory::cS3DTextureBindingFactory	auto:B1	medium	mac 0024152c score 0.963 support 3.0
-0080a680	GZCOM_CreatecS3DTextureBindingFactory	auto:B2	medium	mac 0024163c score 0.919 support 1.0
+00809ff0	cS3DTextureBindingFactory::~cS3DTextureBindingFactory (deleting destructor)	manual:texture-bindings.tsv	high	texture-bindings.md §1.3; was cS3DTextureBindingFactory::~cS3DTextureBindingFactory; GlobalHeapFree on bit 0
+0080a010	cS3DTextureBindingFactory::FlushAll	manual:texture-bindings.tsv	high	texture-bindings.md §1.7; slot 16; destroys every record, in use or not
+0080a0a0	cS3DTextureBindingFactory::AdjustFreePoolSize	manual:texture-bindings.tsv	high	texture-bindings.md §1.6; evicts from the back of the free list above the limit +0x64
+0080a110	cS3DTextureBindingFactory::CreateNewBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; driver slot 60 per frame, slot 50 error check, bytes from the bits-per-texel table
+0080a320	cS3DTextureBindingFactory::GetBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; slot 4 (image info): reuse or create, upload, not keyed
+0080a380	cS3DTextureBindingFactory::GetBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; slot 6 (key): key table on (group, instance), else resource manager slot 4 with IID 0x1AB50C3F
+0080a4d0	cS3DTextureBindingFactory::FreeBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.6; slot 18; to the front of the free list, then trim
+0080a580	cS3DTextureBindingFactory::SetFreePoolMax	manual:texture-bindings.tsv	high	texture-bindings.md §1.6; slot 14
+0080a590	cS3DTextureBindingFactory::FlushFreePool	manual:texture-bindings.tsv	high	texture-bindings.md §1.6; slot 15; trim with limit 0
+0080a5b0	cS3DTextureBindingFactory::cS3DTextureBindingFactory	manual:texture-bindings.tsv	high	texture-bindings.md §1.2; service 0x1AC0E11A, pool limit 2,000,000, bit depth 32, group 0x1ABE787D
+0080a680	GZCOM_CreatecS3DTextureBindingFactory	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; GlobalHeapAlloc(0x84) then the constructor
+0080a700	NextPowerOfTwo	manual:texture-bindings.tsv	high	texture-bindings.md §1.4; descriptive name, no Mac match; the smallest power of two >= n, 1 for n <= 1; also called at 0x005D7BDB
 0080ab90	nS3D::CreateTextureFromText	auto:D	medium	mac 0025cc28 score 0.5 support 1
 0080b680	nS3D::RandomDirection2	auto:B1	medium	mac 0022b4d6 score 0.98 support 2.0
 0080b730	nS3D::RandomDirection3	auto:B0	medium	mac 0022b596 score 0.993 support 2.0
@@ -16404,6 +16424,9 @@ va	name	source	confidence	note
 00abace0	cSC4CameraControl::sZoomCellPixels (data, int[5])	manual:camera.tsv	high	camera.md §2.2; 8, 16, 32, 73, 146
 00abad18	cSC4CameraControl::vftable	manual:camera.tsv	high	camera.md §2.1; 7 slots: QueryInterface, AddRef, Release, Write, Read, GetGZCLSID, deleting destructor
 00abd2c4	cS3DCamera::vftable	manual:camera.tsv	high	camera.md §1.1; 4 slots
+00abd774	cS3DTextureBindingFactory::sBitsPerTexel (data, u32[8])	manual:texture-bindings.tsv	high	texture-bindings.md §1.4; 16, 24, 16, 16, 32, 4, 8, 8
+00abd85c	cS3DTextureBindingFactory::vftable_4	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; the message target at +0x24: 3 thunks, DoMessage
+00abd8b8	cS3DTextureBindingFactory::vftable_1	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; the interface 0x088CEB67 at +4: 3 thunks and one more slot
 00ac17ac	nGZDrawSoftRender::cISpanRender::vftable	manual:gzdraw-softrender.tsv	high	installed by the deleting destructor 0082FF00
 00ac17d0	cGZDrawContextRenderToBuffer::vftable	manual:gzdraw-softrender.tsv	high	23 slots, installed by Release 008306C0; slot 21 = Draw 00831000 (symport B1), slot 3 = Init (Mac constant 0x20732180)
 00ac182c	nGZDrawSoftRender::cSpanRender1555::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color types 4 R5G5B5 and 6 A1R5G5B5; Mac __ZTVN17nGZDrawSoftRender15cSpanRender1555E
