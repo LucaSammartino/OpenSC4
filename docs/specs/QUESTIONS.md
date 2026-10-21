@@ -184,7 +184,7 @@ generated index: the questions live one file per spec, so read only the file for
 | port-developers | 1 | 11 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 14 | GLUE22, PV14 | - |
-| prop-lotconfig | 6 | 8 | PL22 | questions/prop-lotconfig.md |
+| prop-lotconfig | 7 | 8 | PL23 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
@@ -194,7 +194,7 @@ generated index: the questions live one file per spec, so read only the file for
 | simgrid | 1 | 0 | SG2 | questions/simgrid.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 2 | SP6 | questions/span-render-4444.md |
-| span-render-565 | 6 | 0 | SR566 | questions/span-render-565.md |
+| span-render-565 | 8 | 0 | SR566 | questions/span-render-565.md |
 | span-render-8 | 3 | 1 | SR9 | questions/span-render-8.md |
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **197** | **1115** | | |
+| **total** | **200** | **1115** | | |
