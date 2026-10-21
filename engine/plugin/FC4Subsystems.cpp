@@ -106,6 +106,7 @@
 #include "FC4CityDetailShadow.h"  // the glue12b1 lane: citydetail_shadow
 #include "cFC4PropDeveloper.h"    // the glue12b1 lane: propdev
 #include "cFC4CityDetail.h"       // the glue12b1 lane: citydetail
+#include "FC4FormatsShadow.h"     // the glue-formats4 lane
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -680,6 +681,8 @@ void Resolve() {
     AutomataShadowStartup(enabledKey("automata"));
     // The MySims shadow (FC4MySimsShadow.h; it compares the original MySim agent + advisors).
     MySimsShadowStartup();
+    // The data-formats shadow (FC4FormatsShadow.h; glue-formats4): core DBPF/exemplar readers vs the game.
+    FormatsShadowStartup();
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // The network tool registry (glue29): with `enable = nettool` the plugin's

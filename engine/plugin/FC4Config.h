@@ -233,6 +233,10 @@
 //   terrain_shadow_points = N     its sample points per month (default 256, 16..4096)
 //   terrain_shadow_diffs = N      its differences named per line (default 8, 1..64)
 //   terrain_shadow_lines = N      its change lines per month (default 8, 0..1000)
+//   formats_shadow = 0 / 1        the data-formats shadow (default 0; core DBPF and exemplar readers vs the
+//                                 game's loaded exemplars, once per session; FC4FormatsShadow.h)
+//   formats_shadow_max = N        exemplars compared per file (default 0 = all)
+//   formats_shadow_lines = N      its detail lines (default 8)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
