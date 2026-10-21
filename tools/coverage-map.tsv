@@ -65,7 +65,7 @@ cVecRange	history	simulation	history.md	core/src/history	history_shadow	history
 cSC424HourClock	24-hour clock	simulation	clock24.md	core/src/clock24	clock24_shadow	clock24
 cSC4CivicBuildingSimulator	civic buildings	simulation	civic-buildings.md	core/src/civic	civic_shadow	civic
 cSC4ParkManager	parks	simulation	parks.md	core/src/parks	parks_shadow	parks
-cSC4SimGrid	sim grids	simulation	simgrid.md	core/src/grid	-	-
+cSC4SimGrid	sim grids	simulation	simgrid.md	core/src/grid	-	simgrids
 cSC4MapUtilities	sim grids	simulation	simgrid.md	core/src/grid	-	-
 # grid iterators used by several simulators: the random cell iterator (GetNext 0x0049CB10; weather.md §6.7, simgrid.md §7.4,
 # core grid/random_iter.rs) and the spiral iterator (0x0043FE10; simgrid.md §7.4, plumbing.md §7.2, core plumbing NearestWater
@@ -148,8 +148,8 @@ cSC4MySimAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MySimBalloonAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4Lot	lots and lot records	simulation	lot-records.md	-	-	-
 cSC4BusinessUnit	lots and lot records	simulation	lot-records.md	-	-	-
-cSC4TripData	lots and lot records	simulation	lot-records.md	-	-	-
-cSC4LotBaseTextureOccupant	lots and lot records	simulation	lot-records.md	-	-	-
+cSC4TripData	lots and lot records	simulation	lot-records.md	core/src/lot_records	-	-
+cSC4LotBaseTextureOccupant	lots and lot records	simulation	lot-records.md	core/src/lot_records	-	-
 cSC4LotRetainingWallOccupant	lots and lot records	simulation	lot-records.md	-	-	-
 cSC4City	city and save file	simulation	foundations.md,save-records.md	core/src/save.rs	-	-
 cSC4DBSegment*	city and save file	simulation	foundations.md	core/src/save.rs,core/src/stream.rs	-	-
