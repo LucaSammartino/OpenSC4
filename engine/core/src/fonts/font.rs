@@ -446,6 +446,60 @@ impl GzFont {
         self.initialised
     }
 
+    // ---- §4.1 family A plain getters and the §4 getter halves --------------------------------
+
+    /// Slot 5, GetName(&out): out ← familyName.
+    pub fn get_name(&self) -> String {
+        self.family_name.clone()
+    }
+    /// Slot 7, GetStyles: styleFlags.
+    pub fn get_styles(&self) -> u32 {
+        self.style_flags
+    }
+    /// Slot 9, GetFaceKind: 1 scalable, 2 fixed-size (set by Init).
+    pub fn get_face_kind(&self) -> u32 {
+        self.face_kind
+    }
+    /// Slot 10, GetSize: pointSize.
+    pub fn get_size(&self) -> u32 {
+        self.point_size
+    }
+    /// Slot 12, GetFontColor: foreground.
+    pub fn get_font_color(&self) -> u32 {
+        self.fg
+    }
+    /// Slot 13, GetFontBackgroundColor: background.
+    pub fn get_font_background_color(&self) -> u32 {
+        self.bg
+    }
+    /// Slot 15, GetAntialiasing.
+    pub fn get_antialiasing(&self) -> u32 {
+        self.aa_mode
+    }
+    /// Slot 17, GetAntialiasingGammaCorrection.
+    pub fn get_aa_gamma(&self) -> f32 {
+        self.aa_gamma
+    }
+    /// Slot 19, GetAntialiasingSharpness.
+    pub fn get_aa_sharpness(&self) -> f32 {
+        self.aa_sharpness
+    }
+    /// Slot 21, GetFilePath(&out): string copy.
+    pub fn get_file_path(&self) -> String {
+        self.file_path.clone()
+    }
+    /// Slot 23, GetCodePage(&cp): always true.
+    pub fn get_code_page(&self) -> (bool, u32) {
+        (true, self.code_page)
+    }
+    /// Slot 33, GetSpacingAdjustment(&char, &line): plain read.
+    pub fn get_spacing_adjustment(&self) -> (i32, i32) {
+        (self.char_spacing, self.line_spacing)
+    }
+    /// Slot 37, CharHeight(a, b): both stack arguments are ignored.
+    pub fn char_height_args(&self, _a: u32, _b: u32) -> i32 {
+        self.char_height
+    }
     pub(crate) fn convert(&self, s: &[u8]) -> Converted {
         encoding::text_as_unicode(&*self.conv, self.code_page, s)
     }
@@ -770,7 +824,8 @@ impl GzFont {
         true
     }
 
-    /// Slot 55.
+    /// Slot 55. Literal reading (FN17 open): the return values and the no-renderer / failed-lock
+    /// and unlock-at-zero paths are not in §9; false and an unchanged count there.
     pub fn lock_surface(&mut self, target: SurfaceId) -> bool {
         if self.surface_lock_count == 0 {
             let ok = self.renderer.as_ref().is_some_and(|r| r.lock_surface(target));

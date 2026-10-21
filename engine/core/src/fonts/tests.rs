@@ -686,3 +686,150 @@ fn fn13_words_and_lines() {
     // The visible width keeps tab but drops trailing U+0020.
     assert_eq!(f.get_string_visible_width(b"ab \t").1, 4);
 }
+
+// ---- §4.1 / §12.1 slot audit: slots no earlier test reached --------------------------------
+
+#[test]
+fn slot_getters_round_trip() {
+    let mut f = font();
+    assert_eq!(f.get_name(), "Arial");
+    assert_eq!(f.get_file_path(), "a.ttf");
+    assert_eq!(f.get_face_kind(), 1);
+    assert_eq!(f.get_size(), 12);
+    f.set_style(0xFF, true);
+    assert_eq!(f.get_styles(), 0x3C);
+    f.set_font_color(0x1234, 0x5678);
+    assert_eq!((f.get_font_color(), f.get_font_background_color()), (0x1234, 0x5678));
+    f.set_antialiasing(0);
+    assert_eq!(f.get_antialiasing(), 1); // Set ignores 0 (FN11 default 1)
+    f.set_aa_gamma(20.0);
+    f.set_aa_sharpness(-3.0);
+    assert_eq!((f.get_aa_gamma(), f.get_aa_sharpness()), (10.0, -1.0));
+    f.set_code_page(1252);
+    assert_eq!(f.get_code_page(), (true, 1252));
+    f.set_spacing_adjustment(2, -1);
+    assert_eq!(f.get_spacing_adjustment(), (2, -1));
+    assert_eq!(f.char_height_args(7, 9), f.char_height());
+    assert!(GzFont::is_char_encoding_available(2));
+    assert!(!GzFont::is_char_encoding_available(1));
+    // Slot 47: (0, 0, GetStringWidth, CharHeight).
+    let w = f.get_string_width(b"aa");
+    assert_eq!(w, 2 * (8 + 2)); // advance 8 plus charSpacing 2, per char
+    let r = f.text_area(b"aa");
+    assert_eq!((r.left, r.top, r.right, r.bottom), (0, 0, w, f.char_height()));
+}
+
+#[test]
+fn char_available_and_preload() {
+    let mut f = font();
+    assert!(f.is_char_available(b""));
+    assert!(f.is_char_available(b"ab"));
+    assert!(!f.is_char_available(b"a\x01"));
+    assert_eq!(f.code_page, 0);
+    assert!(f.preload_chars(b"abc"));
+    assert_eq!(f.appropriate_cache().glyph_count(), 3);
+    let mut u = GzFont::new(lib_with(&[]), Arc::new(Latin1Converter));
+    assert!(!u.preload_chars(b"abc"));
+    assert_eq!(u.appropriate_cache().glyph_count(), 0);
+}
+
+#[derive(Default)]
+struct LogRenderer(std::sync::Mutex<Vec<String>>);
+
+impl FontRenderer for LogRenderer {
+    fn attach(&self, _: usize) {
+        self.0.lock().unwrap().push("attach".into());
+    }
+    fn detach(&self, _: usize) {
+        self.0.lock().unwrap().push("detach".into());
+    }
+    fn lock_surface(&self, _: SurfaceId) -> bool {
+        self.0.lock().unwrap().push("lock".into());
+        true
+    }
+    fn unlock_surface(&self, _: SurfaceId) {
+        self.0.lock().unwrap().push("unlock".into());
+    }
+    fn draw(&self, _: SurfaceId, recs: &[DrawRecord], _: &[u8], c: &DrawColour) {
+        self.0.lock().unwrap().push(format!("draw:{}:{:?}", recs.len(), c));
+    }
+}
+
+#[test]
+fn renderer_slots_and_shutdown() {
+    let mut f = font();
+    let r = Arc::new(LogRenderer::default());
+    let dynr: Arc<dyn FontRenderer> = r.clone();
+    f.set_renderer(Some(dynr.clone()));
+    f.set_renderer(Some(dynr.clone())); // same: nothing
+    assert!(f.get_renderer().is_some_and(|g| Arc::ptr_eq(&g, &dynr)));
+    // Only the 0→1 and 1→0 edges reach the renderer.
+    assert!(f.lock_surface(1));
+    assert!(f.lock_surface(1));
+    f.unlock_surface(1);
+    f.unlock_surface(1);
+    // Shutdown: SetRenderer(null), caches cleared, face closed.
+    f.preload_chars(b"a");
+    assert!(f.shutdown());
+    assert!(f.get_renderer().is_none() && !f.initialised);
+    assert_eq!(f.appropriate_cache().glyph_count(), 0);
+    assert_eq!(*r.0.lock().unwrap(), ["attach", "lock", "unlock", "detach"]);
+    // FinalRelease shuts the font down.
+    let o = FontObj::new(font());
+    assert_eq!(o.add_ref(), 2);
+    assert_eq!(o.release(), 1);
+    assert_eq!(o.release(), 0);
+    assert!(!o.lock().initialised);
+}
+
+#[test]
+fn fontsys_remaining_slots() {
+    let mut s = sys(&[("arial.ttf", "Arial", 0)]);
+    assert_eq!(s.query_interface(super::fontsys::IID_GZ_FONT_SYS2), Some(true));
+    assert_eq!(s.query_interface(super::fontsys::IID_GZ_FONT_SYS), Some(false));
+    assert_eq!(s.query_interface(0x1234), None);
+    assert!(!s.slot16(7));
+    s.add_font_path("arial.ttf");
+    // Slot 9: slot 11 with an empty list, then SetFontColor(colour, 0x08000000).
+    let f = s.font_acquire_by_kind(1, 12, 0, 0xABCD, true).unwrap();
+    assert_eq!(f.lock().get_font_color(), 0xABCD);
+    assert_eq!(f.lock().get_font_background_color(), PEN_DEFAULT_COLOUR);
+    assert_eq!(f.ref_count(), 2);
+    // Release to zero runs Shutdown: the cache lets go of its reference, state is cleared.
+    assert_eq!(s.ref_count, 2); // the two answered QueryInterface calls
+    assert_eq!(s.release(), 1);
+    assert_eq!(s.release(), 0);
+    assert_eq!(f.ref_count(), 1);
+    assert!(!s.initialised && s.catalogue.is_empty() && s.families.is_empty());
+}
+
+#[test]
+fn draw_text_line_slot51_and_paragraph_slot52() {
+    let mut f = font();
+    let r = Arc::new(LogRenderer::default());
+    f.set_renderer(Some(r.clone()));
+    // No target: nothing reaches the renderer, the pen still advances; returns initialised.
+    let mut pen = (10, 5);
+    assert!(f.draw_text_line(None, 0, 0, b"aa", 0x123, 0, None, Some(&mut pen)));
+    assert_eq!(pen, (10 + 2 * 8, 5));
+    // With a target: lock 0→1, one draw with the fg colour (aaMode 1), unlock.
+    assert!(f.draw_text_line(Some(1), 0, 0, b"aa", 0x123, 0, None, None));
+    // Clip rect left of the text: no record overlaps, so no draw call.
+    assert!(f.draw_text_line(Some(1), 100, 0, b"aa", 0x123, 0, Some((0, 0, 50, 50)), None));
+    let rect = Rect { left: 0, top: 0, right: 1000, bottom: 100 };
+    assert!(f.draw_text_paragraph(Some(1), rect, b"aa", 0, 0x123, 0, None));
+    assert_eq!(
+        *r.0.lock().unwrap(),
+        [
+            "attach",
+            "lock",
+            "draw:2:Colour(291)",
+            "unlock",
+            "lock",
+            "unlock",
+            "lock",
+            "draw:2:Colour(291)",
+            "unlock"
+        ]
+    );
+}
