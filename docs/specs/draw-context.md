@@ -253,8 +253,9 @@ base := the index data and `DrawElements(type, count, 3, base + 2 first)`.
 
 ### 9.3 `DrawBoundingBox(box, colour)` (`0x007D5030`)
 
-A shared mesh builder makes the box's line mesh in the colour; it is drawn with the packed state `0x020A8197` /
-mask `0x1E1FE3FF` (writes, depth test less-or-equal, blending 4 / 5) when the box is not empty.
+A shared mesh builder makes the box as six lit quads in the colour (`AddBoxMesh`, geometry-utilities.md §6.2); it
+is drawn with the packed state `0x020A8197` / mask `0x1E1FE3FF` (writes, depth test less-or-equal, blending 4 / 5)
+when the box is not empty.
 
 ## 10. Users
 

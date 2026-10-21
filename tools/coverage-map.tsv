@@ -319,8 +319,9 @@ cS3DModelInstanceAnimatedSprite	animated sprites	renderer	animated-sprite.md	-	-
 fn:GetAnimatedModelFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
 fn:GetMeshAnimFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
 fn:GetSpriteAnimFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
+cS3DMeshBuilder	geometry utilities	renderer	geometry-utilities.md	-	-	-
 cS3D*	3D scene and models	renderer	-	-	-	-
-nS3D*	3D scene and models	renderer	-	-	-	-
+nS3D*	geometry utilities	renderer	geometry-utilities.md	-	-	-
 cSC43D*	3D scene and models	renderer	-	-	-	-
 cSC4View3DWin	3D scene and models	renderer	-	-	-	-
 cSC4CameraControl	camera and projection	renderer	camera.md	-	-	-
@@ -354,7 +355,7 @@ cSTESelectedTerrainArea	terrain ripples and selection	renderer	water-ripples.md	
 SC4ViewUtilities	view utilities	renderer	view-utilities.md	-	-	-
 fn:MinOfFourFloats	view utilities	renderer	view-utilities.md	-	-	-
 fn:MaxOfFourFloats	view utilities	renderer	view-utilities.md	-	-	-
-SC4GeometryUtilities	3D scene and models	renderer	-	-	-	-
+SC4GeometryUtilities	geometry utilities	renderer	geometry-utilities.md	-	-	-
 SC4*View	3D scene and models	renderer	-	-	-	-
 cSC4PathView*	3D scene and models	renderer	-	-	-	-
 cSC4DispatchVehicleView	3D scene and models	renderer	-	-	-	-

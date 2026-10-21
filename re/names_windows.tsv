@@ -4015,25 +4015,26 @@ va	name	source	confidence	note
 005d6440	cSC4FoundationOccupant::cSC4FoundationOccupant	auto:A	high	mac 0010fd3a score 1.0 support 0
 005d64c0	GZCOM_CreatecSC4FoundationOccupant	auto:B0	medium	mac 0010ff16 score 0.968 support 1.0
 005d6500	cSC4FoundationOccupant::~cSC4FoundationOccupant	auto:C	high	mac 0010ff94 score 1.0 support 1
-005d6580	SC4GeometryUtilities::RayIntersectsBoundingBox	auto:B2	medium	mac 0009c98c score 0.917 support 2.5
-005d68b0	SC4GeometryUtilities::PointInRectangle2D	auto:D	medium	mac 0009cf5c score 0.5 support 1
-005d6d80	SC4GeometryUtilities::BoundingBoxesIntersect	auto:D	medium	mac 0009d0ea score 0.5 support 1
-005d6ea0	SC4GeometryUtilities::GetNormalToTriangle	auto:B0	medium	mac 0009d1b2 score 0.954 support 3.0
-005d6f50	SC4GeometryUtilities::PointAndVectorToPlaneEquation	auto:D	medium	mac 0009d340 score 0.5 support 1
-005d6f90	SC4GeometryUtilities::LengthOfLineSquared	auto:B1	medium	mac 0009d3e0 score 0.922 support 3.0
-005d6fc0	SC4GeometryUtilities::LengthOfLineSquared2D	auto:B0	medium	mac 0009d45e score 0.911 support 2.0
-005d6ff0	SC4GeometryUtilities::RayIntersectsTriangle	auto:B3	medium	mac 0009db6c score 0.953 support 1.0
-005d71f0	SC4GeometryUtilities::PointDistanceToRay	auto:B0	medium	mac 0009d66a score 0.889 support 2.0
-005d7290	SC4GeometryUtilities::PointDistanceToRectangle	auto:B15	medium	mac 0009cd6a score 0.989 support 1.0
-005d7360	SC4GeometryUtilities::RayIntersectsPlane	auto:B1	medium	mac 0009ce26 score 0.935 support 1.0
-005d7420	SC4GeometryUtilities::RaysIntersect2D	auto:D	medium	mac 0009d782 score 0.5 support 1
-005d74d0	SC4GeometryUtilities::LinesIntersect2D	auto:D	medium	mac 0009cb16 score 0.5 support 1
-005d7660	SC4GeometryUtilities::LengthOfLine	auto:B5	medium	mac 0009d396 score 0.919 support 2.0
-005d76a0	SC4GeometryUtilities::LengthOfLine2D	auto:B3	medium	mac 0009d426 score 0.908 support 3.0
-005d76d0	SC4GeometryUtilities::ScaleVector2D	auto:D	medium	mac 0009d492 score 0.5 support 1
-005d77a0	SC4GeometryUtilities::RotatePoint2D	auto:B3	medium	mac 0009d5c2 score 0.882 support 3.0
-005d7800	SC4GeometryUtilities::ClipPolygonToEdge2D	auto:B0	medium	mac 0009d862 score 0.965 support 2.0
-005d79d0	SC4GeometryUtilities::ClipPolygonToPolygon2D	auto:D	medium	mac 0009da7e score 0.5 support 1
+005d6580	SC4GeometryUtilities::RayIntersectsBoundingBox	manual:geometry-utilities.tsv	high	geometry-utilities.md §4.1; the largest candidate distance, closed bounds
+005d68b0	SC4GeometryUtilities::PointInRectangle2D	manual:geometry-utilities.tsv	high	geometry-utilities.md §4.6; half-open
+005d6d80	SC4GeometryUtilities::BoundingBoxesIntersect	manual:geometry-utilities.tsv	high	geometry-utilities.md §4.6; strict on x, y, z, optional overlap box
+005d6ea0	SC4GeometryUtilities::GetNormalToTriangle	manual:geometry-utilities.tsv	high	geometry-utilities.md §3; (c - b) x (a - b), not normalised
+005d6f50	SC4GeometryUtilities::PointAndVectorToPlaneEquation	manual:geometry-utilities.tsv	high	geometry-utilities.md §3; (n, -p.n)
+005d6f90	SC4GeometryUtilities::LengthOfLineSquared	manual:geometry-utilities.tsv	high	geometry-utilities.md §2
+005d6fc0	SC4GeometryUtilities::LengthOfLineSquared2D	manual:geometry-utilities.tsv	high	geometry-utilities.md §2
+005d6ff0	SC4GeometryUtilities::RayIntersectsTriangle	manual:geometry-utilities.tsv	high	geometry-utilities.md §4.2; |det| < 0.01 misses, t not tested
+005d71f0	SC4GeometryUtilities::PointDistanceToRay	manual:geometry-utilities.tsv	high	geometry-utilities.md §2.1; distance to the whole line
+005d7290	SC4GeometryUtilities::PointDistanceToRectangle	manual:geometry-utilities.tsv	high	geometry-utilities.md §2.2
+005d7360	SC4GeometryUtilities::RayIntersectsPlane	manual:geometry-utilities.tsv	high	geometry-utilities.md §4.3
+005d7420	SC4GeometryUtilities::RaysIntersect2D	manual:geometry-utilities.tsv	high	geometry-utilities.md §4.4; without an output it compares the directions
+005d74d0	SC4GeometryUtilities::LinesIntersect2D	manual:geometry-utilities.tsv	high	geometry-utilities.md §4.5; both parameters within [0, 1]
+005d75d0	SC4GeometryUtilities::TwiceTriangleArea	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §2; |(p - a) x (b - a)|
+005d7660	SC4GeometryUtilities::LengthOfLine	manual:geometry-utilities.tsv	high	geometry-utilities.md §2
+005d76a0	SC4GeometryUtilities::LengthOfLine2D	manual:geometry-utilities.tsv	high	geometry-utilities.md §2
+005d76d0	SC4GeometryUtilities::ScaleVector2D	manual:geometry-utilities.tsv	high	geometry-utilities.md §5; unchanged when |v| <= 0.01
+005d77a0	SC4GeometryUtilities::RotatePoint2D	manual:geometry-utilities.tsv	high	geometry-utilities.md §5; about a centre
+005d7800	SC4GeometryUtilities::ClipPolygonToEdge2D	manual:geometry-utilities.tsv	high	geometry-utilities.md §5.1; Sutherland-Hodgman, inside on the right
+005d79d0	SC4GeometryUtilities::ClipPolygonToPolygon2D	manual:geometry-utilities.tsv	high	geometry-utilities.md §5.2; through a 40-point scratch polygon
 005d7b40	icf::cSC4GlyphTextureManager::AddRef	folded	folded	2 names: cSC4GlyphTextureManager::AddRef | cSC4OrdinanceSimple::AddRef
 005d7b50	cSC4GlyphTextureManager::Release	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; slot 2 of 0x00AA2AD4; count +0x24, deleting destructor at 0
 005d7b70	cSC4GlyphTextureManager::QueryInterface	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; slot 0; answers only 0x0B54C519
@@ -9378,9 +9379,19 @@ va	name	source	confidence	note
 00800e30	GZCOM_CreatecS3DMaterialManager	manual:texture-bindings.tsv	high	texture-bindings.md §3; was cS3DMaterialManager::cS3DMaterialManager; GlobalHeapAlloc(0x20), service 0x1AC0E11B; registered by the COM director 0x0046059E
 00800e80	cS3DVertexArray::cS3DVertexArray	auto:D	medium	mac 00660e72 score 0.5 support 1
 00800ec0	cS3DMesh::~cS3DMesh	auto:D	medium	mac 0062bef4 score 0.5 support 1
-00801140	cS3DMeshBuilder::Mesh	auto:B6	medium	mac 0015127c score 0.919 support 2.0
+00800f10	cS3DMeshBuilder::SetNormal	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.1
+00800f30	cS3DMeshBuilder::SetColour (rgb)	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.1; alpha 1
+00800f60	cS3DMeshBuilder::SetColour (rgba)	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.1
+00800f80	cS3DMeshBuilder::SetLightDirection	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.1
+00800fa0	nS3D::GetBoxCorners	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.2; corner i = (bit 0 x, bit 1 y, bit 2 z)
+00801040	cS3DVertexArray::UpdateBounds	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.1; min and max over the vertices
+00801140	cS3DMeshBuilder::Mesh	manual:geometry-utilities.tsv	high	geometry-utilities.md §6.1; bounds when changed
 00801160	std::vector<cS3DMesh,std::allocator<cS3DMesh>>::resize	auto:D	medium	mac 00725c86 score 0.5 support 1
-008014d0	nS3D::AddBoxMesh	auto:B6	medium	mac 001515c6 score 0.889 support 3.0
+00801200	cS3DMeshBuilder::BeginPrimitive	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.1; (type, first vertex, 0), standard format 1
+008012f0	cS3DMeshBuilder::cS3DMeshBuilder	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.1; all fields zero
+00801380	cS3DMeshBuilder::AddVertex	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.1; colour x (0.3 + 0.7 L.n), bytes wrap
+008014d0	nS3D::AddBoxMesh	manual:geometry-utilities.tsv	high	geometry-utilities.md §6.2; six lit quads, 24 vertices
+00801660	cS3DMeshBuilder::Reset	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.1; no vertices, no primitives
 00801750	cS3DModelInstance::Draw	auto:B5	medium	mac 0009f85a score 0.996 support 1.0
 00801940	cS3DModelInstanceBasic::QueryInterface	auto:B0	medium	mac 0009fb08 score 0.913 support 4.0
 00801b00	cS3DModelInstance::operator.new	auto:D	medium	mac 0009f7c6 score 0.5 support 1
@@ -9475,9 +9486,12 @@ va	name	source	confidence	note
 0080a5b0	cS3DTextureBindingFactory::cS3DTextureBindingFactory	manual:texture-bindings.tsv	high	texture-bindings.md §1.2; service 0x1AC0E11A, pool limit 2,000,000, bit depth 32, group 0x1ABE787D
 0080a680	GZCOM_CreatecS3DTextureBindingFactory	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; GlobalHeapAlloc(0x84) then the constructor
 0080a700	NextPowerOfTwo	manual:texture-bindings.tsv	high	texture-bindings.md §1.4; descriptive name, no Mac match; the smallest power of two >= n, 1 for n <= 1; also called at 0x005D7BDB
-0080ab90	nS3D::CreateTextureFromText	auto:D	medium	mac 0025cc28 score 0.5 support 1
-0080b680	nS3D::RandomDirection2	auto:B1	medium	mac 0022b4d6 score 0.98 support 2.0
-0080b730	nS3D::RandomDirection3	auto:B0	medium	mac 0022b596 score 0.993 support 2.0
+0080a720	nS3D::GetTextureFormatForPixelCode	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.4; (3, 14 / 10 / 13 / 1)
+0080a7c0	nS3D::CreateTextureFromSurface	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.4; plain BGRA upload, factory slot 4
+0080a910	nS3D::CreateCompressedTextureFromSurface	manual:geometry-utilities.tsv	high	geometry-utilities.md descriptive name, no Mac match; §6.4; DXT3, white, 4-bit alpha
+0080ab90	nS3D::CreateTextureFromText	manual:geometry-utilities.tsv	high	geometry-utilities.md §6.4; W x H powers of two >= size + 2, cleared border
+0080b680	nS3D::RandomDirection2	manual:geometry-utilities.tsv	high	geometry-utilities.md §6.3; two draws, the rejection loop never repeats
+0080b730	nS3D::RandomDirection3	manual:geometry-utilities.tsv	high	geometry-utilities.md §6.3; rejection in the unit ball
 0080b9f0	BuildBasisFromDirection	manual:lighting.tsv	high	lighting.md §5.6; descriptive name, no Mac match; rows normalize(dz, 0, -dx), d x row0, d; vertical d gives (0,0,1), (1,0,0)
 0080bbb0	cSC4OrdinanceSimple::SetEnabled	auto:C	high	mac 0082798a score 1.0 support 5
 0080bbc0	cSC4OrdinanceSimple::ForceAvailable	auto:C	high	mac 0082799e score 1.0 support 5

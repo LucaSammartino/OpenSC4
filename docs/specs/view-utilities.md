@@ -261,7 +261,9 @@ optional 16-bit indices, and groups of 12 bytes (type, first, count). Without in
 | 6 | n / 2 | (2i, 2i + 1, 2i + 2) for even i, (2i, 2i + 2, 2i + 3) for odd i |
 | 7 | n − 2 | (j, j + 1, j + 2) with j = i + (i mod 2) |
 
-Other types have no triangles. Types 3–5 give degenerate triangles, which the ray test misses. The index reader
+Other types have no triangles. Types 3–5 give degenerate triangles, which the ray test misses. Types 6 and 7 are
+quads and quad strips (graphics-formats.md §3.7); their second triangles do not follow the quads, but no shipped
+model uses either type *[quirk]*. The index reader
 (`0x0080B090`) knows eight index formats (signed and unsigned 8 and 16 bits, two 32-bit codes, float and double,
 floored), but the walk only uses unsigned 16 bits.
 
@@ -277,14 +279,14 @@ boxes against the frustums; the tools pick through §4.1 and §7; the animation 
 3. `GetCityCornerPosition` corner 2 at rotation 1 uses the x size for z (§4.2).
 4. The block rounding truncates first (§4.2, §6).
 5. A mesh pick stops at the first closer triangle (§7).
-6. Primitive types 6 and 7 index unusually (§7.1).
+6. Primitive types 6 and 7 (quads and quad strips) index unusually (§7.1).
 7. A perspective camera's far corners are scaled from their previous values (§3.1).
 
 ## 10. Open questions
 
-See [questions/view-utilities.md](questions/view-utilities.md) VU1–VU3: what primitive types 6 and 7 are and whether
-their odd triangles are intended; what the fields `+0x3DC`–`+0x410` hold; whether the view volume is always centred
-(§3.1 builds it from half-extents).
+See [questions/view-utilities.md](questions/view-utilities.md) VU2–VU3: what the fields `+0x3DC`–`+0x410` hold;
+whether the view volume is always centred (§3.1 builds it from half-extents). VU1 is answered: types 6 and 7 are
+quads and quad strips (graphics-formats.md §3.7), which no shipped model uses.
 
 ## 11. Conformance tests
 

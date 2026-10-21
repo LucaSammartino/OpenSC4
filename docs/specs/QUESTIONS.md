@@ -64,6 +64,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GLUE | lot-configuration, prop-developer |
 | GR | graphics-rules |
 | GT | glyph-textures |
+| GU | geometry-utilities |
 | GZ | framework-gz-services |
 | HD | html-document |
 | HG | foundations |
@@ -169,6 +170,7 @@ generated index: the questions live one file per spec, so read only the file for
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
 | framework-gz-services | 7 | 0 | GZ8 | questions/framework-gz-services.md |
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
+| geometry-utilities | 1 | 0 | GU2 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | graphics-rules | 3 | 0 | GR4 | questions/graphics-rules.md |
@@ -231,10 +233,10 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 4 | 2 | TU10 | questions/tutorial.md |
 | underground-occupants | 4 | 0 | UG5 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
-| view-utilities | 3 | 0 | VU4 | questions/view-utilities.md |
+| view-utilities | 2 | 1 | VU4 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | water-ripples | 3 | 0 | WR4 | questions/water-ripples.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **230** | **1117** | | |
+| **total** | **230** | **1118** | | |
