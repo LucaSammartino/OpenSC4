@@ -2,8 +2,6 @@
 <!-- Questions about [mysims.md](../mysims.md). Append new entries at the END; when one is answered, move it to answered/mysims.md. Rules: README.md. -->
 
 <!-- from: the mysims core audit (cores26, 2026-10-20): mysims.md §11.2's open points, first filed -->
-- **MS3 (§11.2.3, §2.2):** does MySim `Init` re-resolve the neighbour job city from the saved cell (the app's
-  region lookup), and does it set `neighbor_job` true only when a city is found? [inferred: yes]
 - **MS4 (§11.2.4, §4.9):** the building development simulator's slot 44 list used by `DistanceToClosestSpecial`
   (§7.2): landmarks and rewards only, or every special building? [inferred: landmarks and rewards]
 - **MS5 (§11.2.5, §4.5):** the exact clamp and neighbourhood of `local_traffic_congestion` (the Mac build shows

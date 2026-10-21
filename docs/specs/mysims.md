@@ -114,7 +114,7 @@ Most agent loops visit **indices 0–4 only**. Index 5 (My Street sim) is visite
 | home cell x, z | 0 | yes | from the home lot's location |
 | home position x, y, z (metres) | 0 | yes (3 f32) | used by every distance (§4.10) |
 | job | null | ref | `cISC4BuildingOccupant` in this city |
-| neighbour job city | null | **no** | `cISC4RegionalCity`; re-resolved at Init from the saved cell *[inferred]* |
+| neighbour job city | null | **no** | `cISC4RegionalCity`; re-resolved by `Init` (§2.2.1) from the saved neighbour city cell. "Has a neighbour job" everywhere in this spec means this reference is non-null; there is no separate flag |
 | neighbour city cell x, z; commute destination cell x, z | 0 | yes (4 s32) | |
 | jobless days | 0 | yes | |
 | vehicle key | 0 | yes (res key) | |
@@ -136,11 +136,25 @@ Most agent loops visit **indices 0–4 only**. Index 5 (My Street sim) is visite
 | pylon timer, dispatch tool | — | yes | UI |
 | pylon locked | false | yes (version ≥ 14) | set to the argument of `DispatchToolLockPylon` (`0x0042728E`); cleared by `DispatchToolDestroyPylon`, `LeaveCity`, `DispatchToolBegin`, `DeleteFromGame`, `Shutdown`; while false `is_pylon_location` is false, and `DispatchToolEnd` (`0x004264C0`) destroys the pylon of a still-active dispatch tool; the pylon timer (§3.3) and `UpdateTripVariables` (§4.6) only act on a locked pylon |
 | last player trip day | 0 | yes (s32, version ≥ 16) | |
-| commute check pending | false | no | set by neighbour-connection removal |
+| commute check pending | false | no | set by neighbour-connection removal and by `Init` (§2.2.1) |
 | last trip-update day | 0 | no | |
 | local building distances (map occupant group → metres) | empty | no | §4.9 |
 | per-MySim RNG | `cRZRandom`, seeded from the wall clock (`0xFFFFFFFF`) at construction | no | §8 |
 | Lua table handle | 0 | no | created on first use |
+
+#### 2.2.1 Neighbour job city at `Init` (`0x0042CCF0`, Windows `0x0042CEF3`–`0x0042CF44`)
+
+Only when state ≠ 0, after the dispatch is created and the home lot looked up:
+
+- If the MySim has **no job** and the saved neighbour city cell is not `(0, 0)` (x ≠ 0 **or** z ≠ 0): ask the
+  region (`cISC4App` slot 35 `+0x8C`, then `cISC4Region::GetCity(x, z)` slot 11 `+0x2C`) for the city at that
+  cell; if one is returned, it becomes the neighbour job city (a null result leaves the current reference as it is,
+  which after a load is null). In both cases the **commute-check flag is set**, so the next daily step runs
+  `CheckCommute` (§4.2 step 2, §4.7), which drops a neighbour job that no longer resolves or connects.
+- Otherwise (the MySim has a job, or the cell is `(0, 0)`): the neighbour job city reference is released.
+
+*[quirk]* A neighbour city at region cell `(0, 0)` is never re-resolved, so a MySim working there loses that
+neighbour job on every load.
 
 ---
 
@@ -832,8 +846,7 @@ the MySims own no grid).
 
 1. *Answered (MS1, 2026-10-21):* row 25 is dead data, row 30 is the pylon-locked flag (§2.2).
 2. *Answered (MS2, 2026-10-21):* window-manager slot 42 = "a modal window is running" (§4.2).
-3. Whether MySim `Init` re-resolves the neighbour job city from the saved cell (§2.2) — the Init code calls the
-   app's region lookup, details not traced.
+3. *Answered (MS3, 2026-10-21):* yes, see §2.2.1.
 4. The building development simulator's slot 44 list used by `DistanceToClosestSpecial` (landmarks and rewards?).
 5. The exact clamp and neighbourhood of `local_traffic_congestion`, and the neighbour-job constants of
    `job_condition`/`job_has_power`/`job_has_water` (§4.5): taken from the Mac build, Windows not traced line by
