@@ -1,18 +1,35 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-view3dwin4: cSC4View3DWin window spec (view3d-window.md) | `re-view3dwin4` / (RE spec lane) | ready (round 2): §3.1 per-cheat contracts (VW1 answered), §6b AddGUI/RemoveGUI structure, VW6 filed, tests VW-T5/T6; docs-only, no gate, no game runs | 1. Spec the input handlers (ProcessKeyDown/Up, mouse). 2. VW6: AddGUI tail 0x007EEDB0-0x007EF1B6. 3. VW2-VW5 unchanged. 4. 8 ABI rows stay proposals (build-runs/abi-rows-re-view3dwin4.tsv). |
+| re-view3dwin4: cSC4View3DWin window spec (view3d-window.md) | `re-view3dwin4` / (RE spec lane) | ready (round 3, final; owner still partial): §6c input handlers (keys, character, all mouse slots), §6b AddGUI tail and +0x190/+0x194, VW6 narrowed, tests VW-T7..T9; docs-only, no gate, no game runs | 1. AddGUI per-panel extras 0x007EE39B-0x007EE610. 2. VW6 rest (+0x2EC/+0x2F0 creator, 0x00B43C9C identity). 3. VW2-VW5. 4. 8 ABI rows stay proposals (gated review) |
 
-## Handoff (round 3)
+## Round 3 report (final)
 
-Goal: round 3/3 of the cSC4View3DWin spec: input handlers, then VW6 AddGUI tail 0x007EEDB0-0x007EF1B6 and per-panel
-extras 0x007EE39B-0x007EE610; VW2-5 only if budget allows. Owner stays partial.
-Done: §6c input handlers (keys, character, all mouse slots), §6 key-helper offset fixed to +0x120, tests VW-T7..T9
-(commit: see git log, "§6c").
-Done 2: §6b AddGUI tail 0x007EED41-0x007EF1B6 (callout, BMP+surface +0x3D0, +0x31C, overlay 0xCA5D3294,
-0xEA8CAD14 winproc, not-established step 7), +0x190/+0x194 creators; +0x1F4 correction; VW6 narrowed (still open).
-Next: per-panel extras 0x007EE39B-0x007EE610 (build-runs/arange.sh 0x007edeb0 007ee39b 007ee610), then final report.
-Facts: mouse/char handlers this = obj+0xC; stack +0x134, persistent +0x140; build-runs/casm.sh ADDR SKIP MAX prints
-compact asm. REA not used.
+What changed (docs/specs/view3d-window.md):
+
+- New §6c, all byte-checked on the instructions: the state the handlers use (modifiers `+0x11C`, control stack
+  `+0x134`, persistent controls `+0x140`, key-scroll pair `+0x348/+0x34C`, edge directions `+0x350/+0x354`,
+  right-press point `+0x358/+0x35C`, drag flag `+0x360`); a dispatch table for ProcessKeyDown/Up, GZOnCharacter,
+  MouseDownL/DownR/UpL/UpR/Move/Wheel/Exit (order stack vs persistent, first-taker vs broadcast, capture, return
+  values); tutorial filter modes -1/1/0; mouse-scroll start (cSC4ViewInputControlCityScroll, ownership); left-release
+  scroll re-check; right-release click-to-centre (Pick / PickTerrain, camera jump 0x007CD810, discarded terrain
+  reads quirk, 3-pixel drag threshold, mods & 7); edge scrolling (pref byte +0xF09 of 0x00B43CD8, x<=1 / x>=W-1);
+  GZOnCharacter bounds quirk; key results include persistent controls (the decomp misses 0x007E67A6).
+- §6 key-binding helper offset corrected to `+0x120` (0x007F3F39 is relative to this+0xC).
+- §6b: main panel cIGZWinGen into +0x190, hidden button +0x194 (class 0x22ECFC47), and the AddGUI tail
+  0x007EED41-0x007EF1B6 (callout box styles/image, cGZWinBMP + surface +0x3D0 128x32, +0x31C, unstored overlay
+  window 0xCA5D3294 ID 0x6A5E44B6, winproc for window 0xEA8CAD14, not-established step 7). Corrected round 2's
+  claim that +0x1F4 is an object (AddGUI only clears it).
+- VW6 narrowed, still open; QUESTIONS.md reindexed. Tests VW-T7..T9.
+- Commits: 9f656f88 (§6c), 445ba2a6 (§6b tail, VW6), this one (report).
+
+REA not used (export + decomp + exe bytes; helpers build-runs/casm.sh, arange.sh, vt.py).
+
+Owner coverage: still partial. Remaining exact functions not specified: AddGUI per-panel extras
+0x007EE39B-0x007EE610 (cases for windows 0xE9889775 / 0xABB26B0E, lists +0x198/+0x1B0/+0x1BC, 0x00442E40,
+0x007EBD30, 0x0078F3C0, 0x0078E610; MySim winproc 0x0076F160 at +0x2E4); RecalcScrollVelocity 0x007E6C60;
+UpdateCursorTextPositions 0x007E9090; Set/RemoveCurrentViewInputControl 0x007EBD70/0x007E9390 and
+SendViewInputControlChangeMessage 0x007E8090; SetKeyAccelerator 0x007E5700; GZOnCommand 0x007E5BA0; message-filter
+branches (VW4); VW2, VW3, VW5. ABI proposals (build-runs/abi-rows-re-view3dwin4.tsv) left for gated review.
 
 ## Round 2 report
 
