@@ -17,12 +17,12 @@ use crate::grid::{CellRect, CityDims, CoreGrids, GridProvider};
 use crate::pathfinder::{shared_work_check, PathfinderHost, TravelTables};
 use crate::traffic_network::{net_type, travel, NetworkHost, NetworkModel, PathInfo, Tuning};
 
-use super::dispatch::{DispatchHost, DispatchState, MySimDispatch};
-use super::pool::{MySimPool, MySimTemplate, PoolHost};
+use super::dispatch::{
+    destination_flag_for_wealth, set_current_commute_destination, JobSearchState, JobSearchWorld,
+    RecordingJobPathfinder, FLAG_HAS_HOME, STATE_STORE_UNVALIDATED,
+};
+use super::dispatch::{DispatchHost, DispatchLocation, DispatchState, LotAt, MySimDispatch};
 use super::{dispatch_note, JobDestination, DISPATCH_CLSID, DISPATCH_IID};
-
-/// The job destination bits, from the dispatch module's setup.
-const JOB_BITS: u8 = 0x1F;
 
 /// holder → (max[4], used[4]).
 type Cap = ([u32; 4], [u32; 4]);
@@ -54,6 +54,7 @@ struct DispatchWorld {
     /// The neighbour cells of the map edges.
     neighbors: RefCell<Vec<(i32, i32)>>,
     notifications: RefCell<Vec<(i32, u32, u32, u32)>>,
+    wealth: Cell<u32>,
 }
 
 impl DispatchWorld {
@@ -90,16 +91,6 @@ impl DispatchWorld {
     fn lot(&self, token: u64, rect: CellRect) {
         self.lots.borrow_mut().push((token, rect, token + 0x1_0000));
         self.buildings.borrow_mut().insert(token, rect);
-    }
-
-    /// A destination byte at a map-edge cell (the neighbour connection).
-    fn dest_map(&self, (x, z): (i32, i32)) {
-        self.dest.borrow_mut().insert((x, z), JOB_BITS);
-    }
-
-    /// A neighbour pool holder at a map-edge cell.
-    fn pool_map(&self, (x, z): (i32, i32)) {
-        self.pools.borrow_mut().insert((x, z), 0x2_0000);
     }
 
     fn take_notifications(&self) -> Vec<(i32, u32, u32, u32)> {
@@ -409,140 +400,342 @@ impl DispatchHost for DispatchWorld {
     fn home_rect(&self, sim: i32) -> Option<CellRect> {
         (sim == 1).then_some(CellRect::new(2, 2, 2, 2))
     }
-    fn job_rect(&self, _sim: i32) -> Option<CellRect> {
-        self.buildings.borrow().get(&2).copied()
-    }
     fn building_rect(&self, building: u64) -> Option<CellRect> {
         self.buildings.borrow().get(&building).copied()
     }
-    fn neighbor_cell(&self, _sim: i32) -> Option<(i32, i32)> {
-        self.neighbors.borrow().first().copied()
+    fn wealth(&self, _sim: i32) -> u32 {
+        self.wealth.get()
     }
-    fn job_candidates(&self, _sim: i32) -> Vec<CellRect> {
+    fn occupant_lot_rect(&self, occupant: u64) -> Option<CellRect> {
+        self.buildings.borrow().get(&occupant).copied()
+    }
+    fn lot_rect_at(&self, x: i32, z: i32) -> Option<CellRect> {
         self.buildings
             .borrow()
-            .iter()
-            .filter(|(b, _)| **b != 1)
-            .map(|(_, r)| *r)
-            .collect()
+            .values()
+            .find(|r| (r.x1..=r.x2).contains(&x) && (r.z1..=r.z2).contains(&z))
+            .copied()
     }
-    fn building_at_cell(&self, x: i32, z: i32) -> Option<u64> {
+    fn cell_is_in_bounds(&self, x: i32, z: i32) -> bool {
+        x >= 0 && z >= 0 && x < self.cells.get().0 && z < self.cells.get().1
+    }
+    fn lot_at_cell(&self, x: i32, z: i32) -> LotAt {
         self.buildings
             .borrow()
             .iter()
             .find(|(_, r)| (r.x1..=r.x2).contains(&x) && (r.z1..=r.z2).contains(&z))
-            .map(|(b, _)| *b)
+            .map_or(LotAt::NoLot, |(b, _)| LotAt::Building(*b))
     }
-    fn is_neighbor_cell(&self, x: i32, z: i32) -> bool {
-        x < 0 || z < 0 || x >= self.cells.get().0 || z >= self.cells.get().1
+    fn city_across_connection(&self, x: i32, z: i32) -> Option<(i32, i32)> {
+        self.neighbors.borrow().contains(&(x, z)).then_some((-1, 0))
     }
     fn notify(&self, sim: i32, sub_id: u32, data1: u32, data2: u32) {
         self.notifications.borrow_mut().push((sim, sub_id, data1, data2));
     }
 }
 
-/// §4.7: `FindNewJob` runs the pathfinder from the home lot towards a job
-/// destination and reports it; no home → false; no candidates → false.
+// ================================================================ §4.7.1 (pure)
+
+/// A typed job-search world for the §4.7.1 worked examples.
+#[derive(Default)]
+struct JW {
+    wealth: Cell<u32>,
+    /// (occupant or 0 for cell lookups, rect).
+    lots: RefCell<Vec<(u64, CellRect)>>,
+    cells: (i32, i32),
+    lot_at: Cell<Option<LotAt>>,
+    city: Cell<Option<(i32, i32)>>,
+}
+
+impl JobSearchWorld for JW {
+    fn wealth(&self) -> u32 {
+        self.wealth.get()
+    }
+    fn occupant_lot_rect(&self, occupant: u64) -> Option<CellRect> {
+        self.lots.borrow().iter().find(|(o, _)| *o == occupant).map(|(_, r)| *r)
+    }
+    fn lot_rect_at(&self, x: i32, z: i32) -> Option<CellRect> {
+        self.lots
+            .borrow()
+            .iter()
+            .find(|(_, r)| (r.x1..=r.x2).contains(&x) && (r.z1..=r.z2).contains(&z))
+            .map(|(_, r)| *r)
+    }
+    fn cell_is_in_bounds(&self, x: i32, z: i32) -> bool {
+        x >= 0 && z >= 0 && x < self.cells.0 && z < self.cells.1
+    }
+    fn cell_counts(&self) -> (i32, i32) {
+        self.cells
+    }
+    fn lot_at(&self, _x: i32, _z: i32) -> LotAt {
+        self.lot_at.get().unwrap_or(LotAt::NoLot)
+    }
+    fn city_across_connection(&self, _x: i32, _z: i32) -> Option<(i32, i32)> {
+        self.city.get()
+    }
+}
+
+fn jw(wealth: u32) -> JW {
+    let w = JW {
+        cells: (64, 64),
+        ..JW::default()
+    };
+    w.wealth.set(wealth);
+    w.lots.borrow_mut().push((0x500, CellRect::new(10, 10, 12, 11)));
+    w.lot_at.set(Some(LotAt::Building(0x900)));
+    w
+}
+
+fn home_state() -> JobSearchState {
+    JobSearchState {
+        flags: FLAG_HAS_HOME,
+        home: DispatchLocation::by_occupant(0x500),
+        ..JobSearchState::default()
+    }
+}
+
+fn found_pf(end: (i32, i32)) -> RecordingJobPathfinder {
+    RecordingJobPathfinder {
+        find_result: 1,
+        end_cell: end,
+        ..RecordingJobPathfinder::default()
+    }
+}
+
+fn find_new_job_loc() -> DispatchLocation {
+    DispatchLocation {
+        by_commute: true,
+        ..DispatchLocation::default()
+    }
+}
+
+/// §4.7.1 example 1: wealth 2, first search, home lot rect (10,10)–(12,11).
 #[test]
-fn t30_find_new_job() {
+fn t30_job_search_setup() {
+    let w = jw(2);
+    let mut st = home_state();
+    let mut pf = found_pf((20, 20));
+    let (ok, notify) = set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true);
+    assert!(ok && notify);
+    assert_eq!(pf.flags, 0x11);
+    assert_eq!(pf.filter, 0);
+    assert_eq!(pf.dest_flags, 0x2);
+    assert_eq!(pf.density, 1);
+    assert_eq!(pf.start_rect, Some(CellRect::new(10, 10, 12, 11)));
+    assert_eq!((pf.allowed, pf.starting), (0x1CF, 0x1CF));
+    assert_eq!(
+        pf.calls,
+        vec![
+            "Reset",
+            "ClearAllTravelTypeFlags",
+            "SetRouteInfo",
+            "SetFlag",
+            "SetFlag",
+            "SetTripDestinationFilter",
+            "SetDestinationFlag",
+            "SetTrafficDensity",
+            "SetStartRect",
+            "SetTravelTypeFlag",
+            "FindPath",
+        ]
+    );
+    assert_eq!(pf.calls.iter().filter(|c| **c == "FindPath").count(), 1);
+    // The stored destination: the end lot's building, by commute.
+    let d = st.commute_destination;
+    assert_eq!((d.occupant, d.by_occupant, d.by_commute), (Some(0x900), true, true));
+}
+
+/// §4.7.1 examples 2 and 3: wealth 1 then 3 → `0x1` then `0x5`; wealth 0
+/// → `0x1`; flags stay `0x11`.
+#[test]
+fn t31_job_search_accumulates() {
+    let mut st = home_state();
+    let mut pf = found_pf((20, 20));
+    let w = jw(1);
+    set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true);
+    assert_eq!(pf.dest_flags, 0x1);
+    w.wealth.set(3);
+    set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true);
+    assert_eq!(pf.dest_flags, 0x5);
+    assert_eq!(pf.flags, 0x11);
+    for (wealth, bits) in [(0, 1), (1, 1), (2, 2), (3, 4), (4, 1), (u32::MAX, 1)] {
+        assert_eq!(destination_flag_for_wealth(wealth), bits);
+    }
+}
+
+/// §4.7.1 example 4: no home → only `resetPath`, false, no notify; the
+/// path flags are cleared.
+#[test]
+fn t32_job_search_no_home() {
+    let w = jw(2);
+    let mut st = JobSearchState {
+        flags: 0x800 | 0x1000 | 0x4000 | 0x100,
+        ..JobSearchState::default()
+    };
+    let mut pf = found_pf((20, 20));
+    assert_eq!(
+        set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true),
+        (false, false)
+    );
+    assert_eq!(pf.calls, vec!["Reset", "ClearAllTravelTypeFlags", "SetRouteInfo"]);
+    assert_eq!(st.flags, 0x100);
+    assert_eq!(st.commute_destination, DispatchLocation::default());
+}
+
+/// §4.7.1 example 5: end cell (−1, 37), neighbour city found, 64 × 64 →
+/// cell (0, 37), no occupant, true.
+#[test]
+fn t33_job_search_neighbor() {
+    let w = jw(2);
+    w.city.set(Some((3, 4)));
+    let mut st = home_state();
+    let mut pf = found_pf((-1, 37));
+    assert_eq!(
+        set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true),
+        (true, true)
+    );
+    let d = st.commute_destination;
+    assert_eq!((d.occupant, d.by_occupant, d.cell), (None, false, (0, 37)));
+    assert_eq!(d.neighbor_city, Some((3, 4)));
+    // Clamped on the far side too; no city → false.
+    let mut pf = found_pf((70, 64));
+    set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true);
+    assert_eq!(st.commute_destination.cell, (63, 63));
+    w.city.set(None);
+    let mut pf = found_pf((-1, 37));
+    assert!(!set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true).0);
+}
+
+/// §4.7.1 example 6 and the other failures: lot without building, no lot,
+/// `FindPath` ≠ 1.
+#[test]
+fn t34_job_search_failures() {
+    let w = jw(2);
+    for (lot, find) in [
+        (LotAt::NoBuilding, 1),
+        (LotAt::NoLot, 1),
+        (LotAt::Building(9), 0),
+        (LotAt::Building(9), 2),
+    ] {
+        w.lot_at.set(Some(lot));
+        let mut st = home_state();
+        let mut pf = found_pf((5, 5));
+        pf.find_result = find;
+        assert_eq!(
+            set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true),
+            (false, false)
+        );
+    }
+}
+
+/// §4.7.1 steps 1–2 of `SetCurrentCommuteDestination`: a valid location is
+/// stored without a search; invalid + notify false → false; invalid +
+/// state 2 → stored unvalidated.
+#[test]
+fn t35_set_current_commute_destination() {
+    let w = jw(2);
+    let mut st = home_state();
+    let mut pf = found_pf((5, 5));
+    let loc = DispatchLocation::by_occupant(0x42);
+    assert_eq!(
+        set_current_commute_destination(&mut st, &mut pf, &w, loc, false),
+        (true, false)
+    );
+    assert!(pf.calls.is_empty());
+    assert_eq!(st.commute_destination, loc);
+    assert_eq!(
+        set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), false),
+        (false, false)
+    );
+    st.state = STATE_STORE_UNVALIDATED;
+    assert_eq!(
+        set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true),
+        (true, true)
+    );
+    assert!(pf.calls.is_empty());
+    assert_eq!(st.commute_destination, find_new_job_loc());
+    // Home by cell without a lot → the single cell as start rect.
+    let mut st = JobSearchState {
+        flags: FLAG_HAS_HOME,
+        home: DispatchLocation::by_cell(30, 31),
+        ..JobSearchState::default()
+    };
+    let mut pf = found_pf((5, 5));
+    set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true);
+    assert_eq!(pf.start_rect, Some(CellRect::new(30, 31, 30, 31)));
+}
+
+// ================================================================ §4.7.1 (dispatch)
+
+/// The dispatch object: the long-lived pathfinder accumulates; no home →
+/// false and no `0xEBA06BF4`; a found job notifies once.
+#[test]
+fn t36_dispatch_find_new_job() {
     let f = D::new();
-    // Job lot 2 at (4,4), no capacity needed for filter 3.
-    f.w.lot(2, CellRect::new(4, 4, 4, 4));
-    assert!(f.d.find_new_job(1));
-    // The state holds the destination and "by commute".
-    let s = f.d.get_state(1);
-    assert_eq!(s.destination, Some(2));
-    assert!(s.destination_by_commute);
-    assert_eq!(s.trip_state, 2);
-    // The notification is the job-found sub-ID.
-    assert_eq!(f.take(), vec![(1, dispatch_note::JOB_FOUND, 0, 0)]);
-    // The destination reported to the MySim is the lot's building.
+    f.d.init(1);
+    // No home (flag 0x80 clear).
+    assert!(!f.d.find_new_job(1));
+    assert!(f.take().is_empty());
+    // Home lot 1 at (2,2); wealth 1 then 2 on the same dispatch.
+    f.w.lot(1, CellRect::new(2, 2, 2, 2));
+    f.d.set_default_destination(1, DispatchLocation::by_occupant(1));
+    f.w.wealth.set(1);
+    f.d.find_new_job(1);
+    f.w.wealth.set(2);
+    f.d.find_new_job(1);
+    let (flags, filter, dest, density, start, allowed, starting) = f.d.job_pathfinder_config(1).unwrap();
+    assert_eq!((flags, filter, dest, density), (0x11, 0, 0x3, 1));
+    assert_eq!(start, CellRect::new(2, 2, 2, 2));
+    assert_eq!((allowed, starting), (0x1CF, 0x1CF));
+    // ChangeJob: a valid building is stored without search or notify.
+    f.take();
+    assert!(f.d.change_job(1, 7));
+    assert!(f.take().is_empty());
+    assert_eq!(
+        f.d.get_state(1).search.commute_destination,
+        DispatchLocation::by_occupant(7)
+    );
     assert_eq!(
         f.d.job_destination(1),
         Some(JobDestination::Lot {
-            building: 2,
-            cell: (4, 4)
+            building: 7,
+            cell: f.d.get_state(1).search.end_cell
         })
     );
-    // Trip length of the straight street run: 3 cells × 1.5 − 0? The path
-    // (2,3),(3,3),(4,3) costs 1.5 each = 4.5; the §11 test 2 value was 3.0
-    // for a start at (2,2) through the ring, end (4,4): cost steps of 1.5
-    // per cell. assert only that it is positive and finite.
-    assert!(s.trip_length > 0.0 && s.trip_length.is_finite());
-    // No home: false, no notification.
-    assert!(!f.d.find_new_job(2));
-    assert!(f.take().is_empty());
-    // No candidates: false.
-    f.w.buildings.borrow_mut().remove(&2);
-    assert!(!f.d.find_new_job(1));
-    assert!(f.take().is_empty());
+    // Shutdown drops the pathfinder.
+    f.d.shutdown(1);
+    assert!(f.d.job_pathfinder_config(1).is_none());
 }
 
-/// §4.7: `ChangeJob` sets the commute destination to the building; the
-/// result is the dispatch's.
+/// `CheckCommute` (§4.7): the total time to the job lot; a reset
+/// destination → None.
 #[test]
-fn t31_change_job() {
-    let f = D::new();
-    f.w.lot(2, CellRect::new(4, 4, 4, 4));
-    assert!(f.d.change_job(1, 2));
-    assert_eq!(f.d.get_state(1).destination, Some(2));
-    // A building without a reachable path: false, the destination cleared.
-    // (No job lot 9 → no rect → false.)
-    assert!(!f.d.change_job(1, 9));
-}
-
-/// §4.7: `CheckCommute` reports the total time; a failed path is `None`
-/// (the MySim then runs `FailCommute`).
-#[test]
-fn t32_check_commute() {
-    let f = D::new();
-    f.w.lot(2, CellRect::new(4, 4, 4, 4));
-    assert!(f.d.find_new_job(1));
-    let t = f.d.check_commute(1);
-    assert!(t.is_some_and(|v| v > 0.0));
-    // A MySim without a destination and without a neighbour cell: None.
-    f.d.reset_commute(1);
-    f.w.neighbors.borrow_mut().clear();
-    assert!(f.d.check_commute(1).is_none());
-}
-
-/// §4.7: a neighbour job comes from the map-edge cell; `job_destination`
-/// reports the neighbour city.
-#[test]
-fn t33_neighbor_job() {
+fn t37_check_commute() {
     let f = D::new();
     f.d.init(1);
-    // No destination: the commute runs to the neighbour cell (-1,3), off
-    // the map; the street reaches (0,3), so the pathfinder can leave at
-    // (0,3)'s exit. Give the neighbour cell a destination bit and pool.
-    f.w.dest_map((-1, 3));
-    f.w.pool_map((-1, 3));
+    f.w.lot(2, CellRect::new(4, 4, 4, 4));
+    assert!(f.d.change_job(1, 2));
     let t = f.d.check_commute(1);
-    assert!(t.is_some(), "the neighbour commute succeeds");
-    // With no neighbour cell the commute fails before the search.
-    let f2 = D::new();
-    f2.d.init(1);
-    f2.w.neighbors.borrow_mut().clear();
-    assert!(f2.d.check_commute(1).is_none());
+    assert!(t.is_some_and(|v| v > 0.0 && v.is_finite()));
+    f.d.reset_commute(1);
+    assert!(f.d.check_commute(1).is_none());
+    assert_eq!(f.d.job_destination(1), None);
 }
 
 /// The notifications (§3.3): trip state, flags, arrival, sim state.
 #[test]
-fn t34_notifications() {
+fn t38_notifications() {
     let f = D::new();
     f.d.init(1);
     f.d.report_trip_state(1, 3, 2);
     assert_eq!(f.d.get_state(1).trip_state, 3);
     f.d.report_flags(1, 0x11, 0);
-    assert_eq!(f.d.get_state(1).flags, 0x11);
+    assert_eq!(f.d.get_state(1).search.flags, 0x11);
     f.d.report_arrival(1, true);
-    assert_eq!(f.d.get_state(1).trip_state, 3);
     f.d.report_sim_state(1, 5);
     assert_eq!(f.d.get_state(1).trip_state, 5);
-    // Sub-IDs and their data, in order.
-    let notes = f.take();
     assert_eq!(
-        notes,
+        f.take(),
         vec![
             (1, dispatch_note::TRIP_STATE_B, 2, 3),
             (1, dispatch_note::TRIP_STATE_A, 0, 0x11),
@@ -550,98 +743,19 @@ fn t34_notifications() {
             (1, dispatch_note::STATE_1, 5, 0),
         ]
     );
-    // CheckFlags (§4.1 step 3): all bits of the mask.
     f.d.report_flags(1, 0x100, 0);
-    f.take();
     assert!(f.d.check_flags(1, 0x100));
     assert!(!f.d.check_flags(1, 0x101));
-    // Shutdown drops the state.
     f.d.shutdown(1);
     assert_eq!(f.d.get_state(1), DispatchState::default());
 }
 
 /// The class and interface IDs (§1.1).
 #[test]
-fn t35_ids() {
+fn t39_ids() {
     assert_eq!(DISPATCH_CLSID, 0xCBC1_4674);
     assert_eq!(DISPATCH_IID, 0xEB8B_6F9A);
     let f = D::new();
     assert_eq!(f.d.class_id(), DISPATCH_CLSID);
     assert_eq!(f.d.interface_id(), DISPATCH_IID);
-}
-
-/// The pathfinder setup (pathfinder.md §8's MySim dispatch row): filter 3,
-/// flags 1 | 2, the Car type, density 0. Checked through the search
-/// outcome: the job lot reached over the street.
-#[test]
-fn t36_pathfinder_setup() {
-    let f = D::new();
-    // Lots on the street: job at (4,3).
-    f.w.lot(2, CellRect::new(4, 3, 4, 3));
-    assert!(f.d.find_new_job(1));
-    // The destination cell is in the job lot.
-    let s = f.d.get_state(1);
-    assert!(s.cell == (4, 3) || s.cell == (4, 4));
-}
-
-// ================================================================ §1.1 (the pool)
-
-/// A scripted pool host.
-struct Pool {
-    found: Cell<bool>,
-    templates: RefCell<Vec<MySimTemplate>>,
-}
-
-impl PoolHost for Pool {
-    fn installation_found(&self) -> bool {
-        self.found.get()
-    }
-    fn read_templates(&self) -> Vec<MySimTemplate> {
-        self.templates.borrow().clone()
-    }
-}
-
-/// §1.1 (the pool): `Import` reads the installation's templates into the
-/// pool, `GetMySimTemplates` hands them out in list order,
-/// `FindTheSimsInstallation` answers whether the installation is there.
-#[test]
-fn t37_pool() {
-    let host = Rc::new(Pool {
-        found: Cell::new(false),
-        templates: RefCell::new(vec![
-            MySimTemplate {
-                name: b"Ann".to_vec(),
-                is_male: false,
-                sign: 3,
-                bio: b"bio".to_vec(),
-                bitmap_id: 7,
-                bitmap_path: b"a.png".to_vec(),
-            },
-            MySimTemplate {
-                name: b"Bob".to_vec(),
-                is_male: true,
-                sign: 1,
-                bio: Vec::new(),
-                bitmap_id: 8,
-                bitmap_path: b"b.png".to_vec(),
-            },
-        ]),
-    });
-    let p = MySimPool::new(host.clone());
-    // No installation: Import false, nothing imported.
-    assert!(!p.import());
-    assert!(p.templates().is_empty());
-    assert!(!p.find_the_sims_installation());
-    // With one: Import true, the templates in list order.
-    host.found.set(true);
-    assert!(p.import());
-    assert!(p.find_the_sims_installation());
-    let t = p.templates();
-    assert_eq!(t.len(), 2);
-    assert_eq!(t[0].name, b"Ann".to_vec());
-    assert_eq!(t[1].name, b"Bob".to_vec());
-    assert!(t[1].is_male);
-    // By index; out of range None.
-    assert_eq!(p.template(1).map(|t| t.bitmap_id), Some(8));
-    assert!(p.template(2).is_none());
 }
