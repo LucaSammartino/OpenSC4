@@ -23,3 +23,7 @@
   the rectangle grown by 1 cell on each side, clamped to `[0, CellCountX/Z − 1]`), and the neighbour-job constants
   of `job_condition` / `job_has_power` / `job_has_water` (0 / 1 / 1 in the core). [inferred]
   **ANSWERED 2026-10-21 (re-answers35):** DIFFERS — local_traffic_congestion (0x0042B3DE-0x0042B581): home lot bounding rect grown by 1, min edges clamped to 0, BOTH max edges clamped to CellCountX-1 (city slot 93; quirk); only the border ring of the grown rect is visited (not the interior), and only cells with traffic GetCapacity(1,x,z) != 0.0 count; u8 max of the congestion map, 0 if none. Neighbour-job constants confirmed 1/0/1/1 (is_neighbor/condition/power/water). New: a city job whose building profile purpose is 5 (agriculture) gets job_has_water = 1 without asking the plumbing simulator (0x0042BA92). Spec §4.5.
+
+- **MS6 (§11.2.6, §4.7):** does the traffic pathfinder `CheckCommute` and `FindNewJob` run have any side effect on
+  traffic data (a recorded trip)? [inferred: no]
+  **ANSWERED 2026-10-21 (re-answers35):** MATCHES — neither CheckCommute (0x0042D9E0; pathfinder slots 5, 9, 18, 19, 20, 23, 26, then Release) nor FindNewJob (dispatch SetCurrentCommuteDestination 0x004350D0 -> validateCommuteLocation 0x00432F50) calls ApplyTraffic (cISC4PathFinder slot 29, +0x74) or another volume writer: no trip is recorded. Only the process-wide work-check interval/adaptation counter (pathfinder.md §4.11) is shared. Spec §9.

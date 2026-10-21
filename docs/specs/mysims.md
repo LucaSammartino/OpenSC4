@@ -760,8 +760,11 @@ the advisor system (advisors.md).
   and the Lua scripts.
 - MySims write nothing to the city: no population, jobs, demand, budget, ordinance, grid or lot change. A MySim's
   home and job are references only; the buildings do not know about them.
-- `CheckCommute`/`FindNewJob` only run pathfinder queries *[inferred: the traffic simulator's pathfinder does not
-  record trips into the traffic volume]*.
+- `CheckCommute` (`0x0042D9E0`) and `FindNewJob` (via the dispatch's `validateCommuteLocation`, `0x00432F50`) only
+  run pathfinder queries: neither calls `ApplyTraffic` (`cISC4PathFinder` slot 29, pathfinder.md §4.17) nor any
+  other traffic-volume writer, so **no trip is recorded** and the traffic data is unchanged. `CheckCommute` creates
+  its own pathfinder and releases it. The only shared state a query touches is the process-wide work-check
+  interval / adaptation counter of pathfinder.md §4.11 (timing, not traffic data).
 - Side outputs: advisor events and advices (news, balloons), the `my_sim_died` automata trigger, MySim cars and
   pedestrians, UI/audio messages (§5.1).
 
@@ -855,7 +858,7 @@ the MySims own no grid).
 3. *Answered (MS3, 2026-10-21):* yes, see §2.2.1.
 4. *Answered (MS4, 2026-10-21):* groups `0x150A`/`0x150B` (landmarks and rewards), §4.9.
 5. *Answered (MS5, 2026-10-21):* traced on Windows, §4.5 (border ring only; agriculture jobs count as watered).
-6. Whether the traffic pathfinder used by `CheckCommute` has any side effect on traffic data (traffic spec).
+6. *Answered (MS6, 2026-10-21):* no traffic-data side effect (§9).
 7. The "announce" check of `AnnounceMoveIn` (class slot) and the dispatch state numbering 4/5/6.
 
 ---
