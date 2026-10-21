@@ -76,6 +76,7 @@ cISC4App* App() {
 double FieldNumber(cISCLua* L, const char* name) {
     L->PushString(name);
     L->GetTable(-2);
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 14): the value is used as a bool
     const double v = L->IsNumber(-1) ? L->ToNumber(-1) : 0.0;
     L->Pop(1);
     return v;
@@ -84,6 +85,7 @@ double FieldNumber(cISCLua* L, const char* name) {
 bool FieldString(cISCLua* L, const char* name, std::string* out) {
     L->PushString(name);
     L->GetTable(-2);
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 15): the value is used as a bool
     const bool ok = L->IsString(-1);
     if (ok) out->assign(L->ToString(-1), L->Strlen(-1));
     else out->clear();
@@ -94,12 +96,14 @@ bool FieldString(cISCLua* L, const char* name, std::string* out) {
 // Pushes global[table][i]; false (nothing pushed) when it is not a table.
 bool PushEntry(cISCLua* L, const char* table, uint32_t i) {
     L->GetGlobal(table);
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 72): the value is used as a bool
     if (!L->IsTable(-1)) {
         L->Pop(1);
         return false;
     }
     L->RawGetI(-1, static_cast<int32_t>(i));
     L->Remove(-2);
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 72): the value is used as a bool
     if (!L->IsTable(-1)) {
         L->Pop(1);
         return false;
@@ -117,6 +121,7 @@ bool AdvisorCount(void* u, uint32_t* n) {
     cISCLua* L = Self(u)->Lua();
     if (L == nullptr) return false;
     L->GetGlobal("advisors");
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 72): the value is used as a bool
     const bool table = L->IsTable(-1);
     *n = table ? static_cast<uint32_t>(L->GetN(-1)) : 0;
     L->Pop(1);
@@ -143,6 +148,7 @@ uint32_t AdviceCount(void* u) {
     cISCLua* L = Self(u)->Lua();
     if (L == nullptr) return 0;
     L->GetGlobal("advices");
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 72): the value is used as a bool
     const uint32_t n = L->IsTable(-1) ? static_cast<uint32_t>(L->GetN(-1)) : 0;
     L->Pop(1);
     return n;
@@ -171,10 +177,12 @@ bool AdviceEntry(void* u, uint32_t i, fc4_adv_advice_entry* out) {
     g_text.effects.clear();
     L->PushString("effects");
     L->GetTable(-2);
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 72): the value is used as a bool
     if (L->IsTable(-1)) {
         const int32_t n = L->GetN(-1);
         for (int32_t k = 1; k <= n; ++k) {
             L->RawGetI(-1, k);
+            // [abi-ret] eax-or-void (interfaces.tsv cISCLua 14): the value is used as a bool
             if (L->IsNumber(-1)) g_text.effects.push_back(static_cast<uint32_t>(static_cast<int64_t>(L->ToNumber(-1))));
             L->Pop(1);
         }
@@ -203,6 +211,7 @@ bool CompileTrigger(void* u, const uint8_t* text, size_t len, int32_t* ref) {
     L->DoString(chunk.c_str());
     L->SetTop(top);
     L->GetGlobal("_atrg_");
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 71): the value is used as a bool
     if (!L->IsFunction(-1)) {
         L->SetTop(top);
         return false;
@@ -218,6 +227,7 @@ void ReleaseTrigger(void* u, int32_t ref) {
 
 void ReadResult(cISCLua* L, fc4_adv_lua_result* out) {
     *out = fc4_adv_lua_result{};
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 18): the value is used as a bool
     if (L->IsBoolean(-1)) {
         out->kind = FC4_ADV_LUA_BOOL;
         out->boolean = L->ToBoolean(-1) ? 1u : 0u;
@@ -390,6 +400,7 @@ int32_t Dispatch(size_t index, lua_State* state) {
         for (int32_t i = 1; i <= n; ++i) {
             fc4_adv_lua_value& a = args[static_cast<size_t>(i - 1)];
             a = fc4_adv_lua_value{};
+            // [abi-ret] eax-or-void (interfaces.tsv cISCLua 18): the value is used as a bool
             if (L->IsBoolean(i)) {
                 a.kind = FC4_ADV_VALUE_BOOL;
                 a.boolean = L->ToBoolean(i) ? 1u : 0u;
@@ -684,6 +695,7 @@ void cFC4AdvisorSystem::StartAdvisorWindow() {
 }
 void cFC4AdvisorSystem::ShowAdvisorWindow() { window_.Show(); }
 void cFC4AdvisorSystem::HideAdvisorWindow() { window_.Hide(); }
+    // [abi-ret] AdvisorWindowSlot::IsVisible reads byte +0x56 (FC4AdvisorWindow.h), no game call
 bool cFC4AdvisorSystem::IsAdvisorWindowVisible() { return window_.IsVisible(); }
 void cFC4AdvisorSystem::RemoveWinProcs() { window_.Remove(); }
 

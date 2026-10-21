@@ -1,42 +1,33 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-advisors-final4: advisor replacement (enable=advisors), final round 3/3 | glue-advisors-final4 / .claude/worktrees/glue-advisors-final4 | wip: window slots 23-28 + AD4/AD5/AD6 compat entries + private global landed-ready (gate PASS 64/64); system NOT enabled, no game run | a new multi-round program for the system/advisor/advice/subject classes and the 64-callback host |
+| glue-advisors-final4: advisor replacement (enable=advisors), round 2/3 | glue-advisors-final4 / .claude/worktrees/glue-advisors-final4 | wip: cFC4AdvisorSystem + host compiled, gate PASS (cargo 3803/0, clippy 0, ctest 64/64); not registered, no game run | round 3: advisor/advice/subject classes, then register + game run |
 
-## Report (run4, final round 3/3, 2026-10-21)
+## Report (round 2/3, 2026-10-21)
 
-**What changed** (branch glue-advisors-final4, base main b5253abf, code commit be5b96d0):
-- `engine/plugin/compat/FC4Compat.{h,cpp}` (additive, at the end of the lists): `Direct` entries for the five
-  win proc bodies from the AD4 answer (advisors.md §12.1.1 "Direct-call ABI": `0x41DB50` ctor, `0x41E320` Init,
-  `0x41D650` show, `0x41D710` hide, `0x41D830` teardown; thiscall, ECX = block base, pop 0) and for the 11 original
-  Lua extensions a replacement registers unchanged (§8.3.1 rows 1-9 per AD5, §8.3.2 camera_jump `0x40AF90` /
-  camera_zoom `0x40B1F0` per AD6). New field `advisorSystemGlobalVA` = `0x00B207C0` (§14.2) and
-  `compat::AdvisorSystemGlobal()` (aligned, committed, writable image data, else null, logged once).
-- `engine/plugin/FC4AdvisorWindow.h`: `AdvisorWindowSlot`, the system member `+0x5C` and slots 23-28 bodies
-  (Start: allocate 0x70, construct, AddRef, Init, no null test as in the original; Show/Hide only with a window;
-  IsVisible = byte `+0x56`; Remove = teardown, null, Release) over injected ops; `AdvisorSystemGlobalSlot` (Publish
-  our primary `cISC4AdvisorSystem*`, Withdraw = unconditional null, the literal §14.2 reading, commented).
-- `engine/plugin/FC4AdvisorWindowGame.cpp`: `GameAdvisorWinProcOps` (global heap allocate + the five direct calls
-  through `__fastcall`, AddRef/Release via the block base's cIGZUnknown slots 1/2: docs/abi/vtables.tsv
-  `cSC4AdvisorUIAdvisorWinProc::vftable` 0x00A83548 slots 1/2 = 0x4BDF00 / 0x41D460).
-- `engine/tests/advisor_window_test.cpp` + CMake `advisor_window_test` (additive, end of list).
+**What changed** (code commits 5d265158 + ret-channel annotations):
+- `engine/plugin/cFC4AdvisorSystem.{h,cpp}`: `cFC4ISC4AdvisorSystem` with slots 3-28 in the exe order (§12.1; distinct
+  names for the 12/13 overload pair), cIGZMessageTarget2 (+4), cheat target (+8), cIGZSerializable (+0x10), QI per §1.1
+  via `fc4_advisors_query_interface`, one shared refcount. Constructor publishes into `0x00B207C0` (§14.2), destructor
+  withdraws. Slots 23-28 over `AdvisorWindowSlot` with `GameAdvisorWinProcOps`; slot 8 over `AdvisorGameMap` (empty mirror).
+- Host: Lua table reads (`advisors`, `advices`, fields of §2.1/§2.2), trigger compile/ref/call (§4.5), set_global /
+  set_global_string, GC, close_lua, debug flag, cheats, window start/remove, has_city, now_ms, system subscriptions,
+  post/send (cFC4Message2Standard), refs, object_created (system only).
+- register_api: 34 core names via `fc4_advisors_call_lua` trampolines (lua-host §1.3 host lookup, QI 0xEA10C4A2) +
+  the 11 compat originals (AD5/AD6), `_tf_` pattern of lua-host §8.2.
+- CMake: the two files (additive). Questions AD7-AD10 appended to docs/specs/questions/advisors.md (QUESTIONS.md
+  index not regenerated: tools/ is off-limits to this lane).
 
-**Not done (and why).** `enable = advisors` is still not registered: the replacement system needs cFC4AdvisorSystem
-(29 slots + message target + serializable), the advisor hierarchy (21), advice (31), subject (14), and the
-`fc4_advisor_host` of 64 callbacks (Lua tables / package loader / triggers / tags / detokenizer on the app's
-cISCLua, the §7 variable sources over every §13 subsystem, cheats, messages, refs). That did not fit one 150-call /
-150k round (context 86k at call ~30 after reading the needed spec sections). Nothing was registered as a no-op or
-behind a disabled path; the new code is not called by any registered class yet, so plugin behaviour is unchanged.
+**Not done.** Slots 5/6/16/17/18/20, SetLocalValue, Read/Write and object_created for advisors/advices/subjects need the
+advisor/advice/subject GZCOM classes (round 3); they currently return the §4.3 null case / false / null. Host
+callbacks not set yet: call_condition, detokenize, reload_scripts (AD10), set_tutorial_lua, create_tags (tag-gc §8.1),
+register_detokenizer, popup_priority, set_local, city_established, difficulty, cell_counts, sim_date, start_year,
+is_any_paused, post_update_self, post_ticker, global_effect, rebuild_text, value/list (§7), history/ordinance/occupant/
+civic/deal callbacks. Because of these the class is NOT registered (no `enable = advisors` row); plugin behaviour unchanged.
 
-**Measured.** Baseline `qbuild all`: cargo 3803 passed / 0 failed, clippy 0, build PASS, ctest 63/63. Tip:
-cargo 3803/0, clippy 0, build PASS, ctest 64/64 (incl. advisor_window_test). Coverage unchanged (advisors:
-specified yes, implemented yes, shadow -, verified -, replaced absent).
-**Game:** no request: no advisor callback can run before the family is enabled, so a 2032 trace would show nothing.
+**Measured.** qbuild all: cargo 3803 passed / 0 failed, clippy 0, build PASS, ctest 64/64 (after annotating cISCLua
+bool returns for ret_channel_check). Game: none (family not enabled).
 
-**Questions:** none new (AD4-AD6 answers were sufficient for this part).
-
-**Next (new program, several rounds):**
-1. cFC4AdvisorSystem over `fc4_advisors_*` with slot 8 -> AdvisorGameMap, slots 23-28 -> AdvisorWindowSlot,
-   Publish into AdvisorSystemGlobal in the constructor / Withdraw in the destructor; slots 20/22 from the core.
-2. register_api: 36 core entries via `fc4_advisors_call_lua` trampolines + the 11 compat originals in collector order.
-3. Advisor / advice / subject classes (maps from FC4AdvisorMaps.h), then the host's §7 readers.
-4. Game run sim_turbo to 2032 (unique label), then normal speed, then candidate union.
+**Next (round 3):** advisor/advice/subject classes over fc4_advisors_advisor_object/advice_object (maps from
+FC4AdvisorMaps.h), fill the remaining host callbacks (sim_date/is_any_paused via cFC4ISC4Simulator, §7 value/list),
+reload_scripts once AD10 is answered, register `advisors` in FC4Subsystems.cpp (opt-in), then a sim_turbo 2032 run with a
+unique label.
