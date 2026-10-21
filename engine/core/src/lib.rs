@@ -85,6 +85,7 @@ pub mod protection;
 pub mod residential;
 pub mod rng;
 pub mod rz_files;
+pub mod rz_streams;
 pub mod save;
 pub mod seeding;
 pub mod simgrid;
