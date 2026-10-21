@@ -14,9 +14,9 @@ Scope. **`cSC4AudioAmbienceManager`** (CLSID `0x6A12F51C`, factory `0x004EB0C0`,
 `kGZGUID_AudioAmbienceManagerSystemServiceId` `0xAA12F911`; [audio.md](audio.md) §1.2, §1.3): the city-side
 service that turns occupants into positional sounds, runs the occupant alarm clock, keeps the listener's
 "attention rectangle", and drives the ambience layers once per tick. The layers themselves
-(`cSC4AudioAmbienceLayer`) are specified here **only as the interface the manager calls** (§6); their score
-and loop algorithms (`_UpdateAmbienceScores` `0x004E5920`, `_UpdateAmbienceLoops` `0x004E5D50`,
-`_ReadTuningValues` `0x004E7A90`) are left to a later section (§9, **AA1**). The sound-system events the
+(`cSC4AudioAmbienceLayer`) are specified here as the interface the manager calls (§8) plus their `Init`,
+tuning and filter creation (§8.1–8.3); their score and loop algorithms (`_UpdateAmbienceScores` `0x004E5920`,
+`_UpdateAmbienceLoops` `0x004E5D50`) are specified in §8.6–§8.7 (AA1, answered). The sound-system events the
 manager posts are the ones `cSC4AudioSoundManager::DoEvent` handles ([audio.md](audio.md) §8.3).
 
 ---
@@ -133,8 +133,9 @@ are the occupant's position (slot `+0x20`) truncated to integers.
 5. If it has any of `0xCA19D7CA`, `0x0A4C13CB`, `0x4A4C132E`: find its lot (lot manager `0x00B43D08` slot
    `+0x38`) and run the condition update for that lot (§3.4).
 
-The init walk (city init step 7) visits every occupant of types `0x278128A0` (buildings), `0xA823821E` and
-`0xC7CC75F1` (occupant-manager slot `+0xB0` with a type filter) and applies the init variant, which starts
+The init walk (city init step 7) visits every occupant of types `0x278128A0` (buildings), `0xA823821E` (props, as in city-detail.md) and
+`0xC7CC75F1` (an automaton type: the `cSC4TrafficAutomaton`-derived constructor `0x005628F0` writes it at `+0x28`, and
+`0x004C3AB0` accepts it beside the sim type `0x496E5783`; the exact class is AA4) (occupant-manager slot `+0xB0` with a type filter) and applies the init variant, which starts
 **no** sound itself *[compat]*.
 
 `_AddOccupantSndInstance` also links an automaton occupant (IID `0xA9B40F05`) back to this manager (its
@@ -156,10 +157,51 @@ alarm entry (`_RemoveAlarmOccupant` `0x004EA080`). The stop is posted even when 
 
 ### 3.4 Condition and state changes
 
-`0xE99B3D4D` ConditionChanged: if the message's object answers the lot IID `0xE818FCED`, run
-`_UpdateLotOccupantsForConditionChange` (`0x004E9DA0`) for that lot with the message's two values.
+`0xE99B3D4D` ConditionChanged: if the message's object (void1) answers the lot IID `0xE818FCED`, run
+`_UpdateLotOccupantsForConditionChange` (`0x004E9DA0`) for that lot with `old := data1` (message slot `+0x24`,
+reads `+0x10`) and `new := data2` (slot `+0x38`, reads `+0x14`) (`0x004EAEC5`–`0x004EAEDE`). The poster is
+`cSC4Lot::SetCondition` (`0x006C26D0`): void1 is a **copy** of the lot, data1 the previous condition byte,
+data2 the new one, data3 the lot's `+0x3C` (unused here); it is posted only when the condition changes.
 `0xE8BDA2E7` StateChanged is subscribed and routed to the occupant handler but has no case there: it does
-nothing *[quirk]*. The per-lot update itself is **AA2** (§9).
+nothing *[quirk]*.
+
+**The per-lot update `U(lot, old, new)`** (`0x004E9DA0`, pop 12). Insert and the init walk (§3.1 step 5)
+call it as `U(lot, −1, −1)`.
+
+1. `lot` null → return. If `new < 0` (signed), `new := lot.GetCondition()` (lot slot `+0x8C`, byte
+   zero-extended) (`0x004E9DBB`).
+2. `L := lot.GetLotOccupants()` (lot slot `+0xC4`, `0x006BFF70`: the occupant manager's occupants inside the
+   lot's cell rectangle, any type, through an inside-lot filter) into a fresh list.
+3. For each occupant `o` of `L`, in list order: `o` qualifies when it answers `cISC4BuildingOccupant`
+   (`0x87DDA3A9`) **or**, failing that, `cISC4PropOccupant` (`0xE9793A65`), and its property holder (slot
+   `+0x18`) is non-null. Both interface references are released after the occupant (they gate only). No
+   preview check is made here *[compat]*. For a qualifying `o`, with `A := 0x0A4C13CB`, `C := 0xCA19D7CA`,
+   `R := 0x4A4C132E` (each read as u32, `0x005FD480`; "absent" means the read fails), apply in this order:
+
+| `new` | step (only for properties present) |
+|---|---|
+| 0, 5 or 6 | stop `A`; start `C` looping |
+| 2 or 3 | stop `C`; start `A` looping |
+| 1 or 4 | stop `A`; stop `C` |
+| 0, and `old` = 1 | additionally start `R` looping (after the row above) |
+| any other value (7 and up) | nothing |
+
+   "Start" is `_AddOccupantSndInstance(o, id, loop = 1)` (start event, set-position, automaton link, §3.1)
+   and "stop" is `_RemoveOccupantSndInstance(o, id)` (§3.3); the instance id is `o` + the property value. No
+   test is made whether the sound is already running: a repeated condition 0 re-posts the `C` start
+   *[compat]*.
+4. Release the list through the occupant manager (`0x00B43D0C` slot `+0xC0`, `ReleaseOccupantList`), then
+   free its nodes and head.
+
+Consequences *[compat]*: `R` (the "repowered" sound, by its trigger) starts only on a real condition change 1 →
+0, never on insert or init (old = −1); it is never stopped by this function, only by `HandleRemoveOccupant`
+— which stops `A`, `C` and `0x6A36AFAC` but **not** `R` (§3.3) *[quirk]*. The lot condition values are those
+of lot-developer.md §5.5 (0 normal, 1 unpowered, 2–3 run down, abandoned lots step up to 4); 5 and 6 share
+row 0 *[compat; no producer of 5 or 6 is specified]*.
+
+Worked example: a lot with one building carrying `C = 0x1111` and `A = 0x2222`. Insert (lot condition 0):
+start `0x1111` looping, instance `o + 0x1111`. Power is lost (0 → 1): stop `o + 0x2222` (not running; the
+sound manager ignores it), stop `o + 0x1111`. Run down (1 → 2): stop `o + 0x1111`, start `o + 0x2222`.
 
 ### 3.5 Automata
 
@@ -193,9 +235,10 @@ For each time `a[i]` (with `next` = `a[i+1]`, or `a[0]` for the last entry):
   `0x2A53BE13` and: on an "on" index start the looping sound if `+0x24` is 0 and set it; on an "off" index
   stop it if `+0x24` is set and clear it.
 
-Then `last := t`, a raw 32-bit copy of the f32 (`0x004E91B0`; no integer conversion) *[inferred: the
-copied local is `t`]*. Because the "fire" tests are `last < a[i] <= t`, an alarm at time 0 never fires
-after midnight (`last` = 23, `t` = 0) *[quirk, inferred]*.
+Then `last := t`, a raw 32-bit copy of the f32 (`0x004E91B0`; no integer conversion) (stack trace: `t` is stored at `0x004E8F12` at depth 0x4C, i.e. frame slot
+entry − 0x34; after `PUSH EBX` at `0x004E8F20` that slot is `[ESP+0x1C]`, which `0x004E91AC` reads; the
+loop's `[ESP+0x18]` is the different slot entry − 0x38 holding `a[i]`). Because the "fire" tests are `last < a[i] <= t`, an alarm at time 0 never fires
+after midnight (`last` = 23, `t` = 0) *[quirk]*.
 
 ## 4. Tuning and the attention rectangle
 
@@ -283,14 +326,350 @@ The message must answer `0x65297976`; otherwise return 0.
 22–24 `Insert`/`Move`/`RemoveOccupant`, 25 `BeginUpdate`, 26 `Update`, 27 `EndUpdate`, 28 `Pause`.
 The manager uses 4, 17, 20, 25–28 directly and 21 through the cell walk.
 
+### 8.1 Layer `Init` (`0x004E8180`)
+
+Runs once per layer (byte `+0x04` set on the first call; later calls do nothing). A process-wide layer count
+(`0x00B21944`) is incremented; the layer that takes it from 0 to 1 first runs `_StaticInit` (`0x004E4EB0`),
+and if that fails `Init` returns its result without doing anything else. Then, in this order:
+`_ReadTuningValues(layerId)` (layer id `+0x1F8`, §8.2; its result is ignored); subscribe this layer to
+`0xC53D10AA` on the message server (`0x652294C7`); `_CreateFilters` (`0x004E78E0`); `_CreateLayers`
+(`0x004E4F60`); own slot 14 `LoadFreshnessScore`; own slot 12 `AddAmbienceLoop(+0x1D0)` (the loop sound id
+read from `0x6A3FBDDA`, §8.2).
+
+### 8.2 Layer tuning (`_ReadTuningValues` `0x004E7A90`)
+
+**Defaults, written first, before the exemplar is looked up** (so a missing exemplar leaves exactly these):
+ease object `+0xE8` gets `+0x108 := 100 × 0.001 = 0.1` and `+0x10C := 4000 × 0.001 = 4.0` (setter
+`0x004F7BF0`: each argument times the f32 constant 0.001 at `0x00A867A4`); name `+0x188 :=
+"Noname_0x%08x"` of the layer id; `+0x1E1 := 0x1F`, `+0x1E0 := 0x1F`, `+0x1EC := 1024`, `+0x1E8 := 1024`,
+`+0x1F0 := 100`, `+0x34 := 1`, `+0x38 := 5`, `+0x20 := 50.0`, `+0x24 := 50.0`, `+0x200 := 1.0`; `+0x204 :=` the
+u32 at `+0x314` of the object at `[0x00B43CC4] + 0x18`; three response curves with two points each:
+
+| Curve | Default points (x, y) | Tuning key |
+|---|---|---|
+| `+0x1A0` | (0, 100), (20, 100) | `0xCA4132E9` |
+| `+0x1B0` | (0, 0), (20, 1024) | `0x6A4132F3` |
+| `+0x1C0` | (0, 1024), (20, 1024) | `0x6A4132F6` |
+
+**Exemplar**: type `0x6534284A`, group `0xCA25875D`, instance = the layer id, through the resource manager
+(`0x00B21950` slot 3, IID `0xA52160F5`). Missing → log "Failed to get resource", return 0 (defaults stay).
+Present → read, in this order (each reader leaves the destination unchanged when the property is absent, except
+where "cleared" says the destination is zeroed just before the read):
+
+| Key | Reader | Destination | Absent value |
+|---|---|---|---|
+| `0x00000020` | string (`0x005FD570`) | name `+0x188` | `Noname_0x…` |
+| `0xEA3FBDD7` | vec<u32> (`0x005FF510`) | vector `+0x1D4` (emptied first) | empty |
+| `0x2A3FBDE1` | vec<u32> | vector `+0x208` (emptied first) | empty |
+| `0x2A3FBDE5` | vec<u32> | vector `+0x224` (emptied first) | empty |
+| `0x0A410BA0` | vec<u32> | vector `+0x240` (emptied first) | empty |
+| `0x6A3FBDDA` | u32 (`0x005FD480`) | `+0x1D0`, the layer's ambience-loop sound id (§8.1) | 0 (cleared) |
+| `0x0A25896B` | u8 (`0x005FD3C0`) | `+0x1E0` | 0 (cleared; the `0x1F` default is lost) |
+| `0xAA3FBDDE` | u8 | `+0x1E1` | 0 (cleared) |
+| `0xEA3FC42A` | u32 | `+0x1EC` | 1024 |
+| `0xAA3FC48E` | u32 | `+0x1E8` | 1024 |
+| `0x6A3FC4C7` | u32 | `+0x1F0` | 100 |
+| `0x8A552758` | u32 | `+0x34` | 1 |
+| `0x8A70B1A2` | u32 | `+0x38` | 5 |
+| `0x8A3FC5DD` | f32 (`0x005FD4F0`) | `+0x200` | 1.0 |
+| `0xCA4132E9`, `0x6A4132F3`, `0x6A4132F6` | response curve (`0x005F4700`) | curves `+0x1A0`, `+0x1B0`, `+0x1C0` | the defaults above |
+| `0x0A4168E1` | f32 | `+0x20` | 50.0 |
+| `0x0A56212A` | f32 | `+0x24`, which is first set to the new `+0x20` | `+0x20` |
+| `0x8AA039B7`, `0x4AA03DB1` | u32 into locals (defaults 100, 4000) | ease `+0x108`, `+0x10C` := float(u32) × 0.001 | 0.1, 4.0 |
+
+The two ease values are converted **unsigned** (`FILD` plus 2^32 when negative, `0x004E8105`–`0x004E8130`);
+the call is the same setter as the default, so a missing `0x8AA039B7` still yields 0.1 s. The function returns 1
+on success. The two ease values are rates per millisecond (§8.7). Roles: `+0x34`/`+0x38`, `+0x200` in §8.5;
+`+0x1E8`, `+0x1F0`, `+0x204` and curves `+0x1A0`/`+0x1B0` in §8.6; curve `+0x1C0` in §8.7; `+0x20`/`+0x24` and the
+vectors in §8.3–§8.5. `+0x1E0`, `+0x1E1` and `+0x1EC` are read by none of the routines this spec covers.
+
+Worked example: an exemplar with only `0x6A3FBDDA = 0x1234` and `0x0A4168E1 = 30.0` gives loop sound
+`0x1234`, `+0x20 = +0x24 = 30.0`, `+0x1E0 = +0x1E1 = 0`, every other value its default.
+
+### 8.3 Layer filters (`_CreateFilters` `0x004E78E0`, `_AddFilter` `0x004E7010`)
+
+The three tuning id lists are **filter class ids** of three kinds: kind 1 from `0x2A3FBDE1` (`+0x208`), kind 2
+from `0x2A3FBDE5` (`+0x224`), kind 3 from `0x0A410BA0` (`+0x240`). `_CreateFilters` first resets three bit
+vectors (`+0x144`, `+0x158`, `+0x16C`), then for each kind in the order 1, 2, 3 sizes that kind's bit vector to
+its id count (all false) and calls `_AddFilter(id, kind)` for each id in list order.
+
+`_AddFilter(id, kind)` (pop 8):
+
+1. Look `id` up in a **process-wide** filter cache (a hash map class id → filter, buckets `0x00B2195C`–
+   `0x00B21960`, index `id mod bucket count`), shared by every layer. Found → use that filter.
+2. Not found → create it through GZCOM `CreateInstance(id, IID 0x4A40074C)`. Failure → log "Failed to create
+   class object filter", return (nothing counted). Then call the filter's `Init` (slot 3, `+0x0C`); false → log
+   "Failed to init filter", release it, return. Success → the cache takes one reference and stores it.
+3. Count the filter's interfaces on the layer: answers `0xCA400757` → `+0x138 += 1`; `0xCA400753` → `+0x13C
+   += 1`; `0xEA40074F` → `+0x140 += 1` (the query references are released at the end).
+4. Append the filter pointer (no reference of its own; the cache owns it) to the kind's list and bump its count:
+   kind 1 → list `+0x214`, count `+0x220`; kind 2 → `+0x230`, `+0x23C`; kind 3 → `+0x24C`, `+0x258`
+   (`0x004E71E0`–`0x004E7247`). Another kind value appends nothing.
+
+The same class id listed twice, or by two layers, yields the same filter object in each list *[compat]*.
+How the kinds and interfaces are used is §8.4.
+
+### 8.4 Filtering: `CanHandle`, `HandleCell`, `HandleOccupant`
+
+**Filter interfaces.** A filter object may answer any of three interfaces; each has its test at slot 5
+(`+0x14`), returning a bool:
+
+| IID | Stage | Test arguments | Used by |
+|---|---|---|---|
+| `0xEA40074F` | global | none | `CanHandle` |
+| `0xCA400757` | cell | (cell x, cell z), two ints | `HandleCell` |
+| `0xCA400753` | occupant | (occupant `cISC4Occupant*`) | `HandleOccupant` |
+
+**Kinds** (the three lists of §8.3) combine the tests of one stage the same way in all three functions. Each
+list is walked in order; a filter that does not answer the stage's interface is skipped (not counted):
+
+- kind 1 (**all**, list `+0x214`): a filter whose test is false rejects at once; true sets its bit in
+  `+0x144`.
+- kind 2 (**none**, list `+0x230`): a test that is true rejects at once; false sets its bit in `+0x158`.
+- kind 3 (**any**, list `+0x24C`): the first true test sets its bit in `+0x16C` and ends the walk.
+
+The item **passes** when nothing rejected, at least one filter of any kind answered the stage's interface
+("answered" counter), and either the kind-3 list is empty or one of its filters passed. *[compat]* A kind-3 list
+whose filters all lack the stage's interface (or all test false) makes every item fail without counting it as
+a reject. The bit vectors only accumulate (they are cleared by `BeginUpdate`); nothing in the layer reads them.
+
+**`CanHandle`** (slot 19, `0x004E5110`, no arguments): first, the audio preferences object (application
+`0x00B43C94` slot `+0x98`) byte `+4` clear → return false, touching nothing. Otherwise the answer is cached
+per update cycle: byte `+0x12D` set → return byte `+0x12C`. Else set `+0x12D := 1`, run the global stage;
+pass → `+0x12C := 1` and return 1; fail → return 0 (`+0x12C` keeps the 0 `BeginUpdate` gave it, so the
+cached answer is also false).
+
+**`HandleCell(x, z)`** (slot 20, `0x004E5370`, pop 8, always returns 0): own `CanHandle` (vtable slot 19)
+false → nothing. Run the cell stage. Rejected → `+0x134 += 1` (cell rejects). Pass → `+0x128 += 1` (cells
+accepted), then the cell's world position: if (x, z) differs from a one-entry process-wide cache
+(`0x00B09810`/`0x00B09814`), city (`0x00B43CEC`) slot `+0x184` `CellCenterToPosition(x, z, &px, &pz)`, then
+terrain (`0x00B43CF4`) slot `+0x34` altitude at (px, pz) → py (stored as f32), and the cache keys become
+(x, z); the cached (px, py, pz) is used either way. That point is inserted into group layer `+0x2C`
+(below) with extra radius 0. Neither cache is reset between updates or layers.
+
+**`HandleOccupant(occ)`** (slot 21, `0x004E5670`, pop 4, always returns 0): `CanHandle` false or `occ` null →
+nothing. Run the occupant stage. Rejected → `+0x130 += 1` (occupant rejects). Pass → `+0x124 += 1`
+(occupants accepted), occupant slot 8 (`+0x20`) fills its position (x, y, z), inserted into group layer
+`+0x28` with extra radius 0.
+
+Worked example: kind 1 = [A (global + occupant)], kind 3 = [B (cell)], kind 2 empty. `CanHandle`: A's global
+test true, but kind 3 has B, which lacks the global interface → fail; the layer never handles anything
+(compat case above). Move B to kind 1: `CanHandle` passes on A; `HandleCell` asks only B; `HandleOccupant`
+asks only A.
+
+**Group layers** (`cGroupLayer`, ctor `0x004F12E0(radius)`, vtable `0x00A94200`): created by `_CreateLayers`
+(`0x004E4F60`, from `Init`) from the tuning:
+
+| Field | Radius | When `+0x34` (tuning `0x8A552758`) = 1 |
+|---|---|---|
+| `+0x28` occupant groups | `+0x20` (`0x0A4168E1`) | same |
+| `+0x2C` cell groups | `+0x24` (`0x0A56212A`) | `+0x2C` is `+0x28` (one shared layer) |
+| `+0x30` | `+0x24` when `+0x34 = 2`, else `+0x20` | not created |
+
+A group layer holds a list of groups; a group has a centre (3 floats), a radius (the layer's), a count and a
+peak. Inserting point p with extra radius r (`_AddPositionToGroup` `0x004F0C20`): walk the groups in creation
+order; the first whose distance from its centre to p, computed in x87 extended precision as
+sqrt(dz² + dy² + dx²), is **strictly less** than r + group radius takes it: count += 1, peak := max(peak,
+count). No group → append a new one with centre p (never moved later), count 1, peak 1. `BeginUpdate`
+(`0x004E4CE0`) copies its 16-byte argument (the attention rectangle) to `+0x10`–`+0x1C`, calls `Clear(1)` on
+`+0x28` and on `+0x2C` when distinct (every group: peak := count, count := 0; groups stay), zeroes
+`+0x124`–`+0x134` and the two `CanHandle` bytes, and clears every bit of the three bit vectors. `EndUpdate`
+(`0x004E4E80`) removes groups whose count is still 0 from the same layer(s). So after an update a group's count
+is the number of points it took this cycle and its peak is the larger of that and last cycle's count.
+
+### 8.5 `Update(e, &P, &Q)` (slot 26, `0x004E6340`, pop 12)
+
+Called after every `_DoStageUpdate` (§5) with the elapsed ms `e` and the manager's two listener vectors
+(P = `&listenerPos`, Q = `&listenerVector`; both 3 floats).
+
+1. Copy P to `+0xB0`–`+0xB8` and Q to `+0xBC`–`+0xC4`.
+2. (A walk over the three bit vectors writes byte `+0x0C`, but step 3 overwrites it: no effect.)
+3. `+0x0C :=` own `CanHandle` (slot 19). False → skip to step 8.
+4. **Groups**, by `+0x34` (tuning `0x8A552758`): 1 → layer L = `+0x28`; 2 or 3 → `+0x30.Intersect(+0x28,
+   +0x2C, swap = (+0x34 = 2))`, L = `+0x30`; any other value → no group step (the list stays empty and the
+   group count `+0xA8` keeps its previous value). For L: `GetPositions` (`0x004F0B40`, rectangle test off)
+   appends every group centre to a temporary list in group order, sets `+0xA8 :=` number of groups and
+   `peaks :=` the sum of their peaks.
+   `Intersect(A, B, swap)` (`0x004F0EA0`): inner := A, outer := B (swapped when `swap`); delete every group of
+   the target; mark every inner group unused; `left :=` inner group count; for each outer group o, for each
+   inner group i, while `left > 0`: if i is unused and the distance between the centres is strictly less than
+   o.radius + i.radius, append a new target group with i's centre and radius, count 1, peak 1, mark i used,
+   `left -= 1`. So with `+0x34 = 3` the result is the occupant groups lying near some cell group, with 2 the cell
+   groups lying near some occupant group; every result group has peak 1.
+5. **Score value** `+0xAC`, by `+0x38` (tuning `0x8A70B1A2`, default 5); integers are converted with `FILD`
+   and stored as f32:
+
+| `+0x38` | `+0xAC` |
+|---|---|
+| 1 | `peaks` |
+| 2 | residential population (`0x00B43DA4` slot 16 `GetPopulation`); 0 when that global is null |
+| 3 | `FLT_MAX` (`0x7F7FFFFF`) |
+| 4 | the zoom index (`[0x00B43DD8] + 0x0C`) |
+| 5 | `peaks / +0xA8` (`FILD` then `FIDIV`, `0x004E659C`); 0.0 when `+0xA8 = 0` |
+| 6 | the u32 at `+0x11C` of the object at audio-director `+0x54` (`0x004E82A0`), converted unsigned — see below |
+| other | unchanged |
+
+   `peaks` starts at 0 (`0x004E6511`), so with no group step mode 1 gives 0 and mode 5 gives 0 over the stale
+   `+0xA8`.
+
+   **Mode 6** (`0x004E65AE`–`0x004E65FC`): the audio director is the static object `0x00B21978`
+   (`GetSC4AudioCOMDirector` `0x004ECD60`), so its `+0x54` is `0x00B219CC`. The director's constructor
+   (`0x004EC72D`) zeroes it and nothing else writes it: `PostAppInit` (`0x004EBF40`) fills `+0x48`, `+0x4C`,
+   `+0x50` (the ambience manager, class `0x6A12F51C`), `+0x58`, `+0x5C`, `+0x60`, `+0x64` but not `+0x54`; the
+   other 14 callers of `GetSC4AudioCOMDirector` read other members; the export has no data reference to
+   `0x00B219CC`. So the read is `[0 + 0x11C]` and the original **faults** (access violation in the one-instruction
+   getter `0x004E82A0`); with a null director the code also passes null. A layer with `+0x38 = 6` is therefore
+   unusable in the shipped game *[compat]*. `+0x11C` is the tracked-occupant count of the ambience manager (§1),
+   which sits one member earlier at `+0x50`; a reimplementation that must not crash may return that count
+   *[inferred]*, but no shipped behaviour exists to match.
+6. **Sample positions** (only when `+0xA8 ≠ 0`; `_GetEquallyDistributedPositions` `0x004E6070`) into the array
+   `+0x3C` (9 × 3 floats), count back into `+0xA8`. Up to 9 group centres → all of them, in list order.
+   10 or more → a 3 × 3 grid over the attention rectangle `+0x10` (floats x0, z0, x1, z1): `sx := trunc((x1 −
+   x0) × 0.33333334)`, `sz := trunc((z1 − z0) × 0.33333334)` (`0x00A92480`; integers); for each centre c in
+   list order `ix := trunc((c.x − x0) / sx)`, `iz := trunc((c.z − z0) / sz)`, each clamped to 0..2, and the
+   first centre to land in cell `ix + 3·iz` is kept. A zero `sx`/`sz` divides by zero (x87 masked: ±inf or NaN,
+   `trunc` gives `0x80000000`, clamped to 0) *[compat]*.
+7. **Average position** `+0xC8`–`+0xD0` (only when `+0xA8 ≠ 0` after step 6; read by `GetAveragePosition`,
+   slot 10). With `d := P − Q` and `n := d × (1.0 / |d|)` (`0x00B09818` = 1.0; the factor stored as f32, each
+   component stored f32), for each kept position p: `v := p − Q` (components f32), `a := |v · n| / |v|`
+   (x87 extended, computed as `(v.z·k)·n.z + (v.y·k)·n.y + (v.x·k)·n.x` with `k = 1/|v|`, then stored f32),
+   `w := a × (1.0 / (+0x200 − a))` (`+0x200` = tuning `0x8A3FC5DD`, default 1.0), `W += w`, `S += w·p`.
+   Result `S × (1.0 / W)` (the factor stored f32). The sums start at 0.0 (`0x00A81054`, and the zero vector
+   `0x00B2194C`). The loop also tracks the smallest |v| but never uses it. A position exactly on the view
+   line with `+0x200 = 1.0` gives w = ±inf *[compat]*.
+8. Free the temporary list; then `_UpdateAmbienceScores(e)` (§8.6) and `_UpdateAmbienceLoops(e)` (§8.7),
+   whether or not step 3 passed.
+
+Worked example: `+0x34 = 1`, two occupant groups with peaks 3 and 1, `+0x38 = 5` → `+0xAC = 4 / 2 = 2.0`; both
+centres are kept (fewer than 10), and the average weights each by how close it lies to the P–Q line as seen
+from Q (|cos| of the angle), sharpened by `a / (m − a)`.
+
+### 8.6 `_UpdateAmbienceScores(e)` (`0x004E5920`)
+
+The argument `e` is not read (pop 4). `Pause` (slot 28, `0x004E6210`) stores its flag in byte `+0x0D` and then
+calls this and `_UpdateAmbienceLoops` with `e = 0x7FFFFFFF`.
+
+**Freshness parameters** (`_UpdateFreshnessParameters` `0x004E4AA0`, called first). When `+0x0C` (this update's
+`CanHandle`, §8.5) is clear: `+0xDC := 0`, `+0xE0 := 0`. Otherwise, with `s = +0xAC` (§8.5 step 5):
+
+1. `+0xDC := (trunc(curve +0x1B0 at s) × +0x1E8) >> 10` — `_ftol2`, then a 32-bit `IMUL` (low half, wraps) and a
+   **logical** shift (`SHR`, `0x004E4AD2`). Tuning: curve `0x6A4132F3`, `+0x1E8` = `0xAA3FC48E` (default 1024).
+2. `+0xE0 := trunc(curve +0x1A0 at s)` (curve `0xCA4132E9`), then by `+0x204` (§8.2): 0 → `+0xE0 × 50 / 100`,
+   1 → `+0xE0 × 75 / 100` (32-bit signed multiply, signed division truncating toward zero; the compiler's
+   reciprocal `0x51EB851F`, `SAR 5`, plus the sign bit, `0x004E4B00`–`0x004E4B34`), any other value → unchanged.
+
+So `+0xDC` is the score volume (0..1024 scale when the curve stays in 0..1024) and `+0xE0` the play percent.
+
+**The score list `+0x180`** (filled by `LoadFreshnessScore`, §8.1). Each entry: byte `+0x08` *playing*, byte
+`+0x09` *ready* (the entry has a loaded score; not written here), `+0x0C` last sent play percent, `+0x10` last
+sent volume, `+0x20` the freshness player (`cFreshPlayer`, the object `DoEvent` §6 acts on). "Send X(...)"
+below means: create event X through the sound-event system `0x00B21954` (slot 13 `+0x34`, IID `0x5B523BA4`);
+when that succeeds, put the player in the payload's void1 (slot 33 `+0x84`), the listed values in data1
+(slot 11 `+0x2C`) and data2 (slot 16 `+0x40`), post it (slot 12 `+0x30`); a failed create skips the rest of that
+send. The event reference is released before the next create and at the end of the entry.
+
+Let `on := (+0xDC ≠ 0) and (+0xE0 ≠ 0) and (+0x0D = 0)`. For each entry in list order:
+
+1. **Start** — when `+0xDC ≠ 0`, `+0xE0 ≠ 0`, entry not playing, entry ready and `+0x0D = 0`: last percent :=
+   0, last volume := 0; send `0xEA2D827C` (SetMinMaxDistance, §6) with data1 `= trunc(d)` and data2 `=
+   trunc(d × 16.0)` where `d := float(+0x1F0) × 0.01 × Z`, then send `0xEA2C0390` (SetHeadRelative + Play)
+   with data1 `= (+0x34 = 4)`; when that create succeeds, playing := 1. (Details below.)
+2. **Stop** — when not `on` and the entry is playing: send `0x2A2C0393` (3-second fade to 0) with no data;
+   when that create succeeds, playing := 0 and the entry ends here. A failed create falls through to step 3
+   with the entry still playing *[compat]*.
+3. **Update** — only when the entry is playing (reached when `on`, or after a failed stop create):
+   a. **Divisions**, skipped when `+0x34 = 4` (the head-relative mode): for `i = 0 .. +0xA8 − 1` (signed
+      count; none when ≤ 0), with column `i mod 3` and row `i div 3`, direct calls on the player: slot 33
+      (`+0x84`) `(col, row, trunc x, trunc y, trunc z)` of sample position `i` (`+0x3C + 12·i`, §8.5 step 6;
+      `_ftol2` each), then slot 32 (`+0x80`) `(col, row, 1)`. Then, if fewer than 9 were set, slot 32
+      `(col, row, 0)` for each remaining `i` up to 8. These are sent every update, without change detection.
+      (By name order in the export these are `SetDivision3DPosition` and `SetDivisionEnabled` *[inferred]*.)
+   b. **Volume** — when `+0xDC ≠` last volume: last volume := `+0xDC`, then (still playing) send `0x4A3DA208`
+      (SetVolume) with data1 `= +0xDC`.
+   c. **Play percent** — when `+0xE0 ≠` last percent: if playing, send `0x0A414C5C` (SetPlayPercent) with
+      data1 `= +0xE0`; then last percent := `+0xE0` whether or not the send happened.
+
+Step 1 falls into the same entry's step 3, so a freshly started score also gets its divisions, its volume
+(last volume was reset to 0, so the first nonzero `+0xDC` is sent) and its play percent in the same update.
+
+**Distance `d`** (`0x004E59B5`–`0x004E5A1B`): `+0x1F0` (tuning `0x6A3FC4C7`, default 100) is loaded with `FILD`
+plus 2^32 (`0x00A80AA8`) when negative (unsigned), multiplied by the f32 0.01 (`0x00A823A4`, 0x3C23D70A) and
+then by `Z`, the f32 at `0x00B21A30`, in x87 extended precision, and stored once as f32. `Z` is the listener's
+zoom-5 distance scale, written only by `cSC4AudioListener::_CalculateZoomValues` (`0x004F18C0`, the fifth of
+five floats `0x00B21A20`–`0x00B21A30`, each `A[i] × B[i] × k` from the listener's tuning) and 0.0 before it
+first runs. data1 is `_ftol2` of the stored f32; data2 is `_ftol2` of (that f32 × 16.0, `0x00A8D45C`, extended).
+
+Worked examples:
+- Freshness: `+0xAC = 20.0` with the default curves gives `+0xDC = 1024 × 1024 >> 10 = 1024` and `+0xE0 =
+  100`, then 50 when `+0x204 = 0`, 75 when it is 1. A curve value of −1 gives `0xFFFFFC00 >> 10 = 4194303`
+  (logical shift) *[compat]*. `+0x0C` clear gives 0/0, which stops every playing score (step 2).
+- Distance: `+0x1F0 = 100`, `Z = 1000.0`: `0.01f × 100 × 1000` is 999.99997764… in extended precision and
+  rounds to f32 1000.0, so data1 = 1000, data2 = 16000. With `Z = 0.0` both are 0.
+- One ready entry, ticks with (`+0xDC`, `+0xE0`) = (0, 0), (512, 50), (512, 50), (512, 60), then `+0x0D` set:
+  tick 1 nothing; tick 2 SetMinMaxDistance, Play, divisions, SetVolume 512, SetPlayPercent 50; tick 3 only the
+  divisions; tick 4 divisions and SetPlayPercent 60; the paused tick sends the fade (`0x2A2C0393`).
+
+### 8.7 `_UpdateAmbienceLoops(e)` (`0x004E5D50`)
+
+**Target volume** (`0x004E4B60`): `+0xE4 := 0`; when `+0x0C` (this update's `CanHandle`) is set and `+0xAC ≠
+0.0` (`FUCOMPP`; a NaN counts as unequal), `+0xE4 := trunc(curve +0x1C0 (tuning `0x6A4132F6`) at x =
++0xAC)` (`_ftol2`).
+
+**The ease object `+0xE8`** holds a vector (target `+0x00`, current `+0x0C`), a scalar (target `+0x18`, current
+`+0x1C`), a flag byte `+0x38` and the two ease times of §8.2. `SetTarget(v, snap)` (`0x004F8240` vector,
+`0x004F7BD0` scalar) stores the target and, when `snap` is set or the flag `+0x38` is clear, also the current;
+the getters (`0x004F8280`, `0x00808620`) return the current. The scalar is an **integer** (s32 target and
+current; the setter `0x004F7BD0` copies the word). The two §8.2 values are **rates per millisecond**, not
+times: `+0x20` (layer `+0x108`, default 0.1 = 100 units/s) for the vector, `+0x24` (layer `+0x10C`, default 4.0
+= 4000 volume units/s) for the scalar.
+
+**Time step** `Step(t)` (`0x004F8650`, `t` an f32 in ms, pop 4); the only caller is `_UpdateAmbienceLoops`:
+
+1. Vector: `dx := tx − cx`, `dz := tz − cz` (x87 extended), `dy := ty − cy` stored f32; `L := sqrt((dz² + dx²)
+   + dy²)`, kept extended and also stored as f32 `L32`. When `L32 = 0.0` (`FUCOMPP`; NaN counts as unequal)
+   the vector is left alone. Otherwise `k := 1.0 / L` (`0x00B098C4`, extended), `nx := dx·k` and `ny := dy·k`
+   stored f32, `nz := dz·k` extended; `s := t × +0x20` stored f32; `m := L32` when `L32 < s`, else `s` (ties and
+   NaN take `s`). Then `cx := f32(cx + nx·m)` (the product extended), `cy := f32(cy + f32(m·ny))`, `cz :=
+   f32(cz + f32(nz·m))`. Arrival is not snapped: the current lands within rounding of the target.
+2. Scalar: `d := target − current` (32-bit wrapping subtraction); `a := f32(|float(d)|)`. When `a = 0.0`
+   nothing changes. Otherwise `s := f32(t × +0x24)`, `m := a` when `a < s`, else `s`; `current += trunc(sign(d)
+   × m)` (`_ftol2`, toward zero; the sign is `d / a` in extended).
+3. Flag `+0x38 := 1` (both paths, `0x004F8773` and `0x004F8781`). From then on `SetTarget` without `snap` no
+   longer moves the current, so every `SetTarget` before the first step snaps.
+
+Worked examples: scalar 0 → 512 with rate 4.0 and `t = 33`: steps of 132 give 132, 264, 396, 512 (the last
+move is the remaining 116). With `t = 16.5` the step is 66.0 exactly. Vector (0, 0, 0) → (3, 0, 4), rate 0.1,
+`t = 20`: `L = 5`, `s = 2.0`, current (1.2, 0, 1.6); the next step moves the remaining 3.0. `Pause` passes
+`e = 0x7FFFFFFF`, which becomes `t = 2^31` as an f32 and reaches every target in one step.
+
+Each loop entry of the list `+0x184` (filled by `AddAmbienceLoop`, §8.1) has the sound id `+0x08`, the
+instance id `+0x0C` (0 = not playing), the last sent position `+0x10`–`+0x18` and the last sent volume `+0x1C`.
+For each entry in list order, with `ev` = the sound-event system `0x00B21954` (create slot 13 `+0x34` with the
+id and IID `0x5B523BA4`, then post slot 12 `+0x30`):
+
+1. `+0xE4 = 0`: if playing, post stop `0x6A451908(instance, 0, 0, 0)` and set the instance to 0.
+   Otherwise, if not playing: `SetTarget(+0xC8, snap)` and `SetTarget(+0xE4, snap)`, last volume := 0, last
+   position := (0, 0, 0), instance := `GenerateNewInstanceId` (`0x004F7BB0`), post start
+   `0xEA451903(sound id, instance, 1, +0xE4)`.
+2. `SetTarget(+0xC8, no snap)`, `+0xC8 :=` current vector; `SetTarget(+0xE4, no snap)`, `+0xE4 :=` current
+   scalar. (So from the second entry on, step 1 sees the eased volume, not the target.)
+3. `+0xE4 ≠` last volume: last volume := `+0xE4`; if playing, post `0x4A451915(instance, +0xE4, 0, 0)`.
+4. Any component of the last position differing from `+0xC8`–`+0xD0` by **at least** 0.0001 (`0x00A9332C`,
+   f32) and playing: post `0xCA45190F(instance, trunc x, trunc y, trunc z)` (`_ftol2` of each float), then last
+   position := `+0xC8`–`+0xD0` (the floats).
+
+After the walk, the ease time step with `float(e)` (e converted unsigned).
+
+Worked example: one loop, `+0xAC` 0 then 2.0 with curve `+0x1C0` giving 512 at 2.0: tick 1 posts nothing;
+tick 2 starts the loop at volume 512 (snapped), then posts volume 512 and the average position (truncated)
+because the last values were reset to 0; a later tick with `CanHandle` false posts stop.
+
 ## 9. Open items
 
 | # | Question | What would settle it |
 |---|---|---|
-| **AA1** | The layer's own behaviour: scores, loops, filters and per-layer tuning (`0x004E5110`–`0x004E8230`). | a follow-up section of this spec |
-| **AA2** | `_UpdateLotOccupantsForConditionChange` (`0x004E9DA0`): which sounds start or stop per lot condition. | its instructions with the three condition properties |
-| **AA3** | Confirm the stack slot copied into `+0x10` at `0x004E91B0` is `t` (the listing reuses `[ESP+0x18]` for `a[i]`). | trace the stack depth at `0x004E91AC` |
-| **AA4** | Types `0xA823821E`, `0xC7CC75F1` of the init walk are unnamed. | the occupant type table |
+| **AA1** | Answered 2026-10-21: §8.6 (scores and freshness parameters), §8.7 (ease rates and time step), §8.5 mode 6 (the director member is never set; the original faults). | — |
+| **AA4** | Type `0xC7CC75F1` of the init walk: which automaton class (vehicle?) owns it. `0xA823821E` is props. | the occupant type table |
 
 ## 10. Conformance tests
 
@@ -301,3 +680,27 @@ The manager uses 4, 17, 20, 25–28 directly and 21 through the cell walk.
    at 06:00.
 5. A preview occupant (`0x029244DB` true) produces no sound event on insert, move or remove.
 6. `_DoStageUpdate` visits the four cells of a block in the order of §5.
+7. Lot condition 1 → 0 on a lot whose building has `0xCA19D7CA = c` and `0x4A4C132E = r`: events in order
+   stop(`o+0x0A4C13CB` value, only if present), start loop `o+c`, start loop `o+r` (§3.4). Inserting the same
+   building on a condition-0 lot starts only `o+c`.
+8. Condition 7 (or any value above 6) posts no event; condition 2 stops `o+c` and starts `o+a`.
+9. A layer whose exemplar is missing leaves loop id `+0x1D0` as constructed, `+0x1E0 = +0x1E1 = 0x1F`, ease times 0.1 / 4.0 s; with
+   the exemplar present but those keys absent, `+0x1E0 = +0x1E1 = 0` (§8.2).
+10. Two layers listing the same filter class id share one filter object; each layer's kind counter counts it
+    once per listing (§8.3).
+11. A layer whose kind-3 list holds only cell filters never passes `CanHandle`, so it inserts nothing and posts
+    stop for a playing loop (§8.4, §8.7).
+12. Two occupant points 10 apart with occupant radius 10: the second is **not** joined (distance must be
+    strictly less than 0 + 10 is false at exactly 10); at 9.99 it joins and the group's count becomes 2 (§8.4).
+13. Update with 12 group centres all in one third of the rectangle keeps at most 3 sample positions (one per
+    occupied grid cell); with 9 centres it keeps all 9 (§8.5 step 6).
+14. `+0x38 = 5` with no groups (`+0xA8 = 0`) gives `+0xAC = 0.0`, target volume 0, and no start event (§8.5,
+    §8.7).
+15. Freshness: `+0x0C` set, `+0xAC = 20.0`, default curves, `+0x204 = 1` gives `+0xDC = 1024`, `+0xE0 = 75`; a
+    curve value of −1 for `+0xDC` gives 4194303 (§8.6).
+16. A ready score with (`+0xDC`, `+0xE0`) going (0,0) → (512,50) sends, in order, `0xEA2D827C`, `0xEA2C0390`,
+    the division calls, `0x4A3DA208` 512 and `0x0A414C5C` 50 in that one update; unchanged values next update
+    send only the division calls; `+0x0D` set sends `0x2A2C0393` (§8.6).
+17. Ease scalar 0 → 512 at rate 4.0 with `t = 33` takes four steps (132, 264, 396, 512); a vector 5 units away
+    at rate 0.1 with `t = 20` moves 2.0 along the line (§8.7).
+18. `+0x38 = 6` on an `Update` that passes `CanHandle`: the original faults reading `0x0000011C` (§8.5 mode 6).
