@@ -110,9 +110,8 @@ const ExecutableVersion kVersions[] = {
         // glue-span4444-impl4: cSpanRender4444's shared static vtable and slots 1-5
         // (span-render-4444.md §1, §1.1).
         0x00AC185C,
-        {0x00847CE0, 0x00847D30, 0x00847E40, 0x00847F10, 0x008480C0,
+        {0x00847CE0, 0x00847D30, 0x00847E40, 0x00847F10, 0x008480C0},
         0x00B207C0,  // the advisor system's private global (advisors.md §14.2, §8.3.1),
-},
     },
 };
 
