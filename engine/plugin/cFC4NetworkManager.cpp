@@ -183,12 +183,15 @@ void CrewShutdown(void*, uint64_t crew) {
 // game's own tool classes are constructed by the original manager's own code
 // (§7.1: the factory 0x00610907-0x00610910 calls the constructors directly);
 // no GZCOM class ID for them is stated in the specs, so the replacement
-// cannot create the game's tools (question NM11). The stand-in
-// (cFC4NetworkTool.h) answers the SDK's cISC4NetworkTool interface and does
-// nothing [choice]: the runs only need a non-null tool (PostCityInit takes
-// tools 3, 11 and 0, AddRefs them and Inits them, zones.md §5.2); placement,
-// the destroy pipeline and the underground refit are not reached in an
-// auto-run, and the core still counts its null-callback groups.
+// cannot create the game's tools (question NM11). Without `enable = nettool`
+// the class is glue24's stand-in (cFC4NetworkTool.h): it answers the SDK's
+// cISC4NetworkTool interface and does nothing [choice] — the runs only need a
+// non-null tool (PostCityInit takes tools 3, 11 and 0, AddRefs them and Inits
+// them, zones.md §5.2); placement, the destroy pipeline and the underground
+// refit are not reached in an auto-run, and the core still counts its
+// null-callback groups. With `enable = nettool` (glue29) the same class runs
+// the fc4_nettool core: the manager's cache then holds the real replacement
+// tools, and slot 5 hands them to the game's callers.
 
 cFC4NetworkTool* ToolOf(uint64_t t) {
     return t != 0 && fc4::IsOurObject(fc4::FromToken(t))
@@ -196,13 +199,15 @@ cFC4NetworkTool* ToolOf(uint64_t t) {
                : nullptr;
 }
 
-uint64_t CreateTool(void*, uint32_t) {
+uint64_t CreateTool(void*, uint32_t type) {
     // §3.1 step 5 / §7.1: the tool is created with one reference for the core
     // (the original's cache holds it; the core's create/release callbacks own
-    // it here). The stand-in starts at 0 like the original's (§7.1: the
-    // factory returns it with no AddRef) - the host holds the creation
-    // reference by AddRef'ing after the new.
-    auto* tool = new cFC4NetworkTool();
+    // it here). The tool starts at 0 like the original's (§7.1: the factory
+    // returns it with no AddRef) - the host holds the creation reference by
+    // AddRef'ing after the new. glue29: the tool is live (the fc4_nettool
+    // core) exactly when the nettool key is on; otherwise the stand-in
+    // glue24's runs were verified with.
+    auto* tool = new cFC4NetworkTool(type, NetToolRegistry::Enabled());
     tool->AddRef();
     return fc4::TokenOf(static_cast<cIGZUnknown*>(tool));
 }
@@ -217,9 +222,9 @@ void ToolShutdown(void*, uint64_t tool) {
 
 void ToolDestroyOccupants(void*, uint64_t tool, const uint64_t* occupants, size_t count) {
     // §7.2 step 2.2: the tool's slot 50 with the collected occupants. The
-    // stand-in's slot 50 destroys nothing (§10's pipeline is not
-    // implemented); the tokens travel as the cISC4NetworkOccupant pointers
-    // the core collected.
+    // stand-in's slot 50 destroys nothing (glue29's live tool runs the §10
+    // pipeline through its core); the tokens travel as the
+    // cISC4NetworkOccupant pointers the core collected.
     cFC4NetworkTool* t = ToolOf(tool);
     if (t == nullptr || occupants == nullptr || count == 0) return;
     SC4Vector<cISC4NetworkOccupant*> list;
@@ -233,8 +238,10 @@ void ToolDestroyOccupants(void*, uint64_t tool, const uint64_t* occupants, size_
 void ToolUpdateUndergroundHeights(void*, uint64_t tool, const int32_t*, const uint64_t*, size_t, uint32_t) {
     // §7.6 tail: the underground tool's UpdateUndergroundOccupantTerrain-
     // Heights (network-tools.md §11, a direct call at 0x006588D0, a hash set
-    // passed by value). The stand-in has no underground state; the refit's
-    // Init / Shutdown bracket still runs (ToolInit / ToolShutdown).
+    // passed by value). The stand-in has no underground state and the live
+    // tool's refit runs through its own core (fc4_nettool_update_underground_
+    // heights); the refit's Init / Shutdown bracket still runs here
+    // (ToolInit / ToolShutdown).
     (void)tool;
 }
 

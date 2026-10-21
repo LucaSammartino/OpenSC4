@@ -119,6 +119,10 @@ INTERFACES = [
     ("cISC4NetworkOccupant", "cISC4NetworkOccupant", "cISC4NetworkOccupant.h", True),
     ("cISC4NetworkManager", "cISC4NetworkManager", "cISC4NetworkManager.h", True),
     ("cISC4NetworkTool(PowerLine)", "cFC4ISC4NetworkTool", FC4, True),
+    # The network tool (glue29): the replacement implements the compiled order
+    # (cFC4ISC4NetworkToolFull in FC4Interfaces.h, slots 0-50). The power-line
+    # row above stays: the power simulator's 3-10 view of the same vtable.
+    ("cISC4NetworkTool", "cFC4ISC4NetworkToolFull", FC4, True),
     ("cISC4NeighborDeal", "cISC4NeighborDeal", "cISC4NeighborDeal.h", True),
     # Neighbours (docs/specs/neighbors.md section 4.2): the connection's traffic source.
     ("cISC4TrafficSource", "cISC4TrafficSource", "cISC4TrafficSource.h", True),

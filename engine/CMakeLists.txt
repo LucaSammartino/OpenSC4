@@ -400,6 +400,12 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4NetMgrHost.h
         plugin/FC4NetMgrShadow.cpp
         plugin/FC4NetMgrShadow.h
+        # The replacement network tool over the fc4_nettool core (network-tools.md;
+        # the glue29 lane): enable = nettool.
+        plugin/cFC4NetworkTool.cpp
+        plugin/cFC4NetworkTool.h
+        plugin/FC4NetToolHost.cpp
+        plugin/FC4NetToolHost.h
         # The occupant manager shadow (occupant-manager.md): occmgr_shadow (no replacement).
         plugin/FC4OccMgrShadow.cpp
         plugin/FC4OccMgrShadow.h

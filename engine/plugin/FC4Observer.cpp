@@ -32,6 +32,7 @@
 #include "FC4ZonesShadow.h"
 #include "FC4ZoneDevShadow.h"
 #include "cFC4ZoneDeveloper.h"
+#include "cFC4NetworkTool.h"  // the glue29 lane: NetToolRegistry city shutdown
 #include "cFC4ZoneManager.h"
 #include "FC4TractShadow.h"
 #include "FC4CommercialShadow.h"
@@ -646,6 +647,8 @@ public:
                 EffectsShadowCityShutdown();  // effects_shadow: the mirror core goes with the city
                 AutomataShadowCityShutdown();  // automata_shadow: the shadow cores and their references
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
+                NetToolRegistry::LogSummary("city shutdown");
+                NetToolRegistry::CityShutdown();  // the glue29 lane: the shared replacement tools
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:

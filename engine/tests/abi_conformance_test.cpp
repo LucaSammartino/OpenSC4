@@ -379,6 +379,11 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4NetworkTool(PowerLine)", 11, 83,
      "cFC4ISC4NetworkTool declares slots 3-10 only: the power simulator calls Init, Shutdown and UpdateOnZoneChange "
      "(power §11.1)"},
+    {"cISC4NetworkTool", 51, 81,
+     "cFC4ISC4NetworkToolFull (glue29) declares slots 0-50: the SDK interface range. Slots 51-80 are "
+     "cSC4NetworkTool's own class methods past the interface (network-geometry.md §1.1) and slot 51 its deleting "
+     "destructor: the concrete replacement is final and nothing outside the tool's own class calls them "
+     "(network-tools.md §14)"},
     {"cISTETerrain", 91, 98,
      "slot 91 is cSTETerrain's destructor and slots 92-97 (GetWaterDepthAtVertex, Flip*Triangulation, "
      "Load/SaveObliterated, Load, Save) are cSTETerrain's own virtuals, past the SDK interface"},
