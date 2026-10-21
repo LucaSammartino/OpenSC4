@@ -4,9 +4,12 @@
 
 ## Handoff
 
-- Goal (round 2): render3d.md lifecycle Init 0x007C6410 / Shutdown 0x007C7070 / ReadProperties 0x007C5F40, then shake fill 0x007C63A0 / StartScreenShake 0x007C6BC0 / SetShakeOffsets 0x007C86D0; close R3D-1..3 only with byte proof.
-- Done: round 1 at 79d420ac (sections 1-6, 7 remaining list, 8 cases).
-- Next: read Init asm/decomp, write section 9 lifecycle.
+- Goal (round 2): render3d.md lifecycle + shake, close R3D-1..3 only with byte proof.
+- Done: round 1 at 79d420ac; round 2: section 9 (Init/ReadProperties/Shutdown, cases L1-L6), section 10 (shake node,
+  both StartScreenShake overloads, pattern tables, SetShakeOffsets, GetShakeOffsets, cases S1-S6), 6.3 corrected
+  (+0x08 is start time, new nodes are prepended), 7 list trimmed, R3D-4 filed (overload never writes fade length).
+- Constants read from bin/SimCity4.exe with build-runs/rdconst.py (PE VA reader).
+- Next: R3D-1 (stream slot 8 name from docs/abi/interfaces.tsv), R3D-3 (0x007C2E50 item layout); then finish.
 
 ## Report
 
