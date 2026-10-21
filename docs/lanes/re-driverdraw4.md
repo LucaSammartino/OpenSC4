@@ -1,6 +1,13 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-driverdraw4: RE spec follow-up of the DX7 driver (device state, draw path, primitive manager, textures, stages, viewport) | `re-driverdraw4` / (RE lane) | ready: docs/specs/renderer-driver.md §7-§8 (round 1), §9 textures, §10 texture stages, §11 viewport/blits/scene end (round 2); RD2 answered, RD3/RD4/RD5 narrowed; no engine, no ABI change, no game runs | 1. internal-format selection 0x0088F8D0 and pixel converters; 2. slots 6-10, 40-42 (vertex formats, matrices); 3. writers of bytes +0x209/+0x261/+0x263; 4. RD3 mode-record fields |
+| re-driverdraw4: RE spec follow-up of the DX7 driver (device state, draw path, primitive manager, textures, stages, viewport) | `re-driverdraw4` / (RE lane) | in progress (round 3); prior: docs/specs/renderer-driver.md §7-§8 (round 1), §9 textures, §10 texture stages, §11 viewport/blits/scene end (round 2); RD2 answered, RD3/RD4/RD5 narrowed; no engine, no ABI change, no game runs | 1. internal-format selection 0x0088F8D0 and pixel converters; 2. slots 6-10, 40-42 (vertex formats, matrices); 3. writers of bytes +0x209/+0x261/+0x263; 4. RD3 mode-record fields |
+
+## Handoff (round 3, 2026-10-21)
+Goal: final round 3/3: slots 6-10, 40-42; 0x0088F8D0 internal-format selection + converter table; writers of
++0x209, +0x261, +0x263; RD3 mode-record fields; RD4 per-frame context update and 0xAACB92A3 handler.
+Done: rounds 1-2 (tip 1b8ad5ac, §7-§11). Round 3: (none yet).
+Next: query slots 6-10/40-42 via vtable, then 0x0088F8D0.
+
 
 ## Report (round 2, 2026-10-21)
 
