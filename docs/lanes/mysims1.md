@@ -2,9 +2,14 @@
 
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| mysims1 (the mysims shadow: FC4MySimsShadow + regress shadows list) | `mysims1` / `.claude/worktrees/mysims1` (branch `mysims1`, engine lane) | in progress — round 5: header written (FC4MySimsShadow.h, seam 68); NEXT: write the .cpp (design below is complete and verified) | see Handoff |
+| mysims1 (the mysims shadow: FC4MySimsShadow + regress shadows list) | `mysims1` / `.claude/worktrees/mysims1` (branch `mysims1`, engine lane) | in progress — round 6: FC4MySimsShadow.cpp landed (~1750 lines), wired, qbuild all PASS; game runs pending | see Handoff |
 
 ## Handoff
+
+- Round 6 (2026-10-21): FC4MySimsShadow.cpp written and committed (6ef1db2e), retfix re-audited + committed (78592388).
+  qbuild all PASS (cargo 3576, clippy 0, fc4verify 62/62). DLL copied to C:/Users/tlori/FreeCity4/build-runs/dlls/FreeCity4-mysims1.dll.
+  mysims1-sh-1 queued (req written, in game-queue). Next: read the verdict, grep the log for mysims lines,
+  diagnose mismatches (MS11+ if a spec gap), then mysims1-sh-2 (shadows string, ref_warnings=0), report + merge queue.
 
 - Goal: add the mysims shadow (same-process differential like the other shadows), wire it
   into the regress shadows list (tools/regress.ps1 `$runs.shadows`, additive); exact to
