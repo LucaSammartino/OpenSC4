@@ -595,3 +595,58 @@ fn every_slot_runs_and_keys_hold() {
         }
     }
 }
+
+/// The bridge's window (dest_extent + blt_source_extent) is the exact hull:
+/// with dst and src placed apart in one arena, the blit runs when the arena
+/// is cut to the hull and fails when one byte less is kept at either end.
+#[test]
+fn extents_are_the_exact_hull_of_every_access() {
+    let mut r = Rng(0x5651_5650_0000_0001);
+    let mut checked = 0;
+    for _ in 0..3000 {
+        let row = r.next() % TABLE_ROWS as u32;
+        let kind = r.next() % TABLE_COLUMNS as u32;
+        let b = BltParams {
+            u0: r.next() % 0x40000,
+            v0: r.next() % 0x40000,
+            du: r.next() % 0x30000,
+            dv: r.next() % 0x30000,
+            format: row / 2,
+            argb: r.next(),
+            key: r.next() & 0xFF,
+            key_flag: (row & 1) as u8,
+        };
+        let n = 1 + r.next() as usize % 3;
+        let spans: Vec<Span> = (0..n)
+            .map(|_| {
+                let x0 = (r.next() % 8) as u16;
+                Span::new(x0, x0 + (r.next() % 6) as u16, (r.next() % 4) as u16)
+            })
+            .collect();
+        let src0 = Source { base: 0, stride: 48, width: 1 + r.next() % 7, height: 1 + r.next() % 5 };
+        let dst0 = Dest { base: 0, stride: if r.next() & 1 == 0 { 40 } else { -40 } };
+        let d = dest_extent(&spans, &dst0).unwrap();
+        let s = blt_source_extent(&spans, &src0, &b, kind).unwrap();
+        let Some((dlo, dhi)) = d else { continue };
+        // dst hull at [0, dhi-dlo), src hull after it with a 16-byte gap.
+        let dst = Dest { base: -dlo, stride: dst0.stride };
+        let (src, len) = match s {
+            Some((slo, shi)) => {
+                let at = dhi - dlo + 16;
+                (Source { base: at - slo, ..src0 }, (at + shi - slo) as usize)
+            }
+            None => (Source { base: 1 << 40, ..src0 }, (dhi - dlo) as usize),
+        };
+        let mut mem = vec![0x5Au8; len];
+        assert_eq!(render_blt(&mut mem, &spans, &dst, &src, &b, kind), Ok(()));
+        // Keyed slots may skip pixels: the hull is then only an upper bound.
+        if !slot(row, kind).unwrap().keyed {
+            let mut short = vec![0x5Au8; len - 1];
+            assert!(render_blt(&mut short, &spans, &dst, &src, &b, kind).is_err());
+            let low_dst = Dest { base: dst.base - 1, ..dst };
+            assert!(render_blt(&mut short, &spans, &low_dst, &src, &b, kind).is_err());
+            checked += 1;
+        }
+    }
+    assert!(checked > 500);
+}

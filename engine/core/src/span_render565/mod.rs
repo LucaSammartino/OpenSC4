@@ -284,3 +284,38 @@ pub fn render_blt(
     let s = slot(row, kind).ok_or(SpanError::SlotOutsideTable { row, kind })?;
     blit::run(&mut Mem(mem), s, spans, dst, src, b)
 }
+
+/// The byte range `[lo, hi)`, relative to `dst.base`, of every destination
+/// pixel the five methods touch for `spans` (`None` when every span is
+/// empty). Validates the list exactly like the methods (§1). Touches no
+/// memory: the native bridge sizes its window with it.
+pub fn dest_extent(spans: &[Span], dst: &Dest) -> Result<Option<(i64, i64)>, SpanError> {
+    let at = Dest { base: 0, stride: dst.stride };
+    let mut ext: Option<(i64, i64)> = None;
+    for (x, y, count) in rows(spans)? {
+        if count == 0 {
+            continue;
+        }
+        let a = pixel_addr(&at, x, y);
+        let z = pixel_addr(&at, x + count - 1, y) + 2;
+        ext = Some(match ext {
+            None => (a, z),
+            Some((lo, hi)) => (lo.min(a), hi.max(z)),
+        });
+    }
+    Ok(ext)
+}
+
+/// RenderBlt's source range: the byte range `[lo, hi)`, relative to
+/// `src.base`, of every texel slot `rows[key_flag + 2·format][kind]` reads
+/// (`None` when it reads none). Same preconditions as `render_blt`.
+pub fn blt_source_extent(
+    spans: &[Span],
+    src: &Source,
+    b: &BltParams,
+    kind: u32,
+) -> Result<Option<(i64, i64)>, SpanError> {
+    let row = (b.key_flag as u32).wrapping_add(b.format.wrapping_mul(2));
+    let s = slot(row, kind).ok_or(SpanError::SlotOutsideTable { row, kind })?;
+    blit::texel_extent(s, &rows(spans)?, src, b)
+}
