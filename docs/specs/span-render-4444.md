@@ -175,8 +175,9 @@ R = G = B = 0xFF; 8888 unchanged. Verified at column 2 of rows 0, 2, 4, 6, 8, 10
   The key compare is present in every column of the keyed rows sampled (rows 1, 3, 13; columns 0-3, 5, 9).
 
 ### 9.5 Verification level
-Fully read: the five methods, the helper, row 0 columns 0-4 and 8, the Blt kernel of every format, the key test
-of rows 1, 3, 9, 13, the 8888 widening of every unkeyed row. The remaining kernels are covered by the feature
+Fully read: the five methods, the helper, row 0 columns 0-5 and 8, the Blt kernel of every format, the key test
+of column 0 in all seven keyed rows (mask per format; X8R8G8B8 `0x008524C0` masks `0xFFFFFF`), the 8888 widening
+of every unkeyed row. The remaining kernels are covered by the feature
 sweep only (each kernel's column signature - stretch shifts, DIV, MMX multiply, alpha nibble shift - matches its
 column in all 14 rows), not by a line-by-line read; see U4.
 
