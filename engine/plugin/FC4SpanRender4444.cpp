@@ -370,7 +370,10 @@ void ComProbe() {
     const bool ok = com != nullptr && com->GetClassObject(0xC470D325u, 0x20732180u, &obj) && obj != nullptr;
     Log("span4444: COM probe cGZBuffer (CLSID 0xC470D325, IID 0x20732180): %s%s", ok ? "created" : "NOT created",
         ok ? "; released unused (Init / pixel contracts unpublished, SP5)" : "");
-    if (ok) FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(obj));
+    if (!ok) return;
+    cIGZUnknown* created = static_cast<cIGZUnknown*>(obj);
+    FC4_ACQUIRED(created, "GetClassObject (cGZBuffer created for us)");
+    FC4_RELEASE_CREATED(created);
 }
 
 }  // namespace

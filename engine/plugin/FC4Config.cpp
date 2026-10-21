@@ -326,7 +326,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // the glue-formats4 lane (FC4FormatsShadow.h)
                                   "formats_shadow", "formats_shadow_max", "formats_shadow_lines",
                                   // the glue-simgrids4 lane (FC4SimGridProbe.h)
-                                  "simgrids_probe"};
+                                  "simgrids_probe",
+                                  // the glue-span4444-impl4 lane (FC4SpanRender4444.h)
+                                  "span4444_shadow"};
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 
