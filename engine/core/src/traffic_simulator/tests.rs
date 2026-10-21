@@ -3444,7 +3444,10 @@ fn ts67_trip_phase_transitions_zero_phase_positions() {
         st.finish_resume = Some(1);
     });
     s.enter_cycle_state(cycle_state::FINISH_TRIP_MAP);
-    assert_eq!(s.read_state(|st| (st.extras.phase_positions, st.finish_resume)), ([0, 0], None));
+    assert_eq!(
+        s.read_state(|st| (st.extras.phase_positions, st.finish_resume)),
+        ([0, 0], None)
+    );
     assert!(s.work_on_sim_cycle());
     assert_eq!(s.cycle_state(), cycle_state::CREATE_MAPS);
     assert_eq!(s.read_state(|st| st.extras.phase_positions), [1, 1]);
