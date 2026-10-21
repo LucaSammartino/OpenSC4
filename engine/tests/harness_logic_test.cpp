@@ -341,6 +341,20 @@ void ScriptScheduleTests() {
     CHECK(empty.First() == nullptr && empty.Due(2451545).empty());
 }
 
+// disasters.md §5.4 step 4 (the fire coverage average): the clamped inclusive
+// rectangle goes to grid slot 8 as x, z, width, height (simgrid.md §4.1).
+void CellRectArgsTests() {
+    using namespace fc4::harness;
+    const GridCellRectArgs a = CellRectArgs(56, 86, 56, 87);  // the logged 1x2 spread target
+    CHECK(!a.empty && a.x == 56 && a.z == 86 && a.w == 1 && a.h == 2);
+    const GridCellRectArgs b = CellRectArgs(0, 0, 0, 0);  // one cell
+    CHECK(!b.empty && b.w == 1 && b.h == 1);
+    const GridCellRectArgs c = CellRectArgs(10, 20, 13, 21);
+    CHECK(!c.empty && c.w == 4 && c.h == 2);
+    CHECK(CellRectArgs(0, 0, -1, -1).empty);  // no overlap with the city
+    CHECK(CellRectArgs(5, 5, 5, 4).empty && CellRectArgs(5, 5, 5, 4).h == 0);
+}
+
 }  // namespace
 
 int main() {
@@ -350,6 +364,7 @@ int main() {
     EndDateTests();
     ScriptParseTests();
     ScriptScheduleTests();
+    CellRectArgsTests();
     if (g_failures == 0) std::printf("harness logic test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
 }
