@@ -1,6 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-particles4: particle component spec (cSC4ParticlesEffect family) | `re-particles4` / (RE spec lane) | ready (round 2, 688f34c9): particles.md §5.1 InitEffectsParticle, §6 Start complete, §6.1 SetDescription inputs, §8/§8.1 emitter proof+dispatch; effects.md §7.1 item 2 corrected; PT5/PT6/PT7 answered, PT1 narrowed; cSC4ParticlesEffect still partial (physics, rates, drawing) | 1. Physics 0x005B9BA0/0x005B9790 + emitters 0x005B3CF0/0x005B8B50/0x005B87B0 to finish cSC4ParticlesEffect. 2. Coverage rows per report (train owner). 3. PT1 rest, PT2-PT4. |
+| re-particles4: particle component spec (cSC4ParticlesEffect family) | `re-particles4` / (RE spec lane) | in progress (round 3 from 5297a6c1): particles.md §5.1 InitEffectsParticle, §6 Start complete, §6.1 SetDescription inputs, §8/§8.1 emitter proof+dispatch; effects.md §7.1 item 2 corrected; PT5/PT6/PT7 answered, PT1 narrowed; cSC4ParticlesEffect still partial (physics, rates, drawing) | 1. Physics 0x005B9BA0/0x005B9790 + emitters 0x005B3CF0/0x005B8B50/0x005B87B0 to finish cSC4ParticlesEffect. 2. Coverage rows per report (train owner). 3. PT1 rest, PT2-PT4. |
+
+
+## Handoff (round 3, 2026-10-21)
+
+Goal: round 3/3 (final): specify physics 0x005B9BA0/0x005B9790, emitters 0x005B3CF0/0x005B8B50/0x005B87B0, draw
+0x005B3DA0/0x005B4B90, parsers 0x0059C280/0x0059A820; finish PT1, PT2-PT4 as far as bytes support. Keep Init/Start/
+identity corrections. cSC4ParticlesEffect uncredited until core fully specified; credit only range 0x005B9CC0-0x005B9FB7.
+Done: rounds 1-2 (see reports below), round 3 start 5297a6c1.
+Next: read 0x005B9BA0 (per-particle update) then emitters; write particles.md new sections; commit by call 30.
+Facts: REA allowed but shared; numbers from asm --bytes.
 
 ## Report (round 2, 2026-10-21)
 
