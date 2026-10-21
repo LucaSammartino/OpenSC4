@@ -92,6 +92,54 @@ type from data: buffer resources, `cGZGimexFactory::LoadWithReader`, `cSLBuffer:
 automata, vehicle collision), not calls of `cIGZDrawSystem` slot 5 `CreateBuffer(out, width, height, colourType)`
 (`0x0082B980`, `RET 0x10`).
 
+### 1.2 Where colour type 7 comes from in the shipped game (SP4, re-spanbridge4444-4 round 2)
+
+Static result, read from instruction bytes. No runtime probe was run.
+
+**The one shipped producer: the screen buffer.** `cGZGraphicSystemW32::OnCanvasInit` (`0x0098B2A0`) re-initialises
+the graphic system's screen buffer (`cGZScreenBuffer`, object `+0x100`, created by `0x00991DA0`) when the system's
+byte `+0x41` is set. The constructor sets that byte to 1 (`0x0098FDC0`). The colour type is chosen at
+`0x0098B3CC`-`0x0098B3DD`:
+
+| Screen bit depth (`d`) | Colour type passed |
+|---|---|
+| `d <= 16` | 7 (A4R4G4B4, 16 bpp) |
+| `d > 16` | 9 (A8R8G8B8, 32 bpp) |
+
+`d` is the dword at `+0xC` of the record that GDriver slot `0x100` fills (`0x0098B37F`, `0x0098B391`). If no
+GDriver is present, `d` = 32 (`0x0098B363`). Width and height are the global screen settings `0x00B17AE4` /
+`0x00B17AE8`. The call goes through the screen buffer's interface at `+0x4C` (vtable `0x00ADB388`, slot 4 =
+`cGZScreenBuffer::Init` `0x00991EC0`). Init stores the type and bpp unchanged in the buffer's colour-type pair (base
+`+0xC`/`+0x10`, `0x00991F79`-`0x00991F7E`). It also creates a 4 x 4 auxiliary `cGZBuffer` of the same colour type
+(`+0x30`; `0x00991FA5`-`0x00991FAE`) and fills it with one colour. So in a 16-bit screen mode, both the screen buffer
+and its 4 x 4 buffer have colour type 7.
+
+**That buffer never gets an A4R4G4B4 span renderer.** `cIGZDrawSystem` slot 4 (`0x0082BAB0`) gives a buffer a draw
+context by trying the registered context factories in list order: the first one whose slot 3 succeeds wins. Slot 3
+(`0x0082BD30`) puts each new factory at the front of the list (`0x0082BD6B`-`0x0082BD70`). `cGZScreenBuffer::Init`
+registers a `cGZDrawContextRenderToSimGLFactory` (`0x00991E50`, call at `0x00992021`). That factory comes after the
+`cGZDrawContextRenderToBuffer` factory that `cGZDrawSystem::Init` registered, so it sits in front of it. Its create
+method (`0x00993270`) accepts only buffers that answer IID `0xE3094DC8`, and `cGZScreenBuffer::QueryInterface`
+(`0x009917B0`) answers that IID (`0x009917B4`; nothing else in the image tests it). The screen buffer therefore gets a
+SimGL context, not `cGZDrawContextRenderToBuffer`. Nothing in `Init` asks for a draw context for the 4 x 4 buffer.
+
+**Other sources checked, none of which yields type 7 for a RenderToBuffer target:**
+
+| Source | Colour type | Note |
+|---|---|---|
+| `cGZBuffer` (CLSID `0xC470D325`, creator `0x008298F0`, constructor `0x008272E0`) | default 3 / 16 bpp | `Init` (`0x008269B0`) stores the caller's pair unchanged; `GetColorType` is slot `0x3C` |
+| `cGZWin::create_private_buffer` -> `cIGZDrawSystem` slot 5 (`0x0082B980`) | 1 | stays 1 (bpp 0, 0-byte pixel store `0x00826A50`). The context made there is `cGZDrawContext` (`0x0082C9A0`, vtable `0x00AC16C8`), and `RenderToBuffer::Init` would reject type 1 anyway (default case `0x0083087A` releases the buffer and returns 0 for any type outside 2..9) |
+| Gimex image loads (`cIGZGimexFactory` IID `0x02FFBB60`; `LoadFromFile` slot 4 arg 3 = target type) | caller's choice | literal targets found: 2 (`0x007428A3`), 9 (`0x007BFDB4`), 1 (`0x008FE752`). `TranslateGimexToGZBuffer` (`0x0090C1D4`) has a type-7 case (`TranslateGimex24ToGZBufferARGB4444Dither` `0x0090BF3C`), but no caller with target 7 was found |
+| Buffer resources v1/v2 (persistence.md 6.2) | from the file header | load as the file's type, then `ConvertBufferFromFormatToFormat` (`0x00931CF0`) to the target. Factory defaults: `cGZBufferResourceFactory` 3 (`0x0097DBD2`), `cGZPersistBufferResourceFactory` 1 (`0x0097807C`). `SetColorType` (`0x0097CF60`, `0x00978097`) has no direct callers |
+| Lot-configuration editor texture-to-buffer conversion (`0x00604920`) | 8 or 9 | type 3 maps to 9, anything else to 8 (`0x006049A2`-`0x006049AD`) |
+
+**What a game-pixel test can use.** A type-7 RenderToBuffer target can be made only through `cIGZDrawSystem` slot 4.
+It needs a `cIGZBuffer` that has been `Init`-ed with colour type 7 (for example a `cGZBuffer` made through GZCOM CLSID
+`0xC470D325`) and that does not answer `0xE3094DC8`. The `cGZDrawContextRenderToBuffer` factory (`0x0082B910`) accepts
+any object that answers `cIGZBuffer` `0x20732180` (`0x0082B91C`). None of these interfaces is in the public SDK
+headers, so this route is undocumented. It works by calling the game's own COM classes and is not a game path. The
+static evidence finds no shipped scenario in which the game itself sends A4R4G4B4 spans to `0x00AC185C`.
+
 ## 2. Shared conventions
 
 **Pixel.** 16 bits, A in bits 12-15, R 8-11, G 4-7, B 0-3 (masks `0xF000/0x0F00/0x00F0/0x000F`).

@@ -11,11 +11,10 @@
   records, or may a reimplementation require `x + width <= 65536` on one row? [core walks linearly from (x, y) and
   rejects any byte outside the supplied buffer before writing anything]
 <!-- from: re-spanbridge4444-4 (2026-10-21) -->
-- **SP4 - section 1.1 (type-7 producer):** which shipped code path, if any, initialises a `cGZDrawContextRenderToBuffer`
-  on a colour-type 7 (A4R4G4B4) buffer in GOG 1.1.641 under the default DX7 driver? Static sweeps found no literal 7
-  at the 34 calls of the colour-pair constructor `0x0044A490` nor at `cIGZDrawSystem::CreateBuffer` (`0x0082B980`)
-  calls; open are (a) the data-driven types (buffer resources, `cGZGimexFactory::LoadWithReader` `0x0090C4FF`,
-  `cSLBuffer::Load` `0x00602999`) - can any of them yield type 7 and then get a draw context via `cIGZDrawSystem`
-  slot 4 (`0x0082BAB0`)? (b) what colour type 1 (passed by `cGZWin::create_private_buffer` `0x0099D147`, `cSC4App::Init`)
-  resolves to. A runtime breakpoint on `0x008307A8` during a scripted UI session would settle it.
+- **SP4 - section 1.2 (type-7 producer; narrowed 2026-10-21 by re-spanbridge4444-4 round 2):** the static sweep in
+  section 1.2 finds one shipped type-7 buffer, the screen buffer in a 16-bit screen mode, and it gets a SimGL context,
+  never a `cGZDrawContextRenderToBuffer`. Colour type 1 stays 1 and is rejected. One question is still open and needs
+  a runtime breakpoint on `0x008307A8` (the type-7 Init branch) in a scripted 16-bit session, or a hit count of 0 from
+  it: does any `cIGZDrawSystem` slot-4 caller (`0x0082BAB0`) pass a buffer whose type came from data (a buffer
+  resource v1/v2 header with type 7, or a Gimex load whose target type is not a literal)?
   [no native 4444 inputs captured; the core stays unit-tested only]
