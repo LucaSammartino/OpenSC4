@@ -385,6 +385,7 @@ cGZ*Graph	widget toolkit	ui	-	-	-	-
 cHTML*	widget toolkit	ui	-	-	-	-
 cGZUIScript*	widget toolkit	ui	-	-	-	-
 cSC4ScriptedWindowCOMDirector	widget toolkit	ui	-	-	-	-
+cRZWinKeyAccelerator	widget toolkit	ui	widget-toolkit.md	-	-	-
 cRZWinKeyAccelerator*	widget toolkit	ui	-	-	-	-
 cRZCursorManager	widget toolkit	ui	-	-	-	-
 cGZClipboardManager*	widget toolkit	ui	-	-	-	-
@@ -404,7 +405,14 @@ cGZ*COMDirector	application	framework	-	-	-	-
 cSC4Preferences	application	framework	-	-	-	-
 cSC4GameDataRegistry	application	framework	-	-	-	-
 cSC4AutoGamePause	application	framework	-	-	-	-
+cGZPersistDBRecord	persistence and resources	framework	persistence.md	-	-	-
+cGZPersistDBSerialRecord	persistence and resources	framework	persistence.md	-	-	-
+cGZPersistResource	persistence and resources	framework	persistence.md	-	-	-
+cGZPersistResourceFactory	persistence and resources	framework	persistence.md	-	-	-
+cGZPersistResourceKeyList	persistence and resources	framework	persistence.md	-	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
+cGZBufferResource	persistence and resources	framework	persistence.md	-	-	-
+cGZBufferResourceFactory	persistence and resources	framework	persistence.md	-	-	-
 cGZBufferResource*	persistence and resources	framework	-	-	-	-
 cGZPropertySet*	persistence and resources	framework	-	-	-	-
 cPropertySet*	persistence and resources	framework	-	-	-	-
@@ -419,12 +427,16 @@ fn:ConvertStringEncoding	strings and language	framework	-	-	-	-
 fn:UTF16*	strings and language	framework	-	-	-	-
 cGZWWWSystem	web and network	framework	-	-	-	-
 cRZHTTP*	web and network	framework	-	-	-	-
-cRZURL	web and network	framework	-	-	-	-
+cRZURL	web and network	framework	web-network.md	-	-	-
 cRZCookieManager	web and network	framework	-	-	-	-
 cRZNet*	web and network	framework	-	-	-	-
 cRZName*	web and network	framework	-	-	-	-
 NetworkFileCache	web and network	framework	-	-	-	-
 HTTPMessage	web and network	framework	-	-	-	-
+cGZMessageServer	framework services (GZ)	framework	framework-gz-services.md	-	-	-
+cGZMessageServer2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
+cGZMessageQueue2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
+cGZMessageQueueManager2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZ*	framework services (GZ)	framework	-	-	-	-
 cRZ*	framework services (RZ)	framework	-	-	-	-
 nGZ*	framework services (GZ)	framework	-	-	-	-
