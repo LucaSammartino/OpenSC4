@@ -347,6 +347,110 @@ the same observable result):
 | 0x009A8446 / 0x009A8473 | recursive node erase of a `map<u32, cRZString>` subtree (two identical instances, used for the heading maps) |
 | 0x009A5C4A | copy-construct a 40-byte cell record: copies the first 36 bytes from the source, then the two 16-bit fields at +0x24 and +0x26 are -1 (not copied) |
 
+### 5.9 Selection, hit testing and mouse input
+
+Round 2 (2026-10-22), static only (REA had no app open): decomp/cGZWinGrid.c, decomp/_unnamed/region_009a0000.c
+and `re_query.py asm`. Window-view slots below are `cGZWin` slots (vtable 0x00ADD7B0); grid slots are
+`cIGZWinGrid` slots (§3). "Recalculate" is the helper 0x009A5FAA (§5.1).
+
+**Selection list.** +0x194 is a `std::list` of (column, row) pairs in insertion order; the last element is the
+most recently added cell. The selection mode +0x18C decides what a *removal* matches: mode 0 = column (every
+entry with the same column), mode 1 = row (every entry with the same row), any other value = the exact cell.
+Additions never look at the mode.
+
+- **AddCellToSelection(col, row, select)** 0x009AA477 (slot 44). Ask GetCellIsSelected(col, row) (slot 45). When
+  the answer equals `select` (byte compare), nothing changes. Otherwise, with `select` false, erase every list entry
+  that matches by the mode rule above (all of them, not just the first); with `select` true, append (col, row)
+  only when the current list length is below the maximum +0x190 (signed compare). Returns true when at least one
+  entry was erased or the cell was appended, else false. The recalculate helper runs on **every** call, including
+  the no-change ones. No bounds check: any coordinates can be appended.
+- **SetSelection(col, row)** 0x009A9765 (slot 43). Maximum +0x190 <= 0: false. When the cell is already selected
+  and the list holds exactly one entry: false (nothing to do). Otherwise ClearSelection (slot 46),
+  AddCellToSelection(col, row, true), recalculate and return true.
+- **ActLikeAListbox(columns, maxSelected, keepEmpty)** 0x009AA3E1, always returns true. Writes the fields directly
+  (no SetFlags, so no scroll-bar or capture side effects): row limit +0x13C = -1, column limit +0x138 = `columns`,
+  flag word = (word & 0xFFFC2BA6) | 0x2BA6, mode +0x18C = 1 (row selection), maximum +0x190 = `maxSelected`.
+  So bits 0x1, 0x8, 0x10, 0x40, 0x400, 0x1000, 0x4000, 0x8000, 0x10000, 0x20000 are cleared and 0x2, 0x4, 0x20,
+  0x80, 0x100, 0x200, 0x800, 0x2000 set (column headers 0x8 and row headers 0x10 off, both scroll-bar bits on,
+  fixed column range on). With `keepEmpty` true the word also gets 0x1000 and nothing else happens. With it false:
+  `maxSelected` < 1 runs ClearSelection; otherwise, when the selection is empty (GetSelection slot 42 fails), the
+  cell (0, 0) is appended straight to the list (no GetCellIsSelected, no recalculate). *[The meaning of flag 0x1000
+  is not measured yet; "keepEmpty" names only the observed effect on the selection.]*
+
+**Hit test.** Region codes: 0 = none, 1 = outside the grid area, 2 = row header, 3 = column header, 4 = header
+corner, 5 = cell area.
+
+- **DoCursorHitTest(x, y, &region, &cell)** 0x009A7C69 (slot 110). Zero the region and both cell coordinates.
+  Point tests use the inclusive rectangle test 0x0043FDE0.
+  1. Not inside GetGridArea (slot 8): region 1, return true (cell stays (0, 0)).
+  2. Inside GetCellArea (slot 9): region 5.
+  3. Otherwise only when **both** header flags 0x8 and 0x10 are set: "in column header" = top gutter +0xF4 <= y <
+     +0x110, "in row header" = left gutter +0xF0 <= x < +0x114 (quirk: the bound is the header size itself, not
+     gutter + size). Both: region 4, return true, cell (0, 0). Column header only: region 3. Row header only:
+     region 2. Neither, or either header flag clear: region 0, return false.
+  4. For regions 5, 3, 2 find the cell: for column i from the horizontal position +0x128 while i < +0x128 +
+     ceil(+0x130) (float, ceil 0x009F0A20, then truncation), take GetCellRect(i, 0) (slot 106); the first i with
+     x < rect.right is the column. Rows the same with +0x12C, ceil(+0x134), GetCellRect(0, j) and y < rect.bottom.
+     No match leaves 0. Region 3 then forces row 0; region 2 forces column 0. Return true.
+  So +0x130 / +0x134 act as the visible column / row counts (possibly fractional); §2 calls them scroll steps
+  because the step-scroll functions use them (so those scroll by one visible page).
+
+**Hit records.** +0x238 {region, col, row} = last clicked hit (constructor 0, -1, -1); +0x244 {region, col, row} =
+last hover hit (same initial values). Grid notifications go to the window's notification target (cGZWin +0x4C,
+grid +0x50) through window-view SendMsg (slot 145, a 16-byte message {id, source = grid interface, data, 0}; slot
+144 takes the same fields as arguments):
+
+| Id | Sent by | Data |
+|---|---|---|
+| 0x9A1552D2 | mouse-down, when the clicked hit differs from the previous one | pointer to the hit cell (col, row) |
+| 0x9A1552D3 | every single click (slot 144); drop-down mouse-up on a hit | pointer to the record +0x238 |
+| 0x9A1552D4 | double click | pointer to the record +0x238 |
+| 0x9A1552D6 | mouse-move entering a new header or cell | pointer to a copy {region, col, row} |
+| 0x9A1552D7 | drop-down: mouse-down outside the window | 0 |
+
+**Drop-down routing.** When the window is capturing and grid flag 0x40000 is set, mouse-down / mouse-up /
+mouse-move first check the point is inside the window (window-view slot 121); then for the vertical bar +0x26C,
+then the horizontal bar +0x270: convert the point into the bar's coordinates (window-view slot 61 with the bar's
+window, bar slot 3), and when 0 <= x < bar width (bar slot 41) and 0 <= y < bar height (slot 42), pass the bar to
+the window manager's slot 29 (the window held at manager +0x30, which sends message 0x12 to the old and new
+holder), hand the bar a mouse message {type, x, y, modifiers} (type 7 down, 10 up, 13 move) through its slot 3,
+re-take capture for the grid and return the bar's result.
+
+- **GZOnMouseDownL(x, y, modifiers)** 0x009A9F6A, returns true unless forwarded to a bar. Modifier bits: 0x1, 0x2,
+  0x4 (read as Shift, Control, Alt *[inferred from the range / toggle behaviour]*).
+  1. Window flag 2 clear (window-view slot 67): return true.
+  2. Drop-down capture: inside the window, route to a bar as above; a point inside the window but on neither bar:
+     return true. Outside the window: send 0x9A1552D7 and return true.
+  3. Double click: the timer +0x170 (`cRZTimer`). If it is running and its elapsed time is < 500, this is a double
+     click and the timer is Reset; otherwise Restart it (single click).
+  4. Hit test (slot 110). Region 2 (row header): empty the selection list directly (0x009A841F, no
+     GetCellIsSelected, no message), then AddCellToSelection(c, row, true) for every column c of GetCellUsedRange
+     (slot 50) from left to right inclusive (unsigned loop). Region 3 (column header): the same for every row of the
+     used range at the clicked column. Region 5 (cell):
+     - Shift without Alt and without Control: when the list is empty append the cell straight to the list;
+       otherwise take the rectangle spanned by the cell and the **last** list entry (normalised), and
+       AddCellToSelection(c, r, true) for every cell of it, columns outer, rows inner (the existing selection is
+       kept).
+     - Control without Shift and without Alt: toggle, AddCellToSelection(cell, !GetCellIsSelected(cell)).
+     - No modifier: ClearSelection, then AddCellToSelection(cell, true).
+     - Any other combination (Alt, Shift+Control): no selection change.
+     Regions 0, 1, 4: no selection change.
+  5. Compare (region, col, row) with the record +0x238; when different, the click is never a double click and
+     "changed" is set. Store the new hit in +0x238.
+  6. Double click: send 0x9A1552D4. Single click: send 0x9A1552D3 (slot 144); when changed, also send 0x9A1552D2
+     and recalculate. Return true.
+- **GZOnMouseUpL(x, y, modifiers)** 0x009A7826: acts only under drop-down capture with the point inside the window:
+  bar routing (type 10) first; otherwise hit test, and on success store the hit in +0x238 and send 0x9A1552D3.
+  Returns true (or the bar's result).
+- **GZOnMouseMove(x, y, modifiers)** 0x009A79E6, returns true (or the bar's result). Not under drop-down capture:
+  hit test; on success, when the region is 2, 3 or 5 and differs from the hover record +0x244 (region or either
+  coordinate), send 0x9A1552D6 with a copy of the hit; store the hit in +0x244 whatever its region. Under drop-down
+  capture: outside the window, nothing; bar routing (type 13); otherwise a hit in region 5 that differs from the
+  click record +0x238 (region not 5 or another cell) runs ClearSelection then AddCellToSelection(cell, true), and
+  the record becomes (5, col, row). So dragging in an open drop-down list moves the single selection.
+- **GZOnKeyUp(key, modifiers)** 0x009A77ED: Escape (0x1B) sends message {type 6, 0x1B, modifiers, 0} to the
+  notification target (window-view slot 145) and returns its result; any other key returns true.
+
 ## 6. Conformance (planned vectors)
 
 1. SetDefaultFontColor(c, 6) returns false and leaves all six colours unchanged; index 5 succeeds.
@@ -437,10 +541,10 @@ See `questions/win-grid.md`.
 | 009a7665 | 117 | DoMessage | 5.1 |
 | 009a76da | 90 | GetGridArea [slot 8] | 5.1 |
 | 009a7734 | 185 | GetCellArea [slot 9] | 5.1 |
-| 009a77ed | 57 | GZOnKeyUp | pending |
-| 009a7826 | 448 | GZOnMouseUpL | pending |
-| 009a79e6 | 643 | GZOnMouseMove | pending |
-| 009a7c69 | 419 | DoCursorHitTest [slot 110] | pending |
+| 009a77ed | 57 | GZOnKeyUp | 5.9 |
+| 009a7826 | 448 | GZOnMouseUpL | 5.9 |
+| 009a79e6 | 643 | GZOnMouseMove | 5.9 |
+| 009a7c69 | 419 | DoCursorHitTest [slot 110] | 5.9 |
 | 009a7e0c | 35 | GZOnSetFocus | 5.1 |
 | 009a7e2f | 35 | GZOnKillFocus | 5.1 |
 | 009a7e52 | 876 | FUN_009a7e52 | pending |
@@ -473,7 +577,7 @@ See `questions/win-grid.md`.
 | 009a9665 | 39 | FUN_009a9665 | pending |
 | 009a968c | 86 | FUN_009a968c | pending |
 | 009a96e2 | 27 | FUN_009a96e2 | pending |
-| 009a9765 | 105 | SetSelection [slot 43] | pending |
+| 009a9765 | 105 | SetSelection [slot 43] | 5.9 |
 | 009a9837 | 91 | DoWindowRemoval | pending |
 | 009a9892 | 267 | FindCellText [slot 133] | pending |
 | 009a999d | 35 | FUN_009a999d | pending |
@@ -484,9 +588,9 @@ See `questions/win-grid.md`.
 | 009a9d95 | 196 | FUN_009a9d95 | pending |
 | 009a9e59 | 138 | FUN_009a9e59 | pending |
 | 009a9ee3 | 135 | FUN_009a9ee3 | pending |
-| 009a9f6a | 1143 | GZOnMouseDownL | pending |
-| 009aa3e1 | 150 | ActLikeAListbox | pending |
-| 009aa477 | 293 | AddCellToSelection | pending |
+| 009a9f6a | 1143 | GZOnMouseDownL | 5.9 |
+| 009aa3e1 | 150 | ActLikeAListbox | 5.9 |
+| 009aa477 | 293 | AddCellToSelection | 5.9 |
 | 009aa813 | 151 | GetCellTextValue [slot 111] | pending |
 | 009aa91a | 119 | FUN_009aa91a | pending |
 | 009aa991 | 320 | PlaceAllCellWindows | pending |
@@ -565,5 +669,5 @@ See `questions/win-grid.md`.
 | 009af121 | 71 | Init | 5.1 |
 | 009af168 | 2813 | GZPaint | pending |
 
-Specified 92 of 198 functions, 5288 of 32735 bytes; remaining 106 functions, 27447 bytes.
+Specified 100 of 198 functions, 8546 of 32735 bytes; remaining 98 functions, 24189 bytes.
 <!-- END INVENTORY -->

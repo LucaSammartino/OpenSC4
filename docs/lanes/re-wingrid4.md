@@ -1,8 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-wingrid4: cGZWinGrid owner spec (198 functions, 32735 B) in docs/specs/win-grid.md | `re-wingrid4` / (RE lane) | wip after round 1 of 3, docs only, no ABI change; 92/198 functions, 5288/32735 B specified (remaining 106 fn, 27447 B, listed in spec §A as `pending`); WG1 answered (DIFFERS: slot 141 is PlaySound), WG2-WG4 open | 1. Round 2: §5.9 selection/mouse/keys (AddCellToSelection, SetSelection, ActLikeAListbox, GZOnMouseDownL/UpL/Move, GZOnKeyDown/Up, DoArrowKey, DoCursorHitTest). 2. Round 3: cell data, scroll bars, layout/RecalculateAll, sort, copy/delete, GZPaint. |
+| re-wingrid4: cGZWinGrid owner spec (198 functions, 32735 B) in docs/specs/win-grid.md | `re-wingrid4` / (RE lane) | in progress (round 2 of 3), docs only, no ABI change; 100/198 functions, 8546/32735 B specified (remaining 98 fn, 24189 B, listed in spec §A as `pending`); WG1 answered (DIFFERS: slot 141 is PlaySound), WG2-WG4 open | 1. Round 2: §5.9 selection/mouse/keys (AddCellToSelection, SetSelection, ActLikeAListbox, GZOnMouseDownL/UpL/Move, GZOnKeyDown/Up, DoArrowKey, DoCursorHitTest). 2. Round 3: cell data, scroll bars, layout/RecalculateAll, sort, copy/delete, GZPaint. |
 
-## Report
+## Handoff
+
+Round 2 in progress (2026-10-22), static only (REA: no app open). Goal: §5.9 selection/mouse/keys, then helpers.
+Done: §5.9 selection, hit test, notifications table, mouse down/up/move, key-up (commit "round 2 part 1").
+Coverage now: 100/198 functions, 8546/32735 B (appendix.py). Next: GZOnKeyDown 0x009A8D6D, DoArrowKey
+0x009A85B6, then FUN_ helpers 0x009A7E52, 0x009A8888..0x009A8C68 (region_009a0000.c has their decomp),
+then sizing/data. Tools: casm.py now fetches whole functions (--max 2000). Facts: +0x130/+0x134 are
+used as visible column/row counts by the hit test (ceil); hit records +0x238 (click) / +0x244 (hover).
+
+## Report (round 1)
 
 Round 1 (2026-10-21/22). REA had no app open; everything is static (decomp/cGZWinGrid.c, re_query.py asm,
 raw read of the cIGZWinGrid vtable 0x00ADD578, Mac slot names from re/symport/vtables.pkl).
