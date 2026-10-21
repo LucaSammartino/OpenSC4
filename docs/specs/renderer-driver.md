@@ -21,16 +21,18 @@ The game draws through an abstract "graphics driver" interface with an OpenGL-li
 
 | Interface table | Implementation | Covered here |
 |---|---|---|
-| `0x00AC4660` | `nSGLDX7::cGDriver` (DirectX 7 hardware driver; slots named in `docs/abi/vtables.tsv`) | yes, §2-§8 |
+| `0x00AC4660` | `nSGLDX7::cGDriver` (DirectX 7 hardware driver; slots named in `docs/abi/vtables.tsv`) | yes, §2-§10 |
 | `0x00AC36D0` | an OpenGL driver (slot bodies at `0x0087C330`-`0x0087ED20` call the `gl*` imports) *[inferred]*; the export files some of its bodies (`GetBoolean 0x0087CEE0`, `GetFloat 0x0087CF20`, `QueryInterface 0x0087D670`, `VertexFormatElementOffset 0x0087C4C0`) under `nSGLDX7::cGDriver` | no |
 | `0x00ACC4D8` | a third driver (bodies `0x008DA8C0`-`0x008E1140`, near `nRZSimGL`) *[inferred: software / null driver]* | no |
 
 Owner patterns covered: `nSGLDX7::cGDriver::*` bodies in `0x00881DF0`-`0x00889260` (the device, window, state and
 scene lifecycle), `nSGLDX7::TranslateColorToD3D` (`0x00881AB0`), the default device state (§7),
-`nSGLDX7::cPrimitiveManager` (`0x00889B60`-`0x0088A380`, §8.3) with slots 3-5 and 30-34 (§8). Named but **not
-yet specified** (open, §9): `nSGLDX7::cTextureManager` (`0x0088A380`-`0x0088B2C0`), `cTextureStageData` (only its
-dirty byte, §7), `cVertexBuffer`, `D3DLight`, `nRZSimGL` (vertex-format helpers and colour-key blitters),
-`cGZBufferSimGLCache`, `cSC4GDriversCOMDirector`, and slots 6-10, 24-29, 35-42, 47-49, 51-62, 68-76.
+`nSGLDX7::cPrimitiveManager` (`0x00889B60`-`0x0088A380`, §8.3) with slots 3-5 and 30-34 (§8),
+`nSGLDX7::cTextureManager` (`0x0088A380`-`0x0088B2C0`, §9; the internal-format selection `0x0088F8D0` and the
+pixel converters stay open) with slots 24-26, 35-39, 48, 58-61, and the texture-stage records with slots 27-29,
+51-57 and 62 (§10). Named but **not yet specified** (open, §11): `cVertexBuffer`, `D3DLight`, `nRZSimGL`
+(vertex-format helpers and colour-key blitters), `cGZBufferSimGLCache`, `cSC4GDriversCOMDirector`, and slots
+6-10, 40-42, 67-76.
 
 The driver object exposes four COM-style interface pointers at object offsets `+0x0`, `+0x4`, `+0x8` and `+0xC`
 plus a reference-counted sub-object at `+0x10`; the 83-slot graphics interface is the one at `+0xC`. Slots 0-2
@@ -310,8 +312,8 @@ The stencil defaults (depth-fail inverts, masks 1) are the original's *[quirk]*;
 (§5.2) would produce from any "keep everything" request, so a renderer that relies on them must get them from here.
 
 Then four driver flags are reset (object bytes `+0x2DC`..`+0x2DF`): "lighting forced on by a multiplier" := false
-(`+0x2DC`, see §8.6), "clear colour at scene start" := false (`+0x2DD`), and the two vertex-colour flags of
-`EnableVertexColors` (§8.6) := true (`+0x2DE` "ambient from vertex colour", `+0x2DF` "diffuse from vertex
+(`+0x2DC`, see §8.4), "clear colour at scene start" := false (`+0x2DD`), and the two vertex-colour flags of
+`EnableVertexColors` (§8.4) := true (`+0x2DE` "ambient from vertex colour", `+0x2DF` "diffuse from vertex
 colour"). These flags are reset **without** re-issuing the matching device states; rows 22-26 above are what
 makes them true.
 
@@ -331,7 +333,7 @@ Then texture stage 0 is set (D3D7 texture-stage-state numbers):
 
 Finally the driver's own texture-stage cache is invalidated: the "stages dirty" byte (`+0x134`) := true and the
 "dirty" byte (offset 0) of every per-stage record is set (the records are 0x80 bytes each, array at `+0x128`,
-count at `+0x124`, one per hardware stage), so the next draw re-sends every stage (§8.5).
+count at `+0x124`, one per hardware stage), so the next draw re-sends every stage (§10.3).
 
 Consequence *[compat]*: after any device restore the device is in exactly this state, **not** in the state the
 game last requested through the state slots of §5; nothing re-applies the game's depth, blend, alpha or stencil
@@ -356,9 +358,9 @@ sets an "arrays given" byte that nothing reads. No flush, no validation, no erro
 
 1. If the primitive manager has not been started (no device, §8.3), return without doing anything.
 2. If the "stages dirty" byte (§7) is set: flush the queue (§8.3), then for every hardware stage whose record is
-   marked dirty, clear the mark and send the stage's states to the device (`0x00884320`), then its texture
-   transform (`0x00884500`) when that changed; clear "stages dirty". *[inferred: the stage-record contents are
-   the texture-stage slots 51-57, still open]*
+   marked dirty, clear the mark and send the stage's texture and sampler states (`0x00884320`); when that
+   succeeded and the stage's environment mode differs from the one last sent, send the environment
+   (`0x00884500`); clear "stages dirty". Record contents and both steps: §10.
 3. If `count < 1`, return (after step 2).
 4. The source is `base + stride × first`. Modes and what is queued:
 
@@ -450,6 +452,246 @@ All flush the queue first.
   error code 3. Otherwise 0 → vertex fog mode := table `0x00AC45F8`[v] (0 → exponential, 1 → exponential
   squared, 2 → linear, 3 → exponential squared); 1-4 → error code 1; others ignored.
 
-## 9. Open contracts
+## 9. Textures (`nSGLDX7::cTextureManager`, object `+0x18`, `0x0088A380`-`0x0088B2C0`; slots 24-26, 35-39, 58-61)
+
+Textures are named by small integers ("names") that index a table of 48-byte records. Name 0 is a built-in 1×1
+opaque white texture (§9.2) and is never freed.
+
+### 9.1 The texture manager object
+
+| Offset | Content |
+|---|---|
+| `+0x8` | the DirectDraw object (used to create surfaces) |
+| `+0xC` | the device; null while the device is lost (surfaces are then not created, §9.3) |
+| `+0x10` | internal-format table: 8 entries of 0x28 bytes, one per internal format 0-7 (pixel-format masks, flags, FourCC, bit count, and a converter key at entry `+0x24`), filled by `Init_PopulateInternalFormatTable` (`0x0088F8D0`) from the device's texture formats *[open: the selection rules of that 1.2 KB function]* |
+| `+0x150` | converter table: 15 source formats × 8 internal formats of copy routines (`0x0088F890` per source format); a null entry means "this source cannot be loaded into this internal format" |
+| `+0x330`..`+0x338` | the record array (begin, end, capacity) |
+| `+0x33C`..`+0x344` | the list of freed names (begin, end, capacity) |
+
+The texture record (48 bytes):
+
+| Offset | Field | Default (new name) |
+|---|---|---|
+| `+0x00` | in use (byte) | 1 |
+| `+0x04` | width | 0 |
+| `+0x08` | height | 0 |
+| `+0x0C` | mip level count | 0 |
+| `+0x10` | priority (float) | 0.5 |
+| `+0x14` | internal format 0-7 | 4 |
+| `+0x18` | creation flags (bit 0 dynamic, bit 1 opaque) | 0 |
+| `+0x1C`..`+0x28` | the four sampler parameters of §10.2: magnification, minification, wrap S, wrap T | 0, 0, 3, 3 |
+| `+0x2C` | the DirectDraw texture surface, or none | none |
+
+A name is **valid** when it is below the record count and its "in use" byte is set. Every manager operation on an
+invalid name does nothing and reports failure.
+
+**Name allocation** (`NewTexture 0x0088B160`): if the freed-name list is non-empty, its **last** entry is
+reused (LIFO); otherwise a new record is appended with the defaults above. Either way the record is then marked in
+use and its width and height are set to 0 (a reused record keeps its other fields: priority, format, flags,
+parameters and mip count from its previous life *[quirk]*). **Freeing** (`FreeTexture 0x0088ADF0`) releases the
+surface, clears "in use" and appends the name to the freed list.
+
+`HasAlpha(name)` (`0x0088A4F0`) is true when the internal format is neither 0 nor 1. "Has surface"
+(`0x0088A490`) is true when the record has a surface. `SetPriority(name, p)` (`0x0088A5A0`) stores `p`; when `p`
+equals 0.95f exactly (`0x00A9BEF8`, single-precision compare) it also sets creation flag bit 0 (dynamic), which
+takes effect the next time the surface is created.
+
+### 9.2 Initialisation, device loss and shutdown
+
+`Init(ddraw, device, caps)` (`0x0088B2C0`) runs only when both objects are given and the manager has no DirectDraw
+object yet: it keeps both, fills the internal-format table from `caps` and the converter table, then creates
+name 0: `NewTexture`, `CreateTexture(0, flags 0, format 4, 1×1, 1 level)` and loads one 32-bit pixel
+`0xFFFFFFFF` from source format 0 (`0x0088B260`).
+
+When the device is lost (§4.4), `0x0088A400` releases every record's surface (records keep their sizes and
+parameters) and drops the device. `InitDevice(device)` (`0x0088AC40`) adopts the new device and re-creates the
+surface of every in-use record whose width is non-zero, with its stored flags, format, size and level count.
+The pixel contents are **not** restored: clients re-upload on `kSGLMessage_RestoreTextures` (§4.4).
+`Shutdown` (`0x0088B0D0`) frees name 0 only (checked in the instructions) *[inferred: other names' surfaces are
+left to the record-range erase `0x0088AED0`]*, empties the record array and the freed list, and releases the device and DirectDraw
+objects.
+
+### 9.3 Creating a surface (`CreateTexture`, `0x0088A900`; device call `0x0088A720`)
+
+`CreateTexture(name, flags, format, width, height, levels)` fails unless the name is valid and
+1 ≤ width ≤ 4096 and 1 ≤ height ≤ 4096. It stores width, height, levels, flags and format in the record. Without
+a device it releases any old surface and reports **success** (the surface is created later by `InitDevice`).
+With a device it releases the old surface and creates a new one: surface description size 0x7C, flags
+CAPS | HEIGHT | WIDTH | PIXELFORMAT | MIPMAPCOUNT (`0x21007`), mip count = max(levels, 1), caps
+TEXTURE | MIPMAP | COMPLEX (`0x401008`), caps2 = D3D-managed texture (`0x20000`), plus "hint dynamic"
+(`0x20004`) when flag bit 0 is set, else "opaque" (`0x20080`) when flag bit 1 is set; the pixel format is the
+internal-format entry's (alpha mask, red, green, blue masks, flags, FourCC, bit count). A failed creation leaves
+no surface and reports failure.
+
+### 9.4 Source formats and loading pixels (`LoadTextureLevel`, `0x0088ACD0`)
+
+The caller describes its pixels by a (format, type) pair, translated to one of 15 source formats
+(`0x0088D0B0`); bits per pixel from `0x0088D050`:
+
+| type | format | Source format | Bits | *[inferred]* layout |
+|---|---|---|---|---|
+| 0 or 1 | 3 | 0 | 32 | 8-8-8-8 |
+| 0 or 1 | 1 | 1 | 32 | 8-8-8-8, other channel order |
+| 0 or 1 | 2 | 2 | 24 | 8-8-8 |
+| 0 or 1 | 0 | 3 | 24 | 8-8-8, other order |
+| 13 | 3 / 1 | 4 / 5 | 16 | 1-5-5-5 |
+| 10 | 3 / 1 | 6 / 7 | 16 | 4-4-4-4 |
+| 14 | 2 / 0 | 8 / 9 | 16 | 5-6-5 |
+| 0 or 1 | 7 or 8 | 10 | 4 | DXT1 block-compressed |
+| 0 or 1 | 9 | 12 | 8 | DXT3 |
+| 0 or 1 | 10 | 14 | 8 | DXT5 |
+
+Source formats 11 and 13 have 0 bits and are never produced. Any other pair fails.
+
+`LoadTextureLevel(name, level, x, y, w, h, format, type, rowLength, pixels)`:
+1. Fails unless the name has a surface and (`level` = 0 or `level` < the record's mip count).
+2. Fails if the (format, type) pair is unknown or the converter table has no routine for (source format, the
+   record's internal format).
+3. Source pitch in bytes = ⌊bits × rowLength / 8⌋, where `rowLength` = `w` when given as 0.
+4. Locks mip level `level` (walking `level` times to the attached mip surface) with flags WAIT | WRITEONLY |
+   NOSYSLOCK | DISCARDCONTENTS (`0x2821`); while the lock fails with "surface lost" (`0x887601C2`) and the
+   surface restores successfully, it retries. Any other failure fails the load.
+5. Uncompressed surfaces: the routine converts `w × h` pixels to the surface at byte offset
+   `y × pitch + x × (surface bits / 8)`. Compressed surfaces (the surface reports a linear size) accept only
+   `x = y = 0` and copy the whole level; any other offset copies nothing.
+6. Unlocks the surface and reports success (also when step 5 copied nothing *[quirk]*).
+
+### 9.5 Driver slots
+
+Below, "current stage" is the stage selected by `TexStage` (§10.1) and "the stage record" its 0x80-byte record.
+
+- `GenTextures(n, out)` (35, `0x00883450`): `n` new names (§9.1) written to `out[0..n-1]`.
+- `DeleteTextures(n, names)` (36, `0x00883480`): only when the driver byte `+0x263` is set *[open: what sets
+  it]*; frees every non-zero name. Name 0 is skipped.
+- `IsTexture(name)` (37, `0x008834C0`): true when the name is below the record count and in use (no surface
+  needed).
+- `PrioritizeTextures(n, names, priorities)` (38, `0x008834D0`): `SetPriority` per name (§9.1).
+- `AreTexturesResident(n, names, out)` (39, `0x00883510`): `out[i]` := `IsTexture(names[i])`; returns true.
+- `BindTexture(target, name)` (24, `0x00884750`): `target` ≠ 0 → error code 1, nothing else. Otherwise sets the
+  "parameters follow the texture" flag (`+0x13C`, §10.2), loads the stage record's four sampler parameters from
+  the texture (from name 0 when `name` is invalid), stores `name` (even if invalid), the texture's "has alpha",
+  resets the stage's applied-environment cache to -1, and marks the record and the stage set dirty. No flush.
+- `SetTexture(name, stage)` (58, `0x00884810`): if `name` differs from that stage's name: clears the "parameters
+  follow the texture" flag, stores `name` and "has alpha", resets the environment cache, marks dirty. The
+  stage's sampler parameters are **not** reloaded. No range check on `stage`.
+- `GetTexture(stage)` (59, `0x00884860`): that stage's name.
+- `PixelStore(pname, v)` (26, `0x00881FC0`): pname 0 → unpack row length (`+0x140`) := `v`; others ignored.
+  `GetInteger(pname, out)` (48, `0x00881FE0`) writes the row length when the dword at `0x00AC45F4 + 4·pname`
+  is 0, i.e. for pname 0 (and, by overlap with the fog table, pnames 7 and 8 *[quirk]*); otherwise `out` is
+  left unchanged.
+- `TexImage2D(target, level, format, width, height, border, srcFormat, type, pixels)` (25, `0x00884880`): the
+  name is the current stage's. `width < 1`, `height < 1` or name 0 → error code 2. Row length := `+0x140`, or
+  `width` when 0. If the name has no surface, `CreateTexture(name, record flags, format, width, height, 1 level)`
+  (failure → error code 2). Then `LoadTextureLevel(name, level, 0, 0, width, height, srcFormat, type, row
+  length, pixels)`; failure → error code 3. `target` and `border` are ignored. An existing surface is **not**
+  re-created when the size or format differs *[quirk]*. No flush.
+- `CreateTexture(format, width, height, levels, flags)` (60, `0x00882FF0`): allocates a name, creates its
+  surface (§9.3), returns the name; on failure sets error code 3 but still returns the (allocated) name.
+- `LoadTextureLevel(name, level, x, y, w, h, srcFormat, type, rowLength, pixels)` (61, `0x00883040`): flushes the
+  primitive queue (§8.3), then §9.4; failure → error code 3.
+
+## 10. Texture stages (slots 27-29, 51-57, 62; records applied at draw time)
+
+### 10.1 The stage record
+
+The driver keeps one 0x80-byte record per hardware stage (array `+0x128`, count `+0x124`), a current stage index
+(`+0x120`) and the "stages dirty" byte (`+0x134`, §7). `TexStage(i)` (51, `0x00882020`): `i` ≥ count → error
+code 2, else current stage := `i`.
+
+| Offset | Field | Written by |
+|---|---|---|
+| `+0x00` | dirty | every setter below, §7 |
+| `+0x01` | texturing enabled | `Enable`/`Disable` cap 5 (§5.4) |
+| `+0x02` | bound texture has alpha | `BindTexture`, `SetTexture` |
+| `+0x04` | texture name | `BindTexture`, `SetTexture` |
+| `+0x0C`..`+0x18` | magnification, minification, wrap S, wrap T | `BindTexture`, `TexParameter` |
+| `+0x1C` | environment mode | `TexEnv` (28), `SetCombiner` (:= 4) |
+| `+0x20` | environment mode last sent (-1 = none) | draw path; reset to -1 by the texture and combine setters |
+| `+0x24`, `+0x28` | combine function, colour / alpha | slot 57, `SetCombiner` |
+| `+0x2C`..`+0x34` | colour sources 0-2 | slot 56, `SetCombiner` |
+| `+0x38`..`+0x40` | alpha sources 0-2 | slot 56, `SetCombiner` |
+| `+0x44`..`+0x4C` | colour operands 0-2 | slot 55, `SetCombiner` |
+| `+0x50`..`+0x58` | alpha operands 0-2 | slot 55, `SetCombiner` |
+| `+0x5C`, `+0x60` | scale, colour / alpha | slot 54, `SetCombiner` |
+
+### 10.2 Setters
+
+- `TexParameter(target, pname, v)` (29, `0x00884990`): if the "parameters follow the texture" flag is set, the
+  value is first stored into the bound texture's record (pname 0-3); if that fails (invalid name, or pname > 3)
+  → error code 1 and nothing else. Then pname 0-3 updates the stage record's parameter and marks dirty only when
+  the value changed; any other pname marks the record dirty without storing anything.
+- `TexEnv(target, pname, mode)` (28, `0x00884960`): stage record environment mode := `mode`, marks dirty
+  (pname not checked, no flush).
+- `TexEnv(target, pname, const float* rgba)` (27, `0x008830A0`): flushes the queue, then texture factor (render
+  state 60) := quantised colour (§5.5); error code by §3.
+- `TexStageCoord(v)` (52, `0x00883550`): the coordinate index is `v & 7`; `v & ~7` selects generation: 0 →
+  none, 0x10 → camera-space position (`0x20000`), 0x20 → camera-space normal (`0x10000`), 0x30 → camera-space
+  reflection vector (`0x30000`); any other → error code 2 and nothing sent. Otherwise flushes the queue (error
+  by §3) and sets the current stage's coordinate-index state (11) to generation | index (error by §3).
+- `TexStageMatrix(m, count, unused, flags)` (53, `0x00883600`): flushes the queue. If `m` is null or an identity
+  matrix (`0x00881970`): texture-transform flags (state 24) := 0 (disabled). Otherwise copies the 16 floats and
+  negates the third row (elements 8-11) when `count` = 3 with flag bit 0 clear, or `count` = 4 with flag bit 0
+  set; texture-transform flags := `count`, plus projected (`0x100`) when flag bit 1 is set; texture transform
+  of stage `i` (transform state 16 + `i`) := the copy. Device results are ignored.
+- Slots 54-57 set combine fields of the current stage, then mark the record and the set dirty and reset the
+  applied-environment cache. Slots 54, 55 and 57 first require the combine capability byte `+0x209` *[open:
+  no writer found in the driver; probably filled from the device description]*: without it → error code 2.
+  Slot 56 has no such check.
+  - 57 (`0x00885130`): `(which, f)`: 0 → colour function, 1 → alpha function.
+  - 56 (`0x00885190`): `(which, s)`: 0-2 → colour source 0-2, 4-6 → alpha source 0-2.
+  - 55 (`0x00885220`): `(which, o)`: 0-2 → colour operand 0-2, 4-6 → alpha operand 0-2.
+  - 54 (`0x008852D0`): `(which, s)`: 0 → colour scale, 1 → alpha scale.
+- `SetCombiner(const byte d[10], stage)` (62, `0x00884A70`): flushes the queue; the stage's environment mode := 4
+  and the record and set are marked dirty, but the applied-environment cache is **not** reset *[quirk: a new
+  combiner on a stage already drawn in mode 4 is not re-sent until the cache is reset by a texture or slot 54-57
+  call or by a disabled draw]*. No range check on `stage`. Unless `d[0]` = 0xFF: colour function := `d[0]`,
+  alpha function := `d[4]`; colour sources 0-2 := low nibbles of `d[1..3]`, colour operands := (2, 3, 4, 5)[high
+  nibble]; alpha sources 0-2 := low nibbles of `d[5..7]`, alpha operands := (4, 5, 4, 5)[high nibble]; colour
+  scale := `d[8]`, alpha scale := `d[9]`.
+
+### 10.3 Applying a stage at draw time (`0x00884320`, `0x00884500`)
+
+`DrawArrays`, `DrawElements` and `0x00885DD0` (§8.2 step 2) send each dirty record. Stage `i`:
+
+1. **Texture and sampler** (`0x00884320`). If texturing is disabled on the stage, or the name is invalid, or it
+   has no surface: environment cache := -1; colour op := disable, alpha op := disable; step 2 is skipped (the
+   device's bound texture is left as it was). Otherwise bind the surface, then:
+   - magnification 0 → point, 1 → linear (other values: unchanged);
+   - minification (min filter, mip filter): 0 → (point, none); 1 → (linear, none); 4 → (point, point);
+     6 → (point, linear); 7 → (linear, linear); **5 → (point, linear)** *[quirk: the case falls through
+     into 6 after sending (linear, point)]*; 2, 3 and others: unchanged;
+   - wrap S / wrap T: 2 → clamp, 3 → wrap (other values: unchanged; address states 13 / 14).
+2. **Environment** (`0x00884500`), only when the mode differs from the cached one (the cache is updated
+   first). D3D7 names; "tex" = texture, "cur" = current:
+
+| Mode | Colour | Alpha (texture has alpha) | Alpha (no alpha) |
+|---|---|---|---|
+| 0 replace | select arg1 = tex | select arg1 = tex | same |
+| 1 modulate | modulate tex, cur | modulate tex, cur | select arg1 = cur |
+| 2 decal | blend by texture alpha (tex, cur) | select arg2 = cur | select arg1 = cur |
+| 3 | disable | disable | disable |
+| 4, 5 combine | from the combine fields (below) | from the combine fields | same |
+| other | nothing sent | | |
+
+   In mode 2 without alpha the colour is select arg1 = tex.
+
+   **Combine** (`0x00882100` colour, `0x00882300` alpha). Source codes map through `0x00AC4604` = (0 →
+   texture, 1 → current, 2 → texture factor, 3 → diffuse); 4 and above read past the table *[undefined]*. Colour
+   arguments 1 and 2 = sources 0 and 1, with colour operand 3 → complement, 4 → alpha replicate, 5 → both;
+   alpha arguments 1 and 2 = alpha sources 0 and 1, alpha operand 5 → complement. Source 2 only selects the
+   interpolation op. Function → op (colour uses colour scale and source 2; alpha uses alpha scale and alpha
+   source 2):
+
+| Function | Op |
+|---|---|
+| 0 | select arg1 |
+| 1 | scale 0 → modulate, 1 → modulate 2×, 2 → modulate 4×, other → *[undefined value]* |
+| 2 | add |
+| 3 | scale 0 → add signed, other → add signed 2× |
+| 4 | by source 2: 0 → blend texture alpha, 1 → blend current alpha, 2 → blend factor alpha, 3 → blend diffuse alpha, other → colour: nothing sent / alpha: *[undefined value]* |
+| 5 | dot product 3 |
+| other | disable |
+
+## 11. Open contracts
 
 See [questions/renderer-driver.md](questions/renderer-driver.md).

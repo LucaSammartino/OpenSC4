@@ -6,8 +6,9 @@
 - goal (round 2): RD5 rest - cTextureManager 0x0088A380-0x0088B2C0, texture slots 24-29/35-39/58-61, stage records
   0x00884320/0x00884500 + slots 51-57/62; then RD3 blit/viewport 68-76, RD4 frame end 0x00887260.
 - done round 1: 633d523d (§7), 594a88cb (§8), c52666f3 (report). §7/§8 must be preserved.
-- next: read slot table (docs/abi/vtables.tsv 0x00AC4660) for 24-29,35-39,51-62; asm per function; write §9 texture.
-- facts: spec §9 is "Open contracts" (renumber to §12 when adding sections). REA not used yet.
+- done round 2: §9 textures + §10 stages (commit after this edit); open contracts now §11.
+- next: RD3 blit/viewport slots 67-76 (0x00882050.., 0x00883710/60/7E0/8D0) as §12; RD4 0x00887260; then RD5 move/narrow.
+- facts: absolute offset = decomp interface offset + 0xC. REA not used. build-runs/rd.py reads exe data.
 
 ## Report
 
