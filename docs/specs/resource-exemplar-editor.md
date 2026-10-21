@@ -388,6 +388,60 @@ Worked example: UINT32 property with value map {1 → `Low`, 2 → `Mid`, 5 → 
 at (5, 5), child 0x46C60DBF, items in order 1, 2, 5 (texts from §7), item 2 selected. Choosing item 0 and reading
 back gives the scalar UINT32 1. A current value 7 (not in the map) shows item 0 selected.
 
+## 11. Spinner and 16-column grid editors *[compat]*
+
+Both sit on the `cSCStandardTypeEntryView` base (§10: property value object at +0xDC, value interface at +0xD8
+whose slot +0x1C is GetValue). Both Init bodies run once (init flag), clear window flag 0x800, set 0x10000 and add
+the background fill control, as in §8.1. Both GetValue bodies end by copying the edited value object into the
+destination property passed by the caller (destination slot +0x18), as the dialog's Okay does (§9.2).
+
+### 11.1 `cSCUint32SpinnerEntryView` (class 0x871E9744; Init 0x00689830, GetValue 0x00689940)
+
+**Init**: if the value is a single UINT32 (type 6), one spinner at (5, 5) with child ID 0xBA293DA4. Otherwise the
+value is treated as a UINT32 list: one spinner per element i at (5, 5 + 20·i), child ID 0xBA293DA4 + i; an empty
+list creates none. Each spinner (`cSCPropertyView::createSpinner` 0x0066DD00, through the window control manager's
+CreateSpinner) gets **range 0 to 255** and the element's current value; its area is (x, y)–(x + 48, y + 20), its
+edit window gets background (0xE0, 0xE0, 0xE0), and it is added as a child. So this "Uint32" spinner can only show
+and produce 0..255 *[quirk]*; what the spinner control does with an initial value above 255 (clamp or keep) is the
+control's behaviour, not this editor's *[inferred: clamp]*.
+
+**GetValue**: scalar → the spinner with ID 0xBA293DA4 (spinner interface 0x612CE0C3, value getter slot +0x20)
+gives the value, stored as the scalar UINT32 (value slot +0x68); a missing spinner leaves the value unchanged.
+List → a heap array of count UINT32 is filled, element i from spinner 0xBA293DA4 + i, then stored as the UINT32
+array (value slot +0x198, copy) and freed; a missing spinner leaves its element uninitialised (heap garbage)
+*[quirk]*.
+
+### 11.2 `cSC16ColumnGridEntryView` (class 0x0A09AC46; Init 0x00689E50, GetValue 0x0068A640)
+
+Shows a list property as a table of 16 columns. **Rows = element count / 16, rounded down** (SHR 4 at
+0x00689EB1); trailing elements beyond the last full row are neither shown nor touched *[quirk]*.
+
+**Init**: creates a GZCOM grid control (class 0xDAA6B9BF, interface 0xDAA6B9BE), child ID 0xAA09AAF3, area
+(5, 5)–(editor width − 5, editor height − 23). Colours from the framework style service 0xC416025C: black
+(0,0,0), white (0xFF,0xFF,0xFF) and grey (0xE0,0xE0,0xE0) brushes; style values 8, 0x10 and 1 are set on it
+*[inferred: roles of grid slots +0x28/+0x44/+0xE0/+0xE8/+0x104/+0x130/+0x9C]*. Row headers are the row index
+in decimal (`%d`, 0..rows−1), column headers 0..15 in decimal. Cell (column c, row r) shows element 16·r + c:
+
+| Value type | Cell text |
+|---|---|
+| UINT8 list (0x8002), UINT16 list (0x8004), UINT32 list (0x8006) | `%u` of the zero-extended element |
+| SINT8 list (0x8003), SINT16 list (0x8005), SINT32 list (0x8007) | `%d` of the sign-extended element |
+| FLOAT32 list (0x800A) | `%.3g` of the element (as double) |
+| any other type (scalars, BOOL, SINT64, STRING lists) | no cells filled (empty grid of the computed size) |
+
+**GetValue**: for each of the 16·rows cells, the cell text is read (grid slot +0x1BC) and converted:
+unsigned lists with `RZConvertToUint32A`, signed lists with `RZAtoi64A`, FLOAT32 with `RZAtofEnglishA` rounded to
+float. Integer results are **truncated to the element width** (low 8/16/32 bits) and written **in place** into
+the held value's own array (no re-allocation, count unchanged). Other types write nothing. Then the value is
+copied to the destination property.
+
+Precision quirk *[quirk]*: FLOAT32 cells show only 3 significant digits, and GetValue reads every cell back,
+so opening and confirming the editor rounds every float of the shown rows to 3 significant digits
+(1234.5 → `1.23e+03` → 1230.0; 0.33333 → `0.333`).
+
+Worked example: UINT8 list of 35 elements 0..34 → 2 rows (elements 0..31), elements 32..34 not shown. Typing
+`300` in cell (0, 1) and confirming stores element 16 = 300 mod 256 = 44; elements 32..34 keep their values.
+
 ## 13. Open points for round 3
 
 16-column grid editor (0x0A09AC46), colour sequence editor (0xCA0CB10F), happiness and general response curve
