@@ -17,7 +17,7 @@ pub const IID_IGZUNKNOWN: u32 = 0x0000_0001;
 pub const IID_IGZCMDLINE: u32 = 0xA31E_539C;
 
 /// The three switch prefix characters (§4).
-pub const SWITCH_PREFIXES: [u8; 3] = [b'/', b'-', b'\\'];
+pub const SWITCH_PREFIXES: &[u8; 3] = b"/-\\";
 
 /// Errors for the cases the original leaves undefined (§3 slots 4, 14, 16; §6.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
