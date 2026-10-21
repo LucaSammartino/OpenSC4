@@ -230,8 +230,10 @@ data1 = is-male, data2 = wealth); then `UpdateVariables` and push the advisor ev
 
 ### 4.2 Daily step (`simulate_day`, advisor `Simulate(0)`)
 
-Skipped entirely when state = 0, or when the UI service `0xA417445E` (instance `0x5A4`) reports a blocking UI
-state (its slot `+0xA8` returns true) *[inferred: a modal window]*. Otherwise, in order:
+Skipped entirely when state = 0, or while **a modal window is running**: the window manager (framework service
+`0xA417445E`, `cIGZWinMgr` IID `0x5A4`) slot 42 (`+0xA8`, `0x009DB025`) returns true when its modal depth (the
+counter `DoModalWin` increments around its loop) is not 0 — the same test as advisors.md §6 popup gate. The monthly
+step (§4.3) makes the same check. Otherwise, in order:
 
 1. **Job search.** If there is no job, no neighbour job, the MySim is **not retired**, and state = 2 (at home):
    `FindNewJob()`; if it returns false, jobless days += 1.
@@ -829,7 +831,7 @@ the MySims own no grid).
 ### 11.2 Open questions
 
 1. *Answered (MS1, 2026-10-21):* row 25 is dead data, row 30 is the pylon-locked flag (§2.2).
-2. The exact meaning of UI service `0xA417445E` slot `+0xA8` that pauses MySims (§4.2).
+2. *Answered (MS2, 2026-10-21):* window-manager slot 42 = "a modal window is running" (§4.2).
 3. Whether MySim `Init` re-resolves the neighbour job city from the saved cell (§2.2) — the Init code calls the
    app's region lookup, details not traced.
 4. The building development simulator's slot 44 list used by `DistanceToClosestSpecial` (landmarks and rewards?).
