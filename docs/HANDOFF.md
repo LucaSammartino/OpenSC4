@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
+**Run4 checkpoint75 (open-ended):**75 rounds used;12 trains landed. Coverage42.9/31.0/16.0/17.3, baseline delta+6.1/+2.7/+3.9/+1.4 points. Parked3/3: glue-terrain3, re-terrain4, re-widgets4, re-application4, re-particles4, re-editors4, re-driverdraw4, re-rzservices4. Train35 correctedRustmodule union, gatePASS/candidatepropdevregress running. Simgridsround2 joint/reloadvalidation inprogress, no promotionyet. Target6-8/max3glue; nextcheckpoint100.
+
 **train34 landed 7bcfbaadd5:** Seven-lane batch gate and full union withcitysit PASS.4444 core complete, four exactRZ file owners and two exactlanguage owners specified; CmdLine/SysServPtr uncredited. Disaster rectangle host fix measured fire124/124,riot481/481 samecells(ref0,resync0); historical riot mismatch not reproduced. Citysit realreplacement promoted; indicator/Lua stubs remain CS12/CS13, explicitly unresolved. NM10/NM11 answered frombytes, runtimefix pending; NR13 blocks internal networkrule boundary. RZ parked3/3, preserveworktree. Coverage42.9/31.0/16.0/17.3; rounds68 (open-ended).
 
 **train33 landed 17d49e451a:** Traffic TS67 phase-entry fix, complete565 span spec, advisor AD1-AD3 answers. Gate and fulldefault35-key union regress PASS; no shadow resync/suppression. Advisor UI null/no-op disproven, privateglobal consumers and read-only external map layout specified. Coverage42.1/30.0/15.4/16.5; rounds64 (open-ended).
@@ -19,11 +21,11 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **Train authority:** `build-runs/merge-train/state.json`; latest landed train33. Start next batch immediately when2+ ready; guard and main ancestry remain authoritative.
 
-**Parked at3/3, never fourth:** glue-terrain3(97b1c237), re-driverdraw4(partial DX7, landed32), re-editors4(partial curves, landed30), re-particles4(partial drawing, landed30), re-widgets4(partial base, landed28), re-application4(partial57/322, landed27), re-terrain4(answers landed25). Preserve parked worktrees, even when supported portions landed.
+**Parked at3/3, never fourth:** re-rzservices4(File/INI/Directory/OFStream complete; CmdLine slot10/SysServPtr incomplete), glue-terrain3(97b1c237), re-driverdraw4(partial DX7, landed32), re-editors4(partial curves, landed30), re-particles4(partial drawing, landed30), re-widgets4(partial base, landed28), re-application4(partial57/322, landed27), re-terrain4(answers landed25). Preserve parked worktrees, even when supported portions landed.
 
 **Terrain:** crash fixed earlier, final diagnostics trace apparent stall to missing TerrainReconciliation/ConnectionsReady leaving dialogs enabled. Auto-close d8 reached2032 with refwarning1, NOT a pass. Tick/reconcile behavior, texture step7part2/TR37/Save unfinished. TR42/TR43 filed (preference width, edge comparison); no replacement credit or fourth round.
 
-**Other pending:** RZ finalround3 targets Directory/OFStream/CmdLine/SysServPtr; File/INI specs ready on its unlanded branch. Initial RZ utility belongs strings; stringsround2 reconciles the copied public utility spec before credit. Core4444, verify-disasters, glue-citysit, RE8888 running. Ledger holds exact states; inspect return JSON before refilling. GZ core partial, only queue manager mapped; GZ1/GZ2/GZ5-GZ7 block broader credit.
+**Other pending:** train35 carries1555/565 cores, propdev candidate,8888 spec, EX41-EX45 answers and advisor map scaffolding. Advisor system stilldisabled; AD4/AD5 must land/answer before ONE remaining implementation round (two total used including originalscoping). Tutorial denied overlapwiththatunlandedbranch. Simgridsround2 joint/save/reload validation; netmgr engine verification follows landedNM10/NM11, no newnetmgrcredityet. NR13 blocks internalnetworkrule boundary. Exact live/ready states are in ledger.
 
 **Choosing work:** unblocked parked lanes with answered causes first (within3-round cap), then work one validation step from landing, then coverage-report subsystem bytes descending: coreyes/replaceabsent glue; specyes/coreabsent core; nonexact shadow verify (contract gap becomes a question); specabsent RE. Max3glue. Keep earlier skip of glue26 and abi/unreconciled-rows.tsv.
 
