@@ -177,10 +177,29 @@ equal to a masked texel 80 % of the time (A8: key 0 half the time), random entry
 field called unread, images 5x3 / 37x11 / 64x16 with row padding, stretch u0 < 2.0 and steps < 1 texel, tiled
 offsets 0..999.
 
-Results: see the table in section 10.1 (filled from the runs).
-
 ### 10.1 Runs
-(pending)
+
+| run | command | result |
+|---|---|---|
+| all kernels, random | `check.py 150` | 168/168 kernels, 747,927 pixels, 0 mismatches, registers and ESP preserved |
+| texel sweep | `EXH=1 check.py 1 <25 kernels>` | EXH_RESULT |
+| span methods | `meth.py 300` | solid 9,551 px, alpha 9,275, gradient 8,617, alpha gradient 9,298: 0 mismatches |
+| alpha gradient, w > 256 | `BIGW=1 meth.py 200` | 6,323 px, 0 mismatches against the packed formula of section 6 |
+| blend forms | `blendproof.py` (numpy) | 2,425,356,288 (d, s, w) cases, 0 mismatches for both packed forms |
+
+`blendproof.py` closes the gap that random execution leaves in the arithmetic: it transcribes the two packed blend
+sequences (RenderAlpha/RenderAlphaGradient, and the helper `0x008576B0`, which extracts G by an XOR of two packed
+sums instead of a separate multiply) into word arithmetic and compares them with `B(d, s, w)` over w = 0..256,
+every (s, d) pair of each channel and 48 fixed pairs of the other two channels with both signs of `s - d`. The
+transcriptions themselves are confirmed against the image bytes by the execution runs above.
+
+Sensitivity: one changed model rule fails at once (`check.py 6`, `meth.py 20`): blend rounding `+127` 77 kernels;
+constant-alpha weight `w+1` 40; modulate without `+128` 79; 4444 key mask `0xFFFF` 10 of 12 keyed 4444 kernels;
+tiled start without `u0` 52; X888 alpha `0xFE` 18 of 24; RenderAlpha weight `+1`, RenderGradient without the
+`0xFF000000`, RenderAlphaGradient weight `+1`: 375, 648, 409 mismatching pixels.
+
+So every rule of sections 2-9 holds on the executed bytes of all 174 functions for the input ranges of section 10;
+what is not executed is listed in U4.
 
 ## 11. Unknowns
 - U1. `count = 0` (decrement-then-test loops would run 2^32 times): callers always pass >= 1? Not checked here.
