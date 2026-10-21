@@ -398,14 +398,19 @@ impl Run<'_, '_> {
                 let riders = self.cx.begin_ferry_pass();
                 self.st.ferry_total = self.st.ferry_total.wrapping_add(riders);
             }
-            // FinishTripMap (15): §3.2 names only the lot iterator reset
-            // (the walk starts at the first lot in `finish_trip_map`). The
-            // phase positions are NOT reset here, the literal reading: they
-            // keep the last FullTrips source's cell until the first lot is
-            // taken. In game the original reads (0, 0) at a stop before the
-            // first lot (regress-train22, 13 of 13 differences); open as
-            // traffic-simulator TS67.
-            cs::FINISH_TRIP_MAP => {}
+            // FinishTripMap (15) and the lot sweep (1) share one entry arm
+            // (§3.2 rows 15 and 1, TS67): the lot iterator reset (the walk
+            // starts at the first lot, so no resume point is kept) and the
+            // two s16 phase positions := (0, 0), so a stop before the first
+            // lot leaves (0, 0), not the last trip-phase source's cell. The
+            // "take the next source" flag `+0x838` := 1 has no core field
+            // (the trip phases take a source whenever `current` is none, and
+            // the 16/17/18 entry resets that). The re-route context x/z are
+            // not touched.
+            cs::FINISH_TRIP_MAP | cs::LOT_SWEEP => {
+                self.st.finish_resume = None;
+                self.st.extras.phase_positions = [0, 0];
+            }
             _ => {}
         }
     }
