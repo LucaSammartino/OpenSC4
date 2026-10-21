@@ -288,6 +288,23 @@ Copy `text` into the source, ParseCDATA, `GetToken(false)`:
 Note the first ParseCDATA leaves the position after leading text, so a document that does not start with a
 tag is handed to ParseTextDocument with the position past that text; ParseTextDocument restarts from 0 (§5.4).
 
+**State reset (HD5, 00908122..0090818b).** Exactly two fields are reset: the parse position 0x194 is set to 0
+right after the source copy (00908134), and set to 0 again on the plain-text path just before vtable 11
+(0090817e), after the pending text 0x104 is erased. The push-back flag 0x28, the current token 0xe8, the root
+0x14 and the style state are **not** touched. Token dispatch: 2 -> vtable 9, 4 -> ParseHTMLElements, every
+other value (0 unknown tag, 1 end, 3 text, 5 and above) -> plain text. The return value is the called
+routine's result unchanged: vtable 9's result, ParseHTMLElements' true, or ParseTextDocument's 1.
+
+Boundary cases:
+- First call on a fresh object: the constructor clears 0x28 (00905b03), so `GetToken(false)` reads a real token.
+- Second call on the same object after a document whose last read token was pushed back (e.g.
+  `<html><body>Hi` without `</HTML>`: §5.5 step 4 reads the end token 1 and sets push-back). The new call
+  resets the position to 0, runs ParseCDATA, then `GetToken(false)` sees the flag, clears it and returns the
+  **stale** token 1, so the new text goes to ParseTextDocument and is shown as plain text, even if it is
+  `<html>...`. A third call on the same object then parses normally.
+- In the game this does not occur: cGZWinHTML::InternalSetDocument allocates a new 0x1c4-byte document per
+  load (constructor, Init, optional SetFontSizeTable, then vtable 8), and releases the old one.
+
 ### 5.2 ParseHTMLDocument (0090818e, vtable 10)
 
 SkipDocumentWhitespace, ParseCDATA, `GetToken(false)`; token 4 -> ParseHTMLElements (its result), else false.
@@ -363,7 +380,8 @@ themselves.
   Then `GetToken(true)` (normally `/TITLE`, consumed without a check).
 - **ParseBASE** (0090092d): `FindAttribute("HREF", remove)`; when present, `SetBaseURL(value)`. Returns 1.
 - **ParseSCRIPT** (00906acd): `SkipUntilToken(/SCRIPT 61)`; script bodies are discarded (also in the body,
-  through ParseSPECIAL).
+  through ParseSPECIAL). Returns the SkipUntilToken result (00906aec..00906afa): true when `/SCRIPT` was
+  found, false when the end came first (`<script>x` at end of document gives false).
 
 ### 7.2 Dispatchers
 
@@ -383,7 +401,13 @@ themselves.
 - **ParseSELECT** (00906aff): create a `cHTMLSELECT`. Loop `GetToken(true)`: OPTION -> ParseOPTION(select);
   OPTGROUP -> SkipUntilToken(/OPTGROUP) (its options are lost); anything else ends the loop. Then, when the
   token is `/SELECT` or SkipUntilToken(/SELECT) succeeds, **and** the select has at least one child, add it to
-  the parent; otherwise delete it.
+  the parent; otherwise delete it. OPTGROUP's own SkipUntilToken result is ignored (the loop continues).
+  **Return value** (HD6a, byte BL, 00906b06 / 00906b5f / 00906b8a): true, except when the stopping token is
+  not `/SELECT` and the closing SkipUntilToken(/SELECT 78) reaches the end first: then false. Having no
+  options does not change it. ParseFORMCTRL tail-jumps here (00906e8a), so callers see this value.
+  Examples: `<select><option>a</select>` -> true, select added; `<select></select>` -> true, nothing added;
+  `<select><b>x</b></select>` -> true (the bold text is skipped up to `/SELECT`), nothing added;
+  `<select><option>a` at end of document -> false, select deleted.
 - **ParseOPTION** (009060df): create a `cHTMLOPTION`; `GetToken(false)`. Text -> insert it as a text segment
   into the option and add the option to the select; otherwise delete the option. Finally, when the current
   token is not `/OPTION`, set push-back. Example: `<select><option>One<option>Two</select>` gives two options
@@ -593,8 +617,48 @@ colour is a link colour). "Fixed" below means: clear the face string and set the
 FONT attributes: SIZE: `+n` -> index n+3 capped at 6; `-n` -> index 3-n, floored at 0; plain `n` -> index n
 capped at 6 (signed compare at 0090738d; note that a plain `n` is used as a **0-based** index, so `size=3`
 selects entry 3 = 14 px, the same as `+0`). Size = table[index]. Numbers are read by `RZConvertToUint32A`
-(non-numeric -> 0). COLOR: `cHTMLShared::SetColor` + GS +0x88 into 0x14c, byte 0x155 = 0. FACE: face string =
+(below). COLOR: `cHTMLShared::SetColor` + GS +0x88 into 0x14c, byte 0x155 = 0. FACE: face string =
 value, selector = 0.
+
+**FONT SIZE index, exact (HD6c, 0090733b..0090739c).** All arithmetic is 32-bit wrapping; only the first
+character is tested for the sign (no whitespace skip); R = RZConvertToUint32A of the rest after the sign, or
+of the whole value when there is no sign.
+
+| First char | Index |
+|---|---|
+| `+` | R + 3; if > 6 (signed) -> 6; a negative result is **kept** |
+| `-` | 3 - R; if < 0 (signed) -> 0; **no** upper cap (the JNS at 0090737c jumps past the compare) |
+| other | R; if > 6 (signed) -> 6; a negative value is **kept** |
+
+The size is the dword at document offset (0x1a8 + 4 x index) mod 2^32. So index -1 reads 0x1a4 (the image
+loader pointer, 0 until created), -2 reads 0x1a0, down to -106 reading offset 0; 7 reads 0x1c4, the first byte
+past the 0x1c4-byte object; and index i and i + 2^30 read the same place (2^31 and 0xC0000000 both read entry 0).
+Any offset of 0x1c4 or more is outside the object (see question HD7).
+
+| SIZE value | R | Index | Size read |
+|---|---|---|---|
+| `4` | 4 | 4 | entry 4 |
+| `9` | 9 | 6 | entry 6 |
+| `+2` / `+a` | 2 / 10 | 5 / 6 | entry 5 / 6 |
+| `-5` / `-a` | 5 / 10 | 0 / 0 | entry 0 |
+| `" -1"` (leading space) or `4294967295` or `99999999999` | 0xFFFFFFFF | -1 | dword 0x1a4 |
+| `+-5` | 0xFFFFFFFB | -2 | dword 0x1a0 |
+| `--4` | 0xFFFFFFFC | 7 | 0x1c4, outside the object |
+| `2147483648` | 0x80000000 | -2^31 | entry 0 (address wraps) |
+
+**RZConvertToUint32A (0090fe93)**, used for every numeric attribute in this spec (FONT/HR SIZE, WIDTH,
+HEIGHT, ...):
+1. Base: a value starting `0x` or `0X` is base 16. Otherwise scan from the first character over decimal
+   digits: the first `a`-`f` / `A`-`F` met makes it base 16; any other character (or the end) makes it base 10.
+   A leading space or sign therefore always means base 10.
+2. Convert with the C runtime's unsigned strtoul (strtoxl 009f01cc with the unsigned flag): skip leading
+   whitespace (space, `\t \n \v \f \r`), optional `+` or `-`, in base 16 an optional `0x`/`0X`, then digits of
+   the base up to the first other character. No digits -> 0. A value above 2^32 - 1 saturates to 0xFFFFFFFF;
+   then a `-` negates mod 2^32 (after saturation, so a negative overflow gives 1).
+
+Examples: `12` -> 12; `12px` -> 12; `7g` -> 7; `1 f` -> 1; `1a` -> 26; `12f` -> 303; `1e3` -> 483; `ff` -> 255;
+`0x10` -> 16; `xyz` -> 0; empty -> 0; ` 7` -> 7; `+5` -> 5; `-1` -> 0xFFFFFFFF; `99999999999` -> 0xFFFFFFFF;
+`-99999999999` -> 1.
 
 Content: `GetToken(false)`; loop while INLINE (ParseINLINE(**parent**)) or BLOCK (ParseBLOCK(parent)), reading
 the next token after each. The element creates no node: its content goes straight into the parent with the
