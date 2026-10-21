@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run 4 active)
 
+**train32 landed aea403d28c:** Three-lane batch: complete1555 span contract, committed partial DX7 vertex/matrix/state specs, and pureRust GZ messaging. Only queue-manager owner gets core credit; GZ1/GZ2/GZ5-GZ7 prevent full messaging-owner claims. DX7 parked3/3 remains partial, drafts and unanswered RD3-RD5 excluded. Full gate and default35-key regress PASS. Coverage41.4/30.0/12.5/16.5; rounds60/80.
+
 **Run4 checkpoint60/80:** nine trains landed(21,22,25,26,27,28,29,30,31); coverage40.5/30.0/12.4/16.5, baseline delta+3.7/+1.7/+0.3/+0.6 points. Six live, max3glue; train32 gatePASS/regress pending. Terrain parked3/3 and TR42/TR43 filed, nofourth. Traffic TS67 lane exact72/72turbo and23/23normal(ref0,resync0), awaits combinedtrain before credit. Complete565 spec ready. RZ finalround3 owns Directory/OFStream/CmdLine/SysServPtr; stringsround2 reconciles utility overlap before anylanguagecredit. Target80 remains, nextcheckpoint75.
 
 **Run4 56/80 terrain PARKED3/3 at97b1c237:** final diagnostics identify missing TerrainReconciliation/ConnectionsReady, leaving popup dialogs enabled; no behavior fix/full gate. Auto-close diagnostic d8 reaches2032 with refwarning1 and is NOT a pass. Texture step7part2/TR37/Save remain incomplete. TR42/TR43 filed for preference width and edge-comparison contract. No fourth round or terrain replacement credit. Slot refilled with core-span4444-4; six live. Train32 gatePASS, full regress running. Coverage40.5/30.0/12.4/16.5; nine trains landed.
@@ -48,7 +50,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 Runtime: six-slot game queue pid22296. Native CLI hosts need CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0; launcher sets it. RE guard preflight must GO. Export-first assembly is permitted by re-workspace.md even without a live REA binary; a workspace no-app diagnostic is separate from guard denial. Game labels unique; qwait without --fresh. Keep own output short. Previous checkpoint lines and train details: [run4 through30](history/handoff-run4-checkpoint30-2026-10-21.md); [run3 stop](history/handoff-run3-stop-2026-10-21.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 232 (train31 PASS; formats read-shadow exact;4444 span spec complete); 231 (train29 three-lane PASS; TS67 answered, partial occupant records); 230 (train28 five-lane PASS; exact-owner specs and partial networkoccupant core); 229 (train27 two lanes PASS; TS67 filed and partial application spec landed); 228 (train26 four lanes, effects core improvements and three focused spec families). See `docs/manual-checks.md`.
+- **Latest in-game run:** 233 (train32 three-lane PASS;1555 spec and GZ queue-manager core); 232 (train31 PASS; formats read-shadow exact;4444 span spec complete); 231 (train29 three-lane PASS; TS67 answered, partial occupant records); 230 (train28 five-lane PASS; exact-owner specs and partial networkoccupant core); 229 (train27 two lanes PASS; TS67 filed and partial application spec landed). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
