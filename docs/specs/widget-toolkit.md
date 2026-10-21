@@ -2,7 +2,7 @@
 
 Status: first slice (lane re-widgets4, 2026-10-21). Covers the **base window object `cGZWin`**: identity, object
 layout, construction and teardown, the flag word, the child list and z-order, coordinates and hit testing, the
-message dispatcher and message filters, focus/notification target, and the show/hide fade. Everything here is
+message dispatcher and message filters, focus/notification target, and the show/hide fade, and the keyboard accelerator table `cRZWinKeyAccelerator` (§13). Everything here is
 measured from `bin/SimCity4.exe` (GOG 1.1.641) unless tagged *[inferred]*. Widgets (`cGZWinBtn`, `cGZWinListBox`, …),
 `cGZWinGen`, `cGZLegacyControl`, the UI-script interpreter, graphs and HTML are **not** specified here yet (§12).
 
@@ -366,6 +366,62 @@ Filed in `docs/specs/questions/widget-toolkit.md`: WT1 (own vtable rows), WT2 (u
 
 | Owner pattern (`tools/coverage-map.tsv`) | State after this slice |
 |---|---|
-| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade. Not yet: painting (`Plot`, `PlotComposite`, `PlotPresent`, private-buffer creation), cursors (`ProcessCursorMessage`, `UpdateCursor`), key equivalents/accelerators, parameter enumeration, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion |
+| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade, accelerator wiring (§13.4). Not yet: painting (`Plot`, `PlotComposite`, `PlotPresent`, private-buffer creation), cursors (`ProcessCursorMessage`, `UpdateCursor`), key equivalents (`CheckKeyEquivalent`, `IsChildKeyEquivalent`), parameter enumeration, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion |
 | `cGZWin*` (everything else: `cGZWinGen`, widgets, managers) | not specified |
-| `cGZLegacyControl`, `cGZUIScript*`, `cHTML*`, `cGZGraph`, `cGZ*Graph`, `fn:unscript`, `fn:script_tag_*`, `fn:GetGZWinFont`, `cSC4ScriptedWindowCOMDirector`, `cRZWinKeyAccelerator*`, `cRZCursorManager`, `cGZClipboardManager*`, `cGZCheatCodeManager` | not specified |
+| `cRZWinKeyAccelerator*` | `cRZWinKeyAccelerator` (all 16 functions) **specified** in §13; `cRZWinKeyAcceleratorRes` (4 functions, the text resource parser `SerialRead` `0x00984587`) not specified |
+| `cGZLegacyControl`, `cGZUIScript*`, `cHTML*`, `cGZGraph`, `cGZ*Graph`, `fn:unscript`, `fn:script_tag_*`, `fn:GetGZWinFont`, `cSC4ScriptedWindowCOMDirector`, `cRZCursorManager`, `cGZClipboardManager*`, `cGZCheatCodeManager` | not specified |
+
+## 13. `cRZWinKeyAccelerator`: the keyboard accelerator table *[compat]*
+
+### 13.1 Identity and layout
+
+Vtable `0x00AE3770`, 16 slots (rows in `docs/abi/vtables.tsv`). `QueryInterface` (`0x009D5CEB`) accepts IID
+`0xE2C1B3C4` and `1` (unknown) only. Reference counted (`+0x04`, `AddRef` is the shared `cRZRefCount::AddRef`);
+`Release` (`0x009D5D73`) at count 1 calls `Shutdown` (slot 4) and then the deleting destructor (slot 15) instead of
+decrementing to 0, and returns 0.
+
+| Offset | Meaning |
+|---|---|
+| `+0x08` | initialised flag (byte) |
+| `+0x0C` | ordered map: 32-bit **key code** → 16-byte message record (`cGZMessage`: type + three dwords), node value at node `+0x14` |
+| `+0x18` | message server (`cIGZMessageServer`, service `0xC1085722`) held while initialised |
+
+`Init` (slot 3, `0x009D5D88`): once; acquires and AddRefs the message server, sets the flag; returns true.
+`Shutdown` (slot 4, `0x009D5D23`): once; Releases the server and clears the flag; returns true. The map is kept.
+
+### 13.2 Key codes
+
+A key code packs the virtual key in the low 16 bits and a modifier word in the high 16 bits:
+
+    code = vk | ((modifiers & 0xFFFFFF8F) | (keyUp ? 0x1000 : 0)) << 16
+
+(`0x009D5F89..0x009D5FA4`: modifier bits `0x70` are dropped; bit `0x1000` of the high word, i.e. `0x10000000` in the
+code, marks a key-**up** accelerator; a key-down accelerator has it clear.) A lookup with `vk` = `0x10`, `0x11` or
+`0x12` (Shift, Control, Alt alone) or `modifiers` = `0xFFFFFFFF` never matches.
+
+### 13.3 Slots
+
+| Slot | Address | Behaviour |
+|---|---|---|
+| 5 `RegisterAccelerator(code, const msg&)` | `0x009D600F` | inserts `code → msg` **only if `code` is not already present** (an existing binding is kept); always returns true |
+| 6 `RegisterAccelerator(code, type)` | `0x009D5DBD` | slot 5 with the record `{type, 0, 0, 0}` |
+| 7 `UnregisterAccelerator(code)` | `0x009D5F41` | erases; returns whether it was present |
+| 8 `IsAcceleratorPresent(code, withModBits, withUpBit)` | `0x009D5E9D` | linear scan in key order; each stored code is compared after clearing bits `0x00070000` when `withModBits` is false and bit `0x10000000` when `withUpBit` is false; the probe `code` is not masked |
+| 9 `TestForAccelerator(vk, modifiers, isDown, msg* out)` | `0x009D5F6B` | builds the code (§13.2) and looks it up; on a hit copies the 16-byte record to `out` and returns true |
+| 10 `TestForAccelerator(vk, modifiers, isDown, uint32* outType)` | `0x009D5E1A` | slot 9, returns only the record's type dword |
+| 11 `TestForAccelerator(const msg& keyMsg, msg* out)` | `0x009D5D44` | only for key messages: type 5 (key down) → slot 9 with `(keyMsg+4, keyMsg+8, true)`; type 6 (key up) → `isDown` false; other types false |
+| 12 `TestForAccelerator(const msg& keyMsg, uint32* outType)` | `0x009D5DE4` | slot 11, returns only the type dword |
+| 13 `GetKeysForAccelerator(type, uint32* codes, uint32* inoutCount)` | `0x009D5EDE` | walks the map in key order; writes the code of every entry whose record type equals `type` until `*inoutCount` (capacity on entry) entries are written; `*inoutCount` = number written; **returns the total number of matches**, which can exceed the capacity |
+| 14 `ProcessAccelerator(const msg& keyMsg)` | `0x009D5E56` | slot 11; on a hit, if a message server is held, sends the bound record **synchronously** (`MessageSend`, server slot 3) and returns true (true even when no server is held); false on a miss |
+
+### 13.4 Wiring into the window
+
+`cGZWin::SetKeyboardAccelerator(acc)` (slot 76, `0x0099B955`) swaps the window's `+0x78` reference (Release old,
+AddRef new, nothing when equal). `AccelerateKeyboardMsg(msg)` (slot 77, `0x0099B980`) tail-calls the accelerator's
+`ProcessAccelerator(msg)` (slot 14), or returns false without one. `DoMessage` calls it only after a key-down/up
+handler returned false (§7.3). `Shutdown` of the window Releases the accelerator (§8.1).
+
+Worked example: a window with an accelerator binding `code = 0x4E | (0x0 << 16)` (N key, no modifiers, key down) to
+`{type T}`: a key-down message `{5, 0x4E, 0x0}` that the window's `GZOnKeyDown` does not handle sends `{T,0,0,0}`
+through the message server and `DoMessage` returns true; the matching key-up `{6, 0x4E, 0x0}` builds code
+`0x1000004E`, finds nothing, and returns false.
