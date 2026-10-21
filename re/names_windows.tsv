@@ -2068,26 +2068,28 @@ va	name	source	confidence	note
 004d9ee0	cSC4ViewInputControlTollBooth::PickLotAndState	auto:B0	medium	mac 004948f4 score 0.962 support 1.0
 004da180	cSC4ViewInputControlSignLabelDemolish::~cSC4ViewInputControlSignLabelDemolish (body)	manual:view-input-controls.tsv	high	view-input-controls.md descriptive name, no Mac match; §6
 004da1b0	cSC4ViewInputControlTollBooth::OnMouseMove	auto:A	high	mac 00494c4c score 0.629 support 0
-004da5a0	cSC4ViewInputControlZone::Shutdown	auto:A	high	mac 002db752 score 1.0 support 0
-004da6c0	cSC4ViewInputControlZone::Init	auto:A	high	mac 002db880 score 1.0 support 0
-004da7a0	cSC4ViewInputControlZone::PlaceZone	auto:B15	medium	mac 002db59c score 0.917 support 1.0
-004da880	cSC4ViewInputControlZone::TestCell	auto:B7	medium	mac 002db980 score 0.994 support 1.0
-004da9b0	cSC4ViewInputControlZone::OnMouseExit	auto:B4	medium	mac 002db6a6 score 0.898 support 2.5
-004daa20	cSC4ViewInputControlZone::FloodFillRegion	auto:B5	medium	mac 002dbba6 score 0.954 support 1.0
-004dad40	cSC4ViewInputControlZone::ClearHighlights	auto:B2	medium	mac 002dbab2 score 0.937 support 2.0
-004dae80	cSC4ViewInputControlZone::cSC4ViewInputControlZone	auto:A	high	mac 002dbf1e score 1.0 support 0
-004daf70	cSC4ViewInputControlZone::~cSC4ViewInputControlZone	auto:C	high	mac 006f9e0a score 1.0 support 1
-004daf90	cSC4ViewInputControlZone::~cSC4ViewInputControlZone	auto:B0	medium	mac 006f9fb6 score 0.941 support 1.0
-004db020	cSC4ViewInputControlZone::EndInput	auto:B3	medium	mac 002dbe34 score 0.932 support 3.5
-004db0d0	cSC4ViewInputControlZone::GetFailureReasonString	auto:A	high	mac 002dc030 score 1.0 support 0
-004db240	cSC4ViewInputControlZone::ComputeAndMarkSelectedArea	auto:A	high	mac 002dc1cc score 1.0 support 0
-004db8b0	cSC4ViewInputControlZone::OnKeyDown	auto:C	high	mac 002dc96e score 1.0 support 1
-004db920	cSC4ViewInputControlZone::OnKeyUp	auto:C	high	mac 002dc90c score 1.0 support 1
-004db980	cSC4ViewInputControlZone::OnMouseDownL	auto:B1	medium	mac 002dcb7a score 0.955 support 2.0
-004dbaf0	cSC4ViewInputControlZone::OnMouseUpL	auto:B1	medium	mac 002dcfd0 score 0.943 support 2.5
-004dbd40	cSC4ViewInputControlZone::DoCursorUpdate	auto:B4	medium	mac 002dc9ea score 0.992 support 3.0
-004dbe40	cSC4ViewInputControlZone::OnMouseMove	auto:B3	medium	mac 002dcd3a score 0.987 support 2.0
-004dc110	cSC4ViewInputControlZone::DoMessage	auto:B3	medium	mac 002dcaec score 0.987 support 2.0
+004da5a0	cSC4ViewInputControlZone::Shutdown	manual:zone-tool.tsv	high	zone-tool.md §2
+004da680	cSC4ViewInputControlZone::FindCellInList	manual:zone-tool.tsv	high	zone-tool.md descriptive name, no Mac match; §2.1
+004da6c0	cSC4ViewInputControlZone::Init	manual:zone-tool.tsv	high	zone-tool.md §1
+004da7a0	cSC4ViewInputControlZone::PlaceZone	manual:zone-tool.tsv	high	zone-tool.md §4; tutorial rectangle
+004da850	cSC4ViewInputControlZone::FindCellInList (wrapper)	manual:zone-tool.tsv	high	zone-tool.md descriptive name, no Mac match; §2.1
+004da880	cSC4ViewInputControlZone::TestCell	manual:zone-tool.tsv	high	zone-tool.md §2.1; within 7 cells
+004da9b0	cSC4ViewInputControlZone::OnMouseExit	manual:zone-tool.tsv	high	zone-tool.md §2
+004daa20	cSC4ViewInputControlZone::FloodFillRegion	manual:zone-tool.tsv	high	zone-tool.md §2.1; breadth-first, four neighbours
+004dad40	cSC4ViewInputControlZone::ClearHighlights	manual:zone-tool.tsv	high	zone-tool.md §3
+004dae80	cSC4ViewInputControlZone::cSC4ViewInputControlZone	manual:zone-tool.tsv	high	zone-tool.md §1; id 0xA766C101, cursor table 0x00A92C40
+004daf70	cSC4ViewInputControlZone::~cSC4ViewInputControlZone	manual:zone-tool.tsv	high	zone-tool.md §1; deleting destructor
+004daf90	cSC4ViewInputControlZone::~cSC4ViewInputControlZone	manual:zone-tool.tsv	high	zone-tool.md §1
+004db020	cSC4ViewInputControlZone::EndInput	manual:zone-tool.tsv	high	zone-tool.md §2
+004db0d0	cSC4ViewInputControlZone::GetFailureReasonString	manual:zone-tool.tsv	high	zone-tool.md §3; errors 1-5
+004db240	cSC4ViewInputControlZone::ComputeAndMarkSelectedArea	manual:zone-tool.tsv	high	zone-tool.md §3; dry-run PlaceZone
+004db8b0	cSC4ViewInputControlZone::OnKeyDown	manual:zone-tool.tsv	high	zone-tool.md §2; Escape
+004db920	cSC4ViewInputControlZone::OnKeyUp	manual:zone-tool.tsv	high	zone-tool.md §2
+004db980	cSC4ViewInputControlZone::OnMouseDownL	manual:zone-tool.tsv	high	zone-tool.md §2; SetOptions(Alt, not Shift, Ctrl)
+004dbaf0	cSC4ViewInputControlZone::OnMouseUpL	manual:zone-tool.tsv	high	zone-tool.md §2
+004dbd40	cSC4ViewInputControlZone::DoCursorUpdate	manual:zone-tool.tsv	high	zone-tool.md §2.1; hold over 750
+004dbe40	cSC4ViewInputControlZone::OnMouseMove	manual:zone-tool.tsv	high	zone-tool.md §2; button up ends the input
+004dc110	cSC4ViewInputControlZone::DoMessage	manual:zone-tool.tsv	high	zone-tool.md §2.1; ticks and 0x277A9364
 004dc1a0	cSC4ZoneManager::GetGZCLSID	manual:development.tsv	high	returns 0x298F9B2D (class_vtables.py)
 004dc1b0	cSC4ZoneManager::QueryInterface	auto:C	high	mac 0012fbda score 1.0 support 2
 004dc230	cSC4ZoneManager::Shutdown	auto:C	high	mac 0012fc86 score 1.0 support 1

@@ -135,6 +135,7 @@ generated index: the questions live one file per spec, so read only the file for
 | WT | widget-toolkit |
 | ZG | zones |
 | ZQ | zones |
+| ZT | zone-tool |
 
 ## Specs
 
@@ -249,5 +250,6 @@ generated index: the questions live one file per spec, so read only the file for
 | water-ripples | 3 | 0 | WR4 | questions/water-ripples.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
+| zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **239** | **1118** | | |
+| **total** | **240** | **1118** | | |

@@ -435,6 +435,7 @@ cSC4ViewInputControlFlora	city tools and input	ui	city-tools.md	-	-	-
 cSC4ViewInputControlTorch	city tools and input	ui	city-tools.md	-	-	-
 cSC4ViewInputControlTerrainScrubber	city tools and input	ui	city-tools.md	-	-	-
 cSC4ViewInputControlCitySituations	city tools and input	ui	city-tools.md	-	-	-
+cSC4ViewInputControlZone	city tools and input	ui	zone-tool.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	-	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
