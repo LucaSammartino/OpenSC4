@@ -8,7 +8,9 @@ Goal (round 2): city-tools-input.md §8 add DescribePick 004D4140, DoQueryDialog
 builders (GetBuildingOccupantTipInfo 004D5E30, GetNetworkOccupantSummaryInfo 004CF8A0, GetTerrainSummaryInfo
 004D6C70), SetHighlightState 004CACC0 (CT11); update §8.10 inventory and §6.
 Done: round 1 (c660810f, fbe696b7, e3683c54): 19 fns / 5,907 B.
-Next: read SetTip, SetHighlightState, then tip builders, then DescribePick/DoQueryDialog.
+Done round 2: 6f7dc97d §8.11 (SetTip, SetHighlightState, 3 tip builders, Ratio 004C3B10, headlines 004D5C90; CT11 answered in text).
+Next: DescribePick 004D4140 (decomp line 9599), DoQueryDialog 004D3C30 (9422) -> §8.12; then inventory §8.10, §6 tests, answer CT11.
+Facts: REA has no app open (static fallback). In DoMessage `this`=+0x28 so [ESI+0x1C]=callout +0x44.
 
 ## Report
 
