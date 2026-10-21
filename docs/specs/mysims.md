@@ -585,21 +585,24 @@ scripts.
 
 The pool feeds the pick-sim UI; it never touches the simulation. Interface slots: 6 `GetMySimTemplates(vector&)`
 `0x0043BBD0`, 7 `Import(uint32& count)` `0x0043BC40`, 8 `bool FindTheSimsInstallation()` `0x0043B200`.
-A template (`cISC4MySimPool::tMySimTemplate`, 0x30 bytes) carries: name (string), is-male (u8, `+0x18`), zodiac
-sign (u8 0–11, `+0x19`), portrait bitmap ID (u32), portrait path (string).
+A template (`cISC4MySimPool::tMySimTemplate`, 0x30 bytes; layout read from the stores in `EnumKeysCallback` and
+`LoadImports` and the loads in `cSC4PickSimWinProc::PickHead` `0x007757F0`): portrait bitmap ID (u32, `+0x00`),
+portrait file name (string, `+0x04`), name (string, `+0x18`), is-male (u8, `+0x2C`), zodiac sign (u8 0–11,
+`+0x2D`).
 
-**`GetMySimTemplates(out)`**: on the first call only (pool flag `+0x08`), (1) enumerate the resource manager's keys
-(interface `0x6534284A`, `EnumKeys` slot 7) with `EnumKeysCallback` (`0x0043B710`); (2) `LoadImports`
-(`0x0043B860`); set the flag. Then copy the cached vector into `out` (built-ins first, in key-enumeration order,
-then imports in file order).
+**`GetMySimTemplates(out)`**: while the pool's loaded flag (`+0x08`) is clear: (1) if the resource manager exists,
+query it for interface `0x6534284A` and enumerate its keys (`EnumKeys`, slot `+0x1C`) with `EnumKeysCallback`
+(`0x0043B710`); no manager or no interface → no built-ins, step 2 still runs; (2) `LoadImports` (`0x0043B860`);
+(3) set the flag. Then `out` is **replaced** by a copy of the cached vector (vector assignment `0x0043B580`, not an
+append): built-ins first, in key-enumeration order, then imports in file order. The cache is the vector at pool
+`+0x0C`.
 
 `EnumKeysCallback(key)`: only keys of type `0x6A297266`. Load the property holder (`0xA52160F5`); keep it only if
 property `0x10` (exemplar type) = `0x26`. Fields: bitmap ID := property `0xEA296F8D`; name := the localized string
 named by property `0xCA416B3F` (`SC4LoadExemplarString` with the key's group/instance), else property
 `0xEA296F8F`; is-male := property `0xEA296F91`; sign := property `0xEA296F90`. Appended.
 
-**`LoadImports`**: open `<GetMySimDirectory()>MySims.dat` (app `+0xF4`, folder `MySim\`; application.md §9) with
-access read, creation "open existing", share read (framework-rz-files.md §2.3). Missing file or first 4 bytes
+**`LoadImports`**: open `<GetMySimDirectory()>MySims.dat` with access read, creation "open existing", share read (framework-rz-files.md §2.3). Missing file or first 4 bytes
 ≠ `0x4A32E4AA` (little-endian `AA E4 32 4A`) → nothing added. Then records until any read fails (a truncated
 record is dropped):
 
@@ -610,9 +613,23 @@ record is dropped):
 | is male | u8 (≠ 0 → true) |
 | zodiac sign | u8 |
 | portrait length `m` | u8 |
-| portrait name | `m` bytes; the template's portrait path is this name with `.bmp` appended |
+| portrait name | `m` bytes; the template's portrait file name is these bytes with `.bmp` appended |
 
 Imported templates have bitmap ID 0.
+
+Path bytes (all joins are plain byte concatenation; nothing is inserted, case is never changed):
+
+- Data file: the application's `GetMySimDirectory()` (app slot `+0xF4`) followed by the 10 bytes `MySims.dat`
+  (a static string built at start-up from `0x00A85CF0`, held at `0x00B20E6C`; joined by `0x00408AE0`). The
+  directory already ends in `\` (application.md §9: `<user dir>MySim\`), so the file is `<user dir>MySim\MySims.dat`.
+  `Import` writes the same path.
+- Template portrait (`+0x04`): only the record's `m` bytes followed by the 4 bytes `.bmp` (`2E 62 6D 70`,
+  `0x00A85B38`, appended by `0x0090F053`). `LoadImports` stores **no directory**; the record bytes are taken as they
+  are (no lower-casing, no separator check; an empty name gives `.bmp`).
+- The pick-sim dialog resolves it (`PickHead` `0x007757F0`, also `SetupPickSims` `0x007751A0`): bitmap ID ≠ 0 → the
+  image is the resource keyed by that ID (`0x00602B70` with `0x46A006B0`); bitmap ID = 0 → full path =
+  `GetMySimDirectory()` followed by the portrait file name (`0x004081D0` append, no separator added), loaded as a
+  file. A template's portrait directory is therefore the MySim directory at display time, not at load time.
 
 **`FindTheSimsInstallation`**: read the registry string `HKEY_LOCAL_MACHINE\SOFTWARE\Maxis\The Sims\SIMS_DATA`; if
 that fails, `...\The Sims\InstallPath` (the same `HKLM\...\value` reader as the SC4 install dir, application.md);
@@ -634,18 +651,45 @@ create-always (truncate), share read** and write the 4 magic bytes; failure → 
    Portrait: convert `family<k>_face.jpg` in the picture folder to `<first>_<guid in lower hex>.bmp` in the MySim
    directory (`0x0043ABE0`); failure → skip member.
 5. Write one record (table above): name `"<first> <family>"`, is male := gender equals the "male" text
-   (`cRZString::IsEqual`, case-insensitive flag 0 *[inferred: flag 0 = insensitive]*), sign := zodiac index
+   (`cRZString::IsEqual` `0x0090EC57` called at `0x0043CDC2` with the case-sensitive flag = 0; see "Gender test"
+   below), sign := zodiac index
    (below), portrait name `<first>_<guid>`; `count += 1`.
 6. Close and delete `F.ini`.
 
 Zodiac index: compare the lower-cased value with the 12 localized names (group `0x6A231EAA`, instances
 `0xEA822E90 0xCA822E93 0xCA822E97 0xAA822E9B 0xCA822EA4 0xAA822EA8 0xCA822EAC 0xCA822EAF 0xCA822EB3
 0x6A822EB6 0x6A822EB9 0xEA822EBD`, table `0x00A85AA4`), each lower-cased; first exact match → its index 0–11; none
-→ 0 (a debug text "Unknown zodiac symbol" is formatted, nothing shown). After the loop, if `count > 0` and the
-templates were already loaded, the cached list is cleared (`0x0043BB90`).
+→ 0 (a debug text "Unknown zodiac symbol" is formatted, nothing shown).
 
-Examples: `MySims.dat` = `AA E4 32 4A 08 'Bob Newb' 01 05 09 'Bob_1a2b3'` → one template "Bob Newb", male, sign 5,
-portrait `Bob_1a2b3.bmp`. A file of only the magic → no imports. Wrong magic → no imports.
+**Gender test** (`IsEqual(const cIGZString&, bool caseSensitive)` `0x0090EC57`; the flag pushed at `0x0043CDB2` is
+`EBX`, zeroed at `0x0043BC48` and never written again in `Import`): lengths differ → false. Flag ≠ 0 would compare
+the bytes with `strncmp`; flag = 0 (this call) copies both strings, lower-cases each with `cRZString::MakeLower`
+(`0x0090EAC5`, graphics-formats.md §3.11: all bytes < `0x7F` → ASCII `A`–`Z` folded) and compares the bytes with
+`memcmp`. So the gender value is male iff it equals the localized "male" text ignoring ASCII case, same length, no
+trimming. The gender value itself is not lower-cased before the call (`Import`'s only `MakeLower` is
+`0x0043CBDA`, the zodiac value).
+
+**Cache after `Import`** (`0x0043CFEE`–`0x0043D006`): after the 99 directories, the output file and the converter
+are released; then if `count > 0` **and** the loaded flag is set, the cached vector is cleared (`0x0043BB90`:
+every template destroyed, end := begin, capacity kept) and the loaded flag is reset to 0. The next
+`GetMySimTemplates` therefore re-enumerates the exemplars and re-reads the new `MySims.dat`. If `count = 0`, nothing
+is reset: a cache already loaded keeps the old imports although `MySims.dat` was just rewritten to the magic alone
+(quirk; they disappear at the next start). If the flag was clear, nothing to clear; the first `GetMySimTemplates`
+reads the new file. The pick-sim dialog keeps its own copy (`cSC4PickSimWinProc` `+0x48`), which it clears with
+the same `0x0043BB90` and refills with `GetMySimTemplates` (`0x0077694C`, `0x0077699E`).
+
+Examples (conformance):
+
+| Case | Input | Result |
+|---|---|---|
+| record | `MySims.dat` = `AA E4 32 4A 08 'Bob Newb' 01 05 09 'Bob_1a2b3'` | one template "Bob Newb", male, sign 5, bitmap 0, portrait `Bob_1a2b3.bmp` |
+| magic only / wrong magic | `AA E4 32 4A` / `00 00 00 00 ...` | no imports |
+| portrait bytes kept | portrait bytes `'BOB_FF'` | portrait `BOB_FF.bmp` (case kept) |
+| display path | MySim dir `C:\U\SimCity 4\MySim\`, portrait `Bob_1a2b3.bmp`, bitmap 0 | file `C:\U\SimCity 4\MySim\Bob_1a2b3.bmp` |
+| gender | "male" text `Male`; values `male`, `MALE`, `Male` / `Male ` , `m`, `female` | male / not male |
+| cache, count 2, loaded | `GetMySimTemplates` called before `Import` | cache cleared, flag 0; next call returns built-ins + 2 new imports |
+| cache, count 0, loaded | as above, no family found | flag stays 1; next call still returns the old imports |
+| cache, not loaded | `Import` before any `GetMySimTemplates` | nothing cleared; first call reads the new file |
 
 ## 5. Messages and events posted
 
