@@ -703,8 +703,39 @@ ParseDL (BLOCKQUOTE), ParseHR (§7.10).
 Round 2 (cont.): ParseFONTSTYLE, ParsePHRASE, ParseSPAN, ParseBLINK, ParseA (§7.11), ParseIMG, ParseMAP,
 ParseAREA (§7.12), ParseMETA, ParseLINK (§7.13).
 
-Remaining (not yet specified; whole-owner credit withheld): GetStringForEscape (entity table,
-6918 bytes), the two hashtable helpers (008ffdc8
-clear, 009001e7 destructor). Gap functions reached from this owner but outside its inventory (P 0090614f, PRE
+Round 2 (end): GetStringForEscape (§10.1) and the two attribute-map helpers (§10.2). **No function of the
+70-function owner remains unspecified.** Gap functions reached from this owner but outside its inventory (P 0090614f, PRE
 00906a5d, DL 009066a3, headings 00906754, lists 00906f1d, CENTER 00906d22, style push/pop, tag lookup
 008fead9) are not counted toward the owner.
+
+### 10.1 Character entities (GetStringForEscape 00901222)
+
+`GetStringForEscape(out, name)` is called only by the `cHTMLTextSegment` constructor (00908e00), which finds
+the `&name;` sequences in segment text (that scan belongs to cHTMLTextSegment, out of scope). The receiver holds
+a `map<cRZString, unsigned long>` at +8 with its size at +0xc; when the size is 0 the 100 entries are inserted
+first (insert-unique; there are no duplicate names). Lookup is by exact, **case-sensitive** name (`Eacute` and
+`eacute` are different entries; `QUOT` is unknown).
+
+Found: the code (always <= 0xff) is taken as one byte and converted from code page 28591 (ISO-8859-1, constant
+0x6faf) by `ConvertStringEncoding` into `out`. Not found: `out` = `"?"` (one question mark). There is no
+numeric form (`&#169;`) and no `apos` in this table.
+
+The table (name = code), exactly the HTML 4 Latin-1 set plus four markup characters:
+quot=34 amp=38 lt=60 gt=62, then codes 160..255 in order:
+nbsp iexcl cent pound curren yen brvbar sect uml copy ordf laquo not shy reg macr deg plusmn sup2 sup3
+acute micro para middot cedil sup1 ordm raquo frac14 frac12 frac34 iquest Agrave Aacute Acirc Atilde Auml
+Aring AElig Ccedil Egrave Eacute Ecirc Euml Igrave Iacute Icirc Iuml ETH Ntilde Ograve Oacute Ocirc Otilde
+Ouml times Oslash Ugrave Uacute Ucirc Uuml Yacute THORN szlig agrave aacute acirc atilde auml aring aelig
+ccedil egrave eacute ecirc euml igrave iacute icirc iuml eth ntilde ograve oacute ocirc otilde ouml divide
+oslash ugrave uacute ucirc uuml yacute thorn yuml (160 + position). Every pair matches the standard HTML 4
+code point (checked against Python's `html.entities`).
+
+Examples: `amp` -> `&`; `copy` -> the Latin-1 byte 0xA9 converted (the copyright sign); `trade` -> `?`;
+`nbsp` -> code 160 (a no-break space, not a plain space).
+
+### 10.2 Attribute-map helpers (008ffdc8, 009001e7)
+
+`clear` (008ffdc8) on the `hash_map<cRZString,cRZString>` (the attribute map 0x114): for every bucket in the
+bucket vector (+4..+8) free each node of its chain (008ffaa6) and null the bucket; then the element count
+(+0x10) = 0. The bucket vector keeps its size. The destructor (009001e7) runs `clear` and then frees the bucket
+vector storage (+4) when non-null. ParseAttributeList's "clear the attribute map" (§3 step 1) is this `clear`.
