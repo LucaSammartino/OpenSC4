@@ -1,6 +1,12 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-span4444-4 | workflow / `re-span4444-4` | **ready** (specs only, no ABI rows): new `docs/specs/span-render-4444.md` for `nGZDrawSoftRender::cSpanRender4444` (0x00847CE0-0x00854E10, 172 fn, 51,809 B) | line-by-line read of the 144 sweep-only kernels (U4); coverage "specified" for the class |
+| re-span4444-4 | workflow / `re-span4444-4` | in progress (round 2: U4 structural proof): new `docs/specs/span-render-4444.md` for `nGZDrawSoftRender::cSpanRender4444` (0x00847CE0-0x00854E10, 172 fn, 51,809 B) | line-by-line read of the 144 sweep-only kernels (U4); coverage "specified" for the class |
+
+## Handoff
+- Goal (round 2): resolve U4 (144 sweep-only kernels) by normalized structural comparison of export instructions.
+- Done round 1: 62184d4d spec sections 1-11 (see git log). Round 2 started at 62184d4d.
+- Next: build-runs/norm.py (normalize kernels, diff vs fully-read references), then spec 9.5/U4 update.
+- Facts: table rows at 0x00AC2100, kernels from instructions.asm; cls.py = old feature sweep (weak).
 
 ## Report
 
