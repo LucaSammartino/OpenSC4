@@ -342,6 +342,7 @@ path). They load the PE image into the emulator and run the shipped bytes on ran
 | `span565_blt.py 300` | all 168 slots, random sources, colours, keys, strides, stretch steps, tiled origins (incl. 32-bit u0/v0) | 168/168 |
 | `span565_blt.py via 100` | the same through RenderBlt with records by pointer | 168/168 |
 | `span565_sweep.py 4` | every 16-bit texel (256 8-bit, 65 536 random 32-bit with alpha 0/255) per slot, 4 colours | 168/168 |
+| `span565_bridge.py` | §1.1: the six vtable entries read from the image, every slot called through its entry with an unmapped `this`, bytes popped, EBX/EBP/ESI/EDI preserved, both boundary examples, slot 0 with flags 0 | PASS |
 | `span565_alias.py 200` | source aliased onto the destination (§1 overlap rule); a snapshot model fails 148 slots | 168/168 |
 
 ## 9. Open points
