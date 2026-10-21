@@ -59,19 +59,6 @@ struct NetToolContext {
     uint32_t insertsRefused = 0;   // null occupant / manager
     uint32_t removed = 0;          // §10 removals
     uint32_t connections = 0;      // §3.3 one-cell joins
-
-    // The piece solver (network-rules.md §2.4.3 point 1, §6, §11): the solved
-    // records of the last ValidateAndSolve, read by InsertOccupantsForSolvedCells.
-    struct SolvedPiece {
-        int32_t x, z;
-        uint32_t id, orientation;
-    };
-    static constexpr uint32_t kMaxSolvedPieces = 4096;
-    SolvedPiece solvedPieces[kMaxSolvedPieces];
-    uint32_t solvedPieceCount = 0;
-    uint32_t ruleSolves = 0;       // fc4_network_rules_solve calls
-    uint32_t ruleSolvedCells = 0;  // solved records over all runs
-    uint32_t piecesChosen = 0;     // inserted cells that had a solved record
 };
 
 // The host table over `ctx` (which must outlive the core). Fills every

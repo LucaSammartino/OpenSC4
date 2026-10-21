@@ -109,6 +109,21 @@ bool g_rulesTried = false;
 uint32_t g_solveLogs = 0;
 uint32_t g_insertLogs = 0;
 
+// The solved records of the last ValidateAndSolve, read by the
+// InsertOccupantsForSolvedCells of the same run (both inside one
+// PlaceNetworkOccupants on the main thread). Kept here, not in
+// NetToolContext, so the context's layout (shared with cFC4NetworkTool)
+// does not change.
+struct SolvedPiece {
+    int32_t x, z;
+    uint32_t id, orientation;
+};
+constexpr uint32_t kMaxSolvedPieces = FC4_NETTOOL_MAX_CELLS;
+SolvedPiece g_pieces[kMaxSolvedPieces];
+uint32_t g_pieceCount = 0;
+const NetToolContext* g_piecesOwner = nullptr;  // the context whose run solved them
+uint32_t g_ruleSolves = 0;
+
 // One raw resource through the resource manager's DB record (SDK
 // cIGZPersistResourceManager::OpenDBRecord / CloseDBRecord, cIGZPersistDBRecord
 // GetSize / GetFieldVoid). [choice] The third OpenDBRecord argument is unnamed
@@ -227,17 +242,17 @@ void SolvePieces(NetToolContext* c, const fc4_nettool_run* run, uint32_t geomVal
     for (uint32_t i = 0; i < n && i < FC4_NETTOOL_MAX_CELLS; ++i) fc4_network_rules_grid_add_to_solve(g, s[i].x, s[i].z);
     int32_t result = 0;
     const bool ok = fc4_network_rules_solve(r, g, run->type_id, false, &result);
-    static fc4_network_rules_solved recs[NetToolContext::kMaxSolvedPieces];
-    const uint32_t total = fc4_network_rules_grid_solved(g, recs, NetToolContext::kMaxSolvedPieces);
-    const uint32_t kept = total < NetToolContext::kMaxSolvedPieces ? total : NetToolContext::kMaxSolvedPieces;
+    static fc4_network_rules_solved recs[kMaxSolvedPieces];
+    const uint32_t total = fc4_network_rules_grid_solved(g, recs, kMaxSolvedPieces);
+    const uint32_t kept = total < kMaxSolvedPieces ? total : kMaxSolvedPieces;
     for (uint32_t i = 0; i < kept; ++i) {
-        c->solvedPieces[i] = NetToolContext::SolvedPiece{recs[i].x, recs[i].z, recs[i].id, recs[i].orientation};
+        g_pieces[i] = SolvedPiece{recs[i].x, recs[i].z, recs[i].id, recs[i].orientation};
     }
-    c->solvedPieceCount = kept;
+    g_pieceCount = kept;
+    g_piecesOwner = c;
     const uint32_t unsolved = fc4_network_rules_grid_unsolved(g, nullptr, 0);
     fc4_network_rules_grid_destroy(g);
-    ++c->ruleSolves;
-    c->ruleSolvedCells += kept;
+    ++g_ruleSolves;
     if (g_solveLogs < 32 || (g_solveLogs % 64) == 0) {
         char buf[512];
         int len = 0;
@@ -247,7 +262,7 @@ void SolvePieces(NetToolContext* c, const fc4_nettool_run* run, uint32_t geomVal
         }
         buf[len < 0 ? 0 : len] = '\0';
         Log("netrules solve #%u type=%u ok=%d S=%u infos=%u solved=%u unsolved=%u result=%d geom_valid=%u pieces:%s",
-            c->ruleSolves, run->type_id, ok ? 1 : 0, n, infos, total, unsolved, result, geomValid, buf);
+            g_ruleSolves, run->type_id, ok ? 1 : 0, n, infos, total, unsolved, result, geomValid, buf);
     }
     ++g_solveLogs;
 }
@@ -310,7 +325,8 @@ bool ValidateAndSolve(void* u, fc4_nettool_run* run, bool real, fc4_nettool_pass
     }
     // The piece solver (network-rules.md §6, a component of this tool per
     // §2.4.3 point 1): the rule stages over the cell infos the geometry built.
-    c->solvedPieceCount = 0;
+    g_pieceCount = 0;
+    g_piecesOwner = nullptr;
     if (valid > 0) SolvePieces(c, run, valid);
     return valid > 0;
 }
@@ -432,9 +448,10 @@ void InsertOccupantsForSolvedCells(void* u, const fc4_nettool_run* run, bool pre
     cISC4OccupantManager* om = OMgr(u);
     if (om == nullptr) return;
     std::unordered_map<uint32_t, uint32_t> byKey;  // (z << 16) + x -> solved index
-    byKey.reserve(c->solvedPieceCount * 2 + 1);
-    for (uint32_t i = 0; i < c->solvedPieceCount; ++i) {
-        const auto& p = c->solvedPieces[i];
+    const uint32_t have = g_piecesOwner == c ? g_pieceCount : 0;  // only this context's run
+    byKey.reserve(have * 2 + 1);
+    for (uint32_t i = 0; i < have; ++i) {
+        const auto& p = g_pieces[i];
         byKey.emplace((static_cast<uint32_t>(p.z) << 16) + static_cast<uint32_t>(p.x), i);
     }
     uint32_t chosen = 0, sameAsOccupant = 0;
@@ -451,7 +468,7 @@ void InsertOccupantsForSolvedCells(void* u, const fc4_nettool_run* run, bool pre
         PlaceOccupant(c, om, n, x, z, run->type_id, run->data4, true);
         const auto it = byKey.find((static_cast<uint32_t>(z) << 16) + static_cast<uint32_t>(x));
         if (it != byKey.end()) {
-            const auto& p = c->solvedPieces[it->second];
+            const auto& p = g_pieces[it->second];
             const uint32_t occPiece = n->PieceId();               // slot 23
             const uint32_t occOrient = n->GetRotationAndFlip();   // slot 26 (+0x104)
             ++chosen;
@@ -463,7 +480,6 @@ void InsertOccupantsForSolvedCells(void* u, const fc4_nettool_run* run, bool pre
         }
         FC4_RELEASE(n);
     }
-    c->piecesChosen += chosen;
     if (g_insertLogs < 32 || (g_insertLogs % 64) == 0) {
         Log("netrules insert type=%u cells=%u chosen=%u same_as_occupant=%u (piece write: none, NR15):%s",
             run->type_id, run->cell_count, chosen, sameAsOccupant, buf);
