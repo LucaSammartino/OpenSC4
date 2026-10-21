@@ -45,6 +45,9 @@ impl AmbienceLayer for TLayer {
         self.rec("init", 0, 0);
         self.ok
     }
+    fn shutdown(&mut self) {
+        self.rec("shutdown", 0, 0);
+    }
     fn set_score_master_volume(&mut self, v: u32) {
         self.rec("volume", v as i64, 0);
     }
@@ -83,6 +86,9 @@ struct Host {
     init_walk: Vec<OccupantInfo>,
     cell_occ: Vec<(i32, i32, u32)>,
     load_ok: bool,
+    lot_cond: u8,
+    lot_occ: Vec<LotOccupant>,
+    on_off: Option<u32>,
 }
 
 impl Host {
@@ -102,6 +108,9 @@ impl Host {
             init_walk: vec![],
             cell_occ: vec![],
             load_ok: true,
+            lot_cond: 0,
+            lot_occ: vec![],
+            on_off: Some(0x55),
         }
     }
     fn push(&self, c: Call) {
@@ -185,8 +194,8 @@ impl AmbienceHost for Host {
     fn world_to_cell(&mut self, x: f32, z: f32) -> (i32, i32) {
         ((x / 16.0).floor() as i32, (z / 16.0).floor() as i32)
     }
-    fn zoom_index(&mut self) -> u32 {
-        self.zoom
+    fn zoom_index(&mut self) -> Option<u32> {
+        Some(self.zoom)
     }
     fn listener(&mut self) -> ([f32; 3], [f32; 3]) {
         (self.listener, [0.0, 0.0, 1.0])
@@ -206,8 +215,13 @@ impl AmbienceHost for Host {
     fn lot_of_occupant(&mut self, o: OccupantRef) -> Option<u32> {
         Some(o + 1)
     }
-    fn condition_update_unspecified(&mut self, lot: u32, v: Option<(u32, u32)>) {
-        self.push(Call::Cond(lot, v));
+    fn lot_condition(&mut self, lot: u32) -> u8 {
+        self.push(Call::Cond(lot, None));
+        self.lot_cond
+    }
+    fn lot_occupants(&mut self, lot: u32) -> Vec<LotOccupant> {
+        self.push(Call::Cond(lot, Some((0, 0))));
+        self.lot_occ.clone()
     }
     fn link_automaton(&mut self, o: OccupantRef) {
         self.push(Call::Link(o));
@@ -215,11 +229,14 @@ impl AmbienceHost for Host {
     fn unlink_automaton(&mut self, o: OccupantRef) {
         self.push(Call::Unlink(o));
     }
-    fn occupant_position(&mut self, _o: OccupantRef) -> [f32; 3] {
-        [10.7, 2.2, -3.9]
-    }
-    fn on_off_sound_property(&mut self, _o: OccupantRef) -> Option<u32> {
-        Some(0x55)
+    fn occupant_info(&mut self, o: OccupantRef) -> OccupantInfo {
+        OccupantInfo {
+            occupant: o,
+            flags_1_and_4: true,
+            position: [10.7, 2.2, -3.9],
+            on_off_alarm_sound: self.on_off,
+            ..Default::default()
+        }
     }
     fn clock(&mut self) -> Option<(u32, u32)> {
         self.clock
@@ -246,6 +263,7 @@ fn ready(h: &mut Host) -> M {
 fn occ(id: u32) -> OccupantInfo {
     OccupantInfo {
         occupant: id,
+        flags_1_and_4: true,
         position: [1.9, 2.5, -3.7],
         ..Default::default()
     }
@@ -267,7 +285,7 @@ fn constructor_values() {
     assert!(!m.city_ready);
     assert_eq!(m.stage, Stage::Begin0);
     assert_eq!(m.tracked_count, 0);
-    assert!(m.margins.is_none());
+    assert!(m.margins.is_empty() && m.layer_ids.is_empty());
 }
 
 // §10.1
@@ -276,11 +294,11 @@ fn missing_margins_default_to_70() {
     let mut h = Host::new();
     let mut m = M::new();
     m.read_tuning(&mut h);
-    assert_eq!(m.margins, Some([70.0; 5]));
+    assert_eq!(m.margins, vec![70.0; 5]);
     assert_eq!(DEFAULT_MARGIN.to_bits(), 0x428C_0000);
     h.tuning.margins = Some(vec![0.0, 0.0, 188.0, 150.0, 73.0]);
     m.read_tuning(&mut h);
-    assert_eq!(m.margins, Some([0.0, 0.0, 188.0, 150.0, 73.0]));
+    assert_eq!(m.margins, vec![0.0, 0.0, 188.0, 150.0, 73.0]);
 }
 
 // §10.2
@@ -687,37 +705,48 @@ fn automata_codes() {
     let mut m = ready(&mut h);
     let mut o = occ(0x100);
     o.ambient_sound = Some(0x1);
+    let o = o;
     let ev = |code, kind, slot| {
         AmbienceMessage::AutomataEvent(AutomatonEvent {
             code,
             kind,
             slot_e4_0x10: slot,
-            occupant: o.clone(),
+            automaton_position: [5.5, 6.6, -7.7],
+            occupant: Some(o.clone()),
+            base_occupant: Some(o.clone()),
         })
     };
     let p = [1, 2, -3];
+    // Code 9: `o + id` at the automaton's position.
     m.do_message(&mut h, true, &ev(9, 0, 0));
     assert_eq!(
         h.posts(),
         vec![SndRequest::SetPosition {
             instance_id: 0x101,
-            position: p
+            position: [5, 6, -7]
         }]
     );
+    // Codes 12/13: `_PlayOccupantSound`, start flag 1 (AA8), no link.
     m.do_message(&mut h, true, &ev(13, 0x14, 1));
     assert_eq!(
-        h.posts(),
+        h.take(),
         vec![
-            SndRequest::Start {
-                sound_id: 1,
-                instance_id: 0x101,
-                looping: false,
-                position: p
-            },
-            SndRequest::SetPosition {
-                instance_id: 0x101,
-                position: p
-            },
+            Call::Post(
+                PostKind::Normal,
+                SndRequest::Start {
+                    sound_id: 1,
+                    instance_id: 0x101,
+                    looping: true,
+                    position: p
+                }
+            ),
+            Call::Post(
+                PostKind::Normal,
+                SndRequest::SetPosition {
+                    instance_id: 0x101,
+                    position: p
+                }
+            ),
         ]
     );
     m.do_message(&mut h, true, &ev(13, 0x10, 1));
@@ -729,48 +758,68 @@ fn automata_codes() {
     m.do_message(&mut h, true, &ev(13, 0x11, 0));
     m.do_message(&mut h, true, &ev(5, 0x10, 0));
     assert!(h.posts().is_empty());
+    // AA8f: no preview or flag test in the automaton handlers.
+    let mut pv = o.clone();
+    pv.preview = true;
+    pv.flags_1_and_4 = false;
+    let pv_msg = AmbienceMessage::AutomataEvent(AutomatonEvent {
+        code: 13,
+        kind: 0x14,
+        base_occupant: Some(pv),
+        ..Default::default()
+    });
+    m.do_message(&mut h, true, &pv_msg);
+    assert_eq!(h.posts().len(), 2);
+    // Null occupant / null base: nothing.
+    let none = AmbienceMessage::AutomataEvent(AutomatonEvent {
+        code: 13,
+        kind: 0x14,
+        ..Default::default()
+    });
+    m.do_message(&mut h, true, &none);
+    assert!(h.posts().is_empty());
 }
 
+// §10.21 (AA8e): instance = the automaton address `A`, flag 1.
 #[test]
 fn railway_crossing() {
     let mut h = Host::new();
     let mut m = ready(&mut h);
-    let mut o = occ(0x200);
-    m.do_message(
-        &mut h,
-        true,
-        &AmbienceMessage::ApproachingIntersection {
-            automaton: Some(o.clone()),
-        },
-    );
-    m.do_message(
+    let mut a = CrossingAutomaton {
+        automaton: 0x200,
+        position: [1.9, 2.5, -3.7],
+        crossing_sound: None,
+    };
+    let msg = |a: CrossingAutomaton| AmbienceMessage::ApproachingIntersection { automaton: Some(a) };
+    assert!(m.do_message(&mut h, true, &msg(a)));
+    assert!(m.do_message(
         &mut h,
         true,
         &AmbienceMessage::ApproachingIntersection { automaton: None },
-    );
+    ));
     assert!(h.posts().is_empty());
-    o.crossing_sound = Some(0x7);
-    m.do_message(
-        &mut h,
-        true,
-        &AmbienceMessage::ApproachingIntersection { automaton: Some(o) },
-    );
+    a.crossing_sound = Some(0x55);
+    assert!(m.do_message(&mut h, true, &msg(a)));
     let p = [1, 2, -3];
     assert_eq!(
         h.posts(),
         vec![
             SndRequest::Start {
-                sound_id: 7,
-                instance_id: 0x207,
-                looping: false,
+                sound_id: 0x55,
+                instance_id: 0x200,
+                looping: true,
                 position: p
             },
             SndRequest::SetPosition {
-                instance_id: 0x207,
+                instance_id: 0x200,
                 position: p
             },
         ]
     );
+    // No sound system: returns 1, nothing posted.
+    m.snd_sys = false;
+    assert!(m.do_message(&mut h, true, &msg(a)));
+    assert!(h.posts().is_empty());
 }
 
 #[test]
@@ -837,7 +886,8 @@ fn stage_update_cell_order_and_stages() {
         }
     );
     m.on_tick(&mut h, 33, || true);
-    assert_eq!(m.seeded_blocks(), &[(1, 1)]);
+    let it = &m.iterator;
+    assert_eq!((it.x0, it.z0, it.x1, it.z1, it.count), (1, 1, 1, 1, 1));
     assert_eq!(
         h.take(),
         vec![
@@ -993,7 +1043,7 @@ fn focus_pauses_layers_and_exemplar_rereads_tuning() {
     h.tuning.margins = Some(vec![1.0; 5]);
     h.tuning.layer_ids = Some(vec![5, 6]);
     assert!(m.do_message(&mut h, true, &AmbienceMessage::ExemplarChanged));
-    assert_eq!(m.margins, Some([1.0; 5]));
+    assert_eq!(m.margins, vec![1.0; 5]);
     assert_eq!(m.layer_ids, vec![5, 6]);
     assert_eq!(m.layers.len(), 1, "layers are not recreated");
 }
