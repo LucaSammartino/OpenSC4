@@ -392,12 +392,14 @@ int32_t StartYearCb(void*) {
     cFC4ISC4Simulator* sim = CitySimulator();
     if (sim == nullptr) return 0;
     cFC4Date start;
-    if (!sim->GetSimStartDate(start)) return 0;
+    // [abi-ret] via-call (interfaces.tsv cISC4Simulator 5): the status is not read; §5.1 only reads the date
+    sim->GetSimStartDate(start);
     return static_cast<int32_t>(start.Year());
 }
 
 bool IsAnyPausedCb(void*) {
     cFC4ISC4Simulator* sim = CitySimulator();
+    // [abi-ret] eax-or-void (interfaces.tsv cISC4Simulator 18): the value is used as a bool (AL, §13)
     return sim != nullptr && sim->IsAnyPaused();  // +0x48
 }
 
@@ -514,6 +516,7 @@ cISCLua* HostOf(lua_State* state) {
 int32_t TagGc(lua_State* state) {
     cISCLua* L = HostOf(state);
     if (L == nullptr || g_live == nullptr || L != g_live->Lua()) return 0;
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 73): the value is used as a bool
     if (!L->IsUserData(1)) return 0;
     const int32_t tag = L->ToUserTag(1);
     if (tag != g_tags[0] && tag != g_tags[1]) return 0;
