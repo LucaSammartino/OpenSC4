@@ -74,6 +74,8 @@ pub struct ScriptedMySimHost {
     pub dispatch: RefCell<BTreeMap<i32, Dispatch>>,
     /// `find_new_job` answers, in order; false when empty.
     pub find_job: RefCell<VecDeque<bool>>,
+    /// The MySims that called `find_new_job`, in order (incl. `FailCommute`).
+    pub find_job_calls: RefCell<Vec<i32>>,
     /// The destination `find_new_job` true sets (reported by `job_destination`).
     pub job_destination: RefCell<Option<JobDestination>>,
     pub change_job: Cell<bool>,
@@ -257,7 +259,8 @@ impl MySimHost for ScriptedMySimHost {
     fn dispatch(&self, sim: i32) -> Option<Dispatch> {
         self.dispatch.borrow().get(&sim).cloned()
     }
-    fn find_new_job(&self, _sim: i32) -> bool {
+    fn find_new_job(&self, sim: i32) -> bool {
+        self.find_job_calls.borrow_mut().push(sim);
         self.find_job.borrow_mut().pop_front().unwrap_or(false)
     }
     fn change_job(&self, _sim: i32, b: u64) -> bool {

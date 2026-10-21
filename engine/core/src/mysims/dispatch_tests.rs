@@ -836,19 +836,18 @@ fn t36_dispatch_find_new_job() {
     assert!(f.d.job_pathfinder_config(1).is_none());
 }
 
-/// `CheckCommute` (§4.7): the total time to the job lot; the default
-/// destination stored at trip state 2 → None.
+/// The default destination stored unvalidated at trip state 2 (the
+/// `FailCommute` / `FindNewJob` location, §4.7.1 callers table) reports no
+/// job destination. (`CheckCommute`'s pathfinder is not the dispatch's:
+/// MS15.)
 #[test]
-fn t37_check_commute() {
+fn t37_default_destination_at_state_2() {
     let f = D::new();
     f.d.init(1);
     f.w.lot(2, CellRect::new(4, 4, 4, 4));
     assert!(f.d.change_job(1, Some(2)));
-    let t = f.d.check_commute(1);
-    assert!(t.is_some_and(|v| v > 0.0 && v.is_finite()));
     f.d.set_state(1, 2);
     assert!(f.d.find_new_job(1));
-    assert!(f.d.check_commute(1).is_none());
     assert_eq!(f.d.job_destination(1), None);
 }
 

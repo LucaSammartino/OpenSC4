@@ -57,11 +57,9 @@ pub const RESET_PATH_FLAGS: u32 = 0x800 | 0x1000 | 0x4000;
 /// unvalidated (§4.7.1 step 2).
 pub const STATE_STORE_UNVALIDATED: i32 = 2;
 
-/// The `CheckCommute` pathfinder (pathfinder.md §8's MySim dispatch row:
-/// flags 1 | 2, filter 3, density 0). Not part of §4.7.1; unchanged.
-const COMMUTE_FLAGS: u32 = flag::NO_BUDGET | flag::NEAREST_ON_FAILURE;
-const COMMUTE_DENSITY: u32 = 0;
-const MAX_WORK_TIME: u32 = 0x1000;
+// `CheckCommute`'s own pathfinder (§4.7, `0x0042D9E0`) is not configured
+// here: its slot calls are not published (§4.7 points to §7.2, which lists
+// none; question MS15). The MySim asks the host (`MySimHost::commute_time`).
 
 /// `SetDestinationFlag` value by the MySim's `GetWealth()` (§4.7.1 step 5):
 /// 1 → `0x1`, 2 → `0x2`, 3 → `0x4`, anything else → `0x1`.
@@ -518,13 +516,12 @@ impl JobSearchWorld for SimWorld<'_> {
 }
 
 /// One MySim's dispatch state: the job-search fields (§4.7.1), whose
-/// `state` is the trip state (§4.6), and the last commute time.
+/// `state` is the trip state (§4.6). `CheckCommute`'s time is the MySim's
+/// `lastCommuteTime` (§4.7), not a dispatch field.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct DispatchState {
     /// The job search's dispatch fields (§4.7.1), incl. the trip state.
     pub search: JobSearchState,
-    /// The last pathfinder run's total time (§4.7 `CheckCommute`).
-    pub trip_length: f32,
 }
 
 /// The per-MySim trip controller.
@@ -688,22 +685,6 @@ impl MySimDispatch {
         self.set_current_commute_destination(sim, loc, true)
     }
 
-    /// `CheckCommute` (§4.7): the total time of home → job (or the
-    /// neighbour cell), `None` on failure (the MySim then runs
-    /// `FailCommute`). Not reconciled with §7.2 (declared remainder).
-    pub fn check_commute(&self, sim: i32) -> Option<f32> {
-        let home = self.host.home_rect(sim)?;
-        let dest = self.get_state(sim).search.commute_destination;
-        let end = match (dest.in_city, dest.occupant) {
-            (true, Some(building)) => self.host.building_rect(building)?,
-            (true, None) => return None,
-            (false, _) => CellRect::new(dest.cell.0, dest.cell.1, dest.cell.0, dest.cell.1),
-        };
-        let found = self.run_pathfinder(home, end)?;
-        self.sims.borrow_mut().entry(sim).or_default().trip_length = found;
-        Some(found)
-    }
-
     /// The destination the `0xEBA06BF4` notification reports (§4.7): a city
     /// lot's building at the location's cell (`SetByOccupant`'s
     /// `floor(position / 16)`, answers MS11 c), or the neighbour city at
@@ -743,26 +724,6 @@ impl MySimDispatch {
     /// MySim's state, not the dispatch trip state, so nothing is written.
     pub fn report_sim_state(&self, sim: i32, state: u32) {
         self.host.notify(sim, super::dispatch_note::STATE_1, state, 0);
-    }
-
-    /// One pathfinder run (pathfinder.md §8's MySim dispatch setup):
-    /// commuter travel-type mask, density 0, flags 1 | 2, filter 3, a route
-    /// deque, `FindPath`, `Reset`.
-    fn run_pathfinder(&self, home: CellRect, end: CellRect) -> Option<f32> {
-        let mut pf = Pathfinder::create(&*self.host, self.shared.clone());
-        pf.set_start_rect(home);
-        pf.set_end_rect(end);
-        pf.set_trip_destination_filter(filter::END_RECT);
-        pf.set_flag(COMMUTE_FLAGS);
-        pf.set_allowed_travel_types(COMMUTER_TRAVEL_MASK);
-        pf.set_starting_travel_types(COMMUTER_TRAVEL_MASK);
-        pf.set_traffic_density(COMMUTE_DENSITY);
-        pf.set_max_work_time(MAX_WORK_TIME);
-        pf.set_route_info(Some(VecDeque::new()));
-        let found = pf.find_path_on(&self.net, &*self.host);
-        let outcome = (found == result::FOUND).then(|| pf.get_trip_length());
-        pf.reset();
-        outcome
     }
 }
 

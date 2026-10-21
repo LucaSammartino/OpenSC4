@@ -403,13 +403,16 @@ pub trait MySimHost {
     fn change_job(&self, sim: i32, b: u64) -> bool;
     /// The destination the dispatch reported (`0xEBA06BF4`).
     fn job_destination(&self, sim: i32) -> Option<JobDestination>;
-    /// `CheckCommute`'s pathfinder: the total time, `None` on failure.
+    /// `CheckCommute`'s own pathfinder (§4.7, home lot rect → job lot rect
+    /// or neighbour cell): the total time, `None` on failure. Its slot
+    /// configuration is unpublished (question MS15); the host supplies it.
     fn commute_time(&self, sim: i32) -> Option<f32>;
     /// The name of the neighbour city at a cell.
     fn neighbor_city_name(&self, cell: (i32, i32)) -> Option<Vec<u8>>;
     /// Dispatch, UI and audio actions: `create`, `start_commute`,
-    /// `reset_commute`, `shutdown`, `leave_for_work`, `return_home`,
-    /// `night_sound`, `update_residence`, `move_in_control`, `ghost`.
+    /// `shutdown`, `leave_for_work`, `return_home`, `night_sound`,
+    /// `update_residence`, `move_in_control`, `ghost`. (`FailCommute` no
+    /// longer sends `reset_commute`: it calls [`Self::find_new_job`].)
     fn dispatch_command(&self, sim: i32, what: &str);
     /// `dispatch:CheckFlags(mask)` (§4.1 step 3 tracking flag). Optional:
     /// the default false keeps the pre-dispatch-core stub behaviour.

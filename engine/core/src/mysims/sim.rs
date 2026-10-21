@@ -722,8 +722,12 @@ impl MySim {
         let idle = flags & 1 != 0;
         let tt = disp.travel_type;
         if disp.state == 2 || force {
+            let (px, pz) = (disp.position[0], disp.position[2]);
             if !idle || force {
-                if let Some(v) = h.grid(Grid::Congestion, cell.0, cell.1) {
+                // Literal reading of §4.6 "All grid reads convert the current
+                // position with PositionToTract": the congestion map too
+                // (question MS15 b).
+                if let Some(v) = h.grid_at(Grid::Congestion, px, pz) {
                     self.f("trip_traffic_congestion", f64::from(v as u8));
                 }
                 let ttype = if tt == 0xFE || tt == 0xFF { 1 } else { tt };
@@ -732,7 +736,6 @@ impl MySim {
                 }
                 self.f("trip_wait_length", f64::from(disp.wait_minutes));
             }
-            let (px, pz) = (disp.position[0], disp.position[2]);
             for (i, name) in ["trip_pollution_air", "trip_pollution_water", "trip_pollution_garbage"]
                 .iter()
                 .enumerate()
@@ -858,7 +861,12 @@ impl MySim {
         self.host.change_job(self.id(), b)
     }
 
-    /// `CheckCommute`.
+    /// `CheckCommute` (§4.7, `0x0042D9E0`): home lot rect → job lot rect
+    /// (or the neighbour cell) on a pathfinder of its own; success stores
+    /// `lastCommuteTime := uint(trunc(max(0, totalTime)))`, failure runs
+    /// `FailCommute`. The pathfinder's configuration is not published
+    /// (§4.7 refers to §7.2, which lists no slot use; question MS15), so
+    /// the query is the host's typed traffic callback `commute_time`.
     pub fn check_commute(&self) {
         match self.host.commute_time(self.id()) {
             Some(t) => {
@@ -869,11 +877,15 @@ impl MySim {
         }
     }
 
-    /// `FailCommute`.
+    /// `FailCommute` (§4.7, `0x0042C8E0`): `QuitJob()`, push
+    /// `MYSIM_COMMUTE_FAILED`, then `SetCurrentCommuteDestination(default
+    /// location, byCommute 1, notify = true)`: the same call as `FindNewJob`
+    /// (§4.7.1 callers table), so a new job search, not a plain reset. Its
+    /// result is not used.
     pub fn fail_commute(&self) {
         self.quit_job();
         self.push(event::COMMUTE_FAILED, None);
-        self.host.dispatch_command(self.id(), "reset_commute");
+        let _ = self.host.find_new_job(self.id());
     }
 
     /// `QuitJob` (state ≠ 0).

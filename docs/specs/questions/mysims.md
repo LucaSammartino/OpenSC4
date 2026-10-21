@@ -16,3 +16,15 @@
   in the unsigned loop (printed with `%d`, negative, or `%u`?) [`%d`]; (c) `F.ini` for a listed entry name shorter
   than 4 bytes (`Left(len − 4)` with a negative count) [empty stem]; (d) a missing `_gender` / `_zodiac` entry:
   skip the member, or an empty value? [empty value].
+
+- **MS15 - sections 4.6, 4.7, 7.2:** trip and commute details not published: (a) `CheckCommute` (`0x0042D9E0`):
+  §4.7 says "the pathfinder's slot use is in §7.2", but §7.2 lists none. Which pathfinder slots and values does it
+  call (flags, destination filter, destination flags, travel-type masks, density, max trip length, start/end rect
+  source: the MySim's job/neighbour fields or the dispatch's commute destination), which `FindPath` result counts
+  as success, and which getter is "totalTime" (slot)? Is the pathfinder created only when a home and a job exist,
+  and does a missing home/job lot call `FailCommute`? [implemented: host callback `commute_time`, no core
+  configuration]. (b) §4.6: is `trip_traffic_congestion` read with `PositionToTract`/`GetTractValue` at the current
+  position ("All grid reads ...") or at the cell? [position]. (c) §4.6: does the `force` reset of the cell to
+  (0, 0) also apply to `GetTravelTimeRatio(cellX, cellZ, …)`? [yes, same cell]. (d) §4.6: what is the class's
+  "active" check of the gate? [MySim state != 0]. (e) §4.6 `destination_subject` "when travelling": the new trip
+  state = 2, or the dispatch's current state = 2? [new trip state].

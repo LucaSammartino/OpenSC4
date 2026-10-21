@@ -376,10 +376,13 @@ fn t06b_neighbor_job() {
     assert!(f.m(0, |m| m.state().commute_check));
     f.h.commute.set(None);
     f.clear_events(0);
+    f.h.find_job_calls.borrow_mut().clear();
     f.adv(0).simulate(0);
     let s = f.m(0, |m| m.state());
     assert!(!s.commute_check && !s.neighbor_job);
-    assert!(f.h.take_log().contains(&MsCall::Dispatch(1, "reset_commute".into())));
+    // FailCommute: a new job search (FindNewJob's call), no reset command.
+    assert!(!f.h.take_log().contains(&MsCall::Dispatch(1, "reset_commute".into())));
+    assert_eq!(*f.h.find_job_calls.borrow(), vec![1]);
 }
 
 #[test]
@@ -394,9 +397,13 @@ fn t06c_commute_time() {
     f.m(0, |m| m.check_commute());
     assert_eq!(f.m(0, |m| m.state().last_commute_time), 42);
     f.clear_events(0);
+    f.h.find_job_calls.borrow_mut().clear();
     f.h.commute.set(None);
     f.m(0, |m| m.check_commute());
     assert_eq!(f.events(0), vec![event::COMMUTE_FAILED]);
+    // FailCommute order: QuitJob, the event, then the job search.
+    assert_eq!(*f.h.find_job_calls.borrow(), vec![f.id(0)]);
+    assert_eq!(f.m(0, |m| m.state().state), 2);
 }
 
 // ================================================================ §12.7
