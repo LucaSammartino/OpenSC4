@@ -7,7 +7,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-21, run4 open-ended)
 
-**train38 landed f81962bbea:** External PRs3/4 integrated with both histories after conflict and security review. Preserved newer core/shadow/replace metadata, regenerated symbol tables byte-for-byte, tools81PASS. No executable contribution or blocking security findings; path-example ambiguity filedPA3. Specs only, no replacement/shadow claim. Coverage44.3/33.2/16.0/17.6; rounds88 (open-ended).
+**train38 landed f81962bbea:** External PRs3/4 integrated with both histories after conflict and security review. Preserved newer core/shadow/replace metadata, regenerated symbol tables byte-for-byte, tools81PASS. No executable contribution or blocking security findings; path-example ambiguity filedPA3. Full gate63/63PASS; game regression skipped for unchanged runtime after Windows elevation prevented launch. Specs only, no replacement/shadow claim. Coverage44.3/33.2/16.0/17.6; rounds88 (open-ended).
 
 **train37 landed c6dcdfe5af:** Seven-lane batch gate and full union propdev/ports regress PASS. 1555/565, file/INI and language cores added. Propdev replacement promoted. Ports remain candidate-only: PD12, saved-city Read and advisor-approved growth unresolved. Advisor map scaffolding only; AD4/AD5 pending. Renderer precision/format questions remain; no new shadow credit. Coverage44.0/33.2/16.0/17.6; rounds82 (open-ended).
 
