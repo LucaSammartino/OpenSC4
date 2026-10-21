@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-widgets4 (widget toolkit spec: cGZWin base window + cRZWinKeyAccelerator) | `re-widgets4` / (RE lane) | ready (round 2): widget-toolkit.md sections 14-16 (painting, fade-out window, mouse routing, key equivalents), WT4 answered (ui-windows 2.2 row 68 corrected); commits 00672ce4, d4923d75, 3d73228a; no engine/ABI change; REA not used (export asm + decomp) | 1. cGZWin remaining gaps listed in widget-toolkit.md section 12 (draw-area recursion, recalc_blt_area, child_private_buffers, coordinate converters, PullToFront/SetFocus, params). 2. cRZWinKeyAcceleratorRes parser 0x00984587. 3. cGZWinGen, then widgets. |
+| re-widgets4 (widget toolkit spec: cGZWin base window + cRZWinKeyAccelerator) | `re-widgets4` / (RE lane) | in progress (round 3): widget-toolkit.md section 17 (draw rectangles, child_private_buffers, invalidation, converters, params, EnumChildren, SortChildren, placement, colours) | 1. cRZWinKeyAcceleratorRes parser 0x00984587. 2. remaining cGZWin gaps in section 12. |
+
+## Handoff (round 3)
+
+- Goal: finish the section 12 cGZWin gaps, then cRZWinKeyAcceleratorRes parser 0x00984587.
+- Done: section 17 (17.1 draw/origin/blit rectangles with worked example, 17.2 child_private_buffers, 17.3
+  invalidation, 17.4 converters/forwarders, 17.5 params, 17.6 EnumChildren/SortChildren, 17.7 Center/Fit,
+  17.8 colours/transparency); quirks 11-14; tests 17-21; section 2 rows +0x24/+0x34/+0xB8; section 12 row updated.
+- Next: parser 0x00984587 (only if budget allows), then final report + merge-queue file.
+- Facts: all evidence from re_query.py asm; REA not used. Draw-system service 0x4B2EA3B3 cached at 0x00BAC060/05C.
 
 ## Report (round 2)
 

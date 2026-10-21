@@ -40,7 +40,8 @@ Offsets of the `cGZWin` part of the object. Initial values are the constructor's
 | `+0x0C` | 4 | (unnamed) | 0 | ctor |
 | `+0x10` | 4 | window ID (`GetID`/`SetID`) | 0 | `0x0099BE66`, `0x0099BE5C` |
 | `+0x14..+0x20` | 16 | **absolute (screen) rectangle** L,T,R,B | 0 | `CalcAbsoluteArea` `0x0099DCE4` |
-| `+0x24..+0x30` | 16 | rectangle (draw area, *[inferred]*) | 0 | ctor |
+| `+0x24..+0x30` | 16 | **draw area** (§17.1) | 0 | ctor; `SetAreaToDrawTo` `0x0099CF6A` |
+| `+0x34..+0x40` | 16 | **draw origin rectangle** (§17.1); not initialised by the constructor | — | `SetAreaToDrawTo` |
 | `+0x44` | 4 | pointer to the child-list block (§4.1) | new block | ctor |
 | `+0x48` | 4 | parent window | null | `SetParentWin` `0x0099B7F2` |
 | `+0x4C` | 4 | notification target (also the focus fallback, §6) | null | `SetNotificationTarget` `0x0099BE42` |
@@ -59,14 +60,14 @@ Offsets of the `cGZWin` part of the object. Initial values are the constructor's
 | `+0x98` | 4 | second fade period | **500** | same; never read by the show/hide paths (§8) |
 | `+0x9C` | 4 | key equivalent | 0 | `0x0099BE80`/`0x0099BE87` |
 | `+0xA8..+0xB4` | 16 | **area** L,T,R,B in parent coordinates | 0 | `GetR` `0x0099BC5A` reads `+0xB0`; `GetW` `0x0099C81B` = `+0xB0 − +0xA8` |
-| `+0xB8..+0xC4` | 16 | (rectangle, zero) | 0 | ctor |
+| `+0xB8..+0xC4` | 16 | **blit rectangle** (§17.1) | 0 | ctor; `recalc_blt_area` `0x0099C7BA` |
 | `+0xC8` | 4 | **flag word** (§3) | **`0x8903`** | ctor; `GetFlag` `0x0099BDBB` |
 | `+0xCC` | 4 | instance ID | 0 | `0x0099BE79`/`0x0099BE6A` |
 | `+0xD0` | 4 | shade colour (4 bytes) | `FF FF FF FF` | `GetShadeColor` `0x0099CA9E` |
 | `+0xD4` | 4 | fill colour (3 bytes used by `GetFillColor` `0x0099BFC9`) | 0 | ctor |
 
-The `cGZWin` part ends at `+0xD8`. The constructor's field list covers everything above except `+0x34..+0x40` and
-`+0xA0..+0xA4`, which it leaves untouched (open, WT2).
+The `cGZWin` part ends at `+0xD8`. The constructor's field list covers everything above except `+0x34..+0x40` (always
+written by `SetAreaToDrawTo` before use, §17.1) and `+0xA0..+0xA4`, which it leaves untouched (`+0xA0..+0xA4` open, WT2).
 
 ## 3. The flag word (`+0xC8`) *[compat]*
 
@@ -348,6 +349,14 @@ private buffer: a temporary `cGZFadeTmpWin` takes it and fades it down over `+0x
 9. A clean window (`+0x70` = 0) repaints nothing of its own or of its non-overlay descendants; only windows with a
    private buffer and a parent ever become clean (§14.3).
 10. `PrivateBuffer(1)` sets bit `0x10000` but `PrivateBuffer(0)` never clears it (§14.5).
+11. A default `SortChildren` (`moveAll` false) never moves the windows **with** bit `0x800` (the z-order-movable
+    bit), though other windows may still be inserted ahead of them, so the result need not be sorted (§17.6).
+12. `SetParam` releases the old value before AddRef'ing the new one; re-setting the same object whose only reference
+    is the map's destroys it first (§17.5).
+13. `EnumChildren` returns false for a window with no children; `FitRectToWindow` shrinks (does not shift) on the
+    left/top edge but shifts on the right/bottom edge (§17.6, §17.7).
+14. `SetAreaToDrawTo` normalises the draw area to `(0,0,W,H)` whenever the draw-system service exists, and does not
+    refresh the blit rectangle for a window without its own buffer (§17.1).
 
 ## 10. Conformance tests
 
@@ -376,6 +385,18 @@ private buffer: a temporary `cGZFadeTmpWin` takes it and fades it down over `+0x
     does receive a move.
 16. `CheckKeyEquivalent(0x41, 0x10002)` on a window whose key equivalent is `0x00020041` is true (`modifiers` shifted
     by 16 drops bit 16).
+17. Draw rectangles (service present): R `(0,0,800,600)` unbuffered, P `(100,50,500,450)` buffered, C
+    `(10,20,110,70)` and D `(5,5,25,15)` unbuffered (R⊃P⊃C⊃D): draw areas P `(0,0,400,400)`, C `(0,0,100,50)`, D
+    `(0,0,20,10)`; draw origin rectangles P `(0,0,400,400)`, C `(10,20,110,70)`, D `(15,25,35,35)`; P's blit rectangle
+    `(100,50,500,450)` (§17.1).
+18. `InvalidateSelfAndParents` on D under an overlay ancestor O (`0x8000000`) inside root R: D and every window up to
+    and including O are dirty, R is not; on O itself only O is dirty (§17.3).
+19. `SortChildren(null, 0, false)` with children (front to back) IDs 3, 1, 2, bit `0x800` clear on all: order 1, 2,
+    3, true. With IDs 2, 1 and bit `0x800` set on the ID-1 window: order stays 2, 1 (the flagged window is never
+    moved and the unflagged one is never less than its predecessor), true (§17.6).
+20. `FitRectToWindow((−10,0,30,20), 4)` in a 100×100 window: `(4,0,30,20)`, returns 1; `CenterWindowInRect((0,0,10,10))`
+    for a 13×10 window: area `(−1,0,12,10)` (§17.7).
+21. `SetParam(5, A)`, `GetParam(5, &x)` → true and A's count +1; `SetParam(5, null)` → `GetParam(5, &x)` false (§17.5).
 
 ## 11. Open questions
 
@@ -386,7 +407,7 @@ Filed in `docs/specs/questions/widget-toolkit.md`: WT1 (own vtable rows), WT2 (u
 
 | Owner pattern (`tools/coverage-map.tsv`) | State after this slice |
 |---|---|
-| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade in and out, accelerator wiring (§13.4), painting (`Plot`, `PlotComposite`, `PlotPresent`, `PrivateBuffer`, `SetBufferToDrawTo`, §14), mouse routing and `UpdateCursor` (§15), key equivalents (§16). **Still open, so the class is not complete:** `SetBufferToDrawToRecursive`/`SetAreaToDrawTo(Recursive)`/`recalc_blt_area` (the `+0x24`, `+0x34`, `+0xB8` rectangles), `child_private_buffers`, `set_private_buffer_transparency`/`fill_private_buffer_with_transparent_color`, `InvalidateSelfAndParents`/`InvalidateAllParents`, `ScreenToWindowCoordinates` and the other coordinate converters, `PullToFront`, `SetFocus`, `EnumChildren`, parameter get/set/enumeration, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion, and the draw-context and buffer slot meanings (cited by number only) |
+| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade in and out, accelerator wiring (§13.4), painting (`Plot`, `PlotComposite`, `PlotPresent`, `PrivateBuffer`, `SetBufferToDrawTo`, §14), mouse routing and `UpdateCursor` (§15), key equivalents (§16), and (round 3, §17) the draw rectangles `+0x24`/`+0x34`/`+0xB8` (`SetAreaToDrawTo`, `SetAreaToDrawToRecursive`, `SetBufferToDrawToRecursive`, `recalc_blt_area`), `child_private_buffers`, the invalidation trio, coordinate converters and parent-chain forwarders (`WindowToWindowCoordinates`, `IsWinInParentChain`, `MoveRelativeTo`, `ChildToFront(id)`, `PullToFront`, `SetFocus`), parameters (`GetParam`/`SetParam`/`EnumParams`), `EnumChildren`, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion and the two private-buffer transparency helpers. **Still open, so the class is not complete:** the meanings of the draw-context, buffer, graphics-system and colour-manager slots (cited by number only), `ChildMoveRelative`/`ChildStepFront`/`ChildStepBack` (slots 31, 28, 29), `IsWinInChildChain` (slot 22), `GZOnSetFocus`/`GZOnMouseWheel` defaults, `create_private_buffer` internals, fields `+0xA0..+0xA4` (WT2), and the questions WT1-WT3, WT5, WT6 |
 | `cGZFadeTmpWin` (not an owner pattern of this lane; listed for completeness) | constructor, `StealBuffer`, `Plot` specified (§14.7); destructor not |
 | `cGZWin*` (everything else: `cGZWinGen`, widgets, managers) | not specified |
 | `cRZWinKeyAccelerator*` | `cRZWinKeyAccelerator` (all 16 functions) **specified** in §13; `cRZWinKeyAcceleratorRes` (4 functions, the text resource parser `SerialRead` `0x00984587`) not specified |
@@ -458,7 +479,7 @@ through the message server and `DoMessage` returns true; the matching key-up `{6
 | `+0x6C` | draw context of `+0x68` (from the buffer's interface `0xAB300B2B`, its slot 4) |
 | `+0x70` | **dirty** byte: set by `InvalidateSelf` (slot 91, `0x0099BECC`), by construction (1) and by the two area setters; cleared by `PlotComposite` only for a window that has a private buffer **and** a parent |
 | `+0x71` | 1 when `+0x68` is a private buffer (own or ancestor's), 0 when it is the screen buffer |
-| `+0xB8..+0xC4` | blit rectangle used by `PlotPresent` when presenting into the parent's buffer (computed by `recalc_blt_area` `0x0099C7BA`, *[inferred]*) |
+| `+0xB8..+0xC4` | blit rectangle used by `PlotPresent` when presenting into the parent's buffer (computed by `recalc_blt_area` `0x0099C7BA`, §17.1) |
 | `0x4` | passed to draw-context slots 22/23 (a draw-mode switch, *[inferred]*) |
 | `0x8` | draw/present with the shade colour `+0xD0` (else white `0xFFFFFFFF`) |
 | `0x40000` | clear the private buffer to its transparent colour before each repaint (needs `0x20000` too) |
@@ -645,3 +666,163 @@ and acts on the child found (widget behaviour, not specified here).
 Worked example: `SetKeyEquivalent(MakeKeyEquivalent(0x0D, 0))` = `0x0000000D` on button B in dialog D;
 `D.IsChildKeyEquivalent(0x0D, 0)` returns B if no child in front of B has the same code; `(0x0D, 1)` builds
 `0x0001000D` and finds nothing.
+
+## 17. Draw areas, invalidation, conversions, parameters and small helpers *[compat]*
+
+Evidence for this section: export instructions of every function cited (`re_query.py asm`), round 3. REA not used.
+
+### 17.1 The three drawing rectangles
+
+| Field | Name here | Set by | Read by |
+|---|---|---|---|
+| `+0x24..+0x30` | **draw area** (L,T,R,B) | `SetAreaToDrawTo` (slot 97) | `GetAreaToDrawTo` (slot 99, returns its address); source rectangle of `PlotPresent` (§14.4); fill rectangle of `fill_private_buffer_with_transparent_color` (§17.8) |
+| `+0x34..+0x40` | **draw origin rectangle** | `SetAreaToDrawTo` | draw-context slots 8 and 6 in `PlotComposite` step 5 (§14.3) |
+| `+0xB8..+0xC4` | **blit rectangle** | `recalc_blt_area` (`0x0099C7BA`), called only by `SetAreaToDrawTo` | destination rectangle of `PlotPresent` into the parent's buffer (§14.4) |
+
+"Offset" of a window below means its area's L/T (`GetL`/`GetT`, slots 43/44); "has a buffer" means
+`GetPrivateBuffer` (slot 101) is non-null.
+
+**`recalc_blt_area()`** (`0x0099C7BA`): blit rectangle = the window's area (`GetArea` copy, slot 47); then for each
+ancestor starting at the parent: stop at the first ancestor that has a buffer, otherwise add its offset (L to L and R,
+T to T and B) and go on up. So the blit rectangle is the window's area in the coordinates of its nearest buffered
+strict ancestor, or in screen coordinates when there is none. The overlay bit `0x8000000` is **not** consulted.
+Returns true.
+
+**`SetAreaToDrawTo()`** (slot 97, `0x0099CF6A`), two cases:
+
+1. **The window has its own buffer**: draw area = `(0, 0, W, H)`; `recalc_blt_area()`; draw origin rectangle = draw
+   area, so also `(0, 0, W, H)`. Done.
+2. **No own buffer**:
+   a. Draw area = area; working rectangle `r` = area. Walk the ancestors from the parent: at an ancestor with a buffer
+      stop; otherwise, if **this** window has `0x8000000`, set `r` to this window's absolute area (`+0x14`) and stop;
+      otherwise add the ancestor's offset to `r` and continue. Draw area = `r`. (A window without a parent keeps its
+      area.)
+   b. Once per process the code caches whether the system service with ID `0x4B2EA3B3` exists (the export names the
+      pointer `cRZSysServPtr<cIGZDrawSystem, 0x4B2EA3B3, 0xEB2EA3CB>`; cache flag `0x00BAC060` bit 1, result byte
+      `0x00BAC05C`). **If it exists, the draw area is moved to the origin** keeping its size: `(0, 0, W, H)` (helper
+      `0x0082AE40`, "move rectangle so its top-left is the given point"). Step a's translation is then discarded.
+   c. Draw origin rectangle = draw area; then walk from **this window** upwards: stop at the first window that has a
+      buffer (this window has none, so its own offset is always added first); a window with `0x8000000` adds its
+      **absolute** L/T (`GetAreaAbsolute`, slot 50) and stops; any other window adds its offset (`GetArea`, slot 48)
+      and the walk moves to its parent.
+   `recalc_blt_area` is **not** called in case 2: the blit rectangle keeps its last value (it is only used by windows
+   with a buffer).
+
+With the service present (the shipped game creates its draw system *[inferred]*), case 2 gives draw area
+`(0, 0, W, H)` and draw origin rectangle = the window's rectangle in its nearest buffered ancestor's coordinates (or
+in screen coordinates; an overlay contributes its absolute position). Without the service, step c adds the offsets a
+second time on top of step a; an implementation that always provides the service never reaches that path.
+
+Worked example (service present): root R at `(0,0,800,600)`, no buffer; R's child P at `(100,50,500,450)` with a
+buffer; P's child C at `(10,20,110,70)`, no buffer; C's child D at `(5,5,25,15)`, no buffer.
+- P: draw area = draw origin rectangle = `(0,0,400,400)`; blit rectangle `(100,50,500,450)` (R adds offset 0).
+- C: draw area `(0,0,100,50)`; draw origin: C's offset `(10,20)`, then P has a buffer → `(10,20,110,70)`.
+- D: draw area `(0,0,20,10)`; draw origin: D `(5,5)` + C `(10,20)` → `(15,25,35,35)`.
+
+**`SetAreaToDrawToRecursive()`** (slot 98, `0x0099D5B7`): `SetAreaToDrawTo()` (slot 97), then slot 98 on every child
+in list order under the child-list read lock (§4.1). **`SetBufferToDrawToRecursive()`** (slot 96, `0x0099D57E`): same
+shape with `SetBufferToDrawTo` (slot 95, §14.6) and slot 96. Callers: `SetArea` (§5.1), `SetFlag(0x8000000)` (§3.1,
+buffer first, then area), `PrivateBuffer` (§14.5).
+
+### 17.2 `child_private_buffers(on)` (`0x0099D645`, non-virtual)
+
+Walks the direct children in list order under the read lock; `failed` starts false. For each child:
+
+| Child has `0x10000`? | `on` | Action |
+|---|---|---|
+| yes | true, child visible (slot 71) | `child.PrivateBuffer(1)` (slot 100); a false result sets `failed` |
+| yes | true, child hidden | `child.child_private_buffers(0)` (recursion with **off**, result ignored); the child's own buffer is left alone |
+| yes | false | `child.PrivateBuffer(0)`; a false result sets `failed` |
+| no | either | `child.child_private_buffers(on)` (recursion, result ignored) |
+
+Then, **only when `on`**, for every child whatever its row: `child.GZWinMoveTo(child.GetL(), child.GetT())` (slot 56),
+which re-runs the child's `SetArea` with unchanged values and so recomputes its absolute area and draw areas (§5.1).
+Returns true unless a direct child's `PrivateBuffer` returned false (failures deeper down are not reported). Callers:
+`SetFlag(0x1)` on a window without `0x10000` (argument: the new visibility) and `PrivateBuffer` (§14.5).
+
+### 17.3 Invalidation
+
+| Call | Slot | Behaviour |
+|---|---|---|
+| `InvalidateSelf()` | 91 (`0x0099BECC`) | dirty byte `+0x70` = 1 (§14.1) |
+| `InvalidateSelfAndParents()` | 92 (`0x0099BED1`) | `InvalidateSelf()` (slot 91); then, **unless this window has `0x8000000`**, `InvalidateAllParents()` |
+| `InvalidateAllParents()` | `0x0099B7BD` (non-virtual) | for each ancestor from the parent upwards: its `InvalidateSelf()` (slot 91); stop after the first ancestor that has `0x8000000` (that overlay ancestor is still invalidated). The window itself is not touched |
+
+Nothing is painted; the dirty bytes are consumed by the next `PlotComposite` (§14.3). An overlay window never dirties
+its ancestors, because it is composited through the manager's deferred queue rather than into them.
+
+### 17.4 Coordinate conversion, parent chain and small forwarders
+
+| Call | Slot | Behaviour |
+|---|---|---|
+| `ScreenToWindowCoordinates(&x, &y)` | 59 (`0x0099BD73`) | converts `(0,0)` through slot 60 (virtual, so an override applies) and subtracts the result from `x` and `y` |
+| `WindowToWindowCoordinates(other, &x, &y)` | 61 (`0x0099B8F5`) | `other` null: false, point untouched. Else this window's slot 60, then `other`'s slot 59 on the same point; true. Converts from this window's coordinates to `other`'s |
+| `IsWinInParentChain(w)` | 21 (`0x0099B929`) | true if `w` is a strict ancestor (the walk starts at the parent; a window is not in its own chain) |
+| `MoveRelativeTo(a, b)` | 30 (`0x0099B880`) | with a parent: `parent.ChildMoveRelative(this, a, b)` (slot 31) and its result; without: false |
+| `ChildToFront(id)` | 25 (`0x0099B83B`) | `ChildToFront(GetChildWindowFromID(id))` (slots 34 then 26): the ID form of §4.3 |
+| `SetFocus()` | `0x0099BDE4` | returns the manager's slot 37 result for this window (§6) |
+
+### 17.5 Parameters (`+0x7C`)
+
+An ordered map from a 32-bit key to a reference-counted object (slot 1 AddRef, slot 2 Release), iterated in
+ascending unsigned key order.
+
+- **`GetParam(key, &out)`** (`0x0099D388`): absent → false, `out` untouched. Present → `out` = the object, **AddRef'd
+  for the caller** (the caller releases it), true.
+- **`SetParam(key, obj)`** (`0x0099D7C8`): if the key is present, release its object (when non-null) and erase the
+  entry; then, if `obj` is non-null, AddRef it and insert `(key, obj)`. Always true. `SetParam(key, null)` removes the
+  parameter. The old value is released **before** the new one is AddRef'd (quirk 12).
+- **`EnumParams(cb, ctx)`** (`0x0099D252`): for each entry in key order, `cb(this, key, obj, ctx)` (cdecl, byte-bool
+  result; `obj` is **not** AddRef'd). A false result stops the walk and `EnumParams` returns false; otherwise true
+  (also for an empty map).
+- `Shutdown` releases every value (§8.1).
+
+### 17.6 Enumerating and sorting children
+
+**`EnumChildren(iid, cb, ctx)`** (slot 32, `0x0099D708`): `cb` null → false. Under the read lock; **no children →
+false**. For each child in list order (the walk never stops early):
+- `iid` = `0x22BA0121` (the window interface): `cb(this, child.GetID(), child, ctx)`; no AddRef.
+- any other `iid`: `child.QueryInterface(iid, &p)` (slot 0); on failure the child is skipped (counts as success); on
+  success `cb(this, child.GetID(), p, ctx)`, then the query's reference is released (through the child's Release).
+Returns true only if **no** callback returned false. Callback: cdecl, four arguments, byte-bool result.
+
+**`SortChildren(less, ctx, moveAll)`** (slot 33, `0x0099E0D6`): `less` null → default comparator `0x0099BC0E`
+= `a.GetID() < b.GetID()` compared **unsigned** (slot 63). The list is taken for writing (copy-on-write, §4.1). Fewer
+than two children → false, nothing changes. Otherwise a restarting insertion sort:
+1. Walk adjacent pairs `(prev, cur)` from the front.
+2. If `moveAll` is false and `cur` **has** flag `0x800` (`GetFlag(0x800)` true), `cur` stays where it is and the walk
+   moves on (it still serves as `prev` and as a comparison position in step 3).
+3. Else if `less(cur, prev, ctx)`: remove `cur`, re-insert it **before the first window `n` from the front** with
+   `less(cur, n, ctx)` (every window is a candidate position; at the end if none), and restart at step 1.
+4. When the walk reaches the end: true.
+Equal windows keep their relative order. Sorting never invalidates or repaints. Note the polarity in step 2: it is
+the windows **with** `0x800` (the bit `ChildToFront`/`ChildToBack` require, §4.3) that a default sort never moves
+(quirk 11).
+
+### 17.7 Placement helpers
+
+- **`CenterWindowInRect(rect)`** (`0x0099C373` by reference; `0x0099C303` by pointer, which does nothing for null):
+  `x = rect.L + (rect.W − W) / 2`, `y = rect.T + (rect.H − H) / 2`, division **truncating toward zero** (CDQ, SUB,
+  SAR 1); then `SetArea(x, y, x+W, y+H)` through slot 55 (virtual). Example: rect `(0,0,101,50)`, window 50×20 → x =
+  25, y = 15; rect `(0,0,10,10)`, window 13×10 → x = −1 (−3/2 truncates to −1).
+- **`FitRectToWindow(rect, margin)`** (slot 58, `0x0099C3DF`): pulls `rect` (this window's coordinates) inside
+  `(0, 0, W, H)`, in this order: L < 0 → L = `margin` (R unchanged, the rectangle shrinks); T < 0 → T = `margin`;
+  R > W → L += W − R − `margin`, R = W − `margin` (shift); B > H → T += H − B − `margin`, B = H − `margin`. Returns 1
+  if afterwards `R − L + margin ≤ W` and `B − T + margin ≤ H`, else 0. Example with W = H = 100, margin 4: rect
+  `(−10,0,30,20)` → `(4,0,30,20)`, 1; rect `(90,0,120,20)` → `(66,0,96,20)`, 1.
+
+### 17.8 Colours and private-buffer transparency
+
+- `SetFillColorRGB(c)` / `GetFillColorRGB()` (slots 125/126): store/return `+0xD4` as a whole dword.
+- **`ConvertPackedRGBToNative(packed)`** (slot 127, `0x0099BB08`): r = bits 16–23, g = bits 8–15, b = bits 0–7 (bits
+  24–31 ignored); asks the buffer to draw to (`+0x68`, its slot 30) or, without one, the graphics system (`RZ::GS()`,
+  its slot 34); 0 when neither exists.
+- **`ConvertNativeToPackedRGB(native)`** (slot 128, `0x0099BB5A`): same two sources (buffer slot 31, graphics system
+  slot 36) return r, g, b; result `0xFF000000 | r<<16 | g<<8 | b` (alpha forced to `FF`). With neither source the
+  three bytes are never written (undefined in the original; return `0xFF000000` *[recommended]*).
+- **`set_private_buffer_transparency(on)`** (`0x0099BA92`): no buffer → false. `on`: the window colour manager
+  (`RZ::WCM()`; absent → false) is asked (its slot 32) for colour `0x08963F6C`, which becomes the buffer's
+  transparent colour (buffer slot 23); off: buffer slot 27 removes it. True.
+- **`fill_private_buffer_with_transparent_color()`** (`0x0099BA3E`): no buffer → false. Lock the buffer (slot 6,
+  flags `0x8001`; failure → false); if the buffer has a transparent colour (slot 26), fill the draw area `+0x24` with
+  it (slot 20, last argument 0); unlock (slot 7, `0x8001`); true even when there was no transparent colour.
