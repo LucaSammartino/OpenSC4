@@ -1,6 +1,6 @@
 # Legacy control (`cGZLegacyControl`): building widgets from `LEGACY` script blocks
 
-Status: partial, 38 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
+Status: partial, 41 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
 (Windows). Covered: object layout, COM surface, lifecycle, the shared vocabulary and its two lookup maps, the
 `SetParameters` build sequence, the property-list readers, and the full word tables of all 21 vocabulary
 functions. Per-control interpreter contracts (`InterpretProperties*`) are specified for the common pass (§8);
@@ -336,7 +336,8 @@ comment list, and parameter `0x3ACA6906` = {0, 0}; second pass `SetFlag(0x2, fal
 | GZWinSlider | `0x00950218` | 403 | **specified** (§9.1), slot names on the slider interface *[inferred]* |
 | GZWinTreeView | `0x009586B0` | 4857 | **specified** (§9.2) |
 | GZWinFileBrowser | `0x00954212` | 3761 | **specified** (§9.3) |
-| all other 16 | §4.1 | 465–3537 | open (LC4) |
+| GZWinGrid | `0x0095A250` | 3537 | **specified** (§9.5; cell branch nesting partial, LC7) |
+| all other 15 | §4.1 | 465–3105 | open (LC4) |
 
 Every per-type interpreter starts the same way: `QueryInterface` the control for its own IID (§4.1); on failure
 it does nothing at all; on success it works through that interface and releases it at the end.
@@ -499,6 +500,59 @@ In this order:
     with n = **k + 1** (the pair's list position plus one, not a filter counter); then **always**
     `+0x54` (text, buffer-or-null, number, 0); release the buffer if any.
 
+### 9.5 GZWinGrid (`0x0095A250`)
+
+Interface `IGZWinGrid` `0xDAA6B9BE`; slot names *[inferred]*. Colours here are built by the grid's own window
+(grid slot `+0x14` returns it) slot `+0x1B0` (r, g, b[, 0]), not by `RZ::GS()`.
+
+**Second pass**: only grid-line colours. `colgridclr` `0x1623` and `rowgridclr` `0x1624` (colour reader;
+missing → (0,0,0)) → **always** `+0xE8` (column colour, row colour). Nothing else.
+
+**First pass**, in this order:
+
+1. `fontcolor` `0x1601` (colour) → `+0x44` (colour).
+2. `font` `0xF000`: Uint32 → `+0x3C` (WCM font(id)) and store parameter `0xFAA3BE85`; else String → only the
+   parameter (§9.4); **absent → `+0x3C` (WCM font(`0x68963C4C`))**, a default font.
+3. `textalign` `0x1602` (Sint32) → `+0xF0`. `textwrapping` `0x1603` → **always** `+0x54` (present and ≠ 0).
+4. `gutters` `0xF004` (rectangle reader) → `+0x60` (l, t, r, b), **absent → `+0x60` (0, 0, 0, 0)**.
+5. `selrule` `0x1605` (Sint32, default 2), `maxselcount` `0x1606` (default 1) → always `+0x9C` (rule, max).
+6. Outline: `fdoutline` `0x1616` read as Uint32 (default 0) and `olinecolor` `0x1604` (default black) →
+   always `+0x6C` (value == 1, colour).
+7. `dcolwidth` `0x1607` (Sint32, default 100) → always `+0x100`; `drowheight` `0x1608` (default 20) →
+   always `+0x108`.
+8. `enablehdr` `0x1609` (Uint32) is read **into the column-width variable**, so when absent it holds the
+   `dcolwidth` value (quirk Q6). Always `+0x128` (a, b): value 0 → (1, 1); 1 → (1, 0); 2 → (0, 1); any other →
+   (0, 0).
+9. `colhdrsz` `0x160A`, `rowhdrsz` `0x160B` (Sint32, default 0) → always `+0x130` (col, row).
+10. Style flags, each only if present (Sint32): value ≠ 0 → `+0x28` (bit) (*SetStyle*), value 0 → `+0x30`
+    (bit) (*ClearStyle*). Bits: `fnone` 0, `fedit` 1, `fhscroll` 2, `fvscroll` 4, `fcolheading` 8,
+    `frowheading` 0x10, `fcolgrid` 0x20, `frowgrid` 0x40, `finsmode` 0x80, `fopqbkgnd` 0x100, `fdoutline`
+    0x200, `fdgridoutline` 0x400, `fcellwrap` 0x800, `fallownosel` 0x1000, `ffixcolcnt` 0x2000, `ffixrowcnt`
+    0x4000, `fdpastlastcol` 0x8000, `fdpastlastrow` 0x10000, `fcelloverlap` 0x20000, `fdrpdnmenu` 0x40000,
+    `fhlcelldata` 0x80000, `fdefault` 0x19BFF, `fall` 0xFFFFFFFF (IDs `0x160C`–`0x1622` in that order).
+    Clearing `fvscroll` additionally calls the grid window's slot `+0x170` (no arguments) after `+0x30`.
+11. Cells: every pair with key `wingridcell` `0x1625` and a string value, in list order. The text is split
+    at `,` into at most 11 fields (parser `0x00956464`); **fewer than 4 fields → the entry is skipped**.
+    Fields: 1 column, 2 row (decimal), 3 cell flags (hex), 4–5 data (rejoined as `f4,f5`), 6 font name
+    (→ WCM `+0x98` font id), 7–11 five numbers (cell style values). Before the first accepted cell, a
+    cell-notifier object (16 bytes, vtable `0x00AD538C`, wrapping a new 36-byte object from `0x009ABB63`) is
+    stored as parameter `0x287A7136`. Effects by cell flags: without `0x40000` the data is read as
+    `%08x,%08x` (group, instance): with `0x2000` the image buffer is loaded and set with `+0x1C8` (col, row,
+    buffer, 1); else with `0x10000` the string resource is loaded and set as text with `+0x1C0` (col, row,
+    text). With `0x40000` the data itself is the text (`+0x1C0`). With `0x1000` a cell-data record (font
+    from the font id when non-zero, the five style numbers, alignment byte 1 when flag `0x100000` else −1) is
+    set with `+0x154` (col, row, &record). Finally helper `0x0095A0F3` (col, row, &key, 0) is called. The
+    branch nesting of this step is from pseudocode and is *[partial]* (LC7).
+12. Columns: every `wingridcol` `0x1626` string `%d,%d,%d` (all three required; else skipped): before the
+    first, a notifier (vtable `0x00AD5398`) is stored as parameter `0xC88CCB6D`; helper `0x009583C5`
+    (first, 0, …) then `+0x104` (first, **1**, third): only one column is sized, the second number is
+    ignored (quirk Q7).
+13. Rows: every `wingridrow` `0x1627` `%d,%d,%d`: notifier (vtable `0x00AD53A4`) as parameter `0xC88CCB6E`;
+    helper `0x009584E0` (0, first, …) then `+0x10C` (first, second − first + 1, third): rows first..second
+    get height third.
+
+Worked example: `wingridrow=2,4,18` → `+0x10C(2, 3, 18)`; `wingridcol=2,4,60` → `+0x104(2, 1, 60)`.
+
 ### 9.4 Image-key parameter helper (`0x0094C1DA`) (answers LC6)
 
 `StoreImageKey(win, group, instance, n)` (group in a register, instance and n on the stack): wraps
@@ -518,12 +572,16 @@ The font counterpart (`0x0094C222` Uint32 / `0x0094C255` String) stores the valu
 - Q4. `Release` with a count of 0 destroys the object.
 - Q5. TreeView `node` records: a position field other than `first`/`last`/`sorted` is not reset, so it keeps the
   previous record's value (stack garbage for the first record). Implementations: use −3 (`last`) for the first.
+- Q6. Grid `enablehdr` shares its variable with `dcolwidth`: when absent, the header mode is the column width
+  (100 by default → (0, 0)).
+- Q7. Grid `wingridcol=a,b,w` sizes only column a; b is ignored (rows use the a..b range).
 
 ## 11. Open questions
 
 - LC1. The `+0x04` sub-object vtable `0x00AD5344` (IID `0x5A356159`): slot targets not resolved in the export.
 - LC3. Serialiser `0x00965F73` used by `GetScriptFragment`: output format.
 - LC4. Interpreter effect tables (§8, §9).
+- LC7. Grid `wingridcell` (§9.5 step 11): exact branch nesting of the cell flags and the meaning of fields 7-11.
 - LC5. Window manager slot 3 (`+0x0C`) used as the default parent: confirm it is the root/main window.
 
 ## 12. Coverage of owner functions (honest)
@@ -538,7 +596,7 @@ Custom interpreter are shared bodies owned elsewhere).
 | `SetParameters` | 1 | specified (§6) |
 | `GetScriptFragment` | 1 | specified except the serialiser it calls (LC3) |
 | `ControlVocabulary*` | 21 | specified (§4: every word, ID and map entry) |
-| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), Custom (shared stub) specified; 18 owned interpreters open (LC4) |
+| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Grid (§9.5), Custom (shared stub) specified; 15 owned interpreters open (LC4) |
 
-Count: 38 of 57 owner functions specified (15 others + 21 vocabulary + Common + Slider); `GetScriptFragment`
-partial (LC3); 18 interpreters open (LC4). No wildcard credit.
+Count: 41 of 57 owner functions specified (15 others + 21 vocabulary + Common, Slider, TreeView, FileBrowser, Grid); `GetScriptFragment`
+partial (LC3); 15 interpreters open (LC4). No wildcard credit.

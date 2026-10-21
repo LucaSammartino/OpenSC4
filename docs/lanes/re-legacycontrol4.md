@@ -1,10 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-legacycontrol4: new spec docs/specs/legacy-control.md for owner cGZLegacyControl (38 of 57 fns specified) | Claude / .claude/worktrees/re-legacycontrol4 | in progress (round 2) | LC4: specify the 18 open per-type interpreters, largest first (TreeView 4857, FileBrowser 3761, Grid 3537) |
+| re-legacycontrol4: docs/specs/legacy-control.md for owner cGZLegacyControl (41 of 57 fns specified) | Claude / .claude/worktrees/re-legacycontrol4 | ready (docs only) | LC4: remaining 15 interpreters; LC3 serializer 0x00965F73; LC1 vtable 0x00AD5344; LC7 grid cell nesting |
 
-## Handoff
-- Goal round 2: specify LC4 interpreters TreeView 009586B0, FileBrowser 00954212, Grid 0095A250; then LC3 serializer 00965F73 / GetScriptFragment; LC1 vtable 00AD5344.
-- Done round 1: 38/57 fns (commits e2534f7b, 788a031c, 5d4b976b).
-- Done round 2: TreeView 9.2 (28e58dc6), FileBrowser 9.3 + LC6 answered 9.4 (this commit).
-- Next: Grid 0095A250 (decomp/cGZLegacyControl.c lines 8267-8877; build-runs/slim.py START END > grid.txt), then LC3 serializer 00965F73, LC1 vtable 00AD5344.
-- Facts: vocab words in build-runs/vocab-all.txt; REA session not open (target_unavailable) - used export+decomp. build-runs/peek.py VA reads exe bytes/strings.
+## Report
+- Round 1 (e2534f7b, 788a031c, 5d4b976b): layout, slots, lifecycle, vocabulary, SetParameters, common + Slider interpreters (38/57).
+- Round 2 (28e58dc6, 0fda97d2, this commit): section 9.2 TreeView (first-pass style words; second pass image table
+  name:{g,i}:(rect), root node words, `node` 15-field records, depth-first build from `Root`, six map parameters),
+  9.3 FileBrowser (first pass only; sort/column/font/colour/alignment/grid/filter words with exact codes),
+  9.4 image-key helper 0x0094C1DA (param 0xDAA3B860+n; LC6 answered DIFFERS), 9.5 Grid (second pass grid colours;
+  first pass defaults, enablehdr table, 22 style bits, cell/col/row entries). Quirks Q5-Q7.
+- Measured: 41 of 57 owner functions specified (was 38).
+- Questions: LC6 answered; LC7 filed (grid cell flag nesting, fields 7-11). Open: LC1, LC3, LC4 (15 interpreters), LC5, LC7.
+- Not done this round: LC3 serializer 0x00965F73 / GetScriptFragment, LC1 vtable 0x00AD5344 (context budget).
+- REA unavailable (target_unavailable, no app open); used re_query.py export + decomp/. Helpers build-runs/slim.py, peek.py.
+- No ABI rows, no engine/, no game runs.
