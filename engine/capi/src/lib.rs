@@ -935,6 +935,8 @@ pub mod ui_windows;
 pub mod weather;
 pub mod zonedev;
 pub mod zones;
+// glue-formats4: DBPF packages and exemplars for the plug-in's formats shadow.
+pub mod dbpf;
 
 #[cfg(test)]
 mod tests;
