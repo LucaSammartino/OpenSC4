@@ -258,6 +258,17 @@ change counter incremented, and if the renderer `+0x14` holds the instance (slot
 `+0x78`; render3d.md §5). Release the holder. *[outline]* the exact transform-record layout is in the remainder
 (§20); the identity-plus-translation content is read from `0x0049388E`–`0x00493920`.
 
+### 8.9 Highlighted (op 6, `0x00493A00`)
+
+Arguments (o, h, c): h = message slot `+0x38`, c = message slot `+0x4C` (§5). No type filter. If h == c
+(compared as 32-bit values), nothing happens. While deferring: queue op 6 with h and c kept as the entry's bytes
++5 and +6 (low bytes), and return. Otherwise, for each model instance of o's model holder (slot `+0x0C` count,
+slot `+0x10` list): read the instance's highlight record (instance slot `+0x3C`), set bit 0 of its first byte to
+(h != 0) keeping the other bits, set its second byte to the low byte of c, write it back (slot `+0x40`), and if the
+renderer `+0x14` holds the instance (slot `+0x6C`), call renderer slot `+0x7C(instance, 1)`. Release the holder.
+*[inferred naming]* bit 0 = highlighted, second byte = highlight colour/kind. *[quirk]* A replayed op 6 passes the
+two stored bytes, so h and c above 255 replay truncated.
+
 ## 9. State-change handlers (partial)
 
 ### 9.4 Prop state (`DoPropStateChanged` `0x00494900`, message `0xE9C86DDB`) *[compat]*
@@ -305,7 +316,7 @@ Then the occupant's model holder (slot `+0x4C`), when present, is AddRef'd, clea
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
-Specified: 7777 bytes; remainder (not yet specified or only outlined): 26928 bytes. The remainder is **not empty**,
+Specified: 8163 bytes; remainder (not yet specified or only outlined): 26542 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
 
 | address | bytes | name | section |
@@ -379,7 +390,7 @@ so this spec does not yet claim the whole owner.
 | `0x00493720` | 40 | FUN_00493720 | remainder |
 | `0x00493750` | 124 | cSC4ModelMaker::DoOccupantDestroyed | §8.2 |
 | `0x004937D0` | 536 | cSC4ModelMaker::DoOccupantMoved | §8.8 (outline) |
-| `0x00493A00` | 386 | cSC4ModelMaker::DoOccupantHilighted | remainder |
+| `0x00493A00` | 386 | cSC4ModelMaker::DoOccupantHilighted | §8.9 |
 | `0x00493B90` | 232 | cSC4ModelMaker::DoOccupantShown | §8.4 |
 | `0x00493C80` | 221 | cSC4ModelMaker::ApplyStateEffectToModels | remainder |
 | `0x00493D60` | 346 | cSC4ModelMaker::DoLotStateChanged | remainder |
