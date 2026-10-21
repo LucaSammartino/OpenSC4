@@ -118,23 +118,23 @@ generated index: the questions live one file per spec, so read only the file for
 |---|---:|---:|---|---|
 | advisors | 0 | 6 | AD7 | questions/advisors.md |
 | application | 3 | 2 | AP6 | questions/application.md |
-| audio-ambience | 4 | 0 | AA5 | questions/audio-ambience.md |
+| audio-ambience | 9 | 0 | AA10 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
-| automata | 1 | 37 | A5, AM13, AT21 | questions/automata.md |
+| automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 5 | 0 | BW6 | questions/budget-window.md |
+| budget-window | 9 | 0 | BW10 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
-| city-detail | 0 | 5 | CD6 | - |
+| city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools-input | 5 | 0 | CT6 | questions/city-tools-input.md |
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
 | command-line | 1 | 0 | CL2 | questions/command-line.md |
-| command-system | 4 | 0 | GC5 | questions/command-system.md |
+| command-system | 7 | 0 | GC8 | questions/command-system.md |
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 0 | 45 | EX46 | questions/data-formats.md |
-| dates | 1 | 0 | DT2 | questions/dates.md |
+| dates | 3 | 0 | DT4 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 40 | DS42 | questions/disasters.md |
@@ -194,11 +194,11 @@ generated index: the questions live one file per spec, so read only the file for
 | timers | 1 | 0 | TM2 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
-| tutorial | 0 | 2 | TU6 | - |
+| tutorial | 4 | 2 | TU10 | questions/tutorial.md |
 | underground-occupants | 4 | 0 | UG5 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **176** | **1024** | | |
+| **total** | **197** | **1024** | | |
