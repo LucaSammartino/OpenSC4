@@ -155,7 +155,7 @@ generated index: the questions live one file per spec, so read only the file for
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
 | landfill | 0 | 36 | LF7, LG31 | - |
-| landvalue | 1 | 5 | LV6 | questions/landvalue.md |
+| landvalue | 0 | 6 | LV6 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **204** | **1107** | | |
+| **total** | **203** | **1108** | | |
