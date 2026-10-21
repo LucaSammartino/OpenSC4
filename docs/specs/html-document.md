@@ -389,6 +389,142 @@ parent; no children -> delete it. Returns true. Example: `<form>a<p>b</p></form>
 segment and a paragraph; `<form></form>` adds nothing; `<form>a</div>b</form>` keeps `a` and drops `b`
 (the `/DIV` stops the loop, the skip discards `b`).
 
+### 7.7 BODY (ParseBODY 00907e42)
+
+Attributes are read into the root element (0x14, the `cHTMLBODY`), each with `remove = true`:
+
+| Attribute | Effect |
+|---|---|
+| BACKGROUND | only when a base URL exists (0xb8 non-null): resolved against it (`cRZURL::ChangeURL` + `GetFullURL`) and kept as the background URL. Without a base URL it is ignored. |
+| BGCOLOR | parsed by `cHTMLShared::SetColor` into a colour that starts as 0xff000000; 008fe5d1 allocates a 4-byte colour and stores its pointer at body+0x2c (the old pointer is overwritten, not freed) |
+| LINK / VLINK / ALINK | parsed the same way and converted by the graphics system (GS vtable +0x88, the r,g,b constructor of §1.1) into body+0x30 / +0x34 / +0x38 (helpers 009081d2, 0090824c, 0090820f) |
+| TEXT | same conversion into the document's text colour 0x14c; byte 0x155 = 0 |
+| BGPROPERTIES | any value: body byte +0x40 = 1 |
+
+Then DumpUnhandledAttributes("ParseBODY", "BODY"). When the background URL is non-empty, the document calls its own
+primary vtable slot 16 (+0x40, 009059fc, a gap function: the image request of §9) with (body+0x28, the body's
+image-waiter interface, or null when there is no body; URL).
+
+Content: when the current token is BODY 8, `GetToken(false)` first (so ParseBODY also works when entered on the
+first content token of a page without `<body>`). Then loop with a result flag starting true:
+- BLOCK -> result = ParseBLOCK(root); SCRIPT 60 -> result = ParseSCRIPT; INLINE -> result = ParseINLINE(root);
+- end of input (1) -> leave the loop at once;
+- any other token (stray close tags, unknown tags 0, HEAD-only tags) -> skipped, result unchanged;
+- after each step `GetToken(false)`; leave the loop when result is false.
+
+After the loop, when the token is not `/BODY` 9, set push-back. Return the result (true unless a handler
+failed). Order matters: a handler that returns false still has the following token read, and that token is
+then pushed back. `</p>` or `</td>` in body content are just skipped.
+
+Example: `<body bgcolor=white text=#ff0000>Hi</body>` sets the body background colour, text colour red
+(0x14c), adds one text segment "Hi", stops on `/BODY` without push-back.
+
+### 7.8 Tables (ParseTABLE 00906f3c, ParseTR 009064b0, ParseTD 009061dc, ParseTH 009063e6)
+
+**ParseTABLE(parent).** Create a `cHTMLTABLE` (0x94 bytes). Attributes: BORDER -> `cHTMLShared::SetPixels`
+(table+0x28); WIDTH -> `cHTMLTABLE::SetWIDTH`; BGCOLOR -> `cHTMLTABLE::SetBGCOLOR` (sets the table colour
++0x44 and its "set" byte +0x48); CELLPADDING / CELLSPACING -> `cHTMLShared::SetLength` (+0x34 / +0x3c).
+DumpUnhandledAttributes("ParseTABLE", "TABLE"). Then a fixed-order grammar, every read with `GetToken(true)`
+(text between table parts is dropped):
+
+1. Optional CAPTION 132: SkipUntilToken(/CAPTION 133); the caption is discarded.
+2. Any number of COL 134 (ignored, result = true) and COLGROUP 135. COLGROUP (gap 00905ea7): read tokens while
+   they are COL, then set push-back on the stopping token **whatever it is**, returning true.
+3. Optional THEAD 137 (gap 00906c26): read; while TR 147: ParseTR(table), read; push-back unless the stop is
+   `/THEAD` 138. Returns true.
+4. Optional TFOOT 141 (gap 00906be1): the same with `/TFOOT` 142.
+5. Any number of TBODY 139 or TR 147 (gap 00906b90): on TBODY read once more; then the TR loop as above;
+   push-back unless the stop is `/TBODY` 140. A bare TR therefore starts an implicit body.
+6. When the token is not `/TABLE` 121: result = SkipUntilToken(/TABLE) (all remaining content up to the first
+   `/TABLE` is discarded; nested tables are not counted).
+
+Result true -> add the table to the parent; false (no `/TABLE` before the end of input) -> delete it. Returns
+the result. Every helper returns true, so in practice only a missing `/TABLE` deletes the table. The sections
+are not reordered: a THEAD after a TR, or TFOOT after a TBODY, falls through to step 6 and is discarded with
+everything up to `/TABLE`.
+
+Edge case (exact): an explicit `</colgroup>` is pushed back by step 2 and then fails every later step, so
+`<table><colgroup><col></colgroup><tr><td>x</td></tr></table>` yields a table with **no rows** (step 6 skips the
+rest). Without the `</colgroup>` close tag the rows are kept.
+
+**ParseTR(table).** Create a `cHTMLTR` (0x3c bytes). When the table's colour is set (+0x48), copy it to the row
+(+0x34) and set the row's flag (+0x38). BGCOLOR overrides it (008fe68f: SetColor, default 0xff000000, GS
++0x88 -> row+0x34, flag +0x38 = 1). No unhandled-attribute dump. Loop `GetToken(true)`: TH 145 -> ParseTH(row);
+TD 143 -> ParseTD(row); anything else stops (a cell's result is kept as the row result). Push-back unless the
+stop is `/TR` 148. When the result is false or the row has no children (child vector +0x1c..+0x20), delete the
+row and return false; otherwise add it to the table and append it to the table's row list (table+0x4c), return
+true. Empty rows (`<tr></tr>`) disappear.
+
+**ParseTD(row).** Create a `cHTMLTD` (0x3c bytes). Inherit the row colour (+0x34/+0x38) when set. Add the cell to
+the row and append it to the row's cell list (row+0x28) **before** reading attributes. Attributes:
+
+| Attribute | Effect |
+|---|---|
+| VALIGN | upper-cased, exact match: TOP 1, MIDDLE 2, BOTTOM 3, BASELINE 4 -> cell+0x28; other values leave the constructor default |
+| WIDTH | `cHTMLShared::SetLength` (cell+0x2c) |
+| BGCOLOR | as for the row (cell+0x34, flag +0x38) |
+| NOWRAP | `cHTMLTD::SetNOWRAP(value)` |
+| ALIGN | MakeOutputStyle (§8.1); **absent means 0 (LEFT)**, not inherited from the row or table |
+
+Push the current alignment (0x158) on the alignment stack (0x168) and make the cell alignment current;
+DumpUnhandledAttributes("ParseTD", "TD"). Loop `GetToken(false)` while the token is in FLOW: ParseFLOW(cell).
+Push-back unless the stop is `/TD` 144. Pop the alignment stack into 0x158 when non-empty. Always returns true;
+the cell is kept even when empty.
+
+**ParseTH(row).** Create a `cHTMLTH` (0x28 bytes) and add it to the row (not to the row's cell list). No
+attributes are read (all are left in the map); no alignment push. `GetToken(false)`; while FLOW: ParseFLOW(th),
+`GetToken(false)`. Push-back unless the stop is `/TH` 146. Returns true.
+
+Implicit closes: because a cell's loop stops on any non-FLOW token and pushes it back, `<tr><td>a<td>b</tr>`
+gives two cells "a" and "b", and `<td>a<tr>` ends the cell and the row (TR is then seen by the TBODY loop).
+
+Example: `<table border=1><tr><td align=right>1</td><td>2</td></tr></table>` -> one table, one row, two cells;
+cell 1 has alignment 2 (RIGHT) for its text segment, cell 2 alignment 0.
+
+### 7.9 Lists items and bullets (ParseLI 00905fed, CreateBullet 008ff8ab)
+
+**ParseLI(list, number).** Create a `cHTMLListItem` (0x28 bytes) and add it to the list. Then the marker:
+- `number < 0` (the UL caller 00907d6b passes -1): CreateBullet(0); a non-null result is added to the item.
+- otherwise (the OL caller 0090689f counts from 1, +1 per LI): the text `Sprintf("%3d. ", number)` is inserted
+  as a text segment into the item (`"  1. "`, `" 12. "`, `"123. "`, `"1000. "`).
+Next a `cHTMLListItemHangingIndent` (0x28 bytes) is added to the item (a marker child; the content does not go
+inside it). `GetToken(false)`; while FLOW: ParseFLOW(item), `GetToken(false)`. Push-back unless the stop is
+`/LI` 150. Returns true. A following `<li>` therefore closes the previous item implicitly.
+
+**CreateBullet(style)** returns a new `cHTMLIMG` showing a bullet, or null:
+1. Diameter d = (font size 0x148) / 2, unsigned, at least 1. Colour = the text colour 0x14c.
+2. Look in the process-wide bullet cache (vector of 16-byte records {d, style, colour, surface} at
+   00b62524..00b62528) for a record with equal d, style and colour. A hit with a non-null surface skips to step 5.
+3. Otherwise create a drawing surface through the graphics system (GS vtable +0xc); failure returns null.
+   Initialise it to width d+4, height d+2 (surface vtable +0xc, pixel-format code 3). Background: the body's
+   BGCOLOR (body+0x2c) when the body exists and has one, else grey (192,192,192); fill the surface with it inside
+   lock 0x8001. When `style == 0`, inside lock 0x8100 draw a **filled** circle (`RZDrawDrawCircle`) in the box
+   (0,0)-(d-1,d-1) with the text colour. Other styles leave the surface blank.
+4. Append the new record to the cache (a hit with a null surface also appends a fresh record).
+5. Create a `cHTMLIMG` (0x3c bytes), set its alignment (+0x38) to the current alignment 0x158, give it the
+   surface (its +0x20 interface, slot 0) and return it.
+
+The cache is never pruned inside this owner. Example: font size 14, black text, white body -> an 11 x 9 surface,
+white, with a black filled circle of diameter 7 at the top-left; a second bullet at the same size and colour
+reuses that surface.
+
+### 7.10 BLOCKQUOTE (exported as `ParseDL`, 00906c6b) and HR (ParseHR 0090097a)
+
+**BLOCKQUOTE.** Create a container element (0x28 bytes, ctor 008fed0c, vtable 00acd66c). Attributes are
+ignored. Loop `GetToken(false)`: SCRIPT -> ParseSCRIPT; BLOCK -> ParseBLOCK(quote); INLINE -> ParseINLINE(quote);
+anything else ends the loop. Handler results are ignored. When the stop is not `/BLOCKQUOTE` 116,
+SkipUntilToken(/BLOCKQUOTE) (the rest up to it is discarded). Children -> add to the parent; none -> delete.
+Returns true. Same shape as FORM (§7.6) except a nested BLOCKQUOTE is parsed normally through ParseBLOCK.
+
+**HR.** Create a `cHTMLHR` (0x2c bytes) and add it to the parent first. Attributes (no unhandled dump):
+- ALIGN -> MakeRelativeToTextAlignmentStyle (§8.1) at +0x1c: LEFT 0, RIGHT 1, CENTER and anything else 4
+  (the vertical-placement mapping, not MakeOutputStyle);
+- SIZE -> `RZConvertToUint32A(value)` at +0x20;
+- WIDTH -> when the value contains `%` (first occurrence), set the percent byte +0x28 = 1 and cut the value at
+  the `%`; then `RZConvertToUint32A` at +0x24.
+Returns true. Example: `<hr width=50% size=2>` -> width 50, percent 1, size 2; `<hr width=300>` -> width 300,
+percent 0.
+
 ## 8. Alignment and style state
 
 ### 8.1 Alignment keywords
@@ -447,8 +583,10 @@ ParseBR, ParseINPUT, ParseSELECT, ParseOPTION, ParseDIV, ParseDIVActual, MakeOut
 MakeRelativeToTextAlignmentStyle, ParseBLOCK, ParseP (FORM), DoMessage, LoadFromImageFile,
 ResourceHasBeenDownloaded (HD4 open on the temp-file source).
 
-Remaining (not yet specified; whole-owner credit withheld): ParseMETA, ParseLINK, ParseBODY,
-ParseDL (BLOCKQUOTE), ParseLI, ParseTABLE, ParseTR, ParseTD, ParseTH, ParseHR, ParseFONTSTYLE, ParsePHRASE, ParseA,
+Round 2: ParseBODY (§7.7), ParseTABLE, ParseTR, ParseTD, ParseTH (§7.8), ParseLI, CreateBullet (§7.9),
+ParseDL (BLOCKQUOTE), ParseHR (§7.10).
+
+Remaining (not yet specified; whole-owner credit withheld): ParseMETA, ParseLINK, ParseFONTSTYLE, ParsePHRASE, ParseA,
 ParseIMG, ParseMAP, ParseAREA, ParseSPAN, ParseBLINK, CreateBullet, GetStringForEscape (entity table,
 6918 bytes), the two hashtable helpers (008ffdc8
 clear, 009001e7 destructor). Gap functions reached from this owner but outside its inventory (P 0090614f, PRE

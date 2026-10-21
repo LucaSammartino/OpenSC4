@@ -2,6 +2,14 @@
 |---|---|---|---|
 | re-htmldocument4 (RE spec of exact owner cHTMLDocument, 70 fns / 38220 B) | `re-htmldocument4` / (RE spec lane) | wip, round 1 of max 3: docs/specs/html-document.md §1-9 cover 48 of 70 owner functions (24100 of 38220 B); 22 functions (14120 B) remain, so no whole-owner credit. Questions HD1-HD4 filed. Tip 6c7bec5a + report commit. No engine/ABI/tool edits. | 1. Spec ParseBODY, ParseTABLE/TR/TD/TH, ParseLI, ParseDL(BLOCKQUOTE), ParseHR, CreateBullet. 2. ParseFONTSTYLE, ParsePHRASE, ParseA, ParseIMG, ParseMAP, ParseAREA, ParseSPAN, ParseBLINK, ParseMETA, ParseLINK. 3. GetStringForEscape entity table (script it like build-runs/tags.py), 2 hashtable helpers. 4. Then whole-owner credit. |
 
+## Handoff (round 2, in progress)
+- Goal: spec the 22 remaining cHTMLDocument functions (14120 B) in docs/specs/html-document.md; whole-owner credit only when §10 remainder is empty.
+- Done round 2: §7.7 BODY, §7.8 TABLE/TR/TD/TH, §7.9 LI/CreateBullet, §7.10 BLOCKQUOTE(ParseDL)/HR (commit below).
+- Next: FONTSTYLE 0090727d, PHRASE 00906985, A 00907a47, IMG 00900a58, MAP 009074d3, AREA 0090083a, SPAN 009075fd,
+  BLINK 009079a8, META 00900d78, LINK 00900c31 (decomp/cHTMLDocument.c line numbers via grep '^// ---- '), then
+  GetStringForEscape 00901222 entity table (script it), hashtable helpers 008ffdc8/009001e7.
+- Facts: REA unused this round (asm + decomp suffice). build-runs/s.py <va>... prints exe strings (prefix d for dword).
+
 ## Report (round 1)
 
 What changed: new `docs/specs/html-document.md` and `docs/specs/questions/html-document.md` (HD1-HD4), QUESTIONS.md regenerated.
