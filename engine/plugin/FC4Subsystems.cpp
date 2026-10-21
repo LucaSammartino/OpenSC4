@@ -107,6 +107,7 @@
 #include "cFC4PropDeveloper.h"    // the glue12b1 lane: propdev
 #include "cFC4CityDetail.h"       // the glue12b1 lane: citydetail
 #include "FC4FormatsShadow.h"     // the glue-formats4 lane
+#include "cFC4SimGrid.h"          // the glue-simgrids4 lane: simgrids
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -455,6 +456,24 @@ const ClassEntry kOccMgrClasses[] = {
     {kFC4_CLSID_cSC4OccupantManager, "cSC4OccupantManager", &CreateFC4OccupantManager},
 };
 
+// docs/specs/simgrid.md §2 (glue-simgrids4). Off by default: `enable = simgrids`.
+// §6.4.2 allows these class IDs only for layout-compatible grids (§6.3.2):
+// cFC4SimGrid.cpp keeps the STLport vector<vector<T>> with allocator-B
+// buffers. 0x49B9E600 stays unregistered (§2).
+const ClassEntry kSimGridClasses[] = {
+    {0x49B9E601, "cSC4SimGrid<bool>", &CreateFC4SimGridBool},
+    {0x49B9E602, "cSC4SimGrid<uint8>", &CreateFC4SimGridU8},
+    {0x49B9E603, "cSC4SimGrid<int8>", &CreateFC4SimGridS8},
+    {0x49B9E604, "cSC4SimGrid<uint16>", &CreateFC4SimGridU16},
+    {0x49B9E605, "cSC4SimGrid<int16>", &CreateFC4SimGridS16},
+    {0x49B9E606, "cSC4SimGrid<uint32>", &CreateFC4SimGridU32},
+    {0x49B9E607, "cSC4SimGrid<int32>", &CreateFC4SimGridS32},
+    {0x49B9E608, "cSC4SimGrid<uint64>", &CreateFC4SimGridU64},
+    {0x49B9E609, "cSC4SimGrid<int64>", &CreateFC4SimGridS64},
+    {0x49B9E60A, "cSC4SimGrid<float>", &CreateFC4SimGridF32},
+    {0x49B9E60B, "cSC4SimGrid<double>", &CreateFC4SimGridF64},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -509,6 +528,8 @@ const Subsystem kSubsystems[] = {
     {"propmgr", nullptr, kPropMgrClasses, sizeof(kPropMgrClasses) / sizeof(kPropMgrClasses[0]), false},
     {"lotcfg", nullptr, kLotCfgClasses, sizeof(kLotCfgClasses) / sizeof(kLotCfgClasses[0]), false},
     {"occmgr", nullptr, kOccMgrClasses, sizeof(kOccMgrClasses) / sizeof(kOccMgrClasses[0]), false},
+    // the glue-simgrids4 lane
+    {"simgrids", nullptr, kSimGridClasses, sizeof(kSimGridClasses) / sizeof(kSimGridClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
