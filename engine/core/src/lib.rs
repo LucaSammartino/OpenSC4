@@ -32,6 +32,7 @@ pub mod city_situation;
 pub mod civic;
 pub mod clock24;
 pub mod commands;
+pub mod cmdline;
 pub mod commercial;
 pub mod crime;
 pub mod curve;
