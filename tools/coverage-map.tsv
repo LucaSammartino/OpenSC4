@@ -80,7 +80,7 @@ cSC4DisasterInstance*	disasters	simulation	disasters.md	core/src/disasters	disas
 cSC4FireOccupant	disasters	simulation	disasters.md, fire-flames.md	core/src/disasters	-	-
 cSC4Flame	fire flames	renderer	fire-flames.md	-	-	-
 cSC4ToxicOccupant	disasters	simulation	disasters.md	core/src/disasters	-	-
-cSC4AutomataManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
+cSC4AutomataManager	automata (managers, records)	simulation	automata.md, automata-support.md	core/src/automata	-	-
 cSC4AutomataControllerManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
 cSC4AutomataScriptSystem	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
 cSC4OccupantGroupTemplate	automata groups	simulation	occupant-groups.md	-	-	-
@@ -90,7 +90,7 @@ cSC4Automaton	automata (managers, records)	simulation	automata.md	core/src/autom
 cSC4VehicleManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
 cSC4PedestrianManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
 cSC4AircraftManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
-cSC4WatercraftManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
+cSC4WatercraftManager	automata (managers, records)	simulation	automata.md, watercraft.md	core/src/automata	-	automata
 cSC4TrafficAutomataManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4OccupantManager	occupant manager	simulation	occupant-manager.md	core/src/occupant_manager	occmgr_shadow	occmgr
 cSC4NetworkManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	netmgr
@@ -170,17 +170,19 @@ fn:operator<<	city and save file	simulation	-	-	-	-
 cSC4Aircraft	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
 cSC4Airplane	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
 cSC4Helicopter	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
-cSC4Watercraft	automata (vehicles, animation)	simulation	-	-	-	-
+cSC4Watercraft	automata (vehicles, animation)	simulation	watercraft.md, automata.md	-	-	-
 cSC4Vehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
 cSC4TrainCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md	-	-	-
 cSC4Train	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
-cSC4Pedestrian	automata (vehicles, animation)	simulation	-	-	-	-
+cSC4PedestrianOneShot	automata (vehicles, animation)	simulation	pedestrians.md	-	-	-
+cSC4Pedestrian	automata (vehicles, animation)	simulation	pedestrians.md, automata.md	-	-	-
 cSC4TrafficAutomaton	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
 cSC4EmergencyVehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
 cSC4FireTruck	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
 cSC4PatrolCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
 cSC4Tank	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
-cSC4SimFireCrew	automata (vehicles, animation)	simulation	-	-	-	-
+cSC4SimFireCrew	automata (vehicles, animation)	simulation	pedestrians.md, vehicles.md	-	-	-
+cSC4TrafficEffectManager	automata (vehicles, animation)	simulation	pedestrians.md, vehicles.md	-	-	-
 cSC4RiotPolice	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
 cSC4TrailerVehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
 cSC4Bus	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
@@ -191,10 +193,11 @@ cSC4GetawayVan	automata (vehicles, animation)	simulation	vehicles.md, automata.m
 # movement, path following or animation, so the rest of this block keeps spec -
 cSC4AutomataGenerator	automata (vehicles, animation)	simulation	automata.md	core/src/automata	-	-
 cSC4AutomataAttractor	automata (vehicles, animation)	simulation	automata.md	core/src/automata	-	-
-cSC4AttractorDescription	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4ControllerGrid	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4PropOccupantAutomataController	automata (vehicles, animation)	simulation	-	-	-	-
-tControllerQInfo	automata (vehicles, animation)	simulation	-	-	-	-
+cSC4AutomataTuningParams	automata (vehicles, animation)	simulation	automata-support.md	-	-	-
+cSC4AttractorDescription	automata (vehicles, animation)	simulation	automata-support.md	-	-	-
+cSC4ControllerGrid	automata (vehicles, animation)	simulation	automata-support.md	-	-	-
+cSC4PropOccupantAutomataController	automata (vehicles, animation)	simulation	automata-support.md, prop-occupant.md	-	-	-
+tControllerQInfo	automata (vehicles, animation)	simulation	automata.md	-	-	-
 cSC4NetworkToolUI	city tools and input	ui	-	-	-	-
 cSC4NetworkPreview	city tools and input	ui	-	-	-	-
 cSC4NetworkLayout*View	3D scene and models	renderer	-	-	-	-
@@ -218,6 +221,8 @@ cSC4NetworkTypeInfo	network occupants	simulation	network-occupants.md	-	-	-
 cSC4NetworkRoutines	network occupants	simulation	network-occupants.md	-	-	-
 cSC4Network*	network occupants	simulation	network-occupants.md	-	-	-
 cSC4ConstructionOccupant	occupants and props	simulation	lot-records.md	-	-	-
+cSC4PropOccupant	occupants and props	simulation	prop-occupant.md, lot-records.md	-	-	-
+cSC4PropOccupantVisualEffect	occupants and props	simulation	prop-occupant.md, lot-records.md	-	-	-
 cSC4PropOccupant*	occupants and props	simulation	prop-occupant.md, lot-records.md	-	-	-
 cSC4SignpostOccupant	occupants and props	simulation	lot-records.md	-	-	-
 cSC4TextDecalOccupant	occupants and props	simulation	lot-records.md	-	-	-

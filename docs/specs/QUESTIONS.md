@@ -27,6 +27,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AD | advisors |
 | AF | aircraft |
 | AM | automata |
+| AN | automata-support |
 | AO | foundations |
 | AP | application |
 | AQ | flora, residential-education-health |
@@ -104,6 +105,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PG | pollution |
 | PK | parks |
 | PL | prop-lotconfig |
+| PN | pedestrians |
 | PO | prop-occupant |
 | PR | persistence, protection |
 | PS | plumbing |
@@ -139,6 +141,7 @@ generated index: the questions live one file per spec, so read only the file for
 | VIC | view-input-controls |
 | VU | view-utilities |
 | VW | view3d-window |
+| WC | watercraft |
 | WR | water-ripples |
 | WT | widget-toolkit |
 | ZG | zones |
@@ -157,6 +160,7 @@ generated index: the questions live one file per spec, so read only the file for
 | audio-ambience | 1 | 8 | AA10 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
+| automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
 | budget-window | 1 | 13 | BW15 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
@@ -226,6 +230,7 @@ generated index: the questions live one file per spec, so read only the file for
 | particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
 | paths | 3 | 0 | PA4 | questions/paths.md |
+| pedestrians | 2 | 0 | PN3 | questions/pedestrians.md |
 | persistence | 3 | 0 | PR4 | questions/persistence.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
@@ -264,8 +269,9 @@ generated index: the questions live one file per spec, so read only the file for
 | view-utilities | 2 | 1 | VU4 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | water-ripples | 3 | 0 | WR4 | questions/water-ripples.md |
+| watercraft | 2 | 0 | WC3 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **258** | **1118** | | |
+| **total** | **264** | **1118** | | |

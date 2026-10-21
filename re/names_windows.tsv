@@ -2537,7 +2537,7 @@ va	name	source	confidence	note
 00504af0	cSC4Airplane::DoPlayerDriveTick	manual:aircraft.tsv	high	aircraft.md §3
 00504bf0	cSC4Ambulance::Write	auto:C	high	mac 0049d760 score 1.0 support 1
 00504c10	cSC4Ambulance::Read	auto:C	high	mac 0049d792 score 1.0 support 1
-00504e30	cSC4Pedestrian::~cSC4Pedestrian	auto:D	medium	mac 00633980 score 0.5 support 1
+00504e30	cSC4Pedestrian::~cSC4Pedestrian	manual:pedestrians.tsv	high	pedestrians.md §1
 00504e70	cSC4Vehicle::~cSC4Vehicle	manual:vehicles.tsv	high	vehicles.md §3
 00504f70	cSC4City::GetTerrain	auto:C	low	mac 0002feb4 score 1.0 support 1
 00505060	cSC4Ambulance::GetGZCLSID	auto:A	low	mac 007fbe68 score 1.0 support 0
@@ -2611,11 +2611,11 @@ va	name	source	confidence	note
 005117d0	std::vector<std::vector<unsigned_char,std::allocator<unsigned_char>>,std::allocator<std::vector<unsigned_char,std::allocator<unsigned_char>>>>::operator=	auto:B0	medium	mac 00616fb2 score 0.972 support 3.0
 00511a90	cSC4Automaton::GetDebugFlagsText	auto:A	high	mac 000c3346 score 1.0 support 0
 00511f00	std::vector<std::vector<cS3DVector3,std::allocator<cS3DVector3>>,std::allocator<std::vector<cS3DVector3,std::allocator<cS3DVector3>>>>::operator=	auto:D	medium	mac 0063b702 score 0.5 support 1
-00512260	cSC4AutomataTuningParams::cSC4AutomataTuningParams	auto:B1	medium	mac 000c6b36 score 0.994 support 10.0
+00512260	cSC4AutomataTuningParams::cSC4AutomataTuningParams	manual:automata-support.tsv	high	automata-support.md §1.1
 00512740	cSC4AutomataManager::GetGZCLSID	auto:A	low	mac 00637236 score 1.0 support 0
-00512860	cSC4AutomataManager::ReadTuningClock	auto:B1	medium	mac 000c6f5a score 0.993 support 2.0
-00512940	cSC4AutomataManager::ReadSpawnRecallParameters	auto:B0	medium	mac 000c705e score 0.964 support 2.5
-00512cf0	cSC4AutomataManager::ReadTuningParameters	auto:A	high	mac 000c724a score 0.975 support 0
+00512860	cSC4AutomataManager::ReadTuningClock	manual:automata-support.tsv	high	automata-support.md §1.4
+00512940	cSC4AutomataManager::ReadSpawnRecallParameters	manual:automata-support.tsv	high	automata-support.md §1.4
+00512cf0	cSC4AutomataManager::ReadTuningParameters	manual:automata-support.tsv	high	automata-support.md §1.2
 00513810	std::vector<cRZAutoRefCount<cS3DVertexArray>,std::allocator<cRZAutoRefCount<cS3DVertexArray>>>::operator=	auto:B0	medium	mac 0063ab40 score 0.951 support 1.0
 00513910	cSC4AutomataManager::StaticInit	auto:A	high	mac 000c7f82 score 1.0 support 0
 00513fc0	__ZThn4_N13cSC4Automaton8ShutdownEv	auto:B0	low	mac 0063d32e score 0.96 support 1.0
@@ -2641,8 +2641,8 @@ va	name	source	confidence	note
 00515180	cSC4AutomataAttractor::GetCurrentStrength	auto:D	medium	mac 000b46a0 score 0.5 support 2
 005151f0	icf::cSC4AutomataAttractor::QueryInterface	folded	folded	2 names: cSC4AutomataAttractor::QueryInterface | cSC4AutomataGenerator::QueryInterface
 00515200	cSC4AutomataGenerator::CheckTimeOfDay	auto:C	high	mac 000b72be score 1.0 support 1
-00515290	cSC4ControllerGrid::GetGridBounds	auto:B0	medium	mac 000b5e86 score 0.987 support 1.0
-00515660	cSC4ControllerGrid::GetTractByWorldPos	auto:D	medium	mac 000b61c4 score 0.5 support 2
+00515290	cSC4ControllerGrid::GetGridBounds	manual:automata-support.tsv	high	automata-support.md §2
+00515660	cSC4ControllerGrid::GetTractByWorldPos	manual:automata-support.tsv	high	automata-support.md §2
 00515770	cSC4AutomataController::PlaySFX	auto:B1	medium	mac 000b4c1a score 0.855 support 2.5
 00515870	cSC4AutomataController::HandleViewChanged	auto:B5	medium	mac 000b5198 score 0.998 support 1.0
 00515a40	cSC4AutomataController::GetPosition	auto:C	high	mac 000b535a score 1.0 support 2
@@ -2652,7 +2652,7 @@ va	name	source	confidence	note
 00515da0	cSC4AutomataAttractor::TestAutomataFilter	auto:D	medium	mac 000b5628 score 0.5 support 1
 00515e60	cSC4AutomataGenerator::DoAnimationTick	auto:B0	medium	mac 000b7320 score 0.905 support 2.0
 00516010	cSC4AutomataGenerator::ChooseAutomataGroup	auto:B3	medium	mac 000b50fe score 0.906 support 2.0
-00516070	tControllerQInfo::InitQueuePoint	auto:B1	medium	mac 000b63ce score 0.964 support 2.5
+00516070	tControllerQInfo::InitQueuePoint	manual:automata-support.tsv	high	automata.md §3.3
 005163d0	cSC4AutomataControllerManager::AddControllersFromOccupantGroup	auto:D	medium	mac 000b5766 score 0.5 support 3
 00516410	cSC4AutomataControllerManager::GetController	auto:C	high	mac 000b8c10 score 1.0 support 1
 00516530	cSC4AutomataControllerManager::GetCompositeAttractionEffect	auto:C	high	mac 000b9858 score 1.0 support 1
@@ -2671,15 +2671,15 @@ va	name	source	confidence	note
 00517150	cSC4AutomataControllerManager::AddControllersFromOccupantGroup	auto:C	high	mac 000b57fa score 1.0 support 1
 00517190	cSC4AutomataControllerManager::AddControllersFromOccupantGroup	auto:C	high	mac 000b57ae score 1.0 support 1
 00517240	cSC4AutomataGenerator::Activate	auto:B0	medium	mac 000b5bac score 0.964 support 1.5
-005172d0	tControllerQInfo::RemoveFromQueue	auto:B1	medium	mac 000b6860 score 0.958 support 2.0
+005172d0	tControllerQInfo::RemoveFromQueue	manual:automata-support.tsv	high	automata.md §3.3
 005173a0	cSC4AutomataControllerManager::GetController	auto:C	high	mac 000b55c8 score 1.0 support 1
 00517430	cSC4AutomataController::SetTemplate	auto:C	high	mac 000b43ec score 1.0 support 2
 00517460	cSC4AutomataGenerator::SetTemplate	auto:C	high	mac 000b9a8a score 1.0 support 1
 005174d0	cSC4AutomataControllerManager::Write	auto:C	high	mac 000b77d6 score 1.0 support 1
 00517880	cSC4AutomataControllerManager::RemoveController	auto:C	high	mac 000b5aba score 1.0 support 1
 005179c0	cSC4AutomataControllerManager::GetRelevantControllersByWorldPos	auto:C	high	mac 000b6ba2 score 1.0 support 1
-00517a90	cSC4ControllerGrid::AddController	auto:D	medium	mac 000b6ae8 score 0.5 support 1
-00517b70	cSC4ControllerGrid::MoveController	auto:B1	medium	mac 000b68e0 score 0.994 support 1.0
+00517a90	cSC4ControllerGrid::AddController	manual:automata-support.tsv	high	automata-support.md §2
+00517b70	cSC4ControllerGrid::MoveController	manual:automata-support.tsv	high	automata-support.md §2
 00517df0	cSC4AutomataController::GetTemplateName	auto:C	high	mac 00633b52 score 1.0 support 2
 00517e00	cSC4AutomataController::GetRadius	auto:C	high	mac 00633b6a score 1.0 support 2
 00517e20	cSC4AutomataController::IsActive	auto:C	high	mac 00633b80 score 1.0 support 2
@@ -2703,7 +2703,7 @@ va	name	source	confidence	note
 00518390	cSC4AutomataGenerator::GetControllerType	auto:C	low	mac 00633d8a score 1.0 support 1
 005183c0	__ZThn4_N22cSC4AutomataController7ReleaseEv	auto:B0	low	mac 00633cec score 0.96 support 1.0
 00518450	cSC4AutomataGenerator::Read	auto:B2	medium	mac 000b772e score 0.957 support 1.0
-005184e0	tControllerQInfo::AddToQueue	auto:B1	medium	mac 000b67f8 score 0.996 support 1.0
+005184e0	tControllerQInfo::AddToQueue	manual:automata-support.tsv	high	automata.md §3.3
 00518660	cSC4AutomataControllerManager::HandlePostCityInit	auto:A	high	mac 000b9f12 score 1.0 support 0
 005187f0	cSC4AutomataControllerManager::DoMessage	auto:A	high	mac 000b5db2 score 0.554 support 0
 005188c0	cSC4AutomataControllerManager::MoveControllers	auto:C	high	mac 000b9d54 score 1.0 support 1
@@ -2739,7 +2739,7 @@ va	name	source	confidence	note
 0051bdf0	cSC4AutomataController::CreateTemplateInstance	auto:A	high	mac 000b70fa score 0.899 support 0
 0051bfb0	cSC4AutomataAttractor::HandleEnterState	auto:C	high	mac 000b85a4 score 1.0 support 1
 0051c030	cSC4AutomataAttractor::HandleExitState	auto:B0	medium	mac 000b84f2 score 0.969 support 1.0
-0051c090	cSC4ControllerGrid::Init	auto:B0	medium	mac 000b7c8a score 1.0 support 1.0
+0051c090	cSC4ControllerGrid::Init	manual:automata-support.tsv	high	automata-support.md §2
 0051c140	cSC4AutomataControllerManager::Init	auto:C	high	mac 000b7d2e score 1.0 support 1
 0051c2d0	cSC4AutomataScriptSystem::GetAutomataGroup	auto:C	low	mac 00159784 score 1.0 support 1
 0051c2e0	cSC4AutomataScriptSystem::QueryInterface	auto:C	high	mac 0015992e score 1.0 support 2
@@ -3098,41 +3098,41 @@ va	name	source	confidence	note
 00544280	cSC4PatrolCar::GetGZCLSID	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 005442d0	cSC4PatrolCar::~cSC4PatrolCar	manual:vehicles.tsv	high	vehicles.md §7.3
 00544300	cSC4PedestrianManager::HandleNewBuilding	auto:A	high	mac 000b15a4 score 1.0 support 0
-005444f0	cSC4Pedestrian::Init	auto:B3	medium	mac 000b182a score 0.91 support 2.0
-00544520	cSC4Pedestrian::Shutdown	auto:C	low	mac 000b1860 score 1.0 support 2
-00544580	cSC4Pedestrian::DoAnimationTick	auto:D	medium	mac 000b18ba score 0.5 support 1
-00544650	cSC4Pedestrian::Write	auto:C	high	mac 000b1a88 score 1.0 support 1
-005446c0	cSC4Pedestrian::Read	auto:C	high	mac 000b1b14 score 1.0 support 1
-00544750	cSC4Pedestrian::QueryInterface	auto:C	high	mac 000b1bb6 score 1.0 support 1
-00544780	cSC4PedestrianOneShot::QueryInterface	auto:C	high	mac 000b1c0a score 1.0 support 2
+005444f0	cSC4Pedestrian::Init	manual:pedestrians.tsv	high	pedestrians.md §2.1
+00544520	cSC4Pedestrian::Shutdown	manual:pedestrians.tsv	high	pedestrians.md §2.1
+00544580	cSC4Pedestrian::DoAnimationTick	manual:pedestrians.tsv	high	pedestrians.md §2.2
+00544650	cSC4Pedestrian::Write	manual:pedestrians.tsv	high	pedestrians.md §1
+005446c0	cSC4Pedestrian::Read	manual:pedestrians.tsv	high	pedestrians.md §1
+00544750	cSC4Pedestrian::QueryInterface	manual:pedestrians.tsv	high	pedestrians.md §1
+00544780	cSC4PedestrianOneShot::QueryInterface	manual:pedestrians.tsv	high	pedestrians.md §1
 005447b0	cRZAutoRefCount<cIGZWin>::operator=	auto:B4	medium	mac 006229de score 0.962 support 14.0
-00544890	cSC4Pedestrian::operator.new	auto:B5	medium	mac 000b16d0 score 0.89 support 3.0
-005448d0	cSC4Pedestrian::HandleCrowdReactionEvent	auto:D	medium	mac 000b1cac score 0.5 support 1
-00544950	cSC4Pedestrian::DoStrikeTick	auto:B6	medium	mac 000b2072 score 0.967 support 1.5
-00544da0	cSC4PedestrianOneShot::Init	auto:A	high	mac 000b1f4c score 0.576 support 0
+00544890	cSC4Pedestrian::operator.new	manual:pedestrians.tsv	high	pedestrians.md §1
+005448d0	cSC4Pedestrian::HandleCrowdReactionEvent	manual:pedestrians.tsv	high	pedestrians.md §2.5
+00544950	cSC4Pedestrian::DoStrikeTick	manual:pedestrians.tsv	high	pedestrians.md §2.6
+00544da0	cSC4PedestrianOneShot::Init	manual:pedestrians.tsv	high	pedestrians.md §3
 00544f30	cSC4PedestrianManager::HandleCrowdReactionEvent	auto:A	high	mac 000b2ada score 1.0 support 0
-00545130	cSC4Pedestrian::operator.delete	auto:D	medium	mac 000b16f4 score 0.5 support 1
-00545280	cSC4Pedestrian::DoIgniteTick	auto:B3	medium	mac 000b2670 score 0.935 support 2.5
+00545130	cSC4Pedestrian::operator.delete	manual:pedestrians.tsv	high	pedestrians.md §1
+00545280	cSC4Pedestrian::DoIgniteTick	manual:pedestrians.tsv	high	pedestrians.md §2.6
 00545450	cSC4PedestrianManager::DoMessage	auto:B0	medium	mac 000b2c82 score 0.948 support 2.5
-00545690	cSC4Pedestrian::DoQueueTick	auto:B5	medium	mac 000b2d80 score 1.0 support 2.0
-00545840	cSC4Pedestrian::TestCollisionExpensive	auto:B3	medium	mac 000b3084 score 0.974 support 1.5
-00545b10	cSC4Pedestrian::DoCrowdTick	auto:B4	medium	mac 000b3e00 score 1.0 support 2.0
-00545d60	cSC4Pedestrian::MoveForwardWithCollision	auto:B2	medium	mac 000b3308 score 0.977 support 1.0
-00545f20	cSC4Pedestrian::cSC4Pedestrian	auto:B4	medium	mac 000b27b2 score 0.993 support 2.0
-00546030	cSC4Pedestrian::GetGZCLSID	auto:C	low	mac 00633708 score 1.0 support 1
-00546050	__ZThn4_N14cSC4Pedestrian8ShutdownEv	auto:B0	low	mac 00633794 score 0.96 support 1.0
-00546090	__ZThn4_N14cSC4Pedestrian4InitEv	auto:B4	low	mac 0063378a score 0.96 support 1.0
-005460f0	cSC4Pedestrian::~cSC4Pedestrian	auto:C	high	mac 00633a7e score 1.0 support 1
-00546150	cSC4Pedestrian::DoBeeLineTick	auto:B3	medium	mac 000b3d46 score 0.984 support 2.0
-00546220	cSC4Pedestrian::DoRiotLeaderTick	auto:B1	medium	mac 000b37f2 score 0.994 support 2.0
-00546530	cSC4Pedestrian::DoRiotFollowerTick	auto:B3	medium	mac 000b34f8 score 0.989 support 3.0
-005468c0	cSC4PedestrianOneShot::GetGZCLSID	auto:A	low	mac 00633732 score 1.0 support 0
-00546950	__ZThn4_N21cSC4PedestrianOneShot4InitEv	auto:B0	low	mac 00633946 score 0.96 support 1.0
-00546960	cSC4PedestrianOneShot::~cSC4PedestrianOneShot	auto:C	high	mac 006339cc score 1.0 support 1
-00546a10	cSC4Pedestrian::HandleEnterState	auto:B0	medium	mac 000b3ad6 score 0.904 support 2.5
-00546bc0	cSC4Pedestrian::DoStateTick	auto:B2	medium	mac 000b4050 score 0.933 support 1.0
-00546cb0	cSC4SimFireCrew::SetCompetence	auto:B6	medium	mac 0038eb7c score 0.955 support 1.0
-00546d20	cSC4SimFireCrew::SendFireCrewMessage	auto:B2	medium	mac 0038ed90 score 0.948 support 3.0
+00545690	cSC4Pedestrian::DoQueueTick	manual:pedestrians.tsv	high	pedestrians.md §2.6
+00545840	cSC4Pedestrian::TestCollisionExpensive	manual:pedestrians.tsv	high	pedestrians.md §2.4
+00545b10	cSC4Pedestrian::DoCrowdTick	manual:pedestrians.tsv	high	pedestrians.md §2.6
+00545d60	cSC4Pedestrian::MoveForwardWithCollision	manual:pedestrians.tsv	high	pedestrians.md §2.4
+00545f20	cSC4Pedestrian::cSC4Pedestrian	manual:pedestrians.tsv	high	pedestrians.md §2.1
+00546030	cSC4Pedestrian::GetGZCLSID	manual:pedestrians.tsv	high	pedestrians.md §1
+00546050	__ZThn4_N14cSC4Pedestrian8ShutdownEv	manual:pedestrians.tsv	high	pedestrians.md §2.1
+00546090	__ZThn4_N14cSC4Pedestrian4InitEv	manual:pedestrians.tsv	high	pedestrians.md §2.1
+005460f0	cSC4Pedestrian::~cSC4Pedestrian	manual:pedestrians.tsv	high	pedestrians.md §1
+00546150	cSC4Pedestrian::DoBeeLineTick	manual:pedestrians.tsv	high	pedestrians.md §2.4
+00546220	cSC4Pedestrian::DoRiotLeaderTick	manual:pedestrians.tsv	high	pedestrians.md §2.6
+00546530	cSC4Pedestrian::DoRiotFollowerTick	manual:pedestrians.tsv	high	pedestrians.md §2.6
+005468c0	cSC4PedestrianOneShot::GetGZCLSID	manual:pedestrians.tsv	high	pedestrians.md §1
+00546950	__ZThn4_N21cSC4PedestrianOneShot4InitEv	manual:pedestrians.tsv	high	pedestrians.md §3
+00546960	cSC4PedestrianOneShot::~cSC4PedestrianOneShot	manual:pedestrians.tsv	high	pedestrians.md §1
+00546a10	cSC4Pedestrian::HandleEnterState	manual:pedestrians.tsv	high	pedestrians.md §2.3
+00546bc0	cSC4Pedestrian::DoStateTick	manual:pedestrians.tsv	high	pedestrians.md §2.3
+00546cb0	cSC4SimFireCrew::SetCompetence	manual:pedestrians.tsv	high	pedestrians.md §4.1
+00546d20	cSC4SimFireCrew::SendFireCrewMessage	manual:pedestrians.tsv	high	pedestrians.md §4.4
 00546db0	cSC4RiotPolice::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 00546e20	cSC4RiotPolice::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 00546ef0	cSC4RiotPolice::Shutdown	manual:vehicles.tsv	high	vehicles.md §7.3
@@ -3147,19 +3147,20 @@ va	name	source	confidence	note
 00547920	icf::cSC4RiotPolice::QueryInterface	folded	folded	2 names: cSC4RiotPolice::QueryInterface | cSC4SimFireCrew::QueryInterface
 00547ad0	cRZAutoRefCount<cISC4FireOccupant>::operator=	auto:D	medium	mac 0074ae02 score 0.5 support 1
 00547b50	cS3DVector3::Normalize	auto:D	medium	mac 0062c712 score 0.5 support 1
-00547bd0	cSC4SimFireCrew::Write	auto:C	high	mac 0038f448 score 1.0 support 1
-00547c80	cSC4SimFireCrew::Read	auto:C	high	mac 0038f32e score 1.0 support 1
-00547d90	cSC4SimFireCrew::Shutdown	auto:B3	medium	mac 0038f0aa score 0.993 support 2.0
-00547ef0	cSC4SimFireCrew::SetupFireCrew	auto:B1	medium	mac 0038f838 score 0.898 support 2.0
-00548f10	cSC4SimFireCrew::InitRegTranslationArray	auto:B3	medium	mac 0038f520 score 0.993 support 1.0
-00549000	cSC4SimFireCrew::FindTargetsInRadius	auto:B0	medium	mac 00390024 score 0.974 support 3.0
-00549890	cSC4SimFireCrew::Init	auto:B1	medium	mac 0038f616 score 0.956 support 3.0
-00549a50	cSC4SimFireCrew::DoAnimationTick	auto:A	high	mac 003907f4 score 0.675 support 0
-0054a2a0	cSC4SimFireCrew::cSC4SimFireCrew	auto:B3	medium	mac 0039119e score 0.986 support 2.0
-0054a430	cSC4SimFireCrew::GetGZCLSID	auto:A	low	mac 0074add0 score 1.0 support 0
-0054a4e0	__ZThn4_N15cSC4SimFireCrew8ShutdownEv	auto:B4	low	mac 0074af50 score 0.96 support 1.0
-0054a4f0	__ZThn4_N15cSC4SimFireCrew4InitEv	auto:B2	low	mac 0074af96 score 0.96 support 1.0
-0054a500	cSC4SimFireCrew::~cSC4SimFireCrew	auto:C	high	mac 0074b14c score 1.0 support 1
+00547bd0	cSC4SimFireCrew::Write	manual:pedestrians.tsv	high	pedestrians.md §4.5
+00547c80	cSC4SimFireCrew::Read	manual:pedestrians.tsv	high	pedestrians.md §4.5
+00547d90	cSC4SimFireCrew::Shutdown	manual:pedestrians.tsv	high	pedestrians.md §4.4
+00547ef0	cSC4SimFireCrew::SetupFireCrew	manual:pedestrians.tsv	high	pedestrians.md §4.2
+00548dc0	cSC4SimFireCrew::DoMessage	manual:pedestrians.tsv	high	pedestrians.md §4.4
+00548f10	cSC4SimFireCrew::InitRegTranslationArray	manual:pedestrians.tsv	high	pedestrians.md §4.1
+00549000	cSC4SimFireCrew::FindTargetsInRadius	manual:pedestrians.tsv	high	pedestrians.md §4.3
+00549890	cSC4SimFireCrew::Init	manual:pedestrians.tsv	high	pedestrians.md §4.1
+00549a50	cSC4SimFireCrew::DoAnimationTick	manual:pedestrians.tsv	high	pedestrians.md §4.3
+0054a2a0	cSC4SimFireCrew::cSC4SimFireCrew	manual:pedestrians.tsv	high	pedestrians.md §1
+0054a430	cSC4SimFireCrew::GetGZCLSID	manual:pedestrians.tsv	high	pedestrians.md §1
+0054a4e0	__ZThn4_N15cSC4SimFireCrew8ShutdownEv	manual:pedestrians.tsv	high	pedestrians.md §4.4
+0054a4f0	__ZThn4_N15cSC4SimFireCrew4InitEv	manual:pedestrians.tsv	high	pedestrians.md §4.1
+0054a500	cSC4SimFireCrew::~cSC4SimFireCrew	manual:pedestrians.tsv	high	pedestrians.md §1
 0054a660	cSC4SituationUIImageWinProc::DoPaint	auto:B1	medium	mac 004b1820 score 0.971 support 2.0
 0054a700	cSC4SituationUIImageWinProc::Init	auto:B0	medium	mac 004b1780 score 0.997 support 2.0
 0054a780	cSC4Tank::HandleEnterState	manual:vehicles.tsv	high	vehicles.md §6
@@ -3189,11 +3190,11 @@ va	name	source	confidence	note
 00551c20	cSC4TrafficAutomaton::FindLeader	manual:vehicles.tsv	high	vehicles.md §2
 00551de0	cSC4TrafficAutomaton::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 00551f70	std::deque<cISC4PathFinder::RouteData,std::allocator<cISC4PathFinder::RouteData>>::pop_front	auto:B1	medium	mac 0063f918 score 0.884 support 1.0
-00552b80	cSC4TrafficEffectManager::StopEffect	auto:D	medium	mac 000cd034 score 0.5 support 1
+00552b80	cSC4TrafficEffectManager::StopEffect	manual:pedestrians.tsv	high	pedestrians.md §5
 005535d0	cSC4TrafficAutomaton::HandleExitState	manual:vehicles.tsv	high	vehicles.md §2
 00553830	std::list<cRZAutoRefCount<cISC4NeighborConnection>,cGZAllocatorServiceSTLAllocator<cRZAutoRefCount<cISC4NeighborConnection>>>::_M_insert_dispatch<std::_List_iterator<cRZAutoRefCount<cISC4NeighborConnection>>>	auto:D	medium	mac 0063f9a2 score 0.5 support 1
 00553cf0	cSC4TrafficAutomaton::GetDebugExtraText	manual:vehicles.tsv	high	vehicles.md §2
-00554040	cSC4TrafficEffectManager::CreateAccident	auto:B1	medium	mac 000ce1da score 0.963 support 1.0
+00554040	cSC4TrafficEffectManager::CreateAccident	manual:pedestrians.tsv	high	pedestrians.md §5
 00554280	std::deque<cSC4TrafficAutomaton::tLookaheadNode,std::allocator<cSC4TrafficAutomaton::tLookaheadNode>>::clear	auto:B0	medium	mac 00640d66 score 0.986 support 2.0
 00554400	cSC4TrafficAutomataManager::CreateAccident	auto:B0	low	mac 000ce2e2 score 0.888 support 2.0
 005544d0	cSC4TrafficAutomaton::cSC4TrafficAutomaton	manual:vehicles.tsv	high	vehicles.md §2
@@ -3308,63 +3309,68 @@ va	name	source	confidence	note
 00566c60	cSC4ViewInputControlPlayerDrive::OnKeyDown	manual:drive-tool.tsv	high	drive-tool.md §4, §5; Escape ends the input
 00566cf0	cSC4ViewInputControlPlayerDrive::OnKeyUp	manual:drive-tool.tsv	high	drive-tool.md §5
 00566e30	cSC4WatercraftManager::QueryInterface	auto:C	high	mac 0038025c score 1.0 support 1
-00566ee0	cSC4Watercraft::Write	auto:C	high	mac 003803fc score 1.0 support 2
-00566f00	cSC4Watercraft::Read	auto:B0	medium	mac 0038042e score 0.956 support 1.0
-00566f30	cSC4Watercraft::QueryInterface	auto:C	high	mac 0038046a score 1.0 support 2
-00566f60	cSC4Watercraft::Assist_PickNewDir	auto:A	high	mac 00380802 score 1.0 support 0
-00567310	cSC4Watercraft::LoadDriveParameters	auto:A	high	mac 003821c2 score 0.605 support 0
+00566ee0	cSC4Watercraft::Write	manual:watercraft.tsv	high	watercraft.md §1
+00566f00	cSC4Watercraft::Read	manual:watercraft.tsv	high	watercraft.md §1
+00566f30	cSC4Watercraft::QueryInterface	manual:watercraft.tsv	high	watercraft.md §1
+00566f60	cSC4Watercraft::Assist_PickNewDir	manual:watercraft.tsv	high	watercraft.md §5.2
+00567310	cSC4Watercraft::LoadDriveParameters	manual:watercraft.tsv	high	watercraft.md §2
 00567bf0	cSC4WatercraftManager::HandleTuningParametersChanged	auto:A	high	mac 0038156a score 0.632 support 0
 00567c90	cSC4WatercraftManager::GetLotFromOccupant	auto:D	medium	mac 0038114e score 0.5 support 1
 00567ce0	cSC4WatercraftManager::GetLotBodyOfWater	auto:D	medium	mac 003812f6 score 0.5 support 1
-00567df0	cSC4Watercraft::OnLand	auto:D	medium	mac 00380d58 score 0.5 support 1
-00567e80	cSC4Watercraft::EndTowing	auto:B10	medium	mac 00380cfe score 0.964 support 3.0
-00568570	cSC4Watercraft::Crash_DetermineCase	auto:D	medium	mac 003816cc score 0.5 support 1
-005687c0	cSC4Watercraft::Crash_InanimateCollisionDetection	auto:D	medium	mac 003809f8 score 0.5 support 1
+00567df0	cSC4Watercraft::OnLand	manual:watercraft.tsv	high	watercraft.md §5.6
+00567e80	cSC4Watercraft::EndTowing	manual:watercraft.tsv	high	watercraft.md §4
+005681b0	cSC4Watercraft::IsOutsideCity	manual:watercraft.tsv	high	watercraft.md §5.6
+00568570	cSC4Watercraft::Crash_DetermineCase	manual:watercraft.tsv	high	watercraft.md §5.7; automata.md §6.6
+005687c0	cSC4Watercraft::Crash_InanimateCollisionDetection	manual:watercraft.tsv	high	watercraft.md §5.7
 00568ce0	cSC4WatercraftManager::GetPropPositionAndOrientation	auto:B3	medium	mac 00381b84 score 0.953 support 2.5
 00568fd0	cSC4WatercraftManager::ClearToLaunchBoat	auto:B4	medium	mac 003872ca score 0.977 support 2.0
-00569230	cSC4Watercraft::DoMessage	auto:B0	medium	mac 00386f86 score 0.997 support 2.5
-005694b0	cSC4Watercraft::DoFollowingTick	auto:B15	medium	mac 00389234 score 0.981 support 2.5
-005698e0	cSC4Watercraft::Engine_MovementPossible	auto:B15	medium	mac 0038143c score 0.961 support 2.0
-0056bd80	cSC4Watercraft::DoUndockingTick	auto:B16	medium	mac 00389602 score 0.99 support 2.0
-0056c090	cSC4Watercraft::Engine_DetectCollision	auto:B16	medium	mac 003887e8 score 0.985 support 4.0
-0056c430	cSC4Watercraft::Movement_PositionNew	auto:B17	medium	mac 00384074 score 0.885 support 3.0
+00569230	cSC4Watercraft::DoMessage	manual:watercraft.tsv	high	watercraft.md §7
+005694b0	cSC4Watercraft::DoFollowingTick	manual:watercraft.tsv	high	watercraft.md §6.3
+005698e0	cSC4Watercraft::Engine_MovementPossible	manual:watercraft.tsv	high	watercraft.md §5.6
+0056bd80	cSC4Watercraft::DoUndockingTick	manual:watercraft.tsv	high	watercraft.md §5.5
+0056c090	cSC4Watercraft::Engine_DetectCollision	manual:watercraft.tsv	high	watercraft.md §5.7
+0056c430	cSC4Watercraft::Movement_PositionNew	manual:watercraft.tsv	high	watercraft.md §5.2
 0056c990	cSC4WatercraftManager::GetRandomCreationPoint	auto:B4	medium	mac 003873e4 score 0.991 support 2.0
+0056cec0	cSC4WatercraftManager::RequestBerth	manual:watercraft.tsv	high	watercraft.md §5.3
+0056cf50	cSC4WatercraftManager::RequestQueueSpot	manual:watercraft.tsv	high	watercraft.md §5.3
 0056cfe0	cSC4WatercraftManager::DoneDocking	auto:B0	medium	mac 003852be score 0.982 support 3.0
-0056d0e0	cSC4Watercraft::Shutdown	auto:A	high	mac 00385648 score 0.617 support 0
-0056d310	cSC4Watercraft::DoPlayerDriveTick	auto:B11	medium	mac 00388b38 score 0.982 support 1.0
-0056d4d0	cSC4Watercraft::EndDocking	auto:D	medium	mac 00385326 score 0.5 support 1
-0056d530	cSC4Watercraft::Ferry_ClearDockRequests	auto:D	medium	mac 00389ad4 score 0.5 support 1
+0056d060	cSC4WatercraftManager::ReleaseQueueSpot	manual:watercraft.tsv	high	watercraft.md §3
+0056d0e0	cSC4Watercraft::Shutdown	manual:watercraft.tsv	high	watercraft.md §3
+0056d310	cSC4Watercraft::DoPlayerDriveTick	manual:watercraft.tsv	high	watercraft.md §6.1
+0056d4d0	cSC4Watercraft::EndDocking	manual:watercraft.tsv	high	watercraft.md §4
+0056d530	cSC4Watercraft::Ferry_ClearDockRequests	manual:watercraft.tsv	high	watercraft.md §5.3
 0056d770	FerryStationInformation::FerryStationInformation	auto:B2	medium	mac 00748e20 score 0.995 support 2.0
 0056d7f0	cISC4TrafficSimulator::FerryRouteInfo::operator=	auto:B6	medium	mac 00746fb6 score 0.97 support 2.0
 0056d8b0	FerryStationInformation::~FerryStationInformation	auto:B8	medium	mac 007462e0 score 0.825 support 2.0
 0056d920	FerryStationInformation::operator=	auto:B6	medium	mac 00746c92 score 0.991 support 2.0
-0056d9a0	cSC4Watercraft::cSC4Watercraft	auto:A	high	mac 0038591c score 1.0 support 0
-0056dc60	cSC4Watercraft::GetGZCLSID	auto:C	low	mac 00744d8a score 1.0 support 1
-0056dcf0	__ZThn4_N14cSC4Watercraft8ShutdownEv	auto:B0	low	mac 00748dd8 score 0.96 support 1.0
-0056dd00	cSC4Watercraft::~cSC4Watercraft	auto:C	high	mac 0074896c score 1.0 support 1
-0056de40	cSC4Watercraft::Init	auto:A	high	mac 00382a5c score 1.0 support 0
-0056e340	cSC4Watercraft::HandleEnterState	auto:B1	medium	mac 0038539e score 0.982 support 3.0
-0056e5c0	cSC4Watercraft::TranslatePlayerDriveCommands	auto:A	high	mac 00382fb4 score 0.629 support 0
-0056f3f0	cSC4Watercraft::Ferry_InitializeCurrentRoute	auto:B6	medium	mac 003829f0 score 0.947 support 1.0
-0056f480	cSC4Watercraft::Ferry_OtherStationInformation	auto:B14	medium	mac 00385be8 score 0.901 support 2.0
-0056f510	cSC4Watercraft::SetNbrRouteData	auto:B4	medium	mac 0038b2ba score 0.988 support 1.0
-0056f670	cSC4Watercraft::Ferry_SetStationInformation	auto:B7	medium	mac 00385b64 score 0.965 support 4.0
-0056f700	cSC4Watercraft::Ferry_SwitchActiveStation	auto:B8	medium	mac 00385c38 score 0.888 support 1.0
-0056f7b0	__ZThn4_N14cSC4Watercraft4InitEv	auto:B0	low	mac 00746fac score 0.96 support 1.0
+0056d9a0	cSC4Watercraft::cSC4Watercraft	manual:watercraft.tsv	high	watercraft.md §1
+0056dc60	cSC4Watercraft::GetGZCLSID	manual:watercraft.tsv	high	watercraft.md §1
+0056dcf0	__ZThn4_N14cSC4Watercraft8ShutdownEv	manual:watercraft.tsv	high	watercraft.md §3
+0056dd00	cSC4Watercraft::~cSC4Watercraft	manual:watercraft.tsv	high	watercraft.md §3
+0056de40	cSC4Watercraft::Init	manual:watercraft.tsv	high	watercraft.md §3
+0056e340	cSC4Watercraft::HandleEnterState	manual:watercraft.tsv	high	watercraft.md §4
+0056e5c0	cSC4Watercraft::TranslatePlayerDriveCommands	manual:watercraft.tsv	high	watercraft.md §6.2
+0056f3f0	cSC4Watercraft::Ferry_InitializeCurrentRoute	manual:watercraft.tsv	high	watercraft.md §5.4
+0056f480	cSC4Watercraft::Ferry_OtherStationInformation	manual:watercraft.tsv	high	watercraft.md §5.3
+0056f510	cSC4Watercraft::SetNbrRouteData	manual:watercraft.tsv	high	watercraft.md §5.4
+0056f670	cSC4Watercraft::Ferry_SetStationInformation	manual:watercraft.tsv	high	watercraft.md §5.4
+0056f700	cSC4Watercraft::Ferry_SwitchActiveStation	manual:watercraft.tsv	high	watercraft.md §5.4
+0056f7b0	__ZThn4_N14cSC4Watercraft4InitEv	manual:watercraft.tsv	high	watercraft.md §3
 0056fa70	cSC4WatercraftManager::Write	auto:C	high	mac 00381d6e score 1.0 support 1
 0056fd60	cSC4WatercraftManager::CreateFerryStruct	auto:B3	medium	mac 00387db6 score 0.969 support 2.0
-00570140	cSC4Watercraft::HandleExitState	auto:B9	medium	mac 00385ca6 score 0.973 support 2.5
-005704d0	cSC4Watercraft::Ferry_DockRequests	auto:B15	medium	mac 00389932 score 0.948 support 3.5
-00570620	cSC4Watercraft::Engine_AIPickLocation	auto:B7	medium	mac 00388d4e score 0.993 support 1.5
-00570ae0	cSC4Watercraft::GetDebugExtraText	auto:A	high	mac 00380b5e score 1.0 support 0
+00570140	cSC4Watercraft::HandleExitState	manual:watercraft.tsv	high	watercraft.md §4
+00570270	cSC4Watercraft::DoCrashSequenceTick	manual:watercraft.tsv	high	watercraft.md §4; automata.md §6.6
+005704d0	cSC4Watercraft::Ferry_DockRequests	manual:watercraft.tsv	high	watercraft.md §5.3
+00570620	cSC4Watercraft::Engine_AIPickLocation	manual:watercraft.tsv	high	watercraft.md §5.2
+00570ae0	cSC4Watercraft::GetDebugExtraText	manual:watercraft.tsv	high	watercraft.md §9
 00570df0	cSC4WatercraftManager::CreateFerry	auto:B2	medium	mac 00388228 score 0.934 support 2.0
 005710a0	cSC4WatercraftManager::CreateMarinaBoat	auto:A	high	mac 0038b3fe score 0.642 support 0
 00571630	cSC4WatercraftManager::GetEdgeCells	auto:B5	medium	mac 00381ffe score 0.954 support 1.5
-00571880	cSC4Watercraft::Engine_AIBoatMotion	auto:B8	medium	mac 00389bbc score 0.986 support 1.5
+00571880	cSC4Watercraft::Engine_AIBoatMotion	manual:watercraft.tsv	high	watercraft.md §5.2
 005723d0	cSC4WatercraftManager::PopulateVisibleArea	auto:A	high	mac 00387948 score 1.0 support 0
-00572770	cSC4Watercraft::DoDockingTick	auto:B13	medium	mac 0038ad0c score 0.964 support 2.5
-00572cf0	cSC4Watercraft::DoAnimationTick	auto:B14	medium	mac 0038a766 score 0.988 support 1.0
-00573340	cSC4Watercraft::DoStateTick	auto:B12	medium	mac 0038b1a0 score 0.992 support 1.0
+00572770	cSC4Watercraft::DoDockingTick	manual:watercraft.tsv	high	watercraft.md §5.3
+00572cf0	cSC4Watercraft::DoAnimationTick	manual:watercraft.tsv	high	watercraft.md §5.1
+00573340	cSC4Watercraft::DoStateTick	manual:watercraft.tsv	high	watercraft.md §4
 005736a0	cSC4WatercraftManager::DoAnimationTick	auto:A	high	mac 0038bb84 score 0.764 support 0
 00574520	cSC4WatercraftManager::HandleOccupantRemoved	auto:B3	medium	mac 00385ef6 score 0.986 support 6.5
 00574910	cSC4WatercraftManager::GetGZCLSID	auto:C	low	mac 00744d6c score 1.0 support 1
@@ -3597,7 +3603,7 @@ va	name	source	confidence	note
 005809d0	cSC4ViewInputControlTorch::OnMouseUpL	manual:city-tools.tsv	high	city-tools.md §2
 00580a30	cSC4ViewInputControlTorch::OnMouseMove	manual:city-tools.tsv	high	city-tools.md §2; modifier bit 4 activates
 00580b00	cSC4ViewInputControlTorch::OnMouseExit	manual:city-tools.tsv	high	city-tools.md §2
-00580f10	cSC4AttractorDescription::cSC4AttractorDescription	auto:D	medium	mac 003e1dfe score 0.5 support 1
+00580f10	cSC4AttractorDescription::cSC4AttractorDescription	manual:automata-support.tsv	high	automata-support.md §4
 005812c0	cSC4BrushEffect::Start	manual:effect-runtimes.tsv	high	effects.md §8.3; descriptive name, no Mac match; prev := cur, counters reset
 005812f0	cSC4BrushDescription::cSC4BrushDescription	auto:B0	medium	mac 003e277e score 0.966 support 2.0
 00581530	cSC4BrushEffect::Stop	manual:effect-runtimes.tsv	high	effects.md §8.3; descriptive name, no Mac match; ends the long terrain operation
@@ -4453,7 +4459,7 @@ va	name	source	confidence	note
 005ecb90	cSC4PropOccupantTerrainDecal::SetOpacityFade	auto:C	high	mac 00102b60 score 1.0 support 1
 005ecc10	cSC4PropOccupantVisualEffect::QueryInterface	auto:A	high	mac 00105a6a score 1.0 support 0
 005ecc60	cSC4PropOccupantBurntBuilding::QueryInterface	auto:C	low	mac 00102c40 score 1.0 support 2
-005ecc70	cSC4PropOccupantAutomataController::QueryInterface	auto:A	high	mac 00105ac6 score 1.0 support 0
+005ecc70	cSC4PropOccupantAutomataController::QueryInterface	manual:automata-support.tsv	high	automata-support.md §3
 005eccc0	cRZStackAllocator<cIS3DModelInstance*,8,1>::New	auto:B3	medium	mac 0065ed88 score 0.957 support 2.0
 005ece60	cSC4PropOccupant::operator.new	auto:B3	medium	mac 001043ec score 0.821 support 2.0
 005ece90	cSC4PropOccupant::Write	auto:C	high	mac 00104e40 score 1.0 support 2
@@ -4481,10 +4487,10 @@ va	name	source	confidence	note
 005edb10	cSC4PropOccupantBurntBuilding::Write	auto:B0	medium	mac 00105010 score 0.94 support 1.0
 005edb50	cSC4PropOccupantBurntBuilding::SetAllFlags	auto:C	high	mac 00102c64 score 1.0 support 1
 005edc60	cSC4PropOccupantBurntBuilding::Rebuild	auto:D	medium	mac 00102fc8 score 0.5 support 1
-005edd80	cSC4PropOccupantAutomataController::operator.new	auto:B0	medium	mac 00102cfc score 0.821 support 1.0
-005eddb0	cSC4PropOccupantAutomataController::Write	auto:C	high	mac 00104fac score 1.0 support 1
+005edd80	cSC4PropOccupantAutomataController::operator.new	manual:automata-support.tsv	high	automata-support.md §3
+005eddb0	cSC4PropOccupantAutomataController::Write	manual:automata-support.tsv	high	automata-support.md §3
 005ede00	cS3DBoundingBox::Translate	auto:D	medium	mac 00662c5e score 0.5 support 1
-005ede60	cSC4PropOccupantAutomataController::ActivateController	auto:C	high	mac 0010396c score 1.0 support 1
+005ede60	cSC4PropOccupantAutomataController::ActivateController	manual:automata-support.tsv	high	automata-support.md §3
 005ede90	cSC4PropPlacementPropertiesFactory::CreateInstance	auto:A	high	mac 001030b6 score 1.0 support 0
 005ee050	cSC4PropOccupant::cSC4PropOccupant	auto:B0	medium	mac 00104cf0 score 0.957 support 2.5
 005ee0e0	cSC4PropOccupant::GetGZCLSID	auto:C	low	mac 0065e50e score 1.0 support 1
@@ -4500,7 +4506,7 @@ va	name	source	confidence	note
 005ee9c0	cSC4PropOccupantVisualEffect::RestartEffect	auto:B1	medium	mac 00104544 score 0.948 support 2.5
 005eeb70	cSC4PropOccupantBurntBuilding::SetBoundsFromOccupant	auto:D	medium	mac 001031b2 score 0.5 support 1
 005eec00	cSC4PropOccupantBurntBuilding::Draw	auto:B2	medium	mac 00103258 score 0.976 support 2.5
-005eedd0	cSC4PropOccupantAutomataController::Shutdown	auto:C	high	mac 00103e4a score 1.0 support 1
+005eedd0	cSC4PropOccupantAutomataController::Shutdown	manual:automata-support.tsv	high	automata-support.md §3
 005eef50	GZCOM_CreatecSC4PropOccupant	auto:B1	medium	mac 00105b22 score 0.97 support 1.0
 005eef90	cSC4PropOccupant::~cSC4PropOccupant	auto:C	high	mac 0065f7a6 score 1.0 support 1
 005eeff0	cSC4PropOccupant::SetSimulatorDateRange	auto:C	high	mac 00103c4c score 1.0 support 5
@@ -4519,24 +4525,24 @@ va	name	source	confidence	note
 005ef950	cSC4PropOccupantBurntBuilding::GetGZCLSID	auto:C	low	mac 0065e636 score 1.0 support 1
 005efb00	__ZThn104_N29cSC4PropOccupantBurntBuilding4DrawEP14SC4DrawContextb	auto:B3	low	mac 0065ebe0 score 0.96 support 1.0
 005efba0	cSC4PropOccupantBurntBuilding::Read	auto:B0	medium	mac 00105452 score 0.968 support 2.0
-005efbf0	cSC4PropOccupantAutomataController::Read	auto:C	high	mac 001053e0 score 1.0 support 1
+005efbf0	cSC4PropOccupantAutomataController::Read	manual:automata-support.tsv	high	automata-support.md §3
 005efc80	GZCOM_CreatecSC4PropOccupantBurntBuilding	auto:B3	medium	mac 00106290 score 0.958 support 1.0
 005efcc0	cSC4PropOccupantBurntBuilding::~cSC4PropOccupantBurntBuilding	auto:C	high	mac 00106350 score 1.0 support 1
 005efd20	cSC4PropOccupantBurntBuilding::Shutdown	auto:C	high	mac 0010412e score 1.0 support 1
-005efdb0	cSC4PropOccupantAutomataController::cSC4PropOccupantAutomataController	auto:D	medium	mac 00105c9c score 0.5 support 1
-005efe40	cSC4PropOccupantAutomataController::GetGZCLSID	auto:C	low	mac 0065e5f6 score 1.0 support 1
-005eff60	cSC4PropOccupantAutomataController::Init	auto:A	high	mac 001041ba score 0.709 support 0
-005f00b0	cSC4PropOccupantAutomataController::RestartController	auto:A	high	mac 001039c0 score 1.0 support 0
+005efdb0	cSC4PropOccupantAutomataController::cSC4PropOccupantAutomataController	manual:automata-support.tsv	high	automata-support.md §3
+005efe40	cSC4PropOccupantAutomataController::GetGZCLSID	manual:automata-support.tsv	high	automata-support.md §3
+005eff60	cSC4PropOccupantAutomataController::Init	manual:automata-support.tsv	high	automata-support.md §3
+005f00b0	cSC4PropOccupantAutomataController::RestartController	manual:automata-support.tsv	high	automata-support.md §3
 005f0210	cSC4PropOccupantVisualEffect::cSC4PropOccupantVisualEffect	auto:B0	medium	mac 00105f78 score 0.991 support 4.0
 005f02b0	cSC4PropOccupantVisualEffect::GetGZCLSID	auto:C	low	mac 0065e5ac score 1.0 support 1
 005f03b0	cSC4PropOccupantVisualEffect::Write	auto:C	high	mac 0010516e score 1.0 support 1
 005f0490	GZCOM_CreatecSC4PropOccupantAutomataController	auto:B0	medium	mac 00105d2c score 0.968 support 1.0
-005f04d0	cSC4PropOccupantAutomataController::~cSC4PropOccupantAutomataController	auto:C	high	mac 00105b62 score 1.0 support 1
-005f0530	cSC4PropOccupantAutomataController::SetState	auto:B0	medium	mac 00103b64 score 0.966 support 1.0
+005f04d0	cSC4PropOccupantAutomataController::~cSC4PropOccupantAutomataController	manual:automata-support.tsv	high	automata-support.md §3
+005f0530	cSC4PropOccupantAutomataController::SetState	manual:automata-support.tsv	high	automata-support.md §3
 005f0560	GZCOM_CreatecSC4PropOccupantVisualEffect	auto:B1	medium	mac 0010602e score 0.968 support 1.0
 005f05a0	cSC4PropOccupantVisualEffect::~cSC4PropOccupantVisualEffect	auto:C	high	mac 00105e3e score 1.0 support 1
 005f0600	cSC4PropOccupantBurntBuilding::Init	auto:B0	medium	mac 00105660 score 0.916 support 3.0
-005f06f0	cSC4PropOccupantAutomataController::SetControllerTemplate	auto:B0	medium	mac 00103af8 score 0.921 support 1.0
+005f06f0	cSC4PropOccupantAutomataController::SetControllerTemplate	manual:automata-support.tsv	high	automata-support.md §3
 005f0820	cSC4PylonOccupant::QueryInterface	auto:B1	medium	mac 00198f00 score 0.963 support 3.0
 005f08b0	cSC4PylonOccupant::GetSortValue	auto:C	low	mac 00198fb4 score 1.0 support 1
 005f08c0	cSC4PylonOccupant::GetBoundingBox	auto:C	high	mac 00198ff4 score 1.0 support 1
