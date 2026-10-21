@@ -90,7 +90,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
-| aura | 0 | 15 | AU16 | - |
+| aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 1 | 37 | A5, AM13, AT21 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
 | building-development | 0 | 39 | DG40 | - |
@@ -119,7 +119,7 @@ generated index: the questions live one file per spec, so read only the file for
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
-| network-manager | 0 | 9 | NM10 | - |
+| network-manager | 2 | 9 | NM12 | questions/network-manager.md |
 | network-occupants | 8 | 0 | NO9 | questions/network-occupants.md |
 | network-rules | 2 | 7 | NR13 | questions/network-rules.md |
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
@@ -144,4 +144,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **49** | **982** | | |
+| **total** | **52** | **982** | | |

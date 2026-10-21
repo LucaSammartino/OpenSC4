@@ -319,7 +319,11 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // the glue12b2 lane (FC4PortsShadow.h)
                                   "ports_shadow",
                                   // the mysims1 lane (FC4MySimsShadow.h)
-                                  "mysims_shadow"};// The switches that are off, for lock-free readers (autotest verdict).
+                                  "mysims_shadow",
+                                  // the netmgr shadow (FC4NetMgrShadow.h; read there, never registered
+                                  // before verify-regress4)
+                                  "netmgr_shadow", "netmgr_shadow_order", "netmgr_shadow_wide"};
+// The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 
 volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
