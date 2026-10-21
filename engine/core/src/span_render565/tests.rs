@@ -604,8 +604,8 @@ fn extents_are_the_exact_hull_of_every_access() {
     let mut r = Rng(0x5651_5650_0000_0001);
     let mut checked = 0;
     for _ in 0..3000 {
-        let row = r.next() % TABLE_ROWS as u32;
-        let kind = r.next() % TABLE_COLUMNS as u32;
+        let row = r.next() % TABLE_ROWS;
+        let kind = r.next() % TABLE_COLUMNS;
         let b = BltParams {
             u0: r.next() % 0x40000,
             v0: r.next() % 0x40000,
