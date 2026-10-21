@@ -1,17 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-answers35 (RE answers: mysims questions MS1-MS7, docs only) | `re-answers35` / `C:\Users\tlori\FreeCity4\.claude\worktrees\re-answers35` (branch `re-answers35`, RE lane) | **in progress** — worktree created at main 7e042544; spec + questions read; starting RE. | Answer MS1-MS7 from the export with re_query.py; update docs/specs/mysims.md; move answered to docs/specs/questions/answered/mysims.md; questions.py index; lane report + merge-queue/re-answers35.json (kind docs, abi false). |
+| re-answers35 (RE answers: mysims questions MS1-MS7, docs only) | `re-answers35` / `C:\Users\tlori\FreeCity4\.claude\worktrees\re-answers35` (branch `re-answers35`, RE lane) | **ready** — MS1-MS7 answered (docs only) | merge (docs); implementers: mysims core changes listed in the report |
 
-## Handoff
+## Report
 
-- Goal: answer the seven open mysims questions MS1-MS7 in docs/specs/questions/mysims.md by RE-ing the
-  Windows export (re_query.py + ABI tables), checking numeric claims against instruction bytes; update
-  docs/specs/mysims.md in place; move answered questions to answered/mysims.md; no engine/, no game runs.
-- Method (re-answers34 shape): read each question, RE it, verdict MATCHES/DIFFERS where the spec states behaviour.
-- Facts: worktree C:/Users/tlori/FreeCity4/.claude/worktrees/re-answers35 (branch re-answers35, base main 7e042544);
-  MAIN = C:/Users/tlori/FreeCity4. Questions file: docs/specs/questions/mysims.md (MS1-MS10 open; MS8-MS10 are
-  cores28's, NOT in scope — answer only MS1-MS7). Spec: docs/specs/mysims.md (62 KB, read by sections).
-- Done: MS1 eecb2081, MS2 77929a0c, MS3 758a3a4b, MS4 78863510, MS5 (this commit). Helpers: build-runs/move_q.py
-  (moves entry + answer file), build-runs/rd.py (read u32 at VA), build-runs/mysim_asm.txt (all cSC4MySim asm).
-- Frames: Write/Read this = MySim+0xC, DoMessage = +0x10, Init/Shutdown = +0x8; FindNewJob/ctor/simulate_day = +0.
-- Next: MS6 (CheckCommute 0x0042D9E0 / FindNewJob pathfinder side effects), MS7 (AnnounceMoveIn 0x0042BF70, states 4/5/6).
+All seven open mysims questions answered from the Windows export (re_query.py asm, decomp/, exe bytes via build-runs/rd.py);
+REA not needed. Spec docs/specs/mysims.md updated in place, entries moved to docs/specs/questions/answered/mysims.md,
+QUESTIONS.md regenerated (mysims: 0 open, 7 answered). Commits eecb2081 (MS1), 77929a0c (MS2), 758a3a4b (MS3),
+78863510 (MS4), 9e3cb632 (MS5), 45595d3b (MS6), 5521a893 (MS7).
+
+| Q | Verdict | Rule (spec section) |
+|---|---|---|
+| MS1 | DIFFERS | row 25 pair = dead data (ctor 0, I/O only); row 30 = pylon-locked flag (§2.2, §6.2) |
+| MS2 | MATCHES | WinMgr slot 42 = modal depth != 0 pauses day and month steps (§4.2) |
+| MS3 | DIFFERS (part) | Init re-resolves neighbour city when no job and cell != (0,0); sets commute-check flag; no separate neighbor_job bool (§2.2.1) |
+| MS4 | MATCHES | special list = occupant groups 0x150A/0x150B; distance truncated x87 sqrt, unsigned min (§4.9) |
+| MS5 | DIFFERS | congestion = border ring only, both max edges clamp to CellCountX-1, capacity != 0 cells only; neighbour 1/0/1/1; agriculture city job => job_has_water 1 (§4.5) |
+| MS6 | MATCHES | commute queries never ApplyTraffic; no trip recorded (§9) |
+| MS7 | DIFFERS | announce check = RequestToPlaySound 4-second throttle; states 4 to work / 5 home / 6 elsewhere (§2.2, §4.1) |
+
+Implementer impact (engine/core/src/mysims/, not edited here): congestion ring + clamp (MS5), agriculture water (MS5),
+Init commute-check flag (MS3), RequestToPlaySound throttle on MySimMovedIn (MS7), pylon-locked persistence (MS1).
+Frames for successors: Write/Read this = MySim+0xC, DoMessage +0x10, Init/Shutdown/RequestToPlaySound +0x8 or +0xB8
+(cISC4MySim sub-object at +0xB8). No ABI rows, no game runs. Next: conformance vectors for MS5 ring and MS7 throttle.
