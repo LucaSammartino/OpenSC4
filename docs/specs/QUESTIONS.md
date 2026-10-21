@@ -122,7 +122,7 @@ generated index: the questions live one file per spec, so read only the file for
 |---|---:|---:|---|---|
 | advisors | 1 | 10 | AD12 | questions/advisors.md |
 | application | 3 | 2 | AP6 | questions/application.md |
-| audio-ambience | 6 | 3 | AA10 | questions/audio-ambience.md |
+| audio-ambience | 1 | 8 | AA10 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -137,7 +137,7 @@ generated index: the questions live one file per spec, so read only the file for
 | command-system | 7 | 0 | GC8 | questions/command-system.md |
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 2 | 49 | EX52 | questions/data-formats.md |
+| data-formats | 1 | 50 | EX52 | questions/data-formats.md |
 | dates | 3 | 0 | DT4 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
@@ -153,7 +153,7 @@ generated index: the questions live one file per spec, so read only the file for
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | history | 0 | 17 | HW18 | - |
-| html-document | 2 | 4 | HD7 | questions/html-document.md |
+| html-document | 1 | 6 | HD8 | questions/html-document.md |
 | landfill | 0 | 36 | LF7, LG31 | - |
 | landvalue | 1 | 5 | LV6 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
@@ -171,7 +171,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
-| occupants-props | 16 | 0 | OP17 | questions/occupants-props.md |
+| occupants-props | 11 | 5 | OP17 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 2 | 0 | OS3 | questions/output-streams.md |
 | parks | 0 | 11 | PK12 | - |
@@ -195,8 +195,8 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-1555 | 3 | 4 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 4 | 1 | SP6 | questions/span-render-4444.md |
 | span-render-565 | 6 | 0 | SR566 | questions/span-render-565.md |
-| span-render-8 | 3 | 0 | SR9 | questions/span-render-8.md |
-| span-render-8888 | 5 | 0 | SR8889 | questions/span-render-8888.md |
+| span-render-8 | 3 | 1 | SR9 | questions/span-render-8.md |
+| span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | timers | 1 | 0 | TM2 | questions/timers.md |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **219** | **1075** | | |
+| **total** | **207** | **1090** | | |
