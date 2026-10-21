@@ -10,3 +10,9 @@
   (b) does `SetCellPosition(x, z)` (neighbour branch of `validateCommuteLocation`) also write the world fields
   `+0x04`/`+0x08`, or do they keep the −16.0 of the step-1 reset? [cells only]; (c) the home start rect when the home
   holds an occupant whose lot is not found: the lot at the home cell, or straight to the single cell? [single cell].
+- **MS14 - section 4.12:** `Import` details left after MS12: (a) the value of the family member count `n` when
+  `sims_family_nummembers` is missing or not a number (`ReadNumber` writes nothing and its result is not tested: is
+  the local pre-initialised, and to what?) [0]; (b) the text of the member keys and of `family%d_face` for `k ≥ 2^31`
+  in the unsigned loop (printed with `%d`, negative, or `%u`?) [`%d`]; (c) `F.ini` for a listed entry name shorter
+  than 4 bytes (`Left(len − 4)` with a negative count) [empty stem]; (d) a missing `_gender` / `_zodiac` entry:
+  skip the member, or an empty value? [empty value].

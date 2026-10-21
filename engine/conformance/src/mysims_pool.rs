@@ -139,7 +139,10 @@ impl JobSearchWorld for World {
     }
     fn connections_of_type_to_city(&self, connection_type: u32, city: u64) -> usize {
         self.region.as_ref().map_or(0, |(_, types)| {
-            types.iter().filter(|t| city == REGION_CITY && **t == connection_type).count()
+            types
+                .iter()
+                .filter(|t| city == REGION_CITY && **t == connection_type)
+                .count()
         })
     }
 }
@@ -236,7 +239,11 @@ fn job_search(op: &Json) -> R<()> {
             }
             Some(j) => DispatchLocation {
                 in_city: false,
-                neighbor_city: pair(j.get("neighbor_city").ok_or("location: default, occupant or neighbor_city")?, "location.neighbor_city")?,
+                neighbor_city: pair(
+                    j.get("neighbor_city")
+                        .ok_or("location: default, occupant or neighbor_city")?,
+                    "location.neighbor_city",
+                )?,
                 ..DispatchLocation::default()
             },
             None => DispatchLocation {
@@ -254,10 +261,16 @@ fn job_search(op: &Json) -> R<()> {
         ("occupant", d.occupant.map_or(Json::Null, |o| ji(o as i64))),
         (
             "world",
-            Json::Array(vec![Json::Float(f64::from(d.world.0)), Json::Float(f64::from(d.world.1))]),
+            Json::Array(vec![
+                Json::Float(f64::from(d.world.0)),
+                Json::Float(f64::from(d.world.1)),
+            ]),
         ),
         ("cell", Json::Array(vec![ji(d.cell.0), ji(d.cell.1)])),
-        ("neighbor_city", Json::Array(vec![ji(d.neighbor_city.0), ji(d.neighbor_city.1)])),
+        (
+            "neighbor_city",
+            Json::Array(vec![ji(d.neighbor_city.0), ji(d.neighbor_city.1)]),
+        ),
         ("in_city", Json::Bool(d.in_city)),
         ("by_commute", Json::Bool(d.by_commute)),
         ("reserved", Json::Array(vec![ji(d.reserved.0), ji(d.reserved.1)])),
@@ -286,13 +299,18 @@ fn job_search(op: &Json) -> R<()> {
 }
 
 fn template_json(t: &MySimTemplate) -> Json {
-    obj(vec![
+    let mut fields = vec![
         ("name", text(&t.name)),
         ("male", Json::Bool(t.is_male)),
         ("sign", ji(t.sign)),
         ("bitmap", ji(t.bitmap_id)),
         ("portrait", text(&t.portrait)),
-    ])
+    ];
+    // Absent exemplar properties (MS12 a): only shown when some are.
+    if t.indeterminate != 0 {
+        fields.push(("indeterminate", ji(t.indeterminate)));
+    }
+    obj(fields)
 }
 
 fn bytes(j: &Json, what: &str) -> R<Vec<u8>> {
