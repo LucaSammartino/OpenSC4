@@ -497,6 +497,9 @@ if(FC4_IS_WIN32_X86)
         # The cSpanRender1555 native bridge (glue-span1555-impl4): enable = span1555.
         plugin/FC4Span1555Shadow.cpp
         plugin/FC4Span1555Shadow.h
+        # The native draw-context route for both span bridges (span-render-4444.md §1.3; glue-span-context-final4).
+        plugin/FC4SpanContext.cpp
+        plugin/FC4SpanContext.h
         # The glue-advisors-final4 lane: the advisor window slots 23-28 (advisors.md §12.1.1, AD4).
         plugin/FC4AdvisorWindow.h
         plugin/FC4AdvisorWindowGame.cpp

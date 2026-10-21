@@ -33,4 +33,7 @@ namespace fc4 {
 void Span1555Startup(bool enabled);
 // FC4Observer.cpp, after each city load: runs the constructed fixture once per session.
 void Span1555CityLoaded();
+// glue-span-context-final4: entries 1-5 = the originals (true) or our forwarders
+// (false); false if the bridge is not installed.
+bool Span1555UseOriginal(bool original);
 }  // namespace fc4

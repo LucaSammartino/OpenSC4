@@ -15,6 +15,7 @@
 #include "FC4Span1555Shadow.h"
 
 #include "FC4Log.h"
+#include "FC4SpanContext.h"
 #include "FC4RefAudit.h"
 #include "compat/FC4Compat.h"
 #include "fc4.h"
@@ -24,6 +25,8 @@
 #include "cRZCOMDllDirector.h"
 
 #include <windows.h>
+
+#include <intrin.h>
 
 #include <atomic>
 #include <cstdint>
@@ -112,6 +115,7 @@ void Shadow(unsigned slot, const Win& w, Orig orig, Ours ours) {
     if (rc != 0) {
         if (w.len) memcpy(w.lo, o.data(), w.len);  // keep the original's pixels
         ++st.oursErr;
+        SpanNoteRefused(kSpanR1555);
         if (g.detailLines++ < 8) Log("span1555: %s ours refused the input (code %d); original kept", kSlotName[slot], rc);
         return;
     }
@@ -134,20 +138,22 @@ void Shadow(unsigned slot, const Win& w, Orig orig, Ours ours) {
     }
 }
 
-bool Enter(unsigned slot) {
+bool Enter(unsigned slot, uintptr_t ret) {
     SlotStats& st = g.s[slot];
     ++st.calls;
-    if (!t_fixture && st.gameCalls++ == 0) Log("span1555: game call: first %s call from a non-fixture caller", kSlotName[slot]);
+    SpanNoteCall(kSpanR1555, slot, ret, t_fixture);
+    if (!t_fixture && !SpanContextFixtureThread() && st.gameCalls++ == 0) Log("span1555: game call: first %s call from a non-fixture caller", kSlotName[slot]);
     return true;
 }
 
 void __fastcall SolidFwd(void* self, void* edx, const uint32_t* spans, uint32_t n, const uint32_t* surface,
                          uint32_t colour) {
-    Enter(1);
+    Enter(1, reinterpret_cast<uintptr_t>(_ReturnAddress()));
     auto orig = [&] { reinterpret_cast<SolidFn>(g.original[1])(self, edx, spans, n, surface, colour); };
     Win w;
     if (!DstWindow(spans, n, surface, &w)) {
         ++g.s[1].skipped;
+        SpanNoteRefused(kSpanR1555);
         orig();
         return;
     }
@@ -156,11 +162,12 @@ void __fastcall SolidFwd(void* self, void* edx, const uint32_t* spans, uint32_t 
 
 void __fastcall GradientFwd(void* self, void* edx, const uint32_t* spans, uint32_t n, const uint32_t* surface,
                             const int32_t* grad) {
-    Enter(2);
+    Enter(2, reinterpret_cast<uintptr_t>(_ReturnAddress()));
     auto orig = [&] { reinterpret_cast<GradFn>(g.original[2])(self, edx, spans, n, surface, grad); };
     Win w;
     if (!DstWindow(spans, n, surface, &w)) {
         ++g.s[2].skipped;
+        SpanNoteRefused(kSpanR1555);
         orig();
         return;
     }
@@ -169,11 +176,12 @@ void __fastcall GradientFwd(void* self, void* edx, const uint32_t* spans, uint32
 
 void __fastcall AlphaFwd(void* self, void* edx, const uint32_t* spans, uint32_t n, const uint32_t* surface,
                          uint32_t src, uint32_t argb) {
-    Enter(3);
+    Enter(3, reinterpret_cast<uintptr_t>(_ReturnAddress()));
     auto orig = [&] { reinterpret_cast<AlphaFn>(g.original[3])(self, edx, spans, n, surface, src, argb); };
     Win w;
     if (!DstWindow(spans, n, surface, &w)) {
         ++g.s[3].skipped;
+        SpanNoteRefused(kSpanR1555);
         orig();
         return;
     }
@@ -182,11 +190,12 @@ void __fastcall AlphaFwd(void* self, void* edx, const uint32_t* spans, uint32_t 
 
 void __fastcall AlphaGradientFwd(void* self, void* edx, const uint32_t* spans, uint32_t n, const uint32_t* surface,
                                  const int32_t* grad) {
-    Enter(4);
+    Enter(4, reinterpret_cast<uintptr_t>(_ReturnAddress()));
     auto orig = [&] { reinterpret_cast<GradFn>(g.original[4])(self, edx, spans, n, surface, grad); };
     Win w;
     if (!DstWindow(spans, n, surface, &w)) {
         ++g.s[4].skipped;
+        SpanNoteRefused(kSpanR1555);
         orig();
         return;
     }
@@ -195,7 +204,7 @@ void __fastcall AlphaGradientFwd(void* self, void* edx, const uint32_t* spans, u
 
 void __fastcall BltFwd(void* self, void* edx, const uint32_t* spans, uint32_t n, const uint32_t* surface,
                        const uint32_t* src, const uint32_t* b, uint32_t kind) {
-    Enter(5);
+    Enter(5, reinterpret_cast<uintptr_t>(_ReturnAddress()));
     auto orig = [&] { reinterpret_cast<BltFn>(g.original[5])(self, edx, spans, n, surface, src, b, kind); };
     Win w;
     MEMORY_BASIC_INFORMATION mbi{};
@@ -210,6 +219,7 @@ void __fastcall BltFwd(void* self, void* edx, const uint32_t* spans, uint32_t n,
     }
     if (!ok) {
         ++g.s[5].skipped;
+        SpanNoteRefused(kSpanR1555);
         orig();
         return;
     }
@@ -423,6 +433,25 @@ void Span1555Startup(bool enabled) {
     }
 #else
     Log("span1555: not installed (x86 only)");
+#endif
+}
+
+bool Span1555UseOriginal(bool original) {
+#if defined(_M_IX86)
+    if (!g.installed) return false;
+    void** entries[6] = {};
+    for (unsigned i = 1; i <= 5; ++i)
+        if (!compat::Span1555SlotEntry(i, &entries[i], nullptr)) return false;
+    DWORD before = 0;
+    if (!VirtualProtect(entries[1], 5 * sizeof(void*), PAGE_READWRITE, &before)) return false;
+    for (unsigned i = 1; i <= 5; ++i) *entries[i] = original ? reinterpret_cast<void*>(g.original[i]) : ForwarderOf(i);
+    DWORD ignored = 0;
+    VirtualProtect(entries[1], 5 * sizeof(void*), before, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), entries[1], 5 * sizeof(void*));
+    return true;
+#else
+    (void)original;
+    return false;
 #endif
 }
 

@@ -38,5 +38,8 @@ namespace fc4 {
 
 void SpanRender4444Start();  // PostAppInit: fixture, COM probe, forwarders
 void SpanRender4444Stop();   // PreAppShutdown: original entries back, counts
+// glue-span-context-final4: entries 1-5 = the originals (true) or our forwarders
+// (false); false if the bridge is not installed.
+bool SpanRender4444UseOriginal(bool original);
 
 }  // namespace fc4
