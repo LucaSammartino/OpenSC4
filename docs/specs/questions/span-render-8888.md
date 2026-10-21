@@ -8,10 +8,6 @@
   texels/pixels per step, or run right to left, so that a texel overwritten earlier in the same span is read with
   its old value? [strictly one pixel at a time, left to right, spans in list order, reads against live memory;
   tests `overlap_*` pin it]
-- **SR8888-2 - section 7, U2:** the keyed flag is a byte and the row is `format*2 + keyed`. Is a keyed byte other
-  than 0/1 ever passed (which would select a neighbouring format's row, e.g. format 0 keyed 2 = row 2 = unkeyed
-  A1R5G5B5), and is `format*2` computed in 32 bits so that `format >= 0x80000000` wraps to a low row? [both rejected
-  as BadKernelIndex, together with format > 6 and mode > 11]
 - **SR8888-3 - section 9.2, A8 keyed rows:** with key 0 the kernel draws nothing; does it still walk the spans and
   read texels (relevant only for faults on a bad source pointer), and with key != 0 is the keyed A8 kernel's output
   identical to the unkeyed row for every op? [no reads observable; this API still bounds-checks every texel address
@@ -25,3 +21,10 @@
   pointer arithmetic in the original. Should an address that wraps around 2^32 back into the buffer be honoured?
   [no: this API computes addresses exactly in 64 bits and rejects any address outside the buffer as
   SourceOutOfBounds/DestOutOfBounds before writing anything]
+
+<!-- from: re-span8888-bridge4 (2026-10-21) -->
+- **SR8888-6 - section 1.2:** in a normal session (load a city, open the lot-configuration editor, browse menus,
+  take a snapshot), is the 8888 vtable store `0x008307CC` in `cGZDrawContextRenderToBuffer::Init` ever executed,
+  and are the entries `0x00854E10`, `0x00854E60`, `0x00854F70`, `0x00855040`, `0x008551D0` ever hit? If so, which
+  caller of `cGZDrawContext` set-target (`0x0082C830`, return address of its caller) supplied the type-8/9 target?
+  [static sweep found none; until answered, treat every 8888 run as "constructed buffer"]
