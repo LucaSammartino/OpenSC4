@@ -133,8 +133,9 @@ are the occupant's position (slot `+0x20`) truncated to integers.
 5. If it has any of `0xCA19D7CA`, `0x0A4C13CB`, `0x4A4C132E`: find its lot (lot manager `0x00B43D08` slot
    `+0x38`) and run the condition update for that lot (§3.4).
 
-The init walk (city init step 7) visits every occupant of types `0x278128A0` (buildings), `0xA823821E` and
-`0xC7CC75F1` (occupant-manager slot `+0xB0` with a type filter) and applies the init variant, which starts
+The init walk (city init step 7) visits every occupant of types `0x278128A0` (buildings), `0xA823821E` (props, as in city-detail.md) and
+`0xC7CC75F1` (an automaton type: the `cSC4TrafficAutomaton`-derived constructor `0x005628F0` writes it at `+0x28`, and
+`0x004C3AB0` accepts it beside the sim type `0x496E5783`; the exact class is AA4) (occupant-manager slot `+0xB0` with a type filter) and applies the init variant, which starts
 **no** sound itself *[compat]*.
 
 `_AddOccupantSndInstance` also links an automaton occupant (IID `0xA9B40F05`) back to this manager (its
@@ -413,7 +414,7 @@ AA1 (§9).
 | # | Question | What would settle it |
 |---|---|---|
 | **AA1** | The layer's own behaviour: scores, loops and filter use (`CanHandle`, `HandleCell`, `HandleOccupant`, `Update`; `0x004E5110`–`0x004E6910`). Init, tuning and filter creation are §8.1–8.3. | a follow-up section of this spec |
-| **AA4** | Types `0xA823821E`, `0xC7CC75F1` of the init walk are unnamed. | the occupant type table |
+| **AA4** | Type `0xC7CC75F1` of the init walk: which automaton class (vehicle?) owns it. `0xA823821E` is props. | the occupant type table |
 
 ## 10. Conformance tests
 
@@ -424,3 +425,11 @@ AA1 (§9).
    at 06:00.
 5. A preview occupant (`0x029244DB` true) produces no sound event on insert, move or remove.
 6. `_DoStageUpdate` visits the four cells of a block in the order of §5.
+7. Lot condition 1 → 0 on a lot whose building has `0xCA19D7CA = c` and `0x4A4C132E = r`: events in order
+   stop(`o+0x0A4C13CB` value, only if present), start loop `o+c`, start loop `o+r` (§3.4). Inserting the same
+   building on a condition-0 lot starts only `o+c`.
+8. Condition 7 (or any value above 6) posts no event; condition 2 stops `o+c` and starts `o+a`.
+9. A layer whose exemplar is missing keeps loop id 0, `+0x1E0 = +0x1E1 = 0x1F`, ease times 0.1 / 4.0 s; with
+   the exemplar present but those keys absent, `+0x1E0 = +0x1E1 = 0` (§8.2).
+10. Two layers listing the same filter class id share one filter object; each layer's kind counter counts it
+    once per listing (§8.3).

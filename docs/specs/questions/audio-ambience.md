@@ -5,7 +5,8 @@
 - **AA1 - section 8:** the ambience layer's own behaviour (scores, loops, filters, per-layer tuning,
   `0x004E5110`-`0x004E8230`) is unspecified; only the interface the manager calls is. Needed before
   `cSC4AudioAmbienceLayer` can count as specified.
-- **AA4 - section 3.1:** name occupant types `0xA823821E` and `0xC7CC75F1` of the init walk.
+- **AA4 - section 3.1:** name occupant types `0xA823821E` and `0xC7CC75F1` of the init walk. (re-audioambience4: `0xA823821E` is the prop type; `0xC7CC75F1` is set by the
+  `cSC4TrafficAutomaton`-derived constructor `0x005628F0` at `+0x28`; class name still open.)
 
 <!-- from: core-audioambience4 (2026-10-21) -->
 - **AA5 - section 3.6:** what is an alarm entry's initial `last` (`+0x10`) when `_AddAlarmOccupant` creates it?
