@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-simgrids4: layout-compatible cSC4SimGrid<T> family (enable=simgrids) | glue-simgrids4 / .claude/worktrees/glue-simgrids4 | ready: code + test + 2 clean game runs (to 2032, save exercised); SG1 filed | coordinator union run with other replacements; answer SG1 |
+| glue-simgrids4: layout-compatible cSC4SimGrid<T> family (enable=simgrids) | glue-simgrids4 / .claude/worktrees/glue-simgrids4 | in progress: run4 validation (joint 36+simgrids run, original-factory reload) | see Handoff |
 
 ## Report
 
@@ -30,3 +30,9 @@ Measured:
 Next: coordinator union run (enable=simgrids with the grid-owning replacements: their GetClassObject grids then
 come from these factories); a save written with simgrids reloaded by the original (format is byte-identical by
 test, not yet by a game round-trip); answer SG1.
+
+## Handoff
+- goal (run4): (1) joint run, evidence-run4/run4-simgrids-joint.ini (36 replacements + simgrids), turbo to 2032, clean/ref0, 136 grid traces + save; (2) original grid factory (simgrids off, other 36 on) reloads a city saved by ours, with per-grid record digests.
+- done: merged main (17cc9565).
+- next: add record digest (FNV-1a 64 over the v1 record bytes) to our read/write trace; add `simgrids_probe = 1` (tooling): grids read through IStreamAdapter::ReadRef are held and at PostCityInit each one's own Write is captured (WriteCapture) and its digest logged; then gate, joint run sg4-j1, capture slot city after save, reload run sg4-r1 via FC4 Test alias City - FC4SGReload-run4-<label>.sc4.
+- facts: slot city mirrored before each run, not restored after; copy it during own run after script save. Never overwrite Konradshohe.
