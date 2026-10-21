@@ -74,8 +74,8 @@ Getters return the field and do nothing else unless the row says otherwise. Offs
 |---|---|---|---|
 | 3 | +0x0C | OnIdle | section 7.1 |
 | 4, 5 | +0x10, +0x14 | RunMessageServerPump / RunMessageServer2Pump | pump the v1 / v2 message servers (not traced) |
-| 6 to 12 | +0x18..+0x30 | RequestNewCity, RequestLoadCity, RequestCloseCity, RequestSaveCity, RequestQuit, RequestQuitFromRegion, RequestGoToRegionView | request entry points (bodies open, section 11) |
-| 13, 14, 15, 16 | +0x34..+0x40 | LoadCity, CloseCity, SaveCity, SaveCity (second overload) | open, section 11 |
+| 6 to 12 | +0x18..+0x30 | RequestNewCity, RequestLoadCity, RequestCloseCity, RequestSaveCity, RequestQuit, RequestQuitFromRegion, RequestGoToRegionView | request entry points (all seven specified, sections 11.1-11.3, 11.10, 11.12-11.14) |
+| 13, 14, 15, 16 | +0x34..+0x40 | LoadCity, CloseCity, SaveCity, SaveCity (second overload) | sections 11.9, 11.4, 11.16, 11.11 |
 | 17 | +0x44 | SavePreferences | called by Init's failure path and by the autosave timer |
 | 18 | +0x48 | EnableFullGamePauseOnAppFocusLoss(b) | writes b to the preferences byte +0x4A4 and to +0x5D0 |
 | 21 / 22 | +0x54 / +0x58 | Get/SetDebugFunctionalityEnabled | byte +0x650 |
@@ -603,4 +603,7 @@ becomes the new name. If the temp rename failed, the old file stays and the path
 
 SetupWinCtrlMgr, SetupFontSet, SetupResources, AddCodePlugins,
 AddDynamicLibrary*, ReadPreferences/SavePreferences/DoPreferencesChanged bodies, the DB segment
-callbacks, LoadRegistry. Questions: docs/specs/questions/application.md (AP1 to AP5).
+callbacks, LoadRegistry, SC4CreateSavePathForCity (`0x005DC790`) naming rule, the scoped object `0x005F88A0`, city
+vtable slots +0x1A4 (blocks saving), +0x3C, +0x30, +0x14, the message `0x26C63346` name, and the rest of
+cSC4App's 322 functions (this spec covers about 57). Not covered at all: cWinSC4App, the COM directors,
+cSC4Preferences, cSC4GameDataRegistry, cSC4AutoGamePause. Questions: docs/specs/questions/application.md (AP1 to AP5).

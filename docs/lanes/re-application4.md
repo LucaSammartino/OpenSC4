@@ -1,14 +1,31 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-application4: application framework spec, cSC4App lifecycle/services/messages/city path | `re-application4` / (RE spec lane) | ready (round 2): docs/specs/application.md sections 7.1, 8, 11 extended; AP2 answered, AP1 narrowed; partial owner spec (~52 of 322 cSC4App functions); no ABI, no game runs | 1. next RE round: SaveCity(path) 0x00455E20, RequestSaveCity 0x00455AE0, RequestQuit 0x004546B0, RequestQuitFromRegion 0x00454800, DoMessage 0x00455060. 2. AP1 remainder (ExceptionHandling, l, UserDir, CPUPriority, AutoZoomChange) |
+| re-application4: application framework spec, cSC4App lifecycle/services/messages/city path | `re-application4` / (RE spec lane) | ready (round 3, final): application.md 11.12-11.16 (RequestSaveCity, RequestQuit, RequestQuitFromRegion, height-field dialog, SaveCity(path,flag)), section 8 complete; AP1 answered; partial owner spec (~57 of 322 cSC4App functions); no ABI, no game runs | 1. AP3-AP5. 2. city vtable slot names (+0x1A4, +0x3C), SC4CreateSavePathForCity. 3. cWinSC4App, COM directors, cSC4Preferences, cSC4GameDataRegistry, cSC4AutoGamePause unspecified |
 
-## Handoff (round 3, 2026-10-21)
-Goal: final round: SaveCity(path,flag) 0x00455E20, RequestSaveCity, RequestQuit, RequestQuitFromRegion, DoMessage; AP1 remainder.
-Done: c6228104 = sections 11.12-11.15 (RequestSaveCity, RequestQuit, RequestQuitFromRegion, 0x00455060 is the
-load-height-field dialog, not a message handler). REA still "No app is open"; all from re_query asm.
-Done: commit 2 = 11.16 SaveCity(path,flag) (temp file, backup `_`, rename), load messages named in 11.9.
-Done: commit 3 = AP1 answered (section 8 rows), AP4 partial note.
-Next: final report + merge-queue.
+## Report (round 3, final, 2026-10-21)
+
+What changed (docs/specs/application.md):
+- 11.12 RequestSaveCity(notify, flag): blocked-city dialog, empty path, success dialog only when notify,
+  failure dialog always, `text (file name)` suffix. 11.13 RequestQuit(ask, saveWhenNotAsking): dialogs,
+  save-and-quit, UnilateralQuit queued to server 2 slot +0x1C (delivered later). 11.14 RequestQuitFromRegion.
+- 11.15: `0x00455060` (export name DoMessage) is the load-height-field file picker (INI key
+  `Settings/Terrain Load/Save Location`, centred modal dialog); its caller `0x004559E0` (+0x08 face slot
+  +0x0C) copies the pick (<= 511 chars) into NewCitySpecification. Partial AP4 note added.
+- 11.16 SaveCity(path, flag): app-side file handling around foundations.md 3.7 (temp file, `_` backup,
+  rename/restore, old file removed on rename, city path set/restored, segment unregister/register,
+  adjacent regional records). Two items marked [inferred].
+- Section 8: every ReadCommandLine option traced; AP1 answered (DIFFERS) and archived; QUESTIONS.md regenerated.
+- 11.9 load messages named PreLoad/Load/PostLoad (re/class_id_table.tsv); slot table and section 12 updated.
+
+Commits: c6228104 (11.12-11.15), b7e1560a (11.16), 16aabf85 (AP1), this report commit.
+Sources: REA "No app is open" again; all from re_query.py asm (helpers build-runs/asmf.py, cstr.py, mvq.py; dumps
+a-rsave.txt, a-save.txt, a-cmd.txt, not committed).
+
+Coverage, honestly: about 57 of cSC4App's 322 functions; not complete. Gaps: AP3-AP5, SetupWinCtrlMgr/FontSet/
+Resources, AddCodePlugins, AddDynamicLibrary*, preferences read/save bodies, DB segment callbacks, LoadRegistry,
+SC4CreateSavePathForCity rule, city slots +0x1A4/+0x3C/+0x30/+0x14, message 0x26C63346 name. Unspecified owner
+classes: cWinSC4App, COM directors, cSC4Preferences, cSC4GameDataRegistry, cSC4AutoGamePause.
+No ABI rows; no game runs. Proposed coverage-map row unchanged (`cSC4App	application	framework	application.md	-	-	-`).
 
 ## Report (round 2, 2026-10-21)
 
