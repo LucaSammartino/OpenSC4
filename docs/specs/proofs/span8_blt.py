@@ -20,7 +20,9 @@ def trial(r, c, rng):
     keyv = rng.getrandbits(32) & KEYM[f]
     if f == 6 and rng.random() < 0.5: keyv = 0
     for i in range(len(src)):
-        if rng.random() < 0.25: src[i] = (src[i] & ~KEYM[f] & ((1 << 8 * bpp) - 1)) | keyv
+        q = rng.random()
+        if q < 0.25: src[i] = (src[i] & ~KEYM[f] & ((1 << 8 * bpp) - 1)) | keyv
+        elif q < 0.4: src[i] = keyv ^ (1 << rng.randrange(KEYM[f].bit_length()))   # near miss: one key bit off
     sbuf = bytearray(sstr * Hh)
     for y in range(Hh):
         for x in range(W): sbuf[y * sstr + x * bpp:y * sstr + (x + 1) * bpp] = src[y * W + x].to_bytes(bpp, 'little')
