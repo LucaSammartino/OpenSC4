@@ -917,3 +917,7 @@ if(FC4_IS_WIN32_X86)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()
+
+# The shadow must not dereference untyped payloads of unrelated messages.
+add_executable(mysims_message_payload_test tests/mysims_message_payload_test.cpp)
+add_test(NAME mysims_message_payload_test COMMAND mysims_message_payload_test)

@@ -49,6 +49,7 @@
 // mismatches=N` — the LAST `; mismatches=N` decides clean/differs.
 
 #include "FC4MySimsShadow.h"
+#include "FC4MySimsMessage.h"
 
 #include "FC4Config.h"
 #include "FC4Diag.h"
@@ -326,7 +327,8 @@ public:
         a.data2 = static_cast<uint32_t>(m->GetData2());
         a.data3 = static_cast<uint32_t>(m->GetData3());
         a.data4 = static_cast<uint32_t>(m->GetData4());
-        if (cIGZUnknown* v = static_cast<cIGZUnknown*>(m->GetVoid1())) a.void1 = CanonicalOccupant(v);
+        a.void1 = MySimsOccupantMessageToken(a.msg_type,
+            [&] { return static_cast<cIGZUnknown*>(m->GetVoid1()); }, CanonicalOccupant);
         if (cIGZUnknown* u = m->GetIGZUnknown()) a.unknown = TokenOf(u);
         m->Release();
         const uint32_t t = a.msg_type;
