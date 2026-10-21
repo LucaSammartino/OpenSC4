@@ -79,6 +79,7 @@
 #include "cISC4ResidentialSimulator.h"
 #include "cRZCOMDllDirector.h"
 #include "FC4FormatsShadow.h"  // the glue-formats4 lane
+#include "FC4Span1555Shadow.h"  // the glue-span1555-impl4 lane
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -615,6 +616,7 @@ public:
                 fc4::AutomataDriverCityLoaded(CurrentCity());  // the automata riot / fire driver (automata.md 8)
                 fc4::MySimsShadowCityLoaded(CurrentCity());  // mysims_shadow = 1 only
                 fc4::FormatsShadowCityLoaded();  // the glue-formats4 lane: formats_shadow = 1 only
+                fc4::Span1555CityLoaded();  // glue-span1555-impl4: enable = span1555 only (constructed fixture)
                 fc4::MySimsShadowMonth(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // the load comparison
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.

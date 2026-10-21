@@ -939,6 +939,8 @@ pub mod zones;
 pub mod dbpf;
 // glue-span4444-impl4: the cSpanRender4444 bridge (span-render-4444.md §1.1-§7).
 pub mod span_render4444;
+// glue-span1555-impl4: the 1555 span renderer for the plug-in's native bridge.
+pub mod span1555;
 
 #[cfg(test)]
 mod tests;
@@ -1101,3 +1103,6 @@ mod zonedev_tests;
 
 #[cfg(test)]
 mod audio_tests;
+
+#[cfg(test)]
+mod span1555_tests;

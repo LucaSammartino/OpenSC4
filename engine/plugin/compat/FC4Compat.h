@@ -261,5 +261,14 @@ bool PublishLimitTimers(float cyclesToMs, float msToCycles);
 // Number of successful publishes (diagnostics).
 uint64_t PublishCount();
 
+// glue-span1555-impl4: the cSpanRender1555 vtable (docs/specs/span-render-1555.md
+// §1.1): one static six-entry table at 0x00AC182C shared by every colour type 4/6
+// RenderToBuffer context; slot 0 the deleting destructor 0x0082FF00, slots 1-5
+// RenderSolid 0x008310B0, RenderGradient 0x00831100, RenderAlpha 0x00831200,
+// RenderAlphaGradient 0x008312D0, RenderBlt 0x00831470 (thiscall, callee pops
+// 16/16/20/16/24 bytes, no return value). For the identified build only: the
+// entry's address and the function it must hold; false otherwise.
+bool Span1555SlotEntry(unsigned slot, void*** entry, uintptr_t* function);
+
 }  // namespace compat
 }  // namespace fc4
