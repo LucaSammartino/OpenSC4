@@ -123,6 +123,19 @@ methods (SetAlphaBlend, SetGradientTransform, SetBltSource, DrawPreclippedSpanLi
 read the buffer's pixels back. This exercises the shipped renderer bytes end to end but is a constructed
 scenario: a report must label it "constructed buffer", never "in-game".
 
+### 1.3 Driving the class through its native context (SR1555-7; re-span-context4) [exact, static]
+
+span-render-4444.md §1.3 gives the full context ABI for types 4, 6 and 7, and the fixture route. For SR1555-7:
+(a) After the constructor, `+0x24`, `+0x41` and `+0x74` are 0. Init (slot 3, `(buffer)`, pops 4, returns a byte)
+sets `+0xA4` = 0. `+0x42`, `+0xB4` and `+0xC4` are set by neither and are indeterminate. (b) Setters (offset, pops): SetColorTable slot 7
+`+0x1C` `(index, count, argb*)` 0xC, fills `+0xB4` (argb) and `+0xC4` (packed: types 4/6
+`0x8000 | (r&0xF8)<<7 | (g&0xF8)<<2 | b>>3`); SetAlphaBlend slot 8 `+0x20` `(int)` 4; SetBltModulate slot 9 `+0x24`
+`(byte)` 4; SetGradientTransform slot 12 `+0x30` `(m*, x0, y0)` 0xC; SetBltSource slot 13 `+0x34`
+`(src, x, y, sx, sy, rect*)` 0x18; ClearBltTiling slot 14 `+0x38` - 0; SetBltTiling slot 15 `+0x3C` `(rect*)` 4.
+(c) Shutdown (slot 4) unlocks with `0x8040`, the same flags as Init's lock, and only while `+0x75` is set. The
+final Release does not unlock. (d) The textured path locks and unlocks the texture with `0x800` on both sides. The
+bridge's "Unlock with the lock flags" matches the original.
+
 ## 2. RenderSolid (`0x008310B0`, slot 1) [exact]
 
 Arguments: spans, n, surface, colour (dword). For each span it calls the 16-bit fill helper `0x0090FFC8`
