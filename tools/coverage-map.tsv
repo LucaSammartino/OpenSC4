@@ -344,7 +344,7 @@ cGZDraw*	2D drawing and fonts	renderer	-	-	-	-
 # The five rows come before the nGZDrawSoftRender* catch-all so that the 793 template instantiations of
 # tools/coverage-ranges.tsv land on the class whose colour format they convert. No spec has them as its subject.
 nGZDrawSoftRender::cSpanRender1555	2D drawing (span render 1555)	renderer	span-render-1555.md	-	-	-
-nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	-	-	-	-
+nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	span-render-565.md	-	-	-
 nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-render-4444.md	-	-	-
 nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	-	-	-	-
 nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	-	-	-	-
