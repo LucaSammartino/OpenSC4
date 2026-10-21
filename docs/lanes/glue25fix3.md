@@ -12,5 +12,6 @@ Per-lane row for the regenerated `HANDOFF.md` 0 table (see `docs/lanes/README.md
   (ref_warnings=0), full regress with occmgr added to main's replace list, queue for the train.
 - Done: rebased glue25 onto main ea097498 (conflicts only CMakeLists.txt / FC4Subsystems.cpp, union-resolved):
   6d10b053 (class), 0f8101f9 (2026-10-16 WIP, unverified).
-- Next: baseline `qbuild.py --wt <WT> all`, then review the WIP diff.
+- Baseline gate on 185e5ce0 (WIP included): PASS, cargo 3576/0, clippy 0, ctest 62/62.
+- Next: game run to2032 with enable=occmgr (label glue25fix3-g1), then regress with occmgr added.
 - Facts: submodule engine/third_party/gzcom-dll extracted by git archive, .git points at main's modules dir.
