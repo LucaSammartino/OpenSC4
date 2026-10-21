@@ -124,6 +124,9 @@ pub struct ConstructionRecord {
     pub building: RefValue,
     /// #5.
     pub transform: Xform,
+    /// The transform's revision counter (`cS3DTransform` `+0`), not saved:
+    /// counted by the reads and replaced by the v4 legacy reader (NO15).
+    pub transform_revision: u8,
     /// #6, #7.
     pub world_bounds: Bounds,
     pub local_bounds: Bounds,
@@ -172,12 +175,12 @@ impl ConstructionRecord {
         self.lot = inp.get_ref_as(IID_LOT)?;
         self.building = inp.get_ref_as(IID_BUILDING_OCCUPANT)?;
         if version == CONSTRUCTION_OLDEST_VERSION {
-            // Version 4 uses the legacy transform reader (`0x005DA930`),
-            // whose byte layout no spec gives (question NO15). The core
-            // stops here and reports failure rather than guessing.
-            return Some(false);
+            // Version 4: the fixed 56-byte legacy transform (`0x005DA930`,
+            // NO15); the rest of the layout is the v5 one (lr §9).
+            self.transform.legacy_load_into(inp, &mut self.transform_revision)?;
+        } else {
+            self.transform.read_into(inp, &mut self.transform_revision)?;
         }
-        self.transform = Xform::read(inp)?;
         self.world_bounds = get_box(inp)?;
         self.local_bounds = get_box(inp)?;
         self.has_crane = inp.get_bool()?;
@@ -236,6 +239,7 @@ impl OccupantRecord for ConstructionRecord {
             lot: RefValue::Null,
             building: RefValue::Null,
             transform: Xform::default(),
+            transform_revision: 0,
             world_bounds: ([0.0; 3], [0.0; 3]),
             local_bounds: ([0.0; 3], [0.0; 3]),
             has_crane: false,
@@ -299,8 +303,8 @@ impl OccupantRecord for ConstructionRecord {
         }
         out.error() == 0
     }
-    /// §9: < 4 → false before the base; 4 → stops at the legacy transform
-    /// (NO15) with false; ≥ 5 read with the v5 layout.
+    /// §9: < 4 → false before the base; 4 → the v5 layout with the 56-byte
+    /// legacy transform (NO15); ≥ 5 read with the v5 layout.
     fn read(&mut self, inp: &mut dyn InStream) -> bool {
         let Some(v) = inp.get_u16() else { return false };
         let Some(version) = Self::accepts(v) else { return false };

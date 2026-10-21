@@ -6,7 +6,7 @@ use super::tests::{read_obj, rec, token, write_obj};
 use super::*;
 use crate::network_occupants::Xform;
 use crate::rng::{CrtRand, FixedSeeds, RzRandom};
-use crate::stream::RefValue;
+use crate::stream::{ByteReader, ByteWriter, RefValue};
 
 fn host_ref(id: u64, class_id: u32) -> RefValue {
     RefValue::Host { token: id, class_id }
@@ -115,18 +115,165 @@ fn version_rules() {
     assert!(ok);
     assert_eq!(rem, 0);
     assert_eq!(write_obj(&o), b);
-    // 4: the legacy transform (NO15) stops the read after the references.
-    let mut v4 = b.clone();
-    v4[0] = 4;
-    let (o, ok, rem) = read_obj(construction::CLSID_CONSTRUCTION_OCCUPANT, &v4);
-    assert!(!ok);
-    let r: ConstructionRecord = rec(&o);
-    assert_eq!(token(&r.building), Some((8, CLSID_BUILDING_OCCUPANT)));
-    assert!(r.ground_props.is_empty());
-    assert!(rem > 0);
+    // 4: the v5 layout with the 56-byte legacy transform (NO15); see
+    // `v4_legacy_transform_record`.
     // Short payload: false.
     let (_, ok, _) = read_obj(construction::CLSID_CONSTRUCTION_OCCUPANT, &b[..b.len() - 1]);
     assert!(!ok);
+}
+
+/// The NO15 worked example: mask 1, translation (8, 2.5, 8), 13 bytes.
+const EXAMPLE_XFORM: [u8; 13] = [1, 0, 0, 0, 0x41, 0, 0, 0x20, 0x40, 0, 0, 0, 0x41];
+
+fn le(vals: &[f32]) -> Vec<u8> {
+    vals.iter().flat_map(|v| v.to_le_bytes()).collect()
+}
+
+/// A v4 stream built from the v5 sample (transform = the worked example)
+/// with its 13-byte transform replaced by a 56-byte legacy one.
+fn v4_bytes(scale: f32, tail: u32) -> (Vec<u8>, Vec<u8>, usize) {
+    let mut r = sample();
+    r.transform.mask = 1;
+    r.transform.translation = [8.0, 2.5, 8.0];
+    let v5 = write_obj(&RefValue::Object(RecordObject::new(r)));
+    let at = v5.windows(13).position(|w| w == EXAMPLE_XFORM).unwrap();
+    assert_eq!(v5.windows(13).filter(|w| *w == EXAMPLE_XFORM).count(), 1);
+    let mut legacy = le(&[0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 8.0, 2.5, 8.0, scale]);
+    legacy.extend_from_slice(&tail.to_le_bytes());
+    assert_eq!(legacy.len(), 56);
+    let mut v4 = v5[..at].to_vec();
+    v4[0] = 4;
+    v4.extend_from_slice(&legacy);
+    v4.extend_from_slice(&v5[at + 13..]);
+    (v4, v5, at)
+}
+
+#[test]
+fn v4_legacy_transform_record() {
+    // Scale 1.0: mask 4|1, the scale bit cleared; low byte of the u32 is the
+    // revision counter; the rest of the record reads as in v5.
+    let (v4, v5, at) = v4_bytes(1.0, 0x1234_5678);
+    assert_eq!(v4.len(), v5.len() - 13 + 56);
+    let (o, ok, rem) = read_obj(construction::CLSID_CONSTRUCTION_OCCUPANT, &v4);
+    assert!(ok);
+    assert_eq!(rem, 0);
+    let r: ConstructionRecord = rec(&o);
+    assert_eq!(r.transform.mask, 5);
+    assert_eq!(r.transform.matrix, [0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0]);
+    assert_eq!(r.transform.translation, [8.0, 2.5, 8.0]);
+    assert_eq!(r.transform.scale, 1.0);
+    assert_eq!(r.transform_revision, 0x78);
+    assert_eq!(token(&r.building), Some((8, CLSID_BUILDING_OCCUPANT)));
+    assert_eq!(r.ground_props.len(), 2);
+    assert_eq!(r.scalars.tail, 0xAB);
+    // Written back as v5: mask 5, 9 + 3 floats; the tail identical.
+    let w = write_obj(&o);
+    assert_eq!(w[0], 5);
+    let mut head = v4[..at].to_vec();
+    head[0] = 5;
+    assert_eq!(&w[..at], &head[..]);
+    assert_eq!(w[at], 5);
+    assert_eq!(&w[at + 1..at + 49], &v4[at..at + 48]);
+    assert_eq!(&w[at + 49..], &v5[at + 13..]);
+    // Scale 2.0: the scale bit set (mask 7); NaN counts as different.
+    let (v4, _, _) = v4_bytes(2.0, 0xFFFF_FF00);
+    let (o, ok, _) = read_obj(construction::CLSID_CONSTRUCTION_OCCUPANT, &v4);
+    assert!(ok);
+    let r: ConstructionRecord = rec(&o);
+    assert_eq!((r.transform.mask, r.transform.scale, r.transform_revision), (7, 2.0, 0));
+    let (v4, _, _) = v4_bytes(f32::NAN, 3);
+    let (o, ok, _) = read_obj(construction::CLSID_CONSTRUCTION_OCCUPANT, &v4);
+    assert!(ok);
+    let r: ConstructionRecord = rec(&o);
+    assert_eq!(r.transform.mask, 7);
+    // v4 cut inside the legacy transform, or one byte short at the end: false.
+    let (v4, _, at) = v4_bytes(1.0, 0);
+    for cut in [at + 1, at + 52, at + 55, v4.len() - 1] {
+        let (_, ok, _) = read_obj(construction::CLSID_CONSTRUCTION_OCCUPANT, &v4[..cut]);
+        assert!(!ok, "cut at {cut}");
+    }
+    // The v5 form relabelled 4 is not the legacy form: 43 bytes more are
+    // consumed as the transform, so the stream misreads (no exact match).
+    let (_, v5, _) = v4_bytes(1.0, 0);
+    let mut relabel = v5.clone();
+    relabel[0] = 4;
+    let (o, ok, rem) = read_obj(construction::CLSID_CONSTRUCTION_OCCUPANT, &relabel);
+    assert!(!ok || rem != 0 || write_obj(&o) != v5);
+}
+
+#[test]
+fn xform_read_rules_no15() {
+    // Worked example writes 13 bytes; mask 7, identity, scale 2.0 writes 53
+    // bytes ending 00 00 00 40.
+    let x = Xform {
+        mask: 1,
+        translation: [8.0, 2.5, 8.0],
+        ..Xform::default()
+    };
+    let mut w = ByteWriter::new();
+    assert!(x.write(&mut w));
+    assert_eq!(w.into_bytes(), EXAMPLE_XFORM);
+    let y = Xform {
+        mask: 7,
+        scale: 2.0,
+        ..Xform::default()
+    };
+    let mut w = ByteWriter::new();
+    assert!(y.write(&mut w));
+    let b = w.into_bytes();
+    assert_eq!(b.len(), 53);
+    assert_eq!(&b[49..], &[0, 0, 0, 0x40]);
+    // Mask 7 with scale 1.0 reads back as 5; live mask 0: no reset, counter
+    // +1 per part only.
+    let mut b7 = vec![7u8];
+    b7.extend(le(&[2.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0, 1.0, 2.0, 3.0, 1.0]));
+    let mut t = Xform::default();
+    let mut c = 0u8;
+    t.read_into(&mut ByteReader::new(&b7), &mut c).unwrap();
+    assert_eq!((t.mask, t.scale, c), (5, 1.0, 3));
+    // Live mask non-zero: reset to identity first (+1); an omitted part is
+    // the identity value, not the prior one.
+    let mut live = Xform {
+        mask: 7,
+        matrix: [9.0; 9],
+        translation: [5.0; 3],
+        scale: 4.0,
+    };
+    let mut c = 250u8;
+    live.read_into(&mut ByteReader::new(&EXAMPLE_XFORM), &mut c).unwrap();
+    assert_eq!(live.mask, 1);
+    assert_eq!(live.matrix, [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
+    assert_eq!(live.translation, [8.0, 2.5, 8.0]);
+    assert_eq!(live.scale, 1.0);
+    assert_eq!(c, 252);
+    // Live mask 0 with non-identity parts: omitted parts untouched.
+    let mut odd = Xform {
+        mask: 0,
+        scale: 4.0,
+        ..Xform::default()
+    };
+    let mut c = 0u8;
+    odd.read_into(&mut ByteReader::new(&EXAMPLE_XFORM), &mut c).unwrap();
+    assert_eq!((odd.mask, odd.scale, c), (1, 4.0, 1));
+    // Legacy: mask never reset (bits stay), scale bit by the 1.0 test.
+    let mut lg = le(&[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
+    lg.extend_from_slice(&0x0000_01FEu32.to_le_bytes());
+    let mut t = Xform {
+        mask: 2,
+        scale: 3.0,
+        ..Xform::default()
+    };
+    let mut c = 9u8;
+    t.legacy_load_into(&mut ByteReader::new(&lg), &mut c).unwrap();
+    assert_eq!((t.mask, t.scale, c), (5, 1.0, 0xFE));
+    let mut t = Xform {
+        mask: 0x10,
+        ..Xform::default()
+    };
+    t.legacy_load_into(&mut ByteReader::new(&lg), &mut c).unwrap();
+    assert_eq!(t.mask, 0x15);
+    let mut short = Xform::default();
+    assert!(short.legacy_load_into(&mut ByteReader::new(&lg[..55]), &mut c).is_none());
 }
 
 #[test]
