@@ -816,7 +816,12 @@ fn draw_text_line_slot51_and_paragraph_slot52() {
     assert!(f.draw_text_line(Some(1), 0, 0, b"aa", 0x123, 0, None, None));
     // Clip rect left of the text: no record overlaps, so no draw call.
     assert!(f.draw_text_line(Some(1), 100, 0, b"aa", 0x123, 0, Some((0, 0, 50, 50)), None));
-    let rect = Rect { left: 0, top: 0, right: 1000, bottom: 100 };
+    let rect = Rect {
+        left: 0,
+        top: 0,
+        right: 1000,
+        bottom: 100,
+    };
     assert!(f.draw_text_paragraph(Some(1), rect, b"aa", 0, 0x123, 0, None));
     assert_eq!(
         *r.0.lock().unwrap(),
