@@ -377,10 +377,67 @@ Rebuilds the open city through a save and reload:
 5. Restore zoom (3D view global `0x00B43DC4`, slot +0x20) and rotation (slot +0x38) when the view
    exists; shut down and release the segment; delete the temp file.
 
+### 11.7 City init message sequence (NewCity and LoadCity)
+
+Both paths end the same way, with `new` = 1 for NewCity and 0 for LoadCity:
+1. send PreCityInit `0x26D31EC0` (d1 = new, d2 = 0) at once;
+2. city slot +0x0C (init);
+3. queue, in this order: `0x2B96B3EA` (d1 = d2 = 0), PostCityInit `0x26D31EC1` (d1 = new, d2 = 0),
+   `0xAB96B05F`, PostCityInitComplete `0xEA8AE29A` (section 6.2 sets app mode 2 when it is delivered);
+4. pump both servers through the global app pointer (`0x00B43C94`), then the resource manager's
+   slot +0xAC.
+
+### 11.8 NewCity() (primary slot 13, `0x004548B0`)
+
+Returns false at once when a city is already open. Otherwise, with a busy cursor (id 15) and a scoped
+input-queue flush (1000), the window owner destroys the current screen and creates the city screen;
+a new `cSC4City` (0x20C bytes) becomes +0x5C (one reference); when a regional city is set it is told
+about the city (regional-city slot +0x68 with the city); then section 11.7 with new = 1. Returns true.
+The city's own init reads the template segment +0x5B8 when obliteration set it (11.6); NewCity does
+not touch +0x5B8.
+
+### 11.9 LoadCity(path, regionalCity) (iface slot 13, `0x004555F0`)
+
+1. If a city is open, CloseCity() (result not checked). Store regionalCity in +0x58. Busy cursor (15)
+   and input-queue flush (1000) for the whole call.
+2. Create a DB segment for path and open it for reading. Open fails: release it and go to step 7
+   with failure.
+3. Read the save version (`SC4ReadAppLoadSaveVersion`); it must lie in 62..65 (`0x3E`..`0x41`)
+   inclusive, else unregister (no-op) and fail.
+4. Send message `0x26C63340` (data: the segment and the path string). Keep the segment as the city
+   segment (+0x654) and add it to the resource manager (slot +0x70).
+5. If the segment's slot +0x1C test passes, open the load stream (type `0x49DD6F4C`, group
+   `0x49DD6F4E`, instance 1); it must be open with version word 1, then Read (below) must succeed.
+   Then: the city gets slot +0x18 with the regional city's slot +0x6C value, slot +0x2C(path) and
+   slot +0x3C(0); the window owner destroys the current screen and creates the city screen; send
+   `0x26C63341` then `0x26C63342` (same data); section 11.7 with new = 0; success.
+6. On any failure after step 4: release the half-read city (+0x5C cleared) and unregister the city
+   segment.
+7. Release the local segment reference; pump both servers and call the resource manager's
+   slot +0xAC. Return success.
+
+**Read(stream, segment)** (`0x00454620`, called directly by LoadCity): read a 16-bit version that
+must be 2; read a serialised object of class `0x66BA4DB5` into +0x5C (the city); read a regional city
+record and, on success, store it in the regional-city holder (+0x58), releasing the previous one.
+Returns true only when all three succeed. **Write(stream, segment)** (`0x004545D0`, no caller in the
+export) is the mirror: version 2, the city, then the regional city when the holder is set.
+
+### 11.10 RequestLoadCity() (iface slot 7, `0x00456910`) and DoLoadCityUI (`0x00456860`)
+
+When a city is open, RequestCloseCity(true) first; a city still open returns false. DoLoadCityUI
+fills the path with the fixed name `SavedCity` followed by the string at global pointer
+`0x00B07EF0`; it shows no browser and always returns true (a stub in this build). Then
+LoadCity(path, null regional city); on failure the generic notification dialog shows strings
+(group `0x6A231EAA`, instances `0xCA56CE8C` and `0x4A56CEA6`). Returns LoadCity's result.
+
+### 11.11 SaveCity(flag) (iface slot 16, `0x00454DA0`)
+
+No city open: false. Reads the city's file path (city slot +0x28); empty path: false; otherwise the
+result of SaveCity(path, flag) (iface slot 15, `0x00455E20`, 2611 bytes, open).
+
 ## 12. Open (not specified here)
 
-LoadCity, NewCity, RequestLoadCity, DoLoadCityUI, RequestSaveCity, both SaveCity bodies, RequestQuit,
-RequestQuitFromRegion, the `0x00455060` DoMessage, Read/Write (`0x00454620`/`0x004545D0`, not
-referenced from any table in the export), SetupWinCtrlMgr, SetupFontSet, SetupResources, AddCodePlugins,
+SaveCity(path, flag) `0x00455E20`, RequestSaveCity `0x00455AE0`, RequestQuit `0x004546B0`,
+RequestQuitFromRegion `0x00454800`, the `0x00455060` DoMessage, SetupWinCtrlMgr, SetupFontSet, SetupResources, AddCodePlugins,
 AddDynamicLibrary*, ReadPreferences/SavePreferences/DoPreferencesChanged bodies, the DB segment
 callbacks, LoadRegistry. Questions: docs/specs/questions/application.md (AP1 to AP5).
