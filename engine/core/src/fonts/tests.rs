@@ -1,0 +1,420 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//! Conformance tests for drawing-fonts.md, mostly its worked examples.
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use super::font::{FontObj, GzFont};
+use super::layout::Rect;
+use super::*;
+
+#[derive(Clone)]
+struct MockFace {
+    family: String,
+    style: u32,
+    fixed: bool,
+    adv: HashMap<u32, i32>,
+    metrics: SizeMetrics,
+}
+
+impl FontFace for MockFace {
+    fn family_name(&self) -> String {
+        self.family.clone()
+    }
+    fn style_flags(&self) -> u32 {
+        self.style
+    }
+    fn is_fixed_size(&self) -> bool {
+        self.fixed
+    }
+    fn char_index(&self, ch: u32) -> Result<u32, ()> {
+        Ok(if self.adv.contains_key(&ch) { ch } else { 0 })
+    }
+    fn set_char_size(&mut self, _: u32, _: u32, _: u32, _: f32, _: f32) -> Result<SizeMetrics, ()> {
+        Ok(self.metrics)
+    }
+    fn load_glyph(&mut self, index: u32, levels: GreyLevels) -> Option<GlyphRaster> {
+        let a = *self.adv.get(&index)?;
+        let w = a.max(0) as u32;
+        let (pitch, fill) = match levels {
+            GreyLevels::Two => (w.div_ceil(8), 0xAA),
+            GreyLevels::Levels256 => (w, 0x80),
+        };
+        Some(GlyphRaster {
+            width: w,
+            rows: 10,
+            pitch,
+            buffer: vec![fill; (pitch * 10) as usize],
+            bearing_x: 64,
+            bearing_y: 10 * 64,
+            advance: a << 16,
+        })
+    }
+}
+
+struct MockLib {
+    faces: HashMap<String, MockFace>,
+}
+
+impl FontLibrary for MockLib {
+    fn file_exists(&self, path: &str) -> bool {
+        self.faces.contains_key(path)
+    }
+    fn open(&self, path: &str) -> Option<Box<dyn FontFace>> {
+        self.faces.get(path).map(|f| Box::new(f.clone()) as Box<dyn FontFace>)
+    }
+    fn read_head(&self, _: &str, _: usize) -> Vec<u8> {
+        b"\x00\x01\x00\x00".to_vec()
+    }
+    fn system_fonts_dir(&self) -> String {
+        "C:\\Windows\\Fonts\\".into()
+    }
+    fn list_files(&self, _: &str, pat: &str) -> Vec<String> {
+        if pat == "*.tt?" {
+            let mut v: Vec<String> = self.faces.keys().cloned().collect();
+            v.sort();
+            v
+        } else {
+            Vec::new()
+        }
+    }
+}
+
+fn face(family: &str, style: u32) -> MockFace {
+    let mut adv = HashMap::new();
+    for c in 0x20u32..0x7F {
+        adv.insert(c, 7);
+    }
+    adv.insert(' ' as u32, 3);
+    adv.insert('.' as u32, 3);
+    adv.insert('a' as u32, 8);
+    MockFace {
+        family: family.into(),
+        style,
+        fixed: false,
+        adv,
+        metrics: SizeMetrics {
+            a: 0x000A_0000,
+            b: 0x0003_0000,
+            c: 0xFFFE_0000u32 as i32,
+            underline_offset: 1,
+            line_thickness: 1,
+        },
+    }
+}
+
+fn lib_with(fonts: &[(&str, &str, u32)]) -> Arc<MockLib> {
+    Arc::new(MockLib {
+        faces: fonts.iter().map(|(p, f, s)| (p.to_string(), face(f, *s))).collect(),
+    })
+}
+
+fn font() -> GzFont {
+    let lib = lib_with(&[("a.ttf", "Arial", 0)]);
+    let mut f = GzFont::new(lib, Arc::new(Latin1Converter));
+    f.set_file_path("a.ttf");
+    f.set_size(12);
+    assert!(f.init());
+    f
+}
+
+#[test]
+fn size_metrics_worked_example() {
+    let mut f = font();
+    f.set_spacing_adjustment(0, 2);
+    assert_eq!((f.char_height, f.ascent, f.descent_raw), (15, 13, 10));
+    assert_eq!(f.get_line_height(), 17);
+    assert_eq!(f.size_above_baseline(), 15);
+    assert_eq!(f.size_below_baseline(), 2);
+    assert_eq!(f.face_kind, 1);
+    // SetSize fails for 0 and while a cache holds glyphs.
+    assert!(!f.set_size(0));
+    f.get_char_data('x' as u32);
+    assert!(!f.set_size(20));
+}
+
+#[test]
+fn setter_clamps() {
+    let mut f = font();
+    f.set_aa_gamma(20.0);
+    assert_eq!(f.aa_gamma, 10.0);
+    assert_eq!(f.aa_table.len(), 256);
+    f.set_aa_sharpness(-5.0);
+    assert_eq!(f.aa_sharpness, -1.0);
+    f.set_scaling(0.0, 5000.0);
+    assert_eq!(f.get_scaling(), (0.01, 1000.0));
+    f.set_advance_scaling(100.0);
+    assert_eq!(f.get_advance_scaling(), (10.0, 1.0));
+    f.set_antialiasing(2);
+    f.set_antialiasing(0);
+    assert_eq!(f.aa_mode, 2);
+    f.set_style(0xFF, true);
+    assert_eq!(f.style_flags & 0xFF, 0x3C);
+    assert!(f.get_style(0x0C));
+    assert!(GzFont::answers_interface(1) && GzFont::answers_interface(0x10673960));
+    assert!(!GzFont::answers_interface(0x20673960));
+}
+
+#[test]
+fn aa_table_rules() {
+    assert!(aa::build_table(1.0, 0.0).is_empty());
+    assert!((aa::sharpness_exponent(0.0) - 1.0).abs() < 1e-6);
+    assert!((aa::sharpness_exponent(1.0) - 10.0).abs() < 1e-4);
+    assert_eq!(aa::sharpness_exponent(-1.0), 0.0);
+    let t = aa::build_table(2.0, 0.0);
+    assert_eq!((t[0], t[255]), (0, 255));
+    assert_eq!(t[128], ((128.0f32 / 255.0).powf(2.0) as f64 * 255.0) as u8);
+}
+
+#[test]
+fn thai_worked_examples() {
+    use thai::make_substituted_string as m;
+    assert_eq!(m(&[0x0E1B, 0x0E48]).0, vec![0x0E1B, 0xF705]);
+    assert_eq!(m(&[0x0E01, 0x0E48]).0, vec![0x0E01, 0xF70A]);
+    assert_eq!(m(&[0x0E1B, 0x0E34, 0x0E48]).0, vec![0x0E1B, 0xF701, 0xF713]);
+    assert_eq!(m(&[0x0E1B, 0x0E38, 0x0E48]).0, vec![0x0E1B, 0x0E38, 0xF705]);
+    let (s, map) = m(&[0x0E01, 0x0E33]);
+    assert_eq!(s, vec![0x0E01, 0x0E4D, 0x0E32]);
+    assert_eq!(map, vec![0, 1, 1]);
+    assert_eq!(m(&[0x0E0D, 0x0E38]).0, vec![0xF70F, 0x0E38]);
+    assert_eq!(thai::thai_char_type(0x0E5B), 17);
+    assert_eq!(thai::thai_char_type(0x0E7F), 0);
+}
+
+#[test]
+fn encodings_and_probes() {
+    let c = Latin1Converter;
+    assert_eq!(encoding::convert_char_to_unicode(&c, 0x10, &[0x01, 0x0E]), (0x0E01, 2));
+    assert_eq!(encoding::convert_char_to_unicode(&c, 0, &[0xE9]), (0xE9, 1));
+    assert_eq!(encoding::convert_char_to_unicode(&c, 0, &[]), (0, 0));
+    assert_eq!(encoding::code_page_probes(874), &[0x0E01, 0x0E2C]);
+    assert!(encoding::code_page_probes(437).is_empty());
+    let f = font();
+    assert!(f.is_code_page_available(1252));
+    assert!(!f.is_code_page_available(1251));
+    assert!(f.is_code_page_available(8));
+}
+
+#[test]
+fn glyph_cache_and_widths() {
+    let mut f = font();
+    assert_eq!(f.char_width('H' as u32), 7);
+    assert_eq!(f.get_x_offset('H' as u32), 1);
+    f.set_spacing_adjustment(1, 0);
+    assert_eq!(f.get_advance_width('H' as u32), 8);
+    let g = f.get_char_data('H' as u32).unwrap();
+    assert_eq!(g.y_offset, 13 - 10);
+    assert_eq!(f.grey_cache.glyph_count(), 1);
+    // ReallocateSourceData sized cellWidth*32 + x.
+    assert_eq!(f.grey_cache.pitch, 7 * 32);
+    assert_eq!(f.grey_cache.block.len(), ((10 + 4) * 7 * 32) as usize);
+    // Zero-width characters: no glyph in the face -> filled block path, advance 0.
+    let z = f.get_char_data(0x200B).unwrap();
+    assert_eq!(z.advance, 0);
+    // Monochrome: MSB-first unpacking into 0x00/0xFF.
+    f.set_antialiasing(1);
+    let m = f.get_char_data('H' as u32).unwrap();
+    let o = f.mono_cache.offset(m.src_left as u32, 0);
+    assert_eq!(&f.mono_cache.block[o..o + 4], &[0xFF, 0x00, 0xFF, 0x00]);
+}
+
+#[test]
+fn ellipsis_worked_example() {
+    let mut f = font();
+    let r = Rect {
+        left: 0,
+        top: 0,
+        right: 50,
+        bottom: 10,
+    };
+    let mut t = b"Hello world".to_vec();
+    assert_eq!(f.chars_to_fit(&t, 50).0, 7);
+    assert_eq!(f.format_for_ellipsis(&mut t, b"...", r, false), 11);
+    assert_eq!(t, b"Hello...");
+    let mut t = b"Hello world".to_vec();
+    f.format_for_ellipsis(&mut t, b"...", Rect { right: 8, ..r }, false);
+    assert!(t.is_empty());
+    let mut t = b"Hello world".to_vec();
+    f.format_for_ellipsis(&mut t, b"...", Rect { right: 8, ..r }, true);
+    assert_eq!(t, b"Hello world");
+}
+
+#[test]
+fn text_area_rules() {
+    let mut f = font(); // line height 15, 'x' 7, ' ' 3
+    let mut r = Rect {
+        left: 10,
+        top: 20,
+        right: 110,
+        bottom: 70,
+    };
+    f.calculate_text_area(Some(b"xx"), &mut r, false, false);
+    assert_eq!((r.right, r.bottom), (24, 35));
+    let mut r = Rect {
+        left: 10,
+        top: 20,
+        right: 110,
+        bottom: 70,
+    };
+    f.calculate_text_area(None, &mut r, true, true);
+    assert_eq!((r.right, r.bottom), (10, 35));
+    // 30 words of "xxx " (24 px each); at width 100 four words per line.
+    let text = b"xxx ".repeat(12);
+    assert_eq!(f.number_of_lines(&text, 100), 3);
+    let mut r = Rect {
+        left: 10,
+        top: 20,
+        right: 110,
+        bottom: 70,
+    };
+    f.calculate_text_area(Some(&text), &mut r, true, true);
+    assert_eq!(r.bottom, 20 + 45);
+    // Width of lines: narrowest multiple of 10 that gives <= 3 lines.
+    let w = f.width_of_lines(&text, 45);
+    assert_eq!(f.number_of_lines(&text, w as i32), 3);
+    assert!(f.number_of_lines(&text, w as i32 - 10) > 3);
+    assert_eq!(f.width_of_lines(&text, 10), 0);
+    // Box: aw 8 -> minW 96, maxW 256.
+    let mut r = Rect::default();
+    assert!(f.calculate_text_area_box(b"xxxxxxxx", &mut r, -1, -1, 100));
+    assert_eq!((r.right, r.bottom), (56, 15));
+    let mut r = Rect::default();
+    assert!(!f.calculate_text_area_box(b"xxx", &mut r, 1, 2, 10));
+    assert_eq!((r.right, r.bottom), (0, 0));
+}
+
+#[test]
+fn words_to_fit_modes() {
+    let mut f = font();
+    assert_eq!(f.words_to_fit(b"ab cd\nef", 1000, 2).0, 6);
+    assert_eq!(f.words_to_fit(b"abcdef gh", 20, 1).0, 7);
+    assert_eq!(f.words_to_fit(b"abcdef gh", 20, 2).0, 2);
+    let (w, len) = f.get_string_visible_width(b"ab  ");
+    assert_eq!((w, len), (15, 2));
+}
+
+#[test]
+fn palette_rule() {
+    let p = Palette::build(0xFFFF_FFFF, 0xFF00_0000);
+    assert_eq!(p.entries.len(), 128);
+    assert_eq!(p.entries[0], 0xFF00_0000);
+    assert_eq!(p.entries[8], 0xFF00_0000);
+    assert_eq!(p.entries[16], 0xFF0F_0F0F);
+    assert_eq!(p.entries[127], 0xFFFF_FFFF);
+    let mut f = font();
+    for i in 0..5 {
+        f.set_current_palette(i, 0);
+    }
+    assert_eq!(f.palettes.len(), 4);
+    assert_eq!(f.palettes[0].fg, 4);
+}
+
+fn sys(fonts: &[(&str, &str, u32)]) -> GzFontSys {
+    let mut s = GzFontSys::new(lib_with(fonts), Arc::new(Latin1Converter), 0);
+    s.init();
+    s
+}
+
+#[test]
+fn catalogue_scoring_worked_example() {
+    let mut s = sys(&[
+        ("arial.ttf", "Arial", 0),
+        ("tahoma.ttf", "Tahoma", 1),
+        ("zz.ttf", "Other", 1),
+    ]);
+    assert_eq!(s.add_all_fonts_from_directory(""), 3);
+    assert_eq!(s.font_names.get(&9).map(String::as_str), Some("Arial"));
+    let f = s.font_acquire_family("Arial,Tahoma", 0, 12, 0x05, false).unwrap();
+    assert_eq!(f.lock().file_path, "tahoma.ttf");
+    // n = 0: kind scoring, ties keep the earlier path.
+    let f = s.font_acquire_family("", 1, 12, 0, false).unwrap();
+    assert_eq!(f.lock().file_path, "arial.ttf");
+    assert!(GzFontSys::new(lib_with(&[]), Arc::new(Latin1Converter), 0)
+        .font_acquire_family("x", 0, 1, 0, false)
+        .is_none());
+}
+
+#[test]
+fn cache_and_release() {
+    let mut s = sys(&[("arial.ttf", "Arial", 0)]);
+    s.add_font_path("arial.ttf");
+    assert!(!s.add_font_path("arial.ttf"));
+    let a = s.font_acquire_path("arial.ttf", 12, 0, true).unwrap();
+    assert_eq!(a.ref_count(), 2);
+    let b = s.font_acquire_family("arial", 0, 12, 0, true).unwrap();
+    assert!(Arc::ptr_eq(&a, &b));
+    assert_eq!(a.ref_count(), 3);
+    let mut out = vec![None; 4];
+    assert_eq!(s.get_cached_fonts(&mut []), 1);
+    assert_eq!(s.get_cached_fonts(&mut out), 1);
+    assert_eq!(s.font_release(&a), 2);
+    assert_eq!(s.font_release(&a), 0);
+    assert_eq!(s.get_cached_fonts(&mut []), 0);
+    let mut recs = [FontInfoRecord::default(); 2];
+    assert_eq!(s.get_font_info_list(&mut recs), 1);
+    assert_eq!(&recs[0].family[..6], b"Arial\0");
+    assert_eq!(recs[0].to_bytes().len(), 0x88);
+    // AddFont(font): same size refused.
+    let c = s.font_acquire_path("arial.ttf", 14, 0, false).unwrap();
+    assert!(s.add_font(Some(&c)));
+    assert!(!s.add_font(Some(&c)));
+    assert!(!s.add_font(None));
+    assert!(!s.remove_fonts_by_family("ARIAL"));
+    assert!(s.catalogue.is_empty());
+    assert!(s.families.contains("arial"));
+    assert_eq!(c.ref_count(), 1);
+    let solo = FontObj::new(GzFont::new(lib_with(&[]), Arc::new(Latin1Converter)));
+    assert!(solo.query_interface(1));
+    assert_eq!(solo.release(), 1);
+    assert_eq!(solo.release(), 0);
+}
+
+#[test]
+fn monochrome_ranges() {
+    let mut s = sys(&[("arial.ttf", "Arial", 0)]);
+    s.set_default_antialiasing(3);
+    s.set_monochrome_size_range(8, 10, None);
+    assert_eq!(s.font_acquire_path("arial.ttf", 9, 0, false).unwrap().lock().aa_mode, 1);
+    assert_eq!(
+        s.font_acquire_path("arial.ttf", 12, 0, false).unwrap().lock().aa_mode,
+        3
+    );
+    // Per-family ranges are looked up by the pre-Init (empty) name.
+    s.set_monochrome_size_range(11, 13, Some("Arial"));
+    assert_eq!(
+        s.font_acquire_path("arial.ttf", 12, 0, false).unwrap().lock().aa_mode,
+        3
+    );
+    s.set_monochrome_size_range(11, 13, Some(""));
+    s.set_monochrome_size_range(1, 2, Some(""));
+    assert_eq!(s.family_ranges.get(""), Some(&(11, 13)));
+    assert_eq!(
+        s.font_acquire_path("arial.ttf", 12, 0, false).unwrap().lock().aa_mode,
+        1
+    );
+    s.set_monochrome_size_range(5, 5, Some(""));
+    assert!(!s.family_ranges.contains_key(""));
+}
+
+#[test]
+fn substitutions_worked_example() {
+    let mut s = sys(&[("verdana.ttf", "Verdana", 0)]);
+    s.add_font_path("verdana.ttf");
+    s.add_substitution("Arial", "Tahoma");
+    s.add_substitution("Arial", "Verdana");
+    let mut out = vec![Some(String::new()), Some(String::new())];
+    assert_eq!(s.get_substitutions("Arial", &mut out), 2);
+    assert_eq!(out, vec![Some("Tahoma".into()), Some("Verdana".into())]);
+    assert_eq!(s.get_substitutions("arial", &mut out), 0);
+    let mut o = String::new();
+    assert!(s.get_available_substitution("Arial", &mut o));
+    assert_eq!(o, "Verdana");
+    assert!(s.is_family_available("VERDANA", 7, 4));
+    assert!(!s.is_family_available("VERDANA", 7, 1));
+    assert_eq!(s.query_interface(0x287FB697), Some(true));
+    assert_eq!(s.query_interface(0x00673960), Some(false));
+    assert_eq!(s.query_interface(5), None);
+    assert!(s.shutdown());
+    assert!(s.catalogue.is_empty() && s.font_names.is_empty());
+    assert_eq!(director::class_for(0x1AA404AC), Some(director::FontClass::Font));
+}
