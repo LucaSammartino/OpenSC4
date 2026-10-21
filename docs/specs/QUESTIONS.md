@@ -53,6 +53,7 @@ generated index: the questions live one file per spec, so read only the file for
 | FS | graphics-formats |
 | GF | graphics-formats |
 | GLUE | lot-configuration, prop-developer |
+| GZ | framework-gz-services |
 | HG | foundations |
 | HW | history |
 | IN | commercial-industrial |
@@ -75,7 +76,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PK | parks |
 | PL | prop-lotconfig |
 | PO | prop-occupant |
-| PR | protection |
+| PR | persistence, protection |
 | PS | plumbing |
 | PV | prop-developer |
 | PW | power |
@@ -89,6 +90,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TR | terrain |
 | TS | traffic-simulator |
 | TU | tutorial |
+| WT | widget-toolkit |
 | ZG | zones |
 | ZQ | zones |
 
@@ -120,6 +122,7 @@ generated index: the questions live one file per spec, so read only the file for
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
+| framework-gz-services | 4 | 0 | GZ5 | questions/framework-gz-services.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | history | 0 | 17 | HW18 | - |
 | landfill | 0 | 36 | LF7, LG31 | - |
@@ -131,7 +134,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 2 | 9 | NM12 | questions/network-manager.md |
-| network-occupants | 8 | 0 | NO9 | questions/network-occupants.md |
+| network-occupants | 17 | 0 | NO18 | questions/network-occupants.md |
 | network-rules | 2 | 7 | NR13 | questions/network-rules.md |
 | network-tools | 11 | 0 | NT18 | questions/network-tools.md |
 | occupant-manager | 0 | 5 | OM9 | - |
@@ -139,6 +142,7 @@ generated index: the questions live one file per spec, so read only the file for
 | ordinance | 0 | 1 | SV3 | - |
 | parks | 0 | 11 | PK12 | - |
 | pathfinder | 0 | 15 | PF16 | - |
+| persistence | 3 | 0 | PR4 | questions/persistence.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
 | port-developers | 0 | 11 | PD12 | - |
@@ -156,5 +160,6 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
+| widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **90** | **993** | | |
+| **total** | **111** | **994** | | |
