@@ -29,7 +29,20 @@ fn blt_example_converts_a4444() {
     let rec = [0u32, 2, 1, 1, 7, 2];
     let blit = [0u32; 8];
     let r = unsafe {
-        fc4_span1555_blt(spans.as_ptr(), 1, dst.as_mut_ptr(), 2, 0, 2, src.as_ptr(), 2, 0, rec.as_ptr(), blit.as_ptr(), 0)
+        fc4_span1555_blt(
+            spans.as_ptr(),
+            1,
+            dst.as_mut_ptr(),
+            2,
+            0,
+            2,
+            src.as_ptr(),
+            2,
+            0,
+            rec.as_ptr(),
+            blit.as_ptr(),
+            0,
+        )
     };
     assert_eq!(r, 0);
     assert_eq!(u16::from_le_bytes(dst), 0xC726);
@@ -40,7 +53,16 @@ fn window_errors_are_codes() {
     let spans = [0x0001_0002u32, 0x0001_0005];
     let mut buf = [0u8; 8];
     // n = 0, a destination past the window, a null gradient.
-    assert_eq!(unsafe { fc4_span1555_solid(spans.as_ptr(), 0, buf.as_mut_ptr(), 8, 0, 8, 0) }, 1);
-    assert_eq!(unsafe { fc4_span1555_solid(spans.as_ptr(), 1, buf.as_mut_ptr(), 8, 0, 8, 0) }, 3);
-    assert_eq!(unsafe { fc4_span1555_gradient(spans.as_ptr(), 1, buf.as_mut_ptr(), 8, 0, 8, std::ptr::null()) }, -1);
+    assert_eq!(
+        unsafe { fc4_span1555_solid(spans.as_ptr(), 0, buf.as_mut_ptr(), 8, 0, 8, 0) },
+        1
+    );
+    assert_eq!(
+        unsafe { fc4_span1555_solid(spans.as_ptr(), 1, buf.as_mut_ptr(), 8, 0, 8, 0) },
+        3
+    );
+    assert_eq!(
+        unsafe { fc4_span1555_gradient(spans.as_ptr(), 1, buf.as_mut_ptr(), 8, 0, 8, std::ptr::null()) },
+        -1
+    );
 }

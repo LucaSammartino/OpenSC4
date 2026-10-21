@@ -13,8 +13,8 @@
 //! pointer or a panic.
 
 use fc4_core::span_render1555::{
-    render_alpha, render_alpha_gradient, render_blt, render_gradient, render_solid, BlitRecord, BltSource,
-    Error, GradientRecord, Span, Surface,
+    render_alpha, render_alpha_gradient, render_blt, render_gradient, render_solid, BlitRecord, BltSource, Error,
+    GradientRecord, Span, Surface,
 };
 
 use crate::guard;
@@ -58,8 +58,16 @@ unsafe fn with_dst(
         if dst.is_null() && dst_len != 0 {
             return -1;
         }
-        let buf: &mut [u8] = if dst_len == 0 { &mut [] } else { std::slice::from_raw_parts_mut(dst, dst_len as usize) };
-        let mut s = Surface { buf, base: dst_base, stride };
+        let buf: &mut [u8] = if dst_len == 0 {
+            &mut []
+        } else {
+            std::slice::from_raw_parts_mut(dst, dst_len as usize)
+        };
+        let mut s = Surface {
+            buf,
+            base: dst_base,
+            stride,
+        };
         code(f(&list, &mut s))
     })
 }
@@ -87,7 +95,9 @@ pub unsafe extern "C" fn fc4_span1555_solid(
     stride: i32,
     colour: u32,
 ) -> i32 {
-    with_dst(spans, n, dst, dst_len, dst_base, stride, |l, s| render_solid(l, s, colour))
+    with_dst(spans, n, dst, dst_len, dst_base, stride, |l, s| {
+        render_solid(l, s, colour)
+    })
 }
 
 /// Slot 3, RenderAlpha (§3).
@@ -102,7 +112,9 @@ pub unsafe extern "C" fn fc4_span1555_alpha(
     src: u32,
     argb: u32,
 ) -> i32 {
-    with_dst(spans, n, dst, dst_len, dst_base, stride, |l, s| render_alpha(l, s, src, argb))
+    with_dst(spans, n, dst, dst_len, dst_base, stride, |l, s| {
+        render_alpha(l, s, src, argb)
+    })
 }
 
 /// Slot 2, RenderGradient (§4); `grad` is the 12-dword record of §4.1.
@@ -117,7 +129,9 @@ pub unsafe extern "C" fn fc4_span1555_gradient(
     grad: *const i32,
 ) -> i32 {
     let Some(g) = gradient_of(grad) else { return -1 };
-    with_dst(spans, n, dst, dst_len, dst_base, stride, |l, s| render_gradient(l, s, &g))
+    with_dst(spans, n, dst, dst_len, dst_base, stride, |l, s| {
+        render_gradient(l, s, &g)
+    })
 }
 
 /// Slot 4, RenderAlphaGradient (§5).
@@ -132,7 +146,9 @@ pub unsafe extern "C" fn fc4_span1555_alpha_gradient(
     grad: *const i32,
 ) -> i32 {
     let Some(g) = gradient_of(grad) else { return -1 };
-    with_dst(spans, n, dst, dst_len, dst_base, stride, |l, s| render_alpha_gradient(l, s, &g))
+    with_dst(spans, n, dst, dst_len, dst_base, stride, |l, s| {
+        render_alpha_gradient(l, s, &g)
+    })
 }
 
 /// Slot 5, RenderBlt (§6). `rec` is the 24-byte source record (its `+0` pointer is
@@ -158,7 +174,11 @@ pub unsafe extern "C" fn fc4_span1555_blt(
     }
     let r = std::slice::from_raw_parts(rec, 6);
     let b = std::slice::from_raw_parts(blit, 8);
-    let sbuf: &[u8] = if src_len == 0 { &[] } else { std::slice::from_raw_parts(src, src_len as usize) };
+    let sbuf: &[u8] = if src_len == 0 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(src, src_len as usize)
+    };
     let source = BltSource {
         buf: sbuf,
         base: src_base,
@@ -178,5 +198,7 @@ pub unsafe extern "C" fn fc4_span1555_blt(
         key: b[6],
         key_flag: b[7] as u8,
     };
-    with_dst(spans, n, dst, dst_len, dst_base, stride, |l, s| render_blt(l, s, &source, &record, kind))
+    with_dst(spans, n, dst, dst_len, dst_base, stride, |l, s| {
+        render_blt(l, s, &source, &record, kind)
+    })
 }
