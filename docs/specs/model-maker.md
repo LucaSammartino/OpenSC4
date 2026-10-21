@@ -63,9 +63,15 @@ Constructor `0x00491AD0` (all other bytes zero):
 | `+0x6C` | ref | building development simulator (`0x00B43D68`) slot `+0x90` result | null |
 | `+0x70` | ref | terrain (global `0x00B43CF4`) | null |
 | `+0x74` | ref | animation coordinator (`cSC4AnimationCoordinator`, 0x5C bytes) | null |
-| `+0x78`..`+0x88` | uint32 ×5 | per-kind model budgets, 0x100 each | 0x100 |
-| `+0xB0` | uint32 | bit k set for each budget k = 0..4 (so 0x1F) | 0x1F |
-| `+0xB4` | uint32 | | 0x0F |
+| `+0x50` | byte | bulk reload in progress: per-occupant terrain hiding is skipped (§6.3, §10.1) | 0 |
+| `+0x78`..`+0x88` | int32 ×5 | load radius in cells for zoom 0..4 (§7.1; corrected in round 2, earlier text called these budgets) | 0x100 |
+| `+0x8C`..`+0x98` | int32 ×4 | load rect x0, z0, x1, z1 in 16 m city cells (§7.2) | 0 |
+| `+0x9C`, `+0xA0` | int32 | load focus cell x, z (§7.2) | 0 |
+| `+0xA4` | byte | background load started (§10) | 0 |
+| `+0xA8`, `+0xAC` | int32 | focus cell at the last background (re)start (§10.2) | 0 |
+| `+0xB0` | uint32 | all-zooms mask, bit k for zoom k = 0..4 (0x1F); never changed | 0x1F |
+| `+0xB4` | uint32 | all-rotations mask, bit k for rotation k = 0..3 (0x0F); never changed | 0x0F |
+| `+0xC2` | byte | unload pending: set by view changes (§10), consumed by `UnloadUnnecessaryModels` (§7.4) | 0 |
 | `+0xB8` | byte | background loader enabled (command line, §3.2) | 1 |
 | `+0xBC` | ptr | background loader (`cSC4ModelBackgroundLoader`, 0x188 bytes) | null |
 | `+0xC0` | byte | save in progress (`0x26C63343` sets, `0x26C63345` clears) | 0 |
@@ -178,6 +184,128 @@ data4.
 | `0x4AB04CBE`, `0x4AB04CBF` | | subscribed but not handled |
 
 *[quirk]* In `0xA6B79601` with `+0x44` set, only q is stored; p is dropped.
+
+## 6. Occupant filters (`CreateOccupantFilters` `0x00493EF0`) *[compat]*
+
+### 6.1 Construction
+
+Called from `Init`. Each of the three slots is filled only when it is null, and the new filter is AddRef'd once
+(slot `+0x04`) as the model maker's reference.
+
+| slot | class | accepted occupant types (inserted in this order) |
+|---|---|---|
+| `+0x5C` type filter | occupant types filter (0x20 bytes, vtables `0x00A8EE38` / `0x00A8EE20`, hash set of 100 buckets) | `0x278128A0` building, `0x68FD0C69` foundation, `0x895D1169` wall, `0x74758926` flora, `0xA823821E` prop, `0x497F6D9D` base texture, `0xC772BF98` network, `0x2890D4DE` power pole, `0x2A183167` pipe connection, `0x8A13918A` subway connection, `0x6A11BD2B` landfill |
+| `+0x60` terrain-hiding filter | same class | `0x68FD0C69`, `0x497F6D9D`, `0xC772BF98`, `0x2A183167`, `0x8A13918A` |
+| `+0x64` zoom/rotation filter | `cSC4ZoomRotationModelChangeOccupantFilter` (0x10 bytes, ctor `0x00496790`, vtable `0x00A8EEA0`) | §6.4 |
+
+### 6.2 The occupant types filter (`0x00A8EE38`)
+
+The set of type IDs lives at object `+0x0C` (element count at `+0x1C`). Slots: `+0x0C` IsOccupantIncluded(o) =
+slot `+0x10` of o's type (occupant slot `+0x1C`); `+0x10` IsOccupantTypeIncluded(t) (`0x00493700`) = t is in the
+set; `+0x14` (property) always true (`0x004FC900`); `+0x18` deleting destructor (`0x00493720`: destroy the set, base
+destructor `0x005E95C0`, free when bit 0 of the argument is set).
+
+Serialisation, through the second interface at object `+0x04` (vtable `0x00A8EE20`):
+
+- **Write** (`0x005EA370`, slot 3): PutUint16(3) twice; then, if the stream has no error, PutUint32(count) and
+  PutUint32 of each type in hash-set iteration order. Returns true iff the stream has no error.
+- **Read** (`0x005EA550`, slot 4): the first GetUint16 must be 3, else return false at once. If the second is 3
+  and the stream has no error: GetUint32 count, then count × GetUint32, each inserted into the set (the set is not
+  cleared first). Returns true iff the stream has no error.
+
+*[quirk]* A second version word other than 3 skips the body but still returns "no error" (normally true).
+
+### 6.3 Per-occupant refresh (`OccupantFilterIterationFunction` `0x00495360`)
+
+Argument o; always returns true. Same body as §8.4 with f computed rather than passed:
+
+1. f = the View3D object `+0x58` slot `+0x0C(o)` (o is visible). f set: occupant SetFlag(2) (slot `+0x74`); clear:
+   ClearFlag(2) (slot `+0x7C`).
+2. t = o's type (slot `+0x1C`). If `+0x50` is clear and the terrain-hiding filter `+0x60` accepts t:
+   `DoTerrainHidingForOccupantCells(o, t, f)` (§13).
+3. Model holder h = occupant slot `+0x4C`. If present: AddRef; when f is set and h slot `+0x0C` returns 0 (no
+   models), `AddModels(o, +0x20, +0x24, t, false)` (§12); h slot `+0x20(f)`; Release at the end.
+4. `SetOccupantAnimation(o, f)` on the animation coordinator `+0x74`.
+
+The address has no direct caller or data reference in the export; it is used as a callback
+(DoViewFilterChange, §10.3).
+
+### 6.4 The zoom/rotation filter
+
+`SetZoomAndRotation(z, r)` (`0x004967B0`) stores mask = (1 << (z + 2)) + (1 << (r + 7)) at `+0x0C`. Its
+IsOccupantIncluded (`0x004967E0`): h = occupant slot `+0x4C`; when h is null → true; otherwise m = h's word `+0x2C`
+AND mask; included unless m has a bit in `0x7C` (the zoom bits) **and** a bit in `0x780` (the rotation bits). So
+the holder's `+0x2C` word records loaded zooms in bits 2..6 and rotations in bits 7..10, and the filter selects the
+occupants still lacking the current zoom or rotation. Slots `+0x10`/`+0x14` return true; `+0x18` is the shared
+default destructor `0x006C4A00`. (This class is not owned by `cSC4ModelMaker`; described here for its contract.)
+
+## 7. Load radius, load rect and unloading *[compat]*
+
+Fast rounding used below (the float32 `1.5·2^23` trick): **F(x)** = n, the nearest integer to x − 0.5 (ties to
+even), raised to n + 1 only if n + 1 equals x − 0.5 exactly; **C(x)** = n, the nearest integer to x + 0.5 (ties to
+even), lowered to n − 1 only if n − 1 equals x + 0.5. F is floor and C is ceiling except at exact odd integers v,
+where F(v) = v − 1 and C(v) = v + 1 (even integers are exact).
+
+### 7.1 `DetermineLoadRadiusAroundVisibleArea` (`0x0048EB50`)
+
+From `Init`. m = total physical memory in MiB as `cRZVersion::GetSystemMemory` (`0x0089157C`) reports it:
+GlobalMemoryStatus total physical >> 20, rounded up to a multiple of 4. If that call fails the radii stay 0x100.
+Otherwise, with m as an unsigned value:
+
+| zoom | slot | radius | minimum |
+|---|---|---|---|
+| 0 | `+0x78` | F(m × 0.5) | 8 |
+| 1 | `+0x7C` | F(m × 0.25) | 8 |
+| 2 | `+0x80` | F(m × 0.125) | 6 |
+| 3 | `+0x84` | F(m × 0.0625) | 6 |
+| 4 | `+0x88` | F(m × 0.03125) | 6 |
+
+Example: m = 512 → 256, 128, 64, 32, 16. m = 4096 (the cap of the 32-bit status call) → 2048, 1024, 512, 256, 128.
+
+### 7.2 `UpdateModelLoadRect` (`0x0048F660`)
+
+Does nothing unless both the View3D window (`0x00B43DD8`) and the renderer (`0x00B43DD0`) exist. With z = the
+window's zoom (`+0x0C`) and its visible rect r0..r3 (floats at window `+0x3EC`..`+0x3F8`, metres):
+
+1. Load rect: `+0x8C` = F(r0/16), `+0x94` = C(r2/16), `+0x90` = F(r1/16), `+0x98` = C(r3/16).
+2. The renderer's camera control (slot `+0x40`) is fetched; its result is unused.
+3. g = the float `0x00B216F8`; focus `+0x9C` = F((2g + window `+0x3DC`)/16), `+0xA0` = F((2g + window `+0x3E4`)/16).
+4. If the background loader is enabled (`+0xB8`) and exists (`+0xBC`): loader `ExpandLoadRect(&+0x8C, z)`
+   (`0x0048CA40`, not this owner). Otherwise grow the rect by the radius of zoom z (`+0x78 + 4z`) on all four sides.
+5. Clamp: x0, z0 ≥ 0; x1 ≤ `+0x28` − 1; z1 ≤ `+0x2C` − 1.
+
+### 7.3 `ComputeCityExclusionRects(L, out)` (`0x0048ED20`) and rect intersection (`0x0048ED90`)
+
+With X = `+0x28`, Z = `+0x2C` and L = (x0, z0, x1, z1), out receives four inclusive rects (x0, z0, x1, z1), the
+city minus L: (0, 0, X−1, L.z0−1); (0, L.z1+1, X−1, Z−1); (0, L.z0, L.x0−1, L.z1); (L.x1+1, L.z0, X−1, L.z1).
+A rect with x0 > x1 or z0 > z1 is empty.
+
+`0x0048ED90(out, a, b)` (thiscall on out): if a and b overlap (inclusive: a.x1 ≥ b.x0, a.x0 ≤ b.x1, a.z1 ≥ b.z0,
+a.z0 ≤ b.z1) out = the per-edge max of the mins and min of the maxes and it returns true; otherwise out = 0, 0, 0, 0
+and false. It has 32 callers outside this owner too.
+
+### 7.4 `UnloadUnnecessaryModels` (`0x00492530`, message `0xBA44EB51`)
+
+1. If `+0xC2` is clear: return.
+2. If `GetSystemMemory` succeeds with m > 32: clear `+0xC2` and return. *[quirk]* So the body below only runs on
+   machines reporting at most 32 MiB (or when the memory query fails).
+3. Clear `+0xC2`; build the four exclusion rects of the load rect (§7.3). For each non-empty rect, in the order
+   above: list the occupants by standard city cells (manager slot `+0xA0`: list, min (x0, z0), max (x1, z1), filter
+   `+0x5C`, -1). For each listed occupant with a model holder whose slot `+0x0C` is non-zero: if holder slot `+0x30`
+   ≠ `+0xB0` or holder slot `+0x38` ≠ `+0xB4`, call holder slot `+0x2C` (unload). Release each occupant; empty the
+   list.
+4. Resource manager `+0x10` slot `+0xAC`.
+
+### 7.5 `RemoveModelsInappropriateForRotation(r)` (`0x00492780`)
+
+bit = 1 << r. For every occupant accepted by the type filter `+0x5C` (manager slot `+0x98` with no rect): when it
+has a model holder with slot `+0x0C` ≠ 0 and holder slot `+0x38` has no bit in common with bit, holder slot
+`+0x2C`. Each occupant is released.
+
+### 7.6 Mask helpers
+
+`0x0048EA00(mask)`: index of the lowest set bit among bits 0..4, else 5 (also for mask 0). `0x0048EA30(mask)`: the
+same over bits 0..3, else 4. Both called from `LoadOccupantModelsForZoomAndRotation` (§10.4).
 
 ## 8. Occupant handlers and the deferred queue *[compat]*
 
@@ -316,7 +444,7 @@ Then the occupant's model holder (slot `+0x4C`), when present, is AddRef'd, clea
 
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
-Specified: 8163 bytes; remainder (not yet specified or only outlined): 26542 bytes. The remainder is **not empty**,
+Specified: 12051 bytes; remainder (not yet specified or only outlined): 22654 bytes. The remainder is **not empty**,
 so this spec does not yet claim the whole owner.
 
 | address | bytes | name | section |
@@ -333,13 +461,13 @@ so this spec does not yet claim the whole owner.
 | `0x00447B00` | 30 | FUN_00447b00 | remainder |
 | `0x0048C960` | 5 | FUN_0048c960 | §5 |
 | `0x0048C970` | 5 | FUN_0048c970 | §5 |
-| `0x0048EA00` | 36 | FUN_0048ea00 | remainder |
-| `0x0048EA30` | 36 | FUN_0048ea30 | remainder |
+| `0x0048EA00` | 36 | FUN_0048ea00 | §7.6 |
+| `0x0048EA30` | 36 | FUN_0048ea30 | §7.6 |
 | `0x0048EA60` | 6 | FUN_0048ea60 | §1 |
 | `0x0048EA70` | 92 | FUN_0048ea70 | §1 |
-| `0x0048EB50` | 462 | cSC4ModelMaker::DetermineLoadRadiusAroundVisibleArea | remainder |
-| `0x0048ED20` | 107 | cSC4ModelMaker::ComputeCityExclusionRects | remainder |
-| `0x0048ED90` | 123 | FUN_0048ed90 | remainder |
+| `0x0048EB50` | 462 | cSC4ModelMaker::DetermineLoadRadiusAroundVisibleArea | §7.1 |
+| `0x0048ED20` | 107 | cSC4ModelMaker::ComputeCityExclusionRects | §7.3 |
+| `0x0048ED90` | 123 | FUN_0048ed90 | §7.3 |
 | `0x0048EE10` | 59 | FUN_0048ee10 | §12.3 |
 | `0x0048EF20` | 55 | FUN_0048ef20 | §8.3 |
 | `0x0048EF60` | 301 | FUN_0048ef60 | §4 |
@@ -350,7 +478,7 @@ so this spec does not yet claim the whole owner.
 | `0x0048F490` | 58 | FUN_0048f490 | §12.3 |
 | `0x0048F4D0` | 217 | cSC4ModelMaker::LoadNetworkModels | remainder |
 | `0x0048F5B0` | 169 | cSC4ModelMaker::LoadUndergroundConnectionModels | remainder |
-| `0x0048F660` | 689 | cSC4ModelMaker::UpdateModelLoadRect | remainder |
+| `0x0048F660` | 689 | cSC4ModelMaker::UpdateModelLoadRect | §7.2 |
 | `0x0048F920` | 283 | cSC4ModelMaker::CreatePlaceHolderModelInstance | remainder |
 | `0x0048FA40` | 1295 | cSC4ModelMaker::FindModelTransform | remainder |
 | `0x0048FF50` | 65 | GZCOM_Interface<cISC4EffectsResource,cISC4EffectsCollection> | remainder |
@@ -375,8 +503,8 @@ so this spec does not yet claim the whole owner.
 | `0x00491C90` | 60 | FUN_00491c90 | §3.4 |
 | `0x00491CD0` | 1874 | cSC4ModelMaker::DoTerrainHidingForCells | remainder |
 | `0x00492440` | 233 | cSC4ModelMaker::DoTerrainHidingForOccupantCells | remainder |
-| `0x00492530` | 584 | cSC4ModelMaker::UnloadUnnecessaryModels | remainder |
-| `0x00492780` | 311 | cSC4ModelMaker::RemoveModelsInappropriateForRotation | remainder |
+| `0x00492530` | 584 | cSC4ModelMaker::UnloadUnnecessaryModels | §7.4 |
+| `0x00492780` | 311 | cSC4ModelMaker::RemoveModelsInappropriateForRotation | §7.5 |
 | `0x004928C0` | 232 | FUN_004928c0 | remainder |
 | `0x004929B0` | 27 | GZCOM_CreatecSC4ModelMaker | §1 |
 | `0x004929D0` | 30 | FUN_004929d0 | §3.4 |
@@ -386,8 +514,8 @@ so this spec does not yet claim the whole owner.
 | `0x00493340` | 86 | cSC4ModelMaker::RemoveModels | §12.1 |
 | `0x004933A0` | 729 | FUN_004933a0 | remainder |
 | `0x004936A0` | 96 | FUN_004936a0 | §8 |
-| `0x00493700` | 25 | FUN_00493700 | remainder |
-| `0x00493720` | 40 | FUN_00493720 | remainder |
+| `0x00493700` | 25 | FUN_00493700 | §6.2 |
+| `0x00493720` | 40 | FUN_00493720 | §6.2 |
 | `0x00493750` | 124 | cSC4ModelMaker::DoOccupantDestroyed | §8.2 |
 | `0x004937D0` | 536 | cSC4ModelMaker::DoOccupantMoved | §8.8 (outline) |
 | `0x00493A00` | 386 | cSC4ModelMaker::DoOccupantHilighted | §8.9 |
@@ -395,7 +523,7 @@ so this spec does not yet claim the whole owner.
 | `0x00493C80` | 221 | cSC4ModelMaker::ApplyStateEffectToModels | remainder |
 | `0x00493D60` | 346 | cSC4ModelMaker::DoLotStateChanged | remainder |
 | `0x00493EC0` | 37 | cSC4ModelMaker::FinalRelease | §1 |
-| `0x00493EF0` | 924 | cSC4ModelMaker::CreateOccupantFilters | remainder |
+| `0x00493EF0` | 924 | cSC4ModelMaker::CreateOccupantFilters | §6.1 |
 | `0x00494290` | 113 | FUN_00494290 | §8.3 |
 | `0x00494310` | 126 | FUN_00494310 | §8.3 |
 | `0x00494390` | 1112 | cSC4ModelMaker::AddModels | remainder |
@@ -406,7 +534,7 @@ so this spec does not yet claim the whole owner.
 | `0x00494A30` | 241 | cSC4ModelMaker::DoOccupantChanged | §8.5 |
 | `0x00494B30` | 584 | cSC4ModelMaker::EnableDeferredOccupantOperations | §8.7 |
 | `0x00494DA0` | 1463 | cSC4ModelMaker::DoPostCityInit | §3.2 |
-| `0x00495360` | 193 | cSC4ModelMaker::OccupantFilterIterationFunction | remainder |
+| `0x00495360` | 193 | cSC4ModelMaker::OccupantFilterIterationFunction | §6.3 |
 | `0x00495430` | 1329 | cSC4ModelMaker::LoadOccupantModelsForZoomAndRotation | remainder |
 | `0x00495970` | 66 | FUN_00495970 | §8.6 |
 | `0x004959C0` | 313 | cSC4ModelMaker::DoViewFilterChange | remainder |
@@ -418,8 +546,8 @@ so this spec does not yet claim the whole owner.
 | `0x005D5500` | 43 | FUN_005d5500 | remainder |
 | `0x005D5A60` | 42 | FUN_005d5a60 | remainder |
 | `0x005D7710` | 129 | FUN_005d7710 | remainder |
-| `0x005EA370` | 174 | FUN_005ea370 | remainder |
-| `0x005EA550` | 184 | FUN_005ea550 | remainder |
+| `0x005EA370` | 174 | FUN_005ea370 | §6.2 |
+| `0x005EA550` | 184 | FUN_005ea550 | §6.2 |
 | `0x008D08E0` | 219 | FUN_008d08e0 | remainder |
 | `0x008D09C0` | 160 | FUN_008d09c0 | remainder |
 | `0x008D0A60` | 244 | FUN_008d0a60 | remainder |
