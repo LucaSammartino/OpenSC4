@@ -57,6 +57,7 @@ pub mod neighbors;
 pub mod network_bridge;
 pub mod network_geometry;
 pub mod network_manager;
+pub mod network_occupants;
 pub mod network_rules;
 pub mod network_tools;
 pub mod occupant_manager;
