@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-netmgr-rng4 (answer NM12: capture point for the network-lot configuration draw) | `re-netmgr-rng4` / (RE spec lane) | ready. NM12 answered DIFFERS (in-process capture of generator `0x00B44870`, draw compared exactly, no resync); NM13 filed and answered DIFFERS (pending hash-set order, `B` from 193). network-manager.md §8.5, §15, §16 tests 25-26, §17.1-17.4. No engine/ABI edits; no game runs. | 1. Engine: NetworkLotRandom gains a raw-state load `(state[624], k)` and a post-state compare; shadow captures words at `0x00B44870`, `left` at `0x00B45234`, and `pending` B at mgr+0x78/+0x7C between operations. 2. Engine: replace ascending-key `pending` order with the §8.5 hash order. 3. Rerun vnmf4 turbo/normal expecting 0 draw resyncs. |
+| re-netmgr-rng4 (answer NM12: capture point for the network-lot configuration draw) | `re-netmgr-rng4` / (RE spec lane) | ready. NM12 answered DIFFERS (in-process capture of generator `0x00B44870`, draw compared exactly, no resync); NM13 filed and answered DIFFERS (pending hash-set order, `B` from 193); round 2 adds the §8.5 replay contract (98a0641a). network-manager.md §8.5, §15, §16 tests 25-26, §17.1-17.4. No engine/ABI edits; no game runs. | 1. Engine: NetworkLotRandom gains a raw-state load `(state[624], k)` and a post-state compare; shadow captures words at `0x00B44870`, `left` at `0x00B45234`, and `pending` B at mgr+0x78/+0x7C between operations. 2. Engine: replace ascending-key `pending` order with typed replay per §8.5 replay contract rules 1-6 (capture `B` before the original's handler, check count 0; tests 26-28). 3. Rerun vnmf4 turbo/normal expecting 0 draw resyncs. |
 
 ## Report
 
@@ -23,3 +23,12 @@ What changed (docs/specs/network-manager.md):
 
 Notes: REA was unavailable ("No app is open"); used re_query.py, instructions.asm and decomp/ instead.
 Commits: 77efba0c (NM12), 3bb29349 (NM13), then tests and this report.
+
+Round 2 (98a0641a): §8.5 "Replay contract for `pending`": proof that no insert happens during a pass (the only
+insert sites are the 0x07699455 / 0xE8BDA2E7 handlers and both messages are posted), so the set is empty between
+messages and `B` is the only carried state; closed form `B = lower_bound(primes, max(100, P))`, P = max `count+1`
+asked by any insert (duplicates included); zoning insertion order z-outer x-inner, key `(x&0xFF)<<8|z`
+(`0x0060FD6C`-`0x0060FE4A`); capture `B` and count before the original handles the message; typed replay with
+post-pass check, no output adoption. Rehash example (196-key zoning, resize at insert 194, bucket 359 earliest-first)
+computed by build-runs/hs_sim.py from the rules; prime table read from the exe bytes. §16 tests 27-28 added.
+REA not used this round (re_query.py, instructions.asm and exe bytes sufficed).
