@@ -38,20 +38,6 @@
   (`0x00756C39`). Neither id is in `re/class_id_table.tsv`. Are they an `SC4DevInsight`-style tunable pair or
   compiled-in LUT classes? [unnamed] What settles it: a resource sweep for the two GUIDs in the DATs, or the Mac
   symbol table.
-- **TR33 - §15.5.1 step 7:** what `0x00743B60` and `0x007490B0` do with `&terrain+0x40` (the whole-city vertex
-  rect) right after `+0xEC` is set. The replacement does a whole-city `RedisplayTerrain(1, 1, rect, 0)` instead
-  [choice], because §15.5.8 makes the two redisplay posts the view's only channel for heights and water. Is that
-  the observable effect of the pair (and with which last argument), or do they also refresh textures/lighting?
-  What settles it: a description of the two functions' effects.
-- **TR34 - §15.5.1 step 6:** what object terrain `+0x100` holds and what its slot 5 (`+0x14`) does. §2.3's field
-  table does not list `+0x100`, so the replacement does not call it [choice]. What settles it: the writer of
-  terrain `+0x100`.
-- **TR36 - §15.5.11 item 12:** the source of the vertex record's `+0x16` surface texture id that
-  `ComputeTextureSpansForRow` and `DrawTerrainSurfaceRows` read. §2.2 gives the record layout but no writer of
-  `+0x16`; the replacement leaves it 0 [choice]. Which terrain function computes it (from altitude/slope, the
-  terrain type, or the brush texture accumulation `+0xC0`) and when? What settles it: the writers of record `+0x16`.
-- **TR37 - §15.5.8:** the terrain's hide/flip slots call the view's `SetTriangleIndicesForCell` (`0x00752AF0`)
-  directly for the touched cell. Its calling convention and arguments (view base or `+0x0C`; `(x, z)` order) are
-  not given, so the replacement does not call it [choice] and the view's index buffers only follow those slots
-  at its next whole-grid rebuild. What settles it: the call at `0x007411E1` and the prologue of `0x00752AF0`.
 <!-- from: glue-terrain3 (game run gt3-repl-4, enable = terrain, 2026-10-21) -->
+- **TR41 - 15.5.13.2/15.5.13.3:** the exact rules of `MarkCliff` (`0x00742FC0`: when it flips through slot 93 and which corners get flag `0x8`), of the base-texture pass `0x007482C0` (per terrain type: which ids, which response curves, which weights from altitude, slope, water depth and moisture) and of the brush-texture pass `0x00748950` (the `+0x1B0` list and its fade). 15.5.13 gives their inputs, order and the layer add/normalise rules; the replacement cannot yet reproduce the chosen ids and weights. What settles it: a full read of the three functions and the per-type tables `0x00B4B414`/`0x00B4B420`.
+<!-- from: re-terrain4 (run4 round 2, 2026-10-21) -->

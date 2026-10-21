@@ -281,3 +281,23 @@ lane numbered these TR21-TR27.
   set, then `Release`s the view (base slot 2), clears `+0xE8` and `+0xEC`. The view destructor `FUN_00756980` also
   calls it when the view's `+0x18` init byte is still set. A replacement does those steps in its `Shutdown`, not only
   a `Release` in its destructor (terrain.md §15.5.11 item 15a).
+- **TR33 - §15.5.1 step 7:** what `0x00743B60` and `0x007490B0` do with `&terrain+0x40` (the whole-city vertex
+  rect) right after `+0xEC` is set. The replacement does a whole-city `RedisplayTerrain(1, 1, rect, 0)` instead
+  [choice], because §15.5.8 makes the two redisplay posts the view's only channel for heights and water. Is that
+  the observable effect of the pair (and with which last argument), or do they also refresh textures/lighting?
+  What settles it: a description of the two functions' effects.
+  **ANSWERED 2026-10-21 (re-terrain4):** MATCHES in part, DIFFERS in effect: 0x00743B60 recomputes record normals and cliff flags 0x8/0x800 (slot-93 flips); 0x007490B0 updates water proximity, weather moisture, the three texture layers (+0x16..+0x21) and marks the view rows dirty. It posts nothing, so a whole-city RedisplayTerrain does not replace it. Rule in terrain.md 15.5.13.2-3.
+- **TR34 - §15.5.1 step 6:** what object terrain `+0x100` holds and what its slot 5 (`+0x14`) does. §2.3's field
+  table does not list `+0x100`, so the replacement does not call it [choice]. What settles it: the writer of
+  terrain `+0x100`.
+  **ANSWERED 2026-10-21 (re-terrain4):** DIFFERS: +0x100 is the city weather simulator (city slot 70, set in Init 0x00750064); step 6 calls its DoCompleteSimulation (slot 5, 0x007296F0, once-only). The replacement must make that call. Rule in terrain.md 15.5.13.1.
+- **TR36 - §15.5.11 item 12:** the source of the vertex record's `+0x16` surface texture id that
+  `ComputeTextureSpansForRow` and `DrawTerrainSurfaceRows` read. §2.2 gives the record layout but no writer of
+  `+0x16`; the replacement leaves it 0 [choice]. Which terrain function computes it (from altitude/slope, the
+  terrain type, or the brush texture accumulation `+0xC0`) and when? What settles it: the writers of record `+0x16`.
+  **ANSWERED 2026-10-21 (re-terrain4):** DIFFERS: record +0x16/+0x1A/+0x1E are three {u16 id, u16 weight} texture layers written only through 0x007490B0 (clear 0x00740890, add 0x007405E0, normalise 0x00740690). Leaving them 0 draws texture 0. Rule in terrain.md 15.5.13.3; detailed selection rules are TR41.
+- **TR37 - §15.5.8:** the terrain's hide/flip slots call the view's `SetTriangleIndicesForCell` (`0x00752AF0`)
+  directly for the touched cell. Its calling convention and arguments (view base or `+0x0C`; `(x, z)` order) are
+  not given, so the replacement does not call it [choice] and the view's index buffers only follow those slots
+  at its next whole-grid rebuild. What settles it: the call at `0x007411E1` and the prologue of `0x00752AF0`.
+  **ANSWERED 2026-10-21 (re-terrain4):** DIFFERS: thiscall ECX = view base (terrain+0xE8), stack args (z, x), ret 8; called synchronously after the flag write when +0xEC is set (flips only on change). Rule in terrain.md 15.5.13.4.

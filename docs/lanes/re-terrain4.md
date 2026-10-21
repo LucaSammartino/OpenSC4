@@ -1,17 +1,37 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-terrain4 (run4 terrain unblocker: TR38/TR39/TR40 crash blockers, TR35) | `re-terrain4` / (docs lane) worktree `.claude/worktrees/re-terrain4` | **in progress** (round 2: TR33/TR34/TR36/TR37 + Read-view lifecycle; round 1 ready): TR38, TR39, TR40, TR35 answered (all DIFFERS) in terrain.md §15.5.12, §15.5.11 items 15a/18/19, §13.2; TR33, TR34, TR36, TR37 still open | glue-terrain3: fresh message per post + run 0x0074FE40 + Load from Read, then gt3-repl-6; RE: TR33, TR37, TR34, TR36 |
+| re-terrain4 (run4 terrain unblocker: TR38/TR39/TR40 crash blockers, TR35) | `re-terrain4` / (docs lane) worktree `.claude/worktrees/re-terrain4` | **ready** (docs only): round 1 TR38/TR39/TR40/TR35; round 2 TR33/TR34/TR36/TR37 answered in terrain.md §15.5.13 (+ load path §15.5.13.5); TR41 filed | glue-terrain3: weather DoCompleteSimulation at step 6, step-7 normals + texture update, SetTriangleIndicesForCell(z,x) in flip/hide slots; RE: TR41 (texture/MarkCliff weights) |
 
 
-## Handoff (round 2, 2026-10-21)
-- Goal: answer TR33, TR34, TR36, TR37; reconcile §15.5.1 with Read storing the view at +0xE8. REA denied (dont-ask mode): export + decomp only.
-- Done round 1: a65deae2, 7c33c5a3, a9e0b498, f54e5c94.
-- Findings so far (not yet in spec): TR34 +0x100 = city slot 70 GetWeatherSimulator (Init 0x00750064-0x00750079, AddRef'd); slot 5 = DoCompleteSimulation 0x007296F0.
-  Read: SC4ReadGZSerializable QIs the stream (0x4999A8F5), stream slot 26 returns the deserialized object, QI(0xC9B84E10) -> view base AddRef'd;
-  DoPostCityInit skips creation when +0xE8 is set (0x0074956D) and calls Init on the loaded view. View Read 0x007527D0 restores static 0x00B4C741.
-  TR33: 0x00743B60 = clear flag 8 in rect, normals + cliff marks (rect grown by 1); 0x007490B0 = ComputeWaterProximityValues, PadRectangle(rect, 0xB4BC48[+0xBC]) in place,
-  0x00743840 weather UpdateMoisture(rect*16 m), 0x00740890 zero rec +0x16/+0x1A/+0x1E, view 0x00755ED0(z0-1,z1+1) if +0xEC, 0x007482C0, 0x00748950, 0x00740690 (TR36 writers likely there).
-- Next: read build-runs/f_007482c0.asm, f_00748950.asm, f_00740690.asm, f_00755ed0.asm; then TR37 0x007411E1; write spec §15.5.1 + answers.
+
+## Report (re-terrain4, 2026-10-21, run4 round 2)
+
+Sources: re_query.py export and decomp/ only. REA batch_decompile was denied (dont-ask mode), so nothing came
+from REA. Numeric facts and conventions are from the instruction bytes. The new spec text is terrain.md §15.5.13,
+plus edits to §2.2 (record layers), §2.3 (`+0x100`) and the §15.5.1 table rows 6 and 7 and its load-path note.
+
+- **TR34, DIFFERS.** `+0x100` is the city's weather simulator. `Init` sets it from city slot 70 and `AddRef`s it.
+  Step 6 calls its slot 5, `DoCompleteSimulation` (0x007296F0), with no null test. That function runs once and
+  settles the weather before step 7. The replacement must make the call.
+- **TR33, DIFFERS.** `0x00743B60` recomputes the face and vertex normals, flags 0x8 and 0x800, and the MarkCliff
+  slot-93 flips. The face-normal formulas and the normalisation are taken from the bytes. Quirk: it never
+  recomputes the last vertex row `z = cellsZ`. `0x007490B0` does seven things in order: water proximity,
+  PadRectangle in place (per-zoom pad), weather UpdateMoisture, clearing the layer ids, marking the view rows dirty
+  (`0x00755ED0(zLo, zHi)`, ECX = view), the base-texture pass, the brush-texture pass, then normalisation. Neither
+  function posts a message, so a whole-city RedisplayTerrain is not an equivalent.
+- **TR36, DIFFERS.** Record `+0x16..+0x21` holds three `{u16 id, u16 weight}` layers. The add rule
+  (`trunc(w*255+1)`, max on the same id, replace the lightest) and the normalisation (to 250) are exact.
+- **TR37, DIFFERS.** The call is thiscall with ECX = the view base and stack arguments `(z, x)`; the callee pops
+  them with `ret 8`. It runs synchronously in the slot when `+0xEC` is set. The flip slots call it only on a
+  change; the hide slots call it always.
+- **Read vs §15.5.1.** On a load, `Read` stores the view that the serialization system rebuilt; QueryInterface
+  0xC9B84E10 returns the base with an AddRef. DoPostCityInit then skips creation and calls `Init` on that object.
+  The terrain holds exactly one reference on every path. Lifecycle otherwise unchanged, so no new question was
+  needed. A replacement may ignore the saved object *[choice]*: its only saved state is the static grid flag,
+  which the view's own Read restores.
+- **New question TR41:** the exact rules of MarkCliff and of the two texture passes (0x007482C0, 0x00748950).
+
+Next: glue-terrain3 implements §15.5.13. RE: TR41.
 
 ## Report (re-terrain4, 2026-10-21, run4 round 1)
 
