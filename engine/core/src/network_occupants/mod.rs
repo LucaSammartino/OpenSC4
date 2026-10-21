@@ -1,0 +1,28 @@
+//! The network-occupant family (docs/specs/network-occupants.md).
+//!
+//! What is here:
+//! - [`identity`]: §1 for all thirteen classes (class IDs, occupant types,
+//!   `QueryInterface`, `GetGZCLSID`, `IsOfType`, `IsManagedGlobally`).
+//! - [`piece`]: the §2 network piece behaviour for `cSC4NetworkOccupant`,
+//!   `…WithPreBuiltModel`, `…BridgeOccupant` and `…TunnelOccupant` (flags,
+//!   usable message, `Init`/`Shutdown`, path connections, orientation, the
+//!   occupied cell). Not the §2.3 record, the geometry or the drawing.
+//! - [`power_line`]: §5, `cSC4PowerLineOccupant` slots and its v2 record.
+//! - [`power_pole`]: §4.3, the pole's static control variables only.
+//!
+//! Not here: the underground family (§3), the pole object (§4.1–§4.4), the
+//! pylon (§6), the type-info tables and routines (§8, §9), the model side
+//! (§10).
+
+pub mod identity;
+pub mod piece;
+pub mod power_line;
+pub mod power_pole;
+
+#[cfg(test)]
+mod tests;
+
+pub use identity::{is_of_type, query_interface, NetOccClass, QiAnswer};
+pub use piece::{world_to_cell, NetworkPiece, PieceHost};
+pub use power_line::{PowerLine, PowerLineRecord};
+pub use power_pole::PowerLineControl;
