@@ -5,5 +5,6 @@
 ## Handoff
 - Goal round 2: specify LC4 interpreters TreeView 009586B0, FileBrowser 00954212, Grid 0095A250; then LC3 serializer 00965F73 / GetScriptFragment; LC1 vtable 00AD5344.
 - Done round 1: 38/57 fns (commits e2534f7b, 788a031c, 5d4b976b).
-- Next: read spec sec 8/9.1 format, then asm TreeView 009586B0.
-- Facts: vocab words in build-runs/vocab-all.txt; no REA used yet.
+- Done round 2: TreeView 9.2 (28e58dc6), FileBrowser 9.3 + LC6 answered 9.4 (this commit).
+- Next: Grid 0095A250 (decomp/cGZLegacyControl.c lines 8267-8877; build-runs/slim.py START END > grid.txt), then LC3 serializer 00965F73, LC1 vtable 00AD5344.
+- Facts: vocab words in build-runs/vocab-all.txt; REA session not open (target_unavailable) - used export+decomp. build-runs/peek.py VA reads exe bytes/strings.

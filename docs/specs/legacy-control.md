@@ -335,7 +335,8 @@ comment list, and parameter `0x3ACA6906` = {0, 0}; second pass `SetFlag(0x2, fal
 | GZWinCustom | `0x00A6D837` | 1 | **specified**: does nothing (a bare return, ICF-shared) |
 | GZWinSlider | `0x00950218` | 403 | **specified** (§9.1), slot names on the slider interface *[inferred]* |
 | GZWinTreeView | `0x009586B0` | 4857 | **specified** (§9.2) |
-| all other 17 | §4.1 | 465–3761 | open (LC4) |
+| GZWinFileBrowser | `0x00954212` | 3761 | **specified** (§9.3) |
+| all other 16 | §4.1 | 465–3537 | open (LC4) |
 
 Every per-type interpreter starts the same way: `QueryInterface` the control for its own IID (§4.1); on failure
 it does nothing at all; on success it works through that interface and releases it at the end.
@@ -356,7 +357,7 @@ First pass:
    (helper `0x0094C4E0`); if a buffer is returned: `imagerect` (`0xF018`, rectangle reader `0x0094D5CA`) gives a
    rectangle or, when absent, null; call slot `+0x30` (*SetImage*) with (buffer, rect-or-null); store the
    resource key as control parameter `0x6B4BCBD4` (type `0x856DDBAC`, group, instance; same helper as §8 step 7);
-   call helper `0x0094C1DA` (4 stack arguments, last pushed pair ends in 0; contract open, LC6); release the
+   store the image key as parameter `0xDAA3B860` (helper `0x0094C1DA`, n = 0, §9.4); release the
    buffer. No buffer → nothing.
 
 Second pass: `initvalue` (`0x40A`, read with the Sint32 reader, so it must still be a type-6 variant) → slot
@@ -444,9 +445,68 @@ space, §4), read here by ID.
    `0xE6C21D83` = IdToHandle and `0x26C21E35` = HandleToId.
 
 Worked example: `image=folder:{1234,1}:(0,0,0,0)`, `node=a:Alpha:Root:last:folder:::::::::no:no`,
-`node=b:Beta:a:first:::::::::::no:yes`: the image loads with its full rectangle and gets index *i*; node `a`
+`node=b:Beta:a:first::::::::::no:yes`: the image loads with its full rectangle and gets index *i*; node `a`
 is inserted under 0 at −3 with icons (*i*, 1, 2, 3), node `b` under `a` at −2 with icons (0, 1, 2, 3) and
 is selected. Listing `b` before `a` gives the same tree (the search restarts from the list head per step).
+
+### 9.3 GZWinFileBrowser (`0x00954212`)
+
+Interface `IGZWinFileBrowser` `0x3AA52E64`. **First pass only**; the second pass does nothing (beyond the
+QueryInterface/Release). Slot names *[inferred]*. "Alignment code": `unused` `0x1317` → 0, `default` `0x1318`
+→ 1, `left` `0xF006` → 2, `center` `0xF008` → 3, `right` `0xF007` → 4; any other value → the setter is not
+called. "Font word": if it reads as Uint32, font = `RZ::WCM()` slot `+0x14` (id), call the font setter, and
+store the id as control parameter `0xFAA3BE85 + n`; else if it reads as String, only store the text as that
+parameter (helpers `0x0094C222` / `0x0094C255`); the setter is not called. Colour words use the colour reader
+and the colour constructor of §9.2; the six colour indices are 0 fg, 1 bg, 2 fg disabled, 3 bg disabled,
+4 fg hilited, 5 bg hilited.
+
+In this order:
+
+1. `defaultpath` `0x1301` (String) → `+0x3C` (text).
+2. `defaultselectionname` `0x1306` and `defaultselectionextension` `0x1307` are read as strings (empty when
+   absent). `defaultselectiontype` `0x1305` (Uint32): `backdir` `0x1302` → 0, `dir` `0x1303` → 1, `file`
+   `0x1304` → 2 → `+0x70` (type, name, extension); other values or absent → not called.
+3. File sort: read the current pair with `+0x88` (&primary, &secondary); `filesortprimary` `0x130C` and
+   `filesortsecondary` `0x130D` each override with `bynameascending` `0x1308` → 0, `bynamedescending`
+   `0x1309` → 1, `byextensionascending` `0x130A` → 2, `byextensiondescending` `0x130B` → 3 (other values keep
+   the current); then **always** `+0x8C` (primary, secondary).
+4. `directorysort` `0x1312`: `topascending` `0x130E` → 0, `topdescending` `0x130F` → 1, `bottomascending`
+   `0x1310` → 2, `bottomdescending` `0x1311` → 3 → `+0x94` (code); other values → not called.
+5. Columns: read `+0x98` (&c1, &c2, &c3); `column1data` `0x1319`, `column2data` `0x131A`, `column3data`
+   `0x131B` each override with `icon` `0x1313` → 0, `name` `0x1314` → 1, `extension` `0x1315` → 2, `empty`
+   `0x1316` → **5**; then **always** `+0xA0` (c1, c2, c3).
+6. File name: font word `filenamefont` `0x131C` (n = 0, setter `+0xB4` (font)); colours `0x131D`–`0x1322`
+   → `+0xB8` (index 0–5, colour); `filenamealignment` `0x1323` → `+0xBC` (alignment code).
+7. File extension: `fileextensionfont` `0x1324` (n = 1, setter `+0xCC`); colours `0x1325`–`0x132A` → `+0xD0`;
+   `fileextensionalignment` `0x132B` → `+0xD4`.
+8. Drive name: `drivenamefont` `0x132C` (n = 2, setter `+0xE4`); colours `0x132D`–`0x1332` → `+0xE8`;
+   `drivenamealignment` `0x1333` → `+0xEC`.
+9. `iconcolumnwidth` `0x1334` → `+0xF4`; `extensioncolumnwidth` `0x1335` → `+0xFC`; `rowheight` `0x1336` →
+   `+0x104` (Uint32 values).
+10. Line grid: read `+0x108` (&enabled, &colour); `linegridenabled` `0x1337` (flag) and `linegridcolor`
+    `0x1338` override; **always** `+0x10C` (enabled, colour). Column grid likewise: `+0x110`, `columngridenabled`
+    `0x1339`, `columngridcolor` `0x133A`, always `+0x114`.
+11. Highlight: read `+0x118` (&fg, &bg); `highlightcolorforeground` `0x133B`, `highlightcolorbackground`
+    `0x133C` override; always `+0x11C` (fg, bg).
+12. `backdirtext` `0x133D` (String) → `+0x134`; `drivelistsize` `0x133E` → `+0x144`; `backgroundcolor`
+    `0x133F` → `+0x14C` (colour); `backgroundtransparent` `0x1341` → `+0x15C` (flag); `outline` `0xF019` →
+    `+0x13C` (flag).
+13. `backgroundimage` `0x1340` (String `{%x,%x}`, both required): load the buffer; if loaded, `+0x154`
+    (buffer), store image key parameter n = 0 (§9.4 helper), release.
+14. Filters: for every pair at list position *k* (0-based) with key `filter` `0x1342` and a string value, in
+    order: split at `:` into *text* `:` *number* `:` *image*; *number* parsed with `%d` (default 0); if
+    *image* parses as `{%x,%x}` (both), load the buffer (may fail → null) and store the image key parameter
+    with n = **k + 1** (the pair's list position plus one, not a filter counter); then **always**
+    `+0x54` (text, buffer-or-null, number, 0); release the buffer if any.
+
+### 9.4 Image-key parameter helper (`0x0094C1DA`) (answers LC6)
+
+`StoreImageKey(win, group, instance, n)` (group in a register, instance and n on the stack): wraps
+{group, instance} in a new 8-byte variant of type `0x8000` and calls `win.SetParameter(0xDAA3B860 + n,
+variant)` (`+0x1C8`); returns true. It does not depend on whether the image loaded. The Slider (§9.1) calls it
+with n = 0 after a successful image load; FileBrowser uses n = 0 for the background and k + 1 for filters.
+The font counterpart (`0x0094C222` Uint32 / `0x0094C255` String) stores the value as parameter
+`0xFAA3BE85 + n`.
 
 ## 10. Quirks (keep for compatibility)
 
@@ -464,7 +524,6 @@ is selected. Listing `b` before `a` gives the same tree (the search restarts fro
 - LC1. The `+0x04` sub-object vtable `0x00AD5344` (IID `0x5A356159`): slot targets not resolved in the export.
 - LC3. Serialiser `0x00965F73` used by `GetScriptFragment`: output format.
 - LC4. Interpreter effect tables (§8, §9).
-- LC6. Helper `0x0094C1DA` (`SetGZWinImage`, 4 stack arguments) called after an image is set.
 - LC5. Window manager slot 3 (`+0x0C`) used as the default parent: confirm it is the root/main window.
 
 ## 12. Coverage of owner functions (honest)

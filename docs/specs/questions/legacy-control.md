@@ -9,5 +9,3 @@
 - **LC4 - section 9:** effect tables for the 18 open per-type interpreters (Text, TextEdit, ListBox, Combo, Btn, BMP, Scrollbar, LineInput, Spinner, Outline, TextTicker, SC3WinGen, FileBrowser, OptGrp, TreeView, Folders, Grid, FlatRect). [unknown; words are registered (section 4.2) but have no effect yet]
 <!-- from: re-legacycontrol4 (2026-10-21) -->
 - **LC5 - section 6:** is cIGZWinMgr slot 3 (+0x0C), used as the default parent in SetParameters step 11, the root/main window? [inferred: yes]
-<!-- from: re-legacycontrol4 (2026-10-21) -->
-- **LC6 - section 9.1:** contract of helper 0x0094C1DA (SetGZWinImage, 4 stack arguments) called after an image is set. [unknown]
