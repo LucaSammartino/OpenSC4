@@ -594,8 +594,13 @@ def map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress_
             label = SHADOW_LABEL_ALIAS.get(label, label)
             if sh in shadow_list and label in reg["shadows"]:
                 clean, lines = reg["shadows"][label]
-                r["verified"] = lines > 0 and clean == lines
+                resynced = reg.get("resynced", {}).get(label)
+                r["verified"] = lines > 0 and clean == lines and resynced == 0
                 r["shadow_note"] = f"{clean}/{lines}"
+                if resynced is None:
+                    r["shadow_note"] += "; resync evidence missing"
+                elif resynced:
+                    r["shadow_note"] += f"; {resynced} resynced lines"
             elif sh in shadow_list:
                 r["shadow_note"] = "no lines"
                 warnings.append(f"shadow `{sh}` is in the regress list but `{regress_name}` has no `{label}` lines")
@@ -637,7 +642,7 @@ def subsystem_keys(path):
 def read_regress(path):
     raw = path.read_bytes()
     text = raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8", "replace")
-    out = {"tag": None, "pass": False, "profile": "", "runs": {}, "shadows": {}}
+    out = {"tag": None, "pass": False, "profile": "", "runs": {}, "shadows": {}, "resynced": {}}
     run = None
     for line in text.splitlines():
         line = line.rstrip()
@@ -660,6 +665,10 @@ def read_regress(path):
         m = re.match(r"^\s+([a-z0-9]+)\s+(\d+) lines, (\d+) with every mismatch count 0", line)
         if m and run == "shadows":
             out["shadows"][m.group(1)] = (int(m.group(3)), int(m.group(2)))
+        m = re.match(r"^\s+([a-z0-9]+) resynced lines: (\d+)\s*$", line)
+        if m and run == "shadows":
+            label, count = m.group(1), int(m.group(2))
+            out["resynced"][label] = max(count, out["resynced"].get(label, 0))
     return out
 
 
