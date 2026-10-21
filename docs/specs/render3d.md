@@ -303,6 +303,20 @@ Running and elapsed **>** threshold → refresh one band: rect = (`+0x200`, `+0x
 `+0x208`), `+0x20C`) with reason 9, then `+0x200` = the band's right edge; when it reaches `+0x208`, clear `+0x1FD`
 and reset the timer. With the default band width `+0x210 = 0x40` the view is refreshed in 64-pixel columns.
 
+### 6.3 Screen shakes: the list and `StopScreenShake` *[compat]*, start *[partial]*
+
+Active shakes are nodes (0x48 bytes) of the circular list headed at `+0x234`; elapsed time comes from the timer
+at `+0x240` (constructed with unit code 5). Node fields used here: `+0x08` end time, `+0x1C`/`+0x20` two float
+times (`+0x20` *[inferred]* fade-out length), owned buffers `+0x24`/`+0x30`, and the **handle** at `+0x44`.
+
+- `StartScreenShake` (`0x007CACD0`, slot 42): if the list is empty, restart the `+0x240` timer and set float
+  `+0x260 = 0.0`; then appends a node filled by `0x007C63A0`. The fill and the second overload (`0x007C6BC0`,
+  slot 43) are §7.
+- `StopScreenShake(handle)` (`0x007C8630`, slot 44): finds the first node whose `+0x44` equals the handle by an
+  **integer** compare (`0x007C8645`); none → no effect. If the node's `+0x20` equals the float constant at `0x00A81054`
+  (0.0) it is unlinked and freed at once (with its two buffers). Otherwise it is kept and its end time is pulled in:
+  `+0x08 = min(+0x08, elapsed + (+0x20 − +0x1C))` — the shake fades out instead of stopping dead.
+
 ---
 
 ## 7. Remaining owner methods (not specified here or in view3d.md)
@@ -312,7 +326,8 @@ Picking: `Pick` ×2 (`0x007C2220`, `0x007C6830`), `PickTerrain` ×2 (`0x007C35C0
 `InsertIntoViewObjectList`, `FindInViewObjectList`. Lifecycle: `Init` `0x007C6410`, `Shutdown` `0x007C7070`,
 `ReadProperties` `0x007C5F40`, `SetGraphicSystem`, `SetGDriver`, `StaticSetGDriver`, `StaticShutdown` (outline:
 releases the globals `0x00B4E1EC`, `0x00B4E1F0`, `0x00B4E1F4` once, destroying the backing store first),
-destructor body `0x007CA020`. Shake: `StartScreenShake` ×2, `StopScreenShake`, `SetShakeOffsets` `0x007C86D0`.
+destructor body `0x007CA020`. Shake: the node fill of `StartScreenShake` (`0x007C63A0`), the overload `0x007C6BC0`, `SetShakeOffsets`
+`0x007C86D0` (how `+0x258`/`+0x25C` are produced).
 Backing store: `CreateBackingStore`, `DestroyBackingStore`, `SaveBackingStore`, `RestoreBackingStore` ×2,
 `ReevaluateBackingStoreObjectFlags`, `DoSingleModelStaticDrawAddition`. Dirty rects: the merge scoring inside
 `AddDirtyRectangleInternal` (§6.1), the rect filter `0x007C2C70`, the writer of `+0x1FD`. View updates:
