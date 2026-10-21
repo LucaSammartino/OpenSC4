@@ -108,6 +108,15 @@ pub struct EffectsManager {
     dir: Option<Rc<EffectDirectory>>,
     max_priority: u32,
     lod: u32,
+    /// `+0xC88`: the level of detail before the last zoom change (−1 from
+    /// the constructor, EF12).
+    lod_prev: i32,
+    /// `+0xB8C`: a reload is running (EF12).
+    reload: bool,
+    /// The `+0xC78` object's slot 14: effect files are queued (EF12).
+    reload_pending: bool,
+    /// `+0x1AD`: `UpdateActiveVisualEffects` does anything at all (§6.1).
+    services_ready: bool,
     select: RzRandomSuper,
     brush_rng: RzRandom,
     total_us: u64,
@@ -141,6 +150,15 @@ impl EffectsManager {
             dir: None,
             max_priority: DEFAULT_MAX_PRIORITY,
             lod: 1,
+            lod_prev: -1,
+            reload: false,
+            reload_pending: false,
+            // [choice, §6.1] The original clears `+0x1AD` in the constructor
+            // and sets it on `kSC4MessagePostAppServicesInitComplete`; the C
+            // ABI has no route for that message yet, so a manager starts
+            // ready. A host that models it calls
+            // [`EffectsManager::set_services_ready`]`(false)` after `new`.
+            services_ready: true,
             select: RzRandomSuper::new(SELECT_SEED, &no_clock),
             brush_rng: RzRandom::new(seeding::seed(session_seed, key), &seeding::clocks(session_seed, key)),
             total_us: 0,
@@ -283,14 +301,26 @@ impl EffectsManager {
             let batch = std::mem::take(&mut self.new_list);
             self.active.extend_from_slice(&batch);
             for id in batch {
-                self.build(id, host.as_deref_mut());
+                self.build(id, true, host.as_deref_mut());
             }
         }
     }
 
-    /// `UpdateVisualEffect` (§5.2, §5.3): creates the components whose range
-    /// holds the level of detail and hard-stops those that left it.
-    fn build<'h>(&mut self, id: EffectId, mut host: Option<&mut (dyn EffectsHost + 'h)>) {
+    /// Whether level `l` (possibly the constructor's −1) is in the
+    /// component's `[min, max)`. [choice, EF12] A negative level is in no
+    /// range (the spec does not say whether the byte compare is signed).
+    fn in_range_at(c: &super::directory::ComponentRecord, l: i32) -> bool {
+        l >= 0 && c.in_range(l as u32)
+    }
+
+    /// `UpdateVisualEffect(effect, newBuild)` (§5.2, §5.3, EF12), two passes:
+    /// 1. an existing component survives only without a reload and with `L`
+    ///    in its range; every other one is hard-stopped and released;
+    /// 2. a description takes part (draws, adds its weight) only if it just
+    ///    entered the range (`L` in, `L_prev` not), or `new_build`, or a
+    ///    reload is running; a participating member is created only if `L`
+    ///    is in its range. Non-participants leave the group state alone.
+    fn build<'h>(&mut self, id: EffectId, new_build: bool, mut host: Option<&mut (dyn EffectsHost + 'h)>) {
         let Some(dir) = self.dir.clone() else { return };
         let Some(e) = self.effects.get(&id) else { return };
         if e.index < 0 {
@@ -299,46 +329,61 @@ impl EffectsManager {
         let Some(desc) = dir.effects.get(e.index as usize) else {
             return;
         };
-        let lod = self.lod;
-        let mut prev_group: Option<u16> = None;
-        let mut drawn = false;
-        let mut r = 0u32;
-        let mut sum = 0u32;
+        let lod = self.lod as i32;
+        let lod_prev = self.lod_prev;
+        let reload = self.reload;
+        // Pass 1: existing components. (The survivor refresh `0x0058DC50`
+        // when `L != L_prev` is render state the core does not hold.)
         for (i, c) in desc.components.iter().enumerate() {
-            let g = c.select_group;
-            if prev_group != Some(g) {
-                drawn = false;
-            }
-            prev_group = Some(g);
             let exists = self
                 .effects
                 .get(&id)
                 .is_some_and(|e| e.comps.get(i).is_some_and(Option::is_some));
-            let in_range = c.in_range(lod);
-            if exists && !in_range {
+            if exists && (reload || !Self::in_range_at(c, lod)) {
                 if let Some(h) = host.as_deref_mut() {
                     self.stop_component(id, i, 1, h, 0);
                 }
                 self.release_component(id, i);
+            }
+        }
+        // Pass 2: descriptions. [choice, EF12] Every directory component
+        // counts as having a valid type index (`+0x68 >= 0`): the directory
+        // keeps no unresolved type.
+        let mut prev_group: Option<u16> = None;
+        let mut r = 0u32;
+        let mut sum = 0u32;
+        for (i, c) in desc.components.iter().enumerate() {
+            let in_range = Self::in_range_at(c, lod);
+            let entering = in_range && !Self::in_range_at(c, lod_prev);
+            if !(entering || new_build || reload) {
                 continue;
             }
-            if exists || !in_range {
-                continue;
-            }
+            let g = c.select_group;
             if g > 0 {
-                // [choice] The draw is made at the first member of the run
-                // that is being created (§5.3: once per group per build).
-                if !drawn {
+                // A new group (different from the last participant's; a
+                // group-0 participant resets it) draws `r` and resets the sum.
+                if prev_group != Some(g) {
                     r = self.select.uniform_u32(SELECT_RANGE);
                     sum = 0;
-                    drawn = true;
                     self.stats.select_draws += 1;
                 }
-                sum = sum.saturating_add(u32::from(c.select_weight));
+                prev_group = Some(g);
+                // Unsigned compare, first running sum >= r; then r := 0x10000
+                // (a group summing past 0xFFFF can create a second member).
+                sum = sum.wrapping_add(u32::from(c.select_weight));
                 if sum < r {
                     continue;
                 }
                 r = SELECT_RANGE;
+            } else {
+                prev_group = Some(0);
+            }
+            let exists = self
+                .effects
+                .get(&id)
+                .is_some_and(|e| e.comps.get(i).is_some_and(Option::is_some));
+            if !in_range || exists {
+                continue;
             }
             let position = self.effects.get(&id).map_or([0.0; 3], |e| e.position);
             let comp = match c.kind {
@@ -377,37 +422,91 @@ impl EffectsManager {
         }
     }
 
-    /// The zoom (`DoZoomChanged` → `UpdateActiveVisualEffects`, §2, §5.2):
-    /// level of detail `max(zoom − offset + 1, 1)`; every active effect is
-    /// rebuilt.
+    /// The zoom (`DoZoomChanged` → `UpdateActiveVisualEffects`, §2, §5.2,
+    /// §5.3): `L_prev := L`, then `L := max(zoom − offset + 1, 1)`; every
+    /// active effect is updated with `newBuild = 0` (only components that
+    /// just entered the range take part in a select draw), then the new
+    /// list is activated.
     pub fn set_zoom(&mut self, zoom: i32, offset: i32, host: &mut dyn EffectsHost) {
         let l = zoom.saturating_sub(offset).saturating_add(1).max(1);
+        self.lod_prev = self.lod as i32;
         self.lod = l as u32;
+        self.update_active(host);
+    }
+
+    /// `+0xC88`: the level of detail before the last zoom change (−1 before
+    /// the first).
+    pub fn previous_level_of_detail(&self) -> i32 {
+        self.lod_prev
+    }
+
+    /// `+0x1AD` (§6.1): set by `kSC4MessagePostAppServicesInitComplete`,
+    /// cleared by `Shutdown`; while clear `UpdateActiveVisualEffects` does
+    /// nothing.
+    pub fn set_services_ready(&mut self, on: bool) {
+        self.services_ready = on;
+    }
+
+    /// `kSC4MessagePostAppServicesInitComplete` (§6.1): sets `+0x1AD`, then
+    /// `UpdateActiveVisualEffects`.
+    pub fn post_app_services_init_complete(&mut self, host: &mut dyn EffectsHost) {
+        self.services_ready = true;
+        self.update_active(host);
+    }
+
+    /// `UpdateActiveVisualEffects` `0x00593B90` (§6.1): nothing unless
+    /// `+0x1AD` is set; else `UpdateVisualEffect(effect, 0)` on each active
+    /// effect in list order, then `ActivateNewVisualEffects`.
+    fn update_active(&mut self, host: &mut dyn EffectsHost) {
+        if !self.services_ready {
+            return;
+        }
         for id in self.active.clone() {
-            self.build(id, Some(&mut *host));
+            self.build(id, false, Some(&mut *host));
         }
         self.activate_new(Some(host));
     }
 
-    /// The internal message `0x697D01ED` (`DoEffectsTick`, §6.1, §12,
-    /// EF4): posted by the callback the manager registers with the
-    /// animation-tick manager, so it arrives once per animation tick in any
-    /// session that ticks. Its simulation-visible part is
-    /// `ActivateNewVisualEffects` (§5.1): effects created since the last
-    /// activation are moved to the active list and built. In the core that
-    /// is a meta chain deeper than one activation's 10 rounds; the original
-    /// also defers effects created during a draw-pass sweep (`+0x1B4`),
-    /// which the core's sweep cannot create. Returns how many effects were activated.
-    ///
-    /// [choice, EF12] Only the activation runs here: the spec names the
-    /// route `UpdateActiveVisualEffects` → `ActivateNewVisualEffects` but
-    /// also says a select group draws only when a component is created
-    /// (§5.3, once per effect), so the active effects are not rebuilt per
-    /// tick. The render parts (queued effect files, snowline) are the host's.
+    /// Reports that effect files are queued (the `+0xC78` object's slot 14,
+    /// §6.1 step 1): the next [`EffectsManager::effects_tick`] reloads.
+    pub fn queue_effect_files(&mut self) {
+        self.reload_pending = true;
+    }
+
+    /// `DoRenderPropertiesChanged` (§6.1): when the effects detail option
+    /// (`+0xB90`) changes, it is stored and the active effects are updated
+    /// with the reload flag `+0xB8C` = 1.
+    pub fn render_properties_changed(&mut self, max_priority: u32, host: &mut dyn EffectsHost) {
+        if max_priority == self.max_priority {
+            return;
+        }
+        self.max_priority = max_priority;
+        self.reload_active(host);
+    }
+
+    /// `+0xB8C := 1`, `UpdateActiveVisualEffects`, `+0xB8C := 0`.
+    fn reload_active(&mut self, host: &mut dyn EffectsHost) {
+        self.reload = true;
+        self.update_active(host);
+        self.reload = false;
+    }
+
+    /// The internal message `0x697D01ED` (`DoEffectsTick` `0x00593D00`,
+    /// §6.1, §12, EF4, EF12): posted once per animation tick in any session
+    /// that ticks. It activates and rebuilds **nothing** on an ordinary tick:
+    /// only when effect files are queued ([`EffectsManager::queue_effect_files`])
+    /// does it parse them (the host's) and reload — `+0xB8C := 1`,
+    /// `UpdateActiveVisualEffects` (every component destroyed, every select
+    /// group redrawn, the new list activated), `+0xB8C := 0`. The snow-line
+    /// step is the host's. Returns how many effects the reload activated
+    /// (0 without a pending reload).
     pub fn effects_tick(&mut self, host: &mut dyn EffectsHost) -> usize {
+        if !std::mem::take(&mut self.reload_pending) {
+            return 0;
+        }
         let before = self.active.len();
-        self.activate_new(Some(host));
-        self.active.len() - before
+        self.reload_active(host);
+        self.active.len().saturating_sub(before)
     }
 
     // ---- references ---------------------------------------------------------------------------
@@ -755,6 +854,10 @@ impl EffectsManager {
                 self.recycle(id);
             }
         }
+        // The sweep ends in `ActivateNewVisualEffects` (`0x00592A01`, §6.1,
+        // EF12): the new list left over from a creation is activated here,
+        // not by the effects tick.
+        self.activate_new(Some(host));
     }
 
     /// Whether a component whose flag bit 0 is clear still reports
@@ -809,6 +912,8 @@ impl EffectsManager {
         self.effects.clear();
         self.active.clear();
         self.new_list.clear();
+        // [choice, §6.1] `Shutdown` also clears `+0x1AD`; it is kept here
+        // because the C ABI cannot set it again (see `services_ready`).
     }
 
     // ---- introspection --------------------------------------------------------------------------
