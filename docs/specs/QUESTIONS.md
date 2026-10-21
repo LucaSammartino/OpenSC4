@@ -74,7 +74,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PK | parks |
 | PL | prop-lotconfig |
 | PO | prop-occupant |
-| PR | protection |
+| PR | persistence, protection |
 | PS | plumbing |
 | PV | prop-developer |
 | PW | power |
@@ -137,6 +137,7 @@ generated index: the questions live one file per spec, so read only the file for
 | ordinance | 0 | 1 | SV3 | - |
 | parks | 0 | 11 | PK12 | - |
 | pathfinder | 0 | 15 | PF16 | - |
+| persistence | 3 | 0 | PR4 | questions/persistence.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
 | port-developers | 0 | 11 | PD12 | - |
@@ -154,4 +155,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **86** | **991** | | |
+| **total** | **89** | **991** | | |
