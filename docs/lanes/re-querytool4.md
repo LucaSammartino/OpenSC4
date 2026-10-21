@@ -1,18 +1,26 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-querytool4 | .claude/worktrees/re-querytool4 | in progress (round 2 of 3) | round 2: DescribePick / DoQueryDialog / tip builders (CT11, CT12) |
+| re-querytool4 | .claude/worktrees/re-querytool4 | ready (round 2 of 3): tips specified (§8.11), owner not claimed | round 3: DescribePick 004D4140, DoQueryDialog 004D3C30, fillers (CT12, CT13) |
 
-## Handoff
+## Report (round 2, 2026-10-21)
 
-Goal (round 2): city-tools-input.md §8 add DescribePick 004D4140, DoQueryDialog 004D3C30, SetTip 004C5BA0, tip
-builders (GetBuildingOccupantTipInfo 004D5E30, GetNetworkOccupantSummaryInfo 004CF8A0, GetTerrainSummaryInfo
-004D6C70), SetHighlightState 004CACC0 (CT11); update §8.10 inventory and §6.
-Done: round 1 (c660810f, fbe696b7, e3683c54): 19 fns / 5,907 B.
-Done round 2: 6f7dc97d §8.11 (SetTip, SetHighlightState, 3 tip builders, Ratio 004C3B10, headlines 004D5C90; CT11 answered in text).
-Next: DescribePick 004D4140 (decomp line 9599), DoQueryDialog 004D3C30 (9422) -> §8.12; then inventory §8.10, §6 tests, answer CT11.
-Facts: REA has no app open (static fallback). In DoMessage `this`=+0x28 so [ESI+0x1C]=callout +0x44.
+What changed (spec only): city-tools-input.md §8.11 (new): GetTerrainSummaryInfo (zone 0..15 string table, water
+cells skipped, headlines), GetNetworkOccupantSummaryInfo (12-row network type order table, pipe debug line),
+GetBuildingOccupantTipInfo (group test-order table with icon/secondary/fraction per row, R/C/I wealth maps,
+transport and utility rules, `Ratio` 0x004C3B10 with worked values), the tip display tail of DoMessage and SetTip
+(icon decides callout vs cursor text), SetHighlightState. §8.7 tip list corrected (fixed titles, local presets,
+debug line appended after `
+`; round 1's "empty result hides the callout" was wrong: icon 0 does). §6 test 9;
+§8.10 inventory updated. CT11 answered (MATCHES, moved to answered/), CT13 filed (names of gauge services/values).
 
-## Report
+Measured: covered 24 functions / 11,725 bytes of 215 / 76,564; remainder 191 / 64,839 (CT12). Not claimed.
+Corrections to Ghidra on the instructions: 0x1402 fraction is b / a guarded by b > 0 (Ghidra shows /0.0);
+the tip builder takes 5 args (RET 0x14), title first. REA had no app open: static fallback (export + decomp/).
+Not done: DescribePick 0x004D4140 (3,118 B) and DoQueryDialog 0x004D3C30 (783 B), context budget.
+
+Commits round 2: 8ee45fc0, 6f7dc97d, 6c790829, 98eb55bf, then this report.
+
+## Report (round 1)
 
 Goal: specify `cSC4ViewInputControlQuery` (215 functions, 76,564 bytes per `tools/coverage.py --owners` at main
 `fd9beb23`) in docs/specs/city-tools-input.md.
