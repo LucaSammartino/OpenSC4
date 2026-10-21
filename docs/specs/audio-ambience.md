@@ -43,7 +43,7 @@ registered with `cIGZSndSys`). Constructor `0x004EA390`, destructor `0x004EA670`
 | `+0x40..+0x48` | listener vector | | f32, the listener's second vector (direction *[inferred]*) |
 | `+0x4C` | alarm list | empty | circular list of alarm entries (§3) |
 | `+0x50` | ticking enabled | 1 | byte; `OnTick` does nothing while 0 |
-| `+0x54` | attention margins | null | f32[5], indexed by zoom (§4) |
+| `+0x54..+0x5C` | attention margins | empty | `std::vector<f32>` (5 values shipped), indexed by zoom (§4) |
 | `+0x60..+0x68` | layer ids | empty | `std::vector<u32>`: the ambience-layer exemplar instances (§2.2) |
 | `+0x6C..+0x78` | current cell rectangle | 0 | x0, z0, x1, z1 (even values, §4) |
 | `+0x7C..+0x88` | previous cell rectangle | 0 | same layout |
@@ -82,8 +82,11 @@ In order; any failure returns 0 *[compat]*:
    a `0x25C`-byte `cSC4AudioAmbienceLayer`, call its `Init` (slot 4). On failure log
    `"Error : cSC4AudioAmbienceManager::_CreateAmbienceLayers : Failed to init layer (%08x)\n"` and drop it.
    On success set its score master volume (slot 17) from the audio preferences (the object behind
-   `0x00B43C94` slot `+0x98`): 0 when the preference byte `+4` is clear, the preference volume otherwise; then
-   append it to `+0x2C`. With the shipped tuning that is **94 layers** (audio.md §10.8).
+   `0x00B43C94` slot `+0x98`): 0 when the preference byte `+4` is clear, the preference volume (the 32-bit
+   value at `+8`, passed as is) otherwise; then append it to `+0x2C`. Neither the app global nor the slot
+   `+0x98` result is null-checked (`0x004E9C7E`–`0x004E9C94`): with no preferences object the game would
+   crash, so no volume is defined (AA6c); the app always exists while a city loads *[compat]*, and a
+   replacement uses volume 0 *[choice]*. With the shipped tuning that is **94 layers** (audio.md §10.8).
 3. Copy the occupant manager into `+0x24`. Ask the city (`0x00B43CEC`) for its cell counts (slots `+0x174`,
    `+0x178`) and convert cell (0, 0) and (n−1, n−1) to world corners through occupant-manager slot `+0x48`
    (stored at `+0x9C..+0xA8`). Set `+0xAC = 1`.
@@ -98,6 +101,13 @@ In order; any failure returns 0 *[compat]*:
 `+0x50 = 0`, remove itself from the framework's tick list (slot `+0x28`), then release every layer and empty
 the lists (`0x004E9660`). Returns that result.
 
+`0x004E9660` (AA9c) *[compat]*: for each layer node in list order, the layer's slot 5 (`Shutdown`, `+0x14`),
+then its `Release` (`+0x08`), then unlink and free the node; return **1**. Only the **layer list** is emptied:
+the alarm list `+0x4C`, the tracked-occupant set and its count are left as they are (DIFFERS from the engine,
+which also empties the alarms). Stale alarm entries therefore survive into the next city, where
+`_UpdateAlarms` still visits them unless remove messages dropped them first *[quirk; a replacement should
+drop alarms at city shutdown — choice]*.
+
 ### 2.4 `Shutdown` (`0x004E96A0`)
 
 Unregister the event target from `cIGZSndSys` (slot `+0x40`), unsubscribe the 12 message types of §2.1 (the
@@ -111,7 +121,18 @@ set to true is ignored (foundations §5.2) *[compat]*. The occupant's property h
 Sound requests go to `cIGZSndSys` slot `+0x2C` as sound-system events ([audio.md](audio.md) §8.3):
 `0xEA451903` start, `0x6A451908` stop, `0xCA45190F` set position. The **instance id** of an occupant sound is
 the occupant's address plus the sound id *[compat for uniqueness; the value itself is internal]*. Positions
-are the occupant's position (slot `+0x20`) truncated to integers.
+are the occupant's position (slot `+0x20`) truncated to integers. Exceptions (AA8): the move set-positions of §3.2
+use the bare occupant address, the railway crossing start of §3.5 uses the automaton's address, and one-shot
+alarms use a fresh id (§3.6).
+
+`_AddOccupantSndInstance(o, id, loop)` (`0x004E8AD0`, pop 12) in full *[compat]*: `o` null, or `o` lacking
+**both** occupant flags 1 and 4 (`IsFlagSet(5)`, slot `+0x80`; flag 1 = in the occupant manager, 4 = visible,
+lot-records.md §2), or a preview occupant (`0x029244DB` true) → return 0, nothing posted (`0x004E8AD8`–
+`0x004E8B1D`). Otherwise: if `o` answers the automaton IID `0xA9B40F05`, call its slot `+0x9C` with the
+manager's `+0x04` interface (the link), releasing the reference afterwards; then, only when `cIGZSndSys` is
+present, post start `(0xEA451903, id, o + id, loop ≠ 0, 0)` and set-position `(0xCA45190F, o + id, x, y, z)`;
+return 1. `_RemoveOccupantSndInstance(o, id)` (`0x004E8BF0`): `o` null → 0; automaton → slot `+0xA0` with the
+same interface; stop `(0x6A451908, o + id, 0, 0, 0)` when the sound system is present; return 1.
 
 | Property | Meaning to this manager |
 |---|---|
@@ -129,7 +150,8 @@ are the occupant's position (slot `+0x20`) truncated to integers.
 2. Insert only: if it has `0x6A36AFAC`, start that sound looping (`_AddOccupantSndInstance` `0x004E8AD0`).
 3. If it has `0x6A36AFAB`: register a one-shot alarm when `0x0A36AFA2` is present and an on/off alarm when
    `0x2A53BE13` is present (`_AddAlarmOccupant` `0x004EA690`; both may be registered).
-4. Insert only: if it has `0xC9B93A56`, start that sound once.
+4. Insert only: if it has `0xC9B93A56`, start that sound once: `_AddOccupantSndInstance(o, value, loop = 0)`
+   with instance `o + value`, plus the set-position and automaton link (`0x004EA8D5`–`0x004EA8F0`) (AA8a).
 5. If it has any of `0xCA19D7CA`, `0x0A4C13CB`, `0x4A4C132E`: find its lot (lot manager `0x00B43D08` slot
    `+0x38`) and run the condition update for that lot (§3.4).
 
@@ -144,8 +166,13 @@ set-position event.
 
 ### 3.2 Move (`0x99EF1146`, `HandleMoveOccupant` `0x004E8D40`)
 
-Non-preview occupant with `0x6A36AFAC`: post set-position for its sound. If it has `0xCA19D7CA`: also post
-set-position for the condition sound (`0x004E8C70`).
+Non-preview occupant with a property holder: if the holder **has** `0x6A36AFAC` (holder slot `+0xC`, a
+presence test; the value is not read) and the sound system is present, post set-position
+`(0xCA45190F, o, x, y, z)`. If `0xCA19D7CA` reads, also post set-position `(0xCA45190F, o, x, y, z)`
+(`0x004E8C70`, pop 4: its one argument is the instance id, here the occupant). The instance id in both is the
+**bare occupant address** (`0x004E8DCE`, `0x004E8DFD` → `0x004E8CB2`), not `o + id` as at start (AA8b, DIFFERS
+from the engine's `o + id`): unless the id is 0 the sound manager does not find the instance and ignores the
+event, so a moved occupant's sounds stay at the start position *[quirk]*.
 
 ### 3.3 Remove (`0x99EF1143`, `HandleRemoveOccupant` `0x004EA270`)
 
@@ -207,15 +234,29 @@ sound manager ignores it), stop `o + 0x1111`. Run down (1 → 2): stop `o + 0x11
 
 `0x09D92FC3` (`_HandleAutomatonMessage` `0x004E8820`) reads the automaton event code (message slot `+0x38`):
 
-- code **9**: if the automaton's occupant has `0x6A36AFAC`, post set-position for its sound;
+- code **9**: with the sound system present, `A :=` message slot `+0x28` (the automaton), `o := A` slot
+  `+0x14` (its occupant); if `o`'s holder reads `0x6A36AFAC` = `id`, post set-position
+  `(0xCA45190F, o + id, x, y, z)` with the **automaton's** position (`A` slot `+0x1C`, truncated)
+  (`0x004E88EA`–`0x004E897E`);
 - codes **12** and **13**: if the automaton's kind (message slot `+0x4C`) is `0x10`, `0x14` or `0x1E`, play
-  the occupant's `0x6A36AFAC` sound (`_PlayOccupantSound` `0x004E8720`): **start** (non-looping, plus a
-  set-position) when the code is 13 and, for kind `0x10`, the automaton's slot `+0xE4(0x10)` is 0; otherwise
-  **stop** it. Other codes: nothing.
+  the sound of the occupant `A + 4` (the automaton's occupant base, AddRef'd and released around the call)
+  (`_PlayOccupantSound` `0x004E8720`): **start** when the code is 13 and, for kind `0x10`, the automaton's
+  slot `+0xE4(0x10)` is 0; otherwise **stop** it. Other codes: nothing.
 
-`0x8A878385` (`_HandleRailwayCrossingMessage` `0x004E8990`): the message object must answer the automaton
-IID `0xA9B40F05` and its occupant must have `0xAA87817A`; then start that sound once at the automaton's
-position and post a set-position.
+`_PlayOccupantSound(o, start)`: `o` null, sound system absent, no property holder, or `0x6A36AFAC` not read →
+nothing (AA8c). Stop: `(0x6A451908, o + id, 0, 0, 0)`. Start: `(0xEA451903, id, o + id, 1, 0)` — the flag
+is **1**, the same argument `_AddOccupantSndInstance` fills from `loop` (`0x004E87C6`–`0x004E87D4`; DIFFERS from
+the "non-looping" of earlier drafts) — then set-position `(0xCA45190F, o + id, x, y, z)` with `o`'s position.
+No automaton link, no flag or preview test here: the automaton handlers make **no** preview check (AA8f)
+*[compat]*.
+
+`0x8A878385` (`_HandleRailwayCrossingMessage` `0x004E8990`): sound system absent → return 1. The message type
+must be `0x8A878385` (else return 0; unreachable through `DoMessage`). Its object (message slot `+0x80`)
+must answer the automaton IID `0xA9B40F05` (reference `A`) and `A`'s occupant (slot `+0x14`) must read
+`0xAA87817A` = `id`; then post start `(0xEA451903, id, A, 1, 0)` and set-position `(0xCA45190F, A, x, y, z)` at
+`A`'s position (slot `+0x1C`). The instance id is the **automaton interface address `A` itself**, not
+`occupant + id`, and the flag is 1 (`0x004E8A5B`–`0x004E8AA5`) (AA8e, DIFFERS). Nothing here or in
+`HandleRemoveOccupant` stops it. Returns 1.
 
 ### 3.6 The alarm clock (`_UpdateAlarms` `0x004E8EA0`, every tick)
 
@@ -232,8 +273,21 @@ For each time `a[i]` (with `next` = `a[i+1]`, or `a[0]` for the last entry):
   (slot `+0x34`, tag `0x5B523BA4`), then post set-position the same way;
 - **on/off**: the times alternate on, off, on, … (even index = on). If `t` lies in `[a[i], next)` — or the
   interval wraps midnight (`next < a[i]` and `t >= a[i]`, or `t − 24 >= a[i]` and `t − 24 < next`) — read
-  `0x2A53BE13` and: on an "on" index start the looping sound if `+0x24` is 0 and set it; on an "off" index
-  stop it if `+0x24` is set and clear it.
+  `0x2A53BE13` afresh from the occupant's property holder (`v`) and: on an "on" index, if `+0x24` is 0,
+  `_AddOccupantSndInstance(o, v, loop = 1)` (instance `o + v`, §3) and set `+0x24 := 1` whatever that call
+  returned; on an "off" index, if `+0x24` is set, `_RemoveOccupantSndInstance(o, v)` and clear it. No
+  property holder, or `0x2A53BE13` no longer reads → nothing, `+0x24` unchanged (AA8d) *[compat]*.
+
+**Creating an entry** (`_AddAlarmOccupant(o, id, &times, kind)`, `0x004EA690`, pop 16) *[compat]* (AA5):
+`o` null, or not `IsFlagSet(5)` (flags 1 and 4 both set), or `IsFlagSet(0x10)` → return 0, no entry
+(`0x004EA69D`–`0x004EA6CE`). Otherwise read the clock (the global is **not** null-checked before use: absent
+clock → crash) and build `{o, id, last, times (copied), on = 0, kind}` with
+`last := float(GetHour()) + float(GetMinute() / 60)` — the same unsigned-integer formula as `t` below, so in
+practice the whole hour (`0x004EA6ED`–`0x004EA786`). The entry is appended at the **tail** of the alarm list
+`+0x4C`; return 1. Insert and the init walk pass `id` = the value just read of `0x0A36AFA2` (kind 0) or
+`0x2A53BE13` (kind 1). Consequence: an alarm time equal to the current hour at creation does **not** fire on
+the first tick (`last < a[i]` fails), and one-shot times earlier today wait for tomorrow. This DIFFERS from
+the engine's `last := 0.0`.
 
 Then `last := t`, a raw 32-bit copy of the f32 (`0x004E91B0`; no integer conversion) (stack trace: `t` is stored at `0x004E8F12` at depth 0x4C, i.e. frame slot
 entry − 0x34; after `PUSH EBX` at `0x004E8F20` that slot is `[ESP+0x1C]`, which `0x004E91AC` reads; the
@@ -248,11 +302,32 @@ From the audio settings exemplar (`0x6534284A` / `0xCA25875D` / `0x6A359C5C`, au
 into the margins `+0x54` — when missing, all five margins are **70.0** (`0x428C0000`) *[compat]* — and
 `0x2A3FF8CD` into the layer-id vector `+0x60`. Shipped margins: 0, 0, 188, 150, 73.
 
+Both targets are `std::vector`s (margins `+0x54..+0x5C` begin/end/capacity of f32, ids `+0x60..+0x68` of u32),
+empty with null storage after the constructor. The vector readers (`0x005FFCC0` f32, `0x005FF510` u32)
+(AA6a/b) *[compat]*:
+
+- property **absent** → return false, the vector is **left as it was** (not emptied);
+- property present with `n` values → the vector becomes exactly `n` values (resized, raw 32-bit copy of
+  the property data, then shrunk to fit), for any `n` including 0.
+
+So a 3-value margin list leaves 3 margins (zoom 3 and 4 then read past the vector's end, undefined); the
+70.0 fill is five raw stores through the vector's begin pointer **without resizing**: on a first read
+(empty vector, null storage) it writes through a null pointer (the game would crash; the shipped exemplar
+always has the property); on a later `0xC53D10AA` re-read it overwrites the first five floats of whatever
+storage the previous read left. A missing `0x2A3FF8CD` keeps the previous ids (at the first city init: none,
+so no layers). A replacement should define: margins absent → five 70.0 values; fewer than 5 → the missing
+entries 70.0 *[choice]*; ids absent → unchanged *[compat]*.
+
 ### 4.2 `_UpdateAttentionRect` (`0x004E92A0`; city init and `0x8A4A69C7`)
 
 1. Copy the listener's position and vector from the audio director (`GetSC4AudioCOMDirector` `+0x64`
    object, words 9–11 and 3–5) into `+0x34` and `+0x40`.
 2. `zoom := *(0x00B43DD8 + 0x0C)`, stored in `+0x30`; `m := margins[zoom]` (no bounds check).
+   Neither the view-utilities global nor the margin vector is checked (`0x004E9306`–`0x004E9318`: load the
+   global, read `+0x0C`, read the f32 at `begin + 4·zoom`): with the global absent, an empty margin vector or
+   a zoom outside the vector, the game dereferences null or reads foreign memory (AA6d). The game only runs
+   this with a city view and zoom 0–4 *[compat]*; a replacement treats any other case as "keep the previous
+   rectangle" *[choice]*.
 3. World rectangle `(x − m, z − m) .. (x + m, z + m)`; both corners to cells through occupant-manager slot
    `+0x4C`.
 4. Clamp each cell coordinate to `[0, n − 1]` (the city's cell counts), then clear bit 0 (round down to even).
@@ -277,7 +352,26 @@ the layers), then call each layer's `HandleCell` (slot 20) for the four cells in
 `(2bx, 2bz)`, `(2bx+1, 2bz)`, `(2bx, 2bz+1)`, `(2bx+1, 2bz+1)`. When the iterator is exhausted, report
 finished. In every case end with each layer's `Update(e, &listenerPos, &listenerVector)` (slot 26).
 The time budget makes the walk length machine-dependent; a replacement may use any budget *[choice]* but
-must visit every block of the rectangle before `EndUpdate` *[compat]*.
+must visit every block of the rectangle before `EndUpdate` *[compat]*. The elapsed time is tested before
+each block, so each call handles at least one block. The `HandleCell` loops are **cell-outer**: all layers
+(list order) get cell 1, then all get cell 2, and so on (calls at `0x004E958F`, `0x004E95B0`, `0x004E95D1`, `0x004E95F6`).
+
+**The block iterator** (AA7) *[compat]*. It is the shared `RandomIterator` of weather.md §6.7 at `+0xB4`
+(`+0xB4` state, `+0xB5` mode, `+0xB6` dirty, `+0xB8..+0xC4` x0, z0, x1, z1, `+0xC8` count, `+0xD8` index,
+`+0xDC` current, `+0xE0` step). The constructor sets state, mode and dirty to 1 — mode 1 is the **prime-step**
+mode — `current := 0` and `step := 1`. Stage 0/1 calls `SetClipRect` (`0x0049C820`) with the current cell
+rectangle halved by an arithmetic shift (`x0 >> 1, z0 >> 1, x1 >> 1, z1 >> 1`), bounds **inclusive**
+(`SetClipRect` raises x1 to x0 and z1 to z0 when smaller), then `Reset(0)` (`0x0049D1C0`): no shuffle, so no
+`rand()` call and `current` is **not** reseeded — it starts at 0 for the first walk and carries over from
+the previous walk (and across cities: nothing else resets it). `GetNext` (`0x0049CB10`):
+`current := (current + step) mod count`, block `x = x0 + current mod w`, `z = z0 + current div w` with
+`w = x1 − x0 + 1`; the step comes from the prime table of weather.md §6.7.
+
+Worked example: current rectangle cells (0, 0)–(8, 6) → blocks x 0..4, z 0..3, `w = 5`, count 20. Step: start
+k = 0 (count < 29), advance past P = 1, 3 (< 20/4 = 5) to 5, then past 5 (20 mod 5 = 0) to **7**. First walk,
+current from 0: 7, 14, 1, 8, 15, 2, 9, 16, 3, 10, 17, 4, 11, 18, 5, 12, 19, 6, 13, 0 — first block (2, 1),
+i.e. cells (4..5, 2..3); last block (0, 0). The next walk of the same rectangle starts again from 0
+(20 × 7 ≡ 0), so it repeats this order. The engine's row-major order (z outer) DIFFERS.
 
 ## 6. Events and focus
 
@@ -297,9 +391,18 @@ must visit every block of the rectangle before `EndUpdate` *[compat]*.
 | `0xEA2C0390` | `SetHeadRelative(value != 0)` (slot 28), then `Play` (slot 8) |
 | `0xEA2D827C` | `SetMinMaxDistance(...)` (slot 29) with the payload's two values |
 
-Returns 1 when handled, 0 otherwise.
+Returns 1 when handled, 0 otherwise, with these details (AA9b) *[compat]*: a null event → 0; `0x2A5B69C0`
+returns **0** after setting the volumes (`0x004E9BFE`–`0x004E9C04`); no data object or no freshness player →
+0; an event id not in the table → 0. For `0x2A2C0384` the object QI'd for `0x65297976` is **the event
+itself** (`0x004E997B`), and its slots `+0x24`, `+0x38`, `+0x4C` give the score key (type, group, instance)
+passed to the player's slot 3; when the event does not answer the IID nothing is loaded or logged and the
+result is still **1** (`0x004E9986` → `0x004E99FC` → `0x004E9A1F`). A failed load also returns 1.
 
-`0x4348B111` AppGainLoseFocus (`0x004E8CF0`): every layer's `Pause` (slot 28) with the message's flag.
+`0x4348B111` AppGainLoseFocus (`0x004E8CF0`, pop 4) (AA9a): `f :=` the message's flag (slot `+0x24`). Stage
+`+0xB0 := 1` when `f` ≠ 0 (focus gained), **4** when `f` = 0 (`0x004E8D02`–`0x004E8D11`); stage 4 has no
+`OnTick` case, so the ambience walk stops while the app is out of focus and restarts at stage 1 (a fresh
+`BeginUpdate`) when focus returns *[compat]*. Then every layer's slot 28 (`+0x70`, `Pause`) with `f = 0`
+(pause when focus is lost). Returns **1**.
 
 ## 7. Message dispatch (`DoMessage` `0x004EAF20`)
 
@@ -670,6 +773,7 @@ because the last values were reset to 0; a later tick with `CanHandle` false pos
 |---|---|---|
 | **AA1** | Answered 2026-10-21: §8.6 (scores and freshness parameters), §8.7 (ease rates and time step), §8.5 mode 6 (the director member is never set; the original faults). | — |
 | **AA4** | Type `0xC7CC75F1` of the init walk: which automaton class (vehicle?) owns it. `0xA823821E` is props. | the occupant type table |
+| **AA5-AA9** | Answered 2026-10-21 (re-audio-inputs4): §3.6 alarm creation, §4.1/§4.2/§2.2 vectors and unchecked globals, §5 iterator, §3/§3.2/§3.5/§3.6 instance ids, §2.3/§6 results. | — |
 
 ## 10. Conformance tests
 
@@ -704,3 +808,13 @@ because the last values were reset to 0; a later tick with `CanHandle` false pos
 17. Ease scalar 0 → 512 at rate 4.0 with `t = 33` takes four steps (132, 264, 396, 512); a vector 5 units away
     at rate 0.1 with `t = 20` moves 2.0 along the line (§8.7).
 18. `+0x38 = 6` on an `Update` that passes `CanHandle`: the original faults reading `0x0000011C` (§8.5 mode 6).
+19. Alarm created at 14:37 with times [14.0, 15.0] (one-shot): `last = 14.0`; the 14:xx ticks fire nothing,
+    the first 15:00 tick fires once (§3.6, AA5).
+20. Occupant with `0x6A36AFAC = 0x100` moved: one set-position with instance `o` (not `o + 0x100`) (§3.2, AA8b).
+21. Railway crossing with `0xAA87817A = 0x55`: start `(0xEA451903, 0x55, A, 1, 0)` and a set-position on `A`
+    (§3.5, AA8e).
+22. Iterator worked example of §5: rectangle (0, 0)–(8, 6), first walk visits 20 blocks starting (2, 1) and
+    ending (0, 0); the second walk repeats it (AA7).
+23. Focus lost: stage 4, every layer `Pause(1)`, result 1; focus regained: stage 1, `Pause(0)` (§6, AA9a).
+24. `DoEvent(0x2A5B69C0)` returns 0; `DoEvent(0x2A2C0384)` whose event does not answer `0x65297976` returns 1
+    with no load (§6, AA9b). City shutdown returns 1, leaves the alarm list as it was (§2.3, AA9c).
