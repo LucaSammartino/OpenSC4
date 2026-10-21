@@ -51,6 +51,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <mutex>
 
 class cIGZMessageServer2;
 class cISC4City;
@@ -138,6 +139,22 @@ private:
     cISC4City* city_ = nullptr;
     cIGZMessageServer2* msgServer_ = nullptr;
     std::atomic<uint32_t> sends_{0};
+
+public:
+    // glue-citysit4: every call into the core runs under this lock. The core
+    // is single-threaded (RefCell) while the game reads slots 19/27/28 from
+    // the simulation thread (§9) and the animation tick arrives on the main
+    // thread (§3). Recursive: a host callback may re-enter through a
+    // synchronous MessageSend.
+    std::recursive_mutex mu;
+    // The trace (glue-citysit4): calls per §8 slot (0-39), the animation
+    // ticks and the other messages delivered, logged at the first call of a
+    // slot and summed at Shutdown.
+    std::atomic<uint32_t> slotCalls[40] = {};
+    std::atomic<uint32_t> ticks{0};
+    std::atomic<uint32_t> messages{0};
+    bool tickRegistered = false;
+    void Note(int slot, const char* name);
 };
 
 // Factory for the subsystem table (reference count 0).
