@@ -8,7 +8,7 @@
 //! §2, §2.1, §7). The panel's own taxes, loan and balance-sheet logic is not
 //! modelled here: commands that reach it are returned to the caller.
 
-use super::dialog::SubBudgetWindow;
+use super::dialog::{show_sequence, SubBudgetWindow};
 use super::ids::*;
 use super::BudgetWindowHost;
 
@@ -19,8 +19,8 @@ pub enum PanelCommand {
     SubBudget(u32),
     DisplayTaxesWindow,
     DisplayLoanWindow,
-    /// Set `+0x18C` to the value, then call the proc's slot 6 (BW4).
-    SetFlag18cThenSlot6(bool),
+    /// Set the tab byte `+0x194`, then `ShowWindow` (slot 6, BW4); returns 0.
+    SetTab(bool),
     RemoveLoanWindow,
     /// Scroll the loan list (`0x2A4C33A6` / `0xAA4C339C`; which one scrolls
     /// which way is not given).
@@ -44,14 +44,14 @@ pub fn panel_command(id: u32) -> Option<PanelCommand> {
             0x0B => GROUP_PARKS_LANDMARKS,
             0x0C => GROUP_CIVIC2,
             0x0D => return Some(DisplayLoanWindow),
-            0x0E => return Some(SetFlag18cThenSlot6(true)),
-            _ => return Some(SetFlag18cThenSlot6(false)), // 0x0F
+            0x0E => return Some(SetTab(true)),
+            _ => return Some(SetTab(false)), // 0x0F
         };
         return Some(SubBudget(sel));
     }
     match id {
-        0x4A88_79CB => Some(SetFlag18cThenSlot6(true)),
-        0x4A88_79DB => Some(SetFlag18cThenSlot6(false)),
+        0x4A88_79CB => Some(SetTab(true)),
+        0x4A88_79DB => Some(SetTab(false)),
         0x0A4C_3354 => Some(RemoveLoanWindow),
         0x2A4C_33A6 | 0xAA4C_339C => Some(ScrollLoanList(id)),
         0xAA4C_33E6 => Some(TakeLoan),
@@ -66,6 +66,8 @@ pub enum CommandOutcome {
     Swallowed,
     /// A sub-budget command was run through `DoSubBudgetWindow`.
     SubBudgetRun,
+    /// A tab command ran `ShowWindow` (the handler returns 0).
+    TabShown,
     /// A panel command this core does not own; the caller performs it.
     Panel(PanelCommand),
     /// Not a budget-panel command.
@@ -81,6 +83,10 @@ pub struct BudgetPanel {
     pub context: u32,
     /// `+0x192`: the money-message dirty byte.
     dirty: bool,
+    /// `+0x194`: the tab flag `ShowWindow` reads.
+    pub tab_flag: bool,
+    /// `+0x19D`: set by `ShowWindow`.
+    pub shown: bool,
 }
 
 impl BudgetPanel {
@@ -89,6 +95,8 @@ impl BudgetPanel {
             held: None,
             context,
             dirty: false,
+            tab_flag: false,
+            shown: false,
         }
     }
 
@@ -115,8 +123,29 @@ impl BudgetPanel {
                 self.do_sub_budget_window(host, sel);
                 CommandOutcome::SubBudgetRun
             }
+            PanelCommand::SetTab(on) => {
+                self.tab_flag = on;
+                self.show_window(host);
+                CommandOutcome::TabShown
+            }
             other => CommandOutcome::Panel(other),
         }
+    }
+
+    /// `ShowWindow` (`0x00768670`, §2.1, BW4): `+0x194` = 1 hides tab
+    /// `0xAA3AC000` and shows `0xAA3AC001`, 0 the reverse; the shown tab gets
+    /// `SetFlag(0x800, 0)`; then the balance sheet; `+0x19D := 1` (§7).
+    pub fn show_window<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
+        let (shown, hidden) = if self.tab_flag {
+            (PANEL_TAB_1, PANEL_TAB_0)
+        } else {
+            (PANEL_TAB_0, PANEL_TAB_1)
+        };
+        host.set_panel_tab_visible(hidden, false);
+        host.set_panel_tab_visible(shown, true);
+        host.set_panel_tab_flag(shown, PANEL_TAB_SHOWN_FLAG, false);
+        host.update_balance_sheet();
+        self.shown = true;
     }
 
     /// `DoSubBudgetWindow` (`0x00768460`, §2).
@@ -125,26 +154,24 @@ impl BudgetPanel {
             return;
         }
         let dlg = self.held.insert(SubBudgetWindow::new());
-        if let Some(win) = dlg.create(host, selector, self.context, None) {
-            host.show_win(win);
-            host.set_win_flag(win, 0x800, true);
-            host.pull_to_front(win);
-            host.set_win_flag(win, 0x800, false);
-            host.set_win_flag(win, 0x100, true);
-            if host.query_generator(win) {
-                host.set_generator_flag(win, 0x1000, true);
-                host.set_generator_flag(win, 0x2000, true);
-                host.set_generator_flag(win, 0x4000, true);
-            }
+        if let Some(win) = dlg.create(host, selector, self.context, 0) {
+            let gen = show_sequence(host, win);
             host.restore_window_location(win);
             host.do_modal_win(win, dlg);
             host.focus_view3d();
             host.save_window_location(win);
+            // BW6a: the panel releases `*out` and the generator reference.
+            host.release_win(win);
+            if gen {
+                host.release_generator(win);
+            }
         }
-        // The `*out` reference of CreateSubBudgetWindow: the spec gives no
-        // Release for it (BW6), so none is made here.
         dlg.destroy(host);
-        self.held = None;
+        // `+0x18 := null` and Release: the panel's is the only reference, so
+        // the destructor runs.
+        if let Some(mut d) = self.held.take() {
+            d.release_final(host);
+        }
         host.update_balance_sheet();
     }
 
