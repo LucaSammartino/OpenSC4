@@ -9,5 +9,8 @@
 - Done 49281c4c: engine/plugin/FC4AdvisorApi.h (table, link parse, VCall, cheat payload, dirs) + tests/advisor_api_test.cpp (cases 23-27 plugin parts), quick build PASS.
 - Not done (blocks activation): advisor/advice/subject GZCOM classes over fc4_advisors_advisor_object/advice_object (ObjectCreated kinds 2-4), AddAdvisor/RemoveAdvisor/Subscribe/PushContextAdvice/GetContextAdvice/SetLocalValue/Read/Write; host callbacks still unset: call_condition, detokenize, set_tutorial_lua, create_tags, register_detokenizer, popup_priority, set_local, city_established, difficulty, cell_counts, sim_date, start_year, is_any_paused, post_update_self, post_ticker, global_effect, rebuild_text, value, list, history/ordinance/occupant/deal/tutorial cbs.
 - Gate at 49281c4c: qbuild all PASS (cargo 3980/0, clippy 0, ctest 66/66 incl. new advisor_api_test).
-- Next (round 2): start the host callbacks (simple city/sim ones first), then classes.
+- Round 2 done 87dc9249: host cbs city_established/difficulty/cell_counts/sim_date (+0x1C GetSimDate obj)/start_year (+0x14)/is_any_paused, post_ticker, global_effect (View3D +0xBC/+0xC0).
+- Round 2 done 489ff4de: cFC4AdviceSubject (12.4 14 slots incl. Clone, 11.4 via fc4_adv_obj_write/read) made in object_created kind 4; set_global/_string now write game[name] (7.1, was a Lua global); set_local + create_tags + tag-gc (8.1).
+- Decision: wrappers never deleted on Release (core keeps tokens without refs, no C ABI drop callback); DestroyAll at system destruction.
+- Next: qbuild all gate, one game run (label adv-act4-r2a), then advisor/advice classes (12.2/12.3), call_condition, detokenize, popup_priority, value/list.
 - No game requests sent yet.
