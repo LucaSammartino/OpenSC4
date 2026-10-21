@@ -1,8 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-widgets4 (widget toolkit spec: cGZWin base window + cRZWinKeyAccelerator) | `re-widgets4` / (RE lane) | ready: new docs/specs/widget-toolkit.md (sections 1-13), questions WT1-WT6 filed; commits 20b38bdb, 17919733; no engine/ABI change; REA NO-GO (no binary open), evidence from decomp + re_query asm + raw image reads | 1. cGZWin painting slice (PlotComposite 0x0099E62D, PlotPresent, PrivateBuffer 0x0099EA70). 2. cursors (ProcessCursorMessage 0x0099D40B), key equivalents. 3. cRZWinKeyAcceleratorRes text parser 0x00984587. 4. cGZWinGen, then widgets. |
+| re-widgets4 (widget toolkit spec: cGZWin base window + cRZWinKeyAccelerator) | `re-widgets4` / (RE lane) | in progress (round 2): painting, cursor, key equivalents, WT4. Round 1 was ready: new docs/specs/widget-toolkit.md (sections 1-13), questions WT1-WT6 filed; commits 20b38bdb, 17919733; no engine/ABI change; REA NO-GO (no binary open), evidence from decomp + re_query asm + raw image reads | 1. cGZWin painting slice (PlotComposite 0x0099E62D, PlotPresent, PrivateBuffer 0x0099EA70). 2. cursors (ProcessCursorMessage 0x0099D40B), key equivalents. 3. cRZWinKeyAcceleratorRes text parser 0x00984587. 4. cGZWinGen, then widgets. |
 
-## Report
+## Handoff
+
+- Goal (round 2): extend docs/specs/widget-toolkit.md with cGZWin painting (PlotComposite 0x0099E62D, PlotPresent,
+  PrivateBuffer 0x0099EA70), cursor (ProcessCursorMessage 0x0099D40B), key equivalents; verify WT4 (SetFlag return)
+  against bytes and correct ui-windows.md §2.2 only; answer WT4.
+- Done: round 1 = 20b38bdb, 17919733, 7116ce89.
+- Next: read those bodies with re_query.py func/asm; write new spec sections 14+.
+
+## Report (round 1)
 
 What changed:
 - `docs/specs/widget-toolkit.md` (new): `cGZWin` identity (vtable 0x00ADC8D8, ctors 0x0099D938/0x0099DA5A, dtor
