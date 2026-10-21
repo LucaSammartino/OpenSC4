@@ -18,11 +18,13 @@ def trial(r, c, rng):
     sp, dp, spans_a = DAT, DAT + 0x10000, DAT + 0x20000
     src = [rng.getrandbits(8 * bpp) for _ in range(W * Hh)]
     keyv = rng.getrandbits(32) & KEYM[f]
+    if rng.random() < 0.1: keyv |= 1 << rng.randrange(KEYM[f].bit_length(), 32)   # key bits the caller would mask: never match
     if f == 6 and rng.random() < 0.5: keyv = 0
     for i in range(len(src)):
         q = rng.random()
         if q < 0.25: src[i] = (src[i] & ~KEYM[f] & ((1 << 8 * bpp) - 1)) | keyv
         elif q < 0.4: src[i] = keyv ^ (1 << rng.randrange(KEYM[f].bit_length()))   # near miss: one key bit off
+        src[i] &= (1 << 8 * bpp) - 1
     sbuf = bytearray(sstr * Hh)
     for y in range(Hh):
         for x in range(W): sbuf[y * sstr + x * bpp:y * sstr + (x + 1) * bpp] = src[y * W + x].to_bytes(bpp, 'little')
