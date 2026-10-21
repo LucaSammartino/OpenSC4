@@ -166,7 +166,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
-| network-occupants | 21 | 3 | NO24 | questions/network-occupants.md |
+| network-occupants | 21 | 3 | NO25 | questions/network-occupants.md |
 | network-rules | 3 | 9 | NR16 | questions/network-rules.md |
 | network-tools | 14 | 0 | NT21 | questions/network-tools.md |
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
