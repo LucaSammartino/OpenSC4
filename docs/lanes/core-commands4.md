@@ -7,5 +7,5 @@
 ## Handoff
 
 - Goal: pure-Rust core module engine/core/src/commands/ implementing docs/specs/command-system.md §1-§4 (+ §5 as a typed callback trait), spec vectors as tests. No plugin/CAPI/CMake/ABI changes.
-- Done: worktree created at main f576493d.
-- Next: read spec sections, write module.
+- Done: baseline gate cargo 3803 / clippy 0 / ctest 63/63. 50849566 core module engine/core/src/commands (18 tests, spec vectors 1-16). 5ef1414e fc4_formats::command_values::PropertyConvert (exact GetValString/GetValSint32), fc4-formats now depends on fc4-core; questions GC5-GC7.
+- Next: qbuild all, then final report + merge-queue json. No game run (no plugin glue in scope).
