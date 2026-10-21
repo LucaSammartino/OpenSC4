@@ -439,7 +439,7 @@ void PlaceOccupant(NetToolContext* c, cISC4OccupantManager* om, cISC4NetworkOccu
 // The per-cell piece choice (network-rules.md §11) comes from SolvePieces'
 // solved records (our rule solver). [choice] The occupant is created through
 // GZCOM class 0xC9C05C6E, and no public cISC4NetworkOccupant slot is specified
-// to write its piece id (+0xFC) and orientation (+0x104) (question NR15): the
+// to write its piece id (+0xFC) and orientation (+0x104) (question NR14): the
 // chosen piece is logged and compared with what the occupant reports (slots
 // 23 / 26), not written. Cells without a record insert as before.
 void InsertOccupantsForSolvedCells(void* u, const fc4_nettool_run* run, bool preview_only) {
@@ -481,10 +481,17 @@ void InsertOccupantsForSolvedCells(void* u, const fc4_nettool_run* run, bool pre
         FC4_RELEASE(n);
     }
     if (g_insertLogs < 32 || (g_insertLogs % 64) == 0) {
-        Log("netrules insert type=%u cells=%u chosen=%u same_as_occupant=%u (piece write: none, NR15):%s",
+        Log("netrules insert type=%u cells=%u chosen=%u same_as_occupant=%u (piece write: none, NR14):%s",
             run->type_id, run->cell_count, chosen, sameAsOccupant, buf);
     }
     ++g_insertLogs;
+    // Per-run lifetime: the records belong to the one ValidateAndSolve that
+    // preceded this insert. Drop them once consumed so a later context (even
+    // one reusing this address) never reads another run's pieces.
+    if (g_piecesOwner == c) {
+        g_pieceCount = 0;
+        g_piecesOwner = nullptr;
+    }
 }
 
 // §6.3 MarkOccupantsUsable(set, release): the inserts above already marked
