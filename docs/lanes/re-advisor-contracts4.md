@@ -1,3 +1,5 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
 | re-advisor-contracts4: answer advisors AD1-AD3 (window procs, private global consumers, map consumers) | re-advisor-contracts4 / .claude/worktrees/re-advisor-contracts4 | ready: AD1-AD3 answered in advisors.md, commit 5006679d | glue-advisors next round: decide window route (run original ctor+Init vs no window) |
 
 ## Report
