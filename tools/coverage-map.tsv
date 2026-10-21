@@ -167,9 +167,9 @@ cSC4AutoSaveRecord	city and save file	simulation	-	-	-	-
 fn:operator>>	city and save file	simulation	-	-	-	-
 fn:operator<<	city and save file	simulation	-	-	-	-
 # ---- simulation: no spec yet
-cSC4Aircraft	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4Airplane	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4Helicopter	automata (vehicles, animation)	simulation	-	-	-	-
+cSC4Aircraft	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
+cSC4Airplane	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
+cSC4Helicopter	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
 cSC4Watercraft	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4Vehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md	-	-	-
 cSC4TrainCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md	-	-	-
@@ -198,7 +198,8 @@ tControllerQInfo	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4NetworkToolUI	city tools and input	ui	-	-	-	-
 cSC4NetworkPreview	city tools and input	ui	-	-	-	-
 cSC4NetworkLayout*View	3D scene and models	renderer	-	-	-	-
-cSC4*DispatchSource	automata (vehicles, animation)	simulation	-	-	-	-
+cSC4FirePlaneDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
+cSC4PoliceHelicopterDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
 cSC4Network*Occupant*	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundConnectionOccupant	network occupants	simulation	network-occupants.md	-	-	-

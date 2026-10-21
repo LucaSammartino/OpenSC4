@@ -25,6 +25,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AA | audio-ambience |
 | AC | animation-coordinator |
 | AD | advisors |
+| AF | aircraft |
 | AM | automata |
 | AO | foundations |
 | AP | application |
@@ -149,6 +150,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | advisors | 1 | 10 | AD12 | questions/advisors.md |
+| aircraft | 2 | 0 | AF3 | questions/aircraft.md |
 | animated-sprite | 2 | 0 | AS3 | questions/animated-sprite.md |
 | animation-coordinator | 2 | 0 | AC3 | questions/animation-coordinator.md |
 | application | 3 | 2 | AP6 | questions/application.md |
@@ -266,4 +268,4 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **256** | **1118** | | |
+| **total** | **258** | **1118** | | |

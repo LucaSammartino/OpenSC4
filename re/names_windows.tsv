@@ -2472,11 +2472,11 @@ va	name	source	confidence	note
 004fa550	cSC4AudioSoundManager::_HandleSetMasterVolume	auto:B2	medium	mac 002d2882 score 0.952 support 2.0
 004fa590	cSC4AudioSoundManager::DoEvent	auto:A	high	mac 002d365e score 0.652 support 0
 004fa6a0	cSC4BuildingPropFilter::IsOccupantIncluded	auto:A	high	mac 0074a116 score 1.0 support 0
-004fa770	cSC4Aircraft::Init	auto:B1	medium	mac 0038c74a score 0.871 support 3.0
-004fa790	cSC4Aircraft::Shutdown	auto:C	low	mac 0038c784 score 1.0 support 2
-004fa7a0	cSC4Aircraft::QueryInterface	auto:C	high	mac 0038c79a score 1.0 support 6
-004fa7d0	cSC4Aircraft::HandleEnterState	auto:B1	medium	mac 0038c846 score 0.953 support 1.0
-004fa830	cSC4Aircraft::HandleExitState	auto:B0	medium	mac 0038c8c0 score 0.917 support 1.0
+004fa770	cSC4Aircraft::Init	manual:aircraft.tsv	high	aircraft.md §2
+004fa790	cSC4Aircraft::Shutdown	manual:aircraft.tsv	high	aircraft.md §2
+004fa7a0	cSC4Aircraft::QueryInterface	manual:aircraft.tsv	high	aircraft.md §2
+004fa7d0	cSC4Aircraft::HandleEnterState	manual:aircraft.tsv	high	aircraft.md §2
+004fa830	cSC4Aircraft::HandleExitState	manual:aircraft.tsv	high	aircraft.md §2
 004fa960	cSC4Automaton::TweenStruct::GetCurrent	auto:B1	medium	mac 0062c82a score 0.962 support 5.0
 004faa50	cSC4AircraftManager::HandleTuningParametersChanged	auto:A	high	mac 0038cacc score 0.632 support 0
 004fad10	cSC4AnimationTickManager::SetStepTickTimeDelta	auto:C	high	mac 0028f562 score 1.0 support 1
@@ -2486,11 +2486,11 @@ va	name	source	confidence	note
 004faee0	__ZThn4_N13cSC4Automaton11SetPositionEPKf	auto:B0	low	mac 006380d2 score 0.96 support 1.0
 004faf50	cSC4Advice::GetSessionID	auto:C	low	mac 0032b7b4 score 1.0 support 3
 004faf60	cSC4Automaton::~cSC4Automaton	auto:C	high	mac 000c9d56 score 1.0 support 1
-004fb060	cSC4Aircraft::Write	auto:D	medium	mac 0038c7d8 score 0.5 support 1
-004fb080	cSC4Aircraft::Read	auto:D	medium	mac 0038c80a score 0.5 support 2
-004fb0b0	cSC4Aircraft::GetAltitude	auto:B1	medium	mac 0038c928 score 0.99 support 2.0
-004fb180	cSC4Aircraft::ClipToWorld	auto:D	medium	mac 0038c9e6 score 0.5 support 2
-004fb380	cSC4Aircraft::DoPlayerDriveTick	auto:B0	medium	mac 0038cfaa score 0.95 support 2.0
+004fb060	cSC4Aircraft::Write	manual:aircraft.tsv	high	aircraft.md §1; automata.md §6.4
+004fb080	cSC4Aircraft::Read	manual:aircraft.tsv	high	aircraft.md §1; automata.md §6.4
+004fb0b0	cSC4Aircraft::GetAltitude	manual:aircraft.tsv	high	aircraft.md §2
+004fb180	cSC4Aircraft::ClipToWorld	manual:aircraft.tsv	high	aircraft.md §2
+004fb380	cSC4Aircraft::DoPlayerDriveTick	manual:aircraft.tsv	high	aircraft.md §2
 004fb6c0	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,unsigned_long>,std::_Select1st<std::pair<unsigned_long_const,unsigned_long>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,unsigned_long>>>::insert_unique	auto:B0	medium	mac 0060e12a score 0.984 support 20.0
 004fb8d0	cSC4AircraftManager::HandleOccupantRemoved	auto:A	high	mac 0038d586 score 1.0 support 0
 004fb9f0	std::vector<cS3DVector3,std::allocator<cS3DVector3>>::clear	auto:D	medium	mac 0071e88c score 0.5 support 1
@@ -2500,41 +2500,41 @@ va	name	source	confidence	note
 004fc710	cSC4AircraftManager::DoMessage	auto:B0	medium	mac 0038dcba score 0.954 support 2.5
 004fc7b0	cSC4AircraftManager::GetRunwayList	auto:B0	medium	mac 0038dd78 score 0.973 support 2.0
 004fc900	icf::cRZNetStreamSocket::DoMessage	folded	folded	9 names: cRZNetStreamSocket::DoMessage | cSC4AnimationTickManager::OnTick | cSC4App::OnTick | cSC4AudioAmbienceManager::OnIdle | cSC4DisasterManagerEffect::Init | cSC4LotConfiguration::IsCompatibleWithMonopolyPieceUse | cSC4OccupantFilter::IsOccupantTypeIncluded | cSC4WinSnapshotTaker::GZOnCharacter | cSCLuaCOMDirector::OnStart
-004fc910	cSC4Airplane::LoadDriveParameters	auto:A	high	mac 00496e78 score 0.861 support 0
-004fcca0	cSC4Airplane::LoadPlayerDriveParameters	auto:D	medium	mac 004972c8 score 0.5 support 1
-004fcef0	cSC4Airplane::SetAirplaneState	auto:B2	medium	mac 00495f8e score 0.957 support 2.0
-004fd280	cSC4Airplane::GetGZCLSID	auto:A	low	mac 007fb844 score 1.0 support 0
-004fd2c0	cSC4Airplane::Shutdown	auto:C	high	mac 004967e0 score 1.0 support 1
-004fd380	cSC4Airplane::Write	auto:C	high	mac 00496e00 score 1.0 support 1
-004fd3c0	cSC4Airplane::Read	auto:C	high	mac 00496d70 score 1.0 support 1
+004fc910	cSC4Airplane::LoadDriveParameters	manual:aircraft.tsv	high	aircraft.md §3
+004fcca0	cSC4Airplane::LoadPlayerDriveParameters	manual:aircraft.tsv	high	aircraft.md §3
+004fcef0	cSC4Airplane::SetAirplaneState	manual:aircraft.tsv	high	aircraft.md §3
+004fd280	cSC4Airplane::GetGZCLSID	manual:aircraft.tsv	high	aircraft.md §1; automata.md §6.4
+004fd2c0	cSC4Airplane::Shutdown	manual:aircraft.tsv	high	aircraft.md §3
+004fd380	cSC4Airplane::Write	manual:aircraft.tsv	high	aircraft.md §1; automata.md §6.4
+004fd3c0	cSC4Airplane::Read	manual:aircraft.tsv	high	aircraft.md §1; automata.md §6.4
 004fd600	cross	auto:D	medium	mac 0065fb68 score 0.5 support 1
-004fd640	cSC4Airplane::HandleEnterState	auto:B0	medium	mac 0049754c score 0.949 support 2.5
-004fd700	cSC4Airplane::HandleExitState	auto:B0	medium	mac 0049725c score 0.935 support 1.0
-004fd750	cSC4Airplane::GetBaseAltitude	auto:B3	medium	mac 00496be2 score 0.947 support 1.0
-004fd790	cSC4Airplane::EvaluateClearance	auto:B0	medium	mac 004968ec score 0.981 support 2.0
-004fd8a0	cSC4Airplane::AI_ApproachAltitude	auto:D	medium	mac 004960dc score 0.5 support 2
-004fdcf0	cSC4Airplane::AI_Stop	auto:B2	medium	mac 004965be score 0.975 support 2.0
+004fd640	cSC4Airplane::HandleEnterState	manual:aircraft.tsv	high	aircraft.md §3
+004fd700	cSC4Airplane::HandleExitState	manual:aircraft.tsv	high	aircraft.md §3
+004fd750	cSC4Airplane::GetBaseAltitude	manual:aircraft.tsv	high	aircraft.md §3
+004fd790	cSC4Airplane::EvaluateClearance	manual:aircraft.tsv	high	aircraft.md §3
+004fd8a0	cSC4Airplane::AI_ApproachAltitude	manual:aircraft.tsv	high	aircraft.md §3
+004fdcf0	cSC4Airplane::AI_Stop	manual:aircraft.tsv	high	aircraft.md §3
 004fdf60	__ZThn4_N12cSC4Airplane8ShutdownEv	auto:B0	low	mac 007fb908 score 0.96 support 1.0
-004fdfd0	cSC4Airplane::~cSC4Airplane	auto:C	high	mac 007fbd32 score 1.0 support 1
-004fe850	cSC4Airplane::CalculateForces	auto:B15	medium	mac 00499e66 score 0.866 support 2.0
-005000b0	cSC4Airplane::PickApproachBox	auto:B1	medium	mac 004988c0 score 0.989 support 1.0
-005004a0	cSC4Airplane::AI_TurnToVector	auto:D	medium	mac 00498728 score 0.5 support 2
-00500680	cSC4Airplane::AI_FollowRay	auto:B3	medium	mac 00498072 score 0.988 support 2.0
-00500980	cSC4Airplane::AI_Taxi	auto:D	medium	mac 0049b922 score 0.5 support 1
-00500d50	cSC4Airplane::AI_FollowVectorAndTurn	auto:B2	medium	mac 0049839e score 0.979 support 2.5
-00501080	cSC4Airplane::TranslatePlayerDriveCommands	auto:A	high	mac 004978f2 score 1.0 support 0
-005017c0	cSC4Airplane::Init	auto:A	high	mac 0049ab36 score 1.0 support 0
-00501c30	cSC4Airplane::DetectCollisions	auto:B3	medium	mac 0049968c score 0.972 support 3.5
-00502520	cSC4Airplane::PickRunwayDirection	auto:D	medium	mac 00498ce4 score 0.5 support 2
-00502850	cSC4Airplane::AI_TakeOff	auto:B3	medium	mac 0049c90c score 0.976 support 2.0
-00502bc0	cSC4Airplane::AI_GotoDestination	auto:B0	medium	mac 0049ccd4 score 0.99 support 2.0
-00503030	cSC4Airplane::AI_Land	auto:B1	medium	mac 0049bc86 score 0.975 support 1.0
-00503b50	cSC4Airplane::FindFireNearLocation	auto:B1	medium	mac 00496c32 score 0.973 support 2.0
+004fdfd0	cSC4Airplane::~cSC4Airplane	manual:aircraft.tsv	high	aircraft.md §3
+004fe850	cSC4Airplane::CalculateForces	manual:aircraft.tsv	high	aircraft.md §3
+005000b0	cSC4Airplane::PickApproachBox	manual:aircraft.tsv	high	aircraft.md §3
+005004a0	cSC4Airplane::AI_TurnToVector	manual:aircraft.tsv	high	aircraft.md §3
+00500680	cSC4Airplane::AI_FollowRay	manual:aircraft.tsv	high	aircraft.md §3
+00500980	cSC4Airplane::AI_Taxi	manual:aircraft.tsv	high	aircraft.md §3
+00500d50	cSC4Airplane::AI_FollowVectorAndTurn	manual:aircraft.tsv	high	aircraft.md §3
+00501080	cSC4Airplane::TranslatePlayerDriveCommands	manual:aircraft.tsv	high	aircraft.md §3
+005017c0	cSC4Airplane::Init	manual:aircraft.tsv	high	aircraft.md §3
+00501c30	cSC4Airplane::DetectCollisions	manual:aircraft.tsv	high	aircraft.md §3
+00502520	cSC4Airplane::PickRunwayDirection	manual:aircraft.tsv	high	aircraft.md §3
+00502850	cSC4Airplane::AI_TakeOff	manual:aircraft.tsv	high	aircraft.md §3
+00502bc0	cSC4Airplane::AI_GotoDestination	manual:aircraft.tsv	high	aircraft.md §3
+00503030	cSC4Airplane::AI_Land	manual:aircraft.tsv	high	aircraft.md §3
+00503b50	cSC4Airplane::FindFireNearLocation	manual:aircraft.tsv	high	aircraft.md §3
 00503ca0	__ZThn4_N12cSC4Airplane4InitEv	auto:B0	low	mac 007fbe4a score 0.96 support 1.0
-00503cb0	cSC4Airplane::UpdatePhysics	auto:B4	medium	mac 0049afa0 score 0.985 support 2.0
-00504590	cSC4Airplane::AI_PursueGoal	auto:B0	medium	mac 0049d174 score 0.98 support 2.5
-00504980	cSC4Airplane::DoAnimationTick	auto:B1	medium	mac 0049d56e score 0.941 support 2.0
-00504af0	cSC4Airplane::DoPlayerDriveTick	auto:B0	medium	mac 0049b7e8 score 0.942 support 2.0
+00503cb0	cSC4Airplane::UpdatePhysics	manual:aircraft.tsv	high	aircraft.md §3
+00504590	cSC4Airplane::AI_PursueGoal	manual:aircraft.tsv	high	aircraft.md §3
+00504980	cSC4Airplane::DoAnimationTick	manual:aircraft.tsv	high	aircraft.md §3
+00504af0	cSC4Airplane::DoPlayerDriveTick	manual:aircraft.tsv	high	aircraft.md §3
 00504bf0	cSC4Ambulance::Write	auto:C	high	mac 0049d760 score 1.0 support 1
 00504c10	cSC4Ambulance::Read	auto:C	high	mac 0049d792 score 1.0 support 1
 00504e30	cSC4Pedestrian::~cSC4Pedestrian	auto:D	medium	mac 00633980 score 0.5 support 1
@@ -2982,40 +2982,40 @@ va	name	source	confidence	note
 00533b00	cSC4GetawayVan::Write	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 00533b40	cSC4GetawayVan::Read	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
 00533bf0	cSC4GetawayVan::GetGZCLSID	manual:vehicles.tsv	high	vehicles.md §1; automata.md §6.4
-00533c30	cSC4Helicopter::GetModelResourceInstance	auto:A	low	mac 004a96de score 1.0 support 0
-00533dc0	cSC4Helicopter::SetHelicopterState	auto:B3	medium	mac 004aaa50 score 0.977 support 3.0
-005340a0	cSC4Helicopter::LoadDriveParameters	auto:B2	medium	mac 004aaf88 score 0.972 support 1.0
-00534270	cSC4Helicopter::OnPlayerTakeOver	auto:B3	medium	mac 004aabf6 score 0.872 support 2.0
-005343c0	cSC4Helicopter::Write	auto:C	high	mac 004a960c score 1.0 support 1
-00534400	cSC4Helicopter::Read	auto:C	high	mac 004a9660 score 1.0 support 1
-005346d0	cSC4Helicopter::CalculateEnginePower	auto:D	medium	mac 004a9956 score 0.5 support 1
-005348c0	cSC4Helicopter::MoveYReal	auto:B2	medium	mac 004aa5f2 score 0.962 support 2.5
-00534f70	cSC4Helicopter::AI_ControlReset	auto:B2	medium	mac 004a9c58 score 0.931 support 2.0
-005353c0	cSC4Helicopter::AI_ControlHover	auto:B2	medium	mac 004a9b8e score 0.991 support 2.0
-00535480	cSC4Helicopter::HandleEnterState	auto:B2	medium	mac 004ab330 score 0.958 support 2.0
-005354f0	cSC4Helicopter::HandleExitState	auto:B1	medium	mac 004ab19e score 0.979 support 1.0
-00535760	cSC4Helicopter::RespondToCrimeScene	auto:B2	medium	mac 004a9778 score 0.89 support 2.5
-00535d80	cSC4Helicopter::PhysicsInit	auto:B2	medium	mac 004abcb2 score 0.957 support 2.5
-005368b0	cSC4Helicopter::AI_ControlMoveXZ	auto:B0	medium	mac 004afbc4 score 0.962 support 2.0
-00537130	cSC4Helicopter::AI_ControlLiftOverBuildings	auto:B2	medium	mac 004aa83c score 0.97 support 2.0
-00537b80	cSC4Helicopter::UpdateSpotlight	auto:B3	medium	mac 004ab708 score 0.854 support 1.5
-005385c0	cSC4Helicopter::InitInstance	auto:B3	medium	mac 004ab3b2 score 0.998 support 2.0
-00538860	cSC4Helicopter::YawPitchRollSlideReal	auto:A	high	mac 004acf86 score 1.0 support 0
-00539000	cSC4Helicopter::MoveXZReal	auto:D	medium	mac 004adaa4 score 0.5 support 1
-00539660	cSC4Helicopter::Shutdown	auto:C	high	mac 004aae0a score 1.0 support 1
-005397c0	cSC4Helicopter::NextFrame	auto:B0	medium	mac 004ae118 score 0.951 support 1.5
-005399d0	cSC4Helicopter::TranslatePlayerDriveCommands	auto:A	high	mac 004af136 score 1.0 support 0
-0053a360	cSC4Helicopter::SetDispatchState	auto:A	high	mac 004a9866 score 1.0 support 0
-0053a410	cSC4Helicopter::Init	auto:A	high	mac 004ac30e score 0.849 support 0
-0053ac50	cSC4Helicopter::DetectCollisions	auto:B2	medium	mac 004ae364 score 0.97 support 4.5
-0053b4e0	cSC4Helicopter::UpdatePhysics	auto:B1	medium	mac 004aed62 score 0.919 support 1.0
-0053baa0	cSC4Helicopter::DoPlayerDriveTick	auto:B3	medium	mac 004afa66 score 0.93 support 1.0
-0053bba0	cSC4Helicopter::AI_PursueGoal	auto:B1	medium	mac 004b02c8 score 0.965 support 4.5
-0053c5e0	cSC4Helicopter::DoAnimationTick	auto:B2	medium	mac 004b0e96 score 0.925 support 2.0
-0053c830	cSC4Helicopter::GetGZCLSID	auto:A	low	mac 008006d0 score 1.0 support 0
+00533c30	cSC4Helicopter::GetModelResourceInstance	manual:aircraft.tsv	high	aircraft.md §4
+00533dc0	cSC4Helicopter::SetHelicopterState	manual:aircraft.tsv	high	aircraft.md §4
+005340a0	cSC4Helicopter::LoadDriveParameters	manual:aircraft.tsv	high	aircraft.md §4
+00534270	cSC4Helicopter::OnPlayerTakeOver	manual:aircraft.tsv	high	aircraft.md §4
+005343c0	cSC4Helicopter::Write	manual:aircraft.tsv	high	aircraft.md §1; automata.md §6.4
+00534400	cSC4Helicopter::Read	manual:aircraft.tsv	high	aircraft.md §1; automata.md §6.4
+005346d0	cSC4Helicopter::CalculateEnginePower	manual:aircraft.tsv	high	aircraft.md §4
+005348c0	cSC4Helicopter::MoveYReal	manual:aircraft.tsv	high	aircraft.md §4
+00534f70	cSC4Helicopter::AI_ControlReset	manual:aircraft.tsv	high	aircraft.md §4
+005353c0	cSC4Helicopter::AI_ControlHover	manual:aircraft.tsv	high	aircraft.md §4
+00535480	cSC4Helicopter::HandleEnterState	manual:aircraft.tsv	high	aircraft.md §4
+005354f0	cSC4Helicopter::HandleExitState	manual:aircraft.tsv	high	aircraft.md §4
+00535760	cSC4Helicopter::RespondToCrimeScene	manual:aircraft.tsv	high	aircraft.md §4
+00535d80	cSC4Helicopter::PhysicsInit	manual:aircraft.tsv	high	aircraft.md §4
+005368b0	cSC4Helicopter::AI_ControlMoveXZ	manual:aircraft.tsv	high	aircraft.md §4
+00537130	cSC4Helicopter::AI_ControlLiftOverBuildings	manual:aircraft.tsv	high	aircraft.md §4
+00537b80	cSC4Helicopter::UpdateSpotlight	manual:aircraft.tsv	high	aircraft.md §4
+005385c0	cSC4Helicopter::InitInstance	manual:aircraft.tsv	high	aircraft.md §4
+00538860	cSC4Helicopter::YawPitchRollSlideReal	manual:aircraft.tsv	high	aircraft.md §4
+00539000	cSC4Helicopter::MoveXZReal	manual:aircraft.tsv	high	aircraft.md §4
+00539660	cSC4Helicopter::Shutdown	manual:aircraft.tsv	high	aircraft.md §4
+005397c0	cSC4Helicopter::NextFrame	manual:aircraft.tsv	high	aircraft.md §4
+005399d0	cSC4Helicopter::TranslatePlayerDriveCommands	manual:aircraft.tsv	high	aircraft.md §4
+0053a360	cSC4Helicopter::SetDispatchState	manual:aircraft.tsv	high	aircraft.md §4
+0053a410	cSC4Helicopter::Init	manual:aircraft.tsv	high	aircraft.md §4
+0053ac50	cSC4Helicopter::DetectCollisions	manual:aircraft.tsv	high	aircraft.md §4
+0053b4e0	cSC4Helicopter::UpdatePhysics	manual:aircraft.tsv	high	aircraft.md §4
+0053baa0	cSC4Helicopter::DoPlayerDriveTick	manual:aircraft.tsv	high	aircraft.md §4
+0053bba0	cSC4Helicopter::AI_PursueGoal	manual:aircraft.tsv	high	aircraft.md §4
+0053c5e0	cSC4Helicopter::DoAnimationTick	manual:aircraft.tsv	high	aircraft.md §4
+0053c830	cSC4Helicopter::GetGZCLSID	manual:aircraft.tsv	high	aircraft.md §1; automata.md §6.4
 0053c8a0	__ZThn4_N14cSC4Helicopter8ShutdownEv	auto:B0	low	mac 00800f70 score 0.96 support 1.0
 0053c8b0	__ZThn4_N14cSC4Helicopter4InitEv	auto:B0	low	mac 00800f7a score 0.96 support 1.0
-0053c8c0	cSC4Helicopter::~cSC4Helicopter	auto:C	high	mac 008010da score 1.0 support 1
+0053c8c0	cSC4Helicopter::~cSC4Helicopter	manual:aircraft.tsv	high	aircraft.md §4
 0053c940	cSC4PathView::Shutdown	manual:overlay-views.tsv	high	overlay-views.md §1
 0053cb30	cSC4MassTransitTrain::Write	auto:C	high	mac 004b1144 score 1.0 support 1
 0053cb50	cSC4MassTransitTrain::Read	auto:C	high	mac 004b1176 score 1.0 support 1
@@ -6302,9 +6302,9 @@ va	name	source	confidence	note
 006abfd0	cSC4DepartmentBudget::SetLocalFullFunding	auto:B0	medium	mac 001ad476 score 0.954 support 2.0
 006ac1b0	cSC4DepartmentBudget::SetFundingPercentage	auto:B0	medium	mac 006aa4cc score 0.861 support 1.0
 006ac1d0	cSC4DepartmentBudget::Read	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB0E94 slot 4
-006ac710	cSC4FirePlaneDispatchSource::GetDispatchesAtStation	auto:A	high	mac 004d1fc6 score 1.0 support 0
-006ac860	cSC4PoliceHelicopterDispatchSource::Shutdown	auto:B1	medium	mac 004d31aa score 0.926 support 4.0
-006acbb0	cSC4FirePlaneDispatchSource::DoOccupantInserted	auto:B1	medium	mac 004d28c6 score 0.964 support 2.0
+006ac710	cSC4FirePlaneDispatchSource::GetDispatchesAtStation	manual:aircraft.tsv	high	aircraft.md §5
+006ac860	cSC4PoliceHelicopterDispatchSource::Shutdown	manual:aircraft.tsv	high	aircraft.md §5
+006acbb0	cSC4FirePlaneDispatchSource::DoOccupantInserted	manual:aircraft.tsv	high	aircraft.md §5
 006acec0	cSC4FireProtectionSimulator::GetGZCLSID	manual:grid-sims.tsv	high	mov eax,0x2990C05A; ret
 006aced0	cSC4FireProtectionSimulator::QueryInterface	manual:grid-sims.tsv	high	cISC4FireProtectionSimulator vtable 00AB1160 slot 0
 006acf80	cSC4FireProtectionSimulator::IsFireStation	manual:grid-sims.tsv	high	cISC4FireProtectionSimulator vtable 00AB1160 slot 7
@@ -6889,10 +6889,10 @@ va	name	source	confidence	note
 006df0d0	cSC4PlumbingSimulator::Init	manual:grid-sims.tsv	high	cISC4PlumbingSimulator vtable 00AB2228 slot 3
 006df540	cSC4PlumbingSimulator::DoMonthlySimulation	manual:grid-sims.tsv	high	DoMessage SimNewMonth branch
 006df570	cSC4PlumbingSimulator::DoMessage	manual:grid-sims.tsv	high	cIGZMessageTarget2 vtable 00AB2214 slot 3; same switch as Mac
-006df770	cSC4PoliceHelicopterDispatchSource::GetDispatchesAtStation	auto:A	high	mac 004d2d58 score 1.0 support 0
-006dfaf0	cSC4PoliceHelicopterDispatchSource::FinalRelease	auto:B2	medium	mac 004d32ca score 0.971 support 1.0
+006df770	cSC4PoliceHelicopterDispatchSource::GetDispatchesAtStation	manual:aircraft.tsv	high	aircraft.md §5
+006dfaf0	cSC4PoliceHelicopterDispatchSource::FinalRelease	manual:aircraft.tsv	high	aircraft.md §5
 006dfc70	cSC4ProtectionSimulator::CopyOccupantList	auto:D	medium	mac 0007ce34 score 0.5 support 2
-006dfd20	cSC4PoliceHelicopterDispatchSource::DoOccupantInserted	auto:B1	medium	mac 004d3652 score 0.964 support 2.0
+006dfd20	cSC4PoliceHelicopterDispatchSource::DoOccupantInserted	manual:aircraft.tsv	high	aircraft.md §5
 006e0050	cSC4PoliceSimulator::GetGZCLSID	manual:grid-sims.tsv	high	mov eax,0x6990C04F; ret
 006e0060	cSC4PoliceSimulator::QueryInterface	manual:grid-sims.tsv	high	cISC4PoliceSimulator vtable 00AB2490 slot 0
 006e0120	cSC4PoliceSimulator::IsOnStrike	manual:grid-sims.tsv	high	cISC4PoliceSimulator vtable 00AB2490 slot 10
