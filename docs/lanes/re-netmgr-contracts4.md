@@ -26,3 +26,6 @@ not proven here: no run trace of the message rects was read.
 **Not done**: no game run (docs-only lane, no shadow change). The brief requires a meaningful game trace before
 ready, so the lane is wip until an implementer lane applies §6.3 and a verify run shows 20,103 / 16,93 exact.
 REA was not needed (export only).
+
+## Coordinator disposition
+Supported public NM10/NM11 contracts are ready for docs train. The coordinator prompt incorrectly appended engine gate/game requirements to this RE-only lane. No engine validation is claimed or required for this docs result; the hypothesized runtime mismatch cause remains unverified until a dependent engine lane follows the landed contract and measures it. No netmgr verification credit from this RE result.
