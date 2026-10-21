@@ -93,8 +93,9 @@ ABI facts in `docs/abi/`.
 ## 7. Waiting on the user
 
 1. **Revoke the OpenRouter key** pasted into run 2's first message. It sits in plaintext in that session's transcript.
-2. Worktree cleanup: about 200 worktrees under `.claude/worktrees/`, all fully merged except the five branches above,
-   on a `C:` that is 94% full (build caches are 10-19 GB each). Removing them needs the user's go-ahead.
+2. Done 2026-10-21: 195 merged worktrees removed (C: 94% -> 72% full). Kept: the five parked branches above,
+   `train-integration`, and three app session worktrees (`claude/*`). Their `build-runs/` text files are archived
+   in `build-runs/worktree-archive-2026-10-21.tar.gz` (local only). The branches remain, locally and on origin.
 3. Two human checks: the budget window's look and the cheats (`docs/manual-checks.md`).
 4. Upstream the SDK errata (public; re-run `docs/sdk-errata-draft.md` first). 5. Publish the repo (public).
 6. Delete the local KillaVolt clone (`external/sc4-decomp`, `external/extracted`); download the Mac Rev A binary.
