@@ -97,8 +97,11 @@ uint64_t g_firstCalls = 0, g_firstHits = 0, g_listCalls = 0, g_listItems = 0, g_
 uint32_t g_samples = 0, g_sampleCalls = 0;
 fc4_occmgr* g_sampleCore = nullptr;
 void SampleSink(void* ctx, uint64_t occ) { static_cast<std::vector<uint64_t>*>(ctx)->push_back(occ); }
+// The first-query sampler found the slot 28-35 miss (fdd2a5ef); kept, off by
+// default (kSampleFirstQueries), for the next diagnosis.
+constexpr bool kSampleFirstQueries = false;
 bool Sample(const char* slot, double a, double b, bool hit, uint32_t type = 0, int32_t c = 0, int32_t d = 0) {
-    if (g_samples < 40 && (g_sampleCalls++ % 397) == 0) {
+    if (kSampleFirstQueries && g_samples < 40 && (g_sampleCalls++ % 397) == 0) {
         ++g_samples;
         char extra[512] = "";
         // For a standard-cell miss: what a null-filter list query of that cell holds.
@@ -149,7 +152,7 @@ bool Sample(const char* slot, double a, double b, bool hit, uint32_t type = 0, i
 }
 void TraceStep(const char* step, uint64_t t) {
     if (!g_traceShutdown) return;
-    fc4::Log("occmgr shutdown trace #%u %s occ %p", g_traceN, step, reinterpret_cast<void*>(static_cast<uintptr_t>(t)));
+    FC4_LOGV("occmgr shutdown trace #%u %s occ %p", g_traceN, step, reinterpret_cast<void*>(static_cast<uintptr_t>(t)));
 }
 
 void HAddRef(void*, uint64_t t) {
@@ -192,7 +195,7 @@ void HBox(void*, uint64_t t, fc4_occ_bbox* out) {
 void HPost(void*, uint64_t t, uint32_t msg_type, uint32_t data4) {
     if (g_traceShutdown && t != 0) {
         ++g_traceN;
-        fc4::Log("occmgr shutdown trace #%u post %08X occ %p type %08X", g_traceN, msg_type,
+        FC4_LOGV("occmgr shutdown trace #%u post %08X occ %p type %08X", g_traceN, msg_type,
                  reinterpret_cast<void*>(static_cast<uintptr_t>(t)), static_cast<uint32_t>(Occ(t)->GetType()));
     }
     if (t != 0) Occ(t)->PostOccupantMessage(msg_type, data4);  // occupant slot 15
