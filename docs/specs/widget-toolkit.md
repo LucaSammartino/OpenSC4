@@ -50,6 +50,7 @@ Offsets of the `cGZWin` part of the object. Initial values are the constructor's
 | `+0x6C` | 4 | draw context | 0 | `GetDrawContext` `0x0099BEF9` |
 | `+0x70` | 1 | (byte) | 1 | ctor |
 | `+0x71` | 1 | (byte) | 0 | ctor |
+| `+0x74` | 4 | cursor object, fetched lazily by `UpdateCursor` (§15.2) | null *[inferred]* | `0x0099C46B` |
 | `+0x78` | 4 | keyboard accelerator | null | `SetKeyboardAccelerator` `0x0099B955`, `DoMessage` |
 | `+0x7C` | — | parameter map (key → variant), `GetParam`/`SetParam` | empty | `Shutdown` releases each value |
 | `+0x88`, `+0x8C` | 4+4 | two message-filter lists | empty | ctor, `Shutdown`, `DoMessage` (`+0x88`) |
@@ -361,6 +362,20 @@ private buffer: a temporary `cGZFadeTmpWin` takes it and fades it down over `+0x
 9. Fade: `0x20|0x10000` window shown at clock 0, period 500: alpha at clocks 100/250/502 = 51/127/255 and the period
    parameter is 0 after 502.
 10. Message type 9 or 12 returns false without calling any handler; a filter returning true suppresses dispatch.
+11. Painting order: parent P with children A (front) and B (back), no private buffers: one `P.Plot()` calls
+    `P.GZPaint`, then `B.Plot`, then `A.Plot`.
+12. Overlay: P with children O (back, `0x8000000`) and C (front) overlapping O: `P.Plot()` plots neither directly; O
+    then C are queued and drawn by the flush at the end of the outermost screen-level `Plot`, each with `0x4000000`
+    set during the call and cleared by its `PlotPresent`.
+13. Clean window: a private-buffered child with a parent, plotted once, then plotted again without `InvalidateSelf`:
+    its `GZPaint` is not called the second time.
+14. Fade-out: a `0x20|0x10000` window, plotted once while visible, then `SetFlag(1, false)`: a `cGZFadeTmpWin` sibling
+    appears with the same area, its alpha falls 255 → 127 → 0 at elapsed 0/250/500 (period `+0x98` = 500) and it is
+    destroyed by its first `Plot` after the fade ends.
+15. Cursor routing: a disabled front child under the point does not receive a click (the window behind it does) but
+    does receive a move.
+16. `CheckKeyEquivalent(0x41, 0x10002)` on a window whose key equivalent is `0x00020041` is true (`modifiers` shifted
+    by 16 drops bit 16).
 
 ## 11. Open questions
 
@@ -371,7 +386,8 @@ Filed in `docs/specs/questions/widget-toolkit.md`: WT1 (own vtable rows), WT2 (u
 
 | Owner pattern (`tools/coverage-map.tsv`) | State after this slice |
 |---|---|
-| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade, accelerator wiring (§13.4). Not yet: painting (`Plot`, `PlotComposite`, `PlotPresent`, private-buffer creation), cursors (`ProcessCursorMessage`, `UpdateCursor`), key equivalents (`CheckKeyEquivalent`, `IsChildKeyEquivalent`), parameter enumeration, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion |
+| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade in and out, accelerator wiring (§13.4), painting (`Plot`, `PlotComposite`, `PlotPresent`, `PrivateBuffer`, `SetBufferToDrawTo`, §14), mouse routing and `UpdateCursor` (§15), key equivalents (§16). **Still open, so the class is not complete:** `SetBufferToDrawToRecursive`/`SetAreaToDrawTo(Recursive)`/`recalc_blt_area` (the `+0x24`, `+0x34`, `+0xB8` rectangles), `child_private_buffers`, `set_private_buffer_transparency`/`fill_private_buffer_with_transparent_color`, `InvalidateSelfAndParents`/`InvalidateAllParents`, `ScreenToWindowCoordinates` and the other coordinate converters, `PullToFront`, `SetFocus`, `EnumChildren`, parameter get/set/enumeration, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion, and the draw-context and buffer slot meanings (cited by number only) |
+| `cGZFadeTmpWin` (matched by `cGZWin*`? no: separate name) | constructor, `StealBuffer`, `Plot` specified (§14.7); destructor not |
 | `cGZWin*` (everything else: `cGZWinGen`, widgets, managers) | not specified |
 | `cRZWinKeyAccelerator*` | `cRZWinKeyAccelerator` (all 16 functions) **specified** in §13; `cRZWinKeyAcceleratorRes` (4 functions, the text resource parser `SerialRead` `0x00984587`) not specified |
 | `cGZLegacyControl`, `cGZUIScript*`, `cHTML*`, `cGZGraph`, `cGZ*Graph`, `fn:unscript`, `fn:script_tag_*`, `fn:GetGZWinFont`, `cSC4ScriptedWindowCOMDirector`, `cRZCursorManager`, `cGZClipboardManager*`, `cGZCheatCodeManager` | not specified |
@@ -569,3 +585,63 @@ has ended, it calls manager slot 23 `DestroyWindow(this)` (`0x0099C2BC`, call th
 This corrects §8.2: **there is a fade-out**, but only for a window with bit `0x20` whose private buffer is destroyed
 (for example hidden by `SetFlag(1, false)` with `0x10000` set, §3.1) while it holds a painted image; it uses the second
 period `+0x98`.
+
+## 15. Mouse routing: `ProcessCursorMessage` and the cursor *[compat]*
+
+### 15.1 `ProcessCursorMessage(msg)` (slot 83, `0x0099D40B`)
+
+Routes one mouse message (record of §7.1; its x/y are read and written as **full dwords** at `+4`/`+8`, in screen
+coordinates on entry) down the window tree to the window that takes it. There are no direct callers; it is reached
+through the vtable (the manager for the root, and this function itself for the recursion). Return value: the
+`DoMessage` result of the window that took it, or false.
+
+1. **Children first, front to back.** The child list is read-locked and walked from the head (frontmost). The first
+   child that is visible (slot 71), does **not** have bit `0x200000`, contains the point (slot 62
+   `IsPointInWindowScreenCoordinates(x, y)`, the unconverted dwords) and is either enabled (slot 72) **or** the
+   message is a move (type 13) takes over: the list is unlocked and `child.ProcessCursorMessage(msg)` is returned.
+   A disabled child under the point therefore stops nothing for clicks: the walk goes on to the children behind it and
+   then to the parent.
+2. **This window.** Returns false if this window has bit `0x200000` or is invisible.
+3. **Enabled window:** for types 7, 8 and 9 (left down, right down, and type 9, *[inferred: middle down]*)
+   `PullToFront()` (slot 23) then `SetFocus()` (`0x0099BDE4`, non-virtual); then `ScreenToWindowCoordinates(&x, &y)`
+   (slot 59) converts the record's coordinates **in place**; for a move (13) also `UpdateCursor()` (slot 84).
+4. **Disabled window:** only a move goes on (coordinates converted in place as above, no `UpdateCursor`); any other
+   type returns false.
+5. Manager slot 26 (`0x009DB756`, "set window under mouse") with this window, then `DoMessage(msg)` (slot 3) and its
+   result is returned.
+
+Manager slot 26, `SetMouseWindow(w)`: nothing when `w` is already the current one (manager `+0x3C`). Otherwise a
+current window that the manager no longer considers valid (manager slot 24) is forgotten; `w` itself is replaced by
+null when not valid; the old window (if any) receives `{type 20 (mouse exit), w}` and the new one (if any)
+`{type 19 (mouse enter), old}`, both through `DoMessage` directly (not queued); then `+0x3C` = `w` (reference-counted).
+
+Worked example: root R with children A (front) and B (behind), both covering (10,10), A disabled. A left-down at
+(10,10): A is skipped (disabled, not a move); B takes it (it has no children): B is pulled to the front, gets focus,
+the record becomes B-local, R's manager marks B as the mouse window (A or R gets exit, B gets enter if it changed),
+and B's `GZOnMouseDownL` sees local coordinates. A move at the same point instead goes to A (disabled windows still
+get moves), converted, without `UpdateCursor`.
+
+### 15.2 `UpdateCursor()` (slot 84, `0x0099C468`)
+
+On first use, the window asks the manager for the cursor manager (manager slot 32) and stores the result of its slot 9
+(argument 1) at `+0x74`; that object is not Released here. Then, if `+0x74` is non-null, calls its slot 5 with 1
+(*[inferred: make this cursor current]*). Concrete windows set their cursor through slot 85 (`cGZWinGen::SetCursor`,
+not specified here).
+
+## 16. Key equivalents *[compat]*
+
+| Slot | Function | Address | Behaviour |
+|---|---|---|---|
+| 78 | `GetKeyEquivalent()` | `0x0099BE80` | returns `+0x9C` |
+| 79 | `SetKeyEquivalent(code)` | `0x0099BE87` | stores `+0x9C` |
+| 81 | `MakeKeyEquivalent(key, modifiers)` | `0x0099BEB6` | `modifiers << 16 | (key & 0xFFFF)`: the full 32-bit `modifiers` is shifted, so bits above 15 of `modifiers` are lost and none leak into the key half |
+| 80 | `CheckKeyEquivalent(key, modifiers)` | `0x0099BE94` | `MakeKeyEquivalent(key, modifiers)` through the vtable (so an override of slot 81 applies) compared with `+0x9C`; returns exactly 0 or 1 in EAX |
+| 82 | `IsChildKeyEquivalent(key, modifiers)` | `0x0099D5F0` | walks the **direct** children front to back (read-locked) and returns the first one whose `CheckKeyEquivalent` is true, or null; not recursive, and visibility and enabled state are not checked |
+
+The default key equivalent is 0, so `CheckKeyEquivalent(0, 0)` is true on every window that never set one, and
+`IsChildKeyEquivalent(0, 0)` returns the frontmost child. Users seen: `cGZWinDlg` asks its own `IsChildKeyEquivalent`
+and acts on the child found (widget behaviour, not specified here).
+
+Worked example: `SetKeyEquivalent(MakeKeyEquivalent(0x0D, 0))` = `0x0000000D` on button B in dialog D;
+`D.IsChildKeyEquivalent(0x0D, 0)` returns B if no child in front of B has the same code; `(0x0D, 1)` builds
+`0x0001000D` and finds nothing.
