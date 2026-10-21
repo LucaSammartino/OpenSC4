@@ -8,6 +8,13 @@ Per-lane row for the regenerated `HANDOFF.md` 0 table (see `docs/lanes/README.md
 
 ## Handoff
 
+Run4 round2 (2026-10-21): ROOT CAUSE FIXED in fdd2a5ef. FirstOut(fc4_occmgr_first_*(..., &occ), occ, out) took occ
+by value; MSVC evaluates args right-to-left, so occ was 0 -> every slot 28-35 query missed (and leaked a ref).
+g7 recheck proved the core hits. g8 (fdd2a5ef, enable=occmgr, Konradshohe to 2026-03): CLEAN, ref_warnings 0,
+first 28315 calls / 12676 hits, lots with building 736/741, tax 4059 (= shadow g2), no shutdown AV.
+51f91c0c: sampler off (kSampleFirstQueries), shutdown trace via FC4_LOGV. Outstanding: glue25fix3-g9 (g1 req to 2032).
+Next: wait g9 verdict, then qbuild all, fmt, finish report + merge-queue json.
+
 Run4 round1 diagnosis (2026-10-21):
 - g1 log: the city was NOT killed by the exception first. From the first month budget tax income was 0 (g2: ~4059/month),
   funds went to -101730, the game ended the city itself at 2028-04-01 (bankruptcy), and the foreign AV (null read,
