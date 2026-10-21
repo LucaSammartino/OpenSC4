@@ -175,4 +175,51 @@ column (`0x00834050`, `0x00848160`).
 - **Row 2 col 8** (`0x00842C50`) is folded with a 565 sibling, so A1555 → 1555 tiled copy is also a raw 16-bit
   copy (body not restated here).
 
-All other bodies are **[table]**: identified and named, per-pixel rule not yet restated (§8).
+### 7.3 Source → 1555 conversion (column 0, `Blt`, key off) [exact for each cited body]
+
+| Source | Body | Rule (`s` = source texel) |
+|---|---|---|
+| A4444 | `0x00831510` | each 4-bit channel `c4` → `c5 = (c4 << 1) \| (c4 >> 3)` (bit replication); A = bit 15 of `s` (alpha4 ≥ 8) |
+| A1555 | `0x00848160` | raw copy, A copied |
+| X555 | `0x00834EE0` | `(s & 0x7FFF) \| 0x8000` — **A forced to 1** |
+| R565 | `0x00836AF0` | R = `s` bits 11–15, G = top 5 of the 6 green bits (bits 6–10), B = bits 0–4 (truncation, no rounding); A = 1 |
+| A8888 | `0x008389B0` | each 8-bit channel → its top 5 bits (`>> 3`, truncation); A = bit 31 of `s` (alpha8 ≥ 128) |
+| X888 | `0x0083A6D0` | as A8888, A = 1 |
+| 8-bit | `0x0083C370` | the byte is an **alpha** (Mac `RGBFormat<255,0,0,0,1,0>`), not a palette index: output `0x7FFF \| ((byte & 0x80) << 8)` — white, A = byte ≥ 128 |
+
+The keyed rows apply the same conversion after the key test of §7.2 (the test compares the **raw** source texel
+masked as in §6.1 against the key; shown for A1555; assumed for the other formats, question SR1555-3).
+
+### 7.4 Modulate, ConstantAlpha, ModulateAlpha [exact for the X555 / A8888 bodies cited]
+
+- **Expand** (Modulate paths, X555 `0x00834FF0`): the 1555 source is widened to 8888 with
+  `c8 = (c5 << 3) | (c5 >> 2)` and alpha `0xFF` (`+0x3FC0000` folded into the shift chain, then `+ ((x >> 5) &
+  0x070707)`).
+- **Modulate** (column 2): each of the four 8-bit channels `c' = (c × m + 128) >> 8` with `m` the matching byte
+  of `b.+0x14` (the ARGB draw colour; MMX `pmullw`/`paddw` with the constant `0x0080` words at `0x00AC1B80`,
+  `psrlw 8`, `packuswb`; `(255·255 + 128) >> 8 = 254`, so the pack never saturates). The result is packed back by
+  the A8888 rule of §7.3 (truncation; A = `c'_A ≥ 128`). No blend with the destination.
+- **ConstantAlpha** (column 1, X555 `0x00834F60`, A8888 `0x00838A60`): the source is converted as §7.3, then
+  blended with the destination by the helper `0x0083C490` with weight `w = b.+0x14 >> 27` (top 5 bits of the
+  draw colour's alpha, **0…31**, so never a full replace; source alpha is **not** used). The helper is the §3
+  formula `C = floor((w·S + (32 − w)·D + 16) / 32)` per channel with **A = 1** (it ORs bit 20 before `>> 5`).
+- **ModulateAlpha** (column 3, X555 `0x00835110`): Modulate as above, then `w = (modulated 8888) >> 27` (top
+  5 bits of `c'_A`), blend as ConstantAlpha, and A = 1 (`| 0x8000`). This is the only column family in which
+  a source's own alpha weights the blend.
+
+Worked example (ConstantAlpha, X555 source `0x7C00` red over destination `0x001F` blue, colour alpha `0x80`):
+`w = 0x80000000 >> 27 = 16`; R = `floor((16·31 + 16·0 + 16)/32) = 16`, B = `floor((0 + 16·31 + 16)/32) = 16`,
+G = 0 → `0x8000 | 16<<10 | 16 = 0xC010`.
+
+### 7.5 Stretch addressing (column 4, X555 `0x008352A0`) [exact for that body]
+
+`b.+0x00` = u0, `+0x04` = v0, `+0x08` = du, `+0x0C` = dv (16.16, used unsigned). For destination (x, y):
+source row `= (v0 + dv × y) >> 16`, source column `= (u0 + du × x) >> 16`, then `u += du` per pixel —
+nearest-texel, **no clamp, no wrap** (the caller must keep it in range). The texel is converted as §7.3.
+
+All other bodies (columns 4–11 for the other rows, tiled addressing, keyed non-A1555 rows) are **[table]**:
+identified and named, per-pixel rule not yet restated (§8).
+
+## 8. Open points
+
+Questions are in `docs/specs/questions/span-render-1555.md` (SR1555-1 … SR1555-4).
