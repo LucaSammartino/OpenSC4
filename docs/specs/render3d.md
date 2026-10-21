@@ -251,7 +251,57 @@ equality test, so pushes 201+ do not re-trigger.
 - `AddDirtyRectangle(mode, box_min, box_max, model, extra)` (`0x007C95B0`): projects the 3D box with
   `SC4ViewUtilities::ProjectBoundingBoxToViewportRectangle` and calls the first overload.
 
-The internal queue, its deadline and `ProcessDirtyRectangleQueue` are §7 remaining work.
+### 6.1 The queue *[compat]*
+
+`+0x1D4` heads a circular doubly linked list of **0x24-byte** nodes: next `+0`, prev `+4`, a copy of renderer
+`+0x15C` at `+8`, the **mode** at `+0xC`, the screen rect (left, top, right, bottom, ints) at `+0x10`…`+0x1C`, and a
+model reference at `+0x20`. `+0x1D8` counts nodes; `+0x1E0` accumulates their pixel area against the limit `+0x1E4`
+(default `0x7FFFFFFF`).
+
+`AddDirtyRectangleInternal(mode, rect, model, delay)` (`0x007C8F30`), common path:
+
+1. A non-zero mode drops the model (only mode 0 keeps one).
+2. Area = (bottom − top) × (right − left), int.
+3. If the queue is **empty**, the deadline base `+0x1F8 = draw counter (+0x158) − delay`. (`Draw` processes the queue
+   once the counter leaves `[+0x1F8, +0x1F8 + props(+0x2EC)]`, view3d.md §4.1 step 16.)
+4. Append: `+0x1E0 += area`; if that is **≥ `+0x1E4`**, call `DoFullViewUpdate(4)` (§4) instead of queuing.
+   Otherwise AddRef the kept model and append a node at the tail; `+0x1D8 += 1`.
+
+When the process-global byte `0x00B0DC18` is set and the queue is not empty, a **merge** step runs first
+(`0x007C8F9A`): `+0x1F8 −= delay`, every node's rect is unioned with the new one (`0x005DC980`) and the node with the
+best area saving is chosen; if the node count reaches the global `0x00B0DC14` or the best saving reaches the global
+float `0x00B0DC10`, the chosen node becomes the union with mode **6** (its model released), and if it grew while
+more than one node exists it is unlinked and re-added through this function as mode 6. The exact scoring is §7
+remaining work (R3D-3).
+
+### 6.2 Processing, clearing, cleanup *[compat]*
+
+`ProcessDirtyRectangleQueue` (`0x007CAE00`) sets the guard `+0x1DC`, then walks the nodes in insertion order:
+
+| Node mode | Action |
+|---|---|
+| 0 with a model | if the rect passes `0x007C2C70`: `DoSingleModelStaticDrawAddition(model, rect)` |
+| 0 without a model | nothing |
+| non-zero | only if the rect overlaps `[0, +0x68) × [0, +0x6C)` (right > 0, left < width, bottom > 0, top < height): clamp to the viewport and `DoPartialViewUpdate(rect, mode == 1 ? 8 : 7)` |
+
+Each node's model is released; the list is emptied, the vector `+0x1E8`/`+0x1EC` cleared, `+0x1D8 = +0x1E0 = 0`.
+Then, **even when the queue was empty**, if `+0x65` (backing store saved) is clear:
+`+0x65 = SaveBackingStore(0, 0, +0x68, +0x6C)`. Finally `+0x1DC = 0`.
+
+`ClearDirtyRectangleQueue` (`0x007C6D80`): if non-empty, release every node model, empty the list, clear the vector,
+`+0x1D8 = +0x1E0 = 0`. No drawing, no backing-store save.
+
+`DoPartialViewUpdate(rect, reason)` (`0x007CA9C0`): only if the global backing-store byte `0x00B0DC19` is set and the
+rect is non-empty (signed `left < right`, `top < bottom`): draw-context `+0x20 = reason`, `UpdateViewportRect(rect)`
+(§4), driver-service slot `+0x12C` (300), `UnsetClipRect` on the 3D camera `+0x88` and the 2D camera `+0xD8`, camera
+mode `+0xDC = 0`, and if `+0x65` is set `+0x65 = SaveBackingStore(left, top, width, height)` of that rect; then
+draw-context `+0x20 = 0`.
+
+`DoViewCleanup` (`0x007CAFB0`, called from `Draw` when `+0x1FD` is set): needs `+0x1FD` and `+0x1FC`. Uses the timer
+at `+0x218` (constructed with unit code 4) and threshold `+0x230` (default 10000). Timer not running → start it.
+Running and elapsed **>** threshold → refresh one band: rect = (`+0x200`, `+0x204`, min(`+0x200 + +0x210`,
+`+0x208`), `+0x20C`) with reason 9, then `+0x200` = the band's right edge; when it reaches `+0x208`, clear `+0x1FD`
+and reset the timer. With the default band width `+0x210 = 0x40` the view is refreshed in 64-pixel columns.
 
 ---
 
@@ -264,9 +314,9 @@ Picking: `Pick` ×2 (`0x007C2220`, `0x007C6830`), `PickTerrain` ×2 (`0x007C35C0
 releases the globals `0x00B4E1EC`, `0x00B4E1F0`, `0x00B4E1F4` once, destroying the backing store first),
 destructor body `0x007CA020`. Shake: `StartScreenShake` ×2, `StopScreenShake`, `SetShakeOffsets` `0x007C86D0`.
 Backing store: `CreateBackingStore`, `DestroyBackingStore`, `SaveBackingStore`, `RestoreBackingStore` ×2,
-`ReevaluateBackingStoreObjectFlags`, `DoSingleModelStaticDrawAddition`. Dirty rects: `AddDirtyRectangleInternal`,
-`ProcessDirtyRectangleQueue`, `ClearDirtyRectangleQueue`, `DoViewCleanup`. View updates: `DoTranslatedViewUpdate`,
-`DoPartialViewUpdate`, `DoViewZoomChange3`, `DoViewRotationChange2`, `AttemptTranslatedViewUpdate`,
+`ReevaluateBackingStoreObjectFlags`, `DoSingleModelStaticDrawAddition`. Dirty rects: the merge scoring inside
+`AddDirtyRectangleInternal` (§6.1), the rect filter `0x007C2C70`, the writer of `+0x1FD`. View updates:
+`DoTranslatedViewUpdate`, `DoViewZoomChange3`, `DoViewRotationChange2`, `AttemptTranslatedViewUpdate`,
 `UpdateVisibleTerrainMetrics`. Geometry: `WorldToContainerRect`, `Get{View,Draw}FrustumContainerRect`,
 `GetVisibleContainerRect`, `GetViewportRayContainerRect`, `GetModelContainerRect`, `RebuildQuadGrid`,
 `SetClipRect`, `UnsetClipRect`. Drawing helpers: `ClearViewport` (2433 bytes), `ClearViewportWithSolidColor`,
@@ -291,6 +341,12 @@ Backing store: `CreateBackingStore`, `DestroyBackingStore`, `SaveBackingStore`, 
    queues nothing and returns true.
 9. `Write` then `Read` round-trips version 2, viewport size and rect, camera control, `+0x90`, `+0x94` and the camera
    mode; a stream with version 3 makes `Read` return false.
-10. With 199 queued items the next backing-store insert forces `DoFullViewUpdate(4)`; the 201st does not.
+10. Dirty rects with merging off (`0x00B0DC18` = 0): two `AddDirtyRectangle` calls give two nodes processed in order;
+    a node of mode 1 at (−10, −10, 50, 50) on an 800×600 viewport is redrawn as (0, 0, 50, 50) with reason 8; a node at
+    (900, 0, 950, 10) is skipped. `ProcessDirtyRectangleQueue` on an empty queue still saves the backing store when
+    `+0x65` is clear.
+11. Areas whose running total reaches `+0x1E4` turn the add into `DoFullViewUpdate(4)`; after that, adds are ignored
+    until the next `Draw` clears `+0x109`.
+12. With 199 queued items the next backing-store insert forces `DoFullViewUpdate(4)`; the 201st does not.
 
 Questions: docs/specs/questions/render3d.md.
