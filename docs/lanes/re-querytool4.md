@@ -1,6 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-querytool4 | .claude/worktrees/re-querytool4 | ready (round 1 of 3): query tool core specified, owner not claimed | round 2: DescribePick / DoQueryDialog / tip builders (CT11, CT12) |
+| re-querytool4 | .claude/worktrees/re-querytool4 | in progress (round 2 of 3) | round 2: DescribePick / DoQueryDialog / tip builders (CT11, CT12) |
+
+## Handoff
+
+Goal (round 2): city-tools-input.md §8 add DescribePick 004D4140, DoQueryDialog 004D3C30, SetTip 004C5BA0, tip
+builders (GetBuildingOccupantTipInfo 004D5E30, GetNetworkOccupantSummaryInfo 004CF8A0, GetTerrainSummaryInfo
+004D6C70), SetHighlightState 004CACC0 (CT11); update §8.10 inventory and §6.
+Done: round 1 (c660810f, fbe696b7, e3683c54): 19 fns / 5,907 B.
+Next: read SetTip, SetHighlightState, then tip builders, then DescribePick/DoQueryDialog.
 
 ## Report
 
