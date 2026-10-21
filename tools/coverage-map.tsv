@@ -479,7 +479,7 @@ cGZDate	dates and times	framework	dates.md	core/src/dates	-	-
 cRZTime	dates and times	framework	dates.md	core/src/dates	-	-
 cRZTimer	timers	framework	timers.md	-	-	-
 cRZCallbackTimer	timers	framework	timers.md	-	-	-
-cRZCmdLine	command line	framework	command-line.md	-	-	-
+cRZCmdLine	command line	framework	command-line.md	core/src/cmdline.rs	-	-
 cGZCommandParameterSet	command system	framework	command-system.md	core/src/commands	-	-
 cGZStringCommandGenerator	command system	framework	command-system.md	core/src/commands	-	-
 cGZMessage2CommandDispatcher	command system	framework	command-system.md	core/src/commands	-	-
