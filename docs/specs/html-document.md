@@ -351,6 +351,44 @@ while the token is in FLOW, calling ParseFLOW(div); when the stopping token is n
 SkipUntilToken(closeId) (everything up to the close tag is discarded); pop the alignment stack into 0x158 when
 it is non-empty. Returns true.
 
+### 7.5 ParseBLOCK (00907135): block dispatcher
+
+| Token | Handler |
+|---|---|
+| P 101 | 0090614f (gap function, not in this owner's inventory) |
+| PRE 103 | 00906a5d (gap) |
+| DL 109 | 009066a3 (gap) |
+| DIV 111 | ParseDIV |
+| NOSCRIPT 113 | SkipUntilToken(/NOSCRIPT 114): content dropped |
+| BLOCKQUOTE 115 | the method exported as `ParseDL` (00906c6b) |
+| FORM 117 | the method exported as `ParseP` (00906d9b), §7.6 |
+| HR 119 | ParseHR |
+| TABLE 120 | ParseTABLE |
+| FIELDSET 122, ADDRESS 124, DIR 128, MENU 130 | SkipUntilToken of the close tag (123, 125, 129, 131): content dropped |
+| CENTER 126 | 00906d22 (gap, 16 bytes) |
+| H1..H6 | 00906754 (gap) |
+| UL, OL | 00906f1d (gap) |
+| anything else | false |
+
+Naming note: the export's auto-matched names `ParseP` and `ParseDL` do not match the tokens they serve (the
+dispatch above and their own close-tag constants 0x76 / BLOCKQUOTE prove it). Implementers should follow the
+token, not the name.
+
+### 7.6 FORM (exported as `ParseP`, 00906d9b)
+
+Create the element with constructor 008fed5c (0x28 bytes; the export calls it `cHTMLP`). Loop
+`GetToken(false)`:
+- SCRIPT -> ParseSCRIPT;
+- a nested FORM -> SkipUntilToken(/FORM 118) (the nested form and everything up to the first `/FORM` vanish,
+  and that `/FORM` is consumed);
+- INLINE -> ParseINLINE(form); BLOCK -> ParseBLOCK(form);
+- anything else ends the loop.
+
+When the stopping token is not `/FORM`, SkipUntilToken(/FORM). Then: the form has children -> add it to the
+parent; no children -> delete it. Returns true. Example: `<form>a<p>b</p></form>` adds one form with a text
+segment and a paragraph; `<form></form>` adds nothing; `<form>a</div>b</form>` keeps `a` and drops `b`
+(the `/DIV` stops the loop, the skip discards `b`).
+
 ## 8. Alignment and style state
 
 ### 8.1 Alignment keywords
@@ -388,10 +426,12 @@ ParseAttributeList, FindAttribute, DumpUnhandledAttributes (HD1), ParseFLOW, Par
 ParseSGMLElements, ParseHTMLDocument, ParseSGMLDocumentType, ParseTextDocument, ParseHTMLElements,
 ParseHEAD, InsertTextSegment, ParseTITLE, ParseBASE, ParseSCRIPT, ParseFORMCTRL, ParseSPECIAL,
 ParseBR, ParseINPUT, ParseSELECT, ParseOPTION, ParseDIV, ParseDIVActual, MakeOutputStyle,
-MakeRelativeToTextAlignmentStyle.
+MakeRelativeToTextAlignmentStyle, ParseBLOCK, ParseP (FORM).
 
-Remaining (not yet specified; whole-owner credit withheld): ParseMETA, ParseLINK, ParseBODY, ParseBLOCK,
-ParseP, ParseDL, ParseLI, ParseTABLE, ParseTR, ParseTD, ParseTH, ParseHR, ParseFONTSTYLE, ParsePHRASE, ParseA,
+Remaining (not yet specified; whole-owner credit withheld): ParseMETA, ParseLINK, ParseBODY,
+ParseDL (BLOCKQUOTE), ParseLI, ParseTABLE, ParseTR, ParseTD, ParseTH, ParseHR, ParseFONTSTYLE, ParsePHRASE, ParseA,
 ParseIMG, ParseMAP, ParseAREA, ParseSPAN, ParseBLINK, CreateBullet, GetStringForEscape (entity table,
 6918 bytes), LoadFromImageFile, ResourceHasBeenDownloaded, DoMessage, the two hashtable helpers (008ffdc8
-clear, 009001e7 destructor).
+clear, 009001e7 destructor). Gap functions reached from this owner but outside its inventory (P 0090614f, PRE
+00906a5d, DL 009066a3, headings 00906754, lists 00906f1d, CENTER 00906d22, style push/pop, tag lookup
+008fead9) are not counted toward the owner.
