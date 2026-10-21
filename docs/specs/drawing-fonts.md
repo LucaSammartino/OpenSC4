@@ -494,10 +494,48 @@ halves), right − lineWidth (2); trailing CR/LF are not drawn; y advances by li
 one. `Lock/UnlockSurfaceForFontUse` count nested locks; only the 0→1 and 1→0 edges call the renderer (+0x14/+0x18).
 
 **Palette** (`SetCurrentPalette(fg, bg)`, `0x0089838C`): reuse the current palette when its (fg, bg) matches; else
-search the MRU list and move a hit to the front. A miss builds 128 ARGB entries: 0..7 = bg, then for k = 0..14
-eight entries of bg + (fg − bg)·k / 16 per channel (signed integer division, split and composed by the graphic
-system, `RZ::GS()` +0x90/+0x8C), 120..127 = fg. Before inserting, a list holding more than 3 palettes drops its
-last one.
+search the MRU list and move a hit to the front ("matches" = entry 127 == fg and entry 0 == bg, full 32 bits). A
+miss builds 128 dword entries: 0..7 = bg (raw), then for k = 0..14 eight entries of a composed colour, then
+120..127 = fg (raw) — the fg fill overwrites the k = 14 block, so only k = 0..13 survive (entries 8 + 8k .. 15 + 8k).
+Before inserting, a list holding more than 3 palettes drops its last one.
+
+*Channel split and compose (FN12).* `RZ::GS()` (`0x00913C1A`) is the graphic-system service fetched with
+iid `0x0073283C`, which `QueryInterface` (`0x0098DEF0`) answers with the subobject at +0x1C (vtable `0x00ADAA58`).
+Its +0x90 (`0x0098EA00`) and +0x8C (`0x0098E9B0`) forward to the **screen buffer** (`cGZScreenBuffer`, graphic
+system +0x100, see `span-render-4444.md` §1.2): +0x90(c, &r, &g, &b) → buffer +0x7C (`0x00825F80`),
++0x8C(&out, r, g, b) → buffer +0x78 (`0x00825DA0`), *out = result. Both return false and write nothing when there
+is no screen buffer. So the format is **the screen buffer's colour type** (buffer +0xC): 7 (A4R4G4B4) when the
+display depth is ≤ 16, 9 (A8R8G8B8) otherwise; not a fixed ARGB format. Rules (r, g, b are bytes; the split
+returns false and leaves its outputs untouched for any other type; the compose returns 0 for any other type):
+
+| Colour type | split(c) → r, g, b | compose(r, g, b) |
+|---|---|---|
+| 4, 6 (1555) | r5·33 >> 2, g5·33 >> 2, b5·33 >> 2 (bits 10, 5, 0) | 0x8000 \| (r & 0xF8) << 7 \| (g & 0xF8) << 2 \| b >> 3 |
+| 5 (565) | r5·33 >> 2, g6·65 >> 4, b5·33 >> 2 (bits 11, 5, 0) | (r & 0xF8) << 8 \| (g & 0xFC) << 3 \| b >> 3 |
+| 7 (4444) | r4·17, g4·17, b4·17 (bits 8, 4, 0; the top nibble is ignored) | 0xF000 \| (r & 0xF0) << 4 \| (g & 0xF0) \| b >> 4 |
+| 8, 9 (8888) | bits 16..23, 8..15, 0..7 (bits 24..31 ignored) | 0xFF000000 \| r << 16 \| g << 8 \| b |
+
+The font calls the split with **only the low 16 bits** of fg and of bg (`MOVZX` at `0x00898414`, `0x00898433`).
+Per channel, value = bg_ch + (fg_ch − bg_ch)·k / 16 with signed division truncating toward zero (`IDIV` at
+`0x00898470` ..`0x008984A2`), always 0..255, passed as (r, g, b) to the compose; the result fills the eight
+entries (`memset32`, `0x008984BF`). Consequences: **alpha is not interpolated** — entries 8..119 get the compose's
+fixed alpha (0xF in type 7, 0xFF in type 9, none in 565/1555), whatever the alpha of fg and bg; k = 0 gives the
+compose of the split bg, not raw bg; with a 32-bit screen (type 9) **red is always 0** in entries 8..119 because
+bits 16..23 were cut before the split. Without a screen buffer, or with another type, the split leaves the stack
+bytes and the compose leaves the output dword uninitialised (entries 8..119 undefined; type 0..3 → compose 0).
+
+Vectors (`docs/specs/proofs/font_palette_fn12.py` runs `0x00825F80`/`0x00825DA0` under unicorn: 0 mismatches
+against the table over 9 363 inputs per type; columns are entries 0, 8 (k 0), 16 (k 1), 24 (k 2), 72 (k 8),
+112 (k 13), 120):
+
+| type | fg | bg | entries |
+|---|---|---|---|
+| 7 | 0000FFFF | 0000F000 | F000 F000 F000 F111 F777 FCCC FFFF |
+| 7 | 0000F000 | 0000FFFF | FFFF FFFF FFFF FEEE F888 F333 F000 |
+| 7 | 0000F84C | 00000000 | 0000 F000 F000 F101 F426 F63A F84C |
+| 9 | FFFFFFFF | FF000000 | FF000000 FF000000 FF000F0F FF001F1F FF007F7F FF00CFCF FFFFFFFF |
+| 9 | 00FF0000 | 00000000 | 00000000 FF000000 FF000000 FF000000 FF000000 FF000000 00FF0000 |
+| 9 | FF123456 | FF000000 | FF000000 FF000000 FF000305 FF00060A FF001A2B FF002A45 FF123456 |
 
 ## 10. Antialiasing lookup table
 
@@ -730,5 +768,5 @@ s = {"Tahoma", "Verdana"}; GetSubstitutions("arial", s, 2) → 0 (keys are exact
 
 ## 13. Open questions
 
-FN1-FN11, FN13 and FN14 are answered (FN7-FN14 by re-font-core-answers4; FN12, the palette channel format, stays open) (archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
+FN1-FN14 are answered (FN7-FN14 by re-font-core-answers4) (archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
 `docs/specs/questions/drawing-fonts.md`.
