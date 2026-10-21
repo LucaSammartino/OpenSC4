@@ -147,6 +147,7 @@ public:
     void Subscribe(uint32_t msgType, bool on);
     void Cheat(uint32_t id, const char* name, bool on);
     void WindowCallback(bool start);
+    void ReloadScripts();  // §4.2 steps 1-3 (AD10)
 
 private:
     uint32_t refCount_ = 0;
@@ -161,6 +162,16 @@ private:
     fc4::CoreLock lock_;
     fc4::AdvisorGameMap<fc4::StlNodeAllocator> map_{fc4::AdvisorMapOrder::SignedKey};  // slot 8 mirror
     fc4::AdvisorSystemGlobalSlot global_{nullptr};
+    // §9 / §12.1 slot 9 (AD8): the system's generator, cRZRandom-shaped. The
+    // original random_chance (registered as it is, §8.2 entry 30) calls the
+    // non-virtual RandomDoubleRangeUniform on it, which reads and writes only
+    // the dword at +4 (foundations §6.1 `mul`). [choice] +0 holds no vtable
+    // (nothing reads it, AD8); +8 is `lcg`, unread by any caller.
+    struct RZRandomShape {
+        const void* vtable;
+        uint32_t mul;  // +4: the double-path state
+        uint32_t lcg;  // +8: the integer-path state
+    } random_{};
 };
 
 cIGZUnknown* CreateFC4AdvisorSystem();

@@ -73,6 +73,14 @@ enum class Direct : unsigned {
     LuaWindowQuery,
     LuaCameraJump,
     LuaCameraZoom,
+    // advisors.md §8.2 entries 30, 37, 38 (AD7, AD8): cdecl lua_CFunction as above. random_chance draws on
+    // the cRZRandom-shaped object slot 9 GetRandom returns (+4 dword, §12.1 AD8).
+    LuaRandomChance,
+    LuaDofileFromResource,
+    LuaPrint,
+    // advisors.md §4.2 native calls (AD10): plain cdecl, the caller pops.
+    UpdateResourcesFromDirectory,  // int32 (uint32 group, const char* dir), pops 8, EAX ignored
+    LoadPackageScripts,            // int32 (cISCLua* lua, uint32 group, uint32 firstPackage), pops 12, EAX ignored
     Count
 };
 

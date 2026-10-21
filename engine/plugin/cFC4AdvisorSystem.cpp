@@ -38,6 +38,10 @@
 #include <windows.h>
 
 #include <array>
+#include <cctype>
+#include <cstdio>
+#include <cstring>
+#include <ctime>
 #include <string>
 #include <utility>
 #include <vector>
@@ -346,40 +350,91 @@ uint64_t ObjectCreated(void* u, uint32_t kind, uint32_t, fc4_adv_obj* handle) {
 
 // ---- register_api (§8.2, lua-host.md §8.2) ---------------------------------------------------------------
 
-struct LuaEntry {
+// §8.2 (AD7): the one 47-entry vector, simulation collector (1-38) then UI
+// collector (39-47), each in its constructor's order; only 36-38 are global.
+// `native` names an original function registered as it is (compat direct
+// call); Direct::Count means the core's function through a trampoline.
+// [choice] advice_info (entry 1, a debug message box, §8.3) has no published
+// address: it stays the core's (no effect, no results).
+using fc4::compat::Direct;
+struct ApiEntry {
     const char* name;
     bool global;
+    Direct native;
 };
-// §8.3 table order (simulation collector). [choice] The spec gives the
-// collectors' contents, not their order inside the vector (question AD7);
-// the order only decides which function `_tf_` names afterwards.
-constexpr LuaEntry kCoreEntries[] = {
-    {"trend_value", false}, {"trend_slope", false}, {"trend_count", false}, {"ordinance_is_on", false},
-    {"ordinance_is_available", false}, {"ordinance_set_on", false}, {"ordinance_set_off", false},
-    {"ordinance_enact_fee", false}, {"ordinance_repeal_fee", false}, {"ordinance_monthly_cost", false},
-    {"ordinance_name", false}, {"ordinance_description", false}, {"event_feedback", false},
-    {"expire_advice", false}, {"retire_advice", false}, {"advice_subject", false}, {"trigger_event", false},
-    {"difficulty_level", false}, {"random_chance", false}, {"is_tutorial", false}, {"building_is_group", false},
-    {"event_building_distance", false}, {"event_disaster_distance", false}, {"nd_cancel", false},
-    {"mysim_distance_to_closest_building", false}, {"mysim_distance_to_closest_landmark_or_reward", false},
-    {"mysim_local_school_grade", false}, {"mysim_local_hospital_grade", false}, {"mysim_dispatch_tool", false},
-    {"reward_instance_count", false}, {"get_reward_building_state", false}, {"unlock_reward_building", false},
-    {"_combine_guids", true}, {"print", true},
+constexpr Direct kCore = Direct::Count;
+constexpr ApiEntry kApi[] = {
+    {"advice_info", false, kCore},                                   // 1
+    {"trend_value", false, kCore},                                   // 2
+    {"trend_slope", false, kCore},                                   // 3
+    {"trend_count", false, kCore},                                   // 4
+    {"camera_jump", false, Direct::LuaCameraJump},                   // 5 (AD6)
+    {"camera_zoom", false, Direct::LuaCameraZoom},                   // 6 (AD6)
+    {"ordinance_is_on", false, kCore},                               // 7
+    {"ordinance_set_off", false, kCore},                             // 8
+    {"ordinance_set_on", false, kCore},                              // 9
+    {"ordinance_is_available", false, kCore},                        // 10
+    {"ordinance_name", false, kCore},                                // 11
+    {"ordinance_description", false, kCore},                         // 12
+    {"ordinance_enact_fee", false, kCore},                           // 13
+    {"ordinance_repeal_fee", false, kCore},                          // 14
+    {"ordinance_monthly_cost", false, kCore},                        // 15
+    {"difficulty_level", false, kCore},                              // 16
+    {"event_feedback", false, kCore},                                // 17
+    {"expire_advice", false, kCore},                                 // 18
+    {"retire_advice", false, kCore},                                 // 19
+    {"advice_subject", false, kCore},                                // 20
+    {"trigger_event", false, kCore},                                 // 21
+    {"building_is_group", false, kCore},                             // 22
+    {"event_building_distance", false, kCore},                       // 23
+    {"mysim_distance_to_closest_building", false, kCore},            // 24
+    {"mysim_distance_to_closest_landmark_or_reward", false, kCore},  // 25
+    {"mysim_local_school_grade", false, kCore},                      // 26
+    {"mysim_local_hospital_grade", false, kCore},                    // 27
+    {"mysim_dispatch_tool", false, kCore},                           // 28
+    {"event_disaster_distance", false, kCore},                       // 29
+    // 30: the original, so its draws use the generator slot 9 returns (AD8) and no
+    // second generator mirrors it.
+    {"random_chance", false, Direct::LuaRandomChance},               // 30
+    {"nd_cancel", false, kCore},                                     // 31
+    {"reward_instance_count", false, kCore},                         // 32
+    {"unlock_reward_building", false, kCore},                        // 33
+    {"get_reward_building_state", false, kCore},                     // 34
+    {"is_tutorial", false, kCore},                                   // 35
+    {"_combine_guids", true, kCore},                                 // 36
+    {"_dofile_from_resource", true, Direct::LuaDofileFromResource},  // 37 (AD10)
+    {"print", true, Direct::LuaPrint},                               // 38 (AD7)
+    {"tool_plop_network", false, Direct::LuaToolPlopNetwork},        // 39 (AD5)
+    {"tool_plop_zone", false, Direct::LuaToolPlopZone},              // 40
+    {"tool_plop_building", false, Direct::LuaToolPlopBuilding},      // 41
+    {"tool_plop_flora", false, Direct::LuaToolPlopFlora},            // 42
+    {"tool_button", false, Direct::LuaToolButton},                   // 43
+    {"window_budget", false, Direct::LuaWindowBudget},               // 44
+    {"window_map", false, Direct::LuaWindowMap},                     // 45
+    {"window_query", false, Direct::LuaWindowQuery},                 // 46
+    {"window_graph", false, Direct::LuaWindowGraph},                 // 47
 };
-constexpr size_t kCoreCount = sizeof(kCoreEntries) / sizeof(kCoreEntries[0]);
+constexpr size_t kApiCount = sizeof(kApi) / sizeof(kApi[0]);
+static_assert(kApiCount == 47, "advisors.md §8.2: 47 entries");
 
-struct CompatEntry {
-    const char* name;
-    fc4::compat::Direct which;
-};
-constexpr CompatEntry kCompatEntries[] = {
-    {"camera_jump", fc4::compat::Direct::LuaCameraJump},          {"camera_zoom", fc4::compat::Direct::LuaCameraZoom},
-    {"tool_plop_network", fc4::compat::Direct::LuaToolPlopNetwork}, {"tool_plop_zone", fc4::compat::Direct::LuaToolPlopZone},
-    {"tool_plop_building", fc4::compat::Direct::LuaToolPlopBuilding}, {"tool_plop_flora", fc4::compat::Direct::LuaToolPlopFlora},
-    {"tool_button", fc4::compat::Direct::LuaToolButton},            {"window_budget", fc4::compat::Direct::LuaWindowBudget},
-    {"window_map", fc4::compat::Direct::LuaWindowMap},              {"window_graph", fc4::compat::Direct::LuaWindowGraph},
-    {"window_query", fc4::compat::Direct::LuaWindowQuery},
-};
+// A thiscall through a vtable offset (the __fastcall form with an unused EDX).
+template <typename R, typename... A>
+R VCall(const void* obj, uint32_t offset, A... args) {
+    using Fn = R(__fastcall*)(const void*, void*, A...);
+    const uintptr_t* vt = *static_cast<const uintptr_t* const*>(obj);
+    return reinterpret_cast<Fn>(vt[offset / sizeof(uintptr_t)])(obj, nullptr, args...);
+}
+
+// §4.2 step 2 (AD10): cISC4App +0xD4 GetPluginDirectory(out, -1), then +0xDC
+// GetSkuSpecificDirectory(out); `advisors\` is appended to each. AD11: the
+// value is taken as it is (logged by the caller), never interpreted.
+std::string AppDirectory(cISC4App* app, bool sku) {
+    cRZBaseString out;
+    // [abi-ret] void: the bool result is not read (advisors.md §4.2)
+    if (sku) VCall<bool, cIGZString&>(app, 0xDC, out);
+    else VCall<bool, cIGZString&, int32_t>(app, 0xD4, out, -1);
+    return std::string(out.ToChar() ? out.ToChar() : "", out.Strlen());
+}
 
 // lua-host.md §1.3: the owning thread object sits in the 4 bytes before the state.
 cISCLua* HostOf(lua_State* state) {
@@ -416,7 +471,7 @@ int32_t Dispatch(size_t index, lua_State* state) {
             // Subject userdata (tag 0) needs the subject class (next round): passed as nil.
         }
         fc4_adv_lua_value res[4]{};
-        int32_t r = fc4_advisors_call_lua(g_live->Core(), kCoreEntries[index].name, args.data(), args.size(), res, 4);
+        int32_t r = fc4_advisors_call_lua(g_live->Core(), kApi[index].name, args.data(), args.size(), res, 4);
         if (r > 4) r = 4;
         for (int32_t k = 0; k < r; ++k) {
             const fc4_adv_lua_value& v = res[k];
@@ -442,7 +497,7 @@ template <size_t... I>
 constexpr std::array<lua_CFunction, sizeof...(I)> MakeTrampolines(std::index_sequence<I...>) {
     return {&Trampoline<I>...};
 }
-const std::array<lua_CFunction, kCoreCount> kTrampolines = MakeTrampolines(std::make_index_sequence<kCoreCount>());
+const std::array<lua_CFunction, kApiCount> kTrampolines = MakeTrampolines(std::make_index_sequence<kApiCount>());
 
 void RegisterOne(cISCLua* L, const char* name, lua_CFunction fn, bool global) {
     if (global) L->GetGlobals();
@@ -458,17 +513,24 @@ void RegisterApi(void* u, bool global) {
     cISCLua* L = Self(u)->Lua();
     if (L == nullptr) return;
     const int32_t top = L->GetTop();
-    for (size_t i = 0; i < kCoreCount; ++i) {
-        if (kCoreEntries[i].global == global) RegisterOne(L, kCoreEntries[i].name, kTrampolines[i], global);
-    }
-    if (!global) {
-        for (const CompatEntry& e : kCompatEntries) {
-            const uintptr_t va = fc4::compat::DirectCall(e.which);
-            if (va != 0) RegisterOne(L, e.name, reinterpret_cast<lua_CFunction>(va), false);
+    // §8.2: one walk in vector order; register_api(true) takes the global
+    // entries, register_api(false) the `game` ones. An original whose address
+    // the compat layer refused is left out (logged there once).
+    for (size_t i = 0; i < kApiCount; ++i) {
+        const ApiEntry& e = kApi[i];
+        if (e.global != global) continue;
+        lua_CFunction fn = kTrampolines[i];
+        if (e.native != kCore) {
+            const uintptr_t va = fc4::compat::DirectCall(e.native);
+            if (va == 0) continue;
+            fn = reinterpret_cast<lua_CFunction>(va);
         }
+        RegisterOne(L, e.name, fn, global);
     }
     L->SetTop(top);
 }
+
+void ReloadScriptsCb(void* u) { Self(u)->ReloadScripts(); }
 
 fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     fc4_advisor_host h{};
@@ -482,6 +544,7 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     h.release_trigger = &ReleaseTrigger;
     h.call_trigger = &CallTrigger;
     h.register_api = &RegisterApi;
+    h.reload_scripts = &ReloadScriptsCb;
     h.collect_garbage = &CollectGarbage;
     h.close_lua = &CloseLua;
     h.set_global = &SetGlobal;
@@ -512,16 +575,20 @@ cIGZUnknown* CreateFC4AdvisorSystem() { return (new cFC4AdvisorSystem())->Primar
 bool cFC4AdvisorCheatHandler::QueryInterface(uint32_t riid, void** ppvObj) { return owner_->QueryInterface(riid, ppvObj); }
 uint32_t cFC4AdvisorCheatHandler::AddRef() { return owner_->AddRef(); }
 uint32_t cFC4AdvisorCheatHandler::Release() { return owner_->Release(); }
-// §5.2. [choice] The cheat's text is not read from cGZMessage (its layout for
-// cheat notifications is not in the specs): the core gets the ID only.
-bool cFC4AdvisorCheatHandler::DoMessage(cGZMessage& msg) {
-    if (owner_->Core() != nullptr) fc4_advisors_cheat(owner_->Core(), msg.dwMessageType, nullptr);
-    return true;
-}
+// §1.1 keeps the +8 interface for QueryInterface; §5.2 (AD9): the system is not
+// on the manager's cIGZMessageTarget list, cheats arrive in the message-2
+// DoMessage. Nothing is delivered here.
+bool cFC4AdvisorCheatHandler::DoMessage(cGZMessage&) { return true; }
 
 // ---- object -----------------------------------------------------------------------------------------------
 
 cFC4AdvisorSystem::cFC4AdvisorSystem() : cheat_(this) {
+    // §9: the generator is seeded with 0xFFFFFFFF at construction, which
+    // foundations §6.1 Seed() turns into time(NULL) XOR ((c << 16) | c), c = clock().
+    const uint32_t c = static_cast<uint32_t>(std::clock());
+    const uint32_t seed = static_cast<uint32_t>(std::time(nullptr)) ^ ((c << 16) | c);
+    random_.mul = seed;
+    random_.lcg = seed;
     fc4::AdvisorWinProcOps ops{};
     if (fc4::GameAdvisorWinProcOps(&ops)) window_.SetOps(ops);
     host_ = MakeHost(this);
@@ -606,16 +673,46 @@ void cFC4AdvisorSystem::Cheat(uint32_t id, const char* name, bool on) {
     cIGZCheatCodeManager* cm = nullptr;
     if (raw != nullptr && raw->QueryInterface(kIID_cIGZCheatCodeManager, reinterpret_cast<void**>(&cm)) && cm) {
         FC4_ACQUIRED(cm, "QueryInterface");
+        // §5.2 (AD9): the system is a message-2 notification target of the
+        // manager (SendCheatNotifications), not on its cIGZMessageTarget list.
         if (on) {
             cm->RegisterCheatCode(id, cRZBaseString(name ? name : ""));
-            cm->AddNotification(CheatTarget(), id);
+            cm->AddNotification2(Target(), id);
         } else {
-            cm->RemoveNotification(CheatTarget(), id);
+            cm->RemoveNotification2(Target(), id);
             cm->UnregisterCheatCode(id);
         }
         FC4_RELEASE(cm);
     }
     if (app != nullptr) FC4_RELEASE(app);
+}
+
+// §4.2 steps 1-3 (AD10, AD11). The core clears reloadPending, then
+// register_api(false) and the tutorial hand-over follow in the core.
+void cFC4AdvisorSystem::ReloadScripts() {
+    if (lua_ == nullptr) return;
+    // 1. `_on_reload`, protected, no arguments.
+    const int32_t top = lua_->GetTop();
+    lua_->GetGlobal("_on_reload");
+    if (lua_->Type(-1) == cIGZLua5Thread::LuaTypeFunction) lua_->CallProtected(0, 0);
+    lua_->SetTop(top);
+    // 2. the plugin directory, then the SKU-specific one (the later wins).
+    using UpdateFn = int32_t(__cdecl*)(uint32_t group, const char* dir);
+    using LoadFn = int32_t(__cdecl*)(cISCLua* lua, uint32_t group, uint32_t firstPackage);
+    const uintptr_t update = fc4::compat::DirectCall(Direct::UpdateResourcesFromDirectory);
+    const uintptr_t load = fc4::compat::DirectCall(Direct::LoadPackageScripts);
+    constexpr uint32_t kScriptGroup = 0x4A5E8EF6;
+    cISC4App* app = App();
+    if (app != nullptr && update != 0) {
+        for (const bool sku : {false, true}) {
+            const std::string dir = AppDirectory(app, sku) + "advisors\\";
+            fc4::Log("advisors reload: %s directory \"%s\"", sku ? "SKU-specific" : "plugin", dir.c_str());  // AD11
+            reinterpret_cast<UpdateFn>(update)(kScriptGroup, dir.c_str());
+        }
+    }
+    if (app != nullptr) FC4_RELEASE(app);
+    // 3. the packages of the script group, from package 0.
+    if (load != 0) reinterpret_cast<LoadFn>(load)(lua_, kScriptGroup, 0);
 }
 
 // §4.1 step 10 / §4.6: slots 24 and 28 through the own vtable.
@@ -658,9 +755,46 @@ fc4::GameMapObject* cFC4AdvisorSystem::GetAdvisors() {
     if (map_.Object() == nullptr) map_.Rebuild({});
     return map_.Object();
 }
-void* cFC4AdvisorSystem::GetRandom() { return nullptr; }  // the generator lives in the core (question AD7)
+void* cFC4AdvisorSystem::GetRandom() { return &random_; }  // §12.1 slot 9 (AD8): the member's address
 cISCLua* cFC4AdvisorSystem::GetScriptingContext() { return lua_; }
-bool cFC4AdvisorSystem::DoLink(const cIGZString&) { return false; }  // body not specified (question AD7)
+
+// §12.1 slot 11 (AD8).
+bool cFC4AdvisorSystem::DoLink(const cIGZString& link) {
+    // 1. copy (Data +0x18, Strlen +0x1C) and trim. [choice] "trim" = ASCII
+    // whitespace off both ends.
+    const char* data = VCall<const char*>(&link, 0x18);
+    const uint32_t len = VCall<uint32_t>(&link, 0x1C);
+    std::string text(data ? data : "", data ? len : 0);
+    size_t b = 0, e = text.size();
+    while (b < e && std::isspace(static_cast<unsigned char>(text[b]))) ++b;
+    while (e > b && std::isspace(static_cast<unsigned char>(text[e - 1]))) --e;
+    text = text.substr(b, e - b);
+    // 2.
+    unsigned int advisorID = 0, sessionID = 0;
+    if (std::sscanf(text.c_str(), "%08x%08x", &advisorID, &sessionID) != 2) return false;
+    // 3. advisor slot 13 GetAdviceBySessionID (+0x34), advice slot 22 DoLink (+0x58).
+    if (advisorID != 0x1D && advisorID != 0 && sessionID != 0) {
+        cISC4Advisor* a = GetAdvisor(static_cast<int32_t>(advisorID));
+        void* advice = a ? VCall<void*, int32_t>(a, 0x34, static_cast<int32_t>(sessionID)) : nullptr;
+        if (advice != nullptr) {
+            cRZBaseString rest(text.size() > 16 ? text.substr(16).c_str() : "");
+            // [abi-ret] void: the advice's result is not read (§12.1 slot 11 returns true)
+            VCall<bool, const cIGZString*>(advice, 0x58, static_cast<const cIGZString*>(&rest));
+            return true;
+        }
+    }
+    // 4. Lua, from character 16 for 0x1D, else from character 8 [quirk];
+    // through the own slots 18/19, DoBuffer = cISCLua slot 55 (+0xDC), status ignored.
+    const size_t from = advisorID == 0x1D ? 16 : 8;
+    const std::string chunk = text.size() > from ? text.substr(from) : std::string();
+    PushContextAdvice(nullptr);
+    if (lua_ != nullptr) {
+        const char* p = chunk.c_str();
+        VCall<int32_t, const char*, int32_t, const char*>(lua_, 0xDC, p, static_cast<int32_t>(std::strlen(p)), p);
+    }
+    PopContextAdvice();
+    return true;
+}
 bool cFC4AdvisorSystem::SetGlobalValueString(const char* name, cIGZString* value) {
     if (lua_ == nullptr || value == nullptr) return false;
     SetGlobalString(this, name, reinterpret_cast<const uint8_t*>(value->ToChar()), value->Strlen());
@@ -702,6 +836,14 @@ void cFC4AdvisorSystem::RemoveWinProcs() { window_.Remove(); }
 // §5: the ticker, PostCityInit, CityEstablished.
 bool cFC4AdvisorSystem::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    // §5.2 (AD9): cheat 0x230E27AC, ID = data1, text = GetVoid2 (+0x3C) as a
+    // borrowed cIGZString*, used with no null test as the original.
+    if (pMessage->GetType() == 0x230E27AC) {
+        const uint32_t id = static_cast<uint32_t>(VCall<int32_t>(pMessage, 0x24));
+        const cIGZString* text = VCall<const cIGZString*>(pMessage, 0x3C);
+        fc4_advisors_cheat(core_, id, text->ToChar());
+        return true;
+    }
     fc4_adv_message m{};
     m.msg_type = pMessage->GetType();
     cIGZMessage2Standard* std = nullptr;
