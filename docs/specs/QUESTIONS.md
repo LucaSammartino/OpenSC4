@@ -173,7 +173,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupant-manager | 0 | 5 | OM9 | - |
 | occupants-props | 11 | 5 | OP17 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
-| output-streams | 6 | 0 | OS7 | questions/output-streams.md |
+| output-streams | 3 | 4 | OS8 | questions/output-streams.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **221** | **1090** | | |
+| **total** | **218** | **1094** | | |
