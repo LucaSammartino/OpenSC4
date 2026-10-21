@@ -43,7 +43,8 @@ pub trait WallHost {
     /// `Some(C)` (x1, z1, x2, z2 inclusive) when it returns true.
     fn neighbour_cells_at_edge(&mut self, rect: [i32; 4], edge_flag: u32) -> Option<[i32; 4]>;
     /// Lot manager slot 11 `GetVerticesAtEdgeOfLot(R, edge_flag, V)`: the
-    /// vertex rect V (x1, z1, x2, z2 inclusive). Its return is not tested.
+    /// vertex rect V (x1, z1, x2, z2 inclusive). Its return is not tested;
+    /// spec silent on V after a false return (LR6): the host always fills it.
     fn vertices_at_edge(&mut self, rect: [i32; 4], edge_flag: u32) -> [i32; 4];
     /// Lot manager slot 6 `GetLot(x, z, false)`.
     fn lot_at(&mut self, x: i32, z: i32) -> Option<NeighbourLot>;
@@ -249,7 +250,7 @@ pub fn update_retaining_walls(lot: &Rc<Lot>, host: &mut dyn WallHost) {
             return;
         }
         // Step 3: the original calls QueryInterface through `w` without a
-        // null test; no guard is synthesised here.
+        // null test; no guard is synthesised here (LR7).
         WallLookup::Null => panic!("UpdateRetainingWalls: occupant lookup returned true with a null wall"),
         WallLookup::NotAWall(_) => {
             add_retaining_wall_occupant(lot, host);
