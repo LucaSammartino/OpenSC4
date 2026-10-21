@@ -217,6 +217,14 @@ def cmd_status(_args):
     st = load_state()
     print(f"main: {git(['rev-parse', '--short', 'HEAD']).stdout.strip()} on {current_branch()}")
     print(f"batch seq: {st['batch_seq']}   current: {st.get('current')}")
+    stop = REPO / "build-runs" / "STOP"
+    if stop.exists():
+        # lanes.py stop: no lane starts, but what is queued still lands (a wind-down lands what is on disk)
+        try:
+            why = json.loads(stop.read_text(encoding="utf-8")).get("reason", "")
+        except (OSError, ValueError, AttributeError):
+            why = ""
+        print(f"STOP flag set ({why or 'build-runs/STOP'}): no new lane rounds; landing the queue continues")
     if not recs:
         print("queue: empty")
         return 0
