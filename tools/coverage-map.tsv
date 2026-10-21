@@ -366,6 +366,8 @@ fn:MinOfFourFloats	view utilities	renderer	view-utilities.md	-	-	-
 fn:MaxOfFourFloats	view utilities	renderer	view-utilities.md	-	-	-
 SC4GeometryUtilities	geometry utilities	renderer	geometry-utilities.md	-	-	-
 SC4MarkedCellView	overlay views	renderer	overlay-views.md	-	-	-
+SC4PathInfoView	overlay views	renderer	network-overlay-views.md	-	-	-
+SC4TrainJunctionView	overlay views	renderer	network-overlay-views.md	-	-	-
 SC4*View	3D scene and models	renderer	-	-	-	-
 cSC4PathView	overlay views	renderer	overlay-views.md	-	-	-
 cSC4PathView::PathInfo	overlay views	renderer	overlay-views.md	-	-	-

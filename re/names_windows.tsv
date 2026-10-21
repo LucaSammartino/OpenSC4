@@ -2996,9 +2996,11 @@ va	name	source	confidence	note
 00542800	cSC4PathInfoFactory::CreateInstance	auto:A	high	mac 003443a2 score 1.0 support 0
 00542880	cSC4PathInfo::NewPath	auto:B11	medium	mac 003441d4 score 0.995 support 2.0
 00542900	cSC4PathInfoFactory::SerialRead	auto:A	high	mac 00344b28 score 1.0 support 0
-00542ee0	SC4PathInfoView::Init	auto:B2	medium	mac 0010721e score 0.801 support 2.0
-00542f50	SC4PathInfoView::SC4PathInfoView	auto:B5	medium	mac 001071dc score 0.975 support 1.0
-00542fc0	SC4PathInfoView::Update	auto:B6	medium	mac 0010735e score 0.948 support 2.0
+00542ee0	SC4PathInfoView::Init	manual:network-overlay-views.tsv	high	network-overlay-views.md §1; blended untextured state
+00542f50	SC4PathInfoView::SC4PathInfoView	manual:network-overlay-views.tsv	high	network-overlay-views.md §1
+00542f90	SC4PathInfoView::~SC4PathInfoView (thunk)	manual:network-overlay-views.tsv	high	network-overlay-views.md descriptive name, no Mac match; §1
+00542fa0	SC4PathInfoView::~SC4PathInfoView (deleting destructor)	manual:network-overlay-views.tsv	high	network-overlay-views.md descriptive name, no Mac match; §1
+00542fc0	SC4PathInfoView::Update	manual:network-overlay-views.tsv	high	network-overlay-views.md §1; coloured line strips, arrowheads, end bars
 00543b40	cSC4PatrolCar::DoStateTick	auto:B14	medium	mac 00397912 score 0.937 support 1.0
 00543c70	cSC4PatrolCar::CreateRiotPolice	auto:B6	medium	mac 00397e04 score 0.991 support 2.0
 00543d60	cSC4PatrolCar::ReleaseRiotPolice	auto:B7	medium	mac 003979b2 score 0.945 support 1.0
@@ -3185,8 +3187,8 @@ va	name	source	confidence	note
 00563140	cSC4ViewInputControlPlayerDrive::PickAutomaton	auto:B0	medium	mac 004b3d02 score 0.934 support 2.5
 005631c0	cSC4ViewInputControlPlayerDrive::OnMouseMove	auto:C	high	mac 004b4310 score 1.0 support 1
 00563310	cSC4ViewInputControlPlayerDrive::AutomatonRemoved	auto:B0	medium	mac 004b3bea score 0.913 support 2.0
-005633c0	SC4TrainJunctionView::Init	auto:A	high	mac 004b56ec score 0.634 support 0
-005637e0	SC4TrainJunctionView::GetArrowBitmapQuad	auto:B4	medium	mac 004b4130 score 0.96 support 2.5
+005633c0	SC4TrainJunctionView::Init	manual:network-overlay-views.tsv	high	network-overlay-views.md §2; direction table, six arrow pictures, two marker models
+005637e0	SC4TrainJunctionView::GetArrowBitmapQuad	manual:network-overlay-views.tsv	high	network-overlay-views.md §2; 12 m in from the entry edge
 00563970	cSC4ViewInputControlPlayerDrive::Shutdown	auto:B0	medium	mac 004b446e score 0.989 support 2.0
 00563d40	cSC4ViewInputControlPlayerDrive::HandleDriveCommandKeyDown	auto:D	medium	mac 004b5aca score 0.5 support 1
 00564060	cSC4ViewInputControlPlayerDrive::HandleDriveCommandKeyUp	auto:D	medium	mac 004b604e score 0.5 support 1
@@ -3196,15 +3198,15 @@ va	name	source	confidence	note
 00564450	cSC4ViewInputControlPlayerDrive::EnterChoosingMode	auto:B1	medium	mac 004b4100 score 0.787 support 2.0
 005644e0	cSC4ViewInputControlPlayerDrive::SendCallbackMessage	auto:A	high	mac 004b3e82 score 1.0 support 0
 00564570	cSC4ViewInputControlPlayerDrive::ShowUI	auto:A	high	mac 004b4b1c score 0.712 support 0
-00564a60	SC4TrainJunctionView::GetPathBitmap	auto:D	medium	mac 004b5502 score 0.5 support 1
-00564be0	SC4TrainJunctionView::DrawTrainJunction	auto:B3	medium	mac 004b780a score 0.978 support 3.0
+00564a60	SC4TrainJunctionView::GetPathBitmap	manual:network-overlay-views.tsv	high	network-overlay-views.md §2; c below -0.25, up to 0.25, above
+00564be0	SC4TrainJunctionView::DrawTrainJunction	manual:network-overlay-views.tsv	high	network-overlay-views.md §2; 0.8 or 0.5 transparency
 005650a0	std::list<int,std::allocator<int>>::push_back	auto:B12	medium	mac 00649a90 score 0.858 support 2.0
 005650e0	cSC4ViewInputControlPlayerDrive::EndInput	auto:B0	medium	mac 004b3f32 score 0.965 support 2.0
 00565160	cSC4ViewInputControlPlayerDrive::EnterDrivingMode	auto:A	high	mac 004b5184 score 0.814 support 0
 00565430	std::_Rb_tree<unsigned_char,std::pair<unsigned_char_const,cSC4DispatchVehicleView::TrackInfo>,std::_Select1st<std::pair<unsigned_char_const,cSC4DispatchVehicleView::TrackInfo>>,std::less<unsigned_char>,std::allocator<std::pair<unsigned_char_const,cSC4DispatchVehicleView::TrackInfo>>>::find	auto:D	medium	mac 00801ba0 score 0.5 support 1
 00565480	cSC4ViewInputControlPlayerDrive::cSC4ViewInputControlPlayerDrive	auto:A	high	mac 004b70fa score 0.872 support 0
 005655d0	cSC4ViewInputControlPlayerDrive::OnMouseDownL	auto:A	high	mac 004b5dc4 score 0.611 support 0
-005657a0	SC4TrainJunctionView::Update	auto:B4	medium	mac 004b7d54 score 0.985 support 1.5
+005657a0	SC4TrainJunctionView::Update	manual:network-overlay-views.tsv	high	network-overlay-views.md §2; four entry edges per occupant
 005658d0	cSC4DispatchVehicleView::UseAlternateModel	auto:B3	medium	mac 00801bfc score 0.991 support 1.0
 00565910	cSC4ViewInputControlPlayerDrive::~cSC4ViewInputControlPlayerDrive	auto:C	high	mac 00801fae score 1.0 support 1
 00565a10	cSC4ViewInputControlPlayerDrive::Init	auto:B0	medium	mac 004b72f4 score 0.97 support 4.5

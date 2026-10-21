@@ -86,6 +86,7 @@ generated index: the questions live one file per spec, so read only the file for
 | NG | neighbors, network-geometry |
 | NM | network-manager |
 | NO | network-occupants |
+| NOV | network-overlay-views |
 | NR | network-rules |
 | NT | network-tools |
 | OG | occupant-groups |
@@ -196,6 +197,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
 | network-occupants | 21 | 3 | NO25 | questions/network-occupants.md |
+| network-overlay-views | 1 | 0 | NOV2 | questions/network-overlay-views.md |
 | network-rules | 3 | 9 | NR16 | questions/network-rules.md |
 | network-tools | 14 | 0 | NT21 | questions/network-tools.md |
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
@@ -245,4 +247,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **234** | **1118** | | |
+| **total** | **235** | **1118** | | |
