@@ -74,6 +74,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PS | plumbing |
 | PV | prop-developer |
 | PW | power |
+| RD | renderer-driver |
 | RG | residential-education-health |
 | RN | foundations |
 | RS | residential |
@@ -136,6 +137,7 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-lotconfig | 0 | 8 | PL20 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
+| renderer-driver | 5 | 0 | RD6 | questions/renderer-driver.md |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | terrain | 5 | 27 | TR33 | questions/terrain.md |
@@ -144,4 +146,4 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial | 0 | 2 | TU6 | - |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **52** | **982** | | |
+| **total** | **57** | **982** | | |
