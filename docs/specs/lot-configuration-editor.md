@@ -1113,3 +1113,42 @@ shortcut is bypassed and the multi-object popup appears; cancelling it returns
 zero/null rather than the enclosing lot hit. Cycling condition byte 7 yields
 8, not 1; switching twice to fence mode installs its cursor only on the first
 switch. These expectations come from native branches, not test outputs.
+
+## 18. Final-round stopping boundary
+
+Round 3/3 ends **PARKED**, without complete-owner credit. The exact inventory
+companion remains the exhaustive address/byte list: 111 historical attribution
+rows, 109 current exported bodies, 52,646 bytes. Against `de5f2185`, every
+entry, attributed byte count, current byte count and method label is unchanged.
+Only contract status/references changed.
+
+| Focused contract status | Current bodies | Body bytes |
+|---|---:|---:|
+| C: focused body contract | 44 | 20,550 |
+| P: established subset, explicit residual | 20 | 20,334 |
+| O: body remains open | 40 | 11,335 |
+| R: attribution/shared-helper treatment unresolved | 5 | 427 |
+| Total | 109 | 52,646 |
+
+The 65 non-C bodies/32,096 bytes are **not all untraced bytes**: P includes
+substantial proved behavior. Conversely C is a focused-body label, not a claim
+that its open dependencies are complete. Fifteen entries/4,652 bytes moved
+to C this round; `0x00483DC0` and `0x00484700` moved O to P.
+
+The remaining contract boundaries are:
+
+| Question | Exact unresolved work; use companion rows for the complete method list |
+|---|---|
+| LE3 | `0x00484850` physical type-7 payload/copy/allocation consequences; remaining coordinate/movement conversions in `0x00485040`, `0x004851B0`, `0x00483DC0`, `0x0047B310`, `0x0047B390`; invalid/overflow `_ftol2` outcomes in pixel fence/hit paths; water/terrain creation helpers `0x0047C8D0`, `0x0047C930`; related helper/dependency contracts. Fence filtering, ordinary toggles, first-foundation operations and bounds-mover unordered tests are resolved. |
+| LE4 | Retaining-wall `0x00480910` and foundation `0x00485D60` dialog row/enumeration/filter/preselection/empty/accept/cancel/failure contracts; SetLotSize `0x00486080` scale selection, rectangle sizing, byte truncation and dirty ordering; foundation/outside menus `0x00486930`, `0x00485B00`; selected-object menu `0x00487B30` types 3/5, exact detail markers and edge table `0x00A8E6C8`; selector sort-option meaning/collation, name fallbacks and untraced add/select wrappers. The name, size-dialog wrapper, slope, network-path and placeholder fence-option contracts in §16 are resolved. |
+| LE5 | Init/static family resources and PostInit view/alpha setup; destruction/container cleanup; remaining mouse/key/capture, hit-test numeric/fallback and cycling behavior; complete ordinary drawing, title/name helpers, 3D preparation/refresh; shared-helper ownership. §17 resolves cursor mapping/replacement, mode 4/8 switches, condition cycling, style outputs and hit priority only. |
+
+Attribution remains separate from reachability: the export has six direct calls
+to record constructor `0x00478360`, all from `0x00484850`, and one direct call
+to decoder `0x00604920`, from texture enumeration at `0x0047FDCD`. These call
+sets prove editor dependencies, not exclusive source ownership. The R current
+bodies are exactly `0x00478360` (64 bytes), `0x00604920` (169),
+`0x006049BF` (7), `0x006049C6` (7), `0x006049CD` (180). Historical
+`0x006049D4`/`0x00604A67` are interior fragments, not two extra bodies.
+No ownership reassignment or byte restoration follows from the callers alone.
+No fourth lane round is requested by this stopping inventory.
