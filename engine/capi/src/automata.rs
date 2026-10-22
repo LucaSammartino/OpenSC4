@@ -1513,9 +1513,16 @@ pub unsafe extern "C" fn fc4_automata_manager_destroy(m: *mut fc4_automata_manag
         let h = Box::from_raw(m as *mut MgrHandle);
         // AT24: the aircraft deleting destructor frees storage only. Public
         // final Release must enter virtual Shutdown before reaching this API.
-        let tokens = h.m.try_borrow().map(|x| {
-            if x.kind() == ManagerKind::Aircraft { Vec::new() } else { mgr_tokens(x.record()) }
-        }).unwrap_or_default();
+        let tokens =
+            h.m.try_borrow()
+                .map(|x| {
+                    if x.kind() == ManagerKind::Aircraft {
+                        Vec::new()
+                    } else {
+                        mgr_tokens(x.record())
+                    }
+                })
+                .unwrap_or_default();
         h.release_all(&tokens);
     });
 }
@@ -1731,9 +1738,10 @@ pub unsafe extern "C" fn fc4_automata_aircraft_lifecycle(
         if operation == 2 {
             let key = ref_from_c(airport);
             if let ManagerPart::Aircraft { pairs, .. } = &mut x.record_mut().part {
-                if let Some(index) = pairs.iter().position(|(a, _)| {
-                    host_token(a).is_some() && host_token(a) == host_token(&key)
-                }) {
+                if let Some(index) = pairs
+                    .iter()
+                    .position(|(a, _)| host_token(a).is_some() && host_token(a) == host_token(&key))
+                {
                     notify(2, &pairs[index].1);
                     let (a, p) = pairs.remove(index);
                     release(4, &p);

@@ -642,6 +642,270 @@ fn object_refs_lists_the_host_references() {
     }
 }
 
+// AT24: independent counted interfaces and a hand-encoded v5 record. The
+// segment owns one reference independently of each Read/QI result; disposal
+// and optional external owners are controlled by the test, not the manager.
+#[derive(Default)]
+struct AircraftOwners {
+    counts: std::collections::BTreeMap<u64, u32>,
+    events: Vec<(u32, u64)>,
+}
+
+impl AircraftOwners {
+    fn take(&mut self, token: u64) {
+        *self.counts.entry(token).or_default() += 1;
+    }
+    fn release(&mut self, token: u64) {
+        let count = self.counts.get_mut(&token).expect("known interface");
+        assert!(*count > 0, "over-release {token:x}");
+        *count -= 1;
+        self.events.push((9, token));
+    }
+}
+
+unsafe extern "C" fn aircraft_take(user: *mut c_void, token: u64) {
+    (&*(user as *const RefCell<AircraftOwners>)).borrow_mut().take(token);
+}
+unsafe extern "C" fn aircraft_release(user: *mut c_void, token: u64) {
+    (&*(user as *const RefCell<AircraftOwners>)).borrow_mut().release(token);
+}
+unsafe extern "C" fn aircraft_event(user: *mut c_void, event: u32, token: u64) {
+    let mut owners = (&*(user as *const RefCell<AircraftOwners>)).borrow_mut();
+    assert!(owners.counts[&token] > 0, "action on dead interface");
+    owners.events.push((event, token));
+}
+
+fn aircraft_bytes(pairs: &[(u64, u64)], listed: &[u64]) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(&5u16.to_le_bytes()); // aircraft version
+    bytes.extend_from_slice(&6u16.to_le_bytes()); // base version
+    bytes.extend_from_slice(&20i32.to_le_bytes());
+    bytes.extend_from_slice(&[1, 0]); // active, time scaling
+    bytes.extend_from_slice(&(listed.len() as u32).to_le_bytes());
+    for token in listed {
+        bytes.extend_from_slice(&token.to_le_bytes());
+        bytes.extend_from_slice(&0xCBEB_4F62u32.to_le_bytes());
+    }
+    bytes.extend_from_slice(&0u32.to_le_bytes()); // base group counts
+    bytes.extend_from_slice(&(pairs.len() as u32).to_le_bytes());
+    for (airport, plane) in pairs {
+        bytes.extend_from_slice(&airport.to_le_bytes());
+        bytes.extend_from_slice(&BUILDING_CLASS.to_le_bytes());
+        bytes.extend_from_slice(&plane.to_le_bytes());
+        bytes.extend_from_slice(&0xCBEB_4F62u32.to_le_bytes());
+    }
+    bytes.extend_from_slice(&1u32.to_le_bytes()); // one runway spot
+    bytes.extend_from_slice(&[0; 13]); // vec3 + u8
+    bytes
+}
+
+unsafe fn loaded_aircraft(
+    owners: &RefCell<AircraftOwners>,
+    pairs: &[(u64, u64)],
+    listed: &[u64],
+) -> *mut fc4_automata_manager {
+    let user = owners as *const _ as *mut c_void;
+    let host = fc4_automata_ref_host {
+        struct_size: std::mem::size_of::<fc4_automata_ref_host>() as u32,
+        user,
+        add_ref: Some(aircraft_take),
+        release: Some(aircraft_release),
+    };
+    // Independent segment/table ownership: one per unique object.
+    for token in pairs.iter().flat_map(|(a, p)| [*a, *p]).chain(listed.iter().copied()) {
+        owners.borrow_mut().counts.entry(token).or_insert(1);
+    }
+    let acquire = |r: &mut fc4_ref| owners.borrow_mut().take(r.token);
+    let bytes = aircraft_bytes(pairs, listed);
+    let mut input = In::new(&bytes);
+    input.resolve = Some(&acquire);
+    let manager = fc4_automata_manager_create(AIRCRAFT_MANAGER, &host);
+    assert!(fc4_automata_manager_read(manager, &istream(&mut input)));
+    assert!(fc4_automata_manager_init(manager));
+    manager
+}
+
+fn dispose_aircraft_table(owners: &RefCell<AircraftOwners>) {
+    let tokens: Vec<_> = owners.borrow().counts.keys().copied().collect();
+    for token in tokens {
+        owners.borrow_mut().release(token);
+    }
+    owners.borrow_mut().events.clear();
+}
+
+unsafe fn aircraft_op(
+    manager: *mut fc4_automata_manager,
+    owners: &RefCell<AircraftOwners>,
+    operation: u32,
+    airport: u64,
+) {
+    assert!(fc4_automata_aircraft_lifecycle(
+        manager,
+        operation,
+        &host_ref(airport, BUILDING_CLASS),
+        Some(aircraft_event),
+        owners as *const _ as *mut c_void
+    ));
+}
+
+#[test]
+fn at24_segment_disposal_preserves_two_independent_plane_owners() {
+    let owners = RefCell::new(AircraftOwners::default());
+    unsafe {
+        let m = loaded_aircraft(&owners, &[(0x900, 0x500)], &[0x500]);
+        assert_eq!(owners.borrow().counts[&0x500], 3);
+        dispose_aircraft_table(&owners);
+        assert_eq!(owners.borrow().counts[&0x500], 2);
+        assert_eq!(owners.borrow().counts[&0x900], 1);
+        aircraft_op(m, &owners, 1, 0);
+        fc4_automata_manager_destroy(m);
+        assert!(owners.borrow().counts.values().all(|&n| n == 0));
+    }
+}
+
+#[test]
+fn at24_pre_shutdown_clears_list_only_then_map_airport_plane() {
+    let owners = RefCell::new(AircraftOwners::default());
+    unsafe {
+        let m = loaded_aircraft(&owners, &[(0x900, 0x500)], &[0x500]);
+        dispose_aircraft_table(&owners);
+        aircraft_op(m, &owners, 0, 0);
+        assert_eq!(owners.borrow().events, [(1, 0x500), (5, 0x500), (9, 0x500)]);
+        assert_eq!(owners.borrow().counts[&0x500], 1);
+        assert_eq!(owners.borrow().counts[&0x900], 1);
+        owners.borrow_mut().events.clear();
+        aircraft_op(m, &owners, 1, 0);
+        assert_eq!(owners.borrow().events, [(3, 0x900), (9, 0x900), (4, 0x500), (9, 0x500)]);
+        fc4_automata_manager_destroy(m);
+    }
+}
+
+#[test]
+fn at24_shutdown_without_pre_is_map_first_then_plane_shutdown_and_list_release() {
+    let owners = RefCell::new(AircraftOwners::default());
+    unsafe {
+        let m = loaded_aircraft(&owners, &[(0x900, 0x500)], &[0x500]);
+        dispose_aircraft_table(&owners);
+        aircraft_op(m, &owners, 1, 0);
+        assert_eq!(
+            owners.borrow().events,
+            [
+                (3, 0x900),
+                (9, 0x900),
+                (4, 0x500),
+                (9, 0x500),
+                (1, 0x500),
+                (5, 0x500),
+                (9, 0x500)
+            ]
+        );
+        let bytes = write_with(|o| fc4_automata_manager_write(m, o));
+        // Empty base/map and runway list after initialized Shutdown.
+        assert_eq!(
+            bytes,
+            [5, 0, 6, 0, 20, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        );
+        fc4_automata_manager_destroy(m);
+    }
+}
+
+#[test]
+fn at24_external_owner_survives_both_shutdown_paths() {
+    for pre in [false, true] {
+        let owners = RefCell::new(AircraftOwners::default());
+        unsafe {
+            let m = loaded_aircraft(&owners, &[(0x900, 0x500)], &[0x500]);
+            owners.borrow_mut().take(0x500);
+            dispose_aircraft_table(&owners);
+            if pre {
+                aircraft_op(m, &owners, 0, 0);
+            }
+            aircraft_op(m, &owners, 1, 0);
+            fc4_automata_manager_destroy(m);
+            assert_eq!(owners.borrow().counts[&0x500], 1);
+            owners.borrow_mut().release(0x500);
+            assert_eq!(owners.borrow().counts[&0x500], 0);
+        }
+    }
+}
+
+#[test]
+fn at24_reverse_keys_release_pairs_in_unsigned_pointer_order() {
+    let owners = RefCell::new(AircraftOwners::default());
+    unsafe {
+        let m = loaded_aircraft(&owners, &[(0xF000_0900, 0x500), (0x100, 0x600)], &[]);
+        // Keep table observers independently alive throughout traversal.
+        aircraft_op(m, &owners, 1, 0);
+        assert_eq!(
+            owners.borrow().events,
+            [
+                (3, 0x100),
+                (9, 0x100),
+                (4, 0x600),
+                (9, 0x600),
+                (3, 0xF000_0900),
+                (9, 0xF000_0900),
+                (4, 0x500),
+                (9, 0x500)
+            ]
+        );
+        fc4_automata_manager_destroy(m);
+        assert!(owners.borrow().counts.values().all(|&n| n == 1));
+        dispose_aircraft_table(&owners);
+    }
+}
+
+#[test]
+fn at24_removal_deactivates_erases_releases_plane_airport_and_miss_is_empty() {
+    let owners = RefCell::new(AircraftOwners::default());
+    unsafe {
+        let m = loaded_aircraft(&owners, &[(0x900, 0x500)], &[]);
+        dispose_aircraft_table(&owners);
+        aircraft_op(m, &owners, 2, 0x900);
+        assert_eq!(
+            owners.borrow().events,
+            [(2, 0x500), (4, 0x500), (9, 0x500), (3, 0x900), (9, 0x900)]
+        );
+        owners.borrow_mut().events.clear();
+        aircraft_op(m, &owners, 2, 0x900);
+        aircraft_op(m, &owners, 1, 0);
+        fc4_automata_manager_destroy(m);
+        assert!(owners.borrow().events.is_empty());
+    }
+}
+
+#[test]
+fn at24_repeated_shutdown_and_storage_destruction_do_not_repeat_payload_pass() {
+    for explicit in [false, true] {
+        let owners = RefCell::new(AircraftOwners::default());
+        unsafe {
+            let m = loaded_aircraft(&owners, &[(0x900, 0x500)], &[0x500]);
+            dispose_aircraft_table(&owners);
+            if explicit {
+                aircraft_op(m, &owners, 1, 0);
+            }
+            // Same entry used by plugin final Release, even after explicit Shutdown.
+            aircraft_op(m, &owners, 1, 0);
+            let events = owners.borrow().events.clone();
+            aircraft_op(m, &owners, 1, 0);
+            fc4_automata_manager_destroy(m);
+            assert_eq!(owners.borrow().events, events);
+            assert!(owners.borrow().counts.values().all(|&n| n == 0));
+        }
+    }
+    let owners = RefCell::new(AircraftOwners::default());
+    unsafe {
+        let m = loaded_aircraft(&owners, &[(0x900, 0x500)], &[]);
+        dispose_aircraft_table(&owners);
+        fc4_automata_manager_destroy(m); // deleting storage is not public Release
+        assert!(owners.borrow().events.is_empty());
+        assert!(owners.borrow().counts.values().all(|&n| n == 1));
+        // Explicitly balance the deliberately bypassed public lifecycle.
+        owners.borrow_mut().release(0x900);
+        owners.borrow_mut().release(0x500);
+    }
+}
+
 // ---- hooks (§8) -----------------------------------------------------------------------------------------
 
 #[derive(Default)]

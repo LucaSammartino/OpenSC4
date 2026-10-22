@@ -54,19 +54,21 @@ thread_local const fc4_istream* tracedInput = nullptr;
 thread_local cFC4AutomataManager* readingManager = nullptr;
 thread_local uint32_t readRefIndex = 0;
 thread_local uint32_t aircraftReleaseEvent = 0;
+thread_local void* aircraftReleaseOwner = nullptr;
 void AircraftLifecycleEvent(void* user, uint32_t kind, uint64_t token) {
     fc4::Log("AT24 lifecycle manager=%p phase=%s event=%u receiver=%016llX", user, managerPhase,
         kind, static_cast<unsigned long long>(token));
-    auto* plane = reinterpret_cast<cFC4ISC4Automaton*>(token);
+    auto* plane = reinterpret_cast<cISC4Automaton*>(token);
     if (kind == 1) plane->Shutdown();
-    if (kind == 2) plane->Activate(false);
+    if (kind == 2) plane->Remove(false);  // public slot 13 (AT24)
     aircraftReleaseEvent = kind >= 3 ? kind : 0;
+    aircraftReleaseOwner = user;
 }
 bool TraceManagerReadRef(void* user, uint32_t iid, fc4_ref* out) {
     const bool ok = tracedInput->get_ref(user, iid, out);
     fc4::Log("AT24 acquire manager=%p class=%08X phase=Read index=%u iid=%08X receiver=%016llX ok=%d",
         static_cast<void*>(readingManager), readingManager->GetGZCLSID(), readRefIndex++, iid,
-        static_cast<unsigned long long>(out->token), ok);
+        static_cast<unsigned long long>(ok ? out->token : 0), ok);
     return ok;
 }
 
@@ -90,10 +92,11 @@ void HostRelease(void* user, uint64_t token) {
         // Read replacement, failed Read and destruction remain ordinary audit.
         const bool nativeHolder = manager != nullptr &&
             const_cast<cFC4AutomataManager*>(manager)->GetGZCLSID() == kFC4_CLSID_cSC4AircraftManager &&
-            aircraftReleaseEvent >= 3;
+            aircraftReleaseOwner == user && aircraftReleaseEvent >= 3 && aircraftReleaseEvent <= 5;
         aircraftReleaseEvent = 0;
+        aircraftReleaseOwner = nullptr;
         const uint32_t count = nativeHolder ? FC4_RELEASE_LAST_HOLDER(o) : FC4_RELEASE(o);
-        fc4::Log("AT24 Release end manager=%p phase=%s receiver=%p before=%u after=%u", user,
+        fc4::Log("AT24 Release end manager=%p phase=%s receiver=%p before_inferred=%u after=%u", user,
             managerPhase, o, count + 1, count);
     }
 }
@@ -415,10 +418,9 @@ bool cFC4AutomataManager::Read(cIGZIStream& in) {
     return ok;
 }
 
-// 10: the messages of automata.md 10 (animation tick, PreCityShutdown,
-// PostCityInit and the rest) drive the managers' simulation. The records are
-// all this class keeps (0: animation is stubbed), so a message is accepted and
-// dropped.
+// AT24 adds the proven aircraft base-list teardown to the existing message
+// skeleton. Other messages (including the acceptance filter for airport
+// removal) retain their existing behaviour; no unrelated automata answers.
 bool cFC4AutomataManager::DoMessage(cIGZMessage2* message) {
     if (classId_ == kFC4_CLSID_cSC4AircraftManager && message != nullptr && message->GetType() == 0x26D31EC2) {
         ManagerPhase phase("PreCityShutdown-base");
