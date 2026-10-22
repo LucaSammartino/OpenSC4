@@ -11,6 +11,7 @@
 - Round-3 milestone: published instruction-verified DP10 number-texture slot recipe, font/style ownership, surface/texture failures and independent size/failure vectors; rectangles/draw submission still pending.
 - Committed b6914951: number-texture contract. Next milestone publishes screen-rectangle getter/storage/rounding and exact 2D draw submission/order; complete geometry and overlap candidate order remain under review.
 - Committed e282002b: borrowed rectangle getter/storage and native 2D draw submission, identity-based ordering and null-texture behavior. Now published conflict-helper category/bounds/closed-edge rules and exact four-probe relocation/fallback; next inspect geometry preparation and remaining branches.
+- Committed 5db61bde: exact conflict/relocation/fallback. Final geometry milestone adds verified pre-rotation quads and worked example; DP10 PARK records exact remaining branch/address ranges. No fourth round; final report/queue reconciliation next.
 - q.py Bash startup denied (E_ACCESSDENIED); use bounded native PowerShell. No REA request made.
 - Final round: publish substantive contract, archive DP10 only if complete; otherwise PARK exact residual, no fourth round.
 

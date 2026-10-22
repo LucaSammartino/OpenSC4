@@ -325,11 +325,13 @@ with instance IDs, in member order `+0x2C` through `+0x44`:
 `144161A1,144161A2,144161A3,4BB0ECF3,2BB12D1F,4BB0ECF3,144161A2`
 (`0x0046B61C`–`0x0046B72B`). Kinds 0/1 use the first/second handle respectively and use
 their number as the call display, with flags `0x2A`; they do not require the optional label.
-Complete call-display texture generation, screen rectangles and renderer submission remain
-unresolved DP10 requirements, rather than an authorization to invent SDK view slots.
+The number branch, rectangle protocol and final 2D submission are specified below.
+The exact remaining geometry/alternate-branch scope is parked at the end of this section;
+none of these facts authorizes inventing SDK view slots.
 
 **Call-number texture rebuild (DP10; instruction-verified).** Direct
-BuildCallNumberDisplay `0x0046C8B0` operates on one TrackInfo pointer. Flag bit 6 causes
+BuildCallNumberDisplay `0x0046C8B0` operates on one stack TrackInfo pointer, pops 4,
+and has no defined success return channel (`0x0046D0E3`–`0x0046D0EF`). Flag bit 6 causes
 an immediate return, before releasing or modifying its existing texture. Otherwise a
 non-null texture at info `+0x0C` is passed to ReleaseTexture `(global 0x00B43CA4,texture)`
 and that member is cleared first (`0x0046C8CB`–`0x0046C91A`). Rebuild failure therefore
@@ -370,6 +372,46 @@ failure must release/clear the old texture, restore the font style, Release the 
 retain the measured dimensions and leave no generated texture. A surface slot-6 false
 result must still draw text and attempt SetupTexture; a bit-6 entry must perform none
 of those calls. These vectors derive from native branches, not replacement outputs.
+
+**Number/icon geometry before camera rotation (DP10).** The following describes
+the intermediate quads, before the in-place camera rotation at `0x0046CF41` onward.
+It must not be used as a contract for the final rotated vertex bytes. Both arrays
+contain four `(x,y,z,u,v)` float32 vertices: number at info `+0x30`, icon at `+0x80`.
+Use the global view utility at `0x00B43DD8`; its conversion U(p) returns the x87
+product of float32 p and its float32 member `+0x150`, with no intervening float32
+store (`0x007F6690`). Read zoom through GetZoomAndRotation `0x007F66A0` and use that
+index into the float32 table `0x00A88170`: entries 0..5 are 20,30,40,50,60,60.
+Read the pitch as float32 utility member `+0x18` and evaluate its cosine in x87.
+
+For ordinary finite inputs, let R denote a float32 store/reload, and let:
+separation = R(U(table[zoom])/cos(pitch));
+iconHeight = R(U(64)/cos(pitch));
+iconHalfWidth = R(U(64)*0.5);
+iconHalfHeight = R(iconHeight*0.5);
+numberHalfWidth = U(measuredWidth)*0.5 (retained in x87);
+numberHalfHeight = R(R(U(measuredHeight))/cos(pitch)*0.5).
+The conversion of measured width/height to U's argument is itself stored float32.
+U(64) remains live for the iconHalfWidth multiplication after storing iconHeight;
+it is not replaced by a division-rounded value (`0x0046CCF4`–`0x0046CDA8`).
+
+| Quad | Vertices, in submitted order, before rotation |
+|---|---|
+| Icon | `(-iconHalfWidth, R(iconHeight+separation), 0, 0, 0)`; `(-iconHalfWidth, separation, 0, 0, 1)`; `(iconHalfWidth, separation, 0, 1, 1)`; `(iconHalfWidth, R(iconHeight+separation), 0, 1, 0)` |
+| Number (bit 1) | x values `-numberHalfWidth,-numberHalfWidth,+numberHalfWidth,+numberHalfWidth`, individually stored float32; top y `R((numberHalfHeight+iconHalfHeight)+separation)`, bottom y `R((iconHalfHeight+separation)-numberHalfHeight)`, in top/bottom/bottom/top order; z is `0x3E99999A` at all four vertices |
+
+For the number UVs, first store float32 reciprocal `1/side`. Left u and top v
+are that reciprocal multiplied by float32 zero; right u is the measured width
+times the stored reciprocal, stored float32; bottom v is the measured height
+times the stored reciprocal, stored float32. Number UV order is left/top,
+left/bottom, right/bottom, right/top. The quad's geometric measured height is
+the font height, while the info `+0xD4` dimension remains the literal 14.0
+specified above (`0x0046CDB2`–`0x0046CF0F`). This distinguishes a cropped text
+quad from stretching a whole power-of-two texture over a 14-pixel rectangle.
+
+Worked intermediate example: U's scale 1, pitch 0, table index 0, measured
+number size 10 by 12 and side 32 give icon x ±32, y 20..84; number x ±5,
+y 46..58, z `0x3E99999A`, right u 0.3125 and bottom v 0.375. The number's
+stored display dimension remains height 14. All values here precede rotation.
 
 **Last screen rectangle and 2D draw submission (DP10).** Direct thiscall
 GetLastScreenIconRect `0x0046BFA0` takes one u32 handle, pops 4 and returns EAX:
@@ -465,8 +507,10 @@ by those probes do not replace the first conflict used to construct them.
 An out-of-bounds (`0xFF`) first conflict skips all four probes. If all attempted
 rectangles conflict, advance each moving-center component by twice its stored
 step component, storing float32, and add float32 2.0 to progress before the
-next limit test (`0x0046E4A0`–`0x0046E744`; constants 43 at `0x00A88260`,
-1.75 at `0x00A88264`, 2 at `0x00A8825C`, verified in the original PE).
+next limit test. Progress is stored float32 but the limit comparison uses the
+still-live x87 sum, not a reload of that store (`0x0046E727`–`0x0046E744`).
+The candidate/probe order is at `0x0046E4A0`–`0x0046E744`; constants 43 at `0x00A88260`,
+1.75 at `0x00A88264`, 2 at `0x00A8825C`, verified in the original PE.
 
 After the loop the helper is called once more on the current candidate. If it
 still conflicts, restore the **original saved integer rectangle**, even when
@@ -484,6 +528,33 @@ contained. Ordered same-category obstacles must return the first overlap,
 not the nearest or highest-priority one. A fully blocked relocation must
 append the initial fallback rather than omit the indicator or keep the last
 failed probe. These checks distinguish the native failure policy independently.
+
+**DP10 final-round residual (PARK, 2026-10-22).** The contracts above resolve
+the dispatch number-texture branch, intermediate quads, borrowed rectangle
+getter, relocation helper/search/fallback, and final 2D draw submission. DP10
+is still open for the exact final vertex bytes and complete visible-entry
+protocol. The remaining bounded evidence targets are:
+
+- BuildCallNumberDisplay's camera rotation, including x87 coefficient stores
+  and in-place vertex operation order: `0x0046CF41`–`0x0046D0DB`. The angle is
+  formed with FPATAN from negated view-utility members `+0x54,+0x5C`; do not
+  replace it with an assumed rotation-index formula.
+- BuildCallNumberDisplay kinds 3/4 resource branches and their texture/UV
+  geometry/failure exits: `0x0046CB52`–`0x0046CCDA`. These are separate from
+  the dispatch kinds 0/1 number branch documented here.
+- Update's complete eligibility/priority and occupant/terrain/projected-point
+  preparation before rectangle placement (`0x0046DCBA`–`0x0046E296`), plus
+  construction/rotation of the final 2D icon/number vertex arrays
+  (`0x0046EA4A`–`0x0046EDF1`). The final submission call order is already proved;
+  its input vertex values are not yet fully specified.
+- The alternate world-space two-pass drawing path `0x0046E845`–`0x0046E9DA`
+  and bit-6 3D-model-indicator branch `0x0046DE07` are not covered by the final
+  2D submission table. Do not conflate them with dispatch bit-1 number drawing.
+
+No fourth round is authorized. Preserve the worktree and these partial native
+contracts; no complete view-provider, complete-owner, exact-shadow or supported
+replacement credit follows while this residual remains. No new runtime trace
+was requested or performed to replace these missing static contracts.
 
 ### 4.2 `Dispatch(type, x, z)` (`0x0046A630`, slot 6) → ID *[compat]*
 
