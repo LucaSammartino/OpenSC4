@@ -46,10 +46,9 @@ rotation changes, takes its texture per zoom with a fallback key, and draws with
   coordinates count one repeat per 16 m; the top's divide the footprint by the top texture's scale (`+0x58`). With
   `colours`, each side takes the lighting manager's light for its outward normal (`GetVectorForEdge`, lighting
   slot 20), the top the light for (0, 1, 0).
-- **Height** (`AdjustHeightToTerrain`, `0x005D5A90`): along the footprint's border vertices, the largest drop from
-  the top to the ground, or to the water surface where that is higher; when that needs more whole 16 m steps n than
-  the box has *[inferred: rounded up]*, the base is lowered to top − 16 n and the box rebuilt (or rebuilt anyway
-  when asked). The base never moves up here.
+- **Height** (`AdjustHeightToTerrain`, `0x005D5A90`): use the maximum border drop to the higher of ground/water.
+  Compare truncated `(depth+16)/16` counts for required and existing depth, as specified in §2.2. This differs
+  from mathematical ceiling at exact multiples of 16. Rebuilding changes geometry without relighting.
 - **Textures** (`0x005D5C70`): a side texture and a top texture per zoom; failed nonzero side keys fall back to
   `0x69F20000 + zoom`, failed nonzero top keys to `0x0912220F + zoom`. Zero keys are disabled.
 - **Draw** (`0x005D5FC0`): not when highlighted. A rotation change re-takes the two visible edges (view-utilities
@@ -65,10 +64,69 @@ and clears the old top binding and applies the same rule with `0x0912220F + newZ
 or restoration of the old binding occurs. Keys are not changed when initially zero. These are ID-only
 factory calls, not TGI construction in this owner (`0x005D5CAB–0x005D5D39`).
 
+The ID-only factory entry is `0x008094C0`: it supplies type `0x7AB50E44` and group `0x1ABE787D`.
+Sort IDs are the first underlying texture object's first 32-bit word, not the configured resource instance:
+foundation prefers the side binding, then the top binding, then `0xE9862AB6`, and ORs the result with
+`0x2AB6` (`0x005D5570`). Walls similarly OR their first texture word with `0x2A86`, falling back to
+`0xC9862A86` (`0x005E14F0`); cells use that texture word directly, or their configured key if unbound.
+
 `DoZoomChange` stores the zoom byte before loading (`0x005D5EA8`); a failed load therefore does not
 cause retries on every subsequent draw at the same ordinary zoom. Returning to that zoom after another
 zoom retries its now-stored fallback key. Top drawing has its own binding/first-texture checks and is
 reachable even if the side is absent or its first texture is zero (`0x005D6084–0x005D60F1`).
+
+### 2.2 Foundation sampling and step arithmetic (LM3)
+
+Bounds store `(x0,base,z0,x1,top,z1)` as binary32. Convert each horizontal bound to a lattice index by
+storing `coordinate × 0.0625 + 12582912` as binary32, reinterpreting that word as an integer and
+subtracting `0x4B400000`. This is the native nearby-integer bit technique under the active floating-point
+rounding mode, not truncation or floor (`0x005D5A98–0x005D5B1E`). Enumerate x from its lower index
+through its upper index inclusive, with z increasing in the inner loop. Only points on the rectangle's
+border are sampled. Corners are visited once. A degenerate rectangle samples every enumerated point;
+reversed index bounds sample none. Terrain index = x + z × (terrain-width + 1). Read ground first
+(terrain slot 12), water second (slot 31), store each result as binary32, and select their maximum.
+Required drop starts at zero; replace it only when `top − selectedHeight` is larger, storing each
+replacement as binary32 (`0x005D5B42–0x005D5C10`).
+
+Let trunc mean the native `_ftol2` conversion toward zero, with its signed 32-bit low result used here.
+Existing count C = trunc(((top−base)+16)×0.0625); required count N = trunc((maximumDrop+16)×0.0625).
+These count expressions stay in x87 registers until conversion; they do not have an intermediate
+binary32 store after adding 16. If N>C, store binary32 `top − signed32(N << 4)` as the new base.
+Otherwise leave base alone. Return true and rebuild geometry if N>C or force is true; else return
+false. The rebuild calls `SetupVertices(true,false,null)`, so neither a changed base nor a forced
+unchanged base relights (`0x005D5B12–0x005D5B33`, `0x005D5C10–0x005D5C66`).
+
+The constructor initializes an empty bounds sentinel `(1,1,1,0,0,0)`, not a usable footprint or a
+separate step counter (`0x005D5D70`). Thus its algebraic existing count is zero; placement must supply
+the intended bounds before relying on meaningful terrain adjustment. Examples requiring a starting
+base state are given in §8; top/ground/water alone do not determine whether an already-deep box moves.
+
+### 2.3 Foundation buffer and UV order (LM3)
+
+Four side quads, numbered 0–3, each contain four consecutive 24-byte position/BGRA/UV records; a
+separate four-record top quad follows the top binding. Define W = binary32(x1−x0), D = binary32(z1−z0),
+H = binary32(top−base), X = x0+W, Z = z0+D and B = top−H. Native reconstruction uses these additions
+and subtraction, rather than copying all upper bounds. Each listed triple is `(x,y,z)`.
+
+| Face | Vertex 0 | Vertex 1 | Vertex 2 | Vertex 3 |
+|---|---|---|---|---|
+| 0 | X,top,z0 | X,B,z0 | x0,B,z0 | x0,top,z0 |
+| 1 | X,top,Z | X,B,Z | X,B,z0 | X,top,z0 |
+| 2 | x0,top,Z | x0,B,Z | X,B,Z | X,top,Z |
+| 3 | x0,top,z0 | x0,B,z0 | x0,B,Z | x0,top,Z |
+| top | x0,top,z0 | x0,top,Z | X,top,Z | X,top,z0 |
+
+Every side uses UVs `(0,0),(0,H/16),(W/16,H/16),(W/16,0)`. In particular, **sides 1 and 3 also
+use W/16**, even for a nonsquare footprint. Top UVs are `(0,0),(0,V),(U,V),(U,0)`, where the owner
+computes binary32 reciprocal R = 1/topScale, then U = (W×0.0625)×R×16 and
+V = (D×0.0625)×R×16, stored as binary32. Scale is metres per repeat and defaults to 16. There is
+no zero-scale guard: with masked x87 exceptions a zero scale can produce infinity or NaN UVs;
+the owner neither substitutes 16 nor rejects the update (`0x005D55D5–0x005D56B5`).
+
+Geometry and lighting are separate flags. Side colour is constant over each face, from lighting slot 20
+with `GetVectorForEdge(face)`; top colour uses normal (0,1,0). Colours are BGRA bytes with alpha 255.
+Both side and top use four-vertex primitive type 6, format 10. Buffer assignments and top lighting:
+`0x005D56B9–0x005D5A4E`; this contract supplies native record order, not generic box triangulation.
 
 ## 3. Retaining walls (`cSC4LotRetainingWallModel`) *[compat]*
 
@@ -124,7 +182,7 @@ the first. A second null result stays null (`0x005E1620–0x005E16CD`). Draw ski
 
 The stored cell x and z are **unsigned bytes**, not signed world coordinates (`0x005DFA0C`,
 `0x005DFA10`). Let X = 16x and Z = 16z. Vertices are 24-byte position/colour/UV records in this order;
-the flat draw submits these four records directly as primitive type 1, format 10 (`0x005E0522`).
+the flat draw submits these four records directly as primitive type 1, format 10 (`0x005E0475–0x005E0482`).
 
 | Vertex | World x,z | Terrain altitude output slot | UV orientation 0 | UV orientation 1 | UV orientation 2 | UV orientation 3 |
 |---|---|---|---|---|---|---|
@@ -148,7 +206,7 @@ ordered maximum≤minimum check repairs maximum to minimum+0.1 (`0x005DFB3B–0x
 
 A colour update runs only for flat placement, with normal (0,1,0), at each of the four stored positions,
 through lighting slot 19. Each output integer's low byte is stored in the vertex colour; the byte at
-colour offset +3 is the record's alpha byte. Output channels 0,1,2 occupy colour bytes 0,2,1 respectively
+colour offset +3 is the record's alpha byte. Output arguments 0,1,2 occupy colour bytes 2,1,0 respectively
 (`0x005DFCAF–0x005DFD29`); there is no owner-side saturation. Geometry and colour updates are independent
 flags. Geometry-only calls do not relight, and nonflat colour calls do nothing. Both services have
 optional explicit arguments, with global terrain/lighting services used when null.
@@ -196,3 +254,20 @@ beyond 3 and who sets the colour.
 4. **Facing:** at rotation 1 a wall on side 1 or side 0 is drawn, one on side 2 is not.
 5. **Cell mode:** a record with alpha 128 and no mode draws with the alpha state.
 6. **Orientation:** orientation 1 rotates the corners one step; the mirror flag swaps u for 1 − u.
+
+The following are independent arithmetic/buffer vectors derived from the cited native operations;
+they are expected results, not observations from a portable implementation or runtime verification.
+
+| Vector | Inputs | Expected result |
+|---|---|---|
+| F-step-water | top 40, base 41, all border ground 21, water 25 | C=0, N=1; base 24; geometry rebuild, no lighting |
+| F-step-existing | top 40, base 40, ground 21, water 25 | C=1, N=1; base stays 40; false unless forced |
+| F-equality | top 40, base 40, ground 24, water below 24 | C=1, N=2; base 8, rather than 24 |
+| F-fraction | top 40, base 24.5, ground 24.25, water lower | C=1, N=1; fractional base 24.5 retained |
+| F-force | previous vector, force true | true, geometry rebuilt, same base and colours |
+| F-UV-width | footprint 32×16, depth 16, scale 16 | every side ends at u=2, v=1; top U=2,V=1 |
+| C-corners | cell (2,3), orientation 1, mirror true | positions (32,48),(48,48),(32,64),(48,64); UVs (1,1),(1,0),(0,1),(0,0) |
+| C-bounds | same cell, nonflat altitude outputs 10,14,8,20 | x bounds approximately 32.1..47.9; z 48.1..63.9; y 6..22 |
+| F-zero-key | zoom 3, side key 0, successful top | no side requests; top quad still eligible |
+| W-repeat-failure | zoom 4, key already 0x695C00CA, both requests fail | two identical requests, stored key unchanged, binding null |
+| C-wrap-key | key 0xFFFFFFFE, zoom 3; first request fails | requests instances 1 then 0xFFFFFFFE; key retained |

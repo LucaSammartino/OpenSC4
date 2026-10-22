@@ -7,9 +7,10 @@
 - Goal: resolve only LM1–LM8 from primary native evidence; no engine reads/edits.
 - Worktree reserved, detached HEAD reused; no ref changes.
 - Read lot-model spec target sections, open questions, lane/merge format and short handoff.
-- Published native binding-failure rules and cell corner/placement/update contract in §§2.1,3.1,4.1,4.2.
+- Done: `81d9d85b` binding-failure and cell corner/placement contract.
+- Added foundation buffer order, exact step arithmetic, FSH groups and 11 independent vectors; LM3/LM5/LM6 answered.
 - Native proof: missing zero key disables foundation/wall binding; fallback only after nonzero failure.
 - Cell x/z unsigned bytes, four-record strip and full orientation table verified in instructions/data.
-- Next: finish LM5 factory type/group and LM6 lighting semantics; trace wall geometry, foundation math, lifecycle/inventory, draw modes.
+- Next: trace LM1/LM7 draw modes, wall geometry and LM2 lifecycle/inventory; retain exact residuals if not closed.
 - q.py cannot launch Bash (E_ACCESSDENIED); use bounded PowerShell output and re_query directly.
 - No game runs, ABI changes or runtime claims planned.
