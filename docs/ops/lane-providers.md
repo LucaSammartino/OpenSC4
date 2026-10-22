@@ -130,5 +130,6 @@ main, isolated permission roots, branch identity, concurrent ref conflicts and i
 subscription CLI probe committed a new file on detached HEAD and published only its fixture lane branch, with
 two registered guard calls. A native sandbox probe on an existing worktree allowed its own metadata write and
 denied opening shared config and main's ref for writes. No ACL removal or sandbox bypass was used. Evidence:
-build-runs/codex-adapter-canary/git-live2-* and existing-worktree-permissions.json. The adapter explicitly disables
-Git auto-maintenance in child shell settings so it cannot try to pack shared refs during a lane commit.
+build-runs/codex-adapter-canary/git-live2-* and existing-worktree-permissions.json. The adapter requests disabled Git auto-maintenance in child shell settings. The live CLI still emitted a
+non-fatal packed-refs.lock denial; detached commits and checked publication passed. Shared refs remain protected,
+and the actual committed HEAD and ancestry determine publication success.
