@@ -5,96 +5,48 @@ before it stops and moves the stop note it replaces, verbatim, to [docs/history/
 lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-10.md](history/handoff-2026-10.md).
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
-## 0. Current state (2026-10-22, run4 open-ended)
+## 0. Current state (2026-10-23, run4 open-ended)
 
-**train104 landed `9597c2a6e2`: all3 actual delivery ancestors proved, no skips.**
-Stable gate cargo5142/0, clippy clean, native190/190, CTest68/68. Standard shadows/current40
-both clean2032/ref0 with full app/service shutdown; no scripted full save ran in either standard profile.
-DLL SHA256 `29e023c9a2ca36950ec5e94e4428b16f3fc94bc35154613de882d14b4e7521f2`.
-Run271 retains aura71/71, traffic72/72, netmgr72/73,17resyncs and NM10 differences78 on26lines.
-Main combined tooling **180passed/1POSIXskip92.67s** on clean landed source; doccheck ok.
-Coverage **57.8/36.1/19.7/18.1**, fifth flat train. Selection changed to genuine first WWW/FTP,
-persistence, LegacyControl, lot-editor and now MapView portable owners; contradictory contracts stay held.
-439 rounds at this checkpoint; checkpoint425 recorded, next450. Current state files outrank this note.
+**Continuing; no STOP requested or issued by this draft.** Main is `a0723f48ddd2e7d0627cd7b1cd0bf1d1b57373a3`, train105 canonically landed00:27:47 BST (actual landing record; HEAD independently confirmed). Train105 integrates application, bounded powerline corrections and bounded paths corrections. Actual stable gate: **5193 passed/0 failed/0 ignored**, clippy clean, native **50/50**, **CTest68/68**. Raw Cargo output has22 result summaries, zero measured/filtered; gate record `build-runs/gate-train105.json` matches clean head/tree8301f78b782093632bf35cdc05062dc1cd00f8c6. DLL SHA256 **54f66618f8e3d2f5f0f3996e8a2a2b6b8213c42161c1d4dabf6c982727902199**. Gate finished00:17:10; standard regression PASS, pipeline finished00:27:21.637485. Run272 records this landed batch; raw regression differences remain bounded evidence and must not be copied from104/103. Both actual105 standard requests have no save/script action: standard regression does **not** establish full-save/reload. Historical native-verifier scripted saves remain separate artifact evidence.
 
-**Authority:** RE/spec-writing paused; region reserved to LucaSammartino through2026-11-21.
-Target9 actual live implementation workers, max3glue, max3 rounds per logical family. No fourth round,
-renamed budget, narrowed guard bypass or provider workaround. Coordinator review helpers are additional
-review capacity, not implementation lanes. Read `prompt.txt`, `docs/ops/rules.md`, the coordinator/refill/
-merge-train state and heartbeat, and run guard after restart. State mutations use `run4_coord_lock.py`.
-STOP: `python tools/lanes.py stop "<reason>"`; land ready work, commit, push, end.
+Root completed post-generation/doc/coverage/treemap checks: **57.8/36.1/19.7/18.1**, sixth flat train. Module presence, host plumbing, repeated checks and bounded ready reports do not establish whole-owner/native/replaced credit. Tools unchanged in105: retain actual full-main104 tools **180 passed/1 POSIX-only skip**, exit0,92.67s on clean9597c2a6; no redundant full-tools rerun. Evidence `build-runs/train104-main-tools-pytest.{json,log}`.
 
-**Live9/9 at the checkpoint, glue0/3:**
-- verify-flora-records4 final3/3, PID33348.
-- core-paths-contractfix4 final2/2 after parent1, logical3/3, PID12324.
-- core-textures-contractfix4 final2/2 after parent1, logical3/3, PID23844.
-- core-glyph-contractfix4 final2/2 after parent1, logical3/3, PID22856.
-- core-ftp4 final3/3, PID14640.
-- verify-advice-subject4 round2/3, PID26200.
-- core-model-effects-contractfix4 phase1/2 after parent1, PID10108.
-- core-lotconfig-editor4 first1/3, PID32476.
-- core-legacy-control4 first1/3, PID27236.
+**Capacity snapshot00:30:38.793267 BST: round448,9/9 actual backend PIDs alive,0 launchable pending.** All below were verified live with matching lane_backend manifest command and creation identity immediately before writing. PIDs alone are not durable liveness; recheck creation/cwd/command and real descendants on restart.
 
-**Refill:** three launchable briefs: priority original singleflight final3/3 service repair;
-first core-map-view4; core-persist-runtime4 resume2/3. TextEdit resume2/3 was REFUSED because
-LegacyControl holds the subsystem reservation; retain blocked until that actual cause clears, then fresh
-full guard. FileBrowser draft also remains held on TextEdit publication and its original broad keys.
-No STOP/provider pause; refillerPID23912 alive at the last check. Fresh snapshots/process identities
-determine actual activity. Never infer completion or restart from an observation timeout/stale status.
+| Lane | PID | Created BST | Original-family round |
+|---|---:|---|---|
+|verify-dbpf-native4|36944|2026-10-23 00:25:41.120687|FINAL3/3|
+|core-glyph-contractfix4|22856|2026-10-22 22:22:45.724751|correction2/2 + parent1 = FINAL3/3|
+|core-ftp4|14640|2026-10-22 23:30:18.755744|FINAL3/3|
+|core-model-effects-contractfix4|24532|2026-10-23 00:18:06.726392|correction2/2 + parent1 = FINAL3/3|
+|core-persist-runtime4|19940|2026-10-22 23:34:28.106704|2/3|
+|core-lotconfig-editor4|32656|2026-10-23 00:16:02.596173|2/3|
+|core-legacy-control4|33956|2026-10-23 00:18:38.606427|2/3|
+|core-player-drive4|5248|2026-10-22 23:41:05.888479|1/3|
+|core-scene-renderer4|19556|2026-10-22 23:45:16.127195|1/3|
 
-**Next train105:** ready own clean tips core-application4 `65a2ac6ff1fa0186636ed31a9c4eaa11daaeccaa`
-and core-powerline-contractfix4 `867db99a1c7cd3ef9e89f68a5c827190fdd0be68`; include every other actually
-ready delivery at assembly. Application5064/0 and Powerline5058/0 each have actual68-test gates;
-independent Powerline algorithm/readiness reviews cleared bounded scope. AP3-AP9, NT18/22/24/25/26,
-region and whole-owner/native exclusions remain. The combined train still needs its own real gate/regress.
-Paths5087/0/native214 and textures5098/0 had final gates running; no partial result is a final PASS.
+**Next train106:** the only presently unlanded READY queue entry found is textures `ce3bf3e3e790c88c156b31806703a4cfe853ed40`. Independent review confirms clean own tip, unchanged source399d555d/engine d734a0c0d45f021fde3d030315cdbec94fcd0dc9, all source/log hashes match durable evidence, Rust5098/0 including48texture tests, clippy0, native214/214 with11 real inherited warnings, CTest68/68 and fmt6 touched files. Final source/report only changes; TB1/TB2/TB8, invalid-memory/native/allocation and distinct-record restore limits remain. ABI false/game none. Original correction2/2+parent1=3/3 complete, no fourth. Root should assemble106 through normal queue after checking current ready tips; do not restart105 or count WIP as ready.
 
-**Tooling repair:** round2 finished WIP at own clean `53ed3bc47cf16101a3a7cbc4078ccf9bc02c978f`.
-Actual supplied-venv full pytest195PASS on stable84676ad5 repaired direct descendants, genuine Windows
-venv delegation and bounded authentication. Original9failed/168passed and6/6descendant failures remain.
-Independent exact-helper tests then proved6/6 pre-existing-service output writers outlived exclusion;
-one new persistent-service case poisoned ownership after its request completed. All fixture processes
-exited cleanly. These are actual Lease tests, not actual wrapper/cache verification, and the queue stays WIP.
-Reviewed final3/3 spec `build-runs/run4-tools-build-singleflight4-r3-service-spec.json` is queued first.
-It requires actual cache-enabled client-side compiler ownership, exact daemon role/creation/endpoint proof,
-existing/new/raced service cases and honest failure handling. No process-name exception or cache disable.
-Copied public sccache source ZIP permits own-worktree reading; binary capability remains to be verified.
-Finite acknowledged keepalive is conditional on actual server identity/idle interval and existing deadlines.
-Generic cache lifetime draft remains deferred; the two historical EOF causes are not proven.
-Root made the dedicated pytest venv self-contained; actual lane195PASS proves it now works.
+**Active gate/error attention:** Glyph has one corrected serial quick→fmt→all pipeline; source6c5a12ab/current report12266af7, engineea151c3fa85633f402efd7c4aba4dc77601f1f86. Corrected quick32/32glyph+3060core is real; current stable all completed Rust5093/0 and doctests; clippy started00:31:48, with no final all/CTest verdict at00:32:07. Old NUL/LNK1104/baseline19tests and stale sweep expectation failure remain archived. No fourth. DBPF final3/3 uses existing frozen source02d08687 pair and matched explicit-budget-ON literal40 OFF-first→ON controls; old budget-OFFref4/exit1 and EX54/EX55 remain, no outcome assumed. No build/edit while requests queued.
 
-**Other active/queued evidence:** FTP honored round2 context denial; complete quick3043/0 and212native
-passed, but prior all ended without a recovered final verdict. Final3/3 must recover/complete it serially.
-Persistence first round added six partial runtime owners131functions/13721B, KeyList22/1071B reused
-separately. Mixed-source baseline5080 then E0433 is FAILED;18newtests unmeasured, CTest20/68 incomplete.
-Old pipeline disappeared; resume must refresh actual liveness, preserve logs, fix its own fmt path and
-dead-baseline polling helper, then collect one coherent serial validation. No blanket owner/byte credit.
-Flora's fresh-save reload and OFF control both stalled in corefc4_sim_on_tick; no reload credit.
-AdviceSubject's private additive clone transport retains AD17/18 distinctions and owned lifetime checks.
-MapView is a genuine first portable owner candidate;87functions/31396B is attribution, not implementation.
-Conflicting16-bit formulas/examples and QV1-QV4 stay unresolved. Existing paused geometry/lotmodels/
-sprites/overlay/ripples publications remain held; do not reopen their capped families.
+FTP special intervention belongs to root, **not a general recovery rule**: at00:29:16 root terminated only hung stats client27536, exit15, after identifying that exact status query; the same existing validator continued to CTest. Do not kill/restart the cache daemon/compiler or start another gate. Its own-worktree note preserves this event. Read-only follow-up at00:30 observed that validator's CTest18/68 passed, no final verdict yet. Preserve actual logs, altered stats/error provenance and real final verdict; a failed stats request is not a successful cache result.
 
-**Current artifact limits:** train104 integrates bounded language, borrowed command-line and evidence/read
-tooling deliveries. Historical language records260-270 and command-line256-258 use their own immutable
-DLLs and full-save controls, not train104's standard opt-in-off corpus. Language strict116235/116235 per
-enabled run retains host1656/question414 differences, natural0/0 and LU1-LU4/SL1; command-line246/246
-repeats one argc5/raw174 shape, retaining CL1-CL4/owned/reload gaps. No new defaults or whole-owner credit.
-The real104 sccache EOF fallback preceded a successful build; originating request/server/cause UNKNOWN.
-The earlier103 approximately910s idle/drain hypothesis cannot explain every EOF. Preserve both records.
+**Finished capped failures, not refill slots:**
 
-**Next three actions:** (1) Finish104 publication/commit/push/eligible cleanup, then immediately assemble105
-with every ready delivery. (2) Maintain9 through reviewed launchable briefs and fresh full guards; collect
-existing checks before starting another; handle blocked TextEdit only when its reservation clears.
-(3) Review final service repair against measured failures, actual cache/wrapper paths and stable full suite;
-handle actual105 gate/regress, ancestry and postchecks. Checkpoint450 next. Never set verdicts by hand.
-Use only canonical heartbeat waits: train while running, backlog otherwise, yield600s, exits per prompt.
-After every train regenerate handoff/coverage/treemap, doccheck, full tools when changed, status, commit/push,
-and worktree cleanup per ops/rules. Preserve all ignored evidence (including immutable binaries/images),
-branches, parked/unlanded/active worktrees. Every10 trains full restart note; every25 rounds coverage review.
+- `tools-build-singleflight4` final3/3 `81e1667d` is **WIP** despite clean-source207pytestPASS/228.91s. Final code quarantines detected cache launches; authenticated service ownership, actual Rust/C++ cache reuse and complete drainage remain unimplemented. Exact probe04 error is PermissionError13/WinError31 loading requested DLL name`iphlpapi`; no absolute loader path or traceback retained and underlying cause unknown. No Defender/sandbox diagnosis. Earlier6/6 external-service overlap and persistent-service poisoning evidence stays. Do not land/promote merely from tests or grant a fourth/renamed repair. Review `build-runs/coordinator-singleflight-r3-final-review.md` and retained isolated JSON.
+- `verify-advice-subject4` final3/3 clean tip`88d5f0fb` is **WIP**: actual gate5040/0, native4/4, CTest68/68; immutable OFF lifecycle control clean and ON harness clean/full-save/shutdown/ref0, but **36 of321 native comparisons differ**. CURRENT40 correctly withheld. AD19–AD21 remain. Clean harness does not erase failed comparisons. No fourth or direct owner/default promotion.
+- Flora final3/3 remains WIP at`0b7a17a0`: actual Rust4943/0/clippy0, latest fixed-source native1/4 incomplete and CTest skipped. Original native command exit was not retained; restat false-negative is possible, not proved. Old CTest68 cannot replace failed final evidence. Fresh saved-fixture probeON/OFF both stall before probe; preserved-fixture passes do not diagnose cause or close fresh reload. No helper/root duplicate check or fourth implementation round.
+
+**Policy and restart authority:** user RE/spec-writing pause persists; region is assigned to LucaSammartino through2026-11-21 and excluded. Target9 actual live workers; max3glue, max3rounds per lane/logical family, inherited corrections consume remaining original budget. No fourth, renamed family, narrower-key denial bypass, provider/cap workaround, original-output oracle, coverage/default promotion or arbitrary game retry. Read fresh state before touching anything: `build-runs/run4-coordinator-state.json`, `run4-refill-queue.json`, `merge-train/state.json`, `run4-heartbeat.json` and current guard/provider/STOP state. Timestamped handoff is subordinate to those files. State changes only through `build-runs/run4_coord_lock.py`. Pending launch0 is separate from held/blocked queue entries; never count old launched records as live.
+
+Read real OS identity/creation/command/cwd, live service-owned compiler children and durable log/source provenance before collecting checks. Old exec/session handles and missing result files are not final verdicts. Collect one existing operation; no duplicate builds or source edits under it. Never manufacture green from merged output, stale logs, zero comparisons, source drift or supervisor exit0. No cache stats RPC merely for liveness (can refresh idle timer). Cache EOF first910.341s inference and later startup EOF unknowncause remain distinct; no universal900s diagnosis or automatic restart.
+
+**Checkpoint450 selection:** `build-runs/coordinator-checkpoint450-held-selection-review.md` ranks actual opportunities and blockers. Filebrowser's snapshots/key/browser ancestors now landed but TextEdit remains unmerged and full UI claims active; audio-layer full-key denial by capped unmerged HitTrack persists; ripple/overlay/geometry publications remain paused/inconsistent or incomplete; multiple native-verification bindings remain unpublished. Do not rerun unchanged denials or invent weaker work to fill a slot. DBPF was the genuine remaining-budget reserve and is now active. Keep an honest eligible backlog/count and preserve every partial result.
+
+**Next three actions:** (1) Root finish run272/HANDOFF publication from actual105 raw evidence and push when reviewed; check fresh state before every action. (2) Assemble/review train106 textures plus any genuinely READY source that finishes; collect FTP/glyph/current workers without duplicate gates and refill a real vacancy only with a fresh legitimate guarded task. (3) At round450 record measured coverage/selection decision, capped errors, actual9-target capacity and unmet prerequisites; do not confuse more workers with automatically verified owners.
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 271 (Three reviewed verifier and tooling deliveries landed without skips after actual5142 Rust tests,68-test gate, standard regression and full combined tools validation; raw native differences retained.); 270 (Bounded language lifecycle controls passed with42 actual providers; foreign-host and open-question differences remain withheld); 259 (Four reviewed deliveries landed without skips after real5140 Rust tests,68-test gate and standard regression PASS; raw native gaps preserved.); 255 (Ten reviewed source and existing-contract deliveries landed without skips after actual gate and full current40 regression.); 254 (Heartbeat backlog/blocking-wait update landed in the very next train after instruction cleanup, with three existing bounded contract publications.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 272 (Three bounded portable application, power-line and path deliveries landed without skips after actual5193 Rust tests,68-test gate and standard regression; unsupported owner and native domains remain explicit.); 271 (Three reviewed verifier and tooling deliveries landed without skips after actual5142 Rust tests,68-test gate, standard regression and full combined tools validation; raw native differences retained.); 270 (Bounded language lifecycle controls passed with42 actual providers; foreign-host and open-question differences remain withheld); 259 (Four reviewed deliveries landed without skips after real5140 Rust tests,68-test gate and standard regression PASS; raw native gaps preserved.); 255 (Ten reviewed source and existing-contract deliveries landed without skips after actual gate and full current40 regression.). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
