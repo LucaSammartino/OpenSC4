@@ -1,8 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-landfill-records4 (independent landfill zone/occupant verification) | `verify-landfill-records4` / detached worktree (engine lane) | blocked: initial published zone calling-boundary check; LG31 filed; no engine/ABI changes, builds or game runs; no verification credit | (1) Resolve LG31 from existing published contracts. (2) Supply a permitted native zone interface or separately scope occupant-only verification. |
+| verify-landfill-records4 (independent landfill occupant verification) | `verify-landfill-records4` / detached worktree (engine lane) | in progress | (1) Implement public occupant comparison. (2) Focused tests, full gate and guarded game controls. |
 
-## Report
+## Handoff
+
+- Round 2/3 narrows scope to public native landfill occupant construction, references, queries, mutations and persistence. No zone calls or zone credit; LG31 remains excluded.
+- Starting HEAD c09afb61; clean detached worktree reused, no branch/ref changes permitted.
+- Implemented isolated native factory/interface probe and independent Rust C ABI probe over authored records, nine native cases, two focused Rust tests. No city insertion/Init or exemplar changes; same-ID SetTileID uses corrected public return type.
+- Initial all: cargo 4938, clippy 0 diagnostics, ctest 68/68; tree changed during run (baseline only). Quick: capi 529 tests and C++ 5/5 build PASS. fmt two Rust files PASS.
+- Next: commit code, run stable all, snapshot DLL and submit unique guarded game controls through 2032 with save/reload. Native comparison measurements not yet available.
+- Required game evidence: immutable guarded2032/ref0 save/reload controls, unique request labels, wait without qwait. No request outstanding.
+- Guard: C:/Users/tlori/FreeCity4/build-runs/run4-verify-landfill-records4-r2-manifest.json; shared budget/calls retained.
+
+## Prior round report
 
 Stopped at the task's required initial boundary check, within approximately 15 shell/edit calls. Milestone `b79b2286` records the question and initial handoff. No engine implementation was attempted after the boundary gap was established.
 
