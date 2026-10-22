@@ -2,7 +2,7 @@
 |---|---|---|---|
 | re-dispatch-completion4: DP10–DP13 native contracts | `re-dispatch-completion4` / (RE lane, detached worktree) | WIP: DP11 and DP12 answered; DP10 drawing remains; DP13 unchanged; docs checks pass | Coordinator review of published contracts; complete DP10 rendering before replacement credit. |
 
-## Round 2 report
+## Handoff
 
 - Goal: finish DP10–DP12 exact native contracts in one guarded round; no engine/tools/ABI edits.
 - Prior milestones: f1135c91 (DP13); c83804c4 (pylon geometry, caller descriptors, view tracking).
@@ -15,6 +15,8 @@
 - Public glue reports two unsaved viewHandle differences; no original runtime trace requested.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-dispatch-completion4-r2-manifest.json.
 - Detached HEAD is intentional; commit normally without updating refs. No subagents/restart/network.
+- Guard stopped this round over 150k context; queue write was denied, so no merge-queue file was written.
+- Report commit: 4953eb10; next exact trace: 0046C8B0 call-display generation and 0046D990 drawing branches, under coordinator authorization only.
 
 ### Results
 
