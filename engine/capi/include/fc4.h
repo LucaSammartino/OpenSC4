@@ -12714,4 +12714,18 @@ _Static_assert(sizeof(fc4_span565_source) == (sizeof(void*) == 4 ? 24 : 32), "fc
 _Static_assert(sizeof(fc4_span565_blt) == 32, "fc4_span565_blt layout");
 #endif
 
+/* AT24 aircraft lifecycle: op 0 pre-shutdown, 1 shutdown, 2 accepted removal.
+ * Events 1 Shutdown plane, 2 Activate(false), 3 release airport, 4 release map
+ * plane, 5 release base plane. Callback borrows tokens, must not reenter;
+ * releases are performed by the original reference host, after each event.
+ * GZCOM callers use this bridge to dispatch the public plane methods. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+bool fc4_automata_aircraft_lifecycle(fc4_automata_manager* manager, uint32_t operation,
+    const fc4_ref* airport, void (*event)(void* user, uint32_t kind, uint64_t token), void* user);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */
