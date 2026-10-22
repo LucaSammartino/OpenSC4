@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-budget-slider-ownership4: BW15 `+0x2C` SliderInfo department refcount from native bytes | Claude / .claude/worktrees/re-budget-slider-ownership4 | ready: spec §4 BW15 block + tests 21-25; BW16 filed (§4.1 ID-test direction) | core: count department refs in `+0x2C` (one per element), erase order `+0x2C` then `+0x38` on shutdown, reverse in dtor; review BW16 |
+| re-budget-slider-ownership4: BW15 `+0x2C` SliderInfo department refcount from native bytes | Claude / .claude/worktrees/re-budget-slider-ownership4 | ready: spec §4 BW15 block + tests 21-25; BW16 answered from bytes (§4.1 rule 2 inverted, tests 26-27) | core: count department refs in `+0x2C` (one per element), erase order `+0x2C` then `+0x38` on shutdown, reverse in dtor; show line items with ID <= 100 regardless of amount, ID > 100 only when amount != 0 |
 
 ## Report
 
@@ -25,3 +25,15 @@ all four sites (`0x007880D3`, `0x00788147`, `0x007886ED`, `0x00788F33`) are `CMP
 amount hides the item, so ID <= 100 is always shown. BW15 tests avoid this case.
 
 Commits: 6a4af384 (BW15 spec), f0e15d0a (tests, BW16), then this report.
+
+## Round 2: BW16 (static, bytes; REA not used)
+
+- Slot 3 identity: the elements of the department line-item vector are `cSC4LineItem` at the primary interface
+  (vtable `0x00AB0F58`, set by ctor `FUN_006AAE20`; `vftable_1` at object `+4`). Slot 3 = `0x006AAEB0`, returns
+  `+0x54`. Writers: department slot 17 factory `FUN_006AB040` stores arg1 at `+0x54` (`0x006AB076`) and keys the
+  department map `+0x4C` with it (`0x006AB0A8`); `Read` `0x006A9B60` (this = object+4) loads it. So slot 3 = GetID.
+- Branch: all four sites `CMP EAX,0x64; JBE shown`, fall-through (ID > 100) tests the 64-bit amount, zero hides.
+  Count loops test flag bit 0 first; build loops test ID/amount first (order irrelevant, both required).
+- Spec: §4.1 rule 2 and worked example corrected, §8 updated, tests 26 (IDs 99/100/101 x amounts 0/25, flags 5) and
+  27 (flags 4 vs 1). BW16 moved to answered (DIFFERS). BW15 text and tests 21-25 untouched.
+- Commit: ebebd8db.
