@@ -165,8 +165,8 @@ generated index: the questions live one file per spec, so read only the file for
 | application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 1 | 10 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
-| automata | 3 | 37 | A5, AM13, AT25 | questions/automata.md |
-| automata-managers | 2 | 0 | AD3 | questions/automata-managers.md |
+| automata | 5 | 37 | A5, AM13, AT25 | questions/automata.md |
+| automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
 | budget-window | 2 | 14 | BW18 | questions/budget-window.md |
@@ -198,7 +198,7 @@ generated index: the questions live one file per spec, so read only the file for
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
-| framework-gz-services | 7 | 0 | GZ8 | questions/framework-gz-services.md |
+| framework-gz-services | 0 | 7 | GZ8 | questions/framework-gz-services.md |
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
 | geometry-utilities | 1 | 0 | GU2 | questions/geometry-utilities.md |
 | glyph-textures | 6 | 0 | GT7 | questions/glyph-textures.md |
@@ -287,4 +287,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **362** | **1176** | | |
+| **total** | **359** | **1183** | | |
