@@ -13,6 +13,10 @@ contract or an evidence-backed attribution correction approved by the coordinato
 §5.6 now specifies `0094A2C1` including native tables; §5.7 specifies `0094A079`.
 The internal decoder parser `00A667FE` still needs a contract. §1.1 records the
 largest inspected bodies' boundary; sampled instructions are not decoder coverage.
+2026-10-22 residual phase: §5.8 now fully specifies `00A675E0` (3405 B), including
+bit extraction, both rate layouts, partial mutation and retained fields. §1.1 adds
+precise synthesis/history/input/output boundaries for `00A6A25B`/`00407000`, whose
+complete coefficient arithmetic remains open. Remaining U: 32 bodies / 24,547 B.
 
 **TD2 - Registered services' remaining dependencies**
 

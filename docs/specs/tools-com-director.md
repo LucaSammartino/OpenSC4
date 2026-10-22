@@ -77,7 +77,7 @@ have `name-medium`, and `00A66A31` has `neighbour`.
 | `00A67541` | 56 | U |
 | `00A67579` | 57 | U |
 | `00A675B2` | 46 | U |
-| `00A675E0` | 3405 | U |
+| `00A675E0` | 3405 | S; complete layer-3 side-information parser (§5.8) |
 | `00A6832D` | 1414 | U |
 | `00A688B3` | 584 | U |
 | `00A68AFB` | 286 | U |
@@ -115,8 +115,40 @@ routine `00407000` (2444 B); `00A6B918` (3773 B) uses x87 float operations, glob
 scratch at `00BB87A8` and float coefficient tables; `00A675E0` (3405 B) extracts
 packed bits through +24A4/+24A8; `00A69065` (2084 B) uses the numeric word tables;
 `00A66CAC` (2078 B) initializes float outputs and performs further arithmetic.
-Their operation order, rounding and complete stateful outputs remain TD1. These
-observations do not justify a presumed stateless double-precision decoder.
+The side-information body `00A675E0` now has a complete contract in §5.8.
+The other five bodies remain TD1; their complete numerical outputs are not proved.
+These observations do not justify a presumed stateless double-precision decoder.
+
+The following additional boundary facts are instruction-verified, but do **not**
+close the 5716-byte synthesis body. `00A6A25B` takes decoder ECX and two stack
+arguments `(PCM destination, subband input)`, popping eight bytes. It decrements
+the byte at +4A0C modulo 16 even when signed channels at +4A40 is nonpositive.
+Let the resulting phase be p, parity b=p&1, and q=p+(b XOR 1). For each channel c
+from zero to channels-1 it calls `00407000` with two borrowed history destinations:
+`this+4+c*480h+2*(((p+b)&15)+b*120h)` and
+`this+4+c*480h+(b XOR 1)*240h+2*q`; its third argument is input+c*40h.
+Thus each channel consumes 64 bytes of packed input, not 32 binary32 values.
+The history used for windowing starts at `this+4+c*480h+(b XOR 1)*240h`.
+The call occurs even when the PCM destination is null; null skips only windowing
+and output stores. For exactly two channels it writes 32 signed words per channel
+at destination+2*c+4*j (j=0..31); otherwise the stride is two bytes, with each
+channel's base still advanced by two. There is no channel-limit, pointer, length,
+allocation or error check. Inputs and outputs are borrowed, with no ownership
+transfer. Output values use signed word products, wrapping dword accumulation,
+arithmetic right shift by 13 and signed saturation to 16 bits; the central sample
+has a distinct multiply-high path whose complete coefficient contract remains
+open. No defined EAX result or local EMMS is provided by this body.
+Evidence: phase/setup `00A6A269–00A6A2F1`, output dispatch `00A6A2F9–00A6A310`,
+first sample `00A6A32D–00A6A388`, central multiply-high `00A6A83C–00A6A893`,
+mono/stereo branches and loop tail `00A6ADB9–00A6B8AC`.
+
+`00407000` has no calls, branches, allocation or input-length check. It reads 64
+input bytes and writes 17 words at firstDestination+40h*k (k=0..8) and
+firstDestination+20h+40h*k (k=0..7), and 16 words at
+secondDestination+20h*k (k=0..15). Only these word locations are stores; gaps
+remain history. It returns without EMMS. Its complete butterfly/coefficient
+arithmetic remains open: the scattered stores and packed signed-word operations
+must not be replaced by an assumed floating transform. Evidence: `00407000–0040798B`.
 
 ## 2. Construction, singleton, and real registrations
 
@@ -464,6 +496,75 @@ side effects are not rolled back. Otherwise store sampleLimit at +4A4C, byteCoun
 at +4A48 and return 0. It does not copy/own the buffer or validate compressed-frame
 length. Parser acceptance and writes remain TD1.
 
+### 5.8 Layer-3 side-information parser
+
+`00A675E0` takes the decoder in ECX, no stack arguments; AL=1 means success and
+AL=0 means the explicit invalid-block-type failure. Upper EAX is not a Boolean
+contract. Its only direct caller is `00A69EC2` inside frame driver `00A69E86`;
+this is reachable decoder code, retained in the attributed scope.
+
+Let B be the borrowed byte pointer at +24A4 and t the signed 32-bit bit cursor at
++24A8. Each n-bit extraction loads **four** bytes at `B+arithmeticShift(t,3)`,
+interprets them big-endian, logically shifts right by `32-(t&7)-n` (native shift
+count masked to five bits), masks to the low n bits and advances t by n modulo
+2^32. Bit order is most significant first. Native mask table `00AF3560` contains
+`2^n-1` for these widths. Neither a byte count nor end pointer is consulted.
+Readable padding is required through the last four-byte load even when the
+logical fields fit in fewer bytes; short input does not produce a clean partial
+read result. This body neither allocates nor frees any memory and retains no new
+pointer. Fields omitted by the selected branch retain their previous contents.
+Evidence: first load/extraction `00A675E8–00A67637`, masks and cursor stores
+throughout `00A675E0–00A6832C`.
+
+Channels C is the signed dword at +4A40. Full rate means byte +4A0E=0; any other
+byte selects reduced rate. Read the common prefix in the following order:
+
+| Field | Full-rate width | Reduced-rate width | Stored at |
+|---|---:|---:|---|
+| main-data backward offset | 9 | 8 | +34CC dword |
+| private bits | 5 if C=1, otherwise 3 | 1 if C=1, otherwise 2 | +34D0 dword |
+| four scale-factor-selection flags, channel order | four separate 1-bit reads per channel | absent | +34D4+channel*A0h, then +4,+8,+C |
+
+After that prefix, full rate iterates granule g=0,1 outside channel c=0..C-1;
+reduced rate iterates only g=0. Each record starts at
+`R=this+34E4h+c*A0h+g*48h`; all listed fields are zero-extended dword stores.
+For C<=0 the channel loops are skipped after reading the two common fields;
+full rate still visits both empty granule iterations. C>2 is unchecked and can
+write beyond the intended two-channel layout.
+
+| Read order / condition | Width | Record offset and descriptive field |
+|---|---:|---|
+| always | 12 | +00 part2/3 bit length |
+| always | 9 | +04 big-value pair count; values 289..511 are accepted here |
+| always | 8 | +08 global gain |
+| always | 4 full rate, 9 reduced rate | +0C scale-factor compression |
+| always | 1 | +10 window-switch flag |
+| switched | 2, then 1 | +14 block type, +18 mixed-block flag |
+| switched | 5,5 | +1C,+20 Huffman table selectors 0,1; selector 2 at +24 retained |
+| switched | 3,3,3 | +28,+2C,+30 subblock gains |
+| unswitched | 5,5,5 | +1C,+20,+24 Huffman table selectors |
+| unswitched | 4,3 | +34,+38 region counts 0,1; set +14 block type to zero |
+| full rate, after either branch | 1 | +3C preflag |
+| both rates, after either branch | 1,1 | +40 scale-factor scale, +44 count1-table flag |
+
+In a switched record, only **after** reading all three subblock gains, reject
+block type zero with AL=0. No cursor or prior store is undone; suffix flags,
+derived region counts, subsequent channels and granules are not processed.
+Otherwise full rate sets region0=8 for block type 2 with mixed=0, and 7 for all
+other switched records, then sets region1=20-region0. Reduced rate sets region0=8
+for type 2/mixed=0 and **leaves region1 unchanged**; all other switched records
+set region0=7, region1=13. Reduced rate never writes preflag. Unswitched records
+do not clear the retained mixed-block flag or subblock gains. This parser makes
+no other semantic validation, including no bounds check on big-value count,
+selectors or region totals. Successful completion returns AL=1.
+Evidence: full-rate branch/check/derived counts `00A67940–00A67C66`, reduced-rate
+counterpart `00A67F5E–00A6828B`, suffixes/returns `00A6828B–00A68328`.
+
+For normal C=1/2 and initial cursor t, success consumes respectively 136/256 bits
+at full rate and 72/136 bits at reduced rate, independent of switch flags.
+These are 17/32 and 9/17 logical bytes for byte-aligned input, plus the readable
+padding required by the extraction rule. No sample output is produced here.
+
 ## 6. Independent discriminating vectors
 
 These are contract vectors to implement independently, not reports of execution.
@@ -495,14 +596,21 @@ These are contract vectors to implement independently, not reports of execution.
 | TD-V23 | Read request5bytes, stereo/16-bit, at least one pending frame | One whole frame (4bytes); fifth destination byte untouched |
 | TD-V24 | Submit with positive pending bytes; repeat with count3 and no pending bytes | Returns -1 then -2; no input dereference/submission-field writes |
 | TD-V25 | Throw during first getter construction after base completes, catch outside, call getter again | Base cleanup, flag clear, then construction retry |
+| TD-V26 | Side info: full rate, C=1, cursor0, zero bytes with readable padding; record storage prefilled nonzero | AL=1, cursor136; two unswitched records; block types/region counts/flags zero; mixed flags and subblock gains retained |
+| TD-V27 | Side info: reduced rate, C=2, cursor0, zero bytes with readable padding; preflags prefilled 7 | AL=1, cursor136; one record/channel, preflags remain7; no scale-factor-selection flag writes |
+| TD-V28 | Full-rate mono prefix18 zero bits, then record fields 12/9/8/4 bits zero, switch1, type0, mixed0, selectors0/0, gains0/0/0 | AL=0 at cursor74; prefix and record through gains retained; derived counts and three suffix flags untouched; second granule untouched |
+| TD-V29 | Reduced-rate mono: prefix9 zero bits; 12/9/8/9 zero bits, switch1, type2, mixed0, selectors0/0, gains0/0/0, suffix0/0; prefill region1=99 and preflag7 | AL=1, cursor72; region0=8, region1 remains99, preflag remains7, selector2 retained |
+| TD-V30 | Reduced-rate mono, valid unswitched record with big-value count511 and region counts15/7 | AL=1, cursor72; stores511,15,7 without rejection |
+| TD-V31 | Synthesis 00A6A25B: phase0, channels0, both stack pointers null | Phase becomes15; no transform/output call or pointer read; no Boolean return contract |
+| TD-V32 | Synthesis: one channel and readable packed input/history, PCM destination null | Phase advances, transform/history writes still occur, PCM window/output stores skipped |
 
 ## 7. Open contracts and coverage boundary
 
 Vector TD-V23 assumes parsed channel/rate fields matching the stored stereo format;
-it is a pending-data case after a valid header. The 25 vectors are independent
+it is a pending-data case after a valid header. The 32 vectors are independent
 review fixtures, not reports of execution against an implementation or the game.
 
-Checklist reconciliation: D=6 bodies/294 B; S=30 bodies/3026 B; U=33 bodies/27952 B;
+Checklist reconciliation: D=6 bodies/294 B; S=31 bodies/6431 B; U=32 bodies/24547 B;
 A=1 artifact/21 B. D/S are documented boundaries, not proof that nested decoder
 arithmetic is specified. TD1, TD2 and TD4 remain open; TD3 is answered in section 2
 and archived in answered/tools-com-director.md. Whole-owner promotion is withheld.
