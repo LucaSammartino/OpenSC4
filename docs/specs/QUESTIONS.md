@@ -179,7 +179,7 @@ generated index: the questions live one file per spec, so read only the file for
 | building-development | 0 | 39 | DG40 | - |
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
 | camera | 3 | 4 | CA8 | questions/camera.md |
-| city-detail | 2 | 5 | CD8 | questions/city-detail.md |
+| city-detail | 3 | 5 | CD9 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools | 3 | 0 | CT4 | questions/city-tools.md |
 | city-tools-input | 12 | 1 | CT14 | questions/city-tools-input.md |
@@ -187,7 +187,7 @@ generated index: the questions live one file per spec, so read only the file for
 | clock24 | 0 | 22 | CK23 | - |
 | command-line | 3 | 0 | CL4 | questions/command-line.md |
 | command-system | 7 | 0 | GC8 | questions/command-system.md |
-| commercial-industrial | 0 | 12 | CM11, IN3 | - |
+| commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 2 | 56 | EX54 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
@@ -196,7 +196,7 @@ generated index: the questions live one file per spec, so read only the file for
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
 | dispatch | 4 | 9 | DP14 | questions/dispatch.md |
 | draw-context | 8 | 0 | DC9 | questions/draw-context.md |
-| drawing-fonts | 0 | 17 | FN18 | questions/drawing-fonts.md |
+| drawing-fonts | 5 | 17 | FN23 | questions/drawing-fonts.md |
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 2 | 2 | FM5 | questions/feature-manager.md |
@@ -254,7 +254,7 @@ generated index: the questions live one file per spec, so read only the file for
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 14 | GLUE22, PV14 | - |
-| prop-lotconfig | 7 | 8 | PL23 | questions/prop-lotconfig.md |
+| prop-lotconfig | 8 | 8 | PL24 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | region | 2 | 0 | RQ3 | questions/region.md |
@@ -300,4 +300,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **391** | **1225** | | |
+| **total** | **399** | **1225** | | |
