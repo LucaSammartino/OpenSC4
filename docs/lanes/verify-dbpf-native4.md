@@ -14,8 +14,9 @@
 - Diagnostics committed 02d08687; stable full qbuild all PASS cargo4962/clippy0/CTest68/68; fmt absolute path PASS.
 - Frozen build-runs/dbpf-r2-frozen-02d08687/FreeCity4.dll SHA256 3d1eee0c6a7d55b992484c71a7373def98edc30364431198ce649a0bf21966d4.
 - Matching PDB SHA256 bc8ceb0de7490779087d30af0993071a208f9cfdfa6edbba61310160d74e00ad; both readonly, hashes in manifest.json.
-- Outstanding vdbpf4-r2-own-archive-normal-02d08687 (slot2); waiting via owned dbpf-r2-run.py, session9611, no qwait.
-- Next: inspect that verdict; enqueue own-save-on/off and current40-save-on/off sequentially via helper.
+- Completed vdbpf4-r2-own-archive-normal-02d08687 clean2032/ref0/save12719ms/shutdown; natural60440/60440 and constructed10/10 exact transports.
+- EX55 split: constructed list_false1/key_differences1/count_differences0; natural list_false0/key_differences1/count_differences0; combined2+1 preserved. Missing DIR key in both nonempty mismatches.
+- Outstanding vdbpf4-r2-own-save-on-02d08687; wait helper session63481. Next own-save-off, current40-save-on/off sequentially.
 - Supported fixture_city imports existing saved fixtures commands4-own-e50c5bbc.sc4 and commands4-r2-house40.sc4; do not claim new save roundtrip.
 - Round1 turbo and normal both natural60440/60440 + constructed10/10; three EX55 combined differences each; refusal0/failed0/fallback0/resync0.
 - No game-attempt cap: originalcap3 meant lane rounds, this is round2/3.
