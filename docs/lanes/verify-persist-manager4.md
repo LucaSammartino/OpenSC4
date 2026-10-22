@@ -8,7 +8,12 @@
 - ABI proof: SDK GZServPtrs/cRZSysServPtr obtains one manager reference via GetSystemService; helper destructor releases only that hold. No shutdown or global-hold mutation.
 - Safe callable subset: typed resource RegisterResource overloads (MSVC reverses overload declaration order, as existing FC4ExemplarFactory explains), HasRegisteredResource, GetResource cached-hit, UnregisterResource; resource interfaces are fully defined. Per-key collisions refuse before insertion; all inserted fixture keys removed before city load.
 - Exclusions: no published owned-manager class acquisition; factory removal retains type associations; SDK cache strategy/filter interfaces are forward declarations. PR5 native callback cases remain excluded.
-- Next: add resource-only production-core C ABI session and pre-city native fixture; preserve independent literal inputs and count all outcomes. Baseline all is exec session 2881.
+- Done: 49b74ac7 records initial public ABI/ownership boundary; PR6/PR7 filed. Production-core resource-only C ABI and opt-in pre-city native probe implemented (23 commands, three independent literal keys, three creator-owned resource fixtures).
+- Baseline: cargo 4987/4987, clippy 0 diagnostics, CTest 68/68; source changed during final baseline CTest, so this is baseline evidence only. Logs copied to build-runs/baseline/.
+- Focused quick: initial transport passed 533 capi tests and 144/144 build edges; subsequent negative private-load/preflight additions require another quick.
+- Next: quick on current committed source, focused native request, then stable full gate and immutable-DLL native/component/exact-house40 controls through 2032 with full save and shutdown. No supported reload fixture supplied.
+- Formatting: new Rust module passes wrapper fmt. Checking lib.rs traverses unrelated pre-existing style differences; lib.rs itself passes rustfmt with skip_children=true,reorder_modules=false; no unrelated formatting changed. q.py Bash transport unavailable (E_ACCESSDENIED); local PowerShell commands and qbuild work.
+- Native scope: cached-hit load including failed QI/sentinel, duplicate insertion/registration key mutation, null/negative operations and balanced refs; uncached missing-factory load (preflight typed FindObjectFactory absence) is safe. No positive factory-driven load/cache-filter/PR5/base-resource implementation credit.
 - Constraints: no RE, no global-service teardown or existing-key mutations, no untyped cache calls, no subagents, no branch/ref changes.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-persist-manager4-r1-manifest.json.
 - Game requests: none outstanding. Measured verification: none yet.

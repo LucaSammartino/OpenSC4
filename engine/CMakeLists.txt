@@ -536,7 +536,9 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4SpanRender8.h
         plugin/FC4Span8Fixture.inc
         plugin/FC4FeatureShadow.cpp
-        plugin/FC4FeatureShadow.h)
+        plugin/FC4FeatureShadow.h
+        plugin/FC4PersistManagerVerify.cpp
+        plugin/FC4PersistManagerVerify.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN

@@ -66,6 +66,7 @@
 #include <windows.h>
 
 #include <cstring>
+#include "FC4PersistManagerVerify.h"
 
 #ifndef FC4_VERSION_STRING
 #define FC4_VERSION_STRING "0.1.0"
@@ -359,6 +360,7 @@ public:
         fc4::SpanRender4444Start();      // enable = span4444 (FC4SpanRender4444.h)
         fc4::SpanRender8888Start();      // enable = span8888 (opt-in)
         fc4::Span8Start();
+        fc4::PersistManagerVerify(); // Opt-in scoped fixtures, all removed before city load.
         fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }
