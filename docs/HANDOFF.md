@@ -6,7 +6,7 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state (2026-10-22, run4 open-ended)
-**Coordinator parked re-wingrid4:** 3/3:165/198 functions26103/32735B documented;33functions6632B plusWG3/WG4 remain. No fourth round.
+**Coordinator parked re-wingrid4:** 3/3:165/198 functions26103/32735B documented;33functions6632B plusWG3/WG4 remain. No fourth round. FileBrowser final phase also parked at logical3/3:114entries21878B remain; keep its worktree, no fourth round.
 
 **train78 landed 28984ba530:** Bounded land-value startup/shutdown/message ownership and independently checked read-only native layouts published; hook installation and LV2/LV6/LV7 remain open, capture0. Final FileBrowser contracts publish lifecycle/control/comparator/string-fitting proofs;114entries21878B remain parked after logical3/3. Full native gate required, no complete-owner/runtime promotion. Coverage57.6/35.6/16.5/17.9; rounds272 (open-ended).
 
@@ -34,11 +34,11 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 **Assigned outside work** ([assignments.tsv](assignments.tsv)): the `region` subsystem is assigned to LucaSammartino
 (RE specs, by PR) until 2026-11-21. `lanes.py check` refuses a lane that names `region`. Do not spawn region work.
 
-**User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target6-8 live lanes, refill up to7 initially (latest user instruction), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
+**User policy:** Open-ended, no total round limit. Latest user: ALWAYS KEEP7 live workers; target/concurrency7, max3glue, max3rounds per lane. Refill immediately from reviewed queue after fresh slots/check, never bypass guard, STOP, usage/rate or CPU/disk limits. Park capped lanes; no fourth round. STOP: `python tools/lanes.py stop "<reason>"`, land ready on-disk work, push, end.
 
-**Coverage after train77 / FontSys audit:**57.6/35.6/16.5/17.9; baseline36.8/28.3/12.1/15.9. 50 trains landed; 264 rounds used; next checkpoint 275.
+**Coverage after train78:**57.6/35.6/16.5/17.9; baseline36.8/28.3/12.1/15.9. 51 trains landed; 272 rounds used; next checkpoint275. Camera implementation and graphics contracts await review; no automatic owner credit.
 
-**Live authority:** `build-runs/run4-coordinator-state.json`; `run4-refill.py` launches reviewed briefs from `run4-refill-queue.json` through serialized `run4-launch.py` and the saved guarded Workflow. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
+**Live authority:** `build-runs/run4-coordinator-state.json`; tracked `tools/lane_refill.py --provider codex` launches reviewed `build-runs/run4-refill-queue.json` briefs through tracked `tools/lane_launch.py` and guarded Codex subscription adapter. Legacy build-runs launch/refill scripts are Claude-only. Fresh slots/check/dependency/STOP/parking/3glue gates retained; after compaction read section0 and run guard before adding work. State writes use run4_coord_lock.py.
 
 **Verification follow-up:** train73 traffic71/73 (train72:72/72), 408 mismatches on2031-05-29 and monthly propagation; verified16.5 to13.6 (train75 exact restored reported16.5 without resolving the failure). Preserve both shadow logs and investigate; no golden/sampling relaxation or runtime promotion. re-placelot-final4 resume was guard-denied already-merged: stopped, original worktree preserved, no alias bypass.
 
