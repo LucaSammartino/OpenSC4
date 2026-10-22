@@ -17,8 +17,43 @@ fn solid_spec_example_and_guard_bytes() {
     let r = unsafe { fc4_span8888_solid(spans.as_ptr(), 1, buf.as_mut_ptr(), buf.len(), 0, 16, 0x1234_5678) };
     assert_eq!(r, OK);
     for off in (0..64).step_by(4) {
-        let want = if (24..=32).contains(&off) { 0x1234_5678 } else { 0xA5A5_A5A5 };
+        let want = if (24..=32).contains(&off) {
+            0x1234_5678
+        } else {
+            0xA5A5_A5A5
+        };
         assert_eq!(dw(&buf, off), want, "dword at {off}");
+    }
+}
+
+#[test]
+fn overlapping_source_is_rejected_before_borrowing_or_writing() {
+    let spans = [0u32, 1];
+    let mut buf = [0xA5u8; 32];
+    let mut desc = [0u8; 32];
+    desc[16..20].copy_from_slice(&4u32.to_le_bytes());
+    let p = buf.as_mut_ptr();
+    for offset in [0, 4] {
+        let r = unsafe {
+            fc4_span8888_blt(
+                spans.as_ptr(),
+                1,
+                p,
+                16,
+                0,
+                16,
+                p.add(offset),
+                16,
+                0,
+                16,
+                4,
+                1,
+                desc.as_ptr(),
+                0,
+            )
+        };
+        assert_eq!(r, REJECTED);
+        assert_eq!(buf, [0xA5; 32]);
     }
 }
 
@@ -49,13 +84,40 @@ fn null_and_zero_count_are_bad_args() {
     let spans = [0u32, 1];
     let mut buf = vec![0u8; 16];
     unsafe {
-        assert_eq!(fc4_span8888_solid(spans.as_ptr(), 0, buf.as_mut_ptr(), 16, 0, 16, 1), BAD_ARGS);
-        assert_eq!(fc4_span8888_solid(std::ptr::null(), 1, buf.as_mut_ptr(), 16, 0, 16, 1), BAD_ARGS);
-        assert_eq!(fc4_span8888_solid(spans.as_ptr(), 1, std::ptr::null_mut(), 16, 0, 16, 1), BAD_ARGS);
-        assert_eq!(fc4_span8888_gradient(spans.as_ptr(), 1, buf.as_mut_ptr(), 16, 0, 16, std::ptr::null(), false), BAD_ARGS);
+        assert_eq!(
+            fc4_span8888_solid(spans.as_ptr(), 0, buf.as_mut_ptr(), 16, 0, 16, 1),
+            BAD_ARGS
+        );
+        assert_eq!(
+            fc4_span8888_solid(std::ptr::null(), 1, buf.as_mut_ptr(), 16, 0, 16, 1),
+            BAD_ARGS
+        );
+        assert_eq!(
+            fc4_span8888_solid(spans.as_ptr(), 1, std::ptr::null_mut(), 16, 0, 16, 1),
+            BAD_ARGS
+        );
+        assert_eq!(
+            fc4_span8888_gradient(spans.as_ptr(), 1, buf.as_mut_ptr(), 16, 0, 16, std::ptr::null(), false),
+            BAD_ARGS
+        );
         let desc = [0u8; 32];
         assert_eq!(
-            fc4_span8888_blt(spans.as_ptr(), 1, buf.as_mut_ptr(), 16, 0, 16, std::ptr::null(), 4, 0, 4, 1, 1, desc.as_ptr(), 0),
+            fc4_span8888_blt(
+                spans.as_ptr(),
+                1,
+                buf.as_mut_ptr(),
+                16,
+                0,
+                16,
+                std::ptr::null(),
+                4,
+                0,
+                4,
+                1,
+                1,
+                desc.as_ptr(),
+                0
+            ),
             BAD_ARGS
         );
     }
@@ -67,10 +129,16 @@ fn alpha_weights_full_and_zero() {
     // §4: A = 0xFF reproduces colour's RGB (w = 256); A = 0 keeps RGB, alpha byte 0xFF.
     let spans = [0u32, 1];
     let mut buf = 0x1234_5678u32.to_le_bytes().to_vec();
-    assert_eq!(unsafe { fc4_span8888_alpha(spans.as_ptr(), 1, buf.as_mut_ptr(), 4, 0, 4, 0x00FF_0000, 0xFF00_0000) }, OK);
+    assert_eq!(
+        unsafe { fc4_span8888_alpha(spans.as_ptr(), 1, buf.as_mut_ptr(), 4, 0, 4, 0x00FF_0000, 0xFF00_0000,) },
+        OK
+    );
     assert_eq!(dw(&buf, 0), 0xFFFF_0000);
     let mut buf = 0x1234_5678u32.to_le_bytes().to_vec();
-    assert_eq!(unsafe { fc4_span8888_alpha(spans.as_ptr(), 1, buf.as_mut_ptr(), 4, 0, 4, 0x00FF_0000, 0x00FF_FFFF) }, OK);
+    assert_eq!(
+        unsafe { fc4_span8888_alpha(spans.as_ptr(), 1, buf.as_mut_ptr(), 4, 0, 4, 0x00FF_0000, 0x00FF_FFFF,) },
+        OK
+    );
     assert_eq!(dw(&buf, 0), 0xFF34_5678);
 }
 
@@ -83,7 +151,18 @@ fn gradient_spec_example() {
     grad[4] = 0x0001_0000;
     grad[8] = 0x0002_0000;
     let mut buf = vec![0u8; 2 * 20];
-    let r = unsafe { fc4_span8888_gradient(spans.as_ptr(), 1, buf.as_mut_ptr(), buf.len(), 0, 20, grad.as_ptr(), false) };
+    let r = unsafe {
+        fc4_span8888_gradient(
+            spans.as_ptr(),
+            1,
+            buf.as_mut_ptr(),
+            buf.len(),
+            0,
+            20,
+            grad.as_ptr(),
+            false,
+        )
+    };
     assert_eq!(r, OK);
     assert_eq!(dw(&buf, 28), 0xFF00_0014);
     assert_eq!(dw(&buf, 32), 0xFF00_0015);
@@ -114,7 +193,22 @@ fn blt_copy_formats_and_key() {
     desc[16] = 3; // format 565
     let mut buf = vec![0u8; 8];
     let r = unsafe {
-        fc4_span8888_blt(spans.as_ptr(), 1, buf.as_mut_ptr(), 8, 0, 8, src.as_ptr(), 4, 0, 4, 2, 1, desc.as_ptr(), 0)
+        fc4_span8888_blt(
+            spans.as_ptr(),
+            1,
+            buf.as_mut_ptr(),
+            8,
+            0,
+            8,
+            src.as_ptr(),
+            4,
+            0,
+            4,
+            2,
+            1,
+            desc.as_ptr(),
+            0,
+        )
     };
     assert_eq!(r, OK);
     assert_eq!(dw(&buf, 0), 0xFFFF_0000);
@@ -124,7 +218,22 @@ fn blt_copy_formats_and_key() {
     desc[28] = 1;
     let mut buf = vec![0x77u8; 8];
     let r = unsafe {
-        fc4_span8888_blt(spans.as_ptr(), 1, buf.as_mut_ptr(), 8, 0, 8, src.as_ptr(), 4, 0, 4, 2, 1, desc.as_ptr(), 0)
+        fc4_span8888_blt(
+            spans.as_ptr(),
+            1,
+            buf.as_mut_ptr(),
+            8,
+            0,
+            8,
+            src.as_ptr(),
+            4,
+            0,
+            4,
+            2,
+            1,
+            desc.as_ptr(),
+            0,
+        )
     };
     assert_eq!(r, OK);
     assert_eq!(dw(&buf, 0), 0xFFFF_0000);
@@ -139,11 +248,65 @@ fn blt_bad_index_and_short_source_rejected() {
     desc[16] = 7; // format past the table (U2)
     let mut buf = vec![0x33u8; 8];
     unsafe {
-        assert_eq!(fc4_span8888_blt(spans.as_ptr(), 1, buf.as_mut_ptr(), 8, 0, 8, src.as_ptr(), 8, 0, 8, 2, 1, desc.as_ptr(), 0), REJECTED);
+        assert_eq!(
+            fc4_span8888_blt(
+                spans.as_ptr(),
+                1,
+                buf.as_mut_ptr(),
+                8,
+                0,
+                8,
+                src.as_ptr(),
+                8,
+                0,
+                8,
+                2,
+                1,
+                desc.as_ptr(),
+                0
+            ),
+            REJECTED
+        );
         desc[16] = 4;
-        assert_eq!(fc4_span8888_blt(spans.as_ptr(), 1, buf.as_mut_ptr(), 8, 0, 8, src.as_ptr(), 8, 0, 8, 2, 1, desc.as_ptr(), 12), REJECTED);
+        assert_eq!(
+            fc4_span8888_blt(
+                spans.as_ptr(),
+                1,
+                buf.as_mut_ptr(),
+                8,
+                0,
+                8,
+                src.as_ptr(),
+                8,
+                0,
+                8,
+                2,
+                1,
+                desc.as_ptr(),
+                12
+            ),
+            REJECTED
+        );
         // A8R8G8B8 needs 8 bytes for 2 texels; give 7.
-        assert_eq!(fc4_span8888_blt(spans.as_ptr(), 1, buf.as_mut_ptr(), 8, 0, 8, src.as_ptr(), 7, 0, 8, 2, 1, desc.as_ptr(), 0), REJECTED);
+        assert_eq!(
+            fc4_span8888_blt(
+                spans.as_ptr(),
+                1,
+                buf.as_mut_ptr(),
+                8,
+                0,
+                8,
+                src.as_ptr(),
+                7,
+                0,
+                8,
+                2,
+                1,
+                desc.as_ptr(),
+                0
+            ),
+            REJECTED
+        );
     }
     assert!(buf.iter().all(|&b| b == 0x33));
 }

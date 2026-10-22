@@ -544,6 +544,8 @@ const Subsystem kSubsystems[] = {
     // the glue-span1555-impl4 lane: no class is replaced; the key installs the cSpanRender1555
     // vtable forwarders (FC4Span1555Shadow.h)
     {"span1555", nullptr, nullptr, 0, false},
+    // cSpanRender8888 native bridge; opt-in until SR8888-6 has shipped producer evidence.
+    {"span8888", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

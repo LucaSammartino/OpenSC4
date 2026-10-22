@@ -87,7 +87,13 @@ pub unsafe extern "C" fn fc4_span8888_alpha(
     alpha: u32,
 ) -> i32 {
     match (spans_of(spans, count), dst_of(dst, dst_len)) {
-        (Some(s), Some(buf)) => status(sr::render_alpha(&s, buf, Surface { base: origin, stride }, colour, alpha)),
+        (Some(s), Some(buf)) => status(sr::render_alpha(
+            &s,
+            buf,
+            Surface { base: origin, stride },
+            colour,
+            alpha,
+        )),
         _ => BAD_ARGS,
     }
 }
@@ -158,6 +164,19 @@ pub unsafe extern "C" fn fc4_span8888_blt(
     if src.is_null() || src_len == 0 || desc.is_null() {
         return BAD_ARGS;
     }
+    // Split memory requires disjoint slices. Native self-blits keep their
+    // original ordering via the plugin fallback; never create aliased Rust references.
+    let dst_start = dst as usize;
+    let src_start = src as usize;
+    let Some(dst_end) = dst_start.checked_add(dst_len) else {
+        return BAD_ARGS;
+    };
+    let Some(src_end) = src_start.checked_add(src_len) else {
+        return BAD_ARGS;
+    };
+    if dst_start < src_end && src_start < dst_end {
+        return REJECTED;
+    }
     let mut d = [0u8; 32];
     d.copy_from_slice(std::slice::from_raw_parts(desc, 32));
     let bd = BltDesc::from_bytes(&d);
@@ -173,7 +192,14 @@ pub unsafe extern "C" fn fc4_span8888_blt(
                 dst: buf,
                 src: std::slice::from_raw_parts(src, src_len),
             };
-            status(sr::render_blt(&s, &mut mem, Surface { base: origin, stride }, img, &bd, mode))
+            status(sr::render_blt(
+                &s,
+                &mut mem,
+                Surface { base: origin, stride },
+                img,
+                &bd,
+                mode,
+            ))
         }
         _ => BAD_ARGS,
     }

@@ -20,8 +20,8 @@
 //   call is active on the calling thread; "shipped" = from those sites at any
 //   other time; "constructed (direct)" = a fixture calling an entry itself;
 //   "other" = none of these.
-// - The fixture (once, at the first city load, when span1555 and/or span4444 is
-//   on): real cGZBuffer destinations (types 4, 6, 7) and textures through GZCOM,
+// - The fixture (once, at the first city load, when a supported span bridge is
+//   on): real cGZBuffer destinations (types 4, 6, 7, 8, 9) and textures through GZCOM,
 //   the draw system's own RenderToBuffer context, slot 22 with the original
 //   renderer entries and again with ours, full arenas (padding included)
 //   compared byte for byte; Lock / Unlock / Shutdown / Release audited.
@@ -32,7 +32,7 @@
 
 namespace fc4 {
 
-enum SpanRendererId : unsigned { kSpanR1555 = 0, kSpanR4444 = 1, kSpanRendererCount = 2 };
+enum SpanRendererId : unsigned { kSpanR1555 = 0, kSpanR4444 = 1, kSpanR8888 = 2, kSpanRendererCount = 3 };
 
 // From a bridge forwarder: slot 1-5, the forwarder's return address, and
 // whether that bridge's own constructed fixture is making a direct call.

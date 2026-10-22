@@ -154,20 +154,35 @@ void Bridge(Slot s, uintptr_t ret, void* self, const uint32_t* spans, uint32_t c
     g.calls[s].fetch_add(1, std::memory_order_relaxed);
     SpanNoteCall(kSpanR8888, s + 1, ret, false);  // this module's fixture never calls through the vtable
     Region r;
-    const bool bridged = RegionOf(spans, count, buffer, &r) && (s != kBlt || (rectB != nullptr && src != nullptr));
+    bool bridged = RegionOf(spans, count, buffer, &r) && (s != kBlt || (rectB != nullptr && src != nullptr));
+    if (bridged && s == kBlt) {
+        const uint8_t* source = nullptr;
+        size_t length = 0;
+        bridged = SourceOf(rectB, &source, &length);
+        if (bridged) {
+            // Self-blits must read live memory in native order (SR8888-1).
+            // Refuse before either shadow render; a copied destination would lose that alias.
+            const uint64_t d = reinterpret_cast<uintptr_t>(r.lo), p = reinterpret_cast<uintptr_t>(source);
+            bridged = d + r.len <= p || p + length <= d;
+        }
+    }
     const int32_t stride = bridged ? static_cast<int32_t>(buffer[1]) : 0;
     if (!bridged) {
-        g.fallback[s].fetch_add(1, std::memory_order_relaxed);
+        if (g.fallback[s].fetch_add(1, std::memory_order_relaxed) < 8)
+            Log("span8888: refused %s native memory window (invalid/overlapping source or unsupported region), count=%u",
+                kSlotName[s], count);
         SpanNoteRefused(kSpanR8888);
         Original(s, self, spans, count, buffer, a, b, rectB, src, mode);
         return;
     }
     // The context fixture (FC4SpanContext.cpp) needs ours' pixels even under span8888_shadow.
     if (!g.shadow || SpanContextFixtureThread()) {
-        if (Ours(s, spans, count, r.lo, r, stride, a, b, rectB, src, mode) == 0) {
+        const int32_t status = Ours(s, spans, count, r.lo, r, stride, a, b, rectB, src, mode);
+        if (status == 0) {
             g.ours[s].fetch_add(1, std::memory_order_relaxed);
         } else {
-            g.fallback[s].fetch_add(1, std::memory_order_relaxed);
+            if (g.fallback[s].fetch_add(1, std::memory_order_relaxed) < 8)
+                Log("span8888: refused %s core status=%d count=%u mode=%u", kSlotName[s], status, count, mode);
             SpanNoteRefused(kSpanR8888);
             Original(s, self, spans, count, buffer, a, b, rectB, src, mode);
         }
@@ -175,8 +190,11 @@ void Bridge(Slot s, uintptr_t ret, void* self, const uint32_t* spans, uint32_t c
     }
     std::vector<uint8_t> copy(r.lo, r.lo + r.len);
     Original(s, self, spans, count, buffer, a, b, rectB, src, mode);
-    if (Ours(s, spans, count, copy.data(), r, stride, a, b, rectB, src, mode) != 0) {
-        g.fallback[s].fetch_add(1, std::memory_order_relaxed);
+    const int32_t status = Ours(s, spans, count, copy.data(), r, stride, a, b, rectB, src, mode);
+    if (status != 0) {
+        if (g.fallback[s].fetch_add(1, std::memory_order_relaxed) < 8)
+            Log("span8888: shadow refused %s core status=%d count=%u mode=%u", kSlotName[s], status, count, mode);
+        SpanNoteRefused(kSpanR8888);
         return;
     }
     g.compared[s].fetch_add(1, std::memory_order_relaxed);
@@ -260,7 +278,7 @@ struct Fixture {
     }
     uint8_t dstInit[kH * kStride];
     uint8_t src[kSrcH * kSrcStride];
-    uint64_t cases = 0, pixels = 0, diffs = 0, rejected = 0, faults = 0;
+    uint64_t cases = 0, pixels = 0, diffs = 0, rejected = 0, faults = 0, guardFailures = 0;
     uint64_t slotCases[kSlots] = {}, slotDiffs[kSlots] = {};
 };
 
@@ -278,16 +296,18 @@ void CallOriginalGuarded(void* ctx) {
 }
 
 void RunCase(Fixture& f, Slot s, uint32_t a, uint32_t b, const uint32_t* rectB, const uint8_t* src, uint32_t mode) {
-    uint8_t native[sizeof(f.dstInit)], ours[sizeof(f.dstInit)];
-    std::memcpy(native, f.dstInit, sizeof(native));
-    std::memcpy(ours, f.dstInit, sizeof(ours));
-    uint32_t desc[6] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(native)), uint32_t(kStride), kW, kH, 0, 0};
+    constexpr size_t guard = 32;
+    uint8_t native[sizeof(f.dstInit) + 2 * guard], ours[sizeof(native)];
+    std::memset(native, 0xA5, sizeof(native));
+    std::memcpy(native + guard, f.dstInit, sizeof(f.dstInit));
+    std::memcpy(ours, native, sizeof(ours));
+    uint32_t desc[6] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(native + guard)), uint32_t(kStride), kW, kH, 0, 0};
     ++f.cases;
     ++f.slotCases[s];
     Region r;
     r.lo = ours;
     r.len = sizeof(ours);
-    r.origin = 0;
+    r.origin = guard;
     if (Ours(s, kSpans, kSpanCount, ours, r, kStride, a, b, rectB, src, mode) != 0) {
         ++f.rejected;
         return;
@@ -299,6 +319,16 @@ void RunCase(Fixture& f, Slot s, uint32_t a, uint32_t b, const uint32_t* rectB, 
     }
     uint64_t px = 0;
     int first = -1;
+    for (size_t i = 0; i < sizeof(native); ++i) {
+        bool touched = false;
+        for (uint32_t j = 0; j < kSpanCount; ++j) {
+            const uint32_t start = kSpans[2 * j];
+            const size_t off = guard + (start >> 16) * kStride + (start & 0xFFFFu) * 4;
+            touched |= i >= off && i < off + (kSpans[2 * j + 1] - start) * 4;
+        }
+        const uint8_t initial = i >= guard && i < guard + sizeof(f.dstInit) ? f.dstInit[i - guard] : 0xA5;
+        if (!touched && (native[i] != initial || ours[i] != initial)) ++f.guardFailures;
+    }
     for (int i = 0; i < int(sizeof(native)); i += 4) {
         if (std::memcmp(native + i, ours + i, 4) != 0) {
             ++px;
@@ -324,9 +354,9 @@ void RunFixture() {
     static Fixture f;  // ~17 KB
     for (auto& v : f.dstInit) v = uint8_t(f.Next() >> 24);
     for (auto& v : f.src) v = uint8_t(f.Next() >> 24);
-    // Slot 1 (§3): 8888 colours, alpha nibble included, high word ignored.
+    // Slot 1 (§3): all 32 colour bits, including alpha, are copied.
     for (uint32_t c : {0x1234ABCDu, 0x0000F00Fu, 0xFFFF0000u}) RunCase(f, kSolid, c, 0, nullptr, nullptr, 0);
-    // Slot 3 (§4): alpha byte in bits 24-31, weights 0..16.
+    // Slot 3 (§4): alpha byte in bits 24-31, weight A + (A >> 7).
     for (uint32_t al : {0x00000000u, 0x07FFFFFFu, 0x08000000u, 0x80000000u, 0x3A000000u, 0xF8000000u, 0xFFFFFFFFu})
         for (uint32_t c : {0x0F84u, 0x7C3Eu, 0xFFFFu}) RunCase(f, kAlpha, c, al, nullptr, nullptr, 0);
     // Slots 2 and 4 (§5, §6): 8.16 ramps B, G, R, A; in range, and one where R leaves 0..255 (U2).
@@ -350,8 +380,13 @@ void RunFixture() {
             uint8_t desc[32] = {};
             const uint32_t d[7] = {0x00028000, 0x00010000, 0x00008000, 0x0000C000, format, 0x80C0A040u, 0};
             std::memcpy(desc, d, sizeof(d));
-            // The key: the texel at (2, 1), 4 bytes read, so 16-bit and 8-bit formats match it too.
-            std::memcpy(desc + 0x18, f.src + 1 * kSrcStride + 2 * 4, 4);
+            // Match a sampled texel for each format, with the caller's published key mask.
+            const unsigned bpp = format < 4 ? 2 : format < 6 ? 4 : 1;
+            const uint32_t masks[] = {0xFFFu, 0x7FFFu, 0x7FFFu, 0xFFFFu, 0xFFFFFFu, 0xFFFFFFu, 0u};
+            uint32_t key = 0;
+            std::memcpy(&key, f.src + kSrcStride + 2 * bpp, bpp);
+            key &= masks[format];
+            std::memcpy(desc + 0x18, &key, sizeof(key));
             desc[0x1C] = uint8_t(keyed);
             for (uint32_t mode = 0; mode < 12; ++mode) RunCase(f, kBlt, 0, 0, rectB, desc, mode);
         }
@@ -360,10 +395,10 @@ void RunFixture() {
         Log("span8888 fixture [constructed direct, not a game path]: slot %u %s cases=%llu differing=%llu", s + 1,
             kSlotName[s], (unsigned long long)f.slotCases[s], (unsigned long long)f.slotDiffs[s]);
     Log("span8888 fixture [constructed direct, not a game path]: TOTAL cases=%llu pixels=%llu differing_cases=%llu "
-        "rejected_by_core=%llu faults=%llu -> %s",
+        "rejected_by_core=%llu faults=%llu untouched_corruptions=%llu -> %s",
         (unsigned long long)f.cases, (unsigned long long)f.pixels, (unsigned long long)f.diffs,
-        (unsigned long long)f.rejected, (unsigned long long)f.faults,
-        f.diffs == 0 && f.faults == 0 && f.rejected == 0 ? "EXACT" : "NOT exact");
+        (unsigned long long)f.rejected, (unsigned long long)f.faults, (unsigned long long)f.guardFailures,
+        f.diffs == 0 && f.faults == 0 && f.rejected == 0 && f.guardFailures == 0 ? "EXACT" : "NOT exact");
 }
 
 }  // namespace
@@ -372,9 +407,13 @@ void SpanRender8888Start() {
     if (!Enabled()) return;
     void** vt = nullptr;
     uintptr_t fn[kSlots] = {};
-    if (!compat::SpanRender8888Entries(&vt, fn)) {
-        Log("span8888: bridge NOT installed (vtable unavailable)");
-        return;
+    for (unsigned i = 0; i < kSlots; ++i) {
+        void** entry = nullptr;
+        if (!compat::Span8888SlotEntry(i + 1, &entry, &fn[i])) {
+            Log("span8888: bridge NOT installed (vtable unavailable)");
+            return;
+        }
+        if (i == 0) vt = entry - 1;
     }
     for (unsigned i = 0; i < kSlots; ++i) {
         const uintptr_t found = reinterpret_cast<uintptr_t>(vt[1 + i]);
