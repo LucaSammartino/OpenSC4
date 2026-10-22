@@ -596,6 +596,7 @@ fn cell_zoom_reload_precedes_translucent_pass_gate_but_highlight_skips_it() {
     let draw = model.draw(ctx, &mut factory).unwrap().unwrap();
     assert_eq!(draw.mode, CellMode::Alpha);
     assert_eq!(draw.state, DrawState::ALPHA);
+    assert!(draw.state.depth_write);
     assert!(matches!(draw.geometry, CellGeometryDraw::FlatStrip { .. }));
     assert!(draw.clamp && draw.combiner.is_none() && draw.filter.is_none());
 }
@@ -647,6 +648,7 @@ fn cell_tinted_no_add_signed_halves_alpha_only_for_mode_three() {
     let draw = model.draw(ctx, &mut factory).unwrap().unwrap();
     assert_eq!(draw.filter, Some(TextureFilter::Linear));
     assert_eq!(draw.state, DrawState::TINTED);
+    assert!(!draw.state.depth_write);
     assert_eq!(draw.combiner.unwrap().environment.alpha, 0.5);
 }
 
@@ -656,9 +658,7 @@ fn draw_states_keep_depth_and_alpha_contracts_distinct() {
     assert_eq!(DrawState::OPAQUE.alpha_test, AlphaTest::Disabled);
     assert_eq!(DrawState::ALPHA.alpha_test, AlphaTest::GreaterThanZero);
     assert_eq!(DrawState::ALPHA.blend, Blend::SourceAlphaOneMinusSourceAlpha);
-    assert!(DrawState::ALPHA.depth_write);
     assert_eq!(DrawState::TINTED.depth_test, DepthTest::Less);
-    assert!(!DrawState::TINTED.depth_write);
     for state in [DrawState::OPAQUE, DrawState::ALPHA, DrawState::TINTED] {
         assert!(state.colour_write && !state.cull);
         assert_eq!(state.texture_count, 1);

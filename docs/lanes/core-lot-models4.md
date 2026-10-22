@@ -14,7 +14,10 @@
 - Final-source quick PASS: core + conformance 3649/0, dependents compiled, native 4/4 edges (148.4 s), no tree-change warning.
 - Fmt: new seven Rust files PASS. Three additive registry/dispatcher edits retain existing ordering/layout; their check reports 172 diff lines. No mass reformat.
 - q.py cannot launch Bash in this sandbox (E_ACCESSDENIED); use capped native PowerShell for other commands. qbuild works normally.
-- Next: source frozen after this milestone; run python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:/Users/tlori/FreeCity4/.claude/worktrees/core-lot-models4 all once, then report/queue wip because public contract gaps prevent complete-owner credit.
+- Public vectors/final-source focused gate committed e3a01615.
+- First frozen all: workspace 4326/0, native build PASS, ctest 67/67 (78.0 s); clippy failed on two constant boolean assertions in new tests.
+- Fix: check depth-write on actual returned alpha/tinted draw states instead; no implementation behavior change.
+- Next: rerun all on this corrected frozen source (the lint failure justifies the repeat), then report/queue wip because public contract gaps prevent complete-owner credit.
 - No ABI/CAPI/plugin/maps changes, no game requests needed for core-only work.
 - Task-specific checks override generic baseline instruction: focused quick checks, then one frozen-source full gate.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-lot-models4-r1-manifest.json.
