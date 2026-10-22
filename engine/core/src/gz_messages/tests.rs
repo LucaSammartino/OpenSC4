@@ -920,6 +920,24 @@ fn snapshot_addref_can_defer_and_nested_send_applies_pending() {
 }
 
 #[test]
+fn wildcard_lookup_follows_typed_snapshot_addrefs_and_nested_pending_apply() {
+    let _serial = serial();
+    let mut s = MessageServer2::new();
+    let mut h = Host::default();
+    h.msg(1, 5);
+    s.add_notification(&mut h, A, 5);
+    s.add_notification(&mut h, W, 0);
+    // Both lists already exist. Nested apply appends only to the wildcard
+    // list; the enclosing typed-list iterator remains valid throughout.
+    h.on_add.insert(A, vec![Act::Add(B, 0), Act::Send(1)]);
+    s.message_send(&mut h, 1);
+    assert_eq!(h.log, vec![(A, 1), (W, 1), (B, 1), (A, 1), (W, 1), (B, 1)]);
+    assert_eq!((h.r(A), h.r(W), h.r(B)), (1, 1, 1));
+    s.destroy(&mut h);
+    assert!(h.all_zero());
+}
+
+#[test]
 fn directed_equal_local_pointer_suppresses_redundant_assign_reference_calls() {
     let mut s = MessageServer2::new();
     let mut h = Host::default();

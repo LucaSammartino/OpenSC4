@@ -11,7 +11,9 @@
 - Done: 7feda760 published vector/boundary tests; quick PASS cargo core 2720/0 plus dependent compile/native build (tree changed during run).
 - Done: follow-up audit corrected void directed slots, append temporary pair trace, embedded post-queue signal destruction; added prefix/suffix reference-order and generation-1 quota/raw-removal tests.
 - Questions: GZ8-GZ10 appended for unspecified cleanup/base forwarding and absent complete 166-body inventory; whole-owner completion remains withheld.
-- Next: quick session 94231 (before final append-trace test), then stable full gate and final report/checklist; do not edit engine sources during final gate.
+- Done: stable qbuild all at 8cc85506 PASS cargo4661/0, clippy0, ctest68/68; fmt7 PASS. Superseded by the final safe nested-send wildcard-order regression below.
+- Done: final contract audit requires wildcard lookup AFTER typed snapshot AddRefs; added deterministic nested-apply-to-separate-wildcard-list regression and corrected lookup order.
+- Next: final qbuild all on this correction, then report/checklist and queue; no engine edits during the gate.
 - Round accounting: parent logical1/3 plus this completion phase1/2 = logical2/3, one completion round potentially remains; no selfrestart/fourth round.
 - No plugin/CAPI/CMake/ABI changes; no game request outstanding; core-only task.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-gz-messages-complete4-r1-manifest.json.
@@ -85,7 +87,7 @@ This is logical round 2/3 (parent round 1/3 plus completion phase 1/2). All four
 | `0092EA00` directed post (void) | `post_directed` | M temporary/copy/destroy reference trace |
 | `0092E642` cancel (void) | `cancel_directed` | M V10/V11, forward pair assignment; native UB excluded |
 | `0092E040` tick | `on_tick` | M worked example in both modes, V12/V13 |
-| `00473038` service tick thunk | host delegates to same tick | H no native pointer wiring |
+| `00473000` service tick thunk | host delegates to same tick | H no native pointer wiring |
 | `0092D0F4` posted count | `posted_count` | M distinct from ref/taken counts |
 | `0092D11F` drain flag | `set_drain_all` | M default true and bounded draining |
 | `0092D0B3` slot-12 getter | `ref_count` | M V01 shared unsigned dword |

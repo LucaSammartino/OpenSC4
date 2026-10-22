@@ -148,9 +148,18 @@ impl MessageServer2 {
         registry::apply_pending(self, host);
         self.registry.depth = self.registry.depth.wrapping_add(1);
         let ty = host.message_type_in_server(self, msg);
-        let targets = self.registry.snapshot(ty, true);
+        let mut targets = self.registry.snapshot(ty, false);
         for &t in &targets {
             Server2Host::add_ref_target(host, self, t);
+        }
+        // Section 4.3 copies the typed list before looking up wildcard 0.
+        // A typed target's AddRef can enter a nested send which applies work
+        // to the separate wildcard list without invalidating this traversal.
+        if ty != 0 {
+            for t in self.registry.targets(0).to_vec() {
+                Server2Host::add_ref_target(host, self, t);
+                targets.push(t);
+            }
         }
         self.registry.depth = self.registry.depth.wrapping_sub(1);
         for &t in &targets {
